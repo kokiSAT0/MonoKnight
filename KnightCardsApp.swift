@@ -7,8 +7,8 @@ struct KnightCardsApp: App {
     var body: some Scene {
         WindowGroup {
             // MARK: 起動直後に表示するルートビュー
-            // 実際のゲーム画面である `GameView` を表示
-            GameView()
+            // TabView でゲームと設定を切り替える `RootView` を表示
+            RootView()
         }
     }
 }
