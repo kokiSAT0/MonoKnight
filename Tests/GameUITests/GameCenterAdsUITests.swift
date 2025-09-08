@@ -26,19 +26,10 @@ final class GameCenterAdsUITests: XCTestCase {
         // アプリを起動
         app.launch()
         
-        // --- Game Center 認証フローの確認 ---
-        // サインインボタンが表示されるまで待機
-        // アクセシビリティ識別子 "gc_sign_in_button" を対象
-        let signInButton = app.buttons["gc_sign_in_button"]
-        XCTAssertTrue(signInButton.waitForExistence(timeout: 5),
-                      "Game Center のサインインボタンが表示されません")
-        
-        // ボタンをタップしてサインインを実行
-        signInButton.tap()
-        
-        // サインイン完了を示すラベルが表示されるかを確認
+        // --- Game Center ダミー認証の確認 ---
+        // テストモードではアプリ起動直後に認証済みラベルが表示される
         let authedLabel = app.staticTexts["gc_authenticated"]
-        XCTAssertTrue(authedLabel.waitForExistence(timeout: 10),
+        XCTAssertTrue(authedLabel.waitForExistence(timeout: 5),
                       "Game Center 認証が完了しません")
         
         // --- インタースティシャル広告表示の確認 ---

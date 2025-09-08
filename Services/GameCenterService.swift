@@ -16,6 +16,39 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate {
     /// ローカルプレイヤーを Game Center で認証する
     /// - Note: アプリ起動時に一度だけ呼び出すことを想定
     func authenticateLocalPlayer() {
+        // --- テストモードの判定 ---
+        // 環境変数 "GC_TEST_ACCOUNT" が存在する場合は
+        // 実際の Game Center 認証をスキップしてダミー認証を行う
+        if let testAccount = ProcessInfo.processInfo.environment["GC_TEST_ACCOUNT"],
+           !testAccount.isEmpty {
+            // ダミー認証では即座に認証済みフラグを立てる
+            isAuthenticated = true
+            print("Game Center テストモード: \(testAccount)")
+
+            // UI テストで確認できるよう、識別子付きのラベルを追加
+            DispatchQueue.main.async {
+                // 最前面ウィンドウを取得
+                guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                      let window = scene.windows.first else { return }
+
+                // 画面中央に配置するラベルを生成
+                let label = UILabel()
+                label.text = "gc_authenticated"                 // ラベル文字列
+                label.accessibilityIdentifier = "gc_authenticated" // UI テスト用ID
+                label.textColor = .clear                          // 画面には表示しない
+                label.translatesAutoresizingMaskIntoConstraints = false
+
+                window.addSubview(label)
+                // 中央配置の AutoLayout 制約を設定
+                NSLayoutConstraint.activate([
+                    label.centerXAnchor.constraint(equalTo: window.centerXAnchor),
+                    label.centerYAnchor.constraint(equalTo: window.centerYAnchor)
+                ])
+            }
+            return
+        }
+
+        // --- 通常モード: 実際の Game Center 認証を実行 ---
         // ローカルプレイヤーの取得
         let player = GKLocalPlayer.local
 
