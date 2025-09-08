@@ -7,10 +7,30 @@ import UserMessagingPlatform
 struct SettingsView: View {
     /// 課金処理を扱う `StoreService` を参照
     @StateObject private var store = StoreService.shared
+    /// BGM を再生するかどうかの設定値
+    @AppStorage("bgm_enabled") private var bgmEnabled: Bool = true
+    /// 効果音を再生するかどうかの設定値
+    @AppStorage("se_enabled") private var seEnabled: Bool = true
+    /// ハプティクスを有効にするかどうかの設定値
+    @AppStorage("haptics_enabled") private var hapticsEnabled: Bool = true
 
     var body: some View {
         NavigationStack {
             List {
+                // MARK: - サウンド設定セクション
+                Section("サウンド") {
+                    // BGM のオン・オフを切り替えるトグル
+                    Toggle("BGMを再生", isOn: $bgmEnabled)
+                    // 効果音のオン・オフを切り替えるトグル
+                    Toggle("効果音を再生", isOn: $seEnabled)
+                }
+
+                // MARK: - フィードバック設定セクション
+                Section("操作フィードバック") {
+                    // ハプティクスのオン・オフを切り替えるトグル
+                    Toggle("ハプティクスを有効にする", isOn: $hapticsEnabled)
+                }
+
                 // MARK: - 課金関連セクション
                 Section("課金") {
                     // 広告除去を購入するボタン
@@ -58,6 +78,12 @@ struct SettingsView: View {
                         Text("プライバシー設定")
                             .frame(maxWidth: .infinity, alignment: .center)
                     }
+                }
+
+                // MARK: - 開発者連絡先セクション
+                Section("お問い合わせ") {
+                    // メールアプリを起動して開発者へ問い合わせるリンク
+                    Link("メールで問い合わせ", destination: URL(string: "mailto:developer@example.com")!)
                 }
             }
             // 画面タイトルをナビゲーションバーに表示

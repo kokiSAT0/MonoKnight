@@ -19,6 +19,8 @@ struct GameView: View {
     private let gameCenterService: GameCenterServiceProtocol
     /// 広告表示を扱うサービス（プロトコル型で受け取る）
     private let adsService: AdsServiceProtocol
+    /// ハプティクスを有効にするかどうかの設定値
+    @AppStorage("haptics_enabled") private var hapticsEnabled: Bool = true
 
     /// 初期化で GameCore と GameScene を連結する
     /// 依存するサービスを外部から注入できるようにする初期化処理
@@ -75,16 +77,19 @@ struct GameView: View {
                                     // 盤外に出るカードは薄く表示し、タップを無効化
                                     .opacity(isCardUsable(card) ? 1.0 : 0.4)
                                     .onTapGesture {
-                                        // ハプティクス生成器を都度生成
-                                        let generator = UINotificationFeedbackGenerator()
                                         // 列挙型 MoveCard の使用可否を判定
                                         if isCardUsable(card) {
-                                            // 使用可能 ⇒ ゲーム状態を更新し、成功フィードバックを発火
+                                            // 使用可能 ⇒ ゲーム状態を更新
                                             core.playCard(at: index)
-                                            generator.notificationOccurred(.success)
+                                            // 設定で許可されていれば成功ハプティクスを発火
+                                            if hapticsEnabled {
+                                                UINotificationFeedbackGenerator().notificationOccurred(.success)
+                                            }
                                         } else {
-                                            // 使用不可 ⇒ 警告フィードバックのみを発火
-                                            generator.notificationOccurred(.warning)
+                                            // 使用不可の場合、警告ハプティクスのみ発火
+                                            if hapticsEnabled {
+                                                UINotificationFeedbackGenerator().notificationOccurred(.warning)
+                                            }
                                         }
                                     }
                             }
