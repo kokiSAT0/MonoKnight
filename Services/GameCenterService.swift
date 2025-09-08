@@ -18,10 +18,24 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate {
     ///   - completion: 認証結果を受け取るクロージャ（省略可能）
     /// - Note: UI から呼び出し、完了後に状態を更新する想定
     func authenticateLocalPlayer(completion: ((Bool) -> Void)? = nil) {
+        // --- テストモード判定 ---
+        // 環境変数 "GC_TEST_ACCOUNT" に値が入っている場合は
+        // ダミー認証を行い、GameKit の UI を全てスキップする
+        if let testAccount = ProcessInfo.processInfo.environment["GC_TEST_ACCOUNT"],
+           !testAccount.isEmpty {
+            // テスト用ダミー認証: 即座に認証済みフラグを立てる
+            // 実際の Game Center には接続しない
+            isAuthenticated = true
+            print("GC_TEST_ACCOUNT=\(testAccount) によるダミー認証を実行")
+            completion?(true) // 呼び出し元へ成功を通知して終了
+            return
+        }
+
+        // --- 通常モードの認証フロー ---
         // ローカルプレイヤーの取得
         let player = GKLocalPlayer.local
 
-        // 認証ハンドラを設定
+        // GameKit が提供する認証ハンドラを設定
         player.authenticateHandler = { [weak self] vc, error in
             // 認証のための ViewController が渡された場合は表示を行う
             if let vc {
@@ -34,7 +48,7 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate {
 
             // 認証結果を判定
             if player.isAuthenticated {
-                // 認証成功
+                // 認証成功: フラグを更新しログ出力
                 self?.isAuthenticated = true
                 print("Game Center 認証成功")
                 completion?(true) // 呼び出し元へ成功を通知
