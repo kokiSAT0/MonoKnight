@@ -7,6 +7,10 @@ import UserMessagingPlatform
 struct SettingsView: View {
     /// 課金処理を扱う `StoreService` を参照
     @StateObject private var store = StoreService.shared
+    /// プライバシー設定フォーム表示時のエラー文言
+    @State private var privacyErrorMessage: String = ""
+    /// プライバシー設定フォームでエラーが起きたかどうか
+    @State private var showPrivacyError: Bool = false
     /// BGM を再生するかどうかの設定値
     @AppStorage("bgm_enabled") private var bgmEnabled: Bool = true
     /// 効果音を再生するかどうかの設定値
@@ -66,11 +70,14 @@ struct SettingsView: View {
                             // 取得したコントローラからプライバシー設定フォームを表示
                             UMPConsentForm.presentPrivacyOptionsForm(from: root) { error in
                                 if let error {
-                                    // フォーム表示に失敗した場合の処理
-                                    // TODO: ユーザーへのエラー表示などを実装
+                                    // エラー内容を保持しアラートを表示する
+                                    privacyErrorMessage = error.localizedDescription
+                                    showPrivacyError = true
                                 } else {
-                                    // フォーム表示に成功した場合の処理
-                                    // TODO: 必要に応じて同意状況の再評価を実装
+                                    // フォーム閉鎖後に同意状況を再取得し広告設定を更新
+                                    Task {
+                                        await AdsService.shared.refreshConsentStatus()
+                                    }
                                 }
                             }
                         }
@@ -88,6 +95,12 @@ struct SettingsView: View {
             }
             // 画面タイトルをナビゲーションバーに表示
             .navigationTitle("設定")
+            // プライバシー設定フォーム表示失敗時のアラート
+            .alert("エラー", isPresented: $showPrivacyError) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(privacyErrorMessage)
+            }
         }
     }
 }

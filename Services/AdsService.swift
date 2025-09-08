@@ -18,6 +18,8 @@ protocol AdsServiceProtocol: AnyObject {
     func requestTrackingAuthorization() async
     /// UMP 同意フォームを必要に応じて表示し、広告設定を更新する
     func requestConsentIfNeeded() async
+    /// プライバシー設定変更後の同意状況を再取得し広告設定を更新する
+    func refreshConsentStatus() async
 }
 
 /// インタースティシャル広告を管理するサービス
@@ -129,6 +131,45 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol {
         // 同意取得後に広告を読み込む
         if !removeAds {
             loadInterstitial()
+        }
+    }
+
+    /// プライバシー設定変更後に同意状況を再取得し、広告を更新する
+    /// - Note: SettingsView から呼び出され、ユーザーの選択内容を反映する
+    func refreshConsentStatus() async {
+        let parameters = UMPRequestParameters()
+        // 13 歳未満ではないので false
+        parameters.tagForUnderAgeOfConsent = false
+
+        let consentInfo = UMPConsentInformation.sharedInstance
+        do {
+            // 最新の同意情報を取得
+            try await withCheckedThrowingContinuation { continuation in
+                consentInfo.requestConsentInfoUpdate(with: parameters) { error in
+                    if let error {
+                        continuation.resume(throwing: error)
+                    } else {
+                        continuation.resume()
+                    }
+                }
+            }
+        } catch {
+            // 取得に失敗した場合は非パーソナライズ扱いとし、既存広告を破棄
+            print("同意情報の再取得に失敗: \(error.localizedDescription)")
+            isPersonalized = false
+            interstitial = nil
+            return
+        }
+
+        // 取得した同意状況を反映
+        isPersonalized = (consentInfo.consentStatus == .obtained)
+
+        // 既存広告を破棄し、必要なら新たに読み込み直す
+        if !removeAds {
+            interstitial = nil
+            loadInterstitial()
+        } else {
+            interstitial = nil
         }
     }
 
