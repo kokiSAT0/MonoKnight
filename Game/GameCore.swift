@@ -46,6 +46,8 @@ final class GameCore: ObservableObject {
         checkDeadlockAndApplyPenaltyIfNeeded()
         // 初期状態の残り踏破数を読み上げ
         announceRemainingTiles()
+        // デバッグ: 初期盤面を表示して状態を確認
+        board.debugDump(current: current)
     }
 
     /// 指定インデックスのカードで駒を移動させる
@@ -87,11 +89,16 @@ final class GameCore: ObservableObject {
         // クリア判定
         if board.isCleared {
             progress = .cleared
+            // デバッグ: クリア時の盤面を表示
+            board.debugDump(current: current)
             return
         }
 
         // 手詰まりチェック（全カード盤外ならペナルティ）
         checkDeadlockAndApplyPenaltyIfNeeded()
+
+        // デバッグ: 現在の盤面を表示
+        board.debugDump(current: current)
     }
 
     /// 手札がすべて盤外となる場合にペナルティを課し、手札を引き直す
@@ -117,6 +124,8 @@ final class GameCore: ObservableObject {
 
         // デバッグログ: 引き直し後の手札を表示
         debugLog("引き直し後の手札: \(hand)")
+        // デバッグ: 引き直し後の盤面を表示
+        board.debugDump(current: current)
 
         // 引き直し後も詰みの場合があるので再チェック
         progress = .playing
@@ -140,6 +149,8 @@ final class GameCore: ObservableObject {
         // デバッグログ: リセット後の状態を表示
         let nextText = next.map { "\($0)" } ?? "なし"
         debugLog("ゲームをリセット: 手札 \(hand), 次カード \(nextText)")
+        // デバッグ: リセット直後の盤面を表示
+        board.debugDump(current: current)
     }
 
     /// 現在の残り踏破数を VoiceOver で通知する
