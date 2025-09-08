@@ -1,13 +1,11 @@
 import SwiftUI
 
-// MARK: - 仮のコンテンツビュー
-// 開発初期段階の動作確認用としてテキストのみを表示する
+// MARK: - ゲーム画面へのエントリービュー
+// 現時点では `GameView` を直接表示し、後にナビゲーション構造を追加する想定
 struct ContentView: View {
     var body: some View {
-        // 画面中央に簡単なメッセージを配置
-        Text("KnightCards 開発中…")
-            .font(.title)
-            .padding()
+        // SpriteKit を埋め込んだゲーム画面を表示
+        GameView()
     }
 }
 
