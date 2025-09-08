@@ -44,6 +44,9 @@ final class MockAdsService: AdsServiceProtocol {
     /// UMP 同意フォームも表示しないダミー実装
     func requestConsentIfNeeded() async {}
 
+    /// 同意状況の再評価も行わないダミー実装
+    func refreshConsentStatus() async {}
+
     /// ダミー広告ビュー
     private struct MockAdView: View {
         @Environment(\.dismiss) private var dismiss
