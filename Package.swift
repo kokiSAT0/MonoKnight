@@ -25,6 +25,12 @@ let package = Package(
             name: "GameTests",
             dependencies: ["Game"],
             path: "Tests/GameTests"
+        ),
+        // XCUITest 用ターゲット（エミュレーター上での UI 動作確認用）
+        .testTarget(
+            name: "GameUITests",
+            dependencies: [],
+            path: "Tests/GameUITests"
         )
     ]
 )
