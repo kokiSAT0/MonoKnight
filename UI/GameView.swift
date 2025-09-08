@@ -31,9 +31,10 @@ struct GameView: View {
 
     var body: some View {
         GeometryReader { geometry in
-            VStack(spacing: 16) {
-                // MARK: SpriteKit 表示領域
-                SpriteView(scene: scene)
+            ZStack(alignment: .topTrailing) {
+                VStack(spacing: 16) {
+                    // MARK: SpriteKit 表示領域
+                    SpriteView(scene: scene)
                     // 正方形で表示したいため幅に合わせる
                     .frame(width: geometry.size.width, height: geometry.size.width)
                     .onAppear {
@@ -51,40 +52,51 @@ struct GameView: View {
                         scene.moveKnight(to: newPoint)
                     }
 
-                // MARK: 手札と先読みカードの表示
-                VStack(spacing: 8) {
-                    // 手札 3 枚を横並びで表示
-                    HStack(spacing: 12) {
-                        // MoveCard は Identifiable に準拠していないため、enumerated の offset を id として利用
-                        ForEach(Array(core.hand.enumerated()), id: \.offset) { index, card in
-                            cardView(for: card)
-                                // 盤外に出るカードは薄く表示し、タップを無効化
-                                .opacity(isCardUsable(card) ? 1.0 : 0.4)
-                                .onTapGesture {
-                                    // 列挙型 MoveCard の使用可否を確認してから GameCore へ伝達
-                                    guard isCardUsable(card) else { return }
-                                    // 選択されたカードで GameCore を更新（index は手札位置）
-                                    core.playCard(at: index)
-                                }
+                    // MARK: 手札と先読みカードの表示
+                    VStack(spacing: 8) {
+                        // 手札 3 枚を横並びで表示
+                        HStack(spacing: 12) {
+                            // MoveCard は Identifiable に準拠していないため、enumerated の offset を id として利用
+                            ForEach(Array(core.hand.enumerated()), id: \.offset) { index, card in
+                                cardView(for: card)
+                                    // 盤外に出るカードは薄く表示し、タップを無効化
+                                    .opacity(isCardUsable(card) ? 1.0 : 0.4)
+                                    .onTapGesture {
+                                        // 列挙型 MoveCard の使用可否を確認してから GameCore へ伝達
+                                        guard isCardUsable(card) else { return }
+                                        // 選択されたカードで GameCore を更新（index は手札位置）
+                                        core.playCard(at: index)
+                                    }
+                            }
                         }
-                    }
 
-                    // 先読みカードが存在する場合に表示
-                    if let next = core.next {
-                        HStack(spacing: 4) {
-                            Text("次のカード")
-                                .font(.caption)
-                            cardView(for: next)
-                                .opacity(0.6) // 先読みは操作不可なので半透明
+                        // 先読みカードが存在する場合に表示
+                        if let next = core.next {
+                            HStack(spacing: 4) {
+                                Text("次のカード")
+                                    .font(.caption)
+                                cardView(for: next)
+                                    .opacity(0.6) // 先読みは操作不可なので半透明
+                            }
                         }
                     }
+                    .padding(.bottom, 16)
                 }
-                .padding(.bottom, 16)
+            // MARK: - 結果画面表示ボタン（テスト用）
+            Button(action: {
+                // 直接結果画面を開くことで UI テストを容易にする
+                showingResult = true
+            }) {
+                Text("結果へ")
             }
-            // 画面全体を黒背景に統一
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color.black)
+            .padding()
+            .buttonStyle(.bordered)
+            .accessibilityIdentifier("show_result")
         }
+        // 画面全体を黒背景に統一
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.black)
+    }
         // progress が .cleared へ変化したタイミングで結果画面を表示
         .onChange(of: core.progress) { newValue in
             guard newValue == .cleared else { return }

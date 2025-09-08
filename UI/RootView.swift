@@ -3,32 +3,50 @@ import SwiftUI
 /// ゲーム画面と設定画面を切り替えるルートビュー
 /// `TabView` を用いて 2 つのタブを提供する
 struct RootView: View {
-    /// Game Center 認証済みかどうかを追跡するフラグ
-    /// - Note: `onAppear` が複数回呼ばれても二重認証を避ける
-    @State private var didAuthenticate = false
+    /// Game Center 認証済みかどうかを保持する状態
+    /// - Note: 認証後はラベル表示に切り替える
+    @State private var isAuthenticated = GameCenterService.shared.isAuthenticated
 
     var body: some View {
-        TabView {
-            // MARK: - ゲームタブ
-            GameView()
-                .tabItem {
-                    // システムアイコンとラベルを組み合わせてタブを定義
-                    Label("ゲーム", systemImage: "gamecontroller")
+        VStack(spacing: 12) {
+            // MARK: - Game Center サインイン UI
+            if isAuthenticated {
+                // 認証済みであることを示すラベル
+                Text("Game Center にサインイン済み")
+                    .font(.caption)
+                    .accessibilityIdentifier("gc_authenticated")
+            } else {
+                // サインインボタンをタップで認証を開始
+                Button(action: {
+                    GameCenterService.shared.authenticateLocalPlayer { success in
+                        // 成否に応じて状態を更新し、ラベル表示を切り替える
+                        isAuthenticated = success
+                    }
+                }) {
+                    Text("Game Center サインイン")
+                        .frame(maxWidth: .infinity)
                 }
+                .buttonStyle(.borderedProminent)
+                .accessibilityIdentifier("gc_sign_in_button")
+            }
 
-            // MARK: - 設定タブ
-            SettingsView()
-                .tabItem {
-                    Label("設定", systemImage: "gearshape")
-                }
+            // MARK: - タブビュー本体
+            TabView {
+                // MARK: - ゲームタブ
+                GameView()
+                    .tabItem {
+                        // システムアイコンとラベルを組み合わせてタブを定義
+                        Label("ゲーム", systemImage: "gamecontroller")
+                    }
+
+                // MARK: - 設定タブ
+                SettingsView()
+                    .tabItem {
+                        Label("設定", systemImage: "gearshape")
+                    }
+            }
         }
-        .onAppear {
-            // ルート ViewController が取得できるタイミングで認証を実施
-            // Game Center のログイン UI を安全に表示できる
-            guard !didAuthenticate else { return } // 二重呼び出しを防止
-            GameCenterService.shared.authenticateLocalPlayer()
-            didAuthenticate = true
-        }
+        .padding()
     }
 }
 
