@@ -143,3 +143,28 @@ extension GameCore: GameCoreProtocol {
 }
 #endif
 
+#if DEBUG
+/// テスト専用のユーティリティ拡張
+extension GameCore {
+    /// 任意のデッキと現在位置を指定して GameCore を生成する
+    /// - Parameters:
+    ///   - deck: テスト用に並び順を制御した山札
+    ///   - current: 駒の初期位置（省略時は中央）
+    static func makeTestInstance(deck: Deck, current: GridPoint = .center) -> GameCore {
+        let core = GameCore()
+        // デッキと各種状態を初期化し直す
+        core.deck = deck
+        core.board = Board()
+        core.current = current
+        core.moveCount = 0
+        core.penaltyCount = 0
+        core.progress = .playing
+        // 手札と先読みカードを指定デッキから取得
+        core.hand = core.deck.draw(count: 3)
+        core.next = core.deck.draw()
+        // 初期状態での手詰まりをチェック
+        core.checkDeadlockAndApplyPenaltyIfNeeded()
+        return core
+    }
+}
+#endif
