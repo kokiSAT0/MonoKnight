@@ -11,6 +11,13 @@ final class AdsService: NSObject, ObservableObject {
     /// シングルトンインスタンス
     static let shared = AdsService()
 
+    /// 環境変数から取得したテスト用インタースティシャル ID
+    /// - 値が存在する場合は Google SDK を利用せずプレースホルダーを表示する
+    private let testInterstitialID = ProcessInfo.processInfo.environment["GAD_INTERSTITIAL_ID"]
+
+    /// テストモードであるかを判定するフラグ
+    private var isTestMode: Bool { testInterstitialID != nil }
+
     /// ロード済みのインタースティシャル広告
     private var interstitial: GADInterstitialAd?
 
@@ -28,6 +35,9 @@ final class AdsService: NSObject, ObservableObject {
 
     private override init() {
         super.init()
+        // テストモードでは SDK を使わないため初期化のみで終了
+        guard !isTestMode else { return }
+
         // 非同期で ATT と UMP の同意を取得してから広告を読み込む
         Task {
             await requestTrackingAuthorization()
@@ -110,8 +120,8 @@ final class AdsService: NSObject, ObservableObject {
 
     /// インタースティシャル広告を読み込む
     private func loadInterstitial() {
-        // 広告除去購入済みであれば何もしない
-        guard !removeAds else { return }
+        // 広告除去購入済み または テストモードのときは読み込み不要
+        guard !removeAds, !isTestMode else { return }
 
         let request = GADRequest()
         // 非パーソナライズ広告を指定する場合は npa=1 を設定
@@ -135,14 +145,27 @@ final class AdsService: NSObject, ObservableObject {
 
     /// 準備済みの広告があれば表示する
     func showInterstitial() {
-        // 購入済み・未ロード・インターバル未満・1 プレイ 1 回上限の場合は表示しない
+        // 購入済み・インターバル未満・1 プレイ 1 回上限の場合は表示しない
         guard !removeAds,
               let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
               let root = scene.windows.first?.rootViewController,
-              let ad = interstitial,
               canShowByTime(),
               !hasShownInCurrentPlay else { return }
 
+        if isTestMode {
+            // --- テストモード ---
+            // ダミー広告ビューをモーダルで表示
+            let vc = UIHostingController(rootView: DummyInterstitialView())
+            vc.modalPresentationStyle = .fullScreen
+            root.present(vc, animated: true)
+            // 表示後にタイムスタンプとフラグを更新
+            lastInterstitialDate = Date()
+            hasShownInCurrentPlay = true
+            return
+        }
+
+        // --- 通常モード ---
+        guard let ad = interstitial else { return }
         // 現在のルートビューから広告を表示
         ad.present(fromRootViewController: root)
         // 表示後にタイムスタンプとフラグを更新し、次回に備えて再読み込み
@@ -166,5 +189,29 @@ final class AdsService: NSObject, ObservableObject {
     /// 購入済みのときに既存広告を破棄し、以降読み込まないようにする
     func disableAds() {
         interstitial = nil
+    }
+}
+
+/// テストモードで表示するプレースホルダー広告ビュー
+/// 実際の広告 SDK を利用せず、UI テスト用の簡易表示を提供する
+private struct DummyInterstitialView: View {
+    /// 表示を閉じるための dismiss アクション
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        ZStack {
+            // 背景は黒一色で実広告を模倣
+            Color.black
+            // 画面中央にテキストを配置
+            Text("Test Ad")
+                .foregroundColor(.white)
+        }
+        .ignoresSafeArea()
+        // UI テストから参照するための識別子
+        .accessibilityIdentifier("dummy_interstitial_ad")
+        // タップで閉じる
+        .onTapGesture {
+            dismiss()
+        }
     }
 }
