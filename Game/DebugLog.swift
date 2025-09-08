@@ -50,8 +50,10 @@ func debugError(
     parts.append("code: \(nsError.code)")
     parts.append("description: \(nsError.localizedDescription)")
     let detail = parts.joined(separator: " | ")
-    // [ERROR] プレフィックスを付け、発生箇所と共に出力
-    print("[ERROR] \(filename):\(line) \(function) - \(detail)")
+    // スタックトレースを取得し、行単位で改行を入れて読みやすくする
+    let stackSymbols = Thread.callStackSymbols.joined(separator: "\n")
+    // [ERROR] プレフィックスを付け、発生箇所と詳細な情報を出力
+    print("[ERROR] \(filename):\(line) \(function) - \(detail)\nスタックトレース:\n\(stackSymbols)")
 #else
     // リリースビルドでは何もしない
 #endif
