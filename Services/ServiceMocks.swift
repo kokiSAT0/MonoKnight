@@ -38,6 +38,12 @@ final class MockAdsService: AdsServiceProtocol {
     /// 広告読み込み停止も不要なので空実装
     func disableAds() {}
 
+    /// ATT 許可ダイアログは表示しないダミー実装
+    func requestTrackingAuthorization() async {}
+
+    /// UMP 同意フォームも表示しないダミー実装
+    func requestConsentIfNeeded() async {}
+
     /// ダミー広告ビュー
     private struct MockAdView: View {
         @Environment(\.dismiss) private var dismiss

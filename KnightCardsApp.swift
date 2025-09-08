@@ -9,6 +9,10 @@ struct KnightCardsApp: App {
     private let gameCenterService: GameCenterServiceProtocol
     private let adsService: AdsServiceProtocol
 
+    /// 同意フローが完了したかどうかを保持するフラグ
+    /// - NOTE: `UserDefaults` と連携し、次回以降はスキップする
+    @AppStorage("has_completed_consent_flow") private var hasCompletedConsentFlow: Bool = false
+
     /// 初期化時に環境変数を確認してモックの使用有無を決定する
     init() {
         if ProcessInfo.processInfo.environment["UITEST_MODE"] != nil {
@@ -24,9 +28,15 @@ struct KnightCardsApp: App {
 
     var body: some Scene {
         WindowGroup {
-            // MARK: 起動直後に表示するルートビュー
-            // TabView でゲームと設定を切り替える `RootView` を表示
-            RootView(gameCenterService: gameCenterService, adsService: adsService)
+            // MARK: 起動直後の表示切り替え
+            // 初回のみ同意フローを表示し、完了後に `RootView` へ遷移する
+            if hasCompletedConsentFlow {
+                // 通常時はタブビューを提供するルート画面を表示
+                RootView(gameCenterService: gameCenterService, adsService: adsService)
+            } else {
+                // 同意取得前はオンボーディング画面を表示
+                ConsentFlowView(adsService: adsService)
+            }
         }
     }
 }
