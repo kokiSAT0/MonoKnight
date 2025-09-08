@@ -5,10 +5,15 @@ import SwiftUI
 struct ResultView: View {
     /// 今回のプレイで消費した手数
     let moves: Int
-    
+
     /// 再戦処理を外部から受け取るクロージャ
     let onRetry: () -> Void
-    
+
+    /// Game Center 連携を扱うサービス（プロトコル型で受け取る）
+    private let gameCenterService: GameCenterServiceProtocol
+    /// 広告表示を扱うサービス（プロトコル型で受け取る）
+    private let adsService: AdsServiceProtocol
+
     /// ベスト手数を `UserDefaults` に保存する
     @AppStorage("best_moves_5x5") private var bestMoves: Int = .max
     
@@ -34,7 +39,7 @@ struct ResultView: View {
             
             // MARK: - Game Center ランキングボタン
             Button(action: {
-                GameCenterService.shared.showLeaderboard()
+                gameCenterService.showLeaderboard()
             }) {
                 Text("ランキング")
                     .frame(maxWidth: .infinity)
@@ -48,7 +53,7 @@ struct ResultView: View {
         .padding()
         .onAppear {
             // ビュー表示時に広告表示をトリガー
-            AdsService.shared.showInterstitial()
+            adsService.showInterstitial()
             // ベスト記録の更新を判定
             updateBest()
         }
@@ -69,6 +74,11 @@ struct ResultView: View {
 
 struct ResultView_Previews: PreviewProvider {
     static var previews: some View {
-        ResultView(moves: 30, onRetry: {})
+        ResultView(
+            moves: 30,
+            onRetry: {},
+            gameCenterService: GameCenterService.shared,
+            adsService: AdsService.shared
+        )
     }
 }

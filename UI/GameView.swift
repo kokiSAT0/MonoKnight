@@ -14,9 +14,18 @@ struct GameView: View {
     @State private var showingResult = false
     /// SpriteKit のシーン。初期化時に一度だけ生成して再利用する
     private let scene: GameScene
+    /// Game Center 連携を扱うサービス（プロトコル型で受け取る）
+    private let gameCenterService: GameCenterServiceProtocol
+    /// 広告表示を扱うサービス（プロトコル型で受け取る）
+    private let adsService: AdsServiceProtocol
 
     /// 初期化で GameCore と GameScene を連結する
-    init() {
+    /// 依存するサービスを外部から注入できるようにする初期化処理
+    /// - Parameters:
+    ///   - gameCenterService: Game Center 連携用サービス（デフォルトはシングルトン）
+    ///   - adsService: 広告表示用サービス（デフォルトはシングルトン）
+    init(gameCenterService: GameCenterServiceProtocol = GameCenterService.shared,
+         adsService: AdsServiceProtocol = AdsService.shared) {
         // GameCore の生成。StateObject へ包んで保持する
         let core = GameCore()
         _core = StateObject(wrappedValue: core)
@@ -27,6 +36,9 @@ struct GameView: View {
         // GameScene から GameCore へタップイベントを伝えるため参照を渡す
         scene.gameCore = core
         self.scene = scene
+        // サービスを保持
+        self.gameCenterService = gameCenterService
+        self.adsService = adsService
     }
 
     var body: some View {
@@ -101,20 +113,25 @@ struct GameView: View {
         .onChange(of: core.progress) { newValue in
             guard newValue == .cleared else { return }
             // Game Center へスコア送信
-            GameCenterService.shared.submitScore(core.score)
+            gameCenterService.submitScore(core.score)
             // 結果画面を開く
             showingResult = true
         }
         // シートで結果画面を表示
         .sheet(isPresented: $showingResult) {
-            ResultView(moves: core.score) {
-                // リトライ時はゲームを初期状態に戻して再開する
-                core.reset()
-                // 新しいプレイで広告を再度表示できるようにフラグをリセット
-                AdsService.shared.resetPlayFlag()
-                // 結果画面のシートを閉じてゲーム画面へ戻る
-                showingResult = false
-            }
+            ResultView(
+                moves: core.score,
+                onRetry: {
+                    // リトライ時はゲームを初期状態に戻して再開する
+                    core.reset()
+                    // 新しいプレイで広告を再度表示できるようにフラグをリセット
+                    adsService.resetPlayFlag()
+                    // 結果画面のシートを閉じてゲーム画面へ戻る
+                    showingResult = false
+                },
+                gameCenterService: gameCenterService,
+                adsService: adsService
+            )
         }
     }
 

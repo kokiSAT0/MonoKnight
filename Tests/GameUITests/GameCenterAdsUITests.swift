@@ -2,26 +2,16 @@
 import XCTest
 
 /// Game Center 認証フローとインタースティシャル広告表示を確認する UI テスト
-/// 
+///
 /// - 注意: iOS シミュレーター上でのみ動作を想定し、
-///         ダミーアカウントとテスト用広告ユニット ID を利用する。
+///         モックサービスを利用して動作を簡略化する。
 final class GameCenterAdsUITests: XCTestCase {
-    /// テスト用 Game Center アカウント名
-    private let dummyGameCenterAccount = "GCTestUser1"
-    
-    /// Google 提供のテスト用インタースティシャル広告ユニット ID
-    /// 実機配信では必ず差し替えること
-    private let dummyInterstitialID = "ca-app-pub-3940256099942544/4411468910"
-    
     /// Game Center へのサインインと広告表示の流れを検証
     func testGameCenterAuthAndInterstitialAd() {
         // テスト対象アプリを生成
         let app = XCUIApplication()
-        
-        // --- 環境変数の設定 ---
-        // ダミー Game Center アカウントとダミー広告ユニット ID を渡す
-        app.launchEnvironment["GC_TEST_ACCOUNT"] = dummyGameCenterAccount
-        app.launchEnvironment["GAD_INTERSTITIAL_ID"] = dummyInterstitialID
+        // UI テスト用モックを利用するためのフラグを設定
+        app.launchEnvironment["UITEST_MODE"] = "1"
         
         // アプリを起動
         app.launch()

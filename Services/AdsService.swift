@@ -5,9 +5,21 @@ import SwiftUI
 import AppTrackingTransparency
 import UserMessagingPlatform
 
+/// 広告表示に必要なインターフェースを定義するプロトコル
+/// - NOTE: テストではこのプロトコルに準拠したモックを注入する
+protocol AdsServiceProtocol: AnyObject {
+    /// インタースティシャル広告を表示する
+    func showInterstitial()
+    /// 1 プレイにつき 1 回のみ表示するためのフラグをリセットする
+    func resetPlayFlag()
+    /// 広告除去購入時に広告の読み込みを停止する
+    func disableAds()
+}
+
 /// インタースティシャル広告を管理するサービス
 /// ゲーム終了時に ResultView から呼び出される
-final class AdsService: NSObject, ObservableObject {
+/// 実際に AdMob を利用して広告を管理する実装
+final class AdsService: NSObject, ObservableObject, AdsServiceProtocol {
     /// シングルトンインスタンス
     static let shared = AdsService()
 
