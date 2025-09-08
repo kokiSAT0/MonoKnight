@@ -8,6 +8,9 @@ import Game
 struct GameView: View {
     /// ゲームロジックを保持する ObservableObject
     @StateObject private var core = GameCore()
+    /// 結果画面を表示するかどうかのフラグ
+    /// - NOTE: クリア時に true となり ResultView をシート表示する
+    @State private var showingResult = false
     /// SpriteKit のシーン。初期化時に一度だけ生成して再利用する
     private let scene: GameScene
 
@@ -74,6 +77,23 @@ struct GameView: View {
             // 画面全体を黒背景に統一
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color.black)
+        }
+        // progress が .cleared へ変化したタイミングで結果画面を表示
+        .onChange(of: core.progress) { newValue in
+            guard newValue == .cleared else { return }
+            // Game Center へスコア送信
+            GameCenterService.shared.submitScore(core.score)
+            // 結果画面を開く
+            showingResult = true
+        }
+        // シートで結果画面を表示
+        .sheet(isPresented: $showingResult) {
+            ResultView(moves: core.score) {
+                // リトライ時はゲームを初期化して再開
+                core.reset()
+                // シートを閉じる
+                showingResult = false
+            }
         }
     }
 
