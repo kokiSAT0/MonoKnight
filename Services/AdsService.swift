@@ -170,6 +170,8 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol {
             let vc = UIHostingController(rootView: DummyInterstitialView())
             vc.modalPresentationStyle = .fullScreen
             root.present(vc, animated: true)
+            // 広告表示のタイミングで軽いハプティクスを発生
+            HapticService.shared.notify(.warning)
             // 表示後にタイムスタンプとフラグを更新
             lastInterstitialDate = Date()
             hasShownInCurrentPlay = true
@@ -180,6 +182,8 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol {
         guard let ad = interstitial else { return }
         // 現在のルートビューから広告を表示
         ad.present(fromRootViewController: root)
+        // 広告表示のタイミングで軽いハプティクスを発生
+        HapticService.shared.notify(.warning)
         // 表示後にタイムスタンプとフラグを更新し、次回に備えて再読み込み
         lastInterstitialDate = Date()
         hasShownInCurrentPlay = true

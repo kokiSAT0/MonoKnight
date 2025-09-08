@@ -74,10 +74,15 @@ struct GameView: View {
                                     // 盤外に出るカードは薄く表示し、タップを無効化
                                     .opacity(isCardUsable(card) ? 1.0 : 0.4)
                                     .onTapGesture {
-                                        // 列挙型 MoveCard の使用可否を確認してから GameCore へ伝達
-                                        guard isCardUsable(card) else { return }
-                                        // 選択されたカードで GameCore を更新（index は手札位置）
-                                        core.playCard(at: index)
+                                        // カードが盤内に移動可能かチェック
+                                        if isCardUsable(card) {
+                                            // 有効カードなら GameCore を更新し、成功ハプティクスを再生
+                                            core.playCard(at: index)
+                                            HapticService.shared.notify(.success)
+                                        } else {
+                                            // 無効カードをタップした場合は警告ハプティクスを再生
+                                            HapticService.shared.notify(.error)
+                                        }
                                     }
                             }
                         }
