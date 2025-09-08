@@ -60,5 +60,19 @@
             <string>f38h382jlk.skadnetwork</string>
         </dict>
     </array>
+
+    <!-- 画面回転の対応方向を指定 -->
+    <key>UISupportedInterfaceOrientations</key>
+    <array>
+        <!-- iPhone ではポートレートのみ許可 -->
+        <string>UIInterfaceOrientationPortrait</string>
+    </array>
+
+    <!-- iPad でも同様に縦向きで固定 -->
+    <key>UISupportedInterfaceOrientations~ipad</key>
+    <array>
+        <!-- iPad における不要な回転を防止 -->
+        <string>UIInterfaceOrientationPortrait</string>
+    </array>
 </dict>
 </plist>
