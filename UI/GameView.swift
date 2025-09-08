@@ -100,3 +100,9 @@ struct GameView: View {
     }
 }
 
+// MARK: - プレビュー
+#Preview {
+    // Xcode の Canvas で GameView を表示するためのプレビュー
+    GameView()
+}
+
