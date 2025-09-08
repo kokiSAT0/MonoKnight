@@ -14,6 +14,10 @@ protocol AdsServiceProtocol: AnyObject {
     func resetPlayFlag()
     /// 広告除去購入時に広告の読み込みを停止する
     func disableAds()
+    /// ATT の許可ダイアログを要求する（初回のみ表示）
+    func requestTrackingAuthorization() async
+    /// UMP 同意フォームを必要に応じて表示し、広告設定を更新する
+    func requestConsentIfNeeded() async
 }
 
 /// インタースティシャル広告を管理するサービス
@@ -47,21 +51,12 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol {
 
     private override init() {
         super.init()
-        // テストモードでは SDK を使わないため初期化のみで終了
-        guard !isTestMode else { return }
-
-        // 非同期で ATT と UMP の同意を取得してから広告を読み込む
-        Task {
-            await requestTrackingAuthorization()
-            await requestConsentIfNeeded()
-            if !removeAds {
-                loadInterstitial()
-            }
-        }
+        // テストモードでは SDK を使わないため追加処理を行わない
+        // 実際の同意取得や広告読み込みは ConsentFlowView 側から呼び出される
     }
 
     /// ATT の許諾ダイアログを表示（初回のみ）
-    private func requestTrackingAuthorization() async {
+    func requestTrackingAuthorization() async {
         // 既に選択済みであれば何もしない
         guard ATTrackingManager.trackingAuthorizationStatus == .notDetermined else { return }
         // ユーザーに許可を求める
@@ -69,7 +64,7 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol {
     }
 
     /// UMP 同意フォームを表示してパーソナライズ可否を更新
-    private func requestConsentIfNeeded() async {
+    func requestConsentIfNeeded() async {
         let parameters = UMPRequestParameters()
         // 13 歳未満ではないので false
         parameters.tagForUnderAgeOfConsent = false
@@ -128,6 +123,11 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol {
 
         // 最終的な同意結果を反映
         isPersonalized = (consentInfo.consentStatus == .obtained)
+
+        // 同意取得後に広告を読み込む
+        if !removeAds {
+            loadInterstitial()
+        }
     }
 
     /// インタースティシャル広告を読み込む
