@@ -29,6 +29,22 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
     /// - Note: 認証に失敗した場合は `false` のままとなる
     private(set) var isAuthenticated = false
 
+    // MARK: - GKAccessPoint 設定
+
+    /// Game Center アクセスポイントを表示する
+    /// - Note: 認証成功後に呼び出し、画面右上に常駐させる
+    private func activateAccessPoint() {
+        let accessPoint = GKAccessPoint.shared
+        accessPoint.location = .topTrailing // 画面右上に表示
+        accessPoint.isActive = true         // アクセスポイントを有効化
+    }
+
+    /// Game Center アクセスポイントを非表示にする
+    /// - Note: ランキング表示中など不要な場面で利用する
+    private func deactivateAccessPoint() {
+        GKAccessPoint.shared.isActive = false
+    }
+
     /// ローカルプレイヤーを Game Center で認証する
     /// - Parameters:
     ///   - completion: 認証結果を受け取るクロージャ（省略可能）
@@ -43,6 +59,8 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
             // 実際の Game Center には接続しない
             isAuthenticated = true
             print("GC_TEST_ACCOUNT=\(testAccount) によるダミー認証を実行")
+            // テスト環境でもアクセスポイントの有効化を試みる
+            activateAccessPoint()
             completion?(true) // 呼び出し元へ成功を通知して終了
             return
         }
@@ -67,6 +85,8 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
                 // 認証成功: フラグを更新しログ出力
                 self?.isAuthenticated = true
                 print("Game Center 認証成功")
+                // 認証が完了したのでアクセスポイントを表示
+                self?.activateAccessPoint()
                 completion?(true) // 呼び出し元へ成功を通知
             } else {
                 // 認証失敗: エラーメッセージをログ出力
@@ -112,18 +132,23 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
 
         guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
               let root = scene.windows.first?.rootViewController else { return }
-        
+
         // リーダーボード用のコントローラを生成
         let vc = GKGameCenterViewController()
         vc.gameCenterDelegate = self
         vc.viewState = .leaderboards
-        
+
+        // ランキング表示中はアクセスポイントが不要なので非表示にする
+        deactivateAccessPoint()
+
         // ルートビューからモーダル表示
         root.present(vc, animated: true)
     }
-    
+
     /// Game Center コントローラの閉じるボタンが押された際に呼ばれる
     func gameCenterViewControllerDidFinish(_ gameCenterViewController: GKGameCenterViewController) {
         gameCenterViewController.dismiss(animated: true)
+        // ランキングを閉じたらアクセスポイントを再表示
+        activateAccessPoint()
     }
 }
