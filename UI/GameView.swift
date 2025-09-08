@@ -161,6 +161,12 @@ struct GameView: View {
                 .foregroundColor(.white)
         }
         .frame(width: 60, height: 80)
+        // VoiceOver での読み上げ用ラベルを設定
+        .accessibilityLabel(Text(card.displayName))
+        // 操作方法を案内するヒントを付与（ダブルタップで使用）
+        .accessibilityHint(Text("ダブルタップでこの方向に移動します"))
+        // ボタンとして扱わせるためのトレイトを追加
+        .accessibilityAddTraits(.isButton)
     }
 }
 
