@@ -6,6 +6,11 @@ import Game
 /// 画面下部に手札 3 枚と次に引かれるカードを表示し、
 /// タップで GameCore を更新する
 struct GameView: View {
+    /// Game Center サービス（スコア送信に利用）
+    let gameCenterService: GameCenterServiceProtocol
+    /// 広告サービス（リトライ時のフラグリセットに利用）
+    let adsService: AdsServiceProtocol
+
     /// ゲームロジックを保持する ObservableObject
     /// - NOTE: `StateObject` は init 内で明示的に生成し、GameScene に渡す
     @StateObject private var core: GameCore
@@ -15,8 +20,17 @@ struct GameView: View {
     /// SpriteKit のシーン。初期化時に一度だけ生成して再利用する
     private let scene: GameScene
 
-    /// 初期化で GameCore と GameScene を連結する
-    init() {
+    /// 初期化で GameCore と GameScene を連結し、サービスを受け取る
+    /// - Parameters:
+    ///   - gameCenterService: スコア送信用のサービス
+    ///   - adsService: 広告管理サービス
+    init(
+        gameCenterService: GameCenterServiceProtocol = GameCenterService.shared,
+        adsService: AdsServiceProtocol = AdsService.shared
+    ) {
+        self.gameCenterService = gameCenterService
+        self.adsService = adsService
+
         // GameCore の生成。StateObject へ包んで保持する
         let core = GameCore()
         _core = StateObject(wrappedValue: core)
@@ -89,17 +103,21 @@ struct GameView: View {
         .onChange(of: core.progress) { newValue in
             guard newValue == .cleared else { return }
             // Game Center へスコア送信
-            GameCenterService.shared.submitScore(core.score)
+            gameCenterService.submitScore(core.score)
             // 結果画面を開く
             showingResult = true
         }
         // シートで結果画面を表示
         .sheet(isPresented: $showingResult) {
-            ResultView(moves: core.score) {
+            ResultView(
+                moves: core.score,
+                gameCenterService: gameCenterService,
+                adsService: adsService
+            ) {
                 // リトライ時はゲームを初期状態に戻して再開する
                 core.reset()
                 // 新しいプレイで広告を再度表示できるようにフラグをリセット
-                AdsService.shared.resetPlayFlag()
+                adsService.resetPlayFlag()
                 // 結果画面のシートを閉じてゲーム画面へ戻る
                 showingResult = false
             }

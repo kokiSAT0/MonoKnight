@@ -3,7 +3,8 @@ import GameKit
 import UIKit
 
 /// Game Center 関連の操作をまとめたサービス
-final class GameCenterService: NSObject, GKGameCenterControllerDelegate {
+/// - Note: `GameCenterServiceProtocol` を実装し、テスト用モックとの差し替えを容易にする
+final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCenterServiceProtocol {
     /// シングルトンインスタンス
     static let shared = GameCenterService()
 

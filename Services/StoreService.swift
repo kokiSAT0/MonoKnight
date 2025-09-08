@@ -9,6 +9,9 @@ final class StoreService: ObservableObject {
     /// シングルトンインスタンス
     static let shared = StoreService()
 
+    /// 広告サービス（広告除去時に通知するため保持）
+    private let adsService: AdsServiceProtocol
+
     /// 取得済みのプロダクト一覧（現在は広告除去のみ）
     @Published var products: [Product] = []
 
@@ -16,7 +19,8 @@ final class StoreService: ObservableObject {
     /// - `true` の場合は AdsService が広告を読み込まない
     @AppStorage("remove_ads") private var removeAds: Bool = false
 
-    private init() {
+    private init(adsService: AdsServiceProtocol = AdsService.shared) {
+        self.adsService = adsService
         // 初期化と同時に商品情報の取得とトランザクション監視を開始
         Task {
             await fetchProducts()
@@ -70,7 +74,7 @@ final class StoreService: ObservableObject {
     private func applyRemoveAds() {
         removeAds = true
         // 広告サービスに通知して表示を停止させる
-        AdsService.shared.disableAds()
+        adsService.disableAds()
     }
 
     // MARK: - Transaction

@@ -7,7 +7,8 @@ import UserMessagingPlatform
 
 /// インタースティシャル広告を管理するサービス
 /// ゲーム終了時に ResultView から呼び出される
-final class AdsService: NSObject, ObservableObject {
+/// - Note: `AdsServiceProtocol` を実装し、テスト時はモックへ差し替え可能
+final class AdsService: NSObject, ObservableObject, AdsServiceProtocol {
     /// シングルトンインスタンス
     static let shared = AdsService()
 
