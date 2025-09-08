@@ -111,3 +111,20 @@ struct Deck {
         return (newHand, newNext)
     }
 }
+
+#if DEBUG
+/// テストコードから利用するための拡張
+/// - Note: 既存の初期化子 `init(seed:)` を基に、任意のカード列を山札として設定する。
+///         本体コードへの影響を避けるため `DEBUG` ビルド時のみ有効。
+extension Deck {
+    /// 任意のカード配列を山札として持つテスト用デッキを生成する
+    /// - Parameter cards: 山札にしたいカード配列（末尾がトップ）
+    /// - Returns: 指定したカードのみを含むデッキ
+    static func makeTestDeck(cards: [MoveCard]) -> Deck {
+        var deck = Deck(seed: 0) // 乱数シードを固定して初期化
+        deck.drawPile = cards    // ファイル内拡張のため private にアクセス可能
+        deck.discardPile = []    // 捨札は空で開始
+        return deck
+    }
+}
+#endif
