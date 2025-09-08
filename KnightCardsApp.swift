@@ -6,9 +6,9 @@ import SwiftUI
 struct KnightCardsApp: App {
     var body: some Scene {
         WindowGroup {
-            // アプリ起動時に最初に表示するビュー
-            // 現在は仮の画面である `ContentView` を表示
-            ContentView()
+            // MARK: 起動直後に表示するルートビュー
+            // 実際のゲーム画面である `GameView` を表示
+            GameView()
         }
     }
 }
