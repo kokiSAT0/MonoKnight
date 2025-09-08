@@ -117,6 +117,12 @@ enum MoveCard: CaseIterable {
     }
 }
 
+// MARK: - デバッグ用表示名
+extension MoveCard: CustomStringConvertible {
+    /// デバッグログでカード名をわかりやすくするため displayName を返す
+    var description: String { displayName }
+}
+
 // MARK: - Identifiable への適合
 extension MoveCard: Identifiable {
     /// `Identifiable` 準拠のための一意な識別子

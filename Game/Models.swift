@@ -114,3 +114,10 @@ enum GameProgress {
     case deadlock
 }
 
+// MARK: - デバッグ支援
+extension GridPoint: CustomStringConvertible {
+    /// デバッグ出力時に座標を分かりやすく表示する
+    /// - Returns: "(x, y)" 形式の文字列
+    var description: String { "(\(x),\(y))" }
+}
+

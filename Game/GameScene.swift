@@ -109,6 +109,15 @@ class GameScene: SKScene {
                 addChild(node)
                 let point = GridPoint(x: x, y: y)
                 tileNodes[point] = node
+
+#if DEBUG
+                // デバッグ時は各マスの座標を赤文字で表示
+                let label = SKLabelNode(text: "\(x),\(y)")
+                label.fontSize = tileSize * 0.3
+                label.fontColor = .red
+                label.position = CGPoint(x: rect.midX, y: rect.midY - label.fontSize / 2)
+                addChild(label)
+#endif
             }
         }
     }
