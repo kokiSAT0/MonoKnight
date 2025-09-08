@@ -66,7 +66,8 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
             // テスト用ダミー認証: 即座に認証済みフラグを立てる
             // 実際の Game Center には接続しない
             isAuthenticated = true
-            print("GC_TEST_ACCOUNT=\(testAccount) によるダミー認証を実行")
+            // テスト用認証を実行したことをデバッグログに残す
+            debugLog("GC_TEST_ACCOUNT=\(testAccount) によるダミー認証を実行")
             // テスト環境でもアクセスポイントの有効化を試みる
             activateAccessPoint()
             completion?(true) // 呼び出し元へ成功を通知して終了
@@ -92,15 +93,21 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
             if player.isAuthenticated {
                 // 認証成功: フラグを更新しログ出力
                 self?.isAuthenticated = true
-                print("Game Center 認証成功")
+                debugLog("Game Center 認証成功")
                 // 認証が完了したのでアクセスポイントを表示
                 self?.activateAccessPoint()
                 completion?(true) // 呼び出し元へ成功を通知
             } else {
-                // 認証失敗: エラーメッセージをログ出力
+                // 認証失敗: エラー内容をログへ出力
                 self?.isAuthenticated = false
-                let message = error?.localizedDescription ?? "不明なエラー"
-                print("Game Center 認証失敗: \(message)")
+                if let error {
+                    // エラーオブジェクトが存在する場合は詳細を出力
+                    debugError(error, message: "Game Center 認証失敗")
+                } else {
+                    // それ以外はメッセージのみ出力
+                    let message = "不明なエラー"
+                    debugLog("Game Center 認証失敗: \(message)")
+                }
                 completion?(false) // 呼び出し元へ失敗を通知
             }
         }
@@ -111,14 +118,15 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
     func submitScore(_ score: Int) {
         // 未認証の場合はスコア送信を行わない
         guard isAuthenticated else {
-            print("Game Center 未認証のためスコア送信を中止")
+            // 未認証状態で呼ばれた際の注意をログ出力
+            debugLog("Game Center 未認証のためスコア送信を中止")
             return
         }
 
         // 既に送信済みの場合は再送信を避ける
         guard !hasSubmittedGC else {
             // デバッグ時に重複送信されないようログを残す
-            print("Game Center スコアは既に送信済みのためスキップ")
+            debugLog("Game Center スコアは既に送信済みのためスキップ")
             return
         }
 
@@ -130,9 +138,11 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
         ) { error in
             // エラーが発生した場合はログ出力のみ行う
             if let error {
-                print("Game Center スコア送信失敗: \(error.localizedDescription)")
+                // 送信失敗時は詳細なエラーログを出力
+                debugError(error, message: "Game Center スコア送信失敗")
             } else {
-                print("Game Center スコア送信成功: \(score)")
+                // 成功時はスコアをログ出力
+                debugLog("Game Center スコア送信成功: \(score)")
                 // 成功した場合は再送信を防ぐためフラグを更新
                 self.hasSubmittedGC = true
             }
@@ -146,14 +156,16 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
     func resetSubmittedFlag() {
         // フラグを false に戻すことで再送信が可能になる
         hasSubmittedGC = false
-        print("Game Center スコア送信フラグをリセットしました")
+        // リセットしたことをデバッグログに出力
+        debugLog("Game Center スコア送信フラグをリセットしました")
     }
 
     /// ランキング画面を表示する
     func showLeaderboard() {
         // 未認証の場合はランキングを表示しない
         guard isAuthenticated else {
-            print("Game Center 未認証のためランキング表示不可")
+            // 未認証のままランキング表示を要求された場合のログ
+            debugLog("Game Center 未認証のためランキング表示不可")
             return
         }
 

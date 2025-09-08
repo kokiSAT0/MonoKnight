@@ -33,8 +33,8 @@ final class StoreService: ObservableObject {
             // App Store Connect で登録した Product ID を指定
             products = try await Product.products(for: ["remove_ads"])
         } catch {
-            // 失敗時はログ出力のみ（ユーザーには表示しない）
-            print("商品情報の取得に失敗: \(error)")
+            // 失敗時はユーザーへは通知せず、デバッグログのみ詳細を出力
+            debugError(error, message: "商品情報の取得に失敗")
         }
     }
 
@@ -62,7 +62,8 @@ final class StoreService: ObservableObject {
                 break
             }
         } catch {
-            print("購入処理でエラー: \(error)")
+            // 購入フローで発生したエラーの詳細を出力
+            debugError(error, message: "購入処理でエラー")
         }
     }
 
@@ -117,7 +118,8 @@ final class StoreService: ObservableObject {
             // `AppStore.sync()` 実行後は `Transaction.updates` が再度流れるため
             // `updatePurchasedStatus()` を明示的に呼ぶ必要はない
         } catch {
-            print("購入の復元に失敗: \(error)")
+            // 復元処理が失敗した場合も詳細なログを残す
+            debugError(error, message: "購入の復元に失敗")
         }
     }
 }
