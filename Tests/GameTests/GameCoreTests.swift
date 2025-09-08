@@ -1,0 +1,65 @@
+import XCTest
+@testable import Game
+
+/// GameCore の主要メソッドを検証するテスト
+final class GameCoreTests: XCTestCase {
+    /// 手札が全て盤外となった場合にペナルティが加算されるかを確認
+    func testDeadlockPenaltyApplied() {
+        // --- テスト用デッキ構築 ---
+        // 末尾が山札トップになるため、手札用の 3 枚を最後に配置する
+        let deck = Deck.makeTestDeck(cards: [
+            // 引き直し後に有効となるカード群（下記 2 枚）
+            .knightUp2Right1,  // さらに予備として 1 枚保持
+            .straightUp2,
+            // 先読みカード（ペナルティ前の next）
+            .straightRight2,
+            // ここから手札 3 枚（すべて盤外になるカード）
+            .diagonalDownLeft2,
+            .straightDown2,
+            .straightLeft2
+        ])
+        // 左下隅 (0,0) から開始し、全手札が盤外となる状況を用意
+        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 0, y: 0))
+
+        // ペナルティが +5 されているか
+        XCTAssertEqual(core.penaltyCount, 5, "手詰まり時にペナルティが加算されていない")
+        // ペナルティ処理後は進行状態が playing に戻るか
+        XCTAssertEqual(core.progress, .playing, "ペナルティ後は playing 状態に戻るべき")
+        // 引き直し後の手札に使用可能なカードが少なくとも 1 枚あるか
+        let playableExists = core.hand.contains { $0.canUse(from: core.current) }
+        XCTAssertTrue(playableExists, "引き直し後の手札に利用可能なカードが存在しない")
+    }
+
+    /// reset() が初期状態に戻すかを確認
+    func testResetReturnsToInitialState() {
+        // 上と同じデッキ構成で GameCore を生成し、ペナルティ適用後の状態から開始
+        let deck = Deck.makeTestDeck(cards: [
+            .knightUp2Right1,
+            .straightUp2,
+            .straightRight2,
+            .diagonalDownLeft2,
+            .straightDown2,
+            .straightLeft2
+        ])
+        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 0, y: 0))
+
+        // 手札の中から使用可能なカードを 1 枚選び、実際に移動させる
+        if let index = core.hand.firstIndex(where: { $0.canUse(from: core.current) }) {
+            core.playCard(at: index)
+        }
+        // 移動が記録されているか確認
+        XCTAssertEqual(core.moveCount, 1, "移動後の手数が想定通りではない")
+
+        // reset() を実行し、全ての状態が初期化されるか検証
+        core.reset()
+        XCTAssertEqual(core.current, .center, "駒の位置が初期化されていない")
+        XCTAssertEqual(core.moveCount, 0, "移動カウントがリセットされていない")
+        XCTAssertEqual(core.penaltyCount, 0, "ペナルティカウントがリセットされていない")
+        XCTAssertEqual(core.progress, .playing, "ゲーム状態が playing に戻っていない")
+        XCTAssertEqual(core.hand.count, 3, "手札枚数が初期値と異なる")
+        XCTAssertNotNil(core.next, "先読みカードが設定されていない")
+        // 盤面の踏破状態も初期化されているか
+        XCTAssertTrue(core.board.isVisited(.center), "盤面中央が踏破済みになっていない")
+        XCTAssertFalse(core.board.isVisited(GridPoint(x: 0, y: 0)), "開始位置が踏破済みのままになっている")
+    }
+}
