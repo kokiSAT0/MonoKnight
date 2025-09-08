@@ -6,9 +6,25 @@ import UIKit
 final class GameCenterService: NSObject, GKGameCenterControllerDelegate {
     /// シングルトンインスタンス
     static let shared = GameCenterService()
-    
+
     private override init() {}
-    
+
+    /// スコアを Game Center のリーダーボードへ送信する
+    /// - Parameter score: 送信する手数（少ないほど高評価）
+    func submitScore(_ score: Int) {
+        GKLeaderboard.submitScore(
+            score,
+            context: 0,
+            player: GKLocalPlayer.local,
+            leaderboardIDs: ["kc_moves_5x5"]
+        ) { error in
+            // エラーが発生した場合はログ出力のみ行う
+            if let error {
+                print("Game Center スコア送信失敗: \(error.localizedDescription)")
+            }
+        }
+    }
+
     /// ランキング画面を表示する
     func showLeaderboard() {
         guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
