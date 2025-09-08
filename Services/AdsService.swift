@@ -86,8 +86,8 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol {
                 }
             }
         } catch {
-            // 取得に失敗した場合は非パーソナライズ扱い
-            print("同意情報の取得に失敗: \(error.localizedDescription)")
+            // 取得に失敗した場合は詳細なエラーログを出力し、非パーソナライズ扱いとする
+            debugError(error, message: "同意情報の取得に失敗")
             isPersonalized = false
             return
         }
@@ -120,8 +120,8 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol {
                     }
                 }
             } catch {
-                // 表示に失敗しても処理は続行
-                print("同意フォームの表示に失敗: \(error.localizedDescription)")
+                // 表示に失敗しても処理は続行し、エラーのみログへ残す
+                debugError(error, message: "同意フォームの表示に失敗")
             }
         }
 
@@ -154,8 +154,8 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol {
                 }
             }
         } catch {
-            // 取得に失敗した場合は非パーソナライズ扱いとし、既存広告を破棄
-            print("同意情報の再取得に失敗: \(error.localizedDescription)")
+            // 取得に失敗した場合はログを出力し、非パーソナライズ扱いとして既存広告を破棄
+            debugError(error, message: "同意情報の再取得に失敗")
             isPersonalized = false
             interstitial = nil
             return
@@ -189,8 +189,8 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol {
         // テスト用広告ユニット ID（実装時に差し替え）
         GADInterstitialAd.load(withAdUnitID: "ca-app-pub-3940256099942544/4411468910", request: request) { [weak self] ad, error in
             if let error {
-                // 読み込み失敗時はログを出力
-                print("広告の読み込み失敗: \(error.localizedDescription)")
+                // 読み込み失敗時は詳細なエラーログを出力して終了
+                debugError(error, message: "広告の読み込み失敗")
                 return
             }
             // 正常に取得できたら保持
