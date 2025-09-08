@@ -1,6 +1,7 @@
 import Foundation
 import GameKit
 import UIKit
+import SwiftUI // @AppStorage を利用するために追加
 
 /// Game Center 操作に必要なインターフェースを定義するプロトコル
 /// - NOTE: 認証やスコア送信をテストしやすくするために利用する
@@ -24,6 +25,13 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
     static let shared = GameCenterService()
 
     private override init() {}
+
+    // MARK: - 永続フラグ
+
+    /// Game Center へ初回スコア送信済みかどうかを保持するフラグ
+    /// @AppStorage を利用して UserDefaults へ自動保存する
+    /// - Note: 設定画面やデバッグからリセットできるよう公開メソッドを用意する
+    @AppStorage("has_submitted_gc") private var hasSubmittedGC: Bool = false
 
     /// Game Center へログイン済みかどうかを保持するフラグ
     /// - Note: 認証に失敗した場合は `false` のままとなる
@@ -87,6 +95,13 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
             return
         }
 
+        // 既に送信済みの場合は再送信を避ける
+        guard !hasSubmittedGC else {
+            // デバッグ時に重複送信されないようログを残す
+            print("Game Center スコアは既に送信済みのためスキップ")
+            return
+        }
+
         GKLeaderboard.submitScore(
             score,
             context: 0,
@@ -98,8 +113,20 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
                 print("Game Center スコア送信失敗: \(error.localizedDescription)")
             } else {
                 print("Game Center スコア送信成功: \(score)")
+                // 成功した場合は再送信を防ぐためフラグを更新
+                self.hasSubmittedGC = true
             }
         }
+    }
+
+    // MARK: - デバッグ／設定用ユーティリティ
+
+    /// スコア送信済みフラグをリセットする
+    /// - Note: 設定画面やテスト時に初期状態へ戻したい場合に利用する
+    func resetSubmittedFlag() {
+        // フラグを false に戻すことで再送信が可能になる
+        hasSubmittedGC = false
+        print("Game Center スコア送信フラグをリセットしました")
     }
 
     /// ランキング画面を表示する
