@@ -96,9 +96,11 @@ struct GameView: View {
         // シートで結果画面を表示
         .sheet(isPresented: $showingResult) {
             ResultView(moves: core.score) {
-                // リトライ時はゲームを初期化して再開
+                // リトライ時はゲームを初期状態に戻して再開する
                 core.reset()
-                // シートを閉じる
+                // 新しいプレイで広告を再度表示できるようにフラグをリセット
+                AdsService.shared.resetPlayFlag()
+                // 結果画面のシートを閉じてゲーム画面へ戻る
                 showingResult = false
             }
         }
