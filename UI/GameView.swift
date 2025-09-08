@@ -7,18 +7,25 @@ import Game
 /// タップで GameCore を更新する
 struct GameView: View {
     /// ゲームロジックを保持する ObservableObject
-    @StateObject private var core = GameCore()
+    /// - NOTE: `StateObject` は init 内で明示的に生成し、GameScene に渡す
+    @StateObject private var core: GameCore
     /// 結果画面を表示するかどうかのフラグ
     /// - NOTE: クリア時に true となり ResultView をシート表示する
     @State private var showingResult = false
     /// SpriteKit のシーン。初期化時に一度だけ生成して再利用する
     private let scene: GameScene
 
-    /// 初期化で GameScene を設定
+    /// 初期化で GameCore と GameScene を連結する
     init() {
+        // GameCore の生成。StateObject へ包んで保持する
+        let core = GameCore()
+        _core = StateObject(wrappedValue: core)
+
         // GameScene はインスタンス生成後にサイズとスケールを指定
         let scene = GameScene()
         scene.scaleMode = .resizeFill
+        // GameScene から GameCore へタップイベントを伝えるため参照を渡す
+        scene.gameCore = core
         self.scene = scene
     }
 

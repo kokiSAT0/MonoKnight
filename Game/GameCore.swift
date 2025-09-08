@@ -120,3 +120,26 @@ final class GameCore: ObservableObject {
     }
 }
 
+#if canImport(SpriteKit)
+// MARK: - GameScene からのタップ入力に対応
+extension GameCore: GameCoreProtocol {
+    /// 盤面上のマスがタップされた際に呼び出される
+    /// - Parameter point: タップされたマスの座標
+    func handleTap(at point: GridPoint) {
+        // ゲーム進行中でなければ入力を無視
+        guard progress == .playing else { return }
+
+        // タップされたマスと現在位置の差分を計算
+        let dx = point.x - current.x
+        let dy = point.y - current.y
+
+        // 差分に一致するカードを手札から検索
+        if let index = hand.firstIndex(where: { $0.dx == dx && $0.dy == dy }) {
+            // 該当カードがあればそのカードで移動処理を実行
+            playCard(at: index)
+        }
+        // 該当カードが無い場合は何もしない（無効タップ）
+    }
+}
+#endif
+
