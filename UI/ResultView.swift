@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit // ハプティクス用フレームワーク
 
 /// ゲーム終了時の結果を表示するビュー
 /// 手数・ベスト記録・各種ボタンをまとめて配置する
@@ -30,6 +31,8 @@ struct ResultView: View {
             
             // MARK: - リトライボタン
             Button(action: {
+                // 成功フィードバックを発火させてからリトライ処理を呼び出す
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
                 onRetry()
             }) {
                 Text("リトライ")
@@ -39,6 +42,8 @@ struct ResultView: View {
             
             // MARK: - Game Center ランキングボタン
             Button(action: {
+                // ランキング表示時も軽い成功フィードバックを挿入
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
                 gameCenterService.showLeaderboard()
             }) {
                 Text("ランキング")

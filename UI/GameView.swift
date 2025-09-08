@@ -1,6 +1,7 @@
 import SwiftUI
 import SpriteKit
 import Game
+import UIKit // ハプティクス用のフレームワークを追加
 
 /// SwiftUI から SpriteKit の盤面を表示するビュー
 /// 画面下部に手札 3 枚と次に引かれるカードを表示し、
@@ -74,10 +75,17 @@ struct GameView: View {
                                     // 盤外に出るカードは薄く表示し、タップを無効化
                                     .opacity(isCardUsable(card) ? 1.0 : 0.4)
                                     .onTapGesture {
-                                        // 列挙型 MoveCard の使用可否を確認してから GameCore へ伝達
-                                        guard isCardUsable(card) else { return }
-                                        // 選択されたカードで GameCore を更新（index は手札位置）
-                                        core.playCard(at: index)
+                                        // ハプティクス生成器を都度生成
+                                        let generator = UINotificationFeedbackGenerator()
+                                        // 列挙型 MoveCard の使用可否を判定
+                                        if isCardUsable(card) {
+                                            // 使用可能 ⇒ ゲーム状態を更新し、成功フィードバックを発火
+                                            core.playCard(at: index)
+                                            generator.notificationOccurred(.success)
+                                        } else {
+                                            // 使用不可 ⇒ 警告フィードバックのみを発火
+                                            generator.notificationOccurred(.warning)
+                                        }
                                     }
                             }
                         }
