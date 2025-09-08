@@ -60,6 +60,9 @@ final class GameCore: ObservableObject {
         // UI 側で無効カードを弾く想定だが、念のため安全確認
         guard board.contains(target) else { return }
 
+        // デバッグログ: 使用カードと移動先を出力
+        debugLog("カード \(card) を使用し \(current) -> \(target) へ移動")
+
         // 移動処理
         current = target
         board.markVisited(target)
@@ -99,6 +102,9 @@ final class GameCore: ObservableObject {
         }
         guard allUnusable else { return }
 
+        // デバッグログ: 手札詰まりの発生を通知
+        debugLog("手札が全て使用不可のためペナルティを適用")
+
         // ペナルティ加算 (+5 手数)
         penaltyCount += 5
         progress = .deadlock
@@ -108,6 +114,9 @@ final class GameCore: ObservableObject {
         let result = deck.fullRedraw(hand: hand, next: next)
         hand = result.hand
         next = result.next
+
+        // デバッグログ: 引き直し後の手札を表示
+        debugLog("引き直し後の手札: \(hand)")
 
         // 引き直し後も詰みの場合があるので再チェック
         progress = .playing
@@ -127,6 +136,10 @@ final class GameCore: ObservableObject {
         checkDeadlockAndApplyPenaltyIfNeeded()
         // リセット後の残り踏破数を読み上げ
         announceRemainingTiles()
+
+        // デバッグログ: リセット後の状態を表示
+        let nextText = next.map { "\($0)" } ?? "なし"
+        debugLog("ゲームをリセット: 手札 \(hand), 次カード \(nextText)")
     }
 
     /// 現在の残り踏破数を VoiceOver で通知する
@@ -147,6 +160,9 @@ extension GameCore: GameCoreProtocol {
     func handleTap(at point: GridPoint) {
         // ゲーム進行中でなければ入力を無視
         guard progress == .playing else { return }
+
+        // デバッグログ: タップされたマスを表示
+        debugLog("マス \(point) をタップ")
 
         // タップされたマスと現在位置の差分を計算
         let dx = point.x - current.x
