@@ -107,16 +107,20 @@ struct GameView: View {
                     }
                     .padding(.bottom, 16)
                 }
-            // MARK: - 結果画面表示ボタン（テスト用）
+            #if DEBUG
+            // MARK: - 結果画面へ強制遷移ボタン（デバッグ専用）
+            // デバッグビルドでのみ表示し、リリースビルドでは含めない
             Button(action: {
-                // 直接結果画面を開くことで UI テストを容易にする
+                // 直接結果画面を開き、UI の確認やデバッグを容易にする
                 showingResult = true
             }) {
                 Text("結果へ")
             }
             .padding()
             .buttonStyle(.bordered)
+            // UI テストでボタンを特定できるよう識別子を設定
             .accessibilityIdentifier("show_result")
+            #endif
         }
         // 画面全体を黒背景に統一
         .frame(maxWidth: .infinity, maxHeight: .infinity)
