@@ -120,3 +120,29 @@ final class GameCore: ObservableObject {
     }
 }
 
+#if DEBUG
+// MARK: - テスト用ユーティリティ
+extension GameCore {
+    /// テストで任意の手札・先読み・位置を設定するためのヘルパー
+    /// - Parameters:
+    ///   - hand: 強制的に設定したい手札配列
+    ///   - next: 次に引かれるカード（先読み）
+    ///   - current: 駒の現在位置（指定しない場合は既存値を利用）
+    /// - Note: `private` なプロパティへアクセスするため本ファイル内の拡張として実装
+    func setStateForTest(hand: [MoveCard], next: MoveCard?, current: GridPoint? = nil) {
+        self.hand = hand
+        self.next = next
+        if let current = current {
+            self.current = current
+        }
+    }
+
+    /// テストから直接デッドロック判定を呼び出すためのラッパー
+    /// - Note: 挙動検証のため DEBUG ビルドでのみ利用可能
+    func invokeDeadlockCheckForTest() {
+        checkDeadlockAndApplyPenaltyIfNeeded()
+    }
+}
+#endif
+
+
