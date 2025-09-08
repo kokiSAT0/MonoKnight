@@ -2,8 +2,24 @@ import Foundation
 import GameKit
 import UIKit
 
+/// Game Center 操作に必要なインターフェースを定義するプロトコル
+/// - NOTE: 認証やスコア送信をテストしやすくするために利用する
+protocol GameCenterServiceProtocol: AnyObject {
+    /// 現在認証済みであるかどうか
+    var isAuthenticated: Bool { get }
+    /// ローカルプレイヤーの認証を行う
+    /// - Parameter completion: 認証結果を受け取るクロージャ
+    func authenticateLocalPlayer(completion: ((Bool) -> Void)?)
+    /// リーダーボードへスコアを送信する
+    /// - Parameter score: 送信する手数
+    func submitScore(_ score: Int)
+    /// ランキング画面を表示する
+    func showLeaderboard()
+}
+
 /// Game Center 関連の操作をまとめたサービス
-final class GameCenterService: NSObject, GKGameCenterControllerDelegate {
+/// 実際に Game Center と連携する実装
+final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCenterServiceProtocol {
     /// シングルトンインスタンス
     static let shared = GameCenterService()
 
