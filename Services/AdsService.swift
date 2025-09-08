@@ -39,6 +39,8 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol {
 
     /// 広告除去購入済みフラグ（UserDefaults と連携）
     @AppStorage("remove_ads") private var removeAds: Bool = false
+    /// ハプティクスを有効にするかどうかの設定値
+    @AppStorage("haptics_enabled") private var hapticsEnabled: Bool = true
 
     /// ATT と UMP の同意状況に基づくパーソナライズ可否
     private var isPersonalized: Bool = false
@@ -170,6 +172,10 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol {
             let vc = UIHostingController(rootView: DummyInterstitialView())
             vc.modalPresentationStyle = .fullScreen
             root.present(vc, animated: true)
+            // 広告表示時に警告ハプティクスを発生させる
+            if hapticsEnabled {
+                UINotificationFeedbackGenerator().notificationOccurred(.warning)
+            }
             // 表示後にタイムスタンプとフラグを更新
             lastInterstitialDate = Date()
             hasShownInCurrentPlay = true
@@ -180,6 +186,10 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol {
         guard let ad = interstitial else { return }
         // 現在のルートビューから広告を表示
         ad.present(fromRootViewController: root)
+        // 広告表示時に警告ハプティクスを発生させる
+        if hapticsEnabled {
+            UINotificationFeedbackGenerator().notificationOccurred(.warning)
+        }
         // 表示後にタイムスタンプとフラグを更新し、次回に備えて再読み込み
         lastInterstitialDate = Date()
         hasShownInCurrentPlay = true

@@ -17,6 +17,8 @@ struct ResultView: View {
 
     /// ベスト手数を `UserDefaults` に保存する
     @AppStorage("best_moves_5x5") private var bestMoves: Int = .max
+    /// ハプティクスを有効にするかどうかの設定値
+    @AppStorage("haptics_enabled") private var hapticsEnabled: Bool = true
     
     var body: some View {
         VStack(spacing: 24) {
@@ -31,8 +33,10 @@ struct ResultView: View {
             
             // MARK: - リトライボタン
             Button(action: {
-                // 成功フィードバックを発火させてからリトライ処理を呼び出す
-                UINotificationFeedbackGenerator().notificationOccurred(.success)
+                // 設定が有効なら成功フィードバックを発火
+                if hapticsEnabled {
+                    UINotificationFeedbackGenerator().notificationOccurred(.success)
+                }
                 onRetry()
             }) {
                 Text("リトライ")
@@ -42,8 +46,10 @@ struct ResultView: View {
             
             // MARK: - Game Center ランキングボタン
             Button(action: {
-                // ランキング表示時も軽い成功フィードバックを挿入
-                UINotificationFeedbackGenerator().notificationOccurred(.success)
+                // 設定が有効なら成功フィードバックを発火
+                if hapticsEnabled {
+                    UINotificationFeedbackGenerator().notificationOccurred(.success)
+                }
                 gameCenterService.showLeaderboard()
             }) {
                 Text("ランキング")
