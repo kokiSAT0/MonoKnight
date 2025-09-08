@@ -117,3 +117,12 @@ enum MoveCard: CaseIterable {
     }
 }
 
+// MARK: - Identifiable への適合
+extension MoveCard: Identifiable {
+    /// `Identifiable` 準拠のための一意な識別子
+    /// ここでは単純に UUID を生成して返す
+    /// - Note: 山札で同種カードが複数枚存在するため
+    ///         各カードインスタンスを区別する目的で利用する
+    var id: UUID { UUID() }
+}
+

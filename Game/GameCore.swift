@@ -11,88 +11,6 @@ struct Published<Value> {
 }
 #endif
 
-/// 移動カードを表す構造体
-/// - 備考: dx, dy で移動量を表し、16 種のカードを定義する
-struct MoveCard: Identifiable {
-    /// 一意な識別子（UI バインディング用）
-    let id = UUID()
-    /// x 方向の移動量
-    let dx: Int
-    /// y 方向の移動量
-    let dy: Int
-
-    /// 16 種のカード一覧
-    /// - ナイト型 8 種 + 距離 2 の直線/斜め 8 種
-    static let all: [MoveCard] = [
-        // ナイト型（±1, ±2）
-        MoveCard(dx: 1, dy: 2),
-        MoveCard(dx: 2, dy: 1),
-        MoveCard(dx: -1, dy: 2),
-        MoveCard(dx: -2, dy: 1),
-        MoveCard(dx: 1, dy: -2),
-        MoveCard(dx: 2, dy: -1),
-        MoveCard(dx: -1, dy: -2),
-        MoveCard(dx: -2, dy: -1),
-        // 距離 2 の直線/斜め
-        MoveCard(dx: 2, dy: 0),
-        MoveCard(dx: -2, dy: 0),
-        MoveCard(dx: 0, dy: 2),
-        MoveCard(dx: 0, dy: -2),
-        MoveCard(dx: 2, dy: 2),
-        MoveCard(dx: -2, dy: 2),
-        MoveCard(dx: 2, dy: -2),
-        MoveCard(dx: -2, dy: -2)
-    ]
-}
-
-/// 山札・手札・捨札を管理する構造体
-struct Deck {
-    /// 山札（上から末尾要素を引く）
-    private var drawPile: [MoveCard] = []
-    /// 捨札
-    private var discardPile: [MoveCard] = []
-
-    /// 初期化時に 80 枚の山札を生成
-    init() {
-        reset()
-    }
-
-    /// 山札を再構築してシャッフルする
-    mutating func reset() {
-        drawPile.removeAll()
-        discardPile.removeAll()
-        for _ in 0..<5 { // 各カード 5 枚ずつ
-            drawPile.append(contentsOf: MoveCard.all)
-        }
-        drawPile.shuffle()
-    }
-
-    /// 1 枚引く
-    mutating func draw() -> MoveCard? {
-        if drawPile.isEmpty {
-            // 山札が空なら捨札から再構築
-            if discardPile.isEmpty { return nil }
-            drawPile = discardPile.shuffled()
-            discardPile.removeAll()
-        }
-        return drawPile.popLast()
-    }
-
-    /// 複数枚引く
-    mutating func draw(count: Int) -> [MoveCard] {
-        var result: [MoveCard] = []
-        for _ in 0..<count {
-            if let card = draw() { result.append(card) }
-        }
-        return result
-    }
-
-    /// 使用済みカードを捨札へ送る
-    mutating func discard(_ card: MoveCard) {
-        discardPile.append(card)
-    }
-}
-
 /// ゲーム進行を統括するクラス
 /// - 盤面操作・手札管理・ペナルティ処理・スコア計算を担当する
 final class GameCore: ObservableObject {
@@ -114,7 +32,7 @@ final class GameCore: ObservableObject {
     /// 合計スコア（小さいほど良い）
     var score: Int { moveCount + penaltyCount }
 
-    /// 山札管理
+    /// 山札管理（`Deck.swift` に定義された構造体を使用）
     private var deck = Deck()
 
     /// 初期化時に手札と次カードを用意
@@ -177,13 +95,11 @@ final class GameCore: ObservableObject {
         penaltyCount += 5
         progress = .deadlock
 
-        // 既存手札と先読みカードをすべて捨札へ
-        hand.forEach { deck.discard($0) }
-        if let nextCard = next { deck.discard(nextCard) }
-
-        // 新しい手札と先読みを引き直し
-        hand = deck.draw(count: 3)
-        next = deck.draw()
+        // デッキに全カードを戻してからまとめて引き直す
+        // 既存の手札と先読みカードを一括で捨札へ送り、新しいカードを引く
+        let result = deck.fullRedraw(hand: hand, next: next)
+        hand = result.hand
+        next = result.next
 
         // 引き直し後も詰みの場合があるので再チェック
         progress = .playing

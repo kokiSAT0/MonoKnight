@@ -1,3 +1,4 @@
+#if canImport(SpriteKit)
 import SpriteKit
 
 /// GameCore とのやり取りのためのプロトコル
@@ -142,4 +143,5 @@ class GameScene: SKScene {
         return board.contains(point) ? point : nil
     }
 }
+#endif
 
