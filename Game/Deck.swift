@@ -111,3 +111,27 @@ struct Deck {
         return (newHand, newNext)
     }
 }
+
+#if DEBUG
+extension Deck {
+    /// テスト用: 任意のカード配列だけで構成されたデッキを生成する
+    /// - Parameters:
+    ///   - cards: 山札として使用するカード列（先頭が最初に引かれる）
+    ///   - seed: 乱数シード。再現性のあるシャッフルを行うための値
+    /// - Returns: 指定したカードのみを含むデッキ
+    static func makeTestDeck(cards: [MoveCard], seed: UInt64 = 0) -> Deck {
+        // 通常の初期化子で乱数生成器を用意
+        var deck = Deck(seed: seed)
+        #if canImport(GameplayKit)
+        // reset() 内で乱数が消費されるため、同じシードで生成し直す
+        deck.random = GKMersenneTwisterRandomSource(seed: seed)
+        #else
+        deck.random = SystemRandomNumberGenerator()
+        #endif
+        // 渡された配列の順番で引けるよう反転して格納
+        deck.drawPile = cards.reversed()
+        deck.discardPile.removeAll()
+        return deck
+    }
+}
+#endif

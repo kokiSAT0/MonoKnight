@@ -18,7 +18,8 @@ let package = Package(
         // Game モジュールは既存の Game ディレクトリを利用
         .target(
             name: "Game",
-            path: "Game"
+            path: "Game",
+            exclude: ["GameCore.swift"]
         ),
         // 単体テスト用ターゲット
         .testTarget(
