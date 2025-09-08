@@ -45,13 +45,15 @@ struct GameView: View {
                 VStack(spacing: 8) {
                     // 手札 3 枚を横並びで表示
                     HStack(spacing: 12) {
-                        ForEach(Array(core.hand.enumerated()), id: \.element.id) { index, card in
+                        // MoveCard は Identifiable に準拠していないため、enumerated の offset を id として利用
+                        ForEach(Array(core.hand.enumerated()), id: \.offset) { index, card in
                             cardView(for: card)
                                 // 盤外に出るカードは薄く表示し、タップを無効化
                                 .opacity(isCardUsable(card) ? 1.0 : 0.4)
                                 .onTapGesture {
+                                    // 列挙型 MoveCard の使用可否を確認してから GameCore へ伝達
                                     guard isCardUsable(card) else { return }
-                                    // 選択されたカードで GameCore を更新
+                                    // 選択されたカードで GameCore を更新（index は手札位置）
                                     core.playCard(at: index)
                                 }
                         }
@@ -76,12 +78,16 @@ struct GameView: View {
     }
 
     /// 指定カードが現在位置から盤内に収まるか判定
+    /// - Note: MoveCard は列挙型であり、dx/dy プロパティから移動量を取得する
     private func isCardUsable(_ card: MoveCard) -> Bool {
+        // 現在位置に MoveCard の移動量を加算して目的地を算出
         let target = core.current.offset(dx: card.dx, dy: card.dy)
+        // 目的地が盤面内に含まれているかどうかを判定
         return core.board.contains(target)
     }
 
     /// カードの簡易表示ビュー
+    /// - Parameter card: 表示対象の MoveCard（列挙型）
     private func cardView(for card: MoveCard) -> some View {
         ZStack {
             // 枠付きの白いカードを描画
@@ -91,8 +97,8 @@ struct GameView: View {
                     RoundedRectangle(cornerRadius: 8)
                         .fill(Color.gray.opacity(0.2))
                 )
-            // 移動量をテキストで表示
-            Text("dx:\(card.dx) dy:\(card.dy)")
+            // MoveCard に定義された displayName を表示（例: 上2右1）
+            Text(card.displayName)
                 .font(.caption)
                 .foregroundColor(.white)
         }
