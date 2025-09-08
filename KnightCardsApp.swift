@@ -15,6 +15,9 @@ struct KnightCardsApp: App {
 
     /// 初期化時に環境変数を確認してモックの使用有無を決定する
     init() {
+        // MARK: グローバルエラーハンドラの設定
+        // デバッグ中にどこでクラッシュしても詳細な情報を得られるようにする
+        ErrorReporter.setup()
         if ProcessInfo.processInfo.environment["UITEST_MODE"] != nil {
             // UI テストではモックを利用して即時認証・ダミー広告を表示
             self.gameCenterService = MockGameCenterService()
