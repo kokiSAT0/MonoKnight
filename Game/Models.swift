@@ -81,6 +81,18 @@ struct Board {
         tiles[point.y][point.x] = .visited
     }
 
+    /// 未踏破マスの残数を計算して返す
+    /// - Returns: まだ踏破していないマスの数
+    var remainingCount: Int {
+        var count = 0
+        for row in tiles {
+            for tile in row where tile != .visited {
+                count += 1
+            }
+        }
+        return count
+    }
+
     /// 全マスを踏破済みにしたかどうかを返す
     var isCleared: Bool {
         for row in tiles {

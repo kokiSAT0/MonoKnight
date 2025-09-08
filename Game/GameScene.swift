@@ -1,5 +1,8 @@
 #if canImport(SpriteKit)
 import SpriteKit
+#if canImport(UIKit)
+import UIKit
+#endif
 
 /// GameCore とのやり取りのためのプロトコル
 /// - ゲームロジック側で実装し、タップされたマスに対する移動処理を担当する
@@ -29,6 +32,35 @@ class GameScene: SKScene {
     /// 駒を表すノード
     private var knightNode: SKShapeNode?
 
+    /// 現在の駒の位置
+    /// - NOTE: アクセシビリティ情報更新時に参照する
+    private var knightPosition: GridPoint = .center
+
+    #if canImport(UIKit)
+    /// VoiceOver で読み上げるための要素配列
+    private var accessibilityElementsCache: [UIAccessibilityElement] = []
+
+    /// VoiceOver 用に各マスを表すクラス
+    /// - ダブルタップで該当マスを GameCore に伝達する
+    private final class TileAccessibilityElement: UIAccessibilityElement {
+        /// 対象マスの座標
+        let point: GridPoint
+        /// 親となるシーンへの弱参照
+        weak var owner: GameScene?
+        /// 初期化
+        init(point: GridPoint, owner: GameScene) {
+            self.point = point
+            self.owner = owner
+            super.init(accessibilityContainer: owner)
+        }
+        /// VoiceOver の操作に反応してタップを伝達
+        override func accessibilityActivate() -> Bool {
+            owner?.gameCore?.handleTap(at: point)
+            return true
+        }
+    }
+    #endif
+
     // MARK: - シーン初期化
 
     override func didMove(to view: SKView) {
@@ -46,6 +78,9 @@ class GameScene: SKScene {
 
         /// 初期状態として中央を踏破済みに表示
         updateTileColors()
+
+        /// アクセシビリティ情報を初期化
+        updateAccessibilityElements()
     }
 
     /// 画面サイズからマスのサイズと原点を算出する
@@ -103,6 +138,8 @@ class GameScene: SKScene {
     func updateBoard(_ board: Board) {
         self.board = board
         updateTileColors()
+        // 盤面更新に応じてアクセシビリティ要素も再構築
+        updateAccessibilityElements()
     }
 
     /// 各マスの色を踏破状態に合わせて更新する
@@ -122,6 +159,9 @@ class GameScene: SKScene {
         let destination = position(for: point)
         let move = SKAction.move(to: destination, duration: 0.2)
         knightNode?.run(move)
+        // 現在位置を保持し、アクセシビリティ情報を更新
+        knightPosition = point
+        updateAccessibilityElements()
     }
 
     // MARK: - タップ処理
@@ -142,6 +182,45 @@ class GameScene: SKScene {
         let point = GridPoint(x: x, y: y)
         return board.contains(point) ? point : nil
     }
+
+    #if canImport(UIKit)
+    /// VoiceOver 用のアクセシビリティ要素を再構築
+    private func updateAccessibilityElements() {
+        var elements: [UIAccessibilityElement] = []
+        for y in 0..<Board.size {
+            for x in 0..<Board.size {
+                let point = GridPoint(x: x, y: y)
+                let element = TileAccessibilityElement(point: point, owner: self)
+                // シーン内でのフレームを設定し、フォーカス位置を合わせる
+                element.accessibilityFrameInContainerSpace = CGRect(
+                    x: gridOrigin.x + CGFloat(x) * tileSize,
+                    y: gridOrigin.y + CGFloat(y) * tileSize,
+                    width: tileSize,
+                    height: tileSize
+                )
+                // 状態に応じた読み上げ内容を生成
+                if point == knightPosition {
+                    let visitedText = board.isVisited(point) ? "踏破済み" : "未踏破"
+                    element.accessibilityLabel = "駒あり " + visitedText
+                } else {
+                    element.accessibilityLabel = board.isVisited(point) ? "踏破済み" : "未踏破"
+                }
+                element.accessibilityTraits = [.button]
+                elements.append(element)
+            }
+        }
+        accessibilityElementsCache = elements
+    }
+
+    /// GameScene をアクセシビリティコンテナとして扱う
+    override var accessibilityElements: [Any]? {
+        get { accessibilityElementsCache }
+        set { }
+    }
+    #else
+    // UIKit が利用できない環境では空実装
+    private func updateAccessibilityElements() {}
+    #endif
 }
 #endif
 

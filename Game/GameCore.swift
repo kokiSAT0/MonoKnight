@@ -10,6 +10,9 @@ struct Published<Value> {
     init(wrappedValue: Value) { self.wrappedValue = wrappedValue }
 }
 #endif
+#if canImport(UIKit)
+import UIKit
+#endif
 
 /// ゲーム進行を統括するクラス
 /// - 盤面操作・手札管理・ペナルティ処理・スコア計算を担当する
@@ -41,6 +44,8 @@ final class GameCore: ObservableObject {
         next = deck.draw()
         // 初期状態で手詰まりの場合をケア
         checkDeadlockAndApplyPenaltyIfNeeded()
+        // 初期状態の残り踏破数を読み上げ
+        announceRemainingTiles()
     }
 
     /// 指定インデックスのカードで駒を移動させる
@@ -59,6 +64,9 @@ final class GameCore: ObservableObject {
         current = target
         board.markVisited(target)
         moveCount += 1
+
+        // 盤面更新に合わせて残り踏破数を読み上げ
+        announceRemainingTiles()
 
         // 使用カードを捨札へ送り、手札から削除
         deck.discard(card)
@@ -117,6 +125,17 @@ final class GameCore: ObservableObject {
         hand = deck.draw(count: 3)
         next = deck.draw()
         checkDeadlockAndApplyPenaltyIfNeeded()
+        // リセット後の残り踏破数を読み上げ
+        announceRemainingTiles()
+    }
+
+    /// 現在の残り踏破数を VoiceOver で通知する
+    private func announceRemainingTiles() {
+#if canImport(UIKit)
+        let remaining = board.remainingCount
+        let message = "残り踏破数は\(remaining)です"
+        UIAccessibility.post(notification: .announcement, argument: message)
+#endif
     }
 }
 
