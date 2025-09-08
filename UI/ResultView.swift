@@ -40,6 +40,10 @@ struct ResultView: View {
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.bordered)
+
+            // MARK: - 広告プレースホルダー
+            // 実際のインタースティシャル広告の代わりにダミービューを表示
+            DummyInterstitialAdView()
         }
         .padding()
         .onAppear {

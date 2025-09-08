@@ -14,8 +14,10 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate {
     private(set) var isAuthenticated = false
 
     /// ローカルプレイヤーを Game Center で認証する
-    /// - Note: アプリ起動時に一度だけ呼び出すことを想定
-    func authenticateLocalPlayer() {
+    /// - Parameters:
+    ///   - completion: 認証結果を受け取るクロージャ（省略可能）
+    /// - Note: UI から呼び出し、完了後に状態を更新する想定
+    func authenticateLocalPlayer(completion: ((Bool) -> Void)? = nil) {
         // ローカルプレイヤーの取得
         let player = GKLocalPlayer.local
 
@@ -35,11 +37,13 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate {
                 // 認証成功
                 self?.isAuthenticated = true
                 print("Game Center 認証成功")
+                completion?(true) // 呼び出し元へ成功を通知
             } else {
                 // 認証失敗: エラーメッセージをログ出力
                 self?.isAuthenticated = false
                 let message = error?.localizedDescription ?? "不明なエラー"
                 print("Game Center 認証失敗: \(message)")
+                completion?(false) // 呼び出し元へ失敗を通知
             }
         }
     }
