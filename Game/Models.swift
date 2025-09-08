@@ -121,3 +121,28 @@ extension GridPoint: CustomStringConvertible {
     var description: String { "(\(x),\(y))" }
 }
 
+#if DEBUG
+extension Board {
+    /// 現在の盤面状態をコンソールに可視化する
+    /// - Parameter current: 駒の現在位置（省略時は表示しない）
+    func debugDump(current: GridPoint? = nil) {
+        // y 軸を上から下へ走査し、行単位で文字列を構築する
+        for y in stride(from: Board.size - 1, through: 0, by: -1) {
+            var row = ""
+            for x in 0..<Board.size {
+                let point = GridPoint(x: x, y: y)
+                if let current = current, current == point {
+                    // 駒の位置は K で表現
+                    row += "K "
+                } else {
+                    // 踏破済みマスは x、未踏破は . を使用
+                    row += tiles[y][x] == .visited ? "x " : ". "
+                }
+            }
+            // 末尾の空白を削除してからデバッグログに出力
+            debugLog(row.trimmingCharacters(in: .whitespaces))
+        }
+    }
+}
+#endif
+
