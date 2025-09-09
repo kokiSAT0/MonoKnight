@@ -1,9 +1,10 @@
 import SwiftUI
 
-// MARK: - アプリのエントリーポイント
+// MARK: - MonoKnight アプリのエントリーポイント
 // `@main` 属性を付与した構造体からアプリが開始される
 @main
-struct KnightCardsApp: App {
+/// アプリ全体のライフサイクルを管理する構造体
+struct MonoKnightApp: App {
     /// Game Center と広告サービスのインスタンス
     /// - NOTE: UI テスト時はモックを使用する
     private let gameCenterService: GameCenterServiceProtocol
