@@ -57,8 +57,8 @@
 ## 3. リポジトリ構成（提案）
 
 ```
-KnightCards/
-  ├─ KnightCardsApp.swift
+MonoKnight/
+  ├─ MonoKnightApp.swift
   ├─ Game/
   │   ├─ GameScene.swift          # 盤面描画・タッチ入力
   │   ├─ GameCore.swift           # ルール・手番進行・スコア計算
