@@ -17,7 +17,7 @@ swift test
 
 
 - [`docs/development-basics.md`](docs/development-basics.md)：SPM を用いたビルド・テスト手順
-- [`docs/xcode-emulator-setup.md`](docs/xcode-emulator-setup.md)：Xcode でシミュレーターを起動する手順
+- [`docs/files.md`](docs/files.md)：リポジトリ構成とシミュレーター実行までの手順
 
 ## リポジトリ構成
 
