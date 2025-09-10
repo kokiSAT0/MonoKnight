@@ -5,42 +5,25 @@
 GitHub 上の **MonoKnight** リポジトリを Xcode
 で開発・実行できるようにし、チームメンバー間で個人依存設定が衝突しない管理方法を確立する。
 
+> **方針**：iOS アプリ用の Xcode プロジェクトはリポジトリ内（`MonoKnight/MonoKnightApp`）に配置し、個人設定ファイルは `.gitignore` で除外する。
+
 ------------------------------------------------------------------------
 
 ## フォルダ構成（最終版）
 
     MonoKnight/
-    ├─ MonoKnight.xcodeproj      # Xcode プロジェクト
-    ├─ MonoKnightApp.swift       # エントリポイント
-    │
-    ├─ Game/
-    │   ├─ GameScene.swift
-    │   ├─ GameCore.swift
-    │   ├─ Deck.swift
-    │   ├─ MoveCard.swift
-    │   └─ Models.swift
-    │
-    ├─ UI/
-    │   ├─ RootView.swift
-    │   ├─ GameView.swift
-    │   ├─ ResultView.swift
-    │   └─ SettingsView.swift
-    │
-    ├─ Services/
-    │   ├─ StoreService.swift
-    │   ├─ AdsService.swift
-    │   └─ GameCenterService.swift
-    │
-    ├─ Resources/
-    │   ├─ Assets.xcassets
-    │   └─ Localizable.strings
-    │
-    ├─ Config/
-    │   ├─ Default.xcconfig
-    │   └─ Local.xcconfig.sample
-    │
-    ├─ AGENTS.md
-    └─ .gitignore
+    ├─ Game/                       # ルール・山札などのライブラリ
+    ├─ UI/                         # 画面表示用コンポーネント
+    ├─ Services/                   # 課金・広告・GameCenter
+    ├─ Resources/                  # 画像や文字列
+    └─ MonoKnightApp/              # iOS アプリ本体（Xcode プロジェクト）
+        ├─ MonoKnightApp.xcodeproj
+        ├─ Sources/
+        │   └─ MonoKnightApp.swift # エントリポイント
+        ├─ Config/
+        │   ├─ Default.xcconfig
+        │   └─ Local.xcconfig.sample
+        └─ Info.plist
 
 ------------------------------------------------------------------------
 
@@ -63,7 +46,7 @@ build/
 .build/
 
 # 個人設定ファイル
-Config/Local.xcconfig
+MonoKnightApp/Config/Local.xcconfig
 ```
 
 ------------------------------------------------------------------------
@@ -101,7 +84,7 @@ BUNDLE_ID_SUFFIX = .koki
 -   **リポジトリは1つ（MonoKnight）**\
     → コード、UI、サービス、リソースをひとまとめ。
 -   **個人依存を分離**\
-    → `Local.xcconfig` は追跡しない。
+    → `MonoKnightApp/Config/Local.xcconfig` は追跡しない。
 -   **衝突しやすいファイルは無視**\
     → `.xcuserdata`, `DerivedData` はコミット禁止。
 -   **共有したいスキームだけ Shared にする**\
@@ -113,10 +96,10 @@ BUNDLE_ID_SUFFIX = .koki
 ## 開発フロー
 
 1.  リポジトリを `git clone`。
-2.  Xcode で `MonoKnight.xcodeproj` を開く。
+2.  Xcode で `MonoKnightApp/MonoKnightApp.xcodeproj` を開く。
 3.  Config を設定：
-    -   `Default.xcconfig` は共通\
-    -   `Local.xcconfig.sample` をコピーして `Local.xcconfig`
+    -   `MonoKnightApp/Config/Default.xcconfig` は共通\
+    -   `MonoKnightApp/Config/Local.xcconfig.sample` をコピーして `Local.xcconfig`
         を作り、必要に応じて編集
 4.  スキーム：`MonoKnight` を選択、デバイス：シミュレーター（例: iPhone
     15）。
@@ -127,6 +110,6 @@ BUNDLE_ID_SUFFIX = .koki
 ## チェックリスト
 
 -   [ ] `.gitignore` が正しいか？\
--   [ ] `Local.xcconfig` はコミットしていないか？\
+-   [ ] `MonoKnightApp/Config/Local.xcconfig` はコミットしていないか？\
 -   [ ] スキームは Shared のみ共有されているか？\
 -   [ ] シミュレーターで起動できるか？

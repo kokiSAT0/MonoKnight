@@ -4,6 +4,8 @@
 > 想定読者：**Swift / VS Code / Xcode / Mac 初体験**の人。
 > ゴールまでの所要時間：30–60分（ネット環境・Macの速度で変動）。
 
+> **注意**：この手順書では、Xcode のアプリプロジェクトを **リポジトリ内**（例：`MonoKnight/MonoKnightApp`）に配置する方針とする。個人で外部に置く場合は、衝突回避のため該当ディレクトリを `.gitignore` で除外すること。
+
 ---
 
 ## 0. 事前に知っておくと安心な用語（1分でOK）
@@ -88,7 +90,7 @@ xcode-select --install
    * **Team**：未選択でもOK（後で設定）
    * **Organization Identifier**：`com.koki` など（仮でOK）
    * **Interface**：SwiftUI / **Language**：Swift
-4. 保存先は `MonoKnight` の**親フォルダ**（例：`~/work`）にするのが分かりやすい。
+4. 保存先は `MonoKnight` リポジトリ内に**`MonoKnightApp` フォルダ**を作成して指定する（例：`MonoKnight/MonoKnightApp`）。
 
 > 既にリポジトリに iOS アプリのターゲットが存在する場合は、この章の作成は不要。**プロジェクトナビゲータでアプリターゲットを選んで先へ**。
 
@@ -214,12 +216,16 @@ A. ライブラリ（`Game`）にユニットテストがある場合に、**タ
 
 ```
 MonoKnight/                 # GitHub 管理ルート
-└─ MonoKnightApp/           # iOSアプリ本体
+├─ Game/                    # ルールなどのライブラリ
+├─ UI/                      # 画面レイアウト群
+├─ Services/                # 課金・広告・GC など
+└─ MonoKnightApp/           # iOSアプリ本体（ここに Xcode プロジェクトを置く）
    ├─ MonoKnightApp.xcodeproj
    ├─ Config/
    │  ├─ Default.xcconfig          # 共有設定（追跡）
    │  └─ Local.xcconfig.sample     # 個人設定の雛形（追跡）
    ├─ Sources/
+   │  └─ MonoKnightApp.swift       # アプリのエントリポイント
    └─ Info.plist
 ```
 

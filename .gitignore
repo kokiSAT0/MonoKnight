@@ -68,3 +68,6 @@ fastlane/test_output
 
 # VSCode の個別設定を除外
 .vscode/
+
+# iOS アプリの個人設定ファイルを除外
+MonoKnightApp/Config/Local.xcconfig
