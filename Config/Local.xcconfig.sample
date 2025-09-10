@@ -1,0 +1,9 @@
+# 開発者ごとの個別設定サンプル
+# このファイルを Local.xcconfig にコピーして使用する
+# Local.xcconfig は .gitignore に登録されているためコミットされない
+
+# Apple Developer の Team ID を記入
+DEVELOPMENT_TEAM = YOUR_TEAM_ID
+
+# バンドルIDのサフィックスを記入
+BUNDLE_ID_SUFFIX = .koki

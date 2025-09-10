@@ -1,0 +1,174 @@
+// !$*UTF8*$!
+/* 最小構成の Xcode プロジェクト。詳細な設定は xcconfig で管理する */
+{
+archiveVersion = 1;
+classes = {
+};
+objectVersion = 56;
+objects = {
+
+/* Begin PBXBuildFile section */
+000000000000000000000005 /* MonoKnightApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000004 /* MonoKnightApp.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+000000000000000000000003 /* MonoKnight.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MonoKnight.app; sourceTree = BUILT_PRODUCTS_DIR; };
+000000000000000000000004 /* MonoKnightApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonoKnightApp.swift; sourceTree = "<group>"; };
+000000000000000000000009 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+000000000000000000000006 = {
+isa = PBXGroup;
+children = (
+000000000000000000000007 /* MonoKnight */,
+000000000000000000000008 /* Products */,
+);
+sourceTree = "<group>";
+};
+000000000000000000000007 /* MonoKnight */ = {
+isa = PBXGroup;
+children = (
+000000000000000000000004 /* MonoKnightApp.swift */,
+000000000000000000000009 /* Info.plist */,
+);
+path = "";
+sourceTree = "<group>";
+};
+000000000000000000000008 /* Products */ = {
+isa = PBXGroup;
+children = (
+000000000000000000000003 /* MonoKnight.app */,
+);
+name = Products;
+sourceTree = "<group>";
+};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+000000000000000000000002 /* MonoKnight */ = {
+isa = PBXNativeTarget;
+buildConfigurationList = 00000000000000000000000D /* Build configuration list for PBXNativeTarget "MonoKnight" */;
+buildPhases = (
+00000000000000000000000A /* Sources */,
+00000000000000000000000B /* Resources */,
+);
+buildRules = (
+);
+dependencies = (
+);
+name = MonoKnight;
+productName = MonoKnight;
+productReference = 000000000000000000000003 /* MonoKnight.app */;
+productType = "com.apple.product-type.application";
+};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+000000000000000000000001 /* Project object */ = {
+isa = PBXProject;
+attributes = {
+BuildIndependentTargetsInParallel = YES;
+LastSwiftUpdateCheck = 1500;
+LastUpgradeCheck = 1500;
+};
+buildConfigurationList = 00000000000000000000000C /* Build configuration list for PBXProject "MonoKnight" */;
+compatibilityVersion = "Xcode 15.0";
+developmentRegion = en;
+hasScannedForEncodings = 0;
+knownRegions = (
+en,
+Base,
+);
+mainGroup = 000000000000000000000006;
+productRefGroup = 000000000000000000000008 /* Products */;
+projectDirPath = "";
+projectRoot = "";
+targets = (
+000000000000000000000002 /* MonoKnight */,
+);
+};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+00000000000000000000000B /* Resources */ = {
+isa = PBXResourcesBuildPhase;
+buildActionMask = 2147483647;
+files = (
+);
+runOnlyForDeploymentPostprocessing = 0;
+};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+00000000000000000000000A /* Sources */ = {
+isa = PBXSourcesBuildPhase;
+buildActionMask = 2147483647;
+files = (
+000000000000000000000005 /* MonoKnightApp.swift in Sources */,
+);
+runOnlyForDeploymentPostprocessing = 0;
+};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+00000000000000000000000E /* Debug */ = {
+isa = XCBuildConfiguration;
+buildSettings = {
+INFOPLIST_FILE = Info.plist;
+PRODUCT_BUNDLE_IDENTIFIER = com.koki.monoknight;
+PRODUCT_NAME = "$(TARGET_NAME)";
+SWIFT_VERSION = 5.0;
+TARGETED_DEVICE_FAMILY = "1";
+};
+name = Debug;
+};
+00000000000000000000000F /* Release */ = {
+isa = XCBuildConfiguration;
+buildSettings = {
+INFOPLIST_FILE = Info.plist;
+PRODUCT_BUNDLE_IDENTIFIER = com.koki.monoknight;
+PRODUCT_NAME = "$(TARGET_NAME)";
+SWIFT_VERSION = 5.0;
+TARGETED_DEVICE_FAMILY = "1";
+};
+name = Release;
+};
+000000000000000000000010 /* Debug */ = {
+isa = XCBuildConfiguration;
+buildSettings = {
+};
+name = Debug;
+};
+000000000000000000000011 /* Release */ = {
+isa = XCBuildConfiguration;
+buildSettings = {
+};
+name = Release;
+};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+00000000000000000000000D /* Build configuration list for PBXNativeTarget "MonoKnight" */ = {
+isa = XCConfigurationList;
+buildConfigurations = (
+00000000000000000000000E /* Debug */,
+00000000000000000000000F /* Release */,
+);
+defaultConfigurationIsVisible = 0;
+defaultConfigurationName = Release;
+};
+00000000000000000000000C /* Build configuration list for PBXProject "MonoKnight" */ = {
+isa = XCConfigurationList;
+buildConfigurations = (
+000000000000000000000010 /* Debug */,
+000000000000000000000011 /* Release */,
+);
+defaultConfigurationIsVisible = 0;
+defaultConfigurationName = Release;
+};
+/* End XCConfigurationList section */
+
+};
+rootObject = 000000000000000000000001 /* Project object */;
+}
