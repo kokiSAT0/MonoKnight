@@ -15,8 +15,10 @@ swift test
 
 ## 開発の基本手順
 
- - 初めて環境構築を行う場合やデバッグビルドの作成方法については  
+ - 初めて環境構築を行う場合やデバッグビルドの作成方法については
    [`docs/development-basics.md`](docs/development-basics.md) を参照してください。
+ - iOS シミュレーターでアプリを動かすための設定手順は
+   [`docs/xcode-emulator-setup.md`](docs/xcode-emulator-setup.md) を参照してください。
 
 ## VSCode の設定共有
 
