@@ -3,7 +3,8 @@
 # gitignore contributors: remember to update Global/Xcode.gitignore, Objective-C.gitignore & Swift.gitignore
 
 ## User settings
-xcuserdata/
+**/*.xcuserdata/
+**/*.xcuserdatad/
 
 ## Obj-C/Swift specific
 *.hmap
@@ -68,6 +69,7 @@ fastlane/test_output
 
 # VSCode の個別設定を除外
 .vscode/
+
 # macOS のメタデータを除外
 .DS_Store
 
@@ -78,4 +80,4 @@ DerivedData/
 .swiftpm/
 
 # ローカル環境ごとの機密設定ファイルを除外
-Config/Local.xcconfig
+
