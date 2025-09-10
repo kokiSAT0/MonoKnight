@@ -68,3 +68,14 @@ fastlane/test_output
 
 # VSCode の個別設定を除外
 .vscode/
+# macOS のメタデータを除外
+.DS_Store
+
+# Xcode のビルド成果物を除外
+DerivedData/
+
+# Swift Package Manager の作業ディレクトリを除外
+.swiftpm/
+
+# ローカル環境ごとの機密設定ファイルを除外
+Config/Local.xcconfig
