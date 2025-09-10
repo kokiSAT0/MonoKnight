@@ -8,12 +8,16 @@ MonoKnight のライブラリ `Game` を **Xcode** に取り込み、iOS シミ�
 - macOS 13 以降
 - Xcode 15 以降（Apple ID を Xcode に追加済み）
 - リポジトリをローカルにクローン済みであること
+- `Config/Local.xcconfig` が作成済みであること（サンプルをコピー）
 
 ```bash
 # 未取得の場合のみリポジトリを取得
 git clone https://github.com/example/MonoKnight.git  # プロジェクトを取得
 cd MonoKnight                                         # プロジェクトに移動
+cp Config/Local.xcconfig.sample Config/Local.xcconfig  # ローカル設定を作成（Git 管理外）
 ```
+
+`Local.xcconfig` は `.gitignore` に登録されており、Git には含まれません。各自の環境に合わせて API キーなどを記述してください。
 
 ## 1. Package を Xcode で開く
 1. Finder で `MonoKnight` フォルダを開き、`Package.swift` をダブルクリック。

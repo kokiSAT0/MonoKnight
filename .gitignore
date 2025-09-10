@@ -80,4 +80,4 @@ DerivedData/
 .swiftpm/
 
 # ローカル環境ごとの機密設定ファイルを除外
-
+Config/Local.xcconfig       # 個別の API キー等を含む設定ファイル
