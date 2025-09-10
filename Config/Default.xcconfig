@@ -1,0 +1,18 @@
+# 共通設定ファイル
+# すべての開発者が共有するビルド設定をここに記述する
+
+# アプリ名
+PRODUCT_NAME = MonoKnight
+
+# バンドルID
+PRODUCT_BUNDLE_IDENTIFIER = com.koki.monoknight$(BUNDLE_ID_SUFFIX)
+
+# チームIDやサフィックスは環境ごとに上書き
+DEVELOPMENT_TEAM =
+BUNDLE_ID_SUFFIX =
+
+# 表示名（ホーム画面に表示される名称）
+APP_DISPLAY_NAME = $(PRODUCT_NAME)
+
+# 個人設定を上書きするファイルを読み込む（存在しない場合は無視）
+#include? "Local.xcconfig"

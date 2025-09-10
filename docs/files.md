@@ -11,34 +11,37 @@ GitHub 上の **MonoKnight** リポジトリを Xcode
 
     MonoKnight/
     ├─ MonoKnight.xcodeproj      # Xcode プロジェクト
-    ├─ MonoKnightApp.swift       # エントリポイント
+    ├─ MonoKnightApp.swift       # アプリのエントリポイント
+    ├─ Info.plist                # アプリ設定
+    ├─ Package.swift             # SwiftPM 設定
+    ├─ README.md                 # プロジェクト概要
     │
-    ├─ Game/
+    ├─ Game/                     # ゲームロジック
     │   ├─ GameScene.swift
     │   ├─ GameCore.swift
     │   ├─ Deck.swift
     │   ├─ MoveCard.swift
     │   └─ Models.swift
     │
-    ├─ UI/
+    ├─ UI/                       # 画面関連
     │   ├─ RootView.swift
     │   ├─ GameView.swift
     │   ├─ ResultView.swift
     │   └─ SettingsView.swift
     │
-    ├─ Services/
+    ├─ Services/                 # プラットフォーム機能
     │   ├─ StoreService.swift
     │   ├─ AdsService.swift
     │   └─ GameCenterService.swift
     │
-    ├─ Resources/
-    │   ├─ Assets.xcassets
-    │   └─ Localizable.strings
+    ├─ Tests/                    # テストコード
+    │   └─ ...
     │
     ├─ Config/
     │   ├─ Default.xcconfig
     │   └─ Local.xcconfig.sample
     │
+    ├─ docs/                     # ドキュメント
     ├─ AGENTS.md
     └─ .gitignore
 

@@ -15,8 +15,10 @@ swift test
 
 ## 開発ドキュメント
 
+
 - [`docs/development-basics.md`](docs/development-basics.md)：SPM を用いたビルド・テスト手順
 - [`docs/xcode-emulator-setup.md`](docs/xcode-emulator-setup.md)：Xcode でシミュレーターを起動する手順
+
 
 ## VSCode の設定共有
 
