@@ -14,7 +14,7 @@ Xcode でシミュレーターを起動したい場合は [`xcode-emulator-setup
 cd ~/work
 
 # GitHub からリポジトリを取得
-git clone https://github.com/example/MonoKnight.git
+git clone https://github.com/kokiSAT0/MonoKnight.git
 
 # プロジェクトディレクトリへ移動
 cd MonoKnight
