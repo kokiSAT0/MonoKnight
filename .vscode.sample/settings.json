@@ -1,0 +1,9 @@
+{
+    // VSCode で Swift 開発を行う際の推奨設定サンプル
+    "editor.tabSize": 4, // インデント幅を半角スペース4つに統一
+    "editor.insertSpaces": true, // タブの代わりにスペースを使用
+    "files.exclude": {
+        // ビルド成果物をエクスプローラーから非表示にする
+        "**/.build": true
+    }
+}

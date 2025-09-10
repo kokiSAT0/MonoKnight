@@ -17,3 +17,14 @@ swift test
 
  - 初めて環境構築を行う場合やデバッグビルドの作成方法については  
    [`docs/development-basics.md`](docs/development-basics.md) を参照してください。
+
+## VSCode の設定共有
+
+開発者ごとの VSCode 設定は `.vscode/` ディレクトリに保存しますが、リポジトリでは追跡しません。
+共有したい設定を `.vscode.sample` にサンプルとして用意しているので、必要に応じて以下のコマンドでコピーしてください。
+
+```bash
+cp -r .vscode.sample .vscode
+```
+
+コピー後、環境に合わせて設定内容を調整してから利用してください。
