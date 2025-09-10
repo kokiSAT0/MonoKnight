@@ -81,3 +81,5 @@ DerivedData/
 
 # ローカル環境ごとの機密設定ファイルを除外
 
+# ローカル環境の API キーなどを含む設定ファイル
+Config/Local.xcconfig
