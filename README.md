@@ -13,10 +13,10 @@ swift test
 
 上記コマンドをプロジェクトルートで実行すると、`Game` モジュールに対するテストが実行されます。
 
-## 開発の基本手順
+## 開発ドキュメント
 
- - 初めて環境構築を行う場合やデバッグビルドの作成方法については  
-   [`docs/development-basics.md`](docs/development-basics.md) を参照してください。
+- [`docs/development-basics.md`](docs/development-basics.md)：SPM を用いたビルド・テスト手順
+- [`docs/xcode-emulator-setup.md`](docs/xcode-emulator-setup.md)：Xcode でシミュレーターを起動する手順
 
 ## VSCode の設定共有
 
