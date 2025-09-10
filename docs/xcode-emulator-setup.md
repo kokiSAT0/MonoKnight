@@ -11,7 +11,7 @@ MonoKnight のライブラリ `Game` を **Xcode** に取り込み、iOS シミ�
 
 ```bash
 # 未取得の場合のみリポジトリを取得
-git clone https://github.com/example/MonoKnight.git  # プロジェクトを取得
+git clone https://github.com/kokiSAT0/MonoKnight.git  # プロジェクトを取得
 cd MonoKnight                                         # プロジェクトに移動
 ```
 
