@@ -1,7 +1,7 @@
 # 開発の基本手順（SPM でのビルド・テスト専用）
 
 本書は **Swift Package Manager** を利用したコマンドラインでのビルド・テスト手順に特化しています。
-Xcode でシミュレーターを起動したい場合は [`xcode-emulator-setup.md`](xcode-emulator-setup.md) を参照してください。
+Xcode でシミュレーターを起動したい場合は [`files.md`](files.md) の「シミュレーターで実行」セクションを参照してください。
 
 ## 前提条件
 - macOS 13 以降がインストールされた Mac
