@@ -1,6 +1,7 @@
 # Xcode で iOS シミュレーターを起動する手順
 
 MonoKnight のライブラリ `Game` を **Xcode** に取り込み、iOS シミュレーターで動かすまでの流れをまとめます。
+アプリの Xcode プロジェクトはリポジトリ直下に配置し、Git で共有します（外部に作成する場合は `.gitignore` で除外）。
 コマンドラインでのビルドやテストについては [`development-basics.md`](development-basics.md) を参照してください。
 
 ## 前提条件
@@ -21,6 +22,7 @@ cd MonoKnight                                         # プロジェクトに移
 ## 2. iOS アプリの入れ物を作成
 1. Xcode メニューで **File > New > Project…** を選択。
 2. テンプレートから **iOS > App** を選び、例として `MonoKnightApp` という名前で作成。
+   - 保存場所はクローンした `MonoKnight` フォルダ直下（`MonoKnight.xcodeproj` の例）。
 3. Interface は **SwiftUI**、Language は **Swift** を選択。
 
 ## 3. ライブラリ `Game` をアプリに組み込む
@@ -38,4 +40,24 @@ cd MonoKnight                                         # プロジェクトに移
 3. **⌘R** でビルドし、シミュレーターが起動すれば完了です。
 
 以上で Xcode を使ったシミュレーター起動の準備は完了です。
+
+---
+
+## 付録A: プロジェクト構成図
+
+```text
+MonoKnight/
+├─ MonoKnight.xcodeproj      # アプリ本体の Xcode プロジェクト
+├─ MonoKnightApp.swift       # アプリのエントリポイント
+├─ Info.plist                # アプリ設定
+├─ Package.swift             # SwiftPM 設定
+├─ Game/                     # ゲームロジック
+├─ UI/                       # 画面関連
+├─ Services/                 # プラットフォーム機能
+├─ Tests/                    # テストコード
+├─ Config/                   # xcconfig など
+└─ docs/                     # ドキュメント
+```
+
+リポジトリ内にアプリプロジェクトを置くことで、構成が共有されチーム内で同期しやすくなります。
 

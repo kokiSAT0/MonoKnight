@@ -19,6 +19,20 @@ swift test
 - [`docs/development-basics.md`](docs/development-basics.md)：SPM を用いたビルド・テスト手順
 - [`docs/xcode-emulator-setup.md`](docs/xcode-emulator-setup.md)：Xcode でシミュレーターを起動する手順
 
+## リポジトリ構成
+
+```text
+MonoKnight/
+├─ MonoKnight.xcodeproj      # アプリ本体の Xcode プロジェクト
+├─ Package.swift             # SwiftPM 設定
+├─ Game/                     # ゲームロジック
+├─ UI/                       # 画面関連
+├─ Services/                 # プラットフォーム機能
+├─ Tests/                    # テストコード
+├─ Config/                   # xcconfig など
+└─ docs/                     # ドキュメント
+```
+
 
 ## VSCode の設定共有
 
