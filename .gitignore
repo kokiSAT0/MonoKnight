@@ -42,6 +42,11 @@ playground.xcworkspace
 # Add this line if you want to avoid checking in source code from the Xcode workspace
 # *.xcworkspace
 
+# Xcode プロジェクトのワークスペースを Git から除外する
+MonoKnight.xcodeproj/project.xcworkspace/
+# 他のワークスペースもまとめて除外したい場合は下記を使用
+# *.xcworkspace/
+
 # Carthage
 #
 # Add this line if you want to avoid checking in source code from Carthage dependencies.
