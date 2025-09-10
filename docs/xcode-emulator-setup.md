@@ -22,11 +22,13 @@ cp Config/Local.xcconfig.sample Config/Local.xcconfig  # ローカル設定を�
 ## 1. Package を Xcode で開く
 1. Finder で `MonoKnight` フォルダを開き、`Package.swift` をダブルクリック。
 2. Xcode が起動し、Swift Package として読み込まれます。
+   - 既に `MonoKnight.xcodeproj` が存在する場合は、これをダブルクリックして開いても構いません。
 
 ## 2. iOS アプリの入れ物を作成
 1. Xcode メニューで **File > New > Project…** を選択。
 2. テンプレートから **iOS > App** を選び、例として `MonoKnightApp` という名前で作成。
    - 保存場所はクローンした `MonoKnight` フォルダ直下（`MonoKnight.xcodeproj` の例）。
+   - リポジトリに既存の `MonoKnight.xcodeproj` が同梱されている場合、このステップはスキップしてそのプロジェクトを利用しても構いません。
 3. Interface は **SwiftUI**、Language は **Swift** を選択。
 
 ## 3. ライブラリ `Game` をアプリに組み込む
@@ -39,9 +41,13 @@ cp Config/Local.xcconfig.sample Config/Local.xcconfig  # ローカル設定を�
 - シミュレーター実行のみなら未設定でも問題ありません。
 
 ## 5. シミュレーターで実行
-1. 左上の **Scheme** を作成したアプリ（例：`MonoKnightApp`）に設定。
-2. デバイスから任意の iPhone シミュレーターを選択。
-3. **⌘R** でビルドし、シミュレーターが起動すれば完了です。
+1. Xcode ウィンドウ左上の **Scheme** を、作成したアプリ（例：`MonoKnightApp`）に設定します。
+2. Scheme 右側のデバイス選択メニューから、任意の iPhone シミュレーターを選択します（例：**iPhone 15**）。
+3. 左上の再生マーク（Run ボタン）をクリックするか **⌘R** を押すとビルドが開始されます。
+   - 初回ビルドは時間がかかる場合があります。完了するまで待ちましょう。
+4. ビルド完了後、自動的に iOS シミュレーターが起動し、選択したデバイスが立ち上がります。
+5. シミュレーター内でアプリが表示されれば成功です。アプリが見当たらない場合は、シミュレーターのホーム画面から `MonoKnightApp` をタップしてください。
+   - シミュレーターが起動しない場合は、Xcode メニューの **Window > Devices and Simulators** から手動で起動できます。
 
 以上で Xcode を使ったシミュレーター起動の準備は完了です。
 
