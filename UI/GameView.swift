@@ -1,6 +1,5 @@
 import SwiftUI
 import SpriteKit
-import Game
 import UIKit // ハプティクス用のフレームワークを追加
 
 /// SwiftUI から SpriteKit の盤面を表示するビュー

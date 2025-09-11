@@ -15,7 +15,7 @@ enum ErrorReporter {
         // 詳細な情報をログへ出力できるようハンドラを登録する
         NSSetUncaughtExceptionHandler { exception in
             // 例外名と理由をデバッグログに出力
-            debugLog("未捕捉例外: \(exception.name.rawValue) - \(exception.reason ?? \"理由不明\")")
+            debugLog("未捕捉例外: \(exception.name.rawValue) - \(exception.reason ?? "理由不明")")
             // スタックトレースを取得し、改行区切りで表示
             let trace = exception.callStackSymbols.joined(separator: "\n")
             debugLog("スタックトレース:\n\(trace)")

@@ -1,174 +1,958 @@
 // !$*UTF8*$!
-/* 最小構成の Xcode プロジェクト。詳細な設定は xcconfig で管理する */
 {
-archiveVersion = 1;
-classes = {
-};
-objectVersion = 56;
-objects = {
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 70;
+	objects = {
 
 /* Begin PBXBuildFile section */
-000000000000000000000005 /* MonoKnightApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000004 /* MonoKnightApp.swift */; };
+		72CF37F02E71616C0093B180 /* MonoKnightApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000004 /* MonoKnightApp.swift */; };
+		72CF38052E7162E20093B180 /* ErrorReporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF37F92E7162E20093B180 /* ErrorReporter.swift */; };
+		72CF38062E7162E20093B180 /* DummyInterstitialAdView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF37FF2E7162E20093B180 /* DummyInterstitialAdView.swift */; };
+		72CF38072E7162E20093B180 /* GameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF38002E7162E20093B180 /* GameView.swift */; };
+		72CF38082E7162E20093B180 /* DebugLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF37F12E7162E20093B180 /* DebugLog.swift */; };
+		72CF38092E7162E20093B180 /* Deck.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF37F22E7162E20093B180 /* Deck.swift */; };
+		72CF380A2E7162E20093B180 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF37F52E7162E20093B180 /* Models.swift */; };
+		72CF380B2E7162E20093B180 /* AdsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF37F82E7162E20093B180 /* AdsService.swift */; };
+		72CF380C2E7162E20093B180 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF38032E7162E20093B180 /* SettingsView.swift */; };
+		72CF380D2E7162E20093B180 /* GameCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF37F32E7162E20093B180 /* GameCore.swift */; };
+		72CF380E2E7162E20093B180 /* ServiceMocks.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF37FB2E7162E20093B180 /* ServiceMocks.swift */; };
+		72CF380F2E7162E20093B180 /* ResultView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF38012E7162E20093B180 /* ResultView.swift */; };
+		72CF38102E7162E20093B180 /* ConsentFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF37FE2E7162E20093B180 /* ConsentFlowView.swift */; };
+		72CF38112E7162E20093B180 /* GameCenterService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF37FA2E7162E20093B180 /* GameCenterService.swift */; };
+		72CF38122E7162E20093B180 /* StoreService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF37FC2E7162E20093B180 /* StoreService.swift */; };
+		72CF38132E7162E20093B180 /* MoveCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF37F62E7162E20093B180 /* MoveCard.swift */; };
+		72CF38142E7162E20093B180 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF38022E7162E20093B180 /* RootView.swift */; };
+		72CF38152E7162E20093B180 /* GameScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF37F42E7162E20093B180 /* GameScene.swift */; };
+		72CF38182E7252460093B180 /* GoogleMobileAds in Frameworks */ = {isa = PBXBuildFile; productRef = 72CF38172E7252460093B180 /* GoogleMobileAds */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		72CF37D62E7161170093B180 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 000000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 72CF37C82E7161160093B180;
+			remoteInfo = MonoKnightApp;
+		};
+		72CF37E02E7161170093B180 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 000000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 72CF37C82E7161160093B180;
+			remoteInfo = MonoKnightApp;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
-000000000000000000000003 /* MonoKnight.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MonoKnight.app; sourceTree = BUILT_PRODUCTS_DIR; };
-000000000000000000000004 /* MonoKnightApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonoKnightApp.swift; sourceTree = "<group>"; };
-000000000000000000000009 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		000000000000000000000003 /* MonoKnight.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MonoKnight.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		000000000000000000000004 /* MonoKnightApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonoKnightApp.swift; sourceTree = "<group>"; };
+		000000000000000000000009 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		72CF37C92E7161160093B180 /* MonoKnightApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MonoKnightApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		72CF37D52E7161170093B180 /* MonoKnightAppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MonoKnightAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		72CF37DF2E7161170093B180 /* MonoKnightAppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MonoKnightAppUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		72CF37F12E7162E20093B180 /* DebugLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugLog.swift; sourceTree = "<group>"; };
+		72CF37F22E7162E20093B180 /* Deck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Deck.swift; sourceTree = "<group>"; };
+		72CF37F32E7162E20093B180 /* GameCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameCore.swift; sourceTree = "<group>"; };
+		72CF37F42E7162E20093B180 /* GameScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameScene.swift; sourceTree = "<group>"; };
+		72CF37F52E7162E20093B180 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		72CF37F62E7162E20093B180 /* MoveCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoveCard.swift; sourceTree = "<group>"; };
+		72CF37F82E7162E20093B180 /* AdsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdsService.swift; sourceTree = "<group>"; };
+		72CF37F92E7162E20093B180 /* ErrorReporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorReporter.swift; sourceTree = "<group>"; };
+		72CF37FA2E7162E20093B180 /* GameCenterService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameCenterService.swift; sourceTree = "<group>"; };
+		72CF37FB2E7162E20093B180 /* ServiceMocks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServiceMocks.swift; sourceTree = "<group>"; };
+		72CF37FC2E7162E20093B180 /* StoreService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreService.swift; sourceTree = "<group>"; };
+		72CF37FE2E7162E20093B180 /* ConsentFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConsentFlowView.swift; sourceTree = "<group>"; };
+		72CF37FF2E7162E20093B180 /* DummyInterstitialAdView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DummyInterstitialAdView.swift; sourceTree = "<group>"; };
+		72CF38002E7162E20093B180 /* GameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameView.swift; sourceTree = "<group>"; };
+		72CF38012E7162E20093B180 /* ResultView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultView.swift; sourceTree = "<group>"; };
+		72CF38022E7162E20093B180 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		72CF38032E7162E20093B180 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		72CF37CA2E7161160093B180 /* MonoKnightApp */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = MonoKnightApp; sourceTree = "<group>"; };
+		72CF37D82E7161170093B180 /* MonoKnightAppTests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = MonoKnightAppTests; sourceTree = "<group>"; };
+		72CF37E22E7161170093B180 /* MonoKnightAppUITests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = MonoKnightAppUITests; sourceTree = "<group>"; };
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		72CF37C62E7161160093B180 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				72CF38182E7252460093B180 /* GoogleMobileAds in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		72CF37D22E7161170093B180 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		72CF37DC2E7161170093B180 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
 /* Begin PBXGroup section */
-000000000000000000000006 = {
-isa = PBXGroup;
-children = (
-000000000000000000000007 /* MonoKnight */,
-000000000000000000000008 /* Products */,
-);
-sourceTree = "<group>";
-};
-000000000000000000000007 /* MonoKnight */ = {
-isa = PBXGroup;
-children = (
-000000000000000000000004 /* MonoKnightApp.swift */,
-000000000000000000000009 /* Info.plist */,
-);
-path = "";
-sourceTree = "<group>";
-};
-000000000000000000000008 /* Products */ = {
-isa = PBXGroup;
-children = (
-000000000000000000000003 /* MonoKnight.app */,
-);
-name = Products;
-sourceTree = "<group>";
-};
+		000000000000000000000006 = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000000007 /*  */,
+				72CF37CA2E7161160093B180 /* MonoKnightApp */,
+				72CF37D82E7161170093B180 /* MonoKnightAppTests */,
+				72CF37E22E7161170093B180 /* MonoKnightAppUITests */,
+				000000000000000000000008 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		000000000000000000000007 /*  */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000000004 /* MonoKnightApp.swift */,
+				72CF37F72E7162E20093B180 /* Game */,
+				72CF37FD2E7162E20093B180 /* Services */,
+				72CF38042E7162E20093B180 /* UI */,
+				000000000000000000000009 /* Info.plist */,
+			);
+			name = "";
+			sourceTree = "<group>";
+		};
+		000000000000000000000008 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000000003 /* MonoKnight.app */,
+				72CF37C92E7161160093B180 /* MonoKnightApp.app */,
+				72CF37D52E7161170093B180 /* MonoKnightAppTests.xctest */,
+				72CF37DF2E7161170093B180 /* MonoKnightAppUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		72CF37F72E7162E20093B180 /* Game */ = {
+			isa = PBXGroup;
+			children = (
+				72CF37F12E7162E20093B180 /* DebugLog.swift */,
+				72CF37F22E7162E20093B180 /* Deck.swift */,
+				72CF37F32E7162E20093B180 /* GameCore.swift */,
+				72CF37F42E7162E20093B180 /* GameScene.swift */,
+				72CF37F52E7162E20093B180 /* Models.swift */,
+				72CF37F62E7162E20093B180 /* MoveCard.swift */,
+			);
+			path = Game;
+			sourceTree = "<group>";
+		};
+		72CF37FD2E7162E20093B180 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				72CF37F82E7162E20093B180 /* AdsService.swift */,
+				72CF37F92E7162E20093B180 /* ErrorReporter.swift */,
+				72CF37FA2E7162E20093B180 /* GameCenterService.swift */,
+				72CF37FB2E7162E20093B180 /* ServiceMocks.swift */,
+				72CF37FC2E7162E20093B180 /* StoreService.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		72CF38042E7162E20093B180 /* UI */ = {
+			isa = PBXGroup;
+			children = (
+				72CF37FE2E7162E20093B180 /* ConsentFlowView.swift */,
+				72CF37FF2E7162E20093B180 /* DummyInterstitialAdView.swift */,
+				72CF38002E7162E20093B180 /* GameView.swift */,
+				72CF38012E7162E20093B180 /* ResultView.swift */,
+				72CF38022E7162E20093B180 /* RootView.swift */,
+				72CF38032E7162E20093B180 /* SettingsView.swift */,
+			);
+			path = UI;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-000000000000000000000002 /* MonoKnight */ = {
-isa = PBXNativeTarget;
-buildConfigurationList = 00000000000000000000000D /* Build configuration list for PBXNativeTarget "MonoKnight" */;
-buildPhases = (
-00000000000000000000000A /* Sources */,
-00000000000000000000000B /* Resources */,
-);
-buildRules = (
-);
-dependencies = (
-);
-name = MonoKnight;
-productName = MonoKnight;
-productReference = 000000000000000000000003 /* MonoKnight.app */;
-productType = "com.apple.product-type.application";
-};
+		000000000000000000000002 /* MonoKnight */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 00000000000000000000000D /* Build configuration list for PBXNativeTarget "MonoKnight" */;
+			buildPhases = (
+				00000000000000000000000A /* Sources */,
+				00000000000000000000000B /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = MonoKnight;
+			productName = MonoKnight;
+			productReference = 000000000000000000000003 /* MonoKnight.app */;
+			productType = "com.apple.product-type.application";
+		};
+		72CF37C82E7161160093B180 /* MonoKnightApp */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 72CF37ED2E7161170093B180 /* Build configuration list for PBXNativeTarget "MonoKnightApp" */;
+			buildPhases = (
+				72CF37C52E7161160093B180 /* Sources */,
+				72CF37C62E7161160093B180 /* Frameworks */,
+				72CF37C72E7161160093B180 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				72CF37CA2E7161160093B180 /* MonoKnightApp */,
+			);
+			name = MonoKnightApp;
+			packageProductDependencies = (
+				72CF38172E7252460093B180 /* GoogleMobileAds */,
+			);
+			productName = MonoKnightApp;
+			productReference = 72CF37C92E7161160093B180 /* MonoKnightApp.app */;
+			productType = "com.apple.product-type.application";
+		};
+		72CF37D42E7161170093B180 /* MonoKnightAppTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 72CF37EE2E7161170093B180 /* Build configuration list for PBXNativeTarget "MonoKnightAppTests" */;
+			buildPhases = (
+				72CF37D12E7161170093B180 /* Sources */,
+				72CF37D22E7161170093B180 /* Frameworks */,
+				72CF37D32E7161170093B180 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				72CF37D72E7161170093B180 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				72CF37D82E7161170093B180 /* MonoKnightAppTests */,
+			);
+			name = MonoKnightAppTests;
+			packageProductDependencies = (
+			);
+			productName = MonoKnightAppTests;
+			productReference = 72CF37D52E7161170093B180 /* MonoKnightAppTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		72CF37DE2E7161170093B180 /* MonoKnightAppUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 72CF37EF2E7161170093B180 /* Build configuration list for PBXNativeTarget "MonoKnightAppUITests" */;
+			buildPhases = (
+				72CF37DB2E7161170093B180 /* Sources */,
+				72CF37DC2E7161170093B180 /* Frameworks */,
+				72CF37DD2E7161170093B180 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				72CF37E12E7161170093B180 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				72CF37E22E7161170093B180 /* MonoKnightAppUITests */,
+			);
+			name = MonoKnightAppUITests;
+			packageProductDependencies = (
+			);
+			productName = MonoKnightAppUITests;
+			productReference = 72CF37DF2E7161170093B180 /* MonoKnightAppUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
-000000000000000000000001 /* Project object */ = {
-isa = PBXProject;
-attributes = {
-BuildIndependentTargetsInParallel = YES;
-LastSwiftUpdateCheck = 1500;
-LastUpgradeCheck = 1500;
-};
-buildConfigurationList = 00000000000000000000000C /* Build configuration list for PBXProject "MonoKnight" */;
-compatibilityVersion = "Xcode 15.0";
-developmentRegion = en;
-hasScannedForEncodings = 0;
-knownRegions = (
-en,
-Base,
-);
-mainGroup = 000000000000000000000006;
-productRefGroup = 000000000000000000000008 /* Products */;
-projectDirPath = "";
-projectRoot = "";
-targets = (
-000000000000000000000002 /* MonoKnight */,
-);
-};
+		000000000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastSwiftUpdateCheck = 1640;
+				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+					72CF37C82E7161160093B180 = {
+						CreatedOnToolsVersion = 16.4;
+					};
+					72CF37D42E7161170093B180 = {
+						CreatedOnToolsVersion = 16.4;
+						TestTargetID = 72CF37C82E7161160093B180;
+					};
+					72CF37DE2E7161170093B180 = {
+						CreatedOnToolsVersion = 16.4;
+						TestTargetID = 72CF37C82E7161160093B180;
+					};
+				};
+			};
+			buildConfigurationList = 00000000000000000000000C /* Build configuration list for PBXProject "MonoKnight" */;
+			compatibilityVersion = "Xcode 15.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 000000000000000000000006;
+			packageReferences = (
+				72CF38162E7252460093B180 /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */,
+			);
+			productRefGroup = 000000000000000000000008 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				000000000000000000000002 /* MonoKnight */,
+				72CF37C82E7161160093B180 /* MonoKnightApp */,
+				72CF37D42E7161170093B180 /* MonoKnightAppTests */,
+				72CF37DE2E7161170093B180 /* MonoKnightAppUITests */,
+			);
+		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-00000000000000000000000B /* Resources */ = {
-isa = PBXResourcesBuildPhase;
-buildActionMask = 2147483647;
-files = (
-);
-runOnlyForDeploymentPostprocessing = 0;
-};
+		00000000000000000000000B /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		72CF37C72E7161160093B180 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		72CF37D32E7161170093B180 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		72CF37DD2E7161170093B180 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-00000000000000000000000A /* Sources */ = {
-isa = PBXSourcesBuildPhase;
-buildActionMask = 2147483647;
-files = (
-000000000000000000000005 /* MonoKnightApp.swift in Sources */,
-);
-runOnlyForDeploymentPostprocessing = 0;
-};
+		00000000000000000000000A /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		72CF37C52E7161160093B180 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				72CF38052E7162E20093B180 /* ErrorReporter.swift in Sources */,
+				72CF38062E7162E20093B180 /* DummyInterstitialAdView.swift in Sources */,
+				72CF38072E7162E20093B180 /* GameView.swift in Sources */,
+				72CF38082E7162E20093B180 /* DebugLog.swift in Sources */,
+				72CF38092E7162E20093B180 /* Deck.swift in Sources */,
+				72CF380A2E7162E20093B180 /* Models.swift in Sources */,
+				72CF380B2E7162E20093B180 /* AdsService.swift in Sources */,
+				72CF380C2E7162E20093B180 /* SettingsView.swift in Sources */,
+				72CF380D2E7162E20093B180 /* GameCore.swift in Sources */,
+				72CF380E2E7162E20093B180 /* ServiceMocks.swift in Sources */,
+				72CF380F2E7162E20093B180 /* ResultView.swift in Sources */,
+				72CF38102E7162E20093B180 /* ConsentFlowView.swift in Sources */,
+				72CF38112E7162E20093B180 /* GameCenterService.swift in Sources */,
+				72CF38122E7162E20093B180 /* StoreService.swift in Sources */,
+				72CF38132E7162E20093B180 /* MoveCard.swift in Sources */,
+				72CF38142E7162E20093B180 /* RootView.swift in Sources */,
+				72CF38152E7162E20093B180 /* GameScene.swift in Sources */,
+				72CF37F02E71616C0093B180 /* MonoKnightApp.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		72CF37D12E7161170093B180 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		72CF37DB2E7161170093B180 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		72CF37D72E7161170093B180 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 72CF37C82E7161160093B180 /* MonoKnightApp */;
+			targetProxy = 72CF37D62E7161170093B180 /* PBXContainerItemProxy */;
+		};
+		72CF37E12E7161170093B180 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 72CF37C82E7161160093B180 /* MonoKnightApp */;
+			targetProxy = 72CF37E02E7161170093B180 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
-00000000000000000000000E /* Debug */ = {
-isa = XCBuildConfiguration;
-buildSettings = {
-INFOPLIST_FILE = Info.plist;
-PRODUCT_BUNDLE_IDENTIFIER = com.koki.monoknight;
-PRODUCT_NAME = "$(TARGET_NAME)";
-SWIFT_VERSION = 5.0;
-TARGETED_DEVICE_FAMILY = "1";
-};
-name = Debug;
-};
-00000000000000000000000F /* Release */ = {
-isa = XCBuildConfiguration;
-buildSettings = {
-INFOPLIST_FILE = Info.plist;
-PRODUCT_BUNDLE_IDENTIFIER = com.koki.monoknight;
-PRODUCT_NAME = "$(TARGET_NAME)";
-SWIFT_VERSION = 5.0;
-TARGETED_DEVICE_FAMILY = "1";
-};
-name = Release;
-};
-000000000000000000000010 /* Debug */ = {
-isa = XCBuildConfiguration;
-buildSettings = {
-};
-name = Debug;
-};
-000000000000000000000011 /* Release */ = {
-isa = XCBuildConfiguration;
-buildSettings = {
-};
-name = Release;
-};
+		00000000000000000000000E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				INFOPLIST_FILE = Info.plist;
+				PRODUCT_BUNDLE_IDENTIFIER = com.koki.monoknight;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		00000000000000000000000F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				INFOPLIST_FILE = Info.plist;
+				PRODUCT_BUNDLE_IDENTIFIER = com.koki.monoknight;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		000000000000000000000010 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+			};
+			name = Debug;
+		};
+		000000000000000000000011 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+			};
+			name = Release;
+		};
+		72CF37E72E7161170093B180 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 5TAKV37ZM4;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.kokisato.MonoKnightApp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		72CF37E82E7161170093B180 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 5TAKV37ZM4;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.kokisato.MonoKnightApp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		72CF37E92E7161170093B180 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 5TAKV37ZM4;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.kokisato.MonoKnightAppTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/MonoKnightApp.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/MonoKnightApp";
+			};
+			name = Debug;
+		};
+		72CF37EA2E7161170093B180 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 5TAKV37ZM4;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.kokisato.MonoKnightAppTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/MonoKnightApp.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/MonoKnightApp";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		72CF37EB2E7161170093B180 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 5TAKV37ZM4;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.kokisato.MonoKnightAppUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = MonoKnightApp;
+			};
+			name = Debug;
+		};
+		72CF37EC2E7161170093B180 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 5TAKV37ZM4;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.kokisato.MonoKnightAppUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = MonoKnightApp;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-00000000000000000000000D /* Build configuration list for PBXNativeTarget "MonoKnight" */ = {
-isa = XCConfigurationList;
-buildConfigurations = (
-00000000000000000000000E /* Debug */,
-00000000000000000000000F /* Release */,
-);
-defaultConfigurationIsVisible = 0;
-defaultConfigurationName = Release;
-};
-00000000000000000000000C /* Build configuration list for PBXProject "MonoKnight" */ = {
-isa = XCConfigurationList;
-buildConfigurations = (
-000000000000000000000010 /* Debug */,
-000000000000000000000011 /* Release */,
-);
-defaultConfigurationIsVisible = 0;
-defaultConfigurationName = Release;
-};
+		00000000000000000000000C /* Build configuration list for PBXProject "MonoKnight" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				000000000000000000000010 /* Debug */,
+				000000000000000000000011 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		00000000000000000000000D /* Build configuration list for PBXNativeTarget "MonoKnight" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				00000000000000000000000E /* Debug */,
+				00000000000000000000000F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		72CF37ED2E7161170093B180 /* Build configuration list for PBXNativeTarget "MonoKnightApp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				72CF37E72E7161170093B180 /* Debug */,
+				72CF37E82E7161170093B180 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		72CF37EE2E7161170093B180 /* Build configuration list for PBXNativeTarget "MonoKnightAppTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				72CF37E92E7161170093B180 /* Debug */,
+				72CF37EA2E7161170093B180 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		72CF37EF2E7161170093B180 /* Build configuration list for PBXNativeTarget "MonoKnightAppUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				72CF37EB2E7161170093B180 /* Debug */,
+				72CF37EC2E7161170093B180 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 /* End XCConfigurationList section */
 
-};
-rootObject = 000000000000000000000001 /* Project object */;
+/* Begin XCRemoteSwiftPackageReference section */
+		72CF38162E7252460093B180 /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/googleads/swift-package-manager-google-mobile-ads";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 12.11.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		72CF38172E7252460093B180 /* GoogleMobileAds */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 72CF38162E7252460093B180 /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */;
+			productName = GoogleMobileAds;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 000000000000000000000001 /* Project object */;
 }

@@ -1,5 +1,5 @@
 import SwiftUI
-import UIKit // ハプティクス用フレームワーク
+import UIKit  // ハプティクス用フレームワーク
 
 /// ゲーム終了時の結果を表示するビュー
 /// 手数・ベスト記録・各種ボタンをまとめて配置する
@@ -19,18 +19,30 @@ struct ResultView: View {
     @AppStorage("best_moves_5x5") private var bestMoves: Int = .max
     /// ハプティクスを有効にするかどうかの設定値
     @AppStorage("haptics_enabled") private var hapticsEnabled: Bool = true
-    
+
+    init(
+        moves: Int,
+        onRetry: @escaping () -> Void,
+        gameCenterService: GameCenterServiceProtocol = GameCenterService.shared,  // ない場合は GameCenterService()
+        adsService: AdsServiceProtocol = AdsService.shared  // ない場合は AdsService()
+    ) {
+        self.moves = moves
+        self.onRetry = onRetry
+        self.gameCenterService = gameCenterService
+        self.adsService = adsService
+    }
+
     var body: some View {
         VStack(spacing: 24) {
             // MARK: - 手数表示
             Text("手数: \(moves)")
                 .font(.title)
                 .padding(.top, 32)
-            
+
             // MARK: - ベスト記録表示（未記録の場合は '-'）
             Text("ベスト: \(bestMovesText)")
                 .font(.headline)
-            
+
             // MARK: - リトライボタン
             Button(action: {
                 // 設定が有効なら成功フィードバックを発火
@@ -43,7 +55,7 @@ struct ResultView: View {
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
-            
+
             // MARK: - Game Center ランキングボタン
             Button(action: {
                 // 設定が有効なら成功フィードバックを発火
@@ -69,12 +81,12 @@ struct ResultView: View {
             updateBest()
         }
     }
-    
+
     /// ベスト記録を表示用の文字列に変換
     private var bestMovesText: String {
         bestMoves == .max ? "-" : String(bestMoves)
     }
-    
+
     /// ベスト記録を更新する
     private func updateBest() {
         if moves < bestMoves {
@@ -92,4 +104,9 @@ struct ResultView_Previews: PreviewProvider {
             adsService: AdsService.shared
         )
     }
+}
+
+
+#Preview {
+    ResultView(moves: 30, onRetry: {})
 }
