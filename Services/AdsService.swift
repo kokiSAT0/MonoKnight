@@ -1,280 +1,226 @@
 import Foundation
-import GoogleMobileAds
 import UIKit
 import SwiftUI
 import AppTrackingTransparency
-import UserMessagingPlatform
 
-/// 広告表示に必要なインターフェースを定義するプロトコル
-/// - NOTE: テストではこのプロトコルに準拠したモックを注入する
+#if canImport(GoogleMobileAds)
+import GoogleMobileAds               // あるときだけ使う
+#endif
+
+#if canImport(UserMessagingPlatform)
+import UserMessagingPlatform         // あるときだけ使う
+#endif
+
+// MARK: - Protocol
+
 protocol AdsServiceProtocol: AnyObject {
-    /// インタースティシャル広告を表示する
     func showInterstitial()
-    /// 1 プレイにつき 1 回のみ表示するためのフラグをリセットする
     func resetPlayFlag()
-    /// 広告除去購入時に広告の読み込みを停止する
     func disableAds()
-    /// ATT の許可ダイアログを要求する（初回のみ表示）
     func requestTrackingAuthorization() async
-    /// UMP 同意フォームを必要に応じて表示し、広告設定を更新する
     func requestConsentIfNeeded() async
-    /// プライバシー設定変更後の同意状況を再取得し広告設定を更新する
     func refreshConsentStatus() async
 }
 
-/// インタースティシャル広告を管理するサービス
-/// ゲーム終了時に ResultView から呼び出される
-/// 実際に AdMob を利用して広告を管理する実装
+// MARK: - Impl
+
 final class AdsService: NSObject, ObservableObject, AdsServiceProtocol {
-    /// シングルトンインスタンス
     static let shared = AdsService()
 
-    /// 環境変数から取得したテスト用インタースティシャル ID
-    /// - 値が存在する場合は Google SDK を利用せずプレースホルダーを表示する
+    // env をセットしたら「常にダミーを出す」挙動に
     private let testInterstitialID = ProcessInfo.processInfo.environment["GAD_INTERSTITIAL_ID"]
-
-    /// テストモードであるかを判定するフラグ
     private var isTestMode: Bool { testInterstitialID != nil }
 
-    /// ロード済みのインタースティシャル広告
-    private var interstitial: GADInterstitialAd?
+    // GMA がある時だけ実体を保持
+    #if canImport(GoogleMobileAds)
+    private var interstitial: InterstitialAd?   // v11+ は InterstitialAd
+    #endif
 
-    /// 広告除去購入済みフラグ（UserDefaults と連携）
     @AppStorage("remove_ads") private var removeAds: Bool = false
-    /// ハプティクスを有効にするかどうかの設定値
     @AppStorage("haptics_enabled") private var hapticsEnabled: Bool = true
 
-    /// ATT と UMP の同意状況に基づくパーソナライズ可否
     private var isPersonalized: Bool = false
-
-    /// 最後に広告を表示した時刻
     private var lastInterstitialDate: Date?
-
-    /// 1 プレイ内で既に表示したかどうか
     private var hasShownInCurrentPlay: Bool = false
 
-    private override init() {
-        super.init()
-        // テストモードでは SDK を使わないため追加処理を行わない
-        // 実際の同意取得や広告読み込みは ConsentFlowView 側から呼び出される
-    }
+    private override init() { super.init() }
 
-    /// ATT の許諾ダイアログを表示（初回のみ）
+    // MARK: Consent / ATT
+
     func requestTrackingAuthorization() async {
-        // 既に選択済みであれば何もしない
         guard ATTrackingManager.trackingAuthorizationStatus == .notDetermined else { return }
-        // ユーザーに許可を求める
         _ = await ATTrackingManager.requestTrackingAuthorization()
     }
 
-    /// UMP 同意フォームを表示してパーソナライズ可否を更新
     func requestConsentIfNeeded() async {
-        let parameters = UMPRequestParameters()
-        // 13 歳未満ではないので false
-        parameters.tagForUnderAgeOfConsent = false
-
+        #if canImport(UserMessagingPlatform)
+        let params = UMPRequestParameters()
+        params.tagForUnderAgeOfConsent = false
         let consentInfo = UMPConsentInformation.sharedInstance
+
         do {
-            // 同意情報を取得
-            try await withCheckedThrowingContinuation { continuation in
-                consentInfo.requestConsentInfoUpdate(with: parameters) { error in
-                    if let error {
-                        continuation.resume(throwing: error)
-                    } else {
-                        continuation.resume()
-                    }
+            try await withCheckedThrowingContinuation { cont in
+                consentInfo.requestConsentInfoUpdate(with: params) { error in
+                    if let error { cont.resume(throwing: error) } else { cont.resume() }
                 }
             }
-        } catch {
-            // 取得に失敗した場合は詳細なエラーログを出力し、非パーソナライズ扱いとする
-            debugError(error, message: "同意情報の取得に失敗")
-            isPersonalized = false
-            return
-        }
-
-        // フォームが必要であれば表示
-        if consentInfo.formStatus == .available {
-            do {
-                let form = try await withCheckedThrowingContinuation { continuation in
+            if consentInfo.formStatus == .available {
+                let form = try await withCheckedThrowingContinuation { cont in
                     UMPConsentForm.load { form, error in
-                        if let error {
-                            continuation.resume(throwing: error)
-                        } else if let form {
-                            continuation.resume(returning: form)
-                        }
+                        if let error { cont.resume(throwing: error) }
+                        else if let form { cont.resume(returning: form) }
                     }
                 }
-
-                // ルートビューコントローラを取得して表示
                 if let root = UIApplication.shared.connectedScenes
-                    .compactMap({ $0 as? UIWindowScene })
-                    .first?.windows.first?.rootViewController {
-                    try await withCheckedThrowingContinuation { continuation in
+                    .compactMap({ $0 as? UIWindowScene }).first?
+                    .windows.first?.rootViewController {
+                    try await withCheckedThrowingContinuation { cont in
                         form.present(from: root) { error in
-                            if let error {
-                                continuation.resume(throwing: error)
-                            } else {
-                                continuation.resume()
-                            }
+                            if let error { cont.resume(throwing: error) } else { cont.resume() }
                         }
                     }
                 }
-            } catch {
-                // 表示に失敗しても処理は続行し、エラーのみログへ残す
-                debugError(error, message: "同意フォームの表示に失敗")
             }
+            isPersonalized = (consentInfo.consentStatus == .obtained)
+        } catch {
+            debugPrint("[UMP] 同意取得失敗:", error.localizedDescription)
+            isPersonalized = false
         }
+        #else
+        // UMP が無ければ非パーソナライズ扱い
+        isPersonalized = false
+        #endif
 
-        // 最終的な同意結果を反映
-        isPersonalized = (consentInfo.consentStatus == .obtained)
-
-        // 同意取得後に広告を読み込む
-        if !removeAds {
-            loadInterstitial()
-        }
+        if !removeAds { loadInterstitial() }
     }
 
-    /// プライバシー設定変更後に同意状況を再取得し、広告を更新する
-    /// - Note: SettingsView から呼び出され、ユーザーの選択内容を反映する
     func refreshConsentStatus() async {
-        let parameters = UMPRequestParameters()
-        // 13 歳未満ではないので false
-        parameters.tagForUnderAgeOfConsent = false
-
+        #if canImport(UserMessagingPlatform)
+        let params = UMPRequestParameters()
+        params.tagForUnderAgeOfConsent = false
         let consentInfo = UMPConsentInformation.sharedInstance
         do {
-            // 最新の同意情報を取得
-            try await withCheckedThrowingContinuation { continuation in
-                consentInfo.requestConsentInfoUpdate(with: parameters) { error in
-                    if let error {
-                        continuation.resume(throwing: error)
-                    } else {
-                        continuation.resume()
-                    }
+            try await withCheckedThrowingContinuation { cont in
+                consentInfo.requestConsentInfoUpdate(with: params) { error in
+                    if let error { cont.resume(throwing: error) } else { cont.resume() }
                 }
             }
+            isPersonalized = (consentInfo.consentStatus == .obtained)
         } catch {
-            // 取得に失敗した場合はログを出力し、非パーソナライズ扱いとして既存広告を破棄
-            debugError(error, message: "同意情報の再取得に失敗")
+            debugPrint("[UMP] 再取得失敗:", error.localizedDescription)
             isPersonalized = false
-            interstitial = nil
-            return
         }
+        #else
+        isPersonalized = false
+        #endif
 
-        // 取得した同意状況を反映
-        isPersonalized = (consentInfo.consentStatus == .obtained)
-
-        // 既存広告を破棄し、必要なら新たに読み込み直す
         if !removeAds {
+            #if canImport(GoogleMobileAds)
             interstitial = nil
+            #endif
             loadInterstitial()
         } else {
+            #if canImport(GoogleMobileAds)
             interstitial = nil
+            #endif
         }
     }
 
-    /// インタースティシャル広告を読み込む
+    // MARK: Load
+
     private func loadInterstitial() {
-        // 広告除去購入済み または テストモードのときは読み込み不要
+        // 購入済/テストモード は読み込み不要
         guard !removeAds, !isTestMode else { return }
 
+        #if canImport(GoogleMobileAds)
         let request = GADRequest()
-        // 非パーソナライズ広告を指定する場合は npa=1 を設定
         if !isPersonalized {
             let extras = GADExtras()
             extras.additionalParameters = ["npa": "1"]
             request.register(extras)
         }
 
-        // テスト用広告ユニット ID（実装時に差し替え）
-        GADInterstitialAd.load(withAdUnitID: "ca-app-pub-3940256099942544/4411468910", request: request) { [weak self] ad, error in
+        // テスト用ユニット ID
+        let adUnit = "ca-app-pub-3940256099942544/4411468910"
+
+        InterstitialAd.load(withAdUnitID: adUnit, request: request) { [weak self] ad, error in
             if let error {
-                // 読み込み失敗時は詳細なエラーログを出力して終了
-                debugError(error, message: "広告の読み込み失敗")
+                debugPrint("[Ads] load 失敗:", error.localizedDescription)
                 return
             }
-            // 正常に取得できたら保持
             self?.interstitial = ad
         }
+        #else
+        // GMA が無いビルドは何もしない
+        debugPrint("[Ads] GoogleMobileAds 無し（読み込みスキップ）")
+        #endif
     }
 
-    /// 準備済みの広告があれば表示する
+    // MARK: Show
+
     func showInterstitial() {
-        // 購入済み・インターバル未満・1 プレイ 1 回上限の場合は表示しない
         guard !removeAds,
               let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
               let root = scene.windows.first?.rootViewController,
               canShowByTime(),
               !hasShownInCurrentPlay else { return }
 
+        // --- テストモード or GMA 無し → ダミー表示 ---
+        #if !canImport(GoogleMobileAds)
+        presentDummy(from: root)
+        return
+        #else
         if isTestMode {
-            // --- テストモード ---
-            // ダミー広告ビューをモーダルで表示
-            let vc = UIHostingController(rootView: DummyInterstitialView())
-            vc.modalPresentationStyle = .fullScreen
-            root.present(vc, animated: true)
-            // 広告表示時に警告ハプティクスを発生させる
-            if hapticsEnabled {
-                UINotificationFeedbackGenerator().notificationOccurred(.warning)
-            }
-            // 表示後にタイムスタンプとフラグを更新
-            lastInterstitialDate = Date()
-            hasShownInCurrentPlay = true
+            presentDummy(from: root)
             return
         }
 
-        // --- 通常モード ---
+        // --- GMA あり通常表示 ---
         guard let ad = interstitial else { return }
-        // 現在のルートビューから広告を表示
         ad.present(fromRootViewController: root)
-        // 広告表示時に警告ハプティクスを発生させる
-        if hapticsEnabled {
-            UINotificationFeedbackGenerator().notificationOccurred(.warning)
-        }
-        // 表示後にタイムスタンプとフラグを更新し、次回に備えて再読み込み
+        if hapticsEnabled { UINotificationFeedbackGenerator().notificationOccurred(.warning) }
         lastInterstitialDate = Date()
         hasShownInCurrentPlay = true
         interstitial = nil
         loadInterstitial()
+        #endif
     }
 
-    /// 最後の表示から 90 秒以上経過しているか確認
+    // MARK: Utilities
+
+    private func presentDummy(from root: UIViewController) {
+        let vc = UIHostingController(rootView: DummyInterstitialView())
+        vc.modalPresentationStyle = .fullScreen
+        root.present(vc, animated: true)
+        if hapticsEnabled { UINotificationFeedbackGenerator().notificationOccurred(.warning) }
+        lastInterstitialDate = Date()
+        hasShownInCurrentPlay = true
+    }
+
     private func canShowByTime() -> Bool {
         guard let lastInterstitialDate else { return true }
         return Date().timeIntervalSince(lastInterstitialDate) >= 90
     }
 
-    /// 新しいプレイ開始時に 1 回表示フラグをリセットする
-    func resetPlayFlag() {
-        hasShownInCurrentPlay = false
-    }
-
-    /// 購入済みのときに既存広告を破棄し、以降読み込まないようにする
-    func disableAds() {
+    func resetPlayFlag() { hasShownInCurrentPlay = false }
+    func disableAds()   {
+        #if canImport(GoogleMobileAds)
         interstitial = nil
+        #endif
     }
 }
 
-/// テストモードで表示するプレースホルダー広告ビュー
-/// 実際の広告 SDK を利用せず、UI テスト用の簡易表示を提供する
-private struct DummyInterstitialView: View {
-    /// 表示を閉じるための dismiss アクション
-    @Environment(\.dismiss) private var dismiss
+// MARK: - Dummy View
 
+private struct DummyInterstitialView: View {
+    @Environment(\.dismiss) private var dismiss
     var body: some View {
         ZStack {
-            // 背景は黒一色で実広告を模倣
             Color.black
-            // 画面中央にテキストを配置
-            Text("Test Ad")
-                .foregroundColor(.white)
+            Text("Test Ad").foregroundColor(.white)
         }
         .ignoresSafeArea()
-        // UI テストから参照するための識別子
         .accessibilityIdentifier("dummy_interstitial_ad")
-        // タップで閉じる
-        .onTapGesture {
-            dismiss()
-        }
+        .onTapGesture { dismiss() }
     }
 }
