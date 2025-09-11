@@ -11,9 +11,11 @@ struct ResultView: View {
     let onRetry: () -> Void
 
     /// Game Center 連携を扱うサービス（プロトコル型で受け取る）
-    private let gameCenterService: GameCenterServiceProtocol
+    /// `init` 時にのみ代入し、以後は再代入しないがテスト用に差し替えられるよう `var` で定義
+    private var gameCenterService: GameCenterServiceProtocol
     /// 広告表示を扱うサービス（プロトコル型で受け取る）
-    private let adsService: AdsServiceProtocol
+    /// 上記と同じく `init` で注入し、必要に応じてモックに差し替え可能にする
+    private var adsService: AdsServiceProtocol
 
     /// ベスト手数を `UserDefaults` に保存する
     @AppStorage("best_moves_5x5") private var bestMoves: Int = .max
