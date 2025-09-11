@@ -1,6 +1,6 @@
-import SwiftUI
 import SpriteKit
-import UIKit // ハプティクス用のフレームワークを追加
+import SwiftUI
+import UIKit  // ハプティクス用のフレームワークを追加
 
 /// SwiftUI から SpriteKit の盤面を表示するビュー
 /// 画面下部に手札 3 枚と次に引かれるカードを表示し、
@@ -26,8 +26,10 @@ struct GameView: View {
     /// - Parameters:
     ///   - gameCenterService: Game Center 連携用サービス（デフォルトはシングルトン）
     ///   - adsService: 広告表示用サービス（デフォルトはシングルトン）
-    init(gameCenterService: GameCenterServiceProtocol = GameCenterService.shared,
-         adsService: AdsServiceProtocol = AdsService.shared) {
+    init(
+        gameCenterService: GameCenterServiceProtocol = GameCenterService.shared,
+        adsService: AdsServiceProtocol = AdsService.shared
+    ) {
         // GameCore の生成。StateObject へ包んで保持する
         let core = GameCore()
         _core = StateObject(wrappedValue: core)
@@ -49,22 +51,17 @@ struct GameView: View {
                 VStack(spacing: 16) {
                     // MARK: SpriteKit 表示領域
                     SpriteView(scene: scene)
-                    // 正方形で表示したいため幅に合わせる
-                    .frame(width: geometry.size.width, height: geometry.size.width)
-                    .onAppear {
-                        // サイズと初期状態を反映
-                        scene.size = CGSize(width: geometry.size.width, height: geometry.size.width)
-                        scene.updateBoard(core.board)
-                        scene.moveKnight(to: core.current)
-                    }
-                    // board が更新されたら色を反映
-                    .onChange(of: core.board) { newBoard in
-                        scene.updateBoard(newBoard)
-                    }
-                    // current が更新されたら駒を移動
-                    .onChange(of: core.current) { newPoint in
-                        scene.moveKnight(to: newPoint)
-                    }
+                        // 正方形で表示したいため幅に合わせる
+                        .frame(width: geometry.size.width, height: geometry.size.width)
+                        .onAppear {
+                            // サイズと初期状態を反映
+                            scene.size = CGSize(
+                                width: geometry.size.width, height: geometry.size.width)
+                            scene.updateBoard(core.board)
+                            scene.moveKnight(to: core.current)
+                        }
+                        .onReceive(core.$board) { newBoard in scene.updateBoard(newBoard) }
+                        .onReceive(core.$current) { newPoint in scene.moveKnight(to: newPoint) }
 
                     // MARK: 手札と先読みカードの表示
                     VStack(spacing: 8) {
@@ -82,12 +79,14 @@ struct GameView: View {
                                             core.playCard(at: index)
                                             // 設定で許可されていれば成功ハプティクスを発火
                                             if hapticsEnabled {
-                                                UINotificationFeedbackGenerator().notificationOccurred(.success)
+                                                UINotificationFeedbackGenerator()
+                                                    .notificationOccurred(.success)
                                             }
                                         } else {
                                             // 使用不可の場合、警告ハプティクスのみ発火
                                             if hapticsEnabled {
-                                                UINotificationFeedbackGenerator().notificationOccurred(.warning)
+                                                UINotificationFeedbackGenerator()
+                                                    .notificationOccurred(.warning)
                                             }
                                         }
                                     }
@@ -100,39 +99,38 @@ struct GameView: View {
                                 Text("次のカード")
                                     .font(.caption)
                                 cardView(for: next)
-                                    .opacity(0.6) // 先読みは操作不可なので半透明
+                                    .opacity(0.6)  // 先読みは操作不可なので半透明
                             }
                         }
                     }
                     .padding(.bottom, 16)
                 }
-            #if DEBUG
-            // MARK: - 結果画面へ強制遷移ボタン（デバッグ専用）
-            // デバッグビルドでのみ表示し、リリースビルドでは含めない
-            Button(action: {
-                // 直接結果画面を開き、UI の確認やデバッグを容易にする
-                showingResult = true
-            }) {
-                Text("結果へ")
+                #if DEBUG
+                    // MARK: - 結果画面へ強制遷移ボタン（デバッグ専用）
+                    // デバッグビルドでのみ表示し、リリースビルドでは含めない
+                    Button(action: {
+                        // 直接結果画面を開き、UI の確認やデバッグを容易にする
+                        showingResult = true
+                    }) {
+                        Text("結果へ")
+                    }
+                    .padding()
+                    .buttonStyle(.bordered)
+                    // UI テストでボタンを特定できるよう識別子を設定
+                    .accessibilityIdentifier("show_result")
+                #endif
             }
-            .padding()
-            .buttonStyle(.bordered)
-            // UI テストでボタンを特定できるよう識別子を設定
-            .accessibilityIdentifier("show_result")
-            #endif
+            // 画面全体を黒背景に統一
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.black)
         }
-        // 画面全体を黒背景に統一
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.black)
-    }
         // progress が .cleared へ変化したタイミングで結果画面を表示
-        .onChange(of: core.progress) { newValue in
+        .onChange(of: core.progress) { _, newValue in
             guard newValue == .cleared else { return }
-            // Game Center へスコア送信
             gameCenterService.submitScore(core.score)
-            // 結果画面を開く
             showingResult = true
         }
+
         // シートで結果画面を表示
         .sheet(isPresented: $showingResult) {
             ResultView(
@@ -191,4 +189,3 @@ struct GameView: View {
     // Xcode の Canvas で GameView を表示するためのプレビュー
     GameView()
 }
-
