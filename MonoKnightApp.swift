@@ -5,10 +5,12 @@ import SwiftUI
 @main
 /// アプリ全体のライフサイクルを管理する構造体
 struct MonoKnightApp: App {
-    /// Game Center と広告サービスのインスタンス
-    /// - NOTE: UI テスト時はモックを使用する
-    private let gameCenterService: GameCenterServiceProtocol
-    private let adsService: AdsServiceProtocol
+    /// Game Center と広告サービスのインスタンスを保持する
+    /// - NOTE: UI テスト時はモック、本番ではシングルトンを利用する
+    /// - IMPORTANT: `init` 内で一度だけ代入し、その後は変更しない
+    private var gameCenterService: GameCenterServiceProtocol
+    /// 広告サービスのインスタンス（上記と同様に `init` で確定）
+    private var adsService: AdsServiceProtocol
 
     /// 同意フローが完了したかどうかを保持するフラグ
     /// - NOTE: `UserDefaults` と連携し、次回以降はスキップする
@@ -19,6 +21,8 @@ struct MonoKnightApp: App {
         // MARK: グローバルエラーハンドラの設定
         // デバッグ中にどこでクラッシュしても詳細な情報を得られるようにする
         ErrorReporter.setup()
+        // MARK: サービスのインスタンス確定
+        // UI テスト環境ではモックを、それ以外では実サービスを採用
         if ProcessInfo.processInfo.environment["UITEST_MODE"] != nil {
             // UI テストではモックを利用して即時認証・ダミー広告を表示
             self.gameCenterService = MockGameCenterService()
