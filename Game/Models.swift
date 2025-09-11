@@ -37,7 +37,8 @@ enum TileState {
 }
 
 /// 5×5 の盤面を管理する構造体
-struct Board {
+/// SwiftUI の `onChange` で盤面の変化を検知できるよう Equatable に準拠
+struct Board: Equatable {
     /// 盤面のサイズ (5×5 固定)
     static let size = 5
 
