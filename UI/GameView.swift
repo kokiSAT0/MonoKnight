@@ -61,13 +61,10 @@ struct GameView: View {
         GeometryReader { geometry in
             ZStack(alignment: .topTrailing) {
                 VStack(spacing: 16) {
-                    // MARK: SpriteKit 表示領域（上部に統計バッジを重ねる）
-                    ZStack(alignment: .topLeading) {
-                        SpriteView(scene: scene)
-                            // 正方形で表示したいため幅に合わせる
-                            .frame(width: geometry.size.width, height: geometry.size.width)
-
-                        // 盤面進行度を示すモノクロバッジ（VoiceOver 対応）
+                    // MARK: SpriteKit 表示領域（統計バッジは盤面外に配置）
+                    VStack(alignment: .leading, spacing: 12) {
+                        // MARK: - ゲーム進行度を示すバッジ群
+                        // 盤面と重ならないよう先に配置し、VoiceOver が確実に読み上げる構造に整える
                         HStack(spacing: 12) {
                             statisticBadge(
                                 title: "移動",
@@ -93,26 +90,32 @@ struct GameView: View {
                         .padding(.horizontal, 12)
                         .padding(.vertical, 10)
                         .background(
-                            // モノクロ構成を崩さず読みやすさを確保する半透明黒
+                            // 盤面外でも読みやすさを維持する半透明の黒背景
                             RoundedRectangle(cornerRadius: 12)
-                                .fill(Color.black.opacity(0.75))
+                                .fill(Color.black.opacity(0.8))
                         )
                         .overlay(
                             RoundedRectangle(cornerRadius: 12)
                                 .stroke(Color.white.opacity(0.25), lineWidth: 1)
                         )
-                        .padding(16)
+                        .padding(.horizontal, 16)
+                        .accessibilityElement(children: .contain)
+
+                        SpriteView(scene: scene)
+                            // 正方形で表示したいため幅に合わせる
+                            .frame(width: geometry.size.width, height: geometry.size.width)
+                            .onAppear {
+                                // サイズと初期状態を反映
+                                scene.size = CGSize(
+                                    width: geometry.size.width,
+                                    height: geometry.size.width
+                                )
+                                scene.updateBoard(core.board)
+                                scene.moveKnight(to: core.current)
+                            }
+                            .onReceive(core.$board) { newBoard in scene.updateBoard(newBoard) }
+                            .onReceive(core.$current) { newPoint in scene.moveKnight(to: newPoint) }
                     }
-                    .frame(width: geometry.size.width, height: geometry.size.width)
-                    .onAppear {
-                        // サイズと初期状態を反映
-                        scene.size = CGSize(
-                            width: geometry.size.width, height: geometry.size.width)
-                        scene.updateBoard(core.board)
-                        scene.moveKnight(to: core.current)
-                    }
-                    .onReceive(core.$board) { newBoard in scene.updateBoard(newBoard) }
-                    .onReceive(core.$current) { newPoint in scene.moveKnight(to: newPoint) }
 
                     // MARK: 手札と先読みカードの表示
                     VStack(spacing: 8) {
