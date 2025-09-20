@@ -14,8 +14,14 @@ final class GameCoreTests: XCTestCase {
             .diagonalUpRight2,
             .straightRight2,
             .knightUp1Right2,
-            // 先読みカード（ペナルティ前の next として使用）
+            // 引き直し後に表示される先読みカード 3 枚
+            .kingDown,
+            .kingLeft,
+            .kingUpLeft,
+            // 初期表示の先読みカード 3 枚（この順番で補充される想定）
             .diagonalUpLeft2,
+            .kingUp,
+            .kingRight,
             // ここから手札 5 枚（すべて盤外になるカード）
             .knightDown2Left1,
             .knightDown2Right1,
@@ -35,6 +41,8 @@ final class GameCoreTests: XCTestCase {
         // 引き直し後の手札に使用可能なカードが少なくとも 1 枚あるか
         let playableExists = core.hand.contains { $0.canUse(from: core.current) }
         XCTAssertTrue(playableExists, "引き直し後の手札に利用可能なカードが存在しない")
+        // 先読みカードが 3 枚揃っているか（NEXT 表示用）
+        XCTAssertEqual(core.nextCards.count, 3, "引き直し後の先読みカードが 3 枚補充されていない")
     }
 
     /// reset() が初期状態に戻すかを確認
@@ -47,8 +55,14 @@ final class GameCoreTests: XCTestCase {
             .diagonalUpRight2,
             .straightRight2,
             .knightUp1Right2,
-            // 先読みカード（初期 next）
+            // 引き直し後に表示される先読みカード 3 枚
+            .kingDown,
+            .kingLeft,
+            .kingUpLeft,
+            // 初期の先読みカード（この順で補充される）
             .diagonalUpLeft2,
+            .kingUp,
+            .kingRight,
             // 初期手札 5 枚（全て盤外でペナルティを誘発）
             .knightDown2Left1,
             .knightDown2Right1,
@@ -72,7 +86,7 @@ final class GameCoreTests: XCTestCase {
         XCTAssertEqual(core.penaltyCount, 0, "ペナルティカウントがリセットされていない")
         XCTAssertEqual(core.progress, .playing, "ゲーム状態が playing に戻っていない")
         XCTAssertEqual(core.hand.count, 5, "手札枚数が初期値と異なる")
-        XCTAssertNotNil(core.next, "先読みカードが設定されていない")
+        XCTAssertEqual(core.nextCards.count, 3, "先読みカードが 3 枚確保されていない")
         // 盤面の踏破状態も初期化されているか
         XCTAssertTrue(core.board.isVisited(.center), "盤面中央が踏破済みになっていない")
         XCTAssertFalse(core.board.isVisited(GridPoint(x: 0, y: 0)), "開始位置が踏破済みのままになっている")
