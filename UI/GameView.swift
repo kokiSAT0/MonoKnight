@@ -634,13 +634,20 @@ private struct PenaltyBannerView: View {
 
 // MARK: - 先読みカード専用のオーバーレイ
 /// 「NEXT」「NEXT+1」などのバッジと点滅インジケータを重ね、操作不可であることを視覚的に伝える補助ビュー
-private struct NextCardOverlayView: View {
+fileprivate struct NextCardOverlayView: View {
     /// 表示中のカードが何枚目の先読みか（0 が直近、1 以降は +1, +2 ...）
     let order: Int
     /// 点滅インジケータの明るさを制御するステート
     @State private var isIndicatorBright = false
     /// 先読みオーバーレイの配色を統一するテーマ
-    private var theme = AppTheme()
+    private let theme = AppTheme()
+
+    // MARK: - 初期化
+    /// 先読みカードの表示順を受け取り、必要なステートを既定値で初期化する
+    /// - Parameter order: 0 始まりでの先読み順序
+    fileprivate init(order: Int) {
+        self.order = order
+    }
 
     /// バッジに表示する文言を算出するヘルパー
     private var badgeText: String {
