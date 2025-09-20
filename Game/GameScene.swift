@@ -74,6 +74,46 @@ public final class GameScene: SKScene {
 
     // MARK: - シーン初期化
 
+    /// コードから GameScene を生成する際の初期化処理
+    /// - NOTE: `super.init(size:)` を呼び出し、基本状態をゼロリセットしてからレイアウト計算やノード生成を `didMove(to:)` で行う
+    public override init() {
+        super.init(size: .zero)
+        // 盤面・テーマ・タイル情報などを初期状態に戻し、呼び出し元がどのような経路でも同じ前提から構築できるようにする
+        board = Board()
+        palette = GameScenePalette.fallback
+        tileSize = 0
+        gridOrigin = .zero
+        tileNodes = [:]
+        guideHighlightNodes = [:]
+        pendingGuideHighlightPoints = []
+        knightNode = nil
+        knightPosition = .center
+        #if canImport(UIKit)
+        accessibilityElementsCache = []
+        #endif
+        // 必要に応じて `calculateLayout()` などを明示的に呼び出し、シーンのサイズが既に確定している場合にも対応できるようにする
+    }
+
+    /// Interface Builder（Storyboard や XIB）経由の生成に対応するための初期化処理
+    /// - NOTE: Apple の推奨に従い `super.init(coder:)` を呼び出し、アーカイブ復元時でも同じ初期状態を確保する
+    public required init?(coder aDecoder: NSCoder) {
+        super.init(coder: aDecoder)
+        // デコード後もプロパティを初期値で上書きし、Storyboard/SwiftUI どちらからでも同じ見た目・挙動となるようにする
+        board = Board()
+        palette = GameScenePalette.fallback
+        tileSize = 0
+        gridOrigin = .zero
+        tileNodes = [:]
+        guideHighlightNodes = [:]
+        pendingGuideHighlightPoints = []
+        knightNode = nil
+        knightPosition = .center
+        #if canImport(UIKit)
+        accessibilityElementsCache = []
+        #endif
+        // Interface Builder でサイズが事前に与えられている場合は、シーンの親ビュー設定後に `calculateLayout()` を呼ぶとレイアウトが整う
+    }
+
     public override func didMove(to view: SKView) {
         super.didMove(to: view)
 
