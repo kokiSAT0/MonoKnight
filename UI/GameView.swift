@@ -5,6 +5,9 @@ import UIKit  // ハプティクス用のフレームワークを追加
 /// SwiftUI から SpriteKit の盤面を表示するビュー
 /// 画面下部に手札 3 枚と次に引かれるカードを表示し、
 /// タップで GameCore を更新する
+/// SwiftUI ビューは UI 操作のため常にメインアクター上で処理する必要があるため、
+/// `@MainActor` を付与してサービスのシングルトンへ安全にアクセスできるようにする
+@MainActor
 struct GameView: View {
     /// カラーテーマを生成し、ビュー全体で共通の配色を利用できるようにする
     private var theme = AppTheme()
