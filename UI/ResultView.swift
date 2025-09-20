@@ -59,8 +59,9 @@ struct ResultView: View {
     ) {
         // `@MainActor` に隔離されたシングルトンへ安全にアクセスするため、
         // Swift 6 の規約に合わせてここで依存解決を行う。
-        let resolvedGameCenterService = gameCenterService ?? GameCenterService.shared
-        let resolvedAdsService = adsService ?? AdsService.shared
+        // テスト注入時にも同じコード経路を通せるよう、まずローカル定数に束縛してからプロパティへ代入する。
+        let resolvedGameCenterService = gameCenterService
+        let resolvedAdsService = adsService
 
         self.moveCount = moveCount
         self.penaltyCount = penaltyCount
