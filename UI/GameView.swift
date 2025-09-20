@@ -63,106 +63,14 @@ struct GameView: View {
 
     var body: some View {
         GeometryReader { geometry in
+            // MARK: - 盤面サイズのキャッシュ
+            // 同一の幅計算を繰り返さないようローカル定数へ格納する
+            let boardWidth = geometry.size.width
+
             ZStack(alignment: .topTrailing) {
                 VStack(spacing: 16) {
-                    // MARK: SpriteKit 表示領域（統計バッジは盤面外に配置）
-                    VStack(alignment: .leading, spacing: 12) {
-                        // MARK: - ゲーム進行度を示すバッジ群
-                        // 盤面と重ならないよう先に配置し、VoiceOver が確実に読み上げる構造に整える
-                        HStack(spacing: 12) {
-                            statisticBadge(
-                                title: "移動",
-                                value: "\(core.moveCount)",
-                                accessibilityLabel: "移動回数",
-                                accessibilityValue: "\(core.moveCount)回"
-                            )
-
-                            statisticBadge(
-                                title: "ペナルティ",
-                                value: "\(core.penaltyCount)",
-                                accessibilityLabel: "ペナルティ回数",
-                                accessibilityValue: "\(core.penaltyCount)手"
-                            )
-
-                            statisticBadge(
-                                title: "残りマス",
-                                value: "\(core.remainingTiles)",
-                                accessibilityLabel: "残りマス数",
-                                accessibilityValue: "残り\(core.remainingTiles)マス"
-                            )
-                        }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 10)
-                        .background(
-                            // 盤面外でも読みやすさを維持する半透明の背景（テーマから取得）
-                            RoundedRectangle(cornerRadius: 12)
-                                .fill(theme.statisticBadgeBackground)
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                // テーマに合わせた薄い境界線でバッジを引き締める
-                                .stroke(theme.statisticBadgeBorder, lineWidth: 1)
-                        )
-                        .padding(.horizontal, 16)
-                        .accessibilityElement(children: .contain)
-
-                        SpriteView(scene: scene)
-                            // 正方形で表示したいため幅に合わせる
-                            .frame(width: geometry.size.width, height: geometry.size.width)
-                            .onAppear {
-                                // サイズと初期状態を反映
-                                scene.size = CGSize(
-                                    width: geometry.size.width,
-                                    height: geometry.size.width
-                                )
-                                scene.updateBoard(core.board)
-                                scene.moveKnight(to: core.current)
-                            }
-                            .onReceive(core.$board) { newBoard in scene.updateBoard(newBoard) }
-                            .onReceive(core.$current) { newPoint in scene.moveKnight(to: newPoint) }
-                    }
-
-                    // MARK: 手札と先読みカードの表示
-                    VStack(spacing: 8) {
-                        // 手札 3 枚を横並びで表示
-                        HStack(spacing: 12) {
-                            // 固定長スロットで回し、欠番があっても UI が崩れないようにする
-                            ForEach(0..<handSlotCount, id: \.self) { index in
-                                handSlotView(for: index)
-                            }
-                        }
-
-                        // 先読みカードが存在する場合に表示（最大 3 枚を横並びで案内）
-                        if !core.nextCards.isEmpty {
-                            VStack(alignment: .leading, spacing: 6) {
-                                // MARK: - 先読みカードのラベル
-                                // テキストでセクションを明示して VoiceOver からも認識しやすくする
-                                Text("次のカード")
-                                    .font(.caption)
-                                    // テーマのサブ文字色で読みやすさと一貫性を確保
-                                    .foregroundColor(theme.textSecondary)
-                                    .accessibilityHidden(true)  // ラベル自体は MoveCardIllustrationView のラベルに統合する
-
-
-                                // MARK: - 先読みカード本体
-                                // 3 枚までのカードを順番に描画し、それぞれにインジケータを重ねる
-                                HStack(spacing: 12) {
-                                    ForEach(Array(core.nextCards.enumerated()), id: \.offset) { index, card in
-                                        ZStack {
-                                            MoveCardIllustrationView(card: card, mode: .next)
-                                            NextCardOverlayView(order: index)
-                                        }
-                                        // VoiceOver で順番が伝わるようラベルを上書き
-                                        .accessibilityElement(children: .combine)
-                                        .accessibilityLabel(Text("次のカード\(index == 0 ? "" : "+\(index)"): \(card.displayName)"))
-                                        .accessibilityHint(Text("この順番で手札に補充されます"))
-                                        .allowsHitTesting(false)  // 先読みは閲覧専用
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    .padding(.bottom, 16)
+                    boardSection(width: boardWidth)
+                    handSection()
                 }
                 // MARK: - 手詰まりペナルティ通知バナー
                 penaltyBannerOverlay
@@ -256,6 +164,120 @@ struct GameView: View {
         } message: { action in
             Text(action.confirmationMessage)
         }
+    }
+
+    /// 盤面の統計と SpriteKit ボードをまとめて描画する
+    /// - Parameter width: GeometryReader で算出した盤面の幅（正方形表示の基準）
+    /// - Returns: 統計バッジと SpriteView を縦に並べた領域
+    private func boardSection(width: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // MARK: - ゲーム進行度を示すバッジ群
+            // 盤面と重ならないよう先に配置し、VoiceOver が確実に読み上げる構造に整える
+            HStack(spacing: 12) {
+                statisticBadge(
+                    title: "移動",
+                    value: "\(core.moveCount)",
+                    accessibilityLabel: "移動回数",
+                    accessibilityValue: "\(core.moveCount)回"
+                )
+
+                statisticBadge(
+                    title: "ペナルティ",
+                    value: "\(core.penaltyCount)",
+                    accessibilityLabel: "ペナルティ回数",
+                    accessibilityValue: "\(core.penaltyCount)手"
+                )
+
+                statisticBadge(
+                    title: "残りマス",
+                    value: "\(core.remainingTiles)",
+                    accessibilityLabel: "残りマス数",
+                    accessibilityValue: "残り\(core.remainingTiles)マス"
+                )
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(
+                // 盤面外でも読みやすさを維持する半透明の背景（テーマから取得）
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(theme.statisticBadgeBackground)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    // テーマに合わせた薄い境界線でバッジを引き締める
+                    .stroke(theme.statisticBadgeBorder, lineWidth: 1)
+            )
+            .padding(.horizontal, 16)
+            .accessibilityElement(children: .contain)
+
+            spriteBoard(width: width)
+        }
+    }
+
+    /// SpriteKit の盤面を描画し、ライフサイクルに応じた更新処理をまとめる
+    /// - Parameter width: 正方形に保つための辺長
+    /// - Returns: onAppear / onReceive を含んだ SpriteView
+    private func spriteBoard(width: CGFloat) -> some View {
+        SpriteView(scene: scene)
+            // 正方形で表示したいため幅に合わせる
+            .frame(width: width, height: width)
+            .onAppear {
+                // サイズと初期状態を反映
+                scene.size = CGSize(width: width, height: width)
+                scene.updateBoard(core.board)
+                scene.moveKnight(to: core.current)
+            }
+            // GameCore 側の更新を受け取り、SpriteKit の表示へ同期する
+            .onReceive(core.$board) { newBoard in
+                scene.updateBoard(newBoard)
+            }
+            .onReceive(core.$current) { newPoint in
+                scene.moveKnight(to: newPoint)
+            }
+    }
+
+    /// 手札と先読みカードの表示をまとめた領域
+    /// - Returns: 下部 UI 全体（余白調整を含む）
+    private func handSection() -> some View {
+        VStack(spacing: 8) {
+            // 手札 3 枚を横並びで表示
+            HStack(spacing: 12) {
+                // 固定長スロットで回し、欠番があっても UI が崩れないようにする
+                ForEach(0..<handSlotCount, id: \.self) { index in
+                    handSlotView(for: index)
+                }
+            }
+
+            // 先読みカードが存在する場合に表示（最大 3 枚を横並びで案内）
+            if !core.nextCards.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    // MARK: - 先読みカードのラベル
+                    // テキストでセクションを明示して VoiceOver からも認識しやすくする
+                    Text("次のカード")
+                        .font(.caption)
+                        // テーマのサブ文字色で読みやすさと一貫性を確保
+                        .foregroundColor(theme.textSecondary)
+                        .accessibilityHidden(true)  // ラベル自体は MoveCardIllustrationView のラベルに統合する
+
+                    // MARK: - 先読みカード本体
+                    // 3 枚までのカードを順番に描画し、それぞれにインジケータを重ねる
+                    HStack(spacing: 12) {
+                        ForEach(Array(core.nextCards.enumerated()), id: \.offset) { index, card in
+                            ZStack {
+                                MoveCardIllustrationView(card: card, mode: .next)
+                                NextCardOverlayView(order: index)
+                            }
+                            // VoiceOver で順番が伝わるようラベルを上書き
+                            .accessibilityElement(children: .combine)
+                            .accessibilityLabel(Text("次のカード\(index == 0 ? "" : "+\(index)"): \(card.displayName)"))
+                            .accessibilityHint(Text("この順番で手札に補充されます"))
+                            .allowsHitTesting(false)  // 先読みは閲覧専用
+                        }
+                    }
+                }
+            }
+        }
+        .padding(.bottom, 16)
     }
 
     /// 手詰まりペナルティを知らせるバナーのレイヤーを構成
