@@ -6,17 +6,22 @@ final class GameCoreTests: XCTestCase {
     /// 手札が全て盤外となった場合にペナルティが加算されるかを確認
     func testDeadlockPenaltyApplied() {
         // --- テスト用デッキ構築 ---
-        // 末尾が山札トップになるため、手札用の 3 枚を最後に配置する
+        // 末尾が山札トップになるため、手札用の 5 枚を最後に配置する
         let deck = Deck.makeTestDeck(cards: [
-            // 引き直し後に有効となるカード群（下記 2 枚）
-            .knightUp2Right1,  // さらに予備として 1 枚保持
+            // 引き直し後に配られる 5 枚（いずれも盤内へ移動可能）
+            .knightUp2Right1,
             .straightUp2,
-            // 先読みカード（ペナルティ前の next）
+            .diagonalUpRight2,
             .straightRight2,
-            // ここから手札 3 枚（すべて盤外になるカード）
-            .diagonalDownLeft2,
+            .knightUp1Right2,
+            // 先読みカード（ペナルティ前の next として使用）
+            .diagonalUpLeft2,
+            // ここから手札 5 枚（すべて盤外になるカード）
+            .knightDown2Left1,
+            .knightDown2Right1,
             .straightDown2,
-            .straightLeft2
+            .straightLeft2,
+            .diagonalDownLeft2
         ])
         // 左下隅 (0,0) から開始し、全手札が盤外となる状況を用意
         let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 0, y: 0))
@@ -25,6 +30,8 @@ final class GameCoreTests: XCTestCase {
         XCTAssertEqual(core.penaltyCount, 5, "手詰まり時にペナルティが加算されていない")
         // ペナルティ処理後は進行状態が playing に戻るか
         XCTAssertEqual(core.progress, .playing, "ペナルティ後は playing 状態に戻るべき")
+        // 引き直し後の手札枚数が 5 枚確保されているか
+        XCTAssertEqual(core.hand.count, 5, "引き直し後の手札枚数が 5 枚ではない")
         // 引き直し後の手札に使用可能なカードが少なくとも 1 枚あるか
         let playableExists = core.hand.contains { $0.canUse(from: core.current) }
         XCTAssertTrue(playableExists, "引き直し後の手札に利用可能なカードが存在しない")
@@ -34,12 +41,20 @@ final class GameCoreTests: XCTestCase {
     func testResetReturnsToInitialState() {
         // 上と同じデッキ構成で GameCore を生成し、ペナルティ適用後の状態から開始
         let deck = Deck.makeTestDeck(cards: [
+            // 引き直し後の手札として確保するカード群（盤内に進める 5 枚）
             .knightUp2Right1,
             .straightUp2,
+            .diagonalUpRight2,
             .straightRight2,
-            .diagonalDownLeft2,
+            .knightUp1Right2,
+            // 先読みカード（初期 next）
+            .diagonalUpLeft2,
+            // 初期手札 5 枚（全て盤外でペナルティを誘発）
+            .knightDown2Left1,
+            .knightDown2Right1,
             .straightDown2,
-            .straightLeft2
+            .straightLeft2,
+            .diagonalDownLeft2
         ])
         let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 0, y: 0))
 
@@ -56,10 +71,21 @@ final class GameCoreTests: XCTestCase {
         XCTAssertEqual(core.moveCount, 0, "移動カウントがリセットされていない")
         XCTAssertEqual(core.penaltyCount, 0, "ペナルティカウントがリセットされていない")
         XCTAssertEqual(core.progress, .playing, "ゲーム状態が playing に戻っていない")
-        XCTAssertEqual(core.hand.count, 3, "手札枚数が初期値と異なる")
+        XCTAssertEqual(core.hand.count, 5, "手札枚数が初期値と異なる")
         XCTAssertNotNil(core.next, "先読みカードが設定されていない")
         // 盤面の踏破状態も初期化されているか
         XCTAssertTrue(core.board.isVisited(.center), "盤面中央が踏破済みになっていない")
         XCTAssertFalse(core.board.isVisited(GridPoint(x: 0, y: 0)), "開始位置が踏破済みのままになっている")
+    }
+
+    /// 初期化直後・リセット直後に手札 5 枚が常に確保されるかを確認
+    func testInitialAndResetHandCountIsFive() {
+        // デフォルト初期化で手札が 5 枚配られているかチェック
+        let core = GameCore()
+        XCTAssertEqual(core.hand.count, 5, "初期化直後の手札枚数が 5 枚になっていない")
+
+        // reset() 実行後も 5 枚に戻っているか確認
+        core.reset()
+        XCTAssertEqual(core.hand.count, 5, "リセット直後の手札枚数が 5 枚になっていない")
     }
 }
