@@ -33,6 +33,9 @@ struct RootView: View {
                 Text("Game Center にサインイン済み")
                     .font(.caption)
                     .accessibilityIdentifier("gc_authenticated")
+                    // 画面端に密着しないよう左右と上部へ余白を個別指定
+                    .padding(.horizontal, 16)
+                    .padding(.top, 16)
             } else {
                 // サインインボタンをタップで認証を開始
                 Button(action: {
@@ -46,6 +49,9 @@ struct RootView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .accessibilityIdentifier("gc_sign_in_button")
+                // ボタン単位で左右と上部の余白を確保し、全体のパディング削除後も視認性を保つ
+                .padding(.horizontal, 16)
+                .padding(.top, 16)
             }
 
             // MARK: - タブビュー本体
@@ -89,8 +95,9 @@ struct RootView: View {
                         Label("設定", systemImage: "gearshape")
                     }
             }
+            // VStack 外のパディングを削除したため、TabView 自身が画面いっぱいに広がるよう最大サイズを指定
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .padding()
     }
 }
 
