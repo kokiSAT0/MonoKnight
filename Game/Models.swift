@@ -134,6 +134,7 @@ extension GridPoint: CustomStringConvertible {
 }
 
 #if DEBUG
+// デバッグ専用のユーティリティを Release ビルドに含めないよう制限する
 extension Board {
     /// 現在の盤面状態をコンソールに可視化する
     /// - Parameter current: 駒の現在位置（省略時は表示しない）

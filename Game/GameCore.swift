@@ -92,7 +92,10 @@ public final class GameCore: ObservableObject {
         // 初期状態の残り踏破数を読み上げ
         announceRemainingTiles()
         // デバッグ: 初期盤面を表示して状態を確認
+#if DEBUG
+        // デバッグ目的でのみ盤面を出力する
         board.debugDump(current: current)
+#endif
     }
 
     /// 指定インデックスのカードで駒を移動させる
@@ -141,7 +144,10 @@ public final class GameCore: ObservableObject {
         if board.isCleared {
             progress = .cleared
             // デバッグ: クリア時の盤面を表示
+#if DEBUG
+            // デバッグ目的でのみ盤面を出力する
             board.debugDump(current: current)
+#endif
             return
         }
 
@@ -149,7 +155,10 @@ public final class GameCore: ObservableObject {
         checkDeadlockAndApplyPenaltyIfNeeded()
 
         // デバッグ: 現在の盤面を表示
+#if DEBUG
+        // デバッグ目的でのみ盤面を出力する
         board.debugDump(current: current)
+#endif
     }
 
     /// 盤面タップ由来のアニメーション要求を UI 側で処理したあとに呼び出す
@@ -251,7 +260,10 @@ public final class GameCore: ObservableObject {
         let handDescription = hand.map { "\($0.move)" }.joined(separator: ", ")
         debugLog("引き直し後の手札: [\(handDescription)]")
         // デバッグ: 引き直し後の盤面を表示
+#if DEBUG
+        // デバッグ目的でのみ盤面を出力する
         board.debugDump(current: current)
+#endif
 
         // 手札更新が完了したら再びプレイ状態へ戻す
         progress = .playing
@@ -285,7 +297,10 @@ public final class GameCore: ObservableObject {
         let handMoves = hand.map { "\($0.move)" }.joined(separator: ", ")
         debugLog("ゲームをリセット: 手札 [\(handMoves)], 次カード \(nextText)")
         // デバッグ: リセット直後の盤面を表示
+#if DEBUG
+        // デバッグ目的でのみ盤面を出力する
         board.debugDump(current: current)
+#endif
     }
 
     /// 先読み表示用のカードが不足している場合に山札から補充する
