@@ -24,6 +24,10 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
     /// シングルトンインスタンス
     static let shared = GameCenterService()
 
+    /// Game Center で利用するリーダーボード ID
+    /// - Note: 複数箇所で同じ文字列を使うため、ミスタイプ防止として集約
+    private let leaderboardID = "kc_moves_5x5"
+
     private override init() {}
 
     // MARK: - 永続フラグ
@@ -134,7 +138,7 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
             score,
             context: 0,
             player: GKLocalPlayer.local,
-            leaderboardIDs: ["kc_moves_5x5"]
+            leaderboardIDs: [leaderboardID]
         ) { error in
             // エラーが発生した場合はログ出力のみ行う
             if let error {
@@ -176,10 +180,12 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
         // - Note: iOS14 以降で推奨される `leaderboardID` 指定の初期化メソッドを利用する
         //         これによりデプリケーション警告を解消しつつ、従来と同じ ID／スコープを適用できる
         let vc = GKGameCenterViewController(
-            leaderboardID: "kc_moves_5x5",  // 既存と同じリーダーボード ID を明示
+            leaderboardID: leaderboardID,     // 既存と同じリーダーボード ID を明示
             playerScope: .global,              // これまで通り全世界ランキングを参照
             timeScope: .allTime                // 通算ランキング表示（過去の挙動を維持）
         )
+        // 念のためプロパティ側にも ID を再設定し、初期化子の挙動変更に備える
+        vc.leaderboardIdentifier = leaderboardID
         // デリゲート設定は従来通り維持し、閉じる操作のハンドリングを可能にする
         vc.gameCenterDelegate = self
 
