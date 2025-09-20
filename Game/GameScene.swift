@@ -96,6 +96,40 @@ class GameScene: SKScene {
         gridOrigin = CGPoint(x: offsetX, y: offsetY)
     }
 
+    /// シーンのサイズ変更に追従してレイアウトを再計算
+    /// - Parameter oldSize: 変更前のシーンサイズ（未使用だがデバッグ時の参考用に保持）
+    override func didChangeSize(_ oldSize: CGSize) {
+        super.didChangeSize(oldSize)
+
+        // 端末の回転や親ビューのリサイズに合わせ、マスの基準サイズと原点を再計算する
+        calculateLayout()
+
+        // 既存のマスノードを走査し、新しいタイルサイズに沿った矩形パスを再構築する
+        for (point, node) in tileNodes {
+            let rect = CGRect(
+                x: gridOrigin.x + CGFloat(point.x) * tileSize,
+                y: gridOrigin.y + CGFloat(point.y) * tileSize,
+                width: tileSize,
+                height: tileSize
+            )
+            node.path = CGPath(rect: rect, transform: nil)
+        }
+
+        // 駒ノードも新しいレイアウト上の中心座標へ移動し、半径をタイル比率に合わせて補正する
+        if let knightNode {
+            knightNode.position = position(for: knightPosition)
+            let radius = tileSize * 0.4
+            let circleRect = CGRect(x: -radius, y: -radius, width: radius * 2, height: radius * 2)
+            knightNode.path = CGPath(ellipseIn: circleRect, transform: nil)
+        }
+
+        // ハイライトは専用メソッドで再構成し、テーマ色とサイズを同時にリフレッシュする
+        updateGuideHighlightColors()
+
+        // VoiceOver 用の読み上げ領域も新しい座標に合わせ直す
+        updateAccessibilityElements()
+    }
+
     /// 5×5 のグリッドを描画
     private func setupGrid() {
         for y in 0..<Board.size {
