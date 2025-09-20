@@ -3,7 +3,7 @@ import XCTest
 
 /// 重み付き山札の挙動を検証するテスト
 final class DeckTests: XCTestCase {
-    /// 王将型カードが約 1.5 倍の頻度で出現するかを統計的に確認する
+    /// 山札の重み付けが仕様通り（キング 1.5 倍・斜め 2 マスは桂馬の半分）になっているか統計的に確認する
     func testWeightedRandomPrefersKingMoves() {
         var deck = Deck(seed: 12345)
         let sampleCount = 20_000 // 十分な試行回数を確保してばらつきを抑える
@@ -17,17 +17,38 @@ final class DeckTests: XCTestCase {
             counts[card, default: 0] += 1
         }
 
+        // --- 各カテゴリの平均出現回数を計算 ---
         let kingCards = MoveCard.allCases.filter { $0.isKingType }
-        let otherCards = MoveCard.allCases.filter { !$0.isKingType }
-        let kingTotal = kingCards.reduce(0) { $0 + counts[$1, default: 0] }
-        let otherTotal = otherCards.reduce(0) { $0 + counts[$1, default: 0] }
-        let kingAverage = Double(kingTotal) / Double(kingCards.count)
-        let otherAverage = Double(otherTotal) / Double(otherCards.count)
-        let ratio = kingAverage / otherAverage
+        let knightCards = MoveCard.allCases.filter { $0.isKnightType }
+        let diagonalCards = MoveCard.allCases.filter { $0.isDiagonalDistanceFour }
+
+        func average(for cards: [MoveCard]) -> Double {
+            // 該当カードが存在しない場合は 0 を返す（安全策）
+            guard !cards.isEmpty else { return 0 }
+            let total = cards.reduce(0) { $0 + counts[$1, default: 0] }
+            return Double(total) / Double(cards.count)
+        }
+
+        let kingAverage = average(for: kingCards)
+        let knightAverage = average(for: knightCards)
+        let diagonalAverage = average(for: diagonalCards)
+
+        // サンプルデータが正しく集計できているか前提チェック
+        XCTAssertGreaterThan(kingAverage, 0, "キング型の平均値が 0 です")
+        XCTAssertGreaterThan(knightAverage, 0, "ナイト型の平均値が 0 です")
+        XCTAssertGreaterThan(diagonalAverage, 0, "斜め 2 マス型の平均値が 0 です")
+
+        // --- 比率チェック ---
+        let kingToKnight = kingAverage / knightAverage
+        let diagonalToKnight = diagonalAverage / knightAverage
 
         // 理論上の比率は 3:2 = 1.5。サンプル誤差を考慮し 1.35〜1.65 を許容
-        XCTAssertGreaterThanOrEqual(ratio, 1.35, "王将型の平均出現数が期待値より低い: \(ratio)")
-        XCTAssertLessThanOrEqual(ratio, 1.65, "王将型の平均出現数が期待値より高い: \(ratio)")
+        XCTAssertGreaterThanOrEqual(kingToKnight, 1.35, "王将型の平均出現数が期待値より低い: \(kingToKnight)")
+        XCTAssertLessThanOrEqual(kingToKnight, 1.65, "王将型の平均出現数が期待値より高い: \(kingToKnight)")
+
+        // 斜め 2 マスは 1:2 = 0.5 を目標。許容範囲を 0.4〜0.6 に設定
+        XCTAssertGreaterThanOrEqual(diagonalToKnight, 0.4, "斜め 2 マスカードの平均出現数が期待値より低い: \(diagonalToKnight)")
+        XCTAssertLessThanOrEqual(diagonalToKnight, 0.6, "斜め 2 マスカードの平均出現数が期待値より高い: \(diagonalToKnight)")
     }
 
     /// MoveCard.allCases にキング型 8 種が含まれているかを検証する

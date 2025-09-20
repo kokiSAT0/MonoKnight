@@ -4,11 +4,13 @@ import GameplayKit
 #endif
 
 /// 山札を重み付き乱数で生成するデッキ構造体
-/// - Note: 王将型カードは標準カードの 1.5 倍（3:2 の整数比）で抽選する。
+/// - Note: 王将型カードは標準カードの 1.5 倍（3:2 の整数比）、斜め 2 マスカードは桂馬カードの半分の重みで抽選する。
 struct Deck {
     // MARK: - 重み定義
     /// 標準カードに割り当てる重み（比率の基準）
     private static let standardWeight = 2
+    /// 斜め 2 マス（マンハッタン距離 4）カード用の重み（ナイト型の半分）
+    private static let diagonalDistanceFourWeight = 1
     /// 王将型カードに割り当てる重み（標準の 1.5 倍 = 3）
     private static let kingWeight = 3
     /// 重み付き抽選用のプール（重み分だけ複製した配列）
@@ -16,7 +18,18 @@ struct Deck {
         var pool: [MoveCard] = []
         pool.reserveCapacity(MoveCard.allCases.count * kingWeight)
         for card in MoveCard.allCases {
-            let weight = card.isKingType ? kingWeight : standardWeight
+            // 王将型カードは高頻度、ナイト型と直線型は標準、斜め 2 マスは低頻度に設定
+            let weight: Int
+            if card.isKingType {
+                // キング型は 1.5 倍（移動の基礎となるため）
+                weight = kingWeight
+            } else if card.isDiagonalDistanceFour {
+                // 斜め 2 マスは桂馬カードの半分の確率で排出させる
+                weight = diagonalDistanceFourWeight
+            } else {
+                // ナイト型や直線 2 マスは標準の重み
+                weight = standardWeight
+            }
             pool.append(contentsOf: Array(repeating: card, count: weight))
         }
         return pool
