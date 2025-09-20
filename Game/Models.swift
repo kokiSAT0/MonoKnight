@@ -116,7 +116,8 @@ public struct Board: Equatable {
 }
 
 /// ゲーム全体の進行状態
-enum GameProgress {
+/// - SwiftUI 側の状態監視でも利用するため公開する
+public enum GameProgress {
     /// プレイ続行中
     case playing
     /// 全マス踏破でクリア
