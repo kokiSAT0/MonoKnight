@@ -110,6 +110,15 @@ fileprivate struct TitleScreenView: View {
 
     @State private var isPresentingHowToPlay: Bool = false
 
+    /// `@State` プロパティを保持したまま、外部（同ファイル内の RootView）から初期化できるようにするカスタムイニシャライザ
+    /// - Parameter onStart: ゲーム開始ボタンが押下された際に呼び出されるクロージャ
+    init(onStart: @escaping () -> Void) {
+        // `let` プロパティである onStart を代入するための明示的な初期化処理
+        self.onStart = onStart
+        // `@State` の初期値を明示しておくことで、将来的な初期値変更にも対応しやすくする
+        _isPresentingHowToPlay = State(initialValue: false)
+    }
+
 
     var body: some View {
         VStack(spacing: 28) {
