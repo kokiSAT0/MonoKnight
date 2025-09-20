@@ -325,7 +325,6 @@
 			mainGroup = 000000000000000000000006;
 			packageReferences = (
 				72CF38162E7252460093B180 /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */,
-				729791892E7F43F300361471 /* XCLocalSwiftPackageReference "../MonoKnight" */,
 			);
 			productRefGroup = 000000000000000000000008 /* Products */;
 			projectDirPath = "";
@@ -983,13 +982,6 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
-
-/* Begin XCLocalSwiftPackageReference section */
-		729791892E7F43F300361471 /* XCLocalSwiftPackageReference "../MonoKnight" */ = {
-			isa = XCLocalSwiftPackageReference;
-			relativePath = ../MonoKnight;
-		};
-/* End XCLocalSwiftPackageReference section */
 
 /* Begin XCRemoteSwiftPackageReference section */
 		72CF38162E7252460093B180 /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */ = {
