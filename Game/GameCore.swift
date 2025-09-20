@@ -18,6 +18,28 @@ public struct Published<Value> {
 import UIKit
 #endif
 
+/// 盤面タップでカードを再生するときに UI へ伝える要求内容
+/// - Note: SwiftUI 側でアニメーションを開始し、完了後に `playCard` を呼び出すための情報をまとめる
+public struct BoardTapPlayRequest: Identifiable, Equatable {
+    /// 要求ごとに一意な識別子を払い出して、複数回のタップでも確実に区別できるようにする
+    public let id: UUID
+    /// アニメーション対象となる手札カード
+    public let card: DealtCard
+    /// `GameCore.playCard(at:)` に渡すインデックス
+    public let index: Int
+
+    /// UI 側で参照しやすいよう公開イニシャライザを用意
+    /// - Parameters:
+    ///   - id: 外部で識別子を指定したい場合に使用（省略時は自動採番）
+    ///   - card: 盤面タップに対応する手札カード
+    ///   - index: 手札配列上の添字
+    public init(id: UUID = UUID(), card: DealtCard, index: Int) {
+        self.id = id
+        self.card = card
+        self.index = index
+    }
+}
+
 /// ゲーム進行を統括するクラス
 /// - 盤面操作・手札管理・ペナルティ処理・スコア計算を担当する
 
@@ -39,6 +61,10 @@ public final class GameCore: ObservableObject {
     /// 手詰まりペナルティが発生したことを UI 側へ伝えるイベント識別子
     /// - Note: Optional とすることで初期化直後の誤通知を防ぎ、実際にペナルティが起きたタイミングで UUID を更新する
     @Published public private(set) var penaltyEventID: UUID?
+
+    /// 盤面タップでカード使用を依頼された際のアニメーション要求
+    /// - Note: UI 側がこの値を受け取ったら演出を実行し、完了後に `clearBoardTapPlayRequest` を呼び出してリセットする
+    @Published public private(set) var boardTapPlayRequest: BoardTapPlayRequest?
 
     /// 実際に移動した回数（UI へ即時反映させるため @Published を付与）
     @Published public private(set) var moveCount: Int = 0
@@ -82,6 +108,9 @@ public final class GameCore: ObservableObject {
         // UI 側で無効カードを弾く想定だが、念のため安全確認
         guard board.contains(target) else { return }
 
+        // 盤面タップからのリクエストが残っている場合に備え、念のためここでクリアしておく
+        boardTapPlayRequest = nil
+
         // デバッグログ: 使用カードと移動先を出力
         debugLog("カード \(card.move) を使用し \(current) -> \(target) へ移動")
 
@@ -121,6 +150,14 @@ public final class GameCore: ObservableObject {
 
         // デバッグ: 現在の盤面を表示
         board.debugDump(current: current)
+    }
+
+    /// 盤面タップ由来のアニメーション要求を UI 側で処理したあとに呼び出す
+    /// - Parameter id: 消したいリクエストの識別子（不一致の場合は何もしない）
+    public func clearBoardTapPlayRequest(_ id: UUID) {
+        // リクエスト ID が一致している場合のみ nil へ戻して次のタップを受け付ける
+        guard boardTapPlayRequest?.id == id else { return }
+        boardTapPlayRequest = nil
     }
 
     /// ペナルティ発生時の共通処理で利用する原因の区別
@@ -190,6 +227,9 @@ public final class GameCore: ObservableObject {
         // ペナルティ処理中は .deadlock 状態として UI 側の入力を抑制する
         progress = .deadlock
 
+        // 手札が一新されるため、盤面タップからの保留リクエストも破棄して整合性を保つ
+        boardTapPlayRequest = nil
+
         // ペナルティ加算 (+5 手数)
         penaltyCount += 5
 
@@ -225,6 +265,7 @@ public final class GameCore: ObservableObject {
         penaltyCount = 0
         progress = .playing
         penaltyEventID = nil
+        boardTapPlayRequest = nil
         deck.reset()
         // リセット時も handSize を用いて手札を補充
         hand = deck.draw(count: handSize)
@@ -284,8 +325,8 @@ extension GameCore: GameCoreProtocol {
 
         // 差分に一致するカードを手札から検索
         if let index = hand.firstIndex(where: { $0.move.dx == dx && $0.move.dy == dy }) {
-            // 該当カードがあればそのカードで移動処理を実行
-            playCard(at: index)
+            // UI 側でカード移動アニメーションを行うため、手札情報を要求として公開する
+            boardTapPlayRequest = BoardTapPlayRequest(card: hand[index], index: index)
         }
         // 該当カードが無い場合は何もしない（無効タップ）
     }
