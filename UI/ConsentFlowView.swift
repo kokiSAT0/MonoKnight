@@ -15,8 +15,10 @@ struct ConsentFlowView: View {
 
     /// サービスを外部から注入可能にする初期化処理
     /// - Parameter adsService: 広告処理を担うサービス（デフォルトはシングルトン）
-    init(adsService: AdsServiceProtocol = AdsService.shared) {
-        self.adsService = adsService
+    init(adsService: AdsServiceProtocol? = nil) {
+        // デフォルト引数で `AdsService.shared` を直接参照すると Swift 6 でコンカレンシー違反となるため、
+        // MainActor 上で初期化されるこのタイミングで解決する。
+        self.adsService = adsService ?? AdsService.shared
     }
 
     var body: some View {
