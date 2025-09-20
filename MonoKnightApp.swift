@@ -16,6 +16,16 @@ struct MonoKnightApp: App {
     /// - NOTE: `UserDefaults` と連携し、次回以降はスキップする
     @AppStorage("has_completed_consent_flow") private var hasCompletedConsentFlow: Bool = false
 
+    /// ユーザーが選択したテーマモードを永続化する。デフォルトはシステム設定に追従する。
+    /// - NOTE: RawValue を直接保存し、列挙型との変換は `themePreference` プロパティで一元管理する。
+    @AppStorage("preferred_color_scheme") private var preferredColorSchemeRawValue: String = ThemePreference.system.rawValue
+
+    /// `@AppStorage` から復元した値を `ThemePreference` に変換して利用するためのヘルパー
+    /// - Returns: 不正な値が保存されていた場合でも `.system` にフォールバックする。
+    private var themePreference: ThemePreference {
+        ThemePreference(rawValue: preferredColorSchemeRawValue) ?? .system
+    }
+
     /// 初期化時に環境変数を確認してモックの使用有無を決定する
     init() {
         // MARK: グローバルエラーハンドラの設定
@@ -36,15 +46,20 @@ struct MonoKnightApp: App {
 
     var body: some Scene {
         WindowGroup {
-            // MARK: 起動直後の表示切り替え
-            // 初回のみ同意フローを表示し、完了後に `RootView` へ遷移する
-            if hasCompletedConsentFlow {
-                // 通常時はタブビューを提供するルート画面を表示
-                RootView(gameCenterService: gameCenterService, adsService: adsService)
-            } else {
-                // 同意取得前はオンボーディング画面を表示
-                ConsentFlowView(adsService: adsService)
+            Group {
+                // MARK: 起動直後の表示切り替え
+                // 初回のみ同意フローを表示し、完了後に `RootView` へ遷移する
+                if hasCompletedConsentFlow {
+                    // 通常時はタブビューを提供するルート画面を表示
+                    RootView(gameCenterService: gameCenterService, adsService: adsService)
+                } else {
+                    // 同意取得前はオンボーディング画面を表示
+                    ConsentFlowView(adsService: adsService)
+                }
             }
+            // MARK: テーマ適用
+            // `Group` に適用することで、内部のどの画面が表示されていてもユーザー設定が反映される。
+            .preferredColorScheme(themePreference.preferredColorScheme)
         }
     }
 }
