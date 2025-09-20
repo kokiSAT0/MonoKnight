@@ -161,9 +161,13 @@ struct ResultView: View {
             }
             .buttonStyle(.bordered)
 
-            // MARK: - 広告プレースホルダー
-            // 実際のインタースティシャル広告の代わりにダミービューを表示
-            DummyInterstitialAdView()
+            // MARK: - 広告の読み込み表示
+            // 実広告はインタースティシャルで別画面表示されるため、ここでは状況のみを示す
+            Text("広告を読み込んでいます…")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
         }
         .padding()
         .onAppear {

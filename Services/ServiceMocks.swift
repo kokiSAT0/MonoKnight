@@ -22,8 +22,12 @@ final class MockGameCenterService: GameCenterServiceProtocol {
 
 /// インタースティシャル広告をダミー表示する UI テスト用モック
 final class MockAdsService: AdsServiceProtocol {
+    /// 無効化フラグ。IAP などで広告を停止したケースを再現
+    private var isDisabled = false
+
     /// ダミー広告を全画面で表示する
     func showInterstitial() {
+        guard !isDisabled else { return }
         guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
               let root = scene.windows.first?.rootViewController else { return }
         // モック用の簡易ビューを作成して表示
@@ -36,7 +40,7 @@ final class MockAdsService: AdsServiceProtocol {
     func resetPlayFlag() {}
 
     /// 広告読み込み停止も不要なので空実装
-    func disableAds() {}
+    func disableAds() { isDisabled = true }
 
     /// ATT 許可ダイアログは表示しないダミー実装
     func requestTrackingAuthorization() async {}
