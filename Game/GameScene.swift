@@ -74,7 +74,7 @@ public final class GameScene: SKScene {
 
     // MARK: - シーン初期化
 
-    override func didMove(to view: SKView) {
+    public override func didMove(to view: SKView) {
         super.didMove(to: view)
 
         /// マスのサイズと原点を計算
@@ -108,7 +108,7 @@ public final class GameScene: SKScene {
 
     /// シーンのサイズ変更に追従してレイアウトを再計算
     /// - Parameter oldSize: 変更前のシーンサイズ（未使用だがデバッグ時の参考用に保持）
-    override func didChangeSize(_ oldSize: CGSize) {
+    public override func didChangeSize(_ oldSize: CGSize) {
         super.didChangeSize(oldSize)
 
         // 端末の回転や親ビューのリサイズに合わせ、マスの基準サイズと原点を再計算する
@@ -345,7 +345,7 @@ public final class GameScene: SKScene {
 
     // MARK: - タップ処理
 
-    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+    public override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard let touch = touches.first else { return }
         let location = touch.location(in: self)
         guard let point = gridPoint(from: location) else { return }
@@ -392,7 +392,7 @@ public final class GameScene: SKScene {
     }
 
     /// GameScene をアクセシビリティコンテナとして扱う
-    override var accessibilityElements: [Any]? {
+    public override var accessibilityElements: [Any]? {
         get { accessibilityElementsCache }
         set { }
     }
