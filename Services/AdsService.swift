@@ -16,7 +16,7 @@ protocol AdsServiceProtocol: AnyObject {
 
 // MARK: - Google Mobile Ads 実装
 @MainActor
-final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, GADFullScreenContentDelegate {
+final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, FullScreenContentDelegate {
     /// Info.plist に定義するキー名をまとめる
     private enum InfoPlistKey {
         static let applicationIdentifier = "GADApplicationIdentifier"
@@ -200,16 +200,16 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, GADFullS
         return Date().timeIntervalSince(last) >= 90
     }
 
-    // MARK: - GADFullScreenContentDelegate
+    // MARK: - FullScreenContentDelegate
 
-    func adDidDismissFullScreenContent(_ ad: GADFullScreenPresentingAd) {
+    func adDidDismissFullScreenContent(_ ad: FullScreenPresentingAd) {
         // 閉じたタイミングで次の広告を読み込む
         Task { [weak self] in
             await MainActor.run { self?.loadInterstitial() }
         }
     }
 
-    func ad(_ ad: GADFullScreenPresentingAd, didFailToPresentFullScreenContentWithError error: Error) {
+    func ad(_ ad: FullScreenPresentingAd, didFailToPresentFullScreenContentWithError error: Error) {
         debugError(error, message: "インタースティシャル広告の表示に失敗")
         interstitial = nil
         scheduleRetry()
