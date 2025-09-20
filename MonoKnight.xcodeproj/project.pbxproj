@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		729791562E7EB35900361471 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 729791552E7EB35900361471 /* LaunchScreen.storyboard */; };
 		7297918B2E7F43F300361471 /* Game in Frameworks */ = {isa = PBXBuildFile; productRef = 7297918A2E7F43F300361471 /* Game */; };
+		729791A82E7F569900361471 /* Game in Frameworks */ = {isa = PBXBuildFile; productRef = 729791A72E7F569900361471 /* Game */; };
 		72CF37F02E71616C0093B180 /* MonoKnightApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000004 /* MonoKnightApp.swift */; };
 		72CF38052E7162E20093B180 /* ErrorReporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF37F92E7162E20093B180 /* ErrorReporter.swift */; };
 		72CF38072E7162E20093B180 /* GameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF38002E7162E20093B180 /* GameView.swift */; };
@@ -87,6 +88,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				729791A82E7F569900361471 /* Game in Frameworks */,
 				7297918B2E7F43F300361471 /* Game in Frameworks */,
 				72CF38182E7252460093B180 /* GoogleMobileAds in Frameworks */,
 			);
@@ -232,6 +234,7 @@
 			packageProductDependencies = (
 				72CF38172E7252460093B180 /* GoogleMobileAds */,
 				7297918A2E7F43F300361471 /* Game */,
+				729791A72E7F569900361471 /* Game */,
 			);
 			productName = MonoKnightApp;
 			productReference = 72CF37C92E7161160093B180 /* MonoKnightApp.app */;
@@ -317,6 +320,7 @@
 			mainGroup = 000000000000000000000006;
 			packageReferences = (
 				72CF38162E7252460093B180 /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */,
+				729791A62E7F569900361471 /* XCLocalSwiftPackageReference "../MonoKnight" */,
 			);
 			productRefGroup = 000000000000000000000008 /* Products */;
 			projectDirPath = "";
@@ -377,15 +381,15 @@
 			files = (
 				72CF38052E7162E20093B180 /* ErrorReporter.swift in Sources */,
 				72CF38072E7162E20093B180 /* GameView.swift in Sources */,
-                               72CF380B2E7162E20093B180 /* AdsService.swift in Sources */,
-                               72CF380C2E7162E20093B180 /* SettingsView.swift in Sources */,
-                               72CF380E2E7162E20093B180 /* ServiceMocks.swift in Sources */,
-                               72F554A82E7E40100098A1B0 /* MoveCardIllustrationView.swift in Sources */,
-                               72CF380F2E7162E20093B180 /* ResultView.swift in Sources */,
-                               72CF38102E7162E20093B180 /* ConsentFlowView.swift in Sources */,
-                               72CF38112E7162E20093B180 /* GameCenterService.swift in Sources */,
-                               72CF38122E7162E20093B180 /* StoreService.swift in Sources */,
-                               72CF38142E7162E20093B180 /* RootView.swift in Sources */,
+				72CF380B2E7162E20093B180 /* AdsService.swift in Sources */,
+				72CF380C2E7162E20093B180 /* SettingsView.swift in Sources */,
+				72CF380E2E7162E20093B180 /* ServiceMocks.swift in Sources */,
+				72F554A82E7E40100098A1B0 /* MoveCardIllustrationView.swift in Sources */,
+				72CF380F2E7162E20093B180 /* ResultView.swift in Sources */,
+				72CF38102E7162E20093B180 /* ConsentFlowView.swift in Sources */,
+				72CF38112E7162E20093B180 /* GameCenterService.swift in Sources */,
+				72CF38122E7162E20093B180 /* StoreService.swift in Sources */,
+				72CF38142E7162E20093B180 /* RootView.swift in Sources */,
 				72CF37F02E71616C0093B180 /* MonoKnightApp.swift in Sources */,
 				72F554AC2E7E60850098A1B0 /* HowToPlayView.swift in Sources */,
 				72F554AD2E7E60850098A1B0 /* AppTheme.swift in Sources */,
@@ -967,6 +971,13 @@
 		};
 /* End XCConfigurationList section */
 
+/* Begin XCLocalSwiftPackageReference section */
+		729791A62E7F569900361471 /* XCLocalSwiftPackageReference "../MonoKnight" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../MonoKnight;
+		};
+/* End XCLocalSwiftPackageReference section */
+
 /* Begin XCRemoteSwiftPackageReference section */
 		72CF38162E7252460093B180 /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */ = {
 			isa = XCRemoteSwiftPackageReference;
@@ -980,6 +991,10 @@
 
 /* Begin XCSwiftPackageProductDependency section */
 		7297918A2E7F43F300361471 /* Game */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = Game;
+		};
+		729791A72E7F569900361471 /* Game */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = Game;
 		};
