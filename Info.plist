@@ -6,6 +6,14 @@
     <key>NSUserTrackingUsageDescription</key>
     <string>広告の最適化と効果測定のためにデバイスのトラッキングを利用します。</string>
 
+    <!-- AdMob のアプリ ID（ビルド設定から展開される） -->
+    <key>GADApplicationIdentifier</key>
+    <string>$(GAD_APPLICATION_ID)</string>
+
+    <!-- インタースティシャル広告ユニット ID（ビルド設定から展開される） -->
+    <key>GADInterstitialAdUnitID</key>
+    <string>$(GAD_INTERSTITIAL_UNIT_ID)</string>
+
     <!-- SKAdNetwork 用の広告ネットワーク ID 一覧 -->
     <key>SKAdNetworkItems</key>
     <array>
@@ -14,7 +22,7 @@
             <key>SKAdNetworkIdentifier</key>
             <string>cstr6suwn9.skadnetwork</string>
         </dict>
-        <!-- 以下は主要な提携広告ネットワーク ID -->
+        <!-- 以下は主要な提携広告ネットワーク ID。実際の出稿先に合わせて随時更新する -->
         <dict>
             <key>SKAdNetworkIdentifier</key>
             <string>4fzdc2evr5.skadnetwork</string>

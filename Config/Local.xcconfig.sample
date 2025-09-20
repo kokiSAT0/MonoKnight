@@ -7,3 +7,7 @@ DEVELOPMENT_TEAM = YOUR_TEAM_ID
 
 # バンドルIDのサフィックスを記入
 BUNDLE_ID_SUFFIX = .koki
+
+# AdMob の本番アプリ ID と広告ユニット ID を記入する（以下は記入例）
+# GAD_APPLICATION_ID = ca-app-pub-xxxxxxxxxxxxxxxx~yyyyyyyyyy
+# GAD_INTERSTITIAL_UNIT_ID = ca-app-pub-xxxxxxxxxxxxxxxx/zzzzzzzzzz
