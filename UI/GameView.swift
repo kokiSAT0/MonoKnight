@@ -276,6 +276,17 @@ struct GameView: View {
                     }
                 }
             }
+
+#if DEBUG
+            // MARK: - デバッグ専用ショートカット
+            // 盤面の右上オーバーレイに重ねると UI が窮屈になるため、下部セクションへ移設
+            HStack {
+                Spacer(minLength: 0)
+                debugResultButton
+                    .padding(.top, 4)  // 手札との距離を確保して視認性を確保
+                Spacer(minLength: 0)
+            }
+#endif
         }
         .padding(.bottom, 16)
     }
@@ -446,9 +457,6 @@ private extension GameView {
     private var topRightOverlay: some View {
         VStack(alignment: .trailing, spacing: 12) {
             menuButton
-            #if DEBUG
-                debugResultButton
-            #endif
         }
         .padding(.trailing, 16)
         .padding(.top, 16)
