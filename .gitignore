@@ -1,15 +1,25 @@
-# Xcode
-#
-# gitignore contributors: remember to update Global/Xcode.gitignore, Objective-C.gitignore & Swift.gitignore
+# ============================
+# macOS
+# ============================
+.DS_Store
 
-## User settings
+# ============================
+# Xcode
+# ============================
+
+## User-specific settings (必ず除外)
 **/*.xcuserdata/
 **/*.xcuserdatad/
+**/*.xcuserstate
 
-## Obj-C/Swift specific
+## Derived data / build products
+DerivedData/
+build/
+
+## Intermediate state
 *.hmap
 
-## App packaging
+## Archives / Symbols
 *.ipa
 *.dSYM.zip
 *.dSYM
@@ -18,66 +28,48 @@
 timeline.xctimeline
 playground.xcworkspace
 
+## Xcode workspaces
+# プロジェクトに含める必要がないローカルワークスペース
+*.xcworkspace/
+# ※複数人で共有したい場合は xcshareddata をコミットする
+
+# ============================
 # Swift Package Manager
-#
-# Add this line if you want to avoid checking in source code from Swift Package Manager dependencies.
-# Packages/
-# Package.pins
-# Package.resolved
-# *.xcodeproj
-#
-# Xcode automatically generates this directory with a .xcworkspacedata file and xcuserdata
-# hence it is not needed unless you have added a package configuration file to your project
-# .swiftpm
-
+# ============================
 .build/
+.swiftpm/
+Package.resolved
 
+# ============================
 # CocoaPods
-#
-# We recommend against adding the Pods directory to your .gitignore. However
-# you should judge for yourself, the pros and cons are mentioned at:
-# https://guides.cocoapods.org/using/using-cocoapods.html#should-i-check-the-pods-directory-into-source-control
-#
-# Pods/
-#
-# Add this line if you want to avoid checking in source code from the Xcode workspace
-# *.xcworkspace
+# ============================
+# Pods/  # プロジェクト方針次第で管理する場合はコメントアウト
 
-# Xcode プロジェクトのワークスペースを Git から除外する
-MonoKnight.xcodeproj/project.xcworkspace/
-# 他のワークスペースもまとめて除外したい場合は下記を使用
-# *.xcworkspace/
-
+# ============================
 # Carthage
-#
-# Add this line if you want to avoid checking in source code from Carthage dependencies.
-# Carthage/Checkouts
-
+# ============================
 Carthage/Build/
+# Carthage/Checkouts/  # 必要に応じて
 
+# ============================
 # fastlane
-#
-# It is recommended to not store the screenshots in the git repo.
-# Instead, use fastlane to re-generate the screenshots whenever they are needed.
-# For more information about the recommended setup visit:
-# https://docs.fastlane.tools/best-practices/source-control/#source-control
-
+# ============================
 fastlane/report.xml
 fastlane/Preview.html
 fastlane/screenshots/**/*.png
 fastlane/test_output
 
-# VSCode の個別設定を除外
+# ============================
+# VSCode
+# ============================
 .vscode/
 
-# macOS のメタデータを除外
-.DS_Store
+# ============================
+# Local config / Secrets
+# ============================
+# 環境依存や秘密情報はここで除外
+Config/Local.xcconfig
+Config/Secrets.xcconfig
 
-# Xcode のビルド成果物を除外
-DerivedData/
-
-# Swift Package Manager の作業ディレクトリを除外
-.swiftpm/
-
-# ローカル環境ごとの機密設定ファイルを除外
-Config/Local.xcconfig       # 個別の API キー等を含む設定ファイル
+# サンプルや共有用の xcconfig はコミットしてOK
+#   Config/Secrets.example.xcconfig
