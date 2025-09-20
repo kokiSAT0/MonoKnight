@@ -33,12 +33,14 @@ final class GameCore: ObservableObject {
     /// - Note: Optional とすることで初期化直後の誤通知を防ぎ、実際にペナルティが起きたタイミングで UUID を更新する
     @Published private(set) var penaltyEventID: UUID?
 
-    /// 実際に移動した回数
-    private(set) var moveCount: Int = 0
-    /// ペナルティによる加算手数
-    private(set) var penaltyCount: Int = 0
+    /// 実際に移動した回数（UI へ即時反映させるため @Published を付与）
+    @Published private(set) var moveCount: Int = 0
+    /// ペナルティによる加算手数（手詰まり通知に利用するため公開）
+    @Published private(set) var penaltyCount: Int = 0
     /// 合計スコア（小さいほど良い）
     var score: Int { moveCount + penaltyCount }
+    /// 未踏破マスの残り数を UI へ公開する計算プロパティ
+    var remainingTiles: Int { board.remainingCount }
 
     /// 山札管理（`Deck.swift` に定義された構造体を使用）
     private var deck = Deck()

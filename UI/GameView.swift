@@ -55,19 +55,58 @@ struct GameView: View {
         GeometryReader { geometry in
             ZStack(alignment: .topTrailing) {
                 VStack(spacing: 16) {
-                    // MARK: SpriteKit 表示領域
-                    SpriteView(scene: scene)
-                        // 正方形で表示したいため幅に合わせる
-                        .frame(width: geometry.size.width, height: geometry.size.width)
-                        .onAppear {
-                            // サイズと初期状態を反映
-                            scene.size = CGSize(
-                                width: geometry.size.width, height: geometry.size.width)
-                            scene.updateBoard(core.board)
-                            scene.moveKnight(to: core.current)
+                    // MARK: SpriteKit 表示領域（上部に統計バッジを重ねる）
+                    ZStack(alignment: .topLeading) {
+                        SpriteView(scene: scene)
+                            // 正方形で表示したいため幅に合わせる
+                            .frame(width: geometry.size.width, height: geometry.size.width)
+
+                        // 盤面進行度を示すモノクロバッジ（VoiceOver 対応）
+                        HStack(spacing: 12) {
+                            statisticBadge(
+                                title: "移動",
+                                value: "\(core.moveCount)",
+                                accessibilityLabel: "移動回数",
+                                accessibilityValue: "\(core.moveCount)回"
+                            )
+
+                            statisticBadge(
+                                title: "ペナルティ",
+                                value: "\(core.penaltyCount)",
+                                accessibilityLabel: "ペナルティ回数",
+                                accessibilityValue: "\(core.penaltyCount)手"
+                            )
+
+                            statisticBadge(
+                                title: "残りマス",
+                                value: "\(core.remainingTiles)",
+                                accessibilityLabel: "残りマス数",
+                                accessibilityValue: "残り\(core.remainingTiles)マス"
+                            )
                         }
-                        .onReceive(core.$board) { newBoard in scene.updateBoard(newBoard) }
-                        .onReceive(core.$current) { newPoint in scene.moveKnight(to: newPoint) }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                        .background(
+                            // モノクロ構成を崩さず読みやすさを確保する半透明黒
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Color.black.opacity(0.75))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(Color.white.opacity(0.25), lineWidth: 1)
+                        )
+                        .padding(16)
+                    }
+                    .frame(width: geometry.size.width, height: geometry.size.width)
+                    .onAppear {
+                        // サイズと初期状態を反映
+                        scene.size = CGSize(
+                            width: geometry.size.width, height: geometry.size.width)
+                        scene.updateBoard(core.board)
+                        scene.moveKnight(to: core.current)
+                    }
+                    .onReceive(core.$board) { newBoard in scene.updateBoard(newBoard) }
+                    .onReceive(core.$current) { newPoint in scene.moveKnight(to: newPoint) }
 
                     // MARK: 手札と先読みカードの表示
                     VStack(spacing: 8) {
@@ -204,6 +243,37 @@ struct GameView: View {
         let target = core.current.offset(dx: card.dx, dy: card.dy)
         // 目的地が盤面内に含まれているかどうかを判定
         return core.board.contains(target)
+    }
+
+    /// 盤面上部に表示する統計テキストの共通レイアウト
+    /// - Parameters:
+    ///   - title: メトリクスのラベル（例: 移動）
+    ///   - value: 表示する数値文字列
+    ///   - accessibilityLabel: VoiceOver に読み上げさせる日本語ラベル
+    ///   - accessibilityValue: VoiceOver 用の値（単位を含めた文章）
+    /// - Returns: モノクロ配色の小型バッジビュー
+    private func statisticBadge(
+        title: String,
+        value: String,
+        accessibilityLabel: String,
+        accessibilityValue: String
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            // 補助ラベルは控えめなトーンで表示
+            Text(title)
+                .font(.caption2)
+                .fontWeight(.medium)
+                .foregroundColor(.white.opacity(0.65))
+
+            // 主数値は視認性を高めるためサイズとコントラストを強調
+            Text(value)
+                .font(.headline)
+                .foregroundColor(.white)
+        }
+        // VoiceOver ではカスタムラベルと値を読み上げさせる
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityValue(accessibilityValue)
     }
 
     /// 指定したスロットのカード（存在しない場合は nil）を取得するヘルパー
