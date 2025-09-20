@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		729791562E7EB35900361471 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 729791552E7EB35900361471 /* LaunchScreen.storyboard */; };
 		72CF37F02E71616C0093B180 /* MonoKnightApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000004 /* MonoKnightApp.swift */; };
 		72CF38052E7162E20093B180 /* ErrorReporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF37F92E7162E20093B180 /* ErrorReporter.swift */; };
 		72CF38072E7162E20093B180 /* GameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF38002E7162E20093B180 /* GameView.swift */; };
@@ -52,6 +53,7 @@
 		000000000000000000000003 /* MonoKnight.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MonoKnight.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		000000000000000000000004 /* MonoKnightApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonoKnightApp.swift; sourceTree = "<group>"; };
 		000000000000000000000009 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		729791552E7EB35900361471 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
 		72CF37C92E7161160093B180 /* MonoKnightApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MonoKnightApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		72CF37D52E7161170093B180 /* MonoKnightAppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MonoKnightAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		72CF37DF2E7161170093B180 /* MonoKnightAppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MonoKnightAppUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -112,6 +114,7 @@
 		000000000000000000000006 = {
 			isa = PBXGroup;
 			children = (
+				729791552E7EB35900361471 /* LaunchScreen.storyboard */,
 				000000000000000000000007,
 				72CF37CA2E7161160093B180 /* MonoKnightApp */,
 				72CF37D82E7161170093B180 /* MonoKnightAppTests */,
@@ -338,6 +341,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				729791562E7EB35900361471 /* LaunchScreen.storyboard in Resources */,
 				72F554C92E7EA37F0098A1B0 /* Local.xcconfig in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
