@@ -21,11 +21,17 @@ struct RootView: View {
     /// - Parameters:
     ///   - gameCenterService: Game Center 連携用サービス（デフォルトはシングルトン）
     ///   - adsService: 広告表示用サービス（デフォルトはシングルトン）
-    init(gameCenterService: GameCenterServiceProtocol = GameCenterService.shared,
-         adsService: AdsServiceProtocol = AdsService.shared) {
-        self.gameCenterService = gameCenterService
-        self.adsService = adsService
-        _isAuthenticated = State(initialValue: gameCenterService.isAuthenticated)
+    init(gameCenterService: GameCenterServiceProtocol? = nil,
+         adsService: AdsServiceProtocol? = nil) {
+        // Swift 6 ではデフォルト引数の評価が非分離コンテキストで行われるため、
+        // `@MainActor` に隔離されたシングルトンを安全に利用するためにイニシャライザ内で解決する。
+        let resolvedGameCenterService = gameCenterService ?? GameCenterService.shared
+        let resolvedAdsService = adsService ?? AdsService.shared
+
+        self.gameCenterService = resolvedGameCenterService
+        self.adsService = resolvedAdsService
+        // 認証状態の初期値も解決済みのサービスから取得し、@State へ格納する。
+        _isAuthenticated = State(initialValue: resolvedGameCenterService.isAuthenticated)
     }
 
     var body: some View {

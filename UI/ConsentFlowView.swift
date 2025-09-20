@@ -14,9 +14,15 @@ struct ConsentFlowView: View {
     @State private var isRequesting: Bool = false
 
     /// サービスを外部から注入可能にする初期化処理
-    /// - Parameter adsService: 広告処理を担うサービス（デフォルトはシングルトン）
-    init(adsService: AdsServiceProtocol = AdsService.shared) {
-        self.adsService = adsService
+
+    /// - Parameter adsService: 広告処理を担うサービス（未指定時はシングルトンを利用）
+    /// Swift 6 ではデフォルト引数が非分離コンテキストとして扱われるため、
+    /// `AdsService.shared` のような MainActor 隔離プロパティを直接参照するとコンパイルエラーになる。
+    /// そのため、引数をオプショナルにして初期化本体でシングルトンを代入するように変更し、
+    /// MainActor コンテキスト内で安全に共有インスタンスへアクセスする。
+    init(adsService: AdsServiceProtocol? = nil) {
+
+        self.adsService = adsService ?? AdsService.shared
     }
 
     var body: some View {
