@@ -98,26 +98,26 @@ struct Deck {
     // MARK: - ドロー処理
     /// 1 枚カードを引く
     /// - Returns: 重み付き抽選によって得られたカード（必ず値を返す想定）
-    mutating func draw() -> MoveCard? {
-        #if DEBUG
+    mutating func draw() -> DealtCard? {
+#if DEBUG
         // テストで事前登録されたカードがあれば優先的に返す
         if !presetDrawQueue.isEmpty {
-            let card = presetDrawQueue.removeFirst()
-            applyProbabilityReduction(afterDrawing: card)
-            return card
+            let move = presetDrawQueue.removeFirst()
+            applyProbabilityReduction(afterDrawing: move)
+            return DealtCard(move: move)
         }
-        #endif
-        guard let card = drawWithDynamicWeights() else { return nil }
-        applyProbabilityReduction(afterDrawing: card)
-        return card
+#endif
+        guard let move = drawWithDynamicWeights() else { return nil }
+        applyProbabilityReduction(afterDrawing: move)
+        return DealtCard(move: move)
     }
 
     /// 複数枚まとめて引く
     /// - Parameter count: 引く枚数
     /// - Returns: 要求枚数分のカード（不足時は取得できた分のみ返す）
-    mutating func draw(count: Int) -> [MoveCard] {
+    mutating func draw(count: Int) -> [DealtCard] {
         guard count > 0 else { return [] }
-        var result: [MoveCard] = []
+        var result: [DealtCard] = []
         result.reserveCapacity(count)
         for _ in 0..<count {
             if let card = draw() {

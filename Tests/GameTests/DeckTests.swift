@@ -10,11 +10,11 @@ final class DeckTests: XCTestCase {
         var counts: [MoveCard: Int] = [:]
 
         for _ in 0..<sampleCount {
-            guard let card = deck.draw() else {
+            guard let dealtCard = deck.draw() else {
                 XCTFail("ドロー結果が nil になるのは想定外です")
                 return
             }
-            counts[card, default: 0] += 1
+            counts[dealtCard.move, default: 0] += 1
         }
 
         // --- 各カテゴリの平均出現回数を計算 ---
@@ -88,7 +88,7 @@ final class DeckTests: XCTestCase {
                 XCTFail("プリセット配列の長さ分を引けませんでした")
                 return
             }
-            drawn.append(card)
+            drawn.append(card.move)
         }
         XCTAssertEqual(drawn, preset, "プリセット順にカードが返却されていません")
 
@@ -105,7 +105,7 @@ final class DeckTests: XCTestCase {
                 XCTFail("リセット後にプリセットを再取得できませんでした")
                 return
             }
-            drawn.append(card)
+            drawn.append(card.move)
         }
         XCTAssertEqual(drawn, preset, "リセット後のプリセット順が一致しません")
     }

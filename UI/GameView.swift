@@ -1,3 +1,4 @@
+import Game  // GameCore や DealtCard を利用するためゲームロジックモジュールを読み込む
 import SpriteKit
 import SwiftUI
 import UIKit  // ハプティクス用のフレームワークを追加
@@ -43,6 +44,16 @@ struct GameView: View {
     @State private var statisticsHeight: CGFloat = 0
     /// 手札セクション全体の高さを計測し、利用可能な縦寸法を把握する
     @State private var handSectionHeight: CGFloat = 0
+    /// 手札や NEXT の位置をマッチングさせるための名前空間
+    @Namespace private var cardAnimationNamespace
+    /// 現在アニメーション中のカード（存在しない場合は nil）
+    @State private var animatingCard: DealtCard?
+    /// アニメーション中に手札/NEXT から一時的に非表示にするカード ID 集合
+    @State private var hiddenCardIDs: Set<UUID> = []
+    /// カードが盤面へ向かって移動中かどうかの状態管理
+    @State private var animationState: CardAnimationPhase = .idle
+    /// 盤面 SpriteView のアンカーを保持し、移動先座標の算出に利用する
+    @State private var boardAnchor: Anchor<CGRect>?
 
     /// デフォルトのサービスを利用して `GameView` を生成するコンビニエンスイニシャライザ
     /// - Parameter onRequestReturnToTitle: タイトル画面への遷移要求クロージャ（省略可）
@@ -118,6 +129,10 @@ struct GameView: View {
         .onPreferenceChange(HandSectionHeightPreferenceKey.self) { newHeight in
             handSectionHeight = newHeight
         }
+        // 盤面 SpriteView のアンカー更新を監視し、アニメーションの移動先として保持
+        .onPreferenceChange(BoardAnchorPreferenceKey.self) { anchor in
+            boardAnchor = anchor
+        }
         // 初回表示時に SpriteKit の背景色もテーマに合わせて更新
         .onAppear {
             // ビュー再表示時に GameScene へ GameCore の参照を再連結し、弱参照が nil にならないよう保証
@@ -168,7 +183,15 @@ struct GameView: View {
             DispatchQueue.main.asyncAfter(deadline: .now() + 2.6, execute: workItem)
         }
         // 手札内容が変わるたびに移動候補を再計算し、ガイドハイライトを更新
-        .onReceive(core.$hand) { _ in
+        .onReceive(core.$hand) { newHand in
+            // 手札が差し替わった際は非表示リストを実際に存在するカード ID へ限定する
+            let validIDs = Set(newHand.map { $0.id })
+            hiddenCardIDs.formIntersection(validIDs)
+            if let animatingCard, !validIDs.contains(animatingCard.id) {
+                // 手札の再配布などで該当カードが消えた場合はアニメーション状態を初期化
+                self.animatingCard = nil
+                animationState = .idle
+            }
             refreshGuideHighlights()
         }
         // ガイドモードのオン/オフを切り替えたら即座に SpriteKit へ反映
@@ -181,6 +204,35 @@ struct GameView: View {
                 refreshGuideHighlights()
             } else {
                 scene.updateGuideHighlights([])
+            }
+        }
+        // カードが盤面へ移動中は UI 全体を操作不可とし、状態の齟齬を防ぐ
+        .disabled(animatingCard != nil)
+        // Preference から取得したアンカー情報を用いて、カードが盤面中央へ吸い込まれる演出を重ねる
+        .overlayPreferenceValue(CardPositionPreferenceKey.self) { anchors in
+            GeometryReader { proxy in
+                ZStack {
+                    Color.clear
+                    if let animatingCard,
+                       let sourceAnchor = anchors[animatingCard.id],
+                       let boardAnchor,
+                       animationState != .idle || hiddenCardIDs.contains(animatingCard.id) {
+                        // --- 元の位置と盤面中央の座標を算出 ---
+                        let cardFrame = proxy[sourceAnchor]
+                        let boardFrame = proxy[boardAnchor]
+                        let startCenter = CGPoint(x: cardFrame.midX, y: cardFrame.midY)
+                        let boardCenter = CGPoint(x: boardFrame.midX, y: boardFrame.midY)
+
+                        MoveCardIllustrationView(card: animatingCard.move)
+                            .matchedGeometryEffect(id: animatingCard.id, in: cardAnimationNamespace)
+                            .frame(width: cardFrame.width, height: cardFrame.height)
+                            .position(animationState == .movingToBoard ? boardCenter : startCenter)
+                            .scaleEffect(animationState == .movingToBoard ? 0.55 : 1.0)
+                            .opacity(animationState == .movingToBoard ? 0.0 : 1.0)
+                            .allowsHitTesting(false)
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
         }
 
@@ -286,6 +338,8 @@ struct GameView: View {
         SpriteView(scene: scene)
             // 正方形で表示したいため幅に合わせる
             .frame(width: width, height: width)
+            // 盤面のアンカーを収集し、カード移動アニメーションの着地点に利用
+            .anchorPreference(key: BoardAnchorPreferenceKey.self, value: .bounds) { $0 }
             .onAppear {
                 // サイズと初期状態を反映
                 scene.size = CGSize(width: width, height: width)
@@ -337,14 +391,17 @@ struct GameView: View {
                     // MARK: - 先読みカード本体
                     // 3 枚までのカードを順番に描画し、それぞれにインジケータを重ねる
                     HStack(spacing: 12) {
-                        ForEach(Array(core.nextCards.enumerated()), id: \.offset) { index, card in
+                        ForEach(Array(core.nextCards.enumerated()), id: \.element.id) { index, dealtCard in
                             ZStack {
-                                MoveCardIllustrationView(card: card, mode: .next)
+                                MoveCardIllustrationView(card: dealtCard.move, mode: .next)
+                                    .opacity(hiddenCardIDs.contains(dealtCard.id) ? 0.0 : 1.0)
+                                    .matchedGeometryEffect(id: dealtCard.id, in: cardAnimationNamespace)
+                                    .anchorPreference(key: CardPositionPreferenceKey.self, value: .bounds) { [dealtCard.id: $0] }
                                 NextCardOverlayView(order: index)
                             }
                             // VoiceOver で順番が伝わるようラベルを上書き
                             .accessibilityElement(children: .combine)
-                            .accessibilityLabel(Text("次のカード\(index == 0 ? "" : "+\(index)"): \(card.displayName)"))
+                            .accessibilityLabel(Text("次のカード\(index == 0 ? "" : "+\(index)"): \(dealtCard.move.displayName)"))
                             .accessibilityHint(Text("この順番で手札に補充されます"))
                             .allowsHitTesting(false)  // 先読みは閲覧専用
                         }
@@ -444,7 +501,7 @@ struct GameView: View {
 
         var highlightPoints: Set<GridPoint> = []
         for card in core.hand {
-            let destination = core.current.offset(dx: card.dx, dy: card.dy)
+            let destination = core.current.offset(dx: card.move.dx, dy: card.move.dy)
             if core.board.contains(destination) {
                 highlightPoints.insert(destination)
             }
@@ -456,9 +513,9 @@ struct GameView: View {
 
     /// 指定カードが現在位置から盤内に収まるか判定
     /// - Note: MoveCard は列挙型であり、dx/dy プロパティから移動量を取得する
-    private func isCardUsable(_ card: MoveCard) -> Bool {
+    private func isCardUsable(_ card: DealtCard) -> Bool {
         // 現在位置に MoveCard の移動量を加算して目的地を算出
-        let target = core.current.offset(dx: card.dx, dy: card.dy)
+        let target = core.current.offset(dx: card.move.dx, dy: card.move.dy)
         // 目的地が盤面内に含まれているかどうかを判定
         return core.board.contains(target)
     }
@@ -497,8 +554,8 @@ struct GameView: View {
 
     /// 指定したスロットのカード（存在しない場合は nil）を取得するヘルパー
     /// - Parameter index: 手札スロットの添字
-    /// - Returns: 対応する MoveCard または nil（スロットが空の場合）
-    private func handCard(at index: Int) -> MoveCard? {
+    /// - Returns: 対応する `DealtCard` または nil（スロットが空の場合）
+    private func handCard(at index: Int) -> DealtCard? {
         guard core.hand.indices.contains(index) else {
             // スロットにカードが存在しない場合は nil を返してプレースホルダ表示を促す
             return nil
@@ -510,27 +567,49 @@ struct GameView: View {
     /// - Parameter index: 対象スロットの添字
     /// - Returns: MoveCardIllustrationView または空枠プレースホルダを含むビュー
     private func handSlotView(for index: Int) -> some View {
-        // どのカードが入っているかによってアニメーションのトリガーを切り替える
-        let slotStateKey = slotAnimationKey(for: index)
-
-        return ZStack {
-            // 指定スロットにカードが入っているか安全に確認
+        ZStack {
             if let card = handCard(at: index) {
-                MoveCardIllustrationView(card: card)
-                    // 盤外に出るカードは薄く表示し、タップ操作を抑制
-                    .opacity(isCardUsable(card) ? 1.0 : 0.4)
+                let isHidden = hiddenCardIDs.contains(card.id)
+                let usabilityOpacity = isCardUsable(card) ? 1.0 : 0.4
+
+                MoveCardIllustrationView(card: card.move)
+                    // 使用不可カードは薄く表示し、アニメーション中は完全に透明化
+                    .opacity(isHidden ? 0.0 : usabilityOpacity)
+                    .allowsHitTesting(!isHidden)
+                    .matchedGeometryEffect(id: card.id, in: cardAnimationNamespace)
+                    .anchorPreference(key: CardPositionPreferenceKey.self, value: .bounds) { [card.id: $0] }
                     .onTapGesture {
-                        // 列挙型 MoveCard の使用可否を判定
+                        // 既に別カードが移動中ならタップを無視して多重処理を防止
+                        guard animatingCard == nil else { return }
+
                         if isCardUsable(card) {
-                            // 使用可能 ⇒ ゲーム状態を更新
-                            core.playCard(at: index)
-                            // 設定で許可されていれば成功ハプティクスを発火
+                            // --- 盤面へ送る前準備 ---
+                            hiddenCardIDs.insert(card.id)
+                            animatingCard = card
+                            animationState = .idle
+
                             if hapticsEnabled {
                                 UINotificationFeedbackGenerator()
                                     .notificationOccurred(.success)
                             }
+
+                            // --- 盤面中央へ向けたアニメーションを開始 ---
+                            withAnimation(.easeInOut(duration: 0.24)) {
+                                animationState = .movingToBoard
+                            }
+
+                            let playIndex = index
+                            let cardID = card.id
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.24) {
+                                withAnimation(.easeInOut(duration: 0.22)) {
+                                    core.playCard(at: playIndex)
+                                }
+                                hiddenCardIDs.remove(cardID)
+                                animatingCard = nil
+                                animationState = .idle
+                            }
                         } else {
-                            // 使用不可の場合、警告ハプティクスのみ発火
+                            // 使用不可カードは警告ハプティクスのみ発火
                             if hapticsEnabled {
                                 UINotificationFeedbackGenerator()
                                     .notificationOccurred(.warning)
@@ -543,21 +622,6 @@ struct GameView: View {
         }
         // 実カードとプレースホルダのどちらでも同じスロット識別子で UI テストしやすくする
         .accessibilityIdentifier("hand_slot_\(index)")
-        // 実カードが入れ替わった瞬間だけ最小限のアニメーションを適用し、他スロットの位置は維持
-        .animation(.easeInOut(duration: 0.18), value: slotStateKey)
-    }
-
-    /// スロットの状態変化をアニメーション制御用に表すキーを生成する
-    /// - Parameter index: 対象スロットの添字
-    /// - Returns: カードが変化した際にのみ値が変わる文字列キー
-    private func slotAnimationKey(for index: Int) -> String {
-        if let card = handCard(at: index) {
-            // カード名に添字を付加してユニークなキーとし、重複カードでもスロット単位で識別
-            return "card_\(index)_\(card.displayName)"
-        } else {
-            // 空スロットの場合は専用キーを返し、連続で空でもレイアウトが乱れない
-            return "empty_\(index)"
-        }
     }
 
     /// 手札が空の際に表示するプレースホルダビュー
@@ -846,6 +910,31 @@ fileprivate struct NextCardOverlayView: View {
             }
         }
         .allowsHitTesting(false)  // 補助ビューはタップ処理に影響させない
+    }
+}
+
+// MARK: - カード演出用の状態と PreferenceKey
+/// カードが移動中かどうかを示すアニメーションフェーズ
+private enum CardAnimationPhase: Equatable {
+    case idle
+    case movingToBoard
+}
+
+/// 手札・NEXT に配置されたカードのアンカーを UUID 単位で収集する PreferenceKey
+private struct CardPositionPreferenceKey: PreferenceKey {
+    static var defaultValue: [UUID: Anchor<CGRect>] = [:]
+
+    static func reduce(value: inout [UUID: Anchor<CGRect>], nextValue: () -> [UUID: Anchor<CGRect>]) {
+        value.merge(nextValue()) { _, new in new }
+    }
+}
+
+/// SpriteView（盤面）のアンカーを保持する PreferenceKey
+private struct BoardAnchorPreferenceKey: PreferenceKey {
+    static var defaultValue: Anchor<CGRect>? = nil
+
+    static func reduce(value: inout Anchor<CGRect>?, nextValue: () -> Anchor<CGRect>?) {
+        value = nextValue() ?? value
     }
 }
 

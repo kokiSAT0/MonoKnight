@@ -39,7 +39,7 @@ final class GameCoreTests: XCTestCase {
         // 引き直し後の手札枚数が 5 枚確保されているか
         XCTAssertEqual(core.hand.count, 5, "引き直し後の手札枚数が 5 枚ではない")
         // 引き直し後の手札に使用可能なカードが少なくとも 1 枚あるか
-        let playableExists = core.hand.contains { $0.canUse(from: core.current) }
+        let playableExists = core.hand.contains { $0.move.canUse(from: core.current) }
         XCTAssertTrue(playableExists, "引き直し後の手札に利用可能なカードが存在しない")
         // 先読みカードが 3 枚揃っているか（NEXT 表示用）
         XCTAssertEqual(core.nextCards.count, 3, "引き直し後の先読みカードが 3 枚補充されていない")
@@ -73,7 +73,7 @@ final class GameCoreTests: XCTestCase {
         let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 0, y: 0))
 
         // 手札の中から使用可能なカードを 1 枚選び、実際に移動させる
-        if let index = core.hand.firstIndex(where: { $0.canUse(from: core.current) }) {
+        if let index = core.hand.firstIndex(where: { $0.move.canUse(from: core.current) }) {
             core.playCard(at: index)
         }
         // 移動が記録されているか確認
