@@ -35,14 +35,19 @@ struct ResultView: View {
         moveCount: Int,
         penaltyCount: Int,
         onRetry: @escaping () -> Void,
-        gameCenterService: GameCenterServiceProtocol = GameCenterService.shared,  // ない場合は GameCenterService()
-        adsService: AdsServiceProtocol = AdsService.shared  // ない場合は AdsService()
+        gameCenterService: GameCenterServiceProtocol? = nil,
+        adsService: AdsServiceProtocol? = nil
     ) {
+        // `@MainActor` に隔離されたシングルトンへ安全にアクセスするため、
+        // Swift 6 の規約に合わせてここで依存解決を行う。
+        let resolvedGameCenterService = gameCenterService ?? GameCenterService.shared
+        let resolvedAdsService = adsService ?? AdsService.shared
+
         self.moveCount = moveCount
         self.penaltyCount = penaltyCount
         self.onRetry = onRetry
-        self.gameCenterService = gameCenterService
-        self.adsService = adsService
+        self.gameCenterService = resolvedGameCenterService
+        self.adsService = resolvedAdsService
     }
 
     var body: some View {
