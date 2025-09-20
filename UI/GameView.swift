@@ -53,8 +53,8 @@ struct GameView: View {
         let scene = GameScene()
         scene.scaleMode = .resizeFill
         // GameScene から GameCore へタップイベントを伝えるため参照を渡す
-        // StateObject が保持する実体を必ず渡し、再生成時の弱参照切れを防ぐ
-        scene.gameCore = _core.wrappedValue
+        // StateObject へ格納した同一インスタンスを直接渡し、wrappedValue へ触れず安全に保持する
+        scene.gameCore = core
         self.scene = scene
         // サービスを保持
         self.gameCenterService = gameCenterService
