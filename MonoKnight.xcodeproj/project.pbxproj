@@ -25,7 +25,8 @@
 		72CF38132E7162E20093B180 /* MoveCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF37F62E7162E20093B180 /* MoveCard.swift */; };
 		72CF38142E7162E20093B180 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF38022E7162E20093B180 /* RootView.swift */; };
 		72CF38152E7162E20093B180 /* GameScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF37F42E7162E20093B180 /* GameScene.swift */; };
-		72CF38182E7252460093B180 /* GoogleMobileAds in Frameworks */ = {isa = PBXBuildFile; productRef = 72CF38172E7252460093B180 /* GoogleMobileAds */; };
+               72CF38182E7252460093B180 /* GoogleMobileAds in Frameworks */ = {isa = PBXBuildFile; productRef = 72CF38172E7252460093B180 /* GoogleMobileAds */; };
+               E8D21FD579F341979EC2D134 /* UserMessagingPlatform in Frameworks */ = {isa = PBXBuildFile; productRef = 105A27EF1E5D4B35AABCA169 /* UserMessagingPlatform */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -81,9 +82,10 @@
 		72CF37C62E7161160093B180 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
-			files = (
-				72CF38182E7252460093B180 /* GoogleMobileAds in Frameworks */,
-			);
+                       files = (
+                               72CF38182E7252460093B180 /* GoogleMobileAds in Frameworks */,
+                               E8D21FD579F341979EC2D134 /* UserMessagingPlatform in Frameworks */,
+                       );
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		72CF37D22E7161170093B180 /* Frameworks */ = {
@@ -210,9 +212,10 @@
 				72CF37CA2E7161160093B180 /* MonoKnightApp */,
 			);
 			name = MonoKnightApp;
-			packageProductDependencies = (
-				72CF38172E7252460093B180 /* GoogleMobileAds */,
-			);
+                       packageProductDependencies = (
+                               72CF38172E7252460093B180 /* GoogleMobileAds */,
+                               105A27EF1E5D4B35AABCA169 /* UserMessagingPlatform */,
+                       );
 			productName = MonoKnightApp;
 			productReference = 72CF37C92E7161160093B180 /* MonoKnightApp.app */;
 			productType = "com.apple.product-type.application";
@@ -295,9 +298,10 @@
 				Base,
 			);
 			mainGroup = 000000000000000000000006;
-			packageReferences = (
-				72CF38162E7252460093B180 /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */,
-			);
+                       packageReferences = (
+                               72CF38162E7252460093B180 /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */,
+                               D69092A1023F49BD9F36DD45 /* XCRemoteSwiftPackageReference "swift-package-manager-user-messaging-platform" */,
+                       );
 			productRefGroup = 000000000000000000000008 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -942,22 +946,35 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		72CF38162E7252460093B180 /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/googleads/swift-package-manager-google-mobile-ads";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 12.11.0;
-			};
-		};
+               72CF38162E7252460093B180 /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */ = {
+                       isa = XCRemoteSwiftPackageReference;
+                       repositoryURL = "https://github.com/googleads/swift-package-manager-google-mobile-ads";
+                       requirement = {
+                               kind = upToNextMajorVersion;
+                               minimumVersion = 12.11.0;
+                       };
+               };
+               D69092A1023F49BD9F36DD45 /* XCRemoteSwiftPackageReference "swift-package-manager-user-messaging-platform" */ = {
+                       isa = XCRemoteSwiftPackageReference;
+                       repositoryURL = "https://github.com/googleads/swift-package-manager-user-messaging-platform";
+                       requirement = {
+                               kind = upToNextMajorVersion;
+                               minimumVersion = 2.1.0;
+                       };
+               };
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		72CF38172E7252460093B180 /* GoogleMobileAds */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 72CF38162E7252460093B180 /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */;
-			productName = GoogleMobileAds;
-		};
+               72CF38172E7252460093B180 /* GoogleMobileAds */ = {
+                       isa = XCSwiftPackageProductDependency;
+                       package = 72CF38162E7252460093B180 /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */;
+                       productName = GoogleMobileAds;
+               };
+               105A27EF1E5D4B35AABCA169 /* UserMessagingPlatform */ = {
+                       isa = XCSwiftPackageProductDependency;
+                       package = D69092A1023F49BD9F36DD45 /* XCRemoteSwiftPackageReference "swift-package-manager-user-messaging-platform" */;
+                       productName = UserMessagingPlatform;
+               };
 /* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 000000000000000000000001 /* Project object */;
