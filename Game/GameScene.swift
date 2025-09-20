@@ -198,32 +198,37 @@ class GameScene: SKScene {
     ///   - node: 更新対象のノード
     ///   - point: 対応する盤面座標
     private func configureGuideHighlightNode(_ node: SKShapeNode, for point: GridPoint) {
-        // マスの外枠にめり込まないよう内側へ余白を設ける
-        let inset = tileSize * 0.1
-        // SpriteKit の座標系ではノード中心が (0,0) となるため、原点から半分引いた位置に矩形を構築する
-        let rect = CGRect(
-            x: -tileSize / 2 + inset,
-            y: -tileSize / 2 + inset,
-            width: tileSize - inset * 2,
-            height: tileSize - inset * 2
+        // 枠線の外側がマス境界を超えないよう、線幅に応じて矩形を補正する
+        let strokeWidth = max(tileSize * 0.06, 2.0)
+        // SpriteKit の座標系ではノード中心が (0,0) なので、原点からタイル半分を引いた矩形を起点にする
+        let baseRect = CGRect(
+            x: -tileSize / 2,
+            y: -tileSize / 2,
+            width: tileSize,
+            height: tileSize
         )
-        node.path = CGPath(rect: rect, transform: nil)
+        // rect.insetBy を用い、線幅の半分だけ内側に寄せて外周がグリッド線とぴったり接するよう調整
+        let adjustedRect = baseRect.insetBy(dx: strokeWidth / 2, dy: strokeWidth / 2)
+        node.path = CGPath(rect: adjustedRect, transform: nil)
 
         let baseColor = theme.skBoardGuideHighlight
-        // 充填色は透過させ、枠線のみでマス位置を柔らかく示す
+        // 充填色は透過させ、枠線のみに集中させて過度な塗りつぶしを避ける
         node.fillColor = SKColor.clear
-        node.strokeColor = baseColor.withAlphaComponent(0.9)
-        node.lineWidth = tileSize * 0.12
+        node.strokeColor = baseColor.withAlphaComponent(0.88)
+        node.lineWidth = strokeWidth
         node.glowWidth = 0
+
         // 角をシャープに保つために角丸設定を無効化し、SpriteKit のデフォルトより明示的にミタージョインを指定する
         node.lineJoin = .miter
         // lineJoin をミターにした際にエッジが過度に尖らないよう、適度な上限値を設ける
         node.miterLimit = 2.5
         // 終端も角を丸めず、グリッドの直線的な印象を優先する
+
         node.lineCap = .square
         node.position = position(for: point)
         node.zPosition = 1  // タイルより前面、駒より背面で控えめに表示
-        node.isAntialiased = true
+        // アンチエイリアスを無効化し、ライト/ダーク両テーマで滲まないシャープな輪郭にする
+        node.isAntialiased = false
         node.blendMode = .alpha
     }
 
