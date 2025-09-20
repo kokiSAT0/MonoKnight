@@ -17,11 +17,13 @@ import UIKit
 /// ゲーム進行を統括するクラス
 /// - 盤面操作・手札管理・ペナルティ処理・スコア計算を担当する
 final class GameCore: ObservableObject {
+    /// 手札枚数を統一的に扱うための定数（今回は 5 枚で固定）
+    private let handSize: Int = 5
     /// 盤面情報
     @Published private(set) var board = Board()
     /// 駒の現在位置
     @Published private(set) var current = GridPoint.center
-    /// 手札（常に 3 枚保持）
+    /// 手札（常に 5 枚保持）
     @Published private(set) var hand: [MoveCard] = []
     /// 次に引かれるカード（先読み 1 枚）
     @Published private(set) var next: MoveCard?
@@ -40,7 +42,8 @@ final class GameCore: ObservableObject {
 
     /// 初期化時に手札と次カードを用意
     init() {
-        hand = deck.draw(count: 3)
+        // 定数 handSize を用いて初期手札を引き切る
+        hand = deck.draw(count: handSize)
         next = deck.draw()
         // 初期状態で手詰まりの場合をケア
         checkDeadlockAndApplyPenaltyIfNeeded()
@@ -51,11 +54,11 @@ final class GameCore: ObservableObject {
     }
 
     /// 指定インデックスのカードで駒を移動させる
-    /// - Parameter index: 手札配列の位置（0〜2）
+    /// - Parameter index: 手札配列の位置（0〜4）
     func playCard(at index: Int) {
         // クリア済みや手詰まり中は操作不可
         guard progress == .playing else { return }
-        // インデックスが範囲内か確認
+        // インデックスが範囲内か確認（0〜4 の範囲を想定）
         guard hand.indices.contains(index) else { return }
         let card = hand[index]
         let target = current.offset(dx: card.dx, dy: card.dy)
@@ -140,7 +143,8 @@ final class GameCore: ObservableObject {
         penaltyCount = 0
         progress = .playing
         deck.reset()
-        hand = deck.draw(count: 3)
+        // リセット時も handSize を用いて手札を補充
+        hand = deck.draw(count: handSize)
         next = deck.draw()
         checkDeadlockAndApplyPenaltyIfNeeded()
         // リセット後の残り踏破数を読み上げ
@@ -206,7 +210,8 @@ extension GameCore {
         core.penaltyCount = 0
         core.progress = .playing
         // 手札と先読みカードを指定デッキから取得
-        core.hand = core.deck.draw(count: 3)
+        // テストでも handSize 分の手札を確実に引き直す
+        core.hand = core.deck.draw(count: core.handSize)
         core.next = core.deck.draw()
         // 初期状態での手詰まりをチェック
         core.checkDeadlockAndApplyPenaltyIfNeeded()
