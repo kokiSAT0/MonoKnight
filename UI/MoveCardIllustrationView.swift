@@ -3,19 +3,39 @@ import SwiftUI
 /// 移動カードの内容を視覚的に表現するビュー
 /// 5×5 のグリッドと現在地・目的地・移動方向を描画してカード効果を直感的に把握できるようにする
 struct MoveCardIllustrationView: View {
+    /// カードの表示モードを表現する列挙
+    /// - hand: 手札としてタップ可能な通常表示
+    /// - next: 先読み専用の表示で、背景や枠線を変えて区別する
+    enum Mode {
+        case hand
+        case next
+    }
+
     /// 表示対象の移動カード
     let card: MoveCard
+    /// 現在のスタイルモード（デフォルトは手札用）
+    let mode: Mode
+
+    /// 初期化でカードとモードを指定できるようにする
+    /// - Parameters:
+    ///   - card: 描画対象の移動カード
+    ///   - mode: 手札/先読みどちらかのスタイル
+    init(card: MoveCard, mode: Mode = .hand) {
+        self.card = card
+        self.mode = mode
+    }
 
     var body: some View {
         ZStack {
             // MARK: - カードの背景枠
-            // 既存のカードスタイル（角丸の枠付き）を踏襲して統一感を保つ
+            // モードに応じて背景色と枠線（線幅・破線パターン）を切り替える
             RoundedRectangle(cornerRadius: 8)
-                .stroke(Color.white, lineWidth: 1)
-                .background(
+                .fill(cardFillColor)
+                .overlay(
                     RoundedRectangle(cornerRadius: 8)
-                        .fill(Color.gray.opacity(0.2))
+                        .stroke(cardStrokeColor, style: cardStrokeStyle)
                 )
+                .shadow(color: cardShadowColor, radius: cardShadowRadius)
 
             VStack(spacing: 6) {
                 // MARK: - 盤面イメージ
@@ -66,7 +86,7 @@ struct MoveCardIllustrationView: View {
                                 path.addLine(to: CGPoint(x: origin.x + squareSize, y: y))
                             }
                         }
-                        .stroke(Color.white.opacity(0.4), lineWidth: 0.5)
+                        .stroke(gridLineColor, lineWidth: 0.5)
 
                         // MARK: 現在地・目的地のマーカー
                         Circle()
@@ -111,17 +131,16 @@ struct MoveCardIllustrationView: View {
                 // テキストでも方向が確認できるよう小さめのフォントで表示
                 Text(card.displayName)
                     .font(.caption2)
-                    .foregroundColor(.white)
+                    .foregroundColor(textColor)
             }
             .padding(8)
         }
         .frame(width: 60, height: 80)
-        // VoiceOver で方向が伝わるよう既存のラベルを継承
-        .accessibilityLabel(Text(card.displayName))
-        // カード操作のヒントも旧仕様を維持
-        .accessibilityHint(Text("ダブルタップでこの方向に移動します"))
-        // VoiceOver 上でボタンとして扱えるようトレイトを付与
-        .accessibilityAddTraits(.isButton)
+        // VoiceOver で手札と先読みを明確に区別できるようラベルとヒントを切り替える
+        .accessibilityLabel(accessibilityLabelText)
+        .accessibilityHint(accessibilityHintText)
+        // モードに応じてボタン／静的テキストのトレイトを切り替える
+        .accessibilityAddTraits(accessibilityTraits)
     }
 }
 
@@ -203,11 +222,116 @@ private extension MoveCardIllustrationView {
     }
 }
 
+// MARK: - 外観・アクセシビリティ設定ヘルパー
+private extension MoveCardIllustrationView {
+    /// モードに応じた枠線カラー
+    var cardStrokeColor: Color {
+        switch mode {
+        case .hand:
+            return Color.white
+        case .next:
+            return Color.white.opacity(0.7)
+        }
+    }
+
+    /// モードに応じた枠線スタイル（破線を加えて視覚的に差別化）
+    var cardStrokeStyle: StrokeStyle {
+        switch mode {
+        case .hand:
+            return StrokeStyle(lineWidth: 1)
+        case .next:
+            return StrokeStyle(lineWidth: 1.2, dash: [4, 3])
+        }
+    }
+
+    /// 背景色を切り替えてニュアンスを変える
+    var cardFillColor: Color {
+        switch mode {
+        case .hand:
+            return Color.gray.opacity(0.2)
+        case .next:
+            return Color.black.opacity(0.65)
+        }
+    }
+
+    /// 先読みカードだけ柔らかいグローを加えて視線を誘導
+    var cardShadowColor: Color {
+        switch mode {
+        case .hand:
+            return Color.clear
+        case .next:
+            return Color.white.opacity(0.18)
+        }
+    }
+
+    /// シャドウの半径（モードごとの強さを調整）
+    var cardShadowRadius: CGFloat {
+        switch mode {
+        case .hand:
+            return 0
+        case .next:
+            return 6
+        }
+    }
+
+    /// グリッド線の透明度もモードに合わせて微調整
+    var gridLineColor: Color {
+        switch mode {
+        case .hand:
+            return Color.white.opacity(0.4)
+        case .next:
+            return Color.white.opacity(0.28)
+        }
+    }
+
+    /// テキスト色の微調整（先読みは少し柔らかいトーン）
+    var textColor: Color {
+        switch mode {
+        case .hand:
+            return Color.white
+        case .next:
+            return Color.white.opacity(0.85)
+        }
+    }
+
+    /// アクセシビリティ用のラベルをモードに応じて生成
+    var accessibilityLabelText: Text {
+        switch mode {
+        case .hand:
+            return Text(card.displayName)
+        case .next:
+            return Text("次に補充されるカード: \(card.displayName)")
+        }
+    }
+
+    /// アクセシビリティのヒント文も切り替え
+    var accessibilityHintText: Text {
+        switch mode {
+        case .hand:
+            return Text("ダブルタップでこの方向に移動します")
+        case .next:
+            return Text("これは先読み専用で操作できません")
+        }
+    }
+
+    /// VoiceOver でのトレイトを決める
+    var accessibilityTraits: AccessibilityTraits {
+        switch mode {
+        case .hand:
+            return .isButton
+        case .next:
+            return .isStaticText
+        }
+    }
+}
+
 // MARK: - プレビュー
 #Preview {
     VStack(spacing: 12) {
-        MoveCardIllustrationView(card: .knightUp2Right1)
-        MoveCardIllustrationView(card: .diagonalDownLeft2)
+        // 手札用の標準表示
+        MoveCardIllustrationView(card: .knightUp2Right1, mode: .hand)
+        // 先読みカード用のスタイル
+        MoveCardIllustrationView(card: .diagonalDownLeft2, mode: .next)
     }
     .padding()
     .background(Color.black)

@@ -69,7 +69,7 @@ struct GameView: View {
                         HStack(spacing: 12) {
                             // MoveCard は Identifiable に準拠していないため、enumerated の offset を id として利用
                             ForEach(Array(core.hand.enumerated()), id: \.offset) { index, card in
-                                MoveCardIllustrationView(card: card)
+                                MoveCardIllustrationView(card: card, mode: .hand)
                                     // 盤外に出るカードは薄く表示し、タップを無効化
                                     .opacity(isCardUsable(card) ? 1.0 : 0.4)
                                     .onTapGesture {
@@ -95,11 +95,46 @@ struct GameView: View {
 
                         // 先読みカードが存在する場合に表示
                         if let next = core.next {
-                            HStack(spacing: 4) {
-                                Text("次のカード")
+                            VStack(alignment: .leading, spacing: 8) {
+                                // タイトルテキストは視覚的な見出しとしてのみ表示し、VoiceOver ではカードのラベルを優先
+                                Text("次に補充されるカード")
                                     .font(.caption)
-                                MoveCardIllustrationView(card: next)
-                                    .opacity(0.6)  // 先読みは操作不可なので半透明
+                                    .foregroundColor(.white.opacity(0.7))
+                                    .accessibilityHidden(true)
+
+                                MoveCardIllustrationView(card: next, mode: .next)
+                                    // 操作できないことを明確にするためヒットテストを無効化
+                                    .allowsHitTesting(false)
+                                    // 左上に NEXT バッジを重ねて先読みであることを強調
+                                    .overlay(alignment: .topLeading) {
+                                        NextCardBadgeView()
+                                            .padding(6)
+                                            .accessibilityHidden(true)
+                                    }
+                                    // 右上に点滅インジケータを配置して更新待ちであることを示す
+                                    .overlay(alignment: .topTrailing) {
+                                        NextCardIndicatorView()
+                                            .padding(6)
+                                            .accessibilityHidden(true)
+                                    }
+                                    // 下部には「操作不可」バッジを配置してタップ無効を明示
+                                    .overlay(alignment: .bottom) {
+                                        Text("操作不可")
+                                            .font(.caption2)
+                                            .foregroundColor(.white.opacity(0.75))
+                                            .padding(.horizontal, 8)
+                                            .padding(.vertical, 4)
+                                            .background(
+                                                Capsule()
+                                                    .fill(Color.white.opacity(0.08))
+                                            )
+                                            .overlay(
+                                                Capsule()
+                                                    .stroke(Color.white.opacity(0.25), lineWidth: 0.5)
+                                            )
+                                            .padding(.bottom, 6)
+                                            .accessibilityHidden(true)
+                                    }
                             }
                         }
                     }
@@ -158,6 +193,57 @@ struct GameView: View {
         return core.board.contains(target)
     }
 
+}
+
+// MARK: - 先読みバッジ用の補助ビュー
+private struct NextCardBadgeView: View {
+    var body: some View {
+        // シンプルなカプセル型バッジで「NEXT」を表示
+        Text("NEXT")
+            .font(.caption2.bold())
+            .kerning(1)
+            .foregroundColor(.white.opacity(0.85))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(
+                Capsule()
+                    .fill(Color.white.opacity(0.12))
+            )
+            .overlay(
+                Capsule()
+                    .stroke(Color.white.opacity(0.3), lineWidth: 0.6)
+            )
+    }
+}
+
+// MARK: - 点滅インジケータビュー
+private struct NextCardIndicatorView: View {
+    /// アニメーション状態をトグルするフラグ
+    @State private var isAnimating = false
+
+    var body: some View {
+        // 2 重円で柔らかく点滅させ、先読み更新を示唆する
+        ZStack {
+            Circle()
+                .stroke(Color.white.opacity(0.35), lineWidth: 1.5)
+                .frame(width: 16, height: 16)
+                .scaleEffect(isAnimating ? 1.2 : 0.9)
+                .opacity(isAnimating ? 0.25 : 0.5)
+
+            Circle()
+                .fill(Color.white.opacity(0.85))
+                .frame(width: 6, height: 6)
+        }
+        .onAppear {
+            // Appear 時にアニメーションを開始
+            isAnimating = true
+        }
+        .animation(
+            .easeInOut(duration: 1.1)
+                .repeatForever(autoreverses: true),
+            value: isAnimating
+        )
+    }
 }
 
 // MARK: - プレビュー
