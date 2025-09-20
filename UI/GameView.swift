@@ -54,6 +54,8 @@ struct GameView: View {
     @State private var animationState: CardAnimationPhase = .idle
     /// 盤面 SpriteView のアンカーを保持し、移動先座標の算出に利用する
     @State private var boardAnchor: Anchor<CGRect>?
+    /// カード移動アニメーションの目標とする駒位置（nil の場合は最新の現在地を使用）
+    @State private var animationTargetGridPoint: GridPoint?
 
     /// デフォルトのサービスを利用して `GameView` を生成するコンビニエンスイニシャライザ
     /// - Parameter onRequestReturnToTitle: タイトル画面への遷移要求クロージャ（省略可）
@@ -191,8 +193,14 @@ struct GameView: View {
                 // 手札の再配布などで該当カードが消えた場合はアニメーション状態を初期化
                 self.animatingCard = nil
                 animationState = .idle
+                animationTargetGridPoint = nil
             }
             refreshGuideHighlights()
+        }
+        // 盤面タップで移動を指示された際にもカード演出を統一して実行
+        .onReceive(core.$boardTapPlayRequest) { request in
+            guard let request else { return }
+            handleBoardTapPlayRequest(request)
         }
         // ガイドモードのオン/オフを切り替えたら即座に SpriteKit へ反映
         .onChange(of: guideModeEnabled) { _, _ in
@@ -217,16 +225,19 @@ struct GameView: View {
                        let sourceAnchor = anchors[animatingCard.id],
                        let boardAnchor,
                        animationState != .idle || hiddenCardIDs.contains(animatingCard.id) {
-                        // --- 元の位置と盤面中央の座標を算出 ---
+                        // --- 元の位置と駒位置の座標を算出 ---
                         let cardFrame = proxy[sourceAnchor]
                         let boardFrame = proxy[boardAnchor]
                         let startCenter = CGPoint(x: cardFrame.midX, y: cardFrame.midY)
-                        let boardCenter = CGPoint(x: boardFrame.midX, y: boardFrame.midY)
+                        // 駒が存在するマスへ向けてカードを吸い込むため、開始時点の現在地を保持しておく
+                        let targetGridPoint = animationTargetGridPoint ?? core.current
+                        // 盤面座標 → SwiftUI 座標系への変換を行い、目的位置を計算
+                        let boardDestination = boardCoordinate(for: targetGridPoint, in: boardFrame)
 
                         MoveCardIllustrationView(card: animatingCard.move)
                             .matchedGeometryEffect(id: animatingCard.id, in: cardAnimationNamespace)
                             .frame(width: cardFrame.width, height: cardFrame.height)
-                            .position(animationState == .movingToBoard ? boardCenter : startCenter)
+                            .position(animationState == .movingToBoard ? boardDestination : startCenter)
                             .scaleEffect(animationState == .movingToBoard ? 0.55 : 1.0)
                             .opacity(animationState == .movingToBoard ? 0.0 : 1.0)
                             .allowsHitTesting(false)
@@ -532,6 +543,88 @@ struct GameView: View {
         return core.board.contains(target)
     }
 
+    /// 手札のカードを盤面へ送るアニメーションを共通化する
+    /// - Parameters:
+    ///   - card: 演出対象の手札カード
+    ///   - index: `GameCore.playCard(at:)` に渡すインデックス
+    /// - Returns: アニメーションを開始できた場合は true
+    @discardableResult
+    private func animateCardPlay(for card: DealtCard, at index: Int) -> Bool {
+        // 既に別カードの演出が進行中なら二重再生を避ける
+        guard animatingCard == nil else { return false }
+        // 念のため盤面内へ移動可能かチェックし、無効カードの演出を抑止
+        guard isCardUsable(card) else { return false }
+
+        // アニメーション開始前に現在地を記録しておき、目的地の座標計算に利用する
+        animationTargetGridPoint = core.current
+        hiddenCardIDs.insert(card.id)
+        animatingCard = card
+        animationState = .idle
+
+        // 成功操作のフィードバックを統一
+        if hapticsEnabled {
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
+        }
+
+        // 盤面へ吸い込まれていく動きを開始（時間はカードタップ時と同じ 0.24 秒）
+        let travelDuration: TimeInterval = 0.24
+        withAnimation(.easeInOut(duration: travelDuration)) {
+            animationState = .movingToBoard
+        }
+
+        let cardID = card.id
+        // 演出完了後に実際の移動処理を実行し、状態を初期化する
+        DispatchQueue.main.asyncAfter(deadline: .now() + travelDuration) {
+            withAnimation(.easeInOut(duration: 0.22)) {
+                core.playCard(at: index)
+            }
+            hiddenCardIDs.remove(cardID)
+            animatingCard = nil
+            animationState = .idle
+            animationTargetGridPoint = nil
+        }
+
+        return true
+    }
+
+    /// GameCore から届いた盤面タップ要求を処理し、必要に応じてカード演出を開始する
+    /// - Parameter request: 盤面タップ時に GameCore が公開した手札情報
+    private func handleBoardTapPlayRequest(_ request: BoardTapPlayRequest) {
+        // 処理の成否にかかわらず必ずリクエストを消費して次のタップを受け付ける
+        defer { core.clearBoardTapPlayRequest(request.id) }
+
+        // アニメーション再生中は新しいリクエストを無視する（UI 全体も disabled 済みだが安全策）
+        guard animatingCard == nil else { return }
+
+        // 指定されたインデックスが最新の手札範囲に含まれているか確認
+        guard core.hand.indices.contains(request.index) else { return }
+        let candidate = core.hand[request.index]
+
+        if candidate.id == request.card.id {
+            // 手札位置が変化していなければそのまま演出を開始
+            animateCardPlay(for: candidate, at: request.index)
+        } else if let fallbackIndex = core.hand.firstIndex(where: { $0.id == request.card.id }) {
+            // 途中で手札が再配布されインデックスがズレた場合は ID で再検索して挙動を合わせる
+            let fallbackCard = core.hand[fallbackIndex]
+            animateCardPlay(for: fallbackCard, at: fallbackIndex)
+        }
+        // ID が見つからなければ既に手札が入れ替わったと判断し、何もせず終了する
+    }
+
+    /// グリッド座標を SpriteView 上の中心座標に変換する
+    /// - Parameters:
+    ///   - gridPoint: 盤面上のマス座標（原点は左下）
+    ///   - frame: SwiftUI における盤面矩形
+    /// - Returns: SwiftUI 座標系での中心位置
+    private func boardCoordinate(for gridPoint: GridPoint, in frame: CGRect) -> CGPoint {
+        // SpriteKit 側と同じ 5×5 マスを前提に、1 マス分の辺長を算出
+        let tileLength = frame.width / CGFloat(Board.size)
+        let centerX = frame.minX + tileLength * (CGFloat(gridPoint.x) + 0.5)
+        // SwiftUI は上向きがマイナスのため、下端を基準に引き算して y を求める
+        let centerY = frame.maxY - tileLength * (CGFloat(gridPoint.y) + 0.5)
+        return CGPoint(x: centerX, y: centerY)
+    }
+
     /// 盤面上部に表示する統計テキストの共通レイアウト
     /// - Parameters:
     ///   - title: メトリクスのラベル（例: 移動）
@@ -595,31 +688,8 @@ struct GameView: View {
                         guard animatingCard == nil else { return }
 
                         if isCardUsable(card) {
-                            // --- 盤面へ送る前準備 ---
-                            hiddenCardIDs.insert(card.id)
-                            animatingCard = card
-                            animationState = .idle
-
-                            if hapticsEnabled {
-                                UINotificationFeedbackGenerator()
-                                    .notificationOccurred(.success)
-                            }
-
-                            // --- 盤面中央へ向けたアニメーションを開始 ---
-                            withAnimation(.easeInOut(duration: 0.24)) {
-                                animationState = .movingToBoard
-                            }
-
-                            let playIndex = index
-                            let cardID = card.id
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.24) {
-                                withAnimation(.easeInOut(duration: 0.22)) {
-                                    core.playCard(at: playIndex)
-                                }
-                                hiddenCardIDs.remove(cardID)
-                                animatingCard = nil
-                                animationState = .idle
-                            }
+                            // 共通処理でアニメーションとカード使用をまとめて実行
+                            _ = animateCardPlay(for: card, at: index)
                         } else {
                             // 使用不可カードは警告ハプティクスのみ発火
                             if hapticsEnabled {
