@@ -103,9 +103,12 @@ struct RootView: View {
 private struct TitleScreenView: View {
     /// ゲーム開始ボタンが押された際の処理
     let onStart: () -> Void
-    /// 遊び方シートの表示状態を保持するフラグ
-    /// - Note: ボタンのタップで true にしてモーダルを開く
+
+    /// カラーテーマを用いてライト/ダーク両対応の配色を提供する
+    private var theme = AppTheme()
+
     @State private var isPresentingHowToPlay: Bool = false
+
 
     var body: some View {
         VStack(spacing: 28) {
@@ -115,10 +118,12 @@ private struct TitleScreenView: View {
             VStack(spacing: 12) {
                 Text("MonoKnight")
                     .font(.system(size: 32, weight: .heavy, design: .rounded))
-                    .foregroundColor(.white)
+                    // テーマの主文字色を適用し、ライト/ダーク両方で視認性を確保
+                    .foregroundColor(theme.textPrimary)
                 Text("カードで騎士を導き、盤面を踏破しよう")
                     .font(.system(size: 16, weight: .medium, design: .rounded))
-                    .foregroundColor(.white.opacity(0.75))
+                    // 補足テキストはサブ文字色でコントラストを調整
+                    .foregroundColor(theme.textSecondary)
                     .multilineTextAlignment(.center)
             }
 
@@ -129,8 +134,9 @@ private struct TitleScreenView: View {
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
-            .tint(.white)
-            .foregroundColor(.black)
+            // ボタンはアクセントカラーとその上の文字色をテーマから取得
+            .tint(theme.accentPrimary)
+            .foregroundColor(theme.accentOnPrimary)
             .controlSize(.large)
             .accessibilityIdentifier("title_start_button")
 
@@ -154,7 +160,8 @@ private struct TitleScreenView: View {
         .padding(.horizontal, 32)
         .padding(.bottom, 36)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.black)
+        // 背景もテーマのベースカラーへ切り替え、システム設定と調和させる
+        .background(theme.backgroundPrimary)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("タイトル画面。ゲームを開始するボタンがあります。")
         // 遊び方シートの表示設定

@@ -9,25 +9,24 @@ struct MoveCardIllustrationView: View {
         case next
 
         /// 背景色（RoundedRectangle 内部）をモードごとに返す
-        var backgroundColor: Color {
+        /// - Parameter theme: アプリ共通のテーマから色を取得
+        func backgroundColor(using theme: AppTheme) -> Color {
             switch self {
             case .hand:
-                // 手札用は従来の淡いグレー背景を踏襲
-                return Color.gray.opacity(0.2)
+                return theme.cardBackgroundHand
             case .next:
-                // 先読み用は少し明るめにし、枠とのコントラストを上げて視認性を確保
-                return Color.white.opacity(0.1)
+                return theme.cardBackgroundNext
             }
         }
 
         /// 枠線の色をモードに応じて返す
-        var borderColor: Color {
+        /// - Parameter theme: アプリ共通テーマ
+        func borderColor(using theme: AppTheme) -> Color {
             switch self {
             case .hand:
-                return Color.white
+                return theme.cardBorderHand
             case .next:
-                // 先読みはやや強めの白で存在感を出す
-                return Color.white.opacity(0.8)
+                return theme.cardBorderNext
             }
         }
 
@@ -42,31 +41,38 @@ struct MoveCardIllustrationView: View {
         }
 
         /// 中央セルのハイライト色
-        var centerHighlightColor: Color {
+        /// - Parameter theme: アプリ共通テーマ
+        func centerHighlightColor(using theme: AppTheme) -> Color {
             switch self {
             case .hand:
-                return Color.white.opacity(0.12)
+                return theme.centerHighlightHand
             case .next:
-                // 先読みは少し強めに光らせてカードの注目度を上げる
-                return Color.white.opacity(0.25)
+                return theme.centerHighlightNext
             }
         }
 
         /// グリッド線の色（手札よりもコントラストを強める）
-        var gridLineColor: Color {
+        /// - Parameter theme: アプリ共通テーマ
+        func gridLineColor(using theme: AppTheme) -> Color {
             switch self {
             case .hand:
-                return Color.white.opacity(0.4)
+                return theme.gridLineHand
             case .next:
-                return Color.white.opacity(0.55)
+                return theme.gridLineNext
             }
         }
 
         /// 矢印や目的地マーカーの色（モード共通）
-        var arrowColor: Color { Color.white }
+        /// - Parameter theme: アプリ共通テーマ
+        func arrowColor(using theme: AppTheme) -> Color {
+            theme.cardContentPrimary
+        }
 
         /// カード名ラベルの文字色
-        var labelColor: Color { Color.white }
+        /// - Parameter theme: アプリ共通テーマ
+        func labelColor(using theme: AppTheme) -> Color {
+            theme.cardContentPrimary
+        }
 
         /// VoiceOver で追加説明が必要な場合の末尾テキスト
         var accessibilitySuffix: String {
@@ -113,16 +119,18 @@ struct MoveCardIllustrationView: View {
     let card: MoveCard
     /// 現在の表示モード（デフォルトは手札表示）
     var mode: Mode = .hand
+    /// カラースキームに応じて派生色を提供するテーマ
+    private var theme = AppTheme()
 
     var body: some View {
         ZStack {
             // MARK: - カードの背景枠
             // 既存のカードスタイル（角丸の枠付き）を踏襲して統一感を保つ
             RoundedRectangle(cornerRadius: 8)
-                .stroke(mode.borderColor, lineWidth: mode.borderLineWidth)
+                .stroke(mode.borderColor(using: theme), lineWidth: mode.borderLineWidth)
                 .background(
                     RoundedRectangle(cornerRadius: 8)
-                        .fill(mode.backgroundColor)
+                        .fill(mode.backgroundColor(using: theme))
                 )
 
             VStack(spacing: 6) {
@@ -155,7 +163,7 @@ struct MoveCardIllustrationView: View {
                     ZStack {
                         // MARK: 中央マスのハイライト
                         Rectangle()
-                            .fill(mode.centerHighlightColor)
+                            .fill(mode.centerHighlightColor(using: theme))
                             .frame(width: cellSize, height: cellSize)
                             .position(startPoint)
 
@@ -174,24 +182,24 @@ struct MoveCardIllustrationView: View {
                                 path.addLine(to: CGPoint(x: origin.x + squareSize, y: y))
                             }
                         }
-                        .stroke(mode.gridLineColor, lineWidth: 0.5)
+                        .stroke(mode.gridLineColor(using: theme), lineWidth: 0.5)
 
                         // MARK: 現在地・目的地のマーカー
                         Circle()
-                            .fill(Color.white)
+                            .fill(theme.cardContentPrimary)
                             .frame(width: cellSize * 0.4, height: cellSize * 0.4)
                             .overlay(
                                 Circle()
-                                    .stroke(Color.black.opacity(0.8), lineWidth: 1)
+                                    .stroke(theme.startMarkerStroke, lineWidth: 1)
                             )
                             .position(startPoint)
 
                         Circle()
-                            .fill(Color.black)
+                            .fill(theme.cardContentInverted)
                             .frame(width: cellSize * 0.4, height: cellSize * 0.4)
                             .overlay(
                                 Circle()
-                                    .stroke(Color.white, lineWidth: 1)
+                                    .stroke(theme.destinationMarkerStroke, lineWidth: 1)
                             )
                             .position(destinationPoint)
 
@@ -200,7 +208,7 @@ struct MoveCardIllustrationView: View {
                             path.move(to: startPoint)
                             path.addLine(to: destinationPoint)
                         }
-                        .stroke(mode.arrowColor, style: StrokeStyle(lineWidth: 1.5, lineCap: .round))
+                        .stroke(mode.arrowColor(using: theme), style: StrokeStyle(lineWidth: 1.5, lineCap: .round))
 
                         if let (leftPoint, rightPoint) = arrowHeadVertices {
                             Path { path in
@@ -209,7 +217,7 @@ struct MoveCardIllustrationView: View {
                                 path.addLine(to: rightPoint)
                                 path.closeSubpath()
                             }
-                            .fill(mode.arrowColor)
+                            .fill(mode.arrowColor(using: theme))
                         }
                     }
                 }
@@ -219,7 +227,7 @@ struct MoveCardIllustrationView: View {
                 // テキストでも方向が確認できるよう小さめのフォントで表示
                 Text(card.displayName)
                     .font(.caption2)
-                    .foregroundColor(mode.labelColor)
+                    .foregroundColor(mode.labelColor(using: theme))
             }
             .padding(8)
         }
@@ -322,5 +330,6 @@ private extension MoveCardIllustrationView {
         MoveCardIllustrationView(card: .diagonalDownLeft2, mode: .next)
     }
     .padding()
-    .background(Color.black)
+    // プレビューでもテーマカラーを利用し、本番画面と同等の見た目を確認する
+    .background(Color("backgroundPrimary"))
 }

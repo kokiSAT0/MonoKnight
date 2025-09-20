@@ -6,6 +6,10 @@ import UIKit  // ハプティクス用のフレームワークを追加
 /// 画面下部に手札 3 枚と次に引かれるカードを表示し、
 /// タップで GameCore を更新する
 struct GameView: View {
+    /// カラーテーマを生成し、ビュー全体で共通の配色を利用できるようにする
+    private var theme = AppTheme()
+    /// 現在のライト/ダーク設定を環境から取得し、SpriteKit 側の色にも反映する
+    @Environment(\.colorScheme) private var colorScheme
     /// 手札スロットの数（常に 5 枚分の枠を確保してレイアウトを安定させる）
     private let handSlotCount = 5
     /// ゲームロジックを保持する ObservableObject
@@ -90,13 +94,14 @@ struct GameView: View {
                         .padding(.horizontal, 12)
                         .padding(.vertical, 10)
                         .background(
-                            // 盤面外でも読みやすさを維持する半透明の黒背景
+                            // 盤面外でも読みやすさを維持する半透明の背景（テーマから取得）
                             RoundedRectangle(cornerRadius: 12)
-                                .fill(Color.black.opacity(0.8))
+                                .fill(theme.statisticBadgeBackground)
                         )
                         .overlay(
                             RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color.white.opacity(0.25), lineWidth: 1)
+                                // テーマに合わせた薄い境界線でバッジを引き締める
+                                .stroke(theme.statisticBadgeBorder, lineWidth: 1)
                         )
                         .padding(.horizontal, 16)
                         .accessibilityElement(children: .contain)
@@ -134,8 +139,10 @@ struct GameView: View {
                                 // テキストでセクションを明示して VoiceOver からも認識しやすくする
                                 Text("次のカード")
                                     .font(.caption)
-                                    .foregroundColor(.white.opacity(0.7))
-                                    .accessibilityHidden(true)  // ラベル自体はカード要素のラベルで読み上げる
+                                    // テーマのサブ文字色で読みやすさと一貫性を確保
+                                    .foregroundColor(theme.textSecondary)
+                                    .accessibilityHidden(true)  // ラベル自体は MoveCardIllustrationView のラベルに統合する
+
 
                                 // MARK: - 先読みカード本体
                                 // 3 枚までのカードを順番に描画し、それぞれにインジケータを重ねる
@@ -163,9 +170,17 @@ struct GameView: View {
                 // MARK: - 右上のメニューボタンとデバッグ向けショートカット
                 topRightOverlay
             }
-            // 画面全体を黒背景に統一
+            // 画面全体の背景もテーマで制御し、システム設定と調和させる
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color.black)
+            .background(theme.backgroundPrimary)
+        }
+        // 初回表示時に SpriteKit の背景色もテーマに合わせて更新
+        .onAppear {
+            applyScenePalette(for: colorScheme)
+        }
+        // ライト/ダーク切り替えが発生した場合も SpriteKit 側へ反映
+        .onChange(of: colorScheme) { _, newScheme in
+            applyScenePalette(for: newScheme)
         }
         // progress が .cleared へ変化したタイミングで結果画面を表示
         .onChange(of: core.progress) { _, newValue in
@@ -264,6 +279,13 @@ struct GameView: View {
         .zIndex(2)
     }
 
+    /// SpriteKit シーンの背景色を現在のテーマに合わせて調整する
+    /// - Parameter scheme: ユーザーが選択中のライト/ダーク種別
+    private func applyScenePalette(for _: ColorScheme) {
+        // SwiftUI の Color から UIColor を生成し、SpriteKit の背景に適用する
+        scene.backgroundColor = UIColor(theme.backgroundPrimary)
+    }
+
     /// 指定カードが現在位置から盤内に収まるか判定
     /// - Note: MoveCard は列挙型であり、dx/dy プロパティから移動量を取得する
     private func isCardUsable(_ card: MoveCard) -> Bool {
@@ -291,12 +313,13 @@ struct GameView: View {
             Text(title)
                 .font(.caption2)
                 .fontWeight(.medium)
-                .foregroundColor(.white.opacity(0.65))
+                // テーマの補助文字色でライト/ダーク双方のコントラストを調整
+                .foregroundColor(theme.statisticTitleText)
 
             // 主数値は視認性を高めるためサイズとコントラストを強調
             Text(value)
                 .font(.headline)
-                .foregroundColor(.white)
+                .foregroundColor(theme.statisticValueText)
         }
         // VoiceOver ではカスタムラベルと値を読み上げさせる
         .accessibilityElement(children: .ignore)
@@ -373,16 +396,19 @@ struct GameView: View {
     /// - Note: 実カードと同じサイズを確保してレイアウトのズレを防ぐ
     private func placeholderCardView() -> some View {
         RoundedRectangle(cornerRadius: 8)
-            .stroke(Color.white.opacity(0.25), style: StrokeStyle(lineWidth: 1, dash: [4]))
+            // テーマ由来の枠線色でライト/ダークの差異を吸収
+            .stroke(theme.placeholderStroke, style: StrokeStyle(lineWidth: 1, dash: [4]))
             .background(
                 RoundedRectangle(cornerRadius: 8)
-                    .fill(Color.white.opacity(0.05))
+                    // 枠内もテーマ色で淡く塗りつぶし、背景とのコントラストを確保
+                    .fill(theme.placeholderBackground)
             )
             .frame(width: 60, height: 80)
             .overlay(
                 Image(systemName: "questionmark")
                     .font(.caption)
-                    .foregroundColor(Color.white.opacity(0.4))
+                    // プレースホルダアイコンもテーマ色で調整
+                    .foregroundColor(theme.placeholderIcon)
             )
             .accessibilityHidden(true)  // プレースホルダは VoiceOver の読み上げ対象外にして混乱を避ける
     }
@@ -428,15 +454,18 @@ private extension GameView {
             // 常に 44pt 以上のタップ領域を確保する
             Image(systemName: "ellipsis.circle")
                 .font(.system(size: 22, weight: .semibold))
-                .foregroundColor(.white)
+                // テーマの前景色でアイコンを描画し、背景色変更に追従
+                .foregroundColor(theme.menuIconForeground)
                 .frame(width: 44, height: 44)
                 .background(
                     Circle()
-                        .fill(Color.white.opacity(0.12))
+                        // 背景もテーマから取得し、ライトモードでも主張しすぎない色合いに調整
+                        .fill(theme.menuIconBackground)
                 )
                 .overlay(
                     Circle()
-                        .stroke(Color.white.opacity(0.25), lineWidth: 1)
+                        // わずかな境界線で視認性を高める
+                        .stroke(theme.menuIconBorder, lineWidth: 1)
                 )
         }
         .accessibilityIdentifier("game_menu")
@@ -531,16 +560,21 @@ private enum GameMenuAction: Hashable, Identifiable {
 // MARK: - 手詰まりペナルティ用のバナー表示
 /// ペナルティ発生をユーザーに伝えるトップバナーのビュー
 private struct PenaltyBannerView: View {
+    /// バナー配色を一元管理するテーマ
+    private var theme = AppTheme()
+
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
             // MARK: - 警告アイコン
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.system(size: 20, weight: .semibold))
-                .foregroundColor(.black)
+                // テーマの反転色を利用し、背景とのコントラストを確保
+                .foregroundColor(theme.penaltyIconForeground)
                 .padding(8)
                 .background(
                     Circle()
-                        .fill(Color.white)
+                        // アイコン背景もテーマ側のアクセントに合わせる
+                        .fill(theme.penaltyIconBackground)
                 )
                 .accessibilityHidden(true)  // アイコンは視覚的アクセントのみ
 
@@ -548,10 +582,11 @@ private struct PenaltyBannerView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("手詰まり → 手札を引き直し (+5)")
                     .font(.system(size: 14, weight: .semibold, design: .rounded))
-                    .foregroundColor(.white)
+                    // メインテキストはテーマに合わせた明度で表示
+                    .foregroundColor(theme.penaltyTextPrimary)
                 Text("使えるカードが無かったため、手数が 5 増加しました")
                     .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundColor(.white.opacity(0.8))
+                    .foregroundColor(theme.penaltyTextSecondary)
             }
 
             Spacer(minLength: 0)
@@ -560,13 +595,14 @@ private struct PenaltyBannerView: View {
         .padding(.horizontal, 18)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.white.opacity(0.18))
+                // バナーの背景はテーマ設定で透明感を調整
+                .fill(theme.penaltyBannerBackground)
                 .overlay(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(Color.white.opacity(0.35), lineWidth: 1)
+                        .stroke(theme.penaltyBannerBorder, lineWidth: 1)
                 )
         )
-        .shadow(color: Color.black.opacity(0.35), radius: 18, x: 0, y: 12)
+        .shadow(color: theme.penaltyBannerShadow, radius: 18, x: 0, y: 12)
         .accessibilityIdentifier("penalty_banner_content")
         .accessibilityElement(children: .combine)
         .accessibilityLabel("手詰まり。手札を引き直し、手数が 5 増加しました。")
@@ -580,6 +616,8 @@ private struct NextCardOverlayView: View {
     let order: Int
     /// 点滅インジケータの明るさを制御するステート
     @State private var isIndicatorBright = false
+    /// 先読みオーバーレイの配色を統一するテーマ
+    private var theme = AppTheme()
 
     /// バッジに表示する文言を算出するヘルパー
     private var badgeText: String {
@@ -595,11 +633,12 @@ private struct NextCardOverlayView: View {
                         .font(.system(size: 10, weight: .bold, design: .rounded))
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
-                        .foregroundColor(.white)
+                        // テーマ経由でラベル色を取得し、ライトモードでも視認性を保つ
+                        .foregroundColor(theme.nextBadgeText)
                         .background(
                             Capsule()
-                                .strokeBorder(Color.white.opacity(0.7), lineWidth: 1)
-                                .background(Capsule().fill(Color.white.opacity(0.18)))
+                                .strokeBorder(theme.nextBadgeBorder, lineWidth: 1)
+                                .background(Capsule().fill(theme.nextBadgeBackground))
                         )
                         .padding([.top, .leading], 6)
                         .accessibilityHidden(true)  // バッジは視覚的強調のみなので読み上げ対象外にする
@@ -614,15 +653,15 @@ private struct NextCardOverlayView: View {
                 HStack {
                     Spacer()
                     Circle()
-                        .stroke(Color.white.opacity(0.7), lineWidth: 1.5)
+                        .stroke(theme.nextIndicatorStroke, lineWidth: 1.5)
                         .frame(width: 16, height: 16)
                         .overlay(
                             Circle()
-                                .fill(Color.white.opacity(0.85))
+                                .fill(theme.nextIndicatorFill)
                                 .frame(width: 8, height: 8)
                                 .opacity(isIndicatorBright ? 1.0 : 0.2)
                         )
-                        .shadow(color: Color.white.opacity(isIndicatorBright ? 0.6 : 0.1), radius: isIndicatorBright ? 4 : 0)
+                        .shadow(color: theme.nextIndicatorShadow.opacity(isIndicatorBright ? 1.0 : 0.2), radius: isIndicatorBright ? 4 : 0)
                         .padding(6)
                         .accessibilityHidden(true)  // 視覚的なアクセントのみのため VoiceOver では読み上げない
                 }
