@@ -120,7 +120,7 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, FullScre
             return
         }
 
-        interstitial.present(fromRootViewController: root)
+        interstitial.present(from: root)
         if hapticsEnabled {
             UINotificationFeedbackGenerator().notificationOccurred(.warning)
         }
