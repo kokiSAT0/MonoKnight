@@ -1,10 +1,35 @@
 import SwiftUI
+#if canImport(SpriteKit)
+import SpriteKit
+#endif
+#if canImport(UIKit)
+import UIKit
+#endif
 
 /// アプリ全体で共通利用する配色をまとめたテーマコンポーネント
 /// DynamicProperty を採用することで、ダークモード切り替え時にも自動的に再評価される
 struct AppTheme: DynamicProperty {
-    /// 現在のカラースキームを環境から取得し、明暗で派生色を出し分ける
-    @Environment(\.colorScheme) private var colorScheme
+    /// SwiftUI 環境から取得するカラースキーム（ライト/ダーク）
+    @Environment(\.colorScheme) private var environmentColorScheme
+
+    /// SpriteKit など SwiftUI 環境外で利用する際に上書きするカラースキーム
+    private var overrideColorScheme: ColorScheme?
+
+    /// 標準イニシャライザでは SwiftUI の環境値を利用する
+    init() {
+        overrideColorScheme = nil
+    }
+
+    /// SpriteKit 側から明示的にカラースキームを指定して利用するためのイニシャライザ
+    /// - Parameter colorScheme: ライト/ダークのいずれか
+    init(colorScheme: ColorScheme) {
+        overrideColorScheme = colorScheme
+    }
+
+    /// 実際に参照するカラースキーム。SpriteKit から利用する場合は override を優先する
+    private var resolvedColorScheme: ColorScheme {
+        overrideColorScheme ?? environmentColorScheme
+    }
 
     // MARK: - ベースカラー（Assets.xcassets から取得）
 
@@ -30,7 +55,7 @@ struct AppTheme: DynamicProperty {
 
     /// 統計バッジの背景色。盤面上でも視認性を損なわない半透明トーン
     var statisticBadgeBackground: Color {
-        switch colorScheme {
+        switch resolvedColorScheme {
         case .dark:
             return Color.black.opacity(0.8)
         default:
@@ -40,7 +65,7 @@ struct AppTheme: DynamicProperty {
 
     /// 統計バッジの枠線色。ライトでは黒系、ダークでは白系で薄く縁取る
     var statisticBadgeBorder: Color {
-        switch colorScheme {
+        switch resolvedColorScheme {
         case .dark:
             return Color.white.opacity(0.25)
         default:
@@ -50,7 +75,7 @@ struct AppTheme: DynamicProperty {
 
     /// 統計バッジの補助ラベルに使う文字色
     var statisticTitleText: Color {
-        switch colorScheme {
+        switch resolvedColorScheme {
         case .dark:
             return Color.white.opacity(0.65)
         default:
@@ -60,7 +85,7 @@ struct AppTheme: DynamicProperty {
 
     /// 統計バッジのメイン数値に使う文字色
     var statisticValueText: Color {
-        switch colorScheme {
+        switch resolvedColorScheme {
         case .dark:
             return Color.white
         default:
@@ -72,7 +97,7 @@ struct AppTheme: DynamicProperty {
 
     /// 手札カードの背景色。淡いトーンで盤面との差を演出
     var cardBackgroundHand: Color {
-        switch colorScheme {
+        switch resolvedColorScheme {
         case .dark:
             return Color.white.opacity(0.08)
         default:
@@ -82,7 +107,7 @@ struct AppTheme: DynamicProperty {
 
     /// 先読みカードの背景色。手札よりわずかに明るくして注目度を上げる
     var cardBackgroundNext: Color {
-        switch colorScheme {
+        switch resolvedColorScheme {
         case .dark:
             return Color.white.opacity(0.12)
         default:
@@ -92,7 +117,7 @@ struct AppTheme: DynamicProperty {
 
     /// 手札カードの枠線色
     var cardBorderHand: Color {
-        switch colorScheme {
+        switch resolvedColorScheme {
         case .dark:
             return Color.white
         default:
@@ -102,7 +127,7 @@ struct AppTheme: DynamicProperty {
 
     /// 先読みカードの枠線色
     var cardBorderNext: Color {
-        switch colorScheme {
+        switch resolvedColorScheme {
         case .dark:
             return Color.white.opacity(0.8)
         default:
@@ -112,7 +137,7 @@ struct AppTheme: DynamicProperty {
 
     /// 盤面中央セルのハイライト色（手札用）
     var centerHighlightHand: Color {
-        switch colorScheme {
+        switch resolvedColorScheme {
         case .dark:
             return Color.white.opacity(0.12)
         default:
@@ -122,7 +147,7 @@ struct AppTheme: DynamicProperty {
 
     /// 盤面中央セルのハイライト色（先読み用）
     var centerHighlightNext: Color {
-        switch colorScheme {
+        switch resolvedColorScheme {
         case .dark:
             return Color.white.opacity(0.25)
         default:
@@ -132,7 +157,7 @@ struct AppTheme: DynamicProperty {
 
     /// グリッド線の色（手札用）
     var gridLineHand: Color {
-        switch colorScheme {
+        switch resolvedColorScheme {
         case .dark:
             return Color.white.opacity(0.4)
         default:
@@ -142,7 +167,7 @@ struct AppTheme: DynamicProperty {
 
     /// グリッド線の色（先読み用）
     var gridLineNext: Color {
-        switch colorScheme {
+        switch resolvedColorScheme {
         case .dark:
             return Color.white.opacity(0.55)
         default:
@@ -152,7 +177,7 @@ struct AppTheme: DynamicProperty {
 
     /// 矢印やラベルなどカード上の主要要素の色
     var cardContentPrimary: Color {
-        switch colorScheme {
+        switch resolvedColorScheme {
         case .dark:
             return Color.white
         default:
@@ -162,7 +187,7 @@ struct AppTheme: DynamicProperty {
 
     /// カード上で白黒を反転して利用する際の色
     var cardContentInverted: Color {
-        switch colorScheme {
+        switch resolvedColorScheme {
         case .dark:
             return Color.black
         default:
@@ -172,7 +197,7 @@ struct AppTheme: DynamicProperty {
 
     /// 現在位置マーカーの縁取り色
     var startMarkerStroke: Color {
-        switch colorScheme {
+        switch resolvedColorScheme {
         case .dark:
             return Color.black.opacity(0.8)
         default:
@@ -182,7 +207,7 @@ struct AppTheme: DynamicProperty {
 
     /// 目的地マーカーの縁取り色
     var destinationMarkerStroke: Color {
-        switch colorScheme {
+        switch resolvedColorScheme {
         case .dark:
             return Color.white
         default:
@@ -194,7 +219,7 @@ struct AppTheme: DynamicProperty {
 
     /// 手札が空の時に表示する枠線色
     var placeholderStroke: Color {
-        switch colorScheme {
+        switch resolvedColorScheme {
         case .dark:
             return Color.white.opacity(0.25)
         default:
@@ -204,7 +229,7 @@ struct AppTheme: DynamicProperty {
 
     /// 手札プレースホルダの背景色
     var placeholderBackground: Color {
-        switch colorScheme {
+        switch resolvedColorScheme {
         case .dark:
             return Color.white.opacity(0.05)
         default:
@@ -214,7 +239,7 @@ struct AppTheme: DynamicProperty {
 
     /// 手札プレースホルダのアイコン色
     var placeholderIcon: Color {
-        switch colorScheme {
+        switch resolvedColorScheme {
         case .dark:
             return Color.white.opacity(0.4)
         default:
@@ -227,7 +252,7 @@ struct AppTheme: DynamicProperty {
 
     /// 右上メニューアイコンの背景色
     var menuIconBackground: Color {
-        switch colorScheme {
+        switch resolvedColorScheme {
         case .dark:
             return Color.white.opacity(0.12)
         default:
@@ -237,7 +262,7 @@ struct AppTheme: DynamicProperty {
 
     /// 右上メニューアイコンの枠線色
     var menuIconBorder: Color {
-        switch colorScheme {
+        switch resolvedColorScheme {
         case .dark:
             return Color.white.opacity(0.25)
         default:
@@ -247,7 +272,7 @@ struct AppTheme: DynamicProperty {
 
     /// ダミー広告の背景色。実広告導入まで視認性を保つプレースホルダ用
     var adPlaceholderBackground: Color {
-        switch colorScheme {
+        switch resolvedColorScheme {
         case .dark:
             return Color.white.opacity(0.1)
         default:
@@ -259,7 +284,7 @@ struct AppTheme: DynamicProperty {
 
     /// ペナルティバナーの背景色
     var penaltyBannerBackground: Color {
-        switch colorScheme {
+        switch resolvedColorScheme {
         case .dark:
             return Color.white.opacity(0.18)
         default:
@@ -269,7 +294,7 @@ struct AppTheme: DynamicProperty {
 
     /// ペナルティバナーの枠線色
     var penaltyBannerBorder: Color {
-        switch colorScheme {
+        switch resolvedColorScheme {
         case .dark:
             return Color.white.opacity(0.35)
         default:
@@ -279,7 +304,7 @@ struct AppTheme: DynamicProperty {
 
     /// ペナルティバナーの影色
     var penaltyBannerShadow: Color {
-        switch colorScheme {
+        switch resolvedColorScheme {
         case .dark:
             return Color.black.opacity(0.35)
         default:
@@ -292,7 +317,7 @@ struct AppTheme: DynamicProperty {
 
     /// ペナルティバナーの補足テキスト色
     var penaltyTextSecondary: Color {
-        switch colorScheme {
+        switch resolvedColorScheme {
         case .dark:
             return Color.white.opacity(0.8)
         default:
@@ -311,7 +336,7 @@ struct AppTheme: DynamicProperty {
 
     /// NEXT バッジの背景色
     var nextBadgeBackground: Color {
-        switch colorScheme {
+        switch resolvedColorScheme {
         case .dark:
             return Color.white.opacity(0.18)
         default:
@@ -321,7 +346,7 @@ struct AppTheme: DynamicProperty {
 
     /// NEXT バッジの枠線色
     var nextBadgeBorder: Color {
-        switch colorScheme {
+        switch resolvedColorScheme {
         case .dark:
             return Color.white.opacity(0.7)
         default:
@@ -331,7 +356,7 @@ struct AppTheme: DynamicProperty {
 
     /// 先読みインジケータの枠線色
     var nextIndicatorStroke: Color {
-        switch colorScheme {
+        switch resolvedColorScheme {
         case .dark:
             return Color.white.opacity(0.7)
         default:
@@ -341,7 +366,7 @@ struct AppTheme: DynamicProperty {
 
     /// 先読みインジケータ内側の塗り色
     var nextIndicatorFill: Color {
-        switch colorScheme {
+        switch resolvedColorScheme {
         case .dark:
             return Color.white.opacity(0.85)
         default:
@@ -351,11 +376,140 @@ struct AppTheme: DynamicProperty {
 
     /// 先読みインジケータの発光色
     var nextIndicatorShadow: Color {
-        switch colorScheme {
+        switch resolvedColorScheme {
         case .dark:
             return Color.white.opacity(0.6)
         default:
             return Color.black.opacity(0.3)
         }
     }
+
+    // MARK: - SpriteKit 盤面用カラー
+
+    /// SpriteKit で描画する盤面の背景色
+    var boardBackground: Color { backgroundPrimary }
+
+    /// グリッド線の色（ライト/ダークでコントラストを調整）
+    var boardGridLine: Color {
+        switch resolvedColorScheme {
+        case .dark:
+            return Color.white.opacity(0.75)
+        default:
+            return Color.black.opacity(0.65)
+        }
+    }
+
+    /// 踏破済みマスの塗り色（透明度で差を付け視認性を確保）
+    var boardTileVisited: Color {
+        switch resolvedColorScheme {
+        case .dark:
+            return Color.white.opacity(0.35)
+        default:
+            return Color.black.opacity(0.18)
+        }
+    }
+
+    /// 未踏破マスの塗り色（基本は透明だが、若干のトーンを付けて盤面に奥行きを与える）
+    var boardTileUnvisited: Color {
+        switch resolvedColorScheme {
+        case .dark:
+            return Color.white.opacity(0.05)
+        default:
+            return Color.black.opacity(0.03)
+        }
+    }
+
+    /// 駒本体の塗り色（背景に応じて反転させコントラストを維持）
+    var boardKnight: Color {
+        switch resolvedColorScheme {
+        case .dark:
+            return Color.white
+        default:
+            return Color.black
+        }
+    }
+
+    #if canImport(UIKit)
+    /// 指定したライト/ダークそれぞれの Color から動的 UIColor を生成するユーティリティ
+    private func dynamicUIColor(light: Color, dark: Color) -> UIColor {
+        let lightColor = UIColor(light)
+        let darkColor = UIColor(dark)
+        return UIColor { traitCollection in
+            let interfaceStyle: UIUserInterfaceStyle
+            if let overrideColorScheme {
+                interfaceStyle = overrideColorScheme == .dark ? .dark : .light
+            } else {
+                interfaceStyle = traitCollection.userInterfaceStyle
+            }
+            switch interfaceStyle {
+            case .dark:
+                return darkColor
+            default:
+                return lightColor
+            }
+        }
+    }
+
+    /// カラースキームごとに AppTheme を生成して Color を取り出すヘルパー
+    private func color(for scheme: ColorScheme, keyPath: KeyPath<AppTheme, Color>) -> Color {
+        AppTheme(colorScheme: scheme)[keyPath: keyPath]
+    }
+
+    /// SpriteKit 盤面背景の UIColor 版
+    var uiBoardBackground: UIColor {
+        dynamicUIColor(
+            light: color(for: .light, keyPath: \.boardBackground),
+            dark: color(for: .dark, keyPath: \.boardBackground)
+        )
+    }
+
+    /// SpriteKit グリッド線の UIColor 版
+    var uiBoardGridLine: UIColor {
+        dynamicUIColor(
+            light: color(for: .light, keyPath: \.boardGridLine),
+            dark: color(for: .dark, keyPath: \.boardGridLine)
+        )
+    }
+
+    /// SpriteKit 踏破済みマスの UIColor 版
+    var uiBoardTileVisited: UIColor {
+        dynamicUIColor(
+            light: color(for: .light, keyPath: \.boardTileVisited),
+            dark: color(for: .dark, keyPath: \.boardTileVisited)
+        )
+    }
+
+    /// SpriteKit 未踏破マスの UIColor 版
+    var uiBoardTileUnvisited: UIColor {
+        dynamicUIColor(
+            light: color(for: .light, keyPath: \.boardTileUnvisited),
+            dark: color(for: .dark, keyPath: \.boardTileUnvisited)
+        )
+    }
+
+    /// SpriteKit 駒の UIColor 版
+    var uiBoardKnight: UIColor {
+        dynamicUIColor(
+            light: color(for: .light, keyPath: \.boardKnight),
+            dark: color(for: .dark, keyPath: \.boardKnight)
+        )
+    }
+    #endif
+
+    #if canImport(SpriteKit) && canImport(UIKit)
+    /// SpriteKit の SKColor へ変換した盤面背景色
+    var skBoardBackground: SKColor { SKColor(cgColor: uiBoardBackground.cgColor) }
+
+    /// SpriteKit の SKColor へ変換したグリッド線色
+    var skBoardGridLine: SKColor { SKColor(cgColor: uiBoardGridLine.cgColor) }
+
+    /// SpriteKit の SKColor へ変換した踏破済みマス色
+    var skBoardTileVisited: SKColor { SKColor(cgColor: uiBoardTileVisited.cgColor) }
+
+    /// SpriteKit の SKColor へ変換した未踏破マス色
+    var skBoardTileUnvisited: SKColor { SKColor(cgColor: uiBoardTileUnvisited.cgColor) }
+
+    /// SpriteKit の SKColor へ変換した駒の塗り色
+    var skBoardKnight: SKColor { SKColor(cgColor: uiBoardKnight.cgColor) }
+    #endif
 }

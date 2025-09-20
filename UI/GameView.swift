@@ -279,11 +279,12 @@ struct GameView: View {
         .zIndex(2)
     }
 
-    /// SpriteKit シーンの背景色を現在のテーマに合わせて調整する
+    /// SpriteKit シーンの配色を現在のテーマに合わせて調整する
     /// - Parameter scheme: ユーザーが選択中のライト/ダーク種別
-    private func applyScenePalette(for _: ColorScheme) {
-        // SwiftUI の Color から UIColor を生成し、SpriteKit の背景に適用する
-        scene.backgroundColor = UIColor(theme.backgroundPrimary)
+    private func applyScenePalette(for scheme: ColorScheme) {
+        // SwiftUI 環境のカラースキームを明示指定した AppTheme を生成し、SpriteKit 側へ適用
+        let spriteTheme = AppTheme(colorScheme: scheme)
+        scene.applyTheme(spriteTheme)
     }
 
     /// 指定カードが現在位置から盤内に収まるか判定
