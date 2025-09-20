@@ -25,10 +25,10 @@ final class GameCore: ObservableObject {
     @Published private(set) var board = Board()
     /// 駒の現在位置
     @Published private(set) var current = GridPoint.center
-    /// 手札（常に 5 枚保持）
-    @Published private(set) var hand: [MoveCard] = []
+    /// 手札（常に 5 枚保持）。UI での識別用に `DealtCard` へラップする
+    @Published private(set) var hand: [DealtCard] = []
     /// 次に引かれるカード群（先読み 3 枚分を保持）
-    @Published private(set) var nextCards: [MoveCard] = []
+    @Published private(set) var nextCards: [DealtCard] = []
     /// ゲームの進行状態
     @Published private(set) var progress: GameProgress = .playing
     /// 手詰まりペナルティが発生したことを UI 側へ伝えるイベント識別子
@@ -69,12 +69,12 @@ final class GameCore: ObservableObject {
         // インデックスが範囲内か確認（0〜4 の範囲を想定）
         guard hand.indices.contains(index) else { return }
         let card = hand[index]
-        let target = current.offset(dx: card.dx, dy: card.dy)
+        let target = current.offset(dx: card.move.dx, dy: card.move.dy)
         // UI 側で無効カードを弾く想定だが、念のため安全確認
         guard board.contains(target) else { return }
 
         // デバッグログ: 使用カードと移動先を出力
-        debugLog("カード \(card) を使用し \(current) -> \(target) へ移動")
+        debugLog("カード \(card.move) を使用し \(current) -> \(target) へ移動")
 
         // 移動処理
         current = target
@@ -160,7 +160,7 @@ final class GameCore: ObservableObject {
     /// 手札がすべて盤外となる場合にペナルティを課し、手札を引き直す
     private func checkDeadlockAndApplyPenaltyIfNeeded() {
         let allUnusable = hand.allSatisfy { card in
-            let dest = current.offset(dx: card.dx, dy: card.dy)
+            let dest = current.offset(dx: card.move.dx, dy: card.move.dy)
             return !board.contains(dest)
         }
         guard allUnusable else { return }
@@ -199,7 +199,8 @@ final class GameCore: ObservableObject {
 
         // デバッグログ: 引き直し後の状態を詳細に記録
         debugLog("ペナルティ引き直しを実行（トリガー: \(trigger.debugDescription)）")
-        debugLog("引き直し後の手札: \(hand)")
+        let handDescription = hand.map { "\($0.move)" }.joined(separator: ", ")
+        debugLog("引き直し後の手札: [\(handDescription)]")
         // デバッグ: 引き直し後の盤面を表示
         board.debugDump(current: current)
 
@@ -229,9 +230,10 @@ final class GameCore: ObservableObject {
         if nextCards.isEmpty {
             nextText = "なし"
         } else {
-            nextText = nextCards.map { "\($0)" }.joined(separator: ", ")
+            nextText = nextCards.map { "\($0.move)" }.joined(separator: ", ")
         }
-        debugLog("ゲームをリセット: 手札 \(hand), 次カード \(nextText)")
+        let handMoves = hand.map { "\($0.move)" }.joined(separator: ", ")
+        debugLog("ゲームをリセット: 手札 [\(handMoves)], 次カード \(nextText)")
         // デバッグ: リセット直後の盤面を表示
         board.debugDump(current: current)
     }
@@ -272,7 +274,7 @@ extension GameCore: GameCoreProtocol {
         let dy = point.y - current.y
 
         // 差分に一致するカードを手札から検索
-        if let index = hand.firstIndex(where: { $0.dx == dx && $0.dy == dy }) {
+        if let index = hand.firstIndex(where: { $0.move.dx == dx && $0.move.dy == dy }) {
             // 該当カードがあればそのカードで移動処理を実行
             playCard(at: index)
         }
