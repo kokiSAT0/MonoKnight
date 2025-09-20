@@ -10,6 +10,9 @@ struct RootView: View {
     /// Game Center 認証済みかどうかを保持する状態
     /// - Note: 認証後はラベル表示に切り替える
     @State private var isAuthenticated: Bool
+    /// ゲームタブでタイトル画面を表示するかどうかのフラグ
+    /// - NOTE: メニューからタイトルへ戻る操作を受けて切り替える
+    @State private var isShowingTitleScreen: Bool = false
 
     /// 依存サービスを外部から注入可能にする初期化処理
     /// - Parameters:
@@ -48,11 +51,37 @@ struct RootView: View {
             // MARK: - タブビュー本体
             TabView {
                 // MARK: - ゲームタブ
-                GameView(gameCenterService: gameCenterService, adsService: adsService)
-                    .tabItem {
-                        // システムアイコンとラベルを組み合わせてタブを定義
-                        Label("ゲーム", systemImage: "gamecontroller")
+                ZStack {
+                    // MARK: - メインのゲーム画面
+                    GameView(
+                        gameCenterService: gameCenterService,
+                        adsService: adsService,
+                        onRequestReturnToTitle: {
+                            // メニューからの通知でタイトル画面を表示
+                            withAnimation(.easeInOut(duration: 0.25)) {
+                                isShowingTitleScreen = true
+                            }
+                        }
+                    )
+                    .opacity(isShowingTitleScreen ? 0 : 1)
+                    .allowsHitTesting(!isShowingTitleScreen)
+
+                    // MARK: - タイトル画面のオーバーレイ
+                    if isShowingTitleScreen {
+                        TitleScreenView {
+                            // タイトルからゲーム開始を選んだら元に戻す
+                            withAnimation(.easeInOut(duration: 0.25)) {
+                                isShowingTitleScreen = false
+                            }
+                        }
+                        .transition(.opacity.combined(with: .move(edge: .top)))
                     }
+                }
+                .animation(.easeInOut(duration: 0.25), value: isShowingTitleScreen)
+                .tabItem {
+                    // システムアイコンとラベルを組み合わせてタブを定義
+                    Label("ゲーム", systemImage: "gamecontroller")
+                }
 
                 // MARK: - 設定タブ
                 SettingsView()
@@ -68,5 +97,48 @@ struct RootView: View {
 // MARK: - プレビュー
 #Preview {
     RootView()
+}
+
+// MARK: - タイトル画面（簡易版）
+private struct TitleScreenView: View {
+    /// ゲーム開始ボタンが押された際の処理
+    let onStart: () -> Void
+
+    var body: some View {
+        VStack(spacing: 28) {
+            Spacer(minLength: 0)
+
+            // MARK: - アプリタイトルと簡単な説明
+            VStack(spacing: 12) {
+                Text("MonoKnight")
+                    .font(.system(size: 32, weight: .heavy, design: .rounded))
+                    .foregroundColor(.white)
+                Text("カードで騎士を導き、盤面を踏破しよう")
+                    .font(.system(size: 16, weight: .medium, design: .rounded))
+                    .foregroundColor(.white.opacity(0.75))
+                    .multilineTextAlignment(.center)
+            }
+
+            // MARK: - ゲーム開始ボタン
+            Button(action: onStart) {
+                Label("ゲームを開始", systemImage: "play.fill")
+                    .font(.system(size: 18, weight: .semibold, design: .rounded))
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.white)
+            .foregroundColor(.black)
+            .controlSize(.large)
+            .accessibilityIdentifier("title_start_button")
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 32)
+        .padding(.bottom, 36)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.black)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("タイトル画面。ゲームを開始するボタンがあります。")
+    }
 }
 
