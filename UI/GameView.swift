@@ -6,6 +6,8 @@ import UIKit  // ハプティクス用のフレームワークを追加
 /// 画面下部に手札 3 枚と次に引かれるカードを表示し、
 /// タップで GameCore を更新する
 struct GameView: View {
+    /// 手札スロットの数（常に 5 枚分の枠を確保してレイアウトを安定させる）
+    private let handSlotCount = 5
     /// ゲームロジックを保持する ObservableObject
     /// - NOTE: `StateObject` は init 内で明示的に生成し、GameScene に渡す
     @StateObject private var core: GameCore
@@ -67,29 +69,9 @@ struct GameView: View {
                     VStack(spacing: 8) {
                         // 手札 3 枚を横並びで表示
                         HStack(spacing: 12) {
-                            // MoveCard は Identifiable に準拠していないため、enumerated の offset を id として利用
-                            ForEach(Array(core.hand.enumerated()), id: \.offset) { index, card in
-                                MoveCardIllustrationView(card: card)
-                                    // 盤外に出るカードは薄く表示し、タップを無効化
-                                    .opacity(isCardUsable(card) ? 1.0 : 0.4)
-                                    .onTapGesture {
-                                        // 列挙型 MoveCard の使用可否を判定
-                                        if isCardUsable(card) {
-                                            // 使用可能 ⇒ ゲーム状態を更新
-                                            core.playCard(at: index)
-                                            // 設定で許可されていれば成功ハプティクスを発火
-                                            if hapticsEnabled {
-                                                UINotificationFeedbackGenerator()
-                                                    .notificationOccurred(.success)
-                                            }
-                                        } else {
-                                            // 使用不可の場合、警告ハプティクスのみ発火
-                                            if hapticsEnabled {
-                                                UINotificationFeedbackGenerator()
-                                                    .notificationOccurred(.warning)
-                                            }
-                                        }
-                                    }
+                            // 固定長スロットで回し、欠番があっても UI が崩れないようにする
+                            ForEach(0..<handSlotCount, id: \.self) { index in
+                                handSlotView(for: index)
                             }
                         }
 
@@ -156,6 +138,89 @@ struct GameView: View {
         let target = core.current.offset(dx: card.dx, dy: card.dy)
         // 目的地が盤面内に含まれているかどうかを判定
         return core.board.contains(target)
+    }
+
+    /// 指定したスロットのカード（存在しない場合は nil）を取得するヘルパー
+    /// - Parameter index: 手札スロットの添字
+    /// - Returns: 対応する MoveCard または nil（スロットが空の場合）
+    private func handCard(at index: Int) -> MoveCard? {
+        guard core.hand.indices.contains(index) else {
+            // スロットにカードが存在しない場合は nil を返してプレースホルダ表示を促す
+            return nil
+        }
+        return core.hand[index]
+    }
+
+    /// 手札スロットの描画を担う共通処理
+    /// - Parameter index: 対象スロットの添字
+    /// - Returns: MoveCardIllustrationView または空枠プレースホルダを含むビュー
+    private func handSlotView(for index: Int) -> some View {
+        // どのカードが入っているかによってアニメーションのトリガーを切り替える
+        let slotStateKey = slotAnimationKey(for: index)
+
+        return ZStack {
+            // 指定スロットにカードが入っているか安全に確認
+            if let card = handCard(at: index) {
+                MoveCardIllustrationView(card: card)
+                    // 盤外に出るカードは薄く表示し、タップ操作を抑制
+                    .opacity(isCardUsable(card) ? 1.0 : 0.4)
+                    .onTapGesture {
+                        // 列挙型 MoveCard の使用可否を判定
+                        if isCardUsable(card) {
+                            // 使用可能 ⇒ ゲーム状態を更新
+                            core.playCard(at: index)
+                            // 設定で許可されていれば成功ハプティクスを発火
+                            if hapticsEnabled {
+                                UINotificationFeedbackGenerator()
+                                    .notificationOccurred(.success)
+                            }
+                        } else {
+                            // 使用不可の場合、警告ハプティクスのみ発火
+                            if hapticsEnabled {
+                                UINotificationFeedbackGenerator()
+                                    .notificationOccurred(.warning)
+                            }
+                        }
+                    }
+            } else {
+                placeholderCardView()
+            }
+        }
+        // 実カードとプレースホルダのどちらでも同じスロット識別子で UI テストしやすくする
+        .accessibilityIdentifier("hand_slot_\(index)")
+        // 実カードが入れ替わった瞬間だけ最小限のアニメーションを適用し、他スロットの位置は維持
+        .animation(.easeInOut(duration: 0.18), value: slotStateKey)
+    }
+
+    /// スロットの状態変化をアニメーション制御用に表すキーを生成する
+    /// - Parameter index: 対象スロットの添字
+    /// - Returns: カードが変化した際にのみ値が変わる文字列キー
+    private func slotAnimationKey(for index: Int) -> String {
+        if let card = handCard(at: index) {
+            // カード名に添字を付加してユニークなキーとし、重複カードでもスロット単位で識別
+            return "card_\(index)_\(card.displayName)"
+        } else {
+            // 空スロットの場合は専用キーを返し、連続で空でもレイアウトが乱れない
+            return "empty_\(index)"
+        }
+    }
+
+    /// 手札が空の際に表示するプレースホルダビュー
+    /// - Note: 実カードと同じサイズを確保してレイアウトのズレを防ぐ
+    private func placeholderCardView() -> some View {
+        RoundedRectangle(cornerRadius: 8)
+            .stroke(Color.white.opacity(0.25), style: StrokeStyle(lineWidth: 1, dash: [4]))
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color.white.opacity(0.05))
+            )
+            .frame(width: 60, height: 80)
+            .overlay(
+                Image(systemName: "questionmark")
+                    .font(.caption)
+                    .foregroundColor(Color.white.opacity(0.4))
+            )
+            .accessibilityHidden(true)  // プレースホルダは VoiceOver の読み上げ対象外にして混乱を避ける
     }
 
 }
