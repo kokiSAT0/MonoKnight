@@ -280,10 +280,6 @@ struct GameView: View {
                 }
             }
 
-            // MARK: - 手札引き直しボタン
-            // 以前はメニュー経由だった操作を下部に配置し、アクセス性を大幅に向上させる
-            manualPenaltyButton()
-
 #if DEBUG
             // MARK: - デバッグ専用ショートカット
             // 盤面の右上オーバーレイに重ねると UI が窮屈になるため、下部セクションへ移設
@@ -299,8 +295,8 @@ struct GameView: View {
     }
 
     /// 手動ペナルティ（手札引き直し）のショートカットボタン
-    /// - Note: メニュー内の操作を露出し、ワンタップで確認ダイアログへ遷移させる
-    private func manualPenaltyButton() -> some View {
+    /// - Note: 右上メニューの横へアイコンのみで配置し、省スペース化しつつ操作性を維持する
+    private var manualPenaltyButton: some View {
         // ゲームが進行中でない場合は無効化し、リザルト表示中などの誤操作を回避
         let isDisabled = core.progress != .playing
 
@@ -308,52 +304,23 @@ struct GameView: View {
             // 実行前に必ず確認ダイアログを挟むため、既存のメニューアクションを再利用
             pendingMenuAction = .manualPenalty
         } label: {
-            HStack(spacing: 12) {
-                // MARK: - アイコンによる視覚的な導線
-                ZStack {
+            // MARK: - ボタンは 44pt 以上の円形領域で構成し、メニューアイコンとの統一感を持たせる
+            Image(systemName: "arrow.triangle.2.circlepath")
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundColor(theme.menuIconForeground)
+                .frame(width: 44, height: 44)
+                .background(
                     Circle()
-                        .fill(theme.accentOnPrimary.opacity(0.18))
-                        .frame(width: 42, height: 42)
-                    Image(systemName: "arrow.triangle.2.circlepath")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(theme.accentOnPrimary)
-                }
-
-                // MARK: - 操作内容と補足の説明文
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("手札を引き直す")
-                        .font(.system(size: 16, weight: .semibold, design: .rounded))
-                        .foregroundColor(theme.accentOnPrimary)
-                    Text("手数+5で現在の手札を交換")
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                        .foregroundColor(theme.accentOnPrimary.opacity(0.82))
-                }
-
-                Spacer(minLength: 0)
-
-                // MARK: - コスト表示を右端に配置して注意喚起
-                Text("+5")
-                    .font(.system(size: 18, weight: .bold, design: .rounded))
-                    .foregroundColor(theme.accentOnPrimary)
-            }
-            .padding(.horizontal, 18)
-            .padding(.vertical, 14)
-            .frame(maxWidth: .infinity)
-            .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(theme.accentPrimary)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(theme.accentOnPrimary.opacity(0.2), lineWidth: 1)
-            )
-            .shadow(color: theme.accentPrimary.opacity(0.28), radius: 14, x: 0, y: 10)
-            .opacity(isDisabled ? 0.55 : 1.0)
-            .animation(.easeInOut(duration: 0.2), value: isDisabled)
+                        .fill(theme.menuIconBackground)
+                )
+                .overlay(
+                    Circle()
+                        .stroke(theme.menuIconBorder, lineWidth: 1)
+                )
         }
         .buttonStyle(.plain)
+        .opacity(isDisabled ? 0.45 : 1.0)
         .disabled(isDisabled)
-        .padding(.horizontal, 16)
         .accessibilityIdentifier("manual_penalty_button")
         .accessibilityLabel(Text("ペナルティを払って手札を引き直す"))
         .accessibilityHint(Text("手数を5消費して現在の手札を全て捨て、新しいカードを3枚引きます。"))
@@ -519,11 +486,15 @@ struct GameView: View {
 
 // MARK: - 右上メニューおよびデバッグ操作
 private extension GameView {
-    /// 右上のメニューとデバッグボタンをまとめて返す
-    /// - Returns: VStack に積んだコントロール群
+    /// 右上のメニューとショートカットボタンをまとめて返す
+    /// - Returns: HStack で横並びにしたコントロール群
     @ViewBuilder
     private var topRightOverlay: some View {
-        VStack(alignment: .trailing, spacing: 12) {
+        HStack(spacing: 12) {
+            // MARK: - 手札引き直しを素早く行うためのミニボタン
+            manualPenaltyButton
+
+            // MARK: - サブメニュー（リセット/タイトル戻りなど）
             menuButton
         }
         .padding(.trailing, 16)
@@ -535,7 +506,7 @@ private extension GameView {
     /// ゲーム全体に関わる操作をまとめたメニュー
     private var menuButton: some View {
         Menu {
-            // MARK: - メニュー内にはリセット系のみ配置（手札引き直しは下部ボタンへ移動）
+            // MARK: - メニュー内にはリセット系のみ配置（手札引き直しは隣のアイコンから操作）
 
             // MARK: - ゲームリセット操作
             Button {
