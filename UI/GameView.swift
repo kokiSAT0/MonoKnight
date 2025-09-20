@@ -1,3 +1,4 @@
+import Foundation  // ProcessInfo などのユーティリティを使用するため
 import SpriteKit
 import SwiftUI
 import UIKit  // ハプティクス用のフレームワークを追加
@@ -34,6 +35,10 @@ struct GameView: View {
     private let onRequestReturnToTitle: (() -> Void)?
     /// メニューからの操作確認ダイアログで使用する一時的なアクション保持
     @State private var pendingMenuAction: GameMenuAction?
+    /// UI テストモードかどうかを判定し、デバッグ専用 UI を分岐させるためのフラグ
+    private let isUITestMode = ProcessInfo.processInfo.environment["UITEST_MODE"] != nil
+    /// UI テスト中に一度だけ結果画面を自動表示したかどうかを追跡するフラグ
+    @State private var hasAutoPresentedResultForUITest = false
 
     /// 初期化で GameCore と GameScene を連結する
     /// 依存するサービスを外部から注入できるようにする初期化処理
@@ -88,6 +93,8 @@ struct GameView: View {
             // ビュー再表示時に GameScene へ GameCore の参照を再連結し、弱参照が nil にならないよう保証
             scene.gameCore = core
             applyScenePalette(for: colorScheme)
+            // UI テスト環境では手動操作を省略するため、結果画面を自動的に表示する
+            presentResultForUITestIfNeeded()
         }
         // ライト/ダーク切り替えが発生した場合も SpriteKit 側へ反映
         .onChange(of: colorScheme) { _, newScheme in
@@ -283,17 +290,6 @@ struct GameView: View {
             // MARK: - 手札引き直しボタン
             // 以前はメニュー経由だった操作を下部に配置し、アクセス性を大幅に向上させる
             manualPenaltyButton()
-
-#if DEBUG
-            // MARK: - デバッグ専用ショートカット
-            // 盤面の右上オーバーレイに重ねると UI が窮屈になるため、下部セクションへ移設
-            HStack {
-                Spacer(minLength: 0)
-                debugResultButton
-                    .padding(.top, 4)  // 手札との距離を確保して視認性を確保
-                Spacer(minLength: 0)
-            }
-#endif
         }
         .padding(.bottom, 16)
     }
@@ -572,21 +568,6 @@ private extension GameView {
         .accessibilityIdentifier("game_menu")
     }
 
-    #if DEBUG
-    /// 結果画面を即座に表示するデバッグ向けボタン
-    private var debugResultButton: some View {
-        Button(action: {
-            // 直接結果画面を開き、UI の確認やデバッグを容易にする
-            showingResult = true
-        }) {
-            Text("結果へ")
-        }
-        .buttonStyle(.bordered)
-        // UI テストでボタンを特定できるよう識別子を設定
-        .accessibilityIdentifier("show_result")
-    }
-    #endif
-
     /// メニュー操作を実際に実行する共通処理
     /// - Parameter action: ユーザーが選択した操作種別
     private func performMenuAction(_ action: GameMenuAction) {
@@ -621,6 +602,21 @@ private extension GameView {
             core.reset()
             adsService.resetPlayFlag()
             onRequestReturnToTitle?()
+        }
+    }
+}
+
+// MARK: - UI テスト補助ロジック
+private extension GameView {
+    /// UI テストモードの際に結果画面を自動表示し、広告表示の検証を容易にする
+    private func presentResultForUITestIfNeeded() {
+        guard isUITestMode, !hasAutoPresentedResultForUITest else { return }
+
+        hasAutoPresentedResultForUITest = true
+
+        // 表示直後はシートのプレゼンテーションが競合しやすいため、僅かな遅延を挟む
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            showingResult = true
         }
     }
 }

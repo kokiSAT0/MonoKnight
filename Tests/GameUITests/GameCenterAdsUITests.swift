@@ -32,11 +32,7 @@ final class GameCenterAdsUITests: XCTestCase {
                       "Game Center 認証が完了しません")
         
         // --- インタースティシャル広告表示の確認 ---
-        // 結果画面へ遷移するボタンをタップし、広告表示トリガーとする
-        // アクセシビリティ識別子 "show_result" を想定
-        app.buttons["show_result"].tap()
-        
-        // ダミー広告ビューが表示されるか検証
+        // UI テストモードでは結果画面が自動的に開くため、広告ビューの出現を待機する
         // "dummy_interstitial_ad" は AdsService 側でテスト用に設定する識別子
         let adView = app.otherElements["dummy_interstitial_ad"]
         XCTAssertTrue(adView.waitForExistence(timeout: 5),
