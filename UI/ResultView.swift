@@ -3,6 +3,7 @@ import UIKit  // ハプティクス用フレームワーク
 
 /// ゲーム終了時の結果を表示するビュー
 /// 手数・ベスト記録・各種ボタンをまとめて配置する
+@MainActor
 struct ResultView: View {
     /// 今回のプレイで実際に移動した回数
     let moveCount: Int
@@ -31,12 +32,28 @@ struct ResultView: View {
     /// 新記録達成時に比較用として保持する旧ベスト値（存在しない場合は nil）
     @State private var previousBest: Int?
 
+    /// デフォルト実装のサービスを安全に取得するためのコンビニエンスイニシャライザ
+    /// - NOTE: Swift 6 で厳格化されたコンカレンシーモデルに対応するため、`@MainActor` 上でシングルトンへアクセスする
+    init(
+        moveCount: Int,
+        penaltyCount: Int,
+        onRetry: @escaping () -> Void
+    ) {
+        self.init(
+            moveCount: moveCount,
+            penaltyCount: penaltyCount,
+            onRetry: onRetry,
+            gameCenterService: GameCenterService.shared,
+            adsService: AdsService.shared
+        )
+    }
+
     init(
         moveCount: Int,
         penaltyCount: Int,
         onRetry: @escaping () -> Void,
-        gameCenterService: GameCenterServiceProtocol = GameCenterService.shared,  // ない場合は GameCenterService()
-        adsService: AdsServiceProtocol = AdsService.shared  // ない場合は AdsService()
+        gameCenterService: GameCenterServiceProtocol,
+        adsService: AdsServiceProtocol
     ) {
         self.moveCount = moveCount
         self.penaltyCount = penaltyCount
