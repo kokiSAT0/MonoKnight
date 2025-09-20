@@ -1,6 +1,10 @@
 import SwiftUI
 
 struct SettingsView: View {
+    // MARK: - テーマ設定
+    // ユーザーが任意に選択したカラースキームを保持する。初期値はシステム依存の `.system`。
+    @AppStorage("preferred_color_scheme") private var preferredColorSchemeRawValue: String = ThemePreference.system.rawValue
+
     // MARK: - ハプティクス設定
     // ユーザーのハプティクス利用有無を永続化する。デフォルトは有効。
     @AppStorage("haptics_enabled") private var hapticsEnabled: Bool = true
@@ -15,6 +19,27 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             List {
+                // MARK: テーマ選択セクション
+                Section {
+                    // Picker の selection は ThemePreference を直接扱えるように Binding を手動で構築する。
+                    Picker("テーマ", selection: Binding<ThemePreference>(
+                        get: { ThemePreference(rawValue: preferredColorSchemeRawValue) ?? .system },
+                        set: { newValue in preferredColorSchemeRawValue = newValue.rawValue }
+                    )) {
+                        // ユーザー向けラベルは ThemePreference 側で定義した displayName を利用し、将来のローカライズ変更にも追従しやすくする。
+                        ForEach(ThemePreference.allCases) { preference in
+                            Text(preference.displayName)
+                                .tag(preference)
+                        }
+                    }
+                    // - NOTE: 選択を変更すると即座に `@AppStorage` が更新され、`MonoKnightApp` 側の `.preferredColorScheme` へ反映される。
+                } header: {
+                    Text("テーマ")
+                } footer: {
+                    // アプリ全体の見た目が切り替わることと、SpriteKit 側のパレットにも反映されることを説明。
+                    Text("ライト／ダークを固定するか、システム設定に合わせるかを選択できます。ゲーム画面の配色も即座に切り替わります。")
+                }
+
                 // ハプティクス制御セクション
                 Section {
                     Toggle("ハプティクスを有効にする", isOn: $hapticsEnabled)
@@ -88,6 +113,7 @@ struct SettingsView: View {
                 Text("現在保存されているベスト手数を初期状態に戻します。この操作は取り消せません。")
             }
             .navigationTitle("設定")
+            // - NOTE: プレビューや UI テストでは、この Picker を操作して `GameView` の `applyScenePalette` が呼び直されることを確認する想定。
         }
     }
 }
