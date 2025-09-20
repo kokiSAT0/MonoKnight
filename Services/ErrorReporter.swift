@@ -1,4 +1,6 @@
 import Foundation
+// デバッグログ出力のために Game モジュールを読み込む
+import Game
 #if canImport(Darwin)
 import Darwin
 #endif

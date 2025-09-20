@@ -7,7 +7,7 @@ import Foundation
 ///   - line: 呼び出し元の行番号（自動で取得）
 ///   - function: 呼び出し元の関数名（自動で取得）
 /// - Note: リリースビルドでは呼び出しても何も表示されない
-func debugLog(
+public func debugLog(
     _ message: String,
     file: String = #file,
     line: Int = #line,
@@ -31,7 +31,7 @@ func debugLog(
 ///   - line: 呼び出し元の行番号（自動で取得）
 ///   - function: 呼び出し元の関数名（自動で取得）
 /// - Note: DEBUG ビルド専用。リリース時には出力されない
-func debugError(
+public func debugError(
     _ error: Error,
     message: String? = nil,
     file: String = #file,

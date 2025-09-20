@@ -2,6 +2,8 @@ import Foundation
 import GameKit
 import UIKit
 import SwiftUI // @AppStorage を利用するために追加
+// デバッグ用ログ関数を利用するため Game モジュールを読み込む
+import Game
 
 /// Game Center 操作に必要なインターフェースを定義するプロトコル
 /// - NOTE: 認証やスコア送信をテストしやすくするために利用する
