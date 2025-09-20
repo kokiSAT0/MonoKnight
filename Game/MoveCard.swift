@@ -183,6 +183,38 @@ enum MoveCard: CaseIterable {
         }
     }
 
+    /// ナイト型カードかどうかを判定するフラグ
+    /// - Note: 山札内で桂馬カードの重み付けを計算するために利用する
+    var isKnightType: Bool {
+        switch self {
+        case .knightUp2Right1,
+             .knightUp2Left1,
+             .knightUp1Right2,
+             .knightUp1Left2,
+             .knightDown2Right1,
+             .knightDown2Left1,
+             .knightDown1Right2,
+             .knightDown1Left2:
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// 斜め 2 マス（マンハッタン距離 4）の長距離斜めカードかどうかを判定する
+    /// - Note: 山札の重み調整（桂馬カードの半分の排出確率）に利用する
+    var isDiagonalDistanceFour: Bool {
+        switch self {
+        case .diagonalUpRight2,
+             .diagonalDownRight2,
+             .diagonalDownLeft2,
+             .diagonalUpLeft2:
+            return true
+        default:
+            return false
+        }
+    }
+
     // MARK: - 利用判定
     /// 指定した座標からこのカードが使用可能か判定する
     /// - Parameter from: 現在位置
