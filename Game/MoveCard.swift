@@ -2,7 +2,8 @@ import Foundation
 
 /// 駒を移動させるカードの種類を定義する列挙型
 /// - Note: 周囲 1 マスのキング型 8 種、ナイト型 8 種、距離 2 の直線/斜め 8 種の計 24 種をサポート
-enum MoveCard: CaseIterable {
+/// - SwiftUI モジュールからも扱うため `public` とする
+public enum MoveCard: CaseIterable {
     // MARK: - ケース定義
     /// キング型: 上に 1
     case kingUp
@@ -58,7 +59,7 @@ enum MoveCard: CaseIterable {
 
     // MARK: - 移動量
     /// x 方向の移動量
-    var dx: Int {
+    public var dx: Int {
         switch self {
         case .kingUp: return 0
         case .kingUpRight: return 1
@@ -88,7 +89,7 @@ enum MoveCard: CaseIterable {
     }
 
     /// y 方向の移動量
-    var dy: Int {
+    public var dy: Int {
         switch self {
         case .kingUp: return 1
         case .kingUpRight: return 1
@@ -119,7 +120,7 @@ enum MoveCard: CaseIterable {
 
     // MARK: - UI 表示名
     /// UI に表示する日本語の名前
-    var displayName: String {
+    public var displayName: String {
         switch self {
         case .kingUp:
             // キング型: 上方向へ 1 マス移動
@@ -167,7 +168,7 @@ enum MoveCard: CaseIterable {
     // MARK: - 属性判定
     /// 王将型（キング型）に該当するかを判定するフラグ
     /// - Note: デッキ構築時の配分調整に利用する
-    var isKingType: Bool {
+    public var isKingType: Bool {
         switch self {
         case .kingUp,
              .kingUpRight,
@@ -185,7 +186,7 @@ enum MoveCard: CaseIterable {
 
     /// ナイト型カードかどうかを判定するフラグ
     /// - Note: 山札内で桂馬カードの重み付けを計算するために利用する
-    var isKnightType: Bool {
+    public var isKnightType: Bool {
         switch self {
         case .knightUp2Right1,
              .knightUp2Left1,
@@ -203,7 +204,7 @@ enum MoveCard: CaseIterable {
 
     /// 斜め 2 マス（マンハッタン距離 4）の長距離斜めカードかどうかを判定する
     /// - Note: 山札の重み調整（桂馬カードの半分の排出確率）に利用する
-    var isDiagonalDistanceFour: Bool {
+    public var isDiagonalDistanceFour: Bool {
         switch self {
         case .diagonalUpRight2,
              .diagonalDownRight2,
@@ -219,7 +220,7 @@ enum MoveCard: CaseIterable {
     /// 指定した座標からこのカードが使用可能か判定する
     /// - Parameter from: 現在位置
     /// - Returns: 盤内に移動できる場合は true
-    func canUse(from: GridPoint) -> Bool {
+    public func canUse(from: GridPoint) -> Bool {
         let destination = from.offset(dx: dx, dy: dy)
         return destination.isInside
     }
@@ -228,7 +229,7 @@ enum MoveCard: CaseIterable {
 // MARK: - デバッグ用表示名
 extension MoveCard: CustomStringConvertible {
     /// デバッグログでカード名をわかりやすくするため displayName を返す
-    var description: String { displayName }
+    public var description: String { displayName }
 }
 
 // MARK: - Identifiable への適合
@@ -237,6 +238,6 @@ extension MoveCard: Identifiable {
     /// ここでは単純に UUID を生成して返す
     /// - Note: 山札で同種カードが複数枚存在するため
     ///         各カードインスタンスを区別する目的で利用する
-    var id: UUID { UUID() }
+    public var id: UUID { UUID() }
 }
 
