@@ -9,6 +9,8 @@
 /* Begin PBXBuildFile section */
 		729791562E7EB35900361471 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 729791552E7EB35900361471 /* LaunchScreen.storyboard */; };
 		7297918B2E7F43F300361471 /* Game in Frameworks */ = {isa = PBXBuildFile; productRef = 7297918A2E7F43F300361471 /* Game */; };
+		7297919A2E7F499700361471 /* GameScenePalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = 729791992E7F499700361471 /* GameScenePalette.swift */; };
+		7297919B2E7F499700361471 /* DealtCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 729791982E7F499700361471 /* DealtCard.swift */; };
 		72CF37F02E71616C0093B180 /* MonoKnightApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000004 /* MonoKnightApp.swift */; };
 		72CF38052E7162E20093B180 /* ErrorReporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF37F92E7162E20093B180 /* ErrorReporter.swift */; };
 		72CF38072E7162E20093B180 /* GameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF38002E7162E20093B180 /* GameView.swift */; };
@@ -55,6 +57,8 @@
 		000000000000000000000004 /* MonoKnightApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonoKnightApp.swift; sourceTree = "<group>"; };
 		000000000000000000000009 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		729791552E7EB35900361471 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
+		729791982E7F499700361471 /* DealtCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DealtCard.swift; sourceTree = "<group>"; };
+		729791992E7F499700361471 /* GameScenePalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameScenePalette.swift; sourceTree = "<group>"; };
 		72CF37C92E7161160093B180 /* MonoKnightApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MonoKnightApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		72CF37D52E7161170093B180 /* MonoKnightAppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MonoKnightAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		72CF37DF2E7161170093B180 /* MonoKnightAppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MonoKnightAppUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -151,6 +155,8 @@
 		72CF37F72E7162E20093B180 /* Game */ = {
 			isa = PBXGroup;
 			children = (
+				729791982E7F499700361471 /* DealtCard.swift */,
+				729791992E7F499700361471 /* GameScenePalette.swift */,
 				72CF37F12E7162E20093B180 /* DebugLog.swift */,
 				72CF37F22E7162E20093B180 /* Deck.swift */,
 				72CF37F32E7162E20093B180 /* GameCore.swift */,
@@ -393,6 +399,8 @@
 				72CF38112E7162E20093B180 /* GameCenterService.swift in Sources */,
 				72CF38122E7162E20093B180 /* StoreService.swift in Sources */,
 				72CF38132E7162E20093B180 /* MoveCard.swift in Sources */,
+				7297919A2E7F499700361471 /* GameScenePalette.swift in Sources */,
+				7297919B2E7F499700361471 /* DealtCard.swift in Sources */,
 				72CF38142E7162E20093B180 /* RootView.swift in Sources */,
 				72CF38152E7162E20093B180 /* GameScene.swift in Sources */,
 				72CF37F02E71616C0093B180 /* MonoKnightApp.swift in Sources */,
