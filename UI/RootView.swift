@@ -103,6 +103,9 @@ struct RootView: View {
 private struct TitleScreenView: View {
     /// ゲーム開始ボタンが押された際の処理
     let onStart: () -> Void
+    /// 「遊び方」シートの表示状態を保持するフラグ
+    /// - NOTE: タイトル画面からチュートリアルを開く導線を提供する
+    @State private var isPresentingHowToPlay: Bool = false
 
     var body: some View {
         VStack(spacing: 28) {
@@ -131,6 +134,21 @@ private struct TitleScreenView: View {
             .controlSize(.large)
             .accessibilityIdentifier("title_start_button")
 
+            // MARK: - チュートリアル閲覧ボタン
+            Button {
+                // シートを表示して遊び方を案内
+                isPresentingHowToPlay = true
+            } label: {
+                Label("遊び方を見る", systemImage: "questionmark.circle")
+                    .font(.system(size: 16, weight: .medium, design: .rounded))
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .tint(.white.opacity(0.85))
+            .foregroundColor(.white)
+            .controlSize(.large)
+            .accessibilityIdentifier("title_how_to_play_button")
+
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 32)
@@ -139,6 +157,11 @@ private struct TitleScreenView: View {
         .background(Color.black)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("タイトル画面。ゲームを開始するボタンがあります。")
+        // 「遊び方を見る」ボタンからチュートリアルシートを表示
+        .sheet(isPresented: $isPresentingHowToPlay) {
+            HowToPlayView()
+                .presentationDetents([.medium, .large])
+        }
     }
 }
 
