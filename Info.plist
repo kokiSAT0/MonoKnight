@@ -2,85 +2,76 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <!-- ATT で IDFA 利用を許諾してもらうための説明文 -->
-    <key>NSUserTrackingUsageDescription</key>
-    <string>広告の最適化と効果測定のためにデバイスのトラッキングを利用します。</string>
-
-    <!-- AdMob のアプリ ID（ビルド設定から展開される） -->
-    <key>GADApplicationIdentifier</key>
-    <string>$(GAD_APPLICATION_ID)</string>
-
-    <!-- インタースティシャル広告ユニット ID（ビルド設定から展開される） -->
-    <key>GADInterstitialAdUnitID</key>
-    <string>$(GAD_INTERSTITIAL_UNIT_ID)</string>
-
-    <!-- SKAdNetwork 用の広告ネットワーク ID 一覧 -->
-    <key>SKAdNetworkItems</key>
-    <array>
-        <!-- AdMob（Google） -->
-        <dict>
-            <key>SKAdNetworkIdentifier</key>
-            <string>cstr6suwn9.skadnetwork</string>
-        </dict>
-        <!-- 以下は主要な提携広告ネットワーク ID。実際の出稿先に合わせて随時更新する -->
-        <dict>
-            <key>SKAdNetworkIdentifier</key>
-            <string>4fzdc2evr5.skadnetwork</string>
-        </dict>
-        <dict>
-            <key>SKAdNetworkIdentifier</key>
-            <string>4pfyvq9l8r.skadnetwork</string>
-        </dict>
-        <dict>
-            <key>SKAdNetworkIdentifier</key>
-            <string>2fnua5tdw4.skadnetwork</string>
-        </dict>
-        <dict>
-            <key>SKAdNetworkIdentifier</key>
-            <string>ydx93a7ass.skadnetwork</string>
-        </dict>
-        <dict>
-            <key>SKAdNetworkIdentifier</key>
-            <string>5a6flpkh64.skadnetwork</string>
-        </dict>
-        <dict>
-            <key>SKAdNetworkIdentifier</key>
-            <string>p78axxw29g.skadnetwork</string>
-        </dict>
-        <dict>
-            <key>SKAdNetworkIdentifier</key>
-            <string>v72qych5uu.skadnetwork</string>
-        </dict>
-        <dict>
-            <key>SKAdNetworkIdentifier</key>
-            <string>c6k4g5qg8m.skadnetwork</string>
-        </dict>
-        <dict>
-            <key>SKAdNetworkIdentifier</key>
-            <string>s39g8k73mm.skadnetwork</string>
-        </dict>
-        <dict>
-            <key>SKAdNetworkIdentifier</key>
-            <string>3qcr597p9d.skadnetwork</string>
-        </dict>
-        <dict>
-            <key>SKAdNetworkIdentifier</key>
-            <string>f38h382jlk.skadnetwork</string>
-        </dict>
-    </array>
-
-    <!-- 画面回転の対応方向を指定 -->
-    <key>UISupportedInterfaceOrientations</key>
-    <array>
-        <!-- iPhone ではポートレートのみ許可 -->
-        <string>UIInterfaceOrientationPortrait</string>
-    </array>
-
-    <!-- iPad でも同様に縦向きで固定 -->
-    <key>UISupportedInterfaceOrientations~ipad</key>
-    <array>
-        <!-- iPad における不要な回転を防止 -->
-        <string>UIInterfaceOrientationPortrait</string>
-    </array>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>NSUserTrackingUsageDescription</key>
+	<string>広告の最適化と効果測定のためにデバイスのトラッキングを利用します。</string>
+	<key>GADApplicationIdentifier</key>
+	<string>$(GAD_APPLICATION_ID)</string>
+	<key>GADInterstitialAdUnitID</key>
+	<string>$(GAD_INTERSTITIAL_UNIT_ID)</string>
+	<key>SKAdNetworkItems</key>
+	<array>
+		<dict>
+			<key>SKAdNetworkIdentifier</key>
+			<string>cstr6suwn9.skadnetwork</string>
+		</dict>
+		<dict>
+			<key>SKAdNetworkIdentifier</key>
+			<string>4fzdc2evr5.skadnetwork</string>
+		</dict>
+		<dict>
+			<key>SKAdNetworkIdentifier</key>
+			<string>4pfyvq9l8r.skadnetwork</string>
+		</dict>
+		<dict>
+			<key>SKAdNetworkIdentifier</key>
+			<string>2fnua5tdw4.skadnetwork</string>
+		</dict>
+		<dict>
+			<key>SKAdNetworkIdentifier</key>
+			<string>ydx93a7ass.skadnetwork</string>
+		</dict>
+		<dict>
+			<key>SKAdNetworkIdentifier</key>
+			<string>5a6flpkh64.skadnetwork</string>
+		</dict>
+		<dict>
+			<key>SKAdNetworkIdentifier</key>
+			<string>p78axxw29g.skadnetwork</string>
+		</dict>
+		<dict>
+			<key>SKAdNetworkIdentifier</key>
+			<string>v72qych5uu.skadnetwork</string>
+		</dict>
+		<dict>
+			<key>SKAdNetworkIdentifier</key>
+			<string>c6k4g5qg8m.skadnetwork</string>
+		</dict>
+		<dict>
+			<key>SKAdNetworkIdentifier</key>
+			<string>s39g8k73mm.skadnetwork</string>
+		</dict>
+		<dict>
+			<key>SKAdNetworkIdentifier</key>
+			<string>3qcr597p9d.skadnetwork</string>
+		</dict>
+		<dict>
+			<key>SKAdNetworkIdentifier</key>
+			<string>f38h382jlk.skadnetwork</string>
+		</dict>
+	</array>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+	</array>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+	</array>
 </dict>
 </plist>

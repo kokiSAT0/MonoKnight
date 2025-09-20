@@ -28,6 +28,7 @@
 		72F554A82E7E40100098A1B0 /* MoveCardIllustrationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72F554A72E7E40100098A1B0 /* MoveCardIllustrationView.swift */; };
 		72F554AC2E7E60850098A1B0 /* HowToPlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72F554A92E7E60850098A1B0 /* HowToPlayView.swift */; };
 		72F554AD2E7E60850098A1B0 /* AppTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72F554AA2E7E60850098A1B0 /* AppTheme.swift */; };
+		72F554C92E7EA37F0098A1B0 /* Local.xcconfig in Resources */ = {isa = PBXBuildFile; fileRef = 72F554C82E7EA37F0098A1B0 /* Local.xcconfig */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -73,6 +74,7 @@
 		72F554A72E7E40100098A1B0 /* MoveCardIllustrationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoveCardIllustrationView.swift; sourceTree = "<group>"; };
 		72F554A92E7E60850098A1B0 /* HowToPlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HowToPlayView.swift; sourceTree = "<group>"; };
 		72F554AA2E7E60850098A1B0 /* AppTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTheme.swift; sourceTree = "<group>"; };
+		72F554C82E7EA37F0098A1B0 /* Local.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Local.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -115,6 +117,7 @@
 				72CF37D82E7161170093B180 /* MonoKnightAppTests */,
 				72CF37E22E7161170093B180 /* MonoKnightAppUITests */,
 				000000000000000000000008 /* Products */,
+				72F554C82E7EA37F0098A1B0 /* Local.xcconfig */,
 			);
 			sourceTree = "<group>";
 		};
@@ -335,6 +338,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				72F554C92E7EA37F0098A1B0 /* Local.xcconfig in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -443,18 +447,23 @@
 		};
 		000000000000000000000010 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 72F554C82E7EA37F0098A1B0 /* Local.xcconfig */;
 			buildSettings = {
+				DEVELOPMENT_TEAM = 5TAKV37ZM4;
 			};
 			name = Debug;
 		};
 		000000000000000000000011 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 72F554C82E7EA37F0098A1B0 /* Local.xcconfig */;
 			buildSettings = {
+				DEVELOPMENT_TEAM = 5TAKV37ZM4;
 			};
 			name = Release;
 		};
 		72CF37E72E7161170093B180 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 72F554C82E7EA37F0098A1B0 /* Local.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -511,7 +520,8 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				"INFOPLIST_FILE[sdk=*]" = Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "";
 				INFOPLIST_KEY_LSApplicationCategoryType = "";
 				INFOPLIST_KEY_NSUserTrackingUsageDescription = "広告の最適化のためにデバイス識別子（IDFA）の利用許可をお願いしています。";
@@ -543,6 +553,7 @@
 		};
 		72CF37E82E7161170093B180 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 72F554C82E7EA37F0098A1B0 /* Local.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -593,7 +604,8 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				"INFOPLIST_FILE[sdk=*]" = Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "";
 				INFOPLIST_KEY_LSApplicationCategoryType = "";
 				INFOPLIST_KEY_NSUserTrackingUsageDescription = "広告の最適化のためにデバイス識別子（IDFA）の利用許可をお願いしています。";

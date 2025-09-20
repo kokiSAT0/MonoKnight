@@ -73,3 +73,4 @@ Config/Secrets.xcconfig
 
 # サンプルや共有用の xcconfig はコミットしてOK
 #   Config/Secrets.example.xcconfig
+Local.xcconfig
