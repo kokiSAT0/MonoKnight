@@ -22,4 +22,25 @@ final class DeckTests: XCTestCase {
         // 再構築後に引いたカードが最初に引いたものと一致するかを検証
         XCTAssertEqual(rebuilt, firstDraw)
     }
+
+    /// MoveCard.allCases にキング型 8 種が含まれているかを検証する
+    func testMoveCardAllCasesContainsKingMoves() {
+        // 期待するキング型カードを明示的に列挙し、抜け漏れを防ぐ
+        let kingMoves: Set<MoveCard> = [
+            .kingUp,
+            .kingUpRight,
+            .kingRight,
+            .kingDownRight,
+            .kingDown,
+            .kingDownLeft,
+            .kingLeft,
+            .kingUpLeft
+        ]
+
+        // allCases の結果を集合化して比較し、山札構築時に含まれることを保証する
+        let allCasesSet = Set(MoveCard.allCases)
+
+        // 山札生成が MoveCard.allCases を利用するため、ここで欠けていれば山札からも欠落する
+        XCTAssertTrue(kingMoves.isSubset(of: allCasesSet))
+    }
 }
