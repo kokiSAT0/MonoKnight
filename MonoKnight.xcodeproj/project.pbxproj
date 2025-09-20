@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		72CF37F02E71616C0093B180 /* MonoKnightApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000004 /* MonoKnightApp.swift */; };
 		72CF38052E7162E20093B180 /* ErrorReporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF37F92E7162E20093B180 /* ErrorReporter.swift */; };
+		72CF38062E7162E20093B180 /* DummyInterstitialAdView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF37FF2E7162E20093B180 /* DummyInterstitialAdView.swift */; };
 		72CF38072E7162E20093B180 /* GameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF38002E7162E20093B180 /* GameView.swift */; };
 		72CF38082E7162E20093B180 /* DebugLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF37F12E7162E20093B180 /* DebugLog.swift */; };
 		72CF38092E7162E20093B180 /* Deck.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF37F22E7162E20093B180 /* Deck.swift */; };
@@ -24,8 +25,10 @@
 		72CF38132E7162E20093B180 /* MoveCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF37F62E7162E20093B180 /* MoveCard.swift */; };
 		72CF38142E7162E20093B180 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF38022E7162E20093B180 /* RootView.swift */; };
 		72CF38152E7162E20093B180 /* GameScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF37F42E7162E20093B180 /* GameScene.swift */; };
-               72CF38182E7252460093B180 /* GoogleMobileAds in Frameworks */ = {isa = PBXBuildFile; productRef = 72CF38172E7252460093B180 /* GoogleMobileAds */; };
-               72CF381A2E7252460093B180 /* GoogleMobileAds in Frameworks */ = {isa = PBXBuildFile; productRef = 72CF38192E7252460093B180 /* GoogleMobileAds */; };
+		72CF38182E7252460093B180 /* GoogleMobileAds in Frameworks */ = {isa = PBXBuildFile; productRef = 72CF38172E7252460093B180 /* GoogleMobileAds */; };
+		72F554A82E7E40100098A1B0 /* MoveCardIllustrationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72F554A72E7E40100098A1B0 /* MoveCardIllustrationView.swift */; };
+		72F554AC2E7E60850098A1B0 /* HowToPlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72F554A92E7E60850098A1B0 /* HowToPlayView.swift */; };
+		72F554AD2E7E60850098A1B0 /* AppTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72F554AA2E7E60850098A1B0 /* AppTheme.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -64,10 +67,14 @@
 		72CF37FB2E7162E20093B180 /* ServiceMocks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServiceMocks.swift; sourceTree = "<group>"; };
 		72CF37FC2E7162E20093B180 /* StoreService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreService.swift; sourceTree = "<group>"; };
 		72CF37FE2E7162E20093B180 /* ConsentFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConsentFlowView.swift; sourceTree = "<group>"; };
+		72CF37FF2E7162E20093B180 /* DummyInterstitialAdView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DummyInterstitialAdView.swift; sourceTree = "<group>"; };
 		72CF38002E7162E20093B180 /* GameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameView.swift; sourceTree = "<group>"; };
 		72CF38012E7162E20093B180 /* ResultView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultView.swift; sourceTree = "<group>"; };
 		72CF38022E7162E20093B180 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		72CF38032E7162E20093B180 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		72F554A72E7E40100098A1B0 /* MoveCardIllustrationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoveCardIllustrationView.swift; sourceTree = "<group>"; };
+		72F554A92E7E60850098A1B0 /* HowToPlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HowToPlayView.swift; sourceTree = "<group>"; };
+		72F554AA2E7E60850098A1B0 /* AppTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTheme.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -77,19 +84,11 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
-               000000000000000000000012 /* Frameworks */ = {
-                       isa = PBXFrameworksBuildPhase;
-                       buildActionMask = 2147483647;
-                       files = (
-                               72CF381A2E7252460093B180 /* GoogleMobileAds in Frameworks */,
-                       );
-                       runOnlyForDeploymentPostprocessing = 0;
-               };
-                72CF37C62E7161160093B180 /* Frameworks */ = {
-                        isa = PBXFrameworksBuildPhase;
-                        buildActionMask = 2147483647;
-                        files = (
-                                72CF38182E7252460093B180 /* GoogleMobileAds in Frameworks */,
+		72CF37C62E7161160093B180 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				72CF38182E7252460093B180 /* GoogleMobileAds in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -113,7 +112,7 @@
 		000000000000000000000006 = {
 			isa = PBXGroup;
 			children = (
-				000000000000000000000007 /*  */,
+				000000000000000000000007,
 				72CF37CA2E7161160093B180 /* MonoKnightApp */,
 				72CF37D82E7161170093B180 /* MonoKnightAppTests */,
 				72CF37E22E7161170093B180 /* MonoKnightAppUITests */,
@@ -121,7 +120,7 @@
 			);
 			sourceTree = "<group>";
 		};
-		000000000000000000000007 /*  */ = {
+		000000000000000000000007 = {
 			isa = PBXGroup;
 			children = (
 				000000000000000000000004 /* MonoKnightApp.swift */,
@@ -130,7 +129,6 @@
 				72CF38042E7162E20093B180 /* UI */,
 				000000000000000000000009 /* Info.plist */,
 			);
-			name = "";
 			sourceTree = "<group>";
 		};
 		000000000000000000000008 /* Products */ = {
@@ -172,7 +170,11 @@
 		72CF38042E7162E20093B180 /* UI */ = {
 			isa = PBXGroup;
 			children = (
+				72F554A92E7E60850098A1B0 /* HowToPlayView.swift */,
+				72F554AB2E7E60850098A1B0 /* Theme */,
+				72F554A72E7E40100098A1B0 /* MoveCardIllustrationView.swift */,
 				72CF37FE2E7162E20093B180 /* ConsentFlowView.swift */,
+				72CF37FF2E7162E20093B180 /* DummyInterstitialAdView.swift */,
 				72CF38002E7162E20093B180 /* GameView.swift */,
 				72CF38012E7162E20093B180 /* ResultView.swift */,
 				72CF38022E7162E20093B180 /* RootView.swift */,
@@ -181,25 +183,29 @@
 			path = UI;
 			sourceTree = "<group>";
 		};
+		72F554AB2E7E60850098A1B0 /* Theme */ = {
+			isa = PBXGroup;
+			children = (
+				72F554AA2E7E60850098A1B0 /* AppTheme.swift */,
+			);
+			path = Theme;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
 		000000000000000000000002 /* MonoKnight */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 00000000000000000000000D /* Build configuration list for PBXNativeTarget "MonoKnight" */;
-                       buildPhases = (
-                               00000000000000000000000A /* Sources */,
-                               000000000000000000000012 /* Frameworks */,
-                               00000000000000000000000B /* Resources */,
-                       );
+			buildPhases = (
+				00000000000000000000000A /* Sources */,
+				00000000000000000000000B /* Resources */,
+			);
 			buildRules = (
 			);
-                       dependencies = (
-                       );
-                       packageProductDependencies = (
-                               72CF38192E7252460093B180 /* GoogleMobileAds */,
-                       );
-                       name = MonoKnight;
+			dependencies = (
+			);
+			name = MonoKnight;
 			productName = MonoKnight;
 			productReference = 000000000000000000000003 /* MonoKnight.app */;
 			productType = "com.apple.product-type.application";
@@ -364,6 +370,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				72CF38052E7162E20093B180 /* ErrorReporter.swift in Sources */,
+				72CF38062E7162E20093B180 /* DummyInterstitialAdView.swift in Sources */,
 				72CF38072E7162E20093B180 /* GameView.swift in Sources */,
 				72CF38082E7162E20093B180 /* DebugLog.swift in Sources */,
 				72CF38092E7162E20093B180 /* Deck.swift in Sources */,
@@ -372,6 +379,7 @@
 				72CF380C2E7162E20093B180 /* SettingsView.swift in Sources */,
 				72CF380D2E7162E20093B180 /* GameCore.swift in Sources */,
 				72CF380E2E7162E20093B180 /* ServiceMocks.swift in Sources */,
+				72F554A82E7E40100098A1B0 /* MoveCardIllustrationView.swift in Sources */,
 				72CF380F2E7162E20093B180 /* ResultView.swift in Sources */,
 				72CF38102E7162E20093B180 /* ConsentFlowView.swift in Sources */,
 				72CF38112E7162E20093B180 /* GameCenterService.swift in Sources */,
@@ -380,6 +388,8 @@
 				72CF38142E7162E20093B180 /* RootView.swift in Sources */,
 				72CF38152E7162E20093B180 /* GameScene.swift in Sources */,
 				72CF37F02E71616C0093B180 /* MonoKnightApp.swift in Sources */,
+				72F554AC2E7E60850098A1B0 /* HowToPlayView.swift in Sources */,
+				72F554AD2E7E60850098A1B0 /* AppTheme.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -962,16 +972,11 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-                72CF38172E7252460093B180 /* GoogleMobileAds */ = {
-                        isa = XCSwiftPackageProductDependency;
-                        package = 72CF38162E7252460093B180 /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */;
-                        productName = GoogleMobileAds;
-                };
-                72CF38192E7252460093B180 /* GoogleMobileAds */ = {
-                        isa = XCSwiftPackageProductDependency;
-                        package = 72CF38162E7252460093B180 /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */;
-                        productName = GoogleMobileAds;
-                };
+		72CF38172E7252460093B180 /* GoogleMobileAds */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 72CF38162E7252460093B180 /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */;
+			productName = GoogleMobileAds;
+		};
 /* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 000000000000000000000001 /* Project object */;
