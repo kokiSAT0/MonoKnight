@@ -704,12 +704,10 @@ private struct PenaltyBannerView: View {
 }
 
 // MARK: - 先読みカード専用のオーバーレイ
-/// 「NEXT」「NEXT+1」などのバッジと点滅インジケータを重ね、操作不可であることを視覚的に伝える補助ビュー
+/// 「NEXT」「NEXT+1」などのバッジを重ね、操作不可であることを視覚的に伝える補助ビュー
 fileprivate struct NextCardOverlayView: View {
     /// 表示中のカードが何枚目の先読みか（0 が直近、1 以降は +1, +2 ...）
     let order: Int
-    /// 点滅インジケータの明るさを制御するステート
-    @State private var isIndicatorBright = false
     /// 先読みオーバーレイの配色を統一するテーマ
     private let theme = AppTheme()
 
@@ -746,32 +744,6 @@ fileprivate struct NextCardOverlayView: View {
                     Spacer()
                 }
                 Spacer()
-            }
-
-            // MARK: - 右下の点滅インジケータ
-            VStack {
-                Spacer()
-                HStack {
-                    Spacer()
-                    Circle()
-                        .stroke(theme.nextIndicatorStroke, lineWidth: 1.5)
-                        .frame(width: 16, height: 16)
-                        .overlay(
-                            Circle()
-                                .fill(theme.nextIndicatorFill)
-                                .frame(width: 8, height: 8)
-                                .opacity(isIndicatorBright ? 1.0 : 0.2)
-                        )
-                        .shadow(color: theme.nextIndicatorShadow.opacity(isIndicatorBright ? 1.0 : 0.2), radius: isIndicatorBright ? 4 : 0)
-                        .padding(6)
-                        .accessibilityHidden(true)  // 視覚的なアクセントのみのため VoiceOver では読み上げない
-                }
-            }
-        }
-        .onAppear {
-            // MARK: - 点滅アニメーションを開始
-            withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) {
-                isIndicatorBright = true
             }
         }
         .allowsHitTesting(false)  // 補助ビューはタップ処理に影響させない

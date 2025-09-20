@@ -354,36 +354,6 @@ struct AppTheme: DynamicProperty {
         }
     }
 
-    /// 先読みインジケータの枠線色
-    var nextIndicatorStroke: Color {
-        switch resolvedColorScheme {
-        case .dark:
-            return Color.white.opacity(0.7)
-        default:
-            return Color.black.opacity(0.35)
-        }
-    }
-
-    /// 先読みインジケータ内側の塗り色
-    var nextIndicatorFill: Color {
-        switch resolvedColorScheme {
-        case .dark:
-            return Color.white.opacity(0.85)
-        default:
-            return Color.black.opacity(0.65)
-        }
-    }
-
-    /// 先読みインジケータの発光色
-    var nextIndicatorShadow: Color {
-        switch resolvedColorScheme {
-        case .dark:
-            return Color.white.opacity(0.6)
-        default:
-            return Color.black.opacity(0.3)
-        }
-    }
-
     // MARK: - SpriteKit 盤面用カラー
 
     /// SpriteKit で描画する盤面の背景色
