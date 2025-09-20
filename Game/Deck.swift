@@ -3,136 +3,153 @@ import Foundation
 import GameplayKit
 #endif
 
-/// 山札・手札・捨札を管理するデッキ構造体
-/// - Note: 標準カードは 1 種につき 5 枚、王将型はその 2 倍の 10 枚を投入し、
-///         GameplayKit の乱数でシャッフルを行う。
+/// 山札を重み付き乱数で生成するデッキ構造体
+/// - Note: 王将型カードは標準カードの 1.5 倍（3:2 の整数比）で抽選する。
 struct Deck {
-    // MARK: - 内部状態
-    /// 山札。配列の末尾をトップとして扱う
-    private var drawPile: [MoveCard] = []
-    /// 捨札。使用済みカードを蓄える
-    private var discardPile: [MoveCard] = []
+    // MARK: - 重み定義
+    /// 標準カードに割り当てる重み（比率の基準）
+    private static let standardWeight = 2
+    /// 王将型カードに割り当てる重み（標準の 1.5 倍 = 3）
+    private static let kingWeight = 3
+    /// 重み付き抽選用のプール（重み分だけ複製した配列）
+    private static let weightedPool: [MoveCard] = {
+        var pool: [MoveCard] = []
+        pool.reserveCapacity(MoveCard.allCases.count * kingWeight)
+        for card in MoveCard.allCases {
+            let weight = card.isKingType ? kingWeight : standardWeight
+            pool.append(contentsOf: Array(repeating: card, count: weight))
+        }
+        return pool
+    }()
 
+    // MARK: - 乱数管理
+    /// 初期シード値。reset() 時に同じ乱数列へ戻すため保持する
+    private let initialSeed: UInt64
     #if canImport(GameplayKit)
-    /// 乱数生成器（メルセンヌツイスタ）
-    private var random: GKRandomSource
+    /// GameplayKit 利用時の乱数生成器（メルセンヌツイスタ）
+    private var random: GKMersenneTwisterRandomSource
     #else
-    /// Linux 等 GameplayKit が使えない環境向けの乱数
-    private var random = SystemRandomNumberGenerator()
+    /// GameplayKit が利用できない環境向けの簡易乱数生成器
+    private var random: SeededGenerator
     #endif
 
-    /// 標準カード 1 種あたりの基準枚数
-    private static let standardCopiesPerCard = 5
-    /// 王将型カード 1 種あたりの枚数（標準の 2 倍）
-    private static let kingCopiesPerCard = Self.standardCopiesPerCard * 2
+    #if DEBUG
+    /// テスト時に優先して返すカード列（先頭から順に消費）
+    private var presetDrawQueue: [MoveCard]
+    /// reset() で戻すための元配列（テスト専用）
+    private var presetOriginal: [MoveCard]
+    #endif
 
     // MARK: - 初期化
     /// デッキを生成する
-    /// - Parameter seed: 乱数シード。指定すると再現性のあるシャッフルとなる
+    /// - Parameter seed: 乱数シード。省略時はシステム乱数から採番する
     init(seed: UInt64? = nil) {
+        var systemGenerator = SystemRandomNumberGenerator()
+        let resolvedSeed = seed ?? UInt64.random(in: UInt64.min...UInt64.max, using: &systemGenerator)
+        initialSeed = resolvedSeed
         #if canImport(GameplayKit)
-        if let seed = seed {
-            random = GKMersenneTwisterRandomSource(seed: seed)
-        } else {
-            random = GKMersenneTwisterRandomSource()
-        }
-        #endif
-        reset() // 各種カードを所定枚数だけ構築してシャッフル
-    }
-
-    // MARK: - デッキ構築
-    /// 山札と捨札をリセットし、配分調整済みのカードをシャッフルする
-    mutating func reset() {
-        drawPile.removeAll()
-        discardPile.removeAll()
-        // 王将型は標準カードの 2 倍、それ以外は基準枚数を追加
-        for card in MoveCard.allCases {
-            let copies = card.isKingType ? Deck.kingCopiesPerCard : Deck.standardCopiesPerCard
-            // Array(repeating:) を使って同一カードを必要枚数だけ追加
-            drawPile.append(contentsOf: Array(repeating: card, count: copies))
-        }
-        shuffle()
-    }
-
-    /// 山札をシャッフルする
-    mutating func shuffle() {
-        #if canImport(GameplayKit)
-        // GameplayKit のシャッフル。Any 配列が返るのでキャストする
-        if let shuffled = random.arrayByShufflingObjects(in: drawPile) as? [MoveCard] {
-            drawPile = shuffled
-        }
+        random = GKMersenneTwisterRandomSource(seed: resolvedSeed)
         #else
-        // 標準ライブラリのシャッフルを使用
-        drawPile.shuffle(using: &random)
+        random = SeededGenerator(seed: resolvedSeed)
+        #endif
+        #if DEBUG
+        presetDrawQueue = []
+        presetOriginal = []
+        #endif
+        reset() // 乱数源とテスト用配列を初期状態へ戻す
+    }
+
+    // MARK: - リセット
+    /// 乱数源を初期シードへ戻し、テスト用キューを再適用する
+    mutating func reset() {
+        #if canImport(GameplayKit)
+        random = GKMersenneTwisterRandomSource(seed: initialSeed)
+        #else
+        random = SeededGenerator(seed: initialSeed)
+        #endif
+        #if DEBUG
+        presetDrawQueue = presetOriginal
         #endif
     }
 
     // MARK: - ドロー処理
-    /// 1 枚カードを引く。山札が尽きた場合は捨札から再構築する
-    /// - Returns: 引いたカード。全て空なら nil
+    /// 1 枚カードを引く
+    /// - Returns: 重み付き抽選によって得られたカード（必ず値を返す想定）
     mutating func draw() -> MoveCard? {
-        // 山札が空なら捨札からリシャッフル
-        if drawPile.isEmpty { rebuildFromDiscard() }
-        return drawPile.popLast()
+        #if DEBUG
+        // テストで事前登録されたカードがあれば優先的に返す
+        if !presetDrawQueue.isEmpty {
+            return presetDrawQueue.removeFirst()
+        }
+        #endif
+        guard !Deck.weightedPool.isEmpty else { return nil }
+        let index = nextRandomIndex(upperBound: Deck.weightedPool.count)
+        return Deck.weightedPool[index]
     }
 
     /// 複数枚まとめて引く
     /// - Parameter count: 引く枚数
-    /// - Returns: 引いたカード配列（足りない場合は少なくなる）
+    /// - Returns: 要求枚数分のカード（不足時は取得できた分のみ返す）
     mutating func draw(count: Int) -> [MoveCard] {
+        guard count > 0 else { return [] }
         var result: [MoveCard] = []
+        result.reserveCapacity(count)
         for _ in 0..<count {
-            if let card = draw() { result.append(card) }
+            if let card = draw() {
+                result.append(card)
+            }
         }
         return result
     }
 
-    // MARK: - 捨札処理
-    /// 使用済みカードを捨札へ送る
-    /// - Parameter card: 捨てるカード
-    mutating func discard(_ card: MoveCard) {
-        discardPile.append(card)
-    }
-
-    /// 捨札から山札を再構築しシャッフルする
-    private mutating func rebuildFromDiscard() {
-        guard !discardPile.isEmpty else { return }
-        drawPile = discardPile
-        discardPile.removeAll()
-        shuffle()
-    }
-
-    // MARK: - 全引き直し
-    /// 手札と先読みカードをすべて捨札に送り、新しいカードを引き直す
-    /// - Parameters:
-    ///   - hand: 現在の手札（渡された枚数分だけ新たに引き直す）
-    ///   - nextCards: 現在先読みとして保持しているカード群
-    ///   - nextCount: 先読みとして確保したい枚数（例: 3 枚）
-    /// - Returns: 新しい手札と先読みカード群のタプル
-    mutating func fullRedraw(hand: [MoveCard], nextCards: [MoveCard], nextCount: Int) -> (hand: [MoveCard], nextCards: [MoveCard]) {
-        // 既存カードをすべて捨札へ
-        hand.forEach { discard($0) }
-        nextCards.forEach { discard($0) }
-        // hand.count を利用することで、手札枚数が 5 枚でも柔軟に再配布できる
-        let newHand = draw(count: hand.count)
-        // 先読み枚数は nextCount を基準に確保する
-        let newNextCards = draw(count: nextCount)
-        return (newHand, newNextCards)
+    /// 重み付きプールからインデックスを 1 つ取得する
+    /// - Parameter upperBound: 生成したい上限値
+    private mutating func nextRandomIndex(upperBound: Int) -> Int {
+        #if canImport(GameplayKit)
+        return random.nextInt(upperBound: upperBound)
+        #else
+        let value = random.next()
+        return Int(value % UInt64(upperBound))
+        #endif
     }
 }
 
+#if !canImport(GameplayKit)
+extension Deck {
+    /// GameplayKit が無い環境向けの線形合同法ベース乱数生成器
+    /// - Note: 非ゼロシードを確保し、`reset()` で再現性を担保する。
+    struct SeededGenerator: RandomNumberGenerator {
+        /// 内部状態（64bit）
+        private var state: UInt64
+
+        /// 初期化子
+        /// - Parameter seed: 任意のシード。0 の場合は固定値に置き換える
+        init(seed: UInt64) {
+            state = seed == 0 ? 0x0123_4567_89AB_CDEF : seed
+        }
+
+        /// 次の乱数を生成する
+        mutating func next() -> UInt64 {
+            // 線形合同法（Numerical Recipes 由来の係数）を採用
+            state &*= 6364136223846793005
+            state &+= 1
+            return state
+        }
+    }
+}
+#endif
+
 #if DEBUG
 /// テストコードから利用するための拡張
-/// - Note: 既存の初期化子 `init(seed:)` を基に、任意のカード列を山札として設定する。
-///         本体コードへの影響を避けるため `DEBUG` ビルド時のみ有効。
+/// - Note: 重み付き抽選を迂回し、指定順のカードを確実に返すための仕組み。
 extension Deck {
-    /// 任意のカード配列を山札として持つテスト用デッキを生成する
-    /// - Parameter cards: 山札にしたいカード配列（末尾がトップ）
-    /// - Returns: 指定したカードのみを含むデッキ
+    /// 任意のカード配列を優先的に返すテスト用デッキを生成する
+    /// - Parameter cards: テストで取得したいカード列（先頭が最初のドロー）
+    /// - Returns: 指定した配列を消費した後は通常の重み付き抽選に戻るデッキ
     static func makeTestDeck(cards: [MoveCard]) -> Deck {
-        var deck = Deck(seed: 0) // 乱数シードを固定して初期化
-        deck.drawPile = cards    // ファイル内拡張のため private にアクセス可能
-        deck.discardPile = []    // 捨札は空で開始
+        var deck = Deck(seed: 0) // 乱数シードを固定し、残りの抽選も再現性を担保
+        deck.presetOriginal = cards
+        deck.presetDrawQueue = cards
         return deck
     }
 }

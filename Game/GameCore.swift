@@ -44,7 +44,7 @@ final class GameCore: ObservableObject {
     /// 未踏破マスの残り数を UI へ公開する計算プロパティ
     var remainingTiles: Int { board.remainingCount }
 
-    /// 山札管理（`Deck.swift` に定義された構造体を使用）
+    /// 山札管理（`Deck.swift` に定義された重み付き無限山札を使用）
     private var deck = Deck()
 
     /// 初期化時に手札と次カードを用意
@@ -84,8 +84,7 @@ final class GameCore: ObservableObject {
         // 盤面更新に合わせて残り踏破数を読み上げ
         announceRemainingTiles()
 
-        // 使用カードを捨札へ送り、手札から削除
-        deck.discard(card)
+        // 使用済みカードは即座に破棄し、手札から除去（捨札管理は不要になった）
         hand.remove(at: index)
 
         // 手札補充: 先読みカードを手札へ移動し、新たに 1 枚先読み
@@ -130,11 +129,9 @@ final class GameCore: ObservableObject {
         penaltyCount += 5
         progress = .deadlock
 
-        // デッキに全カードを戻してからまとめて引き直す
-        // 既存の手札と先読みカードを一括で捨札へ送り、新しいカードを引く
-        let result = deck.fullRedraw(hand: hand, nextCards: nextCards, nextCount: nextPreviewCount)
-        hand = result.hand
-        nextCards = result.nextCards
+        // 現在の手札・先読みカードはそのまま破棄し、新しいカードを引き直す
+        hand = deck.draw(count: handSize)
+        nextCards = deck.draw(count: nextPreviewCount)
         replenishNextPreview()
 
         // UI へ手詰まりの発生を知らせ、演出やフィードバックを促す
@@ -186,7 +183,7 @@ final class GameCore: ObservableObject {
     }
 
     /// 先読み表示用のカードが不足している場合に山札から補充する
-    /// - Note: 山札が尽きている際は捨札から再構築した上で最大 `nextPreviewCount` 枚まで引き直す
+    /// - Note: デッキは重み付き抽選の無限山札化されたため、枯渇を気にせず呼び出せる
     private func replenishNextPreview() {
         while nextCards.count < nextPreviewCount {
             guard let drawn = deck.draw() else { break }
