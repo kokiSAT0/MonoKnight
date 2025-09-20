@@ -122,6 +122,19 @@ struct MoveCardIllustrationView: View {
     /// カラースキームに応じて派生色を提供するテーマ
     private var theme = AppTheme()
 
+    /// HowToPlayView など別ファイルからの生成時にアクセス保護レベルの問題が発生しないよう、明示的なイニシャライザを用意する
+    /// - Parameters:
+    ///   - card: 描画対象となる移動カード
+    ///   - mode: 手札表示か先読み表示かのモード（既定値は手札表示）
+    ///   - theme: テーマカラー（基本的には既定値をそのまま使用）
+    init(card: MoveCard, mode: Mode = .hand, theme: AppTheme = AppTheme()) {
+        // MARK: - ストアドプロパティの初期化
+        // 日本語コメントを多めに配置して可読性を高める
+        self.card = card
+        self.mode = mode
+        self.theme = theme
+    }
+
     var body: some View {
         ZStack {
             // MARK: - カードの背景枠
