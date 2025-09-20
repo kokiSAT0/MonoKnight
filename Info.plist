@@ -2,6 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>UIRequiresFullScreen</key>
+	<true/>
+	<key>CFBundleShortVersionString</key>
+	<string></string>
 	<key>CFBundleIdentifier</key>
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>NSUserTrackingUsageDescription</key>
@@ -40,6 +44,8 @@
 			<key>SKAdNetworkIdentifier</key>
 			<string>p78axxw29g.skadnetwork</string>
 		</dict>
+		<string></string>
+		<string></string>
 		<dict>
 			<key>SKAdNetworkIdentifier</key>
 			<string>v72qych5uu.skadnetwork</string>
@@ -67,6 +73,14 @@
 	</array>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
+	<key>LSApplicationCategoryType</key>
+	<string></string>
+	<key>CFBundleName</key>
+	<string></string>
+	<key>CFBundleDisplayName</key>
+	<string></string>
+	<key>CFBundleVersion</key>
+	<string></string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>UISupportedInterfaceOrientations~ipad</key>
