@@ -164,6 +164,25 @@ enum MoveCard: CaseIterable {
         }
     }
 
+    // MARK: - 属性判定
+    /// 王将型（キング型）に該当するかを判定するフラグ
+    /// - Note: デッキ構築時の配分調整に利用する
+    var isKingType: Bool {
+        switch self {
+        case .kingUp,
+             .kingUpRight,
+             .kingRight,
+             .kingDownRight,
+             .kingDown,
+             .kingDownLeft,
+             .kingLeft,
+             .kingUpLeft:
+            return true
+        default:
+            return false
+        }
+    }
+
     // MARK: - 利用判定
     /// 指定した座標からこのカードが使用可能か判定する
     /// - Parameter from: 現在位置
