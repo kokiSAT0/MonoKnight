@@ -459,6 +459,18 @@ private extension GameView {
     /// ゲーム全体に関わる操作をまとめたメニュー
     private var menuButton: some View {
         Menu {
+            // MARK: - ペナルティ支払いによる手札引き直し
+            Button {
+                // 誤タップ防止のため一度確認ダイアログへ回す
+                pendingMenuAction = .manualPenalty
+            } label: {
+                Label("ペナルティを払って引き直す", systemImage: "arrow.triangle.2.circlepath")
+            }
+            .accessibilityLabel(Text("ペナルティを払って引き直す"))
+            .accessibilityIdentifier("menu_manual_penalty")
+            // ゲームが進行中でない場合は選択肢を無効化する
+            .disabled(core.progress != .playing)
+
             // MARK: - ゲームリセット操作
             Button {
                 // 実行前に確認ダイアログを表示するため、ステートへ保持
@@ -515,20 +527,33 @@ private extension GameView {
         // ダイアログを閉じるために必ず nil へ戻す
         pendingMenuAction = nil
 
-        // バナーの自動クローズ処理を停止し、表示をリセット
-        penaltyDismissWorkItem?.cancel()
-        penaltyDismissWorkItem = nil
-        isShowingPenaltyBanner = false
+        switch action {
+        case .manualPenalty:
+            // 既存バナーの自動クローズ処理を停止し、新規イベントに備える
+            penaltyDismissWorkItem?.cancel()
+            penaltyDismissWorkItem = nil
+            isShowingPenaltyBanner = false
+            // GameCore の共通処理を呼び出し、手動ペナルティを適用
+            core.applyManualPenaltyRedraw()
 
-        // シートが開いている場合でも即座に閉じる
-        showingResult = false
+        case .reset:
+            // バナー表示をリセットし、ゲームを初期状態へ戻す
+            penaltyDismissWorkItem?.cancel()
+            penaltyDismissWorkItem = nil
+            isShowingPenaltyBanner = false
+            // シートが開いている場合でも即座に閉じる
+            showingResult = false
+            core.reset()
+            adsService.resetPlayFlag()
 
-        // ゲームの状態と広告表示フラグを初期化
-        core.reset()
-        adsService.resetPlayFlag()
-
-        // タイトル復帰の場合のみ、親へ通知して画面遷移させる
-        if action == .returnToTitle {
+        case .returnToTitle:
+            // リセットと同じ処理を実行した後にタイトル戻りを通知
+            penaltyDismissWorkItem?.cancel()
+            penaltyDismissWorkItem = nil
+            isShowingPenaltyBanner = false
+            showingResult = false
+            core.reset()
+            adsService.resetPlayFlag()
             onRequestReturnToTitle?()
         }
     }
@@ -536,22 +561,27 @@ private extension GameView {
 
 // MARK: - メニュー操作の定義
 private enum GameMenuAction: Hashable, Identifiable {
+    case manualPenalty
     case reset
     case returnToTitle
 
     /// Identifiable 準拠のための一意な ID
     var id: Int {
         switch self {
-        case .reset:
+        case .manualPenalty:
             return 0
-        case .returnToTitle:
+        case .reset:
             return 1
+        case .returnToTitle:
+            return 2
         }
     }
 
     /// ダイアログ内で表示するボタンタイトル
     var confirmationButtonTitle: String {
         switch self {
+        case .manualPenalty:
+            return "ペナルティを払う"
         case .reset:
             return "リセットする"
         case .returnToTitle:
@@ -562,6 +592,8 @@ private enum GameMenuAction: Hashable, Identifiable {
     /// 操作説明として表示するメッセージ
     var confirmationMessage: String {
         switch self {
+        case .manualPenalty:
+            return "手数を5増やして手札を引き直します。現在の手札は破棄されます。よろしいですか？"
         case .reset:
             return "現在の進行状況を破棄して、最初からやり直します。よろしいですか？"
         case .returnToTitle:
@@ -572,6 +604,8 @@ private enum GameMenuAction: Hashable, Identifiable {
     /// ボタンのロール（破壊的操作は .destructive を指定）
     var buttonRole: ButtonRole? {
         switch self {
+        case .manualPenalty:
+            return .destructive
         case .reset:
             return .destructive
         case .returnToTitle:
