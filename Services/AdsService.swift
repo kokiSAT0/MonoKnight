@@ -70,8 +70,8 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, FullScre
         super.init()
         guard hasValidAdConfiguration else { return }
 
-        // SDK 初期化。完了ハンドラーは現時点で不要のため nil を指定
-        GADMobileAds.sharedInstance().start(completionHandler: nil)
+        // SDK 初期化。sharedInstance は v11 以降でメソッドではなくプロパティになったため () を付けない
+        GADMobileAds.sharedInstance.start(completionHandler: nil)
         // 初期化直後から広告読み込みを開始（非同期で走らせる）
         Task { [weak self] in
             await MainActor.run { self?.loadInterstitial() }
