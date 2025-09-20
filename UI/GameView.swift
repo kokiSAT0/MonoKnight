@@ -14,6 +14,10 @@ struct GameView: View {
     /// 結果画面を表示するかどうかのフラグ
     /// - NOTE: クリア時に true となり ResultView をシート表示する
     @State private var showingResult = false
+    /// ゲーム状態をリセットする際に確認ダイアログを表示するフラグ
+    @State private var showingResetConfirmation = false
+    /// タイトルへ戻る際の確認ダイアログ表示フラグ
+    @State private var showingReturnConfirmation = false
     /// SpriteKit のシーン。初期化時に一度だけ生成して再利用する
     private let scene: GameScene
     /// Game Center 連携を扱うサービス（プロトコル型で受け取る）
@@ -22,6 +26,10 @@ struct GameView: View {
     private let adsService: AdsServiceProtocol
     /// ハプティクスを有効にするかどうかの設定値
     @AppStorage("haptics_enabled") private var hapticsEnabled: Bool = true
+    /// 親ビューから閉じるためのクロージャを受け取る（タイトルへ戻る導線用）
+    @Environment(\.dismissGameView) private var dismissGameView
+    /// `presentationMode` を併用し、モーダル表示中は標準の dismiss も利用できるようにする
+    @Environment(\.presentationMode) private var presentationMode
 
     /// 初期化で GameCore と GameScene を連結する
     /// 依存するサービスを外部から注入できるようにする初期化処理
@@ -97,6 +105,9 @@ struct GameView: View {
                     }
                     .padding(.bottom, 16)
                 }
+                // MARK: - 画面右上に操作メニューを配置
+                // リセットやタイトルへ戻るといった管理系アクションをまとめる
+                actionMenu
                 #if DEBUG
                     // MARK: - 結果画面へ強制遷移ボタン（デバッグ専用）
                     // デバッグビルドでのみ表示し、リリースビルドでは含めない
@@ -121,6 +132,36 @@ struct GameView: View {
             guard newValue == .cleared else { return }
             gameCenterService.submitScore(core.score)
             showingResult = true
+        }
+
+        // MARK: - リセット確認ダイアログ
+        // 誤操作を防ぐためメニュー選択直後に確認を挟む
+        .confirmationDialog(
+            "ゲームをリセットしますか？",
+            isPresented: $showingResetConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("リセット", role: .destructive) {
+                performReset()
+            }
+            Button("キャンセル", role: .cancel) {}
+        } message: {
+            Text("現在の進行状況は破棄され、初期状態からやり直します。")
+        }
+
+        // MARK: - タイトルへ戻る確認ダイアログ
+        // 親ビューが閉じるクロージャを提供している場合のみ選択肢を表示
+        .confirmationDialog(
+            "タイトルへ戻りますか？",
+            isPresented: $showingReturnConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("タイトルへ戻る", role: .destructive) {
+                returnToTitle()
+            }
+            Button("キャンセル", role: .cancel) {}
+        } message: {
+            Text("ゲームを中断し、タイトル画面へ戻ります。")
         }
 
         // シートで結果画面を表示
@@ -200,6 +241,67 @@ struct GameView: View {
         .accessibilityIdentifier("hand_slot_\(index)")
         // 実カードが入れ替わった瞬間だけ最小限のアニメーションを適用し、他スロットの位置は維持
         .animation(.easeInOut(duration: 0.18), value: slotStateKey)
+    }
+
+    /// リセット処理を共通化し、メニューおよび結果画面から再利用する
+    private func performReset() {
+        // コアロジックと広告フラグを初期化して新規ゲームを開始
+        core.reset()
+        adsService.resetPlayFlag()
+        // リセット直後に結果画面が表示されないようフラグを明示的に下げる
+        showingResult = false
+    }
+
+    /// タイトルへ戻る処理をまとめ、親ビューへの通知もここで行う
+    private func returnToTitle() {
+        // 戻る前にゲーム状態を初期化し、次回開始時にクリーンな状態を保証
+        performReset()
+        if let dismissAction = dismissGameView {
+            // 親側が専用クロージャを提供している場合はそちらを優先
+            dismissAction()
+        } else if presentationMode.wrappedValue.isPresented {
+            // モーダル表示中であれば標準の dismiss を利用して前画面へ戻る
+            presentationMode.wrappedValue.dismiss()
+        }
+    }
+
+    /// タイトルへ戻る操作を提示できるかどうかを判定する補助プロパティ
+    private var canReturnToTitle: Bool {
+        dismissGameView != nil || presentationMode.wrappedValue.isPresented
+    }
+
+    /// メニューのレイアウトをまとめたビュー。アクションの追加・削除にも対応しやすくする
+    @ViewBuilder
+    private var actionMenu: some View {
+        Menu {
+            // MARK: - ゲームリセットアクション
+            Button {
+                showingResetConfirmation = true
+            } label: {
+                Label("リセット", systemImage: "arrow.counterclockwise")
+            }
+
+            // MARK: - タイトルへ戻るアクション（導線がある場合のみ表示）
+            if canReturnToTitle {
+                Button {
+                    showingReturnConfirmation = true
+                } label: {
+                    Label("タイトルへ戻る", systemImage: "house")
+                }
+            }
+        } label: {
+            // メニューアイコン自体は視認性を高めるため半透明の背景を重ねる
+            Image(systemName: "ellipsis.circle")
+                .font(.title2)
+                .foregroundColor(.white)
+                .padding(10)
+                .background(
+                    Circle()
+                        .fill(Color.black.opacity(0.35))
+                )
+        }
+        .accessibilityIdentifier("game_action_menu")
+        .padding([.top, .trailing], 12)
     }
 
     /// スロットの状態変化をアニメーション制御用に表すキーを生成する
@@ -297,4 +399,18 @@ private struct NextCardOverlayView: View {
 #Preview {
     // Xcode の Canvas で GameView を表示するためのプレビュー
     GameView()
+}
+
+// MARK: - 環境値の拡張
+/// 親ビューが GameView を閉じたい場合に利用するカスタム EnvironmentKey
+private struct GameViewDismissActionKey: EnvironmentKey {
+    static let defaultValue: (() -> Void)? = nil
+}
+
+extension EnvironmentValues {
+    /// GameView からタイトルへ戻る際に呼び出されるクロージャを格納するキー
+    var dismissGameView: (() -> Void)? {
+        get { self[GameViewDismissActionKey.self] }
+        set { self[GameViewDismissActionKey.self] = newValue }
+    }
 }
