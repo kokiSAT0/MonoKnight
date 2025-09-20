@@ -5,6 +5,8 @@ import AppTrackingTransparency
 import GoogleMobileAds
 
 // MARK: - Protocol
+/// UI レイヤーからメインスレッド経由で利用する前提のため、プロトコル自体も MainActor に固定する
+@MainActor
 protocol AdsServiceProtocol: AnyObject {
     func showInterstitial()
     func resetPlayFlag()
