@@ -39,6 +39,10 @@ struct GameView: View {
     private let onRequestReturnToTitle: (() -> Void)?
     /// メニューからの操作確認ダイアログで使用する一時的なアクション保持
     @State private var pendingMenuAction: GameMenuAction?
+    /// 統計バッジ領域の高さを計測し、盤面の縦寸法計算へ反映する
+    @State private var statisticsHeight: CGFloat = 0
+    /// 手札セクション全体の高さを計測し、利用可能な縦寸法を把握する
+    @State private var handSectionHeight: CGFloat = 0
 
     /// デフォルトのサービスを利用して `GameView` を生成するコンビニエンスイニシャライザ
     /// - Parameter onRequestReturnToTitle: タイトル画面への遷移要求クロージャ（省略可）
@@ -84,8 +88,13 @@ struct GameView: View {
     var body: some View {
         GeometryReader { geometry in
             // MARK: - 盤面サイズのキャッシュ
-            // 同一の幅計算を繰り返さないようローカル定数へ格納する
-            let boardWidth = geometry.size.width
+            // 統計バッジと手札の実寸法を差し引いてから幅と比較し、最適な正方形の辺長を算出する
+            let availableHeightForBoard = geometry.size.height
+                - statisticsHeight
+                - handSectionHeight
+                - LayoutMetrics.spacingBetweenBoardAndHand
+                - LayoutMetrics.spacingBetweenStatisticsAndBoard
+            let boardWidth = min(geometry.size.width, max(availableHeightForBoard, 0))
 
             ZStack(alignment: .topTrailing) {
                 VStack(spacing: 16) {
@@ -101,6 +110,13 @@ struct GameView: View {
             // 画面全体の背景もテーマで制御し、システム設定と調和させる
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(theme.backgroundPrimary)
+        }
+        // PreferenceKey で伝搬した各セクションの高さを受け取り、レイアウト計算に利用する
+        .onPreferenceChange(StatisticsHeightPreferenceKey.self) { newHeight in
+            statisticsHeight = newHeight
+        }
+        .onPreferenceChange(HandSectionHeightPreferenceKey.self) { newHeight in
+            handSectionHeight = newHeight
         }
         // 初回表示時に SpriteKit の背景色もテーマに合わせて更新
         .onAppear {
@@ -251,6 +267,13 @@ struct GameView: View {
             )
             .padding(.horizontal, 16)
             .accessibilityElement(children: .contain)
+            // PreferenceKey へ統計バッジの高さを伝搬し、GeometryReader 側で取得できるようにする
+            .background(
+                GeometryReader { proxy in
+                    Color.clear
+                        .preference(key: StatisticsHeightPreferenceKey.self, value: proxy.size.height)
+                }
+            )
 
             spriteBoard(width: width)
         }
@@ -270,6 +293,10 @@ struct GameView: View {
                 scene.moveKnight(to: core.current)
                 // 盤面の同期が整ったタイミングでガイド表示も更新
                 refreshGuideHighlights()
+            }
+            // ジオメトリの変化に追従できるよう、SpriteKit シーンのサイズも都度更新する
+            .onChange(of: width) { newWidth in
+                scene.size = CGSize(width: newWidth, height: newWidth)
             }
             // GameCore 側の更新を受け取り、SpriteKit の表示へ同期する
             .onReceive(core.$board) { newBoard in
@@ -337,6 +364,13 @@ struct GameView: View {
 #endif
         }
         .padding(.bottom, 16)
+        // PreferenceKey へ手札セクションの高さを渡し、GeometryReader の計算に活用する
+        .background(
+            GeometryReader { proxy in
+                Color.clear
+                    .preference(key: HandSectionHeightPreferenceKey.self, value: proxy.size.height)
+            }
+        )
     }
 
     /// 手動ペナルティ（手札引き直し）のショートカットボタン
@@ -812,6 +846,35 @@ fileprivate struct NextCardOverlayView: View {
             }
         }
         .allowsHitTesting(false)  // 補助ビューはタップ処理に影響させない
+    }
+}
+
+// MARK: - レイアウト定数と PreferenceKey
+/// GeometryReader 内での盤面計算に利用する固定値をまとめて管理する
+private enum LayoutMetrics {
+    /// 盤面セクションと手札セクションの間隔（VStack の spacing と一致させる）
+    static let spacingBetweenBoardAndHand: CGFloat = 16
+    /// 統計バッジと盤面の間隔（boardSection 内の spacing と一致させる）
+    static let spacingBetweenStatisticsAndBoard: CGFloat = 12
+}
+
+/// 統計バッジ領域の高さを親ビューへ伝搬するための PreferenceKey
+private struct StatisticsHeightPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        // 複数回呼ばれても最大値を保持し、想定以上に値が縮まらないようにする
+        value = max(value, nextValue())
+    }
+}
+
+/// 手札セクションの高さを親ビューへ伝搬するための PreferenceKey
+private struct HandSectionHeightPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        // 末尾の .background から複数回値が届いた場合でも最大値を優先する
+        value = max(value, nextValue())
     }
 }
 
