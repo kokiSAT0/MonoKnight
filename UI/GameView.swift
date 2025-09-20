@@ -14,6 +14,10 @@ struct GameView: View {
     /// 結果画面を表示するかどうかのフラグ
     /// - NOTE: クリア時に true となり ResultView をシート表示する
     @State private var showingResult = false
+    /// 手詰まりペナルティのバナー表示を制御するフラグ
+    @State private var isShowingPenaltyBanner = false
+    /// バナーを自動的に閉じるためのディスパッチワークアイテムを保持
+    @State private var penaltyDismissWorkItem: DispatchWorkItem?
     /// SpriteKit のシーン。初期化時に一度だけ生成して再利用する
     private let scene: GameScene
     /// Game Center 連携を扱うサービス（プロトコル型で受け取る）
@@ -97,6 +101,8 @@ struct GameView: View {
                     }
                     .padding(.bottom, 16)
                 }
+                // MARK: - 手詰まりペナルティ通知バナー
+                penaltyBannerOverlay
                 #if DEBUG
                     // MARK: - 結果画面へ強制遷移ボタン（デバッグ専用）
                     // デバッグビルドでのみ表示し、リリースビルドでは含めない
@@ -123,6 +129,35 @@ struct GameView: View {
             showingResult = true
         }
 
+        // 手詰まりペナルティ発生時のバナー表示を制御
+        .onReceive(core.$penaltyEventID) { eventID in
+            guard eventID != nil else { return }
+
+            // 既存の自動クローズ処理があればキャンセルして状態をリセット
+            penaltyDismissWorkItem?.cancel()
+            penaltyDismissWorkItem = nil
+
+            // バナーをアニメーション付きで表示
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.8, blendDuration: 0.2)) {
+                isShowingPenaltyBanner = true
+            }
+
+            // ペナルティ発生を触覚で知らせる（設定で有効な場合のみ）
+            if hapticsEnabled {
+                UINotificationFeedbackGenerator().notificationOccurred(.warning)
+            }
+
+            // 一定時間後に自動でバナーを閉じる処理を登録
+            let workItem = DispatchWorkItem {
+                withAnimation(.easeOut(duration: 0.25)) {
+                    isShowingPenaltyBanner = false
+                }
+                penaltyDismissWorkItem = nil
+            }
+            penaltyDismissWorkItem = workItem
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.6, execute: workItem)
+        }
+
         // シートで結果画面を表示
         .sheet(isPresented: $showingResult) {
             ResultView(
@@ -139,6 +174,27 @@ struct GameView: View {
                 adsService: adsService
             )
         }
+    }
+
+    /// 手詰まりペナルティを知らせるバナーのレイヤーを構成
+    private var penaltyBannerOverlay: some View {
+        VStack {
+            if isShowingPenaltyBanner {
+                HStack {
+                    Spacer(minLength: 0)
+                    PenaltyBannerView()
+                        .padding(.horizontal, 20)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                        .accessibilityIdentifier("penalty_banner")
+                    Spacer(minLength: 0)
+                }
+            }
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.top, 12)
+        .allowsHitTesting(false)  // バナーが表示されていても下の UI を操作可能にする
+        .zIndex(2)
     }
 
     /// 指定カードが現在位置から盤内に収まるか判定
@@ -233,6 +289,51 @@ struct GameView: View {
             .accessibilityHidden(true)  // プレースホルダは VoiceOver の読み上げ対象外にして混乱を避ける
     }
 
+}
+
+// MARK: - 手詰まりペナルティ用のバナー表示
+/// ペナルティ発生をユーザーに伝えるトップバナーのビュー
+private struct PenaltyBannerView: View {
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            // MARK: - 警告アイコン
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundColor(.black)
+                .padding(8)
+                .background(
+                    Circle()
+                        .fill(Color.white)
+                )
+                .accessibilityHidden(true)  // アイコンは視覚的アクセントのみ
+
+            // MARK: - メッセージ本文
+            VStack(alignment: .leading, spacing: 2) {
+                Text("手詰まり → 手札を引き直し (+5)")
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .foregroundColor(.white)
+                Text("使えるカードが無かったため、手数が 5 増加しました")
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .foregroundColor(.white.opacity(0.8))
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 14)
+        .padding(.horizontal, 18)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.white.opacity(0.18))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(Color.white.opacity(0.35), lineWidth: 1)
+                )
+        )
+        .shadow(color: Color.black.opacity(0.35), radius: 18, x: 0, y: 12)
+        .accessibilityIdentifier("penalty_banner_content")
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("手詰まり。手札を引き直し、手数が 5 増加しました。")
+    }
 }
 
 // MARK: - 先読みカード専用のオーバーレイ
