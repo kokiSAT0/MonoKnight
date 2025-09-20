@@ -17,6 +17,12 @@ protocol AdsServiceProtocol: AnyObject {
 // MARK: - Google Mobile Ads 実装
 @MainActor
 final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, GADFullScreenContentDelegate {
+    /// Info.plist に定義するキー名をまとめる
+    private enum InfoPlistKey {
+        static let applicationIdentifier = "GADApplicationIdentifier"
+        static let interstitialAdUnitID = "GADInterstitialAdUnitID"
+    }
+
     /// シングルトンでサービスを共有
     static let shared = AdsService()
 
@@ -38,13 +44,32 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, GADFullS
     /// 広告自体を停止するフラグ（IAP などで利用）
     private var adsDisabled: Bool = false
 
+    /// Info.plist から読み取ったインタースティシャル広告ユニット ID（空文字ならロードしない）
+    private let interstitialAdUnitID: String
+    /// アプリ ID と広告ユニット ID が両方揃っているかどうか
+    private let hasValidAdConfiguration: Bool
+
     /// 失敗時に再読み込みを試みるまでの秒数
     private let retryDelay: TimeInterval = 30
-    /// テスト広告ユニット ID（リリース時は実機の ID に差し替える）
-    private let interstitialAdUnitID = "ca-app-pub-3940256099942544/4411468910"
 
     private override init() {
+        let applicationIdentifier = (Bundle.main.object(forInfoDictionaryKey: InfoPlistKey.applicationIdentifier) as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if applicationIdentifier.isEmpty {
+            assertionFailure("Info.plist に GADApplicationIdentifier が設定されていません。Config/Local.xcconfig で本番値を指定してください。")
+        }
+
+        let interstitialIdentifier = (Bundle.main.object(forInfoDictionaryKey: InfoPlistKey.interstitialAdUnitID) as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if interstitialIdentifier.isEmpty {
+            assertionFailure("Info.plist に GADInterstitialAdUnitID が設定されていません。Config/Local.xcconfig で本番値を指定してください。")
+        }
+
+        self.interstitialAdUnitID = interstitialIdentifier
+        self.hasValidAdConfiguration = !applicationIdentifier.isEmpty && !interstitialIdentifier.isEmpty
         super.init()
+        guard hasValidAdConfiguration else { return }
+
         // SDK 初期化。完了ハンドラーは現時点で不要のため nil を指定
         GADMobileAds.sharedInstance().start(completionHandler: nil)
         // 初期化直後から広告読み込みを開始（非同期で走らせる）
@@ -118,7 +143,8 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, GADFullS
 
     /// インタースティシャル広告を読み込むヘルパー
     private func loadInterstitial() {
-        guard !adsDisabled,
+        guard hasValidAdConfiguration,
+              !adsDisabled,
               !removeAds,
               !isLoadingAd,
               interstitial == nil else { return }
