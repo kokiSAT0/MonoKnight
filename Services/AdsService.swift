@@ -155,7 +155,7 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, FullScre
         let request = GoogleMobileAds.Request()
         if shouldUseNPA {
             // UMP の結果に従い非パーソナライズ広告をリクエスト
-            let extras = GADExtras()
+            let extras = Extras()
             extras.additionalParameters = ["npa": "1"]
             request.register(extras)
         }
