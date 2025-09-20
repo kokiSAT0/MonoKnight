@@ -400,13 +400,15 @@ struct AppTheme: DynamicProperty {
     }
 
     /// ガイドモードで候補マスを照らす際の基準色
-    /// - Note: ライトでは少し深みのあるアンバー、ダークでは柔らかいゴールドに寄せてコントラストを確保する
+    /// - Note: グリッド線と同系統のグレーを採用し、盤面全体のモノトーン基調を崩さない
     var boardGuideHighlight: Color {
         switch resolvedColorScheme {
         case .dark:
-            return Color(red: 1.0, green: 0.88, blue: 0.55)
+            // ダークテーマでは boardGridLine（白 75%）を基準にしつつ、視認性を確保するため透過率をやや高める
+            return boardGridLine.opacity(0.5)
         default:
-            return Color(red: 0.95, green: 0.72, blue: 0.25)
+            // ライトテーマでは boardGridLine（黒 65%）に近いグレーを薄く敷き、主張しすぎないハイライトにする
+            return boardGridLine.opacity(0.3)
         }
     }
 
