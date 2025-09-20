@@ -1,9 +1,26 @@
 import Foundation
 
 /// 駒を移動させるカードの種類を定義する列挙型
-/// - Note: ナイト型 8 種と距離 2 の直線/斜め 8 種の計 16 種をサポート
+/// - Note: 周囲 1 マスのキング型 8 種、ナイト型 8 種、距離 2 の直線/斜め 8 種の計 24 種をサポート
 enum MoveCard: CaseIterable {
     // MARK: - ケース定義
+    /// キング型: 上に 1
+    case kingUp
+    /// キング型: 右上に 1
+    case kingUpRight
+    /// キング型: 右に 1
+    case kingRight
+    /// キング型: 右下に 1
+    case kingDownRight
+    /// キング型: 下に 1
+    case kingDown
+    /// キング型: 左下に 1
+    case kingDownLeft
+    /// キング型: 左に 1
+    case kingLeft
+    /// キング型: 左上に 1
+    case kingUpLeft
+
     /// ナイト型: 上に 2、右に 1
     case knightUp2Right1
     /// ナイト型: 上に 2、左に 1
@@ -43,6 +60,14 @@ enum MoveCard: CaseIterable {
     /// x 方向の移動量
     var dx: Int {
         switch self {
+        case .kingUp: return 0
+        case .kingUpRight: return 1
+        case .kingRight: return 1
+        case .kingDownRight: return 1
+        case .kingDown: return 0
+        case .kingDownLeft: return -1
+        case .kingLeft: return -1
+        case .kingUpLeft: return -1
         case .knightUp2Right1: return 1
         case .knightUp2Left1: return -1
         case .knightUp1Right2: return 2
@@ -65,6 +90,14 @@ enum MoveCard: CaseIterable {
     /// y 方向の移動量
     var dy: Int {
         switch self {
+        case .kingUp: return 1
+        case .kingUpRight: return 1
+        case .kingRight: return 0
+        case .kingDownRight: return -1
+        case .kingDown: return -1
+        case .kingDownLeft: return -1
+        case .kingLeft: return 0
+        case .kingUpLeft: return 1
         case .knightUp2Right1: return 2
         case .knightUp2Left1: return 2
         case .knightUp1Right2: return 1
@@ -88,6 +121,30 @@ enum MoveCard: CaseIterable {
     /// UI に表示する日本語の名前
     var displayName: String {
         switch self {
+        case .kingUp:
+            // キング型: 上方向へ 1 マス移動
+            return "上1"
+        case .kingUpRight:
+            // キング型: 右上方向へ 1 マス移動
+            return "右上1"
+        case .kingRight:
+            // キング型: 右方向へ 1 マス移動
+            return "右1"
+        case .kingDownRight:
+            // キング型: 右下方向へ 1 マス移動
+            return "右下1"
+        case .kingDown:
+            // キング型: 下方向へ 1 マス移動
+            return "下1"
+        case .kingDownLeft:
+            // キング型: 左下方向へ 1 マス移動
+            return "左下1"
+        case .kingLeft:
+            // キング型: 左方向へ 1 マス移動
+            return "左1"
+        case .kingUpLeft:
+            // キング型: 左上方向へ 1 マス移動
+            return "左上1"
         case .knightUp2Right1: return "上2右1"
         case .knightUp2Left1: return "上2左1"
         case .knightUp1Right2: return "上1右2"
