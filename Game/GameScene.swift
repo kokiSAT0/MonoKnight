@@ -6,23 +6,24 @@ import UIKit
 
 /// GameCore とのやり取りのためのプロトコル
 /// - ゲームロジック側で実装し、タップされたマスに対する移動処理を担当する
-protocol GameCoreProtocol: AnyObject {
+public protocol GameCoreProtocol: AnyObject {
     /// 指定されたマスをタップした際に呼び出される
     /// - Parameter point: タップされたマスの座標
     func handleTap(at point: GridPoint)
 }
 
 /// 盤面と駒を描画し、タップ入力を GameCore に渡すシーン
-class GameScene: SKScene {
+public final class GameScene: SKScene {
     /// ゲームロジックを保持する参照
-    weak var gameCore: GameCoreProtocol?
+    public weak var gameCore: GameCoreProtocol?
 
     /// 現在の盤面状態
     private var board = Board()
 
     /// SpriteKit 内で利用する配色セット
     /// - 備考: SwiftUI の `AppTheme` とは分離し、SpriteKit 専用の色情報のみを保持する
-    private var palette = GameScenePalette.fallbackLight
+    /// - NOTE: テーマ未設定時でも見た目が破綻しないよう共通フォールバックを適用しておく
+    private var palette = GameScenePalette.fallback
 
     /// 1 マスのサイズ
     private var tileSize: CGFloat = 0
@@ -187,7 +188,8 @@ class GameScene: SKScene {
 
     /// 盤面の状態を更新し、踏破済みマスの色を反映する
     /// - Parameter board: 新しい盤面
-    func updateBoard(_ board: Board) {
+    /// - NOTE: SwiftUI モジュールからも参照するため `public` で公開する
+    public func updateBoard(_ board: Board) {
         self.board = board
         updateTileColors()
         // 盤面更新に応じてアクセシビリティ要素も再構築
@@ -209,7 +211,8 @@ class GameScene: SKScene {
 
     /// ガイドモードで指定されたマスにハイライトを表示する
     /// - Parameter points: 発光させたい盤面座標の集合
-    func updateGuideHighlights(_ points: Set<GridPoint>) {
+    /// - NOTE: ガイド表示の更新を SwiftUI 側から呼び出せるよう公開する
+    public func updateGuideHighlights(_ points: Set<GridPoint>) {
         // 盤外座標が渡されても安全に無視できるよう、盤面内に限定した集合を用意
         let validPoints = Set(points.filter { board.contains($0) })
 
@@ -301,7 +304,8 @@ class GameScene: SKScene {
 
     /// 受け取った配色パレットを SpriteKit のノードへ適用し、背景や各マスの色を更新する
     /// - Parameter palette: SwiftUI 側で決定されたライト/ダーク用カラーを転写したパレット
-    func applyTheme(_ palette: GameScenePalette) {
+    /// - NOTE: パッケージ外からテーマを適用するため `public` を付与
+    public func applyTheme(_ palette: GameScenePalette) {
         // SwiftUI 側で生成されたテーマから変換されたパレットを保持し、今後の色更新にも使えるようにする
         self.palette = palette
 
@@ -323,7 +327,8 @@ class GameScene: SKScene {
 
     /// 駒を指定座標へ移動する
     /// - Parameter point: 移動先の座標
-    func moveKnight(to point: GridPoint) {
+    /// - NOTE: 駒の移動をゲームロジック外部から制御するため公開メソッドにする
+    public func moveKnight(to point: GridPoint) {
         let destination = position(for: point)
         let move = SKAction.move(to: destination, duration: 0.2)
         knightNode?.run(move)
