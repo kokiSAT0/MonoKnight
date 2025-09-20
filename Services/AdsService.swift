@@ -200,9 +200,15 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, FullScre
         guard !adsDisabled else { return }
         retryTask?.cancel()
         retryTask = Task { [weak self] in
-            let delay = UInt64(retryDelay * 1_000_000_000)
+            // Task 実行時点で self が解放されていないことを確認し、以降は強参照で扱う
+            guard let self else { return }
+
+            // 秒数からナノ秒に変換し、一定時間後に再読み込みを試みる
+            let delay = UInt64(self.retryDelay * 1_000_000_000)
             try? await Task.sleep(nanoseconds: delay)
-            await MainActor.run { self?.loadInterstitial() }
+
+            // MainActor 上でインタースティシャルの読み込みを再開
+            await MainActor.run { self.loadInterstitial() }
         }
     }
 
