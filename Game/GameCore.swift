@@ -29,6 +29,9 @@ final class GameCore: ObservableObject {
     @Published private(set) var next: MoveCard?
     /// ゲームの進行状態
     @Published private(set) var progress: GameProgress = .playing
+    /// 手詰まりペナルティが発生したことを UI 側へ伝えるイベント識別子
+    /// - Note: Optional とすることで初期化直後の誤通知を防ぎ、実際にペナルティが起きたタイミングで UUID を更新する
+    @Published private(set) var penaltyEventID: UUID?
 
     /// 実際に移動した回数
     private(set) var moveCount: Int = 0
@@ -125,6 +128,15 @@ final class GameCore: ObservableObject {
         hand = result.hand
         next = result.next
 
+        // UI へ手詰まりの発生を知らせ、演出やフィードバックを促す
+        penaltyEventID = UUID()
+
+#if canImport(UIKit)
+        // VoiceOver 利用者向けにペナルティ内容をアナウンス
+        let message = "手詰まりのため手札を引き直しました。手数が5増加します。"
+        UIAccessibility.post(notification: .announcement, argument: message)
+#endif
+
         // デバッグログ: 引き直し後の手札を表示
         debugLog("引き直し後の手札: \(hand)")
         // デバッグ: 引き直し後の盤面を表示
@@ -142,6 +154,7 @@ final class GameCore: ObservableObject {
         moveCount = 0
         penaltyCount = 0
         progress = .playing
+        penaltyEventID = nil
         deck.reset()
         // リセット時も handSize を用いて手札を補充
         hand = deck.draw(count: handSize)
