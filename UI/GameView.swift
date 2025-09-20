@@ -69,7 +69,7 @@ struct GameView: View {
                         HStack(spacing: 12) {
                             // MoveCard は Identifiable に準拠していないため、enumerated の offset を id として利用
                             ForEach(Array(core.hand.enumerated()), id: \.offset) { index, card in
-                                cardView(for: card)
+                                MoveCardIllustrationView(card: card)
                                     // 盤外に出るカードは薄く表示し、タップを無効化
                                     .opacity(isCardUsable(card) ? 1.0 : 0.4)
                                     .onTapGesture {
@@ -98,7 +98,7 @@ struct GameView: View {
                             HStack(spacing: 4) {
                                 Text("次のカード")
                                     .font(.caption)
-                                cardView(for: next)
+                                MoveCardIllustrationView(card: next)
                                     .opacity(0.6)  // 先読みは操作不可なので半透明
                             }
                         }
@@ -158,30 +158,6 @@ struct GameView: View {
         return core.board.contains(target)
     }
 
-    /// カードの簡易表示ビュー
-    /// - Parameter card: 表示対象の MoveCard（列挙型）
-    private func cardView(for card: MoveCard) -> some View {
-        ZStack {
-            // 枠付きの白いカードを描画
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Color.white, lineWidth: 1)
-                .background(
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(Color.gray.opacity(0.2))
-                )
-            // MoveCard に定義された displayName を表示（例: 上2右1）
-            Text(card.displayName)
-                .font(.caption)
-                .foregroundColor(.white)
-        }
-        .frame(width: 60, height: 80)
-        // VoiceOver での読み上げ用ラベルを設定
-        .accessibilityLabel(Text(card.displayName))
-        // 操作方法を案内するヒントを付与（ダブルタップで使用）
-        .accessibilityHint(Text("ダブルタップでこの方向に移動します"))
-        // ボタンとして扱わせるためのトレイトを追加
-        .accessibilityAddTraits(.isButton)
-    }
 }
 
 // MARK: - プレビュー
