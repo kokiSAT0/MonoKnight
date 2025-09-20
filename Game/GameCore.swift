@@ -3,11 +3,11 @@ import Foundation
 import Combine
 #else
 /// Linux など Combine が存在しない環境向けの簡易定義
-protocol ObservableObject {}
+public protocol ObservableObject {}
 @propertyWrapper
-struct Published<Value> {
-    var wrappedValue: Value
-    init(wrappedValue: Value) { self.wrappedValue = wrappedValue }
+public struct Published<Value> {
+    public var wrappedValue: Value
+    public init(wrappedValue: Value) { self.wrappedValue = wrappedValue }
 }
 #endif
 #if canImport(UIKit)
@@ -16,39 +16,39 @@ import UIKit
 
 /// ゲーム進行を統括するクラス
 /// - 盤面操作・手札管理・ペナルティ処理・スコア計算を担当する
-final class GameCore: ObservableObject {
+public final class GameCore: ObservableObject {
     /// 手札枚数を統一的に扱うための定数（今回は 5 枚で固定）
     private let handSize: Int = 5
     /// 先読み表示に用いるカード枚数（NEXT 表示は 3 枚先まで）
     private let nextPreviewCount: Int = 3
     /// 盤面情報
-    @Published private(set) var board = Board()
+    @Published public private(set) var board = Board()
     /// 駒の現在位置
-    @Published private(set) var current = GridPoint.center
+    @Published public private(set) var current = GridPoint.center
     /// 手札（常に 5 枚保持）。UI での識別用に `DealtCard` へラップする
-    @Published private(set) var hand: [DealtCard] = []
+    @Published public private(set) var hand: [DealtCard] = []
     /// 次に引かれるカード群（先読み 3 枚分を保持）
-    @Published private(set) var nextCards: [DealtCard] = []
+    @Published public private(set) var nextCards: [DealtCard] = []
     /// ゲームの進行状態
-    @Published private(set) var progress: GameProgress = .playing
+    @Published public private(set) var progress: GameProgress = .playing
     /// 手詰まりペナルティが発生したことを UI 側へ伝えるイベント識別子
     /// - Note: Optional とすることで初期化直後の誤通知を防ぎ、実際にペナルティが起きたタイミングで UUID を更新する
-    @Published private(set) var penaltyEventID: UUID?
+    @Published public private(set) var penaltyEventID: UUID?
 
     /// 実際に移動した回数（UI へ即時反映させるため @Published を付与）
-    @Published private(set) var moveCount: Int = 0
+    @Published public private(set) var moveCount: Int = 0
     /// ペナルティによる加算手数（手詰まり通知に利用するため公開）
-    @Published private(set) var penaltyCount: Int = 0
+    @Published public private(set) var penaltyCount: Int = 0
     /// 合計スコア（小さいほど良い）
-    var score: Int { moveCount + penaltyCount }
+    public var score: Int { moveCount + penaltyCount }
     /// 未踏破マスの残り数を UI へ公開する計算プロパティ
-    var remainingTiles: Int { board.remainingCount }
+    public var remainingTiles: Int { board.remainingCount }
 
     /// 山札管理（`Deck.swift` に定義された重み付き無限山札を使用）
     private var deck = Deck()
 
     /// 初期化時に手札と次カードを用意
-    init() {
+    public init() {
         // 定数 handSize を用いて初期手札を引き切る
         hand = deck.draw(count: handSize)
         nextCards = deck.draw(count: nextPreviewCount)
@@ -63,7 +63,7 @@ final class GameCore: ObservableObject {
 
     /// 指定インデックスのカードで駒を移動させる
     /// - Parameter index: 手札配列の位置（0〜4）
-    func playCard(at index: Int) {
+    public func playCard(at index: Int) {
         // クリア済みや手詰まり中は操作不可
         guard progress == .playing else { return }
         // インデックスが範囲内か確認（0〜4 の範囲を想定）
@@ -143,7 +143,7 @@ final class GameCore: ObservableObject {
 
     /// UI 側から手動でペナルティを支払い、手札を引き直すための公開メソッド
     /// - Note: 既にゲームが終了している場合や、ペナルティ中は何もしない
-    func applyManualPenaltyRedraw() {
+    public func applyManualPenaltyRedraw() {
         // クリア済み・ペナルティ処理中は無視し、進行中のみ受け付ける
         guard progress == .playing else { return }
 
@@ -209,7 +209,7 @@ final class GameCore: ObservableObject {
     }
 
     /// ゲームを最初からやり直す
-    func reset() {
+    public func reset() {
         board = Board()
         current = .center
         moveCount = 0
@@ -262,7 +262,7 @@ final class GameCore: ObservableObject {
 extension GameCore: GameCoreProtocol {
     /// 盤面上のマスがタップされた際に呼び出される
     /// - Parameter point: タップされたマスの座標
-    func handleTap(at point: GridPoint) {
+    public func handleTap(at point: GridPoint) {
         // ゲーム進行中でなければ入力を無視
         guard progress == .playing else { return }
 
