@@ -36,6 +36,9 @@ class GameScene: SKScene {
     /// ガイドモードで使用するハイライトノードのキャッシュ
     private var guideHighlightNodes: [GridPoint: SKShapeNode] = [:]
 
+    /// レイアウト未確定時に受け取ったガイド描画リクエストを一時的に保持
+    private var pendingGuideHighlightPoints: Set<GridPoint> = []
+
     /// 駒を表すノード
     private var knightNode: SKShapeNode?
 
@@ -85,6 +88,9 @@ class GameScene: SKScene {
 
         /// アクセシビリティ情報を初期化
         updateAccessibilityElements()
+
+        /// シーン初期化後に保留分のガイド枠があれば忘れずに反映する
+        applyPendingGuideHighlightsIfNeeded()
     }
 
     /// 画面サイズからマスのサイズと原点を算出する
@@ -94,6 +100,9 @@ class GameScene: SKScene {
         let offsetX = (size.width - tileSize * CGFloat(Board.size)) / 2
         let offsetY = (size.height - tileSize * CGFloat(Board.size)) / 2
         gridOrigin = CGPoint(x: offsetX, y: offsetY)
+
+        // レイアウトが確定したタイミングで保留中のガイド枠を復元する
+        applyPendingGuideHighlightsIfNeeded()
     }
 
     /// シーンのサイズ変更に追従してレイアウトを再計算
@@ -128,6 +137,9 @@ class GameScene: SKScene {
 
         // VoiceOver 用の読み上げ領域も新しい座標に合わせ直す
         updateAccessibilityElements()
+
+        // サイズ変更後も保留していたハイライトを再構築し、見た目の破綻を防ぐ
+        applyPendingGuideHighlightsIfNeeded()
     }
 
     /// 5×5 のグリッドを描画
@@ -201,14 +213,26 @@ class GameScene: SKScene {
         // 盤外座標が渡されても安全に無視できるよう、盤面内に限定した集合を用意
         let validPoints = Set(points.filter { board.contains($0) })
 
+        // 最新の要求内容を常に保持し、レイアウト完了後に再構成できるようにする
+        pendingGuideHighlightPoints = validPoints
+
+        // タイルサイズが未確定（0 または負数）の場合はノード生成を保留し、後で再試行する
+        guard tileSize > 0 else { return }
+
+        rebuildGuideHighlightNodes(using: validPoints)
+    }
+
+    /// 指定された集合に合わせてハイライトノード群を再生成する
+    /// - Parameter points: 表示したい盤面座標の集合
+    private func rebuildGuideHighlightNodes(using points: Set<GridPoint>) {
         // 既存ハイライトのうち対象外になったものを削除
-        for (point, node) in guideHighlightNodes where !validPoints.contains(point) {
+        for (point, node) in guideHighlightNodes where !points.contains(point) {
             node.removeFromParent()
             guideHighlightNodes.removeValue(forKey: point)
         }
 
         // 必要なマスへハイライトを再構成
-        for point in validPoints {
+        for point in points {
             if let node = guideHighlightNodes[point] {
                 configureGuideHighlightNode(node, for: point)
             } else {
@@ -222,8 +246,17 @@ class GameScene: SKScene {
 
     /// 既存のハイライトノードを現在のテーマとマスサイズに合わせて更新
     private func updateGuideHighlightColors() {
-        for (point, node) in guideHighlightNodes {
-            configureGuideHighlightNode(node, for: point)
+        // レイアウトが未確定のまま再描画しても意味が無いため、適切なサイズが得られるまで待機する
+        guard tileSize > 0 else { return }
+
+        if pendingGuideHighlightPoints.isEmpty {
+            // 現在表示中のノードを最新テーマへ合わせ直す
+            for (point, node) in guideHighlightNodes {
+                configureGuideHighlightNode(node, for: point)
+            }
+        } else {
+            // 保留中の座標がある場合はノード自体を再構成して確実に表示する
+            rebuildGuideHighlightNodes(using: pendingGuideHighlightPoints)
         }
     }
 
@@ -297,6 +330,12 @@ class GameScene: SKScene {
         // 現在位置を保持し、アクセシビリティ情報を更新
         knightPosition = point
         updateAccessibilityElements()
+    }
+
+    /// 保留中のガイド枠があれば、レイアウト確定後に反映する
+    private func applyPendingGuideHighlightsIfNeeded() {
+        guard tileSize > 0, !pendingGuideHighlightPoints.isEmpty else { return }
+        rebuildGuideHighlightNodes(using: pendingGuideHighlightPoints)
     }
 
     // MARK: - タップ処理
