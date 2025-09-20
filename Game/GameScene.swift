@@ -215,8 +215,12 @@ class GameScene: SKScene {
         node.strokeColor = baseColor.withAlphaComponent(0.9)
         node.lineWidth = tileSize * 0.12
         node.glowWidth = 0
-        node.lineJoin = .round
-        node.lineCap = .round
+        // 角をシャープに保つために角丸設定を無効化し、SpriteKit のデフォルトより明示的にミタージョインを指定する
+        node.lineJoin = .miter
+        // lineJoin をミターにした際にエッジが過度に尖らないよう、適度な上限値を設ける
+        node.miterLimit = 2.5
+        // 終端も角を丸めず、グリッドの直線的な印象を優先する
+        node.lineCap = .square
         node.position = position(for: point)
         node.zPosition = 1  // タイルより前面、駒より背面で控えめに表示
         node.isAntialiased = true
