@@ -151,7 +151,8 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, FullScre
 
         isLoadingAd = true
 
-        let request = GADRequest()
+        // Google Mobile Ads SDK v11 以降では `GADRequest` が `Request` にリネームされたため、新しい型名を利用する
+        let request = GoogleMobileAds.Request()
         if shouldUseNPA {
             // UMP の結果に従い非パーソナライズ広告をリクエスト
             let extras = GADExtras()
