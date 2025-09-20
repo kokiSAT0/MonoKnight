@@ -13,12 +13,12 @@ struct Deck {
     private static let diagonalDistanceFourWeight = 1
     /// 王将型カードに割り当てる重み（標準の 1.5 倍 = 3）
     private static let kingWeight = 3
-    /// 重み付き抽選用のプール（重み分だけ複製した配列）
-    private static let weightedPool: [MoveCard] = {
-        var pool: [MoveCard] = []
-        pool.reserveCapacity(MoveCard.allCases.count * kingWeight)
+    /// 各カードの基礎重みをまとめた辞書（動的な確率計算の基準）
+    private static let baseWeights: [MoveCard: Int] = {
+        var weights: [MoveCard: Int] = [:]
+        weights.reserveCapacity(MoveCard.allCases.count)
         for card in MoveCard.allCases {
-            // 王将型カードは高頻度、ナイト型と直線型は標準、斜め 2 マスは低頻度に設定
+            // 王将型は高頻度、ナイト型と直線型は標準、斜め 2 マスは低頻度に設定
             let weight: Int
             if card.isKingType {
                 // キング型は 1.5 倍（移動の基礎となるため）
@@ -30,10 +30,16 @@ struct Deck {
                 // ナイト型や直線 2 マスは標準の重み
                 weight = standardWeight
             }
-            pool.append(contentsOf: Array(repeating: card, count: weight))
+            weights[card] = weight
         }
-        return pool
+        return weights
     }()
+    /// ペナルティが無い場合に掛ける係数（4 倍することで 3/4 調整に整数を利用）
+    private static let normalMultiplier = 4
+    /// ペナルティ中に掛ける係数（基礎重みの 3/4 を実現）
+    private static let reducedMultiplier = 3
+    /// 同一カードの排出確率を抑制するターン数（ドロー後 5 ターン）
+    private static let reductionDuration = 5
 
     // MARK: - 乱数管理
     /// 初期シード値。reset() 時に同じ乱数列へ戻すため保持する
@@ -46,6 +52,8 @@ struct Deck {
     private var random: SeededGenerator
     #endif
 
+    /// 直近に排出されたカードの抑制残りターン数（値が 0 になると解除）
+    private var reducedProbabilityTurns: [MoveCard: Int]
     #if DEBUG
     /// テスト時に優先して返すカード列（先頭から順に消費）
     private var presetDrawQueue: [MoveCard]
@@ -65,6 +73,7 @@ struct Deck {
         #else
         random = SeededGenerator(seed: resolvedSeed)
         #endif
+        reducedProbabilityTurns = [:]
         #if DEBUG
         presetDrawQueue = []
         presetOriginal = []
@@ -80,6 +89,7 @@ struct Deck {
         #else
         random = SeededGenerator(seed: initialSeed)
         #endif
+        reducedProbabilityTurns.removeAll()
         #if DEBUG
         presetDrawQueue = presetOriginal
         #endif
@@ -92,12 +102,14 @@ struct Deck {
         #if DEBUG
         // テストで事前登録されたカードがあれば優先的に返す
         if !presetDrawQueue.isEmpty {
-            return presetDrawQueue.removeFirst()
+            let card = presetDrawQueue.removeFirst()
+            applyProbabilityReduction(afterDrawing: card)
+            return card
         }
         #endif
-        guard !Deck.weightedPool.isEmpty else { return nil }
-        let index = nextRandomIndex(upperBound: Deck.weightedPool.count)
-        return Deck.weightedPool[index]
+        guard let card = drawWithDynamicWeights() else { return nil }
+        applyProbabilityReduction(afterDrawing: card)
+        return card
     }
 
     /// 複数枚まとめて引く
@@ -124,6 +136,55 @@ struct Deck {
         let value = random.next()
         return Int(value % UInt64(upperBound))
         #endif
+    }
+
+    /// 現在のペナルティ状況を踏まえて動的な重み抽選を実行する
+    /// - Returns: 抽選で選ばれたカード（総重量が 0 の場合は nil）
+    private mutating func drawWithDynamicWeights() -> MoveCard? {
+        var weightedCards: [(card: MoveCard, weight: Int)] = []
+        weightedCards.reserveCapacity(MoveCard.allCases.count)
+        var totalWeight = 0
+
+        for card in MoveCard.allCases {
+            guard let baseWeight = Deck.baseWeights[card] else { continue }
+            // ペナルティが残っているカードは 3/4 の重みで抽選する
+            let multiplier = (reducedProbabilityTurns[card, default: 0] > 0)
+            ? Deck.reducedMultiplier
+            : Deck.normalMultiplier
+            let weight = baseWeight * multiplier
+            weightedCards.append((card, weight))
+            totalWeight += weight
+        }
+
+        guard totalWeight > 0 else { return nil }
+
+        let randomValue = nextRandomIndex(upperBound: totalWeight)
+        var cumulative = 0
+        for entry in weightedCards {
+            cumulative += entry.weight
+            if randomValue < cumulative {
+                return entry.card
+            }
+        }
+        // 理論上ここには到達しないが、安全のため最後のカードを返す
+        return weightedCards.last?.card
+    }
+
+    /// ドロー結果に応じてペナルティ残りターン数を更新する
+    /// - Parameter card: 今回排出されたカード
+    private mutating func applyProbabilityReduction(afterDrawing card: MoveCard) {
+        // 既存のペナルティを 1 ターン進め、0 以下になったら辞書から削除する
+        var updated: [MoveCard: Int] = [:]
+        updated.reserveCapacity(reducedProbabilityTurns.count)
+        for (target, turns) in reducedProbabilityTurns {
+            let nextValue = turns - 1
+            if nextValue > 0 {
+                updated[target] = nextValue
+            }
+        }
+        reducedProbabilityTurns = updated
+        // 今回引いたカードに 5 ターン分の抑制を付与する
+        reducedProbabilityTurns[card] = Deck.reductionDuration
     }
 }
 
