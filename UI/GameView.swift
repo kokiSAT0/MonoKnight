@@ -127,23 +127,31 @@ struct GameView: View {
                             }
                         }
 
-                        // 先読みカードが存在する場合に表示
-                        if let next = core.next {
+                        // 先読みカードが存在する場合に表示（最大 3 枚を横並びで案内）
+                        if !core.nextCards.isEmpty {
                             VStack(alignment: .leading, spacing: 6) {
                                 // MARK: - 先読みカードのラベル
                                 // テキストでセクションを明示して VoiceOver からも認識しやすくする
                                 Text("次のカード")
                                     .font(.caption)
                                     .foregroundColor(.white.opacity(0.7))
-                                    .accessibilityHidden(true)  // ラベル自体は MoveCardIllustrationView のラベルに統合する
+                                    .accessibilityHidden(true)  // ラベル自体はカード要素のラベルで読み上げる
 
                                 // MARK: - 先読みカード本体
-                                // MoveCardIllustrationView の next モードで専用スタイルを適用しつつ、操作不可のバッジを重ねる
-                                ZStack {
-                                    MoveCardIllustrationView(card: next, mode: .next)
-                                    NextCardOverlayView()
+                                // 3 枚までのカードを順番に描画し、それぞれにインジケータを重ねる
+                                HStack(spacing: 12) {
+                                    ForEach(Array(core.nextCards.enumerated()), id: \.offset) { index, card in
+                                        ZStack {
+                                            MoveCardIllustrationView(card: card, mode: .next)
+                                            NextCardOverlayView(order: index)
+                                        }
+                                        // VoiceOver で順番が伝わるようラベルを上書き
+                                        .accessibilityElement(children: .combine)
+                                        .accessibilityLabel(Text("次のカード\(index == 0 ? "" : "+\(index)"): \(card.displayName)"))
+                                        .accessibilityHint(Text("この順番で手札に補充されます"))
+                                        .allowsHitTesting(false)  // 先読みは閲覧専用
+                                    }
                                 }
-                                .allowsHitTesting(false)  // 先読みはタップ不可であることを UI 上でも保証
                             }
                         }
                     }
@@ -566,17 +574,24 @@ private struct PenaltyBannerView: View {
 }
 
 // MARK: - 先読みカード専用のオーバーレイ
-/// 「NEXT」バッジと点滅インジケータを重ね、操作不可であることを視覚的に伝える補助ビュー
+/// 「NEXT」「NEXT+1」などのバッジと点滅インジケータを重ね、操作不可であることを視覚的に伝える補助ビュー
 private struct NextCardOverlayView: View {
+    /// 表示中のカードが何枚目の先読みか（0 が直近、1 以降は +1, +2 ...）
+    let order: Int
     /// 点滅インジケータの明るさを制御するステート
     @State private var isIndicatorBright = false
+
+    /// バッジに表示する文言を算出するヘルパー
+    private var badgeText: String {
+        order == 0 ? "NEXT" : "NEXT+\(order)"
+    }
 
     var body: some View {
         ZStack {
             // MARK: - 上部の NEXT バッジ
             VStack {
                 HStack {
-                    Text("NEXT")
+                    Text(badgeText)
                         .font(.system(size: 10, weight: .bold, design: .rounded))
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
