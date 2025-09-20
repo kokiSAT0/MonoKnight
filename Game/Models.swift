@@ -116,6 +116,7 @@ public struct Board: Equatable {
 }
 
 /// ゲーム全体の進行状態
+
 public enum GameProgress {
     /// プレイ続行中
     case playing
