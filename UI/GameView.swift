@@ -26,6 +26,10 @@ struct GameView: View {
     private let adsService: AdsServiceProtocol
     /// ハプティクスを有効にするかどうかの設定値
     @AppStorage("haptics_enabled") private var hapticsEnabled: Bool = true
+    /// タイトル画面へ戻るアクションを親から注入する（未指定なら nil で何もしない）
+    private let onRequestReturnToTitle: (() -> Void)?
+    /// メニューからの操作確認ダイアログで使用する一時的なアクション保持
+    @State private var pendingMenuAction: GameMenuAction?
 
     /// 初期化で GameCore と GameScene を連結する
     /// 依存するサービスを外部から注入できるようにする初期化処理
@@ -34,7 +38,8 @@ struct GameView: View {
     ///   - adsService: 広告表示用サービス（デフォルトはシングルトン）
     init(
         gameCenterService: GameCenterServiceProtocol = GameCenterService.shared,
-        adsService: AdsServiceProtocol = AdsService.shared
+        adsService: AdsServiceProtocol = AdsService.shared,
+        onRequestReturnToTitle: (() -> Void)? = nil
     ) {
         // GameCore の生成。StateObject へ包んで保持する
         let core = GameCore()
@@ -49,6 +54,7 @@ struct GameView: View {
         // サービスを保持
         self.gameCenterService = gameCenterService
         self.adsService = adsService
+        self.onRequestReturnToTitle = onRequestReturnToTitle
     }
 
     var body: some View {
@@ -142,20 +148,9 @@ struct GameView: View {
                 }
                 // MARK: - 手詰まりペナルティ通知バナー
                 penaltyBannerOverlay
-                #if DEBUG
-                    // MARK: - 結果画面へ強制遷移ボタン（デバッグ専用）
-                    // デバッグビルドでのみ表示し、リリースビルドでは含めない
-                    Button(action: {
-                        // 直接結果画面を開き、UI の確認やデバッグを容易にする
-                        showingResult = true
-                    }) {
-                        Text("結果へ")
-                    }
-                    .padding()
-                    .buttonStyle(.bordered)
-                    // UI テストでボタンを特定できるよう識別子を設定
-                    .accessibilityIdentifier("show_result")
-                #endif
+
+                // MARK: - 右上のメニューボタンとデバッグ向けショートカット
+                topRightOverlay
             }
             // 画面全体を黒背景に統一
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -212,6 +207,27 @@ struct GameView: View {
                 gameCenterService: gameCenterService,
                 adsService: adsService
             )
+        }
+        // メニュー選択後に確認ダイアログを表示し、誤操作を防ぐ
+        .confirmationDialog(
+            "操作の確認",
+            isPresented: Binding(
+                get: { pendingMenuAction != nil },
+                set: { isPresented in
+                    // キャンセル操作で閉じられた場合もステートを初期化する
+                    if !isPresented {
+                        pendingMenuAction = nil
+                    }
+                }
+            ),
+            presenting: pendingMenuAction
+        ) { action in
+            Button(action.confirmationButtonTitle, role: action.buttonRole) {
+                // ユーザーの確認後に実際の処理を実行
+                performMenuAction(action)
+            }
+        } message: { action in
+            Text(action.confirmationMessage)
         }
     }
 
@@ -359,6 +375,145 @@ struct GameView: View {
             .accessibilityHidden(true)  // プレースホルダは VoiceOver の読み上げ対象外にして混乱を避ける
     }
 
+}
+
+// MARK: - 右上メニューおよびデバッグ操作
+private extension GameView {
+    /// 右上のメニューとデバッグボタンをまとめて返す
+    /// - Returns: VStack に積んだコントロール群
+    @ViewBuilder
+    private var topRightOverlay: some View {
+        VStack(alignment: .trailing, spacing: 12) {
+            menuButton
+            #if DEBUG
+                debugResultButton
+            #endif
+        }
+        .padding(.trailing, 16)
+        .padding(.top, 16)
+        // ペナルティバナーよりも手前に配置してタップできるようにする
+        .zIndex(3)
+    }
+
+    /// ゲーム全体に関わる操作をまとめたメニュー
+    private var menuButton: some View {
+        Menu {
+            // MARK: - ゲームリセット操作
+            Button {
+                // 実行前に確認ダイアログを表示するため、ステートへ保持
+                pendingMenuAction = .reset
+            } label: {
+                Label("リセット", systemImage: "arrow.counterclockwise")
+            }
+
+            // MARK: - タイトル画面へ戻る操作
+            Button(role: .destructive) {
+                pendingMenuAction = .returnToTitle
+            } label: {
+                Label("タイトルへ戻る", systemImage: "house")
+            }
+        } label: {
+            // 常に 44pt 以上のタップ領域を確保する
+            Image(systemName: "ellipsis.circle")
+                .font(.system(size: 22, weight: .semibold))
+                .foregroundColor(.white)
+                .frame(width: 44, height: 44)
+                .background(
+                    Circle()
+                        .fill(Color.white.opacity(0.12))
+                )
+                .overlay(
+                    Circle()
+                        .stroke(Color.white.opacity(0.25), lineWidth: 1)
+                )
+        }
+        .accessibilityIdentifier("game_menu")
+    }
+
+    #if DEBUG
+    /// 結果画面を即座に表示するデバッグ向けボタン
+    private var debugResultButton: some View {
+        Button(action: {
+            // 直接結果画面を開き、UI の確認やデバッグを容易にする
+            showingResult = true
+        }) {
+            Text("結果へ")
+        }
+        .buttonStyle(.bordered)
+        // UI テストでボタンを特定できるよう識別子を設定
+        .accessibilityIdentifier("show_result")
+    }
+    #endif
+
+    /// メニュー操作を実際に実行する共通処理
+    /// - Parameter action: ユーザーが選択した操作種別
+    private func performMenuAction(_ action: GameMenuAction) {
+        // ダイアログを閉じるために必ず nil へ戻す
+        pendingMenuAction = nil
+
+        // バナーの自動クローズ処理を停止し、表示をリセット
+        penaltyDismissWorkItem?.cancel()
+        penaltyDismissWorkItem = nil
+        isShowingPenaltyBanner = false
+
+        // シートが開いている場合でも即座に閉じる
+        showingResult = false
+
+        // ゲームの状態と広告表示フラグを初期化
+        core.reset()
+        adsService.resetPlayFlag()
+
+        // タイトル復帰の場合のみ、親へ通知して画面遷移させる
+        if action == .returnToTitle {
+            onRequestReturnToTitle?()
+        }
+    }
+}
+
+// MARK: - メニュー操作の定義
+private enum GameMenuAction: Hashable, Identifiable {
+    case reset
+    case returnToTitle
+
+    /// Identifiable 準拠のための一意な ID
+    var id: Int {
+        switch self {
+        case .reset:
+            return 0
+        case .returnToTitle:
+            return 1
+        }
+    }
+
+    /// ダイアログ内で表示するボタンタイトル
+    var confirmationButtonTitle: String {
+        switch self {
+        case .reset:
+            return "リセットする"
+        case .returnToTitle:
+            return "タイトルへ戻る"
+        }
+    }
+
+    /// 操作説明として表示するメッセージ
+    var confirmationMessage: String {
+        switch self {
+        case .reset:
+            return "現在の進行状況を破棄して、最初からやり直します。よろしいですか？"
+        case .returnToTitle:
+            return "ゲームを終了してタイトル画面へ戻ります。現在のプレイ内容は保存されません。"
+        }
+    }
+
+    /// ボタンのロール（破壊的操作は .destructive を指定）
+    var buttonRole: ButtonRole? {
+        switch self {
+        case .reset:
+            return .destructive
+        case .returnToTitle:
+            return .destructive
+        }
+    }
 }
 
 // MARK: - 手詰まりペナルティ用のバナー表示
