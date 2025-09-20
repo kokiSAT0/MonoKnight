@@ -103,8 +103,12 @@ struct RootView: View {
 private struct TitleScreenView: View {
     /// ゲーム開始ボタンが押された際の処理
     let onStart: () -> Void
+
     /// カラーテーマを用いてライト/ダーク両対応の配色を提供する
     private var theme = AppTheme()
+
+    @State private var isPresentingHowToPlay: Bool = false
+
 
     var body: some View {
         VStack(spacing: 28) {
@@ -136,6 +140,21 @@ private struct TitleScreenView: View {
             .controlSize(.large)
             .accessibilityIdentifier("title_start_button")
 
+            // MARK: - 遊び方シートを開くボタン
+            Button {
+                // 遊び方の詳細解説をモーダルで表示する
+                isPresentingHowToPlay = true
+            } label: {
+                Label("遊び方を見る", systemImage: "questionmark.circle")
+                    .font(.system(size: 16, weight: .medium, design: .rounded))
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .tint(.white.opacity(0.8))
+            .foregroundColor(.white)
+            .controlSize(.large)
+            .accessibilityIdentifier("title_how_to_play_button")
+
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 32)
@@ -145,6 +164,13 @@ private struct TitleScreenView: View {
         .background(theme.backgroundPrimary)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("タイトル画面。ゲームを開始するボタンがあります。")
+        // 遊び方シートの表示設定
+        .sheet(isPresented: $isPresentingHowToPlay) {
+            // NavigationStack でタイトルバーを付与しつつ共通ビューを利用
+            NavigationStack {
+                HowToPlayView(showsCloseButton: true)
+            }
+        }
     }
 }
 

@@ -19,14 +19,16 @@ import UIKit
 final class GameCore: ObservableObject {
     /// 手札枚数を統一的に扱うための定数（今回は 5 枚で固定）
     private let handSize: Int = 5
+    /// 先読み表示に用いるカード枚数（NEXT 表示は 3 枚先まで）
+    private let nextPreviewCount: Int = 3
     /// 盤面情報
     @Published private(set) var board = Board()
     /// 駒の現在位置
     @Published private(set) var current = GridPoint.center
     /// 手札（常に 5 枚保持）
     @Published private(set) var hand: [MoveCard] = []
-    /// 次に引かれるカード（先読み 1 枚）
-    @Published private(set) var next: MoveCard?
+    /// 次に引かれるカード群（先読み 3 枚分を保持）
+    @Published private(set) var nextCards: [MoveCard] = []
     /// ゲームの進行状態
     @Published private(set) var progress: GameProgress = .playing
     /// 手詰まりペナルティが発生したことを UI 側へ伝えるイベント識別子
@@ -49,7 +51,8 @@ final class GameCore: ObservableObject {
     init() {
         // 定数 handSize を用いて初期手札を引き切る
         hand = deck.draw(count: handSize)
-        next = deck.draw()
+        nextCards = deck.draw(count: nextPreviewCount)
+        replenishNextPreview()
         // 初期状態で手詰まりの場合をケア
         checkDeadlockAndApplyPenaltyIfNeeded()
         // 初期状態の残り踏破数を読み上げ
@@ -86,13 +89,16 @@ final class GameCore: ObservableObject {
         hand.remove(at: index)
 
         // 手札補充: 先読みカードを手札へ移動し、新たに 1 枚先読み
-        if let nextCard = next {
-            hand.insert(nextCard, at: index)
+        // 先読みキューから 1 枚取り出して補充する。空の場合のみ山札から直接補充
+        if !nextCards.isEmpty {
+            let upcoming = nextCards.removeFirst()
+            hand.insert(upcoming, at: index)
         } else if let drawn = deck.draw() {
-            // next が無い場合は山札から直接補充
+            // 先読みが枯渇した異常系でもプレイ継続できるよう直接ドロー
             hand.insert(drawn, at: index)
         }
-        next = deck.draw()
+        // 先読み枠が不足していれば必要枚数まで補充する
+        replenishNextPreview()
 
         // クリア判定
         if board.isCleared {
@@ -126,9 +132,10 @@ final class GameCore: ObservableObject {
 
         // デッキに全カードを戻してからまとめて引き直す
         // 既存の手札と先読みカードを一括で捨札へ送り、新しいカードを引く
-        let result = deck.fullRedraw(hand: hand, next: next)
+        let result = deck.fullRedraw(hand: hand, nextCards: nextCards, nextCount: nextPreviewCount)
         hand = result.hand
-        next = result.next
+        nextCards = result.nextCards
+        replenishNextPreview()
 
         // UI へ手詰まりの発生を知らせ、演出やフィードバックを促す
         penaltyEventID = UUID()
@@ -160,16 +167,31 @@ final class GameCore: ObservableObject {
         deck.reset()
         // リセット時も handSize を用いて手札を補充
         hand = deck.draw(count: handSize)
-        next = deck.draw()
+        nextCards = deck.draw(count: nextPreviewCount)
+        replenishNextPreview()
         checkDeadlockAndApplyPenaltyIfNeeded()
         // リセット後の残り踏破数を読み上げ
         announceRemainingTiles()
 
         // デバッグログ: リセット後の状態を表示
-        let nextText = next.map { "\($0)" } ?? "なし"
+        let nextText: String
+        if nextCards.isEmpty {
+            nextText = "なし"
+        } else {
+            nextText = nextCards.map { "\($0)" }.joined(separator: ", ")
+        }
         debugLog("ゲームをリセット: 手札 \(hand), 次カード \(nextText)")
         // デバッグ: リセット直後の盤面を表示
         board.debugDump(current: current)
+    }
+
+    /// 先読み表示用のカードが不足している場合に山札から補充する
+    /// - Note: 山札が尽きている際は捨札から再構築した上で最大 `nextPreviewCount` 枚まで引き直す
+    private func replenishNextPreview() {
+        while nextCards.count < nextPreviewCount {
+            guard let drawn = deck.draw() else { break }
+            nextCards.append(drawn)
+        }
     }
 
     /// 現在の残り踏破数を VoiceOver で通知する
@@ -227,7 +249,8 @@ extension GameCore {
         // 手札と先読みカードを指定デッキから取得
         // テストでも handSize 分の手札を確実に引き直す
         core.hand = core.deck.draw(count: core.handSize)
-        core.next = core.deck.draw()
+        core.nextCards = core.deck.draw(count: core.nextPreviewCount)
+        core.replenishNextPreview()
         // 初期状態での手詰まりをチェック
         core.checkDeadlockAndApplyPenaltyIfNeeded()
         return core

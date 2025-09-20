@@ -106,16 +106,18 @@ struct Deck {
     /// 手札と先読みカードをすべて捨札に送り、新しいカードを引き直す
     /// - Parameters:
     ///   - hand: 現在の手札（渡された枚数分だけ新たに引き直す）
-    ///   - next: 先読みカード
-    /// - Returns: 新しい手札と先読みカードのタプル
-    mutating func fullRedraw(hand: [MoveCard], next: MoveCard?) -> (hand: [MoveCard], next: MoveCard?) {
+    ///   - nextCards: 現在先読みとして保持しているカード群
+    ///   - nextCount: 先読みとして確保したい枚数（例: 3 枚）
+    /// - Returns: 新しい手札と先読みカード群のタプル
+    mutating func fullRedraw(hand: [MoveCard], nextCards: [MoveCard], nextCount: Int) -> (hand: [MoveCard], nextCards: [MoveCard]) {
         // 既存カードをすべて捨札へ
         hand.forEach { discard($0) }
-        if let next = next { discard(next) }
+        nextCards.forEach { discard($0) }
         // hand.count を利用することで、手札枚数が 5 枚でも柔軟に再配布できる
         let newHand = draw(count: hand.count)
-        let newNext = draw()
-        return (newHand, newNext)
+        // 先読み枚数は nextCount を基準に確保する
+        let newNextCards = draw(count: nextCount)
+        return (newHand, newNextCards)
     }
 }
 
