@@ -22,7 +22,8 @@ class GameScene: SKScene {
     private var board = Board()
 
     /// SpriteKit 内で利用するテーマ（SwiftUI 環境が無いので手動で適用する）
-    private var theme = AppTheme(colorScheme: .light)
+    /// - 備考: SpriteKit では SwiftUI の推論が効きにくいため ColorScheme を明示的に指定する
+    private var theme = AppTheme(colorScheme: ColorScheme.light)
 
     /// 1 マスのサイズ
     private var tileSize: CGFloat = 0
