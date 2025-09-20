@@ -1,26 +1,33 @@
 import XCTest
 @testable import Game
 
-/// デッキ再構築の挙動を検証するテスト
+/// 重み付き山札の挙動を検証するテスト
 final class DeckTests: XCTestCase {
-    /// 山札が尽きた際に捨札から再構築されるか
-    func testDeckRebuild() {
-        // テスト専用の小規模デッキを 1 枚だけ用意
-        // 末尾が山札のトップになる点に注意
-        var deck = Deck.makeTestDeck(cards: [.knightUp2Right1])
+    /// 王将型カードが約 1.5 倍の頻度で出現するかを統計的に確認する
+    func testWeightedRandomPrefersKingMoves() {
+        var deck = Deck(seed: 12345)
+        let sampleCount = 20_000 // 十分な試行回数を確保してばらつきを抑える
+        var counts: [MoveCard: Int] = [:]
 
-        // --- 1 回目のドロー ---
-        // 山札から 1 枚引き、同じカードを捨札へ送る
-        let firstDraw = deck.draw()!
-        deck.discard(firstDraw)
+        for _ in 0..<sampleCount {
+            guard let card = deck.draw() else {
+                XCTFail("ドロー結果が nil になるのは想定外です")
+                return
+            }
+            counts[card, default: 0] += 1
+        }
 
-        // --- 2 回目のドロー ---
-        // 山札が空になったため、捨札から自動的に再構築される
-        // この時点で捨札には 1 枚だけ存在するため、同じカードが戻るはず
-        let rebuilt = deck.draw()
+        let kingCards = MoveCard.allCases.filter { $0.isKingType }
+        let otherCards = MoveCard.allCases.filter { !$0.isKingType }
+        let kingTotal = kingCards.reduce(0) { $0 + counts[$1, default: 0] }
+        let otherTotal = otherCards.reduce(0) { $0 + counts[$1, default: 0] }
+        let kingAverage = Double(kingTotal) / Double(kingCards.count)
+        let otherAverage = Double(otherTotal) / Double(otherCards.count)
+        let ratio = kingAverage / otherAverage
 
-        // 再構築後に引いたカードが最初に引いたものと一致するかを検証
-        XCTAssertEqual(rebuilt, firstDraw)
+        // 理論上の比率は 3:2 = 1.5。サンプル誤差を考慮し 1.35〜1.65 を許容
+        XCTAssertGreaterThanOrEqual(ratio, 1.35, "王将型の平均出現数が期待値より低い: \(ratio)")
+        XCTAssertLessThanOrEqual(ratio, 1.65, "王将型の平均出現数が期待値より高い: \(ratio)")
     }
 
     /// MoveCard.allCases にキング型 8 種が含まれているかを検証する
@@ -44,37 +51,41 @@ final class DeckTests: XCTestCase {
         XCTAssertTrue(kingMoves.isSubset(of: allCasesSet))
     }
 
-    /// 王将型カードが他カードの 2 倍枚数で構築されるかを検証する
-    func testDeckContainsDoubleKingCards() {
-        var deck = Deck(seed: 0)
-        var counts: [MoveCard: Int] = [:]
+    /// makeTestDeck で指定した配列が優先的に返され、reset() で再利用できるか確認
+    func testMakeTestDeckUsesPresetSequence() {
+        let preset: [MoveCard] = [
+            .kingUp,
+            .straightRight2,
+            .diagonalDownLeft2
+        ]
+        var deck = Deck.makeTestDeck(cards: preset)
 
-        // 山札が尽きるまで 1 枚ずつ引いて枚数を集計
-        while let card = deck.draw() {
-            counts[card, default: 0] += 1
+        // --- 初回ドロー ---
+        var drawn: [MoveCard] = []
+        for _ in 0..<preset.count {
+            guard let card = deck.draw() else {
+                XCTFail("プリセット配列の長さ分を引けませんでした")
+                return
+            }
+            drawn.append(card)
+        }
+        XCTAssertEqual(drawn, preset, "プリセット順にカードが返却されていません")
+
+        // プリセット消費後も通常の抽選が継続するかを軽く確認（nil が返らないこと）
+        for _ in 0..<10 {
+            XCTAssertNotNil(deck.draw(), "プリセット消費後に抽選が停止しています")
         }
 
-        let kingCards = MoveCard.allCases.filter { $0.isKingType }
-        let otherCards = MoveCard.allCases.filter { !$0.isKingType }
-
-        // 標準カードの枚数を基準値として利用
-        guard let sampleOther = otherCards.first else {
-            XCTFail("標準カードが見つかりません")
-            return
+        // reset() でプリセットが復元されるか
+        deck.reset()
+        drawn.removeAll()
+        for _ in 0..<preset.count {
+            guard let card = deck.draw() else {
+                XCTFail("リセット後にプリセットを再取得できませんでした")
+                return
+            }
+            drawn.append(card)
         }
-        let standardCount = counts[sampleOther, default: 0]
-
-        // 標準カードが 1 枚も存在しない場合は明らかな異常
-        XCTAssertGreaterThan(standardCount, 0)
-
-        // 標準カードはすべて同枚数かを確認
-        otherCards.forEach { card in
-            XCTAssertEqual(counts[card, default: 0], standardCount, "\(card) の枚数が基準と一致しません")
-        }
-
-        // 王将型カードが標準カードの 2 倍になっているかを確認
-        kingCards.forEach { card in
-            XCTAssertEqual(counts[card, default: 0], standardCount * 2, "\(card) の枚数が 2 倍になっていません")
-        }
+        XCTAssertEqual(drawn, preset, "リセット後のプリセット順が一致しません")
     }
 }

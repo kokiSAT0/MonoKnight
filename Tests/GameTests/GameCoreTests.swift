@@ -6,28 +6,28 @@ final class GameCoreTests: XCTestCase {
     /// 手札が全て盤外となった場合にペナルティが加算されるかを確認
     func testDeadlockPenaltyApplied() {
         // --- テスト用デッキ構築 ---
-        // 末尾が山札トップになるため、手札用の 5 枚を最後に配置する
+        // 新実装では「先頭が最初にドローされる」ため、引かせたい順に並べる
         let deck = Deck.makeTestDeck(cards: [
-            // 引き直し後に配られる 5 枚（いずれも盤内へ移動可能）
-            .knightUp2Right1,
-            .straightUp2,
-            .diagonalUpRight2,
-            .straightRight2,
-            .knightUp1Right2,
-            // 引き直し後に表示される先読みカード 3 枚
-            .kingDown,
-            .kingLeft,
-            .kingUpLeft,
-            // 初期表示の先読みカード 3 枚（この順番で補充される想定）
-            .diagonalUpLeft2,
-            .kingUp,
-            .kingRight,
-            // ここから手札 5 枚（すべて盤外になるカード）
-            .knightDown2Left1,
-            .knightDown2Right1,
-            .straightDown2,
+            // --- 初期手札 5 枚（すべて盤外になるカード）---
+            .diagonalDownLeft2,
             .straightLeft2,
-            .diagonalDownLeft2
+            .straightDown2,
+            .knightDown2Right1,
+            .knightDown2Left1,
+            // --- 初期先読み 3 枚（手札補充時にこの順で出現）---
+            .kingRight,
+            .kingUp,
+            .diagonalUpLeft2,
+            // --- 引き直し後の手札 5 枚（盤内へ移動可能）---
+            .kingUpLeft,
+            .kingLeft,
+            .kingDown,
+            .knightUp1Right2,
+            .straightRight2,
+            // --- 引き直し後の先読みカード 3 枚 ---
+            .diagonalUpRight2,
+            .straightUp2,
+            .knightUp2Right1
         ])
         // 左下隅 (0,0) から開始し、全手札が盤外となる状況を用意
         let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 0, y: 0))
@@ -49,26 +49,26 @@ final class GameCoreTests: XCTestCase {
     func testResetReturnsToInitialState() {
         // 上と同じデッキ構成で GameCore を生成し、ペナルティ適用後の状態から開始
         let deck = Deck.makeTestDeck(cards: [
-            // 引き直し後の手札として確保するカード群（盤内に進める 5 枚）
-            .knightUp2Right1,
-            .straightUp2,
-            .diagonalUpRight2,
-            .straightRight2,
-            .knightUp1Right2,
-            // 引き直し後に表示される先読みカード 3 枚
-            .kingDown,
-            .kingLeft,
-            .kingUpLeft,
-            // 初期の先読みカード（この順で補充される）
-            .diagonalUpLeft2,
-            .kingUp,
-            .kingRight,
-            // 初期手札 5 枚（全て盤外でペナルティを誘発）
-            .knightDown2Left1,
-            .knightDown2Right1,
-            .straightDown2,
+            // --- 初期手札 5 枚（全て盤外でペナルティを誘発）---
+            .diagonalDownLeft2,
             .straightLeft2,
-            .diagonalDownLeft2
+            .straightDown2,
+            .knightDown2Right1,
+            .knightDown2Left1,
+            // --- 初期先読みカード 3 枚 ---
+            .kingRight,
+            .kingUp,
+            .diagonalUpLeft2,
+            // --- 引き直し後の手札（盤内に進める 5 枚）---
+            .kingUpLeft,
+            .kingLeft,
+            .kingDown,
+            .knightUp1Right2,
+            .straightRight2,
+            // --- 引き直し後に表示される先読みカード 3 枚 ---
+            .diagonalUpRight2,
+            .straightUp2,
+            .knightUp2Right1
         ])
         let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 0, y: 0))
 
