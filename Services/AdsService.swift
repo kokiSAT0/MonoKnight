@@ -168,7 +168,7 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, FullScre
             request.register(extras)
         }
 
-        InterstitialAd.load(withAdUnitID: interstitialAdUnitID, request: request) { [weak self] ad, error in
+        InterstitialAd.load(with: interstitialAdUnitID, request: request) { [weak self] ad, error in
             Task { [weak self] in
                 await MainActor.run {
                     guard let self else { return }
