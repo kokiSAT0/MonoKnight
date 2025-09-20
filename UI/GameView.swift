@@ -40,14 +40,28 @@ struct GameView: View {
     /// メニューからの操作確認ダイアログで使用する一時的なアクション保持
     @State private var pendingMenuAction: GameMenuAction?
 
+    /// デフォルトのサービスを利用して `GameView` を生成するコンビニエンスイニシャライザ
+    /// - Parameter onRequestReturnToTitle: タイトル画面への遷移要求クロージャ（省略可）
+    init(onRequestReturnToTitle: (() -> Void)? = nil) {
+        // Swift 6 のコンカレンシールールではデフォルト引数で `@MainActor` なシングルトンへ
+        // 直接アクセスできないため、明示的に同一型の別イニシャライザへ委譲する。
+        // ここで `GameCenterService.shared` / `AdsService.shared` を取得することで、
+        // メインアクター上から安全に依存を解決できるようにする。
+        self.init(
+            gameCenterService: GameCenterService.shared,
+            adsService: AdsService.shared,
+            onRequestReturnToTitle: onRequestReturnToTitle
+        )
+    }
+
     /// 初期化で GameCore と GameScene を連結する
     /// 依存するサービスを外部から注入できるようにする初期化処理
     /// - Parameters:
-    ///   - gameCenterService: Game Center 連携用サービス（デフォルトはシングルトン）
-    ///   - adsService: 広告表示用サービス（デフォルトはシングルトン）
+    ///   - gameCenterService: Game Center 連携用サービス
+    ///   - adsService: 広告表示用サービス
     init(
-        gameCenterService: GameCenterServiceProtocol = GameCenterService.shared,
-        adsService: AdsServiceProtocol = AdsService.shared,
+        gameCenterService: GameCenterServiceProtocol,
+        adsService: AdsServiceProtocol,
         onRequestReturnToTitle: (() -> Void)? = nil
     ) {
         // GameCore の生成。StateObject へ包んで保持する
