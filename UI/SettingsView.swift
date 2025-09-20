@@ -9,6 +9,10 @@ struct SettingsView: View {
     // ユーザーのハプティクス利用有無を永続化する。デフォルトは有効。
     @AppStorage("haptics_enabled") private var hapticsEnabled: Bool = true
 
+    // MARK: - ガイドモード設定
+    // 盤面の移動候補ハイライトを保存し、GameView 側の @AppStorage と連動させる。
+    @AppStorage("guide_mode_enabled") private var guideModeEnabled: Bool = true
+
     // MARK: - 戦績管理
     // ベスト手数を UserDefaults から取得・更新する。未設定時は Int.max で初期化しておく。
     @AppStorage("best_moves_5x5") private var bestMoves: Int = .max
@@ -48,6 +52,16 @@ struct SettingsView: View {
                 } footer: {
                     // 広告警告などの振動もオフになることを明示
                     Text("ゲーム内操作や広告警告の振動を制御します。オフにすると警告通知でも振動しません。")
+                }
+
+                // ガイドモードのオン/オフをユーザーが選択できるようにするセクション
+                Section {
+                    Toggle("ガイドモード（移動候補をハイライト）", isOn: $guideModeEnabled)
+                } header: {
+                    Text("ガイド")
+                } footer: {
+                    // どのような効果があるかを具体的に説明し、不要ならオフにできると案内
+                    Text("手札から移動できるマスを盤面上で光らせます。集中して考えたい場合はオフにできます。")
                 }
 
                 // プライバシー操作セクション

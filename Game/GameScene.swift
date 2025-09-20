@@ -33,6 +33,9 @@ class GameScene: SKScene {
     /// 各マスに対応するノードを保持
     private var tileNodes: [GridPoint: SKShapeNode] = [:]
 
+    /// ガイドモードで使用するハイライトノードのキャッシュ
+    private var guideHighlightNodes: [GridPoint: SKShapeNode] = [:]
+
     /// 駒を表すノード
     private var knightNode: SKShapeNode?
 
@@ -122,6 +125,7 @@ class GameScene: SKScene {
         node.fillColor = theme.skBoardKnight
         node.strokeColor = .clear
         node.position = position(for: GridPoint.center)
+        node.zPosition = 2  // ガイドハイライトより前面に表示して駒が埋もれないようにする
         addChild(node)
         knightNode = node
     }
@@ -153,6 +157,60 @@ class GameScene: SKScene {
                 node.fillColor = theme.skBoardTileUnvisited
             }
         }
+        // タイル色が変わった際もガイドハイライトの色味を再評価して自然なバランスを保つ
+        updateGuideHighlightColors()
+    }
+
+    /// ガイドモードで指定されたマスにハイライトを表示する
+    /// - Parameter points: 発光させたい盤面座標の集合
+    func updateGuideHighlights(_ points: Set<GridPoint>) {
+        // 盤外座標が渡されても安全に無視できるよう、盤面内に限定した集合を用意
+        let validPoints = Set(points.filter { board.contains($0) })
+
+        // 既存ハイライトのうち対象外になったものを削除
+        for (point, node) in guideHighlightNodes where !validPoints.contains(point) {
+            node.removeFromParent()
+            guideHighlightNodes.removeValue(forKey: point)
+        }
+
+        // 必要なマスへハイライトを再構成
+        for point in validPoints {
+            if let node = guideHighlightNodes[point] {
+                configureGuideHighlightNode(node, for: point)
+            } else {
+                let node = SKShapeNode()
+                configureGuideHighlightNode(node, for: point)
+                addChild(node)
+                guideHighlightNodes[point] = node
+            }
+        }
+    }
+
+    /// 既存のハイライトノードを現在のテーマとマスサイズに合わせて更新
+    private func updateGuideHighlightColors() {
+        for (point, node) in guideHighlightNodes {
+            configureGuideHighlightNode(node, for: point)
+        }
+    }
+
+    /// ハイライトノードへ共通のスタイルと位置を適用する
+    /// - Parameters:
+    ///   - node: 更新対象のノード
+    ///   - point: 対応する盤面座標
+    private func configureGuideHighlightNode(_ node: SKShapeNode, for point: GridPoint) {
+        let radius = tileSize * 0.38
+        let rect = CGRect(x: -radius, y: -radius, width: radius * 2, height: radius * 2)
+        node.path = CGPath(ellipseIn: rect, transform: nil)
+
+        let baseColor = theme.skBoardGuideHighlight
+        node.fillColor = baseColor.withAlphaComponent(0.28)
+        node.strokeColor = baseColor.withAlphaComponent(0.85)
+        node.lineWidth = tileSize * 0.08
+        node.glowWidth = tileSize * 0.2
+        node.position = position(for: point)
+        node.zPosition = 1  // タイルより前面、駒より背面で控えめに表示
+        node.isAntialiased = true
+        node.blendMode = .alpha
     }
 
     /// テーマを SpriteKit のノードへ適用し、背景や各マスの色を更新する
@@ -172,6 +230,9 @@ class GameScene: SKScene {
 
         // 踏破状態による塗り分けもテーマに合わせて再適用
         updateTileColors()
+
+        // ガイドハイライトも最新のテーマ色へ刷新
+        updateGuideHighlightColors()
     }
 
     /// 駒を指定座標へ移動する
