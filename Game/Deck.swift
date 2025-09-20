@@ -4,7 +4,7 @@ import GameplayKit
 #endif
 
 /// 山札・手札・捨札を管理するデッキ構造体
-/// - Note: MoveCard を 5 枚ずつ計 80 枚で構成し、
+/// - Note: 標準カードは 1 種につき 5 枚、王将型はその 2 倍の 10 枚を投入し、
 ///         GameplayKit の乱数でシャッフルを行う。
 struct Deck {
     // MARK: - 内部状態
@@ -21,6 +21,11 @@ struct Deck {
     private var random = SystemRandomNumberGenerator()
     #endif
 
+    /// 標準カード 1 種あたりの基準枚数
+    private static let standardCopiesPerCard = 5
+    /// 王将型カード 1 種あたりの枚数（標準の 2 倍）
+    private static let kingCopiesPerCard = Self.standardCopiesPerCard * 2
+
     // MARK: - 初期化
     /// デッキを生成する
     /// - Parameter seed: 乱数シード。指定すると再現性のあるシャッフルとなる
@@ -32,17 +37,19 @@ struct Deck {
             random = GKMersenneTwisterRandomSource()
         }
         #endif
-        reset() // 80 枚の山札を構築してシャッフル
+        reset() // 各種カードを所定枚数だけ構築してシャッフル
     }
 
     // MARK: - デッキ構築
-    /// 山札と捨札をリセットし、80 枚のカードをシャッフルする
+    /// 山札と捨札をリセットし、配分調整済みのカードをシャッフルする
     mutating func reset() {
         drawPile.removeAll()
         discardPile.removeAll()
-        // 各カードを 5 枚ずつ用意
-        for _ in 0..<5 {
-            drawPile.append(contentsOf: MoveCard.allCases)
+        // 王将型は標準カードの 2 倍、それ以外は基準枚数を追加
+        for card in MoveCard.allCases {
+            let copies = card.isKingType ? Deck.kingCopiesPerCard : Deck.standardCopiesPerCard
+            // Array(repeating:) を使って同一カードを必要枚数だけ追加
+            drawPile.append(contentsOf: Array(repeating: card, count: copies))
         }
         shuffle()
     }
