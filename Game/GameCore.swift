@@ -114,6 +114,49 @@ final class GameCore: ObservableObject {
         board.debugDump(current: current)
     }
 
+    /// ペナルティ発生時の共通処理で利用する原因の区別
+    /// - Note: デバッグログや VoiceOver の文言を分岐させるためだけの軽量な列挙体
+    private enum PenaltyTrigger {
+        case automatic
+        case manual
+
+        /// デバッグログ向けの説明文
+        var debugDescription: String {
+            switch self {
+            case .automatic:
+                return "自動検出"
+            case .manual:
+                return "ユーザー操作"
+            }
+        }
+
+        /// VoiceOver で読み上げる案内文を用意
+        var voiceOverMessage: String {
+            switch self {
+            case .automatic:
+                return "手詰まりのため手札を引き直しました。手数が5増加します。"
+            case .manual:
+                return "ペナルティを使用して手札を引き直しました。手数が5増加します。"
+            }
+        }
+    }
+
+    /// UI 側から手動でペナルティを支払い、手札を引き直すための公開メソッド
+    /// - Note: 既にゲームが終了している場合や、ペナルティ中は何もしない
+    func applyManualPenaltyRedraw() {
+        // クリア済み・ペナルティ処理中は無視し、進行中のみ受け付ける
+        guard progress == .playing else { return }
+
+        // デバッグログ: ユーザー操作による引き直しを記録
+        debugLog("ユーザー操作でペナルティ引き直しを実行")
+
+        // 共通処理を用いて手札を入れ替える
+        applyPenaltyRedraw(trigger: .manual)
+
+        // 引き直し後も盤外カードしか無いケースをケア
+        checkDeadlockAndApplyPenaltyIfNeeded()
+    }
+
     /// 手札がすべて盤外となる場合にペナルティを課し、手札を引き直す
     private func checkDeadlockAndApplyPenaltyIfNeeded() {
         let allUnusable = hand.allSatisfy { card in
@@ -125,9 +168,21 @@ final class GameCore: ObservableObject {
         // デバッグログ: 手札詰まりの発生を通知
         debugLog("手札が全て使用不可のためペナルティを適用")
 
+        // 共通処理を呼び出して手札・先読みを更新
+        applyPenaltyRedraw(trigger: .automatic)
+
+        // 引き直し後も詰みの場合があるので再チェック
+        checkDeadlockAndApplyPenaltyIfNeeded()
+    }
+
+    /// ペナルティ適用に伴う手札再構成・通知処理を一箇所へ集約する
+    /// - Parameter trigger: 自動検出か手動操作かを識別するフラグ
+    private func applyPenaltyRedraw(trigger: PenaltyTrigger) {
+        // ペナルティ処理中は .deadlock 状態として UI 側の入力を抑制する
+        progress = .deadlock
+
         // ペナルティ加算 (+5 手数)
         penaltyCount += 5
-        progress = .deadlock
 
         // 現在の手札・先読みカードはそのまま破棄し、新しいカードを引き直す
         hand = deck.draw(count: handSize)
@@ -139,18 +194,17 @@ final class GameCore: ObservableObject {
 
 #if canImport(UIKit)
         // VoiceOver 利用者向けにペナルティ内容をアナウンス
-        let message = "手詰まりのため手札を引き直しました。手数が5増加します。"
-        UIAccessibility.post(notification: .announcement, argument: message)
+        UIAccessibility.post(notification: .announcement, argument: trigger.voiceOverMessage)
 #endif
 
-        // デバッグログ: 引き直し後の手札を表示
+        // デバッグログ: 引き直し後の状態を詳細に記録
+        debugLog("ペナルティ引き直しを実行（トリガー: \(trigger.debugDescription)）")
         debugLog("引き直し後の手札: \(hand)")
         // デバッグ: 引き直し後の盤面を表示
         board.debugDump(current: current)
 
-        // 引き直し後も詰みの場合があるので再チェック
+        // 手札更新が完了したら再びプレイ状態へ戻す
         progress = .playing
-        checkDeadlockAndApplyPenaltyIfNeeded()
     }
 
     /// ゲームを最初からやり直す
