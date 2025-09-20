@@ -77,11 +77,21 @@ struct GameView: View {
 
                         // 先読みカードが存在する場合に表示
                         if let next = core.next {
-                            HStack(spacing: 4) {
+                            VStack(alignment: .leading, spacing: 6) {
+                                // MARK: - 先読みカードのラベル
+                                // テキストでセクションを明示して VoiceOver からも認識しやすくする
                                 Text("次のカード")
                                     .font(.caption)
-                                MoveCardIllustrationView(card: next)
-                                    .opacity(0.6)  // 先読みは操作不可なので半透明
+                                    .foregroundColor(.white.opacity(0.7))
+                                    .accessibilityHidden(true)  // ラベル自体は MoveCardIllustrationView のラベルに統合する
+
+                                // MARK: - 先読みカード本体
+                                // MoveCardIllustrationView の next モードで専用スタイルを適用しつつ、操作不可のバッジを重ねる
+                                ZStack {
+                                    MoveCardIllustrationView(card: next, mode: .next)
+                                    NextCardOverlayView()
+                                }
+                                .allowsHitTesting(false)  // 先読みはタップ不可であることを UI 上でも保証
                             }
                         }
                     }
@@ -223,6 +233,64 @@ struct GameView: View {
             .accessibilityHidden(true)  // プレースホルダは VoiceOver の読み上げ対象外にして混乱を避ける
     }
 
+}
+
+// MARK: - 先読みカード専用のオーバーレイ
+/// 「NEXT」バッジと点滅インジケータを重ね、操作不可であることを視覚的に伝える補助ビュー
+private struct NextCardOverlayView: View {
+    /// 点滅インジケータの明るさを制御するステート
+    @State private var isIndicatorBright = false
+
+    var body: some View {
+        ZStack {
+            // MARK: - 上部の NEXT バッジ
+            VStack {
+                HStack {
+                    Text("NEXT")
+                        .font(.system(size: 10, weight: .bold, design: .rounded))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .foregroundColor(.white)
+                        .background(
+                            Capsule()
+                                .strokeBorder(Color.white.opacity(0.7), lineWidth: 1)
+                                .background(Capsule().fill(Color.white.opacity(0.18)))
+                        )
+                        .padding([.top, .leading], 6)
+                        .accessibilityHidden(true)  // バッジは視覚的強調のみなので読み上げ対象外にする
+                    Spacer()
+                }
+                Spacer()
+            }
+
+            // MARK: - 右下の点滅インジケータ
+            VStack {
+                Spacer()
+                HStack {
+                    Spacer()
+                    Circle()
+                        .stroke(Color.white.opacity(0.7), lineWidth: 1.5)
+                        .frame(width: 16, height: 16)
+                        .overlay(
+                            Circle()
+                                .fill(Color.white.opacity(0.85))
+                                .frame(width: 8, height: 8)
+                                .opacity(isIndicatorBright ? 1.0 : 0.2)
+                        )
+                        .shadow(color: Color.white.opacity(isIndicatorBright ? 0.6 : 0.1), radius: isIndicatorBright ? 4 : 0)
+                        .padding(6)
+                        .accessibilityHidden(true)  // 視覚的なアクセントのみのため VoiceOver では読み上げない
+                }
+            }
+        }
+        .onAppear {
+            // MARK: - 点滅アニメーションを開始
+            withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) {
+                isIndicatorBright = true
+            }
+        }
+        .allowsHitTesting(false)  // 補助ビューはタップ処理に影響させない
+    }
 }
 
 // MARK: - プレビュー
