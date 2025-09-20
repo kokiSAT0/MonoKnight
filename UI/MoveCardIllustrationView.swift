@@ -94,7 +94,7 @@ struct MoveCardIllustrationView: View {
             case .hand:
                 return .isButton
             case .next:
-                return .staticText
+                return .isStaticText
             }
         }
 
@@ -102,7 +102,7 @@ struct MoveCardIllustrationView: View {
         var traitsToRemove: AccessibilityTraits {
             switch self {
             case .hand:
-                return .staticText
+                return .isStaticText
             case .next:
                 return .isButton
             }
