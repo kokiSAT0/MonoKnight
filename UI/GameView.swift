@@ -486,9 +486,21 @@ struct GameView: View {
     /// SpriteKit シーンの配色を現在のテーマに合わせて調整する
     /// - Parameter scheme: ユーザーが選択中のライト/ダーク種別
     private func applyScenePalette(for scheme: ColorScheme) {
-        // SwiftUI 環境のカラースキームを明示指定した AppTheme を生成し、SpriteKit 側へ適用
-        let spriteTheme = AppTheme(colorScheme: scheme)
-        scene.applyTheme(spriteTheme)
+        // SwiftUI 環境のカラースキームを明示指定した AppTheme を生成
+        let appTheme = AppTheme(colorScheme: scheme)
+
+        // AppTheme から SpriteKit 用のカラーパレットへ値を写し替える
+        let palette = GameScenePalette(
+            boardBackground: appTheme.skBoardBackground,
+            boardGridLine: appTheme.skBoardGridLine,
+            boardTileVisited: appTheme.skBoardTileVisited,
+            boardTileUnvisited: appTheme.skBoardTileUnvisited,
+            boardKnight: appTheme.skBoardKnight,
+            boardGuideHighlight: appTheme.skBoardGuideHighlight
+        )
+
+        // 変換したパレットを SpriteKit シーンへ適用し、UI と配色を一致させる
+        scene.applyTheme(palette)
     }
 
     /// ガイドモードの設定と現在の手札から移動可能なマスを算出し、SpriteKit 側へ通知する
