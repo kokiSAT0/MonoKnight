@@ -1,4 +1,5 @@
 import Foundation
+import Game      // debugLog / debugError などゲームロジック側のデバッグユーティリティを利用するために追加
 import GameKit
 import UIKit
 import SwiftUI // @AppStorage を利用するために追加
