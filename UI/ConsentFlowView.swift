@@ -2,6 +2,9 @@ import SwiftUI
 
 /// 初回起動時に表示するオンボーディングビュー
 /// 広告・トラッキングに関する説明と同意取得を行う
+// Swift 6 のコンカレンシーモデルでは MainActor 以外から AdsService.shared に触れるとエラーになるため、
+// ビュー全体を MainActor 管理下に置き、UI 系処理をメインスレッドで扱うことを明示する
+@MainActor
 struct ConsentFlowView: View {
     /// 広告サービス。ATT/UMP の許諾処理を呼び出す
     private let adsService: AdsServiceProtocol
