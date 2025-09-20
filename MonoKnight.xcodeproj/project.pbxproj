@@ -9,25 +9,17 @@
 /* Begin PBXBuildFile section */
 		729791562E7EB35900361471 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 729791552E7EB35900361471 /* LaunchScreen.storyboard */; };
 		7297918B2E7F43F300361471 /* Game in Frameworks */ = {isa = PBXBuildFile; productRef = 7297918A2E7F43F300361471 /* Game */; };
-		7297919A2E7F499700361471 /* GameScenePalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = 729791992E7F499700361471 /* GameScenePalette.swift */; };
-		7297919B2E7F499700361471 /* DealtCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 729791982E7F499700361471 /* DealtCard.swift */; };
 		72CF37F02E71616C0093B180 /* MonoKnightApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000004 /* MonoKnightApp.swift */; };
 		72CF38052E7162E20093B180 /* ErrorReporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF37F92E7162E20093B180 /* ErrorReporter.swift */; };
 		72CF38072E7162E20093B180 /* GameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF38002E7162E20093B180 /* GameView.swift */; };
-		72CF38082E7162E20093B180 /* DebugLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF37F12E7162E20093B180 /* DebugLog.swift */; };
-		72CF38092E7162E20093B180 /* Deck.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF37F22E7162E20093B180 /* Deck.swift */; };
-		72CF380A2E7162E20093B180 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF37F52E7162E20093B180 /* Models.swift */; };
 		72CF380B2E7162E20093B180 /* AdsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF37F82E7162E20093B180 /* AdsService.swift */; };
 		72CF380C2E7162E20093B180 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF38032E7162E20093B180 /* SettingsView.swift */; };
-		72CF380D2E7162E20093B180 /* GameCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF37F32E7162E20093B180 /* GameCore.swift */; };
 		72CF380E2E7162E20093B180 /* ServiceMocks.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF37FB2E7162E20093B180 /* ServiceMocks.swift */; };
 		72CF380F2E7162E20093B180 /* ResultView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF38012E7162E20093B180 /* ResultView.swift */; };
 		72CF38102E7162E20093B180 /* ConsentFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF37FE2E7162E20093B180 /* ConsentFlowView.swift */; };
 		72CF38112E7162E20093B180 /* GameCenterService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF37FA2E7162E20093B180 /* GameCenterService.swift */; };
 		72CF38122E7162E20093B180 /* StoreService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF37FC2E7162E20093B180 /* StoreService.swift */; };
-		72CF38132E7162E20093B180 /* MoveCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF37F62E7162E20093B180 /* MoveCard.swift */; };
 		72CF38142E7162E20093B180 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF38022E7162E20093B180 /* RootView.swift */; };
-		72CF38152E7162E20093B180 /* GameScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF37F42E7162E20093B180 /* GameScene.swift */; };
 		72CF38182E7252460093B180 /* GoogleMobileAds in Frameworks */ = {isa = PBXBuildFile; productRef = 72CF38172E7252460093B180 /* GoogleMobileAds */; };
 		72F554A82E7E40100098A1B0 /* MoveCardIllustrationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72F554A72E7E40100098A1B0 /* MoveCardIllustrationView.swift */; };
 		72F554AC2E7E60850098A1B0 /* HowToPlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72F554A92E7E60850098A1B0 /* HowToPlayView.swift */; };
@@ -385,23 +377,15 @@
 			files = (
 				72CF38052E7162E20093B180 /* ErrorReporter.swift in Sources */,
 				72CF38072E7162E20093B180 /* GameView.swift in Sources */,
-				72CF38082E7162E20093B180 /* DebugLog.swift in Sources */,
-				72CF38092E7162E20093B180 /* Deck.swift in Sources */,
-				72CF380A2E7162E20093B180 /* Models.swift in Sources */,
-				72CF380B2E7162E20093B180 /* AdsService.swift in Sources */,
-				72CF380C2E7162E20093B180 /* SettingsView.swift in Sources */,
-				72CF380D2E7162E20093B180 /* GameCore.swift in Sources */,
-				72CF380E2E7162E20093B180 /* ServiceMocks.swift in Sources */,
-				72F554A82E7E40100098A1B0 /* MoveCardIllustrationView.swift in Sources */,
-				72CF380F2E7162E20093B180 /* ResultView.swift in Sources */,
-				72CF38102E7162E20093B180 /* ConsentFlowView.swift in Sources */,
-				72CF38112E7162E20093B180 /* GameCenterService.swift in Sources */,
-				72CF38122E7162E20093B180 /* StoreService.swift in Sources */,
-				72CF38132E7162E20093B180 /* MoveCard.swift in Sources */,
-				7297919A2E7F499700361471 /* GameScenePalette.swift in Sources */,
-				7297919B2E7F499700361471 /* DealtCard.swift in Sources */,
-				72CF38142E7162E20093B180 /* RootView.swift in Sources */,
-				72CF38152E7162E20093B180 /* GameScene.swift in Sources */,
+                               72CF380B2E7162E20093B180 /* AdsService.swift in Sources */,
+                               72CF380C2E7162E20093B180 /* SettingsView.swift in Sources */,
+                               72CF380E2E7162E20093B180 /* ServiceMocks.swift in Sources */,
+                               72F554A82E7E40100098A1B0 /* MoveCardIllustrationView.swift in Sources */,
+                               72CF380F2E7162E20093B180 /* ResultView.swift in Sources */,
+                               72CF38102E7162E20093B180 /* ConsentFlowView.swift in Sources */,
+                               72CF38112E7162E20093B180 /* GameCenterService.swift in Sources */,
+                               72CF38122E7162E20093B180 /* StoreService.swift in Sources */,
+                               72CF38142E7162E20093B180 /* RootView.swift in Sources */,
 				72CF37F02E71616C0093B180 /* MonoKnightApp.swift in Sources */,
 				72F554AC2E7E60850098A1B0 /* HowToPlayView.swift in Sources */,
 				72F554AD2E7E60850098A1B0 /* AppTheme.swift in Sources */,

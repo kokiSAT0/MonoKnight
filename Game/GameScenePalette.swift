@@ -3,19 +3,19 @@ import SpriteKit
 
 /// SpriteKit で盤面表示に利用するカラーパレット
 /// - Note: SwiftUI とは別モジュールになるため、必要な `SKColor` 値のみを厳選して保持する
-struct GameScenePalette {
+public struct GameScenePalette {
     /// 盤面の背景色
-    let boardBackground: SKColor
+    public let boardBackground: SKColor
     /// グリッド線の色
-    let boardGridLine: SKColor
+    public let boardGridLine: SKColor
     /// 踏破済みタイルの塗り色
-    let boardTileVisited: SKColor
+    public let boardTileVisited: SKColor
     /// 未踏破タイルの塗り色
-    let boardTileUnvisited: SKColor
+    public let boardTileUnvisited: SKColor
     /// 駒の塗り色
-    let boardKnight: SKColor
+    public let boardKnight: SKColor
     /// ガイド枠の線色
-    let boardGuideHighlight: SKColor
+    public let boardGuideHighlight: SKColor
 
     /// 主要な色をまとめて指定できるイニシャライザ
     /// - Parameters:
@@ -25,7 +25,7 @@ struct GameScenePalette {
     ///   - boardTileUnvisited: 未踏破タイル色
     ///   - boardKnight: 駒の塗り色
     ///   - boardGuideHighlight: ガイド枠の線色
-    init(
+    public init(
         boardBackground: SKColor,
         boardGridLine: SKColor,
         boardTileVisited: SKColor,
@@ -42,9 +42,13 @@ struct GameScenePalette {
     }
 }
 
-extension GameScenePalette {
+public extension GameScenePalette {
+    /// SwiftUI 側でテーマが決まっていない時に使う共通フォールバック
+    /// - Note: ライトテーマ向けの値を採用し、最低限の視認性を確保する
+    public static var fallback: GameScenePalette { fallbackLight }
+
     /// SpriteKit 側にテーマが適用されるまで使用するフォールバック（ライト寄りの仮色）
-    static let fallbackLight = GameScenePalette(
+    public static let fallbackLight = GameScenePalette(
         boardBackground: SKColor(white: 0.94, alpha: 1.0),
         boardGridLine: SKColor(white: 0.15, alpha: 1.0),
         boardTileVisited: SKColor(white: 0.75, alpha: 1.0),
@@ -54,7 +58,7 @@ extension GameScenePalette {
     )
 
     /// ダークテーマ適用前後でのデバッグ確認用のフォールバック
-    static let fallbackDark = GameScenePalette(
+    public static let fallbackDark = GameScenePalette(
         boardBackground: SKColor(white: 0.05, alpha: 1.0),
         boardGridLine: SKColor(white: 0.75, alpha: 1.0),
         boardTileVisited: SKColor(white: 0.35, alpha: 1.0),
