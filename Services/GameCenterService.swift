@@ -173,13 +173,15 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
               let root = scene.windows.first?.rootViewController else { return }
 
         // リーダーボード用のコントローラを生成
-        // - Note: iOS17 以降で推奨される最新の初期化メソッドを使用する
-        let vc = GKGameCenterViewController(state: .leaderboards)
+        // - Note: iOS14 以降で推奨される `leaderboardID` 指定の初期化メソッドを利用する
+        //         これによりデプリケーション警告を解消しつつ、従来と同じ ID／スコープを適用できる
+        let vc = GKGameCenterViewController(
+            leaderboardID: "kc_moves_5x5",  // 既存と同じリーダーボード ID を明示
+            playerScope: .global,              // これまで通り全世界ランキングを参照
+            timeScope: .allTime                // 通算ランキング表示（過去の挙動を維持）
+        )
+        // デリゲート設定は従来通り維持し、閉じる操作のハンドリングを可能にする
         vc.gameCenterDelegate = self
-        // 表示するリーダーボード ID を明示することで従来と同じ画面を開く
-        vc.leaderboardIdentifier = "kc_moves_5x5"
-        // タイムスコープも従来の仕様（通算ランキング）に合わせて設定
-        vc.leaderboardTimeScope = .allTime
 
         // ランキング表示中はアクセスポイントが不要なので非表示にする
         deactivateAccessPoint()
