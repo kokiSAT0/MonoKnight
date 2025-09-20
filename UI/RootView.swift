@@ -100,7 +100,8 @@ struct RootView: View {
 }
 
 // MARK: - タイトル画面（簡易版）
-private struct TitleScreenView: View {
+// fileprivate にすることで同ファイル内の RootView から初期化可能にする
+fileprivate struct TitleScreenView: View {
     /// ゲーム開始ボタンが押された際の処理
     let onStart: () -> Void
 
