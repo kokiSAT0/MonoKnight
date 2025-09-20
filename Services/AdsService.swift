@@ -32,7 +32,7 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, FullScre
     @AppStorage("ads_should_use_npa") private var shouldUseNPA: Bool = false
 
     /// インタースティシャル広告のキャッシュ
-    private var interstitial: GADInterstitialAd?
+    private var interstitial: InterstitialAd?
     /// 直近に広告を表示した日時（頻度制御用）
     private var lastInterstitialDate: Date?
     /// 1プレイ1回の制御フラグ
@@ -159,7 +159,7 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, FullScre
             request.register(extras)
         }
 
-        GADInterstitialAd.load(withAdUnitID: interstitialAdUnitID, request: request) { [weak self] ad, error in
+        InterstitialAd.load(withAdUnitID: interstitialAdUnitID, request: request) { [weak self] ad, error in
             Task { [weak self] in
                 await MainActor.run {
                     guard let self else { return }
