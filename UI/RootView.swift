@@ -2,6 +2,9 @@ import SwiftUI
 
 /// ゲーム画面と設定画面を切り替えるルートビュー
 /// `TabView` を用いて 2 つのタブを提供する
+@MainActor
+/// SwiftUI ビュー全体を MainActor 上で扱い、MainActor 隔離されたシングルトン（GameCenterService / AdsService）へアクセスする際の競合を防ぐ
+/// - NOTE: Swift 6 で厳格化された並行性モデルに追従し、ビルドエラー（MainActor 分離違反）を確実に回避するための指定
 struct RootView: View {
     /// Game Center 連携を扱うサービス（プロトコル型で受け取る）
     private let gameCenterService: GameCenterServiceProtocol
