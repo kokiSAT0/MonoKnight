@@ -429,6 +429,17 @@ struct AppTheme: DynamicProperty {
         }
     }
 
+    /// ガイドモードで候補マスを照らす際の基準色
+    /// - Note: ライトでは少し深みのあるアンバー、ダークでは柔らかいゴールドに寄せてコントラストを確保する
+    var boardGuideHighlight: Color {
+        switch resolvedColorScheme {
+        case .dark:
+            return Color(red: 1.0, green: 0.88, blue: 0.55)
+        default:
+            return Color(red: 0.95, green: 0.72, blue: 0.25)
+        }
+    }
+
     #if canImport(UIKit)
     /// 指定したライト/ダークそれぞれの Color から動的 UIColor を生成するユーティリティ
     private func dynamicUIColor(light: Color, dark: Color) -> UIColor {
@@ -494,6 +505,14 @@ struct AppTheme: DynamicProperty {
             dark: color(for: .dark, keyPath: \.boardKnight)
         )
     }
+
+    /// SpriteKit ガイドハイライトの UIColor 版
+    var uiBoardGuideHighlight: UIColor {
+        dynamicUIColor(
+            light: color(for: .light, keyPath: \.boardGuideHighlight),
+            dark: color(for: .dark, keyPath: \.boardGuideHighlight)
+        )
+    }
     #endif
 
     #if canImport(SpriteKit) && canImport(UIKit)
@@ -511,5 +530,8 @@ struct AppTheme: DynamicProperty {
 
     /// SpriteKit の SKColor へ変換した駒の塗り色
     var skBoardKnight: SKColor { SKColor(cgColor: uiBoardKnight.cgColor) }
+
+    /// SpriteKit の SKColor へ変換したガイドハイライト色
+    var skBoardGuideHighlight: SKColor { SKColor(cgColor: uiBoardGuideHighlight.cgColor) }
     #endif
 }

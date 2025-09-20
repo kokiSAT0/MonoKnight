@@ -30,6 +30,8 @@ struct GameView: View {
     private let adsService: AdsServiceProtocol
     /// ハプティクスを有効にするかどうかの設定値
     @AppStorage("haptics_enabled") private var hapticsEnabled: Bool = true
+    /// ガイドモードのオン/オフを永続化し、盤面ハイライト表示を制御する
+    @AppStorage("guide_mode_enabled") private var guideModeEnabled: Bool = true
     /// タイトル画面へ戻るアクションを親から注入する（未指定なら nil で何もしない）
     private let onRequestReturnToTitle: (() -> Void)?
     /// メニューからの操作確認ダイアログで使用する一時的なアクション保持
@@ -88,10 +90,14 @@ struct GameView: View {
             // ビュー再表示時に GameScene へ GameCore の参照を再連結し、弱参照が nil にならないよう保証
             scene.gameCore = core
             applyScenePalette(for: colorScheme)
+            // 初期状態でもガイド表示のオン/オフに応じてハイライトを更新
+            refreshGuideHighlights()
         }
         // ライト/ダーク切り替えが発生した場合も SpriteKit 側へ反映
         .onChange(of: colorScheme) { _, newScheme in
             applyScenePalette(for: newScheme)
+            // カラースキーム変更時はガイドの色味も再描画して視認性を確保
+            refreshGuideHighlights()
         }
         // progress が .cleared へ変化したタイミングで結果画面を表示
         .onChange(of: core.progress) { _, newValue in
@@ -127,6 +133,22 @@ struct GameView: View {
             }
             penaltyDismissWorkItem = workItem
             DispatchQueue.main.asyncAfter(deadline: .now() + 2.6, execute: workItem)
+        }
+        // 手札内容が変わるたびに移動候補を再計算し、ガイドハイライトを更新
+        .onReceive(core.$hand) { _ in
+            refreshGuideHighlights()
+        }
+        // ガイドモードのオン/オフを切り替えたら即座に SpriteKit へ反映
+        .onChange(of: guideModeEnabled) { _, _ in
+            refreshGuideHighlights()
+        }
+        // 進行状態が変化した際もハイライトを整理（手詰まり・クリア時は消灯）
+        .onReceive(core.$progress) { progress in
+            if progress == .playing {
+                refreshGuideHighlights()
+            } else {
+                scene.updateGuideHighlights([])
+            }
         }
 
         // シートで結果画面を表示
@@ -229,13 +251,19 @@ struct GameView: View {
                 scene.size = CGSize(width: width, height: width)
                 scene.updateBoard(core.board)
                 scene.moveKnight(to: core.current)
+                // 盤面の同期が整ったタイミングでガイド表示も更新
+                refreshGuideHighlights()
             }
             // GameCore 側の更新を受け取り、SpriteKit の表示へ同期する
             .onReceive(core.$board) { newBoard in
                 scene.updateBoard(newBoard)
+                // 盤面の踏破状況が変わっても候補マスの情報を最新化
+                refreshGuideHighlights()
             }
             .onReceive(core.$current) { newPoint in
                 scene.moveKnight(to: newPoint)
+                // 現在位置が変化したら移動候補も追従する
+                refreshGuideHighlights()
             }
     }
 
@@ -353,6 +381,26 @@ struct GameView: View {
         // SwiftUI 環境のカラースキームを明示指定した AppTheme を生成し、SpriteKit 側へ適用
         let spriteTheme = AppTheme(colorScheme: scheme)
         scene.applyTheme(spriteTheme)
+    }
+
+    /// ガイドモードの設定と現在の手札から移動可能なマスを算出し、SpriteKit 側へ通知する
+    private func refreshGuideHighlights() {
+        // ガイドモードが無効・ゲームが停止状態ならハイライトをすべて消灯
+        guard guideModeEnabled, core.progress == .playing else {
+            scene.updateGuideHighlights([])
+            return
+        }
+
+        var highlightPoints: Set<GridPoint> = []
+        for card in core.hand {
+            let destination = core.current.offset(dx: card.dx, dy: card.dy)
+            if core.board.contains(destination) {
+                highlightPoints.insert(destination)
+            }
+        }
+
+        // 算出した集合を SpriteKit へ渡し、視覚的なサポートを行う
+        scene.updateGuideHighlights(highlightPoints)
     }
 
     /// 指定カードが現在位置から盤内に収まるか判定
