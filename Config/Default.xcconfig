@@ -11,6 +11,14 @@ PRODUCT_BUNDLE_IDENTIFIER = com.koki.monoknight$(BUNDLE_ID_SUFFIX)
 DEVELOPMENT_TEAM =
 BUNDLE_ID_SUFFIX =
 
+# Google Mobile Ads のテスト用識別子
+# 実機テストやスクリーンショット撮影では必ずテスト ID を利用する
+GAD_APPLICATION_ID = ca-app-pub-3940256099942544~1458002511
+
+# インタースティシャル広告ユニットのテスト ID
+# 本番値は Local.xcconfig で上書きする
+GAD_INTERSTITIAL_UNIT_ID = ca-app-pub-3940256099942544/4411468910
+
 # 表示名（ホーム画面に表示される名称）
 APP_DISPLAY_NAME = $(PRODUCT_NAME)
 
