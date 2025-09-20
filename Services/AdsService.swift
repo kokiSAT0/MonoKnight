@@ -70,8 +70,9 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, FullScre
         super.init()
         guard hasValidAdConfiguration else { return }
 
-        // SDK 初期化。v11 以降では shared プロパティ経由でシングルトンを取得するため、ここで参照を保持する。
-        let mobileAds = GADMobileAds.shared
+        // SDK 初期化。v11 以降では `GADMobileAds` が `MobileAds` に改名されたため、shared プロパティから最新 API を取得する。
+        // （名称変更に追従しつつ、将来的な API 差分を把握しやすくする意図で明示的にコメントを残している）
+        let mobileAds = MobileAds.shared
 
         // Swift 6 では completionHandler に nil を渡すと型推論ができずビルドエラーになるため、
         // ここでは何もしない空クロージャを渡して初期化を完了させる。
