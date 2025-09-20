@@ -3,7 +3,6 @@ import SpriteKit
 #if canImport(UIKit)
 import UIKit
 #endif
-import SwiftUI
 
 /// GameCore とのやり取りのためのプロトコル
 /// - ゲームロジック側で実装し、タップされたマスに対する移動処理を担当する
@@ -21,9 +20,9 @@ class GameScene: SKScene {
     /// 現在の盤面状態
     private var board = Board()
 
-    /// SpriteKit 内で利用するテーマ（SwiftUI 環境が無いので手動で適用する）
-    /// - 備考: SpriteKit では SwiftUI の推論が効きにくいため ColorScheme を明示的に指定する
-    private var theme = AppTheme(colorScheme: ColorScheme.light)
+    /// SpriteKit 内で利用する配色セット
+    /// - 備考: SwiftUI の `AppTheme` とは分離し、SpriteKit 専用の色情報のみを保持する
+    private var palette = GameScenePalette.fallbackLight
 
     /// 1 マスのサイズ
     private var tileSize: CGFloat = 0
@@ -85,7 +84,7 @@ class GameScene: SKScene {
         setupKnight()
 
         /// 現在保持しているテーマを適用し、初期色を決定
-        applyTheme(theme)
+        applyTheme(palette)
 
         /// アクセシビリティ情報を初期化
         updateAccessibilityElements()
@@ -154,9 +153,9 @@ class GameScene: SKScene {
                     height: tileSize
                 )
                 let node = SKShapeNode(rect: rect)
-                node.strokeColor = theme.skBoardGridLine
+                node.strokeColor = palette.boardGridLine
                 node.lineWidth = 1
-                node.fillColor = theme.skBoardTileUnvisited
+                node.fillColor = palette.boardTileUnvisited
                 addChild(node)
                 let point = GridPoint(x: x, y: y)
                 tileNodes[point] = node
@@ -169,7 +168,7 @@ class GameScene: SKScene {
     private func setupKnight() {
         let radius = tileSize * 0.4
         let node = SKShapeNode(circleOfRadius: radius)
-        node.fillColor = theme.skBoardKnight
+        node.fillColor = palette.boardKnight
         node.strokeColor = .clear
         node.position = position(for: GridPoint.center)
         node.zPosition = 2  // ガイドハイライトより前面に表示して駒が埋もれないようにする
@@ -199,9 +198,9 @@ class GameScene: SKScene {
     private func updateTileColors() {
         for (point, node) in tileNodes {
             if board.isVisited(point) {
-                node.fillColor = theme.skBoardTileVisited
+                node.fillColor = palette.boardTileVisited
             } else {
-                node.fillColor = theme.skBoardTileUnvisited
+                node.fillColor = palette.boardTileUnvisited
             }
         }
         // タイル色が変わった際もガイドハイライトの色味を再評価して自然なバランスを保つ
@@ -279,7 +278,7 @@ class GameScene: SKScene {
         let adjustedRect = baseRect.insetBy(dx: strokeWidth / 2, dy: strokeWidth / 2)
         node.path = CGPath(rect: adjustedRect, transform: nil)
 
-        let baseColor = theme.skBoardGuideHighlight
+        let baseColor = palette.boardGuideHighlight
         // 充填色は透過させ、枠線のみに集中させて過度な塗りつぶしを避ける
         node.fillColor = SKColor.clear
         node.strokeColor = baseColor.withAlphaComponent(0.88)
@@ -300,20 +299,20 @@ class GameScene: SKScene {
         node.blendMode = .alpha
     }
 
-    /// テーマを SpriteKit のノードへ適用し、背景や各マスの色を更新する
-    /// - Parameter theme: ライト/ダークごとに調整されたアプリ共通テーマ
-    func applyTheme(_ theme: AppTheme) {
-        // SwiftUI 側で生成されたテーマを保持し、今後の色更新にも使えるようにする
-        self.theme = theme
+    /// 受け取った配色パレットを SpriteKit のノードへ適用し、背景や各マスの色を更新する
+    /// - Parameter palette: SwiftUI 側で決定されたライト/ダーク用カラーを転写したパレット
+    func applyTheme(_ palette: GameScenePalette) {
+        // SwiftUI 側で生成されたテーマから変換されたパレットを保持し、今後の色更新にも使えるようにする
+        self.palette = palette
 
         // シーン全体の背景色を更新
-        backgroundColor = theme.skBoardBackground
+        backgroundColor = palette.boardBackground
 
         // 既存のグリッド線や駒の色を一括で更新
         for node in tileNodes.values {
-            node.strokeColor = theme.skBoardGridLine
+            node.strokeColor = palette.boardGridLine
         }
-        knightNode?.fillColor = theme.skBoardKnight
+        knightNode?.fillColor = palette.boardKnight
 
         // 踏破状態による塗り分けもテーマに合わせて再適用
         updateTileColors()
