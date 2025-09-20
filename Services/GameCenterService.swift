@@ -184,8 +184,8 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
             playerScope: .global,              // これまで通り全世界ランキングを参照
             timeScope: .allTime                // 通算ランキング表示（過去の挙動を維持）
         )
-        // 念のためプロパティ側にも ID を再設定し、初期化子の挙動変更に備える
-        vc.leaderboardIdentifier = leaderboardID
+        // 初期化時に ID・スコープを渡しているため、deprecated なプロパティ再設定は不要
+        // - 補足: iOS14 で `leaderboardIdentifier` が廃止されたため、二重指定は避ける
         // デリゲート設定は従来通り維持し、閉じる操作のハンドリングを可能にする
         vc.gameCenterDelegate = self
 
