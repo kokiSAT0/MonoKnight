@@ -6,9 +6,11 @@ import Combine
 public protocol ObservableObject {}
 @propertyWrapper
 public struct Published<Value> {
+
     /// ラップされている実際の値
     public var wrappedValue: Value
     /// 初期化で保持する値を受け取る
+
     public init(wrappedValue: Value) { self.wrappedValue = wrappedValue }
 }
 #endif
@@ -18,7 +20,7 @@ import UIKit
 
 /// ゲーム進行を統括するクラス
 /// - 盤面操作・手札管理・ペナルティ処理・スコア計算を担当する
-/// - SwiftUI 側から直接利用するため `public` として公開する
+
 public final class GameCore: ObservableObject {
     /// 手札枚数を統一的に扱うための定数（今回は 5 枚で固定）
     private let handSize: Int = 5
@@ -43,17 +45,17 @@ public final class GameCore: ObservableObject {
     /// ペナルティによる加算手数（手詰まり通知に利用するため公開）
     @Published public private(set) var penaltyCount: Int = 0
     /// 合計スコア（小さいほど良い）
-    /// 合計スコアを UI 側でも参照できるよう公開する
+
     public var score: Int { moveCount + penaltyCount }
     /// 未踏破マスの残り数を UI へ公開する計算プロパティ
-    /// 残りマス数を UI 側に公開する
+
     public var remainingTiles: Int { board.remainingCount }
 
     /// 山札管理（`Deck.swift` に定義された重み付き無限山札を使用）
     private var deck = Deck()
 
     /// 初期化時に手札と次カードを用意
-    /// 外部モジュールからも初期化できるよう公開イニシャライザを用意
+
     public init() {
         // 定数 handSize を用いて初期手札を引き切る
         hand = deck.draw(count: handSize)
@@ -69,7 +71,7 @@ public final class GameCore: ObservableObject {
 
     /// 指定インデックスのカードで駒を移動させる
     /// - Parameter index: 手札配列の位置（0〜4）
-    /// SwiftUI 側でカードをタップした際に呼び出すため公開する
+
     public func playCard(at index: Int) {
         // クリア済みや手詰まり中は操作不可
         guard progress == .playing else { return }

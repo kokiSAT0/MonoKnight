@@ -2,8 +2,39 @@ import Foundation
 
 /// 駒を移動させるカードの種類を定義する列挙型
 /// - Note: 周囲 1 マスのキング型 8 種、ナイト型 8 種、距離 2 の直線/斜め 8 種の計 24 種をサポート
+
+public enum MoveCard: CaseIterable {
+    /// `CaseIterable` の自動生成は internal となるため、外部モジュールからも全種類を参照できるよう明示的に公開配列を定義する
+    public static let allCases: [MoveCard] = [
+        .kingUp,
+        .kingUpRight,
+        .kingRight,
+        .kingDownRight,
+        .kingDown,
+        .kingDownLeft,
+        .kingLeft,
+        .kingUpLeft,
+        .knightUp2Right1,
+        .knightUp2Left1,
+        .knightUp1Right2,
+        .knightUp1Left2,
+        .knightDown2Right1,
+        .knightDown2Left1,
+        .knightDown1Right2,
+        .knightDown1Left2,
+        .straightUp2,
+        .straightDown2,
+        .straightRight2,
+        .straightLeft2,
+        .diagonalUpRight2,
+        .diagonalDownRight2,
+        .diagonalDownLeft2,
+        .diagonalUpLeft2
+    ]
+
 /// - SwiftUI モジュールからも扱うため `public` とする
 public enum MoveCard: CaseIterable {
+
     // MARK: - ケース定義
     /// キング型: 上に 1
     case kingUp
