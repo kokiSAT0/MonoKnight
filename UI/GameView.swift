@@ -53,7 +53,8 @@ struct GameView: View {
         let scene = GameScene()
         scene.scaleMode = .resizeFill
         // GameScene から GameCore へタップイベントを伝えるため参照を渡す
-        scene.gameCore = core
+        // StateObject が保持する実体を必ず渡し、再生成時の弱参照切れを防ぐ
+        scene.gameCore = _core.wrappedValue
         self.scene = scene
         // サービスを保持
         self.gameCenterService = gameCenterService
@@ -84,6 +85,8 @@ struct GameView: View {
         }
         // 初回表示時に SpriteKit の背景色もテーマに合わせて更新
         .onAppear {
+            // ビュー再表示時に GameScene へ GameCore の参照を再連結し、弱参照が nil にならないよう保証
+            scene.gameCore = core
             applyScenePalette(for: colorScheme)
         }
         // ライト/ダーク切り替えが発生した場合も SpriteKit 側へ反映
