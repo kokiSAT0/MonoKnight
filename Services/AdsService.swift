@@ -49,7 +49,7 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, FullScre
     /// 広告自体を停止するフラグ（IAP などで利用）
     private var adsDisabled: Bool = false
     /// UMP の同意フォームを保持する参照
-    private var consentForm: UMPConsentForm?
+    private var consentForm: ConsentForm?
 
     /// Info.plist から読み取ったインタースティシャル広告ユニット ID（空文字ならロードしない）
     private let interstitialAdUnitID: String
@@ -113,7 +113,7 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, FullScre
             // 同意状態に応じて NPA フラグを更新し、広告リクエストへ反映させる
             applyConsentStatusAndReloadIfNeeded()
 
-            let consentInfo = UMPConsentInformation.sharedInstance
+            let consentInfo = UMPConsentInformation.shared
             // 同意フォームが利用可能な場合のみロードと表示を行う
             guard consentInfo.formStatus == .available else { return }
 
@@ -141,7 +141,7 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, FullScre
             try await requestConsentInfoUpdate()
             applyConsentStatusAndReloadIfNeeded()
 
-            let consentInfo = UMPConsentInformation.sharedInstance
+            let consentInfo = UMPConsentInformation.shared
             guard consentInfo.formStatus == .available else { return }
 
             // 設定画面などから呼び出された際は Privacy Options を直接表示する
@@ -201,7 +201,7 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, FullScre
     /// インタースティシャル広告を読み込むヘルパー
     private func loadInterstitial() {
         guard hasValidAdConfiguration,
-              UMPConsentInformation.sharedInstance.canRequestAds,
+              UMPConsentInformation.shared.canRequestAds,
               !adsDisabled,
               !removeAds,
               !isLoadingAd,
@@ -287,9 +287,9 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, FullScre
 private extension AdsService {
     /// UMP の同意情報を最新化する
     func requestConsentInfoUpdate() async throws {
-        // 未成年向けコンテンツではないため、規定通り false を指定する
+        // 未成年向けコンテンツではないため、isTaggedForUnderAgeOfConsent を false に固定する
         let parameters = UMPRequestParameters()
-        parameters.tagForUnderAgeOfConsent = false
+        parameters.isTaggedForUnderAgeOfConsent = false
 
 #if DEBUG
         // テスト中は常に EEA として扱い、フォームを確認しやすくする
@@ -298,7 +298,7 @@ private extension AdsService {
         parameters.debugSettings = debugSettings
 #endif
 
-        let consentInfo = UMPConsentInformation.sharedInstance
+        let consentInfo = UMPConsentInformation.shared
 
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             consentInfo.requestConsentInfoUpdate(with: parameters) { error in
@@ -312,9 +312,9 @@ private extension AdsService {
     }
 
     /// 同意フォームをロードする
-    func loadConsentForm() async throws -> UMPConsentForm {
+    func loadConsentForm() async throws -> ConsentForm {
         try await withCheckedThrowingContinuation { continuation in
-            UMPConsentForm.load { [weak self] form, error in
+            ConsentForm.load { [weak self] form, error in
                 if let error {
                     continuation.resume(throwing: error)
                 } else if let form {
@@ -371,8 +371,10 @@ private extension AdsService {
             throw error
         }
 
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            UMPConsentForm.presentPrivacyOptionsForm(from: viewController) { error in
+
+
+        try await withCheckedThrowingContinuation { continuation in
+            ConsentForm.presentPrivacyOptionsForm(from: viewController) { error in
                 if let error {
                     continuation.resume(throwing: error)
                 } else {
@@ -384,7 +386,7 @@ private extension AdsService {
 
     /// 現在の同意ステータスを見て NPA フラグを更新し、必要に応じて広告を再読み込みする
     func applyConsentStatusAndReloadIfNeeded() {
-        let consentInfo = UMPConsentInformation.sharedInstance
+        let consentInfo = UMPConsentInformation.shared
         // 取得済み or 規制対象外の場合のみパーソナライズを許可し、それ以外は安全側として NPA を指定する
         let newShouldUseNPA: Bool
         switch consentInfo.consentStatus {
