@@ -277,6 +277,11 @@ public final class GameScene: SKScene {
         // 必要なマスへハイライトを再構成
         for point in points {
             if let node = guideHighlightNodes[point] {
+                // 既存ノードを再利用する際は親子関係が途切れていないか必ず確認する
+                if node.parent !== self {
+                    // SKView の再生成時に親を失ったノードを確実に再接続するため
+                    addChild(node)
+                }
                 configureGuideHighlightNode(node, for: point)
             } else {
                 let node = SKShapeNode()
