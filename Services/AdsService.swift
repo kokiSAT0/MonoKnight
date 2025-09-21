@@ -300,7 +300,7 @@ private extension AdsService {
 
         let consentInfo = UMPConsentInformation.sharedInstance
 
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             consentInfo.requestConsentInfoUpdate(with: parameters) { error in
                 if let error {
                     continuation.resume(throwing: error)
@@ -348,7 +348,7 @@ private extension AdsService {
             throw error
         }
 
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             consentForm.present(from: viewController) { [weak self] error in
                 defer { self?.consentForm = nil }
                 if let error {
@@ -371,7 +371,7 @@ private extension AdsService {
             throw error
         }
 
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             UMPConsentForm.presentPrivacyOptionsForm(from: viewController) { error in
                 if let error {
                     continuation.resume(throwing: error)
