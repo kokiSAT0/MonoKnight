@@ -14,6 +14,8 @@ struct GameView: View {
     private var theme = AppTheme()
     /// 現在のライト/ダーク設定を環境から取得し、SpriteKit 側の色にも反映する
     @Environment(\.colorScheme) private var colorScheme
+    /// デバイスの横幅サイズクラスを取得し、iPad などレギュラー幅でのモーダル挙動を調整する
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     /// 手札スロットの数（常に 5 枚分の枠を確保してレイアウトを安定させる）
     private let handSlotCount = 5
     /// ゲームロジックを保持する ObservableObject
@@ -263,6 +265,13 @@ struct GameView: View {
                 gameCenterService: gameCenterService,
                 adsService: adsService
             )
+            // MARK: - iPad 向けのモーダル最適化
+            // レギュラー幅（iPad など）では初期状態から `.large` を採用し、全要素が確実に表示されるようにする。
+            // Compact 幅（iPhone）では従来通り medium/large を切り替えられるよう配慮し、片手操作でも扱いやすく保つ。
+            .presentationDetents(
+                horizontalSizeClass == .regular ? [.large] : [.medium, .large]
+            )
+            .presentationDragIndicator(.visible)
         }
         // メニュー選択後に確認ダイアログを表示し、誤操作を防ぐ
         .confirmationDialog(

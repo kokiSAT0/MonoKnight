@@ -9,6 +9,8 @@ struct HowToPlayView: View {
     let showsCloseButton: Bool
     /// 画面を閉じるための環境変数
     @Environment(\.dismiss) private var dismiss
+    /// iPad などレギュラー幅の端末でレイアウトを最適化するためのサイズクラス
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     /// デフォルト引数付きのイニシャライザ
     /// - Parameter showsCloseButton: ナビゲーションバーに「閉じる」ボタンを表示するか
@@ -79,9 +81,14 @@ struct HowToPlayView: View {
                     ]
                 )
             }
-            .padding(.horizontal, 20)
+            // MARK: - サイズクラスに応じた余白調整
+            // iPad では左右の余白を広めに確保し、中央揃えで読みやすくする。iPhone では従来の余白を維持。
+            .padding(.horizontal, horizontalPadding)
             .padding(.vertical, 28)
+            .frame(maxWidth: contentMaxWidth, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .center)
         }
+        .scrollIndicators(.hidden)
         .background(Color(UIColor.systemBackground))
         .navigationTitle("遊び方")
         .toolbar {
@@ -94,6 +101,19 @@ struct HowToPlayView: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - レイアウト調整用のヘルパー
+private extension HowToPlayView {
+    /// 横幅に応じた最大コンテンツ幅を返す
+    var contentMaxWidth: CGFloat? {
+        horizontalSizeClass == .regular ? 640 : nil
+    }
+
+    /// 端末に合わせて適切な横方向パディングを返す
+    var horizontalPadding: CGFloat {
+        horizontalSizeClass == .regular ? 36 : 20
     }
 }
 
