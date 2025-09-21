@@ -174,6 +174,7 @@ public final class GameCore: ObservableObject {
     private enum PenaltyTrigger {
         case automatic
         case manual
+        case automaticFreeRedraw
 
         /// デバッグログ向けの説明文
         var debugDescription: String {
@@ -182,6 +183,8 @@ public final class GameCore: ObservableObject {
                 return "自動検出"
             case .manual:
                 return "ユーザー操作"
+            case .automaticFreeRedraw:
+                return "連続手詰まり対応"
             }
         }
 
@@ -192,6 +195,8 @@ public final class GameCore: ObservableObject {
                 return "手詰まりのため手札を引き直しました。手数が5増加します。"
             case .manual:
                 return "ペナルティを使用して手札を引き直しました。手数が5増加します。"
+            case .automaticFreeRedraw:
+                return "手詰まりが続いたためペナルティなしで手札を引き直しました。"
             }
         }
     }
@@ -206,41 +211,52 @@ public final class GameCore: ObservableObject {
         debugLog("ユーザー操作でペナルティ引き直しを実行")
 
         // 共通処理を用いて手札を入れ替える
-        applyPenaltyRedraw(trigger: .manual)
+        applyPenaltyRedraw(trigger: .manual, shouldAddPenalty: true)
 
         // 引き直し後も盤外カードしか無いケースをケア
-        checkDeadlockAndApplyPenaltyIfNeeded()
+        checkDeadlockAndApplyPenaltyIfNeeded(hasAlreadyPaidPenalty: true)
     }
 
     /// 手札がすべて盤外となる場合にペナルティを課し、手札を引き直す
-    private func checkDeadlockAndApplyPenaltyIfNeeded() {
+    private func checkDeadlockAndApplyPenaltyIfNeeded(hasAlreadyPaidPenalty: Bool = false) {
         let allUnusable = hand.allSatisfy { card in
             let dest = current.offset(dx: card.move.dx, dy: card.move.dy)
             return !board.contains(dest)
         }
         guard allUnusable else { return }
 
-        // デバッグログ: 手札詰まりの発生を通知
-        debugLog("手札が全て使用不可のためペナルティを適用")
+        if hasAlreadyPaidPenalty {
+            // デバッグログ: 連続手詰まりを通知し、追加ペナルティ無しで再抽選する
+            debugLog("手詰まりが継続したため追加ペナルティ無しで自動引き直しを実施")
 
-        // 共通処理を呼び出して手札・先読みを更新
-        applyPenaltyRedraw(trigger: .automatic)
+            // 共通処理を呼び出して手札・先読みを更新（追加ペナルティ無し）
+            applyPenaltyRedraw(trigger: .automaticFreeRedraw, shouldAddPenalty: false)
+        } else {
+            // デバッグログ: 手札詰まりの発生を通知
+            debugLog("手札が全て使用不可のためペナルティを適用")
 
-        // 引き直し後も詰みの場合があるので再チェック
-        checkDeadlockAndApplyPenaltyIfNeeded()
+            // 共通処理を呼び出して手札・先読みを更新
+            applyPenaltyRedraw(trigger: .automatic, shouldAddPenalty: true)
+        }
+
+        // 引き直し後も詰みの場合があるので再チェック（以降はペナルティ支払い済み扱い）
+        checkDeadlockAndApplyPenaltyIfNeeded(hasAlreadyPaidPenalty: true)
     }
 
     /// ペナルティ適用に伴う手札再構成・通知処理を一箇所へ集約する
     /// - Parameter trigger: 自動検出か手動操作かを識別するフラグ
-    private func applyPenaltyRedraw(trigger: PenaltyTrigger) {
+    /// - Parameter shouldAddPenalty: 追加ペナルティを課す必要があるかどうか
+    private func applyPenaltyRedraw(trigger: PenaltyTrigger, shouldAddPenalty: Bool) {
         // ペナルティ処理中は .deadlock 状態として UI 側の入力を抑制する
         progress = .deadlock
 
         // 手札が一新されるため、盤面タップからの保留リクエストも破棄して整合性を保つ
         boardTapPlayRequest = nil
 
-        // ペナルティ加算 (+5 手数)
-        penaltyCount += 5
+        // ペナルティ加算 (+5 手数)。追加ペナルティが不要な場合はカウントを維持
+        if shouldAddPenalty {
+            penaltyCount += 5
+        }
 
         // 現在の手札・先読みカードはそのまま破棄し、新しいカードを引き直す
         hand = deck.draw(count: handSize)

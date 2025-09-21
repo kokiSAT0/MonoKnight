@@ -45,6 +45,55 @@ final class GameCoreTests: XCTestCase {
         XCTAssertEqual(core.nextCards.count, 3, "引き直し後の先読みカードが 3 枚補充されていない")
     }
 
+    /// 手詰まり後に再び手詰まりが発生した場合でも追加ペナルティが加算されないことを確認
+    func testConsecutiveDeadlockDoesNotAddExtraPenalty() {
+        // --- テスト用デッキ構築 ---
+        // 2 回連続で盤外カードだけが配られ、最後に盤内へ進めるカードが揃うシナリオを用意
+        let deck = Deck.makeTestDeck(cards: [
+            // --- 初期手札 5 枚（すべて盤外）---
+            .diagonalDownLeft2,
+            .straightLeft2,
+            .straightDown2,
+            .knightDown2Right1,
+            .knightDown2Left1,
+            // --- 初期先読み 3 枚 ---
+            .kingRight,
+            .kingUp,
+            .diagonalUpLeft2,
+            // --- 1 回目の引き直し手札（再び盤外のみ）---
+            .diagonalDownLeft2,
+            .straightLeft2,
+            .straightDown2,
+            .knightDown2Right1,
+            .knightDown2Left1,
+            // --- 1 回目の引き直し先読み ---
+            .kingRight,
+            .kingUp,
+            .diagonalUpLeft2,
+            // --- 2 回目の引き直し手札（盤内へ進めるカードを含む）---
+            .kingRight,
+            .kingUp,
+            .kingLeft,
+            .knightUp1Right2,
+            .straightRight2,
+            // --- 2 回目の引き直し先読み ---
+            .diagonalUpRight2,
+            .straightUp2,
+            .knightUp2Right1
+        ])
+
+        // 左下隅 (0,0) から開始し、連続手詰まりを強制
+        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 0, y: 0))
+
+        // ペナルティは最初の支払いのみで +5 に留まるか
+        XCTAssertEqual(core.penaltyCount, 5, "連続手詰まりでも追加ペナルティが加算されている")
+        // 連続手詰まり処理後もプレイ継続できるか
+        XCTAssertEqual(core.progress, .playing, "連続手詰まり処理後に playing 状態へ戻っていない")
+        // 最終的な手札 5 枚の中に使用可能なカードがあるか
+        let playableExists = core.hand.contains { $0.move.canUse(from: core.current) }
+        XCTAssertTrue(playableExists, "連続手詰まり後の手札に使用可能なカードが存在しない")
+    }
+
     /// reset() が初期状態に戻すかを確認
     func testResetReturnsToInitialState() {
         // 上と同じデッキ構成で GameCore を生成し、ペナルティ適用後の状態から開始
