@@ -49,7 +49,7 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, FullScre
     /// 広告自体を停止するフラグ（IAP などで利用）
     private var adsDisabled: Bool = false
     /// UMP の同意フォームを保持する参照
-    private var consentForm: UMPConsentForm?
+    private var consentForm: ConsentForm?
 
     /// Info.plist から読み取ったインタースティシャル広告ユニット ID（空文字ならロードしない）
     private let interstitialAdUnitID: String
@@ -312,9 +312,9 @@ private extension AdsService {
     }
 
     /// 同意フォームをロードする
-    func loadConsentForm() async throws -> UMPConsentForm {
+    func loadConsentForm() async throws -> ConsentForm {
         try await withCheckedThrowingContinuation { continuation in
-            UMPConsentForm.load { [weak self] form, error in
+            ConsentForm.load { [weak self] form, error in
                 if let error {
                     continuation.resume(throwing: error)
                 } else if let form {
@@ -372,7 +372,7 @@ private extension AdsService {
         }
 
         try await withCheckedThrowingContinuation { continuation in
-            UMPConsentForm.presentPrivacyOptionsForm(from: viewController) { error in
+            ConsentForm.presentPrivacyOptionsForm(from: viewController) { error in
                 if let error {
                     continuation.resume(throwing: error)
                 } else {
