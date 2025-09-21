@@ -113,8 +113,15 @@ struct GameView: View {
                 - handSectionHeight
                 - LayoutMetrics.spacingBetweenBoardAndHand
                 - LayoutMetrics.spacingBetweenStatisticsAndBoard
+            // VStack 全体の高さ不足で availableHeightForBoard が負になる場合でも
+            // 盤面がゼロサイズにならないように幅ベースのフォールバック値を用意する
+            let fallbackBoardBaseSize = max(geometry.size.width, LayoutMetrics.minimumBoardFallbackSize)
+            // 実際の盤面基準サイズは「利用可能な高さ」と「幅（フォールバック込み）」の小さい方を採用する
+            let boardBaseSize = min(
+                geometry.size.width,
+                availableHeightForBoard > 0 ? availableHeightForBoard : fallbackBoardBaseSize
+            )
             // 盤面をやや縮小して下部のカードに高さの余裕を持たせる
-            let boardBaseSize = min(geometry.size.width, max(availableHeightForBoard, 0))
             let boardWidth = boardBaseSize * LayoutMetrics.boardScale
 
             ZStack(alignment: .topTrailing) {
@@ -1103,6 +1110,8 @@ private enum LayoutMetrics {
     static let spacingBetweenStatisticsAndBoard: CGFloat = 12
     /// 盤面の正方形サイズへ乗算する縮小率（カードへ高さを譲るため 92% に設定）
     static let boardScale: CGFloat = 0.92
+    /// 統計や手札によって縦方向が埋まった際でも盤面が消失しないよう確保する下限サイズ
+    static let minimumBoardFallbackSize: CGFloat = 220
     /// 手札カード同士の横方向スペース（カード拡大後も全体幅が収まるよう微調整）
     static let handCardSpacing: CGFloat = 10
     /// 手札カードの幅。MoveCardIllustrationView 側の定義と同期させてサイズ差異を防ぐ
