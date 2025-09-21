@@ -113,7 +113,9 @@ struct GameView: View {
                 - handSectionHeight
                 - LayoutMetrics.spacingBetweenBoardAndHand
                 - LayoutMetrics.spacingBetweenStatisticsAndBoard
-            let boardWidth = min(geometry.size.width, max(availableHeightForBoard, 0))
+            // 盤面をやや縮小して下部のカードに高さの余裕を持たせる
+            let boardBaseSize = min(geometry.size.width, max(availableHeightForBoard, 0))
+            let boardWidth = boardBaseSize * LayoutMetrics.boardScale
 
             ZStack(alignment: .topTrailing) {
                 VStack(spacing: 16) {
@@ -371,6 +373,8 @@ struct GameView: View {
             )
 
             spriteBoard(width: width)
+                // 盤面縮小で生まれた余白を均等にするため、中央寄せで描画する
+                .frame(maxWidth: .infinity, alignment: .center)
         }
     }
 
@@ -413,7 +417,8 @@ struct GameView: View {
     private func handSection() -> some View {
         VStack(spacing: 8) {
             // 手札 3 枚を横並びで表示
-            HStack(spacing: 12) {
+            // カードを大きくした際も全体幅が画面内に収まるよう、spacing を定数で管理する
+            HStack(spacing: LayoutMetrics.handCardSpacing) {
                 // 固定長スロットで回し、欠番があっても UI が崩れないようにする
                 ForEach(0..<handSlotCount, id: \.self) { index in
                     handSlotView(for: index)
@@ -784,7 +789,8 @@ struct GameView: View {
                     // 枠内もテーマ色で淡く塗りつぶし、背景とのコントラストを確保
                     .fill(theme.placeholderBackground)
             )
-            .frame(width: 60, height: 80)
+            // MoveCardIllustrationView と同寸法を共有し、カードが補充されてもレイアウトが揺れないようにする
+            .frame(width: LayoutMetrics.handCardWidth, height: LayoutMetrics.handCardHeight)
             .overlay(
                 Image(systemName: "questionmark")
                     .font(.caption)
@@ -1094,6 +1100,14 @@ private enum LayoutMetrics {
     static let spacingBetweenBoardAndHand: CGFloat = 16
     /// 統計バッジと盤面の間隔（boardSection 内の spacing と一致させる）
     static let spacingBetweenStatisticsAndBoard: CGFloat = 12
+    /// 盤面の正方形サイズへ乗算する縮小率（カードへ高さを譲るため 92% に設定）
+    static let boardScale: CGFloat = 0.92
+    /// 手札カード同士の横方向スペース（カード拡大後も全体幅が収まるよう微調整）
+    static let handCardSpacing: CGFloat = 10
+    /// 手札カードの幅。MoveCardIllustrationView 側の定義と同期させてサイズ差異を防ぐ
+    static let handCardWidth: CGFloat = MoveCardIllustrationView.defaultWidth
+    /// 手札カードの高さ。幅との比率を保ちながら僅かに拡張する
+    static let handCardHeight: CGFloat = MoveCardIllustrationView.defaultHeight
 }
 
 /// 統計バッジ領域の高さを親ビューへ伝搬するための PreferenceKey
