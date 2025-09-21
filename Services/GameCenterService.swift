@@ -12,8 +12,8 @@ protocol GameCenterServiceProtocol: AnyObject {
     /// ローカルプレイヤーの認証を行う
     /// - Parameter completion: 認証結果を受け取るクロージャ
     func authenticateLocalPlayer(completion: ((Bool) -> Void)?)
-    /// リーダーボードへスコアを送信する
-    /// - Parameter score: 送信する手数
+    /// リーダーボードへスコア（ポイント）を送信する
+    /// - Parameter score: 送信するポイント値
     func submitScore(_ score: Int)
     /// ランキング画面を表示する
     func showLeaderboard()
@@ -38,7 +38,7 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
     /// - Note: 設定画面やデバッグからリセットできるよう公開メソッドを用意する
     @AppStorage("has_submitted_gc") private var hasSubmittedGC: Bool = false
 
-    /// 直近で Game Center へ送信したスコア（手数）を保持
+    /// 直近で Game Center へ送信したスコア（ポイント）を保持
     /// - Note: より良いスコアが出た場合のみ再送信することで無駄な API 呼び出しを避ける
     @AppStorage("last_submitted_gc_score") private var lastSubmittedScore: Int = .max
 
@@ -123,7 +123,7 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
     }
 
     /// スコアを Game Center のリーダーボードへ送信する
-    /// - Parameter score: 送信する手数（少ないほど高評価）
+    /// - Parameter score: 送信するポイント（少ないほど高評価）
     func submitScore(_ score: Int) {
         // 未認証の場合はスコア送信を行わない
         guard isAuthenticated else {

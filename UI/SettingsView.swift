@@ -31,8 +31,8 @@ struct SettingsView: View {
     @AppStorage("guide_mode_enabled") private var guideModeEnabled: Bool = true
 
     // MARK: - 戦績管理
-    // ベスト手数を UserDefaults から取得・更新する。未設定時は Int.max で初期化しておく。
-    @AppStorage("best_moves_5x5") private var bestMoves: Int = .max
+    // ベストポイントを UserDefaults から取得・更新する。未設定時は Int.max で初期化しておく。
+    @AppStorage("best_points_5x5") private var bestPoints: Int = .max
 
     // 戦績リセット確認用のアラート表示フラグ。ユーザーが誤操作しないよう明示的に確認する。
     @State private var isResetAlertPresented = false
@@ -238,7 +238,7 @@ struct SettingsView: View {
                     Text("戦績")
                 } footer: {
                     // ボタンの挙動を補足し、リセットの影響を明確にする。
-                    Text("ベスト手数を初期状態に戻します。リセット後は新しいプレイで再び記録されます。")
+                    Text("ベストポイントを初期状態に戻します。リセット後は新しいプレイで再び記録されます。")
                 }
             }
             // 戦績リセット時に確認ダイアログを表示し、誤操作を防止する。
@@ -246,14 +246,14 @@ struct SettingsView: View {
                 Button("リセットする", role: .destructive) {
                     // ユーザーが確認した場合のみベスト記録を初期化する。
                     // Int.max を再代入することで「未記録」の状態に戻し、次回プレイで新たに更新される。
-                    bestMoves = .max
+                    bestPoints = .max
                 }
                 Button("キャンセル", role: .cancel) {
                     // キャンセル時は何もしない。誤操作で記録が消えることを防ぐため。
                 }
             } message: {
                 // リセット理由と注意点を明確に伝えるメッセージ。
-                Text("現在保存されているベスト手数を初期状態に戻します。この操作は取り消せません。")
+                Text("現在保存されているベストポイントを初期状態に戻します。この操作は取り消せません。")
             }
             .navigationTitle("設定")
             // - NOTE: プレビューや UI テストでは、この Picker を操作して `GameView` の `applyScenePalette` が呼び直されることを確認する想定。

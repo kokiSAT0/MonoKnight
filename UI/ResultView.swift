@@ -2,7 +2,7 @@ import SwiftUI
 import UIKit  // ハプティクス用フレームワーク
 
 /// ゲーム終了時の結果を表示するビュー
-/// 手数・ベスト記録・各種ボタンをまとめて配置する
+/// ポイントと内訳、ベスト記録、各種ボタンをまとめて配置する
 @MainActor
 struct ResultView: View {
     /// 今回のプレイで実際に移動した回数
@@ -10,6 +10,9 @@ struct ResultView: View {
 
     /// ペナルティで加算された手数
     let penaltyCount: Int
+
+    /// クリアまでに要した秒数
+    let elapsedSeconds: Int
 
     /// 再戦処理を外部から受け取るクロージャ
     let onRetry: () -> Void
@@ -21,8 +24,9 @@ struct ResultView: View {
     /// 上記と同じく `init` で注入し、必要に応じてモックに差し替え可能にする
     private var adsService: AdsServiceProtocol
 
-    /// ベスト手数を `UserDefaults` に保存する
-    @AppStorage("best_moves_5x5") private var bestMoves: Int = .max
+    /// ベストポイントを `UserDefaults` に保存する
+    /// - Note: 新スコア方式に合わせてポイント単位で保持する
+    @AppStorage("best_points_5x5") private var bestPoints: Int = .max
     /// ハプティクスを有効にするかどうかの設定値
     @AppStorage("haptics_enabled") private var hapticsEnabled: Bool = true
     /// サイズクラスを参照し、iPad でのフォームシート表示時に余白を調整する
@@ -39,11 +43,13 @@ struct ResultView: View {
     init(
         moveCount: Int,
         penaltyCount: Int,
+        elapsedSeconds: Int,
         onRetry: @escaping () -> Void
     ) {
         self.init(
             moveCount: moveCount,
             penaltyCount: penaltyCount,
+            elapsedSeconds: elapsedSeconds,
             onRetry: onRetry,
             gameCenterService: GameCenterService.shared,
             adsService: AdsService.shared
@@ -53,6 +59,7 @@ struct ResultView: View {
     init(
         moveCount: Int,
         penaltyCount: Int,
+        elapsedSeconds: Int,
         onRetry: @escaping () -> Void,
 
         gameCenterService: GameCenterServiceProtocol,
@@ -67,6 +74,7 @@ struct ResultView: View {
 
         self.moveCount = moveCount
         self.penaltyCount = penaltyCount
+        self.elapsedSeconds = elapsedSeconds
         self.onRetry = onRetry
         self.gameCenterService = resolvedGameCenterService
         self.adsService = resolvedAdsService
@@ -76,9 +84,9 @@ struct ResultView: View {
         // MARK: - コンテンツ全体をスクロール可能にして、iPad のフォームシートでも情報が欠けないようにする
         ScrollView {
             VStack(spacing: 24) {
-                // MARK: - 合計手数と新記録バッジ
+                // MARK: - 合計ポイントと新記録バッジ
                 VStack(spacing: 12) {
-                    Text("合計手数: \(totalMoves)")
+                    Text("総合ポイント: \(points)")
                         .font(.title)
                         // iPad のフォームシートでは上下の余白が圧縮されるため、独自に余白を確保して見栄えを整える
                         .padding(.top, 16)
@@ -109,8 +117,8 @@ struct ResultView: View {
                         .transition(.scale.combined(with: .opacity))
                     }
 
-                    // MARK: - ベスト記録表示（未記録の場合は '-'）
-                    Text("ベスト: \(bestMovesText)")
+                    // MARK: - ベストポイント表示（未記録の場合は '-'）
+                    Text("ベストポイント: \(bestPointsText)")
                         .font(.headline)
 
                     // 新旧の比較説明を追加し、振り返りの文脈を与える
@@ -149,13 +157,21 @@ struct ResultView: View {
                 }
                 .buttonStyle(.bordered)
 
-                // MARK: - 手数の内訳テーブル
+                // MARK: - リザルト詳細のテーブル
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("手数の内訳")
+                    Text("リザルト詳細")
                         .font(.headline)
                         .padding(.top, 8)
 
                     Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 8) {
+                        GridRow {
+                            Text("合計手数")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                            Text("\(totalMoves) 手")
+                                .font(.body)
+                        }
+
                         GridRow {
                             Text("移動回数")
                                 .font(.subheadline)
@@ -172,13 +188,21 @@ struct ResultView: View {
                                 .font(.body)
                         }
 
+                        GridRow {
+                            Text("所要時間")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                            Text(formattedElapsedTime)
+                                .font(.body)
+                        }
+
                         Divider()
                             .gridCellColumns(2)
 
                         GridRow {
-                            Text("合計")
+                            Text("ポイント")
                                 .font(.subheadline.weight(.semibold))
-                            Text("\(totalMoves) 手")
+                            Text("\(points) pt")
                                 .font(.body.weight(.semibold))
                         }
                     }
@@ -217,8 +241,8 @@ struct ResultView: View {
     }
 
     /// ベスト記録を表示用の文字列に変換
-    private var bestMovesText: String {
-        bestMoves == .max ? "-" : String(bestMoves)
+    private var bestPointsText: String {
+        bestPoints == .max ? "-" : String(bestPoints)
     }
 
     /// 合計手数を計算するヘルパー
@@ -226,10 +250,26 @@ struct ResultView: View {
         moveCount + penaltyCount
     }
 
+    /// ポイント（手数×10 + 経過秒数）を算出
+    private var points: Int {
+        totalMoves * 10 + elapsedSeconds
+    }
+
+    /// 所要時間を日本語表記へ整形する
+    private var formattedElapsedTime: String {
+        let minutes = elapsedSeconds / 60
+        let seconds = elapsedSeconds % 60
+        if minutes > 0 {
+            return "\(minutes)分\(seconds)秒"
+        } else {
+            return "\(seconds)秒"
+        }
+    }
+
     /// ShareLink へ渡す共有メッセージを生成
     private var shareMessage: String {
         let penaltyText = penaltyCount == 0 ? "ペナルティなし" : "ペナルティ +\(penaltyCount) 手"
-        return "MonoKnight 5x5 クリア！合計 \(totalMoves) 手（移動 \(moveCount) 手 / \(penaltyText)）"
+        return "MonoKnight 5x5 クリア！ポイント \(points)（移動 \(moveCount) 手 / \(penaltyText) / 所要 \(formattedElapsedTime)）"
     }
 
     /// iPad 表示時の最大コンテンツ幅を制御し、中央寄せの見た目を整える
@@ -247,23 +287,23 @@ struct ResultView: View {
         guard isNewBest else { return nil }
 
         if let previousBest {
-            let diff = previousBest - totalMoves
-            // 旧ベストより何手短縮できたのかを明示
-            return "これまでのベスト \(previousBest) 手 → 今回 \(totalMoves) 手（\(diff) 手 更新）"
+            let diff = previousBest - points
+            // 旧ベストより何ポイント改善できたのかを明示
+            return "これまでのベスト \(previousBest) pt → 今回 \(points) pt（\(diff) pt 更新）"
         } else {
             // 初回登録時は比較対象が無いため、その旨を明示
-            return "初めてのベスト記録が登録されました"
+            return "初めてのベストポイントが登録されました"
         }
     }
 
     /// ベスト記録を更新する
     private func updateBest() {
         // 更新前のベストを保持して比較テキストに利用
-        previousBest = bestMoves == .max ? nil : bestMoves
+        previousBest = bestPoints == .max ? nil : bestPoints
 
-        // 今回の合計手数と既存ベストを比較して更新するか判定
-        if totalMoves < bestMoves {
-            bestMoves = totalMoves
+        // 今回のポイントと既存ベストを比較して更新するか判定
+        if points < bestPoints {
+            bestPoints = points
 
             // 視覚的なアニメーションとハプティクスを新記録時に限定して発火
             withAnimation(.spring(response: 0.45, dampingFraction: 0.82)) {
@@ -285,6 +325,7 @@ struct ResultView_Previews: PreviewProvider {
         ResultView(
             moveCount: 24,
             penaltyCount: 6,
+            elapsedSeconds: 132,
             onRetry: {},
             gameCenterService: GameCenterService.shared,
             adsService: AdsService.shared
@@ -294,5 +335,5 @@ struct ResultView_Previews: PreviewProvider {
 
 
 #Preview {
-    ResultView(moveCount: 24, penaltyCount: 6, onRetry: {})
+    ResultView(moveCount: 24, penaltyCount: 6, elapsedSeconds: 132, onRetry: {})
 }

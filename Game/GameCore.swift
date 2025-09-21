@@ -70,15 +70,27 @@ public final class GameCore: ObservableObject {
     @Published public private(set) var moveCount: Int = 0
     /// ペナルティによる加算手数（手詰まり通知に利用するため公開）
     @Published public private(set) var penaltyCount: Int = 0
-    /// 合計スコア（小さいほど良い）
+    /// クリアまでに要した経過秒数
+    /// - Note: クリア確定時に計測し、リセット時に 0 へ戻す
+    @Published public private(set) var elapsedSeconds: Int = 0
 
-    public var score: Int { moveCount + penaltyCount }
+    /// 合計手数（移動 + ペナルティ）の計算プロパティ
+    /// - Note: 将来的に別レギュレーションで利用する可能性があるため個別に保持
+    public var totalMoveCount: Int { moveCount + penaltyCount }
+
+    /// ポイント計算結果（小さいほど良い）
+    /// - Note: 「手数×10 + 所要秒数」の規則に基づく
+    public var score: Int { totalMoveCount * 10 + elapsedSeconds }
     /// 未踏破マスの残り数を UI へ公開する計算プロパティ
 
     public var remainingTiles: Int { board.remainingCount }
 
     /// 山札管理（`Deck.swift` に定義された重み付き無限山札を使用）
     private var deck = Deck()
+    /// プレイ開始時刻（リセットのたびに現在時刻へ更新）
+    private var startDate = Date()
+    /// クリア確定時刻（未クリアの場合は nil のまま保持）
+    private var endDate: Date?
 
     /// 初期化時に手札と次カードを用意
 
@@ -87,6 +99,8 @@ public final class GameCore: ObservableObject {
         hand = deck.draw(count: handSize)
         nextCards = deck.draw(count: nextPreviewCount)
         replenishNextPreview()
+        // 初回プレイ用に計測タイマーを初期化
+        resetTimer()
         // 初期状態で手詰まりの場合をケア
         checkDeadlockAndApplyPenaltyIfNeeded()
         // 初期状態の残り踏破数を読み上げ
@@ -142,6 +156,8 @@ public final class GameCore: ObservableObject {
 
         // クリア判定
         if board.isCleared {
+            // クリア時点の経過秒数を確定させる
+            finalizeElapsedTimeIfNeeded()
             progress = .cleared
             // デバッグ: クリア時の盤面を表示
 #if DEBUG
@@ -293,9 +309,11 @@ public final class GameCore: ObservableObject {
         current = .center
         moveCount = 0
         penaltyCount = 0
+        elapsedSeconds = 0
         progress = .playing
         penaltyEventID = nil
         boardTapPlayRequest = nil
+        endDate = nil
         if startNewGame {
             // リセット時にゲーム展開が固定化されないよう、山札そのものを作り直してシードを更新する
             deck = Deck()
@@ -307,6 +325,8 @@ public final class GameCore: ObservableObject {
         hand = deck.draw(count: handSize)
         nextCards = deck.draw(count: nextPreviewCount)
         replenishNextPreview()
+        // 新しいプレイの所要時間計測を開始
+        resetTimer()
         checkDeadlockAndApplyPenaltyIfNeeded()
         // リセット後の残り踏破数を読み上げ
         announceRemainingTiles()
@@ -343,6 +363,30 @@ public final class GameCore: ObservableObject {
         let message = "残り踏破数は\(remaining)です"
         UIAccessibility.post(notification: .announcement, argument: message)
 #endif
+    }
+
+    /// 所要時間カウントを現在時刻へリセットする
+    private func resetTimer() {
+        // 開始時刻と終了時刻を初期化し、経過秒数を 0 に戻す
+        startDate = Date()
+        endDate = nil
+        elapsedSeconds = 0
+    }
+
+    /// クリア時点の経過時間を確定させる
+    /// - Parameter referenceDate: テスト時などに任意の終了時刻を指定したい場合に利用
+    private func finalizeElapsedTimeIfNeeded(referenceDate: Date = Date()) {
+        // 既に終了時刻が記録されている場合は再計算を避ける
+        if endDate != nil { return }
+
+        // タイムスタンプを保持し、最小値 0 を保証した整数秒を算出
+        let finishDate = referenceDate
+        endDate = finishDate
+        let duration = max(0, finishDate.timeIntervalSince(startDate))
+        elapsedSeconds = max(0, Int(duration.rounded()))
+
+        // デバッグ目的で計測結果をログに残す
+        debugLog("クリア所要時間: \(elapsedSeconds) 秒")
     }
 }
 
@@ -395,7 +439,26 @@ extension GameCore {
         core.replenishNextPreview()
         // 初期状態での手詰まりをチェック
         core.checkDeadlockAndApplyPenaltyIfNeeded()
+        // テスト用インスタンスでも計測タイマーをリセット
+        core.resetTimer()
         return core
+    }
+
+    /// テスト用に手数・ペナルティ・経過秒数を任意の値へ調整する
+    /// - Parameters:
+    ///   - moveCount: 設定したい移動回数
+    ///   - penaltyCount: 設定したいペナルティ手数
+    ///   - elapsedSeconds: 設定したい所要時間（秒）
+    func overrideMetricsForTesting(moveCount: Int, penaltyCount: Int, elapsedSeconds: Int) {
+        self.moveCount = moveCount
+        self.penaltyCount = penaltyCount
+        self.elapsedSeconds = elapsedSeconds
+    }
+
+    /// テストでクリア時刻を任意指定したい場合に利用する
+    /// - Parameter finishDate: 想定する終了時刻
+    func finalizeElapsedTimeForTesting(finishDate: Date) {
+        finalizeElapsedTimeIfNeeded(referenceDate: finishDate)
     }
 }
 #endif
