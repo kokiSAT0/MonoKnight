@@ -407,8 +407,10 @@ struct AppTheme: DynamicProperty {
             // ダークテーマでは boardGridLine（白 75%）を基準にしつつ、視認性を確保するため透過率をやや高める
             return boardGridLine.opacity(0.5)
         default:
-            // ライトテーマでは boardGridLine（黒 65%）に近いグレーを薄く敷き、主張しすぎないハイライトにする
-            return boardGridLine.opacity(0.3)
+            // ライトテーマでは純粋な黒だと輪郭が強すぎるため、少しだけ明度を持たせた濃いグレーを採用する
+            // NOTE: `Color(white: 0.2)` で RGB(51,51,51) 相当の色味を用意し、透過度で軽やかさを調整する
+            let guideStrokeBase = Color(white: 0.2)
+            return guideStrokeBase.opacity(0.45)
         }
     }
 
