@@ -117,6 +117,9 @@ public final class GameScene: SKScene {
     public override func didMove(to view: SKView) {
         super.didMove(to: view)
 
+        // デバッグ目的: シーンがビューへアタッチされたタイミングでサイズを記録しておき、盤面が描画されない不具合の手掛かりにする
+        debugLog("GameScene.didMove: view.bounds=\(view.bounds.size), scene.size=\(size)")
+
         /// マスのサイズと原点を計算
         calculateLayout()
 
@@ -141,6 +144,13 @@ public final class GameScene: SKScene {
         let offsetX = (size.width - tileSize * CGFloat(Board.size)) / 2
         let offsetY = (size.height - tileSize * CGFloat(Board.size)) / 2
         gridOrigin = CGPoint(x: offsetX, y: offsetY)
+
+        // レイアウト計算の結果をログ出力し、tileSize が 0 付近になる異常を検知できるようにする
+        debugLog("GameScene.calculateLayout: size=\(size), tileSize=\(tileSize), gridOrigin=\(gridOrigin)")
+        if tileSize <= 0 {
+            // 盤面が表示されない現象の根本原因を突き止めるため、異常値は明示的に警告する
+            debugLog("GameScene.calculateLayout 警告: tileSize がゼロ以下です")
+        }
 
         // レイアウトが確定したタイミングで保留中のガイド枠を復元する
         applyPendingGuideHighlightsIfNeeded()
@@ -203,6 +213,9 @@ public final class GameScene: SKScene {
                 // テストプレイ時の没入感を損なわないよう、デバッグ用の座標ラベルは描画しない
             }
         }
+
+        // タイル生成結果を記録し、想定どおり 25 個のノードが確保されているかを後で検証できるようにする
+        debugLog("GameScene.setupGrid: 生成タイル数=\(tileNodes.count), tileSize=\(tileSize)")
     }
 
     /// 駒を生成して中央に配置
@@ -215,6 +228,9 @@ public final class GameScene: SKScene {
         node.zPosition = 2  // ガイドハイライトより前面に表示して駒が埋もれないようにする
         addChild(node)
         knightNode = node
+
+        // 駒ノードの初期化状況を記録して、盤面非表示時に駒だけ描画されていないか切り分けやすくする
+        debugLog("GameScene.setupKnight: radius=\(radius), position=\(node.position)")
     }
 
     /// 指定座標に対応するシーン上の位置を返す
@@ -234,6 +250,10 @@ public final class GameScene: SKScene {
         updateTileColors()
         // 盤面更新に応じてアクセシビリティ要素も再構築
         updateAccessibilityElements()
+
+        // 盤面更新時に踏破済みマス数とノード数を記録し、SpriteKit との同期状態を追跡する
+        let visitedCount = Board.size * Board.size - board.remainingCount
+        debugLog("GameScene.updateBoard: visited=\(visitedCount), remaining=\(board.remainingCount), tileNodes=\(tileNodes.count)")
     }
 
     /// 各マスの色を踏破状態に合わせて更新する
@@ -379,6 +399,9 @@ public final class GameScene: SKScene {
     public func moveKnight(to point: GridPoint) {
         let destination = position(for: point)
 
+        // 駒移動前に現在のレイアウト情報を記録し、移動要求が届いているかどうかを判別できるようにする
+        debugLog("GameScene.moveKnight 要求: current=\(knightPosition), target=\(point), tileSize=\(tileSize)")
+
         // タイトル画面に遷移した直後など、SpriteKit 側の SKView が一時停止状態になっていると
         // SKAction がまったく再生されず駒が移動しないため、ここで毎回再開を保証する。
         // `scene.view` と `scene.isPaused` の両方を確認しておき、どちらかが停止していても動作を復旧させる。
@@ -398,6 +421,9 @@ public final class GameScene: SKScene {
         // 現在位置を保持し、アクセシビリティ情報を更新
         knightPosition = point
         updateAccessibilityElements()
+
+        // 駒移動後の最終結果も残しておき、位置更新が反映されたかコンソールで追跡できるようにする
+        debugLog("GameScene.moveKnight 完了: 現在位置=\(knightPosition)")
     }
 
     /// 保留中のガイド枠があれば、レイアウト確定後に反映する
