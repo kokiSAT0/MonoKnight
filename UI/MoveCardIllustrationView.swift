@@ -116,6 +116,10 @@ struct MoveCardIllustrationView: View {
     var mode: Mode = .hand
     /// カラースキームに応じて派生色を提供するテーマ
     private var theme = AppTheme()
+    /// 手札やプレースホルダで共有する標準幅（カードを少し大きくするため 66pt に設定）
+    static let defaultWidth: CGFloat = 66
+    /// 標準の高さ。幅とのバランスを保ちつつ視認性を高める
+    static let defaultHeight: CGFloat = 90
 
     /// HowToPlayView など別ファイルからの生成時にアクセス保護レベルの問題が発生しないよう、明示的なイニシャライザを用意する
     /// - Parameters:
@@ -233,7 +237,7 @@ struct MoveCardIllustrationView: View {
             }
             .padding(8)
         }
-        .frame(width: 60, height: 80)
+        .frame(width: Self.defaultWidth, height: Self.defaultHeight)
         // VoiceOver で方向が伝わるようカード名にモード別の説明を付与
         .accessibilityLabel(Text(card.displayName + mode.accessibilitySuffix))
         // カード操作／先読み閲覧それぞれのヒントを案内
