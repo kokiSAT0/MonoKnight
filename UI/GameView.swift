@@ -58,6 +58,10 @@ struct GameView: View {
     @State private var boardAnchor: Anchor<CGRect>?
     /// カード移動アニメーションの目標とする駒位置（nil の場合は最新の現在地を使用）
     @State private var animationTargetGridPoint: GridPoint?
+    /// デッドロック中に一時退避しておくガイド表示用の手札情報
+    @State private var pendingGuideHand: [DealtCard]?
+    /// 一時退避中の現在位置（nil なら GameCore の最新値を利用する）
+    @State private var pendingGuideCurrent: GridPoint?
 
     /// デフォルトのサービスを利用して `GameView` を生成するコンビニエンスイニシャライザ
     /// - Parameter onRequestReturnToTitle: タイトル画面への遷移要求クロージャ（省略可）
@@ -212,7 +216,18 @@ struct GameView: View {
         // 進行状態が変化した際もハイライトを整理（手詰まり・クリア時は消灯）
         .onReceive(core.$progress) { progress in
             if progress == .playing {
-                refreshGuideHighlights()
+                if let bufferedHand = pendingGuideHand {
+                    // デッドロック解除直後は退避しておいた手札情報を使ってガイドを復元する
+                    refreshGuideHighlights(
+                        handOverride: bufferedHand,
+                        currentOverride: pendingGuideCurrent
+                    )
+                    pendingGuideHand = nil
+                    pendingGuideCurrent = nil
+                } else {
+                    // バッファが無ければ通常通り最新状態から計算する
+                    refreshGuideHighlights()
+                }
             } else {
                 scene.updateGuideHighlights([])
             }
@@ -532,15 +547,28 @@ struct GameView: View {
         handOverride: [DealtCard]? = nil,
         currentOverride: GridPoint? = nil
     ) {
-        // ガイドモードが無効・ゲームが停止状態ならハイライトをすべて消灯
-        guard guideModeEnabled, core.progress == .playing else {
+        // ガイドモードが無効なときは全てのハイライトを隠し、バッファも不要なので初期化する
+        guard guideModeEnabled else {
             scene.updateGuideHighlights([])
+            pendingGuideHand = nil
+            pendingGuideCurrent = nil
             return
         }
 
         // パラメータで明示的に渡された値があれば優先し、未指定なら GameCore の現在値を参照する
         let hand = handOverride ?? core.hand
         let current = currentOverride ?? core.current
+
+        // 進行状態が .playing 以外（例: .deadlock）のときは手札と位置をバッファへ退避し、再開時に再描画できるようにする
+        guard core.progress == .playing else {
+            pendingGuideHand = hand
+            pendingGuideCurrent = current
+            return
+        }
+
+        // 正常に描画できたらバッファは不要のためリセットする
+        pendingGuideHand = nil
+        pendingGuideCurrent = nil
 
         var highlightPoints: Set<GridPoint> = []
         for card in hand {
