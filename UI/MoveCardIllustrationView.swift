@@ -148,11 +148,13 @@ struct MoveCardIllustrationView: View {
                 let destinationPoint = cellCenter(origin: origin, cellSize: cellSize, column: destinationIndex.column, row: destinationIndex.row)
 
                 // MARK: - 矢印の太さ・矢じり寸法をセルサイズから計算
-                let arrowLineWidth = max(cellSize * 0.35, 2.0)
+                // 細身でも視認性を維持できるよう、線幅はセルサイズに対する比率をやや抑えつつ最小値を 1.5pt 程度に設定
+                let arrowLineWidth = max(cellSize * 0.22, 1.5)
                 let vector = CGVector(dx: destinationPoint.x - startPoint.x, dy: destinationPoint.y - startPoint.y)
                 let arrowLength = hypot(vector.dx, vector.dy)
-                let arrowHeadLength = min(cellSize * 0.9, arrowLength * 0.45)
-                let arrowHeadWidth = arrowHeadLength * 0.8
+                // 矢じりはカード全体のバランスを崩さないよう、長さ・幅ともに控えめな比率へ見直す
+                let arrowHeadLength = min(cellSize * 0.6, arrowLength * 0.35)
+                let arrowHeadWidth = arrowHeadLength * 0.55
                 let arrowHeadVertices = arrowHeadPoints(
                     startPoint: startPoint,
                     destinationPoint: destinationPoint,
