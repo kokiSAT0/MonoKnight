@@ -14,8 +14,9 @@ struct RootView: View {
     /// - Note: 認証後はラベル表示に切り替える
     @State private var isAuthenticated: Bool
     /// ゲームタブでタイトル画面を表示するかどうかのフラグ
-    /// - NOTE: メニューからタイトルへ戻る操作を受けて切り替える
-    @State private var isShowingTitleScreen: Bool = false
+    /// - NOTE: アプリ起動直後にタイトルを先に表示したいので初期値は `true`
+    ///         メニューからタイトルへ戻る操作でもこのフラグを再度 `true` に切り替える
+    @State private var isShowingTitleScreen: Bool = true
 
     /// 依存サービスを外部から注入可能にする初期化処理
     /// - Parameters:
