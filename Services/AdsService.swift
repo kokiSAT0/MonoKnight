@@ -3,6 +3,7 @@ import UIKit
 import SwiftUI
 import AppTrackingTransparency
 import GoogleMobileAds
+import UserMessagingPlatform
 // ログ出力ユーティリティを利用するため Game モジュールを読み込む
 import Game
 
@@ -47,6 +48,8 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, FullScre
     private var retryTask: Task<Void, Never>?
     /// 広告自体を停止するフラグ（IAP などで利用）
     private var adsDisabled: Bool = false
+    /// UMP の同意フォームを保持する参照
+    private var consentForm: UMPConsentForm?
 
     /// Info.plist から読み取ったインタースティシャル広告ユニット ID（空文字ならロードしない）
     private let interstitialAdUnitID: String
@@ -101,11 +104,53 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, FullScre
     }
 
     func requestConsentIfNeeded() async {
-        // UMP SDK 導入前のプレースホルダー。導入後に同意フォームを表示する
+        // Info.plist 側の設定が揃っていない場合はフォーム表示を行わない
+        guard hasValidAdConfiguration else { return }
+
+        do {
+            // まずは地域規制の判定を最新化
+            try await requestConsentInfoUpdate()
+            // 同意状態に応じて NPA フラグを更新し、広告リクエストへ反映させる
+            applyConsentStatusAndReloadIfNeeded()
+
+            let consentInfo = UMPConsentInformation.sharedInstance
+            // 同意フォームが利用可能な場合のみロードと表示を行う
+            guard consentInfo.formStatus == .available else { return }
+
+            // 最新のフォームをロード
+            consentForm = try await loadConsentForm()
+
+            // 規制対象地域かつ同意が未取得の場合はフォームを提示
+            if consentInfo.consentStatus == .required || consentInfo.consentStatus == .unknown {
+                try await presentLoadedConsentForm()
+                // 表示後に同意内容が更新されるため再評価する
+                applyConsentStatusAndReloadIfNeeded()
+            }
+        } catch {
+            // UMP 周りの失敗は広告表示を止めつつ、デバッグしやすいようログに残す
+            debugError(error, message: "Google UMP の同意取得に失敗")
+        }
     }
 
     func refreshConsentStatus() async {
-        // 将来的に UMP の同意状態を再取得する処理を実装する
+        // Info.plist の設定が不足している場合は処理しない
+        guard hasValidAdConfiguration else { return }
+
+        do {
+            // 現在の同意状況を最新化
+            try await requestConsentInfoUpdate()
+            applyConsentStatusAndReloadIfNeeded()
+
+            let consentInfo = UMPConsentInformation.sharedInstance
+            guard consentInfo.formStatus == .available else { return }
+
+            // 設定画面などから呼び出された際は Privacy Options を直接表示する
+            try await presentPrivacyOptions()
+            // ユーザー操作後の状態を反映する
+            applyConsentStatusAndReloadIfNeeded()
+        } catch {
+            debugError(error, message: "Google UMP の同意状態更新に失敗")
+        }
     }
 
     func showInterstitial() {
@@ -156,6 +201,7 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, FullScre
     /// インタースティシャル広告を読み込むヘルパー
     private func loadInterstitial() {
         guard hasValidAdConfiguration,
+              UMPConsentInformation.sharedInstance.canRequestAds,
               !adsDisabled,
               !removeAds,
               !isLoadingAd,
@@ -233,5 +279,133 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, FullScre
         debugError(error, message: "インタースティシャル広告の表示に失敗")
         interstitial = nil
         scheduleRetry()
+    }
+}
+
+// MARK: - UMP 関連のヘルパー
+
+private extension AdsService {
+    /// UMP の同意情報を最新化する
+    func requestConsentInfoUpdate() async throws {
+        // 未成年向けコンテンツではないため、規定通り false を指定する
+        let parameters = UMPRequestParameters()
+        parameters.tagForUnderAgeOfConsent = false
+
+#if DEBUG
+        // テスト中は常に EEA として扱い、フォームを確認しやすくする
+        let debugSettings = UMPDebugSettings()
+        debugSettings.geography = .EEA
+        parameters.debugSettings = debugSettings
+#endif
+
+        let consentInfo = UMPConsentInformation.sharedInstance
+
+        try await withCheckedThrowingContinuation { continuation in
+            consentInfo.requestConsentInfoUpdate(with: parameters) { error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume(returning: ())
+                }
+            }
+        }
+    }
+
+    /// 同意フォームをロードする
+    func loadConsentForm() async throws -> UMPConsentForm {
+        try await withCheckedThrowingContinuation { continuation in
+            UMPConsentForm.load { [weak self] form, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else if let form {
+                    continuation.resume(returning: form)
+                } else {
+                    // フォームもエラーも返らないケースは想定外のため、明示的にエラーを生成する
+                    let error = NSError(
+                        domain: "MonoKnight.AdsService",
+                        code: -1,
+                        userInfo: [NSLocalizedDescriptionKey: "UMP 同意フォームのロード結果が不正"]
+                    )
+                    continuation.resume(throwing: error)
+                }
+
+                // 参照が不要になったフォームは明示的に破棄する
+                if self?.consentForm != nil && form == nil {
+                    self?.consentForm = nil
+                }
+            }
+        }
+    }
+
+    /// ロード済みフォームを現在の RootViewController から表示する
+    func presentLoadedConsentForm() async throws {
+        guard let viewController = rootViewController(), let consentForm else {
+            let error = NSError(
+                domain: "MonoKnight.AdsService",
+                code: -2,
+                userInfo: [NSLocalizedDescriptionKey: "UMP 同意フォームを表示するための ViewController 取得に失敗"]
+            )
+            throw error
+        }
+
+        try await withCheckedThrowingContinuation { continuation in
+            consentForm.present(from: viewController) { [weak self] error in
+                defer { self?.consentForm = nil }
+                if let error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume(returning: ())
+                }
+            }
+        }
+    }
+
+    /// プライバシーオプションを直接表示する
+    func presentPrivacyOptions() async throws {
+        guard let viewController = rootViewController() else {
+            let error = NSError(
+                domain: "MonoKnight.AdsService",
+                code: -3,
+                userInfo: [NSLocalizedDescriptionKey: "UMP Privacy Options を表示できる ViewController が見つかりません"]
+            )
+            throw error
+        }
+
+        try await withCheckedThrowingContinuation { continuation in
+            UMPConsentForm.presentPrivacyOptionsForm(from: viewController) { error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume(returning: ())
+                }
+            }
+        }
+    }
+
+    /// 現在の同意ステータスを見て NPA フラグを更新し、必要に応じて広告を再読み込みする
+    func applyConsentStatusAndReloadIfNeeded() {
+        let consentInfo = UMPConsentInformation.sharedInstance
+        // 取得済み or 規制対象外の場合のみパーソナライズを許可し、それ以外は安全側として NPA を指定する
+        let newShouldUseNPA: Bool
+        switch consentInfo.consentStatus {
+        case .obtained, .notRequired:
+            newShouldUseNPA = false
+        default:
+            newShouldUseNPA = true
+        }
+
+        let hasChanged = newShouldUseNPA != shouldUseNPA
+        shouldUseNPA = newShouldUseNPA
+
+        // 値が変わった場合は既存キャッシュを破棄し、新しい設定で広告をロードし直す
+        guard hasChanged else { return }
+        interstitial = nil
+        loadInterstitial()
+    }
+
+    /// 最前面の ViewController を取得する
+    func rootViewController() -> UIViewController? {
+        guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene else { return nil }
+        return scene.windows.first?.rootViewController
     }
 }
