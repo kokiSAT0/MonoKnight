@@ -115,14 +115,14 @@ struct GameView: View {
                 - handSectionHeight
                 - LayoutMetrics.spacingBetweenBoardAndHand
                 - LayoutMetrics.spacingBetweenStatisticsAndBoard
-            // VStack 全体の高さ不足で availableHeightForBoard が負になる場合でも
-            // 盤面がゼロサイズにならないように幅ベースのフォールバック値を用意する
-            let fallbackBoardBaseSize = max(geometry.size.width, LayoutMetrics.minimumBoardFallbackSize)
-            // 実際の盤面基準サイズは「利用可能な高さ」と「幅（フォールバック込み）」の小さい方を採用する
-            let boardBaseSize = min(
-                geometry.size.width,
-                availableHeightForBoard > 0 ? availableHeightForBoard : fallbackBoardBaseSize
-            )
+            // MARK: - 盤面の基準サイズ計算
+            // GeometryReader から得られる幅がゼロの場合でも、SpriteView のサイズが 0×0 にならないよう
+            // `minimumBoardFallbackSize` を用いた横方向のフォールバック値を必ず確保しておく
+            let horizontalBoardBase = max(geometry.size.width, LayoutMetrics.minimumBoardFallbackSize)
+            // 利用可能な高さが不足した場合は横方向と同じフォールバック値を使い、盤面が消失するのを防ぐ
+            let verticalBoardBase = availableHeightForBoard > 0 ? availableHeightForBoard : horizontalBoardBase
+            // 実際の盤面基準サイズは横方向と縦方向の候補のうち小さい方を採用し、正方形を維持する
+            let boardBaseSize = min(horizontalBoardBase, verticalBoardBase)
             // 盤面をやや縮小して下部のカードに高さの余裕を持たせる
             let boardWidth = boardBaseSize * LayoutMetrics.boardScale
 
@@ -142,12 +142,12 @@ struct GameView: View {
             .background(theme.backgroundPrimary)
             // 盤面が表示されない不具合を切り分けるため、レイアウト関連の値をウォッチする不可視ビューを重ねる
             .background(
-                layoutDiagnosticOverlay(
-                    geometrySize: geometry.size,
-                    availableHeight: availableHeightForBoard,
-                    fallbackBaseSize: fallbackBoardBaseSize,
-                    boardWidth: boardWidth
-                )
+                    layoutDiagnosticOverlay(
+                        geometrySize: geometry.size,
+                        availableHeight: availableHeightForBoard,
+                    fallbackBaseSize: horizontalBoardBase,
+                        boardWidth: boardWidth
+                    )
             )
         }
         // PreferenceKey で伝搬した各セクションの高さを受け取り、レイアウト計算に利用する
