@@ -277,6 +277,7 @@ struct GameView: View {
             ResultView(
                 moveCount: core.moveCount,
                 penaltyCount: core.penaltyCount,
+                elapsedSeconds: core.elapsedSeconds,
                 onRetry: {
                     // リトライ時はゲームを初期状態に戻して再開する
                     core.reset()

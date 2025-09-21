@@ -133,6 +133,7 @@ final class GameCoreTests: XCTestCase {
         XCTAssertEqual(core.current, .center, "駒の位置が初期化されていない")
         XCTAssertEqual(core.moveCount, 0, "移動カウントがリセットされていない")
         XCTAssertEqual(core.penaltyCount, 0, "ペナルティカウントがリセットされていない")
+        XCTAssertEqual(core.elapsedSeconds, 0, "所要時間がリセットされていない")
         XCTAssertEqual(core.progress, .playing, "ゲーム状態が playing に戻っていない")
         XCTAssertEqual(core.hand.count, 5, "手札枚数が初期値と異なる")
         XCTAssertEqual(core.nextCards.count, 3, "先読みカードが 3 枚確保されていない")
@@ -177,5 +178,15 @@ final class GameCoreTests: XCTestCase {
 
         XCTAssertEqual(core.hand.map { $0.move }, initialHand, "同一シードでのリセット時は手札構成が一致するべき")
         XCTAssertEqual(core.nextCards.map { $0.move }, initialNext, "同一シードでのリセット時は先読み構成が一致するべき")
+    }
+
+    /// スコア計算が「手数×10 + 経過秒数」で行われることを確認
+    func testScoreCalculationUsesPointsFormula() {
+        let core = GameCore()
+        // テスト用に任意のメトリクスを設定
+        core.overrideMetricsForTesting(moveCount: 12, penaltyCount: 5, elapsedSeconds: 37)
+
+        XCTAssertEqual(core.totalMoveCount, 17, "合計手数の算出が期待値と異なる")
+        XCTAssertEqual(core.score, 207, "ポイント計算が仕様と一致していない")
     }
 }
