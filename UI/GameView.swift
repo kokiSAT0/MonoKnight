@@ -218,12 +218,12 @@ struct GameView: View {
             if progress == .playing {
                 if let bufferedHand = pendingGuideHand {
                     // デッドロック解除直後は退避しておいた手札情報を使ってガイドを復元する
+                    // refreshGuideHighlights 内で .playing 復帰を確認したタイミングのみバッファが空になる
+                    // 仕組みに変更されたため、ここでは復元処理の呼び出しに専念させる
                     refreshGuideHighlights(
                         handOverride: bufferedHand,
                         currentOverride: pendingGuideCurrent
                     )
-                    pendingGuideHand = nil
-                    pendingGuideCurrent = nil
                 } else {
                     // バッファが無ければ通常通り最新状態から計算する
                     refreshGuideHighlights()
