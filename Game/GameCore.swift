@@ -286,7 +286,9 @@ public final class GameCore: ObservableObject {
     }
 
     /// ゲームを最初からやり直す
-    public func reset() {
+    /// - Parameter startNewGame: `true` の場合は乱数シードも新規採番して完全に新しいゲームを開始する。
+    ///                           `false` の場合は同じシードを用いて同一展開を再現する。
+    public func reset(startNewGame: Bool = true) {
         board = Board()
         current = .center
         moveCount = 0
@@ -294,7 +296,13 @@ public final class GameCore: ObservableObject {
         progress = .playing
         penaltyEventID = nil
         boardTapPlayRequest = nil
-        deck.reset()
+        if startNewGame {
+            // リセット時にゲーム展開が固定化されないよう、山札そのものを作り直してシードを更新する
+            deck = Deck()
+        } else {
+            // 同じ展開をもう一度確認したいケースに備え、既存シードを使ったリセットも選べるようにする
+            deck.reset()
+        }
         // リセット時も handSize を用いて手札を補充
         hand = deck.draw(count: handSize)
         nextCards = deck.draw(count: nextPreviewCount)

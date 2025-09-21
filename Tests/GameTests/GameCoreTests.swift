@@ -151,4 +151,31 @@ final class GameCoreTests: XCTestCase {
         core.reset()
         XCTAssertEqual(core.hand.count, 5, "リセット直後の手札枚数が 5 枚になっていない")
     }
+
+    /// 同じシードでゲームをやり直したい場合に `startNewGame: false` が利用できるか検証
+    func testResetCanReuseSameSeedWhenRequested() {
+        // 5 枚の手札と 3 枚の先読みが明確に分かるよう、連続する 8 枚のカードを用意
+        let preset: [MoveCard] = [
+            .kingUp,
+            .kingRight,
+            .kingDown,
+            .kingLeft,
+            .kingUpLeft,
+            .knightUp1Right2,
+            .knightUp2Right1,
+            .straightUp2
+        ]
+        let deck = Deck.makeTestDeck(cards: preset)
+        let core = GameCore.makeTestInstance(deck: deck)
+
+        // リセット前の手札と先読み構成を控えておき、後で比較できるようにする
+        let initialHand = core.hand.map { $0.move }
+        let initialNext = core.nextCards.map { $0.move }
+
+        // 同一シードを維持するモードでリセットし、手札が再現されるかを確認
+        core.reset(startNewGame: false)
+
+        XCTAssertEqual(core.hand.map { $0.move }, initialHand, "同一シードでのリセット時は手札構成が一致するべき")
+        XCTAssertEqual(core.nextCards.map { $0.move }, initialNext, "同一シードでのリセット時は先読み構成が一致するべき")
+    }
 }
