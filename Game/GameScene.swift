@@ -375,6 +375,21 @@ public final class GameScene: SKScene {
     /// - NOTE: 駒の移動をゲームロジック外部から制御するため公開メソッドにする
     public func moveKnight(to point: GridPoint) {
         let destination = position(for: point)
+
+        // タイトル画面に遷移した直後など、SpriteKit 側の SKView が一時停止状態になっていると
+        // SKAction がまったく再生されず駒が移動しないため、ここで毎回再開を保証する。
+        // `scene.view` と `scene.isPaused` の両方を確認しておき、どちらかが停止していても動作を復旧させる。
+        if let skView = view, skView.isPaused {
+            skView.isPaused = false
+        }
+        if isPaused {
+            isPaused = false
+        }
+
+        // 連続入力時に過去のアクションが残っていると挙動が不安定になるため、
+        // 新しい移動アクションを開始する前に一度既存アクションをクリアする。
+        knightNode?.removeAllActions()
+
         let move = SKAction.move(to: destination, duration: 0.2)
         knightNode?.run(move)
         // 現在位置を保持し、アクセシビリティ情報を更新
