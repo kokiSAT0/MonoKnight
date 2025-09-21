@@ -384,12 +384,10 @@ struct GameView: View {
             .padding(.horizontal, 16)
             .accessibilityElement(children: .contain)
             // PreferenceKey へ統計バッジの高さを伝搬し、GeometryReader 側で取得できるようにする
-            .background(
-                GeometryReader { proxy in
-                    Color.clear
-                        .preference(key: StatisticsHeightPreferenceKey.self, value: proxy.size.height)
-                }
-            )
+            .overlay(alignment: .topLeading) {
+                // GeometryReader が親ビューいっぱいに広がらないよう、ゼロサイズの補助ビューを重ねて高さだけを取得する
+                HeightPreferenceReporter<StatisticsHeightPreferenceKey>()
+            }
 
             spriteBoard(width: width)
                 // 盤面縮小で生まれた余白を均等にするため、中央寄せで描画する
@@ -499,12 +497,10 @@ struct GameView: View {
         }
         .padding(.bottom, 16)
         // PreferenceKey へ手札セクションの高さを渡し、GeometryReader の計算に活用する
-        .background(
-            GeometryReader { proxy in
-                Color.clear
-                    .preference(key: HandSectionHeightPreferenceKey.self, value: proxy.size.height)
-            }
-        )
+        .overlay(alignment: .topLeading) {
+            // 同様に手札全体の高さもゼロサイズのオーバーレイで取得し、親 GeometryReader の計算値を安定させる
+            HeightPreferenceReporter<HandSectionHeightPreferenceKey>()
+        }
     }
 
     /// 手動ペナルティ（手札引き直し）のショートカットボタン
@@ -1220,8 +1216,22 @@ private struct HandSectionHeightPreferenceKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
 
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        // 末尾の .background から複数回値が届いた場合でも最大値を優先する
+        // 計測用オーバーレイから複数回値が届いた場合でも最大値を優先する
         value = max(value, nextValue())
+    }
+}
+
+/// 任意の PreferenceKey へ高さを伝搬するゼロサイズのオーバーレイ
+/// - Note: GeometryReader を直接レイアウトへ配置すると親ビューいっぱいまで広がり、想定外の値になるため
+///         あえて Color.clear を 0 サイズへ縮めて高さだけを測定する
+private struct HeightPreferenceReporter<Key: PreferenceKey>: View where Key.Value == CGFloat {
+    var body: some View {
+        GeometryReader { proxy in
+            Color.clear
+                .frame(width: 0, height: 0)
+                .preference(key: Key.self, value: proxy.size.height)
+        }
+        .allowsHitTesting(false)  // あくまでレイアウト取得用のダミービューなので操作対象から除外する
     }
 }
 
