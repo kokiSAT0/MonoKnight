@@ -228,11 +228,12 @@ struct GameView: View {
                     // 仕組みに変更されたため、ここでは復元処理の呼び出しに専念させる
                     refreshGuideHighlights(
                         handOverride: bufferedHand,
-                        currentOverride: pendingGuideCurrent
+                        currentOverride: pendingGuideCurrent,
+                        progressOverride: progress
                     )
                 } else {
                     // バッファが無ければ通常通り最新状態から計算する
-                    refreshGuideHighlights()
+                    refreshGuideHighlights(progressOverride: progress)
                 }
             } else {
                 scene.updateGuideHighlights([])
@@ -549,14 +550,17 @@ struct GameView: View {
     /// - Parameters:
     ///   - handOverride: 直近で受け取った最新の手札（`nil` の場合は `core.hand` を利用する）
     ///   - currentOverride: 最新の現在地（`nil` の場合は `core.current` を利用する）
+    ///   - progressOverride: Combine で受け取った最新進行度（`nil` の場合は `core.progress` を参照）
     private func refreshGuideHighlights(
         handOverride: [DealtCard]? = nil,
-        currentOverride: GridPoint? = nil
+        currentOverride: GridPoint? = nil,
+        progressOverride: GameProgress? = nil
     ) {
         // パラメータで上書き値が渡されていれば優先し、未指定であれば GameCore が保持する最新の状態を利用する
         let hand = handOverride ?? core.hand
         let current = currentOverride ?? core.current
-        let progress = core.progress
+        // Combine から届いた最新の進行度を優先できるよう引数でも受け取り、なければ GameCore の値を参照する
+        let progress = progressOverride ?? core.progress
 
         // 各カードの移動先を列挙し、盤内に収まるマスだけを候補として蓄積する
         var candidatePoints: Set<GridPoint> = []
