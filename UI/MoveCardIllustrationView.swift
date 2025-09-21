@@ -2,7 +2,7 @@ import SwiftUI
 import Game // Game モジュールから MoveCard 型などを利用するために読み込む
 
 /// 移動カードの内容を視覚的に表現するビュー
-/// 5×5 のグリッドと現在地・目的地・移動方向を描画してカード効果を直感的に把握できるようにする
+/// プレイヤー位置から目的地までの長方形グリッドと矢印のみを描画し、方向を直感的に把握できるようにする
 struct MoveCardIllustrationView: View {
     /// 表示モード。手札表示と先読み表示で配色やアクセシビリティ設定を切り替えるための列挙体
     enum Mode {
@@ -41,17 +41,6 @@ struct MoveCardIllustrationView: View {
             }
         }
 
-        /// 中央セルのハイライト色
-        /// - Parameter theme: アプリ共通テーマ
-        func centerHighlightColor(using theme: AppTheme) -> Color {
-            switch self {
-            case .hand:
-                return theme.centerHighlightHand
-            case .next:
-                return theme.centerHighlightNext
-            }
-        }
-
         /// グリッド線の色（手札よりもコントラストを強める）
         /// - Parameter theme: アプリ共通テーマ
         func gridLineColor(using theme: AppTheme) -> Color {
@@ -66,12 +55,6 @@ struct MoveCardIllustrationView: View {
         /// 矢印や目的地マーカーの色（モード共通）
         /// - Parameter theme: アプリ共通テーマ
         func arrowColor(using theme: AppTheme) -> Color {
-            theme.cardContentPrimary
-        }
-
-        /// カード名ラベルの文字色
-        /// - Parameter theme: アプリ共通テーマ
-        func labelColor(using theme: AppTheme) -> Color {
             theme.cardContentPrimary
         }
 
@@ -147,103 +130,72 @@ struct MoveCardIllustrationView: View {
                         .fill(mode.backgroundColor(using: theme))
                 )
 
-            VStack(spacing: 6) {
-                // MARK: - 盤面イメージ
-                // 正方形の領域に 5×5 グリッドと矢印などを描画する
-                GeometryReader { geometry in
-                    // MARK: - 座標計算（ヘルパーで分離）
-                    // レイアウト情報（正方形サイズ・セルサイズ・原点）をヘルパーから取得
-                    let layout = gridLayout(for: geometry.size)
-                    let squareSize = layout.squareSize
-                    let cellSize = layout.cellSize
-                    let origin = layout.origin
+            // MARK: - グリッドと矢印のみで移動方向を表現する
+            GeometryReader { geometry in
+                // MARK: - 使用するマス目のサイズ（移動量から決定）
+                let gridSize = gridSize(for: card)
+                // MARK: - 枠との余白を確保した上でグリッド全体のレイアウトを算出
+                let layout = gridLayout(for: geometry.size, columns: gridSize.columns, rows: gridSize.rows, inset: 6)
+                let cellSize = layout.cellSize
+                let origin = layout.origin
 
-                    // 盤面中央とカードに基づいた目的地のセル位置をそれぞれ取得
-                    let center = gridCenterIndex
-                    let destinationIndex = destinationCellIndex(for: card)
+                // MARK: - 始点と終点のセル位置を算出
+                let startIndex = startCellIndex(for: card, gridSize: gridSize)
+                let destinationIndex = destinationCellIndex(for: card, gridSize: gridSize)
 
-                    // ヘルパーメソッドでセル中心座標を算出
-                    let startPoint = cellCenter(origin: origin, cellSize: cellSize, column: center.column, row: center.row)
-                    let destinationPoint = cellCenter(origin: origin, cellSize: cellSize, column: destinationIndex.column, row: destinationIndex.row)
+                // MARK: - セル中心座標を矢印の描画基準として利用
+                let startPoint = cellCenter(origin: origin, cellSize: cellSize, column: startIndex.column, row: startIndex.row)
+                let destinationPoint = cellCenter(origin: origin, cellSize: cellSize, column: destinationIndex.column, row: destinationIndex.row)
 
-                    // 矢印の頭（三角形）の 2 点は専用の計算ロジックに委譲
-                    let arrowHeadVertices = arrowHeadPoints(
-                        startPoint: startPoint,
-                        destinationPoint: destinationPoint,
-                        arrowHeadLength: cellSize * 0.5,
-                        arrowHeadWidth: cellSize * 0.4
-                    )
+                // MARK: - 矢印の太さ・矢じり寸法をセルサイズから計算
+                let arrowLineWidth = max(cellSize * 0.35, 2.0)
+                let vector = CGVector(dx: destinationPoint.x - startPoint.x, dy: destinationPoint.y - startPoint.y)
+                let arrowLength = hypot(vector.dx, vector.dy)
+                let arrowHeadLength = min(cellSize * 0.9, arrowLength * 0.45)
+                let arrowHeadWidth = arrowHeadLength * 0.8
+                let arrowHeadVertices = arrowHeadPoints(
+                    startPoint: startPoint,
+                    destinationPoint: destinationPoint,
+                    arrowHeadLength: arrowHeadLength,
+                    arrowHeadWidth: arrowHeadWidth
+                )
 
-                    ZStack {
-                        // MARK: 中央マスのハイライト
-                        Rectangle()
-                            .fill(mode.centerHighlightColor(using: theme))
-                            .frame(width: cellSize, height: cellSize)
-                            .position(startPoint)
-
-                        // MARK: グリッド線（縦横 5 分割）
-                        Path { path in
-                            // 縦線を描画
-                            for index in 0...gridCount {
-                                let x = origin.x + CGFloat(index) * cellSize
-                                path.move(to: CGPoint(x: x, y: origin.y))
-                                path.addLine(to: CGPoint(x: x, y: origin.y + squareSize))
-                            }
-                            // 横線を描画
-                            for index in 0...gridCount {
-                                let y = origin.y + CGFloat(index) * cellSize
-                                path.move(to: CGPoint(x: origin.x, y: y))
-                                path.addLine(to: CGPoint(x: origin.x + squareSize, y: y))
-                            }
+                ZStack {
+                    // MARK: グリッド線（縦横）
+                    Path { path in
+                        // 縦線を描画
+                        for column in 0...gridSize.columns {
+                            let x = origin.x + CGFloat(column) * cellSize
+                            path.move(to: CGPoint(x: x, y: origin.y))
+                            path.addLine(to: CGPoint(x: x, y: origin.y + CGFloat(gridSize.rows) * cellSize))
                         }
-                        .stroke(mode.gridLineColor(using: theme), lineWidth: 0.5)
-
-                        // MARK: 現在地・目的地のマーカー
-                        Circle()
-                            .fill(theme.cardContentPrimary)
-                            .frame(width: cellSize * 0.4, height: cellSize * 0.4)
-                            .overlay(
-                                Circle()
-                                    .stroke(theme.startMarkerStroke, lineWidth: 1)
-                            )
-                            .position(startPoint)
-
-                        Circle()
-                            .fill(theme.cardContentInverted)
-                            .frame(width: cellSize * 0.4, height: cellSize * 0.4)
-                            .overlay(
-                                Circle()
-                                    .stroke(theme.destinationMarkerStroke, lineWidth: 1)
-                            )
-                            .position(destinationPoint)
-
-                        // MARK: 移動方向を示す矢印（線 + 矢じり）
-                        Path { path in
-                            path.move(to: startPoint)
-                            path.addLine(to: destinationPoint)
-                        }
-                        .stroke(mode.arrowColor(using: theme), style: StrokeStyle(lineWidth: 1.5, lineCap: .round))
-
-                        if let (leftPoint, rightPoint) = arrowHeadVertices {
-                            Path { path in
-                                path.move(to: destinationPoint)
-                                path.addLine(to: leftPoint)
-                                path.addLine(to: rightPoint)
-                                path.closeSubpath()
-                            }
-                            .fill(mode.arrowColor(using: theme))
+                        // 横線を描画
+                        for row in 0...gridSize.rows {
+                            let y = origin.y + CGFloat(row) * cellSize
+                            path.move(to: CGPoint(x: origin.x, y: y))
+                            path.addLine(to: CGPoint(x: origin.x + CGFloat(gridSize.columns) * cellSize, y: y))
                         }
                     }
-                }
-                .aspectRatio(1, contentMode: .fit)
+                    .stroke(mode.gridLineColor(using: theme), lineWidth: max(cellSize * 0.05, 0.5))
 
-                // MARK: - カード名の補助ラベル
-                // テキストでも方向が確認できるよう小さめのフォントで表示
-                Text(card.displayName)
-                    .font(.caption2)
-                    .foregroundColor(mode.labelColor(using: theme))
+                    // MARK: 移動方向を示す矢印（線 + 矢じり）
+                    Path { path in
+                        path.move(to: startPoint)
+                        path.addLine(to: destinationPoint)
+                    }
+                    .stroke(mode.arrowColor(using: theme), style: StrokeStyle(lineWidth: arrowLineWidth, lineCap: .round))
+
+                    if let (leftPoint, rightPoint) = arrowHeadVertices {
+                        Path { path in
+                            path.move(to: destinationPoint)
+                            path.addLine(to: leftPoint)
+                            path.addLine(to: rightPoint)
+                            path.closeSubpath()
+                        }
+                        .fill(mode.arrowColor(using: theme))
+                    }
+                }
             }
-            .padding(8)
         }
         .frame(width: 60, height: 80)
         // VoiceOver で方向が伝わるようカード名にモード別の説明を付与
@@ -260,23 +212,31 @@ struct MoveCardIllustrationView: View {
 
 // MARK: - 座標計算ヘルパー
 private extension MoveCardIllustrationView {
-    /// グリッドの縦横数（5×5 固定）
-    var gridCount: Int { 5 }
-
-    /// 盤面中央セルの添字（常に (2,2) ）
-    var gridCenterIndex: (column: Int, row: Int) {
-        (gridCount / 2, gridCount / 2)
+    /// カードの移動量から最小限のグリッドサイズを算出する
+    /// - Parameter card: 描画対象の移動カード
+    /// - Returns: 列数と行数をまとめたタプル（最低 1）
+    func gridSize(for card: MoveCard) -> (columns: Int, rows: Int) {
+        let columns = max(1, abs(card.dx) + 1)
+        let rows = max(1, abs(card.dy) + 1)
+        return (columns, rows)
     }
 
-    /// 利用可能領域から正方形のレイアウト情報を算出する
-    /// - Parameter size: GeometryReader が提供する領域のサイズ
-    /// - Returns: 正方形の一辺・セルサイズ・描画原点をまとめたタプル
-    func gridLayout(for size: CGSize) -> (squareSize: CGFloat, cellSize: CGFloat, origin: CGPoint) {
-        let squareSize = min(size.width, size.height)
-        let cellSize = squareSize / CGFloat(gridCount)
-        let originX = (size.width - squareSize) / 2.0
-        let originY = (size.height - squareSize) / 2.0
-        return (squareSize, cellSize, CGPoint(x: originX, y: originY))
+    /// 利用可能領域からグリッド全体のレイアウト情報を算出する
+    /// - Parameters:
+    ///   - size: GeometryReader が提供する領域のサイズ
+    ///   - columns: グリッドの列数
+    ///   - rows: グリッドの行数
+    ///   - inset: 角丸枠との距離を保つための余白
+    /// - Returns: セルサイズと描画原点をまとめたタプル
+    func gridLayout(for size: CGSize, columns: Int, rows: Int, inset: CGFloat) -> (cellSize: CGFloat, origin: CGPoint) {
+        let availableWidth = max(size.width - inset * 2.0, 0)
+        let availableHeight = max(size.height - inset * 2.0, 0)
+        let cellSize = min(availableWidth / CGFloat(columns), availableHeight / CGFloat(rows))
+        let gridWidth = cellSize * CGFloat(columns)
+        let gridHeight = cellSize * CGFloat(rows)
+        let originX = (size.width - gridWidth) / 2.0
+        let originY = (size.height - gridHeight) / 2.0
+        return (cellSize, CGPoint(x: originX, y: originY))
     }
 
     /// 指定したセルの中心座標を算出する
@@ -293,13 +253,27 @@ private extension MoveCardIllustrationView {
         )
     }
 
-    /// カードの移動量から目的地セルの添字を取得する
-    /// - Parameter card: 描画対象の移動カード
-    /// - Returns: 中央セル基準で算出した目的地の添字
-    func destinationCellIndex(for card: MoveCard) -> (column: Int, row: Int) {
-        let center = gridCenterIndex
-        // dy は数学的な Y 軸（上方向）基準なので、SwiftUI 座標系へ合わせるために符号を反転する
-        return (center.column + card.dx, center.row - card.dy)
+    /// 始点セルの添字を取得する
+    /// - Parameters:
+    ///   - card: 描画対象の移動カード
+    ///   - gridSize: 列数・行数の情報
+    /// - Returns: 始点セルの列・行添字
+    func startCellIndex(for card: MoveCard, gridSize: (columns: Int, rows: Int)) -> (column: Int, row: Int) {
+        let startColumn = card.dx >= 0 ? 0 : gridSize.columns - 1
+        let startRow = card.dy >= 0 ? gridSize.rows - 1 : 0
+        return (startColumn, startRow)
+    }
+
+    /// 目的地セルの添字を取得する
+    /// - Parameters:
+    ///   - card: 描画対象の移動カード
+    ///   - gridSize: 列数・行数の情報
+    /// - Returns: 目的地セルの列・行添字
+    func destinationCellIndex(for card: MoveCard, gridSize: (columns: Int, rows: Int)) -> (column: Int, row: Int) {
+        let start = startCellIndex(for: card, gridSize: gridSize)
+        let destinationColumn = gridSize.columns - 1 - start.column
+        let destinationRow = gridSize.rows - 1 - start.row
+        return (destinationColumn, destinationRow)
     }
 
     /// 矢印の先端（三角形）の 2 点を計算する
