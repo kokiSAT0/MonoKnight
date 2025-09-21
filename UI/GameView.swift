@@ -62,6 +62,8 @@ struct GameView: View {
     @State private var pendingGuideHand: [DealtCard]?
     /// 一時退避中の現在位置（nil なら GameCore の最新値を利用する）
     @State private var pendingGuideCurrent: GridPoint?
+    /// 盤面レイアウトに異常が発生した際のスナップショットを記録し、重複ログを避ける
+    @State private var lastLoggedLayoutSnapshot: BoardLayoutSnapshot?
 
     /// デフォルトのサービスを利用して `GameView` を生成するコンビニエンスイニシャライザ
     /// - Parameter onRequestReturnToTitle: タイトル画面への遷移要求クロージャ（省略可）
@@ -138,6 +140,15 @@ struct GameView: View {
             // 画面全体の背景もテーマで制御し、システム設定と調和させる
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(theme.backgroundPrimary)
+            // 盤面が表示されない不具合を切り分けるため、レイアウト関連の値をウォッチする不可視ビューを重ねる
+            .background(
+                layoutDiagnosticOverlay(
+                    geometrySize: geometry.size,
+                    availableHeight: availableHeightForBoard,
+                    fallbackBaseSize: fallbackBoardBaseSize,
+                    boardWidth: boardWidth
+                )
+            )
         }
         // PreferenceKey で伝搬した各セクションの高さを受け取り、レイアウト計算に利用する
         .onPreferenceChange(StatisticsHeightPreferenceKey.self) { newHeight in
@@ -397,6 +408,11 @@ struct GameView: View {
             .anchorPreference(key: BoardAnchorPreferenceKey.self, value: .bounds) { $0 }
             .onAppear {
                 // サイズと初期状態を反映
+                debugLog("SpriteBoard.onAppear: width=\(width), scene.size=\(scene.size)")
+                if width <= 0 {
+                    // 盤面幅がゼロの場合は描画が行われないため、即座にログへ残して追跡する
+                    debugLog("SpriteBoard.onAppear 警告: 盤面幅がゼロ以下です")
+                }
                 scene.size = CGSize(width: width, height: width)
                 scene.updateBoard(core.board)
                 scene.moveKnight(to: core.current)
@@ -405,6 +421,11 @@ struct GameView: View {
             }
             // ジオメトリの変化に追従できるよう、SpriteKit シーンのサイズも都度更新する
             .onChange(of: width) { newWidth in
+                debugLog("SpriteBoard.width 更新: newWidth=\(newWidth)")
+                if newWidth <= 0 {
+                    // レイアウト異常で幅がゼロになったケースを把握するための警告ログ
+                    debugLog("SpriteBoard.width 警告: newWidth がゼロ以下です")
+                }
                 scene.size = CGSize(width: newWidth, height: newWidth)
             }
             // GameCore 側の更新を受け取り、SpriteKit の表示へ同期する
@@ -806,6 +827,70 @@ struct GameView: View {
                     .foregroundColor(theme.placeholderIcon)
             )
             .accessibilityHidden(true)  // プレースホルダは VoiceOver の読み上げ対象外にして混乱を避ける
+    }
+
+    /// レイアウトに関する最新の実測値をログに残すための不可視ビューを生成
+    /// - Parameters:
+    ///   - geometrySize: GeometryReader 全体のサイズ
+    ///   - availableHeight: 統計バッジと手札を差し引いた盤面用の高さ
+    ///   - fallbackBaseSize: フォールバック用に採用した基準サイズ
+    ///   - boardWidth: 実際に算出された盤面の幅
+    /// - Returns: 画面上には表示されない監視用ビュー
+    private func layoutDiagnosticOverlay(
+        geometrySize: CGSize,
+        availableHeight: CGFloat,
+        fallbackBaseSize: CGFloat,
+        boardWidth: CGFloat
+    ) -> some View {
+        // 現在の値をひとまとめにして Equatable なスナップショットとして扱う
+        let snapshot = BoardLayoutSnapshot(
+            geometrySize: geometrySize,
+            availableHeight: availableHeight,
+            fallbackBaseSize: fallbackBaseSize,
+            boardWidth: boardWidth
+        )
+
+        return Color.clear
+            .frame(width: 0, height: 0)
+            .allowsHitTesting(false)
+            .onAppear {
+                // 表示直後にレイアウト情報を記録して初期状態を把握
+                logLayoutSnapshot(snapshot, reason: "初期観測")
+            }
+            .onChange(of: snapshot) { _, newValue in
+                // レイアウト値が変動するたびにスナップショットを残し、問題の再現条件を追跡する
+                logLayoutSnapshot(newValue, reason: "値更新")
+            }
+    }
+
+    /// 実測値のスナップショットを比較しつつログへ出力する共通処理
+    /// - Parameters:
+    ///   - snapshot: 記録したいレイアウト値一式
+    ///   - reason: ログ出力の契機（onAppear / 値更新など）
+    private func logLayoutSnapshot(_ snapshot: BoardLayoutSnapshot, reason: String) {
+        // 同じ値での重複出力を避け、必要なタイミングのみに絞ってログを残す
+        if lastLoggedLayoutSnapshot == snapshot { return }
+        lastLoggedLayoutSnapshot = snapshot
+
+        debugLog(
+            "GameView.layout 観測: 理由=\(reason), geometry=\(snapshot.geometrySize), availableHeight=\(snapshot.availableHeight), fallback=\(snapshot.fallbackBaseSize), boardWidth=\(snapshot.boardWidth)"
+        )
+
+        if snapshot.availableHeight <= 0 || snapshot.boardWidth <= 0 {
+            // 盤面がゼロサイズになる条件を明確化するため、異常時は追加で警告ログを残す
+            debugLog(
+                "GameView.layout 警告: availableHeight=\(snapshot.availableHeight), boardWidth=\(snapshot.boardWidth)"
+            )
+        }
+    }
+
+    /// レイアウト監視で扱う値をひとまとめにした構造体
+    /// - Note: Equatable 準拠により onChange での差分検出に利用する
+    private struct BoardLayoutSnapshot: Equatable {
+        let geometrySize: CGSize
+        let availableHeight: CGFloat
+        let fallbackBaseSize: CGFloat
+        let boardWidth: CGFloat
     }
 
 }
