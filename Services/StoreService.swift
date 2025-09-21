@@ -14,11 +14,24 @@ final class StoreService: ObservableObject {
     /// 取得済みのプロダクト一覧（現在は広告除去のみ）
     @Published var products: [Product] = []
 
+    /// 広告除去購入済みフラグを UI へ公開するためのプロパティ
+    /// - NOTE: `@AppStorage` だけだと SwiftUI の描画更新が走らないため、`@Published` と併用して View 側で購読しやすくする
+    @Published private(set) var isRemoveAdsPurchased: Bool
+
     /// 広告除去購入済みフラグ
     /// - `true` の場合は AdsService が広告を読み込まない
     @AppStorage("remove_ads") private var removeAds: Bool = false
 
+    /// 設定画面などから価格表示に利用できるよう、広告除去商品の参照を提供する
+    var removeAdsProduct: Product? { products.first(where: { $0.id == "remove_ads" }) }
+
     private init() {
+        // 起動時点で保存済みの値を読み出し、UI の初期状態に反映する
+        self.isRemoveAdsPurchased = UserDefaults.standard.bool(forKey: "remove_ads")
+        if removeAds {
+            // すでに広告除去が有効な場合は AdsService にも通知しておき、広告ロードを完全に止める
+            AdsService.shared.disableAds()
+        }
         // 初期化と同時に商品情報の取得とトランザクション監視を開始
         Task {
             await fetchProducts()
@@ -72,6 +85,7 @@ final class StoreService: ObservableObject {
     /// 外部から呼び出して購入済み情報を更新する
     private func applyRemoveAds() {
         removeAds = true
+        isRemoveAdsPurchased = true
         // 広告サービスに通知して表示を停止させる
         AdsService.shared.disableAds()
     }
@@ -114,14 +128,16 @@ final class StoreService: ObservableObject {
 
     /// 「購入を復元」ボタンなどから呼び出される処理
     /// App Store と同期して過去の購入を再評価する
-    func restorePurchases() async {
+    func restorePurchases() async -> Bool {
         do {
             try await AppStore.sync()
             // `AppStore.sync()` 実行後は `Transaction.updates` が再度流れるため
             // `updatePurchasedStatus()` を明示的に呼ぶ必要はない
+            return true
         } catch {
             // 復元処理が失敗した場合も詳細なログを残す
             debugError(error, message: "購入の復元に失敗")
+            return false
         }
     }
 }

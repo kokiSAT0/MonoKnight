@@ -1,6 +1,23 @@
+import StoreKit
 import SwiftUI
 
 struct SettingsView: View {
+    // MARK: - ストア連携
+    // 広告除去 IAP の購入／復元状態を UI に反映するため、共有の StoreService を監視する。
+    @ObservedObject private var storeService = StoreService.shared
+
+    // 購入ボタンを複数回タップできないようにするための進行状況フラグ。
+    @State private var isPurchaseInProgress = false
+
+    // 復元処理の重複実行を避けるためのフラグ。
+    @State private var isRestoreInProgress = false
+
+    // 前回把握していた購入状態を保持し、`onChange` で遷移を検出する。
+    @State private var lastKnownPurchaseState = StoreService.shared.isRemoveAdsPurchased
+
+    // ストア処理の完了通知をアラートで表示するための状態。
+    @State private var storeAlert: StoreAlert?
+
     // MARK: - テーマ設定
     // ユーザーが任意に選択したカラースキームを保持する。初期値はシステム依存の `.system`。
     @AppStorage("preferred_color_scheme") private var preferredColorSchemeRawValue: String = ThemePreference.system.rawValue
@@ -19,6 +36,47 @@ struct SettingsView: View {
 
     // 戦績リセット確認用のアラート表示フラグ。ユーザーが誤操作しないよう明示的に確認する。
     @State private var isResetAlertPresented = false
+
+    // MARK: - 定義
+    // ストア関連の通知内容をまとめ、`Identifiable` 化して SwiftUI の `.alert(item:)` に乗せる。
+    private enum StoreAlert: Identifiable {
+        case purchaseCompleted
+        case restoreFinished
+        case restoreFailed
+
+        var id: String {
+            switch self {
+            case .purchaseCompleted:
+                return "purchaseCompleted"
+            case .restoreFinished:
+                return "restoreFinished"
+            case .restoreFailed:
+                return "restoreFailed"
+            }
+        }
+
+        var title: String {
+            switch self {
+            case .purchaseCompleted:
+                return "広告除去を適用しました"
+            case .restoreFinished:
+                return "購入内容を確認しました"
+            case .restoreFailed:
+                return "復元に失敗しました"
+            }
+        }
+
+        var message: String {
+            switch self {
+            case .purchaseCompleted:
+                return "広告の表示が無効化されました。アプリを再起動する必要はありません。"
+            case .restoreFinished:
+                return "App Store と同期しました。購入済みの場合は自動で広告除去が反映されます。"
+            case .restoreFailed:
+                return "通信状況や Apple ID を確認のうえ、時間を置いて再度お試しください。"
+            }
+        }
+    }
 
     var body: some View {
         NavigationStack {
@@ -62,6 +120,77 @@ struct SettingsView: View {
                 } footer: {
                     // どのような効果があるかを具体的に説明し、不要ならオフにできると案内
                     Text("手札から移動できるマスを盤面上で光らせます。集中して考えたい場合はオフにできます。")
+                }
+
+                // MARK: - 広告除去 IAP セクション
+                Section {
+                    if storeService.isRemoveAdsPurchased {
+                        // すでに広告除去が有効な場合は、状態が維持されていることを明確に示す
+                        Label {
+                            Text("広告は現在表示されません")
+                        } icon: {
+                            Image(systemName: "checkmark.seal.fill")
+                        }
+                        .accessibilityLabel(Text("広告除去が適用済みです"))
+                    } else {
+                        Button {
+                            guard !isPurchaseInProgress else { return }
+                            isPurchaseInProgress = true
+                            Task {
+                                // 商品情報が未取得の場合は先にリクエストをやり直す
+                                if storeService.removeAdsProduct == nil {
+                                    await storeService.fetchProducts()
+                                }
+                                await storeService.purchaseRemoveAds()
+                                await MainActor.run {
+                                    isPurchaseInProgress = false
+                                }
+                            }
+                        } label: {
+                            HStack {
+                                Label("広告を非表示にする", systemImage: "hand.raised.slash")
+                                Spacer()
+                                if isPurchaseInProgress {
+                                    ProgressView()
+                                } else if let price = storeService.removeAdsProduct?.displayPrice {
+                                    Text(price)
+                                        .foregroundStyle(.secondary)
+                                } else {
+                                    Text("取得中…")
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                        .disabled(isPurchaseInProgress)
+                        .accessibilityLabel(Text("広告を非表示にする購入手続き"))
+                    }
+
+                    Button {
+                        guard !isRestoreInProgress else { return }
+                        isRestoreInProgress = true
+                        Task {
+                            let success = await storeService.restorePurchases()
+                            await MainActor.run {
+                                isRestoreInProgress = false
+                                storeAlert = success ? .restoreFinished : .restoreFailed
+                            }
+                        }
+                    } label: {
+                        HStack {
+                            Label("購入内容を復元", systemImage: "arrow.clockwise.circle")
+                            Spacer()
+                            if isRestoreInProgress {
+                                ProgressView()
+                            }
+                        }
+                    }
+                    .disabled(isRestoreInProgress)
+                    .accessibilityLabel(Text("広告除去の購入履歴を復元する"))
+                } header: {
+                    Text("広告")
+                } footer: {
+                    // 購入と復元の使い分けを案内し、トラブルシューティング先を示す
+                    Text("広告を非表示にする購入手続きや、機種変更時の復元が行えます。購入内容は Apple ID に紐づくため、別の端末でも同じアカウントで復元できます。")
                 }
 
                 // プライバシー操作セクション
@@ -128,6 +257,25 @@ struct SettingsView: View {
             }
             .navigationTitle("設定")
             // - NOTE: プレビューや UI テストでは、この Picker を操作して `GameView` の `applyScenePalette` が呼び直されることを確認する想定。
+            // アプリ復帰などで View が再生成された際にストア状態を同期し、初期表示での誤検知を避ける
+            .onAppear {
+                lastKnownPurchaseState = storeService.isRemoveAdsPurchased
+            }
+            // 購入状態が false から true へ変化したときのみ成功アラートを表示する
+            .onChange(of: storeService.isRemoveAdsPurchased) { newValue in
+                if newValue && !lastKnownPurchaseState {
+                    storeAlert = .purchaseCompleted
+                }
+                lastKnownPurchaseState = newValue
+            }
+        }
+        // ストア処理の成否をまとめて通知し、ユーザーに完了状況を伝える
+        .alert(item: $storeAlert) { alert in
+            Alert(
+                title: Text(alert.title),
+                message: Text(alert.message),
+                dismissButton: .default(Text("OK"))
+            )
         }
     }
 }
