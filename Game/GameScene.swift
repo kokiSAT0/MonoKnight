@@ -259,6 +259,9 @@ public final class GameScene: SKScene {
         // 最新の要求内容を常に保持し、レイアウト完了後に再構成できるようにする
         pendingGuideHighlightPoints = validPoints
 
+        // SwiftUI 側からのリクエストが途絶えていないか確認するため、受け取ったマス数とレイアウト状態を記録
+        debugLog("GameScene ハイライト更新要求: 有効マス数=\(validPoints.count), レイアウト確定=\(tileSize > 0)")
+
         // タイルサイズが未確定（0 または負数）の場合はノード生成を保留し、後で再試行する
         guard tileSize > 0 else { return }
 

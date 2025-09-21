@@ -192,6 +192,9 @@ struct GameView: View {
         }
         // 手札内容が変わるたびに移動候補を再計算し、ガイドハイライトを更新
         .onReceive(core.$hand) { newHand in
+            // 手札ストリームの更新順序を追跡しやすいよう、受信したカード枚数をログへ残す
+            debugLog("手札更新を受信: 枚数=\(newHand.count), 退避ハンドあり=\(pendingGuideHand != nil)")
+
             // 手札が差し替わった際は非表示リストを実際に存在するカード ID へ限定する
             let validIDs = Set(newHand.map { $0.id })
             hiddenCardIDs.formIntersection(validIDs)
@@ -215,6 +218,9 @@ struct GameView: View {
         }
         // 進行状態が変化した際もハイライトを整理（手詰まり・クリア時は消灯）
         .onReceive(core.$progress) { progress in
+            // 進行状態が切り替わったタイミングで、デッドロック退避フラグの有無と併せて記録する
+            debugLog("進行状態の更新を受信: 状態=\(String(describing: progress)), 退避ハンドあり=\(pendingGuideHand != nil)")
+
             if progress == .playing {
                 if let bufferedHand = pendingGuideHand {
                     // デッドロック解除直後は退避しておいた手札情報を使ってガイドを復元する
@@ -547,22 +553,37 @@ struct GameView: View {
         handOverride: [DealtCard]? = nil,
         currentOverride: GridPoint? = nil
     ) {
+        // パラメータで上書き値が渡されていれば優先し、未指定であれば GameCore が保持する最新の状態を利用する
+        let hand = handOverride ?? core.hand
+        let current = currentOverride ?? core.current
+        let progress = core.progress
+
+        // 各カードの移動先を列挙し、盤内に収まるマスだけを候補として蓄積する
+        var candidatePoints: Set<GridPoint> = []
+        for card in hand {
+            // 現在位置からカードの移動量を加算し、到達先マスを導出する
+            let destination = current.offset(dx: card.move.dx, dy: card.move.dy)
+            if core.board.contains(destination) {
+                candidatePoints.insert(destination)
+            }
+        }
+
         // ガイドモードが無効なときは全てのハイライトを隠し、バッファも不要なので初期化する
         guard guideModeEnabled else {
             scene.updateGuideHighlights([])
             pendingGuideHand = nil
             pendingGuideCurrent = nil
+            // ガイドモードを明示的に無効化した場合は、候補数と進行状態をログへ残して挙動を可視化する
+            debugLog("ガイド無効化に伴いハイライトを消灯: 状態=\(String(describing: progress)), 候補マス数=\(candidatePoints.count)")
             return
         }
 
-        // パラメータで明示的に渡された値があれば優先し、未指定なら GameCore の現在値を参照する
-        let hand = handOverride ?? core.hand
-        let current = currentOverride ?? core.current
-
         // 進行状態が .playing 以外（例: .deadlock）のときは手札と位置をバッファへ退避し、再開時に再描画できるようにする
-        guard core.progress == .playing else {
+        guard progress == .playing else {
             pendingGuideHand = hand
             pendingGuideCurrent = current
+            // デッドロックなどで一時停止した場合は、復帰時に備えて候補数と現在地をログに出力する
+            debugLog("ガイド更新を保留: 状態=\(String(describing: progress)), 退避候補数=\(candidatePoints.count), 現在地=\(current)")
             return
         }
 
@@ -570,17 +591,10 @@ struct GameView: View {
         pendingGuideHand = nil
         pendingGuideCurrent = nil
 
-        var highlightPoints: Set<GridPoint> = []
-        for card in hand {
-            // 現在位置からカードの移動量を加算し、到達先マスを導出する
-            let destination = current.offset(dx: card.move.dx, dy: card.move.dy)
-            if core.board.contains(destination) {
-                highlightPoints.insert(destination)
-            }
-        }
-
         // 算出した集合を SpriteKit へ渡し、視覚的なサポートを行う
-        scene.updateGuideHighlights(highlightPoints)
+        scene.updateGuideHighlights(candidatePoints)
+        // ガイドを実際に描画した際も、進行状態と候補数をログに記録して UI 側の追跡を容易にする
+        debugLog("ガイドを描画: 状態=\(String(describing: progress)), 描画マス数=\(candidatePoints.count)")
     }
 
     /// 指定カードが現在位置から盤内に収まるか判定
