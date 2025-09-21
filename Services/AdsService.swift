@@ -313,7 +313,8 @@ private extension AdsService {
 
     /// 同意フォームをロードする
     func loadConsentForm() async throws -> ConsentForm {
-        try await withCheckedThrowingContinuation { continuation in
+        // Swift 6 ではジェネリクスの型推論が厳しくなっているため、CheckedContinuation の型を明示してビルドエラーを回避する
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<ConsentForm, Error>) in
             ConsentForm.load { [weak self] form, error in
                 if let error {
                     continuation.resume(throwing: error)
@@ -373,7 +374,8 @@ private extension AdsService {
 
 
 
-        try await withCheckedThrowingContinuation { continuation in
+        // こちらも上記と同様に Void 戻り値であることを明示し、Swift 6 の型推論エラーを防ぐ
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             ConsentForm.presentPrivacyOptionsForm(from: viewController) { error in
                 if let error {
                     continuation.resume(throwing: error)
