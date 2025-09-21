@@ -3,8 +3,6 @@ import Game      // debugLog / debugError などゲームロジック側のデ�
 import GameKit
 import UIKit
 import SwiftUI // @AppStorage を利用するために追加
-// デバッグ用ログ関数を利用するため Game モジュールを読み込む
-import Game
 
 /// Game Center 操作に必要なインターフェースを定義するプロトコル
 /// - NOTE: 認証やスコア送信をテストしやすくするために利用する
@@ -39,6 +37,10 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
     /// @AppStorage を利用して UserDefaults へ自動保存する
     /// - Note: 設定画面やデバッグからリセットできるよう公開メソッドを用意する
     @AppStorage("has_submitted_gc") private var hasSubmittedGC: Bool = false
+
+    /// 直近で Game Center へ送信したスコア（手数）を保持
+    /// - Note: より良いスコアが出た場合のみ再送信することで無駄な API 呼び出しを避ける
+    @AppStorage("last_submitted_gc_score") private var lastSubmittedScore: Int = .max
 
     /// Game Center へログイン済みかどうかを保持するフラグ
     /// - Note: 認証に失敗した場合は `false` のままとなる
@@ -130,10 +132,19 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
             return
         }
 
-        // 既に送信済みの場合は再送信を避ける
-        guard !hasSubmittedGC else {
-            // デバッグ時に重複送信されないようログを残す
-            debugLog("Game Center スコアは既に送信済みのためスキップ")
+        // 送信要否を判定。未送信またはベスト更新時のみ送る
+        let shouldSubmit: Bool
+        if !hasSubmittedGC {
+            shouldSubmit = true
+        } else if score < lastSubmittedScore {
+            shouldSubmit = true
+        } else {
+            shouldSubmit = false
+        }
+
+        guard shouldSubmit else {
+            // 送信済みスコアより悪化している場合はリーダーボード更新を行わない
+            debugLog("Game Center 既存スコア (\(lastSubmittedScore)) 以下のため送信をスキップ: \(score)")
             return
         }
 
@@ -142,7 +153,7 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
             context: 0,
             player: GKLocalPlayer.local,
             leaderboardIDs: [leaderboardID]
-        ) { error in
+        ) { [weak self] error in
             // エラーが発生した場合はログ出力のみ行う
             if let error {
                 // 送信失敗時は詳細なエラーログを出力
@@ -151,7 +162,9 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
                 // 成功時はスコアをログ出力
                 debugLog("Game Center スコア送信成功: \(score)")
                 // 成功した場合は再送信を防ぐためフラグを更新
+                guard let self else { return }
                 self.hasSubmittedGC = true
+                self.lastSubmittedScore = min(score, self.lastSubmittedScore)
             }
         }
     }
@@ -163,6 +176,7 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
     func resetSubmittedFlag() {
         // フラグを false に戻すことで再送信が可能になる
         hasSubmittedGC = false
+        lastSubmittedScore = .max
         // リセットしたことをデバッグログに出力
         debugLog("Game Center スコア送信フラグをリセットしました")
     }
