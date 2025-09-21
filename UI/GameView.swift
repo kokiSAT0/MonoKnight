@@ -197,7 +197,8 @@ struct GameView: View {
                 animationState = .idle
                 animationTargetGridPoint = nil
             }
-            refreshGuideHighlights()
+            // `core.hand` へ反映される前でも最新の手札を使ってハイライトを更新する
+            refreshGuideHighlights(handOverride: newHand)
         }
         // 盤面タップで移動を指示された際にもカード演出を統一して実行
         .onReceive(core.$boardTapPlayRequest) { request in
@@ -381,7 +382,7 @@ struct GameView: View {
             .onReceive(core.$current) { newPoint in
                 scene.moveKnight(to: newPoint)
                 // 現在位置が変化したら移動候補も追従する
-                refreshGuideHighlights()
+                refreshGuideHighlights(currentOverride: newPoint)
             }
     }
 
@@ -524,16 +525,27 @@ struct GameView: View {
     }
 
     /// ガイドモードの設定と現在の手札から移動可能なマスを算出し、SpriteKit 側へ通知する
-    private func refreshGuideHighlights() {
+    /// - Parameters:
+    ///   - handOverride: 直近で受け取った最新の手札（`nil` の場合は `core.hand` を利用する）
+    ///   - currentOverride: 最新の現在地（`nil` の場合は `core.current` を利用する）
+    private func refreshGuideHighlights(
+        handOverride: [DealtCard]? = nil,
+        currentOverride: GridPoint? = nil
+    ) {
         // ガイドモードが無効・ゲームが停止状態ならハイライトをすべて消灯
         guard guideModeEnabled, core.progress == .playing else {
             scene.updateGuideHighlights([])
             return
         }
 
+        // パラメータで明示的に渡された値があれば優先し、未指定なら GameCore の現在値を参照する
+        let hand = handOverride ?? core.hand
+        let current = currentOverride ?? core.current
+
         var highlightPoints: Set<GridPoint> = []
-        for card in core.hand {
-            let destination = core.current.offset(dx: card.move.dx, dy: card.move.dy)
+        for card in hand {
+            // 現在位置からカードの移動量を加算し、到達先マスを導出する
+            let destination = current.offset(dx: card.move.dx, dy: card.move.dy)
             if core.board.contains(destination) {
                 highlightPoints.insert(destination)
             }
