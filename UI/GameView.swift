@@ -28,8 +28,8 @@ struct GameView: View {
     @State private var isShowingPenaltyBanner = false
     /// バナーを自動的に閉じるためのディスパッチワークアイテムを保持
     @State private var penaltyDismissWorkItem: DispatchWorkItem?
-    /// SpriteKit のシーン。初期化時に一度だけ生成して再利用する
-    private let scene: GameScene
+    /// SpriteKit のシーン。`@State` で保持し、SwiftUI による再描画でも同一インスタンスを再利用する
+    @State private var scene: GameScene
     /// Game Center 連携を扱うサービス（プロトコル型で受け取る）
     private let gameCenterService: GameCenterServiceProtocol
     /// 広告表示を扱うサービス（プロトコル型で受け取る）
@@ -87,13 +87,13 @@ struct GameView: View {
         let core = GameCore()
         _core = StateObject(wrappedValue: core)
 
-        // GameScene はインスタンス生成後にサイズとスケールを指定
-        let scene = GameScene()
-        scene.scaleMode = .resizeFill
+        // GameScene は再利用したいのでローカルで準備し、最後に State プロパティへ格納する
+        let preparedScene = GameScene()
+        preparedScene.scaleMode = .resizeFill
         // GameScene から GameCore へタップイベントを伝えるため参照を渡す
         // StateObject へ格納した同一インスタンスを直接渡し、wrappedValue へ触れず安全に保持する
-        scene.gameCore = core
-        self.scene = scene
+        preparedScene.gameCore = core
+        _scene = State(initialValue: preparedScene)
         // サービスを保持
         self.gameCenterService = gameCenterService
         self.adsService = adsService
