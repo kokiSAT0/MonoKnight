@@ -287,9 +287,9 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, FullScre
 private extension AdsService {
     /// UMP の同意情報を最新化する
     func requestConsentInfoUpdate() async throws {
-        // 未成年向けコンテンツではないため、規定通り false を指定する
+        // 未成年向けコンテンツではないため、isTaggedForUnderAgeOfConsent を false に固定する
         let parameters = UMPRequestParameters()
-        parameters.tagForUnderAgeOfConsent = false
+        parameters.isTaggedForUnderAgeOfConsent = false
 
 #if DEBUG
         // テスト中は常に EEA として扱い、フォームを確認しやすくする
