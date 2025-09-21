@@ -113,7 +113,7 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, FullScre
             // 同意状態に応じて NPA フラグを更新し、広告リクエストへ反映させる
             applyConsentStatusAndReloadIfNeeded()
 
-            let consentInfo = UMPConsentInformation.shared
+            let consentInfo = ConsentInformation.shared
             // 同意フォームが利用可能な場合のみロードと表示を行う
             guard consentInfo.formStatus == .available else { return }
 
@@ -141,7 +141,7 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, FullScre
             try await requestConsentInfoUpdate()
             applyConsentStatusAndReloadIfNeeded()
 
-            let consentInfo = UMPConsentInformation.shared
+            let consentInfo = ConsentInformation.shared
             guard consentInfo.formStatus == .available else { return }
 
             // 設定画面などから呼び出された際は Privacy Options を直接表示する
@@ -201,7 +201,7 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, FullScre
     /// インタースティシャル広告を読み込むヘルパー
     private func loadInterstitial() {
         guard hasValidAdConfiguration,
-              UMPConsentInformation.shared.canRequestAds,
+              ConsentInformation.shared.canRequestAds,
               !adsDisabled,
               !removeAds,
               !isLoadingAd,
@@ -288,17 +288,17 @@ private extension AdsService {
     /// UMP の同意情報を最新化する
     func requestConsentInfoUpdate() async throws {
         // 未成年向けコンテンツではないため、isTaggedForUnderAgeOfConsent を false に固定する
-        let parameters = UMPRequestParameters()
+        let parameters = RequestParameters()
         parameters.isTaggedForUnderAgeOfConsent = false
 
 #if DEBUG
         // テスト中は常に EEA として扱い、フォームを確認しやすくする
-        let debugSettings = UMPDebugSettings()
+        let debugSettings = DebugSettings()
         debugSettings.geography = .EEA
         parameters.debugSettings = debugSettings
 #endif
 
-        let consentInfo = UMPConsentInformation.shared
+        let consentInfo = ConsentInformation.shared
 
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             consentInfo.requestConsentInfoUpdate(with: parameters) { error in
@@ -386,7 +386,7 @@ private extension AdsService {
 
     /// 現在の同意ステータスを見て NPA フラグを更新し、必要に応じて広告を再読み込みする
     func applyConsentStatusAndReloadIfNeeded() {
-        let consentInfo = UMPConsentInformation.shared
+        let consentInfo = ConsentInformation.shared
         // 取得済み or 規制対象外の場合のみパーソナライズを許可し、それ以外は安全側として NPA を指定する
         let newShouldUseNPA: Bool
         switch consentInfo.consentStatus {
