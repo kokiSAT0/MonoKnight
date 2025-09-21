@@ -126,6 +126,8 @@ fileprivate struct TitleScreenView: View {
     private var theme = AppTheme()
 
     @State private var isPresentingHowToPlay: Bool = false
+    /// サイズクラスを参照し、iPad での余白やシート表現を最適化する
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     /// `@State` プロパティを保持したまま、外部（同ファイル内の RootView）から初期化できるようにするカスタムイニシャライザ
     /// - Parameter onStart: ゲーム開始ボタンが押下された際に呼び出されるクロージャ
@@ -152,6 +154,8 @@ fileprivate struct TitleScreenView: View {
                     // 補足テキストはサブ文字色でコントラストを調整
                     .foregroundColor(theme.textSecondary)
                     .multilineTextAlignment(.center)
+                    // レギュラー幅では最大行幅を抑えて読みやすさを確保
+                    .frame(maxWidth: 320)
             }
 
             // MARK: - ゲーム開始ボタン
@@ -184,8 +188,9 @@ fileprivate struct TitleScreenView: View {
 
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 32)
+        .padding(.horizontal, horizontalPadding)
         .padding(.bottom, 36)
+        .frame(maxWidth: contentMaxWidth)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         // 背景もテーマのベースカラーへ切り替え、システム設定と調和させる
         .background(theme.backgroundPrimary)
@@ -197,7 +202,25 @@ fileprivate struct TitleScreenView: View {
             NavigationStack {
                 HowToPlayView(showsCloseButton: true)
             }
+            // iPad では初期状態から `.large` を採用して情報を全て表示、iPhone では medium/large の切り替えを許容
+            .presentationDetents(
+                horizontalSizeClass == .regular ? [.large] : [.medium, .large]
+            )
+            .presentationDragIndicator(.visible)
         }
+    }
+}
+
+// MARK: - レイアウト調整用のヘルパー
+private extension TitleScreenView {
+    /// 横幅に応じてビューの最大幅を制御し、iPad では中央寄せのカード風レイアウトにする
+    var contentMaxWidth: CGFloat? {
+        horizontalSizeClass == .regular ? 520 : nil
+    }
+
+    /// 端末に合わせて余白を調整する
+    var horizontalPadding: CGFloat {
+        horizontalSizeClass == .regular ? 80 : 32
     }
 }
 

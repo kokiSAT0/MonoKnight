@@ -25,6 +25,8 @@ struct ResultView: View {
     @AppStorage("best_moves_5x5") private var bestMoves: Int = .max
     /// ハプティクスを有効にするかどうかの設定値
     @AppStorage("haptics_enabled") private var hapticsEnabled: Bool = true
+    /// サイズクラスを参照し、iPad でのフォームシート表示時に余白を調整する
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     /// 新記録を達成したかどうかを管理するステート
     @State private var isNewBest: Bool = false
@@ -71,130 +73,141 @@ struct ResultView: View {
     }
 
     var body: some View {
-        VStack(spacing: 24) {
-            // MARK: - 合計手数と新記録バッジ
-            VStack(spacing: 12) {
-                Text("合計手数: \(totalMoves)")
-                    .font(.title)
-                    .padding(.top, 32)
+        // MARK: - コンテンツ全体をスクロール可能にして、iPad のフォームシートでも情報が欠けないようにする
+        ScrollView {
+            VStack(spacing: 24) {
+                // MARK: - 合計手数と新記録バッジ
+                VStack(spacing: 12) {
+                    Text("合計手数: \(totalMoves)")
+                        .font(.title)
+                        // iPad のフォームシートでは上下の余白が圧縮されるため、独自に余白を確保して見栄えを整える
+                        .padding(.top, 16)
 
-                // 新記録時のみアニメーション付きのバッジを表示
-                if isNewBest {
-                    TimelineView(.animation) { context in
-                        // TimelineView の時刻から簡易的な脈動アニメーションを生成
-                        let progress = sin(context.date.timeIntervalSinceReferenceDate * 2.6)
-                        let scale = 1.0 + 0.08 * progress
+                    // 新記録時のみアニメーション付きのバッジを表示
+                    if isNewBest {
+                        TimelineView(.animation) { context in
+                            // TimelineView の時刻から簡易的な脈動アニメーションを生成
+                            let progress = sin(context.date.timeIntervalSinceReferenceDate * 2.6)
+                            let scale = 1.0 + 0.08 * progress
 
-                        Text("新記録！")
-                            .font(.headline.weight(.bold))
-                            .foregroundColor(.yellow)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 8)
-                            .background(
-                                Capsule()
-                                    .fill(Color.yellow.opacity(0.18))
-                                    .overlay(
-                                        Capsule()
-                                            .stroke(Color.yellow.opacity(0.55), lineWidth: 1)
-                                    )
-                            )
-                            .scaleEffect(scale)
-                            .accessibilityLabel("新記録を達成")
+                            Text("新記録！")
+                                .font(.headline.weight(.bold))
+                                .foregroundColor(.yellow)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 8)
+                                .background(
+                                    Capsule()
+                                        .fill(Color.yellow.opacity(0.18))
+                                        .overlay(
+                                            Capsule()
+                                                .stroke(Color.yellow.opacity(0.55), lineWidth: 1)
+                                        )
+                                )
+                                .scaleEffect(scale)
+                                .accessibilityLabel("新記録を達成")
+                        }
+                        .transition(.scale.combined(with: .opacity))
                     }
-                    .transition(.scale.combined(with: .opacity))
-                }
 
-                // MARK: - ベスト記録表示（未記録の場合は '-'）
-                Text("ベスト: \(bestMovesText)")
-                    .font(.headline)
+                    // MARK: - ベスト記録表示（未記録の場合は '-'）
+                    Text("ベスト: \(bestMovesText)")
+                        .font(.headline)
 
-                // 新旧の比較説明を追加し、振り返りの文脈を与える
-                if let description = bestComparisonDescription {
-                    Text(description)
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                        .transition(.opacity)
-                }
-            }
-
-            // MARK: - リトライボタン
-            Button(action: {
-                // 設定が有効なら成功フィードバックを発火
-                if hapticsEnabled {
-                    UINotificationFeedbackGenerator().notificationOccurred(.success)
-                }
-                onRetry()
-            }) {
-                Text("リトライ")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent)
-
-            // MARK: - Game Center ランキングボタン
-            Button(action: {
-                // 設定が有効なら成功フィードバックを発火
-                if hapticsEnabled {
-                    UINotificationFeedbackGenerator().notificationOccurred(.success)
-                }
-                gameCenterService.showLeaderboard()
-            }) {
-                Text("ランキング")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.bordered)
-
-            // MARK: - 手数の内訳テーブル
-            VStack(alignment: .leading, spacing: 12) {
-                Text("手数の内訳")
-                    .font(.headline)
-                    .padding(.top, 8)
-
-                Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 8) {
-                    GridRow {
-                        Text("移動回数")
+                    // 新旧の比較説明を追加し、振り返りの文脈を与える
+                    if let description = bestComparisonDescription {
+                        Text(description)
                             .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                        Text("\(moveCount) 手")
-                            .font(.body)
-                    }
-
-                    GridRow {
-                        Text("ペナルティ加算")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                        Text("\(penaltyCount) 手")
-                            .font(.body)
-                    }
-
-                    Divider()
-                        .gridCellColumns(2)
-
-                    GridRow {
-                        Text("合計")
-                            .font(.subheadline.weight(.semibold))
-                        Text("\(totalMoves) 手")
-                            .font(.body.weight(.semibold))
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                            .transition(.opacity)
                     }
                 }
-            }
 
-            // MARK: - ShareLink で結果共有を促す
-            ShareLink(item: shareMessage) {
-                Label("結果を共有", systemImage: "square.and.arrow.up")
+                // MARK: - リトライボタン
+                Button(action: {
+                    // 設定が有効なら成功フィードバックを発火
+                    if hapticsEnabled {
+                        UINotificationFeedbackGenerator().notificationOccurred(.success)
+                    }
+                    onRetry()
+                }) {
+                    Text("リトライ")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+
+                // MARK: - Game Center ランキングボタン
+                Button(action: {
+                    // 設定が有効なら成功フィードバックを発火
+                    if hapticsEnabled {
+                        UINotificationFeedbackGenerator().notificationOccurred(.success)
+                    }
+                    gameCenterService.showLeaderboard()
+                }) {
+                    Text("ランキング")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+
+                // MARK: - 手数の内訳テーブル
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("手数の内訳")
+                        .font(.headline)
+                        .padding(.top, 8)
+
+                    Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 8) {
+                        GridRow {
+                            Text("移動回数")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                            Text("\(moveCount) 手")
+                                .font(.body)
+                        }
+
+                        GridRow {
+                            Text("ペナルティ加算")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                            Text("\(penaltyCount) 手")
+                                .font(.body)
+                        }
+
+                        Divider()
+                            .gridCellColumns(2)
+
+                        GridRow {
+                            Text("合計")
+                                .font(.subheadline.weight(.semibold))
+                            Text("\(totalMoves) 手")
+                                .font(.body.weight(.semibold))
+                        }
+                    }
+                }
+
+                // MARK: - ShareLink で結果共有を促す
+                ShareLink(item: shareMessage) {
+                    Label("結果を共有", systemImage: "square.and.arrow.up")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+
+                // MARK: - 広告の読み込み表示
+                // 実広告はインタースティシャルで別画面表示されるため、ここでは状況のみを示す
+                Text("広告を読み込んでいます…")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
             }
-            .buttonStyle(.bordered)
-
-            // MARK: - 広告の読み込み表示
-            // 実広告はインタースティシャルで別画面表示されるため、ここでは状況のみを示す
-            Text("広告を読み込んでいます…")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 12)
+            // MARK: - iPad を含むレギュラー幅でのレイアウト調整
+            // 最大幅を制限して中央寄せすることで、フォームシートでも読みやすくコンテンツを配置する。
+            .padding(.horizontal, horizontalPadding)
+            .padding(.vertical, 32)
+            .frame(maxWidth: contentMaxWidth)
+            .frame(maxWidth: .infinity)
         }
-        .padding()
+        .scrollIndicators(.hidden)
+        .background(Color(UIColor.systemBackground))
         .onAppear {
             // ビュー表示時に広告表示をトリガー
             adsService.showInterstitial()
@@ -217,6 +230,16 @@ struct ResultView: View {
     private var shareMessage: String {
         let penaltyText = penaltyCount == 0 ? "ペナルティなし" : "ペナルティ +\(penaltyCount) 手"
         return "MonoKnight 5x5 クリア！合計 \(totalMoves) 手（移動 \(moveCount) 手 / \(penaltyText)）"
+    }
+
+    /// iPad 表示時の最大コンテンツ幅を制御し、中央寄せの見た目を整える
+    private var contentMaxWidth: CGFloat? {
+        horizontalSizeClass == .regular ? 520 : nil
+    }
+
+    /// 横方向のパディングをサイズクラスごとに最適化する
+    private var horizontalPadding: CGFloat {
+        horizontalSizeClass == .regular ? 32 : 20
     }
 
     /// 新記録達成時の説明文を生成（旧ベストと比較する）
