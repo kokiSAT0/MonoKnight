@@ -83,15 +83,9 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, FullScre
         // （名称変更に追従しつつ、将来的な API 差分を把握しやすくする意図で明示的にコメントを残している）
         let mobileAds = MobileAds.shared
 
-#if targetEnvironment(simulator)
-        // シミュレータではテストデバイス ID を明示することで、常にテスト広告が返るようにする
-        // Google Mobile Ads SDK が公開している `GADSimulatorID` を利用することで、SDK 側の互換性更新が入っても
-        // シミュレータ判定の仕組みが変わる心配を減らせるため、安全側に寄せた設定とする。
-        mobileAds.requestConfiguration.testDeviceIdentifiers = [
-            GADSimulatorID
-        ]
-        debugLog("シミュレータ向けにテストデバイス ID (GADSimulatorID) を登録しました")
-#endif
+        // シミュレータでは Info.plist 側でテスト広告用のユニット ID を設定して動作確認する運用とし、
+        // ここでは SDK の定数や動的判定に依存したテストデバイス登録を行わない。
+        // 将来的に `GADSimulatorID` などのシンボル変更でビルドエラーになるリスクを避ける目的。
 
         // Swift 6 では completionHandler に nil を渡すと型推論ができずビルドエラーになるため、
         // ここでは何もしない空クロージャを渡して初期化を完了させる。
