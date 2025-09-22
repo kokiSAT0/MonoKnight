@@ -138,10 +138,6 @@ public final class GameScene: SKScene {
         /// マスのサイズと原点を計算
         calculateLayout()
 
-        /// グリッドと駒を生成
-        setupGrid()
-        setupKnight()
-
         /// 現在保持しているテーマを適用し、初期色を決定
         applyTheme(palette)
 
@@ -167,8 +163,8 @@ public final class GameScene: SKScene {
             debugLog("GameScene.calculateLayout 警告: tileSize がゼロ以下です")
         }
 
-        // レイアウトが確定したタイミングで保留中の更新があれば反映する
-        flushPendingUpdatesIfNeeded()
+        // レイアウト確定状況をチェックし、グリッドや駒ノードの生成が済んでいなければ補完する
+        prepareLayoutIfNeeded()
     }
 
     /// シーンのサイズ変更に追従してレイアウトを再計算
@@ -205,7 +201,45 @@ public final class GameScene: SKScene {
         updateAccessibilityElements()
 
         // サイズ変更後も保留していた更新があれば忘れずに復元する
-        flushPendingUpdatesIfNeeded()
+        prepareLayoutIfNeeded()
+    }
+
+    /// レイアウト情報が揃っているかを確認し、不足していればグリッド・駒ノードを生成する
+    private func prepareLayoutIfNeeded() {
+        // tileSize がゼロのままではノード生成ができないため、その場合は次回以降へ処理を委ねる
+        guard tileSize > 0 else {
+            debugLog("GameScene.prepareLayoutIfNeeded: tileSize 未確定のため後続処理を延期")
+            return
+        }
+
+        // 現在のノード状況を記録して、想定外の未初期化ケースを早期に検知できるようにする
+        debugLog(
+            "GameScene.prepareLayoutIfNeeded: tileNodes=\(tileNodes.count), knightExists=\(knightNode != nil)"
+        )
+
+        if tileNodes.isEmpty {
+            // グリッド未生成であればここでまとめて構築し、didMove 以外の経路でも盤面を成立させる
+            debugLog("GameScene.prepareLayoutIfNeeded: グリッド未生成のため setupGrid/setupKnight を実行")
+            setupGrid()
+            setupKnight()
+        } else if knightNode == nil {
+            // まれに駒ノードのみ失われた場合の保険として再生成する
+            debugLog("GameScene.prepareLayoutIfNeeded: 駒ノード欠落を検知したため再生成")
+            setupKnight()
+        }
+
+        // ここまででレイアウトが安全に扱える状態まで整っていれば、保留中の更新を即座に適用する
+        if isLayoutReady {
+            debugLog(
+                "GameScene.prepareLayoutIfNeeded: レイアウト準備完了、保留更新を flush します"
+            )
+            flushPendingUpdatesIfNeeded()
+        } else {
+            // グリッド構築中などで条件が揃わなかった場合は状況を記録して後続の手掛かりにする
+            debugLog(
+                "GameScene.prepareLayoutIfNeeded: レイアウト未完了 tileNodes=\(tileNodes.count), knightExists=\(knightNode != nil)"
+            )
+        }
     }
 
     /// 5×5 のグリッドを描画
@@ -454,7 +488,16 @@ public final class GameScene: SKScene {
 
     /// レイアウト確定後に盤面・駒・ガイドの保留更新をまとめて反映する
     private func flushPendingUpdatesIfNeeded() {
-        guard isLayoutReady else { return }
+        guard isLayoutReady else {
+            debugLog(
+                "GameScene.flushPendingUpdatesIfNeeded: レイアウト未確定のため保留 updates を維持"
+            )
+            return
+        }
+
+        debugLog(
+            "GameScene.flushPendingUpdatesIfNeeded: pendingBoard=\(pendingBoard != nil), pendingKnight=\(pendingKnightPosition != nil), pendingGuide=\(pendingGuideHighlightPoints.count)"
+        )
 
         if let boardToApply = pendingBoard {
             // 盤面更新を保留していた場合は、このタイミングでノードに反映する
