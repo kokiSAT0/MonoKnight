@@ -7,10 +7,14 @@ import Game
 /// SwiftUI ビュー全体を MainActor 上で扱い、MainActor 隔離されたシングルトン（GameCenterService / AdsService）へアクセスする際の競合を防ぐ
 /// - NOTE: Swift 6 で厳格化された並行性モデルに追従し、ビルドエラー（MainActor 分離違反）を確実に回避するための指定
 struct RootView: View {
+    /// 画面全体の配色を揃えるためのテーマ。タブやトップバーの背景色を一元管理するためここで生成する
+    private var theme = AppTheme()
     /// Game Center 連携を扱うサービス（プロトコル型で受け取る）
     private let gameCenterService: GameCenterServiceProtocol
     /// 広告表示を扱うサービス（GameView へ受け渡す）
     private let adsService: AdsServiceProtocol
+    /// デバイスの横幅サイズクラスを参照し、iPad などレギュラー幅での余白やログ出力を調整する
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     /// Game Center 認証済みかどうかを保持する状態
     /// - Note: 認証後はラベル表示に切り替える
     @State private var isAuthenticated: Bool
@@ -24,6 +28,10 @@ struct RootView: View {
     @State private var selectedModeForTitle: GameMode = .standard
     /// GameView の再生成に利用するセッション ID（モードが変わるたびに更新する）
     @State private var gameSessionID = UUID()
+    /// トップステータスバーの実測高さを保持し、レイアウトログへ出力する
+    @State private var topBarHeight: CGFloat = 0
+    /// 直近に出力したレイアウトスナップショットを記録し、ログの重複出力を防ぐ
+    @State private var lastLoggedLayoutSnapshot: RootLayoutSnapshot?
     /// 依存サービスを外部から注入可能にする初期化処理
     /// - Parameters:
     ///   - gameCenterService: Game Center 連携用サービス（デフォルトはシングルトン）
@@ -42,35 +50,14 @@ struct RootView: View {
     }
 
     var body: some View {
-        VStack(spacing: 12) {
-            // MARK: - Game Center サインイン UI
-            if isAuthenticated {
-                // 認証済みであることを示すラベル
-                Text("Game Center にサインイン済み")
-                    .font(.caption)
-                    .accessibilityIdentifier("gc_authenticated")
-                    // 画面端に密着しないよう左右と上部へ余白を個別指定
-                    .padding(.horizontal, 16)
-                    .padding(.top, 16)
-            } else {
-                // サインインボタンをタップで認証を開始
-                Button(action: {
-                    gameCenterService.authenticateLocalPlayer { success in
-                        // 成否に応じて状態を更新し、ラベル表示を切り替える
-                        isAuthenticated = success
-                    }
-                }) {
-                    Text("Game Center サインイン")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-                .accessibilityIdentifier("gc_sign_in_button")
-                // ボタン単位で左右と上部の余白を確保し、全体のパディング削除後も視認性を保つ
-                .padding(.horizontal, 16)
-                .padding(.top, 16)
-            }
+        GeometryReader { geometry in
+            // MARK: - 現在のジオメトリ情報を整理し、レイアウトログとトップバー調整へ使うコンテキストを生成
+            let layoutContext = RootLayoutContext(
+                geometrySize: geometry.size,
+                safeAreaInsets: geometry.safeAreaInsets,
+                horizontalSizeClass: horizontalSizeClass
+            )
 
-            // MARK: - タブビュー本体
             TabView {
                 // MARK: - ゲームタブ
                 ZStack {
@@ -80,10 +67,11 @@ struct RootView: View {
                         gameCenterService: gameCenterService,
                         adsService: adsService,
                         onRequestReturnToTitle: {
-                            // メニューからの通知でタイトル画面を表示
+                            // 右上メニューなどからタイトルへ戻るリクエストを受け取ったことを記録しておく
+                            debugLog("RootView: タイトル画面表示要求を受信 現在モード=\(activeMode.identifier.rawValue)")
                             withAnimation(.easeInOut(duration: 0.25)) {
                                 isShowingTitleScreen = true
-                                // タイトルに戻った際は選択中のモードを現在のプレイ内容で初期化する
+                                // タイトルに戻ったタイミングで、直前のプレイ内容をタイトル側のモード選択へ反映する
                                 selectedModeForTitle = activeMode
                             }
                         }
@@ -95,7 +83,8 @@ struct RootView: View {
                     // MARK: - タイトル画面のオーバーレイ
                     if isShowingTitleScreen {
                         TitleScreenView(selectedMode: $selectedModeForTitle) { mode in
-                            // タイトルからゲーム開始を選んだら元に戻す
+                            // ゲーム開始が選択された際の状態更新を記録し、原因調査を容易にする
+                            debugLog("RootView: ゲーム開始リクエストを受信 選択モード=\(mode.identifier.rawValue)")
                             withAnimation(.easeInOut(duration: 0.25)) {
                                 activeMode = mode
                                 gameSessionID = UUID()
@@ -117,8 +106,280 @@ struct RootView: View {
                         Label("設定", systemImage: "gearshape")
                     }
             }
-            // VStack 外のパディングを削除したため、TabView 自身が画面いっぱいに広がるよう最大サイズを指定
+            // `GeometryReader` 内でも最大サイズを指定し、タブが端末全体へ広がるようにする
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // MARK: - トップステータスバーを safeAreaInset で挿入し、iPhone/iPad 双方で安定させる
+            .safeAreaInset(edge: .top, spacing: 0) {
+                topStatusInset(context: layoutContext)
+            }
+            // MARK: - レイアウト計測用の不可視オーバーレイを重ね、異常値をログで把握できるようにする
+            .background(layoutDiagnosticOverlay(context: layoutContext))
+            // 初期表示時のレイアウト値をログに残し、ステータスバー高さなどの基準値を把握する
+            .onAppear {
+                debugLog(
+                    "RootView.onAppear: size=\(layoutContext.geometrySize), safeArea(top=\(layoutContext.safeAreaTop), bottom=\(layoutContext.safeAreaBottom)), horizontalSizeClass=\(String(describing: horizontalSizeClass)), authenticated=\(isAuthenticated)"
+                )
+            }
+        }
+        // 背景色をタブ領域にも適用し、safe area を含めて統一感のある配色にする
+        .background(theme.backgroundPrimary.ignoresSafeArea())
+        // トップバーの高さが更新された際にログを残し、iPad の分割表示などでの変化を追跡する
+        .onPreferenceChange(TopBarHeightPreferenceKey.self) { newHeight in
+            let previousHeight = topBarHeight
+            guard previousHeight != newHeight else { return }
+            debugLog("RootView.topBarHeight 更新: 旧値=\(previousHeight), 新値=\(newHeight)")
+            topBarHeight = newHeight
+        }
+        // Game Center 認証状態の変化を監視し、表示コンポーネント切り替えの契機を把握する
+        .onChange(of: isAuthenticated) { _, newValue in
+            debugLog("RootView.isAuthenticated 更新: \(newValue)")
+        }
+        // タイトル画面の表示状態を記録し、想定外のトランジションが起きていないか追跡する
+        .onChange(of: isShowingTitleScreen) { _, newValue in
+            debugLog("RootView.isShowingTitleScreen 更新: \(newValue)")
+        }
+        // 実際にプレイへ利用しているモードが切り替わったタイミングを記録する
+        .onChange(of: activeMode) { _, newValue in
+            debugLog("RootView.activeMode 更新: \(newValue.identifier.rawValue)")
+        }
+        // タイトル画面上で選択中のモードが変化した場合もログ化し、操作の追跡精度を高める
+        .onChange(of: selectedModeForTitle) { _, newValue in
+            debugLog("RootView.selectedModeForTitle 更新: \(newValue.identifier.rawValue)")
+        }
+        // サイズクラス変化（端末回転や iPad のマルチタスク）を記録し、レイアウト崩れ再現時の手掛かりとする
+        .onChange(of: horizontalSizeClass) { _, newValue in
+            debugLog("RootView.horizontalSizeClass 更新: \(String(describing: newValue))")
+        }
+    }
+}
+
+// MARK: - レイアウト支援メソッドと定数
+private extension RootView {
+    /// トップステータスバーを生成し、Game Center 認証状況に応じた UI を返す
+    /// - Parameter context: 現在の画面サイズや safe area をまとめたレイアウトコンテキスト
+    /// - Returns: safeAreaInset へ挿入するビュー
+    @ViewBuilder
+    func topStatusInset(context: RootLayoutContext) -> some View {
+        HStack {
+            Spacer(minLength: 0)
+            VStack(alignment: .leading, spacing: RootLayoutMetrics.topBarContentSpacing) {
+                if isAuthenticated {
+                    Text("Game Center にサインイン済み")
+                        .font(.caption)
+                        // テーマ由来のサブ文字色を使い、背景とのコントラストを確保
+                        .foregroundColor(theme.textSecondary)
+                        .accessibilityIdentifier("gc_authenticated")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    Button(action: {
+                        // 認証要求のトリガーを記録して、失敗時の切り分けを容易にする
+                        debugLog("RootView: Game Center 認証開始要求 現在の認証状態=\(isAuthenticated)")
+                        gameCenterService.authenticateLocalPlayer { success in
+                            // コールバックでの成否もログへ残し、原因調査の手がかりとする
+                            debugLog("RootView: Game Center 認証完了 success=\(success)")
+                            isAuthenticated = success
+                        }
+                    }) {
+                        Text("Game Center サインイン")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .accessibilityIdentifier("gc_sign_in_button")
+                }
+            }
+            .frame(maxWidth: context.topBarMaxWidth ?? .infinity, alignment: .leading)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, context.topBarHorizontalPadding)
+        .padding(.top, RootLayoutMetrics.topBarBaseTopPadding + context.regularTopPaddingFallback)
+        .padding(.bottom, RootLayoutMetrics.topBarBaseBottomPadding)
+        .background(
+            theme.backgroundPrimary
+                .opacity(RootLayoutMetrics.topBarBackgroundOpacity)
+                .ignoresSafeArea(edges: .top)
+        )
+        .overlay(alignment: .bottom) {
+            Divider()
+                .background(theme.statisticBadgeBorder)
+                .opacity(RootLayoutMetrics.topBarDividerOpacity)
+        }
+        // GeometryReader で高さを取得し、PreferenceKey を介して親ビューへ伝搬する
+        .background(
+            GeometryReader { proxy in
+                Color.clear
+                    .preference(key: TopBarHeightPreferenceKey.self, value: proxy.size.height)
+            }
+        )
+    }
+
+    /// レイアウト関連の情報を監視する不可視オーバーレイを返す
+    /// - Parameter context: GeometryReader から抽出した値をまとめたコンテキスト
+    /// - Returns: ログ出力専用のゼロサイズビュー
+    func layoutDiagnosticOverlay(context: RootLayoutContext) -> some View {
+        let snapshot = RootLayoutSnapshot(
+            context: context,
+            isAuthenticated: isAuthenticated,
+            isShowingTitleScreen: isShowingTitleScreen,
+            activeMode: activeMode,
+            selectedMode: selectedModeForTitle,
+            topBarHeight: topBarHeight
+        )
+
+        return Color.clear
+            .frame(width: 0, height: 0)
+            .allowsHitTesting(false)
+            .onAppear {
+                logLayoutSnapshot(snapshot, reason: "初期観測")
+            }
+            .onChange(of: snapshot) { _, newValue in
+                logLayoutSnapshot(newValue, reason: "値更新")
+            }
+    }
+
+    /// 取得したレイアウトスナップショットをログへ出力し、重複を避ける
+    /// - Parameters:
+    ///   - snapshot: 記録対象のレイアウト情報
+    ///   - reason: ログ出力の契機
+    func logLayoutSnapshot(_ snapshot: RootLayoutSnapshot, reason: String) {
+        guard lastLoggedLayoutSnapshot != snapshot else { return }
+        lastLoggedLayoutSnapshot = snapshot
+
+        let message = """
+        RootView.layout 観測: 理由=\(reason)
+          geometry=\(snapshot.geometrySize)
+          safeArea(top=\(snapshot.safeAreaTop), bottom=\(snapshot.safeAreaBottom), leading=\(snapshot.safeAreaLeading), trailing=\(snapshot.safeAreaTrailing))
+          horizontalSizeClass=\(snapshot.horizontalSizeClassDescription) topBarPadding=\(snapshot.topBarHorizontalPadding) topBarMaxWidth=\(snapshot.topBarMaxWidthDescription) fallbackTopPadding=\(snapshot.regularTopPaddingFallback)
+          states(authenticated=\(snapshot.isAuthenticated), showingTitle=\(snapshot.isShowingTitleScreen), activeMode=\(snapshot.activeModeIdentifier.rawValue), selectedMode=\(snapshot.selectedModeIdentifier.rawValue), topBarHeight=\(snapshot.topBarHeight))
+        """
+
+        debugLog(message)
+
+        if snapshot.topBarHeight <= 0 {
+            debugLog("RootView.layout 警告: topBarHeight が 0 以下です。safe area とフォールバック設定を確認してください。")
+        }
+        if snapshot.safeAreaTop < 0 || snapshot.safeAreaBottom < 0 {
+            debugLog("RootView.layout 警告: safeArea が負値です。GeometryReader の取得値を再確認してください。")
+        }
+    }
+
+    /// GeometryReader から得た値と状態をまとめた内部専用コンテキスト
+    struct RootLayoutContext {
+        let geometrySize: CGSize
+        let safeAreaInsets: EdgeInsets
+        let horizontalSizeClass: UserInterfaceSizeClass?
+
+        var safeAreaTop: CGFloat { safeAreaInsets.top }
+        var safeAreaBottom: CGFloat { safeAreaInsets.bottom }
+        var safeAreaLeading: CGFloat { safeAreaInsets.leading }
+        var safeAreaTrailing: CGFloat { safeAreaInsets.trailing }
+
+        private var isRegularWidth: Bool { horizontalSizeClass == .regular }
+
+        /// トップバーに適用する左右の余白
+        var topBarHorizontalPadding: CGFloat {
+            isRegularWidth ? RootLayoutMetrics.topBarHorizontalPaddingRegular : RootLayoutMetrics.topBarHorizontalPaddingCompact
+        }
+
+        /// iPad では中央寄せした幅へ制限し、iPhone では nil として全幅に広げる
+        var topBarMaxWidth: CGFloat? {
+            isRegularWidth ? RootLayoutMetrics.topBarMaxWidthRegular : nil
+        }
+
+        /// safeAreaInsets.top が 0 の場合に追加で確保する余白
+        var regularTopPaddingFallback: CGFloat {
+            (isRegularWidth && safeAreaInsets.top <= 0) ? RootLayoutMetrics.regularWidthTopPaddingFallback : 0
+        }
+    }
+
+    /// レイアウトログで扱う情報をまとめたスナップショット
+    struct RootLayoutSnapshot: Equatable {
+        let geometrySize: CGSize
+        let safeAreaTop: CGFloat
+        let safeAreaBottom: CGFloat
+        let safeAreaLeading: CGFloat
+        let safeAreaTrailing: CGFloat
+        let horizontalSizeClass: UserInterfaceSizeClass?
+        let isAuthenticated: Bool
+        let isShowingTitleScreen: Bool
+        let activeModeIdentifier: GameMode.Identifier
+        let selectedModeIdentifier: GameMode.Identifier
+        let topBarHorizontalPadding: CGFloat
+        let topBarMaxWidth: CGFloat?
+        let regularTopPaddingFallback: CGFloat
+        let topBarHeight: CGFloat
+
+        init(
+            context: RootLayoutContext,
+            isAuthenticated: Bool,
+            isShowingTitleScreen: Bool,
+            activeMode: GameMode,
+            selectedMode: GameMode,
+            topBarHeight: CGFloat
+        ) {
+            self.geometrySize = context.geometrySize
+            self.safeAreaTop = context.safeAreaTop
+            self.safeAreaBottom = context.safeAreaBottom
+            self.safeAreaLeading = context.safeAreaLeading
+            self.safeAreaTrailing = context.safeAreaTrailing
+            self.horizontalSizeClass = context.horizontalSizeClass
+            self.isAuthenticated = isAuthenticated
+            self.isShowingTitleScreen = isShowingTitleScreen
+            self.activeModeIdentifier = activeMode.identifier
+            self.selectedModeIdentifier = selectedMode.identifier
+            self.topBarHorizontalPadding = context.topBarHorizontalPadding
+            self.topBarMaxWidth = context.topBarMaxWidth
+            self.regularTopPaddingFallback = context.regularTopPaddingFallback
+            self.topBarHeight = topBarHeight
+        }
+
+        /// サイズクラスの説明をログに残しやすい形式へ変換
+        var horizontalSizeClassDescription: String {
+            if let horizontalSizeClass {
+                return horizontalSizeClass == .regular ? "regular" : "compact"
+            } else {
+                return "nil"
+            }
+        }
+
+        /// トップバー最大幅の説明文字列
+        var topBarMaxWidthDescription: String {
+            if let width = topBarMaxWidth {
+                let rounded = (width * 10).rounded() / 10
+                return "\(rounded)"
+            } else {
+                return "nil"
+            }
+        }
+    }
+
+    /// トップバー周辺で利用する定数をまとめた列挙体
+    enum RootLayoutMetrics {
+        /// コンパクト幅（主に iPhone）で用いる左右余白
+        static let topBarHorizontalPaddingCompact: CGFloat = 16
+        /// レギュラー幅（主に iPad）で用いる左右余白
+        static let topBarHorizontalPaddingRegular: CGFloat = 32
+        /// トップバー上側の基本マージン
+        static let topBarBaseTopPadding: CGFloat = 12
+        /// トップバー下側の基本マージン
+        static let topBarBaseBottomPadding: CGFloat = 10
+        /// トップバー内部の要素間隔
+        static let topBarContentSpacing: CGFloat = 8
+        /// レギュラー幅で中央寄せする際の最大幅
+        static let topBarMaxWidthRegular: CGFloat = 520
+        /// レギュラー幅で safe area が 0 の場合に追加するフォールバック余白
+        static let regularWidthTopPaddingFallback: CGFloat = 18
+        /// トップバー背景の不透明度（0 に近いほど透過）
+        static let topBarBackgroundOpacity: Double = 0.94
+        /// トップバー下部の仕切り線の不透明度
+        static let topBarDividerOpacity: Double = 0.45
+    }
+
+    /// トップバーの高さを親ビューへ伝えるための PreferenceKey
+    struct TopBarHeightPreferenceKey: PreferenceKey {
+        static var defaultValue: CGFloat = 0
+
+        static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+            value = nextValue()
         }
     }
 }
@@ -179,7 +440,11 @@ fileprivate struct TitleScreenView: View {
             modeSelectionSection
 
             // MARK: - ゲーム開始ボタン
-            Button(action: { onStart(selectedMode) }) {
+            Button(action: {
+                // ゲーム開始操作を記録し、選択モードとの対応関係を追跡できるようにする
+                debugLog("TitleScreenView: ゲーム開始ボタンをタップ 選択モード=\(selectedMode.identifier.rawValue)")
+                onStart(selectedMode)
+            }) {
                 Label("\(selectedMode.displayName)で開始", systemImage: "play.fill")
                     .font(.system(size: 18, weight: .semibold, design: .rounded))
                     .frame(maxWidth: .infinity)
@@ -197,6 +462,8 @@ fileprivate struct TitleScreenView: View {
 
             // MARK: - 遊び方シートを開くボタン
             Button {
+                // 遊び方シートを開いたタイミングを記録し、重複表示の調査に役立てる
+                debugLog("TitleScreenView: 遊び方シート表示要求")
                 // 遊び方の詳細解説をモーダルで表示する
                 isPresentingHowToPlay = true
             } label: {
@@ -232,6 +499,14 @@ fileprivate struct TitleScreenView: View {
             )
             .presentationDragIndicator(.visible)
         }
+        // モーダル表示状態を監視し、遊び方シートの開閉タイミングを把握する
+        .onChange(of: isPresentingHowToPlay) { _, newValue in
+            debugLog("TitleScreenView.isPresentingHowToPlay 更新: \(newValue)")
+        }
+        // サイズクラスの変化を記録し、iPad のマルチタスク時に余白が崩れないか検証しやすくする
+        .onChange(of: horizontalSizeClass) { _, newValue in
+            debugLog("TitleScreenView.horizontalSizeClass 更新: \(String(describing: newValue))")
+        }
     }
 
     /// モード選択の一覧を描画するセクション
@@ -254,6 +529,12 @@ fileprivate struct TitleScreenView: View {
         let isSelected = mode == selectedMode
 
         return Button {
+            // 選択モードの変更を記録し、ボタンタップ順序を追跡できるようにする
+            if selectedMode == mode {
+                debugLog("TitleScreenView: モードを再選択 -> \(mode.identifier.rawValue)")
+            } else {
+                debugLog("TitleScreenView: モード切り替え -> \(mode.identifier.rawValue)")
+            }
             selectedMode = mode
         } label: {
             VStack(alignment: .leading, spacing: 6) {
