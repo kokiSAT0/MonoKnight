@@ -387,6 +387,8 @@ public final class GameScene: SKScene {
         guard isLayoutReady else { return }
 
         rebuildGuideHighlightNodes(using: validPoints)
+        // レイアウト確定後に最新情報で再構成できたため、保留集合はここで必ず消費しておく
+        pendingGuideHighlightPoints.removeAll()
     }
 
     /// 指定された集合に合わせてハイライトノード群を再生成する
@@ -528,6 +530,8 @@ public final class GameScene: SKScene {
     private func applyPendingGuideHighlightsIfNeeded() {
         guard isLayoutReady, !pendingGuideHighlightPoints.isEmpty else { return }
         rebuildGuideHighlightNodes(using: pendingGuideHighlightPoints)
+        // `flushPendingUpdatesIfNeeded` から呼び出された際も、再構成が完了した時点で保留分をクリアする
+        pendingGuideHighlightPoints.removeAll()
     }
 
     /// レイアウト確定後に盤面・駒・ガイドの保留更新をまとめて反映する
