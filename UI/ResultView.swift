@@ -170,6 +170,7 @@ struct ResultView: View {
                                 .foregroundStyle(.secondary)
                             Text("\(totalMoves) 手")
                                 .font(.body)
+                                .monospacedDigit()
                         }
 
                         GridRow {
@@ -178,6 +179,7 @@ struct ResultView: View {
                                 .foregroundStyle(.secondary)
                             Text("\(moveCount) 手")
                                 .font(.body)
+                                .monospacedDigit()
                         }
 
                         GridRow {
@@ -186,6 +188,7 @@ struct ResultView: View {
                                 .foregroundStyle(.secondary)
                             Text("\(penaltyCount) 手")
                                 .font(.body)
+                                .monospacedDigit()
                         }
 
                         GridRow {
@@ -194,16 +197,40 @@ struct ResultView: View {
                                 .foregroundStyle(.secondary)
                             Text(formattedElapsedTime)
                                 .font(.body)
+                                .monospacedDigit()
+                        }
+
+                        Divider()
+                            .gridCellColumns(2)
+
+                        // MARK: - スコア計算過程を段階的に表示して透明性を高める
+                        GridRow {
+                            Text("手数ポイント")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                            Text("10pt × \(totalMoves)手 = \(movePoints) pt")
+                                .font(.body)
+                                .monospacedDigit()
+                        }
+
+                        GridRow {
+                            Text("時間ポイント")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                            Text("\(elapsedSeconds)秒 = \(timePoints) pt")
+                                .font(.body)
+                                .monospacedDigit()
                         }
 
                         Divider()
                             .gridCellColumns(2)
 
                         GridRow {
-                            Text("ポイント")
+                            Text("合計ポイント")
                                 .font(.subheadline.weight(.semibold))
-                            Text("\(points) pt")
+                            Text("\(movePoints) + \(timePoints) = \(points) pt")
                                 .font(.body.weight(.semibold))
+                                .monospacedDigit()
                         }
                     }
                 }
@@ -250,9 +277,19 @@ struct ResultView: View {
         moveCount + penaltyCount
     }
 
+    /// 手数に 10 を掛けたポイント換算値
+    private var movePoints: Int {
+        totalMoves * 10
+    }
+
+    /// 所要時間をそのままポイントとみなした値（秒 = pt）
+    private var timePoints: Int {
+        elapsedSeconds
+    }
+
     /// ポイント（手数×10 + 経過秒数）を算出
     private var points: Int {
-        totalMoves * 10 + elapsedSeconds
+        movePoints + timePoints
     }
 
     /// 所要時間を日本語表記へ整形する
