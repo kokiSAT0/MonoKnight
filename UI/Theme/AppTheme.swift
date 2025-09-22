@@ -280,6 +280,38 @@ struct AppTheme: DynamicProperty {
         }
     }
 
+    // MARK: - スポーン選択オーバーレイ
+
+    /// スポーン案内の背景色。ライトモードでは白ベース、ダークモードでは黒ベースで適度に透過させる
+    var spawnOverlayBackground: Color {
+        switch resolvedColorScheme {
+        case .dark:
+            return Color.black.opacity(0.82)
+        default:
+            return Color.white.opacity(0.92)
+        }
+    }
+
+    /// スポーン案内の枠線色。背景とのコントラストが強すぎないよう控えめな値に調整
+    var spawnOverlayBorder: Color {
+        switch resolvedColorScheme {
+        case .dark:
+            return Color.white.opacity(0.25)
+        default:
+            return Color.black.opacity(0.15)
+        }
+    }
+
+    /// スポーン案内ボックスのドロップシャドウ色
+    var spawnOverlayShadow: Color {
+        switch resolvedColorScheme {
+        case .dark:
+            return Color.black.opacity(0.7)
+        default:
+            return Color.black.opacity(0.25)
+        }
+    }
+
     // MARK: - ペナルティバナー／先読みオーバーレイ
 
     /// ペナルティバナーの背景色

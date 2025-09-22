@@ -5,18 +5,20 @@ import XCTest
 final class BoardMovementTests: XCTestCase {
     /// 中央から盤外へ出る移動が正しく検出されるか
     func testOutOfBoundsMove() {
-        let origin = GridPoint.center
+        let boardSize = 5
+        let origin = GridPoint.center(of: boardSize)
         // 盤の外へ 3 マス右に移動
         let outside = origin.offset(dx: 3, dy: 0)
         // 範囲外なので `isInside` は false になるべき
-        XCTAssertFalse(outside.isInside)
+        XCTAssertFalse(outside.isInside(boardSize: boardSize))
     }
 
     /// 盤内の移動が有効と判定されるか
     func testInsideMove() {
-        let origin = GridPoint.center
+        let boardSize = 5
+        let origin = GridPoint.center(of: boardSize)
         // 1 マス右は盤内
         let inside = origin.offset(dx: 1, dy: 0)
-        XCTAssertTrue(inside.isInside)
+        XCTAssertTrue(inside.isInside(boardSize: boardSize))
     }
 }

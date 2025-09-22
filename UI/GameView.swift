@@ -12,6 +12,8 @@ import UIKit  // ハプティクス用のフレームワークを追加
 struct GameView: View {
     /// カラーテーマを生成し、ビュー全体で共通の配色を利用できるようにする
     private var theme = AppTheme()
+    /// 現在プレイしているゲームモード
+    private let mode: GameMode
     /// 現在のライト/ダーク設定を環境から取得し、SpriteKit 側の色にも反映する
     @Environment(\.colorScheme) private var colorScheme
     /// デバイスの横幅サイズクラスを取得し、iPad などレギュラー幅でのモーダル挙動を調整する
@@ -67,12 +69,13 @@ struct GameView: View {
 
     /// デフォルトのサービスを利用して `GameView` を生成するコンビニエンスイニシャライザ
     /// - Parameter onRequestReturnToTitle: タイトル画面への遷移要求クロージャ（省略可）
-    init(onRequestReturnToTitle: (() -> Void)? = nil) {
+    init(mode: GameMode = .standard, onRequestReturnToTitle: (() -> Void)? = nil) {
         // Swift 6 のコンカレンシールールではデフォルト引数で `@MainActor` なシングルトンへ
         // 直接アクセスできないため、明示的に同一型の別イニシャライザへ委譲する。
         // ここで `GameCenterService.shared` / `AdsService.shared` を取得することで、
         // メインアクター上から安全に依存を解決できるようにする。
         self.init(
+            mode: mode,
             gameCenterService: GameCenterService.shared,
             adsService: AdsService.shared,
             onRequestReturnToTitle: onRequestReturnToTitle
@@ -85,12 +88,15 @@ struct GameView: View {
     ///   - gameCenterService: Game Center 連携用サービス
     ///   - adsService: 広告表示用サービス
     init(
+        mode: GameMode,
         gameCenterService: GameCenterServiceProtocol,
         adsService: AdsServiceProtocol,
         onRequestReturnToTitle: (() -> Void)? = nil
     ) {
+        self.mode = mode
+
         // GameCore の生成。StateObject へ包んで保持する
-        let core = GameCore()
+        let core = GameCore(mode: mode)
         _core = StateObject(wrappedValue: core)
 
         // GameScene は再利用したいのでローカルで準備し、最後に State プロパティへ格納する
@@ -269,13 +275,12 @@ struct GameView: View {
                     if let animatingCard,
                        let sourceAnchor = anchors[animatingCard.id],
                        let boardAnchor,
-                       animationState != .idle || hiddenCardIDs.contains(animatingCard.id) {
+                       animationState != .idle || hiddenCardIDs.contains(animatingCard.id),
+                       let targetGridPoint = animationTargetGridPoint ?? core.current {
                         // --- 元の位置と駒位置の座標を算出 ---
                         let cardFrame = proxy[sourceAnchor]
                         let boardFrame = proxy[boardAnchor]
                         let startCenter = CGPoint(x: cardFrame.midX, y: cardFrame.midY)
-                        // 駒が存在するマスへ向けてカードを吸い込むため、開始時点の現在地を保持しておく
-                        let targetGridPoint = animationTargetGridPoint ?? core.current
                         // 盤面座標 → SwiftUI 座標系への変換を行い、目的位置を計算
                         let boardDestination = boardCoordinate(for: targetGridPoint, in: boardFrame)
 
@@ -389,9 +394,17 @@ struct GameView: View {
                 HeightPreferenceReporter<StatisticsHeightPreferenceKey>()
             }
 
-            spriteBoard(width: width)
-                // 盤面縮小で生まれた余白を均等にするため、中央寄せで描画する
-                .frame(maxWidth: .infinity, alignment: .center)
+            ZStack {
+                spriteBoard(width: width)
+                if core.progress == .awaitingSpawn {
+                    spawnSelectionOverlay
+                        // 盤面いっぱいに広がりすぎないよう最大幅を制限する
+                        .frame(maxWidth: width * 0.9)
+                        .padding(.horizontal, 12)
+                }
+            }
+            // 盤面縮小で生まれた余白を均等にするため、中央寄せで描画する
+            .frame(maxWidth: .infinity, alignment: .center)
         }
     }
 
@@ -437,6 +450,32 @@ struct GameView: View {
                 // 現在位置が変化したら移動候補も追従する
                 refreshGuideHighlights(currentOverride: newPoint)
             }
+    }
+
+    /// スポーン位置選択中に盤面へ重ねる案内オーバーレイ
+    private var spawnSelectionOverlay: some View {
+        VStack(spacing: 8) {
+            Text("開始マスを選択")
+                .font(.system(size: 18, weight: .semibold, design: .rounded))
+            Text("手札と先読みを確認してから、好きなマスをタップしてください。")
+                .font(.system(size: 14, weight: .medium, design: .rounded))
+                .multilineTextAlignment(.center)
+        }
+        .padding(.vertical, 18)
+        .padding(.horizontal, 20)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(theme.spawnOverlayBackground)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(theme.spawnOverlayBorder, lineWidth: 1)
+                )
+        )
+        .shadow(color: theme.spawnOverlayShadow, radius: 18, x: 0, y: 8)
+        .foregroundColor(theme.textPrimary)
+        .allowsHitTesting(false)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(Text("開始位置を選択してください。手札と次のカードを見てから任意のマスをタップできます。"))
     }
 
     /// 手札と先読みカードの表示をまとめた領域
@@ -511,7 +550,7 @@ struct GameView: View {
 
         return Button {
             // 実行前に必ず確認ダイアログを挟むため、既存のメニューアクションを再利用
-            pendingMenuAction = .manualPenalty
+            pendingMenuAction = .manualPenalty(penaltyCost: core.mode.manualRedrawPenaltyCost)
         } label: {
             // MARK: - ボタンは 44pt 以上の円形領域で構成し、メニューアイコンとの統一感を持たせる
             Image(systemName: "arrow.triangle.2.circlepath")
@@ -532,7 +571,17 @@ struct GameView: View {
         .disabled(isDisabled)
         .accessibilityIdentifier("manual_penalty_button")
         .accessibilityLabel(Text("ペナルティを払って手札を引き直す"))
-        .accessibilityHint(Text("手数を5消費して現在の手札を全て捨て、新しいカードを3枚引きます。"))
+        .accessibilityHint(Text(manualPenaltyAccessibilityHint))
+    }
+
+    /// 手動ペナルティの操作説明を状況に応じて生成
+    private var manualPenaltyAccessibilityHint: String {
+        let cost = core.mode.manualRedrawPenaltyCost
+        if cost > 0 {
+            return "手数を\(cost)消費して現在の手札を全て捨て、新しいカードを\(core.mode.handSize)枚引きます。"
+        } else {
+            return "手数を消費せずに現在の手札を全て捨て、新しいカードを\(core.mode.handSize)枚引きます。"
+        }
     }
 
     /// 手詰まりペナルティを知らせるバナーのレイヤーを構成
@@ -541,7 +590,7 @@ struct GameView: View {
             if isShowingPenaltyBanner {
                 HStack {
                     Spacer(minLength: 0)
-                    PenaltyBannerView()
+                    PenaltyBannerView(penaltyAmount: core.lastPenaltyAmount)
                         .padding(.horizontal, 20)
                         .transition(.move(edge: .top).combined(with: .opacity))
                         .accessibilityIdentifier("penalty_banner")
@@ -588,9 +637,17 @@ struct GameView: View {
     ) {
         // パラメータで上書き値が渡されていれば優先し、未指定であれば GameCore が保持する最新の状態を利用する
         let hand = handOverride ?? core.hand
-        let current = currentOverride ?? core.current
         // Combine から届いた最新の進行度を優先できるよう引数でも受け取り、なければ GameCore の値を参照する
         let progress = progressOverride ?? core.progress
+
+        // スポーン選択中などで現在地が未確定の場合はガイドを消灯し、再開に備えて状態をリセットする
+        guard let current = currentOverride ?? core.current else {
+            scene.updateGuideHighlights([])
+            pendingGuideHand = nil
+            pendingGuideCurrent = nil
+            debugLog("ガイド更新を中断: 現在地が未確定のためハイライトを消灯 状態=\(String(describing: progress)), 手札枚数=\(hand.count)")
+            return
+        }
 
         // 各カードの移動先を列挙し、盤内に収まるマスだけを候補として蓄積する
         var candidatePoints: Set<GridPoint> = []
@@ -634,8 +691,12 @@ struct GameView: View {
     /// 指定カードが現在位置から盤内に収まるか判定
     /// - Note: MoveCard は列挙型であり、dx/dy プロパティから移動量を取得する
     private func isCardUsable(_ card: DealtCard) -> Bool {
+        guard let current = core.current else {
+            // スポーン未確定など現在地が無い場合は全てのカードを使用不可とみなす
+            return false
+        }
         // 現在位置に MoveCard の移動量を加算して目的地を算出
-        let target = core.current.offset(dx: card.move.dx, dy: card.move.dy)
+        let target = current.offset(dx: card.move.dx, dy: card.move.dy)
         // 目的地が盤面内に含まれているかどうかを判定
         return core.board.contains(target)
     }
@@ -649,11 +710,13 @@ struct GameView: View {
     private func animateCardPlay(for card: DealtCard, at index: Int) -> Bool {
         // 既に別カードの演出が進行中なら二重再生を避ける
         guard animatingCard == nil else { return false }
+        // スポーン未確定時はカードを使用できないため、演出を開始せず安全に抜ける
+        guard let current = core.current else { return false }
         // 念のため盤面内へ移動可能かチェックし、無効カードの演出を抑止
         guard isCardUsable(card) else { return false }
 
         // アニメーション開始前に現在地を記録しておき、目的地の座標計算に利用する
-        animationTargetGridPoint = core.current
+        animationTargetGridPoint = current
         hiddenCardIDs.insert(card.id)
         animatingCard = card
         animationState = .idle
@@ -714,8 +777,9 @@ struct GameView: View {
     ///   - frame: SwiftUI における盤面矩形
     /// - Returns: SwiftUI 座標系での中心位置
     private func boardCoordinate(for gridPoint: GridPoint, in frame: CGRect) -> CGPoint {
-        // SpriteKit 側と同じ 5×5 マスを前提に、1 マス分の辺長を算出
-        let tileLength = frame.width / CGFloat(Board.size)
+        // 現在の盤面サイズに応じて 1 マス分の辺長を算出する
+        let boardSize = max(1, core.board.size)
+        let tileLength = frame.width / CGFloat(boardSize)
         let centerX = frame.minX + tileLength * (CGFloat(gridPoint.x) + 0.5)
         // SwiftUI は上向きがマイナスのため、下端を基準に引き算して y を求める
         let centerY = frame.maxY - tileLength * (CGFloat(gridPoint.y) + 0.5)
@@ -972,7 +1036,7 @@ private extension GameView {
         pendingMenuAction = nil
 
         switch action {
-        case .manualPenalty:
+        case .manualPenalty(_):
             // 既存バナーの自動クローズ処理を停止し、新規イベントに備える
             penaltyDismissWorkItem?.cancel()
             penaltyDismissWorkItem = nil
@@ -1005,14 +1069,14 @@ private extension GameView {
 
 // MARK: - メニュー操作の定義
 private enum GameMenuAction: Hashable, Identifiable {
-    case manualPenalty
+    case manualPenalty(penaltyCost: Int)
     case reset
     case returnToTitle
 
     /// Identifiable 準拠のための一意な ID
     var id: Int {
         switch self {
-        case .manualPenalty:
+        case .manualPenalty(_):
             return 0
         case .reset:
             return 1
@@ -1024,7 +1088,7 @@ private enum GameMenuAction: Hashable, Identifiable {
     /// ダイアログ内で表示するボタンタイトル
     var confirmationButtonTitle: String {
         switch self {
-        case .manualPenalty:
+        case .manualPenalty(_):
             return "ペナルティを払う"
         case .reset:
             return "リセットする"
@@ -1036,8 +1100,12 @@ private enum GameMenuAction: Hashable, Identifiable {
     /// 操作説明として表示するメッセージ
     var confirmationMessage: String {
         switch self {
-        case .manualPenalty:
-            return "手数を5増やして手札を引き直します。現在の手札は破棄されます。よろしいですか？"
+        case .manualPenalty(let cost):
+            if cost > 0 {
+                return "手数を\(cost)増やして手札を引き直します。現在の手札は破棄されます。よろしいですか？"
+            } else {
+                return "手数を増やさずに手札を引き直します。現在の手札は破棄されます。よろしいですか？"
+            }
         case .reset:
             return "現在の進行状況を破棄して、最初からやり直します。よろしいですか？"
         case .returnToTitle:
@@ -1048,7 +1116,7 @@ private enum GameMenuAction: Hashable, Identifiable {
     /// ボタンのロール（破壊的操作は .destructive を指定）
     var buttonRole: ButtonRole? {
         switch self {
-        case .manualPenalty:
+        case .manualPenalty(_):
             return .destructive
         case .reset:
             return .destructive
@@ -1063,6 +1131,8 @@ private enum GameMenuAction: Hashable, Identifiable {
 private struct PenaltyBannerView: View {
     /// バナー配色を一元管理するテーマ
     private var theme = AppTheme()
+    /// 今回加算されたペナルティ手数
+    let penaltyAmount: Int
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
@@ -1081,11 +1151,11 @@ private struct PenaltyBannerView: View {
 
             // MARK: - メッセージ本文
             VStack(alignment: .leading, spacing: 2) {
-                Text("手詰まり → 手札を引き直し (+5)")
+                Text(primaryMessage)
                     .font(.system(size: 14, weight: .semibold, design: .rounded))
                     // メインテキストはテーマに合わせた明度で表示
                     .foregroundColor(theme.penaltyTextPrimary)
-                Text("使えるカードが無かったため、手数が 5 増加しました")
+                Text(secondaryMessage)
                     .font(.system(size: 12, weight: .medium, design: .rounded))
                     .foregroundColor(theme.penaltyTextSecondary)
             }
@@ -1106,8 +1176,32 @@ private struct PenaltyBannerView: View {
         .shadow(color: theme.penaltyBannerShadow, radius: 18, x: 0, y: 12)
         .accessibilityIdentifier("penalty_banner_content")
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("手詰まり。手札を引き直し、手数が 5 増加しました。")
+        .accessibilityLabel(accessibilityText)
     }
+
+    /// ペナルティ内容に応じたメインメッセージ
+    private var primaryMessage: String {
+        if penaltyAmount > 0 {
+            return "手詰まり → 手札を引き直し (+\(penaltyAmount))"
+        } else {
+            return "手札を引き直しました (ペナルティなし)"
+        }
+    }
+
+    /// ペナルティ内容に応じた補足メッセージ
+    private var secondaryMessage: String {
+        if penaltyAmount > 0 {
+            return "使えるカードが無かったため、手数が \(penaltyAmount) 増加しました"
+        } else {
+            return "使えるカードが無かったため、手数の増加はありません"
+        }
+    }
+
+    /// アクセシビリティ用の案内文
+    private var accessibilityText: String {
+        "\(primaryMessage)。\(secondaryMessage)"
+    }
+}
 }
 
 // MARK: - 先読みカード専用のオーバーレイ

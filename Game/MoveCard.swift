@@ -247,12 +247,14 @@ public enum MoveCard: CaseIterable {
 
     // MARK: - 利用判定
     /// 指定した座標からこのカードが使用可能か判定する
-    /// - Parameter from: 現在位置
+    /// - Parameters:
+    ///   - from: 現在位置
+    ///   - boardSize: 判定対象となる盤面サイズ
     /// - Returns: 盤内に移動できる場合は true
-    public func canUse(from: GridPoint) -> Bool {
+    public func canUse(from: GridPoint, boardSize: Int) -> Bool {
         // 現在位置に移動量を加算し、盤内かどうかを評価する
         let destination = from.offset(dx: dx, dy: dy)
-        return destination.isInside
+        return destination.isInside(boardSize: boardSize)
     }
 }
 

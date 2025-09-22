@@ -4,44 +4,71 @@ import GameplayKit
 #endif
 
 /// 山札を重み付き乱数で生成するデッキ構造体
-/// - Note: 王将型カードは標準カードの 1.5 倍（3:2 の整数比）、斜め 2 マスカードは桂馬カードの半分の重みで抽選する。
+/// - Note: ゲームモードごとに許可カードや重み付けが異なるため、`Configuration` で挙動を切り替えられるようにしている。
 struct Deck {
-    // MARK: - 重み定義
-    /// 標準カードに割り当てる重み（比率の基準）
-    private static let standardWeight = 2
-    /// 斜め 2 マス（マンハッタン距離 4）カード用の重み（ナイト型の半分）
-    private static let diagonalDistanceFourWeight = 1
-    /// 王将型カードに割り当てる重み（標準の 1.5 倍 = 3）
-    private static let kingWeight = 3
-    /// 各カードの基礎重みをまとめた辞書（動的な確率計算の基準）
-    private static let baseWeights: [MoveCard: Int] = {
-        var weights: [MoveCard: Int] = [:]
-        weights.reserveCapacity(MoveCard.allCases.count)
-        for card in MoveCard.allCases {
-            // 王将型は高頻度、ナイト型と直線型は標準、斜め 2 マスは低頻度に設定
-            let weight: Int
-            if card.isKingType {
-                // キング型は 1.5 倍（移動の基礎となるため）
-                weight = kingWeight
-            } else if card.isDiagonalDistanceFour {
-                // 斜め 2 マスは桂馬カードの半分の確率で排出させる
-                weight = diagonalDistanceFourWeight
-            } else {
-                // ナイト型や直線 2 マスは標準の重み
-                weight = standardWeight
-            }
-            weights[card] = weight
-        }
-        return weights
-    }()
-    /// ペナルティが無い場合に掛ける係数（4 倍することで 3/4 調整に整数を利用）
-    private static let normalMultiplier = 4
-    /// ペナルティ中に掛ける係数（基礎重みの 3/4 を実現）
-    private static let reducedMultiplier = 3
-    /// 同一カードの排出確率を抑制するターン数（ドロー後 5 ターン）
-    private static let reductionDuration = 5
+    // MARK: - 設定定義
+    /// 山札の構成や重み付けルールを表す設定構造体
+    struct Configuration {
+        /// 抽選対象とするカード一覧（順序を維持する）
+        let allowedMoves: [MoveCard]
+        /// 各カードの基礎重み
+        let baseWeights: [MoveCard: Int]
+        /// 連続排出抑制を行うかどうか
+        let shouldApplyProbabilityReduction: Bool
+        /// 通常時に掛ける重み倍率（整数比で扱う）
+        let normalWeightMultiplier: Int
+        /// 抑制中に掛ける重み倍率
+        let reducedWeightMultiplier: Int
+        /// 抑制状態を維持するターン数
+        let reductionDuration: Int
 
-    // MARK: - 乱数管理
+        /// スタンダードモード向け設定
+        static let standard: Configuration = {
+            // 元々の重み計算をここで再現する
+            var weights: [MoveCard: Int] = [:]
+            weights.reserveCapacity(MoveCard.allCases.count)
+            for card in MoveCard.allCases {
+                let weight: Int
+                if card.isKingType {
+                    // キング型は 1.5 倍の重み（整数比 3）
+                    weight = 3
+                } else if card.isDiagonalDistanceFour {
+                    // 長距離斜めは桂馬の半分
+                    weight = 1
+                } else {
+                    // それ以外は標準重み
+                    weight = 2
+                }
+                weights[card] = weight
+            }
+            return Configuration(
+                allowedMoves: MoveCard.allCases,
+                baseWeights: weights,
+                shouldApplyProbabilityReduction: true,
+                normalWeightMultiplier: 4,
+                reducedWeightMultiplier: 3,
+                reductionDuration: 5
+            )
+        }()
+
+        /// クラシカルチャレンジ向け設定（桂馬のみ・均等抽選）
+        static let classicalChallenge: Configuration = {
+            let knightMoves = MoveCard.allCases.filter { $0.isKnightType }
+            let weights = Dictionary(uniqueKeysWithValues: knightMoves.map { ($0, 1) })
+            return Configuration(
+                allowedMoves: knightMoves,
+                baseWeights: weights,
+                shouldApplyProbabilityReduction: false,
+                normalWeightMultiplier: 1,
+                reducedWeightMultiplier: 1,
+                reductionDuration: 0
+            )
+        }()
+    }
+
+    // MARK: - プロパティ
+    /// 現在採用している設定
+    private let configuration: Configuration
     /// 初期シード値。reset() 時に同じ乱数列へ戻すため保持する
     private let initialSeed: UInt64
     #if canImport(GameplayKit)
@@ -63,8 +90,11 @@ struct Deck {
 
     // MARK: - 初期化
     /// デッキを生成する
-    /// - Parameter seed: 乱数シード。省略時はシステム乱数から採番する
-    init(seed: UInt64? = nil) {
+    /// - Parameters:
+    ///   - seed: 乱数シード。省略時はシステム乱数から採番する
+    ///   - configuration: 採用する山札設定
+    init(seed: UInt64? = nil, configuration: Configuration = .standard) {
+        self.configuration = configuration
         var systemGenerator = SystemRandomNumberGenerator()
         let resolvedSeed = seed ?? UInt64.random(in: UInt64.min...UInt64.max, using: &systemGenerator)
         initialSeed = resolvedSeed
@@ -138,19 +168,17 @@ struct Deck {
         #endif
     }
 
-    /// 現在のペナルティ状況を踏まえて動的な重み抽選を実行する
+    /// 現在の設定に基づき動的な重み抽選を実行する
     /// - Returns: 抽選で選ばれたカード（総重量が 0 の場合は nil）
     private mutating func drawWithDynamicWeights() -> MoveCard? {
         var weightedCards: [(card: MoveCard, weight: Int)] = []
-        weightedCards.reserveCapacity(MoveCard.allCases.count)
+        weightedCards.reserveCapacity(configuration.allowedMoves.count)
         var totalWeight = 0
 
-        for card in MoveCard.allCases {
-            guard let baseWeight = Deck.baseWeights[card] else { continue }
-            // ペナルティが残っているカードは 3/4 の重みで抽選する
-            let multiplier = (reducedProbabilityTurns[card, default: 0] > 0)
-            ? Deck.reducedMultiplier
-            : Deck.normalMultiplier
+        for card in configuration.allowedMoves {
+            guard let baseWeight = configuration.baseWeights[card] else { continue }
+            let isReduced = configuration.shouldApplyProbabilityReduction && (reducedProbabilityTurns[card, default: 0] > 0)
+            let multiplier = isReduced ? configuration.reducedWeightMultiplier : configuration.normalWeightMultiplier
             let weight = baseWeight * multiplier
             weightedCards.append((card, weight))
             totalWeight += weight
@@ -173,6 +201,9 @@ struct Deck {
     /// ドロー結果に応じてペナルティ残りターン数を更新する
     /// - Parameter card: 今回排出されたカード
     private mutating func applyProbabilityReduction(afterDrawing card: MoveCard) {
+        guard configuration.shouldApplyProbabilityReduction, configuration.reductionDuration > 0 else {
+            return
+        }
         // 既存のペナルティを 1 ターン進め、0 以下になったら辞書から削除する
         var updated: [MoveCard: Int] = [:]
         updated.reserveCapacity(reducedProbabilityTurns.count)
@@ -183,10 +214,32 @@ struct Deck {
             }
         }
         reducedProbabilityTurns = updated
-        // 今回引いたカードに 5 ターン分の抑制を付与する
-        reducedProbabilityTurns[card] = Deck.reductionDuration
+        // 今回引いたカードに抑制を付与する
+        reducedProbabilityTurns[card] = configuration.reductionDuration
     }
 }
+
+#if DEBUG
+extension Deck {
+    /// テストで特定順序のカードを排出させたい場合に使用する
+    /// - Parameter cards: 先頭から順番に返したいカード列
+    mutating func preload(cards: [MoveCard]) {
+        presetDrawQueue = cards
+        presetOriginal = cards
+    }
+
+    /// プリセットしたカード列を優先的に返すテスト用デッキを生成する
+    /// - Parameters:
+    ///   - cards: 先頭から消費させたいカード列（手札5枚→先読み3枚の順で利用される想定）
+    ///   - configuration: 検証対象の山札設定（省略時はスタンダード）
+    /// - Returns: プリセットを持った `Deck`
+    static func makeTestDeck(cards: [MoveCard], configuration: Configuration = .standard) -> Deck {
+        var deck = Deck(seed: 1, configuration: configuration)
+        deck.preload(cards: cards)
+        return deck
+    }
+}
+#endif
 
 #if !canImport(GameplayKit)
 extension Deck {
@@ -199,32 +252,14 @@ extension Deck {
         /// 初期化子
         /// - Parameter seed: 任意のシード。0 の場合は固定値に置き換える
         init(seed: UInt64) {
-            state = seed == 0 ? 0x0123_4567_89AB_CDEF : seed
+            state = seed == 0 ? 0x4d595df4d0f33173 : seed
         }
 
-        /// 次の乱数を生成する
         mutating func next() -> UInt64 {
-            // 線形合同法（Numerical Recipes 由来の係数）を採用
-            state &*= 6364136223846793005
-            state &+= 1
+            // LCG のパラメータは Numerical Recipes の推奨値
+            state = 6364136223846793005 &* state &+ 1442695040888963407
             return state
         }
-    }
-}
-#endif
-
-#if DEBUG
-/// テストコードから利用するための拡張
-/// - Note: 重み付き抽選を迂回し、指定順のカードを確実に返すための仕組み。
-extension Deck {
-    /// 任意のカード配列を優先的に返すテスト用デッキを生成する
-    /// - Parameter cards: テストで取得したいカード列（先頭が最初のドロー）
-    /// - Returns: 指定した配列を消費した後は通常の重み付き抽選に戻るデッキ
-    static func makeTestDeck(cards: [MoveCard]) -> Deck {
-        var deck = Deck(seed: 0) // 乱数シードを固定し、残りの抽選も再現性を担保
-        deck.presetOriginal = cards
-        deck.presetDrawQueue = cards
-        return deck
     }
 }
 #endif

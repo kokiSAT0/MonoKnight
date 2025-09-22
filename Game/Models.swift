@@ -3,9 +3,9 @@ import Foundation
 /// 座標を表す構造体
 /// - 備考: 原点は左下、x は右方向、y は上方向に増加する
 public struct GridPoint: Hashable {
-    /// x 座標 (0...4)
+    /// x 座標
     public let x: Int
-    /// y 座標 (0...4)
+    /// y 座標
     public let y: Int
 
     /// 指定座標を生成するための公開イニシャライザ
@@ -18,11 +18,6 @@ public struct GridPoint: Hashable {
         self.y = y
     }
 
-    /// 盤面の範囲を表す定数
-    public static let range = 0...4
-    /// 盤面の中央位置 `(2,2)`
-    public static let center = GridPoint(x: 2, y: 2)
-
     /// 座標を移動させた新しい座標を返す
     /// - Parameters:
     ///   - dx: x 方向の移動量
@@ -32,9 +27,20 @@ public struct GridPoint: Hashable {
         GridPoint(x: x + dx, y: y + dy)
     }
 
-    /// 盤面内に収まっているかを判定する
-    public var isInside: Bool {
-        GridPoint.range.contains(x) && GridPoint.range.contains(y)
+    /// 指定した盤面サイズ内に収まっているかを判定する
+    /// - Parameter boardSize: 盤面の一辺の長さ
+    /// - Returns: 盤面内であれば true
+    public func isInside(boardSize: Int) -> Bool {
+        let range = 0..<boardSize
+        return range.contains(x) && range.contains(y)
+    }
+
+    /// 指定された盤面サイズの中央座標を計算する
+    /// - Parameter boardSize: 盤面の一辺の長さ
+    /// - Returns: 中央付近の座標（偶数サイズの場合は下寄りの中央を返す）
+    public static func center(of boardSize: Int) -> GridPoint {
+        let index = boardSize / 2
+        return GridPoint(x: index, y: index)
     }
 }
 
@@ -46,28 +52,35 @@ public enum TileState {
     case visited
 }
 
-/// 5×5 の盤面を管理する構造体
+/// 任意サイズの盤面を管理する構造体
 /// SwiftUI の `onChange` で盤面の変化を検知できるよう Equatable に準拠
 public struct Board: Equatable {
-    /// 盤面のサイズ (5×5 固定)
-    public static let size = 5
+    /// 盤面のサイズ（NxN）
+    public let size: Int
 
     /// 各マスの状態を保持する二次元配列
     /// y インデックスが先、x インデックスが後となる
     private var tiles: [[TileState]]
 
-    /// 初期化。全マス未踏破として生成し、中央を踏破済みに設定する
-    public init() {
-        let row = Array(repeating: TileState.untouched, count: Board.size)
-        self.tiles = Array(repeating: row, count: Board.size)
-        markVisited(GridPoint.center)
+    /// 初期化。全マス未踏破として生成し、必要に応じて初期踏破マスを指定する
+    /// - Parameters:
+    ///   - size: 盤面の一辺の長さ
+    ///   - initialVisitedPoints: 初期状態で踏破済みにしたいマスの集合
+    public init(size: Int, initialVisitedPoints: [GridPoint] = []) {
+        self.size = size
+        let row = Array(repeating: TileState.untouched, count: size)
+        self.tiles = Array(repeating: row, count: size)
+        // 初期踏破マスを順番に処理し、盤面外の指定は安全に無視する
+        for point in initialVisitedPoints where contains(point) {
+            tiles[point.y][point.x] = .visited
+        }
     }
 
     /// 指定座標が盤面内かどうかを判定する
     /// - Parameter point: 判定したい座標
     /// - Returns: 盤面内であれば true
     public func contains(_ point: GridPoint) -> Bool {
-        point.isInside
+        point.isInside(boardSize: size)
     }
 
     /// 指定座標の踏破状態を返す
@@ -118,6 +131,8 @@ public struct Board: Equatable {
 /// ゲーム全体の進行状態
 
 public enum GameProgress {
+    /// スポーン位置選択待ち
+    case awaitingSpawn
     /// プレイ続行中
     case playing
     /// 全マス踏破でクリア
@@ -140,9 +155,9 @@ extension Board {
     /// - Parameter current: 駒の現在位置（省略時は表示しない）
     func debugDump(current: GridPoint? = nil) {
         // y 軸を上から下へ走査し、行単位で文字列を構築する
-        for y in stride(from: Board.size - 1, through: 0, by: -1) {
+        for y in stride(from: size - 1, through: 0, by: -1) {
             var row = ""
-            for x in 0..<Board.size {
+            for x in 0..<size {
                 let point = GridPoint(x: x, y: y)
                 if let current = current, current == point {
                     // 駒の位置は K で表現
