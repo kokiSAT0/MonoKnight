@@ -1,3 +1,4 @@
+import Combine  // 経過時間更新で Combine のタイマーパブリッシャを活用するため読み込む
 import Game  // GameCore や DealtCard を利用するためゲームロジックモジュールを読み込む
 import SpriteKit
 import SwiftUI
@@ -48,6 +49,8 @@ struct GameView: View {
     @State private var statisticsHeight: CGFloat = 0
     /// 手札セクション全体の高さを計測し、利用可能な縦寸法を把握する
     @State private var handSectionHeight: CGFloat = 0
+    /// 表示中の経過秒数を保持し、バッジの更新トリガーとして利用する
+    @State private var displayedElapsedSeconds: Int = 0
     /// 手札や NEXT の位置をマッチングさせるための名前空間
     @Namespace private var cardAnimationNamespace
     /// 現在アニメーション中のカード（存在しない場合は nil）
@@ -66,6 +69,8 @@ struct GameView: View {
     @State private var pendingGuideCurrent: GridPoint?
     /// 盤面レイアウトに異常が発生した際のスナップショットを記録し、重複ログを避ける
     @State private var lastLoggedLayoutSnapshot: BoardLayoutSnapshot?
+    /// 経過時間の表示を 1 秒ごとに更新するためのタイマーパブリッシャ
+    private let elapsedTimer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     /// デフォルトのサービスを利用して `GameView` を生成するコンビニエンスイニシャライザ
     /// - Parameter onRequestReturnToTitle: タイトル画面への遷移要求クロージャ（省略可）
@@ -246,6 +251,8 @@ struct GameView: View {
             applyScenePalette(for: colorScheme)
             // 初期状態でもガイド表示のオン/オフに応じてハイライトを更新
             refreshGuideHighlights()
+            // タイマー起動直後に経過時間を一度読み取って初期表示のずれを防ぐ
+            updateDisplayedElapsedTime()
         }
         // ライト/ダーク切り替えが発生した場合も SpriteKit 側へ反映
         .onChange(of: colorScheme) { _, newScheme in
@@ -314,10 +321,17 @@ struct GameView: View {
         .onChange(of: guideModeEnabled) { _, _ in
             refreshGuideHighlights()
         }
+        // 経過時間を 1 秒ごとに再計算し、リアルタイム表示へ反映
+        .onReceive(elapsedTimer) { _ in
+            updateDisplayedElapsedTime()
+        }
         // 進行状態が変化した際もハイライトを整理（手詰まり・クリア時は消灯）
         .onReceive(core.$progress) { progress in
             // 進行状態が切り替わったタイミングで、デッドロック退避フラグの有無と併せて記録する
             debugLog("進行状態の更新を受信: 状態=\(String(describing: progress)), 退避ハンドあり=\(pendingGuideHand != nil)")
+
+            // 進行状態の変化に合わせて経過時間を再計算し、リセット直後のズレを防ぐ
+            updateDisplayedElapsedTime()
 
             if progress == .playing {
                 if let bufferedHand = pendingGuideHand {
@@ -336,6 +350,10 @@ struct GameView: View {
             } else {
                 scene.updateGuideHighlights([])
             }
+        }
+        // クリア確定時に GameCore 側で確定した秒数が流れてきたら表示へ反映
+        .onReceive(core.$elapsedSeconds) { _ in
+            updateDisplayedElapsedTime()
         }
         // カードが盤面へ移動中は UI 全体を操作不可とし、状態の齟齬を防ぐ
         .disabled(animatingCard != nil)
@@ -437,6 +455,13 @@ struct GameView: View {
                     value: "\(core.penaltyCount)",
                     accessibilityLabel: "ペナルティ回数",
                     accessibilityValue: "\(core.penaltyCount)手"
+                )
+
+                statisticBadge(
+                    title: "経過時間",
+                    value: formattedElapsedTime(displayedElapsedSeconds),
+                    accessibilityLabel: "経過時間",
+                    accessibilityValue: accessibilityElapsedTimeDescription(displayedElapsedSeconds)
                 )
 
                 statisticBadge(
@@ -921,6 +946,50 @@ struct GameView: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabel)
         .accessibilityValue(accessibilityValue)
+    }
+
+    /// 経過秒数を mm:ss 形式へ整形し、視覚的に読みやすくする
+    /// - Parameter seconds: 表示したい経過秒数
+    /// - Returns: mm:ss 形式の文字列
+    private func formattedElapsedTime(_ seconds: Int) -> String {
+        // 60 秒で割った商を分、余りを秒として表示する
+        let minutes = seconds / 60
+        let remainingSeconds = seconds % 60
+        return String(format: "%d:%02d", minutes, remainingSeconds)
+    }
+
+    /// アクセシビリティ向けに経過時間を自然な日本語へ整形する
+    /// - Parameter seconds: 読み上げに使用する経過秒数
+    /// - Returns: 「X時間Y分Z秒」の形式でまとめた説明文
+    private func accessibilityElapsedTimeDescription(_ seconds: Int) -> String {
+        let hours = seconds / 3600
+        let minutes = (seconds % 3600) / 60
+        let remainingSeconds = seconds % 60
+
+        if hours > 0 {
+            return "\(hours)時間\(minutes)分\(remainingSeconds)秒"
+        } else if minutes > 0 {
+            return "\(minutes)分\(remainingSeconds)秒"
+        } else {
+            return "\(remainingSeconds)秒"
+        }
+    }
+
+    /// GameCore が保持する時刻情報から画面表示用の経過秒数を更新する
+    /// - Note: 秒単位の差分しか扱わないため、値が変わったときのみ State を更新して不要な再描画を抑制する
+    private func updateDisplayedElapsedTime() {
+        // クリア済みなら確定値を、プレイ中はリアルタイム計算値を採用する
+        let latestSeconds: Int
+        if core.progress == .cleared {
+            latestSeconds = core.elapsedSeconds
+        } else {
+            latestSeconds = core.liveElapsedSeconds
+        }
+
+        // 値に変化があったときだけ State を更新する
+        if displayedElapsedSeconds != latestSeconds {
+            displayedElapsedSeconds = latestSeconds
+        }
     }
 
     /// 指定したスロットのカード（存在しない場合は nil）を取得するヘルパー

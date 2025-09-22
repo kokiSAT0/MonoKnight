@@ -88,6 +88,15 @@ public final class GameCore: ObservableObject {
     /// ポイント計算結果（小さいほど良い）
     /// - Note: 「手数×10 + 所要秒数」の規則に基づく
     public var score: Int { totalMoveCount * 10 + elapsedSeconds }
+    /// プレイ中の経過秒数をリアルタイムで取得する計算プロパティ
+    /// - Note: クリア済みで `endDate` が存在する場合は確定値を返し、それ以外は現在時刻との差分を都度算出する
+    public var liveElapsedSeconds: Int {
+        // 終了時刻が設定済みならそれを参照し、未クリアなら現在時刻を用いる
+        let referenceDate = endDate ?? Date()
+        // 負値を避けるため timeIntervalSince の結果に max を適用し、四捨五入した整数秒を返す
+        let duration = max(0, referenceDate.timeIntervalSince(startDate))
+        return max(0, Int(duration.rounded()))
+    }
     /// 未踏破マスの残り数を UI へ公開する計算プロパティ
 
     public var remainingTiles: Int { board.remainingCount }
