@@ -1202,7 +1202,6 @@ private struct PenaltyBannerView: View {
         "\(primaryMessage)。\(secondaryMessage)"
     }
 }
-}
 
 // MARK: - 先読みカード専用のオーバーレイ
 /// 「NEXT」「NEXT+1」などのバッジを重ね、操作不可であることを視覚的に伝える補助ビュー
