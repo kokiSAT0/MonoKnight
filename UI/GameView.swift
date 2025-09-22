@@ -1134,6 +1134,13 @@ private struct PenaltyBannerView: View {
     /// 今回加算されたペナルティ手数
     let penaltyAmount: Int
 
+    /// GameView 側から利用しやすいように外部公開されたイニシャライザを明示的に定義
+    /// - Parameter penaltyAmount: 今回のペナルティで増加した手数
+    init(penaltyAmount: Int) {
+        // `theme` はデフォルト値で初期化されるため代入不要。必要な値だけを受け取り保持する
+        self.penaltyAmount = penaltyAmount
+    }
+
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
             // MARK: - 警告アイコン
