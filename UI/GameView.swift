@@ -529,7 +529,7 @@ struct GameView: View {
         // 丸め誤差で余白が不足しないように保険をかける。
         let finalBottomPadding = max(bottomPadding, expectedPadding)
 
-        VStack(spacing: 8) {
+        return VStack(spacing: 8) {
             // 手札 3 枚を横並びで表示
             // カードを大きくした際も全体幅が画面内に収まるよう、spacing を定数で管理する
             HStack(spacing: LayoutMetrics.handCardSpacing) {
