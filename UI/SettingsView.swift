@@ -1,3 +1,4 @@
+import Game
 import StoreKit
 import SwiftUI
 
@@ -29,6 +30,10 @@ struct SettingsView: View {
     // MARK: - ガイドモード設定
     // 盤面の移動候補ハイライトを保存し、GameView 側の @AppStorage と連動させる。
     @AppStorage("guide_mode_enabled") private var guideModeEnabled: Bool = true
+
+    // MARK: - 手札並び順設定
+    // 手札の並び方をユーザーが切り替えられるように、列挙体の RawValue を保存する。
+    @AppStorage(HandOrderMode.storageKey) private var handOrderModeRawValue: String = HandOrderMode.drawOrder.rawValue
 
     // MARK: - 戦績管理
     // ベストポイントを UserDefaults から取得・更新する。未設定時は Int.max で初期化しておく。
@@ -120,6 +125,27 @@ struct SettingsView: View {
                 } footer: {
                     // どのような効果があるかを具体的に説明し、不要ならオフにできると案内
                     Text("手札から移動できるマスを盤面上で光らせます。集中して考えたい場合はオフにできます。")
+                }
+
+                // 手札の並び順をユーザーが選べるようにするセクション
+                Section {
+                    Picker(
+                        "手札の並び順",
+                        selection: Binding<HandOrderMode>(
+                            get: { HandOrderMode(rawValue: handOrderModeRawValue) ?? .drawOrder },
+                            set: { newValue in handOrderModeRawValue = newValue.rawValue }
+                        )
+                    ) {
+                        ForEach(HandOrderMode.allCases) { mode in
+                            Text(mode.displayName)
+                                .tag(mode)
+                        }
+                    }
+                } header: {
+                    Text("手札の並べ替え")
+                } footer: {
+                    // 選択中のモードがどのように並ぶかを説明して、ユーザーが挙動を想像しやすくする
+                    Text((HandOrderMode(rawValue: handOrderModeRawValue) ?? .drawOrder).detailDescription)
                 }
 
                 // MARK: - 広告除去 IAP セクション

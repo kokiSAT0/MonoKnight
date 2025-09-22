@@ -295,4 +295,38 @@ final class GameCoreTests: XCTestCase {
         XCTAssertEqual(core.totalMoveCount, 17, "合計手数の算出が期待値と異なる")
         XCTAssertEqual(core.score, 207, "ポイント計算が仕様と一致していない")
     }
+
+    /// 手札並べ替え設定の「移動方向で自動整列」が仕様通りにソートされるか検証
+    func testDirectionalHandOrderSortsByMovementPriority() {
+        let preset: [MoveCard] = [
+            // --- 初期手札 5 枚（意図的に左右・上下方向の組み合わせを混在させる）---
+            .kingRight,
+            .kingLeft,
+            .knightUp1Left2,
+            .knightDown1Left2,
+            .straightUp2,
+            // --- 先読み分のカード（テストの安定性のため余分に用意）---
+            .diagonalUpRight2,
+            .kingUp,
+            .straightLeft2
+        ]
+        let deck = Deck.makeTestDeck(cards: preset)
+        let core = GameCore.makeTestInstance(deck: deck)
+
+        // 既定モードではドロー順がそのまま保持されることを確認
+        let initialMoves = core.hand.map { $0.move }
+        XCTAssertEqual(initialMoves, Array(preset.prefix(core.mode.handSize)), "初期状態では引いた順番のまま並ぶべき")
+
+        // 移動方向優先モードへ切り替え、左方向が強いカードほど前方へ並ぶか検証
+        core.updateHandOrderMode(.directional)
+        let sortedMoves = core.hand.map { $0.move }
+        let expected: [MoveCard] = [
+            .knightUp1Left2,
+            .knightDown1Left2,
+            .kingLeft,
+            .straightUp2,
+            .kingRight
+        ]
+        XCTAssertEqual(sortedMoves, expected, "directional モードのソート順が仕様通りではありません")
+    }
 }
