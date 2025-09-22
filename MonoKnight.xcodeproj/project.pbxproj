@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		726642292E813A69003EA325 /* GameMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 726642282E813A69003EA325 /* GameMode.swift */; };
 		729791562E7EB35900361471 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 729791552E7EB35900361471 /* LaunchScreen.storyboard */; };
 		7297918B2E7F43F300361471 /* Game in Frameworks */ = {isa = PBXBuildFile; productRef = 7297918A2E7F43F300361471 /* Game */; };
 		729791A82E7F569900361471 /* Game in Frameworks */ = {isa = PBXBuildFile; productRef = 729791A72E7F569900361471 /* Game */; };
@@ -49,6 +50,7 @@
 		000000000000000000000003 /* MonoKnight.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MonoKnight.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		000000000000000000000004 /* MonoKnightApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonoKnightApp.swift; sourceTree = "<group>"; };
 		000000000000000000000009 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		726642282E813A69003EA325 /* GameMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameMode.swift; sourceTree = "<group>"; };
 		729791552E7EB35900361471 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
 		729791982E7F499700361471 /* DealtCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DealtCard.swift; sourceTree = "<group>"; };
 		729791992E7F499700361471 /* GameScenePalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameScenePalette.swift; sourceTree = "<group>"; };
@@ -149,6 +151,7 @@
 		72CF37F72E7162E20093B180 /* Game */ = {
 			isa = PBXGroup;
 			children = (
+				726642282E813A69003EA325 /* GameMode.swift */,
 				729791982E7F499700361471 /* DealtCard.swift */,
 				729791992E7F499700361471 /* GameScenePalette.swift */,
 				72CF37F12E7162E20093B180 /* DebugLog.swift */,
@@ -387,6 +390,7 @@
 				72F554A82E7E40100098A1B0 /* MoveCardIllustrationView.swift in Sources */,
 				72CF380F2E7162E20093B180 /* ResultView.swift in Sources */,
 				72CF38102E7162E20093B180 /* ConsentFlowView.swift in Sources */,
+				726642292E813A69003EA325 /* GameMode.swift in Sources */,
 				72CF38112E7162E20093B180 /* GameCenterService.swift in Sources */,
 				72CF38122E7162E20093B180 /* StoreService.swift in Sources */,
 				72CF38142E7162E20093B180 /* RootView.swift in Sources */,
