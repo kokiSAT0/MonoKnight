@@ -1386,7 +1386,9 @@ private extension GameView {
 
 // MARK: - レギュラー幅向けのメニュー確認シート
 /// iPad で確認文をゆったり表示するためのシートビュー
-struct GameMenuActionConfirmationSheet: View {
+// MARK: - ファイル内限定で利用する確認用シート
+/// `GameMenuAction` が fileprivate な型のため、このシートも fileprivate としておく
+fileprivate struct GameMenuActionConfirmationSheet: View {
     /// 共通配色を参照して背景色などを統一する
     private var theme = AppTheme()
     /// 現在確認中のアクション
