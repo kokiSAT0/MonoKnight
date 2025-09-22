@@ -51,6 +51,14 @@ public final class GameScene: SKScene {
         tileSize > 0 && tileNodes.count == Board.size * Board.size && knightNode != nil
     }
 
+    /// レイアウト再計算がどのイベントで行われたのかを識別するための列挙体
+    /// - NOTE: デバッグログへ明示的に理由を残すことで、想定外のタイミングでサイズ変更が発生していないかを分析しやすくする
+    private enum LayoutTrigger: String {
+        case didMove
+        case didChangeSize
+        case manual
+    }
+
     /// 駒を表すノード
     private var knightNode: SKShapeNode?
 
@@ -58,7 +66,13 @@ public final class GameScene: SKScene {
     /// - NOTE: アクセシビリティ情報更新時に参照する
     private var knightPosition: GridPoint = .center
 
-    #if canImport(UIKit)
+    /// シーンサイズがゼロのままのため初期レイアウトを保留しているかどうか
+    /// - NOTE: SpriteView がまだレイアウト前の段階では `size` が `.zero` になるため、
+    ///   その状態でノード生成を進めると盤面が描画されない不具合に直結する。
+    ///   このフラグで「サイズ確定待ち」かどうかを把握し、後続ログと併せて状況確認をしやすくする。
+    private var awaitingValidSceneSize = false
+
+#if canImport(UIKit)
     /// VoiceOver で読み上げるための要素配列
     private var accessibilityElementsCache: [UIAccessibilityElement] = []
 
@@ -101,6 +115,7 @@ public final class GameScene: SKScene {
         pendingKnightPosition = nil
         knightNode = nil
         knightPosition = .center
+        awaitingValidSceneSize = false
         #if canImport(UIKit)
         accessibilityElementsCache = []
         #endif
@@ -123,6 +138,7 @@ public final class GameScene: SKScene {
         pendingKnightPosition = nil
         knightNode = nil
         knightPosition = .center
+        awaitingValidSceneSize = false
         #if canImport(UIKit)
         accessibilityElementsCache = []
         #endif
@@ -136,7 +152,7 @@ public final class GameScene: SKScene {
         debugLog("GameScene.didMove: view.bounds=\(view.bounds.size), scene.size=\(size)")
 
         /// マスのサイズと原点を計算
-        calculateLayout()
+        calculateLayout(trigger: .didMove)
 
         /// 現在保持しているテーマを適用し、初期色を決定
         applyTheme(palette)
@@ -149,18 +165,43 @@ public final class GameScene: SKScene {
     }
 
     /// 画面サイズからマスのサイズと原点を算出する
-    private func calculateLayout() {
+    /// - Parameter trigger: レイアウト再計算を要求したイベント（ログ用）
+    private func calculateLayout(trigger: LayoutTrigger) {
         let length = min(size.width, size.height)
+
+        guard length > 0 else {
+            // `.zero` のままノード生成を進めると盤面が描画されないため、ここで一旦処理を保留する
+            if awaitingValidSceneSize {
+                debugLog(
+                    "GameScene.calculateLayout: trigger=\(trigger.rawValue) サイズ未確定のため待機継続 size=\(size)"
+                )
+            } else {
+                debugLog(
+                    "GameScene.calculateLayout: trigger=\(trigger.rawValue) シーンサイズがゼロのため初期レイアウトを延期 size=\(size)"
+                )
+            }
+            awaitingValidSceneSize = true
+            tileSize = 0
+            gridOrigin = .zero
+            return
+        }
+
+        let wasAwaiting = awaitingValidSceneSize
+        awaitingValidSceneSize = false
+
         tileSize = length / CGFloat(Board.size)
         let offsetX = (size.width - tileSize * CGFloat(Board.size)) / 2
         let offsetY = (size.height - tileSize * CGFloat(Board.size)) / 2
         gridOrigin = CGPoint(x: offsetX, y: offsetY)
 
         // レイアウト計算の結果をログ出力し、tileSize が 0 付近になる異常を検知できるようにする
-        debugLog("GameScene.calculateLayout: size=\(size), tileSize=\(tileSize), gridOrigin=\(gridOrigin)")
-        if tileSize <= 0 {
-            // 盤面が表示されない現象の根本原因を突き止めるため、異常値は明示的に警告する
-            debugLog("GameScene.calculateLayout 警告: tileSize がゼロ以下です")
+        debugLog(
+            "GameScene.calculateLayout: trigger=\(trigger.rawValue), size=\(size), tileSize=\(tileSize), gridOrigin=\(gridOrigin)"
+        )
+
+        if wasAwaiting {
+            // `size == .zero` で待機していたケースが復旧したことを明示的に記録する
+            debugLog("GameScene.calculateLayout: 待機していた初期レイアウトを実行しました")
         }
 
         // レイアウト確定状況をチェックし、グリッドや駒ノードの生成が済んでいなければ補完する
@@ -172,8 +213,11 @@ public final class GameScene: SKScene {
     public override func didChangeSize(_ oldSize: CGSize) {
         super.didChangeSize(oldSize)
 
+        // サイズ変更イベントの発生をログへ残し、どのタイミングで SpriteKit 側の寸法が確定したか追跡できるようにする
+        debugLog("GameScene.didChangeSize: oldSize=\(oldSize), newSize=\(size)")
+
         // 端末の回転や親ビューのリサイズに合わせ、マスの基準サイズと原点を再計算する
-        calculateLayout()
+        calculateLayout(trigger: .didChangeSize)
 
         // 既存のマスノードを走査し、新しいタイルサイズに沿った矩形パスを再構築する
         for (point, node) in tileNodes {
