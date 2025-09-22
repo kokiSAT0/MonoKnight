@@ -1396,6 +1396,22 @@ struct GameMenuActionConfirmationSheet: View {
     /// キャンセル時に状態をリセットするクロージャ
     let onCancel: () -> Void
 
+    /// 明示的なイニシャライザを用意し、`GameMenuAction` が `private` スコープでも呼び出せるようにする
+    /// - Parameters:
+    ///   - action: 確認対象のメニューアクション
+    ///   - onConfirm: 決定時に呼び出すクロージャ
+    ///   - onCancel: キャンセル時に呼び出すクロージャ
+    fileprivate init(
+        action: GameMenuAction,
+        onConfirm: @escaping (GameMenuAction) -> Void,
+        onCancel: @escaping () -> Void
+    ) {
+        // メンバーごとに代入し、従来通りの挙動を維持する
+        self.action = action
+        self.onConfirm = onConfirm
+        self.onCancel = onCancel
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 32) {
             // MARK: - 見出しと詳細説明
