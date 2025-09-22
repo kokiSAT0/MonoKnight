@@ -144,13 +144,25 @@ struct GameView: View {
                     + regularAdditionalPadding
             )
 
+            // MARK: - レイアウト計測値のフォールバック
+            // 統計バッジや手札セクションは初回レイアウト時にまだ高さが 0 として報告されることがある。
+            // そのまま盤面サイズを決定すると iPad で下部 UI が安全領域をはみ出してしまうため、
+            // 計測値が 0 以下のときは想定される最小高さをフォールバック値として利用する。
+            let isStatisticsHeightMeasured = statisticsHeight > 0
+            let resolvedStatisticsHeight = isStatisticsHeightMeasured
+                ? statisticsHeight
+                : LayoutMetrics.statisticsSectionFallbackHeight
+            let isHandSectionHeightMeasured = handSectionHeight > 0
+            let resolvedHandSectionHeight = isHandSectionHeightMeasured
+                ? handSectionHeight
+                : LayoutMetrics.handSectionFallbackHeight
+
             // MARK: - 盤面サイズのキャッシュ
-            // 統計バッジと手札の実寸法を差し引いてから幅と比較し、最適な正方形の辺長を算出する
-            // handSectionBottomPadding はセーフエリア + 追加マージンを含むため、ここで差し引けば盤面が安全領域へ
-            // 侵食することを防げる。
+            // 統計バッジと手札の実寸法（もしくはフォールバック値）を差し引いてから幅と比較し、最適な正方形の辺長を算出する。
+            // handSectionBottomPadding はセーフエリア + 追加マージンを含むため、ここで差し引けば盤面が安全領域へ侵食することを防げる。
             let availableHeightForBoard = geometry.size.height
-                - statisticsHeight
-                - handSectionHeight
+                - resolvedStatisticsHeight
+                - resolvedHandSectionHeight
                 - LayoutMetrics.spacingBetweenBoardAndHand
                 - LayoutMetrics.spacingBetweenStatisticsAndBoard
                 - handSectionBottomPadding
@@ -196,11 +208,15 @@ struct GameView: View {
                         resolvedTopInset: topInset,
                         resolvedBottomInset: bottomInset,
                         statisticsHeight: statisticsHeight,
+                        resolvedStatisticsHeight: resolvedStatisticsHeight,
                         handSectionHeight: handSectionHeight,
+                        resolvedHandSectionHeight: resolvedHandSectionHeight,
                         regularAdditionalBottomPadding: regularAdditionalPadding,
                         handSectionBottomPadding: handSectionBottomPadding,
                         usedTopSafeAreaFallback: usedTopFallback,
-                        usedBottomSafeAreaFallback: usedBottomFallback
+                        usedBottomSafeAreaFallback: usedBottomFallback,
+                        usedStatisticsFallback: !isStatisticsHeightMeasured,
+                        usedHandSectionFallback: !isHandSectionHeightMeasured
                     )
             )
         }
@@ -1009,11 +1025,15 @@ struct GameView: View {
         resolvedTopInset: CGFloat,
         resolvedBottomInset: CGFloat,
         statisticsHeight: CGFloat,
+        resolvedStatisticsHeight: CGFloat,
         handSectionHeight: CGFloat,
+        resolvedHandSectionHeight: CGFloat,
         regularAdditionalBottomPadding: CGFloat,
         handSectionBottomPadding: CGFloat,
         usedTopSafeAreaFallback: Bool,
-        usedBottomSafeAreaFallback: Bool
+        usedBottomSafeAreaFallback: Bool,
+        usedStatisticsFallback: Bool,
+        usedHandSectionFallback: Bool
     ) -> some View {
         // 現在のレイアウト関連値をひとまとめにして Equatable なスナップショットとして扱い、差分が生じたときだけログを出力する
         let snapshot = BoardLayoutSnapshot(
@@ -1028,11 +1048,15 @@ struct GameView: View {
             resolvedTopInset: resolvedTopInset,
             resolvedBottomInset: resolvedBottomInset,
             statisticsHeight: statisticsHeight,
+            resolvedStatisticsHeight: resolvedStatisticsHeight,
             handSectionHeight: handSectionHeight,
+            resolvedHandSectionHeight: resolvedHandSectionHeight,
             regularAdditionalBottomPadding: regularAdditionalBottomPadding,
             handSectionBottomPadding: handSectionBottomPadding,
             usedTopSafeAreaFallback: usedTopSafeAreaFallback,
-            usedBottomSafeAreaFallback: usedBottomSafeAreaFallback
+            usedBottomSafeAreaFallback: usedBottomSafeAreaFallback,
+            usedStatisticsFallback: usedStatisticsFallback,
+            usedHandSectionFallback: usedHandSectionFallback
         )
 
         return Color.clear
@@ -1062,7 +1086,9 @@ struct GameView: View {
         GameView.layout 観測: 理由=\(reason)
           geometry=\(snapshot.geometrySize)
           safeArea(rawTop=\(snapshot.rawTopInset), rawBottom=\(snapshot.rawBottomInset), resolvedTop=\(snapshot.resolvedTopInset), resolvedBottom=\(snapshot.resolvedBottomInset), fallbackTop=\(snapshot.usedTopSafeAreaFallback), fallbackBottom=\(snapshot.usedBottomSafeAreaFallback))
-          sections(statistics=\(snapshot.statisticsHeight), hand=\(snapshot.handSectionHeight)) paddings(handBottom=\(snapshot.handSectionBottomPadding), regularExtra=\(snapshot.regularAdditionalBottomPadding))
+          sections(statistics=\(snapshot.statisticsHeight), resolvedStatistics=\(snapshot.resolvedStatisticsHeight), hand=\(snapshot.handSectionHeight), resolvedHand=\(snapshot.resolvedHandSectionHeight))
+          paddings(handBottom=\(snapshot.handSectionBottomPadding), regularExtra=\(snapshot.regularAdditionalBottomPadding))
+          fallbacks(statistics=\(snapshot.usedStatisticsFallback), hand=\(snapshot.usedHandSectionFallback), topSafeArea=\(snapshot.usedTopSafeAreaFallback), bottomSafeArea=\(snapshot.usedBottomSafeAreaFallback))
           boardBases(horizontal=\(snapshot.horizontalBoardBase), vertical=\(snapshot.verticalBoardBase), resolved=\(snapshot.boardBaseSize)) availableHeight=\(snapshot.availableHeight) boardScale=\(LayoutMetrics.boardScale) boardWidth=\(snapshot.boardWidth)
         """
 
@@ -1090,11 +1116,15 @@ struct GameView: View {
         let resolvedTopInset: CGFloat
         let resolvedBottomInset: CGFloat
         let statisticsHeight: CGFloat
+        let resolvedStatisticsHeight: CGFloat
         let handSectionHeight: CGFloat
+        let resolvedHandSectionHeight: CGFloat
         let regularAdditionalBottomPadding: CGFloat
         let handSectionBottomPadding: CGFloat
         let usedTopSafeAreaFallback: Bool
         let usedBottomSafeAreaFallback: Bool
+        let usedStatisticsFallback: Bool
+        let usedHandSectionFallback: Bool
     }
 
 }
@@ -1446,6 +1476,10 @@ private enum LayoutMetrics {
     static let boardScale: CGFloat = 0.92
     /// 統計や手札によって縦方向が埋まった際でも盤面が消失しないよう確保する下限サイズ
     static let minimumBoardFallbackSize: CGFloat = 220
+    /// 統計バッジ領域の最低想定高さ。初回レイアウトで 0 が返っても盤面がはみ出さないよう保険を掛ける
+    static let statisticsSectionFallbackHeight: CGFloat = 72
+    /// 手札と先読みカードを含めた最低想定高さ。カード 2 段構成とテキストを見越したゆとりを確保する
+    static let handSectionFallbackHeight: CGFloat = 220
     /// 手札カード同士の横方向スペース（カード拡大後も全体幅が収まるよう微調整）
     static let handCardSpacing: CGFloat = 10
     /// 手札カードの幅。MoveCardIllustrationView 側の定義と同期させてサイズ差異を防ぐ
