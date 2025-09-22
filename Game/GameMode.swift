@@ -15,6 +15,22 @@ public struct GameMode: Equatable, Identifiable {
         case fixed(GridPoint)
         /// プレイヤーが任意のマスを選択してスポーン
         case chooseAnyAfterPreview
+
+        /// Equatable のカスタム実装
+        /// - Note: 固定座標スポーンは座標の一致を厳密に比較し、自由選択スポーンは同一ケースであれば常に等価とみなす。
+        public static func == (lhs: SpawnRule, rhs: SpawnRule) -> Bool {
+            switch (lhs, rhs) {
+            case let (.fixed(lhsPoint), .fixed(rhsPoint)):
+                // 固定座標スポーン同士は実際の GridPoint が一致するかどうかで判定する
+                return lhsPoint == rhsPoint
+            case (.chooseAnyAfterPreview, .chooseAnyAfterPreview):
+                // 自由選択スポーン同士はケースが同じであれば同一の振る舞いになるため true を返す
+                return true
+            default:
+                // それ以外の組み合わせはルールの性質が異なるため必ず false
+                return false
+            }
+        }
     }
 
     /// 一意な識別子
