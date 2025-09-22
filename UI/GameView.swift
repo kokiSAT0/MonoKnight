@@ -114,13 +114,36 @@ struct GameView: View {
 
     var body: some View {
         GeometryReader { geometry in
+            // MARK: - セーフエリア（特に iPad のホームインジケータ）を加味する
+            // iPad ではホームインジケータ領域が大きいため、盤面や手札の高さ計算から
+            // 安全領域ぶんを差し引いておかないと下端が見切れてしまう。
+            // GeometryProxy から取得できる safeAreaInsets.bottom をキャッシュしておき、
+            // 盤面サイズの決定や手札の余白調整に活用する。
+            let bottomInset = geometry.safeAreaInsets.bottom
+            // MARK: - 手札セクションに適用する下余白を算出
+            // レギュラー幅（iPad）では basePadding だけでは足りず、ホームインジケータとの間隔を広げたい。
+            // bottomInset と追加マージンを合算し、iPhone では従来の 16pt を維持しつつ
+            // iPad では 30pt 以上の余白を確保できるよう max で調整する。
+            let regularAdditionalPadding = horizontalSizeClass == .regular
+                ? LayoutMetrics.handSectionRegularAdditionalBottomPadding
+                : 0
+            let handSectionBottomPadding = max(
+                LayoutMetrics.handSectionBasePadding,
+                bottomInset
+                    + LayoutMetrics.handSectionSafeAreaAdditionalPadding
+                    + regularAdditionalPadding
+            )
+
             // MARK: - 盤面サイズのキャッシュ
             // 統計バッジと手札の実寸法を差し引いてから幅と比較し、最適な正方形の辺長を算出する
+            // handSectionBottomPadding はセーフエリア + 追加マージンを含むため、ここで差し引けば盤面が安全領域へ
+            // 侵食することを防げる。
             let availableHeightForBoard = geometry.size.height
                 - statisticsHeight
                 - handSectionHeight
                 - LayoutMetrics.spacingBetweenBoardAndHand
                 - LayoutMetrics.spacingBetweenStatisticsAndBoard
+                - handSectionBottomPadding
             // MARK: - 盤面の基準サイズ計算
             // GeometryReader から得られる幅がゼロの場合でも、SpriteView のサイズが 0×0 にならないよう
             // `minimumBoardFallbackSize` を用いた横方向のフォールバック値を必ず確保しておく
@@ -135,7 +158,10 @@ struct GameView: View {
             ZStack(alignment: .topTrailing) {
                 VStack(spacing: 16) {
                     boardSection(width: boardWidth)
-                    handSection()
+                    handSection(
+                        bottomInset: bottomInset,
+                        bottomPadding: handSectionBottomPadding
+                    )
                 }
                 // MARK: - 手詰まりペナルティ通知バナー
                 penaltyBannerOverlay
@@ -479,8 +505,30 @@ struct GameView: View {
     }
 
     /// 手札と先読みカードの表示をまとめた領域
+    /// - Parameters:
+    ///   - bottomInset: 現在のデバイスが持つ下セーフエリアの量（ホームインジケータ分など）
+    ///   - bottomPadding: セーフエリアと端末ごとの追加マージンを合算した推奨余白
     /// - Returns: 下部 UI 全体（余白調整を含む）
-    private func handSection() -> some View {
+    private func handSection(
+        bottomInset: CGFloat,
+        bottomPadding: CGFloat
+    ) -> some View {
+        // MARK: - 追加余白の内訳
+        // bottomPadding は GeometryReader 側で算出した「セーフエリア + 端末別マージン」を含む値。
+        // まずは iPhone 時代から維持してきた 16pt（BasePadding）を常時適用し、
+        // それでも不足する場合のみ追加分を足していく。GeometryReader 側から受け取った bottomPadding
+        // はセーフエリア（bottomInset）と iPad 向けのマージンを反映済みだが、念のためここでも同じ計算を行い、
+        // レイアウトの解釈違いがあっても最大値で丸めておく。
+        let expectedPadding = max(
+            LayoutMetrics.handSectionBasePadding,
+            bottomInset
+                + LayoutMetrics.handSectionSafeAreaAdditionalPadding
+                + (horizontalSizeClass == .regular ? LayoutMetrics.handSectionRegularAdditionalBottomPadding : 0)
+        )
+        // GeometryReader から渡された値と再計算した値のうち大きい方を採用し、端末や OS バージョン差による
+        // 丸め誤差で余白が不足しないように保険をかける。
+        let finalBottomPadding = max(bottomPadding, expectedPadding)
+
         VStack(spacing: 8) {
             // 手札 3 枚を横並びで表示
             // カードを大きくした際も全体幅が画面内に収まるよう、spacing を定数で管理する
@@ -534,12 +582,13 @@ struct GameView: View {
             }
 #endif
         }
-        .padding(.bottom, 16)
         // PreferenceKey へ手札セクションの高さを渡し、GeometryReader の計算に活用する
         .overlay(alignment: .topLeading) {
             // 同様に手札全体の高さもゼロサイズのオーバーレイで取得し、親 GeometryReader の計算値を安定させる
             HeightPreferenceReporter<HandSectionHeightPreferenceKey>()
         }
+        // BasePadding とセーフエリア・マージンをまとめて適用し、iPad でも指の収まりを良くする
+        .padding(.bottom, finalBottomPadding)
     }
 
     /// 手動ペナルティ（手札引き直し）のショートカットボタン
@@ -1299,6 +1348,12 @@ private enum LayoutMetrics {
     static let handCardWidth: CGFloat = MoveCardIllustrationView.defaultWidth
     /// 手札カードの高さ。幅との比率を保ちながら僅かに拡張する
     static let handCardHeight: CGFloat = MoveCardIllustrationView.defaultHeight
+    /// 手札セクションの基本的な下パディング。iPhone での視認性を最優先する基準値
+    static let handSectionBasePadding: CGFloat = 16
+    /// セーフエリア分の領域に加えて確保したいバッファ。ホームインジケータ直上に余白を置く
+    static let handSectionSafeAreaAdditionalPadding: CGFloat = 8
+    /// レギュラー幅（主に iPad）で追加する下方向マージン。指の位置とタブバーが干渉しないよう余裕を持たせる
+    static let handSectionRegularAdditionalBottomPadding: CGFloat = 24
 }
 
 /// 統計バッジ領域の高さを親ビューへ伝搬するための PreferenceKey
