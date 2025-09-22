@@ -98,6 +98,35 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, FullScre
         Task { [weak self] in
             await MainActor.run { self?.loadInterstitial() }
         }
+
+        // 起動直後は UMP の同意情報と shouldUseNPA の値がずれている恐れがあるため、明示的に同期処理を差し込む
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                await MainActor.run {
+                    // アプリ起動タイミングで最新の同意状況を必ず取得しておき、ログからも同期のタイミングを追跡できるようにする
+                    debugLog("アプリ起動直後に Google UMP の同意情報を同期します")
+                }
+                try await self.requestConsentInfoUpdate()
+            } catch {
+                await MainActor.run {
+                    // 同意情報の取得に失敗した場合でも後続の評価が走るようログだけ残して処理を継続する
+                    debugError(error, message: "アプリ起動時の Google UMP 同意情報更新に失敗")
+                }
+            }
+
+            await MainActor.run {
+                // 最新化した同意情報を反映し、NPA 判定とキャッシュの状態をそろえる
+                self.applyConsentStatusAndReloadIfNeeded()
+
+                let consentInfo = ConsentInformation.shared
+                // canRequestAds = true でキャッシュが空なら、同意済みユーザーでも起動直後に読み込みが走るよう明示的にトリガーする
+                if consentInfo.canRequestAds && self.interstitial == nil && !self.isLoadingAd {
+                    debugLog("起動時の同意同期後に広告キャッシュが空だったため読み込みを再開します")
+                    self.loadInterstitial()
+                }
+            }
+        }
     }
 
     deinit {
@@ -499,11 +528,19 @@ private extension AdsService {
         shouldUseNPA = newShouldUseNPA
         debugLog("Google UMP の結果を反映しました (shouldUseNPA: \(shouldUseNPA))")
 
-        // 値が変わった場合は既存キャッシュを破棄し、新しい設定で広告をロードし直す
-        guard hasChanged else { return }
-        debugLog("同意内容の変化を検知したため、広告キャッシュを破棄して再読み込みします")
-        interstitial = nil
-        loadInterstitial()
+        if hasChanged {
+            // shouldUseNPA の変化に合わせて既存キャッシュを破棄し、新しい設定を反映したリクエストを作り直す
+            debugLog("同意内容の変化を検知したため、広告キャッシュを破棄して再読み込みします")
+            interstitial = nil
+            loadInterstitial()
+            return
+        }
+
+        // shouldUseNPA が変わらないケースでも、canRequestAds が true かつキャッシュが空なら読み込み漏れを防ぐ
+        if consentInfo.canRequestAds && interstitial == nil && !isLoadingAd {
+            debugLog("同意内容に変化はありませんがキャッシュが空のためインタースティシャル広告の読み込みを再開します")
+            loadInterstitial()
+        }
     }
 
     /// 最前面の ViewController を取得する
