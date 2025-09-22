@@ -103,6 +103,8 @@ public final class GameCore: ObservableObject {
 
     /// 山札管理（`Deck.swift` に定義された重み付き無限山札を使用）
     private var deck = Deck(configuration: .standard)
+    /// 手札の並び順を制御するユーザー設定。初期値は従来の挿入順
+    private var handOrderingStrategy: HandOrderingStrategy = .insertionOrder
     /// プレイ開始時刻（リセットのたびに現在時刻へ更新）
     private var startDate = Date()
     /// クリア確定時刻（未クリアの場合は nil のまま保持）
@@ -120,6 +122,14 @@ public final class GameCore: ObservableObject {
         progress = mode.requiresSpawnSelection ? .awaitingSpawn : .playing
         // 実際の山札と手札の構成は共通処理に集約
         configureForNewSession(regenerateDeck: false)
+    }
+
+    /// 手札の並び順設定を更新し、必要であれば再ソートする
+    /// - Parameter newStrategy: ユーザーが選択した並び替え方式
+    public func updateHandOrderingStrategy(_ newStrategy: HandOrderingStrategy) {
+        guard handOrderingStrategy != newStrategy else { return }
+        handOrderingStrategy = newStrategy
+        reorderHandIfNeeded()
     }
 
     /// 指定インデックスのカードで駒を移動させる
@@ -169,6 +179,8 @@ public final class GameCore: ObservableObject {
             // 先読みが枯渇した異常系でもプレイ継続できるよう直接ドロー
             hand.insert(drawn, at: index)
         }
+        // 並び順設定に応じて手札全体を調整
+        reorderHandIfNeeded()
         // 先読み枠が不足していれば必要枚数まで補充する
         replenishNextPreview()
 
@@ -316,6 +328,8 @@ public final class GameCore: ObservableObject {
 
         // 現在の手札・先読みカードはそのまま破棄し、新しいカードを引き直す
         hand = deck.draw(count: handSize)
+        // ユーザー設定に合わせて初期手札を並べ替える
+        reorderHandIfNeeded()
         nextCards = deck.draw(count: nextPreviewCount)
         replenishNextPreview()
 
@@ -374,6 +388,8 @@ public final class GameCore: ObservableObject {
         progress = mode.requiresSpawnSelection ? .awaitingSpawn : .playing
 
         hand = deck.draw(count: handSize)
+        // 新しい手札も設定値に沿って並べ替える
+        reorderHandIfNeeded()
         nextCards = deck.draw(count: nextPreviewCount)
         replenishNextPreview()
 
@@ -470,6 +486,41 @@ extension GameCore: GameCoreProtocol {
 #endif
 
 private extension GameCore {
+    /// MoveCard ごとの列挙順をキャッシュし、並べ替え時の安定ソートに利用する
+    private static let moveCardOrderingIndex: [MoveCard: Int] = {
+        var mapping: [MoveCard: Int] = [:]
+        mapping.reserveCapacity(MoveCard.allCases.count)
+        for (index, card) in MoveCard.allCases.enumerated() {
+            mapping[card] = index
+        }
+        return mapping
+    }()
+
+    /// 現在の手札をユーザー設定に従って並び替える
+    /// - Note: 従来モードでは何もしない
+    func reorderHandIfNeeded() {
+        guard handOrderingStrategy == .directionSorted else { return }
+
+        // 左方向への移動量が大きいものから順に並べ、同値なら上方向を優先
+        hand.sort { lhs, rhs in
+            let leftDX = lhs.move.dx
+            let rightDX = rhs.move.dx
+            if leftDX != rightDX {
+                return leftDX < rightDX
+            }
+
+            let leftDY = lhs.move.dy
+            let rightDY = rhs.move.dy
+            if leftDY != rightDY {
+                return leftDY > rightDY
+            }
+
+            let leftIndex = GameCore.moveCardOrderingIndex[lhs.move] ?? 0
+            let rightIndex = GameCore.moveCardOrderingIndex[rhs.move] ?? 0
+            return leftIndex < rightIndex
+        }
+    }
+
     /// スポーン位置選択時の処理
     /// - Parameter point: プレイヤーが選んだ座標
     func handleSpawnSelection(at point: GridPoint) {

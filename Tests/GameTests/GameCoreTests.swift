@@ -286,6 +286,68 @@ final class GameCoreTests: XCTestCase {
         XCTAssertEqual(core.progress, .playing)
     }
 
+    /// 手札の方向ソート設定が期待通りの順序へ並べ替えられるか検証
+    func testHandOrderingDirectionSortReordersHand() {
+        let deck = Deck.makeTestDeck(cards: [
+            .kingRight,
+            .diagonalUpLeft2,
+            .straightLeft2,
+            .kingUp,
+            .diagonalDownLeft2,
+            .kingLeft,
+            .straightUp2,
+            .kingDown,
+            .kingUpRight
+        ])
+        let core = GameCore.makeTestInstance(deck: deck)
+
+        // 方向ソートへ切り替えて順序が調整されるか確認
+        core.updateHandOrderingStrategy(.directionSorted)
+
+        let expected: [MoveCard] = [
+            .diagonalUpLeft2,
+            .straightLeft2,
+            .diagonalDownLeft2,
+            .kingUp,
+            .kingRight
+        ]
+        XCTAssertEqual(core.hand.map(\.move), expected, "方向ソート設定で手札が期待通りに並んでいない")
+    }
+
+    /// 方向ソート設定でカードを使用した後も新しい手札が正しい順序に保たれるか検証
+    func testHandOrderingDirectionSortAfterDraw() {
+        let deck = Deck.makeTestDeck(cards: [
+            .kingRight,
+            .diagonalUpLeft2,
+            .straightLeft2,
+            .kingUp,
+            .diagonalDownLeft2,
+            .kingLeft,
+            .straightUp2,
+            .kingDown,
+            .kingUpRight
+        ])
+        let core = GameCore.makeTestInstance(deck: deck)
+
+        core.updateHandOrderingStrategy(.directionSorted)
+
+        guard let playIndex = core.hand.firstIndex(where: { $0.move == .kingRight }) else {
+            XCTFail("想定したカードが手札に存在しません")
+            return
+        }
+
+        core.playCard(at: playIndex)
+
+        let expected: [MoveCard] = [
+            .diagonalUpLeft2,
+            .straightLeft2,
+            .diagonalDownLeft2,
+            .kingLeft,
+            .kingUp
+        ]
+        XCTAssertEqual(core.hand.map(\.move), expected, "カード使用後の方向ソート結果が期待と異なります")
+    }
+
     /// スコア計算が「手数×10 + 経過秒数」で行われることを確認
     func testScoreCalculationUsesPointsFormula() {
         let core = GameCore()
