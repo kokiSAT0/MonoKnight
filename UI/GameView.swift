@@ -490,6 +490,7 @@ struct GameView: View {
             usedBottomFallback: usedBottomFallback,
             topInset: topInset,
             bottomInset: bottomInset,
+            controlRowTopPadding: controlRowTopPadding,
             regularAdditionalBottomPadding: regularAdditionalPadding,
             handSectionBottomPadding: handSectionBottomPadding,
             statisticsHeight: statisticsHeight,
@@ -502,8 +503,7 @@ struct GameView: View {
             boardBaseSize: boardBaseSize,
             boardWidth: boardWidth,
             usedStatisticsFallback: !isStatisticsHeightMeasured,
-            usedHandSectionFallback: !isHandSectionHeightMeasured,
-            controlRowTopPadding: controlRowTopPadding
+            usedHandSectionFallback: !isHandSectionHeightMeasured
         )
     }
 
