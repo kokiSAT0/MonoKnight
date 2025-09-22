@@ -24,13 +24,6 @@ struct RootView: View {
     @State private var selectedModeForTitle: GameMode = .standard
     /// GameView の再生成に利用するセッション ID（モードが変わるたびに更新する）
     @State private var gameSessionID = UUID()
-    /// 実際に GameView へ渡しているモード
-    @State private var activeMode: GameMode = .standard
-    /// タイトル画面で選択中のモード（開始ボタン押下で activeMode に反映する）
-    @State private var selectedModeForTitle: GameMode = .standard
-    /// GameView の再生成を強制するための識別子（モード変更時に更新）
-    @State private var gameSessionID = UUID()
-
     /// 依存サービスを外部から注入可能にする初期化処理
     /// - Parameters:
     ///   - gameCenterService: Game Center 連携用サービス（デフォルトはシングルトン）
