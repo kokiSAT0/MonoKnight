@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		726642292E813A69003EA325 /* GameMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 726642282E813A69003EA325 /* GameMode.swift */; };
 		729791562E7EB35900361471 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 729791552E7EB35900361471 /* LaunchScreen.storyboard */; };
 		7297918B2E7F43F300361471 /* Game in Frameworks */ = {isa = PBXBuildFile; productRef = 7297918A2E7F43F300361471 /* Game */; };
 		729791A82E7F569900361471 /* Game in Frameworks */ = {isa = PBXBuildFile; productRef = 729791A72E7F569900361471 /* Game */; };
@@ -390,7 +389,6 @@
 				72F554A82E7E40100098A1B0 /* MoveCardIllustrationView.swift in Sources */,
 				72CF380F2E7162E20093B180 /* ResultView.swift in Sources */,
 				72CF38102E7162E20093B180 /* ConsentFlowView.swift in Sources */,
-				726642292E813A69003EA325 /* GameMode.swift in Sources */,
 				72CF38112E7162E20093B180 /* GameCenterService.swift in Sources */,
 				72CF38122E7162E20093B180 /* StoreService.swift in Sources */,
 				72CF38142E7162E20093B180 /* RootView.swift in Sources */,
