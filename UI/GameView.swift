@@ -215,7 +215,7 @@ struct GameView: View {
         // 監視用の不可視オーバーレイも先に生成し、View ビルダー内でのネストを浅く保つ
         let diagnosticsOverlay = layoutDiagnosticOverlay(using: layoutContext)
 
-        ZStack(alignment: .topTrailing) {
+        ZStack(alignment: .top) {
             VStack(spacing: 16) {
                 boardSection(width: layoutContext.boardWidth)
                 handSection(
@@ -223,11 +223,10 @@ struct GameView: View {
                     bottomPadding: layoutContext.handSectionBottomPadding
                 )
             }
+            // 統計バッジ＋操作ボタンを上部へ寄せ、ノッチやステータスバーと干渉しないように余白を加算
+            .padding(.top, layoutContext.controlRowTopPadding)
             // MARK: - 手詰まりペナルティ通知バナー
             penaltyBannerOverlay(topInset: layoutContext.topInset)
-
-            // MARK: - 右上のメニューボタンとデバッグ向けショートカット
-            topRightOverlay(topInset: layoutContext.topInset)
         }
         // 画面全体の背景もテーマで制御し、システム設定と調和させる
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -444,6 +443,12 @@ struct GameView: View {
             ? rawBottomInset
             : (usedBottomFallback ? LayoutMetrics.regularWidthBottomSafeAreaFallback : 0)
 
+        // MARK: - 盤面上部コントロールバーの余白を決定
+        let controlRowTopPadding = max(
+            LayoutMetrics.controlRowBaseTopPadding,
+            topInset + LayoutMetrics.controlRowSafeAreaAdditionalPadding
+        )
+
         // MARK: - 手札セクション下部の余白を決定
         let regularAdditionalPadding = horizontalSizeClass == .regular
             ? LayoutMetrics.handSectionRegularAdditionalBottomPadding
@@ -497,7 +502,8 @@ struct GameView: View {
             boardBaseSize: boardBaseSize,
             boardWidth: boardWidth,
             usedStatisticsFallback: !isStatisticsHeightMeasured,
-            usedHandSectionFallback: !isHandSectionHeightMeasured
+            usedHandSectionFallback: !isHandSectionHeightMeasured,
+            controlRowTopPadding: controlRowTopPadding
         )
     }
 
@@ -505,58 +511,8 @@ struct GameView: View {
     /// - Parameter width: GeometryReader で算出した盤面の幅（正方形表示の基準）
     /// - Returns: 統計バッジと SpriteView を縦に並べた領域
     private func boardSection(width: CGFloat) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // MARK: - ゲーム進行度を示すバッジ群
-            // 盤面と重ならないよう先に配置し、VoiceOver が確実に読み上げる構造に整える
-            HStack(spacing: 12) {
-                statisticBadge(
-                    title: "移動",
-                    value: "\(core.moveCount)",
-                    accessibilityLabel: "移動回数",
-                    accessibilityValue: "\(core.moveCount)回"
-                )
-
-                statisticBadge(
-                    title: "ペナルティ",
-                    value: "\(core.penaltyCount)",
-                    accessibilityLabel: "ペナルティ回数",
-                    accessibilityValue: "\(core.penaltyCount)手"
-                )
-
-                statisticBadge(
-                    title: "経過時間",
-                    value: formattedElapsedTime(displayedElapsedSeconds),
-                    accessibilityLabel: "経過時間",
-                    accessibilityValue: accessibilityElapsedTimeDescription(displayedElapsedSeconds)
-                )
-
-                statisticBadge(
-                    title: "残りマス",
-                    value: "\(core.remainingTiles)",
-                    accessibilityLabel: "残りマス数",
-                    accessibilityValue: "残り\(core.remainingTiles)マス"
-                )
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background(
-                // 盤面外でも読みやすさを維持する半透明の背景（テーマから取得）
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(theme.statisticBadgeBackground)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    // テーマに合わせた薄い境界線でバッジを引き締める
-                    .stroke(theme.statisticBadgeBorder, lineWidth: 1)
-            )
-            .padding(.horizontal, 16)
-            .accessibilityElement(children: .contain)
-            // PreferenceKey へ統計バッジの高さを伝搬し、GeometryReader 側で取得できるようにする
-            .overlay(alignment: .topLeading) {
-                // GeometryReader が親ビューいっぱいに広がらないよう、ゼロサイズの補助ビューを重ねて高さだけを取得する
-                HeightPreferenceReporter<StatisticsHeightPreferenceKey>()
-            }
-
+        VStack(alignment: .leading, spacing: LayoutMetrics.spacingBetweenStatisticsAndBoard) {
+            boardControlRow()
             ZStack {
                 spriteBoard(width: width)
                 if core.progress == .awaitingSpawn {
@@ -568,6 +524,84 @@ struct GameView: View {
             }
             // 盤面縮小で生まれた余白を均等にするため、中央寄せで描画する
             .frame(maxWidth: .infinity, alignment: .center)
+        }
+    }
+
+    /// 盤面上部の統計バッジと操作ボタンをまとめたコントロールバー
+    /// - Returns: 統計情報を左側、リセット関連の操作ボタンを右側に揃えた横並びレイアウト
+    private func boardControlRow() -> some View {
+        HStack(alignment: .center, spacing: 12) {
+            // まずは従来通りのレイアウトを試み、画面幅に収まらない場合は自動的にスクロール表示へ切り替える
+            ViewThatFits(in: .horizontal) {
+                statisticsBadgeContainer()
+                ScrollView(.horizontal, showsIndicators: false) {
+                    statisticsBadgeContainer()
+                }
+            }
+            // HStack 内で十分な横幅を確保し、iPhone でも操作ボタンと干渉しないようにする
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .layoutPriority(1)
+
+            // MARK: - リセット系の操作ボタン群
+            HStack(spacing: 12) {
+                manualPenaltyButton
+                menuButton
+            }
+        }
+        .padding(.horizontal, 16)
+        // PreferenceKey へコントロールバー全体の高さを渡し、盤面計算に利用する
+        .overlay(alignment: .topLeading) {
+            HeightPreferenceReporter<StatisticsHeightPreferenceKey>()
+        }
+    }
+
+    /// 統計バッジ群を共通の装飾付きで構築する
+    /// - Returns: 4 種の統計バッジをまとめたビューツリー
+    private func statisticsBadgeContainer() -> some View {
+        statisticsBadgeRow
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(theme.statisticBadgeBackground)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(theme.statisticBadgeBorder, lineWidth: 1)
+            )
+            .accessibilityElement(children: .contain)
+    }
+
+    /// 盤面に関する 4 種類の統計バッジを横並びで生成する
+    private var statisticsBadgeRow: some View {
+        HStack(spacing: 12) {
+            statisticBadge(
+                title: "移動",
+                value: "\(core.moveCount)",
+                accessibilityLabel: "移動回数",
+                accessibilityValue: "\(core.moveCount)回"
+            )
+
+            statisticBadge(
+                title: "ペナルティ",
+                value: "\(core.penaltyCount)",
+                accessibilityLabel: "ペナルティ回数",
+                accessibilityValue: "\(core.penaltyCount)手"
+            )
+
+            statisticBadge(
+                title: "経過時間",
+                value: formattedElapsedTime(displayedElapsedSeconds),
+                accessibilityLabel: "経過時間",
+                accessibilityValue: accessibilityElapsedTimeDescription(displayedElapsedSeconds)
+            )
+
+            statisticBadge(
+                title: "残りマス",
+                value: "\(core.remainingTiles)",
+                accessibilityLabel: "残りマス数",
+                accessibilityValue: "残り\(core.remainingTiles)マス"
+            )
         }
     }
 
@@ -729,7 +763,7 @@ struct GameView: View {
     }
 
     /// 手動ペナルティ（手札引き直し）のショートカットボタン
-    /// - Note: 右上メニューの横へアイコンのみで配置し、省スペース化しつつ操作性を維持する
+    /// - Note: 統計バッジの右側に円形アイコンとして配置し、盤面上部の横並びレイアウトに収める
     private var manualPenaltyButton: some View {
         // ゲームが進行中でない場合は無効化し、リザルト表示中などの誤操作を回避
         let isDisabled = core.progress != .playing
@@ -1164,7 +1198,7 @@ struct GameView: View {
           geometry=\(snapshot.geometrySize)
           safeArea(rawTop=\(snapshot.rawTopInset), rawBottom=\(snapshot.rawBottomInset), resolvedTop=\(snapshot.resolvedTopInset), resolvedBottom=\(snapshot.resolvedBottomInset), fallbackTop=\(snapshot.usedTopSafeAreaFallback), fallbackBottom=\(snapshot.usedBottomSafeAreaFallback))
           sections(statistics=\(snapshot.statisticsHeight), resolvedStatistics=\(snapshot.resolvedStatisticsHeight), hand=\(snapshot.handSectionHeight), resolvedHand=\(snapshot.resolvedHandSectionHeight))
-          paddings(handBottom=\(snapshot.handSectionBottomPadding), regularExtra=\(snapshot.regularAdditionalBottomPadding))
+          paddings(controlTop=\(snapshot.controlRowTopPadding), handBottom=\(snapshot.handSectionBottomPadding), regularExtra=\(snapshot.regularAdditionalBottomPadding))
           fallbacks(statistics=\(snapshot.usedStatisticsFallback), hand=\(snapshot.usedHandSectionFallback), topSafeArea=\(snapshot.usedTopSafeAreaFallback), bottomSafeArea=\(snapshot.usedBottomSafeAreaFallback))
           boardBases(horizontal=\(snapshot.horizontalBoardBase), vertical=\(snapshot.verticalBoardBase), resolved=\(snapshot.boardBaseSize)) availableHeight=\(snapshot.availableHeight) boardScale=\(LayoutMetrics.boardScale) boardWidth=\(snapshot.boardWidth)
         """
@@ -1188,6 +1222,7 @@ struct GameView: View {
         let usedBottomFallback: Bool
         let topInset: CGFloat
         let bottomInset: CGFloat
+        let controlRowTopPadding: CGFloat
         let regularAdditionalBottomPadding: CGFloat
         let handSectionBottomPadding: CGFloat
         let statisticsHeight: CGFloat
@@ -1226,6 +1261,7 @@ struct GameView: View {
         let usedBottomSafeAreaFallback: Bool
         let usedStatisticsFallback: Bool
         let usedHandSectionFallback: Bool
+        let controlRowTopPadding: CGFloat
 
         /// レイアウト計算で得られたコンテキストからスナップショットを構築するイニシャライザ
         /// - Parameter context: GeometryReader の結果を整理したレイアウトコンテキスト
@@ -1250,6 +1286,7 @@ struct GameView: View {
             self.usedBottomSafeAreaFallback = context.usedBottomFallback
             self.usedStatisticsFallback = context.usedStatisticsFallback
             self.usedHandSectionFallback = context.usedHandSectionFallback
+            self.controlRowTopPadding = context.controlRowTopPadding
         }
     }
 
@@ -1263,34 +1300,8 @@ private extension GameView {
     }
 }
 
-// MARK: - 右上メニューおよびデバッグ操作
+// MARK: - コントロールバーの操作要素
 private extension GameView {
-    /// 右上のメニューとショートカットボタンをまとめて返す
-    /// - Returns: HStack で横並びにしたコントロール群
-    @ViewBuilder
-    private func topRightOverlay(topInset: CGFloat) -> some View {
-        // MARK: - メニューの基準高さを決定
-        // iPad のレギュラー幅で safeAreaInsets.top が 0 になった場合でも、
-        // メニューボタンが画面端に張り付かないようフォールバックを追加する。
-        // 既存の 16pt（menuOverlayBaseTopPadding）とステータスバー由来の余白を比較し、大きい方を採用して安定した配置にする。
-        let resolvedTopPadding = max(
-            LayoutMetrics.menuOverlayBaseTopPadding,
-            topInset + LayoutMetrics.menuOverlaySafeAreaAdditionalPadding
-        )
-
-        HStack(spacing: 12) {
-            // MARK: - 手札引き直しを素早く行うためのミニボタン
-            manualPenaltyButton
-
-            // MARK: - サブメニュー（リセット/タイトル戻りなど）
-            menuButton
-        }
-        .padding(.trailing, 16)
-        .padding(.top, resolvedTopPadding)
-        // ペナルティバナーよりも手前に配置してタップできるようにする
-        .zIndex(3)
-    }
-
     /// ゲーム全体に関わる操作をまとめたメニュー
     private var menuButton: some View {
         Menu {
@@ -1698,10 +1709,10 @@ private enum LayoutMetrics {
     static let handSectionSafeAreaAdditionalPadding: CGFloat = 8
     /// レギュラー幅（主に iPad）で追加する下方向マージン。指の位置とタブバーが干渉しないよう余裕を持たせる
     static let handSectionRegularAdditionalBottomPadding: CGFloat = 24
-    /// メニューボタンを配置する際に最低限確保したい上方向マージン
-    static let menuOverlayBaseTopPadding: CGFloat = 16
-    /// ステータスバーの高さに対して余裕を持たせるための追加上マージン
-    static let menuOverlaySafeAreaAdditionalPadding: CGFloat = 8
+    /// 盤面上部のコントロールバーをステータスバーと離すための基本マージン
+    static let controlRowBaseTopPadding: CGFloat = 16
+    /// ステータスバーの高さに応じて追加で確保したい上方向の余白
+    static let controlRowSafeAreaAdditionalPadding: CGFloat = 8
     /// ペナルティバナーが画面端に貼り付かないようにするための基準上パディング
     static let penaltyBannerBaseTopPadding: CGFloat = 12
     /// safeAreaInsets.top に加算しておきたいペナルティバナーの追加上マージン
