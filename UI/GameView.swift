@@ -1206,8 +1206,8 @@ private struct StatisticsHeightPreferenceKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
 
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        // 複数回呼ばれても最大値を保持し、想定以上に値が縮まらないようにする
-        value = max(value, nextValue())
+        // 毎フレームで統計領域の最新高さへ更新し、ジオメトリ変化に即応できるよう最大値ではなく直近の値を採用する
+        value = nextValue()
     }
 }
 
@@ -1216,8 +1216,8 @@ private struct HandSectionHeightPreferenceKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
 
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        // 計測用オーバーレイから複数回値が届いた場合でも最大値を優先する
-        value = max(value, nextValue())
+        // 手札レイアウトのジオメトリ変化へ滑らかに追従するため、最大値の保持ではなく常に最新高さへ更新する
+        value = nextValue()
     }
 }
 
