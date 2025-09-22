@@ -7,9 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		7266422C2E8146C4003EA325 /* Game in Frameworks */ = {isa = PBXBuildFile; productRef = 7266422B2E8146C4003EA325 /* Game */; };
 		729791562E7EB35900361471 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 729791552E7EB35900361471 /* LaunchScreen.storyboard */; };
-		7297918B2E7F43F300361471 /* Game in Frameworks */ = {isa = PBXBuildFile; productRef = 7297918A2E7F43F300361471 /* Game */; };
-		729791A82E7F569900361471 /* Game in Frameworks */ = {isa = PBXBuildFile; productRef = 729791A72E7F569900361471 /* Game */; };
 		72CF37F02E71616C0093B180 /* MonoKnightApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000004 /* MonoKnightApp.swift */; };
 		72CF38052E7162E20093B180 /* ErrorReporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF37F92E7162E20093B180 /* ErrorReporter.swift */; };
 		72CF38072E7162E20093B180 /* GameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF38002E7162E20093B180 /* GameView.swift */; };
@@ -89,8 +88,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				729791A82E7F569900361471 /* Game in Frameworks */,
-				7297918B2E7F43F300361471 /* Game in Frameworks */,
+				7266422C2E8146C4003EA325 /* Game in Frameworks */,
 				72CF38182E7252460093B180 /* GoogleMobileAds in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -122,6 +120,7 @@
 				72CF37E22E7161170093B180 /* MonoKnightAppUITests */,
 				000000000000000000000008 /* Products */,
 				72F554C82E7EA37F0098A1B0 /* Local.xcconfig */,
+				7266422A2E81457B003EA325 /* Frameworks */,
 			);
 			sourceTree = "<group>";
 		};
@@ -145,6 +144,13 @@
 				72CF37DF2E7161170093B180 /* MonoKnightAppUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		7266422A2E81457B003EA325 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 		72CF37F72E7162E20093B180 /* Game */ = {
@@ -237,6 +243,7 @@
 				72CF38172E7252460093B180 /* GoogleMobileAds */,
 				7297918A2E7F43F300361471 /* Game */,
 				729791A72E7F569900361471 /* Game */,
+				7266422B2E8146C4003EA325 /* Game */,
 			);
 			productName = MonoKnightApp;
 			productReference = 72CF37C92E7161160093B180 /* MonoKnightApp.app */;
@@ -992,6 +999,10 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		7266422B2E8146C4003EA325 /* Game */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = Game;
+		};
 		7297918A2E7F43F300361471 /* Game */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = Game;
