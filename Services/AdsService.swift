@@ -85,12 +85,12 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, FullScre
 
 #if targetEnvironment(simulator)
         // シミュレータではテストデバイス ID を明示することで、常にテスト広告が返るようにする
-        // Google Mobile Ads SDK v11 からは `RequestConfiguration.TestDeviceIdentifier.simulator` が正式に提供されたため、
-        // 廃止予定だった `GADSimulatorID` を参照せず最新 API へ統一する。
+        // Google Mobile Ads SDK が公開している `GADSimulatorID` を利用することで、SDK 側の互換性更新が入っても
+        // シミュレータ判定の仕組みが変わる心配を減らせるため、安全側に寄せた設定とする。
         mobileAds.requestConfiguration.testDeviceIdentifiers = [
-            RequestConfiguration.TestDeviceIdentifier.simulator
+            GADSimulatorID
         ]
-        debugLog("シミュレータ向けにテストデバイス ID を登録しました")
+        debugLog("シミュレータ向けにテストデバイス ID (GADSimulatorID) を登録しました")
 #endif
 
         // Swift 6 では completionHandler に nil を渡すと型推論ができずビルドエラーになるため、
