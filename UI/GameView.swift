@@ -55,6 +55,11 @@ struct GameView: View {
     @State private var handSectionHeight: CGFloat = 0
     /// 表示中の経過秒数を保持し、バッジの更新トリガーとして利用する
     @State private var displayedElapsedSeconds: Int = 0
+    /// 表示用のスコアを算出するときに利用する計算プロパティ
+    /// - Note: 手数×10に経過秒数を加えた現在の暫定スコアを求める
+    private var displayedScore: Int {
+        core.totalMoveCount * 10 + displayedElapsedSeconds
+    }
     /// 手札や NEXT の位置をマッチングさせるための名前空間
     @Namespace private var cardAnimationNamespace
     /// 現在アニメーション中のカード（存在しない場合は nil）
@@ -556,7 +561,7 @@ struct GameView: View {
     }
 
     /// 統計バッジ群を共通の装飾付きで構築する
-    /// - Returns: 4 種の統計バッジをまとめたビューツリー
+    /// - Returns: 5 種の統計バッジをまとめたビューツリー
     private func statisticsBadgeContainer() -> some View {
         statisticsBadgeRow
             .padding(.horizontal, 12)
@@ -572,7 +577,7 @@ struct GameView: View {
             .accessibilityElement(children: .contain)
     }
 
-    /// 盤面に関する 4 種類の統計バッジを横並びで生成する
+    /// 盤面に関する 5 種類の統計バッジを横並びで生成する
     private var statisticsBadgeRow: some View {
         HStack(spacing: 12) {
             statisticBadge(
@@ -594,6 +599,14 @@ struct GameView: View {
                 value: formattedElapsedTime(displayedElapsedSeconds),
                 accessibilityLabel: "経過時間",
                 accessibilityValue: accessibilityElapsedTimeDescription(displayedElapsedSeconds)
+            )
+
+            // 総合スコアはリアルタイムで計算した値を表示し、結果画面で確定値と一致させる
+            statisticBadge(
+                title: "総合スコア",
+                value: "\(displayedScore)",
+                accessibilityLabel: "総合スコア",
+                accessibilityValue: accessibilityScoreDescription(displayedScore)
             )
 
             statisticBadge(
@@ -1073,6 +1086,13 @@ struct GameView: View {
         } else {
             return "\(remainingSeconds)秒"
         }
+    }
+
+    /// アクセシビリティ向けにスコアを自然な日本語へ整形する
+    /// - Parameter score: 読み上げに使用するスコア値
+    /// - Returns: 「Xポイント」の形式でまとめた説明文
+    private func accessibilityScoreDescription(_ score: Int) -> String {
+        "\(score)ポイント"
     }
 
     /// GameCore が保持する時刻情報から画面表示用の経過秒数を更新する
