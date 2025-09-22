@@ -21,6 +21,35 @@ struct Deck {
         let reducedWeightMultiplier: Int
         /// 抑制状態を維持するターン数
         let reductionDuration: Int
+        /// UI やモード説明で利用する山札の要約テキスト
+        let deckSummaryText: String
+
+        /// メンバーごとに初期化できるよう明示的なイニシャライザを用意
+        /// - Parameters:
+        ///   - allowedMoves: 抽選対象とするカード配列
+        ///   - baseWeights: 各カードの基礎重み辞書
+        ///   - shouldApplyProbabilityReduction: 連続排出抑制の有無
+        ///   - normalWeightMultiplier: 通常時に掛ける重み倍率
+        ///   - reducedWeightMultiplier: 抑制時に掛ける重み倍率
+        ///   - reductionDuration: 抑制効果を持続させるターン数
+        ///   - deckSummaryText: UI 表示用の簡易説明
+        init(
+            allowedMoves: [MoveCard],
+            baseWeights: [MoveCard: Int],
+            shouldApplyProbabilityReduction: Bool,
+            normalWeightMultiplier: Int,
+            reducedWeightMultiplier: Int,
+            reductionDuration: Int,
+            deckSummaryText: String
+        ) {
+            self.allowedMoves = allowedMoves
+            self.baseWeights = baseWeights
+            self.shouldApplyProbabilityReduction = shouldApplyProbabilityReduction
+            self.normalWeightMultiplier = normalWeightMultiplier
+            self.reducedWeightMultiplier = reducedWeightMultiplier
+            self.reductionDuration = reductionDuration
+            self.deckSummaryText = deckSummaryText
+        }
 
         /// スタンダードモード向け設定
         static let standard: Configuration = {
@@ -47,7 +76,8 @@ struct Deck {
                 shouldApplyProbabilityReduction: true,
                 normalWeightMultiplier: 4,
                 reducedWeightMultiplier: 3,
-                reductionDuration: 5
+                reductionDuration: 5,
+                deckSummaryText: "標準デッキ"
             )
         }()
 
@@ -61,7 +91,8 @@ struct Deck {
                 shouldApplyProbabilityReduction: false,
                 normalWeightMultiplier: 1,
                 reducedWeightMultiplier: 1,
-                reductionDuration: 0
+                reductionDuration: 0,
+                deckSummaryText: "桂馬カードのみ"
             )
         }()
     }

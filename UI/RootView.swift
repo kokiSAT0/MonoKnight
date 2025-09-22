@@ -576,25 +576,14 @@ fileprivate struct TitleScreenView: View {
 
     /// 各モードの主要な特徴を短文で返す
     private func primaryDescription(for mode: GameMode) -> String {
-        let spawnText = mode.requiresSpawnSelection ? "任意スポーン" : "固定スポーン"
-        switch mode.identifier {
-        case .standard5x5:
-            return "\(mode.boardSize)×\(mode.boardSize) ・ \(spawnText) ・ 標準デッキ"
-        case .classicalChallenge:
-            return "\(mode.boardSize)×\(mode.boardSize) ・ \(spawnText) ・ 桂馬カードのみ"
-        }
+        // GameMode 側で共通ロジックを用意したため、ここでは単純に参照するだけで済む
+        return mode.primarySummaryText
     }
 
     /// ペナルティ量などの補足情報を返す
     private func secondaryDescription(for mode: GameMode) -> String {
-        let manualPenalty = "引き直し +\(mode.manualRedrawPenaltyCost)"
-        let revisitText: String
-        if mode.revisitPenaltyCost > 0 {
-            revisitText = "再訪 +\(mode.revisitPenaltyCost)"
-        } else {
-            revisitText = "再訪ペナルティなし"
-        }
-        return "手札 \(mode.handSize) / 先読み \(mode.nextPreviewCount) / \(manualPenalty) / \(revisitText)"
+        // 手札・先読み・ペナルティの表記も GameMode 側で統一管理する
+        return mode.secondarySummaryText
     }
 }
 
