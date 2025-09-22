@@ -13,9 +13,6 @@ struct SettingsView: View {
     // 復元処理の重複実行を避けるためのフラグ。
     @State private var isRestoreInProgress = false
 
-    // 前回把握していた購入状態を保持し、`onChange` で遷移を検出する。
-    @State private var lastKnownPurchaseState = StoreService.shared.isRemoveAdsPurchased
-
     // ストア処理の完了通知をアラートで表示するための状態。
     @State private var storeAlert: StoreAlert?
 
@@ -282,16 +279,12 @@ struct SettingsView: View {
             }
             .navigationTitle("設定")
             // - NOTE: プレビューや UI テストでは、この Picker を操作して `GameView` の `applyScenePalette` が呼び直されることを確認する想定。
-            // アプリ復帰などで View が再生成された際にストア状態を同期し、初期表示での誤検知を避ける
-            .onAppear {
-                lastKnownPurchaseState = storeService.isRemoveAdsPurchased
-            }
-            // 購入状態が false から true へ変化したときのみ成功アラートを表示する
-            .onChange(of: storeService.isRemoveAdsPurchased) { newValue in
-                if newValue && !lastKnownPurchaseState {
+            // 購入状態の遷移を旧値と新値の両方から判定し、false→true の変化だけを検出する
+            .onChange(of: storeService.isRemoveAdsPurchased) { oldValue, newValue in
+                // 直前まで未購入で、今回の更新で初めて購入済みになったタイミングのみアラートを掲示する
+                if !oldValue && newValue {
                     storeAlert = .purchaseCompleted
                 }
-                lastKnownPurchaseState = newValue
             }
         }
         // ストア処理の成否をまとめて通知し、ユーザーに完了状況を伝える
