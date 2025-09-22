@@ -83,10 +83,17 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, FullScre
         // （名称変更に追従しつつ、将来的な API 差分を把握しやすくする意図で明示的にコメントを残している）
         let mobileAds = MobileAds.shared
 
+#if targetEnvironment(simulator)
+        // シミュレータではテストデバイス ID を明示することで、常にテスト広告が返るようにする
+        mobileAds.requestConfiguration.testDeviceIdentifiers = [GADSimulatorID]
+        debugLog("シミュレータ向けにテストデバイス ID を登録しました")
+#endif
+
         // Swift 6 では completionHandler に nil を渡すと型推論ができずビルドエラーになるため、
         // ここでは何もしない空クロージャを渡して初期化を完了させる。
         mobileAds.start { _ in
             // 現時点では初期化結果を利用しないが、将来的にログ出力やイベント送信を追加できるよう空実装としておく。
+            debugLog("Google Mobile Ads SDK の初期化が完了しました")
         }
 
         // 初期化直後から広告読み込みを開始（非同期で走らせる）
@@ -110,6 +117,7 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, FullScre
         guard hasValidAdConfiguration else { return }
 
         do {
+            debugLog("Google UMP の同意取得フローを開始します")
             // まずは地域規制の判定を最新化
             try await requestConsentInfoUpdate()
             // 同意状態に応じて NPA フラグを更新し、広告リクエストへ反映させる
@@ -128,6 +136,7 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, FullScre
                 // 表示後に同意内容が更新されるため再評価する
                 applyConsentStatusAndReloadIfNeeded()
             }
+            debugLog("Google UMP の同意取得フローが完了しました (status: \(String(describing: consentInfo.consentStatus)))")
         } catch {
             // UMP 周りの失敗は広告表示を止めつつ、デバッグしやすいようログに残す
             debugError(error, message: "Google UMP の同意取得に失敗")
@@ -139,6 +148,7 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, FullScre
         guard hasValidAdConfiguration else { return }
 
         do {
+            debugLog("Google UMP の同意ステータス更新を開始します")
             // 現在の同意状況を最新化
             try await requestConsentInfoUpdate()
             applyConsentStatusAndReloadIfNeeded()
@@ -150,6 +160,7 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, FullScre
             try await presentPrivacyOptions()
             // ユーザー操作後の状態を反映する
             applyConsentStatusAndReloadIfNeeded()
+            debugLog("Google UMP の同意ステータス更新が完了しました (status: \(String(describing: consentInfo.consentStatus)))")
         } catch {
             debugError(error, message: "Google UMP の同意状態更新に失敗")
         }
@@ -157,14 +168,26 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, FullScre
 
     func showInterstitial() {
         // IAP や設定で完全に無効化されている場合は何もしない
-        guard !adsDisabled, !removeAds else { return }
+        if adsDisabled || removeAds {
+            debugLog("広告が無効化されているため表示処理をスキップしました (adsDisabled: \(adsDisabled), removeAds: \(removeAds))")
+            return
+        }
 
         // インターバルや 1 プレイ 1 回の制御に引っかかったら終了
-        guard canShowByTime(), !hasShownInCurrentPlay else { return }
+        if !canShowByTime() {
+            debugLog("前回表示から 90 秒未満のためインタースティシャル広告を表示しません")
+            return
+        }
+
+        if hasShownInCurrentPlay {
+            debugLog("同一プレイで既に広告を表示済みのためスキップしました")
+            return
+        }
 
         guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
               let root = scene.windows.first?.rootViewController else {
             // RootViewController が取得できなかった場合も次の読み込みだけは仕掛ける
+            debugLog("RootViewController の取得に失敗したため、読み込みのみ再実行します")
             Task { [weak self] in
                 await MainActor.run { self?.loadInterstitial() }
             }
@@ -173,6 +196,7 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, FullScre
 
         guard let interstitial else {
             // キャッシュが無ければ表示待機フラグを立てて再読み込みを開始
+            debugLog("広告が未ロードのため表示待機フラグを設定し再読み込みします")
             isWaitingForPresentation = true
             Task { [weak self] in
                 await MainActor.run { self?.loadInterstitial() }
@@ -180,14 +204,17 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, FullScre
             return
         }
 
+        debugLog("インタースティシャル広告の表示を開始します")
         presentInterstitial(interstitial, from: root)
     }
 
     func resetPlayFlag() {
         hasShownInCurrentPlay = false
+        debugLog("プレイ開始に合わせて広告表示フラグをリセットしました")
     }
 
     func disableAds() {
+        debugLog("広告機能を無効化しました。今後のリクエストを停止します")
         adsDisabled = true
         isWaitingForPresentation = false
         interstitial = nil
@@ -197,13 +224,38 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, FullScre
 
     /// インタースティシャル広告を読み込むヘルパー
     private func loadInterstitial() {
-        guard hasValidAdConfiguration,
-              ConsentInformation.shared.canRequestAds,
-              !adsDisabled,
-              !removeAds,
-              !isLoadingAd,
-              interstitial == nil else { return }
+        guard hasValidAdConfiguration else {
+            debugLog("Info.plist の広告設定が不足しているためインタースティシャル広告の読み込みを行いません")
+            return
+        }
 
+        let consentInfo = ConsentInformation.shared
+        guard consentInfo.canRequestAds else {
+            debugLog("Google UMP の状態により広告リクエストが許可されていません (status: \(String(describing: consentInfo.consentStatus)))")
+            return
+        }
+
+        guard !adsDisabled else {
+            debugLog("adsDisabled フラグが立っているため広告読み込みをスキップしました")
+            return
+        }
+
+        guard !removeAds else {
+            debugLog("広告削除オプションが有効なため広告読み込みをスキップしました")
+            return
+        }
+
+        guard !isLoadingAd else {
+            debugLog("インタースティシャル広告を読み込み中のため二重リクエストを防ぎました")
+            return
+        }
+
+        guard interstitial == nil else {
+            debugLog("既にキャッシュ済みのインタースティシャルが存在するため新規読み込みを行いません")
+            return
+        }
+
+        debugLog("インタースティシャル広告の読み込みを開始します (NPA: \(shouldUseNPA))")
         isLoadingAd = true
 
         // Google Mobile Ads SDK v11 以降では `GADRequest` が `Request` に改名されたため、明示的に名前空間を付けて生成する
@@ -235,6 +287,7 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, FullScre
                     // 成功したのでリトライは不要
                     self.retryTask?.cancel()
                     self.retryTask = nil
+                    debugLog("インタースティシャル広告の読み込みが完了しました")
                     // ロード完了時点で表示待機フラグが立っていれば、ここで表示処理をまとめて行う
                     self.presentInterstitialIfNeededAfterLoad()
                 }
@@ -255,15 +308,18 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, FullScre
         isWaitingForPresentation = false
         // 同じ広告を再利用しないように破棄し、FullScreenContentDelegate のコールバックで次のロードを任せる
         self.interstitial = nil
+        debugLog("インタースティシャル広告の表示処理をトリガーしました")
     }
 
     /// ロード完了時に広告表示待機フラグが立っていれば、直ちに表示を試みる
     private func presentInterstitialIfNeededAfterLoad() {
         guard isWaitingForPresentation else { return }
+        debugLog("読み込み完了後の自動表示処理を開始します")
         // 既に広告を無効化している場合は表示を諦め、待機フラグのみ解除する
         guard !adsDisabled, !removeAds else {
             isWaitingForPresentation = false
             interstitial = nil
+            debugLog("広告が無効化されているため自動表示を取りやめました")
             return
         }
         guard let interstitial else {
@@ -280,6 +336,7 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, FullScre
             return
         }
 
+        debugLog("読み込み完了直後にインタースティシャル広告を自動表示します")
         presentInterstitial(interstitial, from: root)
     }
 
@@ -298,6 +355,7 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, FullScre
             // MainActor 上でインタースティシャルの読み込みを再開
             await MainActor.run { self.loadInterstitial() }
         }
+        debugLog("インタースティシャル広告の再読み込みを \(retryDelay) 秒後にスケジュールしました")
     }
 
     /// 最低 90 秒のインターバルを満たしているかどうか
@@ -313,6 +371,7 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, FullScre
         Task { [weak self] in
             await MainActor.run { self?.loadInterstitial() }
         }
+        debugLog("インタースティシャル広告を閉じたため次の読み込みを開始します")
     }
 
     func ad(_ ad: FullScreenPresentingAd, didFailToPresentFullScreenContentWithError error: Error) {
@@ -440,9 +499,11 @@ private extension AdsService {
 
         let hasChanged = newShouldUseNPA != shouldUseNPA
         shouldUseNPA = newShouldUseNPA
+        debugLog("Google UMP の結果を反映しました (shouldUseNPA: \(shouldUseNPA))")
 
         // 値が変わった場合は既存キャッシュを破棄し、新しい設定で広告をロードし直す
         guard hasChanged else { return }
+        debugLog("同意内容の変化を検知したため、広告キャッシュを破棄して再読み込みします")
         interstitial = nil
         loadInterstitial()
     }
