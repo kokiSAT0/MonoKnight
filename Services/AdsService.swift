@@ -44,6 +44,8 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, FullScre
     private var hasShownInCurrentPlay: Bool = false
     /// 重複読み込みを避けるためのフラグ
     private var isLoadingAd: Bool = false
+    /// 広告表示要求を受けたものの未ロードだった場合に備え、再読み込み完了後に自動表示するためのフラグ
+    private var isWaitingForPresentation: Bool = false
     /// リトライを後続に送るための Task
     private var retryTask: Task<Void, Never>?
     /// 広告自体を停止するフラグ（IAP などで利用）
@@ -170,21 +172,15 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, FullScre
         }
 
         guard let interstitial else {
-            // キャッシュが無ければ即座に再読み込みを開始
+            // キャッシュが無ければ表示待機フラグを立てて再読み込みを開始
+            isWaitingForPresentation = true
             Task { [weak self] in
                 await MainActor.run { self?.loadInterstitial() }
             }
             return
         }
 
-        interstitial.present(from: root)
-        if hapticsEnabled {
-            UINotificationFeedbackGenerator().notificationOccurred(.warning)
-        }
-        lastInterstitialDate = Date()
-        hasShownInCurrentPlay = true
-        // 同じ広告を再利用しないように破棄
-        self.interstitial = nil
+        presentInterstitial(interstitial, from: root)
     }
 
     func resetPlayFlag() {
@@ -193,6 +189,7 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, FullScre
 
     func disableAds() {
         adsDisabled = true
+        isWaitingForPresentation = false
         interstitial = nil
         retryTask?.cancel()
         retryTask = nil
@@ -238,9 +235,52 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, FullScre
                     // 成功したのでリトライは不要
                     self.retryTask?.cancel()
                     self.retryTask = nil
+                    // ロード完了時点で表示待機フラグが立っていれば、ここで表示処理をまとめて行う
+                    self.presentInterstitialIfNeededAfterLoad()
                 }
             }
         }
+    }
+
+    /// 共通化したインタースティシャル広告の表示処理
+    private func presentInterstitial(_ interstitial: InterstitialAd, from root: UIViewController) {
+        // 実際に表示を試みる前に、広告表示の完了をもって待機フラグをリセットする意図をコメントで明示
+        interstitial.present(from: root)
+        if hapticsEnabled {
+            // 結果画面遷移と同様に警告ハプティクスを鳴らし、ユーザーへのフィードバックを統一
+            UINotificationFeedbackGenerator().notificationOccurred(.warning)
+        }
+        lastInterstitialDate = Date()
+        hasShownInCurrentPlay = true
+        isWaitingForPresentation = false
+        // 同じ広告を再利用しないように破棄し、FullScreenContentDelegate のコールバックで次のロードを任せる
+        self.interstitial = nil
+    }
+
+    /// ロード完了時に広告表示待機フラグが立っていれば、直ちに表示を試みる
+    private func presentInterstitialIfNeededAfterLoad() {
+        guard isWaitingForPresentation else { return }
+        // 既に広告を無効化している場合は表示を諦め、待機フラグのみ解除する
+        guard !adsDisabled, !removeAds else {
+            isWaitingForPresentation = false
+            interstitial = nil
+            return
+        }
+        guard let interstitial else {
+            // 非同期処理の間にキャッシュが解放されていた場合は再度ロードして次の機会に備える
+            debugLog("インタースティシャル広告の表示待機中に広告インスタンスが破棄されたため、再読み込みを実行します")
+            loadInterstitial()
+            return
+        }
+        guard let root = rootViewController() else {
+            // 表示に必要な RootViewController を取得できないときは原因調査のためログを残し、改めてロードを行う
+            debugLog("インタースティシャル広告の表示待機中でしたが RootViewController が取得できませんでした。再読み込みして次回に備えます")
+            self.interstitial = nil
+            loadInterstitial()
+            return
+        }
+
+        presentInterstitial(interstitial, from: root)
     }
 
     /// 再読み込みを一定時間後に行う
