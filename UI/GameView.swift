@@ -127,201 +127,12 @@ struct GameView: View {
     }
 
     var body: some View {
-        GeometryReader { geometry in
-            // MARK: - レイアウト関連の計算結果を専用コンテキストへ集約
-            // 単一メソッドで値を求めておくことで ViewBuilder の複雑さを抑え、コンパイラの型推論負荷を軽減する。
-            let layoutContext = makeLayoutContext(from: geometry)
-            // 監視用の不可視オーバーレイも先に生成し、View ビルダー内でのネストを浅く保つ
-            let diagnosticsOverlay = layoutDiagnosticOverlay(using: layoutContext)
-
-            ZStack(alignment: .topTrailing) {
-                VStack(spacing: 16) {
-                    boardSection(width: layoutContext.boardWidth)
-                    handSection(
-                        bottomInset: layoutContext.bottomInset,
-                        bottomPadding: layoutContext.handSectionBottomPadding
-                    )
-                }
-                // MARK: - 手詰まりペナルティ通知バナー
-                penaltyBannerOverlay(topInset: layoutContext.topInset)
-
-                // MARK: - 右上のメニューボタンとデバッグ向けショートカット
-                topRightOverlay(topInset: layoutContext.topInset)
+        applyGameViewObservers(
+            GeometryReader { geometry in
+                // 専用メソッドへ委譲し、レイアウト計算と描画処理の責務を明示的に分離する
+                mainContent(for: geometry)
             }
-            // 画面全体の背景もテーマで制御し、システム設定と調和させる
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(theme.backgroundPrimary)
-            // 盤面が表示されない不具合を切り分けるため、レイアウト関連の値をウォッチする不可視ビューを重ねる
-            .background(diagnosticsOverlay)
-        }
-        // PreferenceKey で伝搬した各セクションの高さを受け取り、レイアウト計算に利用する
-        .onPreferenceChange(StatisticsHeightPreferenceKey.self) { newHeight in
-            // 統計バッジ領域の計測値が変わったタイミングで旧値と比較し、変化量をログへ残して原因調査を容易にする
-            let previousHeight = statisticsHeight
-            guard previousHeight != newHeight else { return }
-            debugLog("GameView.statisticsHeight 更新: 旧値=\(previousHeight), 新値=\(newHeight)")
-            statisticsHeight = newHeight
-        }
-        .onPreferenceChange(HandSectionHeightPreferenceKey.self) { newHeight in
-            // 手札セクションの高さ変化も逐次観測し、ホームインジケータ付近での余白不足を切り分けられるようにする
-            let previousHeight = handSectionHeight
-            guard previousHeight != newHeight else { return }
-            debugLog("GameView.handSectionHeight 更新: 旧値=\(previousHeight), 新値=\(newHeight)")
-            handSectionHeight = newHeight
-        }
-        // 盤面 SpriteView のアンカー更新を監視し、アニメーションの移動先として保持
-        .onPreferenceChange(BoardAnchorPreferenceKey.self) { anchor in
-            boardAnchor = anchor
-        }
-        // 初回表示時に SpriteKit の背景色もテーマに合わせて更新
-        .onAppear {
-            // ビュー再表示時に GameScene へ GameCore の参照を再連結し、弱参照が nil にならないよう保証
-            scene.gameCore = core
-            applyScenePalette(for: colorScheme)
-            // 初期状態でもガイド表示のオン/オフに応じてハイライトを更新
-            refreshGuideHighlights()
-            // タイマー起動直後に経過時間を一度読み取って初期表示のずれを防ぐ
-            updateDisplayedElapsedTime()
-            // 表示開始時点で最新の手札並び設定を反映する
-            core.updateHandOrderingStrategy(resolveHandOrderingStrategy())
-        }
-        // ライト/ダーク切り替えが発生した場合も SpriteKit 側へ反映
-        .onChange(of: colorScheme) { _, newScheme in
-            applyScenePalette(for: newScheme)
-            // カラースキーム変更時はガイドの色味も再描画して視認性を確保
-            refreshGuideHighlights()
-        }
-        // 手札の並び設定が変わったら即座にゲームロジックへ伝え、UI の並びも更新する
-        .onChange(of: handOrderingRawValue) { _, _ in
-            core.updateHandOrderingStrategy(resolveHandOrderingStrategy())
-        }
-        // progress が .cleared へ変化したタイミングで結果画面を表示
-        .onChange(of: core.progress) { _, newValue in
-            guard newValue == .cleared else { return }
-            gameCenterService.submitScore(core.score)
-            showingResult = true
-        }
-
-        // 手詰まりペナルティ発生時のバナー表示を制御
-        .onReceive(core.$penaltyEventID) { eventID in
-            guard eventID != nil else { return }
-
-            // 既存の自動クローズ処理があればキャンセルして状態をリセット
-            penaltyDismissWorkItem?.cancel()
-            penaltyDismissWorkItem = nil
-
-            // バナーをアニメーション付きで表示
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.8, blendDuration: 0.2)) {
-                isShowingPenaltyBanner = true
-            }
-
-            // ペナルティ発生を触覚で知らせる（設定で有効な場合のみ）
-            if hapticsEnabled {
-                UINotificationFeedbackGenerator().notificationOccurred(.warning)
-            }
-
-            // 一定時間後に自動でバナーを閉じる処理を登録
-            let workItem = DispatchWorkItem {
-                withAnimation(.easeOut(duration: 0.25)) {
-                    isShowingPenaltyBanner = false
-                }
-                penaltyDismissWorkItem = nil
-            }
-            penaltyDismissWorkItem = workItem
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2.6, execute: workItem)
-        }
-        // 手札内容が変わるたびに移動候補を再計算し、ガイドハイライトを更新
-        .onReceive(core.$hand) { newHand in
-            // 手札ストリームの更新順序を追跡しやすいよう、受信したカード枚数をログへ残す
-            debugLog("手札更新を受信: 枚数=\(newHand.count), 退避ハンドあり=\(pendingGuideHand != nil)")
-
-            // 手札が差し替わった際は非表示リストを実際に存在するカード ID へ限定する
-            let validIDs = Set(newHand.map { $0.id })
-            hiddenCardIDs.formIntersection(validIDs)
-            if let animatingCard, !validIDs.contains(animatingCard.id) {
-                // 手札の再配布などで該当カードが消えた場合はアニメーション状態を初期化
-                self.animatingCard = nil
-                animationState = .idle
-                animationTargetGridPoint = nil
-            }
-            // `core.hand` へ反映される前でも最新の手札を使ってハイライトを更新する
-            refreshGuideHighlights(handOverride: newHand)
-        }
-        // 盤面タップで移動を指示された際にもカード演出を統一して実行
-        .onReceive(core.$boardTapPlayRequest) { request in
-            guard let request else { return }
-            handleBoardTapPlayRequest(request)
-        }
-        // ガイドモードのオン/オフを切り替えたら即座に SpriteKit へ反映
-        .onChange(of: guideModeEnabled) { _, _ in
-            refreshGuideHighlights()
-        }
-        // 経過時間を 1 秒ごとに再計算し、リアルタイム表示へ反映
-        .onReceive(elapsedTimer) { _ in
-            updateDisplayedElapsedTime()
-        }
-        // 進行状態が変化した際もハイライトを整理（手詰まり・クリア時は消灯）
-        .onReceive(core.$progress) { progress in
-            // 進行状態が切り替わったタイミングで、デッドロック退避フラグの有無と併せて記録する
-            debugLog("進行状態の更新を受信: 状態=\(String(describing: progress)), 退避ハンドあり=\(pendingGuideHand != nil)")
-
-            // 進行状態の変化に合わせて経過時間を再計算し、リセット直後のズレを防ぐ
-            updateDisplayedElapsedTime()
-
-            if progress == .playing {
-                if let bufferedHand = pendingGuideHand {
-                    // デッドロック解除直後は退避しておいた手札情報を使ってガイドを復元する
-                    // refreshGuideHighlights 内で .playing 復帰を確認したタイミングのみバッファが空になる
-                    // 仕組みに変更されたため、ここでは復元処理の呼び出しに専念させる
-                    refreshGuideHighlights(
-                        handOverride: bufferedHand,
-                        currentOverride: pendingGuideCurrent,
-                        progressOverride: progress
-                    )
-                } else {
-                    // バッファが無ければ通常通り最新状態から計算する
-                    refreshGuideHighlights(progressOverride: progress)
-                }
-            } else {
-                scene.updateGuideHighlights([])
-            }
-        }
-        // クリア確定時に GameCore 側で確定した秒数が流れてきたら表示へ反映
-        .onReceive(core.$elapsedSeconds) { _ in
-            updateDisplayedElapsedTime()
-        }
-        // カードが盤面へ移動中は UI 全体を操作不可とし、状態の齟齬を防ぐ
-        .disabled(animatingCard != nil)
-        // Preference から取得したアンカー情報を用いて、カードが盤面中央へ吸い込まれる演出を重ねる
-        .overlayPreferenceValue(CardPositionPreferenceKey.self) { anchors in
-            GeometryReader { proxy in
-                ZStack {
-                    Color.clear
-                    if let animatingCard,
-                       let sourceAnchor = anchors[animatingCard.id],
-                       let boardAnchor,
-                       animationState != .idle || hiddenCardIDs.contains(animatingCard.id),
-                       let targetGridPoint = animationTargetGridPoint ?? core.current {
-                        // --- 元の位置と駒位置の座標を算出 ---
-                        let cardFrame = proxy[sourceAnchor]
-                        let boardFrame = proxy[boardAnchor]
-                        let startCenter = CGPoint(x: cardFrame.midX, y: cardFrame.midY)
-                        // 盤面座標 → SwiftUI 座標系への変換を行い、目的位置を計算
-                        let boardDestination = boardCoordinate(for: targetGridPoint, in: boardFrame)
-
-                        MoveCardIllustrationView(card: animatingCard.move)
-                            .matchedGeometryEffect(id: animatingCard.id, in: cardAnimationNamespace)
-                            .frame(width: cardFrame.width, height: cardFrame.height)
-                            .position(animationState == .movingToBoard ? boardDestination : startCenter)
-                            .scaleEffect(animationState == .movingToBoard ? 0.55 : 1.0)
-                            .opacity(animationState == .movingToBoard ? 0.0 : 1.0)
-                            .allowsHitTesting(false)
-                    }
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            }
-        }
-
+        )
         // シートで結果画面を表示
         .sheet(isPresented: $showingResult) {
             ResultView(
@@ -391,6 +202,212 @@ struct GameView: View {
         } message: { action in
             Text(action.confirmationMessage)
         }
+    }
+
+    /// GeometryReader 内部のレイアウト調整と描画処理をまとめたメインコンテンツ
+    /// - Parameter geometry: 外側から渡される GeometryProxy（親ビューのサイズや安全領域を把握するために利用）
+    /// - Returns: レイアウト計算結果を反映したゲームプレイ画面全体のビュー階層
+    @ViewBuilder
+    private func mainContent(for geometry: GeometryProxy) -> some View {
+        // MARK: - レイアウト関連の計算結果を専用コンテキストへ集約
+        // 単一メソッドで値を求めておくことで ViewBuilder の複雑さを抑え、コンパイラの型推論負荷を軽減する。
+        let layoutContext = makeLayoutContext(from: geometry)
+        // 監視用の不可視オーバーレイも先に生成し、View ビルダー内でのネストを浅く保つ
+        let diagnosticsOverlay = layoutDiagnosticOverlay(using: layoutContext)
+
+        ZStack(alignment: .topTrailing) {
+            VStack(spacing: 16) {
+                boardSection(width: layoutContext.boardWidth)
+                handSection(
+                    bottomInset: layoutContext.bottomInset,
+                    bottomPadding: layoutContext.handSectionBottomPadding
+                )
+            }
+            // MARK: - 手詰まりペナルティ通知バナー
+            penaltyBannerOverlay(topInset: layoutContext.topInset)
+
+            // MARK: - 右上のメニューボタンとデバッグ向けショートカット
+            topRightOverlay(topInset: layoutContext.topInset)
+        }
+        // 画面全体の背景もテーマで制御し、システム設定と調和させる
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(theme.backgroundPrimary)
+        // 盤面が表示されない不具合を切り分けるため、レイアウト関連の値をウォッチする不可視ビューを重ねる
+        .background(diagnosticsOverlay)
+    }
+
+    /// PreferenceKey や Combine パブリッシャによる状態監視モディファイアをひとまとめに適用する
+    /// - Parameter content: 監視対象となるベースビュー
+    /// - Returns: 各種監視モディファイアを適用済みのビュー
+    private func applyGameViewObservers<Content: View>(to content: Content) -> some View {
+        content
+        // PreferenceKey で伝搬した各セクションの高さを受け取り、レイアウト計算に利用する
+            .onPreferenceChange(StatisticsHeightPreferenceKey.self) { newHeight in
+                // 統計バッジ領域の計測値が変わったタイミングで旧値と比較し、変化量をログへ残して原因調査を容易にする
+                let previousHeight = statisticsHeight
+                guard previousHeight != newHeight else { return }
+                debugLog("GameView.statisticsHeight 更新: 旧値=\(previousHeight), 新値=\(newHeight)")
+                statisticsHeight = newHeight
+            }
+            .onPreferenceChange(HandSectionHeightPreferenceKey.self) { newHeight in
+                // 手札セクションの高さ変化も逐次観測し、ホームインジケータ付近での余白不足を切り分けられるようにする
+                let previousHeight = handSectionHeight
+                guard previousHeight != newHeight else { return }
+                debugLog("GameView.handSectionHeight 更新: 旧値=\(previousHeight), 新値=\(newHeight)")
+                handSectionHeight = newHeight
+            }
+            // 盤面 SpriteView のアンカー更新を監視し、アニメーションの移動先として保持
+            .onPreferenceChange(BoardAnchorPreferenceKey.self) { anchor in
+                boardAnchor = anchor
+            }
+            // 初回表示時に SpriteKit の背景色もテーマに合わせて更新
+            .onAppear {
+                // ビュー再表示時に GameScene へ GameCore の参照を再連結し、弱参照が nil にならないよう保証
+                scene.gameCore = core
+                applyScenePalette(for: colorScheme)
+                // 初期状態でもガイド表示のオン/オフに応じてハイライトを更新
+                refreshGuideHighlights()
+                // タイマー起動直後に経過時間を一度読み取って初期表示のずれを防ぐ
+                updateDisplayedElapsedTime()
+                // 表示開始時点で最新の手札並び設定を反映する
+                core.updateHandOrderingStrategy(resolveHandOrderingStrategy())
+            }
+            // ライト/ダーク切り替えが発生した場合も SpriteKit 側へ反映
+            .onChange(of: colorScheme) { _, newScheme in
+                applyScenePalette(for: newScheme)
+                // カラースキーム変更時はガイドの色味も再描画して視認性を確保
+                refreshGuideHighlights()
+            }
+            // 手札の並び設定が変わったら即座にゲームロジックへ伝え、UI の並びも更新する
+            .onChange(of: handOrderingRawValue) { _, _ in
+                core.updateHandOrderingStrategy(resolveHandOrderingStrategy())
+            }
+            // progress が .cleared へ変化したタイミングで結果画面を表示
+            .onChange(of: core.progress) { _, newValue in
+                guard newValue == .cleared else { return }
+                gameCenterService.submitScore(core.score)
+                showingResult = true
+            }
+
+            // 手詰まりペナルティ発生時のバナー表示を制御
+            .onReceive(core.$penaltyEventID) { eventID in
+                guard eventID != nil else { return }
+
+                // 既存の自動クローズ処理があればキャンセルして状態をリセット
+                penaltyDismissWorkItem?.cancel()
+                penaltyDismissWorkItem = nil
+
+                // バナーをアニメーション付きで表示
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.8, blendDuration: 0.2)) {
+                    isShowingPenaltyBanner = true
+                }
+
+                // ペナルティ発生を触覚で知らせる（設定で有効な場合のみ）
+                if hapticsEnabled {
+                    UINotificationFeedbackGenerator().notificationOccurred(.warning)
+                }
+
+                // 一定時間後に自動でバナーを閉じる処理を登録
+                let workItem = DispatchWorkItem {
+                    withAnimation(.easeOut(duration: 0.25)) {
+                        isShowingPenaltyBanner = false
+                    }
+                    penaltyDismissWorkItem = nil
+                }
+                penaltyDismissWorkItem = workItem
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.6, execute: workItem)
+            }
+            // 手札内容が変わるたびに移動候補を再計算し、ガイドハイライトを更新
+            .onReceive(core.$hand) { newHand in
+                // 手札ストリームの更新順序を追跡しやすいよう、受信したカード枚数をログへ残す
+                debugLog("手札更新を受信: 枚数=\(newHand.count), 退避ハンドあり=\(pendingGuideHand != nil)")
+
+                // 手札が差し替わった際は非表示リストを実際に存在するカード ID へ限定する
+                let validIDs = Set(newHand.map { $0.id })
+                hiddenCardIDs.formIntersection(validIDs)
+                if let animatingCard, !validIDs.contains(animatingCard.id) {
+                    // 手札の再配布などで該当カードが消えた場合はアニメーション状態を初期化
+                    self.animatingCard = nil
+                    animationState = .idle
+                    animationTargetGridPoint = nil
+                }
+                // `core.hand` へ反映される前でも最新の手札を使ってハイライトを更新する
+                refreshGuideHighlights(handOverride: newHand)
+            }
+            // 盤面タップで移動を指示された際にもカード演出を統一して実行
+            .onReceive(core.$boardTapPlayRequest) { request in
+                guard let request else { return }
+                handleBoardTapPlayRequest(request)
+            }
+            // ガイドモードのオン/オフを切り替えたら即座に SpriteKit へ反映
+            .onChange(of: guideModeEnabled) { _, _ in
+                refreshGuideHighlights()
+            }
+            // 経過時間を 1 秒ごとに再計算し、リアルタイム表示へ反映
+            .onReceive(elapsedTimer) { _ in
+                updateDisplayedElapsedTime()
+            }
+            // 進行状態が変化した際もハイライトを整理（手詰まり・クリア時は消灯）
+            .onReceive(core.$progress) { progress in
+                // 進行状態が切り替わったタイミングで、デッドロック退避フラグの有無と併せて記録する
+                debugLog("進行状態の更新を受信: 状態=\(String(describing: progress)), 退避ハンドあり=\(pendingGuideHand != nil)")
+
+                // 進行状態の変化に合わせて経過時間を再計算し、リセット直後のズレを防ぐ
+                updateDisplayedElapsedTime()
+
+                if progress == .playing {
+                    if let bufferedHand = pendingGuideHand {
+                        // デッドロック解除直後は退避しておいた手札情報を使ってガイドを復元する
+                        // refreshGuideHighlights 内で .playing 復帰を確認したタイミングのみバッファが空になる
+                        // 仕組みに変更されたため、ここでは復元処理の呼び出しに専念させる
+                        refreshGuideHighlights(
+                            handOverride: bufferedHand,
+                            currentOverride: pendingGuideCurrent,
+                            progressOverride: progress
+                        )
+                    } else {
+                        // バッファが無ければ通常通り最新状態から計算する
+                        refreshGuideHighlights(progressOverride: progress)
+                    }
+                } else {
+                    scene.updateGuideHighlights([])
+                }
+            }
+            // クリア確定時に GameCore 側で確定した秒数が流れてきたら表示へ反映
+            .onReceive(core.$elapsedSeconds) { _ in
+                updateDisplayedElapsedTime()
+            }
+            // カードが盤面へ移動中は UI 全体を操作不可とし、状態の齟齬を防ぐ
+            .disabled(animatingCard != nil)
+            // Preference から取得したアンカー情報を用いて、カードが盤面中央へ吸い込まれる演出を重ねる
+            .overlayPreferenceValue(CardPositionPreferenceKey.self) { anchors in
+                GeometryReader { proxy in
+                    ZStack {
+                        Color.clear
+                        if let animatingCard,
+                           let sourceAnchor = anchors[animatingCard.id],
+                           let boardAnchor,
+                           animationState != .idle || hiddenCardIDs.contains(animatingCard.id),
+                           let targetGridPoint = animationTargetGridPoint ?? core.current {
+                            // --- 元の位置と駒位置の座標を算出 ---
+                            let cardFrame = proxy[sourceAnchor]
+                            let boardFrame = proxy[boardAnchor]
+                            let startCenter = CGPoint(x: cardFrame.midX, y: cardFrame.midY)
+                            // 盤面座標 → SwiftUI 座標系への変換を行い、目的位置を計算
+                            let boardDestination = boardCoordinate(for: targetGridPoint, in: boardFrame)
+
+                            MoveCardIllustrationView(card: animatingCard.move)
+                                .matchedGeometryEffect(id: animatingCard.id, in: cardAnimationNamespace)
+                                .frame(width: cardFrame.width, height: cardFrame.height)
+                                .position(animationState == .movingToBoard ? boardDestination : startCenter)
+                                .scaleEffect(animationState == .movingToBoard ? 0.55 : 1.0)
+                                .opacity(animationState == .movingToBoard ? 0.0 : 1.0)
+                                .allowsHitTesting(false)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                }
+            }
     }
 
     /// レギュラー幅（iPad）向けにシート表示へ切り替えるためのバインディング
