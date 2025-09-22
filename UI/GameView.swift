@@ -127,7 +127,7 @@ struct GameView: View {
     }
 
     var body: some View {
-        applyGameViewObservers(
+        applyGameViewObservers(to:
             GeometryReader { geometry in
                 // 専用メソッドへ委譲し、レイアウト計算と描画処理の責務を明示的に分離する
                 mainContent(for: geometry)
