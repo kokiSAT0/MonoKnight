@@ -44,6 +44,8 @@ struct GameView: View {
     /// タイトル画面へ戻るアクションを親から注入する（未指定なら nil で何もしない）
     private let onRequestReturnToTitle: (() -> Void)?
     /// メニューからの操作確認ダイアログで使用する一時的なアクション保持
+    /// - NOTE: iPad（レギュラー幅）ではシート、iPhone（コンパクト幅）では確認ダイアログと表示方法が異なるため、
+    ///         どちらのモーダルでも共通して参照できるよう単一の状態として管理する
     @State private var pendingMenuAction: GameMenuAction?
     /// 統計バッジ領域の高さを計測し、盤面の縦寸法計算へ反映する
     @State private var statisticsHeight: CGFloat = 0
@@ -412,11 +414,34 @@ struct GameView: View {
             )
             .presentationDragIndicator(.visible)
         }
+        // MARK: - レギュラー幅では確認をシートで提示
+        // iPad では confirmationDialog だと文字が途切れやすいため、十分な横幅を確保できるシートで詳細文を表示する
+        .sheet(item: regularWidthPendingActionBinding) { action in
+            GameMenuActionConfirmationSheet(
+                action: action,
+                onConfirm: { confirmedAction in
+                    // performMenuAction 内でも pendingMenuAction を破棄しているが、
+                    // 明示的に nil を代入しておくことでバインディング由来のシート閉鎖と状態初期化を二重に保証する
+                    performMenuAction(confirmedAction)
+                    pendingMenuAction = nil
+                },
+                onCancel: {
+                    // キャンセル時はダイアログと同じ挙動になるように pendingMenuAction を破棄する
+                    pendingMenuAction = nil
+                }
+            )
+            // iPad では高さに余裕があるため medium/large の選択肢を用意し、読みやすさを優先する
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+        }
         // メニュー選択後に確認ダイアログを表示し、誤操作を防ぐ
         .confirmationDialog(
             "操作の確認",
             isPresented: Binding(
-                get: { pendingMenuAction != nil },
+                get: {
+                    // レギュラー幅ではシート側で確認を行うため、コンパクト幅のときだけダイアログを表示する
+                    horizontalSizeClass != .regular && pendingMenuAction != nil
+                },
                 set: { isPresented in
                     // キャンセル操作で閉じられた場合もステートを初期化する
                     if !isPresented {
@@ -433,6 +458,24 @@ struct GameView: View {
         } message: { action in
             Text(action.confirmationMessage)
         }
+    }
+
+    /// レギュラー幅（iPad）向けにシート表示へ切り替えるためのバインディング
+    /// - Returns: iPad では pendingMenuAction を返し、それ以外では常に nil を返すバインディング
+    private var regularWidthPendingActionBinding: Binding<GameMenuAction?> {
+        Binding(
+            get: {
+                // 横幅が十分でない場合はシート表示を抑制し、確認ダイアログ側に処理を委ねる
+                guard horizontalSizeClass == .regular else {
+                    return nil
+                }
+                return pendingMenuAction
+            },
+            set: { newValue in
+                // シートを閉じたときに SwiftUI から nil が渡されるため、そのまま状態へ反映しておく
+                pendingMenuAction = newValue
+            }
+        )
     }
 
     /// 盤面の統計と SpriteKit ボードをまとめて描画する
@@ -1316,6 +1359,60 @@ private extension GameView {
             adsService.resetPlayFlag()
             onRequestReturnToTitle?()
         }
+    }
+}
+
+// MARK: - レギュラー幅向けのメニュー確認シート
+/// iPad で確認文をゆったり表示するためのシートビュー
+private struct GameMenuActionConfirmationSheet: View {
+    /// 共通配色を参照して背景色などを統一する
+    private var theme = AppTheme()
+    /// 現在確認中のアクション
+    let action: GameMenuAction
+    /// 確定時に GameView 側で処理を実行するクロージャ
+    let onConfirm: (GameMenuAction) -> Void
+    /// キャンセル時に状態をリセットするクロージャ
+    let onCancel: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 32) {
+            // MARK: - 見出しと詳細説明
+            VStack(alignment: .leading, spacing: 16) {
+                Text("操作の確認")
+                    .font(.title2)
+                    .fontWeight(.semibold)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text(action.confirmationMessage)
+                    .font(.body)
+                    .multilineTextAlignment(.leading)
+                    // iPad で視線移動が極端にならないように最大幅を確保しつつ左寄せで表示する
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .foregroundStyle(theme.textPrimary)
+            }
+
+            Spacer(minLength: 0)
+
+            // MARK: - アクションボタン群
+            HStack(spacing: 16) {
+                Button("キャンセル", role: .cancel) {
+                    // ユーザーが操作を取り消した場合はシートを閉じる
+                    onCancel()
+                }
+                .buttonStyle(.bordered)
+
+                Button(action.confirmationButtonTitle, role: action.buttonRole) {
+                    // GameView 側で用意した実処理を実行する
+                    onConfirm(action)
+                }
+                .buttonStyle(.borderedProminent)
+            }
+            // ボタン行を右寄せにして重要ボタンへ視線を誘導する
+            .frame(maxWidth: .infinity, alignment: .trailing)
+        }
+        // iPad では余白を広めに確保し、モーダル全体が中央にまとまるようにする
+        .padding(32)
+        .frame(maxWidth: 520, alignment: .leading)
+        .background(theme.backgroundElevated)
     }
 }
 
