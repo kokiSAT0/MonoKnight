@@ -1,3 +1,4 @@
+import Game  // 手札並び順の設定列挙体を利用するために追加
 import StoreKit
 import SwiftUI
 
@@ -29,6 +30,10 @@ struct SettingsView: View {
     // MARK: - ガイドモード設定
     // 盤面の移動候補ハイライトを保存し、GameView 側の @AppStorage と連動させる。
     @AppStorage("guide_mode_enabled") private var guideModeEnabled: Bool = true
+
+    // MARK: - 手札並び設定
+    // 手札の並び替え方式を永続化し、GameView 側の @AppStorage と同期させる。
+    @AppStorage(HandOrderingStrategy.storageKey) private var handOrderingRawValue: String = HandOrderingStrategy.insertionOrder.rawValue
 
     // MARK: - 戦績管理
     // ベストポイントを UserDefaults から取得・更新する。未設定時は Int.max で初期化しておく。
@@ -120,6 +125,26 @@ struct SettingsView: View {
                 } footer: {
                     // どのような効果があるかを具体的に説明し、不要ならオフにできると案内
                     Text("手札から移動できるマスを盤面上で光らせます。集中して考えたい場合はオフにできます。")
+                }
+
+                // 手札の並び順を切り替える設定セクション
+                Section {
+                    Picker("手札の並び順", selection: Binding<HandOrderingStrategy>(
+                        get: { HandOrderingStrategy(rawValue: handOrderingRawValue) ?? .insertionOrder },
+                        set: { handOrderingRawValue = $0.rawValue }
+                    )) {
+                        ForEach(HandOrderingStrategy.allCases, id: \.self) { strategy in
+                            Text(strategy.displayName)
+                                .tag(strategy)
+                        }
+                    }
+                } header: {
+                    Text("手札の並び")
+                } footer: {
+                    // 並び替えロジックの違いを具体的に示し、意図した使い分けができるよう説明する
+                    Text("""
+手札を引いた順番のまま維持するか、移動方向に応じて自動整列するかを選べます。方向ソートでは左への移動量が大きいカードが左側に、同じ左右移動量なら上方向のカードが優先されます。
+""")
                 }
 
                 // MARK: - 広告除去 IAP セクション

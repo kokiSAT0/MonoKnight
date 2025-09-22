@@ -1,5 +1,5 @@
 import Combine  // 経過時間更新で Combine のタイマーパブリッシャを活用するため読み込む
-import Game  // GameCore や DealtCard を利用するためゲームロジックモジュールを読み込む
+import Game  // GameCore や DealtCard、手札並び設定を利用するためゲームロジックモジュールを読み込む
 import SpriteKit
 import SwiftUI
 import UIKit  // ハプティクス用のフレームワークを追加
@@ -41,6 +41,8 @@ struct GameView: View {
     @AppStorage("haptics_enabled") private var hapticsEnabled: Bool = true
     /// ガイドモードのオン/オフを永続化し、盤面ハイライト表示を制御する
     @AppStorage("guide_mode_enabled") private var guideModeEnabled: Bool = true
+    /// 手札の並び替え方式。設定変更時に GameCore へ伝搬する
+    @AppStorage(HandOrderingStrategy.storageKey) private var handOrderingRawValue: String = HandOrderingStrategy.insertionOrder.rawValue
     /// タイトル画面へ戻るアクションを親から注入する（未指定なら nil で何もしない）
     private let onRequestReturnToTitle: (() -> Void)?
     /// メニューからの操作確認ダイアログで使用する一時的なアクション保持
@@ -104,6 +106,11 @@ struct GameView: View {
 
         // GameCore の生成。StateObject へ包んで保持する
         let core = GameCore(mode: mode)
+        // UserDefaults に保存済みの手札並び設定を復元し、初期表示から反映する
+        if let savedValue = UserDefaults.standard.string(forKey: HandOrderingStrategy.storageKey),
+           let strategy = HandOrderingStrategy(rawValue: savedValue) {
+            core.updateHandOrderingStrategy(strategy)
+        }
         _core = StateObject(wrappedValue: core)
 
         // GameScene は再利用したいのでローカルで準備し、最後に State プロパティへ格納する
@@ -175,12 +182,18 @@ struct GameView: View {
             refreshGuideHighlights()
             // タイマー起動直後に経過時間を一度読み取って初期表示のずれを防ぐ
             updateDisplayedElapsedTime()
+            // 表示開始時点で最新の手札並び設定を反映する
+            core.updateHandOrderingStrategy(resolveHandOrderingStrategy())
         }
         // ライト/ダーク切り替えが発生した場合も SpriteKit 側へ反映
         .onChange(of: colorScheme) { _, newScheme in
             applyScenePalette(for: newScheme)
             // カラースキーム変更時はガイドの色味も再描画して視認性を確保
             refreshGuideHighlights()
+        }
+        // 手札の並び設定が変わったら即座にゲームロジックへ伝え、UI の並びも更新する
+        .onChange(of: handOrderingRawValue) { _, _ in
+            core.updateHandOrderingStrategy(resolveHandOrderingStrategy())
         }
         // progress が .cleared へ変化したタイミングで結果画面を表示
         .onChange(of: core.progress) { _, newValue in
@@ -1223,6 +1236,14 @@ struct GameView: View {
         }
     }
 
+}
+
+private extension GameView {
+    /// AppStorage から読み出した文字列を安全に列挙体へ変換する
+    /// - Returns: 有効な設定値。未知の値は従来方式へフォールバックする
+    func resolveHandOrderingStrategy() -> HandOrderingStrategy {
+        HandOrderingStrategy(rawValue: handOrderingRawValue) ?? .insertionOrder
+    }
 }
 
 // MARK: - 右上メニューおよびデバッグ操作
