@@ -40,6 +40,8 @@ struct GameView: View {
     @AppStorage("haptics_enabled") private var hapticsEnabled: Bool = true
     /// ガイドモードのオン/オフを永続化し、盤面ハイライト表示を制御する
     @AppStorage("guide_mode_enabled") private var guideModeEnabled: Bool = true
+    /// 手札の並び順をユーザー設定から取得し、GameCore へ反映する
+    @AppStorage(HandOrderMode.storageKey) private var handOrderModeRawValue: String = HandOrderMode.drawOrder.rawValue
     /// タイトル画面へ戻るアクションを親から注入する（未指定なら nil で何もしない）
     private let onRequestReturnToTitle: (() -> Void)?
     /// メニューからの操作確認ダイアログで使用する一時的なアクション保持
@@ -66,6 +68,11 @@ struct GameView: View {
     @State private var pendingGuideCurrent: GridPoint?
     /// 盤面レイアウトに異常が発生した際のスナップショットを記録し、重複ログを避ける
     @State private var lastLoggedLayoutSnapshot: BoardLayoutSnapshot?
+
+    /// 現在の手札並び替えモードを列挙体へ変換するヘルパー
+    private var currentHandOrderMode: HandOrderMode {
+        HandOrderMode(rawValue: handOrderModeRawValue) ?? .drawOrder
+    }
 
     /// デフォルトのサービスを利用して `GameView` を生成するコンビニエンスイニシャライザ
     /// - Parameter onRequestReturnToTitle: タイトル画面への遷移要求クロージャ（省略可）
@@ -246,12 +253,19 @@ struct GameView: View {
             applyScenePalette(for: colorScheme)
             // 初期状態でもガイド表示のオン/オフに応じてハイライトを更新
             refreshGuideHighlights()
+            // 手札並び順の設定値を GameCore 側へ反映し、初回表示時から整合させる
+            core.updateHandOrderMode(currentHandOrderMode)
         }
         // ライト/ダーク切り替えが発生した場合も SpriteKit 側へ反映
         .onChange(of: colorScheme) { _, newScheme in
             applyScenePalette(for: newScheme)
             // カラースキーム変更時はガイドの色味も再描画して視認性を確保
             refreshGuideHighlights()
+        }
+        // 手札並び順の設定変更を監視し、即座に GameCore の状態へ適用する
+        .onChange(of: handOrderModeRawValue) { _, newValue in
+            let resolvedMode = HandOrderMode(rawValue: newValue) ?? .drawOrder
+            core.updateHandOrderMode(resolvedMode)
         }
         // progress が .cleared へ変化したタイミングで結果画面を表示
         .onChange(of: core.progress) { _, newValue in

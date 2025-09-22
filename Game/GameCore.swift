@@ -94,6 +94,8 @@ public final class GameCore: ObservableObject {
 
     /// 山札管理（`Deck.swift` に定義された重み付き無限山札を使用）
     private var deck = Deck(configuration: .standard)
+    /// 手札の並び順ルールを保持する（設定変更で動的に更新される）
+    private var handOrderMode: HandOrderMode = .drawOrder
     /// プレイ開始時刻（リセットのたびに現在時刻へ更新）
     private var startDate = Date()
     /// クリア確定時刻（未クリアの場合は nil のまま保持）
@@ -163,6 +165,9 @@ public final class GameCore: ObservableObject {
         // 先読み枠が不足していれば必要枚数まで補充する
         replenishNextPreview()
 
+        // 設定に応じて手札の並び順を調整する
+        applyHandOrdering()
+
         // クリア判定
         if board.isCleared {
             // クリア時点の経過秒数を確定させる
@@ -184,6 +189,14 @@ public final class GameCore: ObservableObject {
         // デバッグ目的でのみ盤面を出力する
         board.debugDump(current: current)
 #endif
+    }
+
+    /// 手札の並び順設定を UI から更新する
+    /// - Parameter newMode: ユーザーが選択した並び替えモード
+    public func updateHandOrderMode(_ newMode: HandOrderMode) {
+        guard handOrderMode != newMode else { return }
+        handOrderMode = newMode
+        applyHandOrdering()
     }
 
     /// 盤面タップ由来のアニメーション要求を UI 側で処理したあとに呼び出す
@@ -309,6 +322,7 @@ public final class GameCore: ObservableObject {
         hand = deck.draw(count: handSize)
         nextCards = deck.draw(count: nextPreviewCount)
         replenishNextPreview()
+        applyHandOrdering()
 
         // UI へ手詰まりの発生を知らせ、演出やフィードバックを促す
         penaltyEventID = UUID()
@@ -367,6 +381,7 @@ public final class GameCore: ObservableObject {
         hand = deck.draw(count: handSize)
         nextCards = deck.draw(count: nextPreviewCount)
         replenishNextPreview()
+        applyHandOrdering()
 
         resetTimer()
 
@@ -391,6 +406,28 @@ public final class GameCore: ObservableObject {
         while nextCards.count < nextPreviewCount {
             guard let drawn = deck.draw() else { break }
             nextCards.append(drawn)
+        }
+    }
+
+    /// 手札の並び順を現在の設定値に合わせて調整する
+    private func applyHandOrdering() {
+        // 既存仕様（引いた順番を維持）の場合は何もしない
+        guard handOrderMode == .directional else { return }
+
+        // 左への移動量が大きいカードほど前方へ、同じ左右移動量なら上方向が大きい順に並べる
+        let sortedHand = hand.sorted { lhs, rhs in
+            if lhs.move.dx != rhs.move.dx {
+                return lhs.move.dx < rhs.move.dx
+            }
+            if lhs.move.dy != rhs.move.dy {
+                return lhs.move.dy > rhs.move.dy
+            }
+            // 完全に同じ移動量のカード同士は UUID 順で安定的に並べる
+            return lhs.id.uuidString < rhs.id.uuidString
+        }
+
+        if sortedHand != hand {
+            hand = sortedHand
         }
     }
 
@@ -503,6 +540,7 @@ extension GameCore {
         core.hand = core.deck.draw(count: core.handSize)
         core.nextCards = core.deck.draw(count: core.nextPreviewCount)
         core.replenishNextPreview()
+        core.applyHandOrdering()
 
         if core.progress == .playing {
             core.checkDeadlockAndApplyPenaltyIfNeeded()
