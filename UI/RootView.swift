@@ -22,6 +22,9 @@ struct RootView: View {
     /// - NOTE: アプリ起動直後にタイトルを先に表示したいので初期値は `true`
     ///         メニューからタイトルへ戻る操作でもこのフラグを再度 `true` に切り替える
     @State private var isShowingTitleScreen: Bool = true
+    /// タイトルを閉じた直後にローディングオーバーレイを表示し、GameView への遷移をワンテンポ遅らせるためのフラグ
+    /// - NOTE: ユーザーが開始操作を明示するまでゲームロジックを起動しないためのガードとしても利用する
+    @State private var isPreparingGame: Bool = false
     /// 実際にゲームへ適用しているモード
     @State private var activeMode: GameMode = .standard
     /// タイトル画面で選択中のモード（開始ボタン押下で activeMode に反映する）
@@ -32,6 +35,9 @@ struct RootView: View {
     @State private var topBarHeight: CGFloat = 0
     /// 直近に出力したレイアウトスナップショットを記録し、ログの重複出力を防ぐ
     @State private var lastLoggedLayoutSnapshot: RootLayoutSnapshot?
+    /// ローディング表示解除を遅延実行するためのワークアイテム
+    /// - NOTE: 新しいゲーム開始操作が走った際に古い処理をキャンセルできるよう保持しておく
+    @State private var pendingGameActivationWorkItem: DispatchWorkItem?
     /// 依存サービスを外部から注入可能にする初期化処理
     /// - Parameters:
     ///   - gameCenterService: Game Center 連携用サービス（デフォルトはシングルトン）
@@ -62,39 +68,38 @@ struct RootView: View {
                 // MARK: - ゲームタブ
                 ZStack {
                     // MARK: - メインのゲーム画面
-                    GameView(
-                        mode: activeMode,
-                        gameCenterService: gameCenterService,
-                        adsService: adsService,
-                        onRequestReturnToTitle: {
-                            // 右上メニューなどからタイトルへ戻るリクエストを受け取ったことを記録しておく
-                            debugLog("RootView: タイトル画面表示要求を受信 現在モード=\(activeMode.identifier.rawValue)")
-                            withAnimation(.easeInOut(duration: 0.25)) {
-                                isShowingTitleScreen = true
-                                // タイトルに戻ったタイミングで、直前のプレイ内容をタイトル側のモード選択へ反映する
-                                selectedModeForTitle = activeMode
+                    if !isShowingTitleScreen {
+                        GameView(
+                            mode: activeMode,
+                            gameCenterService: gameCenterService,
+                            adsService: adsService,
+                            onRequestReturnToTitle: {
+                                handleReturnToTitleRequest()
                             }
-                        }
-                    )
-                    .id(gameSessionID)
-                    .opacity(isShowingTitleScreen ? 0 : 1)
-                    .allowsHitTesting(!isShowingTitleScreen)
+                        )
+                        .id(gameSessionID)
+                        // タイトル解除直後やローディング中は盤面を非表示にし、描画途中のチラつきを防ぐ
+                        .opacity(isPreparingGame ? 0 : 1)
+                        // ローディングが完了するまではユーザー操作を受け付けないようにする
+                        .allowsHitTesting(!isPreparingGame)
+                    }
+
+                    // MARK: - ローディングオーバーレイ
+                    if isPreparingGame {
+                        GamePreparationOverlayView()
+                            .transition(.opacity)
+                    }
 
                     // MARK: - タイトル画面のオーバーレイ
                     if isShowingTitleScreen {
                         TitleScreenView(selectedMode: $selectedModeForTitle) { mode in
-                            // ゲーム開始が選択された際の状態更新を記録し、原因調査を容易にする
-                            debugLog("RootView: ゲーム開始リクエストを受信 選択モード=\(mode.identifier.rawValue)")
-                            withAnimation(.easeInOut(duration: 0.25)) {
-                                activeMode = mode
-                                gameSessionID = UUID()
-                                isShowingTitleScreen = false
-                            }
+                            startGamePreparation(for: mode)
                         }
                         .transition(.opacity.combined(with: .move(edge: .top)))
                     }
                 }
                 .animation(.easeInOut(duration: 0.25), value: isShowingTitleScreen)
+                .animation(.easeInOut(duration: 0.25), value: isPreparingGame)
                 .tabItem {
                     // システムアイコンとラベルを組み合わせてタブを定義
                     Label("ゲーム", systemImage: "gamecontroller")
@@ -138,6 +143,10 @@ struct RootView: View {
         .onChange(of: isShowingTitleScreen) { _, newValue in
             debugLog("RootView.isShowingTitleScreen 更新: \(newValue)")
         }
+        // ローディング表示のオン/オフを監視し、意図しないタイミングでの遷移を検知する
+        .onChange(of: isPreparingGame) { _, newValue in
+            debugLog("RootView.isPreparingGame 更新: \(newValue)")
+        }
         // 実際にプレイへ利用しているモードが切り替わったタイミングを記録する
         .onChange(of: activeMode) { _, newValue in
             debugLog("RootView.activeMode 更新: \(newValue.identifier.rawValue)")
@@ -155,6 +164,97 @@ struct RootView: View {
 
 // MARK: - レイアウト支援メソッドと定数
 private extension RootView {
+    /// タイトル画面の開始ボタン押下を受けてゲーム準備を開始する
+    /// - Parameter mode: ユーザーが選択したゲームモード
+    func startGamePreparation(for mode: GameMode) {
+        // 連続タップで複数のワークアイテムが走らないように既存処理を必ずキャンセルする
+        cancelPendingGameActivationWorkItem()
+
+        debugLog("RootView: ゲーム準備開始リクエストを処理 選択モード=\(mode.identifier.rawValue)")
+
+        // 今回プレイするモードを確定し、タイトル画面側の選択状態とも同期させる
+        activeMode = mode
+        selectedModeForTitle = mode
+
+        // GameView を強制的に再生成するためセッション ID を更新し、ログで追跡できるよう記録する
+        gameSessionID = UUID()
+        let scheduledSessionID = gameSessionID
+        debugLog("RootView: 新規ゲームセッションを割り当て sessionID=\(scheduledSessionID)")
+
+        withAnimation(.easeInOut(duration: 0.25)) {
+            // タイトルを閉じ、ローディングオーバーレイを表示する
+            isShowingTitleScreen = false
+            isPreparingGame = true
+        }
+
+        // GameCore / GameView の初期化完了を待つために、一定時間経過後にローディング解除を試みる
+        scheduleGameActivationCompletion(for: scheduledSessionID)
+    }
+
+    /// GameView からタイトル画面へ戻る操作をハンドリングし、状態を初期化する
+    func handleReturnToTitleRequest() {
+        debugLog("RootView: タイトル画面表示要求を受信 現在モード=\(activeMode.identifier.rawValue)")
+
+        // 進行中のローディングがあれば破棄し、表示をただちに止める
+        cancelPendingGameActivationWorkItem()
+
+        if isPreparingGame {
+            debugLog("RootView: ローディング表示中にタイトルへ戻るため強制的に解除します")
+        }
+
+        // ローディング状態は即時で解除し、タイトル遷移のみアニメーションさせる
+        isPreparingGame = false
+
+        withAnimation(.easeInOut(duration: 0.25)) {
+            isShowingTitleScreen = true
+            // 直前にプレイしたモードをタイトル画面側の選択状態として復元する
+            selectedModeForTitle = activeMode
+        }
+    }
+
+    /// ローディング解除処理を一定時間後に実行する
+    /// - Parameter sessionID: 解除対象となるゲームセッションの識別子
+    func scheduleGameActivationCompletion(for sessionID: UUID) {
+        // 既存のワークアイテムは startGamePreparation 内で必ずキャンセル済みの想定
+        let workItem = DispatchWorkItem { [sessionID] in
+            // キャンセル済み（もしくは新しいゲーム開始で破棄済み）の場合は何もせず終了する
+            guard pendingGameActivationWorkItem != nil else {
+                debugLog("RootView: ゲーム準備ワークアイテムが実行前に破棄されました sessionID=\(sessionID)")
+                return
+            }
+
+            // ゲームセッション ID が変化している場合は古いリクエストなので破棄する
+            guard sessionID == gameSessionID else {
+                debugLog("RootView: ゲーム準備完了通知を破棄 scheduled=\(sessionID) current=\(gameSessionID)")
+                return
+            }
+
+            debugLog("RootView: ゲーム準備完了 ローディング解除 sessionID=\(sessionID)")
+
+            withAnimation(.easeInOut(duration: 0.25)) {
+                isPreparingGame = false
+            }
+
+            // 再利用を防ぐため参照を破棄する
+            pendingGameActivationWorkItem = nil
+        }
+
+        pendingGameActivationWorkItem = workItem
+
+        DispatchQueue.main.asyncAfter(
+            deadline: .now() + RootLayoutMetrics.gamePreparationMinimumDelay,
+            execute: workItem
+        )
+    }
+
+    /// ローディング表示解除用のワークアイテムをキャンセルし、参照をクリアする
+    func cancelPendingGameActivationWorkItem() {
+        guard let workItem = pendingGameActivationWorkItem else { return }
+        debugLog("RootView: 保留中のゲーム準備ワークアイテムをキャンセル sessionID=\(gameSessionID)")
+        workItem.cancel()
+        pendingGameActivationWorkItem = nil
+    }
+
     /// トップステータスバーを生成し、Game Center 認証状況に応じた UI を返す
     /// - Parameter context: 現在の画面サイズや safe area をまとめたレイアウトコンテキスト
     /// - Returns: safeAreaInset へ挿入するビュー
@@ -372,6 +472,8 @@ private extension RootView {
         static let topBarBackgroundOpacity: Double = 0.94
         /// トップバー下部の仕切り線の不透明度
         static let topBarDividerOpacity: Double = 0.45
+        /// タイトルからゲームへ遷移する際にローディング表示を維持する最低時間（秒）
+        static let gamePreparationMinimumDelay: Double = 0.35
     }
 
     /// トップバーの高さを親ビューへ伝えるための PreferenceKey
@@ -387,6 +489,54 @@ private extension RootView {
 // MARK: - プレビュー
 #Preview {
     RootView()
+}
+
+// MARK: - ゲーム準備中のオーバーレイ
+/// GameView の初期化中に表示するローディング用オーバーレイ
+/// - Note: 盤面が読み込まれるまでプレイヤーへ待機を促し、途中状態での操作を防ぐ
+fileprivate struct GamePreparationOverlayView: View {
+    /// 統一感のある配色を適用するためテーマを生成しておく
+    private var theme = AppTheme()
+
+    var body: some View {
+        ZStack {
+            // 背景の半透明レイヤーで盤面を暗転させ、ローディング状態であることを明示する
+            theme.backgroundPrimary
+                .opacity(0.85)
+                .ignoresSafeArea()
+
+            VStack(spacing: 20) {
+                // アクティビティインジケーターで読み込み中であることを視覚的に伝える
+                ProgressView()
+                    .progressViewStyle(.circular)
+                    .tint(theme.accentPrimary)
+                    .scaleEffect(1.4)
+
+                VStack(spacing: 8) {
+                    Text("ゲームを準備しています")
+                        .font(.system(size: 18, weight: .semibold, design: .rounded))
+                        .foregroundColor(theme.textPrimary)
+                    Text("カードと盤面を読み込み中です。少々お待ちください。")
+                        .font(.system(size: 14, weight: .regular, design: .rounded))
+                        .foregroundColor(theme.textSecondary)
+                        .multilineTextAlignment(.center)
+                }
+                .padding(.horizontal, 12)
+            }
+            .padding(.horizontal, 32)
+            .padding(.vertical, 36)
+            .background(
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .fill(theme.backgroundPrimary.opacity(0.95))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .stroke(theme.accentPrimary.opacity(0.35), lineWidth: 1)
+            )
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("ゲームを準備しています。カードを読み込んでいます。")
+    }
 }
 
 // MARK: - タイトル画面（簡易版）
