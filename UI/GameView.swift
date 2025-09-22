@@ -560,26 +560,20 @@ struct GameView: View {
         }
     }
 
-    /// 統計バッジ群を共通の装飾付きで構築する
-    /// - Returns: 5 種の統計バッジをまとめたビューツリー
+    /// 統計バッジ群をスコア関連とその他の 2 枠へ分割し、横並びで表示する
+    /// - Returns: それぞれ装飾済みのグループを並べたビュー
     private func statisticsBadgeContainer() -> some View {
-        statisticsBadgeRow
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(theme.statisticBadgeBackground)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(theme.statisticBadgeBorder, lineWidth: 1)
-            )
-            .accessibilityElement(children: .contain)
+        HStack(spacing: 12) {
+            scoreStatisticsGroup()
+            supplementaryStatisticsGroup()
+        }
     }
 
-    /// 盤面に関する 5 種類の統計バッジを横並びで生成する
-    private var statisticsBadgeRow: some View {
-        HStack(spacing: 12) {
+    /// スコアに直接影響する指標をまとめたグループ
+    /// - Returns: 移動回数やスコアを 1 つの枠に収めたビュー
+    private func scoreStatisticsGroup() -> some View {
+        statisticsBadgeGroup {
+            // 手数はペナルティの影響を含めた重要指標のため最初に表示する
             statisticBadge(
                 title: "移動",
                 value: "\(core.moveCount)",
@@ -587,6 +581,7 @@ struct GameView: View {
                 accessibilityValue: "\(core.moveCount)回"
             )
 
+            // ペナルティが増えると最終スコアも悪化するため、連続して配置して関連性を示す
             statisticBadge(
                 title: "ペナルティ",
                 value: "\(core.penaltyCount)",
@@ -594,6 +589,7 @@ struct GameView: View {
                 accessibilityValue: "\(core.penaltyCount)手"
             )
 
+            // 経過時間はスコア算出式の一部なのでここでまとめておく
             statisticBadge(
                 title: "経過時間",
                 value: formattedElapsedTime(displayedElapsedSeconds),
@@ -608,7 +604,14 @@ struct GameView: View {
                 accessibilityLabel: "総合スコア",
                 accessibilityValue: accessibilityScoreDescription(displayedScore)
             )
+        }
+    }
 
+    /// レギュレーションによって増減する補助情報をまとめるグループ
+    /// - Returns: 現状は残りマスのみだが、今後の追加にも対応できる枠
+    private func supplementaryStatisticsGroup() -> some View {
+        statisticsBadgeGroup {
+            // 残りマスはスコアとは独立した進捗情報なので別枠へ分離する
             statisticBadge(
                 title: "残りマス",
                 value: "\(core.remainingTiles)",
@@ -616,6 +619,26 @@ struct GameView: View {
                 accessibilityValue: "残り\(core.remainingTiles)マス"
             )
         }
+    }
+
+    /// 共通デザインを適用した統計バッジ用コンテナ
+    /// - Parameter content: 内部に並べる統計バッジ群
+    /// - Returns: 角丸と枠線を持つバッジグループ
+    private func statisticsBadgeGroup<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        HStack(spacing: 12) {
+            content()
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(theme.statisticBadgeBackground)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(theme.statisticBadgeBorder, lineWidth: 1)
+        )
+        .accessibilityElement(children: .contain)
     }
 
     /// SpriteKit の盤面を描画し、ライフサイクルに応じた更新処理をまとめる
