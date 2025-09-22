@@ -5,10 +5,11 @@ import XCTest
 final class BoardClearTests: XCTestCase {
     /// 全マスを踏破すると `isCleared` が true になるか
     func testBoardClear() {
-        var board = Board()
+        let boardSize = 5
+        var board = Board(size: boardSize)
         // 盤面全ての座標を順番に踏破済みにする
-        for x in GridPoint.range {
-            for y in GridPoint.range {
+        for x in 0..<boardSize {
+            for y in 0..<boardSize {
                 board.markVisited(GridPoint(x: x, y: y))
             }
         }
@@ -18,7 +19,9 @@ final class BoardClearTests: XCTestCase {
 
     /// 途中まで踏破した場合に false となるか
     func testBoardNotClear() {
-        let board = Board()
+        let boardSize = 5
+        let center = GridPoint.center(of: boardSize)
+        let board = Board(size: boardSize, initialVisitedPoints: [center])
         // 中央以外は踏破していないため false のはず
         XCTAssertFalse(board.isCleared)
     }

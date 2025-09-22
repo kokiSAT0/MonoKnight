@@ -18,7 +18,7 @@ public final class GameScene: SKScene {
     public weak var gameCore: GameCoreProtocol?
 
     /// 現在の盤面状態
-    private var board = Board()
+    private var board = Board(size: 5, initialVisitedPoints: [GridPoint.center(of: 5)])
 
     /// SpriteKit 内で利用する配色セット
     /// - 備考: SwiftUI の `AppTheme` とは分離し、SpriteKit 専用の色情報のみを保持する
@@ -43,12 +43,16 @@ public final class GameScene: SKScene {
     /// レイアウト未確定時に渡された盤面情報を一時保存し、後でまとめて適用する
     private var pendingBoard: Board?
 
-    /// レイアウト未確定時に要求された駒の移動先を保持し、確定後に反映する
-    private var pendingKnightPosition: GridPoint?
+    /// レイアウト未確定時に要求された駒移動の内容
+    private enum PendingKnightState {
+        case show(GridPoint)
+        case hide
+    }
+    private var pendingKnightState: PendingKnightState?
 
     /// グリッド生成と駒配置が完了し、SpriteKit のノード更新を安全に行えるかどうか
     private var isLayoutReady: Bool {
-        tileSize > 0 && tileNodes.count == Board.size * Board.size && knightNode != nil
+        tileSize > 0 && tileNodes.count == board.size * board.size && knightNode != nil
     }
 
     /// レイアウト再計算がどのイベントで行われたのかを識別するための列挙体
@@ -64,7 +68,7 @@ public final class GameScene: SKScene {
 
     /// 現在の駒の位置
     /// - NOTE: アクセシビリティ情報更新時に参照する
-    private var knightPosition: GridPoint = .center
+    private var knightPosition: GridPoint?
 
     /// シーンサイズがゼロのままのため初期レイアウトを保留しているかどうか
     /// - NOTE: SpriteView がまだレイアウト前の段階では `size` が `.zero` になるため、
@@ -104,7 +108,7 @@ public final class GameScene: SKScene {
     public override init() {
         super.init(size: .zero)
         // 盤面・テーマ・タイル情報などを初期状態に戻し、呼び出し元がどのような経路でも同じ前提から構築できるようにする
-        board = Board()
+        board = Board(size: 5, initialVisitedPoints: [GridPoint.center(of: 5)])
         palette = GameScenePalette.fallback
         tileSize = 0
         gridOrigin = .zero
@@ -112,9 +116,9 @@ public final class GameScene: SKScene {
         guideHighlightNodes = [:]
         pendingGuideHighlightPoints = []
         pendingBoard = nil
-        pendingKnightPosition = nil
+        pendingKnightState = nil
         knightNode = nil
-        knightPosition = .center
+        knightPosition = nil
         awaitingValidSceneSize = false
         #if canImport(UIKit)
         accessibilityElementsCache = []
@@ -127,7 +131,7 @@ public final class GameScene: SKScene {
     public required init?(coder aDecoder: NSCoder) {
         super.init(coder: aDecoder)
         // デコード後もプロパティを初期値で上書きし、Storyboard/SwiftUI どちらからでも同じ見た目・挙動となるようにする
-        board = Board()
+        board = Board(size: 5, initialVisitedPoints: [GridPoint.center(of: 5)])
         palette = GameScenePalette.fallback
         tileSize = 0
         gridOrigin = .zero
@@ -135,9 +139,9 @@ public final class GameScene: SKScene {
         guideHighlightNodes = [:]
         pendingGuideHighlightPoints = []
         pendingBoard = nil
-        pendingKnightPosition = nil
+        pendingKnightState = nil
         knightNode = nil
-        knightPosition = .center
+        knightPosition = nil
         awaitingValidSceneSize = false
         #if canImport(UIKit)
         accessibilityElementsCache = []
@@ -189,9 +193,10 @@ public final class GameScene: SKScene {
         let wasAwaiting = awaitingValidSceneSize
         awaitingValidSceneSize = false
 
-        tileSize = length / CGFloat(Board.size)
-        let offsetX = (size.width - tileSize * CGFloat(Board.size)) / 2
-        let offsetY = (size.height - tileSize * CGFloat(Board.size)) / 2
+        let boardSize = CGFloat(board.size)
+        tileSize = length / boardSize
+        let offsetX = (size.width - tileSize * boardSize) / 2
+        let offsetY = (size.height - tileSize * boardSize) / 2
         gridOrigin = CGPoint(x: offsetX, y: offsetY)
 
         // レイアウト計算の結果をログ出力し、tileSize が 0 付近になる異常を検知できるようにする
@@ -231,8 +236,14 @@ public final class GameScene: SKScene {
         }
 
         // 駒ノードも新しいレイアウト上の中心座標へ移動し、半径をタイル比率に合わせて補正する
-        if let knightNode {
+        if let knightNode, let knightPosition {
+            // 駒が存在する場合のみ新しいレイアウトに合わせて再配置する
             knightNode.position = position(for: knightPosition)
+            let radius = tileSize * 0.4
+            let circleRect = CGRect(x: -radius, y: -radius, width: radius * 2, height: radius * 2)
+            knightNode.path = CGPath(ellipseIn: circleRect, transform: nil)
+        } else if let knightNode {
+            // スポーン未確定などで現在位置が無い場合は描画だけ更新して非表示のまま維持する
             let radius = tileSize * 0.4
             let circleRect = CGRect(x: -radius, y: -radius, width: radius * 2, height: radius * 2)
             knightNode.path = CGPath(ellipseIn: circleRect, transform: nil)
@@ -286,10 +297,36 @@ public final class GameScene: SKScene {
         }
     }
 
+    /// 盤面サイズ変更時に既存ノードを破棄して再構築する
+    private func rebuildNodesForBoardSizeChange() {
+        debugLog("GameScene.rebuildNodesForBoardSizeChange: newSize=\(board.size)")
+
+        for node in tileNodes.values {
+            node.removeFromParent()
+        }
+        tileNodes.removeAll()
+
+        for node in guideHighlightNodes.values {
+            node.removeFromParent()
+        }
+        guideHighlightNodes.removeAll()
+        pendingGuideHighlightPoints.removeAll()
+
+        if let knightNode {
+            knightNode.removeAllActions()
+            knightNode.removeFromParent()
+        }
+        knightNode = nil
+        knightPosition = nil
+        pendingKnightState = nil
+
+        prepareLayoutIfNeeded()
+    }
+
     /// 5×5 のグリッドを描画
     private func setupGrid() {
-        for y in 0..<Board.size {
-            for x in 0..<Board.size {
+        for y in 0..<board.size {
+            for x in 0..<board.size {
                 let rect = CGRect(
                     x: gridOrigin.x + CGFloat(x) * tileSize,
                     y: gridOrigin.y + CGFloat(y) * tileSize,
@@ -317,13 +354,15 @@ public final class GameScene: SKScene {
         let node = SKShapeNode(circleOfRadius: radius)
         node.fillColor = palette.boardKnight
         node.strokeColor = .clear
-        node.position = position(for: GridPoint.center)
+        let initialPoint = knightPosition ?? GridPoint.center(of: board.size)
+        node.position = position(for: initialPoint)
         node.zPosition = 2  // ガイドハイライトより前面に表示して駒が埋もれないようにする
+        node.isHidden = knightPosition == nil
         addChild(node)
         knightNode = node
 
         // 駒ノードの初期化状況を記録して、盤面非表示時に駒だけ描画されていないか切り分けやすくする
-        debugLog("GameScene.setupKnight: radius=\(radius), position=\(node.position)")
+        debugLog("GameScene.setupKnight: radius=\(radius), position=\(node.position), hidden=\(node.isHidden)")
     }
 
     /// 指定座標に対応するシーン上の位置を返す
@@ -340,7 +379,15 @@ public final class GameScene: SKScene {
     /// - NOTE: SwiftUI モジュールからも参照するため `public` で公開する
     public func updateBoard(_ board: Board) {
         // 盤面そのものの状態は常に保持し、描画が間に合っていなくてもゲームロジックとの整合を取っておく
+        let previousSize = self.board.size
         self.board = board
+
+        if previousSize != board.size {
+            pendingBoard = board
+            calculateLayout(trigger: .manual)
+            rebuildNodesForBoardSizeChange()
+            return
+        }
 
         // レイアウトが未確定でマスノードがまだ生成されていない場合は、一旦保留しておき確定後に反映する
         guard isLayoutReady else {
@@ -497,31 +544,43 @@ public final class GameScene: SKScene {
     /// 駒を指定座標へ移動する
     /// - Parameter point: 移動先の座標
     /// - NOTE: 駒の移動をゲームロジック外部から制御するため公開メソッドにする
-    public func moveKnight(to point: GridPoint) {
+    public func moveKnight(to point: GridPoint?) {
         // 駒移動前に現在のレイアウト情報を記録し、移動要求が届いているかどうかを判別できるようにする
-        debugLog("GameScene.moveKnight 要求: current=\(knightPosition), target=\(point), tileSize=\(tileSize)")
+        debugLog("GameScene.moveKnight 要求: current=\(String(describing: knightPosition)), target=\(String(describing: point)), tileSize=\(tileSize)")
 
         // レイアウト未確定の間は駒ノード自体が存在しない可能性があるため、確定後に反映するよう保留する
-        guard isLayoutReady else {
-            pendingKnightPosition = point
-            knightPosition = point
+        guard isLayoutReady, let knightNode else {
+            if let point {
+                pendingKnightState = .show(point)
+                knightPosition = point
+            } else {
+                pendingKnightState = .hide
+                knightPosition = nil
+            }
             debugLog("GameScene.moveKnight: レイアウト未確定のため移動を保留")
             return
         }
 
-        // タイトル画面に遷移した直後など、SpriteKit 側の SKView が一時停止状態になっていると
-        // SKAction がまったく再生されず駒が移動しないため、ここで毎回再開を保証する。
-        // `scene.view` と `scene.isPaused` の両方を確認しておき、どちらかが停止していても動作を復旧させる。
-        if let skView = view, skView.isPaused {
-            skView.isPaused = false
-        }
-        if isPaused {
-            isPaused = false
-        }
+        if let point {
+            // タイトル画面に遷移した直後など、SpriteKit 側の SKView が一時停止状態になっていると
+            // SKAction がまったく再生されず駒が移動しないため、ここで毎回再開を保証する。
+            if let skView = view, skView.isPaused {
+                skView.isPaused = false
+            }
+            if isPaused {
+                isPaused = false
+            }
 
-        // 連続入力時に過去のアクションが残っていると挙動が不安定になるため、
-        // 新しい移動アクションを開始する前に一度既存アクションをクリアする。
-        performKnightPlacement(to: point, animated: true)
+            knightNode.isHidden = false
+            performKnightPlacement(to: point, animated: true)
+        } else {
+            // 駒を非表示にする要求
+            knightNode.removeAllActions()
+            knightNode.isHidden = true
+            knightPosition = nil
+            updateAccessibilityElements()
+            debugLog("GameScene.moveKnight: 駒を非表示にしました")
+        }
     }
 
     /// 保留中のガイド枠があれば、レイアウト確定後に反映する
@@ -540,7 +599,7 @@ public final class GameScene: SKScene {
         }
 
         debugLog(
-            "GameScene.flushPendingUpdatesIfNeeded: pendingBoard=\(pendingBoard != nil), pendingKnight=\(pendingKnightPosition != nil), pendingGuide=\(pendingGuideHighlightPoints.count)"
+            "GameScene.flushPendingUpdatesIfNeeded: pendingBoard=\(pendingBoard != nil), pendingKnight=\(pendingKnightState != nil), pendingGuide=\(pendingGuideHighlightPoints.count)"
         )
 
         if let boardToApply = pendingBoard {
@@ -553,10 +612,18 @@ public final class GameScene: SKScene {
             applyCurrentBoardStateToNodes(shouldLog: false)
         }
 
-        if let pendingKnightPosition {
-            // 初期レイアウト確定後はアニメーション無しで即座に目的地へ配置する
-            self.pendingKnightPosition = nil
-            performKnightPlacement(to: pendingKnightPosition, animated: false)
+        if let pendingKnightState {
+            self.pendingKnightState = nil
+            switch pendingKnightState {
+            case .show(let point):
+                knightNode?.isHidden = false
+                performKnightPlacement(to: point, animated: false)
+            case .hide:
+                knightNode?.removeAllActions()
+                knightNode?.isHidden = true
+                knightPosition = nil
+                updateAccessibilityElements()
+            }
         }
 
         // ハイライトの再生成は専用メソッドに委譲
@@ -572,7 +639,7 @@ public final class GameScene: SKScene {
         updateAccessibilityElements()
 
         if shouldLog {
-            let visitedCount = Board.size * Board.size - board.remainingCount
+            let visitedCount = board.size * board.size - board.remainingCount
             debugLog("GameScene.updateBoard: visited=\(visitedCount), remaining=\(board.remainingCount), tileNodes=\(tileNodes.count)")
         }
     }
@@ -624,9 +691,15 @@ public final class GameScene: SKScene {
     #if canImport(UIKit)
     /// VoiceOver 用のアクセシビリティ要素を再構築
     private func updateAccessibilityElements() {
+        // レイアウト未確定の場合は座標計算ができないため、VoiceOver 要素を一旦クリアする
+        guard tileSize > 0 else {
+            accessibilityElementsCache = []
+            return
+        }
+
         var elements: [UIAccessibilityElement] = []
-        for y in 0..<Board.size {
-            for x in 0..<Board.size {
+        for y in 0..<board.size {
+            for x in 0..<board.size {
                 let point = GridPoint(x: x, y: y)
                 let element = TileAccessibilityElement(point: point, owner: self)
                 // シーン内でのフレームを設定し、フォーカス位置を合わせる
@@ -637,7 +710,7 @@ public final class GameScene: SKScene {
                     height: tileSize
                 )
                 // 状態に応じた読み上げ内容を生成
-                if point == knightPosition {
+                if let knightPosition, point == knightPosition {
                     let visitedText = board.isVisited(point) ? "踏破済み" : "未踏破"
                     element.accessibilityLabel = "駒あり " + visitedText
                 } else {

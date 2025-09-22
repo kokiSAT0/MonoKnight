@@ -44,14 +44,19 @@ public struct BoardTapPlayRequest: Identifiable, Equatable {
 /// - 盤面操作・手札管理・ペナルティ処理・スコア計算を担当する
 
 public final class GameCore: ObservableObject {
+    /// 現在適用中のゲームモード
+    public let mode: GameMode
     /// 手札枚数を統一的に扱うための定数（今回は 5 枚で固定）
-    private let handSize: Int = 5
+    private let handSize: Int
     /// 先読み表示に用いるカード枚数（NEXT 表示は 3 枚先まで）
-    private let nextPreviewCount: Int = 3
+    private let nextPreviewCount: Int
     /// 盤面情報
-    @Published public private(set) var board = Board()
+    @Published public private(set) var board = Board(
+        size: GameMode.standard.boardSize,
+        initialVisitedPoints: GameMode.standard.initialVisitedPoints
+    )
     /// 駒の現在位置
-    @Published public private(set) var current = GridPoint.center
+    @Published public private(set) var current: GridPoint? = GameMode.standard.initialSpawnPoint
     /// 手札（常に 5 枚保持）。UI での識別用に `DealtCard` へラップする
     @Published public private(set) var hand: [DealtCard] = []
     /// 次に引かれるカード群（先読み 3 枚分を保持）
@@ -73,6 +78,8 @@ public final class GameCore: ObservableObject {
     /// クリアまでに要した経過秒数
     /// - Note: クリア確定時に計測し、リセット時に 0 へ戻す
     @Published public private(set) var elapsedSeconds: Int = 0
+    /// 直近で加算されたペナルティ手数
+    @Published public private(set) var lastPenaltyAmount: Int = 0
 
     /// 合計手数（移動 + ペナルティ）の計算プロパティ
     /// - Note: 将来的に別レギュレーションで利用する可能性があるため個別に保持
@@ -86,42 +93,36 @@ public final class GameCore: ObservableObject {
     public var remainingTiles: Int { board.remainingCount }
 
     /// 山札管理（`Deck.swift` に定義された重み付き無限山札を使用）
-    private var deck = Deck()
+    private var deck = Deck(configuration: .standard)
     /// プレイ開始時刻（リセットのたびに現在時刻へ更新）
     private var startDate = Date()
     /// クリア確定時刻（未クリアの場合は nil のまま保持）
     private var endDate: Date?
 
-    /// 初期化時に手札と次カードを用意
-
-    public init() {
-        // 定数 handSize を用いて初期手札を引き切る
-        hand = deck.draw(count: handSize)
-        nextCards = deck.draw(count: nextPreviewCount)
-        replenishNextPreview()
-        // 初回プレイ用に計測タイマーを初期化
-        resetTimer()
-        // 初期状態で手詰まりの場合をケア
-        checkDeadlockAndApplyPenaltyIfNeeded()
-        // 初期状態の残り踏破数を読み上げ
-        announceRemainingTiles()
-        // デバッグ: 初期盤面を表示して状態を確認
-#if DEBUG
-        // デバッグ目的でのみ盤面を出力する
-        board.debugDump(current: current)
-#endif
+    /// 初期化時にモードを指定して各種状態を構築する
+    /// - Parameter mode: 適用したいゲームモード（省略時はスタンダード）
+    public init(mode: GameMode = .standard) {
+        self.mode = mode
+        handSize = mode.handSize
+        nextPreviewCount = mode.nextPreviewCount
+        board = Board(size: mode.boardSize, initialVisitedPoints: mode.initialVisitedPoints)
+        current = mode.initialSpawnPoint
+        deck = Deck(configuration: mode.deckConfiguration)
+        progress = mode.requiresSpawnSelection ? .awaitingSpawn : .playing
+        // 実際の山札と手札の構成は共通処理に集約
+        configureForNewSession(regenerateDeck: false)
     }
 
     /// 指定インデックスのカードで駒を移動させる
     /// - Parameter index: 手札配列の位置（0〜4）
 
     public func playCard(at index: Int) {
-        // クリア済みや手詰まり中は操作不可
-        guard progress == .playing else { return }
+        // スポーン待ちやクリア済み・ペナルティ中は操作不可
+        guard progress == .playing, let currentPosition = current else { return }
         // インデックスが範囲内か確認（0〜4 の範囲を想定）
         guard hand.indices.contains(index) else { return }
         let card = hand[index]
-        let target = current.offset(dx: card.move.dx, dy: card.move.dy)
+        let target = currentPosition.offset(dx: card.move.dx, dy: card.move.dy)
         // UI 側で無効カードを弾く想定だが、念のため安全確認
         guard board.contains(target) else { return }
 
@@ -129,12 +130,20 @@ public final class GameCore: ObservableObject {
         boardTapPlayRequest = nil
 
         // デバッグログ: 使用カードと移動先を出力
-        debugLog("カード \(card.move) を使用し \(current) -> \(target) へ移動")
+        debugLog("カード \(card.move) を使用し \(currentPosition) -> \(target) へ移動")
+
+        let revisiting = board.isVisited(target)
 
         // 移動処理
         current = target
         board.markVisited(target)
         moveCount += 1
+
+        // 既踏マスへの再訪ペナルティを加算
+        if revisiting && mode.revisitPenaltyCost > 0 {
+            penaltyCount += mode.revisitPenaltyCost
+            debugLog("既踏マス再訪ペナルティ: +\(mode.revisitPenaltyCost)")
+        }
 
         // 盤面更新に合わせて残り踏破数を読み上げ
         announceRemainingTiles()
@@ -205,12 +214,21 @@ public final class GameCore: ObservableObject {
         }
 
         /// VoiceOver で読み上げる案内文を用意
-        var voiceOverMessage: String {
+        /// - Parameter penalty: 加算された手数（0 の場合は増加無し）
+        func voiceOverMessage(penalty: Int) -> String {
             switch self {
             case .automatic:
-                return "手詰まりのため手札を引き直しました。手数が5増加します。"
+                if penalty > 0 {
+                    return "手詰まりのため手札を引き直しました。手数が\(penalty)増加します。"
+                } else {
+                    return "手詰まりのためペナルティなしで手札を引き直しました。"
+                }
             case .manual:
-                return "ペナルティを使用して手札を引き直しました。手数が5増加します。"
+                if penalty > 0 {
+                    return "ペナルティを使用して手札を引き直しました。手数が\(penalty)増加します。"
+                } else {
+                    return "ペナルティを使用して手札を引き直しました。手数の増加はありません。"
+                }
             case .automaticFreeRedraw:
                 return "手詰まりが続いたためペナルティなしで手札を引き直しました。"
             }
@@ -221,13 +239,17 @@ public final class GameCore: ObservableObject {
     /// - Note: 既にゲームが終了している場合や、ペナルティ中は何もしない
     public func applyManualPenaltyRedraw() {
         // クリア済み・ペナルティ処理中は無視し、進行中のみ受け付ける
-        guard progress == .playing else { return }
+        guard progress == .playing || progress == .awaitingSpawn else { return }
 
         // デバッグログ: ユーザー操作による引き直しを記録
         debugLog("ユーザー操作でペナルティ引き直しを実行")
 
         // 共通処理を用いて手札を入れ替える
-        applyPenaltyRedraw(trigger: .manual, shouldAddPenalty: true)
+        applyPenaltyRedraw(
+            trigger: .manual,
+            penaltyAmount: mode.manualRedrawPenaltyCost,
+            shouldAddPenalty: true
+        )
 
         // 引き直し後も盤外カードしか無いケースをケア
         checkDeadlockAndApplyPenaltyIfNeeded(hasAlreadyPaidPenalty: true)
@@ -235,6 +257,9 @@ public final class GameCore: ObservableObject {
 
     /// 手札がすべて盤外となる場合にペナルティを課し、手札を引き直す
     private func checkDeadlockAndApplyPenaltyIfNeeded(hasAlreadyPaidPenalty: Bool = false) {
+        // スポーン待機中は判定不要
+        guard progress != .awaitingSpawn, let current = current else { return }
+
         let allUnusable = hand.allSatisfy { card in
             let dest = current.offset(dx: card.move.dx, dy: card.move.dy)
             return !board.contains(dest)
@@ -246,13 +271,17 @@ public final class GameCore: ObservableObject {
             debugLog("手詰まりが継続したため追加ペナルティ無しで自動引き直しを実施")
 
             // 共通処理を呼び出して手札・先読みを更新（追加ペナルティ無し）
-            applyPenaltyRedraw(trigger: .automaticFreeRedraw, shouldAddPenalty: false)
+            applyPenaltyRedraw(trigger: .automaticFreeRedraw, penaltyAmount: 0, shouldAddPenalty: false)
         } else {
             // デバッグログ: 手札詰まりの発生を通知
             debugLog("手札が全て使用不可のためペナルティを適用")
 
             // 共通処理を呼び出して手札・先読みを更新
-            applyPenaltyRedraw(trigger: .automatic, shouldAddPenalty: true)
+            applyPenaltyRedraw(
+                trigger: .automatic,
+                penaltyAmount: mode.deadlockPenaltyCost,
+                shouldAddPenalty: true
+            )
         }
 
         // 引き直し後も詰みの場合があるので再チェック（以降はペナルティ支払い済み扱い）
@@ -262,17 +291,19 @@ public final class GameCore: ObservableObject {
     /// ペナルティ適用に伴う手札再構成・通知処理を一箇所へ集約する
     /// - Parameter trigger: 自動検出か手動操作かを識別するフラグ
     /// - Parameter shouldAddPenalty: 追加ペナルティを課す必要があるかどうか
-    private func applyPenaltyRedraw(trigger: PenaltyTrigger, shouldAddPenalty: Bool) {
+    private func applyPenaltyRedraw(trigger: PenaltyTrigger, penaltyAmount: Int, shouldAddPenalty: Bool) {
         // ペナルティ処理中は .deadlock 状態として UI 側の入力を抑制する
         progress = .deadlock
 
         // 手札が一新されるため、盤面タップからの保留リクエストも破棄して整合性を保つ
         boardTapPlayRequest = nil
 
-        // ペナルティ加算 (+5 手数)。追加ペナルティが不要な場合はカウントを維持
-        if shouldAddPenalty {
-            penaltyCount += 5
+        // ペナルティ加算。追加ペナルティが不要な場合や加算量 0 の場合はカウント維持
+        if shouldAddPenalty && penaltyAmount > 0 {
+            penaltyCount += penaltyAmount
+            debugLog("ペナルティ加算: +\(penaltyAmount)")
         }
+        lastPenaltyAmount = shouldAddPenalty ? penaltyAmount : 0
 
         // 現在の手札・先読みカードはそのまま破棄し、新しいカードを引き直す
         hand = deck.draw(count: handSize)
@@ -284,7 +315,8 @@ public final class GameCore: ObservableObject {
 
 #if canImport(UIKit)
         // VoiceOver 利用者向けにペナルティ内容をアナウンス
-        UIAccessibility.post(notification: .announcement, argument: trigger.voiceOverMessage)
+        let announcedPenalty = shouldAddPenalty ? penaltyAmount : 0
+        UIAccessibility.post(notification: .announcement, argument: trigger.voiceOverMessage(penalty: announcedPenalty))
 #endif
 
         // デバッグログ: 引き直し後の状態を詳細に記録
@@ -297,52 +329,58 @@ public final class GameCore: ObservableObject {
         board.debugDump(current: current)
 #endif
 
-        // 手札更新が完了したら再びプレイ状態へ戻す
-        progress = .playing
+        // 手札更新が完了したら適切な進行状態へ戻す
+        if mode.requiresSpawnSelection && current == nil {
+            progress = .awaitingSpawn
+        } else {
+            progress = .playing
+        }
     }
 
     /// ゲームを最初からやり直す
     /// - Parameter startNewGame: `true` の場合は乱数シードも新規採番して完全に新しいゲームを開始する。
     ///                           `false` の場合は同じシードを用いて同一展開を再現する。
     public func reset(startNewGame: Bool = true) {
-        board = Board()
-        current = .center
+        configureForNewSession(regenerateDeck: startNewGame)
+    }
+
+    /// 指定モードに応じた初期状態を再構築する
+    /// - Parameter regenerateDeck: `true` の場合は新しいシードで山札を生成する
+    private func configureForNewSession(regenerateDeck: Bool) {
+        if regenerateDeck {
+            deck = Deck(configuration: mode.deckConfiguration)
+        } else {
+            deck.reset()
+        }
+
+        board = Board(size: mode.boardSize, initialVisitedPoints: mode.initialVisitedPoints)
+        current = mode.initialSpawnPoint
         moveCount = 0
         penaltyCount = 0
         elapsedSeconds = 0
-        progress = .playing
+        lastPenaltyAmount = 0
         penaltyEventID = nil
         boardTapPlayRequest = nil
         endDate = nil
-        if startNewGame {
-            // リセット時にゲーム展開が固定化されないよう、山札そのものを作り直してシードを更新する
-            deck = Deck()
-        } else {
-            // 同じ展開をもう一度確認したいケースに備え、既存シードを使ったリセットも選べるようにする
-            deck.reset()
-        }
-        // リセット時も handSize を用いて手札を補充
+        progress = mode.requiresSpawnSelection ? .awaitingSpawn : .playing
+
         hand = deck.draw(count: handSize)
         nextCards = deck.draw(count: nextPreviewCount)
         replenishNextPreview()
-        // 新しいプレイの所要時間計測を開始
-        resetTimer()
-        checkDeadlockAndApplyPenaltyIfNeeded()
-        // リセット後の残り踏破数を読み上げ
-        announceRemainingTiles()
 
-        // デバッグログ: リセット後の状態を表示
-        let nextText: String
-        if nextCards.isEmpty {
-            nextText = "なし"
+        resetTimer()
+
+        if !mode.requiresSpawnSelection {
+            checkDeadlockAndApplyPenaltyIfNeeded()
+            announceRemainingTiles()
         } else {
-            nextText = nextCards.map { "\($0.move)" }.joined(separator: ", ")
+            debugLog("スポーン位置選択待ち: 盤面サイズ=\(mode.boardSize)")
         }
+
+        let nextText = nextCards.isEmpty ? "なし" : nextCards.map { "\($0.move)" }.joined(separator: ", ")
         let handMoves = hand.map { "\($0.move)" }.joined(separator: ", ")
         debugLog("ゲームをリセット: 手札 [\(handMoves)], 次カード \(nextText)")
-        // デバッグ: リセット直後の盤面を表示
 #if DEBUG
-        // デバッグ目的でのみ盤面を出力する
         board.debugDump(current: current)
 #endif
     }
@@ -396,8 +434,14 @@ extension GameCore: GameCoreProtocol {
     /// 盤面上のマスがタップされた際に呼び出される
     /// - Parameter point: タップされたマスの座標
     public func handleTap(at point: GridPoint) {
+        if progress == .awaitingSpawn {
+            // スポーン位置選択中はカード判定ではなく初期位置を確定する
+            handleSpawnSelection(at: point)
+            return
+        }
+
         // ゲーム進行中でなければ入力を無視
-        guard progress == .playing else { return }
+        guard progress == .playing, let current = current else { return }
 
         // デバッグログ: タップされたマスを表示
         debugLog("マス \(point) をタップ")
@@ -416,30 +460,53 @@ extension GameCore: GameCoreProtocol {
 }
 #endif
 
+private extension GameCore {
+    /// スポーン位置選択時の処理
+    /// - Parameter point: プレイヤーが選んだ座標
+    func handleSpawnSelection(at point: GridPoint) {
+        guard mode.requiresSpawnSelection, progress == .awaitingSpawn else { return }
+        guard board.contains(point) else { return }
+
+        debugLog("スポーン位置を \(point) に確定")
+        current = point
+        board.markVisited(point)
+        progress = .playing
+        announceRemainingTiles()
+        checkDeadlockAndApplyPenaltyIfNeeded()
+    }
+}
+
 #if DEBUG
 /// テスト専用のユーティリティ拡張
 extension GameCore {
     /// 任意のデッキと現在位置を指定して GameCore を生成する
     /// - Parameters:
     ///   - deck: テスト用に並び順を制御した山札
-    ///   - current: 駒の初期位置（省略時は中央）
-    static func makeTestInstance(deck: Deck, current: GridPoint = .center) -> GameCore {
-        let core = GameCore()
-        // デッキと各種状態を初期化し直す
+    ///   - current: 駒の初期位置（モードが固定スポーンの場合はその座標を指定）
+    ///   - mode: 検証対象のゲームモード
+    static func makeTestInstance(deck: Deck, current: GridPoint? = nil, mode: GameMode = .standard) -> GameCore {
+        let core = GameCore(mode: mode)
         core.deck = deck
-        core.board = Board()
-        core.current = current
+        core.deck.reset()
+
+        let resolvedCurrent = current ?? mode.initialSpawnPoint
+        if let resolvedCurrent {
+            core.board = Board(size: mode.boardSize, initialVisitedPoints: [resolvedCurrent])
+        } else {
+            core.board = Board(size: mode.boardSize)
+        }
+        core.current = resolvedCurrent
         core.moveCount = 0
         core.penaltyCount = 0
-        core.progress = .playing
-        // 手札と先読みカードを指定デッキから取得
-        // テストでも handSize 分の手札を確実に引き直す
+        core.progress = (resolvedCurrent == nil && mode.requiresSpawnSelection) ? .awaitingSpawn : .playing
+
         core.hand = core.deck.draw(count: core.handSize)
         core.nextCards = core.deck.draw(count: core.nextPreviewCount)
         core.replenishNextPreview()
-        // 初期状態での手詰まりをチェック
-        core.checkDeadlockAndApplyPenaltyIfNeeded()
-        // テスト用インスタンスでも計測タイマーをリセット
+
+        if core.progress == .playing {
+            core.checkDeadlockAndApplyPenaltyIfNeeded()
+        }
         core.resetTimer()
         return core
     }
@@ -459,6 +526,12 @@ extension GameCore {
     /// - Parameter finishDate: 想定する終了時刻
     func finalizeElapsedTimeForTesting(finishDate: Date) {
         finalizeElapsedTimeIfNeeded(referenceDate: finishDate)
+    }
+
+    /// スポーン選択をテストから直接実行するためのヘルパー
+    /// - Parameter point: 選択したいスポーン座標
+    func simulateSpawnSelection(forTesting point: GridPoint) {
+        handleSpawnSelection(at: point)
     }
 }
 #endif

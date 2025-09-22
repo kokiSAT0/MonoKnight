@@ -72,6 +72,19 @@ final class DeckTests: XCTestCase {
         XCTAssertTrue(kingMoves.isSubset(of: allCasesSet))
     }
 
+    /// クラシカルチャレンジ設定では桂馬カードのみが配られるか検証する
+    func testClassicalChallengeDeckDrawsOnlyKnightMoves() {
+        var deck = Deck(seed: 2024, configuration: .classicalChallenge)
+        let sampleCount = 200
+        for _ in 0..<sampleCount {
+            guard let card = deck.draw()?.move else {
+                XCTFail("クラシカルチャレンジのデッキで nil が返却されました")
+                return
+            }
+            XCTAssertTrue(card.isKnightType, "桂馬以外のカードが出現: \(card)")
+        }
+    }
+
     /// makeTestDeck で指定した配列が優先的に返され、reset() で再利用できるか確認
     func testMakeTestDeckUsesPresetSequence() {
         let preset: [MoveCard] = [

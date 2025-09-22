@@ -39,8 +39,13 @@ final class GameCoreTests: XCTestCase {
         // 引き直し後の手札枚数が 5 枚確保されているか
         XCTAssertEqual(core.hand.count, 5, "引き直し後の手札枚数が 5 枚ではない")
         // 引き直し後の手札に使用可能なカードが少なくとも 1 枚あるか
-        let playableExists = core.hand.contains { $0.move.canUse(from: core.current) }
-        XCTAssertTrue(playableExists, "引き直し後の手札に利用可能なカードが存在しない")
+        if let current = core.current {
+            let boardSize = core.mode.boardSize
+            let playableExists = core.hand.contains { $0.move.canUse(from: current, boardSize: boardSize) }
+            XCTAssertTrue(playableExists, "引き直し後の手札に利用可能なカードが存在しない")
+        } else {
+            XCTFail("現在地が nil のままです")
+        }
         // 先読みカードが 3 枚揃っているか（NEXT 表示用）
         XCTAssertEqual(core.nextCards.count, 3, "引き直し後の先読みカードが 3 枚補充されていない")
     }
@@ -90,8 +95,13 @@ final class GameCoreTests: XCTestCase {
         // 連続手詰まり処理後もプレイ継続できるか
         XCTAssertEqual(core.progress, .playing, "連続手詰まり処理後に playing 状態へ戻っていない")
         // 最終的な手札 5 枚の中に使用可能なカードがあるか
-        let playableExists = core.hand.contains { $0.move.canUse(from: core.current) }
-        XCTAssertTrue(playableExists, "連続手詰まり後の手札に使用可能なカードが存在しない")
+        if let current = core.current {
+            let boardSize = core.mode.boardSize
+            let playableExists = core.hand.contains { $0.move.canUse(from: current, boardSize: boardSize) }
+            XCTAssertTrue(playableExists, "連続手詰まり後の手札に使用可能なカードが存在しない")
+        } else {
+            XCTFail("現在地が nil のままです")
+        }
     }
 
     /// reset() が初期状態に戻すかを確認
@@ -122,7 +132,8 @@ final class GameCoreTests: XCTestCase {
         let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 0, y: 0))
 
         // 手札の中から使用可能なカードを 1 枚選び、実際に移動させる
-        if let index = core.hand.firstIndex(where: { $0.move.canUse(from: core.current) }) {
+        if let current = core.current,
+           let index = core.hand.firstIndex(where: { $0.move.canUse(from: current, boardSize: core.mode.boardSize) }) {
             core.playCard(at: index)
         }
         // 移動が記録されているか確認
@@ -130,7 +141,8 @@ final class GameCoreTests: XCTestCase {
 
         // reset() を実行し、全ての状態が初期化されるか検証
         core.reset()
-        XCTAssertEqual(core.current, .center, "駒の位置が初期化されていない")
+        let centerPoint = GridPoint.center(of: core.mode.boardSize)
+        XCTAssertEqual(core.current, centerPoint, "駒の位置が初期化されていない")
         XCTAssertEqual(core.moveCount, 0, "移動カウントがリセットされていない")
         XCTAssertEqual(core.penaltyCount, 0, "ペナルティカウントがリセットされていない")
         XCTAssertEqual(core.elapsedSeconds, 0, "所要時間がリセットされていない")
@@ -138,7 +150,7 @@ final class GameCoreTests: XCTestCase {
         XCTAssertEqual(core.hand.count, 5, "手札枚数が初期値と異なる")
         XCTAssertEqual(core.nextCards.count, 3, "先読みカードが 3 枚確保されていない")
         // 盤面の踏破状態も初期化されているか
-        XCTAssertTrue(core.board.isVisited(.center), "盤面中央が踏破済みになっていない")
+        XCTAssertTrue(core.board.isVisited(centerPoint), "盤面中央が踏破済みになっていない")
         XCTAssertFalse(core.board.isVisited(GridPoint(x: 0, y: 0)), "開始位置が踏破済みのままになっている")
     }
 
@@ -178,6 +190,100 @@ final class GameCoreTests: XCTestCase {
 
         XCTAssertEqual(core.hand.map { $0.move }, initialHand, "同一シードでのリセット時は手札構成が一致するべき")
         XCTAssertEqual(core.nextCards.map { $0.move }, initialNext, "同一シードでのリセット時は先読み構成が一致するべき")
+    }
+
+    /// クラシカルチャレンジでスポーン選択が必須になるか検証
+    func testClassicalModeRequiresSpawnSelection() {
+        let deck = Deck.makeTestDeck(
+            cards: [
+                .knightUp2Right1,
+                .knightDown2Left1,
+                .knightUp1Right2,
+                .knightUp1Left2,
+                .knightDown1Right2,
+                .knightUp2Left1,
+                .knightDown2Right1,
+                .knightDown1Left2
+            ],
+            configuration: .classicalChallenge
+        )
+        let core = GameCore.makeTestInstance(deck: deck, current: nil, mode: .classicalChallenge)
+
+        XCTAssertNil(core.current, "クラシカルチャレンジでは初期位置が未決定のはず")
+        XCTAssertEqual(core.progress, .awaitingSpawn)
+
+        let spawnPoint = GridPoint(x: 3, y: 3)
+        core.simulateSpawnSelection(forTesting: spawnPoint)
+
+        XCTAssertEqual(core.current, spawnPoint)
+        XCTAssertTrue(core.board.isVisited(spawnPoint))
+        XCTAssertEqual(core.progress, .playing)
+    }
+
+    /// クラシカルチャレンジで既踏マスへ戻った際にペナルティが加算されるか検証
+    func testRevisitPenaltyAppliedInClassicalMode() {
+        let deck = Deck.makeTestDeck(
+            cards: [
+                .knightUp2Right1,
+                .knightDown2Left1,
+                .knightUp1Right2,
+                .knightUp1Left2,
+                .knightDown1Right2,
+                .knightUp2Left1,
+                .knightDown2Right1,
+                .knightDown1Left2,
+                .knightUp1Right2,
+                .knightDown1Left2
+            ],
+            configuration: .classicalChallenge
+        )
+        let core = GameCore.makeTestInstance(deck: deck, current: nil, mode: .classicalChallenge)
+        let spawnPoint = GridPoint(x: 2, y: 2)
+        core.simulateSpawnSelection(forTesting: spawnPoint)
+
+        XCTAssertEqual(core.penaltyCount, 0)
+
+        guard let firstMoveIndex = core.hand.firstIndex(where: { $0.move == .knightUp2Right1 }) else {
+            XCTFail("想定していた移動カードが手札に存在しません")
+            return
+        }
+        core.playCard(at: firstMoveIndex)
+        XCTAssertEqual(core.penaltyCount, 0)
+
+        guard let returnIndex = core.hand.firstIndex(where: { $0.move == .knightDown2Left1 }) else {
+            XCTFail("戻り用のカードが手札から見つかりません")
+            return
+        }
+        core.playCard(at: returnIndex)
+
+        XCTAssertEqual(core.penaltyCount, core.mode.revisitPenaltyCost, "既踏マスへの再訪ペナルティが適用されていない")
+    }
+
+    /// クラシカルチャレンジの手動引き直しでモード固有のペナルティ量が適用されるか検証
+    func testManualPenaltyUsesModeCost() {
+        let deck = Deck.makeTestDeck(
+            cards: [
+                .knightUp2Right1,
+                .knightDown2Left1,
+                .knightUp1Right2,
+                .knightUp1Left2,
+                .knightDown1Right2,
+                .knightUp2Left1,
+                .knightDown2Right1,
+                .knightDown1Left2,
+                .knightUp1Right2,
+                .knightDown1Left2
+            ],
+            configuration: .classicalChallenge
+        )
+        let core = GameCore.makeTestInstance(deck: deck, current: nil, mode: .classicalChallenge)
+        core.simulateSpawnSelection(forTesting: GridPoint(x: 1, y: 1))
+
+        XCTAssertEqual(core.penaltyCount, 0)
+        core.applyManualPenaltyRedraw()
+        XCTAssertEqual(core.penaltyCount, core.mode.manualRedrawPenaltyCost)
+        XCTAssertEqual(core.lastPenaltyAmount, core.mode.manualRedrawPenaltyCost)
+        XCTAssertEqual(core.progress, .playing)
     }
 
     /// スコア計算が「手数×10 + 経過秒数」で行われることを確認
