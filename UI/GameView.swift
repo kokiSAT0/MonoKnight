@@ -114,12 +114,18 @@ struct GameView: View {
 
     var body: some View {
         GeometryReader { geometry in
-            // MARK: - セーフエリア（特に iPad のホームインジケータ）を加味する
-            // iPad ではホームインジケータ領域が大きいため、盤面や手札の高さ計算から
-            // 安全領域ぶんを差し引いておかないと下端が見切れてしまう。
-            // GeometryProxy から取得できる safeAreaInsets.bottom をキャッシュしておき、
-            // 盤面サイズの決定や手札の余白調整に活用する。
-            let bottomInset = geometry.safeAreaInsets.bottom
+            // MARK: - セーフエリア（特に iPad のステータスバー/ホームインジケータ）を加味する
+            // まれに GeometryReader から得られる safeAreaInsets が 0 になるデバイス構成があり、
+            // その場合は iPad でダイアログや手札が画面端に密着してしまう。
+            // まずは生のインセット値を取得し、0 のときだけレギュラー幅向けのフォールバックを適用する。
+            let rawTopInset = geometry.safeAreaInsets.top
+            let rawBottomInset = geometry.safeAreaInsets.bottom
+            let topInset = rawTopInset > 0
+                ? rawTopInset
+                : (horizontalSizeClass == .regular ? LayoutMetrics.regularWidthTopSafeAreaFallback : 0)
+            let bottomInset = rawBottomInset > 0
+                ? rawBottomInset
+                : (horizontalSizeClass == .regular ? LayoutMetrics.regularWidthBottomSafeAreaFallback : 0)
             // MARK: - 手札セクションに適用する下余白を算出
             // レギュラー幅（iPad）では basePadding だけでは足りず、ホームインジケータとの間隔を広げたい。
             // bottomInset と追加マージンを合算し、iPhone では従来の 16pt を維持しつつ
@@ -164,10 +170,10 @@ struct GameView: View {
                     )
                 }
                 // MARK: - 手詰まりペナルティ通知バナー
-                penaltyBannerOverlay
+                penaltyBannerOverlay(topInset: topInset)
 
                 // MARK: - 右上のメニューボタンとデバッグ向けショートカット
-                topRightOverlay
+                topRightOverlay(topInset: topInset)
             }
             // 画面全体の背景もテーマで制御し、システム設定と調和させる
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -634,8 +640,18 @@ struct GameView: View {
     }
 
     /// 手詰まりペナルティを知らせるバナーのレイヤーを構成
-    private var penaltyBannerOverlay: some View {
-        VStack {
+    private func penaltyBannerOverlay(topInset: CGFloat) -> some View {
+        // MARK: - ステータスバーとの距離を安全に確保する
+        // iPad のフォームシートなどで safeAreaInsets.top が 0 になるケースでは、
+        // バナーが画面最上部へ貼り付いてしまうため、フォールバックを交えつつ余白を広げる。
+        // topInset が 0 でも LayoutMetrics.penaltyBannerBaseTopPadding だけは必ず確保し、
+        // 非ゼロのインセットが得られた場合は追加マージンを加えて矢印付きダイアログとの干渉を避ける。
+        let resolvedTopPadding = max(
+            LayoutMetrics.penaltyBannerBaseTopPadding,
+            topInset + LayoutMetrics.penaltyBannerSafeAreaAdditionalPadding
+        )
+
+        return VStack {
             if isShowingPenaltyBanner {
                 HStack {
                     Spacer(minLength: 0)
@@ -649,7 +665,7 @@ struct GameView: View {
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(.top, 12)
+        .padding(.top, resolvedTopPadding)
         .allowsHitTesting(false)  // バナーが表示されていても下の UI を操作可能にする
         .zIndex(2)
     }
@@ -1009,7 +1025,16 @@ private extension GameView {
     /// 右上のメニューとショートカットボタンをまとめて返す
     /// - Returns: HStack で横並びにしたコントロール群
     @ViewBuilder
-    private var topRightOverlay: some View {
+    private func topRightOverlay(topInset: CGFloat) -> some View {
+        // MARK: - メニューの基準高さを決定
+        // iPad のレギュラー幅で safeAreaInsets.top が 0 になった場合でも、
+        // メニューボタンが画面端に張り付かないようフォールバックを追加する。
+        // 既存の 16pt（menuOverlayBaseTopPadding）とステータスバー由来の余白を比較し、大きい方を採用して安定した配置にする。
+        let resolvedTopPadding = max(
+            LayoutMetrics.menuOverlayBaseTopPadding,
+            topInset + LayoutMetrics.menuOverlaySafeAreaAdditionalPadding
+        )
+
         HStack(spacing: 12) {
             // MARK: - 手札引き直しを素早く行うためのミニボタン
             manualPenaltyButton
@@ -1018,7 +1043,7 @@ private extension GameView {
             menuButton
         }
         .padding(.trailing, 16)
-        .padding(.top, 16)
+        .padding(.top, resolvedTopPadding)
         // ペナルティバナーよりも手前に配置してタップできるようにする
         .zIndex(3)
     }
@@ -1354,6 +1379,18 @@ private enum LayoutMetrics {
     static let handSectionSafeAreaAdditionalPadding: CGFloat = 8
     /// レギュラー幅（主に iPad）で追加する下方向マージン。指の位置とタブバーが干渉しないよう余裕を持たせる
     static let handSectionRegularAdditionalBottomPadding: CGFloat = 24
+    /// メニューボタンを配置する際に最低限確保したい上方向マージン
+    static let menuOverlayBaseTopPadding: CGFloat = 16
+    /// ステータスバーの高さに対して余裕を持たせるための追加上マージン
+    static let menuOverlaySafeAreaAdditionalPadding: CGFloat = 8
+    /// ペナルティバナーが画面端に貼り付かないようにするための基準上パディング
+    static let penaltyBannerBaseTopPadding: CGFloat = 12
+    /// safeAreaInsets.top に加算しておきたいペナルティバナーの追加上マージン
+    static let penaltyBannerSafeAreaAdditionalPadding: CGFloat = 6
+    /// レギュラー幅端末で safeAreaInsets.top が 0 の場合に用いるフォールバック値
+    static let regularWidthTopSafeAreaFallback: CGFloat = 24
+    /// レギュラー幅端末で safeAreaInsets.bottom が 0 の場合に用いるフォールバック値
+    static let regularWidthBottomSafeAreaFallback: CGFloat = 20
 }
 
 /// 統計バッジ領域の高さを親ビューへ伝搬するための PreferenceKey
