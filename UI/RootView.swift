@@ -73,71 +73,22 @@ struct RootView: View {
                 horizontalSizeClass: horizontalSizeClass
             )
 
-            ZStack {
-                // MARK: - アプリ全体の背景色を一括で適用
-                theme.backgroundPrimary
-                    .ignoresSafeArea()
-
-                ZStack {
-                    // MARK: - メインのゲーム画面
-                    if !isShowingTitleScreen {
-                        GameView(
-                            mode: activeMode,
-                            gameCenterService: gameCenterService,
-                            adsService: adsService,
-                            onRequestReturnToTitle: {
-                                handleReturnToTitleRequest()
-                            }
-                        )
-                        .id(gameSessionID)
-                        // トップバーの高さを Environment 経由で伝搬し、GameView 側で safe area 調整に利用する
-                        .environment(\.topOverlayHeight, topBarHeight)
-                        // GeometryReader で得た純粋なセーフエリア量も共有し、GameView が差分からオーバーレイ分を推定できるようにする
-                        .environment(\.baseTopSafeAreaInset, layoutContext.safeAreaTop)
-                        // タイトル解除直後やローディング中は盤面を非表示にし、描画途中のチラつきを防ぐ
-                        .opacity(isPreparingGame ? 0 : 1)
-                        // ローディングが完了するまではユーザー操作を受け付けないようにする
-                        .allowsHitTesting(!isPreparingGame)
-                    }
-
-                    // MARK: - ローディングオーバーレイ
-                    if isPreparingGame {
-                        GamePreparationOverlayView()
-                            .transition(.opacity)
-                    }
-
-                    // MARK: - タイトル画面のオーバーレイ
-                    if isShowingTitleScreen {
-                        TitleScreenView(
-                            selectedMode: $selectedModeForTitle,
-                            onStart: { mode in
-                                startGamePreparation(for: mode)
-                            },
-                            onOpenSettings: {
-                                // 広告・プライバシーなどの詳細項目はタイトル画面のギアアイコンからまとめて案内する
-                                isPresentingTitleSettings = true
-                            }
-                        )
-                        .transition(.opacity.combined(with: .move(edge: .top)))
-                    }
-                }
-                .animation(.easeInOut(duration: 0.25), value: isShowingTitleScreen)
-                .animation(.easeInOut(duration: 0.25), value: isPreparingGame)
-            }
+            // MARK: - 切り出したメインビュー構築メソッドを呼び出し、共通モディファイアを一括適用する
+            makeMainContent(layoutContext: layoutContext)
             // `GeometryReader` 内でも最大サイズを指定し、端末全体を覆う
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             // MARK: - トップステータスバーを safeAreaInset で挿入し、iPhone/iPad 双方で安定させる
-            .safeAreaInset(edge: .top, spacing: 0) {
-                topStatusInset(context: layoutContext)
-            }
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    topStatusInset(context: layoutContext)
+                }
             // MARK: - レイアウト計測用の不可視オーバーレイを重ね、異常値をログで把握できるようにする
-            .background(layoutDiagnosticOverlay(context: layoutContext))
+                .background(layoutDiagnosticOverlay(context: layoutContext))
             // 初期表示時のレイアウト値をログに残し、ステータスバー高さなどの基準値を把握する
-            .onAppear {
-                debugLog(
-                    "RootView.onAppear: size=\(layoutContext.geometrySize), safeArea(top=\(layoutContext.safeAreaTop), bottom=\(layoutContext.safeAreaBottom)), horizontalSizeClass=\(String(describing: horizontalSizeClass)), authenticated=\(isAuthenticated)"
-                )
-            }
+                .onAppear {
+                    debugLog(
+                        "RootView.onAppear: size=\(layoutContext.geometrySize), safeArea(top=\(layoutContext.safeAreaTop), bottom=\(layoutContext.safeAreaBottom)), horizontalSizeClass=\(String(describing: horizontalSizeClass)), authenticated=\(isAuthenticated)"
+                    )
+                }
         }
         // トップバーの高さが更新された際にログを残し、iPad の分割表示などでの変化を追跡する
         .onPreferenceChange(TopBarHeightPreferenceKey.self) { newHeight in
@@ -193,6 +144,93 @@ struct RootView: View {
 
 // MARK: - レイアウト支援メソッドと定数
 private extension RootView {
+    /// GeometryReader で得たレイアウト情報を元に、背景・ゲーム画面・オーバーレイをまとめて構築する
+    /// - Parameter layoutContext: 現在の画面サイズや safe area を集約したコンテキスト
+    /// - Returns: ルート画面の主要コンテンツ
+    @ViewBuilder
+    private func makeMainContent(layoutContext: RootLayoutContext) -> some View {
+        ZStack {
+            // MARK: - 背景レイヤーを切り出し、コードの見通しを良くする
+            makeBackgroundLayer()
+
+            // MARK: - ゲーム本体とオーバーレイをまとめた前景レイヤー
+            ZStack {
+                makeGameLayer(layoutContext: layoutContext)
+                makeLoadingOverlay()
+                makeTitleOverlay()
+            }
+            // タイトル表示やローディング状態の変化を統一したアニメーションで扱う
+            .animation(.easeInOut(duration: 0.25), value: isShowingTitleScreen)
+            .animation(.easeInOut(duration: 0.25), value: isPreparingGame)
+        }
+    }
+
+    /// テーマに基づいた背景色を返す
+    /// - Returns: Safe area を無視して全面へ広がる背景ビュー
+    @ViewBuilder
+    private func makeBackgroundLayer() -> some View {
+        // 背景処理を関数化することで、将来的なグラデーションやエフェクト拡張に対応しやすくする
+        theme.backgroundPrimary
+            .ignoresSafeArea()
+    }
+
+    /// GameView の生成と環境値の付与を行う
+    /// - Parameter layoutContext: GeometryReader 由来の safe area などを含むコンテキスト
+    /// - Returns: タイトル非表示時に描画されるゲームプレイ画面
+    @ViewBuilder
+    private func makeGameLayer(layoutContext: RootLayoutContext) -> some View {
+        if !isShowingTitleScreen {
+            GameView(
+                mode: activeMode,
+                gameCenterService: gameCenterService,
+                adsService: adsService,
+                onRequestReturnToTitle: {
+                    // GameView からタイトルへの戻り操作を受け取り、状態を初期化する
+                    handleReturnToTitleRequest()
+                }
+            )
+            .id(gameSessionID)
+            // トップバーの高さを Environment 経由で伝搬し、GameView 側で safe area 調整に利用する
+            .environment(\.topOverlayHeight, topBarHeight)
+            // GeometryReader で得た純粋なセーフエリア量も共有し、GameView が差分からオーバーレイ分を推定できるようにする
+            .environment(\.baseTopSafeAreaInset, layoutContext.safeAreaTop)
+            // タイトル解除直後やローディング中は盤面を非表示にし、描画途中のチラつきを防ぐ
+            .opacity(isPreparingGame ? 0 : 1)
+            // ローディングが完了するまではユーザー操作を受け付けないようにする
+            .allowsHitTesting(!isPreparingGame)
+        }
+    }
+
+    /// ゲーム準備中に表示するローディングオーバーレイを返す
+    /// - Returns: ローディング状態でのみ描画されるオーバーレイ
+    @ViewBuilder
+    private func makeLoadingOverlay() -> some View {
+        if isPreparingGame {
+            GamePreparationOverlayView()
+                .transition(.opacity)
+        }
+    }
+
+    /// タイトル画面を構築し、設定表示アクションなどを含めて返す
+    /// - Returns: タイトル表示時に重ねるビュー
+    @ViewBuilder
+    private func makeTitleOverlay() -> some View {
+        if isShowingTitleScreen {
+            TitleScreenView(
+                selectedMode: $selectedModeForTitle,
+                onStart: { mode in
+                    // ゲーム開始ボタン押下を受けて準備フローへ進む
+                    startGamePreparation(for: mode)
+                },
+                onOpenSettings: {
+                    // 広告・プライバシーなどの詳細項目はタイトル画面のギアアイコンからまとめて案内する
+                    isPresentingTitleSettings = true
+                }
+            )
+            .transition(.opacity.combined(with: .move(edge: .top)))
+        }
+    }
+
     /// タイトル画面の開始ボタン押下を受けてゲーム準備を開始する
     /// - Parameter mode: ユーザーが選択したゲームモード
     func startGamePreparation(for mode: GameMode) {
