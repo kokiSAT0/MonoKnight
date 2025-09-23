@@ -724,62 +724,100 @@ fileprivate struct DebugLogConsoleView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(alignment: .leading, spacing: 12) {
-                if !viewModel.isViewerEnabled {
-                    // リリース向けビルドで無効化している場合の案内
-                    Text("このビルドではフロントエンドからのログ閲覧が無効化されています。")
-                        .font(.callout)
-                        .foregroundColor(theme.textSecondary)
-                        .multilineTextAlignment(.leading)
-                } else if viewModel.entries.isEmpty {
-                    // まだログが記録されていない場合のプレースホルダー
-                    Text("現在表示できるログはありません。操作を行うとここに履歴が蓄積されます。")
-                        .font(.callout)
-                        .foregroundColor(theme.textSecondary)
-                        .multilineTextAlignment(.leading)
-                        .padding(.top, 8)
-                } else {
-                    ScrollViewReader { proxy in
-                        ScrollView {
-                            LazyVStack(alignment: .leading, spacing: 12) {
-                                ForEach(viewModel.entries) { entry in
-                                    DebugLogEntryRowView(entry: entry)
-                                        .id(entry.id)
-                                }
-                            }
-                            .padding(.vertical, 8)
-                        }
-                        .onAppear {
-                            // 初回表示時に末尾のログが見えるようスクロールする
-                            scrollToLatestEntryIfNeeded(using: proxy, entries: viewModel.entries, animated: false)
-                        }
-                        .onChange(of: viewModel.entries) { _, entries in
-                            // ログの追加や削除があった際に必要に応じてスクロールを更新する
-                            scrollToLatestEntryIfNeeded(using: proxy, entries: entries, animated: true)
-                        }
-                    }
-                }
+            contentView
+                .navigationTitle("デバッグログ")
+        }
+        .toolbar {
+            toolbarContent
+        }
+    }
 
-                Spacer(minLength: 0)
+    /// ナビゲーションスタック内で実際に描画する主要コンテンツ
+    /// - Returns: ステータスメッセージとログ一覧を含む縦並びレイアウト
+    @ViewBuilder
+    private var contentView: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            statusMessageSection
+
+            if viewModel.isViewerEnabled && !viewModel.entries.isEmpty {
+                logListReaderSection()
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 16)
-            .padding(.bottom, 24)
-            .background(theme.backgroundPrimary.ignoresSafeArea())
-            .navigationTitle("デバッグログ")
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("閉じる") {
-                        dismiss()
-                    }
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("すべて削除") {
-                        viewModel.clearEntries()
-                    }
-                    .disabled(viewModel.entries.isEmpty)
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 16)
+        .padding(.bottom, 24)
+        .background(theme.backgroundPrimary.ignoresSafeArea())
+    }
+
+    /// ビルド設定による閲覧制限やログ未存在の状況を説明するメッセージ群
+    /// - Returns: 条件に応じて表示される案内テキスト。該当しない場合は `EmptyView`
+    @ViewBuilder
+    private var statusMessageSection: some View {
+        if !viewModel.isViewerEnabled {
+            // リリース向けビルドで無効化している場合の案内
+            Text("このビルドではフロントエンドからのログ閲覧が無効化されています。")
+                .font(.callout)
+                .foregroundColor(theme.textSecondary)
+                .multilineTextAlignment(.leading)
+        } else if viewModel.entries.isEmpty {
+            // まだログが記録されていない場合のプレースホルダー
+            Text("現在表示できるログはありません。操作を行うとここに履歴が蓄積されます。")
+                .font(.callout)
+                .foregroundColor(theme.textSecondary)
+                .multilineTextAlignment(.leading)
+                .padding(.top, 8)
+        }
+    }
+
+    /// ログ一覧を自動スクロール対応で表示するためのコンテナ
+    /// - Returns: `ScrollViewReader` を活用したログビュー全体
+    @ViewBuilder
+    private func logListReaderSection() -> some View {
+        ScrollViewReader { proxy in
+            logListSection(proxy: proxy)
+        }
+    }
+
+    /// ログ一覧本体の描画を担当する
+    /// - Parameter proxy: 自動スクロール制御に利用する `ScrollViewProxy`
+    /// - Returns: ログ行を縦並びで表示するスクロールビュー
+    @ViewBuilder
+    private func logListSection(proxy: ScrollViewProxy) -> some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 12) {
+                ForEach(viewModel.entries) { entry in
+                    DebugLogEntryRowView(entry: entry)
+                        .id(entry.id)
                 }
             }
+            .padding(.vertical, 8)
+        }
+        .onAppear {
+            // 初回表示時に末尾のログが見えるようスクロールする
+            scrollToLatestEntryIfNeeded(using: proxy, entries: viewModel.entries, animated: false)
+        }
+        .onChange(of: viewModel.entries) { _, entries in
+            // ログの追加や削除があった際に必要に応じてスクロールを更新する
+            scrollToLatestEntryIfNeeded(using: proxy, entries: entries, animated: true)
+        }
+    }
+
+    /// ナビゲーションバーへ配置するツールバー項目を整理する
+    /// - Returns: 閉じるボタンと全削除ボタンをまとめたツールバー構成
+    @ToolbarContentBuilder
+    private var toolbarContent: some ToolbarContent {
+        ToolbarItem(placement: .topBarLeading) {
+            Button("閉じる") {
+                dismiss()
+            }
+        }
+        ToolbarItem(placement: .topBarTrailing) {
+            Button("すべて削除") {
+                viewModel.clearEntries()
+            }
+            .disabled(viewModel.entries.isEmpty)
         }
     }
 
