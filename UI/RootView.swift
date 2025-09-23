@@ -553,11 +553,14 @@ fileprivate struct TopStatusInsetView: View {
     @Binding var isPresentingDebugLogConsole: Bool
     /// Game Center 認証 API を呼び出す際の仲介クロージャ
     let authenticateAction: (@escaping (Bool) -> Void) -> Void
+    /// RootView 内で定義したレイアウト定数へ素早くアクセスするための別名
+    /// - Note: ネストした型名を毎回書かずに済ませ、視認性を高める狙い
+    private typealias LayoutMetrics = RootView.RootLayoutMetrics
 
     var body: some View {
         HStack {
             Spacer(minLength: 0)
-            VStack(alignment: .leading, spacing: RootLayoutMetrics.topBarContentSpacing) {
+            VStack(alignment: .leading, spacing: LayoutMetrics.topBarContentSpacing) {
                 gameCenterAuthenticationSection
                 debugConsoleSection
             }
@@ -565,17 +568,17 @@ fileprivate struct TopStatusInsetView: View {
             Spacer(minLength: 0)
         }
         .padding(.horizontal, context.topBarHorizontalPadding)
-        .padding(.top, RootLayoutMetrics.topBarBaseTopPadding + context.regularTopPaddingFallback)
-        .padding(.bottom, RootLayoutMetrics.topBarBaseBottomPadding)
+        .padding(.top, LayoutMetrics.topBarBaseTopPadding + context.regularTopPaddingFallback)
+        .padding(.bottom, LayoutMetrics.topBarBaseBottomPadding)
         .background(
             theme.backgroundPrimary
-                .opacity(RootLayoutMetrics.topBarBackgroundOpacity)
+                .opacity(LayoutMetrics.topBarBackgroundOpacity)
                 .ignoresSafeArea(edges: .top)
         )
         .overlay(alignment: .bottom) {
             Divider()
                 .background(theme.statisticBadgeBorder)
-                .opacity(RootLayoutMetrics.topBarDividerOpacity)
+                .opacity(LayoutMetrics.topBarDividerOpacity)
         }
         // GeometryReader で高さを取得し、PreferenceKey を介して親ビューへ伝搬する
         .background(
