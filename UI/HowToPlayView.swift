@@ -7,6 +7,8 @@ struct HowToPlayView: View {
     /// モーダル表示時に閉じるボタンを出すかどうかのフラグ
     /// - Note: タイトル画面からシートで開く場合のみ true を渡す
     let showsCloseButton: Bool
+    /// 説明に用いる基準モード（スタンダード）を保持し、手札スロット数などを文字列に反映する
+    private let referenceMode: GameMode = .standard
     /// 画面を閉じるための環境変数
     @Environment(\.dismiss) private var dismiss
     /// iPad などレギュラー幅の端末でレイアウトを最適化するためのサイズクラス
@@ -22,18 +24,19 @@ struct HowToPlayView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 // MARK: - 導入文
-                Text("MonoKnight は移動カードを使って 5×5 の盤面を踏破するパズルです。以下の流れを押さえておけば、すぐにプレイを始められます。")
+                Text("MonoKnight は移動カードを使って 5×5 の盤面を踏破するパズルです。手札スロットは最大 \(referenceMode.handSize) 種類まで保持でき、同じカードはスロット内で重なります。以下の流れを押さえておけば、すぐにプレイを始められます。")
                     .font(.body)
                     .padding(.bottom, 8)
 
                 // MARK: - 基本移動の説明
                 HowToPlaySectionView(
                     title: "1. カードを 1 枚選んで駒を動かす",
-                    description: "手札に並ぶカードから 1 枚を選び、描かれた方向へ騎士を移動させます。",
+                    description: "手札スロットに並ぶカードから 1 枚を選び、描かれた方向へ騎士を移動させます。",
                     card: .kingUp,
                     tips: [
                         "カードの矢印が示す方向に 1 マス進みます。",
-                        "白い丸が現在位置、黒い丸が移動先を表します。"
+                        "白い丸が現在位置、黒い丸が移動先を表します。",
+                        "同じ種類のカードは手札スロット内で重なり、消費するとまとめて補充されます。"
                     ]
                 )
 
@@ -73,10 +76,10 @@ struct HowToPlayView: View {
                 // MARK: - ペナルティの説明
                 HowToPlaySectionView(
                     title: "5. 行き詰まったときはペナルティ",
-                    description: "手札 3 枚すべてが盤外で使えない場合、手数に +5 のペナルティが加算され、手札が引き直されます。",
+                    description: "手札スロットに並ぶすべてのカードが盤外で使えない場合、手数に +5 のペナルティが加算され、手札スロットがまとめて引き直されます。",
                     card: nil,
                     tips: [
-                        "ペナルティ後は新しい手札で再挑戦できますが、スコアには不利です。",
+                        "ペナルティ後は新しい手札スロットへ最大 \(referenceMode.handSize) 種類のカードが補充されます。同じ種類は重なったまま再配布されます。",
                         "盤外になりやすいカードを連続で消費しないよう計画的にプレイしましょう。"
                     ]
                 )

@@ -5,7 +5,7 @@ import SwiftUI
 import UIKit  // ハプティクス用のフレームワークを追加
 
 /// SwiftUI から SpriteKit の盤面を表示するビュー
-/// 画面下部に手札 3 枚と次に引かれるカードを表示し、
+/// 画面下部に手札スロット（最大種類数を保持できるスタック枠）と次に引かれるカードを表示し、
 /// タップで GameCore を更新する
 /// SwiftUI ビューは UI 操作のため常にメインアクター上で処理する必要があるため、
 /// `@MainActor` を付与してサービスのシングルトンへ安全にアクセスできるようにする
@@ -19,7 +19,7 @@ struct GameView: View {
     @Environment(\.colorScheme) private var colorScheme
     /// デバイスの横幅サイズクラスを取得し、iPad などレギュラー幅でのモーダル挙動を調整する
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-    /// 手札スロットの数（常に 5 枚分の枠を確保してレイアウトを安定させる）
+    /// 手札スロットの数（常に 5 スロット分の枠を確保してレイアウトを安定させる）
     private let handSlotCount = 5
     /// ゲームロジックを保持する ObservableObject
     /// - NOTE: `StateObject` は init 内で明示的に生成し、GameScene に渡す
@@ -323,8 +323,8 @@ struct GameView: View {
             }
             // 手札内容が変わるたびに移動候補を再計算し、ガイドハイライトを更新
             .onReceive(core.$hand) { newHand in
-                // 手札ストリームの更新順序を追跡しやすいよう、受信したカード枚数をログへ残す
-                debugLog("手札更新を受信: 枚数=\(newHand.count), 退避ハンドあり=\(pendingGuideHand != nil)")
+                // 手札ストリームの更新順序を追跡しやすいよう、受信したカードスロット数をログへ残す
+                debugLog("手札更新を受信: スロット数=\(newHand.count), 退避ハンドあり=\(pendingGuideHand != nil)")
 
                 // 手札が差し替わった際は非表示リストを実際に存在するカード ID へ限定する
                 let validIDs = Set(newHand.map { $0.id })
@@ -690,7 +690,7 @@ struct GameView: View {
         VStack(spacing: 8) {
             Text("開始マスを選択")
                 .font(.system(size: 18, weight: .semibold, design: .rounded))
-            Text("手札と先読みを確認してから、好きなマスをタップしてください。")
+            Text("手札スロットと先読みを確認してから、好きなマスをタップしてください。")
                 .font(.system(size: 14, weight: .medium, design: .rounded))
                 .multilineTextAlignment(.center)
         }
@@ -708,7 +708,7 @@ struct GameView: View {
         .foregroundColor(theme.textPrimary)
         .allowsHitTesting(false)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(Text("開始位置を選択してください。手札と次のカードを見てから任意のマスをタップできます。"))
+        .accessibilityLabel(Text("開始位置を選択してください。手札スロットと次のカードを見てから任意のマスをタップできます。"))
     }
 
     /// 手札と先読みカードの表示をまとめた領域
@@ -737,7 +737,7 @@ struct GameView: View {
         let finalBottomPadding = max(bottomPadding, expectedPadding)
 
         return VStack(spacing: 8) {
-            // 手札 3 枚を横並びで表示
+            // 手札スロットを横並びで配置し、最大種類数を常に確保する
             // カードを大きくした際も全体幅が画面内に収まるよう、spacing を定数で管理する
             HStack(spacing: LayoutMetrics.handCardSpacing) {
                 // 固定長スロットで回し、欠番があっても UI が崩れないようにする
@@ -826,17 +826,19 @@ struct GameView: View {
         .opacity(isDisabled ? 0.45 : 1.0)
         .disabled(isDisabled)
         .accessibilityIdentifier("manual_penalty_button")
-        .accessibilityLabel(Text("ペナルティを払って手札を引き直す"))
+        // VoiceOver でも「スロット」概念が伝わるように表現を更新
+        .accessibilityLabel(Text("ペナルティを払って手札スロットを引き直す"))
         .accessibilityHint(Text(manualPenaltyAccessibilityHint))
     }
 
     /// 手動ペナルティの操作説明を状況に応じて生成
+    /// - Note: スロット制の仕様を理解しやすいよう「種類数」とスタックの挙動を明記する。
     private var manualPenaltyAccessibilityHint: String {
         let cost = core.mode.manualRedrawPenaltyCost
         if cost > 0 {
-            return "手数を\(cost)消費して現在の手札を全て捨て、新しいカードを\(core.mode.handSize)枚引きます。"
+            return "手数を\(cost)消費して手札スロットを全て空にし、新しいカードを最大 \(core.mode.handSize) 種類まで補充します。同じ種類のカードはスロット内で重なります。"
         } else {
-            return "手数を消費せずに現在の手札を全て捨て、新しいカードを\(core.mode.handSize)枚引きます。"
+            return "手数を消費せずに手札スロットを全て空にし、新しいカードを最大 \(core.mode.handSize) 種類まで補充します。同じ種類のカードはスロット内で重なります。"
         }
     }
 
@@ -911,7 +913,7 @@ struct GameView: View {
             scene.updateGuideHighlights([])
             pendingGuideHand = nil
             pendingGuideCurrent = nil
-            debugLog("ガイド更新を中断: 現在地が未確定のためハイライトを消灯 状態=\(String(describing: progress)), 手札枚数=\(hand.count)")
+            debugLog("ガイド更新を中断: 現在地が未確定のためハイライトを消灯 状態=\(String(describing: progress)), 手札スロット数=\(hand.count)")
             return
         }
 
@@ -1545,9 +1547,9 @@ private enum GameMenuAction: Hashable, Identifiable {
         switch self {
         case .manualPenalty(let cost):
             if cost > 0 {
-                return "手数を\(cost)増やして手札を引き直します。現在の手札は破棄されます。よろしいですか？"
+                return "手数を\(cost)増やして手札スロットを引き直します。現在の手札スロットは空になります。よろしいですか？"
             } else {
-                return "手数を増やさずに手札を引き直します。現在の手札は破棄されます。よろしいですか？"
+                return "手数を増やさずに手札スロットを引き直します。現在の手札スロットは空になります。よろしいですか？"
             }
         case .reset:
             return "現在の進行状況を破棄して、最初からやり直します。よろしいですか？"
@@ -1632,9 +1634,9 @@ private struct PenaltyBannerView: View {
     /// ペナルティ内容に応じたメインメッセージ
     private var primaryMessage: String {
         if penaltyAmount > 0 {
-            return "手詰まり → 手札を引き直し (+\(penaltyAmount))"
+            return "手詰まり → 手札スロットを引き直し (+\(penaltyAmount))"
         } else {
-            return "手札を引き直しました (ペナルティなし)"
+            return "手札スロットを引き直しました (ペナルティなし)"
         }
     }
 
