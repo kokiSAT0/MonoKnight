@@ -176,35 +176,46 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
 
         // GameKit が提供する認証ハンドラを設定
         player.authenticateHandler = { [weak self] vc, error in
+            guard let self else { return }
+
             // 認証のための ViewController が渡された場合は表示を行う
             if let vc {
-                // 最前面の ViewController を取得してモーダル表示
-                guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-                      let root = scene.windows.first?.rootViewController else { return }
-                root.present(vc, animated: true)
+                // 最前面のシーンとキーウィンドウから提示用の ViewController を取得
+                guard let root = self.presentableRootViewController() else { return }
+                // UI 操作は必ずメインスレッドで実行する
+                DispatchQueue.main.async {
+                    root.present(vc, animated: true)
+                }
                 return
             }
 
             // 認証結果を判定
             if player.isAuthenticated {
-                // 認証成功: フラグを更新しログ出力
-                self?.isAuthenticated = true
-                debugLog("Game Center 認証成功")
-                // 認証が完了したのでアクセスポイントを表示
-                self?.activateAccessPoint()
-                completion?(true) // 呼び出し元へ成功を通知
-            } else {
-                // 認証失敗: エラー内容をログへ出力
-                self?.isAuthenticated = false
-                if let error {
-                    // エラーオブジェクトが存在する場合は詳細を出力
-                    debugError(error, message: "Game Center 認証失敗")
-                } else {
-                    // それ以外はメッセージのみ出力
-                    let message = "不明なエラー"
-                    debugLog("Game Center 認証失敗: \(message)")
+                // 認証成功時の処理をメインスレッドで反映
+                DispatchQueue.main.async { [weak self] in
+                    guard let self else { return }
+                    self.isAuthenticated = true
+                    debugLog("Game Center 認証成功")
+                    // 認証が完了したのでアクセスポイントを表示
+                    self.activateAccessPoint()
+                    completion?(true) // 呼び出し元へ成功を通知
                 }
-                completion?(false) // 呼び出し元へ失敗を通知
+            } else {
+                let authError = error
+                // 認証失敗時もメインスレッドで状態更新と通知を行う
+                DispatchQueue.main.async { [weak self] in
+                    guard let self else { return }
+                    self.isAuthenticated = false
+                    if let authError {
+                        // エラーオブジェクトが存在する場合は詳細を出力
+                        debugError(authError, message: "Game Center 認証失敗")
+                    } else {
+                        // それ以外はメッセージのみ出力
+                        let message = "不明なエラー"
+                        debugLog("Game Center 認証失敗: \(message)")
+                    }
+                    completion?(false) // 呼び出し元へ失敗を通知
+                }
             }
         }
     }
@@ -295,9 +306,6 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
             return
         }
 
-        guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-              let root = scene.windows.first?.rootViewController else { return }
-
         // リーダーボード用のコントローラを生成
         // - Note: iOS14 以降で推奨される `leaderboardID` 指定の初期化メソッドを利用する
         //         これによりデプリケーション警告を解消しつつ、従来と同じ ID／スコープを適用できる
@@ -312,10 +320,66 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
         vc.gameCenterDelegate = self
 
         // ランキング表示中はアクセスポイントが不要なので非表示にする
-        deactivateAccessPoint()
+        // UI 操作をメインスレッドでまとめて実行する
+        guard let root = presentableRootViewController() else { return }
+        DispatchQueue.main.async { [weak self] in
+            self?.deactivateAccessPoint()
+            // ルートビューからモーダル表示
+            root.present(vc, animated: true)
+        }
+    }
 
-        // ルートビューからモーダル表示
-        root.present(vc, animated: true)
+    // MARK: - 表示用ヘルパー
+
+    /// Game Center の UI を提示するための最前面 ViewController を取得する
+    /// - Note: AdsService と同様にシーン/ウィンドウ階層を考慮して探索する
+    private func presentableRootViewController() -> UIViewController? {
+        // フォアグラウンドで有効なシーンを優先的に採用する
+        guard let scene = preferredWindowScene() else { return nil }
+        // 複数ウィンドウが存在する場合はキーウィンドウを優先し、無い場合は先頭を利用する
+        let window = scene.windows.first(where: { $0.isKeyWindow }) ?? scene.windows.first
+        guard let rootController = window?.rootViewController else { return nil }
+        // 取得したルートから最前面の ViewController を辿る
+        return topMostViewController(from: rootController)
+    }
+
+    /// 最前面に表示されている UIWindowScene を返す（フォアグラウンド優先）
+    private func preferredWindowScene() -> UIWindowScene? {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        // フォアグラウンドでアクティブなシーンを最優先で返す
+        if let activeScene = scenes.first(where: { $0.activationState == .foregroundActive }) {
+            return activeScene
+        }
+        // 条件に合うものが無ければ先頭のシーンを返してフォールバックする
+        return scenes.first
+    }
+
+    /// モーダル/ナビゲーション/タブ構成を考慮して最前面の ViewController を探索する
+    private func topMostViewController(from controller: UIViewController?) -> UIViewController? {
+        guard let controller else { return nil }
+
+        // モーダル表示中であれば更に提示中の画面を優先する
+        if let presented = controller.presentedViewController {
+            return topMostViewController(from: presented)
+        }
+
+        // ナビゲーションコントローラは可視 VC（無ければトップ）を辿る
+        if let navigation = controller as? UINavigationController {
+            return topMostViewController(from: navigation.visibleViewController ?? navigation.topViewController)
+        }
+
+        // タブバーコントローラは選択中のタブ配下を探索
+        if let tab = controller as? UITabBarController {
+            return topMostViewController(from: tab.selectedViewController)
+        }
+
+        // SplitViewController は最後尾（詳細側）を辿って提示中の画面を取得
+        if let split = controller as? UISplitViewController {
+            return topMostViewController(from: split.viewControllers.last)
+        }
+
+        // 上記に該当しない場合は現在のコントローラが最前面
+        return controller
     }
 
     /// Game Center コントローラの閉じるボタンが押された際に呼ばれる
