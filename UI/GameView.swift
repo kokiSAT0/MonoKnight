@@ -866,10 +866,12 @@ struct GameView: View {
     /// - Note: スロット制の仕様を理解しやすいよう「種類数」とスタックの挙動を明記する。
     private var manualPenaltyAccessibilityHint: String {
         let cost = core.mode.manualRedrawPenaltyCost
+        let stackingDetail = core.mode.stackingRuleDetailText
+        let refillDescription = "手札スロットを全て空にし、新しいカードを最大 \(core.mode.handSize) 種類まで補充します。"
         if cost > 0 {
-            return "手数を\(cost)消費して手札スロットを全て空にし、新しいカードを最大 \(core.mode.handSize) 種類まで補充します。同じ種類のカードはスロット内で重なります。"
+            return "手数を\(cost)消費して\(refillDescription)\(stackingDetail)"
         } else {
-            return "手数を消費せずに手札スロットを全て空にし、新しいカードを最大 \(core.mode.handSize) 種類まで補充します。同じ種類のカードはスロット内で重なります。"
+            return "手数を消費せずに\(refillDescription)\(stackingDetail)"
         }
     }
 

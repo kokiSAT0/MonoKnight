@@ -2,7 +2,7 @@ import Foundation
 
 /// 座標を表す構造体
 /// - 備考: 原点は左下、x は右方向、y は上方向に増加する
-public struct GridPoint: Hashable {
+public struct GridPoint: Hashable, Codable {
     /// x 座標
     public let x: Int
     /// y 座標

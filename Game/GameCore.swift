@@ -91,6 +91,8 @@ public final class GameCore: ObservableObject {
     private let handSize: Int
     /// 先読み表示に用いるカード枚数（NEXT 表示は 3 枚先まで）
     private let nextPreviewCount: Int
+    /// 同種カードをスタックできるかどうかの設定
+    private let allowsCardStacking: Bool
     /// 盤面情報
     @Published public private(set) var board = Board(
         size: GameMode.standard.boardSize,
@@ -160,6 +162,7 @@ public final class GameCore: ObservableObject {
         board = Board(size: mode.boardSize, initialVisitedPoints: mode.initialVisitedPoints)
         current = mode.initialSpawnPoint
         deck = Deck(configuration: mode.deckConfiguration)
+        allowsCardStacking = mode.allowsCardStacking
         progress = mode.requiresSpawnSelection ? .awaitingSpawn : .playing
         // 実際の山札と手札の構成は共通処理に集約
         configureForNewSession(regenerateDeck: false)
@@ -471,7 +474,8 @@ public final class GameCore: ObservableObject {
 
             guard let card = nextCard else { break }
 
-            if let index = handStacks.firstIndex(where: { $0.representativeMove == card.move }) {
+            if allowsCardStacking,
+               let index = handStacks.firstIndex(where: { $0.representativeMove == card.move }) {
                 var existing = handStacks[index]
                 existing.append(card)
                 handStacks[index] = existing
