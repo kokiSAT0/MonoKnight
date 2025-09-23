@@ -340,69 +340,23 @@ private extension RootView {
     /// - Returns: safeAreaInset へ挿入するビュー
     @ViewBuilder
     func topStatusInset(context: RootLayoutContext) -> some View {
-        HStack {
-            Spacer(minLength: 0)
-            VStack(alignment: .leading, spacing: RootLayoutMetrics.topBarContentSpacing) {
-                if isAuthenticated {
-                    Text("Game Center にサインイン済み")
-                        .font(.caption)
-                        // テーマ由来のサブ文字色を使い、背景とのコントラストを確保
-                        .foregroundColor(theme.textSecondary)
-                        .accessibilityIdentifier("gc_authenticated")
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                } else {
-                    Button(action: {
-                        // 認証要求のトリガーを記録して、失敗時の切り分けを容易にする
-                        debugLog("RootView: Game Center 認証開始要求 現在の認証状態=\(isAuthenticated)")
-                        gameCenterService.authenticateLocalPlayer { success in
-                            // コールバックでの成否もログへ残し、原因調査の手がかりとする
-                            debugLog("RootView: Game Center 認証完了 success=\(success)")
-                            isAuthenticated = success
-                        }
-                    }) {
-                        Text("Game Center サインイン")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .accessibilityIdentifier("gc_sign_in_button")
-                }
+        // 個別の View 構造体へ委譲することで、RootView 本体の型チェック複雑度を抑える
+        TopStatusInsetView(
+            context: context,
+            theme: theme,
+            isAuthenticated: $isAuthenticated,
+            isDebugLogConsoleEnabled: debugLogConsoleViewModel.isViewerEnabled,
+            isPresentingDebugLogConsole: $isPresentingDebugLogConsole,
+            authenticateAction: handleGameCenterAuthenticationRequest
+        )
+    }
 
-                if debugLogConsoleViewModel.isViewerEnabled {
-                    Button(action: {
-                        // ログ閲覧シートを開いた履歴を残しておき、TestFlight での操作を追跡する
-                        debugLog("RootView: デバッグログコンソール表示要求")
-                        isPresentingDebugLogConsole = true
-                    }) {
-                        Label("デバッグログを表示", systemImage: "doc.text.magnifyingglass")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
-                    .accessibilityIdentifier("debug_log_console_button")
-                }
-            }
-            .frame(maxWidth: context.topBarMaxWidth ?? .infinity, alignment: .leading)
-            Spacer(minLength: 0)
+    /// Game Center 認証 API 呼び出しをカプセル化し、ビュー側からの参照を単純化する
+    /// - Parameter completion: 認証成功可否を受け取るクロージャ
+    private func handleGameCenterAuthenticationRequest(completion: @escaping (Bool) -> Void) {
+        gameCenterService.authenticateLocalPlayer { success in
+            completion(success)
         }
-        .padding(.horizontal, context.topBarHorizontalPadding)
-        .padding(.top, RootLayoutMetrics.topBarBaseTopPadding + context.regularTopPaddingFallback)
-        .padding(.bottom, RootLayoutMetrics.topBarBaseBottomPadding)
-        .background(
-            theme.backgroundPrimary
-                .opacity(RootLayoutMetrics.topBarBackgroundOpacity)
-                .ignoresSafeArea(edges: .top)
-        )
-        .overlay(alignment: .bottom) {
-            Divider()
-                .background(theme.statisticBadgeBorder)
-                .opacity(RootLayoutMetrics.topBarDividerOpacity)
-        }
-        // GeometryReader で高さを取得し、PreferenceKey を介して親ビューへ伝搬する
-        .background(
-            GeometryReader { proxy in
-                Color.clear
-                    .preference(key: TopBarHeightPreferenceKey.self, value: proxy.size.height)
-            }
-        )
     }
 
     /// レイアウト関連の情報を監視する不可視オーバーレイを返す
@@ -576,6 +530,108 @@ private extension RootView {
         static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
             value = nextValue()
         }
+    }
+}
+
+// MARK: - トップステータスバー専用ビュー
+@MainActor
+fileprivate struct TopStatusInsetView: View {
+    /// レイアウト調整に必要な値のセット
+    let context: RootView.RootLayoutContext
+    /// ルートビューと同じテーマを共有し、配色の一貫性を保つ
+    let theme: AppTheme
+    /// Game Center 認証済みかどうかの状態をバインディングで受け取る
+    @Binding var isAuthenticated: Bool
+    /// デバッグログコンソールが利用可能かどうかのフラグ
+    let isDebugLogConsoleEnabled: Bool
+    /// デバッグログコンソールの表示状態を RootView 側と同期する
+    @Binding var isPresentingDebugLogConsole: Bool
+    /// Game Center 認証 API を呼び出す際の仲介クロージャ
+    let authenticateAction: (@escaping (Bool) -> Void) -> Void
+
+    var body: some View {
+        HStack {
+            Spacer(minLength: 0)
+            VStack(alignment: .leading, spacing: RootLayoutMetrics.topBarContentSpacing) {
+                gameCenterAuthenticationSection
+                debugConsoleSection
+            }
+            .frame(maxWidth: context.topBarMaxWidth ?? .infinity, alignment: .leading)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, context.topBarHorizontalPadding)
+        .padding(.top, RootLayoutMetrics.topBarBaseTopPadding + context.regularTopPaddingFallback)
+        .padding(.bottom, RootLayoutMetrics.topBarBaseBottomPadding)
+        .background(
+            theme.backgroundPrimary
+                .opacity(RootLayoutMetrics.topBarBackgroundOpacity)
+                .ignoresSafeArea(edges: .top)
+        )
+        .overlay(alignment: .bottom) {
+            Divider()
+                .background(theme.statisticBadgeBorder)
+                .opacity(RootLayoutMetrics.topBarDividerOpacity)
+        }
+        // GeometryReader で高さを取得し、PreferenceKey を介して親ビューへ伝搬する
+        .background(
+            GeometryReader { proxy in
+                Color.clear
+                    .preference(key: TopBarHeightPreferenceKey.self, value: proxy.size.height)
+            }
+        )
+    }
+
+    /// Game Center 認証状態を表示するセクションを切り出して見通しを改善する
+    @ViewBuilder
+    private var gameCenterAuthenticationSection: some View {
+        if isAuthenticated {
+            Text("Game Center にサインイン済み")
+                .font(.caption)
+                // テーマ由来のサブ文字色を使い、背景とのコントラストを確保
+                .foregroundColor(theme.textSecondary)
+                .accessibilityIdentifier("gc_authenticated")
+                .frame(maxWidth: .infinity, alignment: .leading)
+        } else {
+            Button(action: handleGameCenterSignInTapped) {
+                Text("Game Center サインイン")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .accessibilityIdentifier("gc_sign_in_button")
+        }
+    }
+
+    /// デバッグログコンソールの表示ボタンを担当するセクション
+    @ViewBuilder
+    private var debugConsoleSection: some View {
+        if isDebugLogConsoleEnabled {
+            Button(action: handleDebugConsoleTapped) {
+                Label("デバッグログを表示", systemImage: "doc.text.magnifyingglass")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .accessibilityIdentifier("debug_log_console_button")
+        }
+    }
+
+    /// Game Center サインインボタン押下時の処理を共通化する
+    private func handleGameCenterSignInTapped() {
+        // 認証要求のトリガーを記録して、失敗時の切り分けを容易にする
+        debugLog("RootView: Game Center 認証開始要求 現在の認証状態=\(isAuthenticated)")
+        authenticateAction { success in
+            // コールバックでの成否もログへ残し、原因調査の手がかりとする
+            debugLog("RootView: Game Center 認証完了 success=\(success)")
+            Task { @MainActor in
+                isAuthenticated = success
+            }
+        }
+    }
+
+    /// デバッグログコンソール表示ボタンのタップ処理
+    private func handleDebugConsoleTapped() {
+        // ログ閲覧シートを開いた履歴を残しておき、TestFlight での操作を追跡する
+        debugLog("RootView: デバッグログコンソール表示要求")
+        isPresentingDebugLogConsole = true
     }
 }
 
