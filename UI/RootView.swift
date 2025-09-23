@@ -41,6 +41,12 @@ struct RootView: View {
     /// タイトル画面から詳細設定シートを表示するためのフラグ
     /// - NOTE: 広告やプライバシーなどゲーム外の調整はタイトル画面経由でまとめて行う方針のため、専用の状態を用意する
     @State private var isPresentingTitleSettings: Bool = false
+    /// フロントエンドからログを閲覧するためのビューモデル
+    /// - Note: TestFlight で素早く状況確認できるよう、アプリ内に簡易コンソールを常設する
+    @StateObject private var debugLogConsoleViewModel = DebugLogConsoleViewModel()
+    /// デバッグログコンソールの表示状態
+    /// - Note: シートの表示/非表示をログ化し、操作履歴を追跡する
+    @State private var isPresentingDebugLogConsole: Bool = false
     /// 依存サービスを外部から注入可能にする初期化処理
     /// - Parameters:
     ///   - gameCenterService: Game Center 連携用サービス（デフォルトはシングルトン）
@@ -168,9 +174,19 @@ struct RootView: View {
         .onChange(of: isPresentingTitleSettings) { _, newValue in
             debugLog("RootView.isPresentingTitleSettings 更新: \(newValue)")
         }
+        // デバッグログコンソールの表示状態を監視し、TestFlight 上での操作履歴に残す
+        .onChange(of: isPresentingDebugLogConsole) { _, newValue in
+            debugLog("RootView.isPresentingDebugLogConsole 更新: \(newValue)")
+        }
         // タイトル画面専用の設定をフルスクリーンカバーで開き、iPhone と iPad の双方で没入感のある編集体験にそろえる
         .fullScreenCover(isPresented: $isPresentingTitleSettings) {
             SettingsView()
+        }
+        // デバッグ用のログコンソールをシートで表示し、即座にログを確認できる導線を用意する
+        .sheet(isPresented: $isPresentingDebugLogConsole) {
+            DebugLogConsoleView(viewModel: debugLogConsoleViewModel)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
         }
     }
 }
@@ -298,6 +314,19 @@ private extension RootView {
                     }
                     .buttonStyle(.borderedProminent)
                     .accessibilityIdentifier("gc_sign_in_button")
+                }
+
+                if debugLogConsoleViewModel.isViewerEnabled {
+                    Button(action: {
+                        // ログ閲覧シートを開いた履歴を残しておき、TestFlight での操作を追跡する
+                        debugLog("RootView: デバッグログコンソール表示要求")
+                        isPresentingDebugLogConsole = true
+                    }) {
+                        Label("デバッグログを表示", systemImage: "doc.text.magnifyingglass")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .accessibilityIdentifier("debug_log_console_button")
                 }
             }
             .frame(maxWidth: context.topBarMaxWidth ?? .infinity, alignment: .leading)
@@ -497,6 +526,194 @@ private extension RootView {
             value = nextValue()
         }
     }
+}
+
+// MARK: - デバッグログコンソール
+
+/// フロントエンドでデバッグログ履歴を監視するビューモデル
+/// - Note: `DebugLogHistory` からの通知を受け取り、UI 側へ逐次反映する
+@MainActor
+fileprivate final class DebugLogConsoleViewModel: ObservableObject {
+    /// 表示対象のログエントリ配列
+    @Published private(set) var entries: [DebugLogEntry]
+    /// 共有ログ履歴ストア
+    private let history: DebugLogHistory
+    /// NotificationCenter の監視トークン
+    private var notificationToken: NSObjectProtocol?
+
+    /// 初期化と同時に履歴のスナップショットを取得し、通知監視を開始する
+    /// - Parameter history: ログ履歴を管理するストア（デフォルトはシングルトン）
+    init(history: DebugLogHistory = .shared) {
+        self.history = history
+        self.entries = history.snapshot()
+
+        notificationToken = NotificationCenter.default.addObserver(
+            forName: DebugLogHistory.didAppendEntryNotification,
+            object: history,
+            queue: .main
+        ) { [weak self] notification in
+            guard let self else { return }
+
+            if let entry = notification.userInfo?[DebugLogHistory.NotificationKey.entry] as? DebugLogEntry {
+                // 新規追加 1 件の場合は末尾に追加してスクロール位置を維持する
+                entries.append(entry)
+            } else {
+                // クリアや設定変更が走った場合はスナップショットを再取得する
+                entries = history.snapshot()
+            }
+        }
+    }
+
+    deinit {
+        if let notificationToken {
+            NotificationCenter.default.removeObserver(notificationToken)
+        }
+    }
+
+    /// フロントエンドからの閲覧が許可されているかどうか
+    var isViewerEnabled: Bool {
+        history.isFrontEndViewerEnabled
+    }
+
+    /// 保持しているログを全件削除する
+    /// - Note: 個人情報が含まれる恐れがあるログを即座に破棄したい場合に利用する
+    func clearEntries() {
+        history.clear()
+        entries.removeAll()
+    }
+}
+
+/// デバッグログの内容を一覧表示するシート用ビュー
+@MainActor
+fileprivate struct DebugLogConsoleView: View {
+    /// 表示を制御するビューモデル
+    @ObservedObject var viewModel: DebugLogConsoleViewModel
+    /// シートを閉じるための dismiss アクション
+    @Environment(\.dismiss) private var dismiss
+    /// 共通のカラーテーマ
+    private var theme = AppTheme()
+
+    /// 自動スクロールのために追跡している直近のログ ID
+    @State private var lastVisibleEntryID: DebugLogEntry.ID?
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 12) {
+                if !viewModel.isViewerEnabled {
+                    // リリース向けビルドで無効化している場合の案内
+                    Text("このビルドではフロントエンドからのログ閲覧が無効化されています。")
+                        .font(.callout)
+                        .foregroundColor(theme.textSecondary)
+                        .multilineTextAlignment(.leading)
+                } else if viewModel.entries.isEmpty {
+                    // まだログが記録されていない場合のプレースホルダー
+                    Text("現在表示できるログはありません。操作を行うとここに履歴が蓄積されます。")
+                        .font(.callout)
+                        .foregroundColor(theme.textSecondary)
+                        .multilineTextAlignment(.leading)
+                        .padding(.top, 8)
+                } else {
+                    ScrollViewReader { proxy in
+                        ScrollView {
+                            LazyVStack(alignment: .leading, spacing: 12) {
+                                ForEach(viewModel.entries) { entry in
+                                    DebugLogEntryRowView(entry: entry)
+                                        .id(entry.id)
+                                }
+                            }
+                            .padding(.vertical, 8)
+                        }
+                        .onAppear {
+                            guard let lastID = viewModel.entries.last?.id else { return }
+                            lastVisibleEntryID = lastID
+                            DispatchQueue.main.async {
+                                proxy.scrollTo(lastID, anchor: .bottom)
+                            }
+                        }
+                        .onChange(of: viewModel.entries) { _, entries in
+                            guard let lastID = entries.last?.id, lastID != lastVisibleEntryID else { return }
+                            lastVisibleEntryID = lastID
+                            DispatchQueue.main.async {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    proxy.scrollTo(lastID, anchor: .bottom)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 16)
+            .padding(.bottom, 24)
+            .background(theme.backgroundPrimary.ignoresSafeArea())
+            .navigationTitle("デバッグログ")
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("閉じる") {
+                        dismiss()
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("すべて削除") {
+                        viewModel.clearEntries()
+                    }
+                    .disabled(viewModel.entries.isEmpty)
+                }
+            }
+        }
+    }
+}
+
+/// 1 行分のデバッグログを表示する補助ビュー
+fileprivate struct DebugLogEntryRowView: View {
+    /// 表示対象のログ
+    let entry: DebugLogEntry
+    /// カラーテーマ
+    private var theme = AppTheme()
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Image(systemName: entry.level == .error ? "exclamationmark.triangle.fill" : "info.circle")
+                    .foregroundColor(entry.level == .error ? Color.red : theme.textSecondary)
+                    .imageScale(.small)
+                Text(DateFormatter.debugLogConsoleTime.string(from: entry.timestamp))
+                    .font(.caption2)
+                    .foregroundColor(theme.textSecondary)
+            }
+
+            Text(entry.message)
+                .font(.system(size: 12, weight: .regular, design: .monospaced))
+                .foregroundColor(entry.level == .error ? Color.red : theme.textPrimary)
+                .multilineTextAlignment(.leading)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(entry.level == .error ? Color.red.opacity(0.12) : theme.backgroundElevated.opacity(0.85))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(entry.level == .error ? Color.red.opacity(0.35) : theme.statisticBadgeBorder, lineWidth: 1)
+        )
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(entry.level == .error ? "エラーログ" : "情報ログ") \(DateFormatter.debugLogConsoleTime.string(from: entry.timestamp))")
+        .accessibilityValue(entry.message)
+    }
+}
+
+/// デバッグログ用の日付フォーマッタ
+fileprivate extension DateFormatter {
+    /// `HH:mm:ss.SSS` 表記で時間を出力するフォーマッタ
+    static let debugLogConsoleTime: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ja_JP")
+        formatter.dateFormat = "HH:mm:ss.SSS"
+        return formatter
+    }()
 }
 
 // MARK: - プレビュー
