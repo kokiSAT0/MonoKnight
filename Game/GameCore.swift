@@ -219,14 +219,18 @@ public final class GameCore: ObservableObject {
 
         // 使用済みカードは即座に破棄し、スタックから除去（残数がゼロになったらスタックごと取り除く）
         stack.removeTopCard()
+        // 空きスロットの位置を記録しておき、補充時に同じ位置へ挿入できるようにする
+        let removedIndex: Int?
         if stack.isEmpty {
             handStacks.remove(at: index)
+            removedIndex = index
         } else {
             handStacks[index] = stack
+            removedIndex = nil
         }
 
         // スロットの空きを埋めるため、NEXT キューを優先して補充し、足りなければ山札から引く
-        refillHandStacks(from: &nextCards)
+        refillHandStacks(from: &nextCards, preferredInsertionIndices: removedIndex.map { [$0] } ?? [])
         // 並び順設定に応じて手札全体を調整
         reorderHandIfNeeded()
         // 先読み枠が不足していれば必要枚数まで補充する
@@ -484,8 +488,8 @@ public final class GameCore: ObservableObject {
         UIAccessibility.post(notification: .announcement, argument: message)
 #endif
 
-        // NEXT キューを優先して補充し、不足分は山札から取得する
-        refillHandStacks(from: &nextCards)
+        // NEXT キューを優先して補充し、不足分は山札から取得する（削除位置を維持する）
+        refillHandStacks(from: &nextCards, preferredInsertionIndices: [index])
         reorderHandIfNeeded()
         replenishNextPreview()
 
@@ -547,14 +551,19 @@ public final class GameCore: ObservableObject {
     }
 
     /// 手札スロットが空いている場合に、NEXT キューや山札からカードを補充する
-    /// - Parameter sourceCards: 先読みキューなど優先的に消費したいカード配列
-    private func refillHandStacks(from sourceCards: inout [DealtCard]) {
-        // 既にスロットが埋まっていれば何もしない
-        guard handStacks.count < handSize else { return }
+    /// - Parameters:
+    ///   - sourceCards: 先読みキューなど優先的に消費したいカード配列
+    ///   - preferredInsertionIndices: 使用済みスロットに新しいカードを差し戻したい場合の挿入候補インデックス
+    private func refillHandStacks(from sourceCards: inout [DealtCard], preferredInsertionIndices: [Int] = []) {
+        // 既にスロットが埋まっており、指定された補充位置も無ければ何もしない
+        guard handStacks.count < handSize || !preferredInsertionIndices.isEmpty else { return }
+
+        // 補充すべきスロット位置は昇順に並べ替えて先頭から処理する
+        var pendingInsertionIndices = preferredInsertionIndices.sorted()
 
         // 無限ループを避けるための安全カウンタ（異常時にはログを残して抜ける）
         var drawAttempts = 0
-        while handStacks.count < handSize {
+        while handStacks.count < handSize || !pendingInsertionIndices.isEmpty {
             let nextCard: DealtCard?
             if !sourceCards.isEmpty {
                 nextCard = sourceCards.removeFirst()
@@ -566,11 +575,26 @@ public final class GameCore: ObservableObject {
 
             if allowsCardStacking,
                let index = handStacks.firstIndex(where: { $0.representativeMove == card.move }) {
+                // 既存スタックへ積み増した場合でも空きスロットが残ることがあるため、
+                // pendingInsertionIndices は消費せず次のカードドローを継続する
                 var existing = handStacks[index]
                 existing.append(card)
                 handStacks[index] = existing
             } else {
-                handStacks.append(HandStack(cards: [card]))
+                // 空きスロット位置が指定されていればそこへ挿入し、無ければ末尾へ追加する
+                if let preferredIndex = pendingInsertionIndices.first {
+                    let insertionIndex = min(preferredIndex, handStacks.count)
+                    handStacks.insert(HandStack(cards: [card]), at: insertionIndex)
+                    pendingInsertionIndices.removeFirst()
+                    // 1 つ挿入すると後続のインデックスは 1 つずれるため、影響範囲のみ +1 して整合性を取る
+                    for candidateIndex in 0..<pendingInsertionIndices.count {
+                        if pendingInsertionIndices[candidateIndex] >= insertionIndex {
+                            pendingInsertionIndices[candidateIndex] += 1
+                        }
+                    }
+                } else {
+                    handStacks.append(HandStack(cards: [card]))
+                }
             }
 
             drawAttempts += 1

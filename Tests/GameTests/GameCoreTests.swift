@@ -228,6 +228,86 @@ final class GameCoreTests: XCTestCase {
         )
     }
 
+    /// 挿入順設定でカードを使用した際、空いたスロットに新しいカードが同じ位置で補充されるか検証
+    func testInsertionOrderRefillKeepsSlotPosition() {
+        let deck = Deck.makeTestDeck(cards: [
+            // --- 初期手札 5 枚（すべて異なるカード）---
+            .kingUp,
+            .kingRight,
+            .kingDown,
+            .kingLeft,
+            .kingUpLeft,
+            // --- 先読み 3 枚（手札補充の順番）---
+            .knightUp1Right2,
+            .straightUp2,
+            .diagonalUpRight2,
+            // --- 先読み補充用の追加カード ---
+            .kingUpRight
+        ])
+        let core = GameCore.makeTestInstance(deck: deck)
+
+        XCTAssertEqual(
+            core.handStacks.compactMap { $0.topCard?.move },
+            [.kingUp, .kingRight, .kingDown, .kingLeft, .kingUpLeft],
+            "初期手札の想定順序と一致しません"
+        )
+
+        // 2 番目のスロット（キング右）を使用すると、その位置に NEXT 先頭が補充されるはず
+        core.playCard(at: 1)
+
+        XCTAssertEqual(
+            core.handStacks.compactMap { $0.topCard?.move },
+            [.kingUp, .knightUp1Right2, .kingDown, .kingLeft, .kingUpLeft],
+            "挿入順の設定で使用したスロットが末尾に移動してしまっています"
+        )
+        XCTAssertEqual(
+            core.nextCards.map { $0.move },
+            [.straightUp2, .diagonalUpRight2, .kingUpRight],
+            "NEXT キューの更新順序が想定と異なります"
+        )
+    }
+
+    /// 先読みカードが既存スタックと重なった場合でも空きスロットが正しく埋まるか検証
+    func testInsertionOrderRefillHandlesStackingBeforeFillingGap() {
+        let deck = Deck.makeTestDeck(cards: [
+            // --- 初期手札 5 枚 ---
+            .kingUp,
+            .kingRight,
+            .kingDown,
+            .kingLeft,
+            .knightUp1Right2,
+            // --- 先読み 3 枚（最初に補充されるカード列）---
+            .kingRight,
+            .straightUp2,
+            .diagonalUpRight2,
+            // --- 先読み補充用の追加カード ---
+            .kingUpRight,
+            .knightUp2Right1
+        ])
+        let core = GameCore.makeTestInstance(deck: deck)
+
+        // 3 番目のスロット（キング下）を使用し、空きが出来た位置に注目する
+        core.playCard(at: 2)
+
+        // 先読みの 1 枚目（キング右）は既存スタックへ積み増され、2 枚目が空きスロットに入る想定
+        XCTAssertEqual(core.handStacks.count, 5, "手札スロット数が 5 に戻っていません")
+        XCTAssertEqual(
+            core.handStacks.compactMap { $0.topCard?.move },
+            [.kingUp, .kingRight, .straightUp2, .kingLeft, .knightUp1Right2],
+            "空きスロットに新カードが補充されていません"
+        )
+        if let rightStack = core.handStacks.first(where: { $0.representativeMove == .kingRight }) {
+            XCTAssertEqual(rightStack.count, 2, "重なったカード枚数が想定と異なります")
+        } else {
+            XCTFail("キング右のスタックが見つかりません")
+        }
+        XCTAssertEqual(
+            core.nextCards.map { $0.move },
+            [.diagonalUpRight2, .kingUpRight, .knightUp2Right1],
+            "先読みの補充結果が想定と異なります"
+        )
+    }
+
     /// 捨て札ペナルティでスタックを削除し、新しいカードが補充されるか検証
     func testManualDiscardRemovesStackAndAddsPenalty() {
         let deck = Deck.makeTestDeck(cards: [
