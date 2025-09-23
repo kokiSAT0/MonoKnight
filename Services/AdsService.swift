@@ -79,7 +79,15 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, FullScre
         self.interstitialAdUnitID = interstitialIdentifier
         self.hasValidAdConfiguration = !applicationIdentifier.isEmpty && !interstitialIdentifier.isEmpty
         super.init()
+
+        // IAP による広告除去が永続化されている場合は、初期化直後から広告のロードを完全に停止する
+        if removeAds {
+            adsDisabled = true
+            debugLog("広告除去オプションが有効なため AdMob SDK のロード処理をスキップします")
+        }
+
         guard hasValidAdConfiguration else { return }
+        guard !adsDisabled else { return }
 
         // SDK 初期化。v11 以降では `GADMobileAds` が `MobileAds` に改名されたため、shared プロパティから最新 API を取得する。
         // （名称変更に追従しつつ、将来的な API 差分を把握しやすくする意図で明示的にコメントを残している）
@@ -242,6 +250,11 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, FullScre
     }
 
     func disableAds() {
+        // 既に停止済みの場合でも呼び出されるため、冪等性を確保して余分な処理を避ける
+        guard !adsDisabled else {
+            debugLog("広告機能は既に無効化済みのため追加処理を行いません")
+            return
+        }
         debugLog("広告機能を無効化しました。今後のリクエストを停止します")
         adsDisabled = true
         isWaitingForPresentation = false

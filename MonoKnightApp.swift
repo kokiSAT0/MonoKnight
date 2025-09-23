@@ -12,6 +12,10 @@ struct MonoKnightApp: App {
     /// 広告サービスのインスタンス（上記と同様に `init` で確定）
     private var adsService: AdsServiceProtocol
 
+    /// StoreKit2 の購買状況を常に監視し、広告除去 IAP の適用状態をアプリ全体へ即時反映するためのオブジェクト
+    /// - NOTE: `@StateObject` で保持しておくことで、`SettingsView` を開かなくても復元処理やトランザクション監視が動作する
+    @StateObject private var storeService = StoreService.shared
+
     /// 同意フローが完了したかどうかを保持するフラグ
     /// - NOTE: `UserDefaults` と連携し、次回以降はスキップする
     @AppStorage("has_completed_consent_flow") private var hasCompletedConsentFlow: Bool = false
@@ -60,6 +64,8 @@ struct MonoKnightApp: App {
             // MARK: テーマ適用
             // `Group` に適用することで、内部のどの画面が表示されていてもユーザー設定が反映される。
             .preferredColorScheme(themePreference.preferredColorScheme)
+            // - NOTE: `environmentObject` に乗せておくと、将来的に他画面からも購買状況を参照しやすくなる
+            .environmentObject(storeService)
         }
     }
 }
