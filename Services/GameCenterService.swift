@@ -1,8 +1,47 @@
 import Foundation
-import Game      // debugLog / debugError などゲームロジック側のデバッグユーティリティを利用するために追加
+import Game      // debugLog / debugError などゲームロジック側のデバッグユーティリティと GameMode 識別子を利用するために追加
 import GameKit
 import UIKit
-import SwiftUI // @AppStorage を利用するために追加
+
+/// Game Center で利用するリーダーボードの定義をまとめたカタログ構造体
+/// - NOTE: `docs/game-center-leaderboards.md` に掲載している一覧と同期しやすいよう、
+///         参照名・Leaderboard ID・対応モードをここで一元管理する
+private struct GameCenterLeaderboardCatalog {
+    /// 1 つのリーダーボードに関するメタ情報
+    struct Entry {
+        /// App Store Connect 上で設定するリファレンス名
+        let referenceName: String
+        /// Leaderboard ID（`Leaderboard ID` 欄で設定する文字列）
+        let leaderboardID: String
+        /// このリーダーボードへスコア送信するゲームモードの集合
+        let supportedModes: Set<GameMode.Identifier>
+    }
+
+    /// テスト版スタンダードモード向けリーダーボード
+    /// - Important: リファレンス名・ID はドキュメントと完全一致させる
+    static let standardTest = Entry(
+        referenceName: "[TEST] Standard Leaderboard",
+        leaderboardID: "test_standard_moves_v1",
+        supportedModes: [.standard5x5]
+    )
+
+    /// テスト版クラシカルチャレンジ向けリーダーボード
+    static let classicalChallengeTest = Entry(
+        referenceName: "[TEST] Classical Challenge Leaderboard",
+        leaderboardID: "test_classical_moves_v1",
+        supportedModes: [.classicalChallenge]
+    )
+
+    /// 定義済みのリーダーボード一覧
+    static let allEntries: [Entry] = [standardTest, classicalChallengeTest]
+
+    /// 指定したゲームモードに対応するリーダーボードを返す
+    /// - Parameter identifier: 判定対象となるゲームモード識別子
+    /// - Returns: マッチするリーダーボード定義。未定義の場合は `nil`
+    static func entry(for identifier: GameMode.Identifier) -> Entry? {
+        allEntries.first { $0.supportedModes.contains(identifier) }
+    }
+}
 
 /// Game Center 操作に必要なインターフェースを定義するプロトコル
 /// - NOTE: 認証やスコア送信をテストしやすくするために利用する
@@ -13,10 +52,13 @@ protocol GameCenterServiceProtocol: AnyObject {
     /// - Parameter completion: 認証結果を受け取るクロージャ
     func authenticateLocalPlayer(completion: ((Bool) -> Void)?)
     /// リーダーボードへスコア（ポイント）を送信する
-    /// - Parameter score: 送信するポイント値
-    func submitScore(_ score: Int)
+    /// - Parameters:
+    ///   - score: 送信するポイント値
+    ///   - modeIdentifier: スコアを送信したゲームモードの識別子
+    func submitScore(_ score: Int, for modeIdentifier: GameMode.Identifier)
     /// ランキング画面を表示する
-    func showLeaderboard()
+    /// - Parameter modeIdentifier: 表示したいリーダーボードが紐付くゲームモード識別子
+    func showLeaderboard(for modeIdentifier: GameMode.Identifier)
 }
 
 /// Game Center 関連の操作をまとめたサービス
@@ -25,26 +67,71 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
     /// シングルトンインスタンス
     static let shared = GameCenterService()
 
-    /// Game Center で利用するリーダーボード ID
-    /// - Note: 複数箇所で同じ文字列を使うため、ミスタイプ防止として集約
-    private let leaderboardID = "kc_moves_5x5"
+    /// UserDefaults アクセスを司るインスタンス
+    private let userDefaults = UserDefaults.standard
+    /// 送信済みフラグを保存するためのキー
+    private let hasSubmittedDictionaryKey = "gc_has_submitted_by_leaderboard"
+    /// 送信済みスコアを保存するためのキー
+    private let lastScoreDictionaryKey = "gc_last_score_by_leaderboard"
 
     private override init() {}
-
-    // MARK: - 永続フラグ
-
-    /// Game Center へ初回スコア送信済みかどうかを保持するフラグ
-    /// @AppStorage を利用して UserDefaults へ自動保存する
-    /// - Note: 設定画面やデバッグからリセットできるよう公開メソッドを用意する
-    @AppStorage("has_submitted_gc") private var hasSubmittedGC: Bool = false
-
-    /// 直近で Game Center へ送信したスコア（ポイント）を保持
-    /// - Note: より良いスコアが出た場合のみ再送信することで無駄な API 呼び出しを避ける
-    @AppStorage("last_submitted_gc_score") private var lastSubmittedScore: Int = .max
 
     /// Game Center へログイン済みかどうかを保持するフラグ
     /// - Note: 認証に失敗した場合は `false` のままとなる
     private(set) var isAuthenticated = false
+
+    // MARK: - 送信状況の読み書きヘルパー
+
+    /// 指定したリーダーボード ID の送信済みフラグを取得する
+    private func hasSubmittedScore(for leaderboardID: String) -> Bool {
+        let stored = userDefaults.dictionary(forKey: hasSubmittedDictionaryKey) as? [String: Bool]
+        return stored?[leaderboardID] ?? false
+    }
+
+    /// 指定したリーダーボード ID の最終送信スコアを取得する
+    private func lastSubmittedScore(for leaderboardID: String) -> Int {
+        let stored = userDefaults.dictionary(forKey: lastScoreDictionaryKey) as? [String: Int]
+        return stored?[leaderboardID] ?? .max
+    }
+
+    /// 指定したリーダーボードの送信状況を更新する
+    private func updateSubmissionRecord(for leaderboardID: String, with score: Int) {
+        var flagDictionary = (userDefaults.dictionary(forKey: hasSubmittedDictionaryKey) as? [String: Bool]) ?? [:]
+        flagDictionary[leaderboardID] = true
+        if flagDictionary.isEmpty {
+            userDefaults.removeObject(forKey: hasSubmittedDictionaryKey)
+        } else {
+            userDefaults.set(flagDictionary, forKey: hasSubmittedDictionaryKey)
+        }
+
+        var scoreDictionary = (userDefaults.dictionary(forKey: lastScoreDictionaryKey) as? [String: Int]) ?? [:]
+        let previousScore = scoreDictionary[leaderboardID] ?? .max
+        scoreDictionary[leaderboardID] = min(score, previousScore)
+        if scoreDictionary.isEmpty {
+            userDefaults.removeObject(forKey: lastScoreDictionaryKey)
+        } else {
+            userDefaults.set(scoreDictionary, forKey: lastScoreDictionaryKey)
+        }
+    }
+
+    /// 指定したリーダーボードの送信状況をリセットする
+    private func resetSubmissionRecord(for leaderboardID: String) {
+        var flagDictionary = (userDefaults.dictionary(forKey: hasSubmittedDictionaryKey) as? [String: Bool]) ?? [:]
+        flagDictionary.removeValue(forKey: leaderboardID)
+        if flagDictionary.isEmpty {
+            userDefaults.removeObject(forKey: hasSubmittedDictionaryKey)
+        } else {
+            userDefaults.set(flagDictionary, forKey: hasSubmittedDictionaryKey)
+        }
+
+        var scoreDictionary = (userDefaults.dictionary(forKey: lastScoreDictionaryKey) as? [String: Int]) ?? [:]
+        scoreDictionary.removeValue(forKey: leaderboardID)
+        if scoreDictionary.isEmpty {
+            userDefaults.removeObject(forKey: lastScoreDictionaryKey)
+        } else {
+            userDefaults.set(scoreDictionary, forKey: lastScoreDictionaryKey)
+        }
+    }
 
     // MARK: - GKAccessPoint 設定
 
@@ -124,7 +211,7 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
 
     /// スコアを Game Center のリーダーボードへ送信する
     /// - Parameter score: 送信するポイント（少ないほど高評価）
-    func submitScore(_ score: Int) {
+    func submitScore(_ score: Int, for modeIdentifier: GameMode.Identifier) {
         // 未認証の場合はスコア送信を行わない
         guard isAuthenticated else {
             // 未認証状態で呼ばれた際の注意をログ出力
@@ -132,19 +219,21 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
             return
         }
 
-        // 送信要否を判定。未送信またはベスト更新時のみ送る
-        let shouldSubmit: Bool
-        if !hasSubmittedGC {
-            shouldSubmit = true
-        } else if score < lastSubmittedScore {
-            shouldSubmit = true
-        } else {
-            shouldSubmit = false
+        // 指定モードに対応するリーダーボードが存在するか確認
+        guard let entry = GameCenterLeaderboardCatalog.entry(for: modeIdentifier) else {
+            // まだリーダーボード未整備のモードでは送信しない
+            debugLog("Game Center: モード \(modeIdentifier.rawValue) に対応するテスト用リーダーボードが未定義のため送信をスキップ")
+            return
         }
+
+        // 送信要否を判定。未送信またはベスト更新時のみ送る
+        let hasSubmitted = hasSubmittedScore(for: entry.leaderboardID)
+        let previousScore = lastSubmittedScore(for: entry.leaderboardID)
+        let shouldSubmit = (!hasSubmitted) || (score < previousScore)
 
         guard shouldSubmit else {
             // 送信済みスコアより悪化している場合はリーダーボード更新を行わない
-            debugLog("Game Center 既存スコア (\(lastSubmittedScore)) 以下のため送信をスキップ: \(score)")
+            debugLog("Game Center 既存スコア (\(previousScore)) 以下のため送信をスキップ: \(score)")
             return
         }
 
@@ -152,7 +241,7 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
             score,
             context: 0,
             player: GKLocalPlayer.local,
-            leaderboardIDs: [leaderboardID]
+            leaderboardIDs: [entry.leaderboardID]
         ) { [weak self] error in
             // エラーが発生した場合はログ出力のみ行う
             if let error {
@@ -163,8 +252,7 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
                 debugLog("Game Center スコア送信成功: \(score)")
                 // 成功した場合は再送信を防ぐためフラグを更新
                 guard let self else { return }
-                self.hasSubmittedGC = true
-                self.lastSubmittedScore = min(score, self.lastSubmittedScore)
+                self.updateSubmissionRecord(for: entry.leaderboardID, with: score)
             }
         }
     }
@@ -173,20 +261,37 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
 
     /// スコア送信済みフラグをリセットする
     /// - Note: 設定画面やテスト時に初期状態へ戻したい場合に利用する
-    func resetSubmittedFlag() {
-        // フラグを false に戻すことで再送信が可能になる
-        hasSubmittedGC = false
-        lastSubmittedScore = .max
-        // リセットしたことをデバッグログに出力
-        debugLog("Game Center スコア送信フラグをリセットしました")
+    /// - Parameter modeIdentifier: リセット対象のモード。`nil` の場合は全モードを対象とする
+    func resetSubmittedFlag(for modeIdentifier: GameMode.Identifier? = nil) {
+        if let identifier = modeIdentifier {
+            guard let entry = GameCenterLeaderboardCatalog.entry(for: identifier) else {
+                debugLog("Game Center リセット要求: モード \(identifier.rawValue) に対応するリーダーボードが未定義のため処理を中断")
+                return
+            }
+            resetSubmissionRecord(for: entry.leaderboardID)
+            debugLog("Game Center スコア送信フラグをリセットしました (対象モード: \(identifier.rawValue))")
+        } else {
+            for entry in GameCenterLeaderboardCatalog.allEntries {
+                resetSubmissionRecord(for: entry.leaderboardID)
+            }
+            debugLog("Game Center スコア送信フラグを全モード分リセットしました")
+        }
     }
 
     /// ランキング画面を表示する
-    func showLeaderboard() {
+    func showLeaderboard(for modeIdentifier: GameMode.Identifier) {
         // 未認証の場合はランキングを表示しない
         guard isAuthenticated else {
             // 未認証のままランキング表示を要求された場合のログ
             debugLog("Game Center 未認証のためランキング表示不可")
+            return
+        }
+
+        // リーダーボードの表示対象を決定。モード未定義の場合は先頭のテストボードを利用
+        let entry = GameCenterLeaderboardCatalog.entry(for: modeIdentifier) ?? GameCenterLeaderboardCatalog.allEntries.first
+
+        guard let targetEntry = entry else {
+            debugLog("Game Center: 表示可能なリーダーボードが定義されていないためランキングを開けません")
             return
         }
 
@@ -197,7 +302,7 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
         // - Note: iOS14 以降で推奨される `leaderboardID` 指定の初期化メソッドを利用する
         //         これによりデプリケーション警告を解消しつつ、従来と同じ ID／スコープを適用できる
         let vc = GKGameCenterViewController(
-            leaderboardID: leaderboardID,     // 既存と同じリーダーボード ID を明示
+            leaderboardID: targetEntry.leaderboardID,     // モードに応じたテスト用リーダーボード ID を明示
             playerScope: .global,              // これまで通り全世界ランキングを参照
             timeScope: .allTime                // 通算ランキング表示（過去の挙動を維持）
         )

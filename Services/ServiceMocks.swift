@@ -1,4 +1,5 @@
 #if canImport(UIKit)
+import Game   // GameMode.Identifier を扱うために追加
 import UIKit
 import SwiftUI
 
@@ -14,10 +15,10 @@ final class MockGameCenterService: GameCenterServiceProtocol {
     }
 
     /// スコア送信は行わないダミー実装
-    func submitScore(_ score: Int) {}
+    func submitScore(_ score: Int, for modeIdentifier: GameMode.Identifier) {}
 
     /// ランキング表示も行わないダミー実装
-    func showLeaderboard() {}
+    func showLeaderboard(for modeIdentifier: GameMode.Identifier) {}
 }
 
 /// インタースティシャル広告をダミー表示する UI テスト用モック
