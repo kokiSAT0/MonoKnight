@@ -178,6 +178,18 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
         player.authenticateHandler = { [weak self] vc, error in
             guard let self else { return }
 
+            // --- ハンドラ呼び出し状況の記録 ---
+            // TestFlight 配信版でも問題を再現しやすいよう、UI 提示有無・認証状態・エラー情報をまとめて OSLog へ送る
+            let statusDescription: String
+            if let error {
+                statusDescription = "error=\(error.localizedDescription)"
+            } else {
+                statusDescription = "error=nil"
+            }
+            debugLog(
+                "Game Center 認証ハンドラ呼び出し: presentingVC=\(vc != nil), isAuthenticated=\(player.isAuthenticated), \(statusDescription)"
+            )
+
             // 認証のための ViewController が渡された場合は表示を行う
             if let vc {
                 // UI 提示系の処理は必ずメインスレッドでまとめて実行する
@@ -191,6 +203,8 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
                         completion?(false)
                         return
                     }
+                    // 取得に成功したルート VC を明示し、TestFlight でも動作が追跡できるようにする
+                    debugLog("Game Center 認証 UI を提示します: root=\(type(of: root))")
                     root.present(vc, animated: true)
                 }
                 return
@@ -220,6 +234,8 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
                         // それ以外はメッセージのみ出力
                         let message = "不明なエラー"
                         debugLog("Game Center 認証失敗: \(message)")
+                        // Error が nil のまま失敗したケースは TestFlight で特に原因調査が難しいため追加情報を記録
+                        debugLog("Game Center 認証失敗: GKLocalPlayer.isAuthenticated=\(player.isAuthenticated)")
                     }
                     completion?(false) // 呼び出し元へ失敗を通知
                 }
