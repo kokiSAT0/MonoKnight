@@ -190,7 +190,8 @@ private extension FreeModeRegulationView {
     }
 
     /// 現在のスポーン設定を Picker 用のオプションへ変換する
-    var currentSpawnOption: SpawnOption {
+    /// Picker の現在値を内部のスポーン設定へ変換した結果を返す
+    private var currentSpawnOption: SpawnOption {
         switch draft.spawnRule {
         case .fixed:
             return .fixedCenter
@@ -200,7 +201,7 @@ private extension FreeModeRegulationView {
     }
 
     /// Picker と `draft.spawnRule` を結び付けるバインディング
-    var spawnOptionBinding: Binding<SpawnOption> {
+    private var spawnOptionBinding: Binding<SpawnOption> {
         Binding {
             currentSpawnOption
         } set: { newValue in
