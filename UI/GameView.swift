@@ -271,7 +271,7 @@ struct GameView: View {
             // 統計バッジ＋操作ボタンを上部へ寄せ、ノッチやステータスバーと干渉しないように余白を加算
             .padding(.top, layoutContext.controlRowTopPadding)
             // MARK: - 手詰まりペナルティ通知バナー
-            penaltyBannerOverlay(topInset: layoutContext.topInset)
+            penaltyBannerOverlay(contentTopInset: layoutContext.overlayAdjustedTopInset)
         }
         // 画面全体の背景もテーマで制御し、システム設定と調和させる
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -514,6 +514,9 @@ struct GameView: View {
         // いずれかで取得できた最大値を採用しつつ、rawTopInset を超えないようにクリップする
         let overlayCompensation = min(max(overlayFromEnvironment, overlayFromDifference), rawTopInset)
         let adjustedTopInset = max(rawTopInset - overlayCompensation, 0)
+        // トップバーのぶんだけ画面内容が押し下げられている場合、純粋な安全領域だけを取り出しておく
+        // これにより RootView 側で safeAreaInset を挿入した際でも、盤面の上部余白を必要最小限に抑えられる
+        let overlayAdjustedTopInset = max(adjustedTopInset - overlayCompensation, 0)
         let usedTopFallback = adjustedTopInset <= 0 && horizontalSizeClass == .regular
         let usedBottomFallback = rawBottomInset <= 0 && horizontalSizeClass == .regular
         let topInset = adjustedTopInset > 0
@@ -524,9 +527,11 @@ struct GameView: View {
             : (usedBottomFallback ? LayoutMetrics.regularWidthBottomSafeAreaFallback : 0)
 
         // MARK: - 盤面上部コントロールバーの余白を決定
+        // overlayAdjustedTopInset は「システム由来のセーフエリア（ノッチ・ステータスバー）」のみを表す値なので、
+        // トップバーが存在しても余計な空白が生まれないよう、この値に基づいて余白を算出する。
         let controlRowTopPadding = max(
             LayoutMetrics.controlRowBaseTopPadding,
-            topInset + LayoutMetrics.controlRowSafeAreaAdditionalPadding
+            overlayAdjustedTopInset + LayoutMetrics.controlRowSafeAreaAdditionalPadding
         )
 
         // MARK: - 手札セクション下部の余白を決定
@@ -570,6 +575,7 @@ struct GameView: View {
             usedTopFallback: usedTopFallback,
             usedBottomFallback: usedBottomFallback,
             topOverlayHeight: overlayCompensation,
+            overlayAdjustedTopInset: overlayAdjustedTopInset,
             topInset: topInset,
             bottomInset: bottomInset,
             controlRowTopPadding: controlRowTopPadding,
@@ -1059,15 +1065,17 @@ struct GameView: View {
     }
 
     /// 手詰まりペナルティを知らせるバナーのレイヤーを構成
-    private func penaltyBannerOverlay(topInset: CGFloat) -> some View {
+    private func penaltyBannerOverlay(contentTopInset: CGFloat) -> some View {
         // MARK: - ステータスバーとの距離を安全に確保する
         // iPad のフォームシートなどで safeAreaInsets.top が 0 になるケースでは、
         // バナーが画面最上部へ貼り付いてしまうため、フォールバックを交えつつ余白を広げる。
-        // topInset が 0 でも LayoutMetrics.penaltyBannerBaseTopPadding だけは必ず確保し、
+        // contentTopInset にはステータスバー由来の安全領域のみを渡し、RootView のトップバーぶんはすでに差し引いた状態にする。
+        // これによりトップバー表示時でもバナーが極端に下へずり落ちることを防ぐ。
+        // contentTopInset が 0 でも LayoutMetrics.penaltyBannerBaseTopPadding だけは必ず確保し、
         // 非ゼロのインセットが得られた場合は追加マージンを加えて矢印付きダイアログとの干渉を避ける。
         let resolvedTopPadding = max(
             LayoutMetrics.penaltyBannerBaseTopPadding,
-            topInset + LayoutMetrics.penaltyBannerSafeAreaAdditionalPadding
+            contentTopInset + LayoutMetrics.penaltyBannerSafeAreaAdditionalPadding
         )
 
         return VStack {
@@ -1608,7 +1616,7 @@ struct GameView: View {
         let message = """
         GameView.layout 観測: 理由=\(reason)
           geometry=\(snapshot.geometrySize)
-          safeArea(rawTop=\(snapshot.rawTopInset), baseTop=\(snapshot.baseTopSafeAreaInset), rawBottom=\(snapshot.rawBottomInset), resolvedTop=\(snapshot.resolvedTopInset), resolvedBottom=\(snapshot.resolvedBottomInset), fallbackTop=\(snapshot.usedTopSafeAreaFallback), fallbackBottom=\(snapshot.usedBottomSafeAreaFallback), overlayTop=\(snapshot.topOverlayHeight))
+          safeArea(rawTop=\(snapshot.rawTopInset), baseTop=\(snapshot.baseTopSafeAreaInset), rawBottom=\(snapshot.rawBottomInset), resolvedTop=\(snapshot.resolvedTopInset), overlayAdjustedTop=\(snapshot.overlayAdjustedTopInset), resolvedBottom=\(snapshot.resolvedBottomInset), fallbackTop=\(snapshot.usedTopSafeAreaFallback), fallbackBottom=\(snapshot.usedBottomSafeAreaFallback), overlayTop=\(snapshot.topOverlayHeight))
           sections(statistics=\(snapshot.statisticsHeight), resolvedStatistics=\(snapshot.resolvedStatisticsHeight), hand=\(snapshot.handSectionHeight), resolvedHand=\(snapshot.resolvedHandSectionHeight))
           paddings(controlTop=\(snapshot.controlRowTopPadding), handBottom=\(snapshot.handSectionBottomPadding), regularExtra=\(snapshot.regularAdditionalBottomPadding))
           fallbacks(statistics=\(snapshot.usedStatisticsFallback), hand=\(snapshot.usedHandSectionFallback), topSafeArea=\(snapshot.usedTopSafeAreaFallback), bottomSafeArea=\(snapshot.usedBottomSafeAreaFallback))
@@ -1634,6 +1642,7 @@ struct GameView: View {
         let usedTopFallback: Bool
         let usedBottomFallback: Bool
         let topOverlayHeight: CGFloat
+        let overlayAdjustedTopInset: CGFloat
         let topInset: CGFloat
         let bottomInset: CGFloat
         let controlRowTopPadding: CGFloat
@@ -1665,6 +1674,7 @@ struct GameView: View {
         let rawBottomInset: CGFloat
         let baseTopSafeAreaInset: CGFloat
         let resolvedTopInset: CGFloat
+        let overlayAdjustedTopInset: CGFloat
         let resolvedBottomInset: CGFloat
         let statisticsHeight: CGFloat
         let resolvedStatisticsHeight: CGFloat
@@ -1692,6 +1702,7 @@ struct GameView: View {
             self.rawBottomInset = context.rawBottomInset
             self.baseTopSafeAreaInset = context.baseTopSafeAreaInset
             self.resolvedTopInset = context.topInset
+            self.overlayAdjustedTopInset = context.overlayAdjustedTopInset
             self.resolvedBottomInset = context.bottomInset
             self.statisticsHeight = context.statisticsHeight
             self.resolvedStatisticsHeight = context.resolvedStatisticsHeight
