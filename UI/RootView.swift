@@ -685,20 +685,12 @@ fileprivate struct DebugLogConsoleView: View {
                             .padding(.vertical, 8)
                         }
                         .onAppear {
-                            guard let lastID = viewModel.entries.last?.id else { return }
-                            lastVisibleEntryID = lastID
-                            DispatchQueue.main.async {
-                                proxy.scrollTo(lastID, anchor: .bottom)
-                            }
+                            // 初回表示時に末尾のログが見えるようスクロールする
+                            scrollToLatestEntryIfNeeded(using: proxy, entries: viewModel.entries, animated: false)
                         }
                         .onChange(of: viewModel.entries) { _, entries in
-                            guard let lastID = entries.last?.id, lastID != lastVisibleEntryID else { return }
-                            lastVisibleEntryID = lastID
-                            DispatchQueue.main.async {
-                                withAnimation(.easeInOut(duration: 0.2)) {
-                                    proxy.scrollTo(lastID, anchor: .bottom)
-                                }
-                            }
+                            // ログの追加や削除があった際に必要に応じてスクロールを更新する
+                            scrollToLatestEntryIfNeeded(using: proxy, entries: entries, animated: true)
                         }
                     }
                 }
@@ -722,6 +714,34 @@ fileprivate struct DebugLogConsoleView: View {
                     }
                     .disabled(viewModel.entries.isEmpty)
                 }
+            }
+        }
+    }
+
+    /// 末尾のログ項目が画面内に収まるよう、必要に応じてスクロール位置を更新する
+    /// - Parameters:
+    ///   - proxy: スクロール操作に利用する `ScrollViewProxy`
+    ///   - entries: 最新状態のログ配列
+    ///   - animated: スクロール時にアニメーションを付けるかどうか
+    private func scrollToLatestEntryIfNeeded(using proxy: ScrollViewProxy, entries: [DebugLogEntry], animated: Bool) {
+        // 表示すべき最新のログ ID が存在しない場合は何もしない
+        guard let lastID = entries.last?.id else { return }
+        // 直前にスクロール済みの ID と同じ場合は無駄なスクロールを避ける
+        guard lastID != lastVisibleEntryID else { return }
+
+        // 最新 ID を追跡し、メインスレッドでスクロールを実行する
+        lastVisibleEntryID = lastID
+        let scrollAction = {
+            proxy.scrollTo(lastID, anchor: .bottom)
+        }
+
+        DispatchQueue.main.async {
+            if animated {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    scrollAction()
+                }
+            } else {
+                scrollAction()
             }
         }
     }
