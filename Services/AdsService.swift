@@ -31,7 +31,7 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, FullScre
     /// シングルトンでサービスを共有
     static let shared = AdsService()
 
-    @AppStorage("remove_ads") private var removeAds: Bool = false
+    @AppStorage("remove_ads_mk") private var removeAdsMK: Bool = false
     @AppStorage("haptics_enabled") private var hapticsEnabled: Bool = true
     /// UMP の同意結果から非パーソナライズ広告を求めるかどうか
     @AppStorage("ads_should_use_npa") private var shouldUseNPA: Bool = false
@@ -81,7 +81,7 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, FullScre
         super.init()
 
         // IAP による広告除去が永続化されている場合は、初期化直後から広告のロードを完全に停止する
-        if removeAds {
+        if removeAdsMK {
             adsDisabled = true
             debugLog("広告除去オプションが有効なため AdMob SDK のロード処理をスキップします")
         }
@@ -205,8 +205,8 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, FullScre
 
     func showInterstitial() {
         // IAP や設定で完全に無効化されている場合は何もしない
-        if adsDisabled || removeAds {
-            debugLog("広告が無効化されているため表示処理をスキップしました (adsDisabled: \(adsDisabled), removeAds: \(removeAds))")
+        if adsDisabled || removeAdsMK {
+            debugLog("広告が無効化されているため表示処理をスキップしました (adsDisabled: \(adsDisabled), removeAdsMK: \(removeAdsMK))")
             return
         }
 
@@ -281,7 +281,7 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, FullScre
             return
         }
 
-        guard !removeAds else {
+        guard !removeAdsMK else {
             debugLog("広告削除オプションが有効なため広告読み込みをスキップしました")
             return
         }
@@ -322,7 +322,7 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, FullScre
                         return
                     }
 
-                    guard !self.adsDisabled, !self.removeAds else { return }
+                    guard !self.adsDisabled, !self.removeAdsMK else { return }
                     self.interstitial = ad
                     self.interstitial?.fullScreenContentDelegate = self
                     // 成功したのでリトライは不要
@@ -357,7 +357,7 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, FullScre
         guard isWaitingForPresentation else { return }
         debugLog("読み込み完了後の自動表示処理を開始します")
         // 既に広告を無効化している場合は表示を諦め、待機フラグのみ解除する
-        guard !adsDisabled, !removeAds else {
+        guard !adsDisabled, !removeAdsMK else {
             isWaitingForPresentation = false
             interstitial = nil
             debugLog("広告が無効化されているため自動表示を取りやめました")

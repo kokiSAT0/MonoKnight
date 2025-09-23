@@ -146,7 +146,7 @@ struct SettingsView: View {
 
                 // MARK: - 広告除去 IAP セクション
                 Section {
-                    if storeService.isRemoveAdsPurchased {
+                    if storeService.isremoveAdsMKPurchased {
                         // すでに広告除去が有効な場合は、状態が維持されていることを明確に示す
                         Label {
                             Text("広告は現在表示されません")
@@ -160,10 +160,10 @@ struct SettingsView: View {
                             isPurchaseInProgress = true
                             Task {
                                 // 商品情報が未取得の場合は先にリクエストをやり直す
-                                if storeService.removeAdsProduct == nil {
+                                if storeService.removeAdsMKProduct == nil {
                                     await storeService.fetchProducts()
                                 }
-                                await storeService.purchaseRemoveAds()
+                                await storeService.purchaseremoveAdsMK()
                                 await MainActor.run {
                                     isPurchaseInProgress = false
                                 }
@@ -174,7 +174,7 @@ struct SettingsView: View {
                                 Spacer()
                                 if isPurchaseInProgress {
                                     ProgressView()
-                                } else if let price = storeService.removeAdsProduct?.displayPrice {
+                                } else if let price = storeService.removeAdsMKProduct?.displayPrice {
                                     Text(price)
                                         .foregroundStyle(.secondary)
                                 } else {
@@ -280,7 +280,7 @@ struct SettingsView: View {
             .navigationTitle("設定")
             // - NOTE: プレビューや UI テストでは、この Picker を操作して `GameView` の `applyScenePalette` が呼び直されることを確認する想定。
             // 購入状態の遷移を旧値と新値の両方から判定し、false→true の変化だけを検出する
-            .onChange(of: storeService.isRemoveAdsPurchased) { oldValue, newValue in
+            .onChange(of: storeService.isremoveAdsMKPurchased) { oldValue, newValue in
                 // 直前まで未購入で、今回の更新で初めて購入済みになったタイミングのみアラートを掲示する
                 if !oldValue && newValue {
                     storeAlert = .purchaseCompleted

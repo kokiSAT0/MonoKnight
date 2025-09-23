@@ -6,7 +6,7 @@ MonoKnight で利用するアプリ内課金（In-App Purchase）の種類・参
 
 | 機能カテゴリ | 参照名 (StoreService) | Product ID | 種別 (StoreKit) | 利用箇所 | 備考 |
 | --- | --- | --- | --- | --- | --- |
-| 広告除去 | `removeAds` | `remove_ads` | Non-Consumable | `StoreService` / `AdsService` / `SettingsView` | 購入すると `AdsService.disableAds()` を呼び出し、AdMob の読み込みと表示を完全に停止する。
+| 広告除去 | `removeAdsMK` | `remove_ads_mk` | Non-Consumable | `StoreService` / `AdsService` / `SettingsView` | 購入すると `AdsService.disableAds()` を呼び出し、AdMob の読み込みと表示を完全に停止する。
 
 - **参照名**: コード側で `StoreService` が保持するプロパティ名／商品検索時のシンボル。Swift ファイル内での命名に合わせてキャメルケースで記載する。
 - **Product ID**: App Store Connect に登録する一意の識別子。`AdsService` など他クラスでも同一 ID を参照するため、変更時は影響範囲の確認が必須。

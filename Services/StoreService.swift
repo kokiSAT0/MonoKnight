@@ -5,7 +5,7 @@ import SwiftUI
 import Game
 
 /// StoreKit2 を用いた課金処理をまとめたサービス
-/// `remove_ads` 商品の購入・復元・状態保持を担当する
+/// `remove_ads_mk` 商品の購入・復元・状態保持を担当する
 @MainActor
 final class StoreService: ObservableObject {
     /// シングルトンインスタンス
@@ -16,19 +16,19 @@ final class StoreService: ObservableObject {
 
     /// 広告除去購入済みフラグを UI へ公開するためのプロパティ
     /// - NOTE: `@AppStorage` だけだと SwiftUI の描画更新が走らないため、`@Published` と併用して View 側で購読しやすくする
-    @Published private(set) var isRemoveAdsPurchased: Bool
+    @Published private(set) var isremoveAdsMKPurchased: Bool
 
     /// 広告除去購入済みフラグ
     /// - `true` の場合は AdsService が広告を読み込まない
-    @AppStorage("remove_ads") private var removeAds: Bool = false
+    @AppStorage("remove_ads_mk") private var removeAdsMK: Bool = false
 
     /// 設定画面などから価格表示に利用できるよう、広告除去商品の参照を提供する
-    var removeAdsProduct: Product? { products.first(where: { $0.id == "remove_ads" }) }
+    var removeAdsMKProduct: Product? { products.first(where: { $0.id == "remove_ads_mk" }) }
 
     private init() {
         // 起動時点で保存済みの値を読み出し、UI の初期状態に反映する
-        self.isRemoveAdsPurchased = UserDefaults.standard.bool(forKey: "remove_ads")
-        if removeAds {
+        self.isremoveAdsMKPurchased = UserDefaults.standard.bool(forKey: "remove_ads_mk")
+        if removeAdsMK {
             // すでに広告除去が有効な場合は AdsService にも通知しておき、広告ロードを完全に止める
             AdsService.shared.disableAds()
         }
@@ -42,11 +42,11 @@ final class StoreService: ObservableObject {
 
     // MARK: - Product
 
-    /// `remove_ads` 商品の情報を取得する
+    /// `remove_ads_mk` 商品の情報を取得する
     func fetchProducts() async {
         do {
             // App Store Connect で登録した Product ID を指定
-            products = try await Product.products(for: ["remove_ads"])
+            products = try await Product.products(for: ["remove_ads_mk"])
         } catch {
             // 失敗時はユーザーへは通知せず、デバッグログのみ詳細を出力
             debugError(error, message: "商品情報の取得に失敗")
@@ -56,9 +56,9 @@ final class StoreService: ObservableObject {
     // MARK: - Purchase
 
     /// 広告除去を購入する
-    func purchaseRemoveAds() async {
+    func purchaseremoveAdsMK() async {
         // 事前に取得したプロダクトを検索
-        guard let product = products.first(where: { $0.id == "remove_ads" }) else { return }
+        guard let product = products.first(where: { $0.id == "remove_ads_mk" }) else { return }
 
         do {
             // 購入フローを開始
@@ -66,9 +66,9 @@ final class StoreService: ObservableObject {
             switch result {
             case .success(let verification):
                 // トランザクションの検証
-                if let transaction = checkVerified(verification), transaction.productID == "remove_ads" {
+                if let transaction = checkVerified(verification), transaction.productID == "remove_ads_mk" {
                     // フラグ反映と広告停止
-                    applyRemoveAds()
+                    applyremoveAdsMK()
                     // 消費型ではないので明示的に finish
                     await transaction.finish()
                 }
@@ -83,9 +83,9 @@ final class StoreService: ObservableObject {
     }
 
     /// 外部から呼び出して購入済み情報を更新する
-    private func applyRemoveAds() {
-        removeAds = true
-        isRemoveAdsPurchased = true
+    private func applyremoveAdsMK() {
+        removeAdsMK = true
+        isremoveAdsMKPurchased = true
         // 広告サービスに通知して表示を停止させる
         AdsService.shared.disableAds()
     }
@@ -96,8 +96,8 @@ final class StoreService: ObservableObject {
     private func updatePurchasedStatus() async {
         // 現在有効なトランザクションをすべてチェック
         for await result in Transaction.currentEntitlements {
-            if let transaction = checkVerified(result), transaction.productID == "remove_ads" {
-                applyRemoveAds()
+            if let transaction = checkVerified(result), transaction.productID == "remove_ads_mk" {
+                applyremoveAdsMK()
             }
         }
     }
@@ -106,8 +106,8 @@ final class StoreService: ObservableObject {
     private func observeTransactions() async {
         // 非同期シーケンスとして更新を受け取る
         for await result in Transaction.updates {
-            if let transaction = checkVerified(result), transaction.productID == "remove_ads" {
-                applyRemoveAds()
+            if let transaction = checkVerified(result), transaction.productID == "remove_ads_mk" {
+                applyremoveAdsMK()
                 await transaction.finish()
             }
         }

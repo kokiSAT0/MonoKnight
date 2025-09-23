@@ -27,7 +27,7 @@
 - 手札 UI: 画面下に 5 スロット（最大 5 種類保持）、次カード 3 枚の先読み。
 - ランキング: Game Center Leaderboard（Single leaderboard）。
 - 広告: AdMob（ゲーム終了時の**インタースティシャル**のみ）
-- IAP: 広告除去（永続アイテム `remove_ads` / StoreKit2）。
+- IAP: 広告除去（永続アイテム `remove_ads_mk` / StoreKit2）。
 - 言語: 日本語（英語は後日）。
 - 端末: iPhone / iPad（iOS 16+、Portrait 固定）。iPad でも UI が崩れないようサイズクラスへ対応させる。
 - 収集/送信: Game Center へのスコア提出と、広告配信に伴う最小限の計測（AdMob/SKAdNetwork）のみ。IDFA は ATT 許諾時のみ利用し、同意が得られない場合は非パーソナライズ広告（NPA=1）を配信。
@@ -126,7 +126,7 @@ MonoKnight/
 
 ## 7. 永続化・フラグ
 
-- `remove_ads`（Bool）: IAP 購入で true。UserDefaults に保存。
+- `remove_ads_mk`（Bool）: IAP 購入で true。UserDefaults に保存。
 - `best_points_5x5`（Int）: ベストポイント（ローカル）。
 - `has_submitted_gc`（Bool）: 初回スコア送信済みフラグ。
 
@@ -135,7 +135,7 @@ MonoKnight/
 ## 8. Game Center / AdMob / IAP 設定
 
 - **Leaderboard ID**: `kc_moves_5x5`（最小手数ランキング）
-- **IAP Product ID**: `remove_ads`
+- **IAP Product ID**: `remove_ads_mk`
 - **AdMob**:
   - SDK: Google Mobile Ads（SPM）、Google UMP（同意管理）
   - **ATT**: Info.plist に `NSUserTrackingUsageDescription` を記載し、初回起動時に `ATTrackingManager.requestTrackingAuthorization(...)`
@@ -143,7 +143,7 @@ MonoKnight/
   - **SKAdNetwork**: `SKAdNetworkItems` に必要な ID を列挙
   - **頻度**: インタースティシャルは結果画面のみ、短時間の連続表示を回避（90 秒間隔, 1 プレイ 1 回）
 - **プライバシー**: ATT/UMP の同意状態をアプリ内「プライバシー設定」から再表示/変更できる導線を用意
-- **復元**: 設定画面に「購入の復元」を設置し、`await AppStore.sync()` を実行。成功時は `remove_ads` を再評価。
+- **復元**: 設定画面に「購入の復元」を設置し、`await AppStore.sync()` を実行。成功時は `remove_ads_mk` を再評価。
 
 ---
 
