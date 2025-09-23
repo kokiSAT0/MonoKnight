@@ -148,6 +148,7 @@ struct GameView: View {
                 moveCount: core.moveCount,
                 penaltyCount: core.penaltyCount,
                 elapsedSeconds: core.elapsedSeconds,
+                modeIdentifier: mode.identifier,
                 onRetry: {
                     // リトライ時はゲームを初期状態に戻して再開する
                     core.reset()
@@ -293,7 +294,8 @@ struct GameView: View {
             // progress が .cleared へ変化したタイミングで結果画面を表示
             .onChange(of: core.progress) { _, newValue in
                 guard newValue == .cleared else { return }
-                gameCenterService.submitScore(core.score)
+                // ゲームモードごとのテスト用リーダーボードへスコアを送信できるように識別子を渡す
+                gameCenterService.submitScore(core.score, for: mode.identifier)
                 showingResult = true
             }
 

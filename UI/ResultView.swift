@@ -1,3 +1,4 @@
+import Game  // GameMode.Identifier を扱うために追加
 import SwiftUI
 import UIKit  // ハプティクス用フレームワーク
 
@@ -13,6 +14,9 @@ struct ResultView: View {
 
     /// クリアまでに要した秒数
     let elapsedSeconds: Int
+
+    /// スコア送信・ランキング表示に利用するゲームモード識別子
+    let modeIdentifier: GameMode.Identifier
 
     /// 再戦処理を外部から受け取るクロージャ
     let onRetry: () -> Void
@@ -44,12 +48,14 @@ struct ResultView: View {
         moveCount: Int,
         penaltyCount: Int,
         elapsedSeconds: Int,
+        modeIdentifier: GameMode.Identifier,
         onRetry: @escaping () -> Void
     ) {
         self.init(
             moveCount: moveCount,
             penaltyCount: penaltyCount,
             elapsedSeconds: elapsedSeconds,
+            modeIdentifier: modeIdentifier,
             onRetry: onRetry,
             gameCenterService: GameCenterService.shared,
             adsService: AdsService.shared
@@ -60,6 +66,7 @@ struct ResultView: View {
         moveCount: Int,
         penaltyCount: Int,
         elapsedSeconds: Int,
+        modeIdentifier: GameMode.Identifier,
         onRetry: @escaping () -> Void,
 
         gameCenterService: GameCenterServiceProtocol,
@@ -75,6 +82,7 @@ struct ResultView: View {
         self.moveCount = moveCount
         self.penaltyCount = penaltyCount
         self.elapsedSeconds = elapsedSeconds
+        self.modeIdentifier = modeIdentifier
         self.onRetry = onRetry
         self.gameCenterService = resolvedGameCenterService
         self.adsService = resolvedAdsService
@@ -150,7 +158,8 @@ struct ResultView: View {
                     if hapticsEnabled {
                         UINotificationFeedbackGenerator().notificationOccurred(.success)
                     }
-                    gameCenterService.showLeaderboard()
+                    // 直前にプレイしていたモードに対応するテスト用リーダーボードを開く
+                    gameCenterService.showLeaderboard(for: modeIdentifier)
                 }) {
                     Text("ランキング")
                         .frame(maxWidth: .infinity)
@@ -363,6 +372,7 @@ struct ResultView_Previews: PreviewProvider {
             moveCount: 24,
             penaltyCount: 6,
             elapsedSeconds: 132,
+            modeIdentifier: .standard5x5,
             onRetry: {},
             gameCenterService: GameCenterService.shared,
             adsService: AdsService.shared
@@ -372,5 +382,11 @@ struct ResultView_Previews: PreviewProvider {
 
 
 #Preview {
-    ResultView(moveCount: 24, penaltyCount: 6, elapsedSeconds: 132, onRetry: {})
+    ResultView(
+        moveCount: 24,
+        penaltyCount: 6,
+        elapsedSeconds: 132,
+        modeIdentifier: .standard5x5,
+        onRetry: {}
+    )
 }
