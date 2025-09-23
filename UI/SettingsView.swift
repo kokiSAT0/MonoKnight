@@ -245,7 +245,7 @@ struct SettingsView: View {
                     Text("ヘルプ")
                 } footer: {
                     // プレイ中に迷った際の確認先を案内
-                    Text("カードの動きや勝利条件に加えて、手札スロットが最大 \(GameMode.standard.handSize) 種類で同じカードは重なって保持できる仕様も確認できます。")
+                    Text("カードの動きや勝利条件に加えて、手札スロットが最大 \(GameMode.standard.handSize) 種類で\(GameMode.standard.stackingRuleDetailText)という仕様も確認できます。")
                 }
 
                 // MARK: - 戦績セクション

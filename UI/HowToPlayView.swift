@@ -24,7 +24,7 @@ struct HowToPlayView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 // MARK: - 導入文
-                Text("MonoKnight は移動カードを使って 5×5 の盤面を踏破するパズルです。手札スロットは最大 \(referenceMode.handSize) 種類まで保持でき、同じカードはスロット内で重なります。以下の流れを押さえておけば、すぐにプレイを始められます。")
+                Text("MonoKnight は移動カードを使って 5×5 の盤面を踏破するパズルです。手札スロットは最大 \(referenceMode.handSize) 種類まで保持でき、\(referenceMode.stackingRuleDetailText)以下の流れを押さえておけば、すぐにプレイを始められます。")
                     .font(.body)
                     .padding(.bottom, 8)
 
@@ -36,7 +36,7 @@ struct HowToPlayView: View {
                     tips: [
                         "カードの矢印が示す方向に 1 マス進みます。",
                         "白い丸が現在位置、黒い丸が移動先を表します。",
-                        "同じ種類のカードは手札スロット内で重なり、消費するとまとめて補充されます。"
+                        stackingTip
                     ]
                 )
 
@@ -109,6 +109,15 @@ struct HowToPlayView: View {
 
 // MARK: - レイアウト調整用のヘルパー
 private extension HowToPlayView {
+    /// スタック仕様を説明する文言。スタンダード以外に差し替えた場合でも整合が取れるようにする
+    var stackingTip: String {
+        if referenceMode.allowsCardStacking {
+            return "同じ種類のカードは手札スロット内で重なり、消費するとまとめて補充されます。"
+        } else {
+            return "同じ種類のカードでも別スロットを占有するため、空き枠を意識した立ち回りが重要です。"
+        }
+    }
+
     /// 横幅に応じた最大コンテンツ幅を返す
     var contentMaxWidth: CGFloat? {
         horizontalSizeClass == .regular ? 640 : nil

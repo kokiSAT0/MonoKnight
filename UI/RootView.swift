@@ -549,8 +549,12 @@ fileprivate struct TitleScreenView: View {
 
     /// カラーテーマを用いてライト/ダーク両対応の配色を提供する
     private var theme = AppTheme()
+    /// フリーモードのレギュレーションを管理するストア
+    @StateObject private var freeModeStore = FreeModeRegulationStore()
 
     @State private var isPresentingHowToPlay: Bool = false
+    /// フリーモード設定シートの表示状態
+    @State private var isPresentingFreeModeEditor: Bool = false
     /// サイズクラスを参照し、iPad での余白やシート表現を最適化する
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
@@ -607,7 +611,7 @@ fileprivate struct TitleScreenView: View {
             .accessibilityIdentifier("title_start_button")
 
             // 補助テキストで手札スロット上限とスタック仕様をまとめて案内
-            Text("手札スロット \(selectedMode.handSize) 種類 / 先読み \(selectedMode.nextPreviewCount) 枚。同じカードはスロット内で重なって保持されます。")
+            Text("手札スロット \(selectedMode.handSize) 種類 / 先読み \(selectedMode.nextPreviewCount) 枚。\(selectedMode.stackingRuleDetailText)")
                 .font(.system(size: 13, weight: .medium, design: .rounded))
                 .foregroundColor(theme.textSecondary)
                 .multilineTextAlignment(.center)
@@ -638,7 +642,7 @@ fileprivate struct TitleScreenView: View {
         // 背景もテーマのベースカラーへ切り替え、システム設定と調和させる
         .background(theme.backgroundPrimary)
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("タイトル画面。ゲームを開始するボタンがあります。手札スロットは最大\(selectedMode.handSize)種類で、同じカードは重なって保持されます。")
+        .accessibilityLabel("タイトル画面。ゲームを開始するボタンがあります。手札スロットは最大\(selectedMode.handSize)種類で、\(selectedMode.stackingRuleDetailText)")
         // 遊び方シートの表示設定
         .sheet(isPresented: $isPresentingHowToPlay) {
             // NavigationStack でタイトルバーを付与しつつ共通ビューを利用
@@ -651,9 +655,38 @@ fileprivate struct TitleScreenView: View {
             )
             .presentationDragIndicator(.visible)
         }
+        // フリーモードのレギュレーション設定シート
+        .sheet(isPresented: $isPresentingFreeModeEditor) {
+            NavigationStack {
+                FreeModeRegulationView(
+                    initialRegulation: freeModeStore.regulation,
+                    presets: GameMode.builtInModes,
+                    onCancel: {
+                        isPresentingFreeModeEditor = false
+                    },
+                    onSave: { newRegulation in
+                        freeModeStore.update(newRegulation)
+                        selectedMode = freeModeStore.makeGameMode()
+                        isPresentingFreeModeEditor = false
+                    }
+                )
+            }
+            .presentationDetents(horizontalSizeClass == .regular ? [.large] : [.medium, .large])
+            .presentationDragIndicator(.visible)
+        }
         // モーダル表示状態を監視し、遊び方シートの開閉タイミングを把握する
         .onChange(of: isPresentingHowToPlay) { _, newValue in
             debugLog("TitleScreenView.isPresentingHowToPlay 更新: \(newValue)")
+        }
+        // フリーモード設定の表示状態もログ出力してユーザー操作を追跡する
+        .onChange(of: isPresentingFreeModeEditor) { _, newValue in
+            debugLog("TitleScreenView.isPresentingFreeModeEditor 更新: \(newValue)")
+        }
+        // フリーモードのレギュレーションが更新された場合は選択モードの内容も再生成する
+        .onChange(of: freeModeStore.regulation) { _, _ in
+            if selectedMode.identifier == .freeCustom {
+                selectedMode = freeModeStore.makeGameMode()
+            }
         }
         // サイズクラスの変化を記録し、iPad のマルチタスク時に余白が崩れないか検証しやすくする
         .onChange(of: horizontalSizeClass) { _, newValue in
@@ -668,7 +701,7 @@ fileprivate struct TitleScreenView: View {
                 .font(.system(size: 18, weight: .semibold, design: .rounded))
                 .foregroundColor(theme.textPrimary)
 
-            ForEach(GameMode.allModes) { mode in
+            ForEach(availableModes) { mode in
                 modeSelectionButton(for: mode)
             }
         }
@@ -679,15 +712,22 @@ fileprivate struct TitleScreenView: View {
     /// - Parameter mode: 表示対象のゲームモード
     private func modeSelectionButton(for mode: GameMode) -> some View {
         let isSelected = mode == selectedMode
+        let isFreeMode = mode.identifier == .freeCustom
 
         return Button {
-            // 選択モードの変更を記録し、ボタンタップ順序を追跡できるようにする
-            if selectedMode == mode {
-                debugLog("TitleScreenView: モードを再選択 -> \(mode.identifier.rawValue)")
+            if isFreeMode {
+                debugLog("TitleScreenView: フリーモード設定シートを表示 -> \(mode.identifier.rawValue)")
+                selectedMode = mode
+                isPresentingFreeModeEditor = true
             } else {
-                debugLog("TitleScreenView: モード切り替え -> \(mode.identifier.rawValue)")
+                // 選択モードの変更を記録し、ボタンタップ順序を追跡できるようにする
+                if selectedMode == mode {
+                    debugLog("TitleScreenView: モードを再選択 -> \(mode.identifier.rawValue)")
+                } else {
+                    debugLog("TitleScreenView: モード切り替え -> \(mode.identifier.rawValue)")
+                }
+                selectedMode = mode
             }
-            selectedMode = mode
         } label: {
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
@@ -695,6 +735,11 @@ fileprivate struct TitleScreenView: View {
                         .font(.system(size: 17, weight: .semibold, design: .rounded))
                         .foregroundColor(theme.textPrimary)
                     Spacer(minLength: 0)
+                    if isFreeMode {
+                        Image(systemName: "slider.horizontal.3")
+                            .foregroundColor(theme.accentPrimary)
+                            .font(.system(size: 16, weight: .semibold))
+                    }
                     if isSelected {
                         Image(systemName: "checkmark.circle.fill")
                             .foregroundColor(theme.accentPrimary)
@@ -707,6 +752,11 @@ fileprivate struct TitleScreenView: View {
                 Text(secondaryDescription(for: mode))
                     .font(.system(size: 12, weight: .regular, design: .rounded))
                     .foregroundColor(theme.textSecondary.opacity(0.85))
+                if isFreeMode {
+                    Text("タップしてレギュレーションを編集できます")
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundColor(theme.textSecondary.opacity(0.9))
+                }
             }
             .padding(.vertical, 14)
             .padding(.horizontal, 16)
@@ -723,7 +773,7 @@ fileprivate struct TitleScreenView: View {
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(Text("\(mode.displayName): \(primaryDescription(for: mode))"))
-        .accessibilityHint(Text(secondaryDescription(for: mode)))
+        .accessibilityHint(Text(isFreeMode ? "レギュレーション編集を開きます" : secondaryDescription(for: mode)))
     }
 
     /// 各モードの主要な特徴を短文で返す
@@ -741,6 +791,13 @@ fileprivate struct TitleScreenView: View {
 
 // MARK: - レイアウト調整用のヘルパー
 private extension TitleScreenView {
+    /// 表示するモードの一覧（ビルトイン + フリーモード）
+    var availableModes: [GameMode] {
+        var modes = GameMode.builtInModes
+        modes.append(freeModeStore.makeGameMode())
+        return modes
+    }
+
     /// 横幅に応じてビューの最大幅を制御し、iPad では中央寄せのカード風レイアウトにする
     var contentMaxWidth: CGFloat? {
         horizontalSizeClass == .regular ? 520 : nil

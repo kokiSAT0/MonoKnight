@@ -2,19 +2,94 @@ import Foundation
 
 /// ゲームルール一式をまとめたモード設定
 /// - Note: 盤サイズや山札構成、ペナルティ量などをまとめて扱うことで、新モード追加時の分岐を最小限に抑える。
+/// 山札プリセットを識別し、UI からも扱いやすいように公開する列挙体
+/// - Note: それぞれのケースは `Deck.Configuration` へ変換可能で、表示名や概要テキストも併せて提供する
+public enum GameDeckPreset: String, CaseIterable, Codable, Identifiable {
+    /// スタンダードモードと同じ山札構成
+    case standard
+    /// クラシカルチャレンジと同じ桂馬のみの構成
+    case classicalChallenge
+
+    /// `Identifiable` 準拠用の ID
+    public var id: String { rawValue }
+
+    /// UI で表示する名称
+    public var displayName: String {
+        switch self {
+        case .standard:
+            return "スタンダード構成"
+        case .classicalChallenge:
+            return "クラシカル構成"
+        }
+    }
+
+    /// 山札構成の概要テキスト
+    public var summaryText: String {
+        configuration.deckSummaryText
+    }
+
+    /// 実際に利用する `Deck.Configuration`
+    var configuration: Deck.Configuration {
+        switch self {
+        case .standard:
+            return .standard
+        case .classicalChallenge:
+            return .classicalChallenge
+        }
+    }
+}
+
 public struct GameMode: Equatable, Identifiable {
     /// 識別子。UI や永続化でも使用しやすいよう文字列 RawValue を採用する
     public enum Identifier: String, CaseIterable {
         case standard5x5
         case classicalChallenge
+        case freeCustom
     }
 
     /// 初期スポーンの扱い
-    public enum SpawnRule: Equatable {
+    public enum SpawnRule: Equatable, Codable {
         /// 固定座標へスポーン
         case fixed(GridPoint)
         /// プレイヤーが任意のマスを選択してスポーン
         case chooseAnyAfterPreview
+
+        /// エンコード/デコードで利用するキー
+        private enum CodingKeys: String, CodingKey {
+            case type
+            case point
+        }
+
+        /// ケース識別子
+        private enum Kind: String, Codable {
+            case fixed
+            case chooseAnyAfterPreview
+        }
+
+        /// `Decodable` 準拠
+        public init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            let kind = try container.decode(Kind.self, forKey: .type)
+            switch kind {
+            case .fixed:
+                let point = try container.decode(GridPoint.self, forKey: .point)
+                self = .fixed(point)
+            case .chooseAnyAfterPreview:
+                self = .chooseAnyAfterPreview
+            }
+        }
+
+        /// `Encodable` 準拠
+        public func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            switch self {
+            case .fixed(let point):
+                try container.encode(Kind.fixed, forKey: .type)
+                try container.encode(point, forKey: .point)
+            case .chooseAnyAfterPreview:
+                try container.encode(Kind.chooseAnyAfterPreview, forKey: .type)
+            }
+        }
 
         /// UI 表示用にルールの説明テキストを返す
         /// - Note: モード追加時に文字列を個別で管理しなくても済むよう、ここで共通化しておく
@@ -45,20 +120,20 @@ public struct GameMode: Equatable, Identifiable {
     }
 
     /// ペナルティ関連のルールをまとめた設定構造体
-    struct PenaltySettings {
+    public struct PenaltySettings: Equatable, Codable {
         /// 手詰まり自動検出による引き直し時の加算手数
-        let deadlockPenaltyCost: Int
+        public var deadlockPenaltyCost: Int
         /// プレイヤーが任意に引き直しを行った際の加算手数
-        let manualRedrawPenaltyCost: Int
+        public var manualRedrawPenaltyCost: Int
         /// 既踏マスに再訪した際の加算手数
-        let revisitPenaltyCost: Int
+        public var revisitPenaltyCost: Int
 
         /// メンバーごとに設定できるように明示的なイニシャライザを用意
         /// - Parameters:
         ///   - deadlockPenaltyCost: 自動ペナルティで加算する手数
         ///   - manualRedrawPenaltyCost: 手動ペナルティで加算する手数
         ///   - revisitPenaltyCost: 再訪時のペナルティ手数
-        init(
+        public init(
             deadlockPenaltyCost: Int,
             manualRedrawPenaltyCost: Int,
             revisitPenaltyCost: Int
@@ -71,40 +146,45 @@ public struct GameMode: Equatable, Identifiable {
 
     /// ゲームモードの根幹となるレギュレーション設定
     /// - Note: 盤面サイズや山札構成、手札スロット数などを一括で扱い、新しいモードを追加しやすくする。
-    struct Regulation {
+    public struct Regulation: Equatable, Codable {
         /// 盤面サイズ（N×N）
-        let boardSize: Int
+        public var boardSize: Int
         /// 初期手札スロット数（保持できるカード種類の上限を明示する）
-        let handSize: Int
+        public var handSize: Int
         /// 先読み表示枚数
-        let nextPreviewCount: Int
-        /// 適用する山札構成
-        let deckConfiguration: Deck.Configuration
+        public var nextPreviewCount: Int
+        /// 同種カードをスタックできるかどうか
+        public var allowsStacking: Bool
+        /// 適用する山札構成プリセット
+        public var deckPreset: GameDeckPreset
         /// 初期スポーンの扱い
-        let spawnRule: SpawnRule
+        public var spawnRule: SpawnRule
         /// ペナルティ設定一式
-        let penalties: PenaltySettings
+        public var penalties: PenaltySettings
 
         /// レギュレーションを組み立てるためのイニシャライザ
         /// - Parameters:
         ///   - boardSize: 盤面サイズ
         ///   - handSize: 手札スロット数
         ///   - nextPreviewCount: 先読み表示枚数
-        ///   - deckConfiguration: 使用する山札設定
+        ///   - allowsStacking: 同種カードをスタックできるかどうか
+        ///   - deckPreset: 使用する山札設定
         ///   - spawnRule: 初期スポーンルール
         ///   - penalties: ペナルティ設定
-        init(
+        public init(
             boardSize: Int,
             handSize: Int,
             nextPreviewCount: Int,
-            deckConfiguration: Deck.Configuration,
+            allowsStacking: Bool,
+            deckPreset: GameDeckPreset,
             spawnRule: SpawnRule,
             penalties: PenaltySettings
         ) {
             self.boardSize = boardSize
             self.handSize = handSize
             self.nextPreviewCount = nextPreviewCount
-            self.deckConfiguration = deckConfiguration
+            self.allowsStacking = allowsStacking
+            self.deckPreset = deckPreset
             self.spawnRule = spawnRule
             self.penalties = penalties
         }
@@ -125,7 +205,7 @@ public struct GameMode: Equatable, Identifiable {
     ///   - identifier: モードを識別するための ID
     ///   - displayName: UI で表示する名称
     ///   - regulation: 盤面やペナルティを含むレギュレーション設定
-    init(identifier: Identifier, displayName: String, regulation: Regulation) {
+    public init(identifier: Identifier, displayName: String, regulation: Regulation) {
         self.identifier = identifier
         self.displayName = displayName
         self.regulation = regulation
@@ -148,14 +228,19 @@ public struct GameMode: Equatable, Identifiable {
     public var manualRedrawPenaltyCost: Int { penalties.manualRedrawPenaltyCost }
     /// 既踏マスへ再訪した際に加算する手数
     public var revisitPenaltyCost: Int { penalties.revisitPenaltyCost }
+    /// 同種カードをスタックできるかどうか
+    public var allowsCardStacking: Bool { regulation.allowsStacking }
     /// 山札構成設定（ゲームモジュール内部で使用）
-    var deckConfiguration: Deck.Configuration { regulation.deckConfiguration }
+    var deckConfiguration: Deck.Configuration { regulation.deckPreset.configuration }
+    /// 利用中の山札プリセット
+    public var deckPreset: GameDeckPreset { regulation.deckPreset }
     /// UI で表示する山札の要約
-    public var deckSummaryText: String { regulation.deckConfiguration.deckSummaryText }
+    public var deckSummaryText: String { regulation.deckPreset.summaryText }
     /// 手札スロットと先読み枚数をまとめた説明文
     /// - Note: 同種カードを重ねられるスタック仕様を把握しやすいよう「種類数」で表現する。
     public var handSummaryText: String {
-        "手札スロット \(handSize) 種類 / 先読み \(nextPreviewCount) 枚"
+        let stacking = allowsCardStacking ? "スタック可" : "スタック不可"
+        return "手札スロット \(handSize) 種類 ・ 先読み \(nextPreviewCount) 枚 ・ \(stacking)"
     }
     /// 手動ペナルティの説明文
     public var manualPenaltySummaryText: String {
@@ -177,6 +262,18 @@ public struct GameMode: Equatable, Identifiable {
     public var secondarySummaryText: String {
         "\(handSummaryText) / \(manualPenaltySummaryText) / \(revisitPenaltySummaryText)"
     }
+
+    /// スタック仕様の詳細説明文
+    public var stackingRuleDetailText: String {
+        if allowsCardStacking {
+            return "同じ種類のカードは同じスロット内で重なり、空きスロットがなくても補充できます。"
+        } else {
+            return "同じ種類のカードは別スロットを占有し、空きスロットが無いと新しいカードを引けません。"
+        }
+    }
+
+    /// 現在のレギュレーションをそのまま取得するためのスナップショット
+    public var regulationSnapshot: Regulation { regulation }
 
     /// スポーン選択が必要かどうか
     public var requiresSpawnSelection: Bool {
@@ -204,57 +301,51 @@ public struct GameMode: Equatable, Identifiable {
         }
     }
 
-    /// モード識別子と定義を結び付けたレジストリ
-    /// - Note: 新しいモードを追加する際は `buildXXXMode()` を増やし、この配列にまとめて登録するだけで良い。
-    private static let registry: [Identifier: GameMode] = {
-        let modes: [GameMode] = [
-            buildStandardMode(),
-            buildClassicalChallengeMode()
-        ]
-        return Dictionary(uniqueKeysWithValues: modes.map { ($0.identifier, $0) })
-    }()
-
     /// スタンダードモード（既存仕様）
-    public static let standard: GameMode = {
-        guard let mode = registry[.standard5x5] else {
-            fatalError("標準モードのレジストリ登録に失敗しました")
-        }
-        return mode
-    }()
+    public static var standard: GameMode {
+        GameMode(identifier: .standard5x5, displayName: "スタンダード", regulation: buildStandardRegulation())
+    }
 
     /// クラシカルチャレンジモード
-    public static let classicalChallenge: GameMode = {
-        guard let mode = registry[.classicalChallenge] else {
-            fatalError("クラシカルチャレンジのレジストリ登録に失敗しました")
-        }
-        return mode
-    }()
-
-    /// 利用可能な全モードを列挙した配列
-    /// - Note: タイトル画面のモード選択など UI 側で繰り返し利用するため、順序付きの一覧を提供する
-    public static let allModes: [GameMode] = Identifier.allCases.compactMap { identifier in
-        registry[identifier]
+    public static var classicalChallenge: GameMode {
+        GameMode(identifier: .classicalChallenge, displayName: "クラシカルチャレンジ", regulation: buildClassicalChallengeRegulation())
     }
+
+    /// ビルトインで用意しているモードの一覧
+    public static var builtInModes: [GameMode] { [standard, classicalChallenge] }
 
     /// 識別子から対応するモード定義を取り出すヘルパー
     /// - Parameter identifier: 利用したいモードの識別子
     /// - Returns: `identifier` に対応する `GameMode`
     public static func mode(for identifier: Identifier) -> GameMode {
-        registry[identifier] ?? standard
+        switch identifier {
+        case .standard5x5:
+            return standard
+        case .classicalChallenge:
+            return classicalChallenge
+        case .freeCustom:
+            // フリーモードはユーザー設定によって変化するため、デフォルトとしてスタンダード相当を返す
+            return standard
+        }
     }
 
     /// Equatable 準拠。識別子が一致すれば同一モードとみなす
     public static func == (lhs: GameMode, rhs: GameMode) -> Bool {
-        lhs.identifier == rhs.identifier
+        guard lhs.identifier == rhs.identifier else { return false }
+        if lhs.identifier == .freeCustom {
+            return lhs.regulation == rhs.regulation
+        }
+        return true
     }
 
     /// スタンダードモードの定義を生成する
-    private static func buildStandardMode() -> GameMode {
-        let regulation = Regulation(
+    private static func buildStandardRegulation() -> Regulation {
+        Regulation(
             boardSize: 5,
             handSize: 5,
             nextPreviewCount: 3,
-            deckConfiguration: .standard,
+            allowsStacking: true,
+            deckPreset: .standard,
             spawnRule: .fixed(GridPoint.center(of: 5)),
             penalties: PenaltySettings(
                 deadlockPenaltyCost: 5,
@@ -262,16 +353,16 @@ public struct GameMode: Equatable, Identifiable {
                 revisitPenaltyCost: 0
             )
         )
-        return GameMode(identifier: .standard5x5, displayName: "スタンダード", regulation: regulation)
     }
 
     /// クラシカルチャレンジモードの定義を生成する
-    private static func buildClassicalChallengeMode() -> GameMode {
-        let regulation = Regulation(
+    private static func buildClassicalChallengeRegulation() -> Regulation {
+        Regulation(
             boardSize: 8,
             handSize: 5,
             nextPreviewCount: 3,
-            deckConfiguration: .classicalChallenge,
+            allowsStacking: true,
+            deckPreset: .classicalChallenge,
             spawnRule: .chooseAnyAfterPreview,
             penalties: PenaltySettings(
                 deadlockPenaltyCost: 2,
@@ -279,6 +370,5 @@ public struct GameMode: Equatable, Identifiable {
                 revisitPenaltyCost: 1
             )
         )
-        return GameMode(identifier: .classicalChallenge, displayName: "クラシカルチャレンジ", regulation: regulation)
     }
 }
