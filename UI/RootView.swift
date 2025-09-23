@@ -73,22 +73,27 @@ struct RootView: View {
                 horizontalSizeClass: horizontalSizeClass
             )
 
-            // MARK: - 切り出したメインビュー構築メソッドを呼び出し、共通モディファイアを一括適用する
-            makeMainContent(layoutContext: layoutContext)
-            // `GeometryReader` 内でも最大サイズを指定し、端末全体を覆う
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            // MARK: - トップステータスバーを safeAreaInset で挿入し、iPhone/iPad 双方で安定させる
-                .safeAreaInset(edge: .top, spacing: 0) {
-                    topStatusInset(context: layoutContext)
-                }
-            // MARK: - レイアウト計測用の不可視オーバーレイを重ね、異常値をログで把握できるようにする
-                .background(layoutDiagnosticOverlay(context: layoutContext))
-            // 初期表示時のレイアウト値をログに残し、ステータスバー高さなどの基準値を把握する
-                .onAppear {
-                    debugLog(
-                        "RootView.onAppear: size=\(layoutContext.geometrySize), safeArea(top=\(layoutContext.safeAreaTop), bottom=\(layoutContext.safeAreaBottom)), horizontalSizeClass=\(String(describing: horizontalSizeClass)), authenticated=\(isAuthenticated)"
-                    )
-                }
+            // MARK: - 個々のモディファイア適用を段階的に行い、型推論の負荷を抑える
+            // ゲーム本体のレイヤーを構築した直後の状態を保持する
+            let baseContent = makeMainContent(layoutContext: layoutContext)
+            // GeometryReader 直下で全面フィットさせた状態を変数化しておき、以降の処理を分割する
+            let framedContent = baseContent.frame(maxWidth: .infinity, maxHeight: .infinity)
+            // トップステータスバーを追加した内容を分離し、safeAreaInset の複雑なクロージャを局所化する
+            let contentWithTopInset = framedContent.safeAreaInset(edge: .top, spacing: 0) {
+                topStatusInset(context: layoutContext)
+            }
+            // レイアウト診断用オーバーレイを重ねた状態を別変数へ退避し、背景合成を切り出す
+            let contentWithDiagnostics = contentWithTopInset.background(
+                layoutDiagnosticOverlay(context: layoutContext)
+            )
+            // 初期表示時のログ出力を含んだ最終的なビューをまとめる
+            let finalContent = contentWithDiagnostics.onAppear {
+                debugLog(
+                    "RootView.onAppear: size=\(layoutContext.geometrySize), safeArea(top=\(layoutContext.safeAreaTop), bottom=\(layoutContext.safeAreaBottom)), horizontalSizeClass=\(String(describing: horizontalSizeClass)), authenticated=\(isAuthenticated)"
+                )
+            }
+
+            finalContent
         }
         // トップバーの高さが更新された際にログを残し、iPad の分割表示などでの変化を追跡する
         .onPreferenceChange(TopBarHeightPreferenceKey.self) { newHeight in
