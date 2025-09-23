@@ -125,6 +125,8 @@ public struct GameMode: Equatable, Identifiable {
         public var deadlockPenaltyCost: Int
         /// プレイヤーが任意に引き直しを行った際の加算手数
         public var manualRedrawPenaltyCost: Int
+        /// 任意の手札を 1 種類だけ捨て札にする際の加算手数
+        public var manualDiscardPenaltyCost: Int
         /// 既踏マスに再訪した際の加算手数
         public var revisitPenaltyCost: Int
 
@@ -132,14 +134,17 @@ public struct GameMode: Equatable, Identifiable {
         /// - Parameters:
         ///   - deadlockPenaltyCost: 自動ペナルティで加算する手数
         ///   - manualRedrawPenaltyCost: 手動ペナルティで加算する手数
+        ///   - manualDiscardPenaltyCost: 手札 1 種類を捨て札にする際の手数
         ///   - revisitPenaltyCost: 再訪時のペナルティ手数
         public init(
             deadlockPenaltyCost: Int,
             manualRedrawPenaltyCost: Int,
+            manualDiscardPenaltyCost: Int,
             revisitPenaltyCost: Int
         ) {
             self.deadlockPenaltyCost = deadlockPenaltyCost
             self.manualRedrawPenaltyCost = manualRedrawPenaltyCost
+            self.manualDiscardPenaltyCost = manualDiscardPenaltyCost
             self.revisitPenaltyCost = revisitPenaltyCost
         }
     }
@@ -226,6 +231,8 @@ public struct GameMode: Equatable, Identifiable {
     public var deadlockPenaltyCost: Int { penalties.deadlockPenaltyCost }
     /// 手動ペナルティで加算する手数
     public var manualRedrawPenaltyCost: Int { penalties.manualRedrawPenaltyCost }
+    /// 捨て札ペナルティで加算する手数
+    public var manualDiscardPenaltyCost: Int { penalties.manualDiscardPenaltyCost }
     /// 既踏マスへ再訪した際に加算する手数
     public var revisitPenaltyCost: Int { penalties.revisitPenaltyCost }
     /// 同種カードをスタックできるかどうか
@@ -244,7 +251,14 @@ public struct GameMode: Equatable, Identifiable {
     }
     /// 手動ペナルティの説明文
     public var manualPenaltySummaryText: String {
-        "引き直し +\(manualRedrawPenaltyCost)"
+        let redrawText = "引き直し +\(manualRedrawPenaltyCost)"
+        let discardText: String
+        if manualDiscardPenaltyCost > 0 {
+            discardText = "捨て札 +\(manualDiscardPenaltyCost)"
+        } else {
+            discardText = "捨て札 ペナルティなし"
+        }
+        return "\(redrawText) / \(discardText)"
     }
     /// 再訪ペナルティの説明文
     public var revisitPenaltySummaryText: String {
@@ -350,6 +364,7 @@ public struct GameMode: Equatable, Identifiable {
             penalties: PenaltySettings(
                 deadlockPenaltyCost: 5,
                 manualRedrawPenaltyCost: 5,
+                manualDiscardPenaltyCost: 1,
                 revisitPenaltyCost: 0
             )
         )
@@ -367,6 +382,7 @@ public struct GameMode: Equatable, Identifiable {
             penalties: PenaltySettings(
                 deadlockPenaltyCost: 2,
                 manualRedrawPenaltyCost: 2,
+                manualDiscardPenaltyCost: 1,
                 revisitPenaltyCost: 1
             )
         )
