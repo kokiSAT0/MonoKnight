@@ -49,6 +49,9 @@ struct GameView: View {
     /// - NOTE: iPad（レギュラー幅）ではシート、iPhone（コンパクト幅）では確認ダイアログと表示方法が異なるため、
     ///         どちらのモーダルでも共通して参照できるよう単一の状態として管理する
     @State private var pendingMenuAction: GameMenuAction?
+    /// ポーズメニューを表示するかどうかのフラグ
+    /// - NOTE: BGM やハプティクスなどプレイ中に確認したい設定をまとめる
+    @State private var isPauseMenuPresented: Bool = false
     /// 統計バッジ領域の高さを計測し、盤面の縦寸法計算へ反映する
     @State private var statisticsHeight: CGFloat = 0
     /// 手札セクション全体の高さを計測し、利用可能な縦寸法を把握する
@@ -87,7 +90,10 @@ struct GameView: View {
 
     /// デフォルトのサービスを利用して `GameView` を生成するコンビニエンスイニシャライザ
     /// - Parameter onRequestReturnToTitle: タイトル画面への遷移要求クロージャ（省略可）
-    init(mode: GameMode = .standard, onRequestReturnToTitle: (() -> Void)? = nil) {
+    init(
+        mode: GameMode = .standard,
+        onRequestReturnToTitle: (() -> Void)? = nil
+    ) {
         // Swift 6 のコンカレンシールールではデフォルト引数で `@MainActor` なシングルトンへ
         // 直接アクセスできないため、明示的に同一型の別イニシャライザへ委譲する。
         // ここで `GameCenterService.shared` / `AdsService.shared` を取得することで、
@@ -142,6 +148,29 @@ struct GameView: View {
                 mainContent(for: geometry)
             }
         )
+        // ポーズメニューをシートで表示し、ゲーム中でも設定の確認・変更ができるようにする
+        .sheet(isPresented: $isPauseMenuPresented) {
+            PauseMenuView(
+                onResume: {
+                    // シートを閉じてプレイへ戻る
+                    isPauseMenuPresented = false
+                },
+                onConfirmReset: {
+                    // リセット確定後はシートを閉じてから共通処理を呼び出す
+                    isPauseMenuPresented = false
+                    performMenuAction(.reset)
+                },
+                onConfirmReturnToTitle: {
+                    // タイトル復帰時もポーズメニューを閉じてから処理を実行する
+                    isPauseMenuPresented = false
+                    performMenuAction(.returnToTitle)
+                }
+            )
+            .presentationDetents(
+                horizontalSizeClass == .regular ? [.fraction(0.5), .large] : [.medium, .large]
+            )
+            .presentationDragIndicator(.visible)
+        }
         // シートで結果画面を表示
         .sheet(isPresented: $showingResult) {
             ResultView(
@@ -584,7 +613,7 @@ struct GameView: View {
             HStack(spacing: 12) {
                 manualDiscardButton
                 manualPenaltyButton
-                menuButton
+                pauseButton
             }
         }
         .padding(.horizontal, 16)
@@ -1638,44 +1667,29 @@ private extension GameView {
 
 // MARK: - コントロールバーの操作要素
 private extension GameView {
-    /// ゲーム全体に関わる操作をまとめたメニュー
-    private var menuButton: some View {
-        Menu {
-            // MARK: - メニュー内にはリセット系のみ配置（手札引き直しは隣のアイコンから操作）
-
-            // MARK: - ゲームリセット操作
-            Button {
-                // 実行前に確認ダイアログを表示するため、ステートへ保持
-                pendingMenuAction = .reset
-            } label: {
-                Label("リセット", systemImage: "arrow.counterclockwise")
-            }
-
-            // MARK: - タイトル画面へ戻る操作
-            Button(role: .destructive) {
-                pendingMenuAction = .returnToTitle
-            } label: {
-                Label("タイトルへ戻る", systemImage: "house")
-            }
+    /// ゲームを一時停止して各種設定やリセット操作をまとめて案内するボタン
+    private var pauseButton: some View {
+        Button {
+            debugLog("GameView: ポーズメニュー表示要求")
+            isPauseMenuPresented = true
         } label: {
-            // 常に 44pt 以上のタップ領域を確保する
-            Image(systemName: "ellipsis.circle")
+            Image(systemName: "pause.circle")
                 .font(.system(size: 22, weight: .semibold))
-                // テーマの前景色でアイコンを描画し、背景色変更に追従
                 .foregroundColor(theme.menuIconForeground)
                 .frame(width: 44, height: 44)
                 .background(
                     Circle()
-                        // 背景もテーマから取得し、ライトモードでも主張しすぎない色合いに調整
                         .fill(theme.menuIconBackground)
                 )
                 .overlay(
                     Circle()
-                        // わずかな境界線で視認性を高める
                         .stroke(theme.menuIconBorder, lineWidth: 1)
                 )
         }
-        .accessibilityIdentifier("game_menu")
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("pause_menu_button")
+        .accessibilityLabel(Text("ポーズメニュー"))
+        .accessibilityHint(Text("プレイを一時停止して設定やリセットを確認します"))
     }
 
     #if DEBUG
@@ -1858,6 +1872,179 @@ private enum GameMenuAction: Hashable, Identifiable {
             return .destructive
         case .returnToTitle:
             return .destructive
+        }
+    }
+}
+
+/// ポーズメニュー本体。プレイ中によく調整する項目をリスト形式でまとめる
+private struct PauseMenuView: View {
+    /// カラーテーマを共有し、背景色やボタン色を統一する
+    private var theme = AppTheme()
+    /// プレイ再開ボタン押下時の処理
+    let onResume: () -> Void
+    /// リセット確定時の処理
+    let onConfirmReset: () -> Void
+    /// タイトルへ戻る確定時の処理
+    let onConfirmReturnToTitle: () -> Void
+
+    /// シートを閉じるための環境ディスミス
+    @Environment(\.dismiss) private var dismiss
+    /// テーマ設定の永続化キー
+    @AppStorage("preferred_color_scheme") private var preferredColorSchemeRawValue: String = ThemePreference.system.rawValue
+    /// ハプティクスのオン/オフ
+    @AppStorage("haptics_enabled") private var hapticsEnabled: Bool = true
+    /// ガイドモードのオン/オフ
+    @AppStorage("guide_mode_enabled") private var guideModeEnabled: Bool = true
+    /// 手札並び設定
+    @AppStorage(HandOrderingStrategy.storageKey) private var handOrderingRawValue: String = HandOrderingStrategy.insertionOrder.rawValue
+
+    /// 破壊的操作の確認用ステート
+    @State private var pendingAction: PauseConfirmationAction?
+
+    var body: some View {
+        NavigationStack {
+            List {
+                // MARK: - プレイ再開ボタン
+                Section {
+                    Button {
+                        // シートを閉じて直ちにプレイへ戻る
+                        onResume()
+                        dismiss()
+                    } label: {
+                        Label("プレイを再開", systemImage: "play.fill")
+                    }
+                    .accessibilityHint("ポーズを解除してゲームを続けます")
+                }
+
+                // MARK: - ゲーム設定セクション
+                Section {
+                    Picker(
+                        "テーマ",
+                        selection: Binding<ThemePreference>(
+                            get: { ThemePreference(rawValue: preferredColorSchemeRawValue) ?? .system },
+                            set: { preferredColorSchemeRawValue = $0.rawValue }
+                        )
+                    ) {
+                        ForEach(ThemePreference.allCases) { preference in
+                            Text(preference.displayName)
+                                .tag(preference)
+                        }
+                    }
+
+                    Toggle("ハプティクスを有効にする", isOn: $hapticsEnabled)
+                    Toggle("ガイドモード（移動候補をハイライト）", isOn: $guideModeEnabled)
+
+                    Picker(
+                        "手札の並び順",
+                        selection: Binding<HandOrderingStrategy>(
+                            get: { HandOrderingStrategy(rawValue: handOrderingRawValue) ?? .insertionOrder },
+                            set: { handOrderingRawValue = $0.rawValue }
+                        )
+                    ) {
+                        ForEach(HandOrderingStrategy.allCases, id: \.self) { strategy in
+                            Text(strategy.displayName)
+                                .tag(strategy)
+                        }
+                    }
+                } header: {
+                    Text("ゲーム設定")
+                } footer: {
+                    Text("テーマやハプティクス、ガイド表示を素早く切り替えられます。これらの項目はタイトル画面の設定からも調整できます。")
+                }
+
+                // MARK: - 操作セクション
+                Section {
+                    Button(role: .destructive) {
+                        pendingAction = .reset
+                    } label: {
+                        Label("ゲームをリセット", systemImage: "arrow.counterclockwise")
+                    }
+
+                    Button(role: .destructive) {
+                        pendingAction = .returnToTitle
+                    } label: {
+                        Label("タイトルへ戻る", systemImage: "house")
+                    }
+                } header: {
+                    Text("操作")
+                } footer: {
+                    Text("リセットやタイトル復帰は確認ダイアログを経由して実行します。")
+                }
+
+                // MARK: - 詳細設定についての案内
+                Section {
+                    Text("広告やプライバシー設定などの詳細はタイトル画面右上のギアアイコンから確認できます。")
+                        .foregroundStyle(.secondary)
+                        .padding(.vertical, 4)
+                } header: {
+                    Text("詳細設定")
+                }
+            }
+            .listStyle(.insetGrouped)
+            .navigationTitle("ポーズ")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("閉じる") {
+                        onResume()
+                        dismiss()
+                    }
+                }
+            }
+            .background(theme.backgroundPrimary)
+        }
+        // 破壊的操作の確認ダイアログ
+        .confirmationDialog("操作の確認", presenting: pendingAction, actions: { action in
+            Button(action.confirmationButtonTitle, role: .destructive) {
+                handleConfirmation(action)
+            }
+            Button("キャンセル", role: .cancel) {
+                pendingAction = nil
+            }
+        }, message: { action in
+            Text(action.message)
+        })
+    }
+
+    /// 確認ダイアログで選ばれたアクションを実行する
+    /// - Parameter action: ユーザーが確定した操作種別
+    private func handleConfirmation(_ action: PauseConfirmationAction) {
+        switch action {
+        case .reset:
+            onConfirmReset()
+            dismiss()
+        case .returnToTitle:
+            onConfirmReturnToTitle()
+            dismiss()
+        }
+        pendingAction = nil
+    }
+
+    /// ポーズメニュー内で扱う確認対象の列挙体
+    private enum PauseConfirmationAction: Identifiable {
+        case reset
+        case returnToTitle
+
+        var id: Int {
+            switch self {
+            case .reset: return 0
+            case .returnToTitle: return 1
+            }
+        }
+
+        var confirmationButtonTitle: String {
+            switch self {
+            case .reset: return "リセットする"
+            case .returnToTitle: return "タイトルへ戻る"
+            }
+        }
+
+        var message: String {
+            switch self {
+            case .reset:
+                return "現在の進行状況を破棄して最初からやり直します。よろしいですか？"
+            case .returnToTitle:
+                return "ゲームを終了してタイトル画面へ戻ります。現在のプレイ内容は保存されません。"
+            }
         }
     }
 }

@@ -1,8 +1,8 @@
 import SwiftUI
 import Game
 
-/// ゲーム画面と設定画面を切り替えるルートビュー
-/// `TabView` を用いて 2 つのタブを提供する
+/// ゲームプレイとタイトル画面を統括するルートビュー
+/// タイトル画面での設定シート表示やゲーム開始フローをまとめて制御する
 @MainActor
 /// SwiftUI ビュー全体を MainActor 上で扱い、MainActor 隔離されたシングルトン（GameCenterService / AdsService）へアクセスする際の競合を防ぐ
 /// - NOTE: Swift 6 で厳格化された並行性モデルに追従し、ビルドエラー（MainActor 分離違反）を確実に回避するための指定
@@ -38,6 +38,9 @@ struct RootView: View {
     /// ローディング表示解除を遅延実行するためのワークアイテム
     /// - NOTE: 新しいゲーム開始操作が走った際に古い処理をキャンセルできるよう保持しておく
     @State private var pendingGameActivationWorkItem: DispatchWorkItem?
+    /// タイトル画面から詳細設定シートを表示するためのフラグ
+    /// - NOTE: 広告やプライバシーなどゲーム外の調整はタイトル画面経由でまとめて行う方針のため、専用の状態を用意する
+    @State private var isPresentingTitleSettings: Bool = false
     /// 依存サービスを外部から注入可能にする初期化処理
     /// - Parameters:
     ///   - gameCenterService: Game Center 連携用サービス（デフォルトはシングルトン）
@@ -64,8 +67,11 @@ struct RootView: View {
                 horizontalSizeClass: horizontalSizeClass
             )
 
-            TabView {
-                // MARK: - ゲームタブ
+            ZStack {
+                // MARK: - アプリ全体の背景色を一括で適用
+                theme.backgroundPrimary
+                    .ignoresSafeArea()
+
                 ZStack {
                     // MARK: - メインのゲーム画面
                     if !isShowingTitleScreen {
@@ -92,26 +98,23 @@ struct RootView: View {
 
                     // MARK: - タイトル画面のオーバーレイ
                     if isShowingTitleScreen {
-                        TitleScreenView(selectedMode: $selectedModeForTitle) { mode in
-                            startGamePreparation(for: mode)
-                        }
+                        TitleScreenView(
+                            selectedMode: $selectedModeForTitle,
+                            onStart: { mode in
+                                startGamePreparation(for: mode)
+                            },
+                            onOpenSettings: {
+                                // 広告・プライバシーなどの詳細項目はタイトル画面のギアアイコンからまとめて案内する
+                                isPresentingTitleSettings = true
+                            }
+                        )
                         .transition(.opacity.combined(with: .move(edge: .top)))
                     }
                 }
                 .animation(.easeInOut(duration: 0.25), value: isShowingTitleScreen)
                 .animation(.easeInOut(duration: 0.25), value: isPreparingGame)
-                .tabItem {
-                    // システムアイコンとラベルを組み合わせてタブを定義
-                    Label("ゲーム", systemImage: "gamecontroller")
-                }
-
-                // MARK: - 設定タブ
-                SettingsView()
-                    .tabItem {
-                        Label("設定", systemImage: "gearshape")
-                    }
             }
-            // `GeometryReader` 内でも最大サイズを指定し、タブが端末全体へ広がるようにする
+            // `GeometryReader` 内でも最大サイズを指定し、端末全体を覆う
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             // MARK: - トップステータスバーを safeAreaInset で挿入し、iPhone/iPad 双方で安定させる
             .safeAreaInset(edge: .top, spacing: 0) {
@@ -126,8 +129,6 @@ struct RootView: View {
                 )
             }
         }
-        // 背景色をタブ領域にも適用し、safe area を含めて統一感のある配色にする
-        .background(theme.backgroundPrimary.ignoresSafeArea())
         // トップバーの高さが更新された際にログを残し、iPad の分割表示などでの変化を追跡する
         .onPreferenceChange(TopBarHeightPreferenceKey.self) { newHeight in
             let previousHeight = topBarHeight
@@ -158,6 +159,18 @@ struct RootView: View {
         // サイズクラス変化（端末回転や iPad のマルチタスク）を記録し、レイアウト崩れ再現時の手掛かりとする
         .onChange(of: horizontalSizeClass) { _, newValue in
             debugLog("RootView.horizontalSizeClass 更新: \(String(describing: newValue))")
+        }
+        // 設定シートの表示状態を監視し、意図せぬ多重表示が起きていないか把握する
+        .onChange(of: isPresentingTitleSettings) { _, newValue in
+            debugLog("RootView.isPresentingTitleSettings 更新: \(newValue)")
+        }
+        // タイトル画面専用の設定シートを表示し、ゲーム外で扱う詳細項目を集約する
+        .sheet(isPresented: $isPresentingTitleSettings) {
+            SettingsView()
+                .presentationDetents(
+                    horizontalSizeClass == .regular ? [.large] : [.medium, .large]
+                )
+                .presentationDragIndicator(.visible)
         }
     }
 }
@@ -546,6 +559,8 @@ fileprivate struct TitleScreenView: View {
     @Binding var selectedMode: GameMode
     /// ゲーム開始ボタンが押された際の処理
     let onStart: (GameMode) -> Void
+    /// 詳細設定を開くアクション
+    let onOpenSettings: () -> Void
 
     /// カラーテーマを用いてライト/ダーク両対応の配色を提供する
     private var theme = AppTheme()
@@ -562,10 +577,12 @@ fileprivate struct TitleScreenView: View {
     /// - Parameters:
     ///   - selectedMode: 選択中モードを共有するバインディング
     ///   - onStart: ゲーム開始ボタンが押下された際に呼び出されるクロージャ
-    init(selectedMode: Binding<GameMode>, onStart: @escaping (GameMode) -> Void) {
+    ///   - onOpenSettings: タイトル右上のギアアイコンから設定シートを開く際のクロージャ
+    init(selectedMode: Binding<GameMode>, onStart: @escaping (GameMode) -> Void, onOpenSettings: @escaping () -> Void) {
         self._selectedMode = selectedMode
         // `let` プロパティである onStart を代入するための明示的な初期化処理
         self.onStart = onStart
+        self.onOpenSettings = onOpenSettings
         // `@State` の初期値を明示しておくことで、将来的な初期値変更にも対応しやすくする
         _isPresentingHowToPlay = State(initialValue: false)
     }
@@ -641,6 +658,31 @@ fileprivate struct TitleScreenView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         // 背景もテーマのベースカラーへ切り替え、システム設定と調和させる
         .background(theme.backgroundPrimary)
+        // 右上にギアアイコンを常設し、ゲーム外の詳細設定へ誘導する
+        .overlay(alignment: .topTrailing) {
+            Button {
+                debugLog("TitleScreenView: 設定シート表示要求")
+                onOpenSettings()
+            } label: {
+                Image(systemName: "gearshape.fill")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundColor(theme.menuIconForeground)
+                    .frame(width: 44, height: 44)
+                    .background(
+                        Circle()
+                            .fill(theme.menuIconBackground)
+                    )
+                    .overlay(
+                        Circle()
+                            .stroke(theme.menuIconBorder, lineWidth: 1)
+                    )
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 16)
+            .padding(.trailing, 20)
+            .accessibilityLabel("設定")
+            .accessibilityHint("広告やプライバシー設定などの詳細を確認できます")
+        }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("タイトル画面。ゲームを開始するボタンがあります。手札スロットは最大\(selectedMode.handSize)種類で、\(selectedMode.stackingRuleDetailText)")
         // 遊び方シートの表示設定
