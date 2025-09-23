@@ -776,7 +776,8 @@ struct GameView: View {
                 refreshGuideHighlights()
             }
             // ジオメトリの変化に追従できるよう、SpriteKit シーンのサイズも都度更新する
-            .onChange(of: width) { newWidth in
+            .onChange(of: width) { _, newWidth in
+                // iOS 17 以降の新しいシグネチャに合わせて旧値を受け取るが、現状は利用しない
                 debugLog("SpriteBoard.width 更新: newWidth=\(newWidth)")
                 if newWidth <= 0 {
                     // レイアウト異常で幅がゼロになったケースを把握するための警告ログ
