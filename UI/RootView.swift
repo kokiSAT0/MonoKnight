@@ -160,88 +160,115 @@ private extension RootView {
     /// GeometryReader で得たレイアウト情報を元に、背景・ゲーム画面・オーバーレイをまとめて構築する
     /// - Parameter layoutContext: 現在の画面サイズや safe area を集約したコンテキスト
     /// - Returns: ルート画面の主要コンテンツ
-    @ViewBuilder
-    private func makeMainContent(layoutContext: RootLayoutContext) -> some View {
-        ZStack {
-            // MARK: - 背景レイヤーを切り出し、コードの見通しを良くする
-            makeBackgroundLayer()
+    private func makeMainContent(layoutContext: RootLayoutContext) -> AnyView {
+        // MARK: - 背景と前景の ZStack 構成を段階的に組み立て、型のネストを浅くする
+        let backgroundLayer = makeBackgroundLayer()
+        let foregroundLayer = makeForegroundContent(layoutContext: layoutContext)
 
-            // MARK: - ゲーム本体とオーバーレイをまとめた前景レイヤー
-            ZStack {
-                makeGameLayer(layoutContext: layoutContext)
-                makeLoadingOverlay()
-                makeTitleOverlay()
-            }
-            // タイトル表示やローディング状態の変化を統一したアニメーションで扱う
-            .animation(.easeInOut(duration: 0.25), value: isShowingTitleScreen)
-            .animation(.easeInOut(duration: 0.25), value: isPreparingGame)
+        let stackedContent = ZStack {
+            backgroundLayer
+            foregroundLayer
         }
+
+        return AnyView(stackedContent)
+    }
+
+    /// 前景レイヤー全体をまとめたビューを生成し、アニメーション設定も一箇所へ集約する
+    /// - Parameter layoutContext: GeometryReader 由来の safe area などを含むコンテキスト
+    /// - Returns: ゲーム表示やタイトルオーバーレイを重ね合わせたビュー
+    private func makeForegroundContent(layoutContext: RootLayoutContext) -> AnyView {
+        let gameLayer = makeGameLayer(layoutContext: layoutContext)
+        let loadingOverlay = makeLoadingOverlay()
+        let titleOverlay = makeTitleOverlay()
+
+        let layeredContent = ZStack {
+            gameLayer
+            loadingOverlay
+            titleOverlay
+        }
+        .animation(.easeInOut(duration: 0.25), value: isShowingTitleScreen)
+        .animation(.easeInOut(duration: 0.25), value: isPreparingGame)
+
+        return AnyView(layeredContent)
     }
 
     /// テーマに基づいた背景色を返す
     /// - Returns: Safe area を無視して全面へ広がる背景ビュー
-    @ViewBuilder
-    private func makeBackgroundLayer() -> some View {
+    private func makeBackgroundLayer() -> AnyView {
         // 背景処理を関数化することで、将来的なグラデーションやエフェクト拡張に対応しやすくする
-        theme.backgroundPrimary
+        let backgroundView = theme.backgroundPrimary
             .ignoresSafeArea()
+
+        return AnyView(backgroundView)
     }
 
     /// GameView の生成と環境値の付与を行う
     /// - Parameter layoutContext: GeometryReader 由来の safe area などを含むコンテキスト
     /// - Returns: タイトル非表示時に描画されるゲームプレイ画面
-    @ViewBuilder
-    private func makeGameLayer(layoutContext: RootLayoutContext) -> some View {
-        if !isShowingTitleScreen {
-            GameView(
-                mode: activeMode,
-                gameCenterService: gameCenterService,
-                adsService: adsService,
-                onRequestReturnToTitle: {
-                    // GameView からタイトルへの戻り操作を受け取り、状態を初期化する
-                    handleReturnToTitleRequest()
-                }
-            )
-            .id(gameSessionID)
-            // トップバーの高さを Environment 経由で伝搬し、GameView 側で safe area 調整に利用する
-            .environment(\.topOverlayHeight, topBarHeight)
-            // GeometryReader で得た純粋なセーフエリア量も共有し、GameView が差分からオーバーレイ分を推定できるようにする
-            .environment(\.baseTopSafeAreaInset, layoutContext.safeAreaTop)
-            // タイトル解除直後やローディング中は盤面を非表示にし、描画途中のチラつきを防ぐ
-            .opacity(isPreparingGame ? 0 : 1)
-            // ローディングが完了するまではユーザー操作を受け付けないようにする
-            .allowsHitTesting(!isPreparingGame)
+    private func makeGameLayer(layoutContext: RootLayoutContext) -> AnyView {
+        guard !isShowingTitleScreen else {
+            // タイトル表示中は空ビューを返して ZStack の型組成を単純化する
+            return AnyView(EmptyView())
         }
+
+        let gameView = GameView(
+            mode: activeMode,
+            gameCenterService: gameCenterService,
+            adsService: adsService,
+            onRequestReturnToTitle: {
+                // GameView からタイトルへの戻り操作を受け取り、状態を初期化する
+                handleReturnToTitleRequest()
+            }
+        )
+        .id(gameSessionID)
+        // トップバーの高さを Environment 経由で伝搬し、GameView 側で safe area 調整に利用する
+        .environment(\.topOverlayHeight, topBarHeight)
+        // GeometryReader で得た純粋なセーフエリア量も共有し、GameView が差分からオーバーレイ分を推定できるようにする
+        .environment(\.baseTopSafeAreaInset, layoutContext.safeAreaTop)
+        // タイトル解除直後やローディング中は盤面を非表示にし、描画途中のチラつきを防ぐ
+        .opacity(isPreparingGame ? 0 : 1)
+        // ローディングが完了するまではユーザー操作を受け付けないようにする
+        .allowsHitTesting(!isPreparingGame)
+
+        return AnyView(gameView)
     }
 
     /// ゲーム準備中に表示するローディングオーバーレイを返す
     /// - Returns: ローディング状態でのみ描画されるオーバーレイ
-    @ViewBuilder
-    private func makeLoadingOverlay() -> some View {
-        if isPreparingGame {
-            GamePreparationOverlayView()
-                .transition(.opacity)
+    private func makeLoadingOverlay() -> AnyView {
+        guard isPreparingGame else {
+            // オーバーレイ非表示時も空ビューを返し、呼び出し側の ZStack が単純な構造を保てるようにする
+            return AnyView(EmptyView())
         }
+
+        let loadingOverlay = GamePreparationOverlayView()
+            .transition(.opacity)
+
+        return AnyView(loadingOverlay)
     }
 
     /// タイトル画面を構築し、設定表示アクションなどを含めて返す
     /// - Returns: タイトル表示時に重ねるビュー
-    @ViewBuilder
-    private func makeTitleOverlay() -> some View {
-        if isShowingTitleScreen {
-            TitleScreenView(
-                selectedMode: $selectedModeForTitle,
-                onStart: { mode in
-                    // ゲーム開始ボタン押下を受けて準備フローへ進む
-                    startGamePreparation(for: mode)
-                },
-                onOpenSettings: {
-                    // 広告・プライバシーなどの詳細項目はタイトル画面のギアアイコンからまとめて案内する
-                    isPresentingTitleSettings = true
-                }
-            )
-            .transition(.opacity.combined(with: .move(edge: .top)))
+    private func makeTitleOverlay() -> AnyView {
+        guard isShowingTitleScreen else {
+            // 非表示時は空ビューでレイヤー構成の分岐を抑える
+            return AnyView(EmptyView())
         }
+
+        let titleOverlay = TitleScreenView(
+            selectedMode: $selectedModeForTitle,
+            onStart: { mode in
+                // ゲーム開始ボタン押下を受けて準備フローへ進む
+                startGamePreparation(for: mode)
+            },
+            onOpenSettings: {
+                // 広告・プライバシーなどの詳細項目はタイトル画面のギアアイコンからまとめて案内する
+                isPresentingTitleSettings = true
+            }
+        )
+        .transition(.opacity.combined(with: .move(edge: .top)))
+
+        return AnyView(titleOverlay)
     }
 
     /// タイトル画面の開始ボタン押下を受けてゲーム準備を開始する
@@ -338,10 +365,9 @@ private extension RootView {
     /// トップステータスバーを生成し、Game Center 認証状況に応じた UI を返す
     /// - Parameter context: 現在の画面サイズや safe area をまとめたレイアウトコンテキスト
     /// - Returns: safeAreaInset へ挿入するビュー
-    @ViewBuilder
-    func topStatusInset(context: RootLayoutContext) -> some View {
+    func topStatusInset(context: RootLayoutContext) -> AnyView {
         // 個別の View 構造体へ委譲することで、RootView 本体の型チェック複雑度を抑える
-        TopStatusInsetView(
+        let insetView = TopStatusInsetView(
             context: context,
             theme: theme,
             isAuthenticated: $isAuthenticated,
@@ -349,6 +375,8 @@ private extension RootView {
             isPresentingDebugLogConsole: $isPresentingDebugLogConsole,
             authenticateAction: handleGameCenterAuthenticationRequest
         )
+
+        return AnyView(insetView)
     }
 
     /// Game Center 認証 API 呼び出しをカプセル化し、ビュー側からの参照を単純化する
@@ -362,7 +390,7 @@ private extension RootView {
     /// レイアウト関連の情報を監視する不可視オーバーレイを返す
     /// - Parameter context: GeometryReader から抽出した値をまとめたコンテキスト
     /// - Returns: ログ出力専用のゼロサイズビュー
-    func layoutDiagnosticOverlay(context: RootLayoutContext) -> some View {
+    func layoutDiagnosticOverlay(context: RootLayoutContext) -> AnyView {
         let snapshot = RootLayoutSnapshot(
             context: context,
             isAuthenticated: isAuthenticated,
@@ -372,7 +400,7 @@ private extension RootView {
             topBarHeight: topBarHeight
         )
 
-        return Color.clear
+        let diagnosticOverlay = Color.clear
             .frame(width: 0, height: 0)
             .allowsHitTesting(false)
             .onAppear {
@@ -381,6 +409,8 @@ private extension RootView {
             .onChange(of: snapshot) { _, newValue in
                 logLayoutSnapshot(newValue, reason: "値更新")
             }
+
+        return AnyView(diagnosticOverlay)
     }
 
     /// 取得したレイアウトスナップショットをログへ出力し、重複を避ける
