@@ -1887,6 +1887,22 @@ private struct PauseMenuView: View {
     /// タイトルへ戻る確定時の処理
     let onConfirmReturnToTitle: () -> Void
 
+    /// GameView 側から利用できるようアクセスレベルを内部公開にしたカスタムイニシャライザ
+    /// - Parameters:
+    ///   - onResume: ポーズ解除時に実行するクロージャ
+    ///   - onConfirmReset: ゲームリセット確定時に実行するクロージャ
+    ///   - onConfirmReturnToTitle: タイトル復帰確定時に実行するクロージャ
+    /// - Note: `private struct` では自動生成イニシャライザが private になるため、ここで明示的に定義する
+    init(
+        onResume: @escaping () -> Void,
+        onConfirmReset: @escaping () -> Void,
+        onConfirmReturnToTitle: @escaping () -> Void
+    ) {
+        self.onResume = onResume
+        self.onConfirmReset = onConfirmReset
+        self.onConfirmReturnToTitle = onConfirmReturnToTitle
+    }
+
     /// シートを閉じるための環境ディスミス
     @Environment(\.dismiss) private var dismiss
     /// テーマ設定の永続化キー
