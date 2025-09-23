@@ -338,17 +338,16 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, FullScre
 
     /// 共通化したインタースティシャル広告の表示処理
     private func presentInterstitial(_ interstitial: InterstitialAd, from root: UIViewController) {
-        // 実際に表示を試みる前に、広告表示の完了をもって待機フラグをリセットする意図をコメントで明示
+        // 表示を試みる前に待機状態を解除し、同じインスタンスを再利用しないよう破棄する
+        isWaitingForPresentation = false
+        self.interstitial = nil
+
+        // 実際の表示は FullScreenContentDelegate からの成功通知を受けて状態を更新するため、ここでは副作用を最小限に留める
         interstitial.present(from: root)
         if hapticsEnabled {
             // 結果画面遷移と同様に警告ハプティクスを鳴らし、ユーザーへのフィードバックを統一
             UINotificationFeedbackGenerator().notificationOccurred(.warning)
         }
-        lastInterstitialDate = Date()
-        hasShownInCurrentPlay = true
-        isWaitingForPresentation = false
-        // 同じ広告を再利用しないように破棄し、FullScreenContentDelegate のコールバックで次のロードを任せる
-        self.interstitial = nil
         debugLog("インタースティシャル広告の表示処理をトリガーしました")
     }
 
@@ -415,9 +414,19 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, FullScre
         debugLog("インタースティシャル広告を閉じたため次の読み込みを開始します")
     }
 
+    func adDidPresentFullScreenContent(_ ad: FullScreenPresentingAd) {
+        // 実際に広告が表示されたタイミングでインターバルと 1 プレイ制限を更新する
+        lastInterstitialDate = Date()
+        hasShownInCurrentPlay = true
+        debugLog("インタースティシャル広告の表示が成功したためインターバル制御を更新しました")
+    }
+
     func ad(_ ad: FullScreenPresentingAd, didFailToPresentFullScreenContentWithError error: Error) {
         debugError(error, message: "インタースティシャル広告の表示に失敗")
         interstitial = nil
+        // 表示に失敗した場合は同一プレイ内の表示済みフラグを解除し、再読み込み後の自動表示に備えて待機状態へ戻す
+        hasShownInCurrentPlay = false
+        isWaitingForPresentation = !adsDisabled && !removeAdsMK
         scheduleRetry()
     }
 }
