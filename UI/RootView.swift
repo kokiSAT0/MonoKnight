@@ -647,6 +647,16 @@ fileprivate struct DebugLogConsoleView: View {
     /// 自動スクロールのために追跡している直近のログ ID
     @State private var lastVisibleEntryID: DebugLogEntry.ID?
 
+    /// `@ObservedObject` と `@State` を適切に初期化するための明示的なイニシャライザ
+    /// - NOTE: デフォルト実装だとメンバーごとのアクセスレベル推論の結果 `private` イニシャライザとなり、
+    ///         同ファイル内での生成すら失敗していたため明示的に公開範囲を `fileprivate` へ指定する
+    fileprivate init(viewModel: DebugLogConsoleViewModel) {
+        // `@ObservedObject` プロパティラッパーは `_viewModel` への代入で初期化する必要がある
+        self._viewModel = ObservedObject(wrappedValue: viewModel)
+        // ローカル状態は初期値 `nil` で十分なため明示的に代入する
+        self._lastVisibleEntryID = State(initialValue: nil)
+    }
+
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 12) {
