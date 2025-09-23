@@ -72,8 +72,8 @@ struct GameView: View {
     @State private var boardAnchor: Anchor<CGRect>?
     /// カード移動アニメーションの目標とする駒位置（nil の場合は最新の現在地を使用）
     @State private var animationTargetGridPoint: GridPoint?
-    /// デッドロック中に一時退避しておくガイド表示用の手札情報
-    @State private var pendingGuideHand: [DealtCard]?
+    /// デッドロック中に一時退避しておくガイド表示用の手札スタック情報
+    @State private var pendingGuideHand: [HandStack]?
     /// 一時退避中の現在位置（nil なら GameCore の最新値を利用する）
     @State private var pendingGuideCurrent: GridPoint?
     /// 盤面レイアウトに異常が発生した際のスナップショットを記録し、重複ログを避ける
@@ -322,12 +322,12 @@ struct GameView: View {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2.6, execute: workItem)
             }
             // 手札内容が変わるたびに移動候補を再計算し、ガイドハイライトを更新
-            .onReceive(core.$hand) { newHand in
+            .onReceive(core.$handStacks) { newHandStacks in
                 // 手札ストリームの更新順序を追跡しやすいよう、受信したカードスロット数をログへ残す
-                debugLog("手札更新を受信: スロット数=\(newHand.count), 退避ハンドあり=\(pendingGuideHand != nil)")
+                debugLog("手札更新を受信: スタック数=\(newHandStacks.count), 退避ハンドあり=\(pendingGuideHand != nil)")
 
                 // 手札が差し替わった際は非表示リストを実際に存在するカード ID へ限定する
-                let validIDs = Set(newHand.map { $0.id })
+                let validIDs = Set(newHandStacks.compactMap { $0.topCard?.id })
                 hiddenCardIDs.formIntersection(validIDs)
                 if let animatingCard, !validIDs.contains(animatingCard.id) {
                     // 手札の再配布などで該当カードが消えた場合はアニメーション状態を初期化
@@ -335,8 +335,8 @@ struct GameView: View {
                     animationState = .idle
                     animationTargetGridPoint = nil
                 }
-                // `core.hand` へ反映される前でも最新の手札を使ってハイライトを更新する
-                refreshGuideHighlights(handOverride: newHand)
+                // `core.handStacks` へ反映される前でも最新の手札を使ってハイライトを更新する
+                refreshGuideHighlights(handOverride: newHandStacks)
             }
             // 盤面タップで移動を指示された際にもカード演出を統一して実行
             .onReceive(core.$boardTapPlayRequest) { request in
@@ -895,16 +895,16 @@ struct GameView: View {
 
     /// ガイドモードの設定と現在の手札から移動可能なマスを算出し、SpriteKit 側へ通知する
     /// - Parameters:
-    ///   - handOverride: 直近で受け取った最新の手札（`nil` の場合は `core.hand` を利用する）
+    ///   - handOverride: 直近で受け取った最新の手札（`nil` の場合は `core.handStacks` を利用する）
     ///   - currentOverride: 最新の現在地（`nil` の場合は `core.current` を利用する）
     ///   - progressOverride: Combine で受け取った最新進行度（`nil` の場合は `core.progress` を参照）
     private func refreshGuideHighlights(
-        handOverride: [DealtCard]? = nil,
+        handOverride: [HandStack]? = nil,
         currentOverride: GridPoint? = nil,
         progressOverride: GameProgress? = nil
     ) {
         // パラメータで上書き値が渡されていれば優先し、未指定であれば GameCore が保持する最新の状態を利用する
-        let hand = handOverride ?? core.hand
+        let handStacks = handOverride ?? core.handStacks
         // Combine から届いた最新の進行度を優先できるよう引数でも受け取り、なければ GameCore の値を参照する
         let progress = progressOverride ?? core.progress
 
@@ -913,13 +913,14 @@ struct GameView: View {
             scene.updateGuideHighlights([])
             pendingGuideHand = nil
             pendingGuideCurrent = nil
-            debugLog("ガイド更新を中断: 現在地が未確定のためハイライトを消灯 状態=\(String(describing: progress)), 手札スロット数=\(hand.count)")
+            debugLog("ガイド更新を中断: 現在地が未確定のためハイライトを消灯 状態=\(String(describing: progress)), スタック数=\(handStacks.count)")
             return
         }
 
         // 各カードの移動先を列挙し、盤内に収まるマスだけを候補として蓄積する
         var candidatePoints: Set<GridPoint> = []
-        for card in hand {
+        for stack in handStacks {
+            guard let card = stack.topCard else { continue }
             // 現在位置からカードの移動量を加算し、到達先マスを導出する
             let destination = current.offset(dx: card.move.dx, dy: card.move.dy)
             if core.board.contains(destination) {
@@ -939,7 +940,7 @@ struct GameView: View {
 
         // 進行状態が .playing 以外（例: .deadlock）のときは手札と位置をバッファへ退避し、再開時に再描画できるようにする
         guard progress == .playing else {
-            pendingGuideHand = hand
+            pendingGuideHand = handStacks
             pendingGuideCurrent = current
             // デッドロックなどで一時停止した場合は、復帰時に備えて候補数と現在地をログに出力する
             debugLog("ガイド更新を保留: 状態=\(String(describing: progress)), 退避候補数=\(candidatePoints.count), 現在地=\(current)")
@@ -1024,17 +1025,29 @@ struct GameView: View {
         // アニメーション再生中は新しいリクエストを無視する（UI 全体も disabled 済みだが安全策）
         guard animatingCard == nil else { return }
 
-        // 指定されたインデックスが最新の手札範囲に含まれているか確認
-        guard core.hand.indices.contains(request.index) else { return }
-        let candidate = core.hand[request.index]
+        // 指定されたスタックが最新の状態でも存在するか確認する
+        let resolvedIndex: Int
+        if core.handStacks.indices.contains(request.stackIndex),
+           core.handStacks[request.stackIndex].id == request.stackID {
+            resolvedIndex = request.stackIndex
+        } else if let fallbackIndex = core.handStacks.firstIndex(where: { $0.id == request.stackID }) {
+            resolvedIndex = fallbackIndex
+        } else {
+            return
+        }
 
-        if candidate.id == request.card.id {
+        let stack = core.handStacks[resolvedIndex]
+        guard let currentTop = stack.topCard else { return }
+
+        if currentTop.id == request.topCard.id {
             // 手札位置が変化していなければそのまま演出を開始
-            animateCardPlay(for: candidate, at: request.index)
-        } else if let fallbackIndex = core.hand.firstIndex(where: { $0.id == request.card.id }) {
-            // 途中で手札が再配布されインデックスがズレた場合は ID で再検索して挙動を合わせる
-            let fallbackCard = core.hand[fallbackIndex]
-            animateCardPlay(for: fallbackCard, at: fallbackIndex)
+            animateCardPlay(for: currentTop, at: resolvedIndex)
+        } else if currentTop.move == request.topCard.move {
+            // トップカードの差し替えが入っても同じ種類なら最新のカードで演出を継続する
+            animateCardPlay(for: currentTop, at: resolvedIndex)
+        } else if let fallbackCard = stack.cards.first(where: { $0.id == request.topCard.id }) {
+            // 念のためスタック内から ID が一致するカードを探し、表示中のカードと揃う場合のみ演出する
+            animateCardPlay(for: fallbackCard, at: resolvedIndex)
         }
         // ID が見つからなければ既に手札が入れ替わったと判断し、何もせず終了する
     }
@@ -1137,15 +1150,20 @@ struct GameView: View {
         }
     }
 
-    /// 指定したスロットのカード（存在しない場合は nil）を取得するヘルパー
+    /// 指定したスロットのスタック（存在しない場合は nil）を取得するヘルパー
     /// - Parameter index: 手札スロットの添字
-    /// - Returns: 対応する `DealtCard` または nil（スロットが空の場合）
-    private func handCard(at index: Int) -> DealtCard? {
-        guard core.hand.indices.contains(index) else {
-            // スロットにカードが存在しない場合は nil を返してプレースホルダ表示を促す
+    /// - Returns: 対応する `HandStack` または nil（スロットが空の場合）
+    private func handStack(at index: Int) -> HandStack? {
+        guard core.handStacks.indices.contains(index) else {
+            // スロットにスタックが存在しない場合は nil を返してプレースホルダ表示を促す
             return nil
         }
-        return core.hand[index]
+        return core.handStacks[index]
+    }
+
+    /// 指定スロットのトップカードを取得する（存在しなければ nil）
+    private func handCard(at index: Int) -> DealtCard? {
+        handStack(at: index)?.topCard
     }
 
     /// 手札スロットの描画を担う共通処理
@@ -1153,7 +1171,7 @@ struct GameView: View {
     /// - Returns: MoveCardIllustrationView または空枠プレースホルダを含むビュー
     private func handSlotView(for index: Int) -> some View {
         ZStack {
-            if let card = handCard(at: index) {
+            if let stack = handStack(at: index), let card = stack.topCard {
                 let isHidden = hiddenCardIDs.contains(card.id)
                 let usabilityOpacity = isCardUsable(card) ? 1.0 : 0.4
 
@@ -1163,6 +1181,12 @@ struct GameView: View {
                     .allowsHitTesting(!isHidden)
                     .matchedGeometryEffect(id: card.id, in: cardAnimationNamespace)
                     .anchorPreference(key: CardPositionPreferenceKey.self, value: .bounds) { [card.id: $0] }
+                    .overlay(alignment: .topTrailing) {
+                        if stack.count > 1 {
+                            stackCountBadge(for: stack.count)
+                                .padding(6)
+                        }
+                    }
                     .onTapGesture {
                         // 既に別カードが移動中ならタップを無視して多重処理を防止
                         guard animatingCard == nil else { return }
@@ -1178,12 +1202,34 @@ struct GameView: View {
                             }
                         }
                     }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(Text("\(card.move.displayName)（残り\(stack.count)枚）"))
+                    .accessibilityHint(Text(isCardUsable(card) ? "ダブルタップでこの方向に移動します" : "盤外のため使用できません"))
             } else {
                 placeholderCardView()
             }
         }
         // 実カードとプレースホルダのどちらでも同じスロット識別子で UI テストしやすくする
         .accessibilityIdentifier("hand_slot_\(index)")
+    }
+
+    /// スタック枚数を知らせる小型バッジを生成
+    /// - Parameter count: 表示したい残枚数
+    private func stackCountBadge(for count: Int) -> some View {
+        Text("×\(count)")
+            .font(.caption2)
+            .fontWeight(.semibold)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(
+                Capsule()
+                    .fill(theme.accentPrimary.opacity(0.88))
+            )
+            .overlay(
+                Capsule()
+                    .stroke(theme.cardBorderHand.opacity(0.6), lineWidth: 0.5)
+            )
+            .foregroundColor(theme.accentOnPrimary)
     }
 
     /// 手札が空の際に表示するプレースホルダビュー

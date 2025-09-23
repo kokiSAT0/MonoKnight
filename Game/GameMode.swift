@@ -133,7 +133,8 @@ public struct GameMode: Equatable, Identifiable {
 
     /// 盤面サイズ（N×N）
     public var boardSize: Int { regulation.boardSize }
-    /// 初期手札スロット数（同名カードを重ねるスタック枠の合計）
+    /// 手札スロット数（保持できるカード種類の上限を明示する）
+    /// - Note: ここでいう手札サイズは枚数ではなく「異なるカードの種類数」を指す。
     public var handSize: Int { regulation.handSize }
     /// 先読み表示枚数
     public var nextPreviewCount: Int { regulation.nextPreviewCount }
