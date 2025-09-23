@@ -606,9 +606,11 @@ fileprivate struct TitleScreenView: View {
             .controlSize(.large)
             .accessibilityIdentifier("title_start_button")
 
-            Text("手札 \(selectedMode.handSize) 枚 / 先読み \(selectedMode.nextPreviewCount) 枚")
+            // 補助テキストで手札スロット上限とスタック仕様をまとめて案内
+            Text("手札スロット \(selectedMode.handSize) 種類 / 先読み \(selectedMode.nextPreviewCount) 枚。同じカードはスロット内で重なって保持されます。")
                 .font(.system(size: 13, weight: .medium, design: .rounded))
                 .foregroundColor(theme.textSecondary)
+                .multilineTextAlignment(.center)
 
             // MARK: - 遊び方シートを開くボタン
             Button {
@@ -636,7 +638,7 @@ fileprivate struct TitleScreenView: View {
         // 背景もテーマのベースカラーへ切り替え、システム設定と調和させる
         .background(theme.backgroundPrimary)
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("タイトル画面。ゲームを開始するボタンがあります。")
+        .accessibilityLabel("タイトル画面。ゲームを開始するボタンがあります。手札スロットは最大\(selectedMode.handSize)種類で、同じカードは重なって保持されます。")
         // 遊び方シートの表示設定
         .sheet(isPresented: $isPresentingHowToPlay) {
             // NavigationStack でタイトルバーを付与しつつ共通ビューを利用

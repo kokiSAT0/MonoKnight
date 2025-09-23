@@ -78,7 +78,7 @@ public struct BoardTapPlayRequest: Identifiable, Equatable {
 public final class GameCore: ObservableObject {
     /// 現在適用中のゲームモード
     public let mode: GameMode
-    /// 手札枚数を統一的に扱うための定数（今回は 5 枚で固定）
+    /// 手札スロット数を統一的に扱うための定数（今回は 5 スロットで固定）
     private let handSize: Int
     /// 先読み表示に用いるカード枚数（NEXT 表示は 3 枚先まで）
     private let nextPreviewCount: Int
@@ -89,7 +89,7 @@ public final class GameCore: ObservableObject {
     )
     /// 駒の現在位置
     @Published public private(set) var current: GridPoint? = GameMode.standard.initialSpawnPoint
-    /// 手札（常に 5 枚保持）。UI での識別用に `DealtCard` へラップする
+    /// 手札スロット（常に 5 スロット保持）。UI での識別用に `DealtCard` へラップする
     @Published public private(set) var hand: [DealtCard] = []
     /// 次に引かれるカード群（先読み 3 枚分を保持）
     @Published public private(set) var nextCards: [DealtCard] = []
@@ -272,23 +272,23 @@ public final class GameCore: ObservableObject {
             switch self {
             case .automatic:
                 if penalty > 0 {
-                    return "手詰まりのため手札を引き直しました。手数が\(penalty)増加します。"
+                    return "手詰まりのため手札スロットを引き直しました。手数が\(penalty)増加します。"
                 } else {
-                    return "手詰まりのためペナルティなしで手札を引き直しました。"
+                    return "手詰まりのためペナルティなしで手札スロットを引き直しました。"
                 }
             case .manual:
                 if penalty > 0 {
-                    return "ペナルティを使用して手札を引き直しました。手数が\(penalty)増加します。"
+                    return "ペナルティを使用して手札スロットを引き直しました。手数が\(penalty)増加します。"
                 } else {
-                    return "ペナルティを使用して手札を引き直しました。手数の増加はありません。"
+                    return "ペナルティを使用して手札スロットを引き直しました。手数の増加はありません。"
                 }
             case .automaticFreeRedraw:
-                return "手詰まりが続いたためペナルティなしで手札を引き直しました。"
+                return "手詰まりが続いたためペナルティなしで手札スロットを引き直しました。"
             }
         }
     }
 
-    /// UI 側から手動でペナルティを支払い、手札を引き直すための公開メソッド
+    /// UI 側から手動でペナルティを支払い、手札スロットを引き直すための公開メソッド
     /// - Note: 既にゲームが終了している場合や、ペナルティ中は何もしない
     public func applyManualPenaltyRedraw() {
         // クリア済み・ペナルティ処理中は無視し、進行中のみ受け付ける
@@ -308,7 +308,7 @@ public final class GameCore: ObservableObject {
         checkDeadlockAndApplyPenaltyIfNeeded(hasAlreadyPaidPenalty: true)
     }
 
-    /// 手札がすべて盤外となる場合にペナルティを課し、手札を引き直す
+    /// 手札スロットがすべて盤外となる場合にペナルティを課し、手札スロットを引き直す
     private func checkDeadlockAndApplyPenaltyIfNeeded(hasAlreadyPaidPenalty: Bool = false) {
         // スポーン待機中は判定不要
         guard progress != .awaitingSpawn, let current = current else { return }
@@ -327,7 +327,7 @@ public final class GameCore: ObservableObject {
             applyPenaltyRedraw(trigger: .automaticFreeRedraw, penaltyAmount: 0, shouldAddPenalty: false)
         } else {
             // デバッグログ: 手札詰まりの発生を通知
-            debugLog("手札が全て使用不可のためペナルティを適用")
+            debugLog("手札スロットが全て使用不可のためペナルティを適用")
 
             // 共通処理を呼び出して手札・先読みを更新
             applyPenaltyRedraw(

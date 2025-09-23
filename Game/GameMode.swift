@@ -70,11 +70,11 @@ public struct GameMode: Equatable, Identifiable {
     }
 
     /// ゲームモードの根幹となるレギュレーション設定
-    /// - Note: 盤面サイズや山札構成、手札枚数などを一括で扱い、新しいモードを追加しやすくする。
+    /// - Note: 盤面サイズや山札構成、手札スロット数などを一括で扱い、新しいモードを追加しやすくする。
     struct Regulation {
         /// 盤面サイズ（N×N）
         let boardSize: Int
-        /// 初期手札枚数
+        /// 初期手札スロット数（保持できるカード種類の上限を明示する）
         let handSize: Int
         /// 先読み表示枚数
         let nextPreviewCount: Int
@@ -88,7 +88,7 @@ public struct GameMode: Equatable, Identifiable {
         /// レギュレーションを組み立てるためのイニシャライザ
         /// - Parameters:
         ///   - boardSize: 盤面サイズ
-        ///   - handSize: 手札枚数
+        ///   - handSize: 手札スロット数
         ///   - nextPreviewCount: 先読み表示枚数
         ///   - deckConfiguration: 使用する山札設定
         ///   - spawnRule: 初期スポーンルール
@@ -133,7 +133,7 @@ public struct GameMode: Equatable, Identifiable {
 
     /// 盤面サイズ（N×N）
     public var boardSize: Int { regulation.boardSize }
-    /// 初期手札枚数
+    /// 初期手札スロット数（同名カードを重ねるスタック枠の合計）
     public var handSize: Int { regulation.handSize }
     /// 先読み表示枚数
     public var nextPreviewCount: Int { regulation.nextPreviewCount }
@@ -151,9 +151,10 @@ public struct GameMode: Equatable, Identifiable {
     var deckConfiguration: Deck.Configuration { regulation.deckConfiguration }
     /// UI で表示する山札の要約
     public var deckSummaryText: String { regulation.deckConfiguration.deckSummaryText }
-    /// 手札と先読み枚数をまとめた説明文
+    /// 手札スロットと先読み枚数をまとめた説明文
+    /// - Note: 同種カードを重ねられるスタック仕様を把握しやすいよう「種類数」で表現する。
     public var handSummaryText: String {
-        "手札 \(handSize) / 先読み \(nextPreviewCount)"
+        "手札スロット \(handSize) 種類 / 先読み \(nextPreviewCount) 枚"
     }
     /// 手動ペナルティの説明文
     public var manualPenaltySummaryText: String {
