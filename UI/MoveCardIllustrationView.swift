@@ -250,6 +250,82 @@ struct MoveCardIllustrationView: View {
     }
 }
 
+/// 手札スタックの視覚表現を担当する補助ビュー
+/// 最上段のカード（`content`）をそのまま表示しつつ、残枚数に応じて背景へカードをずらして重ねる
+struct HandStackCardView<Content: View>: View {
+    /// スタック内のカード枚数
+    let stackCount: Int
+    /// トップカードの描画内容（`MoveCardIllustrationView` など）
+    private let content: Content
+    /// カラーテーマを共有し、ライト/ダークで見やすい配色に調整する
+    private var theme = AppTheme()
+
+    /// - Parameters:
+    ///   - stackCount: スタック内のカード枚数
+    ///   - content: 最前面に配置するカードビュー
+    init(stackCount: Int, @ViewBuilder content: () -> Content) {
+        self.stackCount = stackCount
+        self.content = content()
+    }
+
+    /// 背景として描画する追加カードの枚数（最大 3 枚まで重ねる）
+    private var backgroundLayerCount: Int {
+        max(0, min(stackCount - 1, 3))
+    }
+
+    /// 枚数に応じてバッジへ表示する文字列
+    private var badgeText: String { "×\(stackCount)" }
+
+    var body: some View {
+        content
+            // 枚数が 2 枚以上のときは右上にバッジを重ねる
+            .overlay(alignment: .topTrailing) {
+                if stackCount > 1 {
+                    stackCountBadge
+                        .padding(6)
+                        .accessibilityHidden(true)
+                }
+            }
+            // 背景側に重ねるカードを描画し、スタックらしい厚みを演出する
+            .background {
+                ZStack(alignment: .center) {
+                    ForEach(0..<backgroundLayerCount, id: \.self) { index in
+                        let offset = CGFloat(index + 1) * 4
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(theme.cardBackgroundHand.opacity(0.55))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(theme.cardBorderHand.opacity(0.35), lineWidth: 1)
+                            )
+                            .shadow(color: theme.cardBorderHand.opacity(0.18), radius: 4, x: 0, y: 2)
+                            .offset(x: offset, y: offset)
+                            .accessibilityHidden(true)
+                    }
+                }
+            }
+            // 影付きの背景と前景をまとめてレンダリングし、合成時のズレを防ぐ
+            .compositingGroup()
+    }
+
+    /// スタック枚数を知らせるバッジ（角丸カプセル）
+    private var stackCountBadge: some View {
+        Text(badgeText)
+            .font(.caption2)
+            .fontWeight(.semibold)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(
+                Capsule()
+                    .fill(theme.accentPrimary.opacity(0.92))
+            )
+            .overlay(
+                Capsule()
+                    .stroke(theme.cardBorderHand.opacity(0.6), lineWidth: 0.5)
+            )
+            .foregroundColor(theme.accentOnPrimary)
+    }
+}
+
 // MARK: - 座標計算ヘルパー
 private extension MoveCardIllustrationView {
     /// グリッドの縦横数（5×5 固定）
