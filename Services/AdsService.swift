@@ -414,11 +414,15 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, FullScre
         debugLog("インタースティシャル広告を閉じたため次の読み込みを開始します")
     }
 
-    func adDidPresentFullScreenContent(_ ad: FullScreenPresentingAd) {
-        // 実際に広告が表示されたタイミングでインターバルと 1 プレイ制限を更新する
+    func adWillPresentFullScreenContent(_ ad: FullScreenPresentingAd) {
+        // 広告が表示される直前のタイミングでインターバルと 1 プレイ制限を更新する
+        // v11 以降では adDidPresentFullScreenContent が利用できなくなったため、
+        // 代わりに adWillPresentFullScreenContent で同様の処理を行う。
+        // 表示準備段階で制御フラグを更新しておくことで、
+        // ユーザー体験は従来と変えずに最新 SDK の仕様へ追従する。
         lastInterstitialDate = Date()
         hasShownInCurrentPlay = true
-        debugLog("インタースティシャル広告の表示が成功したためインターバル制御を更新しました")
+        debugLog("インタースティシャル広告の表示準備が完了したためインターバル制御を更新しました")
     }
 
     func ad(_ ad: FullScreenPresentingAd, didFailToPresentFullScreenContentWithError error: Error) {
