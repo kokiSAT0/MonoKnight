@@ -171,9 +171,8 @@ struct RootView: View {
         // タイトル画面専用の設定シートを表示し、ゲーム外で扱う詳細項目を集約する
         .sheet(isPresented: $isPresentingTitleSettings) {
             SettingsView()
-                .presentationDetents(
-                    horizontalSizeClass == .regular ? [.large] : [.medium, .large]
-                )
+                // iPhone・iPad いずれも初期状態から全画面で表示し、設定項目を見落とさないよう統一する
+                .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
         }
     }
