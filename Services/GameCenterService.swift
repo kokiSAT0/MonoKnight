@@ -180,10 +180,17 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
 
             // 認証のための ViewController が渡された場合は表示を行う
             if let vc {
-                // 最前面のシーンとキーウィンドウから提示用の ViewController を取得
-                guard let root = self.presentableRootViewController() else { return }
-                // UI 操作は必ずメインスレッドで実行する
-                DispatchQueue.main.async {
+                // UI 提示系の処理は必ずメインスレッドでまとめて実行する
+                DispatchQueue.main.async { [weak self] in
+                    guard let self else { return }
+                    // 最前面のシーンとキーウィンドウから提示用の ViewController を取得
+                    guard let root = self.presentableRootViewController() else {
+                        // ルート取得に失敗した場合はログを出力し、未認証扱いで完了を通知
+                        debugLog("Game Center 認証 UI のルート取得に失敗したため再試行が必要")
+                        self.isAuthenticated = false
+                        completion?(false)
+                        return
+                    }
                     root.present(vc, animated: true)
                 }
                 return
@@ -321,10 +328,14 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
 
         // ランキング表示中はアクセスポイントが不要なので非表示にする
         // UI 操作をメインスレッドでまとめて実行する
-        guard let root = presentableRootViewController() else { return }
         DispatchQueue.main.async { [weak self] in
             self?.deactivateAccessPoint()
             // ルートビューからモーダル表示
+            guard let root = self?.presentableRootViewController() else {
+                // ルート取得に失敗した場合はログのみ出力し、UI は表示しない
+                debugLog("Game Center ランキング表示用のルート取得に失敗したため表示を中止")
+                return
+            }
             root.present(vc, animated: true)
         }
     }
