@@ -84,6 +84,8 @@ struct RootView: View {
                             }
                         )
                         .id(gameSessionID)
+                        // トップバーの高さを Environment 経由で伝搬し、GameView 側で safe area 調整に利用する
+                        .environment(\.topOverlayHeight, topBarHeight)
                         // タイトル解除直後やローディング中は盤面を非表示にし、描画途中のチラつきを防ぐ
                         .opacity(isPreparingGame ? 0 : 1)
                         // ローディングが完了するまではユーザー操作を受け付けないようにする
