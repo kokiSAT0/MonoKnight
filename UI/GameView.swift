@@ -2009,7 +2009,7 @@ private struct PauseMenuView: View {
             .background(theme.backgroundPrimary)
         }
         // 破壊的操作の確認ダイアログ
-        .confirmationDialog("操作の確認", presenting: pendingAction, actions: { action in
+        .confirmationDialog("操作の確認", item: $pendingAction, actions: { action in
             Button(action.confirmationButtonTitle, role: .destructive) {
                 handleConfirmation(action)
             }
