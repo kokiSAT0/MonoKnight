@@ -67,33 +67,15 @@ struct RootView: View {
     var body: some View {
         GeometryReader { geometry in
             // MARK: - 現在のジオメトリ情報を整理し、レイアウトログとトップバー調整へ使うコンテキストを生成
-            let layoutContext = RootLayoutContext(
+            let layoutContext: RootLayoutContext = RootLayoutContext(
                 geometrySize: geometry.size,
                 safeAreaInsets: geometry.safeAreaInsets,
                 horizontalSizeClass: horizontalSizeClass
             )
 
-            // MARK: - 個々のモディファイア適用を段階的に行い、型推論の負荷を抑える
-            // ゲーム本体のレイヤーを構築した直後の状態を保持する
-            let baseContent = makeMainContent(layoutContext: layoutContext)
-            // GeometryReader 直下で全面フィットさせた状態を変数化しておき、以降の処理を分割する
-            let framedContent = baseContent.frame(maxWidth: .infinity, maxHeight: .infinity)
-            // トップステータスバーを追加した内容を分離し、safeAreaInset の複雑なクロージャを局所化する
-            let contentWithTopInset = framedContent.safeAreaInset(edge: .top, spacing: 0) {
-                topStatusInset(context: layoutContext)
-            }
-            // レイアウト診断用オーバーレイを重ねた状態を別変数へ退避し、背景合成を切り出す
-            let contentWithDiagnostics = contentWithTopInset.background(
-                layoutDiagnosticOverlay(context: layoutContext)
-            )
-            // 初期表示時のログ出力を含んだ最終的なビューをまとめる
-            let finalContent = contentWithDiagnostics.onAppear {
-                debugLog(
-                    "RootView.onAppear: size=\(layoutContext.geometrySize), safeArea(top=\(layoutContext.safeAreaTop), bottom=\(layoutContext.safeAreaBottom)), horizontalSizeClass=\(String(describing: horizontalSizeClass)), authenticated=\(isAuthenticated)"
-                )
-            }
-
-            finalContent
+            // MARK: - ビルド時間を抑えるため最終的なビュー構築は専用メソッドへ切り出す
+            //        `AnyView` へ包むことでジェネリックの階層を浅くし、コンパイラの型推論負荷を軽減する
+            makeRootContent(layoutContext: layoutContext)
         }
         // トップバーの高さが更新された際にログを残し、iPad の分割表示などでの変化を追跡する
         .onPreferenceChange(TopBarHeightPreferenceKey.self) { newHeight in
@@ -149,6 +131,32 @@ struct RootView: View {
 
 // MARK: - レイアウト支援メソッドと定数
 private extension RootView {
+    /// GeometryReader から受け取った情報を基に最終的なルートビューを生成する
+    /// - Parameter layoutContext: 現在のサイズやセーフエリアをまとめたコンテキスト
+    /// - Returns: `AnyView` へラップした最終描画内容
+    private func makeRootContent(layoutContext: RootLayoutContext) -> AnyView {
+        // ゲーム本体のレイヤーを構築した直後の状態を保持する
+        let baseContent = makeMainContent(layoutContext: layoutContext)
+        // GeometryReader 直下で全面フィットさせた状態を変数化しておき、以降の処理を段階的に適用する
+        let framedContent = baseContent.frame(maxWidth: .infinity, maxHeight: .infinity)
+        // トップステータスバーを追加した状態を明示的に退避し、safeAreaInset のクロージャを局所化する
+        let contentWithTopInset = framedContent.safeAreaInset(edge: .top, spacing: 0) {
+            topStatusInset(context: layoutContext)
+        }
+        // レイアウト診断用オーバーレイを合成した状態を別変数へ分離し、背景処理を読みやすくする
+        let contentWithDiagnostics = contentWithTopInset.background(
+            layoutDiagnosticOverlay(context: layoutContext)
+        )
+        // 初期表示時のログ出力を担当する `onAppear` をまとめ、最終的なビューを `AnyView` に包んで返す
+        let finalContent = contentWithDiagnostics.onAppear {
+            debugLog(
+                "RootView.onAppear: size=\(layoutContext.geometrySize), safeArea(top=\(layoutContext.safeAreaTop), bottom=\(layoutContext.safeAreaBottom)), horizontalSizeClass=\(String(describing: horizontalSizeClass)), authenticated=\(isAuthenticated)"
+            )
+        }
+
+        return AnyView(finalContent)
+    }
+
     /// GeometryReader で得たレイアウト情報を元に、背景・ゲーム画面・オーバーレイをまとめて構築する
     /// - Parameter layoutContext: 現在の画面サイズや safe area を集約したコンテキスト
     /// - Returns: ルート画面の主要コンテンツ
