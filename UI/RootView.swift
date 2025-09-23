@@ -164,16 +164,13 @@ struct RootView: View {
         .onChange(of: horizontalSizeClass) { _, newValue in
             debugLog("RootView.horizontalSizeClass 更新: \(String(describing: newValue))")
         }
-        // 設定シートの表示状態を監視し、意図せぬ多重表示が起きていないか把握する
+        // 設定画面の表示状態を監視し、意図せぬ多重表示が起きていないか把握する
         .onChange(of: isPresentingTitleSettings) { _, newValue in
             debugLog("RootView.isPresentingTitleSettings 更新: \(newValue)")
         }
-        // タイトル画面専用の設定シートを表示し、ゲーム外で扱う詳細項目を集約する
-        .sheet(isPresented: $isPresentingTitleSettings) {
+        // タイトル画面専用の設定をフルスクリーンカバーで開き、iPhone と iPad の双方で没入感のある編集体験にそろえる
+        .fullScreenCover(isPresented: $isPresentingTitleSettings) {
             SettingsView()
-                // iPhone・iPad いずれも初期状態から全画面で表示し、設定項目を見落とさないよう統一する
-                .presentationDetents([.large])
-                .presentationDragIndicator(.visible)
         }
     }
 }
