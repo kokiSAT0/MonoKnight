@@ -250,6 +250,117 @@ struct MoveCardIllustrationView: View {
     }
 }
 
+/// 手札をスタック表示するためのヘルパービュー
+/// トップカードは呼び出し側から渡されたコンテンツをそのまま表示し、
+/// 背面にずらしたダミーカードと枚数バッジを重ねる。
+struct HandStackCardView<TopCardContent: View>: View {
+    /// スタックが表す移動カード
+    let card: MoveCard
+    /// スタック内の合計枚数
+    let count: Int
+    /// スタックでも手札用の配色を使いたいので既存モードを再利用する
+    var mode: MoveCardIllustrationView.Mode = .hand
+    /// バッジ配色や影色に利用するテーマ
+    var theme: AppTheme = AppTheme()
+    /// トップカードを描画するコンテンツ。GameView からマッチドジオメトリエフェクトなどを適用できるようクロージャ引数にする。
+    private let topCardContent: () -> TopCardContent
+
+    /// メンバーイニシャライザで各値を受け取る
+    /// - Parameters:
+    ///   - card: 表示対象の移動カード
+    ///   - count: スタックに含まれる枚数
+    ///   - mode: カード表示モード（デフォルトは手札用）
+    ///   - theme: カラーテーマ
+    ///   - topCardContent: トップカード描画用のクロージャ
+    init(
+        card: MoveCard,
+        count: Int,
+        mode: MoveCardIllustrationView.Mode = .hand,
+        theme: AppTheme = AppTheme(),
+        @ViewBuilder topCardContent: @escaping () -> TopCardContent
+    ) {
+        self.card = card
+        self.count = count
+        self.mode = mode
+        self.theme = theme
+        self.topCardContent = topCardContent
+    }
+
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            // MARK: - 背面のダミーカード（最大 2 層まで）
+            if count >= 2 {
+                let layerCount = min(count - 1, Layout.maxBackgroundLayers)
+                ForEach(0..<layerCount, id: \.self) { layer in
+                    MoveCardIllustrationView(card: card, mode: mode, theme: theme)
+                        .scaleEffect(Layout.backgroundScale(for: layer), anchor: .center)
+                        .offset(Layout.backgroundOffset(for: layer))
+                        .opacity(Layout.backgroundOpacity)
+                        .allowsHitTesting(false)
+                }
+            }
+
+            // MARK: - トップカード（呼び出し側のコンテンツをそのまま利用）
+            topCardContent()
+                .overlay(alignment: .topTrailing) {
+                    if count > 1 {
+                        stackCountBadge
+                    }
+                }
+        }
+        .frame(
+            width: MoveCardIllustrationView.defaultWidth,
+            height: MoveCardIllustrationView.defaultHeight,
+            alignment: .center
+        )
+    }
+
+    /// スタック枚数を表示するバッジ
+    private var stackCountBadge: some View {
+        Text("×\(count)")
+            .font(.caption2.weight(.semibold))
+            .foregroundColor(theme.accentOnPrimary)
+            .padding(.horizontal, Layout.badgeHorizontalPadding)
+            .padding(.vertical, Layout.badgeVerticalPadding)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(theme.accentPrimary)
+            )
+            .padding(Layout.badgeOuterPadding)
+            .shadow(color: theme.accentPrimary.opacity(0.25), radius: 4, x: 0, y: 2)
+    }
+
+    /// スタック描画に関するレイアウト定数をまとめる内部列挙
+    private enum Layout {
+        /// 背面カードの最大レイヤー数
+        static let maxBackgroundLayers = 2
+        /// 背面カード 1 枚あたりのオフセット量
+        static let offsetStep = CGSize(width: 6, height: 6)
+        /// 背面カードの不透明度
+        static let backgroundOpacity: Double = 0.7
+        /// バッジ水平余白
+        static let badgeHorizontalPadding: CGFloat = 6
+        /// バッジ垂直余白
+        static let badgeVerticalPadding: CGFloat = 2
+        /// バッジ全体の外側余白
+        static let badgeOuterPadding: CGFloat = 6
+
+        /// 指定レイヤーに対するオフセット
+        /// - Parameter layer: 0 から始まる層番号
+        static func backgroundOffset(for layer: Int) -> CGSize {
+            let multiplier = CGFloat(layer + 1)
+            return CGSize(width: multiplier * offsetStep.width, height: multiplier * offsetStep.height)
+        }
+
+        /// 背面カードのスケール。奥側ほどわずかに縮小して重なりを強調する
+        /// - Parameter layer: 0 から始まる層番号
+        static func backgroundScale(for layer: Int) -> CGFloat {
+            let reduction = CGFloat(layer + 1) * 0.04
+            return max(0.9, 1.0 - reduction)
+        }
+    }
+}
+
 // MARK: - 座標計算ヘルパー
 private extension MoveCardIllustrationView {
     /// グリッドの縦横数（5×5 固定）
@@ -334,6 +445,9 @@ private extension MoveCardIllustrationView {
         // 手札用と先読み用を並べて配色の差分を確認できるようにする
         MoveCardIllustrationView(card: .knightUp2Right1, mode: .hand)
         MoveCardIllustrationView(card: .diagonalDownLeft2, mode: .next)
+        HandStackCardView(card: .knightUp2Right1, count: 3) {
+            MoveCardIllustrationView(card: .knightUp2Right1)
+        }
     }
     .padding()
     // プレビューでもテーマカラーを利用し、本番画面と同等の見た目を確認する
