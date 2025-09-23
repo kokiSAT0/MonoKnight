@@ -322,12 +322,14 @@ struct GameView: View {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2.6, execute: workItem)
             }
             // 手札内容が変わるたびに移動候補を再計算し、ガイドハイライトを更新
-            .onReceive(core.$hand) { newHand in
-                // 手札ストリームの更新順序を追跡しやすいよう、受信したカード枚数をログへ残す
-                debugLog("手札更新を受信: 枚数=\(newHand.count), 退避ハンドあり=\(pendingGuideHand != nil)")
+            .onReceive(core.$handStacks) { newStacks in
+                let topCards = newStacks.map(\.topCard)
+                let totalCount = newStacks.reduce(0) { $0 + $1.count }
+                // 手札ストリームの更新順序を追跡しやすいよう、受信したスタック数と合計枚数をログへ残す
+                debugLog("手札スタック更新を受信: 種類数=\(newStacks.count), 合計枚数=\(totalCount), 退避ハンドあり=\(pendingGuideHand != nil)")
 
                 // 手札が差し替わった際は非表示リストを実際に存在するカード ID へ限定する
-                let validIDs = Set(newHand.map { $0.id })
+                let validIDs = Set(topCards.map { $0.id })
                 hiddenCardIDs.formIntersection(validIDs)
                 if let animatingCard, !validIDs.contains(animatingCard.id) {
                     // 手札の再配布などで該当カードが消えた場合はアニメーション状態を初期化
@@ -335,8 +337,8 @@ struct GameView: View {
                     animationState = .idle
                     animationTargetGridPoint = nil
                 }
-                // `core.hand` へ反映される前でも最新の手札を使ってハイライトを更新する
-                refreshGuideHighlights(handOverride: newHand)
+                // GameCore へ反映される前でも最新のトップカード情報を使ってハイライトを更新する
+                refreshGuideHighlights(handOverride: topCards)
             }
             // 盤面タップで移動を指示された際にもカード演出を統一して実行
             .onReceive(core.$boardTapPlayRequest) { request in
@@ -834,9 +836,9 @@ struct GameView: View {
     private var manualPenaltyAccessibilityHint: String {
         let cost = core.mode.manualRedrawPenaltyCost
         if cost > 0 {
-            return "手数を\(cost)消費して現在の手札を全て捨て、新しいカードを\(core.mode.handSize)枚引きます。"
+            return "手数を\(cost)消費して現在の手札を全て捨て、新しいカードを最大\(core.mode.handSize)種類まで補充します。"
         } else {
-            return "手数を消費せずに現在の手札を全て捨て、新しいカードを\(core.mode.handSize)枚引きます。"
+            return "手数を消費せずに現在の手札を全て捨て、新しいカードを最大\(core.mode.handSize)種類まで補充します。"
         }
     }
 
@@ -893,7 +895,7 @@ struct GameView: View {
 
     /// ガイドモードの設定と現在の手札から移動可能なマスを算出し、SpriteKit 側へ通知する
     /// - Parameters:
-    ///   - handOverride: 直近で受け取った最新の手札（`nil` の場合は `core.hand` を利用する）
+    ///   - handOverride: 直近で受け取った最新の手札トップカード群（`nil` の場合は `core.handTopCards` を利用する）
     ///   - currentOverride: 最新の現在地（`nil` の場合は `core.current` を利用する）
     ///   - progressOverride: Combine で受け取った最新進行度（`nil` の場合は `core.progress` を参照）
     private func refreshGuideHighlights(
@@ -902,7 +904,7 @@ struct GameView: View {
         progressOverride: GameProgress? = nil
     ) {
         // パラメータで上書き値が渡されていれば優先し、未指定であれば GameCore が保持する最新の状態を利用する
-        let hand = handOverride ?? core.hand
+        let hand = handOverride ?? core.handTopCards
         // Combine から届いた最新の進行度を優先できるよう引数でも受け取り、なければ GameCore の値を参照する
         let progress = progressOverride ?? core.progress
 
@@ -1022,16 +1024,18 @@ struct GameView: View {
         // アニメーション再生中は新しいリクエストを無視する（UI 全体も disabled 済みだが安全策）
         guard animatingCard == nil else { return }
 
-        // 指定されたインデックスが最新の手札範囲に含まれているか確認
-        guard core.hand.indices.contains(request.index) else { return }
-        let candidate = core.hand[request.index]
+        // 指定されたインデックスが最新の手札スロット範囲に含まれているか確認
+        guard core.handStacks.indices.contains(request.stackIndex) else { return }
+        let candidateStack = core.handStacks[request.stackIndex]
+        let candidate = candidateStack.topCard
 
-        if candidate.id == request.card.id {
+        if candidate.id == request.topCard.id {
             // 手札位置が変化していなければそのまま演出を開始
-            animateCardPlay(for: candidate, at: request.index)
-        } else if let fallbackIndex = core.hand.firstIndex(where: { $0.id == request.card.id }) {
+            animateCardPlay(for: candidate, at: request.stackIndex)
+        } else if let fallback = core.handStacks.enumerated().first(where: { $0.element.topCard.id == request.topCard.id }) {
             // 途中で手札が再配布されインデックスがズレた場合は ID で再検索して挙動を合わせる
-            let fallbackCard = core.hand[fallbackIndex]
+            let (fallbackIndex, stack) = fallback
+            let fallbackCard = stack.topCard
             animateCardPlay(for: fallbackCard, at: fallbackIndex)
         }
         // ID が見つからなければ既に手札が入れ替わったと判断し、何もせず終了する
@@ -1139,17 +1143,26 @@ struct GameView: View {
     /// - Parameter index: 手札スロットの添字
     /// - Returns: 対応する `DealtCard` または nil（スロットが空の場合）
     private func handCard(at index: Int) -> DealtCard? {
-        guard core.hand.indices.contains(index) else {
+        guard core.handStacks.indices.contains(index) else {
             // スロットにカードが存在しない場合は nil を返してプレースホルダ表示を促す
             return nil
         }
-        return core.hand[index]
+        return core.handStacks[index].topCard
+    }
+
+    /// 指定したスロットに積まれているカード枚数を取得するヘルパー
+    /// - Parameter index: 手札スロットの添字
+    /// - Returns: スタック枚数（スロットが空の場合は 0）
+    private func handStackCount(at index: Int) -> Int {
+        guard core.handStacks.indices.contains(index) else { return 0 }
+        return core.handStacks[index].count
     }
 
     /// 手札スロットの描画を担う共通処理
     /// - Parameter index: 対象スロットの添字
     /// - Returns: MoveCardIllustrationView または空枠プレースホルダを含むビュー
     private func handSlotView(for index: Int) -> some View {
+        let stackCount = handStackCount(at: index)
         ZStack {
             if let card = handCard(at: index) {
                 let isHidden = hiddenCardIDs.contains(card.id)
@@ -1174,6 +1187,25 @@ struct GameView: View {
                                 UINotificationFeedbackGenerator()
                                     .notificationOccurred(.warning)
                             }
+                        }
+                    }
+                    .overlay(alignment: .topTrailing) {
+                        if stackCount > 1 && !isHidden {
+                            Text("×\(stackCount)")
+                                .font(.caption2)
+                                .fontWeight(.semibold)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(
+                                    Capsule()
+                                        .fill(theme.statisticBadgeBackground)
+                                )
+                                .overlay(
+                                    Capsule()
+                                        .stroke(theme.statisticBadgeBorder, lineWidth: 1)
+                                )
+                                .foregroundColor(theme.statisticValueText)
+                                .padding(6)
                         }
                     }
             } else {

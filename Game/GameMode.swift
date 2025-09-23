@@ -74,7 +74,7 @@ public struct GameMode: Equatable, Identifiable {
     struct Regulation {
         /// 盤面サイズ（N×N）
         let boardSize: Int
-        /// 初期手札枚数
+        /// 手札スロット数（同時に保持できるカード種類数）
         let handSize: Int
         /// 先読み表示枚数
         let nextPreviewCount: Int
@@ -133,7 +133,7 @@ public struct GameMode: Equatable, Identifiable {
 
     /// 盤面サイズ（N×N）
     public var boardSize: Int { regulation.boardSize }
-    /// 初期手札枚数
+    /// 手札スロット数（同時に保持できるカード種類数）
     public var handSize: Int { regulation.handSize }
     /// 先読み表示枚数
     public var nextPreviewCount: Int { regulation.nextPreviewCount }
@@ -153,7 +153,7 @@ public struct GameMode: Equatable, Identifiable {
     public var deckSummaryText: String { regulation.deckConfiguration.deckSummaryText }
     /// 手札と先読み枚数をまとめた説明文
     public var handSummaryText: String {
-        "手札 \(handSize) / 先読み \(nextPreviewCount)"
+        "手札 \(handSize) 種類 / 先読み \(nextPreviewCount) 枚"
     }
     /// 手動ペナルティの説明文
     public var manualPenaltySummaryText: String {

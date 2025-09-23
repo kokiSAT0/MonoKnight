@@ -36,18 +36,21 @@ final class GameCoreTests: XCTestCase {
         XCTAssertEqual(core.penaltyCount, 5, "手詰まり時にペナルティが加算されていない")
         // ペナルティ処理後は進行状態が playing に戻るか
         XCTAssertEqual(core.progress, .playing, "ペナルティ後は playing 状態に戻るべき")
-        // 引き直し後の手札枚数が 5 枚確保されているか
-        XCTAssertEqual(core.hand.count, 5, "引き直し後の手札枚数が 5 枚ではない")
+        // 引き直し後のスタック数がレギュレーションどおりに揃っているか
+        XCTAssertEqual(core.handStacks.count, core.mode.handSize, "引き直し後の手札スタック数が期待値と異なる")
+        XCTAssertGreaterThan(core.totalHandCardCount, 0, "手札スタック全体の枚数が 0 になっています")
         // 引き直し後の手札に使用可能なカードが少なくとも 1 枚あるか
         if let current = core.current {
             let boardSize = core.mode.boardSize
-            let playableExists = core.hand.contains { $0.move.canUse(from: current, boardSize: boardSize) }
+            let playableExists = core.handStacks.contains { stack in
+                stack.move.canUse(from: current, boardSize: boardSize)
+            }
             XCTAssertTrue(playableExists, "引き直し後の手札に利用可能なカードが存在しない")
         } else {
             XCTFail("現在地が nil のままです")
         }
         // 先読みカードが 3 枚揃っているか（NEXT 表示用）
-        XCTAssertEqual(core.nextCards.count, 3, "引き直し後の先読みカードが 3 枚補充されていない")
+        XCTAssertEqual(core.nextCards.count, core.mode.nextPreviewCount, "引き直し後の先読みカードが所定枚数補充されていない")
     }
 
     /// 手詰まり後に再び手詰まりが発生した場合でも追加ペナルティが加算されないことを確認
@@ -97,7 +100,9 @@ final class GameCoreTests: XCTestCase {
         // 最終的な手札 5 枚の中に使用可能なカードがあるか
         if let current = core.current {
             let boardSize = core.mode.boardSize
-            let playableExists = core.hand.contains { $0.move.canUse(from: current, boardSize: boardSize) }
+            let playableExists = core.handStacks.contains { stack in
+                stack.move.canUse(from: current, boardSize: boardSize)
+            }
             XCTAssertTrue(playableExists, "連続手詰まり後の手札に使用可能なカードが存在しない")
         } else {
             XCTFail("現在地が nil のままです")
@@ -133,7 +138,7 @@ final class GameCoreTests: XCTestCase {
 
         // 手札の中から使用可能なカードを 1 枚選び、実際に移動させる
         if let current = core.current,
-           let index = core.hand.firstIndex(where: { $0.move.canUse(from: current, boardSize: core.mode.boardSize) }) {
+           let index = core.handStacks.firstIndex(where: { $0.move.canUse(from: current, boardSize: core.mode.boardSize) }) {
             core.playCard(at: index)
         }
         // 移動が記録されているか確認
@@ -147,8 +152,8 @@ final class GameCoreTests: XCTestCase {
         XCTAssertEqual(core.penaltyCount, 0, "ペナルティカウントがリセットされていない")
         XCTAssertEqual(core.elapsedSeconds, 0, "所要時間がリセットされていない")
         XCTAssertEqual(core.progress, .playing, "ゲーム状態が playing に戻っていない")
-        XCTAssertEqual(core.hand.count, 5, "手札枚数が初期値と異なる")
-        XCTAssertEqual(core.nextCards.count, 3, "先読みカードが 3 枚確保されていない")
+        XCTAssertEqual(core.handStacks.count, core.mode.handSize, "手札スタック数が初期値と異なる")
+        XCTAssertEqual(core.nextCards.count, core.mode.nextPreviewCount, "先読みカードが所定枚数確保されていない")
         // 盤面の踏破状態も初期化されているか
         XCTAssertTrue(core.board.isVisited(centerPoint), "盤面中央が踏破済みになっていない")
         XCTAssertFalse(core.board.isVisited(GridPoint(x: 0, y: 0)), "開始位置が踏破済みのままになっている")
@@ -158,11 +163,65 @@ final class GameCoreTests: XCTestCase {
     func testInitialAndResetHandCountIsFive() {
         // デフォルト初期化で手札が 5 枚配られているかチェック
         let core = GameCore()
-        XCTAssertEqual(core.hand.count, 5, "初期化直後の手札枚数が 5 枚になっていない")
+        XCTAssertEqual(core.handStacks.count, core.mode.handSize, "初期化直後の手札スタック数が想定通りではない")
 
         // reset() 実行後も 5 枚に戻っているか確認
         core.reset()
-        XCTAssertEqual(core.hand.count, 5, "リセット直後の手札枚数が 5 枚になっていない")
+        XCTAssertEqual(core.handStacks.count, core.mode.handSize, "リセット直後の手札スタック数が想定通りではない")
+    }
+
+    /// 同一種類のカードを連続で引いた場合に既存スタックへ積み増しされ、新種が出るまでドローが継続されるか検証
+    func testDuplicateDrawsAreStackedUntilNewTypeAppears() {
+        let deck = Deck.makeTestDeck(cards: [
+            // --- 初期手札補充用 ---
+            .kingRight,
+            .kingRight,  // 既存スタックへ積み増しされる想定
+            .kingUp,
+            .kingUp,     // こちらも積み増し
+            .kingLeft,
+            .kingDown,
+            .kingUpLeft,
+            // --- 先読みキュー ---
+            .diagonalUpRight2,
+            .straightUp2,
+            .knightUp2Right1,
+            // --- 追加ドロー（先読み補充用） ---
+            .kingRight,
+            .kingUp
+        ])
+
+        let core = GameCore.makeTestInstance(deck: deck)
+        XCTAssertEqual(core.handStacks.count, core.mode.handSize, "初期スタック数がレギュレーションと一致していない")
+        XCTAssertEqual(core.handStackCounts.filter { $0 > 1 }.count, 2, "積み増しされたスタック数が想定と異なる")
+        XCTAssertEqual(core.totalHandCardCount, 7, "積み増し後の総カード枚数が期待値と異なる")
+
+        guard let kingRightIndex = core.indexOfStack(matching: .kingRight) else {
+            XCTFail("キング右のスタックが見つかりません")
+            return
+        }
+        XCTAssertEqual(core.handStacks[kingRightIndex].count, 2, "キング右スタックの初期枚数が想定と異なる")
+        let initialNext = core.nextCards.map { $0.move }
+
+        core.playCard(at: kingRightIndex)
+
+        // スタック自体は維持され、枚数だけが減るか確認
+        guard let reducedIndex = core.indexOfStack(matching: .kingRight) else {
+            XCTFail("キング右スタックが想定外に消失しました")
+            return
+        }
+        XCTAssertEqual(core.handStacks[reducedIndex].count, 1, "積み増しスタック使用後の残枚数が想定外です")
+        XCTAssertEqual(core.handStacks.count, core.mode.handSize, "同一種カード使用後にスタック数が減少しています")
+        XCTAssertEqual(core.totalHandCardCount, 6, "1 枚使用後の総カード枚数が想定外です")
+        XCTAssertEqual(core.nextCards.map { $0.move }, initialNext, "スタック維持時に NEXT が変化しています")
+
+        core.playCard(at: reducedIndex)
+
+        // スタックが空になったら NEXT から新種が補充され、先読みも正しくずれるか検証
+        XCTAssertNil(core.indexOfStack(matching: .kingRight), "キング右スタックが空になった後も残っています")
+        XCTAssertEqual(core.handStacks.count, core.mode.handSize, "スタック除去後にスロット数が復元されていない")
+        XCTAssertTrue(core.handStacks.contains(where: { $0.move == .diagonalUpRight2 }), "先読みからの補充が行われていない")
+        XCTAssertEqual(core.nextCards.map { $0.move }, [.straightUp2, .knightUp2Right1, .kingRight], "先読みのシフト結果が期待と異なる")
+        XCTAssertEqual(core.totalHandCardCount, 6, "補充後の総カード枚数が期待値と異なる")
     }
 
     /// 同じシードでゲームをやり直したい場合に `startNewGame: false` が利用できるか検証
@@ -182,13 +241,15 @@ final class GameCoreTests: XCTestCase {
         let core = GameCore.makeTestInstance(deck: deck)
 
         // リセット前の手札と先読み構成を控えておき、後で比較できるようにする
-        let initialHand = core.hand.map { $0.move }
+        let initialHandStacks = core.handStacks.map { ($0.move, $0.count) }
         let initialNext = core.nextCards.map { $0.move }
 
         // 同一シードを維持するモードでリセットし、手札が再現されるかを確認
         core.reset(startNewGame: false)
 
-        XCTAssertEqual(core.hand.map { $0.move }, initialHand, "同一シードでのリセット時は手札構成が一致するべき")
+        let refreshedHandStacks = core.handStacks.map { ($0.move, $0.count) }
+        XCTAssertEqual(refreshedHandStacks.map(\.0), initialHandStacks.map(\.0), "同一シードでのリセット時は手札スタックの種類順が一致するべき")
+        XCTAssertEqual(refreshedHandStacks.map(\.1), initialHandStacks.map(\.1), "同一シードでのリセット時は各スタックの枚数が一致するべき")
         XCTAssertEqual(core.nextCards.map { $0.move }, initialNext, "同一シードでのリセット時は先読み構成が一致するべき")
     }
 
@@ -243,14 +304,14 @@ final class GameCoreTests: XCTestCase {
 
         XCTAssertEqual(core.penaltyCount, 0)
 
-        guard let firstMoveIndex = core.hand.firstIndex(where: { $0.move == .knightUp2Right1 }) else {
+        guard let firstMoveIndex = core.indexOfStack(matching: .knightUp2Right1) else {
             XCTFail("想定していた移動カードが手札に存在しません")
             return
         }
         core.playCard(at: firstMoveIndex)
         XCTAssertEqual(core.penaltyCount, 0)
 
-        guard let returnIndex = core.hand.firstIndex(where: { $0.move == .knightDown2Left1 }) else {
+        guard let returnIndex = core.indexOfStack(matching: .knightDown2Left1) else {
             XCTFail("戻り用のカードが手札から見つかりません")
             return
         }
@@ -311,7 +372,7 @@ final class GameCoreTests: XCTestCase {
             .kingUp,
             .kingRight
         ]
-        XCTAssertEqual(core.hand.map(\.move), expected, "方向ソート設定で手札が期待通りに並んでいない")
+        XCTAssertEqual(core.handStackMoves, expected, "方向ソート設定で手札が期待通りに並んでいない")
     }
 
     /// 方向ソート設定でカードを使用した後も新しい手札が正しい順序に保たれるか検証
@@ -331,7 +392,7 @@ final class GameCoreTests: XCTestCase {
 
         core.updateHandOrderingStrategy(.directionSorted)
 
-        guard let playIndex = core.hand.firstIndex(where: { $0.move == .kingRight }) else {
+        guard let playIndex = core.indexOfStack(matching: .kingRight) else {
             XCTFail("想定したカードが手札に存在しません")
             return
         }
@@ -345,7 +406,7 @@ final class GameCoreTests: XCTestCase {
             .kingLeft,
             .kingUp
         ]
-        XCTAssertEqual(core.hand.map(\.move), expected, "カード使用後の方向ソート結果が期待と異なります")
+        XCTAssertEqual(core.handStackMoves, expected, "カード使用後の方向ソート結果が期待と異なります")
     }
 
     /// スコア計算が「手数×10 + 経過秒数」で行われることを確認
@@ -356,5 +417,25 @@ final class GameCoreTests: XCTestCase {
 
         XCTAssertEqual(core.totalMoveCount, 17, "合計手数の算出が期待値と異なる")
         XCTAssertEqual(core.score, 207, "ポイント計算が仕様と一致していない")
+    }
+}
+
+// MARK: - テスト用ユーティリティ
+
+private extension GameCore {
+    /// 現在の手札スタックに含まれる移動カード種別を列挙する
+    var handStackMoves: [MoveCard] { handStacks.map(\.move) }
+
+    /// 各手札スタックの枚数を取得する
+    var handStackCounts: [Int] { handStacks.map(\.count) }
+
+    /// 手札全体で保持しているカード枚数（スタックを展開した合計）
+    var totalHandCardCount: Int { handStacks.reduce(0) { $0 + $1.count } }
+
+    /// 指定したカード種別を持つスタックの添字を検索する
+    /// - Parameter move: 探したい移動カード
+    /// - Returns: 一致するスタックの添字（見つからない場合は nil）
+    func indexOfStack(matching move: MoveCard) -> Int? {
+        handStacks.firstIndex { $0.move == move }
     }
 }
