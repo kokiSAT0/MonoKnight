@@ -22,6 +22,9 @@ struct GameView: View {
     /// RootView 側で挿入したトップバーの高さ。safeAreaInsets.top から減算して余分な余白を除去する
     /// - Note: Swift 6 では独自 EnvironmentKey の値型が明示されていないと推論に失敗するため、CGFloat 型で注釈を付けている
     @Environment(\.topOverlayHeight) private var topOverlayHeight: CGFloat
+    /// ルートビューの GeometryReader で得たシステム由来セーフエリアの上端量
+    /// - Note: safeAreaInset により増加した分を差し引くための基準値として利用する
+    @Environment(\.baseTopSafeAreaInset) private var baseTopSafeAreaInset: CGFloat
     /// 手札スロットの数（常に 5 スロット分の枠を確保してレイアウトを安定させる）
     private let handSlotCount = 5
     /// ゲームロジックを保持する ObservableObject
@@ -504,8 +507,12 @@ struct GameView: View {
         // MARK: - セーフエリアに対するフォールバック計算
         let rawTopInset = geometry.safeAreaInsets.top
         let rawBottomInset = geometry.safeAreaInsets.bottom
-        // RootView で safe area 上に追加したトップバーの高さを差し引き、純粋なシステム由来の余白へ正規化する
-        let overlayCompensation = max(topOverlayHeight, 0)
+        // RootView から受け取ったバー高さと、GeometryReader の差分から推定した値の双方を利用して補正量を決める
+        let overlayFromEnvironment = max(topOverlayHeight, 0)
+        let baseSafeAreaTop = max(baseTopSafeAreaInset, 0)
+        let overlayFromDifference = max(rawTopInset - baseSafeAreaTop, 0)
+        // いずれかで取得できた最大値を採用しつつ、rawTopInset を超えないようにクリップする
+        let overlayCompensation = min(max(overlayFromEnvironment, overlayFromDifference), rawTopInset)
         let adjustedTopInset = max(rawTopInset - overlayCompensation, 0)
         let usedTopFallback = adjustedTopInset <= 0 && horizontalSizeClass == .regular
         let usedBottomFallback = rawBottomInset <= 0 && horizontalSizeClass == .regular
@@ -559,6 +566,7 @@ struct GameView: View {
             geometrySize: geometry.size,
             rawTopInset: rawTopInset,
             rawBottomInset: rawBottomInset,
+            baseTopSafeAreaInset: baseSafeAreaTop,
             usedTopFallback: usedTopFallback,
             usedBottomFallback: usedBottomFallback,
             topOverlayHeight: overlayCompensation,
@@ -1600,7 +1608,7 @@ struct GameView: View {
         let message = """
         GameView.layout 観測: 理由=\(reason)
           geometry=\(snapshot.geometrySize)
-          safeArea(rawTop=\(snapshot.rawTopInset), rawBottom=\(snapshot.rawBottomInset), resolvedTop=\(snapshot.resolvedTopInset), resolvedBottom=\(snapshot.resolvedBottomInset), fallbackTop=\(snapshot.usedTopSafeAreaFallback), fallbackBottom=\(snapshot.usedBottomSafeAreaFallback), overlayTop=\(snapshot.topOverlayHeight))
+          safeArea(rawTop=\(snapshot.rawTopInset), baseTop=\(snapshot.baseTopSafeAreaInset), rawBottom=\(snapshot.rawBottomInset), resolvedTop=\(snapshot.resolvedTopInset), resolvedBottom=\(snapshot.resolvedBottomInset), fallbackTop=\(snapshot.usedTopSafeAreaFallback), fallbackBottom=\(snapshot.usedBottomSafeAreaFallback), overlayTop=\(snapshot.topOverlayHeight))
           sections(statistics=\(snapshot.statisticsHeight), resolvedStatistics=\(snapshot.resolvedStatisticsHeight), hand=\(snapshot.handSectionHeight), resolvedHand=\(snapshot.resolvedHandSectionHeight))
           paddings(controlTop=\(snapshot.controlRowTopPadding), handBottom=\(snapshot.handSectionBottomPadding), regularExtra=\(snapshot.regularAdditionalBottomPadding))
           fallbacks(statistics=\(snapshot.usedStatisticsFallback), hand=\(snapshot.usedHandSectionFallback), topSafeArea=\(snapshot.usedTopSafeAreaFallback), bottomSafeArea=\(snapshot.usedBottomSafeAreaFallback))
@@ -1622,6 +1630,7 @@ struct GameView: View {
         let geometrySize: CGSize
         let rawTopInset: CGFloat
         let rawBottomInset: CGFloat
+        let baseTopSafeAreaInset: CGFloat
         let usedTopFallback: Bool
         let usedBottomFallback: Bool
         let topOverlayHeight: CGFloat
@@ -1654,6 +1663,7 @@ struct GameView: View {
         let boardWidth: CGFloat
         let rawTopInset: CGFloat
         let rawBottomInset: CGFloat
+        let baseTopSafeAreaInset: CGFloat
         let resolvedTopInset: CGFloat
         let resolvedBottomInset: CGFloat
         let statisticsHeight: CGFloat
@@ -1680,6 +1690,7 @@ struct GameView: View {
             self.boardWidth = context.boardWidth
             self.rawTopInset = context.rawTopInset
             self.rawBottomInset = context.rawBottomInset
+            self.baseTopSafeAreaInset = context.baseTopSafeAreaInset
             self.resolvedTopInset = context.topInset
             self.resolvedBottomInset = context.bottomInset
             self.statisticsHeight = context.statisticsHeight
