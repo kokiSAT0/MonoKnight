@@ -113,6 +113,9 @@ public final class GameCore: ObservableObject {
     /// 盤面タップでカード使用を依頼された際のアニメーション要求
     /// - Note: UI 側がこの値を受け取ったら演出を実行し、完了後に `clearBoardTapPlayRequest` を呼び出してリセットする
     @Published public private(set) var boardTapPlayRequest: BoardTapPlayRequest?
+    /// 捨て札ペナルティの対象選択を待っているかどうか
+    /// - Note: UI のハイライト切り替えや操作制御に利用する
+    @Published public private(set) var isAwaitingManualDiscardSelection: Bool = false
 
     /// 実際に移動した回数（UI へ即時反映させるため @Published を付与）
     @Published public private(set) var moveCount: Int = 0
@@ -182,6 +185,8 @@ public final class GameCore: ObservableObject {
     public func playCard(at index: Int) {
         // スポーン待ちやクリア済み・ペナルティ中は操作不可
         guard progress == .playing, let currentPosition = current else { return }
+        // 捨て札モード中は移動を開始せず安全に抜ける
+        guard !isAwaitingManualDiscardSelection else { return }
         // インデックスが範囲内か確認（0〜handSize-1 の範囲を想定）
         guard handStacks.indices.contains(index) else { return }
         var stack = handStacks[index]
@@ -308,6 +313,9 @@ public final class GameCore: ObservableObject {
         // デバッグログ: ユーザー操作による引き直しを記録
         debugLog("ユーザー操作でペナルティ引き直しを実行")
 
+        // 捨て札選択モードが残っていればここで解除しておく
+        cancelManualDiscardSelection()
+
         // 共通処理を用いて手札を入れ替える
         applyPenaltyRedraw(
             trigger: .manual,
@@ -360,6 +368,9 @@ public final class GameCore: ObservableObject {
         // ペナルティ処理中は .deadlock 状態として UI 側の入力を抑制する
         progress = .deadlock
 
+        // 捨て札選択モードと同時には成立しないため、ここで解除する
+        isAwaitingManualDiscardSelection = false
+
         // 手札が一新されるため、盤面タップからの保留リクエストも破棄して整合性を保つ
         boardTapPlayRequest = nil
 
@@ -405,6 +416,84 @@ public final class GameCore: ObservableObject {
         }
     }
 
+    /// 捨て札ペナルティの選択を開始する
+    /// - Note: ゲーム進行中で手札が存在する場合のみ受付ける
+    public func beginManualDiscardSelection() {
+        // プレイ中以外は受け付けない
+        guard progress == .playing else { return }
+        // 手札が空の場合は選択しても意味がないため無視する
+        guard !handStacks.isEmpty else { return }
+        // 既に捨て札モードであれば再度有効化する必要はない
+        guard !isAwaitingManualDiscardSelection else { return }
+
+        isAwaitingManualDiscardSelection = true
+        debugLog("捨て札ペナルティ選択モード開始")
+
+#if canImport(UIKit)
+        // VoiceOver へモード切替を知らせる
+        let announcement: String
+        if mode.manualDiscardPenaltyCost > 0 {
+            announcement = "捨て札するカードを選んでください。手数が\(mode.manualDiscardPenaltyCost)増加します。"
+        } else {
+            announcement = "捨て札するカードを選んでください。手数は増加しません。"
+        }
+        UIAccessibility.post(notification: .announcement, argument: announcement)
+#endif
+    }
+
+    /// 捨て札モードを明示的に終了する
+    /// - Note: UI 側でキャンセル操作が行われた際などに利用する
+    public func cancelManualDiscardSelection() {
+        guard isAwaitingManualDiscardSelection else { return }
+        isAwaitingManualDiscardSelection = false
+        debugLog("捨て札ペナルティ選択モードをキャンセル")
+    }
+
+    /// 指定スタックを捨て札にし、ペナルティを加算して新しいカードを補充する
+    /// - Parameter stackID: 捨て札対象のスタック識別子
+    /// - Returns: 正常終了した場合は true
+    @discardableResult
+    public func discardHandStack(withID stackID: UUID) -> Bool {
+        // プレイ中以外では捨て札を実行しない
+        guard progress == .playing else { return false }
+        // 捨て札モードでなければ誤操作とみなし拒否する
+        guard isAwaitingManualDiscardSelection else { return false }
+        // 指定 ID のスタックが存在するか確認
+        guard let index = handStacks.firstIndex(where: { $0.id == stackID }) else { return false }
+
+        let removedStack = handStacks.remove(at: index)
+        isAwaitingManualDiscardSelection = false
+        boardTapPlayRequest = nil
+
+        // ペナルティを加算し、UI 側が参照する最後のペナルティ量を更新
+        let penalty = mode.manualDiscardPenaltyCost
+        if penalty > 0 {
+            penaltyCount += penalty
+        }
+        lastPenaltyAmount = penalty
+
+        debugLog("捨て札ペナルティ適用: stackID=\(stackID), 枚数=\(removedStack.count), move=\(String(describing: removedStack.representativeMove)), ペナルティ=+\(penalty)")
+
+#if canImport(UIKit)
+        let message: String
+        if penalty > 0 {
+            message = "捨て札しました。手数が\(penalty)増加します。"
+        } else {
+            message = "捨て札しました。手数の増加はありません。"
+        }
+        UIAccessibility.post(notification: .announcement, argument: message)
+#endif
+
+        // NEXT キューを優先して補充し、不足分は山札から取得する
+        refillHandStacks(from: &nextCards)
+        reorderHandIfNeeded()
+        replenishNextPreview()
+
+        // 捨て札後の手札が再び詰む場合に備えてチェックする
+        checkDeadlockAndApplyPenaltyIfNeeded()
+        return true
+    }
+
     /// ゲームを最初からやり直す
     /// - Parameter startNewGame: `true` の場合は乱数シードも新規採番して完全に新しいゲームを開始する。
     ///                           `false` の場合は同じシードを用いて同一展開を再現する。
@@ -429,6 +518,7 @@ public final class GameCore: ObservableObject {
         lastPenaltyAmount = 0
         penaltyEventID = nil
         boardTapPlayRequest = nil
+        isAwaitingManualDiscardSelection = false
         endDate = nil
         progress = mode.requiresSpawnSelection ? .awaitingSpawn : .playing
 
@@ -673,6 +763,7 @@ extension GameCore {
             core.checkDeadlockAndApplyPenaltyIfNeeded()
         }
         core.resetTimer()
+        core.isAwaitingManualDiscardSelection = false
         return core
     }
 

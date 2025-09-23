@@ -580,6 +580,7 @@ struct GameView: View {
 
             // MARK: - リセット系の操作ボタン群
             HStack(spacing: 12) {
+                manualDiscardButton
                 manualPenaltyButton
                 menuButton
             }
@@ -768,6 +769,10 @@ struct GameView: View {
         let finalBottomPadding = max(bottomPadding, expectedPadding)
 
         return VStack(spacing: 8) {
+            if core.isAwaitingManualDiscardSelection {
+                discardSelectionNotice
+                    .transition(.opacity)
+            }
             // 手札スロットを横並びで配置し、最大種類数を常に確保する
             // カードを大きくした際も全体幅が画面内に収まるよう、spacing を定数で管理する
             HStack(spacing: LayoutMetrics.handCardSpacing) {
@@ -827,6 +832,106 @@ struct GameView: View {
         }
         // BasePadding とセーフエリア・マージンをまとめて適用し、iPad でも指の収まりを良くする
         .padding(.bottom, finalBottomPadding)
+    }
+
+    /// 手動ペナルティ（手札引き直し）のショートカットボタン
+    /// - Note: 統計バッジの右側に円形アイコンとして配置し、盤面上部の横並びレイアウトに収める
+    private var manualDiscardButton: some View {
+        // プレイ中かつ手札が存在するときだけ操作可能にする
+        let isDisabled = core.progress != .playing || core.handStacks.isEmpty
+        let isSelecting = core.isAwaitingManualDiscardSelection
+
+        return Button {
+            if isSelecting {
+                // もう一度タップされた場合はモードを解除する
+                core.cancelManualDiscardSelection()
+            } else {
+                // 捨て札モードへ移行してカード選択を待つ
+                core.beginManualDiscardSelection()
+            }
+        } label: {
+            Image(systemName: "trash")
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundColor(isSelecting ? theme.accentOnPrimary : theme.menuIconForeground)
+                .frame(width: 44, height: 44)
+                .background(
+                    Circle()
+                        .fill(isSelecting ? theme.accentPrimary : theme.menuIconBackground)
+                )
+                .overlay(
+                    Circle()
+                        .stroke(
+                            isSelecting ? theme.accentPrimary.opacity(0.55) : theme.menuIconBorder,
+                            lineWidth: 1
+                        )
+                )
+        }
+        .buttonStyle(.plain)
+        .opacity(isDisabled ? 0.45 : 1.0)
+        .disabled(isDisabled)
+        .accessibilityIdentifier("manual_discard_button")
+        .accessibilityLabel(Text("手札を捨て札にする"))
+        .accessibilityHint(Text(manualDiscardAccessibilityHint))
+    }
+
+    /// 捨て札モードの操作説明を状況に応じて生成する
+    private var manualDiscardAccessibilityHint: String {
+        let cost = core.mode.manualDiscardPenaltyCost
+        if core.isAwaitingManualDiscardSelection {
+            return "捨て札モードを終了します。カードを選ばずに通常操作へ戻ります。"
+        }
+
+        if cost > 0 {
+            return "手数を\(cost)消費して、選択した手札 1 種類をまとめて捨て札にし、新しいカードを補充します。"
+        } else {
+            return "手数を消費せずに、選択した手札 1 種類をまとめて捨て札にし、新しいカードを補充します。"
+        }
+    }
+
+    /// 捨て札モード時に表示する案内バナー
+    private var discardSelectionNotice: some View {
+        let penaltyCost = core.mode.manualDiscardPenaltyCost
+        let penaltyDescription: String
+        if penaltyCost > 0 {
+            penaltyDescription = "ペナルティ +\(penaltyCost)"
+        } else {
+            penaltyDescription = "ペナルティなし"
+        }
+
+        return HStack(spacing: 12) {
+            Image(systemName: "hand.point.up.left.fill")
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundColor(theme.accentOnPrimary)
+                .padding(10)
+                .background(
+                    Circle()
+                        .fill(theme.accentPrimary)
+                )
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("捨て札するカードを選択中")
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .foregroundColor(theme.textPrimary)
+                Text("タップした手札 1 種類を捨て札にして \(penaltyDescription)")
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .foregroundColor(theme.textSecondary)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 10)
+        .padding(.horizontal, 14)
+        .background(
+            RoundedRectangle(cornerRadius: 14)
+                .fill(theme.cardBackgroundNext)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14)
+                        .stroke(theme.cardBorderHand.opacity(0.35), lineWidth: 1)
+                )
+        )
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(Text("捨て札モードです。手札をタップして \(penaltyDescription)。"))
     }
 
     /// 手動ペナルティ（手札引き直し）のショートカットボタン
@@ -1223,6 +1328,7 @@ struct GameView: View {
             if let stack = handCard(at: index), let card = stack.topCard {
                 let isHidden = hiddenCardIDs.contains(card.id)
                 let isUsable = isCardUsable(stack)
+                let isSelectingDiscard = core.isAwaitingManualDiscardSelection
 
                 HandStackCardView(stackCount: stack.count) {
                     MoveCardIllustrationView(card: card.move)
@@ -1230,8 +1336,18 @@ struct GameView: View {
                         .anchorPreference(key: CardPositionPreferenceKey.self, value: .bounds) { [card.id: $0] }
                 }
                 // 使用不可カードは薄く表示し、アニメーション中は完全に透明化
-                .opacity(isHidden ? 0.0 : (isUsable ? 1.0 : 0.4))
+                .opacity(
+                    isHidden ? 0.0 : (isSelectingDiscard ? 1.0 : (isUsable ? 1.0 : 0.4))
+                )
                 .allowsHitTesting(!isHidden)
+                .overlay {
+                    if isSelectingDiscard && !isHidden {
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(theme.accentPrimary.opacity(0.75), lineWidth: 3)
+                            .shadow(color: theme.accentPrimary.opacity(0.45), radius: 6, x: 0, y: 3)
+                            .accessibilityHidden(true)
+                    }
+                }
                 .onTapGesture {
                     // 既に別カードが移動中ならタップを無視して多重処理を防止
                     guard animatingCard == nil else { return }
@@ -1239,7 +1355,15 @@ struct GameView: View {
                     guard core.handStacks.indices.contains(index) else { return }
                     let latestStack = core.handStacks[index]
 
-                    if isCardUsable(latestStack) {
+                    if core.isAwaitingManualDiscardSelection {
+                        // 捨て札モードではスタックをまとめて破棄する
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            let success = core.discardHandStack(withID: latestStack.id)
+                            if success, hapticsEnabled {
+                                UINotificationFeedbackGenerator().notificationOccurred(.warning)
+                            }
+                        }
+                    } else if isCardUsable(latestStack) {
                         // 共通処理でアニメーションとカード使用をまとめて実行
                         _ = animateCardPlay(for: latestStack, at: index)
                     } else {
@@ -1252,7 +1376,7 @@ struct GameView: View {
                 }
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(Text(accessibilityLabel(for: stack)))
-                .accessibilityHint(Text(accessibilityHint(for: stack, isUsable: isUsable)))
+                .accessibilityHint(Text(accessibilityHint(for: stack, isUsable: isUsable, isDiscardMode: isSelectingDiscard)))
                 .accessibilityAddTraits(.isButton)
             } else {
                 placeholderCardView()
@@ -1301,7 +1425,11 @@ struct GameView: View {
     ///   - stack: 対象となる手札スタック
     ///   - isUsable: 現在位置から使用可能かどうか
     /// - Returns: スタック挙動を含む丁寧な説明文
-    private func accessibilityHint(for stack: HandStack, isUsable: Bool) -> String {
+    private func accessibilityHint(for stack: HandStack, isUsable: Bool, isDiscardMode: Bool) -> String {
+        if isDiscardMode {
+            return "ダブルタップでこの種類のカードをすべて捨て札にし、新しいカードを補充します。"
+        }
+
         if isUsable {
             if stack.count > 1 {
                 return "ダブルタップで先頭カードを使用します。スタックの残り \(stack.count - 1) 枚は同じ方向で待機します。"

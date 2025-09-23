@@ -228,6 +228,50 @@ final class GameCoreTests: XCTestCase {
         )
     }
 
+    /// 捨て札ペナルティでスタックを削除し、新しいカードが補充されるか検証
+    func testManualDiscardRemovesStackAndAddsPenalty() {
+        let deck = Deck.makeTestDeck(cards: [
+            // --- 初期手札構成（キング右だけ 2 枚スタックさせる）---
+            .kingRight,
+            .kingRight,
+            .kingUp,
+            .kingDown,
+            .kingLeft,
+            .knightUp1Right2,
+            // --- 先読み 3 枚 ---
+            .straightUp2,
+            .diagonalUpRight2,
+            .kingUpRight,
+            // --- 捨て札後に補充するための追加カード ---
+            .straightDown2
+        ])
+        let core = GameCore.makeTestInstance(deck: deck)
+
+        XCTAssertEqual(core.handStacks.count, 5)
+        guard let targetStack = core.handStacks.first else {
+            XCTFail("初期手札が取得できません")
+            return
+        }
+        XCTAssertEqual(targetStack.count, 2)
+
+        core.beginManualDiscardSelection()
+        XCTAssertTrue(core.isAwaitingManualDiscardSelection)
+
+        let initialPenalty = core.penaltyCount
+        let discardResult = core.discardHandStack(withID: targetStack.id)
+        XCTAssertTrue(discardResult, "捨て札処理が成功しませんでした")
+
+        XCTAssertFalse(core.isAwaitingManualDiscardSelection)
+        XCTAssertEqual(core.penaltyCount, initialPenalty + core.mode.manualDiscardPenaltyCost)
+        XCTAssertEqual(core.handStacks.count, 5)
+        XCTAssertFalse(core.handStacks.contains(where: { $0.representativeMove == .kingRight }))
+        XCTAssertTrue(core.handStacks.contains(where: { $0.representativeMove == .straightUp2 }))
+        XCTAssertEqual(
+            core.nextCards.map { $0.move },
+            [.diagonalUpRight2, .kingUpRight, .straightDown2]
+        )
+    }
+
     /// 同じシードでゲームをやり直したい場合に `startNewGame: false` が利用できるか検証
     func testResetCanReuseSameSeedWhenRequested() {
         // 5 スロット分の手札と 3 枚の先読みが明確に分かるよう、連続する 8 枚のカードを用意
