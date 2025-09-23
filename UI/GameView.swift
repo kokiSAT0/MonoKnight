@@ -154,15 +154,15 @@ struct GameView: View {
                 mainContent(for: geometry)
             }
         )
-        // ポーズメニューをシートで表示し、ゲーム中でも設定の確認・変更ができるようにする
-        .sheet(isPresented: $isPauseMenuPresented) {
+        // ポーズメニューをフルスクリーンで重ね、端末サイズに左右されずに全項目を視認できるようにする
+        .fullScreenCover(isPresented: $isPauseMenuPresented) {
             PauseMenuView(
                 onResume: {
-                    // シートを閉じてプレイへ戻る
+                    // フルスクリーンカバーを閉じてプレイへ戻る
                     isPauseMenuPresented = false
                 },
                 onConfirmReset: {
-                    // リセット確定後はシートを閉じてから共通処理を呼び出す
+                    // リセット確定後はフルスクリーンカバーを閉じてから共通処理を呼び出す
                     isPauseMenuPresented = false
                     performMenuAction(.reset)
                 },
@@ -172,10 +172,6 @@ struct GameView: View {
                     performMenuAction(.returnToTitle)
                 }
             )
-            .presentationDetents(
-                horizontalSizeClass == .regular ? [.fraction(0.5), .large] : [.medium, .large]
-            )
-            .presentationDragIndicator(.visible)
         }
         // シートで結果画面を表示
         .sheet(isPresented: $showingResult) {
@@ -1987,7 +1983,7 @@ private struct PauseMenuView: View {
                 // MARK: - プレイ再開ボタン
                 Section {
                     Button {
-                        // シートを閉じて直ちにプレイへ戻る
+                        // フルスクリーンカバーを閉じて直ちにプレイへ戻る
                         onResume()
                         dismiss()
                     } label: {
