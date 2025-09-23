@@ -251,13 +251,9 @@ struct ResultView: View {
                 }
                 .buttonStyle(.bordered)
 
-                // MARK: - 広告の読み込み表示
-                // 実広告はインタースティシャルで別画面表示されるため、ここでは状況のみを示す
-                Text("広告を読み込んでいます…")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
+                // MARK: - 広告表示に関する補足
+                // インタースティシャル広告は結果画面への遷移直後に全画面で表示されるため、
+                // 画面下部に読み込み中の文言を残さず、実際の結果表示に集中できる構成にしている。
             }
             // MARK: - iPad を含むレギュラー幅でのレイアウト調整
             // 最大幅を制限して中央寄せすることで、フォームシートでも読みやすくコンテンツを配置する。
