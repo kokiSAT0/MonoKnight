@@ -697,24 +697,25 @@ fileprivate struct TitleScreenView: View {
             )
             .presentationDragIndicator(.visible)
         }
-        // フリーモードのレギュレーション設定シート
-        .sheet(isPresented: $isPresentingFreeModeEditor) {
+        // フリーモードのレギュレーション設定を全画面モーダルで表示し、数値調整へ集中できる編集体験にそろえる
+        .fullScreenCover(isPresented: $isPresentingFreeModeEditor) {
+            // NavigationStack を内包することでフルスクリーン表示でもタイトルバーのキャンセル/保存ボタンを維持する
             NavigationStack {
                 FreeModeRegulationView(
                     initialRegulation: freeModeStore.regulation,
                     presets: GameMode.builtInModes,
                     onCancel: {
+                        // 全画面カバーを閉じる操作をコールバックでまとめて扱い、呼び出し元と挙動を同期する
                         isPresentingFreeModeEditor = false
                     },
                     onSave: { newRegulation in
+                        // 保存後にストアへ反映し、最新のモード内容を生成してからモーダルを閉じる
                         freeModeStore.update(newRegulation)
                         selectedMode = freeModeStore.makeGameMode()
                         isPresentingFreeModeEditor = false
                     }
                 )
             }
-            .presentationDetents(horizontalSizeClass == .regular ? [.large] : [.medium, .large])
-            .presentationDragIndicator(.visible)
         }
         // モーダル表示状態を監視し、遊び方シートの開閉タイミングを把握する
         .onChange(of: isPresentingHowToPlay) { _, newValue in
