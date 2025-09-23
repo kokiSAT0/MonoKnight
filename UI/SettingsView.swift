@@ -3,6 +3,10 @@ import StoreKit
 import SwiftUI
 
 struct SettingsView: View {
+    // MARK: - プレゼンテーション制御
+    // フルスクリーンカバーで表示された設定画面を明示的に閉じられるよう、dismiss アクションを取得しておく。
+    @Environment(\.dismiss) private var dismiss
+
     // MARK: - ストア連携
     // 広告除去 IAP の購入／復元状態を UI に反映するため、共有の StoreService を監視する。
     @ObservedObject private var storeService = StoreService.shared
@@ -278,6 +282,18 @@ struct SettingsView: View {
                 Text("現在保存されているベストポイントを初期状態に戻します。この操作は取り消せません。")
             }
             .navigationTitle("設定")
+            // 画面右上に閉じるボタンを設置し、スワイプに頼らず片手でも素早く閉じられるようにする。
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Label("閉じる", systemImage: "xmark")
+                    }
+                    // 音声読み上げでも役割が伝わるようにアクセシビリティラベルを補強する。
+                    .accessibilityLabel(Text("設定画面を閉じる"))
+                }
+            }
             // - NOTE: プレビューや UI テストでは、この Picker を操作して `GameView` の `applyScenePalette` が呼び直されることを確認する想定。
             // 購入状態の遷移を旧値と新値の両方から判定し、false→true の変化だけを検出する
             .onChange(of: storeService.isremoveAdsMKPurchased) { oldValue, newValue in
