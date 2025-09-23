@@ -2010,14 +2010,14 @@ private struct PauseMenuView: View {
         }
         // 破壊的操作の確認ダイアログ
         .confirmationDialog("操作の確認", item: $pendingAction, actions: { action in
+            // ダイアログ冒頭に操作内容の説明を表示する（iOS16互換のため message クロージャは使用しない）
+            Text(action.message)
             Button(action.confirmationButtonTitle, role: .destructive) {
                 handleConfirmation(action)
             }
             Button("キャンセル", role: .cancel) {
                 pendingAction = nil
             }
-        }, message: { action in
-            Text(action.message)
         })
     }
 
