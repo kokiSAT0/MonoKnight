@@ -2009,16 +2009,35 @@ private struct PauseMenuView: View {
             .background(theme.backgroundPrimary)
         }
         // 破壊的操作の確認ダイアログ
-        .confirmationDialog("操作の確認", item: $pendingAction, actions: { action in
+        .confirmationDialog(
+            "操作の確認",
+            // item: バインディングが iOS 17 以降で非推奨となったため、
+            // Bool バインディング + presenting の組み合わせで明示的に制御する
+            isPresented: Binding(
+                get: {
+                    // pendingAction が存在する場合のみダイアログを表示
+                    pendingAction != nil
+                },
+                set: { isPresented in
+                    // ユーザー操作でダイアログが閉じられたら状態を初期化
+                    if !isPresented {
+                        pendingAction = nil
+                    }
+                }
+            ),
+            presenting: pendingAction
+        ) { action in
+            // 確認用の破壊的操作ボタン
             Button(action.confirmationButtonTitle, role: .destructive) {
                 handleConfirmation(action)
             }
+            // キャンセルボタンは常に閉じるだけで状態を破棄
             Button("キャンセル", role: .cancel) {
                 pendingAction = nil
             }
-        }, message: { action in
+        } message: { action in
             Text(action.message)
-        })
+        }
     }
 
     /// 確認ダイアログで選ばれたアクションを実行する
