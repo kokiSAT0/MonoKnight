@@ -8,7 +8,7 @@ final class GameCoreTests: XCTestCase {
         // --- テスト用デッキ構築 ---
         // 新実装では「先頭が最初にドローされる」ため、引かせたい順に並べる
         let deck = Deck.makeTestDeck(cards: [
-            // --- 初期手札 5 枚（すべて盤外になるカード）---
+            // --- 初期手札スロット 5 枠（すべて盤外になるカード）---
             .diagonalDownLeft2,
             .straightLeft2,
             .straightDown2,
@@ -18,7 +18,7 @@ final class GameCoreTests: XCTestCase {
             .kingRight,
             .kingUp,
             .diagonalUpLeft2,
-            // --- 引き直し後の手札 5 枚（盤内へ移動可能）---
+            // --- 引き直し後の手札スロット 5 枠（盤内へ移動可能）---
             .kingUpLeft,
             .kingLeft,
             .kingDown,
@@ -36,8 +36,8 @@ final class GameCoreTests: XCTestCase {
         XCTAssertEqual(core.penaltyCount, 5, "手詰まり時にペナルティが加算されていない")
         // ペナルティ処理後は進行状態が playing に戻るか
         XCTAssertEqual(core.progress, .playing, "ペナルティ後は playing 状態に戻るべき")
-        // 引き直し後の手札枚数が 5 枚確保されているか
-        XCTAssertEqual(core.hand.count, 5, "引き直し後の手札枚数が 5 枚ではない")
+        // 引き直し後の手札スロット数が 5 スロット確保されているか
+        XCTAssertEqual(core.hand.count, 5, "引き直し後の手札スロット数が 5 スロットではない")
         // 引き直し後の手札に使用可能なカードが少なくとも 1 枚あるか
         if let current = core.current {
             let boardSize = core.mode.boardSize
@@ -55,7 +55,7 @@ final class GameCoreTests: XCTestCase {
         // --- テスト用デッキ構築 ---
         // 2 回連続で盤外カードだけが配られ、最後に盤内へ進めるカードが揃うシナリオを用意
         let deck = Deck.makeTestDeck(cards: [
-            // --- 初期手札 5 枚（すべて盤外）---
+            // --- 初期手札スロット 5 枠（すべて盤外）---
             .diagonalDownLeft2,
             .straightLeft2,
             .straightDown2,
@@ -94,7 +94,7 @@ final class GameCoreTests: XCTestCase {
         XCTAssertEqual(core.penaltyCount, 5, "連続手詰まりでも追加ペナルティが加算されている")
         // 連続手詰まり処理後もプレイ継続できるか
         XCTAssertEqual(core.progress, .playing, "連続手詰まり処理後に playing 状態へ戻っていない")
-        // 最終的な手札 5 枚の中に使用可能なカードがあるか
+        // 最終的な手札スロット 5 枠の中に使用可能なカードがあるか
         if let current = core.current {
             let boardSize = core.mode.boardSize
             let playableExists = core.hand.contains { $0.move.canUse(from: current, boardSize: boardSize) }
@@ -108,7 +108,7 @@ final class GameCoreTests: XCTestCase {
     func testResetReturnsToInitialState() {
         // 上と同じデッキ構成で GameCore を生成し、ペナルティ適用後の状態から開始
         let deck = Deck.makeTestDeck(cards: [
-            // --- 初期手札 5 枚（全て盤外でペナルティを誘発）---
+            // --- 初期手札スロット 5 枠（全て盤外でペナルティを誘発）---
             .diagonalDownLeft2,
             .straightLeft2,
             .straightDown2,
@@ -118,7 +118,7 @@ final class GameCoreTests: XCTestCase {
             .kingRight,
             .kingUp,
             .diagonalUpLeft2,
-            // --- 引き直し後の手札（盤内に進める 5 枚）---
+            // --- 引き直し後の手札スロット（盤内に進める 5 種類）---
             .kingUpLeft,
             .kingLeft,
             .kingDown,
@@ -147,27 +147,27 @@ final class GameCoreTests: XCTestCase {
         XCTAssertEqual(core.penaltyCount, 0, "ペナルティカウントがリセットされていない")
         XCTAssertEqual(core.elapsedSeconds, 0, "所要時間がリセットされていない")
         XCTAssertEqual(core.progress, .playing, "ゲーム状態が playing に戻っていない")
-        XCTAssertEqual(core.hand.count, 5, "手札枚数が初期値と異なる")
+        XCTAssertEqual(core.hand.count, 5, "手札スロット数が初期値と異なる")
         XCTAssertEqual(core.nextCards.count, 3, "先読みカードが 3 枚確保されていない")
         // 盤面の踏破状態も初期化されているか
         XCTAssertTrue(core.board.isVisited(centerPoint), "盤面中央が踏破済みになっていない")
         XCTAssertFalse(core.board.isVisited(GridPoint(x: 0, y: 0)), "開始位置が踏破済みのままになっている")
     }
 
-    /// 初期化直後・リセット直後に手札 5 枚が常に確保されるかを確認
+    /// 初期化直後・リセット直後に手札スロット 5 枠が常に確保されるかを確認
     func testInitialAndResetHandCountIsFive() {
-        // デフォルト初期化で手札が 5 枚配られているかチェック
+        // デフォルト初期化で手札スロットが 5 枠配られているかチェック
         let core = GameCore()
-        XCTAssertEqual(core.hand.count, 5, "初期化直後の手札枚数が 5 枚になっていない")
+        XCTAssertEqual(core.hand.count, 5, "初期化直後の手札スロット数が 5 スロットになっていない")
 
-        // reset() 実行後も 5 枚に戻っているか確認
+        // reset() 実行後も 5 スロットに戻っているか確認
         core.reset()
-        XCTAssertEqual(core.hand.count, 5, "リセット直後の手札枚数が 5 枚になっていない")
+        XCTAssertEqual(core.hand.count, 5, "リセット直後の手札スロット数が 5 スロットになっていない")
     }
 
     /// 同じシードでゲームをやり直したい場合に `startNewGame: false` が利用できるか検証
     func testResetCanReuseSameSeedWhenRequested() {
-        // 5 枚の手札と 3 枚の先読みが明確に分かるよう、連続する 8 枚のカードを用意
+        // 5 スロット分の手札と 3 枚の先読みが明確に分かるよう、連続する 8 枚のカードを用意
         let preset: [MoveCard] = [
             .kingUp,
             .kingRight,
