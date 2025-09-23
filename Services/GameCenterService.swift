@@ -345,24 +345,61 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
     /// Game Center の UI を提示するための最前面 ViewController を取得する
     /// - Note: AdsService と同様にシーン/ウィンドウ階層を考慮して探索する
     private func presentableRootViewController() -> UIViewController? {
-        // フォアグラウンドで有効なシーンを優先的に採用する
-        guard let scene = preferredWindowScene() else { return nil }
-        // 複数ウィンドウが存在する場合はキーウィンドウを優先し、無い場合は先頭を利用する
-        let window = scene.windows.first(where: { $0.isKeyWindow }) ?? scene.windows.first
-        guard let rootController = window?.rootViewController else { return nil }
-        // 取得したルートから最前面の ViewController を辿る
-        return topMostViewController(from: rootController)
+        // --- アクティブな UIWindowScene を順番に探索して最前面の VC を探す ---
+        // Game Center の UI は表示中のシーンに重ねる必要があるため、
+        // foregroundActive → foregroundInactive → その他 の順で候補を評価する。
+        let orderedScenes: [UIWindowScene] = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .sorted { lhs, rhs in
+                // activationState.rawValue へ依存すると将来の OS 変更に弱いため、
+                // 明示的な優先度マップを用意して安定したソート順を維持する。
+                let priority: (UIWindowScene.ActivationState) -> Int = { state in
+                    switch state {
+                    case .foregroundActive:
+                        return 0
+                    case .foregroundInactive:
+                        return 1
+                    case .background:
+                        return 2
+                    case .unattached:
+                        return 3
+                    @unknown default:
+                        return 4
+                    }
+                }
+                return priority(lhs.activationState) < priority(rhs.activationState)
+            }
+
+        for scene in orderedScenes {
+            // 表示中の UIWindow を抽出（非表示ウィンドウやサイズ 0 のダミーは除外）
+            if let window = activeWindow(in: scene),
+               let root = window.rootViewController,
+               let topMost = topMostViewController(from: root) {
+                return topMost
+            }
+        }
+
+        // ここまでで取得できなければ nil を返し、呼び出し元でリトライする。
+        return nil
     }
 
-    /// 最前面に表示されている UIWindowScene を返す（フォアグラウンド優先）
-    private func preferredWindowScene() -> UIWindowScene? {
-        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
-        // フォアグラウンドでアクティブなシーンを最優先で返す
-        if let activeScene = scenes.first(where: { $0.activationState == .foregroundActive }) {
-            return activeScene
+    /// 指定したシーン内で表示中の UIWindow を返す
+    /// - Parameter scene: 探索対象の UIWindowScene
+    /// - Returns: 表示中の UIWindow（見つからない場合は nil）
+    private func activeWindow(in scene: UIWindowScene) -> UIWindow? {
+        // isKeyWindow を最優先にしつつ、非表示ウィンドウやオーバーレイ用の 0 サイズウィンドウを除外して探索する
+        let visibleWindows = scene.windows.filter { window in
+            // 完全に隠れているウィンドウや画面外にあるウィンドウはプレゼンテーションに使えないため除外
+            let isVisible = !window.isHidden && window.alpha > 0 && window.bounds != .zero
+            return isVisible
         }
-        // 条件に合うものが無ければ先頭のシーンを返してフォールバックする
-        return scenes.first
+
+        if let keyWindow = visibleWindows.first(where: { $0.isKeyWindow }) {
+            return keyWindow
+        }
+
+        // キーウィンドウが取得できない場合でも、先頭の可視ウィンドウを返して最前面 VC を辿れるようにする
+        return visibleWindows.first
     }
 
     /// モーダル/ナビゲーション/タブ構成を考慮して最前面の ViewController を探索する
