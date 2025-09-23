@@ -55,20 +55,29 @@ public enum HandOrderingStrategy: String, CaseIterable {
 public struct BoardTapPlayRequest: Identifiable, Equatable {
     /// 要求ごとに一意な識別子を払い出して、複数回のタップでも確実に区別できるようにする
     public let id: UUID
-    /// アニメーション対象となる手札カード
-    public let card: DealtCard
-    /// `GameCore.playCard(at:)` に渡すインデックス
-    public let index: Int
+    /// 盤面タップ時に対象となった手札スタックの識別子
+    public let stackID: UUID
+    /// `GameCore.playCard(at:)` に渡すスタックインデックス
+    public let stackIndex: Int
+    /// アニメーションで参照する先頭カード情報
+    public let topCard: DealtCard
 
     /// UI 側で参照しやすいよう公開イニシャライザを用意
     /// - Parameters:
     ///   - id: 外部で識別子を指定したい場合に使用（省略時は自動採番）
-    ///   - card: 盤面タップに対応する手札カード
-    ///   - index: 手札配列上の添字
-    public init(id: UUID = UUID(), card: DealtCard, index: Int) {
+    ///   - stackID: 手札スタックの識別子
+    ///   - stackIndex: タップ時点でのスタック位置
+    ///   - topCard: 盤面タップと対応する先頭カード
+    public init(id: UUID = UUID(), stackID: UUID, stackIndex: Int, topCard: DealtCard) {
         self.id = id
-        self.card = card
-        self.index = index
+        self.stackID = stackID
+        self.stackIndex = stackIndex
+        self.topCard = topCard
+    }
+
+    /// Equatable は識別子のみで比較し、カード更新が挟まってもリクエスト自体は同一とみなす
+    public static func == (lhs: BoardTapPlayRequest, rhs: BoardTapPlayRequest) -> Bool {
+        lhs.id == rhs.id
     }
 }
 
@@ -89,8 +98,8 @@ public final class GameCore: ObservableObject {
     )
     /// 駒の現在位置
     @Published public private(set) var current: GridPoint? = GameMode.standard.initialSpawnPoint
-    /// 手札スロット（常に 5 スロット保持）。UI での識別用に `DealtCard` へラップする
-    @Published public private(set) var hand: [DealtCard] = []
+    /// 手札スロット（最大 handSize 種類）をスタック形式で保持する配列
+    @Published public private(set) var handStacks: [HandStack] = []
     /// 次に引かれるカード群（先読み 3 枚分を保持）
     @Published public private(set) var nextCards: [DealtCard] = []
     /// ゲームの進行状態
@@ -170,9 +179,10 @@ public final class GameCore: ObservableObject {
     public func playCard(at index: Int) {
         // スポーン待ちやクリア済み・ペナルティ中は操作不可
         guard progress == .playing, let currentPosition = current else { return }
-        // インデックスが範囲内か確認（0〜4 の範囲を想定）
-        guard hand.indices.contains(index) else { return }
-        let card = hand[index]
+        // インデックスが範囲内か確認（0〜handSize-1 の範囲を想定）
+        guard handStacks.indices.contains(index) else { return }
+        var stack = handStacks[index]
+        guard let card = stack.topCard else { return }
         let target = currentPosition.offset(dx: card.move.dx, dy: card.move.dy)
         // UI 側で無効カードを弾く想定だが、念のため安全確認
         guard board.contains(target) else { return }
@@ -199,18 +209,16 @@ public final class GameCore: ObservableObject {
         // 盤面更新に合わせて残り踏破数を読み上げ
         announceRemainingTiles()
 
-        // 使用済みカードは即座に破棄し、手札から除去（捨札管理は不要になった）
-        hand.remove(at: index)
-
-        // 手札補充: 先読みカードを手札へ移動し、新たに 1 枚先読み
-        // 先読みキューから 1 枚取り出して補充する。空の場合のみ山札から直接補充
-        if !nextCards.isEmpty {
-            let upcoming = nextCards.removeFirst()
-            hand.insert(upcoming, at: index)
-        } else if let drawn = deck.draw() {
-            // 先読みが枯渇した異常系でもプレイ継続できるよう直接ドロー
-            hand.insert(drawn, at: index)
+        // 使用済みカードは即座に破棄し、スタックから除去（残数がゼロになったらスタックごと取り除く）
+        stack.removeTopCard()
+        if stack.isEmpty {
+            handStacks.remove(at: index)
+        } else {
+            handStacks[index] = stack
         }
+
+        // スロットの空きを埋めるため、NEXT キューを優先して補充し、足りなければ山札から引く
+        refillHandStacks(from: &nextCards)
         // 並び順設定に応じて手札全体を調整
         reorderHandIfNeeded()
         // 先読み枠が不足していれば必要枚数まで補充する
@@ -313,7 +321,8 @@ public final class GameCore: ObservableObject {
         // スポーン待機中は判定不要
         guard progress != .awaitingSpawn, let current = current else { return }
 
-        let allUnusable = hand.allSatisfy { card in
+        let allUnusable = handStacks.allSatisfy { stack in
+            guard let card = stack.topCard else { return true }
             let dest = current.offset(dx: card.move.dx, dy: card.move.dy)
             return !board.contains(dest)
         }
@@ -359,10 +368,11 @@ public final class GameCore: ObservableObject {
         lastPenaltyAmount = shouldAddPenalty ? penaltyAmount : 0
 
         // 現在の手札・先読みカードはそのまま破棄し、新しいカードを引き直す
-        hand = deck.draw(count: handSize)
+        handStacks.removeAll(keepingCapacity: true)
+        nextCards.removeAll(keepingCapacity: true)
+        refillHandStacks(from: &nextCards)
         // ユーザー設定に合わせて初期手札を並べ替える
         reorderHandIfNeeded()
-        nextCards = deck.draw(count: nextPreviewCount)
         replenishNextPreview()
 
         // UI へ手詰まりの発生を知らせ、演出やフィードバックを促す
@@ -376,7 +386,7 @@ public final class GameCore: ObservableObject {
 
         // デバッグログ: 引き直し後の状態を詳細に記録
         debugLog("ペナルティ引き直しを実行（トリガー: \(trigger.debugDescription)）")
-        let handDescription = hand.map { "\($0.move)" }.joined(separator: ", ")
+        let handDescription = handStacks.map(stackSummary).joined(separator: ", ")
         debugLog("引き直し後の手札: [\(handDescription)]")
         // デバッグ: 引き直し後の盤面を表示
 #if DEBUG
@@ -419,10 +429,11 @@ public final class GameCore: ObservableObject {
         endDate = nil
         progress = mode.requiresSpawnSelection ? .awaitingSpawn : .playing
 
-        hand = deck.draw(count: handSize)
+        handStacks.removeAll(keepingCapacity: true)
+        nextCards.removeAll(keepingCapacity: true)
+        refillHandStacks(from: &nextCards)
         // 新しい手札も設定値に沿って並べ替える
         reorderHandIfNeeded()
-        nextCards = deck.draw(count: nextPreviewCount)
         replenishNextPreview()
 
         resetTimer()
@@ -435,11 +446,45 @@ public final class GameCore: ObservableObject {
         }
 
         let nextText = nextCards.isEmpty ? "なし" : nextCards.map { "\($0.move)" }.joined(separator: ", ")
-        let handMoves = hand.map { "\($0.move)" }.joined(separator: ", ")
+        let handMoves = handStacks.map(stackSummary).joined(separator: ", ")
         debugLog("ゲームをリセット: 手札 [\(handMoves)], 次カード \(nextText)")
 #if DEBUG
         board.debugDump(current: current)
 #endif
+    }
+
+    /// 手札スロットが空いている場合に、NEXT キューや山札からカードを補充する
+    /// - Parameter sourceCards: 先読みキューなど優先的に消費したいカード配列
+    private func refillHandStacks(from sourceCards: inout [DealtCard]) {
+        // 既にスロットが埋まっていれば何もしない
+        guard handStacks.count < handSize else { return }
+
+        // 無限ループを避けるための安全カウンタ（異常時にはログを残して抜ける）
+        var drawAttempts = 0
+        while handStacks.count < handSize {
+            let nextCard: DealtCard?
+            if !sourceCards.isEmpty {
+                nextCard = sourceCards.removeFirst()
+            } else {
+                nextCard = deck.draw()
+            }
+
+            guard let card = nextCard else { break }
+
+            if let index = handStacks.firstIndex(where: { $0.representativeMove == card.move }) {
+                var existing = handStacks[index]
+                existing.append(card)
+                handStacks[index] = existing
+            } else {
+                handStacks.append(HandStack(cards: [card]))
+            }
+
+            drawAttempts += 1
+            if drawAttempts > 512 {
+                debugLog("refillHandStacks が安全カウンタに到達: handStacks=\(handStacks.count), source残=\(sourceCards.count)")
+                break
+            }
+        }
     }
 
     /// 先読み表示用のカードが不足している場合に山札から補充する
@@ -507,10 +552,15 @@ extension GameCore: GameCoreProtocol {
         let dx = point.x - current.x
         let dy = point.y - current.y
 
-        // 差分に一致するカードを手札から検索
-        if let index = hand.firstIndex(where: { $0.move.dx == dx && $0.move.dy == dy }) {
-            // UI 側でカード移動アニメーションを行うため、手札情報を要求として公開する
-            boardTapPlayRequest = BoardTapPlayRequest(card: hand[index], index: index)
+        // 差分に一致するカードを手札スタックから検索
+        if let (index, stack) = handStacks.enumerated().first(where: { _, stack in
+            guard let card = stack.topCard else { return false }
+            return card.move.dx == dx && card.move.dy == dy
+        }) {
+            if let topCard = stack.topCard {
+                // UI 側でカード移動アニメーションを行うため、手札情報を要求として公開する
+                boardTapPlayRequest = BoardTapPlayRequest(stackID: stack.id, stackIndex: index, topCard: topCard)
+            }
         }
         // 該当カードが無い場合は何もしない（無効タップ）
     }
@@ -534,22 +584,39 @@ private extension GameCore {
         guard handOrderingStrategy == .directionSorted else { return }
 
         // 左方向への移動量が大きいものから順に並べ、同値なら上方向を優先
-        hand.sort { lhs, rhs in
-            let leftDX = lhs.move.dx
-            let rightDX = rhs.move.dx
+        handStacks.sort { lhs, rhs in
+            guard let leftCard = lhs.topCard, let rightCard = rhs.topCard else {
+                return lhs.topCard != nil
+            }
+            let leftDX = leftCard.move.dx
+            let rightDX = rightCard.move.dx
             if leftDX != rightDX {
                 return leftDX < rightDX
             }
 
-            let leftDY = lhs.move.dy
-            let rightDY = rhs.move.dy
+            let leftDY = leftCard.move.dy
+            let rightDY = rightCard.move.dy
             if leftDY != rightDY {
                 return leftDY > rightDY
             }
 
-            let leftIndex = GameCore.moveCardOrderingIndex[lhs.move] ?? 0
-            let rightIndex = GameCore.moveCardOrderingIndex[rhs.move] ?? 0
+            let leftIndex = GameCore.moveCardOrderingIndex[leftCard.move] ?? 0
+            let rightIndex = GameCore.moveCardOrderingIndex[rightCard.move] ?? 0
             return leftIndex < rightIndex
+        }
+    }
+
+    /// デバッグログで扱いやすいよう、スタック内容を簡潔なテキストへ整形する
+    /// - Parameter stack: 対象の `HandStack`
+    /// - Returns: 「MoveCard×枚数」の形式（1 枚の場合は枚数省略）
+    func stackSummary(_ stack: HandStack) -> String {
+        guard let move = stack.representativeMove else {
+            return "(空スタック)"
+        }
+        if stack.count > 1 {
+            return "\(move)×\(stack.count)"
+        } else {
+            return "\(move)"
         }
     }
 
@@ -592,8 +659,10 @@ extension GameCore {
         core.penaltyCount = 0
         core.progress = (resolvedCurrent == nil && mode.requiresSpawnSelection) ? .awaitingSpawn : .playing
 
-        core.hand = core.deck.draw(count: core.handSize)
-        core.nextCards = core.deck.draw(count: core.nextPreviewCount)
+        core.handStacks.removeAll(keepingCapacity: true)
+        core.nextCards.removeAll(keepingCapacity: true)
+        core.refillHandStacks(from: &core.nextCards)
+        core.reorderHandIfNeeded()
         core.replenishNextPreview()
 
         if core.progress == .playing {

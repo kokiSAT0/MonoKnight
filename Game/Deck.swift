@@ -261,7 +261,7 @@ extension Deck {
 
     /// プリセットしたカード列を優先的に返すテスト用デッキを生成する
     /// - Parameters:
-    ///   - cards: 先頭から消費させたいカード列（手札スロット5枠→先読み3枚の順で利用される想定）
+    ///   - cards: 先頭から消費させたいカード列（手札スロット数ぶんを優先消費し、残りが先読みキューへ入る）
     ///   - configuration: 検証対象の山札設定（省略時はスタンダード）
     /// - Returns: プリセットを持った `Deck`
     static func makeTestDeck(cards: [MoveCard], configuration: Configuration = .standard) -> Deck {
