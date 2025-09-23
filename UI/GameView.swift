@@ -20,8 +20,8 @@ struct GameView: View {
     /// デバイスの横幅サイズクラスを取得し、iPad などレギュラー幅でのモーダル挙動を調整する
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     /// RootView 側で挿入したトップバーの高さ。safeAreaInsets.top から減算して余分な余白を除去する
-    /// - Note: 明示的に CGFloat 型を指定しておくことで、カスタム EnvironmentKey の推論エラーを避ける
-    @Environment(\.topOverlayHeight) private var topOverlayHeight: CGFloat
+    /// - Note: Swift 6 の型推論では明示的な注釈があるとエラーになるため、Environment の値型に任せて安全に取得する
+    @Environment(\.topOverlayHeight) private var topOverlayHeight
     /// 手札スロットの数（常に 5 スロット分の枠を確保してレイアウトを安定させる）
     private let handSlotCount = 5
     /// ゲームロジックを保持する ObservableObject
