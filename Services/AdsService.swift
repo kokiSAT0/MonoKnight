@@ -60,6 +60,8 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, FullScre
 
     /// 失敗時に再読み込みを試みるまでの秒数
     private let retryDelay: TimeInterval = 30
+    /// インタースティシャル広告の最低表示間隔（秒単位で 5 分を指定）
+    private let minimumInterstitialInterval: TimeInterval = 300
 
     private override init() {
         let applicationIdentifier = (Bundle.main.object(forInfoDictionaryKey: InfoPlistKey.applicationIdentifier) as? String)?
@@ -202,7 +204,7 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, FullScre
 
         // インターバルや 1 プレイ 1 回の制御に引っかかったら終了
         if !canShowByTime() {
-            debugLog("前回表示から 90 秒未満のためインタースティシャル広告を表示しません")
+            debugLog("前回表示から 5 分未満のためインタースティシャル広告を表示しません")
             return
         }
 
@@ -384,10 +386,10 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, FullScre
         debugLog("インタースティシャル広告の再読み込みを \(retryDelay) 秒後にスケジュールしました")
     }
 
-    /// 最低 90 秒のインターバルを満たしているかどうか
+    /// 最低 5 分のインターバルを満たしているかどうか
     private func canShowByTime() -> Bool {
         guard let last = lastInterstitialDate else { return true }
-        return Date().timeIntervalSince(last) >= 90
+        return Date().timeIntervalSince(last) >= minimumInterstitialInterval
     }
 
     // MARK: - FullScreenContentDelegate
