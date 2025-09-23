@@ -211,8 +211,7 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol, FullScre
             return
         }
 
-        guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-              let root = scene.windows.first?.rootViewController else {
+        guard let root = rootViewController() else {
             // RootViewController が取得できなかった場合も次の読み込みだけは仕掛ける
             debugLog("RootViewController の取得に失敗したため、読み込みのみ再実行します")
             Task { [weak self] in
@@ -545,7 +544,42 @@ private extension AdsService {
 
     /// 最前面の ViewController を取得する
     func rootViewController() -> UIViewController? {
+        // シーン階層が取得できないケースでは即座に nil を返し、呼び出し元でリトライさせる
         guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene else { return nil }
-        return scene.windows.first?.rootViewController
+
+        // isKeyWindow を優先しつつ、fallback として最初のウィンドウも見る（マルチウィンドウ環境を考慮）
+        let window = scene.windows.first(where: { $0.isKeyWindow }) ?? scene.windows.first
+        guard let rootController = window?.rootViewController else { return nil }
+
+        // ルートから辿れる最前面の ViewController を再帰的に探索する
+        return topMostViewController(from: rootController)
+    }
+
+    /// ナビゲーション/タブ/モーダル等のコンテナを考慮して最前面の VC を返す
+    func topMostViewController(from controller: UIViewController?) -> UIViewController? {
+        guard let controller else { return nil }
+
+        // モーダルで提示されている場合は更に深い階層を優先する
+        if let presented = controller.presentedViewController {
+            return topMostViewController(from: presented)
+        }
+
+        // ナビゲーションコントローラは表示中の VC（visibleViewController）を優先
+        if let navigation = controller as? UINavigationController {
+            return topMostViewController(from: navigation.visibleViewController ?? navigation.topViewController)
+        }
+
+        // タブコントローラは選択中のタブ配下を辿る
+        if let tab = controller as? UITabBarController {
+            return topMostViewController(from: tab.selectedViewController)
+        }
+
+        // SplitViewController も最後尾（詳細側）を表示中とみなし辿る
+        if let split = controller as? UISplitViewController {
+            return topMostViewController(from: split.viewControllers.last)
+        }
+
+        // それ以外は最前面の具体的な VC として返却
+        return controller
     }
 }
