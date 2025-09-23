@@ -19,6 +19,8 @@ struct GameView: View {
     @Environment(\.colorScheme) private var colorScheme
     /// デバイスの横幅サイズクラスを取得し、iPad などレギュラー幅でのモーダル挙動を調整する
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    /// RootView 側で挿入したトップバーの高さ。safeAreaInsets.top から減算して余分な余白を除去する
+    @Environment(\.topOverlayHeight) private var topOverlayHeight
     /// 手札スロットの数（常に 5 スロット分の枠を確保してレイアウトを安定させる）
     private let handSlotCount = 5
     /// ゲームロジックを保持する ObservableObject
@@ -501,10 +503,13 @@ struct GameView: View {
         // MARK: - セーフエリアに対するフォールバック計算
         let rawTopInset = geometry.safeAreaInsets.top
         let rawBottomInset = geometry.safeAreaInsets.bottom
-        let usedTopFallback = rawTopInset <= 0 && horizontalSizeClass == .regular
+        // RootView で safe area 上に追加したトップバーの高さを差し引き、純粋なシステム由来の余白へ正規化する
+        let overlayCompensation = max(topOverlayHeight, 0)
+        let adjustedTopInset = max(rawTopInset - overlayCompensation, 0)
+        let usedTopFallback = adjustedTopInset <= 0 && horizontalSizeClass == .regular
         let usedBottomFallback = rawBottomInset <= 0 && horizontalSizeClass == .regular
-        let topInset = rawTopInset > 0
-            ? rawTopInset
+        let topInset = adjustedTopInset > 0
+            ? adjustedTopInset
             : (usedTopFallback ? LayoutMetrics.regularWidthTopSafeAreaFallback : 0)
         let bottomInset = rawBottomInset > 0
             ? rawBottomInset
@@ -555,6 +560,7 @@ struct GameView: View {
             rawBottomInset: rawBottomInset,
             usedTopFallback: usedTopFallback,
             usedBottomFallback: usedBottomFallback,
+            topOverlayHeight: overlayCompensation,
             topInset: topInset,
             bottomInset: bottomInset,
             controlRowTopPadding: controlRowTopPadding,
@@ -597,29 +603,61 @@ struct GameView: View {
     /// 盤面上部の統計バッジと操作ボタンをまとめたコントロールバー
     /// - Returns: 統計情報を左側、リセット関連の操作ボタンを右側に揃えた横並びレイアウト
     private func boardControlRow() -> some View {
-        HStack(alignment: .center, spacing: 12) {
-            // まずは従来通りのレイアウトを試み、画面幅に収まらない場合は自動的にスクロール表示へ切り替える
-            ViewThatFits(in: .horizontal) {
-                statisticsBadgeContainer()
-                ScrollView(.horizontal, showsIndicators: false) {
-                    statisticsBadgeContainer()
-                }
-            }
-            // HStack 内で十分な横幅を確保し、iPhone でも操作ボタンと干渉しないようにする
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .layoutPriority(1)
-
-            // MARK: - リセット系の操作ボタン群
-            HStack(spacing: 12) {
-                manualDiscardButton
-                manualPenaltyButton
-                pauseButton
-            }
+        ViewThatFits(in: .horizontal) {
+            // 可能であれば従来通り 1 行で収める
+            singleLineControlRow()
+            // 横幅が不足する端末では統計とボタンを上下 2 行へ分離し、情報の重なりを避ける
+            stackedControlRow()
         }
         .padding(.horizontal, 16)
         // PreferenceKey へコントロールバー全体の高さを渡し、盤面計算に利用する
         .overlay(alignment: .topLeading) {
             HeightPreferenceReporter<StatisticsHeightPreferenceKey>()
+        }
+    }
+
+    /// 統計バッジ群とボタン群を 1 行へ並べるレイアウト
+    /// - Returns: 余裕がある画面幅で利用する横並びの行
+    private func singleLineControlRow() -> some View {
+        HStack(alignment: .center, spacing: 12) {
+            flexibleStatisticsContainer()
+
+            controlButtonCluster()
+        }
+    }
+
+    /// 統計バッジ群とボタン群を 2 行へ積み上げるレイアウト
+    /// - Returns: iPhone など横幅が足りない場合に利用する上下構成の行
+    private func stackedControlRow() -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            flexibleStatisticsContainer()
+
+            controlButtonCluster()
+                .frame(maxWidth: .infinity, alignment: .trailing)
+        }
+    }
+
+    /// 統計バッジ群の描画方法をまとめ、必要に応じてスクロールへフォールバックする
+    /// - Returns: ViewThatFits による横幅調整を組み込んだ統計コンテナ
+    private func flexibleStatisticsContainer() -> some View {
+        ViewThatFits(in: .horizontal) {
+            statisticsBadgeContainer()
+            ScrollView(.horizontal, showsIndicators: false) {
+                statisticsBadgeContainer()
+            }
+        }
+        // 統計情報は優先的に幅を確保したいため高いレイアウト優先度を与える
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .layoutPriority(1)
+    }
+
+    /// デッキリセットやポーズなどの操作ボタンをまとめたグループ
+    /// - Returns: 3 つの操作を横並びで配置した HStack
+    private func controlButtonCluster() -> some View {
+        HStack(spacing: 12) {
+            manualDiscardButton
+            manualPenaltyButton
+            pauseButton
         }
     }
 
@@ -1561,7 +1599,7 @@ struct GameView: View {
         let message = """
         GameView.layout 観測: 理由=\(reason)
           geometry=\(snapshot.geometrySize)
-          safeArea(rawTop=\(snapshot.rawTopInset), rawBottom=\(snapshot.rawBottomInset), resolvedTop=\(snapshot.resolvedTopInset), resolvedBottom=\(snapshot.resolvedBottomInset), fallbackTop=\(snapshot.usedTopSafeAreaFallback), fallbackBottom=\(snapshot.usedBottomSafeAreaFallback))
+          safeArea(rawTop=\(snapshot.rawTopInset), rawBottom=\(snapshot.rawBottomInset), resolvedTop=\(snapshot.resolvedTopInset), resolvedBottom=\(snapshot.resolvedBottomInset), fallbackTop=\(snapshot.usedTopSafeAreaFallback), fallbackBottom=\(snapshot.usedBottomSafeAreaFallback), overlayTop=\(snapshot.topOverlayHeight))
           sections(statistics=\(snapshot.statisticsHeight), resolvedStatistics=\(snapshot.resolvedStatisticsHeight), hand=\(snapshot.handSectionHeight), resolvedHand=\(snapshot.resolvedHandSectionHeight))
           paddings(controlTop=\(snapshot.controlRowTopPadding), handBottom=\(snapshot.handSectionBottomPadding), regularExtra=\(snapshot.regularAdditionalBottomPadding))
           fallbacks(statistics=\(snapshot.usedStatisticsFallback), hand=\(snapshot.usedHandSectionFallback), topSafeArea=\(snapshot.usedTopSafeAreaFallback), bottomSafeArea=\(snapshot.usedBottomSafeAreaFallback))
@@ -1585,6 +1623,7 @@ struct GameView: View {
         let rawBottomInset: CGFloat
         let usedTopFallback: Bool
         let usedBottomFallback: Bool
+        let topOverlayHeight: CGFloat
         let topInset: CGFloat
         let bottomInset: CGFloat
         let controlRowTopPadding: CGFloat
@@ -1627,6 +1666,7 @@ struct GameView: View {
         let usedStatisticsFallback: Bool
         let usedHandSectionFallback: Bool
         let controlRowTopPadding: CGFloat
+        let topOverlayHeight: CGFloat
 
         /// レイアウト計算で得られたコンテキストからスナップショットを構築するイニシャライザ
         /// - Parameter context: GeometryReader の結果を整理したレイアウトコンテキスト
@@ -1652,6 +1692,7 @@ struct GameView: View {
             self.usedStatisticsFallback = context.usedStatisticsFallback
             self.usedHandSectionFallback = context.usedHandSectionFallback
             self.controlRowTopPadding = context.controlRowTopPadding
+            self.topOverlayHeight = context.topOverlayHeight
         }
     }
 
