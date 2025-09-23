@@ -523,13 +523,18 @@ private extension RootView {
         static let gamePreparationMinimumDelay: Double = 0.35
     }
 
-    /// トップバーの高さを親ビューへ伝えるための PreferenceKey
-    struct TopBarHeightPreferenceKey: PreferenceKey {
-        static var defaultValue: CGFloat = 0
+}
 
-        static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-            value = nextValue()
-        }
+/// RootView 専用のトップバー高さを伝達する PreferenceKey
+/// - NOTE: `TopStatusInsetView` などファイル内の複数ビューから利用するため、
+///         ファイルスコープで `fileprivate` として宣言し、スコープエラーを防ぐ
+fileprivate struct TopBarHeightPreferenceKey: PreferenceKey {
+    /// GeometryReader から受け取る高さのデフォルト値（未計測時は 0）
+    static var defaultValue: CGFloat = 0
+
+    /// Preference の更新処理。最新値だけを必要とするため常に `nextValue()` で上書きする
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
     }
 }
 
