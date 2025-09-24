@@ -22,6 +22,26 @@ struct DefaultMobileAdsController: MobileAdsControlling {
     }
 }
 
+// MARK: - ATT 許諾状態取得用の抽象化
+/// AppTrackingTransparency の状態取得とリクエストを統一インターフェースで扱うためのプロトコル
+protocol TrackingAuthorizationControlling {
+    /// 現時点のトラッキング許諾ステータス
+    var currentStatus: ATTrackingManager.AuthorizationStatus { get }
+    /// 許諾ダイアログを表示し、結果をコールバックへ返す
+    func requestAuthorization(completion: @escaping (ATTrackingManager.AuthorizationStatus) -> Void)
+}
+
+/// 実機向けのデフォルト実装
+struct DefaultTrackingAuthorizationController: TrackingAuthorizationControlling {
+    var currentStatus: ATTrackingManager.AuthorizationStatus { ATTrackingManager.trackingAuthorizationStatus }
+
+    func requestAuthorization(completion: @escaping (ATTrackingManager.AuthorizationStatus) -> Void) {
+        ATTrackingManager.requestTrackingAuthorization { status in
+            completion(status)
+        }
+    }
+}
+
 // MARK: - ルート ViewController 取得用の抽象化
 /// UI テストや統合テストからも差し替えやすいよう、最前面の ViewController を提供する依存を切り出す
 protocol RootViewControllerProviding {
@@ -96,6 +116,7 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol {
     private let consentCoordinator: AdsConsentCoordinating
     private let interstitialController: InterstitialAdControlling
     private let mobileAdsController: MobileAdsControlling
+    private let trackingAuthorizationController: TrackingAuthorizationControlling
     private let configuration: AdsServiceConfiguration
     private let rootViewControllerProvider: RootViewControllerProviding
 
@@ -105,11 +126,15 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol {
         consentCoordinator: AdsConsentCoordinating? = nil,
         interstitialController: InterstitialAdControlling? = nil,
         mobileAdsController: MobileAdsControlling = DefaultMobileAdsController(),
+        trackingAuthorizationController: TrackingAuthorizationControlling = DefaultTrackingAuthorizationController(),
         rootViewControllerProvider: RootViewControllerProviding = DefaultRootViewControllerProvider()
     ) {
         let resolvedConfiguration = configuration ?? AdsService.makeConfiguration()
+        let resolvedTrackingController = trackingAuthorizationController
         let resolvedConsentCoordinator = consentCoordinator ?? AdsConsentCoordinator(
-            hasValidAdConfiguration: resolvedConfiguration.hasValidAdConfiguration
+            hasValidAdConfiguration: resolvedConfiguration.hasValidAdConfiguration,
+            environment: nil,
+            trackingAuthorizationStatusProvider: { resolvedTrackingController.currentStatus }
         )
         let resolvedInterstitialController = interstitialController ?? InterstitialAdController(
             adUnitID: resolvedConfiguration.interstitialAdUnitID,
@@ -121,6 +146,7 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol {
         self.consentCoordinator = resolvedConsentCoordinator
         self.interstitialController = resolvedInterstitialController
         self.mobileAdsController = mobileAdsController
+        self.trackingAuthorizationController = resolvedTrackingController
         self.rootViewControllerProvider = rootViewControllerProvider
         super.init()
 
@@ -187,13 +213,26 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol {
     }
 
     func requestTrackingAuthorization() async {
-        guard ATTrackingManager.trackingAuthorizationStatus == .notDetermined else { return }
+        let currentStatus = trackingAuthorizationController.currentStatus
+        // 既に許諾済みであればリフレッシュのみ行う
+        if currentStatus != .notDetermined {
+            if currentStatus == .authorized {
+                await consentCoordinator.refreshConsentStatus()
+            }
+            return
+        }
+
         // ATT の許諾ダイアログはクロージャベース API のため、Continuation で async/await へ橋渡しする
-        _ = await withCheckedContinuation { (continuation: CheckedContinuation<ATTrackingManager.AuthorizationStatus, Never>) in
-            ATTrackingManager.requestTrackingAuthorization { status in
-                // 取得した許諾ステータスをそのまま呼び出し元へ返す
+        let status = await withCheckedContinuation { (continuation: CheckedContinuation<ATTrackingManager.AuthorizationStatus, Never>) in
+            trackingAuthorizationController.requestAuthorization { status in
                 continuation.resume(returning: status)
             }
+        }
+
+        if status == .authorized {
+            await consentCoordinator.refreshConsentStatus()
+        } else {
+            debugLog("ATT 許諾が得られなかったため NPA 維持で進行します (status: \(describeTrackingStatus(status)))")
         }
     }
 
@@ -221,6 +260,22 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol {
 
         let hasValid = !applicationIdentifier.isEmpty && !interstitialIdentifier.isEmpty
         return AdsServiceConfiguration(interstitialAdUnitID: interstitialIdentifier, hasValidAdConfiguration: hasValid)
+    }
+
+    /// デバッグログ用に ATT ステータスを文字列化するヘルパー
+    private func describeTrackingStatus(_ status: ATTrackingManager.AuthorizationStatus) -> String {
+        switch status {
+        case .authorized:
+            return "authorized"
+        case .notDetermined:
+            return "notDetermined"
+        case .denied:
+            return "denied"
+        case .restricted:
+            return "restricted"
+        @unknown default:
+            return "unknown"
+        }
     }
 }
 

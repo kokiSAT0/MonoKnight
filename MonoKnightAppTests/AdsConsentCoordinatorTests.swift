@@ -1,4 +1,5 @@
 import Testing
+import AppTrackingTransparency
 import UserMessagingPlatform
 @testable import MonoKnightApp
 
@@ -26,7 +27,11 @@ struct AdsConsentCoordinatorTests {
 
         let presenter = TestConsentPresentationDelegate()
         let stateDelegate = TestConsentStateRecorder()
-        let coordinator = AdsConsentCoordinator(hasValidAdConfiguration: true, environment: environment)
+        let coordinator = AdsConsentCoordinator(
+            hasValidAdConfiguration: true,
+            environment: environment,
+            trackingAuthorizationStatusProvider: { .authorized }
+        )
         coordinator.presentationDelegate = presenter
         coordinator.stateDelegate = stateDelegate
 
@@ -63,7 +68,11 @@ struct AdsConsentCoordinatorTests {
 
         let presenter = TestConsentPresentationDelegate()
         let stateDelegate = TestConsentStateRecorder()
-        let coordinator = AdsConsentCoordinator(hasValidAdConfiguration: true, environment: environment)
+        let coordinator = AdsConsentCoordinator(
+            hasValidAdConfiguration: true,
+            environment: environment,
+            trackingAuthorizationStatusProvider: { .authorized }
+        )
         coordinator.presentationDelegate = presenter
         coordinator.stateDelegate = stateDelegate
 
@@ -81,7 +90,11 @@ struct AdsConsentCoordinatorTests {
         let environment = TestAdsConsentEnvironment()
         let presenter = TestConsentPresentationDelegate()
         let stateDelegate = TestConsentStateRecorder()
-        let coordinator = AdsConsentCoordinator(hasValidAdConfiguration: false, environment: environment)
+        let coordinator = AdsConsentCoordinator(
+            hasValidAdConfiguration: false,
+            environment: environment,
+            trackingAuthorizationStatusProvider: { .authorized }
+        )
         coordinator.presentationDelegate = presenter
         coordinator.stateDelegate = stateDelegate
 
@@ -95,5 +108,30 @@ struct AdsConsentCoordinatorTests {
         #expect(presenter.presentConsentFormCallCount == 0)
         #expect(presenter.presentPrivacyOptionsCallCount == 0)
         #expect(stateDelegate.recordedStates.isEmpty)
+    }
+
+    /// ATT が拒否されている場合は UMP が obtained でも NPA を維持する
+    @MainActor
+    @Test func coordinator_forcesNPA_whenTrackingDenied() async throws {
+        UserDefaults.standard.removeObject(forKey: "ads_should_use_npa")
+
+        let environment = TestAdsConsentEnvironment()
+        environment.consentStatus = .obtained
+        environment.formStatus = .available
+        environment.canRequestAds = true
+
+        let stateDelegate = TestConsentStateRecorder()
+        let coordinator = AdsConsentCoordinator(
+            hasValidAdConfiguration: true,
+            environment: environment,
+            trackingAuthorizationStatusProvider: { .denied }
+        )
+        coordinator.stateDelegate = stateDelegate
+
+        await coordinator.requestConsentIfNeeded()
+
+        #expect(stateDelegate.recordedStates.last?.state.shouldUseNPA == true)
+        #expect(coordinator.currentState.shouldUseNPA == true)
+        #expect(UserDefaults.standard.bool(forKey: "ads_should_use_npa") == true)
     }
 }
