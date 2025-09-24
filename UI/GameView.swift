@@ -363,7 +363,7 @@ struct GameView: View {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2.6, execute: workItem)
             }
             // 手札内容が変わるたびに移動候補を再計算し、ガイドハイライトを更新
-            .onReceive(core.$handStacks) { newHandStacks in
+            .onReceive(core.handManager.$handStacks) { newHandStacks in
                 // 手札ストリームの更新順序を追跡しやすいよう、受信したカードスロット数をログへ残す
                 debugLog("手札更新を受信: スタック数=\(newHandStacks.count), 退避ハンドあり=\(pendingGuideHand != nil)")
 

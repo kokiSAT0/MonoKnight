@@ -127,11 +127,8 @@ extension GameCore {
         setLastPenaltyAmountForPenalty(shouldAddPenalty ? penaltyAmount : 0)
 
         // 現在の手札・先読みカードはそのまま破棄し、新しいカードを引き直す
-        clearHandAndNextForPenalty()
-        refillHandUsingCurrentNextCards()
-        // ユーザー設定に合わせて初期手札を並べ替える
-        reorderHandIfNeeded()
-        replenishNextPreview()
+        handManager.clearAll()
+        rebuildHandAndNext()
 
         // UI へ手詰まりの発生を知らせ、演出やフィードバックを促す
         updatePenaltyEventID(UUID())
@@ -205,7 +202,7 @@ extension GameCore {
         // 指定 ID のスタックが存在するか確認
         guard let index = handStacks.firstIndex(where: { $0.id == stackID }) else { return false }
 
-        let removedStack = removeHandStackForPenalty(at: index)
+        let removedStack = handManager.removeStack(at: index)
         setManualDiscardSelectionState(false)
         resetBoardTapPlayRequestForPenalty()
 
@@ -229,9 +226,7 @@ extension GameCore {
 #endif
 
         // NEXT キューを優先して補充し、不足分は山札から取得する（削除位置を維持する）
-        refillHandUsingCurrentNextCards(preferredInsertionIndices: [index])
-        reorderHandIfNeeded()
-        replenishNextPreview()
+        rebuildHandAndNext(preferredInsertionIndices: [index])
 
         // 捨て札後の手札が再び詰む場合に備えてチェックする
         checkDeadlockAndApplyPenaltyIfNeeded()

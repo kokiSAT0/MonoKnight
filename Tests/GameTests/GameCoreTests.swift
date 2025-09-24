@@ -228,6 +228,48 @@ final class GameCoreTests: XCTestCase {
         )
     }
 
+    /// HandManager を介した補充処理が playCard と reset から正しく利用されることを確認
+    func testHandManagerHandlesPlayAndResetFlow() {
+        // 手札 5 枚 + NEXT 3 枚 + 追加入れ替え用 2 枚を明示的に用意
+        let deck = Deck.makeTestDeck(cards: [
+            .kingUp,
+            .kingRight,
+            .kingLeft,
+            .kingDown,
+            .kingUpLeft,
+            .straightUp2,
+            .straightRight2,
+            .straightDown2,
+            .diagonalUpLeft2,
+            .diagonalUpRight2
+        ])
+        let core = GameCore.makeTestInstance(deck: deck)
+        let manager = core.handManager
+
+        // 初期構成を控えておき、reset(startNewGame: false) で再現できるか検証する
+        let initialHandMoves = core.handStacks.compactMap { $0.topCard?.move }
+        let initialNextMoves = core.nextCards.map { $0.move }
+        XCTAssertEqual(initialHandMoves, [.kingUp, .kingRight, .kingLeft, .kingDown, .kingUpLeft])
+        XCTAssertEqual(initialNextMoves, [.straightUp2, .straightRight2, .straightDown2])
+
+        // 先頭スタックを使用し、NEXT の先頭が差し戻されることを確認
+        core.playCard(at: 0)
+        XCTAssertTrue(manager === core.handManager, "playCard 後も HandManager インスタンスが差し替わらないこと")
+        XCTAssertEqual(manager.handStacks.count, 5, "HandManager 経由でも手札スロット数が維持されるべき")
+        XCTAssertEqual(manager.handStacks.first?.topCard?.move, .straightUp2, "NEXT の先頭カードが空きスロットへ戻っていない")
+        XCTAssertEqual(
+            manager.nextCards.map { $0.move },
+            [.straightRight2, .straightDown2, .diagonalUpLeft2],
+            "手札補充後の NEXT 構成が想定と一致しない"
+        )
+
+        // 同一シードでリセットすると初期配列へ戻り、HandManager も再利用されること
+        core.reset(startNewGame: false)
+        XCTAssertTrue(manager === core.handManager, "reset で HandManager が再生成されるのは望ましくない")
+        XCTAssertEqual(core.handStacks.compactMap { $0.topCard?.move }, initialHandMoves, "リセット後の手札構成が初期値と異なる")
+        XCTAssertEqual(core.nextCards.map { $0.move }, initialNextMoves, "リセット後の NEXT 構成が初期値と異なる")
+    }
+
     /// 挿入順設定でカードを使用した際、空いたスロットに新しいカードが同じ位置で補充されるか検証
     func testInsertionOrderRefillKeepsSlotPosition() {
         let deck = Deck.makeTestDeck(cards: [
