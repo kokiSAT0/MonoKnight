@@ -1,0 +1,11 @@
+// Local.xcconfig は .gitignore に登録されているためコミットされない
+
+// Apple Developer の Team ID を記入
+DEVELOPMENT_TEAM = 5TAKV37ZM4
+
+// バンドルIDのサフィックスを記入
+BUNDLE_ID_SUFFIX = .koki
+
+// AdMob の本番アプリ ID と広告ユニット ID を記入する
+GAD_APPLICATION_ID = ca-app-pub-4177731053735768~9496027002
+GAD_INTERSTITIAL_UNIT_ID = ca-app-pub-3940256099942544/4411468910
