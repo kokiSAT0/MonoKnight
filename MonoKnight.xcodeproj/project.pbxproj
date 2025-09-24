@@ -17,6 +17,7 @@
 		726642682E8409A1003EA325 /* StoreKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 726642672E8409A1003EA325 /* StoreKit.framework */; };
 		726642982E848E91003EA325 /* AdsConsentCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 726642972E848E91003EA325 /* AdsConsentCoordinator.swift */; };
 		7266429A2E848E9A003EA325 /* InterstitialAdController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 726642992E848E9A003EA325 /* InterstitialAdController.swift */; };
+		7266429E2E849763003EA325 /* GameViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7266429D2E849763003EA325 /* GameViewModel.swift */; };
 		729791562E7EB35900361471 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 729791552E7EB35900361471 /* LaunchScreen.storyboard */; };
 		72CF37F02E71616C0093B180 /* MonoKnightApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000004 /* MonoKnightApp.swift */; };
 		72CF38052E7162E20093B180 /* ErrorReporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF37F92E7162E20093B180 /* ErrorReporter.swift */; };
@@ -66,6 +67,7 @@
 		726642672E8409A1003EA325 /* StoreKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = StoreKit.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.5.sdk/System/Library/Frameworks/StoreKit.framework; sourceTree = DEVELOPER_DIR; };
 		726642972E848E91003EA325 /* AdsConsentCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdsConsentCoordinator.swift; sourceTree = "<group>"; };
 		726642992E848E9A003EA325 /* InterstitialAdController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InterstitialAdController.swift; sourceTree = "<group>"; };
+		7266429D2E849763003EA325 /* GameViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameViewModel.swift; sourceTree = "<group>"; };
 		729791552E7EB35900361471 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
 		729791982E7F499700361471 /* DealtCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DealtCard.swift; sourceTree = "<group>"; };
 		729791992E7F499700361471 /* GameScenePalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameScenePalette.swift; sourceTree = "<group>"; };
@@ -209,6 +211,7 @@
 		72CF38042E7162E20093B180 /* UI */ = {
 			isa = PBXGroup;
 			children = (
+				7266429D2E849763003EA325 /* GameViewModel.swift */,
 				726642532E826754003EA325 /* Environment+BaseSafeAreaInsets.swift */,
 				726642472E826487003EA325 /* Environment+TopOverlayHeight.swift */,
 				7266423B2E82397D003EA325 /* FreeModeRegulationView.swift */,
@@ -432,6 +435,7 @@
 				72CF380B2E7162E20093B180 /* AdsService.swift in Sources */,
 				72CF380C2E7162E20093B180 /* SettingsView.swift in Sources */,
 				72CF380E2E7162E20093B180 /* ServiceMocks.swift in Sources */,
+				7266429E2E849763003EA325 /* GameViewModel.swift in Sources */,
 				726642982E848E91003EA325 /* AdsConsentCoordinator.swift in Sources */,
 				72F554A82E7E40100098A1B0 /* MoveCardIllustrationView.swift in Sources */,
 				7266423A2E823939003EA325 /* FreeModeRegulationStore.swift in Sources */,
