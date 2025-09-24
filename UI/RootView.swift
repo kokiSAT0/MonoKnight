@@ -703,8 +703,8 @@ fileprivate struct TopStatusInsetView: View {
         .background(
             GeometryReader { proxy in
                 Color.clear
-                    // ネストした PreferenceKey を明示的に参照し、ジェネリック推論エラーを回避する
-                    .preference(key: RootView.TopBarHeightPreferenceKey.self, value: proxy.size.height)
+                    // ファイルスコープで宣言した PreferenceKey を直接指定し、型推論を確実にする
+                    .preference(key: TopBarHeightPreferenceKey.self, value: proxy.size.height)
             }
         )
     }
