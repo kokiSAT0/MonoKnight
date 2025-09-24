@@ -155,28 +155,24 @@ MonoKnight/
 
 ### Agent A（ゲームロジック）
 
-- [ ] `Models.swift`（座標/盤/状態）
-- [ ] `MoveCard.swift`（16 種の dx,dy 定義・ユーティリティ）
-- [ ] `Deck.swift`（重み付き山札・手札引き直し）
-- [ ] `GameCore.swift`（ルール/ペナルティ/クリア判定/スコア）
-- [ ] テスト（盤外判定/全踏破判定/重み付き抽選の検証）
+- 実装状況: ✅ `Models.swift` / `MoveCard.swift` / `Deck.swift` / `GameCore.swift` の主要コンポーネントと各種テストは実装済み。<!-- 進捗状況を明確化して、重複タスクが生じないようにする -->
+- 今後の注力ポイント: 盤面パラメータ追加時の整合性テスト充実・`GameMode` の設定ドキュメント整備。
 
 ### Agent B（描画・UI）
 
-- [ ] `GameScene.swift`（SpriteKit で盤/駒/踏破描画・タップ）
-- [ ] `GameView.swift`（SwiftUI ブリッジ・手札 UI・先読み表示）
-- [ ] `ResultView.swift`（スコア/ベスト/再戦/ランキング）
+- 実装状況: ✅ `GameScene.swift` / `GameView.swift` / `ResultView.swift` を中心とする画面構成は完成済み。<!-- 完了済みタスクを保持しないよう明記 -->
+- 今後の注力ポイント: `GameView` の責務分割（ViewModel 化）と iPad での余白調整最終確認。
 
 ### Agent C（プラットフォーム機能）
 
-- [ ] `GameCenterService.swift`（認証/送信/表示）
-- [ ] `StoreService.swift`（StoreKit2 で購入/復元/状態保持）
-- [ ] `AdsService.swift`（AdMob 準備/表示/購入時停止）
+- 実装状況: ✅ `GameCenterService.swift` / `StoreService.swift` / `AdsService.swift` / `AdsConsentCoordinator.swift` で必須機能を実装済み。<!-- リリースフェーズでの確認漏れを防ぐ -->
+- 今後の注力ポイント: TestFlight での通し QA、同意フローと広告表示の自動テストシナリオ整理。
 
 ---
 
 ## 10. リリース前チェックリスト（MVP）
 
+- <!-- TestFlight での一括検証結果をここに反映し、完了日時や担当者メモを追記する -->
 - [ ] ランキングにスコアが送信される
 - [ ] IAP で広告が完全に消える（表示・ロードとも）
 - [ ] 広告はゲーム外のみ（結果画面）

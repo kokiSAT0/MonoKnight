@@ -1,6 +1,7 @@
 # MonoKnight
 
-SwiftUI と SpriteKit を用いたカード移動パズルのプロトタイプ。
+SwiftUI と SpriteKit を組み合わせたカード移動パズル。\
+主要機能（Game Center ランキング・広告除去 IAP・インタースティシャル広告制御・同意フロー）は実装済みで、正式リリース向けの仕上げ段階に入っている。
 
 ## テストの実行方法
 
@@ -11,13 +12,15 @@ SwiftUI と SpriteKit を用いたカード移動パズルのプロトタイプ�
 swift test
 ```
 
-上記コマンドをプロジェクトルートで実行すると、`Game` モジュールに対するテストが実行されます。
+上記コマンドをプロジェクトルートで実行すると、`Game` モジュールに対するテストが実行されます。\
+リリース準備中は PR ごとにテスト結果を共有し、品質のすり合わせを密に行うことを推奨する。
 
 ## 開発ドキュメント
 
 
 - [`docs/development-basics.md`](docs/development-basics.md)：SPM を用いたビルド・テスト手順
 - [`docs/files.md`](docs/files.md)：リポジトリ構成とシミュレーター実行までの手順
+- [`docs/recommended-task-list.md`](docs/recommended-task-list.md)：リリースに向けて優先度別に整理した残タスク
 
 ## リポジトリ構成
 
