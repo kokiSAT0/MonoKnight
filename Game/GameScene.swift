@@ -17,8 +17,16 @@ public final class GameScene: SKScene {
     /// ゲームロジックを保持する参照
     public weak var gameCore: GameCoreProtocol?
 
+    /// 初期盤面サイズ（サイズ変更時のリセット処理でも参照する）
+    /// - NOTE: GameView 側から注入された値を保持し、5×5 以外の盤面でも正しい初期状態を作れるようにする
+    private let initialBoardSize: Int
+
+    /// 初期状態で踏破済みにしておくマス集合
+    /// - NOTE: スポーン位置が固定されているモードでは中心などの特定マスを踏破済みとして扱う
+    private let initialVisitedPoints: [GridPoint]
+
     /// 現在の盤面状態
-    private var board = Board(size: 5, initialVisitedPoints: [GridPoint.center(of: 5)])
+    private var board: Board
 
     /// SpriteKit 内で利用する配色セット
     /// - 備考: SwiftUI の `AppTheme` とは分離し、SpriteKit 専用の色情報のみを保持する
@@ -105,33 +113,43 @@ public final class GameScene: SKScene {
 
     /// コードから GameScene を生成する際の初期化処理
     /// - NOTE: `super.init(size:)` を呼び出し、基本状態をゼロリセットしてからレイアウト計算やノード生成を `didMove(to:)` で行う
-    public override init() {
+    /// 指定した盤面サイズ・初期踏破マスで GameScene を生成する designated initializer
+    /// - Parameters:
+    ///   - initialBoardSize: 初期描画に用いる盤面サイズ
+    ///   - initialVisitedPoints: 初期状態で踏破済みにしておくマス集合（nil の場合は中央を自動設定）
+    public init(initialBoardSize: Int, initialVisitedPoints: [GridPoint]? = nil) {
+        let resolvedVisitedPoints = initialVisitedPoints ?? [GridPoint.center(of: initialBoardSize)]
+        self.initialBoardSize = initialBoardSize
+        self.initialVisitedPoints = resolvedVisitedPoints
+        self.board = Board(size: initialBoardSize, initialVisitedPoints: resolvedVisitedPoints)
         super.init(size: .zero)
-        // 盤面・テーマ・タイル情報などを初期状態に戻し、呼び出し元がどのような経路でも同じ前提から構築できるようにする
-        board = Board(size: 5, initialVisitedPoints: [GridPoint.center(of: 5)])
-        palette = GameScenePalette.fallback
-        tileSize = 0
-        gridOrigin = .zero
-        tileNodes = [:]
-        guideHighlightNodes = [:]
-        pendingGuideHighlightPoints = []
-        pendingBoard = nil
-        pendingKnightState = nil
-        knightNode = nil
-        knightPosition = nil
-        awaitingValidSceneSize = false
-        #if canImport(UIKit)
-        accessibilityElementsCache = []
-        #endif
-        // 必要に応じて `calculateLayout()` などを明示的に呼び出し、シーンのサイズが既に確定している場合にも対応できるようにする
+        // designated initializer 共通の初期化処理をまとめ、盤面サイズに依存しないプロパティも同時にリセットする
+        resetSceneStateForReuse()
+    }
+
+    /// デフォルト値（5×5・中央踏破）で GameScene を生成する convenience initializer
+    /// - NOTE: 既存コードとの互換性を維持するため、引数なしイニシャライザから新しい designated initializer へ委譲する
+    public override convenience init() {
+        self.init(initialBoardSize: 5)
     }
 
     /// Interface Builder（Storyboard や XIB）経由の生成に対応するための初期化処理
     /// - NOTE: Apple の推奨に従い `super.init(coder:)` を呼び出し、アーカイブ復元時でも同じ初期状態を確保する
     public required init?(coder aDecoder: NSCoder) {
+        let defaultBoardSize = 5
+        let defaultVisitedPoints = [GridPoint.center(of: defaultBoardSize)]
+        self.initialBoardSize = defaultBoardSize
+        self.initialVisitedPoints = defaultVisitedPoints
+        self.board = Board(size: defaultBoardSize, initialVisitedPoints: defaultVisitedPoints)
         super.init(coder: aDecoder)
-        // デコード後もプロパティを初期値で上書きし、Storyboard/SwiftUI どちらからでも同じ見た目・挙動となるようにする
-        board = Board(size: 5, initialVisitedPoints: [GridPoint.center(of: 5)])
+        // Interface Builder 経由でも最新仕様の初期状態を保証するため、共通のリセット処理を実行する
+        resetSceneStateForReuse()
+    }
+
+    /// designated / coder 初期化後に共通して呼び出す内部初期化処理
+    /// - NOTE: 初期盤面サイズに応じて Board を再生成し、SpriteKit ノード生成前のクリーンな状態を維持する
+    private func resetSceneStateForReuse() {
+        board = Board(size: initialBoardSize, initialVisitedPoints: initialVisitedPoints)
         palette = GameScenePalette.fallback
         tileSize = 0
         gridOrigin = .zero
@@ -146,7 +164,6 @@ public final class GameScene: SKScene {
         #if canImport(UIKit)
         accessibilityElementsCache = []
         #endif
-        // Interface Builder でサイズが事前に与えられている場合は、シーンの親ビュー設定後に `calculateLayout()` を呼ぶとレイアウトが整う
     }
 
     public override func didMove(to view: SKView) {
@@ -323,7 +340,7 @@ public final class GameScene: SKScene {
         prepareLayoutIfNeeded()
     }
 
-    /// 5×5 のグリッドを描画
+    /// 盤面サイズに応じたグリッドを描画
     private func setupGrid() {
         for y in 0..<board.size {
             for x in 0..<board.size {

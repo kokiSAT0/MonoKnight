@@ -135,7 +135,11 @@ struct GameView: View {
         _core = StateObject(wrappedValue: core)
 
         // GameScene は再利用したいのでローカルで準備し、最後に State プロパティへ格納する
-        let preparedScene = GameScene()
+        // モードに応じた盤面サイズ・初期訪問マスを指定して GameScene を生成し、サイズ変更時も中央が正しく選ばれるようにする
+        let preparedScene = GameScene(
+            initialBoardSize: mode.boardSize,
+            initialVisitedPoints: mode.initialVisitedPoints
+        )
         preparedScene.scaleMode = .resizeFill
         // GameScene から GameCore へタップイベントを伝えるため参照を渡す
         // StateObject へ格納した同一インスタンスを直接渡し、wrappedValue へ触れず安全に保持する
