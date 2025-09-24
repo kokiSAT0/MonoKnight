@@ -1,4 +1,5 @@
 import SwiftUI
+import Game
 
 // MARK: - MonoKnight アプリのエントリーポイント
 // `@main` 属性を付与した構造体からアプリが開始される
@@ -11,6 +12,8 @@ struct MonoKnightApp: App {
     private var gameCenterService: GameCenterServiceProtocol
     /// 広告サービスのインスタンス（上記と同様に `init` で確定）
     private var adsService: AdsServiceProtocol
+    /// アプリのライフサイクル変化を検知するためのシーンフェーズ
+    @Environment(\.scenePhase) private var scenePhase
 
     /// StoreKit2 の購買状況を常に監視し、広告除去 IAP の適用状態をアプリ全体へ即時反映するためのオブジェクト
     /// - NOTE: `@StateObject` で保持しておくことで、`SettingsView` を開かなくても復元処理やトランザクション監視が動作する
@@ -66,6 +69,13 @@ struct MonoKnightApp: App {
             .preferredColorScheme(themePreference.preferredColorScheme)
             // - NOTE: `environmentObject` に乗せておくと、将来的に他画面からも購買状況を参照しやすくなる
             .environmentObject(storeService)
+            // MARK: フォアグラウンド復帰時の Game Center 再認証
+            // scenePhase が `.active` へ変化したときに再度認証を試み、バックグラウンド中に切断されていても即座に復帰させる
+            .onChange(of: scenePhase) { _, newPhase in
+                guard newPhase == .active else { return }
+                debugLog("MonoKnightApp: scenePhase が active へ遷移したため Game Center 認証を再試行します")
+                gameCenterService.authenticateLocalPlayer(completion: nil)
+            }
         }
     }
 }

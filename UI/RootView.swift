@@ -52,6 +52,10 @@ struct RootView: View {
                 makeRootContentView(with: layoutContext)
             }
         )
+        .task {
+            // 初回表示時に Game Center 認証を 1 度だけ試み、UI の表示ズレを防ぐ
+            performInitialAuthenticationIfNeeded()
+        }
     }
 }
 
@@ -118,6 +122,9 @@ final class RootViewStateStore: ObservableObject {
             debugLog("RootView.isPresentingTitleSettings 更新: \(isPresentingTitleSettings)")
         }
     }
+    /// Game Center 認証の初回試行を完了したかどうか
+    /// - NOTE: RootView が再描画されても `authenticateLocalPlayer` を重複呼び出ししないよう制御する
+    private(set) var hasAttemptedInitialAuthentication: Bool
     /// 初期化時に必要な値をまとめて受け取り、SwiftUI の `@StateObject` から利用できるようにする
     /// - Parameter initialIsAuthenticated: Game Center 認証済みかどうかの初期値
     init(initialIsAuthenticated: Bool) {
@@ -130,6 +137,7 @@ final class RootViewStateStore: ObservableObject {
         self.topBarHeight = 0
         self.lastLoggedLayoutSnapshot = nil
         self.isPresentingTitleSettings = false
+        self.hasAttemptedInitialAuthentication = false
     }
 
     /// `@Published` プロパティへのバインディングを生成する補助メソッド
@@ -142,6 +150,14 @@ final class RootViewStateStore: ObservableObject {
         )
     }
 
+    /// 初回認証試行のフラグを更新し、まだ実行していない場合のみ true を返す
+    /// - Returns: 認証を実行してよい場合は true、すでに試行済みなら false
+    func markInitialAuthenticationAttemptedIfNeeded() -> Bool {
+        guard !hasAttemptedInitialAuthentication else { return false }
+        hasAttemptedInitialAuthentication = true
+        return true
+    }
+
     /// サイズクラス変化をログへ出力する
     /// - Parameter newValue: 更新後の横幅サイズクラス
     func logHorizontalSizeClassChange(_ newValue: UserInterfaceSizeClass?) {
@@ -151,6 +167,16 @@ final class RootViewStateStore: ObservableObject {
 
 // MARK: - レイアウト支援メソッドと定数
 private extension RootView {
+    /// 初期表示時に Game Center 認証を 1 回だけキックする
+    /// - Note: `RootViewStateStore` 側で多重呼び出しを防ぎ、`authenticateLocalPlayer` の UI が何度も提示されないようにする
+    private func performInitialAuthenticationIfNeeded() {
+        guard stateStore.markInitialAuthenticationAttemptedIfNeeded() else { return }
+
+        handleGameCenterAuthenticationRequest { _ in
+            // 初回認証の結果は `handleGameCenterAuthenticationRequest` 内でステートへ反映済みなので、ここでは追加処理は不要
+        }
+    }
+
     /// GeometryReader の値をまとめ直し、後続の View 生成で毎回同じ初期化コードを書かなくて済むようにする
     /// - Parameter geometry: SwiftUI が渡すレイアウト情報の生値
     /// - Returns: RootView 向けに整理したレイアウトコンテキスト
@@ -601,7 +627,11 @@ private extension RootView {
     /// - Parameter completion: 認証成功可否を受け取るクロージャ
     private func handleGameCenterAuthenticationRequest(completion: @escaping (Bool) -> Void) {
         gameCenterService.authenticateLocalPlayer { success in
-            completion(success)
+            Task { @MainActor in
+                // コールバックで取得した認証状態をステートストアへ反映し、トップバーの表示とログ出力を同期させる
+                stateStore.isAuthenticated = success
+                completion(success)
+            }
         }
     }
 
