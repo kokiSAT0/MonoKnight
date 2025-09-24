@@ -141,7 +141,10 @@ public final class GameScene: SKScene {
     /// コードから GameScene を生成する際のデフォルト初期化処理
     /// - NOTE: 既存仕様と同じ 5×5・中央踏破で生成するためのコンビニエンスイニシャライザ
     public override convenience init() {
-        self.init(initialBoardSize: 5, initialVisitedPoints: [GridPoint.center(of: 5)])
+        self.init(
+            initialBoardSize: BoardGeometry.standardSize,
+            initialVisitedPoints: BoardGeometry.defaultInitialVisitedPoints(for: BoardGeometry.standardSize)
+        )
     }
 
     /// 任意の盤面サイズ・初期踏破設定で GameScene を生成するための指定イニシャライザ
@@ -149,7 +152,7 @@ public final class GameScene: SKScene {
     ///   - initialBoardSize: 初期盤面サイズ（N×N）
     ///   - initialVisitedPoints: 生成直後に踏破済みとして扱うマス集合。省略時は中央 1 マスのみを踏破する。
     public init(initialBoardSize: Int, initialVisitedPoints: [GridPoint]? = nil) {
-        let resolvedVisitedPoints = initialVisitedPoints ?? [GridPoint.center(of: initialBoardSize)]
+        let resolvedVisitedPoints = initialVisitedPoints ?? BoardGeometry.defaultInitialVisitedPoints(for: initialBoardSize)
         self.initialBoardSize = initialBoardSize
         self.initialVisitedPoints = resolvedVisitedPoints
         self.board = Board(size: initialBoardSize, initialVisitedPoints: resolvedVisitedPoints)
@@ -162,10 +165,10 @@ public final class GameScene: SKScene {
     /// Interface Builder（Storyboard や XIB）経由の生成に対応するための初期化処理
     /// - NOTE: Apple の推奨に従い `super.init(coder:)` を呼び出し、アーカイブ復元時でも同じ初期状態を確保する
     public required init?(coder aDecoder: NSCoder) {
-        self.initialBoardSize = 5
-        let defaultVisitedPoints = [GridPoint.center(of: 5)]
+        self.initialBoardSize = BoardGeometry.standardSize
+        let defaultVisitedPoints = BoardGeometry.defaultInitialVisitedPoints(for: BoardGeometry.standardSize)
         self.initialVisitedPoints = defaultVisitedPoints
-        self.board = Board(size: 5, initialVisitedPoints: defaultVisitedPoints)
+        self.board = Board(size: BoardGeometry.standardSize, initialVisitedPoints: defaultVisitedPoints)
         super.init(coder: aDecoder)
         // デコード後も共通初期化を実行し、Storyboard/SwiftUI どちらからでも同じ見た目・挙動となるようにする
         commonInit()

@@ -5,7 +5,8 @@ import XCTest
 final class BoardClearTests: XCTestCase {
     /// 全マスを踏破すると `isCleared` が true になるか
     func testBoardClear() {
-        let boardSize = 5
+        // BoardGeometry.standardSize を利用し、テストでも本番と同じ基準値を用いる
+        let boardSize = BoardGeometry.standardSize
         var board = Board(size: boardSize)
         // 盤面全ての座標を順番に踏破済みにする
         for x in 0..<boardSize {
@@ -19,7 +20,7 @@ final class BoardClearTests: XCTestCase {
 
     /// 途中まで踏破した場合に false となるか
     func testBoardNotClear() {
-        let boardSize = 5
+        let boardSize = BoardGeometry.standardSize
         let center = GridPoint.center(of: boardSize)
         let board = Board(size: boardSize, initialVisitedPoints: [center])
         // 中央以外は踏破していないため false のはず

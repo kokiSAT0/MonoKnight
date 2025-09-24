@@ -59,11 +59,12 @@ public final class GameCore: ObservableObject {
     public let mode: GameMode
     /// 盤面情報
     @Published public private(set) var board = Board(
-        size: GameMode.standard.boardSize,
-        initialVisitedPoints: GameMode.standard.initialVisitedPoints
+        size: BoardGeometry.standardSize,
+        initialVisitedPoints: BoardGeometry.defaultInitialVisitedPoints(for: BoardGeometry.standardSize)
     )
     /// 駒の現在位置
-    @Published public private(set) var current: GridPoint? = GameMode.standard.initialSpawnPoint
+    /// - Note: 盤面ユーティリティ経由で中央マスを導出し、ハードコードしていた 5×5 の依存を取り除いている。
+    @Published public private(set) var current: GridPoint? = BoardGeometry.defaultSpawnPoint(for: BoardGeometry.standardSize)
     /// 手札と先読みカードの管理を委譲するハンドマネージャ
     public let handManager: HandManager
 
@@ -125,8 +126,9 @@ public final class GameCore: ObservableObject {
     /// - Parameter mode: 適用したいゲームモード（省略時はスタンダード）
     public init(mode: GameMode = .standard) {
         self.mode = mode
+        // BoardGeometry を介することで盤面サイズ拡張時も初期化処理を共通化できる
         board = Board(size: mode.boardSize, initialVisitedPoints: mode.initialVisitedPoints)
-        current = mode.initialSpawnPoint
+        current = mode.initialSpawnPoint ?? BoardGeometry.defaultSpawnPoint(for: mode.boardSize)
         deck = Deck(configuration: mode.deckConfiguration)
         progress = mode.requiresSpawnSelection ? .awaitingSpawn : .playing
         handManager = HandManager(
