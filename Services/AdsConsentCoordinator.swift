@@ -251,7 +251,7 @@ final class AdsConsentCoordinator: AdsConsentCoordinating {
     @MainActor
     private func makeRequestParameters() -> RequestParameters {
         let parameters = RequestParameters()
-        parameters.tagForUnderAgeOfConsent = false
+        parameters.isTaggedForUnderAgeOfConsent = false // UMP SDK v2 以降のリネームに追従（未成年扱いのフラグを明示的に無効化）
 
         #if DEBUG
         let debugSettings = DebugSettings()
