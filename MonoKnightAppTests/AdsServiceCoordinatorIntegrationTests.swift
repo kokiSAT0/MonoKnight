@@ -1,6 +1,6 @@
-import SwiftUI
 import Testing
 import GoogleMobileAds
+import UserMessagingPlatform
 
 @testable import MonoKnightApp
 
@@ -121,5 +121,65 @@ struct AdsServiceCoordinatorIntegrationTests {
         #expect(interstitial.showCallCount == 1)
         #expect(interstitial.resetCallCount == 1)
         #expect(interstitial.disableCallCount == 1)
+    }
+
+    /// AdsConsentCoordinator が通知する同意状態の変化を AdsService が橋渡しできているか検証
+    @MainActor
+    @Test func adsService_propagatesConsentStateChanges() async throws {
+        UserDefaults.standard.removeObject(forKey: "remove_ads_mk")
+        UserDefaults.standard.removeObject(forKey: "ads_should_use_npa")
+
+        let environment = TestAdsConsentEnvironment()
+        environment.consentStatus = .obtained
+        environment.formStatus = .unavailable // UI 表示を避けつつ状態通知のみ行う
+        environment.canRequestAds = true
+
+        // requestConsentInfoUpdate の度に consentStatus をトグルし、状態変化を再現する
+        var toggle = false
+        environment.requestUpdateHandler = {
+            toggle.toggle()
+            if toggle {
+                environment.consentStatus = .required
+                environment.canRequestAds = false
+            } else {
+                environment.consentStatus = .obtained
+                environment.canRequestAds = true
+            }
+        }
+
+        let coordinator = AdsConsentCoordinator(hasValidAdConfiguration: true, environment: environment)
+        let interstitial = StubInterstitialAdController()
+        let mobileAds = StubMobileAdsController()
+        let configuration = AdsServiceConfiguration(interstitialAdUnitID: "test", hasValidAdConfiguration: true)
+
+        let service = AdsService(
+            configuration: configuration,
+            consentCoordinator: coordinator,
+            interstitialController: interstitial,
+            mobileAdsController: mobileAds
+        )
+
+        // Task 内で起動直後の同期処理が走るため、明示的に猶予を与える
+        await Task.yield()
+        await Task.yield()
+
+        // 起動時同期で shouldUseNPA=true / canRequestAds=false へ変化する想定
+        #expect(interstitial.receivedConsentUpdates.count == 1)
+        if let first = interstitial.receivedConsentUpdates.first {
+            #expect(first.0.shouldUseNPA == true)
+            #expect(first.0.canRequestAds == false)
+            #expect(first.1 == true)
+        }
+
+        // 再度状態更新を要求し、NPA=false / canRequestAds=true へ戻ることを確認
+        await service.refreshConsentStatus()
+
+        #expect(interstitial.receivedConsentUpdates.count == 2)
+        if interstitial.receivedConsentUpdates.count >= 2 {
+            let second = interstitial.receivedConsentUpdates[1]
+            #expect(second.0.shouldUseNPA == false)
+            #expect(second.0.canRequestAds == true)
+            #expect(second.1 == true)
+        }
     }
 }
