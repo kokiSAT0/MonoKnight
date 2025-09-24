@@ -10,6 +10,9 @@ import SharedSupport // 共有ログユーティリティを利用するため�
 struct RootView: View {
     /// 画面全体の配色を揃えるためのテーマ。タブやトップバーの背景色を一元管理するためここで生成する
     private var theme = AppTheme()
+    /// Game モジュール側の公開インターフェース束を保持し、GameView へ確実に注入できるようにする
+    /// - NOTE: 依存をまとめておくことで、将来的にモック実装へ切り替える際も RootView の初期化だけで完結させられる
+    private let gameInterfaces: GameModuleInterfaces
     /// Game Center 連携を扱うサービス（プロトコル型で受け取る）
     private let gameCenterService: GameCenterServiceProtocol
     /// 広告表示を扱うサービス（GameView へ受け渡す）
@@ -26,13 +29,15 @@ struct RootView: View {
     /// - Parameters:
     ///   - gameCenterService: Game Center 連携用サービス（デフォルトはシングルトン）
     ///   - adsService: 広告表示用サービス（デフォルトはシングルトン）
-    init(gameCenterService: GameCenterServiceProtocol? = nil,
+    init(gameInterfaces: GameModuleInterfaces = .live,
+         gameCenterService: GameCenterServiceProtocol? = nil,
          adsService: AdsServiceProtocol? = nil) {
         // Swift 6 ではデフォルト引数の評価が非分離コンテキストで行われるため、
         // `@MainActor` に隔離されたシングルトンを安全に利用するためにイニシャライザ内で解決する。
         let resolvedGameCenterService = gameCenterService ?? GameCenterService.shared
         let resolvedAdsService = adsService ?? AdsService.shared
 
+        self.gameInterfaces = gameInterfaces
         self.gameCenterService = resolvedGameCenterService
         self.adsService = resolvedAdsService
         // 画面状態を一括管理するステートストアを生成し、初期認証状態を反映する。
@@ -328,6 +333,7 @@ private extension RootView {
             } else {
                 GameView(
                     mode: activeMode,
+                    gameInterfaces: gameInterfaces,
                     gameCenterService: gameCenterService,
                     adsService: adsService,
                     onRequestReturnToTitle: {
