@@ -109,7 +109,8 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol {
 
         // 初期化直後から広告読み込みを開始（非同期で走らせる）
         Task { [weak self] in
-            await self?.interstitialController.beginInitialLoad()
+            // beginInitialLoad() 自体は同期関数のため await は不要。Task 内で呼び出すだけで初回ロードを開始できる。
+            self?.interstitialController.beginInitialLoad()
         }
 
         // 起動直後は UMP の同意情報と shouldUseNPA の値がずれている恐れがあるため、明示的に同期処理を差し込む
