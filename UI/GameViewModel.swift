@@ -202,26 +202,14 @@ final class GameViewModel: ObservableObject {
         pendingMenuAction = nil
         switch action {
         case .manualPenalty:
-            penaltyDismissWorkItem?.cancel()
-            penaltyDismissWorkItem = nil
-            isShowingPenaltyBanner = false
+            cancelPenaltyBannerDisplay()
             core.applyManualPenaltyRedraw()
 
         case .reset:
-            penaltyDismissWorkItem?.cancel()
-            penaltyDismissWorkItem = nil
-            isShowingPenaltyBanner = false
-            showingResult = false
-            core.reset()
-            adsService.resetPlayFlag()
+            resetSessionForNewPlay()
 
         case .returnToTitle:
-            penaltyDismissWorkItem?.cancel()
-            penaltyDismissWorkItem = nil
-            isShowingPenaltyBanner = false
-            showingResult = false
-            core.reset()
-            adsService.resetPlayFlag()
+            resetSessionForNewPlay()
             onRequestReturnToTitle?()
         }
     }
@@ -275,6 +263,21 @@ final class GameViewModel: ObservableObject {
 
     /// 結果画面からリトライを選択した際の共通処理
     func handleResultRetry() {
+        resetSessionForNewPlay()
+    }
+
+    /// ペナルティバナー表示に関連する状態とワークアイテムをまとめて破棄する
+    /// - Note: 手動ペナルティやリセット操作後にバナーが残存しないよう、共通処理として切り出している
+    private func cancelPenaltyBannerDisplay() {
+        penaltyDismissWorkItem?.cancel()
+        penaltyDismissWorkItem = nil
+        isShowingPenaltyBanner = false
+    }
+
+    /// 新しいプレイを始める際に必要な初期化処理を共通化する
+    /// - Note: リザルトからのリトライやリセット操作で重複していた処理を一本化し、将来的な初期化追加にも対応しやすくする
+    private func resetSessionForNewPlay() {
+        cancelPenaltyBannerDisplay()
         showingResult = false
         core.reset()
         adsService.resetPlayFlag()
