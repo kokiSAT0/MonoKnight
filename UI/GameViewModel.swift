@@ -167,6 +167,36 @@ final class GameViewModel: ObservableObject {
         boardBridge.handleBoardTapPlayRequest(request)
     }
 
+    /// 手札スロットがタップされた際の挙動を集約する
+    /// - Parameter index: ユーザーが操作したスロットの添字
+    func handleHandSlotTap(at index: Int) {
+        // 既に別カードの移動アニメーションが進行している場合は受け付けない
+        guard boardBridge.animatingCard == nil else { return }
+        // 範囲外アクセスを避けるため、安全にインデックスの存在を確認する
+        guard core.handStacks.indices.contains(index) else { return }
+
+        let latestStack = core.handStacks[index]
+
+        if core.isAwaitingManualDiscardSelection {
+            // 捨て札モード中は対象スタックを破棄して新しいカードへ差し替える
+            withAnimation(.easeInOut(duration: 0.2)) {
+                let success = core.discardHandStack(withID: latestStack.id)
+                if success, hapticsEnabled {
+                    UINotificationFeedbackGenerator().notificationOccurred(.warning)
+                }
+            }
+            return
+        }
+
+        // 使用可能なカードであれば盤面アニメーションとプレイ処理を実行
+        if isCardUsable(latestStack) {
+            _ = animateCardPlay(for: latestStack, at: index)
+        } else if hapticsEnabled {
+            // 無効カードをタップした場合は警告ハプティクスのみ発生させる
+            UINotificationFeedbackGenerator().notificationOccurred(.warning)
+        }
+    }
+
     /// ゲームの進行状況に応じた操作をまとめて処理する
     func performMenuAction(_ action: GameMenuAction) {
         pendingMenuAction = nil

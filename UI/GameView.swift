@@ -1011,30 +1011,8 @@ struct GameView: View {
                     }
                 }
                 .onTapGesture {
-                    // 既に別カードが移動中ならタップを無視して多重処理を防止
-                    guard boardBridge.animatingCard == nil else { return }
-
-                    guard core.handStacks.indices.contains(index) else { return }
-                    let latestStack = core.handStacks[index]
-
-                    if core.isAwaitingManualDiscardSelection {
-                        // 捨て札モードではスタックをまとめて破棄する
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            let success = core.discardHandStack(withID: latestStack.id)
-                            if success, hapticsEnabled {
-                                UINotificationFeedbackGenerator().notificationOccurred(.warning)
-                            }
-                        }
-                    } else if viewModel.isCardUsable(latestStack) {
-                        // 共通処理でアニメーションとカード使用をまとめて実行
-                        _ = viewModel.animateCardPlay(for: latestStack, at: index)
-                    } else {
-                        // 使用不可カードは警告ハプティクスのみ発火
-                        if hapticsEnabled {
-                            UINotificationFeedbackGenerator()
-                                .notificationOccurred(.warning)
-                        }
-                    }
+                    // 具体的なロジックは ViewModel 側へ委譲し、View の責務を描画中心へ保つ
+                    viewModel.handleHandSlotTap(at: index)
                 }
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(Text(accessibilityLabel(for: stack)))
