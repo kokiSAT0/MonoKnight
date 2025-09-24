@@ -33,7 +33,14 @@ protocol InterstitialAdPresentable: AnyObject, FullScreenPresentingAd {
     func present(from viewController: UIViewController)
 }
 
-extension InterstitialAd: InterstitialAdPresentable {}
+extension InterstitialAd: InterstitialAdPresentable {
+    // MARK: - GoogleMobileAds.InterstitialAd をプロトコル経由で扱うための橋渡し
+    /// GoogleMobileAds 側の `present(fromRootViewController:)` をアプリ内のインターフェースに合わせてラップする
+    /// - Parameter viewController: 表示元となる最前面の ViewController
+    func present(from viewController: UIViewController) {
+        present(fromRootViewController: viewController)
+    }
+}
 
 /// インタースティシャル広告のロード処理を差し替え可能にする
 protocol InterstitialAdLoading {
