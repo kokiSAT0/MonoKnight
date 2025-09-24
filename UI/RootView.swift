@@ -248,7 +248,8 @@ private extension RootView {
             }
             // タイトル設定シートの表示制御。Binding はステートストアから生成する
             .fullScreenCover(isPresented: stateStore.binding(for: \.isPresentingTitleSettings)) {
-                SettingsView()
+                // RootView から AdsServiceProtocol を引き渡し、設定画面でも共通プロトコル経由で操作できるようにする。
+                SettingsView(adsService: adsService)
             }
     }
 
