@@ -38,8 +38,9 @@ extension InterstitialAd: InterstitialAdPresentable {
     /// GoogleMobileAds 側の `present(from:)` をアプリ内のインターフェースに合わせてラップする
     /// - Parameter viewController: 表示元となる最前面の ViewController
     func present(from viewController: UIViewController) {
-        // SDK 22.0.0 以降では fromRootViewController ではなく from ラベルが必須なため、そのまま委譲する
-        present(from: viewController)
+        // SDK 本体のメソッドを直接呼び出し、ラッパー側での再帰呼び出しを防ぐ
+        // （`FullScreenPresentingAd` プロトコルが提供する fromRootViewController ラベルを利用）
+        present(fromRootViewController: viewController)
     }
 }
 
