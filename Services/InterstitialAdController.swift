@@ -30,17 +30,17 @@ protocol InterstitialAdControlling: AnyObject, FullScreenContentDelegate, AdsCon
 /// GoogleMobileAds.InterstitialAd をテスト可能にするための薄い抽象化
 protocol InterstitialAdPresentable: AnyObject, FullScreenPresentingAd {
     var fullScreenContentDelegate: FullScreenContentDelegate? { get set }
-    func present(from viewController: UIViewController)
+    /// SDK のメソッド名変更に引きずられずに呼び出せるよう独自シグネチャを定義
+    func presentAd(from viewController: UIViewController)
 }
 
 extension InterstitialAd: InterstitialAdPresentable {
     // MARK: - GoogleMobileAds.InterstitialAd をプロトコル経由で扱うための橋渡し
-    /// GoogleMobileAds 側の `present(from:)` をアプリ内のインターフェースに合わせてラップする
+    /// ラッパーでは命名を `presentAd` に変更し、元 SDK の `present(from:)` を呼び出している
     /// - Parameter viewController: 表示元となる最前面の ViewController
-    func present(from viewController: UIViewController) {
-        // SDK 側のシグネチャ変更により `present(from:)` が正式名称となったため
-        // ラッパーからも最新の引数ラベルを用いて呼び出し、将来のビルドエラーを防ぐ
-        // ⚠️ 過去に `present(fromRootViewController:)` へ戻してしまう事故が複数回発生しているため、絶対に書き換えないこと
+    func presentAd(from viewController: UIViewController) {
+        // SDK 側のシグネチャ変更に伴い、実体の `present(from:)` を呼び出す
+        // ここで `present(fromRootViewController:)` を用いると最新版 SDK でコンパイルエラーとなるため厳禁
         present(from: viewController)
     }
 }
@@ -283,9 +283,9 @@ final class InterstitialAdController: NSObject, InterstitialAdControlling {
     private func presentInterstitial(_ interstitial: InterstitialAdPresentable, from root: UIViewController) {
         isWaitingForPresentation = false
         self.interstitial = nil
-        // ⚠️ ここでも必ず `present(from:)` を使用すること
+        // ⚠️ ここでも必ずラッパー経由の `presentAd(from:)` を使用すること
         //    旧 API (`present(fromRootViewController:)`) に戻すとコンパイルエラーとなり、QA 工数が浪費されるため厳禁
-        interstitial.present(from: root)
+        interstitial.presentAd(from: root)
         delegate?.interstitialAdControllerShouldPlayWarningHaptic(self)
         debugLog("インタースティシャル広告の表示処理をトリガーしました")
     }
