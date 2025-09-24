@@ -1,6 +1,7 @@
 import Testing
 import GoogleMobileAds
 import UserMessagingPlatform
+import UIKit
 
 @testable import MonoKnightApp
 
@@ -77,6 +78,23 @@ private final class StubMobileAdsController: MobileAdsControlling {
     func start(completion: @escaping () -> Void) {
         startCallCount += 1
         completion()
+    }
+}
+
+@MainActor
+private final class StubRootViewControllerProvider: RootViewControllerProviding {
+    /// テスト用に返却するダミー ViewController
+    let stubViewController: UIViewController
+    /// AdsService からの取得要求回数
+    private(set) var fetchCallCount: Int = 0
+
+    init(stubViewController: UIViewController = UIViewController()) {
+        self.stubViewController = stubViewController
+    }
+
+    func topViewController() -> UIViewController? {
+        fetchCallCount += 1
+        return stubViewController
     }
 }
 
@@ -180,6 +198,59 @@ struct AdsServiceCoordinatorIntegrationTests {
             #expect(second.0.shouldUseNPA == false)
             #expect(second.0.canRequestAds == true)
             #expect(second.1 == true)
+        }
+    }
+
+    /// requestConsentIfNeeded 実行時に AdsService が差し替えた ViewController プロバイダを利用してフォームを表示することを検証
+    @MainActor
+    @Test func adsService_presentsConsentFormUsingInjectedProvider() async throws {
+        UserDefaults.standard.removeObject(forKey: "remove_ads_mk")
+        UserDefaults.standard.removeObject(forKey: "ads_should_use_npa")
+
+        let environment = TestAdsConsentEnvironment()
+        environment.consentStatus = .required
+        environment.formStatus = .available
+        environment.canRequestAds = false
+
+        let interstitial = StubInterstitialAdController()
+        let mobileAds = StubMobileAdsController()
+        let provider = StubRootViewControllerProvider()
+        let configuration = AdsServiceConfiguration(interstitialAdUnitID: "test", hasValidAdConfiguration: true)
+
+        environment.presenterFactory = {
+            return { viewController, completion in
+                // AdsService が注入済みプロバイダ経由で取得した VC を利用できているか検証
+                #expect(viewController === provider.stubViewController)
+                environment.consentStatus = .obtained
+                environment.canRequestAds = true
+                completion(nil)
+            }
+        }
+
+        let coordinator = AdsConsentCoordinator(hasValidAdConfiguration: true, environment: environment)
+        let service = AdsService(
+            configuration: configuration,
+            consentCoordinator: coordinator,
+            interstitialController: interstitial,
+            mobileAdsController: mobileAds,
+            rootViewControllerProvider: provider
+        )
+
+        // 初期同期を待機し、Task が完了する余裕を作る
+        await Task.yield()
+        await Task.yield()
+
+        await service.requestConsentIfNeeded()
+
+        // presenterFactory 経由で completion が呼ばれたため shouldUseNPA=false / canRequestAds=true へ更新される想定
+        #expect(provider.fetchCallCount >= 1)
+        #expect(environment.requestUpdateCallCount >= 1)
+        #expect(interstitial.receivedConsentUpdates.count >= 2)
+
+        if let last = interstitial.receivedConsentUpdates.last {
+            #expect(last.0.shouldUseNPA == false)
+            #expect(last.0.canRequestAds == true)
+            #expect(last.1 == true)
         }
     }
 }

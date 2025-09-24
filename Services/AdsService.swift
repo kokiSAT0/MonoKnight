@@ -31,6 +31,56 @@ struct DefaultMobileAdsController: MobileAdsControlling {
     }
 }
 
+// MARK: - ルート ViewController 取得用の抽象化
+/// UI テストや統合テストからも差し替えやすいよう、最前面の ViewController を提供する依存を切り出す
+protocol RootViewControllerProviding {
+    /// インタースティシャル表示や UMP 同意フォーム表示に利用する最前面 ViewController を返す
+    func topViewController() -> UIViewController?
+}
+
+/// UIApplication の階層を辿って最前面の ViewController を解決するデフォルト実装
+struct DefaultRootViewControllerProvider: RootViewControllerProviding {
+    func topViewController() -> UIViewController? {
+        // シーン階層が取得できないケースでは即座に nil を返し、呼び出し元でリトライさせる
+        guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene else { return nil }
+
+        // isKeyWindow を優先しつつ、fallback として最初のウィンドウも見る（マルチウィンドウ環境を考慮）
+        let window = scene.windows.first(where: { $0.isKeyWindow }) ?? scene.windows.first
+        guard let rootController = window?.rootViewController else { return nil }
+
+        // ルートから辿れる最前面の ViewController を再帰的に探索する
+        return topMostViewController(from: rootController)
+    }
+
+    /// ナビゲーション/タブ/モーダル等のコンテナを考慮して最前面の VC を返す
+    private func topMostViewController(from controller: UIViewController?) -> UIViewController? {
+        guard let controller else { return nil }
+
+        // モーダルで提示されている場合は更に深い階層を優先する
+        if let presented = controller.presentedViewController {
+            return topMostViewController(from: presented)
+        }
+
+        // ナビゲーションコントローラは表示中の VC（visibleViewController）を優先
+        if let navigation = controller as? UINavigationController {
+            return topMostViewController(from: navigation.visibleViewController ?? navigation.topViewController)
+        }
+
+        // タブコントローラは選択中のタブ配下を辿る
+        if let tab = controller as? UITabBarController {
+            return topMostViewController(from: tab.selectedViewController)
+        }
+
+        // SplitViewController も最後尾（詳細側）を表示中とみなし辿る
+        if let split = controller as? UISplitViewController {
+            return topMostViewController(from: split.viewControllers.last)
+        }
+
+        // それ以外は最前面の具体的な VC として返却
+        return controller
+    }
+}
+
 /// Info.plist 由来の設定値をまとめる構造体
 struct AdsServiceConfiguration {
     let interstitialAdUnitID: String
@@ -56,13 +106,15 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol {
     private let interstitialController: InterstitialAdControlling
     private let mobileAdsController: MobileAdsControlling
     private let configuration: AdsServiceConfiguration
+    private let rootViewControllerProvider: RootViewControllerProviding
 
     /// 生成直後に依存関係を注入できるよう DI 対応したイニシャライザを用意する
     init(
         configuration: AdsServiceConfiguration? = nil,
         consentCoordinator: AdsConsentCoordinating? = nil,
         interstitialController: InterstitialAdControlling? = nil,
-        mobileAdsController: MobileAdsControlling = DefaultMobileAdsController()
+        mobileAdsController: MobileAdsControlling = DefaultMobileAdsController(),
+        rootViewControllerProvider: RootViewControllerProviding = DefaultRootViewControllerProvider()
     ) {
         let resolvedConfiguration = configuration ?? AdsService.makeConfiguration()
         let resolvedConsentCoordinator = consentCoordinator ?? AdsConsentCoordinator(
@@ -78,6 +130,7 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol {
         self.consentCoordinator = resolvedConsentCoordinator
         self.interstitialController = resolvedInterstitialController
         self.mobileAdsController = mobileAdsController
+        self.rootViewControllerProvider = rootViewControllerProvider
         super.init()
 
         // デリゲートを接続して UI 連携と状態同期を AdsService 側で担う
@@ -125,7 +178,8 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol {
             configuration: nil,
             consentCoordinator: nil,
             interstitialController: nil,
-            mobileAdsController: DefaultMobileAdsController()
+            mobileAdsController: DefaultMobileAdsController(),
+            rootViewControllerProvider: DefaultRootViewControllerProvider()
         )
     }
 
@@ -182,7 +236,7 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol {
 // MARK: - AdsConsentCoordinatorPresenting
 extension AdsService: AdsConsentCoordinatorPresenting {
     func presentConsentForm(using presenter: @escaping ConsentFormPresenter) async throws {
-        guard let viewController = rootViewController() else {
+        guard let viewController = rootViewControllerProvider.topViewController() else {
             let error = NSError(
                 domain: "MonoKnight.AdsService",
                 code: -2,
@@ -203,7 +257,7 @@ extension AdsService: AdsConsentCoordinatorPresenting {
     }
 
     func presentPrivacyOptions(using presenter: @escaping PrivacyOptionsPresenter) async throws {
-        guard let viewController = rootViewController() else {
+        guard let viewController = rootViewControllerProvider.topViewController() else {
             let error = NSError(
                 domain: "MonoKnight.AdsService",
                 code: -3,
@@ -227,55 +281,11 @@ extension AdsService: AdsConsentCoordinatorPresenting {
 // MARK: - InterstitialAdControllerDelegate
 extension AdsService: InterstitialAdControllerDelegate {
     func rootViewControllerForPresentation(_ controller: InterstitialAdControlling) -> UIViewController? {
-        rootViewController()
+        rootViewControllerProvider.topViewController()
     }
 
     func interstitialAdControllerShouldPlayWarningHaptic(_ controller: InterstitialAdControlling) {
         guard hapticsEnabled else { return }
         UINotificationFeedbackGenerator().notificationOccurred(.warning)
-    }
-}
-
-// MARK: - 共通ヘルパー
-private extension AdsService {
-    /// 最前面の ViewController を取得する
-    func rootViewController() -> UIViewController? {
-        // シーン階層が取得できないケースでは即座に nil を返し、呼び出し元でリトライさせる
-        guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene else { return nil }
-
-        // isKeyWindow を優先しつつ、fallback として最初のウィンドウも見る（マルチウィンドウ環境を考慮）
-        let window = scene.windows.first(where: { $0.isKeyWindow }) ?? scene.windows.first
-        guard let rootController = window?.rootViewController else { return nil }
-
-        // ルートから辿れる最前面の ViewController を再帰的に探索する
-        return topMostViewController(from: rootController)
-    }
-
-    /// ナビゲーション/タブ/モーダル等のコンテナを考慮して最前面の VC を返す
-    func topMostViewController(from controller: UIViewController?) -> UIViewController? {
-        guard let controller else { return nil }
-
-        // モーダルで提示されている場合は更に深い階層を優先する
-        if let presented = controller.presentedViewController {
-            return topMostViewController(from: presented)
-        }
-
-        // ナビゲーションコントローラは表示中の VC（visibleViewController）を優先
-        if let navigation = controller as? UINavigationController {
-            return topMostViewController(from: navigation.visibleViewController ?? navigation.topViewController)
-        }
-
-        // タブコントローラは選択中のタブ配下を辿る
-        if let tab = controller as? UITabBarController {
-            return topMostViewController(from: tab.selectedViewController)
-        }
-
-        // SplitViewController も最後尾（詳細側）を表示中とみなし辿る
-        if let split = controller as? UISplitViewController {
-            return topMostViewController(from: split.viewControllers.last)
-        }
-
-        // それ以外は最前面の具体的な VC として返却
-        return controller
     }
 }
