@@ -1,13 +1,13 @@
-# 開発者ごとの個別設定サンプル
-# このファイルを Local.xcconfig にコピーして使用する
-# Local.xcconfig は .gitignore に登録されているためコミットされない
+// 開発者ごとの個別設定サンプル
+// このファイルを Local.xcconfig にコピーして使用する
+// Local.xcconfig は .gitignore に登録されているためコミットされない
 
-# Apple Developer の Team ID を記入
+// Apple Developer の Team ID を記入
 DEVELOPMENT_TEAM = YOUR_TEAM_ID
 
-# バンドルIDのサフィックスを記入
+// バンドルIDのサフィックスを記入
 BUNDLE_ID_SUFFIX = .koki
 
-# AdMob の本番アプリ ID と広告ユニット ID を記入する（以下は記入例）
-# GAD_APPLICATION_ID = ca-app-pub-xxxxxxxxxxxxxxxx~yyyyyyyyyy
-# GAD_INTERSTITIAL_UNIT_ID = ca-app-pub-xxxxxxxxxxxxxxxx/zzzzzzzzzz
+// AdMob の本番アプリ ID と広告ユニット ID を記入する（以下は記入例）
+// GAD_APPLICATION_ID = ca-app-pub-xxxxxxxxxxxxxxxx~yyyyyyyyyy
+// GAD_INTERSTITIAL_UNIT_ID = ca-app-pub-xxxxxxxxxxxxxxxx/zzzzzzzzzz

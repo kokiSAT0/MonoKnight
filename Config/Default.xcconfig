@@ -1,22 +1,22 @@
-# 共通設定ファイル
-# すべての開発者が共有するビルド設定をここに記述する
+// 共通設定ファイル
+// すべての開発者が共有するビルド設定をここに記述する
 
-# アプリ名
+// アプリ名
 PRODUCT_NAME = MonoKnight
 
-# バンドルID
+// バンドルID
 PRODUCT_BUNDLE_IDENTIFIER = com.koki.monoknight$(BUNDLE_ID_SUFFIX)
 
-# チームIDやサフィックスは環境ごとに上書き
+// チームIDやサフィックスは環境ごとに上書き
 DEVELOPMENT_TEAM =
 BUNDLE_ID_SUFFIX =
 
-# AdMob のテスト用 ID（本番値は Local.xcconfig で上書きする）
+// AdMob のテスト用 ID（本番値は Local.xcconfig で上書きする）
 GAD_APPLICATION_ID = ca-app-pub-3940256099942544~1458002511
 GAD_INTERSTITIAL_UNIT_ID = ca-app-pub-3940256099942544/4411468910
 
-# 表示名（ホーム画面に表示される名称）
+// 表示名（ホーム画面に表示される名称）
 APP_DISPLAY_NAME = $(PRODUCT_NAME)
 
-# 個人設定を上書きするファイルを読み込む（存在しない場合は無視）
-#include? "Local.xcconfig"
+// 個人設定を上書きするファイルを読み込む（存在しない場合は無視）
+//include? "Local.xcconfig"
