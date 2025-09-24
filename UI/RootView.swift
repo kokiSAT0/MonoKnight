@@ -65,96 +65,162 @@ struct RootView: View {
     }
 
     var body: some View {
-        GeometryReader { geometry in
-            // MARK: - 現在のジオメトリ情報を整理し、レイアウトログとトップバー調整へ使うコンテキストを生成
-            let layoutContext: RootLayoutContext = RootLayoutContext(
-                geometrySize: geometry.size,
-                safeAreaInsets: geometry.safeAreaInsets,
-                horizontalSizeClass: horizontalSizeClass
-            )
+        attachRootStateObservers(
+            GeometryReader { geometry in
+                // MARK: - GeometryReader が提供するサイズや safe area を専用コンテキストへまとめ、下層ビューへシンプルに引き渡す
+                let layoutContext = makeLayoutContext(from: geometry)
 
-            // MARK: - ルート構成専用のサブビューへ処理を委譲し、RootView 本体の型チェックコストを削減する
-            RootContentView(
-                theme: theme,
-                layoutContext: layoutContext,
-                gameCenterService: gameCenterService,
-                adsService: adsService,
-                isAuthenticated: $isAuthenticated,
-                isShowingTitleScreen: $isShowingTitleScreen,
-                isPreparingGame: $isPreparingGame,
-                activeMode: $activeMode,
-                selectedModeForTitle: $selectedModeForTitle,
-                gameSessionID: $gameSessionID,
-                topBarHeight: $topBarHeight,
-                lastLoggedLayoutSnapshot: $lastLoggedLayoutSnapshot,
-                isPresentingTitleSettings: $isPresentingTitleSettings,
-                debugLogConsoleViewModel: debugLogConsoleViewModel,
-                isPresentingDebugLogConsole: $isPresentingDebugLogConsole,
-                authenticateAction: handleGameCenterAuthenticationRequest,
-                onStartGame: { mode in
-                    // タイトル画面から受け取ったモードでゲーム準備フローを実行する
-                    startGamePreparation(for: mode)
-                },
-                onReturnToTitle: {
-                    // GameView からの戻る要求をハンドリングし、タイトル表示へ切り替える
-                    handleReturnToTitleRequest()
-                }
-            )
-        }
-        // トップバーの高さが更新された際にログを残し、iPad の分割表示などでの変化を追跡する
-        .onPreferenceChange(TopBarHeightPreferenceKey.self) { newHeight in
-            let previousHeight = topBarHeight
-            guard previousHeight != newHeight else { return }
-            debugLog("RootView.topBarHeight 更新: 旧値=\(previousHeight), 新値=\(newHeight)")
-            topBarHeight = newHeight
-        }
-        // Game Center 認証状態の変化を監視し、表示コンポーネント切り替えの契機を把握する
-        .onChange(of: isAuthenticated) { _, newValue in
-            debugLog("RootView.isAuthenticated 更新: \(newValue)")
-        }
-        // タイトル画面の表示状態を記録し、想定外のトランジションが起きていないか追跡する
-        .onChange(of: isShowingTitleScreen) { _, newValue in
-            debugLog("RootView.isShowingTitleScreen 更新: \(newValue)")
-        }
-        // ローディング表示のオン/オフを監視し、意図しないタイミングでの遷移を検知する
-        .onChange(of: isPreparingGame) { _, newValue in
-            debugLog("RootView.isPreparingGame 更新: \(newValue)")
-        }
-        // 実際にプレイへ利用しているモードが切り替わったタイミングを記録する
-        .onChange(of: activeMode) { _, newValue in
-            debugLog("RootView.activeMode 更新: \(newValue.identifier.rawValue)")
-        }
-        // タイトル画面上で選択中のモードが変化した場合もログ化し、操作の追跡精度を高める
-        .onChange(of: selectedModeForTitle) { _, newValue in
-            debugLog("RootView.selectedModeForTitle 更新: \(newValue.identifier.rawValue)")
-        }
-        // サイズクラス変化（端末回転や iPad のマルチタスク）を記録し、レイアウト崩れ再現時の手掛かりとする
-        .onChange(of: horizontalSizeClass) { _, newValue in
-            debugLog("RootView.horizontalSizeClass 更新: \(String(describing: newValue))")
-        }
-        // 設定画面の表示状態を監視し、意図せぬ多重表示が起きていないか把握する
-        .onChange(of: isPresentingTitleSettings) { _, newValue in
-            debugLog("RootView.isPresentingTitleSettings 更新: \(newValue)")
-        }
-        // デバッグログコンソールの表示状態を監視し、TestFlight 上での操作履歴に残す
-        .onChange(of: isPresentingDebugLogConsole) { _, newValue in
-            debugLog("RootView.isPresentingDebugLogConsole 更新: \(newValue)")
-        }
-        // タイトル画面専用の設定をフルスクリーンカバーで開き、iPhone と iPad の双方で没入感のある編集体験にそろえる
-        .fullScreenCover(isPresented: $isPresentingTitleSettings) {
-            SettingsView()
-        }
-        // デバッグ用のログコンソールをシートで表示し、即座にログを確認できる導線を用意する
-        .sheet(isPresented: $isPresentingDebugLogConsole) {
-            DebugLogConsoleView(viewModel: debugLogConsoleViewModel)
-                .presentationDetents([.medium, .large])
-                .presentationDragIndicator(.visible)
-        }
+                // MARK: - 生成済みのコンテキストを使い、型階層の浅いサブビューへ委譲して型チェック負荷を分散する
+                makeRootContentView(with: layoutContext)
+            }
+        )
     }
 }
 
 // MARK: - レイアウト支援メソッドと定数
 private extension RootView {
+    /// GeometryReader の値をまとめ直し、後続の View 生成で毎回同じ初期化コードを書かなくて済むようにする
+    /// - Parameter geometry: SwiftUI が渡すレイアウト情報の生値
+    /// - Returns: RootView 向けに整理したレイアウトコンテキスト
+    func makeLayoutContext(from geometry: GeometryProxy) -> RootLayoutContext {
+        RootLayoutContext(
+            geometrySize: geometry.size,
+            safeAreaInsets: geometry.safeAreaInsets,
+            horizontalSizeClass: horizontalSizeClass
+        )
+    }
+
+    /// RootView 本体の `body` から切り離したメソッドで、サブビュー生成ロジックを共通化する
+    /// - Parameter layoutContext: GeometryReader から構築したレイアウト情報
+    /// - Returns: 依存サービスや状態をバインディングした `RootContentView`
+    func makeRootContentView(with layoutContext: RootLayoutContext) -> RootContentView {
+        RootContentView(
+            theme: theme,
+            layoutContext: layoutContext,
+            gameCenterService: gameCenterService,
+            adsService: adsService,
+            isAuthenticated: $isAuthenticated,
+            isShowingTitleScreen: $isShowingTitleScreen,
+            isPreparingGame: $isPreparingGame,
+            activeMode: $activeMode,
+            selectedModeForTitle: $selectedModeForTitle,
+            gameSessionID: $gameSessionID,
+            topBarHeight: $topBarHeight,
+            lastLoggedLayoutSnapshot: $lastLoggedLayoutSnapshot,
+            isPresentingTitleSettings: $isPresentingTitleSettings,
+            debugLogConsoleViewModel: debugLogConsoleViewModel,
+            isPresentingDebugLogConsole: $isPresentingDebugLogConsole,
+            authenticateAction: handleGameCenterAuthenticationRequest,
+            onStartGame: { mode in
+                // タイトル画面から受け取ったモードでゲーム準備フローを実行する
+                startGamePreparation(for: mode)
+            },
+            onReturnToTitle: {
+                // GameView からの戻る要求をハンドリングし、タイトル表示へ切り替える
+                handleReturnToTitleRequest()
+            }
+        )
+    }
+
+    /// `body` 末尾に連なっていた状態監視やシート表示を 1 つの修飾子へ集約し、型推論を単純化する
+    /// - Parameter content: 観測対象となるコンテンツ
+    /// - Returns: 各種ロギング・シート表示を適用したビュー
+    func attachRootStateObservers<Content: View>(to content: Content) -> some View {
+        content.modifier(
+            RootStateObservationModifier(
+                topBarHeight: $topBarHeight,
+                isAuthenticated: $isAuthenticated,
+                isShowingTitleScreen: $isShowingTitleScreen,
+                isPreparingGame: $isPreparingGame,
+                activeMode: $activeMode,
+                selectedModeForTitle: $selectedModeForTitle,
+                isPresentingTitleSettings: $isPresentingTitleSettings,
+                isPresentingDebugLogConsole: $isPresentingDebugLogConsole,
+                horizontalSizeClass: horizontalSizeClass,
+                debugLogConsoleViewModel: debugLogConsoleViewModel
+            )
+        )
+    }
+
+    /// RootView 特有のロギングやシート表示をまとめた `ViewModifier`
+    /// - NOTE: ビュー階層から切り離すことで、`body` にぶら下がるクロージャ数を減らし型チェックを軽量化する
+    @MainActor
+    private struct RootStateObservationModifier: ViewModifier {
+        /// トップバーの計測値
+        @Binding var topBarHeight: CGFloat
+        /// Game Center 認証状態
+        @Binding var isAuthenticated: Bool
+        /// タイトル画面表示状態
+        @Binding var isShowingTitleScreen: Bool
+        /// ゲーム準備中フラグ
+        @Binding var isPreparingGame: Bool
+        /// 実際にプレイしているモード
+        @Binding var activeMode: GameMode
+        /// タイトル画面で選択中のモード
+        @Binding var selectedModeForTitle: GameMode
+        /// タイトル設定シートの表示フラグ
+        @Binding var isPresentingTitleSettings: Bool
+        /// デバッグログコンソールの表示フラグ
+        @Binding var isPresentingDebugLogConsole: Bool
+        /// サイズクラスの変化もここで監視する
+        let horizontalSizeClass: UserInterfaceSizeClass?
+        /// デバッグログ表示用のビューモデル
+        let debugLogConsoleViewModel: DebugLogConsoleViewModel
+
+        func body(content: Content) -> some View {
+            content
+                // トップバーの高さが更新された際にログを残し、iPad の分割表示などでの変化を追跡する
+                .onPreferenceChange(RootView.TopBarHeightPreferenceKey.self) { newHeight in
+                    let previousHeight = topBarHeight
+                    guard previousHeight != newHeight else { return }
+                    debugLog("RootView.topBarHeight 更新: 旧値=\(previousHeight), 新値=\(newHeight)")
+                    topBarHeight = newHeight
+                }
+                // Game Center 認証状態の変化を監視し、表示コンポーネント切り替えの契機を把握する
+                .onChange(of: isAuthenticated) { _, newValue in
+                    debugLog("RootView.isAuthenticated 更新: \(newValue)")
+                }
+                // タイトル画面の表示状態を記録し、想定外のトランジションが起きていないか追跡する
+                .onChange(of: isShowingTitleScreen) { _, newValue in
+                    debugLog("RootView.isShowingTitleScreen 更新: \(newValue)")
+                }
+                // ローディング表示のオン/オフを監視し、意図しないタイミングでの遷移を検知する
+                .onChange(of: isPreparingGame) { _, newValue in
+                    debugLog("RootView.isPreparingGame 更新: \(newValue)")
+                }
+                // 実際にプレイへ利用しているモードが切り替わったタイミングを記録する
+                .onChange(of: activeMode) { _, newValue in
+                    debugLog("RootView.activeMode 更新: \(newValue.identifier.rawValue)")
+                }
+                // タイトル画面上で選択中のモードが変化した場合もログ化し、操作の追跡精度を高める
+                .onChange(of: selectedModeForTitle) { _, newValue in
+                    debugLog("RootView.selectedModeForTitle 更新: \(newValue.identifier.rawValue)")
+                }
+                // サイズクラス変化（端末回転や iPad のマルチタスク）を記録し、レイアウト崩れ再現時の手掛かりとする
+                .onChange(of: horizontalSizeClass) { _, newValue in
+                    debugLog("RootView.horizontalSizeClass 更新: \(String(describing: newValue))")
+                }
+                // 設定画面の表示状態を監視し、意図せぬ多重表示が起きていないか把握する
+                .onChange(of: isPresentingTitleSettings) { _, newValue in
+                    debugLog("RootView.isPresentingTitleSettings 更新: \(newValue)")
+                }
+                // デバッグログコンソールの表示状態を監視し、TestFlight 上での操作履歴に残す
+                .onChange(of: isPresentingDebugLogConsole) { _, newValue in
+                    debugLog("RootView.isPresentingDebugLogConsole 更新: \(newValue)")
+                }
+                // タイトル画面専用の設定をフルスクリーンカバーで開き、iPhone と iPad の双方で没入感のある編集体験にそろえる
+                .fullScreenCover(isPresented: $isPresentingTitleSettings) {
+                    SettingsView()
+                }
+                // デバッグ用のログコンソールをシートで表示し、即座にログを確認できる導線を用意する
+                .sheet(isPresented: $isPresentingDebugLogConsole) {
+                    DebugLogConsoleView(viewModel: debugLogConsoleViewModel)
+                        .presentationDetents([.medium, .large])
+                        .presentationDragIndicator(.visible)
+                }
+        }
+    }
+
     /// GeometryReader から得たレイアウト情報を引き受け、RootView 全体を構築する補助ビュー
     /// - NOTE: View 構築を専用の構造体へ分離することで、RootView 本体が抱えるジェネリック階層を浅くし、
     ///         Xcode の型チェック処理時間を抑える。
