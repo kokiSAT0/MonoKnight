@@ -111,7 +111,9 @@ final class RootViewStateStore: ObservableObject {
         }
     }
     /// 直近に出力したレイアウトスナップショット
-    @Published var lastLoggedLayoutSnapshot: RootView.RootLayoutSnapshot?
+    /// - NOTE: `RootLayoutSnapshot` が `fileprivate` 扱いで定義されているため、
+    ///         アクセスレベルを合わせて `fileprivate` に揃え、ビルドエラーを避ける
+    @Published fileprivate var lastLoggedLayoutSnapshot: RootView.RootLayoutSnapshot?
     /// タイトル設定シートの表示状態
     @Published var isPresentingTitleSettings: Bool {
         didSet {
