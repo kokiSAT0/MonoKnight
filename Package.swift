@@ -23,7 +23,7 @@ let package = Package(
         // SharedSupport モジュールはロギングなどの共通処理を提供
         .target(
             name: "SharedSupport",
-            path: "Shared/Logging"
+            path: "SharedSupport/Sources/SharedSupport"
         ),
         // Game モジュールは既存の Game ディレクトリを利用
         .target(
