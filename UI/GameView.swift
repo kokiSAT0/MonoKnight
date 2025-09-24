@@ -28,6 +28,8 @@ struct GameView: View {
     private let handSlotCount = 5
     /// View とロジックの橋渡しを担う ViewModel
     @StateObject private var viewModel: GameViewModel
+    /// SpriteKit との仲介を担う BoardBridge
+    @ObservedObject private var boardBridge: GameBoardBridgeViewModel
     /// ハプティクスを有効にするかどうかの設定値
     @AppStorage("haptics_enabled") private var hapticsEnabled: Bool = true
     /// ガイドモードのオン/オフを永続化し、盤面ハイライト表示を制御する
@@ -39,7 +41,7 @@ struct GameView: View {
     /// ViewModel が管理する GameCore へのアクセスを簡潔にするための計算プロパティ
     private var core: GameCore { viewModel.core }
     /// SpriteKit シーンへのショートカット
-    private var scene: GameScene { viewModel.scene }
+    private var scene: GameScene { boardBridge.scene }
 
     /// デフォルトのサービスを利用して `GameView` を生成するコンビニエンスイニシャライザ
     /// - Parameters:
@@ -81,6 +83,7 @@ struct GameView: View {
         }
 
         _viewModel = StateObject(wrappedValue: viewModel)
+        _boardBridge = ObservedObject(wrappedValue: viewModel.boardBridge)
     }
 
     var body: some View {
@@ -264,30 +267,30 @@ struct GameView: View {
                 viewModel.updateDisplayedElapsedTime()
             }
             // カードが盤面へ移動中は UI 全体を操作不可とし、状態の齟齬を防ぐ
-            .disabled(viewModel.animatingCard != nil)
+            .disabled(boardBridge.animatingCard != nil)
             // Preference から取得したアンカー情報を用いて、カードが盤面中央へ吸い込まれる演出を重ねる
             .overlayPreferenceValue(CardPositionPreferenceKey.self) { anchors in
                 GeometryReader { proxy in
                     ZStack {
                         Color.clear
-                        if let viewModel.animatingCard,
-                           let sourceAnchor = anchors[viewModel.animatingCard.id],
-                           let viewModel.boardAnchor,
-                           viewModel.animationState != .idle || viewModel.hiddenCardIDs.contains(viewModel.animatingCard.id),
-                           let targetGridPoint = viewModel.animationTargetGridPoint ?? core.current {
+                        if let animatingCard = boardBridge.animatingCard,
+                           let sourceAnchor = anchors[animatingCard.id],
+                           let boardAnchor = boardBridge.boardAnchor,
+                           boardBridge.animationState != .idle || boardBridge.hiddenCardIDs.contains(animatingCard.id),
+                           let targetGridPoint = boardBridge.animationTargetGridPoint ?? core.current {
                             // --- 元の位置と駒位置の座標を算出 ---
                             let cardFrame = proxy[sourceAnchor]
-                            let boardFrame = proxy[viewModel.boardAnchor]
+                            let boardFrame = proxy[boardAnchor]
                             let startCenter = CGPoint(x: cardFrame.midX, y: cardFrame.midY)
                             // 盤面座標 → SwiftUI 座標系への変換を行い、目的位置を計算
                             let boardDestination = boardCoordinate(for: targetGridPoint, in: boardFrame)
 
-                            MoveCardIllustrationView(card: viewModel.animatingCard.move)
-                                .matchedGeometryEffect(id: viewModel.animatingCard.id, in: cardAnimationNamespace)
+                            MoveCardIllustrationView(card: animatingCard.move)
+                                .matchedGeometryEffect(id: animatingCard.id, in: cardAnimationNamespace)
                                 .frame(width: cardFrame.width, height: cardFrame.height)
-                                .position(viewModel.animationState == .movingToBoard ? boardDestination : startCenter)
-                                .scaleEffect(viewModel.animationState == .movingToBoard ? 0.55 : 1.0)
-                                .opacity(viewModel.animationState == .movingToBoard ? 0.0 : 1.0)
+                                .position(boardBridge.animationState == .movingToBoard ? boardDestination : startCenter)
+                                .scaleEffect(boardBridge.animationState == .movingToBoard ? 0.55 : 1.0)
+                                .opacity(boardBridge.animationState == .movingToBoard ? 0.0 : 1.0)
                                 .allowsHitTesting(false)
                         }
                     }
@@ -582,38 +585,12 @@ struct GameView: View {
             // 盤面のアンカーを収集し、カード移動アニメーションの着地点に利用
             .anchorPreference(key: BoardAnchorPreferenceKey.self, value: .bounds) { $0 }
             .onAppear {
-                // サイズと初期状態を反映
-                debugLog("SpriteBoard.onAppear: width=\(width), scene.size=\(scene.size)")
-                if width <= 0 {
-                    // 盤面幅がゼロの場合は描画が行われないため、即座にログへ残して追跡する
-                    debugLog("SpriteBoard.onAppear 警告: 盤面幅がゼロ以下です")
-                }
-                scene.size = CGSize(width: width, height: width)
-                scene.updateBoard(core.board)
-                scene.moveKnight(to: core.current)
-                // 盤面の同期が整ったタイミングでガイド表示も更新
-                viewModel.refreshGuideHighlights()
+                // BoardBridge 側で SpriteKit シーンと GameCore の同期をまとめて実施
+                boardBridge.configureSceneOnAppear(width: width)
             }
             // ジオメトリの変化に追従できるよう、SpriteKit シーンのサイズも都度更新する
             .onChange(of: width) { _, newWidth in
-                // iOS 17 以降の新しいシグネチャに合わせて旧値を受け取るが、現状は利用しない
-                debugLog("SpriteBoard.width 更新: newWidth=\(newWidth)")
-                if newWidth <= 0 {
-                    // レイアウト異常で幅がゼロになったケースを把握するための警告ログ
-                    debugLog("SpriteBoard.width 警告: newWidth がゼロ以下です")
-                }
-                scene.size = CGSize(width: newWidth, height: newWidth)
-            }
-            // GameCore 側の更新を受け取り、SpriteKit の表示へ同期する
-            .onReceive(core.$board) { newBoard in
-                scene.updateBoard(newBoard)
-                // 盤面の踏破状況が変わっても候補マスの情報を最新化
-                viewModel.refreshGuideHighlights()
-            }
-            .onReceive(core.$current) { newPoint in
-                scene.moveKnight(to: newPoint)
-                // 現在位置が変化したら移動候補も追従する
-                viewModel.refreshGuideHighlights(currentOverride: newPoint)
+                boardBridge.updateSceneSize(to: newWidth)
             }
     }
 
@@ -699,7 +676,7 @@ struct GameView: View {
                         ForEach(Array(core.nextCards.enumerated()), id: \.element.id) { index, dealtCard in
                             ZStack {
                                 MoveCardIllustrationView(card: dealtCard.move, mode: .next)
-                                    .opacity(viewModel.hiddenCardIDs.contains(dealtCard.id) ? 0.0 : 1.0)
+                                    .opacity(boardBridge.hiddenCardIDs.contains(dealtCard.id) ? 0.0 : 1.0)
                                     .matchedGeometryEffect(id: dealtCard.id, in: cardAnimationNamespace)
                                     .anchorPreference(key: CardPositionPreferenceKey.self, value: .bounds) { [dealtCard.id: $0] }
                                 NextCardOverlayView(order: index)
@@ -1011,7 +988,7 @@ struct GameView: View {
     private func handSlotView(for index: Int) -> some View {
         ZStack {
             if let stack = handCard(at: index), let card = stack.topCard {
-                let isHidden = viewModel.hiddenCardIDs.contains(card.id)
+                let isHidden = boardBridge.hiddenCardIDs.contains(card.id)
                 let isUsable = viewModel.isCardUsable(stack)
                 let isSelectingDiscard = core.isAwaitingManualDiscardSelection
 
@@ -1035,7 +1012,7 @@ struct GameView: View {
                 }
                 .onTapGesture {
                     // 既に別カードが移動中ならタップを無視して多重処理を防止
-                    guard viewModel.animatingCard == nil else { return }
+                    guard boardBridge.animatingCard == nil else { return }
 
                     guard core.handStacks.indices.contains(index) else { return }
                     let latestStack = core.handStacks[index]

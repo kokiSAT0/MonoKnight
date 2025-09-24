@@ -22,8 +22,8 @@ final class GameViewModel: ObservableObject {
 
     /// SwiftUI から観測するゲームロジック本体
     @Published private(set) var core: GameCore
-    /// SpriteKit のシーン。UIViewRepresentable から再利用するため定数として保持する
-    let scene: GameScene
+    /// SpriteKit と SwiftUI を仲介するための ViewModel
+    let boardBridge: GameBoardBridgeViewModel
 
     /// 結果画面表示フラグ
     @Published var showingResult = false
@@ -45,24 +45,6 @@ final class GameViewModel: ObservableObject {
     var displayedScore: Int {
         core.totalMoveCount * 10 + displayedElapsedSeconds
     }
-    /// 現在アニメーション中のカード
-    @Published var animatingCard: DealtCard?
-    /// アニメーション対象スタックの ID
-    @Published var animatingStackID: UUID?
-    /// アニメーション演出の都合で一時的に隠すカード ID 集合
-    @Published var hiddenCardIDs: Set<UUID> = []
-    /// スタックごとに追跡しているトップカード ID
-    @Published var topCardIDsByStack: [UUID: UUID] = [:]
-    /// カードアニメーションの状態
-    @Published var animationState: CardAnimationPhase = .idle
-    /// 盤面アンカー
-    @Published var boardAnchor: Anchor<CGRect>?
-    /// カード演出中に利用する座標
-    @Published var animationTargetGridPoint: GridPoint?
-    /// デッドロック中に退避しておく手札情報
-    @Published var pendingGuideHand: [HandStack]?
-    /// デッドロック中に退避する現在地
-    @Published var pendingGuideCurrent: GridPoint?
     /// レイアウト診断用のスナップショット
     @Published var lastLoggedLayoutSnapshot: BoardLayoutSnapshot?
     /// 経過秒数を 1 秒刻みで更新するためのタイマーパブリッシャ
@@ -98,15 +80,7 @@ final class GameViewModel: ObservableObject {
         // GameCore を生成し、ViewModel 経由で観測できるようにする
         let generatedCore = gameInterfaces.makeGameCore(mode)
         self.core = generatedCore
-
-        // SpriteKit シーンを組み立ててゲームロジックと接続する
-        let preparedScene = GameScene(
-            initialBoardSize: mode.boardSize,
-            initialVisitedPoints: mode.initialVisitedPoints
-        )
-        preparedScene.scaleMode = .resizeFill
-        preparedScene.gameCore = generatedCore
-        self.scene = preparedScene
+        self.boardBridge = GameBoardBridgeViewModel(core: generatedCore, mode: mode)
 
         // GameCore の変更を ViewModel 経由で SwiftUI へ伝える
         generatedCore.objectWillChange
@@ -138,19 +112,14 @@ final class GameViewModel: ObservableObject {
     /// - Parameter enabled: 新しいガイドモード設定
     func updateGuideMode(enabled: Bool) {
         guideModeEnabled = enabled
-        if enabled {
-            refreshGuideHighlights()
-        } else {
-            scene.updateGuideHighlights([])
-            pendingGuideHand = nil
-            pendingGuideCurrent = nil
-        }
+        boardBridge.updateGuideMode(enabled: enabled)
     }
 
     /// ハプティクスの設定を更新する
     /// - Parameter isEnabled: ユーザー設定から得たハプティクス有効フラグ
     func updateHapticsSetting(isEnabled: Bool) {
         hapticsEnabled = isEnabled
+        boardBridge.updateHapticsSetting(isEnabled: isEnabled)
     }
 
     /// 結果画面を閉じた際の後処理
@@ -161,16 +130,7 @@ final class GameViewModel: ObservableObject {
     /// SpriteKit シーンの配色を更新する
     /// - Parameter scheme: 現在のカラースキーム
     func applyScenePalette(for scheme: ColorScheme) {
-        let appTheme = AppTheme(colorScheme: scheme)
-        let palette = GameScenePalette(
-            boardBackground: appTheme.skBoardBackground,
-            boardGridLine: appTheme.skBoardGridLine,
-            boardTileVisited: appTheme.skBoardTileVisited,
-            boardTileUnvisited: appTheme.skBoardTileUnvisited,
-            boardKnight: appTheme.skBoardKnight,
-            boardGuideHighlight: appTheme.skBoardGuideHighlight
-        )
-        scene.applyTheme(palette)
+        boardBridge.applyScenePalette(for: scheme)
     }
 
     /// ハイライト表示を最新の状態へ更新する
@@ -179,45 +139,11 @@ final class GameViewModel: ObservableObject {
         currentOverride: GridPoint? = nil,
         progressOverride: GameProgress? = nil
     ) {
-        let handStacks = handOverride ?? core.handStacks
-        let progress = progressOverride ?? core.progress
-
-        guard let current = currentOverride ?? core.current else {
-            scene.updateGuideHighlights([])
-            pendingGuideHand = nil
-            pendingGuideCurrent = nil
-            debugLog("ガイド更新を中断: 現在地が未確定 状態=\(String(describing: progress)) スタック数=\(handStacks.count)")
-            return
-        }
-
-        var candidatePoints: Set<GridPoint> = []
-        for stack in handStacks {
-            guard let card = stack.topCard else { continue }
-            let destination = current.offset(dx: card.move.dx, dy: card.move.dy)
-            if core.board.contains(destination) {
-                candidatePoints.insert(destination)
-            }
-        }
-
-        guard guideModeEnabled else {
-            scene.updateGuideHighlights([])
-            pendingGuideHand = nil
-            pendingGuideCurrent = nil
-            debugLog("ガイドを消灯: ガイドモードが無効 候補=\(candidatePoints.count)")
-            return
-        }
-
-        guard progress == .playing else {
-            pendingGuideHand = handStacks
-            pendingGuideCurrent = current
-            debugLog("ガイド更新を保留: 状態=\(String(describing: progress)) 候補=\(candidatePoints.count)")
-            return
-        }
-
-        pendingGuideHand = nil
-        pendingGuideCurrent = nil
-        scene.updateGuideHighlights(candidatePoints)
-        debugLog("ガイド描画: 候補=\(candidatePoints.count)")
+        boardBridge.refreshGuideHighlights(
+            handOverride: handOverride,
+            currentOverride: currentOverride,
+            progressOverride: progressOverride
+        )
     }
 
     /// 表示用の経過時間を再計算する
@@ -227,93 +153,18 @@ final class GameViewModel: ObservableObject {
 
     /// 指定スタックのカードが現在位置から使用可能か判定する
     func isCardUsable(_ stack: HandStack) -> Bool {
-        guard let card = stack.topCard else { return false }
-        guard let current = core.current else { return false }
-        let target = current.offset(dx: card.move.dx, dy: card.move.dy)
-        return core.board.contains(target)
+        boardBridge.isCardUsable(stack)
     }
 
     /// 手札スタックのトップカードを盤面へ送るアニメーションを準備する
     @discardableResult
     func animateCardPlay(for stack: HandStack, at index: Int) -> Bool {
-        guard animatingCard == nil else { return false }
-        guard let current = core.current else { return false }
-        guard let topCard = stack.topCard, isCardUsable(stack) else { return false }
-
-        animationTargetGridPoint = current
-        hiddenCardIDs.insert(topCard.id)
-        animatingCard = topCard
-        animatingStackID = stack.id
-        animationState = .idle
-
-        debugLog("スタック演出開始: stackID=\(stack.id) card=\(topCard.move.displayName) 残枚数=\(stack.count)")
-
-        if hapticsEnabled {
-            UINotificationFeedbackGenerator().notificationOccurred(.success)
-        }
-
-        let travelDuration: TimeInterval = 0.24
-        withAnimation(.easeInOut(duration: travelDuration)) {
-            animationState = .movingToBoard
-        }
-
-        let cardID = topCard.id
-        DispatchQueue.main.asyncAfter(deadline: .now() + travelDuration) { [weak self] in
-            guard let self else { return }
-            withAnimation(.easeInOut(duration: 0.22)) {
-                self.core.playCard(at: index)
-            }
-            self.hiddenCardIDs.remove(cardID)
-            if self.animatingCard?.id == cardID {
-                self.animatingCard = nil
-            }
-            self.animatingStackID = nil
-            self.animationState = .idle
-            self.animationTargetGridPoint = nil
-            debugLog("スタック演出完了: index=\(index) cardID=\(cardID)")
-        }
-
-        return true
+        boardBridge.animateCardPlay(for: stack, at: index)
     }
 
     /// 盤面タップに応じたプレイ要求を処理する
     func handleBoardTapPlayRequest(_ request: BoardTapPlayRequest) {
-        defer { core.clearBoardTapPlayRequest(request.id) }
-
-        guard animatingCard == nil else {
-            debugLog("BoardTapPlayRequest を無視: 別演出が進行中 requestID=\(request.id)")
-            return
-        }
-
-        let resolvedIndex: Int
-        if core.handStacks.indices.contains(request.stackIndex),
-           core.handStacks[request.stackIndex].id == request.stackID {
-            resolvedIndex = request.stackIndex
-        } else if let fallbackIndex = core.handStacks.firstIndex(where: { $0.id == request.stackID }) {
-            resolvedIndex = fallbackIndex
-        } else {
-            debugLog("BoardTapPlayRequest を無視: 対象 stack が見つからない stackID=\(request.stackID)")
-            return
-        }
-
-        let stack = core.handStacks[resolvedIndex]
-        guard let currentTop = stack.topCard else {
-            debugLog("BoardTapPlayRequest を無視: トップカードなし stackID=\(stack.id)")
-            return
-        }
-
-        let sameID = currentTop.id == request.topCard.id
-        let sameMove = currentTop.move == request.topCard.move
-        debugLog(
-            "BoardTapPlayRequest 受信: requestID=\(request.id) 要求index=\(request.stackIndex) 解決index=\(resolvedIndex) sameID=\(sameID) sameMove=\(sameMove)"
-        )
-
-        guard sameID || sameMove else {
-            debugLog("BoardTapPlayRequest を無視: トップカードが変化")
-            return
-        }
-
-        _ = animateCardPlay(for: stack, at: resolvedIndex)
+        boardBridge.handleBoardTapPlayRequest(request)
     }
 
     /// ゲームの進行状況に応じた操作をまとめて処理する
@@ -352,11 +203,13 @@ final class GameViewModel: ObservableObject {
         hapticsEnabled: Bool,
         handOrderingStrategy: HandOrderingStrategy
     ) {
-        scene.gameCore = core
+        boardBridge.prepareForAppear(
+            colorScheme: colorScheme,
+            guideModeEnabled: guideModeEnabled,
+            hapticsEnabled: hapticsEnabled
+        )
         updateHapticsSetting(isEnabled: hapticsEnabled)
         self.guideModeEnabled = guideModeEnabled
-        applyScenePalette(for: colorScheme)
-        refreshGuideHighlights()
         updateDisplayedElapsedTime()
         core.updateHandOrderingStrategy(handOrderingStrategy)
     }
@@ -387,7 +240,7 @@ final class GameViewModel: ObservableObject {
 
     /// 盤面レイアウト関連のアンカー情報を更新する
     func updateBoardAnchor(_ anchor: Anchor<CGRect>?) {
-        boardAnchor = anchor
+        boardBridge.updateBoardAnchor(anchor)
     }
 
     /// 結果画面からリトライを選択した際の共通処理
@@ -399,22 +252,6 @@ final class GameViewModel: ObservableObject {
 
     /// GameCore のストリームを監視し、UI 更新に必要な副作用を引き受ける
     private func bindGameCore() {
-        core.handManager.$handStacks
-            .receive(on: RunLoop.main)
-            .sink { [weak self] newHandStacks in
-                guard let self else { return }
-                self.handleHandStacksUpdate(newHandStacks)
-            }
-            .store(in: &cancellables)
-
-        core.$boardTapPlayRequest
-            .receive(on: RunLoop.main)
-            .sink { [weak self] request in
-                guard let self, let request else { return }
-                self.handleBoardTapPlayRequest(request)
-            }
-            .store(in: &cancellables)
-
         core.$penaltyEventID
             .removeDuplicates()
             .receive(on: RunLoop.main)
@@ -441,70 +278,20 @@ final class GameViewModel: ObservableObject {
             .store(in: &cancellables)
     }
 
-    /// 手札更新時のアニメーション管理とハイライト更新を司る
-    /// - Parameter newHandStacks: 最新の手札スタック一覧
-    private func handleHandStacksUpdate(_ newHandStacks: [HandStack]) {
-        debugLog("手札更新を受信: スタック数=\(newHandStacks.count), 退避ハンドあり=\(pendingGuideHand != nil)")
-
-        var nextTopCardIDs: [UUID: UUID] = [:]
-        for stack in newHandStacks {
-            guard let topCard = stack.topCard else { continue }
-            let previousTopID = topCardIDsByStack[stack.id]
-            if let previousTopID, previousTopID != topCard.id {
-                hiddenCardIDs.remove(previousTopID)
-                debugLog("スタック先頭カードを更新: stackID=\(stack.id), 旧トップID=\(previousTopID), 新トップID=\(topCard.id), 残枚数=\(stack.count)")
-            }
-            nextTopCardIDs[stack.id] = topCard.id
-        }
-
-        let removedStackIDs = Set(topCardIDsByStack.keys).subtracting(nextTopCardIDs.keys)
-        for stackID in removedStackIDs {
-            if let previousTopID = topCardIDsByStack[stackID] {
-                hiddenCardIDs.remove(previousTopID)
-                debugLog("スタック消滅に伴いトップカード ID を解放: stackID=\(stackID), cardID=\(previousTopID)")
-            }
-        }
-        topCardIDsByStack = nextTopCardIDs
-
-        let topCardIDSet = Set(nextTopCardIDs.values)
-        let nextPreviewIDs = Set(core.nextCards.map { $0.id })
-        let validIDs = topCardIDSet.union(nextPreviewIDs)
-        hiddenCardIDs.formIntersection(validIDs)
-
-        if let animatingCard, !validIDs.contains(animatingCard.id) {
-            self.animatingCard = nil
-            animatingStackID = nil
-            animationState = .idle
-            animationTargetGridPoint = nil
-        }
-
-        refreshGuideHighlights(handOverride: newHandStacks)
-    }
-
     /// 進行状態の変化に応じた副作用をまとめる
     /// - Parameter progress: GameCore が提供する現在の進行状態
     private func handleProgressChange(_ progress: GameProgress) {
-        debugLog("進行状態の更新を受信: 状態=\(String(describing: progress)), 退避ハンドあり=\(pendingGuideHand != nil)")
+        debugLog("進行状態の更新を受信: 状態=\(String(describing: progress))")
 
         updateDisplayedElapsedTime()
+        boardBridge.handleProgressChange(progress)
 
         switch progress {
-        case .playing:
-            if let bufferedHand = pendingGuideHand {
-                refreshGuideHighlights(
-                    handOverride: bufferedHand,
-                    currentOverride: pendingGuideCurrent,
-                    progressOverride: progress
-                )
-            } else {
-                refreshGuideHighlights(progressOverride: progress)
-            }
         case .cleared:
-            scene.updateGuideHighlights([])
             gameCenterService.submitScore(core.score, for: mode.identifier)
             showingResult = true
         default:
-            scene.updateGuideHighlights([])
+            break
         }
     }
 }
