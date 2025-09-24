@@ -1887,12 +1887,6 @@ fileprivate struct NextCardOverlayView: View {
 }
 
 // MARK: - カード演出用の状態と PreferenceKey
-/// カードが移動中かどうかを示すアニメーションフェーズ
-private enum CardAnimationPhase: Equatable {
-    case idle
-    case movingToBoard
-}
-
 /// 手札・NEXT に配置されたカードのアンカーを UUID 単位で収集する PreferenceKey
 private struct CardPositionPreferenceKey: PreferenceKey {
     static var defaultValue: [UUID: Anchor<CGRect>] = [:]
