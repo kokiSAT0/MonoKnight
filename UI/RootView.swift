@@ -203,6 +203,7 @@ private extension RootView {
         RootContentView(
             theme: theme,
             layoutContext: layoutContext,
+            gameInterfaces: gameInterfaces,
             gameCenterService: gameCenterService,
             adsService: adsService,
             isAuthenticated: stateStore.binding(for: \.isAuthenticated),
@@ -259,6 +260,9 @@ private extension RootView {
         let theme: AppTheme
         /// GeometryReader から抽出したサイズや safe area の情報
         let layoutContext: RootLayoutContext
+        /// GameView へ渡すゲームモジュールのインターフェース束
+        /// - NOTE: ここで受け取っておくことで、親ビューのプロパティへアクセスせずに GameView を安全に初期化できる
+        let gameInterfaces: GameModuleInterfaces
         /// Game Center 関連のサービスインスタンス
         let gameCenterService: GameCenterServiceProtocol
         /// 広告制御用サービス
