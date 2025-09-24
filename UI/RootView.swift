@@ -175,7 +175,9 @@ private extension RootView {
     /// RootView 本体の `body` から切り離したメソッドで、サブビュー生成ロジックを共通化する
     /// - Parameter layoutContext: GeometryReader から構築したレイアウト情報
     /// - Returns: 依存サービスや状態をバインディングした `RootContentView`
-    func makeRootContentView(with layoutContext: RootLayoutContext) -> RootContentView {
+    /// - Note: 戻り値である `RootContentView` が private 構造体であるため、
+    ///         アクセスレベルを private へ明示して Swift 6 のアクセス制御要件を満たす
+    private func makeRootContentView(with layoutContext: RootLayoutContext) -> RootContentView {
         RootContentView(
             theme: theme,
             layoutContext: layoutContext,
