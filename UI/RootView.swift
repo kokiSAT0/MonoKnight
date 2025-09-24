@@ -976,6 +976,17 @@ fileprivate struct DebugLogEntryRowView: View {
     /// カラーテーマ
     private var theme = AppTheme()
 
+    /// `ForEach` から安全に生成するための明示的なイニシャライザ
+    /// - Parameter entry: 表示したいログ 1 件分のデータ
+    /// - Note: 自動合成イニシャライザではアクセスレベルが `private` になってしまい、
+    ///         同一ファイル内からの生成でもコンパイルエラーになるため手動で公開範囲を指定する
+    fileprivate init(entry: DebugLogEntry) {
+        // ログ本体の参照を保持する
+        self.entry = entry
+        // テーマは常に共通の配色を利用するためその場で生成する
+        self.theme = AppTheme()
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
