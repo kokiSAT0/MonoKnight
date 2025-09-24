@@ -419,6 +419,93 @@ private extension RootView {
         }
     }
 
+    /// ゲーム開始前のローディング表示を担うオーバーレイビュー
+    /// - NOTE: ZStack の最上位でフェード表示するため、背景のディミングやカード風ボックスをここで完結させる
+    fileprivate struct GamePreparationOverlayView: View {
+        /// テーマを利用してライト/ダーク両対応の配色を適用する
+        private var theme = AppTheme()
+
+        var body: some View {
+            ZStack {
+                // 盤面全体を薄暗くし、ローディング中であることを視覚的に伝える半透明レイヤー
+                Color.black
+                    .opacity(LayoutMetrics.dimmedBackgroundOpacity)
+                    .ignoresSafeArea()
+
+                VStack(spacing: LayoutMetrics.verticalSpacing) {
+                    // システム標準のインジケータを拡大し、視認性を確保する
+                    ProgressView()
+                        .progressViewStyle(.circular)
+                        .scaleEffect(LayoutMetrics.progressScale)
+                        .tint(theme.accentPrimary)
+                        .accessibilityHidden(true)
+
+                    VStack(spacing: LayoutMetrics.labelSpacing) {
+                        // メインメッセージは太めのラウンド体で表示し、ゲーム準備中であることを強調する
+                        Text("ゲームを準備中…")
+                            .font(.system(size: 20, weight: .semibold, design: .rounded))
+                            .foregroundColor(theme.textPrimary)
+
+                        // 補足メッセージを添えて待機中である意図をユーザーへ明確にする
+                        Text("カードと盤面を初期化しています")
+                            .font(.system(size: 14, weight: .regular, design: .rounded))
+                            .foregroundColor(theme.textSecondary)
+                    }
+                }
+                .padding(LayoutMetrics.contentPadding)
+                .frame(maxWidth: LayoutMetrics.maxContentWidth)
+                .background(
+                    theme.spawnOverlayBackground
+                        .blur(radius: LayoutMetrics.backgroundBlur)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: LayoutMetrics.cornerRadius)
+                        .stroke(theme.spawnOverlayBorder, lineWidth: LayoutMetrics.borderWidth)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: LayoutMetrics.cornerRadius))
+                .shadow(
+                    color: theme.spawnOverlayShadow,
+                    radius: LayoutMetrics.shadowRadius,
+                    x: 0,
+                    y: LayoutMetrics.shadowOffsetY
+                )
+                // VoiceOver で単一要素として扱い、「しばらくお待ちください」と案内する
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("ゲームを準備中")
+                .accessibilityHint("しばらくお待ちください")
+                .accessibilityIdentifier("game_preparation_overlay")
+            }
+            // 透明度アニメーションと組み合わせて自然なフェードを実現する
+            .transition(.opacity)
+        }
+
+        /// レイアウト定数を 1 箇所へ集約し、値の調整を容易にする
+        private enum LayoutMetrics {
+            /// 背景ディミングの透過率
+            static let dimmedBackgroundOpacity: Double = 0.45
+            /// コンテンツ全体の最大幅
+            static let maxContentWidth: CGFloat = 280
+            /// コンテンツ周囲の余白
+            static let contentPadding: CGFloat = 28
+            /// プログレスインジケータとテキストの縦方向間隔
+            static let verticalSpacing: CGFloat = 20
+            /// テキスト同士の間隔
+            static let labelSpacing: CGFloat = 8
+            /// カード風ボックスの角丸半径
+            static let cornerRadius: CGFloat = 22
+            /// 枠線の太さ
+            static let borderWidth: CGFloat = 1
+            /// ドロップシャドウの半径
+            static let shadowRadius: CGFloat = 18
+            /// ドロップシャドウの縦方向オフセット
+            static let shadowOffsetY: CGFloat = 8
+            /// 背景に適用するブラー量
+            static let backgroundBlur: CGFloat = 0
+            /// プログレスインジケータの拡大率
+            static let progressScale: CGFloat = 1.2
+        }
+    }
+
     /// タイトル画面の開始ボタン押下を受けてゲーム準備を開始する
     /// - Parameter mode: ユーザーが選択したゲームモード
     func startGamePreparation(for mode: GameMode) {
