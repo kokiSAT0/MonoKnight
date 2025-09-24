@@ -38,9 +38,10 @@ extension InterstitialAd: InterstitialAdPresentable {
     /// GoogleMobileAds 側の `present(from:)` をアプリ内のインターフェースに合わせてラップする
     /// - Parameter viewController: 表示元となる最前面の ViewController
     func present(from viewController: UIViewController) {
-        // SDK 純正の API は `present(fromRootViewController:)` で提供されているため
-        // 本メソッドからは直接そちらを呼び出し、同名メソッド間での再帰呼び出しを回避する
-        present(fromRootViewController: viewController)
+        // SDK 側のシグネチャ変更により `present(from:)` が正式名称となったため
+        // ラッパーからも最新の引数ラベルを用いて呼び出し、将来のビルドエラーを防ぐ
+        // ⚠️ 過去に `present(fromRootViewController:)` へ戻してしまう事故が複数回発生しているため、絶対に書き換えないこと
+        present(from: viewController)
     }
 }
 
@@ -282,6 +283,8 @@ final class InterstitialAdController: NSObject, InterstitialAdControlling {
     private func presentInterstitial(_ interstitial: InterstitialAdPresentable, from root: UIViewController) {
         isWaitingForPresentation = false
         self.interstitial = nil
+        // ⚠️ ここでも必ず `present(from:)` を使用すること
+        //    旧 API (`present(fromRootViewController:)`) に戻すとコンパイルエラーとなり、QA 工数が浪費されるため厳禁
         interstitial.present(from: root)
         delegate?.interstitialAdControllerShouldPlayWarningHaptic(self)
         debugLog("インタースティシャル広告の表示処理をトリガーしました")
