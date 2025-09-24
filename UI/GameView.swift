@@ -187,12 +187,20 @@ struct GameView: View {
     private func mainContent(for geometry: GeometryProxy) -> some View {
         // MARK: - レイアウト関連の計算結果を専用コンテキストへ集約
         // 単一メソッドで値を求めておくことで ViewBuilder の複雑さを抑え、コンパイラの型推論負荷を軽減する。
-        let layoutContext = makeLayoutContext(from: geometry)
+        let layoutCalculator = GameViewLayoutCalculator(
+            geometry: geometry,
+            horizontalSizeClass: horizontalSizeClass,
+            topOverlayHeight: topOverlayHeight,
+            baseTopSafeAreaInset: baseTopSafeAreaInset,
+            statisticsHeight: viewModel.statisticsHeight,
+            handSectionHeight: viewModel.handSectionHeight
+        )
+        let layoutContext = layoutCalculator.makeContext()
         // 監視用の不可視オーバーレイも先に生成し、View ビルダー内でのネストを浅く保つ
         let diagnosticsOverlay = layoutDiagnosticOverlay(using: layoutContext)
 
         ZStack(alignment: .top) {
-            VStack(spacing: 16) {
+            VStack(spacing: GameViewLayoutMetrics.spacingBetweenBoardAndHand) {
                 boardSection(width: layoutContext.boardWidth)
                 handSection(
                     bottomInset: layoutContext.bottomInset,
@@ -317,107 +325,11 @@ struct GameView: View {
         )
     }
 
-
-    /// GeometryReader から得た値を整理し、盤面レイアウトに関わる各種寸法をひとまとめにしたコンテキストを返す
-    /// - Parameter geometry: 画面全体のサイズやセーフエリアを提供するジオメトリープロキシ
-    /// - Returns: 盤面サイズ計算や監視オーバーレイで共有するレイアウト情報一式
-    private func makeLayoutContext(from geometry: GeometryProxy) -> LayoutComputationContext {
-        // MARK: - セーフエリアに対するフォールバック計算
-        let rawTopInset = geometry.safeAreaInsets.top
-        let rawBottomInset = geometry.safeAreaInsets.bottom
-        // RootView から受け取ったバー高さと、GeometryReader の差分から推定した値の双方を利用して補正量を決める
-        let overlayFromEnvironment = max(topOverlayHeight, 0)
-        let baseSafeAreaTop = max(baseTopSafeAreaInset, 0)
-        let overlayFromDifference = max(rawTopInset - baseSafeAreaTop, 0)
-        // いずれかで取得できた最大値を採用しつつ、rawTopInset を超えないようにクリップする
-        let overlayCompensation = min(max(overlayFromEnvironment, overlayFromDifference), rawTopInset)
-        let adjustedTopInset = max(rawTopInset - overlayCompensation, 0)
-        // トップバーのぶんだけ画面内容が押し下げられている場合、純粋な安全領域だけを取り出しておく
-        // これにより RootView 側で safeAreaInset を挿入した際でも、盤面の上部余白を必要最小限に抑えられる
-        let overlayAdjustedTopInset = max(adjustedTopInset - overlayCompensation, 0)
-        let usedTopFallback = adjustedTopInset <= 0 && horizontalSizeClass == .regular
-        let usedBottomFallback = rawBottomInset <= 0 && horizontalSizeClass == .regular
-        let topInset = adjustedTopInset > 0
-            ? adjustedTopInset
-            : (usedTopFallback ? LayoutMetrics.regularWidthTopSafeAreaFallback : 0)
-        let bottomInset = rawBottomInset > 0
-            ? rawBottomInset
-            : (usedBottomFallback ? LayoutMetrics.regularWidthBottomSafeAreaFallback : 0)
-
-        // MARK: - 盤面上部コントロールバーの余白を決定
-        // overlayAdjustedTopInset は「システム由来のセーフエリア（ノッチ・ステータスバー）」のみを表す値なので、
-        // トップバーが存在しても余計な空白が生まれないよう、この値に基づいて余白を算出する。
-        let controlRowTopPadding = max(
-            LayoutMetrics.controlRowBaseTopPadding,
-            overlayAdjustedTopInset + LayoutMetrics.controlRowSafeAreaAdditionalPadding
-        )
-
-        // MARK: - 手札セクション下部の余白を決定
-        let regularAdditionalPadding = horizontalSizeClass == .regular
-            ? LayoutMetrics.handSectionRegularAdditionalBottomPadding
-            : 0
-        let handSectionBottomPadding = max(
-            LayoutMetrics.handSectionBasePadding,
-            bottomInset
-                + LayoutMetrics.handSectionSafeAreaAdditionalPadding
-                + regularAdditionalPadding
-        )
-
-        // MARK: - 計測が完了していない高さのフォールバック処理
-        let isStatisticsHeightMeasured = viewModel.statisticsHeight > 0
-        let resolvedStatisticsHeight = isStatisticsHeightMeasured
-            ? viewModel.statisticsHeight
-            : LayoutMetrics.statisticsSectionFallbackHeight
-        let isHandSectionHeightMeasured = viewModel.handSectionHeight > 0
-        let resolvedHandSectionHeight = isHandSectionHeightMeasured
-            ? viewModel.handSectionHeight
-            : LayoutMetrics.handSectionFallbackHeight
-
-        // MARK: - 盤面に割り当てられる高さと正方形サイズの算出
-        let availableHeightForBoard = geometry.size.height
-            - resolvedStatisticsHeight
-            - resolvedHandSectionHeight
-            - LayoutMetrics.spacingBetweenBoardAndHand
-            - LayoutMetrics.spacingBetweenStatisticsAndBoard
-            - handSectionBottomPadding
-        let horizontalBoardBase = max(geometry.size.width, LayoutMetrics.minimumBoardFallbackSize)
-        let verticalBoardBase = availableHeightForBoard > 0 ? availableHeightForBoard : horizontalBoardBase
-        let boardBaseSize = min(horizontalBoardBase, verticalBoardBase)
-        let boardWidth = boardBaseSize * LayoutMetrics.boardScale
-
-        return LayoutComputationContext(
-            geometrySize: geometry.size,
-            rawTopInset: rawTopInset,
-            rawBottomInset: rawBottomInset,
-            baseTopSafeAreaInset: baseSafeAreaTop,
-            usedTopFallback: usedTopFallback,
-            usedBottomFallback: usedBottomFallback,
-            topOverlayHeight: overlayCompensation,
-            overlayAdjustedTopInset: overlayAdjustedTopInset,
-            topInset: topInset,
-            bottomInset: bottomInset,
-            controlRowTopPadding: controlRowTopPadding,
-            regularAdditionalBottomPadding: regularAdditionalPadding,
-            handSectionBottomPadding: handSectionBottomPadding,
-            statisticsHeight: viewModel.statisticsHeight,
-            resolvedStatisticsHeight: resolvedStatisticsHeight,
-            handSectionHeight: viewModel.handSectionHeight,
-            resolvedHandSectionHeight: resolvedHandSectionHeight,
-            availableHeightForBoard: availableHeightForBoard,
-            horizontalBoardBase: horizontalBoardBase,
-            verticalBoardBase: verticalBoardBase,
-            boardBaseSize: boardBaseSize,
-            boardWidth: boardWidth,
-            usedStatisticsFallback: !isStatisticsHeightMeasured,
-            usedHandSectionFallback: !isHandSectionHeightMeasured
-        )
-    }
-
     /// 盤面の統計と SpriteKit ボードをまとめて描画する
     /// - Parameter width: GeometryReader で算出した盤面の幅（正方形表示の基準）
     /// - Returns: 統計バッジと SpriteView を縦に並べた領域
     private func boardSection(width: CGFloat) -> some View {
-        VStack(alignment: .leading, spacing: LayoutMetrics.spacingBetweenStatisticsAndBoard) {
+        VStack(alignment: .leading, spacing: GameViewLayoutMetrics.spacingBetweenStatisticsAndBoard) {
             boardControlRow()
             ZStack {
                 spriteBoard(width: width)
@@ -636,10 +548,10 @@ struct GameView: View {
         // はセーフエリア（bottomInset）と iPad 向けのマージンを反映済みだが、念のためここでも同じ計算を行い、
         // レイアウトの解釈違いがあっても最大値で丸めておく。
         let expectedPadding = max(
-            LayoutMetrics.handSectionBasePadding,
+            GameViewLayoutMetrics.handSectionBasePadding,
             bottomInset
-                + LayoutMetrics.handSectionSafeAreaAdditionalPadding
-                + (horizontalSizeClass == .regular ? LayoutMetrics.handSectionRegularAdditionalBottomPadding : 0)
+                + GameViewLayoutMetrics.handSectionSafeAreaAdditionalPadding
+                + (horizontalSizeClass == .regular ? GameViewLayoutMetrics.handSectionRegularAdditionalBottomPadding : 0)
         )
         // GeometryReader から渡された値と再計算した値のうち大きい方を採用し、端末や OS バージョン差による
         // 丸め誤差で余白が不足しないように保険をかける。
@@ -652,7 +564,7 @@ struct GameView: View {
             }
             // 手札スロットを横並びで配置し、最大種類数を常に確保する
             // カードを大きくした際も全体幅が画面内に収まるよう、spacing を定数で管理する
-            HStack(spacing: LayoutMetrics.handCardSpacing) {
+            HStack(spacing: GameViewLayoutMetrics.handCardSpacing) {
                 // 固定長スロットで回し、欠番があっても UI が崩れないようにする
                 ForEach(0..<handSlotCount, id: \.self) { index in
                     handSlotView(for: index)
@@ -864,11 +776,11 @@ struct GameView: View {
         // バナーが画面最上部へ貼り付いてしまうため、フォールバックを交えつつ余白を広げる。
         // contentTopInset にはステータスバー由来の安全領域のみを渡し、RootView のトップバーぶんはすでに差し引いた状態にする。
         // これによりトップバー表示時でもバナーが極端に下へずり落ちることを防ぐ。
-        // contentTopInset が 0 でも LayoutMetrics.penaltyBannerBaseTopPadding だけは必ず確保し、
+        // contentTopInset が 0 でも GameViewLayoutMetrics.penaltyBannerBaseTopPadding だけは必ず確保し、
         // 非ゼロのインセットが得られた場合は追加マージンを加えて矢印付きダイアログとの干渉を避ける。
         let resolvedTopPadding = max(
-            LayoutMetrics.penaltyBannerBaseTopPadding,
-            contentTopInset + LayoutMetrics.penaltyBannerSafeAreaAdditionalPadding
+            GameViewLayoutMetrics.penaltyBannerBaseTopPadding,
+            contentTopInset + GameViewLayoutMetrics.penaltyBannerSafeAreaAdditionalPadding
         )
 
         return VStack {
@@ -1041,7 +953,7 @@ struct GameView: View {
                     .fill(theme.placeholderBackground)
             )
             // MoveCardIllustrationView と同寸法を共有し、カードが補充されてもレイアウトが揺れないようにする
-            .frame(width: LayoutMetrics.handCardWidth, height: LayoutMetrics.handCardHeight)
+            .frame(width: GameViewLayoutMetrics.handCardWidth, height: GameViewLayoutMetrics.handCardHeight)
             .overlay(
                 Image(systemName: "questionmark")
                     .font(.caption)
@@ -1140,7 +1052,7 @@ struct GameView: View {
     /// レイアウトに関する最新の実測値をログに残すための不可視ビューを生成
     /// - Parameter context: GeometryReader から抽出したレイアウト情報コンテキスト
     /// - Returns: 画面上には表示されない監視用ビュー
-    private func layoutDiagnosticOverlay(using context: LayoutComputationContext) -> some View {
+    private func layoutDiagnosticOverlay(using context: GameViewLayoutContext) -> some View {
         // 現在のレイアウト関連値をひとまとめにして Equatable なスナップショットとして扱い、差分が生じたときだけログを出力する
         let snapshot = BoardLayoutSnapshot(context: context)
 
@@ -1174,7 +1086,7 @@ struct GameView: View {
           sections(statistics=\(snapshot.statisticsHeight), resolvedStatistics=\(snapshot.resolvedStatisticsHeight), hand=\(snapshot.handSectionHeight), resolvedHand=\(snapshot.resolvedHandSectionHeight))
           paddings(controlTop=\(snapshot.controlRowTopPadding), handBottom=\(snapshot.handSectionBottomPadding), regularExtra=\(snapshot.regularAdditionalBottomPadding))
           fallbacks(statistics=\(snapshot.usedStatisticsFallback), hand=\(snapshot.usedHandSectionFallback), topSafeArea=\(snapshot.usedTopSafeAreaFallback), bottomSafeArea=\(snapshot.usedBottomSafeAreaFallback))
-          boardBases(horizontal=\(snapshot.horizontalBoardBase), vertical=\(snapshot.verticalBoardBase), resolved=\(snapshot.boardBaseSize)) availableHeight=\(snapshot.availableHeight) boardScale=\(LayoutMetrics.boardScale) boardWidth=\(snapshot.boardWidth)
+          boardBases(horizontal=\(snapshot.horizontalBoardBase), vertical=\(snapshot.verticalBoardBase), resolved=\(snapshot.boardBaseSize)) availableHeight=\(snapshot.availableHeight) boardScale=\(GameViewLayoutMetrics.boardScale) boardWidth=\(snapshot.boardWidth)
         """
 
         debugLog(message)
@@ -1187,40 +1099,12 @@ struct GameView: View {
         }
     }
 
-    /// GeometryReader から求めたレイアウト値を保持する内部専用の構造体
-    fileprivate struct LayoutComputationContext {
-        let geometrySize: CGSize
-        let rawTopInset: CGFloat
-        let rawBottomInset: CGFloat
-        let baseTopSafeAreaInset: CGFloat
-        let usedTopFallback: Bool
-        let usedBottomFallback: Bool
-        let topOverlayHeight: CGFloat
-        let overlayAdjustedTopInset: CGFloat
-        let topInset: CGFloat
-        let bottomInset: CGFloat
-        let controlRowTopPadding: CGFloat
-        let regularAdditionalBottomPadding: CGFloat
-        let handSectionBottomPadding: CGFloat
-        let statisticsHeight: CGFloat
-        let resolvedStatisticsHeight: CGFloat
-        let handSectionHeight: CGFloat
-        let resolvedHandSectionHeight: CGFloat
-        let availableHeightForBoard: CGFloat
-        let horizontalBoardBase: CGFloat
-        let verticalBoardBase: CGFloat
-        let boardBaseSize: CGFloat
-        let boardWidth: CGFloat
-        let usedStatisticsFallback: Bool
-        let usedHandSectionFallback: Bool
-    }
-
 }
 
-/// LayoutComputationContext から BoardLayoutSnapshot を組み立てるための補助イニシャライザ
+/// GameViewLayoutContext から BoardLayoutSnapshot を組み立てるための補助イニシャライザ
 /// - Note: GameView 内部のみで利用するためアクセスレベルは private extension とする
 private extension BoardLayoutSnapshot {
-    init(context: GameView.LayoutComputationContext) {
+    init(context: GameViewLayoutContext) {
         // GeometryReader から取得した実測値を丸ごとコピーし、ViewModel からも参照できる形へ変換
         self.init(
             geometrySize: context.geometrySize,
@@ -1739,46 +1623,6 @@ private struct BoardAnchorPreferenceKey: PreferenceKey {
 }
 
 // MARK: - レイアウト定数と PreferenceKey
-/// GeometryReader 内での盤面計算に利用する固定値をまとめて管理する
-private enum LayoutMetrics {
-    /// 盤面セクションと手札セクションの間隔（VStack の spacing と一致させる）
-    static let spacingBetweenBoardAndHand: CGFloat = 16
-    /// 統計バッジと盤面の間隔（boardSection 内の spacing と一致させる）
-    static let spacingBetweenStatisticsAndBoard: CGFloat = 12
-    /// 盤面の正方形サイズへ乗算する縮小率（カードへ高さを譲るため 92% に設定）
-    static let boardScale: CGFloat = 0.92
-    /// 統計や手札によって縦方向が埋まった際でも盤面が消失しないよう確保する下限サイズ
-    static let minimumBoardFallbackSize: CGFloat = 220
-    /// 統計バッジ領域の最低想定高さ。初回レイアウトで 0 が返っても盤面がはみ出さないよう保険を掛ける
-    static let statisticsSectionFallbackHeight: CGFloat = 72
-    /// 手札と先読みカードを含めた最低想定高さ。カード 2 段構成とテキストを見越したゆとりを確保する
-    static let handSectionFallbackHeight: CGFloat = 220
-    /// 手札カード同士の横方向スペース（カード拡大後も全体幅が収まるよう微調整）
-    static let handCardSpacing: CGFloat = 10
-    /// 手札カードの幅。MoveCardIllustrationView 側の定義と同期させてサイズ差異を防ぐ
-    static let handCardWidth: CGFloat = MoveCardIllustrationView.defaultWidth
-    /// 手札カードの高さ。幅との比率を保ちながら僅かに拡張する
-    static let handCardHeight: CGFloat = MoveCardIllustrationView.defaultHeight
-    /// 手札セクションの基本的な下パディング。iPhone での視認性を最優先する基準値
-    static let handSectionBasePadding: CGFloat = 16
-    /// セーフエリア分の領域に加えて確保したいバッファ。ホームインジケータ直上に余白を置く
-    static let handSectionSafeAreaAdditionalPadding: CGFloat = 8
-    /// レギュラー幅（主に iPad）で追加する下方向マージン。指の位置とタブバーが干渉しないよう余裕を持たせる
-    static let handSectionRegularAdditionalBottomPadding: CGFloat = 24
-    /// 盤面上部のコントロールバーをステータスバーと離すための基本マージン
-    static let controlRowBaseTopPadding: CGFloat = 16
-    /// ステータスバーの高さに応じて追加で確保したい上方向の余白
-    static let controlRowSafeAreaAdditionalPadding: CGFloat = 8
-    /// ペナルティバナーが画面端に貼り付かないようにするための基準上パディング
-    static let penaltyBannerBaseTopPadding: CGFloat = 12
-    /// safeAreaInsets.top に加算しておきたいペナルティバナーの追加上マージン
-    static let penaltyBannerSafeAreaAdditionalPadding: CGFloat = 6
-    /// レギュラー幅端末で safeAreaInsets.top が 0 の場合に用いるフォールバック値
-    static let regularWidthTopSafeAreaFallback: CGFloat = 24
-    /// レギュラー幅端末で safeAreaInsets.bottom が 0 の場合に用いるフォールバック値
-    static let regularWidthBottomSafeAreaFallback: CGFloat = 20
-}
-
 /// 統計バッジ領域の高さを親ビューへ伝搬するための PreferenceKey
 private struct StatisticsHeightPreferenceKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
