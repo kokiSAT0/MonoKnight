@@ -142,7 +142,13 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol {
 
     func requestTrackingAuthorization() async {
         guard ATTrackingManager.trackingAuthorizationStatus == .notDetermined else { return }
-        _ = await ATTrackingManager.requestTrackingAuthorization()
+        // ATT の許諾ダイアログはクロージャベース API のため、Continuation で async/await へ橋渡しする
+        _ = await withCheckedContinuation { (continuation: CheckedContinuation<ATTrackingManager.AuthorizationStatus, Never>) in
+            ATTrackingManager.requestTrackingAuthorization { status in
+                // 取得した許諾ステータスをそのまま呼び出し元へ返す
+                continuation.resume(returning: status)
+            }
+        }
     }
 
     func requestConsentIfNeeded() async {
