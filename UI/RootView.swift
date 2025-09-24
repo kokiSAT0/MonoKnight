@@ -21,9 +21,6 @@ struct RootView: View {
     /// ローディング表示解除を遅延実行するためのワークアイテム
     /// - NOTE: 新しいゲーム開始操作が走った際に古い処理をキャンセルできるよう保持しておく
     @State private var pendingGameActivationWorkItem: DispatchWorkItem?
-    /// フロントエンドからログを閲覧するためのビューモデル
-    /// - Note: TestFlight で素早く状況確認できるよう、アプリ内に簡易コンソールを常設する
-    @StateObject private var debugLogConsoleViewModel = DebugLogConsoleViewModel()
     /// 依存サービスを外部から注入可能にする初期化処理
     /// - Parameters:
     ///   - gameCenterService: Game Center 連携用サービス（デフォルトはシングルトン）
@@ -121,14 +118,6 @@ final class RootViewStateStore: ObservableObject {
             debugLog("RootView.isPresentingTitleSettings 更新: \(isPresentingTitleSettings)")
         }
     }
-    /// デバッグログコンソールの表示状態
-    @Published var isPresentingDebugLogConsole: Bool {
-        didSet {
-            guard oldValue != isPresentingDebugLogConsole else { return }
-            debugLog("RootView.isPresentingDebugLogConsole 更新: \(isPresentingDebugLogConsole)")
-        }
-    }
-
     /// 初期化時に必要な値をまとめて受け取り、SwiftUI の `@StateObject` から利用できるようにする
     /// - Parameter initialIsAuthenticated: Game Center 認証済みかどうかの初期値
     init(initialIsAuthenticated: Bool) {
@@ -141,7 +130,6 @@ final class RootViewStateStore: ObservableObject {
         self.topBarHeight = 0
         self.lastLoggedLayoutSnapshot = nil
         self.isPresentingTitleSettings = false
-        self.isPresentingDebugLogConsole = false
     }
 
     /// `@Published` プロパティへのバインディングを生成する補助メソッド
@@ -194,8 +182,6 @@ private extension RootView {
             topBarHeight: stateStore.binding(for: \.topBarHeight),
             lastLoggedLayoutSnapshot: stateStore.binding(for: \.lastLoggedLayoutSnapshot),
             isPresentingTitleSettings: stateStore.binding(for: \.isPresentingTitleSettings),
-            debugLogConsoleViewModel: debugLogConsoleViewModel,
-            isPresentingDebugLogConsole: stateStore.binding(for: \.isPresentingDebugLogConsole),
             authenticateAction: handleGameCenterAuthenticationRequest,
             onStartGame: { mode in
                 // タイトル画面から受け取ったモードでゲーム準備フローを実行する
@@ -231,12 +217,6 @@ private extension RootView {
             .fullScreenCover(isPresented: stateStore.binding(for: \.isPresentingTitleSettings)) {
                 SettingsView()
             }
-            // デバッグログコンソールのシート表示。レイアウトは元実装と同じ構成を維持する
-            .sheet(isPresented: stateStore.binding(for: \.isPresentingDebugLogConsole)) {
-                DebugLogConsoleView(viewModel: debugLogConsoleViewModel)
-                    .presentationDetents([.medium, .large])
-                    .presentationDragIndicator(.visible)
-            }
     }
 
     /// GeometryReader から得たレイアウト情報を引き受け、RootView 全体を構築する補助ビュー
@@ -269,10 +249,6 @@ private extension RootView {
         @Binding var lastLoggedLayoutSnapshot: RootLayoutSnapshot?
         /// タイトルから設定シートを開くためのフラグ
         @Binding var isPresentingTitleSettings: Bool
-        /// デバッグログコンソールのビューモデル
-        let debugLogConsoleViewModel: DebugLogConsoleViewModel
-        /// デバッグログコンソール表示状態
-        @Binding var isPresentingDebugLogConsole: Bool
         /// Game Center 認証 API 呼び出し用クロージャ
         let authenticateAction: (@escaping (Bool) -> Void) -> Void
         /// タイトル画面から開始ボタンが押下された際の処理
@@ -382,8 +358,6 @@ private extension RootView {
                 context: layoutContext,
                 theme: theme,
                 isAuthenticated: $isAuthenticated,
-                isDebugLogConsoleEnabled: debugLogConsoleViewModel.isViewerEnabled,
-                isPresentingDebugLogConsole: $isPresentingDebugLogConsole,
                 authenticateAction: authenticateAction
             )
         }
@@ -682,10 +656,6 @@ fileprivate struct TopStatusInsetView: View {
     let theme: AppTheme
     /// Game Center 認証済みかどうかの状態をバインディングで受け取る
     @Binding var isAuthenticated: Bool
-    /// デバッグログコンソールが利用可能かどうかのフラグ
-    let isDebugLogConsoleEnabled: Bool
-    /// デバッグログコンソールの表示状態を RootView 側と同期する
-    @Binding var isPresentingDebugLogConsole: Bool
     /// Game Center 認証 API を呼び出す際の仲介クロージャ
     let authenticateAction: (@escaping (Bool) -> Void) -> Void
     /// RootView 内で定義したレイアウト定数へ素早くアクセスするための別名
@@ -697,7 +667,6 @@ fileprivate struct TopStatusInsetView: View {
             Spacer(minLength: 0)
             VStack(alignment: .leading, spacing: LayoutMetrics.topBarContentSpacing) {
                 gameCenterAuthenticationSection
-                debugConsoleSection
             }
             .frame(maxWidth: context.topBarMaxWidth ?? .infinity, alignment: .leading)
             Spacer(minLength: 0)
@@ -745,19 +714,6 @@ fileprivate struct TopStatusInsetView: View {
         }
     }
 
-    /// デバッグログコンソールの表示ボタンを担当するセクション
-    @ViewBuilder
-    private var debugConsoleSection: some View {
-        if isDebugLogConsoleEnabled {
-            Button(action: handleDebugConsoleTapped) {
-                Label("デバッグログを表示", systemImage: "doc.text.magnifyingglass")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.bordered)
-            .accessibilityIdentifier("debug_log_console_button")
-        }
-    }
-
     /// Game Center サインインボタン押下時の処理を共通化する
     private func handleGameCenterSignInTapped() {
         // 認証要求のトリガーを記録して、失敗時の切り分けを容易にする
@@ -769,333 +725,6 @@ fileprivate struct TopStatusInsetView: View {
                 isAuthenticated = success
             }
         }
-    }
-
-    /// デバッグログコンソール表示ボタンのタップ処理
-    private func handleDebugConsoleTapped() {
-        // ログ閲覧シートを開いた履歴を残しておき、TestFlight での操作を追跡する
-        debugLog("RootView: デバッグログコンソール表示要求")
-        isPresentingDebugLogConsole = true
-    }
-}
-
-// MARK: - デバッグログコンソール
-
-/// フロントエンドでデバッグログ履歴を監視するビューモデル
-/// - Note: `DebugLogHistory` からの通知を受け取り、UI 側へ逐次反映する
-@MainActor
-fileprivate final class DebugLogConsoleViewModel: ObservableObject {
-    /// 表示対象のログエントリ配列
-    @Published private(set) var entries: [DebugLogEntry]
-    /// 共有ログ履歴ストア
-    private let history: DebugLogHistory
-    /// NotificationCenter の監視トークン
-    private var notificationToken: NSObjectProtocol?
-
-    /// 初期化と同時に履歴のスナップショットを取得し、通知監視を開始する
-    /// - Parameter history: ログ履歴を管理するストア（デフォルトはシングルトン）
-    init(history: DebugLogHistory = .shared) {
-        self.history = history
-        self.entries = history.snapshot()
-
-        notificationToken = NotificationCenter.default.addObserver(
-            forName: DebugLogHistory.didAppendEntryNotification,
-            object: history,
-            queue: .main
-        ) { [weak self] notification in
-            guard let self else { return }
-
-            if let entry = notification.userInfo?[DebugLogHistory.NotificationKey.entry] as? DebugLogEntry {
-                // 新規追加 1 件の場合は末尾に追加してスクロール位置を維持する
-                entries.append(entry)
-            } else {
-                // クリアや設定変更が走った場合はスナップショットを再取得する
-                entries = history.snapshot()
-            }
-        }
-    }
-
-    deinit {
-        if let notificationToken {
-            NotificationCenter.default.removeObserver(notificationToken)
-        }
-    }
-
-    /// フロントエンドからの閲覧が許可されているかどうか
-    var isViewerEnabled: Bool {
-        history.isFrontEndViewerEnabled
-    }
-
-    /// 保持しているログを全件削除する
-    /// - Note: 個人情報が含まれる恐れがあるログを即座に破棄したい場合に利用する
-    func clearEntries() {
-        history.clear()
-        entries.removeAll()
-    }
-}
-
-/// デバッグログの内容を一覧表示するシート用ビュー
-@MainActor
-fileprivate struct DebugLogConsoleView: View {
-    /// 表示を制御するビューモデル
-    @ObservedObject var viewModel: DebugLogConsoleViewModel
-    /// シートを閉じるための dismiss アクション
-    @Environment(\.dismiss) private var dismiss
-    /// 共通のカラーテーマ
-    private var theme = AppTheme()
-
-    /// 自動スクロールのために追跡している直近のログ ID
-    @State private var lastVisibleEntryID: DebugLogEntry.ID?
-
-    /// `@ObservedObject` と `@State` を適切に初期化するための明示的なイニシャライザ
-    /// - NOTE: デフォルト実装だとメンバーごとのアクセスレベル推論の結果 `private` イニシャライザとなり、
-    ///         同ファイル内での生成すら失敗していたため明示的に公開範囲を `fileprivate` へ指定する
-    fileprivate init(viewModel: DebugLogConsoleViewModel) {
-        // `@ObservedObject` プロパティラッパーは `_viewModel` への代入で初期化する必要がある
-        self._viewModel = ObservedObject(wrappedValue: viewModel)
-        // ローカル状態は初期値 `nil` で十分なため明示的に代入する
-        self._lastVisibleEntryID = State(initialValue: nil)
-    }
-
-    var body: some View {
-        NavigationStack {
-            contentView
-                .navigationTitle("デバッグログ")
-        }
-        .toolbar {
-            toolbarContent
-        }
-    }
-
-    /// ナビゲーションスタック内で実際に描画する主要コンテンツ
-    /// - Returns: ステータスメッセージとログ一覧を含む縦並びレイアウト
-    @ViewBuilder
-    private var contentView: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            statusMessageSection
-
-            if viewModel.isViewerEnabled && !viewModel.entries.isEmpty {
-                logListReaderSection()
-            }
-
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 20)
-        .padding(.top, 16)
-        .padding(.bottom, 24)
-        .background(theme.backgroundPrimary.ignoresSafeArea())
-    }
-
-    /// ビルド設定による閲覧制限やログ未存在の状況を説明するメッセージ群
-    /// - Returns: 条件に応じて表示される案内テキスト。該当しない場合は `EmptyView`
-    @ViewBuilder
-    private var statusMessageSection: some View {
-        if !viewModel.isViewerEnabled {
-            // リリース向けビルドで無効化している場合の案内
-            Text("このビルドではフロントエンドからのログ閲覧が無効化されています。")
-                .font(.callout)
-                .foregroundColor(theme.textSecondary)
-                .multilineTextAlignment(.leading)
-        } else if viewModel.entries.isEmpty {
-            // まだログが記録されていない場合のプレースホルダー
-            Text("現在表示できるログはありません。操作を行うとここに履歴が蓄積されます。")
-                .font(.callout)
-                .foregroundColor(theme.textSecondary)
-                .multilineTextAlignment(.leading)
-                .padding(.top, 8)
-        }
-    }
-
-    /// ログ一覧を自動スクロール対応で表示するためのコンテナ
-    /// - Returns: `ScrollViewReader` を活用したログビュー全体
-    @ViewBuilder
-    private func logListReaderSection() -> some View {
-        ScrollViewReader { proxy in
-            logListSection(proxy: proxy)
-        }
-    }
-
-    /// ログ一覧本体の描画を担当する
-    /// - Parameter proxy: 自動スクロール制御に利用する `ScrollViewProxy`
-    /// - Returns: ログ行を縦並びで表示するスクロールビュー
-    @ViewBuilder
-    private func logListSection(proxy: ScrollViewProxy) -> some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 12) {
-                ForEach(viewModel.entries) { entry in
-                    DebugLogEntryRowView(entry: entry)
-                        .id(entry.id)
-                }
-            }
-            .padding(.vertical, 8)
-        }
-        .onAppear {
-            // 初回表示時に末尾のログが見えるようスクロールする
-            scrollToLatestEntryIfNeeded(using: proxy, entries: viewModel.entries, animated: false)
-        }
-        .onChange(of: viewModel.entries) { _, entries in
-            // ログの追加や削除があった際に必要に応じてスクロールを更新する
-            scrollToLatestEntryIfNeeded(using: proxy, entries: entries, animated: true)
-        }
-    }
-
-    /// ナビゲーションバーへ配置するツールバー項目を整理する
-    /// - Returns: 閉じるボタンと全削除ボタンをまとめたツールバー構成
-    @ToolbarContentBuilder
-    private var toolbarContent: some ToolbarContent {
-        ToolbarItem(placement: .topBarLeading) {
-            Button("閉じる") {
-                dismiss()
-            }
-        }
-        ToolbarItem(placement: .topBarTrailing) {
-            Button("すべて削除") {
-                viewModel.clearEntries()
-            }
-            .disabled(viewModel.entries.isEmpty)
-        }
-    }
-
-    /// 末尾のログ項目が画面内に収まるよう、必要に応じてスクロール位置を更新する
-    /// - Parameters:
-    ///   - proxy: スクロール操作に利用する `ScrollViewProxy`
-    ///   - entries: 最新状態のログ配列
-    ///   - animated: スクロール時にアニメーションを付けるかどうか
-    private func scrollToLatestEntryIfNeeded(using proxy: ScrollViewProxy, entries: [DebugLogEntry], animated: Bool) {
-        // 表示すべき最新のログ ID が存在しない場合は何もしない
-        guard let lastID = entries.last?.id else { return }
-        // 直前にスクロール済みの ID と同じ場合は無駄なスクロールを避ける
-        guard lastID != lastVisibleEntryID else { return }
-
-        // 最新 ID を追跡し、メインスレッドでスクロールを実行する
-        lastVisibleEntryID = lastID
-        let scrollAction = {
-            proxy.scrollTo(lastID, anchor: .bottom)
-        }
-
-        DispatchQueue.main.async {
-            if animated {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    scrollAction()
-                }
-            } else {
-                scrollAction()
-            }
-        }
-    }
-}
-
-/// 1 行分のデバッグログを表示する補助ビュー
-fileprivate struct DebugLogEntryRowView: View {
-    /// 表示対象のログ
-    let entry: DebugLogEntry
-    /// カラーテーマ
-    private var theme = AppTheme()
-
-    /// `ForEach` から安全に生成するための明示的なイニシャライザ
-    /// - Parameter entry: 表示したいログ 1 件分のデータ
-    /// - Note: 自動合成イニシャライザではアクセスレベルが `private` になってしまい、
-    ///         同一ファイル内からの生成でもコンパイルエラーになるため手動で公開範囲を指定する
-    fileprivate init(entry: DebugLogEntry) {
-        // ログ本体の参照を保持する
-        self.entry = entry
-        // テーマは常に共通の配色を利用するためその場で生成する
-        self.theme = AppTheme()
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 6) {
-                Image(systemName: entry.level == .error ? "exclamationmark.triangle.fill" : "info.circle")
-                    .foregroundColor(entry.level == .error ? Color.red : theme.textSecondary)
-                    .imageScale(.small)
-                Text(DateFormatter.debugLogConsoleTime.string(from: entry.timestamp))
-                    .font(.caption2)
-                    .foregroundColor(theme.textSecondary)
-            }
-
-            Text(entry.message)
-                .font(.system(size: 12, weight: .regular, design: .monospaced))
-                .foregroundColor(entry.level == .error ? Color.red : theme.textPrimary)
-                .multilineTextAlignment(.leading)
-        }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(entry.level == .error ? Color.red.opacity(0.12) : theme.backgroundElevated.opacity(0.85))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(entry.level == .error ? Color.red.opacity(0.35) : theme.statisticBadgeBorder, lineWidth: 1)
-        )
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(entry.level == .error ? "エラーログ" : "情報ログ") \(DateFormatter.debugLogConsoleTime.string(from: entry.timestamp))")
-        .accessibilityValue(entry.message)
-    }
-}
-
-/// デバッグログ用の日付フォーマッタ
-fileprivate extension DateFormatter {
-    /// `HH:mm:ss.SSS` 表記で時間を出力するフォーマッタ
-    static let debugLogConsoleTime: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ja_JP")
-        formatter.dateFormat = "HH:mm:ss.SSS"
-        return formatter
-    }()
-}
-
-// MARK: - プレビュー
-#Preview {
-    RootView()
-}
-
-// MARK: - ゲーム準備中のオーバーレイ
-/// GameView の初期化中に表示するローディング用オーバーレイ
-/// - Note: 盤面が読み込まれるまでプレイヤーへ待機を促し、途中状態での操作を防ぐ
-fileprivate struct GamePreparationOverlayView: View {
-    /// 統一感のある配色を適用するためテーマを生成しておく
-    private var theme = AppTheme()
-
-    var body: some View {
-        ZStack {
-            // 背景の半透明レイヤーで盤面を暗転させ、ローディング状態であることを明示する
-            theme.backgroundPrimary
-                .opacity(0.85)
-                .ignoresSafeArea()
-
-            VStack(spacing: 20) {
-                // アクティビティインジケーターで読み込み中であることを視覚的に伝える
-                ProgressView()
-                    .progressViewStyle(.circular)
-                    .tint(theme.accentPrimary)
-                    .scaleEffect(1.4)
-
-                VStack(spacing: 8) {
-                    Text("ゲームを準備しています")
-                        .font(.system(size: 18, weight: .semibold, design: .rounded))
-                        .foregroundColor(theme.textPrimary)
-                    Text("カードと盤面を読み込み中です。少々お待ちください。")
-                        .font(.system(size: 14, weight: .regular, design: .rounded))
-                        .foregroundColor(theme.textSecondary)
-                        .multilineTextAlignment(.center)
-                }
-                .padding(.horizontal, 12)
-            }
-            .padding(.horizontal, 32)
-            .padding(.vertical, 36)
-            .background(
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .fill(theme.backgroundPrimary.opacity(0.95))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .stroke(theme.accentPrimary.opacity(0.35), lineWidth: 1)
-            )
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("ゲームを準備しています。カードを読み込んでいます。")
     }
 }
 
