@@ -103,15 +103,17 @@ public final class GameScene: SKScene {
 
     // MARK: - シーン初期化
 
-    /// コードから GameScene を生成する際の初期化処理
-    /// - NOTE: `super.init(size:)` を呼び出し、基本状態をゼロリセットしてからレイアウト計算やノード生成を `didMove(to:)` で行う
-    public override init() {
-        super.init(size: .zero)
-        // 盤面・テーマ・タイル情報などを初期状態に戻し、呼び出し元がどのような経路でも同じ前提から構築できるようにする
+    /// 初期化時に共通で呼び出す内部処理
+    /// - NOTE: 盤面・テーマ・ノード・アクセシビリティ関連の初期値をまとめてリセットし、コード生成と Storyboard 復元の両方で同一状態からスタートできるようにする
+    private func commonInit() {
+        // 盤面情報は常に中央スタートへ戻すことで、テストや再生成時も確実に同じ条件を再現できるようにする
         board = Board(size: 5, initialVisitedPoints: [GridPoint.center(of: 5)])
+        // テーマもデフォルトへ戻し、SpriteKit 専用の配色が未設定のままでも破綻しないようフォールバックを適用
         palette = GameScenePalette.fallback
+        // レイアウト関連の値をゼロクリアしておくことで、サイズ確定後の `calculateLayout` が必ず最新値を算出できる
         tileSize = 0
         gridOrigin = .zero
+        // SpriteKit ノード系のキャッシュは全て空に戻し、不要なノードが残らないようにする
         tileNodes = [:]
         guideHighlightNodes = [:]
         pendingGuideHighlightPoints = []
@@ -119,10 +121,20 @@ public final class GameScene: SKScene {
         pendingKnightState = nil
         knightNode = nil
         knightPosition = nil
+        // シーンサイズ待ちフラグも初期化し、Storyboard/SwiftUI 双方で初回レイアウトの判定が正しく行われるようにする
         awaitingValidSceneSize = false
         #if canImport(UIKit)
+        // VoiceOver 用キャッシュを空に戻し、アクセシビリティ情報が stale にならないよう都度再生成を促す
         accessibilityElementsCache = []
         #endif
+    }
+
+    /// コードから GameScene を生成する際の初期化処理
+    /// - NOTE: `super.init(size:)` を呼び出し、基本状態をゼロリセットしてからレイアウト計算やノード生成を `didMove(to:)` で行う
+    public override init() {
+        super.init(size: .zero)
+        // 共通初期化で各種プロパティを統一的にリセットし、生成経路による差異を排除する
+        commonInit()
         // 必要に応じて `calculateLayout()` などを明示的に呼び出し、シーンのサイズが既に確定している場合にも対応できるようにする
     }
 
@@ -130,22 +142,8 @@ public final class GameScene: SKScene {
     /// - NOTE: Apple の推奨に従い `super.init(coder:)` を呼び出し、アーカイブ復元時でも同じ初期状態を確保する
     public required init?(coder aDecoder: NSCoder) {
         super.init(coder: aDecoder)
-        // デコード後もプロパティを初期値で上書きし、Storyboard/SwiftUI どちらからでも同じ見た目・挙動となるようにする
-        board = Board(size: 5, initialVisitedPoints: [GridPoint.center(of: 5)])
-        palette = GameScenePalette.fallback
-        tileSize = 0
-        gridOrigin = .zero
-        tileNodes = [:]
-        guideHighlightNodes = [:]
-        pendingGuideHighlightPoints = []
-        pendingBoard = nil
-        pendingKnightState = nil
-        knightNode = nil
-        knightPosition = nil
-        awaitingValidSceneSize = false
-        #if canImport(UIKit)
-        accessibilityElementsCache = []
-        #endif
+        // デコード後も共通初期化を実行し、Storyboard/SwiftUI どちらからでも同じ見た目・挙動となるようにする
+        commonInit()
         // Interface Builder でサイズが事前に与えられている場合は、シーンの親ビュー設定後に `calculateLayout()` を呼ぶとレイアウトが整う
     }
 
