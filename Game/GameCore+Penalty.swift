@@ -1,0 +1,249 @@
+import Foundation
+#if canImport(UIKit)
+import UIKit
+#endif
+
+/// ペナルティ判定や捨て札ペナルティの処理、VoiceOver 通知など UI 連動が強い処理を切り出した拡張
+extension GameCore {
+    /// ペナルティ発生時の共通処理で利用する原因の区別
+    /// - Note: デバッグログや VoiceOver の文言を分岐させるためだけの軽量な列挙体
+    private enum PenaltyTrigger {
+        case automatic
+        case manual
+        case automaticFreeRedraw
+
+        /// デバッグログ向けの説明文
+        var debugDescription: String {
+            switch self {
+            case .automatic:
+                return "自動検出"
+            case .manual:
+                return "ユーザー操作"
+            case .automaticFreeRedraw:
+                return "連続手詰まり対応"
+            }
+        }
+
+        /// VoiceOver で読み上げる案内文を用意
+        /// - Parameter penalty: 加算された手数（0 の場合は増加無し）
+        func voiceOverMessage(penalty: Int) -> String {
+            switch self {
+            case .automatic:
+                if penalty > 0 {
+                    return "手詰まりのため手札スロットを引き直しました。手数が\(penalty)増加します。"
+                } else {
+                    return "手詰まりのためペナルティなしで手札スロットを引き直しました。"
+                }
+            case .manual:
+                if penalty > 0 {
+                    return "ペナルティを使用して手札スロットを引き直しました。手数が\(penalty)増加します。"
+                } else {
+                    return "ペナルティを使用して手札スロットを引き直しました。手数の増加はありません。"
+                }
+            case .automaticFreeRedraw:
+                return "手詰まりが続いたためペナルティなしで手札スロットを引き直しました。"
+            }
+        }
+    }
+
+    /// UI 側から手動でペナルティを支払い、手札スロットを引き直すための公開メソッド
+    /// - Note: 既にゲームが終了している場合や、ペナルティ中は何もしない
+    public func applyManualPenaltyRedraw() {
+        // クリア済み・ペナルティ処理中は無視し、進行中のみ受け付ける
+        guard progress == .playing || progress == .awaitingSpawn else { return }
+
+        // デバッグログ: ユーザー操作による引き直しを記録
+        debugLog("ユーザー操作でペナルティ引き直しを実行")
+
+        // 捨て札選択モードが残っていればここで解除しておく
+        cancelManualDiscardSelection()
+
+        // 共通処理を用いて手札を入れ替える
+        applyPenaltyRedraw(
+            trigger: .manual,
+            penaltyAmount: mode.manualRedrawPenaltyCost,
+            shouldAddPenalty: true
+        )
+
+        // 引き直し後も盤外カードしか無いケースをケア
+        checkDeadlockAndApplyPenaltyIfNeeded(hasAlreadyPaidPenalty: true)
+    }
+
+    /// 手札スロットがすべて盤外となる場合にペナルティを課し、手札スロットを引き直す
+    /// - Parameter hasAlreadyPaidPenalty: 直前にペナルティを支払済みかどうかを示すフラグ
+    func checkDeadlockAndApplyPenaltyIfNeeded(hasAlreadyPaidPenalty: Bool = false) {
+        // スポーン待機中は判定不要
+        guard progress != .awaitingSpawn, let current = current else { return }
+
+        let allUnusable = handStacks.allSatisfy { stack in
+            guard let card = stack.topCard else { return true }
+            let dest = current.offset(dx: card.move.dx, dy: card.move.dy)
+            return !board.contains(dest)
+        }
+        guard allUnusable else { return }
+
+        if hasAlreadyPaidPenalty {
+            // デバッグログ: 連続手詰まりを通知し、追加ペナルティ無しで再抽選する
+            debugLog("手詰まりが継続したため追加ペナルティ無しで自動引き直しを実施")
+
+            // 共通処理を呼び出して手札・先読みを更新（追加ペナルティ無し）
+            applyPenaltyRedraw(trigger: .automaticFreeRedraw, penaltyAmount: 0, shouldAddPenalty: false)
+        } else {
+            // デバッグログ: 手札詰まりの発生を通知
+            debugLog("手札スロットが全て使用不可のためペナルティを適用")
+
+            // 共通処理を呼び出して手札・先読みを更新
+            applyPenaltyRedraw(
+                trigger: .automatic,
+                penaltyAmount: mode.deadlockPenaltyCost,
+                shouldAddPenalty: true
+            )
+        }
+
+        // 引き直し後も詰みの場合があるので再チェック（以降はペナルティ支払済み扱い）
+        checkDeadlockAndApplyPenaltyIfNeeded(hasAlreadyPaidPenalty: true)
+    }
+
+    /// ペナルティ適用に伴う手札再構成・通知処理を一箇所へ集約する
+    /// - Parameters:
+    ///   - trigger: 自動検出か手動操作かを識別するフラグ
+    ///   - penaltyAmount: 今回加算するペナルティ手数
+    ///   - shouldAddPenalty: 追加ペナルティを課す必要があるかどうか
+    private func applyPenaltyRedraw(trigger: PenaltyTrigger, penaltyAmount: Int, shouldAddPenalty: Bool) {
+        // ペナルティ処理中は .deadlock 状態として UI 側の入力を抑制する
+        updateProgressForPenaltyFlow(.deadlock)
+
+        // 捨て札選択モードと同時には成立しないため、ここで解除する
+        setManualDiscardSelectionState(false)
+
+        // 手札が一新されるため、盤面タップからの保留リクエストも破棄して整合性を保つ
+        resetBoardTapPlayRequestForPenalty()
+
+        // ペナルティ加算。追加ペナルティが不要な場合や加算量 0 の場合はカウント維持
+        if shouldAddPenalty && penaltyAmount > 0 {
+            addPenaltyCount(penaltyAmount)
+            debugLog("ペナルティ加算: +\(penaltyAmount)")
+        }
+        setLastPenaltyAmountForPenalty(shouldAddPenalty ? penaltyAmount : 0)
+
+        // 現在の手札・先読みカードはそのまま破棄し、新しいカードを引き直す
+        clearHandAndNextForPenalty()
+        refillHandUsingCurrentNextCards()
+        // ユーザー設定に合わせて初期手札を並べ替える
+        reorderHandIfNeeded()
+        replenishNextPreview()
+
+        // UI へ手詰まりの発生を知らせ、演出やフィードバックを促す
+        updatePenaltyEventID(UUID())
+
+#if canImport(UIKit)
+        // VoiceOver 利用者向けにペナルティ内容をアナウンス
+        let announcedPenalty = shouldAddPenalty ? penaltyAmount : 0
+        UIAccessibility.post(notification: .announcement, argument: trigger.voiceOverMessage(penalty: announcedPenalty))
+#endif
+
+        // デバッグログ: 引き直し後の状態を詳細に記録
+        debugLog("ペナルティ引き直しを実行（トリガー: \(trigger.debugDescription)）")
+        let handDescription = handStacks.map(stackSummary).joined(separator: ", ")
+        debugLog("引き直し後の手札: [\(handDescription)]")
+        // デバッグ: 引き直し後の盤面を表示
+#if DEBUG
+        // デバッグ目的でのみ盤面を出力する
+        board.debugDump(current: current)
+#endif
+
+        // 手札更新が完了したら適切な進行状態へ戻す
+        if mode.requiresSpawnSelection && current == nil {
+            updateProgressForPenaltyFlow(.awaitingSpawn)
+        } else {
+            updateProgressForPenaltyFlow(.playing)
+        }
+    }
+
+    /// 捨て札ペナルティの選択を開始する
+    /// - Note: ゲーム進行中で手札が存在する場合のみ受付ける
+    public func beginManualDiscardSelection() {
+        // プレイ中以外は受け付けない
+        guard progress == .playing else { return }
+        // 手札が空の場合は選択しても意味がないため無視する
+        guard !handStacks.isEmpty else { return }
+        // 既に捨て札モードであれば再度有効化する必要はない
+        guard !isAwaitingManualDiscardSelection else { return }
+
+        setManualDiscardSelectionState(true)
+        debugLog("捨て札ペナルティ選択モード開始")
+
+#if canImport(UIKit)
+        // VoiceOver へモード切替を知らせる
+        let announcement: String
+        if mode.manualDiscardPenaltyCost > 0 {
+            announcement = "捨て札するカードを選んでください。手数が\(mode.manualDiscardPenaltyCost)増加します。"
+        } else {
+            announcement = "捨て札するカードを選んでください。手数は増加しません。"
+        }
+        UIAccessibility.post(notification: .announcement, argument: announcement)
+#endif
+    }
+
+    /// 捨て札モードを明示的に終了する
+    /// - Note: UI 側でキャンセル操作が行われた際などに利用する
+    public func cancelManualDiscardSelection() {
+        guard isAwaitingManualDiscardSelection else { return }
+        setManualDiscardSelectionState(false)
+        debugLog("捨て札ペナルティ選択モードをキャンセル")
+    }
+
+    /// 指定スタックを捨て札にし、ペナルティを加算して新しいカードを補充する
+    /// - Parameter stackID: 捨て札対象のスタック識別子
+    /// - Returns: 正常終了した場合は true
+    @discardableResult
+    public func discardHandStack(withID stackID: UUID) -> Bool {
+        // プレイ中以外では捨て札を実行しない
+        guard progress == .playing else { return false }
+        // 捨て札モードでなければ誤操作とみなし拒否する
+        guard isAwaitingManualDiscardSelection else { return false }
+        // 指定 ID のスタックが存在するか確認
+        guard let index = handStacks.firstIndex(where: { $0.id == stackID }) else { return false }
+
+        let removedStack = removeHandStackForPenalty(at: index)
+        setManualDiscardSelectionState(false)
+        resetBoardTapPlayRequestForPenalty()
+
+        // ペナルティを加算し、UI 側が参照する最後のペナルティ量を更新
+        let penalty = mode.manualDiscardPenaltyCost
+        if penalty > 0 {
+            addPenaltyCount(penalty)
+        }
+        setLastPenaltyAmountForPenalty(penalty)
+
+        debugLog("捨て札ペナルティ適用: stackID=\(stackID), 枚数=\(removedStack.count), move=\(String(describing: removedStack.representativeMove)), ペナルティ=+\(penalty)")
+
+#if canImport(UIKit)
+        let message: String
+        if penalty > 0 {
+            message = "捨て札しました。手数が\(penalty)増加します。"
+        } else {
+            message = "捨て札しました。手数の増加はありません。"
+        }
+        UIAccessibility.post(notification: .announcement, argument: message)
+#endif
+
+        // NEXT キューを優先して補充し、不足分は山札から取得する（削除位置を維持する）
+        refillHandUsingCurrentNextCards(preferredInsertionIndices: [index])
+        reorderHandIfNeeded()
+        replenishNextPreview()
+
+        // 捨て札後の手札が再び詰む場合に備えてチェックする
+        checkDeadlockAndApplyPenaltyIfNeeded()
+        return true
+    }
+
+    /// 現在の残り踏破数を VoiceOver で通知する
+    func announceRemainingTiles() {
+#if canImport(UIKit)
+        let remaining = board.remainingCount
+        let message = "残り踏破数は\(remaining)です"
+        UIAccessibility.post(notification: .announcement, argument: message)
+#endif
+    }
+}
