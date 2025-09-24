@@ -1,5 +1,6 @@
 import SwiftUI
 import Game
+import SharedSupport
 
 // MARK: - MonoKnight アプリのエントリーポイント
 // `@main` 属性を付与した構造体からアプリが開始される

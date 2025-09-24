@@ -1,5 +1,6 @@
 import Foundation
-import Game      // debugLog / debugError などゲームロジック側のデバッグユーティリティと GameMode 識別子を利用するために追加
+import Game      // GameMode 識別子などゲームロジック定義を利用するため読み込む
+import SharedSupport // debugLog / debugError など共有ロギング機能を利用するため読み込む
 import GameKit
 import UIKit
 

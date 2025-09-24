@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import Game
+import SharedSupport // 永続化処理のログ出力で共有ユーティリティを利用する
 
 /// フリーモードのレギュレーションを永続化し、UI から参照・更新できるようにするストア
 /// - Note: `UserDefaults` を介して JSON として保存し、アプリ再起動後も設定を復元する

@@ -4,8 +4,8 @@ import SwiftUI
 import AppTrackingTransparency
 import GoogleMobileAds
 import UserMessagingPlatform
-// ログ出力ユーティリティを利用するため Game モジュールを読み込む
-import Game
+// ログ出力ユーティリティを利用するため SharedSupport モジュールを読み込む
+import SharedSupport
 
 // MARK: - Protocol
 /// UI レイヤーからメインスレッド経由で利用する前提のため、プロトコル自体も MainActor に固定する

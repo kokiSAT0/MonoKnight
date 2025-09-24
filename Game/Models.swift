@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(SharedSupport)
+import SharedSupport // モデル変換時のデバッグログ出力に共有ターゲットを活用する
+#endif
 
 /// 座標を表す構造体
 /// - 備考: 原点は左下、x は右方向、y は上方向に増加する

@@ -1,5 +1,8 @@
 #if canImport(SpriteKit)
 import SpriteKit
+#if canImport(SharedSupport)
+import SharedSupport // デバッグログユーティリティを共有ターゲットから読み込む
+#endif
 #if canImport(UIKit)
 import UIKit
 #endif

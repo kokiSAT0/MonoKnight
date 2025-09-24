@@ -12,12 +12,23 @@ let package = Package(
         .library(
             name: "Game",
             targets: ["Game"]
+        ),
+        // アプリとゲームモジュールで共有するサポート機能
+        .library(
+            name: "SharedSupport",
+            targets: ["SharedSupport"]
         )
     ],
     targets: [
+        // アプリとゲームロジックの双方で利用する共有ターゲット
+        .target(
+            name: "SharedSupport",
+            path: "Shared"
+        ),
         // Game モジュールは既存の Game ディレクトリを利用
         .target(
             name: "Game",
+            dependencies: ["SharedSupport"],
             path: "Game"
         ),
         // 単体テスト用ターゲット

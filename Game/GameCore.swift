@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(SharedSupport)
+import SharedSupport // デバッグログ系ユーティリティを共有ターゲットから利用する
+#endif
 #if canImport(Combine)
 import Combine
 #else

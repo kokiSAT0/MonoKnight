@@ -1,5 +1,6 @@
 import SwiftUI
 import Game
+import SharedSupport // RootView からも共通デバッグログを出力するため読み込む
 
 /// ゲームプレイとタイトル画面を統括するルートビュー
 /// タイトル画面での設定シート表示やゲーム開始フローをまとめて制御する

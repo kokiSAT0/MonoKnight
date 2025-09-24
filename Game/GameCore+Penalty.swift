@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(SharedSupport)
+import SharedSupport // ペナルティ処理でもデバッグログを利用するため共有モジュールを読み込む
+#endif
 #if canImport(UIKit)
 import UIKit
 #endif

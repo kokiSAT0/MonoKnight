@@ -1,8 +1,8 @@
 import Foundation
 import StoreKit
 import SwiftUI
-// Game モジュールに定義されたデバッグ用ユーティリティを利用するために読み込む
-import Game
+// SharedSupport モジュールに定義されたデバッグ用ユーティリティを利用するために読み込む
+import SharedSupport
 
 /// StoreKit2 を用いた課金処理をまとめたサービス
 /// `remove_ads_mk` 商品の購入・復元・状態保持を担当する
