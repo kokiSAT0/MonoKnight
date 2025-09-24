@@ -44,24 +44,6 @@ private struct GameCenterLeaderboardCatalog {
     }
 }
 
-/// Game Center 操作に必要なインターフェースを定義するプロトコル
-/// - NOTE: 認証やスコア送信をテストしやすくするために利用する
-protocol GameCenterServiceProtocol: AnyObject {
-    /// 現在認証済みであるかどうか
-    var isAuthenticated: Bool { get }
-    /// ローカルプレイヤーの認証を行う
-    /// - Parameter completion: 認証結果を受け取るクロージャ
-    func authenticateLocalPlayer(completion: ((Bool) -> Void)?)
-    /// リーダーボードへスコア（ポイント）を送信する
-    /// - Parameters:
-    ///   - score: 送信するポイント値
-    ///   - modeIdentifier: スコアを送信したゲームモードの識別子
-    func submitScore(_ score: Int, for modeIdentifier: GameMode.Identifier)
-    /// ランキング画面を表示する
-    /// - Parameter modeIdentifier: 表示したいリーダーボードが紐付くゲームモード識別子
-    func showLeaderboard(for modeIdentifier: GameMode.Identifier)
-}
-
 /// Game Center 関連の操作をまとめたサービス
 /// 実際に Game Center と連携する実装
 final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCenterServiceProtocol {

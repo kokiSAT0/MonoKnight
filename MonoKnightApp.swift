@@ -17,8 +17,8 @@ struct MonoKnightApp: App {
     @Environment(\.scenePhase) private var scenePhase
 
     /// StoreKit2 の購買状況を常に監視し、広告除去 IAP の適用状態をアプリ全体へ即時反映するためのオブジェクト
-    /// - NOTE: `@StateObject` で保持しておくことで、`SettingsView` を開かなくても復元処理やトランザクション監視が動作する
-    @StateObject private var storeService = StoreService.shared
+    /// - NOTE: タイプイレースしたラッパー `AnyStoreService` を採用し、UI テストではモックへ容易に差し替えられるようにする
+    @StateObject private var storeService: AnyStoreService
 
     /// 同意フローが完了したかどうかを保持するフラグ
     /// - NOTE: `UserDefaults` と連携し、次回以降はスキップする
@@ -43,12 +43,20 @@ struct MonoKnightApp: App {
         // UI テスト環境ではモックを、それ以外では実サービスを採用
         if ProcessInfo.processInfo.environment["UITEST_MODE"] != nil {
             // UI テストではモックを利用して即時認証・ダミー広告を表示
-            self.gameCenterService = MockGameCenterService()
-            self.adsService = MockAdsService()
+            let mockGameCenter = MockGameCenterService()
+            let mockAds = MockAdsService()
+            let mockStore = MockStoreService()
+            self.gameCenterService = mockGameCenter
+            self.adsService = mockAds
+            _storeService = StateObject(wrappedValue: AnyStoreService(base: mockStore))
         } else {
             // 通常起動時はシングルトンを利用
-            self.gameCenterService = GameCenterService.shared
-            self.adsService = AdsService.shared
+            let liveGameCenter = GameCenterService.shared
+            let liveAds = AdsService.shared
+            let liveStore = StoreService.shared
+            self.gameCenterService = liveGameCenter
+            self.adsService = liveAds
+            _storeService = StateObject(wrappedValue: AnyStoreService(base: liveStore))
         }
     }
 

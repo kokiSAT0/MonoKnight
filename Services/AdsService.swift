@@ -7,16 +7,7 @@ import GoogleMobileAds
 import SharedSupport
 
 // MARK: - Protocol
-/// UI レイヤーからメインスレッド経由で利用する前提のため、プロトコル自体も MainActor に固定する
-@MainActor
-protocol AdsServiceProtocol: AnyObject {
-    func showInterstitial()
-    func resetPlayFlag()
-    func disableAds()
-    func requestTrackingAuthorization() async
-    func requestConsentIfNeeded() async
-    func refreshConsentStatus() async
-}
+// AdsServiceProtocol 自体は `ServiceInterfaces.swift` で共通定義しているため、ここでは実装のみを記述する。
 
 // MARK: - 補助的な依存関係
 /// Google Mobile Ads SDK の初期化処理を差し替えやすくするためのプロトコル
