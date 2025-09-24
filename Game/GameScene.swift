@@ -17,8 +17,16 @@ public final class GameScene: SKScene {
     /// ゲームロジックを保持する参照
     public weak var gameCore: GameCoreProtocol?
 
+    /// 初期化時に設定された盤面サイズ
+    /// - NOTE: 盤面サイズの拡張に備えて外部から指定できるよう保持する
+    private let initialBoardSize: Int
+
+    /// 初期化時に踏破済みにしておくマス集合
+    /// - NOTE: 固定スポーンのモードでは中央など既定開始地点を踏破済みとして扱う
+    private let initialVisitedPoints: [GridPoint]
+
     /// 現在の盤面状態
-    private var board = Board(size: 5, initialVisitedPoints: [GridPoint.center(of: 5)])
+    private var board: Board
 
     /// SpriteKit 内で利用する配色セット
     /// - 備考: SwiftUI の `AppTheme` とは分離し、SpriteKit 専用の色情報のみを保持する
@@ -106,8 +114,8 @@ public final class GameScene: SKScene {
     /// 初期化時に共通で呼び出す内部処理
     /// - NOTE: 盤面・テーマ・ノード・アクセシビリティ関連の初期値をまとめてリセットし、コード生成と Storyboard 復元の両方で同一状態からスタートできるようにする
     private func commonInit() {
-        // 盤面情報は常に中央スタートへ戻すことで、テストや再生成時も確実に同じ条件を再現できるようにする
-        board = Board(size: 5, initialVisitedPoints: [GridPoint.center(of: 5)])
+        // 盤面情報は初期化パラメータに基づいて常に再構築し、モードごとの盤面サイズ変更にも確実に対応する
+        board = Board(size: initialBoardSize, initialVisitedPoints: initialVisitedPoints)
         // テーマもデフォルトへ戻し、SpriteKit 専用の配色が未設定のままでも破綻しないようフォールバックを適用
         palette = GameScenePalette.fallback
         // レイアウト関連の値をゼロクリアしておくことで、サイズ確定後の `calculateLayout` が必ず最新値を算出できる
@@ -129,9 +137,21 @@ public final class GameScene: SKScene {
         #endif
     }
 
-    /// コードから GameScene を生成する際の初期化処理
-    /// - NOTE: `super.init(size:)` を呼び出し、基本状態をゼロリセットしてからレイアウト計算やノード生成を `didMove(to:)` で行う
-    public override init() {
+    /// コードから GameScene を生成する際のデフォルト初期化処理
+    /// - NOTE: 既存仕様と同じ 5×5・中央踏破で生成するためのコンビニエンスイニシャライザ
+    public override convenience init() {
+        self.init(initialBoardSize: 5, initialVisitedPoints: [GridPoint.center(of: 5)])
+    }
+
+    /// 任意の盤面サイズ・初期踏破設定で GameScene を生成するための指定イニシャライザ
+    /// - Parameters:
+    ///   - initialBoardSize: 初期盤面サイズ（N×N）
+    ///   - initialVisitedPoints: 生成直後に踏破済みとして扱うマス集合。省略時は中央 1 マスのみを踏破する。
+    public init(initialBoardSize: Int, initialVisitedPoints: [GridPoint]? = nil) {
+        let resolvedVisitedPoints = initialVisitedPoints ?? [GridPoint.center(of: initialBoardSize)]
+        self.initialBoardSize = initialBoardSize
+        self.initialVisitedPoints = resolvedVisitedPoints
+        self.board = Board(size: initialBoardSize, initialVisitedPoints: resolvedVisitedPoints)
         super.init(size: .zero)
         // 共通初期化で各種プロパティを統一的にリセットし、生成経路による差異を排除する
         commonInit()
@@ -141,6 +161,10 @@ public final class GameScene: SKScene {
     /// Interface Builder（Storyboard や XIB）経由の生成に対応するための初期化処理
     /// - NOTE: Apple の推奨に従い `super.init(coder:)` を呼び出し、アーカイブ復元時でも同じ初期状態を確保する
     public required init?(coder aDecoder: NSCoder) {
+        self.initialBoardSize = 5
+        let defaultVisitedPoints = [GridPoint.center(of: 5)]
+        self.initialVisitedPoints = defaultVisitedPoints
+        self.board = Board(size: 5, initialVisitedPoints: defaultVisitedPoints)
         super.init(coder: aDecoder)
         // デコード後も共通初期化を実行し、Storyboard/SwiftUI どちらからでも同じ見た目・挙動となるようにする
         commonInit()
