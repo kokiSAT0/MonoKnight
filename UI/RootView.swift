@@ -215,7 +215,13 @@ private extension RootView {
         content
             // PreferenceKey で通知されたトップバー高さをストアへ転送し、didSet 経由でログを出力する
             .onPreferenceChange(TopBarHeightPreferenceKey.self) { newHeight in
-                stateStore.topBarHeight = newHeight
+                guard stateStore.topBarHeight != newHeight else { return }
+                // SwiftUI のレイアウト更新中に ObservableObject を同期更新すると
+                // 「Publishing changes from within view updates is not allowed」警告が発生するため、
+                // 次のメインループで反映させて安全に状態を更新する。
+                DispatchQueue.main.async {
+                    stateStore.topBarHeight = newHeight
+                }
             }
             // サイズクラスの更新のみは Environment 値から取得する必要があるため、専用メソッドでログを残す
             .onChange(of: horizontalSizeClass) { _, newValue in
@@ -273,6 +279,8 @@ private extension RootView {
         let onStartGame: (GameMode) -> Void
         /// GameView からタイトルへ戻る際の処理
         let onReturnToTitle: () -> Void
+        /// 直近でログ出力したスナップショットをローカルに保持し、重複出力と同時にレイアウト警告も防ぐキャッシュ
+        @State private var loggedSnapshotCache: RootLayoutSnapshot?
 
         var body: some View {
             ZStack {
@@ -407,8 +415,16 @@ private extension RootView {
         ///   - snapshot: 出力対象のスナップショット
         ///   - reason: 出力理由（初期観測・値更新など）
         private func logLayoutSnapshot(_ snapshot: RootLayoutSnapshot, reason: String) {
-            guard lastLoggedLayoutSnapshot != snapshot else { return }
-            lastLoggedLayoutSnapshot = snapshot
+            // 直近と同じスナップショットであれば何もせず抜け、無限ループを未然に防ぐ
+            guard loggedSnapshotCache != snapshot else { return }
+            loggedSnapshotCache = snapshot
+
+            // ObservableObject を同期更新すると SwiftUI から警告が出るため、次のメインループで安全に反映させる
+            if lastLoggedLayoutSnapshot != snapshot {
+                DispatchQueue.main.async {
+                    lastLoggedLayoutSnapshot = snapshot
+                }
+            }
 
             let message = """
             RootView.layout 観測: 理由=\(reason)
