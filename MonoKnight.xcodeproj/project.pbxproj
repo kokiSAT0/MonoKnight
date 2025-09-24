@@ -18,6 +18,8 @@
 		726642982E848E91003EA325 /* AdsConsentCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 726642972E848E91003EA325 /* AdsConsentCoordinator.swift */; };
 		7266429A2E848E9A003EA325 /* InterstitialAdController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 726642992E848E9A003EA325 /* InterstitialAdController.swift */; };
 		7266429E2E849763003EA325 /* GameViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7266429D2E849763003EA325 /* GameViewModel.swift */; };
+		726642AF2E849978003EA325 /* CardAnimationPhase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 726642AE2E849978003EA325 /* CardAnimationPhase.swift */; };
+		726642B12E849982003EA325 /* BoardLayoutSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 726642B02E849982003EA325 /* BoardLayoutSnapshot.swift */; };
 		729791562E7EB35900361471 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 729791552E7EB35900361471 /* LaunchScreen.storyboard */; };
 		72CF37F02E71616C0093B180 /* MonoKnightApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000004 /* MonoKnightApp.swift */; };
 		72CF38052E7162E20093B180 /* ErrorReporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF37F92E7162E20093B180 /* ErrorReporter.swift */; };
@@ -68,6 +70,8 @@
 		726642972E848E91003EA325 /* AdsConsentCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdsConsentCoordinator.swift; sourceTree = "<group>"; };
 		726642992E848E9A003EA325 /* InterstitialAdController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InterstitialAdController.swift; sourceTree = "<group>"; };
 		7266429D2E849763003EA325 /* GameViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameViewModel.swift; sourceTree = "<group>"; };
+		726642AE2E849978003EA325 /* CardAnimationPhase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardAnimationPhase.swift; sourceTree = "<group>"; };
+		726642B02E849982003EA325 /* BoardLayoutSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardLayoutSnapshot.swift; sourceTree = "<group>"; };
 		729791552E7EB35900361471 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
 		729791982E7F499700361471 /* DealtCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DealtCard.swift; sourceTree = "<group>"; };
 		729791992E7F499700361471 /* GameScenePalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameScenePalette.swift; sourceTree = "<group>"; };
@@ -211,6 +215,8 @@
 		72CF38042E7162E20093B180 /* UI */ = {
 			isa = PBXGroup;
 			children = (
+				726642B02E849982003EA325 /* BoardLayoutSnapshot.swift */,
+				726642AE2E849978003EA325 /* CardAnimationPhase.swift */,
 				7266429D2E849763003EA325 /* GameViewModel.swift */,
 				726642532E826754003EA325 /* Environment+BaseSafeAreaInsets.swift */,
 				726642472E826487003EA325 /* Environment+TopOverlayHeight.swift */,
@@ -433,6 +439,7 @@
 				72CF38072E7162E20093B180 /* GameView.swift in Sources */,
 				7266429A2E848E9A003EA325 /* InterstitialAdController.swift in Sources */,
 				72CF380B2E7162E20093B180 /* AdsService.swift in Sources */,
+				726642AF2E849978003EA325 /* CardAnimationPhase.swift in Sources */,
 				72CF380C2E7162E20093B180 /* SettingsView.swift in Sources */,
 				72CF380E2E7162E20093B180 /* ServiceMocks.swift in Sources */,
 				7266429E2E849763003EA325 /* GameViewModel.swift in Sources */,
@@ -442,6 +449,7 @@
 				72CF380F2E7162E20093B180 /* ResultView.swift in Sources */,
 				72CF38102E7162E20093B180 /* ConsentFlowView.swift in Sources */,
 				726642542E826754003EA325 /* Environment+BaseSafeAreaInsets.swift in Sources */,
+				726642B12E849982003EA325 /* BoardLayoutSnapshot.swift in Sources */,
 				72CF38112E7162E20093B180 /* GameCenterService.swift in Sources */,
 				72CF38122E7162E20093B180 /* StoreService.swift in Sources */,
 				72CF38142E7162E20093B180 /* RootView.swift in Sources */,
