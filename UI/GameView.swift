@@ -14,8 +14,6 @@ import UIKit  // ハプティクス用のフレームワークを追加
 struct GameView: View {
     /// カラーテーマを生成し、ビュー全体で共通の配色を利用できるようにする
     private var theme = AppTheme()
-    /// 現在プレイしているゲームモード
-    private let mode: GameMode
     /// 現在のライト/ダーク設定を環境から取得し、SpriteKit 側の色にも反映する
     @Environment(\.colorScheme) private var colorScheme
     /// デバイスの横幅サイズクラスを取得し、iPad などレギュラー幅でのモーダル挙動を調整する
@@ -28,74 +26,20 @@ struct GameView: View {
     @Environment(\.baseTopSafeAreaInset) private var baseTopSafeAreaInset: CGFloat
     /// 手札スロットの数（常に 5 スロット分の枠を確保してレイアウトを安定させる）
     private let handSlotCount = 5
-    /// ゲームロジックを保持する ObservableObject
-    /// - NOTE: `StateObject` は init 内で明示的に生成し、GameScene に渡す
-    @StateObject private var core: GameCore
-    /// 結果画面を表示するかどうかのフラグ
-    /// - NOTE: クリア時に true となり ResultView をシート表示する
-    @State private var showingResult = false
-    /// 手詰まりペナルティのバナー表示を制御するフラグ
-    @State private var isShowingPenaltyBanner = false
-    /// バナーを自動的に閉じるためのディスパッチワークアイテムを保持
-    @State private var penaltyDismissWorkItem: DispatchWorkItem?
-    /// SpriteKit のシーン。`@State` で保持し、SwiftUI による再描画でも同一インスタンスを再利用する
-    @State private var scene: GameScene
-    /// Game モジュールの公開インターフェース。GameCore の生成方法を抽象化して保持する
-    private let gameInterfaces: GameModuleInterfaces
-    /// Game Center 連携を扱うサービス（プロトコル型で受け取る）
-    private let gameCenterService: GameCenterServiceProtocol
-    /// 広告表示を扱うサービス（プロトコル型で受け取る）
-    private let adsService: AdsServiceProtocol
+    /// View とロジックの橋渡しを担う ViewModel
+    @StateObject private var viewModel: GameViewModel
     /// ハプティクスを有効にするかどうかの設定値
     @AppStorage("haptics_enabled") private var hapticsEnabled: Bool = true
     /// ガイドモードのオン/オフを永続化し、盤面ハイライト表示を制御する
     @AppStorage("guide_mode_enabled") private var guideModeEnabled: Bool = true
     /// 手札の並び替え方式。設定変更時に GameCore へ伝搬する
     @AppStorage(HandOrderingStrategy.storageKey) private var handOrderingRawValue: String = HandOrderingStrategy.insertionOrder.rawValue
-    /// タイトル画面へ戻るアクションを親から注入する（未指定なら nil で何もしない）
-    private let onRequestReturnToTitle: (() -> Void)?
-    /// メニューからの操作確認ダイアログで使用する一時的なアクション保持
-    /// - NOTE: iPad（レギュラー幅）ではシート、iPhone（コンパクト幅）では確認ダイアログと表示方法が異なるため、
-    ///         どちらのモーダルでも共通して参照できるよう単一の状態として管理する
-    @State private var pendingMenuAction: GameMenuAction?
-    /// ポーズメニューを表示するかどうかのフラグ
-    /// - NOTE: BGM やハプティクスなどプレイ中に確認したい設定をまとめる
-    @State private var isPauseMenuPresented: Bool = false
-    /// 統計バッジ領域の高さを計測し、盤面の縦寸法計算へ反映する
-    @State private var statisticsHeight: CGFloat = 0
-    /// 手札セクション全体の高さを計測し、利用可能な縦寸法を把握する
-    @State private var handSectionHeight: CGFloat = 0
-    /// 表示中の経過秒数を保持し、バッジの更新トリガーとして利用する
-    @State private var displayedElapsedSeconds: Int = 0
-    /// 表示用のスコアを算出するときに利用する計算プロパティ
-    /// - Note: 手数×10に経過秒数を加えた現在の暫定スコアを求める
-    private var displayedScore: Int {
-        core.totalMoveCount * 10 + displayedElapsedSeconds
-    }
     /// 手札や NEXT の位置をマッチングさせるための名前空間
     @Namespace private var cardAnimationNamespace
-    /// 現在アニメーション中のカード（存在しない場合は nil）
-    @State private var animatingCard: DealtCard?
-    /// アニメーション対象となっている手札スタック ID（カードだけでなくどの山を消費中かも追跡する）
-    @State private var animatingStackID: UUID?
-    /// アニメーション中に手札/NEXT から一時的に非表示にするカード ID 集合
-    @State private var hiddenCardIDs: Set<UUID> = []
-    /// 各手札スタックが直近で表示しているトップカード ID を記録し、スタック構成が変化した際の差分検知に活用する
-    @State private var topCardIDsByStack: [UUID: UUID] = [:]
-    /// カードが盤面へ向かって移動中かどうかの状態管理
-    @State private var animationState: CardAnimationPhase = .idle
-    /// 盤面 SpriteView のアンカーを保持し、移動先座標の算出に利用する
-    @State private var boardAnchor: Anchor<CGRect>?
-    /// カード移動アニメーションの目標とする駒位置（nil の場合は最新の現在地を使用）
-    @State private var animationTargetGridPoint: GridPoint?
-    /// デッドロック中に一時退避しておくガイド表示用の手札スタック情報
-    @State private var pendingGuideHand: [HandStack]?
-    /// 一時退避中の現在位置（nil なら GameCore の最新値を利用する）
-    @State private var pendingGuideCurrent: GridPoint?
-    /// 盤面レイアウトに異常が発生した際のスナップショットを記録し、重複ログを避ける
-    @State private var lastLoggedLayoutSnapshot: BoardLayoutSnapshot?
-    /// 経過時間の表示を 1 秒ごとに更新するためのタイマーパブリッシャ
-    private let elapsedTimer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+    /// ViewModel が管理する GameCore へのアクセスを簡潔にするための計算プロパティ
+    private var core: GameCore { viewModel.core }
+    /// SpriteKit シーンへのショートカット
+    private var scene: GameScene { viewModel.scene }
 
     /// デフォルトのサービスを利用して `GameView` を生成するコンビニエンスイニシャライザ
     /// - Parameters:
@@ -107,10 +51,6 @@ struct GameView: View {
         gameInterfaces: GameModuleInterfaces = .live,
         onRequestReturnToTitle: (() -> Void)? = nil
     ) {
-        // Swift 6 のコンカレンシールールではデフォルト引数で `@MainActor` なシングルトンへ
-        // 直接アクセスできないため、明示的に同一型の別イニシャライザへ委譲する。
-        // ここで `GameCenterService.shared` / `AdsService.shared` を取得することで、
-        // メインアクター上から安全に依存を解決できるようにする。
         self.init(
             mode: mode,
             gameInterfaces: gameInterfaces,
@@ -120,12 +60,7 @@ struct GameView: View {
         )
     }
 
-    /// 初期化で GameCore と GameScene を連結する
-    /// 依存するサービスを外部から注入できるようにする初期化処理
-    /// - Parameters:
-    ///   - gameInterfaces: GameCore の生成方法をまとめた依存関係
-    ///   - gameCenterService: Game Center 連携用サービス
-    ///   - adsService: 広告表示用サービス
+    /// 初期化で ViewModel を組み立て、GameCore と GameScene を橋渡しする
     init(
         mode: GameMode,
         gameInterfaces: GameModuleInterfaces,
@@ -133,33 +68,19 @@ struct GameView: View {
         adsService: AdsServiceProtocol,
         onRequestReturnToTitle: (() -> Void)? = nil
     ) {
-        self.mode = mode
-        self.gameInterfaces = gameInterfaces
-
-        // GameCore の生成。StateObject へ包んで保持する
-        let core = gameInterfaces.makeGameCore(mode)
-        // UserDefaults に保存済みの手札並び設定を復元し、初期表示から反映する
-        if let savedValue = UserDefaults.standard.string(forKey: HandOrderingStrategy.storageKey),
-           let strategy = HandOrderingStrategy(rawValue: savedValue) {
-            core.updateHandOrderingStrategy(strategy)
-        }
-        _core = StateObject(wrappedValue: core)
-
-        // GameScene は再利用したいのでローカルで準備し、最後に State プロパティへ格納する
-        // 盤面サイズと初期踏破マスはモード定義から引き継ぎ、異なる盤面でも中心位置が正しく選ばれるようにする
-        let preparedScene = GameScene(
-            initialBoardSize: mode.boardSize,
-            initialVisitedPoints: mode.initialVisitedPoints
+        let viewModel = GameViewModel(
+            mode: mode,
+            gameInterfaces: gameInterfaces,
+            gameCenterService: gameCenterService,
+            adsService: adsService,
+            onRequestReturnToTitle: onRequestReturnToTitle
         )
-        preparedScene.scaleMode = .resizeFill
-        // GameScene から GameCore へタップイベントを伝えるため参照を渡す
-        // StateObject へ格納した同一インスタンスを直接渡し、wrappedValue へ触れず安全に保持する
-        preparedScene.gameCore = core
-        _scene = State(initialValue: preparedScene)
-        // サービスを保持
-        self.gameCenterService = gameCenterService
-        self.adsService = adsService
-        self.onRequestReturnToTitle = onRequestReturnToTitle
+
+        if let savedValue = UserDefaults.standard.string(forKey: HandOrderingStrategy.storageKey) {
+            viewModel.restoreHandOrderingStrategy(from: savedValue)
+        }
+
+        _viewModel = StateObject(wrappedValue: viewModel)
     }
 
     var body: some View {
@@ -170,41 +91,41 @@ struct GameView: View {
             }
         )
         // ポーズメニューをフルスクリーンで重ね、端末サイズに左右されずに全項目を視認できるようにする
-        .fullScreenCover(isPresented: $isPauseMenuPresented) {
+        .fullScreenCover(isPresented: $viewModel.isPauseMenuPresented) {
             PauseMenuView(
                 onResume: {
                     // フルスクリーンカバーを閉じてプレイへ戻る
-                    isPauseMenuPresented = false
+                    viewModel.isPauseMenuPresented = false
                 },
                 onConfirmReset: {
                     // リセット確定後はフルスクリーンカバーを閉じてから共通処理を呼び出す
-                    isPauseMenuPresented = false
+                    viewModel.isPauseMenuPresented = false
                     performMenuAction(.reset)
                 },
                 onConfirmReturnToTitle: {
                     // タイトル復帰時もポーズメニューを閉じてから処理を実行する
-                    isPauseMenuPresented = false
+                    viewModel.isPauseMenuPresented = false
                     performMenuAction(.returnToTitle)
                 }
             )
         }
         // シートで結果画面を表示
-        .sheet(isPresented: $showingResult) {
+        .sheet(isPresented: $viewModel.showingResult) {
             ResultView(
                 moveCount: core.moveCount,
                 penaltyCount: core.penaltyCount,
                 elapsedSeconds: core.elapsedSeconds,
-                modeIdentifier: mode.identifier,
+                modeIdentifier: viewModel.mode.identifier,
                 onRetry: {
                     // リトライ時はゲームを初期状態に戻して再開する
                     core.reset()
                     // 新しいプレイで広告を再度表示できるようにフラグをリセット
-                    adsService.resetPlayFlag()
+                    viewModel.adsService.resetPlayFlag()
                     // 結果画面のシートを閉じてゲーム画面へ戻る
-                    showingResult = false
+                    viewModel.showingResult = false
                 },
-                gameCenterService: gameCenterService,
-                adsService: adsService
+                gameCenterService: viewModel.gameCenterService,
+                adsService: viewModel.adsService
             )
             // MARK: - iPad 向けのモーダル最適化
             // レギュラー幅（iPad など）では初期状態から `.large` を採用し、全要素が確実に表示されるようにする。
@@ -220,14 +141,14 @@ struct GameView: View {
             GameMenuActionConfirmationSheet(
                 action: action,
                 onConfirm: { confirmedAction in
-                    // performMenuAction 内でも pendingMenuAction を破棄しているが、
+                    // performMenuAction 内でも viewModel.pendingMenuAction を破棄しているが、
                     // 明示的に nil を代入しておくことでバインディング由来のシート閉鎖と状態初期化を二重に保証する
                     performMenuAction(confirmedAction)
-                    pendingMenuAction = nil
+                    viewModel.pendingMenuAction = nil
                 },
                 onCancel: {
-                    // キャンセル時はダイアログと同じ挙動になるように pendingMenuAction を破棄する
-                    pendingMenuAction = nil
+                    // キャンセル時はダイアログと同じ挙動になるように viewModel.pendingMenuAction を破棄する
+                    viewModel.pendingMenuAction = nil
                 }
             )
             // iPad では高さに余裕があるため medium/large の選択肢を用意し、読みやすさを優先する
@@ -240,16 +161,16 @@ struct GameView: View {
             isPresented: Binding(
                 get: {
                     // レギュラー幅ではシート側で確認を行うため、コンパクト幅のときだけダイアログを表示する
-                    horizontalSizeClass != .regular && pendingMenuAction != nil
+                    horizontalSizeClass != .regular && viewModel.pendingMenuAction != nil
                 },
                 set: { isPresented in
                     // キャンセル操作で閉じられた場合もステートを初期化する
                     if !isPresented {
-                        pendingMenuAction = nil
+                        viewModel.pendingMenuAction = nil
                     }
                 }
             ),
-            presenting: pendingMenuAction
+            presenting: viewModel.pendingMenuAction
         ) { action in
             Button(action.confirmationButtonTitle, role: action.buttonRole) {
                 // ユーザーの確認後に実際の処理を実行
@@ -299,158 +220,135 @@ struct GameView: View {
         // PreferenceKey で伝搬した各セクションの高さを受け取り、レイアウト計算に利用する
             .onPreferenceChange(StatisticsHeightPreferenceKey.self) { newHeight in
                 // 統計バッジ領域の計測値が変わったタイミングで旧値と比較し、変化量をログへ残して原因調査を容易にする
-                let previousHeight = statisticsHeight
+                let previousHeight = viewModel.statisticsHeight
                 guard previousHeight != newHeight else { return }
-                debugLog("GameView.statisticsHeight 更新: 旧値=\(previousHeight), 新値=\(newHeight)")
-                statisticsHeight = newHeight
+                debugLog("GameView.viewModel.statisticsHeight 更新: 旧値=\(previousHeight), 新値=\(newHeight)")
+                viewModel.statisticsHeight = newHeight
             }
             .onPreferenceChange(HandSectionHeightPreferenceKey.self) { newHeight in
                 // 手札セクションの高さ変化も逐次観測し、ホームインジケータ付近での余白不足を切り分けられるようにする
-                let previousHeight = handSectionHeight
+                let previousHeight = viewModel.handSectionHeight
                 guard previousHeight != newHeight else { return }
-                debugLog("GameView.handSectionHeight 更新: 旧値=\(previousHeight), 新値=\(newHeight)")
-                handSectionHeight = newHeight
+                debugLog("GameView.viewModel.handSectionHeight 更新: 旧値=\(previousHeight), 新値=\(newHeight)")
+                viewModel.handSectionHeight = newHeight
             }
             // 盤面 SpriteView のアンカー更新を監視し、アニメーションの移動先として保持
             .onPreferenceChange(BoardAnchorPreferenceKey.self) { anchor in
-                boardAnchor = anchor
+                viewModel.updateBoardAnchor(anchor)
             }
             // 初回表示時に SpriteKit の背景色もテーマに合わせて更新
             .onAppear {
-                // ビュー再表示時に GameScene へ GameCore の参照を再連結し、弱参照が nil にならないよう保証
-                scene.gameCore = core
-                applyScenePalette(for: colorScheme)
-                // 初期状態でもガイド表示のオン/オフに応じてハイライトを更新
-                refreshGuideHighlights()
-                // タイマー起動直後に経過時間を一度読み取って初期表示のずれを防ぐ
-                updateDisplayedElapsedTime()
-                // 表示開始時点で最新の手札並び設定を反映する
-                core.updateHandOrderingStrategy(resolveHandOrderingStrategy())
+                viewModel.prepareForAppear(
+                    colorScheme: colorScheme,
+                    guideModeEnabled: guideModeEnabled,
+                    handOrderingStrategy: resolveHandOrderingStrategy()
+                )
             }
             // ライト/ダーク切り替えが発生した場合も SpriteKit 側へ反映
             .onChange(of: colorScheme) { _, newScheme in
-                applyScenePalette(for: newScheme)
+                viewModel.applyScenePalette(for: newScheme)
                 // カラースキーム変更時はガイドの色味も再描画して視認性を確保
-                refreshGuideHighlights()
+                viewModel.refreshGuideHighlights(guideModeEnabled: guideModeEnabled)
             }
             // 手札の並び設定が変わったら即座にゲームロジックへ伝え、UI の並びも更新する
             .onChange(of: handOrderingRawValue) { _, _ in
-                core.updateHandOrderingStrategy(resolveHandOrderingStrategy())
+                viewModel.applyHandOrderingStrategy(rawValue: handOrderingRawValue)
             }
             // progress が .cleared へ変化したタイミングで結果画面を表示
             .onChange(of: core.progress) { _, newValue in
                 guard newValue == .cleared else { return }
                 // ゲームモードごとのテスト用リーダーボードへスコアを送信できるように識別子を渡す
-                gameCenterService.submitScore(core.score, for: mode.identifier)
-                showingResult = true
+                viewModel.gameCenterService.submitScore(core.score, for: viewModel.mode.identifier)
+                viewModel.showingResult = true
             }
 
             // 手詰まりペナルティ発生時のバナー表示を制御
             .onReceive(core.$penaltyEventID) { eventID in
                 guard eventID != nil else { return }
-
-                // 既存の自動クローズ処理があればキャンセルして状態をリセット
-                penaltyDismissWorkItem?.cancel()
-                penaltyDismissWorkItem = nil
-
-                // バナーをアニメーション付きで表示
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.8, blendDuration: 0.2)) {
-                    isShowingPenaltyBanner = true
-                }
-
-                // ペナルティ発生を触覚で知らせる（設定で有効な場合のみ）
-                if hapticsEnabled {
-                    UINotificationFeedbackGenerator().notificationOccurred(.warning)
-                }
-
-                // 一定時間後に自動でバナーを閉じる処理を登録
-                let workItem = DispatchWorkItem {
-                    withAnimation(.easeOut(duration: 0.25)) {
-                        isShowingPenaltyBanner = false
-                    }
-                    penaltyDismissWorkItem = nil
-                }
-                penaltyDismissWorkItem = workItem
-                DispatchQueue.main.asyncAfter(deadline: .now() + 2.6, execute: workItem)
+                viewModel.handlePenaltyEvent(hapticsEnabled: hapticsEnabled)
             }
             // 手札内容が変わるたびに移動候補を再計算し、ガイドハイライトを更新
             .onReceive(core.handManager.$handStacks) { newHandStacks in
                 // 手札ストリームの更新順序を追跡しやすいよう、受信したカードスロット数をログへ残す
-                debugLog("手札更新を受信: スタック数=\(newHandStacks.count), 退避ハンドあり=\(pendingGuideHand != nil)")
+                debugLog("手札更新を受信: スタック数=\(newHandStacks.count), 退避ハンドあり=\(viewModel.pendingGuideHand != nil)")
 
-                // --- トップカード ID の差分を検知して hiddenCardIDs を整合させる ---
+                // --- トップカード ID の差分を検知して viewModel.hiddenCardIDs を整合させる ---
                 var nextTopCardIDs: [UUID: UUID] = [:]
                 for stack in newHandStacks {
                     guard let topCard = stack.topCard else { continue }
-                    let previousTopID = topCardIDsByStack[stack.id]
+                    let previousTopID = viewModel.topCardIDsByStack[stack.id]
                     if let previousTopID, previousTopID != topCard.id {
                         // アニメーション終了前に別 ID へ差し替わった場合でも即座に非表示リストから除外し、ちらつきを防ぐ
-                        hiddenCardIDs.remove(previousTopID)
+                        viewModel.hiddenCardIDs.remove(previousTopID)
                         debugLog("スタック先頭カードを更新: stackID=\(stack.id), 旧トップID=\(previousTopID), 新トップID=\(topCard.id), 残枚数=\(stack.count)")
                     }
                     nextTopCardIDs[stack.id] = topCard.id
                 }
 
                 // 消滅したスタックに紐付いていたトップカード ID も忘れずに除去し、ゴースト化を避ける
-                let removedStackIDs = Set(topCardIDsByStack.keys).subtracting(nextTopCardIDs.keys)
+                let removedStackIDs = Set(viewModel.topCardIDsByStack.keys).subtracting(nextTopCardIDs.keys)
                 for stackID in removedStackIDs {
-                    if let previousTopID = topCardIDsByStack[stackID] {
-                        hiddenCardIDs.remove(previousTopID)
+                    if let previousTopID = viewModel.topCardIDsByStack[stackID] {
+                        viewModel.hiddenCardIDs.remove(previousTopID)
                         debugLog("スタック消滅に伴いトップカード ID を解放: stackID=\(stackID), cardID=\(previousTopID)")
                     }
                 }
-                topCardIDsByStack = nextTopCardIDs
+                viewModel.topCardIDsByStack = nextTopCardIDs
 
                 // 手札が差し替わった際は非表示リストを実際に存在するカード ID へ限定する（NEXT 表示も含める）
                 let topCardIDSet = Set(nextTopCardIDs.values)
                 let nextPreviewIDs = Set(core.nextCards.map { $0.id })
                 let validIDs = topCardIDSet.union(nextPreviewIDs)
-                hiddenCardIDs.formIntersection(validIDs)
+                viewModel.hiddenCardIDs.formIntersection(validIDs)
 
-                if let animatingCard, !validIDs.contains(animatingCard.id) {
+                if let viewModel.animatingCard, !validIDs.contains(viewModel.animatingCard.id) {
                     // 手札の再配布などで該当カードが消えた場合はアニメーション状態を初期化
-                    self.animatingCard = nil
-                    animatingStackID = nil
-                    animationState = .idle
-                    animationTargetGridPoint = nil
+                    self.viewModel.animatingCard = nil
+                    viewModel.animatingStackID = nil
+                    viewModel.animationState = .idle
+                    viewModel.animationTargetGridPoint = nil
                 }
                 // `core.handStacks` へ反映される前でも最新の手札を使ってハイライトを更新する
-                refreshGuideHighlights(handOverride: newHandStacks)
+                viewModel.refreshGuideHighlights(guideModeEnabled: guideModeEnabled, handOverride: newHandStacks)
             }
             // 盤面タップで移動を指示された際にもカード演出を統一して実行
             .onReceive(core.$boardTapPlayRequest) { request in
                 guard let request else { return }
-                handleBoardTapPlayRequest(request)
+                viewModel.handleBoardTapPlayRequest(request, hapticsEnabled: hapticsEnabled)
             }
             // ガイドモードのオン/オフを切り替えたら即座に SpriteKit へ反映
             .onChange(of: guideModeEnabled) { _, _ in
-                refreshGuideHighlights()
+                viewModel.refreshGuideHighlights(guideModeEnabled: guideModeEnabled)
             }
             // 経過時間を 1 秒ごとに再計算し、リアルタイム表示へ反映
-            .onReceive(elapsedTimer) { _ in
-                updateDisplayedElapsedTime()
+            .onReceive(viewModel.elapsedTimer) { _ in
+                viewModel.updateDisplayedElapsedTime()
             }
             // 進行状態が変化した際もハイライトを整理（手詰まり・クリア時は消灯）
             .onReceive(core.$progress) { progress in
                 // 進行状態が切り替わったタイミングで、デッドロック退避フラグの有無と併せて記録する
-                debugLog("進行状態の更新を受信: 状態=\(String(describing: progress)), 退避ハンドあり=\(pendingGuideHand != nil)")
+                debugLog("進行状態の更新を受信: 状態=\(String(describing: progress)), 退避ハンドあり=\(viewModel.pendingGuideHand != nil)")
 
                 // 進行状態の変化に合わせて経過時間を再計算し、リセット直後のズレを防ぐ
-                updateDisplayedElapsedTime()
+                viewModel.updateDisplayedElapsedTime()
 
                 if progress == .playing {
-                    if let bufferedHand = pendingGuideHand {
+                    if let bufferedHand = viewModel.pendingGuideHand {
                         // デッドロック解除直後は退避しておいた手札情報を使ってガイドを復元する
                         // refreshGuideHighlights 内で .playing 復帰を確認したタイミングのみバッファが空になる
                         // 仕組みに変更されたため、ここでは復元処理の呼び出しに専念させる
-                        refreshGuideHighlights(
+                        viewModel.refreshGuideHighlights(
+                            guideModeEnabled: guideModeEnabled,
                             handOverride: bufferedHand,
-                            currentOverride: pendingGuideCurrent,
+                            currentOverride: viewModel.pendingGuideCurrent,
                             progressOverride: progress
                         )
                     } else {
                         // バッファが無ければ通常通り最新状態から計算する
-                        refreshGuideHighlights(progressOverride: progress)
+                        viewModel.refreshGuideHighlights(
+                            guideModeEnabled: guideModeEnabled,
+                            progressOverride: progress
+                        )
                     }
                 } else {
                     scene.updateGuideHighlights([])
@@ -458,33 +356,33 @@ struct GameView: View {
             }
             // クリア確定時に GameCore 側で確定した秒数が流れてきたら表示へ反映
             .onReceive(core.$elapsedSeconds) { _ in
-                updateDisplayedElapsedTime()
+                viewModel.updateDisplayedElapsedTime()
             }
             // カードが盤面へ移動中は UI 全体を操作不可とし、状態の齟齬を防ぐ
-            .disabled(animatingCard != nil)
+            .disabled(viewModel.animatingCard != nil)
             // Preference から取得したアンカー情報を用いて、カードが盤面中央へ吸い込まれる演出を重ねる
             .overlayPreferenceValue(CardPositionPreferenceKey.self) { anchors in
                 GeometryReader { proxy in
                     ZStack {
                         Color.clear
-                        if let animatingCard,
-                           let sourceAnchor = anchors[animatingCard.id],
-                           let boardAnchor,
-                           animationState != .idle || hiddenCardIDs.contains(animatingCard.id),
-                           let targetGridPoint = animationTargetGridPoint ?? core.current {
+                        if let viewModel.animatingCard,
+                           let sourceAnchor = anchors[viewModel.animatingCard.id],
+                           let viewModel.boardAnchor,
+                           viewModel.animationState != .idle || viewModel.hiddenCardIDs.contains(viewModel.animatingCard.id),
+                           let targetGridPoint = viewModel.animationTargetGridPoint ?? core.current {
                             // --- 元の位置と駒位置の座標を算出 ---
                             let cardFrame = proxy[sourceAnchor]
-                            let boardFrame = proxy[boardAnchor]
+                            let boardFrame = proxy[viewModel.boardAnchor]
                             let startCenter = CGPoint(x: cardFrame.midX, y: cardFrame.midY)
                             // 盤面座標 → SwiftUI 座標系への変換を行い、目的位置を計算
                             let boardDestination = boardCoordinate(for: targetGridPoint, in: boardFrame)
 
-                            MoveCardIllustrationView(card: animatingCard.move)
-                                .matchedGeometryEffect(id: animatingCard.id, in: cardAnimationNamespace)
+                            MoveCardIllustrationView(card: viewModel.animatingCard.move)
+                                .matchedGeometryEffect(id: viewModel.animatingCard.id, in: cardAnimationNamespace)
                                 .frame(width: cardFrame.width, height: cardFrame.height)
-                                .position(animationState == .movingToBoard ? boardDestination : startCenter)
-                                .scaleEffect(animationState == .movingToBoard ? 0.55 : 1.0)
-                                .opacity(animationState == .movingToBoard ? 0.0 : 1.0)
+                                .position(viewModel.animationState == .movingToBoard ? boardDestination : startCenter)
+                                .scaleEffect(viewModel.animationState == .movingToBoard ? 0.55 : 1.0)
+                                .opacity(viewModel.animationState == .movingToBoard ? 0.0 : 1.0)
                                 .allowsHitTesting(false)
                         }
                     }
@@ -494,7 +392,7 @@ struct GameView: View {
     }
 
     /// レギュラー幅（iPad）向けにシート表示へ切り替えるためのバインディング
-    /// - Returns: iPad では pendingMenuAction を返し、それ以外では常に nil を返すバインディング
+    /// - Returns: iPad では viewModel.pendingMenuAction を返し、それ以外では常に nil を返すバインディング
     private var regularWidthPendingActionBinding: Binding<GameMenuAction?> {
         Binding(
             get: {
@@ -502,14 +400,15 @@ struct GameView: View {
                 guard horizontalSizeClass == .regular else {
                     return nil
                 }
-                return pendingMenuAction
+                return viewModel.pendingMenuAction
             },
             set: { newValue in
                 // シートを閉じたときに SwiftUI から nil が渡されるため、そのまま状態へ反映しておく
-                pendingMenuAction = newValue
+                viewModel.pendingMenuAction = newValue
             }
         )
     }
+
 
     /// GeometryReader から得た値を整理し、盤面レイアウトに関わる各種寸法をひとまとめにしたコンテキストを返す
     /// - Parameter geometry: 画面全体のサイズやセーフエリアを提供するジオメトリープロキシ
@@ -557,13 +456,13 @@ struct GameView: View {
         )
 
         // MARK: - 計測が完了していない高さのフォールバック処理
-        let isStatisticsHeightMeasured = statisticsHeight > 0
+        let isStatisticsHeightMeasured = viewModel.statisticsHeight > 0
         let resolvedStatisticsHeight = isStatisticsHeightMeasured
-            ? statisticsHeight
+            ? viewModel.statisticsHeight
             : LayoutMetrics.statisticsSectionFallbackHeight
-        let isHandSectionHeightMeasured = handSectionHeight > 0
+        let isHandSectionHeightMeasured = viewModel.handSectionHeight > 0
         let resolvedHandSectionHeight = isHandSectionHeightMeasured
-            ? handSectionHeight
+            ? viewModel.handSectionHeight
             : LayoutMetrics.handSectionFallbackHeight
 
         // MARK: - 盤面に割り当てられる高さと正方形サイズの算出
@@ -592,9 +491,9 @@ struct GameView: View {
             controlRowTopPadding: controlRowTopPadding,
             regularAdditionalBottomPadding: regularAdditionalPadding,
             handSectionBottomPadding: handSectionBottomPadding,
-            statisticsHeight: statisticsHeight,
+            statisticsHeight: viewModel.statisticsHeight,
             resolvedStatisticsHeight: resolvedStatisticsHeight,
-            handSectionHeight: handSectionHeight,
+            handSectionHeight: viewModel.handSectionHeight,
             resolvedHandSectionHeight: resolvedHandSectionHeight,
             availableHeightForBoard: availableHeightForBoard,
             horizontalBoardBase: horizontalBoardBase,
@@ -719,17 +618,17 @@ struct GameView: View {
             // 経過時間はスコア算出式の一部なのでここでまとめておく
             statisticBadge(
                 title: "経過時間",
-                value: formattedElapsedTime(displayedElapsedSeconds),
+                value: formattedElapsedTime(viewModel.displayedElapsedSeconds),
                 accessibilityLabel: "経過時間",
-                accessibilityValue: accessibilityElapsedTimeDescription(displayedElapsedSeconds)
+                accessibilityValue: accessibilityElapsedTimeDescription(viewModel.displayedElapsedSeconds)
             )
 
             // 総合スコアはリアルタイムで計算した値を表示し、結果画面で確定値と一致させる
             statisticBadge(
                 title: "総合スコア",
-                value: "\(displayedScore)",
+                value: "\(viewModel.displayedScore)",
                 accessibilityLabel: "総合スコア",
-                accessibilityValue: accessibilityScoreDescription(displayedScore)
+                accessibilityValue: accessibilityScoreDescription(viewModel.displayedScore)
             )
         }
     }
@@ -788,7 +687,7 @@ struct GameView: View {
                 scene.updateBoard(core.board)
                 scene.moveKnight(to: core.current)
                 // 盤面の同期が整ったタイミングでガイド表示も更新
-                refreshGuideHighlights()
+                viewModel.refreshGuideHighlights(guideModeEnabled: guideModeEnabled)
             }
             // ジオメトリの変化に追従できるよう、SpriteKit シーンのサイズも都度更新する
             .onChange(of: width) { _, newWidth in
@@ -804,12 +703,15 @@ struct GameView: View {
             .onReceive(core.$board) { newBoard in
                 scene.updateBoard(newBoard)
                 // 盤面の踏破状況が変わっても候補マスの情報を最新化
-                refreshGuideHighlights()
+                viewModel.refreshGuideHighlights(guideModeEnabled: guideModeEnabled)
             }
             .onReceive(core.$current) { newPoint in
                 scene.moveKnight(to: newPoint)
                 // 現在位置が変化したら移動候補も追従する
-                refreshGuideHighlights(currentOverride: newPoint)
+                viewModel.refreshGuideHighlights(
+                    guideModeEnabled: guideModeEnabled,
+                    currentOverride: newPoint
+                )
             }
     }
 
@@ -895,7 +797,7 @@ struct GameView: View {
                         ForEach(Array(core.nextCards.enumerated()), id: \.element.id) { index, dealtCard in
                             ZStack {
                                 MoveCardIllustrationView(card: dealtCard.move, mode: .next)
-                                    .opacity(hiddenCardIDs.contains(dealtCard.id) ? 0.0 : 1.0)
+                                    .opacity(viewModel.hiddenCardIDs.contains(dealtCard.id) ? 0.0 : 1.0)
                                     .matchedGeometryEffect(id: dealtCard.id, in: cardAnimationNamespace)
                                     .anchorPreference(key: CardPositionPreferenceKey.self, value: .bounds) { [dealtCard.id: $0] }
                                 NextCardOverlayView(order: index)
@@ -1038,7 +940,7 @@ struct GameView: View {
 
         return Button {
             // 実行前に必ず確認ダイアログを挟むため、既存のメニューアクションを再利用
-            pendingMenuAction = .manualPenalty(penaltyCost: core.mode.manualRedrawPenaltyCost)
+            viewModel.pendingMenuAction = .manualPenalty(penaltyCost: core.mode.manualRedrawPenaltyCost)
         } label: {
             // MARK: - ボタンは 44pt 以上の円形領域で構成し、メニューアイコンとの統一感を持たせる
             Image(systemName: "arrow.triangle.2.circlepath")
@@ -1091,7 +993,7 @@ struct GameView: View {
         )
 
         return VStack {
-            if isShowingPenaltyBanner {
+            if viewModel.isShowingPenaltyBanner {
                 HStack {
                     Spacer(minLength: 0)
                     PenaltyBannerView(penaltyAmount: core.lastPenaltyAmount)
@@ -1107,206 +1009,6 @@ struct GameView: View {
         .padding(.top, resolvedTopPadding)
         .allowsHitTesting(false)  // バナーが表示されていても下の UI を操作可能にする
         .zIndex(2)
-    }
-
-    /// SpriteKit シーンの配色を現在のテーマに合わせて調整する
-    /// - Parameter scheme: ユーザーが選択中のライト/ダーク種別
-    private func applyScenePalette(for scheme: ColorScheme) {
-        // SwiftUI 環境のカラースキームを明示指定した AppTheme を生成
-        let appTheme = AppTheme(colorScheme: scheme)
-
-        // AppTheme から SpriteKit 用のカラーパレットへ値を写し替える
-        let palette = GameScenePalette(
-            boardBackground: appTheme.skBoardBackground,
-            boardGridLine: appTheme.skBoardGridLine,
-            boardTileVisited: appTheme.skBoardTileVisited,
-            boardTileUnvisited: appTheme.skBoardTileUnvisited,
-            boardKnight: appTheme.skBoardKnight,
-            boardGuideHighlight: appTheme.skBoardGuideHighlight
-        )
-
-        // 変換したパレットを SpriteKit シーンへ適用し、UI と配色を一致させる
-        scene.applyTheme(palette)
-    }
-
-    /// ガイドモードの設定と現在の手札から移動可能なマスを算出し、SpriteKit 側へ通知する
-    /// - Parameters:
-    ///   - handOverride: 直近で受け取った最新の手札（`nil` の場合は `core.handStacks` を利用する）
-    ///   - currentOverride: 最新の現在地（`nil` の場合は `core.current` を利用する）
-    ///   - progressOverride: Combine で受け取った最新進行度（`nil` の場合は `core.progress` を参照）
-    private func refreshGuideHighlights(
-        handOverride: [HandStack]? = nil,
-        currentOverride: GridPoint? = nil,
-        progressOverride: GameProgress? = nil
-    ) {
-        // パラメータで上書き値が渡されていれば優先し、未指定であれば GameCore が保持する最新の状態を利用する
-        let handStacks = handOverride ?? core.handStacks
-        // Combine から届いた最新の進行度を優先できるよう引数でも受け取り、なければ GameCore の値を参照する
-        let progress = progressOverride ?? core.progress
-
-        // スポーン選択中などで現在地が未確定の場合はガイドを消灯し、再開に備えて状態をリセットする
-        guard let current = currentOverride ?? core.current else {
-            scene.updateGuideHighlights([])
-            pendingGuideHand = nil
-            pendingGuideCurrent = nil
-            debugLog("ガイド更新を中断: 現在地が未確定のためハイライトを消灯 状態=\(String(describing: progress)), スタック数=\(handStacks.count)")
-            return
-        }
-
-        // 各カードの移動先を列挙し、盤内に収まるマスだけを候補として蓄積する
-        var candidatePoints: Set<GridPoint> = []
-        for stack in handStacks {
-            guard let card = stack.topCard else { continue }
-            // 現在位置からカードの移動量を加算し、到達先マスを導出する
-            let destination = current.offset(dx: card.move.dx, dy: card.move.dy)
-            if core.board.contains(destination) {
-                candidatePoints.insert(destination)
-            }
-        }
-
-        // ガイドモードが無効なときは全てのハイライトを隠し、バッファも不要なので初期化する
-        guard guideModeEnabled else {
-            scene.updateGuideHighlights([])
-            pendingGuideHand = nil
-            pendingGuideCurrent = nil
-            // ガイドモードを明示的に無効化した場合は、候補数と進行状態をログへ残して挙動を可視化する
-            debugLog("ガイド無効化に伴いハイライトを消灯: 状態=\(String(describing: progress)), 候補マス数=\(candidatePoints.count)")
-            return
-        }
-
-        // 進行状態が .playing 以外（例: .deadlock）のときは手札と位置をバッファへ退避し、再開時に再描画できるようにする
-        guard progress == .playing else {
-            pendingGuideHand = handStacks
-            pendingGuideCurrent = current
-            // デッドロックなどで一時停止した場合は、復帰時に備えて候補数と現在地をログに出力する
-            debugLog("ガイド更新を保留: 状態=\(String(describing: progress)), 退避候補数=\(candidatePoints.count), 現在地=\(current)")
-            return
-        }
-
-        // 正常に描画できたらバッファは不要のためリセットする
-        pendingGuideHand = nil
-        pendingGuideCurrent = nil
-
-        // 算出した集合を SpriteKit へ渡し、視覚的なサポートを行う
-        scene.updateGuideHighlights(candidatePoints)
-        // ガイドを実際に描画した際も、進行状態と候補数をログに記録して UI 側の追跡を容易にする
-        debugLog("ガイドを描画: 状態=\(String(describing: progress)), 描画マス数=\(candidatePoints.count)")
-    }
-
-    /// 指定スタックのトップカードが現在位置から盤内に収まるか判定
-    /// - Parameter stack: 判定対象とする手札スタック
-    /// - Note: MoveCard は列挙型であり、dx/dy プロパティから移動量を取得する
-    private func isCardUsable(_ stack: HandStack) -> Bool {
-        guard let card = stack.topCard else {
-            // スタックが空の場合は使用不可扱いにして安全側へ倒す
-            return false
-        }
-        guard let current = core.current else {
-            // スポーン未確定など現在地が無い場合は全てのカードを使用不可とみなす
-            return false
-        }
-        // 現在位置に MoveCard の移動量を加算して目的地を算出
-        let target = current.offset(dx: card.move.dx, dy: card.move.dy)
-        // 目的地が盤面内に含まれているかどうかを判定
-        return core.board.contains(target)
-    }
-
-    /// 手札スタックのトップカードを盤面へ送るアニメーションを共通化する
-    /// - Parameters:
-    ///   - stack: 演出対象の手札スタック
-    ///   - index: `GameCore.playCard(at:)` に渡すインデックス
-    /// - Returns: アニメーションを開始できた場合は true
-    @discardableResult
-    private func animateCardPlay(for stack: HandStack, at index: Int) -> Bool {
-        // 既に別カードの演出が進行中なら二重再生を避ける
-        guard animatingCard == nil else { return false }
-        // スポーン未確定時はカードを使用できないため、演出を開始せず安全に抜ける
-        guard let current = core.current else { return false }
-        // スタックのトップカードを取得し、盤面内へ移動可能かチェックする
-        guard let topCard = stack.topCard, isCardUsable(stack) else { return false }
-
-        // アニメーション開始前に現在地を記録しておき、目的地の座標計算に利用する
-        animationTargetGridPoint = current
-        hiddenCardIDs.insert(topCard.id)
-        animatingCard = topCard
-        animatingStackID = stack.id
-        animationState = .idle
-
-        debugLog("スタック演出開始: stackID=\(stack.id), card=\(topCard.move.displayName), 残枚数=\(stack.count)")
-
-        // 成功操作のフィードバックを統一
-        if hapticsEnabled {
-            UINotificationFeedbackGenerator().notificationOccurred(.success)
-        }
-
-        // 盤面へ吸い込まれていく動きを開始（時間はカードタップ時と同じ 0.24 秒）
-        let travelDuration: TimeInterval = 0.24
-        withAnimation(.easeInOut(duration: travelDuration)) {
-            animationState = .movingToBoard
-        }
-
-        let cardID = topCard.id
-        // 演出完了後に実際の移動処理を実行し、状態を初期化する
-        DispatchQueue.main.asyncAfter(deadline: .now() + travelDuration) {
-            withAnimation(.easeInOut(duration: 0.22)) {
-                core.playCard(at: index)
-            }
-            hiddenCardIDs.remove(cardID)
-            if animatingCard?.id == cardID {
-                animatingCard = nil
-            }
-            animatingStackID = nil
-            animationState = .idle
-            animationTargetGridPoint = nil
-            debugLog("スタック演出完了: stackIndex=\(index), 消費カードID=\(cardID)")
-        }
-
-        return true
-    }
-
-    /// GameCore から届いた盤面タップ要求を処理し、必要に応じてカード演出を開始する
-    /// - Parameter request: 盤面タップ時に GameCore が公開した手札情報
-    private func handleBoardTapPlayRequest(_ request: BoardTapPlayRequest) {
-        // 処理の成否にかかわらず必ずリクエストを消費して次のタップを受け付ける
-        defer { core.clearBoardTapPlayRequest(request.id) }
-
-        // アニメーション再生中は新しいリクエストを無視する（UI 全体も disabled 済みだが安全策）
-        guard animatingCard == nil else {
-            debugLog("BoardTapPlayRequest を無視: 別カードが移動中 requestID=\(request.id), 進行中stack=\(String(describing: animatingStackID)))")
-            return
-        }
-
-        // 指定されたスタックが最新の状態でも存在するか確認する
-        let resolvedIndex: Int
-        if core.handStacks.indices.contains(request.stackIndex),
-           core.handStacks[request.stackIndex].id == request.stackID {
-            resolvedIndex = request.stackIndex
-        } else if let fallbackIndex = core.handStacks.firstIndex(where: { $0.id == request.stackID }) {
-            resolvedIndex = fallbackIndex
-        } else {
-            debugLog("BoardTapPlayRequest を無視: stackID=\(request.stackID) が見つからない")
-            return
-        }
-
-        let stack = core.handStacks[resolvedIndex]
-        guard let currentTop = stack.topCard else {
-            debugLog("BoardTapPlayRequest を無視: スタックにトップカードが存在しない stackID=\(stack.id)")
-            return
-        }
-
-        let sameID = currentTop.id == request.topCard.id
-        let sameMove = currentTop.move == request.topCard.move
-
-        debugLog(
-            "BoardTapPlayRequest 受信: requestID=\(request.id), 要求index=\(request.stackIndex), 解決index=\(resolvedIndex), stackID=\(stack.id), requestTopID=\(request.topCard.id), resolvedTopID=\(currentTop.id), sameID=\(sameID), sameMove=\(sameMove), 残枚数=\(stack.count)"
-        )
-
-        guard sameID || sameMove else {
-            debugLog("BoardTapPlayRequest を無視: トップカードの種類が変わったため最新状態を優先")
-            return
-        }
-
-        _ = animateCardPlay(for: stack, at: resolvedIndex)
     }
 
     /// グリッド座標を SpriteView 上の中心座標に変換する
@@ -1390,23 +1092,6 @@ struct GameView: View {
         "\(score)ポイント"
     }
 
-    /// GameCore が保持する時刻情報から画面表示用の経過秒数を更新する
-    /// - Note: 秒単位の差分しか扱わないため、値が変わったときのみ State を更新して不要な再描画を抑制する
-    private func updateDisplayedElapsedTime() {
-        // クリア済みなら確定値を、プレイ中はリアルタイム計算値を採用する
-        let latestSeconds: Int
-        if core.progress == .cleared {
-            latestSeconds = core.elapsedSeconds
-        } else {
-            latestSeconds = core.liveElapsedSeconds
-        }
-
-        // 値に変化があったときだけ State を更新する
-        if displayedElapsedSeconds != latestSeconds {
-            displayedElapsedSeconds = latestSeconds
-        }
-    }
-
     /// 指定スロットのスタック（存在しない場合は nil）を取得するヘルパー
     /// - Parameter index: 手札スロットの添字
     /// - Returns: 対応する `HandStack` または nil（スロットが空の場合）
@@ -1424,8 +1109,8 @@ struct GameView: View {
     private func handSlotView(for index: Int) -> some View {
         ZStack {
             if let stack = handCard(at: index), let card = stack.topCard {
-                let isHidden = hiddenCardIDs.contains(card.id)
-                let isUsable = isCardUsable(stack)
+                let isHidden = viewModel.hiddenCardIDs.contains(card.id)
+                let isUsable = viewModel.isCardUsable(stack)
                 let isSelectingDiscard = core.isAwaitingManualDiscardSelection
 
                 HandStackCardView(stackCount: stack.count) {
@@ -1448,7 +1133,7 @@ struct GameView: View {
                 }
                 .onTapGesture {
                     // 既に別カードが移動中ならタップを無視して多重処理を防止
-                    guard animatingCard == nil else { return }
+                    guard viewModel.animatingCard == nil else { return }
 
                     guard core.handStacks.indices.contains(index) else { return }
                     let latestStack = core.handStacks[index]
@@ -1461,9 +1146,9 @@ struct GameView: View {
                                 UINotificationFeedbackGenerator().notificationOccurred(.warning)
                             }
                         }
-                    } else if isCardUsable(latestStack) {
+                    } else if viewModel.isCardUsable(latestStack) {
                         // 共通処理でアニメーションとカード使用をまとめて実行
-                        _ = animateCardPlay(for: latestStack, at: index)
+                        _ = viewModel.animateCardPlay(for: latestStack, at: index, hapticsEnabled: hapticsEnabled)
                     } else {
                         // 使用不可カードは警告ハプティクスのみ発火
                         if hapticsEnabled {
@@ -1621,8 +1306,8 @@ struct GameView: View {
     ///   - reason: ログ出力の契機（onAppear / 値更新など）
     private func logLayoutSnapshot(_ snapshot: BoardLayoutSnapshot, reason: String) {
         // 同じ値での重複出力を避け、必要なタイミングのみに絞ってログを残す
-        if lastLoggedLayoutSnapshot == snapshot { return }
-        lastLoggedLayoutSnapshot = snapshot
+        if viewModel.lastLoggedLayoutSnapshot == snapshot { return }
+        viewModel.lastLoggedLayoutSnapshot = snapshot
 
         // 盤面縮小ロジックのどこで値が想定外になっているか突き止められるよう、多段の詳細ログを整形して出力する
         let message = """
@@ -1747,7 +1432,7 @@ private extension GameView {
     private var pauseButton: some View {
         Button {
             debugLog("GameView: ポーズメニュー表示要求")
-            isPauseMenuPresented = true
+            viewModel.isPauseMenuPresented = true
         } label: {
             Image(systemName: "pause.circle")
                 .font(.system(size: 22, weight: .semibold))
@@ -1773,7 +1458,7 @@ private extension GameView {
     private var debugResultButton: some View {
         Button(action: {
             // 直接結果画面を開き、UI の確認やデバッグを容易にする
-            showingResult = true
+            viewModel.showingResult = true
         }) {
             Text("結果へ")
         }
@@ -1786,38 +1471,7 @@ private extension GameView {
     /// メニュー操作を実際に実行する共通処理
     /// - Parameter action: ユーザーが選択した操作種別
     private func performMenuAction(_ action: GameMenuAction) {
-        // ダイアログを閉じるために必ず nil へ戻す
-        pendingMenuAction = nil
-
-        switch action {
-        case .manualPenalty(_):
-            // 既存バナーの自動クローズ処理を停止し、新規イベントに備える
-            penaltyDismissWorkItem?.cancel()
-            penaltyDismissWorkItem = nil
-            isShowingPenaltyBanner = false
-            // GameCore の共通処理を呼び出し、手動ペナルティを適用
-            core.applyManualPenaltyRedraw()
-
-        case .reset:
-            // バナー表示をリセットし、ゲームを初期状態へ戻す
-            penaltyDismissWorkItem?.cancel()
-            penaltyDismissWorkItem = nil
-            isShowingPenaltyBanner = false
-            // シートが開いている場合でも即座に閉じる
-            showingResult = false
-            core.reset()
-            adsService.resetPlayFlag()
-
-        case .returnToTitle:
-            // リセットと同じ処理を実行した後にタイトル戻りを通知
-            penaltyDismissWorkItem?.cancel()
-            penaltyDismissWorkItem = nil
-            isShowingPenaltyBanner = false
-            showingResult = false
-            core.reset()
-            adsService.resetPlayFlag()
-            onRequestReturnToTitle?()
-        }
+        viewModel.performMenuAction(action)
     }
 }
 
@@ -1890,65 +1544,6 @@ fileprivate struct GameMenuActionConfirmationSheet: View {
         .padding(32)
         .frame(maxWidth: 520, alignment: .leading)
         .background(theme.backgroundElevated)
-    }
-}
-
-// MARK: - メニュー操作の定義
-private enum GameMenuAction: Hashable, Identifiable {
-    case manualPenalty(penaltyCost: Int)
-    case reset
-    case returnToTitle
-
-    /// Identifiable 準拠のための一意な ID
-    var id: Int {
-        switch self {
-        case .manualPenalty(_):
-            return 0
-        case .reset:
-            return 1
-        case .returnToTitle:
-            return 2
-        }
-    }
-
-    /// ダイアログ内で表示するボタンタイトル
-    var confirmationButtonTitle: String {
-        switch self {
-        case .manualPenalty(_):
-            return "ペナルティを払う"
-        case .reset:
-            return "リセットする"
-        case .returnToTitle:
-            return "タイトルへ戻る"
-        }
-    }
-
-    /// 操作説明として表示するメッセージ
-    var confirmationMessage: String {
-        switch self {
-        case .manualPenalty(let cost):
-            if cost > 0 {
-                return "手数を\(cost)増やして手札スロットを引き直します。現在の手札スロットは空になります。よろしいですか？"
-            } else {
-                return "手数を増やさずに手札スロットを引き直します。現在の手札スロットは空になります。よろしいですか？"
-            }
-        case .reset:
-            return "現在の進行状況を破棄して、最初からやり直します。よろしいですか？"
-        case .returnToTitle:
-            return "ゲームを終了してタイトル画面へ戻ります。現在のプレイ内容は保存されません。"
-        }
-    }
-
-    /// ボタンのロール（破壊的操作は .destructive を指定）
-    var buttonRole: ButtonRole? {
-        switch self {
-        case .manualPenalty(_):
-            return .destructive
-        case .reset:
-            return .destructive
-        case .returnToTitle:
-            return .destructive
-        }
     }
 }
 
