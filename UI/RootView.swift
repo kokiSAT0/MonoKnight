@@ -447,7 +447,7 @@ private extension RootView {
 
     /// ゲーム開始前のローディング表示を担うオーバーレイビュー
     /// - NOTE: ZStack の最上位でフェード表示するため、背景のディミングやカード風ボックスをここで完結させる
-    fileprivate struct GamePreparationOverlayView: View {
+    struct GamePreparationOverlayView: View {
         /// テーマを利用してライト/ダーク両対応の配色を適用する
         private var theme = AppTheme()
 
