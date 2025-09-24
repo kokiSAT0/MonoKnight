@@ -40,6 +40,8 @@ struct GameView: View {
     @State private var penaltyDismissWorkItem: DispatchWorkItem?
     /// SpriteKit のシーン。`@State` で保持し、SwiftUI による再描画でも同一インスタンスを再利用する
     @State private var scene: GameScene
+    /// Game モジュールの公開インターフェース。GameCore の生成方法を抽象化して保持する
+    private let gameInterfaces: GameModuleInterfaces
     /// Game Center 連携を扱うサービス（プロトコル型で受け取る）
     private let gameCenterService: GameCenterServiceProtocol
     /// 広告表示を扱うサービス（プロトコル型で受け取る）
@@ -96,9 +98,13 @@ struct GameView: View {
     private let elapsedTimer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     /// デフォルトのサービスを利用して `GameView` を生成するコンビニエンスイニシャライザ
-    /// - Parameter onRequestReturnToTitle: タイトル画面への遷移要求クロージャ（省略可）
+    /// - Parameters:
+    ///   - mode: 表示したいゲームモード
+    ///   - gameInterfaces: GameCore 生成を担当するファクトリセット（省略時は `.live`）
+    ///   - onRequestReturnToTitle: タイトル画面への遷移要求クロージャ（省略可）
     init(
         mode: GameMode = .standard,
+        gameInterfaces: GameModuleInterfaces = .live,
         onRequestReturnToTitle: (() -> Void)? = nil
     ) {
         // Swift 6 のコンカレンシールールではデフォルト引数で `@MainActor` なシングルトンへ
@@ -107,6 +113,7 @@ struct GameView: View {
         // メインアクター上から安全に依存を解決できるようにする。
         self.init(
             mode: mode,
+            gameInterfaces: gameInterfaces,
             gameCenterService: GameCenterService.shared,
             adsService: AdsService.shared,
             onRequestReturnToTitle: onRequestReturnToTitle
@@ -116,18 +123,21 @@ struct GameView: View {
     /// 初期化で GameCore と GameScene を連結する
     /// 依存するサービスを外部から注入できるようにする初期化処理
     /// - Parameters:
+    ///   - gameInterfaces: GameCore の生成方法をまとめた依存関係
     ///   - gameCenterService: Game Center 連携用サービス
     ///   - adsService: 広告表示用サービス
     init(
         mode: GameMode,
+        gameInterfaces: GameModuleInterfaces,
         gameCenterService: GameCenterServiceProtocol,
         adsService: AdsServiceProtocol,
         onRequestReturnToTitle: (() -> Void)? = nil
     ) {
         self.mode = mode
+        self.gameInterfaces = gameInterfaces
 
         // GameCore の生成。StateObject へ包んで保持する
-        let core = GameCore(mode: mode)
+        let core = gameInterfaces.makeGameCore(mode)
         // UserDefaults に保存済みの手札並び設定を復元し、初期表示から反映する
         if let savedValue = UserDefaults.standard.string(forKey: HandOrderingStrategy.storageKey),
            let strategy = HandOrderingStrategy(rawValue: savedValue) {

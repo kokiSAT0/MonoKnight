@@ -355,12 +355,13 @@ public struct GameMode: Equatable, Identifiable {
     /// スタンダードモードの定義を生成する
     private static func buildStandardRegulation() -> Regulation {
         Regulation(
-            boardSize: 5,
+            boardSize: BoardGeometry.standardSize,
             handSize: 5,
             nextPreviewCount: 3,
             allowsStacking: true,
             deckPreset: .standard,
-            spawnRule: .fixed(GridPoint.center(of: 5)),
+            // BoardGeometry を利用して中央座標を求めることで、盤面サイズが変わった場合の修正箇所を 1 箇所に抑える
+            spawnRule: .fixed(BoardGeometry.defaultSpawnPoint(for: BoardGeometry.standardSize)),
             penalties: PenaltySettings(
                 deadlockPenaltyCost: 5,
                 manualRedrawPenaltyCost: 5,
