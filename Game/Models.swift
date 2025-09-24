@@ -141,6 +141,40 @@ public enum GameProgress {
     case deadlock
 }
 
+// MARK: - UI 連動用の要求モデル
+
+/// 盤面タップでカード再生アニメーションを要求するときに利用する構造体
+/// - Note: SwiftUI 側でアニメーションを実行 → 完了後に `GameCore.clearBoardTapPlayRequest` を呼ぶ想定
+public struct BoardTapPlayRequest: Identifiable, Equatable {
+    /// 各リクエストを一意に識別するための ID
+    public let id: UUID
+    /// 盤面タップ時に対応する手札スタックの識別子
+    public let stackID: UUID
+    /// `GameCore.playCard(at:)` に渡すインデックス
+    public let stackIndex: Int
+    /// アニメーション用に参照するスタック先頭のカード
+    public let topCard: DealtCard
+
+    /// 公開イニシャライザ
+    /// - Parameters:
+    ///   - id: 外部で識別子を指定したい場合に利用（省略時は自動生成）
+    ///   - stackID: 対象スタックの識別子
+    ///   - stackIndex: 手札スロット内での位置
+    ///   - topCard: 要求時点での先頭カード
+    public init(id: UUID = UUID(), stackID: UUID, stackIndex: Int, topCard: DealtCard) {
+        self.id = id
+        self.stackID = stackID
+        self.stackIndex = stackIndex
+        self.topCard = topCard
+    }
+
+    /// Equatable 実装
+    /// - Note: 同じリクエストかどうかを識別子でのみ比較し、カード差し替え時も継続扱いにする
+    public static func == (lhs: BoardTapPlayRequest, rhs: BoardTapPlayRequest) -> Bool {
+        lhs.id == rhs.id
+    }
+}
+
 // MARK: - デバッグ支援
 extension GridPoint: CustomStringConvertible {
     /// デバッグ出力時に座標を分かりやすく表示する
