@@ -1,8 +1,9 @@
 import Foundation
 import StoreKit
 import SwiftUI
-// Game モジュールに定義されたデバッグ用ユーティリティを利用するために読み込む
+// Game モジュールに定義されたデータ型（GameMode.Identifier など）を利用するために読み込む
 import Game
+import SharedSupport // debugLog / debugError を利用するため追加
 
 /// StoreKit2 を用いた課金処理をまとめたサービス
 /// `remove_ads_mk` 商品の購入・復元・状態保持を担当する

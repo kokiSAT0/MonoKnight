@@ -2,6 +2,7 @@ import Foundation
 #if canImport(UIKit)
 import UIKit
 #endif
+import SharedSupport // ログユーティリティを利用するため追加
 
 /// ペナルティ判定や捨て札ペナルティの処理、VoiceOver 通知など UI 連動が強い処理を切り出した拡張
 extension GameCore {

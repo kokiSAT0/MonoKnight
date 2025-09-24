@@ -3,6 +3,7 @@ import SpriteKit
 #if canImport(UIKit)
 import UIKit
 #endif
+import SharedSupport // debugLog を利用するため共有モジュールを読み込む
 
 /// GameCore とのやり取りのためのプロトコル
 /// - ゲームロジック側で実装し、タップされたマスに対する移動処理を担当する

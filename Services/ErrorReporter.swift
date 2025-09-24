@@ -1,6 +1,6 @@
 import Foundation
-// デバッグログ出力のために Game モジュールを読み込む
-import Game
+// デバッグログ出力のために共有モジュールを読み込む
+import SharedSupport
 #if canImport(Darwin)
 import Darwin
 #endif
