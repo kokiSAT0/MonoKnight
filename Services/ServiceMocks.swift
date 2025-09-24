@@ -67,4 +67,34 @@ final class MockAdsService: AdsServiceProtocol {
         }
     }
 }
+
+/// StoreKit の購入フローを即座に成功させる UI テスト用モック
+final class MockStoreService: ObservableObject, StoreServiceProtocol {
+    /// 広告除去が購入済みかどうかのフラグ
+    @Published private(set) var isRemoveAdsPurchased: Bool
+    /// 価格表示用のテキスト（テスト用に任意の値を設定できる）
+    @Published private(set) var removeAdsPriceText: String?
+
+    /// - Parameters:
+    ///   - isPurchased: 初期状態で購入済みにするかどうか。
+    ///   - priceText: 画面に表示する価格文言。`nil` にするとローディング表示を再現できる。
+    init(isPurchased: Bool = false, priceText: String? = "¥320") {
+        self.isRemoveAdsPurchased = isPurchased
+        self.removeAdsPriceText = priceText
+    }
+
+    /// プロダクト情報の取得は不要なので何もしない。
+    func refreshProducts() async {}
+
+    /// 購入操作を実行すると即座にフラグを立てる。
+    func purchaseRemoveAds() async {
+        isRemoveAdsPurchased = true
+    }
+
+    /// 復元操作は常に成功したものとして扱う。
+    func restorePurchases() async -> Bool {
+        isRemoveAdsPurchased = true
+        return true
+    }
+}
 #endif

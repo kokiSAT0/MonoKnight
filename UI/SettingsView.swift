@@ -8,8 +8,8 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
 
     // MARK: - ストア連携
-    // 広告除去 IAP の購入／復元状態を UI に反映するため、共有の StoreService を監視する。
-    @ObservedObject private var storeService = StoreService.shared
+    // 広告除去 IAP の購入／復元状態を UI に反映するため、環境オブジェクトとして渡された Store サービスを監視する。
+    @EnvironmentObject private var storeService: AnyStoreService
 
     // 購入ボタンを複数回タップできないようにするための進行状況フラグ。
     @State private var isPurchaseInProgress = false
@@ -150,7 +150,7 @@ struct SettingsView: View {
 
                 // MARK: - 広告除去 IAP セクション
                 Section {
-                    if storeService.isremoveAdsMKPurchased {
+                    if storeService.isRemoveAdsPurchased {
                         // すでに広告除去が有効な場合は、状態が維持されていることを明確に示す
                         Label {
                             Text("広告は現在表示されません")
@@ -164,10 +164,10 @@ struct SettingsView: View {
                             isPurchaseInProgress = true
                             Task {
                                 // 商品情報が未取得の場合は先にリクエストをやり直す
-                                if storeService.removeAdsMKProduct == nil {
-                                    await storeService.fetchProducts()
+                                if storeService.removeAdsPriceText == nil {
+                                    await storeService.refreshProducts()
                                 }
-                                await storeService.purchaseremoveAdsMK()
+                                await storeService.purchaseRemoveAds()
                                 await MainActor.run {
                                     isPurchaseInProgress = false
                                 }
@@ -178,7 +178,7 @@ struct SettingsView: View {
                                 Spacer()
                                 if isPurchaseInProgress {
                                     ProgressView()
-                                } else if let price = storeService.removeAdsMKProduct?.displayPrice {
+                                } else if let price = storeService.removeAdsPriceText {
                                     Text(price)
                                         .foregroundStyle(.secondary)
                                 } else {
@@ -296,7 +296,7 @@ struct SettingsView: View {
             }
             // - NOTE: プレビューや UI テストでは、この Picker を操作して `GameView` の `applyScenePalette` が呼び直されることを確認する想定。
             // 購入状態の遷移を旧値と新値の両方から判定し、false→true の変化だけを検出する
-            .onChange(of: storeService.isremoveAdsMKPurchased) { oldValue, newValue in
+            .onChange(of: storeService.isRemoveAdsPurchased) { oldValue, newValue in
                 // 直前まで未購入で、今回の更新で初めて購入済みになったタイミングのみアラートを掲示する
                 if !oldValue && newValue {
                     storeAlert = .purchaseCompleted
