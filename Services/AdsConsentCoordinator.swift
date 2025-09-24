@@ -156,9 +156,11 @@ final class AdsConsentCoordinator: AdsConsentCoordinating {
     /// AppStorage 経由で NPA 判定を永続化する
     @AppStorage("ads_should_use_npa") private var shouldUseNPA: Bool = false
 
-    init(hasValidAdConfiguration: Bool, environment: AdsConsentEnvironment = DefaultAdsConsentEnvironment()) {
+    init(hasValidAdConfiguration: Bool, environment: AdsConsentEnvironment? = nil) {
         self.hasValidAdConfiguration = hasValidAdConfiguration
-        self.environment = environment
+        // デフォルト引数で MainActor 専有のイニシャライザを直接呼び出すと警告になるため、
+        // 初期化処理内で必要に応じて DefaultAdsConsentEnvironment を生成する。
+        self.environment = environment ?? DefaultAdsConsentEnvironment()
     }
 
     var currentState: AdsConsentState {
