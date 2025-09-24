@@ -246,6 +246,9 @@ final class AdsConsentCoordinator: AdsConsentCoordinating {
     }
 
     /// RequestParameters を生成するヘルパー
+    /// - Note: RequestParameters / DebugSettings は MainActor 専有のイニシャライザを持つため、
+    ///         メソッド全体を @MainActor で明示してメインスレッド上で生成されることを保証する。
+    @MainActor
     private func makeRequestParameters() -> RequestParameters {
         let parameters = RequestParameters()
         parameters.tagForUnderAgeOfConsent = false
