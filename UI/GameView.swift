@@ -117,12 +117,8 @@ struct GameView: View {
                 elapsedSeconds: core.elapsedSeconds,
                 modeIdentifier: viewModel.mode.identifier,
                 onRetry: {
-                    // リトライ時はゲームを初期状態に戻して再開する
-                    core.reset()
-                    // 新しいプレイで広告を再度表示できるようにフラグをリセット
-                    viewModel.adsService.resetPlayFlag()
-                    // 結果画面のシートを閉じてゲーム画面へ戻る
-                    viewModel.showingResult = false
+                    // ViewModel 側でリセットと広告フラグの再設定をまとめて処理する
+                    viewModel.handleResultRetry()
                 },
                 gameCenterService: viewModel.gameCenterService,
                 adsService: viewModel.adsService
@@ -241,6 +237,7 @@ struct GameView: View {
                 viewModel.prepareForAppear(
                     colorScheme: colorScheme,
                     guideModeEnabled: guideModeEnabled,
+                    hapticsEnabled: hapticsEnabled,
                     handOrderingStrategy: resolveHandOrderingStrategy()
                 )
             }
@@ -248,114 +245,22 @@ struct GameView: View {
             .onChange(of: colorScheme) { _, newScheme in
                 viewModel.applyScenePalette(for: newScheme)
                 // カラースキーム変更時はガイドの色味も再描画して視認性を確保
-                viewModel.refreshGuideHighlights(guideModeEnabled: guideModeEnabled)
+                viewModel.refreshGuideHighlights()
             }
             // 手札の並び設定が変わったら即座にゲームロジックへ伝え、UI の並びも更新する
             .onChange(of: handOrderingRawValue) { _, _ in
                 viewModel.applyHandOrderingStrategy(rawValue: handOrderingRawValue)
             }
-            // progress が .cleared へ変化したタイミングで結果画面を表示
-            .onChange(of: core.progress) { _, newValue in
-                guard newValue == .cleared else { return }
-                // ゲームモードごとのテスト用リーダーボードへスコアを送信できるように識別子を渡す
-                viewModel.gameCenterService.submitScore(core.score, for: viewModel.mode.identifier)
-                viewModel.showingResult = true
+            // ガイドモードのオン/オフを切り替えたら即座に ViewModel 側へ委譲する
+            .onChange(of: guideModeEnabled) { _, isEnabled in
+                viewModel.updateGuideMode(enabled: isEnabled)
             }
-
-            // 手詰まりペナルティ発生時のバナー表示を制御
-            .onReceive(core.$penaltyEventID) { eventID in
-                guard eventID != nil else { return }
-                viewModel.handlePenaltyEvent(hapticsEnabled: hapticsEnabled)
-            }
-            // 手札内容が変わるたびに移動候補を再計算し、ガイドハイライトを更新
-            .onReceive(core.handManager.$handStacks) { newHandStacks in
-                // 手札ストリームの更新順序を追跡しやすいよう、受信したカードスロット数をログへ残す
-                debugLog("手札更新を受信: スタック数=\(newHandStacks.count), 退避ハンドあり=\(viewModel.pendingGuideHand != nil)")
-
-                // --- トップカード ID の差分を検知して viewModel.hiddenCardIDs を整合させる ---
-                var nextTopCardIDs: [UUID: UUID] = [:]
-                for stack in newHandStacks {
-                    guard let topCard = stack.topCard else { continue }
-                    let previousTopID = viewModel.topCardIDsByStack[stack.id]
-                    if let previousTopID, previousTopID != topCard.id {
-                        // アニメーション終了前に別 ID へ差し替わった場合でも即座に非表示リストから除外し、ちらつきを防ぐ
-                        viewModel.hiddenCardIDs.remove(previousTopID)
-                        debugLog("スタック先頭カードを更新: stackID=\(stack.id), 旧トップID=\(previousTopID), 新トップID=\(topCard.id), 残枚数=\(stack.count)")
-                    }
-                    nextTopCardIDs[stack.id] = topCard.id
-                }
-
-                // 消滅したスタックに紐付いていたトップカード ID も忘れずに除去し、ゴースト化を避ける
-                let removedStackIDs = Set(viewModel.topCardIDsByStack.keys).subtracting(nextTopCardIDs.keys)
-                for stackID in removedStackIDs {
-                    if let previousTopID = viewModel.topCardIDsByStack[stackID] {
-                        viewModel.hiddenCardIDs.remove(previousTopID)
-                        debugLog("スタック消滅に伴いトップカード ID を解放: stackID=\(stackID), cardID=\(previousTopID)")
-                    }
-                }
-                viewModel.topCardIDsByStack = nextTopCardIDs
-
-                // 手札が差し替わった際は非表示リストを実際に存在するカード ID へ限定する（NEXT 表示も含める）
-                let topCardIDSet = Set(nextTopCardIDs.values)
-                let nextPreviewIDs = Set(core.nextCards.map { $0.id })
-                let validIDs = topCardIDSet.union(nextPreviewIDs)
-                viewModel.hiddenCardIDs.formIntersection(validIDs)
-
-                if let viewModel.animatingCard, !validIDs.contains(viewModel.animatingCard.id) {
-                    // 手札の再配布などで該当カードが消えた場合はアニメーション状態を初期化
-                    self.viewModel.animatingCard = nil
-                    viewModel.animatingStackID = nil
-                    viewModel.animationState = .idle
-                    viewModel.animationTargetGridPoint = nil
-                }
-                // `core.handStacks` へ反映される前でも最新の手札を使ってハイライトを更新する
-                viewModel.refreshGuideHighlights(guideModeEnabled: guideModeEnabled, handOverride: newHandStacks)
-            }
-            // 盤面タップで移動を指示された際にもカード演出を統一して実行
-            .onReceive(core.$boardTapPlayRequest) { request in
-                guard let request else { return }
-                viewModel.handleBoardTapPlayRequest(request, hapticsEnabled: hapticsEnabled)
-            }
-            // ガイドモードのオン/オフを切り替えたら即座に SpriteKit へ反映
-            .onChange(of: guideModeEnabled) { _, _ in
-                viewModel.refreshGuideHighlights(guideModeEnabled: guideModeEnabled)
+            // ハプティクス設定が切り替わった際も ViewModel へ伝え、サービス呼び出しを統一する
+            .onChange(of: hapticsEnabled) { _, isEnabled in
+                viewModel.updateHapticsSetting(isEnabled: isEnabled)
             }
             // 経過時間を 1 秒ごとに再計算し、リアルタイム表示へ反映
             .onReceive(viewModel.elapsedTimer) { _ in
-                viewModel.updateDisplayedElapsedTime()
-            }
-            // 進行状態が変化した際もハイライトを整理（手詰まり・クリア時は消灯）
-            .onReceive(core.$progress) { progress in
-                // 進行状態が切り替わったタイミングで、デッドロック退避フラグの有無と併せて記録する
-                debugLog("進行状態の更新を受信: 状態=\(String(describing: progress)), 退避ハンドあり=\(viewModel.pendingGuideHand != nil)")
-
-                // 進行状態の変化に合わせて経過時間を再計算し、リセット直後のズレを防ぐ
-                viewModel.updateDisplayedElapsedTime()
-
-                if progress == .playing {
-                    if let bufferedHand = viewModel.pendingGuideHand {
-                        // デッドロック解除直後は退避しておいた手札情報を使ってガイドを復元する
-                        // refreshGuideHighlights 内で .playing 復帰を確認したタイミングのみバッファが空になる
-                        // 仕組みに変更されたため、ここでは復元処理の呼び出しに専念させる
-                        viewModel.refreshGuideHighlights(
-                            guideModeEnabled: guideModeEnabled,
-                            handOverride: bufferedHand,
-                            currentOverride: viewModel.pendingGuideCurrent,
-                            progressOverride: progress
-                        )
-                    } else {
-                        // バッファが無ければ通常通り最新状態から計算する
-                        viewModel.refreshGuideHighlights(
-                            guideModeEnabled: guideModeEnabled,
-                            progressOverride: progress
-                        )
-                    }
-                } else {
-                    scene.updateGuideHighlights([])
-                }
-            }
-            // クリア確定時に GameCore 側で確定した秒数が流れてきたら表示へ反映
-            .onReceive(core.$elapsedSeconds) { _ in
                 viewModel.updateDisplayedElapsedTime()
             }
             // カードが盤面へ移動中は UI 全体を操作不可とし、状態の齟齬を防ぐ
@@ -687,7 +592,7 @@ struct GameView: View {
                 scene.updateBoard(core.board)
                 scene.moveKnight(to: core.current)
                 // 盤面の同期が整ったタイミングでガイド表示も更新
-                viewModel.refreshGuideHighlights(guideModeEnabled: guideModeEnabled)
+                viewModel.refreshGuideHighlights()
             }
             // ジオメトリの変化に追従できるよう、SpriteKit シーンのサイズも都度更新する
             .onChange(of: width) { _, newWidth in
@@ -703,15 +608,12 @@ struct GameView: View {
             .onReceive(core.$board) { newBoard in
                 scene.updateBoard(newBoard)
                 // 盤面の踏破状況が変わっても候補マスの情報を最新化
-                viewModel.refreshGuideHighlights(guideModeEnabled: guideModeEnabled)
+                viewModel.refreshGuideHighlights()
             }
             .onReceive(core.$current) { newPoint in
                 scene.moveKnight(to: newPoint)
                 // 現在位置が変化したら移動候補も追従する
-                viewModel.refreshGuideHighlights(
-                    guideModeEnabled: guideModeEnabled,
-                    currentOverride: newPoint
-                )
+                viewModel.refreshGuideHighlights(currentOverride: newPoint)
             }
     }
 
@@ -1148,7 +1050,7 @@ struct GameView: View {
                         }
                     } else if viewModel.isCardUsable(latestStack) {
                         // 共通処理でアニメーションとカード使用をまとめて実行
-                        _ = viewModel.animateCardPlay(for: latestStack, at: index, hapticsEnabled: hapticsEnabled)
+                        _ = viewModel.animateCardPlay(for: latestStack, at: index)
                     } else {
                         // 使用不可カードは警告ハプティクスのみ発火
                         if hapticsEnabled {
