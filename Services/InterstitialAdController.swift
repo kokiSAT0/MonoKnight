@@ -43,7 +43,8 @@ protocol InterstitialAdLoading {
 /// 実機用の標準ローダー
 struct DefaultInterstitialAdLoader: InterstitialAdLoading {
     func load(adUnitID: String, request: GoogleMobileAds.Request, completion: @escaping (InterstitialAdPresentable?, Error?) -> Void) {
-        InterstitialAd.load(withAdUnitID: adUnitID, request: request) { ad, error in
+        // API の引数ラベル変更に合わせ、`withAdUnitID` ではなく `with` を使用する
+        InterstitialAd.load(with: adUnitID, request: request) { ad, error in
             completion(ad, error)
         }
     }
