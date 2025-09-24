@@ -2,7 +2,14 @@ import Game  // 手札並び順の設定列挙体を利用するために追加
 import StoreKit
 import SwiftUI
 
+// MainActor 上で動作させ、AdsServiceProtocol のメソッド呼び出しが常にメインスレッドで完結するよう明示する
+@MainActor
 struct SettingsView: View {
+    // MARK: - サービス依存性
+    // AdsServiceProtocol を直接受け取り、UI テストやプレビューでもモックへ差し替えやすくする。
+    // これにより SettingsView 内で `AdsService.shared` を参照する必要がなくなり、
+    // 共有インスタンスの実装差し替えに伴うビルドエラーを防止する。
+    private let adsService: AdsServiceProtocol
     // MARK: - プレゼンテーション制御
     // フルスクリーンカバーで表示された設定画面を明示的に閉じられるよう、dismiss アクションを取得しておく。
     @Environment(\.dismiss) private var dismiss
@@ -19,6 +26,15 @@ struct SettingsView: View {
 
     // ストア処理の完了通知をアラートで表示するための状態。
     @State private var storeAlert: StoreAlert?
+
+    // MARK: - 初期化
+    // AdsServiceProtocol を外部から注入できるようにし、未指定の場合はシングルトンを採用する。
+    // - Parameter adsService: 広告同意フローや同意状態の再取得を扱うサービス。
+    init(adsService: AdsServiceProtocol? = nil) {
+        // Swift 6 ではデフォルト引数が非分離コンテキストで評価されるため、
+        // MainActor 上で安全にシングルトンへアクセスできるようイニシャライザ本体で解決する。
+        self.adsService = adsService ?? AdsService.shared
+    }
 
     // MARK: - テーマ設定
     // ユーザーが任意に選択したカラースキームを保持する。初期値はシステム依存の `.system`。
@@ -222,12 +238,14 @@ struct SettingsView: View {
                 // プライバシー操作セクション
                 Section {
                     Button("プライバシー設定を更新") {
-                        Task { await AdsService.shared.refreshConsentStatus() }
+                        // AdsServiceProtocol へ委譲し、広告同意状態の再取得をテストでも再現しやすくする。
+                        Task { await adsService.refreshConsentStatus() }
                     }
                     Button("同意取得フローをやり直す") {
                         Task {
-                            await AdsService.shared.requestTrackingAuthorization()
-                            await AdsService.shared.requestConsentIfNeeded()
+                            // ATT と UMP の順番を維持しつつ、注入したサービスを通じて処理する。
+                            await adsService.requestTrackingAuthorization()
+                            await adsService.requestConsentIfNeeded()
                         }
                     }
                 } header: {

@@ -10,8 +10,13 @@ import SharedSupport // debugLog / debugError を利用するため追加
 /// `remove_ads_mk` 商品の購入・復元・状態保持を担当する
 @MainActor
 final class StoreService: ObservableObject, StoreServiceProtocol {
+    /// 広告制御サービスへの参照
+    /// - NOTE: StoreKit の購入結果に応じて広告表示を即座に停止させる必要があるため、
+    ///         初期化時に依存を確定させておき、`AdsService.shared` への直接依存を排除する。
+    private let adsService: AdsServiceProtocol
+
     /// シングルトンインスタンス
-    static let shared = StoreService()
+    static let shared = StoreService(adsService: AdsService.shared)
 
     /// StoreKit で参照する Product ID を一元管理する内部定数
     private enum ProductID {
@@ -36,14 +41,17 @@ final class StoreService: ObservableObject, StoreServiceProtocol {
     /// 設定画面などから参照する広告除去商品のキャッシュ
     private var removeAdsProduct: Product? { products.first(where: { $0.id == ProductID.removeAds }) }
 
-    private init() {
+    /// - Parameter adsService: 広告表示の有効/無効を切り替えるためのサービス。
+    ///                         デフォルトのシングルトンを注入するが、UI テストでは別実装にも差し替えられる。
+    private init(adsService: AdsServiceProtocol) {
+        self.adsService = adsService
         // 起動時点で保存済みの値を読み出し、UI の初期状態に反映する
         self.isRemoveAdsPurchased = UserDefaults.standard.bool(forKey: ProductID.removeAds)
         self.removeAdsPriceText = nil
 
         if removeAdsMK {
             // すでに広告除去が有効な場合は AdsService にも通知しておき、広告ロードを完全に止める
-            AdsService.shared.disableAds()
+            adsService.disableAds()
         }
 
         // 初期化と同時に商品情報の取得とトランザクション監視を開始
@@ -105,7 +113,7 @@ final class StoreService: ObservableObject, StoreServiceProtocol {
         removeAdsMK = true
         isRemoveAdsPurchased = true
         // 広告サービスに通知して表示を停止させる
-        AdsService.shared.disableAds()
+        adsService.disableAds()
     }
 
     // MARK: - Transaction
