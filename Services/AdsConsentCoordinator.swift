@@ -113,7 +113,8 @@ final class DefaultAdsConsentEnvironment: AdsConsentEnvironment {
                 // presenter 内で強参照が残り続けると二重表示の原因になるため、ローカル変数で管理しておく
                 var storedForm: ConsentForm? = form
                 let presenter: ConsentFormPresenter = { viewController, completion in
-                    guard let storedForm else {
+                    // guard で別名に逃がしておかないと、後続で storedForm を nil に戻せなくなるため別変数を用意する
+                    guard let formToPresent = storedForm else {
                         let error = NSError(
                             domain: "MonoKnight.AdsConsentCoordinator",
                             code: -11,
@@ -122,7 +123,7 @@ final class DefaultAdsConsentEnvironment: AdsConsentEnvironment {
                         completion(error)
                         return
                     }
-                    storedForm.present(from: viewController) { error in
+                    formToPresent.present(from: viewController) { error in
                         storedForm = nil
                         completion(error)
                     }
