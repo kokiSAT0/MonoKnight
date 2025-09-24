@@ -1,6 +1,7 @@
 import Testing
 import GoogleMobileAds
 import UserMessagingPlatform
+import AppTrackingTransparency
 import UIKit
 
 @testable import MonoKnightApp
@@ -81,6 +82,24 @@ private final class StubMobileAdsController: MobileAdsControlling {
     }
 }
 
+private final class StubTrackingAuthorizationController: TrackingAuthorizationControlling {
+    var currentStatus: ATTrackingManager.AuthorizationStatus
+    var responseStatus: ATTrackingManager.AuthorizationStatus
+    private(set) var requestCallCount: Int = 0
+
+    init(currentStatus: ATTrackingManager.AuthorizationStatus = .notDetermined,
+         responseStatus: ATTrackingManager.AuthorizationStatus = .authorized) {
+        self.currentStatus = currentStatus
+        self.responseStatus = responseStatus
+    }
+
+    func requestAuthorization(completion: @escaping (ATTrackingManager.AuthorizationStatus) -> Void) {
+        requestCallCount += 1
+        currentStatus = responseStatus
+        completion(responseStatus)
+    }
+}
+
 @MainActor
 private final class StubRootViewControllerProvider: RootViewControllerProviding {
     /// テスト用に返却するダミー ViewController
@@ -109,13 +128,15 @@ struct AdsServiceCoordinatorIntegrationTests {
         let consent = StubAdsConsentCoordinator()
         let interstitial = StubInterstitialAdController()
         let mobileAds = StubMobileAdsController()
+        let tracking = StubTrackingAuthorizationController(currentStatus: .authorized, responseStatus: .authorized)
         let configuration = AdsServiceConfiguration(interstitialAdUnitID: "test", hasValidAdConfiguration: true)
 
         let service = AdsService(
             configuration: configuration,
             consentCoordinator: consent,
             interstitialController: interstitial,
-            mobileAdsController: mobileAds
+            mobileAdsController: mobileAds,
+            trackingAuthorizationController: tracking
         )
 
         // 非同期タスクが実行される猶予を与える
@@ -165,16 +186,22 @@ struct AdsServiceCoordinatorIntegrationTests {
             }
         }
 
-        let coordinator = AdsConsentCoordinator(hasValidAdConfiguration: true, environment: environment)
+        let coordinator = AdsConsentCoordinator(
+            hasValidAdConfiguration: true,
+            environment: environment,
+            trackingAuthorizationStatusProvider: { .authorized }
+        )
         let interstitial = StubInterstitialAdController()
         let mobileAds = StubMobileAdsController()
+        let tracking = StubTrackingAuthorizationController(currentStatus: .authorized, responseStatus: .authorized)
         let configuration = AdsServiceConfiguration(interstitialAdUnitID: "test", hasValidAdConfiguration: true)
 
         let service = AdsService(
             configuration: configuration,
             consentCoordinator: coordinator,
             interstitialController: interstitial,
-            mobileAdsController: mobileAds
+            mobileAdsController: mobileAds,
+            trackingAuthorizationController: tracking
         )
 
         // Task 内で起動直後の同期処理が走るため、明示的に猶予を与える
@@ -215,6 +242,7 @@ struct AdsServiceCoordinatorIntegrationTests {
         let interstitial = StubInterstitialAdController()
         let mobileAds = StubMobileAdsController()
         let provider = StubRootViewControllerProvider()
+        let tracking = StubTrackingAuthorizationController(currentStatus: .authorized, responseStatus: .authorized)
         let configuration = AdsServiceConfiguration(interstitialAdUnitID: "test", hasValidAdConfiguration: true)
 
         environment.presenterFactory = {
@@ -227,12 +255,17 @@ struct AdsServiceCoordinatorIntegrationTests {
             }
         }
 
-        let coordinator = AdsConsentCoordinator(hasValidAdConfiguration: true, environment: environment)
+        let coordinator = AdsConsentCoordinator(
+            hasValidAdConfiguration: true,
+            environment: environment,
+            trackingAuthorizationStatusProvider: { .authorized }
+        )
         let service = AdsService(
             configuration: configuration,
             consentCoordinator: coordinator,
             interstitialController: interstitial,
             mobileAdsController: mobileAds,
+            trackingAuthorizationController: tracking,
             rootViewControllerProvider: provider
         )
 
@@ -252,5 +285,32 @@ struct AdsServiceCoordinatorIntegrationTests {
             #expect(last.0.canRequestAds == true)
             #expect(last.1 == true)
         }
+    }
+
+    /// ATT 許諾が通った場合に consentCoordinator.refreshConsentStatus() を呼び出すことを確認
+    @MainActor
+    @Test func adsService_requestTrackingAuthorization_refreshesConsentOnApproval() async throws {
+        UserDefaults.standard.removeObject(forKey: "remove_ads_mk")
+        UserDefaults.standard.removeObject(forKey: "ads_should_use_npa")
+
+        let consent = StubAdsConsentCoordinator()
+        let interstitial = StubInterstitialAdController()
+        let mobileAds = StubMobileAdsController()
+        let tracking = StubTrackingAuthorizationController(currentStatus: .notDetermined, responseStatus: .authorized)
+        let configuration = AdsServiceConfiguration(interstitialAdUnitID: "test", hasValidAdConfiguration: true)
+
+        let service = AdsService(
+            configuration: configuration,
+            consentCoordinator: consent,
+            interstitialController: interstitial,
+            mobileAdsController: mobileAds,
+            trackingAuthorizationController: tracking
+        )
+
+        await service.requestTrackingAuthorization()
+
+        #expect(tracking.requestCallCount == 1)
+        #expect(consent.refreshCallCount == 1)
+        #expect(tracking.currentStatus == .authorized)
     }
 }
