@@ -100,7 +100,10 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol {
         // SDK 初期化。v11 以降では `GADMobileAds` が `MobileAds` に改名されたため、shared プロパティから最新 API を取得する。
         // （名称変更に追従しつつ、将来的な API 差分を把握しやすくする意図で明示的にコメントを残している）
         mobileAdsController.start { [weak self] in
-            guard let self else { return }
+            guard self != nil else {
+                // self が解放されている場合はログのみ出力を省略し、不要な処理を避ける
+                return
+            }
             debugLog("Google Mobile Ads SDK の初期化が完了しました")
         }
 
