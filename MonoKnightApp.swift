@@ -84,6 +84,14 @@ struct MonoKnightApp: App {
                 guard newPhase == .active else { return }
                 debugLog("MonoKnightApp: scenePhase が active へ遷移したため Game Center 認証を再試行します")
                 gameCenterService.authenticateLocalPlayer(completion: nil)
+                // MARK: クラッシュ履歴の定期レビュー
+                // アプリがフォアグラウンドへ戻ったタイミングでログを要約出力し、問題の早期発見につなげる
+                CrashFeedbackCollector.shared.logSummary(label: "scenePhase active", latestCount: 3)
+                // 直近にクラッシュやフィードバックがあればレビュー済みの履歴としてマークする
+                _ = CrashFeedbackCollector.shared.markReviewCompletedIfNeeded(
+                    note: "scenePhase active で自動レビュー",
+                    reviewer: "自動チェック"
+                )
             }
         }
     }
