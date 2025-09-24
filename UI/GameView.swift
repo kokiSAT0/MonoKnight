@@ -202,7 +202,12 @@ struct GameView: View {
         ZStack(alignment: .top) {
             VStack(spacing: GameViewLayoutMetrics.spacingBetweenBoardAndHand) {
                 boardSection(width: layoutContext.boardWidth)
-                handSection(
+                GameHandSectionView(
+                    theme: theme,
+                    viewModel: viewModel,
+                    boardBridge: boardBridge,
+                    cardAnimationNamespace: cardAnimationNamespace,
+                    handSlotCount: handSlotCount,
                     bottomInset: layoutContext.bottomInset,
                     bottomPadding: layoutContext.handSectionBottomPadding
                 )
@@ -532,97 +537,6 @@ struct GameView: View {
         .accessibilityLabel(Text("開始位置を選択してください。手札スロットと次のカードを見てから任意のマスをタップできます。"))
     }
 
-    /// 手札と先読みカードの表示をまとめた領域
-    /// - Parameters:
-    ///   - bottomInset: 現在のデバイスが持つ下セーフエリアの量（ホームインジケータ分など）
-    ///   - bottomPadding: セーフエリアと端末ごとの追加マージンを合算した推奨余白
-    /// - Returns: 下部 UI 全体（余白調整を含む）
-    private func handSection(
-        bottomInset: CGFloat,
-        bottomPadding: CGFloat
-    ) -> some View {
-        // MARK: - 追加余白の内訳
-        // bottomPadding は GeometryReader 側で算出した「セーフエリア + 端末別マージン」を含む値。
-        // まずは iPhone 時代から維持してきた 16pt（BasePadding）を常時適用し、
-        // それでも不足する場合のみ追加分を足していく。GeometryReader 側から受け取った bottomPadding
-        // はセーフエリア（bottomInset）と iPad 向けのマージンを反映済みだが、念のためここでも同じ計算を行い、
-        // レイアウトの解釈違いがあっても最大値で丸めておく。
-        let expectedPadding = max(
-            GameViewLayoutMetrics.handSectionBasePadding,
-            bottomInset
-                + GameViewLayoutMetrics.handSectionSafeAreaAdditionalPadding
-                + (horizontalSizeClass == .regular ? GameViewLayoutMetrics.handSectionRegularAdditionalBottomPadding : 0)
-        )
-        // GeometryReader から渡された値と再計算した値のうち大きい方を採用し、端末や OS バージョン差による
-        // 丸め誤差で余白が不足しないように保険をかける。
-        let finalBottomPadding = max(bottomPadding, expectedPadding)
-
-        return VStack(spacing: 8) {
-            if core.isAwaitingManualDiscardSelection {
-                discardSelectionNotice
-                    .transition(.opacity)
-            }
-            // 手札スロットを横並びで配置し、最大種類数を常に確保する
-            // カードを大きくした際も全体幅が画面内に収まるよう、spacing を定数で管理する
-            HStack(spacing: GameViewLayoutMetrics.handCardSpacing) {
-                // 固定長スロットで回し、欠番があっても UI が崩れないようにする
-                ForEach(0..<handSlotCount, id: \.self) { index in
-                    handSlotView(for: index)
-                }
-            }
-
-            // 先読みカードが存在する場合に表示（最大 3 枚を横並びで案内）
-            if !core.nextCards.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
-                    // MARK: - 先読みカードのラベル
-                    // テキストでセクションを明示して VoiceOver からも認識しやすくする
-                    Text("次のカード")
-                        .font(.caption)
-                        // テーマのサブ文字色で読みやすさと一貫性を確保
-                        .foregroundColor(theme.textSecondary)
-                        .accessibilityHidden(true)  // ラベル自体は MoveCardIllustrationView のラベルに統合する
-
-                    // MARK: - 先読みカード本体
-                    // 3 枚までのカードを順番に描画し、それぞれにインジケータを重ねる
-                    HStack(spacing: 12) {
-                        ForEach(Array(core.nextCards.enumerated()), id: \.element.id) { index, dealtCard in
-                            ZStack {
-                                MoveCardIllustrationView(card: dealtCard.move, mode: .next)
-                                    .opacity(boardBridge.hiddenCardIDs.contains(dealtCard.id) ? 0.0 : 1.0)
-                                    .matchedGeometryEffect(id: dealtCard.id, in: cardAnimationNamespace)
-                                    .anchorPreference(key: CardPositionPreferenceKey.self, value: .bounds) { [dealtCard.id: $0] }
-                                NextCardOverlayView(order: index)
-                            }
-                            // VoiceOver で順番が伝わるようラベルを上書き
-                            .accessibilityElement(children: .combine)
-                            .accessibilityLabel(Text("次のカード\(index == 0 ? "" : "+\(index)"): \(dealtCard.move.displayName)"))
-                            .accessibilityHint(Text("この順番で手札に補充されます"))
-                            .allowsHitTesting(false)  // 先読みは閲覧専用
-                        }
-                    }
-                }
-            }
-
-#if DEBUG
-            // MARK: - デバッグ専用ショートカット
-            // 盤面の右上オーバーレイに重ねると UI が窮屈になるため、下部セクションへ移設
-            HStack {
-                Spacer(minLength: 0)
-                debugResultButton
-                    .padding(.top, 4)  // 手札との距離を確保して視認性を確保
-                Spacer(minLength: 0)
-            }
-#endif
-        }
-        // PreferenceKey へ手札セクションの高さを渡し、GeometryReader の計算に活用する
-        .overlay(alignment: .topLeading) {
-            // 同様に手札全体の高さもゼロサイズのオーバーレイで取得し、親 GeometryReader の計算値を安定させる
-            HeightPreferenceReporter<HandSectionHeightPreferenceKey>()
-        }
-        // BasePadding とセーフエリア・マージンをまとめて適用し、iPad でも指の収まりを良くする
-        .padding(.bottom, finalBottomPadding)
-    }
-
     /// 手動ペナルティ（手札引き直し）のショートカットボタン
     /// - Note: 統計バッジの右側に円形アイコンとして配置し、盤面上部の横並びレイアウトに収める
     private var manualDiscardButton: some View {
@@ -675,52 +589,6 @@ struct GameView: View {
         } else {
             return "手数を消費せずに、選択した手札 1 種類をまとめて捨て札にし、新しいカードを補充します。"
         }
-    }
-
-    /// 捨て札モード時に表示する案内バナー
-    private var discardSelectionNotice: some View {
-        let penaltyCost = core.mode.manualDiscardPenaltyCost
-        let penaltyDescription: String
-        if penaltyCost > 0 {
-            penaltyDescription = "ペナルティ +\(penaltyCost)"
-        } else {
-            penaltyDescription = "ペナルティなし"
-        }
-
-        return HStack(spacing: 12) {
-            Image(systemName: "hand.point.up.left.fill")
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundColor(theme.accentOnPrimary)
-                .padding(10)
-                .background(
-                    Circle()
-                        .fill(theme.accentPrimary)
-                )
-                .accessibilityHidden(true)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text("捨て札するカードを選択中")
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
-                    .foregroundColor(theme.textPrimary)
-                Text("タップした手札 1 種類を捨て札にして \(penaltyDescription)")
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundColor(theme.textSecondary)
-            }
-
-            Spacer(minLength: 0)
-        }
-        .padding(.vertical, 10)
-        .padding(.horizontal, 14)
-        .background(
-            RoundedRectangle(cornerRadius: 14)
-                .fill(theme.cardBackgroundNext)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14)
-                        .stroke(theme.cardBorderHand.opacity(0.35), lineWidth: 1)
-                )
-        )
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(Text("捨て札モードです。手札をタップして \(penaltyDescription)。"))
     }
 
     /// 手動ペナルティ（手札引き直し）のショートカットボタン
@@ -883,172 +751,6 @@ struct GameView: View {
         "\(score)ポイント"
     }
 
-    /// 指定スロットのスタック（存在しない場合は nil）を取得するヘルパー
-    /// - Parameter index: 手札スロットの添字
-    /// - Returns: 対応する `HandStack` または nil（スロットが空の場合）
-    private func handCard(at index: Int) -> HandStack? {
-        guard core.handStacks.indices.contains(index) else {
-            // スロットにスタックが存在しない場合は nil を返してプレースホルダ表示を促す
-            return nil
-        }
-        return core.handStacks[index]
-    }
-
-    /// 手札スロットの描画を担う共通処理
-    /// - Parameter index: 対象スロットの添字
-    /// - Returns: MoveCardIllustrationView または空枠プレースホルダを含むビュー
-    private func handSlotView(for index: Int) -> some View {
-        ZStack {
-            if let stack = handCard(at: index), let card = stack.topCard {
-                let isHidden = boardBridge.hiddenCardIDs.contains(card.id)
-                let isUsable = viewModel.isCardUsable(stack)
-                let isSelectingDiscard = core.isAwaitingManualDiscardSelection
-
-                HandStackCardView(stackCount: stack.count) {
-                    MoveCardIllustrationView(card: card.move)
-                        .matchedGeometryEffect(id: card.id, in: cardAnimationNamespace)
-                        .anchorPreference(key: CardPositionPreferenceKey.self, value: .bounds) { [card.id: $0] }
-                }
-                // 使用不可カードは薄く表示し、アニメーション中は完全に透明化
-                .opacity(
-                    isHidden ? 0.0 : (isSelectingDiscard ? 1.0 : (isUsable ? 1.0 : 0.4))
-                )
-                .allowsHitTesting(!isHidden)
-                .overlay {
-                    if isSelectingDiscard && !isHidden {
-                        RoundedRectangle(cornerRadius: 10)
-                            .stroke(theme.accentPrimary.opacity(0.75), lineWidth: 3)
-                            .shadow(color: theme.accentPrimary.opacity(0.45), radius: 6, x: 0, y: 3)
-                            .accessibilityHidden(true)
-                    }
-                }
-                .onTapGesture {
-                    // 具体的なロジックは ViewModel 側へ委譲し、View の責務を描画中心へ保つ
-                    viewModel.handleHandSlotTap(at: index)
-                }
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(Text(accessibilityLabel(for: stack)))
-                .accessibilityHint(Text(accessibilityHint(for: stack, isUsable: isUsable, isDiscardMode: isSelectingDiscard)))
-                .accessibilityAddTraits(.isButton)
-            } else {
-                placeholderCardView()
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(Text("カードなしのスロット"))
-                    .accessibilityHint(Text("このスロットには現在カードがありません"))
-            }
-        }
-        // 実カードとプレースホルダのどちらでも同じスロット識別子で UI テストしやすくする
-        .accessibilityIdentifier("hand_slot_\(index)")
-    }
-
-    /// 手札が空の際に表示するプレースホルダビュー
-    /// - Note: 実カードと同じサイズを確保してレイアウトのズレを防ぐ
-    private func placeholderCardView() -> some View {
-        RoundedRectangle(cornerRadius: 8)
-            // テーマ由来の枠線色でライト/ダークの差異を吸収
-            .stroke(theme.placeholderStroke, style: StrokeStyle(lineWidth: 1, dash: [4]))
-            .background(
-                RoundedRectangle(cornerRadius: 8)
-                    // 枠内もテーマ色で淡く塗りつぶし、背景とのコントラストを確保
-                    .fill(theme.placeholderBackground)
-            )
-            // MoveCardIllustrationView と同寸法を共有し、カードが補充されてもレイアウトが揺れないようにする
-            .frame(width: GameViewLayoutMetrics.handCardWidth, height: GameViewLayoutMetrics.handCardHeight)
-            .overlay(
-                Image(systemName: "questionmark")
-                    .font(.caption)
-                    // プレースホルダアイコンもテーマ色で調整
-                    .foregroundColor(theme.placeholderIcon)
-            )
-    }
-
-    /// VoiceOver 向けに方向名と残枚数を組み合わせた説明文を生成する
-    /// - Parameter stack: ラベル生成対象の手札スタック
-    /// - Returns: 「右上へ 2、残り 3 枚」のような読み上げテキスト
-    private func accessibilityLabel(for stack: HandStack) -> String {
-        guard let move = stack.topCard?.move else {
-            return "カードなしのスロット"
-        }
-        return "\(directionPhrase(for: move))、残り \(stack.count) 枚"
-    }
-
-    /// VoiceOver のヒント文を生成し、スタック消費の挙動を分かりやすく説明する
-    /// - Parameters:
-    ///   - stack: 対象となる手札スタック
-    ///   - isUsable: 現在位置から使用可能かどうか
-    /// - Returns: スタック挙動を含む丁寧な説明文
-    private func accessibilityHint(for stack: HandStack, isUsable: Bool, isDiscardMode: Bool) -> String {
-        if isDiscardMode {
-            return "ダブルタップでこの種類のカードをすべて捨て札にし、新しいカードを補充します。"
-        }
-
-        if isUsable {
-            if stack.count > 1 {
-                return "ダブルタップで先頭カードを使用します。スタックの残り \(stack.count - 1) 枚は同じ方向で待機します。"
-            } else {
-                return "ダブルタップでこの方向に移動します。スタックは 1 枚だけです。"
-            }
-        } else {
-            return "盤外のため使用できません。スタックの \(stack.count) 枚はそのまま保持されます。"
-        }
-    }
-
-    /// MoveCard を人間向けの方向説明文へ変換する
-    /// - Parameter move: 説明したい移動カード
-    /// - Returns: 「右上へ 2」「上へ 2、右へ 1」などの読み上げテキスト
-    private func directionPhrase(for move: MoveCard) -> String {
-        switch move {
-        case .kingUp:
-            return "上へ 1"
-        case .kingUpRight:
-            return "右上へ 1"
-        case .kingRight:
-            return "右へ 1"
-        case .kingDownRight:
-            return "右下へ 1"
-        case .kingDown:
-            return "下へ 1"
-        case .kingDownLeft:
-            return "左下へ 1"
-        case .kingLeft:
-            return "左へ 1"
-        case .kingUpLeft:
-            return "左上へ 1"
-        case .knightUp2Right1:
-            return "上へ 2、右へ 1"
-        case .knightUp2Left1:
-            return "上へ 2、左へ 1"
-        case .knightUp1Right2:
-            return "上へ 1、右へ 2"
-        case .knightUp1Left2:
-            return "上へ 1、左へ 2"
-        case .knightDown2Right1:
-            return "下へ 2、右へ 1"
-        case .knightDown2Left1:
-            return "下へ 2、左へ 1"
-        case .knightDown1Right2:
-            return "下へ 1、右へ 2"
-        case .knightDown1Left2:
-            return "下へ 1、左へ 2"
-        case .straightUp2:
-            return "上へ 2"
-        case .straightDown2:
-            return "下へ 2"
-        case .straightRight2:
-            return "右へ 2"
-        case .straightLeft2:
-            return "左へ 2"
-        case .diagonalUpRight2:
-            return "右上へ 2"
-        case .diagonalDownRight2:
-            return "右下へ 2"
-        case .diagonalDownLeft2:
-            return "左下へ 2"
-        case .diagonalUpLeft2:
-            return "左上へ 2"
-        }
-    }
-
     /// レイアウトに関する最新の実測値をログに残すための不可視ビューを生成
     /// - Parameter context: GeometryReader から抽出したレイアウト情報コンテキスト
     /// - Returns: 画面上には表示されない監視用ビュー
@@ -1169,21 +871,6 @@ private extension GameView {
         .accessibilityLabel(Text("ポーズメニュー"))
         .accessibilityHint(Text("プレイを一時停止して設定やリセットを確認します"))
     }
-
-    #if DEBUG
-    /// 結果画面を即座に表示するデバッグ向けボタン
-    private var debugResultButton: some View {
-        Button(action: {
-            // 直接結果画面を開き、UI の確認やデバッグを容易にする
-            viewModel.showingResult = true
-        }) {
-            Text("結果へ")
-        }
-        .buttonStyle(.bordered)
-        // UI テストでボタンを特定できるよう識別子を設定
-        .accessibilityIdentifier("show_result")
-    }
-    #endif
 
     /// メニュー操作を実際に実行する共通処理
     /// - Parameter action: ユーザーが選択した操作種別
@@ -1556,56 +1243,10 @@ private struct PenaltyBannerView: View {
     }
 }
 
-// MARK: - 先読みカード専用のオーバーレイ
-/// 「NEXT」「NEXT+1」などのバッジを重ね、操作不可であることを視覚的に伝える補助ビュー
-fileprivate struct NextCardOverlayView: View {
-    /// 表示中のカードが何枚目の先読みか（0 が直近、1 以降は +1, +2 ...）
-    let order: Int
-    /// 先読みオーバーレイの配色を統一するテーマ
-    private let theme = AppTheme()
-
-    // MARK: - 初期化
-    /// 先読みカードの表示順を受け取り、必要なステートを既定値で初期化する
-    /// - Parameter order: 0 始まりでの先読み順序
-    fileprivate init(order: Int) {
-        self.order = order
-    }
-
-    /// バッジに表示する文言を算出するヘルパー
-    private var badgeText: String {
-        order == 0 ? "NEXT" : "NEXT+\(order)"
-    }
-
-    var body: some View {
-        ZStack {
-            // MARK: - 上部の NEXT バッジ
-            VStack {
-                HStack {
-                    Text(badgeText)
-                        .font(.system(size: 10, weight: .bold, design: .rounded))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        // テーマ経由でラベル色を取得し、ライトモードでも視認性を保つ
-                        .foregroundColor(theme.nextBadgeText)
-                        .background(
-                            Capsule()
-                                .strokeBorder(theme.nextBadgeBorder, lineWidth: 1)
-                                .background(Capsule().fill(theme.nextBadgeBackground))
-                        )
-                        .padding([.top, .leading], 6)
-                        .accessibilityHidden(true)  // バッジは視覚的強調のみなので読み上げ対象外にする
-                    Spacer()
-                }
-                Spacer()
-            }
-        }
-        .allowsHitTesting(false)  // 補助ビューはタップ処理に影響させない
-    }
-}
-
 // MARK: - カード演出用の状態と PreferenceKey
 /// 手札・NEXT に配置されたカードのアンカーを UUID 単位で収集する PreferenceKey
-private struct CardPositionPreferenceKey: PreferenceKey {
+/// - Note: `GameHandSectionView` からも参照するためファイル外からアクセス可能にしている。
+struct CardPositionPreferenceKey: PreferenceKey {
     static var defaultValue: [UUID: Anchor<CGRect>] = [:]
 
     static func reduce(value: inout [UUID: Anchor<CGRect>], nextValue: () -> [UUID: Anchor<CGRect>]) {
@@ -1634,7 +1275,8 @@ private struct StatisticsHeightPreferenceKey: PreferenceKey {
 }
 
 /// 手札セクションの高さを親ビューへ伝搬するための PreferenceKey
-private struct HandSectionHeightPreferenceKey: PreferenceKey {
+/// - Note: 手札専用ビューでも利用するため internal 扱いとする。
+struct HandSectionHeightPreferenceKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
 
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
@@ -1645,8 +1287,9 @@ private struct HandSectionHeightPreferenceKey: PreferenceKey {
 
 /// 任意の PreferenceKey へ高さを伝搬するゼロサイズのオーバーレイ
 /// - Note: GeometryReader を直接レイアウトへ配置すると親ビューいっぱいまで広がり、想定外の値になるため
-///         あえて Color.clear を 0 サイズへ縮めて高さだけを測定する
-private struct HeightPreferenceReporter<Key: PreferenceKey>: View where Key.Value == CGFloat {
+///         あえて Color.clear を 0 サイズへ縮めて高さだけを測定する。
+///         `GameHandSectionView` からも再利用するため internal 扱いとする。
+struct HeightPreferenceReporter<Key: PreferenceKey>: View where Key.Value == CGFloat {
     var body: some View {
         GeometryReader { proxy in
             Color.clear
