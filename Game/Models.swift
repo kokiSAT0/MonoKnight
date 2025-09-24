@@ -1,4 +1,5 @@
 import Foundation
+import SharedSupport // ログユーティリティを利用するため追加
 
 /// 座標を表す構造体
 /// - 備考: 原点は左下、x は右方向、y は上方向に増加する

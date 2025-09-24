@@ -2,6 +2,7 @@ import Foundation
 #if canImport(Combine)
 import Combine
 #endif
+import SharedSupport // ログユーティリティを利用するため追加
 
 /// 手札スロットと先読みカードの管理を担当するクラス
 /// - Note: GameCore から委譲される形でカード補充や並び替えを一元的に扱う

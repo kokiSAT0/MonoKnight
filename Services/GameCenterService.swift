@@ -1,7 +1,8 @@
 import Foundation
-import Game      // debugLog / debugError などゲームロジック側のデバッグユーティリティと GameMode 識別子を利用するために追加
+import Game      // GameMode 識別子などゲームロジック由来の型を利用するために追加
 import GameKit
 import UIKit
+import SharedSupport // debugLog / debugError を利用するため共有ターゲットを追加
 
 /// Game Center で利用するリーダーボードの定義をまとめたカタログ構造体
 /// - NOTE: `docs/game-center-leaderboards.md` に掲載している一覧と同期しやすいよう、

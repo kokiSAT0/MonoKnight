@@ -1,4 +1,5 @@
 import Foundation
+import SharedSupport // ログユーティリティを利用するため追加
 #if canImport(Combine)
 import Combine
 #else

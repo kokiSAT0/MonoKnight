@@ -8,6 +8,11 @@ let package = Package(
         .iOS(.v16)
     ],
     products: [
+        // 共有ユーティリティをまとめたライブラリ
+        .library(
+            name: "SharedSupport",
+            targets: ["SharedSupport"]
+        ),
         // ゲームロジックをライブラリとして公開
         .library(
             name: "Game",
@@ -15,9 +20,15 @@ let package = Package(
         )
     ],
     targets: [
+        // SharedSupport モジュールはロギングなどの共通処理を提供
+        .target(
+            name: "SharedSupport",
+            path: "Shared/Logging"
+        ),
         // Game モジュールは既存の Game ディレクトリを利用
         .target(
             name: "Game",
+            dependencies: ["SharedSupport"],
             path: "Game"
         ),
         // 単体テスト用ターゲット

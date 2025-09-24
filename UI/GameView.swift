@@ -1,5 +1,6 @@
 import Combine  // 経過時間更新で Combine のタイマーパブリッシャを活用するため読み込む
 import Game  // GameCore や DealtCard、手札並び設定を利用するためゲームロジックモジュールを読み込む
+import SharedSupport // debugLog / debugError を利用するため共有ターゲットを追加
 import SpriteKit
 import SwiftUI
 import UIKit  // ハプティクス用のフレームワークを追加

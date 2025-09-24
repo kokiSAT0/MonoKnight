@@ -27,7 +27,8 @@
 		72CF38112E7162E20093B180 /* GameCenterService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF37FA2E7162E20093B180 /* GameCenterService.swift */; };
 		72CF38122E7162E20093B180 /* StoreService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF37FC2E7162E20093B180 /* StoreService.swift */; };
 		72CF38142E7162E20093B180 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF38022E7162E20093B180 /* RootView.swift */; };
-		72CF38182E7252460093B180 /* GoogleMobileAds in Frameworks */ = {isa = PBXBuildFile; productRef = 72CF38172E7252460093B180 /* GoogleMobileAds */; };
+                72CF38182E7252460093B180 /* GoogleMobileAds in Frameworks */ = {isa = PBXBuildFile; productRef = 72CF38172E7252460093B180 /* GoogleMobileAds */; };
+                72CF38192E90AA000093B180 /* SharedSupport in Frameworks */ = {isa = PBXBuildFile; productRef = 72CF381A2E90AA000093B180 /* SharedSupport */; };
 		72F554A82E7E40100098A1B0 /* MoveCardIllustrationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72F554A72E7E40100098A1B0 /* MoveCardIllustrationView.swift */; };
 		72F554AC2E7E60850098A1B0 /* HowToPlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72F554A92E7E60850098A1B0 /* HowToPlayView.swift */; };
 		72F554AD2E7E60850098A1B0 /* AppTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72F554AA2E7E60850098A1B0 /* AppTheme.swift */; };
@@ -100,11 +101,12 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				7266422E2E81477E003EA325 /* Game in Frameworks */,
-				7266422D2E81477E003EA325 /* Game in Frameworks */,
-				726642682E8409A1003EA325 /* StoreKit.framework in Frameworks */,
-				7266422C2E8146C4003EA325 /* Game in Frameworks */,
-				72CF38182E7252460093B180 /* GoogleMobileAds in Frameworks */,
+                                7266422E2E81477E003EA325 /* Game in Frameworks */,
+                                7266422D2E81477E003EA325 /* Game in Frameworks */,
+                                726642682E8409A1003EA325 /* StoreKit.framework in Frameworks */,
+                                7266422C2E8146C4003EA325 /* Game in Frameworks */,
+                                72CF38182E7252460093B180 /* GoogleMobileAds in Frameworks */,
+                                72CF38192E90AA000093B180 /* SharedSupport in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -142,10 +144,11 @@
 		000000000000000000000007 = {
 			isa = PBXGroup;
 			children = (
-				000000000000000000000004 /* MonoKnightApp.swift */,
-				72CF37F72E7162E20093B180 /* Game */,
-				72CF37FD2E7162E20093B180 /* Services */,
-				72CF38042E7162E20093B180 /* UI */,
+                                000000000000000000000004 /* MonoKnightApp.swift */,
+                                72CF37F72E7162E20093B180 /* Game */,
+                                72CF381B2E90AA000093B180 /* Shared */,
+                                72CF37FD2E7162E20093B180 /* Services */,
+                                72CF38042E7162E20093B180 /* UI */,
 				000000000000000000000009 /* Info.plist */,
 			);
 			sourceTree = "<group>";
@@ -169,22 +172,37 @@
 			name = Frameworks;
 			sourceTree = "<group>";
 		};
-		72CF37F72E7162E20093B180 /* Game */ = {
-			isa = PBXGroup;
-			children = (
-				726642282E813A69003EA325 /* GameMode.swift */,
-				729791982E7F499700361471 /* DealtCard.swift */,
-				729791992E7F499700361471 /* GameScenePalette.swift */,
-				72CF37F12E7162E20093B180 /* DebugLog.swift */,
-				72CF37F22E7162E20093B180 /* Deck.swift */,
-				72CF37F32E7162E20093B180 /* GameCore.swift */,
-				72CF37F42E7162E20093B180 /* GameScene.swift */,
-				72CF37F52E7162E20093B180 /* Models.swift */,
-				72CF37F62E7162E20093B180 /* MoveCard.swift */,
-			);
-			path = Game;
-			sourceTree = "<group>";
-		};
+                72CF37F72E7162E20093B180 /* Game */ = {
+                        isa = PBXGroup;
+                        children = (
+                                726642282E813A69003EA325 /* GameMode.swift */,
+                                729791982E7F499700361471 /* DealtCard.swift */,
+                                729791992E7F499700361471 /* GameScenePalette.swift */,
+                                72CF37F22E7162E20093B180 /* Deck.swift */,
+                                72CF37F32E7162E20093B180 /* GameCore.swift */,
+                                72CF37F42E7162E20093B180 /* GameScene.swift */,
+                                72CF37F52E7162E20093B180 /* Models.swift */,
+                                72CF37F62E7162E20093B180 /* MoveCard.swift */,
+                        );
+                        path = Game;
+                        sourceTree = "<group>";
+                };
+                72CF381B2E90AA000093B180 /* Shared */ = {
+                        isa = PBXGroup;
+                        children = (
+                                72CF381C2E90AA000093B180 /* Logging */,
+                        );
+                        path = Shared;
+                        sourceTree = "<group>";
+                };
+                72CF381C2E90AA000093B180 /* Logging */ = {
+                        isa = PBXGroup;
+                        children = (
+                                72CF37F12E7162E20093B180 /* DebugLog.swift */,
+                        );
+                        path = Logging;
+                        sourceTree = "<group>";
+                };
 		72CF37FD2E7162E20093B180 /* Services */ = {
 			isa = PBXGroup;
 			children = (
@@ -260,11 +278,12 @@
 			);
 			name = MonoKnightApp;
 			packageProductDependencies = (
-				72CF38172E7252460093B180 /* GoogleMobileAds */,
-				7297918A2E7F43F300361471 /* Game */,
-				729791A72E7F569900361471 /* Game */,
-				7266422B2E8146C4003EA325 /* Game */,
-			);
+                                72CF38172E7252460093B180 /* GoogleMobileAds */,
+                                7297918A2E7F43F300361471 /* Game */,
+                                729791A72E7F569900361471 /* Game */,
+                                7266422B2E8146C4003EA325 /* Game */,
+                                72CF381A2E90AA000093B180 /* SharedSupport */,
+                        );
 			productName = MonoKnightApp;
 			productReference = 72CF37C92E7161160093B180 /* MonoKnightApp.app */;
 			productType = "com.apple.product-type.application";
@@ -1033,13 +1052,17 @@
 			isa = XCSwiftPackageProductDependency;
 			productName = Game;
 		};
-		729791A72E7F569900361471 /* Game */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = Game;
-		};
-		72CF38172E7252460093B180 /* GoogleMobileAds */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 72CF38162E7252460093B180 /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */;
+                729791A72E7F569900361471 /* Game */ = {
+                        isa = XCSwiftPackageProductDependency;
+                        productName = Game;
+                };
+                72CF381A2E90AA000093B180 /* SharedSupport */ = {
+                        isa = XCSwiftPackageProductDependency;
+                        productName = SharedSupport;
+                };
+                72CF38172E7252460093B180 /* GoogleMobileAds */ = {
+                        isa = XCSwiftPackageProductDependency;
+                        package = 72CF38162E7252460093B180 /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */;
 			productName = GoogleMobileAds;
 		};
 /* End XCSwiftPackageProductDependency section */

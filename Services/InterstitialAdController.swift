@@ -2,6 +2,7 @@ import Foundation
 import SwiftUI
 import UIKit
 import GoogleMobileAds
+import SharedSupport // ログユーティリティを利用するため追加
 
 // MARK: - インタースティシャル制御用のプロトコル
 /// AdsService が UI 側の責務を担いつつ、広告ロード/表示ロジックのみを委譲できるようにする

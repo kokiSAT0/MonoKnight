@@ -2,6 +2,7 @@ import Foundation
 import SwiftUI
 import UIKit
 import UserMessagingPlatform
+import SharedSupport // debugLog / debugError を利用するため追加
 
 // MARK: - 同意状態の表現
 /// UMP の情報を中継しつつアプリ側で扱いやすいようにした構造体
