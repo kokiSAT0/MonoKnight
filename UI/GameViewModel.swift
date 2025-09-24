@@ -67,6 +67,10 @@ final class GameViewModel: ObservableObject {
     @Published var lastLoggedLayoutSnapshot: BoardLayoutSnapshot?
     /// 経過秒数を 1 秒刻みで更新するためのタイマーパブリッシャ
     let elapsedTimer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+    /// ハプティクスの有効/無効設定
+    private(set) var hapticsEnabled = true
+    /// ガイドモードの有効/無効設定
+    private(set) var guideModeEnabled = true
 
     /// Combine の購読を保持するセット
     private var cancellables = Set<AnyCancellable>()
@@ -111,6 +115,9 @@ final class GameViewModel: ObservableObject {
                 self.objectWillChange.send()
             }
             .store(in: &cancellables)
+
+        // GameCore が公開する各種状態を監視し、SwiftUI 側の責務を軽量化する
+        bindGameCore()
     }
 
     /// ユーザー設定から手札の並び替え戦略を復元する
@@ -125,6 +132,25 @@ final class GameViewModel: ObservableObject {
     func applyHandOrderingStrategy(rawValue: String) {
         let strategy = HandOrderingStrategy(rawValue: rawValue) ?? .insertionOrder
         core.updateHandOrderingStrategy(strategy)
+    }
+
+    /// ガイドモードの設定値を更新し、必要に応じてハイライトを再描画する
+    /// - Parameter enabled: 新しいガイドモード設定
+    func updateGuideMode(enabled: Bool) {
+        guideModeEnabled = enabled
+        if enabled {
+            refreshGuideHighlights()
+        } else {
+            scene.updateGuideHighlights([])
+            pendingGuideHand = nil
+            pendingGuideCurrent = nil
+        }
+    }
+
+    /// ハプティクスの設定を更新する
+    /// - Parameter isEnabled: ユーザー設定から得たハプティクス有効フラグ
+    func updateHapticsSetting(isEnabled: Bool) {
+        hapticsEnabled = isEnabled
     }
 
     /// 結果画面を閉じた際の後処理
@@ -149,7 +175,6 @@ final class GameViewModel: ObservableObject {
 
     /// ハイライト表示を最新の状態へ更新する
     func refreshGuideHighlights(
-        guideModeEnabled: Bool,
         handOverride: [HandStack]? = nil,
         currentOverride: GridPoint? = nil,
         progressOverride: GameProgress? = nil
@@ -210,7 +235,7 @@ final class GameViewModel: ObservableObject {
 
     /// 手札スタックのトップカードを盤面へ送るアニメーションを準備する
     @discardableResult
-    func animateCardPlay(for stack: HandStack, at index: Int, hapticsEnabled: Bool) -> Bool {
+    func animateCardPlay(for stack: HandStack, at index: Int) -> Bool {
         guard animatingCard == nil else { return false }
         guard let current = core.current else { return false }
         guard let topCard = stack.topCard, isCardUsable(stack) else { return false }
@@ -252,7 +277,7 @@ final class GameViewModel: ObservableObject {
     }
 
     /// 盤面タップに応じたプレイ要求を処理する
-    func handleBoardTapPlayRequest(_ request: BoardTapPlayRequest, hapticsEnabled: Bool) {
+    func handleBoardTapPlayRequest(_ request: BoardTapPlayRequest) {
         defer { core.clearBoardTapPlayRequest(request.id) }
 
         guard animatingCard == nil else {
@@ -288,7 +313,7 @@ final class GameViewModel: ObservableObject {
             return
         }
 
-        _ = animateCardPlay(for: stack, at: resolvedIndex, hapticsEnabled: hapticsEnabled)
+        _ = animateCardPlay(for: stack, at: resolvedIndex)
     }
 
     /// ゲームの進行状況に応じた操作をまとめて処理する
@@ -324,17 +349,20 @@ final class GameViewModel: ObservableObject {
     func prepareForAppear(
         colorScheme: ColorScheme,
         guideModeEnabled: Bool,
+        hapticsEnabled: Bool,
         handOrderingStrategy: HandOrderingStrategy
     ) {
         scene.gameCore = core
+        updateHapticsSetting(isEnabled: hapticsEnabled)
+        self.guideModeEnabled = guideModeEnabled
         applyScenePalette(for: colorScheme)
-        refreshGuideHighlights(guideModeEnabled: guideModeEnabled)
+        refreshGuideHighlights()
         updateDisplayedElapsedTime()
         core.updateHandOrderingStrategy(handOrderingStrategy)
     }
 
     /// ペナルティイベントを受信した際の処理
-    func handlePenaltyEvent(hapticsEnabled: Bool) {
+    func handlePenaltyEvent() {
         penaltyDismissWorkItem?.cancel()
         penaltyDismissWorkItem = nil
 
@@ -360,6 +388,124 @@ final class GameViewModel: ObservableObject {
     /// 盤面レイアウト関連のアンカー情報を更新する
     func updateBoardAnchor(_ anchor: Anchor<CGRect>?) {
         boardAnchor = anchor
+    }
+
+    /// 結果画面からリトライを選択した際の共通処理
+    func handleResultRetry() {
+        showingResult = false
+        core.reset()
+        adsService.resetPlayFlag()
+    }
+
+    /// GameCore のストリームを監視し、UI 更新に必要な副作用を引き受ける
+    private func bindGameCore() {
+        core.handManager.$handStacks
+            .receive(on: RunLoop.main)
+            .sink { [weak self] newHandStacks in
+                guard let self else { return }
+                self.handleHandStacksUpdate(newHandStacks)
+            }
+            .store(in: &cancellables)
+
+        core.$boardTapPlayRequest
+            .receive(on: RunLoop.main)
+            .sink { [weak self] request in
+                guard let self, let request else { return }
+                self.handleBoardTapPlayRequest(request)
+            }
+            .store(in: &cancellables)
+
+        core.$penaltyEventID
+            .removeDuplicates()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] eventID in
+                guard let self, eventID != nil else { return }
+                self.handlePenaltyEvent()
+            }
+            .store(in: &cancellables)
+
+        core.$progress
+            .receive(on: RunLoop.main)
+            .sink { [weak self] progress in
+                guard let self else { return }
+                self.handleProgressChange(progress)
+            }
+            .store(in: &cancellables)
+
+        core.$elapsedSeconds
+            .removeDuplicates()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.updateDisplayedElapsedTime()
+            }
+            .store(in: &cancellables)
+    }
+
+    /// 手札更新時のアニメーション管理とハイライト更新を司る
+    /// - Parameter newHandStacks: 最新の手札スタック一覧
+    private func handleHandStacksUpdate(_ newHandStacks: [HandStack]) {
+        debugLog("手札更新を受信: スタック数=\(newHandStacks.count), 退避ハンドあり=\(pendingGuideHand != nil)")
+
+        var nextTopCardIDs: [UUID: UUID] = [:]
+        for stack in newHandStacks {
+            guard let topCard = stack.topCard else { continue }
+            let previousTopID = topCardIDsByStack[stack.id]
+            if let previousTopID, previousTopID != topCard.id {
+                hiddenCardIDs.remove(previousTopID)
+                debugLog("スタック先頭カードを更新: stackID=\(stack.id), 旧トップID=\(previousTopID), 新トップID=\(topCard.id), 残枚数=\(stack.count)")
+            }
+            nextTopCardIDs[stack.id] = topCard.id
+        }
+
+        let removedStackIDs = Set(topCardIDsByStack.keys).subtracting(nextTopCardIDs.keys)
+        for stackID in removedStackIDs {
+            if let previousTopID = topCardIDsByStack[stackID] {
+                hiddenCardIDs.remove(previousTopID)
+                debugLog("スタック消滅に伴いトップカード ID を解放: stackID=\(stackID), cardID=\(previousTopID)")
+            }
+        }
+        topCardIDsByStack = nextTopCardIDs
+
+        let topCardIDSet = Set(nextTopCardIDs.values)
+        let nextPreviewIDs = Set(core.nextCards.map { $0.id })
+        let validIDs = topCardIDSet.union(nextPreviewIDs)
+        hiddenCardIDs.formIntersection(validIDs)
+
+        if let animatingCard, !validIDs.contains(animatingCard.id) {
+            self.animatingCard = nil
+            animatingStackID = nil
+            animationState = .idle
+            animationTargetGridPoint = nil
+        }
+
+        refreshGuideHighlights(handOverride: newHandStacks)
+    }
+
+    /// 進行状態の変化に応じた副作用をまとめる
+    /// - Parameter progress: GameCore が提供する現在の進行状態
+    private func handleProgressChange(_ progress: GameProgress) {
+        debugLog("進行状態の更新を受信: 状態=\(String(describing: progress)), 退避ハンドあり=\(pendingGuideHand != nil)")
+
+        updateDisplayedElapsedTime()
+
+        switch progress {
+        case .playing:
+            if let bufferedHand = pendingGuideHand {
+                refreshGuideHighlights(
+                    handOverride: bufferedHand,
+                    currentOverride: pendingGuideCurrent,
+                    progressOverride: progress
+                )
+            } else {
+                refreshGuideHighlights(progressOverride: progress)
+            }
+        case .cleared:
+            scene.updateGuideHighlights([])
+            gameCenterService.submitScore(core.score, for: mode.identifier)
+            showingResult = true
+        default:
+            scene.updateGuideHighlights([])
+        }
     }
 }
 
