@@ -141,18 +141,18 @@
 			);
 			sourceTree = "<group>";
 		};
-		000000000000000000000007 = {
-			isa = PBXGroup;
-			children = (
+                000000000000000000000007 = {
+                        isa = PBXGroup;
+                        children = (
                                 000000000000000000000004 /* MonoKnightApp.swift */,
                                 72CF37F72E7162E20093B180 /* Game */,
-                                72CF381B2E90AA000093B180 /* Shared */,
+                                72CF381B2E90AA000093B180 /* SharedSupport */, 
                                 72CF37FD2E7162E20093B180 /* Services */,
                                 72CF38042E7162E20093B180 /* UI */,
-				000000000000000000000009 /* Info.plist */,
-			);
-			sourceTree = "<group>";
-		};
+                                000000000000000000000009 /* Info.plist */,
+                        );
+                        sourceTree = "<group>";
+                };
 		000000000000000000000008 /* Products */ = {
 			isa = PBXGroup;
 			children = (
@@ -187,20 +187,13 @@
                         path = Game;
                         sourceTree = "<group>";
                 };
-                72CF381B2E90AA000093B180 /* Shared */ = {
-                        isa = PBXGroup;
-                        children = (
-                                72CF381C2E90AA000093B180 /* Logging */,
-                        );
-                        path = Shared;
-                        sourceTree = "<group>";
-                };
-                72CF381C2E90AA000093B180 /* Logging */ = {
+                72CF381B2E90AA000093B180 /* SharedSupport */ = {
                         isa = PBXGroup;
                         children = (
                                 72CF37F12E7162E20093B180 /* DebugLog.swift */,
                         );
-                        path = Logging;
+                        name = SharedSupport;
+                        path = SharedSupport/Sources/SharedSupport;
                         sourceTree = "<group>";
                 };
 		72CF37FD2E7162E20093B180 /* Services */ = {
