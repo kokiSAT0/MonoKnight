@@ -1331,7 +1331,7 @@ struct GameView: View {
     }
 
     /// GeometryReader から求めたレイアウト値を保持する内部専用の構造体
-    private struct LayoutComputationContext {
+    fileprivate struct LayoutComputationContext {
         let geometrySize: CGSize
         let rawTopInset: CGFloat
         let rawBottomInset: CGFloat
@@ -1358,64 +1358,40 @@ struct GameView: View {
         let usedHandSectionFallback: Bool
     }
 
-    /// レイアウト監視で扱う値をひとまとめにした構造体
-    /// - Note: Equatable 準拠により onChange での差分検出に利用する
-    private struct BoardLayoutSnapshot: Equatable {
-        let geometrySize: CGSize
-        let availableHeight: CGFloat
-        let horizontalBoardBase: CGFloat
-        let verticalBoardBase: CGFloat
-        let boardBaseSize: CGFloat
-        let boardWidth: CGFloat
-        let rawTopInset: CGFloat
-        let rawBottomInset: CGFloat
-        let baseTopSafeAreaInset: CGFloat
-        let resolvedTopInset: CGFloat
-        let overlayAdjustedTopInset: CGFloat
-        let resolvedBottomInset: CGFloat
-        let statisticsHeight: CGFloat
-        let resolvedStatisticsHeight: CGFloat
-        let handSectionHeight: CGFloat
-        let resolvedHandSectionHeight: CGFloat
-        let regularAdditionalBottomPadding: CGFloat
-        let handSectionBottomPadding: CGFloat
-        let usedTopSafeAreaFallback: Bool
-        let usedBottomSafeAreaFallback: Bool
-        let usedStatisticsFallback: Bool
-        let usedHandSectionFallback: Bool
-        let controlRowTopPadding: CGFloat
-        let topOverlayHeight: CGFloat
+}
 
-        /// レイアウト計算で得られたコンテキストからスナップショットを構築するイニシャライザ
-        /// - Parameter context: GeometryReader の結果を整理したレイアウトコンテキスト
-        init(context: LayoutComputationContext) {
-            self.geometrySize = context.geometrySize
-            self.availableHeight = context.availableHeightForBoard
-            self.horizontalBoardBase = context.horizontalBoardBase
-            self.verticalBoardBase = context.verticalBoardBase
-            self.boardBaseSize = context.boardBaseSize
-            self.boardWidth = context.boardWidth
-            self.rawTopInset = context.rawTopInset
-            self.rawBottomInset = context.rawBottomInset
-            self.baseTopSafeAreaInset = context.baseTopSafeAreaInset
-            self.resolvedTopInset = context.topInset
-            self.overlayAdjustedTopInset = context.overlayAdjustedTopInset
-            self.resolvedBottomInset = context.bottomInset
-            self.statisticsHeight = context.statisticsHeight
-            self.resolvedStatisticsHeight = context.resolvedStatisticsHeight
-            self.handSectionHeight = context.handSectionHeight
-            self.resolvedHandSectionHeight = context.resolvedHandSectionHeight
-            self.regularAdditionalBottomPadding = context.regularAdditionalBottomPadding
-            self.handSectionBottomPadding = context.handSectionBottomPadding
-            self.usedTopSafeAreaFallback = context.usedTopFallback
-            self.usedBottomSafeAreaFallback = context.usedBottomFallback
-            self.usedStatisticsFallback = context.usedStatisticsFallback
-            self.usedHandSectionFallback = context.usedHandSectionFallback
-            self.controlRowTopPadding = context.controlRowTopPadding
-            self.topOverlayHeight = context.topOverlayHeight
-        }
+/// LayoutComputationContext から BoardLayoutSnapshot を組み立てるための補助イニシャライザ
+/// - Note: GameView 内部のみで利用するためアクセスレベルは private extension とする
+private extension BoardLayoutSnapshot {
+    init(context: GameView.LayoutComputationContext) {
+        // GeometryReader から取得した実測値を丸ごとコピーし、ViewModel からも参照できる形へ変換
+        self.init(
+            geometrySize: context.geometrySize,
+            availableHeight: context.availableHeightForBoard,
+            horizontalBoardBase: context.horizontalBoardBase,
+            verticalBoardBase: context.verticalBoardBase,
+            boardBaseSize: context.boardBaseSize,
+            boardWidth: context.boardWidth,
+            rawTopInset: context.rawTopInset,
+            rawBottomInset: context.rawBottomInset,
+            baseTopSafeAreaInset: context.baseTopSafeAreaInset,
+            resolvedTopInset: context.topInset,
+            overlayAdjustedTopInset: context.overlayAdjustedTopInset,
+            resolvedBottomInset: context.bottomInset,
+            statisticsHeight: context.statisticsHeight,
+            resolvedStatisticsHeight: context.resolvedStatisticsHeight,
+            handSectionHeight: context.handSectionHeight,
+            resolvedHandSectionHeight: context.resolvedHandSectionHeight,
+            regularAdditionalBottomPadding: context.regularAdditionalBottomPadding,
+            handSectionBottomPadding: context.handSectionBottomPadding,
+            usedTopSafeAreaFallback: context.usedTopFallback,
+            usedBottomSafeAreaFallback: context.usedBottomFallback,
+            usedStatisticsFallback: context.usedStatisticsFallback,
+            usedHandSectionFallback: context.usedHandSectionFallback,
+            controlRowTopPadding: context.controlRowTopPadding,
+            topOverlayHeight: context.topOverlayHeight
+        )
     }
-
 }
 
 private extension GameView {
