@@ -21,6 +21,12 @@ enum ErrorReporter {
             // スタックトレースを取得し、改行区切りで表示
             let trace = exception.callStackSymbols.joined(separator: "\n")
             debugLog("スタックトレース:\n\(trace)")
+            // CrashFeedbackCollector へも記録し、あとから定期レビューできるようにする
+            CrashFeedbackCollector.shared.recordException(
+                name: exception.name.rawValue,
+                reason: exception.reason,
+                stackSymbols: exception.callStackSymbols
+            )
         }
 
         // MARK: 致命的シグナルの捕捉
@@ -28,8 +34,15 @@ enum ErrorReporter {
         // スタックトレースを表示した上で終了する
         func handleSignal(_ signalValue: Int32, name: String) {
             debugLog("\(name) を受信")
-            let stack = Thread.callStackSymbols.joined(separator: "\n")
-            debugLog("スタックトレース:\n\(stack)")
+            let stackSymbols = Thread.callStackSymbols
+            let stackDescription = stackSymbols.joined(separator: "\n")
+            debugLog("スタックトレース:\n\(stackDescription)")
+            // シグナル種別も CrashFeedbackCollector に残し、頻度を把握できるようにする
+            CrashFeedbackCollector.shared.recordCrashEvent(
+                signalName: name,
+                reason: "シグナル番号: \(signalValue)",
+                stackSymbols: stackSymbols
+            )
             exit(signalValue)
         }
         signal(SIGABRT) { _ in handleSignal(SIGABRT, name: "SIGABRT") }

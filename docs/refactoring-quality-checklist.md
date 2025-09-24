@@ -10,6 +10,7 @@
 ## 2. ドキュメント・ログ
 - [ ] `docs/` 配下の関連資料を更新し、次回開発者が参照できる状態にした。
 - [ ] ログ出力（`debugLog` / `debugError`）を最新仕様に合わせて点検し、必要に応じて粒度を調整した。
+- [ ] `CrashFeedbackCollector` のサマリーを確認し、`docs/crash-feedback-review.md` に基づいてレビュー履歴を残した。
 
 ## 3. サービス依存
 - [ ] AdMob / StoreKit / Game Center などの外部サービスに変更が及ぶ場合、モックやスタブを利用した検証を行った。
