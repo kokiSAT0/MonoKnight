@@ -47,7 +47,7 @@ struct RootView: View {
 
     var body: some View {
         attachRootStateObservers(
-            GeometryReader { geometry in
+            to: GeometryReader { geometry in
                 // MARK: - GeometryReader が提供するサイズや safe area を専用コンテキストへまとめ、下層ビューへシンプルに引き渡す
                 let layoutContext = makeLayoutContext(from: geometry)
 
