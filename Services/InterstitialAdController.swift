@@ -40,7 +40,7 @@ extension InterstitialAd: InterstitialAdPresentable {
     func present(from viewController: UIViewController) {
         // SDK 本体のメソッドを直接呼び出し、ラッパー側での再帰呼び出しを防ぐ
         // （`FullScreenPresentingAd` プロトコルが提供する fromRootViewController ラベルを利用）
-        present(fromRootViewController: viewController)
+        present(from: viewController) 
     }
 }
 
