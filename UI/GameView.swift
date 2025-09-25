@@ -45,8 +45,10 @@ struct GameView: View {
     /// ガイドモードのオン/オフを永続化し、盤面ハイライト表示を制御する
     @AppStorage("guide_mode_enabled") private var guideModeEnabled: Bool = true
     /// 手札の並び替え方式。設定変更時に GameCore へ伝搬する
-    /// - Note: 監視系ロジックを切り出した `GameView+Observers` からも参照するため、
-    ///         `internal`（デフォルト）を維持してファイルを跨ぐ拡張からも利用できるようにしている。
+
+    /// - Note: 監視系ロジックを切り出した `GameView+Observers` でも値を参照する必要があるため、
+    ///         デフォルトのアクセスレベル（internal）を維持し、モジュール内の別ファイル拡張からも安全に共有できるようにしている。
+
     @AppStorage(HandOrderingStrategy.storageKey) var handOrderingRawValue: String = HandOrderingStrategy.insertionOrder.rawValue
     /// 手札や NEXT の位置をマッチングさせるための名前空間
     /// - Note: レイアウト拡張（GameView+Layout）でも利用するため、アクセスレベルを internal（デフォルト）で共有する。
