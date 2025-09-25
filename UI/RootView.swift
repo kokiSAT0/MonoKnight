@@ -277,6 +277,8 @@ private extension RootView {
             .fullScreenCover(isPresented: stateStore.binding(for: \.isPresentingTitleSettings)) {
                 // RootView から AdsServiceProtocol を引き渡し、設定画面でも共通プロトコル経由で操作できるようにする。
                 SettingsView(adsService: adsService)
+                    // キャンペーン進捗ストアも同じインスタンスを共有し、デバッグ用パスコード入力で即座に反映されるようにする。
+                    .environmentObject(campaignProgressStore)
             }
     }
 
