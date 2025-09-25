@@ -35,8 +35,13 @@ final class GameViewLayoutCalculatorTests: XCTestCase {
         XCTAssertEqual(context.topInset, 47, accuracy: 0.001, "トップインセットが期待値と一致しません")
         // overlayAdjustedTopInset も topInset と同じ値を維持し、二重減算が解消されていることを確認
         XCTAssertEqual(context.overlayAdjustedTopInset, context.topInset, accuracy: 0.001, "overlayAdjustedTopInset がトップインセットと不一致です")
-        // コントロール行の余白はセーフエリアに 8pt 加算した 55pt 以上であるべき
-        XCTAssertGreaterThanOrEqual(context.controlRowTopPadding, 55, "コントロール行の余白が不足しています")
+        // トップバーで押し下げられたぶんを補正し、コントロール行の余白は基準値 16pt へ収束する想定
+        XCTAssertEqual(
+            context.controlRowTopPadding,
+            GameViewLayoutMetrics.controlRowBaseTopPadding,
+            accuracy: 0.001,
+            "コントロール行の余白が基準値からずれています"
+        )
         // 記録用の topOverlayHeight にはオーバーレイ量がそのまま反映されていることも確認
         XCTAssertEqual(context.topOverlayHeight, 44, accuracy: 0.001, "オーバーレイ高さの記録値が想定と異なります")
     }
