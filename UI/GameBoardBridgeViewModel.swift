@@ -40,6 +40,14 @@ final class GameBoardBridgeViewModel: ObservableObject {
     /// ハプティクスを利用するかどうか
     private(set) var hapticsEnabled = true
 
+    /// 現在の駒の位置
+    /// - Note: GameView 側で盤面アニメーションのフォールバック地点として参照するため公開する
+    var currentPosition: GridPoint? { core.current }
+
+    /// 現在の盤面サイズ
+    /// - Note: 盤面座標を SwiftUI 座標へ変換する際に必要となるため、専用プロパティとして切り出す
+    var boardSize: Int { core.board.size }
+
     /// Combine の購読を保持するためのセット
     private var cancellables = Set<AnyCancellable>()
 
