@@ -17,7 +17,9 @@ struct GameView: View {
     ///         同一型の別ファイル拡張からも参照できるようアクセスレベルはデフォルト（internal）にしている。
     let theme = AppTheme()
     /// 現在のライト/ダーク設定を環境から取得し、SpriteKit 側の色にも反映する
-    @Environment(\.colorScheme) private var colorScheme
+    /// - Note: 監視系ロジックを別ファイルに切り出した `GameView+Observers` でも参照するため、
+    ///         `private` ではなく `fileprivate` へ緩和し、同一型拡張からアクセスできるようにする。
+    @Environment(\.colorScheme) fileprivate var colorScheme
     /// デバイスの横幅サイズクラスを取得し、iPad などレギュラー幅でのモーダル挙動を調整する
     /// - Note: レイアウト計算用の拡張（`GameView+Layout`）でも参照するため、アクセスレベルは internal に緩和している
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
@@ -41,9 +43,11 @@ struct GameView: View {
     /// - Note: こちらもレイアウト拡張からの参照が必要なため、`internal`（デフォルト）のアクセスレベルを確保している。
     @ObservedObject var boardBridge: GameBoardBridgeViewModel
     /// ハプティクスを有効にするかどうかの設定値
-    @AppStorage("haptics_enabled") private var hapticsEnabled: Bool = true
+    /// - Note: 設定変更を監視する処理を `GameView+Observers` 側へ移譲しているため、拡張からも参照できるよう `fileprivate` へ拡張する。
+    @AppStorage("haptics_enabled") fileprivate var hapticsEnabled: Bool = true
     /// ガイドモードのオン/オフを永続化し、盤面ハイライト表示を制御する
-    @AppStorage("guide_mode_enabled") private var guideModeEnabled: Bool = true
+    /// - Note: 同様に監視処理が別ファイルの拡張へ分離されているため、アクセスレベルを `fileprivate` に調整している。
+    @AppStorage("guide_mode_enabled") fileprivate var guideModeEnabled: Bool = true
     /// 手札の並び替え方式。設定変更時に GameCore へ伝搬する
     /// - Note: 監視系ロジックを切り出した `GameView+Observers` からも参照するため、
     ///         アクセスレベルを `fileprivate` へ広げて同一型拡張内で共有できるようにする。
