@@ -522,7 +522,10 @@ struct ResultView: View {
 struct ResultView_Previews: PreviewProvider {
     static var previews: some View {
         // プレビュー用にキャンペーンステージのダミーデータを構築
-        let stage = CampaignLibrary.shared.chapters.first!.stages.first
+        // ライブラリに章やステージが存在しない場合はプレビュー自体が成立しないため、guard で強制的に失敗させて状況を把握する
+        guard let stage = CampaignLibrary.shared.chapters.first?.stages.first else {
+            fatalError("プレビュー用のキャンペーンステージが取得できません")
+        }
         var progress = CampaignStageProgress()
         progress.earnedStars = 2
         progress.achievedSecondaryObjective = true
@@ -554,7 +557,10 @@ struct ResultView_Previews: PreviewProvider {
 
 
 #Preview {
-    let stage = CampaignLibrary.shared.chapters.first!.stages.first
+    // プレビュー描画時に参照するステージ定義を安全に取り出し、存在しない場合は即座に理由を把握できるようにする
+    guard let stage = CampaignLibrary.shared.chapters.first?.stages.first else {
+        fatalError("プレビュー用のキャンペーンステージが取得できません")
+    }
     var progress = CampaignStageProgress()
     progress.earnedStars = 2
     progress.achievedSecondaryObjective = true
