@@ -69,6 +69,8 @@ final class GameViewModel: ObservableObject {
     let gameCenterService: GameCenterServiceProtocol
     /// 広告表示の状態管理を担当するサービス
     let adsService: AdsServiceProtocol
+    /// キャンペーン進捗ストア
+    let campaignProgressStore: CampaignProgressStore
     /// タイトル復帰時に親へ伝えるためのクロージャ
     let onRequestReturnToTitle: (() -> Void)?
 
@@ -122,6 +124,8 @@ final class GameViewModel: ObservableObject {
     /// 現在の駒位置
     /// - Note: カード移動演出でフォールバック座標として参照する
     var currentPosition: GridPoint? { core.current }
+    /// ランキング送信対象かどうか
+    var isLeaderboardEligible: Bool { mode.isLeaderboardEligible }
     /// レイアウト診断用のスナップショット
     @Published var lastLoggedLayoutSnapshot: BoardLayoutSnapshot?
     /// 経過秒数を 1 秒刻みで更新するためのタイマーパブリッシャ
@@ -133,6 +137,8 @@ final class GameViewModel: ObservableObject {
 
     /// Combine の購読を保持するセット
     private var cancellables = Set<AnyCancellable>()
+    /// キャンペーン定義
+    private let campaignLibrary = CampaignLibrary.shared
 
     /// ViewModel の初期化
     /// - Parameters:
@@ -146,6 +152,7 @@ final class GameViewModel: ObservableObject {
         gameInterfaces: GameModuleInterfaces,
         gameCenterService: GameCenterServiceProtocol,
         adsService: AdsServiceProtocol,
+        campaignProgressStore: CampaignProgressStore,
         onRequestReturnToTitle: (() -> Void)?,
         penaltyBannerScheduler: PenaltyBannerScheduling = PenaltyBannerScheduler(),
         initialHandOrderingRawValue: String? = nil
@@ -154,6 +161,7 @@ final class GameViewModel: ObservableObject {
         self.gameInterfaces = gameInterfaces
         self.gameCenterService = gameCenterService
         self.adsService = adsService
+        self.campaignProgressStore = campaignProgressStore
         self.onRequestReturnToTitle = onRequestReturnToTitle
         self.penaltyBannerScheduler = penaltyBannerScheduler
 
@@ -483,11 +491,30 @@ final class GameViewModel: ObservableObject {
 
         switch progress {
         case .cleared:
-            gameCenterService.submitScore(core.score, for: mode.identifier)
+            if mode.isLeaderboardEligible {
+                gameCenterService.submitScore(core.score, for: mode.identifier)
+            }
+            registerCampaignResultIfNeeded()
             showingResult = true
         default:
             break
         }
+    }
+
+    /// キャンペーンステージの進捗を更新する
+    private func registerCampaignResultIfNeeded() {
+        guard let metadata = mode.campaignMetadataSnapshot,
+              let stage = campaignLibrary.stage(with: metadata.stageID) else { return }
+
+        let metrics = CampaignStageClearMetrics(
+            moveCount: core.moveCount,
+            penaltyCount: core.penaltyCount,
+            elapsedSeconds: core.elapsedSeconds,
+            totalMoveCount: core.totalMoveCount,
+            score: core.score
+        )
+
+        campaignProgressStore.registerClear(for: stage, metrics: metrics)
     }
 }
 

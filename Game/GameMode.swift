@@ -45,6 +45,20 @@ public struct GameMode: Equatable, Identifiable {
         case standard5x5
         case classicalChallenge
         case freeCustom
+        case campaignStage
+    }
+
+    /// キャンペーン関連の補助情報
+    /// - Note: `GameMode` がどのキャンペーンステージから生成されたかを識別するためのメタデータ
+    public struct CampaignMetadata: Equatable {
+        /// ひも付いたステージの ID
+        public let stageID: CampaignStageID
+
+        /// 公開イニシャライザ
+        /// - Parameter stageID: 対象となるステージ ID
+        public init(stageID: CampaignStageID) {
+            self.stageID = stageID
+        }
     }
 
     /// 初期スポーンの扱い
@@ -201,6 +215,10 @@ public struct GameMode: Equatable, Identifiable {
     public let displayName: String
     /// レギュレーション設定一式
     private let regulation: Regulation
+    /// リーダーボードへスコアを送信するかどうか
+    private let leaderboardEligible: Bool
+    /// キャンペーンステージ情報（該当しない場合は nil）
+    private let campaignMetadata: CampaignMetadata?
 
     /// `Identifiable` 準拠用
     public var id: Identifier { identifier }
@@ -210,10 +228,18 @@ public struct GameMode: Equatable, Identifiable {
     ///   - identifier: モードを識別するための ID
     ///   - displayName: UI で表示する名称
     ///   - regulation: 盤面やペナルティを含むレギュレーション設定
-    public init(identifier: Identifier, displayName: String, regulation: Regulation) {
+    public init(
+        identifier: Identifier,
+        displayName: String,
+        regulation: Regulation,
+        leaderboardEligible: Bool = true,
+        campaignMetadata: CampaignMetadata? = nil
+    ) {
         self.identifier = identifier
         self.displayName = displayName
         self.regulation = regulation
+        self.leaderboardEligible = leaderboardEligible
+        self.campaignMetadata = campaignMetadata
     }
 
     /// 盤面サイズ（N×N）
@@ -276,6 +302,15 @@ public struct GameMode: Equatable, Identifiable {
     public var secondarySummaryText: String {
         "\(handSummaryText) / \(manualPenaltySummaryText) / \(revisitPenaltySummaryText)"
     }
+
+    /// リーダーボードへスコアを送信する対象かどうか
+    public var isLeaderboardEligible: Bool { leaderboardEligible }
+
+    /// キャンペーンステージから生成されたモードかどうか
+    public var isCampaignStage: Bool { campaignMetadata != nil }
+
+    /// キャンペーンに紐付くメタデータのスナップショット
+    public var campaignMetadataSnapshot: CampaignMetadata? { campaignMetadata }
 
     /// スタック仕様の詳細説明文
     public var stackingRuleDetailText: String {
@@ -340,13 +375,17 @@ public struct GameMode: Equatable, Identifiable {
         case .freeCustom:
             // フリーモードはユーザー設定によって変化するため、デフォルトとしてスタンダード相当を返す
             return standard
+        case .campaignStage:
+            // キャンペーン専用モードは `CampaignStage` から生成されるため、ここではスタンダードをフォールバックとして返す
+            return standard
         }
     }
 
     /// Equatable 準拠。識別子が一致すれば同一モードとみなす
     public static func == (lhs: GameMode, rhs: GameMode) -> Bool {
         guard lhs.identifier == rhs.identifier else { return false }
-        if lhs.identifier == .freeCustom {
+        guard lhs.campaignMetadata == rhs.campaignMetadata else { return false }
+        if lhs.identifier == .freeCustom || lhs.identifier == .campaignStage {
             return lhs.regulation == rhs.regulation
         }
         return true
