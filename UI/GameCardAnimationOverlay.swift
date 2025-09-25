@@ -44,7 +44,13 @@ private extension GameCardAnimationOverlay {
             )
 
             MoveCardIllustrationView(card: animatingCard.move)
-                .matchedGeometryEffect(id: animatingCard.id, in: cardAnimationNamespace)
+                // 盤面オーバーレイ側は matchedGeometryEffect のターゲット役に固定し、
+                // 手札側のビューと同時に isSource: true になる事態を避けて警告を抑止する
+                .matchedGeometryEffect(
+                    id: animatingCard.id,
+                    in: cardAnimationNamespace,
+                    isSource: false
+                )
                 .frame(width: cardFrame.width, height: cardFrame.height)
                 .position(boardBridge.animationState == .movingToBoard ? boardDestination : startCenter)
                 .scaleEffect(boardBridge.animationState == .movingToBoard ? 0.55 : 1.0)
