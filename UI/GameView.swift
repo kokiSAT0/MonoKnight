@@ -58,7 +58,9 @@ struct GameView: View {
     /// - Note: レイアウト拡張（GameView+Layout）でも利用するため、アクセスレベルを internal（デフォルト）で共有する。
     @Namespace var cardAnimationNamespace
     /// SpriteKit シーンへのショートカット
-    private var scene: GameScene { boardBridge.scene }
+    /// - Note: レイアウト用拡張（`GameView+Layout`）で SpriteView を構築する際にも同じシーンへアクセスするため、
+    ///         アクセスレベルを internal（デフォルト）へ緩和し、型の拡張からも参照できるようにしている。
+    var scene: GameScene { boardBridge.scene }
 
     /// デフォルトのサービスを利用して `GameView` を生成するコンビニエンスイニシャライザ
     /// - Parameters:
