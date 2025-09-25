@@ -5,6 +5,45 @@ import SharedSupport
 import SwiftUI
 import UIKit
 
+// MARK: - ペナルティバナー制御専用ユーティリティ
+
+/// ペナルティ発生時に表示するバナーの自動クローズを一元管理するためのヘルパークラス
+/// - Note: `DispatchWorkItem` のライフサイクル管理を ViewModel 本体から切り離し、
+///   将来的にバナー表示の継続時間やディスパッチキューを差し替える際の影響範囲を最小化する狙いがある。
+private final class PenaltyBannerScheduler {
+    /// 自動クローズを担当する WorkItem。複数回表示された際にキャンセル漏れが起こらないよう保持する
+    private var dismissWorkItem: DispatchWorkItem?
+    /// 非同期実行に利用するディスパッチキュー
+    private let queue: DispatchQueue
+
+    /// - Parameter queue: デフォルトでメインキューを利用するが、テスト時に差し替えられるように引数化している
+    init(queue: DispatchQueue = .main) {
+        self.queue = queue
+    }
+
+    /// バナーを一定時間後に非表示へ戻すスケジュールを登録する
+    /// - Parameters:
+    ///   - delay: 非表示へ切り替えるまでの待ち時間（秒）
+    ///   - handler: 非表示へ切り替える際に実行するクロージャ
+    func scheduleAutoDismiss(after delay: TimeInterval, handler: @escaping () -> Void) {
+        cancel()
+
+        // WorkItem が完了したタイミングで自身の参照を解放し、再表示時に新しい WorkItem を安全に登録できるようにする
+        let workItem = DispatchWorkItem { [weak self] in
+            defer { self?.dismissWorkItem = nil }
+            handler()
+        }
+        dismissWorkItem = workItem
+        queue.asyncAfter(deadline: .now() + delay, execute: workItem)
+    }
+
+    /// 登録済みの WorkItem をキャンセルし、リセットする
+    func cancel() {
+        dismissWorkItem?.cancel()
+        dismissWorkItem = nil
+    }
+}
+
 /// GameView のロジックとサービス連携を担う ViewModel
 /// 描画に直接関係しない処理を SwiftUI View から切り離し、責務を明確化する
 @MainActor
@@ -29,8 +68,9 @@ final class GameViewModel: ObservableObject {
     @Published var showingResult = false
     /// 手詰まりバナーの表示可否
     @Published var isShowingPenaltyBanner = false
-    /// ペナルティバナーを自動的に閉じるためのワークアイテム
-    var penaltyDismissWorkItem: DispatchWorkItem?
+    /// ペナルティバナー表示のスケジューリングを管理するユーティリティ
+    /// - Note: `DispatchWorkItem` を直接保持せずに済むため、リセット処理の抜け漏れを防ぎやすくなる
+    private let penaltyBannerScheduler = PenaltyBannerScheduler()
     /// メニューで確認待ちのアクション
     @Published var pendingMenuAction: GameMenuAction?
     /// ポーズメニューの表示状態
@@ -331,8 +371,8 @@ final class GameViewModel: ObservableObject {
 
     /// ペナルティイベントを受信した際の処理
     func handlePenaltyEvent() {
-        penaltyDismissWorkItem?.cancel()
-        penaltyDismissWorkItem = nil
+        // 新しいバナー表示を開始する前に既存スケジュールを破棄し、二重実行を避ける
+        penaltyBannerScheduler.cancel()
 
         withAnimation(.spring(response: 0.35, dampingFraction: 0.8, blendDuration: 0.2)) {
             isShowingPenaltyBanner = true
@@ -342,15 +382,12 @@ final class GameViewModel: ObservableObject {
             UINotificationFeedbackGenerator().notificationOccurred(.warning)
         }
 
-        let workItem = DispatchWorkItem { [weak self] in
+        penaltyBannerScheduler.scheduleAutoDismiss(after: 2.6) { [weak self] in
             guard let self else { return }
             withAnimation(.easeOut(duration: 0.25)) {
                 self.isShowingPenaltyBanner = false
             }
-            self.penaltyDismissWorkItem = nil
         }
-        penaltyDismissWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.6, execute: workItem)
     }
 
     /// 盤面レイアウト関連のアンカー情報を更新する
@@ -366,8 +403,7 @@ final class GameViewModel: ObservableObject {
     /// ペナルティバナー表示に関連する状態とワークアイテムをまとめて破棄する
     /// - Note: 手動ペナルティやリセット操作後にバナーが残存しないよう、共通処理として切り出している
     private func cancelPenaltyBannerDisplay() {
-        penaltyDismissWorkItem?.cancel()
-        penaltyDismissWorkItem = nil
+        penaltyBannerScheduler.cancel()
         isShowingPenaltyBanner = false
     }
 
