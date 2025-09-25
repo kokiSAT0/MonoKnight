@@ -172,4 +172,40 @@ struct AdsConsentCoordinatorTests {
         #expect(coordinator.currentState.shouldUseNPA == true)
         #expect(coordinator.currentState.canRequestAds == true)
     }
+
+    /// ATT の許諾状態が後から authorized へ変化した場合に NPA フラグが解除されるか検証
+    @MainActor
+    @Test func coordinator_updatesNPAAfterTrackingAuthorizationGranted() async throws {
+        UserDefaults.standard.removeObject(forKey: "ads_should_use_npa")
+
+        let environment = TestAdsConsentEnvironment()
+        environment.consentStatus = .obtained
+        environment.formStatus = .available
+        environment.canRequestAds = true
+        environment.requestUpdateHandler = {
+            // --- requestConsentInfoUpdate 呼び出し時に canRequestAds を true へ調整して広告ロード可能状態を模倣 ---
+            environment.canRequestAds = true
+        }
+
+        var attStatus: ATTrackingManager.AuthorizationStatus = .denied
+        let stateDelegate = TestConsentStateRecorder()
+        let coordinator = AdsConsentCoordinator(
+            hasValidAdConfiguration: true,
+            environment: environment,
+            trackingAuthorizationStatusProvider: { attStatus }
+        )
+        coordinator.stateDelegate = stateDelegate
+
+        await coordinator.requestConsentIfNeeded()
+        #expect(stateDelegate.recordedStates.last?.state.shouldUseNPA == true)
+        #expect(UserDefaults.standard.bool(forKey: "ads_should_use_npa") == true)
+
+        // --- ユーザーが後から ATT を許可したシナリオを再現 ---
+        attStatus = .authorized
+        await coordinator.refreshConsentStatus()
+
+        #expect(stateDelegate.recordedStates.last?.state.shouldUseNPA == false)
+        #expect(stateDelegate.recordedStates.last?.shouldReload == true)
+        #expect(UserDefaults.standard.bool(forKey: "ads_should_use_npa") == false)
+    }
 }

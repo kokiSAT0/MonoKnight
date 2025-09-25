@@ -25,6 +25,10 @@
   `debugLog` から追跡できるようになった。今後はこのログを活用した開発者ツール整備が必要。
 - **SharedSupport モジュールの整備**: `DebugLogHistory` と `CrashFeedbackCollector` により、TestFlight などでも
   開発者向けログ・フィードバック履歴を共有できる下地が整った。サービス層や UI からの再利用方針を明文化しておく。
+- **GameMode ペナルティ検証テストを追加**: `Tests/GameTests/GameModePenaltyTests` でペナルティ設定の反映を網羅し、盤サイズ拡張や
+  キャンペーン専用ルールを導入する際の回帰検知を強化した。
+- **ATT 許諾変化に対応したモックシナリオ**: `MonoKnightAppTests/AdsConsentCoordinatorTests` に ATT の許諾状態が途中で変わるケースを
+  追加し、同意再取得時に NPA フラグと広告再ロードが確実に更新されることを保証した。
 - **GameCore のタイマー責務分離**: ゲーム内の経過時間管理を `GameSessionTimer` へ委譲し、`GameCore` 本体の責務を
   シンプルに保つ取り組みを開始した。経過秒数の算出やテスト用ヘルパーを専用構造体へ集約することで、将来的な
   計測仕様変更や複数モード対応時の再利用性が高まる。
