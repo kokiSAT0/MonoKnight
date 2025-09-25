@@ -17,7 +17,8 @@ struct GameView: View {
     /// 現在のライト/ダーク設定を環境から取得し、SpriteKit 側の色にも反映する
     @Environment(\.colorScheme) private var colorScheme
     /// デバイスの横幅サイズクラスを取得し、iPad などレギュラー幅でのモーダル挙動を調整する
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    /// - Note: レイアウト計算用の拡張（`GameView+Layout`）でも参照するため、アクセスレベルは internal に緩和している
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass
     /// RootView 側で挿入したトップバーの高さ。safeAreaInsets.top から減算して余分な余白を除去する
     /// - Note: Swift 6 では独自 EnvironmentKey の値型が明示されていないと推論に失敗するため、CGFloat 型で注釈を付けている
     @Environment(\.topOverlayHeight) private var topOverlayHeight: CGFloat
