@@ -37,6 +37,69 @@ final class GameViewModelTests: XCTestCase {
             "リアルタイム経過秒数が許容範囲を超えてしまいました"
         )
     }
+
+    /// 捨て札ボタンを押すとモードが開始されることを確認
+    func testToggleManualDiscardSelectionActivatesWhenPlayable() {
+        let (viewModel, core) = makeViewModel(mode: .standard)
+        XCTAssertTrue(viewModel.isManualDiscardButtonEnabled, "スタンダードモードでは捨て札ボタンが有効であるべきです")
+        XCTAssertFalse(core.isAwaitingManualDiscardSelection, "初期状態では捨て札モードが無効であるべきです")
+
+        viewModel.toggleManualDiscardSelection()
+
+        XCTAssertTrue(core.isAwaitingManualDiscardSelection, "ボタン操作で捨て札モードが有効化されていません")
+    }
+
+    /// 捨て札モード中に再度ボタンを押すと解除されることを確認
+    func testToggleManualDiscardSelectionCancelsWhenAlreadyActive() {
+        let (viewModel, core) = makeViewModel(mode: .standard)
+        viewModel.toggleManualDiscardSelection()
+        XCTAssertTrue(core.isAwaitingManualDiscardSelection, "前提として捨て札モードが開始している必要があります")
+
+        viewModel.toggleManualDiscardSelection()
+
+        XCTAssertFalse(core.isAwaitingManualDiscardSelection, "2 回目の操作で捨て札モードが解除されていません")
+    }
+
+    /// 手動ペナルティが進行中のみで発火し、ペナルティ量が一致することを確認
+    func testRequestManualPenaltySetsPendingActionWhenPlayable() {
+        let (viewModel, core) = makeViewModel(mode: .standard)
+        XCTAssertNil(viewModel.pendingMenuAction, "初期状態では確認ダイアログが未設定であるべきです")
+
+        viewModel.requestManualPenalty()
+
+        XCTAssertEqual(
+            viewModel.pendingMenuAction,
+            .manualPenalty(penaltyCost: core.mode.manualRedrawPenaltyCost),
+            "ペナルティ要求時の確認アクションが期待と一致しません"
+        )
+    }
+
+    /// プレイ待機中は手動ペナルティの確認がセットされないことを確認
+    func testRequestManualPenaltyIgnoredWhenNotPlaying() {
+        let (viewModel, core) = makeViewModel(mode: .classicalChallenge)
+        XCTAssertEqual(core.progress, .awaitingSpawn, "クラシカルモードではスポーン待機が初期状態です")
+
+        viewModel.requestManualPenalty()
+
+        XCTAssertNil(viewModel.pendingMenuAction, "プレイ開始前にペナルティ確認が設定されてはいけません")
+    }
+
+    /// テストで使い回す ViewModel と GameCore の組み合わせを生成するヘルパー
+    private func makeViewModel(
+        mode: GameMode,
+        onRequestReturnToTitle: (() -> Void)? = nil
+    ) -> (GameViewModel, GameCore) {
+        let core = GameCore(mode: mode)
+        let interfaces = GameModuleInterfaces { _ in core }
+        let viewModel = GameViewModel(
+            mode: mode,
+            gameInterfaces: interfaces,
+            gameCenterService: DummyGameCenterService(),
+            adsService: DummyAdsService(),
+            onRequestReturnToTitle: onRequestReturnToTitle
+        )
+        return (viewModel, core)
+    }
 }
 
 // MARK: - テスト用ダミーサービス

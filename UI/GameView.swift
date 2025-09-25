@@ -315,7 +315,10 @@ struct GameView: View {
     /// - Returns: 統計バッジと SpriteView を縦に並べた領域
     private func boardSection(width: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: GameViewLayoutMetrics.spacingBetweenStatisticsAndBoard) {
-            boardControlRow()
+            GameBoardControlRowView(
+                theme: theme,
+                viewModel: viewModel
+            )
             ZStack {
                 spriteBoard(width: width)
                 if core.progress == .awaitingSpawn {
@@ -328,148 +331,6 @@ struct GameView: View {
             // 盤面縮小で生まれた余白を均等にするため、中央寄せで描画する
             .frame(maxWidth: .infinity, alignment: .center)
         }
-    }
-
-    /// 盤面上部の統計バッジと操作ボタンをまとめたコントロールバー
-    /// - Returns: 統計情報を左側、リセット関連の操作ボタンを右側に揃えた横並びレイアウト
-    private func boardControlRow() -> some View {
-        ViewThatFits(in: .horizontal) {
-            // 可能であれば従来通り 1 行で収める
-            singleLineControlRow()
-            // 横幅が不足する端末では統計とボタンを上下 2 行へ分離し、情報の重なりを避ける
-            stackedControlRow()
-        }
-        .padding(.horizontal, 16)
-        // PreferenceKey へコントロールバー全体の高さを渡し、盤面計算に利用する
-        .overlay(alignment: .topLeading) {
-            HeightPreferenceReporter<StatisticsHeightPreferenceKey>()
-        }
-    }
-
-    /// 統計バッジ群とボタン群を 1 行へ並べるレイアウト
-    /// - Returns: 余裕がある画面幅で利用する横並びの行
-    private func singleLineControlRow() -> some View {
-        HStack(alignment: .center, spacing: 12) {
-            flexibleStatisticsContainer()
-
-            controlButtonCluster()
-        }
-    }
-
-    /// 統計バッジ群とボタン群を 2 行へ積み上げるレイアウト
-    /// - Returns: iPhone など横幅が足りない場合に利用する上下構成の行
-    private func stackedControlRow() -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            flexibleStatisticsContainer()
-
-            controlButtonCluster()
-                .frame(maxWidth: .infinity, alignment: .trailing)
-        }
-    }
-
-    /// 統計バッジ群の描画方法をまとめ、必要に応じてスクロールへフォールバックする
-    /// - Returns: ViewThatFits による横幅調整を組み込んだ統計コンテナ
-    private func flexibleStatisticsContainer() -> some View {
-        ViewThatFits(in: .horizontal) {
-            statisticsBadgeContainer()
-            ScrollView(.horizontal, showsIndicators: false) {
-                statisticsBadgeContainer()
-            }
-        }
-        // 統計情報は優先的に幅を確保したいため高いレイアウト優先度を与える
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .layoutPriority(1)
-    }
-
-    /// デッキリセットやポーズなどの操作ボタンをまとめたグループ
-    /// - Returns: 3 つの操作を横並びで配置した HStack
-    private func controlButtonCluster() -> some View {
-        HStack(spacing: 12) {
-            manualDiscardButton
-            manualPenaltyButton
-            pauseButton
-        }
-    }
-
-    /// 統計バッジ群をスコア関連とその他の 2 枠へ分割し、横並びで表示する
-    /// - Returns: それぞれ装飾済みのグループを並べたビュー
-    private func statisticsBadgeContainer() -> some View {
-        HStack(spacing: 12) {
-            scoreStatisticsGroup()
-            supplementaryStatisticsGroup()
-        }
-    }
-
-    /// スコアに直接影響する指標をまとめたグループ
-    /// - Returns: 移動回数やスコアを 1 つの枠に収めたビュー
-    private func scoreStatisticsGroup() -> some View {
-        statisticsBadgeGroup {
-            // 手数はペナルティの影響を含めた重要指標のため最初に表示する
-            statisticBadge(
-                title: "移動",
-                value: "\(core.moveCount)",
-                accessibilityLabel: "移動回数",
-                accessibilityValue: "\(core.moveCount)回"
-            )
-
-            // ペナルティが増えると最終スコアも悪化するため、連続して配置して関連性を示す
-            statisticBadge(
-                title: "ペナルティ",
-                value: "\(core.penaltyCount)",
-                accessibilityLabel: "ペナルティ回数",
-                accessibilityValue: "\(core.penaltyCount)手"
-            )
-
-            // 経過時間はスコア算出式の一部なのでここでまとめておく
-            statisticBadge(
-                title: "経過時間",
-                value: formattedElapsedTime(viewModel.displayedElapsedSeconds),
-                accessibilityLabel: "経過時間",
-                accessibilityValue: accessibilityElapsedTimeDescription(viewModel.displayedElapsedSeconds)
-            )
-
-            // 総合スコアはリアルタイムで計算した値を表示し、結果画面で確定値と一致させる
-            statisticBadge(
-                title: "総合スコア",
-                value: "\(viewModel.displayedScore)",
-                accessibilityLabel: "総合スコア",
-                accessibilityValue: accessibilityScoreDescription(viewModel.displayedScore)
-            )
-        }
-    }
-
-    /// レギュレーションによって増減する補助情報をまとめるグループ
-    /// - Returns: 現状は残りマスのみだが、今後の追加にも対応できる枠
-    private func supplementaryStatisticsGroup() -> some View {
-        statisticsBadgeGroup {
-            // 残りマスはスコアとは独立した進捗情報なので別枠へ分離する
-            statisticBadge(
-                title: "残りマス",
-                value: "\(core.remainingTiles)",
-                accessibilityLabel: "残りマス数",
-                accessibilityValue: "残り\(core.remainingTiles)マス"
-            )
-        }
-    }
-
-    /// 共通デザインを適用した統計バッジ用コンテナ
-    /// - Parameter content: 内部に並べる統計バッジ群
-    /// - Returns: 角丸と枠線を持つバッジグループ
-    private func statisticsBadgeGroup<Content: View>(@ViewBuilder content: () -> Content) -> some View {
-        HStack(spacing: 12) {
-            content()
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(theme.statisticBadgeBackground)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(theme.statisticBadgeBorder, lineWidth: 1)
-        )
-        .accessibilityElement(children: .contain)
     }
 
     /// SpriteKit の盤面を描画し、ライフサイクルに応じた更新処理をまとめる
@@ -515,106 +376,6 @@ struct GameView: View {
         .allowsHitTesting(false)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(Text("開始位置を選択してください。手札スロットと次のカードを見てから任意のマスをタップできます。"))
-    }
-
-    /// 手動ペナルティ（手札引き直し）のショートカットボタン
-    /// - Note: 統計バッジの右側に円形アイコンとして配置し、盤面上部の横並びレイアウトに収める
-    private var manualDiscardButton: some View {
-        // プレイ中かつ手札が存在するときだけ操作可能にする
-        let isDisabled = core.progress != .playing || core.handStacks.isEmpty
-        let isSelecting = core.isAwaitingManualDiscardSelection
-
-        return Button {
-            if isSelecting {
-                // もう一度タップされた場合はモードを解除する
-                core.cancelManualDiscardSelection()
-            } else {
-                // 捨て札モードへ移行してカード選択を待つ
-                core.beginManualDiscardSelection()
-            }
-        } label: {
-            Image(systemName: "trash")
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundColor(isSelecting ? theme.accentOnPrimary : theme.menuIconForeground)
-                .frame(width: 44, height: 44)
-                .background(
-                    Circle()
-                        .fill(isSelecting ? theme.accentPrimary : theme.menuIconBackground)
-                )
-                .overlay(
-                    Circle()
-                        .stroke(
-                            isSelecting ? theme.accentPrimary.opacity(0.55) : theme.menuIconBorder,
-                            lineWidth: 1
-                        )
-                )
-        }
-        .buttonStyle(.plain)
-        .opacity(isDisabled ? 0.45 : 1.0)
-        .disabled(isDisabled)
-        .accessibilityIdentifier("manual_discard_button")
-        .accessibilityLabel(Text("手札を捨て札にする"))
-        .accessibilityHint(Text(manualDiscardAccessibilityHint))
-    }
-
-    /// 捨て札モードの操作説明を状況に応じて生成する
-    private var manualDiscardAccessibilityHint: String {
-        let cost = core.mode.manualDiscardPenaltyCost
-        if core.isAwaitingManualDiscardSelection {
-            return "捨て札モードを終了します。カードを選ばずに通常操作へ戻ります。"
-        }
-
-        if cost > 0 {
-            return "手数を\(cost)消費して、選択した手札 1 種類をまとめて捨て札にし、新しいカードを補充します。"
-        } else {
-            return "手数を消費せずに、選択した手札 1 種類をまとめて捨て札にし、新しいカードを補充します。"
-        }
-    }
-
-    /// 手動ペナルティ（手札引き直し）のショートカットボタン
-    /// - Note: 統計バッジの右側に円形アイコンとして配置し、盤面上部の横並びレイアウトに収める
-    private var manualPenaltyButton: some View {
-        // ゲームが進行中でない場合は無効化し、リザルト表示中などの誤操作を回避
-        let isDisabled = core.progress != .playing
-
-        return Button {
-            // 実行前に必ず確認ダイアログを挟むため、既存のメニューアクションを再利用
-            viewModel.pendingMenuAction = .manualPenalty(penaltyCost: core.mode.manualRedrawPenaltyCost)
-        } label: {
-            // MARK: - ボタンは 44pt 以上の円形領域で構成し、メニューアイコンとの統一感を持たせる
-            Image(systemName: "arrow.triangle.2.circlepath")
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundColor(theme.menuIconForeground)
-                .frame(width: 44, height: 44)
-                .background(
-                    Circle()
-                        .fill(theme.menuIconBackground)
-                )
-                .overlay(
-                    Circle()
-                        .stroke(theme.menuIconBorder, lineWidth: 1)
-                )
-        }
-        .buttonStyle(.plain)
-        .opacity(isDisabled ? 0.45 : 1.0)
-        .disabled(isDisabled)
-        .accessibilityIdentifier("manual_penalty_button")
-        // VoiceOver でも「スロット」概念が伝わるように表現を更新
-        .accessibilityLabel(Text("ペナルティを払って手札スロットを引き直す"))
-        .accessibilityHint(Text(manualPenaltyAccessibilityHint))
-    }
-
-    /// 手動ペナルティの操作説明を状況に応じて生成
-    /// - Note: スロット制の仕様を理解しやすいよう「種類数」とスタックの挙動を明記する。
-    private var manualPenaltyAccessibilityHint: String {
-        let cost = core.mode.manualRedrawPenaltyCost
-        let stackingDetail = core.mode.stackingRuleDetailText
-        let refillDescription = "手札スロットを全て空にし、新しいカードを最大 \(core.mode.handSize) 種類まで補充します。"
-        if cost > 0 {
-            return "手数を\(cost)消費して\(refillDescription)\(stackingDetail)"
-        } else {
-            return "手数を消費せずに\(refillDescription)\(stackingDetail)"
-        }
     }
 
     /// 手詰まりペナルティを知らせるバナーのレイヤーを構成
@@ -680,40 +441,6 @@ struct GameView: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabel)
         .accessibilityValue(accessibilityValue)
-    }
-
-    /// 経過秒数を mm:ss 形式へ整形し、視覚的に読みやすくする
-    /// - Parameter seconds: 表示したい経過秒数
-    /// - Returns: mm:ss 形式の文字列
-    private func formattedElapsedTime(_ seconds: Int) -> String {
-        // 60 秒で割った商を分、余りを秒として表示する
-        let minutes = seconds / 60
-        let remainingSeconds = seconds % 60
-        return String(format: "%d:%02d", minutes, remainingSeconds)
-    }
-
-    /// アクセシビリティ向けに経過時間を自然な日本語へ整形する
-    /// - Parameter seconds: 読み上げに使用する経過秒数
-    /// - Returns: 「X時間Y分Z秒」の形式でまとめた説明文
-    private func accessibilityElapsedTimeDescription(_ seconds: Int) -> String {
-        let hours = seconds / 3600
-        let minutes = (seconds % 3600) / 60
-        let remainingSeconds = seconds % 60
-
-        if hours > 0 {
-            return "\(hours)時間\(minutes)分\(remainingSeconds)秒"
-        } else if minutes > 0 {
-            return "\(minutes)分\(remainingSeconds)秒"
-        } else {
-            return "\(remainingSeconds)秒"
-        }
-    }
-
-    /// アクセシビリティ向けにスコアを自然な日本語へ整形する
-    /// - Parameter score: 読み上げに使用するスコア値
-    /// - Returns: 「Xポイント」の形式でまとめた説明文
-    private func accessibilityScoreDescription(_ score: Int) -> String {
-        "\(score)ポイント"
     }
 
     /// レイアウトに関する最新の実測値をログに残すための不可視ビューを生成
@@ -810,6 +537,274 @@ private extension GameView {
     }
 }
 
+// MARK: - 盤面上部のコントロールバー
+/// 統計バッジと手動操作ボタンをまとめて表示するための補助ビュー
+/// - Note: GameView 本体から UI 細部の責務を切り出し、可読性と再利用性を高める。
+fileprivate struct GameBoardControlRowView: View {
+    /// 共通のテーマ配色
+    let theme: AppTheme
+    /// ゲーム進行とサービス連携を管理する ViewModel
+    @ObservedObject var viewModel: GameViewModel
+
+    /// GameCore へのショートカット
+    private var core: GameCore { viewModel.core }
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            singleLineLayout
+            stackedLayout
+        }
+        .padding(.horizontal, 16)
+        // PreferenceKey へ高さを伝搬し、GeometryReader 側のレイアウト計算へ反映する
+        .overlay(alignment: .topLeading) {
+            HeightPreferenceReporter<StatisticsHeightPreferenceKey>()
+        }
+    }
+
+    /// 横幅に余裕がある場合に利用する 1 行構成
+    private var singleLineLayout: some View {
+        HStack(alignment: .center, spacing: 12) {
+            flexibleStatisticsContainer()
+            controlButtonCluster()
+        }
+    }
+
+    /// 横幅不足時に統計とボタンを 2 行へ分割するレイアウト
+    private var stackedLayout: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            flexibleStatisticsContainer()
+
+            controlButtonCluster()
+                .frame(maxWidth: .infinity, alignment: .trailing)
+        }
+    }
+
+    /// 統計バッジ群を横幅に合わせてスクロールへフォールバック可能にする
+    private func flexibleStatisticsContainer() -> some View {
+        ViewThatFits(in: .horizontal) {
+            statisticsBadgeContainer()
+            ScrollView(.horizontal, showsIndicators: false) {
+                statisticsBadgeContainer()
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .layoutPriority(1)
+    }
+
+    /// 統計バッジを 2 つのグループに分けて表示
+    private func statisticsBadgeContainer() -> some View {
+        HStack(spacing: 12) {
+            scoreStatisticsGroup()
+            supplementaryStatisticsGroup()
+        }
+    }
+
+    /// スコアへ直接影響する指標群
+    private func scoreStatisticsGroup() -> some View {
+        statisticsBadgeGroup {
+            statisticBadge(
+                title: "移動",
+                value: "\(core.moveCount)",
+                accessibilityLabel: "移動回数",
+                accessibilityValue: "\(core.moveCount)回"
+            )
+
+            statisticBadge(
+                title: "ペナルティ",
+                value: "\(core.penaltyCount)",
+                accessibilityLabel: "ペナルティ回数",
+                accessibilityValue: "\(core.penaltyCount)手"
+            )
+
+            statisticBadge(
+                title: "経過時間",
+                value: formattedElapsedTime(viewModel.displayedElapsedSeconds),
+                accessibilityLabel: "経過時間",
+                accessibilityValue: accessibilityElapsedTimeDescription(viewModel.displayedElapsedSeconds)
+            )
+
+            statisticBadge(
+                title: "総合スコア",
+                value: "\(viewModel.displayedScore)",
+                accessibilityLabel: "総合スコア",
+                accessibilityValue: accessibilityScoreDescription(viewModel.displayedScore)
+            )
+        }
+    }
+
+    /// 進行度合いを補足する指標群（残りマスなど）
+    private func supplementaryStatisticsGroup() -> some View {
+        statisticsBadgeGroup {
+            statisticBadge(
+                title: "残りマス",
+                value: "\(core.remainingTiles)",
+                accessibilityLabel: "残りマス数",
+                accessibilityValue: "残り\(core.remainingTiles)マス"
+            )
+        }
+    }
+
+    /// 共通の装飾を適用した統計バッジコンテナ
+    private func statisticsBadgeGroup<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        HStack(spacing: 12) {
+            content()
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(theme.statisticBadgeBackground)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(theme.statisticBadgeBorder, lineWidth: 1)
+        )
+        .accessibilityElement(children: .contain)
+    }
+
+    /// ボタン 3 種を横並びで表示
+    private func controlButtonCluster() -> some View {
+        HStack(spacing: 12) {
+            manualDiscardButton
+            manualPenaltyButton
+            pauseButton
+        }
+    }
+
+    /// 捨て札モード切替ボタン
+    private var manualDiscardButton: some View {
+        let isSelecting = core.isAwaitingManualDiscardSelection
+        let isDisabled = !viewModel.isManualDiscardButtonEnabled && !isSelecting
+
+        return Button {
+            viewModel.toggleManualDiscardSelection()
+        } label: {
+            Image(systemName: "trash")
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundColor(isSelecting ? theme.accentOnPrimary : theme.menuIconForeground)
+                .frame(width: 44, height: 44)
+                .background(
+                    Circle()
+                        .fill(isSelecting ? theme.accentPrimary : theme.menuIconBackground)
+                )
+                .overlay(
+                    Circle()
+                        .stroke(
+                            isSelecting ? theme.accentPrimary.opacity(0.55) : theme.menuIconBorder,
+                            lineWidth: 1
+                        )
+                )
+        }
+        .buttonStyle(.plain)
+        .opacity(isDisabled ? 0.45 : 1.0)
+        .disabled(isDisabled)
+        .accessibilityIdentifier("manual_discard_button")
+        .accessibilityLabel(Text("手札を捨て札にする"))
+        .accessibilityHint(Text(viewModel.manualDiscardAccessibilityHint))
+    }
+
+    /// 手動ペナルティ発動ボタン
+    private var manualPenaltyButton: some View {
+        let isDisabled = !viewModel.isManualPenaltyButtonEnabled
+
+        return Button {
+            viewModel.requestManualPenalty()
+        } label: {
+            Image(systemName: "arrow.triangle.2.circlepath")
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundColor(theme.menuIconForeground)
+                .frame(width: 44, height: 44)
+                .background(
+                    Circle()
+                        .fill(theme.menuIconBackground)
+                )
+                .overlay(
+                    Circle()
+                        .stroke(theme.menuIconBorder, lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
+        .opacity(isDisabled ? 0.45 : 1.0)
+        .disabled(isDisabled)
+        .accessibilityIdentifier("manual_penalty_button")
+        .accessibilityLabel(Text("ペナルティを払って手札スロットを引き直す"))
+        .accessibilityHint(Text(viewModel.manualPenaltyAccessibilityHint))
+    }
+
+    /// ポーズメニュー表示ボタン
+    private var pauseButton: some View {
+        Button {
+            viewModel.presentPauseMenu()
+        } label: {
+            Image(systemName: "pause.circle")
+                .font(.system(size: 22, weight: .semibold))
+                .foregroundColor(theme.menuIconForeground)
+                .frame(width: 44, height: 44)
+                .background(
+                    Circle()
+                        .fill(theme.menuIconBackground)
+                )
+                .overlay(
+                    Circle()
+                        .stroke(theme.menuIconBorder, lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("pause_menu_button")
+        .accessibilityLabel(Text("ポーズメニュー"))
+        .accessibilityHint(Text("プレイを一時停止して設定やリセットを確認します"))
+    }
+
+    /// 統計バッジ 1 枚分の共通レイアウト
+    private func statisticBadge(
+        title: String,
+        value: String,
+        accessibilityLabel: String,
+        accessibilityValue: String
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(.caption2)
+                .fontWeight(.medium)
+                .foregroundColor(theme.statisticTitleText)
+
+            Text(value)
+                .font(.headline)
+                .foregroundColor(theme.statisticValueText)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityValue(accessibilityValue)
+    }
+
+    /// 経過時間の表示用フォーマット
+    private func formattedElapsedTime(_ seconds: Int) -> String {
+        let minutes = seconds / 60
+        let remainingSeconds = seconds % 60
+        return String(format: "%d:%02d", minutes, remainingSeconds)
+    }
+
+    /// 経過時間のアクセシビリティ説明
+    private func accessibilityElapsedTimeDescription(_ seconds: Int) -> String {
+        let hours = seconds / 3600
+        let minutes = (seconds % 3600) / 60
+        let remainingSeconds = seconds % 60
+
+        if hours > 0 {
+            return "\(hours)時間\(minutes)分\(remainingSeconds)秒"
+        } else if minutes > 0 {
+            return "\(minutes)分\(remainingSeconds)秒"
+        } else {
+            return "\(remainingSeconds)秒"
+        }
+    }
+
+    /// スコアのアクセシビリティ説明
+    private func accessibilityScoreDescription(_ score: Int) -> String {
+        "\(score)ポイント"
+    }
+}
+
 // MARK: - カード移動演出用オーバーレイ
 /// SpriteView と手札スロットの間を移動するカードのアニメーションを担当する補助ビュー
 /// - Note: GameView 本体のメソッドから切り出し、責務を明確にして可読性を高める。
@@ -880,31 +875,6 @@ private struct GameCardAnimationOverlay: View {
 
 // MARK: - コントロールバーの操作要素
 private extension GameView {
-    /// ゲームを一時停止して各種設定やリセット操作をまとめて案内するボタン
-    private var pauseButton: some View {
-        Button {
-            debugLog("GameView: ポーズメニュー表示要求")
-            viewModel.isPauseMenuPresented = true
-        } label: {
-            Image(systemName: "pause.circle")
-                .font(.system(size: 22, weight: .semibold))
-                .foregroundColor(theme.menuIconForeground)
-                .frame(width: 44, height: 44)
-                .background(
-                    Circle()
-                        .fill(theme.menuIconBackground)
-                )
-                .overlay(
-                    Circle()
-                        .stroke(theme.menuIconBorder, lineWidth: 1)
-                )
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("pause_menu_button")
-        .accessibilityLabel(Text("ポーズメニュー"))
-        .accessibilityHint(Text("プレイを一時停止して設定やリセットを確認します"))
-    }
-
     /// メニュー操作を実際に実行する共通処理
     /// - Parameter action: ユーザーが選択した操作種別
     private func performMenuAction(_ action: GameMenuAction) {
