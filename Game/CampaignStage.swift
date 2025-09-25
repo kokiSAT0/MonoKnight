@@ -312,6 +312,10 @@ public struct CampaignLibrary {
     /// 定義の実装本体
     private static func buildChapters() -> [CampaignChapter] {
         // MARK: - 1 章のステージ群
+        // MARK: 章 1 のステージレギュレーション共通設定
+        // 章内で複数のステージが同一ルールを参照する場合に備え、先に共通変数へ切り出しておく。
+        let classicalChallengeRegulation = GameMode.classicalChallenge.regulationSnapshot
+
         let stage11 = CampaignStage(
             id: CampaignStageID(chapter: 1, index: 1),
             title: "序盤訓練",
@@ -336,11 +340,24 @@ public struct CampaignLibrary {
             unlockRequirement: .totalStars(minimum: 0)
         )
 
+        // 1-2 ステージはクラシカルチャレンジと同等のレギュレーションを採用し、大盤面での立ち回りを学ぶ想定。
+        // リワード条件はユーザー指定に従い、2 個目のスターを 120 秒以内クリア、3 個目をスコア 900 未満達成としている。
+        let stage12 = CampaignStage(
+            id: CampaignStageID(chapter: 1, index: 2),
+            title: "クラシカル演習",
+            summary: "クラシカルチャレンジと同じ 8×8 盤で時間管理を意識しましょう。",
+            regulation: classicalChallengeRegulation,
+            secondaryObjective: .finishWithinSeconds(maxSeconds: 120),
+            scoreTarget: 900,
+            scoreTargetComparison: .lessThan,
+            unlockRequirement: .stageClear(CampaignStageID(chapter: 1, index: 1))
+        )
+
         let chapter1 = CampaignChapter(
             id: 1,
             title: "基礎訓練",
             summary: "カード移動の定石を学ぶ章。",
-            stages: [stage11]
+            stages: [stage11, stage12]
         )
 
         return [chapter1]
