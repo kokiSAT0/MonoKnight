@@ -28,8 +28,9 @@ struct GameView: View {
     @Environment(\.topOverlayHeight) var topOverlayHeight: CGFloat
     /// ルートビューの GeometryReader で得たシステム由来セーフエリアの上端量
     /// - Note: safeAreaInset により増加した分を差し引くための基準値として利用する
-    /// - Note: レイアウト補助用の拡張（`GameView+Layout`）でも参照するため、`fileprivate` へ緩和している
-    @Environment(\.baseTopSafeAreaInset) fileprivate var baseTopSafeAreaInset: CGFloat
+    /// - Important: レイアウト補助用の拡張（`GameView+Layout`）からも参照するため、アクセスレベルはデフォルトの internal を維持し、
+    ///             複数ファイルに分割した同一型からも安全に共有できるようにする。
+    @Environment(\.baseTopSafeAreaInset) var baseTopSafeAreaInset: CGFloat
     /// 手札スロットの数（常に 5 スロット分の枠を確保してレイアウトを安定させる）
     /// - Note: レイアウト拡張でハンド UI の構築にも利用するため、`fileprivate` へ緩和して同一型内で共有している。
     fileprivate let handSlotCount = 5
