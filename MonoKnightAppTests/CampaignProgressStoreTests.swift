@@ -67,4 +67,30 @@ final class CampaignProgressStoreTests: XCTestCase {
         XCTAssertEqual(stored?.bestScore, metrics.score, "ベストスコアはより良い値を保持する必要があります")
         XCTAssertEqual(stored?.earnedStars, 3, "一度獲得したスターは維持される想定です")
     }
+
+    /// デバッグ用パスコードを有効化すると全ステージの解放条件が満たされることを確認
+    @MainActor
+    func testDebugUnlockOverridesRequirement() throws {
+        let defaults = try makeIsolatedDefaults()
+        let store = CampaignProgressStore(userDefaults: defaults)
+        let library = CampaignLibrary.shared
+
+        let lockedStageID = CampaignStageID(chapter: 1, index: 2)
+        guard let lockedStage = library.stage(with: lockedStageID) else {
+            XCTFail("ステージ定義が見つかりません")
+            return
+        }
+
+        XCTAssertFalse(store.isStageUnlocked(lockedStage), "前提条件として 1-2 は初期状態でロックされている想定です")
+
+        store.enableDebugUnlock()
+
+        XCTAssertTrue(store.isDebugUnlockEnabled, "パスコード有効化後はフラグが true になる必要があります")
+        XCTAssertTrue(store.isStageUnlocked(lockedStage), "全ステージ解放フラグが立つとロックを無視して遊べる必要があります")
+
+        // 再生成したストアでもフラグが維持され、永続化されていることを確認する
+        let reloadedStore = CampaignProgressStore(userDefaults: defaults)
+        XCTAssertTrue(reloadedStore.isDebugUnlockEnabled, "UserDefaults 経由で再読み込みしても全解放状態が保持される必要があります")
+        XCTAssertTrue(reloadedStore.isStageUnlocked(lockedStage), "再生成後もステージが解放されたままになる想定です")
+    }
 }

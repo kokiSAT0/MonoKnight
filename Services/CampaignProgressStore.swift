@@ -8,11 +8,17 @@ import SharedSupport
 final class CampaignProgressStore: ObservableObject {
     /// UserDefaults へ保存する際のキー
     private let storageKey = "campaign_progress_v1"
+    /// デバッグ用全解放フラグを保存するキー
+    private let debugUnlockStorageKey = "campaign_debug_unlock_enabled"
     /// 永続化先
     private let userDefaults: UserDefaults
 
     /// ステージごとの進捗マップ
     @Published private(set) var progressMap: [CampaignStageID: CampaignStageProgress]
+
+    /// デバッグ用パスコードで全ステージ解放を行うフラグ
+    /// - Note: 6031 を設定画面で入力すると true になり、全ての解放判定をバイパスする
+    @Published private(set) var isDebugUnlockEnabled: Bool
 
     /// 合計スター数
     var totalStars: Int {
@@ -31,6 +37,8 @@ final class CampaignProgressStore: ObservableObject {
     init(userDefaults: UserDefaults = .standard) {
         self.userDefaults = userDefaults
         self.progressMap = [:]
+        // デバッグ用パスコード入力状態を先に復元し、View 側が即座に表示を更新できるようにする
+        self.isDebugUnlockEnabled = userDefaults.bool(forKey: debugUnlockStorageKey)
         self.progressMap = loadProgress()
     }
 
@@ -38,6 +46,10 @@ final class CampaignProgressStore: ObservableObject {
     /// - Parameter stage: 対象ステージ
     /// - Returns: 解放済みであれば true
     func isStageUnlocked(_ stage: CampaignStage) -> Bool {
+        // デバッグ用パスコードが有効になっている場合は全ステージを即座に解放する
+        if isDebugUnlockEnabled {
+            return true
+        }
         switch stage.unlockRequirement {
         case .always:
             return true
@@ -79,6 +91,15 @@ final class CampaignProgressStore: ObservableObject {
         debugLog("CampaignProgressStore: ステージ \(stage.id.displayCode) を更新 スター=\(current.earnedStars)")
 
         return CampaignStageClearRecord(stage: stage, evaluation: evaluation, progress: current)
+    }
+
+    /// デバッグ用パスコードによる全ステージ解放を有効化する
+    /// - Note: すでに有効化済みの場合は重複保存を避ける
+    func enableDebugUnlock() {
+        guard !isDebugUnlockEnabled else { return }
+        isDebugUnlockEnabled = true
+        userDefaults.set(true, forKey: debugUnlockStorageKey)
+        debugLog("CampaignProgressStore: デバッグ用全ステージ解放フラグを有効化しました")
     }
 
     /// 進捗データを読み出し

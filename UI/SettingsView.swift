@@ -19,6 +19,9 @@ struct SettingsView: View {
     // 広告除去 IAP の購入／復元状態を UI に反映するため、環境オブジェクトとして渡された Store サービスを監視する。
     @EnvironmentObject private var storeService: AnyStoreService
 
+    // キャンペーンモードの進捗を共有し、デバッグ用パスコード入力で全ステージ解放フラグを更新できるようにする。
+    @EnvironmentObject private var campaignProgressStore: CampaignProgressStore
+
     // 購入ボタンを複数回タップできないようにするための進行状況フラグ。
     @State private var isPurchaseInProgress = false
 
@@ -27,6 +30,15 @@ struct SettingsView: View {
 
     // ストア処理の完了通知をアラートで表示するための状態。
     @State private var storeAlert: StoreAlert?
+
+    // デバッグ用パスコード入力欄の値を保持する。
+    @State private var debugUnlockInput: String = ""
+
+    // 正しいパスコード入力時に確認アラートを表示するためのフラグ。
+    @State private var isDebugUnlockSuccessAlertPresented = false
+
+    // デバッグ用パスコードを定義し、値の変更箇所を 1 箇所に集約する。
+    private static let debugUnlockPassword = "6031"
 
     // MARK: - 初期化
     // AdsServiceProtocol を外部から注入できるようにし、未指定の場合はシングルトンを採用する。
@@ -292,6 +304,34 @@ struct SettingsView: View {
                     Text("ベストポイントを初期状態に戻します。リセット後は新しいプレイで再び記録されます。")
                 }
 
+                // MARK: - デバッグ用パスコードセクション
+                Section {
+                    VStack(alignment: .leading, spacing: 8) {
+                        // 数字以外の入力を取り除き、桁数を固定することで誤入力を防ぎやすくする。
+                        TextField("デバッグ用パスコード", text: $debugUnlockInput)
+                            .keyboardType(.numberPad)
+                            .textContentType(.oneTimeCode)
+                            .disabled(campaignProgressStore.isDebugUnlockEnabled)
+                            .onChange(of: debugUnlockInput) { _, newValue in
+                                handleDebugUnlockInputChange(newValue)
+                            }
+                        if campaignProgressStore.isDebugUnlockEnabled {
+                            // 有効化後の状態を明示し、解除操作が不要であることを伝える。
+                            Label("全てのステージが解放されています", systemImage: "checkmark.circle.fill")
+                                .foregroundStyle(.tint)
+                        } else {
+                            Text("社内検証で必要な場合のみ入力してください。")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                } header: {
+                    Text("デバッグ")
+                } footer: {
+                    // 入力による影響範囲を明確に伝え、誤用を避ける。
+                    Text("正しいパスコードを入力するとキャンペーンモードの全ステージが解放されます。アプリを再起動しても維持されます。")
+                }
+
                 if isDiagnosticsMenuAvailable {
                     // MARK: - 開発者向け診断セクション
                     Section {
@@ -343,6 +383,12 @@ struct SettingsView: View {
                 }
             }
         }
+        // デバッグ用パスコード入力成功時に状態を明示するアラートを表示し、検証モードへの切り替えを周知する。
+        .alert("全ステージを解放しました", isPresented: $isDebugUnlockSuccessAlertPresented) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("キャンペーンモードの検証用として全てのステージが解放された状態になりました。")
+        }
         // ストア処理の成否をまとめて通知し、ユーザーに完了状況を伝える
         .alert(item: $storeAlert) { alert in
             Alert(
@@ -350,6 +396,42 @@ struct SettingsView: View {
                 message: Text(alert.message),
                 dismissButton: .default(Text("OK"))
             )
+        }
+    }
+}
+
+// MARK: - デバッグ用パスコード処理
+private extension SettingsView {
+    /// パスコード入力の変化を監視し、正しい値が揃ったときに全ステージ解放フラグを更新する
+    /// - Parameter newValue: 入力欄へ反映された最新の文字列
+    func handleDebugUnlockInputChange(_ newValue: String) {
+        // 入力中に数字以外の文字が含まれた場合は除去し、指定桁数までに制限する
+        let digitsOnly = newValue.filter { $0.isNumber }
+        let trimmed = String(digitsOnly.prefix(Self.debugUnlockPassword.count))
+
+        // 加工後の値と入力欄の内容が異なる場合はフィールドを更新して処理を終える
+        if trimmed != newValue {
+            debugUnlockInput = trimmed
+            return
+        }
+
+        // 既に全解放済みであれば追加処理は不要なため、フィールドだけリセットする
+        guard !campaignProgressStore.isDebugUnlockEnabled else {
+            debugUnlockInput = ""
+            return
+        }
+
+        // 桁数が揃うまでは判定を待ち、途中入力での誤作動を防ぐ
+        guard trimmed.count == Self.debugUnlockPassword.count else { return }
+
+        if trimmed == Self.debugUnlockPassword {
+            // 正しいパスコード入力時は進捗ストアへ通知して永続化し、アラートで完了を知らせる
+            campaignProgressStore.enableDebugUnlock()
+            debugUnlockInput = ""
+            isDebugUnlockSuccessAlertPresented = true
+        } else {
+            // 誤入力時はフィールドをクリアし、再入力を促す
+            debugUnlockInput = ""
         }
     }
 }
