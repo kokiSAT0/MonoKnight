@@ -338,7 +338,12 @@ final class AdsConsentCoordinator: AdsConsentCoordinating {
         stateDelegate?.adsConsentCoordinator(self, didUpdate: state, shouldReloadAds: needsReload)
 
         if let error {
+            #if DEBUG
+            // 開発用の AdMob アプリ ID ではフォーム未設定が想定内なため、エラー扱いではなく状況説明のみに留める
+            debugLog("UMP のフォーム設定が未完了のため非パーソナライズ広告で継続します (フォーム未設定) | error=\(error.localizedDescription)")
+            #else
             debugError(error, message: "UMP のフォーム設定が未完了のため非パーソナライズ広告で継続します (フォーム未設定)")
+            #endif
             hasLoggedMissingConsentFormFallback = true
         } else if !hasLoggedMissingConsentFormFallback {
             debugLog("UMP のフォーム設定が未完了のため非パーソナライズ広告で継続します (フォーム未設定)")

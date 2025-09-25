@@ -218,16 +218,7 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
                     self.isAuthenticated = false
                     // 失敗時もアクセスポイントを無効化し、未認証状態と表示を揃える
                     self.refreshAccessPointVisibility()
-                    if let authError {
-                        // エラーオブジェクトが存在する場合は詳細を出力
-                        debugError(authError, message: "Game Center 認証失敗")
-                    } else {
-                        // それ以外はメッセージのみ出力
-                        let message = "不明なエラー"
-                        debugLog("Game Center 認証失敗: \(message)")
-                        // Error が nil のまま失敗したケースは TestFlight で特に原因調査が難しいため追加情報を記録
-                        debugLog("Game Center 認証失敗: GKLocalPlayer.isAuthenticated=\(player.isAuthenticated)")
-                    }
+                    self.logAuthenticationFailure(authError, player: player)
                     completion?(false) // 呼び出し元へ失敗を通知
                 }
             }
@@ -442,5 +433,45 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
         gameCenterViewController.dismiss(animated: true)
         // ランキングを閉じた後もアクセスポイントは非表示のまま維持する
         refreshAccessPointVisibility()
+    }
+}
+
+private extension GameCenterService {
+    /// 認証失敗時のログを状況に応じて出し分ける
+    /// - Parameters:
+    ///   - error: GameKit から返されたエラー（nil の場合は原因不明）
+    ///   - player: 認証対象のローカルプレイヤー。追加情報の取得に利用する
+    func logAuthenticationFailure(_ error: Error?, player: GKLocalPlayer) {
+        // シミュレーターでは利用者がキャンセルした場合や未サインイン状態で code=2,6 が頻発するため、
+        // その場合はスタックトレースを伴うエラーログではなく状況説明のみにとどめる。
+        if let error, shouldDowngradeAuthenticationError(error) {
+            let nsError = error as NSError
+            debugLog("Game Center 認証が利用者操作により完了しませんでした (code=\(nsError.code), description=\(nsError.localizedDescription))")
+            return
+        }
+
+        if let error {
+            // 想定外の失敗は従来通り詳細を記録して調査しやすい状態を保つ
+            debugError(error, message: "Game Center 認証失敗")
+        } else {
+            // Error が nil のまま失敗したケースは追加情報が無いため、既知の状態と併せて記録する
+            debugLog("Game Center 認証失敗: 不明なエラー")
+            debugLog("Game Center 認証失敗: GKLocalPlayer.isAuthenticated=\(player.isAuthenticated)")
+        }
+    }
+
+    /// エラーがユーザーキャンセル等の想定内ケースかどうかを判定する
+    /// - Parameter error: 判定対象のエラー
+    /// - Returns: 想定内のケースであれば true
+    func shouldDowngradeAuthenticationError(_ error: Error) -> Bool {
+        let nsError = error as NSError
+        guard nsError.domain == GKErrorDomain else { return false }
+
+        // GKError.Code.cancelled (=2) と notAuthenticated (=6) はサインインしていないシミュレーターで頻出するため、
+        // 調査ノイズを避ける目的でログレベルを下げる。
+        if let code = GKError.Code(rawValue: nsError.code) {
+            return code == .cancelled || code == .notAuthenticated
+        }
+        return false
     }
 }
