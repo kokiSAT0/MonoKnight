@@ -46,8 +46,8 @@ struct GameView: View {
     @AppStorage("guide_mode_enabled") private var guideModeEnabled: Bool = true
     /// 手札の並び替え方式。設定変更時に GameCore へ伝搬する
     /// - Note: 監視系ロジックを切り出した `GameView+Observers` からも参照するため、
-    ///         アクセスレベルを `fileprivate` へ広げて同一型拡張内で共有できるようにする。
-    @AppStorage(HandOrderingStrategy.storageKey) fileprivate var handOrderingRawValue: String = HandOrderingStrategy.insertionOrder.rawValue
+    ///         `internal`（デフォルト）を維持してファイルを跨ぐ拡張からも利用できるようにしている。
+    @AppStorage(HandOrderingStrategy.storageKey) var handOrderingRawValue: String = HandOrderingStrategy.insertionOrder.rawValue
     /// 手札や NEXT の位置をマッチングさせるための名前空間
     /// - Note: レイアウト拡張（GameView+Layout）でも利用するため、アクセスレベルを internal（デフォルト）で共有する。
     @Namespace var cardAnimationNamespace
