@@ -73,6 +73,9 @@ final class GameViewModel: ObservableObject {
     let campaignProgressStore: CampaignProgressStore
     /// タイトル復帰時に親へ伝えるためのクロージャ
     let onRequestReturnToTitle: (() -> Void)?
+    /// クリア後に別のキャンペーンステージへ遷移したい場合のリクエストクロージャ
+    /// - Note: ルート側でゲーム準備フローを再実行するため、`GameView` から直接モードを差し替えずに委譲する
+    let onRequestStartCampaignStage: ((CampaignStage) -> Void)?
 
     /// SwiftUI から観測するゲームロジック本体
     @Published private(set) var core: GameCore
@@ -81,6 +84,12 @@ final class GameViewModel: ObservableObject {
 
     /// 結果画面表示フラグ
     @Published var showingResult = false
+    /// 直近のキャンペーンステージクリア記録
+    /// - Note: リザルト画面でリワード進捗を可視化するため、`registerCampaignResultIfNeeded` で更新する
+    @Published private(set) var latestCampaignClearRecord: CampaignStageClearRecord?
+    /// 今回のクリアで新たに解放されたステージ一覧
+    /// - Important: ユーザーをそのまま次の挑戦へ誘導するため、`ResultView` 側へ渡してボタン表示を制御する
+    @Published private(set) var newlyUnlockedStages: [CampaignStage] = []
     /// 手詰まりバナーの表示可否
     @Published var isShowingPenaltyBanner = false
     /// ペナルティバナー表示のスケジューリングを管理するユーティリティ
@@ -154,6 +163,7 @@ final class GameViewModel: ObservableObject {
         adsService: AdsServiceProtocol,
         campaignProgressStore: CampaignProgressStore,
         onRequestReturnToTitle: (() -> Void)?,
+        onRequestStartCampaignStage: ((CampaignStage) -> Void)?,
         penaltyBannerScheduler: PenaltyBannerScheduling = PenaltyBannerScheduler(),
         initialHandOrderingRawValue: String? = nil
     ) {
@@ -163,6 +173,7 @@ final class GameViewModel: ObservableObject {
         self.adsService = adsService
         self.campaignProgressStore = campaignProgressStore
         self.onRequestReturnToTitle = onRequestReturnToTitle
+        self.onRequestStartCampaignStage = onRequestStartCampaignStage
         self.penaltyBannerScheduler = penaltyBannerScheduler
 
         // GameCore を生成し、ViewModel 経由で観測できるようにする
@@ -504,7 +515,19 @@ final class GameViewModel: ObservableObject {
     /// キャンペーンステージの進捗を更新する
     private func registerCampaignResultIfNeeded() {
         guard let metadata = mode.campaignMetadataSnapshot,
-              let stage = campaignLibrary.stage(with: metadata.stageID) else { return }
+              let stage = campaignLibrary.stage(with: metadata.stageID) else {
+            // キャンペーン以外のモードではリザルト用データを初期化しておき、前回の値が残らないようにする
+            latestCampaignClearRecord = nil
+            newlyUnlockedStages = []
+            return
+        }
+
+        // クリア登録前の解放状況を控えておき、解放済みフラグの差分から新規解放ステージを特定する
+        let unlockedStageIDsBefore = Set(
+            campaignLibrary.allStages
+                .filter { campaignProgressStore.isStageUnlocked($0) }
+                .map(\.id)
+        )
 
         let metrics = CampaignStageClearMetrics(
             moveCount: core.moveCount,
@@ -515,7 +538,28 @@ final class GameViewModel: ObservableObject {
             hasRevisitedTile: core.hasRevisitedTile
         )
 
-        campaignProgressStore.registerClear(for: stage, metrics: metrics)
+        let record = campaignProgressStore.registerClear(for: stage, metrics: metrics)
+
+        // リザルト画面で利用するため、更新後の記録を公開プロパティへ格納する
+        latestCampaignClearRecord = record
+
+        // 更新後の解放状況を再評価し、今回のクリアで新たに解放されたステージのみ抽出する
+        let unlockedStagesAfter = campaignLibrary.allStages.filter { campaignProgressStore.isStageUnlocked($0) }
+        newlyUnlockedStages = unlockedStagesAfter.filter { !unlockedStageIDsBefore.contains($0.id) }
+    }
+
+    /// 新しく解放されたキャンペーンステージへ遷移するリクエストを処理する
+    /// - Parameter stage: 遷移先のステージ
+    func handleCampaignStageAdvance(to stage: CampaignStage) {
+        // バナー表示などの残留状態を片付けつつリザルトを閉じ、新規ステージへ進む準備を整える
+        cancelPenaltyBannerDisplay()
+        showingResult = false
+        adsService.resetPlayFlag()
+
+        // ルートビュー側へ遷移要求を転送し、ゲーム準備フローを再利用する
+        if campaignProgressStore.isStageUnlocked(stage) {
+            onRequestStartCampaignStage?(stage)
+        }
     }
 }
 

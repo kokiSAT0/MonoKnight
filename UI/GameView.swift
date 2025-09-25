@@ -71,10 +71,12 @@ struct GameView: View {
     ///   - mode: 表示したいゲームモード
     ///   - gameInterfaces: GameCore 生成を担当するファクトリセット（省略時は `.live`）
     ///   - onRequestReturnToTitle: タイトル画面への遷移要求クロージャ（省略可）
+    ///   - onRequestStartCampaignStage: キャンペーンの別ステージを開始するリクエストクロージャ
     init(
         mode: GameMode = .standard,
         gameInterfaces: GameModuleInterfaces = .live,
-        onRequestReturnToTitle: (() -> Void)? = nil
+        onRequestReturnToTitle: (() -> Void)? = nil,
+        onRequestStartCampaignStage: ((CampaignStage) -> Void)? = nil
     ) {
         self.init(
             mode: mode,
@@ -82,7 +84,8 @@ struct GameView: View {
             gameCenterService: GameCenterService.shared,
             adsService: AdsService.shared,
             campaignProgressStore: CampaignProgressStore(),
-            onRequestReturnToTitle: onRequestReturnToTitle
+            onRequestReturnToTitle: onRequestReturnToTitle,
+            onRequestStartCampaignStage: onRequestStartCampaignStage
         )
     }
 
@@ -93,7 +96,8 @@ struct GameView: View {
         gameCenterService: GameCenterServiceProtocol,
         adsService: AdsServiceProtocol,
         campaignProgressStore: CampaignProgressStore,
-        onRequestReturnToTitle: (() -> Void)? = nil
+        onRequestReturnToTitle: (() -> Void)? = nil,
+        onRequestStartCampaignStage: ((CampaignStage) -> Void)? = nil
     ) {
         // MARK: - GameViewModel の生成を 1 度きりに抑制
         // 以前はローカル定数で GameViewModel を生成してから @StateObject へ渡していたため、
@@ -110,6 +114,7 @@ struct GameView: View {
                 adsService: adsService,
                 campaignProgressStore: campaignProgressStore,
                 onRequestReturnToTitle: onRequestReturnToTitle,
+                onRequestStartCampaignStage: onRequestStartCampaignStage,
                 initialHandOrderingRawValue: savedOrdering
             )
         )
@@ -150,6 +155,12 @@ struct GameView: View {
                 modeIdentifier: viewModel.mode.identifier,
                 modeDisplayName: viewModel.mode.displayName,
                 showsLeaderboardButton: viewModel.isLeaderboardEligible,
+                campaignClearRecord: viewModel.latestCampaignClearRecord,
+                newlyUnlockedStages: viewModel.newlyUnlockedStages,
+                onSelectCampaignStage: { stage in
+                    // ViewModel に処理を委譲してリザルト閉鎖と広告フラグの初期化を一元管理する
+                    viewModel.handleCampaignStageAdvance(to: stage)
+                },
                 onRetry: {
                     // ViewModel 側でリセットと広告フラグの再設定をまとめて処理する
                     viewModel.handleResultRetry()
