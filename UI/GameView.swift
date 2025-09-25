@@ -44,7 +44,8 @@ struct GameView: View {
     /// 手札の並び替え方式。設定変更時に GameCore へ伝搬する
     @AppStorage(HandOrderingStrategy.storageKey) private var handOrderingRawValue: String = HandOrderingStrategy.insertionOrder.rawValue
     /// 手札や NEXT の位置をマッチングさせるための名前空間
-    @Namespace private var cardAnimationNamespace
+    /// - Note: レイアウト拡張（GameView+Layout）でも利用するため、アクセスレベルを `fileprivate` へ広げる。
+    @Namespace fileprivate var cardAnimationNamespace
     /// SpriteKit シーンへのショートカット
     private var scene: GameScene { boardBridge.scene }
 
