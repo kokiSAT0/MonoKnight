@@ -4,6 +4,8 @@ import UIKit
 import SwiftUI
 
 /// Game Center の動作を即時成功させる UI テスト用モック
+// プロトコル側が MainActor 隔離のため、モック実装もメインスレッド上での実行を強制してコンパイルエラーを防ぐ
+@MainActor
 final class MockGameCenterService: GameCenterServiceProtocol {
     /// 認証状態を保持するプロパティ
     var isAuthenticated: Bool = false
@@ -22,6 +24,8 @@ final class MockGameCenterService: GameCenterServiceProtocol {
 }
 
 /// インタースティシャル広告をダミー表示する UI テスト用モック
+// AdsServiceProtocol が MainActor を要求するため、UI 操作を安全に扱うべくモックもメインアクターへ明示的に載せる
+@MainActor
 final class MockAdsService: AdsServiceProtocol {
     /// 無効化フラグ。IAP などで広告を停止したケースを再現
     private var isDisabled = false
@@ -69,6 +73,8 @@ final class MockAdsService: AdsServiceProtocol {
 }
 
 /// StoreKit の購入フローを即座に成功させる UI テスト用モック
+// StoreServiceProtocol が MainActor に制約されており、Swift 6 ビルドでの隔離違反を避けるためメインアクターを宣言
+@MainActor
 final class MockStoreService: ObservableObject, StoreServiceProtocol {
     /// 広告除去が購入済みかどうかのフラグ
     @Published private(set) var isRemoveAdsPurchased: Bool
