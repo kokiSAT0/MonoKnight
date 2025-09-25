@@ -687,8 +687,8 @@ private extension RootView {
                 .disabled(!isReady)
                 .accessibilityLabel("ステージを開始")
                 .accessibilityHint(isReady ? "ゲームを開始します" : "準備が完了すると押せるようになります")
-                // VoiceOver でボタンの有効 / 無効状態を正しく伝える
-                .accessibilityAddTraits(isReady ? [.isButton] : [.isButton, .isNotEnabled])
+                // VoiceOver でボタンであることを明示（.disabled 修飾子が自動で無効状態を伝えてくれる）
+                .accessibilityAddTraits(.isButton)
             }
         }
 
