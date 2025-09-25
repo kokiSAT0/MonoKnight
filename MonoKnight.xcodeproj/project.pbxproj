@@ -25,6 +25,19 @@
 		7266429E2E849763003EA325 /* GameViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7266429D2E849763003EA325 /* GameViewModel.swift */; };
 		726642AF2E849978003EA325 /* CardAnimationPhase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 726642AE2E849978003EA325 /* CardAnimationPhase.swift */; };
 		726642B12E849982003EA325 /* BoardLayoutSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 726642B02E849982003EA325 /* BoardLayoutSnapshot.swift */; };
+		726642EF2E85DA48003EA325 /* CampaignStageSelectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 726642EE2E85DA48003EA325 /* CampaignStageSelectionView.swift */; };
+		726642F12E85DA54003EA325 /* DiagnosticsCenterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 726642F02E85DA54003EA325 /* DiagnosticsCenterView.swift */; };
+		726642F32E85DA73003EA325 /* GameBoardControlRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 726642F22E85DA73003EA325 /* GameBoardControlRowView.swift */; };
+		726642F52E85DA84003EA325 /* GameCardAnimationOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 726642F42E85DA84003EA325 /* GameCardAnimationOverlay.swift */; };
+		726642F82E85DA8E003EA325 /* GameMenuActionConfirmationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 726642F72E85DA8E003EA325 /* GameMenuActionConfirmationSheet.swift */; };
+		726642F92E85DA8E003EA325 /* GameHandSectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 726642F62E85DA8E003EA325 /* GameHandSectionView.swift */; };
+		726643002E85DA9D003EA325 /* PauseMenuView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 726642FE2E85DA9D003EA325 /* PauseMenuView.swift */; };
+		726643012E85DA9D003EA325 /* PenaltyBannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 726642FF2E85DA9D003EA325 /* PenaltyBannerView.swift */; };
+		726643022E85DA9D003EA325 /* GameView+Observers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 726642FC2E85DA9D003EA325 /* GameView+Observers.swift */; };
+		726643032E85DA9D003EA325 /* GameView+Logging.swift in Sources */ = {isa = PBXBuildFile; fileRef = 726642FB2E85DA9D003EA325 /* GameView+Logging.swift */; };
+		726643042E85DA9D003EA325 /* GameView+Layout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 726642FA2E85DA9D003EA325 /* GameView+Layout.swift */; };
+		726643052E85DA9D003EA325 /* GameViewPreferenceKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 726642FD2E85DA9D003EA325 /* GameViewPreferenceKeys.swift */; };
+		726643072E85DAD1003EA325 /* CampaignProgressStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 726643062E85DAD1003EA325 /* CampaignProgressStore.swift */; };
 		729791562E7EB35900361471 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 729791552E7EB35900361471 /* LaunchScreen.storyboard */; };
 		72CF37F02E71616C0093B180 /* MonoKnightApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000004 /* MonoKnightApp.swift */; };
 		72CF38052E7162E20093B180 /* ErrorReporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF37F92E7162E20093B180 /* ErrorReporter.swift */; };
@@ -81,6 +94,19 @@
 		7266429D2E849763003EA325 /* GameViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameViewModel.swift; sourceTree = "<group>"; };
 		726642AE2E849978003EA325 /* CardAnimationPhase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardAnimationPhase.swift; sourceTree = "<group>"; };
 		726642B02E849982003EA325 /* BoardLayoutSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardLayoutSnapshot.swift; sourceTree = "<group>"; };
+		726642EE2E85DA48003EA325 /* CampaignStageSelectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CampaignStageSelectionView.swift; sourceTree = "<group>"; };
+		726642F02E85DA54003EA325 /* DiagnosticsCenterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsCenterView.swift; sourceTree = "<group>"; };
+		726642F22E85DA73003EA325 /* GameBoardControlRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameBoardControlRowView.swift; sourceTree = "<group>"; };
+		726642F42E85DA84003EA325 /* GameCardAnimationOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameCardAnimationOverlay.swift; sourceTree = "<group>"; };
+		726642F62E85DA8E003EA325 /* GameHandSectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameHandSectionView.swift; sourceTree = "<group>"; };
+		726642F72E85DA8E003EA325 /* GameMenuActionConfirmationSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameMenuActionConfirmationSheet.swift; sourceTree = "<group>"; };
+		726642FA2E85DA9D003EA325 /* GameView+Layout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GameView+Layout.swift"; sourceTree = "<group>"; };
+		726642FB2E85DA9D003EA325 /* GameView+Logging.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GameView+Logging.swift"; sourceTree = "<group>"; };
+		726642FC2E85DA9D003EA325 /* GameView+Observers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GameView+Observers.swift"; sourceTree = "<group>"; };
+		726642FD2E85DA9D003EA325 /* GameViewPreferenceKeys.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameViewPreferenceKeys.swift; sourceTree = "<group>"; };
+		726642FE2E85DA9D003EA325 /* PauseMenuView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PauseMenuView.swift; sourceTree = "<group>"; };
+		726642FF2E85DA9D003EA325 /* PenaltyBannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PenaltyBannerView.swift; sourceTree = "<group>"; };
+		726643062E85DAD1003EA325 /* CampaignProgressStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CampaignProgressStore.swift; sourceTree = "<group>"; };
 		729791552E7EB35900361471 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
 		729791982E7F499700361471 /* DealtCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DealtCard.swift; sourceTree = "<group>"; };
 		729791992E7F499700361471 /* GameScenePalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameScenePalette.swift; sourceTree = "<group>"; };
@@ -211,6 +237,7 @@
 			children = (
 				726642972E848E91003EA325 /* AdsConsentCoordinator.swift */,
 				72CF37F82E7162E20093B180 /* AdsService.swift */,
+				726643062E85DAD1003EA325 /* CampaignProgressStore.swift */,
 				72CF37F92E7162E20093B180 /* ErrorReporter.swift */,
 				726642392E823939003EA325 /* FreeModeRegulationStore.swift */,
 				72CF37FA2E7162E20093B180 /* GameCenterService.swift */,
@@ -226,17 +253,29 @@
 			isa = PBXGroup;
 			children = (
 				726642B02E849982003EA325 /* BoardLayoutSnapshot.swift */,
+				726642EE2E85DA48003EA325 /* CampaignStageSelectionView.swift */,
 				726642AE2E849978003EA325 /* CardAnimationPhase.swift */,
 				72CF37FE2E7162E20093B180 /* ConsentFlowView.swift */,
+				726642F02E85DA54003EA325 /* DiagnosticsCenterView.swift */,
 				726642532E826754003EA325 /* Environment+BaseSafeAreaInsets.swift */,
 				726642472E826487003EA325 /* Environment+TopOverlayHeight.swift */,
 				7266423B2E82397D003EA325 /* FreeModeRegulationView.swift */,
 				72185F552E84B4AF0057458C /* GameBoardBridgeViewModel.swift */,
+				726642F22E85DA73003EA325 /* GameBoardControlRowView.swift */,
+				726642F42E85DA84003EA325 /* GameCardAnimationOverlay.swift */,
+				726642F62E85DA8E003EA325 /* GameHandSectionView.swift */,
+				726642F72E85DA8E003EA325 /* GameMenuActionConfirmationSheet.swift */,
 				72CF38002E7162E20093B180 /* GameView.swift */,
+				726642FA2E85DA9D003EA325 /* GameView+Layout.swift */,
+				726642FB2E85DA9D003EA325 /* GameView+Logging.swift */,
+				726642FC2E85DA9D003EA325 /* GameView+Observers.swift */,
 				72185F572E84B4B80057458C /* GameViewLayoutSupport.swift */,
 				7266429D2E849763003EA325 /* GameViewModel.swift */,
+				726642FD2E85DA9D003EA325 /* GameViewPreferenceKeys.swift */,
 				72F554A92E7E60850098A1B0 /* HowToPlayView.swift */,
 				72F554A72E7E40100098A1B0 /* MoveCardIllustrationView.swift */,
+				726642FE2E85DA9D003EA325 /* PauseMenuView.swift */,
+				726642FF2E85DA9D003EA325 /* PenaltyBannerView.swift */,
 				72CF38012E7162E20093B180 /* ResultView.swift */,
 				72CF38022E7162E20093B180 /* RootView.swift */,
 				72CF38032E7162E20093B180 /* SettingsView.swift */,
@@ -450,6 +489,12 @@
 			files = (
 				72CF38052E7162E20093B180 /* ErrorReporter.swift in Sources */,
 				72CF38072E7162E20093B180 /* GameView.swift in Sources */,
+				726643002E85DA9D003EA325 /* PauseMenuView.swift in Sources */,
+				726643012E85DA9D003EA325 /* PenaltyBannerView.swift in Sources */,
+				726643022E85DA9D003EA325 /* GameView+Observers.swift in Sources */,
+				726643032E85DA9D003EA325 /* GameView+Logging.swift in Sources */,
+				726643042E85DA9D003EA325 /* GameView+Layout.swift in Sources */,
+				726643052E85DA9D003EA325 /* GameViewPreferenceKeys.swift in Sources */,
 				72185F592E84B50F0057458C /* DebugLog.swift in Sources */,
 				7266429A2E848E9A003EA325 /* InterstitialAdController.swift in Sources */,
 				72CF380B2E7162E20093B180 /* AdsService.swift in Sources */,
@@ -457,24 +502,31 @@
 				726642AF2E849978003EA325 /* CardAnimationPhase.swift in Sources */,
 				72CF380C2E7162E20093B180 /* SettingsView.swift in Sources */,
 				72CF380E2E7162E20093B180 /* ServiceMocks.swift in Sources */,
+				726642F32E85DA73003EA325 /* GameBoardControlRowView.swift in Sources */,
+				726642F82E85DA8E003EA325 /* GameMenuActionConfirmationSheet.swift in Sources */,
+				726642F92E85DA8E003EA325 /* GameHandSectionView.swift in Sources */,
 				72185F562E84B4AF0057458C /* GameBoardBridgeViewModel.swift in Sources */,
 				72185F542E84B4680057458C /* ServiceInterfaces.swift in Sources */,
 				7266429E2E849763003EA325 /* GameViewModel.swift in Sources */,
 				726642982E848E91003EA325 /* AdsConsentCoordinator.swift in Sources */,
 				72F554A82E7E40100098A1B0 /* MoveCardIllustrationView.swift in Sources */,
+				726642F52E85DA84003EA325 /* GameCardAnimationOverlay.swift in Sources */,
 				7266423A2E823939003EA325 /* FreeModeRegulationStore.swift in Sources */,
 				72CF380F2E7162E20093B180 /* ResultView.swift in Sources */,
 				72CF38102E7162E20093B180 /* ConsentFlowView.swift in Sources */,
 				726642542E826754003EA325 /* Environment+BaseSafeAreaInsets.swift in Sources */,
 				72185F582E84B4B80057458C /* GameViewLayoutSupport.swift in Sources */,
 				726642B12E849982003EA325 /* BoardLayoutSnapshot.swift in Sources */,
+				726642F12E85DA54003EA325 /* DiagnosticsCenterView.swift in Sources */,
 				72CF38112E7162E20093B180 /* GameCenterService.swift in Sources */,
 				72CF38122E7162E20093B180 /* StoreService.swift in Sources */,
 				72CF38142E7162E20093B180 /* RootView.swift in Sources */,
 				7266423C2E82397D003EA325 /* FreeModeRegulationView.swift in Sources */,
 				72CF37F02E71616C0093B180 /* MonoKnightApp.swift in Sources */,
+				726643072E85DAD1003EA325 /* CampaignProgressStore.swift in Sources */,
 				72F554AC2E7E60850098A1B0 /* HowToPlayView.swift in Sources */,
 				72F554AD2E7E60850098A1B0 /* AppTheme.swift in Sources */,
+				726642EF2E85DA48003EA325 /* CampaignStageSelectionView.swift in Sources */,
 				726642482E826487003EA325 /* Environment+TopOverlayHeight.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
