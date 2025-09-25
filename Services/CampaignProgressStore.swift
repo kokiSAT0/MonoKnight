@@ -93,7 +93,8 @@ final class CampaignProgressStore: ObservableObject {
             }
             return map
         } catch {
-            debugError("CampaignProgressStore: 読み込みに失敗しました -> \(error)")
+            // エラーの詳細を debugError で出力しつつ、発生箇所を分かりやすくメッセージ化する
+            debugError(error, message: "CampaignProgressStore: 読み込みに失敗しました")
             return [:]
         }
     }
@@ -108,7 +109,8 @@ final class CampaignProgressStore: ObservableObject {
             let data = try encoder.encode(storageDictionary)
             userDefaults.set(data, forKey: storageKey)
         } catch {
-            debugError("CampaignProgressStore: 保存に失敗しました -> \(error)")
+            // 保存時に失敗した場合もエラー内容と原因箇所を記録する
+            debugError(error, message: "CampaignProgressStore: 保存に失敗しました")
         }
     }
 
