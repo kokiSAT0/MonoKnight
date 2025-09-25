@@ -180,8 +180,10 @@ struct DiagnosticsCenterView: View {
                 forName: DebugLogHistory.didAppendEntryNotification,
                 object: DebugLogHistory.shared,
                 queue: .main
-            ) { [weak self] _ in
-                self?.refreshLogEntries()
+            ) { _ in
+                // 補足: SwiftUI の View は構造体で循環参照が発生しないため弱参照は不要。
+                // 強参照のまま state を更新する方がコンパイルエラーを避けられる。
+                refreshLogEntries()
             }
         }
         if crashObserver == nil {
@@ -189,8 +191,9 @@ struct DiagnosticsCenterView: View {
                 forName: CrashFeedbackCollector.didAppendEventNotification,
                 object: CrashFeedbackCollector.shared,
                 queue: .main
-            ) { [weak self] _ in
-                self?.refreshCrashEvents()
+            ) { _ in
+                // 補足: 上記と同様に View は値型で循環参照を気にする必要がないため弱参照を使用しない。
+                refreshCrashEvents()
             }
         }
     }
