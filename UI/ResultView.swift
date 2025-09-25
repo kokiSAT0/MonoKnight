@@ -521,14 +521,57 @@ struct ResultView: View {
 
 struct ResultView_Previews: PreviewProvider {
     static var previews: some View {
-        // プレビュー用にキャンペーンステージのダミーデータを構築
-        // ライブラリに章やステージが存在しない場合はプレビュー自体が成立しないため、guard で強制的に失敗させて状況を把握する
+        // プレビュー共通のサンプルデータを取得
+        let sample = ResultView.makePreviewSample()
+
+        return ResultView(
+            moveCount: 24,
+            penaltyCount: 6,
+            elapsedSeconds: 132,
+            modeIdentifier: .standard5x5,
+            modeDisplayName: "スタンダード",
+            campaignClearRecord: sample.record,
+            newlyUnlockedStages: [sample.stage],
+            onRetry: {},
+            gameCenterService: GameCenterService.shared,
+            adsService: AdsService.shared
+        )
+    }
+}
+
+
+#Preview {
+    // プレビュー共通処理を使い回して #Preview でも同じデータを利用
+    let sample = ResultView.makePreviewSample()
+
+    return ResultView(
+        moveCount: 24,
+        penaltyCount: 6,
+        elapsedSeconds: 132,
+        modeIdentifier: .standard5x5,
+        modeDisplayName: "スタンダード",
+        campaignClearRecord: sample.record,
+        newlyUnlockedStages: [sample.stage],
+        onRetry: {}
+    )
+}
+
+private extension ResultView {
+    /// プレビュー用のサンプルステージとクリア記録をまとめて生成する
+    /// - Returns: ステージと評価レコードを含むタプル
+    /// - Note: 取得に失敗した場合はアプリの状態に問題があるため即座に開発者へ気付きを与える
+    static func makePreviewSample() -> (stage: CampaignStage, record: CampaignStageClearRecord) {
+        // guard を ViewBuilder 直下に置くと Swift 6 でエラーになるため、
+        // 補助メソッド内で安全に取り扱い、データ欠如時は前提崩壊として明示的に停止する。
         guard let stage = CampaignLibrary.shared.chapters.first?.stages.first else {
-            fatalError("プレビュー用のキャンペーンステージが取得できません")
+            preconditionFailure("プレビュー用のキャンペーンステージが取得できません")
         }
+
+        // ダミーの進行状況を構築し、UI の検証に必要な最小限の値を詰める
         var progress = CampaignStageProgress()
         progress.earnedStars = 2
         progress.achievedSecondaryObjective = true
+
         let record = CampaignStageClearRecord(
             stage: stage,
             evaluation: CampaignStageEvaluation(
@@ -540,49 +583,6 @@ struct ResultView_Previews: PreviewProvider {
             progress: progress
         )
 
-        ResultView(
-            moveCount: 24,
-            penaltyCount: 6,
-            elapsedSeconds: 132,
-            modeIdentifier: .standard5x5,
-            modeDisplayName: "スタンダード",
-            campaignClearRecord: record,
-            newlyUnlockedStages: [stage],
-            onRetry: {},
-            gameCenterService: GameCenterService.shared,
-            adsService: AdsService.shared
-        )
+        return (stage, record)
     }
-}
-
-
-#Preview {
-    // プレビュー描画時に参照するステージ定義を安全に取り出し、存在しない場合は即座に理由を把握できるようにする
-    guard let stage = CampaignLibrary.shared.chapters.first?.stages.first else {
-        fatalError("プレビュー用のキャンペーンステージが取得できません")
-    }
-    var progress = CampaignStageProgress()
-    progress.earnedStars = 2
-    progress.achievedSecondaryObjective = true
-    let record = CampaignStageClearRecord(
-        stage: stage,
-        evaluation: CampaignStageEvaluation(
-            stageID: stage.id,
-            earnedStars: 2,
-            achievedSecondaryObjective: true,
-            achievedScoreGoal: false
-        ),
-        progress: progress
-    )
-
-    ResultView(
-        moveCount: 24,
-        penaltyCount: 6,
-        elapsedSeconds: 132,
-        modeIdentifier: .standard5x5,
-        modeDisplayName: "スタンダード",
-        campaignClearRecord: record,
-        newlyUnlockedStages: [stage],
-        onRetry: {}
-    )
 }
