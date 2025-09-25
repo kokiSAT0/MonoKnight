@@ -40,21 +40,21 @@ extension GameView {
                 )
             }
             // ライト/ダーク切り替えが発生した場合も SpriteKit 側へ反映
-            .onChange(of: colorScheme) { _, newScheme in
+            .onChange(of: colorScheme) { newScheme in
                 viewModel.applyScenePalette(for: newScheme)
                 // カラースキーム変更時はガイドの色味も再描画して視認性を確保
                 viewModel.refreshGuideHighlights()
             }
             // 手札の並び設定が変わったら即座にゲームロジックへ伝え、UI の並びも更新する
-            .onChange(of: handOrderingRawValue) { _, _ in
+            .onChange(of: handOrderingRawValue) { _ in
                 viewModel.applyHandOrderingStrategy(rawValue: handOrderingRawValue)
             }
             // ガイドモードのオン/オフを切り替えたら即座に ViewModel 側へ委譲する
-            .onChange(of: guideModeEnabled) { _, isEnabled in
+            .onChange(of: guideModeEnabled) { isEnabled in
                 viewModel.updateGuideMode(enabled: isEnabled)
             }
             // ハプティクス設定が切り替わった際も ViewModel へ伝え、サービス呼び出しを統一する
-            .onChange(of: hapticsEnabled) { _, isEnabled in
+            .onChange(of: hapticsEnabled) { isEnabled in
                 viewModel.updateHapticsSetting(isEnabled: isEnabled)
             }
             // 経過時間を 1 秒ごとに再計算し、リアルタイム表示へ反映
