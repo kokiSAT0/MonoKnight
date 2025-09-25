@@ -161,6 +161,22 @@ private let debugLogger = Logger(subsystem: debugLogSubsystem + ".debug", catego
 
 /// エラーログを書き出すための Logger インスタンス
 private let errorLogger = Logger(subsystem: debugLogSubsystem + ".debug", category: "error")
+
+/// OSLog へ重複出力するかどうかの判定結果をキャッシュ
+/// - NOTE: DEBUG ビルドで Xcode へ接続している場合、`print` と `Logger` の両方に流すと
+///   コンソールへ同じ文字列が二重に表示されてしまうため、デフォルトでは片方に限定する。
+///   実機デバッグなどで OSLog を確認したい場合は `MONOKNIGHT_DEBUG_OSLOG=1` の環境変数を
+///   付与して起動し、このフラグを明示的に有効化する。
+private let shouldForwardLogsToOSLog: Bool = {
+#if DEBUG
+    // 環境変数で明示的に指定されたときのみ OSLog 転送を有効化する
+    let environment = ProcessInfo.processInfo.environment
+    return environment["MONOKNIGHT_DEBUG_OSLOG"] == "1"
+#else
+    // リリースビルドでは OSLog への出力を常に有効にして TestFlight でも追跡できるようにする
+    return true
+#endif
+}()
 #endif
 
 /// デバッグ時の一般的なログ出力を行うユーティリティ関数
@@ -188,7 +204,9 @@ public func debugLog(
 
     // TestFlight や実機デバッグでも Console.app から追跡できるよう OSLog 経由でも出力する
 #if canImport(OSLog)
-    debugLogger.log("\(composedMessage, privacy: .public)")
+    if shouldForwardLogsToOSLog {
+        debugLogger.log("\(composedMessage, privacy: .public)")
+    }
 #else
     // OSLog が利用できない環境（Linux でのテストなど）では print のみで代替する
     // - Note: Linux 上ではリリースビルドを配信しない想定のため、このフォールバックで十分
@@ -239,7 +257,9 @@ public func debugError(
 
     // エラーログは OSLog の error レベルで送出しておき、TestFlight 配信版でも収集できるようにする
 #if canImport(OSLog)
-    errorLogger.error("\(composedMessage, privacy: .public)")
+    if shouldForwardLogsToOSLog {
+        errorLogger.error("\(composedMessage, privacy: .public)")
+    }
 #else
     // OSLog が無い環境では print のみで代替（ERROR プレフィックスは保持）
 #if !DEBUG
