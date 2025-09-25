@@ -1,5 +1,39 @@
 import SwiftUI  // SwiftUI の GeometryProxy や Size クラスを扱うために読み込む
 
+/// GeometryReader から取得した値をテストやログ生成でも再利用しやすくするためのパラメータ構造体
+/// - Note: GeometryProxy はテストコードから直接生成できないため、
+///         必要な値だけを `GameViewLayoutParameters` として切り出し、
+///         View 側は GeometryProxy ベース、テスト側は任意値ベースで初期化できるようにしている。
+struct GameViewLayoutParameters {
+    /// ビュー全体のサイズ（縦横の寸法）
+    let size: CGSize
+    /// セーフエリアの上方向量
+    let safeAreaTop: CGFloat
+    /// セーフエリアの下方向量
+    let safeAreaBottom: CGFloat
+
+    /// GeometryProxy から各種値を抽出して初期化するコンビニエンスイニシャライザ
+    /// - Parameter geometry: GeometryReader が提供するプロキシ
+    init(geometry: GeometryProxy) {
+        self.init(
+            size: geometry.size,
+            safeAreaTop: geometry.safeAreaInsets.top,
+            safeAreaBottom: geometry.safeAreaInsets.bottom
+        )
+    }
+
+    /// テストやログ出力用に直接値を指定して初期化できる指定イニシャライザ
+    /// - Parameters:
+    ///   - size: コンテンツ領域のサイズ
+    ///   - safeAreaTop: 上方向のセーフエリア量
+    ///   - safeAreaBottom: 下方向のセーフエリア量
+    init(size: CGSize, safeAreaTop: CGFloat, safeAreaBottom: CGFloat) {
+        self.size = size
+        self.safeAreaTop = safeAreaTop
+        self.safeAreaBottom = safeAreaBottom
+    }
+}
+
 /// GameView のレイアウト関連定数を一元管理するサポート列挙体
 /// - Note: これまでは `GameView` ファイル内にネストされた定数群として定義されていたが、
 ///         レイアウト計算ロジックを専用ファイルへ切り出すにあたり、
@@ -75,8 +109,8 @@ struct GameViewLayoutContext {
 /// - Note: 計算過程を View から切り離すことでメソッドの肥大化を防ぎ、
 ///         盤面が消える・余白が不足するといった不具合を調査する際に責務の境界を明確にする。
 struct GameViewLayoutCalculator {
-    /// GeometryReader が提供するサイズ・セーフエリア情報
-    let geometry: GeometryProxy
+    /// レイアウト計算に必要なサイズとセーフエリア量
+    let parameters: GameViewLayoutParameters
     /// 現在の横幅サイズクラス（iPad 最適化などでフォールバック値が必要か判断する）
     let horizontalSizeClass: UserInterfaceSizeClass?
     /// RootView が挿入したトップバーの高さ
@@ -88,17 +122,69 @@ struct GameViewLayoutCalculator {
     /// 直近で計測された手札セクションの高さ
     let handSectionHeight: CGFloat
 
+    /// GeometryProxy から生成したパラメータを用いて初期化するコンビニエンスイニシャライザ
+    /// - Parameters:
+    ///   - geometry: GeometryReader が提供するサイズ・セーフエリア情報
+    ///   - horizontalSizeClass: 現在のサイズクラス
+    ///   - topOverlayHeight: トップオーバーレイの高さ
+    ///   - baseTopSafeAreaInset: ルートビューで測定したセーフエリア基準値
+    ///   - statisticsHeight: 直近で計測された統計セクションの高さ
+    ///   - handSectionHeight: 直近で計測された手札セクションの高さ
+    init(
+        geometry: GeometryProxy,
+        horizontalSizeClass: UserInterfaceSizeClass?,
+        topOverlayHeight: CGFloat,
+        baseTopSafeAreaInset: CGFloat,
+        statisticsHeight: CGFloat,
+        handSectionHeight: CGFloat
+    ) {
+        self.init(
+            parameters: GameViewLayoutParameters(geometry: geometry),
+            horizontalSizeClass: horizontalSizeClass,
+            topOverlayHeight: topOverlayHeight,
+            baseTopSafeAreaInset: baseTopSafeAreaInset,
+            statisticsHeight: statisticsHeight,
+            handSectionHeight: handSectionHeight
+        )
+    }
+
+    /// 任意のパラメータを指定して初期化する指定イニシャライザ
+    /// - Parameters:
+    ///   - parameters: レイアウト計算に必要な寸法情報
+    ///   - horizontalSizeClass: 現在のサイズクラス
+    ///   - topOverlayHeight: トップオーバーレイの高さ
+    ///   - baseTopSafeAreaInset: ルートビューで測定したセーフエリア基準値
+    ///   - statisticsHeight: 直近で計測された統計セクションの高さ
+    ///   - handSectionHeight: 直近で計測された手札セクションの高さ
+    init(
+        parameters: GameViewLayoutParameters,
+        horizontalSizeClass: UserInterfaceSizeClass?,
+        topOverlayHeight: CGFloat,
+        baseTopSafeAreaInset: CGFloat,
+        statisticsHeight: CGFloat,
+        handSectionHeight: CGFloat
+    ) {
+        self.parameters = parameters
+        self.horizontalSizeClass = horizontalSizeClass
+        self.topOverlayHeight = topOverlayHeight
+        self.baseTopSafeAreaInset = baseTopSafeAreaInset
+        self.statisticsHeight = statisticsHeight
+        self.handSectionHeight = handSectionHeight
+    }
+
     /// レイアウト計算を実行し、`GameViewLayoutContext` を生成する
     func makeContext() -> GameViewLayoutContext {
         // MARK: - セーフエリアに対するフォールバック計算
-        let rawTopInset = geometry.safeAreaInsets.top
-        let rawBottomInset = geometry.safeAreaInsets.bottom
+        let rawTopInset = parameters.safeAreaTop
+        let rawBottomInset = parameters.safeAreaBottom
         let overlayFromEnvironment = max(topOverlayHeight, 0)
         let baseSafeAreaTop = max(baseTopSafeAreaInset, 0)
         let overlayFromDifference = max(rawTopInset - baseSafeAreaTop, 0)
         let overlayCompensation = min(max(overlayFromEnvironment, overlayFromDifference), rawTopInset)
         let adjustedTopInset = max(rawTopInset - overlayCompensation, 0)
-        let overlayAdjustedTopInset = max(adjustedTopInset - overlayCompensation, 0)
+        // トップオーバーレイ分を差し引いた後の安全なセーフエリア量をそのまま保持し、
+        // 以降の計算で二重に減算されないようにする。
+        let overlayAdjustedTopInset = adjustedTopInset
 
         let usedTopFallback = adjustedTopInset <= 0 && horizontalSizeClass == .regular
         let usedBottomFallback = rawBottomInset <= 0 && horizontalSizeClass == .regular
@@ -138,19 +224,19 @@ struct GameViewLayoutCalculator {
             : GameViewLayoutMetrics.handSectionFallbackHeight
 
         // MARK: - 盤面に割り当てられる高さと正方形サイズの算出
-        let availableHeightForBoard = geometry.size.height
+        let availableHeightForBoard = parameters.size.height
             - resolvedStatisticsHeight
             - resolvedHandSectionHeight
             - GameViewLayoutMetrics.spacingBetweenBoardAndHand
             - GameViewLayoutMetrics.spacingBetweenStatisticsAndBoard
             - handSectionBottomPadding
-        let horizontalBoardBase = max(geometry.size.width, GameViewLayoutMetrics.minimumBoardFallbackSize)
+        let horizontalBoardBase = max(parameters.size.width, GameViewLayoutMetrics.minimumBoardFallbackSize)
         let verticalBoardBase = availableHeightForBoard > 0 ? availableHeightForBoard : horizontalBoardBase
         let boardBaseSize = min(horizontalBoardBase, verticalBoardBase)
         let boardWidth = boardBaseSize * GameViewLayoutMetrics.boardScale
 
         return GameViewLayoutContext(
-            geometrySize: geometry.size,
+            geometrySize: parameters.size,
             rawTopInset: rawTopInset,
             rawBottomInset: rawBottomInset,
             baseTopSafeAreaInset: baseSafeAreaTop,
