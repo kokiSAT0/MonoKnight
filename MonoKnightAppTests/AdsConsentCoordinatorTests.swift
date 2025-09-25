@@ -134,4 +134,42 @@ struct AdsConsentCoordinatorTests {
         #expect(coordinator.currentState.shouldUseNPA == true)
         #expect(UserDefaults.standard.bool(forKey: "ads_should_use_npa") == true)
     }
+
+    /// UMP 管理画面でフォームが未設定の場合でも NPA=1 で広告リクエストを許可するフォールバックが動作するか検証
+    @MainActor
+    @Test func coordinator_fallsBackWhenConsentFormMissing() async throws {
+        UserDefaults.standard.removeObject(forKey: "ads_should_use_npa")
+
+        let environment = TestAdsConsentEnvironment()
+        environment.requestUpdateError = NSError(
+            domain: "com.google.user_messaging_platform",
+            code: 4,
+            userInfo: [NSLocalizedDescriptionKey: "No form configured"]
+        )
+
+        let presenter = TestConsentPresentationDelegate()
+        let stateDelegate = TestConsentStateRecorder()
+        let coordinator = AdsConsentCoordinator(
+            hasValidAdConfiguration: true,
+            environment: environment,
+            trackingAuthorizationStatusProvider: { .authorized }
+        )
+        coordinator.presentationDelegate = presenter
+        coordinator.stateDelegate = stateDelegate
+
+        await coordinator.synchronizeOnLaunch()
+
+        #expect(environment.requestUpdateCallCount == 1)
+        #expect(presenter.presentConsentFormCallCount == 0)
+        #expect(stateDelegate.recordedStates.last?.state.shouldUseNPA == true)
+        #expect(stateDelegate.recordedStates.last?.state.canRequestAds == true)
+        #expect(UserDefaults.standard.bool(forKey: "ads_should_use_npa") == true)
+
+        let callCountAfterSync = environment.requestUpdateCallCount
+        await coordinator.requestConsentIfNeeded()
+        #expect(environment.requestUpdateCallCount == callCountAfterSync)
+        #expect(presenter.presentConsentFormCallCount == 0)
+        #expect(coordinator.currentState.shouldUseNPA == true)
+        #expect(coordinator.currentState.canRequestAds == true)
+    }
 }

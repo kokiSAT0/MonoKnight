@@ -25,6 +25,8 @@ final class TestAdsConsentEnvironment: AdsConsentEnvironment {
 
     /// ConsentInformation 更新時に追加で実行したい処理を注入するためのクロージャ
     var requestUpdateHandler: (() -> Void)?
+    /// requestConsentInfoUpdate で発生させたいエラー（フォーム未設定などの検証用）
+    var requestUpdateError: Error?
     /// 同意フォームのプレゼンターを差し替えるためのクロージャ
     var presenterFactory: (() -> ConsentFormPresenter)?
     /// プライバシーオプションのプレゼンターを差し替えるためのクロージャ
@@ -33,6 +35,9 @@ final class TestAdsConsentEnvironment: AdsConsentEnvironment {
     func requestConsentInfoUpdate(with parameters: RequestParameters) async throws {
         requestUpdateCallCount += 1
         requestUpdateHandler?()
+        if let requestUpdateError {
+            throw requestUpdateError
+        }
     }
 
     func loadConsentFormPresenter() async throws -> ConsentFormPresenter {
