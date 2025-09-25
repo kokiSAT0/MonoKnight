@@ -11,14 +11,16 @@
 
 ## 推奨（優先度: 中）
 <!-- リリース後の改善も見据えた優先タスク群 -->
-- [ ] GameView の責務分割<!-- ViewModel 層を導入して状態管理とアニメーション制御を分離し、保守性とテスト容易性を高める -->
-- [ ] エラーハンドリングとログポリシーの整理<!-- ErrorReporter・各サービスのログ粒度を統一し、障害調査やサポート対応を迅速化する -->
-- [ ] 広告頻度と同意 UI の UX 検証<!-- インターバルや再表示タイミングをユーザーテストで検証し、離脱要因を抑制する。ATT/UMP の結果をログで可視化する仕組みも検討する -->
+- [ ] `GameViewModel` / `GameBoardBridgeViewModel` の統合テスト整備<!-- `GameViewLayoutCalculatorTests` に続き、Combine 購読やハプティクス制御をモック化して自動テストで検証できるようにする -->
+- [ ] `BoardLayoutSnapshot` ログの閲覧導線を整備<!-- 設定画面に開発者メニューを設け、レイアウト関連ログを `DebugLogHistory` へ蓄積した内容から即座に確認できるようにする -->
+- [ ] エラーハンドリングとログポリシーの整理<!-- `SharedSupport` の `DebugLogHistory` / `CrashFeedbackCollector` を活用し、サービス層のログ粒度と公開ビルドでの無効化手順を明文化する -->
+- [ ] 広告頻度と同意 UI の UX 検証<!-- インターバルや再表示タイミングをユーザーテストで検証し、ATT/UMP の結果を `AdsConsentCoordinator` からログ出力して回帰分析を容易にする -->
 
 ## 完了済み（参考）
 <!-- タスク棚卸しの結果、完了したものはここで記録しておく -->
 - [x] ATT / UMP 状態遷移ドキュメント整備<!-- `docs/att-ump-consent-flow.md` を作成し、`AdsConsentCoordinator` / `AdsService` へ反映 -->
 - [x] リファクタリング品質チェックリストの策定<!-- `docs/refactoring-quality-checklist.md` に PR 向けの必須確認項目を整理 -->
+- [x] GameView の責務分割<!-- `GameViewModel`・`GameBoardBridgeViewModel`・`GameViewLayoutCalculator` を導入し、レイアウトテストとログ診断の仕組みを整備 -->
 
 ## アイデア（優先度: 低）
 <!-- 余裕があるときに検討したい拡張アイデア -->
