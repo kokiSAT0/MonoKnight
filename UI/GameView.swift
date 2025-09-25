@@ -283,32 +283,12 @@ struct GameView: View {
             .disabled(boardBridge.animatingCard != nil)
             // Preference から取得したアンカー情報を用いて、カードが盤面中央へ吸い込まれる演出を重ねる
             .overlayPreferenceValue(CardPositionPreferenceKey.self) { anchors in
-                GeometryReader { proxy in
-                    ZStack {
-                        Color.clear
-                        if let animatingCard = boardBridge.animatingCard,
-                           let sourceAnchor = anchors[animatingCard.id],
-                           let boardAnchor = boardBridge.boardAnchor,
-                           boardBridge.animationState != .idle || boardBridge.hiddenCardIDs.contains(animatingCard.id),
-                           let targetGridPoint = boardBridge.animationTargetGridPoint ?? core.current {
-                            // --- 元の位置と駒位置の座標を算出 ---
-                            let cardFrame = proxy[sourceAnchor]
-                            let boardFrame = proxy[boardAnchor]
-                            let startCenter = CGPoint(x: cardFrame.midX, y: cardFrame.midY)
-                            // 盤面座標 → SwiftUI 座標系への変換を行い、目的位置を計算
-                            let boardDestination = boardCoordinate(for: targetGridPoint, in: boardFrame)
-
-                            MoveCardIllustrationView(card: animatingCard.move)
-                                .matchedGeometryEffect(id: animatingCard.id, in: cardAnimationNamespace)
-                                .frame(width: cardFrame.width, height: cardFrame.height)
-                                .position(boardBridge.animationState == .movingToBoard ? boardDestination : startCenter)
-                                .scaleEffect(boardBridge.animationState == .movingToBoard ? 0.55 : 1.0)
-                                .opacity(boardBridge.animationState == .movingToBoard ? 0.0 : 1.0)
-                                .allowsHitTesting(false)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                }
+                GameCardAnimationOverlay(
+                    anchors: anchors,
+                    boardBridge: boardBridge,
+                    core: core,
+                    cardAnimationNamespace: cardAnimationNamespace
+                )
             }
     }
 
@@ -670,21 +650,6 @@ struct GameView: View {
         .zIndex(2)
     }
 
-    /// グリッド座標を SpriteView 上の中心座標に変換する
-    /// - Parameters:
-    ///   - gridPoint: 盤面上のマス座標（原点は左下）
-    ///   - frame: SwiftUI における盤面矩形
-    /// - Returns: SwiftUI 座標系での中心位置
-    private func boardCoordinate(for gridPoint: GridPoint, in frame: CGRect) -> CGPoint {
-        // 現在の盤面サイズに応じて 1 マス分の辺長を算出する
-        let boardSize = max(1, core.board.size)
-        let tileLength = frame.width / CGFloat(boardSize)
-        let centerX = frame.minX + tileLength * (CGFloat(gridPoint.x) + 0.5)
-        // SwiftUI は上向きがマイナスのため、下端を基準に引き算して y を求める
-        let centerY = frame.maxY - tileLength * (CGFloat(gridPoint.y) + 0.5)
-        return CGPoint(x: centerX, y: centerY)
-    }
-
     /// 盤面上部に表示する統計テキストの共通レイアウト
     /// - Parameters:
     ///   - title: メトリクスのラベル（例: 移動）
@@ -842,6 +807,74 @@ private extension GameView {
     /// - Returns: 有効な設定値。未知の値は従来方式へフォールバックする
     func resolveHandOrderingStrategy() -> HandOrderingStrategy {
         HandOrderingStrategy(rawValue: handOrderingRawValue) ?? .insertionOrder
+    }
+}
+
+// MARK: - カード移動演出用オーバーレイ
+/// SpriteView と手札スロットの間を移動するカードのアニメーションを担当する補助ビュー
+/// - Note: GameView 本体のメソッドから切り出し、責務を明確にして可読性を高める。
+private struct GameCardAnimationOverlay: View {
+    /// 手札側で計測したアンカー情報の辞書
+    let anchors: [UUID: Anchor<CGRect>]
+    /// SpriteKit との橋渡しを担う ViewModel
+    @ObservedObject var boardBridge: GameBoardBridgeViewModel
+    /// 現在のゲーム状態。駒位置や盤面サイズを参照する
+    let core: GameCore
+    /// MatchedGeometryEffect の名前空間
+    let cardAnimationNamespace: Namespace.ID
+
+    var body: some View {
+        GeometryReader { proxy in
+            ZStack {
+                Color.clear
+                overlayContent(using: proxy)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        }
+    }
+
+    /// GeometryProxy を用いてカードの移動演出を構築する
+    /// - Parameter proxy: 手札・盤面それぞれの CGRect を解決するための GeometryProxy
+    @ViewBuilder
+    private func overlayContent(using proxy: GeometryProxy) -> some View {
+        if let animatingCard = boardBridge.animatingCard,
+           let sourceAnchor = anchors[animatingCard.id],
+           let boardAnchor = boardBridge.boardAnchor,
+           let targetGridPoint = boardBridge.animationTargetGridPoint ?? core.current,
+           boardBridge.animationState != .idle || boardBridge.hiddenCardIDs.contains(animatingCard.id) {
+            let cardFrame = proxy[sourceAnchor]
+            let boardFrame = proxy[boardAnchor]
+            let startCenter = CGPoint(x: cardFrame.midX, y: cardFrame.midY)
+            let boardDestination = Self.boardCoordinate(
+                for: targetGridPoint,
+                boardSize: core.board.size,
+                in: boardFrame
+            )
+
+            MoveCardIllustrationView(card: animatingCard.move)
+                .matchedGeometryEffect(id: animatingCard.id, in: cardAnimationNamespace)
+                .frame(width: cardFrame.width, height: cardFrame.height)
+                .position(boardBridge.animationState == .movingToBoard ? boardDestination : startCenter)
+                .scaleEffect(boardBridge.animationState == .movingToBoard ? 0.55 : 1.0)
+                .opacity(boardBridge.animationState == .movingToBoard ? 0.0 : 1.0)
+                .allowsHitTesting(false)
+        }
+    }
+
+    /// 盤面座標を SwiftUI 座標系へ変換し、MatchedGeometryEffect の移動先を算出する
+    /// - Parameters:
+    ///   - gridPoint: 盤面上のマス座標（原点は左下）
+    ///   - boardSize: 現在の盤面一辺サイズ
+    ///   - frame: SwiftUI における盤面矩形
+    /// - Returns: SwiftUI 座標系での中心位置
+    private static func boardCoordinate(for gridPoint: GridPoint, boardSize: Int, in frame: CGRect) -> CGPoint {
+        // 盤面サイズが 0 以下になることは想定していないが、安全のため 1 以上へ補正する
+        let safeBoardSize = max(1, boardSize)
+        let tileLength = frame.width / CGFloat(safeBoardSize)
+        let centerX = frame.minX + tileLength * (CGFloat(gridPoint.x) + 0.5)
+        // SwiftUI 座標では上方向がマイナス値となるため、盤面上端からの距離で算出する
+        let centerY = frame.maxY - tileLength * (CGFloat(gridPoint.y) + 0.5)
+        return CGPoint(x: centerX, y: centerY)
     }
 }
 
