@@ -57,7 +57,14 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
     /// 送信済みスコアを保存するためのキー
     private let lastScoreDictionaryKey = "gc_last_score_by_leaderboard"
 
-    private override init() {}
+    private override init() {
+        super.init()
+        // アプリ起動時点での Game Center 認証状態を読み取り、UI との乖離を防止する
+        // - NOTE: `GKLocalPlayer.local.isAuthenticated` は非同期ハンドラよりも先に判定できるため、
+        //         初回表示でサインイン済みユーザーへ余計なボタンを見せないよう即時反映する
+        isAuthenticated = GKLocalPlayer.local.isAuthenticated
+        refreshAccessPointVisibility()
+    }
 
     /// Game Center へログイン済みかどうかを保持するフラグ
     /// - Note: 認証に失敗した場合は `false` のままとなる
@@ -118,18 +125,13 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
 
     // MARK: - GKAccessPoint 設定
 
-    /// Game Center アクセスポイントを表示する
-    /// - Note: 認証成功後に呼び出し、画面右上に常駐させる
-    private func activateAccessPoint() {
+    /// Game Center アクセスポイントの表示状態を最新の認証状況へ同期する
+    /// - Important: 常時表示のアクセスポイントは誤タップを誘発するため、
+    ///              ランキングボタンなど明示的な導線を利用してもらう方針に合わせて非表示をデフォルトとする
+    private func refreshAccessPointVisibility() {
         let accessPoint = GKAccessPoint.shared
-        accessPoint.location = .topTrailing // 画面右上に表示
-        accessPoint.isActive = true         // アクセスポイントを有効化
-    }
-
-    /// Game Center アクセスポイントを非表示にする
-    /// - Note: ランキング表示中など不要な場面で利用する
-    private func deactivateAccessPoint() {
-        GKAccessPoint.shared.isActive = false
+        accessPoint.location = .topTrailing // 必要になった際も表示位置がずれないよう事前に指定
+        accessPoint.isActive = false        // 認証済みかどうかに関わらず常時表示は行わない
     }
 
     /// ローカルプレイヤーを Game Center で認証する
@@ -147,8 +149,8 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
             isAuthenticated = true
             // テスト用認証を実行したことをデバッグログに残す
             debugLog("GC_TEST_ACCOUNT=\(testAccount) によるダミー認証を実行")
-            // テスト環境でもアクセスポイントの有効化を試みる
-            activateAccessPoint()
+            // 認証直後もアクセスポイントを非表示に保ち、UI 方針を本番と揃える
+            refreshAccessPointVisibility()
             completion?(true) // 呼び出し元へ成功を通知して終了
             return
         }
@@ -183,11 +185,15 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
                         // ルート取得に失敗した場合はログを出力し、未認証扱いで完了を通知
                         debugLog("Game Center 認証 UI のルート取得に失敗したため再試行が必要")
                         self.isAuthenticated = false
+                        // 取得に失敗した場合もアクセスポイントを表示しない方針を徹底する
+                        self.refreshAccessPointVisibility()
                         completion?(false)
                         return
                     }
                     // 取得に成功したルート VC を明示し、TestFlight でも動作が追跡できるようにする
                     debugLog("Game Center 認証 UI を提示します: root=\(type(of: root))")
+                    // 認証 UI 表示中もアクセスポイントを無効化して表示揺れを避ける
+                    self.refreshAccessPointVisibility()
                     root.present(vc, animated: true)
                 }
                 return
@@ -200,8 +206,8 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
                     guard let self else { return }
                     self.isAuthenticated = true
                     debugLog("Game Center 認証成功")
-                    // 認証が完了したのでアクセスポイントを表示
-                    self.activateAccessPoint()
+                    // 認証が完了してもアクセスポイントは常時表示せず、誤タップを防止する
+                    self.refreshAccessPointVisibility()
                     completion?(true) // 呼び出し元へ成功を通知
                 }
             } else {
@@ -210,6 +216,8 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
                 DispatchQueue.main.async { [weak self] in
                     guard let self else { return }
                     self.isAuthenticated = false
+                    // 失敗時もアクセスポイントを無効化し、未認証状態と表示を揃える
+                    self.refreshAccessPointVisibility()
                     if let authError {
                         // エラーオブジェクトが存在する場合は詳細を出力
                         debugError(authError, message: "Game Center 認証失敗")
@@ -328,7 +336,7 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
         // ランキング表示中はアクセスポイントが不要なので非表示にする
         // UI 操作をメインスレッドでまとめて実行する
         DispatchQueue.main.async { [weak self] in
-            self?.deactivateAccessPoint()
+            self?.refreshAccessPointVisibility()
             // ルートビューからモーダル表示
             guard let root = self?.presentableRootViewController() else {
                 // ルート取得に失敗した場合はログのみ出力し、UI は表示しない
@@ -432,7 +440,7 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
     /// Game Center コントローラの閉じるボタンが押された際に呼ばれる
     func gameCenterViewControllerDidFinish(_ gameCenterViewController: GKGameCenterViewController) {
         gameCenterViewController.dismiss(animated: true)
-        // ランキングを閉じたらアクセスポイントを再表示
-        activateAccessPoint()
+        // ランキングを閉じた後もアクセスポイントは非表示のまま維持する
+        refreshAccessPointVisibility()
     }
 }
