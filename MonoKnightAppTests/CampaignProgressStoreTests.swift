@@ -45,7 +45,8 @@ final class CampaignProgressStoreTests: XCTestCase {
             penaltyCount: 0,
             elapsedSeconds: 90,
             totalMoveCount: 16,
-            score: 250
+            score: 250,
+            hasRevisitedTile: false
         )
 
         let record = store.registerClear(for: stage, metrics: metrics)
@@ -58,7 +59,8 @@ final class CampaignProgressStoreTests: XCTestCase {
             penaltyCount: 2,
             elapsedSeconds: 140,
             totalMoveCount: 22,
-            score: 360
+            score: 360,
+            hasRevisitedTile: true
         )
         _ = store.registerClear(for: stage, metrics: worseMetrics)
         let stored = store.progress(for: stageID)
