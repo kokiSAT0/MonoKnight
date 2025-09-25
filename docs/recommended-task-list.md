@@ -11,9 +11,9 @@
 
 ## 推奨（優先度: 中）
 <!-- リリース後の改善も見据えた優先タスク群 -->
-- [ ] `GameViewModel` / `GameBoardBridgeViewModel` の統合テスト整備<!-- `GameViewLayoutCalculatorTests` に続き、Combine 購読やハプティクス制御をモック化して自動テストで検証できるようにする -->
-- [ ] `BoardLayoutSnapshot` ログの閲覧導線を整備<!-- 設定画面に開発者メニューを設け、レイアウト関連ログを `DebugLogHistory` へ蓄積した内容から即座に確認できるようにする -->
-- [ ] エラーハンドリングとログポリシーの整理<!-- `SharedSupport` の `DebugLogHistory` / `CrashFeedbackCollector` を活用し、サービス層のログ粒度と公開ビルドでの無効化手順を明文化する -->
+- [x] `GameViewModel` / `GameBoardBridgeViewModel` の統合テスト整備<!-- `MonoKnightAppTests/GameViewIntegrationTests.swift` で Combine 購読やハプティクス制御をモック化し、DispatchWorkItem のキャンセルも含めて自動検証できるようにした -->
+- [x] `BoardLayoutSnapshot` ログの閲覧導線を整備<!-- 設定画面に開発者メニューを設け、`DiagnosticsCenterView` から `DebugLogHistory` のレイアウトログへ即座にアクセスできるようにした -->
+- [x] エラーハンドリングとログポリシーの整理<!-- `DiagnosticsCenterView` と `MonoKnightApp` の環境変数ガードで `DebugLogHistory` / `CrashFeedbackCollector` の運用手順と公開ビルドでの無効化方法を明文化した -->
 - [ ] 広告頻度と同意 UI の UX 検証<!-- インターバルや再表示タイミングをユーザーテストで検証し、ATT/UMP の結果を `AdsConsentCoordinator` からログ出力して回帰分析を容易にする -->
 
 ## 完了済み（参考）

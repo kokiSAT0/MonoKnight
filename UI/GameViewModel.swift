@@ -7,10 +7,23 @@ import UIKit
 
 // MARK: - ペナルティバナー制御専用ユーティリティ
 
+/// ペナルティバナーの表示時間とキャンセル操作を抽象化するためのプロトコル
+/// - Important: テストではスパイ実装を注入し、`scheduleAutoDismiss` / `cancel` が期待通り呼ばれたか検証できるようにする。
+protocol PenaltyBannerScheduling: AnyObject {
+    /// バナーの自動クローズ処理を一定時間後に実行する
+    /// - Parameters:
+    ///   - delay: 自動的に閉じるまでの待機秒数
+    ///   - handler: 遅延実行したい処理本体
+    func scheduleAutoDismiss(after delay: TimeInterval, handler: @escaping () -> Void)
+
+    /// 保持している自動クローズ処理を破棄する
+    func cancel()
+}
+
 /// ペナルティ発生時に表示するバナーの自動クローズを一元管理するためのヘルパークラス
 /// - Note: `DispatchWorkItem` のライフサイクル管理を ViewModel 本体から切り離し、
 ///   将来的にバナー表示の継続時間やディスパッチキューを差し替える際の影響範囲を最小化する狙いがある。
-private final class PenaltyBannerScheduler {
+final class PenaltyBannerScheduler: PenaltyBannerScheduling {
     /// 自動クローズを担当する WorkItem。複数回表示された際にキャンセル漏れが起こらないよう保持する
     private var dismissWorkItem: DispatchWorkItem?
     /// 非同期実行に利用するディスパッチキュー
@@ -70,7 +83,7 @@ final class GameViewModel: ObservableObject {
     @Published var isShowingPenaltyBanner = false
     /// ペナルティバナー表示のスケジューリングを管理するユーティリティ
     /// - Note: `DispatchWorkItem` を直接保持せずに済むため、リセット処理の抜け漏れを防ぎやすくなる
-    private let penaltyBannerScheduler = PenaltyBannerScheduler()
+    private let penaltyBannerScheduler: PenaltyBannerScheduling
     /// メニューで確認待ちのアクション
     @Published var pendingMenuAction: GameMenuAction?
     /// ポーズメニューの表示状態
@@ -133,13 +146,15 @@ final class GameViewModel: ObservableObject {
         gameInterfaces: GameModuleInterfaces,
         gameCenterService: GameCenterServiceProtocol,
         adsService: AdsServiceProtocol,
-        onRequestReturnToTitle: (() -> Void)?
+        onRequestReturnToTitle: (() -> Void)?,
+        penaltyBannerScheduler: PenaltyBannerScheduling = PenaltyBannerScheduler()
     ) {
         self.mode = mode
         self.gameInterfaces = gameInterfaces
         self.gameCenterService = gameCenterService
         self.adsService = adsService
         self.onRequestReturnToTitle = onRequestReturnToTitle
+        self.penaltyBannerScheduler = penaltyBannerScheduler
 
         // GameCore を生成し、ViewModel 経由で観測できるようにする
         let generatedCore = gameInterfaces.makeGameCore(mode)

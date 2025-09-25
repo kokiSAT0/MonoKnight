@@ -6,15 +6,15 @@
 - 推奨タスクは「テスト整備」「ログ閲覧導線」「運用ガイドライン」の三本柱で整理し、キャンペーンモード向け仕様検証へ滑らかに移行するためのロードマップとする。
 
 ## 短期（スプリント 1〜2）で完了させるタスク
-1. **`GameViewModel` / `GameBoardBridgeViewModel` の統合テスト追加**
-   - Combine 購読、`DispatchWorkItem` のキャンセル、SpriteKit 連携を自動検証するテストケースを整備し、ビューモデル三層構造の安定性を確保する。
-   - テスト作成と並行して `swift test` 実行を PR チェックリストへ組み込み、回帰検知を高速化する。
-2. **`BoardLayoutSnapshot` ログ閲覧導線の設定画面統合**
-   - `DebugLogHistory` へスナップショットを集約し、iPad レイアウト調整やアクセシビリティ検証に迅速にアクセスできる開発者メニューを用意する。
-   - ログ閲覧とクリア操作の UI/UX を SharedSupport の方針に合わせて整理し、公開ビルドで無効化できるガードを導入する。
-3. **SharedSupport ログ管理画面の整備**
-   - `DebugLogHistory` と `CrashFeedbackCollector` を操作できる設定画面モジュールを構築し、TestFlight 運用での診断作業を効率化する。
-   - 運用ガイドラインを `docs/` 配下に追記し、リリースビルドでの無効化手順を明文化する。
+- [x] **`GameViewModel` / `GameBoardBridgeViewModel` の統合テスト追加**
+  - Combine 購読、`DispatchWorkItem` のキャンセル、SpriteKit 連携を自動検証するテストケースを `MonoKnightAppTests/GameViewIntegrationTests.swift` に追加し、ビューモデル三層構造の安定性を確認できるようにした。
+  - `PenaltyBannerScheduler` をプロトコル化して差し替え可能にし、将来的に `swift test` を CI へ組み込む際の前提条件を整備済み。
+- [x] **`BoardLayoutSnapshot` ログ閲覧導線の設定画面統合**
+  - `SettingsView` に開発者向け診断セクションを追加し、`DiagnosticsCenterView` から `DebugLogHistory` へ蓄積されたレイアウトログへ即座にアクセスできる導線を用意した。
+  - 環境変数 `ENABLE_DIAGNOSTICS_MENU` により公開ビルドでメニューを無効化できるガードを実装し、リリース版ではユーザーから非表示にできるようにした。
+- [x] **SharedSupport ログ管理画面の整備**
+  - `DiagnosticsCenterView` で `DebugLogHistory` と `CrashFeedbackCollector` の履歴閲覧・削除・保持切替を一元管理できる UI を構築した。
+  - 運用ガイドラインを `docs/refactoring-guidelines.md` などへ追記し、TestFlight 運用時のログ確認手順と無効化方法を明文化した。
 
 ## 中期（スプリント 3 以降）で着手するタスク
 1. **ゲームモード拡張を見据えたパラメータ整理**

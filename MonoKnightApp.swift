@@ -39,6 +39,14 @@ struct MonoKnightApp: App {
         // MARK: グローバルエラーハンドラの設定
         // デバッグ中にどこでクラッシュしても詳細な情報を得られるようにする
         ErrorReporter.setup()
+        // MARK: 診断ログの公開可否をビルドごとに制御
+        // TestFlight や開発ビルドではログビューアを有効にしつつ、App Store 提出向けビルドでは環境変数で明示的に許可された場合のみ表示する。
+#if DEBUG
+        DebugLogHistory.shared.setFrontEndViewerEnabled(true)
+#else
+        let diagnosticsEnabled = ProcessInfo.processInfo.environment["ENABLE_DIAGNOSTICS_MENU"] == "1"
+        DebugLogHistory.shared.setFrontEndViewerEnabled(diagnosticsEnabled)
+#endif
         // MARK: サービスのインスタンス確定
         // UI テスト環境ではモックを、それ以外では実サービスを採用
         if ProcessInfo.processInfo.environment["UITEST_MODE"] != nil {

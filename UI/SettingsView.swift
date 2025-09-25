@@ -1,4 +1,5 @@
 import Game  // 手札並び順の設定列挙体を利用するために追加
+import SharedSupport  // DebugLogHistory など診断用ユーティリティを参照するために追加
 import StoreKit
 import SwiftUI
 
@@ -58,6 +59,12 @@ struct SettingsView: View {
 
     // 戦績リセット確認用のアラート表示フラグ。ユーザーが誤操作しないよう明示的に確認する。
     @State private var isResetAlertPresented = false
+
+    // MARK: - 開発者向け診断メニュー
+    // DebugLogHistory.shared のフラグに応じて設定画面へ開発者向け導線を表示するかどうかを判断する。
+    private var isDiagnosticsMenuAvailable: Bool {
+        DebugLogHistory.shared.isFrontEndViewerEnabled
+    }
 
     // MARK: - 定義
     // ストア関連の通知内容をまとめ、`Identifiable` 化して SwiftUI の `.alert(item:)` に乗せる。
@@ -283,6 +290,21 @@ struct SettingsView: View {
                 } footer: {
                     // ボタンの挙動を補足し、リセットの影響を明確にする。
                     Text("ベストポイントを初期状態に戻します。リセット後は新しいプレイで再び記録されます。")
+                }
+
+                if isDiagnosticsMenuAvailable {
+                    // MARK: - 開発者向け診断セクション
+                    Section {
+                        NavigationLink {
+                            DiagnosticsCenterView()
+                        } label: {
+                            Label("診断ログを確認", systemImage: "wrench.and.screwdriver")
+                        }
+                    } header: {
+                        Text("開発者向け診断")
+                    } footer: {
+                        Text("TestFlight など開発用ビルドでのみ有効化されるログビューアです。公開版では環境変数やビルド設定で無効化できます。")
+                    }
                 }
             }
             // 戦績リセット時に確認ダイアログを表示し、誤操作を防止する。

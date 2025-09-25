@@ -28,6 +28,18 @@
 - **GameCore のタイマー責務分離**: ゲーム内の経過時間管理を `GameSessionTimer` へ委譲し、`GameCore` 本体の責務を
   シンプルに保つ取り組みを開始した。経過秒数の算出やテスト用ヘルパーを専用構造体へ集約することで、将来的な
   計測仕様変更や複数モード対応時の再利用性が高まる。
+- **診断ログビューアの導線追加**: `SettingsView` に `DiagnosticsCenterView` を組み込み、`DebugLogHistory` / `CrashFeedbackCollector`
+  の内容をアプリ内で直接閲覧・削除できるようにした。公開ビルドでは環境変数でメニューを無効化できるため、ユーザー向け配信時も安全に利用できる。
+
+### 2.2 診断ログ運用メモ
+- `MonoKnightApp` の初期化で `DebugLogHistory.shared.setFrontEndViewerEnabled` を制御している。
+  - DEBUG ビルドでは常に `true` にして開発時の検証を容易にする。
+  - リリースビルドでは環境変数 `ENABLE_DIAGNOSTICS_MENU=1` を指定したときのみ有効化されるため、TestFlight 用と App Store 用で挙動を切り替えられる。
+- 設定画面の「開発者向け診断」セクションから `DiagnosticsCenterView` を開くと、以下の操作が行える。
+  - デバッグログの履歴閲覧・全文コピー・全削除。
+  - クラッシュ／フィードバック履歴の閲覧と削除。
+  - フロントエンド向けログ履歴の保持オン/オフ切り替え（無効にすると履歴もクリアされる）。
+- ログ閲覧が不要なビルドでは `DebugLogHistory.shared.setFrontEndViewerEnabled(false)` を呼び出せば履歴がクリアされ、設定画面からもメニューが消える。
 
 ## 3. 優先すべきリファクタリング領域
 1. **ゲームコアロジック (`Game` パッケージ)**
