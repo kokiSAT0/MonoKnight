@@ -262,6 +262,19 @@ public struct CampaignStageEvaluation {
     public let earnedStars: Int
     public let achievedSecondaryObjective: Bool
     public let achievedScoreGoal: Bool
+
+    // Swift パッケージ外でも初期化できるよう明示的に public イニシャライザを用意する
+    public init(
+        stageID: CampaignStageID,
+        earnedStars: Int,
+        achievedSecondaryObjective: Bool,
+        achievedScoreGoal: Bool
+    ) {
+        self.stageID = stageID
+        self.earnedStars = earnedStars
+        self.achievedSecondaryObjective = achievedSecondaryObjective
+        self.achievedScoreGoal = achievedScoreGoal
+    }
 }
 
 /// 章単位でステージを束ねる定義
