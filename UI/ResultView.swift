@@ -17,6 +17,10 @@ struct ResultView: View {
 
     /// スコア送信・ランキング表示に利用するゲームモード識別子
     let modeIdentifier: GameMode.Identifier
+    /// 表示用のモード名称
+    let modeDisplayName: String
+    /// ランキングボタンを表示するかどうか
+    let showsLeaderboardButton: Bool
 
     /// 再戦処理を外部から受け取るクロージャ
     let onRetry: () -> Void
@@ -49,6 +53,8 @@ struct ResultView: View {
         penaltyCount: Int,
         elapsedSeconds: Int,
         modeIdentifier: GameMode.Identifier,
+        modeDisplayName: String,
+        showsLeaderboardButton: Bool = true,
         onRetry: @escaping () -> Void
     ) {
         self.init(
@@ -56,6 +62,8 @@ struct ResultView: View {
             penaltyCount: penaltyCount,
             elapsedSeconds: elapsedSeconds,
             modeIdentifier: modeIdentifier,
+            modeDisplayName: modeDisplayName,
+            showsLeaderboardButton: showsLeaderboardButton,
             onRetry: onRetry,
             gameCenterService: GameCenterService.shared,
             adsService: AdsService.shared
@@ -67,6 +75,8 @@ struct ResultView: View {
         penaltyCount: Int,
         elapsedSeconds: Int,
         modeIdentifier: GameMode.Identifier,
+        modeDisplayName: String,
+        showsLeaderboardButton: Bool = true,
         onRetry: @escaping () -> Void,
 
         gameCenterService: GameCenterServiceProtocol,
@@ -83,6 +93,8 @@ struct ResultView: View {
         self.penaltyCount = penaltyCount
         self.elapsedSeconds = elapsedSeconds
         self.modeIdentifier = modeIdentifier
+        self.modeDisplayName = modeDisplayName
+        self.showsLeaderboardButton = showsLeaderboardButton
         self.onRetry = onRetry
         self.gameCenterService = resolvedGameCenterService
         self.adsService = resolvedAdsService
@@ -153,18 +165,18 @@ struct ResultView: View {
                 .buttonStyle(.borderedProminent)
 
                 // MARK: - Game Center ランキングボタン
-                Button(action: {
-                    // 設定が有効なら成功フィードバックを発火
-                    if hapticsEnabled {
-                        UINotificationFeedbackGenerator().notificationOccurred(.success)
+                if showsLeaderboardButton {
+                    Button(action: {
+                        if hapticsEnabled {
+                            UINotificationFeedbackGenerator().notificationOccurred(.success)
+                        }
+                        gameCenterService.showLeaderboard(for: modeIdentifier)
+                    }) {
+                        Text("ランキング")
+                            .frame(maxWidth: .infinity)
                     }
-                    // 直前にプレイしていたモードに対応するテスト用リーダーボードを開く
-                    gameCenterService.showLeaderboard(for: modeIdentifier)
-                }) {
-                    Text("ランキング")
-                        .frame(maxWidth: .infinity)
+                    .buttonStyle(.bordered)
                 }
-                .buttonStyle(.bordered)
 
                 // MARK: - リザルト詳細のテーブル
                 VStack(alignment: .leading, spacing: 12) {
@@ -268,7 +280,9 @@ struct ResultView: View {
             // ビュー表示時に広告表示をトリガー
             adsService.showInterstitial()
             // ベスト記録の更新を判定
-            updateBest()
+            if showsLeaderboardButton {
+                updateBest()
+            }
         }
     }
 
@@ -311,7 +325,7 @@ struct ResultView: View {
     /// ShareLink へ渡す共有メッセージを生成
     private var shareMessage: String {
         let penaltyText = penaltyCount == 0 ? "ペナルティなし" : "ペナルティ +\(penaltyCount) 手"
-        return "MonoKnight 5x5 クリア！ポイント \(points)（移動 \(moveCount) 手 / \(penaltyText) / 所要 \(formattedElapsedTime)）"
+        return "MonoKnight \(modeDisplayName) クリア！ポイント \(points)（移動 \(moveCount) 手 / \(penaltyText) / 所要 \(formattedElapsedTime)）"
     }
 
     /// iPad 表示時の最大コンテンツ幅を制御し、中央寄せの見た目を整える
@@ -369,6 +383,7 @@ struct ResultView_Previews: PreviewProvider {
             penaltyCount: 6,
             elapsedSeconds: 132,
             modeIdentifier: .standard5x5,
+            modeDisplayName: "スタンダード",
             onRetry: {},
             gameCenterService: GameCenterService.shared,
             adsService: AdsService.shared
@@ -383,6 +398,7 @@ struct ResultView_Previews: PreviewProvider {
         penaltyCount: 6,
         elapsedSeconds: 132,
         modeIdentifier: .standard5x5,
+        modeDisplayName: "スタンダード",
         onRetry: {}
     )
 }

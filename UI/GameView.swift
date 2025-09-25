@@ -81,6 +81,7 @@ struct GameView: View {
             gameInterfaces: gameInterfaces,
             gameCenterService: GameCenterService.shared,
             adsService: AdsService.shared,
+            campaignProgressStore: CampaignProgressStore(),
             onRequestReturnToTitle: onRequestReturnToTitle
         )
     }
@@ -91,6 +92,7 @@ struct GameView: View {
         gameInterfaces: GameModuleInterfaces,
         gameCenterService: GameCenterServiceProtocol,
         adsService: AdsServiceProtocol,
+        campaignProgressStore: CampaignProgressStore,
         onRequestReturnToTitle: (() -> Void)? = nil
     ) {
         // MARK: - GameViewModel の生成を 1 度きりに抑制
@@ -106,6 +108,7 @@ struct GameView: View {
                 gameInterfaces: gameInterfaces,
                 gameCenterService: gameCenterService,
                 adsService: adsService,
+                campaignProgressStore: campaignProgressStore,
                 onRequestReturnToTitle: onRequestReturnToTitle,
                 initialHandOrderingRawValue: savedOrdering
             )
@@ -145,6 +148,8 @@ struct GameView: View {
                 penaltyCount: viewModel.penaltyCount,
                 elapsedSeconds: viewModel.elapsedSeconds,
                 modeIdentifier: viewModel.mode.identifier,
+                modeDisplayName: viewModel.mode.displayName,
+                showsLeaderboardButton: viewModel.isLeaderboardEligible,
                 onRetry: {
                     // ViewModel 側でリセットと広告フラグの再設定をまとめて処理する
                     viewModel.handleResultRetry()

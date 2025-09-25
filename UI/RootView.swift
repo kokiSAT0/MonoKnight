@@ -22,6 +22,8 @@ struct RootView: View {
     /// 画面全体の状態とログ出力を一元管理するステートストア
     /// - NOTE: onChange 連鎖による複雑な型推論を避け、プロパティ監視をクラス内の didSet へ集約する
     @StateObject private var stateStore: RootViewStateStore
+    /// キャンペーン進捗を管理するストア
+    @StateObject private var campaignProgressStore: CampaignProgressStore
     /// ローディング表示解除を遅延実行するためのワークアイテム
     /// - NOTE: 新しいゲーム開始操作が走った際に古い処理をキャンセルできるよう保持しておく
     @State private var pendingGameActivationWorkItem: DispatchWorkItem?
@@ -46,6 +48,7 @@ struct RootView: View {
                 initialIsAuthenticated: resolvedGameCenterService.isAuthenticated
             )
         )
+        _campaignProgressStore = StateObject(wrappedValue: CampaignProgressStore())
     }
 
     var body: some View {
@@ -206,6 +209,7 @@ private extension RootView {
             gameInterfaces: gameInterfaces,
             gameCenterService: gameCenterService,
             adsService: adsService,
+            campaignProgressStore: campaignProgressStore,
             isAuthenticated: stateStore.binding(for: \.isAuthenticated),
             isShowingTitleScreen: stateStore.binding(for: \.isShowingTitleScreen),
             isPreparingGame: stateStore.binding(for: \.isPreparingGame),
@@ -268,6 +272,8 @@ private extension RootView {
         let gameCenterService: GameCenterServiceProtocol
         /// 広告制御用サービス
         let adsService: AdsServiceProtocol
+        /// キャンペーン進捗ストア
+        @ObservedObject var campaignProgressStore: CampaignProgressStore
         /// Game Center 認証状態
         @Binding var isAuthenticated: Bool
         /// タイトル表示中かどうか
@@ -346,6 +352,7 @@ private extension RootView {
                     gameInterfaces: gameInterfaces,
                     gameCenterService: gameCenterService,
                     adsService: adsService,
+                    campaignProgressStore: campaignProgressStore,
                     onRequestReturnToTitle: {
                         // GameView 内からの戻り要求を親へ伝播させる
                         onReturnToTitle()
@@ -380,6 +387,7 @@ private extension RootView {
             if isShowingTitleScreen {
                 TitleScreenView(
                     selectedMode: $selectedModeForTitle,
+                    campaignProgressStore: campaignProgressStore,
                     onStart: { mode in
                         // 選択されたモードでゲーム準備を開始する
                         onStartGame(mode)
@@ -874,6 +882,8 @@ fileprivate struct TopStatusInsetView: View {
 fileprivate struct TitleScreenView: View {
     /// タイトル画面で選択中のモード
     @Binding var selectedMode: GameMode
+    /// キャンペーン進捗
+    @ObservedObject var campaignProgressStore: CampaignProgressStore
     /// ゲーム開始ボタンが押された際の処理
     let onStart: (GameMode) -> Void
     /// 詳細設定を開くアクション
@@ -881,12 +891,16 @@ fileprivate struct TitleScreenView: View {
 
     /// カラーテーマを用いてライト/ダーク両対応の配色を提供する
     private var theme = AppTheme()
+    /// キャンペーン定義
+    private let campaignLibrary = CampaignLibrary.shared
     /// フリーモードのレギュレーションを管理するストア
     @StateObject private var freeModeStore = FreeModeRegulationStore()
 
     @State private var isPresentingHowToPlay: Bool = false
     /// フリーモード設定シートの表示状態
     @State private var isPresentingFreeModeEditor: Bool = false
+    /// キャンペーンステージ選択シートの表示状態
+    @State private var isPresentingCampaignSelector: Bool = false
     /// サイズクラスを参照し、iPad での余白やシート表現を最適化する
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
@@ -895,8 +909,9 @@ fileprivate struct TitleScreenView: View {
     ///   - selectedMode: 選択中モードを共有するバインディング
     ///   - onStart: ゲーム開始ボタンが押下された際に呼び出されるクロージャ
     ///   - onOpenSettings: タイトル右上のギアアイコンから設定シートを開く際のクロージャ
-    init(selectedMode: Binding<GameMode>, onStart: @escaping (GameMode) -> Void, onOpenSettings: @escaping () -> Void) {
+    init(selectedMode: Binding<GameMode>, campaignProgressStore: CampaignProgressStore, onStart: @escaping (GameMode) -> Void, onOpenSettings: @escaping () -> Void) {
         self._selectedMode = selectedMode
+        self._campaignProgressStore = ObservedObject(wrappedValue: campaignProgressStore)
         // `let` プロパティである onStart を代入するための明示的な初期化処理
         self.onStart = onStart
         self.onOpenSettings = onOpenSettings
@@ -930,7 +945,11 @@ fileprivate struct TitleScreenView: View {
             // MARK: - ゲーム開始ボタン
             Button(action: {
                 // ゲーム開始操作を記録し、選択モードとの対応関係を追跡できるようにする
-                debugLog("TitleScreenView: ゲーム開始ボタンをタップ 選択モード=\(selectedMode.identifier.rawValue)")
+                if let stage = selectedCampaignStage {
+                    debugLog("TitleScreenView: ゲーム開始ボタンをタップ キャンペーン=\(stage.id.displayCode)")
+                } else {
+                    debugLog("TitleScreenView: ゲーム開始ボタンをタップ 選択モード=\(selectedMode.identifier.rawValue)")
+                }
                 onStart(selectedMode)
             }) {
                 Label("\(selectedMode.displayName)で開始", systemImage: "play.fill")
@@ -1014,6 +1033,28 @@ fileprivate struct TitleScreenView: View {
             )
             .presentationDragIndicator(.visible)
         }
+        // キャンペーンステージ選択シート
+        .sheet(isPresented: $isPresentingCampaignSelector) {
+            NavigationStack {
+                CampaignStageSelectionView(
+                    campaignLibrary: campaignLibrary,
+                    progressStore: campaignProgressStore,
+                    selectedStageID: selectedCampaignStage?.id,
+                    onClose: {
+                        isPresentingCampaignSelector = false
+                    },
+                    onSelectStage: { stage in
+                        debugLog("TitleScreenView: キャンペーンステージを選択 -> \(stage.id.displayCode)")
+                        selectedMode = stage.makeGameMode()
+                        isPresentingCampaignSelector = false
+                    }
+                )
+            }
+            .presentationDetents(
+                horizontalSizeClass == .regular ? [.large] : [.medium, .large]
+            )
+            .presentationDragIndicator(.visible)
+        }
         // フリーモードのレギュレーション設定を全画面モーダルで表示し、数値調整へ集中できる編集体験にそろえる
         .fullScreenCover(isPresented: $isPresentingFreeModeEditor) {
             // NavigationStack を内包することでフルスクリーン表示でもタイトルバーのキャンセル/保存ボタンを維持する
@@ -1060,6 +1101,8 @@ fileprivate struct TitleScreenView: View {
             Text("ゲームモード")
                 .font(.system(size: 18, weight: .semibold, design: .rounded))
                 .foregroundColor(theme.textPrimary)
+
+            campaignSelectionButton
 
             ForEach(availableModes) { mode in
                 modeSelectionButton(for: mode)
@@ -1136,6 +1179,73 @@ fileprivate struct TitleScreenView: View {
         .accessibilityHint(Text(isFreeMode ? "レギュレーション編集を開きます" : secondaryDescription(for: mode)))
     }
 
+    /// キャンペーンステージ選択エントリ
+    private var campaignSelectionButton: some View {
+        let isCampaignSelected = selectedMode.identifier == .campaignStage
+        let currentStage = selectedCampaignStage
+
+        return Button {
+            debugLog("TitleScreenView: キャンペーンセレクター表示")
+            isPresentingCampaignSelector = true
+        } label: {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text("キャンペーン")
+                        .font(.system(size: 17, weight: .semibold, design: .rounded))
+                        .foregroundColor(theme.textPrimary)
+                    Spacer(minLength: 0)
+                    Image(systemName: "flag.checkered")
+                        .foregroundColor(theme.accentPrimary)
+                        .font(.system(size: 16, weight: .semibold))
+                }
+
+                if let stage = currentStage {
+                    Text("\(stage.displayCode) \(stage.title)")
+                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .foregroundColor(theme.textPrimary)
+                    Text(stage.summary)
+                        .font(.system(size: 12, weight: .regular, design: .rounded))
+                        .foregroundColor(theme.textSecondary)
+                    starIcons(for: stage.id)
+                        .padding(.top, 4)
+                    if let objective = stage.secondaryObjectiveDescription {
+                        Text("★2: \(objective)")
+                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                            .foregroundColor(theme.textSecondary.opacity(0.85))
+                    }
+                    if let scoreText = stage.scoreTargetDescription {
+                        Text("★3: \(scoreText)")
+                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                            .foregroundColor(theme.textSecondary.opacity(0.85))
+                    }
+                } else {
+                    Text("ステージを選択してキャンペーンを開始できます")
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundColor(theme.textSecondary)
+                        .multilineTextAlignment(.leading)
+                }
+            }
+            .padding(.vertical, 14)
+            .padding(.horizontal, 16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(theme.backgroundElevated.opacity(isCampaignSelected ? 0.95 : 0.75))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .stroke(
+                                isCampaignSelected ? theme.accentPrimary : theme.statisticBadgeBorder,
+                                lineWidth: isCampaignSelected ? 2 : 1
+                            )
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(Text("キャンペーンモード"))
+        .accessibilityHint(Text(currentStage != nil ? "\(currentStage!.displayCode) をプレイします" : "ステージ一覧を表示します"))
+    }
+
     /// 各モードの主要な特徴を短文で返す
     private func primaryDescription(for mode: GameMode) -> String {
         // GameMode 側で共通ロジックを用意したため、ここでは単純に参照するだけで済む
@@ -1156,6 +1266,27 @@ private extension TitleScreenView {
         var modes = GameMode.builtInModes
         modes.append(freeModeStore.makeGameMode())
         return modes
+    }
+
+    /// 現在選択中のキャンペーンステージ
+    var selectedCampaignStage: CampaignStage? {
+        guard selectedMode.identifier == .campaignStage,
+              let metadata = selectedMode.campaignMetadataSnapshot else { return nil }
+        return campaignLibrary.stage(with: metadata.stageID)
+    }
+
+    /// スター獲得状況を表すアイコン列
+    /// - Parameter stageID: 対象ステージ
+    /// - Returns: 星 3 つ分の表示
+    func starIcons(for stageID: CampaignStageID) -> some View {
+        let earned = campaignProgressStore.progress(for: stageID)?.earnedStars ?? 0
+        return HStack(spacing: 4) {
+            ForEach(0..<3, id: \.self) { index in
+                Image(systemName: index < earned ? "star.fill" : "star")
+                    .foregroundColor(index < earned ? theme.accentPrimary : theme.textSecondary.opacity(0.6))
+            }
+        }
+        .accessibilityLabel("スター獲得数: \(earned) / 3")
     }
 
     /// 横幅に応じてビューの最大幅を制御し、iPad では中央寄せのカード風レイアウトにする
