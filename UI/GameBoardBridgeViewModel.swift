@@ -317,7 +317,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
 
     /// GameCore の状態変化を監視し、盤面関連の副作用を集約する
     private func bindGameCore() {
-        core.handManager.$handStacks
+        core.$handStacks
             .receive(on: RunLoop.main)
             .sink { [weak self] newHandStacks in
                 guard let self else { return }
