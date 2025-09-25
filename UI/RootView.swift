@@ -526,7 +526,10 @@ private extension RootView {
 
     /// ゲーム開始前のローディング表示を担うオーバーレイビュー
     /// - NOTE: ペナルティ設定やリワード条件を一覧できるよう、スクロール可能なカード型レイアウトで表示する
-    struct GamePreparationOverlayView: View {
+    /// `private extension` 配下ではデフォルトで初期化子が `private` 扱いになり、
+    /// 呼び出し元の `RootContentView` から参照できずビルドエラーとなるため、
+    /// アクセスレベルを `fileprivate` に引き上げて同一ファイル内の利用を許可する。
+    fileprivate struct GamePreparationOverlayView: View {
         /// 開始予定のゲームモード
         let mode: GameMode
         /// キャンペーンステージ（該当する場合）
