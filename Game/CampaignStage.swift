@@ -23,13 +23,13 @@ public struct CampaignStageID: Hashable, Codable {
     }
 
     /// UserDefaults へ保存する際のキー
-    var storageKey: String {
+    public var storageKey: String {
         displayCode
     }
 
     /// 保存済みキー文字列から `CampaignStageID` を復元
     /// - Parameter storageKey: "章-ステージ" 形式の文字列
-    init?(storageKey: String) {
+    public init?(storageKey: String) {
         let components = storageKey.split(separator: "-")
         guard components.count == 2,
               let chapter = Int(components[0]),
