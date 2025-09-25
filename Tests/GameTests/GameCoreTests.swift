@@ -471,6 +471,7 @@ final class GameCoreTests: XCTestCase {
         core.simulateSpawnSelection(forTesting: spawnPoint)
 
         XCTAssertEqual(core.penaltyCount, 0)
+        XCTAssertFalse(core.hasRevisitedTile, "初期状態で再訪フラグが立っていてはいけません")
 
         guard let firstMoveIndex = core.handStacks.enumerated().first(where: { _, stack in
             stack.topCard?.move == .knightUp2Right1
@@ -480,6 +481,7 @@ final class GameCoreTests: XCTestCase {
         }
         core.playCard(at: firstMoveIndex)
         XCTAssertEqual(core.penaltyCount, 0)
+        XCTAssertFalse(core.hasRevisitedTile, "未踏マスを移動した直後はフラグが false のままの想定です")
 
         guard let returnIndex = core.handStacks.enumerated().first(where: { _, stack in
             stack.topCard?.move == .knightDown2Left1
@@ -490,6 +492,7 @@ final class GameCoreTests: XCTestCase {
         core.playCard(at: returnIndex)
 
         XCTAssertEqual(core.penaltyCount, core.mode.revisitPenaltyCost, "既踏マスへの再訪ペナルティが適用されていない")
+        XCTAssertTrue(core.hasRevisitedTile, "既踏マスへ戻った場合はフラグが立つべきです")
     }
 
     /// クラシカルチャレンジの手動引き直しでモード固有のペナルティ量が適用されるか検証
