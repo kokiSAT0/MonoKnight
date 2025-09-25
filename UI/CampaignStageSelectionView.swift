@@ -117,7 +117,7 @@ struct CampaignStageSelectionView: View {
                         .foregroundColor(theme.textSecondary.opacity(0.85))
                 }
 
-                if let scoreText = stage.scoreTargetDescription {
+                if let scoreText = stage.scoreGoalDescription {
                     Text("★3: \(scoreText)")
                         .font(.system(size: 11, weight: .medium, design: .rounded))
                         .foregroundColor(theme.textSecondary.opacity(0.85))
