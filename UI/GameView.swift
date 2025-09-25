@@ -14,8 +14,8 @@ import UIKit  // ハプティクス用のフレームワークを追加
 struct GameView: View {
     /// カラーテーマを生成し、ビュー全体で共通の配色を利用できるようにする
     /// - Note: レイアウト補助の拡張（`GameView+Layout`）でもテーマカラーを共有する必要があるため、
-    ///         `fileprivate` へアクセスレベルを緩和している。
-    fileprivate let theme = AppTheme()
+    ///         同一型の別ファイル拡張からも参照できるようアクセスレベルはデフォルト（internal）にしている。
+    let theme = AppTheme()
     /// 現在のライト/ダーク設定を環境から取得し、SpriteKit 側の色にも反映する
     @Environment(\.colorScheme) private var colorScheme
     /// デバイスの横幅サイズクラスを取得し、iPad などレギュラー幅でのモーダル挙動を調整する
@@ -28,11 +28,11 @@ struct GameView: View {
     @Environment(\.topOverlayHeight) var topOverlayHeight: CGFloat
     /// ルートビューの GeometryReader で得たシステム由来セーフエリアの上端量
     /// - Note: safeAreaInset により増加した分を差し引くための基準値として利用する
-    /// - Note: レイアウト補助用の拡張（`GameView+Layout`）でも参照するため、`fileprivate` へ緩和している
-    @Environment(\.baseTopSafeAreaInset) fileprivate var baseTopSafeAreaInset: CGFloat
+    /// - Note: レイアウト補助用の拡張（`GameView+Layout`）でも参照するため、アクセスレベルは internal にとどめている
+    @Environment(\.baseTopSafeAreaInset) var baseTopSafeAreaInset: CGFloat
     /// 手札スロットの数（常に 5 スロット分の枠を確保してレイアウトを安定させる）
-    /// - Note: レイアウト拡張でハンド UI の構築にも利用するため、`fileprivate` へ緩和して同一型内で共有している。
-    fileprivate let handSlotCount = 5
+    /// - Note: レイアウト拡張でハンド UI の構築にも利用するため、アクセスレベルは internal にとどめて同一型内で共有している。
+    let handSlotCount = 5
     /// View とロジックの橋渡しを担う ViewModel
     /// - Note: レイアウトや監視系の拡張（別ファイル）からもアクセスするため、`internal` 相当の公開範囲（デフォルト）を維持する。
     ///         `fileprivate` にすると `GameView+Layout` から参照できずビルドエラーになるため注意。
@@ -47,8 +47,8 @@ struct GameView: View {
     /// 手札の並び替え方式。設定変更時に GameCore へ伝搬する
     @AppStorage(HandOrderingStrategy.storageKey) private var handOrderingRawValue: String = HandOrderingStrategy.insertionOrder.rawValue
     /// 手札や NEXT の位置をマッチングさせるための名前空間
-    /// - Note: レイアウト拡張（GameView+Layout）でも利用するため、アクセスレベルを `fileprivate` へ広げる。
-    @Namespace fileprivate var cardAnimationNamespace
+    /// - Note: レイアウト拡張（GameView+Layout）でも利用するため、アクセスレベルを internal（デフォルト）で共有する。
+    @Namespace var cardAnimationNamespace
     /// SpriteKit シーンへのショートカット
     private var scene: GameScene { boardBridge.scene }
 
