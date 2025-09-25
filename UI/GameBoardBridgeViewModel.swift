@@ -213,7 +213,10 @@ final class GameBoardBridgeViewModel: ObservableObject {
         guard let current = core.current else { return false }
         guard let topCard = stack.topCard, isCardUsable(stack) else { return false }
 
-        animationTargetGridPoint = current
+        // 現在位置からカードの移動量を適用し、演出で目指す盤面座標を算出する
+        // ここをプレイ前の現在地で固定してしまうと、カードが正しいマスへ移動しないため注意する
+        let targetPoint = current.offset(dx: topCard.move.dx, dy: topCard.move.dy)
+        animationTargetGridPoint = targetPoint
         hiddenCardIDs.insert(topCard.id)
         animatingCard = topCard
         animatingStackID = stack.id
