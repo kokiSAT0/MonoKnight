@@ -542,7 +542,29 @@ private extension RootView {
         let onStart: () -> Void
 
         /// テーマを利用してライト/ダーク両対応の配色を適用する
-        private var theme = AppTheme()
+        private let theme: AppTheme
+
+        /// 明示的なイニシャライザを定義し、`private` プロパティを含んでも呼び出し元から利用できるようにする
+        /// - Parameters:
+        ///   - mode: 開始予定のゲームモード
+        ///   - campaignStage: キャンペーンステージ（該当する場合）
+        ///   - progress: これまでの達成状況
+        ///   - isReady: 初期化が完了して開始可能かどうか
+        ///   - onStart: ユーザーが「開始」を押した際のハンドラ
+        fileprivate init(mode: GameMode,
+                         campaignStage: CampaignStage?,
+                         progress: CampaignStageProgress?,
+                         isReady: Bool,
+                         onStart: @escaping () -> Void) {
+            // 受け取った値をそのまま保持し、構造体生成直後から UI に反映できるようにする
+            self.mode = mode
+            self.campaignStage = campaignStage
+            self.progress = progress
+            self.isReady = isReady
+            self.onStart = onStart
+            // テーマは常に新規生成し、カラースキームに応じた見た目を再利用する
+            self.theme = AppTheme()
+        }
 
         var body: some View {
             ZStack {
