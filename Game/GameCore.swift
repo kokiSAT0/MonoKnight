@@ -106,13 +106,9 @@ public final class GameCore: ObservableObject {
     /// - Note: 「手数×10 + 所要秒数」の規則に基づく
     public var score: Int { totalMoveCount * 10 + elapsedSeconds }
     /// プレイ中の経過秒数をリアルタイムで取得する計算プロパティ
-    /// - Note: クリア済みで `endDate` が存在する場合は確定値を返し、それ以外は現在時刻との差分を都度算出する
+    /// - Note: クリア済みかどうかに応じて `GameSessionTimer` へ計算を委譲する。
     public var liveElapsedSeconds: Int {
-        // 終了時刻が設定済みならそれを参照し、未クリアなら現在時刻を用いる
-        let referenceDate = endDate ?? Date()
-        // 負値を避けるため timeIntervalSince の結果に max を適用し、四捨五入した整数秒を返す
-        let duration = max(0, referenceDate.timeIntervalSince(startDate))
-        return max(0, Int(duration.rounded()))
+        sessionTimer.liveElapsedSeconds()
     }
     /// 未踏破マスの残り数を UI へ公開する計算プロパティ
 
@@ -120,10 +116,9 @@ public final class GameCore: ObservableObject {
 
     /// 山札管理（`Deck.swift` に定義された重み付き無限山札を使用）
     private var deck = Deck(configuration: .standard)
-    /// プレイ開始時刻（リセットのたびに現在時刻へ更新）
-    private var startDate = Date()
-    /// クリア確定時刻（未クリアの場合は nil のまま保持）
-    private var endDate: Date?
+    /// 経過時間を管理する専用タイマー
+    /// - Note: GameCore の責務を整理するために専用構造体へ委譲する
+    private var sessionTimer = GameSessionTimer()
 
     /// 初期化時にモードを指定して各種状態を構築する
     /// - Parameter mode: 適用したいゲームモード（省略時はスタンダード）
@@ -251,7 +246,6 @@ public final class GameCore: ObservableObject {
         penaltyEventID = nil
         boardTapPlayRequest = nil
         isAwaitingManualDiscardSelection = false
-        endDate = nil
         progress = mode.requiresSpawnSelection ? .awaitingSpawn : .playing
 
         handManager.resetAll(using: &deck)
@@ -277,22 +271,19 @@ public final class GameCore: ObservableObject {
     /// 所要時間カウントを現在時刻へリセットする
     private func resetTimer() {
         // 開始時刻と終了時刻を初期化し、経過秒数を 0 に戻す
-        startDate = Date()
-        endDate = nil
-        elapsedSeconds = 0
+        sessionTimer.reset()
+        elapsedSeconds = sessionTimer.elapsedSeconds
     }
 
     /// クリア時点の経過時間を確定させる
     /// - Parameter referenceDate: テスト時などに任意の終了時刻を指定したい場合に利用
     private func finalizeElapsedTimeIfNeeded(referenceDate: Date = Date()) {
         // 既に終了時刻が記録されている場合は再計算を避ける
-        if endDate != nil { return }
+        if sessionTimer.isFinalized { return }
 
-        // タイムスタンプを保持し、最小値 0 を保証した整数秒を算出
-        let finishDate = referenceDate
-        endDate = finishDate
-        let duration = max(0, finishDate.timeIntervalSince(startDate))
-        elapsedSeconds = max(0, Int(duration.rounded()))
+        // タイマーへ確定処理を委譲し、結果を @Published プロパティへ反映する
+        let finalized = sessionTimer.finalize(referenceDate: referenceDate)
+        elapsedSeconds = finalized
 
         // デバッグ目的で計測結果をログに残す
         debugLog("クリア所要時間: \(elapsedSeconds) 秒")
@@ -459,6 +450,7 @@ extension GameCore {
         self.moveCount = moveCount
         self.penaltyCount = penaltyCount
         self.elapsedSeconds = elapsedSeconds
+        sessionTimer.overrideFinalizedElapsedSecondsForTesting(elapsedSeconds)
     }
 
     /// テストでクリア時刻を任意指定したい場合に利用する
@@ -476,10 +468,8 @@ extension GameCore {
     /// テスト時に任意の開始時刻へ調整し、`liveElapsedSeconds` の計算結果を制御する
     /// - Parameter newStartDate: 擬似的に設定したい開始時刻
     func setStartDateForTesting(_ newStartDate: Date) {
-        // リアルタイム計測は startDate と現在時刻の差分で算出されるため、テストでは任意の値へ差し替えられるようにする。
-        startDate = newStartDate
-        // 進行中のケースを再現するため、終了時刻は強制的に未確定へ戻しておく。
-        endDate = nil
+        // リアルタイム計測は GameSessionTimer を経由して算出されるため、テストから開始時刻を操作可能にしておく。
+        sessionTimer.overrideStartDateForTesting(newStartDate)
     }
 }
 #endif
