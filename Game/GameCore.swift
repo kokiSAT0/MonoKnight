@@ -66,12 +66,15 @@ public final class GameCore: ObservableObject {
     /// - Note: 盤面ユーティリティ経由で中央マスを導出し、ハードコードしていた 5×5 の依存を取り除いている。
     @Published public private(set) var current: GridPoint? = BoardGeometry.defaultSpawnPoint(for: BoardGeometry.standardSize)
     /// 手札と先読みカードの管理を委譲するハンドマネージャ
-    public let handManager: HandManager
+    /// - Note: 外部モジュールから直接操作させず、公開用プロパティ経由で状態を把握できるようにする
+    let handManager: HandManager
 
-    /// 手札スロットへの簡易アクセス（読み取り専用）
-    public var handStacks: [HandStack] { handManager.handStacks }
-    /// NEXT 表示カードへの簡易アクセス（読み取り専用）
-    public var nextCards: [DealtCard] { handManager.nextCards }
+    /// 外部レイヤーへ公開する手札スロット
+    /// - Important: `@Published` を介して ViewModel が変更通知を受け取れるようにする
+    @Published public private(set) var handStacks: [HandStack] = []
+    /// NEXT 表示カードの公開用スナップショット
+    /// - Note: HandManager の内部実装を意識せずに UI が参照できるよう保持する
+    @Published public private(set) var nextCards: [DealtCard] = []
     /// ゲームの進行状態
     @Published public private(set) var progress: GameProgress = .playing
     /// 手詰まりペナルティが発生したことを UI 側へ伝えるイベント識別子
@@ -145,6 +148,7 @@ public final class GameCore: ObservableObject {
     /// - Parameter newStrategy: ユーザーが選択した並び替え方式
     public func updateHandOrderingStrategy(_ newStrategy: HandOrderingStrategy) {
         handManager.updateHandOrderingStrategy(newStrategy)
+        refreshHandStateFromManager()
     }
 
     /// 指定インデックスのカードで駒を移動させる
@@ -156,8 +160,8 @@ public final class GameCore: ObservableObject {
         // 捨て札モード中は移動を開始せず安全に抜ける
         guard !isAwaitingManualDiscardSelection else { return }
         // インデックスが範囲内か確認（0〜手札スロット数-1 の範囲を想定）
-        guard handManager.handStacks.indices.contains(index) else { return }
-        let stack = handManager.handStacks[index]
+        guard handStacks.indices.contains(index) else { return }
+        let stack = handStacks[index]
         guard let card = stack.topCard else { return }
         let target = currentPosition.offset(dx: card.move.dx, dy: card.move.dy)
         // UI 側で無効カードを弾く想定だが、念のため安全確認
@@ -251,6 +255,7 @@ public final class GameCore: ObservableObject {
         progress = mode.requiresSpawnSelection ? .awaitingSpawn : .playing
 
         handManager.resetAll(using: &deck)
+        refreshHandStateFromManager()
 
         resetTimer()
 
@@ -346,10 +351,18 @@ extension GameCore {
         }
     }
 
+    /// HandManager が保持する最新状態を公開用プロパティへ反映する
+    /// - Note: Combine 非対応環境でも確実に配列が更新されるよう、明示的に値をコピーする
+    func refreshHandStateFromManager() {
+        handStacks = handManager.handStacks
+        nextCards = handManager.nextCards
+    }
+
     /// HandManager を用いて手札と先読み表示を一括再構築する
     /// - Parameter preferredInsertionIndices: 使用済みスロットへ差し戻したい位置（未指定なら末尾補充）
     func rebuildHandAndNext(preferredInsertionIndices: [Int] = []) {
         handManager.rebuildHandAndPreview(using: &deck, preferredInsertionIndices: preferredInsertionIndices)
+        refreshHandStateFromManager()
     }
 
     /// スポーン位置選択時の処理
@@ -427,6 +440,7 @@ extension GameCore {
         core.progress = (resolvedCurrent == nil && mode.requiresSpawnSelection) ? .awaitingSpawn : .playing
 
         core.handManager.resetAll(using: &core.deck)
+        core.refreshHandStateFromManager()
 
         if core.progress == .playing {
             core.checkDeadlockAndApplyPenaltyIfNeeded()
