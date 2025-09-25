@@ -16,7 +16,7 @@
   を活用しつつ、各層のログ・計測を統一化する。
 
 ### 2.1 直近の改善サマリ
-- **Game モジュールの公開インターフェース整理**: `GameModuleInterfaces`（旧 `GamePublicInterfaces`）を経由して `GameCore`
+- **Game モジュールの公開インターフェース整理**: `GameModuleInterfaces` を経由して `GameCore`
   を生成する流れが定着し、UI 側からの依存が一本化された。
 - **UI 層の三層分割が完了**: `GameView` 本体から描画以外の責務を切り出し、`GameViewModel` と `GameBoardBridgeViewModel`
   が状態管理・SpriteKit 連携を引き受ける構成に刷新された。レイアウト計算は `GameViewLayoutCalculator` へ集約され、

@@ -45,3 +45,30 @@ public struct HandStack: Identifiable, Equatable {
         return cards.removeLast()
     }
 }
+
+/// デバッグログ向けの表示を補助する拡張
+/// - Note: ログ出力形式を一箇所へまとめることで、手札表示の仕様変更に強い構成へ整えている。
+public extension HandStack {
+    /// MoveCard を含めた簡易サマリ文字列
+    /// - Returns: 例) "Move(dx:1, dy:2)×3" のような形式。カードが空の場合は分かりやすく明示する。
+    var debugSummary: String {
+        guard let move = representativeMove else {
+            return "(空スタック)"
+        }
+        if count > 1 {
+            return "\(move)×\(count)"
+        } else {
+            return "\(move)"
+        }
+    }
+}
+
+public extension Array where Element == HandStack {
+    /// 配列全体のサマリをカンマ区切りで結合する
+    /// - Parameter emptyPlaceholder: 要素が存在しない場合に返すプレースホルダー文字列（既定値は "なし"）
+    /// - Returns: ログへ渡しやすい 1 行文字列
+    func debugSummaryJoined(emptyPlaceholder: String = "なし") -> String {
+        guard !isEmpty else { return emptyPlaceholder }
+        return map { $0.debugSummary }.joined(separator: ", ")
+    }
+}
