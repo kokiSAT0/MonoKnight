@@ -1,4 +1,5 @@
 import SwiftUI
+import Game  // ゲームパッケージ内の HandOrderingStrategy などを利用するために読み込む
 
 /// ポーズメニュー本体。プレイ中によく調整する項目をリスト形式でまとめる
 /// - Note: フルスクリーンカバーとして再利用できるよう、`GameView` から切り出して独立させた。
