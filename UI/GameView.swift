@@ -39,9 +39,6 @@ struct GameView: View {
     /// - Note: レイアウトや監視系の拡張（別ファイル）からもアクセスするため、`internal` 相当の公開範囲（デフォルト）を維持する。
     ///         `fileprivate` にすると `GameView+Layout` から参照できずビルドエラーになるため注意。
     @StateObject var viewModel: GameViewModel
-    /// SpriteKit との仲介を担う BoardBridge
-    /// - Note: こちらもレイアウト拡張からの参照が必要なため、`internal`（デフォルト）のアクセスレベルを確保している。
-    @ObservedObject var boardBridge: GameBoardBridgeViewModel
     /// ハプティクスを有効にするかどうかの設定値
 
     /// - Note: 監視処理を別ファイルの拡張（`GameView+Observers`）へ切り出しているため、`fileprivate` ではアクセスできずビルドエラーとなる。
@@ -61,9 +58,13 @@ struct GameView: View {
     /// - Note: レイアウト拡張（GameView+Layout）でも利用するため、アクセスレベルを internal（デフォルト）で共有する。
     @Namespace var cardAnimationNamespace
     /// SpriteKit シーンへのショートカット
-    /// - Note: レイアウト用拡張（`GameView+Layout`）で SpriteView を構築する際にも同じシーンへアクセスするため、
-    ///         アクセスレベルを internal（デフォルト）へ緩和し、型の拡張からも参照できるようにしている。
-    var scene: GameScene { boardBridge.scene }
+    /// - Note: レイアウト用拡張（`GameView+Layout`）で SpriteView を構築する際にも同じシーンへアクセスする必要があるため、
+    ///         `viewModel.boardBridge` を経由したプロパティとして切り出し、`@StateObject` が再利用された場合も一貫したシーンを参照できるようにする。
+    var scene: GameScene { viewModel.boardBridge.scene }
+
+    /// GameBoardBridgeViewModel へのショートカット
+    /// - Note: プロパティとしてまとめることで、別ファイルの拡張からも一貫した参照経路を利用できるようにする。
+    var boardBridge: GameBoardBridgeViewModel { viewModel.boardBridge }
 
     /// デフォルトのサービスを利用して `GameView` を生成するコンビニエンスイニシャライザ
     /// - Parameters:
@@ -96,26 +97,19 @@ struct GameView: View {
         // 以前はローカル定数で GameViewModel を生成してから @StateObject へ渡していたため、
         // SwiftUI の再初期化に伴い不要なインスタンスが都度作られ、GameCore の `configureForNewSession` が複数回走っていた。
         // ここでは `StateObject` の初期化クロージャへ直接渡し、必要なタイミングでのみインスタンス化されるようにする。
+        // MARK: - ユーザー設定を読み出して ViewModel 初期化へ渡す
+        // `StateObject` へ直接クロージャを渡し、SwiftUI 側で既存インスタンスが再利用される場合はイニシャライザ評価をスキップさせる。
+        let savedOrdering = UserDefaults.standard.string(forKey: HandOrderingStrategy.storageKey)
         _viewModel = StateObject(
             wrappedValue: GameViewModel(
                 mode: mode,
                 gameInterfaces: gameInterfaces,
                 gameCenterService: gameCenterService,
                 adsService: adsService,
-                onRequestReturnToTitle: onRequestReturnToTitle
+                onRequestReturnToTitle: onRequestReturnToTitle,
+                initialHandOrderingRawValue: savedOrdering
             )
         )
-
-        // MARK: - ユーザー設定の復元
-        // `StateObject` 初期化直後に `wrappedValue` を参照すれば、SwiftUI に保存されている既存インスタンスも再利用できる。
-        if let savedValue = UserDefaults.standard.string(forKey: HandOrderingStrategy.storageKey) {
-            _viewModel.wrappedValue.restoreHandOrderingStrategy(from: savedValue)
-        }
-
-        // MARK: - BoardBridge を既存インスタンスから参照
-        // `GameViewModel` が管理する `boardBridge` をそのまま監視対象として保持し、
-        // 重複生成による SpriteKit シーンの再構築を防ぐ。
-        _boardBridge = ObservedObject(wrappedValue: _viewModel.wrappedValue.boardBridge)
     }
 
     var body: some View {
