@@ -154,6 +154,10 @@ final class AdsConsentCoordinator: AdsConsentCoordinating {
     private let environment: AdsConsentEnvironment
     /// Info.plist に必要な値が揃っているかどうか
     private let hasValidAdConfiguration: Bool
+    /// Google UMP 側に同意フォームが未設定で、以降の問い合わせをスキップすべきかどうか
+    private var isMissingConsentFormConfiguration: Bool = false
+    /// フォーム未設定フォールバックの案内を重複表示させないためのフラグ
+    private var hasLoggedMissingConsentFormFallback: Bool = false
     /// トラッキング許諾ステータスを取得するためのクロージャ
     /// - Important: ATT の結果次第で NPA 強制が必要になるため、イニシャライザ引数として差し替え可能にしている
     private let trackingAuthorizationStatusProvider: () -> ATTrackingManager.AuthorizationStatus
@@ -179,6 +183,11 @@ final class AdsConsentCoordinator: AdsConsentCoordinating {
     }
 
     var currentState: AdsConsentState {
+        // 同意フォームが未設定の場合は常に NPA=1 かつ canRequestAds=true のフォールバックを返す
+        if isMissingConsentFormConfiguration {
+            return AdsConsentState(shouldUseNPA: true, canRequestAds: true)
+        }
+
         // shouldUseNPA が false でも ATT 側でトラッキング不可なら強制的に true とみなす
         let resolvedShouldUseNPA = shouldUseNPA || Self.shouldForceNPA(for: trackingAuthorizationStatusProvider())
         return AdsConsentState(shouldUseNPA: resolvedShouldUseNPA, canRequestAds: environment.canRequestAds)
@@ -186,6 +195,11 @@ final class AdsConsentCoordinator: AdsConsentCoordinating {
 
     func synchronizeOnLaunch() async {
         guard hasValidAdConfiguration else { return }
+
+        // フォーム未設定が確定している場合は不要なエラーを避けるため、即座にフォールバック処理へ移行する
+        if applyMissingConsentFormFallbackIfNeeded() {
+            return
+        }
 
         do {
             await MainActor.run {
@@ -201,6 +215,11 @@ final class AdsConsentCoordinator: AdsConsentCoordinating {
 
     func requestConsentIfNeeded() async {
         guard hasValidAdConfiguration else { return }
+
+        // 既にフォーム未設定が判明している場合は、フォーム取得を試みずにフォールバックを維持する
+        if applyMissingConsentFormFallbackIfNeeded() {
+            return
+        }
 
         do {
             debugLog("Google UMP の同意取得フローを開始します")
@@ -222,6 +241,10 @@ final class AdsConsentCoordinator: AdsConsentCoordinating {
     func refreshConsentStatus() async {
         guard hasValidAdConfiguration else { return }
 
+        if applyMissingConsentFormFallbackIfNeeded() {
+            return
+        }
+
         do {
             debugLog("Google UMP の同意ステータス更新を開始します")
             try await requestConsentUpdateAndNotify()
@@ -240,13 +263,27 @@ final class AdsConsentCoordinator: AdsConsentCoordinating {
     /// DEBUG/リリース共通で ConsentInformation の更新と通知まで行う共通処理
     private func requestConsentUpdateAndNotify() async throws {
         let parameters = makeRequestParameters()
-        try await environment.requestConsentInfoUpdate(with: parameters)
+        do {
+            try await environment.requestConsentInfoUpdate(with: parameters)
+        } catch {
+            // Google UMP の設定画面でフォームが未作成の場合は code=4 となるため、
+            // アプリ側ではエラー扱いにせず非パーソナライズ広告で継続する。
+            if handleMissingConsentFormErrorIfNeeded(error) {
+                return
+            }
+            throw error
+        }
         applyConsentStatusAndNotify()
     }
 
     /// UMP の結果に応じて shouldUseNPA を更新し、デリゲートへ状態を伝える
     @discardableResult
     private func applyConsentStatusAndNotify() -> AdsConsentState {
+        // フォールバック適用中は最新の ConsentInformation を利用せず、固定値を返す
+        if isMissingConsentFormConfiguration {
+            return applyMissingConsentFormFallback(using: nil, shouldReloadAds: false)
+        }
+
         let attStatus = trackingAuthorizationStatusProvider()
         let newShouldUseNPA = Self.resolveShouldUseNPA(
             consentStatus: environment.consentStatus,
@@ -261,6 +298,53 @@ final class AdsConsentCoordinator: AdsConsentCoordinating {
         debugLog(
             "UMP の同意結果を反映しました (shouldUseNPA: \(newShouldUseNPA), canRequestAds: \(state.canRequestAds), attStatus: \(Self.describeTrackingStatus(attStatus)))"
         )
+        return state
+    }
+
+    /// UMP 側で同意フォームが未作成の場合にエラーを判定し、フォールバックへ切り替える
+    /// - Parameter error: requestConsentInfoUpdate から受け取った生のエラー
+    /// - Returns: フォールバックへ切り替えた場合は true を返し、呼び出し元で追加処理を行わないよう制御する
+    private func handleMissingConsentFormErrorIfNeeded(_ error: Error) -> Bool {
+        let nsError = error as NSError
+        guard nsError.domain == "com.google.user_messaging_platform", nsError.code == 4 else {
+            return false
+        }
+
+        isMissingConsentFormConfiguration = true
+        applyMissingConsentFormFallback(using: error, shouldReloadAds: true)
+        return true
+    }
+
+    /// 既にフォーム未設定フォールバック適用中である場合、再度同じ処理を行う
+    /// - Returns: フォールバック処理を実行したかどうか
+    private func applyMissingConsentFormFallbackIfNeeded() -> Bool {
+        guard isMissingConsentFormConfiguration else { return false }
+        applyMissingConsentFormFallback(using: nil, shouldReloadAds: false)
+        return true
+    }
+
+    /// 同意フォームが未設定の際に NPA=1 で広告リクエストを許容するフォールバック
+    /// - Parameters:
+    ///   - error: 元になったエラー（ログ出力用）
+    ///   - shouldReloadAds: 既存の広告キャッシュを再ロードすべきかどうか
+    /// - Returns: 更新後の AdsConsentState を返却し、テストからも状態を検証できるようにする
+    @discardableResult
+    private func applyMissingConsentFormFallback(using error: Error?, shouldReloadAds: Bool) -> AdsConsentState {
+        let previousShouldUseNPA = shouldUseNPA
+        shouldUseNPA = true
+
+        let state = AdsConsentState(shouldUseNPA: true, canRequestAds: true)
+        let needsReload = shouldReloadAds || (previousShouldUseNPA != shouldUseNPA)
+        stateDelegate?.adsConsentCoordinator(self, didUpdate: state, shouldReloadAds: needsReload)
+
+        if let error {
+            debugError(error, message: "UMP のフォーム設定が未完了のため非パーソナライズ広告で継続します (フォーム未設定)")
+            hasLoggedMissingConsentFormFallback = true
+        } else if !hasLoggedMissingConsentFormFallback {
+            debugLog("UMP のフォーム設定が未完了のため非パーソナライズ広告で継続します (フォーム未設定)")
+            hasLoggedMissingConsentFormFallback = true
+        }
+
         return state
     }
 
