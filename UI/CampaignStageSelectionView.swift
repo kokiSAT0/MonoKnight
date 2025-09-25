@@ -18,6 +18,28 @@ struct CampaignStageSelectionView: View {
     /// テーマカラー
     private var theme = AppTheme()
 
+    /// メンバーごとの初期化処理を明示しておき、外部ファイルからの生成時にアクセスレベルの問題が発生しないようにする
+    /// - Parameters:
+    ///   - campaignLibrary: キャンペーンの章とステージ情報
+    ///   - progressStore: 進捗管理を担当するストア（ObservableObject）
+    ///   - selectedStageID: すでに選択済みのステージ ID
+    ///   - onClose: ビューを閉じるためのコールバック
+    ///   - onSelectStage: ステージ選択確定時に呼び出されるコールバック
+    init(
+        campaignLibrary: CampaignLibrary,
+        progressStore: CampaignProgressStore,
+        selectedStageID: CampaignStageID?,
+        onClose: @escaping () -> Void,
+        onSelectStage: @escaping (CampaignStage) -> Void
+    ) {
+        // @ObservedObject プロパティはラッパー経由で代入する必要があるため、明示的に初期化する
+        self.campaignLibrary = campaignLibrary
+        _progressStore = ObservedObject(wrappedValue: progressStore)
+        self.selectedStageID = selectedStageID
+        self.onClose = onClose
+        self.onSelectStage = onSelectStage
+    }
+
     var body: some View {
         List {
             ForEach(campaignLibrary.chapters) { chapter in
