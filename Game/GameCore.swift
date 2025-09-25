@@ -2,54 +2,10 @@ import Foundation
 import SharedSupport // ログユーティリティを利用するため追加
 #if canImport(Combine)
 import Combine
-#else
-/// Linux など Combine が存在しない環境向けの簡易定義
-public protocol ObservableObject {}
-@propertyWrapper
-public struct Published<Value> {
-
-    /// ラップされている実際の値
-    public var wrappedValue: Value
-    /// 初期化で保持する値を受け取る
-
-    public init(wrappedValue: Value) { self.wrappedValue = wrappedValue }
-}
 #endif
 #if canImport(UIKit)
 import UIKit
 #endif
-
-/// 手札の並べ替え設定を Game モジュール側でも利用できるように定義
-/// - Note: UI 層とゲームロジックの双方から参照されるため、SPM ターゲットに確実に含まれる GameCore.swift 内で定義している
-public enum HandOrderingStrategy: String, CaseIterable {
-    /// 山札から引いた順番をそのまま保持する方式
-    case insertionOrder
-    /// 移動方向に基づいて常にソートする方式
-    case directionSorted
-
-    /// UserDefaults / @AppStorage で共有するためのキー
-    public static let storageKey = "hand_ordering_strategy"
-
-    /// 設定画面などに表示する日本語名称
-    public var displayName: String {
-        switch self {
-        case .insertionOrder:
-            return "引いた順に並べる"
-        case .directionSorted:
-            return "移動方向で並べ替える"
-        }
-    }
-
-    /// 詳細説明文。フッター表示などで再利用する
-    public var detailDescription: String {
-        switch self {
-        case .insertionOrder:
-            return "山札から引いた順番で手札スロットへ補充します。消費した位置へ新しいカードが入ります。"
-        case .directionSorted:
-            return "左への移動量が大きいカードほど左側に、同じ左右移動量なら上方向へ進むカードを優先して並べます。"
-        }
-    }
-}
 
 /// ゲーム進行を統括するクラス
 /// - 盤面操作・手札管理・ペナルティ処理・スコア計算を担当する
@@ -261,7 +217,7 @@ public final class GameCore: ObservableObject {
         }
 
         let nextText = nextCards.isEmpty ? "なし" : nextCards.map { "\($0.move)" }.joined(separator: ", ")
-        let handMoves = handStacks.map(stackSummary).joined(separator: ", ")
+        let handMoves = handStacks.debugSummaryJoined(emptyPlaceholder: "なし")
         debugLog("ゲームをリセット: 手札 [\(handMoves)], 次カード \(nextText)")
 #if DEBUG
         board.debugDump(current: current)
@@ -328,20 +284,6 @@ extension GameCore: GameCoreProtocol {
 #endif
 
 extension GameCore {
-    /// デバッグログで扱いやすいよう、スタック内容を簡潔なテキストへ整形する
-    /// - Parameter stack: 対象の `HandStack`
-    /// - Returns: 「MoveCard×枚数」の形式（1 枚の場合は枚数省略）
-    func stackSummary(_ stack: HandStack) -> String {
-        guard let move = stack.representativeMove else {
-            return "(空スタック)"
-        }
-        if stack.count > 1 {
-            return "\(move)×\(stack.count)"
-        } else {
-            return "\(move)"
-        }
-    }
-
     /// HandManager が保持する最新状態を公開用プロパティへ反映する
     /// - Note: Combine 非対応環境でも確実に配列が更新されるよう、明示的に値をコピーする
     func refreshHandStateFromManager() {

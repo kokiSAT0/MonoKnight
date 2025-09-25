@@ -142,7 +142,7 @@ extension GameCore {
 
         // デバッグログ: 引き直し後の状態を詳細に記録
         debugLog("ペナルティ引き直しを実行（トリガー: \(trigger.debugDescription)）")
-        let handDescription = handStacks.map(stackSummary).joined(separator: ", ")
+        let handDescription = handStacks.debugSummaryJoined(emptyPlaceholder: "なし")
         debugLog("引き直し後の手札: [\(handDescription)]")
         // デバッグ: 引き直し後の盤面を表示
 #if DEBUG
