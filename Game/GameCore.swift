@@ -458,5 +458,14 @@ extension GameCore {
     func simulateSpawnSelection(forTesting point: GridPoint) {
         handleSpawnSelection(at: point)
     }
+
+    /// テスト時に任意の開始時刻へ調整し、`liveElapsedSeconds` の計算結果を制御する
+    /// - Parameter newStartDate: 擬似的に設定したい開始時刻
+    func setStartDateForTesting(_ newStartDate: Date) {
+        // リアルタイム計測は startDate と現在時刻の差分で算出されるため、テストでは任意の値へ差し替えられるようにする。
+        startDate = newStartDate
+        // 進行中のケースを再現するため、終了時刻は強制的に未確定へ戻しておく。
+        endDate = nil
+    }
 }
 #endif
