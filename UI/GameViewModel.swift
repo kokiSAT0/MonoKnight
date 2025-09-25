@@ -148,7 +148,10 @@ final class GameViewModel: ObservableObject {
 
     /// 表示用の経過時間を再計算する
     func updateDisplayedElapsedTime() {
-        displayedElapsedSeconds = core.elapsedSeconds
+        // GameCore 側では経過秒数をリアルタイム計測しつつ、クリア確定時に `elapsedSeconds` へ確定値を格納する。
+        // プレイ中に UI で使用する値は `liveElapsedSeconds` を参照することで、
+        // ストップウォッチのように 1 秒刻みで増加し続ける体験を提供できるようにする。
+        displayedElapsedSeconds = core.liveElapsedSeconds
     }
 
     /// 指定スタックのカードが現在位置から使用可能か判定する
