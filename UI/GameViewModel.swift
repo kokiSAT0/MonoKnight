@@ -200,6 +200,76 @@ final class GameViewModel: ObservableObject {
         }
     }
 
+    // MARK: - 手動操作ボタンのサポート
+
+    /// 捨て札ボタンを操作可能かどうか判定する
+    /// - Returns: 進行中かつ手札が 1 種類以上存在する場合に true
+    var isManualDiscardButtonEnabled: Bool {
+        core.progress == .playing && !core.handStacks.isEmpty
+    }
+
+    /// 捨て札ボタンに設定するアクセシビリティ説明文
+    /// - Returns: 選択モード中かどうか、およびペナルティの有無に応じた説明テキスト
+    var manualDiscardAccessibilityHint: String {
+        let penaltyCost = core.mode.manualDiscardPenaltyCost
+
+        if core.isAwaitingManualDiscardSelection {
+            return "捨て札モードを終了します。カードを選ばずに通常操作へ戻ります。"
+        }
+
+        if penaltyCost > 0 {
+            return "手数を\(penaltyCost)消費して、選択した手札 1 種類をまとめて捨て札にし、新しいカードを補充します。"
+        } else {
+            return "手数を消費せずに、選択した手札 1 種類をまとめて捨て札にし、新しいカードを補充します。"
+        }
+    }
+
+    /// 捨て札モードの開始/終了をトグルする
+    /// - Note: ボタンが無効な状態では開始せず、選択中であれば常に終了させる
+    func toggleManualDiscardSelection() {
+        if core.isAwaitingManualDiscardSelection {
+            core.cancelManualDiscardSelection()
+            return
+        }
+
+        guard isManualDiscardButtonEnabled else { return }
+        core.beginManualDiscardSelection()
+    }
+
+    /// 手動ペナルティボタンを操作可能かどうか判定する
+    /// - Returns: プレイ中であれば true
+    var isManualPenaltyButtonEnabled: Bool {
+        core.progress == .playing
+    }
+
+    /// 手動ペナルティボタンのアクセシビリティ説明文
+    /// - Returns: 手数消費量とスタック仕様を含めた説明テキスト
+    var manualPenaltyAccessibilityHint: String {
+        let cost = core.mode.manualRedrawPenaltyCost
+        let stackingDetail = core.mode.stackingRuleDetailText
+        let refillDescription = "手札スロットを全て空にし、新しいカードを最大 \(core.mode.handSize) 種類まで補充します。"
+
+        if cost > 0 {
+            return "手数を\(cost)消費して\(refillDescription)\(stackingDetail)"
+        } else {
+            return "手数を消費せずに\(refillDescription)\(stackingDetail)"
+        }
+    }
+
+    /// 手動ペナルティの確認ダイアログを表示するようリクエストする
+    /// - Note: ゲームが進行中でない場合は無視し、誤操作によるダイアログ表示を防ぐ
+    func requestManualPenalty() {
+        guard isManualPenaltyButtonEnabled else { return }
+        pendingMenuAction = .manualPenalty(penaltyCost: core.mode.manualRedrawPenaltyCost)
+    }
+
+    /// ポーズメニューを表示する
+    /// - Note: ログ出力もここでまとめて行い、UI 側の責務を軽量化する
+    func presentPauseMenu() {
+        debugLog("GameViewModel: ポーズメニュー表示要求")
+        isPauseMenuPresented = true
+    }
+
     /// ゲームの進行状況に応じた操作をまとめて処理する
     func performMenuAction(_ action: GameMenuAction) {
         pendingMenuAction = nil
