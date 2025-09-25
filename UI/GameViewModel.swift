@@ -147,7 +147,8 @@ final class GameViewModel: ObservableObject {
         gameCenterService: GameCenterServiceProtocol,
         adsService: AdsServiceProtocol,
         onRequestReturnToTitle: (() -> Void)?,
-        penaltyBannerScheduler: PenaltyBannerScheduling = PenaltyBannerScheduler()
+        penaltyBannerScheduler: PenaltyBannerScheduling = PenaltyBannerScheduler(),
+        initialHandOrderingRawValue: String? = nil
     ) {
         self.mode = mode
         self.gameInterfaces = gameInterfaces
@@ -169,8 +170,21 @@ final class GameViewModel: ObservableObject {
             }
             .store(in: &cancellables)
 
+        // BoardBridge の描画更新も ViewModel 経由で伝播し、GameView 側が単一の監視対象で済むようにする
+        boardBridge.objectWillChange
+            .sink { [weak self] _ in
+                guard let self else { return }
+                self.objectWillChange.send()
+            }
+            .store(in: &cancellables)
+
         // GameCore が公開する各種状態を監視し、SwiftUI 側の責務を軽量化する
         bindGameCore()
+
+        // ユーザー設定から手札並び順を復元する
+        if let rawValue = initialHandOrderingRawValue {
+            restoreHandOrderingStrategy(from: rawValue)
+        }
     }
 
     /// ユーザー設定から手札の並び替え戦略を復元する
