@@ -521,11 +521,56 @@ struct ResultView: View {
 
 struct ResultView_Previews: PreviewProvider {
     static var previews: some View {
-        // プレビュー用にキャンペーンステージのダミーデータを構築
-        let stage = CampaignLibrary.shared.chapters.first!.stages.first
+        // プレビュー用にキャンペーンステージのダミーデータを安全に構築（nil を直接扱わないため）
+        Group {
+            if let stage = CampaignLibrary.shared.chapters.first?.stages.first {
+                // プレビュー用の進捗データを作成
+                var progress = CampaignStageProgress()
+                progress.earnedStars = 2
+                progress.achievedSecondaryObjective = true
+
+                // プレビューで利用する評価データを作成
+                let record = CampaignStageClearRecord(
+                    stage: stage,
+                    evaluation: CampaignStageEvaluation(
+                        stageID: stage.id,
+                        earnedStars: 2,
+                        achievedSecondaryObjective: true,
+                        achievedScoreGoal: false
+                    ),
+                    progress: progress
+                )
+
+                ResultView(
+                    moveCount: 24,
+                    penaltyCount: 6,
+                    elapsedSeconds: 132,
+                    modeIdentifier: .standard5x5,
+                    modeDisplayName: "スタンダード",
+                    campaignClearRecord: record,
+                    newlyUnlockedStages: [stage],
+                    onRetry: {},
+                    gameCenterService: GameCenterService.shared,
+                    adsService: AdsService.shared
+                )
+            } else {
+                // プレビュー用のステージ情報が取得できない場合のフォールバック表示
+                Text("プレビュー用のステージが見つかりません")
+            }
+        }
+    }
+}
+
+
+#Preview {
+    // #Preview マクロでも安全にデータを取り出す（クラッシュを防ぐため）
+    if let stage = CampaignLibrary.shared.chapters.first?.stages.first {
+        // プレビュー用の進捗データを作成
         var progress = CampaignStageProgress()
         progress.earnedStars = 2
         progress.achievedSecondaryObjective = true
+
+        // プレビューで利用する評価データを作成
         let record = CampaignStageClearRecord(
             stage: stage,
             evaluation: CampaignStageEvaluation(
@@ -545,38 +590,10 @@ struct ResultView_Previews: PreviewProvider {
             modeDisplayName: "スタンダード",
             campaignClearRecord: record,
             newlyUnlockedStages: [stage],
-            onRetry: {},
-            gameCenterService: GameCenterService.shared,
-            adsService: AdsService.shared
+            onRetry: {}
         )
+    } else {
+        // データが取得できなかった場合でもプレビューが動作するようにフォールバックを返却
+        Text("プレビュー用のステージが見つかりません")
     }
-}
-
-
-#Preview {
-    let stage = CampaignLibrary.shared.chapters.first!.stages.first
-    var progress = CampaignStageProgress()
-    progress.earnedStars = 2
-    progress.achievedSecondaryObjective = true
-    let record = CampaignStageClearRecord(
-        stage: stage,
-        evaluation: CampaignStageEvaluation(
-            stageID: stage.id,
-            earnedStars: 2,
-            achievedSecondaryObjective: true,
-            achievedScoreGoal: false
-        ),
-        progress: progress
-    )
-
-    ResultView(
-        moveCount: 24,
-        penaltyCount: 6,
-        elapsedSeconds: 132,
-        modeIdentifier: .standard5x5,
-        modeDisplayName: "スタンダード",
-        campaignClearRecord: record,
-        newlyUnlockedStages: [stage],
-        onRetry: {}
-    )
 }
