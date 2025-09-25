@@ -294,6 +294,11 @@ private extension RootView {
         let onReturnToTitle: () -> Void
         /// 直近でログ出力したスナップショットをローカルに保持し、重複出力と同時にレイアウト警告も防ぐキャッシュ
         @State private var loggedSnapshotCache: RootLayoutSnapshot?
+        /// トップバー高さを一度でも正しく計測できたかどうかを追跡するフラグ
+        /// - NOTE: シミュレーター初期描画では GeometryReader から 0 が返る場合があり、
+        ///         実際には問題が無いにも関わらず警告ログが出力されてしまうため、
+        ///         正常値が観測できるまで警告を抑制する目的で利用する
+        @State private var hasObservedPositiveTopBarHeight = false
 
         var body: some View {
             ZStack {
@@ -448,7 +453,14 @@ private extension RootView {
 
             debugLog(message)
 
+            if snapshot.topBarHeight > 0 {
+                // 一度でも正の高さを観測したらフラグを立て、以降の 0 判定は異常として扱う
+                hasObservedPositiveTopBarHeight = true
+            }
+
             if snapshot.topBarHeight <= 0 {
+                // フラグが未設定の場合はシミュレーター初期描画での 0 応答を想定し、警告を出さずに観測のみ行う
+                guard hasObservedPositiveTopBarHeight else { return }
                 debugLog("RootView.layout 警告: topBarHeight が 0 以下です。safe area とフォールバック設定を確認してください。")
             }
             if snapshot.safeAreaTop < 0 || snapshot.safeAreaBottom < 0 {
