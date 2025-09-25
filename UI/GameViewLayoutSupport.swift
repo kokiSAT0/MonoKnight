@@ -197,9 +197,15 @@ struct GameViewLayoutCalculator {
             : (usedBottomFallback ? GameViewLayoutMetrics.regularWidthBottomSafeAreaFallback : 0)
 
         // MARK: - 盤面上部コントロールバーの余白を決定
+        // MARK: - トップバー追加分を差し引いたうえで必要な余白を計算
+        // safeAreaInset によってコンテンツ全体がトップバー高さぶんだけ下へ押し下げられるため、
+        // overlayCompensation（= topOverlayHeight）をそのまま足し込んでしまうと二重で距離が開いてしまう。
+        // そこでトップバーで増えた高さを差し引いた残差だけを安全余白として扱い、
+        // ステータスバー由来の領域に限って追加のマージン（controlRowSafeAreaAdditionalPadding）を加える。
+        let safeAreaRemainderWithoutOverlay = max(overlayAdjustedTopInset - overlayCompensation, 0)
         let controlRowTopPadding = max(
             GameViewLayoutMetrics.controlRowBaseTopPadding,
-            overlayAdjustedTopInset + GameViewLayoutMetrics.controlRowSafeAreaAdditionalPadding
+            safeAreaRemainderWithoutOverlay + GameViewLayoutMetrics.controlRowSafeAreaAdditionalPadding
         )
 
         // MARK: - 手札セクション下部の余白を決定
