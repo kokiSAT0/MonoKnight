@@ -23,7 +23,7 @@ public struct CampaignStageID: Hashable, Codable {
     }
 
     /// UserDefaults へ保存する際のキー
-    var storageKey: String {
+    public var storageKey: String {
         displayCode
     }
 
