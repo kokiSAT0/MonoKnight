@@ -157,9 +157,12 @@ private let debugLogSubsystem: String = {
 #if canImport(OSLog)
 /// 一般ログを書き出すための Logger インスタンス
 /// - Important: TestFlight などリリースビルドでもログが収集できるよう、`Logger` を用いて統一的に出力する
+@available(macOS 11.0, iOS 14.0, tvOS 14.0, watchOS 7.0, *)
 private let debugLogger = Logger(subsystem: debugLogSubsystem + ".debug", category: "general")
 
 /// エラーログを書き出すための Logger インスタンス
+/// - Note: 利用側では `if #available` で安全に呼び出し、旧 OS では自動的にフォールバックさせる
+@available(macOS 11.0, iOS 14.0, tvOS 14.0, watchOS 7.0, *)
 private let errorLogger = Logger(subsystem: debugLogSubsystem + ".debug", category: "error")
 
 /// OSLog へ重複出力するかどうかの判定結果をキャッシュ
@@ -205,7 +208,13 @@ public func debugLog(
     // TestFlight や実機デバッグでも Console.app から追跡できるよう OSLog 経由でも出力する
 #if canImport(OSLog)
     if shouldForwardLogsToOSLog {
-        debugLogger.log("\(composedMessage, privacy: .public)")
+        if #available(macOS 11.0, iOS 14.0, tvOS 14.0, watchOS 7.0, *) {
+            // Logger が利用できる OS ではプライバシー指定を添えて統一的に出力する
+            debugLogger.log("\(composedMessage, privacy: .public)")
+        } else {
+            // 旧 OS（Logger 非対応）では print にフォールバックし、最低限の記録を残す
+            print(composedMessage)
+        }
     }
 #else
     // OSLog が利用できない環境（Linux でのテストなど）では print のみで代替する
@@ -258,7 +267,13 @@ public func debugError(
     // エラーログは OSLog の error レベルで送出しておき、TestFlight 配信版でも収集できるようにする
 #if canImport(OSLog)
     if shouldForwardLogsToOSLog {
-        errorLogger.error("\(composedMessage, privacy: .public)")
+        if #available(macOS 11.0, iOS 14.0, tvOS 14.0, watchOS 7.0, *) {
+            // Logger の error レベルで送信し、Console.app でも判別しやすくする
+            errorLogger.error("\(composedMessage, privacy: .public)")
+        } else {
+            // Logger が使えない環境では print へ切り替え、最低限の情報を保持
+            print(composedMessage)
+        }
     }
 #else
     // OSLog が無い環境では print のみで代替（ERROR プレフィックスは保持）
