@@ -183,7 +183,10 @@ struct DiagnosticsCenterView: View {
             ) { _ in
                 // 補足: SwiftUI の View は構造体で循環参照が発生しないため弱参照は不要。
                 // 強参照のまま state を更新する方がコンパイルエラーを避けられる。
-                refreshLogEntries()
+                Task { @MainActor in
+                    // Swift 6 では非同期コンテキストからメインアクター専有メソッドを直接呼べないため、Task 経由でメインアクターへ戻す。
+                    refreshLogEntries()
+                }
             }
         }
         if crashObserver == nil {
@@ -193,7 +196,10 @@ struct DiagnosticsCenterView: View {
                 queue: .main
             ) { _ in
                 // 補足: 上記と同様に View は値型で循環参照を気にする必要がないため弱参照を使用しない。
-                refreshCrashEvents()
+                Task { @MainActor in
+                    // Swift 6 でもメインアクター上で状態更新を行うよう明示し、コンパイルエラーを防ぐ。
+                    refreshCrashEvents()
+                }
             }
         }
     }
