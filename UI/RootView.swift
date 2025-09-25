@@ -525,6 +525,29 @@ private extension RootView {
         /// テーマを利用してライト/ダーク両対応の配色を適用する
         private var theme = AppTheme()
 
+        /// 外部から生成できるようメンバーワイズイニシャライザを明示的に定義する
+        /// - Parameters:
+        ///   - mode: 表示するゲームモード
+        ///   - campaignLibrary: ステージ情報の参照元
+        ///   - campaignProgressStore: 進捗情報を監視するオブジェクト
+        ///   - isReadyToStart: ゲーム開始ボタンの表示可否
+        ///   - onStart: 開始ボタン押下時に呼び出すハンドラ
+        init(
+            mode: GameMode,
+            campaignLibrary: CampaignLibrary,
+            campaignProgressStore: CampaignProgressStore,
+            isReadyToStart: Bool,
+            onStart: @escaping () -> Void
+        ) {
+            // 受け取った値をそのままプロパティへ反映する
+            self.mode = mode
+            self.campaignLibrary = campaignLibrary
+            // @ObservedObject プロパティはラッパー経由で初期化する必要がある
+            self._campaignProgressStore = ObservedObject(wrappedValue: campaignProgressStore)
+            self.isReadyToStart = isReadyToStart
+            self.onStart = onStart
+        }
+
         /// 対象がキャンペーンステージであればステージ定義を取得
         private var stage: CampaignStage? {
             guard let metadata = mode.campaignMetadataSnapshot else { return nil }
