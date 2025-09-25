@@ -17,9 +17,9 @@ struct GameView: View {
     ///         同一型の別ファイル拡張からも参照できるようアクセスレベルはデフォルト（internal）にしている。
     let theme = AppTheme()
     /// 現在のライト/ダーク設定を環境から取得し、SpriteKit 側の色にも反映する
-    /// - Note: 監視系ロジックを別ファイルに切り出した `GameView+Observers` でも参照するため、
-    ///         `private` ではなく `fileprivate` へ緩和し、同一型拡張からアクセスできるようにする。
-    @Environment(\.colorScheme) fileprivate var colorScheme
+    /// - Note: 監視系ロジックを別ファイルへ分割しているため、`fileprivate` にするとアクセスできずビルドエラーとなる。
+    ///         そのためアクセスレベルはデフォルト（internal）のままにして、同一モジュール内の拡張から安全に参照できるようにしている。
+    @Environment(\.colorScheme) var colorScheme
     /// デバイスの横幅サイズクラスを取得し、iPad などレギュラー幅でのモーダル挙動を調整する
     /// - Note: レイアウト計算用の拡張（`GameView+Layout`）でも参照するため、アクセスレベルは internal に緩和している
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
@@ -43,12 +43,14 @@ struct GameView: View {
     /// - Note: こちらもレイアウト拡張からの参照が必要なため、`internal`（デフォルト）のアクセスレベルを確保している。
     @ObservedObject var boardBridge: GameBoardBridgeViewModel
     /// ハプティクスを有効にするかどうかの設定値
+
     /// - Note: 監視処理を別ファイルの拡張（`GameView+Observers`）へ切り出しているため、`fileprivate` ではアクセスできずビルドエラーとなる。
     ///         internal（デフォルト）へ緩和してモジュール内の拡張から安全に共有する。
+
     @AppStorage("haptics_enabled") var hapticsEnabled: Bool = true
     /// ガイドモードのオン/オフを永続化し、盤面ハイライト表示を制御する
-    /// - Note: 同様に監視処理が別ファイルの拡張へ分離されているため、アクセスレベルを `fileprivate` に調整している。
-    @AppStorage("guide_mode_enabled") fileprivate var guideModeEnabled: Bool = true
+    /// - Note: こちらも監視処理を別ファイルで扱う必要があるため、`fileprivate` ではなく internal を維持して拡張から参照できるようにする。
+    @AppStorage("guide_mode_enabled") var guideModeEnabled: Bool = true
     /// 手札の並び替え方式。設定変更時に GameCore へ伝搬する
 
     /// - Note: 監視系ロジックを切り出した `GameView+Observers` でも値を参照する必要があるため、
@@ -59,7 +61,9 @@ struct GameView: View {
     /// - Note: レイアウト拡張（GameView+Layout）でも利用するため、アクセスレベルを internal（デフォルト）で共有する。
     @Namespace var cardAnimationNamespace
     /// SpriteKit シーンへのショートカット
-    private var scene: GameScene { boardBridge.scene }
+    /// - Note: レイアウト用拡張（`GameView+Layout`）で SpriteView を構築する際にも同じシーンへアクセスするため、
+    ///         アクセスレベルを internal（デフォルト）へ緩和し、型の拡張からも参照できるようにしている。
+    var scene: GameScene { boardBridge.scene }
 
     /// デフォルトのサービスを利用して `GameView` を生成するコンビニエンスイニシャライザ
     /// - Parameters:

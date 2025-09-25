@@ -8,6 +8,18 @@ struct PenaltyBannerView: View {
     /// 直近のペナルティ量
     let penaltyAmount: Int
 
+    /// 外部から利用するためのカスタムイニシャライザ
+    /// - Parameters:
+    ///   - penaltyAmount: 表示対象となる最新のペナルティ値
+    ///   - theme: テーマ差し替え用（通常は既定値を利用）
+    init(penaltyAmount: Int, theme: AppTheme = AppTheme()) {
+        // MARK: - 依存関係の代入
+        // View 外部で生成したテーマを受け取り、必要に応じてデザインを切り替えられるようにする。
+        self.theme = theme
+        // ペナルティ値を保持し、メッセージ表示に利用する。
+        self.penaltyAmount = penaltyAmount
+    }
+
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
             // MARK: - 警告アイコン
