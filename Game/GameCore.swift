@@ -53,6 +53,8 @@ public final class GameCore: ObservableObject {
     @Published public private(set) var elapsedSeconds: Int = 0
     /// 直近で加算されたペナルティ手数
     @Published public private(set) var lastPenaltyAmount: Int = 0
+    /// プレイ中に既踏マスへ戻ったことがあるかどうか
+    public private(set) var hasRevisitedTile: Bool = false
 
     /// 合計手数（移動 + ペナルティ）の計算プロパティ
     /// - Note: 将来的に別レギュレーションで利用する可能性があるため個別に保持
@@ -136,6 +138,10 @@ public final class GameCore: ObservableObject {
             penaltyCount += mode.revisitPenaltyCost
             debugLog("既踏マス再訪ペナルティ: +\(mode.revisitPenaltyCost)")
         }
+        if revisiting {
+            // 既踏マスへ戻った事実を記録し、キャンペーン評価条件へ利用する
+            hasRevisitedTile = true
+        }
 
         // 盤面更新に合わせて残り踏破数を読み上げ
         announceRemainingTiles()
@@ -199,6 +205,7 @@ public final class GameCore: ObservableObject {
         penaltyCount = 0
         elapsedSeconds = 0
         lastPenaltyAmount = 0
+        hasRevisitedTile = false
         penaltyEventID = nil
         boardTapPlayRequest = nil
         isAwaitingManualDiscardSelection = false
