@@ -383,6 +383,10 @@ private extension RootView {
                     onRequestReturnToTitle: {
                         // GameView 内からの戻り要求を親へ伝播させる
                         onReturnToTitle()
+                    },
+                    onRequestStartCampaignStage: { stage in
+                        // クリア後に解放されたステージへの即時挑戦リクエストを受け取り、ゲーム準備をやり直す
+                        startGamePreparation(for: stage.makeGameMode())
                     }
                 )
                 .id(gameSessionID)

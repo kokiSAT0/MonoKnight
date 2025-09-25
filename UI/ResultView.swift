@@ -22,6 +22,12 @@ struct ResultView: View {
     /// ランキングボタンを表示するかどうか
     let showsLeaderboardButton: Bool
 
+    /// キャンペーンステージのクリア記録（通常モードの場合は nil）
+    let campaignClearRecord: CampaignStageClearRecord?
+    /// 今回のクリアで新しく解放されたキャンペーンステージ一覧
+    let newlyUnlockedStages: [CampaignStage]
+    /// 解放されたステージへ直接移動するためのクロージャ
+    let onSelectCampaignStage: ((CampaignStage) -> Void)?
     /// 再戦処理を外部から受け取るクロージャ
     let onRetry: () -> Void
 
@@ -55,6 +61,9 @@ struct ResultView: View {
         modeIdentifier: GameMode.Identifier,
         modeDisplayName: String,
         showsLeaderboardButton: Bool = true,
+        campaignClearRecord: CampaignStageClearRecord? = nil,
+        newlyUnlockedStages: [CampaignStage] = [],
+        onSelectCampaignStage: ((CampaignStage) -> Void)? = nil,
         onRetry: @escaping () -> Void
     ) {
         self.init(
@@ -64,6 +73,9 @@ struct ResultView: View {
             modeIdentifier: modeIdentifier,
             modeDisplayName: modeDisplayName,
             showsLeaderboardButton: showsLeaderboardButton,
+            campaignClearRecord: campaignClearRecord,
+            newlyUnlockedStages: newlyUnlockedStages,
+            onSelectCampaignStage: onSelectCampaignStage,
             onRetry: onRetry,
             gameCenterService: GameCenterService.shared,
             adsService: AdsService.shared
@@ -77,6 +89,9 @@ struct ResultView: View {
         modeIdentifier: GameMode.Identifier,
         modeDisplayName: String,
         showsLeaderboardButton: Bool = true,
+        campaignClearRecord: CampaignStageClearRecord? = nil,
+        newlyUnlockedStages: [CampaignStage] = [],
+        onSelectCampaignStage: ((CampaignStage) -> Void)? = nil,
         onRetry: @escaping () -> Void,
 
         gameCenterService: GameCenterServiceProtocol,
@@ -95,6 +110,9 @@ struct ResultView: View {
         self.modeIdentifier = modeIdentifier
         self.modeDisplayName = modeDisplayName
         self.showsLeaderboardButton = showsLeaderboardButton
+        self.campaignClearRecord = campaignClearRecord
+        self.newlyUnlockedStages = newlyUnlockedStages
+        self.onSelectCampaignStage = onSelectCampaignStage
         self.onRetry = onRetry
         self.gameCenterService = resolvedGameCenterService
         self.adsService = resolvedAdsService
@@ -149,6 +167,11 @@ struct ResultView: View {
                             .multilineTextAlignment(.center)
                             .transition(.opacity)
                     }
+                }
+
+                // MARK: - キャンペーン用のリワード達成表示
+                if let record = campaignClearRecord {
+                    campaignRewardSummary(for: record)
                 }
 
                 // MARK: - リトライボタン
@@ -286,6 +309,94 @@ struct ResultView: View {
         }
     }
 
+    /// キャンペーンリワードの達成状況をまとめたセクションを生成
+    /// - Parameter record: 今回のクリア結果を反映した評価レコード
+    @ViewBuilder
+    private func campaignRewardSummary(for record: CampaignStageClearRecord) -> some View {
+        VStack(alignment: .leading, spacing: 16) {
+            // ステージ名と獲得スター数を明示し、現在地を把握しやすくする
+            Text("キャンペーンリワード")
+                .font(.title3.weight(.semibold))
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("ステージ \(record.stage.displayCode) \(record.stage.title)")
+                    .font(.headline)
+
+                HStack(spacing: 6) {
+                    ForEach(0..<3, id: \.self) { index in
+                        Image(systemName: index < record.progress.earnedStars ? "star.fill" : "star")
+                            .foregroundColor(index < record.progress.earnedStars ? .yellow : .secondary)
+                    }
+                }
+                .accessibilityLabel("累計スター: \(record.progress.earnedStars) / 3")
+
+                Text("今回の獲得: \(record.evaluation.earnedStars) / 3")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(campaignRewardConditions(for: record), id: \.title) { item in
+                    HStack(spacing: 12) {
+                        Image(systemName: item.isAchieved ? "checkmark.circle.fill" : "circle")
+                            .foregroundColor(item.isAchieved ? .green : .secondary)
+                            .font(.system(size: 20, weight: .semibold))
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(item.title)
+                                .font(.subheadline.weight(.semibold))
+                            Text(item.description)
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+
+            if !newlyUnlockedStages.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("新しく解放されたステージ")
+                        .font(.headline)
+
+                    Text("そのまま次のステージに進みましょう。")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+
+                    let canNavigate = onSelectCampaignStage != nil
+                    ForEach(newlyUnlockedStages, id: \.id) { stage in
+                        Button {
+                            // ハプティクス設定に応じて軽いフィードバックを返し、ボタン操作の確実性を高める
+                            if hapticsEnabled {
+                                UINotificationFeedbackGenerator().notificationOccurred(.success)
+                            }
+                            onSelectCampaignStage?(stage)
+                        } label: {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("ステージ \(stage.displayCode)")
+                                        .font(.subheadline.weight(.semibold))
+                                    Text(stage.title)
+                                        .font(.footnote)
+                                }
+                                Spacer(minLength: 0)
+                                Image(systemName: "chevron.right")
+                                    .font(.footnote.weight(.semibold))
+                            }
+                            .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(!canNavigate)
+                    }
+                }
+            }
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(Color(UIColor.secondarySystemBackground))
+        )
+    }
+
     /// ベスト記録を表示用の文字列に変換
     private var bestPointsText: String {
         bestPoints == .max ? "-" : String(bestPoints)
@@ -294,6 +405,38 @@ struct ResultView: View {
     /// 合計手数を計算するヘルパー
     private var totalMoves: Int {
         moveCount + penaltyCount
+    }
+
+    /// キャンペーンリワードを行単位へ分解し、チェックリストとして利用しやすい形に整える
+    /// - Parameter record: 今回のクリア記録
+    /// - Returns: 表示用のタプル配列
+    private func campaignRewardConditions(for record: CampaignStageClearRecord) -> [(title: String, description: String, isAchieved: Bool)] {
+        var items: [(title: String, description: String, isAchieved: Bool)] = []
+
+        // ★1: ステージクリアは確定で達成済みのため、説明文を固定で挿入する
+        items.append((
+            title: "★1",
+            description: "ステージをクリア",  // 基本条件を明示してプレイヤーの達成感を補強する
+            isAchieved: true
+        ))
+
+        if let secondary = record.stage.secondaryObjectiveDescription {
+            items.append((
+                title: "★2",
+                description: secondary,
+                isAchieved: record.progress.achievedSecondaryObjective
+            ))
+        }
+
+        if let scoreTarget = record.stage.scoreTargetDescription {
+            items.append((
+                title: "★3",
+                description: scoreTarget,
+                isAchieved: record.progress.achievedScoreGoal
+            ))
+        }
+
+        return items
     }
 
     /// 手数に 10 を掛けたポイント換算値
@@ -378,12 +521,30 @@ struct ResultView: View {
 
 struct ResultView_Previews: PreviewProvider {
     static var previews: some View {
+        // プレビュー用にキャンペーンステージのダミーデータを構築
+        let stage = CampaignLibrary.shared.chapters.first!.stages.first
+        var progress = CampaignStageProgress()
+        progress.earnedStars = 2
+        progress.achievedSecondaryObjective = true
+        let record = CampaignStageClearRecord(
+            stage: stage,
+            evaluation: CampaignStageEvaluation(
+                stageID: stage.id,
+                earnedStars: 2,
+                achievedSecondaryObjective: true,
+                achievedScoreGoal: false
+            ),
+            progress: progress
+        )
+
         ResultView(
             moveCount: 24,
             penaltyCount: 6,
             elapsedSeconds: 132,
             modeIdentifier: .standard5x5,
             modeDisplayName: "スタンダード",
+            campaignClearRecord: record,
+            newlyUnlockedStages: [stage],
             onRetry: {},
             gameCenterService: GameCenterService.shared,
             adsService: AdsService.shared
@@ -393,12 +554,29 @@ struct ResultView_Previews: PreviewProvider {
 
 
 #Preview {
+    let stage = CampaignLibrary.shared.chapters.first!.stages.first
+    var progress = CampaignStageProgress()
+    progress.earnedStars = 2
+    progress.achievedSecondaryObjective = true
+    let record = CampaignStageClearRecord(
+        stage: stage,
+        evaluation: CampaignStageEvaluation(
+            stageID: stage.id,
+            earnedStars: 2,
+            achievedSecondaryObjective: true,
+            achievedScoreGoal: false
+        ),
+        progress: progress
+    )
+
     ResultView(
         moveCount: 24,
         penaltyCount: 6,
         elapsedSeconds: 132,
         modeIdentifier: .standard5x5,
         modeDisplayName: "スタンダード",
+        campaignClearRecord: record,
+        newlyUnlockedStages: [stage],
         onRetry: {}
     )
 }
