@@ -17,9 +17,9 @@ struct GameView: View {
     ///         同一型の別ファイル拡張からも参照できるようアクセスレベルはデフォルト（internal）にしている。
     let theme = AppTheme()
     /// 現在のライト/ダーク設定を環境から取得し、SpriteKit 側の色にも反映する
-    /// - Note: 監視系ロジックを別ファイルに切り出した `GameView+Observers` でも参照するため、
-    ///         `private` ではなく `fileprivate` へ緩和し、同一型拡張からアクセスできるようにする。
-    @Environment(\.colorScheme) fileprivate var colorScheme
+    /// - Note: 監視系ロジックを別ファイルへ分割しているため、`fileprivate` にするとアクセスできずビルドエラーとなる。
+    ///         そのためアクセスレベルはデフォルト（internal）のままにして、同一モジュール内の拡張から安全に参照できるようにしている。
+    @Environment(\.colorScheme) var colorScheme
     /// デバイスの横幅サイズクラスを取得し、iPad などレギュラー幅でのモーダル挙動を調整する
     /// - Note: レイアウト計算用の拡張（`GameView+Layout`）でも参照するため、アクセスレベルは internal に緩和している
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
