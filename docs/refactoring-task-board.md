@@ -5,9 +5,9 @@
 
 | 優先度 | 区分 | タスク内容 | 状態 | 備考 |
 |:------:|:----|:-----------|:----:|:-----|
-| 高     | UI | `GameBoardBridgeViewModel` と `GameViewModel` の統合テストを整備し、アニメーションとハイライトの回帰を検知する | [ ] | <!-- ViewModel 切り出し後の安定性を担保する最優先タスク -->Combine の購読や `DispatchWorkItem` のキャンセル挙動を検証するモックを実装し、SpriteKit との橋渡しロジックを自動テストでカバーする | 
-| 中     | UI | `BoardLayoutSnapshot` のログを設定画面の開発者メニューから閲覧できるようにし、レイアウト診断を迅速化する | [ ] | <!-- レイアウトログの活用度を高める -->`DebugLogHistory` へスナップショット出力を集約し、iPad での余白崩れ再現時に即座に値を確認できるようにする | 
-| 中     | 共通基盤 | `SharedSupport` の `DebugLogHistory` / `CrashFeedbackCollector` を UI から制御できる管理画面を整備する | [ ] | <!-- TestFlight での運用を視野に入れた拡張 -->閲覧・クリア操作を設定画面へ統合し、公開ビルドでは無効化できる切り替えを実装する | 
+| 高     | UI | `GameBoardBridgeViewModel` と `GameViewModel` の統合テストを整備し、アニメーションとハイライトの回帰を検知する | [x] | <!-- ViewModel 切り出し後の安定性を担保する最優先タスク -->`MonoKnightAppTests/GameViewIntegrationTests.swift` にペナルティバナー／SpriteKit 連携の自動テストを追加し、Combine 購読と `DispatchWorkItem` のキャンセルを検証済み |
+| 中     | UI | `BoardLayoutSnapshot` のログを設定画面の開発者メニューから閲覧できるようにし、レイアウト診断を迅速化する | [x] | <!-- レイアウトログの活用度を高める -->`SettingsView` の開発者メニューから `DiagnosticsCenterView` へ遷移できるよう実装し、`DebugLogHistory` に蓄積されたレイアウトログへ即座にアクセス可能 |
+| 中     | 共通基盤 | `SharedSupport` の `DebugLogHistory` / `CrashFeedbackCollector` を UI から制御できる管理画面を整備する | [x] | <!-- TestFlight での運用を視野に入れた拡張 -->`DiagnosticsCenterView` で履歴閲覧・削除・保持切替を提供し、環境変数で公開ビルドから非表示にできる運用ガードを追加済み |
 | 高     | UI | `GameView` の責務を ViewModel 層へ移譲し、描画とロジックの境界を明確化する | [x] | <!-- 1 ファイルに集中している状態管理を分離し、クラッシュリスクを減らす -->`GameViewModel`・`GameBoardBridgeViewModel`・`GameViewLayoutCalculator` を導入し、アニメーション制御とサービス呼び出しを分離済み |
 | 高     | サービス | `AdsConsentCoordinator` と `AdsService` の統合テストシナリオを整備し、同意状態ごとの挙動を自動検証する | [x] | <!-- ATT/UMP 周りの回帰を防ぐ重要タスク -->ダミー環境とログ検証を組み合わせて QA を効率化し、ATT 連携を考慮した再実装を完了 |
 | 中     | ゲームコア | モード定義 (`GameMode`) のパラメータをドキュメント化し、Free モードとの整合性チェックを自動化する | [x] | <!-- 盤面サイズ追加時の破綻を防ぐ -->`docs/game-mode-parameters.md` に仕様を整理し、`FreeModeRegulationStoreTests` で自動検証を追加済み |
