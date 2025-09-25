@@ -92,20 +92,30 @@ struct GameView: View {
         adsService: AdsServiceProtocol,
         onRequestReturnToTitle: (() -> Void)? = nil
     ) {
-        let viewModel = GameViewModel(
-            mode: mode,
-            gameInterfaces: gameInterfaces,
-            gameCenterService: gameCenterService,
-            adsService: adsService,
-            onRequestReturnToTitle: onRequestReturnToTitle
+        // MARK: - GameViewModel の生成を 1 度きりに抑制
+        // 以前はローカル定数で GameViewModel を生成してから @StateObject へ渡していたため、
+        // SwiftUI の再初期化に伴い不要なインスタンスが都度作られ、GameCore の `configureForNewSession` が複数回走っていた。
+        // ここでは `StateObject` の初期化クロージャへ直接渡し、必要なタイミングでのみインスタンス化されるようにする。
+        _viewModel = StateObject(
+            wrappedValue: GameViewModel(
+                mode: mode,
+                gameInterfaces: gameInterfaces,
+                gameCenterService: gameCenterService,
+                adsService: adsService,
+                onRequestReturnToTitle: onRequestReturnToTitle
+            )
         )
 
+        // MARK: - ユーザー設定の復元
+        // `StateObject` 初期化直後に `wrappedValue` を参照すれば、SwiftUI に保存されている既存インスタンスも再利用できる。
         if let savedValue = UserDefaults.standard.string(forKey: HandOrderingStrategy.storageKey) {
-            viewModel.restoreHandOrderingStrategy(from: savedValue)
+            _viewModel.wrappedValue.restoreHandOrderingStrategy(from: savedValue)
         }
 
-        _viewModel = StateObject(wrappedValue: viewModel)
-        _boardBridge = ObservedObject(wrappedValue: viewModel.boardBridge)
+        // MARK: - BoardBridge を既存インスタンスから参照
+        // `GameViewModel` が管理する `boardBridge` をそのまま監視対象として保持し、
+        // 重複生成による SpriteKit シーンの再構築を防ぐ。
+        _boardBridge = ObservedObject(wrappedValue: _viewModel.wrappedValue.boardBridge)
     }
 
     var body: some View {
