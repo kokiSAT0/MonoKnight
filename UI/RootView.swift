@@ -387,8 +387,9 @@ private extension RootView {
                         onReturnToTitle()
                     },
                     onRequestStartCampaignStage: { stage in
-                        // クリア後に解放されたステージへの即時挑戦リクエストを受け取り、ゲーム準備をやり直す
-                        startGamePreparation(for: stage.makeGameMode())
+                        // クリア後に解放されたステージへの即時挑戦リクエストを受け取る
+                        // 親から注入された開始ハンドラを利用してゲーム準備をやり直す
+                        onStartGame(stage.makeGameMode())
                     }
                 )
                 .id(gameSessionID)
