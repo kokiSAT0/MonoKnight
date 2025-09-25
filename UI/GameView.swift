@@ -28,11 +28,12 @@ struct GameView: View {
     /// 手札スロットの数（常に 5 スロット分の枠を確保してレイアウトを安定させる）
     private let handSlotCount = 5
     /// View とロジックの橋渡しを担う ViewModel
-    /// - Note: レイアウトや監視系の拡張（別ファイル）からもアクセスできるように `fileprivate` を採用する。
-    @StateObject fileprivate var viewModel: GameViewModel
+    /// - Note: レイアウトや監視系の拡張（別ファイル）からもアクセスするため、`internal` 相当の公開範囲（デフォルト）を維持する。
+    ///         `fileprivate` にすると `GameView+Layout` から参照できずビルドエラーになるため注意。
+    @StateObject var viewModel: GameViewModel
     /// SpriteKit との仲介を担う BoardBridge
-    /// - Note: レイアウト系拡張から直接参照するため `fileprivate` として公開範囲を揃える。
-    @ObservedObject fileprivate var boardBridge: GameBoardBridgeViewModel
+    /// - Note: こちらもレイアウト拡張からの参照が必要なため、`internal`（デフォルト）のアクセスレベルを確保している。
+    @ObservedObject var boardBridge: GameBoardBridgeViewModel
     /// ハプティクスを有効にするかどうかの設定値
     @AppStorage("haptics_enabled") private var hapticsEnabled: Bool = true
     /// ガイドモードのオン/オフを永続化し、盤面ハイライト表示を制御する
