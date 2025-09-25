@@ -43,8 +43,9 @@ struct GameView: View {
     /// - Note: こちらもレイアウト拡張からの参照が必要なため、`internal`（デフォルト）のアクセスレベルを確保している。
     @ObservedObject var boardBridge: GameBoardBridgeViewModel
     /// ハプティクスを有効にするかどうかの設定値
-    /// - Note: 設定変更を監視する処理を `GameView+Observers` 側へ移譲しているため、拡張からも参照できるよう `fileprivate` へ拡張する。
-    @AppStorage("haptics_enabled") fileprivate var hapticsEnabled: Bool = true
+    /// - Note: 監視処理を別ファイルの拡張（`GameView+Observers`）へ切り出しているため、`fileprivate` ではアクセスできずビルドエラーとなる。
+    ///         internal（デフォルト）へ緩和してモジュール内の拡張から安全に共有する。
+    @AppStorage("haptics_enabled") var hapticsEnabled: Bool = true
     /// ガイドモードのオン/オフを永続化し、盤面ハイライト表示を制御する
     /// - Note: 同様に監視処理が別ファイルの拡張へ分離されているため、アクセスレベルを `fileprivate` に調整している。
     @AppStorage("guide_mode_enabled") fileprivate var guideModeEnabled: Bool = true
