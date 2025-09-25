@@ -556,33 +556,5 @@ struct ResultView_Previews: PreviewProvider {
 }
 
 
-#Preview {
-    // プレビュー描画時に参照するステージ定義を安全に取り出し、存在しない場合は即座に理由を把握できるようにする
-    guard let stage = CampaignLibrary.shared.chapters.first?.stages.first else {
-        fatalError("プレビュー用のキャンペーンステージが取得できません")
-    }
-    var progress = CampaignStageProgress()
-    progress.earnedStars = 2
-    progress.achievedSecondaryObjective = true
-    let record = CampaignStageClearRecord(
-        stage: stage,
-        evaluation: CampaignStageEvaluation(
-            stageID: stage.id,
-            earnedStars: 2,
-            achievedSecondaryObjective: true,
-            achievedScoreGoal: false
-        ),
-        progress: progress
-    )
-
-    ResultView(
-        moveCount: 24,
-        penaltyCount: 6,
-        elapsedSeconds: 132,
-        modeIdentifier: .standard5x5,
-        modeDisplayName: "スタンダード",
-        campaignClearRecord: record,
-        newlyUnlockedStages: [stage],
-        onRetry: {}
-    )
-}
+// Xcode 15 以降の `#Preview` マクロは現行のビルド設定では利用できないため、
+// 既存の `PreviewProvider` 実装のみを維持してプレビューを提供する。
