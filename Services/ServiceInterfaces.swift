@@ -43,14 +43,17 @@ protocol AdsServiceProtocol: AnyObject {
 
 // MARK: StoreKit
 @MainActor
-protocol StoreServiceProtocol: ObservableObject, AnyObject {
+protocol StoreServiceProtocol: ObservableObject, AnyObject where ObjectWillChangePublisher == ObservableObjectPublisher {
     /// Combine の `ObservableObjectPublisher` を利用することを明示し、
     /// `any StoreServiceProtocol` として扱う際にも `objectWillChange` を利用できるようにする。
     /// - NOTE: `ObservableObject` では関連型 `ObjectWillChangePublisher` が未確定のため、
     ///         存在型へ格納するとコンパイラが型を推論できずにエラーとなる。
     ///         ここで型を固定しておくことで、ラップしたサービスから `objectWillChange`
     ///         を安全に購読できるようにしている。
-    typealias ObjectWillChangePublisher = ObservableObjectPublisher
+    /// - NOTE: 以前は `typealias` で型を上書きしていたが、Swift 5.9 以降は
+    ///         プロトコルの同名関連型を `where` 句で制約する方が推奨されている。
+    ///         そのため、`ObjectWillChangePublisher` を `ObservableObjectPublisher`
+    ///         として同一視する制約をプロトコル宣言に付与している。
     /// 広告除去オプションが購入済みかどうかを公開する。
     var isRemoveAdsPurchased: Bool { get }
     /// 表示用の価格テキスト。商品情報取得前は `nil`。
