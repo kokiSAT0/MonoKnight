@@ -45,6 +45,30 @@ final class GameViewModel: ObservableObject {
     var displayedScore: Int {
         core.totalMoveCount * 10 + displayedElapsedSeconds
     }
+    /// 現在の移動回数
+    /// - Note: 統計バッジ表示で利用し、View 側から GameCore への直接依存を減らす
+    var moveCount: Int { core.moveCount }
+    /// 累計ペナルティ手数
+    /// - Note: ペナルティバナーや統計表示の数値として再利用する
+    var penaltyCount: Int { core.penaltyCount }
+    /// クリア確定時点の経過秒数
+    /// - Note: 結果画面や統計表示で参照するための公開プロパティ
+    var elapsedSeconds: Int { core.elapsedSeconds }
+    /// 未踏破マスの残数
+    /// - Note: 進行状況バッジに表示するために用意する
+    var remainingTiles: Int { core.remainingTiles }
+    /// 現在のゲーム進行状態
+    /// - Note: GameView 側でオーバーレイ表示を切り替える際に利用する
+    var progress: GameProgress { core.progress }
+    /// 直近で加算されたペナルティ量
+    /// - Note: バナー表示のテキストへ反映する
+    var lastPenaltyAmount: Int { core.lastPenaltyAmount }
+    /// 捨て札選択待機中かどうか
+    /// - Note: ボタンのスタイル切り替えに必要な状態をカプセル化する
+    var isAwaitingManualDiscardSelection: Bool { core.isAwaitingManualDiscardSelection }
+    /// 現在の駒位置
+    /// - Note: カード移動演出でフォールバック座標として参照する
+    var currentPosition: GridPoint? { core.current }
     /// レイアウト診断用のスナップショット
     @Published var lastLoggedLayoutSnapshot: BoardLayoutSnapshot?
     /// 経過秒数を 1 秒刻みで更新するためのタイマーパブリッシャ

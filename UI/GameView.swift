@@ -38,8 +38,6 @@ struct GameView: View {
     @AppStorage(HandOrderingStrategy.storageKey) private var handOrderingRawValue: String = HandOrderingStrategy.insertionOrder.rawValue
     /// 手札や NEXT の位置をマッチングさせるための名前空間
     @Namespace private var cardAnimationNamespace
-    /// ViewModel が管理する GameCore へのアクセスを簡潔にするための計算プロパティ
-    private var core: GameCore { viewModel.core }
     /// SpriteKit シーンへのショートカット
     private var scene: GameScene { boardBridge.scene }
 
@@ -115,9 +113,9 @@ struct GameView: View {
         // シートで結果画面を表示
         .sheet(isPresented: $viewModel.showingResult) {
             ResultView(
-                moveCount: core.moveCount,
-                penaltyCount: core.penaltyCount,
-                elapsedSeconds: core.elapsedSeconds,
+                moveCount: viewModel.moveCount,
+                penaltyCount: viewModel.penaltyCount,
+                elapsedSeconds: viewModel.elapsedSeconds,
                 modeIdentifier: viewModel.mode.identifier,
                 onRetry: {
                     // ViewModel 側でリセットと広告フラグの再設定をまとめて処理する
@@ -286,7 +284,7 @@ struct GameView: View {
                 GameCardAnimationOverlay(
                     anchors: anchors,
                     boardBridge: boardBridge,
-                    core: core,
+                    fallbackCurrentPosition: viewModel.currentPosition,
                     cardAnimationNamespace: cardAnimationNamespace
                 )
             }
@@ -321,7 +319,7 @@ struct GameView: View {
             )
             ZStack {
                 spriteBoard(width: width)
-                if core.progress == .awaitingSpawn {
+                if viewModel.progress == .awaitingSpawn {
                     spawnSelectionOverlay
                         // 盤面いっぱいに広がりすぎないよう最大幅を制限する
                         .frame(maxWidth: width * 0.9)
@@ -396,7 +394,7 @@ struct GameView: View {
             if viewModel.isShowingPenaltyBanner {
                 HStack {
                     Spacer(minLength: 0)
-                    PenaltyBannerView(penaltyAmount: core.lastPenaltyAmount)
+                    PenaltyBannerView(penaltyAmount: viewModel.lastPenaltyAmount)
                         .padding(.horizontal, 20)
                         .transition(.move(edge: .top).combined(with: .opacity))
                         .accessibilityIdentifier("penalty_banner")
@@ -546,9 +544,6 @@ fileprivate struct GameBoardControlRowView: View {
     /// ゲーム進行とサービス連携を管理する ViewModel
     @ObservedObject var viewModel: GameViewModel
 
-    /// GameCore へのショートカット
-    private var core: GameCore { viewModel.core }
-
     var body: some View {
         ViewThatFits(in: .horizontal) {
             singleLineLayout
@@ -604,16 +599,16 @@ fileprivate struct GameBoardControlRowView: View {
         statisticsBadgeGroup {
             statisticBadge(
                 title: "移動",
-                value: "\(core.moveCount)",
+                value: "\(viewModel.moveCount)",
                 accessibilityLabel: "移動回数",
-                accessibilityValue: "\(core.moveCount)回"
+                accessibilityValue: "\(viewModel.moveCount)回"
             )
 
             statisticBadge(
                 title: "ペナルティ",
-                value: "\(core.penaltyCount)",
+                value: "\(viewModel.penaltyCount)",
                 accessibilityLabel: "ペナルティ回数",
-                accessibilityValue: "\(core.penaltyCount)手"
+                accessibilityValue: "\(viewModel.penaltyCount)手"
             )
 
             statisticBadge(
@@ -637,9 +632,9 @@ fileprivate struct GameBoardControlRowView: View {
         statisticsBadgeGroup {
             statisticBadge(
                 title: "残りマス",
-                value: "\(core.remainingTiles)",
+                value: "\(viewModel.remainingTiles)",
                 accessibilityLabel: "残りマス数",
-                accessibilityValue: "残り\(core.remainingTiles)マス"
+                accessibilityValue: "残り\(viewModel.remainingTiles)マス"
             )
         }
     }
@@ -673,7 +668,7 @@ fileprivate struct GameBoardControlRowView: View {
 
     /// 捨て札モード切替ボタン
     private var manualDiscardButton: some View {
-        let isSelecting = core.isAwaitingManualDiscardSelection
+        let isSelecting = viewModel.isAwaitingManualDiscardSelection
         let isDisabled = !viewModel.isManualDiscardButtonEnabled && !isSelecting
 
         return Button {
@@ -813,8 +808,9 @@ private struct GameCardAnimationOverlay: View {
     let anchors: [UUID: Anchor<CGRect>]
     /// SpriteKit との橋渡しを担う ViewModel
     @ObservedObject var boardBridge: GameBoardBridgeViewModel
-    /// 現在のゲーム状態。駒位置や盤面サイズを参照する
-    let core: GameCore
+    /// フォールバック用に保持しておく現在地
+    /// - Note: アニメーションターゲットが未設定の場合に利用する
+    let fallbackCurrentPosition: GridPoint?
     /// MatchedGeometryEffect の名前空間
     let cardAnimationNamespace: Namespace.ID
 
@@ -835,14 +831,14 @@ private struct GameCardAnimationOverlay: View {
         if let animatingCard = boardBridge.animatingCard,
            let sourceAnchor = anchors[animatingCard.id],
            let boardAnchor = boardBridge.boardAnchor,
-           let targetGridPoint = boardBridge.animationTargetGridPoint ?? core.current,
+           let targetGridPoint = boardBridge.animationTargetGridPoint ?? fallbackCurrentPosition,
            boardBridge.animationState != .idle || boardBridge.hiddenCardIDs.contains(animatingCard.id) {
             let cardFrame = proxy[sourceAnchor]
             let boardFrame = proxy[boardAnchor]
             let startCenter = CGPoint(x: cardFrame.midX, y: cardFrame.midY)
             let boardDestination = Self.boardCoordinate(
                 for: targetGridPoint,
-                boardSize: core.board.size,
+                boardSize: boardBridge.boardSize,
                 in: boardFrame
             )
 
