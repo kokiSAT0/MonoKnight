@@ -511,7 +511,8 @@ final class GameViewModel: ObservableObject {
             penaltyCount: core.penaltyCount,
             elapsedSeconds: core.elapsedSeconds,
             totalMoveCount: core.totalMoveCount,
-            score: core.score
+            score: core.score,
+            hasRevisitedTile: core.hasRevisitedTile
         )
 
         campaignProgressStore.registerClear(for: stage, metrics: metrics)

@@ -17,6 +17,8 @@ struct RootView: View {
     private let gameCenterService: GameCenterServiceProtocol
     /// 広告表示を扱うサービス（GameView へ受け渡す）
     private let adsService: AdsServiceProtocol
+    /// キャンペーンステージ定義を参照するライブラリ
+    private let campaignLibrary = CampaignLibrary.shared
     /// デバイスの横幅サイズクラスを参照し、iPad などレギュラー幅での余白やログ出力を調整する
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     /// 画面全体の状態とログ出力を一元管理するステートストア
@@ -92,6 +94,13 @@ final class RootViewStateStore: ObservableObject {
             debugLog("RootView.isPreparingGame 更新: \(isPreparingGame)")
         }
     }
+    /// ゲーム開始準備が完了し、ユーザーの開始操作待ちかどうか
+    @Published var isGameReadyForManualStart: Bool {
+        didSet {
+            guard oldValue != isGameReadyForManualStart else { return }
+            debugLog("RootView.isGameReadyForManualStart 更新: \(isGameReadyForManualStart)")
+        }
+    }
     /// 実際にプレイへ適用しているモード
     @Published var activeMode: GameMode {
         didSet {
@@ -140,6 +149,7 @@ final class RootViewStateStore: ObservableObject {
         self.isAuthenticated = initialIsAuthenticated
         self.isShowingTitleScreen = true
         self.isPreparingGame = false
+        self.isGameReadyForManualStart = false
         self.activeMode = .standard
         self.selectedModeForTitle = .standard
         self.gameSessionID = UUID()
@@ -195,6 +205,14 @@ private extension RootView {
             safeAreaInsets: geometry.safeAreaInsets,
             horizontalSizeClass: horizontalSizeClass
         )
+    }
+
+    /// 現在のモードに対応するキャンペーンステージを取得する
+    /// - Parameter mode: 判定対象のゲームモード
+    /// - Returns: キャンペーンステージであれば定義、該当しなければ nil
+    func campaignStage(for mode: GameMode) -> CampaignStage? {
+        guard let metadata = mode.campaignMetadataSnapshot else { return nil }
+        return campaignLibrary.stage(with: metadata.stageID)
     }
 
     /// RootView 本体の `body` から切り離したメソッドで、サブビュー生成ロジックを共通化する
@@ -374,7 +392,18 @@ private extension RootView {
         @ViewBuilder
         private var loadingOverlay: some View {
             if isPreparingGame {
-                GamePreparationOverlayView()
+                let stage = campaignStage(for: activeMode)
+                let progress = stage.flatMap { campaignProgressStore.progress(for: $0.id) }
+
+                GamePreparationOverlayView(
+                    mode: activeMode,
+                    campaignStage: stage,
+                    progress: progress,
+                    isReady: stateStore.isGameReadyForManualStart,
+                    onStart: {
+                        finishGamePreparationAndStart()
+                    }
+                )
                     .transition(.opacity)
             } else {
                 EmptyView()
@@ -478,8 +507,19 @@ private extension RootView {
     }
 
     /// ゲーム開始前のローディング表示を担うオーバーレイビュー
-    /// - NOTE: ZStack の最上位でフェード表示するため、背景のディミングやカード風ボックスをここで完結させる
+    /// - NOTE: ペナルティ設定やリワード条件を一覧できるよう、スクロール可能なカード型レイアウトで表示する
     struct GamePreparationOverlayView: View {
+        /// 開始予定のゲームモード
+        let mode: GameMode
+        /// キャンペーンステージ（該当する場合）
+        let campaignStage: CampaignStage?
+        /// これまでの達成状況
+        let progress: CampaignStageProgress?
+        /// 初期化が完了して開始可能かどうか
+        let isReady: Bool
+        /// ユーザーが「開始」ボタンを押した際のハンドラ
+        let onStart: () -> Void
+
         /// テーマを利用してライト/ダーク両対応の配色を適用する
         private var theme = AppTheme()
 
@@ -490,27 +530,16 @@ private extension RootView {
                     .opacity(LayoutMetrics.dimmedBackgroundOpacity)
                     .ignoresSafeArea()
 
-                VStack(spacing: LayoutMetrics.verticalSpacing) {
-                    // システム標準のインジケータを拡大し、視認性を確保する
-                    ProgressView()
-                        .progressViewStyle(.circular)
-                        .scaleEffect(LayoutMetrics.progressScale)
-                        .tint(theme.accentPrimary)
-                        .accessibilityHidden(true)
-
-                    VStack(spacing: LayoutMetrics.labelSpacing) {
-                        // メインメッセージは太めのラウンド体で表示し、ゲーム準備中であることを強調する
-                        Text("ゲームを準備中…")
-                            .font(.system(size: 20, weight: .semibold, design: .rounded))
-                            .foregroundColor(theme.textPrimary)
-
-                        // 補足メッセージを添えて待機中である意図をユーザーへ明確にする
-                        Text("カードと盤面を初期化しています")
-                            .font(.system(size: 14, weight: .regular, design: .rounded))
-                            .foregroundColor(theme.textSecondary)
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: LayoutMetrics.sectionSpacing) {
+                        headerSection
+                        penaltySection
+                        rewardSection
+                        recordSection
+                        controlSection
                     }
+                    .padding(LayoutMetrics.contentPadding)
                 }
-                .padding(LayoutMetrics.contentPadding)
                 .frame(maxWidth: LayoutMetrics.maxContentWidth)
                 .background(
                     theme.spawnOverlayBackground
@@ -527,14 +556,236 @@ private extension RootView {
                     x: 0,
                     y: LayoutMetrics.shadowOffsetY
                 )
-                // VoiceOver で単一要素として扱い、「しばらくお待ちください」と案内する
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel("ゲームを準備中")
-                .accessibilityHint("しばらくお待ちください")
+                .padding(.horizontal, LayoutMetrics.horizontalSafePadding)
                 .accessibilityIdentifier("game_preparation_overlay")
             }
             // 透明度アニメーションと組み合わせて自然なフェードを実現する
             .transition(.opacity)
+        }
+
+        /// ヘッダー（ステージ名と概要）
+        private var headerSection: some View {
+            VStack(alignment: .leading, spacing: LayoutMetrics.headerSpacing) {
+                if let stage = campaignStage {
+                    Text(stage.displayCode)
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .foregroundColor(theme.textSecondary)
+                        .accessibilityLabel("ステージ番号 \(stage.displayCode)")
+
+                    Text(stage.title)
+                        .font(.system(size: 22, weight: .semibold, design: .rounded))
+                        .foregroundColor(theme.textPrimary)
+
+                    Text(stage.summary)
+                        .font(.system(size: 15, weight: .regular, design: .rounded))
+                        .foregroundColor(theme.textSecondary)
+                } else {
+                    Text(mode.displayName)
+                        .font(.system(size: 22, weight: .semibold, design: .rounded))
+                        .foregroundColor(theme.textPrimary)
+
+                    Text(mode.primarySummaryText)
+                        .font(.system(size: 15, weight: .regular, design: .rounded))
+                        .foregroundColor(theme.textSecondary)
+
+                    Text(mode.secondarySummaryText)
+                        .font(.system(size: 13, weight: .regular, design: .rounded))
+                        .foregroundColor(theme.textSecondary)
+                }
+            }
+        }
+
+        /// ペナルティ設定の一覧
+        private var penaltySection: some View {
+            InfoSection(title: "ペナルティ") {
+                ForEach(penaltyItems, id: \.self) { item in
+                    bulletRow(text: item)
+                }
+            }
+        }
+
+        /// リワード条件と達成状況
+        private var rewardSection: some View {
+            InfoSection(title: "リワード条件") {
+                ForEach(Array(rewardConditions.enumerated()), id: \.offset) { index, condition in
+                    rewardConditionRow(index: index, condition: condition)
+                }
+            }
+        }
+
+        /// 過去のプレイ記録（スターとハイスコア）
+        private var recordSection: some View {
+            InfoSection(title: "これまでの記録") {
+                HStack(spacing: LayoutMetrics.starSpacing) {
+                    ForEach(0..<LayoutMetrics.totalStarCount, id: \.self) { index in
+                        Image(systemName: index < earnedStars ? "star.fill" : "star")
+                            .foregroundColor(theme.accentPrimary)
+                    }
+
+                    Text("スター \(earnedStars)/\(LayoutMetrics.totalStarCount)")
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .foregroundColor(theme.textSecondary)
+                }
+
+                bulletRow(text: "ハイスコア: \(bestScoreText)")
+                bulletRow(text: "最小ペナルティ: \(bestPenaltyText)")
+            }
+        }
+
+        /// 初期化状況と開始ボタン
+        private var controlSection: some View {
+            VStack(alignment: .leading, spacing: LayoutMetrics.controlSpacing) {
+                if !isReady {
+                    HStack(spacing: LayoutMetrics.rowSpacing) {
+                        ProgressView()
+                            .progressViewStyle(.circular)
+                            .tint(theme.accentPrimary)
+                        Text("初期化中…")
+                            .font(.system(size: 14, weight: .regular, design: .rounded))
+                            .foregroundColor(theme.textSecondary)
+                    }
+                    .accessibilityLabel("初期化中")
+                    .accessibilityHint("完了すると開始ボタンが有効になります")
+                }
+
+                Button(action: {
+                    if isReady {
+                        onStart()
+                    }
+                }) {
+                    Text("ステージを開始")
+                        .font(.system(size: 17, weight: .semibold, design: .rounded))
+                        .foregroundColor(theme.accentOnPrimary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, LayoutMetrics.buttonVerticalPadding)
+                        .background(
+                            RoundedRectangle(cornerRadius: LayoutMetrics.buttonCornerRadius)
+                                .fill(theme.accentPrimary.opacity(isReady ? 1 : LayoutMetrics.disabledButtonOpacity))
+                        )
+                }
+                .buttonStyle(.plain)
+                .disabled(!isReady)
+                .accessibilityLabel("ステージを開始")
+                .accessibilityHint(isReady ? "ゲームを開始します" : "準備が完了すると押せるようになります")
+                .accessibilityAddTraits(isReady ? [.isButton] : [.isButton, .isDisabled])
+            }
+        }
+
+        /// ペナルティ説明文を生成
+        private var penaltyItems: [String] {
+            [
+                mode.deadlockPenaltyCost > 0 ? "手詰まり +\(mode.deadlockPenaltyCost) 手" : "手詰まり ペナルティなし",
+                mode.manualRedrawPenaltyCost > 0 ? "引き直し +\(mode.manualRedrawPenaltyCost) 手" : "引き直し ペナルティなし",
+                mode.manualDiscardPenaltyCost > 0 ? "捨て札 +\(mode.manualDiscardPenaltyCost) 手" : "捨て札 ペナルティなし",
+                mode.revisitPenaltyCost > 0 ? "再訪 +\(mode.revisitPenaltyCost) 手" : "再訪ペナルティなし"
+            ]
+        }
+
+        /// 条件達成状況をまとめた構造
+        private var rewardConditions: [RewardConditionDisplay] {
+            var results: [RewardConditionDisplay] = []
+            let earnedStars = progress?.earnedStars ?? 0
+            results.append(.init(title: "ステージクリア", achieved: earnedStars > 0))
+
+            if let stage = campaignStage, let description = stage.secondaryObjectiveDescription {
+                let achieved = progress?.achievedSecondaryObjective ?? false
+                results.append(.init(title: description, achieved: achieved))
+            }
+
+            if let stage = campaignStage, let scoreText = stage.scoreTargetDescription {
+                let achieved = progress?.achievedScoreGoal ?? false
+                results.append(.init(title: scoreText, achieved: achieved))
+            }
+
+            return results
+        }
+
+        /// これまで獲得したスター数
+        private var earnedStars: Int {
+            progress?.earnedStars ?? 0
+        }
+
+        /// ハイスコアの表示用テキスト
+        private var bestScoreText: String {
+            if let best = progress?.bestScore {
+                return "\(best) pt"
+            } else {
+                return "未記録"
+            }
+        }
+
+        /// 最小ペナルティの表示用テキスト
+        private var bestPenaltyText: String {
+            if let best = progress?.bestPenaltyCount {
+                return "\(best) 手"
+            } else {
+                return "未記録"
+            }
+        }
+
+        /// 箇条書きの 1 行を描画
+        /// - Parameter text: 表示したい本文
+        private func bulletRow(text: String) -> some View {
+            HStack(alignment: .firstTextBaseline, spacing: LayoutMetrics.bulletSpacing) {
+                Circle()
+                    .fill(theme.textSecondary.opacity(0.6))
+                    .frame(width: LayoutMetrics.bulletSize, height: LayoutMetrics.bulletSize)
+                    .accessibilityHidden(true)
+
+                Text(text)
+                    .font(.system(size: 15, weight: .regular, design: .rounded))
+                    .foregroundColor(theme.textPrimary)
+            }
+        }
+
+        /// リワード条件 1 行分のレイアウト
+        /// - Parameters:
+        ///   - index: スター番号（0 始まり）
+        ///   - condition: 表示したい条件内容
+        private func rewardConditionRow(index: Int, condition: RewardConditionDisplay) -> some View {
+            HStack(alignment: .top, spacing: LayoutMetrics.rowSpacing) {
+                Image(systemName: condition.achieved ? "checkmark.circle.fill" : "circle")
+                    .foregroundColor(condition.achieved ? theme.accentPrimary : theme.textSecondary)
+                    .font(.system(size: 18, weight: .bold))
+                    .accessibilityHidden(true)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("スター \(index + 1)")
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .foregroundColor(theme.textSecondary)
+
+                    Text(condition.title)
+                        .font(.system(size: 15, weight: .medium, design: .rounded))
+                        .foregroundColor(theme.textPrimary)
+                }
+            }
+        }
+
+        /// 条件一覧で扱う内部モデル
+        private struct RewardConditionDisplay {
+            let title: String
+            let achieved: Bool
+        }
+
+        /// 情報カード内のセクション共通レイアウト
+        private struct InfoSection<Content: View>: View {
+            let title: String
+            let content: Content
+
+            init(title: String, @ViewBuilder content: () -> Content) {
+                self.title = title
+                self.content = content()
+            }
+
+            var body: some View {
+                VStack(alignment: .leading, spacing: LayoutMetrics.sectionContentSpacing) {
+                    Text(title)
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .foregroundColor(AppTheme().textSecondary)
+
+                    content
+                }
+            }
         }
 
         /// レイアウト定数を 1 箇所へ集約し、値の調整を容易にする
@@ -542,15 +793,35 @@ private extension RootView {
             /// 背景ディミングの透過率
             static let dimmedBackgroundOpacity: Double = 0.45
             /// コンテンツ全体の最大幅
-            static let maxContentWidth: CGFloat = 280
+            static let maxContentWidth: CGFloat = 360
             /// コンテンツ周囲の余白
             static let contentPadding: CGFloat = 28
-            /// プログレスインジケータとテキストの縦方向間隔
-            static let verticalSpacing: CGFloat = 20
-            /// テキスト同士の間隔
-            static let labelSpacing: CGFloat = 8
-            /// カード風ボックスの角丸半径
-            static let cornerRadius: CGFloat = 22
+            /// セクション間の余白
+            static let sectionSpacing: CGFloat = 24
+            /// セクション内のコンテンツ間隔
+            static let sectionContentSpacing: CGFloat = 12
+            /// ヘッダー内の行間
+            static let headerSpacing: CGFloat = 6
+            /// 箇条書きのドットと本文の間隔
+            static let bulletSpacing: CGFloat = 8
+            /// 箇条書きドットのサイズ
+            static let bulletSize: CGFloat = 6
+            /// 行要素の基本間隔
+            static let rowSpacing: CGFloat = 12
+            /// スターアイコンの間隔
+            static let starSpacing: CGFloat = 10
+            /// スターの最大数
+            static let totalStarCount: Int = 3
+            /// ボタン周辺の余白
+            static let controlSpacing: CGFloat = 14
+            /// ボタンの角丸
+            static let buttonCornerRadius: CGFloat = 16
+            /// ボタンの上下パディング
+            static let buttonVerticalPadding: CGFloat = 14
+            /// 無効状態のボタン透過率
+            static let disabledButtonOpacity: Double = 0.45
+            /// カードの角丸半径
+            static let cornerRadius: CGFloat = 24
             /// 枠線の太さ
             static let borderWidth: CGFloat = 1
             /// ドロップシャドウの半径
@@ -559,8 +830,8 @@ private extension RootView {
             static let shadowOffsetY: CGFloat = 8
             /// 背景に適用するブラー量
             static let backgroundBlur: CGFloat = 0
-            /// プログレスインジケータの拡大率
-            static let progressScale: CGFloat = 1.2
+            /// 端末横幅が狭い場合に備えた左右の安全マージン
+            static let horizontalSafePadding: CGFloat = 20
         }
     }
 
@@ -580,6 +851,9 @@ private extension RootView {
         stateStore.gameSessionID = UUID()
         let scheduledSessionID = stateStore.gameSessionID
         debugLog("RootView: 新規ゲームセッションを割り当て sessionID=\(scheduledSessionID)")
+
+        // ゲーム開始準備が完了するまでは開始ボタンを押せないようフラグを下ろしておく
+        stateStore.isGameReadyForManualStart = false
 
         withAnimation(.easeInOut(duration: 0.25)) {
             // タイトルを閉じ、ローディングオーバーレイを表示する
@@ -604,6 +878,7 @@ private extension RootView {
 
         // ローディング状態は即時で解除し、タイトル遷移のみアニメーションさせる
         stateStore.isPreparingGame = false
+        stateStore.isGameReadyForManualStart = false
 
         withAnimation(.easeInOut(duration: 0.25)) {
             stateStore.isShowingTitleScreen = true
@@ -629,11 +904,9 @@ private extension RootView {
                 return
             }
 
-            debugLog("RootView: ゲーム準備完了 ローディング解除 sessionID=\(sessionID)")
+            debugLog("RootView: ゲーム準備完了 手動開始待ちへ移行 sessionID=\(sessionID)")
 
-            withAnimation(.easeInOut(duration: 0.25)) {
-                stateStore.isPreparingGame = false
-            }
+            stateStore.isGameReadyForManualStart = true
 
             // 再利用を防ぐため参照を破棄する
             pendingGameActivationWorkItem = nil
@@ -647,12 +920,26 @@ private extension RootView {
         )
     }
 
+    /// ローディング完了後にユーザーが開始ボタンを押した際の処理
+    func finishGamePreparationAndStart() {
+        // すでにローディングが閉じられている場合は何もしない
+        guard stateStore.isPreparingGame else { return }
+
+        debugLog("RootView: ユーザー操作によりゲームを開始")
+
+        withAnimation(.easeInOut(duration: 0.25)) {
+            stateStore.isPreparingGame = false
+        }
+        stateStore.isGameReadyForManualStart = false
+    }
+
     /// ローディング表示解除用のワークアイテムをキャンセルし、参照をクリアする
     func cancelPendingGameActivationWorkItem() {
         guard let workItem = pendingGameActivationWorkItem else { return }
         debugLog("RootView: 保留中のゲーム準備ワークアイテムをキャンセル sessionID=\(stateStore.gameSessionID)")
         workItem.cancel()
         pendingGameActivationWorkItem = nil
+        stateStore.isGameReadyForManualStart = false
     }
 
     /// Game Center 認証 API 呼び出しをカプセル化し、ビュー側からの参照を単純化する

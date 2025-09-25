@@ -48,6 +48,9 @@ public final class GameCore: ObservableObject {
     @Published public private(set) var moveCount: Int = 0
     /// ペナルティによる加算手数（手詰まり通知に利用するため公開）
     @Published public private(set) var penaltyCount: Int = 0
+    /// プレイ中に一度でも既踏マスへ戻ったかどうか
+    /// - Note: キャンペーンの追加リワード条件「同じマスを踏まない」を判定するための状態
+    @Published public private(set) var hasRevisitedTile: Bool = false
     /// クリアまでに要した経過秒数
     /// - Note: クリア確定時に計測し、リセット時に 0 へ戻す
     @Published public private(set) var elapsedSeconds: Int = 0
@@ -131,10 +134,14 @@ public final class GameCore: ObservableObject {
         board.markVisited(target)
         moveCount += 1
 
-        // 既踏マスへの再訪ペナルティを加算
-        if revisiting && mode.revisitPenaltyCost > 0 {
-            penaltyCount += mode.revisitPenaltyCost
-            debugLog("既踏マス再訪ペナルティ: +\(mode.revisitPenaltyCost)")
+        // 既踏マスへ戻った場合はフラグを立て、必要に応じてペナルティを加算する
+        if revisiting {
+            hasRevisitedTile = true
+
+            if mode.revisitPenaltyCost > 0 {
+                penaltyCount += mode.revisitPenaltyCost
+                debugLog("既踏マス再訪ペナルティ: +\(mode.revisitPenaltyCost)")
+            }
         }
 
         // 盤面更新に合わせて残り踏破数を読み上げ
@@ -197,6 +204,7 @@ public final class GameCore: ObservableObject {
         current = mode.initialSpawnPoint
         moveCount = 0
         penaltyCount = 0
+        hasRevisitedTile = false
         elapsedSeconds = 0
         lastPenaltyAmount = 0
         penaltyEventID = nil
@@ -388,10 +396,12 @@ extension GameCore {
     ///   - moveCount: 設定したい移動回数
     ///   - penaltyCount: 設定したいペナルティ手数
     ///   - elapsedSeconds: 設定したい所要時間（秒）
-    func overrideMetricsForTesting(moveCount: Int, penaltyCount: Int, elapsedSeconds: Int) {
+    ///   - hasRevisitedTile: 既踏マスへ戻ったことがあるかどうか（追加リワード条件の検証に使用）
+    func overrideMetricsForTesting(moveCount: Int, penaltyCount: Int, elapsedSeconds: Int, hasRevisitedTile: Bool = false) {
         self.moveCount = moveCount
         self.penaltyCount = penaltyCount
         self.elapsedSeconds = elapsedSeconds
+        self.hasRevisitedTile = hasRevisitedTile
         sessionTimer.overrideFinalizedElapsedSecondsForTesting(elapsedSeconds)
     }
 

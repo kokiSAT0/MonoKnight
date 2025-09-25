@@ -60,6 +60,8 @@ public struct CampaignStage: Identifiable, Equatable {
         case finishWithinSeconds(maxSeconds: Int)
         /// ペナルティ加算なしでクリア
         case finishWithoutPenalty
+        /// 既踏マスを再訪せずにクリア
+        case avoidRevisitingTiles
 
         /// 条件をプレイ結果に照らし合わせて判定
         /// - Parameter metrics: クリア時の統計値
@@ -72,6 +74,8 @@ public struct CampaignStage: Identifiable, Equatable {
                 return metrics.elapsedSeconds <= maxSeconds
             case .finishWithoutPenalty:
                 return metrics.penaltyCount == 0
+            case .avoidRevisitingTiles:
+                return !metrics.hasRevisitedTile
             }
         }
 
@@ -84,6 +88,41 @@ public struct CampaignStage: Identifiable, Equatable {
                 return "\(maxSeconds) 秒以内でクリア"
             case .finishWithoutPenalty:
                 return "ペナルティを受けずにクリア"
+            case .avoidRevisitingTiles:
+                return "同じマスを 2 回踏まずにクリア"
+            }
+        }
+    }
+
+    /// スコア目標の比較方式
+    public enum ScoreTargetComparison: Equatable {
+        /// 指定値以下（≦）
+        case lessThanOrEqual
+        /// 指定値未満（＜）
+        case lessThan
+
+        /// 条件を満たしているか判定する
+        /// - Parameters:
+        ///   - score: 実際のスコア
+        ///   - target: 目標値
+        /// - Returns: 達成していれば true
+        func isSatisfied(score: Int, target: Int) -> Bool {
+            switch self {
+            case .lessThanOrEqual:
+                return score <= target
+            case .lessThan:
+                return score < target
+            }
+        }
+
+        /// 表示用の比較記号を返す
+        /// - Returns: "以下" などユーザーへ提示する文言
+        var descriptionSuffix: String {
+            switch self {
+            case .lessThanOrEqual:
+                return "以下"
+            case .lessThan:
+                return "未満"
             }
         }
     }
@@ -99,6 +138,8 @@ public struct CampaignStage: Identifiable, Equatable {
     public let secondaryObjective: SecondaryObjective?
     /// 3 個目のスター獲得に必要なスコア上限
     public let scoreTarget: Int?
+    /// スコア目標の比較方式
+    public let scoreTargetComparison: ScoreTargetComparison
     /// ステージ解放条件
     public let unlockRequirement: CampaignStageUnlockRequirement
 
@@ -110,6 +151,7 @@ public struct CampaignStage: Identifiable, Equatable {
         regulation: GameMode.Regulation,
         secondaryObjective: SecondaryObjective?,
         scoreTarget: Int?,
+        scoreTargetComparison: ScoreTargetComparison = .lessThanOrEqual,
         unlockRequirement: CampaignStageUnlockRequirement
     ) {
         self.id = id
@@ -118,6 +160,7 @@ public struct CampaignStage: Identifiable, Equatable {
         self.regulation = regulation
         self.secondaryObjective = secondaryObjective
         self.scoreTarget = scoreTarget
+        self.scoreTargetComparison = scoreTargetComparison
         self.unlockRequirement = unlockRequirement
     }
 
@@ -132,7 +175,8 @@ public struct CampaignStage: Identifiable, Equatable {
     /// 三つ目のスター条件説明
     public var scoreTargetDescription: String? {
         guard let scoreTarget else { return nil }
-        return "スコア \(scoreTarget) pt 以下でクリア"
+        let suffix = scoreTargetComparison.descriptionSuffix
+        return "スコア \(scoreTarget) pt \(suffix)でクリア"
     }
 
     /// ステージ解放条件の説明
@@ -156,7 +200,7 @@ public struct CampaignStage: Identifiable, Equatable {
         let objectiveAchieved = secondaryObjective?.isSatisfied(by: metrics) ?? false
         let scoreAchieved: Bool
         if let scoreTarget {
-            scoreAchieved = metrics.score <= scoreTarget
+            scoreAchieved = scoreTargetComparison.isSatisfied(score: metrics.score, target: scoreTarget)
         } else {
             scoreAchieved = false
         }
@@ -193,19 +237,22 @@ public struct CampaignStageClearMetrics {
     public let elapsedSeconds: Int
     public let totalMoveCount: Int
     public let score: Int
+    public let hasRevisitedTile: Bool
 
     public init(
         moveCount: Int,
         penaltyCount: Int,
         elapsedSeconds: Int,
         totalMoveCount: Int,
-        score: Int
+        score: Int,
+        hasRevisitedTile: Bool
     ) {
         self.moveCount = moveCount
         self.penaltyCount = penaltyCount
         self.elapsedSeconds = elapsedSeconds
         self.totalMoveCount = totalMoveCount
         self.score = score
+        self.hasRevisitedTile = hasRevisitedTile
     }
 }
 
@@ -277,14 +324,15 @@ public struct CampaignLibrary {
                 deckPreset: .standard,
                 spawnRule: .fixed(BoardGeometry.defaultSpawnPoint(for: 4)),
                 penalties: GameMode.PenaltySettings(
-                    deadlockPenaltyCost: 5,
-                    manualRedrawPenaltyCost: 5,
+                    deadlockPenaltyCost: 3,
+                    manualRedrawPenaltyCost: 1,
                     manualDiscardPenaltyCost: 1,
                     revisitPenaltyCost: 0
                 )
             ),
-            secondaryObjective: .finishWithinMoves(maxMoves: 18),
-            scoreTarget: 280,
+            secondaryObjective: .avoidRevisitingTiles,
+            scoreTarget: 350,
+            scoreTargetComparison: .lessThan,
             unlockRequirement: .totalStars(minimum: 0)
         )
 
