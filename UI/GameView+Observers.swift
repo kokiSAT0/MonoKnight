@@ -48,15 +48,18 @@ extension GameView {
                 viewModel.refreshGuideHighlights()
             }
             // 手札の並び設定が変わったら即座にゲームロジックへ伝え、UI の並びも更新する
-            .onChange(of: handOrderingRawValue) { _ in
-                viewModel.applyHandOrderingStrategy(rawValue: handOrderingRawValue)
+            .onChange(of: handOrderingRawValue) { _, newValue in
+                // AppStorage から受け取った新しい手札並び設定を即座に適用し、設定画面とゲーム画面の差異をなくす
+                viewModel.applyHandOrderingStrategy(rawValue: newValue)
             }
             // ガイドモードのオン/オフを切り替えたら即座に ViewModel 側へ委譲する
-            .onChange(of: guideModeEnabled) { isEnabled in
+            .onChange(of: guideModeEnabled) { _, isEnabled in
+                // 新しいガイドモード状態を SpriteKit へ伝え、盤面表示の補助情報を同期する
                 viewModel.updateGuideMode(enabled: isEnabled)
             }
             // ハプティクス設定が切り替わった際も ViewModel へ伝え、サービス呼び出しを統一する
-            .onChange(of: hapticsEnabled) { isEnabled in
+            .onChange(of: hapticsEnabled) { _, isEnabled in
+                // 旧設定との差分を検知したタイミングでハプティクス制御ロジックを更新し、無効化時の誤振動を防ぐ
                 viewModel.updateHapticsSetting(isEnabled: isEnabled)
             }
             // 経過時間を 1 秒ごとに再計算し、リアルタイム表示へ反映
