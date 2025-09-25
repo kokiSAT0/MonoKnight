@@ -40,7 +40,9 @@ extension GameView {
                 )
             }
             // ライト/ダーク切り替えが発生した場合も SpriteKit 側へ反映
-            .onChange(of: colorScheme, initial: false) { newScheme in
+            .onChange(of: colorScheme, initial: false) { previousScheme, newScheme in
+                // 直前のカラースキームと異なる場合のみ SpriteKit 側の配色を更新して無駄な再描画を防ぐ
+                guard previousScheme != newScheme else { return }
                 viewModel.applyScenePalette(for: newScheme)
                 // カラースキーム変更時はガイドの色味も再描画して視認性を確保
                 viewModel.refreshGuideHighlights()
