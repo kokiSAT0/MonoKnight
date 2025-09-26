@@ -1235,8 +1235,9 @@ fileprivate struct TitleScreenView: View {
 
     @State private var isPresentingHowToPlay: Bool = false
     /// タイトル画面専用のナビゲーションスタック
-    /// - Note: キャンペーンやフリーモード設定をページ遷移で表示するため、`NavigationPath` を保持して制御する
-    @State private var navigationPath = NavigationPath()
+    /// - Note: キャンペーンやフリーモード設定をページ遷移で表示する際に、型情報を保ったまま保持できるよう `NavigationPath` ではなく
+    ///         `TitleNavigationTarget` の配列で管理し、デコードに失敗して遷移先が表示されない不具合を防ぐ
+    @State private var navigationPath: [TitleNavigationTarget] = []
     /// サイズクラスを参照し、iPad での余白やシート表現を最適化する
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
@@ -1766,7 +1767,8 @@ fileprivate struct TitleScreenView: View {
         // リセット直前の段数を記録し、スタックを完全に空へ戻したか検証する
         let currentDepth = navigationPath.count
         debugLog("TitleScreenView: NavigationStack reset実行 -> 現在のスタック数=\(currentDepth)")
-        navigationPath.removeLast(navigationPath.count)
+        // `NavigationPath` から配列へ変更したことで `removeAll()` が利用できるため、単純に全要素を削除して初期状態へ戻す
+        navigationPath.removeAll()
         debugLog("TitleScreenView: NavigationStack reset後 -> 変更後のスタック数=\(navigationPath.count)")
     }
 
