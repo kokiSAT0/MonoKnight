@@ -1247,6 +1247,8 @@ fileprivate struct TitleScreenView: View {
     private let campaignLibrary = CampaignLibrary.shared
     /// フリーモードのレギュレーションを管理するストア
     @StateObject private var freeModeStore = FreeModeRegulationStore()
+    /// デバッグログ用の一意識別子（`ObjectIdentifier` は構造体に使えないため UUID を利用）
+    private let instanceIdentifier = UUID()
 
     @State private var isPresentingHowToPlay: Bool = false
     /// タイトル画面専用のナビゲーションスタック
@@ -1276,13 +1278,13 @@ fileprivate struct TitleScreenView: View {
         // `@State` の初期値を明示しておくことで、将来的な初期値変更にも対応しやすくする
         _isPresentingHowToPlay = State(initialValue: false)
         // 初期化が完了した直後に識別子とナビゲーションスタック長を残し、想定外の再生成を検知しやすくする
-        debugLog("TitleScreenView.init開始: self=\(ObjectIdentifier(self)) navigationPathCount=\(_navigationPath.wrappedValue.count)")
+        debugLog("TitleScreenView.init開始: instance=\(instanceIdentifier.uuidString) navigationPathCount=\(_navigationPath.wrappedValue.count)")
     }
 
 
     var body: some View {
         // body 評価が走るたびに現在のインスタンスとスタック長を記録し、View の再構築状況を追跡する
-        debugLog("TitleScreenView.body評価: self=\(ObjectIdentifier(self)) navigationPathCount=\(navigationPath.count)")
+        debugLog("TitleScreenView.body評価: instance=\(instanceIdentifier.uuidString) navigationPathCount=\(navigationPath.count)")
         return NavigationStack(path: $navigationPath) {
             VStack(spacing: 28) {
                 Spacer(minLength: 0)
