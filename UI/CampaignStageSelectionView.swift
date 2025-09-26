@@ -68,7 +68,15 @@ struct CampaignStageSelectionView: View {
         // ステージ一覧の表示状態を追跡し、遷移の成否をログで確認できるようにする
         .onAppear {
             let unlockedCount = campaignLibrary.allStages.filter { progressStore.isStageUnlocked($0) }.count
-            debugLog("CampaignStageSelectionView: onAppear -> ステージ総数=\(campaignLibrary.allStages.count) 解放済=\(unlockedCount)")
+            // 章ごとのステージ数を列挙し、定義抜けによる空表示を切り分けやすくする
+            let chapterSummaries = campaignLibrary.chapters
+                .map { chapter in "Chapter \(chapter.id):\(chapter.stages.count)" }
+                .joined(separator: ", ")
+            let selectedDescription = selectedStageID?.displayCode ?? "なし"
+            debugLog("CampaignStageSelectionView: onAppear -> ステージ総数=\(campaignLibrary.allStages.count) 解放済=\(unlockedCount) 章内訳=[\(chapterSummaries)] 選択中=\(selectedDescription)")
+            if campaignLibrary.chapters.isEmpty {
+                debugLog("CampaignStageSelectionView: 章定義が空です。CampaignLibrary.buildChapters() の戻り値を確認してください。")
+            }
         }
         .onDisappear {
             debugLog("CampaignStageSelectionView: onDisappear")
