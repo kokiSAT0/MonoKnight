@@ -68,9 +68,21 @@ struct CampaignStageSelectionView: View {
         .toolbar {
             if showsCloseButton {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("閉じる") { onClose() }
+                    Button("閉じる") {
+                        // 手動クローズ時にナビゲーション操作を記録し、戻れない問題の切り分けに備える
+                        debugLog("CampaignStageSelectionView: 閉じるボタン押下 -> NavigationStackポップ要求")
+                        onClose()
+                    }
                 }
             }
+        }
+        // ステージ一覧の表示状態を追跡し、遷移の成否をログで確認できるようにする
+        .onAppear {
+            let unlockedCount = campaignLibrary.allStages.filter { progressStore.isStageUnlocked($0) }.count
+            debugLog("CampaignStageSelectionView: onAppear -> ステージ総数=\(campaignLibrary.allStages.count) 解放済=\(unlockedCount)")
+        }
+        .onDisappear {
+            debugLog("CampaignStageSelectionView: onDisappear")
         }
     }
 

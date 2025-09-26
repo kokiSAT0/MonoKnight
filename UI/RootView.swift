@@ -1357,6 +1357,13 @@ fileprivate struct TitleScreenView: View {
                     },
                     showsCloseButton: false
                 )
+                // ステージセレクターが表示されるタイミングを把握し、ナビゲーション不具合の追跡に活用する
+                .onAppear {
+                    debugLog("TitleScreenView: NavigationDestination.campaign 表示 -> 現在のスタック数=\(navigationPath.count)")
+                }
+                .onDisappear {
+                    debugLog("TitleScreenView: NavigationDestination.campaign 非表示 -> 現在のスタック数=\(navigationPath.count)")
+                }
             case .freeModeEditor:
                 FreeModeRegulationView(
                     initialRegulation: freeModeStore.regulation,
@@ -1392,6 +1399,10 @@ fileprivate struct TitleScreenView: View {
         // モーダル表示状態を監視し、遊び方シートの開閉タイミングを把握する
         .onChange(of: isPresentingHowToPlay) { _, newValue in
             debugLog("TitleScreenView.isPresentingHowToPlay 更新: \(newValue)")
+        }
+        // NavigationStack の更新を監視し、スタック操作が正しく反映されているか詳細に記録する
+        .onChange(of: navigationPath) { oldValue, newValue in
+            debugLog("TitleScreenView.navigationPath 更新: 旧=\(oldValue.count) -> 新=\(newValue.count)")
         }
         // フリーモードのレギュレーションが更新された場合は選択モードの内容も再生成する
         .onChange(of: freeModeStore.regulation) { _, _ in
@@ -1562,7 +1573,12 @@ fileprivate struct TitleScreenView: View {
         return Button {
             // ボタン押下時に NavigationStack へルートを追加し、ページ遷移でステージ一覧を開く
             debugLog("TitleScreenView: キャンペーンセレクター表示要求 (Navigation)")
+            // 現在のスタック長を記録しておき、プッシュ結果の差分を追えるようにする
+            let currentDepth = navigationPath.count
+            debugLog("TitleScreenView: NavigationStack push準備 -> 現在のスタック数=\(currentDepth)")
             navigationPath.append(TitleNavigationTarget.campaign)
+            // スタック操作後の段数も記録し、期待通りに 1 ページ追加されたかを確認できるようにする
+            debugLog("TitleScreenView: NavigationStack push完了 -> 変更後のスタック数=\(navigationPath.count)")
         } label: {
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
@@ -1636,8 +1652,12 @@ fileprivate struct TitleScreenView: View {
         if isFreeMode {
             // フリーモードの場合はまず設定ページへ遷移し、保存後に開始する
             debugLog("TitleScreenView: フリーモードカードをタップ -> 設定編集ページへ遷移")
+            // プッシュ前後の NavigationStack 状態を把握し、遷移できない場合の原因を特定しやすくする
+            let currentDepth = navigationPath.count
+            debugLog("TitleScreenView: NavigationStack push準備(freeMode) -> 現在のスタック数=\(currentDepth)")
             selectedMode = mode
             navigationPath.append(TitleNavigationTarget.freeModeEditor)
+            debugLog("TitleScreenView: NavigationStack push完了(freeMode) -> 変更後のスタック数=\(navigationPath.count)")
             return
         }
 
@@ -1733,13 +1753,21 @@ fileprivate struct TitleScreenView: View {
     /// NavigationStack の末尾を 1 ページ分取り除き、手動で戻る挙動を再現する
     private func popNavigationStack() {
         guard navigationPath.count > 0 else { return }
+        // ポップ前後の段数を把握して戻る操作が想定通りかを追跡する
+        let currentDepth = navigationPath.count
+        debugLog("TitleScreenView: NavigationStack pop実行 -> 現在のスタック数=\(currentDepth)")
         navigationPath.removeLast()
+        debugLog("TitleScreenView: NavigationStack pop後 -> 変更後のスタック数=\(navigationPath.count)")
     }
 
     /// NavigationStack を空に戻し、タイトル画面の初期状態へリセットする
     private func resetNavigationStack() {
         guard navigationPath.count > 0 else { return }
+        // リセット直前の段数を記録し、スタックを完全に空へ戻したか検証する
+        let currentDepth = navigationPath.count
+        debugLog("TitleScreenView: NavigationStack reset実行 -> 現在のスタック数=\(currentDepth)")
         navigationPath.removeLast(navigationPath.count)
+        debugLog("TitleScreenView: NavigationStack reset後 -> 変更後のスタック数=\(navigationPath.count)")
     }
 
     /// ゲーム開始のトリガー元を識別する列挙体
