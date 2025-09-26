@@ -12,6 +12,8 @@ struct CampaignStageSelectionView: View {
     let selectedStageID: CampaignStageID?
     /// クローズハンドラ
     let onClose: () -> Void
+    /// ナビゲーションバーに閉じるボタンを表示するかどうか
+    let showsCloseButton: Bool
     /// ステージ決定時のハンドラ
     let onSelectStage: (CampaignStage) -> Void
 
@@ -25,12 +27,14 @@ struct CampaignStageSelectionView: View {
     ///   - selectedStageID: すでに選択済みのステージ ID
     ///   - onClose: ビューを閉じるためのコールバック
     ///   - onSelectStage: ステージ選択確定時に呼び出されるコールバック
+    ///   - showsCloseButton: ナビゲーションバーへ「閉じる」ボタンを表示するかどうか
     init(
         campaignLibrary: CampaignLibrary,
         progressStore: CampaignProgressStore,
         selectedStageID: CampaignStageID?,
         onClose: @escaping () -> Void,
-        onSelectStage: @escaping (CampaignStage) -> Void
+        onSelectStage: @escaping (CampaignStage) -> Void,
+        showsCloseButton: Bool = true
     ) {
         // @ObservedObject プロパティはラッパー経由で代入する必要があるため、明示的に初期化する
         self.campaignLibrary = campaignLibrary
@@ -38,6 +42,7 @@ struct CampaignStageSelectionView: View {
         self.selectedStageID = selectedStageID
         self.onClose = onClose
         self.onSelectStage = onSelectStage
+        self.showsCloseButton = showsCloseButton
     }
 
     var body: some View {
@@ -61,8 +66,10 @@ struct CampaignStageSelectionView: View {
         .listStyle(.insetGrouped)
         .navigationTitle("キャンペーン")
         .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button("閉じる") { onClose() }
+            if showsCloseButton {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("閉じる") { onClose() }
+                }
             }
         }
     }
