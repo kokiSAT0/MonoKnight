@@ -59,15 +59,7 @@ struct CampaignStageSelectionView: View {
         }
         .navigationTitle("キャンペーン")
         .toolbar {
-            if showsCloseButton {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("閉じる") {
-                        // 手動クローズ時にナビゲーション操作を記録し、戻れない問題の切り分けに備える
-                        debugLog("CampaignStageSelectionView: 閉じるボタン押下 -> NavigationStackポップ要求")
-                        onClose()
-                    }
-                }
-            }
+            toolbarContent
         }
         // ステージ一覧の表示状態を追跡し、遷移の成否をログで確認できるようにする
         .onAppear {
@@ -168,6 +160,20 @@ struct CampaignStageSelectionView: View {
         }
         .accessibilityLabel("スター獲得数: \(earnedStars) / 3")
         .padding(.top, 4)
+    }
+
+    /// ナビゲーションバーへ配置するツールバー構成を切り出し、型推論の曖昧さを回避する
+    @ToolbarContentBuilder
+    private var toolbarContent: some ToolbarContent {
+        if showsCloseButton {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("閉じる") {
+                    // 手動クローズ時にナビゲーション操作を記録し、戻れない問題の切り分けに備える
+                    debugLog("CampaignStageSelectionView: 閉じるボタン押下 -> NavigationStackポップ要求")
+                    onClose()
+                }
+            }
+        }
     }
 
     /// 章とステージが正しく読み込めた場合の一覧表示
