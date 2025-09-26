@@ -46,24 +46,13 @@ struct CampaignStageSelectionView: View {
     }
 
     var body: some View {
-        List {
-            ForEach(campaignLibrary.chapters) { chapter in
-                Section {
-                    ForEach(chapter.stages) { stage in
-                        stageRow(for: stage)
-                    }
-                } header: {
-                    Text("Chapter \(chapter.id) \(chapter.title)")
-                        .font(.system(size: 15, weight: .semibold, design: .rounded))
-                } footer: {
-                    Text(chapter.summary)
-                        .font(.system(size: 11, weight: .regular, design: .rounded))
-                        .foregroundColor(.secondary)
-                        .padding(.top, 4)
-                }
+        Group {
+            if campaignLibrary.chapters.isEmpty {
+                emptyStateView
+            } else {
+                stageListView
             }
         }
-        .listStyle(.insetGrouped)
         .navigationTitle("キャンペーン")
         .toolbar {
             if showsCloseButton {
@@ -156,4 +145,77 @@ struct CampaignStageSelectionView: View {
         .accessibilityLabel("スター獲得数: \(earnedStars) / 3")
         .padding(.top, 4)
     }
+
+    /// 章とステージが正しく読み込めた場合の一覧表示
+    /// - Returns: 既存仕様と同じスタイルの List
+    @ViewBuilder
+    private var stageListView: some View {
+        List {
+            ForEach(campaignLibrary.chapters) { chapter in
+                Section {
+                    ForEach(chapter.stages) { stage in
+                        stageRow(for: stage)
+                    }
+                } header: {
+                    Text("Chapter \(chapter.id) \(chapter.title)")
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                } footer: {
+                    Text(chapter.summary)
+                        .font(.system(size: 11, weight: .regular, design: .rounded))
+                        .foregroundColor(.secondary)
+                        .padding(.top, 4)
+                }
+            }
+        }
+        .listStyle(.insetGrouped)
+    }
+
+    /// キャンペーン情報のロードに失敗した際に表示する案内ビュー
+    /// - Returns: 再試行導線を含む縦方向の案内
+    private var emptyStateView: some View {
+        VStack(spacing: 20) {
+            Spacer(minLength: 0)
+
+            // ユーザーへ発生状況を説明するメインメッセージ
+            Text("ステージ情報を読み込めませんでした")
+                .font(.system(size: 18, weight: .semibold, design: .rounded))
+                .foregroundColor(theme.textPrimary)
+                .multilineTextAlignment(.center)
+
+            // 状況を補足し再試行の導線を案内するサブメッセージ
+            Text("通信状況をご確認のうえ、画面を閉じて再度開き直してください。")
+                .font(.system(size: 14, weight: .regular, design: .rounded))
+                .foregroundColor(theme.textSecondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 16)
+
+            // 再試行用のボタン。閉じるハンドラを通じて呼び出し元へ制御を戻す
+            Button {
+                debugLog("CampaignStageSelectionView: キャンペーンライブラリが空のため再試行ボタンからクローズを要求")
+                onClose()
+            } label: {
+                Text("閉じて再試行")
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .foregroundColor(theme.accentOnPrimary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(theme.accentPrimary)
+                    )
+            }
+            .accessibilityLabel("キャンペーン画面を閉じて再読み込みを試す")
+            .padding(.horizontal, 32)
+
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(theme.backgroundPrimary)
+        .onAppear {
+            // データ欠落の発生タイミングを把握するためログを出力
+            debugLog("CampaignStageSelectionView: campaignLibrary.chapters が空のためエンプティビューを表示")
+        }
+    }
+
 }
+
