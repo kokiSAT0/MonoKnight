@@ -1294,6 +1294,13 @@ fileprivate struct TitleScreenView: View {
         }
         // キャンペーンやフリーモードのページ遷移先を NavigationStack 上に定義する
         .navigationDestination(for: TitleNavigationTarget.self) { target in
+            // タイトルスタック遷移直前の状態を逐一記録し、ターゲット判定のずれを即座に検知できるようにする
+            let stackDescription = navigationPath
+                .map { $0.rawValue }
+                .joined(separator: ",")
+            debugLog(
+                "TitleScreenView: NavigationDestination.entry -> instance=\(instanceIdentifier.uuidString) target=\(target.rawValue) targetType=\(String(describing: type(of: target))) stackCount=\(navigationPath.count) stack=[\(stackDescription)]"
+            )
             // 別メソッドへ処理を委譲し、ここでは分岐結果のビュー生成だけに集中させる
             navigationDestinationView(for: target)
         }
@@ -1418,8 +1425,13 @@ fileprivate struct TitleScreenView: View {
     private func navigationDestinationView(for target: TitleNavigationTarget) -> some View {
         switch target {
         case .campaign:
-            // ナビゲーション遷移先の構築段階でインスタンス識別子とスタック状況を把握する
-            debugLog("TitleScreenView: NavigationDestination.campaign 構築開始 -> instance=\(instanceIdentifier) / stackCount=\(navigationPath.count)")
+            // ナビゲーション遷移先の構築段階でスタック内容とターゲット種別を詳細に把握する
+            let stackDescription = navigationPath
+                .map { $0.rawValue }
+                .joined(separator: ",")
+            debugLog(
+                "TitleScreenView: NavigationDestination.campaign 構築開始 -> instance=\(instanceIdentifier.uuidString) targetType=\(String(describing: type(of: target))) stackCount=\(navigationPath.count) stack=[\(stackDescription)]"
+            )
             return AnyView(
                 CampaignStageSelectionView(
                     campaignLibrary: campaignLibrary,
@@ -1442,6 +1454,13 @@ fileprivate struct TitleScreenView: View {
             }
             )
         case .freeModeEditor:
+            // フリーモード設定画面への遷移でも同様にスタックの現状を明示する
+            let stackDescription = navigationPath
+                .map { $0.rawValue }
+                .joined(separator: ",")
+            debugLog(
+                "TitleScreenView: NavigationDestination.freeModeEditor 構築開始 -> instance=\(instanceIdentifier.uuidString) targetType=\(String(describing: type(of: target))) stackCount=\(navigationPath.count) stack=[\(stackDescription)]"
+            )
             return AnyView(
                 FreeModeRegulationView(
                     initialRegulation: freeModeStore.regulation,
@@ -1461,6 +1480,15 @@ fileprivate struct TitleScreenView: View {
                     }
                 )
             )
+        @unknown default:
+            // 想定外ケースでもログだけは残し、調査時にスタックの不整合を追えるようにする
+            let stackDescription = navigationPath
+                .map { $0.rawValue }
+                .joined(separator: ",")
+            debugLog(
+                "TitleScreenView: NavigationDestination.unknown フォールバック -> instance=\(instanceIdentifier.uuidString) rawValue=\(target.rawValue) targetType=\(String(describing: type(of: target))) stackCount=\(navigationPath.count) stack=[\(stackDescription)]"
+            )
+            return AnyView(EmptyView())
         }
     }
 
