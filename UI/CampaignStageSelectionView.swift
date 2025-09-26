@@ -59,8 +59,11 @@ struct CampaignStageSelectionView: View {
         }
         .navigationTitle("キャンペーン")
         .toolbar {
-            // 計算プロパティの内容をクロージャ経由で渡し、`toolbar` のオーバーロード解決を明確化する
-            toolbarContent
+            // ToolbarContent 準拠のヘルパーを直接渡し、オーバーロードの曖昧さを確実に解消する
+            CampaignStageSelectionToolbar(
+                showsCloseButton: showsCloseButton,
+                onClose: onClose
+            )
         }
         // ステージ一覧の表示状態を追跡し、遷移の成否をログで確認できるようにする
         .onAppear {
@@ -248,21 +251,22 @@ struct CampaignStageSelectionView: View {
 
 // MARK: - Toolbar 定義
 
-private extension CampaignStageSelectionView {
-    /// ツールバーに表示する内容を `@ToolbarContentBuilder` で切り出し、オーバーロードの曖昧さを避ける
-    @ToolbarContentBuilder
-    private var toolbarContent: some ToolbarContent {
+/// キャンペーン選択画面専用のツールバー構成。
+/// SwiftUI の `ToolbarContent` へ準拠した専用型として切り出すことで、`toolbar` のオーバーロード解決を安定させる。
+private struct CampaignStageSelectionToolbar: ToolbarContent {
+    /// 閉じるボタンを表示するかどうか
+    let showsCloseButton: Bool
+    /// 親ビューへ制御を戻すためのクローズハンドラ
+    let onClose: () -> Void
+
+    var body: some ToolbarContent {
         ToolbarItem(placement: .cancellationAction) {
-            // showsCloseButton が false の場合でも型を確定させるため EmptyView を明示的に返す
             if showsCloseButton {
                 Button("閉じる") {
-                    // 手動クローズ時にナビゲーション操作を記録し、戻れない問題の切り分けに備える
-                    debugLog("CampaignStageSelectionView: 閉じるボタン押下 -> NavigationStackポップ要求")
+                    // ナビゲーションスタックをポップする契機を記録し、手動クローズのトレースを取りやすくする
+                    debugLog("CampaignStageSelectionToolbar: 閉じるボタン押下 -> NavigationStackポップ要求")
                     onClose()
                 }
-            } else {
-                // ツールバーが空の際の戻り値を明示し、ResultBuilder の戻り値不一致を防ぐ
-                EmptyView()
             }
         }
     }
