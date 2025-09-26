@@ -58,7 +58,10 @@ struct CampaignStageSelectionView: View {
             }
         }
         .navigationTitle("キャンペーン")
-        .toolbar(content: toolbarContent)
+        .toolbar {
+            // 計算プロパティの内容をクロージャ経由で渡し、`toolbar` のオーバーロード解決を明確化する
+            toolbarContent
+        }
         // ステージ一覧の表示状態を追跡し、遷移の成否をログで確認できるようにする
         .onAppear {
             let unlockedCount = campaignLibrary.allStages.filter { progressStore.isStageUnlocked($0) }.count
