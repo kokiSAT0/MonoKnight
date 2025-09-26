@@ -1259,8 +1259,11 @@ fileprivate struct TitleScreenView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     /// タイトル画面から遷移可能なページ種別
-    private enum TitleNavigationTarget: Hashable {
+    /// - Note: RawValue を `String` で明示し `Codable` に準拠させることで、NavigationStack のシリアライズ時に安全に復元できる
+    private enum TitleNavigationTarget: String, Hashable, Codable {
+        /// キャンペーン一覧画面
         case campaign
+        /// フリーモード設定画面
         case freeModeEditor
     }
 
