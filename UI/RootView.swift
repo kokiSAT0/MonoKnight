@@ -1234,12 +1234,17 @@ fileprivate struct TitleScreenView: View {
     @StateObject private var freeModeStore = FreeModeRegulationStore()
 
     @State private var isPresentingHowToPlay: Bool = false
-    /// フリーモード設定シートの表示状態
-    @State private var isPresentingFreeModeEditor: Bool = false
-    /// キャンペーンステージ選択シートの表示状態
-    @State private var isPresentingCampaignSelector: Bool = false
+    /// タイトル画面専用のナビゲーションスタック
+    /// - Note: キャンペーンやフリーモード設定をページ遷移で表示するため、`NavigationPath` を保持して制御する
+    @State private var navigationPath = NavigationPath()
     /// サイズクラスを参照し、iPad での余白やシート表現を最適化する
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+    /// タイトル画面から遷移可能なページ種別
+    private enum TitleNavigationTarget: Hashable {
+        case campaign
+        case freeModeEditor
+    }
 
     /// `@State` プロパティを保持したまま、外部（同ファイル内の RootView）から初期化できるようにするカスタムイニシャライザ
     /// - Parameters:
@@ -1258,10 +1263,11 @@ fileprivate struct TitleScreenView: View {
 
 
     var body: some View {
-        VStack(spacing: 28) {
-            Spacer(minLength: 0)
+        NavigationStack(path: $navigationPath) {
+            VStack(spacing: 28) {
+                Spacer(minLength: 0)
 
-            // MARK: - アプリタイトルと簡単な説明
+                // MARK: - アプリタイトルと簡単な説明
             VStack(spacing: 12) {
                 Text("MonoKnight")
                     .font(.system(size: 32, weight: .heavy, design: .rounded))
@@ -1299,41 +1305,78 @@ fileprivate struct TitleScreenView: View {
             .controlSize(.large)
             .accessibilityIdentifier("title_how_to_play_button")
 
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, horizontalPadding)
-        .padding(.bottom, 36)
-        .frame(maxWidth: contentMaxWidth)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        // 背景もテーマのベースカラーへ切り替え、システム設定と調和させる
-        .background(theme.backgroundPrimary)
-        // 右上にギアアイコンを常設し、ゲーム外の詳細設定へ誘導する
-        .overlay(alignment: .topTrailing) {
-            Button {
-                debugLog("TitleScreenView: 設定シート表示要求")
-                onOpenSettings()
-            } label: {
-                Image(systemName: "gearshape.fill")
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundColor(theme.menuIconForeground)
-                    .frame(width: 44, height: 44)
-                    .background(
-                        Circle()
-                            .fill(theme.menuIconBackground)
-                    )
-                    .overlay(
-                        Circle()
-                            .stroke(theme.menuIconBorder, lineWidth: 1)
-                    )
+                Spacer(minLength: 0)
             }
-            .buttonStyle(.plain)
-            .padding(.top, 16)
-            .padding(.trailing, 20)
-            .accessibilityLabel("設定")
-            .accessibilityHint("広告やプライバシー設定などの詳細を確認できます")
+            .padding(.horizontal, horizontalPadding)
+            .padding(.bottom, 36)
+            .frame(maxWidth: contentMaxWidth)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // 背景もテーマのベースカラーへ切り替え、システム設定と調和させる
+            .background(theme.backgroundPrimary)
+            // 右上にギアアイコンを常設し、ゲーム外の詳細設定へ誘導する
+            .overlay(alignment: .topTrailing) {
+                Button {
+                    debugLog("TitleScreenView: 設定シート表示要求")
+                    onOpenSettings()
+                } label: {
+                    Image(systemName: "gearshape.fill")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundColor(theme.menuIconForeground)
+                        .frame(width: 44, height: 44)
+                        .background(
+                            Circle()
+                                .fill(theme.menuIconBackground)
+                        )
+                        .overlay(
+                            Circle()
+                                .stroke(theme.menuIconBorder, lineWidth: 1)
+                        )
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 16)
+                .padding(.trailing, 20)
+                .accessibilityLabel("設定")
+                .accessibilityHint("広告やプライバシー設定などの詳細を確認できます")
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("タイトル画面。モードをタップすると即座にゲームが始まります。キャンペーンはステージ一覧へ遷移し、フリーモードは設定を編集できます。手札スロットは最大\(selectedMode.handSize)種類で、\(selectedMode.stackingRuleDetailText)")
         }
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("タイトル画面。モードをタップすると即座にゲームが始まります。キャンペーンはステージ一覧へ遷移し、フリーモードは設定を編集できます。手札スロットは最大\(selectedMode.handSize)種類で、\(selectedMode.stackingRuleDetailText)")
+        // キャンペーンやフリーモードのページ遷移先を NavigationStack 上に定義する
+        .navigationDestination(for: TitleNavigationTarget.self) { target in
+            switch target {
+            case .campaign:
+                CampaignStageSelectionView(
+                    campaignLibrary: campaignLibrary,
+                    progressStore: campaignProgressStore,
+                    selectedStageID: selectedCampaignStage?.id,
+                    showsCloseButton: false,
+                    onClose: { popNavigationStack() },
+                    onSelectStage: { stage in
+                        // ステージ決定時はスタックを初期化してからゲーム開始処理へ進む
+                        resetNavigationStack()
+                        handleCampaignStageSelection(stage)
+                    }
+                )
+            case .freeModeEditor:
+                FreeModeRegulationView(
+                    initialRegulation: freeModeStore.regulation,
+                    presets: GameMode.builtInModes,
+                    onCancel: {
+                        // キャンセル時はページを閉じ、元のタイトル画面へ戻す
+                        debugLog("TitleScreenView: フリーモード設定をキャンセル")
+                        popNavigationStack()
+                    },
+                    onSave: { newRegulation in
+                        // 保存後はレギュレーションを更新し、遷移を閉じてからゲーム開始フローを準備する
+                        freeModeStore.update(newRegulation)
+                        let updatedMode = freeModeStore.makeGameMode()
+                        selectedMode = updatedMode
+                        resetNavigationStack()
+                        triggerImmediateStart(for: updatedMode, context: .freeModeEditor, delayStart: true)
+                    }
+                )
+            }
+        }
         // 遊び方シートの表示設定
         .sheet(isPresented: $isPresentingHowToPlay) {
             // NavigationStack でタイトルバーを付与しつつ共通ビューを利用
@@ -1346,56 +1389,9 @@ fileprivate struct TitleScreenView: View {
             )
             .presentationDragIndicator(.visible)
         }
-        // キャンペーンステージ選択シート
-        .sheet(isPresented: $isPresentingCampaignSelector) {
-            NavigationStack {
-                CampaignStageSelectionView(
-                    campaignLibrary: campaignLibrary,
-                    progressStore: campaignProgressStore,
-                    selectedStageID: selectedCampaignStage?.id,
-                    onClose: {
-                        isPresentingCampaignSelector = false
-                    },
-                    onSelectStage: { stage in
-                        handleCampaignStageSelection(stage)
-                    }
-                )
-            }
-            .presentationDetents(
-                horizontalSizeClass == .regular ? [.large] : [.medium, .large]
-            )
-            .presentationDragIndicator(.visible)
-        }
-        // フリーモードのレギュレーション設定を全画面モーダルで表示し、数値調整へ集中できる編集体験にそろえる
-        .fullScreenCover(isPresented: $isPresentingFreeModeEditor) {
-            // NavigationStack を内包することでフルスクリーン表示でもタイトルバーのキャンセル/保存ボタンを維持する
-            NavigationStack {
-                FreeModeRegulationView(
-                    initialRegulation: freeModeStore.regulation,
-                    presets: GameMode.builtInModes,
-                    onCancel: {
-                        // 全画面カバーを閉じる操作をコールバックでまとめて扱い、呼び出し元と挙動を同期する
-                        isPresentingFreeModeEditor = false
-                    },
-                    onSave: { newRegulation in
-                        // 保存後にストアへ反映し、最新のモード内容を生成してからモーダルを閉じる
-                        freeModeStore.update(newRegulation)
-                        isPresentingFreeModeEditor = false
-                        let updatedMode = freeModeStore.makeGameMode()
-                        selectedMode = updatedMode
-                        // モーダル閉鎖アニメーション中のちらつきを避けるため、次のメインループでゲーム開始フローを起動する
-                        triggerImmediateStart(for: updatedMode, context: .freeModeEditor, delayStart: true)
-                    }
-                )
-            }
-        }
         // モーダル表示状態を監視し、遊び方シートの開閉タイミングを把握する
         .onChange(of: isPresentingHowToPlay) { _, newValue in
             debugLog("TitleScreenView.isPresentingHowToPlay 更新: \(newValue)")
-        }
-        // フリーモード設定の表示状態もログ出力してユーザー操作を追跡する
-        .onChange(of: isPresentingFreeModeEditor) { _, newValue in
-            debugLog("TitleScreenView.isPresentingFreeModeEditor 更新: \(newValue)")
         }
         // フリーモードのレギュレーションが更新された場合は選択モードの内容も再生成する
         .onChange(of: freeModeStore.regulation) { _, _ in
@@ -1564,8 +1560,9 @@ fileprivate struct TitleScreenView: View {
         let currentStage = selectedCampaignStage
 
         return Button {
-            debugLog("TitleScreenView: キャンペーンセレクター表示")
-            isPresentingCampaignSelector = true
+            // ボタン押下時に NavigationStack へルートを追加し、ページ遷移でステージ一覧を開く
+            debugLog("TitleScreenView: キャンペーンセレクター表示要求 (Navigation)")
+            navigationPath.append(.campaign)
         } label: {
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
@@ -1625,8 +1622,8 @@ fileprivate struct TitleScreenView: View {
         .accessibilityHint(
             Text(
                 currentStage != nil ?
-                    "ステージ一覧を開き、選んだステージですぐにゲームを始めます" :
-                    "ステージ一覧を表示し、選択したステージでゲームを始めます"
+                    "ステージ一覧画面へ移動し、選んだステージですぐにゲームを始めます" :
+                    "ステージ一覧画面へ移動し、選択したステージでゲームを始めます"
             )
         )
     }
@@ -1637,10 +1634,10 @@ fileprivate struct TitleScreenView: View {
     ///   - isFreeMode: フリーモードかどうかのフラグ
     private func handleModeSelection(fromList mode: GameMode, isFreeMode: Bool) {
         if isFreeMode {
-            // フリーモードの場合はまず編集画面を開き、保存後に開始する
-            debugLog("TitleScreenView: フリーモードカードをタップ -> 設定編集を表示")
+            // フリーモードの場合はまず設定ページへ遷移し、保存後に開始する
+            debugLog("TitleScreenView: フリーモードカードをタップ -> 設定編集ページへ遷移")
             selectedMode = mode
-            isPresentingFreeModeEditor = true
+            navigationPath.append(.freeModeEditor)
             return
         }
 
@@ -1673,7 +1670,6 @@ fileprivate struct TitleScreenView: View {
         debugLog("TitleScreenView: キャンペーンステージを選択 -> \(stage.id.displayCode)")
         let mode = stage.makeGameMode()
         selectedMode = mode
-        isPresentingCampaignSelector = false
         triggerImmediateStart(for: mode, context: .campaignStageSelector, delayStart: true)
     }
 
@@ -1721,6 +1717,8 @@ fileprivate struct TitleScreenView: View {
     private func triggerImmediateStart(for mode: GameMode, context: StartTriggerContext, delayStart: Bool = false) {
         let startAction = {
             debugLog("TitleScreenView: \(context.logDescription) -> ゲーム開始 \(mode.identifier.rawValue)")
+            // ページ遷移中であっても開始時にスタックを初期化し、戻る操作の取り残しを防ぐ
+            resetNavigationStack()
             selectedMode = mode
             onStart(mode)
         }
@@ -1730,6 +1728,18 @@ fileprivate struct TitleScreenView: View {
         } else {
             startAction()
         }
+    }
+
+    /// NavigationStack の末尾を 1 ページ分取り除き、手動で戻る挙動を再現する
+    private func popNavigationStack() {
+        guard navigationPath.count > 0 else { return }
+        navigationPath.removeLast()
+    }
+
+    /// NavigationStack を空に戻し、タイトル画面の初期状態へリセットする
+    private func resetNavigationStack() {
+        guard navigationPath.count > 0 else { return }
+        navigationPath.removeLast(navigationPath.count)
     }
 
     /// ゲーム開始のトリガー元を識別する列挙体
