@@ -95,6 +95,21 @@ struct Deck {
                 deckSummaryText: "桂馬カードのみ"
             )
         }()
+
+        /// 王将型カードのみを排出する短距離構成
+        static let kingOnly: Configuration = {
+            let kingMoves = MoveCard.allCases.filter { $0.isKingType }
+            let weights = Dictionary(uniqueKeysWithValues: kingMoves.map { ($0, 1) })
+            return Configuration(
+                allowedMoves: kingMoves,
+                baseWeights: weights,
+                shouldApplyProbabilityReduction: false,
+                normalWeightMultiplier: 1,
+                reducedWeightMultiplier: 1,
+                reductionDuration: 0,
+                deckSummaryText: "王将カードのみ"
+            )
+        }()
     }
 
     // MARK: - プロパティ

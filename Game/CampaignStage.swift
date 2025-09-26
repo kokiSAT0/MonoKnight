@@ -335,10 +335,41 @@ public struct CampaignLibrary {
         // 章内で複数のステージが同一ルールを参照する場合に備え、先に共通変数へ切り出しておく。
         let classicalChallengeRegulation = GameMode.classicalChallenge.regulationSnapshot
 
+        // 既存のクラシカル相当レギュレーションからペナルティ設定を拝借する。
+        // - Note: 3×3 の新ステージでもペナルティ難度だけは据え置きたいという要望に合わせる。
+        let classicalPenalties = classicalChallengeRegulation.penalties
+
+        // 1-1 は 3×3 盤かつ王将型カードのみで構成された超短距離訓練ステージ。
+        // ペナルティ条件とスター獲得条件は従来の 1-2 と揃えて、報酬の認知負荷を減らす。
         let stage11 = CampaignStage(
             id: CampaignStageID(chapter: 1, index: 1),
-            title: "序盤訓練",
-            summary: "4×4 の小さな盤面で基本操作を確認しましょう。",
+            title: "王将訓練",
+            summary: "3×3 の盤で王将カードだけを使い、基本の詰めを体験しましょう。",
+            regulation: GameMode.Regulation(
+                boardSize: 3,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .kingOnly,
+                spawnRule: .fixed(BoardGeometry.defaultSpawnPoint(for: 3)),
+                penalties: GameMode.PenaltySettings(
+                    deadlockPenaltyCost: classicalPenalties.deadlockPenaltyCost,
+                    manualRedrawPenaltyCost: classicalPenalties.manualRedrawPenaltyCost,
+                    manualDiscardPenaltyCost: classicalPenalties.manualDiscardPenaltyCost,
+                    revisitPenaltyCost: classicalPenalties.revisitPenaltyCost
+                )
+            ),
+            secondaryObjective: .finishWithinSeconds(maxSeconds: 120),
+            scoreTarget: 900,
+            scoreTargetComparison: .lessThan,
+            unlockRequirement: .totalStars(minimum: 0)
+        )
+
+        // 1-2 は従来の 1-1 レギュレーションをそのまま移設し、4×4 盤での応用を学ぶ位置付けにする。
+        let stage12 = CampaignStage(
+            id: CampaignStageID(chapter: 1, index: 2),
+            title: "序盤応用",
+            summary: "4×4 の小さな盤面でスタンダードデッキの動きを復習しましょう。",
             regulation: GameMode.Regulation(
                 boardSize: 4,
                 handSize: 5,
@@ -354,24 +385,11 @@ public struct CampaignLibrary {
                 )
             ),
             // MARK: 2 個目のスター条件: ペナルティ発生を 5 回以下に抑える
-            // - Note: 新米プレイヤーが多少の詰まりを経験しても達成可能な難易度に調整する。
+            // - Note: 章 1 の段階では引き直しペナルティの存在に慣れてもらうことが目的。
             secondaryObjective: .finishWithPenaltyAtMost(maxPenaltyCount: 5),
             scoreTarget: 350,
             scoreTargetComparison: .lessThan,
-            unlockRequirement: .totalStars(minimum: 0)
-        )
-
-        // 1-2 ステージはクラシカルチャレンジと同等のレギュレーションを採用し、大盤面での立ち回りを学ぶ想定。
-        // リワード条件はユーザー指定に従い、2 個目のスターを 120 秒以内クリア、3 個目をスコア 900 未満達成としている。
-        let stage12 = CampaignStage(
-            id: CampaignStageID(chapter: 1, index: 2),
-            title: "クラシカル演習",
-            summary: "クラシカルチャレンジと同じ 8×8 盤で時間管理を意識しましょう。",
-            regulation: classicalChallengeRegulation,
-            secondaryObjective: .finishWithinSeconds(maxSeconds: 120),
-            scoreTarget: 900,
-            scoreTargetComparison: .lessThan,
-            unlockRequirement: .stageClear(CampaignStageID(chapter: 1, index: 1))
+            unlockRequirement: .stageClear(stage11.id)
         )
 
         let chapter1 = CampaignChapter(
