@@ -1275,11 +1275,15 @@ fileprivate struct TitleScreenView: View {
         self.onOpenSettings = onOpenSettings
         // `@State` の初期値を明示しておくことで、将来的な初期値変更にも対応しやすくする
         _isPresentingHowToPlay = State(initialValue: false)
+        // 初期化が完了した直後に識別子とナビゲーションスタック長を残し、想定外の再生成を検知しやすくする
+        debugLog("TitleScreenView.init開始: self=\(ObjectIdentifier(self)) navigationPathCount=\(_navigationPath.wrappedValue.count)")
     }
 
 
     var body: some View {
-        NavigationStack(path: $navigationPath) {
+        // body 評価が走るたびに現在のインスタンスとスタック長を記録し、View の再構築状況を追跡する
+        debugLog("TitleScreenView.body評価: self=\(ObjectIdentifier(self)) navigationPathCount=\(navigationPath.count)")
+        return NavigationStack(path: $navigationPath) {
             VStack(spacing: 28) {
                 Spacer(minLength: 0)
 
@@ -1605,6 +1609,11 @@ fileprivate struct TitleScreenView: View {
             navigationPath.append(TitleNavigationTarget.campaign)
             // スタック操作後の段数も記録し、期待通りに 1 ページ追加されたかを確認できるようにする
             debugLog("TitleScreenView: NavigationStack push完了 -> 変更後のスタック数=\(navigationPath.count)")
+            // メインスレッドの次フレームで再度長さを測定し、非同期更新による差分がないかを確認する
+            DispatchQueue.main.async {
+                let deferredDepth = navigationPath.count
+                debugLog("TitleScreenView: NavigationStack push後(1フレーム遅延) -> 現在のスタック数=\(deferredDepth)")
+            }
         } label: {
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
@@ -1781,7 +1790,9 @@ fileprivate struct TitleScreenView: View {
         guard navigationPath.count > 0 else { return }
         // ポップ前後の段数を把握して戻る操作が想定通りかを追跡する
         let currentDepth = navigationPath.count
-        debugLog("TitleScreenView: NavigationStack pop実行 -> 現在のスタック数=\(currentDepth)")
+        // 呼び出し元特定の補助情報としてコールスタックの先頭を添える
+        let callStackSnippet = Thread.callStackSymbols.prefix(4).joined(separator: " | ")
+        debugLog("TitleScreenView: NavigationStack pop実行 -> 現在のスタック数=\(currentDepth) 呼び出し元候補=\(callStackSnippet)")
         navigationPath.removeLast()
         debugLog("TitleScreenView: NavigationStack pop後 -> 変更後のスタック数=\(navigationPath.count)")
     }
@@ -1791,7 +1802,9 @@ fileprivate struct TitleScreenView: View {
         guard navigationPath.count > 0 else { return }
         // リセット直前の段数を記録し、スタックを完全に空へ戻したか検証する
         let currentDepth = navigationPath.count
-        debugLog("TitleScreenView: NavigationStack reset実行 -> 現在のスタック数=\(currentDepth)")
+        // 呼び出し元判別のため、直近のコールスタックを添付して予期せぬリセットを特定しやすくする
+        let callStackSnippet = Thread.callStackSymbols.prefix(4).joined(separator: " | ")
+        debugLog("TitleScreenView: NavigationStack reset実行 -> 現在のスタック数=\(currentDepth) 呼び出し元候補=\(callStackSnippet)")
         // `NavigationPath` から配列へ変更したことで `removeAll()` が利用できるため、単純に全要素を削除して初期状態へ戻す
         navigationPath.removeAll()
         debugLog("TitleScreenView: NavigationStack reset後 -> 変更後のスタック数=\(navigationPath.count)")
