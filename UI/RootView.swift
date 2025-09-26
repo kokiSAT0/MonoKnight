@@ -1279,32 +1279,8 @@ fileprivate struct TitleScreenView: View {
             // MARK: - モード選択セクション
             modeSelectionSection
 
-            // MARK: - ゲーム開始ボタン
-            Button(action: {
-                // ゲーム開始操作を記録し、選択モードとの対応関係を追跡できるようにする
-                if let stage = selectedCampaignStage {
-                    debugLog("TitleScreenView: ゲーム開始ボタンをタップ キャンペーン=\(stage.id.displayCode)")
-                } else {
-                    debugLog("TitleScreenView: ゲーム開始ボタンをタップ 選択モード=\(selectedMode.identifier.rawValue)")
-                }
-                onStart(selectedMode)
-            }) {
-                Label("\(selectedMode.displayName)で開始", systemImage: "play.fill")
-                    .font(.system(size: 18, weight: .semibold, design: .rounded))
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent)
-            // ボタンはアクセントカラーとその上の文字色をテーマから取得
-            .tint(theme.accentPrimary)
-            .foregroundColor(theme.accentOnPrimary)
-            .controlSize(.large)
-            .accessibilityIdentifier("title_start_button")
-
-            // 補助テキストで手札スロット上限とスタック仕様をまとめて案内
-            Text("手札スロット \(selectedMode.handSize) 種類 / 先読み \(selectedMode.nextPreviewCount) 枚。\(selectedMode.stackingRuleDetailText)")
-                .font(.system(size: 13, weight: .medium, design: .rounded))
-                .foregroundColor(theme.textSecondary)
-                .multilineTextAlignment(.center)
+            // MARK: - 選択中モードの概要カード
+            selectedModeSummaryCard
 
             // MARK: - 遊び方シートを開くボタン
             Button {
@@ -1357,7 +1333,7 @@ fileprivate struct TitleScreenView: View {
             .accessibilityHint("広告やプライバシー設定などの詳細を確認できます")
         }
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("タイトル画面。ゲームを開始するボタンがあります。手札スロットは最大\(selectedMode.handSize)種類で、\(selectedMode.stackingRuleDetailText)")
+        .accessibilityLabel("タイトル画面。モードをタップすると即座にゲームが始まります。キャンペーンはステージ一覧へ遷移し、フリーモードは設定を編集できます。手札スロットは最大\(selectedMode.handSize)種類で、\(selectedMode.stackingRuleDetailText)")
         // 遊び方シートの表示設定
         .sheet(isPresented: $isPresentingHowToPlay) {
             // NavigationStack でタイトルバーを付与しつつ共通ビューを利用
@@ -1381,9 +1357,7 @@ fileprivate struct TitleScreenView: View {
                         isPresentingCampaignSelector = false
                     },
                     onSelectStage: { stage in
-                        debugLog("TitleScreenView: キャンペーンステージを選択 -> \(stage.id.displayCode)")
-                        selectedMode = stage.makeGameMode()
-                        isPresentingCampaignSelector = false
+                        handleCampaignStageSelection(stage)
                     }
                 )
             }
@@ -1406,8 +1380,11 @@ fileprivate struct TitleScreenView: View {
                     onSave: { newRegulation in
                         // 保存後にストアへ反映し、最新のモード内容を生成してからモーダルを閉じる
                         freeModeStore.update(newRegulation)
-                        selectedMode = freeModeStore.makeGameMode()
                         isPresentingFreeModeEditor = false
+                        let updatedMode = freeModeStore.makeGameMode()
+                        selectedMode = updatedMode
+                        // モーダル閉鎖アニメーション中のちらつきを避けるため、次のメインループでゲーム開始フローを起動する
+                        triggerImmediateStart(for: updatedMode, context: .freeModeEditor, delayStart: true)
                     }
                 )
             }
@@ -1455,19 +1432,7 @@ fileprivate struct TitleScreenView: View {
         let isFreeMode = mode.identifier == .freeCustom
 
         return Button {
-            if isFreeMode {
-                debugLog("TitleScreenView: フリーモード設定シートを表示 -> \(mode.identifier.rawValue)")
-                selectedMode = mode
-                isPresentingFreeModeEditor = true
-            } else {
-                // 選択モードの変更を記録し、ボタンタップ順序を追跡できるようにする
-                if selectedMode == mode {
-                    debugLog("TitleScreenView: モードを再選択 -> \(mode.identifier.rawValue)")
-                } else {
-                    debugLog("TitleScreenView: モード切り替え -> \(mode.identifier.rawValue)")
-                }
-                selectedMode = mode
-            }
+            handleModeSelection(fromList: mode, isFreeMode: isFreeMode)
         } label: {
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
@@ -1513,7 +1478,84 @@ fileprivate struct TitleScreenView: View {
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(Text("\(mode.displayName): \(primaryDescription(for: mode))"))
-        .accessibilityHint(Text(isFreeMode ? "レギュレーション編集を開きます" : secondaryDescription(for: mode)))
+        .accessibilityHint(Text(accessibilityHint(for: mode, isFreeMode: isFreeMode)))
+        .accessibilityIdentifier("mode_button_\(mode.identifier.rawValue)")
+    }
+
+    /// 選択中のモード概要をカード形式で表示し、次のアクションを案内する
+    private var selectedModeSummaryCard: some View {
+        let stage = selectedCampaignStage
+
+        return VStack(alignment: .leading, spacing: 12) {
+            // 選択中モード名とアイコンをまとめたヘッダー
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("選択中のモード")
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .foregroundColor(theme.textSecondary.opacity(0.9))
+                    Text(selectedMode.displayName)
+                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                        .foregroundColor(theme.textPrimary)
+                }
+                Spacer(minLength: 0)
+                if let stage {
+                    // キャンペーンステージを選択中の場合はコードをバッジ表示して強調する
+                    Text(stage.displayCode)
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(theme.backgroundPrimary.opacity(0.9))
+                        )
+                        .foregroundColor(theme.textPrimary)
+                }
+            }
+
+            if let stage {
+                // キャンペーンステージの詳細を追記し、次回再訪時も概要を把握しやすくする
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(stage.title)
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .foregroundColor(theme.textPrimary)
+                    Text(stage.summary)
+                        .font(.system(size: 12, weight: .regular, design: .rounded))
+                        .foregroundColor(theme.textSecondary)
+                }
+            }
+
+            // ルール概要とペナルティ情報をまとめた説明
+            VStack(alignment: .leading, spacing: 6) {
+                Text(primaryDescription(for: selectedMode))
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .foregroundColor(theme.textSecondary)
+                Text(secondaryDescription(for: selectedMode))
+                    .font(.system(size: 12, weight: .regular, design: .rounded))
+                    .foregroundColor(theme.textSecondary.opacity(0.9))
+                Text("手札スロット \(selectedMode.handSize) 種類 / 先読み \(selectedMode.nextPreviewCount) 枚。\(selectedMode.stackingRuleDetailText)")
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .foregroundColor(theme.textSecondary.opacity(0.85))
+            }
+
+            // モードごとに異なる開始導線を明示する案内テキスト
+            Text(startGuidanceText(for: selectedMode, campaignStage: stage))
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .foregroundColor(theme.accentPrimary)
+        }
+        .padding(.vertical, 18)
+        .padding(.horizontal, 20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(theme.backgroundElevated.opacity(0.85))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .stroke(theme.statisticBadgeBorder.opacity(0.9), lineWidth: 1)
+                )
+        )
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(Text(summaryAccessibilityLabel(for: stage)))
+        .accessibilityIdentifier("selected_mode_summary_card")
     }
 
     /// キャンペーンステージ選択エントリ
@@ -1580,7 +1622,133 @@ fileprivate struct TitleScreenView: View {
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(Text("キャンペーンモード"))
-        .accessibilityHint(Text(currentStage != nil ? "\(currentStage!.displayCode) をプレイします" : "ステージ一覧を表示します"))
+        .accessibilityHint(
+            Text(
+                currentStage != nil ?
+                    "ステージ一覧を開き、選んだステージですぐにゲームを始めます" :
+                    "ステージ一覧を表示し、選択したステージでゲームを始めます"
+            )
+        )
+    }
+
+    /// モード一覧からのタップ処理を共通化し、即時開始や設定編集の分岐を整理する
+    /// - Parameters:
+    ///   - mode: タップ対象のモード
+    ///   - isFreeMode: フリーモードかどうかのフラグ
+    private func handleModeSelection(fromList mode: GameMode, isFreeMode: Bool) {
+        if isFreeMode {
+            // フリーモードの場合はまず編集画面を開き、保存後に開始する
+            debugLog("TitleScreenView: フリーモードカードをタップ -> 設定編集を表示")
+            selectedMode = mode
+            isPresentingFreeModeEditor = true
+            return
+        }
+
+        // 同じモードを連続で選んだかどうかでログを出し分け、デバッグ時に操作履歴を追いやすくする
+        if selectedMode == mode {
+            debugLog("TitleScreenView: モードを再選択 -> \(mode.identifier.rawValue)")
+        } else {
+            debugLog("TitleScreenView: モード切り替え -> \(mode.identifier.rawValue)")
+        }
+
+        triggerImmediateStart(for: mode, context: .modeList)
+    }
+
+    /// アクセシビリティヒントに表示するメッセージを組み立てる
+    /// - Parameters:
+    ///   - mode: 説明対象のモード
+    ///   - isFreeMode: フリーモードかどうか
+    /// - Returns: VoiceOver で読み上げる補足説明
+    private func accessibilityHint(for mode: GameMode, isFreeMode: Bool) -> String {
+        if isFreeMode {
+            return "\(secondaryDescription(for: mode))。レギュレーションを編集して保存すると、その設定でゲームが始まります。"
+        } else {
+            return "\(secondaryDescription(for: mode))。タップするとすぐにゲームが始まります。"
+        }
+    }
+
+    /// キャンペーンのステージ選択結果を受け取り、モード反映と開始処理をまとめて行う
+    /// - Parameter stage: ユーザーが選択したステージ
+    private func handleCampaignStageSelection(_ stage: CampaignStage) {
+        debugLog("TitleScreenView: キャンペーンステージを選択 -> \(stage.id.displayCode)")
+        let mode = stage.makeGameMode()
+        selectedMode = mode
+        isPresentingCampaignSelector = false
+        triggerImmediateStart(for: mode, context: .campaignStageSelector, delayStart: true)
+    }
+
+    /// モード概要カード向けの案内文を生成する
+    /// - Parameters:
+    ///   - mode: 対象モード
+    ///   - stage: 紐付くキャンペーンステージ（該当する場合のみ）
+    /// - Returns: ユーザーへ表示する導線説明文
+    private func startGuidanceText(for mode: GameMode, campaignStage stage: CampaignStage?) -> String {
+        switch mode.identifier {
+        case .freeCustom:
+            return "設定を保存すると、そのレギュレーションでゲームが始まります。"
+        case .campaignStage:
+            if let stage {
+                return "ステージ一覧で \(stage.displayCode) を選ぶと、そのままゲームが始まります。"
+            } else {
+                return "キャンペーンをタップしてステージを選ぶとゲームが始まります。"
+            }
+        default:
+            return "モードをタップすると、確認なしでゲームが始まります。"
+        }
+    }
+
+    /// モード概要カードのアクセシビリティラベルを構築する
+    /// - Parameter stage: キャンペーンステージ（存在しない場合は nil）
+    /// - Returns: VoiceOver 向けに統合した説明文
+    private func summaryAccessibilityLabel(for stage: CampaignStage?) -> String {
+        var components: [String] = []
+        components.append("選択中のモード: \(selectedMode.displayName)")
+        if let stage {
+            components.append("ステージ \(stage.displayCode) \(stage.title)")
+        }
+        components.append(primaryDescription(for: selectedMode))
+        components.append(secondaryDescription(for: selectedMode))
+        components.append("手札スロットは最大 \(selectedMode.handSize) 種類、先読みは \(selectedMode.nextPreviewCount) 枚。\(selectedMode.stackingRuleDetailText)")
+        components.append(startGuidanceText(for: selectedMode, campaignStage: stage))
+        return components.joined(separator: "。")
+    }
+
+    /// 選択されたモードでゲーム開始フローを発火させる共通処理
+    /// - Parameters:
+    ///   - mode: 開始対象のモード
+    ///   - context: ログ出力用のトリガー種別
+    ///   - delayStart: `true` の場合は次のメインループまで実行を遅延させる
+    private func triggerImmediateStart(for mode: GameMode, context: StartTriggerContext, delayStart: Bool = false) {
+        let startAction = {
+            debugLog("TitleScreenView: \(context.logDescription) -> ゲーム開始 \(mode.identifier.rawValue)")
+            selectedMode = mode
+            onStart(mode)
+        }
+
+        if delayStart {
+            DispatchQueue.main.async(execute: startAction)
+        } else {
+            startAction()
+        }
+    }
+
+    /// ゲーム開始のトリガー元を識別する列挙体
+    private enum StartTriggerContext {
+        case modeList
+        case campaignStageSelector
+        case freeModeEditor
+
+        /// ログ出力時に利用する説明文
+        var logDescription: String {
+            switch self {
+            case .modeList:
+                return "モード一覧タップ"
+            case .campaignStageSelector:
+                return "キャンペーンセレクター"
+            case .freeModeEditor:
+                return "フリーモード編集"
+            }
+        }
     }
 
     /// 各モードの主要な特徴を短文で返す

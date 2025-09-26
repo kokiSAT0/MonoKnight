@@ -33,9 +33,13 @@ final class MonoKnightAppUITests: XCTestCase {
         let titleLabel = app.staticTexts["MonoKnight"]
         XCTAssertTrue(titleLabel.waitForExistence(timeout: 5), "起動直後にタイトルラベルが表示されること")
 
-        // ゲーム開始ボタンがタップ可能な状態で存在するか確認し、ユーザーがすぐに操作できる導線を担保する
-        let startButton = app.buttons["title_start_button"]
-        XCTAssertTrue(startButton.exists, "タイトル画面にゲーム開始ボタンが配置されていること")
+        // 選択中モードの概要カードが描画されているか検証し、新しい開始導線が表示されていることを確認する
+        let summaryCard = app.otherElements["selected_mode_summary_card"]
+        XCTAssertTrue(summaryCard.waitForExistence(timeout: 5), "タイトル画面にモード概要カードが表示されていること")
+
+        // スタンダードモードのカードがタップ可能な状態で存在するか確認し、直接プレイを始められる導線を担保する
+        let standardModeButton = app.buttons["mode_button_standard5x5"]
+        XCTAssertTrue(standardModeButton.exists, "スタンダードモードのカードをタップできること")
 
         // 遊び方ボタンも同時に表示されているか確認し、ヘルプ導線の欠落を防ぐ
         let howToPlayButton = app.buttons["title_how_to_play_button"]
@@ -75,18 +79,16 @@ final class MonoKnightAppUITests: XCTestCase {
         // タイトル画面からゲーム開始までを自動操作し、基本的な遷移が成立するか検証する
         app.launch()
 
-        // ゲーム開始ボタンが表示されるまで待機し、確実にタップできる状態を捉える
-        let startButton = app.buttons["title_start_button"]
-        XCTAssertTrue(startButton.waitForExistence(timeout: 5), "ゲーム開始ボタンが表示されること")
-
-        // 開始ボタンをタップしてプレイ画面への遷移を進める
-        startButton.tap()
+        // スタンダードモードのカードをタップして、即時にゲーム準備へ遷移できることを検証する
+        let standardModeButton = app.buttons["mode_button_standard5x5"]
+        XCTAssertTrue(standardModeButton.waitForExistence(timeout: 5), "スタンダードモードのカードが表示されること")
+        standardModeButton.tap()
 
         // ローディング解除後に手札スロットが表示されることを確認し、実際にゲーム画面へ移ったと判断する
         let firstHandSlot = app.otherElements["hand_slot_0"]
         XCTAssertTrue(firstHandSlot.waitForExistence(timeout: 5), "ゲーム画面で最初の手札スロットが表示されること")
 
-        // タイトル用の開始ボタンが非表示になっていることを確認し、重ね表示による誤タップの可能性を排除する
-        XCTAssertFalse(startButton.exists, "ゲーム遷移後はタイトルの開始ボタンが残っていないこと")
+        // タイトル用のモードカードが非表示になっていることを確認し、重ね表示による誤タップの可能性を排除する
+        XCTAssertFalse(standardModeButton.exists, "ゲーム遷移後はタイトルのモードカードが残っていないこと")
     }
 }
