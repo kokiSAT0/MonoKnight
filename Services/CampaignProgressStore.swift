@@ -69,7 +69,8 @@ final class CampaignProgressStore: ObservableObject {
     @discardableResult
     func registerClear(for stage: CampaignStage, metrics: CampaignStageClearMetrics) -> CampaignStageClearRecord {
         let evaluation = stage.evaluateClear(with: metrics)
-        var current = progressMap[stage.id] ?? CampaignStageProgress()
+        let previous = progressMap[stage.id] ?? CampaignStageProgress()
+        var current = previous
 
         current.earnedStars = max(current.earnedStars, evaluation.earnedStars)
         if evaluation.achievedSecondaryObjective {
@@ -90,7 +91,12 @@ final class CampaignProgressStore: ObservableObject {
 
         debugLog("CampaignProgressStore: ステージ \(stage.id.displayCode) を更新 スター=\(current.earnedStars)")
 
-        return CampaignStageClearRecord(stage: stage, evaluation: evaluation, progress: current)
+        return CampaignStageClearRecord(
+            stage: stage,
+            evaluation: evaluation,
+            previousProgress: previous,
+            progress: current
+        )
     }
 
     /// デバッグ用パスコードによる全ステージ解放を有効化する
@@ -169,5 +175,7 @@ struct CampaignStageProgress: Codable {
 struct CampaignStageClearRecord {
     let stage: CampaignStage
     let evaluation: CampaignStageEvaluation
+    /// クリア登録前の進捗（演出用に差分を知りたい場合に利用）
+    let previousProgress: CampaignStageProgress
     let progress: CampaignStageProgress
 }
