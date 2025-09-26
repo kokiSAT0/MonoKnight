@@ -227,6 +227,7 @@ private extension RootView {
             gameInterfaces: gameInterfaces,
             gameCenterService: gameCenterService,
             adsService: adsService,
+            campaignLibrary: campaignLibrary,
             campaignProgressStore: campaignProgressStore,
             isAuthenticated: stateStore.binding(for: \.isAuthenticated),
             isShowingTitleScreen: stateStore.binding(for: \.isShowingTitleScreen),
@@ -297,6 +298,9 @@ private extension RootView {
         let gameCenterService: GameCenterServiceProtocol
         /// 広告制御用サービス
         let adsService: AdsServiceProtocol
+        /// キャンペーン定義を参照するライブラリ
+        /// - NOTE: 親ビューのプロパティへ直接アクセスするとネスト構造体のインスタンス化時にビルドエラーとなるため、依存として受け取って保持する
+        let campaignLibrary: CampaignLibrary
         /// キャンペーン進捗ストア
         @ObservedObject var campaignProgressStore: CampaignProgressStore
         /// Game Center 認証状態
