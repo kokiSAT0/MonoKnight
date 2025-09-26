@@ -1562,7 +1562,7 @@ fileprivate struct TitleScreenView: View {
         return Button {
             // ボタン押下時に NavigationStack へルートを追加し、ページ遷移でステージ一覧を開く
             debugLog("TitleScreenView: キャンペーンセレクター表示要求 (Navigation)")
-            navigationPath.append(.campaign)
+            navigationPath.append(TitleNavigationTarget.campaign)
         } label: {
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
@@ -1637,7 +1637,7 @@ fileprivate struct TitleScreenView: View {
             // フリーモードの場合はまず設定ページへ遷移し、保存後に開始する
             debugLog("TitleScreenView: フリーモードカードをタップ -> 設定編集ページへ遷移")
             selectedMode = mode
-            navigationPath.append(.freeModeEditor)
+            navigationPath.append(TitleNavigationTarget.freeModeEditor)
             return
         }
 
