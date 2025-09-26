@@ -1411,18 +1411,19 @@ fileprivate struct TitleScreenView: View {
     /// NavigationStack の遷移先を生成する
     /// - Parameter target: 遷移対象の列挙値
     /// - Returns: 遷移先のビュー
-    @ViewBuilder
+    /// - Note: `AnyView` で型消去し、分岐ごとにデバッグログを挟めるようにしている
     private func navigationDestinationView(for target: TitleNavigationTarget) -> some View {
         switch target {
         case .campaign:
             // ナビゲーション遷移先の構築段階でインスタンス識別子とスタック状況を把握する
             debugLog("TitleScreenView: NavigationDestination.campaign 構築開始 -> instance=\(instanceIdentifier) / stackCount=\(navigationPath.count)")
-            CampaignStageSelectionView(
-                campaignLibrary: campaignLibrary,
-                progressStore: campaignProgressStore,
-                selectedStageID: selectedCampaignStage?.id,
-                onClose: { popNavigationStack() },
-                onSelectStage: { stage in
+            return AnyView(
+                CampaignStageSelectionView(
+                    campaignLibrary: campaignLibrary,
+                    progressStore: campaignProgressStore,
+                    selectedStageID: selectedCampaignStage?.id,
+                    onClose: { popNavigationStack() },
+                    onSelectStage: { stage in
                     // ステージ決定時はスタックを初期化してからゲーム開始処理へ進む
                     resetNavigationStack()
                     handleCampaignStageSelection(stage)
@@ -1436,23 +1437,26 @@ fileprivate struct TitleScreenView: View {
             .onDisappear {
                 debugLog("TitleScreenView: NavigationDestination.campaign 非表示 -> 現在のスタック数=\(navigationPath.count)")
             }
+            )
         case .freeModeEditor:
-            FreeModeRegulationView(
-                initialRegulation: freeModeStore.regulation,
-                presets: GameMode.builtInModes,
-                onCancel: {
-                    // キャンセル時はページを閉じ、元のタイトル画面へ戻す
-                    debugLog("TitleScreenView: フリーモード設定をキャンセル")
-                    popNavigationStack()
-                },
-                onSave: { newRegulation in
-                    // 保存後はレギュレーションを更新し、遷移を閉じてからゲーム開始フローを準備する
-                    freeModeStore.update(newRegulation)
-                    let updatedMode = freeModeStore.makeGameMode()
-                    selectedMode = updatedMode
-                    resetNavigationStack()
-                    triggerImmediateStart(for: updatedMode, context: .freeModeEditor, delayStart: true)
-                }
+            return AnyView(
+                FreeModeRegulationView(
+                    initialRegulation: freeModeStore.regulation,
+                    presets: GameMode.builtInModes,
+                    onCancel: {
+                        // キャンセル時はページを閉じ、元のタイトル画面へ戻す
+                        debugLog("TitleScreenView: フリーモード設定をキャンセル")
+                        popNavigationStack()
+                    },
+                    onSave: { newRegulation in
+                        // 保存後はレギュレーションを更新し、遷移を閉じてからゲーム開始フローを準備する
+                        freeModeStore.update(newRegulation)
+                        let updatedMode = freeModeStore.makeGameMode()
+                        selectedMode = updatedMode
+                        resetNavigationStack()
+                        triggerImmediateStart(for: updatedMode, context: .freeModeEditor, delayStart: true)
+                    }
+                )
             )
         }
     }
