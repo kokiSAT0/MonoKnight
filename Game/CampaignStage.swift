@@ -399,6 +399,45 @@ public struct CampaignLibrary {
             stages: [stage11, stage12]
         )
 
-        return [chapter1]
+        // MARK: - 2 章のステージ群
+        // (1,2) と (3,4) の指定は 1 始まりの座標と解釈し、内部表現の 0 始まりへ変換する。
+        let doubleVisitOverrides: [GridPoint: Int] = [
+            GridPoint(x: 0, y: 1): 2,
+            GridPoint(x: 2, y: 3): 2
+        ]
+
+        let stage21 = CampaignStage(
+            id: CampaignStageID(chapter: 2, index: 1),
+            title: "重踏応用",
+            summary: "二度踏まないと踏破できない特殊マスを活用する演習です。",
+            regulation: GameMode.Regulation(
+                boardSize: 4,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .standard,
+                spawnRule: .fixed(BoardGeometry.defaultSpawnPoint(for: 4)),
+                penalties: GameMode.PenaltySettings(
+                    deadlockPenaltyCost: 3,
+                    manualRedrawPenaltyCost: 1,
+                    manualDiscardPenaltyCost: 1,
+                    revisitPenaltyCost: 0
+                ),
+                additionalVisitRequirements: doubleVisitOverrides
+            ),
+            secondaryObjective: .finishWithPenaltyAtMost(maxPenaltyCount: 5),
+            scoreTarget: 350,
+            scoreTargetComparison: .lessThan,
+            unlockRequirement: .stageClear(stage12.id)
+        )
+
+        let chapter2 = CampaignChapter(
+            id: 2,
+            title: "応用特訓",
+            summary: "複数回踏むマスを扱う章。",
+            stages: [stage21]
+        )
+
+        return [chapter1, chapter2]
     }
 }

@@ -186,6 +186,8 @@ public struct GameMode: Equatable, Identifiable {
         public var spawnRule: SpawnRule
         /// ペナルティ設定一式
         public var penalties: PenaltySettings
+        /// マスごとの追加踏破回数設定
+        public var additionalVisitRequirements: [GridPoint: Int] = [:]
 
         /// レギュレーションを組み立てるためのイニシャライザ
         /// - Parameters:
@@ -203,7 +205,8 @@ public struct GameMode: Equatable, Identifiable {
             allowsStacking: Bool,
             deckPreset: GameDeckPreset,
             spawnRule: SpawnRule,
-            penalties: PenaltySettings
+            penalties: PenaltySettings,
+            additionalVisitRequirements: [GridPoint: Int] = [:]
         ) {
             self.boardSize = boardSize
             self.handSize = handSize
@@ -212,6 +215,7 @@ public struct GameMode: Equatable, Identifiable {
             self.deckPreset = deckPreset
             self.spawnRule = spawnRule
             self.penalties = penalties
+            self.additionalVisitRequirements = additionalVisitRequirements
         }
     }
 
@@ -355,6 +359,9 @@ public struct GameMode: Equatable, Identifiable {
             return []
         }
     }
+
+    /// 追加踏破回数が必要なマス集合
+    public var additionalVisitRequirements: [GridPoint: Int] { regulation.additionalVisitRequirements }
 
     /// スタンダードモード（既存仕様）
     public static var standard: GameMode {

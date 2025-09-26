@@ -45,12 +45,54 @@ public struct GridPoint: Hashable, Codable {
     }
 }
 
-/// 1 マスの状態
-/// - untouched: 未踏破
-/// - visited: 踏破済み
-public enum TileState {
-    case untouched
-    case visited
+/// 1 マスごとの踏破状態と必要踏破回数を保持する構造体
+/// - Note: 複数回踏む必要があるマスにも対応できるよう、必要回数と残り回数の両方を追跡する
+public struct TileState: Equatable {
+    /// クリアに必要な踏破回数（1 回以上）
+    public let requiredVisitCount: Int
+    /// 残り踏破回数
+    private(set) var remainingVisitCount: Int
+
+    /// 公開イニシャライザ
+    /// - Parameters:
+    ///   - requiredVisitCount: 必要踏破回数（0 以下が渡された場合は 0 として扱う）
+    ///   - remainingVisitCount: 初期残数。省略時は `requiredVisitCount` と同じ値を採用する。
+    public init(requiredVisitCount: Int = 1, remainingVisitCount: Int? = nil) {
+        // 不正値が渡されてもクラッシュしないように安全側へ丸め込む
+        let normalizedRequired = max(requiredVisitCount, 0)
+        let initialRemaining = remainingVisitCount ?? normalizedRequired
+        self.requiredVisitCount = normalizedRequired
+        // 残数は 0〜requiredVisitCount の範囲に収まるよう丸める
+        if normalizedRequired == 0 {
+            self.remainingVisitCount = 0
+        } else {
+            self.remainingVisitCount = min(max(initialRemaining, 0), normalizedRequired)
+        }
+    }
+
+    /// マスが完全踏破済みかどうか
+    public var isVisited: Bool { remainingVisitCount == 0 }
+
+    /// 複数回踏破が必要かどうか
+    public var requiresMultipleVisits: Bool { requiredVisitCount > 1 }
+
+    /// これまでに達成済みの踏破割合（0.0〜1.0）
+    public var completionProgress: Double {
+        guard requiredVisitCount > 0 else { return 1.0 }
+        let completed = requiredVisitCount - remainingVisitCount
+        let clampedCompleted = max(0, min(requiredVisitCount, completed))
+        return Double(clampedCompleted) / Double(requiredVisitCount)
+    }
+
+    /// 現在の残り踏破回数を返す
+    public var remainingVisits: Int { remainingVisitCount }
+
+    /// 踏破処理を 1 回分適用する
+    /// - Note: 残数が 0 の場合は何もせずに安全に抜ける
+    public mutating func markVisited() {
+        guard remainingVisitCount > 0 else { return }
+        remainingVisitCount -= 1
+    }
 }
 
 /// 任意サイズの盤面を管理する構造体
@@ -67,13 +109,22 @@ public struct Board: Equatable {
     /// - Parameters:
     ///   - size: 盤面の一辺の長さ
     ///   - initialVisitedPoints: 初期状態で踏破済みにしたいマスの集合
-    public init(size: Int, initialVisitedPoints: [GridPoint] = []) {
+    public init(
+        size: Int,
+        initialVisitedPoints: [GridPoint] = [],
+        requiredVisitOverrides: [GridPoint: Int] = [:]
+    ) {
         self.size = size
-        let row = Array(repeating: TileState.untouched, count: size)
+        let row = Array(repeating: TileState(), count: size)
         self.tiles = Array(repeating: row, count: size)
+        // 特殊マスの踏破必要回数を上書きし、複数回踏むステージに対応する
+        for (point, requirement) in requiredVisitOverrides {
+            guard contains(point) else { continue }
+            tiles[point.y][point.x] = TileState(requiredVisitCount: requirement)
+        }
         // 初期踏破マスを順番に処理し、盤面外の指定は安全に無視する
         for point in initialVisitedPoints where contains(point) {
-            tiles[point.y][point.x] = .visited
+            tiles[point.y][point.x].markVisited()
         }
     }
 
@@ -96,14 +147,14 @@ public struct Board: Equatable {
     /// - Parameter point: 調べたい座標
     /// - Returns: 踏破済みであれば true
     public func isVisited(_ point: GridPoint) -> Bool {
-        state(at: point) == .visited
+        state(at: point)?.isVisited == true
     }
 
     /// 指定座標を踏破済みに更新する
     /// - Parameter point: 更新したい座標
     public mutating func markVisited(_ point: GridPoint) {
         guard contains(point) else { return }
-        tiles[point.y][point.x] = .visited
+        tiles[point.y][point.x].markVisited()
     }
 
     /// 未踏破マスの残数を計算して返す
@@ -111,7 +162,7 @@ public struct Board: Equatable {
     public var remainingCount: Int {
         var count = 0
         for row in tiles {
-            for tile in row where tile != .visited {
+            for tile in row where !tile.isVisited {
                 count += 1
             }
         }
@@ -122,7 +173,7 @@ public struct Board: Equatable {
     public var isCleared: Bool {
         for row in tiles {
             for tile in row {
-                if tile != .visited { return false }
+                if !tile.isVisited { return false }
             }
         }
         return true
@@ -198,8 +249,15 @@ extension Board {
                     // 駒の位置は K で表現
                     row += "K "
                 } else {
-                    // 踏破済みマスは x、未踏破は . を使用
-                    row += tiles[y][x] == .visited ? "x " : ". "
+                    // 踏破状況に応じて文字を変える。複数回必要なマスは残数を数字で表示する。
+                    let tile = tiles[y][x]
+                    if tile.isVisited {
+                        row += "x "
+                    } else if tile.requiresMultipleVisits {
+                        row += "\(tile.remainingVisits) "
+                    } else {
+                        row += ". "
+                    }
                 }
             }
             // 末尾の空白を削除してからデバッグログに出力

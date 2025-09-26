@@ -84,7 +84,11 @@ public final class GameCore: ObservableObject {
     public init(mode: GameMode = .standard) {
         self.mode = mode
         // BoardGeometry を介することで盤面サイズ拡張時も初期化処理を共通化できる
-        board = Board(size: mode.boardSize, initialVisitedPoints: mode.initialVisitedPoints)
+        board = Board(
+            size: mode.boardSize,
+            initialVisitedPoints: mode.initialVisitedPoints,
+            requiredVisitOverrides: mode.additionalVisitRequirements
+        )
         current = mode.initialSpawnPoint ?? BoardGeometry.defaultSpawnPoint(for: mode.boardSize)
         deck = Deck(configuration: mode.deckConfiguration)
         progress = mode.requiresSpawnSelection ? .awaitingSpawn : .playing
@@ -200,7 +204,11 @@ public final class GameCore: ObservableObject {
             deck.reset()
         }
 
-        board = Board(size: mode.boardSize, initialVisitedPoints: mode.initialVisitedPoints)
+        board = Board(
+            size: mode.boardSize,
+            initialVisitedPoints: mode.initialVisitedPoints,
+            requiredVisitOverrides: mode.additionalVisitRequirements
+        )
         current = mode.initialSpawnPoint
         moveCount = 0
         penaltyCount = 0
@@ -371,9 +379,16 @@ extension GameCore {
 
         let resolvedCurrent = current ?? mode.initialSpawnPoint
         if let resolvedCurrent {
-            core.board = Board(size: mode.boardSize, initialVisitedPoints: [resolvedCurrent])
+            core.board = Board(
+                size: mode.boardSize,
+                initialVisitedPoints: [resolvedCurrent],
+                requiredVisitOverrides: mode.additionalVisitRequirements
+            )
         } else {
-            core.board = Board(size: mode.boardSize)
+            core.board = Board(
+                size: mode.boardSize,
+                requiredVisitOverrides: mode.additionalVisitRequirements
+            )
         }
         core.current = resolvedCurrent
         core.moveCount = 0
