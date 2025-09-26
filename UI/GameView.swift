@@ -146,8 +146,8 @@ struct GameView: View {
                 }
             )
         }
-        // シートで結果画面を表示
-        .sheet(isPresented: $viewModel.showingResult) {
+        // リザルトはゲーム体験の区切りとなるため、全画面カバーで没入感を維持する
+        .fullScreenCover(isPresented: $viewModel.showingResult) {
             ResultView(
                 moveCount: viewModel.moveCount,
                 penaltyCount: viewModel.penaltyCount,
@@ -168,13 +168,6 @@ struct GameView: View {
                 gameCenterService: viewModel.gameCenterService,
                 adsService: viewModel.adsService
             )
-            // MARK: - iPad 向けのモーダル最適化
-            // レギュラー幅（iPad など）では初期状態から `.large` を採用し、全要素が確実に表示されるようにする。
-            // Compact 幅（iPhone）では従来通り medium/large を切り替えられるよう配慮し、片手操作でも扱いやすく保つ。
-            .presentationDetents(
-                horizontalSizeClass == .regular ? [.large] : [.medium, .large]
-            )
-            .presentationDragIndicator(.visible)
         }
         // MARK: - レギュラー幅では確認をシートで提示
         // iPad では confirmationDialog だと文字が途切れやすいため、十分な横幅を確保できるシートで詳細文を表示する
