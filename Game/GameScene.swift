@@ -26,6 +26,9 @@ public final class GameScene: SKScene {
     /// - NOTE: 固定スポーンのモードでは中央など既定開始地点を踏破済みとして扱う
     private let initialVisitedPoints: [GridPoint]
 
+    /// 初期化時に設定する追加踏破回数（複数回踏む必要があるマス）
+    private let initialRequiredVisitOverrides: [GridPoint: Int]
+
     /// 現在の盤面状態
     private var board: Board
 
@@ -116,7 +119,11 @@ public final class GameScene: SKScene {
     /// - NOTE: 盤面・テーマ・ノード・アクセシビリティ関連の初期値をまとめてリセットし、コード生成と Storyboard 復元の両方で同一状態からスタートできるようにする
     private func commonInit() {
         // 盤面情報は初期化パラメータに基づいて常に再構築し、モードごとの盤面サイズ変更にも確実に対応する
-        board = Board(size: initialBoardSize, initialVisitedPoints: initialVisitedPoints)
+        board = Board(
+            size: initialBoardSize,
+            initialVisitedPoints: initialVisitedPoints,
+            requiredVisitOverrides: initialRequiredVisitOverrides
+        )
         // テーマもデフォルトへ戻し、SpriteKit 専用の配色が未設定のままでも破綻しないようフォールバックを適用
         palette = GameScenePalette.fallback
         // レイアウト関連の値をゼロクリアしておくことで、サイズ確定後の `calculateLayout` が必ず最新値を算出できる
@@ -151,11 +158,20 @@ public final class GameScene: SKScene {
     /// - Parameters:
     ///   - initialBoardSize: 初期盤面サイズ（N×N）
     ///   - initialVisitedPoints: 生成直後に踏破済みとして扱うマス集合。省略時は中央 1 マスのみを踏破する。
-    public init(initialBoardSize: Int, initialVisitedPoints: [GridPoint]? = nil) {
+    public init(
+        initialBoardSize: Int,
+        initialVisitedPoints: [GridPoint]? = nil,
+        requiredVisitOverrides: [GridPoint: Int] = [:]
+    ) {
         let resolvedVisitedPoints = initialVisitedPoints ?? BoardGeometry.defaultInitialVisitedPoints(for: initialBoardSize)
         self.initialBoardSize = initialBoardSize
         self.initialVisitedPoints = resolvedVisitedPoints
-        self.board = Board(size: initialBoardSize, initialVisitedPoints: resolvedVisitedPoints)
+        self.initialRequiredVisitOverrides = requiredVisitOverrides
+        self.board = Board(
+            size: initialBoardSize,
+            initialVisitedPoints: resolvedVisitedPoints,
+            requiredVisitOverrides: requiredVisitOverrides
+        )
         super.init(size: .zero)
         // 共通初期化で各種プロパティを統一的にリセットし、生成経路による差異を排除する
         commonInit()
@@ -168,7 +184,12 @@ public final class GameScene: SKScene {
         self.initialBoardSize = BoardGeometry.standardSize
         let defaultVisitedPoints = BoardGeometry.defaultInitialVisitedPoints(for: BoardGeometry.standardSize)
         self.initialVisitedPoints = defaultVisitedPoints
-        self.board = Board(size: BoardGeometry.standardSize, initialVisitedPoints: defaultVisitedPoints)
+        self.initialRequiredVisitOverrides = [:]
+        self.board = Board(
+            size: BoardGeometry.standardSize,
+            initialVisitedPoints: defaultVisitedPoints,
+            requiredVisitOverrides: [:]
+        )
         super.init(coder: aDecoder)
         // デコード後も共通初期化を実行し、Storyboard/SwiftUI どちらからでも同じ見た目・挙動となるようにする
         commonInit()
@@ -360,11 +381,11 @@ public final class GameScene: SKScene {
                     height: tileSize
                 )
                 let node = SKShapeNode(rect: rect)
+                let point = GridPoint(x: x, y: y)
                 node.strokeColor = palette.boardGridLine
                 node.lineWidth = 1
-                node.fillColor = palette.boardTileUnvisited
+                node.fillColor = tileFillColor(for: point)
                 addChild(node)
-                let point = GridPoint(x: x, y: y)
                 tileNodes[point] = node
                 // テストプレイ時の没入感を損なわないよう、デバッグ用の座標ラベルは描画しない
             }
@@ -433,14 +454,33 @@ public final class GameScene: SKScene {
         guard isLayoutReady else { return }
 
         for (point, node) in tileNodes {
-            if board.isVisited(point) {
-                node.fillColor = palette.boardTileVisited
-            } else {
-                node.fillColor = palette.boardTileUnvisited
-            }
+            node.fillColor = tileFillColor(for: point)
         }
         // タイル色が変わった際もガイドハイライトの色味を再評価して自然なバランスを保つ
         updateGuideHighlightColors()
+    }
+
+    /// 指定座標の状態に応じたタイル色を計算する
+    /// - Parameter point: 対象の盤面座標
+    /// - Returns: 残り踏破回数に応じて補間した色
+    private func tileFillColor(for point: GridPoint) -> SKColor {
+        guard let state = board.state(at: point) else { return palette.boardTileUnvisited }
+        return tileFillColor(for: state)
+    }
+
+    /// タイルの踏破状態から描画色を算出する
+    /// - Parameter state: 現在のマス状態
+    /// - Returns: 未踏破〜踏破済みまでの進捗に応じて補間された色
+    private func tileFillColor(for state: TileState) -> SKColor {
+        if state.isVisited {
+            return palette.boardTileVisited
+        }
+        guard state.requiresMultipleVisits else {
+            return palette.boardTileUnvisited
+        }
+
+        let progress = CGFloat(state.completionProgress)
+        return palette.boardTileUnvisited.interpolated(to: palette.boardTileVisited, fraction: progress)
     }
 
     /// ガイドモードで指定されたマスにハイライトを表示する
@@ -740,11 +780,23 @@ public final class GameScene: SKScene {
                     height: tileSize
                 )
                 // 状態に応じた読み上げ内容を生成
-                if let knightPosition, point == knightPosition {
-                    let visitedText = board.isVisited(point) ? "踏破済み" : "未踏破"
-                    element.accessibilityLabel = "駒あり " + visitedText
+                let statusText: String
+                if let state = board.state(at: point) {
+                    if state.isVisited {
+                        statusText = "踏破済み"
+                    } else if state.requiresMultipleVisits {
+                        statusText = "踏破まであと\(state.remainingVisits)回"
+                    } else {
+                        statusText = "未踏破"
+                    }
                 } else {
-                    element.accessibilityLabel = board.isVisited(point) ? "踏破済み" : "未踏破"
+                    statusText = "未踏破"
+                }
+
+                if let knightPosition, point == knightPosition {
+                    element.accessibilityLabel = "駒あり " + statusText
+                } else {
+                    element.accessibilityLabel = statusText
                 }
                 element.accessibilityTraits = [.button]
                 elements.append(element)
@@ -758,10 +810,49 @@ public final class GameScene: SKScene {
         get { accessibilityElementsCache }
         set { }
     }
-    #else
+#else
     // UIKit が利用できない環境では空実装
     private func updateAccessibilityElements() {}
     #endif
+}
+
+/// タイル色を滑らかに補間するためのユーティリティ
+private extension SKColor {
+    /// 2 色間を線形補間した結果を返す
+    /// - Parameters:
+    ///   - other: 補間したい相手色
+    ///   - fraction: 0.0〜1.0 の補間係数
+    func interpolated(to other: SKColor, fraction: CGFloat) -> SKColor {
+        let clamped = max(0.0, min(1.0, fraction))
+        let first = rgbaComponents()
+        let second = other.rgbaComponents()
+        return SKColor(
+            red: first.r + (second.r - first.r) * clamped,
+            green: first.g + (second.g - first.g) * clamped,
+            blue: first.b + (second.b - first.b) * clamped,
+            alpha: first.a + (second.a - first.a) * clamped
+        )
+    }
+
+    /// SKColor から sRGB 前提の RGBA 値を取得する
+    private func rgbaComponents() -> (r: CGFloat, g: CGFloat, b: CGFloat, a: CGFloat) {
+        #if canImport(UIKit)
+        var r: CGFloat = 0
+        var g: CGFloat = 0
+        var b: CGFloat = 0
+        var a: CGFloat = 0
+        getRed(&r, green: &g, blue: &b, alpha: &a)
+        return (r, g, b, a)
+        #else
+        let converted = usingColorSpace(.extendedSRGB) ?? self
+        return (
+            converted.redComponent,
+            converted.greenComponent,
+            converted.blueComponent,
+            converted.alphaComponent
+        )
+        #endif
+    }
 }
 #endif
 

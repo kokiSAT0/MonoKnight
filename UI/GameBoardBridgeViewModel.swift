@@ -61,7 +61,8 @@ final class GameBoardBridgeViewModel: ObservableObject {
 
         let preparedScene = GameScene(
             initialBoardSize: mode.boardSize,
-            initialVisitedPoints: mode.initialVisitedPoints
+            initialVisitedPoints: mode.initialVisitedPoints,
+            requiredVisitOverrides: mode.additionalVisitRequirements
         )
         preparedScene.scaleMode = .resizeFill
         preparedScene.gameCore = core
