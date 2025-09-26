@@ -48,8 +48,12 @@ struct CampaignStageSelectionView: View {
     var body: some View {
         Group {
             if campaignLibrary.chapters.isEmpty {
+                // 空配列の場合に章数とステージ数を記録し、データロード失敗の規模を把握できるようにする
+                debugLog("CampaignStageSelectionView.body: 章数=\(campaignLibrary.chapters.count) ステージ総数=\(campaignLibrary.allStages.count) -> emptyStateView を表示")
                 emptyStateView
             } else {
+                // 章が存在する場合にも章数とステージ数を残し、表示中リストの状態を可視化する
+                debugLog("CampaignStageSelectionView.body: 章数=\(campaignLibrary.chapters.count) ステージ総数=\(campaignLibrary.allStages.count) -> stageListView を表示")
                 stageListView
             }
         }
@@ -170,8 +174,15 @@ struct CampaignStageSelectionView: View {
     /// - Returns: 既存仕様と同じスタイルの List
     @ViewBuilder
     private var stageListView: some View {
+        // List 描画前に章ごとのステージ数を記録し、UI 側の表示内容と定義の整合性を検証しやすくする
+        let chapterDetails = campaignLibrary.chapters
+            .map { chapter in "Chapter \(chapter.id) \(chapter.title): \(chapter.stages.count)件" }
+            .joined(separator: ", ")
+        debugLog("CampaignStageSelectionView.stageListView: 表示対象章一覧 = [\(chapterDetails)]")
         List {
             ForEach(campaignLibrary.chapters) { chapter in
+                // 各章ごとにステージ件数を出力し、章単位でデータ欠落がないかを追跡する
+                debugLog("CampaignStageSelectionView.stageListView: Chapter \(chapter.id) のステージ数 = \(chapter.stages.count)件")
                 Section {
                     ForEach(chapter.stages) { stage in
                         stageRow(for: stage)
@@ -232,8 +243,8 @@ struct CampaignStageSelectionView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(theme.backgroundPrimary)
         .onAppear {
-            // データ欠落の発生タイミングを把握するためログを出力
-            debugLog("CampaignStageSelectionView: campaignLibrary.chapters が空のためエンプティビューを表示")
+            // データ欠落の発生タイミングと再試行導線の提示状況を把握するためログを出力
+            debugLog("CampaignStageSelectionView.emptyStateView: 再試行導線付きエンプティビューを表示 (章数=\(campaignLibrary.chapters.count) ステージ総数=\(campaignLibrary.allStages.count))")
         }
     }
 
