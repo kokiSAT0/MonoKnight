@@ -1592,31 +1592,7 @@ fileprivate struct TitleScreenView: View {
         let isCampaignSelected = selectedMode.identifier == .campaignStage
         let currentStage = selectedCampaignStage
 
-        return Button {
-            // ボタン押下時に NavigationStack へルートを追加し、ページ遷移でステージ一覧を開く
-            debugLog("TitleScreenView: キャンペーンセレクター表示要求 (Navigation)")
-            // 現在のステージ定義読込状況を記録し、空配列や nil 参照がないか可視化する
-            let stageIDDescription = selectedMode.campaignMetadataSnapshot?.stageID.displayCode ?? "なし"
-            let chaptersCount = campaignLibrary.chapters.count
-            let totalStageCount = campaignLibrary.chapters.map { $0.stages.count }.reduce(0, +)
-            let unlockedCount = campaignLibrary.allStages.filter { campaignProgressStore.isStageUnlocked($0) }.count
-            debugLog("TitleScreenView: キャンペーン定義チェック -> 章数=\(chaptersCount) 総ステージ数=\(totalStageCount) 選択中ID=\(stageIDDescription) 解放済=\(unlockedCount)")
-            if currentStage == nil {
-                // ボタン押下時点でステージが未解決なら、その旨を追加で記録して原因調査に役立てる
-                debugLog("TitleScreenView: 現在の選択ステージが解決できませんでした。メタデータの有無を確認してください。")
-            }
-            // 現在のスタック長を記録しておき、プッシュ結果の差分を追えるようにする
-            let currentDepth = navigationPath.count
-            debugLog("TitleScreenView: NavigationStack push準備 -> 現在のスタック数=\(currentDepth)")
-            navigationPath.append(TitleNavigationTarget.campaign)
-            // スタック操作後の段数も記録し、期待通りに 1 ページ追加されたかを確認できるようにする
-            debugLog("TitleScreenView: NavigationStack push完了 -> 変更後のスタック数=\(navigationPath.count)")
-            // メインスレッドの次フレームで再度長さを測定し、非同期更新による差分がないかを確認する
-            DispatchQueue.main.async {
-                let deferredDepth = navigationPath.count
-                debugLog("TitleScreenView: NavigationStack push後(1フレーム遅延) -> 現在のスタック数=\(deferredDepth)")
-            }
-        } label: {
+        return NavigationLink(value: TitleNavigationTarget.campaign) {
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
                     Text("キャンペーン")
@@ -1669,6 +1645,26 @@ fileprivate struct TitleScreenView: View {
                     )
             )
         }
+        // NavigationLink による遷移でもデバッグ情報を逃さないよう、同時ジェスチャーで詳細ログを出力する
+        .simultaneousGesture(
+            TapGesture().onEnded {
+                // リンクタップのタイミングで NavigationStack へ遷移要求が飛んだことを記録する
+                debugLog("TitleScreenView: キャンペーンセレクター表示要求 (NavigationLink)")
+                // 現在のステージ定義読込状況を記録し、空配列や nil 参照がないか可視化する
+                let stageIDDescription = selectedMode.campaignMetadataSnapshot?.stageID.displayCode ?? "なし"
+                let chaptersCount = campaignLibrary.chapters.count
+                let totalStageCount = campaignLibrary.chapters.map { $0.stages.count }.reduce(0, +)
+                let unlockedCount = campaignLibrary.allStages.filter { campaignProgressStore.isStageUnlocked($0) }.count
+                debugLog("TitleScreenView: キャンペーン定義チェック -> 章数=\(chaptersCount) 総ステージ数=\(totalStageCount) 選択中ID=\(stageIDDescription) 解放済=\(unlockedCount)")
+                if currentStage == nil {
+                    // ボタン押下時点でステージが未解決なら、その旨を追加で記録して原因調査に役立てる
+                    debugLog("TitleScreenView: 現在の選択ステージが解決できませんでした。メタデータの有無を確認してください。")
+                }
+                // 手動スタック操作を廃止したため、リンク遷移前後のスタック深度を確認するログに読み替えて保持する
+                let currentDepth = navigationPath.count
+                debugLog("TitleScreenView: NavigationStack 遷移準備確認 -> 現在のスタック数=\(currentDepth)")
+            }
+        )
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(Text("キャンペーンモード"))
