@@ -60,6 +60,8 @@ public struct CampaignStage: Identifiable, Equatable {
         case finishWithinSeconds(maxSeconds: Int)
         /// ペナルティ加算なしでクリア
         case finishWithoutPenalty
+        /// ペナルティを指定回数以下に抑えてクリア
+        case finishWithPenaltyAtMost(maxPenaltyCount: Int)
         /// 既踏マスを再訪せずにクリア
         case avoidRevisitingTiles
 
@@ -74,6 +76,8 @@ public struct CampaignStage: Identifiable, Equatable {
                 return metrics.elapsedSeconds <= maxSeconds
             case .finishWithoutPenalty:
                 return metrics.penaltyCount == 0
+            case .finishWithPenaltyAtMost(let maxPenaltyCount):
+                return metrics.penaltyCount <= maxPenaltyCount
             case .avoidRevisitingTiles:
                 return !metrics.hasRevisitedTile
             }
@@ -88,6 +92,8 @@ public struct CampaignStage: Identifiable, Equatable {
                 return "\(maxSeconds) 秒以内でクリア"
             case .finishWithoutPenalty:
                 return "ペナルティを受けずにクリア"
+            case .finishWithPenaltyAtMost(let maxPenaltyCount):
+                return "ペナルティを合計 \(maxPenaltyCount) 回以下に抑えてクリア"
             case .avoidRevisitingTiles:
                 return "同じマスを 2 回踏まずにクリア"
             }
@@ -347,7 +353,9 @@ public struct CampaignLibrary {
                     revisitPenaltyCost: 0
                 )
             ),
-            secondaryObjective: .avoidRevisitingTiles,
+            // MARK: 2 個目のスター条件: ペナルティ発生を 5 回以下に抑える
+            // - Note: 新米プレイヤーが多少の詰まりを経験しても達成可能な難易度に調整する。
+            secondaryObjective: .finishWithPenaltyAtMost(maxPenaltyCount: 5),
             scoreTarget: 350,
             scoreTargetComparison: .lessThan,
             unlockRequirement: .totalStars(minimum: 0)
