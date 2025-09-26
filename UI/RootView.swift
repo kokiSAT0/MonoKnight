@@ -1424,7 +1424,14 @@ fileprivate struct TitleScreenView: View {
         }
         // NavigationStack の更新を監視し、スタック操作が正しく反映されているか詳細に記録する
         .onChange(of: navigationPath) { oldValue, newValue in
-            debugLog("TitleScreenView.navigationPath 更新: 旧=\(oldValue.count) -> 新=\(newValue.count)")
+            // 新しいスタック内容を人間が読める文字列へ変換し、トラブル発生時の復元を容易にする
+            let stackDescription = newValue
+                .map { String(describing: $0) }
+                .joined(separator: ",")
+            // ログフォーマット例: "スタック=[campaign]"
+            debugLog(
+                "TitleScreenView.navigationPath 更新: instance=\(instanceIdentifier.uuidString) 旧=\(oldValue.count) -> 新=\(newValue.count) スタック=[\(stackDescription)]"
+            )
         }
         // フリーモードのレギュレーションが更新された場合は選択モードの内容も再生成する
         .onChange(of: freeModeStore.regulation) { _, _ in
