@@ -1602,8 +1602,13 @@ fileprivate struct TitleScreenView: View {
             let unlockedCount = campaignLibrary.allStages.filter { campaignProgressStore.isStageUnlocked($0) }.count
             debugLog("TitleScreenView: キャンペーン定義チェック -> 章数=\(chaptersCount) 総ステージ数=\(totalStageCount) 選択中ID=\(stageIDDescription) 解放済=\(unlockedCount)")
             if currentStage == nil {
-                // ボタン押下時点でステージが未解決なら、その旨を追加で記録して原因調査に役立てる
-                debugLog("TitleScreenView: 現在の選択ステージが解決できませんでした。メタデータの有無を確認してください。")
+                if isCampaignSelected {
+                    // 選択モードがキャンペーンなのにステージ情報が解決できない場合は警告扱いとして残し、メタデータ欠落の早期検知に役立てる
+                    debugLog("TitleScreenView: 現在の選択ステージが解決できませんでした。メタデータの有無を確認してください。")
+                } else {
+                    // 初期状態ではキャンペーンが未選択のため警告を出さず、情報ログとして状況を控えめに記録する（検証用の参考情報）
+                    debugLog("TitleScreenView: キャンペーン未選択の初期状態です。")
+                }
             }
             // 現在のスタック長を記録しておき、プッシュ結果の差分を追えるようにする
             let currentDepth = navigationPath.count
