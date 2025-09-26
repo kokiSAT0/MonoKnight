@@ -1286,10 +1286,54 @@ fileprivate struct TitleScreenView: View {
         // body 評価が走るたびに現在のインスタンスとスタック長を記録し、View の再構築状況を追跡する
         debugLog("TitleScreenView.body評価: instance=\(instanceIdentifier.uuidString) navigationPathCount=\(navigationPath.count)")
         return NavigationStack(path: $navigationPath) {
-            VStack(spacing: 28) {
-                Spacer(minLength: 0)
+            // 複雑化したビュー階層を `titleScreenMainContent` にまとめることで、型チェックの負荷を下げている
+            titleScreenMainContent
+        }
+        // キャンペーンやフリーモードのページ遷移先を NavigationStack 上に定義する
+        .navigationDestination(for: TitleNavigationTarget.self) { target in
+            // 別メソッドへ処理を委譲し、ここでは分岐結果のビュー生成だけに集中させる
+            navigationDestinationView(for: target)
+        }
+        // 遊び方シートの表示設定
+        .sheet(isPresented: $isPresentingHowToPlay) {
+            // シートの中身も専用メソッドに切り出し、ViewBuilder のネストを浅くする
+            howToPlaySheetContent
+        }
+        // モーダル表示状態を監視し、遊び方シートの開閉タイミングを把握する
+        .onChange(of: isPresentingHowToPlay) { _, newValue in
+            debugLog("TitleScreenView.isPresentingHowToPlay 更新: \(newValue)")
+        }
+        // NavigationStack の更新を監視し、スタック操作が正しく反映されているか詳細に記録する
+        .onChange(of: navigationPath) { oldValue, newValue in
+            // 新しいスタック内容を人間が読める文字列へ変換し、トラブル発生時の復元を容易にする
+            let stackDescription = newValue
+                .map { String(describing: $0) }
+                .joined(separator: ",")
+            // ログフォーマット例: "スタック=[campaign]"
+            debugLog(
+                "TitleScreenView.navigationPath 更新: instance=\(instanceIdentifier.uuidString) 旧=\(oldValue.count) -> 新=\(newValue.count) スタック=[\(stackDescription)]"
+            )
+        }
+        // フリーモードのレギュレーションが更新された場合は選択モードの内容も再生成する
+        .onChange(of: freeModeStore.regulation) { _, _ in
+            if selectedMode.identifier == .freeCustom {
+                selectedMode = freeModeStore.makeGameMode()
+            }
+        }
+        // サイズクラスの変化を記録し、iPad のマルチタスク時に余白が崩れないか検証しやすくする
+        .onChange(of: horizontalSizeClass) { _, newValue in
+            debugLog("TitleScreenView.horizontalSizeClass 更新: \(String(describing: newValue))")
+        }
+    }
 
-                // MARK: - アプリタイトルと簡単な説明
+    /// タイトル画面のメインレイアウトを返す
+    /// - Note: `body` 内のネストが深くなると型推論が極端に遅くなるため、メインコンテンツを専用ビューとして切り出している
+    @ViewBuilder
+    private var titleScreenMainContent: some View {
+        VStack(spacing: 28) {
+            Spacer(minLength: 0)
+
+            // MARK: - アプリタイトルと簡単な説明
             VStack(spacing: 12) {
                 Text("MonoKnight")
                     .font(.system(size: 32, weight: .heavy, design: .rounded))
@@ -1327,124 +1371,105 @@ fileprivate struct TitleScreenView: View {
             .controlSize(.large)
             .accessibilityIdentifier("title_how_to_play_button")
 
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, horizontalPadding)
-            .padding(.bottom, 36)
-            .frame(maxWidth: contentMaxWidth)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            // 背景もテーマのベースカラーへ切り替え、システム設定と調和させる
-            .background(theme.backgroundPrimary)
-            // 右上にギアアイコンを常設し、ゲーム外の詳細設定へ誘導する
-            .overlay(alignment: .topTrailing) {
-                Button {
-                    debugLog("TitleScreenView: 設定シート表示要求")
-                    onOpenSettings()
-                } label: {
-                    Image(systemName: "gearshape.fill")
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundColor(theme.menuIconForeground)
-                        .frame(width: 44, height: 44)
-                        .background(
-                            Circle()
-                                .fill(theme.menuIconBackground)
-                        )
-                        .overlay(
-                            Circle()
-                                .stroke(theme.menuIconBorder, lineWidth: 1)
-                        )
-                }
-                .buttonStyle(.plain)
-                .padding(.top, 16)
-                .padding(.trailing, 20)
-                .accessibilityLabel("設定")
-                .accessibilityHint("広告やプライバシー設定などの詳細を確認できます")
-            }
-            .accessibilityElement(children: .contain)
-            .accessibilityLabel("タイトル画面。モードをタップすると即座にゲームが始まります。キャンペーンはステージ一覧へ遷移し、フリーモードは設定を編集できます。手札スロットは最大\(selectedMode.handSize)種類で、\(selectedMode.stackingRuleDetailText)")
+            Spacer(minLength: 0)
         }
-        // キャンペーンやフリーモードのページ遷移先を NavigationStack 上に定義する
-        .navigationDestination(for: TitleNavigationTarget.self) { target in
-            switch target {
-            case .campaign:
-                // ナビゲーション遷移先の構築段階でインスタンス識別子とスタック状況を把握する
-                debugLog("TitleScreenView: NavigationDestination.campaign 構築開始 -> instance=\(instanceIdentifier) / stackCount=\(navigationPath.count)")
-                CampaignStageSelectionView(
-                    campaignLibrary: campaignLibrary,
-                    progressStore: campaignProgressStore,
-                    selectedStageID: selectedCampaignStage?.id,
-                    onClose: { popNavigationStack() },
-                    onSelectStage: { stage in
-                        // ステージ決定時はスタックを初期化してからゲーム開始処理へ進む
-                        resetNavigationStack()
-                        handleCampaignStageSelection(stage)
-                    },
-                    showsCloseButton: false
-                )
-                // ステージセレクターが表示されるタイミングを把握し、ナビゲーション不具合の追跡に活用する
-                .onAppear {
-                    debugLog("TitleScreenView: NavigationDestination.campaign 表示 -> 現在のスタック数=\(navigationPath.count)")
-                }
-                .onDisappear {
-                    debugLog("TitleScreenView: NavigationDestination.campaign 非表示 -> 現在のスタック数=\(navigationPath.count)")
-                }
-            case .freeModeEditor:
-                FreeModeRegulationView(
-                    initialRegulation: freeModeStore.regulation,
-                    presets: GameMode.builtInModes,
-                    onCancel: {
-                        // キャンセル時はページを閉じ、元のタイトル画面へ戻す
-                        debugLog("TitleScreenView: フリーモード設定をキャンセル")
-                        popNavigationStack()
-                    },
-                    onSave: { newRegulation in
-                        // 保存後はレギュレーションを更新し、遷移を閉じてからゲーム開始フローを準備する
-                        freeModeStore.update(newRegulation)
-                        let updatedMode = freeModeStore.makeGameMode()
-                        selectedMode = updatedMode
-                        resetNavigationStack()
-                        triggerImmediateStart(for: updatedMode, context: .freeModeEditor, delayStart: true)
-                    }
-                )
+        .padding(.horizontal, horizontalPadding)
+        .padding(.bottom, 36)
+        .frame(maxWidth: contentMaxWidth)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // 背景もテーマのベースカラーへ切り替え、システム設定と調和させる
+        .background(theme.backgroundPrimary)
+        // 右上にギアアイコンを常設し、ゲーム外の詳細設定へ誘導する
+        .overlay(alignment: .topTrailing) {
+            Button {
+                debugLog("TitleScreenView: 設定シート表示要求")
+                onOpenSettings()
+            } label: {
+                Image(systemName: "gearshape.fill")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundColor(theme.menuIconForeground)
+                    .frame(width: 44, height: 44)
+                    .background(
+                        Circle()
+                            .fill(theme.menuIconBackground)
+                    )
+                    .overlay(
+                        Circle()
+                            .stroke(theme.menuIconBorder, lineWidth: 1)
+                    )
             }
+            .buttonStyle(.plain)
+            .padding(.top, 16)
+            .padding(.trailing, 20)
+            .accessibilityLabel("設定")
+            .accessibilityHint("広告やプライバシー設定などの詳細を確認できます")
         }
-        // 遊び方シートの表示設定
-        .sheet(isPresented: $isPresentingHowToPlay) {
-            // NavigationStack でタイトルバーを付与しつつ共通ビューを利用
-            NavigationStack {
-                HowToPlayView(showsCloseButton: true)
-            }
-            // iPad では初期状態から `.large` を採用して情報を全て表示、iPhone では medium/large の切り替えを許容
-            .presentationDetents(
-                horizontalSizeClass == .regular ? [.large] : [.medium, .large]
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("タイトル画面。モードをタップすると即座にゲームが始まります。キャンペーンはステージ一覧へ遷移し、フリーモードは設定を編集できます。手札スロットは最大\(selectedMode.handSize)種類で、\(selectedMode.stackingRuleDetailText)")
+    }
+
+    /// NavigationStack の遷移先を生成する
+    /// - Parameter target: 遷移対象の列挙値
+    /// - Returns: 遷移先のビュー
+    @ViewBuilder
+    private func navigationDestinationView(for target: TitleNavigationTarget) -> some View {
+        switch target {
+        case .campaign:
+            // ナビゲーション遷移先の構築段階でインスタンス識別子とスタック状況を把握する
+            debugLog("TitleScreenView: NavigationDestination.campaign 構築開始 -> instance=\(instanceIdentifier) / stackCount=\(navigationPath.count)")
+            CampaignStageSelectionView(
+                campaignLibrary: campaignLibrary,
+                progressStore: campaignProgressStore,
+                selectedStageID: selectedCampaignStage?.id,
+                onClose: { popNavigationStack() },
+                onSelectStage: { stage in
+                    // ステージ決定時はスタックを初期化してからゲーム開始処理へ進む
+                    resetNavigationStack()
+                    handleCampaignStageSelection(stage)
+                },
+                showsCloseButton: false
             )
-            .presentationDragIndicator(.visible)
-        }
-        // モーダル表示状態を監視し、遊び方シートの開閉タイミングを把握する
-        .onChange(of: isPresentingHowToPlay) { _, newValue in
-            debugLog("TitleScreenView.isPresentingHowToPlay 更新: \(newValue)")
-        }
-        // NavigationStack の更新を監視し、スタック操作が正しく反映されているか詳細に記録する
-        .onChange(of: navigationPath) { oldValue, newValue in
-            // 新しいスタック内容を人間が読める文字列へ変換し、トラブル発生時の復元を容易にする
-            let stackDescription = newValue
-                .map { String(describing: $0) }
-                .joined(separator: ",")
-            // ログフォーマット例: "スタック=[campaign]"
-            debugLog(
-                "TitleScreenView.navigationPath 更新: instance=\(instanceIdentifier.uuidString) 旧=\(oldValue.count) -> 新=\(newValue.count) スタック=[\(stackDescription)]"
+            // ステージセレクターが表示されるタイミングを把握し、ナビゲーション不具合の追跡に活用する
+            .onAppear {
+                debugLog("TitleScreenView: NavigationDestination.campaign 表示 -> 現在のスタック数=\(navigationPath.count)")
+            }
+            .onDisappear {
+                debugLog("TitleScreenView: NavigationDestination.campaign 非表示 -> 現在のスタック数=\(navigationPath.count)")
+            }
+        case .freeModeEditor:
+            FreeModeRegulationView(
+                initialRegulation: freeModeStore.regulation,
+                presets: GameMode.builtInModes,
+                onCancel: {
+                    // キャンセル時はページを閉じ、元のタイトル画面へ戻す
+                    debugLog("TitleScreenView: フリーモード設定をキャンセル")
+                    popNavigationStack()
+                },
+                onSave: { newRegulation in
+                    // 保存後はレギュレーションを更新し、遷移を閉じてからゲーム開始フローを準備する
+                    freeModeStore.update(newRegulation)
+                    let updatedMode = freeModeStore.makeGameMode()
+                    selectedMode = updatedMode
+                    resetNavigationStack()
+                    triggerImmediateStart(for: updatedMode, context: .freeModeEditor, delayStart: true)
+                }
             )
         }
-        // フリーモードのレギュレーションが更新された場合は選択モードの内容も再生成する
-        .onChange(of: freeModeStore.regulation) { _, _ in
-            if selectedMode.identifier == .freeCustom {
-                selectedMode = freeModeStore.makeGameMode()
-            }
+    }
+
+    /// 遊び方シートの内容を切り出したヘルパー
+    /// - Note: `NavigationStack` を含むため、`body` から切り離しておくと型推論が安定する
+    @ViewBuilder
+    private var howToPlaySheetContent: some View {
+        // NavigationStack でタイトルバーを付与しつつ共通ビューを利用
+        NavigationStack {
+            HowToPlayView(showsCloseButton: true)
         }
-        // サイズクラスの変化を記録し、iPad のマルチタスク時に余白が崩れないか検証しやすくする
-        .onChange(of: horizontalSizeClass) { _, newValue in
-            debugLog("TitleScreenView.horizontalSizeClass 更新: \(String(describing: newValue))")
-        }
+        // iPad では初期状態から `.large` を採用して情報を全て表示、iPhone では medium/large の切り替えを許容
+        .presentationDetents(
+            horizontalSizeClass == .regular ? [.large] : [.medium, .large]
+        )
+        .presentationDragIndicator(.visible)
     }
 
     /// モード選択の一覧を描画するセクション
