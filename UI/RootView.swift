@@ -1367,6 +1367,8 @@ fileprivate struct TitleScreenView: View {
         .navigationDestination(for: TitleNavigationTarget.self) { target in
             switch target {
             case .campaign:
+                // ナビゲーション遷移先の構築段階でインスタンス識別子とスタック状況を把握する
+                debugLog("TitleScreenView: NavigationDestination.campaign 構築開始 -> instance=\(instanceIdentifier) / stackCount=\(navigationPath.count)")
                 CampaignStageSelectionView(
                     campaignLibrary: campaignLibrary,
                     progressStore: campaignProgressStore,
