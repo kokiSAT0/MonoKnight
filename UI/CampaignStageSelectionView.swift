@@ -58,18 +58,7 @@ struct CampaignStageSelectionView: View {
             }
         }
         .navigationTitle("キャンペーン")
-        .toolbar {
-            // ツールバー構成をここで直接定義し、SwiftUI のオーバーロード解決を明示的にする
-            if showsCloseButton {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("閉じる") {
-                        // 手動クローズ時にナビゲーション操作を記録し、戻れない問題の切り分けに備える
-                        debugLog("CampaignStageSelectionView: 閉じるボタン押下 -> NavigationStackポップ要求")
-                        onClose()
-                    }
-                }
-            }
-        }
+        .toolbar(content: toolbarContent)
         // ステージ一覧の表示状態を追跡し、遷移の成否をログで確認できるようにする
         .onAppear {
             let unlockedCount = campaignLibrary.allStages.filter { progressStore.isStageUnlocked($0) }.count
@@ -252,5 +241,27 @@ struct CampaignStageSelectionView: View {
         }
     }
 
+}
+
+// MARK: - Toolbar 定義
+
+private extension CampaignStageSelectionView {
+    /// ツールバーに表示する内容を `@ToolbarContentBuilder` で切り出し、オーバーロードの曖昧さを避ける
+    @ToolbarContentBuilder
+    private var toolbarContent: some ToolbarContent {
+        ToolbarItem(placement: .cancellationAction) {
+            // showsCloseButton が false の場合でも型を確定させるため EmptyView を明示的に返す
+            if showsCloseButton {
+                Button("閉じる") {
+                    // 手動クローズ時にナビゲーション操作を記録し、戻れない問題の切り分けに備える
+                    debugLog("CampaignStageSelectionView: 閉じるボタン押下 -> NavigationStackポップ要求")
+                    onClose()
+                }
+            } else {
+                // ツールバーが空の際の戻り値を明示し、ResultBuilder の戻り値不一致を防ぐ
+                EmptyView()
+            }
+        }
+    }
 }
 
