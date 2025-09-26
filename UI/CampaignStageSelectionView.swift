@@ -173,14 +173,14 @@ struct CampaignStageSelectionView: View {
 
     /// 章とステージが正しく読み込めた場合の一覧表示
     /// - Returns: 既存仕様と同じスタイルの List
-    @ViewBuilder
     private var stageListView: some View {
         // List 描画前に章ごとのステージ数を記録し、UI 側の表示内容と定義の整合性を検証しやすくする
         let chapterDetails = campaignLibrary.chapters
             .map { chapter in "Chapter \(chapter.id) \(chapter.title): \(chapter.stages.count)件" }
             .joined(separator: ", ")
         debugLog("CampaignStageSelectionView.stageListView: 表示対象章一覧 = [\(chapterDetails)]")
-        List {
+        // ResultBuilder の返却型と副作用の整合性を保つため、List を戻り値として明示する
+        return List {
             ForEach(campaignLibrary.chapters) { chapter in
                 Section {
                     ForEach(chapter.stages) { stage in
