@@ -478,7 +478,8 @@ struct ResultView: View {
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("累計スター: \(record.progress.earnedStars) / 3")
             .onAppear { startAnimation() }
-            .onChange(of: record.progress.earnedStars) { _ in
+            // iOS 17 以降で推奨される 2 引数版 onChange を利用し、将来の非推奨 API を回避する
+            .onChange(of: record.progress.earnedStars) { _, _ in
                 startAnimation()
             }
             .onDisappear {
