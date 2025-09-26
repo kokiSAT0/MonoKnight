@@ -187,8 +187,6 @@ struct CampaignStageSelectionView: View {
         debugLog("CampaignStageSelectionView.stageListView: 表示対象章一覧 = [\(chapterDetails)]")
         List {
             ForEach(campaignLibrary.chapters) { chapter in
-                // 各章ごとにステージ件数を出力し、章単位でデータ欠落がないかを追跡する
-                debugLog("CampaignStageSelectionView.stageListView: Chapter \(chapter.id) のステージ数 = \(chapter.stages.count)件")
                 Section {
                     ForEach(chapter.stages) { stage in
                         stageRow(for: stage)
@@ -201,6 +199,11 @@ struct CampaignStageSelectionView: View {
                         .font(.system(size: 11, weight: .regular, design: .rounded))
                         .foregroundColor(.secondary)
                         .padding(.top, 4)
+                }
+                // onAppear でログを出力し、ResultBuilder の制約を満たしつつ診断情報を残す
+                .onAppear {
+                    // 各章ごとのステージ件数を記録し、データの欠損をタイムラインで追跡しやすくする
+                    debugLog("CampaignStageSelectionView.stageListView: Chapter \(chapter.id) のステージ数 = \(chapter.stages.count)件")
                 }
             }
         }
