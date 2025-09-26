@@ -298,7 +298,11 @@ struct ResultView: View {
             .frame(maxWidth: .infinity)
         }
         .scrollIndicators(.hidden)
-        .background(Color(UIColor.systemBackground))
+        // フルスクリーンカバー内でも背景色が端まで届くよう、セーフエリアを越えて塗りつぶす
+        .background {
+            Color(UIColor.systemBackground)
+                .ignoresSafeArea()
+        }
         .onAppear {
             // ビュー表示時に広告表示をトリガー
             adsService.showInterstitial()
