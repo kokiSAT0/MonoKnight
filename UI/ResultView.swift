@@ -313,6 +313,7 @@ struct ResultView: View {
     /// - Parameter record: 今回のクリア結果を反映した評価レコード
     @ViewBuilder
     private func campaignRewardSummary(for record: CampaignStageClearRecord) -> some View {
+        let starGain = max(0, record.progress.earnedStars - record.previousProgress.earnedStars)
         VStack(alignment: .leading, spacing: 16) {
             // ステージ名と獲得スター数を明示し、現在地を把握しやすくする
             Text("キャンペーンリワード")
@@ -322,17 +323,18 @@ struct ResultView: View {
                 Text("ステージ \(record.stage.displayCode) \(record.stage.title)")
                     .font(.headline)
 
-                HStack(spacing: 6) {
-                    ForEach(0..<3, id: \.self) { index in
-                        Image(systemName: index < record.progress.earnedStars ? "star.fill" : "star")
-                            .foregroundColor(index < record.progress.earnedStars ? .yellow : .secondary)
-                    }
-                }
-                .accessibilityLabel("累計スター: \(record.progress.earnedStars) / 3")
+                CampaignStarProgressView(record: record)
 
                 Text("今回の獲得: \(record.evaluation.earnedStars) / 3")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
+
+                if starGain > 0 {
+                    Text("累計スターが\(starGain)個増えました！")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundColor(.yellow)
+                        .accessibilityLabel("累計スターが\(starGain)個増えました")
+                }
             }
 
             VStack(alignment: .leading, spacing: 10) {
@@ -437,6 +439,109 @@ struct ResultView: View {
         }
 
         return items
+    }
+
+    /// 獲得済みスター数の表示にアニメーションを適用する補助ビュー
+    private struct CampaignStarProgressView: View {
+        /// 表示対象のキャンペーンクリア記録
+        let record: CampaignStageClearRecord
+
+        /// 段階的に増加させるスター数（表示用）
+        @State private var animatedEarnedStars: Int
+        /// スターごとのバウンス演出フラグ（`true` の間は拡大させる）
+        @State private var bounceStates: [Bool] = Array(repeating: false, count: 3)
+        /// アニメーション制御用のタスク。ビューのライフサイクルに合わせてキャンセルする
+        @State private var animationTask: Task<Void, Never>?
+
+        /// 初期化時にベースとなるスター数を反映しておき、表示直後から実績値を示す
+        init(record: CampaignStageClearRecord) {
+            self.record = record
+            _animatedEarnedStars = State(initialValue: min(record.previousProgress.earnedStars, 3))
+        }
+
+        var body: some View {
+            HStack(spacing: 6) {
+                ForEach(0..<3, id: \.self) { index in
+                    Image(systemName: index < animatedEarnedStars ? "star.fill" : "star")
+                        .foregroundColor(index < animatedEarnedStars ? .yellow : .secondary)
+                        .scaleEffect(bounceStates[index] ? 1.24 : 1.0)
+                        .shadow(color: index < animatedEarnedStars ? Color.yellow.opacity(0.4) : .clear,
+                                radius: bounceStates[index] ? 6 : 0)
+                        .animation(.easeOut(duration: 0.18), value: bounceStates[index])
+                        .animation(.spring(response: 0.42, dampingFraction: 0.82), value: animatedEarnedStars)
+                }
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("累計スター: \(record.progress.earnedStars) / 3")
+            .onAppear { startAnimation() }
+            .onChange(of: record.progress.earnedStars) { _ in
+                startAnimation()
+            }
+            .onDisappear {
+                animationTask?.cancel()
+                animationTask = nil
+            }
+        }
+
+        /// アニメーションをリセットし、最新の進捗に応じてスターを増やす
+        private func startAnimation() {
+            animationTask?.cancel()
+            animationTask = Task {
+                await animateStarGain()
+            }
+        }
+
+        /// 累計スター数の増加に合わせて 1 個ずつ段階的に表示を切り替える
+        private func animateStarGain() async {
+            let baseline = baselineCount
+            let target = targetCount
+
+            await MainActor.run {
+                animatedEarnedStars = baseline
+                bounceStates = Array(repeating: false, count: 3)
+            }
+
+            guard target > baseline else {
+                await MainActor.run {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                        animatedEarnedStars = target
+                    }
+                }
+                return
+            }
+
+            var current = baseline
+            while current < target {
+                if Task.isCancelled { return }
+                try? await Task.sleep(nanoseconds: 220_000_000)
+                if Task.isCancelled { return }
+                current += 1
+                await MainActor.run {
+                    withAnimation(.spring(response: 0.44, dampingFraction: 0.74)) {
+                        animatedEarnedStars = current
+                        bounceStates[current - 1] = true
+                    }
+                }
+                if Task.isCancelled { return }
+                try? await Task.sleep(nanoseconds: 180_000_000)
+                if Task.isCancelled { return }
+                await MainActor.run {
+                    withAnimation(.easeOut(duration: 0.18)) {
+                        bounceStates[current - 1] = false
+                    }
+                }
+            }
+        }
+
+        /// クリア前の累計スター（最大 3 にクリップ）
+        private var baselineCount: Int {
+            min(record.previousProgress.earnedStars, 3)
+        }
+
+        /// 更新後の累計スター（最大 3 にクリップ）
+        private var targetCount: Int {
+            min(record.progress.earnedStars, 3)
+        }
     }
 
     /// 手数に 10 を掛けたポイント換算値
@@ -568,6 +673,10 @@ private extension ResultView {
         }
 
         // ダミーの進行状況を構築し、UI の検証に必要な最小限の値を詰める
+        var previousProgress = CampaignStageProgress()
+        previousProgress.earnedStars = 1
+        previousProgress.achievedSecondaryObjective = true
+
         var progress = CampaignStageProgress()
         progress.earnedStars = 2
         progress.achievedSecondaryObjective = true
@@ -580,6 +689,7 @@ private extension ResultView {
                 achievedSecondaryObjective: true,
                 achievedScoreGoal: false
             ),
+            previousProgress: previousProgress,
             progress: progress
         )
 
