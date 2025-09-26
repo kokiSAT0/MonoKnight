@@ -1349,13 +1349,13 @@ fileprivate struct TitleScreenView: View {
                     campaignLibrary: campaignLibrary,
                     progressStore: campaignProgressStore,
                     selectedStageID: selectedCampaignStage?.id,
-                    showsCloseButton: false,
                     onClose: { popNavigationStack() },
                     onSelectStage: { stage in
                         // ステージ決定時はスタックを初期化してからゲーム開始処理へ進む
                         resetNavigationStack()
                         handleCampaignStageSelection(stage)
-                    }
+                    },
+                    showsCloseButton: false
                 )
             case .freeModeEditor:
                 FreeModeRegulationView(
