@@ -73,6 +73,9 @@ struct CampaignStageSelectionView: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
                 .background(.thinMaterial)
+            } else {
+                // safeAreaInset の ResultBuilder が Void を返さないよう、非表示時は EmptyView を明示する
+                EmptyView()
             }
         }
         // ステージ一覧の表示状態を追跡し、遷移の成否をログで確認できるようにする
