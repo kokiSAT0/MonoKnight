@@ -1662,37 +1662,7 @@ fileprivate struct TitleScreenView: View {
         let isCampaignSelected = selectedMode.identifier == .campaignStage
         let currentStage = selectedCampaignStage
 
-        return Button {
-            // ボタン押下時に NavigationStack へルートを追加し、ページ遷移でステージ一覧を開く
-            debugLog("TitleScreenView: キャンペーンセレクター表示要求 (Navigation)")
-            // 現在のステージ定義読込状況を記録し、空配列や nil 参照がないか可視化する
-            let stageIDDescription = selectedMode.campaignMetadataSnapshot?.stageID.displayCode ?? "なし"
-            let chaptersCount = campaignLibrary.chapters.count
-            let totalStageCount = campaignLibrary.chapters.map { $0.stages.count }.reduce(0, +)
-            let unlockedCount = campaignLibrary.allStages.filter { campaignProgressStore.isStageUnlocked($0) }.count
-            debugLog("TitleScreenView: キャンペーン定義チェック -> 章数=\(chaptersCount) 総ステージ数=\(totalStageCount) 選択中ID=\(stageIDDescription) 解放済=\(unlockedCount)")
-            if currentStage == nil {
-                if isCampaignSelected {
-                    // 選択モードがキャンペーンなのにステージ情報が解決できない場合は警告扱いとして残し、メタデータ欠落の早期検知に役立てる
-                    debugLog("TitleScreenView: 現在の選択ステージが解決できませんでした。メタデータの有無を確認してください。")
-                } else {
-                    // 初期状態ではキャンペーンが未選択のため警告を出さず、情報ログとして状況を控えめに記録する（検証用の参考情報）
-                    debugLog("TitleScreenView: キャンペーン未選択の初期状態です。")
-                }
-            }
-            // 現在のスタック長を記録しておき、プッシュ結果の差分を追えるようにする
-            let currentDepth = navigationPath.count
-            debugLog("TitleScreenView: NavigationStack push準備 -> 現在のスタック数=\(currentDepth)")
-            navigationPath.append(TitleNavigationTarget.campaign)
-            // スタック操作後の段数も記録し、期待通りに 1 ページ追加されたかを確認できるようにする
-            debugLog("TitleScreenView: NavigationStack push完了 -> 変更後のスタック数=\(navigationPath.count)")
-            // メインスレッドの次フレームで再度長さを測定し、非同期更新による差分がないかを確認する
-            DispatchQueue.main.async {
-                let deferredDepth = navigationPath.count
-                debugLog("TitleScreenView: NavigationStack push後(1フレーム遅延) -> 現在のスタック数=\(deferredDepth)")
-            }
-        } label: {
-
+        return NavigationLink(value: TitleNavigationTarget.campaign) {
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
                     Text("キャンペーン")
@@ -1745,24 +1715,29 @@ fileprivate struct TitleScreenView: View {
                     )
             )
         }
-        // NavigationLink による遷移でもデバッグ情報を逃さないよう、同時ジェスチャーで詳細ログを出力する
+        // NavigationLink の自動 push に切り替えても操作ログと定義チェックを残すため、タップと同時に詳細情報を出力する
         .simultaneousGesture(
             TapGesture().onEnded {
-                // リンクタップのタイミングで NavigationStack へ遷移要求が飛んだことを記録する
+                // リンクタップのタイミングでタイトル画面からキャンペーン一覧への遷移要求が発生したことを明示的に残す
                 debugLog("TitleScreenView: キャンペーンセレクター表示要求 (NavigationLink)")
-                // 現在のステージ定義読込状況を記録し、空配列や nil 参照がないか可視化する
+                // 現在のステージ定義読込状況を記録し、空配列や nil 参照がないか可視化する（Button 時代のログを踏襲）
                 let stageIDDescription = selectedMode.campaignMetadataSnapshot?.stageID.displayCode ?? "なし"
                 let chaptersCount = campaignLibrary.chapters.count
                 let totalStageCount = campaignLibrary.chapters.map { $0.stages.count }.reduce(0, +)
                 let unlockedCount = campaignLibrary.allStages.filter { campaignProgressStore.isStageUnlocked($0) }.count
                 debugLog("TitleScreenView: キャンペーン定義チェック -> 章数=\(chaptersCount) 総ステージ数=\(totalStageCount) 選択中ID=\(stageIDDescription) 解放済=\(unlockedCount)")
                 if currentStage == nil {
-                    // ボタン押下時点でステージが未解決なら、その旨を追加で記録して原因調査に役立てる
-                    debugLog("TitleScreenView: 現在の選択ステージが解決できませんでした。メタデータの有無を確認してください。")
+                    if isCampaignSelected {
+                        // 選択モードがキャンペーンなのにステージ情報が解決できない場合は警告扱いとして残し、メタデータ欠落の早期検知に役立てる
+                        debugLog("TitleScreenView: 現在の選択ステージが解決できませんでした。メタデータの有無を確認してください。")
+                    } else {
+                        // 初期状態ではキャンペーンが未選択のため警告を出さず、情報ログとして状況を控えめに記録する（検証用の参考情報）
+                        debugLog("TitleScreenView: キャンペーン未選択の初期状態です。")
+                    }
                 }
-                // 手動スタック操作を廃止したため、リンク遷移前後のスタック深度を確認するログに読み替えて保持する
+                // NavigationLink 側で自動 push されるため、スタック深度ログは参照用途に限定して現在値を残す
                 let currentDepth = navigationPath.count
-                debugLog("TitleScreenView: NavigationStack 遷移準備確認 -> 現在のスタック数=\(currentDepth)")
+                debugLog("TitleScreenView: NavigationStack 遷移直前状態 -> 現在のスタック数=\(currentDepth)")
             }
         )
         .buttonStyle(.plain)
