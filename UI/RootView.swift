@@ -1298,11 +1298,12 @@ fileprivate struct TitleScreenView: View {
             let stackDescription = navigationPath
                 .map { $0.rawValue }
                 .joined(separator: ",")
-            debugLog(
+            // ViewBuilder の戻り値判定にログ呼び出しが混ざらないよう、副作用だけを発生させるステートメントとして明示的に扱う
+            let _ = debugLog(
                 "TitleScreenView: NavigationDestination.entry -> instance=\(instanceIdentifier.uuidString) target=\(target.rawValue) targetType=\(String(describing: type(of: target))) stackCount=\(navigationPath.count) stack=[\(stackDescription)]"
             )
             // 別メソッドへ処理を委譲し、ここでは分岐結果のビュー生成だけに集中させる
-            navigationDestinationView(for: target)
+            return navigationDestinationView(for: target)
         }
         // 遊び方シートの表示設定
         .sheet(isPresented: $isPresentingHowToPlay) {
