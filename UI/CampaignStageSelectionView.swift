@@ -59,16 +59,15 @@ struct CampaignStageSelectionView: View {
         }
         .navigationTitle("キャンペーン")
         .toolbar {
-            // SwiftUI のオーバーロード解決を明示しつつ、閉じるボタンの表示制御をその場で把握できるように直接 ToolbarItem を記述する
-            ToolbarItem(placement: .cancellationAction) {
-                if showsCloseButton {
-                    Button("閉じる") {
-                        // ナビゲーションスタックをポップする契機を記録し、手動クローズのトレースを取りやすくする
-                        debugLog("CampaignStageSelectionView.toolbar: 閉じるボタン押下 -> NavigationStackポップ要求")
-                        onClose()
-                    }
+            // 共通の ToolbarContent に委譲し、閉じるボタンの表示可否とアクションを一元管理する
+            CloseButtonToolbarContent(
+                showsCloseButton: showsCloseButton,
+                onClose: {
+                    // ナビゲーションスタックをポップする契機を記録し、手動クローズのトレースを取りやすくする
+                    debugLog("CampaignStageSelectionView.toolbar: 閉じるボタン押下 -> NavigationStackポップ要求")
+                    onClose()
                 }
-            }
+            )
         }
         // ステージ一覧の表示状態を追跡し、遷移の成否をログで確認できるようにする
         .onAppear {
@@ -252,5 +251,26 @@ struct CampaignStageSelectionView: View {
         }
     }
 
+}
+
+/// モーダルやナビゲーションスタックで共通利用する「閉じる」ボタン付きのツールバー
+/// - Note: showsCloseButton の判定を内部で行うことで、呼び出し側では条件分岐を気にせずに済むようにする
+struct CloseButtonToolbarContent: ToolbarContent {
+    /// 閉じるボタンを表示するかどうか
+    let showsCloseButton: Bool
+    /// 閉じるボタンが押下された際の処理
+    let onClose: () -> Void
+
+    var body: some ToolbarContent {
+        ToolbarItem(placement: .cancellationAction) {
+            if showsCloseButton {
+                Button("閉じる") {
+                    // ボタン押下を検知したタイミングでデバッグログを残し、遷移トラブルの調査材料とする
+                    debugLog("CloseButtonToolbarContent: 閉じるボタン押下 -> onClose を実行")
+                    onClose()
+                }
+            }
+        }
+    }
 }
 
