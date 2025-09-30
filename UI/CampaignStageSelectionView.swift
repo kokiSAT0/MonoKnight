@@ -58,16 +58,21 @@ struct CampaignStageSelectionView: View {
             }
         }
         .navigationTitle("キャンペーン")
-        .toolbar {
-            // SwiftUI のオーバーロード解決を明示しつつ、閉じるボタンの表示制御をその場で把握できるように直接 ToolbarItem を記述する
-            ToolbarItem(placement: .cancellationAction) {
-                if showsCloseButton {
+        .navigationBarBackButtonHidden(true)
+        .safeAreaInset(edge: .top) {
+            if showsCloseButton {
+                HStack {
+                    Spacer()
                     Button("閉じる") {
                         // ナビゲーションスタックをポップする契機を記録し、手動クローズのトレースを取りやすくする
                         debugLog("CampaignStageSelectionView.toolbar: 閉じるボタン押下 -> NavigationStackポップ要求")
                         onClose()
                     }
+                    .buttonStyle(.plain)
                 }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(.thinMaterial)
             }
         }
         // ステージ一覧の表示状態を追跡し、遷移の成否をログで確認できるようにする
