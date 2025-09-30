@@ -124,12 +124,16 @@ struct PauseMenuView: View {
             .listStyle(.insetGrouped)
             .navigationTitle("ポーズ")
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("閉じる") {
+                // MARK: - プレイ再開とセットで閉じるボタンを共通実装へ委譲
+                CloseButtonToolbarContent(
+                    showsCloseButton: true,
+                    onClose: {
+                        // 再開処理と dismiss の順序を保ちつつ、デバッグログでトレース可能にする
+                        debugLog("PauseMenuView.toolbar: 閉じるボタン押下 -> onResume と dismiss を順番に実行")
                         onResume()
                         dismiss()
                     }
-                }
+                )
             }
             .background(theme.backgroundPrimary)
         }

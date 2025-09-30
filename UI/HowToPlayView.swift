@@ -95,14 +95,15 @@ struct HowToPlayView: View {
         .background(Color(UIColor.systemBackground))
         .navigationTitle("遊び方")
         .toolbar {
-            // MARK: - モーダル用の閉じるボタン
-            if showsCloseButton {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("閉じる") {
-                        dismiss()
-                    }
+            // MARK: - モーダル用の閉じるボタンを共通コンポーネントで表示
+            CloseButtonToolbarContent(
+                showsCloseButton: showsCloseButton,
+                onClose: {
+                    // dismiss の実行契機を明示し、想定外の閉じる動作が発生した際にトレースしやすくする
+                    debugLog("HowToPlayView.toolbar: 閉じるボタン押下 -> dismiss を実行")
+                    dismiss()
                 }
-            }
+            )
         }
     }
 }
