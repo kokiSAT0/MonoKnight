@@ -49,12 +49,18 @@ struct CampaignStageSelectionView: View {
         Group {
             if campaignLibrary.chapters.isEmpty {
                 // 空配列の場合に章数とステージ数を記録し、データロード失敗の規模を把握できるようにする
-                debugLog("CampaignStageSelectionView.body: 章数=\(campaignLibrary.chapters.count) ステージ総数=\(campaignLibrary.allStages.count) -> emptyStateView を表示")
                 emptyStateView
+                    .onAppear {
+                        // onAppear 内でログを記録し、ViewBuilder が Void を評価しないようにしておく
+                        debugLog("CampaignStageSelectionView.body: 章数=\(campaignLibrary.chapters.count) ステージ総数=\(campaignLibrary.allStages.count) -> emptyStateView を表示")
+                    }
             } else {
                 // 章が存在する場合にも章数とステージ数を残し、表示中リストの状態を可視化する
-                debugLog("CampaignStageSelectionView.body: 章数=\(campaignLibrary.chapters.count) ステージ総数=\(campaignLibrary.allStages.count) -> stageListView を表示")
                 stageListView
+                    .onAppear {
+                        // onAppear 内にログを移し、ResultBuilder の副作用評価を避ける
+                        debugLog("CampaignStageSelectionView.body: 章数=\(campaignLibrary.chapters.count) ステージ総数=\(campaignLibrary.allStages.count) -> stageListView を表示")
+                    }
             }
         }
         .navigationTitle("キャンペーン")
@@ -186,7 +192,6 @@ struct CampaignStageSelectionView: View {
         let chapterDetails = campaignLibrary.chapters
             .map { chapter in "Chapter \(chapter.id) \(chapter.title): \(chapter.stages.count)件" }
             .joined(separator: ", ")
-        debugLog("CampaignStageSelectionView.stageListView: 表示対象章一覧 = [\(chapterDetails)]")
         // ResultBuilder の返却型と副作用の整合性を保つため、List を戻り値として明示する
         return List {
             ForEach(campaignLibrary.chapters) { chapter in
@@ -211,6 +216,10 @@ struct CampaignStageSelectionView: View {
             }
         }
         .listStyle(.insetGrouped)
+        .onAppear {
+            // onAppear 時に章一覧のサマリーを出力し、ViewBuilder の評価と副作用を分離する
+            debugLog("CampaignStageSelectionView.stageListView: 表示対象章一覧 = [\(chapterDetails)]")
+        }
     }
 
     /// キャンペーン情報のロードに失敗した際に表示する案内ビュー
