@@ -69,10 +69,11 @@ public extension GameScenePalette {
     static let fallbackLight = GameScenePalette(
         boardBackground: SKColor(white: 0.94, alpha: 1.0),
         boardGridLine: SKColor(white: 0.15, alpha: 1.0),
-        boardTileVisited: SKColor(white: 0.68, alpha: 1.0),
+        // NOTE: SwiftUI 側の踏破済みカラー変更に合わせ、濃いグレー (18%) を踏破完了時の基準に統一する
+        boardTileVisited: SKColor(white: 0.82, alpha: 1.0),
         boardTileUnvisited: SKColor(white: 0.95, alpha: 1.0),
-        // NOTE: SwiftUI テーマの 18% 相当（白 82% 付近）に合わせ、踏破済みとの明確な階調差をキープする
-        boardTileMultiBase: SKColor(white: 0.82, alpha: 1.0),
+        // NOTE: マルチ踏破のベースは未踏破と同じトーンを採用し、段階演出はオーバーレイで表現する
+        boardTileMultiBase: SKColor(white: 0.95, alpha: 1.0),
         // NOTE: 枠線はアクセント用のチャコールグレーを採用し、背景や塗りに埋もれない視認性を優先する
         boardTileMultiStroke: SKColor(white: 0.2, alpha: 1.0),
         // NOTE: トグルマスは常に存在感を出したいので、未踏破・踏破の状態差に影響されない濃いめのグレーを採用する
@@ -86,10 +87,11 @@ public extension GameScenePalette {
     static let fallbackDark = GameScenePalette(
         boardBackground: SKColor(white: 0.05, alpha: 1.0),
         boardGridLine: SKColor(white: 0.75, alpha: 1.0),
-        boardTileVisited: SKColor(white: 0.52, alpha: 1.0),
+        // NOTE: ダークテーマでも踏破済みは 28% の白に統一し、完了時の判別を確実にする
+        boardTileVisited: SKColor(white: 0.28, alpha: 1.0),
         boardTileUnvisited: SKColor(white: 0.18, alpha: 1.0),
-        // NOTE: SwiftUI テーマと同様に 28% 程度の白を採用し、暗背景でも踏破段階が判別しやすい基準色に統一する
-        boardTileMultiBase: SKColor(white: 0.28, alpha: 1.0),
+        // NOTE: マルチ踏破のベース色も未踏破トーンに合わせ、踏破オーバーレイとのメリハリを最大化する
+        boardTileMultiBase: SKColor(white: 0.18, alpha: 1.0),
         // NOTE: ダークテーマでは淡いライトグレーを用い、背景が暗くても輪郭がぼやけないようハイコントラストを維持する
         boardTileMultiStroke: SKColor(white: 0.85, alpha: 1.0),
         // NOTE: トグルマスは暗色背景でも埋もれないよう、訪問状態に左右されない明度のグレーを採用

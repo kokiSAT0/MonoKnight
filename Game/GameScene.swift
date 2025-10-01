@@ -592,8 +592,8 @@ public final class GameScene: SKScene {
             // トグルマスは踏破状態に関わらず専用色で固定し、ギミックの存在を明確に示す
             return palette.boardTileToggle
         case .multi:
-            // 四分割三角形で進捗を示すため、ベースの塗りは固定色とし、全セグメント完了時に踏破済み色へ切り替える
-            return state.isVisited ? palette.boardTileVisited : palette.boardTileMultiBase
+            // 四分割三角形で進捗を示すため、ベースの塗りは未踏破色を維持し、全セグメント完了時に踏破済み色へ切り替える
+            return state.isVisited ? palette.boardTileVisited : palette.boardTileUnvisited
         case .single:
             // 通常マスは従来通りの配色で未踏破と踏破済みを切り替える
             return state.isVisited ? palette.boardTileVisited : palette.boardTileUnvisited
@@ -730,8 +730,8 @@ public final class GameScene: SKScene {
 
         // 部分踏破の残量を視覚的に把握しやすいよう、塗り色を 3 段階に分ける
         let completedColor = palette.boardTileVisited.withAlphaComponent(0.95)
-        let pendingColor = palette.boardTileMultiBase.withAlphaComponent(0.9)
-        let inactiveColor = palette.boardTileMultiBase.withAlphaComponent(0.55)
+        let pendingColor = palette.boardTileUnvisited.withAlphaComponent(0.9)
+        let inactiveColor = palette.boardTileUnvisited.withAlphaComponent(0.55)
 
         for (index, triangle) in MultiVisitTriangle.allCases.enumerated() {
             guard let segmentNode = decoration.segments[triangle] else { continue }

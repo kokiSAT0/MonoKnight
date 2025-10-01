@@ -401,15 +401,15 @@ struct AppTheme: DynamicProperty {
         }
     }
 
-    /// 踏破済みマスの塗り色（透明度で差を付け視認性を確保）
+    /// 踏破済みマスの塗り色（マルチ踏破マス完了時とトーンを揃える）
     var boardTileVisited: Color {
         switch resolvedColorScheme {
         case .dark:
-            // ダークテーマでは背景とのメリハリを強めるため、半透明の白を大きめに設定する
-            return Color.white.opacity(0.52)
+            // ダークテーマではマルチ踏破の完了色と統一し、踏破完了時の色変化を明確にする
+            return Color.white.opacity(0.28)
         default:
-            // ライトテーマでは未踏破との差がひと目で分かる濃さ（約 32%）まで不透明度を引き上げる
-            return Color.black.opacity(0.32)
+            // ライトテーマでも同じ思想で 18% の黒を重ね、踏破済みマスの濃いグレーを共通化する
+            return Color.black.opacity(0.18)
         }
     }
 
@@ -425,16 +425,11 @@ struct AppTheme: DynamicProperty {
         }
     }
 
-    /// 複数回踏破マスの基準色（進捗表示用に未踏破色よりもワントーン濃く設定）
+    /// 複数回踏破マスの基準色（未踏破マスと同じトーンから段階演出をスタートさせる）
     var boardTileMultiBase: Color {
-        switch resolvedColorScheme {
-        case .dark:
-            // 部分踏破中の進捗を段階的に表すため、未踏破より明るく踏破済みより暗い 28% を中心値に設定
-            return Color.white.opacity(0.28)
-        default:
-            // ライトテーマも同じ思想で、未踏破 5% と踏破済み 32% の中間となる 18% を基準色とする
-            return Color.black.opacity(0.18)
-        }
+        // NOTE: マルチ踏破の進捗段階はオーバーレイで表現するため、ベース色は未踏破マスと同一にする
+        //       これにより、踏破完了時に踏破済みカラーへ切り替わるコントラストが最大化される
+        return boardTileUnvisited
     }
 
     /// 複数回踏破マス専用の枠線色（高コントラストのグレートーンを採用）
