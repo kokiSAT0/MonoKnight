@@ -1,23 +1,5 @@
 import Foundation
 
-/// カードの移動量を表すベクトル構造体
-/// - Note: `dx` / `dy` をまとめて扱うことで、ログ出力やテストでの比較を簡略化する。
-public struct MoveVector: Hashable, Codable {
-    /// x 方向の移動量
-    public let dx: Int
-    /// y 方向の移動量
-    public let dy: Int
-
-    /// 公開イニシャライザ
-    /// - Parameters:
-    ///   - dx: x 方向へ加算する値
-    ///   - dy: y 方向へ加算する値
-    public init(dx: Int, dy: Int) {
-        self.dx = dx
-        self.dy = dy
-    }
-}
-
 /// 手札スタックから盤面へ移動可能なカード情報を解決した結果を保持する構造体
 /// - Note: スタック識別子・インデックス・カード種別・移動後座標など、UI とロジック双方で共有したい情報を 1 箇所へ集約する。
 public struct ResolvedCardMove: Hashable {

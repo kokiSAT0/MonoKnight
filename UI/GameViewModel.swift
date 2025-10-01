@@ -278,7 +278,9 @@ final class GameViewModel: ObservableObject {
             return
         }
 
-        let destination = current.offset(dx: card.move.dx, dy: card.move.dy)
+        // primaryVector を介して移動先を算出する。複数候補カード追加時もここで分岐を整理できるようにするための布石。
+        let vector = card.move.primaryVector
+        let destination = current.offset(dx: vector.dx, dy: vector.dy)
         if core.board.contains(destination) {
             boardBridge.updateForcedSelectionHighlights([destination])
         } else {

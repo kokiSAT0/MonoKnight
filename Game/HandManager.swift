@@ -21,12 +21,36 @@ public final class HandManager: ObservableObject {
     /// 並び替え設定
     private var handOrderingStrategy: HandOrderingStrategy
 
-    /// MoveCard ごとのデフォルト順序をキャッシュし、安定ソートに利用する
-    private static let moveCardOrderingIndex: [MoveCard: Int] = {
-        var mapping: [MoveCard: Int] = [:]
+    /// 移動ベクトル列を比較可能な形で保持するためのシグネチャ構造体
+    /// - Note: ベクトル配列自体は `Hashable` でないため、カードの移動候補をキーとして扱うためにラップする
+    private struct MoveVectorSignature: Hashable {
+        let vectors: [MoveVector]
+
+        init(_ vectors: [MoveVector]) {
+            self.vectors = vectors
+        }
+
+        func hash(into hasher: inout Hasher) {
+            hasher.combine(vectors.count)
+            for vector in vectors {
+                hasher.combine(vector)
+            }
+        }
+
+        static func == (lhs: MoveVectorSignature, rhs: MoveVectorSignature) -> Bool {
+            lhs.vectors == rhs.vectors
+        }
+    }
+
+    /// 移動ベクトル列ごとのデフォルト順序をキャッシュし、安定ソートに利用する
+    private static let moveVectorOrderingIndex: [MoveVectorSignature: Int] = {
+        var mapping: [MoveVectorSignature: Int] = [:]
         mapping.reserveCapacity(MoveCard.allCases.count)
         for (index, card) in MoveCard.allCases.enumerated() {
-            mapping[card] = index
+            let signature = MoveVectorSignature(card.movementVectors)
+            if mapping[signature] == nil {
+                mapping[signature] = index
+            }
         }
         return mapping
     }()
@@ -113,24 +137,29 @@ public final class HandManager: ObservableObject {
                 nextCard = deck.draw()
             }
             guard let card = nextCard else { break }
-            if allowsCardStacking,
-               let index = handStacks.firstIndex(where: { $0.representativeMove == card.move }) {
-                var existing = handStacks[index]
-                existing.append(card)
-                handStacks[index] = existing
-            } else {
-                if let preferredIndex = pendingInsertionIndices.first {
-                    let insertionIndex = min(preferredIndex, handStacks.count)
-                    handStacks.insert(HandStack(cards: [card]), at: insertionIndex)
-                    pendingInsertionIndices.removeFirst()
-                    for candidate in 0..<pendingInsertionIndices.count {
-                        if pendingInsertionIndices[candidate] >= insertionIndex {
-                            pendingInsertionIndices[candidate] += 1
-                        }
-                    }
-                } else {
-                    handStacks.append(HandStack(cards: [card]))
+            if allowsCardStacking {
+                let signature = MoveVectorSignature(card.move.movementVectors)
+                if let index = handStacks.firstIndex(where: { stack in
+                    guard let vectors = stack.representativeVectors else { return false }
+                    return MoveVectorSignature(vectors) == signature
+                }) {
+                    var existing = handStacks[index]
+                    existing.append(card)
+                    handStacks[index] = existing
+                    continue
                 }
+            }
+            if let preferredIndex = pendingInsertionIndices.first {
+                let insertionIndex = min(preferredIndex, handStacks.count)
+                handStacks.insert(HandStack(cards: [card]), at: insertionIndex)
+                pendingInsertionIndices.removeFirst()
+                for candidate in 0..<pendingInsertionIndices.count {
+                    if pendingInsertionIndices[candidate] >= insertionIndex {
+                        pendingInsertionIndices[candidate] += 1
+                    }
+                }
+            } else {
+                handStacks.append(HandStack(cards: [card]))
             }
             drawAttempts += 1
             if drawAttempts > 512 {
@@ -156,18 +185,21 @@ public final class HandManager: ObservableObject {
             guard let leftCard = lhs.topCard, let rightCard = rhs.topCard else {
                 return lhs.topCard != nil
             }
-            let leftDX = leftCard.move.dx
-            let rightDX = rightCard.move.dx
+            // 代表ベクトルを経由することで、将来的に複数候補を持つカードでも共通ロジックを流用できる
+            let leftVector = leftCard.move.primaryVector
+            let rightVector = rightCard.move.primaryVector
+            let leftDX = leftVector.dx
+            let rightDX = rightVector.dx
             if leftDX != rightDX {
                 return leftDX < rightDX
             }
-            let leftDY = leftCard.move.dy
-            let rightDY = rightCard.move.dy
+            let leftDY = leftVector.dy
+            let rightDY = rightVector.dy
             if leftDY != rightDY {
                 return leftDY > rightDY
             }
-            let leftIndex = HandManager.moveCardOrderingIndex[leftCard.move] ?? 0
-            let rightIndex = HandManager.moveCardOrderingIndex[rightCard.move] ?? 0
+            let leftIndex = HandManager.moveVectorOrderingIndex[MoveVectorSignature(leftCard.move.movementVectors)] ?? 0
+            let rightIndex = HandManager.moveVectorOrderingIndex[MoveVectorSignature(rightCard.move.movementVectors)] ?? 0
             return leftIndex < rightIndex
         }
     }

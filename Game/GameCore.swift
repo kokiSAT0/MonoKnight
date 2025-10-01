@@ -121,7 +121,9 @@ public final class GameCore: ObservableObject {
         guard handStacks.indices.contains(index) else { return }
         let stack = handStacks[index]
         guard let card = stack.topCard else { return }
-        let target = currentPosition.offset(dx: card.move.dx, dy: card.move.dy)
+        // primaryVector を経由することで、将来的に複数候補を持つカードでも同じ分岐から処理を広げられる
+        let vector = card.move.primaryVector
+        let target = currentPosition.offset(dx: vector.dx, dy: vector.dy)
         // UI 側で無効カードを弾く想定だが、念のため安全確認
         guard board.contains(target) else { return }
 
@@ -203,7 +205,8 @@ public final class GameCore: ObservableObject {
         for (index, stack) in referenceHandStacks.enumerated() {
             // トップカードが存在しなければスキップ
             guard let topCard = stack.topCard else { continue }
-            let vector = MoveVector(dx: topCard.move.dx, dy: topCard.move.dy)
+            // primaryVector を使えば複数候補カード導入時にここで候補展開を切り替えられる
+            let vector = topCard.move.primaryVector
             let destination = origin.offset(dx: vector.dx, dy: vector.dy)
             // 盤面外の移動は候補から除外
             guard activeBoard.contains(destination) else { continue }

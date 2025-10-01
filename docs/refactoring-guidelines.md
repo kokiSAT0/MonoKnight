@@ -52,6 +52,11 @@
 ## 3. 優先すべきリファクタリング領域
 1. **ゲームコアロジック (`Game` パッケージ)**
    - `GameModuleInterfaces` を経由した依存注入が整備されたため、今後は `HandManager` や `Deck` の再利用性を高める。
+   - 2024-05 リファクタリング: 移動量を `MoveVector` へ集約し、`MoveCard.movementVectors` / `primaryVector` を通じて参照する。
+     - 旧実装で `dx` / `dy` を直接参照している箇所は、`primaryVector.dx` / `.dy` へ置き換える。
+     - 同一挙動カードの比較は `MoveVector` 配列をキーにする。`HandStack.representativeVectors` や `Deck.Configuration.allowedMoveSignatures` を活用する。
+     - 複数候補カードを導入する場合は `movementVectors` の配列を増やし、UI は `ResolvedCardMove` の拡張で候補選択ロジックを追加する。
+     - テストは `MoveCard` の代表ベクトルが期待通りであることを明示的に検証し、回帰検知の指標とする。
    - モードごとのペナルティ・手札整理ロジックを `GameMode` のパラメータに一本化し、盤面追加時にも破綻しないようテストを拡充する。
      `GameCore+Penalty.swift` など機能別ファイルの役割をドキュメントへ反映しておく。
 2. **UI レイヤー (`UI/` ディレクトリ)**

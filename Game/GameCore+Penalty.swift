@@ -76,7 +76,7 @@ extension GameCore {
         // スポーン待機中は判定不要
         guard progress != .awaitingSpawn, let current = current else { return }
 
-        // availableMoves() を利用して盤面内へ進めるカードが残っているかを判定する
+        // availableMoves() 内で primaryVector が評価されるため、将来の複数候補カードでも共通ロジックを維持できる
         let usableMoves = availableMoves(handStacks: handStacks, current: current)
         guard usableMoves.isEmpty else { return }
 

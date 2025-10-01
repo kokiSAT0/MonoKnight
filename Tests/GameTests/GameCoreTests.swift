@@ -399,7 +399,8 @@ final class GameCoreTests: XCTestCase {
             [.kingUp, .kingRight, .straightUp2, .kingLeft, .knightUp1Right2],
             "空きスロットに新カードが補充されていません"
         )
-        if let rightStack = core.handStacks.first(where: { $0.representativeMove == .kingRight }) {
+        let kingRightVectors = MoveCard.kingRight.movementVectors
+        if let rightStack = core.handStacks.first(where: { $0.representativeVectors == kingRightVectors }) {
             XCTAssertEqual(rightStack.count, 2, "重なったカード枚数が想定と異なります")
         } else {
             XCTFail("キング右のスタックが見つかりません")
@@ -447,8 +448,10 @@ final class GameCoreTests: XCTestCase {
         XCTAssertFalse(core.isAwaitingManualDiscardSelection)
         XCTAssertEqual(core.penaltyCount, initialPenalty + core.mode.manualDiscardPenaltyCost)
         XCTAssertEqual(core.handStacks.count, 5)
-        XCTAssertFalse(core.handStacks.contains(where: { $0.representativeMove == .kingRight }))
-        XCTAssertTrue(core.handStacks.contains(where: { $0.representativeMove == .straightUp2 }))
+        let kingRightVectors = MoveCard.kingRight.movementVectors
+        let straightUpVectors = MoveCard.straightUp2.movementVectors
+        XCTAssertFalse(core.handStacks.contains(where: { $0.representativeVectors == kingRightVectors }))
+        XCTAssertTrue(core.handStacks.contains(where: { $0.representativeVectors == straightUpVectors }))
         XCTAssertEqual(
             core.nextCards.map { $0.move },
             [.diagonalUpRight2, .kingUpRight, .straightDown2]
