@@ -1431,7 +1431,7 @@ fileprivate struct TitleScreenView: View {
             let stackDescription = navigationPath
                 .map { $0.rawValue }
                 .joined(separator: ",")
-            debugLog(
+            let _ = debugLog(
                 "TitleScreenView: NavigationDestination.campaign 構築開始 -> instance=\(instanceIdentifier.uuidString) targetType=\(String(describing: type(of: target))) stackCount=\(navigationPath.count) stack=[\(stackDescription)]"
             )
             CampaignStageSelectionView(
@@ -1458,7 +1458,7 @@ fileprivate struct TitleScreenView: View {
             let stackDescription = navigationPath
                 .map { $0.rawValue }
                 .joined(separator: ",")
-            debugLog(
+            let _ = debugLog(
                 "TitleScreenView: NavigationDestination.freeModeEditor 構築開始 -> instance=\(instanceIdentifier.uuidString) targetType=\(String(describing: type(of: target))) stackCount=\(navigationPath.count) stack=[\(stackDescription)]"
             )
             FreeModeRegulationView(
@@ -1483,7 +1483,7 @@ fileprivate struct TitleScreenView: View {
             let stackDescription = navigationPath
                 .map { $0.rawValue }
                 .joined(separator: ",")
-            debugLog(
+            let _ = debugLog(
                 "TitleScreenView: NavigationDestination.unknown フォールバック -> instance=\(instanceIdentifier.uuidString) rawValue=\(target.rawValue) targetType=\(String(describing: type(of: target))) stackCount=\(navigationPath.count) stack=[\(stackDescription)]"
             )
             EmptyView()
