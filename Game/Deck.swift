@@ -95,6 +95,91 @@ struct Deck {
             )
         }()
 
+        /// 標準デッキへ上下左右の選択キングカードを加えた構成
+        /// - Note: 標準セットの操作感を維持しながら、選択式カードの導入に慣れてもらうためのプリセット。
+        static let standardWithOrthogonalChoices: Configuration = {
+            let choiceCards: [MoveCard] = [.kingUpOrDown, .kingLeftOrRight]
+            let allowedMoves = MoveCard.standardSet + choiceCards
+            return Configuration(
+                allowedMoves: allowedMoves,
+                weightProfile: WeightProfile(defaultWeight: 1),
+                shouldApplyProbabilityReduction: true,
+                normalWeightMultiplier: 4,
+                reducedWeightMultiplier: 3,
+                reductionDuration: 5,
+                deckSummaryText: "標準＋上下左右選択キング"
+            )
+        }()
+
+        /// 標準デッキへ斜め方向の選択キングカードを追加した構成
+        /// - Note: 角方向の補完を狙う練習向けに、既存カードへ斜め選択を足した形で提供する。
+        static let standardWithDiagonalChoices: Configuration = {
+            let choiceCards: [MoveCard] = [
+                .kingUpwardDiagonalChoice,
+                .kingRightDiagonalChoice,
+                .kingDownwardDiagonalChoice,
+                .kingLeftDiagonalChoice
+            ]
+            let allowedMoves = MoveCard.standardSet + choiceCards
+            return Configuration(
+                allowedMoves: allowedMoves,
+                weightProfile: WeightProfile(defaultWeight: 1),
+                shouldApplyProbabilityReduction: true,
+                normalWeightMultiplier: 4,
+                reducedWeightMultiplier: 3,
+                reductionDuration: 5,
+                deckSummaryText: "標準＋斜め選択キング"
+            )
+        }()
+
+        /// 標準デッキへ桂馬の選択カードを加えた構成
+        /// - Note: 長距離ジャンプを補強しつつ、通常カードのドロー頻度も維持するための折衷案。
+        static let standardWithKnightChoices: Configuration = {
+            let choiceCards: [MoveCard] = [
+                .knightUpwardChoice,
+                .knightRightwardChoice,
+                .knightDownwardChoice,
+                .knightLeftwardChoice
+            ]
+            let allowedMoves = MoveCard.standardSet + choiceCards
+            return Configuration(
+                allowedMoves: allowedMoves,
+                weightProfile: WeightProfile(defaultWeight: 1),
+                shouldApplyProbabilityReduction: true,
+                normalWeightMultiplier: 4,
+                reducedWeightMultiplier: 3,
+                reductionDuration: 5,
+                deckSummaryText: "標準＋桂馬選択カード"
+            )
+        }()
+
+        /// 標準デッキへ全選択カードを網羅的に追加した構成
+        /// - Note: 最終的な多方向対応力を測るため、標準セットに全選択カード 10 種をミックスする。
+        static let standardWithAllChoices: Configuration = {
+            let choiceCards: [MoveCard] = [
+                .kingUpOrDown,
+                .kingLeftOrRight,
+                .kingUpwardDiagonalChoice,
+                .kingRightDiagonalChoice,
+                .kingDownwardDiagonalChoice,
+                .kingLeftDiagonalChoice,
+                .knightUpwardChoice,
+                .knightRightwardChoice,
+                .knightDownwardChoice,
+                .knightLeftwardChoice
+            ]
+            let allowedMoves = MoveCard.standardSet + choiceCards
+            return Configuration(
+                allowedMoves: allowedMoves,
+                weightProfile: WeightProfile(defaultWeight: 1),
+                shouldApplyProbabilityReduction: true,
+                normalWeightMultiplier: 4,
+                reducedWeightMultiplier: 3,
+                reductionDuration: 5,
+                deckSummaryText: "標準＋全選択カード"
+            )
+        }()
+
         /// クラシカルチャレンジ向け設定（桂馬のみ・均等抽選）
         static let classicalChallenge: Configuration = {
             let knightMoves = MoveCard.standardSet.filter { $0.isKnightType }

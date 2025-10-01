@@ -25,6 +25,74 @@ final class DeckTests: XCTestCase {
         XCTAssertEqual(uniqueWeights.first, 1, "標準デッキの重みが 1 以外になっています")
     }
 
+    /// 標準デッキへ縦横選択カードを追加するプリセットの内容を検証する
+    func testStandardWithOrthogonalChoicesDeckConfiguration() {
+        let config = Deck.Configuration.standardWithOrthogonalChoices
+        let allowedMoves = Set(config.allowedMoves)
+        let standardMoves = Set(MoveCard.standardSet)
+        // MARK: 標準カード群がすべて含まれていることを確認
+        XCTAssertTrue(standardMoves.isSubset(of: allowedMoves), "標準カードが欠落しています")
+        // MARK: 追加カードが正しく入っているか確認
+        let expectedChoices: Set<MoveCard> = [.kingUpOrDown, .kingLeftOrRight]
+        XCTAssertTrue(expectedChoices.isSubset(of: allowedMoves), "上下左右選択キングが不足しています")
+        // MARK: サマリー文言がプレイヤー向け説明と一致しているか検証
+        XCTAssertEqual(config.deckSummaryText, "標準＋上下左右選択キング")
+    }
+
+    /// 標準デッキへ斜め選択カードを追加するプリセットの内容を検証する
+    func testStandardWithDiagonalChoicesDeckConfiguration() {
+        let config = Deck.Configuration.standardWithDiagonalChoices
+        let allowedMoves = Set(config.allowedMoves)
+        let standardMoves = Set(MoveCard.standardSet)
+        XCTAssertTrue(standardMoves.isSubset(of: allowedMoves), "標準カードが欠落しています")
+        let expectedChoices: Set<MoveCard> = [
+            .kingUpwardDiagonalChoice,
+            .kingRightDiagonalChoice,
+            .kingDownwardDiagonalChoice,
+            .kingLeftDiagonalChoice
+        ]
+        XCTAssertTrue(expectedChoices.isSubset(of: allowedMoves), "斜め選択キングが不足しています")
+        XCTAssertEqual(config.deckSummaryText, "標準＋斜め選択キング")
+    }
+
+    /// 標準デッキへ桂馬選択カードを追加するプリセットの内容を検証する
+    func testStandardWithKnightChoicesDeckConfiguration() {
+        let config = Deck.Configuration.standardWithKnightChoices
+        let allowedMoves = Set(config.allowedMoves)
+        let standardMoves = Set(MoveCard.standardSet)
+        XCTAssertTrue(standardMoves.isSubset(of: allowedMoves), "標準カードが欠落しています")
+        let expectedChoices: Set<MoveCard> = [
+            .knightUpwardChoice,
+            .knightRightwardChoice,
+            .knightDownwardChoice,
+            .knightLeftwardChoice
+        ]
+        XCTAssertTrue(expectedChoices.isSubset(of: allowedMoves), "桂馬選択カードが不足しています")
+        XCTAssertEqual(config.deckSummaryText, "標準＋桂馬選択カード")
+    }
+
+    /// 標準デッキへ全選択カードを追加するプリセットの内容を検証する
+    func testStandardWithAllChoicesDeckConfiguration() {
+        let config = Deck.Configuration.standardWithAllChoices
+        let allowedMoves = Set(config.allowedMoves)
+        let standardMoves = Set(MoveCard.standardSet)
+        XCTAssertTrue(standardMoves.isSubset(of: allowedMoves), "標準カードが欠落しています")
+        let expectedChoices: Set<MoveCard> = [
+            .kingUpOrDown,
+            .kingLeftOrRight,
+            .kingUpwardDiagonalChoice,
+            .kingRightDiagonalChoice,
+            .kingDownwardDiagonalChoice,
+            .kingLeftDiagonalChoice,
+            .knightUpwardChoice,
+            .knightRightwardChoice,
+            .knightDownwardChoice,
+            .knightLeftwardChoice
+        ]
+        XCTAssertTrue(expectedChoices.isSubset(of: allowedMoves), "全選択カードが揃っていません")
+        XCTAssertEqual(config.deckSummaryText, "標準＋全選択カード")
+    }
+
     /// MoveCard.allCases にキング型 8 種が含まれているかを検証する
     func testMoveCardAllCasesContainsKingMoves() {
         // 期待するキング型カードを明示的に列挙し、抜け漏れを防ぐ

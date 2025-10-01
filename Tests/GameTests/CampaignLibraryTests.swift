@@ -7,6 +7,31 @@ final class CampaignLibraryTests: XCTestCase {
     func testChoiceDeckPresetConfigurations() {
         let presets: [(GameDeckPreset, String, String, Set<MoveCard>)] = [
             (.directionChoice, "選択式キング構成", "選択式キングカード入り", [.kingUpOrDown, .kingLeftOrRight]),
+            (.standardWithOrthogonalChoices, "標準＋縦横選択キング構成", "標準＋上下左右選択キング", Set(MoveCard.standardSet).union([.kingUpOrDown, .kingLeftOrRight])),
+            (.standardWithDiagonalChoices, "標準＋斜め選択キング構成", "標準＋斜め選択キング", Set(MoveCard.standardSet).union([
+                .kingUpwardDiagonalChoice,
+                .kingRightDiagonalChoice,
+                .kingDownwardDiagonalChoice,
+                .kingLeftDiagonalChoice
+            ])),
+            (.standardWithKnightChoices, "標準＋桂馬選択構成", "標準＋桂馬選択カード", Set(MoveCard.standardSet).union([
+                .knightUpwardChoice,
+                .knightRightwardChoice,
+                .knightDownwardChoice,
+                .knightLeftwardChoice
+            ])),
+            (.standardWithAllChoices, "標準＋全選択カード構成", "標準＋全選択カード", Set(MoveCard.standardSet).union([
+                .kingUpOrDown,
+                .kingLeftOrRight,
+                .kingUpwardDiagonalChoice,
+                .kingRightDiagonalChoice,
+                .kingDownwardDiagonalChoice,
+                .kingLeftDiagonalChoice,
+                .knightUpwardChoice,
+                .knightRightwardChoice,
+                .knightDownwardChoice,
+                .knightLeftwardChoice
+            ])),
             (.kingOrthogonalChoiceOnly, "上下左右選択キング構成", "上下左右の選択キング限定", [.kingUpOrDown, .kingLeftOrRight]),
             (.kingDiagonalChoiceOnly, "斜め選択キング構成", "斜め選択キング限定", [
                 .kingUpwardDiagonalChoice,
@@ -38,8 +63,22 @@ final class CampaignLibraryTests: XCTestCase {
             XCTAssertEqual(preset.displayName, expectedName, "\(preset) の表示名が仕様と異なります")
             XCTAssertEqual(preset.summaryText, expectedSummary, "\(preset) の要約テキストが仕様と異なります")
 
-            let allowedMoves = Set(preset.configuration.allowedMoves)
+            let configuration = preset.configuration
+            let allowedMoves = Set(configuration.allowedMoves)
             XCTAssertTrue(expectedMoves.isSubset(of: allowedMoves), "\(preset) に必要なカードが含まれていません")
+
+            // MARK: 標準セットを内包するプリセットは全カードを含んでいるか検証する
+            let presetsRequiringStandard: Set<GameDeckPreset> = [
+                .directionChoice,
+                .standardWithOrthogonalChoices,
+                .standardWithDiagonalChoices,
+                .standardWithKnightChoices,
+                .standardWithAllChoices
+            ]
+            if presetsRequiringStandard.contains(preset) {
+                let standardMoves = Set(MoveCard.standardSet)
+                XCTAssertTrue(standardMoves.isSubset(of: allowedMoves), "標準カードが欠落しています: \(preset)")
+            }
         }
     }
 
@@ -62,25 +101,25 @@ final class CampaignLibraryTests: XCTestCase {
         }
 
         XCTAssertEqual(stage31.title, "縦横選択訓練")
-        XCTAssertEqual(stage31.regulation.deckPreset, .kingOrthogonalChoiceOnly)
+        XCTAssertEqual(stage31.regulation.deckPreset, .standardWithOrthogonalChoices)
         XCTAssertEqual(stage31.secondaryObjective, .finishWithoutPenalty)
         XCTAssertEqual(stage31.scoreTarget, 600)
         XCTAssertEqual(stage31.unlockRequirement, .stageClear(CampaignStageID(chapter: 2, index: 1)))
 
         XCTAssertEqual(stage32.title, "斜め選択応用")
-        XCTAssertEqual(stage32.regulation.deckPreset, .kingDiagonalChoiceOnly)
+        XCTAssertEqual(stage32.regulation.deckPreset, .standardWithDiagonalChoices)
         XCTAssertEqual(stage32.secondaryObjective, .finishWithinMoves(maxMoves: 32))
         XCTAssertEqual(stage32.scoreTarget, 580)
         XCTAssertEqual(stage32.unlockRequirement, .stageClear(stage31ID))
 
         XCTAssertEqual(stage33.title, "桂馬選択攻略")
-        XCTAssertEqual(stage33.regulation.deckPreset, .knightChoiceOnly)
+        XCTAssertEqual(stage33.regulation.deckPreset, .standardWithKnightChoices)
         XCTAssertEqual(stage33.secondaryObjective, .finishWithinMoves(maxMoves: 30))
         XCTAssertEqual(stage33.scoreTarget, 560)
         XCTAssertEqual(stage33.unlockRequirement, .stageClear(stage32ID))
 
         XCTAssertEqual(stage34.title, "総合選択演習")
-        XCTAssertEqual(stage34.regulation.deckPreset, .allChoiceMixed)
+        XCTAssertEqual(stage34.regulation.deckPreset, .standardWithAllChoices)
         XCTAssertEqual(stage34.secondaryObjective, .finishWithinMoves(maxMoves: 28))
         XCTAssertEqual(stage34.scoreTarget, 540)
         XCTAssertEqual(stage34.scoreTargetComparison, .lessThan)

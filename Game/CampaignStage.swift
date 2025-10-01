@@ -446,13 +446,13 @@ public struct CampaignLibrary {
         let stage31 = CampaignStage(
             id: CampaignStageID(chapter: 3, index: 1),
             title: "縦横選択訓練",
-            summary: "上下左右を選べるキングカードのみで、選択操作の基礎を体感しましょう。",
+            summary: "標準デッキに上下左右を選べるキングカードを加え、選択操作の基礎を体感しましょう。",
             regulation: GameMode.Regulation(
                 boardSize: 5,
                 handSize: 5,
                 nextPreviewCount: 3,
                 allowsStacking: true,
-                deckPreset: .kingOrthogonalChoiceOnly,
+                deckPreset: .standardWithOrthogonalChoices,
                 spawnRule: .fixed(BoardGeometry.defaultSpawnPoint(for: 5)),
                 penalties: GameMode.PenaltySettings(
                     deadlockPenaltyCost: standardPenalties.deadlockPenaltyCost,
@@ -471,13 +471,13 @@ public struct CampaignLibrary {
         let stage32 = CampaignStage(
             id: CampaignStageID(chapter: 3, index: 2),
             title: "斜め選択応用",
-            summary: "斜め 4 方向の選択キングで角を制圧し、柔軟なルート取りを学びましょう。",
+            summary: "標準デッキへ斜め 4 方向の選択キングを加え、角マス制圧のコツを学びましょう。",
             regulation: GameMode.Regulation(
                 boardSize: 5,
                 handSize: 5,
                 nextPreviewCount: 3,
                 allowsStacking: true,
-                deckPreset: .kingDiagonalChoiceOnly,
+                deckPreset: .standardWithDiagonalChoices,
                 spawnRule: .fixed(BoardGeometry.defaultSpawnPoint(for: 5)),
                 penalties: GameMode.PenaltySettings(
                     deadlockPenaltyCost: standardPenalties.deadlockPenaltyCost,
@@ -496,13 +496,13 @@ public struct CampaignLibrary {
         let stage33 = CampaignStage(
             id: CampaignStageID(chapter: 3, index: 3),
             title: "桂馬選択攻略",
-            summary: "桂馬の 4 方向選択カードでジャンプし、遠距離マスを効率良く踏破しましょう。",
+            summary: "標準デッキへ桂馬の選択カードを追加し、遠距離マスを効率良く踏破しましょう。",
             regulation: GameMode.Regulation(
                 boardSize: 5,
                 handSize: 5,
                 nextPreviewCount: 3,
                 allowsStacking: true,
-                deckPreset: .knightChoiceOnly,
+                deckPreset: .standardWithKnightChoices,
                 spawnRule: .fixed(BoardGeometry.defaultSpawnPoint(for: 5)),
                 penalties: GameMode.PenaltySettings(
                     deadlockPenaltyCost: standardPenalties.deadlockPenaltyCost,
@@ -521,13 +521,13 @@ public struct CampaignLibrary {
         let stage34 = CampaignStage(
             id: CampaignStageID(chapter: 3, index: 4),
             title: "総合選択演習",
-            summary: "キングと桂馬の選択カードを総動員し、全方向の応用力を試しましょう。",
+            summary: "標準デッキに全選択カードを加え、全方向の応用力を試しましょう。",
             regulation: GameMode.Regulation(
                 boardSize: 5,
                 handSize: 5,
                 nextPreviewCount: 3,
                 allowsStacking: true,
-                deckPreset: .allChoiceMixed,
+                deckPreset: .standardWithAllChoices,
                 spawnRule: .fixed(BoardGeometry.defaultSpawnPoint(for: 5)),
                 penalties: GameMode.PenaltySettings(
                     deadlockPenaltyCost: standardPenalties.deadlockPenaltyCost,
