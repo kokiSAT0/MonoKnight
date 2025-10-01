@@ -6,6 +6,7 @@ import SharedSupport // ログユーティリティを利用するため追加
 
 /// 手札スロットと先読みカードの管理を担当するクラス
 /// - Note: GameCore から委譲される形でカード補充や並び替えを一元的に扱う
+@available(iOS 13.0, macOS 10.15, tvOS 13.0, watchOS 6.0, *)
 public final class HandManager: ObservableObject {
     /// 手札スロットの配列（最大 handSize 種類まで保持）
     @Published public private(set) var handStacks: [HandStack]
@@ -61,6 +62,7 @@ public final class HandManager: ObservableObject {
     ///   - nextPreviewCount: NEXT 表示の枚数
     ///   - allowsCardStacking: 同種カードのスタックを許可するかどうか
     ///   - initialOrderingStrategy: 並び替え設定の初期値
+    @available(iOS 13.0, macOS 10.15, tvOS 13.0, watchOS 6.0, *)
     public init(
         handSize: Int,
         nextPreviewCount: Int,
@@ -77,6 +79,7 @@ public final class HandManager: ObservableObject {
 
     /// 並び替え設定を更新する
     /// - Parameter newStrategy: ユーザーが選択した並び順
+    @available(iOS 13.0, macOS 10.15, tvOS 13.0, watchOS 6.0, *)
     public func updateHandOrderingStrategy(_ newStrategy: HandOrderingStrategy) {
         guard handOrderingStrategy != newStrategy else { return }
         handOrderingStrategy = newStrategy
@@ -87,6 +90,7 @@ public final class HandManager: ObservableObject {
     /// - Parameter index: 消費したいスタック位置
     /// - Returns: 空スロットが発生した場合はそのインデックスを返す
     @discardableResult
+    @available(iOS 13.0, macOS 10.15, tvOS 13.0, watchOS 6.0, *)
     public func consumeTopCard(at index: Int) -> Int? {
         guard handStacks.indices.contains(index) else { return nil }
         var stack = handStacks[index]
@@ -104,6 +108,7 @@ public final class HandManager: ObservableObject {
     /// - Parameter index: 削除したいスタックの位置
     /// - Returns: 取り除いた `HandStack`
     @discardableResult
+    @available(iOS 13.0, macOS 10.15, tvOS 13.0, watchOS 6.0, *)
     public func removeStack(at index: Int) -> HandStack {
         handStacks.remove(at: index)
     }
@@ -179,6 +184,7 @@ public final class HandManager: ObservableObject {
     }
 
     /// 並び替え設定に応じて手札全体を再構成する
+    @available(iOS 13.0, macOS 10.15, tvOS 13.0, watchOS 6.0, *)
     public func reorderHandIfNeeded() {
         guard handOrderingStrategy == .directionSorted else { return }
         handStacks.sort { lhs, rhs in
