@@ -34,6 +34,8 @@ struct ResultView: View {
     let onSelectCampaignStage: ((CampaignStage) -> Void)?
     /// 再戦処理を外部から受け取るクロージャ
     let onRetry: () -> Void
+    /// ホームへ戻る操作を外部へ依頼するクロージャ（未指定の場合はボタンを表示しない）
+    let onReturnToTitle: (() -> Void)?
 
     /// Game Center 連携を扱うサービス（プロトコル型で受け取る）
     /// `init` 時にのみ代入し、以後は再代入しないがテスト用に差し替えられるよう `var` で定義
@@ -70,7 +72,8 @@ struct ResultView: View {
         campaignClearRecord: CampaignStageClearRecord? = nil,
         newlyUnlockedStages: [CampaignStage] = [],
         onSelectCampaignStage: ((CampaignStage) -> Void)? = nil,
-        onRetry: @escaping () -> Void
+        onRetry: @escaping () -> Void,
+        onReturnToTitle: (() -> Void)? = nil
     ) {
         // 既定値はメインアクター上で解決し、Game Center サービスの状態を同期させる
         let resolvedIsAuthenticated = isGameCenterAuthenticated ?? GameCenterService.shared.isAuthenticated
@@ -87,6 +90,7 @@ struct ResultView: View {
             newlyUnlockedStages: newlyUnlockedStages,
             onSelectCampaignStage: onSelectCampaignStage,
             onRetry: onRetry,
+            onReturnToTitle: onReturnToTitle,
             gameCenterService: GameCenterService.shared,
             adsService: AdsService.shared
         )
@@ -105,6 +109,7 @@ struct ResultView: View {
         newlyUnlockedStages: [CampaignStage] = [],
         onSelectCampaignStage: ((CampaignStage) -> Void)? = nil,
         onRetry: @escaping () -> Void,
+        onReturnToTitle: (() -> Void)? = nil,
 
         gameCenterService: GameCenterServiceProtocol,
         adsService: AdsServiceProtocol
@@ -130,6 +135,7 @@ struct ResultView: View {
         self.newlyUnlockedStages = newlyUnlockedStages
         self.onSelectCampaignStage = onSelectCampaignStage
         self.onRetry = onRetry
+        self.onReturnToTitle = onReturnToTitle
         self.gameCenterService = resolvedGameCenterService
         self.adsService = resolvedAdsService
     }
@@ -188,6 +194,21 @@ struct ResultView: View {
                 // MARK: - キャンペーン用のリワード達成表示
                 if let record = campaignClearRecord {
                     campaignRewardSummary(for: record)
+                }
+
+                // MARK: - ホームボタン（指定がある場合のみ表示）
+                if let onReturnToTitle {
+                    Button {
+                        // 成功ハプティクスで操作完了をフィードバックする
+                        if hapticsEnabled {
+                            UINotificationFeedbackGenerator().notificationOccurred(.success)
+                        }
+                        onReturnToTitle()
+                    } label: {
+                        Label("ホームへ戻る", systemImage: "house")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
                 }
 
                 // MARK: - リトライボタン

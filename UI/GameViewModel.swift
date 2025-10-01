@@ -513,6 +513,12 @@ final class GameViewModel: ObservableObject {
         pendingMenuAction = .manualPenalty(penaltyCost: core.mode.manualRedrawPenaltyCost)
     }
 
+    /// ホームボタンの押下をトリガーに、タイトルへ戻る確認ダイアログを表示する
+    /// - Note: 直接リセットを実行せず、一度 pendingMenuAction へ格納して既存の確認フローを流用する
+    func requestReturnToTitle() {
+        pendingMenuAction = .returnToTitle
+    }
+
     /// ポーズメニューを表示する
     /// - Note: ログ出力もここでまとめて行い、UI 側の責務を軽量化する
     func presentPauseMenu() {
@@ -585,6 +591,13 @@ final class GameViewModel: ObservableObject {
     /// 結果画面からリトライを選択した際の共通処理
     func handleResultRetry() {
         resetSessionForNewPlay()
+    }
+
+    /// リザルト画面からホームへ戻るリクエストを受け取った際の共通処理
+    /// - Note: リトライ時と同じ初期化を行った上で、ルートビューへ遷移要求を転送する
+    func handleResultReturnToTitle() {
+        resetSessionForNewPlay()
+        onRequestReturnToTitle?()
     }
 
     /// 手札選択状態を初期化し、盤面ハイライトを消去する
