@@ -175,8 +175,8 @@ final class GameCoreTests: XCTestCase {
         }
     }
 
-    /// 複数候補ベクトルを持つカードでも availableMoves と playCard(using:) で選択的に移動できるかを検証
-    func testPlayCardUsingResolvedMoveSupportsMultipleVectors() {
+    /// 複数候補ベクトルを持つカードでも availableMoves と playCard(at:selecting:) で狙った方向を選べるかを検証
+    func testPlayCardSelectingMoveVectorSupportsMultipleVectors() {
         // テスト実行中のみキング上カードへ上下 2 ベクトルを付与し、複数候補カードを再現する
         MoveCard.setTestMovementVectors([
             MoveVector(dx: 0, dy: 1),
@@ -216,12 +216,25 @@ final class GameCoreTests: XCTestCase {
             return
         }
 
-        core.playCard(using: downwardMove)
+        // playCard(at:selecting:) に下方向ベクトルを指定し、意図した方向だけが実行されることを確認する
+        core.playCard(at: downwardMove.stackIndex, selecting: downwardMove.moveVector)
 
         XCTAssertEqual(core.current, GridPoint(x: 2, y: 1), "選択したベクトルで移動できていない")
         XCTAssertEqual(core.moveCount, 1, "移動回数の加算が行われていない")
         XCTAssertTrue(core.board.isVisited(GridPoint(x: 2, y: 1)), "移動後マスが踏破扱いになっていない")
         XCTAssertFalse(core.board.isVisited(GridPoint(x: 2, y: 3)), "未選択方向まで踏破扱いになっている")
+
+        // --- 再検証: 上方向を選択するケース ---
+        // 新しい GameCore を生成し、今度は上方向ベクトルを playCard(using:) で選択できることを確認する。
+        let secondCore = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 2, y: 2))
+        let secondMoves = secondCore.availableMoves()
+        guard let upwardMove = secondMoves.first(where: { $0.card.move == .kingUp && $0.moveVector.dy == 1 }) else {
+            XCTFail("上方向へ移動する候補が再生成後に見つからない")
+            return
+        }
+
+        secondCore.playCard(using: upwardMove)
+        XCTAssertEqual(secondCore.current, GridPoint(x: 2, y: 3), "ResolvedCardMove でも上方向へ移動できていない")
     }
 
     /// reset() が初期状態に戻すかを確認
