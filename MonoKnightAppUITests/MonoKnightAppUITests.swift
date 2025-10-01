@@ -91,4 +91,45 @@ final class MonoKnightAppUITests: XCTestCase {
         // タイトル用のモードカードが非表示になっていることを確認し、重ね表示による誤タップの可能性を排除する
         XCTAssertFalse(standardModeButton.exists, "ゲーム遷移後はタイトルのモードカードが残っていないこと")
     }
+
+    @MainActor
+    func testCampaignStageSelectionEnablesManualStartAfterPreparation() throws {
+        // キャンペーンセレクターからステージを選択し、ローディング解除までの流れを自動検証する
+        app.launch()
+
+        // キャンペーンへの導線が表示されていることを確認し、NavigationLink の有効性を担保する
+        let campaignSelector = app.otherElements["campaign_stage_selector_link"]
+        XCTAssertTrue(campaignSelector.waitForExistence(timeout: 5), "タイトル画面にキャンペーンセレクターが表示されていること")
+        campaignSelector.tap()
+
+        // Chapter3-1 のステージボタンを探し、解放済みであればタップできることを確認する
+        let stageButton = app.buttons["campaign_stage_button_3-1"]
+        XCTAssertTrue(stageButton.waitForExistence(timeout: 5), "キャンペーン 3-1 のステージ行が表示されること")
+        stageButton.tap()
+
+        // ステージ選択後にローディングオーバーレイが表示されることを確認し、遷移が開始されたと判断する
+        let overlay = app.otherElements["game_preparation_overlay"]
+        XCTAssertTrue(overlay.waitForExistence(timeout: 5), "ゲーム準備用のオーバーレイが表示されること")
+
+        // ローディング中テキストが描画されることで、初期化待ち状態へ遷移していることを担保する
+        let preparingLabel = app.staticTexts["初期化中…"]
+        XCTAssertTrue(preparingLabel.waitForExistence(timeout: 3), "キャンペーンステージ初期化中のラベルが一時的に表示されること")
+
+        // 開始ボタンが最終的に有効化されるまで待機し、非同期準備が確実に完了することを検証する
+        let startButton = app.buttons["ステージを開始"]
+        XCTAssertTrue(startButton.waitForExistence(timeout: 5), "ゲーム開始ボタンが表示されること")
+        let enableExpectation = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isEnabled == true"), object: startButton)
+        let enableResult = XCTWaiter.wait(for: [enableExpectation], timeout: 5)
+        XCTAssertEqual(enableResult, .completed, "ステージ準備完了後に開始ボタンが有効化されること")
+
+        // 実際に開始ボタンをタップし、ローディングが閉じることとゲーム画面へ遷移できることを確認する
+        startButton.tap()
+        let overlayDismissExpectation = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: overlay)
+        let overlayDismissResult = XCTWaiter.wait(for: [overlayDismissExpectation], timeout: 5)
+        XCTAssertEqual(overlayDismissResult, .completed, "開始操作後にローディングオーバーレイが閉じること")
+
+        // ハンドスロットが表示されることで、ローディング解除後にゲーム画面へ進めたと判断する
+        let firstHandSlot = app.otherElements["hand_slot_0"]
+        XCTAssertTrue(firstHandSlot.waitForExistence(timeout: 5), "ステージ開始後に手札スロットが表示されること")
+    }
 }

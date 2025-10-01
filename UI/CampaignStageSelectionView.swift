@@ -202,6 +202,8 @@ struct CampaignStageSelectionView: View {
         }
         .buttonStyle(.plain)
         .disabled(!isUnlocked)
+        // UI テストやアクセシビリティから特定ステージを一意に参照できるようにする
+        .accessibilityIdentifier("campaign_stage_button_\(stage.id.displayCode)")
     }
 
     /// 星アイコンを生成する
