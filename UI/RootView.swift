@@ -26,9 +26,6 @@ struct RootView: View {
     @StateObject private var stateStore: RootViewStateStore
     /// キャンペーン進捗を管理するストア
     @StateObject private var campaignProgressStore: CampaignProgressStore
-    /// ローディング表示解除を遅延実行するためのワークアイテム
-    /// - NOTE: 新しいゲーム開始操作が走った際に古い処理をキャンセルできるよう保持しておく
-    @State private var pendingGameActivationWorkItem: DispatchWorkItem?
     /// 依存サービスを外部から注入可能にする初期化処理
     /// - Parameters:
     ///   - gameCenterService: Game Center 連携用サービス（デフォルトはシングルトン）
@@ -166,6 +163,8 @@ final class RootViewStateStore: ObservableObject {
         self.isPresentingTitleSettings = false
         self.gameCenterSignInPrompt = nil
         self.hasAttemptedInitialAuthentication = false
+        // ビューの再生成に影響されない場所でワークアイテムを保持するためここで初期化する
+        self.pendingGameActivationWorkItem = nil
     }
 
     /// `@Published` プロパティへのバインディングを生成する補助メソッド
@@ -197,6 +196,10 @@ final class RootViewStateStore: ObservableObject {
     func logHorizontalSizeClassChange(_ newValue: UserInterfaceSizeClass?) {
         debugLog("RootView.horizontalSizeClass 更新: \(String(describing: newValue))")
     }
+
+    /// ローディング表示解除を遅延実行するワークアイテム
+    /// - NOTE: SwiftUI ビューの再生成で `@State` が初期化されても保持できるよう、`@StateObject` 管理下へ移動する
+    fileprivate var pendingGameActivationWorkItem: DispatchWorkItem?
 }
 
 // MARK: - レイアウト支援メソッドと定数
@@ -1125,9 +1128,15 @@ private extension RootView {
     /// - Parameter sessionID: 解除対象となるゲームセッションの識別子
     func scheduleGameActivationCompletion(for sessionID: UUID) {
         // 既存のワークアイテムは startGamePreparation 内で必ずキャンセル済みの想定
-        let workItem = DispatchWorkItem { [sessionID] in
+        let workItem = DispatchWorkItem { [weak stateStore, sessionID] in
+            // SwiftUI のビュー階層が破棄されている場合は安全に終了する
+            guard let stateStore else {
+                debugLog("RootView: 状態ストアが解放済みのためゲーム準備ワークアイテムを終了 sessionID=\(sessionID)")
+                return
+            }
+
             // キャンセル済み（もしくは新しいゲーム開始で破棄済み）の場合は何もせず終了する
-            guard pendingGameActivationWorkItem != nil else {
+            guard stateStore.pendingGameActivationWorkItem != nil else {
                 debugLog("RootView: ゲーム準備ワークアイテムが実行前に破棄されました sessionID=\(sessionID)")
                 return
             }
@@ -1143,10 +1152,10 @@ private extension RootView {
             stateStore.isGameReadyForManualStart = true
 
             // 再利用を防ぐため参照を破棄する
-            pendingGameActivationWorkItem = nil
+            stateStore.pendingGameActivationWorkItem = nil
         }
 
-        pendingGameActivationWorkItem = workItem
+        stateStore.pendingGameActivationWorkItem = workItem
 
         DispatchQueue.main.asyncAfter(
             deadline: .now() + RootLayoutMetrics.gamePreparationMinimumDelay,
@@ -1156,10 +1165,10 @@ private extension RootView {
 
     /// ローディング表示解除用のワークアイテムをキャンセルし、参照をクリアする
     func cancelPendingGameActivationWorkItem() {
-        guard let workItem = pendingGameActivationWorkItem else { return }
+        guard let workItem = stateStore.pendingGameActivationWorkItem else { return }
         debugLog("RootView: 保留中のゲーム準備ワークアイテムをキャンセル sessionID=\(stateStore.gameSessionID)")
         workItem.cancel()
-        pendingGameActivationWorkItem = nil
+        stateStore.pendingGameActivationWorkItem = nil
         stateStore.isGameReadyForManualStart = false
     }
 
@@ -1899,15 +1908,15 @@ fileprivate struct TitleScreenView: View {
             }
         )
         .buttonStyle(.plain)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(Text("キャンペーンモード"))
-        .accessibilityHint(
-            Text(
-                currentStage != nil ?
-                    "ステージ一覧画面へ移動し、選んだステージですぐにゲームを始めます" :
-                    "ステージ一覧画面へ移動し、選択したステージでゲームを始めます"
-            )
+        // UI テストと VoiceOver の双方から参照しやすいようにアクセシビリティ情報を整理する
+        .accessibilityIdentifier("campaign_stage_selector_link")
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(
+            currentStage.map { stage in
+                Text("キャンペーンセレクター。現在選択中は \(stage.displayCode) \(stage.title) です。ステージを変更するとゲーム準備に進みます。")
+            } ?? Text("キャンペーンセレクター。ステージを選ぶとゲーム準備に進みます。")
         )
+        .accessibilityHint(Text("タップするとキャンペーンのステージ一覧が開きます。"))
     }
 
     /// モード一覧からのタップ処理を共通化し、即時開始や設定編集の分岐を整理する
