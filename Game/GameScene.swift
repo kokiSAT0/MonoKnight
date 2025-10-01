@@ -374,13 +374,16 @@ public final class GameScene: SKScene {
 
         // 既存のマスノードを走査し、新しいタイルサイズに沿った矩形パスを再構築する
         for (point, node) in tileNodes {
+            // 盤面原点が中央の座標系を維持するため、中心起点の矩形パスを再生成する
             let rect = CGRect(
-                x: gridOrigin.x + CGFloat(point.x) * tileSize,
-                y: gridOrigin.y + CGFloat(point.y) * tileSize,
+                x: -tileSize / 2,
+                y: -tileSize / 2,
                 width: tileSize,
                 height: tileSize
             )
             node.path = CGPath(rect: rect, transform: nil)
+            // 原点移動後もタイル中心へ揃うよう座標を再計算して適用する
+            node.position = position(for: point)
             // NOTE: サイズ変更に合わせて枠線の太さや進捗リングの半径も更新する
             configureTileNodeAppearance(node, at: point)
         }
@@ -486,17 +489,14 @@ public final class GameScene: SKScene {
     private func setupGrid() {
         for y in 0..<board.size {
             for x in 0..<board.size {
-                let rect = CGRect(
-                    x: gridOrigin.x + CGFloat(x) * tileSize,
-                    y: gridOrigin.y + CGFloat(y) * tileSize,
-                    width: tileSize,
-                    height: tileSize
-                )
-                let node = SKShapeNode(rect: rect)
+                // 各タイルは中心原点で扱いたいため `rectOf:` を利用して生成する
+                let node = SKShapeNode(rectOf: CGSize(width: tileSize, height: tileSize))
                 // NOTE: グリッド線はくっきり表示したいためアンチエイリアスを無効化し、直線的な輪郭を維持する
                 node.isAntialiased = false
                 node.lineJoin = .miter
                 let point = GridPoint(x: x, y: y)
+                // 原点が中心となるよう、グリッド座標に応じた位置を改めて設定する
+                node.position = position(for: point)
                 addChild(node)
                 tileNodes[point] = node
                 // 生成直後に最新テーマへ沿った塗り色・枠線・オーバーレイ設定を適用して見た目を整える
@@ -706,7 +706,8 @@ public final class GameScene: SKScene {
             parentNode.addChild(decoration.container)
         }
 
-        decoration.container.position = CGPoint(x: tileSize / 2, y: tileSize / 2)
+        // タイルノードのローカル原点が中心となるため、装飾も原点ゼロで重ねる
+        decoration.container.position = .zero
         decoration.container.isHidden = false
 
         // タイルサイズが変わった場合に備え、毎回パスを生成し直しておく
