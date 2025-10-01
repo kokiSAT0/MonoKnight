@@ -237,6 +237,52 @@ final class GameCoreTests: XCTestCase {
         XCTAssertEqual(secondCore.current, GridPoint(x: 2, y: 3), "ResolvedCardMove でも上方向へ移動できていない")
     }
 
+    /// 盤面タップで複数候補と通常カードが同じマスへ到達できる場合、通常カードが優先されることを確認
+    func testHandleTapPrefersSingleVectorCardWhenDestinationOverlaps() {
+        // キング上カードへ 2 方向ベクトルを付与し、複数候補カードと通常カードの競合状況を作り出す
+        MoveCard.setTestMovementVectors([
+            MoveVector(dx: 0, dy: 1),
+            MoveVector(dx: 1, dy: 1)
+        ], for: .kingUp)
+        defer { MoveCard.setTestMovementVectors(nil, for: .kingUp) }
+
+        // 先頭スタックに複数候補カード、2 番目に通常カードが来るようにデッキを並べる
+        let deck = Deck.makeTestDeck(cards: [
+            .kingUp,
+            .kingUpRight,
+            .kingDown,
+            .kingLeft,
+            .kingUpLeft,
+            .straightUp2,
+            .straightRight2,
+            .straightDown2
+        ])
+        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 2, y: 2))
+
+        // (3,3) のマスは通常カード（キング右上）と複数候補カード双方で到達可能
+        let destination = GridPoint(x: 3, y: 3)
+
+        guard let resolved = core.resolvedMoveForBoardTap(at: destination) else {
+            XCTFail("盤面タップ候補の算出に失敗しました")
+            return
+        }
+
+        // 優先順位ロジックにより、通常カード（キング右上）が選択されることを検証
+        XCTAssertEqual(resolved.stackIndex, 1, "通常カードのスタックが優先されていません")
+        XCTAssertEqual(resolved.card.move, .kingUpRight, "通常カードが選択されていません")
+        XCTAssertEqual(resolved.moveVector, MoveVector(dx: 1, dy: 1), "通常カードのベクトルが設定されていません")
+
+#if canImport(SpriteKit)
+        // SpriteKit 利用環境では handleTap(at:) 経由でも同じ候補が選択されることを確認する
+        core.handleTap(at: destination)
+        guard let request = core.boardTapPlayRequest else {
+            XCTFail("BoardTapPlayRequest が生成されていません")
+            return
+        }
+        XCTAssertEqual(request.resolvedMove, resolved, "handleTap(at:) の結果が優先順位と一致していません")
+#endif
+    }
+
     /// reset() が初期状態に戻すかを確認
     func testResetReturnsToInitialState() {
         // 上と同じデッキ構成で GameCore を生成し、ペナルティ適用後の状態から開始

@@ -277,6 +277,26 @@ public final class GameCore: ObservableObject {
         return resolved
     }
 
+    /// 盤面タップ時に使用する移動候補を優先順位付きで選び出す
+    /// - Parameter point: ユーザーがタップした盤面座標
+    /// - Returns: 優先順位ロジックを適用した `ResolvedCardMove`（該当なしの場合は nil）
+    func resolvedMoveForBoardTap(at point: GridPoint) -> ResolvedCardMove? {
+        // availableMoves() からタップ地点へ到達できる候補だけを抽出する
+        let matchingMoves = availableMoves().filter { $0.destination == point }
+
+        // 候補が存在しない場合は nil を返して終了する
+        guard !matchingMoves.isEmpty else { return nil }
+
+        // moveVector の候補数が 1 つだけのカード（通常カード）を優先する
+        // - Important: 複数候補カードが存在しても、ユーザーの想定に近い通常カードを優先して消費する
+        if let singleVectorMove = matchingMoves.first(where: { $0.card.move.movementVectors.count == 1 }) {
+            return singleVectorMove
+        }
+
+        // 通常カードが存在しない場合は availableMoves() の並び順（座標→スタック順）に従って最初の候補を返す
+        return matchingMoves.first
+    }
+
     /// 盤面タップ由来のアニメーション要求を UI 側で処理したあとに呼び出す
     /// - Parameter id: 消したいリクエストの識別子（不一致の場合は何もしない）
     public func clearBoardTapPlayRequest(_ id: UUID) {
@@ -377,17 +397,16 @@ extension GameCore: GameCoreProtocol {
         // デバッグログ: タップされたマスを表示
         debugLog("マス \(point) をタップ")
 
-        // availableMoves() で求めた候補の中から座標一致を検索する
-        if let resolved = availableMoves().first(where: { $0.destination == point }) {
-            boardTapPlayRequest = BoardTapPlayRequest(
-                stackID: resolved.stackID,
-                stackIndex: resolved.stackIndex,
-                topCard: resolved.card,
-                destination: resolved.destination,
-                moveVector: resolved.moveVector
-            )
-        }
-        // 候補に該当しない場合は何もしない（無効タップ）
+        // 優先順位付きの候補を算出し、該当するものがあればアニメーション要求を発行する
+        guard let resolved = resolvedMoveForBoardTap(at: point) else { return }
+
+        boardTapPlayRequest = BoardTapPlayRequest(
+            stackID: resolved.stackID,
+            stackIndex: resolved.stackIndex,
+            topCard: resolved.card,
+            destination: resolved.destination,
+            moveVector: resolved.moveVector
+        )
     }
 }
 #endif
