@@ -867,12 +867,19 @@ public final class GameScene: SKScene {
 
     // MARK: - タップ処理
 
+    #if canImport(UIKit)
+    /// SpriteKit 上でのタップ終了時に呼び出され、UIKit のタッチイベントをゲームロジックへ受け渡す
+    /// - NOTE: UIKit が利用できるプラットフォーム（iOS / tvOS）専用の実装とし、他プラットフォームではコンパイル対象外にする
     public override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard let touch = touches.first else { return }
         let location = touch.location(in: self)
         guard let point = gridPoint(from: location) else { return }
         gameCore?.handleTap(at: point)
     }
+    #else
+    // UIKit が利用できないプラットフォームでは SpriteKit のタップ入力を提供していない。
+    // - NOTE: 想定外のターゲットでビルドした際にタッチ系 API を誤って利用しないよう明示しておく。
+    #endif
 
     /// シーン上の座標からグリッド座標を算出する
     /// - Parameter location: シーン上のタッチ位置
