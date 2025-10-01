@@ -592,8 +592,8 @@ public final class GameScene: SKScene {
             // トグルマスは踏破状態に関わらず専用色で固定し、ギミックの存在を明確に示す
             return palette.boardTileToggle
         case .multi:
-            // 四分割三角形で進捗を示すため、ベースの塗りは未踏破色を維持し、全セグメント完了時に踏破済み色へ切り替える
-            return state.isVisited ? palette.boardTileVisited : palette.boardTileUnvisited
+            // 四分割セグメント自体が最終的な色味を司るため、ベースの塗りは透明にして干渉を避ける
+            return .clear
         case .single:
             // 通常マスは従来通りの配色で未踏破と踏破済みを切り替える
             return state.isVisited ? palette.boardTileVisited : palette.boardTileUnvisited
@@ -668,6 +668,8 @@ public final class GameScene: SKScene {
                 segmentNode.strokeColor = .clear
                 segmentNode.lineWidth = 0
                 segmentNode.isAntialiased = true
+                // NOTE: ベース塗りとのアルファ合成を避け、セグメントの色をそのまま反映させる
+                segmentNode.blendMode = .replace
                 segmentNode.zPosition = 0
                 container.addChild(segmentNode)
                 segments[triangle] = segmentNode
@@ -738,9 +740,9 @@ public final class GameScene: SKScene {
         if !shouldShowProgress {
             // 進捗が無い or 既に完了した場合はオーバーレイ全体を非表示にし、
             // 再度表示するタイミングでの色ズレを防ぐため塗り色だけ基準色に揃えておく
-            // NOTE: 未踏破時にセグメントが非表示のままだと四分割構造が分かりにくくなるため、
-            //       進捗オーバーレイを出さない場合でも基準色で統一しておく
-            let baseColor = isCompleted ? palette.boardTileVisited : palette.boardTileMultiBase
+            // NOTE: 進捗オーバーレイを出さない場合でも、再表示直後に未踏破/踏破済みの色味へ即時切り替わるよう
+            //       パレットの基準色（未踏破 or 踏破済み）を事前にセットしておく
+            let baseColor = isCompleted ? palette.boardTileVisited : palette.boardTileUnvisited
             decoration.container.isHidden = true
 
             for triangle in MultiVisitTriangle.allCases {
