@@ -40,17 +40,37 @@ final class GameCoreTests: XCTestCase {
         XCTAssertEqual(core.handStacks.count, 5, "引き直し後の手札スタック数が 5 種類ではない")
         // 引き直し後の手札に使用可能なカードが少なくとも 1 枚あるか
         if let current = core.current {
-            let boardSize = core.mode.boardSize
-            let playableExists = core.handStacks.contains { stack in
-                guard let top = stack.topCard else { return false }
-                return top.move.canUse(from: current, boardSize: boardSize)
-            }
-            XCTAssertTrue(playableExists, "引き直し後の手札に利用可能なカードが存在しない")
+            let moves = core.availableMoves(current: current)
+            XCTAssertFalse(moves.isEmpty, "引き直し後の手札に利用可能なカードが存在しない")
         } else {
             XCTFail("現在地が nil のままです")
         }
         // 先読みカードが 3 枚揃っているか（NEXT 表示用）
         XCTAssertEqual(core.nextCards.count, 3, "引き直し後の先読みカードが 3 枚補充されていない")
+    }
+
+    /// availableMoves() が盤外カードを除外し、座標順へ整列するかを検証
+    func testAvailableMovesFiltersAndSortsByDestination() {
+        let deck = Deck.makeTestDeck(cards: [
+            .kingLeft,
+            .kingRight,
+            .kingUp,
+            .straightRight2,
+            .knightUp1Right2,
+            .straightUp2,
+            .kingDown,
+            .straightLeft2,
+            .straightDown2
+        ])
+        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 0, y: 0))
+
+        let moves = core.availableMoves()
+        XCTAssertEqual(moves.map { $0.destination }, [
+            GridPoint(x: 1, y: 0),
+            GridPoint(x: 2, y: 0),
+            GridPoint(x: 0, y: 1),
+            GridPoint(x: 2, y: 1)
+        ])
     }
 
     /// 手詰まり後に再び手詰まりが発生した場合でも追加ペナルティが加算されないことを確認
@@ -99,14 +119,59 @@ final class GameCoreTests: XCTestCase {
         XCTAssertEqual(core.progress, .playing, "連続手詰まり処理後に playing 状態へ戻っていない")
         // 最終的な手札スタック 5 種類の中に使用可能なカードがあるか
         if let current = core.current {
-            let boardSize = core.mode.boardSize
-            let playableExists = core.handStacks.contains { stack in
-                guard let top = stack.topCard else { return false }
-                return top.move.canUse(from: current, boardSize: boardSize)
-            }
-            XCTAssertTrue(playableExists, "連続手詰まり後の手札に使用可能なカードが存在しない")
+            let moves = core.availableMoves(current: current)
+            XCTAssertFalse(moves.isEmpty, "連続手詰まり後の手札に使用可能なカードが存在しない")
         } else {
             XCTFail("現在地が nil のままです")
+        }
+    }
+
+    /// スタック分割設定でも同一座標カードが隣接して列挙されるかを検証
+    func testAvailableMovesKeepsDuplicateDestinationsAdjacent() {
+        let regulation = GameMode.Regulation(
+            boardSize: BoardGeometry.standardSize,
+            handSize: 5,
+            nextPreviewCount: 3,
+            allowsStacking: false,
+            deckPreset: .standard,
+            spawnRule: .fixed(BoardGeometry.defaultSpawnPoint(for: BoardGeometry.standardSize)),
+            penalties: GameMode.PenaltySettings(
+                deadlockPenaltyCost: 5,
+                manualRedrawPenaltyCost: 5,
+                manualDiscardPenaltyCost: 1,
+                revisitPenaltyCost: 0
+            )
+        )
+        let customMode = GameMode(
+            identifier: .freeCustom,
+            displayName: "テスト用",
+            regulation: regulation,
+            leaderboardEligible: false
+        )
+
+        let deck = Deck.makeTestDeck(cards: [
+            .kingUp,
+            .kingUp,
+            .kingRight,
+            .kingDown,
+            .kingLeft,
+            .diagonalUpRight2,
+            .diagonalUpLeft2,
+            .knightUp1Right2,
+            .knightUp1Left2
+        ])
+
+        let core = GameCore.makeTestInstance(deck: deck, mode: customMode)
+
+        let moves = core.availableMoves()
+        let destination = GridPoint(x: 2, y: 3)
+        let matchingIndices = moves.indices.filter { moves[$0].destination == destination }
+        XCTAssertEqual(matchingIndices.count, 2, "同一座標へのカードが 2 枚列挙されていない")
+        if let first = matchingIndices.first {
+            XCTAssertEqual(matchingIndices, [first, first + 1], "同一座標カードが隣接順になっていない")
+            XCTAssertNotEqual(moves[first].stackID, moves[first + 1].stackID, "異なるスタックを識別できていない")
+        } else {
+            XCTFail("対象座標のカードが見つからない")
         }
     }
 
@@ -138,12 +203,8 @@ final class GameCoreTests: XCTestCase {
         let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 0, y: 0))
 
         // 手札の中から使用可能なカードを 1 枚選び、実際に移動させる
-        if let current = core.current,
-           let index = core.handStacks.enumerated().first(where: { _, stack in
-               guard let top = stack.topCard else { return false }
-               return top.move.canUse(from: current, boardSize: core.mode.boardSize)
-           })?.offset {
-            core.playCard(at: index)
+        if let resolved = core.availableMoves().first {
+            core.playCard(at: resolved.stackIndex)
         }
         // 移動が記録されているか確認
         XCTAssertEqual(core.moveCount, 1, "移動後の手数が想定通りではない")

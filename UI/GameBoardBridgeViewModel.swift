@@ -173,14 +173,9 @@ final class GameBoardBridgeViewModel: ObservableObject {
             return
         }
 
-        var candidatePoints: Set<GridPoint> = []
-        for stack in handStacks {
-            guard let card = stack.topCard else { continue }
-            let destination = current.offset(dx: card.move.dx, dy: card.move.dy)
-            if core.board.contains(destination) {
-                candidatePoints.insert(destination)
-            }
-        }
+        // GameCore.availableMoves() を利用して重複排除と境界チェックを共通化する
+        let resolvedMoves = core.availableMoves(handStacks: handStacks, current: current)
+        let candidatePoints = Set(resolvedMoves.map { $0.destination })
 
         guard guideModeEnabled else {
             scene.updateGuideHighlights([])
@@ -211,12 +206,20 @@ final class GameBoardBridgeViewModel: ObservableObject {
     @discardableResult
     func animateCardPlay(for stack: HandStack, at index: Int) -> Bool {
         guard animatingCard == nil else { return false }
-        guard let current = core.current else { return false }
-        guard let topCard = stack.topCard, isCardUsable(stack) else { return false }
+        guard core.current != nil else { return false }
+        guard let topCard = stack.topCard else { return false }
+
+        // 現在の手札状況に基づく使用可能カードを検索し、該当スタックの候補を取得する
+        guard let resolvedMove = core.availableMoves().first(where: { candidate in
+            candidate.stackID == stack.id && candidate.card.id == topCard.id
+        }) else {
+            debugLog("スタック演出を中止: 使用可能リストに該当カードなし stackID=\(stack.id)")
+            return false
+        }
 
         // 現在位置からカードの移動量を適用し、演出で目指す盤面座標を算出する
         // ここをプレイ前の現在地で固定してしまうと、カードが正しいマスへ移動しないため注意する
-        let targetPoint = current.offset(dx: topCard.move.dx, dy: topCard.move.dy)
+        let targetPoint = resolvedMove.destination
         animationTargetGridPoint = targetPoint
         hiddenCardIDs.insert(topCard.id)
         animatingCard = topCard
@@ -238,7 +241,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + travelDuration) { [weak self] in
             guard let self else { return }
             withAnimation(.easeInOut(duration: 0.22)) {
-                self.core.playCard(at: index)
+                self.core.playCard(at: resolvedMove.stackIndex)
             }
             self.hiddenCardIDs.remove(cardID)
             if self.animatingCard?.id == cardID {
@@ -322,9 +325,9 @@ final class GameBoardBridgeViewModel: ObservableObject {
     /// - Returns: 使用可能なら true
     func isCardUsable(_ stack: HandStack) -> Bool {
         guard let card = stack.topCard else { return false }
-        guard let current = core.current else { return false }
-        let target = current.offset(dx: card.move.dx, dy: card.move.dy)
-        return core.board.contains(target)
+        return core.availableMoves().contains { candidate in
+            candidate.stackID == stack.id && candidate.card.id == card.id
+        }
     }
 
     /// GameCore の状態変化を監視し、盤面関連の副作用を集約する
