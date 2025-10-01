@@ -57,10 +57,10 @@ public struct GameScenePalette {
 public extension GameScenePalette {
     /// SwiftUI 側でテーマが決まっていない時に使う共通フォールバック
     /// - Note: ライトテーマ向けの値を採用し、最低限の視認性を確保する
-    public static var fallback: GameScenePalette { fallbackLight }
+    static var fallback: GameScenePalette { fallbackLight }
 
     /// SpriteKit 側にテーマが適用されるまで使用するフォールバック（ライト寄りの仮色）
-    public static let fallbackLight = GameScenePalette(
+    static let fallbackLight = GameScenePalette(
         boardBackground: SKColor(white: 0.94, alpha: 1.0),
         boardGridLine: SKColor(white: 0.15, alpha: 1.0),
         boardTileVisited: SKColor(white: 0.75, alpha: 1.0),
@@ -75,7 +75,7 @@ public extension GameScenePalette {
     )
 
     /// ダークテーマ適用前後でのデバッグ確認用のフォールバック
-    public static let fallbackDark = GameScenePalette(
+    static let fallbackDark = GameScenePalette(
         boardBackground: SKColor(white: 0.05, alpha: 1.0),
         boardGridLine: SKColor(white: 0.75, alpha: 1.0),
         boardTileVisited: SKColor(white: 0.35, alpha: 1.0),
