@@ -639,9 +639,14 @@ private extension RootView {
             }
 
             if snapshot.topBarHeight <= 0 {
-                // フラグが未設定の場合はシミュレーター初期描画での 0 応答を想定し、警告を出さずに観測のみ行う
-                guard hasObservedPositiveTopBarHeight else { return }
-                debugLog("RootView.layout 警告: topBarHeight が 0 以下です。safe area とフォールバック設定を確認してください。")
+                if snapshot.isAuthenticated {
+                    // 表示対象があるのに高さが 0 の場合のみ警告し、想定外の消失を検知する
+                    guard hasObservedPositiveTopBarHeight else { return }
+                    debugLog("RootView.layout 警告: topBarHeight が 0 以下です。safe area とフォールバック設定を確認してください。")
+                } else {
+                    // 表示要素がない場合は 0 が正常値のため、フラグをリセットしつつ警告を抑制する
+                    hasObservedPositiveTopBarHeight = false
+                }
             }
             if snapshot.safeAreaTop < 0 || snapshot.safeAreaBottom < 0 {
                 debugLog("RootView.layout 警告: safeArea が負値です。GeometryReader の取得値を再確認してください。")
@@ -1342,10 +1347,13 @@ fileprivate struct TopStatusInsetView: View {
     var body: some View {
         HStack {
             Spacer(minLength: 0)
-            VStack(alignment: .leading, spacing: LayoutMetrics.topBarContentSpacing) {
-                gameCenterAuthenticationSection
+            if hasVisibleContent {
+                VStack(alignment: .leading, spacing: LayoutMetrics.topBarContentSpacing) {
+                    gameCenterAuthenticationSection
+                }
+                // トップバー内の情報は iPad で中央寄せにするため最大幅を制限する
+                .frame(maxWidth: context.topBarMaxWidth ?? .infinity, alignment: .leading)
             }
-            .frame(maxWidth: context.topBarMaxWidth ?? .infinity, alignment: .leading)
             Spacer(minLength: 0)
         }
         // 画面上部に常駐する情報のみを表示するため、タップは背後のボタンへ届ける
@@ -1353,18 +1361,14 @@ fileprivate struct TopStatusInsetView: View {
         // ヒットテスト無効化後も VoiceOver で読み上げられるよう専用ラベルを明示
         .accessibilityElement(children: .contain)
         .accessibilityLabel(accessibilityMessage)
-        .padding(.horizontal, context.topBarHorizontalPadding)
-        .padding(.top, LayoutMetrics.topBarBaseTopPadding + context.regularTopPaddingFallback)
-        .padding(.bottom, LayoutMetrics.topBarBaseBottomPadding)
-        .background(
-            theme.backgroundPrimary
-                .opacity(LayoutMetrics.topBarBackgroundOpacity)
-                .ignoresSafeArea(edges: .top)
-        )
+        // コンテンツが存在しない場合は VoiceOver 対象から除外し、不要な読み上げを防ぐ
+        .accessibilityHidden(!hasVisibleContent)
+        .padding(.horizontal, horizontalPadding)
+        .padding(.top, topPadding)
+        .padding(.bottom, bottomPadding)
+        .background(topBarBackground)
         .overlay(alignment: .bottom) {
-            Divider()
-                .background(theme.statisticBadgeBorder)
-                .opacity(LayoutMetrics.topBarDividerOpacity)
+            topBarDivider
         }
         // GeometryReader で高さを取得し、PreferenceKey を介して親ビューへ伝搬する
         .background(
@@ -1396,6 +1400,50 @@ fileprivate struct TopStatusInsetView: View {
         isAuthenticated
             ? "Game Center にサインイン済み"
             : "Game Center 未サインイン。設定画面からサインインするとランキングを利用できます。"
+    }
+
+    /// トップバー内に可視コンテンツが存在するかを判定する
+    /// - Note: 表示有無に応じて背景や余白を切り替え、空状態での白い帯を解消する
+    private var hasVisibleContent: Bool {
+        // 現状はサインイン状況のみを扱うが、将来的に表示要素が増えてもここで集約管理できる
+        isAuthenticated
+    }
+
+    /// 表示状態に応じて水平方向の余白を計算する
+    private var horizontalPadding: CGFloat {
+        hasVisibleContent ? context.topBarHorizontalPadding : 0
+    }
+
+    /// トップ側の余白。可視要素がない場合は最小限に抑え、レイアウト計算だけを維持する
+    private var topPadding: CGFloat {
+        hasVisibleContent ? (LayoutMetrics.topBarBaseTopPadding + context.regularTopPaddingFallback) : 0
+    }
+
+    /// ボトム側の余白。非表示時は 0 にし、設定ボタンと重ならないよう画面上部を最大限活用する
+    private var bottomPadding: CGFloat {
+        hasVisibleContent ? LayoutMetrics.topBarBaseBottomPadding : 0
+    }
+
+    /// 背景ビューを状態に応じて切り替える
+    @ViewBuilder
+    private var topBarBackground: some View {
+        if hasVisibleContent {
+            theme.backgroundPrimary
+                .opacity(LayoutMetrics.topBarBackgroundOpacity)
+                .ignoresSafeArea(edges: .top)
+        } else {
+            Color.clear
+        }
+    }
+
+    /// 仕切り線を表示する際だけ描画し、空状態では余計な線を出さない
+    @ViewBuilder
+    private var topBarDivider: some View {
+        if hasVisibleContent {
+            Divider()
+                .background(theme.statisticBadgeBorder)
+                .opacity(LayoutMetrics.topBarDividerOpacity)
+        }
     }
 }
 
