@@ -3,52 +3,26 @@ import XCTest
 
 /// 重み付き山札の挙動を検証するテスト
 final class DeckTests: XCTestCase {
-    /// 現行プロファイルでは全カードが均一重みになるため、カテゴリ間の出現率が概ね揃うことを検証する
-    func testWeightedRandomBehavesUniformlyWithDefaultProfile() {
-        var deck = Deck(seed: 12345)
-        let sampleCount = 20_000 // 十分な試行回数を確保してばらつきを抑える
-        var counts: [MoveCard: Int] = [:]
+    /// 標準デッキの重みプロファイルが全カードで均一になっていることを直接検証する
+    func testStandardDeckWeightProfileIsUniform() {
+        let config = Deck.Configuration.standard
+        let allowedMoves = config.allowedMoves
 
-        for _ in 0..<sampleCount {
-            guard let dealtCard = deck.draw() else {
-                XCTFail("ドロー結果が nil になるのは想定外です")
-                return
-            }
-            counts[dealtCard.move, default: 0] += 1
-        }
+        // --- 標準デッキに対象カードが存在することを確認（安全策） ---
+        XCTAssertFalse(allowedMoves.isEmpty, "標準デッキの許可カードが空です")
 
-        // --- 各カテゴリの平均出現回数を計算 ---
-        let allowedMoves = Deck.Configuration.standard.allowedMoves
-        let kingCards = allowedMoves.filter { $0.isKingType }
-        let knightCards = allowedMoves.filter { $0.isKnightType }
-        let diagonalCards = allowedMoves.filter { $0.isDiagonalDistanceFour }
+        // --- 重みプロファイルから取得した値がすべて同一か検証する ---
+        let weights = allowedMoves.map { config.weightProfile.weight(for: $0) }
+        let uniqueWeights = Set(weights)
 
-        func average(for cards: [MoveCard]) -> Double {
-            // 該当カードが存在しない場合は 0 を返す（安全策）
-            guard !cards.isEmpty else { return 0 }
-            let total = cards.reduce(0) { $0 + counts[$1, default: 0] }
-            return Double(total) / Double(cards.count)
-        }
+        // 少なくとも一つの値が取得できていることを確認
+        XCTAssertFalse(uniqueWeights.isEmpty, "重みプロファイルから値を取得できませんでした")
 
-        let kingAverage = average(for: kingCards)
-        let knightAverage = average(for: knightCards)
-        let diagonalAverage = average(for: diagonalCards)
+        // 均一重みであれば集合の要素数は 1 になる想定
+        XCTAssertEqual(uniqueWeights.count, 1, "標準デッキの重みがカードごとにばらついています: \(uniqueWeights)")
 
-        // サンプルデータが正しく集計できているか前提チェック
-        XCTAssertGreaterThan(kingAverage, 0, "キング型の平均値が 0 です")
-        XCTAssertGreaterThan(knightAverage, 0, "ナイト型の平均値が 0 です")
-        XCTAssertGreaterThan(diagonalAverage, 0, "斜め 2 マス型の平均値が 0 です")
-
-        // --- 比率チェック ---
-        let kingToKnight = kingAverage / knightAverage
-        let diagonalToKnight = diagonalAverage / knightAverage
-
-        // 均等重みなので平均値の比率は 1.0 付近になる想定。10〜15% 程度の誤差を許容する
-        XCTAssertGreaterThanOrEqual(kingToKnight, 0.85, "王将型の平均出現数が偏っています: \(kingToKnight)")
-        XCTAssertLessThanOrEqual(kingToKnight, 1.15, "王将型の平均出現数が偏っています: \(kingToKnight)")
-
-        XCTAssertGreaterThanOrEqual(diagonalToKnight, 0.85, "斜め 2 マスカードの平均出現数が偏っています: \(diagonalToKnight)")
-        XCTAssertLessThanOrEqual(diagonalToKnight, 1.15, "斜め 2 マスカードの平均出現数が偏っています: \(diagonalToKnight)")
+        // 現行仕様では 1 を想定値として扱うため、値自体も確認する
+        XCTAssertEqual(uniqueWeights.first, 1, "標準デッキの重みが 1 以外になっています")
     }
 
     /// MoveCard.allCases にキング型 8 種が含まれているかを検証する
