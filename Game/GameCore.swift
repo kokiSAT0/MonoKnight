@@ -110,28 +110,37 @@ public final class GameCore: ObservableObject {
     }
 
     /// 指定インデックスのカードで駒を移動させる
-    /// - Parameter index: 手札配列の位置（0〜4）
-
-    public func playCard(at index: Int) {
-        // 既存の API 互換性維持用。primaryVector を利用した単一候補カード向けのラッパーとして振る舞わせる。
+    /// - Parameters:
+    ///   - index: 手札配列の位置（0〜4）
+    ///   - moveVector: 複数候補カードから特定方向を選びたい場合に指定する移動ベクトル
+    ///                （`nil` の場合は候補が 1 件のときのみ自動で採用）
+    public func playCard(at index: Int, selecting moveVector: MoveVector? = nil) {
+        // --- 入力検証 ---
+        // index が手札配列の範囲外なら即座に終了
         guard handStacks.indices.contains(index) else { return }
-        let stack = handStacks[index]
-        guard let origin = current, let card = stack.topCard else { return }
+        // 現在地やスタックのトップカードが存在しなければ処理できない
+        guard current != nil, handStacks[index].topCard != nil else { return }
 
-        // primaryVector が盤内へ届く場合のみ ResolvedCardMove を生成し、新しい API へ委譲する。
-        guard let vector = card.move.movementVectors.first else { return }
-        let destination = origin.offset(dx: vector.dx, dy: vector.dy)
-        guard board.contains(destination) else { return }
+        // --- 利用可能な候補の抽出 ---
+        // availableMoves() は盤面内へ移動できる ResolvedCardMove 一覧を返すため、
+        // 指定スタックに該当する候補だけを抽出してから方向選択を行う。
+        let candidates = availableMoves().filter { $0.stackIndex == index }
 
-        let resolved = ResolvedCardMove(
-            stackID: stack.id,
-            stackIndex: index,
-            card: card,
-            moveVector: vector,
-            destination: destination
-        )
+        // moveVector が指定された場合は完全一致する候補を探し、
+        // 指定がない場合は候補が単一のときだけ自動で採用する。
+        let resolvedMove: ResolvedCardMove?
+        if let targetVector = moveVector {
+            resolvedMove = candidates.first { $0.moveVector == targetVector }
+        } else if candidates.count == 1 {
+            resolvedMove = candidates.first
+        } else {
+            // 複数候補があるのに moveVector が未指定であれば安全に中断する
+            resolvedMove = nil
+        }
 
-        playCard(using: resolved)
+        // 適切な候補が見つかった場合のみ playCard(using:) へ委譲する
+        guard let resolvedMove else { return }
+        playCard(using: resolvedMove)
     }
 
     /// ResolvedCardMove で指定されたベクトルを用いてカードをプレイする
