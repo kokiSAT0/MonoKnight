@@ -708,7 +708,6 @@ public final class GameScene: SKScene {
 
         // タイルノードのローカル原点が中心となるため、装飾も原点ゼロで重ねる
         decoration.container.position = .zero
-        decoration.container.isHidden = false
 
         // タイルサイズが変わった場合に備え、毎回パスを生成し直しておく
         for triangle in MultiVisitTriangle.allCases {
@@ -727,6 +726,35 @@ public final class GameScene: SKScene {
         let completedVisits = max(0, min(requiredVisits, requiredVisits - clampedRemaining))
         let filledSegmentCount = max(0, min(4, initialFill + completedVisits))
         let activeSegmentCount = max(0, min(4, initialFill + requiredVisits))
+
+        // 進捗の有無に応じてオーバーレイの表示/非表示を切り替える
+        // - NOTE: 「未踏破」「全踏破」の状態では通常マスと同じ見た目に揃えたいため、
+        //         四分割セグメントと対角線はまとめて隠す
+        let isUnvisited = clampedRemaining == requiredVisits && !state.isVisited
+        let isCompleted = state.isVisited || clampedRemaining == 0
+        let shouldShowProgress = requiredVisits > 1 && !isCompleted && !isUnvisited
+
+        if !shouldShowProgress {
+            // 進捗が無い or 既に完了した場合はオーバーレイ全体を非表示にし、
+            // 再度表示するタイミングでの色ズレを防ぐため塗り色だけ基準色に揃えておく
+            let baseColor = isCompleted ? palette.boardTileVisited : palette.boardTileMultiBase
+            decoration.container.isHidden = true
+
+            for triangle in MultiVisitTriangle.allCases {
+                guard let segmentNode = decoration.segments[triangle] else { continue }
+                segmentNode.fillColor = baseColor
+                segmentNode.isHidden = true
+            }
+
+            decoration.primaryDiagonal.isHidden = true
+            decoration.secondaryDiagonal.isHidden = true
+            return
+        }
+
+        // 部分踏破中は従来のステージ別カラーリングを維持しつつオーバーレイを表示する
+        decoration.container.isHidden = false
+        decoration.primaryDiagonal.isHidden = false
+        decoration.secondaryDiagonal.isHidden = false
 
         // 部分踏破の残量を視覚的に把握しやすいよう、塗り色を 3 段階に分ける
         let completedColor = palette.boardTileVisited.withAlphaComponent(0.95)
