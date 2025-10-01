@@ -111,6 +111,27 @@ final class GameViewIntegrationTests: XCTestCase {
         }
         XCTAssertEqual(candidateMoves.count, 2, "複数候補が検出されませんでした")
 
+        guard let stackIndex = core.handStacks.firstIndex(where: { $0.id == stack.id }) else {
+            XCTFail("選択対象の手札スタックを特定できませんでした")
+            return
+        }
+
+        viewModel.handleHandSlotTap(at: stackIndex)
+
+        XCTAssertEqual(
+            viewModel.selectedHandStackID,
+            stack.id,
+            "カード選択状態が更新されていません"
+        )
+
+        let expectedHighlights = Set(candidateMoves.map(\.destination))
+        XCTAssertEqual(
+            viewModel.boardBridge.forcedSelectionHighlightPoints,
+            expectedHighlights,
+            "カードタップ時のハイライト候補が想定と異なります"
+        )
+        XCTAssertNil(viewModel.boardBridge.animatingCard, "盤面タップ前にアニメーションが開始されています")
+
         let chosenMove = candidateMoves[1]
 
         core.handleTap(at: chosenMove.destination)
@@ -129,6 +150,67 @@ final class GameViewIntegrationTests: XCTestCase {
         XCTAssertEqual(core.current, chosenMove.destination, "盤面タップで指定したマスへ駒が移動していません")
         XCTAssertEqual(core.moveCount, 1, "カード使用回数が加算されていません")
         XCTAssertNil(core.boardTapPlayRequest, "処理後も BoardTapPlayRequest が残っています")
+        XCTAssertNil(viewModel.selectedHandStackID, "カードプレイ後も選択状態が残っています")
+        XCTAssertTrue(
+            viewModel.boardBridge.forcedSelectionHighlightPoints.isEmpty,
+            "カードプレイ後に強制ハイライトが解除されていません"
+        )
+    }
+
+    /// カードを選択せずに盤面だけをタップしてもプレイが開始されないことを確認する
+    func testBoardTapWithoutSelectionDoesNotTriggerCardPlay() {
+        let scheduler = PenaltyBannerSchedulerSpy()
+        let gameCenter = GameCenterServiceSpy()
+        let adsService = AdsServiceSpy()
+
+        let core = GameCore(mode: .standard)
+        let interfaces = GameModuleInterfaces { _ in core }
+
+        let viewModel = GameViewModel(
+            mode: .standard,
+            gameInterfaces: interfaces,
+            gameCenterService: gameCenter,
+            adsService: adsService,
+            onRequestReturnToTitle: nil,
+            penaltyBannerScheduler: scheduler
+        )
+
+        viewModel.boardBridge.updateHapticsSetting(isEnabled: false)
+
+        guard
+            let stack = core.handStacks.first,
+            let topCard = stack.topCard,
+            let current = core.current
+        else {
+            XCTFail("初期手札または現在位置の取得に失敗しました")
+            return
+        }
+
+        let overrideVectors = [
+            MoveVector(dx: 1, dy: 0),
+            MoveVector(dx: -1, dy: 0)
+        ]
+        MoveCard.setTestMovementVectors(overrideVectors, for: topCard.move)
+        defer { MoveCard.setTestMovementVectors(nil, for: topCard.move) }
+
+        let candidateMoves = core.availableMoves().filter { candidate in
+            candidate.stackID == stack.id && candidate.card.id == topCard.id
+        }
+        XCTAssertEqual(candidateMoves.count, 2, "複数候補が検出されませんでした")
+
+        let destination = candidateMoves[0].destination
+        core.handleTap(at: destination)
+
+        XCTAssertNotNil(core.boardTapPlayRequest, "選択なしの盤面タップでリクエストが生成されていません")
+
+        RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+
+        XCTAssertEqual(core.current, current, "カード未選択にもかかわらず駒が移動しています")
+        XCTAssertEqual(core.moveCount, 0, "カードがプレイされてしまっています")
+        XCTAssertNil(core.boardTapPlayRequest, "処理後に BoardTapPlayRequest が残っています")
+        XCTAssertNil(viewModel.selectedHandStackID, "カード未選択状態のまま選択 ID が設定されています")
+        XCTAssertTrue(viewModel.boardBridge.forcedSelectionHighlightPoints.isEmpty, "強制ハイライトが誤って点灯しています")
+        XCTAssertNil(viewModel.boardBridge.animatingCard, "アニメーションが開始されてしまっています")
     }
 
     #if canImport(SpriteKit)
