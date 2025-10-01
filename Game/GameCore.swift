@@ -180,6 +180,59 @@ public final class GameCore: ObservableObject {
 #endif
     }
 
+    /// 現在の状態から使用可能なカード移動候補を列挙する
+    /// - Parameters:
+    ///   - handStacksOverride: 手札スタックを差し替えたい場合に指定（省略時は `self.handStacks` を利用）
+    ///   - currentOverride: 現在地を差し替えたい場合に指定（省略時は `self.current` を利用）
+    /// - Returns: 盤面内へ移動できるカードの詳細情報
+    public func availableMoves(
+        handStacks handStacksOverride: [HandStack]? = nil,
+        current currentOverride: GridPoint? = nil
+    ) -> [ResolvedCardMove] {
+        // 引数が未指定の場合は現在の GameCore 状態を採用する
+        let referenceHandStacks = handStacksOverride ?? handStacks
+        guard let origin = currentOverride ?? current else { return [] }
+
+        // 盤面境界を参照するためローカル変数として保持しておく
+        let activeBoard = board
+
+        // 列挙中に同じ座標へ向かうカードを検出しやすいよう、結果は座標→スタック順でソートする
+        var resolved: [ResolvedCardMove] = []
+        resolved.reserveCapacity(referenceHandStacks.count)
+
+        for (index, stack) in referenceHandStacks.enumerated() {
+            // トップカードが存在しなければスキップ
+            guard let topCard = stack.topCard else { continue }
+            let vector = MoveVector(dx: topCard.move.dx, dy: topCard.move.dy)
+            let destination = origin.offset(dx: vector.dx, dy: vector.dy)
+            // 盤面外の移動は候補から除外
+            guard activeBoard.contains(destination) else { continue }
+
+            resolved.append(
+                ResolvedCardMove(
+                    stackID: stack.id,
+                    stackIndex: index,
+                    card: topCard,
+                    moveVector: vector,
+                    destination: destination
+                )
+            )
+        }
+
+        // y→x→スタック順で並び替えることで、同一座標のカードが隣接する形で得られる
+        resolved.sort { lhs, rhs in
+            if lhs.destination.y != rhs.destination.y {
+                return lhs.destination.y < rhs.destination.y
+            }
+            if lhs.destination.x != rhs.destination.x {
+                return lhs.destination.x < rhs.destination.x
+            }
+            return lhs.stackIndex < rhs.stackIndex
+        }
+
+        return resolved
+    }
+
     /// 盤面タップ由来のアニメーション要求を UI 側で処理したあとに呼び出す
     /// - Parameter id: 消したいリクエストの識別子（不一致の場合は何もしない）
     public func clearBoardTapPlayRequest(_ id: UUID) {
@@ -275,26 +328,20 @@ extension GameCore: GameCoreProtocol {
         }
 
         // ゲーム進行中でなければ入力を無視
-        guard progress == .playing, let current = current else { return }
+        guard progress == .playing else { return }
 
         // デバッグログ: タップされたマスを表示
         debugLog("マス \(point) をタップ")
 
-        // タップされたマスと現在位置の差分を計算
-        let dx = point.x - current.x
-        let dy = point.y - current.y
-
-        // 差分に一致するカードを手札スタックから検索
-        if let (index, stack) = handStacks.enumerated().first(where: { _, stack in
-            guard let card = stack.topCard else { return false }
-            return card.move.dx == dx && card.move.dy == dy
-        }) {
-            if let topCard = stack.topCard {
-                // UI 側でカード移動アニメーションを行うため、手札情報を要求として公開する
-                boardTapPlayRequest = BoardTapPlayRequest(stackID: stack.id, stackIndex: index, topCard: topCard)
-            }
+        // availableMoves() で求めた候補の中から座標一致を検索する
+        if let resolved = availableMoves().first(where: { $0.destination == point }) {
+            boardTapPlayRequest = BoardTapPlayRequest(
+                stackID: resolved.stackID,
+                stackIndex: resolved.stackIndex,
+                topCard: resolved.card
+            )
         }
-        // 該当カードが無い場合は何もしない（無効タップ）
+        // 候補に該当しない場合は何もしない（無効タップ）
     }
 }
 #endif

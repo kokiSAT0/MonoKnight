@@ -76,12 +76,9 @@ extension GameCore {
         // スポーン待機中は判定不要
         guard progress != .awaitingSpawn, let current = current else { return }
 
-        let allUnusable = handStacks.allSatisfy { stack in
-            guard let card = stack.topCard else { return true }
-            let dest = current.offset(dx: card.move.dx, dy: card.move.dy)
-            return !board.contains(dest)
-        }
-        guard allUnusable else { return }
+        // availableMoves() を利用して盤面内へ進めるカードが残っているかを判定する
+        let usableMoves = availableMoves(handStacks: handStacks, current: current)
+        guard usableMoves.isEmpty else { return }
 
         if hasAlreadyPaidPenalty {
             // デバッグログ: 連続手詰まりを通知し、追加ペナルティ無しで再抽選する
