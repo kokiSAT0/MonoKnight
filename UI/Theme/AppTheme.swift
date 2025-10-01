@@ -432,17 +432,18 @@ struct AppTheme: DynamicProperty {
     }
 
     /// ガイドモードで候補マスを照らす際の基準色
-    /// - Note: グリッド線と同系統のグレーを採用し、盤面全体のモノトーン基調を崩さない
+    /// - Note: HIG のコントラスト要件を満たしつつ盤面のモノトーンを邪魔しないよう、彩度を抑えたオレンジをテーマ別に用意する
     var boardGuideHighlight: Color {
         switch resolvedColorScheme {
         case .dark:
-            // ダークテーマでは boardGridLine（白 75%）を基準にしつつ、視認性を確保するため透過率をやや高める
-            return boardGridLine.opacity(0.5)
+            // ダークテーマでは暗所で浮きすぎないよう、明度を上げたオレンジをベースに透過率を高めて輪郭をくっきりさせる
+            let guideStrokeBase = Color(red: 1.0, green: 0.74, blue: 0.38)
+            return guideStrokeBase.opacity(0.9)
         default:
-            // ライトテーマでは純粋な黒だと輪郭が強すぎるため、少しだけ明度を持たせた濃いグレーを採用する
-            // NOTE: `Color(white: 0.2)` で RGB(51,51,51) 相当の色味を用意し、透過度で軽やかさを調整する
-            let guideStrokeBase = Color(white: 0.2)
-            return guideStrokeBase.opacity(0.45)
+            // ライトテーマでは背景が明るいので、彩度を抑えた濃いめのオレンジを採用し、透過で軽やかさを残す
+            // NOTE: RGB(240, 104, 20) 相当の色味を透過 0.85 で用いることで、盤面に馴染みつつ視認性を確保する
+            let guideStrokeBase = Color(red: 0.94, green: 0.41, blue: 0.08)
+            return guideStrokeBase.opacity(0.85)
         }
     }
 
