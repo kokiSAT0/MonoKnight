@@ -6,10 +6,12 @@ import UIKit
 import SharedSupport // debugLog を利用するため共有モジュールを読み込む
 
 /// 盤面ハイライトの種類を列挙するための型
-/// - Note: ガイド表示と強制表示を区別し、SpriteKit ノード管理を種類別に分離する狙いがある
+/// - Note: ガイド表示の中でも単一候補と複数候補を分け、枠線の重なり順や色分けを柔軟に制御する
 public enum BoardHighlightKind: CaseIterable, Hashable {
-    /// 通常のガイドモードで表示するハイライト
-    case guide
+    /// 単一ベクトルカードを示す控えめなガイド枠
+    case guideSingleCandidate
+    /// 複数候補カードや選択肢を強調するためのガイド枠
+    case guideMultipleCandidate
     /// チュートリアルやカード選択で強制的に表示するハイライト
     case forcedSelection
 }
@@ -531,7 +533,11 @@ public final class GameScene: SKScene {
     /// 既存 API との後方互換のため、ガイド種別だけを更新するコンビニエンスメソッド
     /// - Parameter points: ガイド表示したい盤面座標集合
     public func updateGuideHighlights(_ points: Set<GridPoint>) {
-        updateHighlights([.guide: points])
+        // 既存 API から呼び出された場合は複数候補ガイド扱いとし、従来のオレンジ枠を維持する
+        updateHighlights([
+            .guideSingleCandidate: [],
+            .guideMultipleCandidate: points
+        ])
     }
 
     /// 辞書で受け取ったハイライト情報を即座にノードへ反映する
@@ -594,8 +600,6 @@ public final class GameScene: SKScene {
     ///   - point: 対応する盤面座標
     ///   - kind: 表示中のハイライト種別
     private func configureHighlightNode(_ node: SKShapeNode, for point: GridPoint, kind: BoardHighlightKind) {
-        // 枠線の外側がマス境界を超えないよう、線幅に応じて矩形を補正する
-        let strokeWidth = max(tileSize * 0.06, 2.0)
         // SpriteKit の座標系ではノード中心が (0,0) なので、原点からタイル半分を引いた矩形を起点にする
         let baseRect = CGRect(
             x: -tileSize / 2,
@@ -603,24 +607,33 @@ public final class GameScene: SKScene {
             width: tileSize,
             height: tileSize
         )
-        // rect.insetBy を用い、線幅の半分だけ内側に寄せて外周がグリッド線とぴったり接するよう調整
-        let adjustedRect = baseRect.insetBy(dx: strokeWidth / 2, dy: strokeWidth / 2)
-        node.path = CGPath(rect: adjustedRect, transform: nil)
-
         let baseColor: SKColor
         let strokeAlpha: CGFloat
         let zPosition: CGFloat
+        let strokeWidth: CGFloat
         switch kind {
-        case .guide:
+        case .guideSingleCandidate:
+            // 単一候補カードは落ち着いたグレートーンで表示し、重なった際に複数候補の枠が目立つようにする
+            baseColor = palette.boardTileVisited
+            strokeAlpha = 0.9
+            strokeWidth = max(tileSize * 0.045, 1.6)
+            zPosition = 0.95
+        case .guideMultipleCandidate:
             baseColor = palette.boardGuideHighlight
             strokeAlpha = 0.88
-            zPosition = 1.0
+            strokeWidth = max(tileSize * 0.06, 2.0)
+            zPosition = 1.02
         case .forcedSelection:
             // NOTE: 現段階ではガイドと同じ色を使用しつつ、将来のカスタマイズ余地を残すため分岐を設けている
             baseColor = palette.boardGuideHighlight
             strokeAlpha = 1.0
+            strokeWidth = max(tileSize * 0.07, 2.4)
             zPosition = 1.1
         }
+
+        // rect.insetBy を用い、線幅の半分だけ内側に寄せて外周がグリッド線とぴったり接するよう調整
+        let adjustedRect = baseRect.insetBy(dx: strokeWidth / 2, dy: strokeWidth / 2)
+        node.path = CGPath(rect: adjustedRect, transform: nil)
 
         // 充填色は透過させ、枠線のみに集中させて過度な塗りつぶしを避ける
         node.fillColor = SKColor.clear

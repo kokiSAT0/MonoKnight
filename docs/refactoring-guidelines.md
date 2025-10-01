@@ -99,7 +99,7 @@
 
 ### 5.1 手動確認メモ（ハイライト挙動）
 - 2024-05-09: `GameScene.updateHighlights` リファクタリング後に以下の手動確認を実施。
-  - ガイド設定 ON で手札を更新し、`.guide` キー経由のハイライトが従来通り点灯することを確認。
+  - ガイド設定 ON で手札を更新し、`.guideSingleCandidate` / `.guideMultipleCandidate` キー経由のハイライトが意図通り点灯することを確認。
   - ガイド設定 OFF の状態で `GameViewModel.updateForcedSelectionHighlight(for:)` を介して強制候補を送信し、`.forcedSelection` が単独で表示されることを確認。
   - カードプレイ完了時に強制ハイライトが自動解除されることを確認し、次ターンへ残像が残らないことを検証。
 
