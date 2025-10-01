@@ -10,6 +10,7 @@ import UIKit
 /// ゲーム進行を統括するクラス
 /// - 盤面操作・手札管理・ペナルティ処理・スコア計算を担当する
 
+@available(iOS 13.0, macOS 10.15, tvOS 13.0, watchOS 6.0, *)
 public final class GameCore: ObservableObject {
     /// 現在適用中のゲームモード
     public let mode: GameMode
@@ -385,6 +386,7 @@ public final class GameCore: ObservableObject {
 
 #if canImport(SpriteKit)
 // MARK: - GameScene からのタップ入力に対応
+@available(iOS 13.0, macOS 10.15, tvOS 13.0, watchOS 6.0, *)
 extension GameCore: GameCoreProtocol {
     /// 盤面上のマスがタップされた際に呼び出される
     /// - Parameter point: タップされたマスの座標
@@ -415,6 +417,7 @@ extension GameCore: GameCoreProtocol {
 }
 #endif
 
+@available(iOS 13.0, macOS 10.15, tvOS 13.0, watchOS 6.0, *)
 extension GameCore {
     /// HandManager が保持する最新状態を公開用プロパティへ反映する
     /// - Note: Combine 非対応環境でも確実に配列が更新されるよう、明示的に値をコピーする
@@ -482,6 +485,7 @@ extension GameCore {
 
 #if DEBUG
 /// テスト専用のユーティリティ拡張
+@available(iOS 13.0, macOS 10.15, tvOS 13.0, watchOS 6.0, *)
 extension GameCore {
     /// 任意のデッキと現在位置を指定して GameCore を生成する
     /// - Parameters:

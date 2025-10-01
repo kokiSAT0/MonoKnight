@@ -5,6 +5,7 @@ import UIKit
 import SharedSupport // ログユーティリティを利用するため追加
 
 /// ペナルティ判定や捨て札ペナルティの処理、VoiceOver 通知など UI 連動が強い処理を切り出した拡張
+@available(iOS 13.0, macOS 10.15, tvOS 13.0, watchOS 6.0, *)
 extension GameCore {
     /// ペナルティ発生時の共通処理で利用する原因の区別
     /// - Note: デバッグログや VoiceOver の文言を分岐させるためだけの軽量な列挙体
