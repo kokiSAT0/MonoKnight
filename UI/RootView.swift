@@ -1706,16 +1706,16 @@ fileprivate struct TitleScreenView: View {
             handleModeSelection(fromList: mode, isFreeMode: isFreeMode)
         } label: {
             VStack(alignment: .leading, spacing: 6) {
-                HStack {
+                HStack(alignment: .center, spacing: 12) {
+                    modeVisualTag(for: mode)
+                        // バッジ群はテキスト基準ではなく中央揃えで扱いたいので、基準線を明示的に中央へ合わせる
+                        .alignmentGuide(.firstTextBaseline) { dimensions in
+                            dimensions[VerticalAlignment.center]
+                        }
                     Text(mode.displayName)
                         .font(.system(size: 17, weight: .semibold, design: .rounded))
                         .foregroundColor(theme.textPrimary)
                     Spacer(minLength: 0)
-                    if isFreeMode {
-                        Image(systemName: "slider.horizontal.3")
-                            .foregroundColor(theme.accentPrimary)
-                            .font(.system(size: 16, weight: .semibold))
-                    }
                     if isSelected {
                         Image(systemName: "checkmark.circle.fill")
                             .foregroundColor(theme.accentPrimary)
@@ -1748,9 +1748,58 @@ fileprivate struct TitleScreenView: View {
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(Text("\(mode.displayName): \(primaryDescription(for: mode))"))
+        .accessibilityLabel(
+            Text("\(mode.displayName)。\(mode.difficultyAccessibilityDescription)。\(primaryDescription(for: mode))")
+        )
         .accessibilityHint(Text(accessibilityHint(for: mode, isFreeMode: isFreeMode)))
         .accessibilityIdentifier("mode_button_\(mode.identifier.rawValue)")
+    }
+
+    /// モード固有のアイコンと難易度バッジをまとめて返す
+    /// - Parameter mode: 視覚要素を表示したいモード
+    /// - Returns: アイコン＋難易度バッジのペア
+    private func modeVisualTag(for mode: GameMode) -> some View {
+        HStack(spacing: 8) {
+            modeIconTile(for: mode)
+            difficultyBadge(for: mode)
+        }
+        // サイズ変化でテキストが揺れないよう固定サイズで描画する
+        .fixedSize()
+        // 装飾目的の要素なので VoiceOver では冗長になるため非表示にする
+        .accessibilityHidden(true)
+    }
+
+    /// モードを象徴する SF Symbols アイコンのタイル
+    /// - Parameter mode: 対象モード
+    /// - Returns: AppTheme の背景色とアクセントカラーを組み合わせた角丸タイル
+    private func modeIconTile(for mode: GameMode) -> some View {
+        Image(systemName: mode.iconSystemName)
+            .font(.system(size: 17, weight: .semibold))
+            .foregroundColor(theme.accentPrimary)
+            .padding(10)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(theme.backgroundPrimary.opacity(0.85))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(theme.accentPrimary.opacity(0.7), lineWidth: 1)
+            )
+    }
+
+    /// 難易度ランクを可視化するためのバッジ
+    /// - Parameter mode: 対象モード
+    /// - Returns: アクセント色を背景にしたカプセル型バッジ
+    private func difficultyBadge(for mode: GameMode) -> some View {
+        Text(mode.difficultyBadgeLabel)
+            .font(.system(size: 11, weight: .bold, design: .rounded))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(theme.accentPrimary)
+            )
+            .foregroundColor(theme.accentOnPrimary)
     }
 
     /// 選択中のモード概要をカード形式で表示し、次のアクションを案内する
@@ -1765,6 +1814,11 @@ fileprivate struct TitleScreenView: View {
             VStack(alignment: .leading, spacing: 12) {
                 // 選択中モード名とアイコンをまとめたヘッダー
                 HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    modeVisualTag(for: selectedMode)
+                        // ヘッダーも中央を基準として揃えることでカード一覧と同じ見た目を維持する
+                        .alignmentGuide(.firstTextBaseline) { dimensions in
+                            dimensions[VerticalAlignment.center]
+                        }
                     VStack(alignment: .leading, spacing: 4) {
                         Text("選択中のモード")
                             .font(.system(size: 13, weight: .semibold, design: .rounded))
@@ -2033,6 +2087,7 @@ fileprivate struct TitleScreenView: View {
     private func summaryAccessibilityLabel(for stage: CampaignStage?) -> String {
         var components: [String] = []
         components.append("選択中のモード: \(selectedMode.displayName)")
+        components.append(selectedMode.difficultyAccessibilityDescription)
         if let stage {
             components.append("ステージ \(stage.displayCode) \(stage.title)")
         }
