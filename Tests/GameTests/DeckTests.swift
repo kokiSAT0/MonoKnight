@@ -18,9 +18,10 @@ final class DeckTests: XCTestCase {
         }
 
         // --- 各カテゴリの平均出現回数を計算 ---
-        let kingCards = MoveCard.allCases.filter { $0.isKingType }
-        let knightCards = MoveCard.allCases.filter { $0.isKnightType }
-        let diagonalCards = MoveCard.allCases.filter { $0.isDiagonalDistanceFour }
+        let allowedMoves = Deck.Configuration.standard.allowedMoves
+        let kingCards = allowedMoves.filter { $0.isKingType }
+        let knightCards = allowedMoves.filter { $0.isKnightType }
+        let diagonalCards = allowedMoves.filter { $0.isDiagonalDistanceFour }
 
         func average(for cards: [MoveCard]) -> Double {
             // 該当カードが存在しない場合は 0 を返す（安全策）
@@ -62,7 +63,9 @@ final class DeckTests: XCTestCase {
             .kingDown,
             .kingDownLeft,
             .kingLeft,
-            .kingUpLeft
+            .kingUpLeft,
+            .kingUpOrDown,
+            .kingLeftOrRight
         ]
 
         // allCases の結果を集合化して比較し、山札構築時に含まれることを保証する
@@ -70,6 +73,25 @@ final class DeckTests: XCTestCase {
 
         // 山札生成が MoveCard.allCases を利用するため、ここで欠けていれば山札からも欠落する
         XCTAssertTrue(kingMoves.isSubset(of: allCasesSet))
+    }
+
+    /// standardSet が従来 24 種のみで構成され、新カードが混入していないことを確認する
+    func testStandardSetDoesNotIncludeChoiceCards() {
+        XCTAssertEqual(MoveCard.standardSet.count, 24, "スタンダードセットの枚数が 24 枚から変化しています")
+        XCTAssertFalse(MoveCard.standardSet.contains(.kingUpOrDown), "選択式カードがスタンダードセットへ混入しています")
+        XCTAssertFalse(MoveCard.standardSet.contains(.kingLeftOrRight), "選択式カードがスタンダードセットへ混入しています")
+    }
+
+    /// directionChoice 構成が新カードを含み、重みも設定されていることを検証する
+    func testDirectionChoiceDeckIncludesMultiDirectionCards() {
+        let config = Deck.Configuration.directionChoice
+        let allowedMoves = config.allowedMoves
+        XCTAssertTrue(allowedMoves.contains(.kingUpOrDown), "上下選択カードがデッキに含まれていません")
+        XCTAssertTrue(allowedMoves.contains(.kingLeftOrRight), "左右選択カードがデッキに含まれていません")
+
+        // 重みが設定されているかを確認（未設定の場合は nil になる）
+        XCTAssertEqual(config.baseWeights[.kingUpOrDown], 3, "上下選択カードの重みが想定外です")
+        XCTAssertEqual(config.baseWeights[.kingLeftOrRight], 3, "左右選択カードの重みが想定外です")
     }
 
     /// クラシカルチャレンジ設定では桂馬カードのみが配られるか検証する

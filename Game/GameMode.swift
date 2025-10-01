@@ -11,6 +11,8 @@ public enum GameDeckPreset: String, CaseIterable, Codable, Identifiable {
     case classicalChallenge
     /// 王将型カードのみの構成（序盤向け超短距離デッキ）
     case kingOnly
+    /// キング型カードに上下左右の選択肢を加えた構成
+    case directionChoice
 
     /// `Identifiable` 準拠用の ID
     public var id: String { rawValue }
@@ -24,6 +26,8 @@ public enum GameDeckPreset: String, CaseIterable, Codable, Identifiable {
             return "クラシカル構成"
         case .kingOnly:
             return "王将構成"
+        case .directionChoice:
+            return "選択式キング構成"
         }
     }
 
@@ -41,6 +45,8 @@ public enum GameDeckPreset: String, CaseIterable, Codable, Identifiable {
             return .classicalChallenge
         case .kingOnly:
             return .kingOnly
+        case .directionChoice:
+            return .directionChoice
         }
     }
 }

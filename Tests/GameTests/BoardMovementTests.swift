@@ -36,6 +36,21 @@ final class BoardMovementTests: XCTestCase {
         XCTAssertEqual(knightCard.primaryVector, knightVector, "桂馬カードの代表ベクトルが想定と異なります")
     }
 
+    /// 複数方向候補カードが 2 方向のベクトルを保持し、primaryVector が先頭を指すかを確認する
+    func testMultiDirectionCardProvidesTwoCandidates() {
+        let verticalChoice = MoveCard.kingUpOrDown
+        XCTAssertEqual(verticalChoice.movementVectors.count, 2, "上下選択カードの候補数が 2 ではありません")
+        XCTAssertEqual(verticalChoice.movementVectors[0], MoveVector(dx: 0, dy: 1), "上下選択カードの先頭ベクトルが上方向になっていません")
+        XCTAssertEqual(verticalChoice.movementVectors[1], MoveVector(dx: 0, dy: -1), "上下選択カードの 2 番目ベクトルが下方向になっていません")
+        XCTAssertEqual(verticalChoice.primaryVector, MoveVector(dx: 0, dy: 1), "上下選択カードの primaryVector が想定外です")
+
+        let horizontalChoice = MoveCard.kingLeftOrRight
+        XCTAssertEqual(horizontalChoice.movementVectors.count, 2, "左右選択カードの候補数が 2 ではありません")
+        XCTAssertEqual(horizontalChoice.movementVectors[0], MoveVector(dx: 1, dy: 0), "左右選択カードの先頭ベクトルが右方向になっていません")
+        XCTAssertEqual(horizontalChoice.movementVectors[1], MoveVector(dx: -1, dy: 0), "左右選択カードの 2 番目ベクトルが左方向になっていません")
+        XCTAssertEqual(horizontalChoice.primaryVector, MoveVector(dx: 1, dy: 0), "左右選択カードの primaryVector が想定外です")
+    }
+
     /// 複数候補のうち一部のみ盤内となるケースで canUse が true を返すか確認する
     func testCanUseWithMultipleMovementCandidates() {
         // 標準 5x5 盤を前提に左下端からの移動をテストする
