@@ -726,12 +726,27 @@ public final class GameScene: SKScene {
         let initialFill = max(0, min(4, 4 - requiredVisits))
         let completedVisits = max(0, min(requiredVisits, requiredVisits - clampedRemaining))
         let filledSegmentCount = max(0, min(4, initialFill + completedVisits))
+        let activeSegmentCount = max(0, min(4, initialFill + requiredVisits))
+
+        // 部分踏破の残量を視覚的に把握しやすいよう、塗り色を 3 段階に分ける
+        let completedColor = palette.boardTileVisited.withAlphaComponent(0.95)
+        let pendingColor = palette.boardTileMultiBase.withAlphaComponent(0.9)
+        let inactiveColor = palette.boardTileMultiBase.withAlphaComponent(0.55)
 
         for (index, triangle) in MultiVisitTriangle.allCases.enumerated() {
             guard let segmentNode = decoration.segments[triangle] else { continue }
-            segmentNode.fillColor = index < filledSegmentCount
-                ? palette.boardTileVisited
-                : palette.boardTileMultiBase
+
+            if index < filledSegmentCount {
+                // 既に踏破したセグメントは踏破済みカラーで強調表示する
+                segmentNode.fillColor = completedColor
+            } else if index < activeSegmentCount {
+                // まだ踏破していない残り回数は基準色を濃く残し、未達成領域として認識しやすくする
+                segmentNode.fillColor = pendingColor
+            } else {
+                // 要求回数を超える領域は淡くし、進捗対象外であることを明示する
+                segmentNode.fillColor = inactiveColor
+            }
+
             segmentNode.isHidden = false
         }
 
