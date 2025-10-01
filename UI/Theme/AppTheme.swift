@@ -405,9 +405,11 @@ struct AppTheme: DynamicProperty {
     var boardTileVisited: Color {
         switch resolvedColorScheme {
         case .dark:
-            return Color.white.opacity(0.35)
+            // ダークテーマでは背景とのメリハリを強めるため、半透明の白を大きめに設定する
+            return Color.white.opacity(0.52)
         default:
-            return Color.black.opacity(0.18)
+            // ライトテーマでは未踏破との差がひと目で分かる濃さ（約 32%）まで不透明度を引き上げる
+            return Color.black.opacity(0.32)
         }
     }
 
@@ -415,9 +417,11 @@ struct AppTheme: DynamicProperty {
     var boardTileUnvisited: Color {
         switch resolvedColorScheme {
         case .dark:
-            return Color.white.opacity(0.05)
+            // 暗所でもマスの輪郭を把握しやすいよう、うっすらと光が当たった程度の 8% まで持ち上げる
+            return Color.white.opacity(0.08)
         default:
-            return Color.black.opacity(0.03)
+            // まったくの透明だと盤面の境界が迷子になるため、わずかに灰色を乗せた 5% を採用する
+            return Color.black.opacity(0.05)
         }
     }
 
@@ -425,9 +429,11 @@ struct AppTheme: DynamicProperty {
     var boardTileMultiBase: Color {
         switch resolvedColorScheme {
         case .dark:
-            return Color.white.opacity(0.18)
+            // 部分踏破中の進捗を段階的に表すため、未踏破より明るく踏破済みより暗い 28% を中心値に設定
+            return Color.white.opacity(0.28)
         default:
-            return Color.black.opacity(0.1)
+            // ライトテーマも同じ思想で、未踏破 5% と踏破済み 32% の中間となる 18% を基準色とする
+            return Color.black.opacity(0.18)
         }
     }
 
