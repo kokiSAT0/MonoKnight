@@ -84,6 +84,57 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.pendingMenuAction, "プレイ開始前にペナルティ確認が設定されてはいけません")
     }
 
+    /// キャンペーンステージを連続でクリアした場合でも次の未クリアステージを newlyUnlockedStages に保持することを確認
+    func testNewlyUnlockedStagesRemainAfterClearingSameCampaignStageTwice() throws {
+        // UserDefaults の衝突を避けるため、テスト専用のスイートを生成する
+        let (defaults, suiteName) = try makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let progressStore = CampaignProgressStore(userDefaults: defaults)
+        let library = CampaignLibrary.shared
+        let stage11ID = CampaignStageID(chapter: 1, index: 1)
+        let stage12ID = CampaignStageID(chapter: 1, index: 2)
+
+        guard
+            let stage11 = library.stage(with: stage11ID),
+            let stage12 = library.stage(with: stage12ID)
+        else {
+            XCTFail("キャンペーンステージの定義取得に失敗しました")
+            return
+        }
+
+        XCTAssertFalse(progressStore.isStageUnlocked(stage12), "前提として 1-2 は初期状態でロックされている必要があります")
+
+        let core = GameCore(mode: stage11.makeGameMode())
+        let interfaces = GameModuleInterfaces { _ in core }
+        let viewModel = GameViewModel(
+            mode: stage11.makeGameMode(),
+            gameInterfaces: interfaces,
+            gameCenterService: DummyGameCenterService(),
+            adsService: DummyAdsService(),
+            campaignProgressStore: progressStore,
+            onRequestGameCenterSignIn: nil,
+            onRequestReturnToTitle: nil,
+            onRequestStartCampaignStage: nil
+        )
+
+        XCTAssertTrue(viewModel.newlyUnlockedStages.isEmpty, "プレイ前は newlyUnlockedStages が空である必要があります")
+
+        // 1 回目のクリアで次ステージが解放され、newlyUnlockedStages に含まれることを検証する
+        core.overrideMetricsForTesting(moveCount: 12, penaltyCount: 0, elapsedSeconds: 80)
+        viewModel.handleProgressChangeForTesting(.cleared)
+
+        XCTAssertTrue(progressStore.isStageUnlocked(stage12), "1-1 クリア後は 1-2 が解放される想定です")
+        XCTAssertEqual(viewModel.newlyUnlockedStages.map(\.id), [stage12.id], "解放直後は newlyUnlockedStages に 1-2 のみが含まれるべきです")
+        XCTAssertEqual(viewModel.latestCampaignClearRecord?.stage.id, stage11.id, "最新クリア記録が 1-1 になっている必要があります")
+
+        // 2 回目のクリアでも 1-2 を案内し続け、ボタン表示が維持されることを確認する
+        core.overrideMetricsForTesting(moveCount: 10, penaltyCount: 0, elapsedSeconds: 75)
+        viewModel.handleProgressChangeForTesting(.cleared)
+
+        XCTAssertEqual(viewModel.newlyUnlockedStages.map(\.id), [stage12.id], "2 回目のクリアでも未クリアの 1-2 を案内し続ける必要があります")
+    }
+
     /// テストで使い回す ViewModel と GameCore の組み合わせを生成するヘルパー
     private func makeViewModel(
         mode: GameMode,
@@ -99,6 +150,17 @@ final class GameViewModelTests: XCTestCase {
             onRequestReturnToTitle: onRequestReturnToTitle
         )
         return (viewModel, core)
+    }
+
+    /// テスト専用の UserDefaults スイートを作成し、永続化データの混在を防ぐ
+    private func makeIsolatedDefaults() throws -> (UserDefaults, String) {
+        let suiteName = "GameViewModelTests." + UUID().uuidString
+        guard let defaults = UserDefaults(suiteName: suiteName) else {
+            XCTFail("UserDefaults スイートの生成に失敗しました")
+            throw NSError(domain: "GameViewModelTests", code: -1)
+        }
+        defaults.removePersistentDomain(forName: suiteName)
+        return (defaults, suiteName)
     }
 }
 
