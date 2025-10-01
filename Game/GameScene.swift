@@ -73,6 +73,10 @@ public final class GameScene: SKScene {
     /// - NOTE: 将来的な整合性チェックやレイアウト調整時の参照に活用する
     private var latestMultipleGuidePoints: Set<GridPoint> = []
 
+    /// 強制表示ハイライトの最新座標集合を保持
+    /// - NOTE: 「リセット」などでガイドが空になっていない限り、直近状態を復元するためのソースとして利用する
+    private var latestForcedSelectionPoints: Set<GridPoint> = []
+
     /// レイアウト未確定時に受け取ったハイライト要求の待ち行列
     /// - Note: キーごとに候補座標を保持し、レイアウト確定後にまとめて構築する
     private var pendingHighlightPoints: [BoardHighlightKind: Set<GridPoint>] =
@@ -161,6 +165,7 @@ public final class GameScene: SKScene {
         highlightNodes = [:]
         latestSingleGuidePoints = []
         latestMultipleGuidePoints = []
+        latestForcedSelectionPoints = []
         pendingHighlightPoints = Dictionary(
             uniqueKeysWithValues: BoardHighlightKind.allCases.map { ($0, []) }
         )
@@ -542,6 +547,7 @@ public final class GameScene: SKScene {
         // 正規化済みの集合を保持し、描画更新前後で最新状態を参照できるようにする
         latestSingleGuidePoints = sanitized[.guideSingleCandidate] ?? []
         latestMultipleGuidePoints = sanitized[.guideMultipleCandidate] ?? []
+        latestForcedSelectionPoints = sanitized[.forcedSelection] ?? []
 
         let countsDescription = sanitized
             .map { "\($0.key)=\($0.value.count)" }
@@ -573,6 +579,7 @@ public final class GameScene: SKScene {
         // 即時反映時も最新集合を保持し、ノード再構成時に参照できるようにする
         latestSingleGuidePoints = highlights[.guideSingleCandidate] ?? []
         latestMultipleGuidePoints = highlights[.guideMultipleCandidate] ?? []
+        latestForcedSelectionPoints = highlights[.forcedSelection] ?? []
 
         for kind in BoardHighlightKind.allCases {
             let points = highlights[kind] ?? []
@@ -776,7 +783,24 @@ public final class GameScene: SKScene {
         let hasRenderedHighlights = highlightNodes.values.contains { !$0.isEmpty }
         guard hasPendingValues || hasRenderedHighlights else { return }
 
-        applyHighlightsImmediately(snapshot)
+        if hasPendingValues {
+            // 未処理のハイライトが存在する場合はそのまま反映する
+            applyHighlightsImmediately(snapshot)
+        } else if hasRenderedHighlights {
+            // pending が空でも既存ガイドを維持するため、直近状態を組み直して適用する
+            let latestSnapshot: [BoardHighlightKind: Set<GridPoint>] = [
+                .guideSingleCandidate: latestSingleGuidePoints,
+                .guideMultipleCandidate: latestMultipleGuidePoints,
+                .forcedSelection: latestForcedSelectionPoints
+            ]
+            let hasLatestValues = latestSnapshot.values.contains { !$0.isEmpty }
+            if hasLatestValues {
+                applyHighlightsImmediately(latestSnapshot)
+            } else {
+                // 直近状態も空であれば、既存ノードを確実に破棄するため空集合で再適用する
+                applyHighlightsImmediately(snapshot)
+            }
+        }
 
         // `flushPendingUpdatesIfNeeded` から呼び出された際も、再構成が完了した時点で保留分をクリアする
         for kind in BoardHighlightKind.allCases {
