@@ -58,8 +58,8 @@ struct Deck {
         static let standard: Configuration = {
             // 元々の重み計算をここで再現する
             var weights: [MoveCard: Int] = [:]
-            weights.reserveCapacity(MoveCard.allCases.count)
-            for card in MoveCard.allCases {
+            weights.reserveCapacity(MoveCard.standardSet.count)
+            for card in MoveCard.standardSet {
                 let weight: Int
                 if card.isKingType {
                     // キング型は 1.5 倍の重み（整数比 3）
@@ -74,7 +74,7 @@ struct Deck {
                 weights[card] = weight
             }
             return Configuration(
-                allowedMoves: MoveCard.allCases,
+                allowedMoves: MoveCard.standardSet,
                 baseWeights: weights,
                 shouldApplyProbabilityReduction: true,
                 normalWeightMultiplier: 4,
@@ -86,7 +86,7 @@ struct Deck {
 
         /// クラシカルチャレンジ向け設定（桂馬のみ・均等抽選）
         static let classicalChallenge: Configuration = {
-            let knightMoves = MoveCard.allCases.filter { $0.isKnightType }
+            let knightMoves = MoveCard.standardSet.filter { $0.isKnightType }
             let weights = Dictionary(uniqueKeysWithValues: knightMoves.map { ($0, 1) })
             return Configuration(
                 allowedMoves: knightMoves,
@@ -101,7 +101,7 @@ struct Deck {
 
         /// 王将型カードのみを排出する短距離構成
         static let kingOnly: Configuration = {
-            let kingMoves = MoveCard.allCases.filter { $0.isKingType }
+            let kingMoves = MoveCard.standardSet.filter { $0.isKingType }
             let weights = Dictionary(uniqueKeysWithValues: kingMoves.map { ($0, 1) })
             return Configuration(
                 allowedMoves: kingMoves,
@@ -111,6 +111,41 @@ struct Deck {
                 reducedWeightMultiplier: 1,
                 reductionDuration: 0,
                 deckSummaryText: "王将カードのみ"
+            )
+        }()
+
+        /// 上下左右を選択できる複数方向カードを含む 5×5 盤向け構成
+        static let directionChoice: Configuration = {
+            // まず従来 24 種の重みをスタンダードと同様に計算する
+            var weights: [MoveCard: Int] = [:]
+            weights.reserveCapacity(MoveCard.standardSet.count + 2)
+            for card in MoveCard.standardSet {
+                let weight: Int
+                if card.isKingType {
+                    weight = 3
+                } else if card.isDiagonalDistanceFour {
+                    weight = 1
+                } else {
+                    weight = 2
+                }
+                weights[card] = weight
+            }
+
+            // 選択肢付きカードはキング相当の取り回しとする
+            let choiceCards: [MoveCard] = [.kingUpOrDown, .kingLeftOrRight]
+            for card in choiceCards {
+                weights[card] = 3
+            }
+
+            let allowedMoves = MoveCard.standardSet + choiceCards
+            return Configuration(
+                allowedMoves: allowedMoves,
+                baseWeights: weights,
+                shouldApplyProbabilityReduction: true,
+                normalWeightMultiplier: 4,
+                reducedWeightMultiplier: 3,
+                reductionDuration: 5,
+                deckSummaryText: "選択式キングカード入り"
             )
         }()
     }

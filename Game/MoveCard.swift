@@ -1,12 +1,13 @@
 import Foundation
 
 /// 駒を移動させるカードの種類を定義する列挙型
-/// - Note: 周囲 1 マスのキング型 8 種、ナイト型 8 種、距離 2 の直線/斜め 8 種の計 24 種をサポート
+/// - Note: 周囲 1 マスのキング型 8 種、ナイト型 8 種、距離 2 の直線/斜め 8 種の計 24 種に加え、キャンペーン専用の複数方向カードをサポート
 /// - Note: SwiftUI モジュールからも扱うため `public` とし、全ケース配列も公開する
 public enum MoveCard: CaseIterable {
-    // MARK: - 全ケース一覧
-    /// `CaseIterable` の自動生成は internal となるため、外部モジュールからも全種類を参照できるよう明示的に公開配列を定義する
-    public static let allCases: [MoveCard] = [
+    // MARK: - 定義済みセット
+    /// 標準デッキで採用している 24 種類のカード集合
+    /// - Important: 新しいカードを追加した際もスタンダード構成へ混入しないよう、この配列を基準に管理する
+    public static let standardSet: [MoveCard] = [
         .kingUp,
         .kingUpRight,
         .kingRight,
@@ -33,6 +34,14 @@ public enum MoveCard: CaseIterable {
         .diagonalUpLeft2
     ]
 
+    // MARK: - 全ケース一覧
+    /// `CaseIterable` の自動生成は internal となるため、外部モジュールからも全種類を参照できるよう明示的に公開配列を定義する
+    /// - Note: スタンダードセットに複数方向カードを加えた順序で公開する
+    public static let allCases: [MoveCard] = standardSet + [
+        .kingUpOrDown,
+        .kingLeftOrRight
+    ]
+
     // MARK: - ケース定義
     /// キング型: 上に 1
     case kingUp
@@ -50,6 +59,10 @@ public enum MoveCard: CaseIterable {
     case kingLeft
     /// キング型: 左上に 1
     case kingUpLeft
+    /// キング型: 上下いずれか 1 マスの選択移動
+    case kingUpOrDown
+    /// キング型: 左右いずれか 1 マスの選択移動
+    case kingLeftOrRight
 
     /// ナイト型: 上に 2、右に 1
     case knightUp2Right1
@@ -126,6 +139,18 @@ public enum MoveCard: CaseIterable {
             return [MoveVector(dx: -1, dy: 0)]
         case .kingUpLeft:
             return [MoveVector(dx: -1, dy: 1)]
+        case .kingUpOrDown:
+            // 上下方向のいずれかを後から選択するため 2 候補を返す
+            return [
+                MoveVector(dx: 0, dy: 1),
+                MoveVector(dx: 0, dy: -1)
+            ]
+        case .kingLeftOrRight:
+            // 左右方向のいずれかを後から選択するため 2 候補を返す
+            return [
+                MoveVector(dx: 1, dy: 0),
+                MoveVector(dx: -1, dy: 0)
+            ]
         case .knightUp2Right1:
             return [MoveVector(dx: 1, dy: 2)]
         case .knightUp2Left1:
@@ -199,6 +224,12 @@ public enum MoveCard: CaseIterable {
         case .kingUpLeft:
             // キング型: 左上方向へ 1 マス移動
             return "左上1"
+        case .kingUpOrDown:
+            // キング型: 上下のどちらか 1 マスを選択する特別カード
+            return "上下1 (選択)"
+        case .kingLeftOrRight:
+            // キング型: 左右のどちらか 1 マスを選択する特別カード
+            return "左右1 (選択)"
         case .knightUp2Right1: return "上2右1"
         case .knightUp2Left1: return "上2左1"
         case .knightUp1Right2: return "上1右2"
@@ -230,7 +261,9 @@ public enum MoveCard: CaseIterable {
              .kingDown,
              .kingDownLeft,
              .kingLeft,
-             .kingUpLeft:
+             .kingUpLeft,
+             .kingUpOrDown,
+             .kingLeftOrRight:
             return true
         default:
             return false

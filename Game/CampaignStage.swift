@@ -438,6 +438,40 @@ public struct CampaignLibrary {
             stages: [stage21]
         )
 
-        return [chapter1, chapter2]
+        // MARK: - 3 章のステージ群
+        // スタンダード 5×5 をベースに、複数方向候補カードの扱いを学ぶ章
+        let standardPenalties = GameMode.standard.penalties
+
+        let stage31 = CampaignStage(
+            id: CampaignStageID(chapter: 3, index: 1),
+            title: "選択訓練",
+            summary: "上下・左右の選択式キングカードを活用して盤面全体を踏破しましょう。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .directionChoice,
+                spawnRule: .fixed(BoardGeometry.defaultSpawnPoint(for: 5)),
+                penalties: GameMode.PenaltySettings(
+                    deadlockPenaltyCost: standardPenalties.deadlockPenaltyCost,
+                    manualRedrawPenaltyCost: standardPenalties.manualRedrawPenaltyCost,
+                    manualDiscardPenaltyCost: standardPenalties.manualDiscardPenaltyCost,
+                    revisitPenaltyCost: standardPenalties.revisitPenaltyCost
+                )
+            ),
+            secondaryObjective: .finishWithoutPenalty,
+            scoreTarget: 600,
+            unlockRequirement: .stageClear(stage21.id)
+        )
+
+        let chapter3 = CampaignChapter(
+            id: 3,
+            title: "多方向訓練",
+            summary: "複数候補カードを使い分ける章。",
+            stages: [stage31]
+        )
+
+        return [chapter1, chapter2, chapter3]
     }
 }
