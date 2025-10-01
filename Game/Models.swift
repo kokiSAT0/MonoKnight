@@ -220,7 +220,7 @@ public struct BoardTapPlayRequest: Identifiable, Equatable {
     public let id: UUID
     /// 盤面タップ時に対応する手札スタックの識別子
     public let stackID: UUID
-    /// `GameCore.playCard(at:)` に渡すインデックス
+    /// `GameCore.playCard(using:)` に渡す候補のうち、スタック位置を識別するためのインデックス
     public let stackIndex: Int
     /// アニメーション用に参照するスタック先頭のカード
     public let topCard: DealtCard

@@ -244,7 +244,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
         guard let topCard = stack.topCard else { return false }
 
         // 現在の手札状況に基づく使用可能カードを検索し、該当スタックの候補を取得する
-        // - Note: availableMoves() 側が primaryVector で位置を算出するため、複数候補カードを導入してもここでの分岐は据え置ける
+        // - Note: availableMoves() がカード内の全ベクトルを展開しているため、複数候補カードでもここから 1 件を選ぶだけで良い
         guard let resolvedMove = core.availableMoves().first(where: { candidate in
             candidate.stackID == stack.id && candidate.card.id == topCard.id
         }) else {
@@ -281,7 +281,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + travelDuration) { [weak self] in
             guard let self else { return }
             withAnimation(.easeInOut(duration: 0.22)) {
-                self.core.playCard(at: resolvedMove.stackIndex)
+                self.core.playCard(using: resolvedMove)
             }
             self.hiddenCardIDs.remove(cardID)
             if self.animatingCard?.id == cardID {

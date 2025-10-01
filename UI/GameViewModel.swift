@@ -278,13 +278,16 @@ final class GameViewModel: ObservableObject {
             return
         }
 
-        // primaryVector を介して移動先を算出する。複数候補カード追加時もここで分岐を整理できるようにするための布石。
-        let vector = card.move.primaryVector
-        let destination = current.offset(dx: vector.dx, dy: vector.dy)
-        if core.board.contains(destination) {
-            boardBridge.updateForcedSelectionHighlights([destination])
-        } else {
+        // GameCore.availableMoves() が返す候補の中から対象スタックに一致するものを抽出し、複数ベクトルの全候補をハイライトする
+        let resolvedMoves = core.availableMoves().filter { candidate in
+            candidate.stackID == stack.id && candidate.card.id == card.id
+        }
+        let destinations = Set(resolvedMoves.map { $0.destination }.filter { core.board.contains($0) })
+
+        if destinations.isEmpty {
             boardBridge.updateForcedSelectionHighlights([])
+        } else {
+            boardBridge.updateForcedSelectionHighlights(destinations)
         }
     }
 

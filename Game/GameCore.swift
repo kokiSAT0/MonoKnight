@@ -113,31 +113,61 @@ public final class GameCore: ObservableObject {
     /// - Parameter index: 手札配列の位置（0〜4）
 
     public func playCard(at index: Int) {
+        // 既存の API 互換性維持用。primaryVector を利用した単一候補カード向けのラッパーとして振る舞わせる。
+        guard handStacks.indices.contains(index) else { return }
+        let stack = handStacks[index]
+        guard let origin = current, let card = stack.topCard else { return }
+
+        // primaryVector が盤内へ届く場合のみ ResolvedCardMove を生成し、新しい API へ委譲する。
+        guard let vector = card.move.movementVectors.first else { return }
+        let destination = origin.offset(dx: vector.dx, dy: vector.dy)
+        guard board.contains(destination) else { return }
+
+        let resolved = ResolvedCardMove(
+            stackID: stack.id,
+            stackIndex: index,
+            card: card,
+            moveVector: vector,
+            destination: destination
+        )
+
+        playCard(using: resolved)
+    }
+
+    /// ResolvedCardMove で指定されたベクトルを用いてカードをプレイする
+    /// - Parameter resolvedMove: `availableMoves()` が返す候補の 1 つ
+    public func playCard(using resolvedMove: ResolvedCardMove) {
         // スポーン待ちやクリア済み・ペナルティ中は操作不可
         guard progress == .playing, let currentPosition = current else { return }
         // 捨て札モード中は移動を開始せず安全に抜ける
         guard !isAwaitingManualDiscardSelection else { return }
-        // インデックスが範囲内か確認（0〜手札スロット数-1 の範囲を想定）
-        guard handStacks.indices.contains(index) else { return }
-        let stack = handStacks[index]
-        guard let card = stack.topCard else { return }
-        // primaryVector を経由することで、将来的に複数候補を持つカードでも同じ分岐から処理を広げられる
-        let vector = card.move.primaryVector
-        let target = currentPosition.offset(dx: vector.dx, dy: vector.dy)
+        // UI 側で保持していた情報が古くなっていないかを安全確認
+        guard handStacks.indices.contains(resolvedMove.stackIndex) else { return }
+        let stack = handStacks[resolvedMove.stackIndex]
+        guard stack.id == resolvedMove.stackID else { return }
+        guard let card = stack.topCard, card.id == resolvedMove.card.id, card.move == resolvedMove.card.move else { return }
+        // 候補ベクトルが現在のカードに含まれているか検証し、不正な入力を排除する
+        guard card.move.movementVectors.contains(resolvedMove.moveVector) else { return }
+
+        let computedDestination = currentPosition.offset(dx: resolvedMove.moveVector.dx, dy: resolvedMove.moveVector.dy)
+        // ResolvedCardMove が古い現在地から算出された場合は破棄する（UI との同期ズレ対策）
+        guard computedDestination == resolvedMove.destination else { return }
         // UI 側で無効カードを弾く想定だが、念のため安全確認
-        guard board.contains(target) else { return }
+        guard board.contains(computedDestination) else { return }
 
         // 盤面タップからのリクエストが残っている場合に備え、念のためここでクリアしておく
         boardTapPlayRequest = nil
 
-        // デバッグログ: 使用カードと移動先を出力
-        debugLog("カード \(card.move) を使用し \(currentPosition) -> \(target) へ移動")
+        // デバッグログ: 使用カードと移動先を出力（複数候補カードでも選択ベクトルを追跡できるよう詳細を含める）
+        debugLog(
+            "カード \(card.move) を使用し \(currentPosition) -> \(computedDestination) へ移動 (vector=\(resolvedMove.moveVector))"
+        )
 
-        let revisiting = board.isVisited(target)
+        let revisiting = board.isVisited(computedDestination)
 
         // 移動処理
-        current = target
-        board.markVisited(target)
+        current = computedDestination
+        board.markVisited(computedDestination)
         moveCount += 1
 
         // 既踏マスへ戻った場合はフラグを立て、必要に応じてペナルティを加算する
@@ -154,7 +184,7 @@ public final class GameCore: ObservableObject {
         announceRemainingTiles()
 
         // 使用済みカードは即座に破棄し、スタックから除去（残数がゼロになったらスタックごと取り除く）
-        let removedIndex = handManager.consumeTopCard(at: index)
+        let removedIndex = handManager.consumeTopCard(at: resolvedMove.stackIndex)
 
         // スロットの空きを埋めた上で並び順・先読みを整える
         rebuildHandAndNext(preferredInsertionIndices: removedIndex.map { [$0] } ?? [])
@@ -205,21 +235,23 @@ public final class GameCore: ObservableObject {
         for (index, stack) in referenceHandStacks.enumerated() {
             // トップカードが存在しなければスキップ
             guard let topCard = stack.topCard else { continue }
-            // primaryVector を使えば複数候補カード導入時にここで候補展開を切り替えられる
-            let vector = topCard.move.primaryVector
-            let destination = origin.offset(dx: vector.dx, dy: vector.dy)
-            // 盤面外の移動は候補から除外
-            guard activeBoard.contains(destination) else { continue }
 
-            resolved.append(
-                ResolvedCardMove(
-                    stackID: stack.id,
-                    stackIndex: index,
-                    card: topCard,
-                    moveVector: vector,
-                    destination: destination
+            // MoveCard.movementVectors が保持する全候補を展開し、1 ベクトルずつ ResolvedCardMove に変換する
+            for vector in topCard.move.movementVectors {
+                let destination = origin.offset(dx: vector.dx, dy: vector.dy)
+                // 盤面外の移動は候補から除外
+                guard activeBoard.contains(destination) else { continue }
+
+                resolved.append(
+                    ResolvedCardMove(
+                        stackID: stack.id,
+                        stackIndex: index,
+                        card: topCard,
+                        moveVector: vector,
+                        destination: destination
+                    )
                 )
-            )
+            }
         }
 
         // y→x→スタック順で並び替えることで、同一座標のカードが隣接する形で得られる
