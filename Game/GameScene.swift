@@ -674,13 +674,35 @@ public final class GameScene: SKScene {
             let segmentLength = circumference / CGFloat(requirement)
             let dashLength = max(segmentLength * 0.7, overlayNode.lineWidth * 0.9)
             let gapLength = max(segmentLength - dashLength, overlayNode.lineWidth * 0.6)
-            overlayNode.lineDashPattern = [
-                NSNumber(value: Double(dashLength)),
-                NSNumber(value: Double(gapLength))
-            ]
-            overlayNode.lineDashPhase = 0
-        } else {
-            overlayNode.lineDashPattern = nil
+
+            // SpriteKit の `lineDashPattern` は一部プラットフォームで利用できないため、円弧パスを自前で組み立てて疑似的な破線を表現する
+            // NOTE: 弧長 = 半径 × 角度 を利用して、線分長に応じた角度へ変換することで元の比率を再現する
+            let dashAngle = max(dashLength / max(radius, 0.1), 0)
+            let gapAngle = max(gapLength / max(radius, 0.1), 0)
+            let path = CGMutablePath()
+            var currentAngle = -CGFloat.pi / 2
+
+            for _ in 0 ..< requirement {
+                let startAngle = currentAngle
+                let endAngle = min(startAngle + dashAngle, startAngle + segmentLength)
+                // addArc は現在位置から弧を描くため、事前に座標へ移動して接続線が発生しないようにする
+                let startPoint = CGPoint(
+                    x: cos(startAngle) * radius,
+                    y: sin(startAngle) * radius
+                )
+                path.move(to: startPoint)
+                path.addArc(
+                    center: .zero,
+                    radius: radius,
+                    startAngle: startAngle,
+                    endAngle: endAngle,
+                    clockwise: false
+                )
+                currentAngle = endAngle + gapAngle
+            }
+
+            overlayNode.path = path
+            overlayNode.zRotation = 0
         }
     }
 
