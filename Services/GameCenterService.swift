@@ -139,6 +139,18 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
     ///   - completion: 認証結果を受け取るクロージャ（省略可能）
     /// - Note: UI から呼び出し、完了後に状態を更新する想定
     func authenticateLocalPlayer(completion: ((Bool) -> Void)? = nil) {
+        // --- 既に認証済みの場合の早期リターン ---
+        // 設定アプリなどで事前にサインイン済みのケースでは、追加 UI を表示せず
+        // 直ちに状態を同期することでスピナー表示時間を最小化する
+        if GKLocalPlayer.local.isAuthenticated {
+            // GameKit が返す状態をそのままローカルキャッシュへ反映
+            isAuthenticated = true
+            // アクセスポイント表示ポリシーもここで更新し、UI の一貫性を保つ
+            refreshAccessPointVisibility()
+            completion?(true)
+            return
+        }
+
         // --- テストモード判定 ---
         // 環境変数 "GC_TEST_ACCOUNT" に値が入っている場合は
         // ダミー認証を行い、GameKit の UI を全てスキップする
