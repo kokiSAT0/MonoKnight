@@ -175,6 +175,55 @@ final class GameCoreTests: XCTestCase {
         }
     }
 
+    /// 複数候補ベクトルを持つカードでも availableMoves と playCard(using:) で選択的に移動できるかを検証
+    func testPlayCardUsingResolvedMoveSupportsMultipleVectors() {
+        // テスト実行中のみキング上カードへ上下 2 ベクトルを付与し、複数候補カードを再現する
+        MoveCard.setTestMovementVectors([
+            MoveVector(dx: 0, dy: 1),
+            MoveVector(dx: 0, dy: -1)
+        ], for: .kingUp)
+        defer { MoveCard.setTestMovementVectors(nil, for: .kingUp) }
+
+        let deck = Deck.makeTestDeck(cards: [
+            .kingUp,
+            .kingRight,
+            .kingDown,
+            .kingLeft,
+            .kingUpLeft,
+            .straightUp2,
+            .straightRight2,
+            .diagonalUpRight2,
+            .diagonalUpLeft2,
+            .straightDown2
+        ])
+        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 2, y: 2))
+
+        let moves = core.availableMoves()
+        let kingMoves = moves.filter { $0.card.move == .kingUp }
+
+        XCTAssertEqual(kingMoves.count, 2, "複数候補カードのベクトル展開数が想定と異なる")
+        XCTAssertEqual(
+            Set(kingMoves.map { $0.destination }),
+            Set([
+                GridPoint(x: 2, y: 3),
+                GridPoint(x: 2, y: 1)
+            ]),
+            "複数候補カードの移動先が正しく算出されていない"
+        )
+
+        guard let downwardMove = kingMoves.first(where: { $0.moveVector.dy == -1 }) else {
+            XCTFail("下方向へ移動する候補が見つからない")
+            return
+        }
+
+        core.playCard(using: downwardMove)
+
+        XCTAssertEqual(core.current, GridPoint(x: 2, y: 1), "選択したベクトルで移動できていない")
+        XCTAssertEqual(core.moveCount, 1, "移動回数の加算が行われていない")
+        XCTAssertTrue(core.board.isVisited(GridPoint(x: 2, y: 1)), "移動後マスが踏破扱いになっていない")
+        XCTAssertFalse(core.board.isVisited(GridPoint(x: 2, y: 3)), "未選択方向まで踏破扱いになっている")
+    }
+
     /// reset() が初期状態に戻すかを確認
     func testResetReturnsToInitialState() {
         // 上と同じデッキ構成で GameCore を生成し、ペナルティ適用後の状態から開始
@@ -204,7 +253,7 @@ final class GameCoreTests: XCTestCase {
 
         // 手札の中から使用可能なカードを 1 枚選び、実際に移動させる
         if let resolved = core.availableMoves().first {
-            core.playCard(at: resolved.stackIndex)
+            core.playCard(using: resolved)
         }
         // 移動が記録されているか確認
         XCTAssertEqual(core.moveCount, 1, "移動後の手数が想定通りではない")

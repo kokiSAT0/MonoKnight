@@ -89,7 +89,26 @@ public enum MoveCard: CaseIterable {
     // MARK: - 移動ベクトル
     /// カードが持つ移動候補一覧を返す
     /// - Important: 現行カードは 1 要素のみだが、今後複数候補を持つカード追加時に拡張しやすいよう配列で保持する
+    /// テスト向けに movementVectors を差し替えるためのオーバーライド辞書
+    /// - Note: テスト完了後は必ず nil を指定してクリーンアップし、副作用を残さないようにする
+    static var testMovementVectorOverrides: [MoveCard: [MoveVector]] = [:]
+
+    /// movementVectors を一時的に差し替えるヘルパー
+    /// - Parameters:
+    ///   - vectors: 差し替え後の移動ベクトル配列。nil を渡すと元の定義に戻す。
+    ///   - card: 対象となるカード種別
+    static func setTestMovementVectors(_ vectors: [MoveVector]?, for card: MoveCard) {
+        if let vectors {
+            testMovementVectorOverrides[card] = vectors
+        } else {
+            testMovementVectorOverrides.removeValue(forKey: card)
+        }
+    }
+
     public var movementVectors: [MoveVector] {
+        if let override = MoveCard.testMovementVectorOverrides[self] {
+            return override
+        }
         switch self {
         case .kingUp:
             return [MoveVector(dx: 0, dy: 1)]
