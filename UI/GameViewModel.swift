@@ -763,7 +763,19 @@ final class GameViewModel: ObservableObject {
 
         // 更新後の解放状況を再評価し、今回のクリアで新たに解放されたステージのみ抽出する
         let unlockedStagesAfter = campaignLibrary.allStages.filter { campaignProgressStore.isStageUnlocked($0) }
-        newlyUnlockedStages = unlockedStagesAfter.filter { !unlockedStageIDsBefore.contains($0.id) }
+        let unlockedDiff = unlockedStagesAfter.filter { !unlockedStageIDsBefore.contains($0.id) }
+
+        if unlockedDiff.isEmpty {
+            // 差分が空の場合は「既に解放済みだが未クリアのステージ」を再提示し、ResultView のボタンが消えないようにする
+            newlyUnlockedStages = campaignLibrary.allStages.filter { stage in
+                // earnedStars が 0 のままなら未クリア扱いなので、ユーザーに次の行き先として案内する
+                campaignProgressStore.isStageUnlocked(stage) &&
+                    (campaignProgressStore.progress(for: stage.id)?.earnedStars ?? 0) == 0
+            }
+        } else {
+            // 通常ケースでは今回のクリアで解放されたステージのみを提示する
+            newlyUnlockedStages = unlockedDiff
+        }
     }
 
     /// 新しく解放されたキャンペーンステージへ遷移するリクエストを処理する
@@ -780,6 +792,15 @@ final class GameViewModel: ObservableObject {
         }
     }
 }
+
+#if DEBUG || canImport(XCTest)
+extension GameViewModel {
+    /// テスト専用ラッパー: プライベートな進行状態ハンドラを直接呼び出し、リザルト挙動を検証する
+    func handleProgressChangeForTesting(_ progress: GameProgress) {
+        handleProgressChange(progress)
+    }
+}
+#endif
 
 /// ゲーム画面のメニュー操作を表す列挙型
 enum GameMenuAction: Hashable, Identifiable {
