@@ -214,3 +214,20 @@ public final class HandManager: ObservableObject {
         replenishNextPreview(using: &deck)
     }
 }
+
+#if DEBUG
+/// デバッグビルドで手札を直接差し替えるためのサポートメソッド
+extension HandManager {
+    /// テスト用に手札スタックを任意の配列へ上書きする
+    /// - Parameter stacks: 適用したい手札スタック配列
+    func overrideHandStacksForTesting(_ stacks: [HandStack]) {
+        handStacks = stacks
+    }
+
+    /// テスト用に NEXT 表示カードを任意の配列へ上書きする
+    /// - Parameter cards: 適用したいカード配列
+    func overrideNextCardsForTesting(_ cards: [DealtCard]) {
+        nextCards = cards
+    }
+}
+#endif

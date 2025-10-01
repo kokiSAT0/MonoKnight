@@ -33,6 +33,24 @@ public enum MoveCard: CaseIterable {
         .diagonalUpLeft2
     ]
 
+#if DEBUG
+    /// テストやプレビューで移動候補を一時的に差し替えるためのオーバーライドキャッシュ
+    /// - Note: 実際のゲームロジックへ影響を与えないよう、`DEBUG` ビルドでのみ有効化している。
+    private static var debugMovementOverrides: [MoveCard: [MoveVector]] = [:]
+
+    /// 指定カードの移動ベクトルをテスト専用に上書きする
+    /// - Parameters:
+    ///   - vectors: 差し替えたい移動ベクトル配列。`nil` を渡すと上書きを解除する。
+    ///   - card: 対象となるカード種別
+    public static func setMovementOverrideForTesting(_ vectors: [MoveVector]?, for card: MoveCard) {
+        if let vectors {
+            debugMovementOverrides[card] = vectors
+        } else {
+            debugMovementOverrides.removeValue(forKey: card)
+        }
+    }
+#endif
+
     // MARK: - ケース定義
     /// キング型: 上に 1
     case kingUp
@@ -90,6 +108,11 @@ public enum MoveCard: CaseIterable {
     /// カードが持つ移動候補一覧を返す
     /// - Important: 現行カードは 1 要素のみだが、今後複数候補を持つカード追加時に拡張しやすいよう配列で保持する
     public var movementVectors: [MoveVector] {
+#if DEBUG
+        if let override = MoveCard.debugMovementOverrides[self] {
+            return override
+        }
+#endif
         switch self {
         case .kingUp:
             return [MoveVector(dx: 0, dy: 1)]
@@ -257,10 +280,11 @@ public enum MoveCard: CaseIterable {
     ///   - boardSize: 判定対象となる盤面サイズ
     /// - Returns: 盤内に移動できる場合は true
     public func canUse(from: GridPoint, boardSize: Int) -> Bool {
-        // 代表ベクトルを通じて移動先を求める。複数候補カード追加時もここを起点に分岐を検討する
-        let vector = primaryVector
-        let destination = from.offset(dx: vector.dx, dy: vector.dy)
-        return destination.isInside(boardSize: boardSize)
+        // すべての候補ベクトルを評価し、いずれか 1 つでも盤内へ到達できれば使用可能とみなす
+        return movementVectors.contains { vector in
+            let destination = from.offset(dx: vector.dx, dy: vector.dy)
+            return destination.isInside(boardSize: boardSize)
+        }
     }
 }
 

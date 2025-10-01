@@ -224,6 +224,10 @@ public struct BoardTapPlayRequest: Identifiable, Equatable {
     public let stackIndex: Int
     /// アニメーション用に参照するスタック先頭のカード
     public let topCard: DealtCard
+    /// 移動候補が持つベクトル（複数候補カード対応のため保持）
+    public let moveVector: MoveVector
+    /// タップしたマスの座標
+    public let destination: GridPoint
 
     /// 公開イニシャライザ
     /// - Parameters:
@@ -231,11 +235,33 @@ public struct BoardTapPlayRequest: Identifiable, Equatable {
     ///   - stackID: 対象スタックの識別子
     ///   - stackIndex: 手札スロット内での位置
     ///   - topCard: 要求時点での先頭カード
-    public init(id: UUID = UUID(), stackID: UUID, stackIndex: Int, topCard: DealtCard) {
+    ///   - moveVector: タップで選択された移動ベクトル
+    ///   - destination: ベクトル適用後に到達する座標
+    public init(
+        id: UUID = UUID(),
+        stackID: UUID,
+        stackIndex: Int,
+        topCard: DealtCard,
+        moveVector: MoveVector,
+        destination: GridPoint
+    ) {
         self.id = id
         self.stackID = stackID
         self.stackIndex = stackIndex
         self.topCard = topCard
+        self.moveVector = moveVector
+        self.destination = destination
+    }
+
+    /// 要求内容から `ResolvedCardMove` を生成するためのヘルパー
+    public var resolvedMove: ResolvedCardMove {
+        ResolvedCardMove(
+            stackID: stackID,
+            stackIndex: stackIndex,
+            card: topCard,
+            moveVector: moveVector,
+            destination: destination
+        )
     }
 
     /// Equatable 実装

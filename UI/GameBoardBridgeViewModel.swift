@@ -40,6 +40,8 @@ final class GameBoardBridgeViewModel: ObservableObject {
     private var forcedSelectionHighlightPoints: Set<GridPoint> = []
     /// スタックごとのトップカード ID を追跡し、レイアウト同期を最適化する
     @Published var topCardIDsByStack: [UUID: UUID] = [:]
+    /// ボードタップの再生要求を上位 ViewModel へ伝搬するためのクロージャ
+    var onBoardTapPlayRequest: ((BoardTapPlayRequest) -> Void)?
 
     /// ガイド表示が有効かどうか
     private(set) var guideModeEnabled = true
@@ -192,7 +194,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
             return
         }
 
-        // GameCore.availableMoves() 内で primaryVector が評価されるため、複数候補カード追加後もここから同じインターフェースで受け取れる
+        // GameCore.availableMoves() が複数候補も展開して返すため、ここではそのまま候補一覧を流用できる
         let resolvedMoves = core.availableMoves(handStacks: handStacks, current: current)
         let candidatePoints = Set(resolvedMoves.map { $0.destination })
 
@@ -232,23 +234,46 @@ final class GameBoardBridgeViewModel: ObservableObject {
         debugLog("強制ハイライト更新: 候補=\(validPoints.count)")
     }
 
+    /// 原点座標と移動ベクトル集合から強制ハイライトを生成する
+    /// - Parameters:
+    ///   - origin: 駒の現在位置
+    ///   - vectors: ハイライトしたい移動ベクトル列
+    func updateForcedSelectionHighlights(origin: GridPoint, vectors: [MoveVector]) {
+        let candidatePoints = Set(vectors.map { vector in
+            origin.offset(dx: vector.dx, dy: vector.dy)
+        })
+        updateForcedSelectionHighlights(candidatePoints)
+    }
+
     /// 指定スタックを盤面演出に乗せる
     /// - Parameters:
     ///   - stack: 対象となる手札スタック
     ///   - index: GameCore に渡すスタックの位置
     /// - Returns: 演出開始に成功したら true
     @discardableResult
-    func animateCardPlay(for stack: HandStack, at index: Int) -> Bool {
+    func animateCardPlay(using move: ResolvedCardMove) -> Bool {
         guard animatingCard == nil else { return false }
         guard core.current != nil else { return false }
-        guard let topCard = stack.topCard else { return false }
 
-        // 現在の手札状況に基づく使用可能カードを検索し、該当スタックの候補を取得する
-        // - Note: availableMoves() 側が primaryVector で位置を算出するため、複数候補カードを導入してもここでの分岐は据え置ける
-        guard let resolvedMove = core.availableMoves().first(where: { candidate in
-            candidate.stackID == stack.id && candidate.card.id == topCard.id
-        }) else {
-            debugLog("スタック演出を中止: 使用可能リストに該当カードなし stackID=\(stack.id)")
+        // スタックの位置が変化していても stackID を基準に最新状態を取得する
+        let resolvedIndex: Int
+        if core.handStacks.indices.contains(move.stackIndex), core.handStacks[move.stackIndex].id == move.stackID {
+            resolvedIndex = move.stackIndex
+        } else if let fallback = core.handStacks.firstIndex(where: { $0.id == move.stackID }) {
+            resolvedIndex = fallback
+        } else {
+            debugLog("スタック演出を中止: 対象 stack が見つからない stackID=\(move.stackID)")
+            return false
+        }
+
+        let stack = core.handStacks[resolvedIndex]
+        guard let topCard = stack.topCard else {
+            debugLog("スタック演出を中止: トップカードなし stackID=\(stack.id)")
+            return false
+        }
+
+        guard topCard.id == move.card.id else {
+            debugLog("スタック演出を中止: トップカードが変化 stackID=\(stack.id)")
             return false
         }
 
@@ -257,16 +282,13 @@ final class GameBoardBridgeViewModel: ObservableObject {
             updateForcedSelectionHighlights([])
         }
 
-        // 現在位置からカードの移動量を適用し、演出で目指す盤面座標を算出する
-        // ここをプレイ前の現在地で固定してしまうと、カードが正しいマスへ移動しないため注意する
-        let targetPoint = resolvedMove.destination
-        animationTargetGridPoint = targetPoint
+        animationTargetGridPoint = move.destination
         hiddenCardIDs.insert(topCard.id)
         animatingCard = topCard
         animatingStackID = stack.id
         animationState = .idle
 
-        debugLog("スタック演出開始: stackID=\(stack.id) card=\(topCard.move.displayName) 残枚数=\(stack.count)")
+        debugLog("スタック演出開始: stackID=\(stack.id) card=\(topCard.move.displayName) 候補座標=\(move.destination)")
 
         if hapticsEnabled {
             UINotificationFeedbackGenerator().notificationOccurred(.success)
@@ -278,10 +300,18 @@ final class GameBoardBridgeViewModel: ObservableObject {
         }
 
         let cardID = topCard.id
+        let preparedMove = ResolvedCardMove(
+            stackID: stack.id,
+            stackIndex: resolvedIndex,
+            card: topCard,
+            moveVector: move.moveVector,
+            destination: move.destination
+        )
+
         DispatchQueue.main.asyncAfter(deadline: .now() + travelDuration) { [weak self] in
             guard let self else { return }
             withAnimation(.easeInOut(duration: 0.22)) {
-                self.core.playCard(at: resolvedMove.stackIndex)
+                self.core.playCard(using: preparedMove)
             }
             self.hiddenCardIDs.remove(cardID)
             if self.animatingCard?.id == cardID {
@@ -290,7 +320,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
             self.animatingStackID = nil
             self.animationState = .idle
             self.animationTargetGridPoint = nil
-            debugLog("スタック演出完了: index=\(index) cardID=\(cardID)")
+            debugLog("スタック演出完了: stackIndex=\(preparedMove.stackIndex) cardID=\(cardID)")
         }
 
         return true
@@ -334,7 +364,20 @@ final class GameBoardBridgeViewModel: ObservableObject {
             return
         }
 
-        _ = animateCardPlay(for: stack, at: resolvedIndex)
+        let sanitizedRequest = BoardTapPlayRequest(
+            id: request.id,
+            stackID: stack.id,
+            stackIndex: resolvedIndex,
+            topCard: currentTop,
+            moveVector: request.moveVector,
+            destination: request.destination
+        )
+
+        if let handler = onBoardTapPlayRequest {
+            handler(sanitizedRequest)
+        } else {
+            debugLog("BoardTapPlayRequest を無視: onBoardTapPlayRequest が未設定")
+        }
     }
 
     /// 進行状態の変更に合わせてガイド表示を管理する
@@ -367,7 +410,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
     /// - Returns: 使用可能なら true
     func isCardUsable(_ stack: HandStack) -> Bool {
         guard let card = stack.topCard else { return false }
-        // availableMoves() が primaryVector を利用しているため、1 候補カードと同じ手続きで拡張に備えられる
+        // availableMoves() が複数候補も含めて列挙するため、単純に ID を突き合わせれば利用可否を判定できる
         return core.availableMoves().contains { candidate in
             candidate.stackID == stack.id && candidate.card.id == card.id
         }
@@ -450,3 +493,10 @@ final class GameBoardBridgeViewModel: ObservableObject {
         refreshGuideHighlights(handOverride: newHandStacks)
     }
 }
+
+#if DEBUG
+extension GameBoardBridgeViewModel {
+    /// テスト用に強制ハイライト集合を参照するためのプロパティ
+    var debugForcedSelectionHighlights: Set<GridPoint> { forcedSelectionHighlightPoints }
+}
+#endif

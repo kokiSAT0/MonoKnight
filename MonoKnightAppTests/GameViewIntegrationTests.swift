@@ -70,6 +70,50 @@ final class GameViewIntegrationTests: XCTestCase {
         XCTAssertEqual(gameCenter.submittedScores.first?.identifier, viewModel.mode.identifier, "スコア送信先のモード ID が一致していません")
     }
 
+    /// 複数候補を持つカード選択時に全候補がハイライトされ、盤面タップで特定候補のみが再生されることを検証する
+    func testSelectingMultiCandidateCardHighlightsAndPlaysOnBoardTap() {
+        MoveCard.setMovementOverrideForTesting(
+            [
+                MoveVector(dx: 1, dy: 0),
+                MoveVector(dx: -1, dy: 0)
+            ],
+            for: .kingRight
+        )
+        defer { MoveCard.setMovementOverrideForTesting(nil, for: .kingRight) }
+
+        let interfaces = GameModuleInterfaces { _ in GameCore(mode: .standard) }
+        let viewModel = GameViewModel(
+            mode: .standard,
+            gameInterfaces: interfaces,
+            gameCenterService: GameCenterServiceSpy(),
+            adsService: AdsServiceSpy(),
+            onRequestReturnToTitle: nil,
+            penaltyBannerScheduler: PenaltyBannerSchedulerSpy()
+        )
+
+        let multiCandidateStack = HandStack(cards: [DealtCard(move: .kingRight)])
+        let fallbackStack = HandStack(cards: [DealtCard(move: .kingUp)])
+        viewModel.core.overrideHandForTesting(stacks: [multiCandidateStack, fallbackStack])
+        RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+
+        viewModel.handleHandSlotTap(at: 0)
+
+        let expectedDestinations: Set<GridPoint> = [
+            GridPoint(x: 3, y: 2),
+            GridPoint(x: 1, y: 2)
+        ]
+        XCTAssertEqual(viewModel.boardBridge.debugForcedSelectionHighlights, expectedDestinations, "複数候補カードのハイライトが想定通りではありません")
+        XCTAssertEqual(Set(viewModel.debugSelectedResolvedMoves.map { $0.destination }), expectedDestinations, "選択候補として保持している移動先が想定と異なります")
+
+        let targetDestination = GridPoint(x: 1, y: 2)
+        viewModel.core.handleTap(at: targetDestination)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.5))
+
+        XCTAssertEqual(viewModel.core.current, targetDestination, "盤面タップ後の現在位置が想定と異なります")
+        XCTAssertNil(viewModel.selectedHandStackID, "プレイ後もカード選択状態が解除されていません")
+        XCTAssertTrue(viewModel.boardBridge.debugForcedSelectionHighlights.isEmpty, "プレイ後に強制ハイライトが残存しています")
+    }
+
     #if canImport(SpriteKit)
     /// SpriteKit シーンのサイズ同期と GameCore の紐付けが正しく行われるかを確認する
     func testSceneSizeSyncOnAppear() {

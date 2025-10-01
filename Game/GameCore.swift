@@ -109,35 +109,60 @@ public final class GameCore: ObservableObject {
         refreshHandStateFromManager()
     }
 
-    /// 指定インデックスのカードで駒を移動させる
-    /// - Parameter index: 手札配列の位置（0〜4）
-
-    public func playCard(at index: Int) {
+    /// 解決済みのカード情報を用いて駒を移動させる
+    /// - Parameter move: `availableMoves()` で得られた移動候補
+    public func playCard(using move: ResolvedCardMove) {
         // スポーン待ちやクリア済み・ペナルティ中は操作不可
         guard progress == .playing, let currentPosition = current else { return }
         // 捨て札モード中は移動を開始せず安全に抜ける
         guard !isAwaitingManualDiscardSelection else { return }
-        // インデックスが範囲内か確認（0〜手札スロット数-1 の範囲を想定）
-        guard handStacks.indices.contains(index) else { return }
-        let stack = handStacks[index]
+
+        // インデックスが変動していても stackID を基準に最新位置を特定する
+        let resolvedIndex: Int
+        if handStacks.indices.contains(move.stackIndex), handStacks[move.stackIndex].id == move.stackID {
+            resolvedIndex = move.stackIndex
+        } else if let fallback = handStacks.firstIndex(where: { $0.id == move.stackID }) {
+            resolvedIndex = fallback
+        } else {
+            debugLog("playCard(using:) を中止: 対象 stack が見つからない stackID=\(move.stackID)")
+            return
+        }
+
+        let stack = handStacks[resolvedIndex]
         guard let card = stack.topCard else { return }
-        // primaryVector を経由することで、将来的に複数候補を持つカードでも同じ分岐から処理を広げられる
-        let vector = card.move.primaryVector
-        let target = currentPosition.offset(dx: vector.dx, dy: vector.dy)
+
+        // 手札更新のタイミングでカードが差し替わっていないか検証する
+        guard card.id == move.card.id else {
+            debugLog("playCard(using:) を中止: トップカードが変化 stackID=\(stack.id)")
+            return
+        }
+
+        // テストや複数候補カードでベクトルが上書きされるケースでも安全に動作させる
+        guard card.move.movementVectors.contains(move.moveVector) else {
+            debugLog("playCard(using:) を中止: moveVector がカード定義に存在しない stackID=\(stack.id)")
+            return
+        }
+
+        let destination = currentPosition.offset(dx: move.moveVector.dx, dy: move.moveVector.dy)
+        guard destination == move.destination else {
+            debugLog("playCard(using:) を中止: destination が差し替えられている stackID=\(stack.id)")
+            return
+        }
+
         // UI 側で無効カードを弾く想定だが、念のため安全確認
-        guard board.contains(target) else { return }
+        guard board.contains(destination) else { return }
 
         // 盤面タップからのリクエストが残っている場合に備え、念のためここでクリアしておく
         boardTapPlayRequest = nil
 
         // デバッグログ: 使用カードと移動先を出力
-        debugLog("カード \(card.move) を使用し \(currentPosition) -> \(target) へ移動")
+        debugLog("カード \(card.move) を使用し \(currentPosition) -> \(destination) へ移動")
 
-        let revisiting = board.isVisited(target)
+        let revisiting = board.isVisited(destination)
 
         // 移動処理
-        current = target
-        board.markVisited(target)
+        current = destination
+        board.markVisited(destination)
         moveCount += 1
 
         // 既踏マスへ戻った場合はフラグを立て、必要に応じてペナルティを加算する
@@ -154,7 +179,7 @@ public final class GameCore: ObservableObject {
         announceRemainingTiles()
 
         // 使用済みカードは即座に破棄し、スタックから除去（残数がゼロになったらスタックごと取り除く）
-        let removedIndex = handManager.consumeTopCard(at: index)
+        let removedIndex = handManager.consumeTopCard(at: resolvedIndex)
 
         // スロットの空きを埋めた上で並び順・先読みを整える
         rebuildHandAndNext(preferredInsertionIndices: removedIndex.map { [$0] } ?? [])
@@ -164,7 +189,6 @@ public final class GameCore: ObservableObject {
             // クリア時点の経過秒数を確定させる
             finalizeElapsedTimeIfNeeded()
             progress = .cleared
-            // デバッグ: クリア時の盤面を表示
 #if DEBUG
             // デバッグ目的でのみ盤面を出力する
             board.debugDump(current: current)
@@ -175,11 +199,18 @@ public final class GameCore: ObservableObject {
         // 手詰まりチェック（全カード盤外ならペナルティ）
         checkDeadlockAndApplyPenaltyIfNeeded()
 
-        // デバッグ: 現在の盤面を表示
 #if DEBUG
         // デバッグ目的でのみ盤面を出力する
         board.debugDump(current: current)
 #endif
+    }
+
+    /// 指定インデックスのカードで駒を移動させる
+    /// - Parameter index: 手札配列の位置（0〜4）
+    public func playCard(at index: Int) {
+        // その時点で利用可能な候補から該当インデックスの移動情報を取得し、共通処理へ委譲する
+        guard let resolvedMove = availableMoves().first(where: { $0.stackIndex == index }) else { return }
+        playCard(using: resolvedMove)
     }
 
     /// 現在の状態から使用可能なカード移動候補を列挙する
@@ -205,21 +236,23 @@ public final class GameCore: ObservableObject {
         for (index, stack) in referenceHandStacks.enumerated() {
             // トップカードが存在しなければスキップ
             guard let topCard = stack.topCard else { continue }
-            // primaryVector を使えば複数候補カード導入時にここで候補展開を切り替えられる
-            let vector = topCard.move.primaryVector
-            let destination = origin.offset(dx: vector.dx, dy: vector.dy)
-            // 盤面外の移動は候補から除外
-            guard activeBoard.contains(destination) else { continue }
 
-            resolved.append(
-                ResolvedCardMove(
-                    stackID: stack.id,
-                    stackIndex: index,
-                    card: topCard,
-                    moveVector: vector,
-                    destination: destination
+            // 各候補ベクトルに対して盤面内かどうかを判定し、個別の移動候補として列挙する
+            for vector in topCard.move.movementVectors {
+                let destination = origin.offset(dx: vector.dx, dy: vector.dy)
+                // 盤面外の移動は候補から除外
+                guard activeBoard.contains(destination) else { continue }
+
+                resolved.append(
+                    ResolvedCardMove(
+                        stackID: stack.id,
+                        stackIndex: index,
+                        card: topCard,
+                        moveVector: vector,
+                        destination: destination
+                    )
                 )
-            )
+            }
         }
 
         // y→x→スタック順で並び替えることで、同一座標のカードが隣接する形で得られる
@@ -341,7 +374,9 @@ extension GameCore: GameCoreProtocol {
             boardTapPlayRequest = BoardTapPlayRequest(
                 stackID: resolved.stackID,
                 stackIndex: resolved.stackIndex,
-                topCard: resolved.card
+                topCard: resolved.card,
+                moveVector: resolved.moveVector,
+                destination: resolved.destination
             )
         }
         // 候補に該当しない場合は何もしない（無効タップ）
@@ -488,6 +523,17 @@ extension GameCore {
     func setStartDateForTesting(_ newStartDate: Date) {
         // リアルタイム計測は GameSessionTimer を経由して算出されるため、テストから開始時刻を操作可能にしておく。
         sessionTimer.overrideStartDateForTesting(newStartDate)
+    }
+
+    /// テスト向けに手札と先読みを任意の構成へ差し替える
+    /// - Parameters:
+    ///   - stacks: 適用したい手札スタック配列
+    ///   - nextCards: NEXT 表示へ並べたいカード配列（省略時は空）
+    public func overrideHandForTesting(stacks: [HandStack], nextCards: [DealtCard] = []) {
+        handManager.overrideHandStacksForTesting(stacks)
+        handManager.overrideNextCardsForTesting(nextCards)
+        refreshHandStateFromManager()
+        boardTapPlayRequest = nil
     }
 }
 #endif

@@ -81,6 +81,10 @@ final class GameViewModel: ObservableObject {
     @Published private(set) var core: GameCore
     /// SpriteKit と SwiftUI を仲介するための ViewModel
     let boardBridge: GameBoardBridgeViewModel
+    /// 現在選択中の手札スタック ID（盤面ハイライト表示に利用）
+    @Published private(set) var selectedHandStackID: UUID?
+    /// 選択中カードに紐づく移動候補を保持し、盤面タップ処理で参照する
+    private var selectedResolvedMoves: [ResolvedCardMove] = []
 
     /// 結果画面表示フラグ
     @Published var showingResult = false
@@ -180,6 +184,9 @@ final class GameViewModel: ObservableObject {
         let generatedCore = gameInterfaces.makeGameCore(mode)
         self.core = generatedCore
         self.boardBridge = GameBoardBridgeViewModel(core: generatedCore, mode: mode)
+        self.boardBridge.onBoardTapPlayRequest = { [weak self] request in
+            self?.handleBoardTapPlayRequest(request)
+        }
 
         // GameCore の変更を ViewModel 経由で SwiftUI へ伝える
         generatedCore.objectWillChange
@@ -278,12 +285,16 @@ final class GameViewModel: ObservableObject {
             return
         }
 
-        // primaryVector を介して移動先を算出する。複数候補カード追加時もここで分岐を整理できるようにするための布石。
-        let vector = card.move.primaryVector
-        let destination = current.offset(dx: vector.dx, dy: vector.dy)
-        if core.board.contains(destination) {
-            boardBridge.updateForcedSelectionHighlights([destination])
-        } else {
+        // movementVectors 全体を走査して候補マスを算出し、まとめてハイライトへ反映する
+        boardBridge.updateForcedSelectionHighlights(origin: current, vectors: card.move.movementVectors)
+    }
+
+    /// 選択中のカード状態をクリアし、必要に応じてハイライトも解除する
+    /// - Parameter updateHighlights: true の場合はハイライトも即座に消灯する
+    private func clearHandSelection(updateHighlights: Bool = true) {
+        selectedHandStackID = nil
+        selectedResolvedMoves = []
+        if updateHighlights {
             boardBridge.updateForcedSelectionHighlights([])
         }
     }
@@ -303,13 +314,48 @@ final class GameViewModel: ObservableObject {
 
     /// 手札スタックのトップカードを盤面へ送るアニメーションを準備する
     @discardableResult
-    func animateCardPlay(for stack: HandStack, at index: Int) -> Bool {
-        boardBridge.animateCardPlay(for: stack, at: index)
+    func animateCardPlay(using move: ResolvedCardMove) -> Bool {
+        boardBridge.animateCardPlay(using: move)
     }
 
     /// 盤面タップに応じたプレイ要求を処理する
     func handleBoardTapPlayRequest(_ request: BoardTapPlayRequest) {
-        boardBridge.handleBoardTapPlayRequest(request)
+        guard let selectedID = selectedHandStackID else {
+            debugLog("盤面タップ要求を無視: 選択中カードなし requestID=\(request.id)")
+            return
+        }
+
+        guard selectedID == request.stackID else {
+            debugLog("盤面タップ要求を無視: 選択中と異なる stackID=\(request.stackID)")
+            return
+        }
+
+        let matchesSelection = selectedResolvedMoves.contains { candidate in
+            candidate.card.id == request.topCard.id &&
+            candidate.moveVector == request.moveVector &&
+            candidate.destination == request.destination
+        }
+
+        guard matchesSelection else {
+            debugLog("盤面タップ要求を無視: 選択候補に存在しない moveVector=\(request.moveVector)")
+            clearHandSelection()
+            return
+        }
+
+        let resolvedMove = ResolvedCardMove(
+            stackID: request.stackID,
+            stackIndex: request.stackIndex,
+            card: request.topCard,
+            moveVector: request.moveVector,
+            destination: request.destination
+        )
+
+        clearHandSelection(updateHighlights: false)
+
+        let didAnimate = animateCardPlay(using: resolvedMove)
+        if !didAnimate {
+            boardBridge.updateForcedSelectionHighlights([])
+        }
     }
 
     /// 手札スロットがタップされた際の挙動を集約する
@@ -319,11 +365,13 @@ final class GameViewModel: ObservableObject {
         guard boardBridge.animatingCard == nil else { return }
         // 範囲外アクセスを避けるため、安全にインデックスの存在を確認する
         guard core.handStacks.indices.contains(index) else { return }
+        guard core.current != nil else { return }
 
         let latestStack = core.handStacks[index]
 
         if core.isAwaitingManualDiscardSelection {
             // 捨て札モード中は対象スタックを破棄して新しいカードへ差し替える
+            clearHandSelection()
             withAnimation(.easeInOut(duration: 0.2)) {
                 let success = core.discardHandStack(withID: latestStack.id)
                 if success, hapticsEnabled {
@@ -333,15 +381,34 @@ final class GameViewModel: ObservableObject {
             return
         }
 
-        // 使用可能なカードであれば盤面アニメーションとプレイ処理を実行
-        if isCardUsable(latestStack) {
-            // 強制ハイライトを使用していた場合は、実際のプレイ処理開始前に必ず解除して整合性を保つ
-            boardBridge.updateForcedSelectionHighlights([])
-            _ = animateCardPlay(for: latestStack, at: index)
-        } else if hapticsEnabled {
-            // 無効カードをタップした場合は警告ハプティクスのみ発生させる
-            UINotificationFeedbackGenerator().notificationOccurred(.warning)
+        guard let topCard = latestStack.topCard else {
+            clearHandSelection()
+            return
         }
+
+        if selectedHandStackID == latestStack.id {
+            // 同じスタックを再タップした場合は選択解除とみなす
+            clearHandSelection()
+            return
+        }
+
+        let usableMoves = core.availableMoves().filter { candidate in
+            candidate.stackID == latestStack.id && candidate.card.id == topCard.id
+        }
+
+        guard !usableMoves.isEmpty else {
+            clearHandSelection()
+            if hapticsEnabled {
+                UINotificationFeedbackGenerator().notificationOccurred(.warning)
+            }
+            return
+        }
+
+        selectedHandStackID = latestStack.id
+        selectedResolvedMoves = usableMoves
+        let highlightPoints = Set(usableMoves.map { $0.destination })
+        boardBridge.updateForcedSelectionHighlights(highlightPoints)
+        debugLog("カード選択: stackID=\(latestStack.id) 候補数=\(highlightPoints.count)")
     }
 
     // MARK: - 手動操作ボタンのサポート
@@ -372,11 +439,13 @@ final class GameViewModel: ObservableObject {
     /// - Note: ボタンが無効な状態では開始せず、選択中であれば常に終了させる
     func toggleManualDiscardSelection() {
         if core.isAwaitingManualDiscardSelection {
+            clearHandSelection()
             core.cancelManualDiscardSelection()
             return
         }
 
         guard isManualDiscardButtonEnabled else { return }
+        clearHandSelection()
         core.beginManualDiscardSelection()
     }
 
@@ -532,6 +601,10 @@ final class GameViewModel: ObservableObject {
         updateDisplayedElapsedTime()
         boardBridge.handleProgressChange(progress)
 
+        if progress != .playing {
+            clearHandSelection()
+        }
+
         switch progress {
         case .cleared:
             if mode.isLeaderboardEligible {
@@ -594,6 +667,13 @@ final class GameViewModel: ObservableObject {
         }
     }
 }
+
+#if DEBUG
+extension GameViewModel {
+    /// テスト用に現在選択している候補移動リストを取得する
+    var debugSelectedResolvedMoves: [ResolvedCardMove] { selectedResolvedMoves }
+}
+#endif
 
 /// ゲーム画面のメニュー操作を表す列挙型
 enum GameMenuAction: Hashable, Identifiable {
