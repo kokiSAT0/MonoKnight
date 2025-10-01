@@ -421,6 +421,26 @@ struct AppTheme: DynamicProperty {
         }
     }
 
+    /// 複数回踏破マスの基準色（進捗表示用に未踏破色よりもワントーン濃く設定）
+    var boardTileMultiBase: Color {
+        switch resolvedColorScheme {
+        case .dark:
+            return Color.white.opacity(0.18)
+        default:
+            return Color.black.opacity(0.1)
+        }
+    }
+
+    /// トグルマスの塗り色（踏破状態に左右されない強調色）
+    var boardTileToggle: Color {
+        switch resolvedColorScheme {
+        case .dark:
+            return Color.white.opacity(0.5)
+        default:
+            return Color.black.opacity(0.32)
+        }
+    }
+
     /// 駒本体の塗り色（背景に応じて反転させコントラストを維持）
     var boardKnight: Color {
         switch resolvedColorScheme {
@@ -505,6 +525,22 @@ struct AppTheme: DynamicProperty {
         )
     }
 
+    /// SpriteKit 複数回踏破マス基準色の UIColor 版
+    var uiBoardTileMultiBase: UIColor {
+        dynamicUIColor(
+            light: color(for: .light, keyPath: \.boardTileMultiBase),
+            dark: color(for: .dark, keyPath: \.boardTileMultiBase)
+        )
+    }
+
+    /// SpriteKit トグルマス色の UIColor 版
+    var uiBoardTileToggle: UIColor {
+        dynamicUIColor(
+            light: color(for: .light, keyPath: \.boardTileToggle),
+            dark: color(for: .dark, keyPath: \.boardTileToggle)
+        )
+    }
+
     /// SpriteKit 駒の UIColor 版
     var uiBoardKnight: UIColor {
         dynamicUIColor(
@@ -534,6 +570,12 @@ struct AppTheme: DynamicProperty {
 
     /// SpriteKit の SKColor へ変換した未踏破マス色
     var skBoardTileUnvisited: SKColor { SKColor(cgColor: uiBoardTileUnvisited.cgColor) }
+
+    /// SpriteKit の SKColor へ変換した複数回踏破マス基準色
+    var skBoardTileMultiBase: SKColor { SKColor(cgColor: uiBoardTileMultiBase.cgColor) }
+
+    /// SpriteKit の SKColor へ変換したトグルマス色
+    var skBoardTileToggle: SKColor { SKColor(cgColor: uiBoardTileToggle.cgColor) }
 
     /// SpriteKit の SKColor へ変換した駒の塗り色
     var skBoardKnight: SKColor { SKColor(cgColor: uiBoardKnight.cgColor) }
