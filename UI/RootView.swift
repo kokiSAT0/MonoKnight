@@ -1291,19 +1291,19 @@ fileprivate struct TitleScreenView: View {
         return NavigationStack(path: $navigationPath) {
             // 複雑化したビュー階層を `titleScreenMainContent` にまとめることで、型チェックの負荷を下げている
             titleScreenMainContent
-        }
-        // キャンペーンやフリーモードのページ遷移先を NavigationStack 上に定義する
-        .navigationDestination(for: TitleNavigationTarget.self) { target in
-            // タイトルスタック遷移直前の状態を逐一記録し、ターゲット判定のずれを即座に検知できるようにする
-            let stackDescription = navigationPath
-                .map { $0.rawValue }
-                .joined(separator: ",")
-            // ViewBuilder の戻り値判定にログ呼び出しが混ざらないよう、副作用だけを発生させるステートメントとして明示的に扱う
-            let _ = debugLog(
-                "TitleScreenView: NavigationDestination.entry -> instance=\(instanceIdentifier.uuidString) target=\(target.rawValue) targetType=\(String(describing: type(of: target))) stackCount=\(navigationPath.count) stack=[\(stackDescription)]"
-            )
-            // 別メソッドへ処理を委譲し、ここでは分岐結果のビュー生成だけに集中させる
-            return navigationDestinationView(for: target)
+                // NavigationStack の内部へチェーンさせることで、スタック解決ロジックを一箇所に集約する
+                .navigationDestination(for: TitleNavigationTarget.self) { target in
+                    // タイトルスタック遷移直前の状態を逐一記録し、ターゲット判定のずれを即座に検知できるようにする
+                    let stackDescription = navigationPath
+                        .map { $0.rawValue }
+                        .joined(separator: ",")
+                    // ViewBuilder の戻り値判定にログ呼び出しが混ざらないよう、副作用だけを発生させるステートメントとして明示的に扱う
+                    let _ = debugLog(
+                        "TitleScreenView: NavigationDestination.entry -> instance=\(instanceIdentifier.uuidString) target=\(target.rawValue) targetType=\(String(describing: type(of: target))) stackCount=\(navigationPath.count) stack=[\(stackDescription)]"
+                    )
+                    // 別メソッドへ処理を委譲し、ここでは分岐結果のビュー生成だけに集中させる
+                    navigationDestinationView(for: target)
+                }
         }
         // 遊び方シートの表示設定
         .sheet(isPresented: $isPresentingHowToPlay) {
@@ -1422,7 +1422,8 @@ fileprivate struct TitleScreenView: View {
     /// NavigationStack の遷移先を生成する
     /// - Parameter target: 遷移対象の列挙値
     /// - Returns: 遷移先のビュー
-    /// - Note: `AnyView` で型消去し、分岐ごとにデバッグログを挟めるようにしている
+    /// - Note: `@ViewBuilder` を付与し、`AnyView` に頼らずとも分岐ごとのログを柔軟に挟めるようにする
+    @ViewBuilder
     private func navigationDestinationView(for target: TitleNavigationTarget) -> some View {
         switch target {
         case .campaign:
@@ -1433,13 +1434,12 @@ fileprivate struct TitleScreenView: View {
             debugLog(
                 "TitleScreenView: NavigationDestination.campaign 構築開始 -> instance=\(instanceIdentifier.uuidString) targetType=\(String(describing: type(of: target))) stackCount=\(navigationPath.count) stack=[\(stackDescription)]"
             )
-            return AnyView(
-                CampaignStageSelectionView(
-                    campaignLibrary: campaignLibrary,
-                    progressStore: campaignProgressStore,
-                    selectedStageID: selectedCampaignStage?.id,
-                    onClose: { popNavigationStack() },
-                    onSelectStage: { stage in
+            CampaignStageSelectionView(
+                campaignLibrary: campaignLibrary,
+                progressStore: campaignProgressStore,
+                selectedStageID: selectedCampaignStage?.id,
+                onClose: { popNavigationStack() },
+                onSelectStage: { stage in
                     // ステージ決定時はスタックを初期化してからゲーム開始処理へ進む
                     resetNavigationStack()
                     handleCampaignStageSelection(stage)
@@ -1453,7 +1453,6 @@ fileprivate struct TitleScreenView: View {
             .onDisappear {
                 debugLog("TitleScreenView: NavigationDestination.campaign 非表示 -> 現在のスタック数=\(navigationPath.count)")
             }
-            )
         case .freeModeEditor:
             // フリーモード設定画面への遷移でも同様にスタックの現状を明示する
             let stackDescription = navigationPath
@@ -1462,24 +1461,22 @@ fileprivate struct TitleScreenView: View {
             debugLog(
                 "TitleScreenView: NavigationDestination.freeModeEditor 構築開始 -> instance=\(instanceIdentifier.uuidString) targetType=\(String(describing: type(of: target))) stackCount=\(navigationPath.count) stack=[\(stackDescription)]"
             )
-            return AnyView(
-                FreeModeRegulationView(
-                    initialRegulation: freeModeStore.regulation,
-                    presets: GameMode.builtInModes,
-                    onCancel: {
-                        // キャンセル時はページを閉じ、元のタイトル画面へ戻す
-                        debugLog("TitleScreenView: フリーモード設定をキャンセル")
-                        popNavigationStack()
-                    },
-                    onSave: { newRegulation in
-                        // 保存後はレギュレーションを更新し、遷移を閉じてからゲーム開始フローを準備する
-                        freeModeStore.update(newRegulation)
-                        let updatedMode = freeModeStore.makeGameMode()
-                        selectedMode = updatedMode
-                        resetNavigationStack()
-                        triggerImmediateStart(for: updatedMode, context: .freeModeEditor, delayStart: true)
-                    }
-                )
+            FreeModeRegulationView(
+                initialRegulation: freeModeStore.regulation,
+                presets: GameMode.builtInModes,
+                onCancel: {
+                    // キャンセル時はページを閉じ、元のタイトル画面へ戻す
+                    debugLog("TitleScreenView: フリーモード設定をキャンセル")
+                    popNavigationStack()
+                },
+                onSave: { newRegulation in
+                    // 保存後はレギュレーションを更新し、遷移を閉じてからゲーム開始フローを準備する
+                    freeModeStore.update(newRegulation)
+                    let updatedMode = freeModeStore.makeGameMode()
+                    selectedMode = updatedMode
+                    resetNavigationStack()
+                    triggerImmediateStart(for: updatedMode, context: .freeModeEditor, delayStart: true)
+                }
             )
         @unknown default:
             // 想定外ケースでもログだけは残し、調査時にスタックの不整合を追えるようにする
@@ -1489,7 +1486,7 @@ fileprivate struct TitleScreenView: View {
             debugLog(
                 "TitleScreenView: NavigationDestination.unknown フォールバック -> instance=\(instanceIdentifier.uuidString) rawValue=\(target.rawValue) targetType=\(String(describing: type(of: target))) stackCount=\(navigationPath.count) stack=[\(stackDescription)]"
             )
-            return AnyView(EmptyView())
+            EmptyView()
         }
     }
 
