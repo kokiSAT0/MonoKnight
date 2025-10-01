@@ -6,6 +6,32 @@ import GameplayKit
 /// 山札を重み付き乱数で生成するデッキ構造体
 /// - Note: ゲームモードごとに許可カードや重み付けが異なるため、`Configuration` で挙動を切り替えられるようにしている。
 struct Deck {
+    // MARK: - 重みプロファイル
+    /// カードの基礎重みと個別上書きをまとめて扱う構造体
+    /// - Note: すべてのカードに同一値を設定しつつ、一部カードのみ将来的に重みを調整したいニーズへ対応するための抽象化。
+    struct WeightProfile {
+        /// 全カードへ適用するデフォルト重み
+        let defaultWeight: Int
+        /// カードごとの個別重み（必要に応じて上書きする）
+        private let overrides: [MoveCard: Int]
+
+        /// メンバーごとに初期化するためのイニシャライザ
+        /// - Parameters:
+        ///   - defaultWeight: 全カードに適用する基礎重み
+        ///   - overrides: 特定カードのみ重みを上書きしたい場合の辞書
+        init(defaultWeight: Int, overrides: [MoveCard: Int] = [:]) {
+            self.defaultWeight = defaultWeight
+            self.overrides = overrides
+        }
+
+        /// 指定カードに対する最終的な重みを返す
+        /// - Parameter card: 評価対象のカード
+        /// - Returns: 上書き値が存在すればそれを、無ければデフォルト重みを返す
+        func weight(for card: MoveCard) -> Int {
+            overrides[card] ?? defaultWeight
+        }
+    }
+
     // MARK: - 設定定義
     /// 山札の構成や重み付けルールを表す設定構造体
     struct Configuration {
@@ -13,8 +39,8 @@ struct Deck {
         let allowedMoves: [MoveCard]
         /// 抽選対象カードの移動ベクトル配列（順序を維持する）
         let allowedMoveSignatures: [[MoveVector]]
-        /// 各カードの基礎重み
-        let baseWeights: [MoveCard: Int]
+        /// 重み計算ロジックをまとめたプロファイル
+        let weightProfile: WeightProfile
         /// 連続排出抑制を行うかどうか
         let shouldApplyProbabilityReduction: Bool
         /// 通常時に掛ける重み倍率（整数比で扱う）
@@ -29,7 +55,7 @@ struct Deck {
         /// メンバーごとに初期化できるよう明示的なイニシャライザを用意
         /// - Parameters:
         ///   - allowedMoves: 抽選対象とするカード配列
-        ///   - baseWeights: 各カードの基礎重み辞書
+        ///   - weightProfile: 重み計算を管理するプロファイル
         ///   - shouldApplyProbabilityReduction: 連続排出抑制の有無
         ///   - normalWeightMultiplier: 通常時に掛ける重み倍率
         ///   - reducedWeightMultiplier: 抑制時に掛ける重み倍率
@@ -37,7 +63,7 @@ struct Deck {
         ///   - deckSummaryText: UI 表示用の簡易説明
         init(
             allowedMoves: [MoveCard],
-            baseWeights: [MoveCard: Int],
+            weightProfile: WeightProfile,
             shouldApplyProbabilityReduction: Bool,
             normalWeightMultiplier: Int,
             reducedWeightMultiplier: Int,
@@ -46,7 +72,7 @@ struct Deck {
         ) {
             self.allowedMoves = allowedMoves
             self.allowedMoveSignatures = allowedMoves.map { $0.movementVectors }
-            self.baseWeights = baseWeights
+            self.weightProfile = weightProfile
             self.shouldApplyProbabilityReduction = shouldApplyProbabilityReduction
             self.normalWeightMultiplier = normalWeightMultiplier
             self.reducedWeightMultiplier = reducedWeightMultiplier
@@ -56,26 +82,11 @@ struct Deck {
 
         /// スタンダードモード向け設定
         static let standard: Configuration = {
-            // 元々の重み計算をここで再現する
-            var weights: [MoveCard: Int] = [:]
-            weights.reserveCapacity(MoveCard.standardSet.count)
-            for card in MoveCard.standardSet {
-                let weight: Int
-                if card.isKingType {
-                    // キング型は 1.5 倍の重み（整数比 3）
-                    weight = 3
-                } else if card.isDiagonalDistanceFour {
-                    // 長距離斜めは桂馬の半分
-                    weight = 1
-                } else {
-                    // それ以外は標準重み
-                    weight = 2
-                }
-                weights[card] = weight
-            }
+            // 現時点ではすべてのカードを均一重みで扱う
+            let overrides: [MoveCard: Int] = [:] // 将来的な調整時にここへ個別設定を追加する
             return Configuration(
                 allowedMoves: MoveCard.standardSet,
-                baseWeights: weights,
+                weightProfile: WeightProfile(defaultWeight: 1, overrides: overrides),
                 shouldApplyProbabilityReduction: true,
                 normalWeightMultiplier: 4,
                 reducedWeightMultiplier: 3,
@@ -87,10 +98,9 @@ struct Deck {
         /// クラシカルチャレンジ向け設定（桂馬のみ・均等抽選）
         static let classicalChallenge: Configuration = {
             let knightMoves = MoveCard.standardSet.filter { $0.isKnightType }
-            let weights = Dictionary(uniqueKeysWithValues: knightMoves.map { ($0, 1) })
             return Configuration(
                 allowedMoves: knightMoves,
-                baseWeights: weights,
+                weightProfile: WeightProfile(defaultWeight: 1),
                 shouldApplyProbabilityReduction: false,
                 normalWeightMultiplier: 1,
                 reducedWeightMultiplier: 1,
@@ -102,10 +112,9 @@ struct Deck {
         /// 王将型カードのみを排出する短距離構成
         static let kingOnly: Configuration = {
             let kingMoves = MoveCard.standardSet.filter { $0.isKingType }
-            let weights = Dictionary(uniqueKeysWithValues: kingMoves.map { ($0, 1) })
             return Configuration(
                 allowedMoves: kingMoves,
-                baseWeights: weights,
+                weightProfile: WeightProfile(defaultWeight: 1),
                 shouldApplyProbabilityReduction: false,
                 normalWeightMultiplier: 1,
                 reducedWeightMultiplier: 1,
@@ -116,31 +125,12 @@ struct Deck {
 
         /// 上下左右を選択できる複数方向カードを含む 5×5 盤向け構成
         static let directionChoice: Configuration = {
-            // まず従来 24 種の重みをスタンダードと同様に計算する
-            var weights: [MoveCard: Int] = [:]
-            weights.reserveCapacity(MoveCard.standardSet.count + 2)
-            for card in MoveCard.standardSet {
-                let weight: Int
-                if card.isKingType {
-                    weight = 3
-                } else if card.isDiagonalDistanceFour {
-                    weight = 1
-                } else {
-                    weight = 2
-                }
-                weights[card] = weight
-            }
-
-            // 選択肢付きカードはキング相当の取り回しとする
             let choiceCards: [MoveCard] = [.kingUpOrDown, .kingLeftOrRight]
-            for card in choiceCards {
-                weights[card] = 3
-            }
-
             let allowedMoves = MoveCard.standardSet + choiceCards
+            let overrides: [MoveCard: Int] = [:] // 将来的に選択カードへ個別重みを設定したい場合に備える
             return Configuration(
                 allowedMoves: allowedMoves,
-                baseWeights: weights,
+                weightProfile: WeightProfile(defaultWeight: 1, overrides: overrides),
                 shouldApplyProbabilityReduction: true,
                 normalWeightMultiplier: 4,
                 reducedWeightMultiplier: 3,
@@ -152,10 +142,9 @@ struct Deck {
         /// キング型の上下左右選択カードのみで構成した訓練用デッキ
         static let kingOrthogonalChoiceOnly: Configuration = {
             let moves: [MoveCard] = [.kingUpOrDown, .kingLeftOrRight]
-            let weights = Dictionary(uniqueKeysWithValues: moves.map { ($0, 1) })
             return Configuration(
                 allowedMoves: moves,
-                baseWeights: weights,
+                weightProfile: WeightProfile(defaultWeight: 1),
                 shouldApplyProbabilityReduction: false,
                 normalWeightMultiplier: 1,
                 reducedWeightMultiplier: 1,
@@ -172,10 +161,9 @@ struct Deck {
                 .kingDownwardDiagonalChoice,
                 .kingLeftDiagonalChoice
             ]
-            let weights = Dictionary(uniqueKeysWithValues: moves.map { ($0, 1) })
             return Configuration(
                 allowedMoves: moves,
-                baseWeights: weights,
+                weightProfile: WeightProfile(defaultWeight: 1),
                 shouldApplyProbabilityReduction: false,
                 normalWeightMultiplier: 1,
                 reducedWeightMultiplier: 1,
@@ -192,10 +180,9 @@ struct Deck {
                 .knightDownwardChoice,
                 .knightLeftwardChoice
             ]
-            let weights = Dictionary(uniqueKeysWithValues: moves.map { ($0, 1) })
             return Configuration(
                 allowedMoves: moves,
-                baseWeights: weights,
+                weightProfile: WeightProfile(defaultWeight: 1),
                 shouldApplyProbabilityReduction: false,
                 normalWeightMultiplier: 1,
                 reducedWeightMultiplier: 1,
@@ -218,10 +205,9 @@ struct Deck {
                 .knightDownwardChoice,
                 .knightLeftwardChoice
             ]
-            let weights = Dictionary(uniqueKeysWithValues: moves.map { ($0, 1) })
             return Configuration(
                 allowedMoves: moves,
-                baseWeights: weights,
+                weightProfile: WeightProfile(defaultWeight: 1),
                 shouldApplyProbabilityReduction: false,
                 normalWeightMultiplier: 1,
                 reducedWeightMultiplier: 1,
@@ -341,7 +327,9 @@ struct Deck {
         var totalWeight = 0
 
         for card in configuration.allowedMoves {
-            guard let baseWeight = configuration.baseWeights[card] else { continue }
+            let baseWeight = configuration.weightProfile.weight(for: card)
+            // 重みが 0 以下の場合は抽選対象から除外する（安全策）
+            guard baseWeight > 0 else { continue }
             let isReduced = configuration.shouldApplyProbabilityReduction && (reducedProbabilityTurns[card, default: 0] > 0)
             let multiplier = isReduced ? configuration.reducedWeightMultiplier : configuration.normalWeightMultiplier
             let weight = baseWeight * multiplier
