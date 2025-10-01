@@ -302,6 +302,15 @@ private extension GameHandSectionView {
             return "上下いずれかへ 1"
         case .kingLeftOrRight:
             return "左右いずれかへ 1"
+        // キング型の選択式カードは斜め方向の 2 択であることを明確に伝える
+        case .kingUpwardDiagonalChoice:
+            return "右上または左上へ 1 (選択)"
+        case .kingRightDiagonalChoice:
+            return "右上または右下へ 1 (選択)"
+        case .kingDownwardDiagonalChoice:
+            return "右下または左下へ 1 (選択)"
+        case .kingLeftDiagonalChoice:
+            return "左上または左下へ 1 (選択)"
         case .knightUp2Right1:
             return "上へ 2、右へ 1"
         case .knightUp2Left1:
@@ -318,6 +327,15 @@ private extension GameHandSectionView {
             return "下へ 1、右へ 2"
         case .knightDown1Left2:
             return "下へ 1、左へ 2"
+        // ナイト型の選択式カードは組み合わせをセットで読み上げ、迷わないよう配慮する
+        case .knightUpwardChoice:
+            return "上へ 2、右へ 1 または 上へ 2、左へ 1 (選択)"
+        case .knightRightwardChoice:
+            return "上へ 1、右へ 2 または 下へ 1、右へ 2 (選択)"
+        case .knightDownwardChoice:
+            return "下へ 2、右へ 1 または 下へ 2、左へ 1 (選択)"
+        case .knightLeftwardChoice:
+            return "上へ 1、左へ 2 または 下へ 1、左へ 2 (選択)"
         case .straightUp2:
             return "上へ 2"
         case .straightDown2:
