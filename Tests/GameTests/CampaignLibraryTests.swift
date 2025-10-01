@@ -86,4 +86,39 @@ final class CampaignLibraryTests: XCTestCase {
         XCTAssertEqual(stage34.scoreTargetComparison, .lessThan)
         XCTAssertEqual(stage34.unlockRequirement, .stageClear(stage33ID))
     }
+
+    /// 4 章のトグルギミック導入ステージが仕様通りに組み込まれているかを確認する
+    func testCampaignStage4Definitions() {
+        let library = CampaignLibrary.shared
+        let stage41ID = CampaignStageID(chapter: 4, index: 1)
+
+        // MARK: 章配列が 4 章まで拡張されているか明示的に確認する
+        XCTAssertEqual(library.chapters.count, 4, "キャンペーンの章数が 4 章構成になっていません")
+        XCTAssertEqual(library.chapters.last?.id, 4, "最終章の ID が 4 になっていません")
+
+        guard let stage41 = library.stage(with: stage41ID) else {
+            XCTFail("第4章 4-1 の定義が見つかりません")
+            return
+        }
+
+        // MARK: 基本情報（タイトル・サマリー・盤面サイズ）が仕様通りかを検証
+        XCTAssertEqual(stage41.title, "反転制御訓練")
+        XCTAssertTrue(stage41.summary.contains("トグルマス"), "サマリーにトグルギミックへの言及がありません")
+        XCTAssertEqual(stage41.regulation.boardSize, 5)
+
+        // MARK: トグルマス座標が 0 始まりで (0,1) と (2,3) に設定されているかをチェック
+        let expectedTogglePoints: Set<GridPoint> = [
+            GridPoint(x: 0, y: 1),
+            GridPoint(x: 2, y: 3)
+        ]
+        XCTAssertEqual(stage41.regulation.toggleTilePoints, expectedTogglePoints)
+
+        // MARK: スター条件（手数制限・スコア上限）が定義通りかを確認
+        XCTAssertEqual(stage41.secondaryObjective, .finishWithinMoves(maxMoves: 30))
+        XCTAssertEqual(stage41.scoreTarget, 520)
+
+        // MARK: アンロック条件が 3-4 クリアに紐付いているかを確認
+        let prerequisiteID = CampaignStageID(chapter: 3, index: 4)
+        XCTAssertEqual(stage41.unlockRequirement, .stageClear(prerequisiteID))
+    }
 }

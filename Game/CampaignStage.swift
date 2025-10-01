@@ -550,6 +550,48 @@ public struct CampaignLibrary {
             stages: [stage31, stage32, stage33, stage34]
         )
 
-        return [chapter1, chapter2, chapter3]
+        // MARK: - 4 章のステージ群
+        // 4-1 では 5×5 盤にトグルマスを導入し、踏破の反転ギミックに慣れてもらう。
+        // - Important: 指示された (1,2) と (3,4) は 1 始まりで提供されたため、内部表現の 0 始まり座標へ読み替える。
+        let togglePointsChapter4: Set<GridPoint> = [
+            GridPoint(x: 0, y: 1),
+            GridPoint(x: 2, y: 3)
+        ]
+
+        let stage41 = CampaignStage(
+            id: CampaignStageID(chapter: 4, index: 1),
+            title: "反転制御訓練", // 章タイトルとの整合を意識した名前にする
+            summary: "トグルマスで踏破状態が切り替わる 5×5 を攻略し、ギミック対応力を養いましょう。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .standard,
+                spawnRule: .fixed(BoardGeometry.defaultSpawnPoint(for: 5)),
+                penalties: GameMode.PenaltySettings(
+                    deadlockPenaltyCost: standardPenalties.deadlockPenaltyCost,
+                    manualRedrawPenaltyCost: standardPenalties.manualRedrawPenaltyCost,
+                    manualDiscardPenaltyCost: standardPenalties.manualDiscardPenaltyCost,
+                    revisitPenaltyCost: standardPenalties.revisitPenaltyCost
+                ),
+                toggleTilePoints: togglePointsChapter4
+            ),
+            // MARK: 2 個目のスター条件: ギミックを理解したうえで 30 手以内の踏破を狙う
+            secondaryObjective: .finishWithinMoves(maxMoves: 30),
+            // MARK: 3 個目のスター条件: トグルで増える手数を抑えつつスコア 520 以下でまとめる
+            scoreTarget: 520,
+            // MARK: アンロック条件: 3-4 クリア後に開放し、章間の到達順を保つ
+            unlockRequirement: .stageClear(stage34.id)
+        )
+
+        let chapter4 = CampaignChapter(
+            id: 4,
+            title: "反転応用", // 章全体のテーマとしてトグルギミックを強調
+            summary: "トグルマスの挙動を扱う章。",
+            stages: [stage41]
+        )
+
+        return [chapter1, chapter2, chapter3, chapter4]
     }
 }
