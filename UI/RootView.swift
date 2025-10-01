@@ -1223,6 +1223,11 @@ fileprivate struct TopStatusInsetView: View {
             .frame(maxWidth: context.topBarMaxWidth ?? .infinity, alignment: .leading)
             Spacer(minLength: 0)
         }
+        // 画面上部に常駐する情報のみを表示するため、タップは背後のボタンへ届ける
+        .allowsHitTesting(false)
+        // ヒットテスト無効化後も VoiceOver で読み上げられるよう専用ラベルを明示
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(accessibilityMessage)
         .padding(.horizontal, context.topBarHorizontalPadding)
         .padding(.top, LayoutMetrics.topBarBaseTopPadding + context.regularTopPaddingFallback)
         .padding(.bottom, LayoutMetrics.topBarBaseBottomPadding)
@@ -1262,6 +1267,13 @@ fileprivate struct TopStatusInsetView: View {
                 .foregroundColor(theme.textSecondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+
+    /// VoiceOver 用の説明文。ヒットテストを無効化しても読み上げ内容が失われないよう、状態に応じた文面を返す
+    private var accessibilityMessage: LocalizedStringKey {
+        isAuthenticated
+            ? "Game Center にサインイン済み"
+            : "Game Center 未サインイン。設定画面からサインインするとランキングを利用できます。"
     }
 }
 
