@@ -1,6 +1,6 @@
 import XCTest
 @testable import MonoKnightApp
-import Game
+@testable import Game
 #if canImport(SpriteKit)
 import SpriteKit
 #endif
@@ -68,6 +68,67 @@ final class GameViewIntegrationTests: XCTestCase {
         XCTAssertEqual(gameCenter.submittedScores.count, 1, "スコア送信が 1 回も行われていません")
         XCTAssertEqual(gameCenter.submittedScores.first?.value, viewModel.core.score, "送信されたスコア値が想定と異なります")
         XCTAssertEqual(gameCenter.submittedScores.first?.identifier, viewModel.mode.identifier, "スコア送信先のモード ID が一致していません")
+    }
+
+    /// 盤面タップで複数候補のあるカードを指定したマスへ確実にプレイできることを確認する
+    func testBoardTapPlaysCardAtTappedDestinationWhenMultipleCandidatesExist() {
+        let scheduler = PenaltyBannerSchedulerSpy()
+        let gameCenter = GameCenterServiceSpy()
+        let adsService = AdsServiceSpy()
+
+        let core = GameCore(mode: .standard)
+        let interfaces = GameModuleInterfaces { _ in core }
+
+        let viewModel = GameViewModel(
+            mode: .standard,
+            gameInterfaces: interfaces,
+            gameCenterService: gameCenter,
+            adsService: adsService,
+            onRequestReturnToTitle: nil,
+            penaltyBannerScheduler: scheduler
+        )
+
+        // テスト中の余計なハプティクスを抑制する
+        viewModel.boardBridge.updateHapticsSetting(isEnabled: false)
+
+        guard
+            let stack = core.handStacks.first,
+            let topCard = stack.topCard
+        else {
+            XCTFail("初期手札の取得に失敗しました")
+            return
+        }
+
+        let overrideVectors = [
+            MoveVector(dx: 1, dy: 0),
+            MoveVector(dx: -1, dy: 0)
+        ]
+        MoveCard.setTestMovementVectors(overrideVectors, for: topCard.move)
+        defer { MoveCard.setTestMovementVectors(nil, for: topCard.move) }
+
+        let candidateMoves = core.availableMoves().filter { candidate in
+            candidate.stackID == stack.id && candidate.card.id == topCard.id
+        }
+        XCTAssertEqual(candidateMoves.count, 2, "複数候補が検出されませんでした")
+
+        let chosenMove = candidateMoves[1]
+
+        core.handleTap(at: chosenMove.destination)
+
+        guard let pendingRequest = core.boardTapPlayRequest else {
+            XCTFail("BoardTapPlayRequest が設定されていません")
+            return
+        }
+
+        XCTAssertEqual(pendingRequest.destination, chosenMove.destination, "BoardTapPlayRequest.destination が想定と異なります")
+        XCTAssertEqual(pendingRequest.moveVector, chosenMove.moveVector, "BoardTapPlayRequest.moveVector が想定と異なります")
+
+        // Combine の購読とアニメーション完了を待機する
+        RunLoop.main.run(until: Date().addingTimeInterval(0.6))
+
+        XCTAssertEqual(core.current, chosenMove.destination, "盤面タップで指定したマスへ駒が移動していません")
+        XCTAssertEqual(core.moveCount, 1, "カード使用回数が加算されていません")
+        XCTAssertNil(core.boardTapPlayRequest, "処理後も BoardTapPlayRequest が残っています")
     }
 
     #if canImport(SpriteKit)

@@ -224,6 +224,10 @@ public struct BoardTapPlayRequest: Identifiable, Equatable {
     public let stackIndex: Int
     /// アニメーション用に参照するスタック先頭のカード
     public let topCard: DealtCard
+    /// リクエスト生成時に確定した移動先座標
+    public let destination: GridPoint
+    /// リクエスト生成時に選択された移動ベクトル
+    public let moveVector: MoveVector
 
     /// 公開イニシャライザ
     /// - Parameters:
@@ -231,11 +235,34 @@ public struct BoardTapPlayRequest: Identifiable, Equatable {
     ///   - stackID: 対象スタックの識別子
     ///   - stackIndex: 手札スロット内での位置
     ///   - topCard: 要求時点での先頭カード
-    public init(id: UUID = UUID(), stackID: UUID, stackIndex: Int, topCard: DealtCard) {
+    ///   - destination: 選択された移動先座標
+    ///   - moveVector: 実際に適用する移動ベクトル
+    public init(
+        id: UUID = UUID(),
+        stackID: UUID,
+        stackIndex: Int,
+        topCard: DealtCard,
+        destination: GridPoint,
+        moveVector: MoveVector
+    ) {
         self.id = id
         self.stackID = stackID
         self.stackIndex = stackIndex
         self.topCard = topCard
+        self.destination = destination
+        self.moveVector = moveVector
+    }
+
+    /// ResolvedCardMove への変換を簡潔に行うための補助プロパティ
+    /// - Important: UI 側ではこの値を利用して `GameCore.playCard(using:)` へそのまま引き渡すことで、複数候補カードでもユーザーの選択を忠実に再現する
+    public var resolvedMove: ResolvedCardMove {
+        ResolvedCardMove(
+            stackID: stackID,
+            stackIndex: stackIndex,
+            card: topCard,
+            moveVector: moveVector,
+            destination: destination
+        )
     }
 
     /// Equatable 実装
