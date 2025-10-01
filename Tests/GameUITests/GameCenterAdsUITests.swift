@@ -17,20 +17,34 @@ final class GameCenterAdsUITests: XCTestCase {
         app.launch()
         
         // --- Game Center 認証フローの確認 ---
-        // サインインボタンが表示されるまで待機
-        // アクセシビリティ識別子 "gc_sign_in_button" を対象
-        let signInButton = app.buttons["gc_sign_in_button"]
-        XCTAssertTrue(signInButton.waitForExistence(timeout: 5),
-                      "Game Center のサインインボタンが表示されません")
-        
-        // ボタンをタップしてサインインを実行
-        signInButton.tap()
-        
-        // サインイン完了を示すラベルが表示されるかを確認
-        let authedLabel = app.staticTexts["gc_authenticated"]
-        XCTAssertTrue(authedLabel.waitForExistence(timeout: 10),
-                      "Game Center 認証が完了しません")
-        
+        // タイトル画面右上の設定ボタンを開き、設定画面経由でサインインを実施する
+        let settingsButton = app.buttons["設定"]
+        XCTAssertTrue(settingsButton.waitForExistence(timeout: 5),
+                      "タイトル画面の設定ボタンが見つかりません")
+        settingsButton.tap()
+
+        let gcSettingsButton = app.buttons["settings_gc_sign_in_button"]
+        XCTAssertTrue(gcSettingsButton.waitForExistence(timeout: 5),
+                      "設定画面の Game Center サインインボタンが表示されません")
+        gcSettingsButton.tap()
+
+        // 認証成功時のアラートが表示されるか確認し、閉じる
+        let gcAlert = app.alerts["Game Center"]
+        XCTAssertTrue(gcAlert.waitForExistence(timeout: 5),
+                      "Game Center 認証結果のアラートが表示されません")
+        gcAlert.buttons["OK"].tap()
+
+        // ステータスラベルがサインイン済みの状態になっていることを確認
+        let statusLabel = app.staticTexts["settings_gc_status_label"]
+        XCTAssertTrue(statusLabel.waitForExistence(timeout: 5),
+                      "Game Center 認証状態ラベルが更新されません")
+
+        // 設定画面を閉じてゲーム画面へ戻る
+        let closeSettingsButton = app.buttons["設定画面を閉じる"]
+        XCTAssertTrue(closeSettingsButton.waitForExistence(timeout: 2),
+                      "設定画面を閉じるボタンが見つかりません")
+        closeSettingsButton.tap()
+
         // --- インタースティシャル広告表示の確認 ---
         // 結果画面へ遷移するボタンをタップし、広告表示トリガーとする
         // アクセシビリティ識別子 "show_result" を想定

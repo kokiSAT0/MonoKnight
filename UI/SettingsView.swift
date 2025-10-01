@@ -11,6 +11,8 @@ struct SettingsView: View {
     // これにより SettingsView 内で `AdsService.shared` を参照する必要がなくなり、
     // 共有インスタンスの実装差し替えに伴うビルドエラーを防止する。
     private let adsService: AdsServiceProtocol
+    // Game Center 認証を制御するサービス。設定画面からも直接サインインを呼び出せるようプロトコル越しに保持する。
+    private let gameCenterService: GameCenterServiceProtocol
     // MARK: - プレゼンテーション制御
     // フルスクリーンカバーで表示された設定画面を明示的に閉じられるよう、dismiss アクションを取得しておく。
     @Environment(\.dismiss) private var dismiss
@@ -40,13 +42,27 @@ struct SettingsView: View {
     // デバッグ用パスコードを定義し、値の変更箇所を 1 箇所に集約する。
     private static let debugUnlockPassword = "6031"
 
+    // MARK: - Game Center 連携
+    // 設定画面から認証状態を更新するためのバインディング。RootView 側と状態を双方向で同期する。
+    @Binding private var isGameCenterAuthenticated: Bool
+    // 認証処理が進行中かどうかを管理し、ボタンの連打や二重実行を防ぐ。
+    @State private var isGameCenterAuthenticationInProgress = false
+    // 認証完了後にユーザーへ結果を案内するためのアラート種別。
+    @State private var gameCenterAlert: GameCenterAlert?
+
     // MARK: - 初期化
     // AdsServiceProtocol を外部から注入できるようにし、未指定の場合はシングルトンを採用する。
     // - Parameter adsService: 広告同意フローや同意状態の再取得を扱うサービス。
-    init(adsService: AdsServiceProtocol? = nil) {
+    init(
+        adsService: AdsServiceProtocol? = nil,
+        gameCenterService: GameCenterServiceProtocol? = nil,
+        isGameCenterAuthenticated: Binding<Bool> = .constant(false)
+    ) {
         // Swift 6 ではデフォルト引数が非分離コンテキストで評価されるため、
         // MainActor 上で安全にシングルトンへアクセスできるようイニシャライザ本体で解決する。
         self.adsService = adsService ?? AdsService.shared
+        self.gameCenterService = gameCenterService ?? GameCenterService.shared
+        self._isGameCenterAuthenticated = isGameCenterAuthenticated
     }
 
     // MARK: - テーマ設定
@@ -119,9 +135,77 @@ struct SettingsView: View {
         }
     }
 
+    // Game Center 認証の成否を通知するためのアラート定義。
+    private enum GameCenterAlert: Identifiable {
+        case success
+        case failure
+
+        var id: String {
+            switch self {
+            case .success:
+                return "gc_success"
+            case .failure:
+                return "gc_failure"
+            }
+        }
+
+        var title: String { "Game Center" }
+
+        var message: String {
+            switch self {
+            case .success:
+                return "Game Center へのサインインが完了しました。ランキングとスコア送信が利用可能です。"
+            case .failure:
+                return "サインインに失敗しました。通信環境を確認し、時間を置いて再度お試しください。"
+            }
+        }
+    }
+
     var body: some View {
         NavigationStack {
             List {
+                // MARK: Game Center 認証セクション
+                Section {
+                    // 現在の認証状態をひと目で分かるようアイコン付きで表示する。
+                    Label {
+                        Text(isGameCenterAuthenticated ? "サインイン済み" : "未サインイン")
+                            .font(.headline)
+                    } icon: {
+                        Image(systemName: isGameCenterAuthenticated ? "checkmark.circle.fill" : "person.crop.circle.badge.exclamationmark")
+                    }
+                    .foregroundStyle(isGameCenterAuthenticated ? .green : .orange)
+                    .accessibilityIdentifier("settings_gc_status_label")
+
+                    Button {
+                        guard !isGameCenterAuthenticationInProgress else { return }
+                        isGameCenterAuthenticationInProgress = true
+                        // Game Center へのサインインを実行し、完了時にバインディングへ結果を反映する。
+                        gameCenterService.authenticateLocalPlayer { success in
+                            Task { @MainActor in
+                                isGameCenterAuthenticationInProgress = false
+                                isGameCenterAuthenticated = success
+                                gameCenterAlert = success ? .success : .failure
+                            }
+                        }
+                    } label: {
+                        HStack {
+                            Text(isGameCenterAuthenticated ? "状態を再確認" : "Game Center にサインイン")
+                            Spacer()
+                            if isGameCenterAuthenticationInProgress {
+                                ProgressView()
+                            }
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(isGameCenterAuthenticationInProgress)
+                    .accessibilityIdentifier("settings_gc_sign_in_button")
+                } header: {
+                    Text("Game Center")
+                } footer: {
+                    // サインインの目的を明確に伝え、ランキング利用に直結することを説明する。
+                    Text("ランキング表示やスコア送信を行うには Game Center へのサインインが必要です。サインイン済みの場合は結果画面から自動で送信されます。")
+                }
+
                 // MARK: テーマ選択セクション
                 Section {
                     // Picker の selection は ThemePreference を直接扱えるように Binding を手動で構築する。
@@ -388,6 +472,14 @@ struct SettingsView: View {
             Button("OK", role: .cancel) { }
         } message: {
             Text("キャンペーンモードの検証用として全てのステージが解放された状態になりました。")
+        }
+        // Game Center 認証の完了状況をアラートで案内し、ユーザーに結果をフィードバックする。
+        .alert(item: $gameCenterAlert) { alert in
+            Alert(
+                title: Text(alert.title),
+                message: Text(alert.message),
+                dismissButton: .default(Text("OK"))
+            )
         }
         // ストア処理の成否をまとめて通知し、ユーザーに完了状況を伝える
         .alert(item: $storeAlert) { alert in

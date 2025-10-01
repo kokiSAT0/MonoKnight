@@ -35,6 +35,10 @@ struct GameView: View {
     /// 手札スロットの数（常に 5 スロット分の枠を確保してレイアウトを安定させる）
     /// - Note: レイアウト拡張でハンド UI の構築にも利用するため、アクセスレベルは internal にとどめて同一型内で共有している。
     let handSlotCount = 5
+    /// Game Center 認証済みかどうかの状態。ResultView のボタン表示や ViewModel 連携で利用する。
+    let isGameCenterAuthenticated: Bool
+    /// Game Center への再サインインをルートビューへ依頼するためのクロージャ。
+    let onRequestGameCenterSignIn: ((GameCenterSignInPromptReason) -> Void)?
     /// View とロジックの橋渡しを担う ViewModel
     /// - Note: レイアウトや監視系の拡張（別ファイル）からもアクセスするため、`internal` 相当の公開範囲（デフォルト）を維持する。
     ///         `fileprivate` にすると `GameView+Layout` から参照できずビルドエラーになるため注意。
@@ -75,6 +79,8 @@ struct GameView: View {
     init(
         mode: GameMode = .standard,
         gameInterfaces: GameModuleInterfaces = .live,
+        isGameCenterAuthenticated: Bool = GameCenterService.shared.isAuthenticated,
+        onRequestGameCenterSignIn: ((GameCenterSignInPromptReason) -> Void)? = nil,
         onRequestReturnToTitle: (() -> Void)? = nil,
         onRequestStartCampaignStage: ((CampaignStage) -> Void)? = nil
     ) {
@@ -84,6 +90,8 @@ struct GameView: View {
             gameCenterService: GameCenterService.shared,
             adsService: AdsService.shared,
             campaignProgressStore: CampaignProgressStore(),
+            isGameCenterAuthenticated: isGameCenterAuthenticated,
+            onRequestGameCenterSignIn: onRequestGameCenterSignIn,
             onRequestReturnToTitle: onRequestReturnToTitle,
             onRequestStartCampaignStage: onRequestStartCampaignStage
         )
@@ -96,6 +104,8 @@ struct GameView: View {
         gameCenterService: GameCenterServiceProtocol,
         adsService: AdsServiceProtocol,
         campaignProgressStore: CampaignProgressStore,
+        isGameCenterAuthenticated: Bool,
+        onRequestGameCenterSignIn: ((GameCenterSignInPromptReason) -> Void)? = nil,
         onRequestReturnToTitle: (() -> Void)? = nil,
         onRequestStartCampaignStage: ((CampaignStage) -> Void)? = nil
     ) {
@@ -106,6 +116,8 @@ struct GameView: View {
         // MARK: - ユーザー設定を読み出して ViewModel 初期化へ渡す
         // `StateObject` へ直接クロージャを渡し、SwiftUI 側で既存インスタンスが再利用される場合はイニシャライザ評価をスキップさせる。
         let savedOrdering = UserDefaults.standard.string(forKey: HandOrderingStrategy.storageKey)
+        self.isGameCenterAuthenticated = isGameCenterAuthenticated
+        self.onRequestGameCenterSignIn = onRequestGameCenterSignIn
         _viewModel = StateObject(
             wrappedValue: GameViewModel(
                 mode: mode,
@@ -113,9 +125,11 @@ struct GameView: View {
                 gameCenterService: gameCenterService,
                 adsService: adsService,
                 campaignProgressStore: campaignProgressStore,
+                onRequestGameCenterSignIn: onRequestGameCenterSignIn,
                 onRequestReturnToTitle: onRequestReturnToTitle,
                 onRequestStartCampaignStage: onRequestStartCampaignStage,
-                initialHandOrderingRawValue: savedOrdering
+                initialHandOrderingRawValue: savedOrdering,
+                initialGameCenterAuthenticationState: isGameCenterAuthenticated
             )
         )
     }
@@ -127,6 +141,14 @@ struct GameView: View {
                 mainContent(for: geometry)
             }
         )
+        .onAppear {
+            // 表示時点の認証状態を ViewModel へ反映し、スコア送信フローとの整合性を保つ。
+            viewModel.updateGameCenterAuthenticationStatus(isGameCenterAuthenticated)
+        }
+        .onChange(of: isGameCenterAuthenticated) { _, newValue in
+            // RootView から認証状態が更新された場合に備えて随時同期する。
+            viewModel.updateGameCenterAuthenticationStatus(newValue)
+        }
         // ポーズメニューをフルスクリーンで重ね、端末サイズに左右されずに全項目を視認できるようにする
         .fullScreenCover(isPresented: $viewModel.isPauseMenuPresented) {
             PauseMenuView(
@@ -155,6 +177,8 @@ struct GameView: View {
                 modeIdentifier: viewModel.mode.identifier,
                 modeDisplayName: viewModel.mode.displayName,
                 showsLeaderboardButton: viewModel.isLeaderboardEligible,
+                isGameCenterAuthenticated: viewModel.isGameCenterAuthenticated,
+                onRequestGameCenterSignIn: onRequestGameCenterSignIn,
                 campaignClearRecord: viewModel.latestCampaignClearRecord,
                 newlyUnlockedStages: viewModel.newlyUnlockedStages,
                 onSelectCampaignStage: { stage in

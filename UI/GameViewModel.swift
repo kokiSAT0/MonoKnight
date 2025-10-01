@@ -71,6 +71,8 @@ final class GameViewModel: ObservableObject {
     let adsService: AdsServiceProtocol
     /// キャンペーン進捗ストア
     let campaignProgressStore: CampaignProgressStore
+    /// Game Center サインインを再度促す要求を親へ伝えるクロージャ
+    let onRequestGameCenterSignIn: ((GameCenterSignInPromptReason) -> Void)?
     /// タイトル復帰時に親へ伝えるためのクロージャ
     let onRequestReturnToTitle: (() -> Void)?
     /// クリア後に別のキャンペーンステージへ遷移したい場合のリクエストクロージャ
@@ -146,6 +148,8 @@ final class GameViewModel: ObservableObject {
     private(set) var hapticsEnabled = true
     /// ガイドモードの有効/無効設定
     private(set) var guideModeEnabled = true
+    /// Game Center 認証済みかどうかを UI と共有するフラグ
+    @Published private(set) var isGameCenterAuthenticated: Bool
 
     /// Combine の購読を保持するセット
     private var cancellables = Set<AnyCancellable>()
@@ -167,19 +171,23 @@ final class GameViewModel: ObservableObject {
         gameCenterService: GameCenterServiceProtocol,
         adsService: AdsServiceProtocol,
         campaignProgressStore: CampaignProgressStore,
+        onRequestGameCenterSignIn: ((GameCenterSignInPromptReason) -> Void)?,
         onRequestReturnToTitle: (() -> Void)?,
         onRequestStartCampaignStage: ((CampaignStage) -> Void)?,
         penaltyBannerScheduler: PenaltyBannerScheduling = PenaltyBannerScheduler(),
-        initialHandOrderingRawValue: String? = nil
+        initialHandOrderingRawValue: String? = nil,
+        initialGameCenterAuthenticationState: Bool = false
     ) {
         self.mode = mode
         self.gameInterfaces = gameInterfaces
         self.gameCenterService = gameCenterService
         self.adsService = adsService
         self.campaignProgressStore = campaignProgressStore
+        self.onRequestGameCenterSignIn = onRequestGameCenterSignIn
         self.onRequestReturnToTitle = onRequestReturnToTitle
         self.onRequestStartCampaignStage = onRequestStartCampaignStage
         self.penaltyBannerScheduler = penaltyBannerScheduler
+        self.isGameCenterAuthenticated = initialGameCenterAuthenticationState
 
         // GameCore を生成し、ViewModel 経由で観測できるようにする
         let generatedCore = gameInterfaces.makeGameCore(mode)
@@ -223,6 +231,14 @@ final class GameViewModel: ObservableObject {
     func applyHandOrderingStrategy(rawValue: String) {
         let strategy = HandOrderingStrategy(rawValue: rawValue) ?? .insertionOrder
         core.updateHandOrderingStrategy(strategy)
+    }
+
+    /// Game Center 認証状態を更新し、必要に応じてログへ記録する
+    /// - Parameter newValue: 最新の認証可否
+    func updateGameCenterAuthenticationStatus(_ newValue: Bool) {
+        guard isGameCenterAuthenticated != newValue else { return }
+        debugLog("GameViewModel: Game Center 認証状態が更新されました -> \(newValue)")
+        isGameCenterAuthenticated = newValue
     }
 
     /// 手札選択を表す内部モデル
@@ -700,7 +716,12 @@ final class GameViewModel: ObservableObject {
         switch progress {
         case .cleared:
             if mode.isLeaderboardEligible {
-                gameCenterService.submitScore(core.score, for: mode.identifier)
+                if isGameCenterAuthenticated {
+                    gameCenterService.submitScore(core.score, for: mode.identifier)
+                } else {
+                    debugLog("GameViewModel: Game Center 未認証のためスコア送信をスキップしました")
+                    onRequestGameCenterSignIn?(.scoreSubmissionSkipped)
+                }
             }
             registerCampaignResultIfNeeded()
             showingResult = true
