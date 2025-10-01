@@ -258,6 +258,34 @@ final class GameViewModel: ObservableObject {
         )
     }
 
+    /// カード選択 UI から強制的に盤面ハイライトを表示したい場合のエントリポイント
+    /// - Parameter points: ユーザーに示したい候補座標集合。空集合を渡すと強制表示を解除する。
+    /// - Note: チュートリアルやヒント UI で特定マスを指示したいケースを想定し、View 層から直接 `GameScene` へ触れずに更新できるようにする。
+    func updateForcedSelectionHighlight(points: Set<GridPoint>) {
+        boardBridge.updateForcedSelectionHighlights(points)
+    }
+
+    /// 特定の手札スタックに応じた強制ハイライトを更新するユーティリティ
+    /// - Parameter stack: ハイライトしたいスタック。nil や未使用カードの場合は解除を行う。
+    /// - Important: カード選択 UI でフォーカスが移動した際に呼び出し、解除時は `nil` を渡す運用を想定している。
+    func updateForcedSelectionHighlight(for stack: HandStack?) {
+        guard
+            let stack,
+            let current = core.current,
+            let card = stack.topCard
+        else {
+            boardBridge.updateForcedSelectionHighlights([])
+            return
+        }
+
+        let destination = current.offset(dx: card.move.dx, dy: card.move.dy)
+        if core.board.contains(destination) {
+            boardBridge.updateForcedSelectionHighlights([destination])
+        } else {
+            boardBridge.updateForcedSelectionHighlights([])
+        }
+    }
+
     /// 表示用の経過時間を再計算する
     func updateDisplayedElapsedTime() {
         // GameCore 側では経過秒数をリアルタイム計測しつつ、クリア確定時に `elapsedSeconds` へ確定値を格納する。
@@ -305,6 +333,8 @@ final class GameViewModel: ObservableObject {
 
         // 使用可能なカードであれば盤面アニメーションとプレイ処理を実行
         if isCardUsable(latestStack) {
+            // 強制ハイライトを使用していた場合は、実際のプレイ処理開始前に必ず解除して整合性を保つ
+            boardBridge.updateForcedSelectionHighlights([])
             _ = animateCardPlay(for: latestStack, at: index)
         } else if hapticsEnabled {
             // 無効カードをタップした場合は警告ハプティクスのみ発生させる

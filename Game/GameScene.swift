@@ -5,6 +5,15 @@ import UIKit
 #endif
 import SharedSupport // debugLog を利用するため共有モジュールを読み込む
 
+/// 盤面ハイライトの種類を列挙するための型
+/// - Note: ガイド表示と強制表示を区別し、SpriteKit ノード管理を種類別に分離する狙いがある
+public enum BoardHighlightKind: CaseIterable, Hashable {
+    /// 通常のガイドモードで表示するハイライト
+    case guide
+    /// チュートリアルやカード選択で強制的に表示するハイライト
+    case forcedSelection
+}
+
 /// GameCore とのやり取りのためのプロトコル
 /// - ゲームロジック側で実装し、タップされたマスに対する移動処理を担当する
 public protocol GameCoreProtocol: AnyObject {
@@ -46,11 +55,14 @@ public final class GameScene: SKScene {
     /// 各マスに対応するノードを保持
     private var tileNodes: [GridPoint: SKShapeNode] = [:]
 
-    /// ガイドモードで使用するハイライトノードのキャッシュ
-    private var guideHighlightNodes: [GridPoint: SKShapeNode] = [:]
+    /// ハイライト種類ごとのノードキャッシュ
+    /// - Important: 種類ごとに辞書を分けることで、描画の上書き順とスタイルを柔軟に切り替えられる
+    private var highlightNodes: [BoardHighlightKind: [GridPoint: SKShapeNode]] = [:]
 
-    /// レイアウト未確定時に受け取ったガイド描画リクエストを一時的に保持
-    private var pendingGuideHighlightPoints: Set<GridPoint> = []
+    /// レイアウト未確定時に受け取ったハイライト要求の待ち行列
+    /// - Note: キーごとに候補座標を保持し、レイアウト確定後にまとめて構築する
+    private var pendingHighlightPoints: [BoardHighlightKind: Set<GridPoint>] =
+        Dictionary(uniqueKeysWithValues: BoardHighlightKind.allCases.map { ($0, []) })
 
     /// レイアウト未確定時に渡された盤面情報を一時保存し、後でまとめて適用する
     private var pendingBoard: Board?
@@ -131,8 +143,10 @@ public final class GameScene: SKScene {
         gridOrigin = .zero
         // SpriteKit ノード系のキャッシュは全て空に戻し、不要なノードが残らないようにする
         tileNodes = [:]
-        guideHighlightNodes = [:]
-        pendingGuideHighlightPoints = []
+        highlightNodes = [:]
+        pendingHighlightPoints = Dictionary(
+            uniqueKeysWithValues: BoardHighlightKind.allCases.map { ($0, []) }
+        )
         pendingBoard = nil
         pendingKnightState = nil
         knightNode = nil
@@ -297,7 +311,7 @@ public final class GameScene: SKScene {
         }
 
         // ハイライトは専用メソッドで再構成し、テーマ色とサイズを同時にリフレッシュする
-        updateGuideHighlightColors()
+        updateHighlightColors()
 
         // VoiceOver 用の読み上げ領域も新しい座標に合わせ直す
         updateAccessibilityElements()
@@ -353,11 +367,15 @@ public final class GameScene: SKScene {
         }
         tileNodes.removeAll()
 
-        for node in guideHighlightNodes.values {
-            node.removeFromParent()
+        for nodes in highlightNodes.values {
+            for node in nodes.values {
+                node.removeFromParent()
+            }
         }
-        guideHighlightNodes.removeAll()
-        pendingGuideHighlightPoints.removeAll()
+        highlightNodes.removeAll()
+        pendingHighlightPoints = Dictionary(
+            uniqueKeysWithValues: BoardHighlightKind.allCases.map { ($0, []) }
+        )
 
         if let knightNode {
             knightNode.removeAllActions()
@@ -457,7 +475,7 @@ public final class GameScene: SKScene {
             node.fillColor = tileFillColor(for: point)
         }
         // タイル色が変わった際もガイドハイライトの色味を再評価して自然なバランスを保つ
-        updateGuideHighlightColors()
+        updateHighlightColors()
     }
 
     /// 指定座標の状態に応じたタイル色を計算する
@@ -483,67 +501,90 @@ public final class GameScene: SKScene {
         return palette.boardTileUnvisited.interpolated(to: palette.boardTileVisited, fraction: progress)
     }
 
-    /// ガイドモードで指定されたマスにハイライトを表示する
-    /// - Parameter points: 発光させたい盤面座標の集合
-    /// - NOTE: ガイド表示の更新を SwiftUI 側から呼び出せるよう公開する
-    public func updateGuideHighlights(_ points: Set<GridPoint>) {
-        // 盤外座標が渡されても安全に無視できるよう、盤面内に限定した集合を用意
-        let validPoints = Set(points.filter { board.contains($0) })
+    /// 盤面ハイライトの種類ごとの集合をまとめて更新する
+    /// - Parameter highlights: 種類をキーとした盤面座標集合
+    /// - NOTE: 将来ハイライト種別が増えても呼び出し側の構造を保てるよう辞書引数を採用している
+    public func updateHighlights(_ highlights: [BoardHighlightKind: Set<GridPoint>]) {
+        // キーが存在しない場合は空集合として扱い、不要なノードが残らないようにする
+        var sanitized: [BoardHighlightKind: Set<GridPoint>] = [:]
+        for kind in BoardHighlightKind.allCases {
+            let requestedPoints = highlights[kind] ?? []
+            let validPoints = Set(requestedPoints.filter { board.contains($0) })
+            sanitized[kind] = validPoints
+            pendingHighlightPoints[kind] = validPoints
+        }
 
-        // 最新の要求内容を常に保持し、レイアウト完了後に再構成できるようにする
-        pendingGuideHighlightPoints = validPoints
+        let countsDescription = sanitized
+            .map { "\($0.key)=\($0.value.count)" }
+            .joined(separator: ", ")
+        debugLog("GameScene ハイライト更新要求: \(countsDescription), レイアウト確定=\(isLayoutReady)")
 
-        // SwiftUI 側からのリクエストが途絶えていないか確認するため、受け取ったマス数とレイアウト状態を記録
-        debugLog("GameScene ハイライト更新要求: 有効マス数=\(validPoints.count), レイアウト確定=\(isLayoutReady)")
-
-        // レイアウトが未確定の場合はノード生成を保留し、確定後に再試行する
         guard isLayoutReady else { return }
 
-        rebuildGuideHighlightNodes(using: validPoints)
-        // レイアウト確定後に最新情報で再構成できたため、保留集合はここで必ず消費しておく
-        pendingGuideHighlightPoints.removeAll()
+        applyHighlightsImmediately(sanitized)
+        // 即時反映が完了したため、保留分はここで初期化しておく
+        for kind in BoardHighlightKind.allCases {
+            pendingHighlightPoints[kind] = []
+        }
     }
 
-    /// 指定された集合に合わせてハイライトノード群を再生成する
-    /// - Parameter points: 表示したい盤面座標の集合
-    private func rebuildGuideHighlightNodes(using points: Set<GridPoint>) {
+    /// 既存 API との後方互換のため、ガイド種別だけを更新するコンビニエンスメソッド
+    /// - Parameter points: ガイド表示したい盤面座標集合
+    public func updateGuideHighlights(_ points: Set<GridPoint>) {
+        updateHighlights([.guide: points])
+    }
+
+    /// 辞書で受け取ったハイライト情報を即座にノードへ反映する
+    /// - Parameter highlights: 種類ごとの有効な盤面座標集合
+    private func applyHighlightsImmediately(_ highlights: [BoardHighlightKind: Set<GridPoint>]) {
+        for kind in BoardHighlightKind.allCases {
+            let points = highlights[kind] ?? []
+            rebuildHighlightNodes(for: kind, using: points)
+        }
+    }
+
+    /// 指定された集合に合わせてハイライトノード群を再構築する
+    /// - Parameters:
+    ///   - kind: 更新対象となるハイライト種別
+    ///   - points: 表示したい盤面座標の集合
+    private func rebuildHighlightNodes(for kind: BoardHighlightKind, using points: Set<GridPoint>) {
+        var nodesForKind = highlightNodes[kind] ?? [:]
+
         // 既存ハイライトのうち対象外になったものを削除
-        for (point, node) in guideHighlightNodes where !points.contains(point) {
+        for (point, node) in nodesForKind where !points.contains(point) {
             node.removeFromParent()
-            guideHighlightNodes.removeValue(forKey: point)
+            nodesForKind.removeValue(forKey: point)
         }
 
         // 必要なマスへハイライトを再構成
         for point in points {
-            if let node = guideHighlightNodes[point] {
+            if let node = nodesForKind[point] {
                 // 既存ノードを再利用する際は親子関係が途切れていないか必ず確認する
                 if node.parent !== self {
                     // SKView の再生成時に親を失ったノードを確実に再接続するため
                     addChild(node)
                 }
-                configureGuideHighlightNode(node, for: point)
+                configureHighlightNode(node, for: point, kind: kind)
             } else {
                 let node = SKShapeNode()
-                configureGuideHighlightNode(node, for: point)
+                configureHighlightNode(node, for: point, kind: kind)
                 addChild(node)
-                guideHighlightNodes[point] = node
+                nodesForKind[point] = node
             }
         }
+
+        highlightNodes[kind] = nodesForKind
     }
 
     /// 既存のハイライトノードを現在のテーマとマスサイズに合わせて更新
-    private func updateGuideHighlightColors() {
+    private func updateHighlightColors() {
         // レイアウトが未確定のまま再描画しても意味が無いため、適切なサイズが得られるまで待機する
         guard isLayoutReady else { return }
 
-        if pendingGuideHighlightPoints.isEmpty {
-            // 現在表示中のノードを最新テーマへ合わせ直す
-            for (point, node) in guideHighlightNodes {
-                configureGuideHighlightNode(node, for: point)
+        for (kind, nodes) in highlightNodes {
+            for (point, node) in nodes {
+                configureHighlightNode(node, for: point, kind: kind)
             }
-        } else {
-            // 保留中の座標がある場合はノード自体を再構成して確実に表示する
-            rebuildGuideHighlightNodes(using: pendingGuideHighlightPoints)
         }
     }
 
@@ -551,7 +592,8 @@ public final class GameScene: SKScene {
     /// - Parameters:
     ///   - node: 更新対象のノード
     ///   - point: 対応する盤面座標
-    private func configureGuideHighlightNode(_ node: SKShapeNode, for point: GridPoint) {
+    ///   - kind: 表示中のハイライト種別
+    private func configureHighlightNode(_ node: SKShapeNode, for point: GridPoint, kind: BoardHighlightKind) {
         // 枠線の外側がマス境界を超えないよう、線幅に応じて矩形を補正する
         let strokeWidth = max(tileSize * 0.06, 2.0)
         // SpriteKit の座標系ではノード中心が (0,0) なので、原点からタイル半分を引いた矩形を起点にする
@@ -565,10 +607,24 @@ public final class GameScene: SKScene {
         let adjustedRect = baseRect.insetBy(dx: strokeWidth / 2, dy: strokeWidth / 2)
         node.path = CGPath(rect: adjustedRect, transform: nil)
 
-        let baseColor = palette.boardGuideHighlight
+        let baseColor: SKColor
+        let strokeAlpha: CGFloat
+        let zPosition: CGFloat
+        switch kind {
+        case .guide:
+            baseColor = palette.boardGuideHighlight
+            strokeAlpha = 0.88
+            zPosition = 1.0
+        case .forcedSelection:
+            // NOTE: 現段階ではガイドと同じ色を使用しつつ、将来のカスタマイズ余地を残すため分岐を設けている
+            baseColor = palette.boardGuideHighlight
+            strokeAlpha = 1.0
+            zPosition = 1.1
+        }
+
         // 充填色は透過させ、枠線のみに集中させて過度な塗りつぶしを避ける
         node.fillColor = SKColor.clear
-        node.strokeColor = baseColor.withAlphaComponent(0.88)
+        node.strokeColor = baseColor.withAlphaComponent(strokeAlpha)
         node.lineWidth = strokeWidth
         node.glowWidth = 0
 
@@ -580,7 +636,7 @@ public final class GameScene: SKScene {
 
         node.lineCap = .square
         node.position = position(for: point)
-        node.zPosition = 1  // タイルより前面、駒より背面で控えめに表示
+        node.zPosition = zPosition  // 種類ごとに重なり順を調整し、強制表示が埋もれないようにする
         // アンチエイリアスを無効化し、ライト/ダーク両テーマで滲まないシャープな輪郭にする
         node.isAntialiased = false
         node.blendMode = .alpha
@@ -605,7 +661,7 @@ public final class GameScene: SKScene {
         // レイアウトが確定していればその場で再描画し、未確定なら後で flush 時に反映する
         if isLayoutReady {
             updateTileColors()
-            updateGuideHighlightColors()
+            updateHighlightColors()
         }
     }
 
@@ -651,12 +707,25 @@ public final class GameScene: SKScene {
         }
     }
 
-    /// 保留中のガイド枠があれば、レイアウト確定後に反映する
-    private func applyPendingGuideHighlightsIfNeeded() {
-        guard isLayoutReady, !pendingGuideHighlightPoints.isEmpty else { return }
-        rebuildGuideHighlightNodes(using: pendingGuideHighlightPoints)
+    /// 保留中のハイライト情報があれば、レイアウト確定後に反映する
+    private func applyPendingHighlightsIfNeeded() {
+        guard isLayoutReady else { return }
+
+        var snapshot: [BoardHighlightKind: Set<GridPoint>] = [:]
+        for kind in BoardHighlightKind.allCases {
+            snapshot[kind] = pendingHighlightPoints[kind] ?? []
+        }
+
+        let hasPendingValues = snapshot.values.contains { !$0.isEmpty }
+        let hasRenderedHighlights = highlightNodes.values.contains { !$0.isEmpty }
+        guard hasPendingValues || hasRenderedHighlights else { return }
+
+        applyHighlightsImmediately(snapshot)
+
         // `flushPendingUpdatesIfNeeded` から呼び出された際も、再構成が完了した時点で保留分をクリアする
-        pendingGuideHighlightPoints.removeAll()
+        for kind in BoardHighlightKind.allCases {
+            pendingHighlightPoints[kind] = []
+        }
     }
 
     /// レイアウト確定後に盤面・駒・ガイドの保留更新をまとめて反映する
@@ -668,8 +737,9 @@ public final class GameScene: SKScene {
             return
         }
 
+        let pendingHighlightCount = pendingHighlightPoints.reduce(0) { $0 + $1.value.count }
         debugLog(
-            "GameScene.flushPendingUpdatesIfNeeded: pendingBoard=\(pendingBoard != nil), pendingKnight=\(pendingKnightState != nil), pendingGuide=\(pendingGuideHighlightPoints.count)"
+            "GameScene.flushPendingUpdatesIfNeeded: pendingBoard=\(pendingBoard != nil), pendingKnight=\(pendingKnightState != nil), pendingHighlights=\(pendingHighlightCount)"
         )
 
         if let boardToApply = pendingBoard {
@@ -697,7 +767,7 @@ public final class GameScene: SKScene {
         }
 
         // ハイライトの再生成は専用メソッドに委譲
-        applyPendingGuideHighlightsIfNeeded()
+        applyPendingHighlightsIfNeeded()
     }
 
     /// 現在保持している盤面情報を SpriteKit ノードへ反映する
