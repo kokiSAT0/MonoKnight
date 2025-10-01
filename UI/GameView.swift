@@ -193,6 +193,10 @@ struct GameView: View {
                     // ViewModel 側でリセットと広告フラグの再設定をまとめて処理する
                     viewModel.handleResultRetry()
                 },
+                onReturnToTitle: {
+                    // ホーム復帰時の初期化と遷移要求を ViewModel 側で統一的に処理する
+                    viewModel.handleResultReturnToTitle()
+                },
                 gameCenterService: viewModel.gameCenterService,
                 adsService: viewModel.adsService
             )

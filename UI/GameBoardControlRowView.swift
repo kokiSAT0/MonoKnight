@@ -129,6 +129,7 @@ private extension GameBoardControlRowView {
             manualDiscardButton
             manualPenaltyButton
             pauseButton
+            returnToTitleButton
         }
     }
 
@@ -214,6 +215,32 @@ private extension GameBoardControlRowView {
         .accessibilityIdentifier("pause_menu_button")
         .accessibilityLabel(Text("ポーズメニュー"))
         .accessibilityHint(Text("プレイを一時停止して設定やリセットを確認します"))
+    }
+
+    /// タイトルへ戻るボタン
+    /// - Note: リセットと同等の破壊的操作になるため、必ず確認ダイアログを経由させる
+    var returnToTitleButton: some View {
+        Button {
+            // 直接終了せず確認ダイアログを表示して誤操作を防ぐ
+            viewModel.requestReturnToTitle()
+        } label: {
+            Image(systemName: "house")
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundColor(theme.menuIconForeground)
+                .frame(width: 44, height: 44)
+                .background(
+                    Circle()
+                        .fill(theme.menuIconBackground)
+                )
+                .overlay(
+                    Circle()
+                        .stroke(theme.menuIconBorder, lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("return_to_title_button")
+        .accessibilityLabel(Text("ホームへ戻る"))
+        .accessibilityHint(Text("プレイを終了してタイトル画面へ戻ります"))
     }
 
     /// 統計バッジ 1 枚分の共通レイアウト
