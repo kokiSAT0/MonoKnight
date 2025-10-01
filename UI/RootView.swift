@@ -140,6 +140,14 @@ final class RootViewStateStore: ObservableObject {
             debugLog("RootView.isPresentingTitleSettings 更新: \(isPresentingTitleSettings)")
         }
     }
+    /// Game Center へのサインインを促すアラート情報
+    /// - Important: 直前と同じ理由でも再掲示できるように `GameCenterSignInPrompt` を利用して一意 ID を保持する
+    @Published var gameCenterSignInPrompt: GameCenterSignInPrompt? {
+        didSet {
+            guard oldValue?.id != gameCenterSignInPrompt?.id else { return }
+            debugLog("RootView.gameCenterSignInPrompt 更新: reason=\(String(describing: gameCenterSignInPrompt?.reason))")
+        }
+    }
     /// Game Center 認証の初回試行を完了したかどうか
     /// - NOTE: RootView が再描画されても `authenticateLocalPlayer` を重複呼び出ししないよう制御する
     private(set) var hasAttemptedInitialAuthentication: Bool
@@ -156,6 +164,7 @@ final class RootViewStateStore: ObservableObject {
         self.topBarHeight = 0
         self.lastLoggedLayoutSnapshot = nil
         self.isPresentingTitleSettings = false
+        self.gameCenterSignInPrompt = nil
         self.hasAttemptedInitialAuthentication = false
     }
 
@@ -177,6 +186,12 @@ final class RootViewStateStore: ObservableObject {
         return true
     }
 
+    /// Game Center の再サインインを促すアラートを登録する
+    /// - Parameter reason: ユーザーへ提示したい理由
+    func enqueueGameCenterSignInPrompt(reason: GameCenterSignInPromptReason) {
+        gameCenterSignInPrompt = GameCenterSignInPrompt(reason: reason)
+    }
+
     /// サイズクラス変化をログへ出力する
     /// - Parameter newValue: 更新後の横幅サイズクラス
     func logHorizontalSizeClassChange(_ newValue: UserInterfaceSizeClass?) {
@@ -191,9 +206,25 @@ private extension RootView {
     private func performInitialAuthenticationIfNeeded() {
         guard stateStore.markInitialAuthenticationAttemptedIfNeeded() else { return }
 
-        handleGameCenterAuthenticationRequest { _ in
-            // 初回認証の結果は `handleGameCenterAuthenticationRequest` 内でステートへ反映済みなので、ここでは追加処理は不要
+        handleGameCenterAuthenticationRequest { success in
+            // 失敗時は設定画面やリザルト経由で再試行できるようにアラートを掲示する
+            if !success {
+                presentGameCenterSignInPrompt(for: .initialAuthenticationFailed)
+            }
         }
+    }
+
+    /// Game Center 再認証を促すアラートを表示する
+    /// - Parameter reason: ユーザーへ伝える失敗理由
+    private func presentGameCenterSignInPrompt(for reason: GameCenterSignInPromptReason) {
+        debugLog("RootView: Game Center サインイン促しアラートを要求 reason=\(reason)")
+        stateStore.enqueueGameCenterSignInPrompt(reason: reason)
+    }
+
+    /// ゲーム中やリザルト画面から受け取ったサインイン要請を一元処理する
+    /// - Parameter reason: 再認証を促したい具体的な理由
+    private func handleGameCenterSignInRequest(reason: GameCenterSignInPromptReason) {
+        presentGameCenterSignInPrompt(for: reason)
     }
 
     /// GeometryReader の値をまとめ直し、後続の View 生成で毎回同じ初期化コードを書かなくて済むようにする
@@ -239,7 +270,7 @@ private extension RootView {
             topBarHeight: stateStore.binding(for: \.topBarHeight),
             lastLoggedLayoutSnapshot: stateStore.binding(for: \.lastLoggedLayoutSnapshot),
             isPresentingTitleSettings: stateStore.binding(for: \.isPresentingTitleSettings),
-            authenticateAction: handleGameCenterAuthenticationRequest,
+            onRequestGameCenterSignInPrompt: handleGameCenterSignInRequest,
             onStartGame: { mode in
                 // タイトル画面から受け取ったモードでゲーム準備フローを実行する
                 startGamePreparation(for: mode)
@@ -277,9 +308,30 @@ private extension RootView {
             // タイトル設定シートの表示制御。Binding はステートストアから生成する
             .fullScreenCover(isPresented: stateStore.binding(for: \.isPresentingTitleSettings)) {
                 // RootView から AdsServiceProtocol を引き渡し、設定画面でも共通プロトコル経由で操作できるようにする。
-                SettingsView(adsService: adsService)
+                SettingsView(
+                    adsService: adsService,
+                    gameCenterService: gameCenterService,
+                    isGameCenterAuthenticated: stateStore.binding(for: \.isAuthenticated)
+                )
                     // キャンペーン進捗ストアも同じインスタンスを共有し、デバッグ用パスコード入力で即座に反映されるようにする。
                     .environmentObject(campaignProgressStore)
+            }
+            // Game Center の再サインインを促すためのアラートを監視する
+            .alert(item: stateStore.binding(for: \.gameCenterSignInPrompt)) { prompt in
+                Alert(
+                    title: Text("Game Center"),
+                    message: Text(prompt.reason.message),
+                    primaryButton: .default(Text("再試行")) {
+                        // 既存アラートを閉じてから認証を再実行する
+                        stateStore.gameCenterSignInPrompt = nil
+                        handleGameCenterAuthenticationRequest { success in
+                            if !success {
+                                presentGameCenterSignInPrompt(for: .retryFailed)
+                            }
+                        }
+                    },
+                    secondaryButton: .cancel(Text("閉じる"))
+                )
             }
     }
 
@@ -323,8 +375,8 @@ private extension RootView {
         @Binding var lastLoggedLayoutSnapshot: RootLayoutSnapshot?
         /// タイトルから設定シートを開くためのフラグ
         @Binding var isPresentingTitleSettings: Bool
-        /// Game Center 認証 API 呼び出し用クロージャ
-        let authenticateAction: (@escaping (Bool) -> Void) -> Void
+        /// Game Center サインインを促す処理を親へ転送するクロージャ
+        let onRequestGameCenterSignInPrompt: (GameCenterSignInPromptReason) -> Void
         /// タイトル画面から開始ボタンが押下された際の処理
         let onStartGame: (GameMode) -> Void
         /// GameView からタイトルへ戻る際の処理
@@ -386,6 +438,8 @@ private extension RootView {
                     gameCenterService: gameCenterService,
                     adsService: adsService,
                     campaignProgressStore: campaignProgressStore,
+                    isGameCenterAuthenticated: isAuthenticated,
+                    onRequestGameCenterSignIn: onRequestGameCenterSignInPrompt,
                     onRequestReturnToTitle: {
                         // GameView 内からの戻り要求を親へ伝播させる
                         onReturnToTitle()
@@ -458,8 +512,7 @@ private extension RootView {
             TopStatusInsetView(
                 context: layoutContext,
                 theme: theme,
-                isAuthenticated: $isAuthenticated,
-                authenticateAction: authenticateAction
+                isAuthenticated: $isAuthenticated
             )
         }
 
@@ -1157,8 +1210,6 @@ fileprivate struct TopStatusInsetView: View {
     let theme: AppTheme
     /// Game Center 認証済みかどうかの状態をバインディングで受け取る
     @Binding var isAuthenticated: Bool
-    /// Game Center 認証 API を呼び出す際の仲介クロージャ
-    let authenticateAction: (@escaping (Bool) -> Void) -> Void
     /// RootView 内で定義したレイアウト定数へ素早くアクセスするための別名
     /// - Note: ネストした型名を毎回書かずに済ませ、視認性を高める狙い
     private typealias LayoutMetrics = RootView.RootLayoutMetrics
@@ -1206,25 +1257,10 @@ fileprivate struct TopStatusInsetView: View {
                 .accessibilityIdentifier("gc_authenticated")
                 .frame(maxWidth: .infinity, alignment: .leading)
         } else {
-            Button(action: handleGameCenterSignInTapped) {
-                Text("Game Center サインイン")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent)
-            .accessibilityIdentifier("gc_sign_in_button")
-        }
-    }
-
-    /// Game Center サインインボタン押下時の処理を共通化する
-    private func handleGameCenterSignInTapped() {
-        // 認証要求のトリガーを記録して、失敗時の切り分けを容易にする
-        debugLog("RootView: Game Center 認証開始要求 現在の認証状態=\(isAuthenticated)")
-        authenticateAction { success in
-            // コールバックでの成否もログへ残し、原因調査の手がかりとする
-            debugLog("RootView: Game Center 認証完了 success=\(success)")
-            Task { @MainActor in
-                isAuthenticated = success
-            }
+            Text("Game Center 未サインイン。設定画面からサインインするとランキングを利用できます。")
+                .font(.caption)
+                .foregroundColor(theme.textSecondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }

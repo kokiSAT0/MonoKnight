@@ -21,6 +21,10 @@ struct ResultView: View {
     let modeDisplayName: String
     /// ランキングボタンを表示するかどうか
     let showsLeaderboardButton: Bool
+    /// Game Center にサインイン済みかどうか
+    let isGameCenterAuthenticated: Bool
+    /// ルートビューへ Game Center 再サインインを依頼するためのクロージャ
+    let onRequestGameCenterSignIn: ((GameCenterSignInPromptReason) -> Void)?
 
     /// キャンペーンステージのクリア記録（通常モードの場合は nil）
     let campaignClearRecord: CampaignStageClearRecord?
@@ -61,6 +65,8 @@ struct ResultView: View {
         modeIdentifier: GameMode.Identifier,
         modeDisplayName: String,
         showsLeaderboardButton: Bool = true,
+        isGameCenterAuthenticated: Bool = GameCenterService.shared.isAuthenticated,
+        onRequestGameCenterSignIn: ((GameCenterSignInPromptReason) -> Void)? = nil,
         campaignClearRecord: CampaignStageClearRecord? = nil,
         newlyUnlockedStages: [CampaignStage] = [],
         onSelectCampaignStage: ((CampaignStage) -> Void)? = nil,
@@ -73,6 +79,8 @@ struct ResultView: View {
             modeIdentifier: modeIdentifier,
             modeDisplayName: modeDisplayName,
             showsLeaderboardButton: showsLeaderboardButton,
+            isGameCenterAuthenticated: isGameCenterAuthenticated,
+            onRequestGameCenterSignIn: onRequestGameCenterSignIn,
             campaignClearRecord: campaignClearRecord,
             newlyUnlockedStages: newlyUnlockedStages,
             onSelectCampaignStage: onSelectCampaignStage,
@@ -89,6 +97,8 @@ struct ResultView: View {
         modeIdentifier: GameMode.Identifier,
         modeDisplayName: String,
         showsLeaderboardButton: Bool = true,
+        isGameCenterAuthenticated: Bool = true,
+        onRequestGameCenterSignIn: ((GameCenterSignInPromptReason) -> Void)? = nil,
         campaignClearRecord: CampaignStageClearRecord? = nil,
         newlyUnlockedStages: [CampaignStage] = [],
         onSelectCampaignStage: ((CampaignStage) -> Void)? = nil,
@@ -110,6 +120,8 @@ struct ResultView: View {
         self.modeIdentifier = modeIdentifier
         self.modeDisplayName = modeDisplayName
         self.showsLeaderboardButton = showsLeaderboardButton
+        self.isGameCenterAuthenticated = isGameCenterAuthenticated
+        self.onRequestGameCenterSignIn = onRequestGameCenterSignIn
         self.campaignClearRecord = campaignClearRecord
         self.newlyUnlockedStages = newlyUnlockedStages
         self.onSelectCampaignStage = onSelectCampaignStage
@@ -193,12 +205,24 @@ struct ResultView: View {
                         if hapticsEnabled {
                             UINotificationFeedbackGenerator().notificationOccurred(.success)
                         }
-                        gameCenterService.showLeaderboard(for: modeIdentifier)
+                        if isGameCenterAuthenticated {
+                            gameCenterService.showLeaderboard(for: modeIdentifier)
+                        } else {
+                            // 未認証時はルートビューへ再サインインの促しを依頼する。
+                            onRequestGameCenterSignIn?(.leaderboardRequestedWhileUnauthenticated)
+                        }
                     }) {
-                        Text("ランキング")
+                        Text(isGameCenterAuthenticated ? "ランキング" : "サインインしてランキングを見る")
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.bordered)
+                    if !isGameCenterAuthenticated {
+                        Text("Game Center にサインインするとランキングを表示できます。設定画面からサインインした後に再度お試しください。")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 8)
+                    }
                 }
 
                 // MARK: - リザルト詳細のテーブル
