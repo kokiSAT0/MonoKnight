@@ -298,6 +298,10 @@ private extension GameHandSectionView {
             return "左へ 1"
         case .kingUpLeft:
             return "左上へ 1"
+        case .kingUpOrDown:
+            return "上下いずれかへ 1"
+        case .kingLeftOrRight:
+            return "左右いずれかへ 1"
         case .knightUp2Right1:
             return "上へ 2、右へ 1"
         case .knightUp2Left1:
