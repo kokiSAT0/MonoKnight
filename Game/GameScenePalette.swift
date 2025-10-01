@@ -54,8 +54,8 @@ public extension GameScenePalette {
         boardTileVisited: SKColor(white: 0.75, alpha: 1.0),
         boardTileUnvisited: SKColor(white: 0.98, alpha: 1.0),
         boardKnight: SKColor(white: 0.1, alpha: 1.0),
-        // NOTE: SpriteKit 側も SwiftUI と同様に濃いグレーを採用し、ダークテーマへの切替前でも過度なコントラストにならないよう配慮する
-        boardGuideHighlight: SKColor(white: 0.2, alpha: 0.45)
+        // NOTE: SwiftUI のライトテーマと同じ彩度を抑えたオレンジを採用し、テーマ適用前でも一貫した強調色を維持する
+        boardGuideHighlight: SKColor(red: 0.94, green: 0.41, blue: 0.08, alpha: 0.85)
     )
 
     /// ダークテーマ適用前後でのデバッグ確認用のフォールバック
@@ -65,7 +65,8 @@ public extension GameScenePalette {
         boardTileVisited: SKColor(white: 0.35, alpha: 1.0),
         boardTileUnvisited: SKColor(white: 0.12, alpha: 1.0),
         boardKnight: SKColor(white: 0.95, alpha: 1.0),
-        boardGuideHighlight: SKColor(white: 0.85, alpha: 0.55)
+        // NOTE: ダークテーマに合わせて明度を上げたオレンジを用い、背景の暗さに負けない発光感を演出する
+        boardGuideHighlight: SKColor(red: 1.0, green: 0.74, blue: 0.38, alpha: 0.9)
     )
 }
 #endif
