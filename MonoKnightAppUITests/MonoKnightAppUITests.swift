@@ -37,9 +37,14 @@ final class MonoKnightAppUITests: XCTestCase {
         let summaryCard = app.otherElements["selected_mode_summary_card"]
         XCTAssertTrue(summaryCard.waitForExistence(timeout: 5), "タイトル画面にモード概要カードが表示されていること")
 
-        // スタンダードモードのカードがタップ可能な状態で存在するか確認し、直接プレイを始められる導線を担保する
+        // スタンダードモードのカードがタップ可能な状態で存在するか確認し、まずモード選択の導線が確保されていることをチェックする
         let standardModeButton = app.buttons["mode_button_standard5x5"]
         XCTAssertTrue(standardModeButton.exists, "スタンダードモードのカードをタップできること")
+
+        // 新設された「ゲーム開始」ボタンが表示され、通常モードではすぐに押下できることを確認する
+        let startButton = app.buttons["start_game_button"]
+        XCTAssertTrue(startButton.waitForExistence(timeout: 5), "タイトル画面にゲーム開始ボタンが表示されること")
+        XCTAssertTrue(startButton.isEnabled, "ステージ選択不要なモードではゲーム開始ボタンが有効になっていること")
 
         // 遊び方ボタンも同時に表示されているか確認し、ヘルプ導線の欠落を防ぐ
         let howToPlayButton = app.buttons["title_how_to_play_button"]
@@ -79,10 +84,16 @@ final class MonoKnightAppUITests: XCTestCase {
         // タイトル画面からゲーム開始までを自動操作し、基本的な遷移が成立するか検証する
         app.launch()
 
-        // スタンダードモードのカードをタップして、即時にゲーム準備へ遷移できることを検証する
+        // スタンダードモードのカードをタップし、モード選択が更新されることを検証する
         let standardModeButton = app.buttons["mode_button_standard5x5"]
         XCTAssertTrue(standardModeButton.waitForExistence(timeout: 5), "スタンダードモードのカードが表示されること")
         standardModeButton.tap()
+
+        // モード選択後にゲーム開始ボタンが有効であることを確認し、手動開始フローへ遷移できる準備が整ったと判断する
+        let startButton = app.buttons["start_game_button"]
+        XCTAssertTrue(startButton.waitForExistence(timeout: 5), "ゲーム開始ボタンが表示されること")
+        XCTAssertTrue(startButton.isEnabled, "選択済みモードに対して開始ボタンが有効になること")
+        startButton.tap()
 
         // ローディング解除後に手札スロットが表示されることを確認し、実際にゲーム画面へ移ったと判断する
         let firstHandSlot = app.otherElements["hand_slot_0"]
@@ -107,7 +118,15 @@ final class MonoKnightAppUITests: XCTestCase {
         XCTAssertTrue(stageButton.waitForExistence(timeout: 5), "キャンペーン 3-1 のステージ行が表示されること")
         stageButton.tap()
 
-        // ステージ選択後にローディングオーバーレイが表示されることを確認し、遷移が開始されたと判断する
+        // ステージ確定後はタイトルへ戻り、概要カードの「ゲーム開始」ボタンが有効になることを確認する
+        let summaryStartButton = app.buttons["start_game_button"]
+        XCTAssertTrue(summaryStartButton.waitForExistence(timeout: 5), "ステージ選択後にゲーム開始ボタンへアクセスできること")
+        XCTAssertTrue(summaryStartButton.isEnabled, "ステージ確定後はゲーム開始ボタンが有効になること")
+
+        // タイトルから開始ボタンを押してゲーム準備フローを進める
+        summaryStartButton.tap()
+
+        // 開始直後にローディングオーバーレイが表示されることを確認し、遷移が開始されたと判断する
         let overlay = app.otherElements["game_preparation_overlay"]
         XCTAssertTrue(overlay.waitForExistence(timeout: 5), "ゲーム準備用のオーバーレイが表示されること")
 
