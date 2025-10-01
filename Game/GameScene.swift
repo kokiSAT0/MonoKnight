@@ -61,6 +61,10 @@ public final class GameScene: SKScene {
     /// 各マスに対応するノードを保持
     private var tileNodes: [GridPoint: SKShapeNode] = [:]
 
+    /// 複数回踏破マスの進捗リングを保持
+    /// - NOTE: `tileNodes` と併せて管理し、盤面更新時に残り踏破回数を即座に反映できるようにする
+    private var tileOverlayNodes: [GridPoint: SKShapeNode] = [:]
+
     /// ハイライト種類ごとのノードキャッシュ
     /// - Important: 種類ごとに辞書を分けることで、描画の上書き順とスタイルを柔軟に切り替えられる
     private var highlightNodes: [BoardHighlightKind: [GridPoint: SKShapeNode]] = [:]
@@ -162,6 +166,7 @@ public final class GameScene: SKScene {
         gridOrigin = .zero
         // SpriteKit ノード系のキャッシュは全て空に戻し、不要なノードが残らないようにする
         tileNodes = [:]
+        tileOverlayNodes = [:]
         highlightNodes = [:]
         latestSingleGuidePoints = []
         latestMultipleGuidePoints = []
@@ -321,6 +326,8 @@ public final class GameScene: SKScene {
                 height: tileSize
             )
             node.path = CGPath(rect: rect, transform: nil)
+            // NOTE: サイズ変更に合わせて枠線の太さや進捗リングの半径も更新する
+            configureTileNodeAppearance(node, at: point)
         }
 
         // 駒ノードも新しいレイアウト上の中心座標へ移動し、半径をタイル比率に合わせて補正する
@@ -394,6 +401,11 @@ public final class GameScene: SKScene {
         }
         tileNodes.removeAll()
 
+        for overlay in tileOverlayNodes.values {
+            overlay.removeFromParent()
+        }
+        tileOverlayNodes.removeAll()
+
         for nodes in highlightNodes.values {
             for node in nodes.values {
                 node.removeFromParent()
@@ -426,12 +438,14 @@ public final class GameScene: SKScene {
                     height: tileSize
                 )
                 let node = SKShapeNode(rect: rect)
+                // NOTE: グリッド線はくっきり表示したいためアンチエイリアスを無効化し、直線的な輪郭を維持する
+                node.isAntialiased = false
+                node.lineJoin = .miter
                 let point = GridPoint(x: x, y: y)
-                node.strokeColor = palette.boardGridLine
-                node.lineWidth = 1
-                node.fillColor = tileFillColor(for: point)
                 addChild(node)
                 tileNodes[point] = node
+                // 生成直後に最新テーマへ沿った塗り色・枠線・オーバーレイ設定を適用して見た目を整える
+                configureTileNodeAppearance(node, at: point)
                 // テストプレイ時の没入感を損なわないよう、デバッグ用の座標ラベルは描画しない
             }
         }
@@ -499,7 +513,8 @@ public final class GameScene: SKScene {
         guard isLayoutReady else { return }
 
         for (point, node) in tileNodes {
-            node.fillColor = tileFillColor(for: point)
+            // NOTE: タイルごとに塗り色・枠線・オーバーレイを一括適用し、進捗表示を最新状態へ反映する
+            configureTileNodeAppearance(node, at: point)
         }
         // タイル色が変わった際もガイドハイライトの色味を再評価して自然なバランスを保つ
         updateHighlightColors()
@@ -529,6 +544,128 @@ public final class GameScene: SKScene {
             // 通常マスは従来通りの配色で未踏破と踏破済みを切り替える
             return state.isVisited ? palette.boardTileVisited : palette.boardTileUnvisited
         }
+    }
+
+    /// 指定マスの塗り色・枠線・オーバーレイをまとめて適用する
+    /// - Parameters:
+    ///   - node: 対象となるタイルノード
+    ///   - point: 対応する盤面座標
+    private func configureTileNodeAppearance(_ node: SKShapeNode, at point: GridPoint) {
+        node.fillColor = tileFillColor(for: point)
+
+        guard let state = board.state(at: point) else {
+            applySingleVisitStyle(to: node)
+            removeMultiVisitOverlay(for: point)
+            return
+        }
+
+        switch state.visitBehavior {
+        case .multi:
+            applyMultiVisitStyle(to: node, state: state, at: point)
+        default:
+            applySingleVisitStyle(to: node)
+            removeMultiVisitOverlay(for: point)
+        }
+    }
+
+    /// 通常マス向けの細いグリッド線を適用する
+    /// - Parameter node: 対象ノード
+    private func applySingleVisitStyle(to node: SKShapeNode) {
+        node.strokeColor = palette.boardGridLine
+        node.lineWidth = 1
+    }
+
+    /// 複数回踏破マス用に太い枠線と進捗リングを適用する
+    /// - Parameters:
+    ///   - node: 対象ノード
+    ///   - state: 現在のマス状態
+    ///   - point: 盤面座標
+    private func applyMultiVisitStyle(to node: SKShapeNode, state: TileState, at point: GridPoint) {
+        node.strokeColor = palette.boardTileMultiStroke
+        let emphasizedLineWidth = max(tileSize * 0.06, 2.0)
+        node.lineWidth = emphasizedLineWidth
+        updateMultiVisitOverlay(
+            for: point,
+            parentNode: node,
+            state: state,
+            emphasizedLineWidth: emphasizedLineWidth
+        )
+    }
+
+    /// 複数回踏破マスの残り回数に応じたリング表示を更新する
+    /// - Parameters:
+    ///   - point: 対象マスの座標
+    ///   - parentNode: タイル本体のノード
+    ///   - state: 現在のマス状態
+    ///   - emphasizedLineWidth: タイル枠線の太さ（リングの内径算出に利用）
+    private func updateMultiVisitOverlay(
+        for point: GridPoint,
+        parentNode: SKShapeNode,
+        state: TileState,
+        emphasizedLineWidth: CGFloat
+    ) {
+        let overlayNode: SKShapeNode
+        if let cached = tileOverlayNodes[point] {
+            overlayNode = cached
+        } else {
+            // NOTE: 進捗リングは円弧のみ描画するため、塗りを完全透過にしジャギーが出ないようアンチエイリアスも無効化する
+            let newOverlay = SKShapeNode()
+            newOverlay.name = "multiVisitOverlay"
+            newOverlay.fillColor = .clear
+            newOverlay.isAntialiased = false
+            newOverlay.lineCap = .round
+            newOverlay.lineJoin = .round
+            newOverlay.zPosition = 0.12  // グリッド塗りより前面、ハイライトより背面に置く
+            tileOverlayNodes[point] = newOverlay
+            overlayNode = newOverlay
+        }
+
+        if overlayNode.parent !== parentNode {
+            overlayNode.removeFromParent()
+            parentNode.addChild(overlayNode)
+        }
+
+        overlayNode.strokeColor = palette.boardTileMultiStroke
+        overlayNode.alpha = 0.95
+        overlayNode.lineWidth = max(tileSize * 0.09, 1.6)
+        overlayNode.zRotation = -.pi / 2  // 北側を起点に減少していくイメージを統一
+        overlayNode.position = CGPoint(x: tileSize / 2, y: tileSize / 2)
+
+        let radius = max(tileSize / 2 - emphasizedLineWidth * 0.65, tileSize * 0.28)
+        let pathRect = CGRect(x: -radius, y: -radius, width: radius * 2, height: radius * 2)
+        overlayNode.path = CGPath(ellipseIn: pathRect, transform: nil)
+
+        let requirement = max(state.requiredVisitCount, 1)
+        let remaining = max(0, min(requirement, state.remainingVisits))
+        let remainingFraction = requirement == 0
+            ? 0
+            : CGFloat(remaining) / CGFloat(requirement)
+
+        overlayNode.strokeStart = 0
+        overlayNode.strokeEnd = remainingFraction
+        overlayNode.isHidden = remaining == 0
+
+        if requirement > 1 {
+            // 残り回数を視覚化するため、円周を回数分のセグメントへ分割する
+            let circumference = max(2 * .pi * radius, 0.1)
+            let segmentLength = circumference / CGFloat(requirement)
+            let dashLength = max(segmentLength * 0.7, overlayNode.lineWidth * 0.9)
+            let gapLength = max(segmentLength - dashLength, overlayNode.lineWidth * 0.6)
+            overlayNode.lineDashPattern = [
+                NSNumber(value: Double(dashLength)),
+                NSNumber(value: Double(gapLength))
+            ]
+            overlayNode.lineDashPhase = 0
+        } else {
+            overlayNode.lineDashPattern = nil
+        }
+    }
+
+    /// 複数回踏破マス用に生成したリングノードを安全に破棄する
+    /// - Parameter point: 対象マスの座標
+    private func removeMultiVisitOverlay(for point: GridPoint) {
+        guard let overlay = tileOverlayNodes.removeValue(forKey: point) else { return }
+        overlay.removeFromParent()
     }
 
     /// 盤面ハイライトの種類ごとの集合をまとめて更新する
@@ -715,15 +852,16 @@ public final class GameScene: SKScene {
         // シーン全体の背景色を更新
         backgroundColor = palette.boardBackground
 
-        // 既存のグリッド線や駒の色を一括で更新
-        for node in tileNodes.values {
-            node.strokeColor = palette.boardGridLine
-        }
+        // 駒の塗り色はテーマ切り替えの度に同期する
         knightNode?.fillColor = palette.boardKnight
 
         // レイアウトが確定していればその場で再描画し、未確定なら後で flush 時に反映する
         if isLayoutReady {
             updateTileColors()
+        } else {
+            for (point, node) in tileNodes {
+                configureTileNodeAppearance(node, at: point)
+            }
             updateHighlightColors()
         }
     }
