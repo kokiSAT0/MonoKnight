@@ -232,23 +232,41 @@ final class GameBoardBridgeViewModel: ObservableObject {
         debugLog("強制ハイライト更新: 候補=\(validPoints.count)")
     }
 
-    /// 指定スタックを盤面演出に乗せる
-    /// - Parameters:
-    ///   - stack: 対象となる手札スタック
-    ///   - index: GameCore に渡すスタックの位置
-    /// - Returns: 演出開始に成功したら true
+    /// ResolvedCardMove を直接受け取り、盤面アニメーションとプレイ処理を実行する
+    /// - Parameter resolvedMove: GameCore 側で算出した移動確定情報
     @discardableResult
-    func animateCardPlay(for stack: HandStack, at index: Int) -> Bool {
-        guard animatingCard == nil else { return false }
-        guard core.current != nil else { return false }
-        guard let topCard = stack.topCard else { return false }
+    func animateCardPlay(using resolvedMove: ResolvedCardMove) -> Bool {
+        // 既に別カードの移動アニメーションが進行していれば受け付けない
+        guard animatingCard == nil else {
+            debugLog("スタック演出を中止: 別演出が進行中 stackID=\(resolvedMove.stackID)")
+            return false
+        }
+        // 現在位置が未確定の場合は安全に抜ける
+        guard core.current != nil else {
+            debugLog("スタック演出を中止: 現在位置が未設定")
+            return false
+        }
 
-        // 現在の手札状況に基づく使用可能カードを検索し、該当スタックの候補を取得する
-        // - Note: availableMoves() 側が primaryVector で位置を算出するため、複数候補カードを導入してもここでの分岐は据え置ける
-        guard let resolvedMove = core.availableMoves().first(where: { candidate in
-            candidate.stackID == stack.id && candidate.card.id == topCard.id
-        }) else {
-            debugLog("スタック演出を中止: 使用可能リストに該当カードなし stackID=\(stack.id)")
+        // インデックス一致を優先しつつ、スタック ID で補正する
+        let resolvedIndex: Int
+        if core.handStacks.indices.contains(resolvedMove.stackIndex),
+           core.handStacks[resolvedMove.stackIndex].id == resolvedMove.stackID {
+            resolvedIndex = resolvedMove.stackIndex
+        } else if let fallbackIndex = core.handStacks.firstIndex(where: { $0.id == resolvedMove.stackID }) {
+            resolvedIndex = fallbackIndex
+        } else {
+            debugLog("スタック演出を中止: 対象 stack が見つからない stackID=\(resolvedMove.stackID)")
+            return false
+        }
+
+        let stack = core.handStacks[resolvedIndex]
+        guard let topCard = stack.topCard else {
+            debugLog("スタック演出を中止: トップカードなし stackID=\(stack.id)")
+            return false
+        }
+
+        guard topCard.id == resolvedMove.card.id else {
+            debugLog("スタック演出を中止: トップカードが変化 stackID=\(stack.id)")
             return false
         }
 
@@ -258,7 +276,6 @@ final class GameBoardBridgeViewModel: ObservableObject {
         }
 
         // 現在位置からカードの移動量を適用し、演出で目指す盤面座標を算出する
-        // ここをプレイ前の現在地で固定してしまうと、カードが正しいマスへ移動しないため注意する
         let targetPoint = resolvedMove.destination
         animationTargetGridPoint = targetPoint
         hiddenCardIDs.insert(topCard.id)
@@ -266,7 +283,9 @@ final class GameBoardBridgeViewModel: ObservableObject {
         animatingStackID = stack.id
         animationState = .idle
 
-        debugLog("スタック演出開始: stackID=\(stack.id) card=\(topCard.move.displayName) 残枚数=\(stack.count)")
+        debugLog(
+            "スタック演出開始: stackID=\(stack.id) card=\(topCard.move.displayName) 目標=\(targetPoint) 残枚数=\(stack.count)"
+        )
 
         if hapticsEnabled {
             UINotificationFeedbackGenerator().notificationOccurred(.success)
@@ -281,7 +300,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + travelDuration) { [weak self] in
             guard let self else { return }
             withAnimation(.easeInOut(duration: 0.22)) {
-                self.core.playCard(at: resolvedMove.stackIndex)
+                self.core.playCard(using: resolvedMove)
             }
             self.hiddenCardIDs.remove(cardID)
             if self.animatingCard?.id == cardID {
@@ -290,10 +309,31 @@ final class GameBoardBridgeViewModel: ObservableObject {
             self.animatingStackID = nil
             self.animationState = .idle
             self.animationTargetGridPoint = nil
-            debugLog("スタック演出完了: index=\(index) cardID=\(cardID)")
+            debugLog("スタック演出完了: index=\(resolvedIndex) cardID=\(cardID)")
         }
 
         return true
+    }
+
+    /// 指定スタックを盤面演出に乗せる
+    /// - Parameters:
+    ///   - stack: 対象となる手札スタック
+    ///   - index: GameCore に渡すスタックの位置
+    /// - Returns: 演出開始に成功したら true
+    @discardableResult
+    func animateCardPlay(for stack: HandStack, at index: Int) -> Bool {
+        guard let topCard = stack.topCard else { return false }
+
+        // 現在の手札状況に基づく使用可能カードを検索し、該当スタックの候補を取得する
+        // - Note: availableMoves() 側が primaryVector で位置を算出するため、複数候補カードを導入してもここでの分岐は据え置ける
+        guard let resolvedMove = core.availableMoves().first(where: { candidate in
+            candidate.stackID == stack.id && candidate.card.id == topCard.id
+        }) else {
+            debugLog("スタック演出を中止: 使用可能リストに該当カードなし stackID=\(stack.id)")
+            return false
+        }
+
+        return animateCardPlay(using: resolvedMove)
     }
 
     /// ボードタップによるプレイ要求を処理する
@@ -301,40 +341,13 @@ final class GameBoardBridgeViewModel: ObservableObject {
     func handleBoardTapPlayRequest(_ request: BoardTapPlayRequest) {
         defer { core.clearBoardTapPlayRequest(request.id) }
 
-        guard animatingCard == nil else {
-            debugLog("BoardTapPlayRequest を無視: 別演出が進行中 requestID=\(request.id)")
-            return
-        }
-
-        let resolvedIndex: Int
-        if core.handStacks.indices.contains(request.stackIndex),
-           core.handStacks[request.stackIndex].id == request.stackID {
-            resolvedIndex = request.stackIndex
-        } else if let fallbackIndex = core.handStacks.firstIndex(where: { $0.id == request.stackID }) {
-            resolvedIndex = fallbackIndex
-        } else {
-            debugLog("BoardTapPlayRequest を無視: 対象 stack が見つからない stackID=\(request.stackID)")
-            return
-        }
-
-        let stack = core.handStacks[resolvedIndex]
-        guard let currentTop = stack.topCard else {
-            debugLog("BoardTapPlayRequest を無視: トップカードなし stackID=\(stack.id)")
-            return
-        }
-
-        let sameID = currentTop.id == request.topCard.id
-        let sameMove = currentTop.move == request.topCard.move
         debugLog(
-            "BoardTapPlayRequest 受信: requestID=\(request.id) 要求index=\(request.stackIndex) 解決index=\(resolvedIndex) sameID=\(sameID) sameMove=\(sameMove)"
+            "BoardTapPlayRequest 受信: requestID=\(request.id) stackID=\(request.stackID) destination=\(request.destination)"
         )
 
-        guard sameID || sameMove else {
-            debugLog("BoardTapPlayRequest を無視: トップカードが変化")
-            return
+        if !animateCardPlay(using: request.resolvedMove) {
+            debugLog("BoardTapPlayRequest を処理できず: stackID=\(request.stackID) destination=\(request.destination)")
         }
-
-        _ = animateCardPlay(for: stack, at: resolvedIndex)
     }
 
     /// 進行状態の変更に合わせてガイド表示を管理する

@@ -73,6 +73,48 @@ final class GameCoreTests: XCTestCase {
         ])
     }
 
+    /// playCard(using:) が ResolvedCardMove の destination を忠実に適用することを検証
+    func testPlayCardUsingResolvedMoveAppliesDestination() {
+        let deck = Deck.makeTestDeck(cards: [
+            .kingUp,
+            .kingRight,
+            .kingDown,
+            .kingLeft,
+            .kingUpLeft,
+            .straightUp2,
+            .straightRight2,
+            .straightDown2
+        ])
+        let core = GameCore.makeTestInstance(deck: deck)
+
+        guard let current = core.current else {
+            XCTFail("現在位置が未設定です")
+            return
+        }
+
+        guard let stack = core.handStacks.first,
+              let topCard = stack.topCard else {
+            XCTFail("トップカードを取得できませんでした")
+            return
+        }
+
+        let targetPoint = current.offset(dx: 1, dy: 0)
+        XCTAssertTrue(core.board.contains(targetPoint), "ターゲット座標が盤面外です")
+
+        let resolvedMove = ResolvedCardMove(
+            stackID: stack.id,
+            stackIndex: 0,
+            card: topCard,
+            moveVector: MoveVector(dx: 1, dy: 0),
+            destination: targetPoint
+        )
+
+        core.playCard(using: resolvedMove)
+
+        XCTAssertEqual(core.current, targetPoint, "ResolvedCardMove の destination が反映されていません")
+        XCTAssertEqual(core.moveCount, 1, "playCard(using:) 実行後の手数が増えていません")
+    }
+
     /// 手詰まり後に再び手詰まりが発生した場合でも追加ペナルティが加算されないことを確認
     func testConsecutiveDeadlockDoesNotAddExtraPenalty() {
         // --- テスト用デッキ構築 ---

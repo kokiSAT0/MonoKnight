@@ -113,25 +113,68 @@ public final class GameCore: ObservableObject {
     /// - Parameter index: 手札配列の位置（0〜4）
 
     public func playCard(at index: Int) {
-        // スポーン待ちやクリア済み・ペナルティ中は操作不可
-        guard progress == .playing, let currentPosition = current else { return }
+        // 進行中でなければ解決処理を行わない
+        guard progress == .playing else { return }
         // 捨て札モード中は移動を開始せず安全に抜ける
         guard !isAwaitingManualDiscardSelection else { return }
         // インデックスが範囲内か確認（0〜手札スロット数-1 の範囲を想定）
         guard handStacks.indices.contains(index) else { return }
         let stack = handStacks[index]
         guard let card = stack.topCard else { return }
-        // primaryVector を経由することで、将来的に複数候補を持つカードでも同じ分岐から処理を広げられる
-        let vector = card.move.primaryVector
-        let target = currentPosition.offset(dx: vector.dx, dy: vector.dy)
+
+        // availableMoves() で確定済みの候補を取得し、該当カードの移動内容を抽出する
+        guard let resolvedMove = availableMoves().first(where: { candidate in
+            candidate.stackID == stack.id && candidate.card.id == card.id
+        }) else { return }
+
+        // 新設した playCard(using:) へ委譲し、ResolvedCardMove をそのまま適用する
+        playCard(using: resolvedMove)
+    }
+
+    /// ResolvedCardMove で確定した移動内容を適用する
+    /// - Parameter resolvedMove: 盤面内へ移動可能と判定済みのカード情報
+    public func playCard(using resolvedMove: ResolvedCardMove) {
+        // スポーン待ちやクリア済み・ペナルティ中は操作不可
+        guard progress == .playing, let currentPosition = current else { return }
+        // 捨て札モード中は移動を開始せず安全に抜ける
+        guard !isAwaitingManualDiscardSelection else { return }
+
+        // インデックス一致を最優先しつつ、ズレた場合はスタック ID で補正する
+        let resolvedIndex: Int
+        if handStacks.indices.contains(resolvedMove.stackIndex),
+           handStacks[resolvedMove.stackIndex].id == resolvedMove.stackID {
+            resolvedIndex = resolvedMove.stackIndex
+        } else if let fallbackIndex = handStacks.firstIndex(where: { $0.id == resolvedMove.stackID }) {
+            resolvedIndex = fallbackIndex
+        } else {
+            debugLog("playCard(using:) を中止: 該当スタックが見つからない stackID=\(resolvedMove.stackID)")
+            return
+        }
+
+        let stack = handStacks[resolvedIndex]
+        guard let card = stack.topCard else {
+            debugLog("playCard(using:) を中止: トップカード不在 stackID=\(stack.id)")
+            return
+        }
+
+        // 同じカードが保持されているか確認し、差し替わっていれば処理を中断する
+        guard card.id == resolvedMove.card.id else {
+            debugLog("playCard(using:) を中止: トップカードが差し替わった stackID=\(stack.id)")
+            return
+        }
+
+        let target = resolvedMove.destination
         // UI 側で無効カードを弾く想定だが、念のため安全確認
-        guard board.contains(target) else { return }
+        guard board.contains(target) else {
+            debugLog("playCard(using:) を中止: 盤面外 destination=\(target)")
+            return
+        }
 
         // 盤面タップからのリクエストが残っている場合に備え、念のためここでクリアしておく
         boardTapPlayRequest = nil
 
-        // デバッグログ: 使用カードと移動先を出力
-        debugLog("カード \(card.move) を使用し \(currentPosition) -> \(target) へ移動")
+        // デバッグログ: 使用カードと移動先を出力（選択ベクトルも明示する）
+        debugLog("カード \(card.move) を使用し \(currentPosition) -> \(target) へ移動 (dx=\(resolvedMove.moveVector.dx), dy=\(resolvedMove.moveVector.dy))")
 
         let revisiting = board.isVisited(target)
 
@@ -154,7 +197,7 @@ public final class GameCore: ObservableObject {
         announceRemainingTiles()
 
         // 使用済みカードは即座に破棄し、スタックから除去（残数がゼロになったらスタックごと取り除く）
-        let removedIndex = handManager.consumeTopCard(at: index)
+        let removedIndex = handManager.consumeTopCard(at: resolvedIndex)
 
         // スロットの空きを埋めた上で並び順・先読みを整える
         rebuildHandAndNext(preferredInsertionIndices: removedIndex.map { [$0] } ?? [])
@@ -338,11 +381,8 @@ extension GameCore: GameCoreProtocol {
 
         // availableMoves() で求めた候補の中から座標一致を検索する
         if let resolved = availableMoves().first(where: { $0.destination == point }) {
-            boardTapPlayRequest = BoardTapPlayRequest(
-                stackID: resolved.stackID,
-                stackIndex: resolved.stackIndex,
-                topCard: resolved.card
-            )
+            // ResolvedCardMove を丸ごと渡すことで UI 側で再解決せずに済むようにする
+            boardTapPlayRequest = BoardTapPlayRequest(resolvedMove: resolved)
         }
         // 候補に該当しない場合は何もしない（無効タップ）
     }

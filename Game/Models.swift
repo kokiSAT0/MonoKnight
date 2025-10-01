@@ -218,24 +218,30 @@ public enum GameProgress {
 public struct BoardTapPlayRequest: Identifiable, Equatable {
     /// 各リクエストを一意に識別するための ID
     public let id: UUID
-    /// 盤面タップ時に対応する手札スタックの識別子
-    public let stackID: UUID
-    /// `GameCore.playCard(at:)` に渡すインデックス
-    public let stackIndex: Int
-    /// アニメーション用に参照するスタック先頭のカード
-    public let topCard: DealtCard
+    /// タップ結果から確定した移動内容をそのまま保持する
+    /// - Important: `ResolvedCardMove` 自体にスタック ID・インデックス・カード情報・移動先がまとまっているため、
+    ///              ここで保持しておくことで UI 側で再解決せずに済む。
+    public let resolvedMove: ResolvedCardMove
+
+    /// タップ要求に紐づくスタック識別子
+    /// - Note: `resolvedMove` から値を参照する読み取り専用プロパティとする
+    public var stackID: UUID { resolvedMove.stackID }
+    /// 元の `GameCore.playCard(at:)` 互換のインデックス情報
+    public var stackIndex: Int { resolvedMove.stackIndex }
+    /// アニメーション用のトップカード情報
+    public var topCard: DealtCard { resolvedMove.card }
+    /// 選択された移動ベクトル
+    public var moveVector: MoveVector { resolvedMove.moveVector }
+    /// タップで確定した移動先座標
+    public var destination: GridPoint { resolvedMove.destination }
 
     /// 公開イニシャライザ
     /// - Parameters:
     ///   - id: 外部で識別子を指定したい場合に利用（省略時は自動生成）
-    ///   - stackID: 対象スタックの識別子
-    ///   - stackIndex: 手札スロット内での位置
-    ///   - topCard: 要求時点での先頭カード
-    public init(id: UUID = UUID(), stackID: UUID, stackIndex: Int, topCard: DealtCard) {
+    ///   - resolvedMove: UI 側で利用したい移動確定情報
+    public init(id: UUID = UUID(), resolvedMove: ResolvedCardMove) {
         self.id = id
-        self.stackID = stackID
-        self.stackIndex = stackIndex
-        self.topCard = topCard
+        self.resolvedMove = resolvedMove
     }
 
     /// Equatable 実装

@@ -309,6 +309,12 @@ final class GameViewModel: ObservableObject {
 
     /// 盤面タップに応じたプレイ要求を処理する
     func handleBoardTapPlayRequest(_ request: BoardTapPlayRequest) {
+        // 盤面外のリクエストが万一届いた場合は UI 側で安全に破棄する
+        guard core.board.contains(request.destination) else {
+            core.clearBoardTapPlayRequest(request.id)
+            return
+        }
+
         boardBridge.handleBoardTapPlayRequest(request)
     }
 

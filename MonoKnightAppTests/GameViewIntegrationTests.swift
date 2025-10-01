@@ -70,6 +70,66 @@ final class GameViewIntegrationTests: XCTestCase {
         XCTAssertEqual(gameCenter.submittedScores.first?.identifier, viewModel.mode.identifier, "スコア送信先のモード ID が一致していません")
     }
 
+    /// BoardTapPlayRequest に含まれる ResolvedCardMove がそのまま適用され、指定マスへ移動することを確認する
+    func testBoardTapPlayRequestUsesResolvedDestination() {
+        let scheduler = PenaltyBannerSchedulerSpy()
+        let gameCenter = GameCenterServiceSpy()
+        let adsService = AdsServiceSpy()
+        let deck = Deck.makeTestDeck(cards: [
+            .kingUp,
+            .kingRight,
+            .kingDown,
+            .kingLeft,
+            .kingUpLeft,
+            .straightUp2,
+            .straightRight2,
+            .straightDown2
+        ])
+        let interfaces = GameModuleInterfaces { _ in GameCore.makeTestInstance(deck: deck) }
+
+        let viewModel = GameViewModel(
+            mode: .standard,
+            gameInterfaces: interfaces,
+            gameCenterService: gameCenter,
+            adsService: adsService,
+            onRequestReturnToTitle: nil,
+            penaltyBannerScheduler: scheduler
+        )
+
+        guard let current = viewModel.core.current else {
+            XCTFail("現在位置が未設定のままです")
+            return
+        }
+
+        // 手札先頭のスタックとカードを取得し、任意の移動ベクトルを指定する
+        guard let stack = viewModel.core.handStacks.first,
+              let topCard = stack.topCard else {
+            XCTFail("トップカードを取得できませんでした")
+            return
+        }
+
+        let targetPoint = current.offset(dx: 1, dy: 0)
+        XCTAssertTrue(viewModel.core.board.contains(targetPoint), "ターゲット座標が盤面外です")
+
+        let resolvedMove = ResolvedCardMove(
+            stackID: stack.id,
+            stackIndex: 0,
+            card: topCard,
+            moveVector: MoveVector(dx: 1, dy: 0),
+            destination: targetPoint
+        )
+
+        let request = BoardTapPlayRequest(resolvedMove: resolvedMove)
+
+        viewModel.handleBoardTapPlayRequest(request)
+
+        // 非同期アニメーション完了を待つ
+        RunLoop.main.run(until: Date().addingTimeInterval(0.5))
+
+        XCTAssertEqual(viewModel.core.current, targetPoint, "ResolvedCardMove の destination が反映されていません")
+        XCTAssertEqual(viewModel.core.moveCount, 1, "カードプレイ後の手数が想定より少ないです")
+    }
+
     #if canImport(SpriteKit)
     /// SpriteKit シーンのサイズ同期と GameCore の紐付けが正しく行われるかを確認する
     func testSceneSizeSyncOnAppear() {
