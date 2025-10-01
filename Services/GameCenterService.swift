@@ -63,6 +63,7 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
         // - NOTE: `GKLocalPlayer.local.isAuthenticated` は非同期ハンドラよりも先に判定できるため、
         //         初回表示でサインイン済みユーザーへ余計なボタンを見せないよう即時反映する
         isAuthenticated = GKLocalPlayer.local.isAuthenticated
+        // 起動直後にもアクセスポイント常時表示防止策を適用しておき、認証状態に応じた UI を安定させる
         refreshAccessPointVisibility()
     }
 
@@ -131,7 +132,8 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
     private func refreshAccessPointVisibility() {
         let accessPoint = GKAccessPoint.shared
         accessPoint.location = .topTrailing // 必要になった際も表示位置がずれないよう事前に指定
-        accessPoint.isActive = false        // 認証済みかどうかに関わらず常時表示は行わない
+        accessPoint.isActive = false        // 認証済みかどうかに関わらず常時表示は行わない（常時表示防止策）
+        accessPoint.showHighlights = false  // ハイライト表示も抑止し、通知エリアに常時出現しないようにする（常時表示防止策）
     }
 
     /// ローカルプレイヤーを Game Center で認証する
@@ -145,7 +147,7 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
         if GKLocalPlayer.local.isAuthenticated {
             // GameKit が返す状態をそのままローカルキャッシュへ反映
             isAuthenticated = true
-            // アクセスポイント表示ポリシーもここで更新し、UI の一貫性を保つ
+            // アクセスポイント表示ポリシーもここで更新し、常時表示防止策（ハイライト抑止含む）を再適用する
             refreshAccessPointVisibility()
             completion?(true)
             return
@@ -161,7 +163,7 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
             isAuthenticated = true
             // テスト用認証を実行したことをデバッグログに残す
             debugLog("GC_TEST_ACCOUNT=\(testAccount) によるダミー認証を実行")
-            // 認証直後もアクセスポイントを非表示に保ち、UI 方針を本番と揃える
+            // 認証直後もアクセスポイント常時表示防止策を適用し、テスト時の挙動差を排除する
             refreshAccessPointVisibility()
             completion?(true) // 呼び出し元へ成功を通知して終了
             return
@@ -197,14 +199,14 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
                         // ルート取得に失敗した場合はログを出力し、未認証扱いで完了を通知
                         debugLog("Game Center 認証 UI のルート取得に失敗したため再試行が必要")
                         self.isAuthenticated = false
-                        // 取得に失敗した場合もアクセスポイントを表示しない方針を徹底する
+                        // 取得に失敗した場合もアクセスポイント常時表示防止策を徹底する
                         self.refreshAccessPointVisibility()
                         completion?(false)
                         return
                     }
                     // 取得に成功したルート VC を明示し、TestFlight でも動作が追跡できるようにする
                     debugLog("Game Center 認証 UI を提示します: root=\(type(of: root))")
-                    // 認証 UI 表示中もアクセスポイントを無効化して表示揺れを避ける
+                    // 認証 UI 表示中もアクセスポイント常時表示防止策を維持し、表示揺れを避ける
                     self.refreshAccessPointVisibility()
                     root.present(vc, animated: true)
                 }
@@ -218,7 +220,7 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
                     guard let self else { return }
                     self.isAuthenticated = true
                     debugLog("Game Center 認証成功")
-                    // 認証が完了してもアクセスポイントは常時表示せず、誤タップを防止する
+                    // 認証が完了してもアクセスポイント常時表示防止策を適用し、誤タップを防止する
                     self.refreshAccessPointVisibility()
                     completion?(true) // 呼び出し元へ成功を通知
                 }
@@ -228,7 +230,7 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
                 DispatchQueue.main.async { [weak self] in
                     guard let self else { return }
                     self.isAuthenticated = false
-                    // 失敗時もアクセスポイントを無効化し、未認証状態と表示を揃える
+                    // 失敗時もアクセスポイント常時表示防止策を適用し、未認証状態と表示を揃える
                     self.refreshAccessPointVisibility()
                     self.logAuthenticationFailure(authError, player: player)
                     completion?(false) // 呼び出し元へ失敗を通知
@@ -336,7 +338,7 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
         // デリゲート設定は従来通り維持し、閉じる操作のハンドリングを可能にする
         vc.gameCenterDelegate = self
 
-        // ランキング表示中はアクセスポイントが不要なので非表示にする
+        // ランキング表示中はアクセスポイント常時表示防止策を再適用し、重複 UI を避ける
         // UI 操作をメインスレッドでまとめて実行する
         DispatchQueue.main.async { [weak self] in
             self?.refreshAccessPointVisibility()
@@ -443,7 +445,7 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
     /// Game Center コントローラの閉じるボタンが押された際に呼ばれる
     func gameCenterViewControllerDidFinish(_ gameCenterViewController: GKGameCenterViewController) {
         gameCenterViewController.dismiss(animated: true)
-        // ランキングを閉じた後もアクセスポイントは非表示のまま維持する
+        // ランキングを閉じた後もアクセスポイント常時表示防止策を維持する
         refreshAccessPointVisibility()
     }
 }
