@@ -390,6 +390,14 @@ private extension RootView {
         ///         実際には問題が無いにも関わらず警告ログが出力されてしまうため、
         ///         正常値が観測できるまで警告を抑制する目的で利用する
         @State private var hasObservedPositiveTopBarHeight = false
+        /// Game Center 未認証トーストに表示する本文
+        /// - NOTE: トップバーの常設テキストを廃止した代わりに、一時的なトーストで案内するための状態
+        @State private var gameCenterToastMessage: String?
+        /// トースト自動閉鎖用のワークアイテム
+        /// - NOTE: 表示延長や画面遷移時のキャンセルを制御し、タイマーが多重起動しないようにする
+        @State private var gameCenterToastDismissWorkItem: DispatchWorkItem?
+        /// トーストを表示する秒数（定数扱いで構造体生成ごとに保持する）
+        private let gameCenterToastDisplayDuration: TimeInterval = 4.0
 
         var body: some View {
             ZStack {
@@ -400,12 +408,45 @@ private extension RootView {
             .safeAreaInset(edge: .top, spacing: 0) {
                 topStatusInset
             }
+            .overlay(alignment: .top) {
+                gameCenterUnauthenticatedToast
+            }
             .background(layoutDiagnosticOverlay)
             .onAppear {
                 // 初期描画時のレイアウト状況をログへ残し、不具合調査を容易にする
                 debugLog(
                     "RootView.onAppear: size=\(layoutContext.geometrySize), safeArea(top=\(layoutContext.safeAreaTop), bottom=\(layoutContext.safeAreaBottom)), horizontalSizeClass=\(String(describing: layoutContext.horizontalSizeClass)), authenticated=\(isAuthenticated)"
                 )
+                // 初回描画時に未サインインなら即座にトーストで通知し、常駐テキストがボタンを覆わないようにする
+                if !isAuthenticated && isShowingTitleScreen {
+                    showGameCenterUnauthenticatedToast()
+                }
+            }
+            // サインイン状態が変化した際にトースト表示を更新する
+            .onChange(of: isAuthenticated) { _, newValue in
+                if newValue {
+                    // サインイン完了後はトーストを閉じる
+                    hideGameCenterUnauthenticatedToast()
+                } else if isShowingTitleScreen {
+                    // タイトル画面表示中に未認証へ戻った場合は再度トーストを提示する
+                    showGameCenterUnauthenticatedToast()
+                }
+            }
+            // タイトル画面とゲーム画面を行き来したときの挙動も制御する
+            .onChange(of: isShowingTitleScreen) { _, isTitleVisible in
+                if isTitleVisible {
+                    // タイトルへ戻ったタイミングで未認証ならトーストを掲出する
+                    if !isAuthenticated {
+                        showGameCenterUnauthenticatedToast()
+                    }
+                } else {
+                    // ゲームプレイへ遷移したら視界を妨げないように即座に閉じる
+                    hideGameCenterUnauthenticatedToast()
+                }
+            }
+            .onDisappear {
+                // ビューが破棄される際にタイマーを止めてメモリリークを防ぐ
+                cancelGameCenterToastTimer()
             }
         }
 
@@ -538,6 +579,31 @@ private extension RootView {
                 }
         }
 
+        /// Game Center 未サインイン時に一時的な案内を表示するトースト
+        @ViewBuilder
+        private var gameCenterUnauthenticatedToast: some View {
+            if let message = gameCenterToastMessage {
+                Text(message)
+                    .font(.footnote)
+                    .multilineTextAlignment(.leading)
+                    .foregroundColor(theme.textPrimary)
+                    .padding(.vertical, 12)
+                    .padding(.horizontal, 16)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(theme.backgroundElevated.opacity(0.96))
+                            .shadow(color: Color.black.opacity(0.2), radius: 14, x: 0, y: 8)
+                    )
+                    .frame(maxWidth: layoutContext.topBarMaxWidth ?? 440, alignment: .leading)
+                    .padding(.horizontal, 24)
+                    .padding(.top, layoutContext.safeAreaTop + 12)
+                    // トースト自体はタップを受け付けず、背後のボタン操作を妨げない
+                    .allowsHitTesting(false)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .accessibilityIdentifier("gc_toast")
+            }
+        }
+
         /// レイアウトスナップショットをログに出力する
         /// - Parameters:
         ///   - snapshot: 出力対象のスナップショット
@@ -577,6 +643,56 @@ private extension RootView {
             if snapshot.safeAreaTop < 0 || snapshot.safeAreaBottom < 0 {
                 debugLog("RootView.layout 警告: safeArea が負値です。GeometryReader の取得値を再確認してください。")
             }
+        }
+
+        /// Game Center 未サインイン案内をトーストで提示する
+        private func showGameCenterUnauthenticatedToast() {
+            let message = "Game Center 未サインイン。設定画面からサインインするとランキングを利用できます。"
+            // 既存タイマーを止めてから表示し直し、連続呼び出しでも秒数が延長されるようにする
+            cancelGameCenterToastTimer()
+
+            if gameCenterToastMessage == nil {
+                // 初回表示のみアニメーションでフェードインさせる
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    gameCenterToastMessage = message
+                }
+            } else {
+                // 既に表示中であれば文面だけ最新状態へ更新する
+                gameCenterToastMessage = message
+            }
+
+            scheduleGameCenterToastAutoDismiss()
+        }
+
+        /// 未サインイン案内トーストを閉じる
+        private func hideGameCenterUnauthenticatedToast() {
+            guard gameCenterToastMessage != nil else { return }
+            cancelGameCenterToastTimer()
+            withAnimation(.easeInOut(duration: 0.2)) {
+                gameCenterToastMessage = nil
+            }
+        }
+
+        /// トースト自動閉鎖のタイマーを停止する
+        private func cancelGameCenterToastTimer() {
+            gameCenterToastDismissWorkItem?.cancel()
+            gameCenterToastDismissWorkItem = nil
+        }
+
+        /// 指定秒数経過後にトーストを自動的に閉じるタイマーを設定する
+        private func scheduleGameCenterToastAutoDismiss() {
+            var workItem: DispatchWorkItem?
+            workItem = DispatchWorkItem {
+                guard let workItem, !workItem.isCancelled else { return }
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    gameCenterToastMessage = nil
+                }
+                gameCenterToastDismissWorkItem = nil
+            }
+
+            guard let workItem else { return }
+            gameCenterToastDismissWorkItem = workItem
+            DispatchQueue.main.asyncAfter(deadline: .now() + gameCenterToastDisplayDuration, execute: workItem)
         }
 
         /// 与えられたモードがキャンペーンステージかどうかを判定し、該当する場合は定義を返す
@@ -1262,10 +1378,7 @@ fileprivate struct TopStatusInsetView: View {
                 .accessibilityIdentifier("gc_authenticated")
                 .frame(maxWidth: .infinity, alignment: .leading)
         } else {
-            Text("Game Center 未サインイン。設定画面からサインインするとランキングを利用できます。")
-                .font(.caption)
-                .foregroundColor(theme.textSecondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            EmptyView()
         }
     }
 
