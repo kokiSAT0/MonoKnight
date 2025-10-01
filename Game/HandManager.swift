@@ -21,12 +21,17 @@ public final class HandManager: ObservableObject {
     /// 並び替え設定
     private var handOrderingStrategy: HandOrderingStrategy
 
-    /// MoveCard ごとのデフォルト順序をキャッシュし、安定ソートに利用する
-    private static let moveCardOrderingIndex: [MoveCard: Int] = {
-        var mapping: [MoveCard: Int] = [:]
+    /// MoveVector 配列ごとのデフォルト順序をキャッシュし、安定ソートに利用する
+    private static let moveVectorOrderingIndex: [[MoveVector]: Int] = {
+        var mapping: [[MoveVector]: Int] = [:]
         mapping.reserveCapacity(MoveCard.allCases.count)
-        for (index, card) in MoveCard.allCases.enumerated() {
-            mapping[card] = index
+        var nextIndex = 0
+        for card in MoveCard.allCases {
+            let signature = card.movementVectors
+            if mapping[signature] == nil {
+                mapping[signature] = nextIndex
+                nextIndex += 1
+            }
         }
         return mapping
     }()
@@ -114,7 +119,7 @@ public final class HandManager: ObservableObject {
             }
             guard let card = nextCard else { break }
             if allowsCardStacking,
-               let index = handStacks.firstIndex(where: { $0.representativeMove == card.move }) {
+               let index = handStacks.firstIndex(where: { $0.representativeVectors == card.move.movementVectors }) {
                 var existing = handStacks[index]
                 existing.append(card)
                 handStacks[index] = existing
@@ -156,18 +161,21 @@ public final class HandManager: ObservableObject {
             guard let leftCard = lhs.topCard, let rightCard = rhs.topCard else {
                 return lhs.topCard != nil
             }
-            let leftDX = leftCard.move.dx
-            let rightDX = rightCard.move.dx
+            // primaryVector を利用して単一ベクトル時の挙動を従来通りに保つ
+            let leftPrimary = leftCard.move.primaryVector
+            let rightPrimary = rightCard.move.primaryVector
+            let leftDX = leftPrimary.dx
+            let rightDX = rightPrimary.dx
             if leftDX != rightDX {
                 return leftDX < rightDX
             }
-            let leftDY = leftCard.move.dy
-            let rightDY = rightCard.move.dy
+            let leftDY = leftPrimary.dy
+            let rightDY = rightPrimary.dy
             if leftDY != rightDY {
                 return leftDY > rightDY
             }
-            let leftIndex = HandManager.moveCardOrderingIndex[leftCard.move] ?? 0
-            let rightIndex = HandManager.moveCardOrderingIndex[rightCard.move] ?? 0
+            let leftIndex = HandManager.moveVectorOrderingIndex[leftCard.move.movementVectors] ?? 0
+            let rightIndex = HandManager.moveVectorOrderingIndex[rightCard.move.movementVectors] ?? 0
             return leftIndex < rightIndex
         }
     }

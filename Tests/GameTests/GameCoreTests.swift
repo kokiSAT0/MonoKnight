@@ -174,6 +174,17 @@ final class GameCoreTests: XCTestCase {
         XCTAssertEqual(core.handStacks.count, 5, "リセット直後の手札スタック数が 5 種類になっていない")
     }
 
+    /// HandStack が movementVectors を提供し、MoveCard 側と整合するか検証
+    func testHandStackRepresentativeVectorsMatchMoveCard() {
+        let first = DealtCard(move: .kingRight)
+        var stack = HandStack(cards: [first])
+        XCTAssertEqual(stack.representativeVectors, MoveCard.kingRight.movementVectors)
+
+        let second = DealtCard(move: .kingRight)
+        stack.append(second)
+        XCTAssertEqual(stack.representativeVectors, MoveCard.kingRight.movementVectors)
+    }
+
     /// 連続して同じカードをドローした場合にスタックへ積み増されるか検証
     func testHandRefillStacksAccumulatesDuplicates() {
         let deck = Deck.makeTestDeck(cards: [
@@ -194,26 +205,42 @@ final class GameCoreTests: XCTestCase {
         XCTAssertEqual(core.handStacks.count, 5)
         XCTAssertEqual(core.handStacks.first?.count, 2)
         XCTAssertEqual(
-            core.handStacks.compactMap { $0.topCard?.move },
-            [.kingRight, .kingUp, .kingDown, .kingLeft, .knightUp1Right2]
+            core.handStacks.compactMap { $0.topCard?.move.primaryVector },
+            [
+                MoveCard.kingRight.primaryVector,
+                MoveCard.kingUp.primaryVector,
+                MoveCard.kingDown.primaryVector,
+                MoveCard.kingLeft.primaryVector,
+                MoveCard.knightUp1Right2.primaryVector
+            ]
         )
         XCTAssertEqual(
-            core.nextCards.map { $0.move },
-            [.straightUp2, .diagonalUpRight2, .kingUpRight]
+            core.nextCards.map { $0.move.primaryVector },
+            [
+                MoveCard.straightUp2.primaryVector,
+                MoveCard.diagonalUpRight2.primaryVector,
+                MoveCard.kingUpRight.primaryVector
+            ]
         )
 
         // スタック枚数が 2 枚のスロットをプレイしても、残り 1 枚が保持され NEXT は消費されない
         core.playCard(at: 0)
         XCTAssertEqual(core.handStacks.count, 5)
         XCTAssertEqual(core.handStacks.first?.count, 1)
-        XCTAssertEqual(core.handStacks.first?.topCard?.move, .kingRight)
+        XCTAssertEqual(core.handStacks.first?.topCard?.move.movementVectors, MoveCard.kingRight.movementVectors)
         XCTAssertEqual(
-            core.nextCards.map { $0.move },
-            [.straightUp2, .diagonalUpRight2, .kingUpRight]
+            core.nextCards.map { $0.move.primaryVector },
+            [
+                MoveCard.straightUp2.primaryVector,
+                MoveCard.diagonalUpRight2.primaryVector,
+                MoveCard.kingUpRight.primaryVector
+            ]
         )
 
         // 単枚スタックを消費すると NEXT 先頭が新規スタックとして補充される
-        if let targetIndex = core.handStacks.enumerated().first(where: { $0.element.topCard?.move == .kingUp })?.offset {
+        if let targetIndex = core.handStacks.enumerated().first(where: { _, stack in
+            stack.topCard?.move.movementVectors == MoveCard.kingUp.movementVectors
+        })?.offset {
             core.playCard(at: targetIndex)
         } else {
             XCTFail("想定していたキング上のスタックが見つかりません")
@@ -221,10 +248,16 @@ final class GameCoreTests: XCTestCase {
         }
 
         XCTAssertEqual(core.handStacks.count, 5)
-        XCTAssertTrue(core.handStacks.contains(where: { $0.topCard?.move == .straightUp2 }))
+        XCTAssertTrue(core.handStacks.contains(where: { stack in
+            stack.topCard?.move.movementVectors == MoveCard.straightUp2.movementVectors
+        }))
         XCTAssertEqual(
-            core.nextCards.map { $0.move },
-            [.diagonalUpRight2, .kingUpRight, .diagonalUpLeft2]
+            core.nextCards.map { $0.move.primaryVector },
+            [
+                MoveCard.diagonalUpRight2.primaryVector,
+                MoveCard.kingUpRight.primaryVector,
+                MoveCard.diagonalUpLeft2.primaryVector
+            ]
         )
     }
 
@@ -247,27 +280,59 @@ final class GameCoreTests: XCTestCase {
         let manager = core.handManager
 
         // 初期構成を控えておき、reset(startNewGame: false) で再現できるか検証する
-        let initialHandMoves = core.handStacks.compactMap { $0.topCard?.move }
-        let initialNextMoves = core.nextCards.map { $0.move }
-        XCTAssertEqual(initialHandMoves, [.kingUp, .kingRight, .kingLeft, .kingDown, .kingUpLeft])
-        XCTAssertEqual(initialNextMoves, [.straightUp2, .straightRight2, .straightDown2])
+        let initialHandVectors = core.handStacks.compactMap { $0.topCard?.move.primaryVector }
+        let initialNextVectors = core.nextCards.map { $0.move.primaryVector }
+        XCTAssertEqual(
+            initialHandVectors,
+            [
+                MoveCard.kingUp.primaryVector,
+                MoveCard.kingRight.primaryVector,
+                MoveCard.kingLeft.primaryVector,
+                MoveCard.kingDown.primaryVector,
+                MoveCard.kingUpLeft.primaryVector
+            ]
+        )
+        XCTAssertEqual(
+            initialNextVectors,
+            [
+                MoveCard.straightUp2.primaryVector,
+                MoveCard.straightRight2.primaryVector,
+                MoveCard.straightDown2.primaryVector
+            ]
+        )
 
         // 先頭スタックを使用し、NEXT の先頭が差し戻されることを確認
         core.playCard(at: 0)
         XCTAssertTrue(manager === core.handManager, "playCard 後も HandManager インスタンスが差し替わらないこと")
         XCTAssertEqual(manager.handStacks.count, 5, "HandManager 経由でも手札スロット数が維持されるべき")
-        XCTAssertEqual(manager.handStacks.first?.topCard?.move, .straightUp2, "NEXT の先頭カードが空きスロットへ戻っていない")
         XCTAssertEqual(
-            manager.nextCards.map { $0.move },
-            [.straightRight2, .straightDown2, .diagonalUpLeft2],
+            manager.handStacks.first?.topCard?.move.movementVectors,
+            MoveCard.straightUp2.movementVectors,
+            "NEXT の先頭カードが空きスロットへ戻っていない"
+        )
+        XCTAssertEqual(
+            manager.nextCards.map { $0.move.primaryVector },
+            [
+                MoveCard.straightRight2.primaryVector,
+                MoveCard.straightDown2.primaryVector,
+                MoveCard.diagonalUpLeft2.primaryVector
+            ],
             "手札補充後の NEXT 構成が想定と一致しない"
         )
 
         // 同一シードでリセットすると初期配列へ戻り、HandManager も再利用されること
         core.reset(startNewGame: false)
         XCTAssertTrue(manager === core.handManager, "reset で HandManager が再生成されるのは望ましくない")
-        XCTAssertEqual(core.handStacks.compactMap { $0.topCard?.move }, initialHandMoves, "リセット後の手札構成が初期値と異なる")
-        XCTAssertEqual(core.nextCards.map { $0.move }, initialNextMoves, "リセット後の NEXT 構成が初期値と異なる")
+        XCTAssertEqual(
+            core.handStacks.compactMap { $0.topCard?.move.primaryVector },
+            initialHandVectors,
+            "リセット後の手札構成が初期値と異なる"
+        )
+        XCTAssertEqual(
+            core.nextCards.map { $0.move.primaryVector },
+            initialNextVectors,
+            "リセット後の NEXT 構成が初期値と異なる"
+        )
     }
 
     /// 挿入順設定でカードを使用した際、空いたスロットに新しいカードが同じ位置で補充されるか検証
@@ -289,8 +354,14 @@ final class GameCoreTests: XCTestCase {
         let core = GameCore.makeTestInstance(deck: deck)
 
         XCTAssertEqual(
-            core.handStacks.compactMap { $0.topCard?.move },
-            [.kingUp, .kingRight, .kingDown, .kingLeft, .kingUpLeft],
+            core.handStacks.compactMap { $0.topCard?.move.primaryVector },
+            [
+                MoveCard.kingUp.primaryVector,
+                MoveCard.kingRight.primaryVector,
+                MoveCard.kingDown.primaryVector,
+                MoveCard.kingLeft.primaryVector,
+                MoveCard.kingUpLeft.primaryVector
+            ],
             "初期手札の想定順序と一致しません"
         )
 
@@ -298,13 +369,23 @@ final class GameCoreTests: XCTestCase {
         core.playCard(at: 1)
 
         XCTAssertEqual(
-            core.handStacks.compactMap { $0.topCard?.move },
-            [.kingUp, .knightUp1Right2, .kingDown, .kingLeft, .kingUpLeft],
+            core.handStacks.compactMap { $0.topCard?.move.primaryVector },
+            [
+                MoveCard.kingUp.primaryVector,
+                MoveCard.knightUp1Right2.primaryVector,
+                MoveCard.kingDown.primaryVector,
+                MoveCard.kingLeft.primaryVector,
+                MoveCard.kingUpLeft.primaryVector
+            ],
             "挿入順の設定で使用したスロットが末尾に移動してしまっています"
         )
         XCTAssertEqual(
-            core.nextCards.map { $0.move },
-            [.straightUp2, .diagonalUpRight2, .kingUpRight],
+            core.nextCards.map { $0.move.primaryVector },
+            [
+                MoveCard.straightUp2.primaryVector,
+                MoveCard.diagonalUpRight2.primaryVector,
+                MoveCard.kingUpRight.primaryVector
+            ],
             "NEXT キューの更新順序が想定と異なります"
         )
     }
@@ -334,18 +415,28 @@ final class GameCoreTests: XCTestCase {
         // 先読みの 1 枚目（キング右）は既存スタックへ積み増され、2 枚目が空きスロットに入る想定
         XCTAssertEqual(core.handStacks.count, 5, "手札スロット数が 5 に戻っていません")
         XCTAssertEqual(
-            core.handStacks.compactMap { $0.topCard?.move },
-            [.kingUp, .kingRight, .straightUp2, .kingLeft, .knightUp1Right2],
+            core.handStacks.compactMap { $0.topCard?.move.primaryVector },
+            [
+                MoveCard.kingUp.primaryVector,
+                MoveCard.kingRight.primaryVector,
+                MoveCard.straightUp2.primaryVector,
+                MoveCard.kingLeft.primaryVector,
+                MoveCard.knightUp1Right2.primaryVector
+            ],
             "空きスロットに新カードが補充されていません"
         )
-        if let rightStack = core.handStacks.first(where: { $0.representativeMove == .kingRight }) {
+        if let rightStack = core.handStacks.first(where: { $0.representativeVectors == MoveCard.kingRight.movementVectors }) {
             XCTAssertEqual(rightStack.count, 2, "重なったカード枚数が想定と異なります")
         } else {
             XCTFail("キング右のスタックが見つかりません")
         }
         XCTAssertEqual(
-            core.nextCards.map { $0.move },
-            [.diagonalUpRight2, .kingUpRight, .knightUp2Right1],
+            core.nextCards.map { $0.move.primaryVector },
+            [
+                MoveCard.diagonalUpRight2.primaryVector,
+                MoveCard.kingUpRight.primaryVector,
+                MoveCard.knightUp2Right1.primaryVector
+            ],
             "先読みの補充結果が想定と異なります"
         )
     }
@@ -386,11 +477,15 @@ final class GameCoreTests: XCTestCase {
         XCTAssertFalse(core.isAwaitingManualDiscardSelection)
         XCTAssertEqual(core.penaltyCount, initialPenalty + core.mode.manualDiscardPenaltyCost)
         XCTAssertEqual(core.handStacks.count, 5)
-        XCTAssertFalse(core.handStacks.contains(where: { $0.representativeMove == .kingRight }))
-        XCTAssertTrue(core.handStacks.contains(where: { $0.representativeMove == .straightUp2 }))
+        XCTAssertFalse(core.handStacks.contains(where: { $0.representativeVectors == MoveCard.kingRight.movementVectors }))
+        XCTAssertTrue(core.handStacks.contains(where: { $0.representativeVectors == MoveCard.straightUp2.movementVectors }))
         XCTAssertEqual(
-            core.nextCards.map { $0.move },
-            [.diagonalUpRight2, .kingUpRight, .straightDown2]
+            core.nextCards.map { $0.move.primaryVector },
+            [
+                MoveCard.diagonalUpRight2.primaryVector,
+                MoveCard.kingUpRight.primaryVector,
+                MoveCard.straightDown2.primaryVector
+            ]
         )
     }
 
@@ -411,14 +506,22 @@ final class GameCoreTests: XCTestCase {
         let core = GameCore.makeTestInstance(deck: deck)
 
         // リセット前の手札と先読み構成を控えておき、後で比較できるようにする
-        let initialHand = core.handStacks.compactMap { $0.topCard?.move }
-        let initialNext = core.nextCards.map { $0.move }
+        let initialHand = core.handStacks.compactMap { $0.topCard?.move.primaryVector }
+        let initialNext = core.nextCards.map { $0.move.primaryVector }
 
         // 同一シードを維持するモードでリセットし、手札が再現されるかを確認
         core.reset(startNewGame: false)
 
-        XCTAssertEqual(core.handStacks.compactMap { $0.topCard?.move }, initialHand, "同一シードでのリセット時は手札構成が一致するべき")
-        XCTAssertEqual(core.nextCards.map { $0.move }, initialNext, "同一シードでのリセット時は先読み構成が一致するべき")
+        XCTAssertEqual(
+            core.handStacks.compactMap { $0.topCard?.move.primaryVector },
+            initialHand,
+            "同一シードでのリセット時は手札構成が一致するべき"
+        )
+        XCTAssertEqual(
+            core.nextCards.map { $0.move.primaryVector },
+            initialNext,
+            "同一シードでのリセット時は先読み構成が一致するべき"
+        )
     }
 
     /// クラシカルチャレンジでスポーン選択が必須になるか検証
@@ -474,7 +577,7 @@ final class GameCoreTests: XCTestCase {
         XCTAssertFalse(core.hasRevisitedTile, "初期状態で再訪フラグが立っていてはいけません")
 
         guard let firstMoveIndex = core.handStacks.enumerated().first(where: { _, stack in
-            stack.topCard?.move == .knightUp2Right1
+            stack.topCard?.move.movementVectors == MoveCard.knightUp2Right1.movementVectors
         })?.offset else {
             XCTFail("想定していた移動カードが手札に存在しません")
             return
@@ -484,7 +587,7 @@ final class GameCoreTests: XCTestCase {
         XCTAssertFalse(core.hasRevisitedTile, "未踏マスを移動した直後はフラグが false のままの想定です")
 
         guard let returnIndex = core.handStacks.enumerated().first(where: { _, stack in
-            stack.topCard?.move == .knightDown2Left1
+            stack.topCard?.move.movementVectors == MoveCard.knightDown2Left1.movementVectors
         })?.offset else {
             XCTFail("戻り用のカードが手札から見つかりません")
             return
@@ -540,14 +643,18 @@ final class GameCoreTests: XCTestCase {
         // 方向ソートへ切り替えて順序が調整されるか確認
         core.updateHandOrderingStrategy(.directionSorted)
 
-        let expected: [MoveCard] = [
-            .diagonalUpLeft2,
-            .straightLeft2,
-            .diagonalDownLeft2,
-            .kingUp,
-            .kingRight
+        let expected: [MoveVector] = [
+            MoveCard.diagonalUpLeft2.primaryVector,
+            MoveCard.straightLeft2.primaryVector,
+            MoveCard.diagonalDownLeft2.primaryVector,
+            MoveCard.kingUp.primaryVector,
+            MoveCard.kingRight.primaryVector
         ]
-        XCTAssertEqual(core.handStacks.compactMap { $0.topCard?.move }, expected, "方向ソート設定で手札が期待通りに並んでいない")
+        XCTAssertEqual(
+            core.handStacks.compactMap { $0.topCard?.move.primaryVector },
+            expected,
+            "方向ソート設定で手札が期待通りに並んでいない"
+        )
     }
 
     /// 方向ソート設定でカードを使用した後も新しい手札が正しい順序に保たれるか検証
@@ -568,7 +675,7 @@ final class GameCoreTests: XCTestCase {
         core.updateHandOrderingStrategy(.directionSorted)
 
         guard let playIndex = core.handStacks.enumerated().first(where: { _, stack in
-            stack.topCard?.move == .kingRight
+            stack.topCard?.move.movementVectors == MoveCard.kingRight.movementVectors
         })?.offset else {
             XCTFail("想定したカードが手札に存在しません")
             return
@@ -576,14 +683,18 @@ final class GameCoreTests: XCTestCase {
 
         core.playCard(at: playIndex)
 
-        let expected: [MoveCard] = [
-            .diagonalUpLeft2,
-            .straightLeft2,
-            .diagonalDownLeft2,
-            .kingLeft,
-            .kingUp
+        let expected: [MoveVector] = [
+            MoveCard.diagonalUpLeft2.primaryVector,
+            MoveCard.straightLeft2.primaryVector,
+            MoveCard.diagonalDownLeft2.primaryVector,
+            MoveCard.kingLeft.primaryVector,
+            MoveCard.kingUp.primaryVector
         ]
-        XCTAssertEqual(core.handStacks.compactMap { $0.topCard?.move }, expected, "カード使用後の方向ソート結果が期待と異なります")
+        XCTAssertEqual(
+            core.handStacks.compactMap { $0.topCard?.move.primaryVector },
+            expected,
+            "カード使用後の方向ソート結果が期待と異なります"
+        )
     }
 
     /// スコア計算が「手数×10 + 経過秒数」で行われることを確認

@@ -22,4 +22,13 @@ final class BoardMovementTests: XCTestCase {
         let inside = origin.offset(dx: 1, dy: 0)
         XCTAssertTrue(inside.isInside(boardSize: boardSize))
     }
+
+    /// MoveCard の movementVectors が 1 要素で初期化されるかの基本確認
+    func testMoveCardProvidesPrimaryMovementVector() {
+        let vectors = MoveCard.kingUp.movementVectors
+        XCTAssertEqual(vectors.count, 1, "キング上の移動候補は 1 要素で初期化されるべき")
+        XCTAssertEqual(vectors.first?.dx, 0)
+        XCTAssertEqual(vectors.first?.dy, 1)
+        XCTAssertEqual(MoveCard.kingUp.primaryVector, MoveVector(dx: 0, dy: 1))
+    }
 }

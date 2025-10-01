@@ -78,7 +78,9 @@ extension GameCore {
 
         let allUnusable = handStacks.allSatisfy { stack in
             guard let card = stack.topCard else { return true }
-            let dest = current.offset(dx: card.move.dx, dy: card.move.dy)
+            // primaryVector を既定候補として扱うことで、複数ベクトルを持つカード追加時もロジックの整合性を確保する
+            let vector = card.move.primaryVector
+            let dest = current.offset(dx: vector.dx, dy: vector.dy)
             return !board.contains(dest)
         }
         guard allUnusable else { return }

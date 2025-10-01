@@ -1,6 +1,24 @@
 import Foundation
 import SharedSupport // ログユーティリティを利用するため追加
 
+/// カードが提供する移動量を表すシンプルなベクトル構造体
+/// - Note: 1 枚のカードが複数候補の移動量を持つ将来拡張を見据えて、汎用的な表現を用意する
+public struct MoveVector: Hashable, Codable {
+    /// x 方向の移動量
+    public let dx: Int
+    /// y 方向の移動量
+    public let dy: Int
+
+    /// 公開イニシャライザ
+    /// - Parameters:
+    ///   - dx: x 方向の移動量
+    ///   - dy: y 方向の移動量
+    public init(dx: Int, dy: Int) {
+        self.dx = dx
+        self.dy = dy
+    }
+}
+
 /// 座標を表す構造体
 /// - 備考: 原点は左下、x は右方向、y は上方向に増加する
 public struct GridPoint: Hashable, Codable {

@@ -176,7 +176,9 @@ final class GameBoardBridgeViewModel: ObservableObject {
         var candidatePoints: Set<GridPoint> = []
         for stack in handStacks {
             guard let card = stack.topCard else { continue }
-            let destination = current.offset(dx: card.move.dx, dy: card.move.dy)
+            // primaryVector を介して既定移動量を算出し、将来的な複数候補カードにも備える
+            let vector = card.move.primaryVector
+            let destination = current.offset(dx: vector.dx, dy: vector.dy)
             if core.board.contains(destination) {
                 candidatePoints.insert(destination)
             }
@@ -216,7 +218,9 @@ final class GameBoardBridgeViewModel: ObservableObject {
 
         // 現在位置からカードの移動量を適用し、演出で目指す盤面座標を算出する
         // ここをプレイ前の現在地で固定してしまうと、カードが正しいマスへ移動しないため注意する
-        let targetPoint = current.offset(dx: topCard.move.dx, dy: topCard.move.dy)
+        // primaryVector を起点にアニメーション先を決定し、複数候補カードでも既定値が維持されるようにする
+        let vector = topCard.move.primaryVector
+        let targetPoint = current.offset(dx: vector.dx, dy: vector.dy)
         animationTargetGridPoint = targetPoint
         hiddenCardIDs.insert(topCard.id)
         animatingCard = topCard
@@ -281,7 +285,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
         }
 
         let sameID = currentTop.id == request.topCard.id
-        let sameMove = currentTop.move == request.topCard.move
+        let sameMove = currentTop.move.movementVectors == request.topCard.move.movementVectors
         debugLog(
             "BoardTapPlayRequest 受信: requestID=\(request.id) 要求index=\(request.stackIndex) 解決index=\(resolvedIndex) sameID=\(sameID) sameMove=\(sameMove)"
         )
@@ -323,7 +327,9 @@ final class GameBoardBridgeViewModel: ObservableObject {
     func isCardUsable(_ stack: HandStack) -> Bool {
         guard let card = stack.topCard else { return false }
         guard let current = core.current else { return false }
-        let target = current.offset(dx: card.move.dx, dy: card.move.dy)
+        // primaryVector を使い、複数候補カードでも既定の挙動が維持されるようにする
+        let vector = card.move.primaryVector
+        let target = current.offset(dx: vector.dx, dy: vector.dy)
         return core.board.contains(target)
     }
 

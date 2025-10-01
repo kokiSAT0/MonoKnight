@@ -87,65 +87,72 @@ public enum MoveCard: CaseIterable {
     case diagonalUpLeft2
 
     // MARK: - 移動量
-    /// x 方向の移動量
-    public var dx: Int {
+    /// カードが提供する移動候補一覧
+    /// - Note: 現時点では 1 要素固定だが、複数候補カードを導入する際に備えて配列で返す
+    public var movementVectors: [MoveVector] {
         switch self {
-        case .kingUp: return 0
-        case .kingUpRight: return 1
-        case .kingRight: return 1
-        case .kingDownRight: return 1
-        case .kingDown: return 0
-        case .kingDownLeft: return -1
-        case .kingLeft: return -1
-        case .kingUpLeft: return -1
-        case .knightUp2Right1: return 1
-        case .knightUp2Left1: return -1
-        case .knightUp1Right2: return 2
-        case .knightUp1Left2: return -2
-        case .knightDown2Right1: return 1
-        case .knightDown2Left1: return -1
-        case .knightDown1Right2: return 2
-        case .knightDown1Left2: return -2
-        case .straightUp2: return 0
-        case .straightDown2: return 0
-        case .straightRight2: return 2
-        case .straightLeft2: return -2
-        case .diagonalUpRight2: return 2
-        case .diagonalDownRight2: return 2
-        case .diagonalDownLeft2: return -2
-        case .diagonalUpLeft2: return -2
+        case .kingUp:
+            return [MoveVector(dx: 0, dy: 1)]
+        case .kingUpRight:
+            return [MoveVector(dx: 1, dy: 1)]
+        case .kingRight:
+            return [MoveVector(dx: 1, dy: 0)]
+        case .kingDownRight:
+            return [MoveVector(dx: 1, dy: -1)]
+        case .kingDown:
+            return [MoveVector(dx: 0, dy: -1)]
+        case .kingDownLeft:
+            return [MoveVector(dx: -1, dy: -1)]
+        case .kingLeft:
+            return [MoveVector(dx: -1, dy: 0)]
+        case .kingUpLeft:
+            return [MoveVector(dx: -1, dy: 1)]
+        case .knightUp2Right1:
+            return [MoveVector(dx: 1, dy: 2)]
+        case .knightUp2Left1:
+            return [MoveVector(dx: -1, dy: 2)]
+        case .knightUp1Right2:
+            return [MoveVector(dx: 2, dy: 1)]
+        case .knightUp1Left2:
+            return [MoveVector(dx: -2, dy: 1)]
+        case .knightDown2Right1:
+            return [MoveVector(dx: 1, dy: -2)]
+        case .knightDown2Left1:
+            return [MoveVector(dx: -1, dy: -2)]
+        case .knightDown1Right2:
+            return [MoveVector(dx: 2, dy: -1)]
+        case .knightDown1Left2:
+            return [MoveVector(dx: -2, dy: -1)]
+        case .straightUp2:
+            return [MoveVector(dx: 0, dy: 2)]
+        case .straightDown2:
+            return [MoveVector(dx: 0, dy: -2)]
+        case .straightRight2:
+            return [MoveVector(dx: 2, dy: 0)]
+        case .straightLeft2:
+            return [MoveVector(dx: -2, dy: 0)]
+        case .diagonalUpRight2:
+            return [MoveVector(dx: 2, dy: 2)]
+        case .diagonalDownRight2:
+            return [MoveVector(dx: 2, dy: -2)]
+        case .diagonalDownLeft2:
+            return [MoveVector(dx: -2, dy: -2)]
+        case .diagonalUpLeft2:
+            return [MoveVector(dx: -2, dy: 2)]
         }
     }
 
-    /// y 方向の移動量
-    public var dy: Int {
-        switch self {
-        case .kingUp: return 1
-        case .kingUpRight: return 1
-        case .kingRight: return 0
-        case .kingDownRight: return -1
-        case .kingDown: return -1
-        case .kingDownLeft: return -1
-        case .kingLeft: return 0
-        case .kingUpLeft: return 1
-        case .knightUp2Right1: return 2
-        case .knightUp2Left1: return 2
-        case .knightUp1Right2: return 1
-        case .knightUp1Left2: return 1
-        case .knightDown2Right1: return -2
-        case .knightDown2Left1: return -2
-        case .knightDown1Right2: return -1
-        case .knightDown1Left2: return -1
-        case .straightUp2: return 2
-        case .straightDown2: return -2
-        case .straightRight2: return 0
-        case .straightLeft2: return 0
-        case .diagonalUpRight2: return 2
-        case .diagonalDownRight2: return -2
-        case .diagonalDownLeft2: return -2
-        case .diagonalUpLeft2: return 2
-        }
+    /// 従来互換用に用意した主要ベクトル
+    /// - Note: 複数候補カードを導入した際は UI/ロジックの既定候補として利用する
+    public var primaryVector: MoveVector {
+        movementVectors.first ?? MoveVector(dx: 0, dy: 0)
     }
+
+    /// x 方向の移動量（後方互換のため存続）
+    public var dx: Int { primaryVector.dx }
+
+    /// y 方向の移動量（後方互換のため存続）
+    public var dy: Int { primaryVector.dy }
 
     // MARK: - UI 表示名
     /// UI に表示する日本語の名前
@@ -253,7 +260,9 @@ public enum MoveCard: CaseIterable {
     /// - Returns: 盤内に移動できる場合は true
     public func canUse(from: GridPoint, boardSize: Int) -> Bool {
         // 現在位置に移動量を加算し、盤内かどうかを評価する
-        let destination = from.offset(dx: dx, dy: dy)
+        // 複数候補カード導入時は primaryVector を既定候補として扱い、UI 選択で差し替える想定
+        let vector = primaryVector
+        let destination = from.offset(dx: vector.dx, dy: vector.dy)
         return destination.isInside(boardSize: boardSize)
     }
 }

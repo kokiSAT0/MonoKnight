@@ -11,8 +11,8 @@ struct Deck {
     struct Configuration {
         /// 抽選対象とするカード一覧（順序を維持する）
         let allowedMoves: [MoveCard]
-        /// 各カードの基礎重み
-        let baseWeights: [MoveCard: Int]
+        /// 各移動ベクトル配列の基礎重み
+        let baseWeights: [[MoveVector]: Int]
         /// 連続排出抑制を行うかどうか
         let shouldApplyProbabilityReduction: Bool
         /// 通常時に掛ける重み倍率（整数比で扱う）
@@ -35,7 +35,7 @@ struct Deck {
         ///   - deckSummaryText: UI 表示用の簡易説明
         init(
             allowedMoves: [MoveCard],
-            baseWeights: [MoveCard: Int],
+            baseWeights: [[MoveVector]: Int],
             shouldApplyProbabilityReduction: Bool,
             normalWeightMultiplier: Int,
             reducedWeightMultiplier: Int,
@@ -54,9 +54,13 @@ struct Deck {
         /// スタンダードモード向け設定
         static let standard: Configuration = {
             // 元々の重み計算をここで再現する
-            var weights: [MoveCard: Int] = [:]
+            var weights: [[MoveVector]: Int] = [:]
             weights.reserveCapacity(MoveCard.allCases.count)
             for card in MoveCard.allCases {
+                let signature = card.movementVectors
+                // 同一ベクトル集合を持つカードが増えても先行登録分の並び順を維持する
+                guard weights[signature] == nil else { continue }
+
                 let weight: Int
                 if card.isKingType {
                     // キング型は 1.5 倍の重み（整数比 3）
@@ -68,7 +72,7 @@ struct Deck {
                     // それ以外は標準重み
                     weight = 2
                 }
-                weights[card] = weight
+                weights[signature] = weight
             }
             return Configuration(
                 allowedMoves: MoveCard.allCases,
@@ -84,7 +88,7 @@ struct Deck {
         /// クラシカルチャレンジ向け設定（桂馬のみ・均等抽選）
         static let classicalChallenge: Configuration = {
             let knightMoves = MoveCard.allCases.filter { $0.isKnightType }
-            let weights = Dictionary(uniqueKeysWithValues: knightMoves.map { ($0, 1) })
+            let weights = Dictionary(uniqueKeysWithValues: knightMoves.map { ($0.movementVectors, 1) })
             return Configuration(
                 allowedMoves: knightMoves,
                 baseWeights: weights,
@@ -99,7 +103,7 @@ struct Deck {
         /// 王将型カードのみを排出する短距離構成
         static let kingOnly: Configuration = {
             let kingMoves = MoveCard.allCases.filter { $0.isKingType }
-            let weights = Dictionary(uniqueKeysWithValues: kingMoves.map { ($0, 1) })
+            let weights = Dictionary(uniqueKeysWithValues: kingMoves.map { ($0.movementVectors, 1) })
             return Configuration(
                 allowedMoves: kingMoves,
                 baseWeights: weights,
@@ -126,7 +130,7 @@ struct Deck {
     #endif
 
     /// 直近に排出されたカードの抑制残りターン数（値が 0 になると解除）
-    private var reducedProbabilityTurns: [MoveCard: Int]
+    private var reducedProbabilityTurns: [[MoveVector]: Int]
     #if DEBUG
     /// テスト時に優先して返すカード列（先頭から順に消費）
     private var presetDrawQueue: [MoveCard]
@@ -222,8 +226,9 @@ struct Deck {
         var totalWeight = 0
 
         for card in configuration.allowedMoves {
-            guard let baseWeight = configuration.baseWeights[card] else { continue }
-            let isReduced = configuration.shouldApplyProbabilityReduction && (reducedProbabilityTurns[card, default: 0] > 0)
+            let signature = card.movementVectors
+            guard let baseWeight = configuration.baseWeights[signature] else { continue }
+            let isReduced = configuration.shouldApplyProbabilityReduction && (reducedProbabilityTurns[signature, default: 0] > 0)
             let multiplier = isReduced ? configuration.reducedWeightMultiplier : configuration.normalWeightMultiplier
             let weight = baseWeight * multiplier
             weightedCards.append((card, weight))
@@ -251,7 +256,7 @@ struct Deck {
             return
         }
         // 既存のペナルティを 1 ターン進め、0 以下になったら辞書から削除する
-        var updated: [MoveCard: Int] = [:]
+        var updated: [[MoveVector]: Int] = [:]
         updated.reserveCapacity(reducedProbabilityTurns.count)
         for (target, turns) in reducedProbabilityTurns {
             let nextValue = turns - 1
@@ -261,7 +266,7 @@ struct Deck {
         }
         reducedProbabilityTurns = updated
         // 今回引いたカードに抑制を付与する
-        reducedProbabilityTurns[card] = configuration.reductionDuration
+        reducedProbabilityTurns[card.movementVectors] = configuration.reductionDuration
     }
 }
 

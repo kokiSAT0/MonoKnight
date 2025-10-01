@@ -121,7 +121,9 @@ public final class GameCore: ObservableObject {
         guard handStacks.indices.contains(index) else { return }
         let stack = handStacks[index]
         guard let card = stack.topCard else { return }
-        let target = currentPosition.offset(dx: card.move.dx, dy: card.move.dy)
+        // primaryVector を介して移動量を算出し、将来の複数候補カードにも対応しやすくする
+        let vector = card.move.primaryVector
+        let target = currentPosition.offset(dx: vector.dx, dy: vector.dy)
         // UI 側で無効カードを弾く想定だが、念のため安全確認
         guard board.contains(target) else { return }
 
@@ -287,7 +289,9 @@ extension GameCore: GameCoreProtocol {
         // 差分に一致するカードを手札スタックから検索
         if let (index, stack) = handStacks.enumerated().first(where: { _, stack in
             guard let card = stack.topCard else { return false }
-            return card.move.dx == dx && card.move.dy == dy
+            let primary = card.move.primaryVector
+            // primaryVector を基準に一致判定し、複数候補カードでも最初の候補を既定とする
+            return primary.dx == dx && primary.dy == dy
         }) {
             if let topCard = stack.topCard {
                 // UI 側でカード移動アニメーションを行うため、手札情報を要求として公開する

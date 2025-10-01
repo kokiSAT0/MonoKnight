@@ -27,6 +27,7 @@
   開発者向けログ・フィードバック履歴を共有できる下地が整った。サービス層や UI からの再利用方針を明文化しておく。
 - **GameMode ペナルティ検証テストを追加**: `Tests/GameTests/GameModePenaltyTests` でペナルティ設定の反映を網羅し、盤サイズ拡張や
   キャンペーン専用ルールを導入する際の回帰検知を強化した。
+- **MoveVector ベースのカード表現へ移行**: `MoveVector` 構造体と `MoveCard.movementVectors` / `primaryVector` を導入し、同一カード内で複数の移動候補を扱える準備を整えた。`Deck` や `HandManager` ではカード同士の比較を MoveCard 値ではなく移動ベクトル配列ベースで行う方針を定め、既存の 1 候補カードでも安定した順序を維持するよう整備した。
 - **ATT 許諾変化に対応したモックシナリオ**: `MonoKnightAppTests/AdsConsentCoordinatorTests` に ATT の許諾状態が途中で変わるケースを
   追加し、同意再取得時に NPA フラグと広告再ロードが確実に更新されることを保証した。
 - **GameCore のタイマー責務分離**: ゲーム内の経過時間管理を `GameSessionTimer` へ委譲し、`GameCore` 本体の責務を
@@ -50,6 +51,7 @@
    - `GameModuleInterfaces` を経由した依存注入が整備されたため、今後は `HandManager` や `Deck` の再利用性を高める。
    - モードごとのペナルティ・手札整理ロジックを `GameMode` のパラメータに一本化し、盤面追加時にも破綻しないようテストを拡充する。
      `GameCore+Penalty.swift` など機能別ファイルの役割をドキュメントへ反映しておく。
+   - **移動量比較は MoveVector を基準に行う**: カードの同一性判定は `MoveCard.movementVectors` を用い、ロジック側で個別の列挙値比較を避ける。既存コードを更新する際は `primaryVector` を暫定互換に使いながら、ゆくゆく複数候補へ差し替えられるようユーティリティ関数を `MoveVector` ベースで整備する。
 2. **UI レイヤー (`UI/` ディレクトリ)**
    - `GameViewModel` / `GameBoardBridgeViewModel` / `GameViewLayoutCalculator` による三層構造を維持しつつ、Combine 購読や
      `DispatchWorkItem` の破棄漏れが起こらないようユニットテスト・統合テストを整える。
