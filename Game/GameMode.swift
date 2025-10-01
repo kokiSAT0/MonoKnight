@@ -121,6 +121,49 @@ public struct GameMode: Equatable, Identifiable {
         }
     }
 
+    /// UI で利用する難易度ランク定義
+    /// - Note: 文字列を個別に管理すると重複や表記揺れが発生しやすいため、列挙体で統一しておく
+    public enum DifficultyRank: String, Codable {
+        /// ルールが標準的で初学者にも勧めやすいモード
+        case balanced
+        /// 明確に難度が高く、熟練者向けのモード
+        case advanced
+        /// プレイヤーが自由に調整できるモード
+        case custom
+        /// キャンペーンなどシナリオ進行に応じて難度が変化するモード
+        case scenario
+
+        /// バッジ表示で利用する短いラベル
+        /// - Returns: カード上に表示する 2〜3 文字の日本語表記
+        public var badgeLabel: String {
+            switch self {
+            case .balanced:
+                return "標準"
+            case .advanced:
+                return "高難度"
+            case .custom:
+                return "調整可"
+            case .scenario:
+                return "ステージ"
+            }
+        }
+
+        /// アクセシビリティ向けの詳細説明
+        /// - Returns: VoiceOver などで読み上げる文言
+        public var accessibilityDescription: String {
+            switch self {
+            case .balanced:
+                return "難易度は標準です"
+            case .advanced:
+                return "難易度は高難度です"
+            case .custom:
+                return "難易度はプレイヤーが調整できます"
+            case .scenario:
+                return "難易度はステージ進行に応じて変化します"
+            }
+        }
+    }
+
     /// 初期スポーンの扱い
     public enum SpawnRule: Equatable, Codable {
         /// 固定座標へスポーン
@@ -339,6 +382,38 @@ public struct GameMode: Equatable, Identifiable {
     public var deckPreset: GameDeckPreset { regulation.deckPreset }
     /// UI で表示する山札の要約
     public var deckSummaryText: String { regulation.deckPreset.summaryText }
+    /// UI 表示用のアイコン名
+    /// - Note: SF Symbols のシステム名を返し、SwiftUI から共通の描画を行えるようにする
+    public var iconSystemName: String {
+        switch identifier {
+        case .standard5x5:
+            return "square.grid.3x3.fill"
+        case .classicalChallenge:
+            return "checkerboard.rectangle"
+        case .freeCustom:
+            return "slider.horizontal.3"
+        case .campaignStage:
+            return "map.fill"
+        }
+    }
+    /// モードの難易度ランク
+    /// - Note: UI 側でバッジ表示やアクセシビリティ説明に利用する
+    public var difficultyRank: DifficultyRank {
+        switch identifier {
+        case .standard5x5:
+            return .balanced
+        case .classicalChallenge:
+            return .advanced
+        case .freeCustom:
+            return .custom
+        case .campaignStage:
+            return .scenario
+        }
+    }
+    /// 難易度バッジで利用する短縮ラベル
+    public var difficultyBadgeLabel: String { difficultyRank.badgeLabel }
+    /// 難易度に関するアクセシビリティ説明
+    public var difficultyAccessibilityDescription: String { difficultyRank.accessibilityDescription }
     /// 手札スロットと先読み枚数をまとめた説明文
     /// - Note: 同種カードを重ねられるスタック仕様を把握しやすいよう「種類数」で表現する。
     public var handSummaryText: String {
