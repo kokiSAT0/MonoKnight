@@ -61,6 +61,14 @@ public final class GameScene: SKScene {
     /// - Important: 種類ごとに辞書を分けることで、描画の上書き順とスタイルを柔軟に切り替えられる
     private var highlightNodes: [BoardHighlightKind: [GridPoint: SKShapeNode]] = [:]
 
+    /// 単一ガイドの最新表示座標集合を保持
+    /// - NOTE: 複数ガイドと重なる位置を判定する際の参照として利用する
+    private var latestSingleGuidePoints: Set<GridPoint> = []
+
+    /// 複数ガイドの最新表示座標集合を保持
+    /// - NOTE: 将来的な整合性チェックやレイアウト調整時の参照に活用する
+    private var latestMultipleGuidePoints: Set<GridPoint> = []
+
     /// レイアウト未確定時に受け取ったハイライト要求の待ち行列
     /// - Note: キーごとに候補座標を保持し、レイアウト確定後にまとめて構築する
     private var pendingHighlightPoints: [BoardHighlightKind: Set<GridPoint>] =
@@ -146,6 +154,8 @@ public final class GameScene: SKScene {
         // SpriteKit ノード系のキャッシュは全て空に戻し、不要なノードが残らないようにする
         tileNodes = [:]
         highlightNodes = [:]
+        latestSingleGuidePoints = []
+        latestMultipleGuidePoints = []
         pendingHighlightPoints = Dictionary(
             uniqueKeysWithValues: BoardHighlightKind.allCases.map { ($0, []) }
         )
@@ -516,6 +526,10 @@ public final class GameScene: SKScene {
             pendingHighlightPoints[kind] = validPoints
         }
 
+        // 正規化済みの集合を保持し、描画更新前後で最新状態を参照できるようにする
+        latestSingleGuidePoints = sanitized[.guideSingleCandidate] ?? []
+        latestMultipleGuidePoints = sanitized[.guideMultipleCandidate] ?? []
+
         let countsDescription = sanitized
             .map { "\($0.key)=\($0.value.count)" }
             .joined(separator: ", ")
@@ -543,6 +557,10 @@ public final class GameScene: SKScene {
     /// 辞書で受け取ったハイライト情報を即座にノードへ反映する
     /// - Parameter highlights: 種類ごとの有効な盤面座標集合
     private func applyHighlightsImmediately(_ highlights: [BoardHighlightKind: Set<GridPoint>]) {
+        // 即時反映時も最新集合を保持し、ノード再構成時に参照できるようにする
+        latestSingleGuidePoints = highlights[.guideSingleCandidate] ?? []
+        latestMultipleGuidePoints = highlights[.guideMultipleCandidate] ?? []
+
         for kind in BoardHighlightKind.allCases {
             let points = highlights[kind] ?? []
             rebuildHighlightNodes(for: kind, using: points)
@@ -611,17 +629,25 @@ public final class GameScene: SKScene {
         let strokeAlpha: CGFloat
         let zPosition: CGFloat
         let strokeWidth: CGFloat
+        // 単一・複数ガイドの双方で共有する線幅を定義し、視覚的一貫性を保つ
+        let sharedGuideStrokeWidth = max(tileSize * 0.055, 2.0)
+        // 複数ガイドが単一ガイドと重なった際に追加で内側へ寄せる量
+        var overlapInset: CGFloat = 0
         switch kind {
         case .guideSingleCandidate:
             // 単一候補カードは落ち着いたグレートーンで表示し、重なった際に複数候補の枠が目立つようにする
             baseColor = palette.boardTileVisited
             strokeAlpha = 0.9
-            strokeWidth = max(tileSize * 0.045, 1.6)
+            strokeWidth = sharedGuideStrokeWidth
             zPosition = 0.95
         case .guideMultipleCandidate:
             baseColor = palette.boardGuideHighlight
             strokeAlpha = 0.88
-            strokeWidth = max(tileSize * 0.06, 2.0)
+            strokeWidth = sharedGuideStrokeWidth
+            // 単一ガイドと重なる場合は枠線が密着しないよう更に内側へ寄せる
+            if latestSingleGuidePoints.contains(point) {
+                overlapInset = strokeWidth * 1.5
+            }
             zPosition = 1.02
         case .forcedSelection:
             // NOTE: 現段階ではガイドと同じ色を使用しつつ、将来のカスタマイズ余地を残すため分岐を設けている
@@ -632,7 +658,11 @@ public final class GameScene: SKScene {
         }
 
         // rect.insetBy を用い、線幅の半分だけ内側に寄せて外周がグリッド線とぴったり接するよう調整
-        let adjustedRect = baseRect.insetBy(dx: strokeWidth / 2, dy: strokeWidth / 2)
+        // 複数ガイドで単一ガイドと重なった場合は追加の inset を適用し、オレンジ枠がグレー枠の内側に沿うよう微調整する
+        let adjustedRect = baseRect.insetBy(
+            dx: strokeWidth / 2 + overlapInset,
+            dy: strokeWidth / 2 + overlapInset
+        )
         node.path = CGPath(rect: adjustedRect, transform: nil)
 
         // 充填色は透過させ、枠線のみに集中させて過度な塗りつぶしを避ける
