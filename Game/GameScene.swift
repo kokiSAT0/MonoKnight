@@ -628,12 +628,12 @@ public final class GameScene: SKScene {
         overlayNode.strokeColor = palette.boardTileMultiStroke
         overlayNode.alpha = 0.95
         overlayNode.lineWidth = max(tileSize * 0.09, 1.6)
-        overlayNode.zRotation = -.pi / 2  // 北側を起点に減少していくイメージを統一
+        overlayNode.zRotation = -.pi / 2  // 北側を起点に減少していくイメージを統一（円形表示時の基準）
         overlayNode.position = CGPoint(x: tileSize / 2, y: tileSize / 2)
 
         let radius = max(tileSize / 2 - emphasizedLineWidth * 0.65, tileSize * 0.28)
         let pathRect = CGRect(x: -radius, y: -radius, width: radius * 2, height: radius * 2)
-        overlayNode.path = CGPath(ellipseIn: pathRect, transform: nil)
+        let circularPath = CGPath(ellipseIn: pathRect, transform: nil)
 
         let requirement = max(state.requiredVisitCount, 1)
         let remaining = max(0, min(requirement, state.remainingVisits))
@@ -641,9 +641,32 @@ public final class GameScene: SKScene {
             ? 0
             : CGFloat(remaining) / CGFloat(requirement)
 
-        overlayNode.strokeStart = 0
-        overlayNode.strokeEnd = remainingFraction
-        overlayNode.isHidden = remaining == 0
+        if remaining == 0 {
+            // 残り回数がゼロの場合はリングを完全に非表示にし、古いパスをクリアして次回再利用時のゴースト描画を防ぐ
+            overlayNode.isHidden = true
+            overlayNode.path = nil
+            return
+        }
+
+        overlayNode.isHidden = false
+
+        if remainingFraction < 1 {
+            // 部分的な残量表示では開始角度を統一するため円弧パスを構築し、SpriteKit の回転起点をゼロに戻しておく
+            let partialPath = CGMutablePath()
+            partialPath.addArc(
+                center: .zero,
+                radius: radius,
+                startAngle: -.pi / 2,
+                endAngle: -.pi / 2 + 2 * .pi * remainingFraction,
+                clockwise: false
+            )
+            overlayNode.path = partialPath
+            overlayNode.zRotation = 0
+        } else {
+            // 全量残っている場合は従来の円形パスをそのまま利用し、余計なパス生成を避ける
+            overlayNode.path = circularPath
+            overlayNode.zRotation = -.pi / 2
+        }
 
         if requirement > 1 {
             // 残り回数を視覚化するため、円周を回数分のセグメントへ分割する
