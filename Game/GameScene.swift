@@ -732,11 +732,14 @@ public final class GameScene: SKScene {
         //         四分割セグメントと対角線はまとめて隠す
         let isUnvisited = clampedRemaining == requiredVisits && !state.isVisited
         let isCompleted = state.isVisited || clampedRemaining == 0
-        let shouldShowProgress = requiredVisits > 1 && !isCompleted && !isUnvisited
+        // NOTE: 未踏破でも複数踏破マスであることを即座に認識できるよう、必要踏破回数が 2 以上であれば進捗オーバーレイを表示する
+        let shouldShowProgress = requiredVisits > 1 && !isCompleted
 
         if !shouldShowProgress {
             // 進捗が無い or 既に完了した場合はオーバーレイ全体を非表示にし、
             // 再度表示するタイミングでの色ズレを防ぐため塗り色だけ基準色に揃えておく
+            // NOTE: 未踏破時にセグメントが非表示のままだと四分割構造が分かりにくくなるため、
+            //       進捗オーバーレイを出さない場合でも基準色で統一しておく
             let baseColor = isCompleted ? palette.boardTileVisited : palette.boardTileMultiBase
             decoration.container.isHidden = true
 
@@ -758,6 +761,7 @@ public final class GameScene: SKScene {
 
         // 部分踏破の残量を視覚的に把握しやすいよう、塗り色を 3 段階に分ける
         let completedColor = palette.boardTileVisited.withAlphaComponent(0.95)
+        // NOTE: 未踏破時でも四分割の存在を視認できるよう、基準色は濃いめのペンディングカラーを採用する
         let pendingColor = palette.boardTileUnvisited.withAlphaComponent(0.9)
         let inactiveColor = palette.boardTileUnvisited.withAlphaComponent(0.55)
 
