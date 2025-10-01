@@ -862,7 +862,9 @@ public final class GameScene: SKScene {
         updateAccessibilityElements()
 
         // 駒移動後の最終結果も残しておき、位置更新が反映されたかコンソールで追跡できるようにする
-        debugLog("GameScene.moveKnight 完了: 現在位置=\(knightPosition)")
+        // Optional のまま出力すると `Optional(...)` という表記になって読みにくいため、nil と座標で明確に分岐させて文字列化する
+        let positionDescription = knightPosition.map { "\($0)" } ?? "nil"
+        debugLog("GameScene.moveKnight 完了: 現在位置=\(positionDescription)")
     }
 
     // MARK: - タップ処理
