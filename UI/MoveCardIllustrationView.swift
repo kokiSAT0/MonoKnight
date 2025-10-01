@@ -366,8 +366,9 @@ private extension MoveCardIllustrationView {
     /// - Returns: 中央セル基準で算出した目的地の添字
     func destinationCellIndex(for card: MoveCard) -> (column: Int, row: Int) {
         let center = gridCenterIndex
-        // dy は数学的な Y 軸（上方向）基準なので、SwiftUI 座標系へ合わせるために符号を反転する
-        return (center.column + card.dx, center.row - card.dy)
+        let vector = card.primaryVector
+        // primaryVector で取得した移動量を用いる。dy は数学的な Y 軸（上方向）基準なので、SwiftUI 座標系へ合わせるために符号を反転する
+        return (center.column + vector.dx, center.row - vector.dy)
     }
 
     /// 矢印の先端（三角形）の 2 点を計算する
