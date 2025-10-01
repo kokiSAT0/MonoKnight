@@ -216,18 +216,39 @@ private extension GameHandSectionView {
 
     /// VoiceOver のヒント文を生成する
     private func accessibilityHint(for stack: HandStack, isUsable: Bool, isDiscardMode: Bool) -> String {
+        // MARK: - 候補数と残枚数の算出
+        let candidateCount = stack.representativeVectors?.count ?? 0
         if isDiscardMode {
             return "ダブルタップでこの種類のカードをすべて捨て札にし、新しいカードを補充します。"
         }
 
         if isUsable {
-            if stack.count > 1 {
-                return "ダブルタップで先頭カードを使用します。スタックの残り \(stack.count - 1) 枚は同じ方向で待機します。"
+            // 候補が複数ある場合は盤面で方向を選択する必要があることを強調する
+            if candidateCount > 1 {
+                let remainingDescription: String
+                if stack.count > 1 {
+                    remainingDescription = "残り \(stack.count - 1) 枚も同じ候補を共有します。"
+                } else {
+                    remainingDescription = "スタックは 1 枚だけです。"
+                }
+                let baseMessage = "ダブルタップでカードを選択し、盤面で移動方向を決めてください。候補は \(candidateCount) 方向です。"
+                return baseMessage + remainingDescription
             } else {
-                return "ダブルタップでこの方向に移動します。スタックは 1 枚だけです。"
+                if stack.count > 1 {
+                    return "ダブルタップで先頭カードを使用します。スタックの残り \(stack.count - 1) 枚は同じ方向で待機します。"
+                } else {
+                    return "ダブルタップでこの方向に移動します。スタックは 1 枚だけです。"
+                }
             }
         } else {
-            return "盤外のため使用できません。スタックの \(stack.count) 枚はそのまま保持されます。"
+            // 使用不可時も候補数に応じて状況を具体的に伝える
+            if candidateCount > 1 {
+                return "盤外のため使用できません。候補は \(candidateCount) 方向ありますが、いずれも盤面外です。スタックの \(stack.count) 枚はそのまま保持されます。"
+            } else if candidateCount == 1 {
+                return "盤外のため使用できません。スタックの \(stack.count) 枚はそのまま保持されます。"
+            } else {
+                return "盤外のため使用できません。移動候補が未設定のカードです。スタックの \(stack.count) 枚はそのまま保持されます。"
+            }
         }
     }
 
