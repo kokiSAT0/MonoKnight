@@ -1511,57 +1511,59 @@ fileprivate struct TitleScreenView: View {
     /// - Note: `body` 内のネストが深くなると型推論が極端に遅くなるため、メインコンテンツを専用ビューとして切り出している
     @ViewBuilder
     private var titleScreenMainContent: some View {
-        VStack(spacing: 28) {
-            Spacer(minLength: 0)
+        ZStack(alignment: .topTrailing) {
+            // MARK: - スクロール可能なメインコンテンツ
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: 28) {
+                    // MARK: - アプリタイトルと簡単な説明
+                    VStack(spacing: 12) {
+                        Text("MonoKnight")
+                            .font(.system(size: 32, weight: .heavy, design: .rounded))
+                            // テーマの主文字色を適用し、ライト/ダーク両方で視認性を確保
+                            .foregroundColor(theme.textPrimary)
+                        Text("カードで騎士を導き、盤面を踏破しよう")
+                            .font(.system(size: 16, weight: .medium, design: .rounded))
+                            // 補足テキストはサブ文字色でコントラストを調整
+                            .foregroundColor(theme.textSecondary)
+                            .multilineTextAlignment(.center)
+                            // レギュラー幅では最大行幅を抑えて読みやすさを確保
+                            .frame(maxWidth: 320)
+                    }
 
-            // MARK: - アプリタイトルと簡単な説明
-            VStack(spacing: 12) {
-                Text("MonoKnight")
-                    .font(.system(size: 32, weight: .heavy, design: .rounded))
-                    // テーマの主文字色を適用し、ライト/ダーク両方で視認性を確保
-                    .foregroundColor(theme.textPrimary)
-                Text("カードで騎士を導き、盤面を踏破しよう")
-                    .font(.system(size: 16, weight: .medium, design: .rounded))
-                    // 補足テキストはサブ文字色でコントラストを調整
-                    .foregroundColor(theme.textSecondary)
-                    .multilineTextAlignment(.center)
-                    // レギュラー幅では最大行幅を抑えて読みやすさを確保
-                    .frame(maxWidth: 320)
+                    // MARK: - モード選択セクション
+                    modeSelectionSection
+
+                    // MARK: - 選択中モードの概要カード
+                    selectedModeSummaryCard
+
+                    // MARK: - 遊び方シートを開くボタン
+                    Button {
+                        // 遊び方シートを開いたタイミングを記録し、重複表示の調査に役立てる
+                        debugLog("TitleScreenView: 遊び方シート表示要求")
+                        // 遊び方の詳細解説をモーダルで表示する
+                        isPresentingHowToPlay = true
+                    } label: {
+                        Label("遊び方を見る", systemImage: "questionmark.circle")
+                            .font(.system(size: 16, weight: .medium, design: .rounded))
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(.white.opacity(0.8))
+                    .foregroundColor(.white)
+                    .controlSize(.large)
+                    .accessibilityIdentifier("title_how_to_play_button")
+                }
+                // ScrollView 内での上下余白を padding へ置き換え、視線が自然に上から流れるように調整
+                .padding(.horizontal, horizontalPadding)
+                .padding(.top, 72)
+                .padding(.bottom, 64)
+                .frame(maxWidth: contentMaxWidth)
+                .frame(maxWidth: .infinity)
             }
+            // ScrollView 背景もテーマカラーで統一し、スクロールによる色抜けを防ぐ
+            .background(theme.backgroundPrimary)
 
-            // MARK: - モード選択セクション
-            modeSelectionSection
-
-            // MARK: - 選択中モードの概要カード
-            selectedModeSummaryCard
-
-            // MARK: - 遊び方シートを開くボタン
-            Button {
-                // 遊び方シートを開いたタイミングを記録し、重複表示の調査に役立てる
-                debugLog("TitleScreenView: 遊び方シート表示要求")
-                // 遊び方の詳細解説をモーダルで表示する
-                isPresentingHowToPlay = true
-            } label: {
-                Label("遊び方を見る", systemImage: "questionmark.circle")
-                    .font(.system(size: 16, weight: .medium, design: .rounded))
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.bordered)
-            .tint(.white.opacity(0.8))
-            .foregroundColor(.white)
-            .controlSize(.large)
-            .accessibilityIdentifier("title_how_to_play_button")
-
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, horizontalPadding)
-        .padding(.bottom, 36)
-        .frame(maxWidth: contentMaxWidth)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        // 背景もテーマのベースカラーへ切り替え、システム設定と調和させる
-        .background(theme.backgroundPrimary)
-        // 右上にギアアイコンを常設し、ゲーム外の詳細設定へ誘導する
-        .overlay(alignment: .topTrailing) {
+            // MARK: - 設定ボタン（スクロール時も常に固定表示）
             Button {
                 debugLog("TitleScreenView: 設定シート表示要求")
                 onOpenSettings()
@@ -1585,6 +1587,9 @@ fileprivate struct TitleScreenView: View {
             .accessibilityLabel("設定")
             .accessibilityHint("広告やプライバシー設定などの詳細を確認できます")
         }
+        // ZStack 全体をタイトル画面のアクセシビリティ要素として扱い、説明文を維持
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(theme.backgroundPrimary)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("タイトル画面。モードをタップすると即座にゲームが始まります。キャンペーンはステージ一覧へ遷移し、フリーモードは設定を編集できます。手札スロットは最大\(selectedMode.handSize)種類で、\(selectedMode.stackingRuleDetailText)")
     }
