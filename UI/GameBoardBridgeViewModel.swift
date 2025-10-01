@@ -7,6 +7,7 @@ import UIKit
 
 /// SpriteKit の GameScene と SwiftUI 側レイアウトを仲介する ViewModel
 /// GameViewModel から盤面演出に関わる責務を切り出し、描画更新とゲーム全体の状態管理を分離する
+/// - Important: 盤面タップ入力の一次受けは GameViewModel 側で統括しており、本クラスはアニメーション制御のみに専念する
 @MainActor
 final class GameBoardBridgeViewModel: ObservableObject {
     /// 表示対象のゲームロジック
@@ -366,21 +367,6 @@ final class GameBoardBridgeViewModel: ObservableObject {
         }
 
         return animateCardPlay(using: resolvedMove)
-    }
-
-    /// ボードタップによるプレイ要求を処理する
-    /// - Parameter request: GameCore から渡されるリクエスト
-    func handleBoardTapPlayRequest(_ request: BoardTapPlayRequest) {
-        defer { core.clearBoardTapPlayRequest(request.id) }
-
-        debugLog(
-            "BoardTapPlayRequest 受信: requestID=\(request.id) stackID=\(request.stackID) dest=\(request.destination) vector=(dx:\(request.moveVector.dx), dy:\(request.moveVector.dy))"
-        )
-
-        let didStart = animateCardPlay(using: request.resolvedMove)
-        if !didStart {
-            debugLog("BoardTapPlayRequest を処理できず: requestID=\(request.id)")
-        }
     }
 
     /// 進行状態の変更に合わせてガイド表示を管理する
