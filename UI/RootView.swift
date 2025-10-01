@@ -1700,33 +1700,31 @@ fileprivate struct TitleScreenView: View {
         return Button {
             handleModeSelection(fromList: mode, isFreeMode: isFreeMode)
         } label: {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Text(mode.displayName)
-                        .font(.system(size: 17, weight: .semibold, design: .rounded))
-                        .foregroundColor(theme.textPrimary)
-                    Spacer(minLength: 0)
+            HStack(alignment: .top, spacing: 14) {
+                modeIconBadgeColumn(for: mode, iconSize: 44, badgeFontSize: 10, isHighlighted: isSelected)
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text(mode.displayName)
+                            .font(.system(size: 17, weight: .semibold, design: .rounded))
+                            .foregroundColor(theme.textPrimary)
+                        Spacer(minLength: 0)
+                        if isSelected {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(theme.accentPrimary)
+                                .font(.system(size: 18, weight: .bold))
+                        }
+                    }
+                    Text(primaryDescription(for: mode))
+                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .foregroundColor(theme.textSecondary)
+                    Text(secondaryDescription(for: mode))
+                        .font(.system(size: 12, weight: .regular, design: .rounded))
+                        .foregroundColor(theme.textSecondary.opacity(0.85))
                     if isFreeMode {
-                        Image(systemName: "slider.horizontal.3")
-                            .foregroundColor(theme.accentPrimary)
-                            .font(.system(size: 16, weight: .semibold))
+                        Text("タップしてレギュレーションを編集できます")
+                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                            .foregroundColor(theme.textSecondary.opacity(0.9))
                     }
-                    if isSelected {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundColor(theme.accentPrimary)
-                            .font(.system(size: 18, weight: .bold))
-                    }
-                }
-                Text(primaryDescription(for: mode))
-                    .font(.system(size: 13, weight: .medium, design: .rounded))
-                    .foregroundColor(theme.textSecondary)
-                Text(secondaryDescription(for: mode))
-                    .font(.system(size: 12, weight: .regular, design: .rounded))
-                    .foregroundColor(theme.textSecondary.opacity(0.85))
-                if isFreeMode {
-                    Text("タップしてレギュレーションを編集できます")
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .foregroundColor(theme.textSecondary.opacity(0.9))
                 }
             }
             .padding(.vertical, 14)
@@ -1743,7 +1741,7 @@ fileprivate struct TitleScreenView: View {
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(Text("\(mode.displayName): \(primaryDescription(for: mode))"))
+        .accessibilityLabel(Text("\(mode.displayName): \(primaryDescription(for: mode))。\(mode.difficultyBadgeAccessibilityLabel)"))
         .accessibilityHint(Text(accessibilityHint(for: mode, isFreeMode: isFreeMode)))
         .accessibilityIdentifier("mode_button_\(mode.identifier.rawValue)")
     }
@@ -1754,27 +1752,32 @@ fileprivate struct TitleScreenView: View {
 
         return VStack(alignment: .leading, spacing: 12) {
             // 選択中モード名とアイコンをまとめたヘッダー
-            HStack(alignment: .firstTextBaseline, spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("選択中のモード")
-                        .font(.system(size: 13, weight: .semibold, design: .rounded))
-                        .foregroundColor(theme.textSecondary.opacity(0.9))
-                    Text(selectedMode.displayName)
-                        .font(.system(size: 20, weight: .bold, design: .rounded))
-                        .foregroundColor(theme.textPrimary)
-                }
-                Spacer(minLength: 0)
-                if let stage {
-                    // キャンペーンステージを選択中の場合はコードをバッジ表示して強調する
-                    Text(stage.displayCode)
-                        .font(.system(size: 13, weight: .semibold, design: .rounded))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(
-                            Capsule(style: .continuous)
-                                .fill(theme.backgroundPrimary.opacity(0.9))
-                        )
-                        .foregroundColor(theme.textPrimary)
+            HStack(alignment: .top, spacing: 16) {
+                modeIconBadgeColumn(for: selectedMode, iconSize: 48, badgeFontSize: 11, isHighlighted: true)
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("選択中のモード")
+                                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                                .foregroundColor(theme.textSecondary.opacity(0.9))
+                            Text(selectedMode.displayName)
+                                .font(.system(size: 20, weight: .bold, design: .rounded))
+                                .foregroundColor(theme.textPrimary)
+                        }
+                        Spacer(minLength: 0)
+                        if let stage {
+                            // キャンペーンステージを選択中の場合はコードをバッジ表示して強調する
+                            Text(stage.displayCode)
+                                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(
+                                    Capsule(style: .continuous)
+                                        .fill(theme.backgroundPrimary.opacity(0.9))
+                                )
+                                .foregroundColor(theme.textPrimary)
+                        }
+                    }
                 }
             }
 
@@ -1822,6 +1825,63 @@ fileprivate struct TitleScreenView: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel(Text(summaryAccessibilityLabel(for: stage)))
         .accessibilityIdentifier("selected_mode_summary_card")
+    }
+
+    /// モードアイコンと難易度バッジを縦に並べて返すヘルパー
+    /// - Parameters:
+    ///   - mode: ビジュアルを生成したい対象のモード
+    ///   - iconSize: アイコンの外接円サイズ
+    ///   - badgeFontSize: バッジ文字サイズ
+    ///   - isHighlighted: 選択状態などで強調すべきかどうか
+    private func modeIconBadgeColumn(for mode: GameMode, iconSize: CGFloat, badgeFontSize: CGFloat, isHighlighted: Bool) -> some View {
+        VStack(spacing: 8) {
+            modeIconView(for: mode, size: iconSize, isHighlighted: isHighlighted)
+            difficultyBadgeView(for: mode, fontSize: badgeFontSize)
+        }
+        .frame(width: max(iconSize, 56))
+        .accessibilityHidden(true)
+    }
+
+    /// モード固有の SF Symbols を円形背景付きで描画する
+    /// - Parameters:
+    ///   - mode: アイコンを生成する対象モード
+    ///   - size: 外側の円サイズ
+    ///   - isHighlighted: 選択状態かどうか（背景透過度を変える）
+    private func modeIconView(for mode: GameMode, size: CGFloat, isHighlighted: Bool) -> some View {
+        let backgroundOpacity = isHighlighted ? 1.0 : 0.85
+        return ZStack {
+            Circle()
+                .fill(theme.backgroundPrimary.opacity(backgroundOpacity))
+            Image(systemName: mode.iconSystemName)
+                .font(.system(size: size * 0.45, weight: .semibold))
+                .foregroundColor(theme.accentPrimary)
+        }
+        .frame(width: size, height: size)
+        .overlay(
+            Circle()
+                .stroke(theme.accentPrimary.opacity(0.35), lineWidth: 1)
+        )
+    }
+
+    /// 難易度バッジを表示する
+    /// - Parameters:
+    ///   - mode: 難易度情報を参照するモード
+    ///   - fontSize: テキストサイズ
+    private func difficultyBadgeView(for mode: GameMode, fontSize: CGFloat) -> some View {
+        Text(mode.difficultyBadgeText)
+            .font(.system(size: fontSize, weight: .heavy, design: .rounded))
+            .foregroundColor(theme.accentPrimary)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(theme.backgroundPrimary.opacity(0.95))
+            )
+            .overlay(
+                Capsule(style: .continuous)
+                    .stroke(theme.accentPrimary.opacity(0.35), lineWidth: 1)
+            )
+            .accessibilityLabel(Text(mode.difficultyBadgeAccessibilityLabel))
     }
 
     /// キャンペーンステージ選択エントリ
@@ -1997,6 +2057,7 @@ fileprivate struct TitleScreenView: View {
         if let stage {
             components.append("ステージ \(stage.displayCode) \(stage.title)")
         }
+        components.append(selectedMode.difficultyBadgeAccessibilityLabel)
         components.append(primaryDescription(for: selectedMode))
         components.append(secondaryDescription(for: selectedMode))
         components.append("手札スロットは最大 \(selectedMode.handSize) 種類、先読みは \(selectedMode.nextPreviewCount) 枚。\(selectedMode.stackingRuleDetailText)")

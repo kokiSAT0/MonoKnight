@@ -97,6 +97,43 @@ public struct GameMode: Equatable, Identifiable {
         }
     }
 
+    /// UI 側で難易度バッジを表示するためのランク区分
+    /// - Note: 文字列を直接埋め込むのではなく、ケースに応じてバッジ文言や説明文を返す
+    public enum DifficultyRank: String, Codable {
+        case baseline
+        case advanced
+        case custom
+        case campaign
+
+        /// バッジに表示する短いテキスト
+        public var badgeText: String {
+            switch self {
+            case .baseline:
+                return "BASIC"
+            case .advanced:
+                return "HARD"
+            case .custom:
+                return "CUSTOM"
+            case .campaign:
+                return "STAGE"
+            }
+        }
+
+        /// VoiceOver などで読み上げる説明文
+        public var accessibilityDescription: String {
+            switch self {
+            case .baseline:
+                return "難易度: ベーシック"
+            case .advanced:
+                return "難易度: ハード"
+            case .custom:
+                return "難易度: カスタム"
+            case .campaign:
+                return "難易度: キャンペーン専用"
+            }
+        }
+    }
+
     /// 初期スポーンの扱い
     public enum SpawnRule: Equatable, Codable {
         /// 固定座標へスポーン
@@ -357,6 +394,42 @@ public struct GameMode: Equatable, Identifiable {
 
     /// キャンペーンに紐付くメタデータのスナップショット
     public var campaignMetadataSnapshot: CampaignMetadata? { campaignMetadata }
+
+    /// UI で利用する難易度ランク
+    /// - Important: モード追加時は必ず分岐を更新してバッジ表示の整合性を保つ
+    public var difficultyRank: DifficultyRank {
+        switch identifier {
+        case .standard5x5:
+            return .baseline
+        case .classicalChallenge:
+            return .advanced
+        case .freeCustom:
+            return .custom
+        case .campaignStage:
+            return .campaign
+        }
+    }
+
+    /// モードを象徴する SF Symbols 名称
+    /// - Note: UI 側で統一的に使えるようにここでモードごとの対応を吸収する
+    public var iconSystemName: String {
+        switch identifier {
+        case .standard5x5:
+            return "square.grid.3x3.fill"
+        case .classicalChallenge:
+            return "timer"
+        case .freeCustom:
+            return "slider.horizontal.3"
+        case .campaignStage:
+            return "flag.checkered"
+        }
+    }
+
+    /// 難易度バッジ用の文言
+    public var difficultyBadgeText: String { difficultyRank.badgeText }
+
+    /// 難易度バッジの説明テキスト（アクセシビリティ対応）
+    public var difficultyBadgeAccessibilityLabel: String { difficultyRank.accessibilityDescription }
 
     /// スタック仕様の詳細説明文
     public var stackingRuleDetailText: String {
