@@ -512,15 +512,18 @@ public final class GameScene: SKScene {
     /// - Parameter state: 現在のマス状態
     /// - Returns: 未踏破〜踏破済みまでの進捗に応じて補間された色
     private func tileFillColor(for state: TileState) -> SKColor {
-        if state.isVisited {
-            return palette.boardTileVisited
+        switch state.visitBehavior {
+        case .toggle:
+            // トグルマスは踏破状態に関わらず専用色で固定し、ギミックの存在を明確に示す
+            return palette.boardTileToggle
+        case .multi(required: _):
+            // 複数回踏む必要があるマスは進捗率に応じて基準色→踏破済み色へ補間し、残回数の把握を助ける
+            let progress = CGFloat(state.completionProgress)
+            return palette.boardTileMultiBase.interpolated(to: palette.boardTileVisited, fraction: progress)
+        case .single:
+            // 通常マスは従来通りの配色で未踏破と踏破済みを切り替える
+            return state.isVisited ? palette.boardTileVisited : palette.boardTileUnvisited
         }
-        guard state.requiresMultipleVisits else {
-            return palette.boardTileUnvisited
-        }
-
-        let progress = CGFloat(state.completionProgress)
-        return palette.boardTileUnvisited.interpolated(to: palette.boardTileVisited, fraction: progress)
     }
 
     /// 盤面ハイライトの種類ごとの集合をまとめて更新する

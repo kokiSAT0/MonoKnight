@@ -12,6 +12,12 @@ public struct GameScenePalette {
     public let boardTileVisited: SKColor
     /// 未踏破タイルの塗り色
     public let boardTileUnvisited: SKColor
+    /// 複数回踏破マスの基準色
+    /// - NOTE: 未踏破色とは別に持つことで、進捗に応じた補間でも濁りが生じないようにする
+    public let boardTileMultiBase: SKColor
+    /// トグルマスの塗り色
+    /// - NOTE: 踏破状態に関わらず専用色を固定し、盤面上でギミックマスを瞬時に識別できるようにする
+    public let boardTileToggle: SKColor
     /// 駒の塗り色
     public let boardKnight: SKColor
     /// ガイド枠の線色
@@ -23,6 +29,8 @@ public struct GameScenePalette {
     ///   - boardGridLine: グリッド線色
     ///   - boardTileVisited: 踏破済みタイル色
     ///   - boardTileUnvisited: 未踏破タイル色
+    ///   - boardTileMultiBase: 複数回踏破マスの基準色
+    ///   - boardTileToggle: トグルマスの塗り色
     ///   - boardKnight: 駒の塗り色
     ///   - boardGuideHighlight: ガイド枠の線色
     public init(
@@ -30,6 +38,8 @@ public struct GameScenePalette {
         boardGridLine: SKColor,
         boardTileVisited: SKColor,
         boardTileUnvisited: SKColor,
+        boardTileMultiBase: SKColor,
+        boardTileToggle: SKColor,
         boardKnight: SKColor,
         boardGuideHighlight: SKColor
     ) {
@@ -37,6 +47,8 @@ public struct GameScenePalette {
         self.boardGridLine = boardGridLine
         self.boardTileVisited = boardTileVisited
         self.boardTileUnvisited = boardTileUnvisited
+        self.boardTileMultiBase = boardTileMultiBase
+        self.boardTileToggle = boardTileToggle
         self.boardKnight = boardKnight
         self.boardGuideHighlight = boardGuideHighlight
     }
@@ -53,6 +65,10 @@ public extension GameScenePalette {
         boardGridLine: SKColor(white: 0.15, alpha: 1.0),
         boardTileVisited: SKColor(white: 0.75, alpha: 1.0),
         boardTileUnvisited: SKColor(white: 0.98, alpha: 1.0),
+        // NOTE: 複数回踏破マスでは段階的に暗くなるグレートーンを基準とし、踏破進捗の差が分かりやすいようにする
+        boardTileMultiBase: SKColor(white: 0.86, alpha: 1.0),
+        // NOTE: トグルマスは常に存在感を出したいので、未踏破・踏破の状態差に影響されない濃いめのグレーを採用する
+        boardTileToggle: SKColor(white: 0.6, alpha: 1.0),
         boardKnight: SKColor(white: 0.1, alpha: 1.0),
         // NOTE: SwiftUI のライトテーマと同じ彩度を抑えたオレンジを採用し、テーマ適用前でも一貫した強調色を維持する
         boardGuideHighlight: SKColor(red: 0.94, green: 0.41, blue: 0.08, alpha: 0.85)
@@ -64,6 +80,10 @@ public extension GameScenePalette {
         boardGridLine: SKColor(white: 0.75, alpha: 1.0),
         boardTileVisited: SKColor(white: 0.35, alpha: 1.0),
         boardTileUnvisited: SKColor(white: 0.12, alpha: 1.0),
+        // NOTE: ライトテーマ同様にグレートーンを段階的に変化させ、暗所でも進捗を追いやすくする
+        boardTileMultiBase: SKColor(white: 0.22, alpha: 1.0),
+        // NOTE: トグルマスは暗色背景でも埋もれないよう、訪問状態に左右されない明度のグレーを採用
+        boardTileToggle: SKColor(white: 0.65, alpha: 1.0),
         boardKnight: SKColor(white: 0.95, alpha: 1.0),
         // NOTE: ダークテーマに合わせて明度を上げたオレンジを用い、背景の暗さに負けない発光感を演出する
         boardGuideHighlight: SKColor(red: 1.0, green: 0.74, blue: 0.38, alpha: 0.9)
