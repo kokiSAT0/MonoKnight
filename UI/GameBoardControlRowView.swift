@@ -85,9 +85,9 @@ private extension GameBoardControlRowView {
             )
 
             statisticBadge(
-                title: "総合スア",
+                title: "スコア",
                 value: "\(viewModel.displayedScore)",
-                accessibilityLabel: "総合スコア",
+                accessibilityLabel: "スコア",
                 accessibilityValue: accessibilityScoreDescription(viewModel.displayedScore)
             )
         }
