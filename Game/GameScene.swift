@@ -649,8 +649,8 @@ public final class GameScene: SKScene {
     ///   - point: 盤面座標
     private func applyMultiVisitStyle(to node: SKShapeNode, state: TileState, at point: GridPoint) {
         node.strokeColor = palette.boardTileMultiStroke
-        let emphasizedLineWidth = max(tileSize * 0.06, 2.0)
-        node.lineWidth = emphasizedLineWidth
+        // NOTE: 盤面全体の視覚的一貫性を優先し、複数踏破マスでも通常グリッドと同じ線幅 (1pt) を採用する
+        node.lineWidth = 1
         updateMultiVisitDecoration(for: point, parentNode: node, state: state)
     }
 
@@ -782,6 +782,7 @@ public final class GameScene: SKScene {
 
         // 部分踏破の残量を視覚的に把握しやすいよう、塗り色は踏破済み/未踏破の 2 種類に統一する
         // NOTE: 進捗セグメントの色は通常タイルと同じ値を採用し、ゲーム中に色味が破綻しないよう統一する
+        // NOTE: 踏破済みセグメントの塗りつぶしは通常マスと完全に同じグレーを共有し、表示差異を無くす
         let completedColor = palette.boardTileVisited
         // NOTE: 未踏破領域も通常マスの未踏破色をそのまま転用し、段階演出を純粋な面積差で伝える
         let pendingColor = palette.boardTileUnvisited
@@ -792,6 +793,8 @@ public final class GameScene: SKScene {
             if index < activeSegmentCount {
                 // 進捗対象セグメントのみ表示し、踏破済み/未踏破で 2 色に塗り分ける
                 segmentNode.fillColor = index < filledSegmentCount ? completedColor : pendingColor
+                // NOTE: 過去にアルファ調整を行ったノードが残っても色味が変わらないよう、毎回不透明度をリセットする
+                segmentNode.alpha = 1.0
                 segmentNode.isHidden = false
             } else {
                 // 不要セグメントは非表示にして情報過多を防ぐ
@@ -800,7 +803,8 @@ public final class GameScene: SKScene {
         }
 
         let half = tileSize / 2
-        let diagonalWidth = max(tileSize * 0.04, 1.2)
+        // NOTE: オーバーレイの対角線もグリッド線に揃えて 1pt へ統一し、余計な強調を避ける
+        let diagonalWidth: CGFloat = 1.0
         let diagonalAlpha: CGFloat = 0.9
 
         let primaryPath = CGMutablePath()
