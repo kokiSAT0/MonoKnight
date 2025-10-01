@@ -37,7 +37,8 @@ final class GameBoardBridgeViewModel: ObservableObject {
     private var guideHighlightPoints: Set<GridPoint> = []
     /// ガイド設定に関係なく強制表示したいハイライト集合
     /// - Important: チュートリアルやカード選択 UI からの明示的な指示を反映し、ガイド無効時でもユーザーへ候補マスを提示する
-    private var forcedSelectionHighlightPoints: Set<GridPoint> = []
+    /// - Note: テストから現在のハイライト状況を検証できるように `private(set)` で公開する。
+    private(set) var forcedSelectionHighlightPoints: Set<GridPoint> = []
     /// スタックごとのトップカード ID を追跡し、レイアウト同期を最適化する
     @Published var topCardIDsByStack: [UUID: UUID] = [:]
 
@@ -91,7 +92,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
         updateHapticsSetting(isEnabled: hapticsEnabled)
         updateGuideMode(enabled: guideModeEnabled)
         applyScenePalette(for: colorScheme)
-        updateForcedSelectionHighlights([])
+        updateForcedSelectionHighlights()
         refreshGuideHighlights()
     }
 
@@ -224,8 +225,21 @@ final class GameBoardBridgeViewModel: ObservableObject {
     /// 強制的に表示したいハイライト集合を更新する
     /// - Parameter points: ガイド設定に依存せず提示したい盤面座標集合
     /// - Important: チュートリアルやカード選択 UI が「このマスを必ず選んでほしい」という意図を伝えるための経路
-    func updateForcedSelectionHighlights(_ points: Set<GridPoint>) {
-        let validPoints = Set(points.filter { core.board.contains($0) })
+    func updateForcedSelectionHighlights(
+        _ points: Set<GridPoint> = [],
+        origin: GridPoint? = nil,
+        movementVectors: [MoveVector] = []
+    ) {
+        // movementVectors が指定された場合は現在地からの相対座標を盤面座標へ変換する
+        var candidatePoints = points
+        if let origin, !movementVectors.isEmpty {
+            let convertedPoints = movementVectors.map { vector in
+                origin.offset(dx: vector.dx, dy: vector.dy)
+            }
+            candidatePoints.formUnion(convertedPoints)
+        }
+
+        let validPoints = Set(candidatePoints.filter { core.board.contains($0) })
         guard forcedSelectionHighlightPoints != validPoints else { return }
         forcedSelectionHighlightPoints = validPoints
         pushHighlightsToScene()
@@ -412,14 +426,6 @@ final class GameBoardBridgeViewModel: ObservableObject {
             .sink { [weak self] newHandStacks in
                 guard let self else { return }
                 self.handleHandStacksUpdate(newHandStacks)
-            }
-            .store(in: &cancellables)
-
-        core.$boardTapPlayRequest
-            .receive(on: RunLoop.main)
-            .sink { [weak self] request in
-                guard let self, let request else { return }
-                self.handleBoardTapPlayRequest(request)
             }
             .store(in: &cancellables)
 
