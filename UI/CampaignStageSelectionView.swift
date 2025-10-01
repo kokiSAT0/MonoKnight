@@ -14,8 +14,12 @@ struct CampaignStageSelectionView: View {
     let onClose: () -> Void
     /// ナビゲーションバーに閉じるボタンを表示するかどうか
     let showsCloseButton: Bool
+    /// ホームボタンを表示するかどうか（デフォルトで表示）
+    let showsHomeButton: Bool
     /// ステージ決定時のハンドラ
     let onSelectStage: (CampaignStage) -> Void
+    /// ホームボタン押下時のハンドラ
+    private let onTapHome: () -> Void
 
     /// テーマカラー
     private var theme = AppTheme()
@@ -28,13 +32,17 @@ struct CampaignStageSelectionView: View {
     ///   - onClose: ビューを閉じるためのコールバック
     ///   - onSelectStage: ステージ選択確定時に呼び出されるコールバック
     ///   - showsCloseButton: ナビゲーションバーへ「閉じる」ボタンを表示するかどうか
+    ///   - showsHomeButton: 画面上部にホームへ戻るボタンを表示するかどうか
+    ///   - onTapHome: ホームボタン押下時に実行する処理（未指定時は `onClose` と同一挙動）
     init(
         campaignLibrary: CampaignLibrary,
         progressStore: CampaignProgressStore,
         selectedStageID: CampaignStageID?,
         onClose: @escaping () -> Void,
         onSelectStage: @escaping (CampaignStage) -> Void,
-        showsCloseButton: Bool = true
+        showsCloseButton: Bool = true,
+        showsHomeButton: Bool = true,
+        onTapHome: (() -> Void)? = nil
     ) {
         // @ObservedObject プロパティはラッパー経由で代入する必要があるため、明示的に初期化する
         self.campaignLibrary = campaignLibrary
@@ -43,6 +51,8 @@ struct CampaignStageSelectionView: View {
         self.onClose = onClose
         self.onSelectStage = onSelectStage
         self.showsCloseButton = showsCloseButton
+        self.showsHomeButton = showsHomeButton
+        self.onTapHome = onTapHome ?? onClose
     }
 
     var body: some View {
@@ -66,15 +76,38 @@ struct CampaignStageSelectionView: View {
         .navigationTitle("キャンペーン")
         .navigationBarBackButtonHidden(true)
         .safeAreaInset(edge: .top) {
-            if showsCloseButton {
-                HStack {
-                    Spacer()
-                    Button("閉じる") {
-                        // ナビゲーションスタックをポップする契機を記録し、手動クローズのトレースを取りやすくする
-                        debugLog("CampaignStageSelectionView.toolbar: 閉じるボタン押下 -> NavigationStackポップ要求")
-                        onClose()
+            if showsCloseButton || showsHomeButton {
+                HStack(spacing: 12) {
+                    if showsHomeButton {
+                        Button {
+                            // ホームに戻る際の挙動を記録し、ナビゲーションの想定外遷移を追跡しやすくする
+                            debugLog("CampaignStageSelectionView.toolbar: ホームボタン押下 -> Title画面へ戻る要求")
+                            onTapHome()
+                        } label: {
+                            Label("ホーム", systemImage: "house.fill")
+                                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                                .foregroundStyle(theme.textPrimary)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                        .fill(theme.backgroundElevated.opacity(0.9))
+                                )
+                        }
+                        .accessibilityLabel("ホーム画面に戻る")
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
+
+                    Spacer()
+
+                    if showsCloseButton {
+                        Button("閉じる") {
+                            // ナビゲーションスタックをポップする契機を記録し、手動クローズのトレースを取りやすくする
+                            debugLog("CampaignStageSelectionView.toolbar: 閉じるボタン押下 -> NavigationStackポップ要求")
+                            onClose()
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
