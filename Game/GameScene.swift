@@ -40,6 +40,10 @@ public final class GameScene: SKScene {
     /// 初期化時に設定する追加踏破回数（複数回踏む必要があるマス）
     private let initialRequiredVisitOverrides: [GridPoint: Int]
 
+    /// 初期化時に設定するトグルマス集合
+    /// - NOTE: ギミックの再生成で情報が失われないよう、初期値として保持しておく
+    private let initialTogglePoints: Set<GridPoint>
+
     /// 現在の盤面状態
     private var board: Board
 
@@ -144,7 +148,8 @@ public final class GameScene: SKScene {
         board = Board(
             size: initialBoardSize,
             initialVisitedPoints: initialVisitedPoints,
-            requiredVisitOverrides: initialRequiredVisitOverrides
+            requiredVisitOverrides: initialRequiredVisitOverrides,
+            togglePoints: initialTogglePoints
         )
         // テーマもデフォルトへ戻し、SpriteKit 専用の配色が未設定のままでも破綻しないようフォールバックを適用
         palette = GameScenePalette.fallback
@@ -187,16 +192,19 @@ public final class GameScene: SKScene {
     public init(
         initialBoardSize: Int,
         initialVisitedPoints: [GridPoint]? = nil,
-        requiredVisitOverrides: [GridPoint: Int] = [:]
+        requiredVisitOverrides: [GridPoint: Int] = [:],
+        togglePoints: Set<GridPoint> = []
     ) {
         let resolvedVisitedPoints = initialVisitedPoints ?? BoardGeometry.defaultInitialVisitedPoints(for: initialBoardSize)
         self.initialBoardSize = initialBoardSize
         self.initialVisitedPoints = resolvedVisitedPoints
         self.initialRequiredVisitOverrides = requiredVisitOverrides
+        self.initialTogglePoints = togglePoints
         self.board = Board(
             size: initialBoardSize,
             initialVisitedPoints: resolvedVisitedPoints,
-            requiredVisitOverrides: requiredVisitOverrides
+            requiredVisitOverrides: requiredVisitOverrides,
+            togglePoints: togglePoints
         )
         super.init(size: .zero)
         // 共通初期化で各種プロパティを統一的にリセットし、生成経路による差異を排除する
@@ -211,10 +219,12 @@ public final class GameScene: SKScene {
         let defaultVisitedPoints = BoardGeometry.defaultInitialVisitedPoints(for: BoardGeometry.standardSize)
         self.initialVisitedPoints = defaultVisitedPoints
         self.initialRequiredVisitOverrides = [:]
+        self.initialTogglePoints = []
         self.board = Board(
             size: BoardGeometry.standardSize,
             initialVisitedPoints: defaultVisitedPoints,
-            requiredVisitOverrides: [:]
+            requiredVisitOverrides: [:],
+            togglePoints: []
         )
         super.init(coder: aDecoder)
         // デコード後も共通初期化を実行し、Storyboard/SwiftUI どちらからでも同じ見た目・挙動となるようにする
