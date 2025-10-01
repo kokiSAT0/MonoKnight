@@ -383,8 +383,19 @@ final class GameViewModel: ObservableObject {
 
         // 既存の演出が継続中であれば、次の入力が完了するまで待機する
         guard boardBridge.animatingCard == nil else { return }
-        guard let selection = selectedCardSelection else { return }
 
+        // 選択済みカードが存在しない場合は、GameCore 側で確定済みの移動候補をそのまま採用する
+        guard let selection = selectedCardSelection else {
+            // request.resolvedMove は BoardTap 発生時点での最適候補なので、そのまま演出へ渡す
+            let didStart = boardBridge.animateCardPlay(using: request.resolvedMove)
+            if didStart {
+                // 選択状態が無くてもハイライトが残存している可能性があるため、必ず初期化する
+                clearSelectedCardSelection()
+            }
+            return
+        }
+
+        // 選択中カードに対応する候補のみを抽出し、盤面ハイライトと同期を取る
         let matchingMoves = core.availableMoves().filter { candidate in
             candidate.stackID == selection.stackID && candidate.card.id == selection.cardID
         }
@@ -394,11 +405,13 @@ final class GameViewModel: ObservableObject {
             return
         }
 
+        // タップされた座標に一致する候補が無ければ、ハイライトのみ更新して待機する
         guard let chosenMove = matchingMoves.first(where: { $0.destination == request.destination }) else {
             applyHighlights(for: selection, using: matchingMoves)
             return
         }
 
+        // 一致する候補が見つかった場合は演出を開始する。失敗時はハイライトを維持して再選択に備える
         let didStart = boardBridge.animateCardPlay(using: chosenMove)
         if didStart {
             clearSelectedCardSelection()
@@ -547,7 +560,11 @@ final class GameViewModel: ObservableObject {
 
     /// 手札選択状態を初期化し、盤面ハイライトを消去する
     private func clearSelectedCardSelection() {
-        guard selectedCardSelection != nil || selectedHandStackID != nil else { return }
+        // 選択状態だけでなく、強制ハイライトが残っているケースも初期化対象とする
+        let hasSelection = selectedCardSelection != nil || selectedHandStackID != nil
+        let hasForcedHighlights = !boardBridge.forcedSelectionHighlightPoints.isEmpty
+        guard hasSelection || hasForcedHighlights else { return }
+
         selectedCardSelection = nil
         selectedHandStackID = nil
         boardBridge.updateForcedSelectionHighlights([])
