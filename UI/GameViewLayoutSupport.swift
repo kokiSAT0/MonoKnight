@@ -202,10 +202,13 @@ struct GameViewLayoutCalculator {
         // overlayCompensation（= topOverlayHeight）をそのまま足し込んでしまうと二重で距離が開いてしまう。
         // そこでトップバーで増えた高さを差し引いた残差だけを安全余白として扱い、
         // ステータスバー由来の領域に限って追加のマージン（controlRowSafeAreaAdditionalPadding）を加える。
-        let safeAreaRemainderWithoutOverlay = max(overlayAdjustedTopInset - overlayCompensation, 0)
+        // オーバーレイに依存しないセーフエリア差分のみを抽出し、
+        // 追加で確保すべき余白を算出する。オーバーレイが存在しない場合は 0 となり、
+        // 基準マージン（16pt）へ自然に収束する。
+        let overlayIndependentAdditionalPadding = max(overlayAdjustedTopInset - baseSafeAreaTop, 0)
         let controlRowTopPadding = max(
             GameViewLayoutMetrics.controlRowBaseTopPadding,
-            safeAreaRemainderWithoutOverlay + GameViewLayoutMetrics.controlRowSafeAreaAdditionalPadding
+            overlayIndependentAdditionalPadding + GameViewLayoutMetrics.controlRowSafeAreaAdditionalPadding
         )
 
         // MARK: - 手札セクション下部の余白を決定
