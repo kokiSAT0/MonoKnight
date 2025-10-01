@@ -155,6 +155,9 @@ private extension GameHandSectionView {
                 let isHidden = boardBridge.hiddenCardIDs.contains(card.id)
                 let isUsable = viewModel.isCardUsable(stack)
                 let isSelectingDiscard = core.isAwaitingManualDiscardSelection
+                // 現在のスタックが ViewModel で選択済みかどうか（通常プレイ時のみハイライトを出す）
+                let isSelected = viewModel.selectedHandStackID == stack.id
+                let shouldShowSelectionHighlight = isSelected && !isHidden && !isSelectingDiscard
 
                 HandStackCardView(stackCount: stack.count) {
                     MoveCardIllustrationView(card: card.move)
@@ -165,11 +168,25 @@ private extension GameHandSectionView {
                     isHidden ? 0.0 : (isSelectingDiscard ? 1.0 : (isUsable ? 1.0 : 0.4))
                 )
                 .allowsHitTesting(!isHidden)
+                // 選択中のカードは背景に淡いオレンジ色を敷き、捨て札モードとの視覚差を確保する
+                .background {
+                    if shouldShowSelectionHighlight {
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(theme.accentPrimary.opacity(0.12))
+                            .accessibilityHidden(true)
+                    }
+                }
                 .overlay {
                     if isSelectingDiscard && !isHidden {
                         RoundedRectangle(cornerRadius: 10)
                             .stroke(theme.accentPrimary.opacity(0.75), lineWidth: 3)
                             .shadow(color: theme.accentPrimary.opacity(0.45), radius: 6, x: 0, y: 3)
+                            .accessibilityHidden(true)
+                    } else if shouldShowSelectionHighlight {
+                        // 通常選択時は細いストロークと控えめな影でオレンジ色を強調しつつも捨て札モードと差別化する
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(theme.accentPrimary, lineWidth: 2)
+                            .shadow(color: theme.accentPrimary.opacity(0.25), radius: 5, x: 0, y: 2)
                             .accessibilityHidden(true)
                     }
                 }
@@ -178,7 +195,8 @@ private extension GameHandSectionView {
                 }
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(Text(accessibilityLabel(for: stack)))
-                .accessibilityHint(Text(accessibilityHint(for: stack, isUsable: isUsable, isDiscardMode: isSelectingDiscard)))
+                .accessibilityHint(Text(accessibilityHint(for: stack, isUsable: isUsable, isDiscardMode: isSelectingDiscard, isSelected: isSelected)))
+                .accessibilityValue(Text(isSelected ? "選択中" : ""))
                 .accessibilityAddTraits(.isButton)
             } else {
                 placeholderCardView()
@@ -215,13 +233,15 @@ private extension GameHandSectionView {
     }
 
     /// VoiceOver のヒント文を生成する
-    private func accessibilityHint(for stack: HandStack, isUsable: Bool, isDiscardMode: Bool) -> String {
+    private func accessibilityHint(for stack: HandStack, isUsable: Bool, isDiscardMode: Bool, isSelected: Bool) -> String {
         // MARK: - 候補数と残枚数の算出
         let candidateCount = stack.representativeVectors?.count ?? 0
         if isDiscardMode {
             return "ダブルタップでこの種類のカードをすべて捨て札にし、新しいカードを補充します。"
         }
 
+        // 通常操作時に読み上げる基本説明文を状況ごとに作成する
+        var baseMessage: String
         if isUsable {
             // 候補が複数ある場合は盤面で方向を選択する必要があることを強調する
             if candidateCount > 1 {
@@ -231,24 +251,31 @@ private extension GameHandSectionView {
                 } else {
                     remainingDescription = "スタックは 1 枚だけです。"
                 }
-                let baseMessage = "ダブルタップでカードを選択し、盤面で移動方向を決めてください。候補は \(candidateCount) 方向です。"
-                return baseMessage + remainingDescription
+                let instruction = "ダブルタップでカードを選択し、盤面で移動方向を決めてください。候補は \(candidateCount) 方向です。"
+                baseMessage = instruction + remainingDescription
             } else {
                 if stack.count > 1 {
-                    return "ダブルタップで先頭カードを使用します。スタックの残り \(stack.count - 1) 枚は同じ方向で待機します。"
+                    baseMessage = "ダブルタップで先頭カードを使用します。スタックの残り \(stack.count - 1) 枚は同じ方向で待機します。"
                 } else {
-                    return "ダブルタップでこの方向に移動します。スタックは 1 枚だけです。"
+                    baseMessage = "ダブルタップでこの方向に移動します。スタックは 1 枚だけです。"
                 }
             }
         } else {
             // 使用不可時も候補数に応じて状況を具体的に伝える
             if candidateCount > 1 {
-                return "盤外のため使用できません。候補は \(candidateCount) 方向ありますが、いずれも盤面外です。スタックの \(stack.count) 枚はそのまま保持されます。"
+                baseMessage = "盤外のため使用できません。候補は \(candidateCount) 方向ありますが、いずれも盤面外です。スタックの \(stack.count) 枚はそのまま保持されます。"
             } else if candidateCount == 1 {
-                return "盤外のため使用できません。スタックの \(stack.count) 枚はそのまま保持されます。"
+                baseMessage = "盤外のため使用できません。スタックの \(stack.count) 枚はそのまま保持されます。"
             } else {
-                return "盤外のため使用できません。移動候補が未設定のカードです。スタックの \(stack.count) 枚はそのまま保持されます。"
+                baseMessage = "盤外のため使用できません。移動候補が未設定のカードです。スタックの \(stack.count) 枚はそのまま保持されます。"
             }
+        }
+
+        // 選択済みである場合は解除方法も併せて伝え、状態変化が分かるよう配慮する
+        if isSelected {
+            return baseMessage + "現在このカードを選択中です。別の手札を選ぶか、もう一度ダブルタップすると解除されます。"
+        } else {
+            return baseMessage
         }
     }
 
