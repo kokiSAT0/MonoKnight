@@ -13,6 +13,14 @@ public enum GameDeckPreset: String, CaseIterable, Codable, Identifiable {
     case kingOnly
     /// キング型カードに上下左右の選択肢を加えた構成
     case directionChoice
+    /// 上下左右の選択キングカードのみで構成した訓練デッキ
+    case kingOrthogonalChoiceOnly
+    /// 斜め方向の選択キングカードのみで構成した訓練デッキ
+    case kingDiagonalChoiceOnly
+    /// 桂馬の選択カードのみで構成した訓練デッキ
+    case knightChoiceOnly
+    /// すべての選択カードを混合した総合デッキ
+    case allChoiceMixed
 
     /// `Identifiable` 準拠用の ID
     public var id: String { rawValue }
@@ -28,6 +36,14 @@ public enum GameDeckPreset: String, CaseIterable, Codable, Identifiable {
             return "王将構成"
         case .directionChoice:
             return "選択式キング構成"
+        case .kingOrthogonalChoiceOnly:
+            return "上下左右選択キング構成"
+        case .kingDiagonalChoiceOnly:
+            return "斜め選択キング構成"
+        case .knightChoiceOnly:
+            return "桂馬選択構成"
+        case .allChoiceMixed:
+            return "選択カード総合構成"
         }
     }
 
@@ -47,6 +63,14 @@ public enum GameDeckPreset: String, CaseIterable, Codable, Identifiable {
             return .kingOnly
         case .directionChoice:
             return .directionChoice
+        case .kingOrthogonalChoiceOnly:
+            return .kingOrthogonalChoiceOnly
+        case .kingDiagonalChoiceOnly:
+            return .kingDiagonalChoiceOnly
+        case .knightChoiceOnly:
+            return .knightChoiceOnly
+        case .allChoiceMixed:
+            return .allChoiceMixed
         }
     }
 }
