@@ -729,24 +729,22 @@ public final class GameScene: SKScene {
             decoration.segments[triangle]?.path = triangle.path(tileSize: tileSize)
         }
 
+        // NOTE: 複数踏破マスの視覚化は四分割（三角形 4 つ）で統一しているため、配列数をそのまま進捗計算に利用する
+        let totalSegmentCount = MultiVisitTriangle.allCases.count
         let requiredVisits = max(0, state.requiredVisitCount)
-        if requiredVisits > 4 {
+        if requiredVisits > totalSegmentCount {
             debugLog(
                 "GameScene.updateMultiVisitDecoration 警告: 対応上限を超える踏破回数を検出 point=\(point) required=\(requiredVisits)"
             )
         }
 
-        let clampedRemaining = max(0, min(state.remainingVisits, requiredVisits))
-        // NOTE: 複数踏破マスの進捗は最大 4 セグメントで表現するため、必要踏破回数を 4 までに丸める
-        //       （5 以上はログで警告するのみで、ビジュアル上は 4 回を上限として扱う）
-        let effectiveRequiredVisits = max(0, min(4, requiredVisits))
-        // NOTE: すでに踏破した回数（= 必要回数 - 残り回数）を算出し、可視化に使用する
-        let completedVisits = max(0, min(effectiveRequiredVisits, requiredVisits - clampedRemaining))
-        // NOTE: セグメントの塗り分けでは「踏破済み」「未踏破」の 2 種類だけを扱うため、
-        //       そのまま踏破済みセグメント数として利用する
-        let filledSegmentCount = max(0, min(effectiveRequiredVisits, completedVisits))
-        // NOTE: 有効セグメント数は必要踏破回数に一致させ、不要セグメントは非表示にする
-        let activeSegmentCount = effectiveRequiredVisits
+        // NOTE: 塗り分けは 4 セグメントを上限として扱うため、残踏破回数も同じ範囲で丸める
+        let clampedRemaining = max(0, min(state.remainingVisits, totalSegmentCount))
+        // 仕様変更: 残踏破回数を 4 セグメントに割り当て、未踏破分から塗りつぶしを進める方式へ統一する
+        // NOTE: 進捗可視化は「残り踏破数」が基準となるため、踏破済みセグメント数は残量から逆算する
+        let filledSegmentCount = max(0, min(totalSegmentCount, totalSegmentCount - clampedRemaining))
+        // NOTE: アクティブなセグメントは常に 4 つ描画し、残量に応じて塗り分けだけを変更する
+        let activeSegmentCount = totalSegmentCount
 
         // 進捗の有無に応じてオーバーレイの表示/非表示を切り替える
         // - NOTE: 「未踏破」「全踏破」の状態では通常マスと同じ見た目に揃えたいため、
@@ -790,16 +788,14 @@ public final class GameScene: SKScene {
         for (index, triangle) in MultiVisitTriangle.allCases.enumerated() {
             guard let segmentNode = decoration.segments[triangle] else { continue }
 
-            if index < activeSegmentCount {
-                // 進捗対象セグメントのみ表示し、踏破済み/未踏破で 2 色に塗り分ける
-                segmentNode.fillColor = index < filledSegmentCount ? completedColor : pendingColor
-                // NOTE: 過去にアルファ調整を行ったノードが残っても色味が変わらないよう、毎回不透明度をリセットする
-                segmentNode.alpha = 1.0
-                segmentNode.isHidden = false
-            } else {
-                // 不要セグメントは非表示にして情報過多を防ぐ
-                segmentNode.isHidden = true
-            }
+            let isFilled = index < filledSegmentCount
+
+            // NOTE: 仕様変更により常時 4 セグメントを描画し、残踏破数に応じて踏破色/未踏破色を切り替える
+            segmentNode.fillColor = isFilled ? completedColor : pendingColor
+            // NOTE: 過去にアルファ調整を行ったノードが残っても色味が変わらないよう、毎回不透明度をリセットする
+            segmentNode.alpha = 1.0
+            // NOTE: 現仕様では全セグメントが有効となるが、将来のセグメント数増減にも対応できるよう判定を残している
+            segmentNode.isHidden = index >= activeSegmentCount
         }
 
         let half = tileSize / 2
