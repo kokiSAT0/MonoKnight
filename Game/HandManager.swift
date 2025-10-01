@@ -131,10 +131,27 @@ public final class HandManager: ObservableObject {
     ///   - deck: ドロー元となる山札
     ///   - preferredInsertionIndices: 補充したいスロット位置（使用後の空きを維持するために指定）
     func refillHandStacks(using deck: inout Deck, preferredInsertionIndices: [Int] = []) {
-        guard handStacks.count < handSize || !preferredInsertionIndices.isEmpty else { return }
+        // 山札設定から取得できるユニークな移動パターン数を把握し、過剰なスロット作成を防ぐ
+        let uniqueSignatureCount = deck.uniqueMoveSignatureCount()
+        let maxStackCount = max(0, min(handSize, uniqueSignatureCount))
+        guard handStacks.count < maxStackCount || !preferredInsertionIndices.isEmpty else { return }
+
         var pendingInsertionIndices = preferredInsertionIndices.sorted()
         var drawAttempts = 0
-        while handStacks.count < handSize || !pendingInsertionIndices.isEmpty {
+
+        while handStacks.count < maxStackCount || !pendingInsertionIndices.isEmpty {
+            // すでにユニーク上限へ到達しており、これ以上スロットを増やせない場合は早期に抜ける
+            if handStacks.count >= maxStackCount {
+                pendingInsertionIndices.removeAll()
+                break
+            }
+
+            drawAttempts += 1
+            if drawAttempts > 512 {
+                debugLog("HandManager.refillHandStacks が安全カウンタに到達: handStacks=\(handStacks.count), next残=\(nextCards.count)")
+                break
+            }
+
             let nextCard: DealtCard?
             if !nextCards.isEmpty {
                 nextCard = nextCards.removeFirst()
@@ -142,6 +159,7 @@ public final class HandManager: ObservableObject {
                 nextCard = deck.draw()
             }
             guard let card = nextCard else { break }
+
             if allowsCardStacking {
                 let signature = MoveVectorSignature(card.move.movementVectors)
                 if let index = handStacks.firstIndex(where: { stack in
@@ -154,9 +172,16 @@ public final class HandManager: ObservableObject {
                     continue
                 }
             }
+
+            guard handStacks.count < maxStackCount else {
+                pendingInsertionIndices.removeAll()
+                break
+            }
+
+            let newStack = HandStack(cards: [card])
             if let preferredIndex = pendingInsertionIndices.first {
                 let insertionIndex = min(preferredIndex, handStacks.count)
-                handStacks.insert(HandStack(cards: [card]), at: insertionIndex)
+                handStacks.insert(newStack, at: insertionIndex)
                 pendingInsertionIndices.removeFirst()
                 for candidate in 0..<pendingInsertionIndices.count {
                     if pendingInsertionIndices[candidate] >= insertionIndex {
@@ -164,12 +189,7 @@ public final class HandManager: ObservableObject {
                     }
                 }
             } else {
-                handStacks.append(HandStack(cards: [card]))
-            }
-            drawAttempts += 1
-            if drawAttempts > 512 {
-                debugLog("HandManager.refillHandStacks が安全カウンタに到達: handStacks=\(handStacks.count), next残=\(nextCards.count)")
-                break
+                handStacks.append(newStack)
             }
         }
     }

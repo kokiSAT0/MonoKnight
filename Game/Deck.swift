@@ -6,6 +6,29 @@ import GameplayKit
 /// 山札を重み付き乱数で生成するデッキ構造体
 /// - Note: ゲームモードごとに許可カードや重み付けが異なるため、`Configuration` で挙動を切り替えられるようにしている。
 struct Deck {
+    /// 移動ベクトル配列を集合化する際に利用する内部シグネチャ構造体
+    /// - Note: `MoveVector` 自体は `Hashable` だが、配列として扱う際に毎回ハッシュ計算を記述するのは煩雑なため、ラッパーを用意する
+    private struct MoveSignature: Hashable {
+        /// 比較対象となる移動ベクトル列
+        let vectors: [MoveVector]
+
+        /// 明示的なイニシャライザを設けておき、意図した配列のみを扱う
+        /// - Parameter vectors: 比較したい移動ベクトル配列
+        init(vectors: [MoveVector]) {
+            self.vectors = vectors
+        }
+
+        func hash(into hasher: inout Hasher) {
+            hasher.combine(vectors.count)
+            for vector in vectors {
+                hasher.combine(vector)
+            }
+        }
+
+        static func == (lhs: MoveSignature, rhs: MoveSignature) -> Bool {
+            lhs.vectors == rhs.vectors
+        }
+    }
     // MARK: - 重みプロファイル
     /// カードの基礎重みと個別上書きをまとめて扱う構造体
     /// - Note: すべてのカードに同一値を設定しつつ、一部カードのみ将来的に重みを調整したいニーズへ対応するための抽象化。
@@ -345,6 +368,14 @@ struct Deck {
         presetOriginal = []
         #endif
         reset() // 乱数源とテスト用配列を初期状態へ戻す
+    }
+
+    /// 設定から得られるユニークな移動シグネチャ数を返す
+    /// - Returns: 許可された移動ベクトル配列の種類数（重複は 1 つにまとめる）
+    func uniqueMoveSignatureCount() -> Int {
+        let signatures = configuration.allowedMoveSignatures.map { MoveSignature(vectors: $0) }
+        let unique = Set(signatures)
+        return unique.count
     }
 
     // MARK: - リセット
