@@ -45,5 +45,36 @@ final class GameViewLayoutCalculatorTests: XCTestCase {
         // 記録用の topOverlayHeight にはオーバーレイ量がそのまま反映されていることも確認
         XCTAssertEqual(context.topOverlayHeight, 44, accuracy: 0.001, "オーバーレイ高さの記録値が想定と異なります")
     }
+
+    /// トップオーバーレイが存在せず、セーフエリア測定値と基準値が一致するケースでは
+    /// コントロール行の余白が 16pt へ収束することを確認する
+    func testControlRowPaddingConvergesToBaseWhenOverlayIsZero() {
+        // iPhone（ノッチあり）で RootView 側のセーフエリア計測値と GeometryReader の値が等しいケースを想定
+        let parameters = GameViewLayoutParameters(
+            size: CGSize(width: 390, height: 844),
+            safeAreaTop: 47,
+            safeAreaBottom: 34
+        )
+
+        // トップオーバーレイ 0 / 統計 120pt / 手札 260pt の構成で計算
+        let calculator = GameViewLayoutCalculator(
+            parameters: parameters,
+            horizontalSizeClass: .compact,
+            topOverlayHeight: 0,
+            baseTopSafeAreaInset: 47,
+            statisticsHeight: 120,
+            handSectionHeight: 260
+        )
+
+        let context = calculator.makeContext()
+
+        // 追加余白が発生しないため、コントロール行の余白は 16pt に一致するはず
+        XCTAssertEqual(
+            context.controlRowTopPadding,
+            GameViewLayoutMetrics.controlRowBaseTopPadding,
+            accuracy: 0.001,
+            "コントロール行の余白が基準値からずれています"
+        )
+    }
 }
 
