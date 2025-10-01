@@ -151,6 +151,10 @@ final class GameBoardBridgeViewModel: ObservableObject {
             boardTileMultiBase: appTheme.skBoardTileMultiBase,
             // NOTE: マルチ踏破マスの枠線もテーマ側で厳選したハイコントラスト色を適用する
             boardTileMultiStroke: appTheme.skBoardTileMultiStroke,
+            // NOTE: SpriteKit のバッジ背景色も SwiftUI テーマと同期させ、残回数を読みやすく保つ
+            boardTileMultiCounterBackground: appTheme.skBoardTileMultiCounterBackground,
+            // NOTE: テキスト色もテーマ管理下に置き、ライト/ダーク双方でバランスを取る
+            boardTileMultiCounterText: appTheme.skBoardTileMultiCounterText,
             boardTileToggle: appTheme.skBoardTileToggle,
             boardKnight: appTheme.skBoardKnight,
             boardGuideHighlight: appTheme.skBoardGuideHighlight

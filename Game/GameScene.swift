@@ -65,6 +65,10 @@ public final class GameScene: SKScene {
     /// - NOTE: `tileNodes` と併せて管理し、盤面更新時に残り踏破回数を即座に反映できるようにする
     private var tileOverlayNodes: [GridPoint: SKShapeNode] = [:]
 
+    /// 複数回踏破マスの残回数バッジを保持
+    /// - NOTE: 盤面リセット時にゴーストが残らないよう、リングと同じスコープでキャッシュをまとめる
+    private var tileCounterNodes: [GridPoint: SKNode] = [:]
+
     /// ハイライト種類ごとのノードキャッシュ
     /// - Important: 種類ごとに辞書を分けることで、描画の上書き順とスタイルを柔軟に切り替えられる
     private var highlightNodes: [BoardHighlightKind: [GridPoint: SKShapeNode]] = [:]
@@ -167,6 +171,7 @@ public final class GameScene: SKScene {
         // SpriteKit ノード系のキャッシュは全て空に戻し、不要なノードが残らないようにする
         tileNodes = [:]
         tileOverlayNodes = [:]
+        tileCounterNodes = [:]
         highlightNodes = [:]
         latestSingleGuidePoints = []
         latestMultipleGuidePoints = []
@@ -406,6 +411,11 @@ public final class GameScene: SKScene {
         }
         tileOverlayNodes.removeAll()
 
+        for counter in tileCounterNodes.values {
+            counter.removeFromParent()
+        }
+        tileCounterNodes.removeAll()
+
         for nodes in highlightNodes.values {
             for node in nodes.values {
                 node.removeFromParent()
@@ -590,6 +600,7 @@ public final class GameScene: SKScene {
             state: state,
             emphasizedLineWidth: emphasizedLineWidth
         )
+        updateMultiVisitCounter(for: point, state: state, parentNode: node)
     }
 
     /// 複数回踏破マスの残り回数に応じたリング表示を更新する
@@ -706,11 +717,114 @@ public final class GameScene: SKScene {
         }
     }
 
+    /// 複数回踏破マス用の残回数バッジを最新状態へ更新する
+    /// - Parameters:
+    ///   - point: 対象マスの座標
+    ///   - state: 現在のマス状態
+    ///   - parentNode: バッジをぶら下げるタイルノード
+    private func updateMultiVisitCounter(
+        for point: GridPoint,
+        state: TileState,
+        parentNode: SKShapeNode
+    ) {
+        let remaining = max(0, state.remainingVisits)
+        guard remaining > 0 else {
+            // 残回数がゼロの場合は辞書から除去して、盤面リセット時にゴーストが残らないようにする
+            removeMultiVisitCounter(for: point)
+            return
+        }
+
+        // 既存キャッシュの再利用を試み、未生成ならこの場で組み立てる
+        let container: SKNode
+        let backgroundNode: SKShapeNode
+        let labelNode: SKLabelNode
+        if
+            let cachedContainer = tileCounterNodes[point],
+            let cachedBackground = cachedContainer.childNode(withName: "multiVisitCounterBackground") as? SKShapeNode,
+            let cachedLabel = cachedContainer.childNode(withName: "multiVisitCounterLabel") as? SKLabelNode
+        {
+            container = cachedContainer
+            backgroundNode = cachedBackground
+            labelNode = cachedLabel
+        } else {
+            let newContainer = SKNode()
+            newContainer.name = "multiVisitCounterContainer"
+            newContainer.zPosition = 0.16  // リングより前面に配置し、カウンターを確実に読み取れるようにする
+
+            let newBackground = SKShapeNode()
+            newBackground.name = "multiVisitCounterBackground"
+            newBackground.lineWidth = 0
+            newBackground.isAntialiased = true
+            newBackground.zPosition = 0
+
+            let newLabel = SKLabelNode(text: "")
+            newLabel.name = "multiVisitCounterLabel"
+            newLabel.horizontalAlignmentMode = .center
+            newLabel.verticalAlignmentMode = .center
+            newLabel.zPosition = 0.02
+
+            newContainer.addChild(newBackground)
+            newContainer.addChild(newLabel)
+            tileCounterNodes[point] = newContainer
+
+            container = newContainer
+            backgroundNode = newBackground
+            labelNode = newLabel
+        }
+
+        if container.parent !== parentNode {
+            container.removeFromParent()
+            parentNode.addChild(container)
+        }
+
+        // タイル中心へ配置して他のオーバーレイと重ならないようにする
+        container.position = CGPoint(x: tileSize / 2, y: tileSize / 2)
+        container.isHidden = false
+
+        // 円形バッジのサイズはマスに比例させ、最小サイズも確保して可読性を維持する
+        let badgeRadius = max(tileSize * 0.24, CGFloat(12))
+        let badgeRect = CGRect(
+            x: -badgeRadius,
+            y: -badgeRadius,
+            width: badgeRadius * 2,
+            height: badgeRadius * 2
+        )
+        backgroundNode.path = CGPath(ellipseIn: badgeRect, transform: nil)
+        backgroundNode.fillColor = palette.boardTileMultiCounterBackground
+        backgroundNode.alpha = 0.92
+        backgroundNode.isHidden = false
+
+        // フォントは SF Pro 系を指定し、SpriteKit 側でも統一感を持たせる
+        let desiredFontSize = max(tileSize * 0.3, CGFloat(14))
+        #if canImport(UIKit)
+        let preferredFont = UIFont.systemFont(ofSize: desiredFontSize, weight: .semibold)
+        labelNode.fontName = preferredFont.fontName
+        labelNode.fontSize = desiredFontSize
+        #else
+        labelNode.fontName = "HelveticaNeue-Bold"
+        labelNode.fontSize = desiredFontSize
+        #endif
+        labelNode.fontColor = palette.boardTileMultiCounterText
+        labelNode.text = "×\(remaining)"
+        labelNode.isHidden = false
+        labelNode.position = .zero
+    }
+
     /// 複数回踏破マス用に生成したリングノードを安全に破棄する
     /// - Parameter point: 対象マスの座標
     private func removeMultiVisitOverlay(for point: GridPoint) {
-        guard let overlay = tileOverlayNodes.removeValue(forKey: point) else { return }
-        overlay.removeFromParent()
+        if let overlay = tileOverlayNodes.removeValue(forKey: point) {
+            overlay.removeFromParent()
+        }
+        removeMultiVisitCounter(for: point)
+    }
+
+    /// 複数回踏破マス用バッジを安全に破棄する
+    /// - Parameter point: 対象マスの座標
+    private func removeMultiVisitCounter(for point: GridPoint) {
+        guard let counter = tileCounterNodes.removeValue(forKey: point) else { return }
+        counter.removeAllActions()
+        counter.removeFromParent()
     }
 
     /// 盤面ハイライトの種類ごとの集合をまとめて更新する
@@ -903,11 +1017,23 @@ public final class GameScene: SKScene {
         // レイアウトが確定していればその場で再描画し、未確定なら後で flush 時に反映する
         if isLayoutReady {
             updateTileColors()
+            refreshMultiVisitCounters()
         } else {
             for (point, node) in tileNodes {
                 configureTileNodeAppearance(node, at: point)
             }
             updateHighlightColors()
+        }
+    }
+
+    /// 既存の複数踏破カウンターへ最新テーマを反映する
+    /// - Note: テーマ切り替え直後にリングだけでなくバッジ配色も更新し、違和感を最小限に抑える
+    private func refreshMultiVisitCounters() {
+        for (point, node) in tileNodes {
+            guard let state = board.state(at: point) else { continue }
+            if case .multi = state.visitBehavior {
+                updateMultiVisitCounter(for: point, state: state, parentNode: node)
+            }
         }
     }
 
