@@ -70,22 +70,45 @@ struct MoveCardIllustrationView: View {
         }
 
         /// VoiceOver で追加説明が必要な場合の末尾テキスト
-        var accessibilitySuffix: String {
+        /// - Parameter candidateCount: 移動候補の数
+        /// - Returns: 候補数に応じた補足テキスト
+        func accessibilitySuffix(forCandidateCount candidateCount: Int) -> String {
             switch self {
             case .hand:
-                return ""
+                // 手札表示では複数候補がある際にだけ補足を入れて注意を促す
+                return candidateCount > 1 ? "（複数方向の候補あり）" : ""
             case .next:
-                return "（次に補充されるカード）"
+                // 先読み表示では従来の文言に候補情報を足して状況を明確にする
+                return candidateCount > 1
+                    ? "（次に補充されるカード／複数方向）"
+                    : "（次に補充されるカード）"
             }
         }
 
         /// VoiceOver のヒント文（モード別に内容を分けて案内する）
-        var accessibilityHint: String {
+        /// - Parameter candidateCount: 移動候補の数
+        /// - Returns: 候補数に応じて読み上げる説明文
+        func accessibilityHint(forCandidateCount candidateCount: Int) -> String {
             switch self {
             case .hand:
-                return "ダブルタップでこの方向に移動します"
+                switch candidateCount {
+                case ..<1:
+                    // 想定外ケースでもクラッシュせず説明できるようにする
+                    return "ダブルタップでカードを選択しますが、移動候補が未設定です"
+                case 1:
+                    return "ダブルタップでこの方向に移動します"
+                default:
+                    return "ダブルタップでカードを選択し、盤面で移動方向を決めてください。候補は \(candidateCount) 方向です。"
+                }
             case .next:
-                return "閲覧のみ: このカードは手札が消費された後に補充されます"
+                switch candidateCount {
+                case ..<1:
+                    return "閲覧のみ: このカードは移動候補が未設定です。手札が消費された後に補充されます"
+                case 1:
+                    return "閲覧のみ: このカードは手札が消費された後に補充されます"
+                default:
+                    return "閲覧のみ: 手札が消費された後に補充され、最大 \(candidateCount) 方向から選択して移動できます"
+                }
             }
         }
 
@@ -135,7 +158,12 @@ struct MoveCardIllustrationView: View {
     }
 
     var body: some View {
-        ZStack {
+        // MARK: - 描画に利用する移動候補の事前計算
+        // movementVectors をローカル定数へ保持し、アクセシビリティと描画の両方で使い回す
+        let movementVectors = card.movementVectors
+        let candidateCount = movementVectors.count
+
+        return ZStack {
             // MARK: - カードの背景枠
             // 既存のカードスタイル（角丸の枠付き）を踏襲して統一感を保つ
             RoundedRectangle(cornerRadius: 8)
@@ -156,21 +184,27 @@ struct MoveCardIllustrationView: View {
                     let cellSize = layout.cellSize
                     let origin = layout.origin
 
-                    // 盤面中央とカードに基づいた目的地のセル位置をそれぞれ取得
+                    // 盤面中央のセル位置を取得し、全候補に共通する始点座標を算出する
                     let center = gridCenterIndex
-                    let destinationIndex = destinationCellIndex(for: card)
-
-                    // ヘルパーメソッドでセル中心座標を算出
                     let startPoint = cellCenter(origin: origin, cellSize: cellSize, column: center.column, row: center.row)
-                    let destinationPoint = cellCenter(origin: origin, cellSize: cellSize, column: destinationIndex.column, row: destinationIndex.row)
 
-                    // 矢印の頭（三角形）の 2 点は専用の計算ロジックに委譲
-                    let arrowHeadVertices = arrowHeadPoints(
-                        startPoint: startPoint,
-                        destinationPoint: destinationPoint,
-                        arrowHeadLength: cellSize * 0.5,
-                        arrowHeadWidth: cellSize * 0.4
-                    )
+                    // 各移動ベクトルに対応する目的地座標と矢じり形状をまとめて前計算する
+                    let arrowGeometries: [(destination: CGPoint, head: (CGPoint, CGPoint)?)] = movementVectors.map { vector in
+                        let destinationIndex = destinationCellIndex(for: vector)
+                        let destinationPoint = cellCenter(
+                            origin: origin,
+                            cellSize: cellSize,
+                            column: destinationIndex.column,
+                            row: destinationIndex.row
+                        )
+                        let headPoints = arrowHeadPoints(
+                            startPoint: startPoint,
+                            destinationPoint: destinationPoint,
+                            arrowHeadLength: cellSize * 0.5,
+                            arrowHeadWidth: cellSize * 0.4
+                        )
+                        return (destinationPoint, headPoints)
+                    }
 
                     ZStack {
                         // MARK: 中央マスのハイライト
@@ -196,7 +230,7 @@ struct MoveCardIllustrationView: View {
                         }
                         .stroke(mode.gridLineColor(using: theme), lineWidth: 0.5)
 
-                        // MARK: 現在地・目的地のマーカー
+                        // MARK: 現在地マーカー
                         Circle()
                             .fill(theme.cardContentPrimary)
                             .frame(width: cellSize * 0.4, height: cellSize * 0.4)
@@ -206,30 +240,35 @@ struct MoveCardIllustrationView: View {
                             )
                             .position(startPoint)
 
-                        Circle()
-                            .fill(theme.cardContentInverted)
-                            .frame(width: cellSize * 0.4, height: cellSize * 0.4)
-                            .overlay(
-                                Circle()
-                                    .stroke(theme.destinationMarkerStroke, lineWidth: 1)
-                            )
-                            .position(destinationPoint)
-
-                        // MARK: 移動方向を示す矢印（線 + 矢じり）
-                        Path { path in
-                            path.move(to: startPoint)
-                            path.addLine(to: destinationPoint)
-                        }
-                        .stroke(mode.arrowColor(using: theme), style: StrokeStyle(lineWidth: 1.5, lineCap: .round))
-
-                        if let (leftPoint, rightPoint) = arrowHeadVertices {
+                        // MARK: 各候補に応じた矢印と目的地マーカー
+                        ForEach(Array(arrowGeometries.enumerated()), id: \.offset) { _, geometry in
+                            // 矢印本体（線）
                             Path { path in
-                                path.move(to: destinationPoint)
-                                path.addLine(to: leftPoint)
-                                path.addLine(to: rightPoint)
-                                path.closeSubpath()
+                                path.move(to: startPoint)
+                                path.addLine(to: geometry.destination)
                             }
-                            .fill(mode.arrowColor(using: theme))
+                            .stroke(mode.arrowColor(using: theme), style: StrokeStyle(lineWidth: 1.5, lineCap: .round))
+
+                            // 矢じり（三角形）はベクトルごとに異なる向きを持つ
+                            if let (leftPoint, rightPoint) = geometry.head {
+                                Path { path in
+                                    path.move(to: geometry.destination)
+                                    path.addLine(to: leftPoint)
+                                    path.addLine(to: rightPoint)
+                                    path.closeSubpath()
+                                }
+                                .fill(mode.arrowColor(using: theme))
+                            }
+
+                            // 目的地マーカーは矢印より前面に配置して見やすさを維持する
+                            Circle()
+                                .fill(theme.cardContentInverted)
+                                .frame(width: cellSize * 0.4, height: cellSize * 0.4)
+                                .overlay(
+                                    Circle()
+                                        .stroke(theme.destinationMarkerStroke, lineWidth: 1)
+                                )
+                                .position(geometry.destination)
                         }
                     }
                 }
@@ -239,9 +278,9 @@ struct MoveCardIllustrationView: View {
         }
         .frame(width: Self.defaultWidth, height: Self.defaultHeight)
         // VoiceOver で方向が伝わるようカード名にモード別の説明を付与
-        .accessibilityLabel(Text(card.displayName + mode.accessibilitySuffix))
+        .accessibilityLabel(Text(card.displayName + mode.accessibilitySuffix(forCandidateCount: candidateCount)))
         // カード操作／先読み閲覧それぞれのヒントを案内
-        .accessibilityHint(Text(mode.accessibilityHint))
+        .accessibilityHint(Text(mode.accessibilityHint(forCandidateCount: candidateCount)))
         // モードによって適切なトレイトを付与し、不要なものは除去する
         .accessibilityAddTraits(mode.traitsToAdd)
         .accessibilityRemoveTraits(mode.traitsToRemove)
@@ -361,13 +400,12 @@ private extension MoveCardIllustrationView {
         )
     }
 
-    /// カードの移動量から目的地セルの添字を取得する
-    /// - Parameter card: 描画対象の移動カード
+    /// 移動ベクトルから目的地セルの添字を取得する
+    /// - Parameter vector: 描画対象となる移動ベクトル
     /// - Returns: 中央セル基準で算出した目的地の添字
-    func destinationCellIndex(for card: MoveCard) -> (column: Int, row: Int) {
+    func destinationCellIndex(for vector: MoveVector) -> (column: Int, row: Int) {
         let center = gridCenterIndex
-        let vector = card.primaryVector
-        // primaryVector で取得した移動量を用いる。dy は数学的な Y 軸（上方向）基準なので、SwiftUI 座標系へ合わせるために符号を反転する
+        // dy は数学的な Y 軸（上方向）基準なので、SwiftUI 座標系へ合わせるために符号を反転する
         return (center.column + vector.dx, center.row - vector.dy)
     }
 
