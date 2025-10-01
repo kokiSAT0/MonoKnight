@@ -737,18 +737,24 @@ public final class GameScene: SKScene {
         }
 
         let clampedRemaining = max(0, min(state.remainingVisits, requiredVisits))
-        let initialFill = max(0, min(4, 4 - requiredVisits))
-        let completedVisits = max(0, min(requiredVisits, requiredVisits - clampedRemaining))
-        let filledSegmentCount = max(0, min(4, initialFill + completedVisits))
-        let activeSegmentCount = max(0, min(4, initialFill + requiredVisits))
+        // NOTE: 複数踏破マスの進捗は最大 4 セグメントで表現するため、必要踏破回数を 4 までに丸める
+        //       （5 以上はログで警告するのみで、ビジュアル上は 4 回を上限として扱う）
+        let effectiveRequiredVisits = max(0, min(4, requiredVisits))
+        // NOTE: すでに踏破した回数（= 必要回数 - 残り回数）を算出し、可視化に使用する
+        let completedVisits = max(0, min(effectiveRequiredVisits, requiredVisits - clampedRemaining))
+        // NOTE: セグメントの塗り分けでは「踏破済み」「未踏破」の 2 種類だけを扱うため、
+        //       そのまま踏破済みセグメント数として利用する
+        let filledSegmentCount = max(0, min(effectiveRequiredVisits, completedVisits))
+        // NOTE: 有効セグメント数は必要踏破回数に一致させ、不要セグメントは非表示にする
+        let activeSegmentCount = effectiveRequiredVisits
 
         // 進捗の有無に応じてオーバーレイの表示/非表示を切り替える
         // - NOTE: 「未踏破」「全踏破」の状態では通常マスと同じ見た目に揃えたいため、
         //         四分割セグメントと対角線はまとめて隠す
-        let isUnvisited = clampedRemaining == requiredVisits && !state.isVisited
         let isCompleted = state.isVisited || clampedRemaining == 0
-        // NOTE: 未踏破でも複数踏破マスであることを即座に認識できるよう、必要踏破回数が 2 以上であれば進捗オーバーレイを表示する
-        let shouldShowProgress = requiredVisits > 1 && !isCompleted
+        // NOTE: 必要踏破回数が 2 以上であれば、踏破済み/未踏破を問わず進捗オーバーレイを常時表示する
+        //       （1 回のみのタイルは従来通り通常マスと同じ見た目を維持する）
+        let shouldShowProgress = requiredVisits > 1
 
         if !shouldShowProgress {
             // 進捗が無い or 既に完了した場合はオーバーレイ全体を非表示にし、
@@ -774,29 +780,23 @@ public final class GameScene: SKScene {
         decoration.primaryDiagonal.isHidden = false
         decoration.secondaryDiagonal.isHidden = false
 
-        // 部分踏破の残量を視覚的に把握しやすいよう、塗り色を 3 段階に分ける
+        // 部分踏破の残量を視覚的に把握しやすいよう、塗り色は踏破済み/未踏破の 2 種類に統一する
         // NOTE: 進捗セグメントの色は通常タイルと同じ値を採用し、ゲーム中に色味が破綻しないよう統一する
         let completedColor = palette.boardTileVisited
         // NOTE: 未踏破領域も通常マスの未踏破色をそのまま転用し、段階演出を純粋な面積差で伝える
         let pendingColor = palette.boardTileUnvisited
-        // NOTE: 要求回数を超える領域は同系統のまま存在感を落としたいので、現在のアルファ値に係数を掛けて控えめにする
-        let inactiveColor = colorByScalingAlpha(of: palette.boardTileUnvisited, factor: 0.55)
 
         for (index, triangle) in MultiVisitTriangle.allCases.enumerated() {
             guard let segmentNode = decoration.segments[triangle] else { continue }
 
-            if index < filledSegmentCount {
-                // 既に踏破したセグメントは踏破済みカラーで強調表示する
-                segmentNode.fillColor = completedColor
-            } else if index < activeSegmentCount {
-                // まだ踏破していない残り回数は基準色を濃く残し、未達成領域として認識しやすくする
-                segmentNode.fillColor = pendingColor
+            if index < activeSegmentCount {
+                // 進捗対象セグメントのみ表示し、踏破済み/未踏破で 2 色に塗り分ける
+                segmentNode.fillColor = index < filledSegmentCount ? completedColor : pendingColor
+                segmentNode.isHidden = false
             } else {
-                // 要求回数を超える領域は淡くし、進捗対象外であることを明示する
-                segmentNode.fillColor = inactiveColor
+                // 不要セグメントは非表示にして情報過多を防ぐ
+                segmentNode.isHidden = true
             }
-
-            segmentNode.isHidden = false
         }
 
         let half = tileSize / 2
