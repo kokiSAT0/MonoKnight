@@ -377,6 +377,7 @@ final class GameViewModel: ObservableObject {
     }
 
     /// 盤面タップに応じたプレイ要求を処理する
+    /// - Important: BoardTapPlayRequest の受付は GameViewModel が単一窓口となる。描画橋渡し層や View 側で同様の処理を複製しないこと
     func handleBoardTapPlayRequest(_ request: BoardTapPlayRequest) {
         defer { core.clearBoardTapPlayRequest(request.id) }
 
