@@ -373,7 +373,9 @@ extension GameCore: GameCoreProtocol {
             boardTapPlayRequest = BoardTapPlayRequest(
                 stackID: resolved.stackID,
                 stackIndex: resolved.stackIndex,
-                topCard: resolved.card
+                topCard: resolved.card,
+                destination: resolved.destination,
+                moveVector: resolved.moveVector
             )
         }
         // 候補に該当しない場合は何もしない（無効タップ）
