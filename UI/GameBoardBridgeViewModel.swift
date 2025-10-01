@@ -149,6 +149,8 @@ final class GameBoardBridgeViewModel: ObservableObject {
             boardTileUnvisited: appTheme.skBoardTileUnvisited,
             // NOTE: 特殊マスが視覚的に分かるよう、SwiftUI 側で決めた配色をそのまま転写する
             boardTileMultiBase: appTheme.skBoardTileMultiBase,
+            // NOTE: マルチ踏破マスの枠線もテーマ側で厳選したハイコントラスト色を適用する
+            boardTileMultiStroke: appTheme.skBoardTileMultiStroke,
             boardTileToggle: appTheme.skBoardTileToggle,
             boardKnight: appTheme.skBoardKnight,
             boardGuideHighlight: appTheme.skBoardGuideHighlight

@@ -431,6 +431,18 @@ struct AppTheme: DynamicProperty {
         }
     }
 
+    /// 複数回踏破マス専用の枠線色（高コントラストのグレートーンを採用）
+    var boardTileMultiStroke: Color {
+        switch resolvedColorScheme {
+        case .dark:
+            // 暗所でも輪郭がはっきり残るよう、やや明度を高めたグレーを使用
+            return Color.white.opacity(0.82)
+        default:
+            // ライトテーマではチャコール寄りの濃いグレーを用い、モノクロ基調を崩さず強調する
+            return Color.black.opacity(0.78)
+        }
+    }
+
     /// トグルマスの塗り色（踏破状態に左右されない強調色）
     var boardTileToggle: Color {
         switch resolvedColorScheme {
@@ -533,6 +545,14 @@ struct AppTheme: DynamicProperty {
         )
     }
 
+    /// SpriteKit 複数回踏破マス枠線色の UIColor 版
+    var uiBoardTileMultiStroke: UIColor {
+        dynamicUIColor(
+            light: color(for: .light, keyPath: \.boardTileMultiStroke),
+            dark: color(for: .dark, keyPath: \.boardTileMultiStroke)
+        )
+    }
+
     /// SpriteKit トグルマス色の UIColor 版
     var uiBoardTileToggle: UIColor {
         dynamicUIColor(
@@ -573,6 +593,9 @@ struct AppTheme: DynamicProperty {
 
     /// SpriteKit の SKColor へ変換した複数回踏破マス基準色
     var skBoardTileMultiBase: SKColor { SKColor(cgColor: uiBoardTileMultiBase.cgColor) }
+
+    /// SpriteKit の SKColor へ変換した複数回踏破マス枠線色
+    var skBoardTileMultiStroke: SKColor { SKColor(cgColor: uiBoardTileMultiStroke.cgColor) }
 
     /// SpriteKit の SKColor へ変換したトグルマス色
     var skBoardTileToggle: SKColor { SKColor(cgColor: uiBoardTileToggle.cgColor) }

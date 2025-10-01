@@ -15,6 +15,9 @@ public struct GameScenePalette {
     /// 複数回踏破マスの基準色
     /// - NOTE: 未踏破色とは別に持つことで、進捗に応じた補間でも濁りが生じないようにする
     public let boardTileMultiBase: SKColor
+    /// 複数回踏破マス専用の枠線色
+    /// - NOTE: 高コントラストな線色を個別に持たせ、ライト/ダーク双方で視認性を確保する
+    public let boardTileMultiStroke: SKColor
     /// トグルマスの塗り色
     /// - NOTE: 踏破状態に関わらず専用色を固定し、盤面上でギミックマスを瞬時に識別できるようにする
     public let boardTileToggle: SKColor
@@ -30,6 +33,7 @@ public struct GameScenePalette {
     ///   - boardTileVisited: 踏破済みタイル色
     ///   - boardTileUnvisited: 未踏破タイル色
     ///   - boardTileMultiBase: 複数回踏破マスの基準色
+    ///   - boardTileMultiStroke: 複数回踏破マス専用の枠線色
     ///   - boardTileToggle: トグルマスの塗り色
     ///   - boardKnight: 駒の塗り色
     ///   - boardGuideHighlight: ガイド枠の線色
@@ -39,6 +43,7 @@ public struct GameScenePalette {
         boardTileVisited: SKColor,
         boardTileUnvisited: SKColor,
         boardTileMultiBase: SKColor,
+        boardTileMultiStroke: SKColor,
         boardTileToggle: SKColor,
         boardKnight: SKColor,
         boardGuideHighlight: SKColor
@@ -48,6 +53,7 @@ public struct GameScenePalette {
         self.boardTileVisited = boardTileVisited
         self.boardTileUnvisited = boardTileUnvisited
         self.boardTileMultiBase = boardTileMultiBase
+        self.boardTileMultiStroke = boardTileMultiStroke
         self.boardTileToggle = boardTileToggle
         self.boardKnight = boardKnight
         self.boardGuideHighlight = boardGuideHighlight
@@ -67,6 +73,8 @@ public extension GameScenePalette {
         boardTileUnvisited: SKColor(white: 0.98, alpha: 1.0),
         // NOTE: 複数回踏破マスでは段階的に暗くなるグレートーンを基準とし、踏破進捗の差が分かりやすいようにする
         boardTileMultiBase: SKColor(white: 0.86, alpha: 1.0),
+        // NOTE: 枠線はアクセント用のチャコールグレーを採用し、背景や塗りに埋もれない視認性を優先する
+        boardTileMultiStroke: SKColor(white: 0.2, alpha: 1.0),
         // NOTE: トグルマスは常に存在感を出したいので、未踏破・踏破の状態差に影響されない濃いめのグレーを採用する
         boardTileToggle: SKColor(white: 0.6, alpha: 1.0),
         boardKnight: SKColor(white: 0.1, alpha: 1.0),
@@ -82,6 +90,8 @@ public extension GameScenePalette {
         boardTileUnvisited: SKColor(white: 0.12, alpha: 1.0),
         // NOTE: ライトテーマ同様にグレートーンを段階的に変化させ、暗所でも進捗を追いやすくする
         boardTileMultiBase: SKColor(white: 0.22, alpha: 1.0),
+        // NOTE: ダークテーマでは淡いライトグレーを用い、背景が暗くても輪郭がぼやけないようハイコントラストを維持する
+        boardTileMultiStroke: SKColor(white: 0.85, alpha: 1.0),
         // NOTE: トグルマスは暗色背景でも埋もれないよう、訪問状態に左右されない明度のグレーを採用
         boardTileToggle: SKColor(white: 0.65, alpha: 1.0),
         boardKnight: SKColor(white: 0.95, alpha: 1.0),
