@@ -31,6 +31,10 @@ public struct HandStack: Identifiable, Equatable {
     /// 最新カードの MoveCard を取得する。スタックが空の場合は nil。
     public var representativeMove: MoveCard? { topCard?.move }
 
+    /// 最新カードが持つ移動ベクトル配列を返す
+    /// - Note: 今後同じ移動候補を持つ別カードが増えてもスタックを共用できるよう、MoveCard の列挙値ではなくベクトル列を比較基準とする
+    public var representativeVectors: [MoveVector]? { representativeMove?.movementVectors }
+
     /// 同じ種類のカードを積み増しする
     /// - Parameter card: 追加したい `DealtCard`
     public mutating func append(_ card: DealtCard) {

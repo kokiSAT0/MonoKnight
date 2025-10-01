@@ -11,6 +11,8 @@ struct Deck {
     struct Configuration {
         /// 抽選対象とするカード一覧（順序を維持する）
         let allowedMoves: [MoveCard]
+        /// 抽選対象カードの移動ベクトル配列（順序を維持する）
+        let allowedMoveSignatures: [[MoveVector]]
         /// 各カードの基礎重み
         let baseWeights: [MoveCard: Int]
         /// 連続排出抑制を行うかどうか
@@ -43,6 +45,7 @@ struct Deck {
             deckSummaryText: String
         ) {
             self.allowedMoves = allowedMoves
+            self.allowedMoveSignatures = allowedMoves.map { $0.movementVectors }
             self.baseWeights = baseWeights
             self.shouldApplyProbabilityReduction = shouldApplyProbabilityReduction
             self.normalWeightMultiplier = normalWeightMultiplier

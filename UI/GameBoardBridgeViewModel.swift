@@ -192,7 +192,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
             return
         }
 
-        // GameCore.availableMoves() を利用して重複排除と境界チェックを共通化する
+        // GameCore.availableMoves() 内で primaryVector が評価されるため、複数候補カード追加後もここから同じインターフェースで受け取れる
         let resolvedMoves = core.availableMoves(handStacks: handStacks, current: current)
         let candidatePoints = Set(resolvedMoves.map { $0.destination })
 
@@ -244,6 +244,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
         guard let topCard = stack.topCard else { return false }
 
         // 現在の手札状況に基づく使用可能カードを検索し、該当スタックの候補を取得する
+        // - Note: availableMoves() 側が primaryVector で位置を算出するため、複数候補カードを導入してもここでの分岐は据え置ける
         guard let resolvedMove = core.availableMoves().first(where: { candidate in
             candidate.stackID == stack.id && candidate.card.id == topCard.id
         }) else {
@@ -366,6 +367,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
     /// - Returns: 使用可能なら true
     func isCardUsable(_ stack: HandStack) -> Bool {
         guard let card = stack.topCard else { return false }
+        // availableMoves() が primaryVector を利用しているため、1 候補カードと同じ手続きで拡張に備えられる
         return core.availableMoves().contains { candidate in
             candidate.stackID == stack.id && candidate.card.id == card.id
         }
