@@ -87,7 +87,8 @@ public final class GameCore: ObservableObject {
         board = Board(
             size: mode.boardSize,
             initialVisitedPoints: mode.initialVisitedPoints,
-            requiredVisitOverrides: mode.additionalVisitRequirements
+            requiredVisitOverrides: mode.additionalVisitRequirements,
+            togglePoints: mode.toggleTilePoints
         )
         current = mode.initialSpawnPoint ?? BoardGeometry.defaultSpawnPoint(for: mode.boardSize)
         deck = Deck(configuration: mode.deckConfiguration)
@@ -172,6 +173,8 @@ public final class GameCore: ObservableObject {
             "カード \(card.move) を使用し \(currentPosition) -> \(computedDestination) へ移動 (vector=\(resolvedMove.moveVector))"
         )
 
+        // トグルマスでも「訪問前に踏破済みかどうか」で再訪を判定する。
+        // - Note: 踏破済み状態から踏むと未踏破へ戻るため、次回訪問時はペナルティなしになる。
         let revisiting = board.isVisited(computedDestination)
 
         // 移動処理
@@ -324,7 +327,8 @@ public final class GameCore: ObservableObject {
         board = Board(
             size: mode.boardSize,
             initialVisitedPoints: mode.initialVisitedPoints,
-            requiredVisitOverrides: mode.additionalVisitRequirements
+            requiredVisitOverrides: mode.additionalVisitRequirements,
+            togglePoints: mode.toggleTilePoints
         )
         current = mode.initialSpawnPoint
         moveCount = 0
@@ -494,12 +498,14 @@ extension GameCore {
             core.board = Board(
                 size: mode.boardSize,
                 initialVisitedPoints: [resolvedCurrent],
-                requiredVisitOverrides: mode.additionalVisitRequirements
+                requiredVisitOverrides: mode.additionalVisitRequirements,
+                togglePoints: mode.toggleTilePoints
             )
         } else {
             core.board = Board(
                 size: mode.boardSize,
-                requiredVisitOverrides: mode.additionalVisitRequirements
+                requiredVisitOverrides: mode.additionalVisitRequirements,
+                togglePoints: mode.toggleTilePoints
             )
         }
         core.current = resolvedCurrent

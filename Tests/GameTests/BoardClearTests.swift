@@ -44,4 +44,25 @@ final class BoardClearTests: XCTestCase {
         XCTAssertTrue(board.isVisited(specialPoint), "2 回目で踏破済みになる")
         XCTAssertEqual(board.remainingCount, 15, "1 マス分だけ残数が減る")
     }
+
+    /// トグルマスが踏むたびに踏破⇔未踏破へ反転するかを確認する
+    func testToggleTileFlipsVisitedState() {
+        let togglePoint = GridPoint(x: 0, y: 0)
+        var board = Board(size: 3, togglePoints: Set([togglePoint]))
+
+        XCTAssertFalse(board.isVisited(togglePoint), "初期状態では未踏破")
+        XCTAssertEqual(board.remainingCount, 9, "3×3 盤なので未踏破数は 9")
+
+        board.markVisited(togglePoint)
+        XCTAssertTrue(board.isVisited(togglePoint), "1 回踏むと踏破済みに変わる")
+        XCTAssertEqual(board.remainingCount, 8, "踏破済みなので残マスが 1 減る")
+
+        board.markVisited(togglePoint)
+        XCTAssertFalse(board.isVisited(togglePoint), "2 回目で未踏破へ戻る")
+        XCTAssertEqual(board.remainingCount, 9, "未踏破へ戻るため残マスが再び増える")
+
+        board.markVisited(togglePoint)
+        XCTAssertTrue(board.isVisited(togglePoint), "3 回目で再び踏破済みになる")
+        XCTAssertEqual(board.remainingCount, 8, "踏破済みになれば残マスが減る")
+    }
 }

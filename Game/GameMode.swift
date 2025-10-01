@@ -218,6 +218,10 @@ public struct GameMode: Equatable, Identifiable {
         public var penalties: PenaltySettings
         /// マスごとの追加踏破回数設定
         public var additionalVisitRequirements: [GridPoint: Int] = [:]
+        /// トグル挙動を適用するマス集合
+        /// - Important: 同じ座標に `additionalVisitRequirements` が存在する場合はトグルが優先され、
+        ///   ギミックとして 1 回踏むごとに踏破⇔未踏破が反転する。
+        public var toggleTilePoints: Set<GridPoint> = []
 
         /// レギュレーションを組み立てるためのイニシャライザ
         /// - Parameters:
@@ -236,7 +240,8 @@ public struct GameMode: Equatable, Identifiable {
             deckPreset: GameDeckPreset,
             spawnRule: SpawnRule,
             penalties: PenaltySettings,
-            additionalVisitRequirements: [GridPoint: Int] = [:]
+            additionalVisitRequirements: [GridPoint: Int] = [:],
+            toggleTilePoints: Set<GridPoint> = []
         ) {
             self.boardSize = boardSize
             self.handSize = handSize
@@ -246,6 +251,7 @@ public struct GameMode: Equatable, Identifiable {
             self.spawnRule = spawnRule
             self.penalties = penalties
             self.additionalVisitRequirements = additionalVisitRequirements
+            self.toggleTilePoints = toggleTilePoints
         }
     }
 
@@ -392,6 +398,8 @@ public struct GameMode: Equatable, Identifiable {
 
     /// 追加踏破回数が必要なマス集合
     public var additionalVisitRequirements: [GridPoint: Int] { regulation.additionalVisitRequirements }
+    /// トグル挙動を割り当てたマス集合
+    public var toggleTilePoints: Set<GridPoint> { regulation.toggleTilePoints }
 
     /// スタンダードモード（既存仕様）
     public static var standard: GameMode {

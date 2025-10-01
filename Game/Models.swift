@@ -63,53 +63,100 @@ public struct GridPoint: Hashable, Codable {
     }
 }
 
-/// 1 マスごとの踏破状態と必要踏破回数を保持する構造体
-/// - Note: 複数回踏む必要があるマスにも対応できるよう、必要回数と残り回数の両方を追跡する
+/// 1 マスごとの踏破状態と必要踏破回数・挙動を保持する構造体
+/// - Note: 盤面演出の拡張性を高めるため、単純踏破・複数踏破・トグル踏破の 3 種類を明示的に切り替えられるようにしている
 public struct TileState: Equatable {
-    /// クリアに必要な踏破回数（1 回以上）
-    public let requiredVisitCount: Int
-    /// 残り踏破回数
+    /// 踏破挙動の種類を識別する列挙体
+    /// - Note: `multi` では「必要踏破回数」を保持し、`toggle` は訪問のたびに踏破⇔未踏破を反転させる
+    public enum VisitBehavior: Equatable {
+        /// 1 回踏めば完了する通常マス
+        case single
+        /// 指定回数だけ踏む必要があるマス
+        case multi(required: Int)
+        /// 踏むたびに踏破状態が反転するマス（ギミック用）
+        case toggle
+    }
+
+    /// 現在の踏破挙動
+    public let visitBehavior: VisitBehavior
+    /// 残り踏破回数（トグルの場合は「未踏破=1 / 踏破済=0」で管理する）
     private(set) var remainingVisitCount: Int
 
-    /// 公開イニシャライザ
-    /// - Parameters:
-    ///   - requiredVisitCount: 必要踏破回数（0 以下が渡された場合は 0 として扱う）
-    ///   - remainingVisitCount: 初期残数。省略時は `requiredVisitCount` と同じ値を採用する。
-    public init(requiredVisitCount: Int = 1, remainingVisitCount: Int? = nil) {
-        // 不正値が渡されてもクラッシュしないように安全側へ丸め込む
-        let normalizedRequired = max(requiredVisitCount, 0)
-        let initialRemaining = remainingVisitCount ?? normalizedRequired
-        self.requiredVisitCount = normalizedRequired
-        // 残数は 0〜requiredVisitCount の範囲に収まるよう丸める
-        if normalizedRequired == 0 {
-            self.remainingVisitCount = 0
-        } else {
-            self.remainingVisitCount = min(max(initialRemaining, 0), normalizedRequired)
+    /// クリアに必要な踏破回数を取得する
+    /// - Important: `toggle` は常に 1 とみなし、訪問のたびに 0 ⇔ 1 を切り替える
+    public var requiredVisitCount: Int {
+        switch visitBehavior {
+        case .single, .toggle:
+            return 1
+        case .multi(let required):
+            return max(required, 0)
         }
     }
 
-    /// マスが完全踏破済みかどうか
+    /// 公開イニシャライザ
+    /// - Parameters:
+    ///   - visitBehavior: マスの踏破挙動。省略時は通常マスを生成する。
+    ///   - remainingVisitCount: 初期残数を明示したい場合に利用する（トグルでは 0 or 1 に丸め込む）
+    public init(visitBehavior: VisitBehavior = .single, remainingVisitCount: Int? = nil) {
+        self.visitBehavior = visitBehavior
+
+        switch visitBehavior {
+        case .single:
+            let initial = remainingVisitCount ?? 1
+            self.remainingVisitCount = min(max(initial, 0), 1)
+        case .multi(let required):
+            let normalizedRequired = max(required, 0)
+            let initial = remainingVisitCount ?? normalizedRequired
+            if normalizedRequired == 0 {
+                // 0 回で踏破扱いになる特殊ケース（安全側で 0 固定）
+                self.remainingVisitCount = 0
+            } else {
+                self.remainingVisitCount = min(max(initial, 0), normalizedRequired)
+            }
+        case .toggle:
+            // トグルマスは踏破済みかどうかのみで判定するため 0 or 1 へ正規化する
+            let initial = remainingVisitCount ?? 1
+            self.remainingVisitCount = initial > 0 ? 1 : 0
+        }
+    }
+
+    /// マスが現在踏破済みかどうか
     public var isVisited: Bool { remainingVisitCount == 0 }
 
     /// 複数回踏破が必要かどうか
-    public var requiresMultipleVisits: Bool { requiredVisitCount > 1 }
+    public var requiresMultipleVisits: Bool {
+        switch visitBehavior {
+        case .single, .toggle:
+            return false
+        case .multi(let required):
+            return required > 1
+        }
+    }
 
     /// これまでに達成済みの踏破割合（0.0〜1.0）
     public var completionProgress: Double {
-        guard requiredVisitCount > 0 else { return 1.0 }
-        let completed = requiredVisitCount - remainingVisitCount
-        let clampedCompleted = max(0, min(requiredVisitCount, completed))
-        return Double(clampedCompleted) / Double(requiredVisitCount)
+        // requiredVisitCount が 0 の場合は既に踏破済みとして扱う
+        let required = requiredVisitCount
+        guard required > 0 else { return 1.0 }
+        let completed = required - remainingVisitCount
+        let clampedCompleted = max(0, min(required, completed))
+        return Double(clampedCompleted) / Double(required)
     }
 
     /// 現在の残り踏破回数を返す
+    /// - Note: `toggle` では「未踏破=1 / 踏破済=0」を返すため、呼び出し側は単純な残マス判定として利用できる
     public var remainingVisits: Int { remainingVisitCount }
 
     /// 踏破処理を 1 回分適用する
-    /// - Note: 残数が 0 の場合は何もせずに安全に抜ける
+    /// - Note: トグルマスは踏むたびに 0 ⇔ 1 を反転させ、それ以外は 0 で打ち止めにする
     public mutating func markVisited() {
-        guard remainingVisitCount > 0 else { return }
-        remainingVisitCount -= 1
+        switch visitBehavior {
+        case .toggle:
+            remainingVisitCount = remainingVisitCount == 0 ? 1 : 0
+        case .single, .multi:
+            guard remainingVisitCount > 0 else { return }
+            remainingVisitCount -= 1
+        }
     }
 }
 
@@ -123,14 +170,16 @@ public struct Board: Equatable {
     /// y インデックスが先、x インデックスが後となる
     private var tiles: [[TileState]]
 
-    /// 初期化。全マス未踏破として生成し、必要に応じて初期踏破マスを指定する
+    /// 初期化。全マス未踏破として生成し、必要に応じて初期踏破マスやトグルマスを指定する
     /// - Parameters:
     ///   - size: 盤面の一辺の長さ
     ///   - initialVisitedPoints: 初期状態で踏破済みにしたいマスの集合
+    ///   - togglePoints: トグル挙動を割り当てたいマス集合（`requiredVisitOverrides` よりも優先して適用する）
     public init(
         size: Int,
         initialVisitedPoints: [GridPoint] = [],
-        requiredVisitOverrides: [GridPoint: Int] = [:]
+        requiredVisitOverrides: [GridPoint: Int] = [:],
+        togglePoints: Set<GridPoint> = []
     ) {
         self.size = size
         let row = Array(repeating: TileState(), count: size)
@@ -138,7 +187,11 @@ public struct Board: Equatable {
         // 特殊マスの踏破必要回数を上書きし、複数回踏むステージに対応する
         for (point, requirement) in requiredVisitOverrides {
             guard contains(point) else { continue }
-            tiles[point.y][point.x] = TileState(requiredVisitCount: requirement)
+            tiles[point.y][point.x] = TileState(visitBehavior: .multi(required: requirement))
+        }
+        // トグル挙動が設定されているマスは最優先で反映し、他設定よりも強いギミックとして扱う
+        for point in togglePoints where contains(point) {
+            tiles[point.y][point.x] = TileState(visitBehavior: .toggle)
         }
         // 初期踏破マスを順番に処理し、盤面外の指定は安全に無視する
         for point in initialVisitedPoints where contains(point) {
@@ -294,14 +347,20 @@ extension Board {
                     // 駒の位置は K で表現
                     row += "K "
                 } else {
-                    // 踏破状況に応じて文字を変える。複数回必要なマスは残数を数字で表示する。
+                    // 踏破状況に応じて文字を変える。トグルマスは `t/T` で状態を示し、
+                    // 複数回必要なマスは残数を数字で表示する。
                     let tile = tiles[y][x]
-                    if tile.isVisited {
-                        row += "x "
-                    } else if tile.requiresMultipleVisits {
-                        row += "\(tile.remainingVisits) "
-                    } else {
-                        row += ". "
+                    switch tile.visitBehavior {
+                    case .toggle:
+                        row += tile.isVisited ? "T " : "t "
+                    case .multi:
+                        if tile.isVisited {
+                            row += "x "
+                        } else {
+                            row += "\(tile.remainingVisits) "
+                        }
+                    case .single:
+                        row += tile.isVisited ? "x " : ". "
                     }
                 }
             }
