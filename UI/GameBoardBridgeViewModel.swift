@@ -33,9 +33,23 @@ final class GameBoardBridgeViewModel: ObservableObject {
     @Published var pendingGuideHand: [HandStack]?
     /// 退避している現在地
     @Published var pendingGuideCurrent: GridPoint?
+    /// ガイド表示で扱う盤面座標を単一候補・複数候補に分類したコンテナ
+    struct GuideHighlightBuckets: Equatable {
+        /// 単一ベクトルカードが到達できる座標集合
+        var singleVectorDestinations: Set<GridPoint>
+        /// 複数ベクトルカードが到達できる座標集合
+        var multipleVectorDestinations: Set<GridPoint>
+
+        /// すべて空集合の初期値を返すヘルパー
+        static let empty = GuideHighlightBuckets(
+            singleVectorDestinations: [],
+            multipleVectorDestinations: []
+        )
+    }
+
     /// ガイド種別で保持している盤面ハイライト集合
     /// - Note: ガイドモードのオン/オフに関わらず最新候補を記録し、再描画時に即座に Scene へ伝搬できるようにする
-    private var guideHighlightPoints: Set<GridPoint> = []
+    private(set) var guideHighlightBuckets: GuideHighlightBuckets = .empty
     /// ガイド設定に関係なく強制表示したいハイライト集合
     /// - Important: チュートリアルやカード選択 UI からの明示的な指示を反映し、ガイド無効時でもユーザーへ候補マスを提示する
     /// - Note: テストから現在のハイライト状況を検証できるように `private(set)` で公開する。
@@ -142,7 +156,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
         if enabled {
             refreshGuideHighlights()
         } else {
-            guideHighlightPoints = []
+            guideHighlightBuckets = .empty
             pushHighlightsToScene()
             pendingGuideHand = nil
             pendingGuideCurrent = nil
@@ -166,7 +180,8 @@ final class GameBoardBridgeViewModel: ObservableObject {
     /// - Note: 種類ごとの集合を辞書にまとめ、`GameScene` 側の一括更新 API と齟齬なく連携する
     private func pushHighlightsToScene() {
         let highlights: [BoardHighlightKind: Set<GridPoint>] = [
-            .guide: guideHighlightPoints,
+            .guideSingleCandidate: guideHighlightBuckets.singleVectorDestinations,
+            .guideMultipleCandidate: guideHighlightBuckets.multipleVectorDestinations,
             .forcedSelection: forcedSelectionHighlightPoints
         ]
         scene.updateHighlights(highlights)
@@ -186,7 +201,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
         let progress = progressOverride ?? core.progress
 
         guard let current = currentOverride ?? core.current else {
-            guideHighlightPoints = []
+            guideHighlightBuckets = .empty
             pushHighlightsToScene()
             pendingGuideHand = nil
             pendingGuideCurrent = nil
@@ -194,33 +209,55 @@ final class GameBoardBridgeViewModel: ObservableObject {
             return
         }
 
-        // GameCore.availableMoves() 内で primaryVector が評価されるため、複数候補カード追加後もここから同じインターフェースで受け取れる
+        // GameCore.availableMoves() で得られた候補をカード単位で分類し、単一ベクトルか複数ベクトルかを判定する
         let resolvedMoves = core.availableMoves(handStacks: handStacks, current: current)
-        let candidatePoints = Set(resolvedMoves.map { $0.destination })
+        let groupedByCard = Dictionary(grouping: resolvedMoves, by: { $0.card.id })
+        var computedBuckets = GuideHighlightBuckets.empty
+        for moves in groupedByCard.values {
+            guard let representative = moves.first else { continue }
+            let destinations = moves.map { $0.destination }
+            if representative.card.move.movementVectors.count > 1 {
+                computedBuckets.multipleVectorDestinations.formUnion(destinations)
+            } else {
+                computedBuckets.singleVectorDestinations.formUnion(destinations)
+            }
+        }
 
         guard guideModeEnabled else {
-            guideHighlightPoints = []
+            guideHighlightBuckets = .empty
             pushHighlightsToScene()
             pendingGuideHand = nil
             pendingGuideCurrent = nil
-            debugLog("ガイドを消灯: ガイドモードが無効 候補=\(candidatePoints.count)")
+            let total = computedBuckets.singleVectorDestinations.count + computedBuckets.multipleVectorDestinations.count
+            debugLog(
+                "ガイドを消灯: ガイドモードが無効 単一=\(computedBuckets.singleVectorDestinations.count) " +
+                "複数=\(computedBuckets.multipleVectorDestinations.count) 合計=\(total)"
+            )
             return
         }
 
         guard progress == .playing else {
             pendingGuideHand = handStacks
             pendingGuideCurrent = current
-            guideHighlightPoints = []
+            guideHighlightBuckets = .empty
             pushHighlightsToScene()
-            debugLog("ガイド更新を保留: 状態=\(String(describing: progress)) 候補=\(candidatePoints.count)")
+            let total = computedBuckets.singleVectorDestinations.count + computedBuckets.multipleVectorDestinations.count
+            debugLog(
+                "ガイド更新を保留: 状態=\(String(describing: progress)) 単一=\(computedBuckets.singleVectorDestinations.count) " +
+                "複数=\(computedBuckets.multipleVectorDestinations.count) 合計=\(total)"
+            )
             return
         }
 
         pendingGuideHand = nil
         pendingGuideCurrent = nil
-        guideHighlightPoints = candidatePoints
+        guideHighlightBuckets = computedBuckets
         pushHighlightsToScene()
-        debugLog("ガイド描画: 候補=\(candidatePoints.count)")
+        let total = computedBuckets.singleVectorDestinations.count + computedBuckets.multipleVectorDestinations.count
+        debugLog(
+            "ガイド描画: 単一=\(computedBuckets.singleVectorDestinations.count) " +
+            "複数=\(computedBuckets.multipleVectorDestinations.count) 合計=\(total)"
+        )
     }
 
     /// 強制的に表示したいハイライト集合を更新する
@@ -386,10 +423,10 @@ final class GameBoardBridgeViewModel: ObservableObject {
                 refreshGuideHighlights(progressOverride: progress)
             }
         case .cleared:
-            guideHighlightPoints = []
+            guideHighlightBuckets = .empty
             updateForcedSelectionHighlights([])
         default:
-            guideHighlightPoints = []
+            guideHighlightBuckets = .empty
             updateForcedSelectionHighlights([])
         }
     }
