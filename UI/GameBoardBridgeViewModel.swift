@@ -32,6 +32,12 @@ final class GameBoardBridgeViewModel: ObservableObject {
     @Published var pendingGuideHand: [HandStack]?
     /// 退避している現在地
     @Published var pendingGuideCurrent: GridPoint?
+    /// ガイド種別で保持している盤面ハイライト集合
+    /// - Note: ガイドモードのオン/オフに関わらず最新候補を記録し、再描画時に即座に Scene へ伝搬できるようにする
+    private var guideHighlightPoints: Set<GridPoint> = []
+    /// ガイド設定に関係なく強制表示したいハイライト集合
+    /// - Important: チュートリアルやカード選択 UI からの明示的な指示を反映し、ガイド無効時でもユーザーへ候補マスを提示する
+    private var forcedSelectionHighlightPoints: Set<GridPoint> = []
     /// スタックごとのトップカード ID を追跡し、レイアウト同期を最適化する
     @Published var topCardIDsByStack: [UUID: UUID] = [:]
 
@@ -85,6 +91,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
         updateHapticsSetting(isEnabled: hapticsEnabled)
         updateGuideMode(enabled: guideModeEnabled)
         applyScenePalette(for: colorScheme)
+        updateForcedSelectionHighlights([])
         refreshGuideHighlights()
     }
 
@@ -133,7 +140,8 @@ final class GameBoardBridgeViewModel: ObservableObject {
         if enabled {
             refreshGuideHighlights()
         } else {
-            scene.updateGuideHighlights([])
+            guideHighlightPoints = []
+            pushHighlightsToScene()
             pendingGuideHand = nil
             pendingGuideCurrent = nil
             debugLog("ガイドを消灯: ガイドモードが無効")
@@ -152,6 +160,16 @@ final class GameBoardBridgeViewModel: ObservableObject {
         boardAnchor = anchor
     }
 
+    /// 現在保持しているハイライト状態を SpriteKit シーンへ反映する
+    /// - Note: 種類ごとの集合を辞書にまとめ、`GameScene` 側の一括更新 API と齟齬なく連携する
+    private func pushHighlightsToScene() {
+        let highlights: [BoardHighlightKind: Set<GridPoint>] = [
+            .guide: guideHighlightPoints,
+            .forcedSelection: forcedSelectionHighlightPoints
+        ]
+        scene.updateHighlights(highlights)
+    }
+
     /// ガイドハイライトを最新状態へ更新する
     /// - Parameters:
     ///   - handOverride: 手札情報を差し替えたい場合に指定
@@ -166,7 +184,8 @@ final class GameBoardBridgeViewModel: ObservableObject {
         let progress = progressOverride ?? core.progress
 
         guard let current = currentOverride ?? core.current else {
-            scene.updateGuideHighlights([])
+            guideHighlightPoints = []
+            pushHighlightsToScene()
             pendingGuideHand = nil
             pendingGuideCurrent = nil
             debugLog("ガイド更新を中断: 現在地が未確定 状態=\(String(describing: progress)) スタック数=\(handStacks.count)")
@@ -183,7 +202,8 @@ final class GameBoardBridgeViewModel: ObservableObject {
         }
 
         guard guideModeEnabled else {
-            scene.updateGuideHighlights([])
+            guideHighlightPoints = []
+            pushHighlightsToScene()
             pendingGuideHand = nil
             pendingGuideCurrent = nil
             debugLog("ガイドを消灯: ガイドモードが無効 候補=\(candidatePoints.count)")
@@ -193,14 +213,28 @@ final class GameBoardBridgeViewModel: ObservableObject {
         guard progress == .playing else {
             pendingGuideHand = handStacks
             pendingGuideCurrent = current
+            guideHighlightPoints = []
+            pushHighlightsToScene()
             debugLog("ガイド更新を保留: 状態=\(String(describing: progress)) 候補=\(candidatePoints.count)")
             return
         }
 
         pendingGuideHand = nil
         pendingGuideCurrent = nil
-        scene.updateGuideHighlights(candidatePoints)
+        guideHighlightPoints = candidatePoints
+        pushHighlightsToScene()
         debugLog("ガイド描画: 候補=\(candidatePoints.count)")
+    }
+
+    /// 強制的に表示したいハイライト集合を更新する
+    /// - Parameter points: ガイド設定に依存せず提示したい盤面座標集合
+    /// - Important: チュートリアルやカード選択 UI が「このマスを必ず選んでほしい」という意図を伝えるための経路
+    func updateForcedSelectionHighlights(_ points: Set<GridPoint>) {
+        let validPoints = Set(points.filter { core.board.contains($0) })
+        guard forcedSelectionHighlightPoints != validPoints else { return }
+        forcedSelectionHighlightPoints = validPoints
+        pushHighlightsToScene()
+        debugLog("強制ハイライト更新: 候補=\(validPoints.count)")
     }
 
     /// 指定スタックを盤面演出に乗せる
@@ -213,6 +247,11 @@ final class GameBoardBridgeViewModel: ObservableObject {
         guard animatingCard == nil else { return false }
         guard let current = core.current else { return false }
         guard let topCard = stack.topCard, isCardUsable(stack) else { return false }
+
+        if !forcedSelectionHighlightPoints.isEmpty {
+            // 強制ハイライトが点灯したまま演出へ移行しないよう、開始前に必ずリセットする
+            updateForcedSelectionHighlights([])
+        }
 
         // 現在位置からカードの移動量を適用し、演出で目指す盤面座標を算出する
         // ここをプレイ前の現在地で固定してしまうと、カードが正しいマスへ移動しないため注意する
@@ -311,9 +350,11 @@ final class GameBoardBridgeViewModel: ObservableObject {
                 refreshGuideHighlights(progressOverride: progress)
             }
         case .cleared:
-            scene.updateGuideHighlights([])
+            guideHighlightPoints = []
+            updateForcedSelectionHighlights([])
         default:
-            scene.updateGuideHighlights([])
+            guideHighlightPoints = []
+            updateForcedSelectionHighlights([])
         }
     }
 
