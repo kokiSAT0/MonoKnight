@@ -276,10 +276,13 @@ public enum MoveCard: CaseIterable {
     ///   - boardSize: 判定対象となる盤面サイズ
     /// - Returns: 盤内に移動できる場合は true
     public func canUse(from: GridPoint, boardSize: Int) -> Bool {
-        // 代表ベクトルを通じて移動先を求める。複数候補カード追加時もここを起点に分岐を検討する
-        let vector = primaryVector
-        let destination = from.offset(dx: vector.dx, dy: vector.dy)
-        return destination.isInside(boardSize: boardSize)
+        // 複数候補ベクトルのいずれかが盤内に入れば使用可能とみなす
+        // - Note: 既存カードは 1 要素だが、将来カードの拡張で順不同のベクトルが混在しても安全に判定できるようにする
+        return movementVectors.contains { vector in
+            // 各ベクトルで移動した先が盤内に収まるか逐一確認する
+            let destination = from.offset(dx: vector.dx, dy: vector.dy)
+            return destination.isInside(boardSize: boardSize)
+        }
     }
 }
 
