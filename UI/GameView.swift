@@ -79,18 +79,20 @@ struct GameView: View {
     init(
         mode: GameMode = .standard,
         gameInterfaces: GameModuleInterfaces = .live,
-        isGameCenterAuthenticated: Bool = GameCenterService.shared.isAuthenticated,
+        isGameCenterAuthenticated: Bool? = nil,
         onRequestGameCenterSignIn: ((GameCenterSignInPromptReason) -> Void)? = nil,
         onRequestReturnToTitle: (() -> Void)? = nil,
         onRequestStartCampaignStage: ((CampaignStage) -> Void)? = nil
     ) {
+        // 既定値はメインアクター上で解決し、@MainActor 隔離済みのシングルトンを安全に参照する
+        let resolvedIsAuthenticated = isGameCenterAuthenticated ?? GameCenterService.shared.isAuthenticated
         self.init(
             mode: mode,
             gameInterfaces: gameInterfaces,
             gameCenterService: GameCenterService.shared,
             adsService: AdsService.shared,
             campaignProgressStore: CampaignProgressStore(),
-            isGameCenterAuthenticated: isGameCenterAuthenticated,
+            isGameCenterAuthenticated: resolvedIsAuthenticated,
             onRequestGameCenterSignIn: onRequestGameCenterSignIn,
             onRequestReturnToTitle: onRequestReturnToTitle,
             onRequestStartCampaignStage: onRequestStartCampaignStage
@@ -104,11 +106,13 @@ struct GameView: View {
         gameCenterService: GameCenterServiceProtocol,
         adsService: AdsServiceProtocol,
         campaignProgressStore: CampaignProgressStore,
-        isGameCenterAuthenticated: Bool,
+        isGameCenterAuthenticated: Bool?,
         onRequestGameCenterSignIn: ((GameCenterSignInPromptReason) -> Void)? = nil,
         onRequestReturnToTitle: (() -> Void)? = nil,
         onRequestStartCampaignStage: ((CampaignStage) -> Void)? = nil
     ) {
+        // Game Center 認証状態をローカル変数へ束ね、後続の代入と ViewModel 初期化で同じ値を共有する
+        let resolvedIsAuthenticated = isGameCenterAuthenticated ?? gameCenterService.isAuthenticated
         // MARK: - GameViewModel の生成を 1 度きりに抑制
         // 以前はローカル定数で GameViewModel を生成してから @StateObject へ渡していたため、
         // SwiftUI の再初期化に伴い不要なインスタンスが都度作られ、GameCore の `configureForNewSession` が複数回走っていた。
@@ -116,7 +120,7 @@ struct GameView: View {
         // MARK: - ユーザー設定を読み出して ViewModel 初期化へ渡す
         // `StateObject` へ直接クロージャを渡し、SwiftUI 側で既存インスタンスが再利用される場合はイニシャライザ評価をスキップさせる。
         let savedOrdering = UserDefaults.standard.string(forKey: HandOrderingStrategy.storageKey)
-        self.isGameCenterAuthenticated = isGameCenterAuthenticated
+        self.isGameCenterAuthenticated = resolvedIsAuthenticated
         self.onRequestGameCenterSignIn = onRequestGameCenterSignIn
         _viewModel = StateObject(
             wrappedValue: GameViewModel(
@@ -129,7 +133,7 @@ struct GameView: View {
                 onRequestReturnToTitle: onRequestReturnToTitle,
                 onRequestStartCampaignStage: onRequestStartCampaignStage,
                 initialHandOrderingRawValue: savedOrdering,
-                initialGameCenterAuthenticationState: isGameCenterAuthenticated
+                initialGameCenterAuthenticationState: resolvedIsAuthenticated
             )
         )
     }

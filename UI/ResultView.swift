@@ -65,13 +65,15 @@ struct ResultView: View {
         modeIdentifier: GameMode.Identifier,
         modeDisplayName: String,
         showsLeaderboardButton: Bool = true,
-        isGameCenterAuthenticated: Bool = GameCenterService.shared.isAuthenticated,
+        isGameCenterAuthenticated: Bool? = nil,
         onRequestGameCenterSignIn: ((GameCenterSignInPromptReason) -> Void)? = nil,
         campaignClearRecord: CampaignStageClearRecord? = nil,
         newlyUnlockedStages: [CampaignStage] = [],
         onSelectCampaignStage: ((CampaignStage) -> Void)? = nil,
         onRetry: @escaping () -> Void
     ) {
+        // 既定値はメインアクター上で解決し、Game Center サービスの状態を同期させる
+        let resolvedIsAuthenticated = isGameCenterAuthenticated ?? GameCenterService.shared.isAuthenticated
         self.init(
             moveCount: moveCount,
             penaltyCount: penaltyCount,
@@ -79,7 +81,7 @@ struct ResultView: View {
             modeIdentifier: modeIdentifier,
             modeDisplayName: modeDisplayName,
             showsLeaderboardButton: showsLeaderboardButton,
-            isGameCenterAuthenticated: isGameCenterAuthenticated,
+            isGameCenterAuthenticated: resolvedIsAuthenticated,
             onRequestGameCenterSignIn: onRequestGameCenterSignIn,
             campaignClearRecord: campaignClearRecord,
             newlyUnlockedStages: newlyUnlockedStages,
@@ -97,7 +99,7 @@ struct ResultView: View {
         modeIdentifier: GameMode.Identifier,
         modeDisplayName: String,
         showsLeaderboardButton: Bool = true,
-        isGameCenterAuthenticated: Bool = true,
+        isGameCenterAuthenticated: Bool? = nil,
         onRequestGameCenterSignIn: ((GameCenterSignInPromptReason) -> Void)? = nil,
         campaignClearRecord: CampaignStageClearRecord? = nil,
         newlyUnlockedStages: [CampaignStage] = [],
@@ -113,6 +115,8 @@ struct ResultView: View {
         // テスト注入時にも同じコード経路を通せるよう、まずローカル定数に束縛してからプロパティへ代入する。
         let resolvedGameCenterService = gameCenterService
         let resolvedAdsService = adsService
+        // 認証状態を一度ローカル定数にまとめ、ビュー内部で利用する値を統一する
+        let resolvedIsAuthenticated = isGameCenterAuthenticated ?? resolvedGameCenterService.isAuthenticated
 
         self.moveCount = moveCount
         self.penaltyCount = penaltyCount
@@ -120,7 +124,7 @@ struct ResultView: View {
         self.modeIdentifier = modeIdentifier
         self.modeDisplayName = modeDisplayName
         self.showsLeaderboardButton = showsLeaderboardButton
-        self.isGameCenterAuthenticated = isGameCenterAuthenticated
+        self.isGameCenterAuthenticated = resolvedIsAuthenticated
         self.onRequestGameCenterSignIn = onRequestGameCenterSignIn
         self.campaignClearRecord = campaignClearRecord
         self.newlyUnlockedStages = newlyUnlockedStages
