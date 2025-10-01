@@ -370,6 +370,19 @@ final class GameViewModel: ObservableObject {
             candidate.stackID == latestStack.id && candidate.card.id == topCard.id
         }
 
+        // 候補が存在しない場合は選択状態をクリアして安全に終了する
+        guard !resolvedMoves.isEmpty else {
+            clearSelectedCardSelection()
+            return
+        }
+
+        if resolvedMoves.count == 1, let singleMove = resolvedMoves.first {
+            // 単一候補カードは盤面タップを挟まずに即座にプレイし、ハイライト更新をスキップする
+            clearSelectedCardSelection()
+            _ = boardBridge.animateCardPlay(using: singleMove)
+            return
+        }
+
         let selection = SelectedCardSelection(stackID: latestStack.id, cardID: topCard.id)
         selectedCardSelection = selection
         selectedHandStackID = latestStack.id

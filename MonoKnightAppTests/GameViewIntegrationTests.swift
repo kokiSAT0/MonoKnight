@@ -303,6 +303,71 @@ final class GameViewIntegrationTests: XCTestCase {
         }
     }
 
+    /// 単一方向カードをタップした際は盤面タップを挟まずに即時移動することを確認する
+    func testHandleHandSlotTapImmediatelyPlaysSingleCandidateCard() {
+        let scheduler = PenaltyBannerSchedulerSpy()
+        let gameCenter = GameCenterServiceSpy()
+        let adsService = AdsServiceSpy()
+
+        let core = GameCore(mode: .standard)
+        let interfaces = GameModuleInterfaces { _ in core }
+
+        let viewModel = GameViewModel(
+            mode: .standard,
+            gameInterfaces: interfaces,
+            gameCenterService: gameCenter,
+            adsService: adsService,
+            onRequestReturnToTitle: nil,
+            penaltyBannerScheduler: scheduler
+        )
+
+        // ハプティクスが不要なテスト環境では無効化しておく
+        viewModel.updateHapticsSetting(isEnabled: false)
+
+        // 実際に使用可能なスタックを探索し、単一候補であることを確かめてから検証する
+        guard let usableIndex = core.handStacks.firstIndex(where: { viewModel.isCardUsable($0) }) else {
+            XCTFail("使用可能な手札スタックを検出できませんでした")
+            return
+        }
+
+        let stack = core.handStacks[usableIndex]
+        guard let topCard = stack.topCard else {
+            XCTFail("手札スタックのトップカードが取得できませんでした")
+            return
+        }
+
+        let candidateMoves = core.availableMoves().filter { candidate in
+            candidate.stackID == stack.id && candidate.card.id == topCard.id
+        }
+
+        XCTAssertEqual(candidateMoves.count, 1, "単一候補カードでない場合はテスト前提が満たせません")
+        guard let expectedMove = candidateMoves.first else {
+            XCTFail("単一候補の ResolvedCardMove を特定できませんでした")
+            return
+        }
+
+        viewModel.handleHandSlotTap(at: usableIndex)
+
+        // 盤面タップを挟まずに移動が開始された場合、選択状態やハイライトは直ちにクリアされる想定
+        XCTAssertNil(viewModel.selectedHandStackID, "単一候補カード実行後に選択状態が残っています")
+        XCTAssertTrue(
+            viewModel.boardBridge.forcedSelectionHighlightPoints.isEmpty,
+            "単一候補カード実行後に強制ハイライトが残存しています"
+        )
+        XCTAssertEqual(
+            viewModel.boardBridge.animatingCard?.id,
+            topCard.id,
+            "単一候補カードのアニメーションが開始されていません"
+        )
+
+        // アニメーション完了と GameCore への結果反映を待機する
+        RunLoop.main.run(until: Date().addingTimeInterval(0.6))
+
+        XCTAssertEqual(core.current, expectedMove.destination, "単一候補カードの移動先が一致しません")
+        XCTAssertEqual(core.moveCount, 1, "単一候補カード実行後の移動回数が加算されていません")
+        XCTAssertNil(core.boardTapPlayRequest, "盤面タップ要求が不要に残っています")
+    }
+
     #if canImport(SpriteKit)
     /// SpriteKit シーンのサイズ同期と GameCore の紐付けが正しく行われるかを確認する
     func testSceneSizeSyncOnAppear() {
