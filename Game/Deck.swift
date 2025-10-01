@@ -148,6 +148,87 @@ struct Deck {
                 deckSummaryText: "選択式キングカード入り"
             )
         }()
+
+        /// キング型の上下左右選択カードのみで構成した訓練用デッキ
+        static let kingOrthogonalChoiceOnly: Configuration = {
+            let moves: [MoveCard] = [.kingUpOrDown, .kingLeftOrRight]
+            let weights = Dictionary(uniqueKeysWithValues: moves.map { ($0, 1) })
+            return Configuration(
+                allowedMoves: moves,
+                baseWeights: weights,
+                shouldApplyProbabilityReduction: false,
+                normalWeightMultiplier: 1,
+                reducedWeightMultiplier: 1,
+                reductionDuration: 0,
+                deckSummaryText: "上下左右の選択キング限定"
+            )
+        }()
+
+        /// 斜め方向のキング選択カード 4 種のみを収録した上級者向けデッキ
+        static let kingDiagonalChoiceOnly: Configuration = {
+            let moves: [MoveCard] = [
+                .kingUpwardDiagonalChoice,
+                .kingRightDiagonalChoice,
+                .kingDownwardDiagonalChoice,
+                .kingLeftDiagonalChoice
+            ]
+            let weights = Dictionary(uniqueKeysWithValues: moves.map { ($0, 1) })
+            return Configuration(
+                allowedMoves: moves,
+                baseWeights: weights,
+                shouldApplyProbabilityReduction: false,
+                normalWeightMultiplier: 1,
+                reducedWeightMultiplier: 1,
+                reductionDuration: 0,
+                deckSummaryText: "斜め選択キング限定"
+            )
+        }()
+
+        /// 桂馬の向きごとに選択肢を持つカードだけを集めた練習デッキ
+        static let knightChoiceOnly: Configuration = {
+            let moves: [MoveCard] = [
+                .knightUpwardChoice,
+                .knightRightwardChoice,
+                .knightDownwardChoice,
+                .knightLeftwardChoice
+            ]
+            let weights = Dictionary(uniqueKeysWithValues: moves.map { ($0, 1) })
+            return Configuration(
+                allowedMoves: moves,
+                baseWeights: weights,
+                shouldApplyProbabilityReduction: false,
+                normalWeightMultiplier: 1,
+                reducedWeightMultiplier: 1,
+                reductionDuration: 0,
+                deckSummaryText: "桂馬選択カード限定"
+            )
+        }()
+
+        /// すべての選択式カードを均等配分で混在させた総合練習デッキ
+        static let allChoiceMixed: Configuration = {
+            let moves: [MoveCard] = [
+                .kingUpOrDown,
+                .kingLeftOrRight,
+                .kingUpwardDiagonalChoice,
+                .kingRightDiagonalChoice,
+                .kingDownwardDiagonalChoice,
+                .kingLeftDiagonalChoice,
+                .knightUpwardChoice,
+                .knightRightwardChoice,
+                .knightDownwardChoice,
+                .knightLeftwardChoice
+            ]
+            let weights = Dictionary(uniqueKeysWithValues: moves.map { ($0, 1) })
+            return Configuration(
+                allowedMoves: moves,
+                baseWeights: weights,
+                shouldApplyProbabilityReduction: false,
+                normalWeightMultiplier: 1,
+                reducedWeightMultiplier: 1,
+                reductionDuration: 0,
+                deckSummaryText: "選択カード総合ミックス"
+            )
+        }()
     }
 
     // MARK: - プロパティ

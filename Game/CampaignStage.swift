@@ -442,16 +442,17 @@ public struct CampaignLibrary {
         // スタンダード 5×5 をベースに、複数方向候補カードの扱いを学ぶ章
         let standardPenalties = GameMode.standard.penalties
 
+        // 3-1 は上下左右の選択キングに慣れる導入ステージ。まずはペナルティを抑えて丁寧に動いてもらう。
         let stage31 = CampaignStage(
             id: CampaignStageID(chapter: 3, index: 1),
-            title: "選択訓練",
-            summary: "上下・左右の選択式キングカードを活用して盤面全体を踏破しましょう。",
+            title: "縦横選択訓練",
+            summary: "上下左右を選べるキングカードのみで、選択操作の基礎を体感しましょう。",
             regulation: GameMode.Regulation(
                 boardSize: 5,
                 handSize: 5,
                 nextPreviewCount: 3,
                 allowsStacking: true,
-                deckPreset: .directionChoice,
+                deckPreset: .kingOrthogonalChoiceOnly,
                 spawnRule: .fixed(BoardGeometry.defaultSpawnPoint(for: 5)),
                 penalties: GameMode.PenaltySettings(
                     deadlockPenaltyCost: standardPenalties.deadlockPenaltyCost,
@@ -460,16 +461,93 @@ public struct CampaignLibrary {
                     revisitPenaltyCost: standardPenalties.revisitPenaltyCost
                 )
             ),
+            // MARK: 2 個目のスター条件: ペナルティを完全に回避して選択操作を丁寧に行う
             secondaryObjective: .finishWithoutPenalty,
             scoreTarget: 600,
             unlockRequirement: .stageClear(stage21.id)
+        )
+
+        // 3-2 は斜めの選択キングだけで構成し、盤面を縦横斜めの三方向で把握する練習へ発展させる。
+        let stage32 = CampaignStage(
+            id: CampaignStageID(chapter: 3, index: 2),
+            title: "斜め選択応用",
+            summary: "斜め 4 方向の選択キングで角を制圧し、柔軟なルート取りを学びましょう。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .kingDiagonalChoiceOnly,
+                spawnRule: .fixed(BoardGeometry.defaultSpawnPoint(for: 5)),
+                penalties: GameMode.PenaltySettings(
+                    deadlockPenaltyCost: standardPenalties.deadlockPenaltyCost,
+                    manualRedrawPenaltyCost: standardPenalties.manualRedrawPenaltyCost,
+                    manualDiscardPenaltyCost: standardPenalties.manualDiscardPenaltyCost,
+                    revisitPenaltyCost: standardPenalties.revisitPenaltyCost
+                )
+            ),
+            // MARK: 2 個目のスター条件: 移動手数 32 以内を要求し、先読みと分岐判断の精度を高める
+            secondaryObjective: .finishWithinMoves(maxMoves: 32),
+            scoreTarget: 580,
+            unlockRequirement: .stageClear(stage31.id)
+        )
+
+        // 3-3 は桂馬の選択カードのみ。斜めだけでは届かないマスを跳躍で埋める判断を身につける段階。
+        let stage33 = CampaignStage(
+            id: CampaignStageID(chapter: 3, index: 3),
+            title: "桂馬選択攻略",
+            summary: "桂馬の 4 方向選択カードでジャンプし、遠距離マスを効率良く踏破しましょう。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .knightChoiceOnly,
+                spawnRule: .fixed(BoardGeometry.defaultSpawnPoint(for: 5)),
+                penalties: GameMode.PenaltySettings(
+                    deadlockPenaltyCost: standardPenalties.deadlockPenaltyCost,
+                    manualRedrawPenaltyCost: standardPenalties.manualRedrawPenaltyCost,
+                    manualDiscardPenaltyCost: standardPenalties.manualDiscardPenaltyCost,
+                    revisitPenaltyCost: standardPenalties.revisitPenaltyCost
+                )
+            ),
+            // MARK: 2 個目のスター条件: 桂馬特有のルートを活かし 30 手以内の踏破を目指す
+            secondaryObjective: .finishWithinMoves(maxMoves: 30),
+            scoreTarget: 560,
+            unlockRequirement: .stageClear(stage32.id)
+        )
+
+        // 3-4 は全種類の選択カードを混在させた最終チェック。すべての操作感を統合して素早く判断する。
+        let stage34 = CampaignStage(
+            id: CampaignStageID(chapter: 3, index: 4),
+            title: "総合選択演習",
+            summary: "キングと桂馬の選択カードを総動員し、全方向の応用力を試しましょう。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .allChoiceMixed,
+                spawnRule: .fixed(BoardGeometry.defaultSpawnPoint(for: 5)),
+                penalties: GameMode.PenaltySettings(
+                    deadlockPenaltyCost: standardPenalties.deadlockPenaltyCost,
+                    manualRedrawPenaltyCost: standardPenalties.manualRedrawPenaltyCost,
+                    manualDiscardPenaltyCost: standardPenalties.manualDiscardPenaltyCost,
+                    revisitPenaltyCost: standardPenalties.revisitPenaltyCost
+                )
+            ),
+            // MARK: 2 個目のスター条件: 28 手以内で踏破し、多方向カードを自在に使い分けることを促す
+            secondaryObjective: .finishWithinMoves(maxMoves: 28),
+            scoreTarget: 540,
+            scoreTargetComparison: .lessThan,
+            unlockRequirement: .stageClear(stage33.id)
         )
 
         let chapter3 = CampaignChapter(
             id: 3,
             title: "多方向訓練",
             summary: "複数候補カードを使い分ける章。",
-            stages: [stage31]
+            stages: [stage31, stage32, stage33, stage34]
         )
 
         return [chapter1, chapter2, chapter3]

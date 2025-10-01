@@ -65,7 +65,11 @@ final class DeckTests: XCTestCase {
             .kingLeft,
             .kingUpLeft,
             .kingUpOrDown,
-            .kingLeftOrRight
+            .kingLeftOrRight,
+            .kingUpwardDiagonalChoice,
+            .kingRightDiagonalChoice,
+            .kingDownwardDiagonalChoice,
+            .kingLeftDiagonalChoice
         ]
 
         // allCases の結果を集合化して比較し、山札構築時に含まれることを保証する
@@ -80,6 +84,14 @@ final class DeckTests: XCTestCase {
         XCTAssertEqual(MoveCard.standardSet.count, 24, "スタンダードセットの枚数が 24 枚から変化しています")
         XCTAssertFalse(MoveCard.standardSet.contains(.kingUpOrDown), "選択式カードがスタンダードセットへ混入しています")
         XCTAssertFalse(MoveCard.standardSet.contains(.kingLeftOrRight), "選択式カードがスタンダードセットへ混入しています")
+        XCTAssertFalse(MoveCard.standardSet.contains(.kingUpwardDiagonalChoice), "選択式カードがスタンダードセットへ混入しています")
+        XCTAssertFalse(MoveCard.standardSet.contains(.kingRightDiagonalChoice), "選択式カードがスタンダードセットへ混入しています")
+        XCTAssertFalse(MoveCard.standardSet.contains(.kingDownwardDiagonalChoice), "選択式カードがスタンダードセットへ混入しています")
+        XCTAssertFalse(MoveCard.standardSet.contains(.kingLeftDiagonalChoice), "選択式カードがスタンダードセットへ混入しています")
+        XCTAssertFalse(MoveCard.standardSet.contains(.knightUpwardChoice), "選択式カードがスタンダードセットへ混入しています")
+        XCTAssertFalse(MoveCard.standardSet.contains(.knightRightwardChoice), "選択式カードがスタンダードセットへ混入しています")
+        XCTAssertFalse(MoveCard.standardSet.contains(.knightDownwardChoice), "選択式カードがスタンダードセットへ混入しています")
+        XCTAssertFalse(MoveCard.standardSet.contains(.knightLeftwardChoice), "選択式カードがスタンダードセットへ混入しています")
     }
 
     /// directionChoice 構成が新カードを含み、重みも設定されていることを検証する
@@ -92,6 +104,64 @@ final class DeckTests: XCTestCase {
         // 重みが設定されているかを確認（未設定の場合は nil になる）
         XCTAssertEqual(config.baseWeights[.kingUpOrDown], 3, "上下選択カードの重みが想定外です")
         XCTAssertEqual(config.baseWeights[.kingLeftOrRight], 3, "左右選択カードの重みが想定外です")
+    }
+
+    /// 上下左右選択キング専用デッキの設定を確認する
+    func testKingOrthogonalChoiceOnlyDeckConfiguration() {
+        let config = Deck.Configuration.kingOrthogonalChoiceOnly
+        XCTAssertEqual(Set(config.allowedMoves), [.kingUpOrDown, .kingLeftOrRight], "許可カードが縦横選択キングのみになっていません")
+        XCTAssertEqual(config.deckSummaryText, "上下左右の選択キング限定", "サマリーテキストが仕様と異なります")
+        XCTAssertEqual(config.baseWeights.count, 2, "重み設定が 2 種以上になっています")
+        XCTAssertEqual(config.baseWeights[.kingUpOrDown], 1, "上下選択キングの重みが想定外です")
+        XCTAssertEqual(config.baseWeights[.kingLeftOrRight], 1, "左右選択キングの重みが想定外です")
+    }
+
+    /// 斜め選択キング専用デッキの設定を確認する
+    func testKingDiagonalChoiceOnlyDeckConfiguration() {
+        let config = Deck.Configuration.kingDiagonalChoiceOnly
+        let expected: Set<MoveCard> = [
+            .kingUpwardDiagonalChoice,
+            .kingRightDiagonalChoice,
+            .kingDownwardDiagonalChoice,
+            .kingLeftDiagonalChoice
+        ]
+        XCTAssertEqual(Set(config.allowedMoves), expected, "許可カードが斜め選択キング 4 種と一致していません")
+        XCTAssertTrue(expected.allSatisfy { config.baseWeights[$0] == 1 }, "斜め選択キングの重みが均等になっていません")
+        XCTAssertEqual(config.deckSummaryText, "斜め選択キング限定", "サマリーテキストが仕様と異なります")
+    }
+
+    /// 桂馬選択専用デッキの設定を確認する
+    func testKnightChoiceOnlyDeckConfiguration() {
+        let config = Deck.Configuration.knightChoiceOnly
+        let expected: Set<MoveCard> = [
+            .knightUpwardChoice,
+            .knightRightwardChoice,
+            .knightDownwardChoice,
+            .knightLeftwardChoice
+        ]
+        XCTAssertEqual(Set(config.allowedMoves), expected, "許可カードが桂馬選択 4 種と一致していません")
+        XCTAssertTrue(expected.allSatisfy { config.baseWeights[$0] == 1 }, "桂馬選択カードの重みが均等になっていません")
+        XCTAssertEqual(config.deckSummaryText, "桂馬選択カード限定", "サマリーテキストが仕様と異なります")
+    }
+
+    /// 全選択カード混合デッキの設定を確認する
+    func testAllChoiceMixedDeckConfiguration() {
+        let config = Deck.Configuration.allChoiceMixed
+        let expected: Set<MoveCard> = [
+            .kingUpOrDown,
+            .kingLeftOrRight,
+            .kingUpwardDiagonalChoice,
+            .kingRightDiagonalChoice,
+            .kingDownwardDiagonalChoice,
+            .kingLeftDiagonalChoice,
+            .knightUpwardChoice,
+            .knightRightwardChoice,
+            .knightDownwardChoice,
+            .knightLeftwardChoice
+        ]
+        XCTAssertEqual(Set(config.allowedMoves), expected, "全選択カード混合デッキの内容が一致していません")
+        XCTAssertTrue(expected.allSatisfy { config.baseWeights[$0] == 1 }, "混合デッキ内の重みが均等ではありません")
+        XCTAssertEqual(config.deckSummaryText, "選択カード総合ミックス", "サマリーテキストが仕様と異なります")
     }
 
     /// クラシカルチャレンジ設定では桂馬カードのみが配られるか検証する

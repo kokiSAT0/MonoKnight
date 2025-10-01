@@ -39,7 +39,15 @@ public enum MoveCard: CaseIterable {
     /// - Note: スタンダードセットに複数方向カードを加えた順序で公開する
     public static let allCases: [MoveCard] = standardSet + [
         .kingUpOrDown,
-        .kingLeftOrRight
+        .kingLeftOrRight,
+        .kingUpwardDiagonalChoice,
+        .kingRightDiagonalChoice,
+        .kingDownwardDiagonalChoice,
+        .kingLeftDiagonalChoice,
+        .knightUpwardChoice,
+        .knightRightwardChoice,
+        .knightDownwardChoice,
+        .knightLeftwardChoice
     ]
 
     // MARK: - ケース定義
@@ -63,6 +71,14 @@ public enum MoveCard: CaseIterable {
     case kingUpOrDown
     /// キング型: 左右いずれか 1 マスの選択移動
     case kingLeftOrRight
+    /// キング型: 上方向の斜め 2 方向（右上・左上）から選択するカード
+    case kingUpwardDiagonalChoice
+    /// キング型: 右方向の斜め 2 方向（右上・右下）から選択するカード
+    case kingRightDiagonalChoice
+    /// キング型: 下方向の斜め 2 方向（右下・左下）から選択するカード
+    case kingDownwardDiagonalChoice
+    /// キング型: 左方向の斜め 2 方向（左上・左下）から選択するカード
+    case kingLeftDiagonalChoice
 
     /// ナイト型: 上に 2、右に 1
     case knightUp2Right1
@@ -80,6 +96,14 @@ public enum MoveCard: CaseIterable {
     case knightDown1Right2
     /// ナイト型: 下に 1、左に 2
     case knightDown1Left2
+    /// ナイト型: 上方向 2 種（上2右1/上2左1）から選択するカード
+    case knightUpwardChoice
+    /// ナイト型: 右方向 2 種（上1右2/下1右2）から選択するカード
+    case knightRightwardChoice
+    /// ナイト型: 下方向 2 種（下2右1/下2左1）から選択するカード
+    case knightDownwardChoice
+    /// ナイト型: 左方向 2 種（上1左2/下1左2）から選択するカード
+    case knightLeftwardChoice
 
     /// 直線: 上に 2
     case straightUp2
@@ -151,6 +175,30 @@ public enum MoveCard: CaseIterable {
                 MoveVector(dx: 1, dy: 0),
                 MoveVector(dx: -1, dy: 0)
             ]
+        case .kingUpwardDiagonalChoice:
+            // 上方向の斜め 2 方向（右上・左上）をまとめて扱うカード
+            return [
+                MoveVector(dx: 1, dy: 1),
+                MoveVector(dx: -1, dy: 1)
+            ]
+        case .kingRightDiagonalChoice:
+            // 右方向へ伸びる斜め 2 方向（右上・右下）をまとめて扱うカード
+            return [
+                MoveVector(dx: 1, dy: 1),
+                MoveVector(dx: 1, dy: -1)
+            ]
+        case .kingDownwardDiagonalChoice:
+            // 下方向の斜め 2 方向（右下・左下）をまとめて扱うカード
+            return [
+                MoveVector(dx: 1, dy: -1),
+                MoveVector(dx: -1, dy: -1)
+            ]
+        case .kingLeftDiagonalChoice:
+            // 左方向の斜め 2 方向（左上・左下）をまとめて扱うカード
+            return [
+                MoveVector(dx: -1, dy: 1),
+                MoveVector(dx: -1, dy: -1)
+            ]
         case .knightUp2Right1:
             return [MoveVector(dx: 1, dy: 2)]
         case .knightUp2Left1:
@@ -167,6 +215,30 @@ public enum MoveCard: CaseIterable {
             return [MoveVector(dx: 2, dy: -1)]
         case .knightDown1Left2:
             return [MoveVector(dx: -2, dy: -1)]
+        case .knightUpwardChoice:
+            // 上方向の桂馬 2 種をまとめた特別カード
+            return [
+                MoveVector(dx: 1, dy: 2),
+                MoveVector(dx: -1, dy: 2)
+            ]
+        case .knightRightwardChoice:
+            // 右方向の桂馬 2 種をまとめた特別カード
+            return [
+                MoveVector(dx: 2, dy: 1),
+                MoveVector(dx: 2, dy: -1)
+            ]
+        case .knightDownwardChoice:
+            // 下方向の桂馬 2 種をまとめた特別カード
+            return [
+                MoveVector(dx: 1, dy: -2),
+                MoveVector(dx: -1, dy: -2)
+            ]
+        case .knightLeftwardChoice:
+            // 左方向の桂馬 2 種をまとめた特別カード
+            return [
+                MoveVector(dx: -2, dy: 1),
+                MoveVector(dx: -2, dy: -1)
+            ]
         case .straightUp2:
             return [MoveVector(dx: 0, dy: 2)]
         case .straightDown2:
@@ -230,6 +302,18 @@ public enum MoveCard: CaseIterable {
         case .kingLeftOrRight:
             // キング型: 左右のどちらか 1 マスを選択する特別カード
             return "左右1 (選択)"
+        case .kingUpwardDiagonalChoice:
+            // キング型: 左右の上斜めから好みの方向を選ぶ特別カード
+            return "上斜め1 (選択)"
+        case .kingRightDiagonalChoice:
+            // キング型: 上下の右斜めから好みの方向を選ぶ特別カード
+            return "右斜め1 (選択)"
+        case .kingDownwardDiagonalChoice:
+            // キング型: 左右の下斜めから好みの方向を選ぶ特別カード
+            return "下斜め1 (選択)"
+        case .kingLeftDiagonalChoice:
+            // キング型: 上下の左斜めから好みの方向を選ぶ特別カード
+            return "左斜め1 (選択)"
         case .knightUp2Right1: return "上2右1"
         case .knightUp2Left1: return "上2左1"
         case .knightUp1Right2: return "上1右2"
@@ -238,6 +322,18 @@ public enum MoveCard: CaseIterable {
         case .knightDown2Left1: return "下2左1"
         case .knightDown1Right2: return "下1右2"
         case .knightDown1Left2: return "下1左2"
+        case .knightUpwardChoice:
+            // 桂馬型: 上方向 2 種から好みを選べる特別カード
+            return "上桂 (選択)"
+        case .knightRightwardChoice:
+            // 桂馬型: 右方向 2 種から好みを選べる特別カード
+            return "右桂 (選択)"
+        case .knightDownwardChoice:
+            // 桂馬型: 下方向 2 種から好みを選べる特別カード
+            return "下桂 (選択)"
+        case .knightLeftwardChoice:
+            // 桂馬型: 左方向 2 種から好みを選べる特別カード
+            return "左桂 (選択)"
         case .straightUp2: return "上2"
         case .straightDown2: return "下2"
         case .straightRight2: return "右2"
@@ -263,7 +359,11 @@ public enum MoveCard: CaseIterable {
              .kingLeft,
              .kingUpLeft,
              .kingUpOrDown,
-             .kingLeftOrRight:
+             .kingLeftOrRight,
+             .kingUpwardDiagonalChoice,
+             .kingRightDiagonalChoice,
+             .kingDownwardDiagonalChoice,
+             .kingLeftDiagonalChoice:
             return true
         default:
             return false
@@ -281,7 +381,11 @@ public enum MoveCard: CaseIterable {
              .knightDown2Right1,
              .knightDown2Left1,
              .knightDown1Right2,
-             .knightDown1Left2:
+             .knightDown1Left2,
+             .knightUpwardChoice,
+             .knightRightwardChoice,
+             .knightDownwardChoice,
+             .knightLeftwardChoice:
             return true
         default:
             return false
