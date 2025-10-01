@@ -600,6 +600,19 @@ public final class GameScene: SKScene {
         }
     }
 
+    /// 既存色のアルファ値へ倍率を掛けた結果を返す
+    /// - Parameters:
+    ///   - color: 基準となる色
+    ///   - factor: 掛け合わせたい係数（0.0〜1.0 を想定）
+    /// - Returns: 元の色味を保ったままアルファ値だけを調整した色
+    private func colorByScalingAlpha(of color: SKColor, factor: CGFloat) -> SKColor {
+        // SKColor は UIColor を基底にしているため、cgColor.alpha から現在のアルファを取得できる
+        let currentAlpha = color.cgColor.alpha
+        // 係数が範囲外でも描画が破綻しないよう、0.0〜1.0 に収めてから適用する
+        let clampedAlpha = max(0.0, min(1.0, currentAlpha * factor))
+        return color.withAlphaComponent(clampedAlpha)
+    }
+
     /// 指定マスの塗り色・枠線・オーバーレイをまとめて適用する
     /// - Parameters:
     ///   - node: 対象となるタイルノード
@@ -762,10 +775,12 @@ public final class GameScene: SKScene {
         decoration.secondaryDiagonal.isHidden = false
 
         // 部分踏破の残量を視覚的に把握しやすいよう、塗り色を 3 段階に分ける
-        let completedColor = palette.boardTileVisited.withAlphaComponent(0.95)
-        // NOTE: 未踏破時でも四分割の存在を視認できるよう、基準色は濃いめのペンディングカラーを採用する
-        let pendingColor = palette.boardTileUnvisited.withAlphaComponent(0.9)
-        let inactiveColor = palette.boardTileUnvisited.withAlphaComponent(0.55)
+        // NOTE: 進捗セグメントの色は通常タイルと同じ値を採用し、ゲーム中に色味が破綻しないよう統一する
+        let completedColor = palette.boardTileVisited
+        // NOTE: 未踏破領域も通常マスの未踏破色をそのまま転用し、段階演出を純粋な面積差で伝える
+        let pendingColor = palette.boardTileUnvisited
+        // NOTE: 要求回数を超える領域は同系統のまま存在感を落としたいので、現在のアルファ値に係数を掛けて控えめにする
+        let inactiveColor = colorByScalingAlpha(of: palette.boardTileUnvisited, factor: 0.55)
 
         for (index, triangle) in MultiVisitTriangle.allCases.enumerated() {
             guard let segmentNode = decoration.segments[triangle] else { continue }
