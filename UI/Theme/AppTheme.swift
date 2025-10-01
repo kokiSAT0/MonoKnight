@@ -443,26 +443,6 @@ struct AppTheme: DynamicProperty {
         }
     }
 
-    /// 複数回踏破マス用バッジの背景色（ライトでは濃色、ダークでは淡色で反転させる）
-    var boardTileMultiCounterBackground: Color {
-        switch resolvedColorScheme {
-        case .dark:
-            return Color.white.opacity(0.88)
-        default:
-            return Color.black.opacity(0.82)
-        }
-    }
-
-    /// 複数回踏破マス用バッジの文字色（背景とのコントラストを最大化する）
-    var boardTileMultiCounterText: Color {
-        switch resolvedColorScheme {
-        case .dark:
-            return Color.black
-        default:
-            return Color.white
-        }
-    }
-
     /// トグルマスの塗り色（踏破状態に左右されない強調色）
     var boardTileToggle: Color {
         switch resolvedColorScheme {
@@ -573,22 +553,6 @@ struct AppTheme: DynamicProperty {
         )
     }
 
-    /// SpriteKit 複数回踏破マスバッジ背景色の UIColor 版
-    var uiBoardTileMultiCounterBackground: UIColor {
-        dynamicUIColor(
-            light: color(for: .light, keyPath: \.boardTileMultiCounterBackground),
-            dark: color(for: .dark, keyPath: \.boardTileMultiCounterBackground)
-        )
-    }
-
-    /// SpriteKit 複数回踏破マスバッジ文字色の UIColor 版
-    var uiBoardTileMultiCounterText: UIColor {
-        dynamicUIColor(
-            light: color(for: .light, keyPath: \.boardTileMultiCounterText),
-            dark: color(for: .dark, keyPath: \.boardTileMultiCounterText)
-        )
-    }
-
     /// SpriteKit トグルマス色の UIColor 版
     var uiBoardTileToggle: UIColor {
         dynamicUIColor(
@@ -632,16 +596,6 @@ struct AppTheme: DynamicProperty {
 
     /// SpriteKit の SKColor へ変換した複数回踏破マス枠線色
     var skBoardTileMultiStroke: SKColor { SKColor(cgColor: uiBoardTileMultiStroke.cgColor) }
-
-    /// SpriteKit の SKColor へ変換した複数回踏破マスバッジ背景色
-    var skBoardTileMultiCounterBackground: SKColor {
-        SKColor(cgColor: uiBoardTileMultiCounterBackground.cgColor)
-    }
-
-    /// SpriteKit の SKColor へ変換した複数回踏破マスバッジ文字色
-    var skBoardTileMultiCounterText: SKColor {
-        SKColor(cgColor: uiBoardTileMultiCounterText.cgColor)
-    }
 
     /// SpriteKit の SKColor へ変換したトグルマス色
     var skBoardTileToggle: SKColor { SKColor(cgColor: uiBoardTileToggle.cgColor) }

@@ -61,13 +61,9 @@ public final class GameScene: SKScene {
     /// 各マスに対応するノードを保持
     private var tileNodes: [GridPoint: SKShapeNode] = [:]
 
-    /// 複数回踏破マスの進捗リングを保持
-    /// - NOTE: `tileNodes` と併せて管理し、盤面更新時に残り踏破回数を即座に反映できるようにする
-    private var tileOverlayNodes: [GridPoint: SKShapeNode] = [:]
-
-    /// 複数回踏破マスの残回数バッジを保持
-    /// - NOTE: 盤面リセット時にゴーストが残らないよう、リングと同じスコープでキャッシュをまとめる
-    private var tileCounterNodes: [GridPoint: SKNode] = [:]
+    /// 複数回踏破マスの進捗表示に利用するコンテナと子ノードのキャッシュ
+    /// - NOTE: 対角線と四分割三角形をまとめて保持し、盤面更新時に再利用できるようにする
+    private var tileMultiVisitDecorations: [GridPoint: MultiVisitDecorationCache] = [:]
 
     /// ハイライト種類ごとのノードキャッシュ
     /// - Important: 種類ごとに辞書を分けることで、描画の上書き順とスタイルを柔軟に切り替えられる
@@ -99,6 +95,61 @@ public final class GameScene: SKScene {
         case hide
     }
     private var pendingKnightState: PendingKnightState?
+
+    /// 複数踏破マスの三角形セグメントを表す識別子
+    /// - Note: 上→右→下→左の順に時計回りで並べ、塗り分けの進行順序を一定に保つ
+    private enum MultiVisitTriangle: CaseIterable {
+        case top
+        case right
+        case bottom
+        case left
+
+        /// 子ノードへアクセスするための一意な名前
+        var nodeName: String {
+            switch self {
+            case .top: return "multiVisitTriangleTop"
+            case .right: return "multiVisitTriangleRight"
+            case .bottom: return "multiVisitTriangleBottom"
+            case .left: return "multiVisitTriangleLeft"
+            }
+        }
+
+        /// 現在のタイルサイズに応じた三角形パスを生成する
+        /// - Parameter tileSize: マス一辺の長さ
+        /// - Returns: センター原点で構成した CGPath
+        func path(tileSize: CGFloat) -> CGPath {
+            let half = tileSize / 2
+            let path = CGMutablePath()
+            path.move(to: .zero)
+
+            switch self {
+            case .top:
+                path.addLine(to: CGPoint(x: -half, y: half))
+                path.addLine(to: CGPoint(x: half, y: half))
+            case .right:
+                path.addLine(to: CGPoint(x: half, y: half))
+                path.addLine(to: CGPoint(x: half, y: -half))
+            case .bottom:
+                path.addLine(to: CGPoint(x: half, y: -half))
+                path.addLine(to: CGPoint(x: -half, y: -half))
+            case .left:
+                path.addLine(to: CGPoint(x: -half, y: -half))
+                path.addLine(to: CGPoint(x: -half, y: half))
+            }
+
+            path.closeSubpath()
+            return path
+        }
+    }
+
+    /// 複数踏破マスの進捗装飾をまとめたキャッシュ構造体
+    /// - Important: 子ノードは参照型のため構造体でも共有され、辞書から取り出して直接更新できる
+    private struct MultiVisitDecorationCache {
+        let container: SKNode
+        let segments: [MultiVisitTriangle: SKShapeNode]
+        let primaryDiagonal: SKShapeNode
+        let secondaryDiagonal: SKShapeNode
+    }
 
     /// グリッド生成と駒配置が完了し、SpriteKit のノード更新を安全に行えるかどうか
     private var isLayoutReady: Bool {
@@ -170,8 +221,7 @@ public final class GameScene: SKScene {
         gridOrigin = .zero
         // SpriteKit ノード系のキャッシュは全て空に戻し、不要なノードが残らないようにする
         tileNodes = [:]
-        tileOverlayNodes = [:]
-        tileCounterNodes = [:]
+        tileMultiVisitDecorations = [:]
         highlightNodes = [:]
         latestSingleGuidePoints = []
         latestMultipleGuidePoints = []
@@ -406,15 +456,10 @@ public final class GameScene: SKScene {
         }
         tileNodes.removeAll()
 
-        for overlay in tileOverlayNodes.values {
-            overlay.removeFromParent()
+        for decoration in tileMultiVisitDecorations.values {
+            decoration.container.removeFromParent()
         }
-        tileOverlayNodes.removeAll()
-
-        for counter in tileCounterNodes.values {
-            counter.removeFromParent()
-        }
-        tileCounterNodes.removeAll()
+        tileMultiVisitDecorations.removeAll()
 
         for nodes in highlightNodes.values {
             for node in nodes.values {
@@ -546,10 +591,9 @@ public final class GameScene: SKScene {
         case .toggle:
             // トグルマスは踏破状態に関わらず専用色で固定し、ギミックの存在を明確に示す
             return palette.boardTileToggle
-        case .multi(required: _):
-            // 複数回踏む必要があるマスは進捗率に応じて基準色→踏破済み色へ補間し、残回数の把握を助ける
-            let progress = CGFloat(state.completionProgress)
-            return palette.boardTileMultiBase.interpolated(to: palette.boardTileVisited, fraction: progress)
+        case .multi:
+            // 四分割三角形で進捗を示すため、ベースの塗りは固定色とし、全セグメント完了時に踏破済み色へ切り替える
+            return state.isVisited ? palette.boardTileVisited : palette.boardTileMultiBase
         case .single:
             // 通常マスは従来通りの配色で未踏破と踏破済みを切り替える
             return state.isVisited ? palette.boardTileVisited : palette.boardTileUnvisited
@@ -565,7 +609,7 @@ public final class GameScene: SKScene {
 
         guard let state = board.state(at: point) else {
             applySingleVisitStyle(to: node)
-            removeMultiVisitOverlay(for: point)
+            removeMultiVisitDecoration(for: point)
             return
         }
 
@@ -574,7 +618,7 @@ public final class GameScene: SKScene {
             applyMultiVisitStyle(to: node, state: state, at: point)
         default:
             applySingleVisitStyle(to: node)
-            removeMultiVisitOverlay(for: point)
+            removeMultiVisitDecoration(for: point)
         }
     }
 
@@ -585,7 +629,7 @@ public final class GameScene: SKScene {
         node.lineWidth = 1
     }
 
-    /// 複数回踏破マス用に太い枠線と進捗リングを適用する
+    /// 複数回踏破マス用に太い枠線と進捗オーバーレイを適用する
     /// - Parameters:
     ///   - node: 対象ノード
     ///   - state: 現在のマス状態
@@ -594,237 +638,129 @@ public final class GameScene: SKScene {
         node.strokeColor = palette.boardTileMultiStroke
         let emphasizedLineWidth = max(tileSize * 0.06, 2.0)
         node.lineWidth = emphasizedLineWidth
-        updateMultiVisitOverlay(
-            for: point,
-            parentNode: node,
-            state: state,
-            emphasizedLineWidth: emphasizedLineWidth
-        )
-        updateMultiVisitCounter(for: point, state: state, parentNode: node)
+        updateMultiVisitDecoration(for: point, parentNode: node, state: state)
     }
 
-    /// 複数回踏破マスの残り回数に応じたリング表示を更新する
+    /// 複数回踏破マスの対角線と四分割三角形をまとめて更新する
     /// - Parameters:
     ///   - point: 対象マスの座標
-    ///   - parentNode: タイル本体のノード
+    ///   - parentNode: 親となるタイルノード
     ///   - state: 現在のマス状態
-    ///   - emphasizedLineWidth: タイル枠線の太さ（リングの内径算出に利用）
-    private func updateMultiVisitOverlay(
+    private func updateMultiVisitDecoration(
         for point: GridPoint,
         parentNode: SKShapeNode,
-        state: TileState,
-        emphasizedLineWidth: CGFloat
+        state: TileState
     ) {
-        let overlayNode: SKShapeNode
-        if let cached = tileOverlayNodes[point] {
-            overlayNode = cached
+        let decoration: MultiVisitDecorationCache
+
+        if let cached = tileMultiVisitDecorations[point] {
+            decoration = cached
         } else {
-            // NOTE: 進捗リングは円弧のみ描画するため、塗りを完全透過にしジャギーが出ないようアンチエイリアスも無効化する
-            let newOverlay = SKShapeNode()
-            newOverlay.name = "multiVisitOverlay"
-            newOverlay.fillColor = .clear
-            newOverlay.isAntialiased = false
-            newOverlay.lineCap = .round
-            newOverlay.lineJoin = .round
-            newOverlay.zPosition = 0.12  // グリッド塗りより前面、ハイライトより背面に置く
-            tileOverlayNodes[point] = newOverlay
-            overlayNode = newOverlay
-        }
+            // NOTE: 初回はコンテナと子ノードをまとめて生成し、以降は辞書キャッシュ経由で再利用する
+            let container = SKNode()
+            container.name = "multiVisitDecorationContainer"
+            container.zPosition = 0.14  // グリッド塗りより前面、ハイライトより背面に配置する
 
-        if overlayNode.parent !== parentNode {
-            overlayNode.removeFromParent()
-            parentNode.addChild(overlayNode)
-        }
-
-        overlayNode.strokeColor = palette.boardTileMultiStroke
-        overlayNode.alpha = 0.95
-        overlayNode.lineWidth = max(tileSize * 0.09, 1.6)
-        overlayNode.zRotation = -.pi / 2  // 北側を起点に減少していくイメージを統一（円形表示時の基準）
-        overlayNode.position = CGPoint(x: tileSize / 2, y: tileSize / 2)
-
-        let radius = max(tileSize / 2 - emphasizedLineWidth * 0.65, tileSize * 0.28)
-        let pathRect = CGRect(x: -radius, y: -radius, width: radius * 2, height: radius * 2)
-        let circularPath = CGPath(ellipseIn: pathRect, transform: nil)
-
-        let requirement = max(state.requiredVisitCount, 1)
-        let remaining = max(0, min(requirement, state.remainingVisits))
-        let remainingFraction = requirement == 0
-            ? 0
-            : CGFloat(remaining) / CGFloat(requirement)
-
-        if remaining == 0 {
-            // 残り回数がゼロの場合はリングを完全に非表示にし、古いパスをクリアして次回再利用時のゴースト描画を防ぐ
-            overlayNode.isHidden = true
-            overlayNode.path = nil
-            return
-        }
-
-        overlayNode.isHidden = false
-
-        if remainingFraction < 1 {
-            // 部分的な残量表示では開始角度を統一するため円弧パスを構築し、SpriteKit の回転起点をゼロに戻しておく
-            let partialPath = CGMutablePath()
-            partialPath.addArc(
-                center: .zero,
-                radius: radius,
-                startAngle: -.pi / 2,
-                endAngle: -.pi / 2 + 2 * .pi * remainingFraction,
-                clockwise: false
-            )
-            overlayNode.path = partialPath
-            overlayNode.zRotation = 0
-        } else {
-            // 全量残っている場合は従来の円形パスをそのまま利用し、余計なパス生成を避ける
-            overlayNode.path = circularPath
-            overlayNode.zRotation = -.pi / 2
-        }
-
-        if requirement > 1 {
-            // 残り回数を視覚化するため、円周を回数分のセグメントへ分割する
-            let circumference = max(2 * .pi * radius, 0.1)
-            let segmentLength = circumference / CGFloat(requirement)
-            let dashLength = max(segmentLength * 0.7, overlayNode.lineWidth * 0.9)
-            let gapLength = max(segmentLength - dashLength, overlayNode.lineWidth * 0.6)
-
-            // SpriteKit の `lineDashPattern` は一部プラットフォームで利用できないため、円弧パスを自前で組み立てて疑似的な破線を表現する
-            // NOTE: 弧長 = 半径 × 角度 を利用して、線分長に応じた角度へ変換することで元の比率を再現する
-            let dashAngle = max(dashLength / max(radius, 0.1), 0)
-            let gapAngle = max(gapLength / max(radius, 0.1), 0)
-            let path = CGMutablePath()
-            var currentAngle = -CGFloat.pi / 2
-
-            for _ in 0 ..< requirement {
-                let startAngle = currentAngle
-                let endAngle = min(startAngle + dashAngle, startAngle + segmentLength)
-                // addArc は現在位置から弧を描くため、事前に座標へ移動して接続線が発生しないようにする
-                let startPoint = CGPoint(
-                    x: cos(startAngle) * radius,
-                    y: sin(startAngle) * radius
-                )
-                path.move(to: startPoint)
-                path.addArc(
-                    center: .zero,
-                    radius: radius,
-                    startAngle: startAngle,
-                    endAngle: endAngle,
-                    clockwise: false
-                )
-                currentAngle = endAngle + gapAngle
+            var segments: [MultiVisitTriangle: SKShapeNode] = [:]
+            for triangle in MultiVisitTriangle.allCases {
+                let segmentNode = SKShapeNode()
+                segmentNode.name = triangle.nodeName
+                segmentNode.strokeColor = .clear
+                segmentNode.lineWidth = 0
+                segmentNode.isAntialiased = true
+                segmentNode.zPosition = 0
+                container.addChild(segmentNode)
+                segments[triangle] = segmentNode
             }
 
-            overlayNode.path = path
-            overlayNode.zRotation = 0
+            let primaryDiagonal = SKShapeNode()
+            primaryDiagonal.name = "multiVisitDiagonalPrimary"
+            primaryDiagonal.fillColor = .clear
+            primaryDiagonal.lineJoin = .round
+            primaryDiagonal.lineCap = .round
+            primaryDiagonal.isAntialiased = true
+            primaryDiagonal.zPosition = 0.05
+            container.addChild(primaryDiagonal)
+
+            let secondaryDiagonal = SKShapeNode()
+            secondaryDiagonal.name = "multiVisitDiagonalSecondary"
+            secondaryDiagonal.fillColor = .clear
+            secondaryDiagonal.lineJoin = .round
+            secondaryDiagonal.lineCap = .round
+            secondaryDiagonal.isAntialiased = true
+            secondaryDiagonal.zPosition = 0.05
+            container.addChild(secondaryDiagonal)
+
+            let cache = MultiVisitDecorationCache(
+                container: container,
+                segments: segments,
+                primaryDiagonal: primaryDiagonal,
+                secondaryDiagonal: secondaryDiagonal
+            )
+            tileMultiVisitDecorations[point] = cache
+            decoration = cache
         }
+
+        if decoration.container.parent !== parentNode {
+            decoration.container.removeFromParent()
+            parentNode.addChild(decoration.container)
+        }
+
+        decoration.container.position = CGPoint(x: tileSize / 2, y: tileSize / 2)
+        decoration.container.isHidden = false
+
+        // タイルサイズが変わった場合に備え、毎回パスを生成し直しておく
+        for triangle in MultiVisitTriangle.allCases {
+            decoration.segments[triangle]?.path = triangle.path(tileSize: tileSize)
+        }
+
+        let requiredVisits = max(0, state.requiredVisitCount)
+        if requiredVisits > 4 {
+            debugLog(
+                "GameScene.updateMultiVisitDecoration 警告: 対応上限を超える踏破回数を検出 point=\(point) required=\(requiredVisits)"
+            )
+        }
+
+        let clampedRemaining = max(0, min(state.remainingVisits, requiredVisits))
+        let initialFill = max(0, min(4, 4 - requiredVisits))
+        let completedVisits = max(0, min(requiredVisits, requiredVisits - clampedRemaining))
+        let filledSegmentCount = max(0, min(4, initialFill + completedVisits))
+
+        for (index, triangle) in MultiVisitTriangle.allCases.enumerated() {
+            guard let segmentNode = decoration.segments[triangle] else { continue }
+            segmentNode.fillColor = index < filledSegmentCount
+                ? palette.boardTileVisited
+                : palette.boardTileMultiBase
+            segmentNode.isHidden = false
+        }
+
+        let half = tileSize / 2
+        let diagonalWidth = max(tileSize * 0.04, 1.2)
+        let diagonalAlpha: CGFloat = 0.9
+
+        let primaryPath = CGMutablePath()
+        primaryPath.move(to: CGPoint(x: -half, y: -half))
+        primaryPath.addLine(to: CGPoint(x: half, y: half))
+        decoration.primaryDiagonal.path = primaryPath
+        decoration.primaryDiagonal.strokeColor = palette.boardTileMultiStroke
+        decoration.primaryDiagonal.lineWidth = diagonalWidth
+        decoration.primaryDiagonal.alpha = diagonalAlpha
+
+        let secondaryPath = CGMutablePath()
+        secondaryPath.move(to: CGPoint(x: -half, y: half))
+        secondaryPath.addLine(to: CGPoint(x: half, y: -half))
+        decoration.secondaryDiagonal.path = secondaryPath
+        decoration.secondaryDiagonal.strokeColor = palette.boardTileMultiStroke
+        decoration.secondaryDiagonal.lineWidth = diagonalWidth
+        decoration.secondaryDiagonal.alpha = diagonalAlpha
     }
 
-    /// 複数回踏破マス用の残回数バッジを最新状態へ更新する
-    /// - Parameters:
-    ///   - point: 対象マスの座標
-    ///   - state: 現在のマス状態
-    ///   - parentNode: バッジをぶら下げるタイルノード
-    private func updateMultiVisitCounter(
-        for point: GridPoint,
-        state: TileState,
-        parentNode: SKShapeNode
-    ) {
-        let remaining = max(0, state.remainingVisits)
-        guard remaining > 0 else {
-            // 残回数がゼロの場合は辞書から除去して、盤面リセット時にゴーストが残らないようにする
-            removeMultiVisitCounter(for: point)
-            return
-        }
-
-        // 既存キャッシュの再利用を試み、未生成ならこの場で組み立てる
-        let container: SKNode
-        let backgroundNode: SKShapeNode
-        let labelNode: SKLabelNode
-        if
-            let cachedContainer = tileCounterNodes[point],
-            let cachedBackground = cachedContainer.childNode(withName: "multiVisitCounterBackground") as? SKShapeNode,
-            let cachedLabel = cachedContainer.childNode(withName: "multiVisitCounterLabel") as? SKLabelNode
-        {
-            container = cachedContainer
-            backgroundNode = cachedBackground
-            labelNode = cachedLabel
-        } else {
-            let newContainer = SKNode()
-            newContainer.name = "multiVisitCounterContainer"
-            newContainer.zPosition = 0.16  // リングより前面に配置し、カウンターを確実に読み取れるようにする
-
-            let newBackground = SKShapeNode()
-            newBackground.name = "multiVisitCounterBackground"
-            newBackground.lineWidth = 0
-            newBackground.isAntialiased = true
-            newBackground.zPosition = 0
-
-            let newLabel = SKLabelNode(text: "")
-            newLabel.name = "multiVisitCounterLabel"
-            newLabel.horizontalAlignmentMode = .center
-            newLabel.verticalAlignmentMode = .center
-            newLabel.zPosition = 0.02
-
-            newContainer.addChild(newBackground)
-            newContainer.addChild(newLabel)
-            tileCounterNodes[point] = newContainer
-
-            container = newContainer
-            backgroundNode = newBackground
-            labelNode = newLabel
-        }
-
-        if container.parent !== parentNode {
-            container.removeFromParent()
-            parentNode.addChild(container)
-        }
-
-        // タイル中心へ配置して他のオーバーレイと重ならないようにする
-        container.position = CGPoint(x: tileSize / 2, y: tileSize / 2)
-        container.isHidden = false
-
-        // 円形バッジのサイズはマスに比例させ、最小サイズも確保して可読性を維持する
-        let badgeRadius = max(tileSize * 0.24, CGFloat(12))
-        let badgeRect = CGRect(
-            x: -badgeRadius,
-            y: -badgeRadius,
-            width: badgeRadius * 2,
-            height: badgeRadius * 2
-        )
-        backgroundNode.path = CGPath(ellipseIn: badgeRect, transform: nil)
-        backgroundNode.fillColor = palette.boardTileMultiCounterBackground
-        backgroundNode.alpha = 0.92
-        backgroundNode.isHidden = false
-
-        // フォントは SF Pro 系を指定し、SpriteKit 側でも統一感を持たせる
-        let desiredFontSize = max(tileSize * 0.3, CGFloat(14))
-        #if canImport(UIKit)
-        let preferredFont = UIFont.systemFont(ofSize: desiredFontSize, weight: .semibold)
-        labelNode.fontName = preferredFont.fontName
-        labelNode.fontSize = desiredFontSize
-        #else
-        labelNode.fontName = "HelveticaNeue-Bold"
-        labelNode.fontSize = desiredFontSize
-        #endif
-        labelNode.fontColor = palette.boardTileMultiCounterText
-        labelNode.text = "×\(remaining)"
-        labelNode.isHidden = false
-        labelNode.position = .zero
-    }
-
-    /// 複数回踏破マス用に生成したリングノードを安全に破棄する
+    /// 複数回踏破マス用に生成した装飾ノードを安全に破棄する
     /// - Parameter point: 対象マスの座標
-    private func removeMultiVisitOverlay(for point: GridPoint) {
-        if let overlay = tileOverlayNodes.removeValue(forKey: point) {
-            overlay.removeFromParent()
-        }
-        removeMultiVisitCounter(for: point)
-    }
-
-    /// 複数回踏破マス用バッジを安全に破棄する
-    /// - Parameter point: 対象マスの座標
-    private func removeMultiVisitCounter(for point: GridPoint) {
-        guard let counter = tileCounterNodes.removeValue(forKey: point) else { return }
-        counter.removeAllActions()
-        counter.removeFromParent()
+    private func removeMultiVisitDecoration(for point: GridPoint) {
+        guard let decoration = tileMultiVisitDecorations.removeValue(forKey: point) else { return }
+        decoration.container.removeAllActions()
+        decoration.container.removeFromParent()
     }
 
     /// 盤面ハイライトの種類ごとの集合をまとめて更新する
@@ -1017,23 +953,11 @@ public final class GameScene: SKScene {
         // レイアウトが確定していればその場で再描画し、未確定なら後で flush 時に反映する
         if isLayoutReady {
             updateTileColors()
-            refreshMultiVisitCounters()
         } else {
             for (point, node) in tileNodes {
                 configureTileNodeAppearance(node, at: point)
             }
             updateHighlightColors()
-        }
-    }
-
-    /// 既存の複数踏破カウンターへ最新テーマを反映する
-    /// - Note: テーマ切り替え直後にリングだけでなくバッジ配色も更新し、違和感を最小限に抑える
-    private func refreshMultiVisitCounters() {
-        for (point, node) in tileNodes {
-            guard let state = board.state(at: point) else { continue }
-            if case .multi = state.visitBehavior {
-                updateMultiVisitCounter(for: point, state: state, parentNode: node)
-            }
         }
     }
 
