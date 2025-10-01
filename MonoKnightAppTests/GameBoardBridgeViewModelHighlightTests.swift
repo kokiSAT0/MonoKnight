@@ -71,6 +71,45 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
         )
     }
 
+    /// スポーン選択待機状態から `.playing` 復帰直後にガイド集合が復元されることを検証する
+    func testGuideHighlightsRestoreAfterSpawnSelection() {
+        // スポーンを任意選択するモードで GameCore を初期化し、進行状態が awaitingSpawn で始まる状況を用意する
+        let deck = Deck.makeTestDeck(cards: [.kingUp], configuration: .kingOnly)
+        let core = GameCore.makeTestInstance(deck: deck, current: nil, mode: .classicalChallenge)
+        let viewModel = GameBoardBridgeViewModel(core: core, mode: .classicalChallenge)
+
+        XCTAssertEqual(core.progress, .awaitingSpawn, "スポーン選択待機状態で開始できていません")
+
+        // 復帰後に確認したい手札を退避させ、ガイド集合が一時的に空になることを確認する
+        let singleStack = HandStack(cards: [DealtCard(move: .kingUp)])
+        viewModel.refreshGuideHighlights(
+            handOverride: [singleStack],
+            progressOverride: .awaitingSpawn
+        )
+
+        XCTAssertNotNil(viewModel.pendingGuideHand, "スポーン選択待機中でも手札退避が維持されていません")
+        XCTAssertTrue(viewModel.guideHighlightBuckets.singleVectorDestinations.isEmpty, "待機中はガイドを非表示にしておく必要があります")
+        XCTAssertTrue(viewModel.guideHighlightBuckets.multipleVectorDestinations.isEmpty, "待機中はガイドを非表示にしておく必要があります")
+
+        // 任意スポーンを確定し、進行状態を playing に戻した直後の処理を模擬する
+        let spawnPoint = GridPoint(x: 3, y: 3)
+        core.simulateSpawnSelection(forTesting: spawnPoint)
+        viewModel.handleProgressChange(core.progress)
+
+        // 復帰後は pending 手札から再計算されたガイド集合が復元される
+        let expectedDestination = GridPoint(x: spawnPoint.x, y: spawnPoint.y + 1)
+        XCTAssertTrue(
+            viewModel.guideHighlightBuckets.singleVectorDestinations.contains(expectedDestination),
+            "スポーン確定直後に単一候補のガイドが復元されていません"
+        )
+        XCTAssertTrue(
+            viewModel.guideHighlightBuckets.multipleVectorDestinations.isEmpty,
+            "今回の手札では複数候補のガイドが存在しない想定です"
+        )
+        XCTAssertNil(viewModel.pendingGuideHand, "ガイド復元後は pending 手札を解放する必要があります")
+        XCTAssertNil(viewModel.pendingGuideCurrent, "ガイド復元後は pending 現在地を解放する必要があります")
+    }
+
     /// テストで使い回す ViewModel を生成するヘルパー
     private func makeViewModel() -> GameBoardBridgeViewModel {
         let core = GameCore(mode: .standard)

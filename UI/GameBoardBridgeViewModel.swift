@@ -33,6 +33,9 @@ final class GameBoardBridgeViewModel: ObservableObject {
     @Published var pendingGuideHand: [HandStack]?
     /// 退避している現在地
     @Published var pendingGuideCurrent: GridPoint?
+    /// プレイ再開時に再適用したいガイド候補の退避先
+    /// - Important: 進行状態が一時停止している間に計算した候補を保持し、`.playing` 復帰後に即座へ戻せるようにする
+    private var pendingGuideBuckets: GuideHighlightBuckets?
     /// ガイド表示で扱う盤面座標を単一候補・複数候補に分類したコンテナ
     struct GuideHighlightBuckets: Equatable {
         /// 単一ベクトルカードが到達できる座標集合
@@ -164,6 +167,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
             pushHighlightsToScene()
             pendingGuideHand = nil
             pendingGuideCurrent = nil
+            pendingGuideBuckets = nil
             debugLog("ガイドを消灯: ガイドモードが無効")
         }
     }
@@ -205,10 +209,12 @@ final class GameBoardBridgeViewModel: ObservableObject {
         let progress = progressOverride ?? core.progress
 
         guard let current = currentOverride ?? core.current else {
+            // 現在地が未確定でも手札は保持しておき、位置確定後に即座へ復元できるようにする
+            pendingGuideHand = handStacks
+            pendingGuideCurrent = nil
+            pendingGuideBuckets = nil
             guideHighlightBuckets = .empty
             pushHighlightsToScene()
-            pendingGuideHand = nil
-            pendingGuideCurrent = nil
             debugLog("ガイド更新を中断: 現在地が未確定 状態=\(String(describing: progress)) スタック数=\(handStacks.count)")
             return
         }
@@ -232,6 +238,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
             pushHighlightsToScene()
             pendingGuideHand = nil
             pendingGuideCurrent = nil
+            pendingGuideBuckets = nil
             let total = computedBuckets.singleVectorDestinations.count + computedBuckets.multipleVectorDestinations.count
             debugLog(
                 "ガイドを消灯: ガイドモードが無効 単一=\(computedBuckets.singleVectorDestinations.count) " +
@@ -243,6 +250,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
         guard progress == .playing else {
             pendingGuideHand = handStacks
             pendingGuideCurrent = current
+            pendingGuideBuckets = computedBuckets
             guideHighlightBuckets = .empty
             pushHighlightsToScene()
             let total = computedBuckets.singleVectorDestinations.count + computedBuckets.multipleVectorDestinations.count
@@ -255,6 +263,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
 
         pendingGuideHand = nil
         pendingGuideCurrent = nil
+        pendingGuideBuckets = nil
         guideHighlightBuckets = computedBuckets
         pushHighlightsToScene()
         let total = computedBuckets.singleVectorDestinations.count + computedBuckets.multipleVectorDestinations.count
@@ -429,6 +438,9 @@ final class GameBoardBridgeViewModel: ObservableObject {
         case .cleared:
             guideHighlightBuckets = .empty
             updateForcedSelectionHighlights([])
+            pendingGuideHand = nil
+            pendingGuideCurrent = nil
+            pendingGuideBuckets = nil
         default:
             guideHighlightBuckets = .empty
             updateForcedSelectionHighlights([])
