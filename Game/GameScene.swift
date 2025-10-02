@@ -1006,8 +1006,8 @@
                 x: -tileSize / 2, y: -tileSize / 2,
                 width: tileSize, height: tileSize)
             decoration.cover.path = CGPath(rect: coverRect, transform: nil)
-            decoration.cover.fillColor = palette.boardTileToggle  // or boardTileUnvisited
-            decoration.cover.alpha = 1.0
+            decoration.cover.fillColor = .clear
+            decoration.cover.alpha = 0.0
             decoration.cover.isHidden = false
 
             // タイルサイズ変化へ追従できるよう、描画の度にパスを更新する
