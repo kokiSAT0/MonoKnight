@@ -604,7 +604,7 @@ final class GameViewModel: ObservableObject {
             resetSessionForNewPlay()
 
         case .returnToTitle:
-            resetSessionForNewPlay()
+            prepareForReturnToTitle()
             onRequestReturnToTitle?()
         }
     }
@@ -661,7 +661,7 @@ final class GameViewModel: ObservableObject {
     /// リザルト画面からホームへ戻るリクエストを受け取った際の共通処理
     /// - Note: リトライ時と同じ初期化を行った上で、ルートビューへ遷移要求を転送する
     func handleResultReturnToTitle() {
-        resetSessionForNewPlay()
+        prepareForReturnToTitle()
         onRequestReturnToTitle?()
     }
 
@@ -726,14 +726,20 @@ final class GameViewModel: ObservableObject {
         isShowingPenaltyBanner = false
     }
 
-    /// 新しいプレイを始める際に必要な初期化処理を共通化する
-    /// - Note: リザルトからのリトライやリセット操作で重複していた処理を一本化し、将来的な初期化追加にも対応しやすくする
-    private func resetSessionForNewPlay() {
+    /// ホーム画面へ戻る際に共通で必要となる状態リセットをひとまとめにする
+    /// - Important: タイトルへ戻る場合はプレイ内容を保持したまま、UI 状態のみを初期化したいので `core.reset()` は呼び出さない
+    private func prepareForReturnToTitle() {
         clearSelectedCardSelection()
         cancelPenaltyBannerDisplay()
         showingResult = false
-        core.reset()
         adsService.resetPlayFlag()
+    }
+
+    /// 新しいプレイを始める際に必要な初期化処理を共通化する
+    /// - Note: リザルトからのリトライやリセット操作で重複していた処理を一本化し、将来的な初期化追加にも対応しやすくする
+    private func resetSessionForNewPlay() {
+        prepareForReturnToTitle()
+        core.reset()
     }
 
     /// GameCore のストリームを監視し、UI 更新に必要な副作用を引き受ける
