@@ -105,13 +105,6 @@ final class RootViewStateStore: ObservableObject {
             debugLog("RootView.activeMode 更新: \(activeMode.identifier.rawValue)")
         }
     }
-    /// タイトル画面で選択中のモード
-    @Published var selectedModeForTitle: GameMode {
-        didSet {
-            guard oldValue != selectedModeForTitle else { return }
-            debugLog("RootView.selectedModeForTitle 更新: \(selectedModeForTitle.identifier.rawValue)")
-        }
-    }
     /// GameView の再生成に利用するセッション ID
     @Published var gameSessionID: UUID {
         didSet {
@@ -156,7 +149,6 @@ final class RootViewStateStore: ObservableObject {
         self.isPreparingGame = false
         self.isGameReadyForManualStart = false
         self.activeMode = .standard
-        self.selectedModeForTitle = .standard
         self.gameSessionID = UUID()
         self.topBarHeight = 0
         self.lastLoggedLayoutSnapshot = nil
@@ -268,7 +260,6 @@ private extension RootView {
             isPreparingGame: stateStore.binding(for: \.isPreparingGame),
             isGameReadyForManualStart: stateStore.binding(for: \.isGameReadyForManualStart),
             activeMode: stateStore.binding(for: \.activeMode),
-            selectedModeForTitle: stateStore.binding(for: \.selectedModeForTitle),
             gameSessionID: stateStore.binding(for: \.gameSessionID),
             topBarHeight: stateStore.binding(for: \.topBarHeight),
             lastLoggedLayoutSnapshot: stateStore.binding(for: \.lastLoggedLayoutSnapshot),
@@ -368,8 +359,6 @@ private extension RootView {
         @Binding var isGameReadyForManualStart: Bool
         /// 実際にプレイへ適用されているモード
         @Binding var activeMode: GameMode
-        /// タイトル画面で選択中のモード
-        @Binding var selectedModeForTitle: GameMode
         /// GameView 再生成用の識別子
         @Binding var gameSessionID: UUID
         /// トップバーの実測高さ
@@ -534,7 +523,6 @@ private extension RootView {
         private var titleOverlay: some View {
             if isShowingTitleScreen {
                 TitleScreenView(
-                    selectedMode: $selectedModeForTitle,
                     campaignProgressStore: campaignProgressStore,
                     onStart: { mode in
                         // 選択されたモードでゲーム準備を開始する
@@ -566,7 +554,6 @@ private extension RootView {
                 isAuthenticated: isAuthenticated,
                 isShowingTitleScreen: isShowingTitleScreen,
                 activeMode: activeMode,
-                selectedMode: selectedModeForTitle,
                 topBarHeight: topBarHeight
             )
 
@@ -627,7 +614,7 @@ private extension RootView {
               geometry=\(snapshot.geometrySize)
               safeArea(top=\(snapshot.safeAreaTop), bottom=\(snapshot.safeAreaBottom), leading=\(snapshot.safeAreaLeading), trailing=\(snapshot.safeAreaTrailing))
               horizontalSizeClass=\(snapshot.horizontalSizeClassDescription) topBarPadding=\(snapshot.topBarHorizontalPadding) topBarMaxWidth=\(snapshot.topBarMaxWidthDescription) fallbackTopPadding=\(snapshot.regularTopPaddingFallback)
-              states(authenticated=\(snapshot.isAuthenticated), showingTitle=\(snapshot.isShowingTitleScreen), activeMode=\(snapshot.activeModeIdentifier.rawValue), selectedMode=\(snapshot.selectedModeIdentifier.rawValue), topBarHeight=\(snapshot.topBarHeight))
+              states(authenticated=\(snapshot.isAuthenticated), showingTitle=\(snapshot.isShowingTitleScreen), activeMode=\(snapshot.activeModeIdentifier.rawValue), topBarHeight=\(snapshot.topBarHeight))
             """
 
             debugLog(message)
@@ -992,7 +979,6 @@ private extension RootView {
 
         // 今回プレイするモードを確定し、タイトル画面側の選択状態とも同期させる
         stateStore.activeMode = mode
-        stateStore.selectedModeForTitle = mode
 
         // GameView を強制的に再生成するためセッション ID を更新し、ログで追跡できるよう記録する
         stateStore.gameSessionID = UUID()
@@ -1029,8 +1015,6 @@ private extension RootView {
 
         withAnimation(.easeInOut(duration: 0.25)) {
             stateStore.isShowingTitleScreen = true
-            // 直前にプレイしたモードをタイトル画面側の選択状態として復元する
-            stateStore.selectedModeForTitle = stateStore.activeMode
         }
     }
 
@@ -1147,7 +1131,6 @@ private extension RootView {
         let isAuthenticated: Bool
         let isShowingTitleScreen: Bool
         let activeModeIdentifier: GameMode.Identifier
-        let selectedModeIdentifier: GameMode.Identifier
         let topBarHorizontalPadding: CGFloat
         let topBarMaxWidth: CGFloat?
         let regularTopPaddingFallback: CGFloat
@@ -1158,7 +1141,6 @@ private extension RootView {
             isAuthenticated: Bool,
             isShowingTitleScreen: Bool,
             activeMode: GameMode,
-            selectedMode: GameMode,
             topBarHeight: CGFloat
         ) {
             self.geometrySize = context.geometrySize
@@ -1170,7 +1152,6 @@ private extension RootView {
             self.isAuthenticated = isAuthenticated
             self.isShowingTitleScreen = isShowingTitleScreen
             self.activeModeIdentifier = activeMode.identifier
-            self.selectedModeIdentifier = selectedMode.identifier
             self.topBarHorizontalPadding = context.topBarHorizontalPadding
             self.topBarMaxWidth = context.topBarMaxWidth
             self.regularTopPaddingFallback = context.regularTopPaddingFallback
@@ -1341,382 +1322,428 @@ fileprivate struct TopStatusInsetView: View {
     }
 }
 
-// MARK: - タイトル画面（簡易版）
-// fileprivate にすることで同ファイル内の RootView から初期化可能にする
+// MARK: - タイトル画面（リニューアル）
 fileprivate struct TitleScreenView: View {
-    /// タイトル画面で選択中のモード
-    @Binding var selectedMode: GameMode
-    /// キャンペーン進捗
     @ObservedObject var campaignProgressStore: CampaignProgressStore
-    /// ゲーム開始ボタンが押された際の処理
     let onStart: (GameMode) -> Void
-    /// 詳細設定を開くアクション
     let onOpenSettings: () -> Void
 
-    /// カラーテーマを用いてライト/ダーク両対応の配色を提供する
     private var theme = AppTheme()
-    /// キャンペーン定義
     private let campaignLibrary = CampaignLibrary.shared
-    /// フリーモードのレギュレーションを管理するストア
-    @StateObject private var freeModeStore = FreeModeRegulationStore()
-    /// デバッグログ用の一意識別子（`ObjectIdentifier` は構造体に使えないため UUID を利用）
+    @State private var isPresentingHowToPlay: Bool = false
+    @State private var navigationPath: [TitleNavigationTarget] = []
+    @State private var highlightedCampaignStageID: CampaignStageID?
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @AppStorage("best_points_5x5") private var bestPoints: Int = .max
     private let instanceIdentifier = UUID()
 
-    @State private var isPresentingHowToPlay: Bool = false
-    /// タイトル画面専用のナビゲーションスタック
-    /// - Note: キャンペーンやフリーモード設定をページ遷移で表示する際に、型情報を保ったまま保持できるよう `NavigationPath` ではなく
-    ///         `TitleNavigationTarget` の配列で管理し、デコードに失敗して遷移先が表示されない不具合を防ぐ
-    @State private var navigationPath: [TitleNavigationTarget] = []
-    /// サイズクラスを参照し、iPad での余白やシート表現を最適化する
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-
-    /// タイトル画面から遷移可能なページ種別
-    /// - Note: RawValue を `String` で明示し `Codable` に準拠させることで、NavigationStack のシリアライズ時に安全に復元できる
     private enum TitleNavigationTarget: String, Hashable, Codable {
-        /// キャンペーン一覧画面
         case campaign
-        /// フリーモード設定画面
-        case freeModeEditor
+        case highScore
+        case dailyChallenge
     }
 
-    /// `@State` プロパティを保持したまま、外部（同ファイル内の RootView）から初期化できるようにするカスタムイニシャライザ
-    /// - Parameters:
-    ///   - selectedMode: 選択中モードを共有するバインディング
-    ///   - onStart: ゲーム開始ボタンが押下された際に呼び出されるクロージャ
-    ///   - onOpenSettings: タイトル右上のギアアイコンから設定シートを開く際のクロージャ
-    init(selectedMode: Binding<GameMode>, campaignProgressStore: CampaignProgressStore, onStart: @escaping (GameMode) -> Void, onOpenSettings: @escaping () -> Void) {
-        self._selectedMode = selectedMode
+    init(campaignProgressStore: CampaignProgressStore, onStart: @escaping (GameMode) -> Void, onOpenSettings: @escaping () -> Void) {
         self._campaignProgressStore = ObservedObject(wrappedValue: campaignProgressStore)
-        // `let` プロパティである onStart を代入するための明示的な初期化処理
         self.onStart = onStart
         self.onOpenSettings = onOpenSettings
-        // `@State` の初期値を明示しておくことで、将来的な初期値変更にも対応しやすくする
         _isPresentingHowToPlay = State(initialValue: false)
-        // 初期化が完了した直後に識別子とナビゲーションスタック長を残し、想定外の再生成を検知しやすくする
         debugLog("TitleScreenView.init開始: instance=\(instanceIdentifier.uuidString) navigationPathCount=\(_navigationPath.wrappedValue.count)")
     }
 
-
     var body: some View {
-        // body 評価が走るたびに現在のインスタンスとスタック長を記録し、View の再構築状況を追跡する
         debugLog("TitleScreenView.body評価: instance=\(instanceIdentifier.uuidString) navigationPathCount=\(navigationPath.count)")
         return NavigationStack(path: $navigationPath) {
-            // 複雑化したビュー階層を `titleScreenMainContent` にまとめることで、型チェックの負荷を下げている
             titleScreenMainContent
-                // NavigationStack の内部へチェーンさせることで、スタック解決ロジックを一箇所に集約する
                 .navigationDestination(for: TitleNavigationTarget.self) { target in
-                    // タイトルスタック遷移直前の状態を逐一記録し、ターゲット判定のずれを即座に検知できるようにする
                     let stackDescription = navigationPath
                         .map { $0.rawValue }
                         .joined(separator: ",")
-                    // ViewBuilder の戻り値判定にログ呼び出しが混ざらないよう、副作用だけを発生させるステートメントとして明示的に扱う
                     let _ = debugLog(
                         "TitleScreenView: NavigationDestination.entry -> instance=\(instanceIdentifier.uuidString) target=\(target.rawValue) targetType=\(String(describing: type(of: target))) stackCount=\(navigationPath.count) stack=[\(stackDescription)]"
                     )
-                    // 別メソッドへ処理を委譲し、ここでは分岐結果のビュー生成だけに集中させる
                     navigationDestinationView(for: target)
                 }
         }
-        // 遊び方シートの表示設定
         .sheet(isPresented: $isPresentingHowToPlay) {
-            // シートの中身も専用メソッドに切り出し、ViewBuilder のネストを浅くする
             howToPlaySheetContent
         }
-        // モーダル表示状態を監視し、遊び方シートの開閉タイミングを把握する
         .onChange(of: isPresentingHowToPlay) { _, newValue in
             debugLog("TitleScreenView.isPresentingHowToPlay 更新: \(newValue)")
         }
-        // NavigationStack の更新を監視し、スタック操作が正しく反映されているか詳細に記録する
         .onChange(of: navigationPath) { oldValue, newValue in
-            // 新しいスタック内容を人間が読める文字列へ変換し、トラブル発生時の復元を容易にする
             let stackDescription = newValue
                 .map { String(describing: $0) }
                 .joined(separator: ",")
-            // ログフォーマット例: "スタック=[campaign]"
             debugLog(
                 "TitleScreenView.navigationPath 更新: instance=\(instanceIdentifier.uuidString) 旧=\(oldValue.count) -> 新=\(newValue.count) スタック=[\(stackDescription)]"
             )
         }
-        // フリーモードのレギュレーションが更新された場合は選択モードの内容も再生成する
-        .onChange(of: freeModeStore.regulation) { _, _ in
-            if selectedMode.identifier == .freeCustom {
-                selectedMode = freeModeStore.makeGameMode()
-            }
-        }
-        // サイズクラスの変化を記録し、iPad のマルチタスク時に余白が崩れないか検証しやすくする
         .onChange(of: horizontalSizeClass) { _, newValue in
             debugLog("TitleScreenView.horizontalSizeClass 更新: \(String(describing: newValue))")
         }
     }
 
-    /// タイトル画面のメインレイアウトを返す
-    /// - Note: `body` 内のネストが深くなると型推論が極端に遅くなるため、メインコンテンツを専用ビューとして切り出している
     @ViewBuilder
     private var titleScreenMainContent: some View {
         ZStack(alignment: .topTrailing) {
-            // MARK: - スクロール可能なメインコンテンツ
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: 28) {
-                    // MARK: - アプリタイトルと簡単な説明
-                    VStack(spacing: 12) {
-                        Text("MonoKnight")
-                            .font(.system(size: 32, weight: .heavy, design: .rounded))
-                            // テーマの主文字色を適用し、ライト/ダーク両方で視認性を確保
-                            .foregroundColor(theme.textPrimary)
-                        Text("カードで騎士を導き、盤面を踏破しよう")
-                            .font(.system(size: 16, weight: .medium, design: .rounded))
-                            // 補足テキストはサブ文字色でコントラストを調整
-                            .foregroundColor(theme.textSecondary)
-                            .multilineTextAlignment(.center)
-                            // レギュラー幅では最大行幅を抑えて読みやすさを確保
-                            .frame(maxWidth: 320)
-                    }
-
-                    // MARK: - モード選択セクション
-                    modeSelectionSection
-
-                    // MARK: - 選択中モードの概要カード
-                    selectedModeSummaryCard
-
-                    // MARK: - 遊び方シートを開くボタン
-                    Button {
-                        // 遊び方シートを開いたタイミングを記録し、重複表示の調査に役立てる
-                        debugLog("TitleScreenView: 遊び方シート表示要求")
-                        // 遊び方の詳細解説をモーダルで表示する
-                        isPresentingHowToPlay = true
-                    } label: {
-                        Label("遊び方を見る", systemImage: "questionmark.circle")
-                            .font(.system(size: 16, weight: .medium, design: .rounded))
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(.white.opacity(0.8))
-                    .foregroundColor(.white)
-                    .controlSize(.large)
-                    .accessibilityIdentifier("title_how_to_play_button")
+                    headerSection
+                    featureTilesSection
+                    howToPlayButton
                 }
-                // ScrollView 内での上下余白を padding へ置き換え、視線が自然に上から流れるように調整
                 .padding(.horizontal, horizontalPadding)
                 .padding(.top, 72)
                 .padding(.bottom, 64)
                 .frame(maxWidth: contentMaxWidth)
                 .frame(maxWidth: .infinity)
             }
-            // ScrollView 背景もテーマカラーで統一し、スクロールによる色抜けを防ぐ
             .background(theme.backgroundPrimary)
 
-            // MARK: - 設定ボタン（スクロール時も常に固定表示）
-            Button {
-                debugLog("TitleScreenView: 設定シート表示要求")
-                onOpenSettings()
-            } label: {
-                Image(systemName: "gearshape.fill")
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundColor(theme.menuIconForeground)
-                    .frame(width: 44, height: 44)
-                    .background(
-                        Circle()
-                            .fill(theme.menuIconBackground)
-                    )
-                    .overlay(
-                        Circle()
-                            .stroke(theme.menuIconBorder, lineWidth: 1)
-                    )
-            }
-            .buttonStyle(.plain)
-            .padding(.top, 16)
-            .padding(.trailing, 20)
-            .accessibilityLabel("設定")
-            .accessibilityHint("広告やプライバシー設定などの詳細を確認できます")
+            settingsButton
         }
-        // ZStack 全体をタイトル画面のアクセシビリティ要素として扱い、説明文を維持
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(theme.backgroundPrimary)
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("タイトル画面。モードを選んだあと「ゲーム開始」ボタンを押すとゲームが始まります。キャンペーンはステージ一覧へ遷移し、フリーモードは設定を編集できます。手札スロットは最大\(selectedMode.handSize)種類で、\(selectedMode.stackingRuleDetailText)")
+        // VoiceOver 向けにカードメニューの概要を日本語で伝える
+        .accessibilityLabel("タイトル画面。キャンペーン、ハイスコア、デイリーチャレンジの各カードから詳細へ進めます。")
     }
 
-    /// NavigationStack の遷移先を生成する
-    /// - Parameter target: 遷移対象の列挙値
-    /// - Returns: 遷移先のビュー
-    /// - Note: `@ViewBuilder` を付与し、`AnyView` に頼らずとも分岐ごとのログを柔軟に挟めるようにする
-    @ViewBuilder
+    private var headerSection: some View {
+        VStack(spacing: 12) {
+            Text("MonoKnight")
+                .font(.system(size: 32, weight: .heavy, design: .rounded))
+                .foregroundColor(theme.textPrimary)
+            Text("カードで騎士を導き、盤面を踏破しよう")
+                .font(.system(size: 16, weight: .medium, design: .rounded))
+                .foregroundColor(theme.textSecondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 320)
+        }
+    }
+
+    private var howToPlayButton: some View {
+        Button {
+            debugLog("TitleScreenView: 遊び方シート表示要求")
+            isPresentingHowToPlay = true
+        } label: {
+            Label("遊び方を見る", systemImage: "questionmark.circle")
+                .font(.system(size: 16, weight: .medium, design: .rounded))
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.bordered)
+        .tint(.white.opacity(0.8))
+        .foregroundColor(.white)
+        .controlSize(.large)
+        .accessibilityIdentifier("title_how_to_play_button")
+        // VoiceOver でモーダルが開くことを伝える
+        .accessibilityHint(Text("MonoKnight の基本ルールを確認できます"))
+    }
+
+    private var settingsButton: some View {
+        Button {
+            debugLog("TitleScreenView: 設定シート表示要求")
+            onOpenSettings()
+        } label: {
+            Image(systemName: "gearshape.fill")
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundColor(theme.menuIconForeground)
+                .frame(width: 44, height: 44)
+                .background(
+                    Circle()
+                        .fill(theme.menuIconBackground)
+                )
+                .overlay(
+                    Circle()
+                        .stroke(theme.menuIconBorder, lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
+        .padding(.top, 16)
+        .padding(.trailing, 20)
+        .accessibilityLabel("設定")
+        .accessibilityHint("広告やプライバシー設定などを確認できます")
+    }
+
+    private var featureTilesSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("プレイメニュー")
+                .font(.system(size: 18, weight: .semibold, design: .rounded))
+                .foregroundColor(theme.textPrimary)
+
+            VStack(spacing: 14) {
+                featureTile(
+                    target: .campaign,
+                    title: "キャンペーン",
+                    systemImage: "flag.checkered",
+                    headline: campaignTileHeadline,
+                    detail: campaignTileDetail,
+                    accessibilityID: "title_tile_campaign",
+                    accessibilityHint: "ステージ一覧を表示します"
+                )
+
+                featureTile(
+                    target: .highScore,
+                    title: "ハイスコア",
+                    systemImage: "trophy.fill",
+                    headline: highScoreTileHeadline,
+                    detail: highScoreTileDetail,
+                    accessibilityID: "title_tile_high_score",
+                    accessibilityHint: "スコアアタックの詳細を確認できます"
+                )
+
+                featureTile(
+                    target: .dailyChallenge,
+                    title: "デイリーチャレンジ",
+                    systemImage: "calendar",
+                    headline: dailyChallengeTileHeadline,
+                    detail: dailyChallengeTileDetail,
+                    accessibilityID: "title_tile_daily_challenge",
+                    accessibilityHint: "日替わりチャレンジの情報を表示します"
+                )
+            }
+        }
+    }
+
+    private func featureTile(
+        target: TitleNavigationTarget,
+        title: String,
+        systemImage: String,
+        headline: String,
+        detail: String,
+        accessibilityID: String,
+        accessibilityHint: String
+    ) -> some View {
+        NavigationLink(value: target) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .center, spacing: 12) {
+                    featureIconTile(systemName: systemImage)
+                        .alignmentGuide(.firstTextBaseline) { dimensions in
+                            dimensions[VerticalAlignment.center]
+                        }
+
+                    Text(title)
+                        .font(.system(size: 18, weight: .semibold, design: .rounded))
+                        .foregroundColor(theme.textPrimary)
+                    Spacer(minLength: 0)
+                    Image(systemName: "chevron.right")
+                        .foregroundColor(theme.textSecondary.opacity(0.7))
+                        .font(.system(size: 14, weight: .semibold))
+                }
+
+                Text(headline)
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .foregroundColor(theme.textSecondary)
+                Text(detail)
+                    .font(.system(size: 12, weight: .regular, design: .rounded))
+                    .foregroundColor(theme.textSecondary.opacity(0.85))
+                    .multilineTextAlignment(.leading)
+            }
+            .padding(.vertical, 16)
+            .padding(.horizontal, 18)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(theme.backgroundElevated.opacity(0.8))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .stroke(theme.statisticBadgeBorder, lineWidth: 1)
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+        .simultaneousGesture(
+            TapGesture().onEnded {
+                handleTileTapLogging(for: target)
+            }
+        )
+        .accessibilityIdentifier(accessibilityID)
+        // VoiceOver でカードの役割が明確になるようにタイトル・概要・詳細をまとめて読み上げる
+        .accessibilityLabel(Text("\(title)。\(headline)。\(detail)"))
+        .accessibilityHint(Text(accessibilityHint))
+    }
+
     private func navigationDestinationView(for target: TitleNavigationTarget) -> some View {
         switch target {
         case .campaign:
-            // ナビゲーション遷移先の構築段階でスタック内容とターゲット種別を詳細に把握する
             let stackDescription = navigationPath
                 .map { $0.rawValue }
                 .joined(separator: ",")
             let _ = debugLog(
                 "TitleScreenView: NavigationDestination.campaign 構築開始 -> instance=\(instanceIdentifier.uuidString) targetType=\(String(describing: type(of: target))) stackCount=\(navigationPath.count) stack=[\(stackDescription)]"
             )
-            CampaignStageSelectionView(
-                campaignLibrary: campaignLibrary,
-                progressStore: campaignProgressStore,
-                selectedStageID: selectedCampaignStage?.id,
-                onClose: { popNavigationStack() },
-                onSelectStage: { stage in
-                    // ステージ決定時はスタックを初期化してタイトルへ戻し、概要カードの開始ボタンから進めるようにする
-                    resetNavigationStack()
-                    handleCampaignStageSelection(stage)
-                },
-                showsCloseButton: false
-            )
-            // ステージセレクターが表示されるタイミングを把握し、ナビゲーション不具合の追跡に活用する
-            .onAppear {
-                debugLog("TitleScreenView: NavigationDestination.campaign 表示 -> 現在のスタック数=\(navigationPath.count)")
-            }
-            .onDisappear {
-                debugLog("TitleScreenView: NavigationDestination.campaign 非表示 -> 現在のスタック数=\(navigationPath.count)")
-            }
-        case .freeModeEditor:
-            // フリーモード設定画面への遷移でも同様にスタックの現状を明示する
-            let stackDescription = navigationPath
-                .map { $0.rawValue }
-                .joined(separator: ",")
-            let _ = debugLog(
-                "TitleScreenView: NavigationDestination.freeModeEditor 構築開始 -> instance=\(instanceIdentifier.uuidString) targetType=\(String(describing: type(of: target))) stackCount=\(navigationPath.count) stack=[\(stackDescription)]"
-            )
-            FreeModeRegulationView(
-                initialRegulation: freeModeStore.regulation,
-                presets: GameMode.builtInModes,
-                onCancel: {
-                    // キャンセル時はページを閉じ、元のタイトル画面へ戻す
-                    debugLog("TitleScreenView: フリーモード設定をキャンセル")
-                    popNavigationStack()
-                },
-                onSave: { newRegulation in
-                    // 保存後はレギュレーションを更新し、遷移を閉じたうえで概要カードの開始ボタンを待つ
-                    freeModeStore.update(newRegulation)
-                    let updatedMode = freeModeStore.makeGameMode()
-                    selectedMode = updatedMode
-                    resetNavigationStack()
-                    debugLog("TitleScreenView: フリーモード設定保存 -> 概要カードの開始ボタン待ち")
+            return AnyView(
+                CampaignStageSelectionView(
+                    campaignLibrary: campaignLibrary,
+                    progressStore: campaignProgressStore,
+                    selectedStageID: highlightedCampaignStageID,
+                    onClose: { popNavigationStack() },
+                    onSelectStage: { stage in
+                        handleCampaignStageSelection(stage)
+                    },
+                    showsCloseButton: false
+                )
+                .onAppear {
+                    debugLog("TitleScreenView: NavigationDestination.campaign 表示 -> 現在のスタック数=\(navigationPath.count)")
+                }
+                .onDisappear {
+                    debugLog("TitleScreenView: NavigationDestination.campaign 非表示 -> 現在のスタック数=\(navigationPath.count)")
                 }
             )
-        @unknown default:
-            // 想定外ケースでもログだけは残し、調査時にスタックの不整合を追えるようにする
-            let stackDescription = navigationPath
-                .map { $0.rawValue }
-                .joined(separator: ",")
-            let _ = debugLog(
-                "TitleScreenView: NavigationDestination.unknown フォールバック -> instance=\(instanceIdentifier.uuidString) rawValue=\(target.rawValue) targetType=\(String(describing: type(of: target))) stackCount=\(navigationPath.count) stack=[\(stackDescription)]"
+        case .highScore:
+            return AnyView(
+                highScoreDetailView
+                    .onAppear {
+                        debugLog("TitleScreenView: NavigationDestination.highScore 表示 -> 現在のスタック数=\(navigationPath.count)")
+                    }
+                    .onDisappear {
+                        debugLog("TitleScreenView: NavigationDestination.highScore 非表示 -> 現在のスタック数=\(navigationPath.count)")
+                    }
             )
-            EmptyView()
+        case .dailyChallenge:
+            return AnyView(
+                dailyChallengeDetailView
+                    .onAppear {
+                        debugLog("TitleScreenView: NavigationDestination.dailyChallenge 表示 -> 現在のスタック数=\(navigationPath.count)")
+                    }
+                    .onDisappear {
+                        debugLog("TitleScreenView: NavigationDestination.dailyChallenge 非表示 -> 現在のスタック数=\(navigationPath.count)")
+                    }
+            )
         }
     }
 
-    /// 遊び方シートの内容を切り出したヘルパー
-    /// - Note: `NavigationStack` を含むため、`body` から切り離しておくと型推論が安定する
+    @ViewBuilder
+    private var highScoreDetailView: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                Text("スタンダードモードのスコアを更新して Game Center ランキングを目指しましょう。")
+                    .font(.system(size: 15, weight: .regular, design: .rounded))
+                    .foregroundColor(theme.textSecondary)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("現在の情報")
+                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .foregroundColor(theme.textPrimary)
+                    Text(bestPointsDescription)
+                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .foregroundColor(theme.textSecondary)
+                }
+
+                Button {
+                    startStandardModeFromHighScore()
+                } label: {
+                    Text("スタンダードを開始")
+                        .font(.system(size: 16, weight: .semibold, design: .rounded))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(theme.accentPrimary)
+                .foregroundColor(theme.accentOnPrimary)
+                .controlSize(.large)
+                .accessibilityIdentifier("high_score_start_button")
+                // VoiceOver でボタン押下後にゲームが始まることを強調
+                .accessibilityHint(Text("スタンダードモードでプレイを開始します"))
+
+                Text("手数と経過秒数の合計がスコアになります。少ないほど上位に表示されます。")
+                    .font(.system(size: 12, weight: .regular, design: .rounded))
+                    .foregroundColor(theme.textSecondary.opacity(0.85))
+            }
+            .padding(24)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .background(theme.backgroundPrimary)
+        .navigationTitle("ハイスコア")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    @ViewBuilder
+    private var dailyChallengeDetailView: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                Text("毎日変化する特別な盤面に挑戦できるモードを準備しています。")
+                    .font(.system(size: 15, weight: .regular, design: .rounded))
+                    .foregroundColor(theme.textSecondary)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("現在の状況")
+                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .foregroundColor(theme.textPrimary)
+                    Text("公開に向けて調整中です。最新情報はアップデートノートでお知らせします。")
+                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .foregroundColor(theme.textSecondary)
+                }
+
+                Label("近日公開", systemImage: "hourglass")
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .foregroundColor(theme.accentPrimary)
+                    .accessibilityHint("現在は利用できません")
+            }
+            .padding(24)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .background(theme.backgroundPrimary)
+        .navigationTitle("デイリーチャレンジ")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
     @ViewBuilder
     private var howToPlaySheetContent: some View {
-        // NavigationStack でタイトルバーを付与しつつ共通ビューを利用
         NavigationStack {
             HowToPlayView(showsCloseButton: true)
         }
-        // iPad では初期状態から `.large` を採用して情報を全て表示、iPhone では medium/large の切り替えを許容
         .presentationDetents(
             horizontalSizeClass == .regular ? [.large] : [.medium, .large]
         )
         .presentationDragIndicator(.visible)
     }
 
-    /// モード選択の一覧を描画するセクション
-    private var modeSelectionSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("ゲームモード")
-                .font(.system(size: 18, weight: .semibold, design: .rounded))
-                .foregroundColor(theme.textPrimary)
-
-            campaignSelectionButton
-
-            ForEach(availableModes) { mode in
-                modeSelectionButton(for: mode)
-            }
+    private func handleTileTapLogging(for target: TitleNavigationTarget) {
+        switch target {
+        case .campaign:
+            logCampaignTileTap()
+        case .highScore:
+            debugLog("TitleScreenView: ハイスコアカードをタップ -> 詳細ページへ遷移要求")
+            logNavigationDepth(prefix: "TitleScreenView: NavigationStack 遷移直前状態")
+        case .dailyChallenge:
+            debugLog("TitleScreenView: デイリーチャレンジカードをタップ -> 詳細ページへ遷移要求")
+            logNavigationDepth(prefix: "TitleScreenView: NavigationStack 遷移直前状態")
         }
-        .frame(maxWidth: .infinity)
     }
 
-    /// モードを選択するためのボタンレイアウト
-    /// - Parameter mode: 表示対象のゲームモード
-    private func modeSelectionButton(for mode: GameMode) -> some View {
-        let isSelected = mode == selectedMode
-        let isFreeMode = mode.identifier == .freeCustom
-
-        return Button {
-            handleModeSelection(fromList: mode, isFreeMode: isFreeMode)
-        } label: {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(alignment: .center, spacing: 12) {
-                    modeVisualTag(for: mode)
-                        // バッジ群はテキスト基準ではなく中央揃えで扱いたいので、基準線を明示的に中央へ合わせる
-                        .alignmentGuide(.firstTextBaseline) { dimensions in
-                            dimensions[VerticalAlignment.center]
-                        }
-                    Text(mode.displayName)
-                        .font(.system(size: 17, weight: .semibold, design: .rounded))
-                        .foregroundColor(theme.textPrimary)
-                    Spacer(minLength: 0)
-                    if isSelected {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundColor(theme.accentPrimary)
-                            .font(.system(size: 18, weight: .bold))
-                    }
-                }
-                Text(primaryDescription(for: mode))
-                    .font(.system(size: 13, weight: .medium, design: .rounded))
-                    .foregroundColor(theme.textSecondary)
-                Text(secondaryDescription(for: mode))
-                    .font(.system(size: 12, weight: .regular, design: .rounded))
-                    .foregroundColor(theme.textSecondary.opacity(0.85))
-                if isFreeMode {
-                    Text("タップしてレギュレーションを編集できます")
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .foregroundColor(theme.textSecondary.opacity(0.9))
-                }
-            }
-            .padding(.vertical, 14)
-            .padding(.horizontal, 16)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(theme.backgroundElevated.opacity(isSelected ? 0.95 : 0.75))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .stroke(isSelected ? theme.accentPrimary : theme.statisticBadgeBorder, lineWidth: isSelected ? 2 : 1)
-                    )
-            )
-        }
-        .buttonStyle(.plain)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(
-            Text("\(mode.displayName)。\(mode.difficultyAccessibilityDescription)。\(primaryDescription(for: mode))")
-        )
-        .accessibilityHint(Text(accessibilityHint(for: mode, isFreeMode: isFreeMode)))
-        .accessibilityIdentifier("mode_button_\(mode.identifier.rawValue)")
+    private func logCampaignTileTap() {
+        let stageIDDescription = highlightedCampaignStageID?.displayCode ?? "未選択"
+        let chaptersCount = campaignLibrary.chapters.count
+        let totalStageCount = campaignLibrary.allStages.count
+        let unlockedCount = unlockedCampaignStageCount
+        debugLog("TitleScreenView: キャンペーンカードタップ -> 章数=\(chaptersCount) 総ステージ数=\(totalStageCount) 最新選択=\(stageIDDescription) 解放済=\(unlockedCount)")
+        logNavigationDepth(prefix: "TitleScreenView: NavigationStack 遷移直前状態")
     }
 
-    /// モード固有のアイコンと難易度バッジをまとめて返す
-    /// - Parameter mode: 視覚要素を表示したいモード
-    /// - Returns: アイコン＋難易度バッジのペア
-    private func modeVisualTag(for mode: GameMode) -> some View {
-        HStack(spacing: 8) {
-            modeIconTile(for: mode)
-            difficultyBadge(for: mode)
-        }
-        // サイズ変化でテキストが揺れないよう固定サイズで描画する
-        .fixedSize()
-        // 装飾目的の要素なので VoiceOver では冗長になるため非表示にする
-        .accessibilityHidden(true)
+    private func logNavigationDepth(prefix: String) {
+        let currentDepth = navigationPath.count
+        debugLog("\(prefix) -> 現在のスタック数=\(currentDepth)")
     }
 
-    /// モードを象徴する SF Symbols アイコンのタイル
-    /// - Parameter mode: 対象モード
-    /// - Returns: AppTheme の背景色とアクセントカラーを組み合わせた角丸タイル
-    private func modeIconTile(for mode: GameMode) -> some View {
-        Image(systemName: mode.iconSystemName)
-            .font(.system(size: 17, weight: .semibold))
+    private func handleCampaignStageSelection(_ stage: CampaignStage) {
+        debugLog("TitleScreenView: キャンペーンステージを選択 -> \(stage.id.displayCode)")
+        highlightedCampaignStageID = stage.id
+        resetNavigationStack()
+        debugLog("TitleScreenView: キャンペーンステージ選択完了 -> ゲーム開始を要求")
+        onStart(stage.makeGameMode())
+    }
+
+    private func startStandardModeFromHighScore() {
+        debugLog("TitleScreenView: ハイスコアチャレンジ開始要求 -> standard5x5")
+        resetNavigationStack()
+        onStart(GameMode.standard)
+    }
+
+    private func featureIconTile(systemName: String) -> some View {
+        Image(systemName: systemName)
+            .font(.system(size: 18, weight: .semibold))
             .foregroundColor(theme.accentPrimary)
             .padding(10)
             .background(
@@ -1729,427 +1756,87 @@ fileprivate struct TitleScreenView: View {
             )
     }
 
-    /// 難易度ランクを可視化するためのバッジ
-    /// - Parameter mode: 対象モード
-    /// - Returns: アクセント色を背景にしたカプセル型バッジ
-    private func difficultyBadge(for mode: GameMode) -> some View {
-        Text(mode.difficultyBadgeLabel)
-            .font(.system(size: 11, weight: .bold, design: .rounded))
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(theme.accentPrimary)
-            )
-            .foregroundColor(theme.accentOnPrimary)
-    }
-
-    /// 選択中のモード概要をカード形式で表示し、次のアクションを案内する
-    private var selectedModeSummaryCard: some View {
-        let stage = selectedCampaignStage
-
-        // キャンペーンモードでステージ未選択の場合は開始ボタンを無効化するための判定
-        let requiresStageSelection = selectedMode.identifier == .campaignStage && stage == nil
-
-        return VStack(alignment: .leading, spacing: 12) {
-            // 概要テキスト群をまとめて VoiceOver へ提供しつつ、ボタンは個別要素として扱えるようにする
-            VStack(alignment: .leading, spacing: 12) {
-                // 選択中モード名とアイコンをまとめたヘッダー
-                HStack(alignment: .firstTextBaseline, spacing: 12) {
-                    modeVisualTag(for: selectedMode)
-                        // ヘッダーも中央を基準として揃えることでカード一覧と同じ見た目を維持する
-                        .alignmentGuide(.firstTextBaseline) { dimensions in
-                            dimensions[VerticalAlignment.center]
-                        }
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("選択中のモード")
-                            .font(.system(size: 13, weight: .semibold, design: .rounded))
-                            .foregroundColor(theme.textSecondary.opacity(0.9))
-                        Text(selectedMode.displayName)
-                            .font(.system(size: 20, weight: .bold, design: .rounded))
-                            .foregroundColor(theme.textPrimary)
-                    }
-                    Spacer(minLength: 0)
-                    if let stage {
-                        // キャンペーンステージを選択中の場合はコードをバッジ表示して強調する
-                        Text(stage.displayCode)
-                            .font(.system(size: 13, weight: .semibold, design: .rounded))
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(
-                                Capsule(style: .continuous)
-                                    .fill(theme.backgroundPrimary.opacity(0.9))
-                            )
-                            .foregroundColor(theme.textPrimary)
-                    }
-                }
-
-                if let stage {
-                    // キャンペーンステージの詳細を追記し、次回再訪時も概要を把握しやすくする
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(stage.title)
-                            .font(.system(size: 15, weight: .semibold, design: .rounded))
-                            .foregroundColor(theme.textPrimary)
-                        Text(stage.summary)
-                            .font(.system(size: 12, weight: .regular, design: .rounded))
-                            .foregroundColor(theme.textSecondary)
-                    }
-                }
-
-                // ルール概要とペナルティ情報をまとめた説明
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(primaryDescription(for: selectedMode))
-                        .font(.system(size: 13, weight: .medium, design: .rounded))
-                        .foregroundColor(theme.textSecondary)
-                    Text(secondaryDescription(for: selectedMode))
-                        .font(.system(size: 12, weight: .regular, design: .rounded))
-                        .foregroundColor(theme.textSecondary.opacity(0.9))
-                    Text("手札スロット \(selectedMode.handSize) 種類 / 先読み \(selectedMode.nextPreviewCount) 枚。\(selectedMode.stackingRuleDetailText)")
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .foregroundColor(theme.textSecondary.opacity(0.85))
-                }
-
-                // モードごとに異なる開始導線を明示する案内テキスト
-                Text(startGuidanceText(for: selectedMode, campaignStage: stage))
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .foregroundColor(theme.accentPrimary)
-            }
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel(Text(summaryAccessibilityLabel(for: stage)))
-
-            // ユーザーが明示的に開始操作できるよう、概要カード内へ専用ボタンを配置する
-            Button {
-                // ボタン操作からゲーム開始処理を呼び出し、タップログも一元管理する
-                triggerImmediateStart(for: selectedMode, context: .summaryCardButton)
-            } label: {
-                Text("ゲーム開始")
-                    .font(.system(size: 17, weight: .bold, design: .rounded))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(theme.accentPrimary)
-            .foregroundColor(theme.accentOnPrimary)
-            .controlSize(.large)
-            .disabled(requiresStageSelection)
-            .opacity(requiresStageSelection ? 0.45 : 1)
-            .accessibilityIdentifier("start_game_button")
-            .accessibilityHint(
-                Text(
-                    requiresStageSelection
-                        ? "キャンペーンからステージを選ぶと押せるようになります。"
-                        : "ゲームを開始し、準備が整い次第プレイ画面へ移動します。"
-                )
-            )
-        }
-        .padding(.vertical, 18)
-        .padding(.horizontal, 20)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(theme.backgroundElevated.opacity(0.85))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .stroke(theme.statisticBadgeBorder.opacity(0.9), lineWidth: 1)
-                )
-        )
-        .accessibilityIdentifier("selected_mode_summary_card")
-    }
-
-    /// キャンペーンステージ選択エントリ
-    private var campaignSelectionButton: some View {
-        let isCampaignSelected = selectedMode.identifier == .campaignStage
-        let currentStage = selectedCampaignStage
-
-        return NavigationLink(value: TitleNavigationTarget.campaign) {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Text("キャンペーン")
-                        .font(.system(size: 17, weight: .semibold, design: .rounded))
-                        .foregroundColor(theme.textPrimary)
-                    Spacer(minLength: 0)
-                    Image(systemName: "flag.checkered")
-                        .foregroundColor(theme.accentPrimary)
-                        .font(.system(size: 16, weight: .semibold))
-                }
-
-                if let stage = currentStage {
-                    Text("\(stage.displayCode) \(stage.title)")
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
-                        .foregroundColor(theme.textPrimary)
-                    Text(stage.summary)
-                        .font(.system(size: 12, weight: .regular, design: .rounded))
-                        .foregroundColor(theme.textSecondary)
-                    starIcons(for: stage.id)
-                        .padding(.top, 4)
-                    if let objective = stage.secondaryObjectiveDescription {
-                        Text("★2: \(objective)")
-                            .font(.system(size: 11, weight: .medium, design: .rounded))
-                            .foregroundColor(theme.textSecondary.opacity(0.85))
-                    }
-                    if let scoreText = stage.scoreTargetDescription {
-                        Text("★3: \(scoreText)")
-                            .font(.system(size: 11, weight: .medium, design: .rounded))
-                            .foregroundColor(theme.textSecondary.opacity(0.85))
-                    }
-                } else {
-                    Text("ステージを選択してキャンペーンを開始できます")
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                        .foregroundColor(theme.textSecondary)
-                        .multilineTextAlignment(.leading)
-                }
-            }
-            .padding(.vertical, 14)
-            .padding(.horizontal, 16)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(theme.backgroundElevated.opacity(isCampaignSelected ? 0.95 : 0.75))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .stroke(
-                                isCampaignSelected ? theme.accentPrimary : theme.statisticBadgeBorder,
-                                lineWidth: isCampaignSelected ? 2 : 1
-                            )
-                    )
-            )
-        }
-        // NavigationLink の自動 push に切り替えても操作ログと定義チェックを残すため、タップと同時に詳細情報を出力する
-        .simultaneousGesture(
-            TapGesture().onEnded {
-                // リンクタップのタイミングでタイトル画面からキャンペーン一覧への遷移要求が発生したことを明示的に残す
-                debugLog("TitleScreenView: キャンペーンセレクター表示要求 (NavigationLink)")
-                // 現在のステージ定義読込状況を記録し、空配列や nil 参照がないか可視化する（Button 時代のログを踏襲）
-                let stageIDDescription = selectedMode.campaignMetadataSnapshot?.stageID.displayCode ?? "なし"
-                let chaptersCount = campaignLibrary.chapters.count
-                let totalStageCount = campaignLibrary.chapters.map { $0.stages.count }.reduce(0, +)
-                let unlockedCount = campaignLibrary.allStages.filter { campaignProgressStore.isStageUnlocked($0) }.count
-                debugLog("TitleScreenView: キャンペーン定義チェック -> 章数=\(chaptersCount) 総ステージ数=\(totalStageCount) 選択中ID=\(stageIDDescription) 解放済=\(unlockedCount)")
-                if currentStage == nil {
-                    if isCampaignSelected {
-                        // 選択モードがキャンペーンなのにステージ情報が解決できない場合は警告扱いとして残し、メタデータ欠落の早期検知に役立てる
-                        debugLog("TitleScreenView: 現在の選択ステージが解決できませんでした。メタデータの有無を確認してください。")
-                    } else {
-                        // 初期状態ではキャンペーンが未選択のため警告を出さず、情報ログとして状況を控えめに記録する（検証用の参考情報）
-                        debugLog("TitleScreenView: キャンペーン未選択の初期状態です。")
-                    }
-                }
-                // NavigationLink 側で自動 push されるため、スタック深度ログは参照用途に限定して現在値を残す
-                let currentDepth = navigationPath.count
-                debugLog("TitleScreenView: NavigationStack 遷移直前状態 -> 現在のスタック数=\(currentDepth)")
-            }
-        )
-        .buttonStyle(.plain)
-        // UI テストと VoiceOver の双方から参照しやすいようにアクセシビリティ情報を整理する
-        .accessibilityIdentifier("campaign_stage_selector_link")
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel(
-            currentStage.map { stage in
-                Text("キャンペーンセレクター。現在選択中は \(stage.displayCode) \(stage.title) です。ステージを変更すると「ゲーム開始」ボタンで挑戦できます。")
-            } ?? Text("キャンペーンセレクター。ステージを選ぶと「ゲーム開始」ボタンが有効になります。")
-        )
-        .accessibilityHint(Text("タップするとキャンペーンのステージ一覧が開きます。"))
-    }
-
-    /// モード一覧からのタップ処理を共通化し、選択ハイライト更新と設定編集の分岐を整理する
-    /// - Parameters:
-    ///   - mode: タップ対象のモード
-    ///   - isFreeMode: フリーモードかどうかのフラグ
-    private func handleModeSelection(fromList mode: GameMode, isFreeMode: Bool) {
-        if isFreeMode {
-            // フリーモードの場合はまず設定ページへ遷移し、保存後に開始する
-            debugLog("TitleScreenView: フリーモードカードをタップ -> 設定編集ページへ遷移")
-            // プッシュ前後の NavigationStack 状態を把握し、遷移できない場合の原因を特定しやすくする
-            let currentDepth = navigationPath.count
-            debugLog("TitleScreenView: NavigationStack push準備(freeMode) -> 現在のスタック数=\(currentDepth)")
-            selectedMode = mode
-            navigationPath.append(TitleNavigationTarget.freeModeEditor)
-            debugLog("TitleScreenView: NavigationStack push完了(freeMode) -> 変更後のスタック数=\(navigationPath.count)")
-            return
-        }
-
-        // 同じモードを連続で選んだかどうかでログを出し分け、デバッグ時に操作履歴を追いやすくする
-        if selectedMode == mode {
-            debugLog("TitleScreenView: モードを再選択 -> \(mode.identifier.rawValue)")
-        } else {
-            debugLog("TitleScreenView: モード切り替え -> \(mode.identifier.rawValue)")
-        }
-
-        // 即時開始を廃止したため、選択状態の更新とガイド文の再描画のみを行う
-        // - Note: 概要カード内の「ゲーム開始」ボタンから明示的に進んでもらう設計へ切り替えた
-        selectedMode = mode
-    }
-
-    /// アクセシビリティヒントに表示するメッセージを組み立てる
-    /// - Parameters:
-    ///   - mode: 説明対象のモード
-    ///   - isFreeMode: フリーモードかどうか
-    /// - Returns: VoiceOver で読み上げる補足説明
-    private func accessibilityHint(for mode: GameMode, isFreeMode: Bool) -> String {
-        if isFreeMode {
-            return "\(secondaryDescription(for: mode))。レギュレーションを編集して保存したあと、タイトルで「ゲーム開始」ボタンを押すとプレイできます。"
-        } else {
-            return "\(secondaryDescription(for: mode))。タップして選択したら「ゲーム開始」ボタンでプレイを始めます。"
-        }
-    }
-
-    /// キャンペーンのステージ選択結果を受け取り、モード反映と開始処理をまとめて行う
-    /// - Parameter stage: ユーザーが選択したステージ
-    private func handleCampaignStageSelection(_ stage: CampaignStage) {
-        debugLog("TitleScreenView: キャンペーンステージを選択 -> \(stage.id.displayCode)")
-        let mode = stage.makeGameMode()
-        selectedMode = mode
-        // ステージ決定時点ではタイトルへ戻り、概要カードの開始ボタンから進行してもらう
-        debugLog("TitleScreenView: キャンペーンステージ選択完了 -> 概要カードの開始ボタン待ち")
-    }
-
-    /// モード概要カード向けの案内文を生成する
-    /// - Parameters:
-    ///   - mode: 対象モード
-    ///   - stage: 紐付くキャンペーンステージ（該当する場合のみ）
-    /// - Returns: ユーザーへ表示する導線説明文
-    private func startGuidanceText(for mode: GameMode, campaignStage stage: CampaignStage?) -> String {
-        switch mode.identifier {
-        case .freeCustom:
-            return "設定を保存したらタイトルへ戻り、「ゲーム開始」ボタンを押すとプレイを始められます。"
-        case .campaignStage:
-            if let stage {
-                return "ステージ \(stage.displayCode) を選んだあと、「ゲーム開始」ボタンで挑戦を始められます。"
-            } else {
-                return "キャンペーンからステージを選び、「ゲーム開始」ボタンで挑戦を始めます。"
-            }
-        default:
-            return "モードを選んだら「ゲーム開始」ボタンを押してゲームを始めます。"
-        }
-    }
-
-    /// モード概要カードのアクセシビリティラベルを構築する
-    /// - Parameter stage: キャンペーンステージ（存在しない場合は nil）
-    /// - Returns: VoiceOver 向けに統合した説明文
-    private func summaryAccessibilityLabel(for stage: CampaignStage?) -> String {
-        var components: [String] = []
-        components.append("選択中のモード: \(selectedMode.displayName)")
-        components.append(selectedMode.difficultyAccessibilityDescription)
-        if let stage {
-            components.append("ステージ \(stage.displayCode) \(stage.title)")
-        }
-        components.append(primaryDescription(for: selectedMode))
-        components.append(secondaryDescription(for: selectedMode))
-        components.append("手札スロットは最大 \(selectedMode.handSize) 種類、先読みは \(selectedMode.nextPreviewCount) 枚。\(selectedMode.stackingRuleDetailText)")
-        components.append(startGuidanceText(for: selectedMode, campaignStage: stage))
-        return components.joined(separator: "。")
-    }
-
-    /// 選択されたモードでゲーム開始フローを発火させる共通処理
-    /// - Parameters:
-    ///   - mode: 開始対象のモード
-    ///   - context: ログ出力用のトリガー種別
-    ///   - delayStart: `true` の場合は次のメインループまで実行を遅延させる
-    private func triggerImmediateStart(for mode: GameMode, context: StartTriggerContext, delayStart: Bool = false) {
-        let startAction = {
-            debugLog("TitleScreenView: \(context.logDescription) -> ゲーム開始 \(mode.identifier.rawValue)")
-            // ページ遷移中であっても開始時にスタックを初期化し、戻る操作の取り残しを防ぐ
-            resetNavigationStack()
-            selectedMode = mode
-            onStart(mode)
-        }
-
-        if delayStart {
-            DispatchQueue.main.async(execute: startAction)
-        } else {
-            startAction()
-        }
-    }
-
-    /// NavigationStack の末尾を 1 ページ分取り除き、手動で戻る挙動を再現する
     private func popNavigationStack() {
         guard navigationPath.count > 0 else { return }
-        // ポップ前後の段数を把握して戻る操作が想定通りかを追跡する
         let currentDepth = navigationPath.count
-        // 呼び出し元特定の補助情報としてコールスタックの先頭を添える
         let callStackSnippet = Thread.callStackSymbols.prefix(4).joined(separator: " | ")
         debugLog("TitleScreenView: NavigationStack pop実行 -> 現在のスタック数=\(currentDepth) 呼び出し元候補=\(callStackSnippet)")
         navigationPath.removeLast()
         debugLog("TitleScreenView: NavigationStack pop後 -> 変更後のスタック数=\(navigationPath.count)")
     }
 
-    /// NavigationStack を空に戻し、タイトル画面の初期状態へリセットする
     private func resetNavigationStack() {
         guard navigationPath.count > 0 else { return }
-        // リセット直前の段数を記録し、スタックを完全に空へ戻したか検証する
         let currentDepth = navigationPath.count
-        // 呼び出し元判別のため、直近のコールスタックを添付して予期せぬリセットを特定しやすくする
         let callStackSnippet = Thread.callStackSymbols.prefix(4).joined(separator: " | ")
         debugLog("TitleScreenView: NavigationStack reset実行 -> 現在のスタック数=\(currentDepth) 呼び出し元候補=\(callStackSnippet)")
-        // `NavigationPath` から配列へ変更したことで `removeAll()` が利用できるため、単純に全要素を削除して初期状態へ戻す
         navigationPath.removeAll()
         debugLog("TitleScreenView: NavigationStack reset後 -> 変更後のスタック数=\(navigationPath.count)")
-    }
-
-    /// ゲーム開始のトリガー元を識別する列挙体
-    private enum StartTriggerContext {
-        case summaryCardButton
-
-        /// ログ出力時に利用する説明文
-        var logDescription: String {
-            switch self {
-            case .summaryCardButton:
-                return "概要カード開始ボタン"
-            }
-        }
-    }
-
-    /// 各モードの主要な特徴を短文で返す
-    private func primaryDescription(for mode: GameMode) -> String {
-        // GameMode 側で共通ロジックを用意したため、ここでは単純に参照するだけで済む
-        return mode.primarySummaryText
-    }
-
-    /// ペナルティ量などの補足情報を返す
-    private func secondaryDescription(for mode: GameMode) -> String {
-        // 手札・先読み・ペナルティの表記も GameMode 側で統一管理する
-        return mode.secondarySummaryText
     }
 }
 
 // MARK: - レイアウト調整用のヘルパー
 private extension TitleScreenView {
-    /// 表示するモードの一覧（ビルトイン + フリーモード）
-    var availableModes: [GameMode] {
-        var modes = GameMode.builtInModes
-        modes.append(freeModeStore.makeGameMode())
-        return modes
+    var highlightedCampaignStage: CampaignStage? {
+        highlightedCampaignStageID.flatMap { campaignLibrary.stage(with: $0) }
     }
 
-    /// 現在選択中のキャンペーンステージ
-    var selectedCampaignStage: CampaignStage? {
-        guard selectedMode.identifier == .campaignStage,
-              let metadata = selectedMode.campaignMetadataSnapshot else { return nil }
-        return campaignLibrary.stage(with: metadata.stageID)
+    var totalCampaignStageCount: Int {
+        campaignLibrary.allStages.count
     }
 
-    /// スター獲得状況を表すアイコン列
-    /// - Parameter stageID: 対象ステージ
-    /// - Returns: 星 3 つ分の表示
-    func starIcons(for stageID: CampaignStageID) -> some View {
-        let earned = campaignProgressStore.progress(for: stageID)?.earnedStars ?? 0
-        return HStack(spacing: 4) {
-            ForEach(0..<3, id: \.self) { index in
-                Image(systemName: index < earned ? "star.fill" : "star")
-                    .foregroundColor(index < earned ? theme.accentPrimary : theme.textSecondary.opacity(0.6))
-            }
+    var unlockedCampaignStageCount: Int {
+        campaignLibrary.allStages.filter { campaignProgressStore.isStageUnlocked($0) }.count
+    }
+
+    var campaignTileHeadline: String {
+        let unlocked = unlockedCampaignStageCount
+        let total = totalCampaignStageCount
+        let stars = campaignProgressStore.totalStars
+        return "解放済み \(unlocked)/\(total) ステージ・スター \(stars)"
+    }
+
+    var campaignTileDetail: String {
+        if let stage = highlightedCampaignStage {
+            return "最新選択: \(stage.displayCode) \(stage.title)"
+        } else {
+            return "ステージを選んでストーリーを進めましょう"
         }
-        .accessibilityLabel("スター獲得数: \(earned) / 3")
     }
 
-    /// 横幅に応じてビューの最大幅を制御し、iPad では中央寄せのカード風レイアウトにする
+    var highScoreTileHeadline: String {
+        if bestPoints == .max {
+            return "ベストスコア: 記録なし"
+        } else {
+            return "ベストスコア: \(bestPoints) pt"
+        }
+    }
+
+    var highScoreTileDetail: String {
+        "スタンダードで手数とタイムを縮めましょう"
+    }
+
+    var dailyChallengeTileHeadline: String {
+        "準備中"
+    }
+
+    var dailyChallengeTileDetail: String {
+        "日替わりの特別ルールを公開予定です"
+    }
+
+    var bestPointsDescription: String {
+        if bestPoints == .max {
+            return "記録はまだありません"
+        } else {
+            return "現在のベスト: \(bestPoints) pt（少ないほど上位）"
+        }
+    }
+
     var contentMaxWidth: CGFloat? {
         horizontalSizeClass == .regular ? 520 : nil
     }
 
-    /// 端末に合わせて余白を調整する
     var horizontalPadding: CGFloat {
         horizontalSizeClass == .regular ? 80 : 32
     }
 }
-
