@@ -62,6 +62,10 @@ extension GameView {
                 // 旧設定との差分を検知したタイミングでハプティクス制御ロジックを更新し、無効化時の誤振動を防ぐ
                 viewModel.updateHapticsSetting(isEnabled: isEnabled)
             }
+            // scenePhase の変化を監視し、キャンペーン時のみタイマーの一時停止/再開を委譲する
+            .onChange(of: scenePhase) { newPhase in
+                viewModel.handleScenePhaseChange(newPhase)
+            }
             // 経過時間を 1 秒ごとに再計算し、リアルタイム表示へ反映
             .onReceive(viewModel.elapsedTimer) { _ in
                 viewModel.updateDisplayedElapsedTime()
