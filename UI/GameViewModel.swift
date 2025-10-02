@@ -463,14 +463,9 @@ final class GameViewModel: ObservableObject {
             let destinationCandidates = availableMoves.filter { $0.destination == request.destination }
 
             if destinationCandidates.count >= 2 {
-                // stackID ごとの候補数を集計し、単一候補カードが存在しない状況かつ複数スタックで競合しているか調べる
-                let candidateCountByStack = Dictionary(
-                    grouping: availableMoves,
-                    by: { $0.stackID }
-                ).mapValues { $0.count }
-
+                // 同一点を指す候補のうち、カード自体が複数方向ベクトルを持つスタックだけを抽出する（盤外で候補数が減っても判定できるようにする）
                 let conflictingStackIDs = destinationCandidates.reduce(into: Set<UUID>()) { partialResult, candidate in
-                    if let count = candidateCountByStack[candidate.stackID], count > 1 {
+                    if candidate.card.move.movementVectors.count > 1 {
                         partialResult.insert(candidate.stackID)
                     }
                 }

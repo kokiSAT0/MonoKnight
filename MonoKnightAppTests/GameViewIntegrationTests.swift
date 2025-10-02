@@ -384,6 +384,96 @@ final class GameViewIntegrationTests: XCTestCase {
         )
     }
 
+    /// 盤外制約で候補数が片側だけになっても複数候補カード同士の競合警告が発生することを確認する
+    func testBoardTapWithoutSelectionPresentsWarningWhenOutOfBoundsShrinksMultiCandidateOptions() {
+        let scheduler = PenaltyBannerSchedulerSpy()
+        let gameCenter = GameCenterServiceSpy()
+        let adsService = AdsServiceSpy()
+
+        // 左下隅スタートのモードを構築し、盤外判定によって候補が欠ける状況を明示的に再現する
+        var edgeRegulation = GameMode.standard.regulationSnapshot
+        edgeRegulation.spawnRule = .fixed(GridPoint(x: 0, y: 0))
+        let edgeMode = GameMode(
+            identifier: .freeCustom,
+            displayName: "端テスト",
+            regulation: edgeRegulation,
+            leaderboardEligible: false
+        )
+
+        let core = GameCore(mode: edgeMode)
+        let interfaces = GameModuleInterfaces { _ in core }
+
+        let viewModel = GameViewModel(
+            mode: edgeMode,
+            gameInterfaces: interfaces,
+            gameCenterService: gameCenter,
+            adsService: adsService,
+            onRequestReturnToTitle: nil,
+            penaltyBannerScheduler: scheduler
+        )
+
+        // テスト環境ではハプティクスを無効化し、実機依存の副作用を排除する
+        viewModel.updateHapticsSetting(isEnabled: false)
+
+        guard
+            let current = core.current,
+            current == GridPoint(x: 0, y: 0),
+            let firstStack = core.handStacks.first(where: { $0.topCard != nil }),
+            let secondStack = core.handStacks.first(where: { stack in
+                stack.id != firstStack.id && stack.topCard != nil
+            }),
+            let firstCard = firstStack.topCard,
+            let secondCard = secondStack.topCard
+        else {
+            XCTFail("盤外テスト用の初期手札や現在地を取得できませんでした")
+            return
+        }
+
+        // 左端にいるため、左右選択カードのうち左方向だけが盤外となり、候補数が片側に縮む状況を再現する
+        let overrideVectors = [
+            MoveVector(dx: 1, dy: 0),
+            MoveVector(dx: -1, dy: 0)
+        ]
+        MoveCard.setTestMovementVectors(overrideVectors, for: firstCard.move)
+        MoveCard.setTestMovementVectors(overrideVectors, for: secondCard.move)
+        defer {
+            MoveCard.setTestMovementVectors(nil, for: firstCard.move)
+            MoveCard.setTestMovementVectors(nil, for: secondCard.move)
+        }
+
+        let destination = current.offset(dx: 1, dy: 0)
+        XCTAssertTrue(core.board.contains(destination), "右隣のマスが盤外になっています")
+
+        let availableMoves = core.availableMoves()
+        let destinationMoves = availableMoves.filter { $0.destination == destination }
+        XCTAssertGreaterThanOrEqual(destinationMoves.count, 2, "同一マスへ到達できる候補が不足しています")
+
+        let destinationStackIDs = Set(destinationMoves.map(\.stackID))
+        XCTAssertGreaterThanOrEqual(destinationStackIDs.count, 2, "異なるスタックからの候補が揃っていません")
+
+        for stackID in destinationStackIDs {
+            let stackMoves = availableMoves.filter { $0.stackID == stackID }
+            XCTAssertEqual(stackMoves.count, 1, "盤外制約で片側のみになる前提が崩れています")
+        }
+
+        XCTAssertTrue(destinationMoves.allSatisfy { $0.card.move.movementVectors.count > 1 }, "複数候補カードのみで競合する前提が崩れています")
+
+        core.handleTap(at: destination)
+
+        // Combine の通知が伝搬するまで少し待機し、警告表示の有無を検証する
+        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+
+        XCTAssertEqual(core.current, current, "警告が出たにもかかわらず駒が移動しています")
+        XCTAssertNil(core.boardTapPlayRequest, "警告処理後に BoardTapPlayRequest が残っています")
+        XCTAssertNil(viewModel.boardBridge.animatingCard, "警告表示中にもかかわらずアニメーションが開始されています")
+        XCTAssertEqual(viewModel.boardTapSelectionWarning?.destination, destination, "警告に記録された目的地が一致していません")
+        XCTAssertEqual(
+            viewModel.boardTapSelectionWarning?.message,
+            "複数のカードが同じマスを指定しています。手札から使いたいカードを選んでからマスをタップしてください。",
+            "警告メッセージが仕様と一致していません"
+        )
+    }
+
     /// 単一方向カードをタップした際は盤面タップを挟まずに即時移動することを確認する
     func testHandleHandSlotTapImmediatelyPlaysSingleCandidateCard() {
         let scheduler = PenaltyBannerSchedulerSpy()
