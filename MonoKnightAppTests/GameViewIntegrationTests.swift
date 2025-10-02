@@ -384,6 +384,82 @@ final class GameViewIntegrationTests: XCTestCase {
         )
     }
 
+    /// 単一ベクトルカードが競合に含まれる場合は警告が表示されず、自動的に通常カードが消費されることを確認する
+    func testBoardTapWithoutSelectionSkipsWarningWhenSingleVectorCandidateExists() {
+        let scheduler = PenaltyBannerSchedulerSpy()
+        let gameCenter = GameCenterServiceSpy()
+        let adsService = AdsServiceSpy()
+
+        let core = GameCore(mode: .standard)
+        let interfaces = GameModuleInterfaces { _ in core }
+
+        let viewModel = GameViewModel(
+            mode: .standard,
+            gameInterfaces: interfaces,
+            gameCenterService: gameCenter,
+            adsService: adsService,
+            onRequestReturnToTitle: nil,
+            penaltyBannerScheduler: scheduler
+        )
+
+        // テスト実行中は不要なハプティクスを抑止し、環境差異に左右されないようにする
+        viewModel.updateHapticsSetting(isEnabled: false)
+
+        guard
+            let current = core.current,
+            let multiStack = core.handStacks.first(where: { $0.topCard != nil }),
+            let singleStack = core.handStacks.first(where: { stack in
+                guard let card = stack.topCard else { return false }
+                return stack.id != multiStack.id && card.move != multiStack.topCard?.move
+            }),
+            let multiCard = multiStack.topCard,
+            let singleCard = singleStack.topCard
+        else {
+            XCTFail("テスト前提となる手札スタックを準備できませんでした")
+            return
+        }
+
+        // 複数候補カードには左右 1 マス、単一カードには右 1 マスのみ移動できるベクトルを割り当てて競合状況を再現する
+        let multiOverride = [
+            MoveVector(dx: 1, dy: 0),
+            MoveVector(dx: -1, dy: 0)
+        ]
+        let singleOverride = [MoveVector(dx: 1, dy: 0)]
+        MoveCard.setTestMovementVectors(multiOverride, for: multiCard.move)
+        MoveCard.setTestMovementVectors(singleOverride, for: singleCard.move)
+        defer {
+            MoveCard.setTestMovementVectors(nil, for: multiCard.move)
+            MoveCard.setTestMovementVectors(nil, for: singleCard.move)
+        }
+
+        let destination = current.offset(dx: 1, dy: 0)
+        XCTAssertTrue(core.board.contains(destination), "目的地が盤外になっています")
+
+        let destinationCandidates = core.availableMoves().filter { $0.destination == destination }
+        XCTAssertGreaterThanOrEqual(destinationCandidates.count, 2, "同一マスへ移動できる候補が不足しています")
+        XCTAssertNotNil(
+            destinationCandidates.first(where: { $0.stackID == multiStack.id && $0.card.move.movementVectors.count > 1 }),
+            "複数ベクトルカードの候補が揃っていません"
+        )
+        XCTAssertNotNil(
+            destinationCandidates.first(where: { $0.stackID == singleStack.id && $0.card.move.movementVectors.count == 1 }),
+            "単一ベクトルカードの候補が揃っていません"
+        )
+
+        core.handleTap(at: destination)
+
+        // Combine の購読を通じたアニメーション処理完了まで十分な時間待機する（約 0.7 秒で移動が完了する）
+        RunLoop.main.run(until: Date().addingTimeInterval(0.7))
+
+        XCTAssertEqual(core.current, destination, "単一ベクトルカードが自動消費されず、駒の位置が更新されていません")
+        XCTAssertEqual(core.moveCount, 1, "カード使用回数が加算されていません")
+        XCTAssertNil(core.boardTapPlayRequest, "処理後に BoardTapPlayRequest が残っています")
+        XCTAssertNil(viewModel.boardTapSelectionWarning, "単一ベクトルカードが存在するにもかかわらず警告が残っています")
+        XCTAssertNil(viewModel.selectedHandStackID, "カードプレイ後も選択状態が残っています")
+        XCTAssertTrue(viewModel.boardBridge.forcedSelectionHighlightPoints.isEmpty, "カードプレイ後に強制ハイライトが解除されていません")
+        XCTAssertNil(viewModel.boardBridge.animatingCard, "演出完了後も animatingCard が解放されていません")
+    }
+
     /// 斜め選択カード同士が同一点を指す場合も警告表示が行われることを確認する（キャンペーン 3-2 相当）
     func testBoardTapWithoutSelectionPresentsWarningWhenDiagonalChoiceStacksConflict() {
         let scheduler = PenaltyBannerSchedulerSpy()
