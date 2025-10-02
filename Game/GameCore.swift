@@ -89,7 +89,8 @@ public final class GameCore: ObservableObject {
             size: mode.boardSize,
             initialVisitedPoints: mode.initialVisitedPoints,
             requiredVisitOverrides: mode.additionalVisitRequirements,
-            togglePoints: mode.toggleTilePoints
+            togglePoints: mode.toggleTilePoints,
+            impassablePoints: mode.impassableTilePoints
         )
         current = mode.initialSpawnPoint ?? BoardGeometry.defaultSpawnPoint(for: mode.boardSize)
         deck = Deck(configuration: mode.deckConfiguration)
@@ -165,6 +166,8 @@ public final class GameCore: ObservableObject {
         guard computedDestination == resolvedMove.destination else { return }
         // UI 側で無効カードを弾く想定だが、念のため安全確認
         guard board.contains(computedDestination) else { return }
+        // 侵入不可マスであれば移動を拒否する
+        guard board.isTraversable(computedDestination) else { return }
 
         // 盤面タップからのリクエストが残っている場合に備え、念のためここでクリアしておく
         boardTapPlayRequest = nil
@@ -254,6 +257,8 @@ public final class GameCore: ObservableObject {
                 let destination = origin.offset(dx: vector.dx, dy: vector.dy)
                 // 盤面外の移動は候補から除外
                 guard activeBoard.contains(destination) else { continue }
+                // 侵入不可マスは候補として提示しない
+                guard activeBoard.isTraversable(destination) else { continue }
 
                 resolved.append(
                     ResolvedCardMove(
@@ -329,7 +334,8 @@ public final class GameCore: ObservableObject {
             size: mode.boardSize,
             initialVisitedPoints: mode.initialVisitedPoints,
             requiredVisitOverrides: mode.additionalVisitRequirements,
-            togglePoints: mode.toggleTilePoints
+            togglePoints: mode.toggleTilePoints,
+            impassablePoints: mode.impassableTilePoints
         )
         current = mode.initialSpawnPoint
         moveCount = 0
@@ -437,7 +443,7 @@ extension GameCore {
     /// - Parameter point: プレイヤーが選んだ座標
     func handleSpawnSelection(at point: GridPoint) {
         guard mode.requiresSpawnSelection, progress == .awaitingSpawn else { return }
-        guard board.contains(point) else { return }
+        guard board.isTraversable(point) else { return }
 
         debugLog("スポーン位置を \(point) に確定")
         current = point
@@ -503,13 +509,15 @@ extension GameCore {
                 size: mode.boardSize,
                 initialVisitedPoints: [resolvedCurrent],
                 requiredVisitOverrides: mode.additionalVisitRequirements,
-                togglePoints: mode.toggleTilePoints
+                togglePoints: mode.toggleTilePoints,
+                impassablePoints: mode.impassableTilePoints
             )
         } else {
             core.board = Board(
                 size: mode.boardSize,
                 requiredVisitOverrides: mode.additionalVisitRequirements,
-                togglePoints: mode.toggleTilePoints
+                togglePoints: mode.toggleTilePoints,
+                impassablePoints: mode.impassableTilePoints
             )
         }
         core.current = resolvedCurrent

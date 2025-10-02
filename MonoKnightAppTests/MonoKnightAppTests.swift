@@ -85,6 +85,64 @@ private final class StubAdsService: AdsServiceProtocol {
 
 struct MonoKnightAppTests {
 
+    /// 強制ハイライトが侵入不可マスを除外することを検証するテスト
+    /// - Note: GameBoardBridgeViewModel が Board 情報を参照してフィルタリングしているか確認する
+    @MainActor
+    @Test func forcedHighlight_ignoresImpassableTiles() throws {
+        let impassablePoint = GridPoint(x: 1, y: 1)
+        let regulation = GameMode.Regulation(
+            boardSize: BoardGeometry.standardSize,
+            handSize: 5,
+            nextPreviewCount: 3,
+            allowsStacking: true,
+            deckPreset: .standard,
+            spawnRule: .fixed(BoardGeometry.defaultSpawnPoint(for: BoardGeometry.standardSize)),
+            penalties: GameMode.PenaltySettings(
+                deadlockPenaltyCost: 5,
+                manualRedrawPenaltyCost: 5,
+                manualDiscardPenaltyCost: 1,
+                revisitPenaltyCost: 0
+            ),
+            additionalVisitRequirements: [:],
+            toggleTilePoints: [],
+            impassableTilePoints: [impassablePoint]
+        )
+        let mode = GameMode(
+            identifier: .freeCustom,
+            displayName: "強制ハイライト検証",
+            regulation: regulation,
+            leaderboardEligible: false
+        )
+
+        // --- テスト用の GameCore とブリッジ ViewModel を構築 ---
+        let deck = Deck.makeTestDeck(cards: [
+            .kingUp,
+            .kingRight,
+            .kingLeft,
+            .kingDown,
+            .straightUp2,
+            .straightRight2,
+            .diagonalUpRight2,
+            .diagonalUpLeft2,
+            .knightUp1Right2
+        ])
+        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 0, y: 0), mode: mode)
+        let viewModel = GameBoardBridgeViewModel(core: core, mode: mode)
+
+        let validPoint = GridPoint(x: 0, y: 1)
+        viewModel.updateForcedSelectionHighlights([validPoint, impassablePoint])
+        #expect(viewModel.forcedSelectionHighlightPoints.contains(validPoint))
+        #expect(!viewModel.forcedSelectionHighlightPoints.contains(impassablePoint))
+
+        // movementVectors から生成された座標でも同様に除外されることを確認
+        viewModel.updateForcedSelectionHighlights(
+            [],
+            origin: GridPoint(x: 0, y: 0),
+            movementVectors: [MoveVector(dx: 1, dy: 1)]
+        )
+        #expect(!viewModel.forcedSelectionHighlightPoints.contains(impassablePoint))
+    }
+
     /// RootView の初期状態が期待通りかつ依存サービスが適切に注入されるかのテスト
     /// - Note: UI の初期表示はゲームタイトルが前面に出ている想定のため、`isShowingTitleScreen` が true であることを検証する
     @MainActor

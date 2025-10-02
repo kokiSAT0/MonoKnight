@@ -44,6 +44,10 @@
         /// - NOTE: ギミックの再生成で情報が失われないよう、初期値として保持しておく
         private let initialTogglePoints: Set<GridPoint>
 
+        /// 初期化時に設定する侵入不可マス集合
+        /// - NOTE: 障害物の再配置でも失われないようにシーン内へ保持する
+        private let initialImpassablePoints: Set<GridPoint>
+
         /// 現在の盤面状態
         private var board: Board
 
@@ -265,7 +269,8 @@
                 size: initialBoardSize,
                 initialVisitedPoints: initialVisitedPoints,
                 requiredVisitOverrides: initialRequiredVisitOverrides,
-                togglePoints: initialTogglePoints
+                togglePoints: initialTogglePoints,
+                impassablePoints: initialImpassablePoints
             )
             // テーマもデフォルトへ戻し、SpriteKit 専用の配色が未設定のままでも破綻しないようフォールバックを適用
             palette = GameScenePalette.fallback
@@ -313,7 +318,8 @@
             initialBoardSize: Int,
             initialVisitedPoints: [GridPoint]? = nil,
             requiredVisitOverrides: [GridPoint: Int] = [:],
-            togglePoints: Set<GridPoint> = []
+            togglePoints: Set<GridPoint> = [],
+            impassablePoints: Set<GridPoint> = []
         ) {
             let resolvedVisitedPoints =
                 initialVisitedPoints
@@ -322,11 +328,13 @@
             self.initialVisitedPoints = resolvedVisitedPoints
             self.initialRequiredVisitOverrides = requiredVisitOverrides
             self.initialTogglePoints = togglePoints
+            self.initialImpassablePoints = impassablePoints
             self.board = Board(
                 size: initialBoardSize,
                 initialVisitedPoints: resolvedVisitedPoints,
                 requiredVisitOverrides: requiredVisitOverrides,
-                togglePoints: togglePoints
+                togglePoints: togglePoints,
+                impassablePoints: impassablePoints
             )
             super.init(size: .zero)
             // 共通初期化で各種プロパティを統一的にリセットし、生成経路による差異を排除する
@@ -343,11 +351,13 @@
             self.initialVisitedPoints = defaultVisitedPoints
             self.initialRequiredVisitOverrides = [:]
             self.initialTogglePoints = []
+            self.initialImpassablePoints = []
             self.board = Board(
                 size: BoardGeometry.standardSize,
                 initialVisitedPoints: defaultVisitedPoints,
                 requiredVisitOverrides: [:],
-                togglePoints: []
+                togglePoints: [],
+                impassablePoints: []
             )
             super.init(coder: aDecoder)
             // デコード後も共通初期化を実行し、Storyboard/SwiftUI どちらからでも同じ見た目・挙動となるようにする
@@ -1049,7 +1059,7 @@
             var sanitized: [BoardHighlightKind: Set<GridPoint>] = [:]
             for kind in BoardHighlightKind.allCases {
                 let requestedPoints = highlights[kind] ?? []
-                let validPoints = Set(requestedPoints.filter { board.contains($0) })
+                let validPoints = Set(requestedPoints.filter { board.isTraversable($0) })
                 sanitized[kind] = validPoints
                 pendingHighlightPoints[kind] = validPoints
             }

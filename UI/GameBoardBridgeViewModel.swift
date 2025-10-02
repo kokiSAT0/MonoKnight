@@ -88,7 +88,8 @@ final class GameBoardBridgeViewModel: ObservableObject {
             initialBoardSize: mode.boardSize,
             initialVisitedPoints: mode.initialVisitedPoints,
             requiredVisitOverrides: mode.additionalVisitRequirements,
-            togglePoints: mode.toggleTilePoints
+            togglePoints: mode.toggleTilePoints,
+            impassablePoints: mode.impassableTilePoints
         )
         preparedScene.scaleMode = .resizeFill
         preparedScene.gameCore = core
@@ -292,7 +293,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
             candidatePoints.formUnion(convertedPoints)
         }
 
-        let validPoints = Set(candidatePoints.filter { core.board.contains($0) })
+        let validPoints = Set(candidatePoints.filter { core.board.isTraversable($0) })
         guard forcedSelectionHighlightPoints != validPoints else { return }
         forcedSelectionHighlightPoints = validPoints
         pushHighlightsToScene()

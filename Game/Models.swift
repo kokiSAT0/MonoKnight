@@ -170,31 +170,39 @@ public struct Board: Equatable {
     /// y インデックスが先、x インデックスが後となる
     private var tiles: [[TileState]]
 
+    /// 侵入不可マスの座標集合
+    /// - Note: ハイライトや移動候補から除外すべき障害物マスを保持する
+    private let impassablePoints: Set<GridPoint>
+
     /// 初期化。全マス未踏破として生成し、必要に応じて初期踏破マスやトグルマスを指定する
     /// - Parameters:
     ///   - size: 盤面の一辺の長さ
     ///   - initialVisitedPoints: 初期状態で踏破済みにしたいマスの集合
     ///   - togglePoints: トグル挙動を割り当てたいマス集合（`requiredVisitOverrides` よりも優先して適用する）
+    ///   - impassablePoints: 移動不可として扱うマス集合（ハイライトや移動候補から除外する）
     public init(
         size: Int,
         initialVisitedPoints: [GridPoint] = [],
         requiredVisitOverrides: [GridPoint: Int] = [:],
-        togglePoints: Set<GridPoint> = []
+        togglePoints: Set<GridPoint> = [],
+        impassablePoints: Set<GridPoint> = []
     ) {
         self.size = size
         let row = Array(repeating: TileState(), count: size)
         self.tiles = Array(repeating: row, count: size)
+        let normalizedImpassable = Set(impassablePoints.filter { $0.isInside(boardSize: size) })
+        self.impassablePoints = normalizedImpassable
         // 特殊マスの踏破必要回数を上書きし、複数回踏むステージに対応する
         for (point, requirement) in requiredVisitOverrides {
-            guard contains(point) else { continue }
+            guard contains(point), !normalizedImpassable.contains(point) else { continue }
             tiles[point.y][point.x] = TileState(visitBehavior: .multi(required: requirement))
         }
         // トグル挙動が設定されているマスは最優先で反映し、他設定よりも強いギミックとして扱う
-        for point in togglePoints where contains(point) {
+        for point in togglePoints where contains(point) && !normalizedImpassable.contains(point) {
             tiles[point.y][point.x] = TileState(visitBehavior: .toggle)
         }
         // 初期踏破マスを順番に処理し、盤面外の指定は安全に無視する
-        for point in initialVisitedPoints where contains(point) {
+        for point in initialVisitedPoints where contains(point) && !normalizedImpassable.contains(point) {
             tiles[point.y][point.x].markVisited()
         }
     }
@@ -205,6 +213,16 @@ public struct Board: Equatable {
     public func contains(_ point: GridPoint) -> Bool {
         point.isInside(boardSize: size)
     }
+
+    /// 指定座標が移動可能かどうかを判定する
+    /// - Parameter point: 判定したい座標
+    /// - Returns: 盤面内かつ障害物でない場合に true
+    public func isTraversable(_ point: GridPoint) -> Bool {
+        contains(point) && !impassablePoints.contains(point)
+    }
+
+    /// 侵入不可マス集合のスナップショットを取得する
+    public var impassableTilePoints: Set<GridPoint> { impassablePoints }
 
     /// 指定座標の踏破状態を返す
     /// - Parameter point: 調べたい座標
@@ -224,7 +242,7 @@ public struct Board: Equatable {
     /// 指定座標を踏破済みに更新する
     /// - Parameter point: 更新したい座標
     public mutating func markVisited(_ point: GridPoint) {
-        guard contains(point) else { return }
+        guard isTraversable(point) else { return }
         tiles[point.y][point.x].markVisited()
     }
 
@@ -232,9 +250,13 @@ public struct Board: Equatable {
     /// - Returns: まだ踏破していないマスの数
     public var remainingCount: Int {
         var count = 0
-        for row in tiles {
-            for tile in row where !tile.isVisited {
-                count += 1
+        for (y, row) in tiles.enumerated() {
+            for (x, tile) in row.enumerated() {
+                let point = GridPoint(x: x, y: y)
+                if impassablePoints.contains(point) { continue }
+                if !tile.isVisited {
+                    count += 1
+                }
             }
         }
         return count
@@ -242,8 +264,10 @@ public struct Board: Equatable {
 
     /// 全マスを踏破済みにしたかどうかを返す
     public var isCleared: Bool {
-        for row in tiles {
-            for tile in row {
+        for (y, row) in tiles.enumerated() {
+            for (x, tile) in row.enumerated() {
+                let point = GridPoint(x: x, y: y)
+                if impassablePoints.contains(point) { continue }
                 if !tile.isVisited { return false }
             }
         }
@@ -347,6 +371,11 @@ extension Board {
                     // 駒の位置は K で表現
                     row += "K "
                 } else {
+                    if impassablePoints.contains(point) {
+                        // 侵入不可マスは障害物を示す記号で出力する
+                        row += "# "
+                        continue
+                    }
                     // 踏破状況に応じて文字を変える。トグルマスは `t/T` で状態を示し、
                     // 複数回必要なマスは残数を数字で表示する。
                     let tile = tiles[y][x]

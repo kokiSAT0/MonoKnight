@@ -289,6 +289,9 @@ public struct GameMode: Equatable, Identifiable {
         /// - Important: 同じ座標に `additionalVisitRequirements` が存在する場合はトグルが優先され、
         ///   ギミックとして 1 回踏むごとに踏破⇔未踏破が反転する。
         public var toggleTilePoints: Set<GridPoint> = []
+        /// 侵入不可マスとして扱う座標集合
+        /// - Note: 障害物や穴など移動できないマスを表現するために利用し、手札候補やハイライトから除外する。
+        public var impassableTilePoints: Set<GridPoint> = []
 
         /// レギュレーションを組み立てるためのイニシャライザ
         /// - Parameters:
@@ -308,7 +311,8 @@ public struct GameMode: Equatable, Identifiable {
             spawnRule: SpawnRule,
             penalties: PenaltySettings,
             additionalVisitRequirements: [GridPoint: Int] = [:],
-            toggleTilePoints: Set<GridPoint> = []
+            toggleTilePoints: Set<GridPoint> = [],
+            impassableTilePoints: Set<GridPoint> = []
         ) {
             self.boardSize = boardSize
             self.handSize = handSize
@@ -319,6 +323,7 @@ public struct GameMode: Equatable, Identifiable {
             self.penalties = penalties
             self.additionalVisitRequirements = additionalVisitRequirements
             self.toggleTilePoints = toggleTilePoints
+            self.impassableTilePoints = impassableTilePoints
         }
     }
 
@@ -499,6 +504,8 @@ public struct GameMode: Equatable, Identifiable {
     public var additionalVisitRequirements: [GridPoint: Int] { regulation.additionalVisitRequirements }
     /// トグル挙動を割り当てたマス集合
     public var toggleTilePoints: Set<GridPoint> { regulation.toggleTilePoints }
+    /// 侵入不可マスとして扱う座標集合
+    public var impassableTilePoints: Set<GridPoint> { regulation.impassableTilePoints }
 
     /// スタンダードモード（既存仕様）
     public static var standard: GameMode {
@@ -556,7 +563,10 @@ public struct GameMode: Equatable, Identifiable {
                 manualRedrawPenaltyCost: 5,
                 manualDiscardPenaltyCost: 1,
                 revisitPenaltyCost: 0
-            )
+            ),
+            additionalVisitRequirements: [:],
+            toggleTilePoints: [],
+            impassableTilePoints: []
         )
     }
 
@@ -574,7 +584,10 @@ public struct GameMode: Equatable, Identifiable {
                 manualRedrawPenaltyCost: 2,
                 manualDiscardPenaltyCost: 1,
                 revisitPenaltyCost: 1
-            )
+            ),
+            additionalVisitRequirements: [:],
+            toggleTilePoints: [],
+            impassableTilePoints: []
         )
     }
 }

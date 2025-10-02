@@ -175,6 +175,53 @@ final class GameCoreTests: XCTestCase {
         }
     }
 
+    /// 侵入不可マスが availableMoves() の候補から除外されることを確認
+    func testAvailableMovesSkipsImpassableDestinations() {
+        let impassablePoint = GridPoint(x: 3, y: 2)
+        let regulation = GameMode.Regulation(
+            boardSize: BoardGeometry.standardSize,
+            handSize: 5,
+            nextPreviewCount: 3,
+            allowsStacking: true,
+            deckPreset: .standard,
+            spawnRule: .fixed(BoardGeometry.defaultSpawnPoint(for: BoardGeometry.standardSize)),
+            penalties: GameMode.PenaltySettings(
+                deadlockPenaltyCost: 5,
+                manualRedrawPenaltyCost: 5,
+                manualDiscardPenaltyCost: 1,
+                revisitPenaltyCost: 0
+            ),
+            additionalVisitRequirements: [:],
+            toggleTilePoints: [],
+            impassableTilePoints: [impassablePoint]
+        )
+        let customMode = GameMode(
+            identifier: .freeCustom,
+            displayName: "侵入不可マステスト",
+            regulation: regulation,
+            leaderboardEligible: false
+        )
+
+        // --- 右方向が侵入不可になるように中心スタートでテスト山札を構築 ---
+        let deck = Deck.makeTestDeck(cards: [
+            .kingRight,
+            .kingUp,
+            .kingLeft,
+            .kingDown,
+            .straightUp2,
+            .straightRight2,
+            .diagonalUpRight2,
+            .diagonalUpLeft2,
+            .knightUp1Right2
+        ])
+
+        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 2, y: 2), mode: customMode)
+
+        let destinations = core.availableMoves().map { $0.destination }
+        XCTAssertFalse(destinations.contains(impassablePoint), "侵入不可マスが候補に含まれている")
+        XCTAssertTrue(destinations.contains(GridPoint(x: 2, y: 3)), "有効な上方向移動が候補に含まれていない")
+    }
+
     /// 複数候補ベクトルを持つカードでも availableMoves と playCard(at:selecting:) で狙った方向を選べるかを検証
     func testPlayCardSelectingMoveVectorSupportsMultipleVectors() {
         // テスト実行中のみキング上カードへ上下 2 ベクトルを付与し、複数候補カードを再現する
