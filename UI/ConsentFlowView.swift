@@ -38,11 +38,32 @@ struct ConsentFlowView: View {
                 // 非同期で同意フローを開始
                 Task { await startFlow() }
             }) {
-                Text("続行")
+                if isRequesting {
+                    // ローディング中は進捗インジケーターと文言を表示して処理中であることを明示
+                    HStack(spacing: 12) {
+                        ProgressView()
+                        Text("処理中…")
+                    }
+                    // ボタン幅を維持してレイアウトが揺れないようにする
                     .frame(maxWidth: .infinity)
+                } else {
+                    // 通常時は「続行」表示でユーザーに次の操作を促す
+                    Text("続行")
+                        .frame(maxWidth: .infinity)
+                }
             }
             .buttonStyle(.borderedProminent)
             .disabled(isRequesting)
+
+            // MARK: - 処理状況メッセージ
+            if isRequesting {
+                // 同意フロー進行中であることを補足表示し、ユーザーに待機を促す
+                HStack(spacing: 12) {
+                    ProgressView()
+                    Text("処理中です。少しお待ちください。")
+                }
+                .transition(.opacity)
+            }
         }
         .padding()
     }
