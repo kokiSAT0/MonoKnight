@@ -64,6 +64,25 @@ struct PauseMenuView: View {
                     .accessibilityHint("ポーズを解除してゲームを続けます")
                 }
 
+                // MARK: - 操作セクション
+                Section {
+                    Button(role: .destructive) {
+                        pendingAction = .reset
+                    } label: {
+                        Label("ゲームをリセット", systemImage: "arrow.counterclockwise")
+                    }
+
+                    Button(role: .destructive) {
+                        pendingAction = .returnToTitle
+                    } label: {
+                        Label("タイトルへ戻る", systemImage: "house")
+                    }
+                } header: {
+                    Text("操作")
+                } footer: {
+                    Text("リセットやタイトル復帰は確認ダイアログを経由して実行します。")
+                }
+
                 // MARK: - ゲーム設定セクション
                 Section {
                     Picker(
@@ -98,25 +117,6 @@ struct PauseMenuView: View {
                     Text("ゲーム設定")
                 } footer: {
                     Text("テーマやハプティクス、ガイド表示を素早く切り替えられます。これらの項目はタイトル画面の設定からも調整できます。")
-                }
-
-                // MARK: - 操作セクション
-                Section {
-                    Button(role: .destructive) {
-                        pendingAction = .reset
-                    } label: {
-                        Label("ゲームをリセット", systemImage: "arrow.counterclockwise")
-                    }
-
-                    Button(role: .destructive) {
-                        pendingAction = .returnToTitle
-                    } label: {
-                        Label("タイトルへ戻る", systemImage: "house")
-                    }
-                } header: {
-                    Text("操作")
-                } footer: {
-                    Text("リセットやタイトル復帰は確認ダイアログを経由して実行します。")
                 }
 
                 // MARK: - 詳細設定についての案内
