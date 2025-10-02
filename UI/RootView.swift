@@ -138,6 +138,22 @@ final class RootViewStateStore: ObservableObject {
             debugLog("RootView.gameCenterSignInPrompt 更新: reason=\(String(describing: gameCenterSignInPrompt?.reason))")
         }
     }
+    /// 直近でゲーム準備を開始した文脈
+    /// - NOTE: キャンペーン経由の開始かどうかをローディングオーバーレイへ伝搬し、復帰先を切り替えるために保持する
+    @Published var lastPreparationContext: GamePreparationContext? {
+        didSet {
+            guard oldValue != lastPreparationContext else { return }
+            debugLog("RootView.lastPreparationContext 更新: \(String(describing: lastPreparationContext?.logIdentifier))")
+        }
+    }
+    /// タイトル画面で再表示したいナビゲーション先
+    /// - NOTE: ローディング中に戻った際も NavigationStack が目的の画面を即座に復元できるようにする
+    @Published var pendingTitleNavigationTarget: TitleNavigationTarget? {
+        didSet {
+            guard oldValue != pendingTitleNavigationTarget else { return }
+            debugLog("RootView.pendingTitleNavigationTarget 更新: target=\(String(describing: pendingTitleNavigationTarget?.rawValue))")
+        }
+    }
     /// Game Center 認証の初回試行を完了したかどうか
     /// - NOTE: RootView が再描画されても `authenticateLocalPlayer` を重複呼び出ししないよう制御する
     private(set) var hasAttemptedInitialAuthentication: Bool
@@ -154,6 +170,8 @@ final class RootViewStateStore: ObservableObject {
         self.lastLoggedLayoutSnapshot = nil
         self.isPresentingTitleSettings = false
         self.gameCenterSignInPrompt = nil
+        self.lastPreparationContext = nil
+        self.pendingTitleNavigationTarget = nil
         self.hasAttemptedInitialAuthentication = false
         // ビューの再生成に影響されない場所でワークアイテムを保持するためここで初期化する
         self.pendingGameActivationWorkItem = nil
@@ -191,7 +209,51 @@ final class RootViewStateStore: ObservableObject {
 
     /// ローディング表示解除を遅延実行するワークアイテム
     /// - NOTE: SwiftUI ビューの再生成で `@State` が初期化されても保持できるよう、`@StateObject` 管理下へ移動する
-    fileprivate var pendingGameActivationWorkItem: DispatchWorkItem?
+fileprivate var pendingGameActivationWorkItem: DispatchWorkItem?
+}
+
+/// ゲーム準備をどの導線から開始したかを識別する列挙体
+/// - NOTE: キャンペーン関連の導線かどうかを判別し、ローディングオーバーレイで復帰先を変化させるための指標として扱う
+private enum GamePreparationContext: Equatable {
+    /// タイトルのキャンペーンステージ一覧から開始されたケース
+    case campaignStageSelection
+    /// ゲーム内から別のキャンペーンステージを続けて開始するケース
+    case campaignContinuation
+    /// ハイスコア関連のセレクターから開始されたケース
+    case highScoreSelection
+    /// 上記以外の導線
+    case other
+
+    /// デバッグログ向けに識別子文字列を提供する
+    var logIdentifier: String {
+        switch self {
+        case .campaignStageSelection:
+            return "campaign_stage_selection"
+        case .campaignContinuation:
+            return "campaign_continuation"
+        case .highScoreSelection:
+            return "high_score_selection"
+        case .other:
+            return "other"
+        }
+    }
+
+    /// キャンペーン由来の開始かどうか
+    var isCampaignDerived: Bool {
+        switch self {
+        case .campaignStageSelection, .campaignContinuation:
+            return true
+        case .highScoreSelection, .other:
+            return false
+        }
+    }
+}
+
+/// タイトル画面での NavigationStack 先を外部から指示するためのターゲット
+private enum TitleNavigationTarget: String, Hashable, Codable {
+    case campaign
+    case highScore
+    case dailyChallenge
 }
 
 // MARK: - レイアウト支援メソッドと定数
@@ -264,14 +326,20 @@ private extension RootView {
             topBarHeight: stateStore.binding(for: \.topBarHeight),
             lastLoggedLayoutSnapshot: stateStore.binding(for: \.lastLoggedLayoutSnapshot),
             isPresentingTitleSettings: stateStore.binding(for: \.isPresentingTitleSettings),
+            lastPreparationContext: stateStore.binding(for: \.lastPreparationContext),
+            pendingTitleNavigationTarget: stateStore.binding(for: \.pendingTitleNavigationTarget),
             onRequestGameCenterSignInPrompt: handleGameCenterSignInRequest,
-            onStartGame: { mode in
+            onStartGame: { mode, context in
                 // タイトル画面から受け取ったモードでゲーム準備フローを実行する
-                startGamePreparation(for: mode)
+                startGamePreparation(for: mode, context: context)
             },
             onReturnToTitle: {
                 // GameView からの戻る要求をハンドリングし、タイトル表示へ切り替える
                 handleReturnToTitleRequest()
+            },
+            onReturnToCampaignStageSelection: {
+                // キャンペーン由来の準備で戻る場合はステージ選択画面へ直接復帰させる
+                handleReturnToCampaignStageSelectionRequest()
             },
             onConfirmGameStart: {
                 // ローディング完了後の開始操作を受け取り、ゲームをスタートさせる
@@ -367,12 +435,18 @@ private extension RootView {
         @Binding var lastLoggedLayoutSnapshot: RootLayoutSnapshot?
         /// タイトルから設定シートを開くためのフラグ
         @Binding var isPresentingTitleSettings: Bool
+        /// 直近のゲーム準備コンテキスト
+        @Binding var lastPreparationContext: GamePreparationContext?
+        /// タイトルへ戻った際に復元したいナビゲーションターゲット
+        @Binding var pendingTitleNavigationTarget: TitleNavigationTarget?
         /// Game Center サインインを促す処理を親へ転送するクロージャ
         let onRequestGameCenterSignInPrompt: (GameCenterSignInPromptReason) -> Void
         /// タイトル画面から開始ボタンが押下された際の処理
-        let onStartGame: (GameMode) -> Void
+        let onStartGame: (GameMode, GamePreparationContext) -> Void
         /// GameView からタイトルへ戻る際の処理
         let onReturnToTitle: () -> Void
+        /// キャンペーンのステージ選択へ戻る際の処理
+        let onReturnToCampaignStageSelection: () -> Void
         /// ローディング完了後にユーザーが開始ボタンを押した際の処理
         let onConfirmGameStart: () -> Void
         /// 直近でログ出力したスナップショットをローカルに保持し、重複出力と同時にレイアウト警告も防ぐキャッシュ
@@ -480,7 +554,7 @@ private extension RootView {
                     onRequestStartCampaignStage: { stage in
                         // クリア後に解放されたステージへの即時挑戦リクエストを受け取る
                         // 親から注入された開始ハンドラを利用してゲーム準備をやり直す
-                        onStartGame(stage.makeGameMode())
+                        onStartGame(stage.makeGameMode(), .campaignContinuation)
                     }
                 )
                 .id(gameSessionID)
@@ -501,15 +575,21 @@ private extension RootView {
             if isPreparingGame {
                 let stage = campaignStage(for: activeMode)
                 let progress = stage.flatMap { campaignProgressStore.progress(for: $0.id) }
+                let shouldReturnToCampaignSelection = lastPreparationContext?.isCampaignDerived ?? (stage != nil)
 
                 GamePreparationOverlayView(
                     mode: activeMode,
                     campaignStage: stage,
                     progress: progress,
                     isReady: isGameReadyForManualStart,
-                    onCancel: {
-                        // ローディング中にタイトルへ戻りたい場合のハンドラを橋渡しする
-                        onReturnToTitle()
+                    isCampaignContext: shouldReturnToCampaignSelection,
+                    onReturnToCampaignSelection: {
+                        // ローディング中に戻る操作を受け取り、文脈に応じて復帰先を振り分ける
+                        if shouldReturnToCampaignSelection {
+                            onReturnToCampaignStageSelection()
+                        } else {
+                            onReturnToTitle()
+                        }
                     },
                     onStart: {
                         // ユーザーが明示的に開始したタイミングでローディングを閉じる
@@ -528,9 +608,10 @@ private extension RootView {
             if isShowingTitleScreen {
                 TitleScreenView(
                     campaignProgressStore: campaignProgressStore,
-                    onStart: { mode in
+                    pendingNavigationTarget: $pendingTitleNavigationTarget,
+                    onStart: { mode, context in
                         // 選択されたモードでゲーム準備を開始する
-                        onStartGame(mode)
+                        onStartGame(mode, context)
                     },
                     onOpenSettings: {
                         // タイトルから詳細設定シートを開く
@@ -727,8 +808,10 @@ private extension RootView {
         let progress: CampaignStageProgress?
         /// 初期化が完了して開始可能かどうか
         let isReady: Bool
-        /// 「前の画面へ戻る」操作を伝搬するハンドラ
-        let onCancel: () -> Void
+        /// キャンペーンのステージ選択へ戻る必要があるかどうか
+        let isCampaignContext: Bool
+        /// 「ステージ選択へ戻る」操作を伝搬するハンドラ
+        let onReturnToCampaignSelection: () -> Void
         /// ユーザーが「開始」ボタンを押した際のハンドラ
         let onStart: () -> Void
 
@@ -741,20 +824,23 @@ private extension RootView {
         ///   - campaignStage: キャンペーンステージ（該当する場合）
         ///   - progress: これまでの達成状況
         ///   - isReady: 初期化が完了して開始可能かどうか
-        ///   - onCancel: ユーザーが戻り操作を選んだ際のハンドラ
+        ///   - isCampaignContext: キャンペーン経由の開始かどうか
+        ///   - onReturnToCampaignSelection: ユーザーが戻り操作を選んだ際のハンドラ
         ///   - onStart: ユーザーが「開始」を押した際のハンドラ
         fileprivate init(mode: GameMode,
                          campaignStage: CampaignStage?,
                          progress: CampaignStageProgress?,
                          isReady: Bool,
-                         onCancel: @escaping () -> Void,
+                         isCampaignContext: Bool,
+                         onReturnToCampaignSelection: @escaping () -> Void,
                          onStart: @escaping () -> Void) {
             // 受け取った値をそのまま保持し、構造体生成直後から UI に反映できるようにする
             self.mode = mode
             self.campaignStage = campaignStage
             self.progress = progress
             self.isReady = isReady
-            self.onCancel = onCancel
+            self.isCampaignContext = isCampaignContext
+            self.onReturnToCampaignSelection = onReturnToCampaignSelection
             self.onStart = onStart
             // テーマは常に新規生成し、カラースキームに応じた見た目を再利用する
             self.theme = AppTheme()
@@ -889,9 +975,9 @@ private extension RootView {
 
                 Button(action: {
                     // ユーザーがローディング段階で戻る選択をした際に親へ通知する
-                    onCancel()
+                    onReturnToCampaignSelection()
                 }) {
-                    Text("前の画面に戻る")
+                    Text(returnButtonTitle)
                         .font(.system(size: 15, weight: .semibold, design: .rounded))
                         .foregroundColor(theme.accentPrimary)
                         .frame(maxWidth: .infinity)
@@ -906,9 +992,10 @@ private extension RootView {
                         )
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("前の画面に戻る")
-                .accessibilityHint("タイトルへ戻ります")
+                .accessibilityLabel(returnButtonTitle)
+                .accessibilityHint(returnButtonHint)
                 .accessibilityAddTraits(.isButton)
+                .accessibilityIdentifier("game_preparation_return_button")
             }
         }
 
@@ -935,6 +1022,16 @@ private extension RootView {
                     .font(.system(size: 15, weight: .regular, design: .rounded))
                     .foregroundColor(theme.textPrimary)
             }
+        }
+
+        /// 戻るボタンの表示テキスト
+        private var returnButtonTitle: String {
+            isCampaignContext ? "ステージ選択に戻る" : "タイトルへ戻る"
+        }
+
+        /// 戻るボタンのアクセシビリティヒント
+        private var returnButtonHint: String {
+            isCampaignContext ? "キャンペーンのステージ選択画面へ戻ります" : "タイトル画面へ戻ります"
         }
 
         /// 情報カード内のセクション共通レイアウト
@@ -1006,15 +1103,18 @@ private extension RootView {
     }
 
     /// タイトル画面の開始ボタン押下を受けてゲーム準備を開始する
-    /// - Parameter mode: ユーザーが選択したゲームモード
-    func startGamePreparation(for mode: GameMode) {
+    /// - Parameters:
+    ///   - mode: ユーザーが選択したゲームモード
+    ///   - context: 開始要求が発生した文脈
+    func startGamePreparation(for mode: GameMode, context: GamePreparationContext) {
         // 連続タップで複数のワークアイテムが走らないように既存処理を必ずキャンセルする
         cancelPendingGameActivationWorkItem()
 
-        debugLog("RootView: ゲーム準備開始リクエストを処理 選択モード=\(mode.identifier.rawValue)")
+        debugLog("RootView: ゲーム準備開始リクエストを処理 選択モード=\(mode.identifier.rawValue) context=\(context.logIdentifier)")
 
         // 今回プレイするモードを確定し、タイトル画面側の選択状態とも同期させる
         stateStore.activeMode = mode
+        stateStore.lastPreparationContext = context
 
         // GameView を強制的に再生成するためセッション ID を更新し、ログで追跡できるよう記録する
         stateStore.gameSessionID = UUID()
@@ -1052,6 +1152,16 @@ private extension RootView {
         withAnimation(.easeInOut(duration: 0.25)) {
             stateStore.isShowingTitleScreen = true
         }
+    }
+
+    /// キャンペーンのステージ選択画面へ復帰する要求を処理する
+    func handleReturnToCampaignStageSelectionRequest() {
+        let contextDescription = stateStore.lastPreparationContext?.logIdentifier ?? "unknown"
+        debugLog("RootView: キャンペーンステージ選択へ戻る要求を受信 lastContext=\(contextDescription)")
+
+        // タイトル表示を復元した後、NavigationStack へステージ選択を再度プッシュさせる
+        stateStore.pendingTitleNavigationTarget = .campaign
+        handleReturnToTitleRequest()
     }
 
     /// ローディング解除処理を一定時間後に実行する
@@ -1361,7 +1471,8 @@ fileprivate struct TopStatusInsetView: View {
 // MARK: - タイトル画面（リニューアル）
 fileprivate struct TitleScreenView: View {
     @ObservedObject var campaignProgressStore: CampaignProgressStore
-    let onStart: (GameMode) -> Void
+    @Binding private var pendingNavigationTarget: TitleNavigationTarget?
+    let onStart: (GameMode, GamePreparationContext) -> Void
     let onOpenSettings: () -> Void
 
     private var theme = AppTheme()
@@ -1372,12 +1483,6 @@ fileprivate struct TitleScreenView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @AppStorage("best_points_5x5") private var bestPoints: Int = .max
     private let instanceIdentifier = UUID()
-
-    private enum TitleNavigationTarget: String, Hashable, Codable {
-        case campaign
-        case highScore
-        case dailyChallenge
-    }
 
     /// ゲーム開始要求がどこから届いたかを判定するための文脈列挙
     /// - NOTE: ログ出力時に文脈を一意に追跡できるよう rawValue を英語スネークケースで保持する
@@ -1396,10 +1501,24 @@ fileprivate struct TitleScreenView: View {
                 return "ハイスコア選択から開始"
             }
         }
+
+        /// RootView 側で利用する `GamePreparationContext` へ変換する
+        var preparationContext: GamePreparationContext {
+            switch self {
+            case .campaignStageSelection:
+                return .campaignStageSelection
+            case .highScoreSelection:
+                return .highScoreSelection
+            }
+        }
     }
 
-    init(campaignProgressStore: CampaignProgressStore, onStart: @escaping (GameMode) -> Void, onOpenSettings: @escaping () -> Void) {
+    init(campaignProgressStore: CampaignProgressStore,
+         pendingNavigationTarget: Binding<TitleNavigationTarget?>,
+         onStart: @escaping (GameMode, GamePreparationContext) -> Void,
+         onOpenSettings: @escaping () -> Void) {
         self._campaignProgressStore = ObservedObject(wrappedValue: campaignProgressStore)
+        self._pendingNavigationTarget = pendingNavigationTarget
         self.onStart = onStart
         self.onOpenSettings = onOpenSettings
         _isPresentingHowToPlay = State(initialValue: false)
@@ -1437,6 +1556,14 @@ fileprivate struct TitleScreenView: View {
         }
         .onChange(of: horizontalSizeClass) { _, newValue in
             debugLog("TitleScreenView.horizontalSizeClass 更新: \(String(describing: newValue))")
+        }
+        .onAppear {
+            // タイトルへ復帰した際に必要ならステージ選択画面を即座に再表示する
+            processPendingNavigationTargetIfNeeded()
+        }
+        .onChange(of: pendingNavigationTarget) { _, _ in
+            // Binding の更新に応じて復元処理を反映する
+            processPendingNavigationTargetIfNeeded()
         }
     }
 
@@ -1730,6 +1857,34 @@ fileprivate struct TitleScreenView: View {
         }
     }
 
+    /// 外部から指示されたナビゲーション先が存在する場合に NavigationStack を復元する
+    private func processPendingNavigationTargetIfNeeded() {
+        guard let target = pendingNavigationTarget else { return }
+        let beforeStack = navigationPath
+            .map { $0.rawValue }
+            .joined(separator: ",")
+        debugLog(
+            "TitleScreenView: pendingNavigationTarget 検出 -> target=\(target.rawValue) beforeStack=[\(beforeStack)]"
+        )
+
+        if navigationPath != [target] {
+            navigationPath = [target]
+            let afterStack = navigationPath
+                .map { $0.rawValue }
+                .joined(separator: ",")
+            debugLog(
+                "TitleScreenView: pendingNavigationTarget 適用 -> afterStack=[\(afterStack)]"
+            )
+        } else {
+            debugLog("TitleScreenView: pendingNavigationTarget は既に反映済み -> スタック変更なし")
+        }
+
+        // 一度処理したら Binding を初期化し、次回の復帰要求に備える
+        DispatchQueue.main.async {
+            pendingNavigationTarget = nil
+        }
+    }
+
     @ViewBuilder
     private var howToPlayFullScreenContent: some View {
         NavigationStack {
@@ -1830,7 +1985,7 @@ fileprivate struct TitleScreenView: View {
         debugLog(
             "TitleScreenView: triggerImmediateStart 実行 -> context=\(context.rawValue) (\(context.logDescription)) mode=\(mode.identifier.rawValue) navigationDepth=\(navigationPath.count) stack=[\(stackDescription)]"
         )
-        onStart(mode)
+        onStart(mode, context.preparationContext)
     }
 }
 
