@@ -135,9 +135,53 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.newlyUnlockedStages.map(\.id), [stage12.id], "2 回目のクリアでも未クリアの 1-2 を案内し続ける必要があります")
     }
 
+    /// メニュー経由でタイトルへ戻る際に GameCore.reset() を呼び出さず、広告フラグのみ初期化されることを確認
+    func testPerformMenuActionReturnToTitleSkipsCoreResetButResetsAdsFlag() {
+        // タイトル遷移コールバックの呼び出し回数と広告リセットを検証するため、専用のスパイを注入する
+        let adsService = SpyAdsService()
+        var returnToTitleCallCount = 0
+        let (viewModel, core) = makeViewModel(
+            mode: .standard,
+            adsService: adsService,
+            onRequestReturnToTitle: { returnToTitleCallCount += 1 }
+        )
+
+        // reset() が動いてしまうと手数が 0 に戻るため、明確な値を設定しておき検証に利用する
+        core.overrideMetricsForTesting(moveCount: 42, penaltyCount: 3, elapsedSeconds: 90)
+
+        viewModel.performMenuAction(.returnToTitle)
+
+        XCTAssertEqual(core.moveCount, 42, "タイトル復帰では GameCore.reset() を呼ばず手数が維持される必要があります")
+        XCTAssertEqual(adsService.resetPlayFlagCallCount, 1, "タイトル復帰時に広告表示フラグの初期化が行われていません")
+        XCTAssertEqual(returnToTitleCallCount, 1, "タイトル復帰の通知が親へ転送されていません")
+    }
+
+    /// 結果画面からタイトルへ戻る際も reset() が動かず、UI 状態と広告フラグのみ初期化されることを確認
+    func testHandleResultReturnToTitleSkipsCoreResetButResetsAdsFlag() {
+        // リザルト経由の復帰でも同じ挙動になるか、別パスを明示的に検証する
+        let adsService = SpyAdsService()
+        var returnToTitleCallCount = 0
+        let (viewModel, core) = makeViewModel(
+            mode: .standard,
+            adsService: adsService,
+            onRequestReturnToTitle: { returnToTitleCallCount += 1 }
+        )
+
+        core.overrideMetricsForTesting(moveCount: 55, penaltyCount: 1, elapsedSeconds: 120)
+        viewModel.showingResult = true
+
+        viewModel.handleResultReturnToTitle()
+
+        XCTAssertEqual(core.moveCount, 55, "結果画面からのタイトル復帰でも GameCore.reset() は発火しない想定です")
+        XCTAssertFalse(viewModel.showingResult, "タイトル復帰時には結果画面フラグが確実に折れている必要があります")
+        XCTAssertEqual(adsService.resetPlayFlagCallCount, 1, "結果画面経由でも広告フラグの初期化が実行されていません")
+        XCTAssertEqual(returnToTitleCallCount, 1, "タイトル復帰通知がルートへ届いていません")
+    }
+
     /// テストで使い回す ViewModel と GameCore の組み合わせを生成するヘルパー
     private func makeViewModel(
         mode: GameMode,
+        adsService: AdsServiceProtocol = DummyAdsService(),
         onRequestReturnToTitle: (() -> Void)? = nil
     ) -> (GameViewModel, GameCore) {
         let core = GameCore(mode: mode)
@@ -146,7 +190,7 @@ final class GameViewModelTests: XCTestCase {
             mode: mode,
             gameInterfaces: interfaces,
             gameCenterService: DummyGameCenterService(),
-            adsService: DummyAdsService(),
+            adsService: adsService,
             onRequestReturnToTitle: onRequestReturnToTitle
         )
         return (viewModel, core)
@@ -180,6 +224,25 @@ private final class DummyGameCenterService: GameCenterServiceProtocol {
 private final class DummyAdsService: AdsServiceProtocol {
     func showInterstitial() {}
     func resetPlayFlag() {}
+    func disableAds() {}
+    func requestTrackingAuthorization() async {}
+    func requestConsentIfNeeded() async {}
+    func refreshConsentStatus() async {}
+}
+
+/// resetPlayFlag の呼び出し回数を追跡するテスト専用スパイ
+@MainActor
+private final class SpyAdsService: AdsServiceProtocol {
+    /// resetPlayFlag が何度呼ばれたかを確認するためのカウンタ
+    private(set) var resetPlayFlagCallCount = 0
+
+    func showInterstitial() {}
+
+    func resetPlayFlag() {
+        // タイトル復帰時の挙動を確認するため、呼び出し回数を加算しておく
+        resetPlayFlagCallCount += 1
+    }
+
     func disableAds() {}
     func requestTrackingAuthorization() async {}
     func requestConsentIfNeeded() async {}
