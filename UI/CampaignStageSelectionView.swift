@@ -198,8 +198,12 @@ struct CampaignStageSelectionView: View {
                         .padding(.top, 2)
                 }
             }
+            // VStack の横幅を行全体へ広げ、タップ領域とレイアウトの視覚的な一体感を確保する
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, 8)
         }
+        // Button の外形を矩形として扱い、空き領域でもタップ判定が成立するように調整する
+        .contentShape(Rectangle())
         .buttonStyle(.plain)
         .disabled(!isUnlocked)
         // UI テストやアクセシビリティから特定ステージを一意に参照できるようにする
