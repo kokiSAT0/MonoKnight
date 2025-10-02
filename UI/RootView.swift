@@ -1383,12 +1383,12 @@ fileprivate struct TopStatusInsetView: View {
     /// Game Center 認証状態を表示するセクションを切り出して見通しを改善する
     @ViewBuilder
     private var gameCenterAuthenticationSection: some View {
-        if isAuthenticated {
-            Text("Game Center にサインイン済み")
+        if !isAuthenticated {
+            Text("Game Center 未サインイン。設定画面からサインインするとランキングを利用できます。")
                 .font(.caption)
-                // テーマ由来のサブ文字色を使い、背景とのコントラストを確保
+                // トーストと同一文言を明示し、案内内容の一貫性を担保する
                 .foregroundColor(theme.textSecondary)
-                .accessibilityIdentifier("gc_authenticated")
+                .accessibilityIdentifier("gc_sign_in_guidance")
                 .frame(maxWidth: .infinity, alignment: .leading)
         } else {
             EmptyView()
@@ -1397,16 +1397,17 @@ fileprivate struct TopStatusInsetView: View {
 
     /// VoiceOver 用の説明文。ヒットテストを無効化しても読み上げ内容が失われないよう、状態に応じた文面を返す
     private var accessibilityMessage: LocalizedStringKey {
-        isAuthenticated
-            ? "Game Center にサインイン済み"
-            : "Game Center 未サインイン。設定画面からサインインするとランキングを利用できます。"
+        // 表示状況と VoiceOver の読み上げを一致させ、情報過多を防ぐ
+        !isAuthenticated
+            ? "Game Center 未サインイン。設定画面からサインインするとランキングを利用できます。"
+            : ""
     }
 
     /// トップバー内に可視コンテンツが存在するかを判定する
     /// - Note: 表示有無に応じて背景や余白を切り替え、空状態での白い帯を解消する
     private var hasVisibleContent: Bool {
         // 現状はサインイン状況のみを扱うが、将来的に表示要素が増えてもここで集約管理できる
-        isAuthenticated
+        !isAuthenticated
     }
 
     /// 表示状態に応じて水平方向の余白を計算する
