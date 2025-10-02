@@ -1813,8 +1813,7 @@ fileprivate struct TitleScreenView: View {
                         DispatchQueue.main.async {
                             triggerImmediateStart(for: mode, context: context)
                         }
-                    },
-                    showsCloseButton: false
+                    }
                 )
                 .onAppear {
                     debugLog("TitleScreenView: NavigationDestination.campaign 表示 -> 現在のスタック数=\(navigationPath.count)")
