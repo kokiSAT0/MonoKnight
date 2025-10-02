@@ -295,7 +295,12 @@ final class GameBoardBridgeViewModel: ObservableObject {
             candidatePoints.formUnion(convertedPoints)
         }
 
-        let validPoints = Set(candidatePoints.filter { core.board.contains($0) })
+        // 盤面内かつ移動可能なマスだけを残し、障害物をハイライト対象から除外する
+        let validPoints = Set(
+            candidatePoints.filter { point in
+                core.board.contains(point) && core.board.isTraversable(point)
+            }
+        )
         guard forcedSelectionHighlightPoints != validPoints else { return }
         forcedSelectionHighlightPoints = validPoints
         pushHighlightsToScene()

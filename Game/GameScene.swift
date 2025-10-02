@@ -1074,7 +1074,12 @@
             var sanitized: [BoardHighlightKind: Set<GridPoint>] = [:]
             for kind in BoardHighlightKind.allCases {
                 let requestedPoints = highlights[kind] ?? []
-                let validPoints = Set(requestedPoints.filter { board.contains($0) })
+                // 盤面内の移動可能マスのみ残し、障害物を視覚的にも除外する
+                let validPoints = Set(
+                    requestedPoints.filter { point in
+                        board.contains(point) && board.isTraversable(point)
+                    }
+                )
                 sanitized[kind] = validPoints
                 pendingHighlightPoints[kind] = validPoints
             }

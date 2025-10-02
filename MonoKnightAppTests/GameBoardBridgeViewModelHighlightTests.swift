@@ -110,6 +110,49 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
         XCTAssertNil(viewModel.pendingGuideCurrent, "ガイド復元後は pending 現在地を解放する必要があります")
     }
 
+    /// 強制ハイライトが障害物マスを除外することを検証する
+    func testForcedSelectionHighlightsExcludeImpassableTiles() {
+        // --- 移動不可マスを含むモードを構築し、ViewModel に適用 ---
+        let impassablePoint = GridPoint(x: 3, y: 2)
+        let regulation = GameMode.Regulation(
+            boardSize: BoardGeometry.standardSize,
+            handSize: 5,
+            nextPreviewCount: 3,
+            allowsStacking: true,
+            deckPreset: .standard,
+            spawnRule: .fixed(BoardGeometry.defaultSpawnPoint(for: BoardGeometry.standardSize)),
+            penalties: GameMode.PenaltySettings(
+                deadlockPenaltyCost: 5,
+                manualRedrawPenaltyCost: 5,
+                manualDiscardPenaltyCost: 1,
+                revisitPenaltyCost: 0
+            ),
+            impassableTilePoints: [impassablePoint]
+        )
+        let mode = GameMode(
+            identifier: .freeCustom,
+            displayName: "ハイライト障害物テスト",
+            regulation: regulation,
+            leaderboardEligible: false
+        )
+        let core = GameCore(mode: mode)
+        let viewModel = GameBoardBridgeViewModel(core: core, mode: mode)
+
+        // --- 駒の現在地から右隣（障害物）を強制ハイライトへ指定 ---
+        let origin = GridPoint(x: 2, y: 2)
+        let movement = MoveVector(dx: 1, dy: 0)
+        viewModel.updateForcedSelectionHighlights([], origin: origin, movementVectors: [movement])
+
+        XCTAssertFalse(
+            viewModel.forcedSelectionHighlightPoints.contains(impassablePoint),
+            "移動不可マスが強制ハイライトへ含まれており、障害物を示唆してしまいます"
+        )
+        XCTAssertTrue(
+            viewModel.forcedSelectionHighlightPoints.isEmpty,
+            "有効マスが存在しない場合は空集合で保持する想定です"
+        )
+    }
+
     /// テストで使い回す ViewModel を生成するヘルパー
     private func makeViewModel() -> GameBoardBridgeViewModel {
         let core = GameCore(mode: .standard)

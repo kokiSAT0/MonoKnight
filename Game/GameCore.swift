@@ -125,7 +125,7 @@ public final class GameCore: ObservableObject {
         guard current != nil, handStacks[index].topCard != nil else { return }
 
         // --- 利用可能な候補の抽出 ---
-        // availableMoves() は盤面内へ移動できる ResolvedCardMove 一覧を返すため、
+        // availableMoves() は盤面内かつ移動可能なマスだけを列挙するため、
         // 指定スタックに該当する候補だけを抽出してから方向選択を行う。
         let candidates = availableMoves().filter { $0.stackIndex == index }
 
@@ -166,6 +166,8 @@ public final class GameCore: ObservableObject {
         guard computedDestination == resolvedMove.destination else { return }
         // UI 側で無効カードを弾く想定だが、念のため安全確認
         guard board.contains(computedDestination) else { return }
+        // 移動不可マスへは遷移できないため、トグル/複数踏破設定よりも優先して除外する
+        guard board.isTraversable(computedDestination) else { return }
 
         // 盤面タップからのリクエストが残っている場合に備え、念のためここでクリアしておく
         boardTapPlayRequest = nil
@@ -253,8 +255,8 @@ public final class GameCore: ObservableObject {
             // MoveCard.movementVectors が保持する全候補を展開し、1 ベクトルずつ ResolvedCardMove に変換する
             for vector in topCard.move.movementVectors {
                 let destination = origin.offset(dx: vector.dx, dy: vector.dy)
-                // 盤面外の移動は候補から除外
-                guard activeBoard.contains(destination) else { continue }
+                // 盤面外および移動不可マスは候補から除外し、障害物との衝突を防止する
+                guard activeBoard.contains(destination), activeBoard.isTraversable(destination) else { continue }
 
                 resolved.append(
                     ResolvedCardMove(
