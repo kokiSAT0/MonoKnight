@@ -461,10 +461,15 @@ final class GameViewModel: ObservableObject {
             // GameCore.availableMoves() を再評価し、タップ座標へ進める候補が複数カードで競合していないかを確認する
             let availableMoves = core.availableMoves()
             let destinationCandidates = availableMoves.filter { $0.destination == request.destination }
+            // 同一座標に到達できる候補へ単一ベクトルカードが混在しているかを判定し、警告要否の判断材料にする
+            let containsSingleVectorCard = destinationCandidates.contains { candidate in
+                // movementVectors.count が 1 の場合は単一方向専用カードとみなし、自動プレイを許可する
+                candidate.card.move.movementVectors.count == 1
+            }
             // 同一座標へ移動可能なスタック集合を直接求め、純粋にスタック数だけで競合を判断する
             let conflictingStackIDs = Set(destinationCandidates.map(\.stackID))
 
-            if conflictingStackIDs.count >= 2 {
+            if conflictingStackIDs.count >= 2 && !containsSingleVectorCard {
                 // 候補スタックが 2 件以上存在する場合は必ず警告し、意図しない自動プレイを防ぐ
                 boardTapSelectionWarning = BoardTapSelectionWarning(
                     message: "複数のカードが同じマスを指定しています。手札から使いたいカードを選んでからマスをタップしてください。",
