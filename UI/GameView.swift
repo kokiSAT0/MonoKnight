@@ -245,6 +245,17 @@ struct GameView: View {
         } message: { action in
             Text(action.confirmationMessage)
         }
+        // 盤面タップで複数の複数候補カードが同一点を指し示した場合に、手札選択を促す警告アラートを表示する
+        .alert(item: $viewModel.boardTapSelectionWarning) { warning in
+            Alert(
+                title: Text("カード選択が必要です"),
+                message: Text(warning.message),
+                dismissButton: .default(Text("閉じる")) {
+                    // アラート閉鎖後は ViewModel 側の状態をリセットし、同じ警告を再度表示できるようにする
+                    viewModel.clearBoardTapSelectionWarning()
+                }
+            )
+        }
     }
 
     /// メニュー操作を実際に実行する共通処理
