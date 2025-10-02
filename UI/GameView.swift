@@ -156,6 +156,7 @@ struct GameView: View {
         // ポーズメニューをフルスクリーンで重ね、端末サイズに左右されずに全項目を視認できるようにする
         .fullScreenCover(isPresented: $viewModel.isPauseMenuPresented) {
             PauseMenuView(
+                campaignSummary: viewModel.campaignPauseSummary,
                 onResume: {
                     // フルスクリーンカバーを閉じてプレイへ戻る
                     viewModel.isPauseMenuPresented = false

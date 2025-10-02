@@ -6,6 +6,8 @@ import Game  // ゲームパッケージ内の HandOrderingStrategy などを利
 struct PauseMenuView: View {
     /// カラーテーマを共有し、背景色やボタン色を統一する
     private var theme = AppTheme()
+    /// キャンペーン進捗のサマリー（キャンペーン以外では nil）
+    let campaignSummary: CampaignPauseSummary?
     /// プレイ再開ボタン押下時の処理
     let onResume: () -> Void
     /// リセット確定時の処理
@@ -19,10 +21,12 @@ struct PauseMenuView: View {
     ///   - onConfirmReset: ゲームリセット確定時に実行するクロージャ
     ///   - onConfirmReturnToTitle: タイトル復帰確定時に実行するクロージャ
     init(
+        campaignSummary: CampaignPauseSummary? = nil,
         onResume: @escaping () -> Void,
         onConfirmReset: @escaping () -> Void,
         onConfirmReturnToTitle: @escaping () -> Void
     ) {
+        self.campaignSummary = campaignSummary
         self.onResume = onResume
         self.onConfirmReset = onConfirmReset
         self.onConfirmReturnToTitle = onConfirmReturnToTitle
@@ -45,6 +49,9 @@ struct PauseMenuView: View {
     var body: some View {
         NavigationStack {
             List {
+                if let summary = campaignSummary {
+                    campaignProgressSection(for: summary)
+                }
                 // MARK: - プレイ再開ボタン
                 Section {
                     Button {
@@ -181,6 +188,39 @@ struct PauseMenuView: View {
 }
 
 private extension PauseMenuView {
+    /// キャンペーン進捗セクションを描画する
+    /// - Parameter summary: 表示したいステージ情報と進捗
+    @ViewBuilder
+    func campaignProgressSection(for summary: CampaignPauseSummary) -> some View {
+        Section {
+            VStack(alignment: .leading, spacing: LayoutMetrics.campaignInfoSpacing) {
+                // ステージ番号は小さめのラベルで補足表示する
+                Text(summary.stage.displayCode)
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.secondary)
+                // ステージタイトルは主要情報として強調表示する
+                Text(summary.stage.title)
+                    .font(.system(size: 20, weight: .semibold, design: .rounded))
+                    .foregroundColor(theme.textPrimary)
+                // ステージ概要も併記して、プレイ内容を思い出しやすくする
+                Text(summary.stage.summary)
+                    .font(.system(size: 14, weight: .regular, design: .rounded))
+                    .foregroundStyle(.secondary)
+                // リワード条件・記録の詳細は共通ビューへ委譲し、GamePreparationOverlay と見た目を揃える
+                CampaignRewardSummaryView(
+                    stage: summary.stage,
+                    progress: summary.progress,
+                    theme: theme,
+                    context: .list
+                )
+                .padding(.top, LayoutMetrics.summaryTopPadding)
+            }
+            .padding(.vertical, LayoutMetrics.campaignSectionVerticalPadding)
+        } header: {
+            Text("キャンペーン進捗")
+        }
+    }
+
     /// ポーズメニュー内で扱う確認対象の列挙体
     enum PauseConfirmationAction: Identifiable {
         case reset
@@ -208,5 +248,15 @@ private extension PauseMenuView {
                 return "ゲームを終了してタイトル画面へ戻ります。現在のプレイ内容は保存されません。"
             }
         }
+    }
+
+    /// レイアウト定数をまとめ、他セクションと混在しても調整しやすくする
+    enum LayoutMetrics {
+        /// ステージ情報の縦方向スペース
+        static let campaignInfoSpacing: CGFloat = 6
+        /// 共通ビュー上部の余白（ステージ情報との間隔）
+        static let summaryTopPadding: CGFloat = 12
+        /// セクション全体の上下余白を確保し、List の詰まり感を軽減する
+        static let campaignSectionVerticalPadding: CGFloat = 4
     }
 }
