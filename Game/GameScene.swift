@@ -65,6 +65,10 @@ public final class GameScene: SKScene {
     /// - NOTE: 対角線と四分割三角形をまとめて保持し、盤面更新時に再利用できるようにする
     private var tileMultiVisitDecorations: [GridPoint: MultiVisitDecorationCache] = [:]
 
+    /// トグルマス専用の装飾ノードキャッシュ
+    /// - NOTE: トグル演出は複数マスで共有するため、生成コストを抑える目的で辞書に再利用可能なノードを保持する
+    private var tileToggleDecorations: [GridPoint: ToggleDecorationCache] = [:]
+
     /// ハイライト種類ごとのノードキャッシュ
     /// - Important: 種類ごとに辞書を分けることで、描画の上書き順とスタイルを柔軟に切り替えられる
     private var highlightNodes: [BoardHighlightKind: [GridPoint: SKShapeNode]] = [:]
@@ -151,6 +155,54 @@ public final class GameScene: SKScene {
         let secondaryDiagonal: SKShapeNode
     }
 
+    /// トグルマス装飾をまとめたキャッシュ構造体
+    /// - NOTE: 三角形 2 枚と対角線 1 本のみを保持し、不要なノードが残らないようにする
+    private struct ToggleDecorationCache {
+        let container: SKNode
+        let topLeftTriangle: SKShapeNode
+        let bottomRightTriangle: SKShapeNode
+        let diagonal: SKShapeNode
+    }
+
+    /// トグルマスの三角形形状を識別するための列挙体
+    /// - NOTE: 盤面中央原点で扱いやすいよう、左上・右下の 2 種類に限定する
+    private enum ToggleDecorationTriangle {
+        case topLeft
+        case bottomRight
+
+        /// 生成したノードへ命名する際の識別子
+        var nodeName: String {
+            switch self {
+            case .topLeft: return "toggleTriangleTopLeft"
+            case .bottomRight: return "toggleTriangleBottomRight"
+            }
+        }
+
+        /// 現在のタイルサイズに合わせたパスを生成する
+        /// - Parameter tileSize: マス一辺の長さ
+        /// - Returns: SpriteKit のローカル座標に合わせた CGPath
+        func path(tileSize: CGFloat) -> CGPath {
+            let half = tileSize / 2
+            let path = CGMutablePath()
+
+            switch self {
+            case .topLeft:
+                // 左上三角形は右上→左下の対角線を基準にタイル上部を覆う
+                path.move(to: CGPoint(x: -half, y: half))
+                path.addLine(to: CGPoint(x: half, y: half))
+                path.addLine(to: CGPoint(x: -half, y: -half))
+            case .bottomRight:
+                // 右下三角形は同じ対角線に沿ってタイル下部を塗り分ける
+                path.move(to: CGPoint(x: half, y: -half))
+                path.addLine(to: CGPoint(x: -half, y: -half))
+                path.addLine(to: CGPoint(x: half, y: half))
+            }
+
+            path.closeSubpath()
+            return path
+        }
+    }
+
     /// グリッド生成と駒配置が完了し、SpriteKit のノード更新を安全に行えるかどうか
     private var isLayoutReady: Bool {
         tileSize > 0 && tileNodes.count == board.size * board.size && knightNode != nil
@@ -222,6 +274,7 @@ public final class GameScene: SKScene {
         // SpriteKit ノード系のキャッシュは全て空に戻し、不要なノードが残らないようにする
         tileNodes = [:]
         tileMultiVisitDecorations = [:]
+        tileToggleDecorations = [:]
         highlightNodes = [:]
         latestSingleGuidePoints = []
         latestMultipleGuidePoints = []
@@ -464,6 +517,11 @@ public final class GameScene: SKScene {
         }
         tileMultiVisitDecorations.removeAll()
 
+        for decoration in tileToggleDecorations.values {
+            decoration.container.removeFromParent()
+        }
+        tileToggleDecorations.removeAll()
+
         for nodes in highlightNodes.values {
             for node in nodes.values {
                 node.removeFromParent()
@@ -623,15 +681,21 @@ public final class GameScene: SKScene {
         guard let state = board.state(at: point) else {
             applySingleVisitStyle(to: node)
             removeMultiVisitDecoration(for: point)
+            removeToggleDecoration(for: point)
             return
         }
 
         switch state.visitBehavior {
         case .multi:
             applyMultiVisitStyle(to: node, state: state, at: point)
-        default:
+            removeToggleDecoration(for: point)
+        case .toggle:
+            applyToggleStyle(to: node, state: state, at: point)
+            removeMultiVisitDecoration(for: point)
+        case .single:
             applySingleVisitStyle(to: node)
             removeMultiVisitDecoration(for: point)
+            removeToggleDecoration(for: point)
         }
     }
 
@@ -652,6 +716,18 @@ public final class GameScene: SKScene {
         // NOTE: 盤面全体の視覚的一貫性を優先し、複数踏破マスでも通常グリッドと同じ線幅 (1pt) を採用する
         node.lineWidth = 1
         updateMultiVisitDecoration(for: point, parentNode: node, state: state)
+    }
+
+    /// トグルマス専用の枠線・装飾を適用する
+    /// - Parameters:
+    ///   - node: 対象ノード
+    ///   - state: 現在のマス状態
+    ///   - point: 盤面座標
+    private func applyToggleStyle(to node: SKShapeNode, state: TileState, at point: GridPoint) {
+        // トグルマスはギミックとして視認しやすいよう高コントラストな線色を採用する
+        node.strokeColor = palette.boardTileMultiStroke
+        node.lineWidth = 1
+        updateToggleDecoration(for: point, parentNode: node, state: state)
     }
 
     /// 複数回踏破マスの対角線と四分割三角形をまとめて更新する
@@ -826,6 +902,108 @@ public final class GameScene: SKScene {
         guard let decoration = tileMultiVisitDecorations.removeValue(forKey: point) else { return }
         decoration.container.removeAllActions()
         decoration.container.removeFromParent()
+    }
+
+    /// トグルマス装飾を安全に破棄する
+    /// - Parameter point: 対象マスの座標
+    private func removeToggleDecoration(for point: GridPoint) {
+        guard let decoration = tileToggleDecorations.removeValue(forKey: point) else { return }
+        decoration.container.removeAllActions()
+        decoration.container.removeFromParent()
+    }
+
+    /// トグルマスの三角形と対角線装飾を生成・更新する
+    /// - Parameters:
+    ///   - point: 対象マスの座標
+    ///   - parentNode: 装飾を載せる親ノード
+    ///   - state: 現在のマス状態
+    private func updateToggleDecoration(
+        for point: GridPoint,
+        parentNode: SKShapeNode,
+        state: TileState
+    ) {
+        let decoration: ToggleDecorationCache
+
+        if let cached = tileToggleDecorations[point] {
+            decoration = cached
+        } else {
+            // NOTE: 初回のみノードを生成し、以降は辞書経由で再利用する
+            let container = SKNode()
+            container.name = "toggleDecorationContainer"
+            container.zPosition = 0.13  // グリッド塗りより前面に置き、ガイド枠より背面に揃える
+
+            let topLeftTriangle = SKShapeNode()
+            topLeftTriangle.name = ToggleDecorationTriangle.topLeft.nodeName
+            topLeftTriangle.strokeColor = .clear
+            topLeftTriangle.lineWidth = 0
+            topLeftTriangle.isAntialiased = true
+            topLeftTriangle.blendMode = .alpha
+            container.addChild(topLeftTriangle)
+
+            let bottomRightTriangle = SKShapeNode()
+            bottomRightTriangle.name = ToggleDecorationTriangle.bottomRight.nodeName
+            bottomRightTriangle.strokeColor = .clear
+            bottomRightTriangle.lineWidth = 0
+            bottomRightTriangle.isAntialiased = true
+            bottomRightTriangle.blendMode = .alpha
+            container.addChild(bottomRightTriangle)
+
+            let diagonal = SKShapeNode()
+            diagonal.name = "toggleDecorationDiagonal"
+            diagonal.fillColor = .clear
+            diagonal.strokeColor = palette.boardTileMultiStroke
+            diagonal.lineWidth = 1
+            diagonal.lineJoin = .round
+            diagonal.lineCap = .round
+            diagonal.isAntialiased = true
+            diagonal.blendMode = .alpha
+            container.addChild(diagonal)
+
+            let cache = ToggleDecorationCache(
+                container: container,
+                topLeftTriangle: topLeftTriangle,
+                bottomRightTriangle: bottomRightTriangle,
+                diagonal: diagonal
+            )
+            tileToggleDecorations[point] = cache
+            decoration = cache
+        }
+
+        if decoration.container.parent !== parentNode {
+            decoration.container.removeFromParent()
+            parentNode.addChild(decoration.container)
+        }
+
+        // タイルノード中心を原点とする座標系に合わせて装飾を再配置する
+        decoration.container.position = .zero
+        decoration.container.isHidden = false
+
+        // タイルサイズ変化へ追従できるよう、描画の度にパスを更新する
+        decoration.topLeftTriangle.path = ToggleDecorationTriangle.topLeft.path(tileSize: tileSize)
+        decoration.bottomRightTriangle.path = ToggleDecorationTriangle.bottomRight.path(tileSize: tileSize)
+
+        // 右下三角形は常に踏破済みカラーで塗りつぶし、ギミック方向を固定表示する
+        decoration.bottomRightTriangle.fillColor = palette.boardTileVisited
+        decoration.bottomRightTriangle.alpha = 1.0
+        decoration.bottomRightTriangle.isHidden = false
+
+        // 左上三角形は現在の踏破状態に応じて未踏破/踏破色をトグルさせる
+        decoration.topLeftTriangle.fillColor = state.isVisited
+            ? palette.boardTileVisited
+            : palette.boardTileUnvisited
+        decoration.topLeftTriangle.alpha = 1.0
+        decoration.topLeftTriangle.isHidden = false
+
+        // 右上→左下の対角線で視線誘導し、トグル方向を明示する
+        let half = tileSize / 2
+        let diagonalPath = CGMutablePath()
+        diagonalPath.move(to: CGPoint(x: half, y: half))
+        diagonalPath.addLine(to: CGPoint(x: -half, y: -half))
+        decoration.diagonal.path = diagonalPath
+        decoration.diagonal.strokeColor = palette.boardTileMultiStroke
+        decoration.diagonal.lineWidth = 1
+        decoration.diagonal.alpha = 1.0
+        decoration.diagonal.isHidden = false
     }
 
     /// 盤面ハイライトの種類ごとの集合をまとめて更新する
