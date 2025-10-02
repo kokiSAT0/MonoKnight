@@ -206,12 +206,14 @@ private extension PauseMenuView {
                 Text(summary.stage.summary)
                     .font(.system(size: 14, weight: .regular, design: .rounded))
                     .foregroundStyle(.secondary)
-                // リワード条件・記録の詳細は共通ビューへ委譲し、GamePreparationOverlay と見た目を揃える
+                // リワード条件の詳細は共通ビューへ委譲し、GamePreparationOverlay と見た目を揃える
+                // ポーズ中は戦況整理を優先させるため、過去記録はあえて非表示にする
                 CampaignRewardSummaryView(
                     stage: summary.stage,
                     progress: summary.progress,
                     theme: theme,
-                    context: .list
+                    context: .list,
+                    showsRecordSection: false
                 )
                 .padding(.top, LayoutMetrics.summaryTopPadding)
             }
