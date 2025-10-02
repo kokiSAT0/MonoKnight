@@ -405,11 +405,11 @@ struct AppTheme: DynamicProperty {
     var boardTileVisited: Color {
         switch resolvedColorScheme {
         case .dark:
-            // ダークテーマではマルチ踏破の完了色と統一し、踏破完了時の色変化を明確にする
-            return Color.white.opacity(0.28)
+            // ダークテーマでは白成分を 38% まで引き上げ、未踏破との差分 (約33%) を確保して踏破完了時の変化をより強調する
+            return Color.white.opacity(0.38)
         default:
-            // ライトテーマでも同じ思想で 18% の黒を重ね、踏破済みマスの濃いグレーを共通化する
-            return Color.black.opacity(0.18)
+            // ライトテーマでは黒成分を 30% まで増やし、未踏破との差分 (約27.5%) を担保してコントラストを底上げする
+            return Color.black.opacity(0.30)
         }
     }
 
@@ -417,11 +417,11 @@ struct AppTheme: DynamicProperty {
     var boardTileUnvisited: Color {
         switch resolvedColorScheme {
         case .dark:
-            // 暗所でもマスの輪郭を把握しやすいよう、うっすらと光が当たった程度の 8% まで持ち上げる
-            return Color.white.opacity(0.08)
+            // ダークテーマでは白成分を 5% まで抑え、踏破済みとの差分 (約33%) を維持しつつ背景になじませる
+            return Color.white.opacity(0.05)
         default:
-            // まったくの透明だと盤面の境界が迷子になるため、わずかに灰色を乗せた 5% を採用する
-            return Color.black.opacity(0.05)
+            // ライトテーマでは黒成分を 2.5% 付与し、踏破済みとの差分 (約27.5%) を保ちながら盤面の奥行きを残す
+            return Color.black.opacity(0.025)
         }
     }
 
