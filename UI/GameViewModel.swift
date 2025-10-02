@@ -206,7 +206,10 @@ final class GameViewModel: ObservableObject {
         gameInterfaces: GameModuleInterfaces,
         gameCenterService: GameCenterServiceProtocol,
         adsService: AdsServiceProtocol,
-        campaignProgressStore: CampaignProgressStore = CampaignProgressStore(),
+        // `CampaignProgressStore` は @MainActor 隔離のため、デフォルト引数で直接生成すると
+        // ビルドエラーが発生する。そこで `@autoclosure` 付きのファクトリを受け取り、
+        // メインアクター上で初期化処理を実行するようにする。
+        campaignProgressStore: @MainActor @autoclosure () -> CampaignProgressStore = CampaignProgressStore(),
         onRequestGameCenterSignIn: ((GameCenterSignInPromptReason) -> Void)?,
         onRequestReturnToTitle: (() -> Void)?,
         onRequestStartCampaignStage: ((CampaignStage) -> Void)?,
@@ -219,7 +222,8 @@ final class GameViewModel: ObservableObject {
         self.gameInterfaces = gameInterfaces
         self.gameCenterService = gameCenterService
         self.adsService = adsService
-        self.campaignProgressStore = campaignProgressStore
+        // 上記のファクトリをここで評価し、@MainActor コンテキストから安全にインスタンス化する
+        self.campaignProgressStore = campaignProgressStore()
         self.onRequestGameCenterSignIn = onRequestGameCenterSignIn
         self.onRequestReturnToTitle = onRequestReturnToTitle
         self.onRequestStartCampaignStage = onRequestStartCampaignStage
