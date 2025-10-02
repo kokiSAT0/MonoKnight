@@ -13,7 +13,23 @@ struct HighScoreChallengeSelectionView: View {
     let bestScoreDescription: String
 
     /// 共通の配色を扱うテーマ
-    private var theme = AppTheme()
+    private let theme = AppTheme()
+
+    /// 画面表示に必要な依存関係を受け取りプロパティへ格納する
+    /// - Parameters:
+    ///   - onSelect: モード選択時にタイトル画面へ通知するクロージャ
+    ///   - onClose: ナビゲーションを戻すためのクロージャ
+    ///   - bestScoreDescription: 直近のベストスコアを案内する文字列
+    init(
+        onSelect: @escaping (GameMode) -> Void,
+        onClose: @escaping () -> Void,
+        bestScoreDescription: String
+    ) {
+        // 外部から渡された依存関係をそのまま保持して画面内で利用する
+        self.onSelect = onSelect
+        self.onClose = onClose
+        self.bestScoreDescription = bestScoreDescription
+    }
 
     /// 画面に表示するカード情報の配列
     private var modeCards: [ModeCardData] {
