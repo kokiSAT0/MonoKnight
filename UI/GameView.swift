@@ -16,6 +16,9 @@ struct GameView: View {
     /// - Note: レイアウト補助の拡張（`GameView+Layout`）でもテーマカラーを共有する必要があるため、
     ///         同一型の別ファイル拡張からも参照できるようアクセスレベルはデフォルト（internal）にしている。
     let theme = AppTheme()
+    /// 複数候補カードの警告トーストを保持する秒数
+    /// - Note: 高速で盤面を連続タップした場合でも読み切れるよう、3 秒を基準としている。
+    private let boardTapWarningDisplayDuration: Double = 3.0
     /// 現在のライト/ダーク設定を環境から取得し、SpriteKit 側の色にも反映する
     /// - Note: 監視系ロジックを別ファイルへ分割しているため、`fileprivate` にするとアクセスできずビルドエラーとなる。
     ///         そのためアクセスレベルはデフォルト（internal）のままにして、同一モジュール内の拡張から安全に参照できるようにしている。
@@ -43,6 +46,8 @@ struct GameView: View {
     /// - Note: レイアウトや監視系の拡張（別ファイル）からもアクセスするため、`internal` 相当の公開範囲（デフォルト）を維持する。
     ///         `fileprivate` にすると `GameView+Layout` から参照できずビルドエラーになるため注意。
     @StateObject var viewModel: GameViewModel
+    /// 警告トーストの自動消滅を制御する Task を保持し、連続表示時の競合を避ける
+    @State private var boardTapWarningDismissTask: Task<Void, Never>?
     /// ハプティクスを有効にするかどうかの設定値
 
     /// - Note: 監視処理を別ファイルの拡張（`GameView+Observers`）へ切り出しているため、`fileprivate` ではアクセスできずビルドエラーとなる。
@@ -148,10 +153,22 @@ struct GameView: View {
         .onAppear {
             // 表示時点の認証状態を ViewModel へ反映し、スコア送信フローとの整合性を保つ。
             viewModel.updateGameCenterAuthenticationStatus(isGameCenterAuthenticated)
+            // 画面復帰時に警告が残っている場合でもトーストが自動的に閉じるよう監視を再開する
+            scheduleBoardTapWarningAutoDismiss(for: viewModel.boardTapSelectionWarning)
         }
         .onChange(of: isGameCenterAuthenticated) { _, newValue in
             // RootView から認証状態が更新された場合に備えて随時同期する。
             viewModel.updateGameCenterAuthenticationStatus(newValue)
+        }
+        // 警告ステートの変化をフックし、トーストの自動消滅タスクを更新する
+        .onChange(of: viewModel.boardTapSelectionWarning) { _, newValue in
+            // 新しい警告が届いたらタイマーを再スケジュールし、nil になったときは確実にキャンセルする
+            scheduleBoardTapWarningAutoDismiss(for: newValue)
+        }
+        // 画面を離れる際にタイマーを破棄し、不要なタスクがバックグラウンドで動き続けないようにする
+        .onDisappear {
+            boardTapWarningDismissTask?.cancel()
+            boardTapWarningDismissTask = nil
         }
         // ポーズメニューをフルスクリーンで重ね、端末サイズに左右されずに全項目を視認できるようにする
         .fullScreenCover(isPresented: $viewModel.isPauseMenuPresented) {
@@ -246,16 +263,35 @@ struct GameView: View {
         } message: { action in
             Text(action.confirmationMessage)
         }
-        // 盤面タップで複数の複数候補カードが同一点を指し示した場合に、手札選択を促す警告アラートを表示する
-        .alert(item: $viewModel.boardTapSelectionWarning) { warning in
-            Alert(
-                title: Text("カード選択が必要です"),
-                message: Text(warning.message),
-                dismissButton: .default(Text("閉じる")) {
-                    // アラート閉鎖後は ViewModel 側の状態をリセットし、同じ警告を再度表示できるようにする
-                    viewModel.clearBoardTapSelectionWarning()
-                }
-            )
+    }
+
+    /// 警告トーストの自動クローズをスケジュールし、一定時間後に状態をリセットする
+    /// - Parameter warning: 最新の警告ペイロード。nil の場合はタイマーを破棄する
+    private func scheduleBoardTapWarningAutoDismiss(for warning: GameViewModel.BoardTapSelectionWarning?) {
+        // 既存のタイマーが走っていればキャンセルし、連続発火時に古いタスクが残らないようにする
+        boardTapWarningDismissTask?.cancel()
+        boardTapWarningDismissTask = nil
+
+        guard warning != nil else { return }
+
+        boardTapWarningDismissTask = Task { @MainActor in
+            // Task 終了時に参照を解放し、次回以降のスケジュールが正しく登録できるようにする
+            defer { boardTapWarningDismissTask = nil }
+
+            let nanoseconds = UInt64(boardTapWarningDisplayDuration * 1_000_000_000)
+            do {
+                // 指定時間だけ待機し、ユーザーがトーストを視認できる猶予を確保する
+                try await Task.sleep(nanoseconds: nanoseconds)
+            } catch {
+                // キャンセルされた場合はそのまま抜け、不要な再描画を避ける
+                return
+            }
+
+            guard !Task.isCancelled else { return }
+
+            withAnimation(.easeInOut(duration: 0.28)) {
+                viewModel.clearBoardTapSelectionWarning()
+            }
         }
     }
 

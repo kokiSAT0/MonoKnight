@@ -71,6 +71,8 @@ enum GameViewLayoutMetrics {
     static let penaltyBannerBaseTopPadding: CGFloat = 12
     /// `safeAreaInsets.top` に加算しておきたいペナルティバナーの追加上マージン
     static let penaltyBannerSafeAreaAdditionalPadding: CGFloat = 6
+    /// ペナルティバナーや警告トーストを縦方向に積み重ねる際の間隔
+    static let notificationStackSpacing: CGFloat = 12
     /// レギュラー幅端末で `safeAreaInsets.top` が 0 の場合に用いるフォールバック値
     static let regularWidthTopSafeAreaFallback: CGFloat = 24
     /// レギュラー幅端末で `safeAreaInsets.bottom` が 0 の場合に用いるフォールバック値
