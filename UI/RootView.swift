@@ -1348,16 +1348,16 @@ fileprivate struct TitleScreenView: View {
     private enum StartTriggerContext: String {
         /// キャンペーンのステージ一覧から直接開始するケース
         case campaignStageSelection = "campaign_stage_selection"
-        /// ハイスコア詳細画面のボタンから開始するケース
-        case highScoreDetail = "high_score_detail"
+        /// ハイスコア選択画面から開始するケース
+        case highScoreSelection = "high_score_selection"
 
         /// ログ出力向けに読みやすい説明文を返す
         var logDescription: String {
             switch self {
             case .campaignStageSelection:
                 return "キャンペーン一覧から開始"
-            case .highScoreDetail:
-                return "ハイスコア詳細から開始"
+            case .highScoreSelection:
+                return "ハイスコア選択から開始"
             }
         }
     }
@@ -1623,13 +1623,19 @@ fileprivate struct TitleScreenView: View {
             )
         case .highScore:
             return AnyView(
-                highScoreDetailView
-                    .onAppear {
-                        debugLog("TitleScreenView: NavigationDestination.highScore 表示 -> 現在のスタック数=\(navigationPath.count)")
-                    }
-                    .onDisappear {
-                        debugLog("TitleScreenView: NavigationDestination.highScore 非表示 -> 現在のスタック数=\(navigationPath.count)")
-                    }
+                HighScoreChallengeSelectionView(
+                    onSelect: { mode in
+                        startHighScoreMode(mode)
+                    },
+                    onClose: { popNavigationStack() },
+                    bestScoreDescription: bestPointsDescription
+                )
+                .onAppear {
+                    debugLog("TitleScreenView: NavigationDestination.highScore 表示 -> 現在のスタック数=\(navigationPath.count)")
+                }
+                .onDisappear {
+                    debugLog("TitleScreenView: NavigationDestination.highScore 非表示 -> 現在のスタック数=\(navigationPath.count)")
+                }
             )
         case .dailyChallenge:
             return AnyView(
@@ -1642,51 +1648,6 @@ fileprivate struct TitleScreenView: View {
                     }
             )
         }
-    }
-
-    @ViewBuilder
-    private var highScoreDetailView: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                Text("スタンダードモードのスコアを更新して Game Center ランキングを目指しましょう。")
-                    .font(.system(size: 15, weight: .regular, design: .rounded))
-                    .foregroundColor(theme.textSecondary)
-
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("現在の情報")
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
-                        .foregroundColor(theme.textPrimary)
-                    Text(bestPointsDescription)
-                        .font(.system(size: 13, weight: .medium, design: .rounded))
-                        .foregroundColor(theme.textSecondary)
-                }
-
-                Button {
-                    startStandardModeFromHighScore()
-                } label: {
-                    Text("スタンダードを開始")
-                        .font(.system(size: 16, weight: .semibold, design: .rounded))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(theme.accentPrimary)
-                .foregroundColor(theme.accentOnPrimary)
-                .controlSize(.large)
-                .accessibilityIdentifier("high_score_start_button")
-                // VoiceOver でボタン押下後にゲームが始まることを強調
-                .accessibilityHint(Text("スタンダードモードでプレイを開始します"))
-
-                Text("手数と経過秒数の合計がスコアになります。少ないほど上位に表示されます。")
-                    .font(.system(size: 12, weight: .regular, design: .rounded))
-                    .foregroundColor(theme.textSecondary.opacity(0.85))
-            }
-            .padding(24)
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .background(theme.backgroundPrimary)
-        .navigationTitle("ハイスコア")
-        .navigationBarTitleDisplayMode(.inline)
     }
 
     @ViewBuilder
@@ -1764,15 +1725,17 @@ fileprivate struct TitleScreenView: View {
         debugLog("TitleScreenView: キャンペーンステージ選択完了 -> 即時開始スケジュールを待機")
     }
 
-    private func startStandardModeFromHighScore() {
-        let context: StartTriggerContext = .highScoreDetail
+    /// ハイスコア系モードの選択後に即時開始をリクエストする
+    /// - Parameter mode: プレイヤーが挑戦したいモード
+    private func startHighScoreMode(_ mode: GameMode) {
+        let context: StartTriggerContext = .highScoreSelection
         debugLog(
-            "TitleScreenView: ハイスコアチャレンジ開始要求 -> standard5x5 context=\(context.rawValue)"
+            "TitleScreenView: ハイスコアチャレンジ開始要求 -> \(mode.identifier.rawValue) context=\(context.rawValue)"
         )
         resetNavigationStack()
-        // ハイスコア詳細から戻る場合もポップ完了を待ち、同一フレームでの開始要求を避ける
+        // 選択画面から戻る場合もポップ完了を待ち、同一フレームでの開始要求を避ける
         DispatchQueue.main.async {
-            triggerImmediateStart(for: GameMode.standard, context: context)
+            triggerImmediateStart(for: mode, context: context)
         }
     }
 
