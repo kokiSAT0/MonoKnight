@@ -43,6 +43,9 @@
         /// 初期化時に設定するトグルマス集合
         /// - NOTE: ギミックの再生成で情報が失われないよう、初期値として保持しておく
         private let initialTogglePoints: Set<GridPoint>
+        /// 初期化時に設定する移動不可マス集合
+        /// - NOTE: ギミックよりも優先して障害物を固定し、レイアウト再構築時にも確実に反映する
+        private let initialImpassablePoints: Set<GridPoint>
 
         /// 現在の盤面状態
         private var board: Board
@@ -265,7 +268,8 @@
                 size: initialBoardSize,
                 initialVisitedPoints: initialVisitedPoints,
                 requiredVisitOverrides: initialRequiredVisitOverrides,
-                togglePoints: initialTogglePoints
+                togglePoints: initialTogglePoints,
+                impassablePoints: initialImpassablePoints
             )
             // テーマもデフォルトへ戻し、SpriteKit 専用の配色が未設定のままでも破綻しないようフォールバックを適用
             palette = GameScenePalette.fallback
@@ -313,7 +317,8 @@
             initialBoardSize: Int,
             initialVisitedPoints: [GridPoint]? = nil,
             requiredVisitOverrides: [GridPoint: Int] = [:],
-            togglePoints: Set<GridPoint> = []
+            togglePoints: Set<GridPoint> = [],
+            impassablePoints: Set<GridPoint> = []
         ) {
             let resolvedVisitedPoints =
                 initialVisitedPoints
@@ -322,11 +327,13 @@
             self.initialVisitedPoints = resolvedVisitedPoints
             self.initialRequiredVisitOverrides = requiredVisitOverrides
             self.initialTogglePoints = togglePoints
+            self.initialImpassablePoints = impassablePoints
             self.board = Board(
                 size: initialBoardSize,
                 initialVisitedPoints: resolvedVisitedPoints,
                 requiredVisitOverrides: requiredVisitOverrides,
-                togglePoints: togglePoints
+                togglePoints: togglePoints,
+                impassablePoints: impassablePoints
             )
             super.init(size: .zero)
             // 共通初期化で各種プロパティを統一的にリセットし、生成経路による差異を排除する
@@ -343,11 +350,13 @@
             self.initialVisitedPoints = defaultVisitedPoints
             self.initialRequiredVisitOverrides = [:]
             self.initialTogglePoints = []
+            self.initialImpassablePoints = []
             self.board = Board(
                 size: BoardGeometry.standardSize,
                 initialVisitedPoints: defaultVisitedPoints,
                 requiredVisitOverrides: [:],
-                togglePoints: []
+                togglePoints: [],
+                impassablePoints: []
             )
             super.init(coder: aDecoder)
             // デコード後も共通初期化を実行し、Storyboard/SwiftUI どちらからでも同じ見た目・挙動となるようにする
@@ -655,6 +664,9 @@
         /// - Returns: 未踏破〜踏破済みまでの進捗に応じて補間された色
         private func tileFillColor(for state: TileState) -> SKColor {
             switch state.visitBehavior {
+            case .impassable:
+                // 移動不可マスは踏破進捗に関係なく専用色で塗り潰し、盤面上で障害物がひと目で分かるようにする
+                return palette.boardTileImpassable
             case .toggle:
                 // トグルマスは踏破状態に関わらず専用色で固定し、ギミックの存在を明確に示す
                 return .clear
@@ -701,6 +713,10 @@
             case .toggle:
                 applyToggleStyle(to: node, state: state, at: point)
                 removeMultiVisitDecoration(for: point)
+            case .impassable:
+                applyImpassableStyle(to: node)
+                removeMultiVisitDecoration(for: point)
+                removeToggleDecoration(for: point)
             case .single:
                 applySingleVisitStyle(to: node)
                 removeMultiVisitDecoration(for: point)
@@ -739,6 +755,15 @@
             node.strokeColor = palette.boardTileMultiStroke
             node.lineWidth = 1
             updateToggleDecoration(for: point, parentNode: node, state: state)
+        }
+
+        /// 移動不可マス専用のシンプルな塗りのみを適用する
+        /// - Parameter node: 対象ノード
+        private func applyImpassableStyle(to node: SKShapeNode) {
+            // 障害物は塗りのみで情報が伝わるよう枠線を取り除き、余計な装飾を付けない
+            node.strokeColor = .clear
+            node.lineWidth = 0
+            node.glowWidth = 0
         }
 
         /// 複数回踏破マスの対角線と四分割三角形をまとめて更新する
@@ -1462,7 +1487,10 @@
                         // 状態に応じた読み上げ内容を生成
                         let statusText: String
                         if let state = board.state(at: point) {
-                            if state.isVisited {
+                            if state.isImpassable {
+                                // 障害物は踏破対象外であることを明確に伝える
+                                statusText = "移動不可"
+                            } else if state.isVisited {
                                 statusText = "踏破済み"
                             } else if state.requiresMultipleVisits {
                                 statusText = "踏破まであと\(state.remainingVisits)回"
@@ -1474,7 +1502,7 @@
                         }
 
                         if let knightPosition, point == knightPosition {
-                            element.accessibilityLabel = "駒あり " + statusText
+                            element.accessibilityLabel = "駒あり・" + statusText
                         } else {
                             element.accessibilityLabel = statusText
                         }

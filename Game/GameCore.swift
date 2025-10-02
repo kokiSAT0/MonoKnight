@@ -89,7 +89,8 @@ public final class GameCore: ObservableObject {
             size: mode.boardSize,
             initialVisitedPoints: mode.initialVisitedPoints,
             requiredVisitOverrides: mode.additionalVisitRequirements,
-            togglePoints: mode.toggleTilePoints
+            togglePoints: mode.toggleTilePoints,
+            impassablePoints: mode.impassableTilePoints
         )
         current = mode.initialSpawnPoint ?? BoardGeometry.defaultSpawnPoint(for: mode.boardSize)
         deck = Deck(configuration: mode.deckConfiguration)
@@ -329,7 +330,8 @@ public final class GameCore: ObservableObject {
             size: mode.boardSize,
             initialVisitedPoints: mode.initialVisitedPoints,
             requiredVisitOverrides: mode.additionalVisitRequirements,
-            togglePoints: mode.toggleTilePoints
+            togglePoints: mode.toggleTilePoints,
+            impassablePoints: mode.impassableTilePoints
         )
         current = mode.initialSpawnPoint
         moveCount = 0
@@ -503,13 +505,15 @@ extension GameCore {
                 size: mode.boardSize,
                 initialVisitedPoints: [resolvedCurrent],
                 requiredVisitOverrides: mode.additionalVisitRequirements,
-                togglePoints: mode.toggleTilePoints
+                togglePoints: mode.toggleTilePoints,
+                impassablePoints: mode.impassableTilePoints
             )
         } else {
             core.board = Board(
                 size: mode.boardSize,
                 requiredVisitOverrides: mode.additionalVisitRequirements,
-                togglePoints: mode.toggleTilePoints
+                togglePoints: mode.toggleTilePoints,
+                impassablePoints: mode.impassableTilePoints
             )
         }
         core.current = resolvedCurrent
