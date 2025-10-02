@@ -204,6 +204,8 @@ struct CampaignStageSelectionView: View {
         .disabled(!isUnlocked)
         // UI テストやアクセシビリティから特定ステージを一意に参照できるようにする
         .accessibilityIdentifier("campaign_stage_button_\(stage.id.displayCode)")
+        // 選択するとタイトルへ戻り即時にゲーム準備へ進む挙動を VoiceOver へ伝える
+        .accessibilityHint(Text("選択するとゲーム準備画面に戻り、選んだステージで開始準備が行われます。"))
     }
 
     /// 星アイコンを生成する
@@ -229,6 +231,15 @@ struct CampaignStageSelectionView: View {
             .joined(separator: ", ")
         // ResultBuilder の返却型と副作用の整合性を保つため、List を戻り値として明示する
         return List {
+            Section {
+                // ステージ選択でタイトルへ戻った直後にゲーム準備へ移行する挙動を案内するガイド文
+                Text("解放済みのステージを選ぶとゲーム準備画面に戻り、すぐに挑戦を開始します。")
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .foregroundColor(theme.textSecondary)
+                    .multilineTextAlignment(.leading)
+                    .padding(.vertical, 6)
+                    .accessibilityLabel("解放済みのステージを選ぶとゲーム準備画面に戻り、選んだステージの準備が始まります。")
+            }
             ForEach(campaignLibrary.chapters) { chapter in
                 Section {
                     ForEach(chapter.stages) { stage in
