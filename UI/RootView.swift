@@ -555,8 +555,7 @@ private extension RootView {
         private var topStatusInset: some View {
             TopStatusInsetView(
                 context: layoutContext,
-                theme: theme,
-                isAuthenticated: $isAuthenticated
+                theme: theme
             )
         }
 
@@ -1338,8 +1337,6 @@ fileprivate struct TopStatusInsetView: View {
     let context: RootView.RootLayoutContext
     /// ルートビューと同じテーマを共有し、配色の一貫性を保つ
     let theme: AppTheme
-    /// Game Center 認証済みかどうかの状態をバインディングで受け取る
-    @Binding var isAuthenticated: Bool
     /// RootView 内で定義したレイアウト定数へ素早くアクセスするための別名
     /// - Note: ネストした型名を毎回書かずに済ませ、視認性を高める狙い
     private typealias LayoutMetrics = RootView.RootLayoutMetrics
@@ -1349,7 +1346,7 @@ fileprivate struct TopStatusInsetView: View {
             Spacer(minLength: 0)
             if hasVisibleContent {
                 VStack(alignment: .leading, spacing: LayoutMetrics.topBarContentSpacing) {
-                    gameCenterAuthenticationSection
+                    statusContent
                 }
                 // トップバー内の情報は iPad で中央寄せにするため最大幅を制限する
                 .frame(maxWidth: context.topBarMaxWidth ?? .infinity, alignment: .leading)
@@ -1380,33 +1377,24 @@ fileprivate struct TopStatusInsetView: View {
         )
     }
 
-    /// Game Center 認証状態を表示するセクションを切り出して見通しを改善する
+    /// トップバーへ掲出するコンテンツ
+    /// - Note: Game Center まわりの通知はトーストへ統一したため、現時点では空ビューを返す
     @ViewBuilder
-    private var gameCenterAuthenticationSection: some View {
-        if isAuthenticated {
-            Text("Game Center にサインイン済み")
-                .font(.caption)
-                // テーマ由来のサブ文字色を使い、背景とのコントラストを確保
-                .foregroundColor(theme.textSecondary)
-                .accessibilityIdentifier("gc_authenticated")
-                .frame(maxWidth: .infinity, alignment: .leading)
-        } else {
-            EmptyView()
-        }
+    private var statusContent: some View {
+        EmptyView()
     }
 
     /// VoiceOver 用の説明文。ヒットテストを無効化しても読み上げ内容が失われないよう、状態に応じた文面を返す
     private var accessibilityMessage: LocalizedStringKey {
-        isAuthenticated
-            ? "Game Center にサインイン済み"
-            : "Game Center 未サインイン。設定画面からサインインするとランキングを利用できます。"
+        // バナーを廃止し、トーストのみで案内するため読み上げも空文字を返す
+        ""
     }
 
     /// トップバー内に可視コンテンツが存在するかを判定する
     /// - Note: 表示有無に応じて背景や余白を切り替え、空状態での白い帯を解消する
     private var hasVisibleContent: Bool {
-        // 現状はサインイン状況のみを扱うが、将来的に表示要素が増えてもここで集約管理できる
-        isAuthenticated
+        // Game Center 通知をトーストへ移行したため、トップバーでは常に非表示とする
+        false
     }
 
     /// 表示状態に応じて水平方向の余白を計算する
