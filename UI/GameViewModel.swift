@@ -300,8 +300,8 @@ final class GameViewModel: ObservableObject {
         boardBridge.updateHapticsSetting(isEnabled: isEnabled)
     }
 
-    /// 盤面タップ警告を手動でクリアしたい場合のユーティリティ
-    /// - Important: `.alert(item:)` の閉鎖と同期させるため、View 層から明示的に呼び出せるよう公開する
+    /// 盤面タップ警告を外部からクリアしたい場合のユーティリティ
+    /// - Important: トースト表示の自動消滅と同期させるため、View 層から明示的に呼び出せるよう公開する
     func clearBoardTapSelectionWarning() {
         boardTapSelectionWarning = nil
     }

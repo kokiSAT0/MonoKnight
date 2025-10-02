@@ -129,25 +129,41 @@ extension GameView {
             GameViewLayoutMetrics.penaltyBannerBaseTopPadding,
             contentTopInset + GameViewLayoutMetrics.penaltyBannerSafeAreaAdditionalPadding
         )
+        let stackSpacing = GameViewLayoutMetrics.notificationStackSpacing
 
         return VStack {
-            if viewModel.isShowingPenaltyBanner {
-                HStack {
-                    Spacer(minLength: 0)
-                    PenaltyBannerView(penaltyAmount: viewModel.lastPenaltyAmount)
-                        .padding(.horizontal, 20)
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                        .accessibilityIdentifier("penalty_banner")
-                    Spacer(minLength: 0)
+            VStack(spacing: stackSpacing) {
+                if viewModel.isShowingPenaltyBanner {
+                    HStack {
+                        Spacer(minLength: 0)
+                        PenaltyBannerView(penaltyAmount: viewModel.lastPenaltyAmount)
+                            .padding(.horizontal, 20)
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                            .accessibilityIdentifier("penalty_banner")
+                        Spacer(minLength: 0)
+                    }
+                }
+
+                if let warning = viewModel.boardTapSelectionWarning {
+                    // 同一点へ移動可能なカード競合を知らせるトーストを積み重ね、視線移動を最小限に抑える
+                    HStack {
+                        Spacer(minLength: 0)
+                        BoardTapSelectionWarningToastView(theme: theme, message: warning.message)
+                            .padding(.horizontal, 24)
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                            .accessibilityIdentifier("board_tap_warning_toast")
+                        Spacer(minLength: 0)
+                    }
                 }
             }
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.top, resolvedTopPadding)
-        .allowsHitTesting(false)  // バナーが表示されていても下の UI を操作可能にする
+        .allowsHitTesting(false)  // バナーやトーストが表示されていても下の UI を操作可能にする
         .zIndex(2)
     }
+
 
     /// レイアウトに関する最新の実測値をログに残すための不可視ビューを生成
     /// - Parameter context: GeometryReader から抽出したレイアウト情報コンテキスト

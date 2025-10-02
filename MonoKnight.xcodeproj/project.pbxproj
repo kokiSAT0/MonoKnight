@@ -34,6 +34,7 @@
 		726642F92E85DA8E003EA325 /* GameHandSectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 726642F62E85DA8E003EA325 /* GameHandSectionView.swift */; };
 		726643002E85DA9D003EA325 /* PauseMenuView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 726642FE2E85DA9D003EA325 /* PauseMenuView.swift */; };
 		726643012E85DA9D003EA325 /* PenaltyBannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 726642FF2E85DA9D003EA325 /* PenaltyBannerView.swift */; };
+		72CAA2B40FE66746B51978FA /* BoardTapSelectionWarningToastView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 724954A75EC1545A2A92499B /* BoardTapSelectionWarningToastView.swift */; };
 		726643022E85DA9D003EA325 /* GameView+Observers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 726642FC2E85DA9D003EA325 /* GameView+Observers.swift */; };
 		726643032E85DA9D003EA325 /* GameView+Logging.swift in Sources */ = {isa = PBXBuildFile; fileRef = 726642FB2E85DA9D003EA325 /* GameView+Logging.swift */; };
 		726643042E85DA9D003EA325 /* GameView+Layout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 726642FA2E85DA9D003EA325 /* GameView+Layout.swift */; };
@@ -99,6 +100,7 @@
 		7266429D2E849763003EA325 /* GameViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameViewModel.swift; sourceTree = "<group>"; };
 		726642AE2E849978003EA325 /* CardAnimationPhase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardAnimationPhase.swift; sourceTree = "<group>"; };
 		726642B02E849982003EA325 /* BoardLayoutSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardLayoutSnapshot.swift; sourceTree = "<group>"; };
+		724954A75EC1545A2A92499B /* BoardTapSelectionWarningToastView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardTapSelectionWarningToastView.swift; sourceTree = "<group>"; };
 		726642EE2E85DA48003EA325 /* CampaignStageSelectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CampaignStageSelectionView.swift; sourceTree = "<group>"; };
 		726642F02E85DA54003EA325 /* DiagnosticsCenterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsCenterView.swift; sourceTree = "<group>"; };
 		726642F22E85DA73003EA325 /* GameBoardControlRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameBoardControlRowView.swift; sourceTree = "<group>"; };
@@ -261,6 +263,7 @@
 			isa = PBXGroup;
 			children = (
 				726642B02E849982003EA325 /* BoardLayoutSnapshot.swift */,
+				724954A75EC1545A2A92499B /* BoardTapSelectionWarningToastView.swift */,
 				72D0C8912E8E028A00C6D0C5 /* CampaignRewardSummaryView.swift */,
 				726642EE2E85DA48003EA325 /* CampaignStageSelectionView.swift */,
 				726642AE2E849978003EA325 /* CardAnimationPhase.swift */,
@@ -504,6 +507,7 @@
 				72D0C8B82E8E0AE900C6D0C5 /* HighScoreChallengeSelectionView.swift in Sources */,
 				726643002E85DA9D003EA325 /* PauseMenuView.swift in Sources */,
 				726643012E85DA9D003EA325 /* PenaltyBannerView.swift in Sources */,
+				72CAA2B40FE66746B51978FA /* BoardTapSelectionWarningToastView.swift in Sources */,
 				726643022E85DA9D003EA325 /* GameView+Observers.swift in Sources */,
 				726643032E85DA9D003EA325 /* GameView+Logging.swift in Sources */,
 				726643042E85DA9D003EA325 /* GameView+Layout.swift in Sources */,
