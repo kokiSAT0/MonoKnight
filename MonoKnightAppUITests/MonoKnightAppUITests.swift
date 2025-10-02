@@ -151,4 +151,41 @@ final class MonoKnightAppUITests: XCTestCase {
         let firstHandSlot = app.otherElements["hand_slot_0"]
         XCTAssertTrue(firstHandSlot.waitForExistence(timeout: 5), "ステージ開始後に手札スロットが表示されること")
     }
+
+    @MainActor
+    func testCampaignPreparationReturnButtonRestoresStageSelection() throws {
+        // キャンペーンのステージ選択から準備画面へ遷移し、ローディング中に戻るボタンで即座にステージ選択へ復帰できることを検証する
+        app.launch()
+
+        // タイトル画面からキャンペーンセレクターを開く
+        let campaignSelector = app.otherElements["campaign_stage_selector_link"]
+        XCTAssertTrue(campaignSelector.waitForExistence(timeout: 5), "キャンペーンセレクターが表示されていること")
+        campaignSelector.tap()
+
+        // 任意の解放済みステージ（ここでは 3-1）を選択して準備対象に設定する
+        let stageButton = app.buttons["campaign_stage_button_3-1"]
+        XCTAssertTrue(stageButton.waitForExistence(timeout: 5), "キャンペーン 3-1 のステージが表示されること")
+        stageButton.tap()
+
+        // タイトルへ戻ったらゲーム開始ボタンを押して準備画面を開く
+        let startButton = app.buttons["start_game_button"]
+        XCTAssertTrue(startButton.waitForExistence(timeout: 5), "ステージ選択後にゲーム開始ボタンへアクセスできること")
+        startButton.tap()
+
+        // ローディングオーバーレイが表示された段階で戻るボタンを探す
+        let overlay = app.otherElements["game_preparation_overlay"]
+        XCTAssertTrue(overlay.waitForExistence(timeout: 5), "ローディングオーバーレイが表示されること")
+
+        let returnButton = app.buttons["game_preparation_return_button"]
+        XCTAssertTrue(returnButton.waitForExistence(timeout: 2), "ローディング中でも戻るボタンが操作可能であること")
+        returnButton.tap()
+
+        // 戻る操作後はオーバーレイが閉じることを確認する
+        let overlayDismissExpectation = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: overlay)
+        let overlayDismissResult = XCTWaiter.wait(for: [overlayDismissExpectation], timeout: 5)
+        XCTAssertEqual(overlayDismissResult, .completed, "戻る操作でローディングオーバーレイが閉じること")
+
+        // キャンペーンステージ一覧が即座に再表示され、同じステージを再度選択できる状態へ戻ることを検証する
+        XCTAssertTrue(stageButton.waitForExistence(timeout: 5), "戻った直後にステージ選択画面へ復帰できること")
+    }
 }
