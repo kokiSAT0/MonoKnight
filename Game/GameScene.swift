@@ -682,7 +682,7 @@ public final class GameScene: SKScene {
                 segmentNode.lineWidth = 0
                 segmentNode.isAntialiased = true
                 // NOTE: ベース塗りとのアルファ合成を避け、セグメントの色をそのまま反映させる
-                segmentNode.blendMode = .replace
+                segmentNode.blendMode = .alpha
                 segmentNode.zPosition = 0
                 container.addChild(segmentNode)
                 segments[triangle] = segmentNode
