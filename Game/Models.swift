@@ -245,7 +245,7 @@ public struct Board: Equatable {
         }
         // 移動不可マスはギミック設定よりも優先して上書きし、障害物として確実に保持する
         for point in impassablePoints where contains(point) {
-            tiles[point.y][point.x] = TileState(visitBehavior: .impassable)
+            tiles[point.y][point.x] = TileState(visitBehavior: .impassable, isTraversable: false)
         }
         // 初期踏破マスを順番に処理し、盤面外の指定は安全に無視する
         for point in initialVisitedPoints where contains(point) {
@@ -436,13 +436,10 @@ extension Board {
                             }
                         case .single:
                             row += tile.isVisited ? "x " : ". "
+                        case .impassable:
+                            // ここへ到達するのは理論上想定外だが、安全のため障害物表記を維持する
+                            row += "■ "
                         }
-
-                    case .impassable:
-                        row += "# "
-                    case .single:
-                        row += tile.isVisited ? "x " : ". "
-
                     }
                 }
             }

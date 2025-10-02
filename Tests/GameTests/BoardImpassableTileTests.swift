@@ -36,7 +36,7 @@ final class BoardImpassableTileTests: XCTestCase {
         // TileState の残数が 0 のままであり、訪問済み判定も変わらないことを確認する
         let tileState = board.state(at: impassablePoint)
         XCTAssertEqual(tileState?.remainingVisits, 0, "障害物マスの残数が変化しています")
-        XCTAssertEqual(tileState?.isVisited, true, "障害物マスの訪問済みフラグが false になっています")
+        XCTAssertEqual(tileState?.isVisited, false, "障害物マスが踏破済み扱いに変化しており、障害物として扱えていません")
 
         // 障害物以外のマスは通常通り残数にカウントされることを確認する
         XCTAssertEqual(board.remainingCount, 8, "移動可能マスの残数計算が想定と異なります")

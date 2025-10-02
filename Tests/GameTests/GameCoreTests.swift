@@ -73,6 +73,47 @@ final class GameCoreTests: XCTestCase {
         ])
     }
 
+    /// availableMoves() が移動不可マスを候補から除外することを確認
+    func testAvailableMovesSkipsImpassableDestinations() {
+        // --- 移動不可マスを含むレギュレーションを構築 ---
+        let impassablePoint = GridPoint(x: 3, y: 2)
+        let regulation = GameMode.Regulation(
+            boardSize: BoardGeometry.standardSize,
+            handSize: 5,
+            nextPreviewCount: 3,
+            allowsStacking: true,
+            deckPreset: .standard,
+            spawnRule: .fixed(BoardGeometry.defaultSpawnPoint(for: BoardGeometry.standardSize)),
+            penalties: GameMode.PenaltySettings(
+                deadlockPenaltyCost: 5,
+                manualRedrawPenaltyCost: 5,
+                manualDiscardPenaltyCost: 1,
+                revisitPenaltyCost: 0
+            ),
+            impassableTilePoints: [impassablePoint]
+        )
+        let mode = GameMode(
+            identifier: .freeCustom,
+            displayName: "障害物テスト",
+            regulation: regulation,
+            leaderboardEligible: false
+        )
+
+        // --- 右方向カードと上方向カードを用意し、障害物マスを狙わせる ---
+        let deck = Deck.makeTestDeck(cards: [
+            .kingRight,
+            .kingUp,
+            .kingLeft,
+            .kingDown
+        ])
+        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 2, y: 2), mode: mode)
+
+        let moves = core.availableMoves()
+        let destinations = Set(moves.map { $0.destination })
+        XCTAssertFalse(destinations.contains(impassablePoint), "移動不可マスが候補に含まれており、障害物を避けられていません")
+        XCTAssertTrue(destinations.contains(GridPoint(x: 2, y: 3)), "移動可能マスまで除外されてしまっています")
+    }
+
     /// 手詰まり後に再び手詰まりが発生した場合でも追加ペナルティが加算されないことを確認
     func testConsecutiveDeadlockDoesNotAddExtraPenalty() {
         // --- テスト用デッキ構築 ---
