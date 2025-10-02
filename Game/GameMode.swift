@@ -11,8 +11,14 @@ public enum GameDeckPreset: String, CaseIterable, Codable, Identifiable {
     case classicalChallenge
     /// 王将型カードのみの構成（序盤向け超短距離デッキ）
     case kingOnly
+    /// 王将と桂馬を軽量構成で混在させたデッキ
+    case kingPlusKnightOnly
+    /// 王将 8 種と桂馬 8 種で構成した基本デッキ
+    case kingAndKnightBasic
     /// キング型カードに上下左右の選択肢を加えた構成
     case directionChoice
+    /// 標準デッキから長距離カードの出現頻度を抑えたライト構成
+    case standardLight
     /// 標準デッキに上下左右の選択キングを加えた構成
     case standardWithOrthogonalChoices
     /// 標準デッキに斜め選択キングを加えた構成
@@ -42,8 +48,14 @@ public enum GameDeckPreset: String, CaseIterable, Codable, Identifiable {
             return "クラシカル構成"
         case .kingOnly:
             return "王将構成"
+        case .kingPlusKnightOnly:
+            return "王将＋桂馬構成"
+        case .kingAndKnightBasic:
+            return "キング＆桂馬基本構成"
         case .directionChoice:
             return "選択式キング構成"
+        case .standardLight:
+            return "標準ライト構成"
         case .standardWithOrthogonalChoices:
             return "標準＋縦横選択キング構成"
         case .standardWithDiagonalChoices:
@@ -77,8 +89,14 @@ public enum GameDeckPreset: String, CaseIterable, Codable, Identifiable {
             return .classicalChallenge
         case .kingOnly:
             return .kingOnly
+        case .kingPlusKnightOnly:
+            return .kingPlusKnightOnly
+        case .kingAndKnightBasic:
+            return .kingAndKnightBasic
         case .directionChoice:
             return .directionChoice
+        case .standardLight:
+            return .standardLight
         case .standardWithOrthogonalChoices:
             return .standardWithOrthogonalChoices
         case .standardWithDiagonalChoices:

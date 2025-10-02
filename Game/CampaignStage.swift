@@ -331,20 +331,39 @@ public struct CampaignLibrary {
     /// 定義の実装本体
     private static func buildChapters() -> [CampaignChapter] {
         // MARK: - 1 章のステージ群
-        // MARK: 章 1 のステージレギュレーション共通設定
-        // 章内で複数のステージが同一ルールを参照する場合に備え、先に共通変数へ切り出しておく。
-        let classicalChallengeRegulation = GameMode.classicalChallenge.regulationSnapshot
+        // MARK: 章 1 は盤面と山札を段階的に拡張し、任意スポーンの導入までを網羅する。
 
-        // 既存のクラシカル相当レギュレーションからペナルティ設定を拝借する。
-        // - Note: 3×3 の新ステージでもペナルティ難度だけは据え置きたいという要望に合わせる。
-        let classicalPenalties = classicalChallengeRegulation.penalties
+        // 章内で複数ステージが共有するペナルティ設定を事前に用意し、可読性を高める。
+        let penaltyStage11 = GameMode.PenaltySettings(
+            deadlockPenaltyCost: 2,
+            manualRedrawPenaltyCost: 2,
+            manualDiscardPenaltyCost: 1,
+            revisitPenaltyCost: 1
+        )
+        let penaltyStage12 = GameMode.PenaltySettings(
+            deadlockPenaltyCost: 2,
+            manualRedrawPenaltyCost: 2,
+            manualDiscardPenaltyCost: 1,
+            revisitPenaltyCost: 0
+        )
+        let penaltyStage13to14 = GameMode.PenaltySettings(
+            deadlockPenaltyCost: 3,
+            manualRedrawPenaltyCost: 1,
+            manualDiscardPenaltyCost: 1,
+            revisitPenaltyCost: 0
+        )
+        let penaltyStage15onward = GameMode.PenaltySettings(
+            deadlockPenaltyCost: 3,
+            manualRedrawPenaltyCost: 2,
+            manualDiscardPenaltyCost: 1,
+            revisitPenaltyCost: 0
+        )
 
-        // 1-1 は 3×3 盤かつ王将型カードのみで構成された超短距離訓練ステージ。
-        // ペナルティ条件とスター獲得条件は従来の 1-2 と揃えて、報酬の認知負荷を減らす。
+        // 1-1: 王将カードのみでタイムアタックを行う超入門ステージ。
         let stage11 = CampaignStage(
             id: CampaignStageID(chapter: 1, index: 1),
             title: "王将訓練",
-            summary: "3×3 の盤で王将カードだけを使い、基本の詰めを体験しましょう。",
+            summary: "3×3 の盤で王将カードだけを使い、移動の基本を体験しましょう。",
             regulation: GameMode.Regulation(
                 boardSize: 3,
                 handSize: 5,
@@ -352,51 +371,159 @@ public struct CampaignLibrary {
                 allowsStacking: true,
                 deckPreset: .kingOnly,
                 spawnRule: .fixed(BoardGeometry.defaultSpawnPoint(for: 3)),
-                penalties: GameMode.PenaltySettings(
-                    deadlockPenaltyCost: classicalPenalties.deadlockPenaltyCost,
-                    manualRedrawPenaltyCost: classicalPenalties.manualRedrawPenaltyCost,
-                    manualDiscardPenaltyCost: classicalPenalties.manualDiscardPenaltyCost,
-                    revisitPenaltyCost: classicalPenalties.revisitPenaltyCost
-                )
+                penalties: penaltyStage11
             ),
             secondaryObjective: .finishWithinSeconds(maxSeconds: 120),
             scoreTarget: 900,
             scoreTargetComparison: .lessThan,
-            unlockRequirement: .totalStars(minimum: 0)
+            unlockRequirement: .always
         )
 
-        // 1-2 は従来の 1-1 レギュレーションをそのまま移設し、4×4 盤での応用を学ぶ位置付けにする。
+        // 1-2: 王将＋桂馬デッキでペナルティ管理を学ぶステージ。
         let stage12 = CampaignStage(
             id: CampaignStageID(chapter: 1, index: 2),
-            title: "序盤応用",
-            summary: "4×4 の小さな盤面でスタンダードデッキの動きを復習しましょう。",
+            title: "ナイト初見",
+            summary: "王将と桂馬の混成デッキで、引き直しペナルティに気を付けながら攻略しましょう。",
+            regulation: GameMode.Regulation(
+                boardSize: 3,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .kingPlusKnightOnly,
+                spawnRule: .fixed(BoardGeometry.defaultSpawnPoint(for: 3)),
+                penalties: penaltyStage12
+            ),
+            secondaryObjective: .finishWithPenaltyAtMost(maxPenaltyCount: 5),
+            scoreTarget: 800,
+            scoreTargetComparison: .lessThan,
+            unlockRequirement: .stageClear(stage11.id)
+        )
+
+        // 1-3: 4×4 盤でキングと桂馬のみを扱う基本演習。
+        let stage13 = CampaignStage(
+            id: CampaignStageID(chapter: 1, index: 3),
+            title: "4×4基礎",
+            summary: "4×4 盤でキングと桂馬の基本カードだけを使い、広い盤面へ慣れていきましょう。",
             regulation: GameMode.Regulation(
                 boardSize: 4,
                 handSize: 5,
                 nextPreviewCount: 3,
                 allowsStacking: true,
-                deckPreset: .standard,
+                deckPreset: .kingAndKnightBasic,
                 spawnRule: .fixed(BoardGeometry.defaultSpawnPoint(for: 4)),
-                penalties: GameMode.PenaltySettings(
-                    deadlockPenaltyCost: 3,
-                    manualRedrawPenaltyCost: 1,
-                    manualDiscardPenaltyCost: 1,
-                    revisitPenaltyCost: 0
-                )
+                penalties: penaltyStage13to14
             ),
-            // MARK: 2 個目のスター条件: ペナルティ発生を 5 回以下に抑える
-            // - Note: 章 1 の段階では引き直しペナルティの存在に慣れてもらうことが目的。
-            secondaryObjective: .finishWithPenaltyAtMost(maxPenaltyCount: 5),
-            scoreTarget: 350,
+            secondaryObjective: .finishWithinSeconds(maxSeconds: 60),
+            scoreTarget: 600,
             scoreTargetComparison: .lessThan,
-            unlockRequirement: .stageClear(stage11.id)
+            unlockRequirement: .stageClear(stage12.id)
+        )
+
+        // 1-4: 任意スポーンで開幕位置を選び、ペナルティを 3 回以内に抑える応用演習。
+        let stage14 = CampaignStage(
+            id: CampaignStageID(chapter: 1, index: 4),
+            title: "4×4応用",
+            summary: "開始位置を自由に選び、キングと桂馬のデッキでルートを組み立てましょう。",
+            regulation: GameMode.Regulation(
+                boardSize: 4,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .kingAndKnightBasic,
+                spawnRule: .chooseAnyAfterPreview,
+                penalties: penaltyStage13to14
+            ),
+            secondaryObjective: .finishWithPenaltyAtMost(maxPenaltyCount: 3),
+            scoreTarget: 550,
+            scoreTargetComparison: .lessThan,
+            unlockRequirement: .stageClear(stage13.id)
+        )
+
+        // 1-5: 標準ライトデッキで 30 手以内を目指す持久戦練習。
+        let stage15 = CampaignStage(
+            id: CampaignStageID(chapter: 1, index: 5),
+            title: "4×4持久",
+            summary: "長距離カードを減らした標準ライト構成で、30 手以内の踏破を目指しましょう。",
+            regulation: GameMode.Regulation(
+                boardSize: 4,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .standardLight,
+                spawnRule: .fixed(BoardGeometry.defaultSpawnPoint(for: 4)),
+                penalties: penaltyStage15onward
+            ),
+            secondaryObjective: .finishWithinMoves(maxMoves: 30),
+            scoreTarget: 500,
+            scoreTargetComparison: .lessThan,
+            unlockRequirement: .stageClear(stage14.id)
+        )
+
+        // 1-6: 任意スポーンでペナルティを 2 回以内へ抑える戦略演習。
+        let stage16 = CampaignStage(
+            id: CampaignStageID(chapter: 1, index: 6),
+            title: "4×4戦略",
+            summary: "任意スポーンを活かし、キングと桂馬の基本デッキでペナルティを最小限に抑えましょう。",
+            regulation: GameMode.Regulation(
+                boardSize: 4,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .kingAndKnightBasic,
+                spawnRule: .chooseAnyAfterPreview,
+                penalties: penaltyStage15onward
+            ),
+            secondaryObjective: .finishWithPenaltyAtMost(maxPenaltyCount: 2),
+            scoreTarget: 480,
+            scoreTargetComparison: .lessThan,
+            unlockRequirement: .stageClear(stage15.id)
+        )
+
+        // 1-7: 5×5 盤へ拡張し、40 手以内での踏破を目指す導入ステージ。
+        let stage17 = CampaignStage(
+            id: CampaignStageID(chapter: 1, index: 7),
+            title: "5×5導入",
+            summary: "標準ライト構成で 5×5 盤に挑戦し、40 手以内の安定した踏破を狙いましょう。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .standardLight,
+                spawnRule: .fixed(BoardGeometry.defaultSpawnPoint(for: 5)),
+                penalties: penaltyStage15onward
+            ),
+            secondaryObjective: .finishWithinMoves(maxMoves: 40),
+            scoreTarget: 460,
+            scoreTargetComparison: .lessThan,
+            unlockRequirement: .stageClear(stage16.id)
+        )
+
+        // 1-8: 任意スポーンを駆使し、5×5 盤で 35 手以内の踏破を目指す総合演習。
+        let stage18 = CampaignStage(
+            id: CampaignStageID(chapter: 1, index: 8),
+            title: "総合演習",
+            summary: "任意スポーンと標準ライト構成を組み合わせ、35 手以内での総合攻略に挑みましょう。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .standardLight,
+                spawnRule: .chooseAnyAfterPreview,
+                penalties: penaltyStage15onward
+            ),
+            secondaryObjective: .finishWithinMoves(maxMoves: 35),
+            scoreTarget: 440,
+            scoreTargetComparison: .lessThan,
+            unlockRequirement: .stageClear(stage17.id)
         )
 
         let chapter1 = CampaignChapter(
             id: 1,
             title: "基礎訓練",
             summary: "カード移動の定石を学ぶ章。",
-            stages: [stage11, stage12]
+            stages: [stage11, stage12, stage13, stage14, stage15, stage16, stage17, stage18]
         )
 
         // MARK: - 2 章のステージ群

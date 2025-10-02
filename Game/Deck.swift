@@ -231,6 +231,43 @@ struct Deck {
             )
         }()
 
+        /// 王将 4 種と桂馬 4 種だけを抽選する導入用構成
+        /// - Note: 3×3 盤でも扱いやすい短距離カードを厳選し、ナイト初学者の負荷を下げる。
+        static let kingPlusKnightOnly: Configuration = {
+            let kingMoves: [MoveCard] = [.kingUp, .kingRight, .kingDown, .kingLeft]
+            let knightMoves: [MoveCard] = [
+                .knightUp2Right1,
+                .knightUp2Left1,
+                .knightDown2Right1,
+                .knightDown2Left1
+            ]
+            let allowedMoves = kingMoves + knightMoves
+            return Configuration(
+                allowedMoves: allowedMoves,
+                weightProfile: WeightProfile(defaultWeight: 1),
+                shouldApplyProbabilityReduction: false,
+                normalWeightMultiplier: 1,
+                reducedWeightMultiplier: 1,
+                reductionDuration: 0,
+                deckSummaryText: "王将4種＋桂馬4種"
+            )
+        }()
+
+        /// 王将 8 種と桂馬 8 種で構成した基本セット
+        /// - Note: 標準デッキ導入前の練習として、長距離カードを除外して挙動を学びやすくする。
+        static let kingAndKnightBasic: Configuration = {
+            let allowedMoves = MoveCard.standardSet.filter { $0.isKingType || $0.isKnightType }
+            return Configuration(
+                allowedMoves: allowedMoves,
+                weightProfile: WeightProfile(defaultWeight: 1),
+                shouldApplyProbabilityReduction: true,
+                normalWeightMultiplier: 4,
+                reducedWeightMultiplier: 3,
+                reductionDuration: 5,
+                deckSummaryText: "キング8種＋桂馬8種"
+            )
+        }()
+
         /// 上下左右を選択できる複数方向カードを含む 5×5 盤向け構成
         static let directionChoice: Configuration = {
             let choiceCards: [MoveCard] = [.kingUpOrDown, .kingLeftOrRight]
@@ -244,6 +281,32 @@ struct Deck {
                 reducedWeightMultiplier: 3,
                 reductionDuration: 5,
                 deckSummaryText: "選択式キングカード入り"
+            )
+        }()
+
+        /// 標準デッキから長距離カードの比率を下げたライト構成
+        /// - Note: 初期章で扱いやすいよう、直線 2 マスと斜め 2 マスの重みを半減させる。
+        static let standardLight: Configuration = {
+            let longRangeCards: [MoveCard] = [
+                .straightUp2,
+                .straightDown2,
+                .straightRight2,
+                .straightLeft2,
+                .diagonalUpRight2,
+                .diagonalDownRight2,
+                .diagonalDownLeft2,
+                .diagonalUpLeft2
+            ]
+            var overrides: [MoveCard: Int] = [:]
+            longRangeCards.forEach { overrides[$0] = 1 }
+            return Configuration(
+                allowedMoves: MoveCard.standardSet,
+                weightProfile: WeightProfile(defaultWeight: 2, overrides: overrides),
+                shouldApplyProbabilityReduction: true,
+                normalWeightMultiplier: 4,
+                reducedWeightMultiplier: 3,
+                reductionDuration: 5,
+                deckSummaryText: "標準（長距離減衰）"
             )
         }()
 

@@ -6,7 +6,20 @@ final class CampaignLibraryTests: XCTestCase {
     /// 選択カード系プリセットが期待通りの構成を返すことを確認する
     func testChoiceDeckPresetConfigurations() {
         let presets: [(GameDeckPreset, String, String, Set<MoveCard>)] = [
+            (.kingOnly, "王将構成", "王将カードのみ", Set(MoveCard.standardSet.filter { $0.isKingType })),
+            (.kingPlusKnightOnly, "王将＋桂馬構成", "王将4種＋桂馬4種", Set([
+                .kingUp,
+                .kingRight,
+                .kingDown,
+                .kingLeft,
+                .knightUp2Right1,
+                .knightUp2Left1,
+                .knightDown2Right1,
+                .knightDown2Left1
+            ])),
+            (.kingAndKnightBasic, "キング＆桂馬基本構成", "キング8種＋桂馬8種", Set(MoveCard.standardSet.filter { $0.isKingType || $0.isKnightType })),
             (.directionChoice, "選択式キング構成", "選択式キングカード入り", [.kingUpOrDown, .kingLeftOrRight]),
+            (.standardLight, "標準ライト構成", "標準（長距離減衰）", Set(MoveCard.standardSet)),
             (.standardWithOrthogonalChoices, "標準＋縦横選択キング構成", "標準＋上下左右選択キング", Set(MoveCard.standardSet).union([.kingUpOrDown, .kingLeftOrRight])),
             (.standardWithDiagonalChoices, "標準＋斜め選択キング構成", "標準＋斜め選択キング", Set(MoveCard.standardSet).union([
                 .kingUpwardDiagonalChoice,
@@ -70,6 +83,7 @@ final class CampaignLibraryTests: XCTestCase {
             // MARK: 標準セットを内包するプリセットは全カードを含んでいるか検証する
             let presetsRequiringStandard: Set<GameDeckPreset> = [
                 .directionChoice,
+                .standardLight,
                 .standardWithOrthogonalChoices,
                 .standardWithDiagonalChoices,
                 .standardWithKnightChoices,
@@ -80,6 +94,57 @@ final class CampaignLibraryTests: XCTestCase {
                 XCTAssertTrue(standardMoves.isSubset(of: allowedMoves), "標準カードが欠落しています: \(preset)")
             }
         }
+    }
+
+    /// 第1章のステージ構成が最新レギュレーションと一致するかを検証する
+    func testCampaignStage1Definitions() {
+        let library = CampaignLibrary.shared
+
+        guard let chapter1 = library.chapters.first(where: { $0.id == 1 }) else {
+            XCTFail("第1章の定義が見つかりません")
+            return
+        }
+
+        XCTAssertEqual(chapter1.stages.count, 8, "第1章は 8 ステージ構成である必要があります")
+
+        // MARK: スポーン設定とペナルティ設定を事前に用意しておき、比較を簡潔にする
+        let spawn3 = GameMode.SpawnRule.fixed(BoardGeometry.defaultSpawnPoint(for: 3))
+        let spawn4 = GameMode.SpawnRule.fixed(BoardGeometry.defaultSpawnPoint(for: 4))
+        let spawn5 = GameMode.SpawnRule.fixed(BoardGeometry.defaultSpawnPoint(for: 5))
+        let chooseAny = GameMode.SpawnRule.chooseAnyAfterPreview
+
+        let penaltyStage11 = GameMode.PenaltySettings(deadlockPenaltyCost: 2, manualRedrawPenaltyCost: 2, manualDiscardPenaltyCost: 1, revisitPenaltyCost: 1)
+        let penaltyStage12 = GameMode.PenaltySettings(deadlockPenaltyCost: 2, manualRedrawPenaltyCost: 2, manualDiscardPenaltyCost: 1, revisitPenaltyCost: 0)
+        let penaltyStage13to14 = GameMode.PenaltySettings(deadlockPenaltyCost: 3, manualRedrawPenaltyCost: 1, manualDiscardPenaltyCost: 1, revisitPenaltyCost: 0)
+        let penaltyStage15onward = GameMode.PenaltySettings(deadlockPenaltyCost: 3, manualRedrawPenaltyCost: 2, manualDiscardPenaltyCost: 1, revisitPenaltyCost: 0)
+
+        let expectations: [(CampaignStageID, String, GameDeckPreset, Int, GameMode.SpawnRule, GameMode.PenaltySettings, CampaignStage.SecondaryObjective?, Int, CampaignStage.ScoreTargetComparison, CampaignStageUnlockRequirement)] = [
+            (CampaignStageID(chapter: 1, index: 1), "王将訓練", .kingOnly, 3, spawn3, penaltyStage11, .finishWithinSeconds(maxSeconds: 120), 900, .lessThan, .always),
+            (CampaignStageID(chapter: 1, index: 2), "ナイト初見", .kingPlusKnightOnly, 3, spawn3, penaltyStage12, .finishWithPenaltyAtMost(maxPenaltyCount: 5), 800, .lessThan, .stageClear(CampaignStageID(chapter: 1, index: 1))),
+            (CampaignStageID(chapter: 1, index: 3), "4×4基礎", .kingAndKnightBasic, 4, spawn4, penaltyStage13to14, .finishWithinSeconds(maxSeconds: 60), 600, .lessThan, .stageClear(CampaignStageID(chapter: 1, index: 2))),
+            (CampaignStageID(chapter: 1, index: 4), "4×4応用", .kingAndKnightBasic, 4, chooseAny, penaltyStage13to14, .finishWithPenaltyAtMost(maxPenaltyCount: 3), 550, .lessThan, .stageClear(CampaignStageID(chapter: 1, index: 3))),
+            (CampaignStageID(chapter: 1, index: 5), "4×4持久", .standardLight, 4, spawn4, penaltyStage15onward, .finishWithinMoves(maxMoves: 30), 500, .lessThan, .stageClear(CampaignStageID(chapter: 1, index: 4))),
+            (CampaignStageID(chapter: 1, index: 6), "4×4戦略", .kingAndKnightBasic, 4, chooseAny, penaltyStage15onward, .finishWithPenaltyAtMost(maxPenaltyCount: 2), 480, .lessThan, .stageClear(CampaignStageID(chapter: 1, index: 5))),
+            (CampaignStageID(chapter: 1, index: 7), "5×5導入", .standardLight, 5, spawn5, penaltyStage15onward, .finishWithinMoves(maxMoves: 40), 460, .lessThan, .stageClear(CampaignStageID(chapter: 1, index: 6))),
+            (CampaignStageID(chapter: 1, index: 8), "総合演習", .standardLight, 5, chooseAny, penaltyStage15onward, .finishWithinMoves(maxMoves: 35), 440, .lessThan, .stageClear(CampaignStageID(chapter: 1, index: 7)))
+        ]
+
+        for (index, expectation) in expectations.enumerated() {
+            let stage = chapter1.stages[index]
+            XCTAssertEqual(stage.id, expectation.0)
+            XCTAssertEqual(stage.title, expectation.1)
+            XCTAssertEqual(stage.regulation.deckPreset, expectation.2)
+            XCTAssertEqual(stage.regulation.boardSize, expectation.3)
+            XCTAssertEqual(stage.regulation.spawnRule, expectation.4)
+            XCTAssertEqual(stage.regulation.penalties, expectation.5)
+            XCTAssertEqual(stage.secondaryObjective, expectation.6)
+            XCTAssertEqual(stage.scoreTarget, expectation.7)
+            XCTAssertEqual(stage.scoreTargetComparison, expectation.8)
+            XCTAssertEqual(stage.unlockRequirement, expectation.9)
+        }
+
+        // MARK: ステージ順序が ID の昇順になっているか確認する
+        XCTAssertEqual(chapter1.stages.map(\.id.index), Array(1...8), "第1章のステージ順序が連番になっていません")
     }
 
     /// 3 章のステージが段階的に難度を増しているかをまとめて検証する
