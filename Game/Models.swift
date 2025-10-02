@@ -79,6 +79,8 @@ public struct TileState: Equatable {
 
     /// 現在の踏破挙動
     public let visitBehavior: VisitBehavior
+    /// 移動可能かどうか（false の場合は障害物扱いとして踏破対象から除外する）
+    private let traversable: Bool
     /// 残り踏破回数（トグルの場合は「未踏破=1 / 踏破済=0」で管理する）
     private(set) var remainingVisitCount: Int
 
@@ -97,8 +99,15 @@ public struct TileState: Equatable {
     /// - Parameters:
     ///   - visitBehavior: マスの踏破挙動。省略時は通常マスを生成する。
     ///   - remainingVisitCount: 初期残数を明示したい場合に利用する（トグルでは 0 or 1 に丸め込む）
-    public init(visitBehavior: VisitBehavior = .single, remainingVisitCount: Int? = nil) {
+    public init(visitBehavior: VisitBehavior = .single, remainingVisitCount: Int? = nil, isTraversable: Bool = true) {
         self.visitBehavior = visitBehavior
+        self.traversable = isTraversable
+
+        guard isTraversable else {
+            // 障害物マスは常に踏破不要で扱うため 0 固定にする
+            self.remainingVisitCount = 0
+            return
+        }
 
         switch visitBehavior {
         case .single:
@@ -122,6 +131,9 @@ public struct TileState: Equatable {
 
     /// マスが現在踏破済みかどうか
     public var isVisited: Bool { remainingVisitCount == 0 }
+
+    /// 移動可能なマスかどうか
+    public var isTraversable: Bool { traversable }
 
     /// 複数回踏破が必要かどうか
     public var requiresMultipleVisits: Bool {
@@ -150,6 +162,11 @@ public struct TileState: Equatable {
     /// 踏破処理を 1 回分適用する
     /// - Note: トグルマスは踏むたびに 0 ⇔ 1 を反転させ、それ以外は 0 で打ち止めにする
     public mutating func markVisited() {
+        guard traversable else {
+            // 移動不可マスでは踏破演出を進行させない
+            return
+        }
+
         switch visitBehavior {
         case .toggle:
             remainingVisitCount = remainingVisitCount == 0 ? 1 : 0
@@ -175,22 +192,28 @@ public struct Board: Equatable {
     ///   - size: 盤面の一辺の長さ
     ///   - initialVisitedPoints: 初期状態で踏破済みにしたいマスの集合
     ///   - togglePoints: トグル挙動を割り当てたいマス集合（`requiredVisitOverrides` よりも優先して適用する）
+    ///   - impassablePoints: 障害物として扱うマス集合。移動不可のため踏破対象に含めない
     public init(
         size: Int,
         initialVisitedPoints: [GridPoint] = [],
         requiredVisitOverrides: [GridPoint: Int] = [:],
-        togglePoints: Set<GridPoint> = []
+        togglePoints: Set<GridPoint> = [],
+        impassablePoints: Set<GridPoint> = []
     ) {
         self.size = size
         let row = Array(repeating: TileState(), count: size)
         self.tiles = Array(repeating: row, count: size)
+        // 最初に移動不可マスを反映し、以降の処理で上書きされないようにする
+        for point in impassablePoints where contains(point) {
+            tiles[point.y][point.x] = TileState(visitBehavior: .single, remainingVisitCount: 0, isTraversable: false)
+        }
         // 特殊マスの踏破必要回数を上書きし、複数回踏むステージに対応する
         for (point, requirement) in requiredVisitOverrides {
-            guard contains(point) else { continue }
+            guard contains(point), !impassablePoints.contains(point) else { continue }
             tiles[point.y][point.x] = TileState(visitBehavior: .multi(required: requirement))
         }
         // トグル挙動が設定されているマスは最優先で反映し、他設定よりも強いギミックとして扱う
-        for point in togglePoints where contains(point) {
+        for point in togglePoints where contains(point) && !impassablePoints.contains(point) {
             tiles[point.y][point.x] = TileState(visitBehavior: .toggle)
         }
         // 初期踏破マスを順番に処理し、盤面外の指定は安全に無視する
@@ -224,8 +247,24 @@ public struct Board: Equatable {
     /// 指定座標を踏破済みに更新する
     /// - Parameter point: 更新したい座標
     public mutating func markVisited(_ point: GridPoint) {
-        guard contains(point) else { return }
+        guard contains(point), tiles[point.y][point.x].isTraversable else { return }
         tiles[point.y][point.x].markVisited()
+    }
+
+    /// 指定座標が移動可能なマスかどうか
+    /// - Parameter point: 判定したい座標
+    /// - Returns: 盤面内に存在し、踏破可能であれば true
+    public func isTraversable(_ point: GridPoint) -> Bool {
+        guard let tile = state(at: point) else { return false }
+        return tile.isTraversable
+    }
+
+    /// 指定座標が移動不可マスかどうか
+    /// - Parameter point: 判定したい座標
+    /// - Returns: 盤面内に存在し、障害物であれば true
+    public func isImpassable(_ point: GridPoint) -> Bool {
+        guard let tile = state(at: point) else { return false }
+        return !tile.isTraversable
     }
 
     /// 未踏破マスの残数を計算して返す
@@ -348,19 +387,24 @@ extension Board {
                     row += "K "
                 } else {
                     // 踏破状況に応じて文字を変える。トグルマスは `t/T` で状態を示し、
-                    // 複数回必要なマスは残数を数字で表示する。
+                    // 複数回必要なマスは残数を数字で表示する。障害物は黒マス扱いで "■" を表示する。
                     let tile = tiles[y][x]
-                    switch tile.visitBehavior {
-                    case .toggle:
-                        row += tile.isVisited ? "T " : "t "
-                    case .multi:
-                        if tile.isVisited {
-                            row += "x "
-                        } else {
-                            row += "\(tile.remainingVisits) "
+                    if !tile.isTraversable {
+                        // 障害物マスは視認性を高めるため黒塗り風の記号を使う
+                        row += "■ "
+                    } else {
+                        switch tile.visitBehavior {
+                        case .toggle:
+                            row += tile.isVisited ? "T " : "t "
+                        case .multi:
+                            if tile.isVisited {
+                                row += "x "
+                            } else {
+                                row += "\(tile.remainingVisits) "
+                            }
+                        case .single:
+                            row += tile.isVisited ? "x " : ". "
                         }
-                    case .single:
-                        row += tile.isVisited ? "x " : ". "
                     }
                 }
             }
