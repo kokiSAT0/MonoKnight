@@ -18,6 +18,24 @@ struct CampaignRewardSummaryView: View {
     let theme: AppTheme
     /// どのレイアウトで表示するか
     let context: Context
+    /// 記録セクションを表示するかどうか（ポーズメニューでは非表示にしたいケースがある）
+    let showsRecordSection: Bool
+
+    /// 呼び出し元が必要な情報のみ指定できるよう、 showsRecordSection に既定値を持たせたイニシャライザを用意する
+    init(
+        stage: CampaignStage?,
+        progress: CampaignStageProgress?,
+        theme: AppTheme,
+        context: Context,
+        showsRecordSection: Bool = true
+    ) {
+        // 受け取った値をそのままプロパティへ転記する。記録非表示の用途を考慮し、デフォルト true で従来挙動を維持する
+        self.stage = stage
+        self.progress = progress
+        self.theme = theme
+        self.context = context
+        self.showsRecordSection = showsRecordSection
+    }
 
     /// コンテキストごとの定数をまとめる
     private var metrics: LayoutMetrics { LayoutMetrics(context: context) }
@@ -32,13 +50,16 @@ struct CampaignRewardSummaryView: View {
                 }
             }
 
-            section(title: "これまでの記録") {
-                VStack(alignment: .leading, spacing: metrics.rowSpacing) {
-                    starRow
-                    recordBulletRow(text: "ハイスコア: \(bestScoreText)")
-                    recordBulletRow(text: "最小ペナルティ: \(bestPenaltyText)")
-                    recordBulletRow(text: "最少合計手数: \(bestTotalMoveText)")
-                    recordBulletRow(text: "最短クリアタイム: \(bestElapsedTimeText)")
+            if showsRecordSection {
+                // 記録を隠したい画面（例: ポーズメニュー）向けに、セクション自体を条件付きで表示する
+                section(title: "これまでの記録") {
+                    VStack(alignment: .leading, spacing: metrics.rowSpacing) {
+                        starRow
+                        recordBulletRow(text: "ハイスコア: \(bestScoreText)")
+                        recordBulletRow(text: "最小ペナルティ: \(bestPenaltyText)")
+                        recordBulletRow(text: "最少合計手数: \(bestTotalMoveText)")
+                        recordBulletRow(text: "最短クリアタイム: \(bestElapsedTimeText)")
+                    }
                 }
             }
         }

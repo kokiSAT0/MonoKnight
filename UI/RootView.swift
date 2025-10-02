@@ -931,7 +931,8 @@ private extension RootView {
                 stage: campaignStage,
                 progress: progress,
                 theme: theme,
-                context: .overlay
+                context: .overlay,
+                showsRecordSection: true
             )
         }
 
