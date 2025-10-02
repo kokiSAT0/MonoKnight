@@ -509,7 +509,7 @@ private extension RootView {
                     isReady: isGameReadyForManualStart,
                     onCancel: {
                         // ローディング中にタイトルへ戻りたい場合のハンドラを橋渡しする
-                        handleReturnToTitleRequest()
+                        onReturnToTitle()
                     },
                     onStart: {
                         // ユーザーが明示的に開始したタイミングでローディングを閉じる
