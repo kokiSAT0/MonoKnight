@@ -1,4 +1,5 @@
 import XCTest
+import SwiftUI
 @testable import MonoKnightApp
 import Game
 
@@ -178,22 +179,134 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertEqual(returnToTitleCallCount, 1, "タイトル復帰通知がルートへ届いていません")
     }
 
+    /// キャンペーンモードではポーズメニュー表示中にタイマーが停止し、ハイスコアモードでは継続することを確認
+    func testPauseMenuControlsTimerOnlyForCampaignMode() throws {
+        let (defaults, suiteName) = try makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        guard let campaignMode = CampaignLibrary.shared.stage(with: CampaignStageID(chapter: 1, index: 1))?.makeGameMode() else {
+            XCTFail("キャンペーンモードの取得に失敗しました")
+            return
+        }
+
+        let campaignDateProvider = MutableDateProvider(now: Date(timeIntervalSince1970: 10_000))
+        let (campaignViewModel, campaignCore) = makeViewModel(
+            mode: campaignMode,
+            campaignProgressStore: CampaignProgressStore(userDefaults: defaults),
+            dateProvider: campaignDateProvider
+        )
+
+        // 100 秒経過している状態からポーズメニューを開く
+        campaignCore.setStartDateForTesting(campaignDateProvider.now.addingTimeInterval(-100))
+        XCTAssertEqual(campaignCore.liveElapsedSecondsForTesting(asOf: campaignDateProvider.now), 100, "キャンペーン初期計測値が一致しません")
+
+        campaignViewModel.presentPauseMenu()
+        campaignDateProvider.now = campaignDateProvider.now.addingTimeInterval(200)
+        XCTAssertEqual(campaignCore.liveElapsedSecondsForTesting(asOf: campaignDateProvider.now), 100, "キャンペーンの一時停止中に経過時間が進んでいます")
+
+        // メニューを閉じると再び計測が進む
+        campaignViewModel.setPauseMenuPresentedForTesting(false)
+        campaignDateProvider.now = campaignDateProvider.now.addingTimeInterval(10)
+        XCTAssertEqual(campaignCore.liveElapsedSecondsForTesting(asOf: campaignDateProvider.now), 110, "キャンペーンでポーズ解除後の再開が期待通りではありません")
+
+        // ハイスコアモードではポーズメニュー表示中も計測が継続する
+        let scoreDateProvider = MutableDateProvider(now: Date(timeIntervalSince1970: 20_000))
+        let (scoreViewModel, scoreCore) = makeViewModel(
+            mode: .standard,
+            campaignProgressStore: CampaignProgressStore(userDefaults: defaults),
+            dateProvider: scoreDateProvider
+        )
+
+        scoreCore.setStartDateForTesting(scoreDateProvider.now.addingTimeInterval(-100))
+        XCTAssertEqual(scoreCore.liveElapsedSecondsForTesting(asOf: scoreDateProvider.now), 100, "ハイスコア初期計測値が一致しません")
+
+        scoreViewModel.presentPauseMenu()
+        scoreDateProvider.now = scoreDateProvider.now.addingTimeInterval(200)
+        XCTAssertEqual(scoreCore.liveElapsedSecondsForTesting(asOf: scoreDateProvider.now), 300, "ハイスコアモードではポーズ中も計測が継続する想定です")
+    }
+
+    /// scenePhase の変化によるタイマー制御がキャンペーン専用であることを確認
+    func testScenePhasePauseAppliesOnlyToCampaignMode() throws {
+        let (defaults, suiteName) = try makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        guard let campaignMode = CampaignLibrary.shared.stage(with: CampaignStageID(chapter: 1, index: 1))?.makeGameMode() else {
+            XCTFail("キャンペーンモードの取得に失敗しました")
+            return
+        }
+
+        let campaignDateProvider = MutableDateProvider(now: Date(timeIntervalSince1970: 30_000))
+        let (campaignViewModel, campaignCore) = makeViewModel(
+            mode: campaignMode,
+            campaignProgressStore: CampaignProgressStore(userDefaults: defaults),
+            dateProvider: campaignDateProvider
+        )
+
+        campaignCore.setStartDateForTesting(campaignDateProvider.now.addingTimeInterval(-80))
+        XCTAssertEqual(campaignCore.liveElapsedSecondsForTesting(asOf: campaignDateProvider.now), 80, "キャンペーン初期計測値が一致しません")
+
+        campaignViewModel.handleScenePhaseChange(.background)
+        campaignDateProvider.now = campaignDateProvider.now.addingTimeInterval(120)
+        XCTAssertEqual(campaignCore.liveElapsedSecondsForTesting(asOf: campaignDateProvider.now), 80, "バックグラウンド中にキャンペーンタイマーが進行しています")
+
+        campaignViewModel.handleScenePhaseChange(.active)
+        campaignDateProvider.now = campaignDateProvider.now.addingTimeInterval(40)
+        XCTAssertEqual(campaignCore.liveElapsedSecondsForTesting(asOf: campaignDateProvider.now), 120, "キャンペーンでの復帰後カウントが期待と異なります")
+
+        let scoreDateProvider = MutableDateProvider(now: Date(timeIntervalSince1970: 40_000))
+        let (scoreViewModel, scoreCore) = makeViewModel(
+            mode: .standard,
+            campaignProgressStore: CampaignProgressStore(userDefaults: defaults),
+            dateProvider: scoreDateProvider
+        )
+
+        scoreCore.setStartDateForTesting(scoreDateProvider.now.addingTimeInterval(-50))
+        XCTAssertEqual(scoreCore.liveElapsedSecondsForTesting(asOf: scoreDateProvider.now), 50, "ハイスコア初期計測値が一致しません")
+
+        scoreViewModel.handleScenePhaseChange(.background)
+        scoreDateProvider.now = scoreDateProvider.now.addingTimeInterval(100)
+        XCTAssertEqual(scoreCore.liveElapsedSecondsForTesting(asOf: scoreDateProvider.now), 150, "ハイスコアモードはバックグラウンドでも計測継続する想定です")
+    }
+
     /// テストで使い回す ViewModel と GameCore の組み合わせを生成するヘルパー
     private func makeViewModel(
         mode: GameMode,
         adsService: AdsServiceProtocol = DummyAdsService(),
-        onRequestReturnToTitle: (() -> Void)? = nil
+        onRequestReturnToTitle: (() -> Void)? = nil,
+        campaignProgressStore: CampaignProgressStore = CampaignProgressStore(),
+        dateProvider: MutableDateProvider? = nil
     ) -> (GameViewModel, GameCore) {
         let core = GameCore(mode: mode)
+        if mode.requiresSpawnSelection {
+            // テストがスポーン選択待機で停止しないように、盤面中央へスポーンを確定させる
+            let spawnPoint = mode.initialSpawnPoint ?? GridPoint(x: mode.boardSize / 2, y: mode.boardSize / 2)
+            core.simulateSpawnSelection(forTesting: spawnPoint)
+        }
+
         let interfaces = GameModuleInterfaces { _ in core }
+        let resolvedDateProvider = dateProvider ?? MutableDateProvider(now: Date())
         let viewModel = GameViewModel(
             mode: mode,
             gameInterfaces: interfaces,
             gameCenterService: DummyGameCenterService(),
             adsService: adsService,
-            onRequestReturnToTitle: onRequestReturnToTitle
+            campaignProgressStore: campaignProgressStore,
+            onRequestGameCenterSignIn: nil,
+            onRequestReturnToTitle: onRequestReturnToTitle,
+            onRequestStartCampaignStage: nil,
+            currentDateProvider: { resolvedDateProvider.now }
         )
         return (viewModel, core)
+    }
+
+    /// 任意の現在時刻を提供するためのテスト専用クラス
+    private final class MutableDateProvider {
+        /// 現在時刻として利用する値
+        var now: Date
+
+        init(now: Date) {
+            self.now = now
+        }
     }
 
     /// テスト専用の UserDefaults スイートを作成し、永続化データの混在を防ぐ

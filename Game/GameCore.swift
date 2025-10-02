@@ -373,6 +373,20 @@ public final class GameCore: ObservableObject {
         elapsedSeconds = sessionTimer.elapsedSeconds
     }
 
+    /// 一時停止ボタンなどからの操作でタイマーを停止する
+    /// - Parameter referenceDate: 一時停止が発生した時刻（テスト時に明示指定したい場合に利用）
+    public func pauseTimer(referenceDate: Date = Date()) {
+        // プレイ中以外では停止させる必要がないため、進行状態を確認した上で処理する
+        guard progress == .playing else { return }
+        sessionTimer.beginPause(at: referenceDate)
+    }
+
+    /// 停止中のタイマーを再開する
+    /// - Parameter referenceDate: 再開する時刻（テストでは任意の値を指定できるようにする）
+    public func resumeTimer(referenceDate: Date = Date()) {
+        sessionTimer.endPause(at: referenceDate)
+    }
+
     /// クリア時点の経過時間を確定させる
     /// - Parameter referenceDate: テスト時などに任意の終了時刻を指定したい場合に利用
     private func finalizeElapsedTimeIfNeeded(referenceDate: Date = Date()) {
@@ -566,6 +580,13 @@ extension GameCore {
     func setStartDateForTesting(_ newStartDate: Date) {
         // リアルタイム計測は GameSessionTimer を経由して算出されるため、テストから開始時刻を操作可能にしておく。
         sessionTimer.overrideStartDateForTesting(newStartDate)
+    }
+
+    /// 任意の時刻を基準にライブ計測値を取得するテスト専用ヘルパー
+    /// - Parameter referenceDate: 計測に利用したい時刻
+    /// - Returns: 指定時点での経過秒数
+    func liveElapsedSecondsForTesting(asOf referenceDate: Date) -> Int {
+        sessionTimer.liveElapsedSeconds(asOf: referenceDate)
     }
 }
 #endif

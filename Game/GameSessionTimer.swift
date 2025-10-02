@@ -9,6 +9,11 @@ struct GameSessionTimer {
     private(set) var endDate: Date?
     /// 確定済みの経過秒数。ゲームクリアなどで確定した値を保持する
     private(set) var finalizedElapsedSeconds: Int
+    /// 累計の一時停止時間（秒単位）
+    /// - Note: 一時停止が複数回挟まった場合でも合計値を保持し、最終的な経過時間から差し引く。
+    private(set) var pausedDuration: TimeInterval
+    /// 一時停止開始時刻。`nil` の場合は現在プレイ中とみなす
+    private(set) var pauseStartedAt: Date?
     /// 既に終了時刻が確定しているかどうかを示すフラグ
     var isFinalized: Bool { endDate != nil }
     /// 外部から参照しやすいように確定済みの秒数を公開
@@ -21,6 +26,8 @@ struct GameSessionTimer {
         self.startDate = now
         self.endDate = nil
         self.finalizedElapsedSeconds = 0
+        self.pausedDuration = 0
+        self.pauseStartedAt = nil
     }
 
     /// 計測をリセットして新しいゲームセッションを開始する
@@ -29,6 +36,26 @@ struct GameSessionTimer {
         startDate = now
         endDate = nil
         finalizedElapsedSeconds = 0
+        pausedDuration = 0
+        pauseStartedAt = nil
+    }
+
+    /// 一時停止を開始し、以降の経過時間から差し引けるようにする
+    /// - Parameter referenceDate: 一時停止が開始された時刻
+    mutating func beginPause(at referenceDate: Date = Date()) {
+        // 既に一時停止中であれば二重登録を避ける
+        guard pauseStartedAt == nil else { return }
+        pauseStartedAt = referenceDate
+    }
+
+    /// 一時停止を終了し、累積一時停止時間へ反映する
+    /// - Parameter referenceDate: 一時停止終了時刻
+    mutating func endPause(at referenceDate: Date = Date()) {
+        guard let pauseStartedAt else { return }
+        // 経過時間が負になるケースを避けるために 0 で下限を設ける
+        let additionalPause = max(0, referenceDate.timeIntervalSince(pauseStartedAt))
+        pausedDuration += additionalPause
+        self.pauseStartedAt = nil
     }
 
     /// 現在までの経過時間を確定させ、整数秒で返す
@@ -38,15 +65,21 @@ struct GameSessionTimer {
     mutating func finalize(referenceDate: Date = Date()) -> Int {
         // 終了済みであれば既存値をそのまま返し、二重計算を避ける
         if let endDate {
-            let duration = max(0, endDate.timeIntervalSince(startDate))
+            let totalPaused = pausedDuration
+            let duration = max(0, endDate.timeIntervalSince(startDate) - totalPaused)
             finalizedElapsedSeconds = max(0, Int(duration.rounded()))
             return finalizedElapsedSeconds
         }
 
         // 終了時刻を記録し、負値が入らないように保護しながら整数秒へ丸める
         let finishDate = referenceDate
+        // 一時停止中に finalize された場合でも整合性が取れるように、一度 pause を終了させて累積時間へ反映する
+        if pauseStartedAt != nil {
+            endPause(at: finishDate)
+        }
         endDate = finishDate
-        let duration = max(0, finishDate.timeIntervalSince(startDate))
+        let totalPaused = pausedDuration
+        let duration = max(0, finishDate.timeIntervalSince(startDate) - totalPaused)
         finalizedElapsedSeconds = max(0, Int(duration.rounded()))
         return finalizedElapsedSeconds
     }
@@ -57,7 +90,15 @@ struct GameSessionTimer {
     func liveElapsedSeconds(asOf referenceDate: Date = Date()) -> Int {
         // 終了済みなら確定値を返し、進行中なら現在との差分を計算する
         let effectiveEndDate = endDate ?? referenceDate
-        let duration = max(0, effectiveEndDate.timeIntervalSince(startDate))
+        let ongoingPauseDuration: TimeInterval
+        if let pauseStartedAt {
+            // finalize 済みでなければ現在時刻との差分を算出する。finalize 済みの場合は pauseStartedAt が nil なので通らない
+            ongoingPauseDuration = max(0, effectiveEndDate.timeIntervalSince(pauseStartedAt))
+        } else {
+            ongoingPauseDuration = 0
+        }
+        let totalPaused = pausedDuration + ongoingPauseDuration
+        let duration = max(0, effectiveEndDate.timeIntervalSince(startDate) - totalPaused)
         return max(0, Int(duration.rounded()))
     }
 }
@@ -70,6 +111,8 @@ extension GameSessionTimer {
         startDate = newStartDate
         // 進行中として扱うため、終了時刻はリセットする
         endDate = nil
+        pausedDuration = 0
+        pauseStartedAt = nil
     }
 
     /// テスト専用に確定済みの経過秒数を調整する
@@ -79,8 +122,12 @@ extension GameSessionTimer {
         if seconds > 0 {
             // 目視確認しやすいよう、開始時刻との差分が指定秒数となる終了時刻を仮置きする
             endDate = startDate.addingTimeInterval(TimeInterval(seconds))
+            pausedDuration = 0
+            pauseStartedAt = nil
         } else {
             endDate = nil
+            pausedDuration = 0
+            pauseStartedAt = nil
         }
     }
 }

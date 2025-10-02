@@ -23,6 +23,9 @@ struct GameView: View {
     /// - Note: 監視系ロジックを別ファイルへ分割しているため、`fileprivate` にするとアクセスできずビルドエラーとなる。
     ///         そのためアクセスレベルはデフォルト（internal）のままにして、同一モジュール内の拡張から安全に参照できるようにしている。
     @Environment(\.colorScheme) var colorScheme
+    /// シーンフェーズを監視し、アプリが非アクティブになったタイミングでタイマー制御を委譲する
+    /// - Note: 監視ロジックは `GameView+Observers` 側で適用するため、同一モジュール内から参照できるようアクセスレベルを維持する
+    @Environment(\.scenePhase) var scenePhase
     /// デバイスの横幅サイズクラスを取得し、iPad などレギュラー幅でのモーダル挙動を調整する
     /// - Note: レイアウト計算用の拡張（`GameView+Layout`）でも参照するため、アクセスレベルは internal に緩和している
     @Environment(\.horizontalSizeClass) var horizontalSizeClass

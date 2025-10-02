@@ -112,7 +112,11 @@ final class GameViewModel: ObservableObject {
     /// メニューで確認待ちのアクション
     @Published var pendingMenuAction: GameMenuAction?
     /// ポーズメニューの表示状態
-    @Published var isPauseMenuPresented = false
+    @Published var isPauseMenuPresented = false {
+        didSet {
+            handlePauseMenuVisibilityChange(isPresented: isPauseMenuPresented)
+        }
+    }
     /// 統計バッジ領域の高さ
     @Published var statisticsHeight: CGFloat = 0
     /// 手札セクションの高さ
@@ -183,6 +187,12 @@ final class GameViewModel: ObservableObject {
     private let campaignLibrary = CampaignLibrary.shared
     /// 手札選択の内部状態
     private var selectedCardSelection: SelectedCardSelection?
+    /// 現在時刻を取得するためのクロージャ。テストでは任意の値へ差し替える
+    private let currentDateProvider: () -> Date
+    /// ポーズメニューによってタイマーを停止しているかどうか
+    private var isTimerPausedForMenu = false
+    /// scenePhase 変化によってタイマーを停止しているかどうか
+    private var isTimerPausedForScenePhase = false
 
     /// ViewModel の初期化
     /// - Parameters:
@@ -196,13 +206,14 @@ final class GameViewModel: ObservableObject {
         gameInterfaces: GameModuleInterfaces,
         gameCenterService: GameCenterServiceProtocol,
         adsService: AdsServiceProtocol,
-        campaignProgressStore: CampaignProgressStore,
+        campaignProgressStore: CampaignProgressStore = CampaignProgressStore(),
         onRequestGameCenterSignIn: ((GameCenterSignInPromptReason) -> Void)?,
         onRequestReturnToTitle: (() -> Void)?,
         onRequestStartCampaignStage: ((CampaignStage) -> Void)?,
         penaltyBannerScheduler: PenaltyBannerScheduling = PenaltyBannerScheduler(),
         initialHandOrderingRawValue: String? = nil,
-        initialGameCenterAuthenticationState: Bool = false
+        initialGameCenterAuthenticationState: Bool = false,
+        currentDateProvider: @escaping () -> Date = Date.init
     ) {
         self.mode = mode
         self.gameInterfaces = gameInterfaces
@@ -214,6 +225,7 @@ final class GameViewModel: ObservableObject {
         self.onRequestStartCampaignStage = onRequestStartCampaignStage
         self.penaltyBannerScheduler = penaltyBannerScheduler
         self.isGameCenterAuthenticated = initialGameCenterAuthenticationState
+        self.currentDateProvider = currentDateProvider
 
         // GameCore を生成し、ViewModel 経由で観測できるようにする
         let generatedCore = gameInterfaces.makeGameCore(mode)
@@ -596,6 +608,30 @@ final class GameViewModel: ObservableObject {
         isPauseMenuPresented = true
     }
 
+    /// scenePhase の変化に応じてタイマーの停止/再開を制御する
+    /// - Parameter newPhase: 画面のアクティブ状態
+    func handleScenePhaseChange(_ newPhase: ScenePhase) {
+        guard supportsTimerPausing else { return }
+
+        switch newPhase {
+        case .inactive, .background:
+            // 既に一時停止済みであれば重複して pauseTimer を呼ばない
+            guard !isTimerPausedForScenePhase, core.progress == .playing else { return }
+            core.pauseTimer(referenceDate: currentDateProvider())
+            isTimerPausedForScenePhase = true
+
+        case .active:
+            guard isTimerPausedForScenePhase else { return }
+            isTimerPausedForScenePhase = false
+            // ポーズメニュー表示中は再開しない
+            guard !isPauseMenuPresented else { return }
+            core.resumeTimer(referenceDate: currentDateProvider())
+
+        @unknown default:
+            break
+        }
+    }
+
     /// ゲームの進行状況に応じた操作をまとめて処理する
     func performMenuAction(_ action: GameMenuAction) {
         pendingMenuAction = nil
@@ -738,6 +774,8 @@ final class GameViewModel: ObservableObject {
         cancelPenaltyBannerDisplay()
         showingResult = false
         adsService.resetPlayFlag()
+        isTimerPausedForMenu = false
+        isTimerPausedForScenePhase = false
     }
 
     /// 新しいプレイを始める際に必要な初期化処理を共通化する
@@ -745,6 +783,8 @@ final class GameViewModel: ObservableObject {
     private func resetSessionForNewPlay() {
         prepareForReturnToTitle()
         core.reset()
+        isTimerPausedForMenu = false
+        isTimerPausedForScenePhase = false
     }
 
     /// GameCore のストリームを監視し、UI 更新に必要な副作用を引き受ける
@@ -888,8 +928,41 @@ extension GameViewModel {
     func handleProgressChangeForTesting(_ progress: GameProgress) {
         handleProgressChange(progress)
     }
+
+    /// テスト専用にポーズメニュー表示状態を直接切り替えるユーティリティ
+    /// - Parameter isPresented: 新しい表示状態
+    func setPauseMenuPresentedForTesting(_ isPresented: Bool) {
+        isPauseMenuPresented = isPresented
+    }
 }
 #endif
+
+private extension GameViewModel {
+    /// キャンペーンモードでタイマー制御を行うべきかどうか
+    var supportsTimerPausing: Bool {
+        !mode.isLeaderboardEligible && mode.campaignMetadataSnapshot != nil
+    }
+
+    /// ポーズメニューの開閉に応じてタイマーの停止/再開を制御する
+    /// - Parameter isPresented: 現在のポーズメニュー表示状態
+    func handlePauseMenuVisibilityChange(isPresented: Bool) {
+        guard supportsTimerPausing else { return }
+
+        if isPresented {
+            guard core.progress == .playing else { return }
+            // 既にメニュー由来で停止済みなら何もしない
+            guard !isTimerPausedForMenu else { return }
+            core.pauseTimer(referenceDate: currentDateProvider())
+            isTimerPausedForMenu = true
+        } else {
+            guard isTimerPausedForMenu else { return }
+            isTimerPausedForMenu = false
+            // scenePhase 由来で停止している場合は復帰しない
+            guard !isTimerPausedForScenePhase else { return }
+            core.resumeTimer(referenceDate: currentDateProvider())
+        }
+    }
+}
 
 /// ゲーム画面のメニュー操作を表す列挙型
 enum GameMenuAction: Hashable, Identifiable {

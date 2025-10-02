@@ -34,4 +34,34 @@ final class GameSessionTimerTests: XCTestCase {
         let live = timer.liveElapsedSeconds(asOf: Date(timeIntervalSince1970: 25))
         XCTAssertEqual(live, 5, "リセット後のライブ計測が期待値と一致しません")
     }
+
+    /// 一時停止中は liveElapsedSeconds が増加しないことを確認
+    func testLiveElapsedSecondsRemainsStableWhilePaused() {
+        var timer = GameSessionTimer(now: Date(timeIntervalSince1970: 0))
+        // 30 秒経過したタイミングで一時停止を開始する
+        timer.beginPause(at: Date(timeIntervalSince1970: 30))
+        // 60 秒間待機しても一時停止中なので経過時間は変わらない想定
+        let pausedElapsed = timer.liveElapsedSeconds(asOf: Date(timeIntervalSince1970: 90))
+        XCTAssertEqual(pausedElapsed, 30, "一時停止中に経過秒数が増加してはいけません")
+
+        // 一時停止を解除した後は再びカウントが進む
+        timer.endPause(at: Date(timeIntervalSince1970: 90))
+        let resumedElapsed = timer.liveElapsedSeconds(asOf: Date(timeIntervalSince1970: 120))
+        XCTAssertEqual(resumedElapsed, 60, "一時停止解除後の経過秒数が想定値と一致しません")
+    }
+
+    /// finalize が累積一時停止時間を差し引いて計算されることを確認
+    func testFinalizeSubtractsPausedDurationIncludingActivePause() {
+        var timer = GameSessionTimer(now: Date(timeIntervalSince1970: 0))
+        // 最初の一時停止（30 秒間）
+        timer.beginPause(at: Date(timeIntervalSince1970: 40))
+        timer.endPause(at: Date(timeIntervalSince1970: 70))
+
+        // 二度目の一時停止を開始し、解除しないまま finalize する
+        timer.beginPause(at: Date(timeIntervalSince1970: 90))
+        let finalized = timer.finalize(referenceDate: Date(timeIntervalSince1970: 150))
+
+        XCTAssertEqual(finalized, 60, "一時停止時間を差し引いた finalize の結果が期待値と一致しません")
+        XCTAssertEqual(timer.elapsedSeconds, 60, "確定済み経過秒数も同じ値で保持されるべきです")
+    }
 }
