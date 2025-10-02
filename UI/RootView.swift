@@ -257,7 +257,10 @@ private enum TitleNavigationTarget: String, Hashable, Codable {
 }
 
 // MARK: - レイアウト支援メソッドと定数
-private extension RootView {
+// MARK: - RootView の補助ロジック（ファイル内限定公開）
+/// `RootLayoutSnapshot` などをファイル内で共有するため、アクセスレベルを `fileprivate` に統一する
+/// - NOTE: Swift 6 のアクセス制御強化に合わせ、関連プロパティのアクセスレベルと矛盾しないように調整している
+fileprivate extension RootView {
     /// 初期表示時に Game Center 認証を 1 回だけキックする
     /// - Note: `RootViewStateStore` 側で多重呼び出しを防ぎ、`authenticateLocalPlayer` の UI が何度も提示されないようにする
     private func performInitialAuthenticationIfNeeded() {
