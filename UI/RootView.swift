@@ -775,8 +775,7 @@ private extension RootView {
                     VStack(alignment: .leading, spacing: LayoutMetrics.sectionSpacing) {
                         headerSection
                         penaltySection
-                        rewardSection
-                        recordSection
+                        campaignSummarySection
                         controlSection
                     }
                     .padding(LayoutMetrics.contentPadding)
@@ -844,32 +843,14 @@ private extension RootView {
             }
         }
 
-        /// リワード条件と達成状況
-        private var rewardSection: some View {
-            InfoSection(title: "リワード条件") {
-                ForEach(Array(rewardConditions.enumerated()), id: \.offset) { index, condition in
-                    rewardConditionRow(index: index, condition: condition)
-                }
-            }
-        }
-
-        /// 過去のプレイ記録（スターとハイスコア）
-        private var recordSection: some View {
-            InfoSection(title: "これまでの記録") {
-                HStack(spacing: LayoutMetrics.starSpacing) {
-                    ForEach(0..<LayoutMetrics.totalStarCount, id: \.self) { index in
-                        Image(systemName: index < earnedStars ? "star.fill" : "star")
-                            .foregroundColor(theme.accentPrimary)
-                    }
-
-                    Text("スター \(earnedStars)/\(LayoutMetrics.totalStarCount)")
-                        .font(.system(size: 13, weight: .semibold, design: .rounded))
-                        .foregroundColor(theme.textSecondary)
-                }
-
-                bulletRow(text: "ハイスコア: \(bestScoreText)")
-                bulletRow(text: "最小ペナルティ: \(bestPenaltyText)")
-            }
+        /// キャンペーンのリワード条件・記録をまとめた共通ビュー
+        private var campaignSummarySection: some View {
+            CampaignRewardSummaryView(
+                stage: campaignStage,
+                progress: progress,
+                theme: theme,
+                context: .overlay
+            )
         }
 
         /// 初期化状況と開始ボタン
@@ -922,48 +903,6 @@ private extension RootView {
             ]
         }
 
-        /// 条件達成状況をまとめた構造
-        private var rewardConditions: [RewardConditionDisplay] {
-            var results: [RewardConditionDisplay] = []
-            let earnedStars = progress?.earnedStars ?? 0
-            results.append(.init(title: "ステージクリア", achieved: earnedStars > 0))
-
-            if let stage = campaignStage, let description = stage.secondaryObjectiveDescription {
-                let achieved = progress?.achievedSecondaryObjective ?? false
-                results.append(.init(title: description, achieved: achieved))
-            }
-
-            if let stage = campaignStage, let scoreText = stage.scoreTargetDescription {
-                let achieved = progress?.achievedScoreGoal ?? false
-                results.append(.init(title: scoreText, achieved: achieved))
-            }
-
-            return results
-        }
-
-        /// これまで獲得したスター数
-        private var earnedStars: Int {
-            progress?.earnedStars ?? 0
-        }
-
-        /// ハイスコアの表示用テキスト
-        private var bestScoreText: String {
-            if let best = progress?.bestScore {
-                return "\(best) pt"
-            } else {
-                return "未記録"
-            }
-        }
-
-        /// 最小ペナルティの表示用テキスト
-        private var bestPenaltyText: String {
-            if let best = progress?.bestPenaltyCount {
-                return "\(best) 手"
-            } else {
-                return "未記録"
-            }
-        }
-
         /// 箇条書きの 1 行を描画
         /// - Parameter text: 表示したい本文
         private func bulletRow(text: String) -> some View {
@@ -977,35 +916,6 @@ private extension RootView {
                     .font(.system(size: 15, weight: .regular, design: .rounded))
                     .foregroundColor(theme.textPrimary)
             }
-        }
-
-        /// リワード条件 1 行分のレイアウト
-        /// - Parameters:
-        ///   - index: スター番号（0 始まり）
-        ///   - condition: 表示したい条件内容
-        private func rewardConditionRow(index: Int, condition: RewardConditionDisplay) -> some View {
-            HStack(alignment: .top, spacing: LayoutMetrics.rowSpacing) {
-                Image(systemName: condition.achieved ? "checkmark.circle.fill" : "circle")
-                    .foregroundColor(condition.achieved ? theme.accentPrimary : theme.textSecondary)
-                    .font(.system(size: 18, weight: .bold))
-                    .accessibilityHidden(true)
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("スター \(index + 1)")
-                        .font(.system(size: 12, weight: .semibold, design: .rounded))
-                        .foregroundColor(theme.textSecondary)
-
-                    Text(condition.title)
-                        .font(.system(size: 15, weight: .medium, design: .rounded))
-                        .foregroundColor(theme.textPrimary)
-                }
-            }
-        }
-
-        /// 条件一覧で扱う内部モデル
-        private struct RewardConditionDisplay {
-            let title: String
-            let achieved: Bool
         }
 
         /// 情報カード内のセクション共通レイアウト
@@ -1049,10 +959,6 @@ private extension RootView {
             static let bulletSize: CGFloat = 6
             /// 行要素の基本間隔
             static let rowSpacing: CGFloat = 12
-            /// スターアイコンの間隔
-            static let starSpacing: CGFloat = 10
-            /// スターの最大数
-            static let totalStarCount: Int = 3
             /// ボタン周辺の余白
             static let controlSpacing: CGFloat = 14
             /// ボタンの角丸

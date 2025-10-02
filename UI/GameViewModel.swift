@@ -57,6 +57,15 @@ final class PenaltyBannerScheduler: PenaltyBannerScheduling {
     }
 }
 
+/// ポーズメニューへ渡すキャンペーン進捗のサマリー
+/// - Note: ステージ定義と保存済み進捗をまとめて保持し、View 側でのアンラップ処理を簡潔にする
+struct CampaignPauseSummary {
+    /// 対象ステージの定義
+    let stage: CampaignStage
+    /// 保存済みの進捗（まだプレイしていない場合は nil）
+    let progress: CampaignStageProgress?
+}
+
 /// GameView のロジックとサービス連携を担う ViewModel
 /// 描画に直接関係しない処理を SwiftUI View から切り離し、責務を明確化する
 @MainActor
@@ -126,6 +135,20 @@ final class GameViewModel: ObservableObject {
     /// 未踏破マスの残数
     /// - Note: 進行状況バッジに表示するために用意する
     var remainingTiles: Int { core.remainingTiles }
+    /// ポーズメニューで表示するキャンペーン情報
+    /// - Note: モードに紐付くステージ ID からライブラリを引き、保存済み進捗をまとめて返す
+    var campaignPauseSummary: CampaignPauseSummary? {
+        guard let metadata = mode.campaignMetadataSnapshot else {
+            return nil
+        }
+        let stageID = metadata.stageID
+        guard let stage = campaignLibrary.stage(with: stageID) else {
+            debugLog("GameViewModel: キャンペーンステージ定義が見つかりません stageID=\(stageID.displayCode)")
+            return nil
+        }
+        let progress = campaignProgressStore.progress(for: stage.id)
+        return CampaignPauseSummary(stage: stage, progress: progress)
+    }
     /// 現在のゲーム進行状態
     /// - Note: GameView 側でオーバーレイ表示を切り替える際に利用する
     var progress: GameProgress { core.progress }
