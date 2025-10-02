@@ -193,15 +193,7 @@ struct CampaignStageSelectionView: View {
             .joined(separator: ", ")
         // ResultBuilder の返却型と副作用の整合性を保つため、List を戻り値として明示する
         return List {
-            Section {
-                // ステージ選択でタイトルへ戻った直後にゲーム準備へ移行する挙動を案内するガイド文
-                Text("解放済みのステージを選ぶとゲーム準備画面に戻り、すぐに挑戦を開始します。")
-                    .font(.system(size: 13, weight: .medium, design: .rounded))
-                    .foregroundColor(theme.textSecondary)
-                    .multilineTextAlignment(.leading)
-                    .padding(.vertical, 6)
-                    .accessibilityLabel("解放済みのステージを選ぶとゲーム準備画面に戻り、選んだステージの準備が始まります。")
-            }
+            // リストの先頭からステージ行を並べ、VoiceOver への案内は各セルのヒントへ集約する
             ForEach(campaignLibrary.chapters) { chapter in
                 Section {
                     ForEach(chapter.stages) { stage in
