@@ -303,6 +303,87 @@ final class GameViewIntegrationTests: XCTestCase {
         }
     }
 
+    /// 複数の複数候補カードが同一マスへ移動可能な状態で盤面をタップした場合、警告が表示されることを確認する
+    func testBoardTapWithoutSelectionPresentsWarningWhenConflictingMultiCandidateCardsExist() {
+        let scheduler = PenaltyBannerSchedulerSpy()
+        let gameCenter = GameCenterServiceSpy()
+        let adsService = AdsServiceSpy()
+
+        let core = GameCore(mode: .standard)
+        let interfaces = GameModuleInterfaces { _ in core }
+
+        let viewModel = GameViewModel(
+            mode: .standard,
+            gameInterfaces: interfaces,
+            gameCenterService: gameCenter,
+            adsService: adsService,
+            onRequestReturnToTitle: nil,
+            penaltyBannerScheduler: scheduler
+        )
+
+        // テスト環境ではハプティクスを無効化し、物理デバイス固有の挙動へ依存しないようにする
+        viewModel.updateHapticsSetting(isEnabled: false)
+
+        guard
+            let current = core.current,
+            let firstStack = core.handStacks.first(where: { $0.topCard != nil }),
+            let secondStack = core.handStacks.first(where: { stack in
+                stack.id != firstStack.id && stack.topCard != nil
+            }),
+            let firstCard = firstStack.topCard,
+            let secondCard = secondStack.topCard
+        else {
+            XCTFail("テスト前提となる複数の手札スタックを準備できませんでした")
+            return
+        }
+
+        // 双方のカードで左右 1 マス移動できる複数候補カードへ差し替え、同一目的地へ到達できるようにする
+        let overrideVectors = [
+            MoveVector(dx: 1, dy: 0),
+            MoveVector(dx: -1, dy: 0)
+        ]
+        MoveCard.setTestMovementVectors(overrideVectors, for: firstCard.move)
+        MoveCard.setTestMovementVectors(overrideVectors, for: secondCard.move)
+        defer {
+            MoveCard.setTestMovementVectors(nil, for: firstCard.move)
+            MoveCard.setTestMovementVectors(nil, for: secondCard.move)
+        }
+
+        let destination = current.offset(dx: 1, dy: 0)
+        XCTAssertTrue(core.board.contains(destination), "目的地が盤外になっています")
+
+        let availableMoves = core.availableMoves()
+        let destinationMoves = availableMoves.filter { $0.destination == destination }
+        XCTAssertGreaterThanOrEqual(destinationMoves.count, 2, "同一マスへ移動できる候補が不足しています")
+
+        let destinationStackIDs = Set(destinationMoves.map(\.stackID))
+        XCTAssertGreaterThanOrEqual(destinationStackIDs.count, 2, "異なるスタックからの候補が揃っていません")
+
+        for stackID in destinationStackIDs {
+            let count = availableMoves.filter { $0.stackID == stackID }.count
+            XCTAssertGreaterThan(count, 1, "単一候補カードが含まれており、テスト条件を満たしていません")
+        }
+
+        core.handleTap(at: destination)
+
+        // Combine の購読を通じて ViewModel 側の警告状態が更新されるまで待機する
+        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+
+        XCTAssertEqual(core.current, current, "警告表示にもかかわらず駒が移動しています")
+        XCTAssertNil(core.boardTapPlayRequest, "処理後に BoardTapPlayRequest が残存しています")
+        XCTAssertNil(viewModel.boardBridge.animatingCard, "警告表示中にもかかわらずアニメーションが開始されています")
+        XCTAssertEqual(
+            viewModel.boardTapSelectionWarning?.destination,
+            destination,
+            "警告に記録された目的地がタップ座標と一致していません"
+        )
+        XCTAssertEqual(
+            viewModel.boardTapSelectionWarning?.message,
+            "複数のカードが同じマスを指定しています。手札から使いたいカードを選んでからマスをタップしてください。",
+            "警告メッセージが仕様と一致していません"
+        )
+    }
+
     /// 単一方向カードをタップした際は盤面タップを挟まずに即時移動することを確認する
     func testHandleHandSlotTapImmediatelyPlaysSingleCandidateCard() {
         let scheduler = PenaltyBannerSchedulerSpy()

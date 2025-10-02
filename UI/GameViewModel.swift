@@ -150,6 +150,9 @@ final class GameViewModel: ObservableObject {
     private(set) var guideModeEnabled = true
     /// Game Center 認証済みかどうかを UI と共有するフラグ
     @Published private(set) var isGameCenterAuthenticated: Bool
+    /// 盤面タップ時にカード選択が必要なケースを利用者へ知らせるための警告状態
+    /// - Important: `Identifiable` なペイロードを保持し、SwiftUI 側で `.alert(item:)` を使って監視できるようにする
+    @Published var boardTapSelectionWarning: BoardTapSelectionWarning?
 
     /// Combine の購読を保持するセット
     private var cancellables = Set<AnyCancellable>()
@@ -241,6 +244,17 @@ final class GameViewModel: ObservableObject {
         isGameCenterAuthenticated = newValue
     }
 
+    /// 盤面タップ時に提示する警告ペイロード
+    /// - Note: View 層で扱いやすいよう `Identifiable` を満たし、メッセージや対象マスなどの情報をまとめて保持する
+    struct BoardTapSelectionWarning: Identifiable, Equatable {
+        /// 識別子。複数回同じ警告を表示するケースに備えて毎回新規 ID を採番する
+        let id = UUID()
+        /// 利用者へ表示する本文
+        let message: String
+        /// 競合が発生した座標。デバッグ用途で参照できるようにしておく
+        let destination: GridPoint
+    }
+
     /// 手札選択を表す内部モデル
     private struct SelectedCardSelection {
         /// 選択中のスタック識別子
@@ -261,6 +275,12 @@ final class GameViewModel: ObservableObject {
     func updateHapticsSetting(isEnabled: Bool) {
         hapticsEnabled = isEnabled
         boardBridge.updateHapticsSetting(isEnabled: isEnabled)
+    }
+
+    /// 盤面タップ警告を手動でクリアしたい場合のユーティリティ
+    /// - Important: `.alert(item:)` の閉鎖と同期させるため、View 層から明示的に呼び出せるよう公開する
+    func clearBoardTapSelectionWarning() {
+        boardTapSelectionWarning = nil
     }
 
     /// 結果画面を閉じた際の後処理
@@ -415,6 +435,39 @@ final class GameViewModel: ObservableObject {
 
         // 選択済みカードが存在しない場合は、GameCore 側で確定済みの移動候補をそのまま採用する
         guard let selection = selectedCardSelection else {
+            // GameCore.availableMoves() を再評価し、タップ座標へ進める候補が複数カードで競合していないかを確認する
+            let availableMoves = core.availableMoves()
+            let destinationCandidates = availableMoves.filter { $0.destination == request.destination }
+
+            if destinationCandidates.count >= 2 {
+                // stackID ごとの候補数を集計し、単一候補カードが存在しない状況かつ複数スタックで競合しているか調べる
+                let candidateCountByStack = Dictionary(
+                    grouping: availableMoves,
+                    by: { $0.stackID }
+                ).mapValues { $0.count }
+
+                let conflictingStackIDs = destinationCandidates.reduce(into: Set<UUID>()) { partialResult, candidate in
+                    if let count = candidateCountByStack[candidate.stackID], count > 1 {
+                        partialResult.insert(candidate.stackID)
+                    }
+                }
+
+                if conflictingStackIDs.count >= 2 {
+                    // 複数の複数候補カードが同一点へ向かっているため、利用者へカード選択を促す警告を提示する
+                    boardTapSelectionWarning = BoardTapSelectionWarning(
+                        message: "複数のカードが同じマスを指定しています。手札から使いたいカードを選んでからマスをタップしてください。",
+                        destination: request.destination
+                    )
+
+                    if hapticsEnabled {
+                        // 混同を避けるため軽めの警告ハプティクスを付与し、視覚以外でも通知する
+                        UINotificationFeedbackGenerator().notificationOccurred(.warning)
+                    }
+
+                    return
+                }
+            }
+
             // request.resolvedMove は BoardTap 発生時点での最適候補なので、そのまま演出へ渡す
             let didStart = boardBridge.animateCardPlay(using: request.resolvedMove)
             if didStart {
