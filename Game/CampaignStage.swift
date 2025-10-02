@@ -592,6 +592,50 @@ public struct CampaignLibrary {
             stages: [stage41]
         )
 
-        return [chapter1, chapter2, chapter3, chapter4]
+        // MARK: - 5 章のステージ群
+        // (1,2) と (3,4) の座標指定は 1 始まりで共有されたため、障害物マスとして 0 始まりへ読み替える。
+        let impassablePointsChapter5: Set<GridPoint> = [
+            GridPoint(x: 0, y: 1),
+            GridPoint(x: 2, y: 3)
+        ]
+
+        // 5-1 は 5×5 盤で標準デッキを使い、移動不可マスを避けながらルートを組む終盤演習ステージ。
+        // スター条件でも移動不可マスの存在を意識してもらえるよう、手数とスコアの両面から丁寧な経路計画を促す。
+        let stage51 = CampaignStage(
+            id: CampaignStageID(chapter: 5, index: 1),
+            title: "障害物突破演習",
+            summary: "移動不可マスで封鎖された 5×5 を突破し、障害物との距離感を把握しましょう。", // 説明文でも移動不可マスを明示
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .standardWithAllChoices,
+                spawnRule: .fixed(BoardGeometry.defaultSpawnPoint(for: 5)),
+                penalties: GameMode.PenaltySettings(
+                    deadlockPenaltyCost: standardPenalties.deadlockPenaltyCost,
+                    manualRedrawPenaltyCost: standardPenalties.manualRedrawPenaltyCost,
+                    manualDiscardPenaltyCost: standardPenalties.manualDiscardPenaltyCost,
+                    revisitPenaltyCost: standardPenalties.revisitPenaltyCost
+                ),
+                impassableTilePoints: impassablePointsChapter5
+            ),
+            // MARK: 2 個目のスター条件: 障害物を意識しながら 27 手以内にまとめ、無駄な踏破を抑える
+            secondaryObjective: .finishWithinMoves(maxMoves: 27),
+            // MARK: 3 個目のスター条件: 移動不可マスによる遠回りを最小限に抑え、スコア 500 未満でクリア
+            scoreTarget: 500,
+            scoreTargetComparison: .lessThan,
+            // MARK: アンロック条件: トグル訓練の 4-1 を突破したプレイヤー向けに段階的な難度上昇を用意
+            unlockRequirement: .stageClear(stage41.id)
+        )
+
+        let chapter5 = CampaignChapter(
+            id: 5,
+            title: "障害物攻略", // 章タイトルでも移動不可マスの攻略を強調する
+            summary: "移動不可マスを回避しながら踏破する章。",
+            stages: [stage51]
+        )
+
+        return [chapter1, chapter2, chapter3, chapter4, chapter5]
     }
 }
