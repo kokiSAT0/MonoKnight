@@ -118,6 +118,33 @@ struct Deck {
             )
         }()
 
+        /// 長距離カードの出現率を下げた標準派生デッキ
+        /// - Note: 直線 2 マスと斜め 2 マスのカードだけ重みを下げ、初心者向けに調整する
+        static let standardLight: Configuration = {
+            let allowedMoves = MoveCard.standardSet
+            // 長距離カード 8 種を個別に上書きし、重み 1 で出現頻度を抑える
+            let longRangeCards: [MoveCard] = [
+                .straightUp2,
+                .straightDown2,
+                .straightRight2,
+                .straightLeft2,
+                .diagonalUpRight2,
+                .diagonalDownRight2,
+                .diagonalDownLeft2,
+                .diagonalUpLeft2
+            ]
+            let overrides = Dictionary(uniqueKeysWithValues: longRangeCards.map { ($0, 1) })
+            return Configuration(
+                allowedMoves: allowedMoves,
+                weightProfile: WeightProfile(defaultWeight: 3, overrides: overrides),
+                shouldApplyProbabilityReduction: true,
+                normalWeightMultiplier: 4,
+                reducedWeightMultiplier: 3,
+                reductionDuration: 5,
+                deckSummaryText: "長距離カード抑制型標準デッキ"
+            )
+        }()
+
         /// 標準デッキへ上下左右の選択キングカードを加えた構成
         /// - Note: 標準セットの操作感を維持しながら、選択式カードの導入に慣れてもらうためのプリセット。
         static let standardWithOrthogonalChoices: Configuration = {
@@ -231,6 +258,21 @@ struct Deck {
             )
         }()
 
+        /// キングと桂馬 16 種をまとめた基礎デッキ
+        /// - Note: 長距離カードを除外し、短距離移動の練習に集中しやすくする
+        static let kingAndKnightBasic: Configuration = {
+            let allowedMoves = MoveCard.standardSet.filter { $0.isKingType || $0.isKnightType }
+            return Configuration(
+                allowedMoves: allowedMoves,
+                weightProfile: WeightProfile(defaultWeight: 1),
+                shouldApplyProbabilityReduction: true,
+                normalWeightMultiplier: 4,
+                reducedWeightMultiplier: 3,
+                reductionDuration: 4,
+                deckSummaryText: "キングと桂馬の基礎デッキ"
+            )
+        }()
+
         /// 上下左右を選択できる複数方向カードを含む 5×5 盤向け構成
         static let directionChoice: Configuration = {
             let choiceCards: [MoveCard] = [.kingUpOrDown, .kingLeftOrRight]
@@ -258,6 +300,28 @@ struct Deck {
                 reducedWeightMultiplier: 1,
                 reductionDuration: 0,
                 deckSummaryText: "上下左右の選択キング限定"
+            )
+        }()
+
+        /// キング 4 種と桂馬 4 種のみを収録した限定デッキ
+        /// - Note: 直感的な上下左右移動と跳躍行動だけで構成し、操作習熟を狙う
+        static let kingPlusKnightOnly: Configuration = {
+            let kingMoves: [MoveCard] = [.kingUp, .kingRight, .kingDown, .kingLeft]
+            let knightMoves: [MoveCard] = [
+                .knightUp2Right1,
+                .knightUp2Left1,
+                .knightDown2Right1,
+                .knightDown2Left1
+            ]
+            let moves = kingMoves + knightMoves
+            return Configuration(
+                allowedMoves: moves,
+                weightProfile: WeightProfile(defaultWeight: 1),
+                shouldApplyProbabilityReduction: false,
+                normalWeightMultiplier: 1,
+                reducedWeightMultiplier: 1,
+                reductionDuration: 0,
+                deckSummaryText: "キングと桂馬の限定デッキ"
             )
         }()
 

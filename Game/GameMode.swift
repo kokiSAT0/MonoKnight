@@ -7,10 +7,16 @@ import Foundation
 public enum GameDeckPreset: String, CaseIterable, Codable, Identifiable {
     /// スタンダードモードと同じ山札構成
     case standard
+    /// 長距離カードの出現頻度を抑えた標準構成
+    case standardLight
     /// クラシカルチャレンジと同じ桂馬のみの構成
     case classicalChallenge
     /// 王将型カードのみの構成（序盤向け超短距離デッキ）
     case kingOnly
+    /// キングと桂馬の基本 16 種を収録した構成
+    case kingAndKnightBasic
+    /// キング 4 種と桂馬 4 種のみで構成した訓練向けデッキ
+    case kingPlusKnightOnly
     /// キング型カードに上下左右の選択肢を加えた構成
     case directionChoice
     /// 標準デッキに上下左右の選択キングを加えた構成
@@ -38,10 +44,16 @@ public enum GameDeckPreset: String, CaseIterable, Codable, Identifiable {
         switch self {
         case .standard:
             return "スタンダード構成"
+        case .standardLight:
+            return "スタンダード軽量構成"
         case .classicalChallenge:
             return "クラシカル構成"
         case .kingOnly:
             return "王将構成"
+        case .kingAndKnightBasic:
+            return "キング＋ナイト基礎構成"
+        case .kingPlusKnightOnly:
+            return "キング＋ナイト限定構成"
         case .directionChoice:
             return "選択式キング構成"
         case .standardWithOrthogonalChoices:
@@ -73,10 +85,16 @@ public enum GameDeckPreset: String, CaseIterable, Codable, Identifiable {
         switch self {
         case .standard:
             return .standard
+        case .standardLight:
+            return .standardLight
         case .classicalChallenge:
             return .classicalChallenge
         case .kingOnly:
             return .kingOnly
+        case .kingAndKnightBasic:
+            return .kingAndKnightBasic
+        case .kingPlusKnightOnly:
+            return .kingPlusKnightOnly
         case .directionChoice:
             return .directionChoice
         case .standardWithOrthogonalChoices:

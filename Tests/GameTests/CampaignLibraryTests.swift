@@ -6,6 +6,28 @@ final class CampaignLibraryTests: XCTestCase {
     /// 選択カード系プリセットが期待通りの構成を返すことを確認する
     func testChoiceDeckPresetConfigurations() {
         let presets: [(GameDeckPreset, String, String, Set<MoveCard>)] = [
+            (.standardLight, "スタンダード軽量構成", "長距離カード抑制型標準デッキ", Set(MoveCard.standardSet)),
+            (
+                .kingAndKnightBasic,
+                "キング＋ナイト基礎構成",
+                "キングと桂馬の基礎デッキ",
+                Set(MoveCard.standardSet.filter { $0.isKingType || $0.isKnightType })
+            ),
+            (
+                .kingPlusKnightOnly,
+                "キング＋ナイト限定構成",
+                "キングと桂馬の限定デッキ",
+                Set([
+                    .kingUp,
+                    .kingRight,
+                    .kingDown,
+                    .kingLeft,
+                    .knightUp2Right1,
+                    .knightUp2Left1,
+                    .knightDown2Right1,
+                    .knightDown2Left1
+                ])
+            ),
             (.directionChoice, "選択式キング構成", "選択式キングカード入り", [.kingUpOrDown, .kingLeftOrRight]),
             (.standardWithOrthogonalChoices, "標準＋縦横選択キング構成", "標準＋上下左右選択キング", Set(MoveCard.standardSet).union([.kingUpOrDown, .kingLeftOrRight])),
             (.standardWithDiagonalChoices, "標準＋斜め選択キング構成", "標準＋斜め選択キング", Set(MoveCard.standardSet).union([
@@ -69,6 +91,7 @@ final class CampaignLibraryTests: XCTestCase {
 
             // MARK: 標準セットを内包するプリセットは全カードを含んでいるか検証する
             let presetsRequiringStandard: Set<GameDeckPreset> = [
+                .standardLight,
                 .directionChoice,
                 .standardWithOrthogonalChoices,
                 .standardWithDiagonalChoices,

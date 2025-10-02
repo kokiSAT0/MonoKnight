@@ -25,6 +25,26 @@ final class DeckTests: XCTestCase {
         XCTAssertEqual(uniqueWeights.first, 1, "標準デッキの重みが 1 以外になっています")
     }
 
+    /// スタンダード軽量デッキが長距離カードの重みを抑えているか検証する
+    func testStandardLightDeckConfiguration() {
+        let config = Deck.Configuration.standardLight
+        let allowedMoves = Set(config.allowedMoves)
+        let standardMoves = Set(MoveCard.standardSet)
+
+        // MARK: 標準セットと同じカード群を保持しているか確認
+        XCTAssertEqual(allowedMoves, standardMoves, "スタンダード軽量構成のカード集合が標準セットと一致しません")
+
+        // MARK: 長距離カードの重みが通常カードより低く設定されているか検証
+        let kingWeight = config.weightProfile.weight(for: .kingUp)
+        let longRangeWeight = config.weightProfile.weight(for: .straightUp2)
+        XCTAssertGreaterThan(kingWeight, longRangeWeight, "長距離カードの重みが軽量化されていません")
+        XCTAssertEqual(longRangeWeight, 1, "長距離カードの重みが想定値と異なります")
+        XCTAssertEqual(kingWeight, 3, "キングカードの重みが想定値と異なります")
+
+        // MARK: サマリー文言が仕様通りかチェック
+        XCTAssertEqual(config.deckSummaryText, "長距離カード抑制型標準デッキ")
+    }
+
     /// 標準デッキへ縦横選択カードを追加するプリセットの内容を検証する
     func testStandardWithOrthogonalChoicesDeckConfiguration() {
         let config = Deck.Configuration.standardWithOrthogonalChoices
@@ -215,6 +235,47 @@ final class DeckTests: XCTestCase {
             }
             XCTAssertTrue(card.isKnightType, "桂馬以外のカードが出現: \(card)")
         }
+    }
+
+    /// キングと桂馬 16 種構成デッキの内容を検証する
+    func testKingAndKnightBasicDeckConfiguration() {
+        let config = Deck.Configuration.kingAndKnightBasic
+        let allowedMoves = Set(config.allowedMoves)
+        let expectedMoves = Set(MoveCard.standardSet.filter { $0.isKingType || $0.isKnightType })
+
+        // MARK: キング＋桂馬 16 種が揃っているか確認
+        XCTAssertEqual(allowedMoves, expectedMoves, "キング＋ナイト基礎構成のカード集合が仕様と一致しません")
+
+        // MARK: 重み設定が均一かどうか検証
+        XCTAssertEqual(config.weightProfile.weight(for: .kingUp), 1, "キングカードの重みが均一ではありません")
+        XCTAssertEqual(config.weightProfile.weight(for: .knightUp2Right1), 1, "桂馬カードの重みが均一ではありません")
+
+        // MARK: サマリー文言が仕様通りか確認
+        XCTAssertEqual(config.deckSummaryText, "キングと桂馬の基礎デッキ")
+    }
+
+    /// キングと桂馬のみの限定デッキを検証する
+    func testKingPlusKnightOnlyDeckConfiguration() {
+        let config = Deck.Configuration.kingPlusKnightOnly
+        let expected: Set<MoveCard> = [
+            .kingUp,
+            .kingRight,
+            .kingDown,
+            .kingLeft,
+            .knightUp2Right1,
+            .knightUp2Left1,
+            .knightDown2Right1,
+            .knightDown2Left1
+        ]
+
+        // MARK: 許可カードが 8 種に限定されているか確認
+        XCTAssertEqual(Set(config.allowedMoves), expected, "キング＋ナイト限定構成のカード集合が仕様と一致しません")
+
+        // MARK: 重みが均一に設定されているか確認
+        XCTAssertTrue(expected.allSatisfy { config.weightProfile.weight(for: $0) == 1 }, "限定構成の重みが均一になっていません")
+
+        // MARK: サマリー文言が仕様通りかチェック
+        XCTAssertEqual(config.deckSummaryText, "キングと桂馬の限定デッキ")
     }
 
     /// makeTestDeck で指定した配列が優先的に返され、reset() で再利用できるか確認
