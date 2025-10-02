@@ -507,6 +507,10 @@ private extension RootView {
                     campaignStage: stage,
                     progress: progress,
                     isReady: isGameReadyForManualStart,
+                    onCancel: {
+                        // ローディング中にタイトルへ戻りたい場合のハンドラを橋渡しする
+                        handleReturnToTitleRequest()
+                    },
                     onStart: {
                         // ユーザーが明示的に開始したタイミングでローディングを閉じる
                         onConfirmGameStart()
@@ -723,6 +727,8 @@ private extension RootView {
         let progress: CampaignStageProgress?
         /// 初期化が完了して開始可能かどうか
         let isReady: Bool
+        /// 「前の画面へ戻る」操作を伝搬するハンドラ
+        let onCancel: () -> Void
         /// ユーザーが「開始」ボタンを押した際のハンドラ
         let onStart: () -> Void
 
@@ -735,17 +741,20 @@ private extension RootView {
         ///   - campaignStage: キャンペーンステージ（該当する場合）
         ///   - progress: これまでの達成状況
         ///   - isReady: 初期化が完了して開始可能かどうか
+        ///   - onCancel: ユーザーが戻り操作を選んだ際のハンドラ
         ///   - onStart: ユーザーが「開始」を押した際のハンドラ
         fileprivate init(mode: GameMode,
                          campaignStage: CampaignStage?,
                          progress: CampaignStageProgress?,
                          isReady: Bool,
+                         onCancel: @escaping () -> Void,
                          onStart: @escaping () -> Void) {
             // 受け取った値をそのまま保持し、構造体生成直後から UI に反映できるようにする
             self.mode = mode
             self.campaignStage = campaignStage
             self.progress = progress
             self.isReady = isReady
+            self.onCancel = onCancel
             self.onStart = onStart
             // テーマは常に新規生成し、カラースキームに応じた見た目を再利用する
             self.theme = AppTheme()
@@ -877,6 +886,29 @@ private extension RootView {
                 .accessibilityHint(isReady ? "ゲームを開始します" : "準備が完了すると押せるようになります")
                 // VoiceOver でボタンであることを明示（.disabled 修飾子が自動で無効状態を伝えてくれる）
                 .accessibilityAddTraits(.isButton)
+
+                Button(action: {
+                    // ユーザーがローディング段階で戻る選択をした際に親へ通知する
+                    onCancel()
+                }) {
+                    Text("前の画面に戻る")
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .foregroundColor(theme.accentPrimary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, LayoutMetrics.secondaryButtonVerticalPadding)
+                        .background(
+                            RoundedRectangle(cornerRadius: LayoutMetrics.buttonCornerRadius)
+                                .stroke(theme.accentPrimary, lineWidth: LayoutMetrics.secondaryButtonBorderWidth)
+                                .background(
+                                    RoundedRectangle(cornerRadius: LayoutMetrics.buttonCornerRadius)
+                                        .fill(Color.clear)
+                                )
+                        )
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("前の画面に戻る")
+                .accessibilityHint("タイトルへ戻ります")
+                .accessibilityAddTraits(.isButton)
             }
         }
 
@@ -952,6 +984,10 @@ private extension RootView {
             static let buttonCornerRadius: CGFloat = 16
             /// ボタンの上下パディング
             static let buttonVerticalPadding: CGFloat = 14
+            /// セカンダリボタンの上下パディング（メインボタンより軽量な見た目にする）
+            static let secondaryButtonVerticalPadding: CGFloat = 12
+            /// セカンダリボタンの枠線太さ
+            static let secondaryButtonBorderWidth: CGFloat = 1
             /// 無効状態のボタン透過率
             static let disabledButtonOpacity: Double = 0.45
             /// カードの角丸半径
