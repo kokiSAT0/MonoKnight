@@ -466,6 +466,10 @@ struct SettingsView: View {
                     storeAlert = .purchaseCompleted
                 }
             }
+            // 設定画面表示中でも `@AppStorage` の更新に合わせてカラースキームを反映させ、閉じる操作を待たずにテーマ変更が視覚化されるようにする。
+            .preferredColorScheme(
+                ThemePreference(rawValue: preferredColorSchemeRawValue)?.preferredColorScheme
+            )
         }
         // デバッグ用パスコード入力成功時に状態を明示するアラートを表示し、検証モードへの切り替えを周知する。
         .alert("全ステージを解放しました", isPresented: $isDebugUnlockSuccessAlertPresented) {
