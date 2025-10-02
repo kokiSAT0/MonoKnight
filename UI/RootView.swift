@@ -1491,6 +1491,9 @@ fileprivate struct TitleScreenView: View {
                 .font(.system(size: 18, weight: .semibold, design: .rounded))
                 .foregroundColor(theme.textPrimary)
 
+            // デイリーチャレンジがダミーであることを明示し、混乱を避ける
+            dailyChallengeNoticeCard
+
             VStack(spacing: 14) {
                 featureTile(
                     target: .campaign,
@@ -1583,6 +1586,39 @@ fileprivate struct TitleScreenView: View {
         .accessibilityHint(Text(accessibilityHint))
     }
 
+    private var dailyChallengeNoticeCard: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "info.circle")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(theme.accentPrimary)
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("日替わりモードは現在プレオープン中です")
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .foregroundStyle(theme.textPrimary)
+
+                Text("詳細画面では公開準備の状況のみ表示されます。実際のチャレンジは近日中に提供予定です。")
+                    .font(.system(size: 13, weight: .regular, design: .rounded))
+                    .foregroundStyle(theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(theme.backgroundElevated.opacity(0.9))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(theme.statisticBadgeBorder.opacity(0.8), lineWidth: 1)
+        )
+        // VoiceOver で日替わりモードが準備中であることを冒頭で伝える
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("デイリーチャレンジは準備中です。詳細画面では状況のみ確認できます。")
+    }
+
     private func navigationDestinationView(for target: TitleNavigationTarget) -> some View {
         switch target {
         case .campaign:
@@ -1639,45 +1675,20 @@ fileprivate struct TitleScreenView: View {
             )
         case .dailyChallenge:
             return AnyView(
-                dailyChallengeDetailView
-                    .onAppear {
-                        debugLog("TitleScreenView: NavigationDestination.dailyChallenge 表示 -> 現在のスタック数=\(navigationPath.count)")
+                DailyChallengePlaceholderView(
+                    onDismiss: {
+                        // NavigationStack の状態を確実に戻し、タイトルへ復帰させる
+                        popNavigationStack()
                     }
-                    .onDisappear {
-                        debugLog("TitleScreenView: NavigationDestination.dailyChallenge 非表示 -> 現在のスタック数=\(navigationPath.count)")
-                    }
+                )
+                .onAppear {
+                    debugLog("TitleScreenView: NavigationDestination.dailyChallenge 表示 -> 現在のスタック数=\(navigationPath.count)")
+                }
+                .onDisappear {
+                    debugLog("TitleScreenView: NavigationDestination.dailyChallenge 非表示 -> 現在のスタック数=\(navigationPath.count)")
+                }
             )
         }
-    }
-
-    @ViewBuilder
-    private var dailyChallengeDetailView: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                Text("毎日変化する特別な盤面に挑戦できるモードを準備しています。")
-                    .font(.system(size: 15, weight: .regular, design: .rounded))
-                    .foregroundColor(theme.textSecondary)
-
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("現在の状況")
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
-                        .foregroundColor(theme.textPrimary)
-                    Text("公開に向けて調整中です。最新情報はアップデートノートでお知らせします。")
-                        .font(.system(size: 13, weight: .medium, design: .rounded))
-                        .foregroundColor(theme.textSecondary)
-                }
-
-                Label("近日公開", systemImage: "hourglass")
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
-                    .foregroundColor(theme.accentPrimary)
-                    .accessibilityHint("現在は利用できません")
-            }
-            .padding(24)
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .background(theme.backgroundPrimary)
-        .navigationTitle("デイリーチャレンジ")
-        .navigationBarTitleDisplayMode(.inline)
     }
 
     @ViewBuilder
@@ -1829,11 +1840,11 @@ private extension TitleScreenView {
     }
 
     var dailyChallengeTileHeadline: String {
-        "準備中"
+        "準備中: 近日公開予定"
     }
 
     var dailyChallengeTileDetail: String {
-        "日替わりの特別ルールを公開予定です"
+        "現在はプレオープン情報のみ確認できます"
     }
 
     var bestPointsDescription: String {
