@@ -384,6 +384,86 @@ final class GameViewIntegrationTests: XCTestCase {
         )
     }
 
+    /// 斜め選択カード同士が同一点を指す場合も警告表示が行われることを確認する（キャンペーン 3-2 相当）
+    func testBoardTapWithoutSelectionPresentsWarningWhenDiagonalChoiceStacksConflict() {
+        let scheduler = PenaltyBannerSchedulerSpy()
+        let gameCenter = GameCenterServiceSpy()
+        let adsService = AdsServiceSpy()
+
+        // 標準モードのレギュレーションを基に、斜め選択カードを含む山札構成へ差し替えて再現性を高める
+        var diagonalRegulation = GameMode.standard.regulationSnapshot
+        diagonalRegulation.deckPreset = .standardWithDiagonalChoices
+        let diagonalMode = GameMode(
+            identifier: .freeCustom,
+            displayName: "斜め選択警告テスト",
+            regulation: diagonalRegulation,
+            leaderboardEligible: false
+        )
+
+        let core = GameCore(mode: diagonalMode)
+        let interfaces = GameModuleInterfaces { _ in core }
+
+        let viewModel = GameViewModel(
+            mode: diagonalMode,
+            gameInterfaces: interfaces,
+            gameCenterService: gameCenter,
+            adsService: adsService,
+            onRequestReturnToTitle: nil,
+            penaltyBannerScheduler: scheduler
+        )
+
+        // 実機依存のフィードバックはテスト結果へ影響しないように無効化する
+        viewModel.updateHapticsSetting(isEnabled: false)
+
+        guard
+            let current = core.current,
+            let firstStack = core.handStacks.first(where: { $0.topCard != nil }),
+            let secondStack = core.handStacks.first(where: { stack in
+                stack.id != firstStack.id && stack.topCard != nil
+            }),
+            let firstCard = firstStack.topCard,
+            let secondCard = secondStack.topCard
+        else {
+            XCTFail("斜め選択カードの競合テストに必要な手札を準備できませんでした")
+            return
+        }
+
+        // 双方のカードへ斜め方向の移動ベクトルを付与し、右上マスで競合させる
+        let diagonalOverride = [
+            MoveVector(dx: 1, dy: 1),
+            MoveVector(dx: -1, dy: -1)
+        ]
+        MoveCard.setTestMovementVectors(diagonalOverride, for: firstCard.move)
+        MoveCard.setTestMovementVectors(diagonalOverride, for: secondCard.move)
+        defer {
+            MoveCard.setTestMovementVectors(nil, for: firstCard.move)
+            MoveCard.setTestMovementVectors(nil, for: secondCard.move)
+        }
+
+        let destination = current.offset(dx: 1, dy: 1)
+        XCTAssertTrue(core.board.contains(destination), "目的地が盤外になっており、競合を再現できません")
+
+        let destinationMoves = core.availableMoves().filter { $0.destination == destination }
+        XCTAssertGreaterThanOrEqual(destinationMoves.count, 2, "同一点へ到達できる候補が揃っていません")
+        XCTAssertEqual(Set(destinationMoves.map(\.stackID)).count, 2, "異なるスタック同士で競合する条件を満たしていません")
+
+        core.handleTap(at: destination)
+
+        // Combine の通知を経由して警告状態が更新されるまで待機する
+        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+
+        XCTAssertEqual(core.current, current, "警告表示にもかかわらず駒が移動しています")
+        XCTAssertNil(core.boardTapPlayRequest, "警告処理後に BoardTapPlayRequest が残っています")
+        XCTAssertNil(viewModel.boardBridge.animatingCard, "警告表示中にもかかわらずアニメーションが開始されています")
+        XCTAssertNotNil(viewModel.boardTapSelectionWarning, "斜め選択カードの競合にも関わらず警告が表示されていません")
+        XCTAssertEqual(viewModel.boardTapSelectionWarning?.destination, destination, "警告に記録された目的地が一致していません")
+        XCTAssertEqual(
+            viewModel.boardTapSelectionWarning?.message,
+            "複数のカードが同じマスを指定しています。手札から使いたいカードを選んでからマスをタップしてください。",
+            "警告メッセージが仕様と一致していません"
+        )
+    }
+
     /// 盤外制約で候補数が片側だけになっても複数候補カード同士の競合警告が発生することを確認する
     func testBoardTapWithoutSelectionPresentsWarningWhenOutOfBoundsShrinksMultiCandidateOptions() {
         let scheduler = PenaltyBannerSchedulerSpy()

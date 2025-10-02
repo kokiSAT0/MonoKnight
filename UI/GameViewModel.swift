@@ -461,29 +461,23 @@ final class GameViewModel: ObservableObject {
             // GameCore.availableMoves() を再評価し、タップ座標へ進める候補が複数カードで競合していないかを確認する
             let availableMoves = core.availableMoves()
             let destinationCandidates = availableMoves.filter { $0.destination == request.destination }
+            // 同一座標へ移動可能なスタック集合を直接求め、純粋にスタック数だけで競合を判断する
+            let conflictingStackIDs = Set(destinationCandidates.map(\.stackID))
 
-            if destinationCandidates.count >= 2 {
-                // 同一点を指す候補のうち、カード自体が複数方向ベクトルを持つスタックだけを抽出する（盤外で候補数が減っても判定できるようにする）
-                let conflictingStackIDs = destinationCandidates.reduce(into: Set<UUID>()) { partialResult, candidate in
-                    if candidate.card.move.movementVectors.count > 1 {
-                        partialResult.insert(candidate.stackID)
-                    }
+            if conflictingStackIDs.count >= 2 {
+                // 候補スタックが 2 件以上存在する場合は必ず警告し、意図しない自動プレイを防ぐ
+                boardTapSelectionWarning = BoardTapSelectionWarning(
+                    message: "複数のカードが同じマスを指定しています。手札から使いたいカードを選んでからマスをタップしてください。",
+                    destination: request.destination
+                )
+
+                if hapticsEnabled {
+                    // 視覚だけでなく触覚でも注意喚起できるように、警告ハプティクスを同じ分岐へまとめて呼び出す
+                    UINotificationFeedbackGenerator().notificationOccurred(.warning)
                 }
 
-                if conflictingStackIDs.count >= 2 {
-                    // 複数の複数候補カードが同一点へ向かっているため、利用者へカード選択を促す警告を提示する
-                    boardTapSelectionWarning = BoardTapSelectionWarning(
-                        message: "複数のカードが同じマスを指定しています。手札から使いたいカードを選んでからマスをタップしてください。",
-                        destination: request.destination
-                    )
-
-                    if hapticsEnabled {
-                        // 混同を避けるため軽めの警告ハプティクスを付与し、視覚以外でも通知する
-                        UINotificationFeedbackGenerator().notificationOccurred(.warning)
-                    }
-
-                    return
-                }
+                // 警告を提示した場合はここで処理を終了し、後続のアニメーション開始を確実に抑止する
+                return
             }
 
             // request.resolvedMove は BoardTap 発生時点での最適候補なので、そのまま演出へ渡す
