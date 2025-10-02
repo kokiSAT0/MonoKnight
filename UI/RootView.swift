@@ -1420,8 +1420,9 @@ fileprivate struct TitleScreenView: View {
                     navigationDestinationView(for: target)
                 }
         }
-        .sheet(isPresented: $isPresentingHowToPlay) {
-            howToPlaySheetContent
+        .fullScreenCover(isPresented: $isPresentingHowToPlay) {
+            // MARK: - 遊び方画面は全画面で表示し、iPhone でもコンテンツが埋もれないようにする
+            howToPlayFullScreenContent
         }
         .onChange(of: isPresentingHowToPlay) { _, newValue in
             debugLog("TitleScreenView.isPresentingHowToPlay 更新: \(newValue)")
@@ -1730,14 +1731,11 @@ fileprivate struct TitleScreenView: View {
     }
 
     @ViewBuilder
-    private var howToPlaySheetContent: some View {
+    private var howToPlayFullScreenContent: some View {
         NavigationStack {
+            // MARK: - ナビゲーションバーを持たせて閉じるボタンを自然に配置する
             HowToPlayView(showsCloseButton: true)
         }
-        .presentationDetents(
-            horizontalSizeClass == .regular ? [.large] : [.medium, .large]
-        )
-        .presentationDragIndicator(.visible)
     }
 
     private func handleTileTapLogging(for target: TitleNavigationTarget) {
