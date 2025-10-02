@@ -65,6 +65,8 @@ struct HighScoreChallengeSelectionView: View {
         .background(theme.backgroundPrimary.ignoresSafeArea())
         .navigationTitle("ハイスコア")
         .navigationBarTitleDisplayMode(.inline)
+        // 標準の戻るボタンを非表示にして、ツールバーの戻る導線へ挙動を統一する
+        .navigationBarBackButtonHidden(true)
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {
                 backButton
