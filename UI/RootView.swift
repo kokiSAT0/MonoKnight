@@ -1487,9 +1487,11 @@ fileprivate struct TitleScreenView: View {
                 .font(.system(size: 16, weight: .medium, design: .rounded))
                 .frame(maxWidth: .infinity)
         }
-        .buttonStyle(.bordered)
-        .tint(.white.opacity(0.8))
-        .foregroundColor(.white)
+        .buttonStyle(.borderedProminent)
+        // ライト/ダーク双方でアクセントカラーがしっかり視認できるようテーマの色を適用
+        .tint(theme.accentPrimary)
+        // アクセント上の文字色もテーマから参照し、コントラスト要件を満たす
+        .foregroundColor(theme.accentOnPrimary)
         .controlSize(.large)
         .accessibilityIdentifier("title_how_to_play_button")
         // VoiceOver でモーダルが開くことを伝える
