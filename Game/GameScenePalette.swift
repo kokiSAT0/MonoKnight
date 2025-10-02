@@ -21,6 +21,9 @@ public struct GameScenePalette {
     /// トグルマスの塗り色
     /// - NOTE: 踏破状態に関わらず専用色を固定し、盤面上でギミックマスを瞬時に識別できるようにする
     public let boardTileToggle: SKColor
+    /// 移動不可マスの塗り色
+    /// - NOTE: 障害物として直感的に認識できるよう、ほぼ黒に近いトーンを専用で保持する
+    public let boardTileImpassable: SKColor
     /// 駒の塗り色
     public let boardKnight: SKColor
     /// ガイド枠の線色
@@ -35,6 +38,7 @@ public struct GameScenePalette {
     ///   - boardTileMultiBase: 複数回踏破マスの基準色
     ///   - boardTileMultiStroke: 複数回踏破マス専用の枠線色
     ///   - boardTileToggle: トグルマスの塗り色
+    ///   - boardTileImpassable: 移動不可マスの塗り色
     ///   - boardKnight: 駒の塗り色
     ///   - boardGuideHighlight: ガイド枠の線色
     public init(
@@ -45,6 +49,7 @@ public struct GameScenePalette {
         boardTileMultiBase: SKColor,
         boardTileMultiStroke: SKColor,
         boardTileToggle: SKColor,
+        boardTileImpassable: SKColor,
         boardKnight: SKColor,
         boardGuideHighlight: SKColor
     ) {
@@ -55,6 +60,7 @@ public struct GameScenePalette {
         self.boardTileMultiBase = boardTileMultiBase
         self.boardTileMultiStroke = boardTileMultiStroke
         self.boardTileToggle = boardTileToggle
+        self.boardTileImpassable = boardTileImpassable
         self.boardKnight = boardKnight
         self.boardGuideHighlight = boardGuideHighlight
     }
@@ -78,6 +84,8 @@ public extension GameScenePalette {
         boardTileMultiStroke: SKColor(white: 0.2, alpha: 1.0),
         // NOTE: トグルマスは常に存在感を出したいので、未踏破・踏破の状態差に影響されない濃いめのグレーを採用する
         boardTileToggle: SKColor(white: 0.6, alpha: 1.0),
+        // NOTE: 移動不可マスは障害物として即座に判別できるよう、ほぼ黒に近いトーンで塗りつぶす
+        boardTileImpassable: SKColor(white: 0.05, alpha: 1.0),
         boardKnight: SKColor(white: 0.1, alpha: 1.0),
         // NOTE: SwiftUI のライトテーマと同じ彩度を抑えたオレンジを採用し、テーマ適用前でも一貫した強調色を維持する
         boardGuideHighlight: SKColor(red: 0.94, green: 0.41, blue: 0.08, alpha: 0.85)
@@ -96,6 +104,8 @@ public extension GameScenePalette {
         boardTileMultiStroke: SKColor(white: 0.85, alpha: 1.0),
         // NOTE: トグルマスは暗色背景でも埋もれないよう、訪問状態に左右されない明度のグレーを採用
         boardTileToggle: SKColor(white: 0.65, alpha: 1.0),
+        // NOTE: ダークテーマ側でも障害物が沈まないよう、背景よりわずかに明度を下げた黒系で塗りつぶす
+        boardTileImpassable: SKColor(white: 0.02, alpha: 1.0),
         boardKnight: SKColor(white: 0.95, alpha: 1.0),
         // NOTE: ダークテーマに合わせて明度を上げたオレンジを用い、背景の暗さに負けない発光感を演出する
         boardGuideHighlight: SKColor(red: 1.0, green: 0.74, blue: 0.38, alpha: 0.9)
