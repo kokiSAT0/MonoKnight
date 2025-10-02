@@ -1343,6 +1343,25 @@ fileprivate struct TitleScreenView: View {
         case dailyChallenge
     }
 
+    /// ゲーム開始要求がどこから届いたかを判定するための文脈列挙
+    /// - NOTE: ログ出力時に文脈を一意に追跡できるよう rawValue を英語スネークケースで保持する
+    private enum StartTriggerContext: String {
+        /// キャンペーンのステージ一覧から直接開始するケース
+        case campaignStageSelection = "campaign_stage_selection"
+        /// ハイスコア詳細画面のボタンから開始するケース
+        case highScoreDetail = "high_score_detail"
+
+        /// ログ出力向けに読みやすい説明文を返す
+        var logDescription: String {
+            switch self {
+            case .campaignStageSelection:
+                return "キャンペーン一覧から開始"
+            case .highScoreDetail:
+                return "ハイスコア詳細から開始"
+            }
+        }
+    }
+
     init(campaignProgressStore: CampaignProgressStore, onStart: @escaping (GameMode) -> Void, onOpenSettings: @escaping () -> Void) {
         self._campaignProgressStore = ObservedObject(wrappedValue: campaignProgressStore)
         self.onStart = onStart
@@ -1580,7 +1599,18 @@ fileprivate struct TitleScreenView: View {
                     selectedStageID: highlightedCampaignStageID,
                     onClose: { popNavigationStack() },
                     onSelectStage: { stage in
+                        // 選択されたステージを一旦保持し、NavigationStack をリセットした後に開始処理をキューへ積む
                         handleCampaignStageSelection(stage)
+                        let mode = stage.makeGameMode()
+                        let context: StartTriggerContext = .campaignStageSelection
+                        debugLog(
+                            "TitleScreenView: キャンペーンステージ選択後 -> NavigationStack をリセットして即時開始をメインキューへ登録 context=\(context.rawValue)"
+                        )
+                        resetNavigationStack()
+                        // NavigationStack のポップ完了を待ってからゲーム準備を走らせ、画面遷移時のクラッシュを防ぐ
+                        DispatchQueue.main.async {
+                            triggerImmediateStart(for: mode, context: context)
+                        }
                     },
                     showsCloseButton: false
                 )
@@ -1730,15 +1760,20 @@ fileprivate struct TitleScreenView: View {
     private func handleCampaignStageSelection(_ stage: CampaignStage) {
         debugLog("TitleScreenView: キャンペーンステージを選択 -> \(stage.id.displayCode)")
         highlightedCampaignStageID = stage.id
-        resetNavigationStack()
-        debugLog("TitleScreenView: キャンペーンステージ選択完了 -> ゲーム開始を要求")
-        onStart(stage.makeGameMode())
+        // 即時開始は NavigationStack のポップ完了後に行うため、ここでは保持とログ出力のみに留める
+        debugLog("TitleScreenView: キャンペーンステージ選択完了 -> 即時開始スケジュールを待機")
     }
 
     private func startStandardModeFromHighScore() {
-        debugLog("TitleScreenView: ハイスコアチャレンジ開始要求 -> standard5x5")
+        let context: StartTriggerContext = .highScoreDetail
+        debugLog(
+            "TitleScreenView: ハイスコアチャレンジ開始要求 -> standard5x5 context=\(context.rawValue)"
+        )
         resetNavigationStack()
-        onStart(GameMode.standard)
+        // ハイスコア詳細から戻る場合もポップ完了を待ち、同一フレームでの開始要求を避ける
+        DispatchQueue.main.async {
+            triggerImmediateStart(for: GameMode.standard, context: context)
+        }
     }
 
     private func featureIconTile(systemName: String) -> some View {
@@ -1772,6 +1807,20 @@ fileprivate struct TitleScreenView: View {
         debugLog("TitleScreenView: NavigationStack reset実行 -> 現在のスタック数=\(currentDepth) 呼び出し元候補=\(callStackSnippet)")
         navigationPath.removeAll()
         debugLog("TitleScreenView: NavigationStack reset後 -> 変更後のスタック数=\(navigationPath.count)")
+    }
+
+    /// 即時開始要求を処理し、文脈付きでログを出力する
+    /// - Parameters:
+    ///   - mode: これから開始するゲームモード
+    ///   - context: 開始要求が発生した文脈
+    private func triggerImmediateStart(for mode: GameMode, context: StartTriggerContext) {
+        let stackDescription = navigationPath
+            .map { $0.rawValue }
+            .joined(separator: ",")
+        debugLog(
+            "TitleScreenView: triggerImmediateStart 実行 -> context=\(context.rawValue) (\(context.logDescription)) mode=\(mode.identifier.rawValue) navigationDepth=\(navigationPath.count) stack=[\(stackDescription)]"
+        )
+        onStart(mode)
     }
 }
 
