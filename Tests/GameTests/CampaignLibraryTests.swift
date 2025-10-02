@@ -131,14 +131,12 @@ final class CampaignLibraryTests: XCTestCase {
         let library = CampaignLibrary.shared
         let stage41ID = CampaignStageID(chapter: 4, index: 1)
 
-        // MARK: 章配列が 4 章まで拡張されているか明示的に確認する
-        XCTAssertEqual(library.chapters.count, 4, "キャンペーンの章数が 4 章構成になっていません")
-        XCTAssertEqual(library.chapters.last?.id, 4, "最終章の ID が 4 になっていません")
-
         guard let stage41 = library.stage(with: stage41ID) else {
             XCTFail("第4章 4-1 の定義が見つかりません")
             return
         }
+
+        XCTAssertTrue(library.chapters.contains(where: { $0.id == 4 }), "第4章が章一覧へ含まれていません")
 
         // MARK: 基本情報（タイトル・サマリー・盤面サイズ）が仕様通りかを検証
         XCTAssertEqual(stage41.title, "反転制御訓練")
@@ -159,5 +157,41 @@ final class CampaignLibraryTests: XCTestCase {
         // MARK: アンロック条件が 3-4 クリアに紐付いているかを確認
         let prerequisiteID = CampaignStageID(chapter: 3, index: 4)
         XCTAssertEqual(stage41.unlockRequirement, .stageClear(prerequisiteID))
+    }
+
+    /// 5 章の移動不可マス訓練が仕様通りに組み込まれているかを確認する
+    func testCampaignStage5Definitions() {
+        let library = CampaignLibrary.shared
+        let stage51ID = CampaignStageID(chapter: 5, index: 1)
+        let stage41ID = CampaignStageID(chapter: 4, index: 1)
+
+        // MARK: 章配列が 5 章まで拡張されているか確認する
+        XCTAssertEqual(library.chapters.count, 5, "キャンペーンの章数が 5 章構成になっていません")
+        XCTAssertEqual(library.chapters.last?.id, 5, "最終章の ID が 5 になっていません")
+
+        guard let stage51 = library.stage(with: stage51ID) else {
+            XCTFail("第5章 5-1 の定義が見つかりません")
+            return
+        }
+
+        // MARK: 基本情報（タイトル・サマリー・盤面サイズ）が障害物訓練を表しているか検証
+        XCTAssertEqual(stage51.title, "障害物突破演習")
+        XCTAssertTrue(stage51.summary.contains("移動不可"), "サマリーに移動不可マスへの言及がありません")
+        XCTAssertEqual(stage51.regulation.boardSize, 5)
+
+        // MARK: 移動不可マスが 0 始まりの (0,1) と (2,3) に設定されているか確認
+        let expectedImpassablePoints: Set<GridPoint> = [
+            GridPoint(x: 0, y: 1),
+            GridPoint(x: 2, y: 3)
+        ]
+        XCTAssertEqual(stage51.regulation.impassableTilePoints, expectedImpassablePoints)
+
+        // MARK: スター条件・スコア条件が仕様通りかを確認
+        XCTAssertEqual(stage51.secondaryObjective, .finishWithinMoves(maxMoves: 27))
+        XCTAssertEqual(stage51.scoreTarget, 500)
+        XCTAssertEqual(stage51.scoreTargetComparison, .lessThan)
+
+        // MARK: アンロック条件が 4-1 クリアに紐付いているかを確認
+        XCTAssertEqual(stage51.unlockRequirement, .stageClear(stage41ID))
     }
 }

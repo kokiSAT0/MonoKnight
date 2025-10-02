@@ -89,7 +89,8 @@ public final class GameCore: ObservableObject {
             size: mode.boardSize,
             initialVisitedPoints: mode.initialVisitedPoints,
             requiredVisitOverrides: mode.additionalVisitRequirements,
-            togglePoints: mode.toggleTilePoints
+            togglePoints: mode.toggleTilePoints,
+            impassablePoints: mode.impassableTilePoints
         )
         current = mode.initialSpawnPoint ?? BoardGeometry.defaultSpawnPoint(for: mode.boardSize)
         deck = Deck(configuration: mode.deckConfiguration)
@@ -252,8 +253,9 @@ public final class GameCore: ObservableObject {
             // MoveCard.movementVectors が保持する全候補を展開し、1 ベクトルずつ ResolvedCardMove に変換する
             for vector in topCard.move.movementVectors {
                 let destination = origin.offset(dx: vector.dx, dy: vector.dy)
-                // 盤面外の移動は候補から除外
+                // 盤面外や移動不可マスへの移動は候補から除外
                 guard activeBoard.contains(destination) else { continue }
+                guard !mode.impassableTilePoints.contains(destination) else { continue }
 
                 resolved.append(
                     ResolvedCardMove(
@@ -438,6 +440,7 @@ extension GameCore {
     func handleSpawnSelection(at point: GridPoint) {
         guard mode.requiresSpawnSelection, progress == .awaitingSpawn else { return }
         guard board.contains(point) else { return }
+        guard !mode.impassableTilePoints.contains(point) else { return }
 
         debugLog("スポーン位置を \(point) に確定")
         current = point
@@ -503,13 +506,15 @@ extension GameCore {
                 size: mode.boardSize,
                 initialVisitedPoints: [resolvedCurrent],
                 requiredVisitOverrides: mode.additionalVisitRequirements,
-                togglePoints: mode.toggleTilePoints
+                togglePoints: mode.toggleTilePoints,
+                impassablePoints: mode.impassableTilePoints
             )
         } else {
             core.board = Board(
                 size: mode.boardSize,
                 requiredVisitOverrides: mode.additionalVisitRequirements,
-                togglePoints: mode.toggleTilePoints
+                togglePoints: mode.toggleTilePoints,
+                impassablePoints: mode.impassableTilePoints
             )
         }
         core.current = resolvedCurrent

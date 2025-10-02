@@ -592,6 +592,48 @@ public struct CampaignLibrary {
             stages: [stage41]
         )
 
-        return [chapter1, chapter2, chapter3, chapter4]
+        // MARK: - 5 章のステージ群
+        // 指示された (1,2) と (3,4) の移動不可マスは 1 始まり指定のため、0 始まりへ変換して格納する。
+        let impassablePointsChapter5: Set<GridPoint> = [
+            GridPoint(x: 0, y: 1),
+            GridPoint(x: 2, y: 3)
+        ]
+
+        // 5-1 は障害物を迂回しながら 5×5 を踏破する終盤訓練。移動不可マスでルート判断が難しくなる点を強調する。
+        let stage51 = CampaignStage(
+            id: CampaignStageID(chapter: 5, index: 1),
+            title: "障害物突破演習",
+            summary: "移動不可マスが配置された 5×5 で安全なルートを見極め、障害物を迂回する練習です。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .standard,
+                spawnRule: .fixed(BoardGeometry.defaultSpawnPoint(for: 5)),
+                penalties: GameMode.PenaltySettings(
+                    deadlockPenaltyCost: standardPenalties.deadlockPenaltyCost,
+                    manualRedrawPenaltyCost: standardPenalties.manualRedrawPenaltyCost,
+                    manualDiscardPenaltyCost: standardPenalties.manualDiscardPenaltyCost,
+                    revisitPenaltyCost: standardPenalties.revisitPenaltyCost
+                ),
+                impassableTilePoints: impassablePointsChapter5
+            ),
+            // MARK: 2 個目のスター条件: 障害物で狭まったルートでも 27 手以内で踏破しきる判断力を養う
+            secondaryObjective: .finishWithinMoves(maxMoves: 27),
+            // MARK: 3 個目のスター条件: 行き止まり回避とタイムマネジメントを両立し、スコア 500 以下にまとめる
+            scoreTarget: 500,
+            scoreTargetComparison: .lessThan,
+            unlockRequirement: .stageClear(stage41.id)
+        )
+
+        let chapter5 = CampaignChapter(
+            id: 5,
+            title: "障害物訓練", // 新章は移動不可マスの攻略に特化
+            summary: "移動不可マスのルート選択を学ぶ章。",
+            stages: [stage51]
+        )
+
+        return [chapter1, chapter2, chapter3, chapter4, chapter5]
     }
 }

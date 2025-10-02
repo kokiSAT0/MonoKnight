@@ -88,7 +88,8 @@ final class GameBoardBridgeViewModel: ObservableObject {
             initialBoardSize: mode.boardSize,
             initialVisitedPoints: mode.initialVisitedPoints,
             requiredVisitOverrides: mode.additionalVisitRequirements,
-            togglePoints: mode.toggleTilePoints
+            togglePoints: mode.toggleTilePoints,
+            impassablePoints: mode.impassableTilePoints
         )
         preparedScene.scaleMode = .resizeFill
         preparedScene.gameCore = core
@@ -152,6 +153,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
             // NOTE: マルチ踏破マスの枠線もテーマ側で厳選したハイコントラスト色を適用する
             boardTileMultiStroke: appTheme.skBoardTileMultiStroke,
             boardTileToggle: appTheme.skBoardTileToggle,
+            boardTileImpassable: appTheme.skBoardTileImpassable,
             boardKnight: appTheme.skBoardKnight,
             boardGuideHighlight: appTheme.skBoardGuideHighlight
         )

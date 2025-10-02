@@ -454,6 +454,16 @@ struct AppTheme: DynamicProperty {
         }
     }
 
+    /// 移動不可マスの塗り色（障害物として一目で判別できるよう濃いトーンを採用）
+    var boardTileImpassable: Color {
+        switch resolvedColorScheme {
+        case .dark:
+            return Color(white: 0.08)
+        default:
+            return Color(white: 0.15)
+        }
+    }
+
     /// 駒本体の塗り色（背景に応じて反転させコントラストを維持）
     var boardKnight: Color {
         switch resolvedColorScheme {
@@ -562,6 +572,14 @@ struct AppTheme: DynamicProperty {
         )
     }
 
+    /// SpriteKit 移動不可マス色の UIColor 版
+    var uiBoardTileImpassable: UIColor {
+        dynamicUIColor(
+            light: color(for: .light, keyPath: \.boardTileImpassable),
+            dark: color(for: .dark, keyPath: \.boardTileImpassable)
+        )
+    }
+
     /// SpriteKit 駒の UIColor 版
     var uiBoardKnight: UIColor {
         dynamicUIColor(
@@ -600,6 +618,8 @@ struct AppTheme: DynamicProperty {
 
     /// SpriteKit の SKColor へ変換したトグルマス色
     var skBoardTileToggle: SKColor { SKColor(cgColor: uiBoardTileToggle.cgColor) }
+    /// SpriteKit の SKColor へ変換した移動不可マス色
+    var skBoardTileImpassable: SKColor { SKColor(cgColor: uiBoardTileImpassable.cgColor) }
 
     /// SpriteKit の SKColor へ変換した駒の塗り色
     var skBoardKnight: SKColor { SKColor(cgColor: uiBoardKnight.cgColor) }

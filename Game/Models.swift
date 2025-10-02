@@ -75,6 +75,8 @@ public struct TileState: Equatable {
         case multi(required: Int)
         /// 踏むたびに踏破状態が反転するマス（ギミック用）
         case toggle
+        /// そもそも侵入できない障害物マス
+        case impassable
     }
 
     /// 現在の踏破挙動
@@ -90,6 +92,8 @@ public struct TileState: Equatable {
             return 1
         case .multi(let required):
             return max(required, 0)
+        case .impassable:
+            return 0
         }
     }
 
@@ -117,16 +121,25 @@ public struct TileState: Equatable {
             // トグルマスは踏破済みかどうかのみで判定するため 0 or 1 へ正規化する
             let initial = remainingVisitCount ?? 1
             self.remainingVisitCount = initial > 0 ? 1 : 0
+        case .impassable:
+            // 移動不可マスは常に踏破不要として扱い、残回数 0 で固定する
+            self.remainingVisitCount = 0
         }
     }
 
     /// マスが現在踏破済みかどうか
     public var isVisited: Bool { remainingVisitCount == 0 }
 
+    /// 侵入できない障害物かどうか
+    public var isImpassable: Bool {
+        if case .impassable = visitBehavior { return true }
+        return false
+    }
+
     /// 複数回踏破が必要かどうか
     public var requiresMultipleVisits: Bool {
         switch visitBehavior {
-        case .single, .toggle:
+        case .single, .toggle, .impassable:
             return false
         case .multi(let required):
             return required > 1
@@ -156,6 +169,9 @@ public struct TileState: Equatable {
         case .single, .multi:
             guard remainingVisitCount > 0 else { return }
             remainingVisitCount -= 1
+        case .impassable:
+            // 移動不可マスは踏破処理自体が発生しないため何もしない
+            return
         }
     }
 }
@@ -179,7 +195,8 @@ public struct Board: Equatable {
         size: Int,
         initialVisitedPoints: [GridPoint] = [],
         requiredVisitOverrides: [GridPoint: Int] = [:],
-        togglePoints: Set<GridPoint> = []
+        togglePoints: Set<GridPoint> = [],
+        impassablePoints: Set<GridPoint> = []
     ) {
         self.size = size
         let row = Array(repeating: TileState(), count: size)
@@ -193,8 +210,14 @@ public struct Board: Equatable {
         for point in togglePoints where contains(point) {
             tiles[point.y][point.x] = TileState(visitBehavior: .toggle)
         }
+        // 移動不可マスは最終的な優先度で上書きし、他ギミックよりも強く封鎖した状態にする
+        for point in impassablePoints where contains(point) {
+            tiles[point.y][point.x] = TileState(visitBehavior: .impassable)
+        }
         // 初期踏破マスを順番に処理し、盤面外の指定は安全に無視する
         for point in initialVisitedPoints where contains(point) {
+            // 移動不可マスは踏破対象外のため初期踏破処理から除外する
+            guard !tiles[point.y][point.x].isImpassable else { continue }
             tiles[point.y][point.x].markVisited()
         }
     }
@@ -225,7 +248,17 @@ public struct Board: Equatable {
     /// - Parameter point: 更新したい座標
     public mutating func markVisited(_ point: GridPoint) {
         guard contains(point) else { return }
+        // 移動不可マスは踏破対象外なので安全側で無視する
+        guard !tiles[point.y][point.x].isImpassable else { return }
         tiles[point.y][point.x].markVisited()
+    }
+
+    /// 指定座標が移動不可マスかどうかを判定する
+    /// - Parameter point: 判定したい座標
+    /// - Returns: 移動不可であれば true
+    public func isImpassable(_ point: GridPoint) -> Bool {
+        guard let state = state(at: point) else { return false }
+        return state.isImpassable
     }
 
     /// 未踏破マスの残数を計算して返す
@@ -361,6 +394,8 @@ extension Board {
                         }
                     case .single:
                         row += tile.isVisited ? "x " : ". "
+                    case .impassable:
+                        row += "# "
                     }
                 }
             }
