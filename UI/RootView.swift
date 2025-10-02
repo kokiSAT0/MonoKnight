@@ -139,8 +139,10 @@ final class RootViewStateStore: ObservableObject {
         }
     }
     /// 直近でゲーム準備を開始した文脈
-    /// - NOTE: キャンペーン経由の開始かどうかをローディングオーバーレイへ伝搬し、復帰先を切り替えるために保持する
-    @Published var lastPreparationContext: GamePreparationContext? {
+    /// - NOTE: 型である `GamePreparationContext` はファイル内 private 定義のため、
+    ///         ここでも `fileprivate` へ揃えてアクセスレベルの矛盾を無くし、
+    ///         Swift 6 の厳格化されたアクセス制御によるビルドエラーを防ぐ
+    @Published fileprivate var lastPreparationContext: GamePreparationContext? {
         didSet {
             guard oldValue != lastPreparationContext else { return }
             debugLog("RootView.lastPreparationContext 更新: \(String(describing: lastPreparationContext?.logIdentifier))")
@@ -148,7 +150,8 @@ final class RootViewStateStore: ObservableObject {
     }
     /// タイトル画面で再表示したいナビゲーション先
     /// - NOTE: ローディング中に戻った際も NavigationStack が目的の画面を即座に復元できるようにする
-    @Published var pendingTitleNavigationTarget: TitleNavigationTarget? {
+    ///         `TitleNavigationTarget` も private 定義のため、外部公開を避ける目的で `fileprivate` を明示する
+    @Published fileprivate var pendingTitleNavigationTarget: TitleNavigationTarget? {
         didSet {
             guard oldValue != pendingTitleNavigationTarget else { return }
             debugLog("RootView.pendingTitleNavigationTarget 更新: target=\(String(describing: pendingTitleNavigationTarget?.rawValue))")
