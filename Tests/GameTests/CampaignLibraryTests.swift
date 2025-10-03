@@ -307,7 +307,7 @@ final class CampaignLibraryTests: XCTestCase {
                 spawn: fixedSpawn4,
                 penalties: penalties,
                 secondary: .finishWithPenaltyAtMost(maxPenaltyCount: 5),
-                scoreTarget: 620,
+                scoreTarget: 450,
                 unlock: .chapterTotalStars(chapter: 1, minimum: 16),
                 additional: [GridPoint(x: 1, y: 1): 2, GridPoint(x: 2, y: 2): 2]
             ),
@@ -318,7 +318,7 @@ final class CampaignLibraryTests: XCTestCase {
                 spawn: chooseAny,
                 penalties: penalties,
                 secondary: .finishWithinMoves(maxMoves: 45),
-                scoreTarget: 600,
+                scoreTarget: 450,
                 unlock: .stageClear(CampaignStageID(chapter: 2, index: 1)),
                 additional: [GridPoint(x: 1, y: 1): 2, GridPoint(x: 3, y: 3): 2]
             ),
@@ -328,8 +328,8 @@ final class CampaignLibraryTests: XCTestCase {
                 deck: .kingAndKnightBasic,
                 spawn: chooseAny,
                 penalties: penalties,
-                secondary: .finishWithinMoves(maxMoves: 42),
-                scoreTarget: 590,
+                secondary: .finishWithinMoves(maxMoves: 40),
+                scoreTarget: 450,
                 unlock: .stageClear(CampaignStageID(chapter: 2, index: 2)),
                 additional: [GridPoint(x: 2, y: 2): 3]
             ),
@@ -372,10 +372,10 @@ final class CampaignLibraryTests: XCTestCase {
                 deck: .kingAndKnightBasic,
                 spawn: chooseAny,
                 penalties: penalties,
-                secondary: .finishWithinMoves(maxMoves: 36),
+                secondary: .finishWithinMoves(maxMoves: 38),
                 scoreTarget: 550,
                 unlock: .stageClear(CampaignStageID(chapter: 2, index: 6)),
-                additional: [GridPoint(x: 0, y: 0): 2, GridPoint(x: 2, y: 2): 3, GridPoint(x: 4, y: 4): 4]
+                additional: [GridPoint(x: 1, y: 1): 2, GridPoint(x: 2, y: 2): 3, GridPoint(x: 3, y: 3): 4]
             ),
             8: StageExpectation(
                 title: "総合演習",
@@ -383,14 +383,14 @@ final class CampaignLibraryTests: XCTestCase {
                 deck: .kingAndKnightBasic,
                 spawn: chooseAny,
                 penalties: penalties,
-                secondary: .finishWithinMoves(maxMoves: 34),
+                secondary: .finishWithinMoves(maxMoves: 40),
                 scoreTarget: 540,
                 unlock: .stageClear(CampaignStageID(chapter: 2, index: 7)),
                 additional: [
-                    GridPoint(x: 0, y: 0): 3,
-                    GridPoint(x: 4, y: 0): 3,
-                    GridPoint(x: 0, y: 4): 3,
-                    GridPoint(x: 4, y: 4): 3
+                    GridPoint(x: 1, y: 1): 3,
+                    GridPoint(x: 3, y: 1): 3,
+                    GridPoint(x: 1, y: 3): 3,
+                    GridPoint(x: 3, y: 3): 3
                 ]
             )
         ]
