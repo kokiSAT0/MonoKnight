@@ -1822,6 +1822,9 @@ fileprivate struct TitleScreenView: View {
                     progressStore: campaignProgressStore,
                     selectedStageID: highlightedCampaignStageID,
                     onClose: { popNavigationStack() },
+                    // NavigationStack の遷移では左上の戻るボタンのみを利用するため、
+                    // 閉じるボタンを無効化して重複導線を排除する
+                    showsCloseButton: false,
                     onSelectStage: { stage in
                         // 選択されたステージを一旦保持し、NavigationStack をリセットした後に開始処理をキューへ積む
                         handleCampaignStageSelection(stage)

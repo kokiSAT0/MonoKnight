@@ -13,6 +13,7 @@ struct CampaignStageSelectionView: View {
     /// クローズハンドラ
     let onClose: () -> Void
     /// ナビゲーションバーに閉じるボタンを表示するかどうか
+    /// - NOTE: モーダルシート表示では `true`、NavigationStack のプッシュ遷移では戻るボタンと役割が重複するため `false` を渡す想定
     let showsCloseButton: Bool
     /// ステージ決定時のハンドラ
     let onSelectStage: (CampaignStage) -> Void
@@ -29,7 +30,7 @@ struct CampaignStageSelectionView: View {
     ///   - selectedStageID: すでに選択済みのステージ ID
     ///   - onClose: ビューを閉じるためのコールバック
     ///   - onSelectStage: ステージ選択確定時に呼び出されるコールバック
-    ///   - showsCloseButton: ナビゲーションバーへ「閉じる」ボタンを表示するかどうか
+    ///   - showsCloseButton: ナビゲーションバーへ「閉じる」ボタンを表示するかどうか（モーダルシートでは `true`、NavigationStack 遷移では `false` を想定）
     init(
         campaignLibrary: CampaignLibrary,
         progressStore: CampaignProgressStore,
