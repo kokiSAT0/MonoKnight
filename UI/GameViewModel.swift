@@ -193,6 +193,10 @@ final class GameViewModel: ObservableObject {
     private var isTimerPausedForMenu = false
     /// scenePhase 変化によってタイマーを停止しているかどうか
     private var isTimerPausedForScenePhase = false
+    /// ゲーム準備オーバーレイ表示によってタイマーを停止しているかどうか
+    /// - Note: RootView のローディング表示中はポーズメニューや scenePhase とは独立して停止を維持するため、
+    ///         理由ごとに個別のフラグを持ち、復帰条件を正しく判定できるようにする。
+    private var isTimerPausedForPreparationOverlay = false
 
     /// ViewModel の初期化
     /// - Parameters:
@@ -629,10 +633,35 @@ final class GameViewModel: ObservableObject {
             isTimerPausedForScenePhase = false
             // ポーズメニュー表示中は再開しない
             guard !isPauseMenuPresented else { return }
+            // ローディングオーバーレイ表示中も再開しない
+            guard !isTimerPausedForPreparationOverlay else { return }
             core.resumeTimer(referenceDate: currentDateProvider())
 
         @unknown default:
             break
+        }
+    }
+
+    /// ゲーム準備オーバーレイの表示/非表示を受け取り、タイマー制御を統合する
+    /// - Parameter isVisible: 現在のローディング表示状態
+    func handlePreparationOverlayChange(isVisible: Bool) {
+        guard supportsTimerPausing else { return }
+
+        if isVisible {
+            // 既に他要因で停止している場合でも理由を保持し、復帰条件の判定に利用する
+            guard !isTimerPausedForPreparationOverlay else { return }
+            isTimerPausedForPreparationOverlay = true
+
+            // 実際にプレイ中であればタイマーを停止させ、ローディング表示中の時間加算を防ぐ
+            guard !isTimerPausedForMenu, !isTimerPausedForScenePhase, core.progress == .playing else { return }
+            core.pauseTimer(referenceDate: currentDateProvider())
+        } else {
+            guard isTimerPausedForPreparationOverlay else { return }
+            isTimerPausedForPreparationOverlay = false
+
+            // 他の理由で停止している場合は再開を保留し、復帰条件が揃ったタイミングまで待つ
+            guard !isTimerPausedForMenu, !isTimerPausedForScenePhase, core.progress == .playing else { return }
+            core.resumeTimer(referenceDate: currentDateProvider())
         }
     }
 
@@ -659,7 +688,8 @@ final class GameViewModel: ObservableObject {
         colorScheme: ColorScheme,
         guideModeEnabled: Bool,
         hapticsEnabled: Bool,
-        handOrderingStrategy: HandOrderingStrategy
+        handOrderingStrategy: HandOrderingStrategy,
+        isPreparationOverlayVisible: Bool
     ) {
         boardBridge.prepareForAppear(
             colorScheme: colorScheme,
@@ -670,6 +700,8 @@ final class GameViewModel: ObservableObject {
         self.guideModeEnabled = guideModeEnabled
         updateDisplayedElapsedTime()
         core.updateHandOrderingStrategy(handOrderingStrategy)
+        // GameView の表示前にローディングオーバーレイの状態を反映し、表示直後のタイマー暴走を防ぐ
+        handlePreparationOverlayChange(isVisible: isPreparationOverlayVisible)
     }
 
     /// ペナルティイベントを受信した際の処理
@@ -780,6 +812,7 @@ final class GameViewModel: ObservableObject {
         adsService.resetPlayFlag()
         isTimerPausedForMenu = false
         isTimerPausedForScenePhase = false
+        isTimerPausedForPreparationOverlay = false
     }
 
     /// 新しいプレイを始める際に必要な初期化処理を共通化する
@@ -789,6 +822,7 @@ final class GameViewModel: ObservableObject {
         core.reset()
         isTimerPausedForMenu = false
         isTimerPausedForScenePhase = false
+        isTimerPausedForPreparationOverlay = false
     }
 
     /// GameCore のストリームを監視し、UI 更新に必要な副作用を引き受ける
@@ -963,6 +997,8 @@ private extension GameViewModel {
             isTimerPausedForMenu = false
             // scenePhase 由来で停止している場合は復帰しない
             guard !isTimerPausedForScenePhase else { return }
+            // ローディングオーバーレイ表示中は復帰を保留する
+            guard !isTimerPausedForPreparationOverlay else { return }
             core.resumeTimer(referenceDate: currentDateProvider())
         }
     }

@@ -179,6 +179,38 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertEqual(returnToTitleCallCount, 1, "タイトル復帰通知がルートへ届いていません")
     }
 
+    /// ゲーム準備オーバーレイ表示中はキャンペーンタイマーが進行しないことを確認
+    func testPreparationOverlayPausesTimerDuringCampaignLoading() throws {
+        // UserDefaults 衝突を避けるため、テスト専用スイートを準備する
+        let (defaults, suiteName) = try makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        // キャンペーン 1-1 を利用してタイマー停止挙動を検証する
+        guard let campaignMode = CampaignLibrary.shared.stage(with: CampaignStageID(chapter: 1, index: 1))?.makeGameMode() else {
+            XCTFail("キャンペーンモードの取得に失敗しました")
+            return
+        }
+
+        let dateProvider = MutableDateProvider(now: Date(timeIntervalSince1970: 50_000))
+        let (viewModel, core) = makeViewModel(
+            mode: campaignMode,
+            campaignProgressStore: CampaignProgressStore(userDefaults: defaults),
+            dateProvider: dateProvider
+        )
+
+        // 120 秒経過した状態を再現してからローディングオーバーレイを表示する
+        core.setStartDateForTesting(dateProvider.now.addingTimeInterval(-120))
+        XCTAssertEqual(core.liveElapsedSecondsForTesting(asOf: dateProvider.now), 120, "前提となる経過時間の再現に失敗しました")
+
+        viewModel.handlePreparationOverlayChange(isVisible: true)
+        dateProvider.now = dateProvider.now.addingTimeInterval(60)
+        XCTAssertEqual(core.liveElapsedSecondsForTesting(asOf: dateProvider.now), 120, "ローディング表示中に経過秒数が増加しています")
+
+        viewModel.handlePreparationOverlayChange(isVisible: false)
+        dateProvider.now = dateProvider.now.addingTimeInterval(30)
+        XCTAssertEqual(core.liveElapsedSecondsForTesting(asOf: dateProvider.now), 150, "ローディング解除後に計測が再開されていません")
+    }
+
     /// キャンペーンモードではポーズメニュー表示中にタイマーが停止し、ハイスコアモードでは継続することを確認
     func testPauseMenuControlsTimerOnlyForCampaignMode() throws {
         let (defaults, suiteName) = try makeIsolatedDefaults()

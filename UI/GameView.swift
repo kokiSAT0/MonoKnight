@@ -41,6 +41,10 @@ struct GameView: View {
     /// 手札スロットの数（常に 5 スロット分の枠を確保してレイアウトを安定させる）
     /// - Note: レイアウト拡張でハンド UI の構築にも利用するため、アクセスレベルは internal にとどめて同一型内で共有している。
     let handSlotCount = 5
+    /// ゲーム準備オーバーレイの表示状態を親ビューから受け取り、タイマー制御と同期する
+    /// - Note: RootView 側のローディング表示と GameViewModel 内の pause/resume 呼び出しを結び付けるため、
+    ///         `@Binding` を用いて双方向に状態を監視できるようにしている。
+    @Binding var isPreparationOverlayVisible: Bool
     /// Game Center 認証済みかどうかの状態。ResultView のボタン表示や ViewModel 連携で利用する。
     let isGameCenterAuthenticated: Bool
     /// Game Center への再サインインをルートビューへ依頼するためのクロージャ。
@@ -82,12 +86,14 @@ struct GameView: View {
     /// - Parameters:
     ///   - mode: 表示したいゲームモード
     ///   - gameInterfaces: GameCore 生成を担当するファクトリセット（省略時は `.live`）
+    ///   - isPreparationOverlayVisible: RootView が保持するローディング表示のバインディング
     ///   - onRequestReturnToTitle: タイトル画面への遷移要求クロージャ（省略可）
     ///   - onRequestStartCampaignStage: キャンペーンの別ステージを開始するリクエストクロージャ
     init(
         mode: GameMode = .standard,
         gameInterfaces: GameModuleInterfaces = .live,
         isGameCenterAuthenticated: Bool? = nil,
+        isPreparationOverlayVisible: Binding<Bool> = .constant(false),
         onRequestGameCenterSignIn: ((GameCenterSignInPromptReason) -> Void)? = nil,
         onRequestReturnToTitle: (() -> Void)? = nil,
         onRequestStartCampaignStage: ((CampaignStage) -> Void)? = nil
@@ -100,6 +106,7 @@ struct GameView: View {
             gameCenterService: GameCenterService.shared,
             adsService: AdsService.shared,
             campaignProgressStore: CampaignProgressStore(),
+            isPreparationOverlayVisible: isPreparationOverlayVisible,
             isGameCenterAuthenticated: resolvedIsAuthenticated,
             onRequestGameCenterSignIn: onRequestGameCenterSignIn,
             onRequestReturnToTitle: onRequestReturnToTitle,
@@ -108,12 +115,24 @@ struct GameView: View {
     }
 
     /// 初期化で ViewModel を組み立て、GameCore と GameScene を橋渡しする
+    /// - Parameters:
+    ///   - mode: 利用するゲームモード
+    ///   - gameInterfaces: GameCore 生成用の依存セット
+    ///   - gameCenterService: Game Center 連携サービス
+    ///   - adsService: 広告制御サービス
+    ///   - campaignProgressStore: キャンペーン進捗ストア
+    ///   - isPreparationOverlayVisible: ローディング表示状態を伝えるバインディング
+    ///   - isGameCenterAuthenticated: Game Center 認証状態
+    ///   - onRequestGameCenterSignIn: サインイン依頼クロージャ
+    ///   - onRequestReturnToTitle: タイトル復帰依頼クロージャ
+    ///   - onRequestStartCampaignStage: キャンペーン継続依頼クロージャ
     init(
         mode: GameMode,
         gameInterfaces: GameModuleInterfaces,
         gameCenterService: GameCenterServiceProtocol,
         adsService: AdsServiceProtocol,
         campaignProgressStore: CampaignProgressStore,
+        isPreparationOverlayVisible: Binding<Bool>,
         isGameCenterAuthenticated: Bool?,
         onRequestGameCenterSignIn: ((GameCenterSignInPromptReason) -> Void)? = nil,
         onRequestReturnToTitle: (() -> Void)? = nil,
@@ -128,6 +147,7 @@ struct GameView: View {
         // MARK: - ユーザー設定を読み出して ViewModel 初期化へ渡す
         // `StateObject` へ直接クロージャを渡し、SwiftUI 側で既存インスタンスが再利用される場合はイニシャライザ評価をスキップさせる。
         let savedOrdering = UserDefaults.standard.string(forKey: HandOrderingStrategy.storageKey)
+        _isPreparationOverlayVisible = isPreparationOverlayVisible
         self.isGameCenterAuthenticated = resolvedIsAuthenticated
         self.onRequestGameCenterSignIn = onRequestGameCenterSignIn
         _viewModel = StateObject(
