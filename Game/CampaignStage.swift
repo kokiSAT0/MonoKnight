@@ -1262,7 +1262,7 @@ public struct CampaignLibrary {
                 nextPreviewCount: 3,
                 allowsStacking: true,
                 deckPreset: .standardWithAllChoices,
-                spawnRule: fixedSpawn5,
+                spawnRule: .chooseAnyAfterPreview, // 中央を含む障害物 `stage52Impassable` に合わせ、任意スポーンで初期詰みを回避
                 penalties: chapter5Penalties,
                 impassableTilePoints: stage52Impassable
             ),
@@ -1454,7 +1454,7 @@ public struct CampaignLibrary {
                 nextPreviewCount: 3,
                 allowsStacking: true,
                 deckPreset: .standardWithAllChoices,
-                spawnRule: fixedSpawn5,
+                spawnRule: .chooseAnyAfterPreview, // 中央を塞ぐ障害物と多重踏破の同居に合わせ、任意スポーンで整合性を確保
                 penalties: chapter5NoPenalty,
                 additionalVisitRequirements: stage58Additional,
                 toggleTilePoints: stage58Toggles,
