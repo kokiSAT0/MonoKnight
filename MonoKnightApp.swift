@@ -21,6 +21,8 @@ struct MonoKnightApp: App {
     @StateObject private var storeService: AnyStoreService
     /// 日替わりチャレンジの挑戦回数を管理するストア
     @StateObject private var dailyChallengeAttemptStore: AnyDailyChallengeAttemptStore
+    /// 日替わりチャレンジのレギュレーション定義を提供するサービス
+    @StateObject private var dailyChallengeDefinitionService: DailyChallengeDefinitionService
 
     /// 同意フローが完了したかどうかを保持するフラグ
     /// - NOTE: `UserDefaults` と連携し、次回以降はスキップする
@@ -64,6 +66,7 @@ struct MonoKnightApp: App {
             self.adsService = mockAds
             _storeService = StateObject(wrappedValue: AnyStoreService(base: mockStore))
             _dailyChallengeAttemptStore = StateObject(wrappedValue: AnyDailyChallengeAttemptStore(base: mockDailyStore))
+            _dailyChallengeDefinitionService = StateObject(wrappedValue: DailyChallengeDefinitionService())
         } else {
             // 通常起動時はシングルトンを利用
             let liveGameCenter = GameCenterService.shared
@@ -74,6 +77,7 @@ struct MonoKnightApp: App {
             self.adsService = liveAds
             _storeService = StateObject(wrappedValue: AnyStoreService(base: liveStore))
             _dailyChallengeAttemptStore = StateObject(wrappedValue: AnyDailyChallengeAttemptStore(base: liveDailyStore))
+            _dailyChallengeDefinitionService = StateObject(wrappedValue: DailyChallengeDefinitionService())
         }
     }
 
@@ -87,7 +91,8 @@ struct MonoKnightApp: App {
                     RootView(
                         gameCenterService: gameCenterService,
                         adsService: adsService,
-                        dailyChallengeAttemptStore: dailyChallengeAttemptStore
+                        dailyChallengeAttemptStore: dailyChallengeAttemptStore,
+                        dailyChallengeDefinitionService: dailyChallengeDefinitionService
                     )
                 } else {
                     // 同意取得前はオンボーディング画面を表示
