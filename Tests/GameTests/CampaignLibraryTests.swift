@@ -696,7 +696,7 @@ final class CampaignLibraryTests: XCTestCase {
                 title: "障害物応用",
                 boardSize: 5,
                 deck: .standardWithAllChoices,
-                spawn: fixedSpawn5,
+                spawn: chooseAny,
                 penalties: penalties,
                 secondary: .finishWithPenaltyAtMost(maxPenaltyCount: 2),
                 scoreTarget: 490,
@@ -769,7 +769,7 @@ final class CampaignLibraryTests: XCTestCase {
                 title: "最終試験",
                 boardSize: 5,
                 deck: .standardWithAllChoices,
-                spawn: fixedSpawn5,
+                spawn: chooseAny,
                 penalties: noPenalty,
                 secondary: .finishWithoutPenaltyAndWithinMoves(maxMoves: 34),
                 scoreTarget: 430,
@@ -792,6 +792,28 @@ final class CampaignLibraryTests: XCTestCase {
             XCTAssertEqual(stage.regulation.additionalVisitRequirements, expectation.additional)
             XCTAssertEqual(stage.secondaryObjective, expectation.secondary)
             XCTAssertEqual(stage.unlockRequirement, expectation.unlock)
+        }
+    }
+
+    /// 全ステージの固定スポーンが障害物と重なっていないかを網羅的に検証する
+    /// - Important: 任意スポーンはプレイヤーが安全マスを選べるため検証対象外とし、固定スポーンのみ `impassableTilePoints` との矛盾をチェックする
+    func testFixedSpawnDoesNotOverlapImpassableTiles() {
+        let library = CampaignLibrary.shared
+
+        for chapter in library.chapters {
+            for stage in chapter.stages {
+                switch stage.regulation.spawnRule {
+                case .fixed(let spawnPoint):
+                    // 障害物と固定スポーンが衝突すると開幕で移動できないため、定義ミスを検知する
+                    XCTAssertFalse(
+                        stage.regulation.impassableTilePoints.contains(spawnPoint),
+                        "ステージ \(stage.displayCode) の固定スポーンが障害物マスと重なっています"
+                    )
+                case .chooseAnyAfterPreview:
+                    // 任意スポーンはプレイヤーが配置を調整できるため、ここでの追加検証は不要
+                    continue
+                }
+            }
         }
     }
 }
