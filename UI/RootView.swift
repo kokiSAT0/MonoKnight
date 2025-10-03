@@ -19,6 +19,8 @@ struct RootView: View {
     private let adsService: AdsServiceProtocol
     /// 日替わりチャレンジの挑戦回数ストア
     private let dailyChallengeAttemptStore: AnyDailyChallengeAttemptStore
+    /// 日替わりチャレンジのレギュレーション定義サービス
+    private let dailyChallengeDefinitionService: DailyChallengeDefinitionProviding
     /// キャンペーンステージ定義を参照するライブラリ
     private let campaignLibrary = CampaignLibrary.shared
     /// デバイスの横幅サイズクラスを参照し、iPad などレギュラー幅での余白やログ出力を調整する
@@ -35,17 +37,20 @@ struct RootView: View {
     init(gameInterfaces: GameModuleInterfaces = .live,
          gameCenterService: GameCenterServiceProtocol? = nil,
          adsService: AdsServiceProtocol? = nil,
-         dailyChallengeAttemptStore: AnyDailyChallengeAttemptStore? = nil) {
+         dailyChallengeAttemptStore: AnyDailyChallengeAttemptStore? = nil,
+         dailyChallengeDefinitionService: DailyChallengeDefinitionProviding? = nil) {
         // Swift 6 ではデフォルト引数の評価が非分離コンテキストで行われるため、
         // `@MainActor` に隔離されたシングルトンを安全に利用するためにイニシャライザ内で解決する。
         let resolvedGameCenterService = gameCenterService ?? GameCenterService.shared
         let resolvedAdsService = adsService ?? AdsService.shared
         let resolvedDailyStore = dailyChallengeAttemptStore ?? AnyDailyChallengeAttemptStore(base: DailyChallengeAttemptStore())
+        let resolvedDailyDefinitionService = dailyChallengeDefinitionService ?? DailyChallengeDefinitionService()
 
         self.gameInterfaces = gameInterfaces
         self.gameCenterService = resolvedGameCenterService
         self.adsService = resolvedAdsService
         self.dailyChallengeAttemptStore = resolvedDailyStore
+        self.dailyChallengeDefinitionService = resolvedDailyDefinitionService
         // 画面状態を一括管理するステートストアを生成し、初期認証状態を反映する。
         _stateStore = StateObject(
             wrappedValue: RootViewStateStore(
@@ -230,6 +235,8 @@ private enum GamePreparationContext: Equatable {
     case campaignContinuation
     /// ハイスコア関連のセレクターから開始されたケース
     case highScoreSelection
+    /// 日替わりチャレンジ画面から開始されたケース
+    case dailyChallenge
     /// 上記以外の導線
     case other
 
@@ -242,6 +249,8 @@ private enum GamePreparationContext: Equatable {
             return "campaign_continuation"
         case .highScoreSelection:
             return "high_score_selection"
+        case .dailyChallenge:
+            return "daily_challenge"
         case .other:
             return "other"
         }
@@ -252,7 +261,7 @@ private enum GamePreparationContext: Equatable {
         switch self {
         case .campaignStageSelection, .campaignContinuation:
             return true
-        case .highScoreSelection, .other:
+        case .highScoreSelection, .dailyChallenge, .other:
             return false
         }
     }
@@ -329,6 +338,8 @@ fileprivate extension RootView {
             adsService: adsService,
             campaignLibrary: campaignLibrary,
             campaignProgressStore: campaignProgressStore,
+            dailyChallengeDefinitionService: dailyChallengeDefinitionService,
+            dailyChallengeAttemptStore: dailyChallengeAttemptStore,
             isAuthenticated: stateStore.binding(for: \.isAuthenticated),
             isShowingTitleScreen: stateStore.binding(for: \.isShowingTitleScreen),
             isPreparingGame: stateStore.binding(for: \.isPreparingGame),
@@ -429,6 +440,10 @@ fileprivate extension RootView {
         let campaignLibrary: CampaignLibrary
         /// キャンペーン進捗ストア
         @ObservedObject var campaignProgressStore: CampaignProgressStore
+        /// 日替わりチャレンジのレギュレーション定義サービス
+        let dailyChallengeDefinitionService: DailyChallengeDefinitionProviding
+        /// 日替わりチャレンジの挑戦回数ストア
+        @ObservedObject var dailyChallengeAttemptStore: AnyDailyChallengeAttemptStore
         /// Game Center 認証状態
         @Binding var isAuthenticated: Bool
         /// タイトル表示中かどうか
@@ -620,6 +635,10 @@ fileprivate extension RootView {
             if isShowingTitleScreen {
                 TitleScreenView(
                     campaignProgressStore: campaignProgressStore,
+                    dailyChallengeAttemptStore: dailyChallengeAttemptStore,
+                    dailyChallengeDefinitionService: dailyChallengeDefinitionService,
+                    adsService: adsService,
+                    gameCenterService: gameCenterService,
                     pendingNavigationTarget: $pendingTitleNavigationTarget,
                     onStart: { mode, context in
                         // 選択されたモードでゲーム準備を開始する
@@ -1484,7 +1503,11 @@ fileprivate struct TopStatusInsetView: View {
 // MARK: - タイトル画面（リニューアル）
 fileprivate struct TitleScreenView: View {
     @ObservedObject var campaignProgressStore: CampaignProgressStore
+    @ObservedObject var dailyChallengeAttemptStore: AnyDailyChallengeAttemptStore
     @Binding private var pendingNavigationTarget: TitleNavigationTarget?
+    let dailyChallengeDefinitionService: DailyChallengeDefinitionProviding
+    let adsService: AdsServiceProtocol
+    let gameCenterService: GameCenterServiceProtocol
     let onStart: (GameMode, GamePreparationContext) -> Void
     let onOpenSettings: () -> Void
 
@@ -1504,6 +1527,8 @@ fileprivate struct TitleScreenView: View {
         case campaignStageSelection = "campaign_stage_selection"
         /// ハイスコア選択画面から開始するケース
         case highScoreSelection = "high_score_selection"
+        /// デイリーチャレンジ詳細画面から開始するケース
+        case dailyChallenge = "daily_challenge"
 
         /// ログ出力向けに読みやすい説明文を返す
         var logDescription: String {
@@ -1512,6 +1537,8 @@ fileprivate struct TitleScreenView: View {
                 return "キャンペーン一覧から開始"
             case .highScoreSelection:
                 return "ハイスコア選択から開始"
+            case .dailyChallenge:
+                return "デイリーチャレンジ詳細から開始"
             }
         }
 
@@ -1522,19 +1549,30 @@ fileprivate struct TitleScreenView: View {
                 return .campaignStageSelection
             case .highScoreSelection:
                 return .highScoreSelection
+            case .dailyChallenge:
+                return .dailyChallenge
             }
         }
     }
 
     init(campaignProgressStore: CampaignProgressStore,
+         dailyChallengeAttemptStore: AnyDailyChallengeAttemptStore,
+         dailyChallengeDefinitionService: DailyChallengeDefinitionProviding,
+         adsService: AdsServiceProtocol,
+         gameCenterService: GameCenterServiceProtocol,
          pendingNavigationTarget: Binding<TitleNavigationTarget?>,
          onStart: @escaping (GameMode, GamePreparationContext) -> Void,
          onOpenSettings: @escaping () -> Void) {
         self._campaignProgressStore = ObservedObject(wrappedValue: campaignProgressStore)
+        self._dailyChallengeAttemptStore = ObservedObject(wrappedValue: dailyChallengeAttemptStore)
         self._pendingNavigationTarget = pendingNavigationTarget
+        self.dailyChallengeDefinitionService = dailyChallengeDefinitionService
+        self.adsService = adsService
+        self.gameCenterService = gameCenterService
         self.onStart = onStart
         self.onOpenSettings = onOpenSettings
         _isPresentingHowToPlay = State(initialValue: false)
+        dailyChallengeAttemptStore.refreshForCurrentDate()
         debugLog("TitleScreenView.init開始: instance=\(instanceIdentifier.uuidString) navigationPathCount=\(_navigationPath.wrappedValue.count)")
     }
 
@@ -1558,6 +1596,9 @@ fileprivate struct TitleScreenView: View {
         }
         .onChange(of: isPresentingHowToPlay) { _, newValue in
             debugLog("TitleScreenView.isPresentingHowToPlay 更新: \(newValue)")
+        }
+        .onAppear {
+            dailyChallengeAttemptStore.refreshForCurrentDate()
         }
         .onChange(of: navigationPath) { oldValue, newValue in
             let stackDescription = newValue
@@ -1670,9 +1711,6 @@ fileprivate struct TitleScreenView: View {
                 .font(.system(size: 18, weight: .semibold, design: .rounded))
                 .foregroundColor(theme.textPrimary)
 
-            // デイリーチャレンジがダミーであることを明示し、混乱を避ける
-            dailyChallengeNoticeCard
-
             VStack(spacing: 14) {
                 featureTile(
                     target: .campaign,
@@ -1765,39 +1803,6 @@ fileprivate struct TitleScreenView: View {
         .accessibilityHint(Text(accessibilityHint))
     }
 
-    private var dailyChallengeNoticeCard: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: "info.circle")
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(theme.accentPrimary)
-                .accessibilityHidden(true)
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text("日替わりモードは現在プレオープン中です")
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
-                    .foregroundStyle(theme.textPrimary)
-
-                Text("詳細画面では公開準備の状況のみ表示されます。実際のチャレンジは近日中に提供予定です。")
-                    .font(.system(size: 13, weight: .regular, design: .rounded))
-                    .foregroundStyle(theme.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(theme.backgroundElevated.opacity(0.9))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(theme.statisticBadgeBorder.opacity(0.8), lineWidth: 1)
-        )
-        // VoiceOver で日替わりモードが準備中であることを冒頭で伝える
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("デイリーチャレンジは準備中です。詳細画面では状況のみ確認できます。")
-    }
-
     private func navigationDestinationView(for target: TitleNavigationTarget) -> some View {
         switch target {
         case .campaign:
@@ -1852,14 +1857,29 @@ fileprivate struct TitleScreenView: View {
                 }
             )
         case .dailyChallenge:
+            let viewModel = DailyChallengeViewModel(
+                attemptStore: dailyChallengeAttemptStore,
+                definitionService: dailyChallengeDefinitionService,
+                adsService: adsService,
+                gameCenterService: gameCenterService
+            )
             return AnyView(
-                DailyChallengePlaceholderView(
+                DailyChallengeView(
+                    viewModel: viewModel,
                     onDismiss: {
-                        // NavigationStack の状態を確実に戻し、タイトルへ復帰させる
                         popNavigationStack()
+                    },
+                    onStart: { mode in
+                        let context: StartTriggerContext = .dailyChallenge
+                        debugLog("TitleScreenView: デイリーチャレンジ開始要求 -> mode=\(mode.identifier.rawValue) context=\(context.rawValue)")
+                        resetNavigationStack()
+                        DispatchQueue.main.async {
+                            triggerImmediateStart(for: mode, context: context)
+                        }
                     }
                 )
                 .onAppear {
+                    dailyChallengeAttemptStore.refreshForCurrentDate()
                     debugLog("TitleScreenView: NavigationDestination.dailyChallenge 表示 -> 現在のスタック数=\(navigationPath.count)")
                 }
                 .onDisappear {
@@ -2043,11 +2063,20 @@ private extension TitleScreenView {
     }
 
     var dailyChallengeTileHeadline: String {
-        "準備中: 近日公開予定"
+        let info = dailyChallengeInfo
+        let remaining = dailyChallengeAttemptStore.remainingAttempts
+        return "\(info.mode.displayName) ・ 残り \(remaining) 回"
     }
 
     var dailyChallengeTileDetail: String {
-        "現在はプレオープン情報のみ確認できます"
+        let info = dailyChallengeInfo
+        let granted = dailyChallengeAttemptStore.rewardedAttemptsGranted
+        let maximumRewarded = dailyChallengeAttemptStore.maximumRewardedAttempts
+        return "\(info.regulationPrimaryText) ・ 広告追加 \(granted)/\(maximumRewarded)"
+    }
+
+    var dailyChallengeInfo: DailyChallengeDefinitionService.ChallengeInfo {
+        dailyChallengeDefinitionService.challengeInfo(for: Date())
     }
 
     var bestPointsDescription: String {

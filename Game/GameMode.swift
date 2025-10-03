@@ -602,7 +602,7 @@ public struct GameMode: Equatable, Identifiable {
     /// レギュレーション比較が必要な識別子かどうかをまとめたヘルパー
     private var requiresRegulationComparison: Bool {
         switch identifier {
-        case .freeCustom, .campaignStage, .dailyFixed, .dailyRandom:
+        case .freeCustom, .campaignStage, .dailyFixed, .dailyRandom, .dailyFixedChallenge, .dailyRandomChallenge:
             return true
         case .standard5x5, .classicalChallenge:
             return false
