@@ -31,7 +31,8 @@ protocol RewardedAdControlling: AnyObject, FullScreenContentDelegate, AdsConsent
 protocol RewardedAdPresentable: AnyObject, FullScreenPresentingAd {
     var fullScreenContentDelegate: FullScreenContentDelegate? { get set }
     /// SDK 本体の `present(fromRootViewController:userDidEarnRewardHandler:)` を安全に呼び出すための独自シグネチャ
-    func presentAd(from viewController: UIViewController, userDidEarnRewardHandler: @escaping () -> Void)
+    /// - 注意: SDK のメソッドと名前が衝突しないよう、あえて `presentRewardedAd` にリネームしている
+    func presentRewardedAd(from viewController: UIViewController, userDidEarnRewardHandler: @escaping () -> Void)
 }
 
 /// GoogleMobileAds.RewardedAd をアプリ側の抽象インターフェースに橋渡しするアダプター
@@ -61,7 +62,7 @@ final class RewardedAdAdapter: NSObject, RewardedAdPresentable {
     }
 
     // MARK: - RewardedAdPresentable
-    func presentAd(from viewController: UIViewController, userDidEarnRewardHandler: @escaping () -> Void) {
+    func presentRewardedAd(from viewController: UIViewController, userDidEarnRewardHandler: @escaping () -> Void) {
         // SDK が提供する正式な present API を直接叩くことで、ラッパー内での自己再帰を確実に排除する
         rewardedAd.present(
             from: viewController,
@@ -168,8 +169,8 @@ final class RewardedAdController: NSObject, RewardedAdControlling {
         return await withCheckedContinuation { continuation in
             pendingContinuation = continuation
             debugLog("RewardedAdController: リワード広告の表示を開始します")
-            // `presentAd` は SDK の `present(from:)` へ橋渡しする独自ラッパーであり、メソッド名衝突による無限再帰を防ぐ
-            rewardedAd.presentAd(from: root) { [weak self] in
+            // `presentRewardedAd` は SDK の `present(from:)` へ橋渡しする独自ラッパーであり、メソッド名衝突による無限再帰を防ぐ
+            rewardedAd.presentRewardedAd(from: root) { [weak self] in
                 self?.didEarnRewardInCurrentPresentation = true
                 debugLog("RewardedAdController: ユーザーが報酬条件を満たしました")
             }
