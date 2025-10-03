@@ -587,7 +587,7 @@ public struct CampaignLibrary {
                 additionalVisitRequirements: stage21DoubleVisit
             ),
             secondaryObjective: .finishWithPenaltyAtMost(maxPenaltyCount: 5),
-            scoreTarget: 620,
+            scoreTarget: 450,
             scoreTargetComparison: .lessThanOrEqual,
             unlockRequirement: .stageClear(stage18.id)
         )
@@ -612,19 +612,19 @@ public struct CampaignLibrary {
                 additionalVisitRequirements: stage22DoubleVisit
             ),
             secondaryObjective: .finishWithinMoves(maxMoves: 45),
-            scoreTarget: 600,
+            scoreTarget: 450,
             scoreTargetComparison: .lessThanOrEqual,
             unlockRequirement: .stageClear(stage21.id)
         )
 
-        // 2-3: 中央三重踏みのテンポを身体で覚えるステージ。42 手以内が目標。
+        // 2-3: 中央三重踏みのテンポを身体で覚えるステージ。40 手以内が目標。
         let stage23TripleVisit: [GridPoint: Int] = [
             GridPoint(x: 2, y: 2): 3
         ]
         let stage23 = CampaignStage(
             id: CampaignStageID(chapter: 2, index: 3),
             title: "三重踏み入門",
-            summary: "中央マスを 3 回踏む課題です。ペナルティを抑えつつ 42 手以内を目指しましょう。",
+            summary: "中央マスを 3 回踏む課題です。ペナルティを抑えつつ 40 手以内を目指しましょう。",
             regulation: GameMode.Regulation(
                 boardSize: 5,
                 handSize: 5,
@@ -635,8 +635,8 @@ public struct CampaignLibrary {
                 penalties: chapter2Penalties,
                 additionalVisitRequirements: stage23TripleVisit
             ),
-            secondaryObjective: .finishWithinMoves(maxMoves: 42),
-            scoreTarget: 590,
+            secondaryObjective: .finishWithinMoves(maxMoves: 40),
+            scoreTarget: 450,
             scoreTargetComparison: .lessThanOrEqual,
             unlockRequirement: .stageClear(stage22.id)
         )
@@ -715,16 +715,16 @@ public struct CampaignLibrary {
             unlockRequirement: .stageClear(stage25.id)
         )
 
-        // 2-7: 2・3・4 回踏みを混在させ、36 手以内に収める応用課題。
+        // 2-7: 2・3・4 回踏みを混在させ、38 手以内に収める応用課題。
         let stage27MixedVisit: [GridPoint: Int] = [
-            GridPoint(x: 0, y: 0): 2,
+            GridPoint(x: 1, y: 1): 2,
             GridPoint(x: 2, y: 2): 3,
-            GridPoint(x: 4, y: 4): 4
+            GridPoint(x: 3, y: 3): 4
         ]
         let stage27 = CampaignStage(
             id: CampaignStageID(chapter: 2, index: 7),
             title: "複合課題",
-            summary: "踏破回数の異なるマスを組み合わせ、36 手以内で全域を巡る応用ステージです。",
+            summary: "踏破回数の異なるマスを組み合わせ、38 手以内で全域を巡る応用ステージです。",
             regulation: GameMode.Regulation(
                 boardSize: 5,
                 handSize: 5,
@@ -735,23 +735,23 @@ public struct CampaignLibrary {
                 penalties: chapter2Penalties,
                 additionalVisitRequirements: stage27MixedVisit
             ),
-            secondaryObjective: .finishWithinMoves(maxMoves: 36),
+            secondaryObjective: .finishWithinMoves(maxMoves: 38),
             scoreTarget: 550,
             scoreTargetComparison: .lessThanOrEqual,
             unlockRequirement: .stageClear(stage26.id)
         )
 
-        // 2-8: 四隅の三重踏みをすべて達成する総合演習。任意スポーンでも 34 手以内を目指す。
+        // 2-8: 盤面中央寄りの三重踏みをすべて達成する総合演習。任意スポーンでも 40 手以内を目指す。
         let stage28QuadCorners: [GridPoint: Int] = [
-            GridPoint(x: 0, y: 0): 3,
-            GridPoint(x: 4, y: 0): 3,
-            GridPoint(x: 0, y: 4): 3,
-            GridPoint(x: 4, y: 4): 3
+            GridPoint(x: 1, y: 1): 3,
+            GridPoint(x: 3, y: 1): 3,
+            GridPoint(x: 1, y: 3): 3,
+            GridPoint(x: 3, y: 3): 3
         ]
         let stage28 = CampaignStage(
             id: CampaignStageID(chapter: 2, index: 8),
             title: "総合演習",
-            summary: "四隅の三重踏みを順序良く処理し、34 手以内で締める総仕上げです。",
+            summary: "盤面中央寄りの三重踏みを順序良く処理し、40 手以内で締める総仕上げです。",
             regulation: GameMode.Regulation(
                 boardSize: 5,
                 handSize: 5,
@@ -762,7 +762,7 @@ public struct CampaignLibrary {
                 penalties: chapter2Penalties,
                 additionalVisitRequirements: stage28QuadCorners
             ),
-            secondaryObjective: .finishWithinMoves(maxMoves: 34),
+            secondaryObjective: .finishWithinMoves(maxMoves: 40),
             scoreTarget: 540,
             scoreTargetComparison: .lessThanOrEqual,
             unlockRequirement: .stageClear(stage27.id)
