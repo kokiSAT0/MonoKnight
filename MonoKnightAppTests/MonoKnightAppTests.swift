@@ -127,4 +127,15 @@ struct MonoKnightAppTests {
             #expect(authState.wrappedValue == true)
         }
     }
+
+    /// 日替わりモード用リーダーボード ID のマッピングが期待通りかを検証する
+    /// - Note: GameCenterService 側で xcconfig 差し替えを行う前提のため、仮 ID を固定で確認しておく
+    @MainActor
+    @Test func leaderboardIdentifier_dailyModes_haveExpectedTestIDs() throws {
+        let service = GameCenterService.shared
+        // 日替わり固定シード用リーダーボードの ID を確認
+        #expect(service.leaderboardIdentifier(for: .dailyFixedChallenge) == "test_daily_fixed_v1")
+        // 日替わりランダムシード用リーダーボードの ID を確認
+        #expect(service.leaderboardIdentifier(for: .dailyRandomChallenge) == "test_daily_random_v1")
+    }
 }

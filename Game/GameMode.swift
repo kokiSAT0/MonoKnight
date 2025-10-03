@@ -122,6 +122,8 @@ public struct GameMode: Equatable, Identifiable {
     public enum Identifier: String, CaseIterable {
         case standard5x5
         case classicalChallenge
+        case dailyFixedChallenge   // 日替わり固定シード用モード。Game Center の仮 ID から本番 ID へ差し替える想定
+        case dailyRandomChallenge  // 日替わりランダムシード用モード。将来的に xcconfig で ID を設定予定
         case freeCustom
         case campaignStage
     }
@@ -412,6 +414,10 @@ public struct GameMode: Equatable, Identifiable {
             return "square.grid.3x3.fill"
         case .classicalChallenge:
             return "checkerboard.rectangle"
+        case .dailyFixedChallenge:
+            return "calendar"
+        case .dailyRandomChallenge:
+            return "sparkles"
         case .freeCustom:
             return "slider.horizontal.3"
         case .campaignStage:
@@ -425,6 +431,10 @@ public struct GameMode: Equatable, Identifiable {
         case .standard5x5:
             return .balanced
         case .classicalChallenge:
+            return .advanced
+        case .dailyFixedChallenge:
+            return .balanced
+        case .dailyRandomChallenge:
             return .advanced
         case .freeCustom:
             return .custom
@@ -546,6 +556,12 @@ public struct GameMode: Equatable, Identifiable {
             return standard
         case .classicalChallenge:
             return classicalChallenge
+        case .dailyFixedChallenge:
+            // 日替わり固定シードは現状ビルトイン定義が存在しないため、スタンダード相当をフォールバックとして返す
+            return standard
+        case .dailyRandomChallenge:
+            // 日替わりランダムシードも同様に将来的な実装を想定し、暫定的にスタンダードを返しておく
+            return standard
         case .freeCustom:
             // フリーモードはユーザー設定によって変化するため、デフォルトとしてスタンダード相当を返す
             return standard
