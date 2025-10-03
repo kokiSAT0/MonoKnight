@@ -30,14 +30,16 @@ protocol RewardedAdControlling: AnyObject, FullScreenContentDelegate, AdsConsent
 // MARK: - GMA SDK を抽象化する薄いラッパー
 protocol RewardedAdPresentable: AnyObject, FullScreenPresentingAd {
     var fullScreenContentDelegate: FullScreenContentDelegate? { get set }
-    func present(from viewController: UIViewController, userDidEarnRewardHandler: @escaping () -> Void)
+    /// SDK 本体の `present(from:)` 呼び出しをラップし、名称衝突による無限再帰を避けるための独自シグネチャ
+    func presentAd(from viewController: UIViewController, userDidEarnRewardHandler: @escaping () -> Void)
 }
 
 extension RewardedAd: RewardedAdPresentable {
-    func present(from viewController: UIViewController, userDidEarnRewardHandler: @escaping () -> Void) {
-        // SDK v11 以降は `present(from:)` が推奨 API
-        // SDK 側のクロージャは引数を受け取らないため、報酬獲得時にハンドラーを呼び出すだけにする
+    func presentAd(from viewController: UIViewController, userDidEarnRewardHandler: @escaping () -> Void) {
+        // SDK v11 以降は `present(from:)` が推奨 API であり、ここで直接呼び出すと無名関数内で同名メソッドへ再帰してしまう
+        // そのためラッパー側は `presentAd` という別名を用意し、内部で SDK 提供メソッドを明示的に叩いている
         present(from: viewController) {
+            // SDK 側のクロージャは引数を受け取らないため、報酬獲得時にハンドラーを呼び出すだけにする
             userDidEarnRewardHandler()
         }
     }
@@ -131,7 +133,8 @@ final class RewardedAdController: NSObject, RewardedAdControlling {
         return await withCheckedContinuation { continuation in
             pendingContinuation = continuation
             debugLog("RewardedAdController: リワード広告の表示を開始します")
-            rewardedAd.present(from: root) { [weak self] in
+            // `presentAd` は SDK の `present(from:)` へ橋渡しする独自ラッパーであり、メソッド名衝突による無限再帰を防ぐ
+            rewardedAd.presentAd(from: root) { [weak self] in
                 self?.didEarnRewardInCurrentPresentation = true
                 debugLog("RewardedAdController: ユーザーが報酬条件を満たしました")
             }
