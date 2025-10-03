@@ -307,7 +307,7 @@ final class CampaignLibraryTests: XCTestCase {
                 spawn: fixedSpawn4,
                 penalties: penalties,
                 secondary: .finishWithPenaltyAtMost(maxPenaltyCount: 5),
-                scoreTarget: 620,
+                scoreTarget: 450,
                 unlock: .chapterTotalStars(chapter: 1, minimum: 16),
                 additional: [GridPoint(x: 1, y: 1): 2, GridPoint(x: 2, y: 2): 2]
             ),
@@ -318,7 +318,7 @@ final class CampaignLibraryTests: XCTestCase {
                 spawn: chooseAny,
                 penalties: penalties,
                 secondary: .finishWithinMoves(maxMoves: 45),
-                scoreTarget: 600,
+                scoreTarget: 450,
                 unlock: .stageClear(CampaignStageID(chapter: 2, index: 1)),
                 additional: [GridPoint(x: 1, y: 1): 2, GridPoint(x: 3, y: 3): 2]
             ),
@@ -328,8 +328,8 @@ final class CampaignLibraryTests: XCTestCase {
                 deck: .kingAndKnightBasic,
                 spawn: chooseAny,
                 penalties: penalties,
-                secondary: .finishWithinMoves(maxMoves: 42),
-                scoreTarget: 590,
+                secondary: .finishWithinMoves(maxMoves: 40),
+                scoreTarget: 450,
                 unlock: .stageClear(CampaignStageID(chapter: 2, index: 2)),
                 additional: [GridPoint(x: 2, y: 2): 3]
             ),
@@ -372,10 +372,10 @@ final class CampaignLibraryTests: XCTestCase {
                 deck: .kingAndKnightBasic,
                 spawn: chooseAny,
                 penalties: penalties,
-                secondary: .finishWithinMoves(maxMoves: 36),
+                secondary: .finishWithinMoves(maxMoves: 38),
                 scoreTarget: 550,
                 unlock: .stageClear(CampaignStageID(chapter: 2, index: 6)),
-                additional: [GridPoint(x: 0, y: 0): 2, GridPoint(x: 2, y: 2): 3, GridPoint(x: 4, y: 4): 4]
+                additional: [GridPoint(x: 1, y: 1): 2, GridPoint(x: 2, y: 2): 3, GridPoint(x: 3, y: 3): 4]
             ),
             8: StageExpectation(
                 title: "総合演習",
@@ -383,14 +383,14 @@ final class CampaignLibraryTests: XCTestCase {
                 deck: .kingAndKnightBasic,
                 spawn: chooseAny,
                 penalties: penalties,
-                secondary: .finishWithinMoves(maxMoves: 34),
+                secondary: .finishWithinMoves(maxMoves: 40),
                 scoreTarget: 540,
                 unlock: .stageClear(CampaignStageID(chapter: 2, index: 7)),
                 additional: [
-                    GridPoint(x: 0, y: 0): 3,
-                    GridPoint(x: 4, y: 0): 3,
-                    GridPoint(x: 0, y: 4): 3,
-                    GridPoint(x: 4, y: 4): 3
+                    GridPoint(x: 1, y: 1): 3,
+                    GridPoint(x: 3, y: 1): 3,
+                    GridPoint(x: 1, y: 3): 3,
+                    GridPoint(x: 3, y: 3): 3
                 ]
             )
         ]
@@ -696,7 +696,7 @@ final class CampaignLibraryTests: XCTestCase {
                 title: "障害物応用",
                 boardSize: 5,
                 deck: .standardWithAllChoices,
-                spawn: fixedSpawn5,
+                spawn: chooseAny,
                 penalties: penalties,
                 secondary: .finishWithPenaltyAtMost(maxPenaltyCount: 2),
                 scoreTarget: 490,
@@ -769,7 +769,7 @@ final class CampaignLibraryTests: XCTestCase {
                 title: "最終試験",
                 boardSize: 5,
                 deck: .standardWithAllChoices,
-                spawn: fixedSpawn5,
+                spawn: chooseAny,
                 penalties: noPenalty,
                 secondary: .finishWithoutPenaltyAndWithinMoves(maxMoves: 34),
                 scoreTarget: 430,
@@ -787,11 +787,39 @@ final class CampaignLibraryTests: XCTestCase {
             }
 
             XCTAssertEqual(stage.title, expectation.title)
+            // 基本レギュレーション（盤サイズ・デッキ・スポーン・ペナルティ）を網羅的に比較する
+            XCTAssertEqual(stage.regulation.boardSize, expectation.boardSize)
+            XCTAssertEqual(stage.regulation.deckPreset, expectation.deck)
+            XCTAssertEqual(stage.regulation.spawnRule, expectation.spawn)
+            XCTAssertEqual(stage.regulation.penalties, expectation.penalties)
             XCTAssertEqual(stage.regulation.impassableTilePoints, expectation.impassable)
             XCTAssertEqual(stage.regulation.toggleTilePoints, expectation.toggles)
             XCTAssertEqual(stage.regulation.additionalVisitRequirements, expectation.additional)
             XCTAssertEqual(stage.secondaryObjective, expectation.secondary)
+            XCTAssertEqual(stage.scoreTarget, expectation.scoreTarget)
+            XCTAssertEqual(stage.scoreTargetComparison, expectation.comparison)
             XCTAssertEqual(stage.unlockRequirement, expectation.unlock)
+        }
+    }
+
+    /// 固定スポーンが障害物と衝突していないかを全ステージで確認する
+    func testFixedSpawnsDoNotOverlapImpassableTiles() {
+        let library = CampaignLibrary.shared
+
+        for chapter in library.chapters {
+            for stage in chapter.stages {
+                let regulation = stage.regulation
+                guard case let .fixed(spawnPoint) = regulation.spawnRule else {
+                    // 任意スポーンは障害物と無関係なため、そのまま次へ進む
+                    continue
+                }
+
+                // 障害物集合にスポーン座標が含まれていないことを検証する
+                XCTAssertFalse(
+                    regulation.impassableTilePoints.contains(spawnPoint),
+                    "\(stage.displayCode) の固定スポーンが障害物マスと重なっています"
+                )
+            }
         }
     }
 }

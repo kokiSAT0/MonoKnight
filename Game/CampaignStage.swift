@@ -1262,7 +1262,8 @@ public struct CampaignLibrary {
                 nextPreviewCount: 3,
                 allowsStacking: true,
                 deckPreset: .standardWithAllChoices,
-                spawnRule: fixedSpawn5,
+                // 中央マスが障害物となるため、プレビュー後に安全なマスへ自由移動できるスポーンへ切り替える
+                spawnRule: .chooseAnyAfterPreview,
                 penalties: chapter5Penalties,
                 impassableTilePoints: stage52Impassable
             ),
@@ -1454,7 +1455,8 @@ public struct CampaignLibrary {
                 nextPreviewCount: 3,
                 allowsStacking: true,
                 deckPreset: .standardWithAllChoices,
-                spawnRule: fixedSpawn5,
+                // 障害物・トグル・複数踏破が密集するため、初手の衝突を避ける任意スポーンへ調整
+                spawnRule: .chooseAnyAfterPreview,
                 penalties: chapter5NoPenalty,
                 additionalVisitRequirements: stage58Additional,
                 toggleTilePoints: stage58Toggles,
