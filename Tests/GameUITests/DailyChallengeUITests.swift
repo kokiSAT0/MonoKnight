@@ -54,8 +54,8 @@ final class DailyChallengeUITests: XCTestCase {
         )
         XCTAssertEqual(XCTWaiter.wait(for: [rewardExpectation, remainingExpectation], timeout: 5), .completed, "広告視聴後に挑戦回数が 1 回ぶん回復し、付与済み回数が更新されること")
 
-        let closeButton = app.buttons["daily_challenge_close_button"]
-        XCTAssertTrue(closeButton.waitForExistence(timeout: 3), "日替わり画面を閉じるボタンが表示されること")
+        let closeButton = app.buttons["daily_challenge_back_button"]
+        XCTAssertTrue(closeButton.waitForExistence(timeout: 3), "日替わり画面へ戻るボタンが表示されること")
         closeButton.tap()
     }
 }
