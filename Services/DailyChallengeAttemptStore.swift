@@ -52,8 +52,18 @@ final class AnyDailyChallengeAttemptStore: ObservableObject, DailyChallengeAttem
         cancellable = base.objectWillChange.sink { [weak self] _ in
             guard let self else { return }
             Task { @MainActor in
-                self.remainingAttempts = base.remainingAttempts
-                self.rewardedAttemptsGranted = base.rewardedAttemptsGranted
+                // base から取得した最新値をローカル変数へ退避して比較を行う
+                let latestRemainingAttempts = base.remainingAttempts
+                if self.remainingAttempts != latestRemainingAttempts {
+                    // 差分がある場合のみ Published プロパティを更新する
+                    self.remainingAttempts = latestRemainingAttempts
+                }
+
+                let latestRewardedAttempts = base.rewardedAttemptsGranted
+                if self.rewardedAttemptsGranted != latestRewardedAttempts {
+                    // 付与済み回数も差分が存在するときのみ更新を行い再描画ループを防止する
+                    self.rewardedAttemptsGranted = latestRewardedAttempts
+                }
             }
         }
     }
@@ -81,8 +91,18 @@ final class AnyDailyChallengeAttemptStore: ObservableObject, DailyChallengeAttem
     private func synchronizeAfterAsyncChange() {
         Task { @MainActor [weak self] in
             guard let self else { return }
-            self.remainingAttempts = base.remainingAttempts
-            self.rewardedAttemptsGranted = base.rewardedAttemptsGranted
+            // base 側の状態をローカル変数へ取得し、差分が存在する場合のみ代入を実施する
+            let latestRemainingAttempts = base.remainingAttempts
+            if self.remainingAttempts != latestRemainingAttempts {
+                // 差分が無い場合は代入をスキップして不要な objectWillChange 通知を抑制する
+                self.remainingAttempts = latestRemainingAttempts
+            }
+
+            let latestRewardedAttempts = base.rewardedAttemptsGranted
+            if self.rewardedAttemptsGranted != latestRewardedAttempts {
+                // 差分があるケースのみ更新して無限再描画やログ増加を防ぐ
+                self.rewardedAttemptsGranted = latestRewardedAttempts
+            }
         }
     }
 }
