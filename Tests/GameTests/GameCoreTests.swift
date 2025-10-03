@@ -662,6 +662,55 @@ final class GameCoreTests: XCTestCase {
         XCTAssertEqual(core.progress, .playing)
     }
 
+    /// スポーン候補として障害物マスを指定しても状態が進行しないことを検証する
+    func testSpawnSelectionIgnoresImpassableTile() {
+        // --- 任意スポーンかつ障害物マスを含むレギュレーションを構築 ---
+        let impassablePoint = GridPoint(x: 1, y: 1)
+        let regulation = GameMode.Regulation(
+            boardSize: BoardGeometry.standardSize,
+            handSize: 5,
+            nextPreviewCount: 3,
+            allowsStacking: true,
+            deckPreset: .kingOnly,
+            spawnRule: .chooseAnyAfterPreview,
+            penalties: GameMode.PenaltySettings(
+                deadlockPenaltyCost: 5,
+                manualRedrawPenaltyCost: 5,
+                manualDiscardPenaltyCost: 1,
+                revisitPenaltyCost: 0
+            ),
+            impassableTilePoints: [impassablePoint]
+        )
+        let mode = GameMode(
+            identifier: .freeCustom,
+            displayName: "スポーン障害物テスト",
+            regulation: regulation,
+            leaderboardEligible: false
+        )
+        let deck = Deck.makeTestDeck(cards: [.kingUp], configuration: .kingOnly)
+        let core = GameCore.makeTestInstance(deck: deck, current: nil, mode: mode)
+
+        // 初期状態ではスポーン選択待機のまま現在地が未確定であることを前提にする
+        XCTAssertEqual(core.progress, .awaitingSpawn, "任意スポーンモードでは awaitingSpawn から開始する想定です")
+        XCTAssertNil(core.current, "スポーン未確定時は現在地が nil のままです")
+        XCTAssertFalse(core.board.isVisited(impassablePoint), "障害物マスは踏破済みとして扱われません")
+
+        // 障害物マスを選んでも二重ガードにより状態が進行しないことを確認する
+        core.simulateSpawnSelection(forTesting: impassablePoint)
+
+        XCTAssertNil(core.current, "障害物マスを指定してもスポーンが確定してはいけません")
+        XCTAssertEqual(core.progress, .awaitingSpawn, "障害物選択では awaitingSpawn のまま維持されるべきです")
+        XCTAssertFalse(core.board.isVisited(impassablePoint), "障害物マスが踏破済みになってはいけません")
+
+        // UI 層（GameBoardBridgeViewModel）もハイライト生成時に同じ条件で障害物を除外しており、仕様衝突が無いことを明示する
+        let validPoint = GridPoint(x: 2, y: 2)
+        core.simulateSpawnSelection(forTesting: validPoint)
+
+        XCTAssertEqual(core.current, validPoint, "移動可能マスを選択した場合のみスポーンが確定するべきです")
+        XCTAssertEqual(core.progress, .playing, "有効マス確定後は playing 状態へ遷移する想定です")
+        XCTAssertTrue(core.board.isVisited(validPoint), "スポーン確定時は選択マスが訪問済みに変わるべきです")
+    }
+
     /// クラシカルチャレンジで既踏マスへ戻った際にペナルティが加算されるか検証
     func testRevisitPenaltyAppliedInClassicalMode() {
         let deck = Deck.makeTestDeck(

@@ -459,6 +459,8 @@ extension GameCore {
     func handleSpawnSelection(at point: GridPoint) {
         guard mode.requiresSpawnSelection, progress == .awaitingSpawn else { return }
         guard board.contains(point) else { return }
+        // UI 側ではハイライト生成時点で障害物マスを弾いているが、二重チェックでゲームコアも移動可能かを検証する
+        guard board.isTraversable(point) else { return }
 
         debugLog("スポーン位置を \(point) に確定")
         current = point
