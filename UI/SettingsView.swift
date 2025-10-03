@@ -24,6 +24,9 @@ struct SettingsView: View {
     // キャンペーンモードの進捗を共有し、デバッグ用パスコード入力で全ステージ解放フラグを更新できるようにする。
     @EnvironmentObject private var campaignProgressStore: CampaignProgressStore
 
+    // 日替わりチャレンジの挑戦回数ストアを共有し、デバッグ無制限モードの切り替えにも対応する。
+    @EnvironmentObject private var dailyChallengeAttemptStore: AnyDailyChallengeAttemptStore
+
     // 購入ボタンを複数回タップできないようにするための進行状況フラグ。
     @State private var isPurchaseInProgress = false
 
@@ -408,6 +411,16 @@ struct SettingsView: View {
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
                         }
+
+                        if dailyChallengeAttemptStore.isDebugUnlimitedEnabled {
+                            // 日替わりチャレンジの無制限モードが有効であることを通知し、広告視聴が不要な旨を共有する。
+                            Label("デイリーチャレンジは無制限モードです", systemImage: "infinity")
+                                .foregroundStyle(.blue)
+                                .font(.subheadline)
+                            Text("デバッグ検証中は挑戦回数の消費と広告視聴がスキップされます。")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 } header: {
                     Text("デバッグ")
@@ -523,6 +536,8 @@ private extension SettingsView {
         if trimmed == Self.debugUnlockPassword {
             // 正しいパスコード入力時は進捗ストアへ通知して永続化し、アラートで完了を知らせる
             campaignProgressStore.enableDebugUnlock()
+            // デイリーチャレンジの挑戦回数もデバッグモードへ切り替え、検証を効率化する
+            dailyChallengeAttemptStore.enableDebugUnlimited()
             debugUnlockInput = ""
             isDebugUnlockSuccessAlertPresented = true
         } else {
