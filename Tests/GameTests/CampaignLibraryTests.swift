@@ -182,8 +182,8 @@ final class CampaignLibraryTests: XCTestCase {
                 deck: .kingOnly,
                 spawn: fixedSpawn3,
                 penalties: GameMode.PenaltySettings(deadlockPenaltyCost: 2, manualRedrawPenaltyCost: 2, manualDiscardPenaltyCost: 1, revisitPenaltyCost: 1),
-                secondary: .finishWithinSeconds(maxSeconds: 120),
-                scoreTarget: 900,
+                secondary: .finishWithinSeconds(maxSeconds: 60),
+                scoreTarget: 300,
                 unlock: .totalStars(minimum: 0)
             ),
             2: (
@@ -192,8 +192,8 @@ final class CampaignLibraryTests: XCTestCase {
                 deck: .kingPlusKnightOnly,
                 spawn: fixedSpawn3,
                 penalties: GameMode.PenaltySettings(deadlockPenaltyCost: 2, manualRedrawPenaltyCost: 2, manualDiscardPenaltyCost: 1, revisitPenaltyCost: 0),
-                secondary: .finishWithPenaltyAtMost(maxPenaltyCount: 5),
-                scoreTarget: 800,
+                secondary: .finishWithPenaltyAtMost(maxPenaltyCount: 3),
+                scoreTarget: 300,
                 unlock: .stageClear(CampaignStageID(chapter: 1, index: 1))
             ),
             3: (
@@ -203,7 +203,7 @@ final class CampaignLibraryTests: XCTestCase {
                 spawn: fixedSpawn4,
                 penalties: GameMode.PenaltySettings(deadlockPenaltyCost: 3, manualRedrawPenaltyCost: 1, manualDiscardPenaltyCost: 1, revisitPenaltyCost: 0),
                 secondary: .finishWithinSeconds(maxSeconds: 60),
-                scoreTarget: 600,
+                scoreTarget: 400,
                 unlock: .stageClear(CampaignStageID(chapter: 1, index: 2))
             ),
             4: (
@@ -212,8 +212,8 @@ final class CampaignLibraryTests: XCTestCase {
                 deck: .kingAndKnightBasic,
                 spawn: .chooseAnyAfterPreview,
                 penalties: GameMode.PenaltySettings(deadlockPenaltyCost: 3, manualRedrawPenaltyCost: 1, manualDiscardPenaltyCost: 1, revisitPenaltyCost: 0),
-                secondary: .finishWithPenaltyAtMost(maxPenaltyCount: 3),
-                scoreTarget: 550,
+                secondary: .finishWithPenaltyAtMost(maxPenaltyCount: 5),
+                scoreTarget: 400,
                 unlock: .stageClear(CampaignStageID(chapter: 1, index: 3))
             ),
             5: (
@@ -223,7 +223,7 @@ final class CampaignLibraryTests: XCTestCase {
                 spawn: fixedSpawn4,
                 penalties: GameMode.PenaltySettings(deadlockPenaltyCost: 3, manualRedrawPenaltyCost: 2, manualDiscardPenaltyCost: 1, revisitPenaltyCost: 0),
                 secondary: .finishWithinMoves(maxMoves: 30),
-                scoreTarget: 500,
+                scoreTarget: 400,
                 unlock: .stageClear(CampaignStageID(chapter: 1, index: 4))
             ),
             6: (
@@ -232,8 +232,8 @@ final class CampaignLibraryTests: XCTestCase {
                 deck: .kingAndKnightBasic,
                 spawn: .chooseAnyAfterPreview,
                 penalties: GameMode.PenaltySettings(deadlockPenaltyCost: 3, manualRedrawPenaltyCost: 2, manualDiscardPenaltyCost: 1, revisitPenaltyCost: 0),
-                secondary: .finishWithPenaltyAtMost(maxPenaltyCount: 2),
-                scoreTarget: 480,
+                secondary: .finishWithPenaltyAtMost(maxPenaltyCount: 3),
+                scoreTarget: 400,
                 unlock: .stageClear(CampaignStageID(chapter: 1, index: 5))
             ),
             7: (
