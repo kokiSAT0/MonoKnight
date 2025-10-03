@@ -30,19 +30,43 @@ protocol RewardedAdControlling: AnyObject, FullScreenContentDelegate, AdsConsent
 // MARK: - GMA SDK を抽象化する薄いラッパー
 protocol RewardedAdPresentable: AnyObject, FullScreenPresentingAd {
     var fullScreenContentDelegate: FullScreenContentDelegate? { get set }
-    /// SDK 本体の `present(from:)` 呼び出しをラップし、名称衝突による無限再帰を避けるための独自シグネチャ
+    /// SDK 本体の `present(fromRootViewController:userDidEarnRewardHandler:)` を安全に呼び出すための独自シグネチャ
     func presentAd(from viewController: UIViewController, userDidEarnRewardHandler: @escaping () -> Void)
 }
 
-extension RewardedAd: RewardedAdPresentable {
+/// GoogleMobileAds.RewardedAd をアプリ側の抽象インターフェースに橋渡しするアダプター
+/// - 直接拡張を行うとメソッド名の衝突から無限再帰が発生する恐れがあるため、保持型に委譲する構成に変更
+final class RewardedAdAdapter: NSObject, RewardedAdPresentable {
+    // MARK: - 内部保持する実体
+    /// Google Mobile Ads SDK が返す本来の RewardedAd インスタンス
+    private let rewardedAd: GoogleMobileAds.RewardedAd
+
+    // MARK: - 初期化
+    init(rewardedAd: GoogleMobileAds.RewardedAd) {
+        self.rewardedAd = rewardedAd
+        super.init()
+    }
+
+    // MARK: - FullScreenPresentingAd 準拠
+    /// 表示中/表示後のイベントを受け取るためのデリゲートをそのまま SDK 側へ透過する
+    var fullScreenContentDelegate: FullScreenContentDelegate? {
+        get { rewardedAd.fullScreenContentDelegate }
+        set { rewardedAd.fullScreenContentDelegate = newValue }
+    }
+
+    /// 広告収益イベントをテストコードからも参照できるよう、SDK 側のハンドラーを委譲する
+    var paidEventHandler: PaidEventHandler? {
+        get { rewardedAd.paidEventHandler }
+        set { rewardedAd.paidEventHandler = newValue }
+    }
+
+    // MARK: - RewardedAdPresentable
     func presentAd(from viewController: UIViewController, userDidEarnRewardHandler: @escaping () -> Void) {
-        // MARK: - SDK メソッドへの委譲
-        // Google Mobile Ads SDK の `RewardedAd` が提供する正式な API を明示的に指定することで、
-        // プロトコル拡張内の同名メソッドを誤って再帰的に呼び出すリスクを排除する
-        (self as GoogleMobileAds.RewardedAd).present(
+        // SDK が提供する正式な present API を直接叩くことで、ラッパー内での自己再帰を確実に排除する
+        rewardedAd.present(
             fromRootViewController: viewController,
             userDidEarnRewardHandler: {
-                // SDK 側のクロージャは引数を伴わないため、報酬獲得時に受け取ったハンドラーをそのまま呼び出す
+                // 報酬獲得時には引数なしクロージャが呼ばれるため、そのままアプリ側のハンドラーを実行する
                 userDidEarnRewardHandler()
             }
         )
@@ -58,7 +82,14 @@ protocol RewardedAdLoading {
 struct DefaultRewardedAdLoader: RewardedAdLoading {
     func load(adUnitID: String, request: GoogleMobileAds.Request, completion: @escaping (RewardedAdPresentable?, Error?) -> Void) {
         RewardedAd.load(with: adUnitID, request: request) { ad, error in
-            completion(ad, error)
+            // SDK から正常なインスタンスが得られた場合のみアダプターで包んで返却する
+            guard let ad else {
+                completion(nil, error)
+                return
+            }
+
+            let adapter = RewardedAdAdapter(rewardedAd: ad)
+            completion(adapter, error)
         }
     }
 }
