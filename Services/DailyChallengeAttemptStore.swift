@@ -117,10 +117,8 @@ final class DailyChallengeAttemptStore: ObservableObject, DailyChallengeAttemptS
         var rewardedAttemptsGranted: Int
     }
 
-    /// 現在の状態（更新時に Published プロパティへ反映）
-    private var state: State {
-        didSet { updatePublishedValues(); persistState() }
-    }
+    /// 現在の状態（更新時に `updatePublishedValues()` を手動で呼び出す）
+    private var state: State
 
     /// 現在の UTC 日付キーを生成するためのフォーマッタ
     private let dateFormatter: DateFormatter
@@ -152,33 +150,42 @@ final class DailyChallengeAttemptStore: ObservableObject, DailyChallengeAttemptS
         formatter.dateFormat = DateFormat.pattern
         self.dateFormatter = formatter
 
-        // 起動時に現在日付の状態を復元（存在しない場合は当日分を新規作成）
+        // 起動時に現在日付の状態を復元し、必要なら永続化対象かを判断
         let currentDateKey = formatter.string(from: nowProvider())
+        let initialState: State
+        var shouldPersistInitialState = false
+
         if let data = userDefaults.data(forKey: StorageKey.state) {
             do {
                 let decoded = try JSONDecoder().decode(State.self, from: data)
                 if decoded.dateKey == currentDateKey {
-                    state = decoded
+                    initialState = decoded
                     debugLog("DailyChallengeAttemptStore: 保存済みの挑戦状況を復元しました (dateKey: \(decoded.dateKey))")
                 } else {
-                    state = State(dateKey: currentDateKey, usedAttempts: 0, rewardedAttemptsGranted: 0)
+                    initialState = State(dateKey: currentDateKey, usedAttempts: 0, rewardedAttemptsGranted: 0)
+                    shouldPersistInitialState = true
                     debugLog("DailyChallengeAttemptStore: 日付が変わっていたため挑戦回数をリセットしました")
-                    persistState()
                 }
             } catch {
-                state = State(dateKey: currentDateKey, usedAttempts: 0, rewardedAttemptsGranted: 0)
+                initialState = State(dateKey: currentDateKey, usedAttempts: 0, rewardedAttemptsGranted: 0)
+                shouldPersistInitialState = true
                 debugError(error, message: "DailyChallengeAttemptStore: 復元に失敗したため状態を初期化しました")
-                persistState()
             }
         } else {
-            state = State(dateKey: currentDateKey, usedAttempts: 0, rewardedAttemptsGranted: 0)
+            initialState = State(dateKey: currentDateKey, usedAttempts: 0, rewardedAttemptsGranted: 0)
+            shouldPersistInitialState = true
             debugLog("DailyChallengeAttemptStore: 保存データが無かったため本日の挑戦状況を新規作成しました")
-            persistState()
         }
 
-        // Published プロパティへ初期値を反映
-        self.remainingAttempts = Self.computeRemainingAttempts(from: state)
-        self.rewardedAttemptsGranted = state.rewardedAttemptsGranted
+        // 格納プロパティの初期化順序を明示的に統一（state → remainingAttempts → rewardedAttemptsGranted）
+        self.state = initialState
+        self.remainingAttempts = Self.computeRemainingAttempts(from: initialState)
+        self.rewardedAttemptsGranted = initialState.rewardedAttemptsGranted
+
+        if shouldPersistInitialState {
+            // 初期状態作成・更新が発生したケースのみ永続化を行う
+            persistState()
+        }
     }
 
     /// 日付境界を跨いだ場合に状態を初期化する
@@ -187,6 +194,9 @@ final class DailyChallengeAttemptStore: ObservableObject, DailyChallengeAttemptS
         guard state.dateKey != currentKey else { return }
         state = State(dateKey: currentKey, usedAttempts: 0, rewardedAttemptsGranted: 0)
         debugLog("DailyChallengeAttemptStore: 新しい日付 (\(currentKey)) が検出されたため挑戦回数をリセットしました")
+        // リセット後は Published プロパティと永続化内容を手動で同期させる
+        updatePublishedValues()
+        persistState()
     }
 
     @discardableResult
@@ -199,6 +209,9 @@ final class DailyChallengeAttemptStore: ObservableObject, DailyChallengeAttemptS
         }
 
         state.usedAttempts += 1
+        // 消費結果を UI とストレージへ即座に反映させる
+        updatePublishedValues()
+        persistState()
         debugLog("DailyChallengeAttemptStore: 挑戦回数を 1 消費しました (used: \(state.usedAttempts)/total: \(totalAvailable))")
         return true
     }
@@ -212,6 +225,9 @@ final class DailyChallengeAttemptStore: ObservableObject, DailyChallengeAttemptS
         }
 
         state.rewardedAttemptsGranted += 1
+        // 付与後も同様に Published プロパティと永続化内容を整合させる
+        updatePublishedValues()
+        persistState()
         debugLog("DailyChallengeAttemptStore: リワード広告成功により挑戦回数を 1 追加しました (granted: \(state.rewardedAttemptsGranted))")
         return true
     }
