@@ -34,13 +34,13 @@
 		726642F92E85DA8E003EA325 /* GameHandSectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 726642F62E85DA8E003EA325 /* GameHandSectionView.swift */; };
 		726643002E85DA9D003EA325 /* PauseMenuView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 726642FE2E85DA9D003EA325 /* PauseMenuView.swift */; };
 		726643012E85DA9D003EA325 /* PenaltyBannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 726642FF2E85DA9D003EA325 /* PenaltyBannerView.swift */; };
-		72CAA2B40FE66746B51978FA /* BoardTapSelectionWarningToastView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 724954A75EC1545A2A92499B /* BoardTapSelectionWarningToastView.swift */; };
 		726643022E85DA9D003EA325 /* GameView+Observers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 726642FC2E85DA9D003EA325 /* GameView+Observers.swift */; };
 		726643032E85DA9D003EA325 /* GameView+Logging.swift in Sources */ = {isa = PBXBuildFile; fileRef = 726642FB2E85DA9D003EA325 /* GameView+Logging.swift */; };
 		726643042E85DA9D003EA325 /* GameView+Layout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 726642FA2E85DA9D003EA325 /* GameView+Layout.swift */; };
 		726643052E85DA9D003EA325 /* GameViewPreferenceKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 726642FD2E85DA9D003EA325 /* GameViewPreferenceKeys.swift */; };
 		726643072E85DAD1003EA325 /* CampaignProgressStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 726643062E85DAD1003EA325 /* CampaignProgressStore.swift */; };
 		729791562E7EB35900361471 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 729791552E7EB35900361471 /* LaunchScreen.storyboard */; };
+		72CAA2B40FE66746B51978FA /* BoardTapSelectionWarningToastView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 724954A75EC1545A2A92499B /* BoardTapSelectionWarningToastView.swift */; };
 		72CF37F02E71616C0093B180 /* MonoKnightApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000004 /* MonoKnightApp.swift */; };
 		72CF38052E7162E20093B180 /* ErrorReporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF37F92E7162E20093B180 /* ErrorReporter.swift */; };
 		72CF38072E7162E20093B180 /* GameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF38002E7162E20093B180 /* GameView.swift */; };
@@ -55,9 +55,11 @@
 		72CF38182E7252460093B180 /* GoogleMobileAds in Frameworks */ = {isa = PBXBuildFile; productRef = 72CF38172E7252460093B180 /* GoogleMobileAds */; };
 		72CF38192E90AA000093B180 /* SharedSupport in Frameworks */ = {isa = PBXBuildFile; productRef = 72CF381A2E90AA000093B180 /* SharedSupport */; };
 		72D0C8922E8E028A00C6D0C5 /* CampaignRewardSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72D0C8912E8E028A00C6D0C5 /* CampaignRewardSummaryView.swift */; };
-                72D0C8B62E8E0ADF00C6D0C5 /* DailyChallengeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72D0C8B52E8E0ADF00C6D0C5 /* DailyChallengeView.swift */; };
-                72D0C8C22E8E0BFF00C6D0C5 /* DailyChallengeDefinitionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72D0C8C12E8E0BFF00C6D0C5 /* DailyChallengeDefinitionService.swift */; };
+		72D0C8B62E8E0ADF00C6D0C5 /* DailyChallengeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72D0C8B52E8E0ADF00C6D0C5 /* DailyChallengeView.swift */; };
 		72D0C8B82E8E0AE900C6D0C5 /* HighScoreChallengeSelectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72D0C8B72E8E0AE900C6D0C5 /* HighScoreChallengeSelectionView.swift */; };
+		72D0C8C22E8E0BFF00C6D0C5 /* DailyChallengeDefinitionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72D0C8C12E8E0BFF00C6D0C5 /* DailyChallengeDefinitionService.swift */; };
+		72D0C96E2E8FAE7D00C6D0C5 /* DailyChallengeAttemptStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72D0C96D2E8FAE7D00C6D0C5 /* DailyChallengeAttemptStore.swift */; };
+		72D0C9702E8FAEBE00C6D0C5 /* RewardedAdController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72D0C96F2E8FAEBE00C6D0C5 /* RewardedAdController.swift */; };
 		72F554A82E7E40100098A1B0 /* MoveCardIllustrationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72F554A72E7E40100098A1B0 /* MoveCardIllustrationView.swift */; };
 		72F554AC2E7E60850098A1B0 /* HowToPlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72F554A92E7E60850098A1B0 /* HowToPlayView.swift */; };
 		72F554AD2E7E60850098A1B0 /* AppTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72F554AA2E7E60850098A1B0 /* AppTheme.swift */; };
@@ -90,6 +92,7 @@
 		72185F532E84B4680057458C /* ServiceInterfaces.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServiceInterfaces.swift; sourceTree = "<group>"; };
 		72185F552E84B4AF0057458C /* GameBoardBridgeViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameBoardBridgeViewModel.swift; sourceTree = "<group>"; };
 		72185F572E84B4B80057458C /* GameViewLayoutSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameViewLayoutSupport.swift; sourceTree = "<group>"; };
+		724954A75EC1545A2A92499B /* BoardTapSelectionWarningToastView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardTapSelectionWarningToastView.swift; sourceTree = "<group>"; };
 		726642282E813A69003EA325 /* GameMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameMode.swift; sourceTree = "<group>"; };
 		726642392E823939003EA325 /* FreeModeRegulationStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FreeModeRegulationStore.swift; sourceTree = "<group>"; };
 		7266423B2E82397D003EA325 /* FreeModeRegulationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FreeModeRegulationView.swift; sourceTree = "<group>"; };
@@ -101,7 +104,6 @@
 		7266429D2E849763003EA325 /* GameViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameViewModel.swift; sourceTree = "<group>"; };
 		726642AE2E849978003EA325 /* CardAnimationPhase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardAnimationPhase.swift; sourceTree = "<group>"; };
 		726642B02E849982003EA325 /* BoardLayoutSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardLayoutSnapshot.swift; sourceTree = "<group>"; };
-		724954A75EC1545A2A92499B /* BoardTapSelectionWarningToastView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardTapSelectionWarningToastView.swift; sourceTree = "<group>"; };
 		726642EE2E85DA48003EA325 /* CampaignStageSelectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CampaignStageSelectionView.swift; sourceTree = "<group>"; };
 		726642F02E85DA54003EA325 /* DiagnosticsCenterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsCenterView.swift; sourceTree = "<group>"; };
 		726642F22E85DA73003EA325 /* GameBoardControlRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameBoardControlRowView.swift; sourceTree = "<group>"; };
@@ -138,9 +140,11 @@
 		72CF38022E7162E20093B180 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		72CF38032E7162E20093B180 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		72D0C8912E8E028A00C6D0C5 /* CampaignRewardSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CampaignRewardSummaryView.swift; sourceTree = "<group>"; };
-                72D0C8B52E8E0ADF00C6D0C5 /* DailyChallengeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyChallengeView.swift; sourceTree = "<group>"; };
-                72D0C8C12E8E0BFF00C6D0C5 /* DailyChallengeDefinitionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyChallengeDefinitionService.swift; sourceTree = "<group>"; };
+		72D0C8B52E8E0ADF00C6D0C5 /* DailyChallengeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyChallengeView.swift; sourceTree = "<group>"; };
 		72D0C8B72E8E0AE900C6D0C5 /* HighScoreChallengeSelectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HighScoreChallengeSelectionView.swift; sourceTree = "<group>"; };
+		72D0C8C12E8E0BFF00C6D0C5 /* DailyChallengeDefinitionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyChallengeDefinitionService.swift; sourceTree = "<group>"; };
+		72D0C96D2E8FAE7D00C6D0C5 /* DailyChallengeAttemptStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyChallengeAttemptStore.swift; sourceTree = "<group>"; };
+		72D0C96F2E8FAEBE00C6D0C5 /* RewardedAdController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RewardedAdController.swift; sourceTree = "<group>"; };
 		72F554A72E7E40100098A1B0 /* MoveCardIllustrationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoveCardIllustrationView.swift; sourceTree = "<group>"; };
 		72F554A92E7E60850098A1B0 /* HowToPlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HowToPlayView.swift; sourceTree = "<group>"; };
 		72F554AA2E7E60850098A1B0 /* AppTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTheme.swift; sourceTree = "<group>"; };
@@ -244,17 +248,19 @@
 			path = Game;
 			sourceTree = "<group>";
 		};
-                72CF37FD2E7162E20093B180 /* Services */ = {
-                        isa = PBXGroup;
-                        children = (
-                                726642972E848E91003EA325 /* AdsConsentCoordinator.swift */,
-                                72CF37F82E7162E20093B180 /* AdsService.swift */,
-                                72D0C8C12E8E0BFF00C6D0C5 /* DailyChallengeDefinitionService.swift */,
-                                726643062E85DAD1003EA325 /* CampaignProgressStore.swift */,
+		72CF37FD2E7162E20093B180 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				726642972E848E91003EA325 /* AdsConsentCoordinator.swift */,
+				72CF37F82E7162E20093B180 /* AdsService.swift */,
+				726643062E85DAD1003EA325 /* CampaignProgressStore.swift */,
+				72D0C96D2E8FAE7D00C6D0C5 /* DailyChallengeAttemptStore.swift */,
+				72D0C8C12E8E0BFF00C6D0C5 /* DailyChallengeDefinitionService.swift */,
 				72CF37F92E7162E20093B180 /* ErrorReporter.swift */,
 				726642392E823939003EA325 /* FreeModeRegulationStore.swift */,
 				72CF37FA2E7162E20093B180 /* GameCenterService.swift */,
 				726642992E848E9A003EA325 /* InterstitialAdController.swift */,
+				72D0C96F2E8FAEBE00C6D0C5 /* RewardedAdController.swift */,
 				72185F532E84B4680057458C /* ServiceInterfaces.swift */,
 				72CF37FB2E7162E20093B180 /* ServiceMocks.swift */,
 				72CF37FC2E7162E20093B180 /* StoreService.swift */,
@@ -270,8 +276,8 @@
 				72D0C8912E8E028A00C6D0C5 /* CampaignRewardSummaryView.swift */,
 				726642EE2E85DA48003EA325 /* CampaignStageSelectionView.swift */,
 				726642AE2E849978003EA325 /* CardAnimationPhase.swift */,
-                                72CF37FE2E7162E20093B180 /* ConsentFlowView.swift */,
-                                72D0C8B52E8E0ADF00C6D0C5 /* DailyChallengeView.swift */,
+				72CF37FE2E7162E20093B180 /* ConsentFlowView.swift */,
+				72D0C8B52E8E0ADF00C6D0C5 /* DailyChallengeView.swift */,
 				726642F02E85DA54003EA325 /* DiagnosticsCenterView.swift */,
 				726642532E826754003EA325 /* Environment+BaseSafeAreaInsets.swift */,
 				726642472E826487003EA325 /* Environment+TopOverlayHeight.swift */,
@@ -506,22 +512,24 @@
 			buildActionMask = 2147483647;
 			files = (
 				72CF38052E7162E20093B180 /* ErrorReporter.swift in Sources */,
-                                72CF38072E7162E20093B180 /* GameView.swift in Sources */,
-                                72D0C8B82E8E0AE900C6D0C5 /* HighScoreChallengeSelectionView.swift in Sources */,
-                                726643002E85DA9D003EA325 /* PauseMenuView.swift in Sources */,
-                                726643012E85DA9D003EA325 /* PenaltyBannerView.swift in Sources */,
-                                72CAA2B40FE66746B51978FA /* BoardTapSelectionWarningToastView.swift in Sources */,
+				72CF38072E7162E20093B180 /* GameView.swift in Sources */,
+				72D0C8B82E8E0AE900C6D0C5 /* HighScoreChallengeSelectionView.swift in Sources */,
+				726643002E85DA9D003EA325 /* PauseMenuView.swift in Sources */,
+				726643012E85DA9D003EA325 /* PenaltyBannerView.swift in Sources */,
+				72CAA2B40FE66746B51978FA /* BoardTapSelectionWarningToastView.swift in Sources */,
 				726643022E85DA9D003EA325 /* GameView+Observers.swift in Sources */,
 				726643032E85DA9D003EA325 /* GameView+Logging.swift in Sources */,
 				726643042E85DA9D003EA325 /* GameView+Layout.swift in Sources */,
 				726643052E85DA9D003EA325 /* GameViewPreferenceKeys.swift in Sources */,
+				72D0C96E2E8FAE7D00C6D0C5 /* DailyChallengeAttemptStore.swift in Sources */,
 				34AB7338806A42E0A3B80A97 /* GameCenterSignInPrompt.swift in Sources */,
 				72185F592E84B50F0057458C /* DebugLog.swift in Sources */,
-				72D0C8B62E8E0ADF00C6D0C5 /* DailyChallengePlaceholderView.swift in Sources */,
+				72D0C8B62E8E0ADF00C6D0C5 /* DailyChallengeView.swift in Sources */,
+				72D0C9702E8FAEBE00C6D0C5 /* RewardedAdController.swift in Sources */,
 				7266429A2E848E9A003EA325 /* InterstitialAdController.swift in Sources */,
-                                72CF380B2E7162E20093B180 /* AdsService.swift in Sources */,
-                                72D0C8C22E8E0BFF00C6D0C5 /* DailyChallengeDefinitionService.swift in Sources */,
-                                72185F522E84B44F0057458C /* CrashFeedbackCollector.swift in Sources */,
+				72CF380B2E7162E20093B180 /* AdsService.swift in Sources */,
+				72D0C8C22E8E0BFF00C6D0C5 /* DailyChallengeDefinitionService.swift in Sources */,
+				72185F522E84B44F0057458C /* CrashFeedbackCollector.swift in Sources */,
 				726642AF2E849978003EA325 /* CardAnimationPhase.swift in Sources */,
 				72CF380C2E7162E20093B180 /* SettingsView.swift in Sources */,
 				72CF380E2E7162E20093B180 /* ServiceMocks.swift in Sources */,
