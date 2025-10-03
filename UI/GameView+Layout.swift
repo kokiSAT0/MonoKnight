@@ -57,17 +57,10 @@ extension GameView {
                 theme: theme,
                 viewModel: viewModel
             )
-            ZStack {
-                spriteBoard(width: width)
-                if viewModel.progress == .awaitingSpawn {
-                    spawnSelectionOverlay
-                        // 盤面いっぱいに広がりすぎないよう最大幅を制限する
-                        .frame(maxWidth: width * 0.9)
-                        .padding(.horizontal, 12)
-                }
-            }
-            // 盤面縮小で生まれた余白を均等にするため、中央寄せで描画する
-            .frame(maxWidth: .infinity, alignment: .center)
+            spriteBoard(width: width)
+                // 任意スポーン待機時でも盤面全体を常時見せ、ガイドは上部バナーへ退避させる
+                // 盤面縮小で生まれた余白を均等にするため、中央寄せで描画する
+                .frame(maxWidth: .infinity, alignment: .center)
         }
     }
 
@@ -90,29 +83,31 @@ extension GameView {
             }
     }
 
-    /// スポーン位置選択中に盤面へ重ねる案内オーバーレイ
-    var spawnSelectionOverlay: some View {
-        VStack(spacing: 8) {
+    /// スポーン位置選択中にトップ通知スタックへ表示する案内バナー
+    var spawnSelectionBanner: some View {
+        // トップバナーと整合するサイズ感に調整し、通知スタックへ積めるようにする
+        VStack(alignment: .leading, spacing: 6) {
             Text("開始マスを選択")
-                .font(.system(size: 18, weight: .semibold, design: .rounded))
+                .font(.system(size: 17, weight: .semibold, design: .rounded))
             Text("手札スロットと先読みを確認してから、好きなマスをタップしてください。")
                 .font(.system(size: 14, weight: .medium, design: .rounded))
-                .multilineTextAlignment(.center)
+                .multilineTextAlignment(.leading)
         }
-        .padding(.vertical, 18)
-        .padding(.horizontal, 20)
+        .padding(.vertical, 14)
+        .padding(.horizontal, 18)
         .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .fill(theme.spawnOverlayBackground)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
                         .stroke(theme.spawnOverlayBorder, lineWidth: 1)
                 )
         )
-        .shadow(color: theme.spawnOverlayShadow, radius: 18, x: 0, y: 8)
+        .shadow(color: theme.spawnOverlayShadow, radius: 20, x: 0, y: 10)
         .foregroundColor(theme.textPrimary)
         .allowsHitTesting(false)
         .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("spawn_selection_banner")
         .accessibilityLabel(Text("開始位置を選択してください。手札スロットと次のカードを見てから任意のマスをタップできます。"))
     }
 
@@ -133,6 +128,17 @@ extension GameView {
 
         return VStack {
             VStack(spacing: stackSpacing) {
+                if viewModel.progress == .awaitingSpawn {
+                    // スポーン選択を促す案内を最優先で表示し、ユーザーの視線が最短距離で届くよう中央寄せする
+                    HStack {
+                        Spacer(minLength: 0)
+                        spawnSelectionBanner
+                            .padding(.horizontal, 20)
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                        Spacer(minLength: 0)
+                    }
+                }
+
                 if viewModel.isShowingPenaltyBanner {
                     HStack {
                         Spacer(minLength: 0)
