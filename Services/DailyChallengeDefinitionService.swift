@@ -118,8 +118,9 @@ final class DailyChallengeDefinitionService: ObservableObject, DailyChallengeDef
         return nextDay
     }
 
+    // 純粋関数のためメインアクター不要
     /// 既定のバリアント決定ロジック（偶数シードは固定、奇数シードはランダム）
-    private static func defaultVariantResolver(_ seed: UInt64) -> DailyChallengeDefinition.Variant {
+    private nonisolated static func defaultVariantResolver(_ seed: UInt64) -> DailyChallengeDefinition.Variant {
         // seed の最下位ビットで偶奇を判定し、シンプルかつ決定論的にバリアントを切り替える
         if seed & 1 == 0 {
             return .fixed
