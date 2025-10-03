@@ -124,6 +124,8 @@ public struct GameMode: Equatable, Identifiable {
         case classicalChallenge
         case freeCustom
         case campaignStage
+        case dailyFixed
+        case dailyRandom
     }
 
     /// キャンペーン関連の補助情報
@@ -354,6 +356,8 @@ public struct GameMode: Equatable, Identifiable {
     private let leaderboardEligible: Bool
     /// キャンペーンステージ情報（該当しない場合は nil）
     private let campaignMetadata: CampaignMetadata?
+    /// 乱数シード（決定論的な山札を構築したい場合に利用）
+    public let deckSeed: UInt64?
 
     /// `Identifiable` 準拠用
     public var id: Identifier { identifier }
@@ -368,13 +372,15 @@ public struct GameMode: Equatable, Identifiable {
         displayName: String,
         regulation: Regulation,
         leaderboardEligible: Bool = true,
-        campaignMetadata: CampaignMetadata? = nil
+        campaignMetadata: CampaignMetadata? = nil,
+        deckSeed: UInt64? = nil
     ) {
         self.identifier = identifier
         self.displayName = displayName
         self.regulation = regulation
         self.leaderboardEligible = leaderboardEligible
         self.campaignMetadata = campaignMetadata
+        self.deckSeed = deckSeed
     }
 
     /// 盤面サイズ（N×N）
@@ -416,6 +422,10 @@ public struct GameMode: Equatable, Identifiable {
             return "slider.horizontal.3"
         case .campaignStage:
             return "map.fill"
+        case .dailyFixed:
+            return "calendar"
+        case .dailyRandom:
+            return "sparkles"
         }
     }
     /// モードの難易度ランク
@@ -430,6 +440,10 @@ public struct GameMode: Equatable, Identifiable {
             return .custom
         case .campaignStage:
             return .scenario
+        case .dailyFixed:
+            return .advanced
+        case .dailyRandom:
+            return .custom
         }
     }
     /// 難易度バッジで利用する短縮ラベル
@@ -552,6 +566,9 @@ public struct GameMode: Equatable, Identifiable {
         case .campaignStage:
             // キャンペーン専用モードは `CampaignStage` から生成されるため、ここではスタンダードをフォールバックとして返す
             return standard
+        case .dailyFixed, .dailyRandom:
+            // 日替わりモードは日付とシードから別途生成されるため、ここでは安全側としてスタンダードを返す
+            return standard
         }
     }
 
@@ -559,10 +576,21 @@ public struct GameMode: Equatable, Identifiable {
     public static func == (lhs: GameMode, rhs: GameMode) -> Bool {
         guard lhs.identifier == rhs.identifier else { return false }
         guard lhs.campaignMetadata == rhs.campaignMetadata else { return false }
-        if lhs.identifier == .freeCustom || lhs.identifier == .campaignStage {
+        guard lhs.deckSeed == rhs.deckSeed else { return false }
+        if lhs.requiresRegulationComparison {
             return lhs.regulation == rhs.regulation
         }
         return true
+    }
+
+    /// レギュレーション比較が必要な識別子かどうかをまとめたヘルパー
+    private var requiresRegulationComparison: Bool {
+        switch identifier {
+        case .freeCustom, .campaignStage, .dailyFixed, .dailyRandom:
+            return true
+        case .standard5x5, .classicalChallenge:
+            return false
+        }
     }
 
     /// スタンダードモードの定義を生成する
