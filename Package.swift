@@ -34,7 +34,7 @@ let package = Package(
         // 単体テスト用ターゲット
         .testTarget(
             name: "GameTests",
-            dependencies: ["Game"],
+            dependencies: ["Game", "SharedSupport"],
             path: "Tests/GameTests"
         ),
         // XCUITest 用ターゲット（エミュレーター上での UI 動作確認用）
