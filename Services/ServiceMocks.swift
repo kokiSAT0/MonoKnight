@@ -29,6 +29,10 @@ final class MockGameCenterService: GameCenterServiceProtocol {
 final class MockAdsService: AdsServiceProtocol {
     /// 無効化フラグ。IAP などで広告を停止したケースを再現
     private var isDisabled = false
+    /// リワード広告の結果を切り替えるためのフラグ
+    var rewardedAdShouldSucceed: Bool = true
+    /// リワード広告 API が呼ばれた回数をテストで検証できるようにする
+    private(set) var showRewardedAdCallCount: Int = 0
 
     /// ダミー広告を全画面で表示する
     func showInterstitial() {
@@ -46,6 +50,12 @@ final class MockAdsService: AdsServiceProtocol {
 
     /// 広告読み込み停止も不要なので空実装
     func disableAds() { isDisabled = true }
+
+    /// リワード広告の表示を模倣し、事前に設定したフラグに従って成否を返す
+    func showRewardedAd() async -> Bool {
+        showRewardedAdCallCount += 1
+        return rewardedAdShouldSucceed
+    }
 
     /// ATT 許可ダイアログは表示しないダミー実装
     func requestTrackingAuthorization() async {}

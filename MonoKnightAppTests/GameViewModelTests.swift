@@ -338,6 +338,7 @@ private final class DummyAdsService: AdsServiceProtocol {
     func showInterstitial() {}
     func resetPlayFlag() {}
     func disableAds() {}
+    func showRewardedAd() async -> Bool { true }
     func requestTrackingAuthorization() async {}
     func requestConsentIfNeeded() async {}
     func refreshConsentStatus() async {}
@@ -357,6 +358,7 @@ private final class SpyAdsService: AdsServiceProtocol {
     }
 
     func disableAds() {}
+    func showRewardedAd() async -> Bool { true }
     func requestTrackingAuthorization() async {}
     func requestConsentIfNeeded() async {}
     func refreshConsentStatus() async {}

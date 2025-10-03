@@ -95,7 +95,9 @@ struct DefaultRootViewControllerProvider: RootViewControllerProviding {
 /// Info.plist 由来の設定値をまとめる構造体
 struct AdsServiceConfiguration {
     let interstitialAdUnitID: String
+    let rewardedAdUnitID: String
     let hasValidAdConfiguration: Bool
+    let hasValidRewardedConfiguration: Bool
 }
 
 // MARK: - Google Mobile Ads 実装
@@ -105,6 +107,7 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol {
     private enum InfoPlistKey {
         static let applicationIdentifier = "GADApplicationIdentifier"
         static let interstitialAdUnitID = "GADInterstitialAdUnitID"
+        static let rewardedAdUnitID = "GADRewardedAdUnitID"
     }
 
     /// シングルトンでサービスを共有
@@ -115,16 +118,19 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol {
 
     private let consentCoordinator: AdsConsentCoordinating
     private let interstitialController: InterstitialAdControlling
+    private let rewardedController: RewardedAdControlling
     private let mobileAdsController: MobileAdsControlling
     private let trackingAuthorizationController: TrackingAuthorizationControlling
     private let configuration: AdsServiceConfiguration
     private let rootViewControllerProvider: RootViewControllerProviding
+    private let consentStateRelay = AdsConsentStateRelay()
 
     /// 生成直後に依存関係を注入できるよう DI 対応したイニシャライザを用意する
     init(
         configuration: AdsServiceConfiguration? = nil,
         consentCoordinator: AdsConsentCoordinating? = nil,
         interstitialController: InterstitialAdControlling? = nil,
+        rewardedController: RewardedAdControlling? = nil,
         mobileAdsController: MobileAdsControlling = DefaultMobileAdsController(),
         trackingAuthorizationController: TrackingAuthorizationControlling = DefaultTrackingAuthorizationController(),
         rootViewControllerProvider: RootViewControllerProviding = DefaultRootViewControllerProvider()
@@ -141,10 +147,16 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol {
             hasValidAdConfiguration: resolvedConfiguration.hasValidAdConfiguration,
             initialConsentState: resolvedConsentCoordinator.currentState
         )
+        let resolvedRewardedController = rewardedController ?? RewardedAdController(
+            adUnitID: resolvedConfiguration.rewardedAdUnitID,
+            hasValidAdConfiguration: resolvedConfiguration.hasValidRewardedConfiguration,
+            initialConsentState: resolvedConsentCoordinator.currentState
+        )
 
         self.configuration = resolvedConfiguration
         self.consentCoordinator = resolvedConsentCoordinator
         self.interstitialController = resolvedInterstitialController
+        self.rewardedController = resolvedRewardedController
         self.mobileAdsController = mobileAdsController
         self.trackingAuthorizationController = resolvedTrackingController
         self.rootViewControllerProvider = rootViewControllerProvider
@@ -155,12 +167,18 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol {
         self.interstitialController.updateRemoveAdsProvider { [weak self] in
             self?.removeAdsMK ?? false
         }
+        self.rewardedController.delegate = self
+        self.rewardedController.updateRemoveAdsProvider { [weak self] in
+            self?.removeAdsMK ?? false
+        }
         self.consentCoordinator.presentationDelegate = self
-        self.consentCoordinator.stateDelegate = self.interstitialController
+        consentStateRelay.setDelegates([resolvedInterstitialController, resolvedRewardedController])
+        self.consentCoordinator.stateDelegate = consentStateRelay
 
         // IAP による広告除去が永続化されている場合は、初期化直後から広告のロードを完全に停止する
         if removeAdsMK {
             self.interstitialController.disableAds()
+            self.rewardedController.disableAds()
             debugLog("広告除去オプションが有効なため AdMob SDK のロード処理をスキップします")
         }
 
@@ -187,6 +205,9 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol {
         Task { [weak self] in
             await self?.consentCoordinator.synchronizeOnLaunch()
         }
+
+        // リワード広告も起動直後から読み込みを始めておき、視聴要求に即座に応えられるよう準備する
+        self.rewardedController.prepareInitialLoad()
     }
 
     /// シングルトン利用時は Info.plist から設定を取得する
@@ -210,6 +231,17 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol {
 
     func disableAds() {
         interstitialController.disableAds()
+        rewardedController.disableAds()
+    }
+
+    func showRewardedAd() async -> Bool {
+        let result = await rewardedController.showRewardedAd()
+        if result {
+            debugLog("AdsService: リワード広告視聴が完了したため報酬付与を進められます")
+        } else {
+            debugLog("AdsService: リワード広告視聴が完了しなかったため報酬は付与されません")
+        }
+        return result
     }
 
     func requestTrackingAuthorization() async {
@@ -258,8 +290,20 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol {
             assertionFailure("Info.plist に GADInterstitialAdUnitID が設定されていません。Config/Local.xcconfig で本番値を指定してください。")
         }
 
+        let rewardedIdentifier = (Bundle.main.object(forInfoDictionaryKey: InfoPlistKey.rewardedAdUnitID) as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if rewardedIdentifier.isEmpty {
+            debugLog("Info.plist に GADRewardedAdUnitID が未設定のためリワード広告機能を無効化します")
+        }
+
         let hasValid = !applicationIdentifier.isEmpty && !interstitialIdentifier.isEmpty
-        return AdsServiceConfiguration(interstitialAdUnitID: interstitialIdentifier, hasValidAdConfiguration: hasValid)
+        let hasValidRewarded = hasValid && !rewardedIdentifier.isEmpty
+        return AdsServiceConfiguration(
+            interstitialAdUnitID: interstitialIdentifier,
+            rewardedAdUnitID: rewardedIdentifier,
+            hasValidAdConfiguration: hasValid,
+            hasValidRewardedConfiguration: hasValidRewarded
+        )
     }
 
     /// デバッグログ用に ATT ステータスを文字列化するヘルパー
@@ -275,6 +319,27 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol {
             return "restricted"
         @unknown default:
             return "unknown"
+        }
+    }
+}
+
+// MARK: - 同意状態リレー
+@MainActor
+private final class AdsConsentStateRelay: AdsConsentCoordinatorStateDelegate {
+    private struct WeakDelegate {
+        weak var value: (any AdsConsentCoordinatorStateDelegate)?
+    }
+
+    private var delegates: [WeakDelegate] = []
+
+    func setDelegates(_ delegates: [AdsConsentCoordinatorStateDelegate]) {
+        self.delegates = delegates.map { WeakDelegate(value: $0) }
+    }
+
+    func adsConsentCoordinator(_ coordinator: AdsConsentCoordinating, didUpdate state: AdsConsentState, shouldReloadAds: Bool) {
+        delegates = delegates.filter { $0.value != nil }
+        for delegate in delegates {
+            delegate.value?.adsConsentCoordinator(coordinator, didUpdate: state, shouldReloadAds: shouldReloadAds)
         }
     }
 }
@@ -321,6 +386,12 @@ extension AdsService: AdsConsentCoordinatorPresenting {
                 }
             }
         }
+    }
+}
+
+extension AdsService: RewardedAdControllerDelegate {
+    func rootViewControllerForPresentation(_ controller: RewardedAdControlling) -> UIViewController? {
+        rootViewControllerProvider.topViewController()
     }
 }
 
