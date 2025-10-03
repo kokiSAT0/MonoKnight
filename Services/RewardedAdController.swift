@@ -36,12 +36,16 @@ protocol RewardedAdPresentable: AnyObject, FullScreenPresentingAd {
 
 extension RewardedAd: RewardedAdPresentable {
     func presentAd(from viewController: UIViewController, userDidEarnRewardHandler: @escaping () -> Void) {
-        // SDK v11 以降は `present(from:)` が推奨 API であり、ここで直接呼び出すと無名関数内で同名メソッドへ再帰してしまう
-        // そのためラッパー側は `presentAd` という別名を用意し、内部で SDK 提供メソッドを明示的に叩いている
-        present(from: viewController) {
-            // SDK 側のクロージャは引数を受け取らないため、報酬獲得時にハンドラーを呼び出すだけにする
-            userDidEarnRewardHandler()
-        }
+        // MARK: - SDK メソッドへの委譲
+        // Google Mobile Ads SDK の `RewardedAd` が提供する正式な API を明示的に指定することで、
+        // プロトコル拡張内の同名メソッドを誤って再帰的に呼び出すリスクを排除する
+        (self as GoogleMobileAds.RewardedAd).present(
+            fromRootViewController: viewController,
+            userDidEarnRewardHandler: {
+                // SDK 側のクロージャは引数を伴わないため、報酬獲得時に受け取ったハンドラーをそのまま呼び出す
+                userDidEarnRewardHandler()
+            }
+        )
     }
 }
 
