@@ -124,6 +124,7 @@ public struct GameMode: Equatable, Identifiable {
         case classicalChallenge
         case freeCustom
         case campaignStage
+        case dailyChallenge
     }
 
     /// キャンペーン関連の補助情報
@@ -416,6 +417,8 @@ public struct GameMode: Equatable, Identifiable {
             return "slider.horizontal.3"
         case .campaignStage:
             return "map.fill"
+        case .dailyChallenge:
+            return "calendar"
         }
     }
     /// モードの難易度ランク
@@ -430,6 +433,8 @@ public struct GameMode: Equatable, Identifiable {
             return .custom
         case .campaignStage:
             return .scenario
+        case .dailyChallenge:
+            return .balanced
         }
     }
     /// 難易度バッジで利用する短縮ラベル
@@ -551,6 +556,8 @@ public struct GameMode: Equatable, Identifiable {
             return standard
         case .campaignStage:
             // キャンペーン専用モードは `CampaignStage` から生成されるため、ここではスタンダードをフォールバックとして返す
+            return standard
+        case .dailyChallenge:
             return standard
         }
     }

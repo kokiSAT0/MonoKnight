@@ -25,6 +25,13 @@ protocol GameCenterServiceProtocol: AnyObject {
 }
 
 // MARK: AdMob
+/// リワード広告の表示位置を管理するための列挙体
+/// - Note: 今後表示箇所が増えた際も `AdsServiceProtocol` の引数がブレないよう、ここで共通化しておく。
+enum AdsRewardPlacement: String {
+    /// デイリーチャレンジの挑戦回数補充
+    case dailyChallenge
+}
+
 @MainActor
 protocol AdsServiceProtocol: AnyObject {
     /// インタースティシャル広告を表示する。
@@ -39,6 +46,10 @@ protocol AdsServiceProtocol: AnyObject {
     func requestConsentIfNeeded() async
     /// 同意状態を最新化する。
     func refreshConsentStatus() async
+    /// リワード広告を表示し、報酬獲得に成功したかどうかを返す。
+    /// - Parameter placement: 表示位置を識別する値
+    /// - Returns: 報酬付与が完了した場合は true
+    func presentRewardedAd(for placement: AdsRewardPlacement) async -> Bool
 }
 
 // MARK: StoreKit

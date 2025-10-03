@@ -33,8 +33,15 @@ private struct GameCenterLeaderboardCatalog {
         supportedModes: [.classicalChallenge]
     )
 
+    /// テスト版デイリーチャレンジ向けリーダーボード
+    static let dailyChallengeTest = Entry(
+        referenceName: "[TEST] Daily Challenge Leaderboard",
+        leaderboardID: "test_daily_moves_v1",
+        supportedModes: [.dailyChallenge]
+    )
+
     /// 定義済みのリーダーボード一覧
-    static let allEntries: [Entry] = [standardTest, classicalChallengeTest]
+    static let allEntries: [Entry] = [standardTest, classicalChallengeTest, dailyChallengeTest]
 
     /// 指定したゲームモードに対応するリーダーボードを返す
     /// - Parameter identifier: 判定対象となるゲームモード識別子

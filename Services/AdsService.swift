@@ -244,6 +244,11 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol {
         await consentCoordinator.refreshConsentStatus()
     }
 
+    func presentRewardedAd(for placement: AdsRewardPlacement) async -> Bool {
+        debugLog("リワード広告 API は未実装のためダミー結果を返却 placement=\(placement.rawValue)")
+        return false
+    }
+
     /// Info.plist を読み取り、広告設定が揃っているかどうかを返す
     private static func makeConfiguration() -> AdsServiceConfiguration {
         let applicationIdentifier = (Bundle.main.object(forInfoDictionaryKey: InfoPlistKey.applicationIdentifier) as? String)?

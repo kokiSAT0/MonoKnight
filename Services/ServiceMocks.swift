@@ -56,6 +56,11 @@ final class MockAdsService: AdsServiceProtocol {
     /// 同意状況の再評価も行わないダミー実装
     func refreshConsentStatus() async {}
 
+    func presentRewardedAd(for placement: AdsRewardPlacement) async -> Bool {
+        // UI テストでは常に成功扱いとし、回数補充フローを検証できるようにする
+        return !isDisabled
+    }
+
     /// ダミー広告ビュー
     private struct MockAdView: View {
         @Environment(\.dismiss) private var dismiss

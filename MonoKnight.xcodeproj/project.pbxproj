@@ -9,7 +9,9 @@
 /* Begin PBXBuildFile section */
 		34AB7338806A42E0A3B80A97 /* GameCenterSignInPrompt.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B9170D4E6844EE280264226 /* GameCenterSignInPrompt.swift */; };
 		72185F522E84B44F0057458C /* CrashFeedbackCollector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72185F512E84B44F0057458C /* CrashFeedbackCollector.swift */; };
-		72185F542E84B4680057458C /* ServiceInterfaces.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72185F532E84B4680057458C /* ServiceInterfaces.swift */; };
+            72185F542E84B4680057458C /* ServiceInterfaces.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72185F532E84B4680057458C /* ServiceInterfaces.swift */; };
+            72D0C8D22E8E123400C6D0C5 /* DailyChallengeAttemptStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72D0C8D02E8E123400C6D0C5 /* DailyChallengeAttemptStore.swift */; };
+            72D0C8D32E8E123400C6D0C5 /* DailyChallengeDefinition.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72D0C8D12E8E123400C6D0C5 /* DailyChallengeDefinition.swift */; };
 		72185F562E84B4AF0057458C /* GameBoardBridgeViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72185F552E84B4AF0057458C /* GameBoardBridgeViewModel.swift */; };
 		72185F582E84B4B80057458C /* GameViewLayoutSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72185F572E84B4B80057458C /* GameViewLayoutSupport.swift */; };
 		72185F592E84B50F0057458C /* DebugLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF37F12E7162E20093B180 /* DebugLog.swift */; };
@@ -129,9 +131,11 @@
 		72CF37F82E7162E20093B180 /* AdsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdsService.swift; sourceTree = "<group>"; };
 		72CF37F92E7162E20093B180 /* ErrorReporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorReporter.swift; sourceTree = "<group>"; };
 		72CF37FA2E7162E20093B180 /* GameCenterService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameCenterService.swift; sourceTree = "<group>"; };
-		72CF37FB2E7162E20093B180 /* ServiceMocks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServiceMocks.swift; sourceTree = "<group>"; };
-		72CF37FC2E7162E20093B180 /* StoreService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreService.swift; sourceTree = "<group>"; };
-		72CF37FE2E7162E20093B180 /* ConsentFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConsentFlowView.swift; sourceTree = "<group>"; };
+                72CF37FB2E7162E20093B180 /* ServiceMocks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServiceMocks.swift; sourceTree = "<group>"; };
+                72CF37FC2E7162E20093B180 /* StoreService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreService.swift; sourceTree = "<group>"; };
+                72D0C8D02E8E123400C6D0C5 /* DailyChallengeAttemptStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyChallengeAttemptStore.swift; sourceTree = "<group>"; };
+                72D0C8D12E8E123400C6D0C5 /* DailyChallengeDefinition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyChallengeDefinition.swift; sourceTree = "<group>"; };
+                72CF37FE2E7162E20093B180 /* ConsentFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConsentFlowView.swift; sourceTree = "<group>"; };
 		72CF38002E7162E20093B180 /* GameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameView.swift; sourceTree = "<group>"; };
 		72CF38012E7162E20093B180 /* ResultView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultView.swift; sourceTree = "<group>"; };
 		72CF38022E7162E20093B180 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
@@ -242,23 +246,25 @@
 			path = Game;
 			sourceTree = "<group>";
 		};
-		72CF37FD2E7162E20093B180 /* Services */ = {
-			isa = PBXGroup;
-			children = (
-				726642972E848E91003EA325 /* AdsConsentCoordinator.swift */,
-				72CF37F82E7162E20093B180 /* AdsService.swift */,
-				726643062E85DAD1003EA325 /* CampaignProgressStore.swift */,
-				72CF37F92E7162E20093B180 /* ErrorReporter.swift */,
-				726642392E823939003EA325 /* FreeModeRegulationStore.swift */,
-				72CF37FA2E7162E20093B180 /* GameCenterService.swift */,
-				726642992E848E9A003EA325 /* InterstitialAdController.swift */,
-				72185F532E84B4680057458C /* ServiceInterfaces.swift */,
-				72CF37FB2E7162E20093B180 /* ServiceMocks.swift */,
-				72CF37FC2E7162E20093B180 /* StoreService.swift */,
-			);
-			path = Services;
-			sourceTree = "<group>";
-		};
+                72CF37FD2E7162E20093B180 /* Services */ = {
+                        isa = PBXGroup;
+                        children = (
+                                726642972E848E91003EA325 /* AdsConsentCoordinator.swift */,
+                                72CF37F82E7162E20093B180 /* AdsService.swift */,
+                                726643062E85DAD1003EA325 /* CampaignProgressStore.swift */,
+                                72CF37F92E7162E20093B180 /* ErrorReporter.swift */,
+                                726642392E823939003EA325 /* FreeModeRegulationStore.swift */,
+                                72CF37FA2E7162E20093B180 /* GameCenterService.swift */,
+                                726642992E848E9A003EA325 /* InterstitialAdController.swift */,
+                                72185F532E84B4680057458C /* ServiceInterfaces.swift */,
+                                72CF37FB2E7162E20093B180 /* ServiceMocks.swift */,
+                                72CF37FC2E7162E20093B180 /* StoreService.swift */,
+                                72D0C8D02E8E123400C6D0C5 /* DailyChallengeAttemptStore.swift */,
+                                72D0C8D12E8E123400C6D0C5 /* DailyChallengeDefinition.swift */,
+                        );
+                        path = Services;
+                        sourceTree = "<group>";
+                };
 		72CF38042E7162E20093B180 /* UI */ = {
 			isa = PBXGroup;
 			children = (
@@ -525,9 +531,11 @@
 				72D0C8922E8E028A00C6D0C5 /* CampaignRewardSummaryView.swift in Sources */,
 				726642F82E85DA8E003EA325 /* GameMenuActionConfirmationSheet.swift in Sources */,
 				726642F92E85DA8E003EA325 /* GameHandSectionView.swift in Sources */,
-				72185F562E84B4AF0057458C /* GameBoardBridgeViewModel.swift in Sources */,
-				72185F542E84B4680057458C /* ServiceInterfaces.swift in Sources */,
-				7266429E2E849763003EA325 /* GameViewModel.swift in Sources */,
+                                72185F562E84B4AF0057458C /* GameBoardBridgeViewModel.swift in Sources */,
+                                72185F542E84B4680057458C /* ServiceInterfaces.swift in Sources */,
+                                72D0C8D22E8E123400C6D0C5 /* DailyChallengeAttemptStore.swift in Sources */,
+                                72D0C8D32E8E123400C6D0C5 /* DailyChallengeDefinition.swift in Sources */,
+                                7266429E2E849763003EA325 /* GameViewModel.swift in Sources */,
 				726642982E848E91003EA325 /* AdsConsentCoordinator.swift in Sources */,
 				72F554A82E7E40100098A1B0 /* MoveCardIllustrationView.swift in Sources */,
 				726642F52E85DA84003EA325 /* GameCardAnimationOverlay.swift in Sources */,

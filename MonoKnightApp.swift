@@ -19,6 +19,12 @@ struct MonoKnightApp: App {
     /// StoreKit2 の購買状況を常に監視し、広告除去 IAP の適用状態をアプリ全体へ即時反映するためのオブジェクト
     /// - NOTE: タイプイレースしたラッパー `AnyStoreService` を採用し、UI テストではモックへ容易に差し替えられるようにする
     @StateObject private var storeService: AnyStoreService
+    /// 日替わりチャレンジの挑戦回数ストア
+    @StateObject private var dailyChallengeAttemptStore: DailyChallengeAttemptStore
+    /// 当日のデイリーチャレンジ定義
+    @State private var dailyChallengeDefinition: DailyChallengeDefinition
+    /// UI テストなどでゲーム開始を抑止するためのフラグ
+    private let shouldTriggerDailyChallengeGameStart: Bool
 
     /// 同意フローが完了したかどうかを保持するフラグ
     /// - NOTE: `UserDefaults` と連携し、次回以降はスキップする
@@ -49,7 +55,10 @@ struct MonoKnightApp: App {
 #endif
         // MARK: サービスのインスタンス確定
         // UI テスト環境ではモックを、それ以外では実サービスを採用
-        if ProcessInfo.processInfo.environment["UITEST_MODE"] != nil {
+        let isUITest = ProcessInfo.processInfo.environment["UITEST_MODE"] != nil
+        let initialDailyDefinition = DailyChallengeDefinition.makeForToday()
+
+        if isUITest {
             // UI テストではモックを利用して即時認証・ダミー広告を表示
             let mockGameCenter = MockGameCenterService()
             let mockAds = MockAdsService()
@@ -57,6 +66,13 @@ struct MonoKnightApp: App {
             self.gameCenterService = mockGameCenter
             self.adsService = mockAds
             _storeService = StateObject(wrappedValue: AnyStoreService(base: mockStore))
+            let suiteName = "UITEST_DAILY_CHALLENGE"
+            let defaults = UserDefaults(suiteName: suiteName) ?? .standard
+            defaults.removePersistentDomain(forName: suiteName)
+            _dailyChallengeAttemptStore = StateObject(
+                wrappedValue: DailyChallengeAttemptStore(userDefaults: defaults, initialDefinition: initialDailyDefinition)
+            )
+            shouldTriggerDailyChallengeGameStart = false
         } else {
             // 通常起動時はシングルトンを利用
             let liveGameCenter = GameCenterService.shared
@@ -65,7 +81,13 @@ struct MonoKnightApp: App {
             self.gameCenterService = liveGameCenter
             self.adsService = liveAds
             _storeService = StateObject(wrappedValue: AnyStoreService(base: liveStore))
+            _dailyChallengeAttemptStore = StateObject(
+                wrappedValue: DailyChallengeAttemptStore(initialDefinition: initialDailyDefinition)
+            )
+            shouldTriggerDailyChallengeGameStart = true
         }
+
+        _dailyChallengeDefinition = State(initialValue: initialDailyDefinition)
     }
 
     var body: some Scene {
@@ -75,7 +97,13 @@ struct MonoKnightApp: App {
                 // 初回のみ同意フローを表示し、完了後に `RootView` へ遷移する
                 if hasCompletedConsentFlow {
                     // 通常時はタブビューを提供するルート画面を表示
-                    RootView(gameCenterService: gameCenterService, adsService: adsService)
+                    RootView(
+                        gameCenterService: gameCenterService,
+                        adsService: adsService,
+                        dailyChallengeDefinition: dailyChallengeDefinition,
+                        dailyChallengeAttemptStore: dailyChallengeAttemptStore,
+                        shouldTriggerDailyChallengeGameStart: shouldTriggerDailyChallengeGameStart
+                    )
                 } else {
                     // 同意取得前はオンボーディング画面を表示
                     ConsentFlowView(adsService: adsService)
