@@ -281,10 +281,18 @@ struct DailyChallengeView: View {
         .background(theme.backgroundPrimary.ignoresSafeArea())
         .navigationTitle("デイリーチャレンジ")
         .navigationBarTitleDisplayMode(.inline)
+        // システム標準の戻る矢印は非表示にし、専用の戻るボタンへ誘導する
+        .navigationBarBackButtonHidden(true)
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {
-                Button("閉じる") { onDismiss() }
-                    .accessibilityIdentifier("daily_challenge_close_button")
+                Button {
+                    // 戻る操作を親ビューへ伝達し、タイトル画面へ戻る
+                    onDismiss()
+                } label: {
+                    Label("戻る", systemImage: "chevron.backward")
+                        .font(.system(size: 15, weight: .medium, design: .rounded))
+                }
+                .accessibilityIdentifier("daily_challenge_back_button")
             }
         }
         .onAppear {
