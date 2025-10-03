@@ -572,7 +572,8 @@ fileprivate extension RootView {
                     gameCenterService: gameCenterService,
                     adsService: adsService,
                     campaignProgressStore: campaignProgressStore,
-                    isPreparationOverlayVisible: stateStore.binding(for: \.isPreparingGame),
+                    // RootView から引き継いだバインディングなので、$isPreparingGame をそのまま利用して意図を明確にする
+                    isPreparationOverlayVisible: $isPreparingGame,
                     isGameCenterAuthenticated: isAuthenticated,
                     onRequestGameCenterSignIn: onRequestGameCenterSignInPrompt,
                     onRequestReturnToTitle: {
