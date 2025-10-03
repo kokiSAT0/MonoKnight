@@ -3,6 +3,41 @@ import Foundation
 import OSLog
 #endif
 
+// MARK: - ログ出力制御設定
+
+/// デバッグログを標準出力へ流すかどうかを集中管理する設定オブジェクト
+/// - Note: UI やユニットテストなど複数箇所から参照するため、スレッドセーフなシングルトンとして設計する
+public final class DebugLogConfiguration {
+    /// グローバルに共有するインスタンス
+    public static let shared = DebugLogConfiguration()
+
+    /// 内部状態を直列化するためのシリアルキュー
+    private let queue = DispatchQueue(label: "jp.monoknight.debug-log-configuration")
+    /// 実際に保持する標準出力の有効状態
+    private var internalShouldPrintToStandardOutput: Bool
+
+    /// 現在の標準出力出力可否を取得するための公開プロパティ
+    public var shouldPrintToStandardOutput: Bool {
+        queue.sync { internalShouldPrintToStandardOutput }
+    }
+
+    private init() {
+        // XCTest が動作している環境かどうかを環境変数で判定し、テスト中は標準出力を抑制する
+        let environment = ProcessInfo.processInfo.environment
+        let isRunningUnitTests = environment["XCTestConfigurationFilePath"] != nil
+        internalShouldPrintToStandardOutput = !isRunningUnitTests
+    }
+
+    /// 標準出力へのログ転送をオン・オフするメソッド
+    /// - Parameter enabled: `true` で標準出力を有効化、`false` で抑制
+    /// - Important: UI から明示的にログを見たいときに切り替える想定のため、常にスレッドセーフに更新する
+    public func setStandardOutputLogging(enabled: Bool) {
+        queue.sync {
+            internalShouldPrintToStandardOutput = enabled
+        }
+    }
+}
+
 // MARK: - フロントエンド向けログエントリ定義
 
 /// デバッグログをフロントエンドから閲覧する際の重要度区分
@@ -202,7 +237,9 @@ public func debugLog(
 
 #if DEBUG
     // DEBUG ビルドでは従来どおり標準出力にも表示して開発体験を維持する
-    print(composedMessage)
+    if DebugLogConfiguration.shared.shouldPrintToStandardOutput {
+        print(composedMessage)
+    }
 #endif
 
     // TestFlight や実機デバッグでも Console.app から追跡できるよう OSLog 経由でも出力する
@@ -213,14 +250,18 @@ public func debugLog(
             debugLogger.log("\(composedMessage, privacy: .public)")
         } else {
             // 旧 OS（Logger 非対応）では print にフォールバックし、最低限の記録を残す
-            print(composedMessage)
+            if DebugLogConfiguration.shared.shouldPrintToStandardOutput {
+                print(composedMessage)
+            }
         }
     }
 #else
     // OSLog が利用できない環境（Linux でのテストなど）では print のみで代替する
     // - Note: Linux 上ではリリースビルドを配信しない想定のため、このフォールバックで十分
 #if !DEBUG
-    print(composedMessage)
+    if DebugLogConfiguration.shared.shouldPrintToStandardOutput {
+        print(composedMessage)
+    }
 #endif
 #endif
 
@@ -261,7 +302,9 @@ public func debugError(
 
 #if DEBUG
     // DEBUG ビルドでは従来通り標準出力に流して素早い検証を行う
-    print(composedMessage)
+    if DebugLogConfiguration.shared.shouldPrintToStandardOutput {
+        print(composedMessage)
+    }
 #endif
 
     // エラーログは OSLog の error レベルで送出しておき、TestFlight 配信版でも収集できるようにする
@@ -272,13 +315,17 @@ public func debugError(
             errorLogger.error("\(composedMessage, privacy: .public)")
         } else {
             // Logger が使えない環境では print へ切り替え、最低限の情報を保持
-            print(composedMessage)
+            if DebugLogConfiguration.shared.shouldPrintToStandardOutput {
+                print(composedMessage)
+            }
         }
     }
 #else
     // OSLog が無い環境では print のみで代替（ERROR プレフィックスは保持）
 #if !DEBUG
-    print(composedMessage)
+    if DebugLogConfiguration.shared.shouldPrintToStandardOutput {
+        print(composedMessage)
+    }
 #endif
 #endif
 
