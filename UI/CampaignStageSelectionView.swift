@@ -131,35 +131,19 @@ struct CampaignStageSelectionView: View {
             // onAppear 時に章一覧のサマリーを出力し、ViewBuilder の評価と副作用を分離する
             debugLog("CampaignStageSelectionView.stageListView: 表示対象章一覧 = [\(chapterDetails)]")
             if expandedChapters.isEmpty {
-                // 最新の解放済みステージを含む章を優先して展開することで、進捗確認をしやすくする
-                let targetChapterID = latestUnlockedChapterID() ?? campaignLibrary.chapters.first?.id
-                if let targetChapterID {
-                    // Set へ単一章 ID を格納し、意図的に 1 章だけを展開した状態にする
-                    expandedChapters = [targetChapterID]
-                    debugLog("CampaignStageSelectionView.stageListView: 初期展開章を最新解放章 (Chapter \(targetChapterID)) に設定")
-                } else {
+                // 未クリアかつ解放済みステージを含む章をすべて展開し、プレイヤーが残課題へすぐアクセスできるようにする
+                let targetChapterIDs = chapterIDsWithUnlockedUnclearedStages(library: campaignLibrary, progressStore: progressStore)
+                if targetChapterIDs.isEmpty {
                     // 章が全く定義されていないケースでもログを残し、データ定義の見直しへ繋げられるようにする
-                    debugLog("CampaignStageSelectionView.stageListView: 解放済みステージが見つからず、展開状態を変更しませんでした")
+                    debugLog("CampaignStageSelectionView.stageListView: 初期展開対象が見つからず、展開状態を変更しませんでした")
+                } else {
+                    // Set へ該当章 ID 群を格納し、複数章にまたがる未クリア項目もワンタップで把握できるようにする
+                    expandedChapters = targetChapterIDs
+                    let sortedIDs = targetChapterIDs.sorted()
+                    debugLog("CampaignStageSelectionView.stageListView: 初期展開章 ID を \(sortedIDs) に設定（未クリア解放ステージを優先）")
                 }
             }
         }
-    }
-
-    /// 最新の解放済みステージが存在する章 ID を算出し、初期展開する章の判断材料とする
-    /// - Returns: 解放済みステージを含む章 ID（存在しない場合は nil）
-    private func latestUnlockedChapterID() -> Int? {
-        // 章定義を昇順のまま走査し、最後に true となった章 ID を記録する
-        var latestChapterID: Int?
-        for chapter in campaignLibrary.chapters {
-            for stage in chapter.stages {
-                // ステージが解放済みなら、該当する章 ID を随時更新しておく
-                if progressStore.isStageUnlocked(stage) {
-                    latestChapterID = chapter.id
-                }
-            }
-        }
-        // 解放済みステージが無い場合は nil が返り、呼び出し元でフォールバックが適用される
-        return latestChapterID
     }
 
     /// 章単位の Disclosure コンテナを生成し、開閉状態とステージグリッドを制御する
@@ -501,5 +485,61 @@ private struct ChapterProgressSummary {
     let clearedStageCount: Int
     /// 章内に存在するステージ総数
     let totalStageCount: Int
+}
+
+/// 未クリアかつ解放済みステージを含む章 ID を抽出し、画面初期表示時の展開対象を決定する
+/// - Parameters:
+///   - library: 章とステージ定義を含むキャンペーンライブラリ
+///   - progressStore: ステージ解放状況と獲得スター数を保持する進捗ストア
+/// - Returns: 展開すべき章 ID の集合。該当章が無い場合は最新の解放章、さらに無い場合は先頭章を返す。
+internal func chapterIDsWithUnlockedUnclearedStages(
+    library: CampaignLibrary,
+    progressStore: CampaignProgressStore
+) -> Set<Int> {
+    // まずは未クリア（スター 0）でありながら解放済みのステージを探索し、同じ章を重複なく収集する
+    var unlockedUnclearedChapterIDs = Set<Int>()
+    for chapter in library.chapters {
+        var hasUnlockedUnclearedStage = false
+        for stage in chapter.stages {
+            // ステージがロック中であればスキップし、無駄な判定を避ける
+            guard progressStore.isStageUnlocked(stage) else { continue }
+            let earnedStars = progressStore.progress(for: stage.id)?.earnedStars ?? 0
+            if earnedStars == 0 {
+                hasUnlockedUnclearedStage = true
+                break
+            }
+        }
+        if hasUnlockedUnclearedStage {
+            unlockedUnclearedChapterIDs.insert(chapter.id)
+        }
+    }
+
+    if !unlockedUnclearedChapterIDs.isEmpty {
+        // 未クリアステージが存在する場合は、その章群をそのまま返しプレイヤーの目線誘導に繋げる
+        return unlockedUnclearedChapterIDs
+    }
+
+    // 未クリアステージが見つからない場合は、最後に解放済みとなった章 ID を拾い上げてフォールバックする
+    var latestUnlockedChapterID: Int?
+    for chapter in library.chapters {
+        for stage in chapter.stages {
+            if progressStore.isStageUnlocked(stage) {
+                latestUnlockedChapterID = chapter.id
+            }
+        }
+    }
+
+    if let latestUnlockedChapterID {
+        // 最後に解放された章が存在すれば、その章だけを展開し進捗確認の起点とする
+        return [latestUnlockedChapterID]
+    }
+
+    if let firstChapterID = library.chapters.first?.id {
+        // 全く解放済みステージが存在しない場合でも、先頭章を開いて空状態を利用者へ明示する
+        return [firstChapterID]
+    }
+
+    // 章定義が空の場合は空集合を返し、呼び出し側でログ済みのシナリオへ委ねる
+    return []
 }
 
