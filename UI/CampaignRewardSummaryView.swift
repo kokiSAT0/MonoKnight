@@ -175,11 +175,12 @@ private extension CampaignRewardSummaryView {
 
     /// 最小ペナルティの表示文
     private var bestPenaltyText: String {
-        if let best = progress?.bestPenaltyCount {
-            return "\(best) 手"
-        } else {
+        guard let best = progress?.bestPenaltyCount else {
             return "未記録"
         }
+
+        // 0 の場合はノーペナルティを明示し、それ以外は合計値のみ表示する
+        return best == 0 ? "ペナルティなし" : "ペナルティ合計 \(best)"
     }
 
     /// 最少合計手数の表示文

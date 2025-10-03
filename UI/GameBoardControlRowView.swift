@@ -62,7 +62,16 @@ private extension GameBoardControlRowView {
 
     /// スコアへ直接影響する指標群
     func scoreStatisticsGroup() -> some View {
-        statisticsBadgeGroup {
+        let penaltyAccessibilityValue: String = {
+            // 0 件の場合は「ペナルティなし」と明言し、それ以外は合計値のみ伝える
+            if viewModel.penaltyCount == 0 {
+                return "ペナルティなし"
+            } else {
+                return "ペナルティ合計 \(viewModel.penaltyCount)"
+            }
+        }()
+
+        return statisticsBadgeGroup {
             statisticBadge(
                 title: "移動",
                 value: "\(viewModel.moveCount)",
@@ -73,8 +82,8 @@ private extension GameBoardControlRowView {
             statisticBadge(
                 title: "ペナルティ",
                 value: "\(viewModel.penaltyCount)",
-                accessibilityLabel: "ペナルティ回数",
-                accessibilityValue: "\(viewModel.penaltyCount)手"
+                accessibilityLabel: "ペナルティ合計",
+                accessibilityValue: penaltyAccessibilityValue
             )
 
             statisticBadge(
