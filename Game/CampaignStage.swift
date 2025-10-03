@@ -359,9 +359,9 @@ public struct CampaignLibrary {
                     revisitPenaltyCost: 1
                 )
             ),
-            // MARK: 2 個目のスター条件: 短時間で踏破し、操作テンポを掴んでもらう
-            secondaryObjective: .finishWithinSeconds(maxSeconds: 120),
-            scoreTarget: 900,
+            // MARK: 2 個目のスター条件: 60 秒以内クリアで序盤からテンポを意識させる
+            secondaryObjective: .finishWithinSeconds(maxSeconds: 60),
+            scoreTarget: 300,
             scoreTargetComparison: .lessThan,
             unlockRequirement: .totalStars(minimum: 0)
         )
@@ -385,9 +385,9 @@ public struct CampaignLibrary {
                     revisitPenaltyCost: 0
                 )
             ),
-            // MARK: 2 個目のスター条件: 引き直しペナルティを 5 回以内に抑えて安定感を身につけてもらう
-            secondaryObjective: .finishWithPenaltyAtMost(maxPenaltyCount: 5),
-            scoreTarget: 800,
+            // MARK: 2 個目のスター条件: ペナルティ 3 回以内で締め、リトライ負荷を抑える
+            secondaryObjective: .finishWithPenaltyAtMost(maxPenaltyCount: 3),
+            scoreTarget: 300,
             scoreTargetComparison: .lessThan,
             unlockRequirement: .stageClear(stage11.id)
         )
@@ -413,7 +413,7 @@ public struct CampaignLibrary {
             ),
             // MARK: 2 個目のスター条件: 60 秒以内に踏破してテンポ良く盤面を巡回する
             secondaryObjective: .finishWithinSeconds(maxSeconds: 60),
-            scoreTarget: 600,
+            scoreTarget: 400,
             scoreTargetComparison: .lessThan,
             unlockRequirement: .stageClear(stage12.id)
         )
@@ -437,9 +437,9 @@ public struct CampaignLibrary {
                     revisitPenaltyCost: 0
                 )
             ),
-            // MARK: 2 個目のスター条件: ペナルティを 3 回以内へ抑え、冷静な判断を促す
-            secondaryObjective: .finishWithPenaltyAtMost(maxPenaltyCount: 3),
-            scoreTarget: 550,
+            // MARK: 2 個目のスター条件: ペナルティを 5 回以内へ抑え、冷静な判断を促す
+            secondaryObjective: .finishWithPenaltyAtMost(maxPenaltyCount: 5),
+            scoreTarget: 400,
             scoreTargetComparison: .lessThan,
             unlockRequirement: .stageClear(stage13.id)
         )
@@ -465,7 +465,7 @@ public struct CampaignLibrary {
             ),
             // MARK: 2 個目のスター条件: 手数 30 以内を要求し、正確な踏破計画を促す
             secondaryObjective: .finishWithinMoves(maxMoves: 30),
-            scoreTarget: 500,
+            scoreTarget: 400,
             scoreTargetComparison: .lessThan,
             unlockRequirement: .stageClear(stage14.id)
         )
@@ -489,9 +489,9 @@ public struct CampaignLibrary {
                     revisitPenaltyCost: 0
                 )
             ),
-            // MARK: 2 個目のスター条件: ペナルティ 2 回以内で終える集中力を養う
-            secondaryObjective: .finishWithPenaltyAtMost(maxPenaltyCount: 2),
-            scoreTarget: 480,
+            // MARK: 2 個目のスター条件: ペナルティ 3 回以内で終える集中力を養う
+            secondaryObjective: .finishWithPenaltyAtMost(maxPenaltyCount: 3),
+            scoreTarget: 400,
             scoreTargetComparison: .lessThan,
             unlockRequirement: .stageClear(stage15.id)
         )
