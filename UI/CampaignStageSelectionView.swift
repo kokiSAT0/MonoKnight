@@ -172,6 +172,8 @@ struct CampaignStageSelectionView: View {
             Button {
                 toggleChapterExpansion(for: chapter)
             } label: {
+                // Disclosure を閉じたままでも進捗を把握できるよう、章単位のサマリーを先に計算しておく
+                let chapterProgress = chapterProgressSummary(for: chapter)
                 HStack(spacing: 12) {
                     Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
                         .font(.system(size: 14, weight: .semibold, design: .rounded))
@@ -184,6 +186,7 @@ struct CampaignStageSelectionView: View {
                         Text("ステージ \(chapter.stages.count) 件")
                             .font(.system(size: 12, weight: .medium, design: .rounded))
                             .foregroundColor(theme.textSecondary)
+                        chapterRewardProgressView(for: chapterProgress)
                     }
                     Spacer(minLength: 0)
                     Image(systemName: isExpanded ? "minus.circle.fill" : "plus.circle.fill")
@@ -259,6 +262,64 @@ struct CampaignStageSelectionView: View {
         } else {
             expandedChapters.insert(chapter.id)
             debugLog("CampaignStageSelectionView: Chapter \(chapter.id) を展開")
+        }
+    }
+
+    /// 章単位の進捗サマリーを算出し、Disclosure が閉じている状態でも進捗を把握できるようにする
+    /// - Parameter chapter: 対象の章データ
+    /// - Returns: 獲得スターとクリア済みステージ数をまとめたサマリー
+    private func chapterProgressSummary(for chapter: CampaignChapter) -> ChapterProgressSummary {
+        // 各ステージの進捗を列挙し、スター数とクリア済み数の合計を同時に算出する
+        var earnedStars = 0
+        var clearedStageCount = 0
+        for stage in chapter.stages {
+            let progress = progressStore.progress(for: stage.id)
+            let stars = progress?.earnedStars ?? 0
+            earnedStars += stars
+            if stars > 0 {
+                clearedStageCount += 1
+            }
+        }
+        // 1 ステージあたり最大 3 スターのため、合計上限はステージ数×3 で計算する
+        let totalStars = chapter.stages.count * 3
+        return ChapterProgressSummary(
+            earnedStars: earnedStars,
+            totalStars: totalStars,
+            clearedStageCount: clearedStageCount,
+            totalStageCount: chapter.stages.count
+        )
+    }
+
+    /// 章の進捗サマリーをラベル表示へ整形し、章タイトル直下で進捗を確認できるようにする
+    /// - Parameter summary: 章全体のスター数とクリア数を格納したサマリー
+    /// - Returns: スターとチェックアイコンを組み合わせた表示
+    @ViewBuilder
+    private func chapterRewardProgressView(for summary: ChapterProgressSummary) -> some View {
+        // 章内に 1 ステージ以上存在する場合のみ進捗を表示し、空章でのゼロ除算を防ぐ
+        if summary.totalStageCount > 0 {
+            HStack(spacing: 12) {
+                // スター獲得状況をアイコンと分数形式で表示する
+                HStack(spacing: 4) {
+                    Image(systemName: "star.fill")
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .foregroundColor(theme.accentPrimary)
+                    Text("\(summary.earnedStars) / \(summary.totalStars)")
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundColor(theme.textSecondary)
+                }
+                .accessibilityLabel(Text("スター獲得状況 \(summary.earnedStars) 個 / \(summary.totalStars) 個"))
+
+                // クリア済みステージ数を表示し、章全体の進捗を把握しやすくする
+                HStack(spacing: 4) {
+                    Image(systemName: "checkmark.seal.fill")
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .foregroundColor(theme.accentPrimary)
+                    Text("\(summary.clearedStageCount) / \(summary.totalStageCount)")
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundColor(theme.textSecondary)
+                }
+                .accessibilityLabel(Text("クリア済みステージ \(summary.clearedStageCount) 件 / \(summary.totalStageCount) 件"))
+            }
         }
     }
 
@@ -427,5 +488,18 @@ private extension CampaignStageSelectionView {
         }
         .buttonStyle(.plain)
     }
+}
+
+/// 章の進捗情報をまとめた内部利用向けモデル
+/// - Note: 表示専用のため View からのみ参照する
+private struct ChapterProgressSummary {
+    /// 獲得済みスター数の合計
+    let earnedStars: Int
+    /// 獲得可能なスターの合計
+    let totalStars: Int
+    /// クリア済みステージ数
+    let clearedStageCount: Int
+    /// 章内に存在するステージ総数
+    let totalStageCount: Int
 }
 
