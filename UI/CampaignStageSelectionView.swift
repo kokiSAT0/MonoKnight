@@ -19,6 +19,8 @@ struct CampaignStageSelectionView: View {
 
     /// テーマカラー
     private var theme = AppTheme()
+    /// 展開中の章 ID を保持し、Disclosure 表現の開閉状態を制御する
+    @State private var expandedChapters: Set<Int> = []
 
     /// メンバーごとの初期化処理を明示しておき、外部ファイルからの生成時にアクセスレベルの問題が発生しないようにする
     /// - Parameters:
@@ -93,83 +95,6 @@ struct CampaignStageSelectionView: View {
         }
     }
 
-    /// ステージ行の描画
-    /// - Parameter stage: 表示対象のステージ
-    /// - Returns: ステージを選択するためのボタン
-    private func stageRow(for stage: CampaignStage) -> some View {
-        let isUnlocked = progressStore.isStageUnlocked(stage)
-        let earnedStars = progressStore.progress(for: stage.id)?.earnedStars ?? 0
-        let isSelected = stage.id == selectedStageID
-
-        return Button {
-            guard isUnlocked else { return }
-            debugLog("CampaignStageSelectionView: ステージを選択 -> \(stage.id.displayCode)")
-            onSelectStage(stage)
-        } label: {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 8) {
-                    Text(stage.displayCode)
-                        .font(.system(size: 13, weight: .semibold, design: .rounded))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(
-                            Capsule().fill(theme.backgroundElevated.opacity(0.8))
-                        )
-                        .foregroundColor(theme.textPrimary)
-                    Text(stage.title)
-                        .font(.system(size: 15, weight: .semibold, design: .rounded))
-                        .foregroundColor(theme.textPrimary)
-                    Spacer(minLength: 0)
-                    if isSelected {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundColor(theme.accentPrimary)
-                            .font(.system(size: 18, weight: .bold))
-                    } else if !isUnlocked {
-                        Image(systemName: "lock.fill")
-                            .foregroundColor(theme.textSecondary.opacity(0.7))
-                            .font(.system(size: 15, weight: .medium))
-                    }
-                }
-
-                Text(stage.summary)
-                    .font(.system(size: 12, weight: .regular, design: .rounded))
-                    .foregroundColor(theme.textSecondary)
-
-                starIcons(for: earnedStars)
-
-                if let objective = stage.secondaryObjectiveDescription {
-                    Text("★2: \(objective)")
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .foregroundColor(theme.textSecondary.opacity(0.85))
-                }
-
-                if let scoreText = stage.scoreTargetDescription {
-                    Text("★3: \(scoreText)")
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .foregroundColor(theme.textSecondary.opacity(0.85))
-                }
-
-                if !isUnlocked {
-                    Text("解放条件: \(stage.unlockDescription)")
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .foregroundColor(theme.accentPrimary)
-                        .padding(.top, 2)
-                }
-            }
-            // VStack の横幅を行全体へ広げ、タップ領域とレイアウトの視覚的な一体感を確保する
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.vertical, 8)
-        }
-        // Button の外形を矩形として扱い、空き領域でもタップ判定が成立するように調整する
-        .contentShape(Rectangle())
-        .buttonStyle(.plain)
-        .disabled(!isUnlocked)
-        // UI テストやアクセシビリティから特定ステージを一意に参照できるようにする
-        .accessibilityIdentifier("campaign_stage_button_\(stage.id.displayCode)")
-        // 選択するとタイトルへ戻り即時にゲーム準備へ進む挙動を VoiceOver へ伝える
-        .accessibilityHint(Text("選択するとゲーム準備画面に戻り、選んだステージで開始準備が行われます。"))
-    }
-
     /// 星アイコンを生成する
     /// - Parameter earnedStars: 獲得済みの星の数
     /// - Returns: 星 3 つの並び
@@ -178,47 +103,139 @@ struct CampaignStageSelectionView: View {
             ForEach(0..<3, id: \.self) { index in
                 Image(systemName: index < earnedStars ? "star.fill" : "star")
                     .foregroundColor(index < earnedStars ? theme.accentPrimary : theme.textSecondary.opacity(0.6))
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
             }
         }
         .accessibilityLabel("スター獲得数: \(earnedStars) / 3")
-        .padding(.top, 4)
     }
 
     /// 章とステージが正しく読み込めた場合の一覧表示
-    /// - Returns: 既存仕様と同じスタイルの List
+    /// - Returns: DisclosureGroup 風のスクロールビュー
     private var stageListView: some View {
         // List 描画前に章ごとのステージ数を記録し、UI 側の表示内容と定義の整合性を検証しやすくする
         let chapterDetails = campaignLibrary.chapters
             .map { chapter in "Chapter \(chapter.id) \(chapter.title): \(chapter.stages.count)件" }
             .joined(separator: ", ")
-        // ResultBuilder の返却型と副作用の整合性を保つため、List を戻り値として明示する
-        return List {
-            // リストの先頭からステージ行を並べ、VoiceOver への案内は各セルのヒントへ集約する
-            ForEach(campaignLibrary.chapters) { chapter in
-                Section {
-                    ForEach(chapter.stages) { stage in
-                        stageRow(for: stage)
-                    }
-                } header: {
-                    Text("Chapter \(chapter.id) \(chapter.title)")
-                        .font(.system(size: 15, weight: .semibold, design: .rounded))
-                } footer: {
-                    Text(chapter.summary)
-                        .font(.system(size: 11, weight: .regular, design: .rounded))
-                        .foregroundColor(.secondary)
-                        .padding(.top, 4)
-                }
-                // onAppear でログを出力し、ResultBuilder の制約を満たしつつ診断情報を残す
-                .onAppear {
-                    // 各章ごとのステージ件数を記録し、データの欠損をタイムラインで追跡しやすくする
-                    debugLog("CampaignStageSelectionView.stageListView: Chapter \(chapter.id) のステージ数 = \(chapter.stages.count)件")
+        // ResultBuilder の返却型と副作用の整合性を保つため、ScrollView を戻り値として明示する
+        return ScrollView {
+            LazyVStack(spacing: 20, pinnedViews: []) {
+                ForEach(campaignLibrary.chapters) { chapter in
+                    chapterContainer(for: chapter)
                 }
             }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 24)
         }
-        .listStyle(.insetGrouped)
+        .background(theme.backgroundPrimary)
         .onAppear {
             // onAppear 時に章一覧のサマリーを出力し、ViewBuilder の評価と副作用を分離する
             debugLog("CampaignStageSelectionView.stageListView: 表示対象章一覧 = [\(chapterDetails)]")
+            if expandedChapters.isEmpty {
+                // 初回表示時は全章を展開し、ユーザーがすべての進捗を俯瞰できるようにする
+                let initiallyExpanded = Set(campaignLibrary.chapters.map(\.id))
+                expandedChapters = initiallyExpanded
+                debugLog("CampaignStageSelectionView.stageListView: 初期展開状態を全章 (\(initiallyExpanded.sorted())) に設定")
+            }
+        }
+    }
+
+    /// 章単位の Disclosure コンテナを生成し、開閉状態とステージグリッドを制御する
+    /// - Parameter chapter: レイアウト対象の章データ
+    /// - Returns: 見出しと LazyVGrid を組み合わせたビュー
+    private func chapterContainer(for chapter: CampaignChapter) -> some View {
+        let isExpanded = expandedChapters.contains(chapter.id)
+        // 読みやすさ向上のため見出しとコンテンツを VStack でまとめ、背景カードを適用する
+        return VStack(alignment: .leading, spacing: 16) {
+            Button {
+                toggleChapterExpansion(for: chapter)
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .foregroundColor(theme.textSecondary)
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Chapter \(chapter.id) \(chapter.title)")
+                            .font(.system(size: 16, weight: .semibold, design: .rounded))
+                            .foregroundColor(theme.textPrimary)
+                        Text("ステージ \(chapter.stages.count) 件")
+                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                            .foregroundColor(theme.textSecondary)
+                    }
+                    Spacer(minLength: 0)
+                    Image(systemName: isExpanded ? "minus.circle.fill" : "plus.circle.fill")
+                        .font(.system(size: 18, weight: .semibold, design: .rounded))
+                        .foregroundColor(theme.accentPrimary)
+                        .padding(.trailing, 4)
+                }
+                .padding(.vertical, 4)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("campaign_stage_chapter_toggle_\(chapter.id)")
+            .accessibilityLabel(Text("Chapter \(chapter.id) \(chapter.title)"))
+            .accessibilityHint(Text(isExpanded ? "折りたたむ" : "展開する"))
+
+            if isExpanded {
+                if !chapter.summary.isEmpty {
+                    // 章の概要は開いたときのみ表示し、情報量過多を防ぐ
+                    Text(chapter.summary)
+                        .font(.system(size: 12, weight: .regular, design: .rounded))
+                        .foregroundColor(theme.textSecondary)
+                }
+
+                LazyVGrid(columns: gridColumns, alignment: .leading, spacing: 12) {
+                    ForEach(chapter.stages) { stage in
+                        let isUnlocked = progressStore.isStageUnlocked(stage)
+                        let earnedStars = progressStore.progress(for: stage.id)?.earnedStars ?? 0
+                        let isSelected = stage.id == selectedStageID
+
+                        CampaignStageGridItemView(
+                            stage: stage,
+                            isUnlocked: isUnlocked,
+                            isSelected: isSelected,
+                            earnedStars: earnedStars,
+                            theme: theme,
+                            starContent: { count in AnyView(starIcons(for: count)) },
+                            onTap: {
+                                guard isUnlocked else { return }
+                                debugLog("CampaignStageSelectionView: ステージカードをタップ -> \(stage.id.displayCode)")
+                                onSelectStage(stage)
+                            }
+                        )
+                    }
+                }
+                .transition(.opacity.combined(with: .scale))
+            }
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(theme.backgroundElevated.opacity(0.85))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(theme.textSecondary.opacity(0.2), lineWidth: 1)
+        )
+        .onAppear {
+            // 各章の表示タイミングでステージ数を記録し、展開状態と合わせて診断できるようにする
+            debugLog("CampaignStageSelectionView.stageListView: Chapter \(chapter.id) のステージ数 = \(chapter.stages.count)件 (expanded=\(isExpanded))")
+        }
+    }
+
+    /// LazyVGrid の列構成を返し、正方形カードが 4 列で並ぶようにする
+    private var gridColumns: [GridItem] {
+        Array(repeating: GridItem(.flexible(), spacing: 12, alignment: .top), count: 4)
+    }
+
+    /// 章の開閉状態をトグルし、ログとセット管理を同期する
+    /// - Parameter chapter: 操作対象の章データ
+    private func toggleChapterExpansion(for chapter: CampaignChapter) {
+        if expandedChapters.contains(chapter.id) {
+            expandedChapters.remove(chapter.id)
+            debugLog("CampaignStageSelectionView: Chapter \(chapter.id) を折りたたみ")
+        } else {
+            expandedChapters.insert(chapter.id)
+            debugLog("CampaignStageSelectionView: Chapter \(chapter.id) を展開")
         }
     }
 
@@ -269,6 +286,97 @@ struct CampaignStageSelectionView: View {
         }
     }
 
+}
+
+/// キャンペーンのステージカードを 4 列グリッドで表示する専用ビュー
+/// - Note: コメントは全て日本語に統一し、デザイン意図を明示する
+private struct CampaignStageGridItemView<StarContent: View>: View {
+    /// 表示対象のステージ
+    let stage: CampaignStage
+    /// ステージが解放済みかどうか
+    let isUnlocked: Bool
+    /// 現在選択中のステージかどうか
+    let isSelected: Bool
+    /// 獲得済みスター数
+    let earnedStars: Int
+    /// 親ビューと揃えたテーマ情報
+    let theme: AppTheme
+    /// スター表示を親から差し込むためのクロージャ（ヘルパー再利用を目的とする）
+    let starContent: (Int) -> StarContent
+    /// タップ時に親へ通知するコールバック
+    let onTap: () -> Void
+
+    var body: some View {
+        Button {
+            // ロック時は遷移させず、誤操作によるログ汚染を防ぐ
+            guard isUnlocked else { return }
+            onTap()
+        } label: {
+            ZStack {
+                // ベースとなる正方形カード。解放状態で彩度を、ロック時に彩度を落とす
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(cardBackgroundColor)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .stroke(borderColor, lineWidth: isSelected ? 3 : 1)
+                    )
+
+                VStack(spacing: 8) {
+                    HStack {
+                        Spacer(minLength: 0)
+                        if isSelected {
+                            // 選択済み状態はチェックアイコンで強調する
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(theme.accentPrimary)
+                                .font(.system(size: 18, weight: .bold, design: .rounded))
+                        }
+                    }
+
+                    Spacer(minLength: 0)
+
+                    // ステージ番号は中央寄せで大きく表示し、カード一覧で識別しやすくする
+                    Text(stage.displayCode)
+                        .font(.system(size: 18, weight: .semibold, design: .rounded))
+                        .foregroundColor(theme.textPrimary)
+
+                    Spacer(minLength: 0)
+
+                    // スターアイコンは親のヘルパーを利用し一貫した見た目を保つ
+                    starContent(earnedStars)
+
+                    Spacer(minLength: 0)
+                }
+                .padding(12)
+
+                if !isUnlocked {
+                    // ロック中は暗幕と鍵アイコンを重ね、タップ不可能であることを示す
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .fill(Color.black.opacity(0.45))
+                    Image(systemName: "lock.fill")
+                        .foregroundColor(theme.textPrimary)
+                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                }
+            }
+            .aspectRatio(1, contentMode: .fit)
+        }
+        .buttonStyle(.plain)
+        .disabled(!isUnlocked)
+        // UI テストで個別カードを操作できるよう識別子を設定する
+        .accessibilityIdentifier("campaign_stage_button_\(stage.id.displayCode)")
+        // 折り畳みグリッド内でも従来同様の VoiceOver 案内を提供する
+        .accessibilityHint(Text("選択するとゲーム準備画面に戻り、選んだステージで開始準備が行われます。"))
+        .accessibilityLabel(Text("ステージ \(stage.displayCode)"))
+    }
+
+    /// 選択状態に応じた枠線色を返す
+    private var borderColor: Color {
+        isSelected ? theme.accentPrimary : theme.textSecondary.opacity(0.35)
+    }
+
+    /// ロック状態に応じて背景色を切り替える
+    private var cardBackgroundColor: Color {
+        isUnlocked ? theme.backgroundElevated : theme.backgroundElevated.opacity(0.6)
+    }
 }
 
 // MARK: - ツールバー構成要素
