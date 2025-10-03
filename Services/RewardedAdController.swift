@@ -64,7 +64,7 @@ final class RewardedAdAdapter: NSObject, RewardedAdPresentable {
     func presentAd(from viewController: UIViewController, userDidEarnRewardHandler: @escaping () -> Void) {
         // SDK が提供する正式な present API を直接叩くことで、ラッパー内での自己再帰を確実に排除する
         rewardedAd.present(
-            fromRootViewController: viewController,
+            from: viewController,
             userDidEarnRewardHandler: {
                 // 報酬獲得時には引数なしクロージャが呼ばれるため、そのままアプリ側のハンドラーを実行する
                 userDidEarnRewardHandler()
