@@ -33,8 +33,24 @@ private struct GameCenterLeaderboardCatalog {
         supportedModes: [.classicalChallenge]
     )
 
+    /// 日替わり固定シード用リーダーボード
+    /// - Note: 本番用の参照名・ID は xcconfig で差し替えるため、仮値であることをコメントに明記しておく
+    static let dailyFixedTest = Entry(
+        referenceName: "[TEST] Daily Fixed Leaderboard",   // FIXME: 本番ビルドでは xcconfig 経由で正式名称へ差し替える予定
+        leaderboardID: "test_daily_fixed_v1",              // FIXME: 本番ビルドでは xcconfig からリーダーボード ID を注入予定
+        supportedModes: [.dailyFixedChallenge]
+    )
+
+    /// 日替わりランダムシード用リーダーボード
+    /// - Note: こちらもテスト値で運用し、後日 xcconfig へ値を移して差し替えしやすくする
+    static let dailyRandomTest = Entry(
+        referenceName: "[TEST] Daily Random Leaderboard",  // FIXME: 本番ビルドでの正式名称に差し替える（xcconfig 管理予定）
+        leaderboardID: "test_daily_random_v1",             // FIXME: xcconfig による差し替えを前提とした仮 ID
+        supportedModes: [.dailyRandomChallenge]
+    )
+
     /// 定義済みのリーダーボード一覧
-    static let allEntries: [Entry] = [standardTest, classicalChallengeTest]
+    static let allEntries: [Entry] = [standardTest, classicalChallengeTest, dailyFixedTest, dailyRandomTest]
 
     /// 指定したゲームモードに対応するリーダーボードを返す
     /// - Parameter identifier: 判定対象となるゲームモード識別子
@@ -350,6 +366,13 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
             }
             root.present(vc, animated: true)
         }
+    }
+
+    /// 指定モードに対応するリーダーボード ID を取得するユーティリティ
+    /// - Note: MonoKnightAppTests からマッピング検証を行う目的で公開しておき、
+    ///         将来 xcconfig 経由で値を差し替えた際にもテストを更新しやすくする
+    func leaderboardIdentifier(for modeIdentifier: GameMode.Identifier) -> String? {
+        GameCenterLeaderboardCatalog.entry(for: modeIdentifier)?.leaderboardID
     }
 
     // MARK: - 表示用ヘルパー
