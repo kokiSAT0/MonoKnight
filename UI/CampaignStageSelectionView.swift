@@ -492,10 +492,12 @@ private struct ChapterProgressSummary {
 ///   - library: 章とステージ定義を含むキャンペーンライブラリ
 ///   - progressStore: ステージ解放状況と獲得スター数を保持する進捗ストア
 /// - Returns: 展開すべき章 ID の集合。該当章が無い場合は最新の解放章、さらに無い場合は先頭章を返す。
+@MainActor
 internal func chapterIDsWithUnlockedUnclearedStages(
     library: CampaignLibrary,
     progressStore: CampaignProgressStore
 ) -> Set<Int> {
+    // メインアクター隔離を明示することで、progressStore の ObservableObject メソッドへ安全にアクセスできるようにする
     // まずは未クリア（スター 0）でありながら解放済みのステージを探索し、同じ章を重複なく収集する
     var unlockedUnclearedChapterIDs = Set<Int>()
     for chapter in library.chapters {
