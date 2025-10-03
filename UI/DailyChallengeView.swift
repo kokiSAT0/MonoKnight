@@ -148,6 +148,13 @@ final class DailyChallengeViewModel: ObservableObject {
     func requestRewardedAttempt() async {
         attemptStore.refreshForCurrentDate()
 
+        if attemptStore.isDebugUnlimitedEnabled {
+            // デバッグ無制限モードでは広告視聴が不要であることを明示する
+            alertState = AlertState(title: "デバッグモード", message: "無制限モードが有効なため広告視聴は不要です。")
+            updateAttemptRelatedTexts()
+            return
+        }
+
         guard attemptStore.rewardedAttemptsGranted < attemptStore.maximumRewardedAttempts else {
             alertState = AlertState(title: "追加不可", message: "広告で追加できる回数の上限に達しています。")
             updateAttemptRelatedTexts()
@@ -192,6 +199,15 @@ final class DailyChallengeViewModel: ObservableObject {
 
     /// 残量テキストやボタン有効状態をストアから再計算する
     private func updateAttemptRelatedTexts() {
+        if attemptStore.isDebugUnlimitedEnabled {
+            // 無制限モード時は残量文言とボタン状態を専用表示へ切り替える
+            remainingAttemptsText = "デバッグモード: 無制限"
+            rewardProgressText = "広告視聴は不要です（デバッグモード）"
+            isStartButtonEnabled = true
+            isRewardButtonEnabled = false
+            return
+        }
+
         let remaining = attemptStore.remainingAttempts
         let granted = attemptStore.rewardedAttemptsGranted
         let maximumRewarded = attemptStore.maximumRewardedAttempts

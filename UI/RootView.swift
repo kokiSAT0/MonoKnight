@@ -400,6 +400,8 @@ fileprivate extension RootView {
                 )
                     // キャンペーン進捗ストアも同じインスタンスを共有し、デバッグ用パスコード入力で即座に反映されるようにする。
                     .environmentObject(campaignProgressStore)
+                    // 日替わりチャレンジの挑戦回数ストアも共有し、設定画面からデバッグ無制限を切り替えられるようにする。
+                    .environmentObject(dailyChallengeAttemptStore)
             }
             // Game Center の再サインインを促すためのアラートを監視する
             .alert(item: stateStore.binding(for: \.gameCenterSignInPrompt)) { prompt in

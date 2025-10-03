@@ -62,6 +62,32 @@ struct DailyChallengeAttemptStoreTests {
         #expect(store.remainingAttempts == 1)
     }
 
+    /// デバッグ無制限モードが永続化され、挑戦回数を消費しても減らないことを検証する
+    @Test
+    func debugUnlimitedPersistsAndSkipsConsumptionLimit() {
+        let suiteName = "daily_challenge_store_test_debug_unlimited"
+        let defaults = makeIsolatedDefaults(suiteName: suiteName)
+        defer { clearDefaults(defaults, suiteName: suiteName) }
+
+        var now = Date()
+        let store = DailyChallengeAttemptStore(userDefaults: defaults, nowProvider: { now })
+        #expect(store.isDebugUnlimitedEnabled == false)
+
+        store.enableDebugUnlimited()
+        #expect(store.isDebugUnlimitedEnabled == true)
+
+        // 再生成してもフラグが保持されることを確認する
+        let restoredStore = DailyChallengeAttemptStore(userDefaults: defaults, nowProvider: { now })
+        #expect(restoredStore.isDebugUnlimitedEnabled == true)
+
+        let initialRemaining = restoredStore.remainingAttempts
+        // 複数回消費しても残量が変化しない（上限スキップ）ことを確かめる
+        for _ in 0..<5 {
+            #expect(restoredStore.consumeAttempt())
+            #expect(restoredStore.remainingAttempts == initialRemaining)
+        }
+    }
+
     // MARK: - ヘルパー
     private func makeIsolatedDefaults(suiteName: String) -> UserDefaults {
         guard let defaults = UserDefaults(suiteName: suiteName) else {

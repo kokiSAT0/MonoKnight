@@ -15,6 +15,8 @@ protocol DailyChallengeAttemptStoreProtocol: ObservableObject where ObjectWillCh
     var rewardedAttemptsGranted: Int { get }
     /// 1 日あたり付与できるリワード広告ボーナス回数の上限（仕様で 3 回）
     var maximumRewardedAttempts: Int { get }
+    /// デバッグ用の無制限フラグが有効かどうか
+    var isDebugUnlimitedEnabled: Bool { get }
 
     /// UTC 日付の境界を跨いだ場合に状態を初期化する
     func refreshForCurrentDate()
@@ -24,6 +26,8 @@ protocol DailyChallengeAttemptStoreProtocol: ObservableObject where ObjectWillCh
     /// リワード広告視聴が成功した際に 1 回分の挑戦回数を付与する
     @discardableResult
     func grantRewardedAttempt() -> Bool
+    /// デバッグパスコード入力などで無制限モードを有効化する
+    func enableDebugUnlimited()
 }
 
 // MARK: - 型消去ラッパー
@@ -41,12 +45,15 @@ final class AnyDailyChallengeAttemptStore: ObservableObject, DailyChallengeAttem
     @Published private(set) var rewardedAttemptsGranted: Int
     /// 仕様で定めた 1 日あたりの付与上限
     let maximumRewardedAttempts: Int
+    /// デバッグ無制限モードの有効/無効
+    @Published private(set) var isDebugUnlimitedEnabled: Bool
 
     init(base: any DailyChallengeAttemptStoreProtocol) {
         self.base = base
         self.remainingAttempts = base.remainingAttempts
         self.rewardedAttemptsGranted = base.rewardedAttemptsGranted
         self.maximumRewardedAttempts = base.maximumRewardedAttempts
+        self.isDebugUnlimitedEnabled = base.isDebugUnlimitedEnabled
 
         // objectWillChange を購読して最新値を同期
         cancellable = base.objectWillChange.sink { [weak self] _ in
@@ -63,6 +70,12 @@ final class AnyDailyChallengeAttemptStore: ObservableObject, DailyChallengeAttem
                 if self.rewardedAttemptsGranted != latestRewardedAttempts {
                     // 付与済み回数も差分が存在するときのみ更新を行い再描画ループを防止する
                     self.rewardedAttemptsGranted = latestRewardedAttempts
+                }
+
+                let latestDebugFlag = base.isDebugUnlimitedEnabled
+                if self.isDebugUnlimitedEnabled != latestDebugFlag {
+                    // デバッグ無制限モードの状態が変化した場合のみ Published を更新する
+                    self.isDebugUnlimitedEnabled = latestDebugFlag
                 }
             }
         }
@@ -87,6 +100,11 @@ final class AnyDailyChallengeAttemptStore: ObservableObject, DailyChallengeAttem
         return result
     }
 
+    func enableDebugUnlimited() {
+        base.enableDebugUnlimited()
+        synchronizeAfterAsyncChange()
+    }
+
     /// `base` 側の値が変化した直後にメインアクターで同期する
     private func synchronizeAfterAsyncChange() {
         Task { @MainActor [weak self] in
@@ -103,6 +121,12 @@ final class AnyDailyChallengeAttemptStore: ObservableObject, DailyChallengeAttem
                 // 差分があるケースのみ更新して無限再描画やログ増加を防ぐ
                 self.rewardedAttemptsGranted = latestRewardedAttempts
             }
+
+            let latestDebugFlag = base.isDebugUnlimitedEnabled
+            if self.isDebugUnlimitedEnabled != latestDebugFlag {
+                // デバッグフラグの変更も同期し、設定画面からの切り替えを即時反映する
+                self.isDebugUnlimitedEnabled = latestDebugFlag
+            }
         }
     }
 }
@@ -117,6 +141,9 @@ final class DailyChallengeAttemptStore: ObservableObject, DailyChallengeAttemptS
         /// 本日の挑戦状況（JSON エンコードした `State` を格納）
         static let state = "daily_challenge_attempt_state_v1" // JSON で `State` を保存
     }
+
+    /// デバッグ無制限モードの保存に利用するキー
+    private static let debugUnlimitedStorageKey = "daily_challenge_debug_unlimited_v1"
 
     /// 日付キーを生成する際のフォーマット
     private enum DateFormat {
@@ -151,6 +178,8 @@ final class DailyChallengeAttemptStore: ObservableObject, DailyChallengeAttemptS
     @Published private(set) var remainingAttempts: Int
     /// リワード広告による付与済み回数（Published で公開）
     @Published private(set) var rewardedAttemptsGranted: Int
+    /// デバッグ無制限モードが有効かどうか
+    @Published private(set) var isDebugUnlimitedEnabled: Bool
 
     init(
         userDefaults: UserDefaults = .standard,
@@ -201,6 +230,7 @@ final class DailyChallengeAttemptStore: ObservableObject, DailyChallengeAttemptS
         self.state = initialState
         self.remainingAttempts = Self.computeRemainingAttempts(from: initialState)
         self.rewardedAttemptsGranted = initialState.rewardedAttemptsGranted
+        self.isDebugUnlimitedEnabled = userDefaults.bool(forKey: Self.debugUnlimitedStorageKey)
 
         if shouldPersistInitialState {
             // 初期状態作成・更新が発生したケースのみ永続化を行う
@@ -222,6 +252,13 @@ final class DailyChallengeAttemptStore: ObservableObject, DailyChallengeAttemptS
     @discardableResult
     func consumeAttempt() -> Bool {
         refreshForCurrentDate()
+
+        if isDebugUnlimitedEnabled {
+            // デバッグ無制限モードでは消費上限を撤廃し、状態更新を行わずに成功扱いとする
+            debugLog("DailyChallengeAttemptStore: デバッグ無制限モードのため挑戦回数消費をスキップしました")
+            return true
+        }
+
         let totalAvailable = 1 + state.rewardedAttemptsGranted
         guard state.usedAttempts < totalAvailable else {
             debugLog("DailyChallengeAttemptStore: 挑戦回数の上限に達しているため消費できません")
@@ -239,6 +276,13 @@ final class DailyChallengeAttemptStore: ObservableObject, DailyChallengeAttemptS
     @discardableResult
     func grantRewardedAttempt() -> Bool {
         refreshForCurrentDate()
+
+        if isDebugUnlimitedEnabled {
+            // デバッグ無制限モード時は広告視聴による加算が不要なため、常に成功を返す
+            debugLog("DailyChallengeAttemptStore: デバッグ無制限モードのため広告付与をスキップしました")
+            return true
+        }
+
         guard state.rewardedAttemptsGranted < maximumRewardedAttempts else {
             debugLog("DailyChallengeAttemptStore: リワード広告による付与上限に達しているため増加できません")
             return false
@@ -250,6 +294,15 @@ final class DailyChallengeAttemptStore: ObservableObject, DailyChallengeAttemptS
         persistState()
         debugLog("DailyChallengeAttemptStore: リワード広告成功により挑戦回数を 1 追加しました (granted: \(state.rewardedAttemptsGranted))")
         return true
+    }
+
+    /// デバッグ用の無制限モードを永続化し、即時反映する
+    func enableDebugUnlimited() {
+        guard !isDebugUnlimitedEnabled else { return }
+        isDebugUnlimitedEnabled = true
+        userDefaults.set(true, forKey: Self.debugUnlimitedStorageKey)
+        userDefaults.synchronize()
+        debugLog("DailyChallengeAttemptStore: デバッグ無制限モードを有効化しました")
     }
 
     // MARK: - 内部処理
