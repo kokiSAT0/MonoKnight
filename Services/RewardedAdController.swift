@@ -55,7 +55,7 @@ final class RewardedAdAdapter: NSObject, RewardedAdPresentable {
     }
 
     /// 広告収益イベントをテストコードからも参照できるよう、SDK 側のハンドラーを委譲する
-    var paidEventHandler: PaidEventHandler? {
+    var paidEventHandler: GADPaidEventHandler? {
         get { rewardedAd.paidEventHandler }
         set { rewardedAd.paidEventHandler = newValue }
     }
