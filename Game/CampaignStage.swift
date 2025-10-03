@@ -60,7 +60,7 @@ public struct CampaignStage: Identifiable, Equatable {
         case finishWithinSeconds(maxSeconds: Int)
         /// ペナルティ加算なしでクリア
         case finishWithoutPenalty
-        /// ペナルティを指定回数以下に抑えてクリア
+        /// ペナルティを指定合計値以下に抑えてクリア
         case finishWithPenaltyAtMost(maxPenaltyCount: Int)
         /// 既踏マスを再訪せずにクリア
         case avoidRevisitingTiles
@@ -97,7 +97,8 @@ public struct CampaignStage: Identifiable, Equatable {
             case .finishWithoutPenalty:
                 return "ペナルティを受けずにクリア"
             case .finishWithPenaltyAtMost(let maxPenaltyCount):
-                return "ペナルティを合計 \(maxPenaltyCount) 回以下に抑えてクリア"
+                // VoiceOver などでも「回」や「手」といった単位を付けない統一表現とする
+                return "ペナルティ合計 \(maxPenaltyCount) 以下でクリア"
             case .avoidRevisitingTiles:
                 return "同じマスを 2 回踏まずにクリア"
             case .finishWithoutPenaltyAndWithinMoves(let maxMoves):
@@ -366,7 +367,7 @@ public struct CampaignLibrary {
             unlockRequirement: .totalStars(minimum: 0)
         )
 
-        // 1-2 はキングと桂馬の最小構成で、ペナルティ 5 回以内を目指す導入ステージ。
+        // 1-2 はキングと桂馬の最小構成で、ペナルティ合計 5 以下を目指す導入ステージ。
         let stage12 = CampaignStage(
             id: CampaignStageID(chapter: 1, index: 2),
             title: "ナイト初見",
@@ -385,7 +386,7 @@ public struct CampaignLibrary {
                     revisitPenaltyCost: 0
                 )
             ),
-            // MARK: 2 個目のスター条件: ペナルティ 3 回以内で締め、リトライ負荷を抑える
+            // MARK: 2 個目のスター条件: ペナルティ合計 3 以下で締め、リトライ負荷を抑える
             secondaryObjective: .finishWithPenaltyAtMost(maxPenaltyCount: 3),
             scoreTarget: 300,
             scoreTargetComparison: .lessThan,
@@ -437,7 +438,7 @@ public struct CampaignLibrary {
                     revisitPenaltyCost: 0
                 )
             ),
-            // MARK: 2 個目のスター条件: ペナルティを 5 回以内へ抑え、冷静な判断を促す
+            // MARK: 2 個目のスター条件: ペナルティ合計 5 以下へ抑え、冷静な判断を促す
             secondaryObjective: .finishWithPenaltyAtMost(maxPenaltyCount: 5),
             scoreTarget: 400,
             scoreTargetComparison: .lessThan,
@@ -470,11 +471,11 @@ public struct CampaignLibrary {
             unlockRequirement: .stageClear(stage14.id)
         )
 
-        // 1-6 は再び任意スポーンを採用し、ペナルティ 2 回以内を狙う実戦訓練。
+        // 1-6 は再び任意スポーンを採用し、ペナルティ合計 2 以下を狙う実戦訓練。
         let stage16 = CampaignStage(
             id: CampaignStageID(chapter: 1, index: 6),
             title: "4×4戦略",
-            summary: "開始位置を自由に選び、ペナルティ 2 回以内で踏破する戦略を組みましょう。",
+            summary: "開始位置を自由に選び、ペナルティ合計 2 以下で踏破する戦略を組みましょう。",
             regulation: GameMode.Regulation(
                 boardSize: 4,
                 handSize: 5,
@@ -489,7 +490,7 @@ public struct CampaignLibrary {
                     revisitPenaltyCost: 0
                 )
             ),
-            // MARK: 2 個目のスター条件: ペナルティ 3 回以内で終える集中力を養う
+            // MARK: 2 個目のスター条件: ペナルティ合計 3 以下で終える集中力を養う
             secondaryObjective: .finishWithPenaltyAtMost(maxPenaltyCount: 3),
             scoreTarget: 400,
             scoreTargetComparison: .lessThan,
@@ -574,7 +575,7 @@ public struct CampaignLibrary {
         let stage21 = CampaignStage(
             id: CampaignStageID(chapter: 2, index: 1),
             title: "重踏チュートリアル",
-            summary: "中央と対角を 2 回踏む練習です。ペナルティ 5 回以内でリズムを掴みましょう。",
+            summary: "中央と対角を 2 回踏む練習です。ペナルティ合計 5 以下でリズムを掴みましょう。",
             regulation: GameMode.Regulation(
                 boardSize: 4,
                 handSize: 5,
@@ -640,7 +641,7 @@ public struct CampaignLibrary {
             unlockRequirement: .stageClear(stage22.id)
         )
 
-        // 2-4: 三重踏みマスを左右へ分散し、ペナルティ 3 回以内でバランスよく踏破する。
+        // 2-4: 三重踏みマスを左右へ分散し、ペナルティ合計 3 以下でバランスよく踏破する。
         let stage24TripleVisit: [GridPoint: Int] = [
             GridPoint(x: 1, y: 1): 3,
             GridPoint(x: 3, y: 3): 3
@@ -648,7 +649,7 @@ public struct CampaignLibrary {
         let stage24 = CampaignStage(
             id: CampaignStageID(chapter: 2, index: 4),
             title: "複数三重踏み",
-            summary: "左右対称の三重踏みマス 2 箇所を巡り、ペナルティ 3 回以内でまとめる演習です。",
+            summary: "左右対称の三重踏みマス 2 箇所を巡り、ペナルティ合計 3 以下でまとめる演習です。",
             regulation: GameMode.Regulation(
                 boardSize: 5,
                 handSize: 5,
@@ -829,11 +830,11 @@ public struct CampaignLibrary {
             unlockRequirement: .stageClear(stage31.id)
         )
 
-        // 3-3: 斜め選択カードを導入し、ペナルティ 2 回以下で角マス攻略を学ぶ。
+        // 3-3: 斜め選択カードを導入し、ペナルティ合計 2 以下で角マス攻略を学ぶ。
         let stage33 = CampaignStage(
             id: CampaignStageID(chapter: 3, index: 3),
             title: "斜め選択入門",
-            summary: "斜め 4 方向の選択キングを使い分け、ペナルティ 2 回以下で角マスを制圧します。",
+            summary: "斜め 4 方向の選択キングを使い分け、ペナルティ合計 2 以下で角マスを制圧します。",
             regulation: GameMode.Regulation(
                 boardSize: 5,
                 handSize: 5,
@@ -894,7 +895,7 @@ public struct CampaignLibrary {
             unlockRequirement: .stageClear(stage34.id)
         )
 
-        // 3-6: 全選択カードで三重踏みを処理し、ペナルティ 1 回以下で安定攻略する。
+        // 3-6: 全選択カードで三重踏みを処理し、ペナルティ合計 1 以下で安定攻略する。
         let stage36TripleVisit: [GridPoint: Int] = [
             GridPoint(x: 2, y: 2): 3,
             GridPoint(x: 3, y: 1): 3
@@ -902,7 +903,7 @@ public struct CampaignLibrary {
         let stage36 = CampaignStage(
             id: CampaignStageID(chapter: 3, index: 6),
             title: "全選択＋三重踏み",
-            summary: "全方向の選択カードを駆使し、三重踏みマスをペナルティ 1 回以下で処理します。",
+            summary: "全方向の選択カードを駆使し、三重踏みマスをペナルティ合計 1 以下で処理します。",
             regulation: GameMode.Regulation(
                 boardSize: 5,
                 handSize: 5,
@@ -1008,7 +1009,7 @@ public struct CampaignLibrary {
             unlockRequirement: .stageClear(stage38.id)
         )
 
-        // 4-2: トグル 3 箇所でペナルティ 2 回以下に抑える。
+        // 4-2: トグル 3 箇所でペナルティ合計 2 以下に抑える。
         let stage42Toggles: Set<GridPoint> = [
             GridPoint(x: 2, y: 2),
             GridPoint(x: 1, y: 3),
@@ -1017,7 +1018,7 @@ public struct CampaignLibrary {
         let stage42 = CampaignStage(
             id: CampaignStageID(chapter: 4, index: 2),
             title: "トグル応用",
-            summary: "3 箇所のトグルを捌き、ペナルティ 2 回以下で制御する応用演習です。",
+            summary: "3 箇所のトグルを捌き、ペナルティ合計 2 以下で制御する応用演習です。",
             regulation: GameMode.Regulation(
                 boardSize: 5,
                 handSize: 5,
@@ -1060,14 +1061,14 @@ public struct CampaignLibrary {
             unlockRequirement: .stageClear(stage42.id)
         )
 
-        // 4-4: 全選択カードへ切り替え、三重踏みをペナルティ 1 回以下で管理。
+        // 4-4: 全選択カードへ切り替え、三重踏みをペナルティ合計 1 以下で管理。
         let stage44TripleVisit: [GridPoint: Int] = [
             GridPoint(x: 2, y: 2): 3
         ]
         let stage44 = CampaignStage(
             id: CampaignStageID(chapter: 4, index: 4),
             title: "トグル＋三重踏み",
-            summary: "中央の三重踏みとトグルを同時に管理し、ペナルティ 1 回以下でクリアする応用です。",
+            summary: "中央の三重踏みとトグルを同時に管理し、ペナルティ合計 1 以下でクリアする応用です。",
             regulation: GameMode.Regulation(
                 boardSize: 5,
                 handSize: 5,
@@ -1233,7 +1234,7 @@ public struct CampaignLibrary {
             unlockRequirement: .stageClear(stage48.id)
         )
 
-        // 5-2: 障害物を 3 箇所へ増やし、ペナルティ 2 回以下で安定させる。
+        // 5-2: 障害物を 3 箇所へ増やし、ペナルティ合計 2 以下で安定させる。
         let stage52Impassable: Set<GridPoint> = [
             GridPoint(x: 1, y: 1),
             GridPoint(x: 3, y: 3),
@@ -1242,7 +1243,7 @@ public struct CampaignLibrary {
         let stage52 = CampaignStage(
             id: CampaignStageID(chapter: 5, index: 2),
             title: "障害物応用",
-            summary: "中心を含む障害物 3 箇所を管理し、ペナルティ 2 回以下で踏破する演習です。",
+            summary: "中心を含む障害物 3 箇所を管理し、ペナルティ合計 2 以下で踏破する演習です。",
             regulation: GameMode.Regulation(
                 boardSize: 5,
                 handSize: 5,
@@ -1289,7 +1290,7 @@ public struct CampaignLibrary {
             unlockRequirement: .stageClear(stage52.id)
         )
 
-        // 5-4: 任意スポーンで三重踏み＋障害物を扱い、ペナルティ 1 回以下を目指す。
+        // 5-4: 任意スポーンで三重踏み＋障害物を扱い、ペナルティ合計 1 以下を目指す。
         let stage54Impassable: Set<GridPoint> = [
             GridPoint(x: 0, y: 2),
             GridPoint(x: 4, y: 2)
@@ -1300,7 +1301,7 @@ public struct CampaignLibrary {
         let stage54 = CampaignStage(
             id: CampaignStageID(chapter: 5, index: 4),
             title: "障害物＋三重踏み",
-            summary: "任意スポーンで三重踏みと障害物を管理し、ペナルティ 1 回以下で安定攻略します。",
+            summary: "任意スポーンで三重踏みと障害物を管理し、ペナルティ合計 1 以下で安定攻略します。",
             regulation: GameMode.Regulation(
                 boardSize: 5,
                 handSize: 5,

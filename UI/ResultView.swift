@@ -276,10 +276,10 @@ struct ResultView: View {
                         }
 
                         GridRow {
-                            Text("ペナルティ加算")
+                            Text("ペナルティ合計")
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
-                            Text("\(penaltyCount) 手")
+                            Text(penaltySummaryText)
                                 .font(.body)
                                 .monospacedDigit()
                         }
@@ -624,10 +624,14 @@ struct ResultView: View {
         }
     }
 
+    /// ペナルティ量を UI や共有テキストで共通利用する
+    private var penaltySummaryText: String {
+        penaltyCount == 0 ? "ペナルティなし" : "ペナルティ合計 \(penaltyCount)"
+    }
+
     /// ShareLink へ渡す共有メッセージを生成
     private var shareMessage: String {
-        let penaltyText = penaltyCount == 0 ? "ペナルティなし" : "ペナルティ +\(penaltyCount) 手"
-        return "MonoKnight \(modeDisplayName) クリア！ポイント \(points)（移動 \(moveCount) 手 / \(penaltyText) / 所要 \(formattedElapsedTime)）"
+        return "MonoKnight \(modeDisplayName) クリア！ポイント \(points)（移動 \(moveCount) 手 / \(penaltySummaryText) / 所要 \(formattedElapsedTime)）"
     }
 
     /// iPad 表示時の最大コンテンツ幅を制御し、中央寄せの見た目を整える
