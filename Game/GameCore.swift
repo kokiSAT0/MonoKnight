@@ -75,7 +75,7 @@ public final class GameCore: ObservableObject {
     public var remainingTiles: Int { board.remainingCount }
 
     /// 山札管理（`Deck.swift` に定義された重み付き無限山札を使用）
-    private var deck = Deck(configuration: .standard)
+    private var deck: Deck
     /// 経過時間を管理する専用タイマー
     /// - Note: GameCore の責務を整理するために専用構造体へ委譲する
     private var sessionTimer = GameSessionTimer()
@@ -93,7 +93,8 @@ public final class GameCore: ObservableObject {
             impassablePoints: mode.impassableTilePoints
         )
         current = mode.initialSpawnPoint ?? BoardGeometry.defaultSpawnPoint(for: mode.boardSize)
-        deck = Deck(configuration: mode.deckConfiguration)
+        // モードに紐付くシードが指定されている場合はそれを利用し、日替わりチャレンジなどの再現性を確保する
+        deck = Deck(seed: mode.deckSeed, configuration: mode.deckConfiguration)
         progress = mode.requiresSpawnSelection ? .awaitingSpawn : .playing
         handManager = HandManager(
             handSize: mode.handSize,
@@ -323,7 +324,9 @@ public final class GameCore: ObservableObject {
     /// - Parameter regenerateDeck: `true` の場合は新しいシードで山札を生成する
     private func configureForNewSession(regenerateDeck: Bool) {
         if regenerateDeck {
-            deck = Deck(configuration: mode.deckConfiguration)
+            // 新しいゲームを開始する際はモードのシードを再適用してリセットする。
+            // シードが nil の場合は Deck 側で自動生成され、従来通りランダムな展開になる。
+            deck = Deck(seed: mode.deckSeed, configuration: mode.deckConfiguration)
         } else {
             deck.reset()
         }
