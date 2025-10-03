@@ -572,6 +572,7 @@ fileprivate extension RootView {
                     gameCenterService: gameCenterService,
                     adsService: adsService,
                     campaignProgressStore: campaignProgressStore,
+                    isPreparationOverlayVisible: stateStore.binding(for: \.isPreparingGame),
                     isGameCenterAuthenticated: isAuthenticated,
                     onRequestGameCenterSignIn: onRequestGameCenterSignInPrompt,
                     onRequestReturnToTitle: {

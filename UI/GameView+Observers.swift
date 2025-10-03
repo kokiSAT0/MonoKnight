@@ -36,7 +36,8 @@ extension GameView {
                     colorScheme: colorScheme,
                     guideModeEnabled: guideModeEnabled,
                     hapticsEnabled: hapticsEnabled,
-                    handOrderingStrategy: resolveHandOrderingStrategy()
+                    handOrderingStrategy: resolveHandOrderingStrategy(),
+                    isPreparationOverlayVisible: isPreparationOverlayVisible
                 )
             }
             // ライト/ダーク切り替えが発生した場合も SpriteKit 側へ反映
@@ -70,6 +71,12 @@ extension GameView {
             // 経過時間を 1 秒ごとに再計算し、リアルタイム表示へ反映
             .onReceive(viewModel.elapsedTimer) { _ in
                 viewModel.updateDisplayedElapsedTime()
+            }
+            // ゲーム準備オーバーレイの表示状態を監視し、タイマー制御へ即座に反映する
+            .onChange(of: isPreparationOverlayVisible, initial: true) { _, isVisible in
+                // initial: true を指定して初期表示時点の状態も ViewModel へ伝播し、
+                // RootView との間で pause/resume の呼び出し漏れが生じないようにする
+                viewModel.handlePreparationOverlayChange(isVisible: isVisible)
             }
             // カードが盤面へ移動中は UI 全体を操作不可とし、状態の齟齬を防ぐ
             .disabled(boardBridge.animatingCard != nil)
