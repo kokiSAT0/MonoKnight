@@ -7,7 +7,8 @@ import SharedSupport // ログユーティリティを活用するため追加
 /// UI 全体から挑戦回数の残量や付与処理を扱えるようにするためのプロトコル
 /// - Note: `ObservableObject` に準拠しているため、SwiftUI の `@EnvironmentObject` としても利用できる
 @MainActor
-protocol DailyChallengeAttemptStoreProtocol: ObservableObject {
+/// - Note: `ObservableObjectPublisher` を明示することで `objectWillChange` を型消去経由でも購読可能にする
+protocol DailyChallengeAttemptStoreProtocol: ObservableObject where ObjectWillChangePublisher == ObservableObjectPublisher {
     /// 残り挑戦回数（無料 1 回 + リワード広告による加算分 - 消費済み回数）
     var remainingAttempts: Int { get }
     /// その日のリワード広告によって付与済みの回数
