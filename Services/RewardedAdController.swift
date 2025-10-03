@@ -36,7 +36,8 @@ protocol RewardedAdPresentable: AnyObject, FullScreenPresentingAd {
 extension RewardedAd: RewardedAdPresentable {
     func present(from viewController: UIViewController, userDidEarnRewardHandler: @escaping () -> Void) {
         // SDK v11 以降は `present(from:)` が推奨 API
-        present(from: viewController) { _ in
+        // SDK 側のクロージャは引数を受け取らないため、報酬獲得時にハンドラーを呼び出すだけにする
+        present(from: viewController) {
             userDidEarnRewardHandler()
         }
     }
