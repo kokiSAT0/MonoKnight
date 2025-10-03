@@ -479,11 +479,11 @@ public struct CampaignLibrary {
             unlockRequirement: .stageClear(stage14.id)
         )
 
-        // 1-6 は再び任意スポーンを採用し、ペナルティ合計 2 以下を狙う実戦訓練。
+        // 1-6 は再び任意スポーンを採用し、ペナルティ合計 3 以下を狙う実戦訓練。
         let stage16 = CampaignStage(
             id: CampaignStageID(chapter: 1, index: 6),
             title: "4×4戦略",
-            summary: "開始位置を自由に選び、ペナルティ合計 2 以下で踏破する戦略を組みましょう。",
+            summary: "開始位置を自由に選び、ペナルティ合計 3 以下で踏破する戦略を組みましょう。",
             regulation: GameMode.Regulation(
                 boardSize: 4,
                 handSize: 5,
