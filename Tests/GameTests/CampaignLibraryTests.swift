@@ -3,6 +3,51 @@ import XCTest
 
 /// キャンペーン関連の定義を確認するテスト
 final class CampaignLibraryTests: XCTestCase {
+    /// ステージ検証用の期待値定義
+    /// - Note: 必要なパラメータを網羅しつつ、不要な項目は既定値で省略できるようにする
+    private struct StageExpectation {
+        let title: String
+        let boardSize: Int
+        let deck: GameDeckPreset
+        let spawn: GameMode.SpawnRule
+        let penalties: GameMode.PenaltySettings
+        let additional: [GridPoint: Int]
+        let toggles: Set<GridPoint>
+        let impassable: Set<GridPoint>
+        let secondary: CampaignStage.SecondaryObjective
+        let scoreTarget: Int
+        let comparison: CampaignStage.ScoreTargetComparison
+        let unlock: CampaignStageUnlockRequirement
+
+        init(
+            title: String,
+            boardSize: Int,
+            deck: GameDeckPreset,
+            spawn: GameMode.SpawnRule,
+            penalties: GameMode.PenaltySettings,
+            secondary: CampaignStage.SecondaryObjective,
+            scoreTarget: Int,
+            comparison: CampaignStage.ScoreTargetComparison = .lessThanOrEqual,
+            unlock: CampaignStageUnlockRequirement,
+            additional: [GridPoint: Int] = [:],
+            toggles: Set<GridPoint> = [],
+            impassable: Set<GridPoint> = []
+        ) {
+            self.title = title
+            self.boardSize = boardSize
+            self.deck = deck
+            self.spawn = spawn
+            self.penalties = penalties
+            self.additional = additional
+            self.toggles = toggles
+            self.impassable = impassable
+            self.secondary = secondary
+            self.scoreTarget = scoreTarget
+            self.comparison = comparison
+            self.unlock = unlock
+        }
+    }
+
     /// 選択カード系プリセットが期待通りの構成を返すことを確認する
     func testChoiceDeckPresetConfigurations() {
         let presets: [(GameDeckPreset, String, String, Set<MoveCard>)] = [
@@ -239,117 +284,514 @@ final class CampaignLibraryTests: XCTestCase {
         }
     }
 
-    /// 3 章のステージが段階的に難度を増しているかをまとめて検証する
+    /// 第2章の 8 ステージが多重踏破仕様に沿っているか検証する
+    func testCampaignStage2Definitions() {
+        let library = CampaignLibrary.shared
+        guard let chapter2 = library.chapters.first(where: { $0.id == 2 }) else {
+            XCTFail("第2章の定義が見つかりません")
+            return
+        }
+
+        XCTAssertEqual(chapter2.stages.count, 8, "第2章は 8 ステージ構成の想定です")
+
+        // MARK: スポーン方式・ペナルティなどの共通パラメータを事前に用意
+        let fixedSpawn4 = GameMode.SpawnRule.fixed(BoardGeometry.defaultSpawnPoint(for: 4))
+        let chooseAny = GameMode.SpawnRule.chooseAnyAfterPreview
+        let penalties = GameMode.PenaltySettings(deadlockPenaltyCost: 3, manualRedrawPenaltyCost: 1, manualDiscardPenaltyCost: 1, revisitPenaltyCost: 0)
+
+        let expectations: [Int: StageExpectation] = [
+            1: StageExpectation(
+                title: "重踏チュートリアル",
+                boardSize: 4,
+                deck: .kingAndKnightBasic,
+                spawn: fixedSpawn4,
+                penalties: penalties,
+                secondary: .finishWithPenaltyAtMost(maxPenaltyCount: 5),
+                scoreTarget: 620,
+                unlock: .stageClear(CampaignStageID(chapter: 1, index: 8)),
+                additional: [GridPoint(x: 1, y: 1): 2, GridPoint(x: 2, y: 2): 2]
+            ),
+            2: StageExpectation(
+                title: "基礎演習",
+                boardSize: 5,
+                deck: .kingAndKnightBasic,
+                spawn: chooseAny,
+                penalties: penalties,
+                secondary: .finishWithinMoves(maxMoves: 45),
+                scoreTarget: 600,
+                unlock: .stageClear(CampaignStageID(chapter: 2, index: 1)),
+                additional: [GridPoint(x: 1, y: 1): 2, GridPoint(x: 3, y: 3): 2]
+            ),
+            3: StageExpectation(
+                title: "三重踏み入門",
+                boardSize: 5,
+                deck: .kingAndKnightBasic,
+                spawn: chooseAny,
+                penalties: penalties,
+                secondary: .finishWithinMoves(maxMoves: 42),
+                scoreTarget: 590,
+                unlock: .stageClear(CampaignStageID(chapter: 2, index: 2)),
+                additional: [GridPoint(x: 2, y: 2): 3]
+            ),
+            4: StageExpectation(
+                title: "複数三重踏み",
+                boardSize: 5,
+                deck: .kingAndKnightBasic,
+                spawn: chooseAny,
+                penalties: penalties,
+                secondary: .finishWithPenaltyAtMost(maxPenaltyCount: 3),
+                scoreTarget: 580,
+                unlock: .stageClear(CampaignStageID(chapter: 2, index: 3)),
+                additional: [GridPoint(x: 1, y: 1): 3, GridPoint(x: 3, y: 3): 3]
+            ),
+            5: StageExpectation(
+                title: "中央集中",
+                boardSize: 5,
+                deck: .kingAndKnightBasic,
+                spawn: chooseAny,
+                penalties: penalties,
+                secondary: .finishWithinMoves(maxMoves: 40),
+                scoreTarget: 570,
+                unlock: .stageClear(CampaignStageID(chapter: 2, index: 4)),
+                additional: [GridPoint(x: 2, y: 2): 4]
+            ),
+            6: StageExpectation(
+                title: "四重踏み分散",
+                boardSize: 5,
+                deck: .kingAndKnightBasic,
+                spawn: chooseAny,
+                penalties: penalties,
+                secondary: .finishWithinSeconds(maxSeconds: 130),
+                scoreTarget: 560,
+                unlock: .stageClear(CampaignStageID(chapter: 2, index: 5)),
+                additional: [GridPoint(x: 1, y: 1): 4, GridPoint(x: 3, y: 3): 4]
+            ),
+            7: StageExpectation(
+                title: "複合課題",
+                boardSize: 5,
+                deck: .kingAndKnightBasic,
+                spawn: chooseAny,
+                penalties: penalties,
+                secondary: .finishWithinMoves(maxMoves: 36),
+                scoreTarget: 550,
+                unlock: .stageClear(CampaignStageID(chapter: 2, index: 6)),
+                additional: [GridPoint(x: 0, y: 0): 2, GridPoint(x: 2, y: 2): 3, GridPoint(x: 4, y: 4): 4]
+            ),
+            8: StageExpectation(
+                title: "総合演習",
+                boardSize: 5,
+                deck: .kingAndKnightBasic,
+                spawn: chooseAny,
+                penalties: penalties,
+                secondary: .finishWithinMoves(maxMoves: 34),
+                scoreTarget: 540,
+                unlock: .stageClear(CampaignStageID(chapter: 2, index: 7)),
+                additional: [
+                    GridPoint(x: 0, y: 0): 3,
+                    GridPoint(x: 4, y: 0): 3,
+                    GridPoint(x: 0, y: 4): 3,
+                    GridPoint(x: 4, y: 4): 3
+                ]
+            )
+        ]
+
+        for stage in chapter2.stages {
+            guard let expectation = expectations[stage.id.index] else {
+                XCTFail("第2章に想定外のステージ index=\(stage.id.index) が含まれています")
+                continue
+            }
+
+            XCTAssertEqual(stage.title, expectation.title)
+            XCTAssertEqual(stage.regulation.boardSize, expectation.boardSize)
+            XCTAssertEqual(stage.regulation.deckPreset, expectation.deck)
+            XCTAssertEqual(stage.regulation.spawnRule, expectation.spawn)
+            XCTAssertEqual(stage.regulation.penalties, expectation.penalties)
+            XCTAssertEqual(stage.regulation.additionalVisitRequirements, expectation.additional)
+            XCTAssertTrue(stage.regulation.toggleTilePoints.isEmpty, "第2章ではトグルマスを使用しません")
+            XCTAssertTrue(stage.regulation.impassableTilePoints.isEmpty, "第2章では障害物を使用しません")
+            XCTAssertEqual(stage.secondaryObjective, expectation.secondary)
+            XCTAssertEqual(stage.scoreTarget, expectation.scoreTarget)
+            XCTAssertEqual(stage.scoreTargetComparison, expectation.comparison)
+            XCTAssertEqual(stage.unlockRequirement, expectation.unlock)
+        }
+    }
+
+    /// 第3章の 8 ステージが選択カード＋複数踏破の仕様通りか検証する
     func testCampaignStage3Definitions() {
         let library = CampaignLibrary.shared
-        let stage31ID = CampaignStageID(chapter: 3, index: 1)
-        let stage32ID = CampaignStageID(chapter: 3, index: 2)
-        let stage33ID = CampaignStageID(chapter: 3, index: 3)
-        let stage34ID = CampaignStageID(chapter: 3, index: 4)
-
-        guard
-            let stage31 = library.stage(with: stage31ID),
-            let stage32 = library.stage(with: stage32ID),
-            let stage33 = library.stage(with: stage33ID),
-            let stage34 = library.stage(with: stage34ID)
-        else {
-            XCTFail("第3章のステージ定義に不足があります")
+        guard let chapter3 = library.chapters.first(where: { $0.id == 3 }) else {
+            XCTFail("第3章の定義が見つかりません")
             return
         }
 
-        XCTAssertEqual(stage31.title, "縦横選択訓練")
-        XCTAssertEqual(stage31.regulation.deckPreset, .standardWithOrthogonalChoices)
-        XCTAssertEqual(stage31.secondaryObjective, .finishWithoutPenalty)
-        XCTAssertEqual(stage31.scoreTarget, 600)
-        XCTAssertEqual(stage31.unlockRequirement, .stageClear(CampaignStageID(chapter: 2, index: 1)))
+        XCTAssertEqual(chapter3.stages.count, 8, "第3章は 8 ステージ構成の想定です")
 
-        XCTAssertEqual(stage32.title, "斜め選択応用")
-        XCTAssertEqual(stage32.regulation.deckPreset, .standardWithDiagonalChoices)
-        XCTAssertEqual(stage32.secondaryObjective, .finishWithinMoves(maxMoves: 32))
-        XCTAssertEqual(stage32.scoreTarget, 580)
-        XCTAssertEqual(stage32.unlockRequirement, .stageClear(stage31ID))
+        let fixedSpawn4 = GameMode.SpawnRule.fixed(BoardGeometry.defaultSpawnPoint(for: 4))
+        let fixedSpawn5 = GameMode.SpawnRule.fixed(BoardGeometry.defaultSpawnPoint(for: 5))
+        let chooseAny = GameMode.SpawnRule.chooseAnyAfterPreview
+        let standardPenalties = GameMode.PenaltySettings(deadlockPenaltyCost: 5, manualRedrawPenaltyCost: 5, manualDiscardPenaltyCost: 1, revisitPenaltyCost: 0)
+        let noPenalty = GameMode.PenaltySettings(deadlockPenaltyCost: 0, manualRedrawPenaltyCost: 0, manualDiscardPenaltyCost: 1, revisitPenaltyCost: 0)
 
-        XCTAssertEqual(stage33.title, "桂馬選択攻略")
-        XCTAssertEqual(stage33.regulation.deckPreset, .standardWithKnightChoices)
-        XCTAssertEqual(stage33.secondaryObjective, .finishWithinMoves(maxMoves: 30))
-        XCTAssertEqual(stage33.scoreTarget, 560)
-        XCTAssertEqual(stage33.unlockRequirement, .stageClear(stage32ID))
+        let expectations: [Int: StageExpectation] = [
+            1: StageExpectation(
+                title: "縦横選択チュートリアル",
+                boardSize: 4,
+                deck: .standardWithOrthogonalChoices,
+                spawn: fixedSpawn4,
+                penalties: noPenalty,
+                secondary: .finishWithoutPenalty,
+                scoreTarget: 600,
+                unlock: .stageClear(CampaignStageID(chapter: 2, index: 8))
+            ),
+            2: StageExpectation(
+                title: "縦横基礎",
+                boardSize: 5,
+                deck: .standardWithOrthogonalChoices,
+                spawn: fixedSpawn5,
+                penalties: standardPenalties,
+                secondary: .finishWithinMoves(maxMoves: 40),
+                scoreTarget: 590,
+                unlock: .stageClear(CampaignStageID(chapter: 3, index: 1))
+            ),
+            3: StageExpectation(
+                title: "斜め選択入門",
+                boardSize: 5,
+                deck: .standardWithDiagonalChoices,
+                spawn: fixedSpawn5,
+                penalties: standardPenalties,
+                secondary: .finishWithPenaltyAtMost(maxPenaltyCount: 2),
+                scoreTarget: 580,
+                unlock: .stageClear(CampaignStageID(chapter: 3, index: 2))
+            ),
+            4: StageExpectation(
+                title: "桂馬選択入門",
+                boardSize: 5,
+                deck: .standardWithKnightChoices,
+                spawn: fixedSpawn5,
+                penalties: standardPenalties,
+                secondary: .finishWithinMoves(maxMoves: 38),
+                scoreTarget: 570,
+                unlock: .stageClear(CampaignStageID(chapter: 3, index: 3))
+            ),
+            5: StageExpectation(
+                title: "選択＋二度踏み",
+                boardSize: 5,
+                deck: .standardWithOrthogonalChoices,
+                spawn: chooseAny,
+                penalties: standardPenalties,
+                secondary: .finishWithinMoves(maxMoves: 36),
+                scoreTarget: 560,
+                unlock: .stageClear(CampaignStageID(chapter: 3, index: 4)),
+                additional: [GridPoint(x: 1, y: 1): 2, GridPoint(x: 3, y: 3): 2]
+            ),
+            6: StageExpectation(
+                title: "全選択＋三重踏み",
+                boardSize: 5,
+                deck: .standardWithAllChoices,
+                spawn: fixedSpawn5,
+                penalties: standardPenalties,
+                secondary: .finishWithPenaltyAtMost(maxPenaltyCount: 1),
+                scoreTarget: 550,
+                unlock: .stageClear(CampaignStageID(chapter: 3, index: 5)),
+                additional: [GridPoint(x: 2, y: 2): 3, GridPoint(x: 3, y: 1): 3]
+            ),
+            7: StageExpectation(
+                title: "全選択＋四重踏み",
+                boardSize: 5,
+                deck: .standardWithAllChoices,
+                spawn: chooseAny,
+                penalties: standardPenalties,
+                secondary: .finishWithinMoves(maxMoves: 34),
+                scoreTarget: 540,
+                unlock: .stageClear(CampaignStageID(chapter: 3, index: 6)),
+                additional: [GridPoint(x: 0, y: 0): 4, GridPoint(x: 4, y: 4): 4]
+            ),
+            8: StageExpectation(
+                title: "総合演習",
+                boardSize: 5,
+                deck: .standardWithAllChoices,
+                spawn: fixedSpawn5,
+                penalties: noPenalty,
+                secondary: .finishWithoutPenaltyAndWithinMoves(maxMoves: 32),
+                scoreTarget: 530,
+                unlock: .stageClear(CampaignStageID(chapter: 3, index: 7)),
+                additional: [GridPoint(x: 0, y: 0): 2, GridPoint(x: 2, y: 2): 3, GridPoint(x: 4, y: 4): 4]
+            )
+        ]
 
-        XCTAssertEqual(stage34.title, "総合選択演習")
-        XCTAssertEqual(stage34.regulation.deckPreset, .standardWithAllChoices)
-        XCTAssertEqual(stage34.secondaryObjective, .finishWithinMoves(maxMoves: 28))
-        XCTAssertEqual(stage34.scoreTarget, 540)
-        XCTAssertEqual(stage34.scoreTargetComparison, .lessThan)
-        XCTAssertEqual(stage34.unlockRequirement, .stageClear(stage33ID))
+        for stage in chapter3.stages {
+            guard let expectation = expectations[stage.id.index] else {
+                XCTFail("第3章に想定外のステージ index=\(stage.id.index) が含まれています")
+                continue
+            }
+
+            XCTAssertEqual(stage.title, expectation.title)
+            XCTAssertEqual(stage.regulation.deckPreset, expectation.deck)
+            XCTAssertEqual(stage.regulation.spawnRule, expectation.spawn)
+            XCTAssertEqual(stage.regulation.additionalVisitRequirements, expectation.additional)
+            XCTAssertEqual(stage.secondaryObjective, expectation.secondary)
+            XCTAssertEqual(stage.scoreTarget, expectation.scoreTarget)
+            XCTAssertEqual(stage.scoreTargetComparison, expectation.comparison)
+            XCTAssertEqual(stage.unlockRequirement, expectation.unlock)
+        }
     }
 
-    /// 4 章のトグルギミック導入ステージが仕様通りに組み込まれているかを確認する
+    /// 第4章のトグル＋複数踏破構成を検証する
     func testCampaignStage4Definitions() {
         let library = CampaignLibrary.shared
-        let stage41ID = CampaignStageID(chapter: 4, index: 1)
-
-        // MARK: 章配列へ 4 章が含まれているかを確認する（最終章は別テストで検証）
-        XCTAssertGreaterThanOrEqual(library.chapters.count, 4, "キャンペーン定義に 4 章目が存在しません")
-        XCTAssertNotNil(library.chapters.first(where: { $0.id == 4 }), "章 ID 4 の定義が欠落しています")
-
-        guard let stage41 = library.stage(with: stage41ID) else {
-            XCTFail("第4章 4-1 の定義が見つかりません")
+        guard let chapter4 = library.chapters.first(where: { $0.id == 4 }) else {
+            XCTFail("第4章の定義が見つかりません")
             return
         }
 
-        // MARK: 基本情報（タイトル・サマリー・盤面サイズ）が仕様通りかを検証
-        XCTAssertEqual(stage41.title, "反転制御訓練")
-        XCTAssertTrue(stage41.summary.contains("トグルマス"), "サマリーにトグルギミックへの言及がありません")
-        XCTAssertEqual(stage41.regulation.boardSize, 5)
+        XCTAssertEqual(chapter4.stages.count, 8, "第4章は 8 ステージ構成の想定です")
 
-        // MARK: トグルマス座標が 0 始まりで (0,1) と (2,3) に設定されているかをチェック
-        let expectedTogglePoints: Set<GridPoint> = [
-            GridPoint(x: 0, y: 1),
-            GridPoint(x: 2, y: 3)
+        let fixedSpawn5 = GameMode.SpawnRule.fixed(BoardGeometry.defaultSpawnPoint(for: 5))
+        let chooseAny = GameMode.SpawnRule.chooseAnyAfterPreview
+        let penalties = GameMode.PenaltySettings(deadlockPenaltyCost: 5, manualRedrawPenaltyCost: 5, manualDiscardPenaltyCost: 1, revisitPenaltyCost: 0)
+        let noPenalty = GameMode.PenaltySettings(deadlockPenaltyCost: 0, manualRedrawPenaltyCost: 0, manualDiscardPenaltyCost: 1, revisitPenaltyCost: 0)
+
+        let expectations: [Int: StageExpectation] = [
+            1: StageExpectation(
+                title: "トグル基礎",
+                boardSize: 5,
+                deck: .standardLight,
+                spawn: fixedSpawn5,
+                penalties: penalties,
+                secondary: .finishWithinMoves(maxMoves: 30),
+                scoreTarget: 520,
+                unlock: .stageClear(CampaignStageID(chapter: 3, index: 8)),
+                toggles: [GridPoint(x: 1, y: 1), GridPoint(x: 3, y: 3)]
+            ),
+            2: StageExpectation(
+                title: "トグル応用",
+                boardSize: 5,
+                deck: .standardLight,
+                spawn: fixedSpawn5,
+                penalties: penalties,
+                secondary: .finishWithPenaltyAtMost(maxPenaltyCount: 2),
+                scoreTarget: 510,
+                unlock: .stageClear(CampaignStageID(chapter: 4, index: 1)),
+                toggles: [GridPoint(x: 2, y: 2), GridPoint(x: 1, y: 3), GridPoint(x: 3, y: 1)]
+            ),
+            3: StageExpectation(
+                title: "トグル＋二度踏み",
+                boardSize: 5,
+                deck: .standardLight,
+                spawn: fixedSpawn5,
+                penalties: penalties,
+                secondary: .finishWithinMoves(maxMoves: 40),
+                scoreTarget: 500,
+                unlock: .stageClear(CampaignStageID(chapter: 4, index: 2)),
+                additional: [GridPoint(x: 0, y: 2): 2, GridPoint(x: 4, y: 2): 2],
+                toggles: [GridPoint(x: 1, y: 1), GridPoint(x: 3, y: 3)]
+            ),
+            4: StageExpectation(
+                title: "トグル＋三重踏み",
+                boardSize: 5,
+                deck: .standardWithAllChoices,
+                spawn: fixedSpawn5,
+                penalties: penalties,
+                secondary: .finishWithPenaltyAtMost(maxPenaltyCount: 1),
+                scoreTarget: 490,
+                unlock: .stageClear(CampaignStageID(chapter: 4, index: 3)),
+                additional: [GridPoint(x: 2, y: 2): 3],
+                toggles: [GridPoint(x: 1, y: 1), GridPoint(x: 3, y: 3)]
+            ),
+            5: StageExpectation(
+                title: "トグル集中制御",
+                boardSize: 5,
+                deck: .standardWithAllChoices,
+                spawn: chooseAny,
+                penalties: penalties,
+                secondary: .finishWithinMoves(maxMoves: 38),
+                scoreTarget: 480,
+                unlock: .stageClear(CampaignStageID(chapter: 4, index: 4)),
+                toggles: [
+                    GridPoint(x: 0, y: 0),
+                    GridPoint(x: 4, y: 0),
+                    GridPoint(x: 0, y: 4),
+                    GridPoint(x: 4, y: 4)
+                ]
+            ),
+            6: StageExpectation(
+                title: "トグル＋四重踏み",
+                boardSize: 5,
+                deck: .standardWithAllChoices,
+                spawn: chooseAny,
+                penalties: penalties,
+                secondary: .finishWithinMoves(maxMoves: 36),
+                scoreTarget: 470,
+                unlock: .stageClear(CampaignStageID(chapter: 4, index: 5)),
+                additional: [GridPoint(x: 2, y: 2): 4],
+                toggles: [GridPoint(x: 1, y: 1), GridPoint(x: 3, y: 3)]
+            ),
+            7: StageExpectation(
+                title: "トグル＋複合踏破",
+                boardSize: 5,
+                deck: .standardWithAllChoices,
+                spawn: chooseAny,
+                penalties: noPenalty,
+                secondary: .finishWithoutPenalty,
+                scoreTarget: 460,
+                unlock: .stageClear(CampaignStageID(chapter: 4, index: 6)),
+                additional: [GridPoint(x: 0, y: 2): 2, GridPoint(x: 4, y: 2): 2, GridPoint(x: 2, y: 2): 3],
+                toggles: [GridPoint(x: 1, y: 1), GridPoint(x: 3, y: 3)]
+            ),
+            8: StageExpectation(
+                title: "総合演習",
+                boardSize: 5,
+                deck: .standardWithAllChoices,
+                spawn: fixedSpawn5,
+                penalties: noPenalty,
+                secondary: .finishWithoutPenaltyAndWithinMoves(maxMoves: 34),
+                scoreTarget: 450,
+                unlock: .stageClear(CampaignStageID(chapter: 4, index: 7)),
+                additional: [GridPoint(x: 0, y: 0): 2, GridPoint(x: 4, y: 0): 3, GridPoint(x: 2, y: 2): 4],
+                toggles: [GridPoint(x: 1, y: 1), GridPoint(x: 3, y: 3), GridPoint(x: 2, y: 4)]
+            )
         ]
-        XCTAssertEqual(stage41.regulation.toggleTilePoints, expectedTogglePoints)
 
-        // MARK: スター条件（手数制限・スコア上限）が定義通りかを確認
-        XCTAssertEqual(stage41.secondaryObjective, .finishWithinMoves(maxMoves: 30))
-        XCTAssertEqual(stage41.scoreTarget, 520)
+        for stage in chapter4.stages {
+            guard let expectation = expectations[stage.id.index] else {
+                XCTFail("第4章に想定外のステージ index=\(stage.id.index) が含まれています")
+                continue
+            }
 
-        // MARK: アンロック条件が 3-4 クリアに紐付いているかを確認
-        let prerequisiteID = CampaignStageID(chapter: 3, index: 4)
-        XCTAssertEqual(stage41.unlockRequirement, .stageClear(prerequisiteID))
+            XCTAssertEqual(stage.title, expectation.title)
+            XCTAssertEqual(stage.regulation.toggleTilePoints, expectation.toggles)
+            XCTAssertEqual(stage.secondaryObjective, expectation.secondary)
+            XCTAssertEqual(stage.unlockRequirement, expectation.unlock)
+        }
     }
 
-    /// 5 章の障害物ステージが仕様通りに構築されているかを確認する
+    /// 第5章の障害物＋複合ギミック構成を検証する
     func testCampaignStage5Definitions() {
         let library = CampaignLibrary.shared
-        let stage51ID = CampaignStageID(chapter: 5, index: 1)
-        let prerequisiteStageID = CampaignStageID(chapter: 4, index: 1)
-
-        // MARK: 章数が 5 章構成へ拡張され、最終章の ID が 5 になっているか確認
-        XCTAssertEqual(library.chapters.count, 5, "キャンペーンの章数が 5 章構成になっていません")
-        XCTAssertEqual(library.chapters.last?.id, 5, "最終章の ID が 5 になっていません")
-
-        guard let stage51 = library.stage(with: stage51ID) else {
-            XCTFail("第5章 5-1 の定義が見つかりません")
+        guard let chapter5 = library.chapters.first(where: { $0.id == 5 }) else {
+            XCTFail("第5章の定義が見つかりません")
             return
         }
 
-        // MARK: 基本情報（タイトル・サマリー）で移動不可マスへの言及があるか確認
-        XCTAssertEqual(stage51.title, "障害物突破演習")
-        XCTAssertTrue(stage51.summary.contains("移動不可"), "サマリーに移動不可マスへの言及がありません")
+        XCTAssertEqual(chapter5.stages.count, 8, "第5章は 8 ステージ構成の想定です")
 
-        // MARK: 移動不可マスが (0,1) と (2,3) に設定されているかを検証
-        let expectedImpassablePoints: Set<GridPoint> = [
-            GridPoint(x: 0, y: 1),
-            GridPoint(x: 2, y: 3)
+        let fixedSpawn5 = GameMode.SpawnRule.fixed(BoardGeometry.defaultSpawnPoint(for: 5))
+        let chooseAny = GameMode.SpawnRule.chooseAnyAfterPreview
+        let penalties = GameMode.PenaltySettings(deadlockPenaltyCost: 5, manualRedrawPenaltyCost: 5, manualDiscardPenaltyCost: 1, revisitPenaltyCost: 0)
+        let noPenalty = GameMode.PenaltySettings(deadlockPenaltyCost: 0, manualRedrawPenaltyCost: 0, manualDiscardPenaltyCost: 1, revisitPenaltyCost: 0)
+
+        let expectations: [Int: StageExpectation] = [
+            1: StageExpectation(
+                title: "障害物基礎",
+                boardSize: 5,
+                deck: .standardWithAllChoices,
+                spawn: fixedSpawn5,
+                penalties: penalties,
+                secondary: .finishWithinMoves(maxMoves: 30),
+                scoreTarget: 500,
+                unlock: .stageClear(CampaignStageID(chapter: 4, index: 8)),
+                impassable: [GridPoint(x: 1, y: 1), GridPoint(x: 3, y: 3)]
+            ),
+            2: StageExpectation(
+                title: "障害物応用",
+                boardSize: 5,
+                deck: .standardWithAllChoices,
+                spawn: fixedSpawn5,
+                penalties: penalties,
+                secondary: .finishWithPenaltyAtMost(maxPenaltyCount: 2),
+                scoreTarget: 490,
+                unlock: .stageClear(CampaignStageID(chapter: 5, index: 1)),
+                impassable: [GridPoint(x: 1, y: 1), GridPoint(x: 3, y: 3), GridPoint(x: 2, y: 2)]
+            ),
+            3: StageExpectation(
+                title: "障害物＋二度踏み",
+                boardSize: 5,
+                deck: .standardWithAllChoices,
+                spawn: fixedSpawn5,
+                penalties: penalties,
+                secondary: .finishWithinMoves(maxMoves: 40),
+                scoreTarget: 480,
+                unlock: .stageClear(CampaignStageID(chapter: 5, index: 2)),
+                additional: [GridPoint(x: 1, y: 3): 2, GridPoint(x: 3, y: 1): 2],
+                impassable: [GridPoint(x: 0, y: 1), GridPoint(x: 4, y: 3)]
+            ),
+            4: StageExpectation(
+                title: "障害物＋三重踏み",
+                boardSize: 5,
+                deck: .standardWithAllChoices,
+                spawn: chooseAny,
+                penalties: penalties,
+                secondary: .finishWithPenaltyAtMost(maxPenaltyCount: 1),
+                scoreTarget: 470,
+                unlock: .stageClear(CampaignStageID(chapter: 5, index: 3)),
+                additional: [GridPoint(x: 2, y: 2): 3],
+                impassable: [GridPoint(x: 0, y: 2), GridPoint(x: 4, y: 2)]
+            ),
+            5: StageExpectation(
+                title: "障害物＋トグル",
+                boardSize: 5,
+                deck: .standardWithAllChoices,
+                spawn: fixedSpawn5,
+                penalties: penalties,
+                secondary: .finishWithinMoves(maxMoves: 38),
+                scoreTarget: 460,
+                unlock: .stageClear(CampaignStageID(chapter: 5, index: 4)),
+                toggles: [GridPoint(x: 2, y: 1), GridPoint(x: 2, y: 3)],
+                impassable: [GridPoint(x: 1, y: 1), GridPoint(x: 3, y: 3)]
+            ),
+            6: StageExpectation(
+                title: "複合 (四重踏み含む)",
+                boardSize: 5,
+                deck: .standardWithAllChoices,
+                spawn: chooseAny,
+                penalties: penalties,
+                secondary: .finishWithinMoves(maxMoves: 36),
+                scoreTarget: 450,
+                unlock: .stageClear(CampaignStageID(chapter: 5, index: 5)),
+                additional: [GridPoint(x: 2, y: 2): 4],
+                toggles: [GridPoint(x: 0, y: 4)],
+                impassable: [GridPoint(x: 1, y: 1), GridPoint(x: 3, y: 3)]
+            ),
+            7: StageExpectation(
+                title: "複合 (多要素)",
+                boardSize: 5,
+                deck: .standardWithAllChoices,
+                spawn: chooseAny,
+                penalties: noPenalty,
+                secondary: .finishWithoutPenalty,
+                scoreTarget: 440,
+                unlock: .stageClear(CampaignStageID(chapter: 5, index: 6)),
+                additional: [GridPoint(x: 0, y: 0): 2, GridPoint(x: 4, y: 4): 3],
+                toggles: [GridPoint(x: 2, y: 2)],
+                impassable: [GridPoint(x: 1, y: 1), GridPoint(x: 3, y: 3), GridPoint(x: 2, y: 4)]
+            ),
+            8: StageExpectation(
+                title: "最終試験",
+                boardSize: 5,
+                deck: .standardWithAllChoices,
+                spawn: fixedSpawn5,
+                penalties: noPenalty,
+                secondary: .finishWithoutPenaltyAndWithinMoves(maxMoves: 34),
+                scoreTarget: 430,
+                unlock: .stageClear(CampaignStageID(chapter: 5, index: 7)),
+                additional: [GridPoint(x: 0, y: 4): 2, GridPoint(x: 4, y: 0): 3, GridPoint(x: 2, y: 4): 4],
+                toggles: [GridPoint(x: 1, y: 3), GridPoint(x: 3, y: 1)],
+                impassable: [GridPoint(x: 1, y: 1), GridPoint(x: 3, y: 3), GridPoint(x: 2, y: 2)]
+            )
         ]
-        XCTAssertEqual(stage51.regulation.impassableTilePoints, expectedImpassablePoints, "移動不可マスの設定が仕様と一致しません")
 
-        // MARK: スター条件が移動不可マスを意識した手数・スコアになっているか確認
-        XCTAssertEqual(stage51.secondaryObjective, .finishWithinMoves(maxMoves: 27))
-        XCTAssertEqual(stage51.scoreTarget, 500)
-        XCTAssertEqual(stage51.scoreTargetComparison, .lessThan)
+        for stage in chapter5.stages {
+            guard let expectation = expectations[stage.id.index] else {
+                XCTFail("第5章に想定外のステージ index=\(stage.id.index) が含まれています")
+                continue
+            }
 
-        // MARK: アンロック条件が 4-1 クリアに紐付いているかを確認
-        XCTAssertEqual(stage51.unlockRequirement, .stageClear(prerequisiteStageID))
+            XCTAssertEqual(stage.title, expectation.title)
+            XCTAssertEqual(stage.regulation.impassableTilePoints, expectation.impassable)
+            XCTAssertEqual(stage.regulation.toggleTilePoints, expectation.toggles)
+            XCTAssertEqual(stage.regulation.additionalVisitRequirements, expectation.additional)
+            XCTAssertEqual(stage.secondaryObjective, expectation.secondary)
+            XCTAssertEqual(stage.unlockRequirement, expectation.unlock)
+        }
     }
 }
