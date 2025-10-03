@@ -131,12 +131,35 @@ struct CampaignStageSelectionView: View {
             // onAppear 時に章一覧のサマリーを出力し、ViewBuilder の評価と副作用を分離する
             debugLog("CampaignStageSelectionView.stageListView: 表示対象章一覧 = [\(chapterDetails)]")
             if expandedChapters.isEmpty {
-                // 初回表示時は全章を展開し、ユーザーがすべての進捗を俯瞰できるようにする
-                let initiallyExpanded = Set(campaignLibrary.chapters.map(\.id))
-                expandedChapters = initiallyExpanded
-                debugLog("CampaignStageSelectionView.stageListView: 初期展開状態を全章 (\(initiallyExpanded.sorted())) に設定")
+                // 最新の解放済みステージを含む章を優先して展開することで、進捗確認をしやすくする
+                let targetChapterID = latestUnlockedChapterID() ?? campaignLibrary.chapters.first?.id
+                if let targetChapterID {
+                    // Set へ単一章 ID を格納し、意図的に 1 章だけを展開した状態にする
+                    expandedChapters = [targetChapterID]
+                    debugLog("CampaignStageSelectionView.stageListView: 初期展開章を最新解放章 (Chapter \(targetChapterID)) に設定")
+                } else {
+                    // 章が全く定義されていないケースでもログを残し、データ定義の見直しへ繋げられるようにする
+                    debugLog("CampaignStageSelectionView.stageListView: 解放済みステージが見つからず、展開状態を変更しませんでした")
+                }
             }
         }
+    }
+
+    /// 最新の解放済みステージが存在する章 ID を算出し、初期展開する章の判断材料とする
+    /// - Returns: 解放済みステージを含む章 ID（存在しない場合は nil）
+    private func latestUnlockedChapterID() -> Int? {
+        // 章定義を昇順のまま走査し、最後に true となった章 ID を記録する
+        var latestChapterID: Int?
+        for chapter in campaignLibrary.chapters {
+            for stage in chapter.stages {
+                // ステージが解放済みなら、該当する章 ID を随時更新しておく
+                if progressStore.isStageUnlocked(stage) {
+                    latestChapterID = chapter.id
+                }
+            }
+        }
+        // 解放済みステージが無い場合は nil が返り、呼び出し元でフォールバックが適用される
+        return latestChapterID
     }
 
     /// 章単位の Disclosure コンテナを生成し、開閉状態とステージグリッドを制御する
