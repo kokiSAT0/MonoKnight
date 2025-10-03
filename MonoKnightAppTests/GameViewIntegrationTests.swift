@@ -761,6 +761,7 @@ private final class AdsServiceSpy: AdsServiceProtocol {
     func showInterstitial() {}
     func resetPlayFlag() {}
     func disableAds() {}
+    func showRewardedAd() async -> Bool { true }
     func requestTrackingAuthorization() async {}
     func requestConsentIfNeeded() async {}
     func refreshConsentStatus() async {}

@@ -17,6 +17,8 @@ struct RootView: View {
     private let gameCenterService: GameCenterServiceProtocol
     /// 広告表示を扱うサービス（GameView へ受け渡す）
     private let adsService: AdsServiceProtocol
+    /// 日替わりチャレンジの挑戦回数ストア
+    private let dailyChallengeAttemptStore: AnyDailyChallengeAttemptStore
     /// キャンペーンステージ定義を参照するライブラリ
     private let campaignLibrary = CampaignLibrary.shared
     /// デバイスの横幅サイズクラスを参照し、iPad などレギュラー幅での余白やログ出力を調整する
@@ -32,15 +34,18 @@ struct RootView: View {
     ///   - adsService: 広告表示用サービス（デフォルトはシングルトン）
     init(gameInterfaces: GameModuleInterfaces = .live,
          gameCenterService: GameCenterServiceProtocol? = nil,
-         adsService: AdsServiceProtocol? = nil) {
+         adsService: AdsServiceProtocol? = nil,
+         dailyChallengeAttemptStore: AnyDailyChallengeAttemptStore? = nil) {
         // Swift 6 ではデフォルト引数の評価が非分離コンテキストで行われるため、
         // `@MainActor` に隔離されたシングルトンを安全に利用するためにイニシャライザ内で解決する。
         let resolvedGameCenterService = gameCenterService ?? GameCenterService.shared
         let resolvedAdsService = adsService ?? AdsService.shared
+        let resolvedDailyStore = dailyChallengeAttemptStore ?? AnyDailyChallengeAttemptStore(base: DailyChallengeAttemptStore())
 
         self.gameInterfaces = gameInterfaces
         self.gameCenterService = resolvedGameCenterService
         self.adsService = resolvedAdsService
+        self.dailyChallengeAttemptStore = resolvedDailyStore
         // 画面状態を一括管理するステートストアを生成し、初期認証状態を反映する。
         _stateStore = StateObject(
             wrappedValue: RootViewStateStore(
@@ -60,6 +65,7 @@ struct RootView: View {
                 makeRootContentView(with: layoutContext)
             }
         )
+        .environmentObject(dailyChallengeAttemptStore)
         .task {
             // 初回表示時に Game Center 認証を 1 度だけ試み、UI の表示ズレを防ぐ
             performInitialAuthenticationIfNeeded()

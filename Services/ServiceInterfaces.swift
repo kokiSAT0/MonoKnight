@@ -33,6 +33,8 @@ protocol AdsServiceProtocol: AnyObject {
     func resetPlayFlag()
     /// 広告読み込みを完全に停止する（IAP 購入時などに利用）。
     func disableAds()
+    /// リワード広告を表示し、視聴完了で報酬が得られたかを返す。
+    func showRewardedAd() async -> Bool
     /// ATT（アプリトラッキング許可）をリクエストする。
     func requestTrackingAuthorization() async
     /// UMP（ユーザー同意）を必要に応じて提示する。

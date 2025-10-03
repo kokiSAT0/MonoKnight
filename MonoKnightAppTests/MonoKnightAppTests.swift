@@ -57,6 +57,10 @@ private final class StubAdsService: AdsServiceProtocol {
     private(set) var consentRequestCount: Int = 0
     /// プライバシーオプション更新の回数
     private(set) var consentRefreshCount: Int = 0
+    /// リワード広告要求の回数
+    private(set) var showRewardedAdCallCount: Int = 0
+    /// リワード広告を成功扱いにするかどうかのフラグ
+    var rewardedAdShouldSucceed: Bool = true
 
     func showInterstitial() {
         showInterstitialCallCount += 1
@@ -81,6 +85,33 @@ private final class StubAdsService: AdsServiceProtocol {
     func refreshConsentStatus() async {
         consentRefreshCount += 1
     }
+
+    func showRewardedAd() async -> Bool {
+        showRewardedAdCallCount += 1
+        return rewardedAdShouldSucceed
+    }
+}
+
+/// 日替わりチャレンジ回数ストアのスタブ
+@MainActor
+private final class StubDailyChallengeAttemptStore: ObservableObject, DailyChallengeAttemptStoreProtocol {
+    var remainingAttempts: Int
+    var rewardedAttemptsGranted: Int
+    let maximumRewardedAttempts: Int
+
+    init(remainingAttempts: Int = 1, rewardedAttemptsGranted: Int = 0, maximumRewardedAttempts: Int = 3) {
+        self.remainingAttempts = remainingAttempts
+        self.rewardedAttemptsGranted = rewardedAttemptsGranted
+        self.maximumRewardedAttempts = maximumRewardedAttempts
+    }
+
+    func refreshForCurrentDate() {}
+
+    @discardableResult
+    func consumeAttempt() -> Bool { true }
+
+    @discardableResult
+    func grantRewardedAttempt() -> Bool { true }
 }
 
 struct MonoKnightAppTests {
@@ -96,7 +127,14 @@ struct MonoKnightAppTests {
         let adsServiceStub = StubAdsService()
 
         // MARK: テスト対象の生成
-        let view = RootView(gameCenterService: gameCenterStub, adsService: adsServiceStub)
+        let dailyStoreStub = StubDailyChallengeAttemptStore()
+        let anyDailyStore = AnyDailyChallengeAttemptStore(base: dailyStoreStub)
+
+        let view = RootView(
+            gameCenterService: gameCenterStub,
+            adsService: adsServiceStub,
+            dailyChallengeAttemptStore: anyDailyStore
+        )
         let mirror = Mirror(reflecting: view)
 
         // MARK: 依存サービスの保持を検証
@@ -105,6 +143,9 @@ struct MonoKnightAppTests {
 
         let mirroredAdsService = mirror.children.first { $0.label == "adsService" }?.value as? StubAdsService
         #expect(mirroredAdsService === adsServiceStub)
+
+        let mirroredDailyStore = mirror.children.first { $0.label == "dailyChallengeAttemptStore" }?.value as? AnyDailyChallengeAttemptStore
+        #expect(mirroredDailyStore === anyDailyStore)
 
         // MARK: @State 初期値の検証（タイトル表示フラグ）
         let titleState = mirror.children.first { $0.label == "_isShowingTitleScreen" }?.value as? State<Bool>
