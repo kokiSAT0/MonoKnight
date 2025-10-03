@@ -184,7 +184,7 @@ final class CampaignLibraryTests: XCTestCase {
                 penalties: GameMode.PenaltySettings(deadlockPenaltyCost: 2, manualRedrawPenaltyCost: 2, manualDiscardPenaltyCost: 1, revisitPenaltyCost: 1),
                 secondary: .finishWithinSeconds(maxSeconds: 60),
                 scoreTarget: 300,
-                unlock: .totalStars(minimum: 0)
+                unlock: .always
             ),
             2: (
                 title: "ナイト初見",
@@ -308,7 +308,7 @@ final class CampaignLibraryTests: XCTestCase {
                 penalties: penalties,
                 secondary: .finishWithPenaltyAtMost(maxPenaltyCount: 5),
                 scoreTarget: 620,
-                unlock: .stageClear(CampaignStageID(chapter: 1, index: 8)),
+                unlock: .chapterTotalStars(chapter: 1, minimum: 16),
                 additional: [GridPoint(x: 1, y: 1): 2, GridPoint(x: 2, y: 2): 2]
             ),
             2: StageExpectation(
@@ -441,7 +441,7 @@ final class CampaignLibraryTests: XCTestCase {
                 penalties: noPenalty,
                 secondary: .finishWithoutPenalty,
                 scoreTarget: 600,
-                unlock: .stageClear(CampaignStageID(chapter: 2, index: 8))
+                unlock: .chapterTotalStars(chapter: 2, minimum: 16)
             ),
             2: StageExpectation(
                 title: "縦横基礎",
@@ -560,7 +560,7 @@ final class CampaignLibraryTests: XCTestCase {
                 penalties: penalties,
                 secondary: .finishWithinMoves(maxMoves: 30),
                 scoreTarget: 520,
-                unlock: .stageClear(CampaignStageID(chapter: 3, index: 8)),
+                unlock: .chapterTotalStars(chapter: 3, minimum: 16),
                 toggles: [GridPoint(x: 1, y: 1), GridPoint(x: 3, y: 3)]
             ),
             2: StageExpectation(
@@ -689,7 +689,7 @@ final class CampaignLibraryTests: XCTestCase {
                 penalties: penalties,
                 secondary: .finishWithinMoves(maxMoves: 30),
                 scoreTarget: 500,
-                unlock: .stageClear(CampaignStageID(chapter: 4, index: 8)),
+                unlock: .chapterTotalStars(chapter: 4, minimum: 16),
                 impassable: [GridPoint(x: 1, y: 1), GridPoint(x: 3, y: 3)]
             ),
             2: StageExpectation(

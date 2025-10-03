@@ -55,9 +55,24 @@ final class CampaignProgressStore: ObservableObject {
             return true
         case .totalStars(let minimum):
             return totalStars >= minimum
+        case .chapterTotalStars(let chapter, let minimum):
+            // MARK: 章単位のスター数を合計し、条件を満たしているか評価する
+            return minimum <= 0 || totalStars(inChapter: chapter) >= minimum
         case .stageClear(let requiredID):
             let earned = progressMap[requiredID]?.earnedStars ?? 0
             return earned > 0
+        }
+    }
+
+    /// 指定章で獲得済みのスター数を合算する
+    /// - Parameter chapter: 集計対象の章番号
+    /// - Returns: 対象章で得たスター数の合計
+    func totalStars(inChapter chapter: Int) -> Int {
+        // MARK: progressMap はステージ ID をキーに保持しているため、章番号が一致するもののみ抽出して加算する
+        progressMap.reduce(into: 0) { partialResult, element in
+            if element.key.chapter == chapter {
+                partialResult += element.value.earnedStars
+            }
         }
     }
 

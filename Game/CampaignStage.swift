@@ -46,6 +46,8 @@ public enum CampaignStageUnlockRequirement: Equatable {
     case always
     /// 合計スター数が指定値以上
     case totalStars(minimum: Int)
+    /// 指定章で獲得したスター数の合計が閾値以上
+    case chapterTotalStars(chapter: Int, minimum: Int)
     /// 指定ステージをクリア済み
     case stageClear(CampaignStageID)
 }
@@ -201,6 +203,11 @@ public struct CampaignStage: Identifiable, Equatable {
             return "最初から解放済み"
         case .totalStars(let minimum):
             return "スターを合計 \(minimum) 個集める"
+        case .chapterTotalStars(_, let minimum) where minimum <= 0:
+            // 閾値が 0 以下の場合は常時解放と等価であるため、利用者へもその旨を伝える
+            return "最初から解放済み"
+        case .chapterTotalStars(let chapter, let minimum):
+            return "第\(chapter)章でスターを合計 \(minimum) 個集める"
         case .stageClear(let requiredID):
             return "ステージ \(requiredID.displayCode) をクリア"
         }
@@ -364,7 +371,8 @@ public struct CampaignLibrary {
             secondaryObjective: .finishWithinSeconds(maxSeconds: 60),
             scoreTarget: 300,
             scoreTargetComparison: .lessThan,
-            unlockRequirement: .totalStars(minimum: 0)
+            // MARK: スタート地点となるため常時解放として整理する
+            unlockRequirement: .always
         )
 
         // 1-2 はキングと桂馬の最小構成で、ペナルティ合計 5 以下を目指す導入ステージ。
@@ -589,7 +597,8 @@ public struct CampaignLibrary {
             secondaryObjective: .finishWithPenaltyAtMost(maxPenaltyCount: 5),
             scoreTarget: 450,
             scoreTargetComparison: .lessThanOrEqual,
-            unlockRequirement: .stageClear(stage18.id)
+            // MARK: 第 2 章開始条件は第 1 章で十分なスターを獲得しているかを基準にする
+            unlockRequirement: .chapterTotalStars(chapter: 1, minimum: 16)
         )
 
         // 2-2: 5×5 盤で対角二度踏みを巡回し、任意スポーンでも 45 手以内へ収める判断力を育てる。
@@ -807,7 +816,8 @@ public struct CampaignLibrary {
             secondaryObjective: .finishWithoutPenalty,
             scoreTarget: 600,
             scoreTargetComparison: .lessThanOrEqual,
-            unlockRequirement: .stageClear(stage28.id)
+            // MARK: 第 3 章も前章のスター総数を指標とし、継続的なチャレンジを促す
+            unlockRequirement: .chapterTotalStars(chapter: 2, minimum: 16)
         )
 
         // 3-2: 5×5 盤へ拡張し、縦横カードで 40 手以内の踏破を目指す。
@@ -1006,7 +1016,8 @@ public struct CampaignLibrary {
             secondaryObjective: .finishWithinMoves(maxMoves: 30),
             scoreTarget: 520,
             scoreTargetComparison: .lessThanOrEqual,
-            unlockRequirement: .stageClear(stage38.id)
+            // MARK: 第 4 章開始条件は前章スター数の蓄積を基準にし、幅広い攻略を促す
+            unlockRequirement: .chapterTotalStars(chapter: 3, minimum: 16)
         )
 
         // 4-2: トグル 3 箇所でペナルティ合計 2 以下に抑える。
@@ -1231,7 +1242,8 @@ public struct CampaignLibrary {
             secondaryObjective: .finishWithinMoves(maxMoves: 30),
             scoreTarget: 500,
             scoreTargetComparison: .lessThanOrEqual,
-            unlockRequirement: .stageClear(stage48.id)
+            // MARK: 最終章は直前の章で十分なスターを獲得したプレイヤーに解放する
+            unlockRequirement: .chapterTotalStars(chapter: 4, minimum: 16)
         )
 
         // 5-2: 障害物を 3 箇所へ増やし、ペナルティ合計 2 以下で安定させる。
