@@ -105,6 +105,140 @@ final class CampaignLibraryTests: XCTestCase {
         }
     }
 
+    /// 第 1 章の 8 ステージがドキュメント記載の仕様へ更新されているか検証する
+    func testCampaignStage1Definitions() {
+        let library = CampaignLibrary.shared
+
+        // MARK: 章 1 の取得とステージ数確認
+        guard let chapter1 = library.chapters.first(where: { $0.id == 1 }) else {
+            XCTFail("第1章の定義が見つかりません")
+            return
+        }
+        XCTAssertEqual(chapter1.stages.count, 8, "第1章のステージ数が 8 に拡張されていません")
+
+        // MARK: 期待値テーブル（スポーン・ペナルティ・スター条件など）
+        let fixedSpawn3 = GameMode.SpawnRule.fixed(BoardGeometry.defaultSpawnPoint(for: 3))
+        let fixedSpawn4 = GameMode.SpawnRule.fixed(BoardGeometry.defaultSpawnPoint(for: 4))
+        let fixedSpawn5 = GameMode.SpawnRule.fixed(BoardGeometry.defaultSpawnPoint(for: 5))
+
+        let expectations: [Int: (
+            title: String,
+            board: Int,
+            deck: GameDeckPreset,
+            spawn: GameMode.SpawnRule,
+            penalties: GameMode.PenaltySettings,
+            secondary: CampaignStage.SecondaryObjective,
+            scoreTarget: Int,
+            unlock: CampaignStageUnlockRequirement
+        )] = [
+            1: (
+                title: "王将訓練",
+                board: 3,
+                deck: .kingOnly,
+                spawn: fixedSpawn3,
+                penalties: GameMode.PenaltySettings(deadlockPenaltyCost: 2, manualRedrawPenaltyCost: 2, manualDiscardPenaltyCost: 1, revisitPenaltyCost: 1),
+                secondary: .finishWithinSeconds(maxSeconds: 120),
+                scoreTarget: 900,
+                unlock: .totalStars(minimum: 0)
+            ),
+            2: (
+                title: "ナイト初見",
+                board: 3,
+                deck: .kingPlusKnightOnly,
+                spawn: fixedSpawn3,
+                penalties: GameMode.PenaltySettings(deadlockPenaltyCost: 2, manualRedrawPenaltyCost: 2, manualDiscardPenaltyCost: 1, revisitPenaltyCost: 0),
+                secondary: .finishWithPenaltyAtMost(maxPenaltyCount: 5),
+                scoreTarget: 800,
+                unlock: .stageClear(CampaignStageID(chapter: 1, index: 1))
+            ),
+            3: (
+                title: "4×4基礎",
+                board: 4,
+                deck: .kingAndKnightBasic,
+                spawn: fixedSpawn4,
+                penalties: GameMode.PenaltySettings(deadlockPenaltyCost: 3, manualRedrawPenaltyCost: 1, manualDiscardPenaltyCost: 1, revisitPenaltyCost: 0),
+                secondary: .finishWithinSeconds(maxSeconds: 60),
+                scoreTarget: 600,
+                unlock: .stageClear(CampaignStageID(chapter: 1, index: 2))
+            ),
+            4: (
+                title: "4×4応用",
+                board: 4,
+                deck: .kingAndKnightBasic,
+                spawn: .chooseAnyAfterPreview,
+                penalties: GameMode.PenaltySettings(deadlockPenaltyCost: 3, manualRedrawPenaltyCost: 1, manualDiscardPenaltyCost: 1, revisitPenaltyCost: 0),
+                secondary: .finishWithPenaltyAtMost(maxPenaltyCount: 3),
+                scoreTarget: 550,
+                unlock: .stageClear(CampaignStageID(chapter: 1, index: 3))
+            ),
+            5: (
+                title: "4×4持久",
+                board: 4,
+                deck: .standardLight,
+                spawn: fixedSpawn4,
+                penalties: GameMode.PenaltySettings(deadlockPenaltyCost: 3, manualRedrawPenaltyCost: 2, manualDiscardPenaltyCost: 1, revisitPenaltyCost: 0),
+                secondary: .finishWithinMoves(maxMoves: 30),
+                scoreTarget: 500,
+                unlock: .stageClear(CampaignStageID(chapter: 1, index: 4))
+            ),
+            6: (
+                title: "4×4戦略",
+                board: 4,
+                deck: .kingAndKnightBasic,
+                spawn: .chooseAnyAfterPreview,
+                penalties: GameMode.PenaltySettings(deadlockPenaltyCost: 3, manualRedrawPenaltyCost: 2, manualDiscardPenaltyCost: 1, revisitPenaltyCost: 0),
+                secondary: .finishWithPenaltyAtMost(maxPenaltyCount: 2),
+                scoreTarget: 480,
+                unlock: .stageClear(CampaignStageID(chapter: 1, index: 5))
+            ),
+            7: (
+                title: "5×5導入",
+                board: 5,
+                deck: .standardLight,
+                spawn: fixedSpawn5,
+                penalties: GameMode.PenaltySettings(deadlockPenaltyCost: 3, manualRedrawPenaltyCost: 2, manualDiscardPenaltyCost: 1, revisitPenaltyCost: 0),
+                secondary: .finishWithinMoves(maxMoves: 40),
+                scoreTarget: 460,
+                unlock: .stageClear(CampaignStageID(chapter: 1, index: 6))
+            ),
+            8: (
+                title: "総合演習",
+                board: 5,
+                deck: .standardLight,
+                spawn: .chooseAnyAfterPreview,
+                penalties: GameMode.PenaltySettings(deadlockPenaltyCost: 3, manualRedrawPenaltyCost: 2, manualDiscardPenaltyCost: 1, revisitPenaltyCost: 0),
+                secondary: .finishWithinMoves(maxMoves: 35),
+                scoreTarget: 440,
+                unlock: .stageClear(CampaignStageID(chapter: 1, index: 7))
+            )
+        ]
+
+        for stage in chapter1.stages {
+            guard let expectation = expectations[stage.id.index] else {
+                XCTFail("第1章に想定外のステージ index=\(stage.id.index) が含まれています")
+                continue
+            }
+
+            // MARK: タイトル・盤面サイズ・山札プリセットの検証
+            XCTAssertEqual(stage.title, expectation.title, "1-\(stage.id.index) のタイトルが仕様と一致しません")
+            XCTAssertEqual(stage.regulation.boardSize, expectation.board, "1-\(stage.id.index) の盤面サイズが仕様と一致しません")
+            XCTAssertEqual(stage.regulation.deckPreset, expectation.deck, "1-\(stage.id.index) の山札プリセットが仕様と一致しません")
+
+            // MARK: 共通レギュレーション（手札 5 / 先読み 3 / スタック可）
+            XCTAssertEqual(stage.regulation.handSize, 5)
+            XCTAssertEqual(stage.regulation.nextPreviewCount, 3)
+            XCTAssertTrue(stage.regulation.allowsStacking)
+
+            // MARK: スポーン方式・ペナルティ・スター条件・アンロック条件
+            XCTAssertEqual(stage.regulation.spawnRule, expectation.spawn, "1-\(stage.id.index) のスポーン方式が仕様と一致しません")
+            XCTAssertEqual(stage.regulation.penalties, expectation.penalties, "1-\(stage.id.index) のペナルティ設定が仕様と一致しません")
+            XCTAssertEqual(stage.secondaryObjective, expectation.secondary, "1-\(stage.id.index) のセカンダリ条件が仕様と一致しません")
+            XCTAssertEqual(stage.scoreTarget, expectation.scoreTarget, "1-\(stage.id.index) のスコア上限が仕様と一致しません")
+            XCTAssertEqual(stage.scoreTargetComparison, .lessThan, "1-\(stage.id.index) のスコア比較方式は未満（lessThan）であるべきです")
+            XCTAssertEqual(stage.unlockRequirement, expectation.unlock, "1-\(stage.id.index) のアンロック条件が仕様と一致しません")
+        }
+    }
+
     /// 3 章のステージが段階的に難度を増しているかをまとめて検証する
     func testCampaignStage3Definitions() {
         let library = CampaignLibrary.shared
