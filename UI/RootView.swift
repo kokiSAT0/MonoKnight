@@ -1821,6 +1821,9 @@ fileprivate struct TitleScreenView: View {
                     campaignLibrary: campaignLibrary,
                     progressStore: campaignProgressStore,
                     selectedStageID: highlightedCampaignStageID,
+                    onClose: { popNavigationStack() },
+                    // イニシャライザの引数順に合わせて onClose を先に記述し、
+                    // Xcode でのビルドエラー（引数順序不一致）を防止する
                     onSelectStage: { stage in
                         // 選択されたステージを一旦保持し、NavigationStack をリセットした後に開始処理をキューへ積む
                         handleCampaignStageSelection(stage)
@@ -1835,7 +1838,6 @@ fileprivate struct TitleScreenView: View {
                             triggerImmediateStart(for: mode, context: context)
                         }
                     },
-                    onClose: { popNavigationStack() },
                     // NavigationStack の遷移では左上の戻るボタンのみを利用するため、
                     // 閉じるボタンを無効化して重複導線を排除する
                     showsCloseButton: false
