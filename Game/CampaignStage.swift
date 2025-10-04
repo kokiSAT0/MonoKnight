@@ -577,13 +577,13 @@ public struct CampaignLibrary {
 
         // 2-1: 4×4 盤で二度踏みマスの基礎を学ぶ導入。中央固定スポーンで落ち着いて操作する。
         let stage21DoubleVisit: [GridPoint: Int] = [
-            GridPoint(x: 1, y: 1): 2,
-            GridPoint(x: 2, y: 2): 2
+            GridPoint(x: 0, y: 1): 2,
+            GridPoint(x: 2, y: 3): 2
         ]
         let stage21 = CampaignStage(
             id: CampaignStageID(chapter: 2, index: 1),
             title: "重踏チュートリアル",
-            summary: "中央と対角を 2 回踏む練習です。ペナルティ合計 5 以下でリズムを掴みましょう。",
+            summary: "左列と右上を 2 回踏む練習です。ペナルティ合計 5 以下でリズムを掴みましょう。",
             regulation: GameMode.Regulation(
                 boardSize: 4,
                 handSize: 5,
