@@ -1821,10 +1821,6 @@ fileprivate struct TitleScreenView: View {
                     campaignLibrary: campaignLibrary,
                     progressStore: campaignProgressStore,
                     selectedStageID: highlightedCampaignStageID,
-                    onClose: { popNavigationStack() },
-                    // NavigationStack の遷移では左上の戻るボタンのみを利用するため、
-                    // 閉じるボタンを無効化して重複導線を排除する
-                    showsCloseButton: false,
                     onSelectStage: { stage in
                         // 選択されたステージを一旦保持し、NavigationStack をリセットした後に開始処理をキューへ積む
                         handleCampaignStageSelection(stage)
@@ -1838,7 +1834,11 @@ fileprivate struct TitleScreenView: View {
                         DispatchQueue.main.async {
                             triggerImmediateStart(for: mode, context: context)
                         }
-                    }
+                    },
+                    onClose: { popNavigationStack() },
+                    // NavigationStack の遷移では左上の戻るボタンのみを利用するため、
+                    // 閉じるボタンを無効化して重複導線を排除する
+                    showsCloseButton: false
                 )
                 .onAppear {
                     debugLog("TitleScreenView: NavigationDestination.campaign 表示 -> 現在のスタック数=\(navigationPath.count)")
