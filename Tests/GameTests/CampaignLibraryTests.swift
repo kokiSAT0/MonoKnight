@@ -309,7 +309,7 @@ final class CampaignLibraryTests: XCTestCase {
                 secondary: .finishWithPenaltyAtMost(maxPenaltyCount: 5),
                 scoreTarget: 450,
                 unlock: .chapterTotalStars(chapter: 1, minimum: 16),
-                additional: [GridPoint(x: 1, y: 1): 2, GridPoint(x: 2, y: 2): 2]
+                additional: [GridPoint(x: 0, y: 1): 2, GridPoint(x: 2, y: 3): 2]
             ),
             2: StageExpectation(
                 title: "基礎演習",
