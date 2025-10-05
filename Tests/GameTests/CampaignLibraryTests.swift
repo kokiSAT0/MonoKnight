@@ -504,7 +504,7 @@ final class CampaignLibraryTests: XCTestCase {
                 secondary: .finishWithinMoves(maxMoves: 34),
                 scoreTarget: 540,
                 unlock: .stageClear(CampaignStageID(chapter: 3, index: 6)),
-                additional: [GridPoint(x: 0, y: 0): 4, GridPoint(x: 4, y: 4): 4]
+                additional: [GridPoint(x: 1, y: 1): 4, GridPoint(x: 3, y: 3): 4]
             ),
             8: StageExpectation(
                 title: "総合演習",
