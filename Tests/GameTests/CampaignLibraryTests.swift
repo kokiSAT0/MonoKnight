@@ -430,7 +430,6 @@ final class CampaignLibraryTests: XCTestCase {
         let fixedSpawn5 = GameMode.SpawnRule.fixed(BoardGeometry.defaultSpawnPoint(for: 5))
         let chooseAny = GameMode.SpawnRule.chooseAnyAfterPreview
         let standardPenalties = GameMode.PenaltySettings(deadlockPenaltyCost: 3, manualRedrawPenaltyCost: 2, manualDiscardPenaltyCost: 1, revisitPenaltyCost: 0)
-        let noPenalty = GameMode.PenaltySettings(deadlockPenaltyCost: 0, manualRedrawPenaltyCost: 0, manualDiscardPenaltyCost: 1, revisitPenaltyCost: 0)
 
         let expectations: [Int: StageExpectation] = [
             1: StageExpectation(
@@ -549,7 +548,6 @@ final class CampaignLibraryTests: XCTestCase {
         let fixedSpawn5 = GameMode.SpawnRule.fixed(BoardGeometry.defaultSpawnPoint(for: 5))
         let chooseAny = GameMode.SpawnRule.chooseAnyAfterPreview
         let penalties = GameMode.PenaltySettings(deadlockPenaltyCost: 3, manualRedrawPenaltyCost: 2, manualDiscardPenaltyCost: 1, revisitPenaltyCost: 0)
-        let noPenalty = GameMode.PenaltySettings(deadlockPenaltyCost: 0, manualRedrawPenaltyCost: 0, manualDiscardPenaltyCost: 1, revisitPenaltyCost: 0)
 
         let expectations: [Int: StageExpectation] = [
             1: StageExpectation(
@@ -678,7 +676,6 @@ final class CampaignLibraryTests: XCTestCase {
         let fixedSpawn5 = GameMode.SpawnRule.fixed(BoardGeometry.defaultSpawnPoint(for: 5))
         let chooseAny = GameMode.SpawnRule.chooseAnyAfterPreview
         let penalties = GameMode.PenaltySettings(deadlockPenaltyCost: 3, manualRedrawPenaltyCost: 2, manualDiscardPenaltyCost: 1, revisitPenaltyCost: 0)
-        let noPenalty = GameMode.PenaltySettings(deadlockPenaltyCost: 0, manualRedrawPenaltyCost: 0, manualDiscardPenaltyCost: 1, revisitPenaltyCost: 0)
 
         let expectations: [Int: StageExpectation] = [
             1: StageExpectation(
