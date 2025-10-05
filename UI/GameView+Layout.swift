@@ -133,7 +133,7 @@ extension GameView {
                     HStack {
                         Spacer(minLength: 0)
                         spawnSelectionBanner
-                            .padding(.horizontal, 20)
+                            .padding(Edge.Set.horizontal, 20)
                             .transition(.move(edge: .top).combined(with: .opacity))
                         Spacer(minLength: 0)
                     }
@@ -143,7 +143,7 @@ extension GameView {
                     HStack {
                         Spacer(minLength: 0)
                         PenaltyBannerView(event: banner)
-                            .padding(.horizontal, 20)
+                            .padding(Edge.Set.horizontal, 20)
                             .transition(.move(edge: .top).combined(with: .opacity))
                             .accessibilityIdentifier("penalty_banner")
                         Spacer(minLength: 0)
@@ -155,7 +155,7 @@ extension GameView {
                     HStack {
                         Spacer(minLength: 0)
                         BoardTapSelectionWarningToastView(theme: theme, message: warning.message)
-                            .padding(.horizontal, 24)
+                            .padding(Edge.Set.horizontal, 24)
                             .transition(.move(edge: .top).combined(with: .opacity))
                             .accessibilityIdentifier("board_tap_warning_toast")
                         Spacer(minLength: 0)
