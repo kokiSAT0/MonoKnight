@@ -39,6 +39,43 @@ final class GameViewModelTests: XCTestCase {
         )
     }
 
+    /// ポーズメニュー用のペナルティ説明がモード設定と一致することを確認
+    func testPauseMenuPenaltyItemsMatchModePenalties() {
+        // 手詰まりと捨て札のみペナルティが発生するモードを用意し、ゼロの場合の表記も同時に検証する。
+        let penalties = GameMode.PenaltySettings(
+            deadlockPenaltyCost: 7,
+            manualRedrawPenaltyCost: 0,
+            manualDiscardPenaltyCost: 4,
+            revisitPenaltyCost: 0
+        )
+        let regulation = GameMode.Regulation(
+            boardSize: 5,
+            handSize: 5,
+            nextPreviewCount: 3,
+            allowsStacking: true,
+            deckPreset: .standard,
+            spawnRule: .fixed(GridPoint(x: 2, y: 2)),
+            penalties: penalties
+        )
+        let mode = GameMode(
+            identifier: .freeCustom,
+            displayName: "テスト用カスタムモード",
+            regulation: regulation
+        )
+        let (viewModel, _) = makeViewModel(mode: mode)
+
+        XCTAssertEqual(
+            viewModel.pauseMenuPenaltyItems,
+            [
+                "手詰まり +7 手",
+                "引き直し ペナルティなし",
+                "捨て札 +4 手",
+                "再訪ペナルティなし"
+            ],
+            "RootView の表記と同じ並び・文言でペナルティ説明が生成される必要があります"
+        )
+    }
+
     /// 捨て札ボタンを押すとモードが開始されることを確認
     func testToggleManualDiscardSelectionActivatesWhenPlayable() {
         let (viewModel, core) = makeViewModel(mode: .standard)

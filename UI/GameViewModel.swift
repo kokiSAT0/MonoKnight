@@ -153,6 +153,16 @@ final class GameViewModel: ObservableObject {
         let progress = campaignProgressStore.progress(for: stage.id)
         return CampaignPauseSummary(stage: stage, progress: progress)
     }
+    /// ポーズメニューで再利用するペナルティ説明文の一覧
+    /// - Important: RootView の事前案内と文言・順序を揃え、体験の一貫性を保つ
+    var pauseMenuPenaltyItems: [String] {
+        [
+            mode.deadlockPenaltyCost > 0 ? "手詰まり +\(mode.deadlockPenaltyCost) 手" : "手詰まり ペナルティなし",
+            mode.manualRedrawPenaltyCost > 0 ? "引き直し +\(mode.manualRedrawPenaltyCost) 手" : "引き直し ペナルティなし",
+            mode.manualDiscardPenaltyCost > 0 ? "捨て札 +\(mode.manualDiscardPenaltyCost) 手" : "捨て札 ペナルティなし",
+            mode.revisitPenaltyCost > 0 ? "再訪 +\(mode.revisitPenaltyCost) 手" : "再訪ペナルティなし"
+        ]
+    }
     /// 現在のゲーム進行状態
     /// - Note: GameView 側でオーバーレイ表示を切り替える際に利用する
     var progress: GameProgress { core.progress }

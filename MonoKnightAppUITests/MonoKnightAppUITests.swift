@@ -104,6 +104,39 @@ final class MonoKnightAppUITests: XCTestCase {
     }
 
     @MainActor
+    func testPauseMenuDisplaysPenaltyRows() throws {
+        // ゲーム画面まで遷移した上でポーズメニューを開き、新設されたペナルティ一覧が表示されることを確認する
+        app.launch()
+
+        // スタンダードモードを選択し、ポーズボタンへアクセスできる状態まで進める
+        let standardModeButton = app.buttons["mode_button_standard5x5"]
+        XCTAssertTrue(standardModeButton.waitForExistence(timeout: 5), "スタンダードモードのカードが表示されること")
+        standardModeButton.tap()
+
+        let startButton = app.buttons["start_game_button"]
+        XCTAssertTrue(startButton.waitForExistence(timeout: 5), "ゲーム開始ボタンが表示されること")
+        XCTAssertTrue(startButton.isEnabled, "選択後は開始ボタンが有効になること")
+        startButton.tap()
+
+        // ゲーム画面の要素を待機してからポーズメニューを開く
+        let firstHandSlot = app.otherElements["hand_slot_0"]
+        XCTAssertTrue(firstHandSlot.waitForExistence(timeout: 5), "ゲーム画面で手札スロットが表示されること")
+
+        let pauseButton = app.buttons["pause_menu_button"]
+        XCTAssertTrue(pauseButton.waitForExistence(timeout: 5), "ポーズボタンが表示されること")
+        pauseButton.tap()
+
+        // ペナルティセクションと各行の文言が RootView の案内と一致することを検証する
+        let penaltyHeader = app.staticTexts["ペナルティ"]
+        XCTAssertTrue(penaltyHeader.waitForExistence(timeout: 5), "ポーズメニューにペナルティ見出しが表示されること")
+
+        XCTAssertTrue(app.staticTexts["手詰まり +5 手"].waitForExistence(timeout: 5), "手詰まりペナルティの行が表示されること")
+        XCTAssertTrue(app.staticTexts["引き直し +5 手"].exists, "引き直しペナルティの行が表示されること")
+        XCTAssertTrue(app.staticTexts["捨て札 +1 手"].exists, "捨て札ペナルティの行が表示されること")
+        XCTAssertTrue(app.staticTexts["再訪ペナルティなし"].exists, "再訪ペナルティなしの行が表示されること")
+    }
+
+    @MainActor
     func testCampaignStageSelectionEnablesManualStartAfterPreparation() throws {
         // キャンペーンセレクターからステージを選択し、ローディング解除までの流れを自動検証する
         app.launch()

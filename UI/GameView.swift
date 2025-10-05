@@ -197,6 +197,7 @@ struct GameView: View {
         .fullScreenCover(isPresented: $viewModel.isPauseMenuPresented) {
             PauseMenuView(
                 campaignSummary: viewModel.campaignPauseSummary,
+                penaltyItems: viewModel.pauseMenuPenaltyItems,
                 onResume: {
                     // フルスクリーンカバーを閉じてプレイへ戻る
                     viewModel.isPauseMenuPresented = false
