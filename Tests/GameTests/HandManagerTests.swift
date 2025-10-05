@@ -11,10 +11,6 @@ final class HandManagerTests: XCTestCase {
         Deck.Configuration(
             allowedMoves: moves,
             weightProfile: Deck.WeightProfile(defaultWeight: 1),
-            shouldApplyProbabilityReduction: false,
-            normalWeightMultiplier: 1,
-            reducedWeightMultiplier: 1,
-            reductionDuration: 0,
             deckSummaryText: "テスト用構成"
         )
     }
