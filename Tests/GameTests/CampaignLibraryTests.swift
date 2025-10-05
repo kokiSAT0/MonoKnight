@@ -647,7 +647,7 @@ final class CampaignLibraryTests: XCTestCase {
                 secondary: .finishWithoutPenaltyAndWithinMoves(maxMoves: 34),
                 scoreTarget: 450,
                 unlock: .stageClear(CampaignStageID(chapter: 4, index: 7)),
-                additional: [GridPoint(x: 0, y: 0): 2, GridPoint(x: 4, y: 0): 3, GridPoint(x: 2, y: 2): 4],
+                additional: [GridPoint(x: 1, y: 0): 2, GridPoint(x: 3, y: 0): 3, GridPoint(x: 2, y: 2): 4],
                 toggles: [GridPoint(x: 1, y: 1), GridPoint(x: 3, y: 3), GridPoint(x: 2, y: 4)]
             )
         ]
@@ -761,7 +761,7 @@ final class CampaignLibraryTests: XCTestCase {
                 secondary: .finishWithoutPenalty,
                 scoreTarget: 440,
                 unlock: .stageClear(CampaignStageID(chapter: 5, index: 6)),
-                additional: [GridPoint(x: 0, y: 0): 2, GridPoint(x: 4, y: 4): 3],
+                additional: [GridPoint(x: 0, y: 1): 2, GridPoint(x: 4, y: 3): 3],
                 toggles: [GridPoint(x: 2, y: 2)],
                 impassable: [GridPoint(x: 1, y: 1), GridPoint(x: 3, y: 3), GridPoint(x: 2, y: 4)]
             ),
@@ -774,7 +774,7 @@ final class CampaignLibraryTests: XCTestCase {
                 secondary: .finishWithoutPenaltyAndWithinMoves(maxMoves: 34),
                 scoreTarget: 430,
                 unlock: .stageClear(CampaignStageID(chapter: 5, index: 7)),
-                additional: [GridPoint(x: 0, y: 4): 2, GridPoint(x: 4, y: 0): 3, GridPoint(x: 2, y: 4): 4],
+                additional: [GridPoint(x: 1, y: 4): 2, GridPoint(x: 3, y: 0): 3, GridPoint(x: 2, y: 4): 4],
                 toggles: [GridPoint(x: 1, y: 3), GridPoint(x: 3, y: 1)],
                 impassable: [GridPoint(x: 1, y: 1), GridPoint(x: 3, y: 3), GridPoint(x: 2, y: 2)]
             )
