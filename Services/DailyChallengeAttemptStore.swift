@@ -232,9 +232,11 @@ final class DailyChallengeAttemptStore: ObservableObject, DailyChallengeAttemptS
     private let nowProvider: () -> Date
 
     /// 残り挑戦回数をバリアント別に公開するディクショナリ
-    @Published private(set) var remainingAttemptsByVariant: [State.VariantKey: Int]
+    /// - Note: `remainingAttempts(for:)` や `updatePublishedValues()` など同一クラス内のメソッドからのみ参照しているため、`private` 指定で外部へ公開せずとも挙動は変わらない
+    @Published private var remainingAttemptsByVariant: [State.VariantKey: Int]
     /// リワード広告による付与済み回数をバリアント別に公開するディクショナリ
-    @Published private(set) var rewardedAttemptsGrantedByVariant: [State.VariantKey: Int]
+    /// - Note: こちらも `rewardedAttemptsGranted(for:)` や `updatePublishedValues()` など内部利用に限定されているため `private` 化しても UI 連携に影響しない
+    @Published private var rewardedAttemptsGrantedByVariant: [State.VariantKey: Int]
     /// デバッグ無制限モードが有効かどうか
     @Published private(set) var isDebugUnlimitedEnabled: Bool
 
