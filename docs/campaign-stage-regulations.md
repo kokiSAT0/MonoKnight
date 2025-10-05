@@ -51,12 +51,12 @@ MonoKnight のキャンペーンモードに収録されている各ステージ
 |----------------|-----------|----------------|-----------|
 | `kingOnly` | キング型 8 種のみ | 全カードを均等重み (1) で抽選 | 3×3 初学者訓練 (1-1)。 |
 | `standard` | `MoveCard.standardSet` 24 種 | 全カードを均等重み (1) で抽選 | 4×4〜5×5 の基礎ステージ。 |
-| `standardWithOrthogonalChoices` | 標準 + 上下左右選択キング 2 種 | 全カードを均等重み (1) で抽選 | 3-1 の選択カード導入。 |
-| `standardWithDiagonalChoices` | 標準 + 斜め選択キング 4 種 | 全カードを均等重み (1) で抽選 | 3-2 の角操作練習。 |
-| `standardWithKnightChoices` | 標準 + 桂馬選択 4 種 | 全カードを均等重み (1) で抽選 | 3-3 のジャンプ練習。 |
+| `standardWithOrthogonalChoices` | 標準 + 上下左右選択キング 2 種 | 選択カードのみ重み 2 / その他は 1 | 3-1 の選択カード導入。 |
+| `standardWithDiagonalChoices` | 標準 + 斜め選択キング 4 種 | 選択カードのみ重み 2 / その他は 1 | 3-2 の角操作練習。 |
+| `standardWithKnightChoices` | 標準 + 桂馬選択 4 種 | 選択カードのみ重み 2 / その他は 1 | 3-3 のジャンプ練習。 |
 | `standardWithAllChoices` | 標準 + 全選択カード 10 種 | 全カードを均等重み (1) で抽選 | 3-4・5-1 の総合演習。 |
 
-> **補足:** 現行実装では選択カードに個別重みの上書きは設定していない。調整が必要になった場合は `Deck.Configuration.WeightProfile` の `overrides` を更新する。<!-- コード変更ポイントを明記 -->
+> **補足:** 章 3 の導入をスムーズにするため、各種選択カードは `Deck.Configuration.WeightProfile` の `overrides` で重み 2 に上書きしている。その他カードは従来通り重み 1 を維持する。<!-- コード変更ポイントと調整理由を明記 -->
 
 ## 4. ペナルティ設定一覧
 

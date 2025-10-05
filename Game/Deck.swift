@@ -122,9 +122,11 @@ struct Deck {
         static let standardWithOrthogonalChoices: Configuration = {
             let choiceCards: [MoveCard] = [.kingUpOrDown, .kingLeftOrRight]
             let allowedMoves = MoveCard.standardSet + choiceCards
+            // 選択式カードの初動習得を早めるため、該当カードだけ重みを 2 に引き上げてドロー頻度を上げる
+            let overrides = Dictionary(uniqueKeysWithValues: choiceCards.map { ($0, 2) })
             return Configuration(
                 allowedMoves: allowedMoves,
-                weightProfile: WeightProfile(defaultWeight: 1),
+                weightProfile: WeightProfile(defaultWeight: 1, overrides: overrides),
                 deckSummaryText: "標準＋上下左右選択キング"
             )
         }()
@@ -139,9 +141,11 @@ struct Deck {
                 .kingLeftDiagonalChoice
             ]
             let allowedMoves = MoveCard.standardSet + choiceCards
+            // 斜め選択カードの練習段階では、プレイヤーが積極的に引けるよう重み 2 の上書きを適用する
+            let overrides = Dictionary(uniqueKeysWithValues: choiceCards.map { ($0, 2) })
             return Configuration(
                 allowedMoves: allowedMoves,
-                weightProfile: WeightProfile(defaultWeight: 1),
+                weightProfile: WeightProfile(defaultWeight: 1, overrides: overrides),
                 deckSummaryText: "標準＋斜め選択キング"
             )
         }()
@@ -156,9 +160,11 @@ struct Deck {
                 .knightLeftwardChoice
             ]
             let allowedMoves = MoveCard.standardSet + choiceCards
+            // 桂馬の複方向ジャンプを習得しやすくするため、選択式桂馬カードだけ重み 2 で抽選されるようにする
+            let overrides = Dictionary(uniqueKeysWithValues: choiceCards.map { ($0, 2) })
             return Configuration(
                 allowedMoves: allowedMoves,
-                weightProfile: WeightProfile(defaultWeight: 1),
+                weightProfile: WeightProfile(defaultWeight: 1, overrides: overrides),
                 deckSummaryText: "標準＋桂馬選択カード"
             )
         }()
