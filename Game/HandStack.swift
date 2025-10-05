@@ -54,6 +54,12 @@ public struct HandStack: Identifiable, Equatable {
         guard !cards.isEmpty else { return nil }
         return cards.removeLast()
     }
+
+    /// スタック内部のカード順をランダムに入れ替える
+    /// - Parameter generator: 乱数生成器
+    public mutating func shuffleCards<R: RandomNumberGenerator>(using generator: inout R) {
+        cards.shuffle(using: &generator)
+    }
 }
 
 /// デバッグログ向けの表示を補助する拡張

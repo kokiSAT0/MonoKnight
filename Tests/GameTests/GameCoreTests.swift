@@ -324,6 +324,54 @@ final class GameCoreTests: XCTestCase {
 #endif
     }
 
+    /// ワープタイルを踏んだ場合に最終位置がワープ先へ更新されることを検証
+    func testPlayCardAppliesWarpEffect() {
+        let warpSource = GridPoint(x: 3, y: 2)
+        let warpDestination = GridPoint(x: 1, y: 4)
+        let regulation = GameMode.Regulation(
+            boardSize: BoardGeometry.standardSize,
+            handSize: 5,
+            nextPreviewCount: 3,
+            allowsStacking: true,
+            deckPreset: .standard,
+            spawnRule: .fixed(BoardGeometry.defaultSpawnPoint(for: BoardGeometry.standardSize)),
+            penalties: GameMode.PenaltySettings(
+                deadlockPenaltyCost: 3,
+                manualRedrawPenaltyCost: 2,
+                manualDiscardPenaltyCost: 1,
+                revisitPenaltyCost: 0
+            ),
+            warpTilePairs: [
+                "test_warp": [warpSource, warpDestination]
+            ]
+        )
+        let customMode = GameMode(
+            identifier: .freeCustom,
+            displayName: "ワープ検証",
+            regulation: regulation,
+            leaderboardEligible: false
+        )
+
+        let deck = Deck.makeTestDeck(cards: [
+            .kingRight,
+            .kingUp,
+            .kingLeft,
+            .kingDown
+        ])
+        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 2, y: 2), mode: customMode)
+
+        guard let move = core.availableMoves().first(where: { $0.card.move == .kingRight }) else {
+            XCTFail("右方向カードが候補に含まれていません")
+            return
+        }
+
+        core.playCard(using: move)
+
+        XCTAssertEqual(core.current, warpDestination, "ワープ効果適用後の最終位置がワープ先になっていません")
+        XCTAssertTrue(core.board.isVisited(warpSource), "ワープ元マスが踏破扱いになっていません")
+        XCTAssertTrue(core.board.isVisited(warpDestination), "ワープ先マスが踏破扱いになっていません")
+    }
+
     /// reset() が初期状態に戻すかを確認
     func testResetReturnsToInitialState() {
         // 上と同じデッキ構成で GameCore を生成し、ペナルティ適用後の状態から開始

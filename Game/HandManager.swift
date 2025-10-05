@@ -220,4 +220,23 @@ public final class HandManager: ObservableObject {
         reorderHandIfNeeded()
         replenishNextPreview(using: &deck)
     }
+
+    /// タイル効果によるシャッフル要求を受け取り、手札と先読み表示をまとめて入れ替える
+    /// - Parameter generator: シャッフルに利用する乱数生成器
+    func shuffleForTileEffect<R: RandomNumberGenerator>(using generator: inout R) {
+        // 手札・先読みが共に空の場合は処理不要
+        guard !handStacks.isEmpty || !nextCards.isEmpty else { return }
+
+        // まず各スタック内部のカード順をランダム化し、積み重ねられた順序も変化させる
+        for index in handStacks.indices {
+            var stack = handStacks[index]
+            stack.shuffleCards(using: &generator)
+            handStacks[index] = stack
+        }
+
+        // スタック自体の並びもシャッフルして操作感を大きく変える
+        handStacks.shuffle(using: &generator)
+        // NEXT 表示カードも合わせて並べ替え、プレイヤーが確認する順番を更新する
+        nextCards.shuffle(using: &generator)
+    }
 }
