@@ -932,13 +932,13 @@ public struct CampaignLibrary {
 
         // 3-7: 任意スポーン＋四重踏みで 34 手以内の高速巡回を狙う。
         let stage37QuadVisit: [GridPoint: Int] = [
-            GridPoint(x: 0, y: 0): 4,
-            GridPoint(x: 4, y: 4): 4
+            GridPoint(x: 1, y: 1): 4,
+            GridPoint(x: 3, y: 3): 4
         ]
         let stage37 = CampaignStage(
             id: CampaignStageID(chapter: 3, index: 7),
             title: "全選択＋四重踏み",
-            summary: "四隅の四重踏みを全選択カードで制御し、34 手以内を目指す高難度ステージです。",
+            summary: "内側に配置された四重踏みを全選択カードで制御し、34 手以内を目指す高難度ステージです。",
             regulation: GameMode.Regulation(
                 boardSize: 5,
                 handSize: 5,
