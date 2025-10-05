@@ -1179,8 +1179,8 @@ public struct CampaignLibrary {
 
         // 4-8: 34 手以内＆ノーペナルティで締める総合試験。
         let stage48Additional: [GridPoint: Int] = [
-            GridPoint(x: 0, y: 0): 2,
-            GridPoint(x: 4, y: 0): 3,
+            GridPoint(x: 1, y: 0): 2,
+            GridPoint(x: 3, y: 0): 3,
             GridPoint(x: 2, y: 2): 4
         ]
         let stage48Toggles: Set<GridPoint> = [
@@ -1402,8 +1402,8 @@ public struct CampaignLibrary {
             GridPoint(x: 2, y: 4)
         ]
         let stage57Additional: [GridPoint: Int] = [
-            GridPoint(x: 0, y: 0): 2,
-            GridPoint(x: 4, y: 4): 3
+            GridPoint(x: 0, y: 1): 2,
+            GridPoint(x: 4, y: 3): 3
         ]
         let stage57Toggles: Set<GridPoint> = [
             GridPoint(x: 2, y: 2)
@@ -1437,8 +1437,8 @@ public struct CampaignLibrary {
             GridPoint(x: 2, y: 2)
         ]
         let stage58Additional: [GridPoint: Int] = [
-            GridPoint(x: 0, y: 4): 2,
-            GridPoint(x: 4, y: 0): 3,
+            GridPoint(x: 1, y: 4): 2,
+            GridPoint(x: 3, y: 0): 3,
             GridPoint(x: 2, y: 4): 4
         ]
         let stage58Toggles: Set<GridPoint> = [
