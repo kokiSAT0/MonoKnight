@@ -429,6 +429,39 @@ extension MoveCard: CustomStringConvertible {
     public var description: String { displayName }
 }
 
+// MARK: - 移動スタイル判定
+extension MoveCard {
+    /// 経路生成時の処理方針を識別するための列挙体
+    enum MovementTraversalStyle {
+        /// 1 マスずつ連続して進むタイプ（キング・直線・斜めなど）
+        case linear
+        /// 中間マスを無視して最終地点へ飛び移るタイプ（桂馬など）
+        case leap
+    }
+
+    /// 移動スタイルを返す
+    /// - Important: 経路生成時に中継マス判定を行うかどうかの分岐に利用する
+    var movementTraversalStyle: MovementTraversalStyle {
+        switch self {
+        case .knightUp2Right1,
+             .knightUp2Left1,
+             .knightUp1Right2,
+             .knightUp1Left2,
+             .knightDown2Right1,
+             .knightDown2Left1,
+             .knightDown1Right2,
+             .knightDown1Left2,
+             .knightUpwardChoice,
+             .knightRightwardChoice,
+             .knightDownwardChoice,
+             .knightLeftwardChoice:
+            return .leap
+        default:
+            return .linear
+        }
+    }
+}
+
 // MARK: - Identifiable への適合
 extension MoveCard: Identifiable {
     /// `Identifiable` 準拠のための一意な識別子

@@ -239,4 +239,10 @@ public final class HandManager: ObservableObject {
         reorderHandIfNeeded()
         replenishNextPreview(using: &deck)
     }
+
+    /// タイル効果による要求で手札スタック全体をシャッフルする
+    /// - Note: スタック内部のカード順は維持しつつ、スタック自体の並び順だけをランダム化する
+    func shuffleStacksForEffects() {
+        handStacks.shuffle()
+    }
 }

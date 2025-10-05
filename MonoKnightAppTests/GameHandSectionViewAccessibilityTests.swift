@@ -49,7 +49,7 @@ final class GameHandSectionViewAccessibilityTests: XCTestCase {
 
         viewModel.handleHandSlotTap(at: stackIndex)
 
-        let expectedHighlights = Set(candidateMoves.map(\.destination))
+        let expectedHighlights = Set(candidateMoves.map(\.finalPosition))
         XCTAssertEqual(viewModel.boardBridge.forcedSelectionHighlightPoints, expectedHighlights, "ハイライトされた目的地集合が一致しません")
 
         // SwiftUI ビューをホストしてアクセシビリティ文言を取得する

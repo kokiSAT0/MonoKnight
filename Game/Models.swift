@@ -19,6 +19,16 @@ public struct MoveVector: Hashable, Codable {
     }
 }
 
+/// タイルを踏破した際に発生する追加効果を表現する列挙体
+/// - Important: 今後のギミック拡張（ワープや手札シャッフル等）を見据えて、
+///   汎用的に扱える最小限のケースを先行定義しておく
+public enum TileEffect: Hashable {
+    /// 別座標へ瞬間移動させるワープ効果
+    case warp(destination: GridPoint)
+    /// 手札全体の並び替えなど追加処理を要求する効果
+    case shuffleHand
+}
+
 /// 座標を表す構造体
 /// - 備考: 原点は左下、x は右方向、y は上方向に増加する
 public struct GridPoint: Hashable, Codable {
@@ -212,6 +222,8 @@ public struct Board: Equatable {
     /// 各マスの状態を保持する二次元配列
     /// y インデックスが先、x インデックスが後となる
     private var tiles: [[TileState]]
+    /// タイルに紐付いた特殊効果マップ
+    private var tileEffects: [GridPoint: [TileEffect]]
 
     /// 初期化。全マス未踏破として生成し、必要に応じて初期踏破マスやトグルマスを指定する
     /// - Parameters:
@@ -225,11 +237,13 @@ public struct Board: Equatable {
         initialVisitedPoints: [GridPoint] = [],
         requiredVisitOverrides: [GridPoint: Int] = [:],
         togglePoints: Set<GridPoint> = [],
-        impassablePoints: Set<GridPoint> = []
+        impassablePoints: Set<GridPoint> = [],
+        tileEffects: [GridPoint: [TileEffect]] = [:]
     ) {
         self.size = size
         let row = Array(repeating: TileState(), count: size)
         self.tiles = Array(repeating: row, count: size)
+        self.tileEffects = tileEffects
         // 最初に移動不可マスを反映し、以降の処理で上書きされないようにする
         for point in impassablePoints where contains(point) {
             tiles[point.y][point.x] = TileState(visitBehavior: .single, remainingVisitCount: 0, isTraversable: false)
@@ -298,6 +312,13 @@ public struct Board: Equatable {
         return !tile.isTraversable
     }
 
+    /// 指定座標に設定されたタイル効果を取得する
+    /// - Parameter point: 調査対象の座標
+    /// - Returns: 効果が存在しない場合は空配列を返す
+    public func effects(at point: GridPoint) -> [TileEffect] {
+        tileEffects[point] ?? []
+    }
+
     /// 未踏破マスの残数を計算して返す
     /// - Returns: まだ踏破していないマスの数
     public var remainingCount: Int {
@@ -342,52 +363,28 @@ public enum GameProgress {
 public struct BoardTapPlayRequest: Identifiable, Equatable {
     /// 各リクエストを一意に識別するための ID
     public let id: UUID
-    /// 盤面タップ時に対応する手札スタックの識別子
-    public let stackID: UUID
-    /// `GameCore.playCard(using:)` に渡す候補のうち、スタック位置を識別するためのインデックス
-    public let stackIndex: Int
-    /// アニメーション用に参照するスタック先頭のカード
-    public let topCard: DealtCard
-    /// リクエスト生成時に確定した移動先座標
-    public let destination: GridPoint
-    /// リクエスト生成時に選択された移動ベクトル
-    public let moveVector: MoveVector
+    /// 盤面タップで選択された移動の詳細
+    public let resolution: MovementResolution
 
     /// 公開イニシャライザ
     /// - Parameters:
     ///   - id: 外部で識別子を指定したい場合に利用（省略時は自動生成）
-    ///   - stackID: 対象スタックの識別子
-    ///   - stackIndex: 手札スロット内での位置
-    ///   - topCard: 要求時点での先頭カード
-    ///   - destination: 選択された移動先座標
-    ///   - moveVector: 実際に適用する移動ベクトル
-    public init(
-        id: UUID = UUID(),
-        stackID: UUID,
-        stackIndex: Int,
-        topCard: DealtCard,
-        destination: GridPoint,
-        moveVector: MoveVector
-    ) {
+    ///   - resolution: タップ時に確定した移動結果
+    public init(id: UUID = UUID(), resolution: MovementResolution) {
         self.id = id
-        self.stackID = stackID
-        self.stackIndex = stackIndex
-        self.topCard = topCard
-        self.destination = destination
-        self.moveVector = moveVector
+        self.resolution = resolution
     }
 
-    /// ResolvedCardMove への変換を簡潔に行うための補助プロパティ
-    /// - Important: UI 側ではこの値を利用して `GameCore.playCard(using:)` へそのまま引き渡すことで、複数候補カードでもユーザーの選択を忠実に再現する
-    public var resolvedMove: ResolvedCardMove {
-        ResolvedCardMove(
-            stackID: stackID,
-            stackIndex: stackIndex,
-            card: topCard,
-            moveVector: moveVector,
-            destination: destination
-        )
-    }
+    /// 既存コードとの互換性を保つための計算プロパティ群
+    public var stackID: UUID { resolution.stackID }
+    public var stackIndex: Int { resolution.stackIndex }
+    public var topCard: DealtCard { resolution.card }
+    public var destination: GridPoint { resolution.finalPosition }
+    public var moveVector: MoveVector { resolution.moveVector }
+    public var path: [GridPoint] { resolution.path }
+
+    /// 旧 API 名称へのフォールバック。徐々に `resolution` 利用へ移行する前提で残す
+    public var resolvedMove: MovementResolution { resolution }
 
     /// Equatable 実装
     /// - Note: 同じリクエストかどうかを識別子でのみ比較し、カード差し替え時も継続扱いにする

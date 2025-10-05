@@ -158,7 +158,7 @@ public final class GameCore: ObservableObject {
 
         // moveVector が指定された場合は完全一致する候補を探し、
         // 指定がない場合は候補が単一のときだけ自動で採用する。
-        let resolvedMove: ResolvedCardMove?
+        let resolvedMove: MovementResolution?
         if let targetVector = moveVector {
             resolvedMove = candidates.first { $0.moveVector == targetVector }
         } else if candidates.count == 1 {
@@ -173,9 +173,9 @@ public final class GameCore: ObservableObject {
         playCard(using: resolvedMove)
     }
 
-    /// ResolvedCardMove で指定されたベクトルを用いてカードをプレイする
+    /// MovementResolution で指定された経路を用いてカードをプレイする
     /// - Parameter resolvedMove: `availableMoves()` が返す候補の 1 つ
-    public func playCard(using resolvedMove: ResolvedCardMove) {
+    public func playCard(using resolvedMove: MovementResolution) {
         // スポーン待ちやクリア済み・ペナルティ中は操作不可
         guard progress == .playing, let currentPosition = current else { return }
         // 捨て札モード中は移動を開始せず安全に抜ける
@@ -188,33 +188,60 @@ public final class GameCore: ObservableObject {
         // 候補ベクトルが現在のカードに含まれているか検証し、不正な入力を排除する
         guard card.move.movementVectors.contains(resolvedMove.moveVector) else { return }
 
-        let computedDestination = currentPosition.offset(dx: resolvedMove.moveVector.dx, dy: resolvedMove.moveVector.dy)
-        // ResolvedCardMove が古い現在地から算出された場合は破棄する（UI との同期ズレ対策）
-        guard computedDestination == resolvedMove.destination else { return }
-        // UI 側で無効カードを弾く想定だが、念のため安全確認
-        guard board.contains(computedDestination) else { return }
-        // 移動不可マスへは遷移できないため、トグル/複数踏破設定よりも優先して除外する
-        guard board.isTraversable(computedDestination) else { return }
+        // 経路が空の場合は想定外なので中断する
+        guard !resolvedMove.path.isEmpty else { return }
+
+        let defaultDestination = currentPosition.offset(dx: resolvedMove.moveVector.dx, dy: resolvedMove.moveVector.dy)
+        if resolvedMove.finalPosition != defaultDestination {
+            // ワープなどの効果で差分が生じた場合は、効果リストに warp が含まれているかを確認する
+            let hasWarpEffect = resolvedMove.appliedEffects.contains { effect in
+                if case .warp = effect { return true }
+                return false
+            }
+            if !hasWarpEffect {
+                return
+            }
+        }
 
         // 盤面タップからのリクエストが残っている場合に備え、念のためここでクリアしておく
         boardTapPlayRequest = nil
 
         // デバッグログ: 使用カードと移動先を出力（複数候補カードでも選択ベクトルを追跡できるよう詳細を含める）
         debugLog(
-            "カード \(card.move) を使用し \(currentPosition) -> \(computedDestination) へ移動 (vector=\(resolvedMove.moveVector))"
+            "カード \(card.move) を使用し経路 \(resolvedMove.path) を辿って移動 (vector=\(resolvedMove.moveVector))"
         )
 
-        // トグルマスでも「訪問前に踏破済みかどうか」で再訪を判定する。
-        // - Note: 踏破済み状態から踏むと未踏破へ戻るため、次回訪問時はペナルティなしになる。
-        let revisiting = board.isVisited(computedDestination)
+        var pendingFinalPosition = resolvedMove.finalPosition
+        var revisitedDuringMove = false
+        var requiresHandShuffle = false
 
-        // 移動処理
-        current = computedDestination
-        board.markVisited(computedDestination)
+        for pathPoint in resolvedMove.path {
+            // UI 側で無効カードを弾く想定だが、念のため安全確認
+            guard board.contains(pathPoint), board.isTraversable(pathPoint) else { return }
+
+            // トグルマスでも「訪問前に踏破済みかどうか」で再訪を判定する。
+            if board.isVisited(pathPoint) {
+                revisitedDuringMove = true
+            }
+
+            current = pathPoint
+            board.markVisited(pathPoint)
+
+            let effects = board.effects(at: pathPoint)
+            if !effects.isEmpty {
+                let resolutionResult = evaluateTileEffects(
+                    effects,
+                    pathPoint,
+                    tentativeFinalPosition: pendingFinalPosition
+                )
+                pendingFinalPosition = resolutionResult.finalPosition
+                requiresHandShuffle = requiresHandShuffle || resolutionResult.requiresHandShuffle
+            }
+        }
+
         moveCount += 1
 
-        // 既踏マスへ戻った場合はフラグを立て、必要に応じてペナルティを加算する
-        if revisiting {
+        if revisitedDuringMove {
             hasRevisitedTile = true
 
             if mode.revisitPenaltyCost > 0 {
@@ -222,6 +249,8 @@ public final class GameCore: ObservableObject {
                 debugLog("既踏マス再訪ペナルティ: +\(mode.revisitPenaltyCost)")
             }
         }
+
+        current = pendingFinalPosition
 
         // 盤面更新に合わせて残り踏破数を読み上げ
         announceRemainingTiles()
@@ -231,6 +260,10 @@ public final class GameCore: ObservableObject {
 
         // スロットの空きを埋めた上で並び順・先読みを整える
         rebuildHandAndNext(preferredInsertionIndices: removedIndex.map { [$0] } ?? [])
+
+        if requiresHandShuffle {
+            applyHandShuffleEffect()
+        }
 
         // クリア判定
         if board.isCleared {
@@ -263,7 +296,7 @@ public final class GameCore: ObservableObject {
     public func availableMoves(
         handStacks handStacksOverride: [HandStack]? = nil,
         current currentOverride: GridPoint? = nil
-    ) -> [ResolvedCardMove] {
+    ) -> [MovementResolution] {
         // 引数が未指定の場合は現在の GameCore 状態を採用する
         let referenceHandStacks = handStacksOverride ?? handStacks
         guard let origin = currentOverride ?? current else { return [] }
@@ -272,38 +305,37 @@ public final class GameCore: ObservableObject {
         let activeBoard = board
 
         // 列挙中に同じ座標へ向かうカードを検出しやすいよう、結果は座標→スタック順でソートする
-        var resolved: [ResolvedCardMove] = []
+        var resolved: [MovementResolution] = []
         resolved.reserveCapacity(referenceHandStacks.count)
 
         for (index, stack) in referenceHandStacks.enumerated() {
             // トップカードが存在しなければスキップ
             guard let topCard = stack.topCard else { continue }
 
-            // MoveCard.movementVectors が保持する全候補を展開し、1 ベクトルずつ ResolvedCardMove に変換する
+            // MoveCard.movementVectors が保持する全候補を展開し、1 ベクトルずつ MovementResolution に変換する
             for vector in topCard.move.movementVectors {
-                let destination = origin.offset(dx: vector.dx, dy: vector.dy)
-                // 盤面外および移動不可マスは候補から除外し、障害物との衝突を防止する
-                guard activeBoard.contains(destination), activeBoard.isTraversable(destination) else { continue }
+                guard let movement = buildMovementResolution(
+                    stackID: stack.id,
+                    stackIndex: index,
+                    card: topCard,
+                    origin: origin,
+                    vector: vector,
+                    board: activeBoard
+                ) else {
+                    continue
+                }
 
-                resolved.append(
-                    ResolvedCardMove(
-                        stackID: stack.id,
-                        stackIndex: index,
-                        card: topCard,
-                        moveVector: vector,
-                        destination: destination
-                    )
-                )
+                resolved.append(movement)
             }
         }
 
         // y→x→スタック順で並び替えることで、同一座標のカードが隣接する形で得られる
         resolved.sort { lhs, rhs in
-            if lhs.destination.y != rhs.destination.y {
-                return lhs.destination.y < rhs.destination.y
+            if lhs.finalPosition.y != rhs.finalPosition.y {
+                return lhs.finalPosition.y < rhs.finalPosition.y
             }
-            if lhs.destination.x != rhs.destination.x {
-                return lhs.destination.x < rhs.destination.x
+            if lhs.finalPosition.x != rhs.finalPosition.x {
+                return lhs.finalPosition.x < rhs.finalPosition.x
             }
             return lhs.stackIndex < rhs.stackIndex
         }
@@ -311,12 +343,117 @@ public final class GameCore: ObservableObject {
         return resolved
     }
 
+    /// 経路生成およびタイル効果抽出を行い MovementResolution を組み立てる
+    /// - Parameters:
+    ///   - stackID: 対象スタックの識別子
+    ///   - stackIndex: スタックのインデックス
+    ///   - card: 先頭カード
+    ///   - origin: 現在地
+    ///   - vector: 選択された移動ベクトル
+    ///   - board: 判定に利用する盤面スナップショット
+    /// - Returns: 移動可能な場合は MovementResolution、無効なら nil
+    private func buildMovementResolution(
+        stackID: UUID,
+        stackIndex: Int,
+        card: DealtCard,
+        origin: GridPoint,
+        vector: MoveVector,
+        board: Board
+    ) -> MovementResolution? {
+        guard let path = generateMovementPath(for: card.move, from: origin, applying: vector, board: board) else {
+            return nil
+        }
+
+        guard let finalPosition = path.last else { return nil }
+        let effects = path.flatMap { board.effects(at: $0) }
+
+        return MovementResolution(
+            stackID: stackID,
+            stackIndex: stackIndex,
+            card: card,
+            moveVector: vector,
+            path: path,
+            finalPosition: finalPosition,
+            appliedEffects: effects
+        )
+    }
+
+    /// カード種別に応じた移動経路を算出する
+    /// - Parameters:
+    ///   - card: 移動カード種別
+    ///   - origin: 現在地
+    ///   - vector: 選択された移動ベクトル
+    ///   - board: 判定に利用する盤面
+    /// - Returns: 盤内で実行可能な場合は始点除外の経路
+    private func generateMovementPath(
+        for card: MoveCard,
+        from origin: GridPoint,
+        applying vector: MoveVector,
+        board: Board
+    ) -> [GridPoint]? {
+        var path: [GridPoint] = []
+
+        switch card.movementTraversalStyle {
+        case .leap:
+            let destination = origin.offset(dx: vector.dx, dy: vector.dy)
+            guard board.contains(destination), board.isTraversable(destination) else { return nil }
+            path.append(destination)
+        case .linear:
+            let stepCount = max(abs(vector.dx), abs(vector.dy))
+            guard stepCount > 0 else { return nil }
+            let stepX = vector.dx == 0 ? 0 : vector.dx / abs(vector.dx)
+            let stepY = vector.dy == 0 ? 0 : vector.dy / abs(vector.dy)
+            var currentPoint = origin
+            for _ in 0..<stepCount {
+                currentPoint = currentPoint.offset(dx: stepX, dy: stepY)
+                guard board.contains(currentPoint), board.isTraversable(currentPoint) else { return nil }
+                path.append(currentPoint)
+            }
+        }
+
+        return path
+    }
+
+    /// タイル効果を評価し、最終座標や手札処理の必要性を返す
+    /// - Parameters:
+    ///   - effects: 経路上で発動した効果
+    ///   - currentStepPoint: 現在処理している座標
+    ///   - tentativeFinalPosition: 現時点で想定している最終座標
+    /// - Returns: 効果適用後の最終座標と手札シャッフル要求フラグ
+    private func evaluateTileEffects(
+        _ effects: [TileEffect],
+        _: GridPoint,
+        tentativeFinalPosition: GridPoint
+    ) -> (finalPosition: GridPoint, requiresHandShuffle: Bool) {
+        var updatedFinal = tentativeFinalPosition
+        var requiresShuffle = false
+
+        for effect in effects {
+            switch effect {
+            case .warp(let destination):
+                updatedFinal = destination
+            case .shuffleHand:
+                requiresShuffle = true
+            }
+        }
+
+        return (updatedFinal, requiresShuffle)
+    }
+
+    /// 手札シャッフル効果を適用する
+    /// - Note: タイル効果が実際に発動した際にのみ呼び出す
+    private func applyHandShuffleEffect() {
+        handManager.shuffleStacksForEffects()
+        refreshHandStateFromManager()
+        debugLog("タイル効果により手札をシャッフルしました")
+    }
+
     /// 盤面タップ時に使用する移動候補を優先順位付きで選び出す
     /// - Parameter point: ユーザーがタップした盤面座標
-    /// - Returns: 優先順位ロジックを適用した `ResolvedCardMove`（該当なしの場合は nil）
-    func resolvedMoveForBoardTap(at point: GridPoint) -> ResolvedCardMove? {
+    /// - Returns: 優先順位ロジックを適用した `MovementResolution`（該当なしの場合は nil）
+    func resolvedMoveForBoardTap(at point: GridPoint) -> MovementResolution? {
         // availableMoves() からタップ地点へ到達できる候補だけを抽出する
-        let matchingMoves = availableMoves().filter { $0.destination == point }
+        let matchingMoves = availableMoves().filter { $0.finalPosition == point }
 
         // 候補が存在しない場合は nil を返して終了する
         guard !matchingMoves.isEmpty else { return nil }
@@ -452,13 +589,7 @@ extension GameCore: GameCoreProtocol {
         // 優先順位付きの候補を算出し、該当するものがあればアニメーション要求を発行する
         guard let resolved = resolvedMoveForBoardTap(at: point) else { return }
 
-        boardTapPlayRequest = BoardTapPlayRequest(
-            stackID: resolved.stackID,
-            stackIndex: resolved.stackIndex,
-            topCard: resolved.card,
-            destination: resolved.destination,
-            moveVector: resolved.moveVector
-        )
+        boardTapPlayRequest = BoardTapPlayRequest(resolution: resolved)
     }
 }
 #endif

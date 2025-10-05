@@ -490,7 +490,7 @@ final class GameViewModel: ObservableObject {
         guard let selection = selectedCardSelection else {
             // GameCore.availableMoves() を再評価し、タップ座標へ進める候補が複数カードで競合していないかを確認する
             let availableMoves = core.availableMoves()
-            let destinationCandidates = availableMoves.filter { $0.destination == request.destination }
+            let destinationCandidates = availableMoves.filter { $0.finalPosition == request.destination }
             // 同一座標に到達できる候補へ単一ベクトルカードが混在しているかを判定し、警告要否の判断材料にする
             let containsSingleVectorCard = destinationCandidates.contains { candidate in
                 // movementVectors.count が 1 の場合は単一方向専用カードとみなし、自動プレイを許可する
@@ -535,7 +535,7 @@ final class GameViewModel: ObservableObject {
         }
 
         // タップされた座標に一致する候補が無ければ、ハイライトのみ更新して待機する
-        guard let chosenMove = matchingMoves.first(where: { $0.destination == request.destination }) else {
+        guard let chosenMove = matchingMoves.first(where: { $0.finalPosition == request.destination }) else {
             applyHighlights(for: selection, using: matchingMoves)
             return
         }
@@ -771,7 +771,7 @@ final class GameViewModel: ObservableObject {
     ///   - resolvedMoves: 事前に算出済みの候補があれば指定する（省略時は再評価する）
     private func applyHighlights(
         for selection: SelectedCardSelection,
-        using resolvedMoves: [ResolvedCardMove]? = nil
+        using resolvedMoves: [MovementResolution]? = nil
     ) {
         guard let current = core.current else {
             clearSelectedCardSelection()
@@ -787,7 +787,7 @@ final class GameViewModel: ObservableObject {
             return
         }
 
-        let destinations = Set(moves.map(\.destination))
+        let destinations = Set(moves.map(\.finalPosition))
         let vectors = moves.map(\.moveVector)
         boardBridge.updateForcedSelectionHighlights(destinations, origin: current, movementVectors: vectors)
     }

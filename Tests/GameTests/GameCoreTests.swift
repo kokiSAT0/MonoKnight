@@ -65,12 +65,58 @@ final class GameCoreTests: XCTestCase {
         let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 0, y: 0))
 
         let moves = core.availableMoves()
-        XCTAssertEqual(moves.map { $0.destination }, [
+        XCTAssertEqual(moves.map { $0.finalPosition }, [
             GridPoint(x: 1, y: 0),
             GridPoint(x: 2, y: 0),
             GridPoint(x: 0, y: 1),
             GridPoint(x: 2, y: 1)
         ])
+
+        if let straightRight = moves.first(where: { $0.card.move == .straightRight2 }) {
+            XCTAssertEqual(
+                straightRight.path,
+                [
+                    GridPoint(x: 1, y: 0),
+                    GridPoint(x: 2, y: 0)
+                ],
+                "右方向へ 2 マス進むカードの経路が中継マスを含んでいません"
+            )
+        } else {
+            XCTFail("右方向 2 マスカードが候補に含まれていません")
+        }
+
+        let verticalCore = GameCore.makeTestInstance(
+            deck: Deck.makeTestDeck(cards: [
+                .straightUp2,
+                .kingRight,
+                .kingLeft,
+                .kingUp,
+                .kingDown
+            ]),
+            current: GridPoint(x: 0, y: 0)
+        )
+        if let straightUp = verticalCore.availableMoves().first(where: { $0.card.move == .straightUp2 }) {
+            XCTAssertEqual(
+                straightUp.path,
+                [
+                    GridPoint(x: 0, y: 1),
+                    GridPoint(x: 0, y: 2)
+                ],
+                "上方向へ 2 マス進むカードの経路が中継マスを含んでいません"
+            )
+        } else {
+            XCTFail("上方向 2 マスカードが候補に含まれていません")
+        }
+
+        if let knightMove = moves.first(where: { $0.card.move == .knightUp1Right2 }) {
+            XCTAssertEqual(
+                knightMove.path,
+                [GridPoint(x: 2, y: 1)],
+                "桂馬カードは終点のみを通過するはずです"
+            )
+        } else {
+            XCTFail("桂馬カードが候補に含まれていません")
+        }
     }
 
     /// availableMoves() が移動不可マスを候補から除外することを確認
@@ -109,7 +155,7 @@ final class GameCoreTests: XCTestCase {
         let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 2, y: 2), mode: mode)
 
         let moves = core.availableMoves()
-        let destinations = Set(moves.map { $0.destination })
+        let destinations = Set(moves.map { $0.finalPosition })
         XCTAssertFalse(destinations.contains(impassablePoint), "移動不可マスが候補に含まれており、障害物を避けられていません")
         XCTAssertTrue(destinations.contains(GridPoint(x: 2, y: 3)), "移動可能マスまで除外されてしまっています")
     }
@@ -206,7 +252,7 @@ final class GameCoreTests: XCTestCase {
 
         let moves = core.availableMoves()
         let destination = GridPoint(x: 2, y: 3)
-        let matchingIndices = moves.indices.filter { moves[$0].destination == destination }
+        let matchingIndices = moves.indices.filter { moves[$0].finalPosition == destination }
         XCTAssertEqual(matchingIndices.count, 2, "同一座標へのカードが 2 枚列挙されていない")
         if let first = matchingIndices.first {
             XCTAssertEqual(matchingIndices, [first, first + 1], "同一座標カードが隣接順になっていない")
@@ -244,7 +290,7 @@ final class GameCoreTests: XCTestCase {
 
         XCTAssertEqual(kingMoves.count, 2, "複数候補カードのベクトル展開数が想定と異なる")
         XCTAssertEqual(
-            Set(kingMoves.map { $0.destination }),
+            Set(kingMoves.map { $0.finalPosition }),
             Set([
                 GridPoint(x: 2, y: 3),
                 GridPoint(x: 2, y: 1)
@@ -275,7 +321,7 @@ final class GameCoreTests: XCTestCase {
         }
 
         secondCore.playCard(using: upwardMove)
-        XCTAssertEqual(secondCore.current, GridPoint(x: 2, y: 3), "ResolvedCardMove でも上方向へ移動できていない")
+        XCTAssertEqual(secondCore.current, GridPoint(x: 2, y: 3), "MovementResolution でも上方向へ移動できていない")
     }
 
     /// 盤面タップで複数候補と通常カードが同じマスへ到達できる場合、通常カードが優先されることを確認

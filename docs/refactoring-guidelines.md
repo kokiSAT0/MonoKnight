@@ -32,7 +32,7 @@
 - **GameCore のタイマー責務分離**: ゲーム内の経過時間管理を `GameSessionTimer` へ委譲し、`GameCore` 本体の責務を
   シンプルに保つ取り組みを開始した。経過秒数の算出やテスト用ヘルパーを専用構造体へ集約することで、将来的な
   計測仕様変更や複数モード対応時の再利用性が高まる。
-- **カード移動候補の解決処理を共通化**: 盤面内へ進めるカード判定を `GameCore.availableMoves()` と `ResolvedCardMove`
+- **カード移動候補の解決処理を共通化**: 盤面内へ進めるカード判定を `GameCore.availableMoves()` と `MovementResolution`
   へ集約し、UI・ペナルティ判定・テストで同一ロジックを再利用できるよう整理した。`GameBoardBridgeViewModel`
   からのガイド表示やアニメーション、手詰まり検出まで同じ候補列を参照するため、座標重複や境界判定の重複実装
   を防げる構成になっている。
@@ -55,7 +55,7 @@
    - 2024-05 リファクタリング: 移動量を `MoveVector` へ集約し、`MoveCard.movementVectors` / `primaryVector` を通じて参照する。
      - 旧実装で `dx` / `dy` を直接参照している箇所は、`primaryVector.dx` / `.dy` へ置き換える。
      - 同一挙動カードの比較は `MoveVector` 配列をキーにする。`HandStack.representativeVectors` や `Deck.Configuration.allowedMoveSignatures` を活用する。
-     - 複数候補カードを導入する場合は `movementVectors` の配列を増やし、UI は `ResolvedCardMove` の拡張で候補選択ロジックを追加する。
+    - 複数候補カードを導入する場合は `movementVectors` の配列を増やし、UI は `MovementResolution` の拡張で候補選択ロジックを追加する。
      - テストは `MoveCard` の代表ベクトルが期待通りであることを明示的に検証し、回帰検知の指標とする。
    - モードごとのペナルティ・手札整理ロジックを `GameMode` のパラメータに一本化し、盤面追加時にも破綻しないようテストを拡充する。
      `GameCore+Penalty.swift` など機能別ファイルの役割をドキュメントへ反映しておく。

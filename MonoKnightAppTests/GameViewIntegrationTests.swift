@@ -206,7 +206,7 @@ final class GameViewIntegrationTests: XCTestCase {
             "カード選択状態が更新されていません"
         )
 
-        let expectedHighlights = Set(candidateMoves.map(\.destination))
+        let expectedHighlights = Set(candidateMoves.map(\.finalPosition))
         XCTAssertEqual(
             viewModel.boardBridge.forcedSelectionHighlightPoints,
             expectedHighlights,
@@ -216,20 +216,20 @@ final class GameViewIntegrationTests: XCTestCase {
 
         let chosenMove = candidateMoves[1]
 
-        core.handleTap(at: chosenMove.destination)
+        core.handleTap(at: chosenMove.finalPosition)
 
         guard let pendingRequest = core.boardTapPlayRequest else {
             XCTFail("BoardTapPlayRequest が設定されていません")
             return
         }
 
-        XCTAssertEqual(pendingRequest.destination, chosenMove.destination, "BoardTapPlayRequest.destination が想定と異なります")
+        XCTAssertEqual(pendingRequest.destination, chosenMove.finalPosition, "BoardTapPlayRequest.destination が想定と異なります")
         XCTAssertEqual(pendingRequest.moveVector, chosenMove.moveVector, "BoardTapPlayRequest.moveVector が想定と異なります")
 
         // Combine の購読とアニメーション完了を待機する
         RunLoop.main.run(until: Date().addingTimeInterval(0.6))
 
-        XCTAssertEqual(core.current, chosenMove.destination, "盤面タップで指定したマスへ駒が移動していません")
+        XCTAssertEqual(core.current, chosenMove.finalPosition, "盤面タップで指定したマスへ駒が移動していません")
         XCTAssertEqual(core.moveCount, 1, "カード使用回数が加算されていません")
         XCTAssertNil(core.boardTapPlayRequest, "処理後も BoardTapPlayRequest が残っています")
         XCTAssertNil(viewModel.selectedHandStackID, "カードプレイ後も選択状態が残っています")
@@ -287,7 +287,7 @@ final class GameViewIntegrationTests: XCTestCase {
                 return
             }
 
-            core.handleTap(at: chosenMove.destination)
+            core.handleTap(at: chosenMove.finalPosition)
 
             guard let pendingRequest = core.boardTapPlayRequest else {
                 XCTFail("BoardTapPlayRequest が生成されていません")
@@ -295,13 +295,13 @@ final class GameViewIntegrationTests: XCTestCase {
             }
 
             XCTAssertEqual(pendingRequest.stackID, stack.id, "BoardTapPlayRequest.stackID が想定と異なります")
-            XCTAssertEqual(pendingRequest.destination, chosenMove.destination, "BoardTapPlayRequest.destination が想定と異なります")
+            XCTAssertEqual(pendingRequest.destination, chosenMove.finalPosition, "BoardTapPlayRequest.destination が想定と異なります")
             XCTAssertEqual(pendingRequest.moveVector, chosenMove.moveVector, "BoardTapPlayRequest.moveVector が想定と異なります")
 
             // Combine の購読と演出完了を待機する（0.7 秒でカード移動→盤面更新まで完了する）
             RunLoop.main.run(until: Date().addingTimeInterval(0.7))
 
-            XCTAssertEqual(core.current, chosenMove.destination, "盤面タップ後に駒が目的地へ移動していません")
+            XCTAssertEqual(core.current, chosenMove.finalPosition, "盤面タップ後に駒が目的地へ移動していません")
             XCTAssertEqual(core.moveCount, 1, "カード使用回数が加算されていません")
             XCTAssertNil(core.boardTapPlayRequest, "処理後に BoardTapPlayRequest が残っています")
             XCTAssertNil(viewModel.selectedHandStackID, "カードプレイ後も選択状態が残っています")
@@ -358,7 +358,7 @@ final class GameViewIntegrationTests: XCTestCase {
             let destination = current.offset(dx: 1, dy: 0)
             XCTAssertTrue(core.board.contains(destination), "目的地が盤外になっています")
 
-            let relevantMoves = core.availableMoves().filter { $0.destination == destination }
+            let relevantMoves = core.availableMoves().filter { $0.finalPosition == destination }
             XCTAssertGreaterThanOrEqual(relevantMoves.count, 2, "想定した候補が揃っていません")
             XCTAssertNotNil(relevantMoves.first(where: { $0.stackID == multiCandidateStack.id }), "複数候補カードの移動が見つかりません")
             let singleVectorMove = relevantMoves.first(where: { $0.stackID == singleCandidateStack.id })
@@ -435,7 +435,7 @@ final class GameViewIntegrationTests: XCTestCase {
         XCTAssertTrue(core.board.contains(destination), "目的地が盤外になっています")
 
         let availableMoves = core.availableMoves()
-        let destinationMoves = availableMoves.filter { $0.destination == destination }
+        let destinationMoves = availableMoves.filter { $0.finalPosition == destination }
         XCTAssertGreaterThanOrEqual(destinationMoves.count, 2, "同一マスへ移動できる候補が不足しています")
 
         let destinationStackIDs = Set(destinationMoves.map(\.stackID))
@@ -517,7 +517,7 @@ final class GameViewIntegrationTests: XCTestCase {
         let destination = current.offset(dx: 1, dy: 0)
         XCTAssertTrue(core.board.contains(destination), "目的地が盤外になっています")
 
-        let destinationCandidates = core.availableMoves().filter { $0.destination == destination }
+        let destinationCandidates = core.availableMoves().filter { $0.finalPosition == destination }
         XCTAssertGreaterThanOrEqual(destinationCandidates.count, 2, "同一マスへ移動できる候補が不足しています")
         XCTAssertNotNil(
             destinationCandidates.first(where: { $0.stackID == multiStack.id && $0.card.move.movementVectors.count > 1 }),
@@ -601,7 +601,7 @@ final class GameViewIntegrationTests: XCTestCase {
         let destination = current.offset(dx: 1, dy: 1)
         XCTAssertTrue(core.board.contains(destination), "目的地が盤外になっており、競合を再現できません")
 
-        let destinationMoves = core.availableMoves().filter { $0.destination == destination }
+        let destinationMoves = core.availableMoves().filter { $0.finalPosition == destination }
         XCTAssertGreaterThanOrEqual(destinationMoves.count, 2, "同一点へ到達できる候補が揃っていません")
         XCTAssertEqual(Set(destinationMoves.map(\.stackID)).count, 2, "異なるスタック同士で競合する条件を満たしていません")
 
@@ -683,7 +683,7 @@ final class GameViewIntegrationTests: XCTestCase {
         XCTAssertTrue(core.board.contains(destination), "右隣のマスが盤外になっています")
 
         let availableMoves = core.availableMoves()
-        let destinationMoves = availableMoves.filter { $0.destination == destination }
+        let destinationMoves = availableMoves.filter { $0.finalPosition == destination }
         XCTAssertGreaterThanOrEqual(destinationMoves.count, 2, "同一マスへ到達できる候補が不足しています")
 
         let destinationStackIDs = Set(destinationMoves.map(\.stackID))
@@ -751,7 +751,7 @@ final class GameViewIntegrationTests: XCTestCase {
 
         XCTAssertEqual(candidateMoves.count, 1, "単一候補カードでない場合はテスト前提が満たせません")
         guard let expectedMove = candidateMoves.first else {
-            XCTFail("単一候補の ResolvedCardMove を特定できませんでした")
+            XCTFail("単一候補の MovementResolution を特定できませんでした")
             return
         }
 
@@ -772,7 +772,7 @@ final class GameViewIntegrationTests: XCTestCase {
         // アニメーション完了と GameCore への結果反映を待機する
         RunLoop.main.run(until: Date().addingTimeInterval(0.6))
 
-        XCTAssertEqual(core.current, expectedMove.destination, "単一候補カードの移動先が一致しません")
+        XCTAssertEqual(core.current, expectedMove.finalPosition, "単一候補カードの移動先が一致しません")
         XCTAssertEqual(core.moveCount, 1, "単一候補カード実行後の移動回数が加算されていません")
         XCTAssertNil(core.boardTapPlayRequest, "盤面タップ要求が不要に残っています")
     }

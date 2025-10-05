@@ -230,7 +230,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
         var computedBuckets = GuideHighlightBuckets.empty
         for moves in groupedByCard.values {
             guard let representative = moves.first else { continue }
-            let destinations = moves.map { $0.destination }
+            let destinations = moves.map { $0.finalPosition }
             if representative.card.move.movementVectors.count > 1 {
                 computedBuckets.multipleVectorDestinations.formUnion(destinations)
             } else {
@@ -312,14 +312,14 @@ final class GameBoardBridgeViewModel: ObservableObject {
     ///   - stack: 対象となる手札スタック
     ///   - index: GameCore に渡すスタックの位置
     /// - Returns: 演出開始に成功したら true
-    /// ResolvedCardMove を直接受け取り、カード演出とプレイ処理を実行する
+    /// MovementResolution を直接受け取り、カード演出とプレイ処理を実行する
     /// - Parameter resolvedMove: GameCore.availableMoves() で得られた移動候補
     /// - Returns: アニメーションを開始できた場合は true
     @discardableResult
-    func animateCardPlay(using resolvedMove: ResolvedCardMove) -> Bool {
+    func animateCardPlay(using resolvedMove: MovementResolution) -> Bool {
         guard animatingCard == nil else {
             debugLog(
-                "スタック演出を中止: 別演出が進行中 stackID=\(resolvedMove.stackID) dest=\(resolvedMove.destination)"
+                "スタック演出を中止: 別演出が進行中 stackID=\(resolvedMove.stackID) dest=\(resolvedMove.finalPosition)"
             )
             return false
         }
@@ -330,19 +330,21 @@ final class GameBoardBridgeViewModel: ObservableObject {
 
         // スタック位置が変化している可能性を考慮し、最新のインデックスを再評価する
         let resolvedIndex: Int
-        let moveForExecution: ResolvedCardMove
+        let moveForExecution: MovementResolution
         if core.handStacks.indices.contains(resolvedMove.stackIndex),
            core.handStacks[resolvedMove.stackIndex].id == resolvedMove.stackID {
             resolvedIndex = resolvedMove.stackIndex
             moveForExecution = resolvedMove
         } else if let fallbackIndex = core.handStacks.firstIndex(where: { $0.id == resolvedMove.stackID }) {
             resolvedIndex = fallbackIndex
-            moveForExecution = ResolvedCardMove(
+            moveForExecution = MovementResolution(
                 stackID: resolvedMove.stackID,
                 stackIndex: fallbackIndex,
                 card: resolvedMove.card,
                 moveVector: resolvedMove.moveVector,
-                destination: resolvedMove.destination
+                path: resolvedMove.path,
+                finalPosition: resolvedMove.finalPosition,
+                appliedEffects: resolvedMove.appliedEffects
             )
             debugLog(
                 "スタック位置を補正: 元index=\(resolvedMove.stackIndex) 新index=\(fallbackIndex) stackID=\(resolvedMove.stackID)"
@@ -371,7 +373,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
         }
 
         // 現在位置からカードの移動量を適用し、演出で目指す盤面座標を算出する
-        let targetPoint = moveForExecution.destination
+        let targetPoint = moveForExecution.finalPosition
         animationTargetGridPoint = targetPoint
         hiddenCardIDs.insert(topCard.id)
         animatingCard = topCard
@@ -414,7 +416,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
     func animateCardPlay(for stack: HandStack, at index: Int) -> Bool {
         guard let topCard = stack.topCard else { return false }
 
-        // index は API 維持のため受け取るが、実際の処理では ResolvedCardMove 側で再評価する
+        // index は API 維持のため受け取るが、実際の処理では MovementResolution 側で再評価する
         _ = index
 
         // 現在の手札状況に基づく使用可能カードを検索し、該当スタックの候補を取得する
