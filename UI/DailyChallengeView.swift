@@ -32,16 +32,10 @@ final class DailyChallengeViewModel: ObservableObject {
     /// `attemptStore.objectWillChange` を購読して状態同期するためのキャンセラ
     private var cancellable: AnyCancellable?
 
-    /// 現在表示しているチャレンジ情報
-    @Published private(set) var challengeInfo: DailyChallengeDefinitionService.ChallengeInfo
+    /// 現在表示しているチャレンジ情報バンドル
+    @Published private(set) var challengeBundle: DailyChallengeDefinitionService.ChallengeBundle
     /// 「2025年5月26日 (月)」のような日付表示用テキスト
     @Published private(set) var challengeDateText: String
-    /// バリアント説明（例: 「バリアント: 固定レギュレーション」）
-    @Published private(set) var variantDescriptionText: String
-    /// レギュレーション概要 1 行目（盤面サイズ/山札/スポーン）
-    @Published private(set) var regulationPrimaryText: String
-    /// レギュレーション概要 2 行目（手札やペナルティ）
-    @Published private(set) var regulationSecondaryText: String
     /// 「残り 1 回 / 最大 4 回」のような残量テキスト
     @Published private(set) var remainingAttemptsText: String
     /// 「広告追加済み: 0 / 3」のようなリワード進捗テキスト
@@ -94,13 +88,10 @@ final class DailyChallengeViewModel: ObservableObject {
         self.resetFormatter = resetFormatter
 
         // 現在日付のチャレンジ情報を取得
-        let info = definitionService.challengeInfo(for: nowProvider())
-        self.challengeInfo = info
-        self.challengeDateText = Self.makeDateText(for: info.date, formatter: dateFormatter)
-        self.variantDescriptionText = Self.makeVariantText(from: info)
-        self.regulationPrimaryText = info.regulationPrimaryText
-        self.regulationSecondaryText = info.regulationSecondaryText
-        self.resetTimeText = Self.makeResetText(info: info, formatter: resetFormatter, service: definitionService)
+        let bundle = definitionService.challengeBundle(for: nowProvider())
+        self.challengeBundle = bundle
+        self.challengeDateText = Self.makeDateText(for: bundle.date, formatter: dateFormatter)
+        self.resetTimeText = Self.makeResetText(bundle: bundle, formatter: resetFormatter, service: definitionService)
         self.remainingAttemptsText = ""
         self.rewardProgressText = ""
         self.isStartButtonEnabled = false
@@ -127,13 +118,16 @@ final class DailyChallengeViewModel: ObservableObject {
     }
 
     /// ランキング表示ボタン押下時に呼び出し、Game Center のリーダーボードを提示する
-    func presentLeaderboard() {
-        gameCenterService.showLeaderboard(for: challengeInfo.leaderboardIdentifier)
+    /// - Parameter variant: どちらのステージを開くか
+    func presentLeaderboard(for variant: DailyChallengeDefinition.Variant) {
+        let info = challengeBundle.info(for: variant)
+        gameCenterService.showLeaderboard(for: info.leaderboardIdentifier)
     }
 
     /// 挑戦開始ボタン押下時の処理
     /// - Returns: ゲーム開始に利用する `GameMode`。挑戦不可の場合は `nil`。
-    func startChallengeIfPossible() -> GameMode? {
+    /// - Parameter variant: 固定版かランダム版か
+    func startChallengeIfPossible(for variant: DailyChallengeDefinition.Variant) -> GameMode? {
         attemptStore.refreshForCurrentDate()
         guard attemptStore.consumeAttempt() else {
             alertState = AlertState(title: "挑戦できません", message: "本日の挑戦回数を使い切りました。")
@@ -141,7 +135,7 @@ final class DailyChallengeViewModel: ObservableObject {
             return nil
         }
         updateAttemptRelatedTexts()
-        return challengeInfo.mode
+        return challengeBundle.info(for: variant).mode
     }
 
     /// リワード広告視聴をリクエストし、成功時に挑戦回数を追加する
@@ -183,18 +177,15 @@ final class DailyChallengeViewModel: ObservableObject {
     /// チャレンジ情報が日付越えで変化していないか確認し、必要に応じて最新化する
     private func refreshChallengeInfoIfNeeded() {
         let currentDate = nowProvider()
-        let latestInfo = definitionService.challengeInfo(for: currentDate)
-        // `DailyChallengeDefinition.seed(for:)` は同日であれば一定なので、モード識別子が変化しているかで判定する
-        guard latestInfo.baseSeed != challengeInfo.baseSeed || latestInfo.variant != challengeInfo.variant else {
+        let latestBundle = definitionService.challengeBundle(for: currentDate)
+        // `DailyChallengeDefinition.seed(for:)` は同日であれば一定なので、基準シードの変化で日付越えを検出する
+        guard latestBundle.baseSeed != challengeBundle.baseSeed else {
             return
         }
 
-        challengeInfo = latestInfo
-        challengeDateText = Self.makeDateText(for: latestInfo.date, formatter: dateFormatter)
-        variantDescriptionText = Self.makeVariantText(from: latestInfo)
-        regulationPrimaryText = latestInfo.regulationPrimaryText
-        regulationSecondaryText = latestInfo.regulationSecondaryText
-        resetTimeText = Self.makeResetText(info: latestInfo, formatter: resetFormatter, service: definitionService)
+        challengeBundle = latestBundle
+        challengeDateText = Self.makeDateText(for: latestBundle.date, formatter: dateFormatter)
+        resetTimeText = Self.makeResetText(bundle: latestBundle, formatter: resetFormatter, service: definitionService)
     }
 
     /// 残量テキストやボタン有効状態をストアから再計算する
@@ -224,19 +215,19 @@ final class DailyChallengeViewModel: ObservableObject {
         formatter.string(from: date)
     }
 
-    /// バリアント説明テキストを生成する
-    private static func makeVariantText(from info: DailyChallengeDefinitionService.ChallengeInfo) -> String {
-        "バリアント: \(info.variantDisplayName)"
-    }
-
     /// リセット案内テキストを生成する
     private static func makeResetText(
-        info: DailyChallengeDefinitionService.ChallengeInfo,
+        bundle: DailyChallengeDefinitionService.ChallengeBundle,
         formatter: DateFormatter,
         service: DailyChallengeDefinitionProviding
     ) -> String {
-        let resetDateUTC = service.nextResetDate(after: info.date)
+        let resetDateUTC = service.nextResetDate(after: bundle.date)
         return "リセット: \(formatter.string(from: resetDateUTC))"
+    }
+
+    /// ステージ情報を順序付き配列で取得するヘルパー
+    var orderedStageInfos: [DailyChallengeDefinitionService.ChallengeInfo] {
+        challengeBundle.orderedInfos
     }
 }
 
@@ -270,9 +261,9 @@ struct DailyChallengeView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
                 headerSection
-                regulationCard
+                stageCardsSection
                 attemptsSection
-                actionButtons
+                rewardButtonSection
             }
             .padding(.horizontal, 24)
             .padding(.vertical, 32)
@@ -319,39 +310,98 @@ struct DailyChallengeView: View {
 
     /// 日付とバリアント概要
     private var headerSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        let variantNames = viewModel.orderedStageInfos.map { $0.variantDisplayName }.joined(separator: " / ")
+        let modeNames = viewModel.orderedStageInfos.map { $0.mode.displayName }.joined(separator: " / ")
+
+        return VStack(alignment: .leading, spacing: 8) {
             Text(viewModel.challengeDateText)
                 .font(.system(size: 22, weight: .semibold, design: .rounded))
                 .foregroundColor(theme.textPrimary)
                 .accessibilityIdentifier("daily_challenge_date_label")
 
-            Text(viewModel.variantDescriptionText)
+            Text("公開バリアント: \(variantNames)")
                 .font(.system(size: 15, weight: .medium, design: .rounded))
                 .foregroundColor(theme.textSecondary)
 
-            Text("モード名: \(viewModel.challengeInfo.mode.displayName)")
+            Text("モード名: \(modeNames)")
                 .font(.system(size: 15, weight: .regular, design: .rounded))
                 .foregroundColor(theme.textSecondary.opacity(0.85))
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(viewModel.challengeDateText)、\(viewModel.variantDescriptionText)、モード名は \(viewModel.challengeInfo.mode.displayName) です")
+        .accessibilityLabel("\(viewModel.challengeDateText)、公開バリアントは \(variantNames)、モード名は \(modeNames) です")
     }
 
-    /// レギュレーション概要カード
-    private var regulationCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("レギュレーション概要")
-                .font(.system(size: 16, weight: .semibold, design: .rounded))
-                .foregroundColor(theme.textPrimary)
+    /// 固定・ランダムそれぞれのカードを縦並びで表示するセクション
+    private var stageCardsSection: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            ForEach(viewModel.orderedStageInfos, id: \.identifierSuffix) { info in
+                stageCard(for: info)
+            }
+        }
+    }
 
-            Text(viewModel.regulationPrimaryText)
-                .font(.system(size: 14, weight: .medium, design: .rounded))
-                .foregroundColor(theme.textSecondary)
+    /// 単一ステージのカード表示
+    /// - Parameter info: 対応するチャレンジ情報
+    private func stageCard(for info: DailyChallengeDefinitionService.ChallengeInfo) -> some View {
+        VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(info.variantDisplayName)
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .foregroundColor(theme.textPrimary)
 
-            Text(viewModel.regulationSecondaryText)
-                .font(.system(size: 13, weight: .regular, design: .rounded))
-                .foregroundColor(theme.textSecondary.opacity(0.9))
-                .fixedSize(horizontal: false, vertical: true)
+                Text(info.mode.displayName)
+                    .font(.system(size: 20, weight: .semibold, design: .rounded))
+                    .foregroundColor(theme.accentPrimary)
+
+                Text(info.regulationPrimaryText)
+                    .font(.system(size: 14, weight: .medium, design: .rounded))
+                    .foregroundColor(theme.textSecondary)
+
+                Text(info.regulationSecondaryText)
+                    .font(.system(size: 13, weight: .regular, design: .rounded))
+                    .foregroundColor(theme.textSecondary.opacity(0.9))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            HStack(spacing: 12) {
+                Button {
+                    viewModel.presentLeaderboard(for: info.variant)
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "trophy")
+                        Text("ランキング")
+                    }
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .foregroundColor(theme.accentPrimary)
+                    .padding(.vertical, 10)
+                    .frame(maxWidth: .infinity)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .stroke(theme.accentPrimary, lineWidth: 1.5)
+                    )
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("daily_challenge_leaderboard_button_\(info.identifierSuffix)")
+
+                Button {
+                    if let mode = viewModel.startChallengeIfPossible(for: info.variant) {
+                        onStart(mode)
+                    }
+                } label: {
+                    Text("挑戦する")
+                        .font(.system(size: 16, weight: .semibold, design: .rounded))
+                        .foregroundColor(Color.white)
+                        .padding(.vertical, 12)
+                        .frame(maxWidth: .infinity)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .fill(viewModel.isStartButtonEnabled ? theme.accentPrimary : theme.accentPrimary.opacity(0.45))
+                        )
+                }
+                .buttonStyle(.plain)
+                .disabled(!viewModel.isStartButtonEnabled)
+                .accessibilityIdentifier("daily_challenge_start_button_\(info.identifierSuffix)")
+            }
         }
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -364,7 +414,8 @@ struct DailyChallengeView: View {
                 .stroke(theme.statisticBadgeBorder.opacity(0.6), lineWidth: 1)
         )
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("レギュレーション概要。\(viewModel.regulationPrimaryText)。\(viewModel.regulationSecondaryText)")
+        .accessibilityIdentifier("daily_challenge_stage_card_\(info.identifierSuffix)")
+        .accessibilityLabel("\(info.variantDisplayName)。モードは \(info.mode.displayName)。\(info.regulationPrimaryText)。\(info.regulationSecondaryText)")
     }
 
     /// 挑戦回数とリセット時刻の表示
@@ -397,68 +448,27 @@ struct DailyChallengeView: View {
         )
     }
 
-    /// ランキングボタン / 広告ボタン / 挑戦開始ボタンをまとめたセクション
-    private var actionButtons: some View {
-        VStack(spacing: 16) {
-            Button {
-                viewModel.presentLeaderboard()
-            } label: {
-                HStack {
-                    Image(systemName: "trophy")
-                    Text("ランキングを確認")
-                }
-                .font(.system(size: 15, weight: .semibold, design: .rounded))
-                .foregroundColor(theme.accentPrimary)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 12)
-                .background(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .stroke(theme.accentPrimary, lineWidth: 1.5)
-                )
+    /// 広告視聴による挑戦回数追加ボタン
+    private var rewardButtonSection: some View {
+        Button {
+            Task { await viewModel.requestRewardedAttempt() }
+        } label: {
+            HStack {
+                Image(systemName: "gift.fill")
+                Text("広告を視聴して回数を追加")
             }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("daily_challenge_leaderboard_button")
-
-            Button {
-                Task { await viewModel.requestRewardedAttempt() }
-            } label: {
-                HStack {
-                    Image(systemName: "gift.fill")
-                    Text("広告を視聴して回数を追加")
-                }
-                .font(.system(size: 15, weight: .semibold, design: .rounded))
-                .foregroundColor(Color.white.opacity(viewModel.isRewardButtonEnabled ? 1 : 0.6))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
-                .background(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .fill(theme.accentPrimary.opacity(viewModel.isRewardButtonEnabled ? 0.85 : 0.45))
-                )
-            }
-            .buttonStyle(.plain)
-            .disabled(!viewModel.isRewardButtonEnabled)
-            .accessibilityIdentifier("daily_challenge_reward_button")
-
-            Button {
-                if let mode = viewModel.startChallengeIfPossible() {
-                    onStart(mode)
-                }
-            } label: {
-                Text("挑戦を開始")
-                    .font(.system(size: 17, weight: .semibold, design: .rounded))
-                    .foregroundColor(Color.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
-                    .background(
-                        RoundedRectangle(cornerRadius: 20, style: .continuous)
-                            .fill(viewModel.isStartButtonEnabled ? theme.accentPrimary : theme.accentPrimary.opacity(0.45))
-                    )
-            }
-            .buttonStyle(.plain)
-            .disabled(!viewModel.isStartButtonEnabled)
-            .accessibilityIdentifier("daily_challenge_start_button")
-            .accessibilityHint("本日の挑戦を開始し、残り回数が 1 減ります")
+            .font(.system(size: 15, weight: .semibold, design: .rounded))
+            .foregroundColor(Color.white.opacity(viewModel.isRewardButtonEnabled ? 1 : 0.6))
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 14)
+            .background(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(theme.accentPrimary.opacity(viewModel.isRewardButtonEnabled ? 0.85 : 0.45))
+            )
         }
+        .buttonStyle(.plain)
+        .disabled(!viewModel.isRewardButtonEnabled)
+        .accessibilityIdentifier("daily_challenge_reward_button")
     }
 }
 

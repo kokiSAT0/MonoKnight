@@ -6,10 +6,10 @@ import Game
 /// - Important: 依存注入しやすいようにプロトコルとして公開し、プレビューやテストで差し替え可能にしている
 @MainActor
 protocol DailyChallengeDefinitionProviding: AnyObject {
-    /// 指定日時に対応するチャレンジ情報を生成する
+    /// 指定日時に対応するチャレンジ情報束を生成する
     /// - Parameter date: 判定対象となる日時（UTC 基準で日付境界を判断）
-    /// - Returns: 日替わりチャレンジのモードや表示文言をまとめた情報
-    func challengeInfo(for date: Date) -> DailyChallengeDefinitionService.ChallengeInfo
+    /// - Returns: 固定・ランダム双方のモード情報を含むバンドル
+    func challengeBundle(for date: Date) -> DailyChallengeDefinitionService.ChallengeBundle
 
     /// 指定日時の翌日 0 時 (UTC) を計算し、リセット時刻として返す
     /// - Parameter date: 判定対象となる日時
@@ -22,7 +22,34 @@ protocol DailyChallengeDefinitionProviding: AnyObject {
 /// - Note: `ObservableObject` に準拠させておくことで、将来的に情報を Published で公開したくなった際にも拡張しやすいようにしている
 @MainActor
 final class DailyChallengeDefinitionService: ObservableObject, DailyChallengeDefinitionProviding {
-    /// 日替わりチャレンジの表示・開始に必要な情報をまとめた構造体
+    /// 同日に公開する全チャレンジ情報をまとめた構造体
+    struct ChallengeBundle {
+        /// 対象日（UTC 基準での当日）
+        let date: Date
+        /// `DailyChallengeDefinition.seed(for:)` から算出したシード値
+        let baseSeed: UInt64
+        /// 固定レギュレーションの情報
+        let fixed: ChallengeInfo
+        /// ランダムレギュレーションの情報
+        let random: ChallengeInfo
+
+        /// UI 側で順序付きに扱いやすくするための一覧
+        var orderedInfos: [ChallengeInfo] { [fixed, random] }
+
+        /// バリアント種別から対応する情報を引き当てるヘルパー
+        /// - Parameter variant: 固定かランダムかの別
+        /// - Returns: 指定バリアントに対応する `ChallengeInfo`
+        func info(for variant: DailyChallengeDefinition.Variant) -> ChallengeInfo {
+            switch variant {
+            case .fixed:
+                return fixed
+            case .random:
+                return random
+            }
+        }
+    }
+
+    /// 個々のステージカードで表示・利用する情報をまとめた構造体
     struct ChallengeInfo {
         /// 対象日（UTC 基準での当日）
         let date: Date
@@ -64,47 +91,58 @@ final class DailyChallengeDefinitionService: ObservableObject, DailyChallengeDef
         var regulationSecondaryText: String {
             mode.secondarySummaryText
         }
+
+        /// アクセシビリティ識別子などで利用する接尾辞（固定/ランダム）
+        var identifierSuffix: String {
+            switch variant {
+            case .fixed:
+                return "fixed"
+            case .random:
+                return "random"
+            }
+        }
     }
 
-    /// バリアント決定に利用するクロージャ（シード値から決定する）
-    private let variantResolver: (UInt64) -> DailyChallengeDefinition.Variant
     /// UTC 固定のカレンダー。日付境界の計算で利用する
     private let utcCalendar: Calendar
 
     /// - Parameters:
-    ///   - variantResolver: シード値からバリアントを決めるロジック。テストで差し替えやすいよう外部注入できるようにしている。
     ///   - calendar: 日付計算に利用するカレンダー。既定ではグレゴリオ暦の UTC 固定とする。
     init(
-        variantResolver: @escaping (UInt64) -> DailyChallengeDefinition.Variant = DailyChallengeDefinitionService.defaultVariantResolver,
         calendar: Calendar = {
             var calendar = Calendar(identifier: .gregorian)
             calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
             return calendar
         }()
     ) {
-        self.variantResolver = variantResolver
         self.utcCalendar = calendar
     }
 
-    /// 指定日時に対応するチャレンジ情報を生成する
-    func challengeInfo(for date: Date) -> ChallengeInfo {
+    /// 指定日時に対応するチャレンジ情報束を生成する
+    func challengeBundle(for date: Date) -> ChallengeBundle {
         let baseSeed = DailyChallengeDefinition.seed(for: date)
-        let resolvedVariant = variantResolver(baseSeed)
-        let mode = DailyChallengeDefinition.makeMode(for: resolvedVariant, baseSeed: baseSeed)
-        let leaderboardIdentifier: GameMode.Identifier
-        switch resolvedVariant {
-        case .fixed:
-            leaderboardIdentifier = .dailyFixedChallenge
-        case .random:
-            leaderboardIdentifier = .dailyRandomChallenge
-        }
+        // 固定・ランダム双方のモードを同時に構築し、UI 側で常に 2 段構成を利用できるようにする
+        let fixedMode = DailyChallengeDefinition.makeMode(for: .fixed, baseSeed: baseSeed)
+        let randomMode = DailyChallengeDefinition.makeMode(for: .random, baseSeed: baseSeed)
 
-        return ChallengeInfo(
+        let fixedInfo = Self.makeInfo(
+            variant: .fixed,
             date: date,
             baseSeed: baseSeed,
-            variant: resolvedVariant,
-            mode: mode,
-            leaderboardIdentifier: leaderboardIdentifier
+            mode: fixedMode
+        )
+        let randomInfo = Self.makeInfo(
+            variant: .random,
+            date: date,
+            baseSeed: baseSeed,
+            mode: randomMode
+        )
+
+        return ChallengeBundle(
+            date: date,
+            baseSeed: baseSeed,
+            fixed: fixedInfo,
+            random: randomInfo
         )
     }
 
@@ -119,13 +157,33 @@ final class DailyChallengeDefinitionService: ObservableObject, DailyChallengeDef
     }
 
     // 純粋関数のためメインアクター不要
-    /// 既定のバリアント決定ロジック（偶数シードは固定、奇数シードはランダム）
-    private nonisolated static func defaultVariantResolver(_ seed: UInt64) -> DailyChallengeDefinition.Variant {
-        // seed の最下位ビットで偶奇を判定し、シンプルかつ決定論的にバリアントを切り替える
-        if seed & 1 == 0 {
-            return .fixed
-        } else {
-            return .random
+    /// バリアントごとの共通情報を構築するヘルパー
+    /// - Parameters:
+    ///   - variant: 固定版かランダム版か
+    ///   - date: 対象日
+    ///   - baseSeed: 日付由来の基準シード
+    ///   - mode: 実際にゲーム開始へ渡す `GameMode`
+    /// - Returns: UI 表示・開始処理に必要な情報一式
+    private nonisolated static func makeInfo(
+        variant: DailyChallengeDefinition.Variant,
+        date: Date,
+        baseSeed: UInt64,
+        mode: GameMode
+    ) -> ChallengeInfo {
+        let leaderboardIdentifier: GameMode.Identifier
+        switch variant {
+        case .fixed:
+            leaderboardIdentifier = .dailyFixedChallenge
+        case .random:
+            leaderboardIdentifier = .dailyRandomChallenge
         }
+
+        return ChallengeInfo(
+            date: date,
+            baseSeed: baseSeed,
+            variant: variant,
+            mode: mode,
+            leaderboardIdentifier: leaderboardIdentifier
+        )
     }
 }
