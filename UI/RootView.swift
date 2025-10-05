@@ -2072,20 +2072,23 @@ private extension TitleScreenView {
     }
 
     var dailyChallengeTileHeadline: String {
-        let info = dailyChallengeInfo
+        let bundle = dailyChallengeBundle
         let remaining = dailyChallengeAttemptStore.remainingAttempts
-        return "\(info.mode.displayName) ・ 残り \(remaining) 回"
+        let modeNames = bundle.orderedInfos.map { $0.mode.displayName }.joined(separator: " / ")
+        return "\(modeNames) ・ 残り \(remaining) 回"
     }
 
     var dailyChallengeTileDetail: String {
-        let info = dailyChallengeInfo
+        let bundle = dailyChallengeBundle
         let granted = dailyChallengeAttemptStore.rewardedAttemptsGranted
         let maximumRewarded = dailyChallengeAttemptStore.maximumRewardedAttempts
-        return "\(info.regulationPrimaryText) ・ 広告追加 \(granted)/\(maximumRewarded)"
+        let fixedSummary = bundle.fixed.regulationPrimaryText
+        let randomSummary = bundle.random.regulationPrimaryText
+        return "固定: \(fixedSummary) / ランダム: \(randomSummary) ・ 広告追加 \(granted)/\(maximumRewarded)"
     }
 
-    var dailyChallengeInfo: DailyChallengeDefinitionService.ChallengeInfo {
-        dailyChallengeDefinitionService.challengeInfo(for: Date())
+    var dailyChallengeBundle: DailyChallengeDefinitionService.ChallengeBundle {
+        dailyChallengeDefinitionService.challengeBundle(for: Date())
     }
 
     var bestPointsDescription: String {

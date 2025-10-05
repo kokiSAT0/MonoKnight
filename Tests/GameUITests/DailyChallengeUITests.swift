@@ -16,14 +16,20 @@ final class DailyChallengeUITests: XCTestCase {
         let dailyView = app.otherElements["daily_challenge_view"]
         XCTAssertTrue(dailyView.waitForExistence(timeout: 5), "日替わりチャレンジ画面へ遷移できること")
 
+        let fixedCard = app.otherElements["daily_challenge_stage_card_fixed"]
+        XCTAssertTrue(fixedCard.waitForExistence(timeout: 5), "固定レギュレーション用カードが表示されること")
+
+        let randomCard = app.otherElements["daily_challenge_stage_card_random"]
+        XCTAssertTrue(randomCard.waitForExistence(timeout: 5), "ランダムレギュレーション用カードが表示されること")
+
         let remainingLabel = app.staticTexts["daily_challenge_remaining_label"]
         XCTAssertTrue(remainingLabel.waitForExistence(timeout: 5), "残り挑戦回数ラベルが表示されること")
         XCTAssertTrue(remainingLabel.label.contains("残り 1 回"), "初回は無料挑戦が 1 回残っている想定")
 
-        let startButton = app.buttons["daily_challenge_start_button"]
-        XCTAssertTrue(startButton.waitForExistence(timeout: 5), "挑戦開始ボタンが存在すること")
-        XCTAssertTrue(startButton.isEnabled, "挑戦回数が残っている場合は開始ボタンが有効であること")
-        startButton.tap()
+        let fixedStartButton = app.buttons["daily_challenge_start_button_fixed"]
+        XCTAssertTrue(fixedStartButton.waitForExistence(timeout: 5), "固定モード用の挑戦ボタンが存在すること")
+        XCTAssertTrue(fixedStartButton.isEnabled, "挑戦回数が残っている場合は固定モードの開始ボタンが有効であること")
+        fixedStartButton.tap()
 
         let overlay = app.otherElements["game_preparation_overlay"]
         XCTAssertTrue(overlay.waitForExistence(timeout: 5), "挑戦開始後に準備オーバーレイが表示されること")
@@ -53,6 +59,19 @@ final class DailyChallengeUITests: XCTestCase {
             object: remainingAfterStart
         )
         XCTAssertEqual(XCTWaiter.wait(for: [rewardExpectation, remainingExpectation], timeout: 5), .completed, "広告視聴後に挑戦回数が 1 回ぶん回復し、付与済み回数が更新されること")
+
+        let randomStartButton = app.buttons["daily_challenge_start_button_random"]
+        XCTAssertTrue(randomStartButton.waitForExistence(timeout: 5), "ランダムモード用の挑戦ボタンが存在すること")
+        let startEnabledExpectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "isEnabled == true"),
+            object: randomStartButton
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [startEnabledExpectation], timeout: 5), .completed, "広告視聴後にランダムモードの開始ボタンが有効化されること")
+        randomStartButton.tap()
+
+        XCTAssertTrue(overlay.waitForExistence(timeout: 5), "ランダムモード開始後にも準備オーバーレイが表示されること")
+        XCTAssertTrue(returnButton.waitForExistence(timeout: 5), "ランダム挑戦後も戻るボタンが表示されること")
+        returnButton.tap()
 
         let closeButton = app.buttons["daily_challenge_back_button"]
         XCTAssertTrue(closeButton.waitForExistence(timeout: 3), "日替わり画面へ戻るボタンが表示されること")

@@ -23,6 +23,20 @@ final class DailyChallengeDefinitionTests: XCTestCase {
         XCTAssertNotEqual(fixedMode.deckSeed, randomMode.deckSeed, "バリアント間で山札シードが衝突しないようにする")
     }
 
+    /// バリアント統合 API が専用ファクトリと同一結果を返すことを確認
+    func testUnifiedMakeModeMatchesDedicatedFactories() {
+        // 単一シードを利用し、統合 API と従来 API の結果差分がないことを検証する
+        let seed: UInt64 = 0x0BAD_F00D_1234_5678
+
+        let fixedFromUnified = DailyChallengeDefinition.makeMode(for: .fixed, baseSeed: seed)
+        let fixedDirect = DailyChallengeDefinition.makeFixedMode(baseSeed: seed)
+        XCTAssertEqual(fixedFromUnified, fixedDirect, "固定版は統合 API でも従来 API と完全一致する必要があります")
+
+        let randomFromUnified = DailyChallengeDefinition.makeMode(for: .random, baseSeed: seed)
+        let randomDirect = DailyChallengeDefinition.makeRandomMode(baseSeed: seed)
+        XCTAssertEqual(randomFromUnified, randomDirect, "ランダム版も統合 API と従来 API で完全一致する必要があります")
+    }
+
     /// 固定版がキャンペーン 5-8 と同じレギュレーションを持つことを確認
     func testFixedModeMatchesCampaignStage58() {
         let seed: UInt64 = 12345
