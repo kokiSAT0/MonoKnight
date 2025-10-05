@@ -200,11 +200,22 @@ final class GameViewIntegrationTests: XCTestCase {
 
         viewModel.handleHandSlotTap(at: stackIndex)
 
+        // Combine の伝搬を反映させるためにわずかに待機する
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+
         XCTAssertEqual(
             viewModel.selectedHandStackID,
             stack.id,
             "カード選択状態が更新されていません"
         )
+
+        guard case .awaitingSelection(let pendingSelection) = core.pendingAction else {
+            XCTFail("GameCore.pendingAction が選択待ちになっていません")
+            return
+        }
+
+        XCTAssertEqual(pendingSelection.options.count, candidateMoves.count, "Pending 選択肢数が想定と異なります")
+        XCTAssertEqual(viewModel.cardSelectionPhaseMessage, "ハイライトされたマスから移動先をタップしてください。", "カード選択フェーズのメッセージが表示されていません")
 
         let expectedHighlights = Set(candidateMoves.map(\.destination))
         XCTAssertEqual(
@@ -225,6 +236,7 @@ final class GameViewIntegrationTests: XCTestCase {
 
         XCTAssertEqual(pendingRequest.destination, chosenMove.destination, "BoardTapPlayRequest.destination が想定と異なります")
         XCTAssertEqual(pendingRequest.moveVector, chosenMove.moveVector, "BoardTapPlayRequest.moveVector が想定と異なります")
+        XCTAssertEqual(Set(pendingRequest.candidateMoves.map(\.destination)), expectedHighlights, "BoardTapPlayRequest.candidateMoves が想定と異なります")
 
         // Combine の購読とアニメーション完了を待機する
         RunLoop.main.run(until: Date().addingTimeInterval(0.6))
@@ -233,10 +245,61 @@ final class GameViewIntegrationTests: XCTestCase {
         XCTAssertEqual(core.moveCount, 1, "カード使用回数が加算されていません")
         XCTAssertNil(core.boardTapPlayRequest, "処理後も BoardTapPlayRequest が残っています")
         XCTAssertNil(viewModel.selectedHandStackID, "カードプレイ後も選択状態が残っています")
+        XCTAssertNil(viewModel.cardSelectionPhaseMessage, "カードプレイ後も選択フェーズのメッセージが残っています")
         XCTAssertTrue(
             viewModel.boardBridge.forcedSelectionHighlightPoints.isEmpty,
             "カードプレイ後に強制ハイライトが解除されていません"
         )
+    }
+
+    /// 任意マス選択カードで全マスハイライトとメッセージが表示されることを確認する
+    func testBoardWideSelectionDisplaysToastMessage() {
+        let scheduler = PenaltyBannerSchedulerSpy()
+        let gameCenter = GameCenterServiceSpy()
+        let adsService = AdsServiceSpy()
+
+        let core = GameCore(mode: .standard)
+        let interfaces = GameModuleInterfaces { _ in core }
+
+        let viewModel = GameViewModel(
+            mode: .standard,
+            gameInterfaces: interfaces,
+            gameCenterService: gameCenter,
+            adsService: adsService,
+            onRequestReturnToTitle: nil,
+            penaltyBannerScheduler: scheduler
+        )
+
+        guard let stack = core.handStacks.first, let topCard = stack.topCard else {
+            XCTFail("初期手札の取得に失敗しました")
+            return
+        }
+
+        let origin = core.current ?? GridPoint(x: 2, y: 2)
+        let traversable = core.board.traversablePoints().filter { $0 != origin }
+        let overrideVectors = traversable.map { point in
+            MoveVector(dx: point.x - origin.x, dy: point.y - origin.y)
+        }
+
+        MoveCard.setTestMovementVectors(overrideVectors, for: topCard.move)
+        defer { MoveCard.setTestMovementVectors(nil, for: topCard.move) }
+
+        guard let index = core.handStacks.firstIndex(where: { $0.id == stack.id }) else {
+            XCTFail("対象スタックを特定できませんでした")
+            return
+        }
+
+        viewModel.handleHandSlotTap(at: index)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+
+        guard case .awaitingSelection(let selection) = core.pendingAction else {
+            XCTFail("全マス選択カードで pendingAction が選択待ちになっていません")
+            return
+        }
+
+        XCTAssertEqual(selection.highlightStyle, .boardWide, "ハイライト種別が boardWide になっていません")
+        XCTAssertEqual(viewModel.cardSelectionPhaseMessage, "任意のマスをタップして移動先を決定してください。", "任意マス選択のメッセージが表示されていません")
+        XCTAssertEqual(viewModel.boardBridge.forcedSelectionHighlightPoints.count, Set(traversable).count, "ハイライトされたマス数が全マスと一致していません")
     }
 
     /// カード未選択時でも盤面タップで移動が開始され、通常カードが優先されることを確認する

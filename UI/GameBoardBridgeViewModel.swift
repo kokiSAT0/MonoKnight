@@ -218,8 +218,11 @@ final class GameBoardBridgeViewModel: ObservableObject {
             pendingGuideHand = handStacks
             pendingGuideCurrent = nil
             pendingGuideBuckets = nil
-            guideHighlightBuckets = .empty
-            pushHighlightsToScene()
+            if guideHighlightBuckets != .empty {
+                // ハイライトが残っている場合のみシーンへ通知し、不要な再描画を防ぐ
+                guideHighlightBuckets = .empty
+                pushHighlightsToScene()
+            }
             debugLog("ガイド更新を中断: 現在地が未確定 状態=\(String(describing: progress)) スタック数=\(handStacks.count)")
             return
         }
@@ -239,8 +242,10 @@ final class GameBoardBridgeViewModel: ObservableObject {
         }
 
         guard guideModeEnabled else {
-            guideHighlightBuckets = .empty
-            pushHighlightsToScene()
+            if guideHighlightBuckets != .empty {
+                guideHighlightBuckets = .empty
+                pushHighlightsToScene()
+            }
             pendingGuideHand = nil
             pendingGuideCurrent = nil
             pendingGuideBuckets = nil
@@ -256,8 +261,10 @@ final class GameBoardBridgeViewModel: ObservableObject {
             pendingGuideHand = handStacks
             pendingGuideCurrent = current
             pendingGuideBuckets = computedBuckets
-            guideHighlightBuckets = .empty
-            pushHighlightsToScene()
+            if guideHighlightBuckets != .empty {
+                guideHighlightBuckets = .empty
+                pushHighlightsToScene()
+            }
             let total = computedBuckets.singleVectorDestinations.count + computedBuckets.multipleVectorDestinations.count
             debugLog(
                 "ガイド更新を保留: 状態=\(String(describing: progress)) 単一=\(computedBuckets.singleVectorDestinations.count) " +
@@ -269,11 +276,19 @@ final class GameBoardBridgeViewModel: ObservableObject {
         pendingGuideHand = nil
         pendingGuideCurrent = nil
         pendingGuideBuckets = nil
-        guideHighlightBuckets = computedBuckets
-        pushHighlightsToScene()
+        if guideHighlightBuckets != computedBuckets {
+            guideHighlightBuckets = computedBuckets
+            pushHighlightsToScene()
+            let total = computedBuckets.singleVectorDestinations.count + computedBuckets.multipleVectorDestinations.count
+            debugLog(
+                "ガイド描画: 単一=\(computedBuckets.singleVectorDestinations.count) " +
+                "複数=\(computedBuckets.multipleVectorDestinations.count) 合計=\(total)"
+            )
+            return
+        }
         let total = computedBuckets.singleVectorDestinations.count + computedBuckets.multipleVectorDestinations.count
         debugLog(
-            "ガイド描画: 単一=\(computedBuckets.singleVectorDestinations.count) " +
+            "ガイド描画: 変化なし 単一=\(computedBuckets.singleVectorDestinations.count) " +
             "複数=\(computedBuckets.multipleVectorDestinations.count) 合計=\(total)"
         )
     }

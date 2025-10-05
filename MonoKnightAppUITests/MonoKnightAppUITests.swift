@@ -221,4 +221,39 @@ final class MonoKnightAppUITests: XCTestCase {
         // キャンペーンステージ一覧が即座に再表示され、同じステージを再度選択できる状態へ戻ることを検証する
         XCTAssertTrue(stageButton.waitForExistence(timeout: 5), "戻った直後にステージ選択画面へ復帰できること")
     }
+
+    @MainActor
+    func testCardSelectionPhaseToastAppearsDuringBoardWideSelection() throws {
+        // UI テスト専用のデッキオーバーライドを有効化し、盤面全体選択モードで起動する
+        app.launchEnvironment["UITEST_MODE"] = "1"
+        app.launchEnvironment["UITEST_SELECTION_MODE"] = "board"
+        app.launch()
+
+        // スタンダードモードを選択してゲーム開始ボタンを有効化する
+        let standardModeButton = app.buttons["mode_button_standard5x5"]
+        XCTAssertTrue(standardModeButton.waitForExistence(timeout: 5), "スタンダードモードのカードが表示されること")
+        standardModeButton.tap()
+
+        let startButton = app.buttons["start_game_button"]
+        XCTAssertTrue(startButton.waitForExistence(timeout: 5), "ゲーム開始ボタンが表示されること")
+        XCTAssertTrue(startButton.isEnabled, "モード選択後はゲーム開始ボタンが有効になること")
+        startButton.tap()
+
+        let firstSlot = app.otherElements["hand_slot_0"]
+        XCTAssertTrue(firstSlot.waitForExistence(timeout: 5), "ゲーム画面で手札が描画されること")
+        firstSlot.tap()
+
+        let toast = app.otherElements["card_selection_phase_toast"]
+        XCTAssertTrue(toast.waitForExistence(timeout: 3), "盤面全体選択時にカード選択トーストが表示されること")
+        XCTAssertEqual(toast.label, "任意のマスをタップして移動先を決定してください。", "盤面全体向けの案内文が表示されること")
+
+        // 盤面の任意座標をタップして目的地を確定させ、トーストが閉じることを確認する
+        let window = app.windows.element(boundBy: 0)
+        let targetCoordinate = window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.38))
+        targetCoordinate.tap()
+
+        let dismissExpectation = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: toast)
+        let result = XCTWaiter.wait(for: [dismissExpectation], timeout: 4)
+        XCTAssertEqual(result, .completed, "目的地確定後にトーストが閉じること")
+    }
 }

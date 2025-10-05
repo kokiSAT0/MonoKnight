@@ -150,6 +150,17 @@ extension GameView {
                     }
                 }
 
+                if let phaseMessage = viewModel.cardSelectionPhaseMessage {
+                    HStack {
+                        Spacer(minLength: 0)
+                        CardSelectionPhaseToastView(theme: theme, message: phaseMessage)
+                            .padding(Edge.Set.horizontal, 24)
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                            .accessibilityIdentifier("card_selection_phase_toast")
+                        Spacer(minLength: 0)
+                    }
+                }
+
                 if let warning = viewModel.boardTapSelectionWarning {
                     // 同一点へ移動可能なカード競合を知らせるトーストを積み重ね、視線移動を最小限に抑える
                     HStack {

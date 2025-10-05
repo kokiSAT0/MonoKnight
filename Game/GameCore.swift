@@ -73,6 +73,9 @@ public final class GameCore: ObservableObject {
     /// 捨て札ペナルティの対象選択を待っているかどうか
     /// - Note: UI のハイライト切り替えや操作制御に利用する
     @Published public private(set) var isAwaitingManualDiscardSelection: Bool = false
+    /// カード使用に関する追加入力フェーズを公開する状態
+    /// - Important: 選択開始→目的地指定といった段階的な操作を GameCore 主導で管理する
+    @Published public private(set) var pendingAction: PendingCardAction = .none
 
     /// 実際に移動した回数（UI へ即時反映させるため @Published を付与）
     @Published public private(set) var moveCount: Int = 0
@@ -151,26 +154,24 @@ public final class GameCore: ObservableObject {
         // 現在地やスタックのトップカードが存在しなければ処理できない
         guard current != nil, handStacks[index].topCard != nil else { return }
 
-        // --- 利用可能な候補の抽出 ---
-        // availableMoves() は盤面内かつ移動可能なマスだけを列挙するため、
-        // 指定スタックに該当する候補だけを抽出してから方向選択を行う。
-        let candidates = availableMoves().filter { $0.stackIndex == index }
-
-        // moveVector が指定された場合は完全一致する候補を探し、
-        // 指定がない場合は候補が単一のときだけ自動で採用する。
-        let resolvedMove: ResolvedCardMove?
         if let targetVector = moveVector {
-            resolvedMove = candidates.first { $0.moveVector == targetVector }
-        } else if candidates.count == 1 {
-            resolvedMove = candidates.first
-        } else {
-            // 複数候補があるのに moveVector が未指定であれば安全に中断する
-            resolvedMove = nil
+            // moveVector が指定された場合は直接一致する候補を取得する
+            let candidates = availableMoves().filter { $0.stackIndex == index }
+            guard let resolved = candidates.first(where: { $0.moveVector == targetVector }) else { return }
+            resolvePendingSelection(with: resolved)
+            playCard(using: resolved)
+            return
         }
 
-        // 適切な候補が見つかった場合のみ playCard(using:) へ委譲する
-        guard let resolvedMove else { return }
-        playCard(using: resolvedMove)
+        switch prepareCardPlay(at: index) {
+        case .immediate(let move):
+            playCard(using: move)
+        case .awaitingSelection:
+            // 追加入力待ちフェーズでは UI からのタップを待つ
+            break
+        case .unavailable:
+            break
+        }
     }
 
     /// ResolvedCardMove で指定されたベクトルを用いてカードをプレイする
@@ -198,6 +199,7 @@ public final class GameCore: ObservableObject {
 
         // 盤面タップからのリクエストが残っている場合に備え、念のためここでクリアしておく
         boardTapPlayRequest = nil
+        pendingAction = .none
 
         // デバッグログ: 使用カードと移動先を出力（複数候補カードでも選択ベクトルを追跡できるよう詳細を含める）
         debugLog(
@@ -372,6 +374,7 @@ public final class GameCore: ObservableObject {
         penaltyEvent = nil
         boardTapPlayRequest = nil
         isAwaitingManualDiscardSelection = false
+        pendingAction = .none
         progress = mode.requiresSpawnSelection ? .awaitingSpawn : .playing
 
         handManager.resetAll(using: &deck)
@@ -449,15 +452,35 @@ extension GameCore: GameCoreProtocol {
         // デバッグログ: タップされたマスを表示
         debugLog("マス \(point) をタップ")
 
+        if case .awaitingSelection(let selection) = pendingAction {
+            // 選択待ちの場合は候補の中から一致するマスのみ受け付ける
+            guard let chosenMove = selection.options.first(where: { $0.destination == point }) else { return }
+
+            boardTapPlayRequest = BoardTapPlayRequest(
+                stackID: chosenMove.stackID,
+                stackIndex: chosenMove.stackIndex,
+                topCard: chosenMove.card,
+                destination: chosenMove.destination,
+                moveVector: chosenMove.moveVector,
+                requiresAdditionalSelection: false,
+                candidateMoves: selection.options
+            )
+            return
+        }
+
         // 優先順位付きの候補を算出し、該当するものがあればアニメーション要求を発行する
         guard let resolved = resolvedMoveForBoardTap(at: point) else { return }
+
+        let destinationCandidates = availableMoves().filter { $0.destination == point }
 
         boardTapPlayRequest = BoardTapPlayRequest(
             stackID: resolved.stackID,
             stackIndex: resolved.stackIndex,
             topCard: resolved.card,
             destination: resolved.destination,
-            moveVector: resolved.moveVector
+            moveVector: resolved.moveVector,
+            requiresAdditionalSelection: destinationCandidates.count > 1,
+            candidateMoves: destinationCandidates
         )
     }
 }
@@ -505,11 +528,15 @@ extension GameCore {
     /// - Parameter isActive: 選択待機中かどうか
     func setManualDiscardSelectionState(_ isActive: Bool) {
         isAwaitingManualDiscardSelection = isActive
+        if isActive {
+            pendingAction = .none
+        }
     }
 
     /// 盤面タップからの保留リクエストを安全に破棄する
     func resetBoardTapPlayRequestForPenalty() {
         boardTapPlayRequest = nil
+        pendingAction = .none
     }
 
     /// ペナルティ手数を加算する処理を共通化する
@@ -522,6 +549,74 @@ extension GameCore {
     /// - Parameter event: 公開したいイベント（nil でリセット）
     func publishPenaltyEvent(_ event: PenaltyEvent?) {
         penaltyEvent = event
+    }
+}
+
+// MARK: - カード選択フェーズ管理
+extension GameCore {
+    /// カード使用前に必要な入力フェーズを判定する
+    /// - Parameter index: 対象スタックの添字
+    /// - Returns: 即時実行か追加選択待機かを示す結果
+    public func prepareCardPlay(at index: Int) -> CardPlayPreparationResult {
+        guard handStacks.indices.contains(index) else { return .unavailable }
+        guard let card = handStacks[index].topCard else { return .unavailable }
+
+        let candidates = availableMoves().filter { $0.stackIndex == index }
+        guard !candidates.isEmpty else {
+            pendingAction = .none
+            return .unavailable
+        }
+
+        if candidates.count == 1, let move = candidates.first {
+            pendingAction = .none
+            return .immediate(move)
+        }
+
+        let destinations = Set(candidates.map(\.destination))
+        let style = highlightStyle(for: destinations)
+        let selection = PendingCardSelection(
+            stackID: handStacks[index].id,
+            stackIndex: index,
+            card: card,
+            options: candidates,
+            highlightDestinations: destinations,
+            highlightStyle: style
+        )
+        pendingAction = .awaitingSelection(selection)
+        return .awaitingSelection(selection)
+    }
+
+    /// 現在待機している選択フェーズを明示的に解除する
+    public func cancelPendingAction() {
+        pendingAction = .none
+    }
+
+    /// 指定候補で保留中の選択を完了済みとして扱う
+    /// - Parameter resolvedMove: ユーザーが選んだ移動候補
+    public func resolvePendingSelection(with resolvedMove: ResolvedCardMove) {
+        if case .awaitingSelection(let selection) = pendingAction,
+           selection.options.contains(resolvedMove) {
+            pendingAction = .none
+        }
+    }
+
+    /// ハイライト表示の種類を判定する
+    /// - Parameter destinations: 提示する目的地集合
+    /// - Returns: 盤面全体を強調するかどうか
+    private func highlightStyle(for destinations: Set<GridPoint>) -> PendingCardSelection.HighlightStyle {
+        let traversable = Set(board.traversablePoints())
+        if destinations == traversable {
+            return .boardWide
+        }
+        if let origin = current {
+            // 現在地のみを除外した集合と一致する場合も「盤面全体選択」とみなし、ハイライトを広域表示へ切り替える
+            var excludingOrigin = traversable
+            excludingOrigin.remove(origin)
+            if destinations == excludingOrigin {
+                return .boardWide
+            }
+        }
+        return .discrete
     }
 }
 

@@ -190,13 +190,21 @@ final class GameViewModel: ObservableObject {
     /// 盤面タップ時にカード選択が必要なケースを利用者へ知らせるための警告状態
     /// - Important: `Identifiable` なペイロードを保持し、SwiftUI 側で `.alert(item:)` を使って監視できるようにする
     @Published var boardTapSelectionWarning: BoardTapSelectionWarning?
+    /// カード使用フェーズを案内するトーストメッセージ
+    @Published var cardSelectionPhaseMessage: String?
+
+#if DEBUG
+    /// UI テスト用に移動ベクトルを差し替えたカードの集合
+    /// - Important: 破棄時に必ずオーバーライドを解除できるよう、対象カードを追跡しておく
+    private var uiTestOverriddenCards: Set<MoveCard> = []
+#endif
 
     /// Combine の購読を保持するセット
     private var cancellables = Set<AnyCancellable>()
     /// キャンペーン定義
     private let campaignLibrary = CampaignLibrary.shared
-    /// 手札選択の内部状態
-    private var selectedCardSelection: SelectedCardSelection?
+    /// 現在待機しているカード選択情報
+    private var activePendingSelection: PendingCardSelection?
     /// 現在時刻を取得するためのクロージャ。テストでは任意の値へ差し替える
     private let currentDateProvider: () -> Date
     /// ポーズメニューによってタイマーを停止しているかどうか
@@ -250,6 +258,8 @@ final class GameViewModel: ObservableObject {
         self.core = generatedCore
         self.boardBridge = GameBoardBridgeViewModel(core: generatedCore, mode: mode)
 
+        applyUITestCardOverridesIfNeeded()
+
         // GameCore の変更を ViewModel 経由で SwiftUI へ伝える
         generatedCore.objectWillChange
             .sink { [weak self] _ in
@@ -275,12 +285,75 @@ final class GameViewModel: ObservableObject {
         }
     }
 
+#if DEBUG
+    deinit {
+        // UI テストで差し替えた移動ベクトルが他テストへ漏れないよう、ViewModel 解放時に必ずリセットする
+        resetUITestCardOverridesIfNeeded()
+    }
+#endif
+
     /// ユーザー設定から手札の並び替え戦略を復元する
     /// - Parameter rawValue: UserDefaults に保存されている文字列値
     func restoreHandOrderingStrategy(from rawValue: String) {
         guard let strategy = HandOrderingStrategy(rawValue: rawValue) else { return }
         core.updateHandOrderingStrategy(strategy)
     }
+
+    /// UI テスト時にカード挙動を差し替える
+    private func applyUITestCardOverridesIfNeeded() {
+        #if DEBUG
+        // 前回のテストで差し替えたベクトルが残存している場合に備えて初期化する
+        resetUITestCardOverridesIfNeeded()
+
+        let environment = ProcessInfo.processInfo.environment
+        guard environment["UITEST_MODE"] == "1" else { return }
+        guard let mode = environment["UITEST_SELECTION_MODE"], let current = core.current else { return }
+
+        switch mode {
+        case "multi":
+            if let topCard = core.handStacks.first?.topCard {
+                let overrideVectors = [
+                    MoveVector(dx: 1, dy: 0),
+                    MoveVector(dx: -1, dy: 0)
+                ]
+                registerUITestOverride(overrideVectors, for: topCard.move)
+            }
+
+        case "board":
+            if let topCard = core.handStacks.first?.topCard {
+                let traversable = core.board.traversablePoints().filter { $0 != current }
+                let vectors = traversable.map { point in
+                    MoveVector(dx: point.x - current.x, dy: point.y - current.y)
+                }
+                registerUITestOverride(vectors, for: topCard.move)
+            }
+
+        default:
+            break
+        }
+        #endif
+    }
+
+#if DEBUG
+    /// UI テスト専用に差し替えたベクトルを登録し、追跡集合へ格納する
+    /// - Parameters:
+    ///   - vectors: 上書きに利用する移動ベクトル配列
+    ///   - card: 差し替え対象となるカード種別
+    private func registerUITestOverride(_ vectors: [MoveVector], for card: MoveCard) {
+        guard !vectors.isEmpty else { return }
+        MoveCard.setTestMovementVectors(vectors, for: card)
+        uiTestOverriddenCards.insert(card)
+    }
+
+    /// `MoveCard.testMovementVectorOverrides` に設定した値を破棄し、次テストへ副作用を残さない
+    private func resetUITestCardOverridesIfNeeded() {
+        guard !uiTestOverriddenCards.isEmpty else { return }
+        for card in uiTestOverriddenCards {
+            MoveCard.setTestMovementVectors(nil, for: card)
+        }
+        uiTestOverriddenCards.removeAll()
+    }
+#endif
 
     /// 手札表示の並び替え設定を即座に反映する
     /// - Parameter rawValue: AppStorage から得た値
@@ -306,14 +379,6 @@ final class GameViewModel: ObservableObject {
         let message: String
         /// 競合が発生した座標。デバッグ用途で参照できるようにしておく
         let destination: GridPoint
-    }
-
-    /// 手札選択を表す内部モデル
-    private struct SelectedCardSelection {
-        /// 選択中のスタック識別子
-        let stackID: UUID
-        /// 選択時点のトップカード識別子
-        let cardID: UUID
     }
 
     /// ガイドモードの設定値を更新し、必要に応じてハイライトを再描画する
@@ -429,13 +494,8 @@ final class GameViewModel: ObservableObject {
             return
         }
 
-        guard let topCard = latestStack.topCard else {
-            clearSelectedCardSelection()
-            return
-        }
-
         // 同じスタックを再度タップした場合は選択解除として扱い、候補ハイライトを消去する
-        if selectedCardSelection?.stackID == latestStack.id {
+        if activePendingSelection?.stackID == latestStack.id {
             clearSelectedCardSelection()
             return
         }
@@ -454,28 +514,16 @@ final class GameViewModel: ObservableObject {
             return
         }
 
-        // 候補マス一覧を GameCore.availableMoves() から抽出し、選択状態を更新する
-        let resolvedMoves = core.availableMoves().filter { candidate in
-            candidate.stackID == latestStack.id && candidate.card.id == topCard.id
-        }
-
-        // 候補が存在しない場合は選択状態をクリアして安全に終了する
-        guard !resolvedMoves.isEmpty else {
+        switch core.prepareCardPlay(at: index) {
+        case .immediate(let move):
             clearSelectedCardSelection()
-            return
-        }
-
-        if resolvedMoves.count == 1, let singleMove = resolvedMoves.first {
-            // 単一候補カードは盤面タップを挟まずに即座にプレイし、ハイライト更新をスキップする
+            _ = boardBridge.animateCardPlay(using: move)
+        case .awaitingSelection:
+            // 追加入力待ちの詳細は pendingAction 監視で処理する
+            break
+        case .unavailable:
             clearSelectedCardSelection()
-            _ = boardBridge.animateCardPlay(using: singleMove)
-            return
         }
-
-        let selection = SelectedCardSelection(stackID: latestStack.id, cardID: topCard.id)
-        selectedCardSelection = selection
-        selectedHandStackID = latestStack.id
-        applyHighlights(for: selection, using: resolvedMoves)
     }
 
     /// 盤面タップに応じたプレイ要求を処理する
@@ -486,66 +534,52 @@ final class GameViewModel: ObservableObject {
         // 既存の演出が継続中であれば、次の入力が完了するまで待機する
         guard boardBridge.animatingCard == nil else { return }
 
-        // 選択済みカードが存在しない場合は、GameCore 側で確定済みの移動候補をそのまま採用する
-        guard let selection = selectedCardSelection else {
-            // GameCore.availableMoves() を再評価し、タップ座標へ進める候補が複数カードで競合していないかを確認する
-            let availableMoves = core.availableMoves()
-            let destinationCandidates = availableMoves.filter { $0.destination == request.destination }
-            // 同一座標に到達できる候補へ単一ベクトルカードが混在しているかを判定し、警告要否の判断材料にする
+        if let selection = activePendingSelection {
+            let matchingMoves = selection.options
+            guard let chosenMove = matchingMoves.first(where: { candidate in
+                candidate.stackID == request.stackID &&
+                    candidate.card.id == request.topCard.id &&
+                    candidate.moveVector == request.moveVector &&
+                    candidate.destination == request.destination
+            }) else {
+                applyHighlights(for: selection)
+                return
+            }
+
+            let didStart = boardBridge.animateCardPlay(using: chosenMove)
+            if didStart {
+                core.resolvePendingSelection(with: chosenMove)
+                clearSelectedCardSelection()
+            } else {
+                applyHighlights(for: selection)
+            }
+            return
+        }
+
+        let destinationCandidates = request.candidateMoves
+        if request.requiresAdditionalSelection {
             let containsSingleVectorCard = destinationCandidates.contains { candidate in
-                // movementVectors.count が 1 の場合は単一方向専用カードとみなし、自動プレイを許可する
                 candidate.card.move.movementVectors.count == 1
             }
-            // 同一座標へ移動可能なスタック集合を直接求め、純粋にスタック数だけで競合を判断する
             let conflictingStackIDs = Set(destinationCandidates.map(\.stackID))
 
             if conflictingStackIDs.count >= 2 && !containsSingleVectorCard {
-                // 候補スタックが 2 件以上存在する場合は必ず警告し、意図しない自動プレイを防ぐ
                 boardTapSelectionWarning = BoardTapSelectionWarning(
                     message: "複数のカードが同じマスを指定しています。手札から使いたいカードを選んでからマスをタップしてください。",
                     destination: request.destination
                 )
 
                 if hapticsEnabled {
-                    // 視覚だけでなく触覚でも注意喚起できるように、警告ハプティクスを同じ分岐へまとめて呼び出す
                     UINotificationFeedbackGenerator().notificationOccurred(.warning)
                 }
 
-                // 警告を提示した場合はここで処理を終了し、後続のアニメーション開始を確実に抑止する
                 return
             }
-
-            // request.resolvedMove は BoardTap 発生時点での最適候補なので、そのまま演出へ渡す
-            let didStart = boardBridge.animateCardPlay(using: request.resolvedMove)
-            if didStart {
-                // 選択状態が無くてもハイライトが残存している可能性があるため、必ず初期化する
-                clearSelectedCardSelection()
-            }
-            return
         }
 
-        // 選択中カードに対応する候補のみを抽出し、盤面ハイライトと同期を取る
-        let matchingMoves = core.availableMoves().filter { candidate in
-            candidate.stackID == selection.stackID && candidate.card.id == selection.cardID
-        }
-
-        guard !matchingMoves.isEmpty else {
-            clearSelectedCardSelection()
-            return
-        }
-
-        // タップされた座標に一致する候補が無ければ、ハイライトのみ更新して待機する
-        guard let chosenMove = matchingMoves.first(where: { $0.destination == request.destination }) else {
-            applyHighlights(for: selection, using: matchingMoves)
-            return
-        }
-
-        // 一致する候補が見つかった場合は演出を開始する。失敗時はハイライトを維持して再選択に備える
-        let didStart = boardBridge.animateCardPlay(using: chosenMove)
+        let didStart = boardBridge.animateCardPlay(using: request.resolvedMove)
         if didStart {
             clearSelectedCardSelection()
-        } else {
-            applyHighlights(for: selection, using: matchingMoves)
         }
     }
 
@@ -756,50 +790,39 @@ final class GameViewModel: ObservableObject {
     /// 手札選択状態を初期化し、盤面ハイライトを消去する
     private func clearSelectedCardSelection() {
         // 選択状態だけでなく、強制ハイライトが残っているケースも初期化対象とする
-        let hasSelection = selectedCardSelection != nil || selectedHandStackID != nil
+        let hasSelection = activePendingSelection != nil || selectedHandStackID != nil
         let hasForcedHighlights = !boardBridge.forcedSelectionHighlightPoints.isEmpty
-        guard hasSelection || hasForcedHighlights else { return }
+        let hasMessage = cardSelectionPhaseMessage != nil
+        guard hasSelection || hasForcedHighlights || hasMessage else { return }
 
-        selectedCardSelection = nil
+        activePendingSelection = nil
         selectedHandStackID = nil
+        cardSelectionPhaseMessage = nil
+        core.cancelPendingAction()
         boardBridge.updateForcedSelectionHighlights([])
     }
 
     /// 現在の選択状態に基づいて候補マスのハイライトを適用する
-    /// - Parameters:
-    ///   - selection: 選択中のスタック情報
-    ///   - resolvedMoves: 事前に算出済みの候補があれば指定する（省略時は再評価する）
-    private func applyHighlights(
-        for selection: SelectedCardSelection,
-        using resolvedMoves: [ResolvedCardMove]? = nil
-    ) {
+    /// - Parameter selection: 選択中のスタック情報
+    private func applyHighlights(for selection: PendingCardSelection) {
         guard let current = core.current else {
             clearSelectedCardSelection()
             return
         }
 
-        let moves = resolvedMoves ?? core.availableMoves().filter { candidate in
-            candidate.stackID == selection.stackID && candidate.card.id == selection.cardID
-        }
-
-        guard !moves.isEmpty else {
-            clearSelectedCardSelection()
-            return
-        }
-
-        let destinations = Set(moves.map(\.destination))
-        let vectors = moves.map(\.moveVector)
+        let destinations = selection.highlightDestinations
+        let vectors = selection.options.map(\.moveVector)
         boardBridge.updateForcedSelectionHighlights(destinations, origin: current, movementVectors: vectors)
     }
 
     /// 手札更新後も選択状態が維持できるか検証し、必要に応じてリセットする
     /// - Parameter handStacks: 最新の手札スタック一覧
     private func refreshSelectionIfNeeded(with handStacks: [HandStack]) {
-        guard let selection = selectedCardSelection else { return }
+        guard let selection = activePendingSelection else { return }
 
         guard let stack = handStacks.first(where: { $0.id == selection.stackID }),
               let topCard = stack.topCard,
-              topCard.id == selection.cardID else {
+              topCard.id == selection.card.id else {
             clearSelectedCardSelection()
             return
         }
@@ -877,6 +900,13 @@ final class GameViewModel: ObservableObject {
                 self?.updateDisplayedElapsedTime()
             }
             .store(in: &cancellables)
+
+        core.$pendingAction
+            .receive(on: RunLoop.main)
+            .sink { [weak self] action in
+                self?.handlePendingActionChange(action)
+            }
+            .store(in: &cancellables)
     }
 
     /// 進行状態の変化に応じた副作用をまとめる
@@ -905,6 +935,30 @@ final class GameViewModel: ObservableObject {
             showingResult = true
         default:
             break
+        }
+    }
+
+    /// GameCore から通知されるカード選択フェーズを処理する
+    /// - Parameter action: 現在の保留アクション
+    private func handlePendingActionChange(_ action: PendingCardAction) {
+        switch action {
+        case .none:
+            activePendingSelection = nil
+            selectedHandStackID = nil
+            cardSelectionPhaseMessage = nil
+            boardBridge.updateForcedSelectionHighlights([])
+
+        case .awaitingSelection(let selection):
+            activePendingSelection = selection
+            selectedHandStackID = selection.stackID
+            applyHighlights(for: selection)
+
+            switch selection.highlightStyle {
+            case .boardWide:
+                cardSelectionPhaseMessage = "任意のマスをタップして移動先を決定してください。"
+            case .discrete:
+                cardSelectionPhaseMessage = "ハイライトされたマスから移動先をタップしてください。"
+            }
         }
     }
 

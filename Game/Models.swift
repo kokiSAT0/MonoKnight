@@ -290,6 +290,22 @@ public struct Board: Equatable {
         return tile.isTraversable
     }
 
+    /// 移動可能なマスの一覧を返す
+    /// - Returns: 障害物を除いた盤面座標配列
+    public func traversablePoints() -> [GridPoint] {
+        var points: [GridPoint] = []
+        points.reserveCapacity(size * size)
+        for y in 0..<size {
+            for x in 0..<size {
+                let point = GridPoint(x: x, y: y)
+                if isTraversable(point) {
+                    points.append(point)
+                }
+            }
+        }
+        return points
+    }
+
     /// 指定座標が移動不可マスかどうか
     /// - Parameter point: 判定したい座標
     /// - Returns: 盤面内に存在し、障害物であれば true
@@ -339,6 +355,76 @@ public enum GameProgress {
 
 /// 盤面タップでカード再生アニメーションを要求するときに利用する構造体
 /// - Note: SwiftUI 側でアニメーションを実行 → 完了後に `GameCore.clearBoardTapPlayRequest` を呼ぶ想定
+/// カード選択が追加入力を必要とするかを識別するフェーズ
+/// - Important: GameCore が UI へ「いまどの段階なのか」を明示し、ハイライトやトースト表示の根拠にする
+public enum PendingCardAction: Equatable {
+    /// 待機中のアクションは存在しない
+    case none
+    /// 目的地選択を待っている
+    case awaitingSelection(PendingCardSelection)
+}
+
+/// 目的地選択フェーズで UI へ提示する詳細情報
+/// - Note: ハイライト対象や候補一覧をまとめ、GameViewModel がこの構造体だけで描画判断できるようにする
+public struct PendingCardSelection: Equatable {
+    /// ハイライト表示の種類
+    public enum HighlightStyle: Equatable {
+        /// 特定のマスのみを強調する通常の候補表示
+        case discrete
+        /// 盤面全体を対象にする任意マス選択モード
+        case boardWide
+    }
+
+    /// 対象スタックの識別子
+    public let stackID: UUID
+    /// handStacks 内の添字
+    public let stackIndex: Int
+    /// 対象カード
+    public let card: DealtCard
+    /// 選択肢となる移動候補一覧
+    public let options: [ResolvedCardMove]
+    /// ハイライト表示に利用する目的地集合
+    public let highlightDestinations: Set<GridPoint>
+    /// ハイライトの表示方式
+    public let highlightStyle: HighlightStyle
+
+    /// 公開イニシャライザ
+    /// - Parameters:
+    ///   - stackID: 対象スタックの識別子
+    ///   - stackIndex: スタック位置
+    ///   - card: 選択中のカード
+    ///   - options: 選択肢として提示する移動候補
+    ///   - highlightDestinations: ハイライト表示に利用する座標集合
+    ///   - highlightStyle: ハイライトの表示方式
+    public init(
+        stackID: UUID,
+        stackIndex: Int,
+        card: DealtCard,
+        options: [ResolvedCardMove],
+        highlightDestinations: Set<GridPoint>,
+        highlightStyle: HighlightStyle
+    ) {
+        self.stackID = stackID
+        self.stackIndex = stackIndex
+        self.card = card
+        self.options = options
+        self.highlightDestinations = highlightDestinations
+        self.highlightStyle = highlightStyle
+    }
+}
+
+/// 手札選択時に GameCore が返す事前準備の結果
+public enum CardPlayPreparationResult: Equatable {
+    /// 即時に実行可能であり、移動候補が確定している
+    case immediate(ResolvedCardMove)
+    /// 追加のマス選択が必要
+    case awaitingSelection(PendingCardSelection)
+    /// 条件未達などで準備できない
+    case unavailable
+}
+
+/// 盤面タップでカード再生アニメーションを要求するときに利用する構造体
+/// - Note: SwiftUI 側でアニメーションを実行 → 完了後に `GameCore.clearBoardTapPlayRequest` を呼ぶ想定
 public struct BoardTapPlayRequest: Identifiable, Equatable {
     /// 各リクエストを一意に識別するための ID
     public let id: UUID
@@ -352,6 +438,10 @@ public struct BoardTapPlayRequest: Identifiable, Equatable {
     public let destination: GridPoint
     /// リクエスト生成時に選択された移動ベクトル
     public let moveVector: MoveVector
+    /// 更なる入力が必要かどうか
+    public let requiresAdditionalSelection: Bool
+    /// UI へ提示したい候補一覧
+    public let candidateMoves: [ResolvedCardMove]
 
     /// 公開イニシャライザ
     /// - Parameters:
@@ -367,7 +457,9 @@ public struct BoardTapPlayRequest: Identifiable, Equatable {
         stackIndex: Int,
         topCard: DealtCard,
         destination: GridPoint,
-        moveVector: MoveVector
+        moveVector: MoveVector,
+        requiresAdditionalSelection: Bool = false,
+        candidateMoves: [ResolvedCardMove] = []
     ) {
         self.id = id
         self.stackID = stackID
@@ -375,6 +467,8 @@ public struct BoardTapPlayRequest: Identifiable, Equatable {
         self.topCard = topCard
         self.destination = destination
         self.moveVector = moveVector
+        self.requiresAdditionalSelection = requiresAdditionalSelection
+        self.candidateMoves = candidateMoves
     }
 
     /// ResolvedCardMove への変換を簡潔に行うための補助プロパティ

@@ -278,6 +278,75 @@ final class GameCoreTests: XCTestCase {
         XCTAssertEqual(secondCore.current, GridPoint(x: 2, y: 3), "ResolvedCardMove でも上方向へ移動できていない")
     }
 
+    /// prepareCardPlay が複数候補カードで選択待機フェーズへ遷移することを確認
+    func testPrepareCardPlayEntersPendingSelectionWhenMultipleOptionsExist() {
+        MoveCard.setTestMovementVectors([
+            MoveVector(dx: 1, dy: 0),
+            MoveVector(dx: -1, dy: 0)
+        ], for: .kingRight)
+        defer { MoveCard.setTestMovementVectors(nil, for: .kingRight) }
+
+        let deck = Deck.makeTestDeck(cards: [
+            .kingRight,
+            .kingUp,
+            .kingDown,
+            .kingLeft,
+            .kingUpLeft,
+            .straightUp2,
+            .straightRight2,
+            .diagonalUpRight2,
+            .straightDown2
+        ])
+        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 2, y: 2))
+
+        guard case .awaitingSelection(let selection) = core.prepareCardPlay(at: 0) else {
+            XCTFail("複数候補カードでも pendingAction が選択待ちになっていません")
+            return
+        }
+
+        XCTAssertEqual(selection.options.count, 2, "複数候補の選択肢数が一致しません")
+        XCTAssertEqual(selection.highlightStyle, .discrete, "ハイライト種別が想定と異なります")
+        XCTAssertEqual(selection.highlightDestinations, Set(selection.options.map(\.destination)), "ハイライト候補が options と一致していません")
+        XCTAssertEqual(core.pendingAction, .awaitingSelection(selection), "GameCore.pendingAction が最新の選択情報を保持していません")
+    }
+
+    /// prepareCardPlay が盤面全体を対象とするカードで boardWide ハイライトを通知することを確認
+    func testPrepareCardPlayDetectsBoardWideSelection() {
+        let core = GameCore.makeTestInstance(deck: Deck.makeTestDeck(cards: [
+            .kingUp,
+            .kingRight,
+            .kingDown,
+            .kingLeft,
+            .kingUpLeft,
+            .straightUp2,
+            .straightRight2,
+            .diagonalUpRight2,
+            .straightDown2
+        ]), current: GridPoint(x: 2, y: 2))
+
+        guard let topCard = core.handStacks.first?.topCard else {
+            XCTFail("初期手札を取得できませんでした")
+            return
+        }
+
+        let origin = core.current ?? GridPoint(x: 2, y: 2)
+        let allDestinations = core.board.traversablePoints().filter { $0 != origin }
+        let vectors = allDestinations.map { point in
+            MoveVector(dx: point.x - origin.x, dy: point.y - origin.y)
+        }
+
+        MoveCard.setTestMovementVectors(vectors, for: topCard.move)
+        defer { MoveCard.setTestMovementVectors(nil, for: topCard.move) }
+
+        guard case .awaitingSelection(let selection) = core.prepareCardPlay(at: 0) else {
+            XCTFail("全マス選択カードでも pendingAction が選択待ちになっていません")
+            return
+        }
+
+        XCTAssertEqual(selection.highlightStyle, .boardWide, "全マス対象のハイライト種別が boardWide になっていません")
+        XCTAssertEqual(selection.highlightDestinations.count, allDestinations.count, "ハイライト対象の件数が一致していません")
+    }
+
     /// 盤面タップで複数候補と通常カードが同じマスへ到達できる場合、通常カードが優先されることを確認
     func testHandleTapPrefersSingleVectorCardWhenDestinationOverlaps() {
         // キング上カードへ 2 方向ベクトルを付与し、複数候補カードと通常カードの競合状況を作り出す
@@ -321,6 +390,8 @@ final class GameCoreTests: XCTestCase {
             return
         }
         XCTAssertEqual(request.resolvedMove, resolved, "handleTap(at:) の結果が優先順位と一致していません")
+        XCTAssertTrue(request.requiresAdditionalSelection, "複数候補が存在する場合に requiresAdditionalSelection が立っていません")
+        XCTAssertEqual(Set(request.candidateMoves.map(\.stackID)), Set(destinationCandidates.map(\.stackID)), "candidateMoves に含まれるスタック集合が一致していません")
 #endif
     }
 
