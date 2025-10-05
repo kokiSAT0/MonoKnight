@@ -95,30 +95,72 @@ private final class StubAdsService: AdsServiceProtocol {
 /// 日替わりチャレンジ回数ストアのスタブ
 @MainActor
 private final class StubDailyChallengeAttemptStore: ObservableObject, DailyChallengeAttemptStoreProtocol {
-    var remainingAttempts: Int
-    var rewardedAttemptsGranted: Int
+    var fixedRemainingAttempts: Int
+    var randomRemainingAttempts: Int
+    var fixedRewardedAttemptsGranted: Int
+    var randomRewardedAttemptsGranted: Int
     let maximumRewardedAttempts: Int
     var isDebugUnlimitedEnabled: Bool
 
     init(
-        remainingAttempts: Int = 1,
-        rewardedAttemptsGranted: Int = 0,
+        fixedRemainingAttempts: Int = 1,
+        randomRemainingAttempts: Int = 1,
+        fixedRewardedAttemptsGranted: Int = 0,
+        randomRewardedAttemptsGranted: Int = 0,
         maximumRewardedAttempts: Int = 3,
         isDebugUnlimitedEnabled: Bool = false
     ) {
-        self.remainingAttempts = remainingAttempts
-        self.rewardedAttemptsGranted = rewardedAttemptsGranted
+        self.fixedRemainingAttempts = fixedRemainingAttempts
+        self.randomRemainingAttempts = randomRemainingAttempts
+        self.fixedRewardedAttemptsGranted = fixedRewardedAttemptsGranted
+        self.randomRewardedAttemptsGranted = randomRewardedAttemptsGranted
         self.maximumRewardedAttempts = maximumRewardedAttempts
         self.isDebugUnlimitedEnabled = isDebugUnlimitedEnabled
+    }
+
+    func remainingAttempts(for variant: DailyChallengeDefinition.Variant) -> Int {
+        switch variant {
+        case .fixed:
+            return fixedRemainingAttempts
+        case .random:
+            return randomRemainingAttempts
+        }
+    }
+
+    func rewardedAttemptsGranted(for variant: DailyChallengeDefinition.Variant) -> Int {
+        switch variant {
+        case .fixed:
+            return fixedRewardedAttemptsGranted
+        case .random:
+            return randomRewardedAttemptsGranted
+        }
     }
 
     func refreshForCurrentDate() {}
 
     @discardableResult
-    func consumeAttempt() -> Bool { true }
+    func consumeAttempt(for variant: DailyChallengeDefinition.Variant) -> Bool {
+        switch variant {
+        case .fixed:
+            fixedRemainingAttempts = max(0, fixedRemainingAttempts - 1)
+        case .random:
+            randomRemainingAttempts = max(0, randomRemainingAttempts - 1)
+        }
+        return true
+    }
 
     @discardableResult
-    func grantRewardedAttempt() -> Bool { true }
+    func grantRewardedAttempt(for variant: DailyChallengeDefinition.Variant) -> Bool {
+        switch variant {
+        case .fixed:
+            fixedRewardedAttemptsGranted += 1
+            fixedRemainingAttempts += 1
+        case .random:
+            randomRewardedAttemptsGranted += 1
+            randomRemainingAttempts += 1
+        }
+        return true
+    }
 
     func enableDebugUnlimited() {
         // スタブではフラグの状態遷移だけ管理し、UI 連携の検証に利用する

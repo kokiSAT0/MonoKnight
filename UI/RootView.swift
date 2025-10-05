@@ -2073,18 +2073,20 @@ private extension TitleScreenView {
 
     var dailyChallengeTileHeadline: String {
         let bundle = dailyChallengeBundle
-        let remaining = dailyChallengeAttemptStore.remainingAttempts
+        let fixedRemaining = dailyChallengeAttemptStore.remainingAttempts(for: .fixed)
+        let randomRemaining = dailyChallengeAttemptStore.remainingAttempts(for: .random)
         let modeNames = bundle.orderedInfos.map { $0.mode.displayName }.joined(separator: " / ")
-        return "\(modeNames) ・ 残り \(remaining) 回"
+        return "\(modeNames) ・ 固定 残り \(fixedRemaining) 回 / ランダム 残り \(randomRemaining) 回"
     }
 
     var dailyChallengeTileDetail: String {
         let bundle = dailyChallengeBundle
-        let granted = dailyChallengeAttemptStore.rewardedAttemptsGranted
+        let fixedGranted = dailyChallengeAttemptStore.rewardedAttemptsGranted(for: .fixed)
+        let randomGranted = dailyChallengeAttemptStore.rewardedAttemptsGranted(for: .random)
         let maximumRewarded = dailyChallengeAttemptStore.maximumRewardedAttempts
         let fixedSummary = bundle.fixed.regulationPrimaryText
         let randomSummary = bundle.random.regulationPrimaryText
-        return "固定: \(fixedSummary) / ランダム: \(randomSummary) ・ 広告追加 \(granted)/\(maximumRewarded)"
+        return "固定: \(fixedSummary) / ランダム: \(randomSummary) ・ 広告追加 固定 \(fixedGranted)/\(maximumRewarded) ・ ランダム \(randomGranted)/\(maximumRewarded)"
     }
 
     var dailyChallengeBundle: DailyChallengeDefinitionService.ChallengeBundle {
