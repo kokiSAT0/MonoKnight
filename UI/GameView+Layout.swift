@@ -139,10 +139,10 @@ extension GameView {
                     }
                 }
 
-                if viewModel.isShowingPenaltyBanner {
+                if let banner = viewModel.activePenaltyBanner {
                     HStack {
                         Spacer(minLength: 0)
-                        PenaltyBannerView(penaltyAmount: viewModel.lastPenaltyAmount)
+                        PenaltyBannerView(event: banner)
                             .padding(.horizontal, 20)
                             .transition(.move(edge: .top).combined(with: .opacity))
                             .accessibilityIdentifier("penalty_banner")

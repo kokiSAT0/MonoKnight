@@ -780,7 +780,8 @@ final class GameCoreTests: XCTestCase {
         XCTAssertEqual(core.penaltyCount, 0)
         core.applyManualPenaltyRedraw()
         XCTAssertEqual(core.penaltyCount, core.mode.manualRedrawPenaltyCost)
-        XCTAssertEqual(core.lastPenaltyAmount, core.mode.manualRedrawPenaltyCost)
+        XCTAssertEqual(core.penaltyEvent?.penaltyAmount, core.mode.manualRedrawPenaltyCost)
+        XCTAssertEqual(core.penaltyEvent?.trigger, .manualRedraw)
         XCTAssertEqual(core.progress, .playing)
     }
 

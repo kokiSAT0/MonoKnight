@@ -104,8 +104,8 @@ final class GameViewModel: ObservableObject {
     /// 今回のクリアで新たに解放されたステージ一覧
     /// - Important: ユーザーをそのまま次の挑戦へ誘導するため、`ResultView` 側へ渡してボタン表示を制御する
     @Published private(set) var newlyUnlockedStages: [CampaignStage] = []
-    /// 手詰まりバナーの表示可否
-    @Published var isShowingPenaltyBanner = false
+    /// 手詰まりバナーに表示するイベント情報
+    @Published var activePenaltyBanner: PenaltyEvent?
     /// ペナルティバナー表示のスケジューリングを管理するユーティリティ
     /// - Note: `DispatchWorkItem` を直接保持せずに済むため、リセット処理の抜け漏れを防ぎやすくなる
     private let penaltyBannerScheduler: PenaltyBannerScheduling
@@ -166,9 +166,9 @@ final class GameViewModel: ObservableObject {
     /// 現在のゲーム進行状態
     /// - Note: GameView 側でオーバーレイ表示を切り替える際に利用する
     var progress: GameProgress { core.progress }
-    /// 直近で加算されたペナルティ量
-    /// - Note: バナー表示のテキストへ反映する
-    var lastPenaltyAmount: Int { core.lastPenaltyAmount }
+    /// ペナルティバナー表示中かどうか
+    /// - Note: SwiftUI 側の表示切り替えで利用するシンプルなフラグ
+    var isShowingPenaltyBanner: Bool { activePenaltyBanner != nil }
     /// 捨て札選択待機中かどうか
     /// - Note: ボタンのスタイル切り替えに必要な状態をカプセル化する
     var isAwaitingManualDiscardSelection: Bool { core.isAwaitingManualDiscardSelection }
@@ -715,12 +715,13 @@ final class GameViewModel: ObservableObject {
     }
 
     /// ペナルティイベントを受信した際の処理
-    func handlePenaltyEvent() {
+    /// - Parameter event: GameCore から通知された最新のペナルティ詳細
+    func handlePenaltyEvent(_ event: PenaltyEvent) {
         // 新しいバナー表示を開始する前に既存スケジュールを破棄し、二重実行を避ける
         penaltyBannerScheduler.cancel()
 
         withAnimation(.spring(response: 0.35, dampingFraction: 0.8, blendDuration: 0.2)) {
-            isShowingPenaltyBanner = true
+            activePenaltyBanner = event
         }
 
         if hapticsEnabled {
@@ -730,7 +731,7 @@ final class GameViewModel: ObservableObject {
         penaltyBannerScheduler.scheduleAutoDismiss(after: 2.6) { [weak self] in
             guard let self else { return }
             withAnimation(.easeOut(duration: 0.25)) {
-                self.isShowingPenaltyBanner = false
+                self.activePenaltyBanner = nil
             }
         }
     }
@@ -810,7 +811,7 @@ final class GameViewModel: ObservableObject {
     /// - Note: 手動ペナルティやリセット操作後にバナーが残存しないよう、共通処理として切り出している
     private func cancelPenaltyBannerDisplay() {
         penaltyBannerScheduler.cancel()
-        isShowingPenaltyBanner = false
+        activePenaltyBanner = nil
     }
 
     /// ホーム画面へ戻る際に共通で必要となる状態リセットをひとまとめにする
@@ -837,12 +838,12 @@ final class GameViewModel: ObservableObject {
 
     /// GameCore のストリームを監視し、UI 更新に必要な副作用を引き受ける
     private func bindGameCore() {
-        core.$penaltyEventID
+        core.$penaltyEvent
             .removeDuplicates()
             .receive(on: RunLoop.main)
-            .sink { [weak self] eventID in
-                guard let self, eventID != nil else { return }
-                self.handlePenaltyEvent()
+            .sink { [weak self] event in
+                guard let self, let event else { return }
+                self.handlePenaltyEvent(event)
             }
             .store(in: &cancellables)
 

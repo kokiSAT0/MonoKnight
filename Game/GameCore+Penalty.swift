@@ -4,50 +4,45 @@ import UIKit
 #endif
 import SharedSupport // ログユーティリティを利用するため追加
 
-/// ペナルティ判定や捨て札ペナルティの処理、VoiceOver 通知など UI 連動が強い処理を切り出した拡張
-@available(iOS 13.0, macOS 10.15, tvOS 13.0, watchOS 6.0, *)
-extension GameCore {
-    /// ペナルティ発生時の共通処理で利用する原因の区別
-    /// - Note: デバッグログや VoiceOver の文言を分岐させるためだけの軽量な列挙体
-    private enum PenaltyTrigger {
-        case automatic
-        case manual
-        case automaticFreeRedraw
-
-        /// デバッグログ向けの説明文
-        var debugDescription: String {
-            switch self {
-            case .automatic:
-                return "自動検出"
-            case .manual:
-                return "ユーザー操作"
-            case .automaticFreeRedraw:
-                return "連続手詰まり対応"
-            }
-        }
-
-        /// VoiceOver で読み上げる案内文を用意
-        /// - Parameter penalty: 加算された手数（0 の場合は増加無し）
-        func voiceOverMessage(penalty: Int) -> String {
-            switch self {
-            case .automatic:
-                if penalty > 0 {
-                    return "手詰まりのため手札スロットを引き直しました。手数が\(penalty)増加します。"
-                } else {
-                    return "手詰まりのためペナルティなしで手札スロットを引き直しました。"
-                }
-            case .manual:
-                if penalty > 0 {
-                    return "ペナルティを使用して手札スロットを引き直しました。手数が\(penalty)増加します。"
-                } else {
-                    return "ペナルティを使用して手札スロットを引き直しました。手数の増加はありません。"
-                }
-            case .automaticFreeRedraw:
-                return "手詰まりが続いたためペナルティなしで手札スロットを引き直しました。"
-            }
+/// ペナルティトリガー別に案内文とデバッグ文言を提供するプライベート拡張
+private extension PenaltyEvent.Trigger {
+    /// デバッグログ向けの説明文
+    var debugDescription: String {
+        switch self {
+        case .automaticDeadlock:
+            return "自動検出"
+        case .manualRedraw:
+            return "ユーザー操作"
+        case .automaticFreeRedraw:
+            return "連続手詰まり対応"
         }
     }
 
+    /// VoiceOver で読み上げる案内文
+    /// - Parameter penaltyAmount: 今回案内するペナルティ手数（0 の場合はペナルティなし）
+    func voiceOverMessage(penaltyAmount: Int) -> String {
+        switch self {
+        case .automaticDeadlock:
+            if penaltyAmount > 0 {
+                return "手詰まりのため手札スロットを引き直しました。手数が\(penaltyAmount)増加します。"
+            } else {
+                return "手詰まりのためペナルティなしで手札スロットを引き直しました。"
+            }
+        case .manualRedraw:
+            if penaltyAmount > 0 {
+                return "ペナルティを使用して手札スロットを引き直しました。手数が\(penaltyAmount)増加します。"
+            } else {
+                return "ペナルティを使用して手札スロットを引き直しました。手数の増加はありません。"
+            }
+        case .automaticFreeRedraw:
+            return "手詰まりが続いたためペナルティなしで手札スロットを引き直しました。"
+        }
+    }
+}
+
+/// ペナルティ判定や捨て札ペナルティの処理、VoiceOver 通知など UI 連動が強い処理を切り出した拡張
+@available(iOS 13.0, macOS 10.15, tvOS 13.0, watchOS 6.0, *)
+extension GameCore {
     /// UI 側から手動でペナルティを支払い、手札スロットを引き直すための公開メソッド
     /// - Note: 既にゲームが終了している場合や、ペナルティ中は何もしない
     public func applyManualPenaltyRedraw() {
@@ -62,7 +57,7 @@ extension GameCore {
 
         // 共通処理を用いて手札を入れ替える
         applyPenaltyRedraw(
-            trigger: .manual,
+            trigger: .manualRedraw,
             penaltyAmount: mode.manualRedrawPenaltyCost,
             shouldAddPenalty: true
         )
@@ -93,7 +88,7 @@ extension GameCore {
 
             // 共通処理を呼び出して手札・先読みを更新
             applyPenaltyRedraw(
-                trigger: .automatic,
+                trigger: .automaticDeadlock,
                 penaltyAmount: mode.deadlockPenaltyCost,
                 shouldAddPenalty: true
             )
@@ -108,7 +103,7 @@ extension GameCore {
     ///   - trigger: 自動検出か手動操作かを識別するフラグ
     ///   - penaltyAmount: 今回加算するペナルティ手数
     ///   - shouldAddPenalty: 追加ペナルティを課す必要があるかどうか
-    private func applyPenaltyRedraw(trigger: PenaltyTrigger, penaltyAmount: Int, shouldAddPenalty: Bool) {
+    private func applyPenaltyRedraw(trigger: PenaltyEvent.Trigger, penaltyAmount: Int, shouldAddPenalty: Bool) {
         // ペナルティ処理中は .deadlock 状態として UI 側の入力を抑制する
         updateProgressForPenaltyFlow(.deadlock)
 
@@ -123,19 +118,20 @@ extension GameCore {
             addPenaltyCount(penaltyAmount)
             debugLog("ペナルティ加算: +\(penaltyAmount)")
         }
-        setLastPenaltyAmountForPenalty(shouldAddPenalty ? penaltyAmount : 0)
+
+        // バナー表示などで利用する案内用のペナルティ量を算出
+        let announcedPenalty = shouldAddPenalty ? penaltyAmount : 0
 
         // 現在の手札・先読みカードはそのまま破棄し、新しいカードを引き直す
         handManager.clearAll()
         rebuildHandAndNext()
 
         // UI へ手詰まりの発生を知らせ、演出やフィードバックを促す
-        updatePenaltyEventID(UUID())
+        publishPenaltyEvent(PenaltyEvent(penaltyAmount: announcedPenalty, trigger: trigger))
 
 #if canImport(UIKit)
         // VoiceOver 利用者向けにペナルティ内容をアナウンス
-        let announcedPenalty = shouldAddPenalty ? penaltyAmount : 0
-        UIAccessibility.post(notification: .announcement, argument: trigger.voiceOverMessage(penalty: announcedPenalty))
+        UIAccessibility.post(notification: .announcement, argument: trigger.voiceOverMessage(penaltyAmount: announcedPenalty))
 #endif
 
         // デバッグログ: 引き直し後の状態を詳細に記録
@@ -205,12 +201,11 @@ extension GameCore {
         setManualDiscardSelectionState(false)
         resetBoardTapPlayRequestForPenalty()
 
-        // ペナルティを加算し、UI 側が参照する最後のペナルティ量を更新
+        // ペナルティを加算し、統計値へ反映
         let penalty = mode.manualDiscardPenaltyCost
         if penalty > 0 {
             addPenaltyCount(penalty)
         }
-        setLastPenaltyAmountForPenalty(penalty)
 
         debugLog("捨て札ペナルティ適用: stackID=\(stackID), 枚数=\(removedStack.count), move=\(String(describing: removedStack.representativeMove)), ペナルティ=+\(penalty)")
 
