@@ -40,6 +40,7 @@ final class DeckTests: XCTestCase {
         XCTAssertGreaterThan(kingWeight, longRangeWeight, "長距離カードの重みが軽量化されていません")
         XCTAssertEqual(longRangeWeight, 1, "長距離カードの重みが想定値と異なります")
         XCTAssertEqual(kingWeight, 3, "キングカードの重みが想定値と異なります")
+        XCTAssertEqual(config.weightProfile.weight(for: .rayUp), 1, "レイ型カードの重みが軽量化されていません")
 
         // MARK: サマリー文言が仕様通りかチェック
         XCTAssertEqual(config.deckSummaryText, "長距離カード抑制型標準デッキ")
@@ -164,9 +165,9 @@ final class DeckTests: XCTestCase {
         XCTAssertTrue(kingMoves.isSubset(of: allCasesSet))
     }
 
-    /// standardSet が従来 24 種のみで構成され、新カードが混入していないことを確認する
+    /// standardSet が単方向＋レイ型 32 種のみで構成され、選択カードが含まれないことを確認する
     func testStandardSetDoesNotIncludeChoiceCards() {
-        XCTAssertEqual(MoveCard.standardSet.count, 24, "スタンダードセットの枚数が 24 枚から変化しています")
+        XCTAssertEqual(MoveCard.standardSet.count, 32, "スタンダードセットの枚数が 32 枚ではありません")
         XCTAssertFalse(MoveCard.standardSet.contains(.kingUpOrDown), "選択式カードがスタンダードセットへ混入しています")
         XCTAssertFalse(MoveCard.standardSet.contains(.kingLeftOrRight), "選択式カードがスタンダードセットへ混入しています")
         XCTAssertFalse(MoveCard.standardSet.contains(.kingUpwardDiagonalChoice), "選択式カードがスタンダードセットへ混入しています")
@@ -177,6 +178,29 @@ final class DeckTests: XCTestCase {
         XCTAssertFalse(MoveCard.standardSet.contains(.knightRightwardChoice), "選択式カードがスタンダードセットへ混入しています")
         XCTAssertFalse(MoveCard.standardSet.contains(.knightDownwardChoice), "選択式カードがスタンダードセットへ混入しています")
         XCTAssertFalse(MoveCard.standardSet.contains(.knightLeftwardChoice), "選択式カードがスタンダードセットへ混入しています")
+        MoveCard.directionalRayCards.forEach { card in
+            XCTAssertTrue(MoveCard.standardSet.contains(card), "レイ型カードがスタンダードセットから漏れています: \(card)")
+        }
+    }
+
+    /// レイ型カード特化プリセットの構成と重みを検証する
+    func testDirectionalRayFocusDeckConfiguration() {
+        let config = Deck.Configuration.directionalRayFocus
+        let allowedMoves = Set(config.allowedMoves)
+        let expectedRays = Set(MoveCard.directionalRayCards)
+        let supportKings: Set<MoveCard> = [.kingUp, .kingRight, .kingDown, .kingLeft]
+
+        XCTAssertTrue(expectedRays.isSubset(of: allowedMoves), "レイ型カードが不足しています")
+        XCTAssertTrue(supportKings.isSubset(of: allowedMoves), "補助用キングが不足しています")
+
+        expectedRays.forEach { card in
+            XCTAssertEqual(config.weightProfile.weight(for: card), 3, "レイ型カードの重みが想定値 3 と異なります: \(card)")
+        }
+        supportKings.forEach { card in
+            XCTAssertEqual(config.weightProfile.weight(for: card), 1, "補助用キングの重みが想定値 1 と異なります: \(card)")
+        }
+
+        XCTAssertEqual(config.deckSummaryText, "連続移動カード集中デッキ", "サマリー文言が仕様と一致していません")
     }
 
     /// directionChoice 構成が新カードを含み、重みも設定されていることを検証する

@@ -181,6 +181,40 @@ public enum MoveCard: CaseIterable {
             }
         }
 
+        /// 最終到達マスのみを候補として返す直進カード向けのパターン
+        /// - Parameters:
+        ///   - direction: 1 ステップ分の方向ベクトル
+        ///   - limit: 上限ステップ数（nil の場合は盤端まで継続）
+        /// - Returns: 終端のみを `Path` として返す移動パターン
+        public static func directionalRayFinalStep(direction: MoveVector, limit: Int?) -> MovePattern {
+            let identity = Identity.directionalRay(direction: direction, limit: limit)
+            return MovePattern(baseVectors: [direction], identity: identity) { origin, context in
+                // --- 経路解決の初期設定（現在地と通過マスログを保持）---
+                var current = origin
+                var traversed: [GridPoint] = []
+
+                // --- 進行可能な限り同方向へ伸ばし、障害物や盤端で停止する ---
+                while true {
+                    let nextStepIndex = traversed.count + 1
+                    if let limit, nextStepIndex > limit { break }
+
+                    let nextPoint = current.offset(dx: direction.dx, dy: direction.dy)
+                    guard context.contains(nextPoint), context.isTraversable(nextPoint) else { break }
+
+                    traversed.append(nextPoint)
+                    current = nextPoint
+                }
+
+                // --- 1 マスも進めない場合は候補なしとする ---
+                guard let destination = traversed.last else { return [] }
+
+                // --- 累積ベクトルを算出し、通過マス全体を含む Path を 1 件だけ返す ---
+                let steps = traversed.count
+                let vector = MoveVector(dx: direction.dx * steps, dy: direction.dy * steps)
+                return [Path(vector: vector, destination: destination, traversedPoints: traversed)]
+            }
+        }
+
         /// 絶対座標指定カード向けのパターンを生成する
         /// - Parameter targets: 目的地候補の座標配列
         /// - Returns: 指定座標へ直接ジャンプするパターン
@@ -287,6 +321,21 @@ public enum MoveCard: CaseIterable {
         mapping[.diagonalDownLeft2] = .relativeSteps([MoveVector(dx: -2, dy: -2)])
         mapping[.diagonalUpLeft2] = .relativeSteps([MoveVector(dx: -2, dy: 2)])
 
+        // --- 無制限レイ型（障害物か盤端まで進む連続カード）---
+        let directionalRayDefinitions: [(MoveCard, MoveVector)] = [
+            (.rayUp, MoveVector(dx: 0, dy: 1)),
+            (.rayUpRight, MoveVector(dx: 1, dy: 1)),
+            (.rayRight, MoveVector(dx: 1, dy: 0)),
+            (.rayDownRight, MoveVector(dx: 1, dy: -1)),
+            (.rayDown, MoveVector(dx: 0, dy: -1)),
+            (.rayDownLeft, MoveVector(dx: -1, dy: -1)),
+            (.rayLeft, MoveVector(dx: -1, dy: 0)),
+            (.rayUpLeft, MoveVector(dx: -1, dy: 1))
+        ]
+        directionalRayDefinitions.forEach { card, vector in
+            mapping[card] = .directionalRayFinalStep(direction: vector, limit: nil)
+        }
+
         return mapping
     }()
 
@@ -302,8 +351,21 @@ public enum MoveCard: CaseIterable {
         return pattern
     }
     // MARK: - 定義済みセット
-    /// 標準デッキで採用している 24 種類のカード集合
-    /// - Important: 新しいカードを追加した際もスタンダード構成へ混入しないよう、この配列を基準に管理する
+    /// 盤端まで伸びるレイ型カード 8 種の集合
+    /// - Important: デッキ構築や重み設定でも頻繁に参照するため、定数として公開する
+    public static let directionalRayCards: [MoveCard] = [
+        .rayUp,
+        .rayUpRight,
+        .rayRight,
+        .rayDownRight,
+        .rayDown,
+        .rayDownLeft,
+        .rayLeft,
+        .rayUpLeft
+    ]
+
+    /// 標準デッキで採用している 32 種類のカード集合
+    /// - Important: 選択式カードは含めず、単方向カードと連続レイ型カードのみで構成する
     public static let standardSet: [MoveCard] = [
         .kingUp,
         .kingUpRight,
@@ -329,7 +391,7 @@ public enum MoveCard: CaseIterable {
         .diagonalDownRight2,
         .diagonalDownLeft2,
         .diagonalUpLeft2
-    ]
+    ] + directionalRayCards
 
     // MARK: - 全ケース一覧
     /// `CaseIterable` の自動生成は internal となるため、外部モジュールからも全種類を参照できるよう明示的に公開配列を定義する
@@ -419,6 +481,23 @@ public enum MoveCard: CaseIterable {
     case diagonalDownLeft2
     /// 斜め: 左上に 2
     case diagonalUpLeft2
+
+    /// レイ型: 上方向へ障害物まで連続移動
+    case rayUp
+    /// レイ型: 右上方向へ障害物まで連続移動
+    case rayUpRight
+    /// レイ型: 右方向へ障害物まで連続移動
+    case rayRight
+    /// レイ型: 右下方向へ障害物まで連続移動
+    case rayDownRight
+    /// レイ型: 下方向へ障害物まで連続移動
+    case rayDown
+    /// レイ型: 左下方向へ障害物まで連続移動
+    case rayDownLeft
+    /// レイ型: 左方向へ障害物まで連続移動
+    case rayLeft
+    /// レイ型: 左上方向へ障害物まで連続移動
+    case rayUpLeft
 
     // MARK: - 移動ベクトル
     /// カードが持つ移動候補一覧を返す
@@ -547,6 +626,30 @@ public enum MoveCard: CaseIterable {
         case .diagonalDownRight2: return "右下2"
         case .diagonalDownLeft2: return "左下2"
         case .diagonalUpLeft2: return "左上2"
+        case .rayUp:
+            // レイ型: 上方向へ連続移動するカード
+            return "上連続"
+        case .rayUpRight:
+            // レイ型: 右上方向へ連続移動するカード
+            return "右上連続"
+        case .rayRight:
+            // レイ型: 右方向へ連続移動するカード
+            return "右連続"
+        case .rayDownRight:
+            // レイ型: 右下方向へ連続移動するカード
+            return "右下連続"
+        case .rayDown:
+            // レイ型: 下方向へ連続移動するカード
+            return "下連続"
+        case .rayDownLeft:
+            // レイ型: 左下方向へ連続移動するカード
+            return "左下連続"
+        case .rayLeft:
+            // レイ型: 左方向へ連続移動するカード
+            return "左連続"
+        case .rayUpLeft:
+            // レイ型: 左上方向へ連続移動するカード
+            return "左上連続"
         }
     }
 
@@ -605,6 +708,24 @@ public enum MoveCard: CaseIterable {
              .diagonalDownRight2,
              .diagonalDownLeft2,
              .diagonalUpLeft2:
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// 盤端や障害物まで連続で進むレイ型カードかどうかを判定する
+    /// - Note: 山札の重み調整や UI 表示順の制御で利用する
+    public var isDirectionalRay: Bool {
+        switch self {
+        case .rayUp,
+             .rayUpRight,
+             .rayRight,
+             .rayDownRight,
+             .rayDown,
+             .rayDownLeft,
+             .rayLeft,
+             .rayUpLeft:
             return true
         default:
             return false
