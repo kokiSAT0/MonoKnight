@@ -297,7 +297,7 @@ final class CampaignLibraryTests: XCTestCase {
         // MARK: スポーン方式・ペナルティなどの共通パラメータを事前に用意
         let fixedSpawn4 = GameMode.SpawnRule.fixed(BoardGeometry.defaultSpawnPoint(for: 4))
         let chooseAny = GameMode.SpawnRule.chooseAnyAfterPreview
-        let penalties = GameMode.PenaltySettings(deadlockPenaltyCost: 3, manualRedrawPenaltyCost: 1, manualDiscardPenaltyCost: 1, revisitPenaltyCost: 0)
+        let penalties = GameMode.PenaltySettings(deadlockPenaltyCost: 3, manualRedrawPenaltyCost: 2, manualDiscardPenaltyCost: 1, revisitPenaltyCost: 0)
 
         let expectations: [Int: StageExpectation] = [
             1: StageExpectation(
@@ -438,8 +438,8 @@ final class CampaignLibraryTests: XCTestCase {
                 boardSize: 4,
                 deck: .standardWithOrthogonalChoices,
                 spawn: fixedSpawn4,
-                penalties: noPenalty,
-                secondary: .finishWithoutPenalty,
+                penalties: standardPenalties,
+                secondary: .finishWithPenaltyAtMost(maxPenaltyCount: 2),
                 scoreTarget: 600,
                 unlock: .chapterTotalStars(chapter: 2, minimum: 16)
             ),
@@ -511,8 +511,8 @@ final class CampaignLibraryTests: XCTestCase {
                 boardSize: 5,
                 deck: .standardWithAllChoices,
                 spawn: fixedSpawn5,
-                penalties: noPenalty,
-                secondary: .finishWithoutPenaltyAndWithinMoves(maxMoves: 34),
+                penalties: standardPenalties,
+                secondary: .finishWithPenaltyAtMostAndWithinMoves(maxPenaltyCount: 2, maxMoves: 34),
                 scoreTarget: 530,
                 unlock: .stageClear(CampaignStageID(chapter: 3, index: 7)),
                 additional: [GridPoint(x: 1, y: 1): 2, GridPoint(x: 2, y: 2): 3, GridPoint(x: 3, y: 3): 4]
@@ -631,8 +631,8 @@ final class CampaignLibraryTests: XCTestCase {
                 boardSize: 5,
                 deck: .standardWithAllChoices,
                 spawn: chooseAny,
-                penalties: noPenalty,
-                secondary: .finishWithoutPenalty,
+                penalties: penalties,
+                secondary: .finishWithPenaltyAtMost(maxPenaltyCount: 2),
                 scoreTarget: 460,
                 unlock: .stageClear(CampaignStageID(chapter: 4, index: 6)),
                 additional: [GridPoint(x: 0, y: 2): 2, GridPoint(x: 4, y: 2): 2, GridPoint(x: 2, y: 2): 3],
@@ -643,8 +643,8 @@ final class CampaignLibraryTests: XCTestCase {
                 boardSize: 5,
                 deck: .standardWithAllChoices,
                 spawn: fixedSpawn5,
-                penalties: noPenalty,
-                secondary: .finishWithoutPenaltyAndWithinMoves(maxMoves: 34),
+                penalties: penalties,
+                secondary: .finishWithPenaltyAtMostAndWithinMoves(maxPenaltyCount: 2, maxMoves: 34),
                 scoreTarget: 450,
                 unlock: .stageClear(CampaignStageID(chapter: 4, index: 7)),
                 additional: [GridPoint(x: 1, y: 0): 2, GridPoint(x: 3, y: 0): 3, GridPoint(x: 2, y: 2): 4],
@@ -757,8 +757,8 @@ final class CampaignLibraryTests: XCTestCase {
                 boardSize: 5,
                 deck: .standardWithAllChoices,
                 spawn: chooseAny,
-                penalties: noPenalty,
-                secondary: .finishWithoutPenalty,
+                penalties: penalties,
+                secondary: .finishWithPenaltyAtMost(maxPenaltyCount: 2),
                 scoreTarget: 440,
                 unlock: .stageClear(CampaignStageID(chapter: 5, index: 6)),
                 additional: [GridPoint(x: 0, y: 1): 2, GridPoint(x: 4, y: 3): 3],
@@ -770,8 +770,8 @@ final class CampaignLibraryTests: XCTestCase {
                 boardSize: 5,
                 deck: .standardWithAllChoices,
                 spawn: chooseAny,
-                penalties: noPenalty,
-                secondary: .finishWithoutPenaltyAndWithinMoves(maxMoves: 34),
+                penalties: penalties,
+                secondary: .finishWithPenaltyAtMostAndWithinMoves(maxPenaltyCount: 2, maxMoves: 34),
                 scoreTarget: 430,
                 unlock: .stageClear(CampaignStageID(chapter: 5, index: 7)),
                 additional: [GridPoint(x: 1, y: 4): 2, GridPoint(x: 3, y: 0): 3, GridPoint(x: 2, y: 4): 4],
