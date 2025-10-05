@@ -32,8 +32,8 @@ final class GameCoreTests: XCTestCase {
         // 左下隅 (0,0) から開始し、全手札が盤外となる状況を用意
         let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 0, y: 0))
 
-        // ペナルティが +5 されているか
-        XCTAssertEqual(core.penaltyCount, 5, "手詰まり時にペナルティが加算されていない")
+        // ペナルティが +3 されているか
+        XCTAssertEqual(core.penaltyCount, 3, "手詰まり時にペナルティが加算されていない")
         // ペナルティ処理後は進行状態が playing に戻るか
         XCTAssertEqual(core.progress, .playing, "ペナルティ後は playing 状態に戻るべき")
         // 引き直し後の手札スタック数が 5 種類確保されているか
@@ -85,8 +85,8 @@ final class GameCoreTests: XCTestCase {
             deckPreset: .standard,
             spawnRule: .fixed(BoardGeometry.defaultSpawnPoint(for: BoardGeometry.standardSize)),
             penalties: GameMode.PenaltySettings(
-                deadlockPenaltyCost: 5,
-                manualRedrawPenaltyCost: 5,
+                deadlockPenaltyCost: 3,
+                manualRedrawPenaltyCost: 2,
                 manualDiscardPenaltyCost: 1,
                 revisitPenaltyCost: 0
             ),
@@ -154,8 +154,8 @@ final class GameCoreTests: XCTestCase {
         // 左下隅 (0,0) から開始し、連続手詰まりを強制
         let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 0, y: 0))
 
-        // ペナルティは最初の支払いのみで +5 に留まるか
-        XCTAssertEqual(core.penaltyCount, 5, "連続手詰まりでも追加ペナルティが加算されている")
+        // ペナルティは最初の支払いのみで +3 に留まるか
+        XCTAssertEqual(core.penaltyCount, 3, "連続手詰まりでも追加ペナルティが加算されている")
         // 連続手詰まり処理後もプレイ継続できるか
         XCTAssertEqual(core.progress, .playing, "連続手詰まり処理後に playing 状態へ戻っていない")
         // 最終的な手札スタック 5 種類の中に使用可能なカードがあるか
@@ -177,8 +177,8 @@ final class GameCoreTests: XCTestCase {
             deckPreset: .standard,
             spawnRule: .fixed(BoardGeometry.defaultSpawnPoint(for: BoardGeometry.standardSize)),
             penalties: GameMode.PenaltySettings(
-                deadlockPenaltyCost: 5,
-                manualRedrawPenaltyCost: 5,
+                deadlockPenaltyCost: 3,
+                manualRedrawPenaltyCost: 2,
                 manualDiscardPenaltyCost: 1,
                 revisitPenaltyCost: 0
             )
@@ -674,8 +674,8 @@ final class GameCoreTests: XCTestCase {
             deckPreset: .kingOnly,
             spawnRule: .chooseAnyAfterPreview,
             penalties: GameMode.PenaltySettings(
-                deadlockPenaltyCost: 5,
-                manualRedrawPenaltyCost: 5,
+                deadlockPenaltyCost: 3,
+                manualRedrawPenaltyCost: 2,
                 manualDiscardPenaltyCost: 1,
                 revisitPenaltyCost: 0
             ),
