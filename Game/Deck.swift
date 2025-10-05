@@ -185,9 +185,11 @@ struct Deck {
                 .knightLeftwardChoice
             ]
             let allowedMoves = MoveCard.standardSet + choiceCards
+            // 選択式カードを積極的に引いてもらうため、単一方向カード（重み 1）の 2 倍となる重み 2 を個別指定する
+            let overrides = Dictionary(uniqueKeysWithValues: choiceCards.map { ($0, 2) })
             return Configuration(
                 allowedMoves: allowedMoves,
-                weightProfile: WeightProfile(defaultWeight: 1),
+                weightProfile: WeightProfile(defaultWeight: 1, overrides: overrides),
                 deckSummaryText: "標準＋全選択カード"
             )
         }()
