@@ -76,19 +76,14 @@ private extension PenaltyBannerView {
     var primaryMessage: String {
         switch event.trigger {
         case .automaticDeadlock:
-            if event.penaltyAmount > 0 {
-                return "手詰まり → 手札スロットを引き直し (+\(event.penaltyAmount))"
-            } else {
-                return "手詰まり → ペナルティなしで引き直し"
-            }
+            // 自動検出時は加算手数を必ず表示し、0 の場合でも状態確認しやすくする
+            return "手詰まり → 手札スロットを引き直し (+\(event.penaltyAmount))"
         case .manualRedraw:
-            if event.penaltyAmount > 0 {
-                return "手動ペナルティ → 手札を再抽選 (+\(event.penaltyAmount))"
-            } else {
-                return "手動ペナルティ → 手札を再抽選 (ペナルティなし)"
-            }
+            // 手動ペナルティも同様に加算量を明示して、視認性を揃える
+            return "手動ペナルティ → 手札を再抽選 (+\(event.penaltyAmount))"
         case .automaticFreeRedraw:
-            return "連続手詰まり → 無料で手札を再抽選"
+            // 連続手詰まりでは直前のペナルティ手数を強調し、無料表現を避ける
+            return "連続手詰まり → 直前のペナルティ +\(event.penaltyAmount)"
         }
     }
 
@@ -96,19 +91,14 @@ private extension PenaltyBannerView {
     var secondaryMessage: String {
         switch event.trigger {
         case .automaticDeadlock:
-            if event.penaltyAmount > 0 {
-                return "使えるカードが無かったため、手数が \(event.penaltyAmount) 増加しました"
-            } else {
-                return "使えるカードが無かったため、今回はペナルティが発生しません"
-            }
+            // 自動検出では加算結果を数値で伝えて、盤面状況を振り返りやすくする
+            return "使えるカードが無かったため、手数が \(event.penaltyAmount) 増加しました"
         case .manualRedraw:
-            if event.penaltyAmount > 0 {
-                return "プレイヤー操作により手札を入れ替え、手数が \(event.penaltyAmount) 増加しました"
-            } else {
-                return "プレイヤー操作により手札を入れ替えましたが、手数の増加はありません"
-            }
+            // プレイヤー操作由来の加算量も同様に数値で案内する
+            return "プレイヤー操作により手札を入れ替え、手数が \(event.penaltyAmount) 増加しました"
         case .automaticFreeRedraw:
-            return "手詰まりが連続したため、追加手数なしで自動的に手札を入れ替えました"
+            // 無料表現の代わりに、直前に加算された手数を再確認できる補足へ置き換える
+            return "手詰まりが連続したため、直前に加算された手数は \(event.penaltyAmount) です"
         }
     }
 

@@ -110,14 +110,14 @@ final class GameViewIntegrationTests: XCTestCase {
 
         let secondEvent = receivedEvents[1]
         XCTAssertEqual(secondEvent.trigger, .automaticFreeRedraw, "2 回目のイベントが無料再抽選扱いになっていません")
-        XCTAssertEqual(secondEvent.penaltyAmount, 0, "無料再抽選でもペナルティ量が残っています")
+        XCTAssertEqual(secondEvent.penaltyAmount, firstEvent.penaltyAmount, "無料再抽選時に直前の加算手数が維持されていません")
 
         // 文字列生成も確認するため、アクセシビリティラベルを取得して文言を検証
         let firstBannerController = UIHostingController(rootView: PenaltyBannerView(event: firstEvent))
         XCTAssertTrue(firstBannerController.view.accessibilityLabel?.contains("+\(firstEvent.penaltyAmount)") ?? false, "初回イベントで加算手数が表記されていません")
 
         let secondBannerController = UIHostingController(rootView: PenaltyBannerView(event: secondEvent))
-        XCTAssertTrue(secondBannerController.view.accessibilityLabel?.contains("ペナルティなし") ?? false, "無料再抽選時のペナルティなし表記が欠落しています")
+        XCTAssertTrue(secondBannerController.view.accessibilityLabel?.contains("+\(secondEvent.penaltyAmount)") ?? false, "無料再抽選時のアクセシビリティ案内へ直前の手数が含まれていません")
 
         // テスト終了時に購読を破棄してメモリリークを防ぐ
         cancellables.forEach { $0.cancel() }

@@ -19,23 +19,18 @@ private extension PenaltyEvent.Trigger {
     }
 
     /// VoiceOver で読み上げる案内文
-    /// - Parameter penaltyAmount: 今回案内するペナルティ手数（0 の場合はペナルティなし）
+    /// - Parameter penaltyAmount: 今回案内するペナルティ手数（直前の加算量も含む）
     func voiceOverMessage(penaltyAmount: Int) -> String {
         switch self {
         case .automaticDeadlock:
-            if penaltyAmount > 0 {
-                return "手詰まりのため手札スロットを引き直しました。手数が\(penaltyAmount)増加します。"
-            } else {
-                return "手詰まりのためペナルティなしで手札スロットを引き直しました。"
-            }
+            // 手詰まり発生時は加算手数をそのまま案内し、VoiceOver 利用者へ状況を明確化する
+            return "手詰まりのため手札スロットを引き直しました。手数は+\(penaltyAmount)です。"
         case .manualRedraw:
-            if penaltyAmount > 0 {
-                return "ペナルティを使用して手札スロットを引き直しました。手数が\(penaltyAmount)増加します。"
-            } else {
-                return "ペナルティを使用して手札スロットを引き直しました。手数の増加はありません。"
-            }
+            // 手動ペナルティ利用時も加算量を具体的な数値で読み上げる
+            return "ペナルティを使用して手札スロットを引き直しました。手数は+\(penaltyAmount)です。"
         case .automaticFreeRedraw:
-            return "手詰まりが続いたためペナルティなしで手札スロットを引き直しました。"
+            // 無料扱いの表現ではなく、直前に加算された手数を再確認できる文言へ統一する
+            return "手詰まりが続いたため手札スロットを再度引き直しました。直前のペナルティは+\(penaltyAmount)です。"
         }
     }
 }
@@ -62,13 +57,13 @@ extension GameCore {
             shouldAddPenalty: true
         )
 
-        // 引き直し後も盤外カードしか無いケースをケア
-        checkDeadlockAndApplyPenaltyIfNeeded(hasAlreadyPaidPenalty: true)
+        // 引き直し後も盤外カードしか無いケースをケアするため、直前の加算手数を引き継いで再判定する
+        checkDeadlockAndApplyPenaltyIfNeeded(lastPaidPenaltyAmount: mode.manualRedrawPenaltyCost)
     }
 
     /// 手札スロットがすべて盤外となる場合にペナルティを課し、手札スロットを引き直す
-    /// - Parameter hasAlreadyPaidPenalty: 直前にペナルティを支払済みかどうかを示すフラグ
-    func checkDeadlockAndApplyPenaltyIfNeeded(hasAlreadyPaidPenalty: Bool = false) {
+    /// - Parameter lastPaidPenaltyAmount: 直前に支払ったペナルティ手数（未支払いなら `nil`）
+    func checkDeadlockAndApplyPenaltyIfNeeded(lastPaidPenaltyAmount: Int? = nil) {
         // スポーン待機中は判定不要
         guard progress != .awaitingSpawn, let current = current else { return }
 
@@ -76,12 +71,16 @@ extension GameCore {
         let usableMoves = availableMoves(handStacks: handStacks, current: current)
         guard usableMoves.isEmpty else { return }
 
-        if hasAlreadyPaidPenalty {
+        if let lastPenaltyAmount = lastPaidPenaltyAmount {
             // デバッグログ: 連続手詰まりを通知し、追加ペナルティ無しで再抽選する
             debugLog("手詰まりが継続したため追加ペナルティ無しで自動引き直しを実施")
 
             // 共通処理を呼び出して手札・先読みを更新（追加ペナルティ無し）
-            applyPenaltyRedraw(trigger: .automaticFreeRedraw, penaltyAmount: 0, shouldAddPenalty: false)
+            applyPenaltyRedraw(trigger: .automaticFreeRedraw, penaltyAmount: lastPenaltyAmount, shouldAddPenalty: false)
+
+            // 引き直し後も詰みの場合があるので再チェック（同じ金額を引き継ぐ）
+            checkDeadlockAndApplyPenaltyIfNeeded(lastPaidPenaltyAmount: lastPenaltyAmount)
+            return
         } else {
             // デバッグログ: 手札詰まりの発生を通知
             debugLog("手札スロットが全て使用不可のためペナルティを適用")
@@ -92,10 +91,9 @@ extension GameCore {
                 penaltyAmount: mode.deadlockPenaltyCost,
                 shouldAddPenalty: true
             )
+            // 引き直し後も詰みの場合があるので再チェック（以降は直前の加算手数を引き継ぐ）
+            checkDeadlockAndApplyPenaltyIfNeeded(lastPaidPenaltyAmount: mode.deadlockPenaltyCost)
         }
-
-        // 引き直し後も詰みの場合があるので再チェック（以降はペナルティ支払済み扱い）
-        checkDeadlockAndApplyPenaltyIfNeeded(hasAlreadyPaidPenalty: true)
     }
 
     /// ペナルティ適用に伴う手札再構成・通知処理を一箇所へ集約する
@@ -119,19 +117,16 @@ extension GameCore {
             debugLog("ペナルティ加算: +\(penaltyAmount)")
         }
 
-        // バナー表示などで利用する案内用のペナルティ量を算出
-        let announcedPenalty = shouldAddPenalty ? penaltyAmount : 0
-
         // 現在の手札・先読みカードはそのまま破棄し、新しいカードを引き直す
         handManager.clearAll()
         rebuildHandAndNext()
 
         // UI へ手詰まりの発生を知らせ、演出やフィードバックを促す
-        publishPenaltyEvent(PenaltyEvent(penaltyAmount: announcedPenalty, trigger: trigger))
+        publishPenaltyEvent(PenaltyEvent(penaltyAmount: penaltyAmount, trigger: trigger))
 
 #if canImport(UIKit)
         // VoiceOver 利用者向けにペナルティ内容をアナウンス
-        UIAccessibility.post(notification: .announcement, argument: trigger.voiceOverMessage(penaltyAmount: announcedPenalty))
+        UIAccessibility.post(notification: .announcement, argument: trigger.voiceOverMessage(penaltyAmount: penaltyAmount))
 #endif
 
         // デバッグログ: 引き直し後の状態を詳細に記録
