@@ -39,8 +39,9 @@ protocol DailyChallengeAttemptStoreProtocol: ObservableObject where ObjectWillCh
 /// 具象ストアを `ObservableObject` のまま別タイプへ差し替えられるようにするためのタイプイレース
 @MainActor
 final class AnyDailyChallengeAttemptStore: ObservableObject, DailyChallengeAttemptStoreProtocol {
-    /// 自身の `objectWillChange` を明示的に保持し、型消去後も購読しやすくする
-    let objectWillChange = ObservableObjectPublisher()
+    /// 自身の `objectWillChange` を `nonisolated` として公開し、`ObservableObject` の要件を満たす
+    /// - Important: SwiftUI 側からメインアクター外でも購読できるようにするため `nonisolated` を指定
+    nonisolated let objectWillChange = ObservableObjectPublisher()
     /// 実体となるストアを保持し、全メソッドを委譲する
     private let base: any DailyChallengeAttemptStoreProtocol
     /// ストアの変更通知を横取りして上位へ再送するためのキャンセラ
