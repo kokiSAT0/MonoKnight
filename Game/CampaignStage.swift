@@ -957,9 +957,9 @@ public struct CampaignLibrary {
 
         // 3-8: ノーペナルティかつ 32 手以内を同時達成する総合演習。
         let stage38MixedVisit: [GridPoint: Int] = [
-            GridPoint(x: 0, y: 0): 2,
+            GridPoint(x: 1, y: 1): 2,
             GridPoint(x: 2, y: 2): 3,
-            GridPoint(x: 4, y: 4): 4
+            GridPoint(x: 3, y: 3): 4
         ]
         let stage38 = CampaignStage(
             id: CampaignStageID(chapter: 3, index: 8),
