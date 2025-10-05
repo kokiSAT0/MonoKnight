@@ -492,6 +492,26 @@ struct AppTheme: DynamicProperty {
         }
     }
 
+    /// ワープ効果を描画する際のアクセントカラー
+    var boardTileEffectWarp: Color {
+        switch resolvedColorScheme {
+        case .dark:
+            return Color(red: 0.56, green: 0.75, blue: 1.0).opacity(0.95)
+        default:
+            return Color(red: 0.36, green: 0.56, blue: 0.98).opacity(0.95)
+        }
+    }
+
+    /// 手札シャッフル効果を描画する際のニュートラルカラー
+    var boardTileEffectShuffle: Color {
+        switch resolvedColorScheme {
+        case .dark:
+            return Color.white.opacity(0.9)
+        default:
+            return Color(red: 0.3, green: 0.3, blue: 0.3).opacity(0.92)
+        }
+    }
+
     #if canImport(UIKit)
     /// 指定したライト/ダークそれぞれの Color から動的 UIColor を生成するユーティリティ
     private func dynamicUIColor(light: Color, dark: Color) -> UIColor {
@@ -597,6 +617,22 @@ struct AppTheme: DynamicProperty {
             dark: color(for: .dark, keyPath: \.boardGuideHighlight)
         )
     }
+
+    /// SpriteKit ワープ効果カラーの UIColor 版
+    var uiBoardTileEffectWarp: UIColor {
+        dynamicUIColor(
+            light: color(for: .light, keyPath: \.boardTileEffectWarp),
+            dark: color(for: .dark, keyPath: \.boardTileEffectWarp)
+        )
+    }
+
+    /// SpriteKit シャッフル効果カラーの UIColor 版
+    var uiBoardTileEffectShuffle: UIColor {
+        dynamicUIColor(
+            light: color(for: .light, keyPath: \.boardTileEffectShuffle),
+            dark: color(for: .dark, keyPath: \.boardTileEffectShuffle)
+        )
+    }
     #endif
 
     #if canImport(SpriteKit) && canImport(UIKit)
@@ -629,5 +665,11 @@ struct AppTheme: DynamicProperty {
 
     /// SpriteKit の SKColor へ変換したガイドハイライト色
     var skBoardGuideHighlight: SKColor { SKColor(cgColor: uiBoardGuideHighlight.cgColor) }
+
+    /// SpriteKit の SKColor へ変換したワープ効果カラー
+    var skBoardTileEffectWarp: SKColor { SKColor(cgColor: uiBoardTileEffectWarp.cgColor) }
+
+    /// SpriteKit の SKColor へ変換したシャッフル効果カラー
+    var skBoardTileEffectShuffle: SKColor { SKColor(cgColor: uiBoardTileEffectShuffle.cgColor) }
     #endif
 }

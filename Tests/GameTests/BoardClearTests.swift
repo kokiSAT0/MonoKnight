@@ -65,4 +65,42 @@ final class BoardClearTests: XCTestCase {
         XCTAssertTrue(board.isVisited(togglePoint), "3 回目で再び踏破済みになる")
         XCTAssertEqual(board.remainingCount, 8, "踏破済みになれば残マスが減る")
     }
+
+    /// タイル効果が盤面から取得できるか検証する
+    func testBoardReturnsTileEffects() {
+        // ワープペアとシャッフル効果を同時に登録して取得を確認する
+        let warpA = GridPoint(x: 0, y: 0)
+        let warpB = GridPoint(x: 1, y: 1)
+        let shufflePoint = GridPoint(x: 2, y: 2)
+        let board = Board(
+            size: 3,
+            tileEffects: [
+                warpA: .warp(pairID: "warp_pair", destination: warpB),
+                warpB: .warp(pairID: "warp_pair", destination: warpA),
+                shufflePoint: .shuffleHand,
+            ]
+        )
+
+        // TileState と effect(at:) の両方で同じ効果が参照できることを確認
+        XCTAssertEqual(board.effect(at: warpA), .warp(pairID: "warp_pair", destination: warpB))
+        XCTAssertEqual(board.state(at: warpA)?.effect, .warp(pairID: "warp_pair", destination: warpB))
+        XCTAssertEqual(board.effect(at: shufflePoint), .shuffleHand)
+        XCTAssertEqual(board.state(at: shufflePoint)?.effect, .shuffleHand)
+    }
+
+    /// 不正なワープ定義が安全に除外されるか検証する
+    func testInvalidWarpDefinitionIsDiscarded() {
+        // 片側のみ登録されたワープは辞書から除外される想定
+        let invalidWarpSource = GridPoint(x: 0, y: 0)
+        let invalidWarpDestination = GridPoint(x: 4, y: 4)
+        let board = Board(
+            size: 3,
+            tileEffects: [
+                invalidWarpSource: .warp(pairID: "broken", destination: invalidWarpDestination)
+            ]
+        )
+
+        XCTAssertNil(board.effect(at: invalidWarpSource), "片側のみのワープ定義は破棄されるべき")
+        XCTAssertNil(board.state(at: invalidWarpSource)?.effect, "TileState 側からも効果が除去されているか検証")
+    }
 }

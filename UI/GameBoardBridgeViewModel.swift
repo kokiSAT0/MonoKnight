@@ -89,7 +89,8 @@ final class GameBoardBridgeViewModel: ObservableObject {
             initialVisitedPoints: mode.initialVisitedPoints,
             requiredVisitOverrides: mode.additionalVisitRequirements,
             togglePoints: mode.toggleTilePoints,
-            impassablePoints: mode.impassableTilePoints
+            impassablePoints: mode.impassableTilePoints,
+            tileEffects: mode.tileEffects
         )
         preparedScene.scaleMode = .resizeFill
         preparedScene.gameCore = core
@@ -156,7 +157,9 @@ final class GameBoardBridgeViewModel: ObservableObject {
             // NOTE: 移動不可マスは専用トーンで塗り潰し、SpriteKit 側でも障害物が即座に伝わるようにする
             boardTileImpassable: appTheme.skBoardTileImpassable,
             boardKnight: appTheme.skBoardKnight,
-            boardGuideHighlight: appTheme.skBoardGuideHighlight
+            boardGuideHighlight: appTheme.skBoardGuideHighlight,
+            boardTileEffectWarp: appTheme.skBoardTileEffectWarp,
+            boardTileEffectShuffle: appTheme.skBoardTileEffectShuffle
         )
         scene.applyTheme(palette)
     }

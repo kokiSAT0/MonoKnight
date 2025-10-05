@@ -61,4 +61,17 @@ final class BoardImpassableTileTests: XCTestCase {
         board.markVisited(traversablePoint)
         XCTAssertTrue(board.isVisited(traversablePoint), "移動可能マスの踏破処理が働いていません")
     }
+
+    /// 障害物にタイル効果を指定しても無視されることを確認する
+    func testTileEffectsIgnoredForImpassableTiles() {
+        let impassablePoint = GridPoint(x: 0, y: 0)
+        let board = Board(
+            size: 3,
+            impassablePoints: Set([impassablePoint]),
+            tileEffects: [impassablePoint: .shuffleHand]
+        )
+
+        XCTAssertNil(board.effect(at: impassablePoint), "障害物には効果が付与されない想定")
+        XCTAssertNil(board.state(at: impassablePoint)?.effect, "TileState へも効果が伝搬していないか確認")
+    }
 }

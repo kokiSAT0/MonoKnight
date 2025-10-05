@@ -116,7 +116,8 @@ public final class GameCore: ObservableObject {
             initialVisitedPoints: mode.initialVisitedPoints,
             requiredVisitOverrides: mode.additionalVisitRequirements,
             togglePoints: mode.toggleTilePoints,
-            impassablePoints: mode.impassableTilePoints
+            impassablePoints: mode.impassableTilePoints,
+            tileEffects: mode.tileEffects
         )
         current = mode.initialSpawnPoint ?? BoardGeometry.defaultSpawnPoint(for: mode.boardSize)
         // モードに紐付くシードが指定されている場合はそれを利用し、日替わりチャレンジなどの再現性を確保する
@@ -362,7 +363,8 @@ public final class GameCore: ObservableObject {
             initialVisitedPoints: mode.initialVisitedPoints,
             requiredVisitOverrides: mode.additionalVisitRequirements,
             togglePoints: mode.toggleTilePoints,
-            impassablePoints: mode.impassableTilePoints
+            impassablePoints: mode.impassableTilePoints,
+            tileEffects: mode.tileEffects
         )
         current = mode.initialSpawnPoint
         moveCount = 0
@@ -546,14 +548,16 @@ extension GameCore {
                 initialVisitedPoints: [resolvedCurrent],
                 requiredVisitOverrides: mode.additionalVisitRequirements,
                 togglePoints: mode.toggleTilePoints,
-                impassablePoints: mode.impassableTilePoints
+                impassablePoints: mode.impassableTilePoints,
+                tileEffects: mode.tileEffects
             )
         } else {
             core.board = Board(
                 size: mode.boardSize,
                 requiredVisitOverrides: mode.additionalVisitRequirements,
                 togglePoints: mode.toggleTilePoints,
-                impassablePoints: mode.impassableTilePoints
+                impassablePoints: mode.impassableTilePoints,
+                tileEffects: mode.tileEffects
             )
         }
         core.current = resolvedCurrent

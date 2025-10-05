@@ -28,6 +28,10 @@ public struct GameScenePalette {
     public let boardKnight: SKColor
     /// ガイド枠の線色
     public let boardGuideHighlight: SKColor
+    /// ワープ効果のアクセントカラー
+    public let boardTileEffectWarp: SKColor
+    /// 手札シャッフル効果のアクセントカラー
+    public let boardTileEffectShuffle: SKColor
 
     /// 主要な色をまとめて指定できるイニシャライザ
     /// - Parameters:
@@ -51,7 +55,9 @@ public struct GameScenePalette {
         boardTileToggle: SKColor,
         boardTileImpassable: SKColor,
         boardKnight: SKColor,
-        boardGuideHighlight: SKColor
+        boardGuideHighlight: SKColor,
+        boardTileEffectWarp: SKColor,
+        boardTileEffectShuffle: SKColor
     ) {
         self.boardBackground = boardBackground
         self.boardGridLine = boardGridLine
@@ -63,6 +69,8 @@ public struct GameScenePalette {
         self.boardTileImpassable = boardTileImpassable
         self.boardKnight = boardKnight
         self.boardGuideHighlight = boardGuideHighlight
+        self.boardTileEffectWarp = boardTileEffectWarp
+        self.boardTileEffectShuffle = boardTileEffectShuffle
     }
 }
 
@@ -88,7 +96,11 @@ public extension GameScenePalette {
         boardTileImpassable: SKColor(white: 0.05, alpha: 1.0),
         boardKnight: SKColor(white: 0.1, alpha: 1.0),
         // NOTE: SwiftUI のライトテーマと同じ彩度を抑えたオレンジを採用し、テーマ適用前でも一貫した強調色を維持する
-        boardGuideHighlight: SKColor(red: 0.94, green: 0.41, blue: 0.08, alpha: 0.85)
+        boardGuideHighlight: SKColor(red: 0.94, green: 0.41, blue: 0.08, alpha: 0.85),
+        // NOTE: ワープ効果は高コントラストなライトブルーを採用し、盤面上で瞬時に目に入るようにする
+        boardTileEffectWarp: SKColor(red: 0.36, green: 0.56, blue: 0.98, alpha: 0.95),
+        // NOTE: 手札シャッフルはモノトーン基調を維持しつつも差別化できるようニュートラルグレーを活用する
+        boardTileEffectShuffle: SKColor(white: 0.3, alpha: 0.92)
     )
 
     /// ダークテーマ適用前後でのデバッグ確認用のフォールバック
@@ -108,7 +120,11 @@ public extension GameScenePalette {
         boardTileImpassable: SKColor(white: 0.02, alpha: 1.0),
         boardKnight: SKColor(white: 0.95, alpha: 1.0),
         // NOTE: ダークテーマに合わせて明度を上げたオレンジを用い、背景の暗さに負けない発光感を演出する
-        boardGuideHighlight: SKColor(red: 1.0, green: 0.74, blue: 0.38, alpha: 0.9)
+        boardGuideHighlight: SKColor(red: 1.0, green: 0.74, blue: 0.38, alpha: 0.9),
+        // NOTE: ダークテーマのワープも明度を高めた青系で描画し、夜間でも視認できる発光感を持たせる
+        boardTileEffectWarp: SKColor(red: 0.56, green: 0.75, blue: 1.0, alpha: 0.95),
+        // NOTE: シャッフルはライトテーマよりも明度を上げ、背景とのコントラストを十分に確保する
+        boardTileEffectShuffle: SKColor(white: 0.7, alpha: 0.9)
     )
 }
 #endif

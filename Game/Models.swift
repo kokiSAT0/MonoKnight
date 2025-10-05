@@ -63,6 +63,18 @@ public struct GridPoint: Hashable, Codable {
     }
 }
 
+/// 盤面タイルが持つ特殊効果を列挙するための型
+/// - Important: 盤面と UI の双方で同じ効果種別を参照できるようモデル層で一元管理する
+public enum TileEffect: Equatable, Codable {
+    /// 対応するペア ID を共有するタイルへワープさせる
+    /// - Parameters:
+    ///   - pairID: ワープ経路を識別するための文字列（同一 ID のマス同士でリンクする）
+    ///   - destination: 実際に移動させる座標（盤面サイズ外や障害物は `Board` 側で除外する）
+    case warp(pairID: String, destination: GridPoint)
+    /// 手札をランダムに並び替える効果
+    case shuffleHand
+}
+
 /// 1 マスごとの踏破状態と必要踏破回数・挙動を保持する構造体
 /// - Note: 盤面演出の拡張性を高めるため、単純踏破・複数踏破・トグル踏破の 3 種類を明示的に切り替えられるようにしている
 public struct TileState: Equatable {
@@ -85,6 +97,8 @@ public struct TileState: Equatable {
     private let traversable: Bool
     /// 残り踏破回数（トグルの場合は「未踏破=1 / 踏破済=0」で管理する）
     private(set) var remainingVisitCount: Int
+    /// タイルに付随する特殊効果（存在しない場合は nil）
+    public private(set) var effect: TileEffect?
 
     /// クリアに必要な踏破回数を取得する
     /// - Important: `toggle` は常に 1 とみなし、訪問のたびに 0 ⇔ 1 を切り替える
@@ -104,9 +118,15 @@ public struct TileState: Equatable {
     /// - Parameters:
     ///   - visitBehavior: マスの踏破挙動。省略時は通常マスを生成する。
     ///   - remainingVisitCount: 初期残数を明示したい場合に利用する（トグルでは 0 or 1 に丸め込む）
-    public init(visitBehavior: VisitBehavior = .single, remainingVisitCount: Int? = nil, isTraversable: Bool = true) {
+    public init(
+        visitBehavior: VisitBehavior = .single,
+        remainingVisitCount: Int? = nil,
+        isTraversable: Bool = true,
+        effect: TileEffect? = nil
+    ) {
         self.visitBehavior = visitBehavior
         self.traversable = isTraversable
+        self.effect = effect
 
         guard isTraversable else {
             // 障害物マスは常に踏破不要で扱うため 0 固定にする
@@ -201,6 +221,13 @@ public struct TileState: Equatable {
             return
         }
     }
+
+    /// タイルへ付与された特殊効果を更新する
+    /// - Parameter newEffect: 新しく適用したい効果（nil 指定で効果を除去）
+    /// - Note: 盤面初期化時にのみ利用し、ゲーム進行中は効果の差し替えを想定していない
+    public mutating func assignEffect(_ newEffect: TileEffect?) {
+        effect = newEffect
+    }
 }
 
 /// 任意サイズの盤面を管理する構造体
@@ -212,6 +239,8 @@ public struct Board: Equatable {
     /// 各マスの状態を保持する二次元配列
     /// y インデックスが先、x インデックスが後となる
     private var tiles: [[TileState]]
+    /// 効果付きタイルの辞書（盤面内のみ保持する）
+    private var tileEffects: [GridPoint: TileEffect]
 
     /// 初期化。全マス未踏破として生成し、必要に応じて初期踏破マスやトグルマスを指定する
     /// - Parameters:
@@ -225,32 +254,89 @@ public struct Board: Equatable {
         initialVisitedPoints: [GridPoint] = [],
         requiredVisitOverrides: [GridPoint: Int] = [:],
         togglePoints: Set<GridPoint> = [],
-        impassablePoints: Set<GridPoint> = []
+        impassablePoints: Set<GridPoint> = [],
+        tileEffects: [GridPoint: TileEffect] = [:]
     ) {
         self.size = size
         let row = Array(repeating: TileState(), count: size)
         self.tiles = Array(repeating: row, count: size)
+        var sanitizedEffects: [GridPoint: TileEffect] = [:]
+        var warpGroups: [String: Set<GridPoint>] = [:]
+        let validRange = 0..<size
+        let isWithinBoard: (GridPoint) -> Bool = { point in
+            validRange.contains(point.x) && validRange.contains(point.y)
+        }
         // 最初に移動不可マスを反映し、以降の処理で上書きされないようにする
-        for point in impassablePoints where contains(point) {
+        for point in impassablePoints where isWithinBoard(point) {
             tiles[point.y][point.x] = TileState(visitBehavior: .single, remainingVisitCount: 0, isTraversable: false)
         }
         // 特殊マスの踏破必要回数を上書きし、複数回踏むステージに対応する
         for (point, requirement) in requiredVisitOverrides {
-            guard contains(point), !impassablePoints.contains(point) else { continue }
+            guard isWithinBoard(point), !impassablePoints.contains(point) else { continue }
             tiles[point.y][point.x] = TileState(visitBehavior: .multi(required: requirement))
         }
         // トグル挙動が設定されているマスは最優先で反映し、他設定よりも強いギミックとして扱う
-        for point in togglePoints where contains(point) && !impassablePoints.contains(point) {
+        for point in togglePoints where isWithinBoard(point) && !impassablePoints.contains(point) {
             tiles[point.y][point.x] = TileState(visitBehavior: .toggle)
         }
         // 移動不可マスはギミック設定よりも優先して上書きし、障害物として確実に保持する
-        for point in impassablePoints where contains(point) {
+        for point in impassablePoints where isWithinBoard(point) {
             tiles[point.y][point.x] = TileState(visitBehavior: .impassable, isTraversable: false)
         }
+        // タイル効果を事前に検証してから適用し、盤面外や障害物指定を安全に除外する
+        for (point, effect) in tileEffects {
+            guard isWithinBoard(point), !impassablePoints.contains(point) else { continue }
+            switch effect {
+            case .warp(let pairID, let destination):
+                // 盤面外や障害物を参照するワープは破棄し、ログ負荷を避けつつ安全側に倒す
+                guard isWithinBoard(destination), !impassablePoints.contains(destination) else { continue }
+                sanitizedEffects[point] = effect
+                warpGroups[pairID, default: []].insert(point)
+            case .shuffleHand:
+                sanitizedEffects[point] = effect
+            }
+        }
+
+        // ワープは同一 pairID が複数存在する場合のみ有効化し、片側だけの登録ミスを検出する
+        var validWarpPoints: Set<GridPoint> = []
+        for (pairID, points) in warpGroups {
+            let pointSet = points
+            guard pointSet.count >= 2 else { continue }
+            var isValidGroup = true
+            for point in pointSet {
+                guard case .warp(_, let destination) = sanitizedEffects[point], pointSet.contains(destination) else {
+                    isValidGroup = false
+                    break
+                }
+            }
+            if isValidGroup {
+                validWarpPoints.formUnion(pointSet)
+            } else {
+                // 片側だけが別座標を指す場合などはまとめて除外し、想定外のワープでプレイ体験を壊さない
+                debugLog("Board.init: 無効なワープ定義を pairID=\(pairID) で検出しました")
+            }
+        }
+
+        // 無効なワープを辞書から除外し、以降の描画や取得処理に流入させない
+        var invalidWarpPoints: [GridPoint] = []
+        for (point, effect) in sanitizedEffects {
+            if case .warp = effect, !validWarpPoints.contains(point) {
+                invalidWarpPoints.append(point)
+            }
+        }
+        for point in invalidWarpPoints {
+            sanitizedEffects.removeValue(forKey: point)
+        }
+
         // 初期踏破マスを順番に処理し、盤面外の指定は安全に無視する
-        for point in initialVisitedPoints where contains(point) {
+        for point in initialVisitedPoints where isWithinBoard(point) {
             tiles[point.y][point.x].markVisited()
         }
+        // 効果の最終登録を行い、TileState にも同じ情報を保持させる
+        for (point, effect) in sanitizedEffects {
+            tiles[point.y][point.x].assignEffect(effect)
+        }
+        self.tileEffects = sanitizedEffects
     }
 
     /// 指定座標が盤面内かどうかを判定する
@@ -266,6 +352,14 @@ public struct Board: Equatable {
     public func state(at point: GridPoint) -> TileState? {
         guard contains(point) else { return nil }
         return tiles[point.y][point.x]
+    }
+
+    /// 指定座標に設定された特殊効果を返す
+    /// - Parameter point: 調べたい座標
+    /// - Returns: 効果が付与されていればその内容を返し、未設定なら nil
+    public func effect(at point: GridPoint) -> TileEffect? {
+        guard contains(point) else { return nil }
+        return tileEffects[point]
     }
 
     /// 指定座標が踏破済みかどうかを返す
