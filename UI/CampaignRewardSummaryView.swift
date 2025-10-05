@@ -42,7 +42,7 @@ struct CampaignRewardSummaryView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: metrics.sectionSpacing) {
-            section(title: "リワード条件") {
+            section(title: "リワード条件", subtitle: rewardConditionSummaryText) {
                 VStack(alignment: .leading, spacing: metrics.rowSpacing) {
                     ForEach(Array(rewardConditions.enumerated()), id: \.offset) { index, condition in
                         rewardConditionRow(index: index, condition: condition)
@@ -54,7 +54,6 @@ struct CampaignRewardSummaryView: View {
                 // 記録を隠したい画面（例: ポーズメニュー）向けに、セクション自体を条件付きで表示する
                 section(title: "これまでの記録") {
                     VStack(alignment: .leading, spacing: metrics.rowSpacing) {
-                        starRow
                         recordBulletRow(text: "ハイスコア: \(bestScoreText)")
                         recordBulletRow(text: "最小ペナルティ: \(bestPenaltyText)")
                         recordBulletRow(text: "最少合計手数: \(bestTotalMoveText)")
@@ -70,28 +69,24 @@ private extension CampaignRewardSummaryView {
     /// セクション共通のタイトル + 本文レイアウト
     /// - Parameters:
     ///   - title: 表示するセクションタイトル
+    ///   - subtitle: タイトル横に表示する補足（例: スター合計）
     ///   - content: セクション内部のビュー
     @ViewBuilder
-    func section<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
+    func section<Content: View>(title: String, subtitle: String? = nil, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: metrics.sectionContentSpacing) {
-            Text(title)
-                .font(.system(size: 13, weight: .semibold, design: .rounded))
-                .foregroundColor(theme.textSecondary)
-            content()
-        }
-    }
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(title)
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .foregroundColor(theme.textSecondary)
 
-    /// 獲得済みスター数に応じてアイコンを切り替える行
-    private var starRow: some View {
-        HStack(spacing: metrics.starSpacing) {
-            ForEach(0..<LayoutMetrics.totalStarCount, id: \.self) { index in
-                Image(systemName: index < earnedStars ? "star.fill" : "star")
-                    .foregroundColor(theme.accentPrimary)
+                if let subtitle {
+                    // 合計スターなどプレイヤーがすぐ把握したい補足を表示する
+                    Text(subtitle)
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .foregroundColor(theme.textSecondary)
+                }
             }
-
-            Text("スター \(earnedStars)/\(LayoutMetrics.totalStarCount)")
-                .font(.system(size: 13, weight: .semibold, design: .rounded))
-                .foregroundColor(theme.textSecondary)
+            content()
         }
     }
 
@@ -101,10 +96,18 @@ private extension CampaignRewardSummaryView {
     ///   - condition: 表示する達成状況
     private func rewardConditionRow(index: Int, condition: RewardConditionDisplay) -> some View {
         HStack(alignment: .top, spacing: metrics.rowSpacing) {
-            Image(systemName: condition.achieved ? "checkmark.circle.fill" : "circle")
-                .foregroundColor(condition.achieved ? theme.accentPrimary : theme.textSecondary)
-                .font(.system(size: 18, weight: .bold))
-                .accessibilityHidden(true)
+            ZStack {
+                Image(systemName: "star.fill")
+                    .foregroundColor(condition.achieved ? theme.textPrimary : theme.cardContentInverted)
+
+                if condition.achieved == false {
+                    // 未達成時は白星にうっすら縁取りを重ね、ダーク/ライト双方で視認性を確保する
+                    Image(systemName: "star")
+                        .foregroundColor(theme.textSecondary.opacity(0.35))
+                }
+            }
+            .font(.system(size: 18, weight: .bold))
+            .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text("スター \(index + 1)")
@@ -164,6 +167,12 @@ private extension CampaignRewardSummaryView {
         progress?.earnedStars ?? 0
     }
 
+    /// リワード条件欄のタイトル横に表示するスター集計文
+    private var rewardConditionSummaryText: String {
+        // 星アイコンで個別状況を示しつつ、ここで合計数を明記して一目で達成度を把握できるようにする
+        "獲得スター \(earnedStars)/\(LayoutMetrics.totalStarCount)"
+    }
+
     /// ベストスコアの表示文
     private var bestScoreText: String {
         if let best = progress?.bestScore {
@@ -219,7 +228,6 @@ private extension CampaignRewardSummaryView {
         let sectionSpacing: CGFloat
         let sectionContentSpacing: CGFloat
         let rowSpacing: CGFloat
-        let starSpacing: CGFloat
         let bulletSpacing: CGFloat
         let bulletSize: CGFloat
 
@@ -231,7 +239,6 @@ private extension CampaignRewardSummaryView {
                 self.sectionSpacing = 24
                 self.sectionContentSpacing = 12
                 self.rowSpacing = 12
-                self.starSpacing = 10
                 self.bulletSpacing = 8
                 self.bulletSize = 6
             case .list:
@@ -239,7 +246,6 @@ private extension CampaignRewardSummaryView {
                 self.sectionSpacing = 20
                 self.sectionContentSpacing = 10
                 self.rowSpacing = 10
-                self.starSpacing = 8
                 self.bulletSpacing = 8
                 self.bulletSize = 6
             }
