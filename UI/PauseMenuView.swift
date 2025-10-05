@@ -8,6 +8,8 @@ struct PauseMenuView: View {
     private var theme = AppTheme()
     /// キャンペーン進捗のサマリー（キャンペーン以外では nil）
     let campaignSummary: CampaignPauseSummary?
+    /// ポーズメニューに並べるペナルティ説明文の一覧
+    let penaltyItems: [String]
     /// プレイ再開ボタン押下時の処理
     let onResume: () -> Void
     /// リセット確定時の処理
@@ -22,11 +24,13 @@ struct PauseMenuView: View {
     ///   - onConfirmReturnToTitle: タイトル復帰確定時に実行するクロージャ
     init(
         campaignSummary: CampaignPauseSummary? = nil,
+        penaltyItems: [String] = [],
         onResume: @escaping () -> Void,
         onConfirmReset: @escaping () -> Void,
         onConfirmReturnToTitle: @escaping () -> Void
     ) {
         self.campaignSummary = campaignSummary
+        self.penaltyItems = penaltyItems
         self.onResume = onResume
         self.onConfirmReset = onConfirmReset
         self.onConfirmReturnToTitle = onConfirmReturnToTitle
@@ -51,6 +55,17 @@ struct PauseMenuView: View {
             List {
                 if let summary = campaignSummary {
                     campaignProgressSection(for: summary)
+                }
+                // MARK: - ペナルティ一覧
+                if !penaltyItems.isEmpty {
+                    Section {
+                        ForEach(penaltyItems, id: \.self) { item in
+                            Text(item)
+                                .accessibilityLabel(Text("ペナルティ項目: \(item)"))
+                        }
+                    } header: {
+                        Text("ペナルティ")
+                    }
                 }
                 // MARK: - プレイ再開ボタン
                 Section {
