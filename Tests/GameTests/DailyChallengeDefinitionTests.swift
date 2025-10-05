@@ -36,4 +36,34 @@ final class DailyChallengeDefinitionTests: XCTestCase {
 
         XCTAssertEqual(fixedMode.regulationSnapshot, campaignMode.regulationSnapshot, "固定版は 5-8 の設定と一致している必要があります")
     }
+
+    /// ランダム版で採用されるペナルティ範囲が新基準へ沿っているかを確認
+    func testRandomModePenaltyRangesFollowBaseline() {
+        // 観測値を収集し、2 値を含むかどうかを後段で確認する。
+        var observedRedrawCosts: Set<Int> = []
+        var observedDiscardCosts: Set<Int> = []
+        var observedRevisitCosts: Set<Int> = []
+
+        // 連続シードを複数評価し、乱数の偏りで判定がブレないようにする。
+        for offset in 0..<128 {
+            let seed = 0xCAFEBABE_0000_0000 &+ UInt64(offset)
+            let mode = DailyChallengeDefinition.makeRandomMode(baseSeed: seed)
+            let penalties = mode.regulationSnapshot.penalties
+
+            XCTAssertEqual(penalties.deadlockPenaltyCost, 3, "deadlock ペナルティは常に +3 手へ固定される想定です")
+            XCTAssertTrue([2, 3].contains(penalties.manualRedrawPenaltyCost), "manual redraw は +2〜+3 手の範囲に収まる必要があります")
+            XCTAssertTrue([1, 2].contains(penalties.manualDiscardPenaltyCost), "manual discard は +1〜+2 手の範囲に収まる必要があります")
+            XCTAssertTrue([0, 1].contains(penalties.revisitPenaltyCost), "revisit は 0〜+1 手の範囲に収まる必要があります")
+
+            observedRedrawCosts.insert(penalties.manualRedrawPenaltyCost)
+            observedDiscardCosts.insert(penalties.manualDiscardPenaltyCost)
+            observedRevisitCosts.insert(penalties.revisitPenaltyCost)
+        }
+
+        // manual redraw は最低でも +2 手を選択肢として保持する仕様なので、実際に出現することを確認する。
+        XCTAssertTrue(observedRedrawCosts.contains(2), "manual redraw で +2 手が選ばれるケースを生成できていません")
+        // manual discard / revisit も中心値が出現するかを確認する。
+        XCTAssertTrue(observedDiscardCosts.contains(1), "manual discard で +1 手が出現することを保証する必要があります")
+        XCTAssertTrue(observedRevisitCosts.contains(0), "revisit で 0 手運用が出現することを保証する必要があります")
+    }
 }
