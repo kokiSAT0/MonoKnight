@@ -23,31 +23,59 @@ final class BoardMovementTests: XCTestCase {
         XCTAssertTrue(inside.isInside(boardSize: boardSize))
     }
 
-    /// MoveCard の移動ベクトルが従来の dx/dy と同じ値を返すかを確認する
-    func testMoveCardMovementVectorsMatchLegacyValues() {
+    /// MovePattern が従来の単一ベクトルと同じ移動を生成するか確認する
+    func testMovePatternResolvesLegacyVectors() {
+        let boardSize = BoardGeometry.standardSize
+        let origin = GridPoint.center(of: boardSize)
+        let board = Board(size: boardSize)
+        let context = MoveCard.MovePattern.ResolutionContext(
+            boardSize: board.size,
+            contains: { board.contains($0) },
+            isTraversable: { board.isTraversable($0) }
+        )
+
         let card = MoveCard.kingRight
         let expectedVector = MoveVector(dx: 1, dy: 0)
-        XCTAssertEqual(card.movementVectors, [expectedVector], "移動候補配列が既存仕様と一致しません")
+        let kingPaths = card.resolvePaths(from: origin, context: context)
+        XCTAssertEqual(kingPaths.map(\.vector), [expectedVector], "移動パターンが想定ベクトルを返していません")
+        XCTAssertEqual(kingPaths.first?.destination, origin.offset(dx: 1, dy: 0), "移動先が従来の仕様と一致していません")
+        XCTAssertEqual(card.movePattern.identity, .relativeSteps([expectedVector]), "アイデンティティが想定の相対単歩と一致しません")
         XCTAssertEqual(card.primaryVector, expectedVector, "primaryVector が従来値と一致しません")
 
         let knightCard = MoveCard.knightUp1Right2
         let knightVector = MoveVector(dx: 2, dy: 1)
-        XCTAssertEqual(knightCard.movementVectors, [knightVector], "桂馬カードの移動候補が想定と異なります")
+        let knightPaths = knightCard.resolvePaths(from: origin, context: context)
+        XCTAssertEqual(knightPaths.map(\.vector), [knightVector], "桂馬カードの移動パターンが想定ベクトルを返していません")
+        XCTAssertEqual(knightPaths.first?.destination, origin.offset(dx: 2, dy: 1), "桂馬カードの移動先が想定と異なります")
+        XCTAssertEqual(knightCard.movePattern.identity, .relativeSteps([knightVector]), "桂馬カードのアイデンティティが想定と異なります")
         XCTAssertEqual(knightCard.primaryVector, knightVector, "桂馬カードの代表ベクトルが想定と異なります")
     }
 
     /// 複数方向候補カードが 2 方向のベクトルを保持し、primaryVector が先頭を指すかを確認する
     func testMultiDirectionCardProvidesTwoCandidates() {
+        let boardSize = BoardGeometry.standardSize
+        let origin = GridPoint.center(of: boardSize)
+        let board = Board(size: boardSize)
+        let context = MoveCard.MovePattern.ResolutionContext(
+            boardSize: board.size,
+            contains: { board.contains($0) },
+            isTraversable: { board.isTraversable($0) }
+        )
+
         let verticalChoice = MoveCard.kingUpOrDown
-        XCTAssertEqual(verticalChoice.movementVectors.count, 2, "上下選択カードの候補数が 2 ではありません")
-        XCTAssertEqual(verticalChoice.movementVectors[0], MoveVector(dx: 0, dy: 1), "上下選択カードの先頭ベクトルが上方向になっていません")
-        XCTAssertEqual(verticalChoice.movementVectors[1], MoveVector(dx: 0, dy: -1), "上下選択カードの 2 番目ベクトルが下方向になっていません")
+        let verticalPaths = verticalChoice.resolvePaths(from: origin, context: context)
+        XCTAssertEqual(verticalPaths.count, 2, "上下選択カードの候補数が 2 ではありません")
+        XCTAssertEqual(verticalPaths[0].vector, MoveVector(dx: 0, dy: 1), "上下選択カードの先頭ベクトルが上方向になっていません")
+        XCTAssertEqual(verticalPaths[1].vector, MoveVector(dx: 0, dy: -1), "上下選択カードの 2 番目ベクトルが下方向になっていません")
+        XCTAssertEqual(verticalChoice.movePattern.identity, .relativeSteps([MoveVector(dx: 0, dy: 1), MoveVector(dx: 0, dy: -1)]), "上下選択カードのアイデンティティが想定と異なります")
         XCTAssertEqual(verticalChoice.primaryVector, MoveVector(dx: 0, dy: 1), "上下選択カードの primaryVector が想定外です")
 
         let horizontalChoice = MoveCard.kingLeftOrRight
-        XCTAssertEqual(horizontalChoice.movementVectors.count, 2, "左右選択カードの候補数が 2 ではありません")
-        XCTAssertEqual(horizontalChoice.movementVectors[0], MoveVector(dx: 1, dy: 0), "左右選択カードの先頭ベクトルが右方向になっていません")
-        XCTAssertEqual(horizontalChoice.movementVectors[1], MoveVector(dx: -1, dy: 0), "左右選択カードの 2 番目ベクトルが左方向になっていません")
+        let horizontalPaths = horizontalChoice.resolvePaths(from: origin, context: context)
+        XCTAssertEqual(horizontalPaths.count, 2, "左右選択カードの候補数が 2 ではありません")
+        XCTAssertEqual(horizontalPaths[0].vector, MoveVector(dx: 1, dy: 0), "左右選択カードの先頭ベクトルが右方向になっていません")
+        XCTAssertEqual(horizontalPaths[1].vector, MoveVector(dx: -1, dy: 0), "左右選択カードの 2 番目ベクトルが左方向になっていません")
+        XCTAssertEqual(horizontalChoice.movePattern.identity, .relativeSteps([MoveVector(dx: 1, dy: 0), MoveVector(dx: -1, dy: 0)]), "左右選択カードのアイデンティティが想定と異なります")
         XCTAssertEqual(horizontalChoice.primaryVector, MoveVector(dx: 1, dy: 0), "左右選択カードの primaryVector が想定外です")
     }
 

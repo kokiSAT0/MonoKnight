@@ -35,6 +35,12 @@ public struct HandStack: Identifiable, Equatable {
     /// - Note: 今後同じ移動候補を持つ別カードが増えてもスタックを共用できるよう、MoveCard の列挙値ではなくベクトル列を比較基準とする
     public var representativeVectors: [MoveVector]? { representativeMove?.movementVectors }
 
+    /// 最新カードが持つ移動パターン ID を返す
+    /// - Note: MovePattern.Identity を比較すれば移動候補が同一かどうかを簡潔に判断できる
+    public var representativePatternIdentity: MoveCard.MovePattern.Identity? {
+        representativeMove?.movePattern.identity
+    }
+
     /// 同じ種類のカードを積み増しする
     /// - Parameter card: 追加したい `DealtCard`
     public mutating func append(_ card: DealtCard) {

@@ -9,33 +9,34 @@ public struct ResolvedCardMove: Hashable {
     public let stackIndex: Int
     /// 実際に使用可能なカード（`DealtCard`）
     public let card: DealtCard
-    /// 移動量をベクトルとして表現した値
-    public let moveVector: MoveVector
-    /// カード適用後に到達する座標
-    public let destination: GridPoint
+    /// 移動経路の詳細
+    public let path: MoveCard.MovePattern.Path
 
     /// カード種別を直接参照したいケース向けのヘルパー
     public var moveCard: MoveCard { card.move }
+    /// 移動量をベクトルとして取得するヘルパー
+    public var moveVector: MoveVector { path.vector }
+    /// 最終到達地点を返すヘルパー
+    public var destination: GridPoint { path.destination }
+    /// 通過マス一覧（目的地を含む）
+    public var traversedPoints: [GridPoint] { path.traversedPoints }
 
     /// 公開イニシャライザ
     /// - Parameters:
     ///   - stackID: スタックを識別する UUID
     ///   - stackIndex: `handStacks` 内での位置
     ///   - card: 使用対象の `DealtCard`
-    ///   - moveVector: カードが持つ移動ベクトル
-    ///   - destination: カード適用後の座標
+    ///   - path: MovePattern から解決した移動経路
     public init(
         stackID: UUID,
         stackIndex: Int,
         card: DealtCard,
-        moveVector: MoveVector,
-        destination: GridPoint
+        path: MoveCard.MovePattern.Path
     ) {
         self.stackID = stackID
         self.stackIndex = stackIndex
         self.card = card
-        self.moveVector = moveVector
-        self.destination = destination
+        self.path = path
     }
 
     /// `Hashable` 準拠用の実装
@@ -45,8 +46,7 @@ public struct ResolvedCardMove: Hashable {
         hasher.combine(stackIndex)
         hasher.combine(card.id)
         hasher.combine(card.move)
-        hasher.combine(moveVector)
-        hasher.combine(destination)
+        hasher.combine(path)
     }
 
     /// `Equatable` 準拠用の比較演算子
@@ -59,8 +59,7 @@ public struct ResolvedCardMove: Hashable {
         lhs.stackIndex == rhs.stackIndex &&
         lhs.card.id == rhs.card.id &&
         lhs.card.move == rhs.card.move &&
-        lhs.moveVector == rhs.moveVector &&
-        lhs.destination == rhs.destination
+        lhs.path == rhs.path
     }
 }
 
