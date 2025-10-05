@@ -64,14 +64,6 @@ struct Deck {
         let allowedMoveSignatures: [[MoveVector]]
         /// 重み計算ロジックをまとめたプロファイル
         let weightProfile: WeightProfile
-        /// 連続排出抑制を行うかどうか
-        let shouldApplyProbabilityReduction: Bool
-        /// 通常時に掛ける重み倍率（整数比で扱う）
-        let normalWeightMultiplier: Int
-        /// 抑制中に掛ける重み倍率
-        let reducedWeightMultiplier: Int
-        /// 抑制状態を維持するターン数
-        let reductionDuration: Int
         /// UI やモード説明で利用する山札の要約テキスト
         let deckSummaryText: String
 
@@ -79,27 +71,15 @@ struct Deck {
         /// - Parameters:
         ///   - allowedMoves: 抽選対象とするカード配列
         ///   - weightProfile: 重み計算を管理するプロファイル
-        ///   - shouldApplyProbabilityReduction: 連続排出抑制の有無
-        ///   - normalWeightMultiplier: 通常時に掛ける重み倍率
-        ///   - reducedWeightMultiplier: 抑制時に掛ける重み倍率
-        ///   - reductionDuration: 抑制効果を持続させるターン数
         ///   - deckSummaryText: UI 表示用の簡易説明
         init(
             allowedMoves: [MoveCard],
             weightProfile: WeightProfile,
-            shouldApplyProbabilityReduction: Bool,
-            normalWeightMultiplier: Int,
-            reducedWeightMultiplier: Int,
-            reductionDuration: Int,
             deckSummaryText: String
         ) {
             self.allowedMoves = allowedMoves
             self.allowedMoveSignatures = allowedMoves.map { $0.movementVectors }
             self.weightProfile = weightProfile
-            self.shouldApplyProbabilityReduction = shouldApplyProbabilityReduction
-            self.normalWeightMultiplier = normalWeightMultiplier
-            self.reducedWeightMultiplier = reducedWeightMultiplier
-            self.reductionDuration = reductionDuration
             self.deckSummaryText = deckSummaryText
         }
 
@@ -110,10 +90,6 @@ struct Deck {
             return Configuration(
                 allowedMoves: MoveCard.standardSet,
                 weightProfile: WeightProfile(defaultWeight: 1, overrides: overrides),
-                shouldApplyProbabilityReduction: true,
-                normalWeightMultiplier: 4,
-                reducedWeightMultiplier: 3,
-                reductionDuration: 5,
                 deckSummaryText: "標準デッキ"
             )
         }()
@@ -137,10 +113,6 @@ struct Deck {
             return Configuration(
                 allowedMoves: allowedMoves,
                 weightProfile: WeightProfile(defaultWeight: 3, overrides: overrides),
-                shouldApplyProbabilityReduction: true,
-                normalWeightMultiplier: 4,
-                reducedWeightMultiplier: 3,
-                reductionDuration: 5,
                 deckSummaryText: "長距離カード抑制型標準デッキ"
             )
         }()
@@ -153,10 +125,6 @@ struct Deck {
             return Configuration(
                 allowedMoves: allowedMoves,
                 weightProfile: WeightProfile(defaultWeight: 1),
-                shouldApplyProbabilityReduction: true,
-                normalWeightMultiplier: 4,
-                reducedWeightMultiplier: 3,
-                reductionDuration: 5,
                 deckSummaryText: "標準＋上下左右選択キング"
             )
         }()
@@ -174,10 +142,6 @@ struct Deck {
             return Configuration(
                 allowedMoves: allowedMoves,
                 weightProfile: WeightProfile(defaultWeight: 1),
-                shouldApplyProbabilityReduction: true,
-                normalWeightMultiplier: 4,
-                reducedWeightMultiplier: 3,
-                reductionDuration: 5,
                 deckSummaryText: "標準＋斜め選択キング"
             )
         }()
@@ -195,10 +159,6 @@ struct Deck {
             return Configuration(
                 allowedMoves: allowedMoves,
                 weightProfile: WeightProfile(defaultWeight: 1),
-                shouldApplyProbabilityReduction: true,
-                normalWeightMultiplier: 4,
-                reducedWeightMultiplier: 3,
-                reductionDuration: 5,
                 deckSummaryText: "標準＋桂馬選択カード"
             )
         }()
@@ -222,10 +182,6 @@ struct Deck {
             return Configuration(
                 allowedMoves: allowedMoves,
                 weightProfile: WeightProfile(defaultWeight: 1),
-                shouldApplyProbabilityReduction: true,
-                normalWeightMultiplier: 4,
-                reducedWeightMultiplier: 3,
-                reductionDuration: 5,
                 deckSummaryText: "標準＋全選択カード"
             )
         }()
@@ -236,10 +192,6 @@ struct Deck {
             return Configuration(
                 allowedMoves: knightMoves,
                 weightProfile: WeightProfile(defaultWeight: 1),
-                shouldApplyProbabilityReduction: false,
-                normalWeightMultiplier: 1,
-                reducedWeightMultiplier: 1,
-                reductionDuration: 0,
                 deckSummaryText: "桂馬カードのみ"
             )
         }()
@@ -250,10 +202,6 @@ struct Deck {
             return Configuration(
                 allowedMoves: kingMoves,
                 weightProfile: WeightProfile(defaultWeight: 1),
-                shouldApplyProbabilityReduction: false,
-                normalWeightMultiplier: 1,
-                reducedWeightMultiplier: 1,
-                reductionDuration: 0,
                 deckSummaryText: "王将カードのみ"
             )
         }()
@@ -265,10 +213,6 @@ struct Deck {
             return Configuration(
                 allowedMoves: allowedMoves,
                 weightProfile: WeightProfile(defaultWeight: 1),
-                shouldApplyProbabilityReduction: true,
-                normalWeightMultiplier: 4,
-                reducedWeightMultiplier: 3,
-                reductionDuration: 4,
                 deckSummaryText: "キングと桂馬の基礎デッキ"
             )
         }()
@@ -281,10 +225,6 @@ struct Deck {
             return Configuration(
                 allowedMoves: allowedMoves,
                 weightProfile: WeightProfile(defaultWeight: 1, overrides: overrides),
-                shouldApplyProbabilityReduction: true,
-                normalWeightMultiplier: 4,
-                reducedWeightMultiplier: 3,
-                reductionDuration: 5,
                 deckSummaryText: "選択式キングカード入り"
             )
         }()
@@ -295,10 +235,6 @@ struct Deck {
             return Configuration(
                 allowedMoves: moves,
                 weightProfile: WeightProfile(defaultWeight: 1),
-                shouldApplyProbabilityReduction: false,
-                normalWeightMultiplier: 1,
-                reducedWeightMultiplier: 1,
-                reductionDuration: 0,
                 deckSummaryText: "上下左右の選択キング限定"
             )
         }()
@@ -317,10 +253,6 @@ struct Deck {
             return Configuration(
                 allowedMoves: moves,
                 weightProfile: WeightProfile(defaultWeight: 1),
-                shouldApplyProbabilityReduction: false,
-                normalWeightMultiplier: 1,
-                reducedWeightMultiplier: 1,
-                reductionDuration: 0,
                 deckSummaryText: "キングと桂馬の限定デッキ"
             )
         }()
@@ -336,10 +268,6 @@ struct Deck {
             return Configuration(
                 allowedMoves: moves,
                 weightProfile: WeightProfile(defaultWeight: 1),
-                shouldApplyProbabilityReduction: false,
-                normalWeightMultiplier: 1,
-                reducedWeightMultiplier: 1,
-                reductionDuration: 0,
                 deckSummaryText: "斜め選択キング限定"
             )
         }()
@@ -355,10 +283,6 @@ struct Deck {
             return Configuration(
                 allowedMoves: moves,
                 weightProfile: WeightProfile(defaultWeight: 1),
-                shouldApplyProbabilityReduction: false,
-                normalWeightMultiplier: 1,
-                reducedWeightMultiplier: 1,
-                reductionDuration: 0,
                 deckSummaryText: "桂馬選択カード限定"
             )
         }()
@@ -380,10 +304,6 @@ struct Deck {
             return Configuration(
                 allowedMoves: moves,
                 weightProfile: WeightProfile(defaultWeight: 1),
-                shouldApplyProbabilityReduction: false,
-                normalWeightMultiplier: 1,
-                reducedWeightMultiplier: 1,
-                reductionDuration: 0,
                 deckSummaryText: "選択カード総合ミックス"
             )
         }()
@@ -402,8 +322,6 @@ struct Deck {
     private var random: SeededGenerator
     #endif
 
-    /// 直近に排出されたカードの抑制残りターン数（値が 0 になると解除）
-    private var reducedProbabilityTurns: [MoveCard: Int]
     #if DEBUG
     /// テスト時に優先して返すカード列（先頭から順に消費）
     private var presetDrawQueue: [MoveCard]
@@ -426,7 +344,6 @@ struct Deck {
         #else
         random = SeededGenerator(seed: resolvedSeed)
         #endif
-        reducedProbabilityTurns = [:]
         #if DEBUG
         presetDrawQueue = []
         presetOriginal = []
@@ -450,7 +367,6 @@ struct Deck {
         #else
         random = SeededGenerator(seed: initialSeed)
         #endif
-        reducedProbabilityTurns.removeAll()
         #if DEBUG
         presetDrawQueue = presetOriginal
         #endif
@@ -464,12 +380,10 @@ struct Deck {
         // テストで事前登録されたカードがあれば優先的に返す
         if !presetDrawQueue.isEmpty {
             let move = presetDrawQueue.removeFirst()
-            applyProbabilityReduction(afterDrawing: move)
             return DealtCard(move: move)
         }
 #endif
         guard let move = drawWithDynamicWeights() else { return nil }
-        applyProbabilityReduction(afterDrawing: move)
         return DealtCard(move: move)
     }
 
@@ -500,6 +414,7 @@ struct Deck {
     }
 
     /// 現在の設定に基づき動的な重み抽選を実行する
+    /// - Note: 連続排出抑制を廃止し、基礎重みのみで抽選するシンプルな構成へ統一している。
     /// - Returns: 抽選で選ばれたカード（総重量が 0 の場合は nil）
     private mutating func drawWithDynamicWeights() -> MoveCard? {
         var weightedCards: [(card: MoveCard, weight: Int)] = []
@@ -507,12 +422,9 @@ struct Deck {
         var totalWeight = 0
 
         for card in configuration.allowedMoves {
-            let baseWeight = configuration.weightProfile.weight(for: card)
+            let weight = configuration.weightProfile.weight(for: card)
             // 重みが 0 以下の場合は抽選対象から除外する（安全策）
-            guard baseWeight > 0 else { continue }
-            let isReduced = configuration.shouldApplyProbabilityReduction && (reducedProbabilityTurns[card, default: 0] > 0)
-            let multiplier = isReduced ? configuration.reducedWeightMultiplier : configuration.normalWeightMultiplier
-            let weight = baseWeight * multiplier
+            guard weight > 0 else { continue }
             weightedCards.append((card, weight))
             totalWeight += weight
         }
@@ -529,26 +441,6 @@ struct Deck {
         }
         // 理論上ここには到達しないが、安全のため最後のカードを返す
         return weightedCards.last?.card
-    }
-
-    /// ドロー結果に応じてペナルティ残りターン数を更新する
-    /// - Parameter card: 今回排出されたカード
-    private mutating func applyProbabilityReduction(afterDrawing card: MoveCard) {
-        guard configuration.shouldApplyProbabilityReduction, configuration.reductionDuration > 0 else {
-            return
-        }
-        // 既存のペナルティを 1 ターン進め、0 以下になったら辞書から削除する
-        var updated: [MoveCard: Int] = [:]
-        updated.reserveCapacity(reducedProbabilityTurns.count)
-        for (target, turns) in reducedProbabilityTurns {
-            let nextValue = turns - 1
-            if nextValue > 0 {
-                updated[target] = nextValue
-            }
-        }
-        reducedProbabilityTurns = updated
-        // 今回引いたカードに抑制を付与する
-        reducedProbabilityTurns[card] = configuration.reductionDuration
     }
 }
 
