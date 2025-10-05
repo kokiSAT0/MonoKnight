@@ -515,7 +515,7 @@ final class CampaignLibraryTests: XCTestCase {
                 secondary: .finishWithoutPenaltyAndWithinMoves(maxMoves: 32),
                 scoreTarget: 530,
                 unlock: .stageClear(CampaignStageID(chapter: 3, index: 7)),
-                additional: [GridPoint(x: 0, y: 0): 2, GridPoint(x: 2, y: 2): 3, GridPoint(x: 4, y: 4): 4]
+                additional: [GridPoint(x: 1, y: 1): 2, GridPoint(x: 2, y: 2): 3, GridPoint(x: 3, y: 3): 4]
             )
         ]
 
