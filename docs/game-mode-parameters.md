@@ -18,8 +18,8 @@ MonoKnight の各モードは `GameMode` 構造体を通じて盤面サイズや
 
 | 項目 | 型 | 役割 | メモ |
 |------|----|------|------|
-| `deadlockPenaltyCost` | `Int` | 手札 5 種類すべてが使用不可となった際の自動ペナルティ。 | 既定値は +5 手。 |
-| `manualRedrawPenaltyCost` | `Int` | プレイヤーが任意に引き直しを実行した際に加算される手数。 | 既定値は +5 手。 |
+| `deadlockPenaltyCost` | `Int` | 手札 5 種類すべてが使用不可となった際の自動ペナルティ。 | 既定値は +3 手。 |
+| `manualRedrawPenaltyCost` | `Int` | プレイヤーが任意に引き直しを実行した際に加算される手数。 | 既定値は +2 手。 |
 | `manualDiscardPenaltyCost` | `Int` | 任意のカード 1 種を捨て札にする操作時のペナルティ。 | 既定値は +1 手。 |
 | `revisitPenaltyCost` | `Int` | 既踏マスへ再訪した際に加算される手数。 | 既定値は 0 手（スタンダードの場合）。 |
 
@@ -27,14 +27,14 @@ MonoKnight の各モードは `GameMode` 構造体を通じて盤面サイズや
 
 | モード | `identifier` | 主な設定 | 備考 |
 |--------|--------------|----------|------|
-| スタンダード | `.standard5x5` | `boardSize=5`, `spawnRule=.fixed(中央)`, `deckPreset=.standard`, `deadlockPenaltyCost=5` など | 初期スポーンは常に中央。フリーモード初期値としても利用。 |
+| スタンダード | `.standard5x5` | `boardSize=5`, `spawnRule=.fixed(中央)`, `deckPreset=.standard`, `deadlockPenaltyCost=3` など | 初期スポーンは常に中央。フリーモード初期値としても利用。 |
 | クラシカルチャレンジ | `.classicalChallenge` | `boardSize=8`, `spawnRule=.chooseAnyAfterPreview`, `deckPreset=.classicalChallenge`, `deadlockPenaltyCost=2` など | 盤面が 8×8 に拡張され、桂馬カードのみで構成される。 |
 
 ## 3. フリーモードとの整合性要件
 
 フリーモード (`GameMode.Identifier.freeCustom`) はユーザーがカスタマイズした `GameMode.Regulation` を `UserDefaults` に保存し、必要に応じて `GameMode` を再構築して利用する。実装上のチェックポイントは次の通り。
 
-1. **既定値の整合性**: 保存データが存在しない場合は `GameMode.standard.regulationSnapshot` を初期値とし、ビルトインモードと同じ挙動になること。
+1. **既定値の整合性**: 保存データが存在しない場合は `GameMode.standard.regulationSnapshot` を初期値とし、ビルトインモードと同じ挙動になること。特にペナルティは `deadlock=+3` / `manualRedraw=+2` / `manualDiscard=+1` / `revisit=0` を初期値として共有する。
 2. **シリアライズ互換性**: `GameMode.Regulation` / `PenaltySettings` / `SpawnRule` は `Codable` であり、`FreeModeRegulationStore` での JSON 保存・読み込みが破綻しないこと。
 3. **GameMode の識別子運用**: フリーモードとして生成した `GameMode` は常に `.freeCustom` を識別子とし、`regulationSnapshot` の内容で差分を判定できること。
 4. **プリセット適用時の同期**: `applyPreset(from:)` でビルトインモードの `regulationSnapshot` を適用することで、ユーザーがいつでも既定モードへ戻せること。

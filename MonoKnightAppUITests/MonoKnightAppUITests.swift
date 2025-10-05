@@ -130,8 +130,8 @@ final class MonoKnightAppUITests: XCTestCase {
         let penaltyHeader = app.staticTexts["ペナルティ"]
         XCTAssertTrue(penaltyHeader.waitForExistence(timeout: 5), "ポーズメニューにペナルティ見出しが表示されること")
 
-        XCTAssertTrue(app.staticTexts["手詰まり +5 手"].waitForExistence(timeout: 5), "手詰まりペナルティの行が表示されること")
-        XCTAssertTrue(app.staticTexts["引き直し +5 手"].exists, "引き直しペナルティの行が表示されること")
+        XCTAssertTrue(app.staticTexts["手詰まり +3 手"].waitForExistence(timeout: 5), "手詰まりペナルティの行が表示されること")
+        XCTAssertTrue(app.staticTexts["引き直し +2 手"].exists, "引き直しペナルティの行が表示されること")
         XCTAssertTrue(app.staticTexts["捨て札 +1 手"].exists, "捨て札ペナルティの行が表示されること")
         XCTAssertTrue(app.staticTexts["再訪ペナルティなし"].exists, "再訪ペナルティなしの行が表示されること")
     }

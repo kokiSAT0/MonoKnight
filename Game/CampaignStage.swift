@@ -788,8 +788,8 @@ public struct CampaignLibrary {
         // MARK: - 3 章のステージ群
         // 選択カードを段階導入し、終盤は複数踏破ギミックと組み合わせる。
         let standardPenalties = GameMode.PenaltySettings(
-            deadlockPenaltyCost: 5,
-            manualRedrawPenaltyCost: 5,
+            deadlockPenaltyCost: 3,
+            manualRedrawPenaltyCost: 2,
             manualDiscardPenaltyCost: 1,
             revisitPenaltyCost: 0
         )
