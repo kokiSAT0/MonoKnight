@@ -22,35 +22,14 @@ public final class HandManager: ObservableObject {
     /// 並び替え設定
     private var handOrderingStrategy: HandOrderingStrategy
 
-    /// 移動ベクトル列を比較可能な形で保持するためのシグネチャ構造体
-    /// - Note: ベクトル配列自体は `Hashable` でないため、カードの移動候補をキーとして扱うためにラップする
-    private struct MoveVectorSignature: Hashable {
-        let vectors: [MoveVector]
-
-        init(_ vectors: [MoveVector]) {
-            self.vectors = vectors
-        }
-
-        func hash(into hasher: inout Hasher) {
-            hasher.combine(vectors.count)
-            for vector in vectors {
-                hasher.combine(vector)
-            }
-        }
-
-        static func == (lhs: MoveVectorSignature, rhs: MoveVectorSignature) -> Bool {
-            lhs.vectors == rhs.vectors
-        }
-    }
-
-    /// 移動ベクトル列ごとのデフォルト順序をキャッシュし、安定ソートに利用する
-    private static let moveVectorOrderingIndex: [MoveVectorSignature: Int] = {
-        var mapping: [MoveVectorSignature: Int] = [:]
+    /// 移動パターン ID ごとのデフォルト順序をキャッシュし、安定ソートに利用する
+    private static let movePatternOrderingIndex: [MoveCard.MovePattern.Identity: Int] = {
+        var mapping: [MoveCard.MovePattern.Identity: Int] = [:]
         mapping.reserveCapacity(MoveCard.allCases.count)
         for (index, card) in MoveCard.allCases.enumerated() {
-            let signature = MoveVectorSignature(card.movementVectors)
-            if mapping[signature] == nil {
-                mapping[signature] = index
+            let identity = card.movePattern.identity
+            if mapping[identity] == nil {
+                mapping[identity] = index
             }
         }
         return mapping
@@ -132,8 +111,8 @@ public final class HandManager: ObservableObject {
     ///   - preferredInsertionIndices: 補充したいスロット位置（使用後の空きを維持するために指定）
     func refillHandStacks(using deck: inout Deck, preferredInsertionIndices: [Int] = []) {
         // 山札設定から取得できるユニークな移動パターン数を把握し、過剰なスロット作成を防ぐ
-        let uniqueSignatureCount = deck.uniqueMoveSignatureCount()
-        let maxStackCount = max(0, min(handSize, uniqueSignatureCount))
+        let uniqueIdentityCount = deck.uniqueMoveIdentityCount()
+        let maxStackCount = max(0, min(handSize, uniqueIdentityCount))
         guard handStacks.count < maxStackCount || !preferredInsertionIndices.isEmpty else { return }
 
         var pendingInsertionIndices = preferredInsertionIndices.sorted()
@@ -161,10 +140,10 @@ public final class HandManager: ObservableObject {
             guard let card = nextCard else { break }
 
             if allowsCardStacking {
-                let signature = MoveVectorSignature(card.move.movementVectors)
+                let identity = card.move.movePattern.identity
                 if let index = handStacks.firstIndex(where: { stack in
-                    guard let vectors = stack.representativeVectors else { return false }
-                    return MoveVectorSignature(vectors) == signature
+                    guard let stackIdentity = stack.representativePatternIdentity else { return false }
+                    return stackIdentity == identity
                 }) {
                     var existing = handStacks[index]
                     existing.append(card)
@@ -224,8 +203,10 @@ public final class HandManager: ObservableObject {
             if leftDY != rightDY {
                 return leftDY > rightDY
             }
-            let leftIndex = HandManager.moveVectorOrderingIndex[MoveVectorSignature(leftCard.move.movementVectors)] ?? 0
-            let rightIndex = HandManager.moveVectorOrderingIndex[MoveVectorSignature(rightCard.move.movementVectors)] ?? 0
+            let leftIdentity = leftCard.move.movePattern.identity
+            let rightIdentity = rightCard.move.movePattern.identity
+            let leftIndex = HandManager.movePatternOrderingIndex[leftIdentity] ?? 0
+            let rightIndex = HandManager.movePatternOrderingIndex[rightIdentity] ?? 0
             return leftIndex < rightIndex
         }
     }

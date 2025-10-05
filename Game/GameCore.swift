@@ -186,8 +186,15 @@ public final class GameCore: ObservableObject {
         let stack = handStacks[resolvedMove.stackIndex]
         guard stack.id == resolvedMove.stackID else { return }
         guard let card = stack.topCard, card.id == resolvedMove.card.id, card.move == resolvedMove.card.move else { return }
-        // 候補ベクトルが現在のカードに含まれているか検証し、不正な入力を排除する
-        guard card.move.movementVectors.contains(resolvedMove.moveVector) else { return }
+        // MovePattern から算出した経路が現時点でも有効かを検証し、不正な入力を排除する
+        let snapshotBoard = board
+        let context = MoveCard.MovePattern.ResolutionContext(
+            boardSize: snapshotBoard.size,
+            contains: { point in snapshotBoard.contains(point) },
+            isTraversable: { point in snapshotBoard.isTraversable(point) }
+        )
+        let validPaths = card.move.resolvePaths(from: currentPosition, context: context)
+        guard validPaths.contains(resolvedMove.path) else { return }
 
         let computedDestination = currentPosition.offset(dx: resolvedMove.moveVector.dx, dy: resolvedMove.moveVector.dy)
         // ResolvedCardMove が古い現在地から算出された場合は破棄する（UI との同期ズレ対策）
@@ -271,6 +278,11 @@ public final class GameCore: ObservableObject {
 
         // 盤面境界を参照するためローカル変数として保持しておく
         let activeBoard = board
+        let resolutionContext = MoveCard.MovePattern.ResolutionContext(
+            boardSize: activeBoard.size,
+            contains: { point in activeBoard.contains(point) },
+            isTraversable: { point in activeBoard.isTraversable(point) }
+        )
 
         // 列挙中に同じ座標へ向かうカードを検出しやすいよう、結果は座標→スタック順でソートする
         var resolved: [ResolvedCardMove] = []
@@ -280,19 +292,14 @@ public final class GameCore: ObservableObject {
             // トップカードが存在しなければスキップ
             guard let topCard = stack.topCard else { continue }
 
-            // MoveCard.movementVectors が保持する全候補を展開し、1 ベクトルずつ ResolvedCardMove に変換する
-            for vector in topCard.move.movementVectors {
-                let destination = origin.offset(dx: vector.dx, dy: vector.dy)
-                // 盤面外および移動不可マスは候補から除外し、障害物との衝突を防止する
-                guard activeBoard.contains(destination), activeBoard.isTraversable(destination) else { continue }
-
+            // MoveCard の MovePattern から盤面状況に応じた経路を算出する
+            for path in topCard.move.resolvePaths(from: origin, context: resolutionContext) {
                 resolved.append(
                     ResolvedCardMove(
                         stackID: stack.id,
                         stackIndex: index,
                         card: topCard,
-                        moveVector: vector,
-                        destination: destination
+                        path: path
                     )
                 )
             }
@@ -458,8 +465,7 @@ extension GameCore: GameCoreProtocol {
             stackID: resolved.stackID,
             stackIndex: resolved.stackIndex,
             topCard: resolved.card,
-            destination: resolved.destination,
-            moveVector: resolved.moveVector
+            path: resolved.path
         )
     }
 }

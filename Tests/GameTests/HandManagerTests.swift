@@ -38,12 +38,12 @@ final class HandManagerTests: XCTestCase {
 
         for scenario in scenarios {
             var deck = Deck.makeTestDeck(cards: scenario.preset, configuration: scenario.configuration)
-            let uniqueCount = deck.uniqueMoveSignatureCount()
+            let uniqueCount = deck.uniqueMoveIdentityCount()
 
             let handManager = HandManager(handSize: 5, nextPreviewCount: 0, allowsCardStacking: true)
             handManager.refillHandStacks(using: &deck)
 
-            // ユニークシグネチャ数と手札上限の小さい方までしかスタックが作られないことを確認する
+            // ユニークパターン数と手札上限の小さい方までしかスタックが作られないことを確認する
             XCTAssertEqual(
                 handManager.handStacks.count,
                 min(5, uniqueCount),
@@ -62,7 +62,7 @@ final class HandManagerTests: XCTestCase {
             .kingLeftOrRight
         ]
         var deck = Deck.makeTestDeck(cards: preset, configuration: .kingOrthogonalChoiceOnly)
-        let uniqueCount = deck.uniqueMoveSignatureCount()
+        let uniqueCount = deck.uniqueMoveIdentityCount()
 
         let handManager = HandManager(handSize: 5, nextPreviewCount: 0, allowsCardStacking: true)
         handManager.refillHandStacks(using: &deck, preferredInsertionIndices: [0, 1, 2])

@@ -4,6 +4,303 @@ import Foundation
 /// - Note: 周囲 1 マスのキング型 8 種、ナイト型 8 種、距離 2 の直線/斜め 8 種の計 24 種に加え、キャンペーン専用の複数方向カードをサポート
 /// - Note: SwiftUI モジュールからも扱うため `public` とし、全ケース配列も公開する
 public enum MoveCard: CaseIterable {
+    // MARK: - MovePattern 定義
+    /// カードが持つ移動パターンを抽象化した構造体
+    /// - Important: これまでは単純なベクトル配列のみで管理していたが、将来的な連続移動や絶対座標指定カードにも対応できるよう、
+    ///              パターン種別と経路を合わせて扱えるメタデータへ整理する。
+    public struct MovePattern {
+        /// 識別用の内部ストレージ。
+        /// - Note: 盤面生成時にユニークな移動パターンを数えたり、スタック管理で同一カードを検出する用途で利用する。
+        private enum IdentityStorage: Hashable {
+            case relativeSteps([MoveVector])
+            case directionalRay(direction: MoveVector, limit: Int?)
+            case absoluteTargets([GridPoint])
+            case custom(String)
+        }
+
+        /// 外部公開用のアイデンティティ構造体
+        /// - Note: `Hashable` へ準拠させることで Set や辞書のキーとして扱えるようにする。
+        public struct Identity: Hashable {
+            /// 内部表現
+            private let storage: IdentityStorage
+
+            /// プライベートイニシャライザでストレージを隠蔽し、用途に応じた生成メソッドのみ公開する
+            /// - Parameter storage: 内部保持するストレージ値
+            private init(storage: IdentityStorage) {
+                self.storage = storage
+            }
+
+            /// 相対移動ベクトル列をもとにしたアイデンティティを生成する
+            /// - Parameter vectors: 候補となる相対ベクトル配列
+            /// - Returns: 同一ベクトル構成のカードを識別するための Identity
+            public static func relativeSteps(_ vectors: [MoveVector]) -> Identity {
+                Identity(storage: .relativeSteps(vectors))
+            }
+
+            /// 直線方向の連続移動を表すアイデンティティを生成する
+            /// - Parameters:
+            ///   - direction: 1 ステップ分の基準方向
+            ///   - limit: 最大歩数（nil の場合は盤端まで）
+            /// - Returns: 同一方向・同一上限を共有するカードを識別する Identity
+            public static func directionalRay(direction: MoveVector, limit: Int?) -> Identity {
+                Identity(storage: .directionalRay(direction: direction, limit: limit))
+            }
+
+            /// 絶対座標へジャンプするカード用のアイデンティティを生成する
+            /// - Parameter targets: 目的地候補の座標配列
+            /// - Returns: 同一座標集合へ移動するカードを識別する Identity
+            public static func absoluteTargets(_ targets: [GridPoint]) -> Identity {
+                Identity(storage: .absoluteTargets(targets))
+            }
+
+            /// 将来的にカスタム判定を導入したい場合に備えた生成メソッド
+            /// - Parameter rawValue: 一意な文字列
+            /// - Returns: 文字列ベースの Identity
+            public static func custom(_ rawValue: String) -> Identity {
+                Identity(storage: .custom(rawValue))
+            }
+        }
+
+        /// 盤面判定に利用するコンテキスト
+        /// - Note: `Board` 型へ直接依存しないようクロージャで判定を受け取り、テストや将来の盤面拡張へ対応する。
+        public struct ResolutionContext {
+            /// 盤面サイズ（デバッグ用にも参照しやすいよう保持）
+            public let boardSize: Int
+            /// 座標が盤内に含まれるかを判定するクロージャ
+            private let containsHandler: (GridPoint) -> Bool
+            /// 座標へ進入できるかを判定するクロージャ
+            private let traversableHandler: (GridPoint) -> Bool
+
+            /// イニシャライザ
+            /// - Parameters:
+            ///   - boardSize: 対象となる盤面サイズ
+            ///   - contains: 盤内判定を行うクロージャ
+            ///   - isTraversable: 障害物などで進入不可かどうかを判定するクロージャ
+            public init(boardSize: Int, contains: @escaping (GridPoint) -> Bool, isTraversable: @escaping (GridPoint) -> Bool) {
+                self.boardSize = boardSize
+                self.containsHandler = contains
+                self.traversableHandler = isTraversable
+            }
+
+            /// 指定座標が盤内かどうかを返す
+            /// - Parameter point: 判定したい座標
+            /// - Returns: 盤面に含まれていれば true
+            public func contains(_ point: GridPoint) -> Bool {
+                containsHandler(point)
+            }
+
+            /// 指定座標へ進入可能かを返す
+            /// - Parameter point: 判定したい座標
+            /// - Returns: 進入できる場合は true
+            public func isTraversable(_ point: GridPoint) -> Bool {
+                traversableHandler(point)
+            }
+        }
+
+        /// 経路を表現する構造体
+        /// - Important: 目的地だけでなく通過マスの列も保持し、連続移動カード追加時に衝突判定へ再利用できるようにする。
+        public struct Path: Hashable {
+            /// 合計移動量を表すベクトル
+            public let vector: MoveVector
+            /// 最終的な到達先
+            public let destination: GridPoint
+            /// 途中経路を含む通過マス（目的地を含む）
+            public let traversedPoints: [GridPoint]
+
+            /// イニシャライザ
+            /// - Parameters:
+            ///   - vector: 合計移動量
+            ///   - destination: 最終到達地点
+            ///   - traversedPoints: 通過マス配列（順番通りに格納する）
+            public init(vector: MoveVector, destination: GridPoint, traversedPoints: [GridPoint]) {
+                self.vector = vector
+                self.destination = destination
+                self.traversedPoints = traversedPoints
+            }
+        }
+
+        /// 従来 API 互換用の基本ベクトル配列
+        private let baseVectors: [MoveVector]
+        /// 実際の経路を生成するクロージャ
+        private let resolver: (GridPoint, ResolutionContext) -> [Path]
+        /// このパターンのアイデンティティ
+        public let identity: Identity
+
+        /// プライベートイニシャライザ
+        /// - Parameters:
+        ///   - baseVectors: 既存 API 向けに返す代表ベクトル集合
+        ///   - identity: 同一性判定用 ID
+        ///   - resolver: 経路生成クロージャ
+        private init(baseVectors: [MoveVector], identity: Identity, resolver: @escaping (GridPoint, ResolutionContext) -> [Path]) {
+            self.baseVectors = baseVectors
+            self.identity = identity
+            self.resolver = resolver
+        }
+
+        /// 相対単歩／複数候補カード向けのパターンを生成する
+        /// - Parameter vectors: 盤面に依存しない相対ベクトル配列
+        /// - Returns: 与えられたベクトル列をそのまま候補とするパターン
+        public static func relativeSteps(_ vectors: [MoveVector]) -> MovePattern {
+            let identity = Identity.relativeSteps(vectors)
+            return MovePattern(baseVectors: vectors, identity: identity) { origin, context in
+                vectors.compactMap { vector in
+                    let destination = origin.offset(dx: vector.dx, dy: vector.dy)
+                    guard context.contains(destination), context.isTraversable(destination) else { return nil }
+                    return Path(vector: vector, destination: destination, traversedPoints: [destination])
+                }
+            }
+        }
+
+        /// 指定方向へ連続直進するカード向けのパターンを生成する
+        /// - Parameters:
+        ///   - direction: 1 ステップ分の方向
+        ///   - limit: 上限ステップ数（nil の場合は盤端まで継続）
+        /// - Returns: 方向ベースで終点候補を列挙するパターン
+        public static func directionalRay(direction: MoveVector, limit: Int?) -> MovePattern {
+            let identity = Identity.directionalRay(direction: direction, limit: limit)
+            return MovePattern(baseVectors: [direction], identity: identity) { origin, context in
+                var results: [Path] = []
+                results.reserveCapacity(4)
+                var current = origin
+                var traversed: [GridPoint] = []
+                var step = 0
+
+                while true {
+                    step += 1
+                    if let limit, step > limit { break }
+
+                    current = current.offset(dx: direction.dx, dy: direction.dy)
+                    guard context.contains(current), context.isTraversable(current) else { break }
+                    traversed.append(current)
+
+                    let accumulatedVector = MoveVector(dx: direction.dx * step, dy: direction.dy * step)
+                    results.append(Path(vector: accumulatedVector, destination: current, traversedPoints: traversed))
+                }
+
+                return results
+            }
+        }
+
+        /// 絶対座標指定カード向けのパターンを生成する
+        /// - Parameter targets: 目的地候補の座標配列
+        /// - Returns: 指定座標へ直接ジャンプするパターン
+        public static func absoluteTargets(_ targets: [GridPoint]) -> MovePattern {
+            let identity = Identity.absoluteTargets(targets)
+            let fallbackVectors = targets.map { target in
+                MoveVector(dx: target.x, dy: target.y)
+            }
+            return MovePattern(baseVectors: fallbackVectors, identity: identity) { origin, context in
+                targets.compactMap { target in
+                    guard context.contains(target), context.isTraversable(target) else { return nil }
+                    let vector = MoveVector(dx: target.x - origin.x, dy: target.y - origin.y)
+                    return Path(vector: vector, destination: target, traversedPoints: [target])
+                }
+            }
+        }
+
+        /// movementVectors 互換の代表ベクトル配列を返す
+        /// - Returns: 既存 API で利用していたベクトル配列
+        public func fallbackVectors() -> [MoveVector] { baseVectors }
+
+        /// 指定した原点から到達可能な経路を列挙する
+        /// - Parameters:
+        ///   - origin: 現在位置
+        ///   - context: 盤面判定に必要なコンテキスト
+        /// - Returns: 盤内かつ進入可能な経路一覧
+        public func resolvePaths(from origin: GridPoint, context: ResolutionContext) -> [Path] {
+            resolver(origin, context)
+        }
+    }
+
+    /// 既定のパターン集合
+    private static let patternRegistry: [MoveCard: MovePattern] = {
+        // MARK: - パターン定義マップ
+        var mapping: [MoveCard: MovePattern] = [:]
+
+        // --- キング型 ---
+        mapping[.kingUp] = .relativeSteps([MoveVector(dx: 0, dy: 1)])
+        mapping[.kingUpRight] = .relativeSteps([MoveVector(dx: 1, dy: 1)])
+        mapping[.kingRight] = .relativeSteps([MoveVector(dx: 1, dy: 0)])
+        mapping[.kingDownRight] = .relativeSteps([MoveVector(dx: 1, dy: -1)])
+        mapping[.kingDown] = .relativeSteps([MoveVector(dx: 0, dy: -1)])
+        mapping[.kingDownLeft] = .relativeSteps([MoveVector(dx: -1, dy: -1)])
+        mapping[.kingLeft] = .relativeSteps([MoveVector(dx: -1, dy: 0)])
+        mapping[.kingUpLeft] = .relativeSteps([MoveVector(dx: -1, dy: 1)])
+        mapping[.kingUpOrDown] = .relativeSteps([
+            MoveVector(dx: 0, dy: 1),
+            MoveVector(dx: 0, dy: -1)
+        ])
+        mapping[.kingLeftOrRight] = .relativeSteps([
+            MoveVector(dx: 1, dy: 0),
+            MoveVector(dx: -1, dy: 0)
+        ])
+        mapping[.kingUpwardDiagonalChoice] = .relativeSteps([
+            MoveVector(dx: 1, dy: 1),
+            MoveVector(dx: -1, dy: 1)
+        ])
+        mapping[.kingRightDiagonalChoice] = .relativeSteps([
+            MoveVector(dx: 1, dy: 1),
+            MoveVector(dx: 1, dy: -1)
+        ])
+        mapping[.kingDownwardDiagonalChoice] = .relativeSteps([
+            MoveVector(dx: 1, dy: -1),
+            MoveVector(dx: -1, dy: -1)
+        ])
+        mapping[.kingLeftDiagonalChoice] = .relativeSteps([
+            MoveVector(dx: -1, dy: 1),
+            MoveVector(dx: -1, dy: -1)
+        ])
+
+        // --- ナイト型 ---
+        mapping[.knightUp2Right1] = .relativeSteps([MoveVector(dx: 1, dy: 2)])
+        mapping[.knightUp2Left1] = .relativeSteps([MoveVector(dx: -1, dy: 2)])
+        mapping[.knightUp1Right2] = .relativeSteps([MoveVector(dx: 2, dy: 1)])
+        mapping[.knightUp1Left2] = .relativeSteps([MoveVector(dx: -2, dy: 1)])
+        mapping[.knightDown2Right1] = .relativeSteps([MoveVector(dx: 1, dy: -2)])
+        mapping[.knightDown2Left1] = .relativeSteps([MoveVector(dx: -1, dy: -2)])
+        mapping[.knightDown1Right2] = .relativeSteps([MoveVector(dx: 2, dy: -1)])
+        mapping[.knightDown1Left2] = .relativeSteps([MoveVector(dx: -2, dy: -1)])
+        mapping[.knightUpwardChoice] = .relativeSteps([
+            MoveVector(dx: 1, dy: 2),
+            MoveVector(dx: -1, dy: 2)
+        ])
+        mapping[.knightRightwardChoice] = .relativeSteps([
+            MoveVector(dx: 2, dy: 1),
+            MoveVector(dx: 2, dy: -1)
+        ])
+        mapping[.knightDownwardChoice] = .relativeSteps([
+            MoveVector(dx: 1, dy: -2),
+            MoveVector(dx: -1, dy: -2)
+        ])
+        mapping[.knightLeftwardChoice] = .relativeSteps([
+            MoveVector(dx: -2, dy: 1),
+            MoveVector(dx: -2, dy: -1)
+        ])
+
+        // --- 長距離カード ---
+        mapping[.straightUp2] = .relativeSteps([MoveVector(dx: 0, dy: 2)])
+        mapping[.straightDown2] = .relativeSteps([MoveVector(dx: 0, dy: -2)])
+        mapping[.straightRight2] = .relativeSteps([MoveVector(dx: 2, dy: 0)])
+        mapping[.straightLeft2] = .relativeSteps([MoveVector(dx: -2, dy: 0)])
+        mapping[.diagonalUpRight2] = .relativeSteps([MoveVector(dx: 2, dy: 2)])
+        mapping[.diagonalDownRight2] = .relativeSteps([MoveVector(dx: 2, dy: -2)])
+        mapping[.diagonalDownLeft2] = .relativeSteps([MoveVector(dx: -2, dy: -2)])
+        mapping[.diagonalUpLeft2] = .relativeSteps([MoveVector(dx: -2, dy: 2)])
+
+        return mapping
+    }()
+
+    /// MovePattern が存在しない場合のフォールバック
+    private static let emptyPattern = MovePattern.relativeSteps([])
+
+    /// カードが持つ移動パターン
+    public var movePattern: MovePattern {
+        guard let pattern = MoveCard.patternRegistry[self] else {
+            assertionFailure("MoveCard に対する MovePattern が登録されていません: \(self)")
+            return MoveCard.emptyPattern
+        }
+        return pattern
+    }
     // MARK: - 定義済みセット
     /// 標準デッキで採用している 24 種類のカード集合
     /// - Important: 新しいカードを追加した際もスタンダード構成へ混入しないよう、この配列を基準に管理する
@@ -146,116 +443,24 @@ public enum MoveCard: CaseIterable {
         if let override = MoveCard.testMovementVectorOverrides[self] {
             return override
         }
-        switch self {
-        case .kingUp:
-            return [MoveVector(dx: 0, dy: 1)]
-        case .kingUpRight:
-            return [MoveVector(dx: 1, dy: 1)]
-        case .kingRight:
-            return [MoveVector(dx: 1, dy: 0)]
-        case .kingDownRight:
-            return [MoveVector(dx: 1, dy: -1)]
-        case .kingDown:
-            return [MoveVector(dx: 0, dy: -1)]
-        case .kingDownLeft:
-            return [MoveVector(dx: -1, dy: -1)]
-        case .kingLeft:
-            return [MoveVector(dx: -1, dy: 0)]
-        case .kingUpLeft:
-            return [MoveVector(dx: -1, dy: 1)]
-        case .kingUpOrDown:
-            // 上下方向のいずれかを後から選択するため 2 候補を返す
-            return [
-                MoveVector(dx: 0, dy: 1),
-                MoveVector(dx: 0, dy: -1)
-            ]
-        case .kingLeftOrRight:
-            // 左右方向のいずれかを後から選択するため 2 候補を返す
-            return [
-                MoveVector(dx: 1, dy: 0),
-                MoveVector(dx: -1, dy: 0)
-            ]
-        case .kingUpwardDiagonalChoice:
-            // 上方向の斜め 2 方向（右上・左上）をまとめて扱うカード
-            return [
-                MoveVector(dx: 1, dy: 1),
-                MoveVector(dx: -1, dy: 1)
-            ]
-        case .kingRightDiagonalChoice:
-            // 右方向へ伸びる斜め 2 方向（右上・右下）をまとめて扱うカード
-            return [
-                MoveVector(dx: 1, dy: 1),
-                MoveVector(dx: 1, dy: -1)
-            ]
-        case .kingDownwardDiagonalChoice:
-            // 下方向の斜め 2 方向（右下・左下）をまとめて扱うカード
-            return [
-                MoveVector(dx: 1, dy: -1),
-                MoveVector(dx: -1, dy: -1)
-            ]
-        case .kingLeftDiagonalChoice:
-            // 左方向の斜め 2 方向（左上・左下）をまとめて扱うカード
-            return [
-                MoveVector(dx: -1, dy: 1),
-                MoveVector(dx: -1, dy: -1)
-            ]
-        case .knightUp2Right1:
-            return [MoveVector(dx: 1, dy: 2)]
-        case .knightUp2Left1:
-            return [MoveVector(dx: -1, dy: 2)]
-        case .knightUp1Right2:
-            return [MoveVector(dx: 2, dy: 1)]
-        case .knightUp1Left2:
-            return [MoveVector(dx: -2, dy: 1)]
-        case .knightDown2Right1:
-            return [MoveVector(dx: 1, dy: -2)]
-        case .knightDown2Left1:
-            return [MoveVector(dx: -1, dy: -2)]
-        case .knightDown1Right2:
-            return [MoveVector(dx: 2, dy: -1)]
-        case .knightDown1Left2:
-            return [MoveVector(dx: -2, dy: -1)]
-        case .knightUpwardChoice:
-            // 上方向の桂馬 2 種をまとめた特別カード
-            return [
-                MoveVector(dx: 1, dy: 2),
-                MoveVector(dx: -1, dy: 2)
-            ]
-        case .knightRightwardChoice:
-            // 右方向の桂馬 2 種をまとめた特別カード
-            return [
-                MoveVector(dx: 2, dy: 1),
-                MoveVector(dx: 2, dy: -1)
-            ]
-        case .knightDownwardChoice:
-            // 下方向の桂馬 2 種をまとめた特別カード
-            return [
-                MoveVector(dx: 1, dy: -2),
-                MoveVector(dx: -1, dy: -2)
-            ]
-        case .knightLeftwardChoice:
-            // 左方向の桂馬 2 種をまとめた特別カード
-            return [
-                MoveVector(dx: -2, dy: 1),
-                MoveVector(dx: -2, dy: -1)
-            ]
-        case .straightUp2:
-            return [MoveVector(dx: 0, dy: 2)]
-        case .straightDown2:
-            return [MoveVector(dx: 0, dy: -2)]
-        case .straightRight2:
-            return [MoveVector(dx: 2, dy: 0)]
-        case .straightLeft2:
-            return [MoveVector(dx: -2, dy: 0)]
-        case .diagonalUpRight2:
-            return [MoveVector(dx: 2, dy: 2)]
-        case .diagonalDownRight2:
-            return [MoveVector(dx: 2, dy: -2)]
-        case .diagonalDownLeft2:
-            return [MoveVector(dx: -2, dy: -2)]
-        case .diagonalUpLeft2:
-            return [MoveVector(dx: -2, dy: 2)]
+        return movePattern.fallbackVectors()
+    }
+
+    /// 盤面状況を考慮した移動経路を解決する
+    /// - Parameters:
+    ///   - origin: 現在位置
+    ///   - context: 盤面サイズ・進入可否を評価するためのコンテキスト
+    /// - Returns: 実際に移動可能な経路一覧
+    public func resolvePaths(from origin: GridPoint, context: MovePattern.ResolutionContext) -> [MovePattern.Path] {
+        if let override = MoveCard.testMovementVectorOverrides[self] {
+            // テスト用オーバーライドが指定されている場合は、相対単歩としてシンプルに展開する
+            return override.compactMap { vector in
+                let destination = origin.offset(dx: vector.dx, dy: vector.dy)
+                guard context.contains(destination), context.isTraversable(destination) else { return nil }
+                return MovePattern.Path(vector: vector, destination: destination, traversedPoints: [destination])
+            }
         }
+        return movePattern.resolvePaths(from: origin, context: context)
     }
 
     /// 既存コードとの互換性を維持するための代表ベクトル
@@ -413,13 +618,14 @@ public enum MoveCard: CaseIterable {
     ///   - boardSize: 判定対象となる盤面サイズ
     /// - Returns: 盤内に移動できる場合は true
     public func canUse(from: GridPoint, boardSize: Int) -> Bool {
-        // 複数候補ベクトルのいずれかが盤内に入れば使用可能とみなす
-        // - Note: 既存カードは 1 要素だが、将来カードの拡張で順不同のベクトルが混在しても安全に判定できるようにする
-        return movementVectors.contains { vector in
-            // 各ベクトルで移動した先が盤内に収まるか逐一確認する
-            let destination = from.offset(dx: vector.dx, dy: vector.dy)
-            return destination.isInside(boardSize: boardSize)
-        }
+        // 盤面情報がサイズのみの場合は、進入可否も「盤内かどうか」で判定する
+        let context = MovePattern.ResolutionContext(
+            boardSize: boardSize,
+            contains: { point in point.isInside(boardSize: boardSize) },
+            isTraversable: { point in point.isInside(boardSize: boardSize) }
+        )
+        // resolvePaths を用いることで将来的に連続移動へ拡張した際も同一判定ロジックを流用できる
+        return !resolvePaths(from: from, context: context).isEmpty
     }
 }
 

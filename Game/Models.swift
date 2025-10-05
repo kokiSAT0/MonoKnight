@@ -442,10 +442,12 @@ public struct BoardTapPlayRequest: Identifiable, Equatable {
     public let stackIndex: Int
     /// アニメーション用に参照するスタック先頭のカード
     public let topCard: DealtCard
-    /// リクエスト生成時に確定した移動先座標
-    public let destination: GridPoint
-    /// リクエスト生成時に選択された移動ベクトル
-    public let moveVector: MoveVector
+    /// リクエスト生成時に確定した移動経路
+    public let path: MoveCard.MovePattern.Path
+    /// 既存コード互換用に移動先座標を公開する計算プロパティ
+    public var destination: GridPoint { path.destination }
+    /// 既存コード互換用に移動ベクトルを公開する計算プロパティ
+    public var moveVector: MoveVector { path.vector }
 
     /// 公開イニシャライザ
     /// - Parameters:
@@ -453,22 +455,19 @@ public struct BoardTapPlayRequest: Identifiable, Equatable {
     ///   - stackID: 対象スタックの識別子
     ///   - stackIndex: 手札スロット内での位置
     ///   - topCard: 要求時点での先頭カード
-    ///   - destination: 選択された移動先座標
-    ///   - moveVector: 実際に適用する移動ベクトル
+    ///   - path: 選択された移動経路
     public init(
         id: UUID = UUID(),
         stackID: UUID,
         stackIndex: Int,
         topCard: DealtCard,
-        destination: GridPoint,
-        moveVector: MoveVector
+        path: MoveCard.MovePattern.Path
     ) {
         self.id = id
         self.stackID = stackID
         self.stackIndex = stackIndex
         self.topCard = topCard
-        self.destination = destination
-        self.moveVector = moveVector
+        self.path = path
     }
 
     /// ResolvedCardMove への変換を簡潔に行うための補助プロパティ
@@ -478,8 +477,7 @@ public struct BoardTapPlayRequest: Identifiable, Equatable {
             stackID: stackID,
             stackIndex: stackIndex,
             card: topCard,
-            moveVector: moveVector,
-            destination: destination
+            path: path
         )
     }
 
