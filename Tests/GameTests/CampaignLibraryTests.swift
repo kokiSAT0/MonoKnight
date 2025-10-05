@@ -74,6 +74,17 @@ final class CampaignLibraryTests: XCTestCase {
                 ])
             ),
             (.directionChoice, "選択式キング構成", "選択式キングカード入り", [.kingUpOrDown, .kingLeftOrRight]),
+            (
+                .directionalRayFocus,
+                "連続移動カード構成",
+                "連続移動カード集中デッキ",
+                Set(MoveCard.directionalRayCards).union([
+                    .kingUp,
+                    .kingRight,
+                    .kingDown,
+                    .kingLeft
+                ])
+            ),
             (.standardWithOrthogonalChoices, "標準＋縦横選択キング構成", "標準＋上下左右選択キング", Set(MoveCard.standardSet).union([.kingUpOrDown, .kingLeftOrRight])),
             (.standardWithDiagonalChoices, "標準＋斜め選択キング構成", "標準＋斜め選択キング", Set(MoveCard.standardSet).union([
                 .kingUpwardDiagonalChoice,

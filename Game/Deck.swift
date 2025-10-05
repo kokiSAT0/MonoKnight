@@ -75,8 +75,8 @@ struct Deck {
         /// - Note: 直線 2 マスと斜め 2 マスのカードだけ重みを下げ、初心者向けに調整する
         static let standardLight: Configuration = {
             let allowedMoves = MoveCard.standardSet
-            // 長距離カード 8 種を個別に上書きし、重み 1 で出現頻度を抑える
-            let longRangeCards: [MoveCard] = [
+            // 長距離カード（距離 2 系＋レイ型）を個別に上書きし、重み 1 で出現頻度を抑える
+            let longRangeCards: [MoveCard] = MoveCard.directionalRayCards + [
                 .straightUp2,
                 .straightDown2,
                 .straightRight2,
@@ -91,6 +91,20 @@ struct Deck {
                 allowedMoves: allowedMoves,
                 weightProfile: WeightProfile(defaultWeight: 3, overrides: overrides),
                 deckSummaryText: "長距離カード抑制型標準デッキ"
+            )
+        }()
+
+        /// 連続レイ型カードの練習に特化した構成
+        /// - Note: レイ型カードは重み 3、サポート用に上下左右キングを重み 1 で混在させ、盤面調整しやすくする
+        static let directionalRayFocus: Configuration = {
+            let rayCards = MoveCard.directionalRayCards
+            let supportKings: [MoveCard] = [.kingUp, .kingRight, .kingDown, .kingLeft]
+            let allowedMoves = rayCards + supportKings
+            let overrides = Dictionary(uniqueKeysWithValues: rayCards.map { ($0, 3) })
+            return Configuration(
+                allowedMoves: allowedMoves,
+                weightProfile: WeightProfile(defaultWeight: 1, overrides: overrides),
+                deckSummaryText: "連続移動カード集中デッキ"
             )
         }()
 

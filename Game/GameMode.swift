@@ -19,6 +19,8 @@ public enum GameDeckPreset: String, CaseIterable, Codable, Identifiable {
     case kingPlusKnightOnly
     /// キング型カードに上下左右の選択肢を加えた構成
     case directionChoice
+    /// レイ型カードを主体とした連続移動構成
+    case directionalRayFocus
     /// 標準デッキに上下左右の選択キングを加えた構成
     case standardWithOrthogonalChoices
     /// 標準デッキに斜め選択キングを加えた構成
@@ -56,6 +58,8 @@ public enum GameDeckPreset: String, CaseIterable, Codable, Identifiable {
             return "キング＋ナイト限定構成"
         case .directionChoice:
             return "選択式キング構成"
+        case .directionalRayFocus:
+            return "連続移動カード構成"
         case .standardWithOrthogonalChoices:
             return "標準＋縦横選択キング構成"
         case .standardWithDiagonalChoices:
@@ -97,6 +101,8 @@ public enum GameDeckPreset: String, CaseIterable, Codable, Identifiable {
             return .kingPlusKnightOnly
         case .directionChoice:
             return .directionChoice
+        case .directionalRayFocus:
+            return .directionalRayFocus
         case .standardWithOrthogonalChoices:
             return .standardWithOrthogonalChoices
         case .standardWithDiagonalChoices:
