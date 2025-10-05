@@ -94,6 +94,35 @@ final class CampaignProgressStoreTests: XCTestCase {
         XCTAssertTrue(reloadedStore.isStageUnlocked(lockedStage), "再生成後もステージが解放されたままになる想定です")
     }
 
+    /// 全解放フラグを無効化するとロック状態へ戻り、永続化も反映されることを確認する
+    @MainActor
+    func testDebugUnlockCanBeDisabled() throws {
+        let defaults = try makeIsolatedDefaults()
+        let store = CampaignProgressStore(userDefaults: defaults)
+        let library = CampaignLibrary.shared
+
+        let lockedStageID = CampaignStageID(chapter: 1, index: 2)
+        guard let lockedStage = library.stage(with: lockedStageID) else {
+            XCTFail("ステージ定義が見つかりません")
+            return
+        }
+
+        // 前提として全解放を有効化し、無効化前の状態を整える
+        store.enableDebugUnlock()
+        XCTAssertTrue(store.isDebugUnlockEnabled)
+        XCTAssertTrue(store.isStageUnlocked(lockedStage))
+
+        // 無効化後はロックが復帰し、フラグが false に戻ることを確認
+        store.disableDebugUnlock()
+        XCTAssertFalse(store.isDebugUnlockEnabled, "disableDebugUnlock 呼び出しでフラグが false に戻る必要があります")
+        XCTAssertFalse(store.isStageUnlocked(lockedStage), "全解放解除後は通常の解放条件に従う想定です")
+
+        // UserDefaults へも反映されているか確認するため新しいインスタンスを生成
+        let reloadedStore = CampaignProgressStore(userDefaults: defaults)
+        XCTAssertFalse(reloadedStore.isDebugUnlockEnabled, "永続化内容も false に戻る必要があります")
+        XCTAssertFalse(reloadedStore.isStageUnlocked(lockedStage), "再生成してもロック状態が維持されることを検証します")
+    }
+
     /// 章単位のスター合計が解放条件へ反映されることを検証する
     func testChapterTotalStarsUnlocksNextChapter() throws {
         let defaults = try makeIsolatedDefaults()

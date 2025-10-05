@@ -28,6 +28,8 @@ protocol DailyChallengeAttemptStoreProtocol: ObservableObject where ObjectWillCh
     func grantRewardedAttempt() -> Bool
     /// デバッグパスコード入力などで無制限モードを有効化する
     func enableDebugUnlimited()
+    /// デバッグ無制限モードを明示的に無効化する
+    func disableDebugUnlimited()
 }
 
 // MARK: - 型消去ラッパー
@@ -102,6 +104,11 @@ final class AnyDailyChallengeAttemptStore: ObservableObject, DailyChallengeAttem
 
     func enableDebugUnlimited() {
         base.enableDebugUnlimited()
+        synchronizeAfterAsyncChange()
+    }
+
+    func disableDebugUnlimited() {
+        base.disableDebugUnlimited()
         synchronizeAfterAsyncChange()
     }
 
@@ -303,6 +310,16 @@ final class DailyChallengeAttemptStore: ObservableObject, DailyChallengeAttemptS
         userDefaults.set(true, forKey: Self.debugUnlimitedStorageKey)
         userDefaults.synchronize()
         debugLog("DailyChallengeAttemptStore: デバッグ無制限モードを有効化しました")
+    }
+
+    /// デバッグ無制限モードを解除し、通常の挑戦回数管理へ戻す
+    func disableDebugUnlimited() {
+        // 無効化操作時にのみ処理を行い、不要な永続化を避ける
+        guard isDebugUnlimitedEnabled else { return }
+        isDebugUnlimitedEnabled = false
+        userDefaults.set(false, forKey: Self.debugUnlimitedStorageKey)
+        userDefaults.synchronize()
+        debugLog("DailyChallengeAttemptStore: デバッグ無制限モードを無効化しました")
     }
 
     // MARK: - 内部処理

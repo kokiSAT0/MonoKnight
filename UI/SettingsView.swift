@@ -27,6 +27,12 @@ struct SettingsView: View {
     // 日替わりチャレンジの挑戦回数ストアを共有し、デバッグ無制限モードの切り替えにも対応する。
     @EnvironmentObject private var dailyChallengeAttemptStore: AnyDailyChallengeAttemptStore
 
+    // デバッグ解放や無制限モードのいずれかが有効かをまとめて判定するヘルパー。
+    // - Note: テキストフィールドを無効化する条件やガード節で共通利用し、解除後に再入力できる状態を保証する。
+    private var isDebugOverrideActive: Bool {
+        campaignProgressStore.isDebugUnlockEnabled || dailyChallengeAttemptStore.isDebugUnlimitedEnabled
+    }
+
     // 購入ボタンを複数回タップできないようにするための進行状況フラグ。
     @State private var isPurchaseInProgress = false
 
@@ -398,13 +404,13 @@ struct SettingsView: View {
                         TextField("デバッグ用パスコード", text: $debugUnlockInput)
                             .keyboardType(.numberPad)
                             .textContentType(.oneTimeCode)
-                            .disabled(campaignProgressStore.isDebugUnlockEnabled)
+                            .disabled(isDebugOverrideActive)
                             .onChange(of: debugUnlockInput) { _, newValue in
                                 handleDebugUnlockInputChange(newValue)
                             }
                         if campaignProgressStore.isDebugUnlockEnabled {
-                            // 有効化後の状態を明示し、解除操作が不要であることを伝える。
-                            Label("全てのステージが解放されています", systemImage: "checkmark.circle.fill")
+                            // 有効化後の状態を明示し、解除ボタンを案内する。
+                            Label("全てのステージが解放されています（無効化ボタンから解除可能）", systemImage: "checkmark.circle.fill")
                                 .foregroundStyle(.tint)
                         } else {
                             Text("社内検証で必要な場合のみ入力してください。")
@@ -420,6 +426,20 @@ struct SettingsView: View {
                             Text("デバッグ検証中は挑戦回数の消費と広告視聴がスキップされます。")
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
+                        }
+
+                        if isDebugOverrideActive {
+                            // 解除操作を即座に行えるよう、ボタンを併設する。
+                            Button {
+                                // ステージ解放と挑戦回数のデバッグモードを同時に無効化し、通常プレイへ戻す。
+                                campaignProgressStore.disableDebugUnlock()
+                                dailyChallengeAttemptStore.disableDebugUnlimited()
+                            } label: {
+                                Label("全解放を無効化", systemImage: "lock.fill")
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(.red)
+                            .accessibilityIdentifier("settings_disable_debug_unlock_button")
                         }
                     }
                 } header: {
@@ -524,8 +544,8 @@ private extension SettingsView {
             return
         }
 
-        // 既に全解放済みであれば追加処理は不要なため、フィールドだけリセットする
-        guard !campaignProgressStore.isDebugUnlockEnabled else {
+        // 既にデバッグモードがアクティブな場合は解除操作を促し、誤入力を防ぐ
+        guard !isDebugOverrideActive else {
             debugUnlockInput = ""
             return
         }
