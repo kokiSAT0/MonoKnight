@@ -60,14 +60,12 @@ public struct CampaignStage: Identifiable, Equatable {
         case finishWithinMoves(maxMoves: Int)
         /// 指定時間以内でクリア
         case finishWithinSeconds(maxSeconds: Int)
-        /// ペナルティ加算なしでクリア
-        case finishWithoutPenalty
         /// ペナルティを指定合計値以下に抑えてクリア
         case finishWithPenaltyAtMost(maxPenaltyCount: Int)
         /// 既踏マスを再訪せずにクリア
         case avoidRevisitingTiles
-        /// ペナルティなしかつ指定手数以内でクリア
-        case finishWithoutPenaltyAndWithinMoves(maxMoves: Int)
+        /// ペナルティ合計を指定値以下へ抑えつつ、指定手数以内でクリア
+        case finishWithPenaltyAtMostAndWithinMoves(maxPenaltyCount: Int, maxMoves: Int)
 
         /// 条件をプレイ結果に照らし合わせて判定
         /// - Parameter metrics: クリア時の統計値
@@ -78,14 +76,12 @@ public struct CampaignStage: Identifiable, Equatable {
                 return metrics.moveCount <= maxMoves
             case .finishWithinSeconds(let maxSeconds):
                 return metrics.elapsedSeconds <= maxSeconds
-            case .finishWithoutPenalty:
-                return metrics.penaltyCount == 0
             case .finishWithPenaltyAtMost(let maxPenaltyCount):
                 return metrics.penaltyCount <= maxPenaltyCount
             case .avoidRevisitingTiles:
                 return !metrics.hasRevisitedTile
-            case .finishWithoutPenaltyAndWithinMoves(let maxMoves):
-                return metrics.penaltyCount == 0 && metrics.moveCount <= maxMoves
+            case .finishWithPenaltyAtMostAndWithinMoves(let maxPenaltyCount, let maxMoves):
+                return metrics.penaltyCount <= maxPenaltyCount && metrics.moveCount <= maxMoves
             }
         }
 
@@ -96,15 +92,13 @@ public struct CampaignStage: Identifiable, Equatable {
                 return "移動 \(maxMoves) 手以内でクリア"
             case .finishWithinSeconds(let maxSeconds):
                 return "\(maxSeconds) 秒以内でクリア"
-            case .finishWithoutPenalty:
-                return "ペナルティを受けずにクリア"
             case .finishWithPenaltyAtMost(let maxPenaltyCount):
                 // VoiceOver などでも「回」や「手」といった単位を付けない統一表現とする
                 return "ペナルティ合計 \(maxPenaltyCount) 以下でクリア"
             case .avoidRevisitingTiles:
                 return "同じマスを 2 回踏まずにクリア"
-            case .finishWithoutPenaltyAndWithinMoves(let maxMoves):
-                return "ペナルティなしで \(maxMoves) 手以内にクリア"
+            case .finishWithPenaltyAtMostAndWithinMoves(let maxPenaltyCount, let maxMoves):
+                return "ペナルティ合計 \(maxPenaltyCount) 以下かつ \(maxMoves) 手以内でクリア"
             }
         }
     }
@@ -569,12 +563,15 @@ public struct CampaignLibrary {
         // (1,2) と (3,4) の指定は 1 始まりの座標と解釈し、内部表現の 0 始まりへ変換する。
         // MARK: - 2 章のステージ群
         // 多重踏破マスの回数管理を段階的に学ぶ章。すべて `kingAndKnightBasic` デッキで統一する。
-        let chapter2Penalties = GameMode.PenaltySettings(
+        // MARK: 章 2 以降で共通利用する標準ペナルティ設定（deadlock +3 / redraw +2 / discard +1 / revisit 0）
+        // 序盤とは別軸で難度を構築したいため、数値をまとめて管理してバランス調整時の視認性を確保する。
+        let unifiedMidCampaignPenalties = GameMode.PenaltySettings(
             deadlockPenaltyCost: 3,
-            manualRedrawPenaltyCost: 1,
+            manualRedrawPenaltyCost: 2,
             manualDiscardPenaltyCost: 1,
             revisitPenaltyCost: 0
         )
+        let chapter2Penalties = unifiedMidCampaignPenalties
 
         // 2-1: 4×4 盤で二度踏みマスの基礎を学ぶ導入。中央固定スポーンで落ち着いて操作する。
         let stage21DoubleVisit: [GridPoint: Int] = [
@@ -787,24 +784,13 @@ public struct CampaignLibrary {
 
         // MARK: - 3 章のステージ群
         // 選択カードを段階導入し、終盤は複数踏破ギミックと組み合わせる。
-        let standardPenalties = GameMode.PenaltySettings(
-            deadlockPenaltyCost: 5,
-            manualRedrawPenaltyCost: 5,
-            manualDiscardPenaltyCost: 1,
-            revisitPenaltyCost: 0
-        )
-        let noPenaltyPenalties = GameMode.PenaltySettings(
-            deadlockPenaltyCost: 0,
-            manualRedrawPenaltyCost: 0,
-            manualDiscardPenaltyCost: 1,
-            revisitPenaltyCost: 0
-        )
+        let standardPenalties = unifiedMidCampaignPenalties
 
-        // 3-1: 4×4 盤で縦横選択カードを体験。ノーペナルティで丁寧な操作を促す。
+        // 3-1: 4×4 盤で縦横選択カードを体験。ペナルティ合計 2 以下を目指しつつ丁寧な操作を促す。
         let stage31 = CampaignStage(
             id: CampaignStageID(chapter: 3, index: 1),
             title: "縦横選択チュートリアル",
-            summary: "4×4 盤で上下左右を選べるキングカードを試し、基本操作を確認しましょう。",
+            summary: "4×4 盤で上下左右を選べるキングカードを試し、ペナルティ合計 2 以下を意識しながら基本操作を確認しましょう。",
             regulation: GameMode.Regulation(
                 boardSize: 4,
                 handSize: 5,
@@ -812,9 +798,9 @@ public struct CampaignLibrary {
                 allowsStacking: true,
                 deckPreset: .standardWithOrthogonalChoices,
                 spawnRule: .fixed(BoardGeometry.defaultSpawnPoint(for: 4)),
-                penalties: noPenaltyPenalties
+                penalties: standardPenalties
             ),
-            secondaryObjective: .finishWithoutPenalty,
+            secondaryObjective: .finishWithPenaltyAtMost(maxPenaltyCount: 2),
             scoreTarget: 600,
             scoreTargetComparison: .lessThanOrEqual,
             // MARK: 第 3 章も前章のスター総数を指標とし、継続的なチャレンジを促す
@@ -956,7 +942,7 @@ public struct CampaignLibrary {
             unlockRequirement: .stageClear(stage36.id)
         )
 
-        // 3-8: ノーペナルティかつ 34 手以内を同時達成する総合演習。
+        // 3-8: ペナルティ合計 2 以下かつ 34 手以内を同時達成する総合演習。
         let stage38MixedVisit: [GridPoint: Int] = [
             GridPoint(x: 1, y: 1): 2,
             GridPoint(x: 2, y: 2): 3,
@@ -965,7 +951,7 @@ public struct CampaignLibrary {
         let stage38 = CampaignStage(
             id: CampaignStageID(chapter: 3, index: 8),
             title: "総合演習",
-            summary: "2/3/4 回踏みを組み合わせ、ノーペナルティかつ 34 手以内を達成する総仕上げです。",
+            summary: "2/3/4 回踏みを組み合わせ、ペナルティ合計 2 以下かつ 34 手以内を達成する総仕上げです。",
             regulation: GameMode.Regulation(
                 boardSize: 5,
                 handSize: 5,
@@ -973,10 +959,10 @@ public struct CampaignLibrary {
                 allowsStacking: true,
                 deckPreset: .standardWithAllChoices,
                 spawnRule: .fixed(BoardGeometry.defaultSpawnPoint(for: 5)),
-                penalties: noPenaltyPenalties,
+                penalties: standardPenalties,
                 additionalVisitRequirements: stage38MixedVisit
             ),
-            secondaryObjective: .finishWithoutPenaltyAndWithinMoves(maxMoves: 34),
+            secondaryObjective: .finishWithPenaltyAtMostAndWithinMoves(maxPenaltyCount: 2, maxMoves: 34),
             scoreTarget: 530,
             scoreTargetComparison: .lessThanOrEqual,
             unlockRequirement: .stageClear(stage37.id)
@@ -992,7 +978,6 @@ public struct CampaignLibrary {
         // MARK: - 4 章のステージ群
         // トグルマスと複数踏破を組み合わせ、反転挙動への理解を深める。
         let chapter4Penalties = standardPenalties
-        let chapter4NoPenalty = noPenaltyPenalties
         let fixedSpawn5 = GameMode.SpawnRule.fixed(BoardGeometry.defaultSpawnPoint(for: 5))
 
         // 4-1: 基本のトグル 2 箇所を 30 手以内で制御。
@@ -1150,7 +1135,7 @@ public struct CampaignLibrary {
             unlockRequirement: .stageClear(stage45.id)
         )
 
-        // 4-7: ノーペナルティ条件で複合ギミックを扱う。
+        // 4-7: ペナルティ合計を厳しく抑えた状態で複合ギミックを扱う。
         let stage47Additional: [GridPoint: Int] = [
             GridPoint(x: 0, y: 2): 2,
             GridPoint(x: 4, y: 2): 2,
@@ -1159,7 +1144,7 @@ public struct CampaignLibrary {
         let stage47 = CampaignStage(
             id: CampaignStageID(chapter: 4, index: 7),
             title: "トグル＋複合踏破",
-            summary: "二度踏みと三重踏みをトグルと併用し、ノーペナルティで攻略する高難度課題です。",
+            summary: "二度踏みと三重踏みをトグルと併用し、ペナルティ合計 2 以下で攻略する高難度課題です。",
             regulation: GameMode.Regulation(
                 boardSize: 5,
                 handSize: 5,
@@ -1167,17 +1152,17 @@ public struct CampaignLibrary {
                 allowsStacking: true,
                 deckPreset: .standardWithAllChoices,
                 spawnRule: .chooseAnyAfterPreview,
-                penalties: chapter4NoPenalty,
+                penalties: chapter4Penalties,
                 additionalVisitRequirements: stage47Additional,
                 toggleTilePoints: stage41Toggles
             ),
-            secondaryObjective: .finishWithoutPenalty,
+            secondaryObjective: .finishWithPenaltyAtMost(maxPenaltyCount: 2),
             scoreTarget: 460,
             scoreTargetComparison: .lessThanOrEqual,
             unlockRequirement: .stageClear(stage46.id)
         )
 
-        // 4-8: 34 手以内＆ノーペナルティで締める総合試験。
+        // 4-8: 34 手以内＆ペナルティ合計 2 以下で締める総合試験。
         let stage48Additional: [GridPoint: Int] = [
             GridPoint(x: 1, y: 0): 2,
             GridPoint(x: 3, y: 0): 3,
@@ -1191,7 +1176,7 @@ public struct CampaignLibrary {
         let stage48 = CampaignStage(
             id: CampaignStageID(chapter: 4, index: 8),
             title: "総合演習",
-            summary: "トグルと複数踏破を総動員し、34 手以内かつノーペナルティで踏破する最終試験です。",
+            summary: "トグルと複数踏破を総動員し、34 手以内かつペナルティ合計 2 以下で踏破する最終試験です。",
             regulation: GameMode.Regulation(
                 boardSize: 5,
                 handSize: 5,
@@ -1199,11 +1184,11 @@ public struct CampaignLibrary {
                 allowsStacking: true,
                 deckPreset: .standardWithAllChoices,
                 spawnRule: fixedSpawn5,
-                penalties: chapter4NoPenalty,
+                penalties: chapter4Penalties,
                 additionalVisitRequirements: stage48Additional,
                 toggleTilePoints: stage48Toggles
             ),
-            secondaryObjective: .finishWithoutPenaltyAndWithinMoves(maxMoves: 34),
+            secondaryObjective: .finishWithPenaltyAtMostAndWithinMoves(maxPenaltyCount: 2, maxMoves: 34),
             scoreTarget: 450,
             scoreTargetComparison: .lessThanOrEqual,
             unlockRequirement: .stageClear(stage47.id)
@@ -1219,7 +1204,6 @@ public struct CampaignLibrary {
         // MARK: - 5 章のステージ群
         // 障害物マスと複数ギミックを組み合わせる総合章。
         let chapter5Penalties = standardPenalties
-        let chapter5NoPenalty = noPenaltyPenalties
 
         // 5-1: 障害物 2 箇所で 30 手以内を目指す導入。
         let stage51Impassable: Set<GridPoint> = [
@@ -1395,7 +1379,7 @@ public struct CampaignLibrary {
             unlockRequirement: .stageClear(stage55.id)
         )
 
-        // 5-7: ノーペナルティ条件で障害物＋複数踏破＋トグルを管理。
+        // 5-7: ペナルティ合計を抑えつつ障害物＋複数踏破＋トグルを管理。
         let stage57Impassable: Set<GridPoint> = [
             GridPoint(x: 1, y: 1),
             GridPoint(x: 3, y: 3),
@@ -1411,7 +1395,7 @@ public struct CampaignLibrary {
         let stage57 = CampaignStage(
             id: CampaignStageID(chapter: 5, index: 7),
             title: "複合 (多要素)",
-            summary: "障害物と複数踏破・トグルを同時に管理し、ノーペナルティで攻略する最終調整です。",
+            summary: "障害物と複数踏破・トグルを同時に管理し、ペナルティ合計 2 以下で攻略する最終調整です。",
             regulation: GameMode.Regulation(
                 boardSize: 5,
                 handSize: 5,
@@ -1419,18 +1403,18 @@ public struct CampaignLibrary {
                 allowsStacking: true,
                 deckPreset: .standardWithAllChoices,
                 spawnRule: .chooseAnyAfterPreview,
-                penalties: chapter5NoPenalty,
+                penalties: chapter5Penalties,
                 additionalVisitRequirements: stage57Additional,
                 toggleTilePoints: stage57Toggles,
                 impassableTilePoints: stage57Impassable
             ),
-            secondaryObjective: .finishWithoutPenalty,
+            secondaryObjective: .finishWithPenaltyAtMost(maxPenaltyCount: 2),
             scoreTarget: 440,
             scoreTargetComparison: .lessThanOrEqual,
             unlockRequirement: .stageClear(stage56.id)
         )
 
-        // 5-8: 34 手以内＆ノーペナルティで締める最終試験。
+        // 5-8: 34 手以内＆ペナルティ合計 2 以下で締める最終試験。
         let stage58Impassable: Set<GridPoint> = [
             GridPoint(x: 1, y: 1),
             GridPoint(x: 3, y: 3),
@@ -1448,7 +1432,7 @@ public struct CampaignLibrary {
         let stage58 = CampaignStage(
             id: CampaignStageID(chapter: 5, index: 8),
             title: "最終試験",
-            summary: "障害物・トグル・複数踏破を総動員し、34 手以内かつノーペナルティで仕上げる最終試験です。",
+            summary: "障害物・トグル・複数踏破を総動員し、34 手以内かつペナルティ合計 2 以下で仕上げる最終試験です。",
             regulation: GameMode.Regulation(
                 boardSize: 5,
                 handSize: 5,
@@ -1456,12 +1440,12 @@ public struct CampaignLibrary {
                 allowsStacking: true,
                 deckPreset: .standardWithAllChoices,
                 spawnRule: .chooseAnyAfterPreview, // 中央を塞ぐ障害物と多重踏破の同居に合わせ、任意スポーンで整合性を確保
-                penalties: chapter5NoPenalty,
+                penalties: chapter5Penalties,
                 additionalVisitRequirements: stage58Additional,
                 toggleTilePoints: stage58Toggles,
                 impassableTilePoints: stage58Impassable
             ),
-            secondaryObjective: .finishWithoutPenaltyAndWithinMoves(maxMoves: 34),
+            secondaryObjective: .finishWithPenaltyAtMostAndWithinMoves(maxPenaltyCount: 2, maxMoves: 34),
             scoreTarget: 430,
             scoreTargetComparison: .lessThanOrEqual,
             unlockRequirement: .stageClear(stage57.id)
