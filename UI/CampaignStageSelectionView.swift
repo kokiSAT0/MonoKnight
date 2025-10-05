@@ -418,12 +418,24 @@ private struct CampaignStageGridItemView<StarContent: View>: View {
                 .padding(12)
 
                 if !isUnlocked {
-                    // ロック中は暗幕と鍵アイコンを重ね、タップ不可能であることを示す
+                    // ロック中は暗幕と説明文を重ね、タップ不可と解放条件を同時に伝える
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .fill(Color.black.opacity(0.45))
-                    Image(systemName: "lock.fill")
-                        .foregroundColor(theme.textPrimary)
-                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                        .fill(Color.black.opacity(0.55))
+                    VStack(spacing: 10) {
+                        // 鍵アイコンでロック状態を視覚化し、状況を即座に把握できるようにする
+                        Image(systemName: "lock.fill")
+                            .foregroundColor(theme.textPrimary)
+                            .font(.system(size: 20, weight: .bold, design: .rounded))
+                        // 解放条件をカード上で明示し、次の目標をその場で確認できるようにする
+                        Text(stage.unlockDescription)
+                            .font(.system(size: 13, weight: .medium, design: .rounded))
+                            .foregroundColor(theme.textPrimary.opacity(0.9))
+                            .multilineTextAlignment(.center)
+                            .lineLimit(3)
+                            .minimumScaleFactor(0.85)
+                            .padding(.horizontal, 8)
+                    }
+                    .padding(.horizontal, 4)
                 }
             }
             .aspectRatio(1, contentMode: .fit)
@@ -432,9 +444,9 @@ private struct CampaignStageGridItemView<StarContent: View>: View {
         .disabled(!isUnlocked)
         // UI テストで個別カードを操作できるよう識別子を設定する
         .accessibilityIdentifier("campaign_stage_button_\(stage.id.displayCode)")
-        // 折り畳みグリッド内でも従来同様の VoiceOver 案内を提供する
-        .accessibilityHint(Text("選択するとゲーム準備画面に戻り、選んだステージで開始準備が行われます。"))
-        .accessibilityLabel(Text("ステージ \(stage.displayCode)"))
+        // VoiceOver 利用者へも解放条件を伝え、行動指針を把握しやすくする
+        .accessibilityHint(accessibilityHintText)
+        .accessibilityLabel(accessibilityLabelText)
     }
 
     /// 選択状態に応じた枠線色を返す
@@ -445,6 +457,28 @@ private struct CampaignStageGridItemView<StarContent: View>: View {
     /// ロック状態に応じて背景色を切り替える
     private var cardBackgroundColor: Color {
         isUnlocked ? theme.backgroundElevated : theme.backgroundElevated.opacity(0.6)
+    }
+
+    /// VoiceOver 用のラベルを生成し、ロック状況と解放条件を確実に伝える
+    private var accessibilityLabelText: Text {
+        if isUnlocked {
+            // 解放済みの場合でも条件を達成済みである旨を伝え、文脈情報を補う
+            return Text("ステージ \(stage.displayCode)。解放条件: \(stage.unlockDescription) を達成済み")
+        } else {
+            // ロック中は状態を明示し、プレイヤーが条件達成を優先できるようにする
+            return Text("ステージ \(stage.displayCode)（ロック中）。解放条件: \(stage.unlockDescription)")
+        }
+    }
+
+    /// VoiceOver 用のヒントを生成し、次のアクションを案内する
+    private var accessibilityHintText: Text {
+        if isUnlocked {
+            // 解放条件を満たしていることを補足し、遷移後の挙動を明確化する
+            return Text("解放条件を満たしています。選択するとゲーム準備画面に戻り、選んだステージで開始準備が行われます。")
+        } else {
+            // ロック中は条件を満たすことで選択可能になる旨を伝え、無駄なタップを防ぐ
+            return Text("解放条件: \(stage.unlockDescription)。条件を満たすと選択できるようになります。")
+        }
     }
 }
 
