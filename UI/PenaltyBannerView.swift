@@ -1,4 +1,10 @@
 import SwiftUI
+import Game  // `PenaltyEvent` などゲームロジック側の公開型を利用するため、Game パッケージを明示的に読み込む。
+
+// MARK: - Game モジュール参照に関する補足
+// SwiftUI の View 層ではゲームロジックへ直接依存しない設計を心掛けているが、
+// ペナルティ表示では `PenaltyEvent` や `PenaltyTrigger` などの型情報が必要になる。
+// そのため、Game モジュールを import してルール側の更新内容と整合性を取りやすくしている。
 
 /// ペナルティ発動時に画面上部へ表示する通知バナー
 /// - Note: `PenaltyEvent` の内容を参照し、金額やトリガー種別に応じた文言へ自動で切り替える。
