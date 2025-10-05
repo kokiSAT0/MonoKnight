@@ -31,6 +31,8 @@ final class DailyChallengeViewModel: ObservableObject {
     private let resetFormatter: DateFormatter
     /// `attemptStore.objectWillChange` を購読して状態同期するためのキャンセラ
     private var cancellable: AnyCancellable?
+    /// 現在表示しているチャレンジのバリアント（固定/ランダム）
+    private var activeVariant: DailyChallengeDefinition.Variant { challengeInfo.variant }
 
     /// 現在表示しているチャレンジ情報
     @Published private(set) var challengeInfo: DailyChallengeDefinitionService.ChallengeInfo
@@ -135,7 +137,7 @@ final class DailyChallengeViewModel: ObservableObject {
     /// - Returns: ゲーム開始に利用する `GameMode`。挑戦不可の場合は `nil`。
     func startChallengeIfPossible() -> GameMode? {
         attemptStore.refreshForCurrentDate()
-        guard attemptStore.consumeAttempt() else {
+        guard attemptStore.consumeAttempt(for: activeVariant) else {
             alertState = AlertState(title: "挑戦できません", message: "本日の挑戦回数を使い切りました。")
             updateAttemptRelatedTexts()
             return nil
@@ -155,7 +157,8 @@ final class DailyChallengeViewModel: ObservableObject {
             return
         }
 
-        guard attemptStore.rewardedAttemptsGranted < attemptStore.maximumRewardedAttempts else {
+        let grantedCount = attemptStore.rewardedAttemptsGranted(for: activeVariant)
+        guard grantedCount < attemptStore.maximumRewardedAttempts else {
             alertState = AlertState(title: "追加不可", message: "広告で追加できる回数の上限に達しています。")
             updateAttemptRelatedTexts()
             return
@@ -167,7 +170,7 @@ final class DailyChallengeViewModel: ObservableObject {
 
         let success = await adsService.showRewardedAd()
         if success {
-            let granted = attemptStore.grantRewardedAttempt()
+            let granted = attemptStore.grantRewardedAttempt(for: activeVariant)
             if !granted {
                 alertState = AlertState(title: "付与できません", message: "内部状態が更新できなかったため、挑戦回数は増加しませんでした。")
             }
@@ -195,6 +198,7 @@ final class DailyChallengeViewModel: ObservableObject {
         regulationPrimaryText = latestInfo.regulationPrimaryText
         regulationSecondaryText = latestInfo.regulationSecondaryText
         resetTimeText = Self.makeResetText(info: latestInfo, formatter: resetFormatter, service: definitionService)
+        updateAttemptRelatedTexts()
     }
 
     /// 残量テキストやボタン有効状態をストアから再計算する
@@ -208,13 +212,14 @@ final class DailyChallengeViewModel: ObservableObject {
             return
         }
 
-        let remaining = attemptStore.remainingAttempts
-        let granted = attemptStore.rewardedAttemptsGranted
+        let variantName = challengeInfo.variantDisplayName
+        let remaining = attemptStore.remainingAttempts(for: activeVariant)
+        let granted = attemptStore.rewardedAttemptsGranted(for: activeVariant)
         let maximumRewarded = attemptStore.maximumRewardedAttempts
         let totalMax = 1 + maximumRewarded
 
-        remainingAttemptsText = "残り \(remaining) 回 / 最大 \(totalMax) 回"
-        rewardProgressText = "広告追加済み: \(granted) / \(maximumRewarded)"
+        remainingAttemptsText = "\(variantName): 残り \(remaining) 回 / 最大 \(totalMax) 回"
+        rewardProgressText = "\(variantName): 広告追加済み \(granted) / \(maximumRewarded)"
         isStartButtonEnabled = remaining > 0
         isRewardButtonEnabled = granted < maximumRewarded && !isRequestingReward
     }

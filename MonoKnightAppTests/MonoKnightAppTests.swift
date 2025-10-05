@@ -95,8 +95,8 @@ private final class StubAdsService: AdsServiceProtocol {
 /// 日替わりチャレンジ回数ストアのスタブ
 @MainActor
 private final class StubDailyChallengeAttemptStore: ObservableObject, DailyChallengeAttemptStoreProtocol {
-    var remainingAttempts: Int
-    var rewardedAttemptsGranted: Int
+    private var remainingAttemptsStorage: [DailyChallengeDefinition.Variant: Int]
+    private var rewardedAttemptsStorage: [DailyChallengeDefinition.Variant: Int]
     let maximumRewardedAttempts: Int
     var isDebugUnlimitedEnabled: Bool
 
@@ -106,8 +106,9 @@ private final class StubDailyChallengeAttemptStore: ObservableObject, DailyChall
         maximumRewardedAttempts: Int = 3,
         isDebugUnlimitedEnabled: Bool = false
     ) {
-        self.remainingAttempts = remainingAttempts
-        self.rewardedAttemptsGranted = rewardedAttemptsGranted
+        let variants: [DailyChallengeDefinition.Variant] = [.fixed, .random]
+        self.remainingAttemptsStorage = Dictionary(uniqueKeysWithValues: variants.map { ($0, remainingAttempts) })
+        self.rewardedAttemptsStorage = Dictionary(uniqueKeysWithValues: variants.map { ($0, rewardedAttemptsGranted) })
         self.maximumRewardedAttempts = maximumRewardedAttempts
         self.isDebugUnlimitedEnabled = isDebugUnlimitedEnabled
     }
@@ -115,10 +116,29 @@ private final class StubDailyChallengeAttemptStore: ObservableObject, DailyChall
     func refreshForCurrentDate() {}
 
     @discardableResult
-    func consumeAttempt() -> Bool { true }
+    func consumeAttempt(for variant: DailyChallengeDefinition.Variant) -> Bool {
+        guard !isDebugUnlimitedEnabled else { return true }
+        let remaining = remainingAttemptsStorage[variant] ?? 0
+        guard remaining > 0 else { return false }
+        remainingAttemptsStorage[variant] = remaining - 1
+        objectWillChange.send()
+        return true
+    }
 
     @discardableResult
-    func grantRewardedAttempt() -> Bool { true }
+    func grantRewardedAttempt(for variant: DailyChallengeDefinition.Variant) -> Bool {
+        rewardedAttemptsStorage[variant, default: 0] += 1
+        objectWillChange.send()
+        return true
+    }
+
+    func remainingAttempts(for variant: DailyChallengeDefinition.Variant) -> Int {
+        remainingAttemptsStorage[variant] ?? 0
+    }
+
+    func rewardedAttemptsGranted(for variant: DailyChallengeDefinition.Variant) -> Int {
+        rewardedAttemptsStorage[variant] ?? 0
+    }
 
     func enableDebugUnlimited() {
         // スタブではフラグの状態遷移だけ管理し、UI 連携の検証に利用する

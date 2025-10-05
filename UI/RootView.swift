@@ -2073,13 +2073,13 @@ private extension TitleScreenView {
 
     var dailyChallengeTileHeadline: String {
         let info = dailyChallengeInfo
-        let remaining = dailyChallengeAttemptStore.remainingAttempts
+        let remaining = dailyChallengeAttemptStore.remainingAttempts(for: info.variant)
         return "\(info.mode.displayName) ・ 残り \(remaining) 回"
     }
 
     var dailyChallengeTileDetail: String {
         let info = dailyChallengeInfo
-        let granted = dailyChallengeAttemptStore.rewardedAttemptsGranted
+        let granted = dailyChallengeAttemptStore.rewardedAttemptsGranted(for: info.variant)
         let maximumRewarded = dailyChallengeAttemptStore.maximumRewardedAttempts
         return "\(info.regulationPrimaryText) ・ 広告追加 \(granted)/\(maximumRewarded)"
     }

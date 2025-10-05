@@ -1,6 +1,7 @@
 import Foundation
 import Combine
 import SwiftUI
+import Game // DailyChallengeDefinition を参照するため追加
 import SharedSupport // ログユーティリティを活用するため追加
 
 // MARK: - 日替わりチャレンジ挑戦回数の公開インターフェース
@@ -9,10 +10,12 @@ import SharedSupport // ログユーティリティを活用するため追加
 @MainActor
 /// - Note: `ObservableObjectPublisher` を明示することで `objectWillChange` を型消去経由でも購読可能にする
 protocol DailyChallengeAttemptStoreProtocol: ObservableObject where ObjectWillChangePublisher == ObservableObjectPublisher {
-    /// 残り挑戦回数（無料 1 回 + リワード広告による加算分 - 消費済み回数）
-    var remainingAttempts: Int { get }
-    /// その日のリワード広告によって付与済みの回数
-    var rewardedAttemptsGranted: Int { get }
+    /// 指定したバリアントにおける残り挑戦回数（無料 1 回 + リワード広告による加算分 - 消費済み回数）
+    /// - Parameter variant: 固定版かランダム版かを示す種別
+    func remainingAttempts(for variant: DailyChallengeDefinition.Variant) -> Int
+    /// 指定したバリアントでリワード広告によって付与済みの回数
+    /// - Parameter variant: 固定版かランダム版かを示す種別
+    func rewardedAttemptsGranted(for variant: DailyChallengeDefinition.Variant) -> Int
     /// 1 日あたり付与できるリワード広告ボーナス回数の上限（仕様で 3 回）
     var maximumRewardedAttempts: Int { get }
     /// デバッグ用の無制限フラグが有効かどうか
@@ -22,10 +25,10 @@ protocol DailyChallengeAttemptStoreProtocol: ObservableObject where ObjectWillCh
     func refreshForCurrentDate()
     /// 残り挑戦回数を 1 消費し、成功したかを返す
     @discardableResult
-    func consumeAttempt() -> Bool
+    func consumeAttempt(for variant: DailyChallengeDefinition.Variant) -> Bool
     /// リワード広告視聴が成功した際に 1 回分の挑戦回数を付与する
     @discardableResult
-    func grantRewardedAttempt() -> Bool
+    func grantRewardedAttempt(for variant: DailyChallengeDefinition.Variant) -> Bool
     /// デバッグパスコード入力などで無制限モードを有効化する
     func enableDebugUnlimited()
     /// デバッグ無制限モードを明示的に無効化する
@@ -38,103 +41,58 @@ protocol DailyChallengeAttemptStoreProtocol: ObservableObject where ObjectWillCh
 final class AnyDailyChallengeAttemptStore: ObservableObject, DailyChallengeAttemptStoreProtocol {
     /// 実体となるストアを保持
     private let base: any DailyChallengeAttemptStoreProtocol
-    /// `objectWillChange` を購読し Published プロパティへ反映するためのストア
+    /// `objectWillChange` を購読して自身の通知へ橋渡しするためのキャンセラ
     private var cancellable: AnyCancellable?
 
-    /// 残り挑戦回数を公開（Published で SwiftUI へ伝播）
-    @Published private(set) var remainingAttempts: Int
-    /// 付与済みリワード回数
-    @Published private(set) var rewardedAttemptsGranted: Int
-    /// 仕様で定めた 1 日あたりの付与上限
+    /// 1 日あたりのリワード広告付与上限（元ストアをそのまま参照）
     let maximumRewardedAttempts: Int
-    /// デバッグ無制限モードの有効/無効
-    @Published private(set) var isDebugUnlimitedEnabled: Bool
 
+    /// - Parameter base: 実装を差し替え可能にするための具象ストア
     init(base: any DailyChallengeAttemptStoreProtocol) {
         self.base = base
-        self.remainingAttempts = base.remainingAttempts
-        self.rewardedAttemptsGranted = base.rewardedAttemptsGranted
         self.maximumRewardedAttempts = base.maximumRewardedAttempts
-        self.isDebugUnlimitedEnabled = base.isDebugUnlimitedEnabled
 
-        // objectWillChange を購読して最新値を同期
+        // 元ストアで変更が起きたら、自身の objectWillChange も伝播させる
         cancellable = base.objectWillChange.sink { [weak self] _ in
             guard let self else { return }
             Task { @MainActor in
-                // base から取得した最新値をローカル変数へ退避して比較を行う
-                let latestRemainingAttempts = base.remainingAttempts
-                if self.remainingAttempts != latestRemainingAttempts {
-                    // 差分がある場合のみ Published プロパティを更新する
-                    self.remainingAttempts = latestRemainingAttempts
-                }
-
-                let latestRewardedAttempts = base.rewardedAttemptsGranted
-                if self.rewardedAttemptsGranted != latestRewardedAttempts {
-                    // 付与済み回数も差分が存在するときのみ更新を行い再描画ループを防止する
-                    self.rewardedAttemptsGranted = latestRewardedAttempts
-                }
-
-                let latestDebugFlag = base.isDebugUnlimitedEnabled
-                if self.isDebugUnlimitedEnabled != latestDebugFlag {
-                    // デバッグ無制限モードの状態が変化した場合のみ Published を更新する
-                    self.isDebugUnlimitedEnabled = latestDebugFlag
-                }
+                self.objectWillChange.send()
             }
         }
+    }
+
+    func remainingAttempts(for variant: DailyChallengeDefinition.Variant) -> Int {
+        base.remainingAttempts(for: variant)
+    }
+
+    func rewardedAttemptsGranted(for variant: DailyChallengeDefinition.Variant) -> Int {
+        base.rewardedAttemptsGranted(for: variant)
+    }
+
+    var isDebugUnlimitedEnabled: Bool {
+        base.isDebugUnlimitedEnabled
     }
 
     func refreshForCurrentDate() {
         base.refreshForCurrentDate()
-        synchronizeAfterAsyncChange()
     }
 
     @discardableResult
-    func consumeAttempt() -> Bool {
-        let result = base.consumeAttempt()
-        synchronizeAfterAsyncChange()
-        return result
+    func consumeAttempt(for variant: DailyChallengeDefinition.Variant) -> Bool {
+        base.consumeAttempt(for: variant)
     }
 
     @discardableResult
-    func grantRewardedAttempt() -> Bool {
-        let result = base.grantRewardedAttempt()
-        synchronizeAfterAsyncChange()
-        return result
+    func grantRewardedAttempt(for variant: DailyChallengeDefinition.Variant) -> Bool {
+        base.grantRewardedAttempt(for: variant)
     }
 
     func enableDebugUnlimited() {
         base.enableDebugUnlimited()
-        synchronizeAfterAsyncChange()
     }
 
     func disableDebugUnlimited() {
         base.disableDebugUnlimited()
-        synchronizeAfterAsyncChange()
-    }
-
-    /// `base` 側の値が変化した直後にメインアクターで同期する
-    private func synchronizeAfterAsyncChange() {
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            // base 側の状態をローカル変数へ取得し、差分が存在する場合のみ代入を実施する
-            let latestRemainingAttempts = base.remainingAttempts
-            if self.remainingAttempts != latestRemainingAttempts {
-                // 差分が無い場合は代入をスキップして不要な objectWillChange 通知を抑制する
-                self.remainingAttempts = latestRemainingAttempts
-            }
-
-            let latestRewardedAttempts = base.rewardedAttemptsGranted
-            if self.rewardedAttemptsGranted != latestRewardedAttempts {
-                // 差分があるケースのみ更新して無限再描画やログ増加を防ぐ
-                self.rewardedAttemptsGranted = latestRewardedAttempts
-            }
-
-            let latestDebugFlag = base.isDebugUnlimitedEnabled
-            if self.isDebugUnlimitedEnabled != latestDebugFlag {
-                // デバッグフラグの変更も同期し、設定画面からの切り替えを即時反映する
-                self.isDebugUnlimitedEnabled = latestDebugFlag
-            }
-        }
     }
 }
 
@@ -158,18 +116,72 @@ final class DailyChallengeAttemptStore: ObservableObject, DailyChallengeAttemptS
         static let pattern = "yyyy-MM-dd"
     }
 
-    /// 最大付与可能なリワード広告回数（仕様で 3 回）
-    let maximumRewardedAttempts: Int = 3
+    /// バリアントごとの挑戦状況を辞書に保存する際のキー
+    private enum VariantKey: String, Codable, CaseIterable {
+        case fixed
+        case random
+
+        /// `DailyChallengeDefinition.Variant` から辞書キーへ変換する
+        /// - Parameter variant: 固定版かランダム版かを示す種別
+        init(variant: DailyChallengeDefinition.Variant) {
+            switch variant {
+            case .fixed:
+                self = .fixed
+            case .random:
+                self = .random
+            }
+        }
+    }
+
+    /// バリアント単位の挑戦記録
+    private struct VariantRecord: Codable {
+        /// 当日消費した挑戦回数
+        var usedAttempts: Int
+        /// 当日リワード広告で付与した回数
+        var rewardedAttemptsGranted: Int
+
+        init(usedAttempts: Int = 0, rewardedAttemptsGranted: Int = 0) {
+            self.usedAttempts = usedAttempts
+            self.rewardedAttemptsGranted = rewardedAttemptsGranted
+        }
+    }
 
     /// UserDefaults 保存用の状態
     private struct State: Codable {
         /// UTC 基準の日付キー（例: 2025-05-25）
-        let dateKey: String
-        /// その日に消費した挑戦回数
-        var usedAttempts: Int
-        /// その日にリワード広告で付与済みの回数
-        var rewardedAttemptsGranted: Int
+        var dateKey: String
+        /// バリアントごとの挑戦記録
+        private var records: [VariantKey: VariantRecord]
+
+        init(dateKey: String, records: [VariantKey: VariantRecord] = [:]) {
+            self.dateKey = dateKey
+            self.records = records
+            ensureAllVariantsInitialized()
+        }
+
+        /// バリアント別の記録を常に用意しておき、欠損データを防ぐ
+        mutating func ensureAllVariantsInitialized() {
+            for key in VariantKey.allCases where records[key] == nil {
+                records[key] = VariantRecord()
+            }
+        }
+
+        /// 指定したバリアントの記録を取得する
+        func record(for key: VariantKey) -> VariantRecord {
+            records[key] ?? VariantRecord()
+        }
+
+        /// 指定したバリアントの記録を更新する
+        mutating func updateRecord(for key: VariantKey, mutate: (inout VariantRecord) -> Void) {
+            ensureAllVariantsInitialized()
+            var record = records[key] ?? VariantRecord()
+            mutate(&record)
+            records[key] = record
+        }
     }
+
+    /// 最大付与可能なリワード広告回数（仕様で 3 回）
+    let maximumRewardedAttempts: Int = 3
 
     /// 現在の状態（更新時に `updatePublishedValues()` を手動で呼び出す）
     private var state: State
@@ -181,10 +193,8 @@ final class DailyChallengeAttemptStore: ObservableObject, DailyChallengeAttemptS
     /// 現在日時を取得するクロージャ（テストで任意の日時を差し替える）
     private let nowProvider: () -> Date
 
-    /// 残り挑戦回数（Published で公開）
-    @Published private(set) var remainingAttempts: Int
-    /// リワード広告による付与済み回数（Published で公開）
-    @Published private(set) var rewardedAttemptsGranted: Int
+    /// 状態更新を SwiftUI へ伝えるためのカウンタ（変更時にインクリメント）
+    @Published private var stateVersion: Int
     /// デバッグ無制限モードが有効かどうか
     @Published private(set) var isDebugUnlimitedEnabled: Bool
 
@@ -213,30 +223,30 @@ final class DailyChallengeAttemptStore: ObservableObject, DailyChallengeAttemptS
 
         if let data = userDefaults.data(forKey: StorageKey.state) {
             do {
-                let decoded = try JSONDecoder().decode(State.self, from: data)
+                var decoded = try JSONDecoder().decode(State.self, from: data)
+                decoded.ensureAllVariantsInitialized()
                 if decoded.dateKey == currentDateKey {
                     initialState = decoded
                     debugLog("DailyChallengeAttemptStore: 保存済みの挑戦状況を復元しました (dateKey: \(decoded.dateKey))")
                 } else {
-                    initialState = State(dateKey: currentDateKey, usedAttempts: 0, rewardedAttemptsGranted: 0)
+                    initialState = State(dateKey: currentDateKey)
                     shouldPersistInitialState = true
                     debugLog("DailyChallengeAttemptStore: 日付が変わっていたため挑戦回数をリセットしました")
                 }
             } catch {
-                initialState = State(dateKey: currentDateKey, usedAttempts: 0, rewardedAttemptsGranted: 0)
+                initialState = State(dateKey: currentDateKey)
                 shouldPersistInitialState = true
                 debugError(error, message: "DailyChallengeAttemptStore: 復元に失敗したため状態を初期化しました")
             }
         } else {
-            initialState = State(dateKey: currentDateKey, usedAttempts: 0, rewardedAttemptsGranted: 0)
+            initialState = State(dateKey: currentDateKey)
             shouldPersistInitialState = true
             debugLog("DailyChallengeAttemptStore: 保存データが無かったため本日の挑戦状況を新規作成しました")
         }
 
-        // 格納プロパティの初期化順序を明示的に統一（state → remainingAttempts → rewardedAttemptsGranted）
+        // 格納プロパティの初期化順序を明示的に統一（state → stateVersion → フラグ類）
         self.state = initialState
-        self.remainingAttempts = Self.computeRemainingAttempts(from: initialState)
-        self.rewardedAttemptsGranted = initialState.rewardedAttemptsGranted
+        self.stateVersion = 0
         self.isDebugUnlimitedEnabled = userDefaults.bool(forKey: Self.debugUnlimitedStorageKey)
 
         if shouldPersistInitialState {
@@ -249,57 +259,82 @@ final class DailyChallengeAttemptStore: ObservableObject, DailyChallengeAttemptS
     func refreshForCurrentDate() {
         let currentKey = dateFormatter.string(from: nowProvider())
         guard state.dateKey != currentKey else { return }
-        state = State(dateKey: currentKey, usedAttempts: 0, rewardedAttemptsGranted: 0)
-        debugLog("DailyChallengeAttemptStore: 新しい日付 (\(currentKey)) が検出されたため挑戦回数をリセットしました")
+        state = State(dateKey: currentKey)
+        debugLog("DailyChallengeAttemptStore: 新しい日付 (\(currentKey)) が検出されたため全バリアントの挑戦回数をリセットしました")
         // リセット後は Published プロパティと永続化内容を手動で同期させる
         updatePublishedValues()
         persistState()
     }
 
+    /// 指定バリアントの残量を計算する
+    /// - Parameter variant: 固定版かランダム版かの種別
+    func remainingAttempts(for variant: DailyChallengeDefinition.Variant) -> Int {
+        let key = Self.variantKey(for: variant)
+        let record = state.record(for: key)
+        return Self.computeRemainingAttempts(from: record)
+    }
+
+    /// 指定バリアントの広告付与済み回数を返す
+    /// - Parameter variant: 固定版かランダム版かの種別
+    func rewardedAttemptsGranted(for variant: DailyChallengeDefinition.Variant) -> Int {
+        let key = Self.variantKey(for: variant)
+        return state.record(for: key).rewardedAttemptsGranted
+    }
+
     @discardableResult
-    func consumeAttempt() -> Bool {
+    func consumeAttempt(for variant: DailyChallengeDefinition.Variant) -> Bool {
         refreshForCurrentDate()
 
         if isDebugUnlimitedEnabled {
             // デバッグ無制限モードでは消費上限を撤廃し、状態更新を行わずに成功扱いとする
-            debugLog("DailyChallengeAttemptStore: デバッグ無制限モードのため挑戦回数消費をスキップしました")
+            debugLog("DailyChallengeAttemptStore: デバッグ無制限モードのため挑戦回数消費をスキップしました (variant: \(Self.variantLogLabel(for: variant)))")
             return true
         }
 
-        let totalAvailable = 1 + state.rewardedAttemptsGranted
-        guard state.usedAttempts < totalAvailable else {
-            debugLog("DailyChallengeAttemptStore: 挑戦回数の上限に達しているため消費できません")
+        let key = Self.variantKey(for: variant)
+        let record = state.record(for: key)
+        let totalAvailable = 1 + record.rewardedAttemptsGranted
+        guard record.usedAttempts < totalAvailable else {
+            debugLog("DailyChallengeAttemptStore: 挑戦回数の上限に達しているため消費できません (variant: \(Self.variantLogLabel(for: variant)))")
             return false
         }
 
-        state.usedAttempts += 1
+        state.updateRecord(for: key) { record in
+            record.usedAttempts += 1
+        }
         // 消費結果を UI とストレージへ即座に反映させる
         updatePublishedValues()
         persistState()
-        debugLog("DailyChallengeAttemptStore: 挑戦回数を 1 消費しました (used: \(state.usedAttempts)/total: \(totalAvailable))")
+        let updated = state.record(for: key)
+        debugLog("DailyChallengeAttemptStore: 挑戦回数を 1 消費しました (variant: \(Self.variantLogLabel(for: variant)) used: \(updated.usedAttempts)/total: \(totalAvailable))")
         return true
     }
 
     @discardableResult
-    func grantRewardedAttempt() -> Bool {
+    func grantRewardedAttempt(for variant: DailyChallengeDefinition.Variant) -> Bool {
         refreshForCurrentDate()
 
         if isDebugUnlimitedEnabled {
             // デバッグ無制限モード時は広告視聴による加算が不要なため、常に成功を返す
-            debugLog("DailyChallengeAttemptStore: デバッグ無制限モードのため広告付与をスキップしました")
+            debugLog("DailyChallengeAttemptStore: デバッグ無制限モードのため広告付与をスキップしました (variant: \(Self.variantLogLabel(for: variant)))")
             return true
         }
 
-        guard state.rewardedAttemptsGranted < maximumRewardedAttempts else {
-            debugLog("DailyChallengeAttemptStore: リワード広告による付与上限に達しているため増加できません")
+        let key = Self.variantKey(for: variant)
+        let record = state.record(for: key)
+        guard record.rewardedAttemptsGranted < maximumRewardedAttempts else {
+            debugLog("DailyChallengeAttemptStore: リワード広告による付与上限に達しているため増加できません (variant: \(Self.variantLogLabel(for: variant)))")
             return false
         }
 
-        state.rewardedAttemptsGranted += 1
+        state.updateRecord(for: key) { record in
+            record.rewardedAttemptsGranted += 1
+        }
         // 付与後も同様に Published プロパティと永続化内容を整合させる
         updatePublishedValues()
         persistState()
-        debugLog("DailyChallengeAttemptStore: リワード広告成功により挑戦回数を 1 追加しました (granted: \(state.rewardedAttemptsGranted))")
+        let updated = state.record(for: key)
+        debugLog("DailyChallengeAttemptStore: リワード広告成功により挑戦回数を 1 追加しました (variant: \(Self.variantLogLabel(for: variant)) granted: \(updated.rewardedAttemptsGranted))")
         return true
     }
 
@@ -324,8 +359,7 @@ final class DailyChallengeAttemptStore: ObservableObject, DailyChallengeAttemptS
 
     // MARK: - 内部処理
     private func updatePublishedValues() {
-        remainingAttempts = Self.computeRemainingAttempts(from: state)
-        rewardedAttemptsGranted = state.rewardedAttemptsGranted
+        stateVersion &+= 1
     }
 
     private func persistState() {
@@ -338,9 +372,24 @@ final class DailyChallengeAttemptStore: ObservableObject, DailyChallengeAttemptS
         }
     }
 
-    private static func computeRemainingAttempts(from state: State) -> Int {
-        let total = 1 + state.rewardedAttemptsGranted
-        return max(0, total - state.usedAttempts)
+    /// `DailyChallengeDefinition.Variant` を内部管理用キーへ変換する
+    private static func variantKey(for variant: DailyChallengeDefinition.Variant) -> VariantKey {
+        VariantKey(variant: variant)
+    }
+
+    /// ログ出力向けのバリアント名称
+    private static func variantLogLabel(for variant: DailyChallengeDefinition.Variant) -> String {
+        switch variant {
+        case .fixed:
+            return "固定"
+        case .random:
+            return "ランダム"
+        }
+    }
+
+    private static func computeRemainingAttempts(from record: VariantRecord) -> Int {
+        let total = 1 + record.rewardedAttemptsGranted
+        return max(0, total - record.usedAttempts)
     }
 }
 
