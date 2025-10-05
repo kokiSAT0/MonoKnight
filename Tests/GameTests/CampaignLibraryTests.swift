@@ -511,7 +511,7 @@ final class CampaignLibraryTests: XCTestCase {
                 deck: .standardWithAllChoices,
                 spawn: fixedSpawn5,
                 penalties: standardPenalties,
-                secondary: .finishWithPenaltyAtMostAndWithinMoves(maxPenaltyCount: 2, maxMoves: 34),
+                secondary: .finishWithPenaltyAtMostAndWithinMoves(maxPenaltyCount: 2, maxMoves: 36),
                 scoreTarget: 530,
                 unlock: .stageClear(CampaignStageID(chapter: 3, index: 7)),
                 additional: [GridPoint(x: 1, y: 1): 2, GridPoint(x: 2, y: 2): 3, GridPoint(x: 3, y: 3): 4]

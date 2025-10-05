@@ -942,7 +942,7 @@ public struct CampaignLibrary {
             unlockRequirement: .stageClear(stage36.id)
         )
 
-        // 3-8: ペナルティ合計 2 以下かつ 34 手以内を同時達成する総合演習。
+        // 3-8: ペナルティ合計 2 以下かつ 36 手以内を同時達成する総合演習。
         let stage38MixedVisit: [GridPoint: Int] = [
             GridPoint(x: 1, y: 1): 2,
             GridPoint(x: 2, y: 2): 3,
@@ -951,7 +951,7 @@ public struct CampaignLibrary {
         let stage38 = CampaignStage(
             id: CampaignStageID(chapter: 3, index: 8),
             title: "総合演習",
-            summary: "2/3/4 回踏みを組み合わせ、ペナルティ合計 2 以下かつ 34 手以内を達成する総仕上げです。",
+            summary: "2/3/4 回踏みを組み合わせ、ペナルティ合計 2 以下かつ 36 手以内を達成する総仕上げです。",
             regulation: GameMode.Regulation(
                 boardSize: 5,
                 handSize: 5,
@@ -962,7 +962,7 @@ public struct CampaignLibrary {
                 penalties: standardPenalties,
                 additionalVisitRequirements: stage38MixedVisit
             ),
-            secondaryObjective: .finishWithPenaltyAtMostAndWithinMoves(maxPenaltyCount: 2, maxMoves: 34),
+            secondaryObjective: .finishWithPenaltyAtMostAndWithinMoves(maxPenaltyCount: 2, maxMoves: 36),
             scoreTarget: 530,
             scoreTargetComparison: .lessThanOrEqual,
             unlockRequirement: .stageClear(stage37.id)
