@@ -380,12 +380,21 @@ final class GameViewModel: ObservableObject {
             return
         }
 
-        // MoveCard.movementVectors を現在地へ適用し、盤面内の候補座標をハイライトへ変換する
-        boardBridge.updateForcedSelectionHighlights(
-            [],
-            origin: current,
-            movementVectors: card.move.movementVectors
+        // --- 現在の盤面状態をスナップショットし、障害物や既踏マスを含めた判定コンテキストを構築する ---
+        let snapshotBoard = core.board
+        let context = MoveCard.MovePattern.ResolutionContext(
+            boardSize: snapshotBoard.size,
+            contains: { point in snapshotBoard.contains(point) },
+            isTraversable: { point in snapshotBoard.isTraversable(point) },
+            isVisited: { point in snapshotBoard.isVisited(point) }
         )
+
+        // --- MovePattern.resolvePaths を用いて実際に到達可能な経路のみを抽出する ---
+        let availablePaths = card.move.resolvePaths(from: current, context: context)
+        let destinations = Set(availablePaths.map { $0.destination })
+
+        // --- 候補が存在しない場合は安全に解除し、存在する場合のみ強制ハイライトを更新する ---
+        boardBridge.updateForcedSelectionHighlights(destinations)
     }
 
     /// 表示用の経過時間を再計算する

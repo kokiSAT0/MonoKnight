@@ -129,13 +129,16 @@ final class DeckTests: XCTestCase {
             .knightLeftwardChoice
         ]
         XCTAssertTrue(expectedChoices.isSubset(of: allowedMoves), "全選択カードが揃っていません")
+        XCTAssertTrue(allowedMoves.contains(.superWarp), "全域ワープカードが追加デッキへ含まれていません")
         // MARK: 選択式カードは単一方向カードの 2 倍である重み 2 に引き上げられているか検証
         expectedChoices.forEach { choice in
             XCTAssertEqual(config.weightProfile.weight(for: choice), 2, "全選択カードの重みが想定値 2 と異なります: \(choice)")
         }
+        // MARK: 全域ワープは希少カードとして重み 1 を維持しているか確認
+        XCTAssertEqual(config.weightProfile.weight(for: .superWarp), 1, "全域ワープの重みは 1 のままに設定する想定です")
         // MARK: 既存の単一方向カードは従来どおり重み 1 を維持しているかチェック
         XCTAssertEqual(config.weightProfile.weight(for: .kingUp), 1, "標準カードの重みが 1 から変化しています")
-        XCTAssertEqual(config.deckSummaryText, "標準＋全選択カード")
+        XCTAssertEqual(config.deckSummaryText, "標準＋全選択カード＋ワープ")
     }
 
     /// MoveCard.allCases にキング型 8 種が含まれているかを検証する
