@@ -153,6 +153,28 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
         )
     }
 
+    /// 強制ハイライトが既踏マスを除外することを検証する
+    func testForcedSelectionHighlightsExcludeVisitedTiles() {
+        let viewModel = makeViewModel()
+        let origin = GridPoint(x: 2, y: 2)
+        let visitedPoint = GridPoint(x: 3, y: 2)
+
+        viewModel.core.markVisitedTilesForTesting([visitedPoint])
+
+        // 右隣（既踏マス）を強制ハイライトに指定するが、実際には除外される想定
+        let movement = MoveVector(dx: 1, dy: 0)
+        viewModel.updateForcedSelectionHighlights([], origin: origin, movementVectors: [movement])
+
+        XCTAssertFalse(
+            viewModel.forcedSelectionHighlightPoints.contains(visitedPoint),
+            "既踏マスが強制ハイライトに含まれています"
+        )
+        XCTAssertTrue(
+            viewModel.forcedSelectionHighlightPoints.isEmpty,
+            "今回のシナリオでは有効マスが存在しないため空集合を維持する想定です"
+        )
+    }
+
     /// テストで使い回す ViewModel を生成するヘルパー
     private func makeViewModel() -> GameBoardBridgeViewModel {
         let core = GameCore(mode: .standard)

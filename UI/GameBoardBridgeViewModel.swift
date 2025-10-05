@@ -301,7 +301,9 @@ final class GameBoardBridgeViewModel: ObservableObject {
         // 盤面内かつ移動可能なマスだけを残し、障害物をハイライト対象から除外する
         let validPoints = Set(
             candidatePoints.filter { point in
-                core.board.contains(point) && core.board.isTraversable(point)
+                core.board.contains(point) &&
+                core.board.isTraversable(point) &&
+                !core.board.isVisited(point)
             }
         )
         guard forcedSelectionHighlightPoints != validPoints else { return }

@@ -380,12 +380,21 @@ final class GameViewModel: ObservableObject {
             return
         }
 
-        // MoveCard.movementVectors を現在地へ適用し、盤面内の候補座標をハイライトへ変換する
-        boardBridge.updateForcedSelectionHighlights(
-            [],
-            origin: current,
-            movementVectors: card.move.movementVectors
-        )
+        // GameCore.availableMoves() を利用し、障害物・既踏マスを除外した実際の候補のみをハイライトする
+        let resolvedMoves = core.availableMoves().filter { candidate in
+            candidate.stackID == stack.id &&
+            candidate.card.id == card.id &&
+            candidate.card.move == card.move
+        }
+
+        guard !resolvedMoves.isEmpty else {
+            boardBridge.updateForcedSelectionHighlights([])
+            return
+        }
+
+        let destinations = Set(resolvedMoves.map(\.destination))
+        let vectors = resolvedMoves.map(\.moveVector)
+        boardBridge.updateForcedSelectionHighlights(destinations, origin: current, movementVectors: vectors)
     }
 
     /// 表示用の経過時間を再計算する

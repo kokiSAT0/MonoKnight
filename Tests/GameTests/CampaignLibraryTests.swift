@@ -87,18 +87,24 @@ final class CampaignLibraryTests: XCTestCase {
                 .knightDownwardChoice,
                 .knightLeftwardChoice
             ])),
-            (.standardWithAllChoices, "標準＋全選択カード構成", "標準＋全選択カード", Set(MoveCard.standardSet).union([
-                .kingUpOrDown,
-                .kingLeftOrRight,
-                .kingUpwardDiagonalChoice,
-                .kingRightDiagonalChoice,
-                .kingDownwardDiagonalChoice,
-                .kingLeftDiagonalChoice,
-                .knightUpwardChoice,
-                .knightRightwardChoice,
-                .knightDownwardChoice,
-                .knightLeftwardChoice
-            ])),
+            (
+                .standardWithAllChoices,
+                "標準＋全選択カード構成",
+                "標準＋全選択カード＋超ワープ",
+                Set(MoveCard.standardSet).union([
+                    .kingUpOrDown,
+                    .kingLeftOrRight,
+                    .kingUpwardDiagonalChoice,
+                    .kingRightDiagonalChoice,
+                    .kingDownwardDiagonalChoice,
+                    .kingLeftDiagonalChoice,
+                    .knightUpwardChoice,
+                    .knightRightwardChoice,
+                    .knightDownwardChoice,
+                    .knightLeftwardChoice,
+                    .superWarp
+                ])
+            ),
             (.kingOrthogonalChoiceOnly, "上下左右選択キング構成", "上下左右の選択キング限定", [.kingUpOrDown, .kingLeftOrRight]),
             (.kingDiagonalChoiceOnly, "斜め選択キング構成", "斜め選択キング限定", [
                 .kingUpwardDiagonalChoice,
@@ -112,18 +118,24 @@ final class CampaignLibraryTests: XCTestCase {
                 .knightDownwardChoice,
                 .knightLeftwardChoice
             ]),
-            (.allChoiceMixed, "選択カード総合構成", "選択カード総合ミックス", [
-                .kingUpOrDown,
-                .kingLeftOrRight,
-                .kingUpwardDiagonalChoice,
-                .kingRightDiagonalChoice,
-                .kingDownwardDiagonalChoice,
-                .kingLeftDiagonalChoice,
-                .knightUpwardChoice,
-                .knightRightwardChoice,
-                .knightDownwardChoice,
-                .knightLeftwardChoice
-            ])
+            (
+                .allChoiceMixed,
+                "選択カード総合構成",
+                "選択カード＋超ワープ総合ミックス",
+                Set([
+                    .kingUpOrDown,
+                    .kingLeftOrRight,
+                    .kingUpwardDiagonalChoice,
+                    .kingRightDiagonalChoice,
+                    .kingDownwardDiagonalChoice,
+                    .kingLeftDiagonalChoice,
+                    .knightUpwardChoice,
+                    .knightRightwardChoice,
+                    .knightDownwardChoice,
+                    .knightLeftwardChoice,
+                    .superWarp
+                ])
+            )
         ]
 
         for (preset, expectedName, expectedSummary, expectedMoves) in presets {

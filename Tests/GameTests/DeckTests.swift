@@ -128,13 +128,16 @@ final class DeckTests: XCTestCase {
             .knightLeftwardChoice
         ]
         XCTAssertTrue(expectedChoices.isSubset(of: allowedMoves), "全選択カードが揃っていません")
+        XCTAssertTrue(allowedMoves.contains(.superWarp), "超ワープカードが全選択デッキに含まれていません")
         // MARK: 選択式カードは単一方向カードの 2 倍である重み 2 に引き上げられているか検証
         expectedChoices.forEach { choice in
             XCTAssertEqual(config.weightProfile.weight(for: choice), 2, "全選択カードの重みが想定値 2 と異なります: \(choice)")
         }
+        // MARK: 超ワープは標準カード相当の重みで追加されているか確認
+        XCTAssertEqual(config.weightProfile.weight(for: .superWarp), 1, "超ワープの重みは 1 の想定です")
         // MARK: 既存の単一方向カードは従来どおり重み 1 を維持しているかチェック
         XCTAssertEqual(config.weightProfile.weight(for: .kingUp), 1, "標準カードの重みが 1 から変化しています")
-        XCTAssertEqual(config.deckSummaryText, "標準＋全選択カード")
+        XCTAssertEqual(config.deckSummaryText, "標準＋全選択カード＋超ワープ")
     }
 
     /// MoveCard.allCases にキング型 8 種が含まれているかを検証する
@@ -177,6 +180,7 @@ final class DeckTests: XCTestCase {
         XCTAssertFalse(MoveCard.standardSet.contains(.knightRightwardChoice), "選択式カードがスタンダードセットへ混入しています")
         XCTAssertFalse(MoveCard.standardSet.contains(.knightDownwardChoice), "選択式カードがスタンダードセットへ混入しています")
         XCTAssertFalse(MoveCard.standardSet.contains(.knightLeftwardChoice), "選択式カードがスタンダードセットへ混入しています")
+        XCTAssertFalse(MoveCard.standardSet.contains(.superWarp), "特殊カードの超ワープがスタンダードセットへ混入しています")
     }
 
     /// directionChoice 構成が新カードを含み、重みも設定されていることを検証する
@@ -241,11 +245,12 @@ final class DeckTests: XCTestCase {
             .knightUpwardChoice,
             .knightRightwardChoice,
             .knightDownwardChoice,
-            .knightLeftwardChoice
+            .knightLeftwardChoice,
+            .superWarp
         ]
         XCTAssertEqual(Set(config.allowedMoves), expected, "全選択カード混合デッキの内容が一致していません")
         XCTAssertTrue(expected.allSatisfy { config.weightProfile.weight(for: $0) == 1 }, "混合デッキ内の重みが均等ではありません")
-        XCTAssertEqual(config.deckSummaryText, "選択カード総合ミックス", "サマリーテキストが仕様と異なります")
+        XCTAssertEqual(config.deckSummaryText, "選択カード＋超ワープ総合ミックス", "サマリーテキストが仕様と異なります")
     }
 
     /// クラシカルチャレンジ設定では桂馬カードのみが配られるか検証する

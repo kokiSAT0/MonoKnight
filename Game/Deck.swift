@@ -161,13 +161,14 @@ struct Deck {
                 .knightDownwardChoice,
                 .knightLeftwardChoice
             ]
-            let allowedMoves = MoveCard.standardSet + choiceCards
+            let specialCards = choiceCards + [.superWarp]
+            let allowedMoves = MoveCard.standardSet + specialCards
             // 選択式カードを積極的に引いてもらうため、単一方向カード（重み 1）の 2 倍となる重み 2 を個別指定する
             let overrides = Dictionary(uniqueKeysWithValues: choiceCards.map { ($0, 2) })
             return Configuration(
                 allowedMoves: allowedMoves,
                 weightProfile: WeightProfile(defaultWeight: 1, overrides: overrides),
-                deckSummaryText: "標準＋全選択カード"
+                deckSummaryText: "標準＋全選択カード＋超ワープ"
             )
         }()
 
@@ -284,12 +285,13 @@ struct Deck {
                 .knightUpwardChoice,
                 .knightRightwardChoice,
                 .knightDownwardChoice,
-                .knightLeftwardChoice
+                .knightLeftwardChoice,
+                .superWarp
             ]
             return Configuration(
                 allowedMoves: moves,
                 weightProfile: WeightProfile(defaultWeight: 1),
-                deckSummaryText: "選択カード総合ミックス"
+                deckSummaryText: "選択カード＋超ワープ総合ミックス"
             )
         }()
     }

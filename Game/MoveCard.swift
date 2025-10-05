@@ -1,7 +1,7 @@
 import Foundation
 
 /// 駒を移動させるカードの種類を定義する列挙型
-/// - Note: 周囲 1 マスのキング型 8 種、ナイト型 8 種、距離 2 の直線/斜め 8 種の計 24 種に加え、キャンペーン専用の複数方向カードをサポート
+/// - Note: 周囲 1 マスのキング型 8 種、ナイト型 8 種、距離 2 の直線/斜め 8 種の計 24 種に加え、キャンペーン専用の複数方向カードや超ワープなどの特殊カードをサポート
 /// - Note: SwiftUI モジュールからも扱うため `public` とし、全ケース配列も公開する
 public enum MoveCard: CaseIterable {
     // MARK: - MovePattern 定義
@@ -70,16 +70,25 @@ public enum MoveCard: CaseIterable {
             private let containsHandler: (GridPoint) -> Bool
             /// 座標へ進入できるかを判定するクロージャ
             private let traversableHandler: (GridPoint) -> Bool
+            /// 指定座標が既に踏破済みかどうかを判定するクロージャ
+            /// - Note: 超ワープのように「未踏マス限定」の候補生成へ利用することを想定し、任意指定を可能にしている
+            private let visitedHandler: (GridPoint) -> Bool
 
             /// イニシャライザ
             /// - Parameters:
             ///   - boardSize: 対象となる盤面サイズ
             ///   - contains: 盤内判定を行うクロージャ
             ///   - isTraversable: 障害物などで進入不可かどうかを判定するクロージャ
-            public init(boardSize: Int, contains: @escaping (GridPoint) -> Bool, isTraversable: @escaping (GridPoint) -> Bool) {
+            public init(
+                boardSize: Int,
+                contains: @escaping (GridPoint) -> Bool,
+                isTraversable: @escaping (GridPoint) -> Bool,
+                isVisited: @escaping (GridPoint) -> Bool = { _ in false }
+            ) {
                 self.boardSize = boardSize
                 self.containsHandler = contains
                 self.traversableHandler = isTraversable
+                self.visitedHandler = isVisited
             }
 
             /// 指定座標が盤内かどうかを返す
@@ -94,6 +103,13 @@ public enum MoveCard: CaseIterable {
             /// - Returns: 進入できる場合は true
             public func isTraversable(_ point: GridPoint) -> Bool {
                 traversableHandler(point)
+            }
+
+            /// 指定座標が既踏マスかどうかを返す
+            /// - Parameter point: 判定したい座標
+            /// - Returns: 既踏マスであれば true
+            public func isVisited(_ point: GridPoint) -> Bool {
+                visitedHandler(point)
             }
         }
 
@@ -198,6 +214,44 @@ public enum MoveCard: CaseIterable {
             }
         }
 
+        /// 盤面全域を走査して目的地候補を生成するカード向けのパターンを構築する
+        /// - Parameters:
+        ///   - identity: 同一性判定で利用する ID（`.custom` などで一意化する）
+        ///   - fallbackVectors: UI 描画やアクセシビリティ用に返す代表ベクトル集合
+        ///   - generator: 原点とコンテキストから目的地候補を列挙するクロージャ
+        /// - Returns: generator が返した座標を盤面内・進入可否でフィルタした経路集合
+        public static func dynamicAbsoluteTargets(
+            identity: Identity,
+            fallbackVectors: [MoveVector],
+            generator: @escaping (GridPoint, ResolutionContext) -> [GridPoint]
+        ) -> MovePattern {
+            MovePattern(baseVectors: fallbackVectors, identity: identity) { origin, context in
+                let rawTargets = generator(origin, context)
+                var seen: Set<GridPoint> = []
+                var sanitizedTargets: [GridPoint] = []
+                sanitizedTargets.reserveCapacity(rawTargets.count)
+
+                for target in rawTargets {
+                    guard target != origin else { continue }
+                    guard seen.insert(target).inserted else { continue }
+                    guard context.contains(target), context.isTraversable(target) else { continue }
+                    sanitizedTargets.append(target)
+                }
+
+                sanitizedTargets.sort { lhs, rhs in
+                    if lhs.y != rhs.y {
+                        return lhs.y < rhs.y
+                    }
+                    return lhs.x < rhs.x
+                }
+
+                return sanitizedTargets.map { target in
+                    let vector = MoveVector(dx: target.x - origin.x, dy: target.y - origin.y)
+                    return Path(vector: vector, destination: target, traversedPoints: [target])
+                }
+            }
+        }
+
         /// movementVectors 互換の代表ベクトル配列を返す
         /// - Returns: 既存 API で利用していたベクトル配列
         public func fallbackVectors() -> [MoveVector] { baseVectors }
@@ -287,8 +341,57 @@ public enum MoveCard: CaseIterable {
         mapping[.diagonalDownLeft2] = .relativeSteps([MoveVector(dx: -2, dy: -2)])
         mapping[.diagonalUpLeft2] = .relativeSteps([MoveVector(dx: -2, dy: 2)])
 
+        // --- 特殊カード ---
+        mapping[.superWarp] = .dynamicAbsoluteTargets(
+            identity: .custom("superWarp"),
+            fallbackVectors: MoveCard.superWarpFallbackVectors
+        ) { origin, context in
+            var targets: [GridPoint] = []
+            targets.reserveCapacity(context.boardSize * context.boardSize)
+            for point in BoardGeometry.allPoints(for: context.boardSize) {
+                guard point != origin else { continue }
+                guard !context.isVisited(point) else { continue }
+                targets.append(point)
+            }
+            return targets
+        }
+
         return mapping
     }()
+
+    /// 超ワープカードのイラスト描画などで利用するフォールバックベクトル集合
+    /// - Note: 標準盤 (5×5) の中央から見た全マスを相対ベクトルへ変換し、UI 表示が空にならないようにする
+    private static let superWarpFallbackVectors: [MoveVector] = MoveCard.makeSuperWarpFallbackVectors(
+        boardSize: BoardGeometry.standardSize
+    )
+
+    /// 盤面全体へ向かう相対ベクトルを生成するヘルパー
+    /// - Parameter boardSize: 想定する盤面サイズ
+    /// - Returns: 中央マスを基準にした相対移動ベクトル集合
+    private static func makeSuperWarpFallbackVectors(boardSize: Int) -> [MoveVector] {
+        guard boardSize > 0 else { return [] }
+        let origin = GridPoint.center(of: boardSize)
+        var vectors: [MoveVector] = []
+        vectors.reserveCapacity(boardSize * boardSize - 1)
+
+        for y in 0..<boardSize {
+            for x in 0..<boardSize {
+                let point = GridPoint(x: x, y: y)
+                guard point != origin else { continue }
+                let vector = MoveVector(dx: point.x - origin.x, dy: point.y - origin.y)
+                vectors.append(vector)
+            }
+        }
+
+        vectors.sort { lhs, rhs in
+            if lhs.dy != rhs.dy {
+                return lhs.dy < rhs.dy
+            }
+            return lhs.dx < rhs.dx
+        }
+
+        return vectors
+    }
 
     /// MovePattern が存在しない場合のフォールバック
     private static let emptyPattern = MovePattern.relativeSteps([])
@@ -344,7 +447,8 @@ public enum MoveCard: CaseIterable {
         .knightUpwardChoice,
         .knightRightwardChoice,
         .knightDownwardChoice,
-        .knightLeftwardChoice
+        .knightLeftwardChoice,
+        .superWarp
     ]
 
     // MARK: - ケース定義
@@ -419,6 +523,9 @@ public enum MoveCard: CaseIterable {
     case diagonalDownLeft2
     /// 斜め: 左上に 2
     case diagonalUpLeft2
+
+    /// 特殊: 未踏マスどこでもワープ（障害物と既踏マスを除外）
+    case superWarp
 
     // MARK: - 移動ベクトル
     /// カードが持つ移動候補一覧を返す
@@ -547,6 +654,9 @@ public enum MoveCard: CaseIterable {
         case .diagonalDownRight2: return "右下2"
         case .diagonalDownLeft2: return "左下2"
         case .diagonalUpLeft2: return "左上2"
+        case .superWarp:
+            // 盤面内の未踏マスすべてへ瞬間移動できる特別カード
+            return "超ワープ"
         }
     }
 

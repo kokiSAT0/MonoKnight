@@ -239,6 +239,87 @@ final class GameViewIntegrationTests: XCTestCase {
         )
     }
 
+    /// 超ワープカード選択時に障害物・既踏マスがハイライトされないことを確認する
+    func testSuperWarpForcedHighlightsExcludeVisitedTiles() {
+        let scheduler = PenaltyBannerSchedulerSpy()
+        let gameCenter = GameCenterServiceSpy()
+        let adsService = AdsServiceSpy()
+
+        let impassablePoint = GridPoint(x: 1, y: 1)
+        let regulation = GameMode.Regulation(
+            boardSize: BoardGeometry.standardSize,
+            handSize: 5,
+            nextPreviewCount: 3,
+            allowsStacking: true,
+            deckPreset: .standardWithAllChoices,
+            spawnRule: .fixed(BoardGeometry.defaultSpawnPoint(for: BoardGeometry.standardSize)),
+            penalties: GameMode.PenaltySettings(
+                deadlockPenaltyCost: 3,
+                manualRedrawPenaltyCost: 2,
+                manualDiscardPenaltyCost: 1,
+                revisitPenaltyCost: 0
+            ),
+            impassableTilePoints: [impassablePoint]
+        )
+        let mode = GameMode(
+            identifier: .freeCustom,
+            displayName: "超ワープテスト",
+            regulation: regulation,
+            leaderboardEligible: false
+        )
+
+        let warpDeck = Deck.makeTestDeck(
+            cards: Array(repeating: MoveCard.superWarp, count: 16),
+            configuration: .standardWithAllChoices
+        )
+        let origin = BoardGeometry.defaultSpawnPoint(for: BoardGeometry.standardSize)
+        let core = GameCore.makeTestInstance(deck: warpDeck, current: origin, mode: mode)
+        let interfaces = GameModuleInterfaces { _ in core }
+
+        let viewModel = GameViewModel(
+            mode: mode,
+            gameInterfaces: interfaces,
+            gameCenterService: gameCenter,
+            adsService: adsService,
+            onRequestReturnToTitle: nil,
+            penaltyBannerScheduler: scheduler
+        )
+
+        viewModel.updateHapticsSetting(isEnabled: false)
+
+        let visitedPoints = [GridPoint(x: 4, y: 4), GridPoint(x: 0, y: 2)]
+        core.markVisitedTilesForTesting(visitedPoints)
+
+        guard let stack = core.handStacks.first(where: { $0.topCard?.move == .superWarp }) else {
+            XCTFail("超ワープカードを含むスタックを特定できませんでした")
+            return
+        }
+
+        viewModel.updateForcedSelectionHighlight(for: stack)
+
+        let expectedDestinations = Set(
+            core.availableMoves().filter { candidate in
+                candidate.stackID == stack.id && candidate.card.move == .superWarp
+            }.map(\.destination)
+        )
+
+        XCTAssertEqual(
+            viewModel.boardBridge.forcedSelectionHighlightPoints,
+            expectedDestinations,
+            "超ワープのハイライト候補が GameCore の計算と一致していません"
+        )
+        XCTAssertFalse(
+            viewModel.boardBridge.forcedSelectionHighlightPoints.contains(impassablePoint),
+            "障害物マスがハイライトに含まれています"
+        )
+        for point in visitedPoints {
+            XCTAssertFalse(
+                viewModel.boardBridge.forcedSelectionHighlightPoints.contains(point),
+                "既踏マスがハイライトに含まれています: \(point)"
+            )
+        }
+    }
+
     /// カード未選択時でも盤面タップで移動が開始され、通常カードが優先されることを確認する
     func testBoardTapWithoutSelectionTriggersPlayAndPrefersSingleVectorCards() {
         XCTContext.runActivity(named: "複数候補カードのみでも移動が開始される") { _ in

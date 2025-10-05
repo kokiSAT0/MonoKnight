@@ -114,6 +114,72 @@ final class GameCoreTests: XCTestCase {
         XCTAssertTrue(destinations.contains(GridPoint(x: 2, y: 3)), "移動可能マスまで除外されてしまっています")
     }
 
+    /// 超ワープカードが障害物・既踏マスを除外し、盤面タップでも正しく選択できることを検証する
+    func testSuperWarpExcludesVisitedAndImpassableTiles() {
+        // --- 移動不可マスを 1 箇所配置したレギュレーションを用意 ---
+        let impassablePoint = GridPoint(x: 1, y: 1)
+        let regulation = GameMode.Regulation(
+            boardSize: BoardGeometry.standardSize,
+            handSize: 5,
+            nextPreviewCount: 3,
+            allowsStacking: true,
+            deckPreset: .standardWithAllChoices,
+            spawnRule: .fixed(BoardGeometry.defaultSpawnPoint(for: BoardGeometry.standardSize)),
+            penalties: GameMode.PenaltySettings(
+                deadlockPenaltyCost: 3,
+                manualRedrawPenaltyCost: 2,
+                manualDiscardPenaltyCost: 1,
+                revisitPenaltyCost: 0
+            ),
+            impassableTilePoints: [impassablePoint]
+        )
+        let mode = GameMode(
+            identifier: .freeCustom,
+            displayName: "超ワープ検証",
+            regulation: regulation,
+            leaderboardEligible: false
+        )
+
+        // --- 超ワープのみを配る山札を構築し、中心スポーンで開始 ---
+        let warpDeck = Deck.makeTestDeck(
+            cards: Array(repeating: MoveCard.superWarp, count: 16),
+            configuration: .standardWithAllChoices
+        )
+        let origin = BoardGeometry.defaultSpawnPoint(for: BoardGeometry.standardSize)
+        let core = GameCore.makeTestInstance(deck: warpDeck, current: origin, mode: mode)
+
+        // --- 既踏マス扱いにしたい座標を手動で踏破済みに設定 ---
+        let visitedPoints = [GridPoint(x: 4, y: 4), GridPoint(x: 0, y: 2)]
+        core.markVisitedTilesForTesting(visitedPoints)
+
+        // --- 候補抽出 ---
+        let moves = core.availableMoves()
+        let warpMoves = moves.filter { $0.card.move == .superWarp }
+        XCTAssertFalse(warpMoves.isEmpty, "超ワープの候補が生成されていません")
+
+        let destinations = Set(warpMoves.map(\.destination))
+        let expectedTotal = BoardGeometry.standardSize * BoardGeometry.standardSize
+        let excludedCount = 1 /* origin */ + visitedPoints.count + 1 /* impassable */
+        XCTAssertEqual(destinations.count, expectedTotal - excludedCount, "超ワープの候補数が想定値と一致しません")
+        XCTAssertFalse(destinations.contains(origin), "現在地が候補に含まれています")
+        XCTAssertFalse(destinations.contains(impassablePoint), "障害物マスが候補に含まれています")
+        for point in visitedPoints {
+            XCTAssertFalse(destinations.contains(point), "既踏マスが候補に含まれています: \(point)")
+        }
+
+        // --- 盤面タップ選択が有効候補のみを返すか検証 ---
+        let selectablePoint = GridPoint(x: 4, y: 0)
+        let resolved = core.resolvedMoveForBoardTap(at: selectablePoint)
+        XCTAssertEqual(resolved?.card.move, .superWarp, "盤面タップで超ワープ候補を選択できません")
+
+        XCTAssertNil(core.resolvedMoveForBoardTap(at: impassablePoint), "障害物タップで候補が返っています")
+        if let visitedPoint = visitedPoints.first {
+            if let visitedMove = core.resolvedMoveForBoardTap(at: visitedPoint) {
+                XCTAssertNotEqual(visitedMove.card.move, .superWarp, "超ワープが既踏マスへ移動候補を返しています")
+            }
+        }
+    }
+
     /// 手詰まり後に再び手詰まりが発生した場合でも追加ペナルティが加算されないことを確認
     func testConsecutiveDeadlockDoesNotAddExtraPenalty() {
         // --- テスト用デッキ構築 ---
