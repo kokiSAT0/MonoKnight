@@ -1,23 +1,23 @@
 import SwiftUI
 
 /// ペナルティ発動時に画面上部へ表示する通知バナー
-/// - Note: 盤面レイアウトロジックと分離し、メッセージ表現の変更を容易にする。
+/// - Note: `PenaltyEvent` の内容を参照し、金額やトリガー種別に応じた文言へ自動で切り替える。
 struct PenaltyBannerView: View {
     /// カラーテーマ
     private var theme = AppTheme()
-    /// 直近のペナルティ量
-    let penaltyAmount: Int
+    /// 表示対象となるペナルティイベント
+    let event: PenaltyEvent
 
     /// 外部から利用するためのカスタムイニシャライザ
     /// - Parameters:
-    ///   - penaltyAmount: 表示対象となる最新のペナルティ値
+    ///   - event: 表示すべき最新のペナルティイベント
     ///   - theme: テーマ差し替え用（通常は既定値を利用）
-    init(penaltyAmount: Int, theme: AppTheme = AppTheme()) {
+    init(event: PenaltyEvent, theme: AppTheme = AppTheme()) {
         // MARK: - 依存関係の代入
         // View 外部で生成したテーマを受け取り、必要に応じてデザインを切り替えられるようにする。
         self.theme = theme
-        // ペナルティ値を保持し、メッセージ表示に利用する。
-        self.penaltyAmount = penaltyAmount
+        // イベントを保持し、金額やトリガー種別に応じたメッセージ生成へ活用する。
+        self.event = event
     }
 
     var body: some View {
@@ -68,19 +68,41 @@ struct PenaltyBannerView: View {
 private extension PenaltyBannerView {
     /// ペナルティ内容に応じたメインメッセージ
     var primaryMessage: String {
-        if penaltyAmount > 0 {
-            return "手詰まり → 手札スロットを引き直し (+\(penaltyAmount))"
-        } else {
-            return "手札スロットを引き直しました (ペナルティなし)"
+        switch event.trigger {
+        case .automaticDeadlock:
+            if event.penaltyAmount > 0 {
+                return "手詰まり → 手札スロットを引き直し (+\(event.penaltyAmount))"
+            } else {
+                return "手詰まり → ペナルティなしで引き直し"
+            }
+        case .manualRedraw:
+            if event.penaltyAmount > 0 {
+                return "手動ペナルティ → 手札を再抽選 (+\(event.penaltyAmount))"
+            } else {
+                return "手動ペナルティ → 手札を再抽選 (ペナルティなし)"
+            }
+        case .automaticFreeRedraw:
+            return "連続手詰まり → 無料で手札を再抽選"
         }
     }
 
     /// ペナルティ内容に応じた補足メッセージ
     var secondaryMessage: String {
-        if penaltyAmount > 0 {
-            return "使えるカードが無かったため、手数が \(penaltyAmount) 増加しました"
-        } else {
-            return "使えるカードが無かったため、手数の増加はありません"
+        switch event.trigger {
+        case .automaticDeadlock:
+            if event.penaltyAmount > 0 {
+                return "使えるカードが無かったため、手数が \(event.penaltyAmount) 増加しました"
+            } else {
+                return "使えるカードが無かったため、今回はペナルティが発生しません"
+            }
+        case .manualRedraw:
+            if event.penaltyAmount > 0 {
+                return "プレイヤー操作により手札を入れ替え、手数が \(event.penaltyAmount) 増加しました"
+            } else {
+                return "プレイヤー操作により手札を入れ替えましたが、手数の増加はありません"
+            }
+        case .automaticFreeRedraw:
+            return "手詰まりが連続したため、追加手数なしで自動的に手札を入れ替えました"
         }
     }
 

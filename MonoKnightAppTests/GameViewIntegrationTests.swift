@@ -1,3 +1,5 @@
+import Combine
+import SwiftUI
 import XCTest
 @testable import MonoKnightApp
 @testable import Game
@@ -27,10 +29,12 @@ final class GameViewIntegrationTests: XCTestCase {
         )
 
         // Combine 経由の購読が動作するかを確認するため、GameCore 側でペナルティイベントを発火させる
-        viewModel.core.updatePenaltyEventID(UUID())
+        let testEvent = PenaltyEvent(penaltyAmount: viewModel.core.mode.deadlockPenaltyCost, trigger: .automaticDeadlock)
+        viewModel.core.publishPenaltyEvent(testEvent)
         RunLoop.main.run(until: Date().addingTimeInterval(0.01))
 
-        XCTAssertTrue(viewModel.isShowingPenaltyBanner, "ペナルティ発生時にバナーが表示されていません")
+        XCTAssertEqual(viewModel.activePenaltyBanner?.penaltyAmount, testEvent.penaltyAmount, "ペナルティバナーへ金額が伝搬されていません")
+        XCTAssertEqual(viewModel.activePenaltyBanner?.trigger, testEvent.trigger, "ペナルティイベントのトリガーが反映されていません")
         XCTAssertEqual(scheduler.scheduleCallCount, 1, "自動クローズのスケジュールが登録されていません")
         XCTAssertEqual(scheduler.lastScheduledDelay, 2.6, accuracy: 0.001, "バナー自動クローズの遅延秒数が仕様と一致しません")
 
@@ -38,7 +42,85 @@ final class GameViewIntegrationTests: XCTestCase {
         viewModel.performMenuAction(.manualPenalty(penaltyCost: viewModel.core.mode.manualRedrawPenaltyCost))
 
         XCTAssertEqual(scheduler.cancelCallCount, 1, "手動ペナルティ適用時にバナーのキャンセルが呼ばれていません")
-        XCTAssertFalse(viewModel.isShowingPenaltyBanner, "キャンセル後もバナーが表示されたままです")
+        XCTAssertNil(viewModel.activePenaltyBanner, "キャンセル直後にバナー情報が残存しています")
+    }
+
+    /// 連続手詰まり時に最初は加算ペナルティ、続く再抽選では無料扱いになることを検証する
+    func testConsecutiveDeadlockPublishesPaidThenFreePenaltyEvents() {
+        let scheduler = PenaltyBannerSchedulerSpy()
+        let gameCenter = GameCenterServiceSpy()
+        let adsService = AdsServiceSpy()
+
+        // 角からはみ出すカードを優先的に並べ、初回と 2 回目までは完全に手詰まりとなるデッキを用意
+        let deadlockCards: [MoveCard] = [
+            .straightLeft2,
+            .straightDown2,
+            .diagonalDownLeft2,
+            .knightDown1Left2,
+            .knightDown1Right2,
+            .straightLeft2,
+            .straightDown2,
+            .diagonalDownLeft2,
+            .knightDown2Left1,
+            .knightDown2Right1,
+            // 3 回目以降に脱出できるよう、盤内へ進めるカードも混ぜて無限ループを防止
+            .kingUpRight,
+            .kingRight,
+            .kingUp,
+            .knightUp2Right1,
+            .knightUp1Right2
+        ]
+        let deck = Deck.makeTestDeck(cards: deadlockCards)
+        let interfaces = GameModuleInterfaces { mode in
+            GameCore.makeTestInstance(
+                deck: deck,
+                current: GridPoint(x: 0, y: 0),
+                mode: mode
+            )
+        }
+
+        let viewModel = GameViewModel(
+            mode: .standard,
+            gameInterfaces: interfaces,
+            gameCenterService: gameCenter,
+            adsService: adsService,
+            onRequestReturnToTitle: nil,
+            penaltyBannerScheduler: scheduler
+        )
+
+        var cancellables = Set<AnyCancellable>()
+        var receivedEvents: [PenaltyEvent] = []
+
+        // ペナルティイベントが 2 連続で流れてくるため、両方の内容を時系列で記録する
+        viewModel.$activePenaltyBanner
+            .compactMap { $0 }
+            .sink { event in
+                receivedEvents.append(event)
+            }
+            .store(in: &cancellables)
+
+        // Combine の発火と手札再構成が完了するまで短時間待機
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+
+        XCTAssertGreaterThanOrEqual(receivedEvents.count, 2, "連続手詰まりのイベント数が不足しています")
+
+        let firstEvent = receivedEvents[0]
+        XCTAssertEqual(firstEvent.trigger, .automaticDeadlock, "初回イベントのトリガーが自動検出になっていません")
+        XCTAssertEqual(firstEvent.penaltyAmount, viewModel.core.mode.deadlockPenaltyCost, "初回イベントでペナルティ加算量が反映されていません")
+
+        let secondEvent = receivedEvents[1]
+        XCTAssertEqual(secondEvent.trigger, .automaticFreeRedraw, "2 回目のイベントが無料再抽選扱いになっていません")
+        XCTAssertEqual(secondEvent.penaltyAmount, 0, "無料再抽選でもペナルティ量が残っています")
+
+        // 文字列生成も確認するため、アクセシビリティラベルを取得して文言を検証
+        let firstBannerController = UIHostingController(rootView: PenaltyBannerView(event: firstEvent))
+        XCTAssertTrue(firstBannerController.view.accessibilityLabel?.contains("+\(firstEvent.penaltyAmount)") ?? false, "初回イベントで加算手数が表記されていません")
+
+        let secondBannerController = UIHostingController(rootView: PenaltyBannerView(event: secondEvent))
+        XCTAssertTrue(secondBannerController.view.accessibilityLabel?.contains("ペナルティなし") ?? false, "無料再抽選時のペナルティなし表記が欠落しています")
+
+        // テスト終了時に購読を破棄してメモリリークを防ぐ
+        cancellables.forEach { $0.cancel() }
     }
 
     /// ゲームクリア時にスコア送信と結果画面表示が自動的に実施されることを確認する

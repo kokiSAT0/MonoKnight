@@ -7,6 +7,35 @@ import Combine
 import UIKit
 #endif
 
+/// ペナルティ通知をまとめて表現するイベント構造体
+/// - Note: Combine の差分検知に利用する ID とペナルティ量、発火トリガーを束ねて UI へ提供する
+public struct PenaltyEvent: Identifiable, Equatable {
+    /// ペナルティを引き起こした種別を区別する列挙体
+    public enum Trigger: Equatable {
+        case automaticDeadlock
+        case manualRedraw
+        case automaticFreeRedraw
+    }
+
+    /// イベント識別子（UI 側での removeDuplicates 用）
+    public let id: UUID
+    /// 案内すべきペナルティ量
+    public let penaltyAmount: Int
+    /// ペナルティトリガー
+    public let trigger: Trigger
+
+    /// イベントの初期化
+    /// - Parameters:
+    ///   - id: 既存の UUID を使いたい場合に指定（省略時は新規採番）
+    ///   - penaltyAmount: 表示するペナルティ量
+    ///   - trigger: 発火元を識別する列挙値
+    public init(id: UUID = UUID(), penaltyAmount: Int, trigger: Trigger) {
+        self.id = id
+        self.penaltyAmount = penaltyAmount
+        self.trigger = trigger
+    }
+}
+
 /// ゲーム進行を統括するクラス
 /// - 盤面操作・手札管理・ペナルティ処理・スコア計算を担当する
 
@@ -34,9 +63,9 @@ public final class GameCore: ObservableObject {
     @Published public private(set) var nextCards: [DealtCard] = []
     /// ゲームの進行状態
     @Published public private(set) var progress: GameProgress = .playing
-    /// 手詰まりペナルティが発生したことを UI 側へ伝えるイベント識別子
-    /// - Note: Optional とすることで初期化直後の誤通知を防ぎ、実際にペナルティが起きたタイミングで UUID を更新する
-    @Published public private(set) var penaltyEventID: UUID?
+    /// 手詰まりペナルティ発生を通知するイベント
+    /// - Note: 直近のペナルティ内容をまとめて保持し、UI が即座に参照できるようにする
+    @Published public private(set) var penaltyEvent: PenaltyEvent?
 
     /// 盤面タップでカード使用を依頼された際のアニメーション要求
     /// - Note: UI 側がこの値を受け取ったら演出を実行し、完了後に `clearBoardTapPlayRequest` を呼び出してリセットする
@@ -55,9 +84,6 @@ public final class GameCore: ObservableObject {
     /// クリアまでに要した経過秒数
     /// - Note: クリア確定時に計測し、リセット時に 0 へ戻す
     @Published public private(set) var elapsedSeconds: Int = 0
-    /// 直近で加算されたペナルティ手数
-    @Published public private(set) var lastPenaltyAmount: Int = 0
-
     /// 合計手数（移動 + ペナルティ）の計算プロパティ
     /// - Note: 将来的に別レギュレーションで利用する可能性があるため個別に保持
     public var totalMoveCount: Int { moveCount + penaltyCount }
@@ -343,8 +369,7 @@ public final class GameCore: ObservableObject {
         penaltyCount = 0
         hasRevisitedTile = false
         elapsedSeconds = 0
-        lastPenaltyAmount = 0
-        penaltyEventID = nil
+        penaltyEvent = nil
         boardTapPlayRequest = nil
         isAwaitingManualDiscardSelection = false
         progress = mode.requiresSpawnSelection ? .awaitingSpawn : .playing
@@ -493,16 +518,10 @@ extension GameCore {
         penaltyCount += amount
     }
 
-    /// 最後に課したペナルティ量を更新する
-    /// - Parameter amount: 記録したい手数
-    func setLastPenaltyAmountForPenalty(_ amount: Int) {
-        lastPenaltyAmount = amount
-    }
-
-    /// ペナルティ通知用のイベント ID を更新する
-    /// - Parameter id: 設定したい識別子（nil でリセット）
-    func updatePenaltyEventID(_ id: UUID?) {
-        penaltyEventID = id
+    /// ペナルティイベントを外部公開用に更新する
+    /// - Parameter event: 公開したいイベント（nil でリセット）
+    func publishPenaltyEvent(_ event: PenaltyEvent?) {
+        penaltyEvent = event
     }
 }
 

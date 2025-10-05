@@ -41,7 +41,7 @@ final class GameModePenaltyTests: XCTestCase {
         XCTAssertEqual(core.penaltyCount, 7, "deadlockPenaltyCost の設定値が反映されていません")
         // 連続排出抑制を廃止したことで、直後の引き直しが再度手詰まりになる場合がある
         // （= `applyPenaltyRedraw` が追加ペナルティなしで再度呼ばれるケース）。
-        // その際は `lastPenaltyAmount` が 0 に更新されるため、値の厳密比較は行わない。
+        // その際は `penaltyEvent` が無料再抽選イベントへ更新されるため、値の厳密比較は行わない。
     }
 
     /// manualRedrawPenaltyCost の設定が applyManualPenaltyRedraw() に反映されるか確認する
@@ -83,7 +83,8 @@ final class GameModePenaltyTests: XCTestCase {
         core.applyManualPenaltyRedraw()
 
         XCTAssertEqual(core.penaltyCount, 3, "manualRedrawPenaltyCost が反映されていません")
-        XCTAssertEqual(core.lastPenaltyAmount, 3, "最後に加算したペナルティ量が 3 になっていません")
+        XCTAssertEqual(core.penaltyEvent?.penaltyAmount, 3, "最後に加算したペナルティ量が 3 になっていません")
+        XCTAssertEqual(core.penaltyEvent?.trigger, .manualRedraw, "手動引き直しイベントのトリガーが manualRedraw になっていません")
     }
 
     /// manualDiscardPenaltyCost が 0 の場合に追加ペナルティが発生しないことを検証する
@@ -135,7 +136,6 @@ final class GameModePenaltyTests: XCTestCase {
         XCTAssertTrue(succeeded, "捨て札操作が失敗しました")
 
         XCTAssertEqual(core.penaltyCount, initialPenalty, "manualDiscardPenaltyCost=0 の場合はペナルティが増えてはいけません")
-        XCTAssertEqual(core.lastPenaltyAmount, 0, "最後のペナルティ量も 0 であるべきです")
         XCTAssertFalse(core.isAwaitingManualDiscardSelection, "捨て札操作後はモードが解除されているべきです")
     }
 }
