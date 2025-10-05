@@ -209,7 +209,8 @@ public struct CampaignStage: Identifiable, Equatable {
         case .chapterTotalStars(let chapter, let minimum):
             return "第\(chapter)章でスターを合計 \(minimum) 個集める"
         case .stageClear(let requiredID):
-            return "ステージ \(requiredID.displayCode) をクリア"
+            // ステージ番号を簡潔に伝えるため、重複した「ステージ」表現は省いている
+            return "\(requiredID.displayCode) をクリア"
         }
     }
 
