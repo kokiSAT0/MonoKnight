@@ -135,12 +135,12 @@ public enum DailyChallengeDefinition {
             spawnRule = .chooseAnyAfterPreview
         }
 
-        // ペナルティ候補は実運用で採用している値をベースに幅を持たせる。
-        // deadlock: 3〜6 の範囲、manual redraw: 3〜6 の範囲、discard: 1 or 2、revisit: 0〜2。
-        let deadlockOptions = [3, 4, 5, 6]
-        let manualRedrawOptions = [3, 4, 5, 6]
+        // ペナルティ候補は最新の基準値に合わせ、極端な上下振れを抑制する。
+        // deadlock: +3 手を固定、manual redraw: +2〜+3 手、manual discard: +1〜+2 手、revisit: 0〜+1 手。
+        let deadlockOptions = [3]
+        let manualRedrawOptions = [2, 3]
         let manualDiscardOptions = [1, 2]
-        let revisitOptions = [0, 1, 2]
+        let revisitOptions = [0, 1]
 
         let penalties = GameMode.PenaltySettings(
             deadlockPenaltyCost: choose(from: deadlockOptions, using: &randomizer),
