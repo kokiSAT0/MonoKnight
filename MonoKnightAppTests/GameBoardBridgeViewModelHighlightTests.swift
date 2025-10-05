@@ -122,8 +122,8 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
             deckPreset: .standard,
             spawnRule: .fixed(BoardGeometry.defaultSpawnPoint(for: BoardGeometry.standardSize)),
             penalties: GameMode.PenaltySettings(
-                deadlockPenaltyCost: 5,
-                manualRedrawPenaltyCost: 5,
+                deadlockPenaltyCost: 3,
+                manualRedrawPenaltyCost: 2,
                 manualDiscardPenaltyCost: 1,
                 revisitPenaltyCost: 0
             ),
