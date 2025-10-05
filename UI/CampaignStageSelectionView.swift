@@ -159,9 +159,10 @@ struct CampaignStageSelectionView: View {
             } label: {
                 // Disclosure を閉じたままでも進捗を把握できるよう、章単位のサマリーを先に計算しておく
                 let chapterProgress = chapterProgressSummary(for: chapter)
-                HStack(spacing: 12) {
+                HStack(spacing: 16) {
                     Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        // トグル状態を視覚的に示す唯一のインジケーターとして chevron を採用
+                        .font(.system(size: 16, weight: .semibold, design: .rounded))
                         .foregroundColor(theme.textSecondary)
                         .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 4) {
@@ -174,12 +175,10 @@ struct CampaignStageSelectionView: View {
                         chapterRewardProgressView(for: chapterProgress)
                     }
                     Spacer(minLength: 0)
-                    Image(systemName: isExpanded ? "minus.circle.fill" : "plus.circle.fill")
-                        .font(.system(size: 18, weight: .semibold, design: .rounded))
-                        .foregroundColor(theme.accentPrimary)
-                        .padding(.trailing, 4)
                 }
                 .padding(.vertical, 4)
+                // VStack 部分の外周をボタンのタップ領域として扱うため矩形化し、VoiceOver 操作範囲も明示する
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("campaign_stage_chapter_toggle_\(chapter.id)")
