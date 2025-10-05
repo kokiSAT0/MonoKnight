@@ -931,7 +931,7 @@ public struct CampaignLibrary {
             unlockRequirement: .stageClear(stage35.id)
         )
 
-        // 3-7: 任意スポーン＋四重踏みで 34 手以内の高速巡回を狙う。
+        // 3-7: 任意スポーン＋四重踏みで 36 手以内の高速巡回を狙う。
         let stage37QuadVisit: [GridPoint: Int] = [
             GridPoint(x: 1, y: 1): 4,
             GridPoint(x: 3, y: 3): 4
@@ -939,7 +939,7 @@ public struct CampaignLibrary {
         let stage37 = CampaignStage(
             id: CampaignStageID(chapter: 3, index: 7),
             title: "全選択＋四重踏み",
-            summary: "内側に配置された四重踏みを全選択カードで制御し、34 手以内を目指す高難度ステージです。",
+            summary: "内側に配置された四重踏みを全選択カードで制御し、36 手以内を目指す高難度ステージです。",
             regulation: GameMode.Regulation(
                 boardSize: 5,
                 handSize: 5,
@@ -950,13 +950,13 @@ public struct CampaignLibrary {
                 penalties: standardPenalties,
                 additionalVisitRequirements: stage37QuadVisit
             ),
-            secondaryObjective: .finishWithinMoves(maxMoves: 34),
+            secondaryObjective: .finishWithinMoves(maxMoves: 36),
             scoreTarget: 540,
             scoreTargetComparison: .lessThanOrEqual,
             unlockRequirement: .stageClear(stage36.id)
         )
 
-        // 3-8: ノーペナルティかつ 32 手以内を同時達成する総合演習。
+        // 3-8: ノーペナルティかつ 34 手以内を同時達成する総合演習。
         let stage38MixedVisit: [GridPoint: Int] = [
             GridPoint(x: 1, y: 1): 2,
             GridPoint(x: 2, y: 2): 3,
@@ -965,7 +965,7 @@ public struct CampaignLibrary {
         let stage38 = CampaignStage(
             id: CampaignStageID(chapter: 3, index: 8),
             title: "総合演習",
-            summary: "2/3/4 回踏みを組み合わせ、ノーペナルティかつ 32 手以内を達成する総仕上げです。",
+            summary: "2/3/4 回踏みを組み合わせ、ノーペナルティかつ 34 手以内を達成する総仕上げです。",
             regulation: GameMode.Regulation(
                 boardSize: 5,
                 handSize: 5,
@@ -976,7 +976,7 @@ public struct CampaignLibrary {
                 penalties: noPenaltyPenalties,
                 additionalVisitRequirements: stage38MixedVisit
             ),
-            secondaryObjective: .finishWithoutPenaltyAndWithinMoves(maxMoves: 32),
+            secondaryObjective: .finishWithoutPenaltyAndWithinMoves(maxMoves: 34),
             scoreTarget: 530,
             scoreTargetComparison: .lessThanOrEqual,
             unlockRequirement: .stageClear(stage37.id)
