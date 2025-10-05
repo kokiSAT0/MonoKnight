@@ -98,7 +98,7 @@ final class CampaignLibraryTests: XCTestCase {
                 .knightDownwardChoice,
                 .knightLeftwardChoice
             ])),
-            (.standardWithAllChoices, "標準＋全選択カード構成", "標準＋全選択カード", Set(MoveCard.standardSet).union([
+            (.standardWithAllChoices, "標準＋全選択カード構成", "標準＋全選択カード＋ワープ", Set(MoveCard.standardSet).union([
                 .kingUpOrDown,
                 .kingLeftOrRight,
                 .kingUpwardDiagonalChoice,
@@ -108,7 +108,8 @@ final class CampaignLibraryTests: XCTestCase {
                 .knightUpwardChoice,
                 .knightRightwardChoice,
                 .knightDownwardChoice,
-                .knightLeftwardChoice
+                .knightLeftwardChoice,
+                .superWarp
             ])),
             (.kingOrthogonalChoiceOnly, "上下左右選択キング構成", "上下左右の選択キング限定", [.kingUpOrDown, .kingLeftOrRight]),
             (.kingDiagonalChoiceOnly, "斜め選択キング構成", "斜め選択キング限定", [

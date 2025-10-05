@@ -163,7 +163,7 @@ struct Deck {
         /// 標準デッキへ全選択カードを網羅的に追加した構成
         /// - Note: 最終的な多方向対応力を測るため、標準セットに全選択カード 10 種をミックスする。
         static let standardWithAllChoices: Configuration = {
-            let choiceCards: [MoveCard] = [
+            let selectionCards: [MoveCard] = [
                 .kingUpOrDown,
                 .kingLeftOrRight,
                 .kingUpwardDiagonalChoice,
@@ -175,13 +175,15 @@ struct Deck {
                 .knightDownwardChoice,
                 .knightLeftwardChoice
             ]
-            let allowedMoves = MoveCard.standardSet + choiceCards
-            // 選択式カードを積極的に引いてもらうため、単一方向カード（重み 1）の 2 倍となる重み 2 を個別指定する
-            let overrides = Dictionary(uniqueKeysWithValues: choiceCards.map { ($0, 2) })
+            let specialAdditions: [MoveCard] = selectionCards + [.superWarp]
+            let allowedMoves = MoveCard.standardSet + specialAdditions
+            // 選択式カードは重み 2、全域ワープは希少性を保つため重み 1 を適用する
+            var overrides = Dictionary(uniqueKeysWithValues: selectionCards.map { ($0, 2) })
+            overrides[.superWarp] = 1
             return Configuration(
                 allowedMoves: allowedMoves,
                 weightProfile: WeightProfile(defaultWeight: 1, overrides: overrides),
-                deckSummaryText: "標準＋全選択カード"
+                deckSummaryText: "標準＋全選択カード＋ワープ"
             )
         }()
 

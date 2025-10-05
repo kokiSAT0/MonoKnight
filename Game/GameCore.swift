@@ -191,7 +191,8 @@ public final class GameCore: ObservableObject {
         let context = MoveCard.MovePattern.ResolutionContext(
             boardSize: snapshotBoard.size,
             contains: { point in snapshotBoard.contains(point) },
-            isTraversable: { point in snapshotBoard.isTraversable(point) }
+            isTraversable: { point in snapshotBoard.isTraversable(point) },
+            isVisited: { point in snapshotBoard.isVisited(point) }
         )
         let validPaths = card.move.resolvePaths(from: currentPosition, context: context)
         let isStillValid = validPaths.contains { path in
@@ -322,7 +323,8 @@ public final class GameCore: ObservableObject {
         let resolutionContext = MoveCard.MovePattern.ResolutionContext(
             boardSize: activeBoard.size,
             contains: { point in activeBoard.contains(point) },
-            isTraversable: { point in activeBoard.isTraversable(point) }
+            isTraversable: { point in activeBoard.isTraversable(point) },
+            isVisited: { point in activeBoard.isVisited(point) }
         )
 
         // 列挙中に同じ座標へ向かうカードを検出しやすいよう、結果は座標→スタック順でソートする
@@ -588,16 +590,30 @@ extension GameCore {
     ///   - deck: テスト用に並び順を制御した山札
     ///   - current: 駒の初期位置（モードが固定スポーンの場合はその座標を指定）
     ///   - mode: 検証対象のゲームモード
-    static func makeTestInstance(deck: Deck, current: GridPoint? = nil, mode: GameMode = .standard) -> GameCore {
+    static func makeTestInstance(
+        deck: Deck,
+        current: GridPoint? = nil,
+        mode: GameMode = .standard,
+        initialVisitedPoints: [GridPoint]? = nil
+    ) -> GameCore {
         let core = GameCore(mode: mode)
         core.deck = deck
         core.deck.reset()
 
         let resolvedCurrent = current ?? mode.initialSpawnPoint
-        if let resolvedCurrent {
+        let visitedPoints: [GridPoint]
+        if let overrideVisited = initialVisitedPoints {
+            visitedPoints = overrideVisited
+        } else if let resolvedCurrent {
+            visitedPoints = [resolvedCurrent]
+        } else {
+            visitedPoints = mode.initialVisitedPoints
+        }
+
+        if resolvedCurrent != nil {
             core.board = Board(
                 size: mode.boardSize,
-                initialVisitedPoints: [resolvedCurrent],
+                initialVisitedPoints: visitedPoints,
                 requiredVisitOverrides: mode.additionalVisitRequirements,
                 togglePoints: mode.toggleTilePoints,
                 impassablePoints: mode.impassableTilePoints,
@@ -606,6 +622,7 @@ extension GameCore {
         } else {
             core.board = Board(
                 size: mode.boardSize,
+                initialVisitedPoints: visitedPoints,
                 requiredVisitOverrides: mode.additionalVisitRequirements,
                 togglePoints: mode.toggleTilePoints,
                 impassablePoints: mode.impassableTilePoints,
