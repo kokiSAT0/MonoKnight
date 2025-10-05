@@ -55,6 +55,12 @@ final class DeckTests: XCTestCase {
         // MARK: 追加カードが正しく入っているか確認
         let expectedChoices: Set<MoveCard> = [.kingUpOrDown, .kingLeftOrRight]
         XCTAssertTrue(expectedChoices.isSubset(of: allowedMoves), "上下左右選択キングが不足しています")
+        // MARK: 選択式キングの学習を促すため重み 2 で上書きされていることを確認
+        expectedChoices.forEach { choice in
+            XCTAssertEqual(config.weightProfile.weight(for: choice), 2, "縦横選択キングの重みが想定値の 2 ではありません: \(choice)")
+        }
+        // MARK: 既存カードは重み 1 を維持しているか念のためチェック
+        XCTAssertEqual(config.weightProfile.weight(for: .kingUp), 1, "標準カードの重みが 1 から変化しています")
         // MARK: サマリー文言がプレイヤー向け説明と一致しているか検証
         XCTAssertEqual(config.deckSummaryText, "標準＋上下左右選択キング")
     }
@@ -72,6 +78,12 @@ final class DeckTests: XCTestCase {
             .kingLeftDiagonalChoice
         ]
         XCTAssertTrue(expectedChoices.isSubset(of: allowedMoves), "斜め選択キングが不足しています")
+        // MARK: 斜め選択キングだけ重み 2 で抽選されることを検証
+        expectedChoices.forEach { choice in
+            XCTAssertEqual(config.weightProfile.weight(for: choice), 2, "斜め選択キングの重みが想定値の 2 ではありません: \(choice)")
+        }
+        // MARK: 標準カードが従来通り重み 1 のままか確認
+        XCTAssertEqual(config.weightProfile.weight(for: .kingUp), 1, "標準カードの重みが 1 から変化しています")
         XCTAssertEqual(config.deckSummaryText, "標準＋斜め選択キング")
     }
 
@@ -88,6 +100,12 @@ final class DeckTests: XCTestCase {
             .knightLeftwardChoice
         ]
         XCTAssertTrue(expectedChoices.isSubset(of: allowedMoves), "桂馬選択カードが不足しています")
+        // MARK: 桂馬選択カードのみ重み 2 に引き上げられていることを確認
+        expectedChoices.forEach { choice in
+            XCTAssertEqual(config.weightProfile.weight(for: choice), 2, "桂馬選択カードの重みが想定値の 2 ではありません: \(choice)")
+        }
+        // MARK: スタンダードカードの重みは 1 を維持していることを確認
+        XCTAssertEqual(config.weightProfile.weight(for: .knightUp2Right1), 1, "既存桂馬カードの重みが 1 から変化しています")
         XCTAssertEqual(config.deckSummaryText, "標準＋桂馬選択カード")
     }
 
