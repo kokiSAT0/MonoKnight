@@ -162,12 +162,16 @@ struct MoveCardIllustrationView: View {
         // movementVectors をローカル定数へ保持し、アクセシビリティと描画の両方で使い回す
         let movementVectors = card.movementVectors
         let candidateCount = movementVectors.count
+        // MARK: - 複数候補カードの識別と枠線色の計算
+        // 複数候補が存在する場合は選択カードとして扱い、ガイド枠と同じオレンジ色に切り替える
+        let isSelectionCard = candidateCount > 1
+        let borderColor = isSelectionCard ? theme.boardGuideHighlight : mode.borderColor(using: theme)
 
         return ZStack {
             // MARK: - カードの背景枠
             // 既存のカードスタイル（角丸の枠付き）を踏襲して統一感を保つ
             RoundedRectangle(cornerRadius: 8)
-                .stroke(mode.borderColor(using: theme), lineWidth: mode.borderLineWidth)
+                .stroke(borderColor, lineWidth: mode.borderLineWidth)
                 .background(
                     RoundedRectangle(cornerRadius: 8)
                         .fill(mode.backgroundColor(using: theme))
