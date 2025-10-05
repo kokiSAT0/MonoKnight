@@ -442,12 +442,14 @@ public struct BoardTapPlayRequest: Identifiable, Equatable {
     public let stackIndex: Int
     /// アニメーション用に参照するスタック先頭のカード
     public let topCard: DealtCard
-    /// リクエスト生成時に確定した移動経路
-    public let path: MoveCard.MovePattern.Path
+    /// アニメーション再生に必要な経路情報
+    public let resolution: MovementResolution
+    /// 解決時点での代表移動ベクトル（UI 側の互換性維持用）
+    public let moveVector: MoveVector
     /// 既存コード互換用に移動先座標を公開する計算プロパティ
-    public var destination: GridPoint { path.destination }
-    /// 既存コード互換用に移動ベクトルを公開する計算プロパティ
-    public var moveVector: MoveVector { path.vector }
+    public var destination: GridPoint { resolution.finalPosition }
+    /// 経路の生配列へアクセスしたい場合のショートカット
+    public var path: [GridPoint] { resolution.path }
 
     /// 公開イニシャライザ
     /// - Parameters:
@@ -461,13 +463,15 @@ public struct BoardTapPlayRequest: Identifiable, Equatable {
         stackID: UUID,
         stackIndex: Int,
         topCard: DealtCard,
-        path: MoveCard.MovePattern.Path
+        moveVector: MoveVector,
+        resolution: MovementResolution
     ) {
         self.id = id
         self.stackID = stackID
         self.stackIndex = stackIndex
         self.topCard = topCard
-        self.path = path
+        self.moveVector = moveVector
+        self.resolution = resolution
     }
 
     /// ResolvedCardMove への変換を簡潔に行うための補助プロパティ
@@ -477,7 +481,8 @@ public struct BoardTapPlayRequest: Identifiable, Equatable {
             stackID: stackID,
             stackIndex: stackIndex,
             card: topCard,
-            path: path
+            moveVector: moveVector,
+            resolution: resolution
         )
     }
 

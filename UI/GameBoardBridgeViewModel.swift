@@ -344,7 +344,8 @@ final class GameBoardBridgeViewModel: ObservableObject {
                 stackID: resolvedMove.stackID,
                 stackIndex: fallbackIndex,
                 card: resolvedMove.card,
-                path: resolvedMove.path
+                moveVector: resolvedMove.moveVector,
+                resolution: resolvedMove.resolution
             )
             debugLog(
                 "スタック位置を補正: 元index=\(resolvedMove.stackIndex) 新index=\(fallbackIndex) stackID=\(resolvedMove.stackID)"

@@ -94,4 +94,25 @@ final class BoardMovementTests: XCTestCase {
         // 盤内に入る候補が存在するため true を期待する（修正前は false だった想定ケース）
         XCTAssertTrue(MoveCard.kingRight.canUse(from: origin, boardSize: boardSize))
     }
+
+    /// availableMoves() が MovementResolution の経路情報を露出することを確認する
+    func testAvailableMovesProvidesMovementPath() {
+        let deck = Deck.makeTestDeck(cards: [
+            .straightRight2,
+            .kingUp,
+            .kingLeft,
+            .kingDown,
+            .kingRight
+        ])
+        let origin = GridPoint.center(of: BoardGeometry.standardSize)
+        let core = GameCore.makeTestInstance(deck: deck, current: origin)
+
+        guard let straightMove = core.availableMoves().first(where: { $0.card.move == .straightRight2 }) else {
+            XCTFail("直進 2 マスカードが候補に含まれていません")
+            return
+        }
+
+        XCTAssertEqual(straightMove.path, [GridPoint(x: origin.x + 2, y: origin.y)], "MovementResolution の経路が想定と異なります")
+        XCTAssertEqual(straightMove.resolution.finalPosition, GridPoint(x: origin.x + 2, y: origin.y), "MovementResolution.finalPosition が想定地点を指していません")
+    }
 }

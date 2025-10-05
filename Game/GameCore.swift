@@ -194,41 +194,76 @@ public final class GameCore: ObservableObject {
             isTraversable: { point in snapshotBoard.isTraversable(point) }
         )
         let validPaths = card.move.resolvePaths(from: currentPosition, context: context)
-        guard validPaths.contains(resolvedMove.path) else { return }
-
-        let computedDestination = currentPosition.offset(dx: resolvedMove.moveVector.dx, dy: resolvedMove.moveVector.dy)
-        // ResolvedCardMove が古い現在地から算出された場合は破棄する（UI との同期ズレ対策）
-        guard computedDestination == resolvedMove.destination else { return }
-        // UI 側で無効カードを弾く想定だが、念のため安全確認
-        guard board.contains(computedDestination) else { return }
-        // 移動不可マスへは遷移できないため、トグル/複数踏破設定よりも優先して除外する
-        guard board.isTraversable(computedDestination) else { return }
+        let isStillValid = validPaths.contains { path in
+            path.traversedPoints == resolvedMove.path
+        }
+        guard isStillValid else { return }
 
         // 盤面タップからのリクエストが残っている場合に備え、念のためここでクリアしておく
         boardTapPlayRequest = nil
 
         // デバッグログ: 使用カードと移動先を出力（複数候補カードでも選択ベクトルを追跡できるよう詳細を含める）
         debugLog(
-            "カード \(card.move) を使用し \(currentPosition) -> \(computedDestination) へ移動 (vector=\(resolvedMove.moveVector))"
+            "カード \(card.move) を使用し \(currentPosition) -> \(resolvedMove.destination) へ移動予定 (vector=\(resolvedMove.moveVector))"
         )
 
-        // トグルマスでも「訪問前に踏破済みかどうか」で再訪を判定する。
-        // - Note: 踏破済み状態から踏むと未踏破へ戻るため、次回訪問時はペナルティなしになる。
-        let revisiting = board.isVisited(computedDestination)
+        // 経路ごとの踏破判定と効果適用を順番に処理する
+        let pathPoints = resolvedMove.path
+        var finalPosition = currentPosition
+        var encounteredRevisit = false
+        var detectedEffects: [MovementResolution.AppliedEffect] = []
+        var requiresHandShuffle = false
 
-        // 移動処理
-        current = computedDestination
-        board.markVisited(computedDestination)
+        var stepIndex = 0
+        while stepIndex < pathPoints.count {
+            let stepPoint = pathPoints[stepIndex]
+            guard board.contains(stepPoint), board.isTraversable(stepPoint) else { return }
+
+            if board.isVisited(stepPoint) {
+                encounteredRevisit = true
+            }
+
+            board.markVisited(stepPoint)
+            finalPosition = stepPoint
+
+            if let effect = board.effect(at: stepPoint) {
+                detectedEffects.append(.init(point: stepPoint, effect: effect))
+                switch effect {
+                case .warp(_, let destination):
+                    if board.contains(destination), board.isTraversable(destination) {
+                        if board.isVisited(destination) {
+                            encounteredRevisit = true
+                        }
+                        board.markVisited(destination)
+                        finalPosition = destination
+                        // ワープを適用したら残りの経路処理を終了する
+                        stepIndex = pathPoints.count
+                    } else {
+                        debugLog("ワープ先 \(destination) が盤面外または移動不可のため無視しました")
+                    }
+                case .shuffleHand:
+                    requiresHandShuffle = true
+                }
+            }
+
+            stepIndex += 1
+        }
+
+        current = finalPosition
         moveCount += 1
 
-        // 既踏マスへ戻った場合はフラグを立て、必要に応じてペナルティを加算する
-        if revisiting {
+        if encounteredRevisit {
             hasRevisitedTile = true
 
             if mode.revisitPenaltyCost > 0 {
                 penaltyCount += mode.revisitPenaltyCost
                 debugLog("既踏マス再訪ペナルティ: +\(mode.revisitPenaltyCost)")
             }
+        }
+
+        if !detectedEffects.isEmpty {
+            let summary = detectedEffects.map { "\($0.effect)@\($0.point)" }.joined(separator: ", ")
+            debugLog("タイル効果検出: \(summary)")
         }
 
         // 盤面更新に合わせて残り踏破数を読み上げ
@@ -239,6 +274,12 @@ public final class GameCore: ObservableObject {
 
         // スロットの空きを埋めた上で並び順・先読みを整える
         rebuildHandAndNext(preferredInsertionIndices: removedIndex.map { [$0] } ?? [])
+
+        if requiresHandShuffle {
+            var generator = SystemRandomNumberGenerator()
+            handManager.shuffleForTileEffect(using: &generator)
+            refreshHandStateFromManager()
+        }
 
         // クリア判定
         if board.isCleared {
@@ -294,12 +335,16 @@ public final class GameCore: ObservableObject {
 
             // MoveCard の MovePattern から盤面状況に応じた経路を算出する
             for path in topCard.move.resolvePaths(from: origin, context: resolutionContext) {
+                let traversed = path.traversedPoints
+                guard let destination = traversed.last else { continue }
+                let resolution = MovementResolution(path: traversed, finalPosition: destination)
                 resolved.append(
                     ResolvedCardMove(
                         stackID: stack.id,
                         stackIndex: index,
                         card: topCard,
-                        path: path
+                        moveVector: path.vector,
+                        resolution: resolution
                     )
                 )
             }
@@ -465,7 +510,8 @@ extension GameCore: GameCoreProtocol {
             stackID: resolved.stackID,
             stackIndex: resolved.stackIndex,
             topCard: resolved.card,
-            path: resolved.path
+            moveVector: resolved.moveVector,
+            resolution: resolved.resolution
         )
     }
 }
