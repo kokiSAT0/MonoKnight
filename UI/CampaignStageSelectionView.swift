@@ -428,7 +428,8 @@ private struct CampaignStageGridItemView<StarContent: View>: View {
                             .font(.system(size: 20, weight: .bold, design: .rounded))
                         // 解放条件をカード上で明示し、次の目標をその場で確認できるようにする
                         Text(stage.unlockDescription)
-                            .font(.system(size: 13, weight: .medium, design: .rounded))
+                            // フォントサイズを 1pt 下げ、カード内の改行頻度を抑制しつつ視認性を確保する
+                            .font(.system(size: 12, weight: .medium, design: .rounded))
                             .foregroundColor(theme.textPrimary.opacity(0.9))
                             .multilineTextAlignment(.center)
                             .lineLimit(3)
