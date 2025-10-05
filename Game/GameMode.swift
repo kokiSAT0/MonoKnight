@@ -313,6 +313,12 @@ public struct GameMode: Equatable, Identifiable {
         public var toggleTilePoints: Set<GridPoint> = []
         /// 完全に移動を禁止する障害物マス集合
         public var impassableTilePoints: Set<GridPoint> = []
+        /// 盤面タイルへ付与する特殊効果一覧
+        /// - Note: UI 演出とゲームロジックで同じデータを利用するため、`GridPoint` をキーに直接 `TileEffect` を割り当てる
+        public var tileEffectOverrides: [GridPoint: TileEffect] = [:]
+        /// ワープペアの定義（pairID ごとに 2 点以上の座標を列挙する）
+        /// - Important: ここで指定した座標群から `TileEffect.warp` を自動生成し、片方向のみの登録ミスを防ぐ
+        public var warpTilePairs: [String: [GridPoint]] = [:]
 
         /// レギュレーションを組み立てるためのイニシャライザ
         /// - Parameters:
@@ -333,7 +339,9 @@ public struct GameMode: Equatable, Identifiable {
             penalties: PenaltySettings,
             additionalVisitRequirements: [GridPoint: Int] = [:],
             toggleTilePoints: Set<GridPoint> = [],
-            impassableTilePoints: Set<GridPoint> = []
+            impassableTilePoints: Set<GridPoint> = [],
+            tileEffectOverrides: [GridPoint: TileEffect] = [:],
+            warpTilePairs: [String: [GridPoint]] = [:]
         ) {
             self.boardSize = boardSize
             self.handSize = handSize
@@ -345,6 +353,8 @@ public struct GameMode: Equatable, Identifiable {
             self.additionalVisitRequirements = additionalVisitRequirements
             self.toggleTilePoints = toggleTilePoints
             self.impassableTilePoints = impassableTilePoints
+            self.tileEffectOverrides = tileEffectOverrides
+            self.warpTilePairs = warpTilePairs
         }
     }
 
@@ -547,6 +557,31 @@ public struct GameMode: Equatable, Identifiable {
     public var toggleTilePoints: Set<GridPoint> { regulation.toggleTilePoints }
     /// 障害物として扱う移動不可マス集合
     public var impassableTilePoints: Set<GridPoint> { regulation.impassableTilePoints }
+    /// ワープ定義のスナップショット
+    public var warpTilePairs: [String: [GridPoint]] { regulation.warpTilePairs }
+    /// 任意に上書きしたタイル効果一覧
+    public var tileEffectOverrides: [GridPoint: TileEffect] { regulation.tileEffectOverrides }
+
+    /// 盤面へ適用するタイル効果を合成して返す
+    /// - Important: ワープ定義は自動的に `TileEffect.warp` へ展開し、個別指定された効果より優先度は低い（手動指定があればそちらを採用）
+    public var tileEffects: [GridPoint: TileEffect] {
+        var effects = regulation.tileEffectOverrides
+        for (pairID, points) in regulation.warpTilePairs {
+            guard points.count >= 2 else { continue }
+            var uniquePoints: [GridPoint] = []
+            var seen: Set<GridPoint> = []
+            for point in points where seen.insert(point).inserted {
+                uniquePoints.append(point)
+            }
+            guard uniquePoints.count >= 2 else { continue }
+            for (index, point) in uniquePoints.enumerated() {
+                guard effects[point] == nil else { continue }
+                let destination = uniquePoints[(index + 1) % uniquePoints.count]
+                effects[point] = .warp(pairID: pairID, destination: destination)
+            }
+        }
+        return effects
+    }
 
     /// スタンダードモード（既存仕様）
     public static var standard: GameMode {

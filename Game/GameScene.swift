@@ -46,6 +46,9 @@
         /// 初期化時に設定する移動不可マス集合
         /// - NOTE: ギミックよりも優先して障害物を固定し、レイアウト再構築時にも確実に反映する
         private let initialImpassablePoints: Set<GridPoint>
+        /// 初期化時に設定するタイル効果一覧
+        /// - NOTE: SpriteKit ノード再生成時にも同じ効果を復元できるよう保持する
+        private let initialTileEffects: [GridPoint: TileEffect]
 
         /// 現在の盤面状態
         private var board: Board
@@ -71,6 +74,9 @@
         /// トグルマス専用の装飾ノードキャッシュ
         /// - NOTE: トグル演出は複数マスで共有するため、生成コストを抑える目的で辞書に再利用可能なノードを保持する
         private var tileToggleDecorations: [GridPoint: ToggleDecorationCache] = [:]
+        /// タイル効果ごとの装飾ノードキャッシュ
+        /// - NOTE: ワープや手札シャッフルなど効果別の見た目を保持し、サイズ変更時にも再利用する
+        private var tileEffectDecorations: [GridPoint: TileEffectDecorationCache] = [:]
 
         /// ハイライト種類ごとのノードキャッシュ
         /// - Important: 種類ごとに辞書を分けることで、描画の上書き順とスタイルを柔軟に切り替えられる
@@ -166,6 +172,15 @@
             let topLeftTriangle: SKShapeNode
             let bottomRightTriangle: SKShapeNode
             let diagonal: SKShapeNode
+        }
+
+        /// タイル効果の描画に利用するノードキャッシュ
+        /// - Note: 効果種別ごとに線画と塗りのノードを分けて保持し、テーマ変更時に色をまとめて更新しやすくする
+        private struct TileEffectDecorationCache {
+            let container: SKNode
+            var effect: TileEffect
+            var strokeNodes: [SKShapeNode]
+            var fillNodes: [SKShapeNode]
         }
 
         /// トグルマスの三角形形状を識別するための列挙体
@@ -269,7 +284,8 @@
                 initialVisitedPoints: initialVisitedPoints,
                 requiredVisitOverrides: initialRequiredVisitOverrides,
                 togglePoints: initialTogglePoints,
-                impassablePoints: initialImpassablePoints
+                impassablePoints: initialImpassablePoints,
+                tileEffects: initialTileEffects
             )
             // テーマもデフォルトへ戻し、SpriteKit 専用の配色が未設定のままでも破綻しないようフォールバックを適用
             palette = GameScenePalette.fallback
@@ -280,6 +296,10 @@
             tileNodes = [:]
             tileMultiVisitDecorations = [:]
             tileToggleDecorations = [:]
+            for decoration in tileEffectDecorations.values {
+                decoration.container.removeFromParent()
+            }
+            tileEffectDecorations = [:]
             highlightNodes = [:]
             latestSingleGuidePoints = []
             latestMultipleGuidePoints = []
@@ -318,7 +338,8 @@
             initialVisitedPoints: [GridPoint]? = nil,
             requiredVisitOverrides: [GridPoint: Int] = [:],
             togglePoints: Set<GridPoint> = [],
-            impassablePoints: Set<GridPoint> = []
+            impassablePoints: Set<GridPoint> = [],
+            tileEffects: [GridPoint: TileEffect] = [:]
         ) {
             let resolvedVisitedPoints =
                 initialVisitedPoints
@@ -328,12 +349,14 @@
             self.initialRequiredVisitOverrides = requiredVisitOverrides
             self.initialTogglePoints = togglePoints
             self.initialImpassablePoints = impassablePoints
+            self.initialTileEffects = tileEffects
             self.board = Board(
                 size: initialBoardSize,
                 initialVisitedPoints: resolvedVisitedPoints,
                 requiredVisitOverrides: requiredVisitOverrides,
                 togglePoints: togglePoints,
-                impassablePoints: impassablePoints
+                impassablePoints: impassablePoints,
+                tileEffects: tileEffects
             )
             super.init(size: .zero)
             // 共通初期化で各種プロパティを統一的にリセットし、生成経路による差異を排除する
@@ -351,12 +374,14 @@
             self.initialRequiredVisitOverrides = [:]
             self.initialTogglePoints = []
             self.initialImpassablePoints = []
+            self.initialTileEffects = [:]
             self.board = Board(
                 size: BoardGeometry.standardSize,
                 initialVisitedPoints: defaultVisitedPoints,
                 requiredVisitOverrides: [:],
                 togglePoints: [],
-                impassablePoints: []
+                impassablePoints: [],
+                tileEffects: [:]
             )
             super.init(coder: aDecoder)
             // デコード後も共通初期化を実行し、Storyboard/SwiftUI どちらからでも同じ見た目・挙動となるようにする
@@ -538,6 +563,11 @@
             }
             tileToggleDecorations.removeAll()
 
+            for decoration in tileEffectDecorations.values {
+                decoration.container.removeFromParent()
+            }
+            tileEffectDecorations.removeAll()
+
             for nodes in highlightNodes.values {
                 for node in nodes.values {
                     node.removeFromParent()
@@ -703,6 +733,7 @@
                 applySingleVisitStyle(to: node)
                 removeMultiVisitDecoration(for: point)
                 removeToggleDecoration(for: point)
+                removeEffectDecoration(for: point)
                 return
             }
 
@@ -722,6 +753,12 @@
                 removeMultiVisitDecoration(for: point)
                 removeToggleDecoration(for: point)
             }
+
+            updateEffectDecoration(
+                for: point,
+                parentNode: node,
+                effect: state.effect ?? board.effect(at: point)
+            )
         }
 
         /// 通常マス向けの細いグリッド線を適用する
@@ -951,6 +988,14 @@
             decoration.container.removeFromParent()
         }
 
+        /// タイル効果装飾を安全に破棄する
+        /// - Parameter point: 対象マスの座標
+        private func removeEffectDecoration(for point: GridPoint) {
+            guard let decoration = tileEffectDecorations.removeValue(forKey: point) else { return }
+            decoration.container.removeAllActions()
+            decoration.container.removeFromParent()
+        }
+
         /// トグルマスの三角形と対角線装飾を生成・更新する
         /// - Parameters:
         ///   - point: 対象マスの座標
@@ -1064,6 +1109,232 @@
             decoration.diagonal.lineWidth = 1
             decoration.diagonal.alpha = 1.0
             decoration.diagonal.isHidden = false
+        }
+
+        /// タイル効果用の装飾ノードを生成・更新する
+        /// - Parameters:
+        ///   - point: 対象マスの座標
+        ///   - parentNode: 装飾を追加する親タイルノード
+        ///   - effect: 適用するタイル効果（nil の場合は装飾を取り除く）
+        private func updateEffectDecoration(
+            for point: GridPoint,
+            parentNode: SKShapeNode,
+            effect: TileEffect?
+        ) {
+            guard let effect else {
+                removeEffectDecoration(for: point)
+                return
+            }
+
+            var decoration: TileEffectDecorationCache
+            if let cached = tileEffectDecorations[point], cached.effect == effect {
+                decoration = cached
+            } else {
+                removeEffectDecoration(for: point)
+                decoration = makeEffectDecoration(for: effect)
+            }
+
+            if decoration.container.parent !== parentNode {
+                decoration.container.removeFromParent()
+                parentNode.addChild(decoration.container)
+            }
+
+            decoration.container.position = .zero
+            decoration.container.zPosition = 0.16  // トグル/マルチ装飾より前面に配置する
+            decoration.container.isHidden = false
+
+            configureEffectDecorationGeometry(&decoration, effect: effect, point: point)
+            applyEffectDecorationColors(&decoration, effect: effect)
+            decoration.effect = effect
+            tileEffectDecorations[point] = decoration
+        }
+
+        /// 効果種別に応じた装飾ノードを生成する
+        /// - Parameter effect: 描画対象のタイル効果
+        /// - Returns: 生成したキャッシュ情報
+        private func makeEffectDecoration(for effect: TileEffect) -> TileEffectDecorationCache {
+            let container = SKNode()
+            container.name = "tileEffectDecorationContainer"
+            container.isHidden = false
+
+            switch effect {
+            case .warp:
+                let ring = SKShapeNode()
+                ring.name = "tileEffectWarpRing"
+                ring.strokeColor = .clear
+                ring.fillColor = .clear
+                ring.lineWidth = 1
+                ring.isAntialiased = true
+                ring.blendMode = .alpha
+
+                let arrow = SKShapeNode()
+                arrow.name = "tileEffectWarpArrow"
+                arrow.strokeColor = .clear
+                arrow.fillColor = .clear
+                arrow.lineWidth = 0
+                arrow.isAntialiased = true
+                arrow.blendMode = .alpha
+
+                container.addChild(ring)
+                container.addChild(arrow)
+                return TileEffectDecorationCache(
+                    container: container,
+                    effect: effect,
+                    strokeNodes: [ring],
+                    fillNodes: [arrow]
+                )
+            case .shuffleHand:
+                let diamond = SKShapeNode()
+                diamond.name = "tileEffectShuffleDiamond"
+                diamond.strokeColor = .clear
+                diamond.fillColor = .clear
+                diamond.lineWidth = 1
+                diamond.isAntialiased = false
+                diamond.blendMode = .alpha
+
+                let leftArrow = SKShapeNode()
+                leftArrow.name = "tileEffectShuffleLeftArrow"
+                leftArrow.strokeColor = .clear
+                leftArrow.fillColor = .clear
+                leftArrow.lineWidth = 0
+                leftArrow.isAntialiased = true
+                leftArrow.blendMode = .alpha
+
+                let rightArrow = SKShapeNode()
+                rightArrow.name = "tileEffectShuffleRightArrow"
+                rightArrow.strokeColor = .clear
+                rightArrow.fillColor = .clear
+                rightArrow.lineWidth = 0
+                rightArrow.isAntialiased = true
+                rightArrow.blendMode = .alpha
+
+                container.addChild(diamond)
+                container.addChild(leftArrow)
+                container.addChild(rightArrow)
+                return TileEffectDecorationCache(
+                    container: container,
+                    effect: effect,
+                    strokeNodes: [diamond],
+                    fillNodes: [leftArrow, rightArrow]
+                )
+            }
+        }
+
+        /// 効果装飾の図形・サイズを現在のタイルサイズに合わせて更新する
+        /// - Parameters:
+        ///   - decoration: 更新対象のキャッシュ
+        ///   - effect: 適用するタイル効果
+        ///   - point: 対象マスの座標（ワープ先の方向計算に利用する）
+        private func configureEffectDecorationGeometry(
+            _ decoration: inout TileEffectDecorationCache,
+            effect: TileEffect,
+            point: GridPoint
+        ) {
+            switch effect {
+            case .warp(_, let destination):
+                guard let ring = decoration.strokeNodes.first,
+                      let arrow = decoration.fillNodes.first else { return }
+
+                let radius = tileSize * 0.32
+                let ringRect = CGRect(x: -radius, y: -radius, width: radius * 2, height: radius * 2)
+                ring.path = CGPath(ellipseIn: ringRect, transform: nil)
+                ring.lineWidth = max(1.0, tileSize * 0.05)
+
+                let arrowLength = tileSize * 0.42
+                let arrowWidth = tileSize * 0.18
+                let arrowPath = CGMutablePath()
+                arrowPath.move(to: CGPoint(x: -arrowLength / 2, y: 0))
+                arrowPath.addLine(to: CGPoint(x: arrowLength / 2, y: arrowWidth / 2))
+                arrowPath.addLine(to: CGPoint(x: arrowLength / 2, y: -arrowWidth / 2))
+                arrowPath.closeSubpath()
+                arrow.path = arrowPath
+                arrow.lineWidth = 0
+                arrow.position = .zero
+
+                let dx = CGFloat(destination.x - point.x)
+                let dy = CGFloat(destination.y - point.y)
+                if dx == 0 && dy == 0 {
+                    arrow.zRotation = 0
+                } else {
+                    arrow.zRotation = atan2(dy, dx)
+                }
+            case .shuffleHand:
+                guard let diamond = decoration.strokeNodes.first,
+                      decoration.fillNodes.count >= 2 else { return }
+
+                let diamondRadius = tileSize * 0.34
+                let diamondPath = CGMutablePath()
+                diamondPath.move(to: CGPoint(x: 0, y: diamondRadius))
+                diamondPath.addLine(to: CGPoint(x: diamondRadius, y: 0))
+                diamondPath.addLine(to: CGPoint(x: 0, y: -diamondRadius))
+                diamondPath.addLine(to: CGPoint(x: -diamondRadius, y: 0))
+                diamondPath.closeSubpath()
+                diamond.path = diamondPath
+                diamond.lineWidth = max(1.0, tileSize * 0.05)
+
+                let arrowLength = tileSize * 0.24
+                let arrowWidth = tileSize * 0.16
+
+                let leftArrow = decoration.fillNodes[0]
+                let leftPath = CGMutablePath()
+                leftPath.move(to: CGPoint(x: -arrowLength / 2, y: 0))
+                leftPath.addLine(to: CGPoint(x: arrowLength / 2, y: arrowWidth / 2))
+                leftPath.addLine(to: CGPoint(x: arrowLength / 2, y: -arrowWidth / 2))
+                leftPath.closeSubpath()
+                leftArrow.path = leftPath
+                leftArrow.position = CGPoint(x: -tileSize * 0.08, y: 0)
+                leftArrow.zRotation = .pi / 4
+
+                let rightArrow = decoration.fillNodes[1]
+                let rightPath = CGMutablePath()
+                rightPath.move(to: CGPoint(x: arrowLength / 2, y: 0))
+                rightPath.addLine(to: CGPoint(x: -arrowLength / 2, y: arrowWidth / 2))
+                rightPath.addLine(to: CGPoint(x: -arrowLength / 2, y: -arrowWidth / 2))
+                rightPath.closeSubpath()
+                rightArrow.path = rightPath
+                rightArrow.position = CGPoint(x: tileSize * 0.08, y: 0)
+                rightArrow.zRotation = -.pi / 4
+            }
+        }
+
+        /// 効果装飾の色を現在のパレットに合わせて更新する
+        /// - Parameters:
+        ///   - decoration: 対象となる装飾キャッシュ
+        ///   - effect: カラーリングの元となる効果種別
+        private func applyEffectDecorationColors(
+            _ decoration: inout TileEffectDecorationCache,
+            effect: TileEffect
+        ) {
+            switch effect {
+            case .warp:
+                let strokeColor = palette.boardTileEffectWarp
+                for node in decoration.strokeNodes {
+                    node.strokeColor = strokeColor
+                    node.fillColor = .clear
+                    node.alpha = 1.0
+                }
+                if let arrow = decoration.fillNodes.first {
+                    arrow.fillColor = strokeColor.withAlphaComponent(0.85)
+                    arrow.strokeColor = .clear
+                    arrow.alpha = 1.0
+                }
+            case .shuffleHand:
+                let strokeColor = palette.boardTileEffectShuffle
+                for node in decoration.strokeNodes {
+                    node.strokeColor = strokeColor
+                    node.fillColor = .clear
+                    node.alpha = 1.0
+                }
+                guard decoration.fillNodes.count >= 2 else { return }
+                let primaryFill = strokeColor.withAlphaComponent(0.88)
+                let secondaryFill = strokeColor.withAlphaComponent(0.6)
+                decoration.fillNodes[0].fillColor = primaryFill
+                decoration.fillNodes[0].strokeColor = .clear
+                decoration.fillNodes[0].alpha = 1.0
+                decoration.fillNodes[1].fillColor = secondaryFill
+                decoration.fillNodes[1].strokeColor = .clear
+                decoration.fillNodes[1].alpha = 1.0
+            }
         }
 
         /// 盤面ハイライトの種類ごとの集合をまとめて更新する
