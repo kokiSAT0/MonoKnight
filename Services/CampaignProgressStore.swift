@@ -123,6 +123,16 @@ final class CampaignProgressStore: ObservableObject {
         debugLog("CampaignProgressStore: デバッグ用全ステージ解放フラグを有効化しました")
     }
 
+    /// デバッグ用パスコードによる全ステージ解放を無効化する
+    /// - Note: 解除操作時はフラグを false へ戻し、永続化内容も同時に更新する
+    func disableDebugUnlock() {
+        // 既に無効化済みであれば追加処理は不要なので早期リターンする
+        guard isDebugUnlockEnabled else { return }
+        isDebugUnlockEnabled = false
+        userDefaults.set(false, forKey: debugUnlockStorageKey)
+        debugLog("CampaignProgressStore: デバッグ用全ステージ解放フラグを無効化しました")
+    }
+
     /// 進捗データを読み出し
     private func loadProgress() -> [CampaignStageID: CampaignStageProgress] {
         guard let data = userDefaults.data(forKey: storageKey) else { return [:] }

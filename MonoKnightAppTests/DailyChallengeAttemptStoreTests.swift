@@ -88,6 +88,29 @@ struct DailyChallengeAttemptStoreTests {
         }
     }
 
+    /// 無制限モードを無効化すると通常の残量判定へ戻ることを検証する
+    @Test
+    func debugUnlimitedCanBeDisabled() {
+        let suiteName = "daily_challenge_store_test_disable_debug"
+        let defaults = makeIsolatedDefaults(suiteName: suiteName)
+        defer { clearDefaults(defaults, suiteName: suiteName) }
+
+        let store = DailyChallengeAttemptStore(userDefaults: defaults)
+        store.enableDebugUnlimited()
+        #expect(store.isDebugUnlimitedEnabled)
+
+        // 解除後は残量が減る通常仕様へ戻るため、連続消費でゼロになることを確認する
+        store.disableDebugUnlimited()
+        #expect(store.isDebugUnlimitedEnabled == false)
+        #expect(store.consumeAttempt())
+        #expect(store.remainingAttempts == 0)
+        #expect(store.consumeAttempt() == false)
+
+        // 再生成しても無制限フラグが false のまま維持されることを確認
+        let reloadedStore = DailyChallengeAttemptStore(userDefaults: defaults)
+        #expect(reloadedStore.isDebugUnlimitedEnabled == false)
+    }
+
     // MARK: - ヘルパー
     private func makeIsolatedDefaults(suiteName: String) -> UserDefaults {
         guard let defaults = UserDefaults(suiteName: suiteName) else {

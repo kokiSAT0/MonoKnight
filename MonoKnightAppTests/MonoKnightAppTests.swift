@@ -98,11 +98,18 @@ private final class StubDailyChallengeAttemptStore: ObservableObject, DailyChall
     var remainingAttempts: Int
     var rewardedAttemptsGranted: Int
     let maximumRewardedAttempts: Int
+    var isDebugUnlimitedEnabled: Bool
 
-    init(remainingAttempts: Int = 1, rewardedAttemptsGranted: Int = 0, maximumRewardedAttempts: Int = 3) {
+    init(
+        remainingAttempts: Int = 1,
+        rewardedAttemptsGranted: Int = 0,
+        maximumRewardedAttempts: Int = 3,
+        isDebugUnlimitedEnabled: Bool = false
+    ) {
         self.remainingAttempts = remainingAttempts
         self.rewardedAttemptsGranted = rewardedAttemptsGranted
         self.maximumRewardedAttempts = maximumRewardedAttempts
+        self.isDebugUnlimitedEnabled = isDebugUnlimitedEnabled
     }
 
     func refreshForCurrentDate() {}
@@ -112,6 +119,16 @@ private final class StubDailyChallengeAttemptStore: ObservableObject, DailyChall
 
     @discardableResult
     func grantRewardedAttempt() -> Bool { true }
+
+    func enableDebugUnlimited() {
+        // スタブではフラグの状態遷移だけ管理し、UI 連携の検証に利用する
+        isDebugUnlimitedEnabled = true
+    }
+
+    func disableDebugUnlimited() {
+        // 解除時は false へ戻し、再入力テストでも利用できるようにする
+        isDebugUnlimitedEnabled = false
+    }
 }
 
 struct MonoKnightAppTests {
