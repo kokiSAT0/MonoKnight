@@ -76,7 +76,11 @@ private extension GameHandSectionView {
             HStack(spacing: 12) {
                 ForEach(Array(core.nextCards.enumerated()), id: \.element.id) { index, dealtCard in
                     ZStack {
-                        MoveCardIllustrationView(card: dealtCard.move, mode: .next)
+                        MoveCardIllustrationView(
+                            card: dealtCard.move,
+                            mode: .next,
+                            fixedWarpDestination: dealtCard.fixedWarpDestination // 固定ワープは目的地を渡して紫マーカーを正しい位置へ描く
+                        )
                             .opacity(boardBridge.hiddenCardIDs.contains(dealtCard.id) ? 0.0 : 1.0)
                             .matchedGeometryEffect(id: dealtCard.id, in: cardAnimationNamespace)
                             .anchorPreference(key: CardPositionPreferenceKey.self, value: .bounds) { [dealtCard.id: $0] }
@@ -157,7 +161,10 @@ private extension GameHandSectionView {
                 let shouldShowSelectionHighlight = isSelected && !isHidden && !isSelectingDiscard
 
                 HandStackCardView(stackCount: stack.count) {
-                    MoveCardIllustrationView(card: card.move)
+                    MoveCardIllustrationView(
+                        card: card.move,
+                        fixedWarpDestination: card.fixedWarpDestination // 手札表示でも固定ワープ先を反映したカードデザインにする
+                    )
                         .matchedGeometryEffect(id: card.id, in: cardAnimationNamespace)
                         .anchorPreference(key: CardPositionPreferenceKey.self, value: .bounds) { [card.id: $0] }
                 }

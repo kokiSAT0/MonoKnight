@@ -146,6 +146,9 @@ struct MoveCardIllustrationView: View {
 
     /// 表示対象の移動カード
     let card: MoveCard
+    /// 固定ワープカードが持つ目的地（存在しない場合は nil）
+    /// - Note: 盤面全体で共有される `GridPoint` を受け取り、カードアート上で該当セルだけを強調表示するために利用する
+    let fixedWarpDestination: GridPoint?
     /// 現在の表示モード（デフォルトは手札表示）
     var mode: Mode = .hand
     /// カラースキームに応じて派生色を提供するテーマ
@@ -161,12 +164,19 @@ struct MoveCardIllustrationView: View {
     /// - Parameters:
     ///   - card: 描画対象となる移動カード
     ///   - mode: 手札表示か先読み表示かのモード（既定値は手札表示）
+    ///   - fixedWarpDestination: 固定ワープカードに割り当てられた目的地（それ以外のカードでは nil を渡す）
     ///   - theme: テーマカラー（基本的には既定値をそのまま使用）
-    init(card: MoveCard, mode: Mode = .hand, theme: AppTheme = AppTheme()) {
+    init(
+        card: MoveCard,
+        mode: Mode = .hand,
+        fixedWarpDestination: GridPoint? = nil,
+        theme: AppTheme = AppTheme()
+    ) {
         // MARK: - ストアドプロパティの初期化
         // 日本語コメントを多めに配置して可読性を高める
         self.card = card
         self.mode = mode
+        self.fixedWarpDestination = fixedWarpDestination
         self.theme = theme
     }
 
@@ -181,6 +191,8 @@ struct MoveCardIllustrationView: View {
         let isSuperWarpCard = card == .superWarp
         let isFixedWarpCard = card == .fixedWarp
         let isWarpCard = isSuperWarpCard || isFixedWarpCard
+        // 固定ワープカードへ固有の目的地が割り当てられているかどうか（カードデザイン変更のトリガー）
+        let absoluteWarpDestination = fixedWarpDestination
         let warpAccentColor = isSuperWarpCard ? theme.superWarpCardAccent : theme.warpCardAccent
         // MARK: - 枠線色の決定（選択カードや複数マス移動カードで個別に色を差し替える）
         let isSelectionCard = card.kind == .choice
@@ -207,8 +219,21 @@ struct MoveCardIllustrationView: View {
             accessibilityLabelText = Text("複数マス移動カード、方向：\(directionName)。進めなくなるまで直進")
             accessibilityHintText = Text(mode.multiStepAccessibilityHint())
         } else {
-            accessibilityLabelText = Text(card.displayName + mode.accessibilitySuffix(forCandidateCount: candidateCount))
-            accessibilityHintText = Text(mode.accessibilityHint(forCandidateCount: candidateCount))
+            let suffix = mode.accessibilitySuffix(forCandidateCount: candidateCount)
+            if isFixedWarpCard, let destination = absoluteWarpDestination {
+                // 固定ワープカードでは目的地座標を読み上げて、視覚的な紫マーカーと内容を一致させる
+                let coordinateDescription = "（目的地 x=\(destination.x)、y=\(destination.y)）"
+                accessibilityLabelText = Text(card.displayName + coordinateDescription + suffix)
+
+                if mode == .hand {
+                    accessibilityHintText = Text("ダブルタップでカードを選ぶと、盤面の x=\(destination.x)、y=\(destination.y) へ瞬間移動します")
+                } else {
+                    accessibilityHintText = Text("閲覧のみ: 手札が補充されると、盤面の x=\(destination.x)、y=\(destination.y) へワープするカードです")
+                }
+            } else {
+                accessibilityLabelText = Text(card.displayName + suffix)
+                accessibilityHintText = Text(mode.accessibilityHint(forCandidateCount: candidateCount))
+            }
         }
 
         // すべてのカードで共通の余白設定を用い、シアン枠を含めた視認性を確保する
@@ -258,7 +283,29 @@ struct MoveCardIllustrationView: View {
                         }
                         .stroke(mode.gridLineColor(using: theme), lineWidth: 0.5)
 
-                        if isWarpCard {
+                        if isFixedWarpCard,
+                           let destination = absoluteWarpDestination,
+                           let cellIndex = absoluteDestinationCellIndex(for: destination) {
+                            // MARK: 固定ワープカード専用: 実際の目的地を紫の円でシンプルに強調する
+                            let destinationPoint = cellCenter(
+                                origin: origin,
+                                cellSize: cellSize,
+                                column: cellIndex.column,
+                                row: cellIndex.row
+                            )
+                            let markerDiameter = min(cellSize * 0.6, 20)
+                            let markerLineWidth = max(markerDiameter * 0.2, 1.6)
+                            Circle()
+                                .fill(warpAccentColor.opacity(0.9))
+                                .frame(width: markerDiameter, height: markerDiameter)
+                                .overlay(
+                                    Circle()
+                                        .stroke(warpAccentColor.opacity(0.95), lineWidth: markerLineWidth)
+                                )
+                                .shadow(color: warpAccentColor.opacity(0.35), radius: markerDiameter * 0.18, x: 0, y: markerDiameter * 0.12)
+                                .position(destinationPoint)
+                                .accessibilityHidden(true)
+                        } else if isWarpCard {
                             // MARK: ワープカード専用の目的地マーカー群
                             let warpVectors = warpDisplayVectors(
                                 from: movementVectors,
@@ -381,15 +428,18 @@ struct MoveCardIllustrationView: View {
                         }
 
                         // MARK: 現在地マーカー（常に最前面）
-                        Circle()
-                            .fill(isWarpCard ? warpAccentColor.opacity(0.9) : theme.cardContentPrimary)
-                            .frame(width: cellSize * 0.4, height: cellSize * 0.4)
-                            .overlay(
-                                Circle()
-                                    .stroke(isWarpCard ? warpAccentColor.opacity(0.65) : theme.startMarkerStroke, lineWidth: 1)
-                            )
-                            .position(startPoint)
-                            .accessibilityHidden(true)
+                        if !isWarpCard {
+                            // ワープカードでは現在地マーカーを非表示にし、目的地の紫マーカーだけへ視線を誘導する
+                            Circle()
+                                .fill(theme.cardContentPrimary)
+                                .frame(width: cellSize * 0.4, height: cellSize * 0.4)
+                                .overlay(
+                                    Circle()
+                                        .stroke(theme.startMarkerStroke, lineWidth: 1)
+                                )
+                                .position(startPoint)
+                                .accessibilityHidden(true)
+                        }
                     }
                 }
                 .aspectRatio(1, contentMode: .fit)
@@ -568,6 +618,19 @@ private extension MoveCardIllustrationView {
         return (center.column + vector.dx, center.row - vector.dy)
     }
 
+    /// 絶対座標（GridPoint）からカード描画用セル添字を計算する
+    /// - Parameter point: 盤面原点 (0,0) 基準で指定されたワープ先座標
+    /// - Returns: 5×5 グリッドにおける列・行の添字（盤面外の場合は nil）
+    func absoluteDestinationCellIndex(for point: GridPoint) -> (column: Int, row: Int)? {
+        guard (0..<gridCount).contains(point.x), (0..<gridCount).contains(point.y) else {
+            // 盤面外が指定された場合は描画できないため nil を返し、フォールバック描画へ委ねる
+            return nil
+        }
+        let column = point.x
+        let row = (gridCount - 1) - point.y
+        return (column, row)
+    }
+
     /// 矢印の先端（三角形）の 2 点を計算する
     /// - Parameters:
     ///   - startPoint: 矢印の始点（現在地）
@@ -664,6 +727,8 @@ private extension MoveCardIllustrationView {
         MoveCardIllustrationView(card: .rayRight, mode: .hand)
         MoveCardIllustrationView(card: .knightUp2Right1, mode: .hand)
         MoveCardIllustrationView(card: .diagonalDownLeft2, mode: .next)
+        // 固定ワープカードのサンプル（座標 (1,2) を指定して紫マーカーのみを描画）
+        MoveCardIllustrationView(card: .fixedWarp, mode: .hand, fixedWarpDestination: GridPoint(x: 1, y: 2))
     }
     .padding()
     // プレビューでもテーマカラーを利用し、本番画面と同等の見た目を確認する
