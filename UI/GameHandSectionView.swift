@@ -352,6 +352,28 @@ private extension GameHandSectionView {
             return "右下へ 2"
         case .diagonalDownLeft2:
             return "左下へ 2"
+        // レイ型カードは止まるまで進む特性があるため、連続移動であることを強調して伝える
+        case .rayUp:
+            return "上方向へ連続移動"
+        case .rayUpRight:
+            return "右上方向へ連続移動"
+        case .rayRight:
+            return "右方向へ連続移動"
+        case .rayDownRight:
+            return "右下方向へ連続移動"
+        case .rayDown:
+            return "下方向へ連続移動"
+        case .rayDownLeft:
+            return "左下方向へ連続移動"
+        case .rayLeft:
+            return "左方向へ連続移動"
+        case .rayUpLeft:
+            return "左上方向へ連続移動"
+        // ワープ系カードは挙動が特殊なので、対象範囲を明確に読み上げて誤操作を防ぐ
+        case .superWarp:
+            return "未踏マスへ全域ワープ"
+        case .fixedWarp:
+            return "定められた座標へ固定ワープ"
         }
     }
 
