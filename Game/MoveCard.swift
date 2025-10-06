@@ -235,12 +235,21 @@ public enum MoveCard: CaseIterable {
         /// 絶対座標指定カード向けのパターンを生成する
         /// - Parameter targets: 目的地候補の座標配列
         /// - Returns: 指定座標へ直接ジャンプするパターン
-        public static func absoluteTargets(_ targets: [GridPoint]) -> MovePattern {
-            let identity = Identity.absoluteTargets(targets)
-            let fallbackVectors = targets.map { target in
-                MoveVector(dx: target.x, dy: target.y)
+        public static func absoluteTargets(
+            _ targets: [GridPoint],
+            identity: Identity? = nil,
+            fallbackVectorsOverride: [MoveVector]? = nil
+        ) -> MovePattern {
+            let resolvedIdentity = identity ?? Identity.absoluteTargets(targets)
+            let fallbackVectors: [MoveVector]
+            if let overrideVectors = fallbackVectorsOverride {
+                fallbackVectors = overrideVectors
+            } else {
+                fallbackVectors = targets.map { target in
+                    MoveVector(dx: target.x, dy: target.y)
+                }
             }
-            return MovePattern(baseVectors: fallbackVectors, identity: identity) { origin, context in
+            return MovePattern(baseVectors: fallbackVectors, identity: resolvedIdentity) { origin, context in
                 targets.compactMap { target in
                     guard context.contains(target), context.isTraversable(target) else { return nil }
                     let vector = MoveVector(dx: target.x - origin.x, dy: target.y - origin.y)
@@ -426,6 +435,13 @@ public enum MoveCard: CaseIterable {
             allowsVisitedTargets: false
         )
 
+        // --- 固定座標ワープ系 ---
+        mapping[.fixedWarp] = .absoluteTargets(
+            [],
+            identity: .custom("fixedWarp"),
+            fallbackVectorsOverride: [MoveVector(dx: 0, dy: 0)]
+        )
+
         return mapping
     }()
 
@@ -497,7 +513,8 @@ public enum MoveCard: CaseIterable {
         .knightRightwardChoice,
         .knightDownwardChoice,
         .knightLeftwardChoice,
-        .superWarp
+        .superWarp,
+        .fixedWarp
     ]
 
     // MARK: - ケース定義
@@ -592,6 +609,8 @@ public enum MoveCard: CaseIterable {
 
     /// 特殊: 盤面全域から未踏マスを選択して瞬間移動するカード
     case superWarp
+    /// 特殊: モードで指定された固定座標へワープするカード
+    case fixedWarp
 
     // MARK: - 移動ベクトル
     /// カードが持つ移動候補一覧を返す
@@ -747,6 +766,9 @@ public enum MoveCard: CaseIterable {
         case .superWarp:
             // 特殊カード: 盤面全域の未踏マスへ瞬間移動できるカード
             return "全域ワープ"
+        case .fixedWarp:
+            // 特殊カード: モードで定義された座標へワープする固定ジャンプカード
+            return "固定ワープ"
         }
     }
 

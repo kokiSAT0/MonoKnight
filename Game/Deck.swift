@@ -30,6 +30,17 @@ struct Deck {
         func weight(for card: MoveCard) -> Int {
             overrides[card] ?? defaultWeight
         }
+
+        /// 特定カードの重みを上書きした新しいプロファイルを生成する
+        /// - Parameters:
+        ///   - card: 上書き対象のカード
+        ///   - weight: 設定したい重み
+        /// - Returns: 指定カードに個別重みを設定した `WeightProfile`
+        func overridingWeight(for card: MoveCard, weight: Int) -> WeightProfile {
+            var updatedOverrides = overrides
+            updatedOverrides[card] = weight
+            return WeightProfile(defaultWeight: defaultWeight, overrides: updatedOverrides)
+        }
     }
 
     // MARK: - 設定定義
@@ -58,6 +69,44 @@ struct Deck {
             self.allowedMoveIdentities = allowedMoves.map { $0.movePattern.identity }
             self.weightProfile = weightProfile
             self.deckSummaryText = deckSummaryText
+        }
+
+        /// 固定座標ワープカードを抽選対象へ追加した新しい設定を返す
+        /// - Parameters:
+        ///   - weight: 追加する固定ワープカードへ割り当てたい重み（既定値は 1）
+        ///   - summarySuffix: 山札概要へ追記するサフィックス（nil の場合は変更しない）
+        /// - Returns: 固定ワープカードを含む新しい `Configuration`
+        func addingFixedWarpCard(weight: Int = 1, summarySuffix: String? = "＋固定ワープ") -> Configuration {
+            let alreadyIncluded = allowedMoves.contains(.fixedWarp)
+            var updatedMoves = allowedMoves
+            if !alreadyIncluded {
+                updatedMoves.append(.fixedWarp)
+            }
+
+            let originalWeight = weightProfile.weight(for: .fixedWarp)
+            let updatedProfile: WeightProfile
+            if alreadyIncluded && originalWeight == weight {
+                updatedProfile = weightProfile
+            } else {
+                updatedProfile = weightProfile.overridingWeight(for: .fixedWarp, weight: weight)
+            }
+
+            let updatedSummary: String
+            if !alreadyIncluded, let suffix = summarySuffix, !suffix.isEmpty {
+                updatedSummary = deckSummaryText + suffix
+            } else {
+                updatedSummary = deckSummaryText
+            }
+
+            if alreadyIncluded && originalWeight == weight && updatedSummary == deckSummaryText {
+                return self
+            }
+
+            return Configuration(
+                allowedMoves: updatedMoves,
+                weightProfile: updatedProfile,
+                deckSummaryText: updatedSummary
+            )
         }
 
         /// スタンダードモード向け設定
