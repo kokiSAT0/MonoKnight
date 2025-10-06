@@ -1389,8 +1389,9 @@
                     }
                     starPath.closeSubpath()
                 }
-                // SKShapeNode 側で偶奇塗りつぶしルールを指定し、中央をくり抜いた六芒星を描画する
-                hexagram.fillRule = .evenOdd
+                // CoreGraphics 側のパスに偶奇塗りつぶしを指定し、古い SpriteKit でも同じくり抜き効果を再現する
+                starPath.usesEvenOddFillRule = true
+                // SKShapeNode が保持するパスへ偶奇ルールを適用した形状を渡し、六芒星の中央を透明に保つ
                 hexagram.path = starPath
                 hexagram.lineWidth = max(1.0, tileSize * 0.032)
                 hexagram.position = .zero
