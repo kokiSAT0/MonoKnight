@@ -195,6 +195,17 @@ struct AppTheme: DynamicProperty {
         }
     }
 
+    /// 複数マス移動カード専用のアクセントカラー（シアン系）
+    /// - Note: Assets に依存せずコード側で調整し、ライト/ダーク両モードに最適化したトーンを返す
+    var multiStepAccent: Color {
+        switch resolvedColorScheme {
+        case .dark:
+            return Color(red: 0.35, green: 0.85, blue: 0.95)
+        default:
+            return Color(red: 0.0, green: 0.68, blue: 0.86)
+        }
+    }
+
     /// 現在位置マーカーの縁取り色
     var startMarkerStroke: Color {
         switch resolvedColorScheme {
