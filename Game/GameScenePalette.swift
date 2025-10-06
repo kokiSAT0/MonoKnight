@@ -30,6 +30,8 @@ public struct GameScenePalette {
     public let boardGuideHighlight: SKColor
     /// 複数マス移動カード専用のガイド線色
     public let boardMultiStepHighlight: SKColor
+    /// ワープカード専用のガイド線色
+    public let boardWarpHighlight: SKColor
     /// ワープ効果の基準アクセントカラー
     public let boardTileEffectWarp: SKColor
     /// ワープペアごとに使い分けるアクセントカラー配列
@@ -63,6 +65,7 @@ public struct GameScenePalette {
         boardKnight: SKColor,
         boardGuideHighlight: SKColor,
         boardMultiStepHighlight: SKColor,
+        boardWarpHighlight: SKColor,
         boardTileEffectWarp: SKColor,
         boardTileEffectShuffle: SKColor,
         warpPairAccentColors: [SKColor]
@@ -78,6 +81,7 @@ public struct GameScenePalette {
         self.boardKnight = boardKnight
         self.boardGuideHighlight = boardGuideHighlight
         self.boardMultiStepHighlight = boardMultiStepHighlight
+        self.boardWarpHighlight = boardWarpHighlight
         self.boardTileEffectWarp = boardTileEffectWarp
         self.boardTileEffectShuffle = boardTileEffectShuffle
         self.warpPairAccentColors = warpPairAccentColors
@@ -109,6 +113,8 @@ public extension GameScenePalette {
         boardGuideHighlight: SKColor(red: 0.94, green: 0.41, blue: 0.08, alpha: 0.85),
         // NOTE: 連続移動カードはカード枠と同じシアンを用い、盤面でも一目で識別できるようにする
         boardMultiStepHighlight: SKColor(red: 0.0, green: 0.68, blue: 0.86, alpha: 0.88),
+        // NOTE: ワープカードのガイド枠はカード枠と統一した紫を採用し、カテゴリー差を明確にする
+        boardWarpHighlight: SKColor(red: 0.56, green: 0.42, blue: 0.86, alpha: 0.9),
         // NOTE: ワープ効果は高コントラストなライトブルーを採用し、盤面上で瞬時に目に入るようにする
         boardTileEffectWarp: SKColor(red: 0.36, green: 0.56, blue: 0.98, alpha: 0.95),
         // NOTE: 手札シャッフルはモノトーン基調を維持しつつも差別化できるようニュートラルグレーを活用する
@@ -144,6 +150,8 @@ public extension GameScenePalette {
         boardGuideHighlight: SKColor(red: 1.0, green: 0.74, blue: 0.38, alpha: 0.9),
         // NOTE: 連続移動カードのシアンもダークテーマ向けに明度を調整し、背景との差を確保する
         boardMultiStepHighlight: SKColor(red: 0.35, green: 0.85, blue: 0.95, alpha: 0.92),
+        // NOTE: ダークテーマのワープ枠も明度を上げた紫で描画し、暗所でも識別しやすくする
+        boardWarpHighlight: SKColor(red: 0.70, green: 0.55, blue: 0.93, alpha: 0.92),
         // NOTE: ダークテーマのワープも明度を高めた青系で描画し、夜間でも視認できる発光感を持たせる
         boardTileEffectWarp: SKColor(red: 0.56, green: 0.75, blue: 1.0, alpha: 0.95),
         // NOTE: シャッフルはライトテーマよりも明度を上げ、背景とのコントラストを十分に確保する

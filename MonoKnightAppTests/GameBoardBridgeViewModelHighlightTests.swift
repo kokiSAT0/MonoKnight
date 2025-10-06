@@ -110,6 +110,26 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
         XCTAssertNil(viewModel.pendingGuideCurrent, "ガイド復元後は pending 現在地を解放する必要があります")
     }
 
+    /// ワープカードが専用の紫ガイド集合へ分類されることを検証する
+    func testRefreshGuideHighlightsSeparatesWarpCandidates() {
+        let viewModel = makeViewModel()
+        let origin = GridPoint(x: 2, y: 2)
+        let warpDestination = GridPoint(x: 2, y: 3)
+
+        let warpStack = HandStack(cards: [DealtCard(move: .fixedWarp, fixedWarpDestination: warpDestination)])
+
+        viewModel.refreshGuideHighlights(
+            handOverride: [warpStack],
+            currentOverride: origin,
+            progressOverride: .playing
+        )
+
+        let buckets = viewModel.guideHighlightBuckets
+        XCTAssertTrue(buckets.warpDestinations.contains(warpDestination), "ワープ専用集合に目的地が含まれていません")
+        XCTAssertTrue(buckets.singleVectorDestinations.isEmpty, "ワープカードが単一候補集合へ混入しています")
+        XCTAssertTrue(buckets.multipleVectorDestinations.isEmpty, "ワープカードが複数候補集合へ混入しています")
+    }
+
     /// 強制ハイライトが障害物マスを除外することを検証する
     func testForcedSelectionHighlightsExcludeImpassableTiles() {
         // --- 移動不可マスを含むモードを構築し、ViewModel に適用 ---

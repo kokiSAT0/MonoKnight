@@ -45,8 +45,11 @@ final class GameCoreFixedWarpCardTests: XCTestCase {
     }
 
     /// 固定ワープカードが必ず手札へ配られるテスト用デッキを生成する
-    private func makeDeck(for regulation: GameMode.Regulation) -> Deck {
-        let configuration = regulation.deckPreset.configurationIncludingFixedWarpCard()
+    /// - Parameters:
+    ///   - mode: 目的地プールを参照する対象モード
+    ///   - destinations: ワープ目的地の割り当て順を明示したい場合に指定（nil の場合はモード既定順）
+    private func makeDeck(for mode: GameMode, destinations: [GridPoint]? = nil) -> Deck {
+        let configuration = mode.deckConfiguration
         let preloadCards: [MoveCard] = [
             .fixedWarp,
             .kingUp,
@@ -54,7 +57,12 @@ final class GameCoreFixedWarpCardTests: XCTestCase {
             .kingDown,
             .kingLeft
         ]
-        return Deck.makeTestDeck(cards: preloadCards, configuration: configuration)
+        let warpDestinations = destinations ?? mode.fixedWarpDestinationPool
+        return Deck.makeTestDeck(
+            cards: preloadCards,
+            configuration: configuration,
+            fixedWarpDestinations: warpDestinations
+        )
     }
 
     /// availableMoves() がモード定義のターゲットを尊重し、盤外・障害物・既踏マスを除外することを確認する
@@ -67,7 +75,7 @@ final class GameCoreFixedWarpCardTests: XCTestCase {
             regulation: regulation,
             leaderboardEligible: false
         )
-        let deck = makeDeck(for: regulation)
+        let deck = makeDeck(for: mode, destinations: [validTargetB])
         let initialVisited = [spawnPoint, validTargetB]
         let core = GameCore.makeTestInstance(
             deck: deck,
@@ -87,11 +95,12 @@ final class GameCoreFixedWarpCardTests: XCTestCase {
         // --- availableMoves() で候補を取得し、既踏マスが除外されていることを確認 ---
         let moves = core.availableMoves()
         let warpCandidates = moves.filter { $0.card.move == .fixedWarp }
-        XCTAssertEqual(warpCandidates.count, 1, "既踏マス除外後は 1 件のみ残る想定です")
+        XCTAssertEqual(warpCandidates.count, 1, "目的地が 1 件のみのため候補も単一になる想定です")
 
         let candidate = try XCTUnwrap(warpCandidates.first)
-        XCTAssertEqual(candidate.destination, validTargetA, "到達先がバリデーション結果と一致していません")
-        XCTAssertEqual(candidate.path, [validTargetA], "通過マスが固定ワープ仕様と異なります")
+        XCTAssertEqual(candidate.destination, validTargetB, "カードに割り当てた目的地と一致していません")
+        XCTAssertEqual(candidate.card.fixedWarpDestination, validTargetB, "カード内部の目的地メタデータが想定と異なります")
+        XCTAssertEqual(candidate.path, [validTargetB], "通過マスが固定ワープ仕様と異なります")
     }
 
     /// 盤面タップによる選択が固定ワープ候補と整合することを検証する
@@ -104,7 +113,7 @@ final class GameCoreFixedWarpCardTests: XCTestCase {
             regulation: regulation,
             leaderboardEligible: false
         )
-        let deck = makeDeck(for: regulation)
+        let deck = makeDeck(for: mode, destinations: [validTargetB])
         let core = GameCore.makeTestInstance(
             deck: deck,
             current: spawnPoint,
@@ -117,6 +126,7 @@ final class GameCoreFixedWarpCardTests: XCTestCase {
         let resolved = try XCTUnwrap(core.resolvedMoveForBoardTap(at: tapTarget), "固定ワープ候補がタップ選択で取得できません")
         XCTAssertEqual(resolved.card.move, .fixedWarp, "盤面タップで取得したカード種別が固定ワープではありません")
         XCTAssertEqual(resolved.destination, tapTarget, "盤面タップの到達先が想定と一致しません")
+        XCTAssertEqual(resolved.card.fixedWarpDestination, tapTarget, "カード内部の目的地がタップ先と一致していません")
     }
 
     /// playCard(using:) が固定ワープカードの踏破処理と最終位置更新を正しく行うことを確認する
@@ -129,7 +139,7 @@ final class GameCoreFixedWarpCardTests: XCTestCase {
             regulation: regulation,
             leaderboardEligible: false
         )
-        let deck = makeDeck(for: regulation)
+        let deck = makeDeck(for: mode, destinations: [validTargetA])
         let core = GameCore.makeTestInstance(
             deck: deck,
             current: spawnPoint,
@@ -139,10 +149,10 @@ final class GameCoreFixedWarpCardTests: XCTestCase {
 
         let moves = core.availableMoves()
         let warpCandidates = moves.filter { $0.card.move == .fixedWarp }
-        XCTAssertEqual(warpCandidates.count, 2, "未踏状態では 2 件の固定ワープ候補が得られる想定です")
+        XCTAssertEqual(warpCandidates.count, 1, "カードごとに単一のワープ先を提示する想定です")
 
         // --- 左下ターゲットを選択して実際にカードをプレイ ---
-        let targetMove = try XCTUnwrap(warpCandidates.first { $0.destination == validTargetA })
+        let targetMove = try XCTUnwrap(warpCandidates.first)
         core.playCard(using: targetMove)
 
         // --- 最終位置や踏破状態が更新されていることを確認 ---
@@ -188,7 +198,11 @@ final class GameCoreFixedWarpCardTests: XCTestCase {
 
         // --- availableMoves() からも同じターゲットが候補として列挙されるか確認 ---
         let presetCards = Array(repeating: MoveCard.fixedWarp, count: 8)
-        let deck = Deck.makeTestDeck(cards: presetCards, configuration: regulation.deckPreset.configuration)
+        let deck = Deck.makeTestDeck(
+            cards: presetCards,
+            configuration: regulation.deckPreset.configuration,
+            fixedWarpDestinations: fallbackTargets
+        )
         let core = GameCore.makeTestInstance(
             deck: deck,
             current: spawnPoint,
@@ -198,7 +212,16 @@ final class GameCoreFixedWarpCardTests: XCTestCase {
 
         let moves = core.availableMoves()
         let warpMoves = moves.filter { $0.card.move == .fixedWarp }
-        XCTAssertEqual(warpMoves.count, expectedTargets.count - 1, "現在地を除いた固定ワープ候補数が想定と一致しません")
-        XCTAssertTrue(warpMoves.allSatisfy { fallbackTargets.contains($0.destination) }, "availableMoves() の結果に不正な座標が含まれています")
+        let firstMove = try XCTUnwrap(warpMoves.first, "固定ワープ候補が得られません")
+        XCTAssertTrue(fallbackTargets.contains(firstMove.destination), "availableMoves() から取得した目的地がフォールバック集合に含まれていません")
+
+        // --- 最初のカードを使用し、次に配られるカードが順番に更新されるか確認 ---
+        core.playCard(using: firstMove)
+        if fallbackTargets.count >= 2 {
+            let nextCard = try XCTUnwrap(core.handStacks.first?.topCard, "ワープカードの再補充に失敗しています")
+            let nextDestination = try XCTUnwrap(nextCard.fixedWarpDestination, "補充後の固定ワープ目的地が設定されていません")
+            XCTAssertTrue(fallbackTargets.contains(nextDestination), "補充後の目的地がフォールバック集合に含まれていません")
+            XCTAssertNotEqual(nextDestination, firstMove.destination, "巡回中に同じ目的地が連続して割り当てられています")
+        }
     }
 }

@@ -8,13 +8,17 @@ public struct DealtCard: Identifiable, Equatable {
     public let id: UUID
     /// これまでのロジックが扱っていた移動カード本体
     public let move: MoveCard
+    /// 固定ワープカード専用の目的地（それ以外のカードでは nil）
+    /// - Note: カードごとに固有のワープ先を持たせるためのメタデータを保持し、GameCore からも参照できるようにする
+    public let fixedWarpDestination: GridPoint?
 
     /// 新しいカードを生成する
     /// - Parameters:
     ///   - id: 既存カードからラップし直す場合に利用する識別子（省略時は新規採番）
     ///   - move: 実際の移動ロジックを担う `MoveCard`
-    public init(id: UUID = UUID(), move: MoveCard) {
+    public init(id: UUID = UUID(), move: MoveCard, fixedWarpDestination: GridPoint? = nil) {
         self.id = id
         self.move = move
+        self.fixedWarpDestination = fixedWarpDestination
     }
 }
