@@ -5,6 +5,18 @@
     #endif
     import SharedSupport  // debugLog を利用するため共有モジュールを読み込む
 
+    /// Linux など SpriteKit の一部 API が未実装な環境でもビルドできるよう、
+    /// fillRule を安全に設定するためのユーティリティ関数
+    /// - Parameter shapeNode: 対象となる図形ノード
+    private func applyEvenOddFillRuleIfSupported(to shapeNode: SKShapeNode) {
+        #if os(iOS) || os(macOS) || os(tvOS) || os(watchOS)
+            // Apple プラットフォームでは evenOdd を使用して六芒星の塗り潰しを調整する
+            shapeNode.fillRule = .evenOdd
+        #else
+            // Linux など fillRule が未サポートの環境では何もしない（テスト用ビルド対策）
+        #endif
+    }
+
     /// 盤面ハイライトの種類を列挙するための型
     /// - Note: ガイド表示の中でも単一候補と複数候補を分け、枠線の重なり順や色分けを柔軟に制御する
     public enum BoardHighlightKind: CaseIterable, Hashable {
@@ -1249,7 +1261,7 @@
                 hexagram.lineWidth = 1
                 hexagram.isAntialiased = true
                 hexagram.blendMode = .alpha
-                hexagram.fillRule = .evenOdd
+                applyEvenOddFillRuleIfSupported(to: hexagram)
 
                 container.addChild(hexagram)
                 return TileEffectDecorationCache(
@@ -1352,7 +1364,7 @@
                     newHexagram.lineWidth = 1
                     newHexagram.isAntialiased = true
                     newHexagram.blendMode = .alpha
-                    newHexagram.fillRule = .evenOdd
+                    applyEvenOddFillRuleIfSupported(to: newHexagram)
                     newHexagram.zPosition = 0.05
                     decoration.container.addChild(newHexagram)
                     decoration.fillNodes = [newHexagram]
