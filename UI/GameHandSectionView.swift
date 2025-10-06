@@ -54,9 +54,6 @@ struct GameHandSectionView: View {
                 nextCardsSection
             }
 
-            #if DEBUG
-            debugResultButton
-            #endif
         }
         // PreferenceKey へ手札セクションの高さを伝搬し、GameView 側のレイアウト計算に利用する
         .overlay(alignment: .topLeading) {
@@ -376,22 +373,6 @@ private extension GameHandSectionView {
             return "定められた座標へ固定ワープ"
         }
     }
-
-    #if DEBUG
-    /// 結果画面を即座に表示するデバッグ専用ボタン
-    private var debugResultButton: some View {
-        HStack {
-            Spacer(minLength: 0)
-            Button("結果へ") {
-                viewModel.showingResult = true
-            }
-            .buttonStyle(.bordered)
-            .accessibilityIdentifier("show_result")
-            Spacer(minLength: 0)
-        }
-        .padding(.top, 4)
-    }
-    #endif
 }
 
 /// NEXT バッジを重ねて視覚的な段階を示す補助ビュー
