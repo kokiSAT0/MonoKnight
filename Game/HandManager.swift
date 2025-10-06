@@ -173,7 +173,19 @@ public final class HandManager: ObservableObject {
                 let identity = card.move.movePattern.identity
                 if let index = handStacks.firstIndex(where: { stack in
                     guard let stackIdentity = stack.representativePatternIdentity else { return false }
-                    return stackIdentity == identity
+                    guard stackIdentity == identity else { return false }
+                    if card.move == .fixedWarp {
+                        // 固定ワープカードは目的地が異なると混同を招くため、ワープ先が一致する場合のみ同じスタックへ積む
+                        guard
+                            let newDestination = card.fixedWarpDestination,
+                            let existingDestination = stack.topCard?.fixedWarpDestination
+                        else {
+                            // 目的地が不明なカードは安全側で新規スタック扱いにする
+                            return false
+                        }
+                        return existingDestination == newDestination
+                    }
+                    return true
                 }) {
                     var existing = handStacks[index]
                     existing.append(card)
