@@ -166,7 +166,9 @@ final class GameBoardBridgeViewModel: ObservableObject {
             boardGuideHighlight: appTheme.skBoardGuideHighlight,
             boardMultiStepHighlight: appTheme.skBoardMultiStepHighlight,
             boardTileEffectWarp: appTheme.skBoardTileEffectWarp,
-            boardTileEffectShuffle: appTheme.skBoardTileEffectShuffle
+            boardTileEffectShuffle: appTheme.skBoardTileEffectShuffle,
+            // NOTE: ワープペアの配色セットを SpriteKit へ渡し、色と形の両面で組み合わせを識別させる
+            warpPairAccentColors: appTheme.skWarpPairAccentColors
         )
         scene.applyTheme(palette)
     }

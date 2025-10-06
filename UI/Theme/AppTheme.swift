@@ -678,6 +678,31 @@ struct AppTheme: DynamicProperty {
         )
     }
 
+    /// ワープペア識別用アクセントカラー群（UIColor 配列）
+    /// - Note: 色だけでなく同心円の層数と組み合わせて識別できるよう、彩度と明度が十分に離れた 6 色を揃える
+    var uiWarpPairAccentColors: [UIColor] {
+        switch resolvedColorScheme {
+        case .dark:
+            return [
+                UIColor(red: 0.56, green: 0.78, blue: 1.0, alpha: 1.0),
+                UIColor(red: 0.36, green: 0.88, blue: 0.82, alpha: 1.0),
+                UIColor(red: 0.83, green: 0.66, blue: 1.0, alpha: 1.0),
+                UIColor(red: 1.0, green: 0.80, blue: 0.54, alpha: 1.0),
+                UIColor(red: 1.0, green: 0.70, blue: 0.88, alpha: 1.0),
+                UIColor(red: 0.72, green: 0.94, blue: 0.78, alpha: 1.0),
+            ]
+        default:
+            return [
+                UIColor(red: 0.38, green: 0.68, blue: 1.0, alpha: 1.0),
+                UIColor(red: 0.26, green: 0.82, blue: 0.78, alpha: 1.0),
+                UIColor(red: 0.74, green: 0.54, blue: 0.96, alpha: 1.0),
+                UIColor(red: 0.99, green: 0.68, blue: 0.46, alpha: 1.0),
+                UIColor(red: 0.98, green: 0.60, blue: 0.80, alpha: 1.0),
+                UIColor(red: 0.64, green: 0.88, blue: 0.68, alpha: 1.0),
+            ]
+        }
+    }
+
     /// SpriteKit シャッフル効果カラーの UIColor 版
     var uiBoardTileEffectShuffle: UIColor {
         dynamicUIColor(
@@ -726,5 +751,9 @@ struct AppTheme: DynamicProperty {
 
     /// SpriteKit の SKColor へ変換したシャッフル効果カラー
     var skBoardTileEffectShuffle: SKColor { SKColor(cgColor: uiBoardTileEffectShuffle.cgColor) }
+
+    /// SpriteKit が参照するワープペア用アクセントカラー配列
+    /// - Note: UIColor から SKColor に変換しておくことで、SpriteKit 内で直接利用できる
+    var skWarpPairAccentColors: [SKColor] { uiWarpPairAccentColors.map { SKColor(cgColor: $0.cgColor) } }
     #endif
 }

@@ -80,6 +80,19 @@
         /// - NOTE: ワープや手札シャッフルなど効果別の見た目を保持し、サイズ変更時にも再利用する
         private var tileEffectDecorations: [GridPoint: TileEffectDecorationCache] = [:]
 
+        /// ワープ効果ごとの視覚スタイルを記録するための構造体
+        private struct WarpVisualStyle {
+            /// 基本となるアクセントカラー
+            let color: SKColor
+            /// 描画する同心円の層数（色覚サポート用）
+            let circleCount: Int
+        }
+
+        /// ワープペア ID をキーにした視覚スタイルキャッシュ
+        private var warpVisualStyles: [String: WarpVisualStyle] = [:]
+        /// 同時に重ねる同心円の最大層数
+        private let maxWarpCircleLayers: Int = 4
+
         /// ハイライト種類ごとのノードキャッシュ
         /// - Important: 種類ごとに辞書を分けることで、描画の上書き順とスタイルを柔軟に切り替えられる
         private var highlightNodes: [BoardHighlightKind: [GridPoint: SKShapeNode]] = [:]
@@ -297,6 +310,9 @@
             )
             // テーマもデフォルトへ戻し、SpriteKit 専用の配色が未設定のままでも破綻しないようフォールバックを適用
             palette = GameScenePalette.fallback
+            // ワープ装飾スタイルのキャッシュをリセットし、現在の盤面とテーマから再計算する
+            warpVisualStyles = [:]
+            refreshWarpVisualStyles()
             // レイアウト関連の値をゼロクリアしておくことで、サイズ確定後の `calculateLayout` が必ず最新値を算出できる
             tileSize = 0
             gridOrigin = .zero
@@ -665,6 +681,7 @@
             // 盤面そのものの状態は常に保持し、描画が間に合っていなくてもゲームロジックとの整合を取っておく
             let previousSize = self.board.size
             self.board = board
+            refreshWarpVisualStyles()
 
             if previousSize != board.size {
                 pendingBoard = board
@@ -737,6 +754,55 @@
             // 係数が範囲外でも描画が破綻しないよう、0.0〜1.0 に収めてから適用する
             let clampedAlpha = max(0.0, min(1.0, currentAlpha * factor))
             return color.withAlphaComponent(clampedAlpha)
+        }
+
+        /// 現在の盤面構成とテーマに合わせてワープ装飾のスタイルを再計算する
+        private func refreshWarpVisualStyles() {
+            var detectedPairIDs: Set<String> = []
+            for y in 0..<board.size {
+                for x in 0..<board.size {
+                    let point = GridPoint(x: x, y: y)
+                    if case .warp(let pairID, _) = board.effect(at: point) {
+                        detectedPairIDs.insert(pairID)
+                    }
+                }
+            }
+
+            let sortedPairIDs = detectedPairIDs.sorted()
+            var updatedStyles: [String: WarpVisualStyle] = [:]
+            for (index, pairID) in sortedPairIDs.enumerated() {
+                let color = warpAccentColor(for: index)
+                let circleCount = max(1, min(maxWarpCircleLayers, index + 1))
+                updatedStyles[pairID] = WarpVisualStyle(color: color, circleCount: circleCount)
+            }
+            warpVisualStyles = updatedStyles
+        }
+
+        /// ペアの表示順に応じたアクセントカラーを取得する
+        /// - Parameter pairIndex: ソート済み配列内でのインデックス
+        /// - Returns: SpriteKit で利用する SKColor
+        private func warpAccentColor(for pairIndex: Int) -> SKColor {
+            if pairIndex < palette.warpPairAccentColors.count {
+                return palette.warpPairAccentColors[pairIndex]
+            }
+
+            // 用意した色数を超える場合は最後の色を基準にアルファで差を付ける
+            let fallbackBase = palette.warpPairAccentColors.last ?? palette.boardTileEffectWarp
+            let attenuationStep = 0.12 * CGFloat(pairIndex - palette.warpPairAccentColors.count + 1)
+            let attenuation = max(0.4, 1.0 - attenuationStep)
+            return fallbackBase.withAlphaComponent(attenuation)
+        }
+
+        /// 指定されたペア ID に対応する視覚スタイルを返す
+        /// - Parameter pairID: ワープペアの識別子
+        /// - Returns: 色と同心円数を内包したスタイル情報
+        private func warpVisualStyle(for pairID: String) -> WarpVisualStyle {
+            if let cached = warpVisualStyles[pairID] {
+                return cached
+            }
+            let fallback = WarpVisualStyle(color: palette.boardTileEffectWarp, circleCount: 1)
+            warpVisualStyles[pairID] = fallback
+            return fallback
         }
 
         /// 指定マスの塗り色・枠線・オーバーレイをまとめて適用する
@@ -1176,29 +1242,21 @@
 
             switch effect {
             case .warp:
-                let ring = SKShapeNode()
-                ring.name = "tileEffectWarpRing"
-                ring.strokeColor = .clear
-                ring.fillColor = .clear
-                ring.lineWidth = 1
-                ring.isAntialiased = true
-                ring.blendMode = .alpha
+                let hexagram = SKShapeNode()
+                hexagram.name = "tileEffectWarpHexagram"
+                hexagram.strokeColor = .clear
+                hexagram.fillColor = .clear
+                hexagram.lineWidth = 1
+                hexagram.isAntialiased = true
+                hexagram.blendMode = .alpha
+                hexagram.fillRule = .evenOdd
 
-                let arrow = SKShapeNode()
-                arrow.name = "tileEffectWarpArrow"
-                arrow.strokeColor = .clear
-                arrow.fillColor = .clear
-                arrow.lineWidth = 0
-                arrow.isAntialiased = true
-                arrow.blendMode = .alpha
-
-                container.addChild(ring)
-                container.addChild(arrow)
+                container.addChild(hexagram)
                 return TileEffectDecorationCache(
                     container: container,
                     effect: effect,
-                    strokeNodes: [ring],
-                    fillNodes: [arrow]
+                    strokeNodes: [],
+                    fillNodes: [hexagram]
                 )
             case .shuffleHand:
                 let diamond = SKShapeNode()
@@ -1248,33 +1306,94 @@
             point: GridPoint
         ) {
             switch effect {
-            case .warp(_, let destination):
-                guard let ring = decoration.strokeNodes.first,
-                      let arrow = decoration.fillNodes.first else { return }
+            case .warp(let pairID, _):
+                let style = warpVisualStyle(for: pairID)
+                let desiredCircleCount = max(1, style.circleCount)
 
-                let radius = tileSize * 0.32
-                let ringRect = CGRect(x: -radius, y: -radius, width: radius * 2, height: radius * 2)
-                ring.path = CGPath(ellipseIn: ringRect, transform: nil)
-                ring.lineWidth = max(1.0, tileSize * 0.05)
-
-                let arrowLength = tileSize * 0.42
-                let arrowWidth = tileSize * 0.18
-                let arrowPath = CGMutablePath()
-                arrowPath.move(to: CGPoint(x: -arrowLength / 2, y: 0))
-                arrowPath.addLine(to: CGPoint(x: arrowLength / 2, y: arrowWidth / 2))
-                arrowPath.addLine(to: CGPoint(x: arrowLength / 2, y: -arrowWidth / 2))
-                arrowPath.closeSubpath()
-                arrow.path = arrowPath
-                arrow.lineWidth = 0
-                arrow.position = .zero
-
-                let dx = CGFloat(destination.x - point.x)
-                let dy = CGFloat(destination.y - point.y)
-                if dx == 0 && dy == 0 {
-                    arrow.zRotation = 0
-                } else {
-                    arrow.zRotation = atan2(dy, dx)
+                if decoration.strokeNodes.count > desiredCircleCount {
+                    let surplus = decoration.strokeNodes.count - desiredCircleCount
+                    for node in decoration.strokeNodes.suffix(surplus) {
+                        node.removeFromParent()
+                    }
+                    decoration.strokeNodes.removeLast(surplus)
                 }
+
+                while decoration.strokeNodes.count < desiredCircleCount {
+                    let circleNode = SKShapeNode()
+                    circleNode.name = "tileEffectWarpCircle\(decoration.strokeNodes.count)"
+                    circleNode.strokeColor = .clear
+                    circleNode.fillColor = .clear
+                    circleNode.lineWidth = 0
+                    circleNode.isAntialiased = true
+                    circleNode.blendMode = .alpha
+                    circleNode.zPosition = -CGFloat(decoration.strokeNodes.count) * 0.01
+                    decoration.container.addChild(circleNode)
+                    decoration.strokeNodes.append(circleNode)
+                }
+
+                let baseRadius = tileSize * 0.34
+                let spacing = tileSize * 0.06
+                for (index, circle) in decoration.strokeNodes.enumerated() {
+                    let radius = max(tileSize * 0.14, baseRadius - CGFloat(index) * spacing)
+                    let rect = CGRect(x: -radius, y: -radius, width: radius * 2, height: radius * 2)
+                    circle.path = CGPath(ellipseIn: rect, transform: nil)
+                    circle.lineWidth = max(1.0, tileSize * 0.035)
+                    circle.position = .zero
+                }
+
+                let hexagram: SKShapeNode
+                if let existing = decoration.fillNodes.first {
+                    hexagram = existing
+                } else {
+                    let newHexagram = SKShapeNode()
+                    newHexagram.name = "tileEffectWarpHexagram"
+                    newHexagram.strokeColor = .clear
+                    newHexagram.fillColor = .clear
+                    newHexagram.lineWidth = 1
+                    newHexagram.isAntialiased = true
+                    newHexagram.blendMode = .alpha
+                    newHexagram.fillRule = .evenOdd
+                    newHexagram.zPosition = 0.05
+                    decoration.container.addChild(newHexagram)
+                    decoration.fillNodes = [newHexagram]
+                    hexagram = newHexagram
+                }
+
+                let starRadius = tileSize * 0.2
+                let pointForAngle: (CGFloat) -> CGPoint = { angle in
+                    CGPoint(
+                        x: cos(angle) * starRadius,
+                        y: sin(angle) * starRadius
+                    )
+                }
+                let upwardAngles: [CGFloat] = [
+                    .pi / 2,
+                    .pi / 2 + (2.0 * .pi / 3.0),
+                    .pi / 2 + (4.0 * .pi / 3.0)
+                ]
+                let downwardAngles: [CGFloat] = [
+                    -.pi / 2,
+                    -.pi / 2 + (2.0 * .pi / 3.0),
+                    -.pi / 2 + (4.0 * .pi / 3.0)
+                ]
+                let starPath = CGMutablePath()
+                if let first = upwardAngles.first {
+                    starPath.move(to: pointForAngle(first))
+                    for angle in upwardAngles.dropFirst() {
+                        starPath.addLine(to: pointForAngle(angle))
+                    }
+                    starPath.closeSubpath()
+                }
+                if let first = downwardAngles.first {
+                    starPath.move(to: pointForAngle(first))
+                    for angle in downwardAngles.dropFirst() {
+                        starPath.addLine(to: pointForAngle(angle))
+                    }
+                    starPath.closeSubpath()
+                }
+                hexagram.path = starPath
+                hexagram.lineWidth = max(1.0, tileSize * 0.032)
+                hexagram.position = .zero
             case .shuffleHand:
                 guard let diamond = decoration.strokeNodes.first,
                       decoration.fillNodes.count >= 2 else { return }
@@ -1323,17 +1442,18 @@
             effect: TileEffect
         ) {
             switch effect {
-            case .warp:
-                let strokeColor = palette.boardTileEffectWarp
-                for node in decoration.strokeNodes {
-                    node.strokeColor = strokeColor
+            case .warp(let pairID, _):
+                let style = warpVisualStyle(for: pairID)
+                for (index, node) in decoration.strokeNodes.enumerated() {
+                    let attenuation = max(0.5, 1.0 - CGFloat(index) * 0.15)
+                    node.strokeColor = style.color.withAlphaComponent(attenuation)
                     node.fillColor = .clear
                     node.alpha = 1.0
                 }
-                if let arrow = decoration.fillNodes.first {
-                    arrow.fillColor = strokeColor.withAlphaComponent(0.85)
-                    arrow.strokeColor = .clear
-                    arrow.alpha = 1.0
+                if let hexagram = decoration.fillNodes.first {
+                    hexagram.strokeColor = style.color.withAlphaComponent(0.9)
+                    hexagram.fillColor = style.color.withAlphaComponent(0.28)
+                    hexagram.alpha = 1.0
                 }
             case .shuffleHand:
                 let strokeColor = palette.boardTileEffectShuffle
@@ -1565,6 +1685,7 @@
         public func applyTheme(_ palette: GameScenePalette) {
             // SwiftUI 側で生成されたテーマから変換されたパレットを保持し、今後の色更新にも使えるようにする
             self.palette = palette
+            refreshWarpVisualStyles()
 
             // シーン全体の背景色を更新
             backgroundColor = palette.boardBackground
@@ -1740,8 +1861,14 @@
             let ring = SKShapeNode(circleOfRadius: radius)
             ring.name = "transientWarpRing"
             ring.lineWidth = max(1.0, tileSize * 0.06)
-            ring.strokeColor = palette.boardTileEffectWarp
-            ring.fillColor = palette.boardTileEffectWarp.withAlphaComponent(0.18)
+            let baseColor: SKColor
+            if case .warp(let pairID, _) = board.effect(at: point) {
+                baseColor = warpVisualStyle(for: pairID).color
+            } else {
+                baseColor = palette.boardTileEffectWarp
+            }
+            ring.strokeColor = baseColor
+            ring.fillColor = baseColor.withAlphaComponent(0.18)
             ring.isAntialiased = true
             ring.position = position(for: point)
             ring.zPosition = 0
@@ -1759,14 +1886,11 @@
             ring.run(SKAction.sequence([SKAction.group([scale, fade]), SKAction.removeFromParent()]))
         }
 
-        /// ワープタイルの矢印装飾を短時間回転させ、ワープ発動を強調する
-        /// - Parameter point: 効果矢印が存在する盤面座標
+        /// ワープタイルの魔法陣装飾は静止表示とし、不要なアニメーションを抑制する
+        /// - Parameter point: 魔法陣が存在する盤面座標
         private func animateWarpArrow(at point: GridPoint) {
-            guard let arrowNode = tileEffectDecorations[point]?.fillNodes.first else { return }
-            arrowNode.removeAllActions()
-            let spin = SKAction.rotate(byAngle: .pi * 0.75, duration: 0.2)
-            spin.timingMode = .easeInEaseOut
-            arrowNode.run(spin)
+            // 仕様変更によりアニメーションは実施しないため、念のため残存アクションのみ停止する
+            tileEffectDecorations[point]?.fillNodes.first?.removeAllActions()
         }
 
         /// 保留中のハイライト情報があれば、レイアウト確定後に反映する
