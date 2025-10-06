@@ -195,8 +195,21 @@ public final class GameCore: ObservableObject {
             isVisited: { point in snapshotBoard.isVisited(point) }
         )
         let validPaths = card.move.resolvePaths(from: currentPosition, context: context)
-        let isStillValid = validPaths.contains { path in
-            path.traversedPoints == resolvedMove.path
+
+        let isStillValid: Bool
+        if mode.fixedWarpCardTargets[card.move] != nil {
+            // --- 固定ワープカードは MovePattern が空配列を返すため、モード定義と現在の盤面を用いて再検証する ---
+            let destination = resolvedMove.resolution.finalPosition
+            let pathMatches = resolvedMove.path == [destination]
+            let remainsAccessible = destination != currentPosition &&
+                snapshotBoard.contains(destination) &&
+                snapshotBoard.isTraversable(destination) &&
+                !snapshotBoard.isVisited(destination)
+            isStillValid = pathMatches && remainsAccessible
+        } else {
+            isStillValid = validPaths.contains { path in
+                path.traversedPoints == resolvedMove.path
+            }
         }
         guard isStillValid else { return }
 
@@ -334,6 +347,30 @@ public final class GameCore: ObservableObject {
         for (index, stack) in referenceHandStacks.enumerated() {
             // トップカードが存在しなければスキップ
             guard let topCard = stack.topCard else { continue }
+
+            // 固定ワープカードが含まれる場合は、モード側で検証済みのターゲット座標だけを候補として組み立てる
+            if let fixedTargets = mode.fixedWarpCardTargets[topCard.move], !fixedTargets.isEmpty {
+                for target in fixedTargets {
+                    // --- 現在地と同一座標・盤外・障害物・既踏マスは安全のため除外する ---
+                    guard target != origin else { continue }
+                    guard activeBoard.contains(target), activeBoard.isTraversable(target) else { continue }
+                    guard !activeBoard.isVisited(target) else { continue }
+
+                    let vector = MoveVector(dx: target.x - origin.x, dy: target.y - origin.y)
+                    let resolution = MovementResolution(path: [target], finalPosition: target)
+                    resolved.append(
+                        ResolvedCardMove(
+                            stackID: stack.id,
+                            stackIndex: index,
+                            card: topCard,
+                            moveVector: vector,
+                            resolution: resolution
+                        )
+                    )
+                }
+                // モードが用意したターゲットのみを採用するため、MovePattern での追加解決は行わない
+                continue
+            }
 
             // MoveCard の MovePattern から盤面状況に応じた経路を算出する
             for path in topCard.move.resolvePaths(from: origin, context: resolutionContext) {
