@@ -5,25 +5,6 @@
     #endif
     import SharedSupport  // debugLog を利用するため共有モジュールを読み込む
 
-    /// Linux など SpriteKit の一部 API が未実装な環境でもビルドできるよう、
-    /// fillRule を安全に設定するためのユーティリティ関数
-    /// - Parameter shapeNode: 対象となる図形ノード
-    private func applyEvenOddFillRuleIfSupported(to shapeNode: SKShapeNode) {
-        #if os(iOS) || os(tvOS) || os(watchOS) || targetEnvironment(macCatalyst)
-            // iOS 系プラットフォームでは evenOdd を使用して六芒星の塗り潰しを調整する
-            // - Note: Swift Package のユニットテストは macOS(Linux ターゲット含む) 上で実行される
-            //         ケースが多く、macOS 向け SpriteKit には fillRule が公開されていない
-            //         バージョンが存在する。そのため iOS 系 API のみを対象にして安全に回避する。
-            if #available(iOS 11.0, tvOS 11.0, watchOS 4.0, *) {
-                shapeNode.fillRule = .evenOdd
-            }
-        #else
-            // macOS や Linux など fillRule が未サポート／非公開の環境では何もしない
-            // - Note: 単純な多角形の塗り潰し品質が僅かに変化する程度であり、
-            //         テスト専用ビルドでは描画の差異が問題にならないためここでは無視する。
-        #endif
-    }
-
     /// 盤面ハイライトの種類を列挙するための型
     /// - Note: ガイド表示の中でも単一候補と複数候補を分け、枠線の重なり順や色分けを柔軟に制御する
     public enum BoardHighlightKind: CaseIterable, Hashable {
@@ -1268,7 +1249,6 @@
                 hexagram.lineWidth = 1
                 hexagram.isAntialiased = true
                 hexagram.blendMode = .alpha
-                applyEvenOddFillRuleIfSupported(to: hexagram)
 
                 container.addChild(hexagram)
                 return TileEffectDecorationCache(
@@ -1371,7 +1351,6 @@
                     newHexagram.lineWidth = 1
                     newHexagram.isAntialiased = true
                     newHexagram.blendMode = .alpha
-                    applyEvenOddFillRuleIfSupported(to: newHexagram)
                     newHexagram.zPosition = 0.05
                     decoration.container.addChild(newHexagram)
                     decoration.fillNodes = [newHexagram]
@@ -1410,6 +1389,9 @@
                     }
                     starPath.closeSubpath()
                 }
+                // SpriteKit 側で fillRule プロパティが公開されていない環境でも
+                // 中央をくり抜いた六芒星を描画できるよう、CGPath 側の even-odd ルールを使用する
+                starPath.usesEvenOddFillRule = true
                 hexagram.path = starPath
                 hexagram.lineWidth = max(1.0, tileSize * 0.032)
                 hexagram.position = .zero
