@@ -14,6 +14,8 @@
         case guideMultipleCandidate
         /// 連続移動カード専用のシアン枠
         case guideMultiStepCandidate
+        /// ワープ系カード専用の紫枠
+        case guideWarpCandidate
         /// チュートリアルやカード選択で強制的に表示するハイライト
         case forcedSelection
     }
@@ -110,6 +112,9 @@
         /// 連続移動ガイドの最新座標集合を保持
         /// - NOTE: 複数ガイドや単一ガイドとの重なり調整に利用し、枠が視覚的に衝突しないようにする
         private var latestMultiStepGuidePoints: Set<GridPoint> = []
+        /// ワープガイドの最新表示座標集合を保持
+        /// - NOTE: 紫枠と他種ガイドの干渉を避けるため、インセット調整の参照として利用する
+        private var latestWarpGuidePoints: Set<GridPoint> = []
 
         /// 強制表示ハイライトの最新座標集合を保持
         /// - NOTE: 「リセット」などでガイドが空になっていない限り、直近状態を復元するためのソースとして利用する
@@ -1436,6 +1441,7 @@
             latestSingleGuidePoints = sanitized[.guideSingleCandidate] ?? []
             latestMultipleGuidePoints = sanitized[.guideMultipleCandidate] ?? []
             latestMultiStepGuidePoints = sanitized[.guideMultiStepCandidate] ?? []
+            latestWarpGuidePoints = sanitized[.guideWarpCandidate] ?? []
             latestForcedSelectionPoints = sanitized[.forcedSelection] ?? []
 
             let countsDescription =
@@ -1569,6 +1575,10 @@
                 if latestMultiStepGuidePoints.contains(point) {
                     overlapInset = max(overlapInset, strokeWidth * 0.9)
                 }
+                // ワープ枠が重なる場合は紫枠に視線を誘導するため少し内側へ寄せる
+                if latestWarpGuidePoints.contains(point) {
+                    overlapInset = max(overlapInset, strokeWidth * 1.1)
+                }
                 zPosition = 1.02
             case .guideMultiStepCandidate:
                 baseColor = palette.boardMultiStepHighlight
@@ -1582,7 +1592,28 @@
                 if latestMultipleGuidePoints.contains(point) {
                     overlapInset = max(overlapInset, strokeWidth * 1.4)
                 }
+                // ワープ枠とも重なる場合は紫枠を最前面にするため更に内側へ調整
+                if latestWarpGuidePoints.contains(point) {
+                    overlapInset = max(overlapInset, strokeWidth * 1.1)
+                }
                 zPosition = 1.04
+            case .guideWarpCandidate:
+                baseColor = palette.boardWarpHighlight
+                strokeAlpha = 0.92
+                strokeWidth = sharedGuideStrokeWidth
+                // 単一枠が存在する場合は紫枠が外周を担当するため、グレーを内側へ寄せる
+                if latestSingleGuidePoints.contains(point) {
+                    overlapInset = max(overlapInset, strokeWidth * 1.6)
+                }
+                // 複数枠が同じマスにある場合も紫枠が最も外側になるよう調整する
+                if latestMultipleGuidePoints.contains(point) {
+                    overlapInset = max(overlapInset, strokeWidth * 1.3)
+                }
+                // 連続枠と重なるケースでも紫枠が埋もれないようにする
+                if latestMultiStepGuidePoints.contains(point) {
+                    overlapInset = max(overlapInset, strokeWidth * 1.2)
+                }
+                zPosition = 1.06
             case .forcedSelection:
                 // NOTE: 現段階ではガイドと同じ色を使用しつつ、将来のカスタマイズ余地を残すため分岐を設けている
                 baseColor = palette.boardGuideHighlight
@@ -1854,6 +1885,8 @@
                 let latestSnapshot: [BoardHighlightKind: Set<GridPoint>] = [
                     .guideSingleCandidate: latestSingleGuidePoints,
                     .guideMultipleCandidate: latestMultipleGuidePoints,
+                    .guideMultiStepCandidate: latestMultiStepGuidePoints,
+                    .guideWarpCandidate: latestWarpGuidePoints,
                     .forcedSelection: latestForcedSelectionPoints,
                 ]
                 let hasLatestValues = latestSnapshot.values.contains { !$0.isEmpty }

@@ -124,7 +124,11 @@ public final class GameCore: ObservableObject {
         )
         current = mode.initialSpawnPoint ?? BoardGeometry.defaultSpawnPoint(for: mode.boardSize)
         // モードに紐付くシードが指定されている場合はそれを利用し、日替わりチャレンジなどの再現性を確保する
-        deck = Deck(seed: mode.deckSeed, configuration: mode.deckConfiguration)
+        deck = Deck(
+            seed: mode.deckSeed,
+            configuration: mode.deckConfiguration,
+            fixedWarpDestinations: mode.fixedWarpDestinationPool
+        )
         progress = mode.requiresSpawnSelection ? .awaitingSpawn : .playing
         handManager = HandManager(
             handSize: mode.handSize,
@@ -200,14 +204,14 @@ public final class GameCore: ObservableObject {
         let validPaths = card.move.resolvePaths(from: currentPosition, context: context)
 
         let isStillValid: Bool
-        if mode.fixedWarpCardTargets[card.move] != nil {
-            // --- 固定ワープカードは MovePattern が空配列を返すため、モード定義と現在の盤面を用いて再検証する ---
+        if card.move == .fixedWarp {
+            // --- 固定ワープカードはカード自身が持つ目的地と一致しているか二重に検証する ---
+            guard let target = card.fixedWarpDestination else { return }
             let destination = resolvedMove.resolution.finalPosition
-            let pathMatches = resolvedMove.path == [destination]
+            let pathMatches = resolvedMove.path == [destination] && destination == target
             let remainsAccessible = destination != currentPosition &&
                 snapshotBoard.contains(destination) &&
-                snapshotBoard.isTraversable(destination) &&
-                !snapshotBoard.isVisited(destination)
+                snapshotBoard.isTraversable(destination)
             isStillValid = pathMatches && remainsAccessible
         } else {
             isStillValid = validPaths.contains { path in
@@ -367,27 +371,27 @@ public final class GameCore: ObservableObject {
             // トップカードが存在しなければスキップ
             guard let topCard = stack.topCard else { continue }
 
-            // 固定ワープカードが含まれる場合は、モード側で検証済みのターゲット座標だけを候補として組み立てる
-            if let fixedTargets = mode.fixedWarpCardTargets[topCard.move], !fixedTargets.isEmpty {
-                for target in fixedTargets {
-                    // --- 現在地と同一座標・盤外・障害物・既踏マスは安全のため除外する ---
-                    guard target != origin else { continue }
-                    guard activeBoard.contains(target), activeBoard.isTraversable(target) else { continue }
-                    guard !activeBoard.isVisited(target) else { continue }
+            // 固定ワープカードはカード自身が保持する目的地のみを候補として提示する
+            if topCard.move == .fixedWarp {
+                // --- 目的地が未設定の場合は安全のためスキップする（モード側で最低 1 件を想定）---
+                guard let destination = topCard.fixedWarpDestination else { continue }
+                // --- 既に目的地へいる場合は使用できない仕様のため除外する ---
+                guard destination != origin else { continue }
+                // --- 盤外や障害物マスへワープしないよう二重チェックする ---
+                guard activeBoard.contains(destination), activeBoard.isTraversable(destination) else { continue }
 
-                    let vector = MoveVector(dx: target.x - origin.x, dy: target.y - origin.y)
-                    let resolution = MovementResolution(path: [target], finalPosition: target)
-                    resolved.append(
-                        ResolvedCardMove(
-                            stackID: stack.id,
-                            stackIndex: index,
-                            card: topCard,
-                            moveVector: vector,
-                            resolution: resolution
-                        )
+                let vector = MoveVector(dx: destination.x - origin.x, dy: destination.y - origin.y)
+                let resolution = MovementResolution(path: [destination], finalPosition: destination)
+                resolved.append(
+                    ResolvedCardMove(
+                        stackID: stack.id,
+                        stackIndex: index,
+                        card: topCard,
+                        moveVector: vector,
+                        resolution: resolution
                     )
-                }
-                // モードが用意したターゲットのみを採用するため、MovePattern での追加解決は行わない
+                )
+                // --- 固定ワープは単一候補のみを扱うため、MovePattern による追加解決は行わず次のカードへ進む ---
                 continue
             }
 
@@ -463,7 +467,11 @@ public final class GameCore: ObservableObject {
         if regenerateDeck {
             // 新しいゲームを開始する際はモードのシードを再適用してリセットする。
             // シードが nil の場合は Deck 側で自動生成され、従来通りランダムな展開になる。
-            deck = Deck(seed: mode.deckSeed, configuration: mode.deckConfiguration)
+            deck = Deck(
+                seed: mode.deckSeed,
+                configuration: mode.deckConfiguration,
+                fixedWarpDestinations: mode.fixedWarpDestinationPool
+            )
         } else {
             deck.reset()
         }

@@ -537,6 +537,17 @@ struct AppTheme: DynamicProperty {
         }
     }
 
+    /// ワープカード専用のガイド枠色
+    /// - Note: カード枠と同系統の紫を採用し、カード種類との視覚的一貫性を維持する
+    var boardWarpHighlight: Color {
+        switch resolvedColorScheme {
+        case .dark:
+            return Color(red: 0.70, green: 0.55, blue: 0.93).opacity(0.92)
+        default:
+            return Color(red: 0.56, green: 0.42, blue: 0.86).opacity(0.9)
+        }
+    }
+
     /// ワープ効果を描画する際のアクセントカラー
     var boardTileEffectWarp: Color {
         switch resolvedColorScheme {
@@ -671,6 +682,14 @@ struct AppTheme: DynamicProperty {
         )
     }
 
+    /// SpriteKit ワープカード用ガイド枠の UIColor 版
+    var uiBoardWarpHighlight: UIColor {
+        dynamicUIColor(
+            light: color(for: .light, keyPath: \.boardWarpHighlight),
+            dark: color(for: .dark, keyPath: \.boardWarpHighlight)
+        )
+    }
+
     /// SpriteKit ワープ効果カラーの UIColor 版
     var uiBoardTileEffectWarp: UIColor {
         dynamicUIColor(
@@ -746,6 +765,8 @@ struct AppTheme: DynamicProperty {
 
     /// SpriteKit の SKColor へ変換した複数マス移動カード用ガイド色
     var skBoardMultiStepHighlight: SKColor { SKColor(cgColor: uiBoardMultiStepHighlight.cgColor) }
+    /// SpriteKit の SKColor へ変換したワープガイド色
+    var skBoardWarpHighlight: SKColor { SKColor(cgColor: uiBoardWarpHighlight.cgColor) }
 
     /// SpriteKit の SKColor へ変換したワープ効果カラー
     var skBoardTileEffectWarp: SKColor { SKColor(cgColor: uiBoardTileEffectWarp.cgColor) }

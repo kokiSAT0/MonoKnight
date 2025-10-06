@@ -810,6 +810,11 @@ public struct GameMode: Equatable, Identifiable {
     public var tileEffectOverrides: [GridPoint: TileEffect] { regulation.tileEffectOverrides }
     /// 固定ワープカード用の目的地辞書
     public var fixedWarpCardTargets: [MoveCard: [GridPoint]] { regulation.fixedWarpCardTargets }
+    /// 固定ワープカードが利用する目的地集合（Deck で順番に割り当てる）
+    /// - Note: `.fixedWarp` キーに対応する座標リストのみを公開し、カード配布時のメタデータとして活用する
+    public var fixedWarpDestinationPool: [GridPoint] {
+        regulation.fixedWarpCardTargets[.fixedWarp] ?? []
+    }
 
     /// 盤面へ適用するタイル効果を合成して返す
     /// - Important: ワープ定義は自動的に `TileEffect.warp` へ展開し、個別指定された効果より優先度は低い（手動指定があればそちらを採用）
