@@ -70,4 +70,54 @@ final class HandManagerTests: XCTestCase {
         // ユニーク上限（2 種類）を超えるスタックが生成されていないかチェックする
         XCTAssertEqual(handManager.handStacks.count, min(5, uniqueCount))
     }
+
+    /// 固定ワープカードが異なる目的地を指す場合はスタックしないことを検証する
+    func testFixedWarpCardsWithDifferentDestinationsDoNotStack() {
+        // 固定ワープカードを含む構成を用意し、異なる目的地を 2 つ割り当てる
+        let configuration = Deck.Configuration.standard.addingFixedWarpCard()
+        let destinations = [
+            GridPoint(x: 0, y: 0),
+            GridPoint(x: 4, y: 4)
+        ]
+        var deck = Deck.makeTestDeck(
+            cards: [.fixedWarp, .fixedWarp],
+            configuration: configuration,
+            fixedWarpDestinations: destinations
+        )
+
+        let handManager = HandManager(handSize: 5, nextPreviewCount: 0, allowsCardStacking: true)
+        handManager.refillHandStacks(using: &deck)
+
+        // 手札内で固定ワープカードが 2 スタックに分かれていることを確認する（他カードの補充でスタック数自体は増えても良い）
+        let fixedWarpStacks = handManager.handStacks.filter { $0.topCard?.move == .fixedWarp }
+        XCTAssertEqual(fixedWarpStacks.count, 2, "目的地が異なる固定ワープカードは別スタックで管理されるべきです")
+        XCTAssertTrue(fixedWarpStacks.allSatisfy { $0.count == 1 }, "各ワープスタックに 1 枚ずつのみ格納されている想定です")
+        let obtainedDestinations = fixedWarpStacks.compactMap { $0.topCard?.fixedWarpDestination }
+        XCTAssertEqual(
+            Set(obtainedDestinations),
+            Set(destinations),
+            "手札に保持されたワープ先が想定と一致していません"
+        )
+    }
+
+    /// 固定ワープカードが同一目的地を共有している場合は従来通りスタックされることを確認する
+    func testFixedWarpCardsWithIdenticalDestinationsStack() {
+        // 同じ目的地を 2 回供給し、スタックが 1 つにまとまることを検証する
+        let configuration = Deck.Configuration.standard.addingFixedWarpCard()
+        let destination = GridPoint(x: 2, y: 3)
+        var deck = Deck.makeTestDeck(
+            cards: [.fixedWarp, .fixedWarp],
+            configuration: configuration,
+            fixedWarpDestinations: [destination, destination]
+        )
+
+        let handManager = HandManager(handSize: 5, nextPreviewCount: 0, allowsCardStacking: true)
+        handManager.refillHandStacks(using: &deck)
+
+        // 同一目的地であればカード情報が一致するため、従来通り 1 スタックへ積み重なる
+        let fixedWarpStacks = handManager.handStacks.filter { $0.topCard?.move == .fixedWarp }
+        XCTAssertEqual(fixedWarpStacks.count, 1, "同一目的地の固定ワープカードは 1 スタックで共有される想定です")
+        XCTAssertGreaterThanOrEqual(fixedWarpStacks.first?.count ?? 0, 2, "同一スタック内に 2 枚以上積まれている必要があります")
+        XCTAssertEqual(fixedWarpStacks.first?.topCard?.fixedWarpDestination, destination)
+    }
 }
