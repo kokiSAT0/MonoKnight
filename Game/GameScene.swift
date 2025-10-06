@@ -11,7 +11,11 @@
     private func applyEvenOddFillRuleIfSupported(to shapeNode: SKShapeNode) {
         #if os(iOS) || os(macOS) || os(tvOS) || os(watchOS)
             // Apple プラットフォームでは evenOdd を使用して六芒星の塗り潰しを調整する
-            shapeNode.fillRule = .evenOdd
+            // - Note: fillRule はプラットフォームとバージョンにより提供状況が異なるため、
+            //         利用可能な場合のみ設定し、Linux などでは安全にスキップする
+            if #available(iOS 11.0, macOS 10.13, tvOS 11.0, watchOS 4.0, *) {
+                shapeNode.fillRule = .evenOdd
+            }
         #else
             // Linux など fillRule が未サポートの環境では何もしない（テスト用ビルド対策）
         #endif
