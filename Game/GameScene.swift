@@ -81,6 +81,9 @@
         /// ハイライト種類ごとのノードキャッシュ
         /// - Important: 種類ごとに辞書を分けることで、描画の上書き順とスタイルを柔軟に切り替えられる
         private var highlightNodes: [BoardHighlightKind: [GridPoint: SKShapeNode]] = [:]
+        /// ワープ演出など一時的に表示するエフェクトをまとめるためのコンテナ
+        /// - Note: 盤面タイルより前面・騎士ノードより僅かに背面へ配置し、演出が主役を奪いすぎないよう調整する
+        private let transientEffectContainer = SKNode()
 
         /// 単一ガイドの最新表示座標集合を保持
         /// - NOTE: 複数ガイドと重なる位置を判定する際の参照として利用する
@@ -313,6 +316,15 @@
             knightPosition = nil
             // シーンサイズ待ちフラグも初期化し、Storyboard/SwiftUI 双方で初回レイアウトの判定が正しく行われるようにする
             awaitingValidSceneSize = false
+            // 一時演出コンテナもリセットして、前回のリング等が新しいゲームへ持ち越されないようにする
+            transientEffectContainer.removeAllActions()
+            transientEffectContainer.removeAllChildren()
+            transientEffectContainer.position = .zero
+            transientEffectContainer.zPosition = 1.7
+            transientEffectContainer.isHidden = false
+            if transientEffectContainer.parent !== self {
+                addChild(transientEffectContainer)
+            }
             #if canImport(UIKit)
                 // VoiceOver 用キャッシュを空に戻し、アクセシビリティ情報が stale にならないよう都度再生成を促す
                 accessibilityElementsCache = []
@@ -1588,6 +1600,148 @@
                 updateAccessibilityElements()
                 debugLog("GameScene.moveKnight: 駒を非表示にしました")
             }
+        }
+
+        /// ワープ効果を伴う移動を専用演出で再生する
+        /// - Parameter resolution: GameCore 側で確定した移動経路と効果履歴
+        /// - Note: レイアウトが未確定の場合など、演出が成立しないケースでは従来の `moveKnight(to:)` を呼び出す
+        public func playWarpTransition(using resolution: MovementResolution) {
+            guard isLayoutReady, let knightNode else {
+                // 駒ノードが存在しない状況では安全のため既存アニメーションへフォールバックする
+                moveKnight(to: resolution.finalPosition)
+                return
+            }
+
+            // 経路中にワープ効果が含まれているか確認し、見つからなければ通常移動を採用する
+            guard let warpEvent = resolution.appliedEffects.first(where: { applied in
+                if case .warp = applied.effect { return true }
+                return false
+            }) else {
+                moveKnight(to: resolution.finalPosition)
+                return
+            }
+
+            // 効果の内容からワープ先を取り出す。ここで解析できなければ従来挙動に戻す。
+            guard case .warp(_, let destination) = warpEvent.effect else {
+                moveKnight(to: resolution.finalPosition)
+                return
+            }
+
+            // 経路のうち、ワープ発動マスへ到達するまでの点列を抽出する
+            var approachPoints: [GridPoint] = []
+            for point in resolution.path {
+                approachPoints.append(point)
+                if point == warpEvent.point { break }
+            }
+            guard approachPoints.contains(warpEvent.point) else {
+                moveKnight(to: resolution.finalPosition)
+                return
+            }
+
+            knightNode.removeAllActions()
+            knightNode.isHidden = false
+
+            // タイミング調整しやすいよう所要時間を定数化する
+            let approachDuration: TimeInterval = 0.18
+            let warpOutDuration: TimeInterval = 0.14
+            let warpInDuration: TimeInterval = 0.14
+
+            var sequence: [SKAction] = []
+
+            if !approachPoints.isEmpty {
+                let stepDuration = approachDuration / Double(max(1, approachPoints.count))
+                for point in approachPoints {
+                    let move = SKAction.move(to: position(for: point), duration: stepDuration)
+                    move.timingMode = .easeInEaseOut
+                    let updateState = SKAction.run { [weak self] in
+                        guard let self else { return }
+                        self.knightPosition = point
+                        self.updateAccessibilityElements()
+                    }
+                    sequence.append(SKAction.sequence([move, updateState]))
+                }
+            }
+
+            // ワープ発動時のリング演出と矢印回転を同時に開始する
+            sequence.append(SKAction.run { [weak self] in
+                guard let self else { return }
+                self.emitWarpRing(at: warpEvent.point, expanding: true)
+                self.animateWarpArrow(at: warpEvent.point)
+            })
+
+            let warpOut = SKAction.group([
+                SKAction.scale(to: 0.2, duration: warpOutDuration),
+                SKAction.fadeOut(withDuration: warpOutDuration),
+            ])
+            warpOut.timingMode = .easeIn
+            sequence.append(warpOut)
+
+            // 縮小・消失後にワープ先へ瞬間移動し、再出現演出の初期状態を整える
+            sequence.append(SKAction.run { [weak self] in
+                guard let self, let knightNode = self.knightNode else { return }
+                knightNode.position = self.position(for: destination)
+                knightNode.setScale(0.2)
+                knightNode.alpha = 0.0
+                self.emitWarpRing(at: destination, expanding: false)
+            })
+
+            let warpIn = SKAction.group([
+                SKAction.fadeIn(withDuration: warpInDuration),
+                SKAction.scale(to: 1.0, duration: warpInDuration),
+            ])
+            warpIn.timingMode = .easeOut
+            sequence.append(warpIn)
+
+            // 最終的な位置・アクセシビリティ情報を確定させる
+            sequence.append(SKAction.run { [weak self] in
+                guard let self, let knightNode = self.knightNode else { return }
+                knightNode.alpha = 1.0
+                knightNode.setScale(1.0)
+                self.knightPosition = destination
+                self.updateAccessibilityElements()
+            })
+
+            knightNode.run(SKAction.sequence(sequence))
+        }
+
+        /// ワープ演出用のリングを生成し、膨張または収縮させる
+        /// - Parameters:
+        ///   - point: 表示位置にしたい盤面座標
+        ///   - expanding: true の場合は膨張（消える側）、false の場合は収縮（現れる側）
+        private func emitWarpRing(at point: GridPoint, expanding: Bool) {
+            guard isLayoutReady else { return }
+
+            let radius = tileSize * 0.36
+            let ring = SKShapeNode(circleOfRadius: radius)
+            ring.name = "transientWarpRing"
+            ring.lineWidth = max(1.0, tileSize * 0.06)
+            ring.strokeColor = palette.boardTileEffectWarp
+            ring.fillColor = palette.boardTileEffectWarp.withAlphaComponent(0.18)
+            ring.isAntialiased = true
+            ring.position = position(for: point)
+            ring.zPosition = 0
+            ring.alpha = expanding ? 0.9 : 0.8
+            let startScale: CGFloat = expanding ? 0.4 : 1.4
+            let targetScale: CGFloat = expanding ? 1.55 : 0.55
+            ring.setScale(startScale)
+            transientEffectContainer.addChild(ring)
+
+            let duration: TimeInterval = 0.2
+            let scale = SKAction.scale(to: targetScale, duration: duration)
+            scale.timingMode = .easeOut
+            let fade = SKAction.fadeOut(withDuration: duration)
+            fade.timingMode = .easeOut
+            ring.run(SKAction.sequence([SKAction.group([scale, fade]), SKAction.removeFromParent()]))
+        }
+
+        /// ワープタイルの矢印装飾を短時間回転させ、ワープ発動を強調する
+        /// - Parameter point: 効果矢印が存在する盤面座標
+        private func animateWarpArrow(at point: GridPoint) {
+            guard let arrowNode = tileEffectDecorations[point]?.fillNodes.first else { return }
+            arrowNode.removeAllActions()
+            let spin = SKAction.rotate(byAngle: .pi * 0.75, duration: 0.2)
+            spin.timingMode = .easeInEaseOut
+            arrowNode.run(spin)
         }
 
         /// 保留中のハイライト情報があれば、レイアウト確定後に反映する

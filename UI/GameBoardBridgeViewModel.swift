@@ -57,6 +57,9 @@ final class GameBoardBridgeViewModel: ObservableObject {
     /// - Important: チュートリアルやカード選択 UI からの明示的な指示を反映し、ガイド無効時でもユーザーへ候補マスを提示する
     /// - Note: テストから現在のハイライト状況を検証できるように `private(set)` で公開する。
     private(set) var forcedSelectionHighlightPoints: Set<GridPoint> = []
+    /// 直近に受信した移動解決情報
+    /// - Note: Combine で current が更新される前に GameScene へ渡すため、一時的に保持するバッファとして利用する
+    private var latestMovementResolution: MovementResolution?
     /// スタックごとのトップカード ID を追跡し、レイアウト同期を最適化する
     @Published var topCardIDsByStack: [UUID: UUID] = [:]
 
@@ -490,11 +493,33 @@ final class GameBoardBridgeViewModel: ObservableObject {
             }
             .store(in: &cancellables)
 
+        core.$lastMovementResolution
+            .receive(on: RunLoop.main)
+            .sink { [weak self] resolution in
+                // ワープ演出などを current 更新と同期させるため、最新の移動結果を控えておく
+                self?.latestMovementResolution = resolution
+            }
+            .store(in: &cancellables)
+
         core.$current
             .receive(on: RunLoop.main)
             .sink { [weak self] newPoint in
                 guard let self else { return }
-                self.scene.moveKnight(to: newPoint)
+                if let destination = newPoint,
+                   let resolution = self.latestMovementResolution,
+                   resolution.finalPosition == destination,
+                   resolution.appliedEffects.contains(where: { appliedEffect in
+                       if case .warp = appliedEffect.effect { return true }
+                       return false
+                   }) {
+                    // ワープ効果が含まれている場合は専用演出を再生し、より没入感のある挙動に切り替える
+                    self.scene.playWarpTransition(using: resolution)
+                } else {
+                    // 条件を満たさない場合は従来の単純移動を行う
+                    self.scene.moveKnight(to: newPoint)
+                }
+                // 一度利用した解決情報は破棄し、次の移動に備える
+                self.latestMovementResolution = nil
                 self.refreshGuideHighlights(currentOverride: newPoint)
             }
             .store(in: &cancellables)
