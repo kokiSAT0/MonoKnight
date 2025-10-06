@@ -447,12 +447,15 @@ struct HandStackCardView<Content: View>: View {
                     ForEach(0..<backgroundLayerCount, id: \.self) { index in
                         let offset = CGFloat(index + 1) * 4
                         RoundedRectangle(cornerRadius: 8)
-                            .fill(theme.cardBackgroundHand.opacity(0.55))
+                            // 手札カードが白基調になったため、半透明で重ねても階層が認識できるように濃度を上げる
+                            .fill(theme.cardBackgroundHand.opacity(0.72))
                             .overlay(
                                 RoundedRectangle(cornerRadius: 8)
-                                    .stroke(theme.cardBorderHand.opacity(0.35), lineWidth: 1)
+                                    // 枠線も白背景に埋もれないよう、わずかに濃いトーンへ調整する
+                                    .stroke(theme.cardBorderHand.opacity(0.45), lineWidth: 1)
                             )
-                            .shadow(color: theme.cardBorderHand.opacity(0.18), radius: 4, x: 0, y: 2)
+                            // 影はダークモードでも違和感が出ないよう控えめに保ちつつ、カードの重なりを伝える
+                            .shadow(color: theme.cardBorderHand.opacity(0.22), radius: 4, x: 0, y: 2)
                             .offset(x: offset, y: offset)
                             .accessibilityHidden(true)
                     }
