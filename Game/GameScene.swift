@@ -1242,21 +1242,12 @@
 
             switch effect {
             case .warp:
-                // NOTE: ワープマス中央はシンプルな三角形で描画し、六芒星よりも軽量なシルエットでモダンさを出す
-                let triangle = SKShapeNode()
-                triangle.name = "tileEffectWarpTriangle"
-                triangle.strokeColor = .clear
-                triangle.fillColor = .clear
-                triangle.lineWidth = 1
-                triangle.isAntialiased = true
-                triangle.blendMode = .alpha
-
-                container.addChild(triangle)
+                // NOTE: ワープマスは多重円のみで視覚化し、旧 SDK でも動作するシンプルな線画に統一する
                 return TileEffectDecorationCache(
                     container: container,
                     effect: effect,
                     strokeNodes: [],
-                    fillNodes: [triangle]
+                    fillNodes: []
                 )
             case .shuffleHand:
                 let diamond = SKShapeNode()
@@ -1310,6 +1301,14 @@
                 let style = warpVisualStyle(for: pairID)
                 let desiredCircleCount = max(1, style.circleCount)
 
+                if !decoration.fillNodes.isEmpty {
+                    // NOTE: 多重円のみを残すため、旧バージョンの三角形ノードがあれば除去する
+                    for node in decoration.fillNodes {
+                        node.removeFromParent()
+                    }
+                    decoration.fillNodes.removeAll()
+                }
+
                 if decoration.strokeNodes.count > desiredCircleCount {
                     let surplus = decoration.strokeNodes.count - desiredCircleCount
                     for node in decoration.strokeNodes.suffix(surplus) {
@@ -1340,49 +1339,6 @@
                     circle.lineWidth = max(1.0, tileSize * 0.035)
                     circle.position = .zero
                 }
-
-                let triangle: SKShapeNode
-                if let existing = decoration.fillNodes.first {
-                    triangle = existing
-                } else {
-                    let newTriangle = SKShapeNode()
-                    newTriangle.name = "tileEffectWarpTriangle"
-                    newTriangle.strokeColor = .clear
-                    newTriangle.fillColor = .clear
-                    newTriangle.lineWidth = 1
-                    newTriangle.isAntialiased = true
-                    newTriangle.blendMode = .alpha
-                    newTriangle.zPosition = 0.05
-                    decoration.container.addChild(newTriangle)
-                    decoration.fillNodes = [newTriangle]
-                    triangle = newTriangle
-                }
-
-                let triangleRadius = tileSize * 0.22
-                let pointForAngle: (CGFloat) -> CGPoint = { angle in
-                    CGPoint(
-                        x: cos(angle) * triangleRadius,
-                        y: sin(angle) * triangleRadius
-                    )
-                }
-                let triangleAngles: [CGFloat] = [
-                    .pi / 2,
-                    .pi / 2 + (2.0 * .pi / 3.0),
-                    .pi / 2 + (4.0 * .pi / 3.0)
-                ]
-                let trianglePath = CGMutablePath()
-                if let first = triangleAngles.first {
-                    trianglePath.move(to: pointForAngle(first))
-                    for angle in triangleAngles.dropFirst() {
-                        trianglePath.addLine(to: pointForAngle(angle))
-                    }
-                    trianglePath.closeSubpath()
-                }
-                // NOTE: 塗り無しのシャープな輪郭を保つため、アウトラインのみを設定する
-                triangle.path = trianglePath
-                triangle.fillRule = .nonZero
-                triangle.lineWidth = max(1.0, tileSize * 0.04)
-                triangle.position = .zero
             case .shuffleHand:
                 guard let diamond = decoration.strokeNodes.first,
                       decoration.fillNodes.count >= 2 else { return }
@@ -1438,12 +1394,6 @@
                     node.strokeColor = style.color.withAlphaComponent(attenuation)
                     node.fillColor = .clear
                     node.alpha = 1.0
-                }
-                if let triangle = decoration.fillNodes.first {
-                    // NOTE: 輪郭のみで情報を伝えるため、塗りは常に透明を維持する
-                    triangle.strokeColor = style.color.withAlphaComponent(0.9)
-                    triangle.fillColor = .clear
-                    triangle.alpha = 1.0
                 }
             case .shuffleHand:
                 let strokeColor = palette.boardTileEffectShuffle
