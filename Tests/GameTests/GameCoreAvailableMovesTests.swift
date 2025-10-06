@@ -136,8 +136,8 @@ final class GameCoreAvailableMovesTests: XCTestCase {
         XCTAssertEqual(moves.count, 1, "レイ型カードが複数候補を返しています")
     }
 
-    /// 全域ワープカードが障害物や既踏マスを候補から除外し、盤面タップ選択でも安全に扱えることを検証する
-    func testSuperWarpExcludesVisitedAndImpassableTiles() {
+    /// 全域ワープカードが障害物のみを除外し、既踏マスも含めて盤面全域へ移動できることを検証する
+    func testSuperWarpIncludesVisitedAndExcludesImpassableTiles() {
         // --- 盤面条件を定義（障害物と既踏マスを意図的に配置） ---
         let boardSize = BoardGeometry.standardSize
         let origin = GridPoint(x: 2, y: 2)
@@ -180,20 +180,19 @@ final class GameCoreAvailableMovesTests: XCTestCase {
         let stack = HandStack(cards: [DealtCard(move: .superWarp)])
         let moves = core.availableMoves(handStacks: [stack], current: origin)
 
-        // --- 盤面全域から障害物・既踏マスが除外されていることを検証 ---
+        // --- 盤面全域から障害物のみが除外され、既踏マスも候補へ含まれることを検証 ---
         let destinations = Set(moves.map { $0.destination })
-        XCTAssertFalse(destinations.contains(visitedPoint), "既踏マスが候補に残ってしまっています")
         XCTAssertFalse(destinations.contains(impassablePoint), "障害物マスが候補に含まれています")
 
         let expectedDestinations = Set(
             BoardGeometry.allPoints(for: boardSize).filter { point in
-                point != origin && point != visitedPoint && point != impassablePoint
+                point != origin && point != impassablePoint
             }
         )
         XCTAssertEqual(destinations, expectedDestinations, "全域ワープの到達候補集合が仕様と一致しません")
 
         // --- 候補数も計算上の期待値と一致することを確認 ---
-        let blockedPoints = Set([origin, visitedPoint, impassablePoint])
+        let blockedPoints = Set([origin, impassablePoint])
         let expectedCount = boardSize * boardSize - blockedPoints.count
         XCTAssertEqual(moves.count, expectedCount, "全域ワープの候補数が期待値と異なります")
 
@@ -204,7 +203,13 @@ final class GameCoreAvailableMovesTests: XCTestCase {
         } else {
             XCTFail("有効マスをタップした際に候補が返されませんでした")
         }
-        XCTAssertNil(core.resolvedMoveForBoardTap(at: visitedPoint), "既踏マスをタップした際は候補が存在しない想定です")
+        if let visitedTapMove = core.resolvedMoveForBoardTap(at: visitedPoint) {
+            // 既踏マスも候補へ含まれるため、カード種別と目的地が正しいか再確認する
+            XCTAssertEqual(visitedTapMove.destination, visitedPoint, "既踏マスへのワープ先が想定と異なります")
+            XCTAssertEqual(visitedTapMove.card.move, .superWarp, "既踏マス選択時のカード種別が全域ワープではありません")
+        } else {
+            XCTFail("既踏マスをタップした際に候補が返されませんでした")
+        }
         XCTAssertNil(core.resolvedMoveForBoardTap(at: impassablePoint), "障害物タップ時は候補が存在しない想定です")
     }
 }
