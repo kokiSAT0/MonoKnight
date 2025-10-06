@@ -310,9 +310,8 @@ public final class GameCore: ObservableObject {
         rebuildHandAndNext(preferredInsertionIndices: removedIndex.map { [$0] } ?? [])
 
         if requiresHandShuffle {
-            var generator = SystemRandomNumberGenerator()
-            handManager.shuffleForTileEffect(using: &generator)
-            refreshHandStateFromManager()
+            // --- シャッフルマスの効果が発動した場合は、手動ペナルティと同様に手札・NEXT を丸ごと引き直す（ペナルティ加算なし） ---
+            applyTileEffectHandRedraw()
         }
 
         // クリア判定

@@ -167,6 +167,70 @@ final class GameCoreTests: XCTestCase {
         }
     }
 
+    /// シャッフルマスを踏んだ際にペナルティ無しで手札が全引き直しされることを確認
+    func testShuffleTileTriggersFullRedrawWithoutPenalty() {
+        // --- シャッフルマスを中央上マスへ配置し、固定スポーンから 1 手で踏めるよう調整 ---
+        let shufflePoint = GridPoint(x: 2, y: 2)
+        let regulation = GameMode.Regulation(
+            boardSize: BoardGeometry.standardSize,
+            handSize: 5,
+            nextPreviewCount: 3,
+            allowsStacking: true,
+            deckPreset: .standard,
+            spawnRule: .fixed(GridPoint(x: 2, y: 1)),
+            penalties: GameMode.PenaltySettings(
+                deadlockPenaltyCost: 3,
+                manualRedrawPenaltyCost: 2,
+                manualDiscardPenaltyCost: 1,
+                revisitPenaltyCost: 0
+            ),
+            tileEffectOverrides: [shufflePoint: .shuffleHand]
+        )
+        let mode = GameMode(
+            identifier: .freeCustom,
+            displayName: "シャッフル検証",
+            regulation: regulation,
+            leaderboardEligible: false
+        )
+
+        // --- 初期手札・先読み・効果後の再配布までを制御できるよう、順序固定デッキを用意 ---
+        let orderedCards: [MoveCard] = [
+            // 初期手札 5 枚（上方向カードを含める）
+            .kingUp, .kingRight, .kingLeft, .kingDown, .knightUp1Right2,
+            // 初期先読み 3 枚
+            .diagonalUpRight2, .diagonalUpLeft2, .straightUp2,
+            // 効果発動前に NEXT を補充するためのカード
+            .straightRight2,
+            // シャッフルマスでの全引き直し後に揃う 5 枚
+            .straightDown2, .knightUp2Right1, .knightUp2Left1, .knightUp1Left2, .kingUpLeft,
+            // 再配布後の NEXT 3 枚
+            .kingDownRight, .kingDownLeft, .kingUpRight
+        ]
+        let deck = Deck.makeTestDeck(cards: orderedCards, configuration: regulation.deckPreset.configuration)
+        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 2, y: 1), mode: mode)
+
+        // --- シャッフルマスへ到達する移動を解決し、カードをプレイ ---
+        guard let shuffleMove = core.availableMoves().first(where: { $0.destination == shufflePoint }) else {
+            return XCTFail("シャッフルマスへ到達する候補が見つかりません")
+        }
+        core.playCard(using: shuffleMove)
+
+        // --- ペナルティは加算されず、イベントも発火していないことを検証 ---
+        XCTAssertEqual(core.penaltyCount, 0, "シャッフルマス踏破でペナルティが増加している")
+        XCTAssertNil(core.penaltyEvent, "シャッフルマス効果でペナルティイベントが発生している")
+
+        // --- 手札が新しい 5 種で構成され、NEXT も想定通り 3 枚揃っているかを確認 ---
+        let topMoves = Set(core.handStacks.compactMap { $0.topCard?.move })
+        let expectedTopMoves: Set<MoveCard> = [
+            .straightDown2, .knightUp2Right1, .knightUp2Left1, .knightUp1Left2, .kingUpLeft
+        ]
+        XCTAssertEqual(topMoves, expectedTopMoves, "シャッフルマス後の手札構成が想定と一致しない")
+
+        XCTAssertEqual(core.nextCards.map { $0.move }, [
+            .kingDownRight, .kingDownLeft, .kingUpRight
+        ], "シャッフルマス後の NEXT が正しい順序で補充されていない")
+    }
+
     /// スタック分割設定でも同一座標カードが隣接して列挙されるかを検証
     func testAvailableMovesKeepsDuplicateDestinationsAdjacent() {
         let regulation = GameMode.Regulation(

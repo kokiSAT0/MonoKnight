@@ -147,6 +147,37 @@ extension GameCore {
         }
     }
 
+    /// シャッフルマスを踏んだ際に、ペナルティを加算せず手札・NEXT をすべて引き直す共通処理
+    func applyTileEffectHandRedraw() {
+        // --- UI へ処理中であることを伝えるため、一時的に deadlock 状態へ遷移（入力抑止目的） ---
+        updateProgressForPenaltyFlow(.deadlock)
+
+        // --- 捨て札モードが残っていると不整合になるため、ここで必ず解除しておく ---
+        cancelManualDiscardSelection()
+
+        // --- 盤面タップ要求もリセットし、次の入力待ち状態と矛盾しないよう整理 ---
+        resetBoardTapPlayRequestForPenalty()
+
+        // --- 現在の手札・先読みを完全に破棄し、山札から新規に配り直す（ペナルティ加算は行わない） ---
+        handManager.clearAll()
+        rebuildHandAndNext()
+
+        // --- VoiceOver 利用者へ効果適用を通知し、無料引き直しであることを案内 ---
+#if canImport(UIKit)
+        UIAccessibility.post(notification: .announcement, argument: "シャッフルマスの効果で手札を引き直しました。")
+#endif
+
+        // --- ログへ記録し、テストやデバッグ時に挙動を追いやすくする ---
+        debugLog("シャッフルマス効果で手札とNEXTを全て再配布")
+
+        // --- モードに応じた進行状態へ戻し、通常のプレイサイクルへ復帰 ---
+        if mode.requiresSpawnSelection && current == nil {
+            updateProgressForPenaltyFlow(.awaitingSpawn)
+        } else {
+            updateProgressForPenaltyFlow(.playing)
+        }
+    }
+
     /// 捨て札ペナルティの選択を開始する
     /// - Note: ゲーム進行中で手札が存在する場合のみ受付ける
     public func beginManualDiscardSelection() {
