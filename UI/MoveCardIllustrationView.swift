@@ -112,6 +112,17 @@ struct MoveCardIllustrationView: View {
             }
         }
 
+        /// 連続直進カード専用の VoiceOver ヒント
+        /// - Returns: 手札と先読みで内容を切り替えた説明文
+        func multiStepAccessibilityHint() -> String {
+            switch self {
+            case .hand:
+                return "ダブルタップでカードを選択すると、盤外や障害物の手前で停止するまで直進します。通過したマスも踏破されます"
+            case .next:
+                return "閲覧のみ: 手札が補充される際に使用でき、盤外や障害物の手前で停止するまで直進します"
+            }
+        }
+
         /// 追加で付与するアクセシビリティトレイト
         var traitsToAdd: AccessibilityTraits {
             switch self {
@@ -139,6 +150,8 @@ struct MoveCardIllustrationView: View {
     var mode: Mode = .hand
     /// カラースキームに応じて派生色を提供するテーマ
     private var theme = AppTheme()
+    /// カラースキームを直接参照し、アクセント記号の明度調整などへ利用する
+    @Environment(\.colorScheme) private var colorScheme
     /// 手札やプレースホルダで共有する標準幅（カードを少し大きくするため 66pt に設定）
     static let defaultWidth: CGFloat = 66
     /// 標準の高さ。幅とのバランスを保ちつつ視認性を高める
@@ -162,10 +175,28 @@ struct MoveCardIllustrationView: View {
         // movementVectors をローカル定数へ保持し、アクセシビリティと描画の両方で使い回す
         let movementVectors = card.movementVectors
         let candidateCount = movementVectors.count
-        // MARK: - 複数候補カードの識別と枠線色の計算
-        // 複数候補が存在する場合は選択カードとして扱い、ガイド枠と同じオレンジ色に切り替える
-        let isSelectionCard = candidateCount > 1
+        let isMultiStepCard = card.kind == .multiStep
+        let multiStepDirection = card.multiStepUnitVector
+        // MARK: - 枠線色の決定（選択カードのみオレンジに変更）
+        let isSelectionCard = card.kind == .choice
         let borderColor = isSelectionCard ? theme.boardGuideHighlight : mode.borderColor(using: theme)
+
+        // MARK: - アクセシビリティ文言の組み立て
+        let accessibilityLabelText: Text
+        let accessibilityHintText: Text
+        if isMultiStepCard, let direction = multiStepDirection {
+            let directionName = multiStepDirectionDisplayName(for: direction)
+            accessibilityLabelText = Text("複数マス移動カード、方向：\(directionName)。進めなくなるまで直進")
+            accessibilityHintText = Text(mode.multiStepAccessibilityHint())
+        } else {
+            accessibilityLabelText = Text(card.displayName + mode.accessibilitySuffix(forCandidateCount: candidateCount))
+            accessibilityHintText = Text(mode.accessibilityHint(forCandidateCount: candidateCount))
+        }
+
+        // 複数マス移動カードはヘッダにアイコンを配置するため上下の余白を微調整する
+        let paddingInsets: EdgeInsets = isMultiStepCard
+            ? EdgeInsets(top: 4, leading: 8, bottom: 8, trailing: 8)
+            : EdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8)
 
         return ZStack {
             // MARK: - カードの背景枠
@@ -177,38 +208,26 @@ struct MoveCardIllustrationView: View {
                         .fill(mode.backgroundColor(using: theme))
                 )
 
-            VStack(spacing: 0) {
+            VStack(spacing: isMultiStepCard ? 6 : 0) {
+                if isMultiStepCard, let direction = multiStepDirection {
+                    // MARK: - 複数マス移動カード専用の 3 連矢印アイコン
+                    MultiStepArrowIcon(color: theme.multiStepAccent, rotation: rotationAngle(for: direction))
+                        .frame(height: 24)
+                        .padding(.top, 6)
+                        .padding(.bottom, 2)
+                        .accessibilityHidden(true)
+                }
+
                 // MARK: - 盤面イメージ
-                // 正方形の領域に 5×5 グリッドと矢印などを描画する
+                // 正方形の領域に 5×5 グリッドと経路を描画する
                 GeometryReader { geometry in
-                    // MARK: - 座標計算（ヘルパーで分離）
-                    // レイアウト情報（正方形サイズ・セルサイズ・原点）をヘルパーから取得
                     let layout = gridLayout(for: geometry.size)
                     let squareSize = layout.squareSize
                     let cellSize = layout.cellSize
                     let origin = layout.origin
 
-                    // 盤面中央のセル位置を取得し、全候補に共通する始点座標を算出する
                     let center = gridCenterIndex
                     let startPoint = cellCenter(origin: origin, cellSize: cellSize, column: center.column, row: center.row)
-
-                    // 各移動ベクトルに対応する目的地座標と矢じり形状をまとめて前計算する
-                    let arrowGeometries: [(destination: CGPoint, head: (CGPoint, CGPoint)?)] = movementVectors.map { vector in
-                        let destinationIndex = destinationCellIndex(for: vector)
-                        let destinationPoint = cellCenter(
-                            origin: origin,
-                            cellSize: cellSize,
-                            column: destinationIndex.column,
-                            row: destinationIndex.row
-                        )
-                        let headPoints = arrowHeadPoints(
-                            startPoint: startPoint,
-                            destinationPoint: destinationPoint,
-                            arrowHeadLength: cellSize * 0.5,
-                            arrowHeadWidth: cellSize * 0.4
-                        )
-                        return (destinationPoint, headPoints)
-                    }
 
                     ZStack {
                         // MARK: 中央マスのハイライト
@@ -219,13 +238,11 @@ struct MoveCardIllustrationView: View {
 
                         // MARK: グリッド線（縦横 5 分割）
                         Path { path in
-                            // 縦線を描画
                             for index in 0...gridCount {
                                 let x = origin.x + CGFloat(index) * cellSize
                                 path.move(to: CGPoint(x: x, y: origin.y))
                                 path.addLine(to: CGPoint(x: x, y: origin.y + squareSize))
                             }
-                            // 横線を描画
                             for index in 0...gridCount {
                                 let y = origin.y + CGFloat(index) * cellSize
                                 path.move(to: CGPoint(x: origin.x, y: y))
@@ -234,7 +251,100 @@ struct MoveCardIllustrationView: View {
                         }
                         .stroke(mode.gridLineColor(using: theme), lineWidth: 0.5)
 
-                        // MARK: 現在地マーカー
+                        if isMultiStepCard, let direction = multiStepDirection,
+                           let route = multiStepRoute(direction: direction, origin: origin, cellSize: cellSize, centerIndex: center) {
+                            let accentColor = theme.multiStepAccent
+                            let lineWidth = min(max(cellSize * 0.18, 1.8), 2.6)
+
+                            // MARK: 複数マス移動カードの経路ライン
+                            Path { path in
+                                path.move(to: startPoint)
+                                path.addLine(to: route.endPoint)
+                            }
+                            .stroke(accentColor.opacity(0.82), style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                            .shadow(color: accentColor.opacity(0.25), radius: 4)
+                            .accessibilityHidden(true)
+
+                            // MARK: 通過マスのドット（終端を除外）
+                            let dotDiameter = min(6, cellSize * 0.45)
+                            ForEach(Array(route.stepCenters.dropLast().enumerated()), id: \.offset) { _, point in
+                                Circle()
+                                    .fill(accentColor.opacity(0.75))
+                                    .frame(width: dotDiameter, height: dotDiameter)
+                                    .position(point)
+                                    .accessibilityHidden(true)
+                            }
+
+                            // MARK: 終端リングと内部記号
+                            let ringDiameter = min(cellSize * 1.3, 18)
+                            let ringLineWidth = max(ringDiameter * 0.14, 1.2)
+                            Circle()
+                                .stroke(accentColor, lineWidth: ringLineWidth)
+                                .frame(width: ringDiameter, height: ringDiameter)
+                                .position(route.endPoint)
+                                .shadow(color: accentColor.opacity(0.28), radius: 3)
+                                .accessibilityHidden(true)
+
+                            let crossSize = ringDiameter * 0.55
+                            Path { path in
+                                path.move(to: CGPoint(x: route.endPoint.x - crossSize / 2, y: route.endPoint.y - crossSize / 2))
+                                path.addLine(to: CGPoint(x: route.endPoint.x + crossSize / 2, y: route.endPoint.y + crossSize / 2))
+                                path.move(to: CGPoint(x: route.endPoint.x + crossSize / 2, y: route.endPoint.y - crossSize / 2))
+                                path.addLine(to: CGPoint(x: route.endPoint.x - crossSize / 2, y: route.endPoint.y + crossSize / 2))
+                            }
+                            .stroke(Color.white.opacity(colorScheme == .dark ? 0.4 : 0.3), style: StrokeStyle(lineWidth: ringLineWidth * 0.6, lineCap: .round))
+                            .accessibilityHidden(true)
+                        } else {
+                            // MARK: 従来カードの矢印と目的地マーカー
+                            let arrowGeometries: [(destination: CGPoint, head: (CGPoint, CGPoint)?)] = movementVectors.map { vector in
+                                let destinationIndex = destinationCellIndex(for: vector)
+                                let destinationPoint = cellCenter(
+                                    origin: origin,
+                                    cellSize: cellSize,
+                                    column: destinationIndex.column,
+                                    row: destinationIndex.row
+                                )
+                                let headPoints = arrowHeadPoints(
+                                    startPoint: startPoint,
+                                    destinationPoint: destinationPoint,
+                                    arrowHeadLength: cellSize * 0.5,
+                                    arrowHeadWidth: cellSize * 0.4
+                                )
+                                return (destinationPoint, headPoints)
+                            }
+
+                            ForEach(Array(arrowGeometries.enumerated()), id: \.offset) { _, geometry in
+                                Path { path in
+                                    path.move(to: startPoint)
+                                    path.addLine(to: geometry.destination)
+                                }
+                                .stroke(mode.arrowColor(using: theme), style: StrokeStyle(lineWidth: 1.5, lineCap: .round))
+                                .accessibilityHidden(true)
+
+                                if let (leftPoint, rightPoint) = geometry.head {
+                                    Path { path in
+                                        path.move(to: geometry.destination)
+                                        path.addLine(to: leftPoint)
+                                        path.addLine(to: rightPoint)
+                                        path.closeSubpath()
+                                    }
+                                    .fill(mode.arrowColor(using: theme))
+                                    .accessibilityHidden(true)
+                                }
+
+                                Circle()
+                                    .fill(theme.cardContentInverted)
+                                    .frame(width: cellSize * 0.4, height: cellSize * 0.4)
+                                    .overlay(
+                                        Circle()
+                                            .stroke(theme.destinationMarkerStroke, lineWidth: 1)
+                                    )
+                                    .position(geometry.destination)
+                                    .accessibilityHidden(true)
+                            }
+                        }
+
+                        // MARK: 現在地マーカー（常に最前面）
                         Circle()
                             .fill(theme.cardContentPrimary)
                             .frame(width: cellSize * 0.4, height: cellSize * 0.4)
@@ -243,52 +353,18 @@ struct MoveCardIllustrationView: View {
                                     .stroke(theme.startMarkerStroke, lineWidth: 1)
                             )
                             .position(startPoint)
-
-                        // MARK: 各候補に応じた矢印と目的地マーカー
-                        ForEach(Array(arrowGeometries.enumerated()), id: \.offset) { _, geometry in
-                            // 矢印本体（線）
-                            Path { path in
-                                path.move(to: startPoint)
-                                path.addLine(to: geometry.destination)
-                            }
-                            .stroke(mode.arrowColor(using: theme), style: StrokeStyle(lineWidth: 1.5, lineCap: .round))
-
-                            // 矢じり（三角形）はベクトルごとに異なる向きを持つ
-                            if let (leftPoint, rightPoint) = geometry.head {
-                                Path { path in
-                                    path.move(to: geometry.destination)
-                                    path.addLine(to: leftPoint)
-                                    path.addLine(to: rightPoint)
-                                    path.closeSubpath()
-                                }
-                                .fill(mode.arrowColor(using: theme))
-                            }
-
-                            // 目的地マーカーは矢印より前面に配置して見やすさを維持する
-                            Circle()
-                                .fill(theme.cardContentInverted)
-                                .frame(width: cellSize * 0.4, height: cellSize * 0.4)
-                                .overlay(
-                                    Circle()
-                                        .stroke(theme.destinationMarkerStroke, lineWidth: 1)
-                                )
-                                .position(geometry.destination)
-                        }
+                            .accessibilityHidden(true)
                     }
                 }
                 .aspectRatio(1, contentMode: .fit)
             }
-            .padding(8)
+            .padding(paddingInsets)
         }
         .frame(width: Self.defaultWidth, height: Self.defaultHeight)
-        // VoiceOver で方向が伝わるようカード名にモード別の説明を付与
-        .accessibilityLabel(Text(card.displayName + mode.accessibilitySuffix(forCandidateCount: candidateCount)))
-        // カード操作／先読み閲覧それぞれのヒントを案内
-        .accessibilityHint(Text(mode.accessibilityHint(forCandidateCount: candidateCount)))
-        // モードによって適切なトレイトを付与し、不要なものは除去する
+        .accessibilityLabel(accessibilityLabelText)
+        .accessibilityHint(accessibilityHintText)
         .accessibilityAddTraits(mode.traitsToAdd)
         .accessibilityRemoveTraits(mode.traitsToRemove)
-        // 先読み表示はタップ不要のためヒットテストも無効化
         .allowsHitTesting(mode == .hand)
     }
 }
@@ -445,12 +521,133 @@ private extension MoveCardIllustrationView {
         )
         return (leftPoint, rightPoint)
     }
+
+    /// 連続直進カードの経路を算出する
+    /// - Parameters:
+    ///   - direction: 1 ステップあたりの方向ベクトル
+    ///   - origin: グリッド描画の左上原点
+    ///   - cellSize: 各セルの一辺
+    ///   - centerIndex: 中央セルの添字
+    /// - Returns: 通過セル中心座標と終端座標を含む経路情報
+    func multiStepRoute(
+        direction: MoveVector,
+        origin: CGPoint,
+        cellSize: CGFloat,
+        centerIndex: (column: Int, row: Int)
+    ) -> MultiStepRoute? {
+        var stepCenters: [CGPoint] = []
+        var step = 1
+
+        while true {
+            let column = centerIndex.column + direction.dx * step
+            let row = centerIndex.row - direction.dy * step
+            guard (0..<gridCount).contains(column), (0..<gridCount).contains(row) else { break }
+
+            let point = cellCenter(origin: origin, cellSize: cellSize, column: column, row: row)
+            stepCenters.append(point)
+            step += 1
+        }
+
+        guard let endPoint = stepCenters.last else { return nil }
+        return MultiStepRoute(stepCenters: stepCenters, endPoint: endPoint)
+    }
+
+    /// 3 連矢印アイコンを回転させる角度を算出する
+    /// - Parameter vector: 基準となる方向ベクトル
+    /// - Returns: SwiftUI の Angle
+    func rotationAngle(for vector: MoveVector) -> Angle {
+        let radians = atan2(Double(vector.dy), Double(vector.dx))
+        return Angle(radians: radians)
+    }
+
+    /// 複数マス移動カードの方向ラベルを返す
+    /// - Parameter vector: 1 ステップ分の方向ベクトル
+    /// - Returns: 日本語の方位名
+    func multiStepDirectionDisplayName(for vector: MoveVector) -> String {
+        switch (vector.dx, vector.dy) {
+        case (0, 1): return "北"
+        case (1, 1): return "北東"
+        case (1, 0): return "東"
+        case (1, -1): return "南東"
+        case (0, -1): return "南"
+        case (-1, -1): return "南西"
+        case (-1, 0): return "西"
+        case (-1, 1): return "北西"
+        default: return "直進"
+        }
+    }
+
+    /// 複数マス移動カードの経路を保持する内部構造体
+    struct MultiStepRoute {
+        /// 通過セルの中心座標（終端を含む）
+        let stepCenters: [CGPoint]
+        /// 最終停止地点の座標
+        let endPoint: CGPoint
+    }
+}
+
+// MARK: - 連続移動カード用の 3 連矢印アイコン
+private struct MultiStepArrowIcon: View {
+    /// 基調色（accentCyan 相当）
+    let color: Color
+    /// 向きに合わせて回転させる角度
+    let rotation: Angle
+
+    var body: some View {
+        GeometryReader { geometry in
+            let maxHeight = geometry.size.height
+            let maxWidth = geometry.size.width
+            let baseSize = min(maxHeight * 0.9, maxWidth / 3.2)
+            let arrowSizes = [baseSize, baseSize * 0.9, baseSize * 0.8]
+            let spacing = baseSize * 0.35
+            let totalWidth = arrowSizes.reduce(0, +) + spacing * CGFloat(arrowSizes.count - 1)
+            let startX = (maxWidth - totalWidth) / 2
+            let centerY = geometry.size.height / 2
+
+            ZStack {
+                ForEach(Array(arrowSizes.enumerated()), id: \.offset) { index, size in
+                    let precedingWidth = arrowSizes.prefix(index).reduce(0, +)
+                    let centerX = startX + precedingWidth + spacing * CGFloat(index) + size / 2
+                    ArrowGlyphShape()
+                        .fill(color.opacity(1 - CGFloat(index) * 0.08))
+                        .frame(width: size, height: size * 0.6)
+                        .position(x: centerX, y: centerY)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .rotationEffect(rotation)
+        .allowsHitTesting(false)
+    }
+}
+
+/// 連続矢印アイコンの基本形状（横向きの矢印）
+private struct ArrowGlyphShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let headWidth = rect.width * 0.35
+        let tailWidth = rect.width - headWidth
+        let tailHeight = rect.height * 0.55
+        let verticalPadding = (rect.height - tailHeight) / 2
+
+        path.move(to: CGPoint(x: rect.minX, y: rect.minY + verticalPadding))
+        path.addLine(to: CGPoint(x: rect.minX + tailWidth, y: rect.minY + verticalPadding))
+        path.addLine(to: CGPoint(x: rect.minX + tailWidth, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.midY))
+        path.addLine(to: CGPoint(x: rect.minX + tailWidth, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.minX + tailWidth, y: rect.minY + verticalPadding + tailHeight))
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.minY + verticalPadding + tailHeight))
+        path.closeSubpath()
+
+        return path
+    }
 }
 
 // MARK: - プレビュー
 #Preview {
     VStack(spacing: 12) {
         // 手札用と先読み用を並べて配色の差分を確認できるようにする
+        MoveCardIllustrationView(card: .rayRight, mode: .hand)
         MoveCardIllustrationView(card: .knightUp2Right1, mode: .hand)
         MoveCardIllustrationView(card: .diagonalDownLeft2, mode: .next)
     }

@@ -1,5 +1,16 @@
 import Foundation
 
+/// カードの識別カテゴリを表す列挙体
+/// - Important: UI 側での描画分岐やアクセシビリティ文言の差し替えに利用するため、`public` で公開しておく
+public enum MoveCardKind {
+    /// 単一の移動先を持つ標準カード
+    case normal
+    /// 盤面上で複数候補から方向を選ぶカード
+    case choice
+    /// 障害物か盤端まで直進し続ける複数マス移動カード
+    case multiStep
+}
+
 /// 駒を移動させるカードの種類を定義する列挙型
 /// - Note: 周囲 1 マスのキング型 8 種、ナイト型 8 種、距離 2 の直線/斜め 8 種の計 24 種に加え、キャンペーン専用の複数方向カードや
 ///         盤面全域ワープといった特殊カードをサポート
@@ -773,6 +784,58 @@ public enum MoveCard: CaseIterable {
     }
 
     // MARK: - 属性判定
+    /// カード種別の分類を返す
+    /// - Important: 描画やアクセシビリティ文言の切り替えに利用するため、`MoveCardKind` を経由して判定する
+    public var kind: MoveCardKind {
+        switch self {
+        case .kingUpOrDown,
+             .kingLeftOrRight,
+             .kingUpwardDiagonalChoice,
+             .kingRightDiagonalChoice,
+             .kingDownwardDiagonalChoice,
+             .kingLeftDiagonalChoice,
+             .knightUpwardChoice,
+             .knightRightwardChoice,
+             .knightDownwardChoice,
+             .knightLeftwardChoice:
+            // 複数方向から選択する特別カード
+            return .choice
+        default:
+            if MoveCard.directionalRayCards.contains(self) {
+                // レイ型カードは複数マス移動として扱う
+                return .multiStep
+            }
+            return .normal
+        }
+    }
+
+    /// 連続直進カードが持つ単位方向ベクトルを返す
+    /// - Returns: レイ型カードの場合は 1 ステップ分のベクトル、それ以外は `nil`
+    public var multiStepUnitVector: MoveVector? {
+        guard kind == .multiStep else { return nil }
+        switch self {
+        case .rayUp:
+            return MoveVector(dx: 0, dy: 1)
+        case .rayUpRight:
+            return MoveVector(dx: 1, dy: 1)
+        case .rayRight:
+            return MoveVector(dx: 1, dy: 0)
+        case .rayDownRight:
+            return MoveVector(dx: 1, dy: -1)
+        case .rayDown:
+            return MoveVector(dx: 0, dy: -1)
+        case .rayDownLeft:
+            return MoveVector(dx: -1, dy: -1)
+        case .rayLeft:
+            return MoveVector(dx: -1, dy: 0)
+        case .rayUpLeft:
+            return MoveVector(dx: -1, dy: 1)
+        default:
+            // `kind` が multiStep の場合のみ到達する前提だが、安全のため nil を返す
+            return nil
+        }
+    }
+
     /// 王将型（キング型）に該当するかを判定するフラグ
     /// - Note: デッキ構築時の配分調整に利用する
     public var isKingType: Bool {
