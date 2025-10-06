@@ -1945,6 +1945,218 @@ public struct CampaignLibrary {
             stages: [stage71, stage72, stage73, stage74, stage75, stage76, stage77, stage78]
         )
 
-        return [chapter1, chapter2, chapter3, chapter4, chapter5, chapter6, chapter7]
+        // MARK: - 8 章のステージ群
+        // ワープカードとスーパーワープカードを主役に据え、既存ギミックとの複合制御力を確認する終盤章。
+        let chapter8Penalties = standardPenalties
+
+        // 8-1: ワープカードの挙動理解に集中させる導入。38 手以内でテンポ良く活用する。
+        let stage81 = CampaignStage(
+            id: CampaignStageID(chapter: 8, index: 1),
+            title: "ワープカード訓練",
+            summary: "ワープカードで未踏マスへ瞬時に移動し、38 手以内で踏破する基本訓練です。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .standardWithWarpCards,
+                spawnRule: fixedSpawn5,
+                penalties: chapter8Penalties
+            ),
+            secondaryObjective: .finishWithinMoves(maxMoves: 38),
+            scoreTarget: 400,
+            scoreTargetComparison: .lessThanOrEqual,
+            unlockRequirement: .stageClear(stage78.id)
+        )
+
+        // 8-2: スーパーワープカードで踏破済みマスも含めた再配置を練習。ペナルティ合計 2 以下を条件に落ち着いた判断を促す。
+        let stage82 = CampaignStage(
+            id: CampaignStageID(chapter: 8, index: 2),
+            title: "スーパーワープ試験",
+            summary: "スーパーワープカードで任意マスへ転移し、ペナルティ合計 2 以下でまとめる試験です。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .standardWithWarpCards,
+                spawnRule: fixedSpawn5,
+                penalties: chapter8Penalties
+            ),
+            secondaryObjective: .finishWithPenaltyAtMost(maxPenaltyCount: 2),
+            scoreTarget: 395,
+            scoreTargetComparison: .lessThanOrEqual,
+            unlockRequirement: .stageClear(stage81.id)
+        )
+
+        // 8-3: 中央障害物とワープカードの併用で位置取り調整力を鍛える。36 手以内の迅速な攻略を要求。
+        let stage83Impassable: Set<GridPoint> = [
+            GridPoint(x: 2, y: 2)
+        ]
+        let stage83 = CampaignStage(
+            id: CampaignStageID(chapter: 8, index: 3),
+            title: "障害物併用演習",
+            summary: "中央障害物を避けつつワープカードを活用し、36 手以内で収める応用演習です。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .standardWithWarpCards,
+                // 中央を障害物で塞ぐため、初期手詰まりを防ぐ目的で任意スポーンへ切り替える
+                spawnRule: .chooseAnyAfterPreview,
+                penalties: chapter8Penalties,
+                impassableTilePoints: stage83Impassable
+            ),
+            secondaryObjective: .finishWithinMoves(maxMoves: 36),
+            scoreTarget: 390,
+            scoreTargetComparison: .lessThanOrEqual,
+            unlockRequirement: .stageClear(stage82.id)
+        )
+
+        // 8-4: トグルマスとスーパーワープの組み合わせで踏破状況の再編成力を確認。34 手以内の短期決戦に設定。
+        let stage84Toggles: Set<GridPoint> = [
+            GridPoint(x: 1, y: 1),
+            GridPoint(x: 3, y: 3)
+        ]
+        let stage84 = CampaignStage(
+            id: CampaignStageID(chapter: 8, index: 4),
+            title: "反転連動演習",
+            summary: "トグルマスとスーパーワープを連動させ、34 手以内で盤面を制御する演習です。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .standardWithWarpCards,
+                spawnRule: fixedSpawn5,
+                penalties: chapter8Penalties,
+                toggleTilePoints: stage84Toggles
+            ),
+            secondaryObjective: .finishWithinMoves(maxMoves: 34),
+            scoreTarget: 385,
+            scoreTargetComparison: .lessThanOrEqual,
+            unlockRequirement: .stageClear(stage83.id)
+        )
+
+        // 8-5: 任意スポーンを導入し、二度踏みとワープカードの両立で再配置ルートを描く。ペナルティ合計 2 以下が条件。
+        let stage85AdditionalVisits: [GridPoint: Int] = [
+            GridPoint(x: 2, y: 2): 2
+        ]
+        let stage85 = CampaignStage(
+            id: CampaignStageID(chapter: 8, index: 5),
+            title: "任意転移演習",
+            summary: "任意スポーンと二度踏みを組み合わせ、ペナルティ合計 2 以下で仕上げる転移演習です。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .standardWithWarpCards,
+                spawnRule: .chooseAnyAfterPreview,
+                penalties: chapter8Penalties,
+                additionalVisitRequirements: stage85AdditionalVisits
+            ),
+            secondaryObjective: .finishWithPenaltyAtMost(maxPenaltyCount: 2),
+            scoreTarget: 380,
+            scoreTargetComparison: .lessThanOrEqual,
+            unlockRequirement: .stageClear(stage84.id)
+        )
+
+        // 8-6: ワープタイルとワープカードの混成運用。32 手以内で広域転移を制御する。
+        let stage86WarpPairs: [String: [GridPoint]] = [
+            "stage86_pair_cross": [
+                GridPoint(x: 0, y: 4),
+                GridPoint(x: 4, y: 0)
+            ]
+        ]
+        let stage86 = CampaignStage(
+            id: CampaignStageID(chapter: 8, index: 6),
+            title: "デッキ混成実戦",
+            summary: "ワープタイルとワープカードを併用し、32 手以内で踏破する実戦形式ステージです。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .standardWithWarpCards,
+                spawnRule: .chooseAnyAfterPreview,
+                penalties: chapter8Penalties,
+                warpTilePairs: stage86WarpPairs
+            ),
+            secondaryObjective: .finishWithinMoves(maxMoves: 32),
+            scoreTarget: 375,
+            scoreTargetComparison: .lessThanOrEqual,
+            unlockRequirement: .stageClear(stage85.id)
+        )
+
+        // 8-7: トグルと障害物を絡めて空間支配力を測る。ペナルティ合計 1 以下で終える冷静さが求められる。
+        let stage87Toggles: Set<GridPoint> = [
+            GridPoint(x: 2, y: 2)
+        ]
+        let stage87Impassable: Set<GridPoint> = [
+            GridPoint(x: 1, y: 1)
+        ]
+        let stage87 = CampaignStage(
+            id: CampaignStageID(chapter: 8, index: 7),
+            title: "空間支配課題",
+            summary: "トグルと障害物を制御しながらワープカードを扱い、ペナルティ合計 1 以下で締める課題です。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .standardWithWarpCards,
+                spawnRule: .chooseAnyAfterPreview,
+                penalties: chapter8Penalties,
+                toggleTilePoints: stage87Toggles,
+                impassableTilePoints: stage87Impassable
+            ),
+            secondaryObjective: .finishWithPenaltyAtMost(maxPenaltyCount: 1),
+            scoreTarget: 370,
+            scoreTargetComparison: .lessThanOrEqual,
+            unlockRequirement: .stageClear(stage86.id)
+        )
+
+        // 8-8: 終章最終試験。二度踏み・トグル・障害物を同時管理しつつ、スーパーワープで局面を打開する。
+        let stage88AdditionalVisits: [GridPoint: Int] = [
+            GridPoint(x: 3, y: 1): 2
+        ]
+        let stage88Toggles: Set<GridPoint> = [
+            GridPoint(x: 1, y: 3)
+        ]
+        let stage88Impassable: Set<GridPoint> = [
+            GridPoint(x: 0, y: 0)
+        ]
+        let stage88 = CampaignStage(
+            id: CampaignStageID(chapter: 8, index: 8),
+            title: "空間支配最終試験",
+            summary: "スーパーワープを駆使し、30 手以内＆ペナルティ合計 1 以下で空間支配を完成させる最終試験です。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .standardWithWarpCards,
+                spawnRule: .chooseAnyAfterPreview,
+                penalties: chapter8Penalties,
+                additionalVisitRequirements: stage88AdditionalVisits,
+                toggleTilePoints: stage88Toggles,
+                impassableTilePoints: stage88Impassable
+            ),
+            secondaryObjective: .finishWithPenaltyAtMostAndWithinMoves(maxPenaltyCount: 1, maxMoves: 30),
+            scoreTarget: 365,
+            scoreTargetComparison: .lessThanOrEqual,
+            unlockRequirement: .stageClear(stage87.id)
+        )
+
+        let chapter8 = CampaignChapter(
+            id: 8,
+            title: "空間支配",
+            summary: "ワープカードとスーパーワープカードで盤面を掌握する章。",
+            stages: [stage81, stage82, stage83, stage84, stage85, stage86, stage87, stage88]
+        )
+
+        return [chapter1, chapter2, chapter3, chapter4, chapter5, chapter6, chapter7, chapter8]
     }
 }
