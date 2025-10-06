@@ -524,6 +524,22 @@ final class GameViewModel: ObservableObject {
                 return
             }
 
+            // 全域ワープカードは手札から明示的に選んだときのみ使用を許可し、盤面タップだけでは発動させない
+            if request.resolvedMove.card.move == .superWarp {
+                // ガイド非表示仕様に合わせ、警告表示だけ行って演出は開始しない
+                boardTapSelectionWarning = BoardTapSelectionWarning(
+                    message: "全域ワープカードを使うには、先に手札からカードを選択してください。",
+                    destination: request.destination
+                )
+
+                if hapticsEnabled {
+                    // タップ結果が無視されたことを伝えるため軽い警告ハプティクスを鳴らす
+                    UINotificationFeedbackGenerator().notificationOccurred(.warning)
+                }
+
+                return
+            }
+
             // request.resolvedMove は BoardTap 発生時点での最適候補なので、そのまま演出へ渡す
             let didStart = boardBridge.animateCardPlay(using: request.resolvedMove)
             if didStart {
@@ -793,6 +809,12 @@ final class GameViewModel: ObservableObject {
 
         guard !moves.isEmpty else {
             clearSelectedCardSelection()
+            return
+        }
+
+        // 全域ワープは候補が盤面全域に広がり視認性を損ねるため、ガイドを強制的に非表示へ切り替える
+        if moves.first?.card.move == .superWarp {
+            boardBridge.updateForcedSelectionHighlights([])
             return
         }
 
