@@ -73,6 +73,9 @@ public final class GameCore: ObservableObject {
     /// 捨て札ペナルティの対象選択を待っているかどうか
     /// - Note: UI のハイライト切り替えや操作制御に利用する
     @Published public private(set) var isAwaitingManualDiscardSelection: Bool = false
+    /// 直近の移動解決結果
+    /// - Important: 盤面演出側がワープ等の専用アニメーションを再生できるよう、効果適用後の経路情報を公開する
+    @Published public private(set) var lastMovementResolution: MovementResolution?
 
     /// 実際に移動した回数（UI へ即時反映させるため @Published を付与）
     @Published public private(set) var moveCount: Int = 0
@@ -222,6 +225,8 @@ public final class GameCore: ObservableObject {
         )
 
         // 経路ごとの踏破判定と効果適用を順番に処理する
+        // アニメーション用に経路を保持し、ワープ時は終点を追加して UI へ伝達する
+        var traversedPath = resolvedMove.path
         let pathPoints = resolvedMove.path
         var finalPosition = currentPosition
         var encounteredRevisit = false
@@ -263,6 +268,21 @@ public final class GameCore: ObservableObject {
             stepIndex += 1
         }
 
+        // 目的地が経路の末尾に含まれていない場合はワープ先を追加し、UI 側で扱いやすい配列に整える
+        if let last = traversedPath.last {
+            if last != finalPosition {
+                traversedPath.append(finalPosition)
+            }
+        } else {
+            traversedPath.append(finalPosition)
+        }
+        // 直近の移動解決結果を更新し、GameScene が効果に応じたアニメーションを選択できるようにする
+        lastMovementResolution = MovementResolution(
+            path: traversedPath,
+            finalPosition: finalPosition,
+            appliedEffects: detectedEffects
+        )
+        // current を更新するのは最後に行い、Combine の通知順序で UI が解決情報を先に受け取れるように配慮する
         current = finalPosition
         moveCount += 1
 
@@ -465,6 +485,7 @@ public final class GameCore: ObservableObject {
         penaltyEvent = nil
         boardTapPlayRequest = nil
         isAwaitingManualDiscardSelection = false
+        lastMovementResolution = nil
         progress = mode.requiresSpawnSelection ? .awaitingSpawn : .playing
 
         handManager.resetAll(using: &deck)
