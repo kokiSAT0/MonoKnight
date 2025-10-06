@@ -63,6 +63,8 @@ MonoKnight のキャンペーンモードに収録されている各ステージ
 | `standardWithDiagonalChoices` | 標準 + 斜め選択キング 4 種 | 選択カードのみ重み 2 / その他は 1 | 3-2 の角操作練習。 |
 | `standardWithKnightChoices` | 標準 + 桂馬選択 4 種 | 選択カードのみ重み 2 / その他は 1 | 3-3 のジャンプ練習。 |
 | `standardWithAllChoices` | 標準 + 全選択カード 10 種 | 全カードを均等重み (1) で抽選 | 3-4・5-1 の総合演習。 |
+| `extendedWithMultiStepMoves` | 直線3マス＆斜め3マス移動＋補助キング | 連続移動カードを重み 3、キング補助は 1 で配分 | 7章の複数マス移動訓練。 |
+| `standardWithWarpCards` | 標準セット＋ワープ/スーパーワープカード | ワープ系カードの重みを段階調整（固定ワープは 1、上位を状況別に加重） | 8章の転移カード訓練。 |
 
 > **補足:** 章 3 の導入をスムーズにするため、各種選択カードは `Deck.Configuration.WeightProfile` の `overrides` で重み 2 に上書きしている。その他カードは従来通り重み 1 を維持する。<!-- コード変更ポイントと調整理由を明記 -->
 
@@ -83,7 +85,12 @@ MonoKnight のキャンペーンモードに収録されている各ステージ
 - **二度踏みマス**: `(0,1)`・`(2,3)`（内部座標）。`additionalVisitRequirements` に値 `2` を設定。1 回目では未踏扱いのまま。
 - **トグルマス**: `(0,1)`・`(2,3)`（内部座標）。`toggleTilePoints` に登録し、踏むたびに踏破⇔未踏を反転。
 - **障害物マス**: `(0,1)`・`(2,3)`（内部座標）。`impassableTilePoints` に登録し、移動候補から除外。
+- **ワープマス**: `{(0,0)↔(4,4)}` などのペアを `warpTilePairs` に登録し、同時に `tileEffectOverrides` へ `TileEffect.warp` を自動展開して UI とロジックを同期させる。<!-- `warpTilePairs` でペア ID を保持し、`tileEffectOverrides` で描画キャッシュを生成 -->
+- **シャッフルマス**: `{(2,2)}` など対象座標を `tileEffectOverrides` に `TileEffect.shuffleHand` で割り当て、`handManager.shuffleForTileEffect` を誘発する。<!-- `tileEffectOverrides` にエフェクトを定義し、UI 側は `GameScene` の `tileEffectDecorations` で視覚化 -->
 - **ヒントホットスポット / 手札補充ブースト**: 実装済みだがキャンペーンでは未使用。将来採用時は本書へ追記する。<!-- 今後の運用余地を示す -->
+- **複数マス移動カード**: `MoveCard.directionalRayCards` を中心に設定し、SpriteKit ではレイ方向へ 0.3 秒の光軌跡アニメーションで複数ステップ移動を可視化（サウンド追加は行わない）。<!-- `extendedWithMultiStepMoves` で重み 3 を適用 -->
+- **ワープカード**: `MoveCard.fixedWarp` を基底に `fixedWarpCardTargets` を参照し、SpriteKit では発動マスから目的地へ収縮→拡張するリング演出で瞬間転移を表現（SE なし）。<!-- `standardWithWarpCards` で固定ワープを重み 1 に設定予定 -->
+- **スーパーワープカード**: `MoveCard.superWarp` の動的ターゲットを UI へ提示し、SpriteKit では多層リングと光柱 (0.35 秒) を描画して上位版らしさを出すが、サウンドは付与しない。<!-- `standardWithWarpCards` で上位カードの重み調整を実施 -->
 
 ## 6. 章別詳細
 
