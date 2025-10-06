@@ -151,4 +151,54 @@ final class GameCoreFixedWarpCardTests: XCTestCase {
         XCTAssertEqual(core.moveCount, 1, "固定ワープの使用で手数が加算されていません")
         XCTAssertFalse(core.hasRevisitedTile, "固定ワープ初回使用で再訪扱いになるのは想定外です")
     }
+
+    /// 固定ワープカードのターゲットが未指定でも自動生成され、常に使用可能になることを確認する
+    func testFixedWarpTargetsFallbackGeneratesTraversableTiles() throws {
+        // --- 障害物を含むワープ訓練用レギュレーションを用意（固定ターゲットは未指定） ---
+        let impassable = Set([GridPoint(x: 1, y: 3)])
+        let regulation = GameMode.Regulation(
+            boardSize: BoardGeometry.standardSize,
+            handSize: 5,
+            nextPreviewCount: 0,
+            allowsStacking: true,
+            deckPreset: .standardWithWarpCards,
+            spawnRule: .fixed(spawnPoint),
+            penalties: GameMode.PenaltySettings(
+                deadlockPenaltyCost: 0,
+                manualRedrawPenaltyCost: 0,
+                manualDiscardPenaltyCost: 0,
+                revisitPenaltyCost: 0
+            ),
+            impassableTilePoints: impassable
+        )
+
+        let mode = GameMode(
+            identifier: .freeCustom,
+            displayName: "固定ワープ自動生成テスト",
+            regulation: regulation,
+            leaderboardEligible: false
+        )
+
+        // --- デフォルト生成されたターゲットが障害物以外の全マスを網羅しているか検証 ---
+        let fallbackTargets = try XCTUnwrap(mode.fixedWarpCardTargets[.fixedWarp], "固定ワープのフォールバックターゲットが生成されていません")
+        let expectedTargets = BoardGeometry.allPoints(for: BoardGeometry.standardSize).filter { point in
+            !impassable.contains(point)
+        }
+        XCTAssertEqual(fallbackTargets, expectedTargets, "自動生成された固定ワープ候補が期待と一致しません")
+
+        // --- availableMoves() からも同じターゲットが候補として列挙されるか確認 ---
+        let presetCards = Array(repeating: MoveCard.fixedWarp, count: 8)
+        let deck = Deck.makeTestDeck(cards: presetCards, configuration: regulation.deckPreset.configuration)
+        let core = GameCore.makeTestInstance(
+            deck: deck,
+            current: spawnPoint,
+            mode: mode,
+            initialVisitedPoints: [spawnPoint]
+        )
+
+        let moves = core.availableMoves()
+        let warpMoves = moves.filter { $0.card.move == .fixedWarp }
+        XCTAssertEqual(warpMoves.count, expectedTargets.count - 1, "現在地を除いた固定ワープ候補数が想定と一致しません")
+        XCTAssertTrue(warpMoves.allSatisfy { fallbackTargets.contains($0.destination) }, "availableMoves() の結果に不正な座標が含まれています")
+    }
 }
