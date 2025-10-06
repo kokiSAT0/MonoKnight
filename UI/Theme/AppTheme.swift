@@ -135,6 +135,26 @@ struct AppTheme: DynamicProperty {
         }
     }
 
+    /// ワープ系カード全体に使う紫系アクセント色
+    var warpCardAccent: Color {
+        switch resolvedColorScheme {
+        case .dark:
+            return Color(red: 0.70, green: 0.55, blue: 0.93)
+        default:
+            return Color(red: 0.56, green: 0.42, blue: 0.86)
+        }
+    }
+
+    /// スーパーワープカード専用の明るいアクセント色
+    var superWarpCardAccent: Color {
+        switch resolvedColorScheme {
+        case .dark:
+            return Color(red: 0.80, green: 0.62, blue: 0.98)
+        default:
+            return Color(red: 0.64, green: 0.48, blue: 0.92)
+        }
+    }
+
     /// 盤面中央セルのハイライト色（手札用）
     var centerHighlightHand: Color {
         switch resolvedColorScheme {
