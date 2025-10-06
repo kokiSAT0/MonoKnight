@@ -177,9 +177,19 @@ struct MoveCardIllustrationView: View {
         let candidateCount = movementVectors.count
         let isMultiStepCard = card.kind == .multiStep
         let multiStepDirection = card.multiStepUnitVector
-        // MARK: - 枠線色の決定（選択カードのみオレンジに変更）
+        // MARK: - 枠線色の決定（選択カードや複数マス移動カードで個別に色を差し替える）
         let isSelectionCard = card.kind == .choice
-        let borderColor = isSelectionCard ? theme.boardGuideHighlight : mode.borderColor(using: theme)
+        let borderColor: Color
+        if isMultiStepCard {
+            // 複数マス移動カードはシアン系アクセントを枠線へ適用し、盤面ハイライトと一貫した印象を持たせる
+            borderColor = theme.multiStepAccent
+        } else if isSelectionCard {
+            // 選択式カードは既存仕様通りオレンジ枠を優先する
+            borderColor = theme.boardGuideHighlight
+        } else {
+            // 通常カードはモード別の標準枠色を利用する
+            borderColor = mode.borderColor(using: theme)
+        }
 
         // MARK: - アクセシビリティ文言の組み立て
         let accessibilityLabelText: Text
@@ -193,10 +203,8 @@ struct MoveCardIllustrationView: View {
             accessibilityHintText = Text(mode.accessibilityHint(forCandidateCount: candidateCount))
         }
 
-        // 複数マス移動カードはヘッダにアイコンを配置するため上下の余白を微調整する
-        let paddingInsets: EdgeInsets = isMultiStepCard
-            ? EdgeInsets(top: 4, leading: 8, bottom: 8, trailing: 8)
-            : EdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8)
+        // すべてのカードで共通の余白設定を用い、シアン枠を含めた視認性を確保する
+        let paddingInsets = EdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8)
 
         return ZStack {
             // MARK: - カードの背景枠
@@ -208,16 +216,7 @@ struct MoveCardIllustrationView: View {
                         .fill(mode.backgroundColor(using: theme))
                 )
 
-            VStack(spacing: isMultiStepCard ? 6 : 0) {
-                if isMultiStepCard, let direction = multiStepDirection {
-                    // MARK: - 複数マス移動カード専用の 3 連矢印アイコン
-                    MultiStepArrowIcon(color: theme.multiStepAccent, rotation: rotationAngle(for: direction))
-                        .frame(height: 24)
-                        .padding(.top, 6)
-                        .padding(.bottom, 2)
-                        .accessibilityHidden(true)
-                }
-
+            VStack(spacing: 0) {
                 // MARK: - 盤面イメージ
                 // 正方形の領域に 5×5 グリッドと経路を描画する
                 GeometryReader { geometry in
@@ -552,14 +551,6 @@ private extension MoveCardIllustrationView {
         return MultiStepRoute(stepCenters: stepCenters, endPoint: endPoint)
     }
 
-    /// 3 連矢印アイコンを回転させる角度を算出する
-    /// - Parameter vector: 基準となる方向ベクトル
-    /// - Returns: SwiftUI の Angle
-    func rotationAngle(for vector: MoveVector) -> Angle {
-        let radians = atan2(Double(vector.dy), Double(vector.dx))
-        return Angle(radians: radians)
-    }
-
     /// 複数マス移動カードの方向ラベルを返す
     /// - Parameter vector: 1 ステップ分の方向ベクトル
     /// - Returns: 日本語の方位名
@@ -583,63 +574,6 @@ private extension MoveCardIllustrationView {
         let stepCenters: [CGPoint]
         /// 最終停止地点の座標
         let endPoint: CGPoint
-    }
-}
-
-// MARK: - 連続移動カード用の 3 連矢印アイコン
-private struct MultiStepArrowIcon: View {
-    /// 基調色（accentCyan 相当）
-    let color: Color
-    /// 向きに合わせて回転させる角度
-    let rotation: Angle
-
-    var body: some View {
-        GeometryReader { geometry in
-            let maxHeight = geometry.size.height
-            let maxWidth = geometry.size.width
-            let baseSize = min(maxHeight * 0.9, maxWidth / 3.2)
-            let arrowSizes = [baseSize, baseSize * 0.9, baseSize * 0.8]
-            let spacing = baseSize * 0.35
-            let totalWidth = arrowSizes.reduce(0, +) + spacing * CGFloat(arrowSizes.count - 1)
-            let startX = (maxWidth - totalWidth) / 2
-            let centerY = geometry.size.height / 2
-
-            ZStack {
-                ForEach(Array(arrowSizes.enumerated()), id: \.offset) { index, size in
-                    let precedingWidth = arrowSizes.prefix(index).reduce(0, +)
-                    let centerX = startX + precedingWidth + spacing * CGFloat(index) + size / 2
-                    ArrowGlyphShape()
-                        .fill(color.opacity(1 - CGFloat(index) * 0.08))
-                        .frame(width: size, height: size * 0.6)
-                        .position(x: centerX, y: centerY)
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-        .rotationEffect(rotation)
-        .allowsHitTesting(false)
-    }
-}
-
-/// 連続矢印アイコンの基本形状（横向きの矢印）
-private struct ArrowGlyphShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        let headWidth = rect.width * 0.35
-        let tailWidth = rect.width - headWidth
-        let tailHeight = rect.height * 0.55
-        let verticalPadding = (rect.height - tailHeight) / 2
-
-        path.move(to: CGPoint(x: rect.minX, y: rect.minY + verticalPadding))
-        path.addLine(to: CGPoint(x: rect.minX + tailWidth, y: rect.minY + verticalPadding))
-        path.addLine(to: CGPoint(x: rect.minX + tailWidth, y: rect.minY))
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.midY))
-        path.addLine(to: CGPoint(x: rect.minX + tailWidth, y: rect.maxY))
-        path.addLine(to: CGPoint(x: rect.minX + tailWidth, y: rect.minY + verticalPadding + tailHeight))
-        path.addLine(to: CGPoint(x: rect.minX, y: rect.minY + verticalPadding + tailHeight))
-        path.closeSubpath()
-
-        return path
     }
 }
 

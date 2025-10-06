@@ -28,6 +28,8 @@ public struct GameScenePalette {
     public let boardKnight: SKColor
     /// ガイド枠の線色
     public let boardGuideHighlight: SKColor
+    /// 複数マス移動カード専用のガイド線色
+    public let boardMultiStepHighlight: SKColor
     /// ワープ効果のアクセントカラー
     public let boardTileEffectWarp: SKColor
     /// 手札シャッフル効果のアクセントカラー
@@ -45,6 +47,7 @@ public struct GameScenePalette {
     ///   - boardTileImpassable: 移動不可マスの塗り色
     ///   - boardKnight: 駒の塗り色
     ///   - boardGuideHighlight: ガイド枠の線色
+    ///   - boardMultiStepHighlight: 複数マス移動ガイドの線色
     public init(
         boardBackground: SKColor,
         boardGridLine: SKColor,
@@ -56,6 +59,7 @@ public struct GameScenePalette {
         boardTileImpassable: SKColor,
         boardKnight: SKColor,
         boardGuideHighlight: SKColor,
+        boardMultiStepHighlight: SKColor,
         boardTileEffectWarp: SKColor,
         boardTileEffectShuffle: SKColor
     ) {
@@ -69,6 +73,7 @@ public struct GameScenePalette {
         self.boardTileImpassable = boardTileImpassable
         self.boardKnight = boardKnight
         self.boardGuideHighlight = boardGuideHighlight
+        self.boardMultiStepHighlight = boardMultiStepHighlight
         self.boardTileEffectWarp = boardTileEffectWarp
         self.boardTileEffectShuffle = boardTileEffectShuffle
     }
@@ -97,6 +102,8 @@ public extension GameScenePalette {
         boardKnight: SKColor(white: 0.1, alpha: 1.0),
         // NOTE: SwiftUI のライトテーマと同じ彩度を抑えたオレンジを採用し、テーマ適用前でも一貫した強調色を維持する
         boardGuideHighlight: SKColor(red: 0.94, green: 0.41, blue: 0.08, alpha: 0.85),
+        // NOTE: 連続移動カードはカード枠と同じシアンを用い、盤面でも一目で識別できるようにする
+        boardMultiStepHighlight: SKColor(red: 0.0, green: 0.68, blue: 0.86, alpha: 0.88),
         // NOTE: ワープ効果は高コントラストなライトブルーを採用し、盤面上で瞬時に目に入るようにする
         boardTileEffectWarp: SKColor(red: 0.36, green: 0.56, blue: 0.98, alpha: 0.95),
         // NOTE: 手札シャッフルはモノトーン基調を維持しつつも差別化できるようニュートラルグレーを活用する
@@ -121,6 +128,8 @@ public extension GameScenePalette {
         boardKnight: SKColor(white: 0.95, alpha: 1.0),
         // NOTE: ダークテーマに合わせて明度を上げたオレンジを用い、背景の暗さに負けない発光感を演出する
         boardGuideHighlight: SKColor(red: 1.0, green: 0.74, blue: 0.38, alpha: 0.9),
+        // NOTE: 連続移動カードのシアンもダークテーマ向けに明度を調整し、背景との差を確保する
+        boardMultiStepHighlight: SKColor(red: 0.35, green: 0.85, blue: 0.95, alpha: 0.92),
         // NOTE: ダークテーマのワープも明度を高めた青系で描画し、夜間でも視認できる発光感を持たせる
         boardTileEffectWarp: SKColor(red: 0.56, green: 0.75, blue: 1.0, alpha: 0.95),
         // NOTE: シャッフルはライトテーマよりも明度を上げ、背景とのコントラストを十分に確保する
