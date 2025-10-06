@@ -1242,20 +1242,21 @@
 
             switch effect {
             case .warp:
-                let hexagram = SKShapeNode()
-                hexagram.name = "tileEffectWarpHexagram"
-                hexagram.strokeColor = .clear
-                hexagram.fillColor = .clear
-                hexagram.lineWidth = 1
-                hexagram.isAntialiased = true
-                hexagram.blendMode = .alpha
+                // NOTE: ワープマス中央はシンプルな三角形で描画し、六芒星よりも軽量なシルエットでモダンさを出す
+                let triangle = SKShapeNode()
+                triangle.name = "tileEffectWarpTriangle"
+                triangle.strokeColor = .clear
+                triangle.fillColor = .clear
+                triangle.lineWidth = 1
+                triangle.isAntialiased = true
+                triangle.blendMode = .alpha
 
-                container.addChild(hexagram)
+                container.addChild(triangle)
                 return TileEffectDecorationCache(
                     container: container,
                     effect: effect,
                     strokeNodes: [],
-                    fillNodes: [hexagram]
+                    fillNodes: [triangle]
                 )
             case .shuffleHand:
                 let diamond = SKShapeNode()
@@ -1340,61 +1341,48 @@
                     circle.position = .zero
                 }
 
-                let hexagram: SKShapeNode
+                let triangle: SKShapeNode
                 if let existing = decoration.fillNodes.first {
-                    hexagram = existing
+                    triangle = existing
                 } else {
-                    let newHexagram = SKShapeNode()
-                    newHexagram.name = "tileEffectWarpHexagram"
-                    newHexagram.strokeColor = .clear
-                    newHexagram.fillColor = .clear
-                    newHexagram.lineWidth = 1
-                    newHexagram.isAntialiased = true
-                    newHexagram.blendMode = .alpha
-                    newHexagram.zPosition = 0.05
-                    decoration.container.addChild(newHexagram)
-                    decoration.fillNodes = [newHexagram]
-                    hexagram = newHexagram
+                    let newTriangle = SKShapeNode()
+                    newTriangle.name = "tileEffectWarpTriangle"
+                    newTriangle.strokeColor = .clear
+                    newTriangle.fillColor = .clear
+                    newTriangle.lineWidth = 1
+                    newTriangle.isAntialiased = true
+                    newTriangle.blendMode = .alpha
+                    newTriangle.zPosition = 0.05
+                    decoration.container.addChild(newTriangle)
+                    decoration.fillNodes = [newTriangle]
+                    triangle = newTriangle
                 }
 
-                let starRadius = tileSize * 0.2
+                let triangleRadius = tileSize * 0.22
                 let pointForAngle: (CGFloat) -> CGPoint = { angle in
                     CGPoint(
-                        x: cos(angle) * starRadius,
-                        y: sin(angle) * starRadius
+                        x: cos(angle) * triangleRadius,
+                        y: sin(angle) * triangleRadius
                     )
                 }
-                let upwardAngles: [CGFloat] = [
+                let triangleAngles: [CGFloat] = [
                     .pi / 2,
                     .pi / 2 + (2.0 * .pi / 3.0),
                     .pi / 2 + (4.0 * .pi / 3.0)
                 ]
-                let downwardAngles: [CGFloat] = [
-                    -.pi / 2,
-                    -.pi / 2 + (2.0 * .pi / 3.0),
-                    -.pi / 2 + (4.0 * .pi / 3.0)
-                ]
-                let starPath = CGMutablePath()
-                if let first = upwardAngles.first {
-                    starPath.move(to: pointForAngle(first))
-                    for angle in upwardAngles.dropFirst() {
-                        starPath.addLine(to: pointForAngle(angle))
+                let trianglePath = CGMutablePath()
+                if let first = triangleAngles.first {
+                    trianglePath.move(to: pointForAngle(first))
+                    for angle in triangleAngles.dropFirst() {
+                        trianglePath.addLine(to: pointForAngle(angle))
                     }
-                    starPath.closeSubpath()
+                    trianglePath.closeSubpath()
                 }
-                if let first = downwardAngles.first {
-                    starPath.move(to: pointForAngle(first))
-                    for angle in downwardAngles.dropFirst() {
-                        starPath.addLine(to: pointForAngle(angle))
-                    }
-                    starPath.closeSubpath()
-                }
-                // SpriteKit 側で偶奇塗りを適用し、六芒星の中央を透明に保つ
-                hexagram.fillRule = .evenOdd  // 偶奇塗りをSpriteKit側で適用する
-                // SKShapeNode が保持するパスへ偶奇ルール適用後の形状を渡し、塗り抜きが破綻しないようにする
-                hexagram.path = starPath
-                hexagram.lineWidth = max(1.0, tileSize * 0.032)
-                hexagram.position = .zero
+                // NOTE: 塗り無しのシャープな輪郭を保つため、アウトラインのみを設定する
+                triangle.path = trianglePath
+                triangle.fillRule = .nonZero
+                triangle.lineWidth = max(1.0, tileSize * 0.04)
+                triangle.position = .zero
             case .shuffleHand:
                 guard let diamond = decoration.strokeNodes.first,
                       decoration.fillNodes.count >= 2 else { return }
@@ -1451,10 +1439,11 @@
                     node.fillColor = .clear
                     node.alpha = 1.0
                 }
-                if let hexagram = decoration.fillNodes.first {
-                    hexagram.strokeColor = style.color.withAlphaComponent(0.9)
-                    hexagram.fillColor = style.color.withAlphaComponent(0.28)
-                    hexagram.alpha = 1.0
+                if let triangle = decoration.fillNodes.first {
+                    // NOTE: 輪郭のみで情報を伝えるため、塗りは常に透明を維持する
+                    triangle.strokeColor = style.color.withAlphaComponent(0.9)
+                    triangle.fillColor = .clear
+                    triangle.alpha = 1.0
                 }
             case .shuffleHand:
                 let strokeColor = palette.boardTileEffectShuffle
