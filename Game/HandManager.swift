@@ -35,6 +35,36 @@ public final class HandManager: ObservableObject {
         return mapping
     }()
 
+    /// 並び替えカテゴリを判定する（0: 通常移動、1: 固定ワープ、2: スーパーワープ）
+    private static func orderingCategory(for move: MoveCard) -> Int {
+        switch move {
+        case .superWarp:
+            return 2
+        case .fixedWarp:
+            return 1
+        default:
+            return 0
+        }
+    }
+
+    /// 並び替えに利用する代表ベクトルを取得する（左方向優先で安定ソートを実現）
+    private static func orderingVector(for move: MoveCard) -> MoveVector {
+        let vectors = move.movementVectors
+        // (0,0) ベクトルのみでは方向性が分からないため除外し、必要に応じてフォールバックを利用する
+        let filtered = vectors.filter { $0.dx != 0 || $0.dy != 0 }
+        let candidates = filtered.isEmpty ? vectors : filtered
+        guard !candidates.isEmpty else {
+            return MoveVector(dx: 0, dy: 0)
+        }
+        let sorted = candidates.sorted { lhs, rhs in
+            if lhs.dx != rhs.dx {
+                return lhs.dx < rhs.dx
+            }
+            return lhs.dy > rhs.dy
+        }
+        return sorted.first ?? MoveVector(dx: 0, dy: 0)
+    }
+
     /// 初期化
     /// - Parameters:
     ///   - handSize: 手札スロット数
@@ -190,9 +220,16 @@ public final class HandManager: ObservableObject {
             guard let leftCard = lhs.topCard, let rightCard = rhs.topCard else {
                 return lhs.topCard != nil
             }
+
+            let leftCategory = HandManager.orderingCategory(for: leftCard.move)
+            let rightCategory = HandManager.orderingCategory(for: rightCard.move)
+            if leftCategory != rightCategory {
+                return leftCategory < rightCategory
+            }
+
             // 代表ベクトルを経由することで、将来的に複数候補を持つカードでも共通ロジックを流用できる
-            let leftVector = leftCard.move.primaryVector
-            let rightVector = rightCard.move.primaryVector
+            let leftVector = HandManager.orderingVector(for: leftCard.move)
+            let rightVector = HandManager.orderingVector(for: rightCard.move)
             let leftDX = leftVector.dx
             let rightDX = rightVector.dx
             if leftDX != rightDX {
@@ -203,6 +240,7 @@ public final class HandManager: ObservableObject {
             if leftDY != rightDY {
                 return leftDY > rightDY
             }
+
             let leftIdentity = leftCard.move.movePattern.identity
             let rightIdentity = rightCard.move.movePattern.identity
             let leftIndex = HandManager.movePatternOrderingIndex[leftIdentity] ?? 0

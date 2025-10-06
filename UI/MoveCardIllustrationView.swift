@@ -177,10 +177,18 @@ struct MoveCardIllustrationView: View {
         let candidateCount = movementVectors.count
         let isMultiStepCard = card.kind == .multiStep
         let multiStepDirection = card.multiStepUnitVector
+        // MARK: - ワープ系カードかどうか（枠色や描画内容を切り替えるため事前判定する）
+        let isSuperWarpCard = card == .superWarp
+        let isFixedWarpCard = card == .fixedWarp
+        let isWarpCard = isSuperWarpCard || isFixedWarpCard
+        let warpAccentColor = isSuperWarpCard ? theme.superWarpCardAccent : theme.warpCardAccent
         // MARK: - 枠線色の決定（選択カードや複数マス移動カードで個別に色を差し替える）
         let isSelectionCard = card.kind == .choice
         let borderColor: Color
-        if isMultiStepCard {
+        if isWarpCard {
+            // ワープカードは常に紫系の枠線で統一し、他カードとの差別化を図る
+            borderColor = warpAccentColor
+        } else if isMultiStepCard {
             // 複数マス移動カードはシアン系アクセントを枠線へ適用し、盤面ハイライトと一貫した印象を持たせる
             borderColor = theme.multiStepAccent
         } else if isSelectionCard {
@@ -250,7 +258,36 @@ struct MoveCardIllustrationView: View {
                         }
                         .stroke(mode.gridLineColor(using: theme), lineWidth: 0.5)
 
-                        if isMultiStepCard, let direction = multiStepDirection,
+                        if isWarpCard {
+                            // MARK: ワープカード専用の目的地マーカー群
+                            let warpVectors = warpDisplayVectors(
+                                from: movementVectors,
+                                isSuperWarp: isSuperWarpCard
+                            )
+
+                            let markerDiameter = min(cellSize * 0.5, 18)
+                            let markerShadowRadius = max(markerDiameter * 0.15, 2)
+                            ForEach(Array(warpVectors.enumerated()), id: \.offset) { _, vector in
+                                let index = destinationCellIndex(for: vector)
+                                let destinationPoint = cellCenter(
+                                    origin: origin,
+                                    cellSize: cellSize,
+                                    column: index.column,
+                                    row: index.row
+                                )
+
+                                Circle()
+                                    .fill(warpAccentColor.opacity(isSuperWarpCard ? 0.65 : 0.8))
+                                    .frame(width: markerDiameter, height: markerDiameter)
+                                    .overlay(
+                                        Circle()
+                                            .stroke(warpAccentColor.opacity(isSuperWarpCard ? 0.9 : 1.0), lineWidth: max(markerDiameter * 0.18, 1.4))
+                                    )
+                                    .shadow(color: warpAccentColor.opacity(0.35), radius: markerShadowRadius, x: 0, y: markerShadowRadius * 0.4)
+                                    .position(destinationPoint)
+                                    .accessibilityHidden(true)
+                            }
+                        } else if isMultiStepCard, let direction = multiStepDirection,
                            let route = multiStepRoute(direction: direction, origin: origin, cellSize: cellSize, centerIndex: center) {
                             let accentColor = theme.multiStepAccent
                             let lineWidth = min(max(cellSize * 0.18, 1.8), 2.6)
@@ -345,11 +382,11 @@ struct MoveCardIllustrationView: View {
 
                         // MARK: 現在地マーカー（常に最前面）
                         Circle()
-                            .fill(theme.cardContentPrimary)
+                            .fill(isWarpCard ? warpAccentColor.opacity(0.9) : theme.cardContentPrimary)
                             .frame(width: cellSize * 0.4, height: cellSize * 0.4)
                             .overlay(
                                 Circle()
-                                    .stroke(theme.startMarkerStroke, lineWidth: 1)
+                                    .stroke(isWarpCard ? warpAccentColor.opacity(0.65) : theme.startMarkerStroke, lineWidth: 1)
                             )
                             .position(startPoint)
                             .accessibilityHidden(true)
@@ -446,6 +483,46 @@ struct HandStackCardView<Content: View>: View {
 
 // MARK: - 座標計算ヘルパー
 private extension MoveCardIllustrationView {
+    /// 固定ワープカードのプレースホルダとして利用するサンプル移動ベクトル群
+    /// - Note: 実際のターゲット座標はモード定義によって異なるため、カードアートでは四方向の代表値を描画する
+    static let defaultWarpPreviewVectors: [MoveVector] = [
+        MoveVector(dx: -2, dy: 0),
+        MoveVector(dx: -1, dy: 2),
+        MoveVector(dx: 1, dy: -2),
+        MoveVector(dx: 2, dy: 1)
+    ]
+
+    /// 固定ワープカードで描画する最大マーカー数（視認性確保のため制限）
+    static let fixedWarpPreviewLimit: Int = 8
+
+    /// ワープ系カード向けに表示する移動ベクトル一覧を生成する
+    /// - Parameters:
+    ///   - vectors: MoveCard から取得した移動ベクトル配列
+    ///   - isSuperWarp: スーパーワープカードかどうか（任意位置ワープは全候補を描画する）
+    /// - Returns: 左方向優先でソートされた移動ベクトル配列
+    func warpDisplayVectors(from vectors: [MoveVector], isSuperWarp: Bool) -> [MoveVector] {
+        // (0,0) のように移動しないベクトルは除外し、カードアートで意味を持つ候補だけ残す
+        var sanitized = vectors.filter { $0.dx != 0 || $0.dy != 0 }
+        // モード定義で候補が提供されないケースではデフォルトのサンプルを利用してイメージを伝える
+        if sanitized.isEmpty {
+            sanitized = Self.defaultWarpPreviewVectors
+        }
+        // 左方向（dx が小さい）ほど優先し、同じ列では上方向（dy が大きい）を優先する
+        let sorted = sanitized.sorted { lhs, rhs in
+            if lhs.dx != rhs.dx {
+                return lhs.dx < rhs.dx
+            }
+            return lhs.dy > rhs.dy
+        }
+        if isSuperWarp {
+            // 任意ワープは候補をすべて描画して「どこへでも行ける」印象を強調する
+            return sorted
+        } else {
+            // 固定ワープは多すぎるマーカーで視認性が落ちないよう上限を設ける
+            return Array(sorted.prefix(Self.fixedWarpPreviewLimit))
+        }
+    }
+
     /// グリッドの縦横数（5×5 固定）
     var gridCount: Int { 5 }
 
