@@ -251,8 +251,13 @@ final class GameBoardBridgeViewModel: ObservableObject {
             let destinations = moves.map { $0.destination }
             let move = representative.card.move
 
-            if move == .fixedWarp || move == .superWarp {
-                // ワープ系カードは紫枠で視認性を高めるため専用バケットへ分類する
+            if move == .superWarp {
+                // スーパーワープは盤面全域が候補となりガイドが画面を覆ってしまうため、あえて登録しない
+                continue
+            }
+
+            if move == .fixedWarp {
+                // 固定ワープのみ紫枠で視認性を高めるため専用バケットへ分類する
                 computedBuckets.warpDestinations.formUnion(destinations)
                 continue
             }
