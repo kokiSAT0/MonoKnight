@@ -101,7 +101,8 @@ struct AppTheme: DynamicProperty {
         case .dark:
             return Color.white.opacity(0.08)
         default:
-            return Color.black.opacity(0.05)
+            // ライトモードでは NEXT カードとの差を強調するため、明度の高いホワイト基調を採用する
+            return Color.white
         }
     }
 
