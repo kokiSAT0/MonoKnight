@@ -30,8 +30,11 @@ public struct GameScenePalette {
     public let boardGuideHighlight: SKColor
     /// 複数マス移動カード専用のガイド線色
     public let boardMultiStepHighlight: SKColor
-    /// ワープ効果のアクセントカラー
+    /// ワープ効果の基準アクセントカラー
     public let boardTileEffectWarp: SKColor
+    /// ワープペアごとに使い分けるアクセントカラー配列
+    /// - Note: 色覚多様性へ配慮するため、色と形の両面で識別できるよう SpriteKit 側で参照する
+    public let warpPairAccentColors: [SKColor]
     /// 手札シャッフル効果のアクセントカラー
     public let boardTileEffectShuffle: SKColor
 
@@ -61,7 +64,8 @@ public struct GameScenePalette {
         boardGuideHighlight: SKColor,
         boardMultiStepHighlight: SKColor,
         boardTileEffectWarp: SKColor,
-        boardTileEffectShuffle: SKColor
+        boardTileEffectShuffle: SKColor,
+        warpPairAccentColors: [SKColor]
     ) {
         self.boardBackground = boardBackground
         self.boardGridLine = boardGridLine
@@ -76,6 +80,7 @@ public struct GameScenePalette {
         self.boardMultiStepHighlight = boardMultiStepHighlight
         self.boardTileEffectWarp = boardTileEffectWarp
         self.boardTileEffectShuffle = boardTileEffectShuffle
+        self.warpPairAccentColors = warpPairAccentColors
     }
 }
 
@@ -107,7 +112,16 @@ public extension GameScenePalette {
         // NOTE: ワープ効果は高コントラストなライトブルーを採用し、盤面上で瞬時に目に入るようにする
         boardTileEffectWarp: SKColor(red: 0.36, green: 0.56, blue: 0.98, alpha: 0.95),
         // NOTE: 手札シャッフルはモノトーン基調を維持しつつも差別化できるようニュートラルグレーを活用する
-        boardTileEffectShuffle: SKColor(white: 0.3, alpha: 0.92)
+        boardTileEffectShuffle: SKColor(white: 0.3, alpha: 0.92),
+        // NOTE: ワープペアの識別用に 6 色を用意し、同心円の層数と組み合わせて視認性を確保する
+        warpPairAccentColors: [
+            SKColor(red: 0.38, green: 0.68, blue: 1.0, alpha: 1.0),
+            SKColor(red: 0.26, green: 0.82, blue: 0.78, alpha: 1.0),
+            SKColor(red: 0.74, green: 0.54, blue: 0.96, alpha: 1.0),
+            SKColor(red: 0.99, green: 0.68, blue: 0.46, alpha: 1.0),
+            SKColor(red: 0.98, green: 0.60, blue: 0.80, alpha: 1.0),
+            SKColor(red: 0.64, green: 0.88, blue: 0.68, alpha: 1.0),
+        ]
     )
 
     /// ダークテーマ適用前後でのデバッグ確認用のフォールバック
@@ -133,7 +147,16 @@ public extension GameScenePalette {
         // NOTE: ダークテーマのワープも明度を高めた青系で描画し、夜間でも視認できる発光感を持たせる
         boardTileEffectWarp: SKColor(red: 0.56, green: 0.75, blue: 1.0, alpha: 0.95),
         // NOTE: シャッフルはライトテーマよりも明度を上げ、背景とのコントラストを十分に確保する
-        boardTileEffectShuffle: SKColor(white: 0.7, alpha: 0.9)
+        boardTileEffectShuffle: SKColor(white: 0.7, alpha: 0.9),
+        // NOTE: ダークテーマ用にも発光感を残した 6 色を揃え、背景が暗くても埋もれないようにする
+        warpPairAccentColors: [
+            SKColor(red: 0.56, green: 0.78, blue: 1.0, alpha: 1.0),
+            SKColor(red: 0.36, green: 0.88, blue: 0.82, alpha: 1.0),
+            SKColor(red: 0.83, green: 0.66, blue: 1.0, alpha: 1.0),
+            SKColor(red: 1.0, green: 0.80, blue: 0.54, alpha: 1.0),
+            SKColor(red: 1.0, green: 0.70, blue: 0.88, alpha: 1.0),
+            SKColor(red: 0.72, green: 0.94, blue: 0.78, alpha: 1.0),
+        ]
     )
 }
 #endif
