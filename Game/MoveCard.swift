@@ -442,8 +442,8 @@ public enum MoveCard: CaseIterable {
 
         // --- 全域ワープ系 ---
         mapping[.superWarp] = .dynamicAbsoluteTargets(
-            identity: .custom("superWarp"),
-            allowsVisitedTargets: true
+            identity: .custom("superWarp")
+            // 全域ワープカードは障害物マス以外の全マスへ移動できるため、既踏マスも候補へ含める
         )
 
         // --- 固定座標ワープ系 ---

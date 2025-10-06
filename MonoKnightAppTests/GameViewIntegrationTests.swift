@@ -239,6 +239,103 @@ final class GameViewIntegrationTests: XCTestCase {
         )
     }
 
+    /// 全域ワープカードを選択した際はガイドを非表示に保つことを確認する
+    func testSelectingSuperWarpClearsForcedHighlights() {
+        let scheduler = PenaltyBannerSchedulerSpy()
+        let gameCenter = GameCenterServiceSpy()
+        let adsService = AdsServiceSpy()
+
+        // 全域ワープカードのみで構成されたデッキを用意し、常に同カードを引く状況を作る
+        let deck = Deck.makeTestDeck(cards: [.superWarp], configuration: .standardWithAllChoices)
+        let interfaces = GameModuleInterfaces { mode in
+            GameCore.makeTestInstance(
+                deck: deck,
+                current: mode.initialSpawnPoint,
+                mode: mode,
+                initialVisitedPoints: [mode.initialSpawnPoint]
+            )
+        }
+
+        let viewModel = GameViewModel(
+            mode: .standard,
+            gameInterfaces: interfaces,
+            gameCenterService: gameCenter,
+            adsService: adsService,
+            onRequestReturnToTitle: nil,
+            penaltyBannerScheduler: scheduler
+        )
+
+        viewModel.updateHapticsSetting(isEnabled: false)
+
+        guard let stackIndex = viewModel.core.handStacks.firstIndex(where: { $0.topCard?.move == .superWarp }) else {
+            XCTFail("全域ワープカードの手札を検出できませんでした")
+            return
+        }
+
+        viewModel.handleHandSlotTap(at: stackIndex)
+
+        XCTAssertTrue(
+            viewModel.boardBridge.forcedSelectionHighlightPoints.isEmpty,
+            "全域ワープ選択時のハイライトは非表示である必要があります"
+        )
+    }
+
+    /// 全域ワープカードは手札選択後でなければ盤面タップで発動しないことを確認する
+    func testBoardTapWithoutSelectionShowsWarningForSuperWarp() {
+        let scheduler = PenaltyBannerSchedulerSpy()
+        let gameCenter = GameCenterServiceSpy()
+        let adsService = AdsServiceSpy()
+
+        let deck = Deck.makeTestDeck(cards: [.superWarp], configuration: .standardWithAllChoices)
+        let interfaces = GameModuleInterfaces { mode in
+            GameCore.makeTestInstance(
+                deck: deck,
+                current: mode.initialSpawnPoint,
+                mode: mode,
+                initialVisitedPoints: [mode.initialSpawnPoint]
+            )
+        }
+
+        let viewModel = GameViewModel(
+            mode: .standard,
+            gameInterfaces: interfaces,
+            gameCenterService: gameCenter,
+            adsService: adsService,
+            onRequestReturnToTitle: nil,
+            penaltyBannerScheduler: scheduler
+        )
+
+        viewModel.updateHapticsSetting(isEnabled: false)
+
+        guard let stack = viewModel.core.handStacks.first, let topCard = stack.topCard else {
+            XCTFail("全域ワープカードの取得に失敗しました")
+            return
+        }
+
+        let moves = viewModel.core.availableMoves().filter { $0.stackID == stack.id && $0.card.id == topCard.id }
+        guard let targetMove = moves.first else {
+            XCTFail("全域ワープカードの候補が見つかりませんでした")
+            return
+        }
+
+        let request = BoardTapPlayRequest(
+            stackID: targetMove.stackID,
+            stackIndex: targetMove.stackIndex,
+            topCard: targetMove.card,
+            moveVector: targetMove.moveVector,
+            resolution: targetMove.resolution
+        )
+
+        viewModel.handleBoardTapPlayRequest(request)
+
+        XCTAssertNil(viewModel.boardBridge.animatingCard, "手札未選択でも全域ワープが発動してしまっています")
+        XCTAssertEqual(
+            viewModel.boardTapSelectionWarning?.message,
+            "全域ワープカードを使うには、先に手札からカードを選択してください。",
+            "警告文言が仕様と一致しません"
+        )
+    }
+
     /// カード未選択時でも盤面タップで移動が開始され、通常カードが優先されることを確認する
     func testBoardTapWithoutSelectionTriggersPlayAndPrefersSingleVectorCards() {
         XCTContext.runActivity(named: "複数候補カードのみでも移動が開始される") { _ in
