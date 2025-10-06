@@ -386,10 +386,11 @@ public struct GameMode: Equatable, Identifiable {
             self.impassableTilePoints = impassableTilePoints
             self.tileEffectOverrides = tileEffectOverrides
             self.warpTilePairs = warpTilePairs
-            self.fixedWarpCardTargets = Regulation.sanitizeFixedWarpTargets(
-                fixedWarpCardTargets,
+            self.fixedWarpCardTargets = Regulation.finalizeFixedWarpTargets(
+                rawTargets: fixedWarpCardTargets,
                 boardSize: boardSize,
-                impassableTilePoints: impassableTilePoints
+                impassableTilePoints: impassableTilePoints,
+                deckPreset: deckPreset
             )
         }
 
@@ -435,6 +436,58 @@ public struct GameMode: Equatable, Identifiable {
             return sanitized
         }
 
+        /// 固定ワープカードの最終的な目的地リストを決定する
+        /// - Parameters:
+        ///   - rawTargets: モード設定で宣言されたターゲット一覧
+        ///   - boardSize: 対象となる盤面サイズ
+        ///   - impassableTilePoints: 障害物として扱うマス集合
+        ///   - deckPreset: 利用する山札プリセット
+        /// - Returns: バリデーション済みターゲット。未指定の場合は盤面全域から自動生成した候補を返す
+        private static func finalizeFixedWarpTargets(
+            rawTargets: [MoveCard: [GridPoint]],
+            boardSize: Int,
+            impassableTilePoints: Set<GridPoint>,
+            deckPreset: GameDeckPreset
+        ) -> [MoveCard: [GridPoint]] {
+            // --- まずは明示的に指定されたターゲットをバリデーションし、問題がなければそのまま採用する ---
+            let sanitized = sanitizeFixedWarpTargets(
+                rawTargets,
+                boardSize: boardSize,
+                impassableTilePoints: impassableTilePoints
+            )
+            if !sanitized.isEmpty {
+                return sanitized
+            }
+
+            // --- ワープカードを含むデッキでターゲット未指定の場合は、盤面全域から安全な候補を自動生成する ---
+            let allowedMoves = deckPreset.configuration.allowedMoves
+            guard allowedMoves.contains(.fixedWarp) else { return [:] }
+            return defaultFixedWarpTargets(
+                boardSize: boardSize,
+                impassableTilePoints: impassableTilePoints
+            )
+        }
+
+        /// 盤面全域から固定ワープカード用の目的地候補を生成する
+        /// - Parameters:
+        ///   - boardSize: 盤面の一辺サイズ
+        ///   - impassableTilePoints: 障害物マス集合（候補から除外する）
+        /// - Returns: 盤面内かつ移動可能な座標のみを含む辞書。候補が存在しない場合は空辞書を返す
+        private static func defaultFixedWarpTargets(
+            boardSize: Int,
+            impassableTilePoints: Set<GridPoint>
+        ) -> [MoveCard: [GridPoint]] {
+            guard boardSize > 0 else { return [:] }
+
+            // --- BoardGeometry を利用して盤面全座標を列挙し、障害物を除いた順序付きリストを生成する ---
+            let allPoints = BoardGeometry.allPoints(for: boardSize)
+            let traversablePoints = allPoints.filter { point in
+                !impassableTilePoints.contains(point)
+            }
+            guard !traversablePoints.isEmpty else { return [:] }
+            return [.fixedWarp: traversablePoints]
+        }
+
         /// Codable 対応のためのキー定義
         private enum CodingKeys: String, CodingKey {
             case boardSize
@@ -471,10 +524,11 @@ public struct GameMode: Equatable, Identifiable {
             let rawFixedWarpTargets = try container.decodeIfPresent([String: [GridPoint]].self, forKey: .fixedWarpCardTargets) ?? [:]
 
             let decodedTargets = Regulation.decodeFixedWarpTargets(from: rawFixedWarpTargets)
-            let sanitizedTargets = Regulation.sanitizeFixedWarpTargets(
-                decodedTargets,
+            let sanitizedTargets = Regulation.finalizeFixedWarpTargets(
+                rawTargets: decodedTargets,
                 boardSize: decodedBoardSize,
-                impassableTilePoints: decodedImpassable
+                impassableTilePoints: decodedImpassable,
+                deckPreset: decodedDeckPreset
             )
 
             boardSize = decodedBoardSize
