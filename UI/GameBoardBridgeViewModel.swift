@@ -243,7 +243,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
             guard let representative = moves.first else { continue }
             let destinations = moves.map { $0.destination }
 
-            if representative.card.kind == .multiStep {
+            if representative.card.move.kind == .multiStep {
                 // 連続移動カードは専用のシアン枠で描画するため、別バケットへ振り分ける
                 computedBuckets.multiStepDestinations.formUnion(destinations)
             } else if representative.card.move.movementVectors.count > 1 {
