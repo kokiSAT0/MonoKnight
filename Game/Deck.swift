@@ -357,6 +357,20 @@ struct Deck {
                 deckSummaryText: "選択カード総合ミックス"
             )
         }()
+
+        /// 複数マス移動カードとサポート用キングカードを組み合わせた拡張デッキ
+        /// - Note: レイ型カードを重み 3 に設定し、連続移動の出現率を高めつつ基本 4 方向キングで調整力を確保する
+        static let extendedWithMultiStepMoves: Configuration = {
+            let multiStepCards = MoveCard.directionalRayCards
+            let supportKings: [MoveCard] = [.kingUp, .kingRight, .kingDown, .kingLeft]
+            let allowedMoves = multiStepCards + supportKings
+            let overrides = Dictionary(uniqueKeysWithValues: multiStepCards.map { ($0, 3) })
+            return Configuration(
+                allowedMoves: allowedMoves,
+                weightProfile: WeightProfile(defaultWeight: 1, overrides: overrides),
+                deckSummaryText: "複数マス移動カード拡張デッキ"
+            )
+        }()
     }
 
     // MARK: - プロパティ

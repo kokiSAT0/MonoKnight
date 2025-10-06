@@ -29,6 +29,8 @@ public enum GameDeckPreset: String, CaseIterable, Codable, Identifiable {
     case standardWithKnightChoices
     /// 標準デッキにすべての選択カードを加えた構成
     case standardWithAllChoices
+    /// 複数マス移動カードを重視した拡張構成
+    case extendedWithMultiStepMoves
     /// 上下左右の選択キングカードのみで構成した訓練デッキ
     case kingOrthogonalChoiceOnly
     /// 斜め方向の選択キングカードのみで構成した訓練デッキ
@@ -68,6 +70,8 @@ public enum GameDeckPreset: String, CaseIterable, Codable, Identifiable {
             return "標準＋桂馬選択構成"
         case .standardWithAllChoices:
             return "標準＋全選択カード構成"
+        case .extendedWithMultiStepMoves:
+            return "複数マス移動拡張構成"
         case .kingOrthogonalChoiceOnly:
             return "上下左右選択キング構成"
         case .kingDiagonalChoiceOnly:
@@ -111,6 +115,8 @@ public enum GameDeckPreset: String, CaseIterable, Codable, Identifiable {
             return .standardWithKnightChoices
         case .standardWithAllChoices:
             return .standardWithAllChoices
+        case .extendedWithMultiStepMoves:
+            return .extendedWithMultiStepMoves
         case .kingOrthogonalChoiceOnly:
             return .kingOrthogonalChoiceOnly
         case .kingDiagonalChoiceOnly:
