@@ -12,6 +12,8 @@
         case guideSingleCandidate
         /// 複数候補カードや選択肢を強調するためのガイド枠
         case guideMultipleCandidate
+        /// 連続移動カード専用のシアン枠
+        case guideMultiStepCandidate
         /// チュートリアルやカード選択で強制的に表示するハイライト
         case forcedSelection
     }
@@ -92,6 +94,9 @@
         /// 複数ガイドの最新表示座標集合を保持
         /// - NOTE: 将来的な整合性チェックやレイアウト調整時の参照に活用する
         private var latestMultipleGuidePoints: Set<GridPoint> = []
+        /// 連続移動ガイドの最新座標集合を保持
+        /// - NOTE: 複数ガイドや単一ガイドとの重なり調整に利用し、枠が視覚的に衝突しないようにする
+        private var latestMultiStepGuidePoints: Set<GridPoint> = []
 
         /// 強制表示ハイライトの最新座標集合を保持
         /// - NOTE: 「リセット」などでガイドが空になっていない限り、直近状態を復元するためのソースとして利用する
@@ -1370,6 +1375,7 @@
             // 正規化済みの集合を保持し、描画更新前後で最新状態を参照できるようにする
             latestSingleGuidePoints = sanitized[.guideSingleCandidate] ?? []
             latestMultipleGuidePoints = sanitized[.guideMultipleCandidate] ?? []
+            latestMultiStepGuidePoints = sanitized[.guideMultiStepCandidate] ?? []
             latestForcedSelectionPoints = sanitized[.forcedSelection] ?? []
 
             let countsDescription =
@@ -1394,6 +1400,7 @@
             updateHighlights([
                 .guideSingleCandidate: [],
                 .guideMultipleCandidate: points,
+                .guideMultiStepCandidate: [],
             ])
         }
 
@@ -1404,6 +1411,7 @@
             // 即時反映時も最新集合を保持し、ノード再構成時に参照できるようにする
             latestSingleGuidePoints = highlights[.guideSingleCandidate] ?? []
             latestMultipleGuidePoints = highlights[.guideMultipleCandidate] ?? []
+            latestMultiStepGuidePoints = highlights[.guideMultiStepCandidate] ?? []
             latestForcedSelectionPoints = highlights[.forcedSelection] ?? []
 
             for kind in BoardHighlightKind.allCases {
@@ -1497,7 +1505,24 @@
                 if latestSingleGuidePoints.contains(point) {
                     overlapInset = strokeWidth * 1.5
                 }
+                // 連続移動ガイドと重なる場合も、シアン枠と干渉しないよう軽く内側へ寄せる
+                if latestMultiStepGuidePoints.contains(point) {
+                    overlapInset = max(overlapInset, strokeWidth * 0.9)
+                }
                 zPosition = 1.02
+            case .guideMultiStepCandidate:
+                baseColor = palette.boardMultiStepHighlight
+                strokeAlpha = 0.9
+                strokeWidth = sharedGuideStrokeWidth
+                // 単一枠と重なる場合はさらに内側に寄せ、グレーとの重なりを避ける
+                if latestSingleGuidePoints.contains(point) {
+                    overlapInset = max(overlapInset, strokeWidth * 2.0)
+                }
+                // 複数枠と重なる場合もインセットを強め、枠線が判別しやすいようにする
+                if latestMultipleGuidePoints.contains(point) {
+                    overlapInset = max(overlapInset, strokeWidth * 1.4)
+                }
+                zPosition = 1.04
             case .forcedSelection:
                 // NOTE: 現段階ではガイドと同じ色を使用しつつ、将来のカスタマイズ余地を残すため分岐を設けている
                 baseColor = palette.boardGuideHighlight

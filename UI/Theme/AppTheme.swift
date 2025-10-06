@@ -503,6 +503,19 @@ struct AppTheme: DynamicProperty {
         }
     }
 
+    /// 複数マス移動カード専用のガイド枠色
+    /// - Note: カード枠と同系統のシアンを採用し、盤面とカードで視覚的な関連性を持たせる
+    var boardMultiStepHighlight: Color {
+        switch resolvedColorScheme {
+        case .dark:
+            // ダークテーマでは発光感を出しつつ背景になじむよう、やや高めの透明度を設定する
+            return Color(red: 0.35, green: 0.85, blue: 0.95).opacity(0.92)
+        default:
+            // ライトテーマでは鮮やかさと可読性のバランスを保つため、少しだけ透過させたシアンを用いる
+            return Color(red: 0.0, green: 0.68, blue: 0.86).opacity(0.88)
+        }
+    }
+
     /// ワープ効果を描画する際のアクセントカラー
     var boardTileEffectWarp: Color {
         switch resolvedColorScheme {
@@ -629,6 +642,14 @@ struct AppTheme: DynamicProperty {
         )
     }
 
+    /// SpriteKit 複数マス移動カード用ガイド枠の UIColor 版
+    var uiBoardMultiStepHighlight: UIColor {
+        dynamicUIColor(
+            light: color(for: .light, keyPath: \.boardMultiStepHighlight),
+            dark: color(for: .dark, keyPath: \.boardMultiStepHighlight)
+        )
+    }
+
     /// SpriteKit ワープ効果カラーの UIColor 版
     var uiBoardTileEffectWarp: UIColor {
         dynamicUIColor(
@@ -676,6 +697,9 @@ struct AppTheme: DynamicProperty {
 
     /// SpriteKit の SKColor へ変換したガイドハイライト色
     var skBoardGuideHighlight: SKColor { SKColor(cgColor: uiBoardGuideHighlight.cgColor) }
+
+    /// SpriteKit の SKColor へ変換した複数マス移動カード用ガイド色
+    var skBoardMultiStepHighlight: SKColor { SKColor(cgColor: uiBoardMultiStepHighlight.cgColor) }
 
     /// SpriteKit の SKColor へ変換したワープ効果カラー
     var skBoardTileEffectWarp: SKColor { SKColor(cgColor: uiBoardTileEffectWarp.cgColor) }

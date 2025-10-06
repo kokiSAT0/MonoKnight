@@ -42,11 +42,14 @@ final class GameBoardBridgeViewModel: ObservableObject {
         var singleVectorDestinations: Set<GridPoint>
         /// 複数ベクトルカードが到達できる座標集合
         var multipleVectorDestinations: Set<GridPoint>
+        /// 複数マス移動カード（レイ型）が到達できる座標集合
+        var multiStepDestinations: Set<GridPoint>
 
         /// すべて空集合の初期値を返すヘルパー
         static let empty = GuideHighlightBuckets(
             singleVectorDestinations: [],
-            multipleVectorDestinations: []
+            multipleVectorDestinations: [],
+            multiStepDestinations: []
         )
     }
 
@@ -161,6 +164,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
             boardTileImpassable: appTheme.skBoardTileImpassable,
             boardKnight: appTheme.skBoardKnight,
             boardGuideHighlight: appTheme.skBoardGuideHighlight,
+            boardMultiStepHighlight: appTheme.skBoardMultiStepHighlight,
             boardTileEffectWarp: appTheme.skBoardTileEffectWarp,
             boardTileEffectShuffle: appTheme.skBoardTileEffectShuffle
         )
@@ -201,6 +205,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
         let highlights: [BoardHighlightKind: Set<GridPoint>] = [
             .guideSingleCandidate: guideHighlightBuckets.singleVectorDestinations,
             .guideMultipleCandidate: guideHighlightBuckets.multipleVectorDestinations,
+            .guideMultiStepCandidate: guideHighlightBuckets.multiStepDestinations,
             .forcedSelection: forcedSelectionHighlightPoints
         ]
         scene.updateHighlights(highlights)
@@ -237,9 +242,15 @@ final class GameBoardBridgeViewModel: ObservableObject {
         for moves in groupedByCard.values {
             guard let representative = moves.first else { continue }
             let destinations = moves.map { $0.destination }
-            if representative.card.move.movementVectors.count > 1 {
+
+            if representative.card.kind == .multiStep {
+                // 連続移動カードは専用のシアン枠で描画するため、別バケットへ振り分ける
+                computedBuckets.multiStepDestinations.formUnion(destinations)
+            } else if representative.card.move.movementVectors.count > 1 {
+                // 複数方向カードは従来どおりオレンジ枠で強調する
                 computedBuckets.multipleVectorDestinations.formUnion(destinations)
             } else {
+                // 単方向カードは落ち着いたグレー枠へ分類する
                 computedBuckets.singleVectorDestinations.formUnion(destinations)
             }
         }
@@ -250,10 +261,13 @@ final class GameBoardBridgeViewModel: ObservableObject {
             pendingGuideHand = nil
             pendingGuideCurrent = nil
             pendingGuideBuckets = nil
-            let total = computedBuckets.singleVectorDestinations.count + computedBuckets.multipleVectorDestinations.count
+            let singleCount = computedBuckets.singleVectorDestinations.count
+            let multipleCount = computedBuckets.multipleVectorDestinations.count
+            let multiStepCount = computedBuckets.multiStepDestinations.count
+            let total = singleCount + multipleCount + multiStepCount
             debugLog(
-                "ガイドを消灯: ガイドモードが無効 単一=\(computedBuckets.singleVectorDestinations.count) " +
-                "複数=\(computedBuckets.multipleVectorDestinations.count) 合計=\(total)"
+                "ガイドを消灯: ガイドモードが無効 単一=\(singleCount) 複数=\(multipleCount) " +
+                "連続=\(multiStepCount) 合計=\(total)"
             )
             return
         }
@@ -264,10 +278,13 @@ final class GameBoardBridgeViewModel: ObservableObject {
             pendingGuideBuckets = computedBuckets
             guideHighlightBuckets = .empty
             pushHighlightsToScene()
-            let total = computedBuckets.singleVectorDestinations.count + computedBuckets.multipleVectorDestinations.count
+            let singleCount = computedBuckets.singleVectorDestinations.count
+            let multipleCount = computedBuckets.multipleVectorDestinations.count
+            let multiStepCount = computedBuckets.multiStepDestinations.count
+            let total = singleCount + multipleCount + multiStepCount
             debugLog(
-                "ガイド更新を保留: 状態=\(String(describing: progress)) 単一=\(computedBuckets.singleVectorDestinations.count) " +
-                "複数=\(computedBuckets.multipleVectorDestinations.count) 合計=\(total)"
+                "ガイド更新を保留: 状態=\(String(describing: progress)) 単一=\(singleCount) 複数=\(multipleCount) " +
+                "連続=\(multiStepCount) 合計=\(total)"
             )
             return
         }
@@ -277,10 +294,12 @@ final class GameBoardBridgeViewModel: ObservableObject {
         pendingGuideBuckets = nil
         guideHighlightBuckets = computedBuckets
         pushHighlightsToScene()
-        let total = computedBuckets.singleVectorDestinations.count + computedBuckets.multipleVectorDestinations.count
+        let singleCount = computedBuckets.singleVectorDestinations.count
+        let multipleCount = computedBuckets.multipleVectorDestinations.count
+        let multiStepCount = computedBuckets.multiStepDestinations.count
+        let total = singleCount + multipleCount + multiStepCount
         debugLog(
-            "ガイド描画: 単一=\(computedBuckets.singleVectorDestinations.count) " +
-            "複数=\(computedBuckets.multipleVectorDestinations.count) 合計=\(total)"
+            "ガイド描画: 単一=\(singleCount) 複数=\(multipleCount) 連続=\(multiStepCount) 合計=\(total)"
         )
     }
 
