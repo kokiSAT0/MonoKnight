@@ -236,6 +236,22 @@ struct Deck {
             )
         }()
 
+        /// 標準デッキへワープカードを段階的に組み込んだ構成
+        /// - Note: 固定ワープは 3、スーパーワープは 2 の重みで供給し、訓練目的で出現頻度を引き上げる
+        static let standardWithWarpCards: Configuration = {
+            let warpCards: [MoveCard] = [.fixedWarp, .superWarp]
+            let allowedMoves = MoveCard.standardSet + warpCards
+            let overrides: [MoveCard: Int] = [
+                .fixedWarp: 3,
+                .superWarp: 2
+            ]
+            return Configuration(
+                allowedMoves: allowedMoves,
+                weightProfile: WeightProfile(defaultWeight: 1, overrides: overrides),
+                deckSummaryText: "標準＋ワープ／スーパーワープ"
+            )
+        }()
+
         /// クラシカルチャレンジ向け設定（桂馬のみ・均等抽選）
         static let classicalChallenge: Configuration = {
             let knightMoves = MoveCard.standardSet.filter { $0.isKnightType }
