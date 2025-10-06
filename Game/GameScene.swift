@@ -9,15 +9,18 @@
     /// fillRule を安全に設定するためのユーティリティ関数
     /// - Parameter shapeNode: 対象となる図形ノード
     private func applyEvenOddFillRuleIfSupported(to shapeNode: SKShapeNode) {
-        #if os(iOS) || os(macOS) || os(tvOS) || os(watchOS)
-            // Apple プラットフォームでは evenOdd を使用して六芒星の塗り潰しを調整する
-            // - Note: fillRule はプラットフォームとバージョンにより提供状況が異なるため、
-            //         利用可能な場合のみ設定し、Linux などでは安全にスキップする
-            if #available(iOS 11.0, macOS 10.13, tvOS 11.0, watchOS 4.0, *) {
+        #if os(iOS) || os(tvOS) || os(watchOS) || targetEnvironment(macCatalyst)
+            // iOS 系プラットフォームでは evenOdd を使用して六芒星の塗り潰しを調整する
+            // - Note: Swift Package のユニットテストは macOS(Linux ターゲット含む) 上で実行される
+            //         ケースが多く、macOS 向け SpriteKit には fillRule が公開されていない
+            //         バージョンが存在する。そのため iOS 系 API のみを対象にして安全に回避する。
+            if #available(iOS 11.0, tvOS 11.0, watchOS 4.0, *) {
                 shapeNode.fillRule = .evenOdd
             }
         #else
-            // Linux など fillRule が未サポートの環境では何もしない（テスト用ビルド対策）
+            // macOS や Linux など fillRule が未サポート／非公開の環境では何もしない
+            // - Note: 単純な多角形の塗り潰し品質が僅かに変化する程度であり、
+            //         テスト専用ビルドでは描画の差異が問題にならないためここでは無視する。
         #endif
     }
 
