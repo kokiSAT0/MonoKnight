@@ -595,8 +595,9 @@ public struct CampaignLibrary {
             secondaryObjective: .finishWithPenaltyAtMost(maxPenaltyCount: 5),
             scoreTarget: 450,
             scoreTargetComparison: .lessThanOrEqual,
-            // MARK: 第 2 章開始条件は第 1 章で十分なスターを獲得しているかを基準にする
-            unlockRequirement: .chapterTotalStars(chapter: 1, minimum: 16)
+            // MARK: 第 2 章開始条件は第 1 章でスターを 12 個以上確保しているかを基準にする
+            //       章内 8 ステージで満点未満でも挑戦できるよう、閾値を 12 個へ緩和している
+            unlockRequirement: .chapterTotalStars(chapter: 1, minimum: 12)
         )
 
         // 2-2: 5×5 盤で対角二度踏みを巡回し、任意スポーンでも 45 手以内へ収める判断力を育てる。
@@ -803,8 +804,9 @@ public struct CampaignLibrary {
             secondaryObjective: .finishWithPenaltyAtMost(maxPenaltyCount: 2),
             scoreTarget: 600,
             scoreTargetComparison: .lessThanOrEqual,
-            // MARK: 第 3 章も前章のスター総数を指標とし、継続的なチャレンジを促す
-            unlockRequirement: .chapterTotalStars(chapter: 2, minimum: 16)
+            // MARK: 第 3 章も前章スター総数 12 個以上で解放し、到達ハードルを統一する
+            //       章ごとに「1-1 は常時解放、以降は前章スター 12 個以上」を徹底するための設定
+            unlockRequirement: .chapterTotalStars(chapter: 2, minimum: 12)
         )
 
         // 3-2: 5×5 盤へ拡張し、縦横カードで 40 手以内の踏破を目指す。
@@ -1002,8 +1004,8 @@ public struct CampaignLibrary {
             secondaryObjective: .finishWithinMoves(maxMoves: 30),
             scoreTarget: 520,
             scoreTargetComparison: .lessThanOrEqual,
-            // MARK: 第 4 章開始条件は前章スター数の蓄積を基準にし、幅広い攻略を促す
-            unlockRequirement: .chapterTotalStars(chapter: 3, minimum: 16)
+            // MARK: 第 4 章も前章スター 12 個以上で解放し、章を跨ぐ進行条件を統一する
+            unlockRequirement: .chapterTotalStars(chapter: 3, minimum: 12)
         )
 
         // 4-2: トグル 3 箇所でペナルティ合計 2 以下に抑える。
@@ -1227,8 +1229,8 @@ public struct CampaignLibrary {
             secondaryObjective: .finishWithinMoves(maxMoves: 30),
             scoreTarget: 500,
             scoreTargetComparison: .lessThanOrEqual,
-            // MARK: 最終章は直前の章で十分なスターを獲得したプレイヤーに解放する
-            unlockRequirement: .chapterTotalStars(chapter: 4, minimum: 16)
+            // MARK: 第 5 章も直前章スター 12 個以上で解放し、以降の章と条件を合わせる
+            unlockRequirement: .chapterTotalStars(chapter: 4, minimum: 12)
         )
 
         // 5-2: 障害物を 3 箇所へ増やし、ペナルティ合計 2 以下で安定させる。
@@ -1486,8 +1488,9 @@ public struct CampaignLibrary {
             secondaryObjective: .finishWithinMoves(maxMoves: 40),
             scoreTarget: 520,
             scoreTargetComparison: .lessThanOrEqual,
-            // MARK: 第 6 章は 5-8 を突破したプレイヤー向けに開放する
-            unlockRequirement: .stageClear(stage58.id)
+            // MARK: 第 6 章以降は「前章スター 12 個以上」で一律解放するため、章全体の達成度を評価する
+            //       具体的には第 5 章でスターを 12 個以上獲得すれば挑戦可能とする
+            unlockRequirement: .chapterTotalStars(chapter: 5, minimum: 12)
         )
 
         // 6-2: ワープペアを 2 組へ増やし、ペナルティ合計 2 以下を意識させる。
@@ -1752,7 +1755,8 @@ public struct CampaignLibrary {
             secondaryObjective: .finishWithinMoves(maxMoves: 38),
             scoreTarget: 440,
             scoreTargetComparison: .lessThanOrEqual,
-            unlockRequirement: .stageClear(stage68.id)
+            // MARK: 第 7 章も前章スター 12 個以上で解放し、ステージ 7-1 の挑戦条件を明確化する
+            unlockRequirement: .chapterTotalStars(chapter: 6, minimum: 12)
         )
 
         // 7-2: 桂馬強化カードの重み増しを想定した応用編。ペナルティ合計 2 以下で安定させる。
@@ -1966,7 +1970,8 @@ public struct CampaignLibrary {
             secondaryObjective: .finishWithinMoves(maxMoves: 38),
             scoreTarget: 400,
             scoreTargetComparison: .lessThanOrEqual,
-            unlockRequirement: .stageClear(stage78.id)
+            // MARK: 第 8 章も前章スター 12 個以上で解放し、最終章到達条件を統一する
+            unlockRequirement: .chapterTotalStars(chapter: 7, minimum: 12)
         )
 
         // 8-2: スーパーワープカードで踏破済みマスも含めた再配置を練習。ペナルティ合計 2 以下を条件に落ち着いた判断を促す。
