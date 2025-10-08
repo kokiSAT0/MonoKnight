@@ -110,7 +110,22 @@ final class CampaignLibraryTests: XCTestCase {
                 .knightDownwardChoice,
                 .knightLeftwardChoice
             ])),
-            (.fixedWarpSpecialized, "固定ワープ特化構成", "固定ワープ特化デッキ", [.fixedWarp]),
+            (
+                .fixedWarpSpecialized,
+                "固定ワープ基礎構成",
+                "固定ワープ基礎デッキ",
+                [
+                    .kingUp,
+                    .kingRight,
+                    .kingDown,
+                    .kingLeft,
+                    .knightUp2Right1,
+                    .knightUp2Left1,
+                    .knightDown2Right1,
+                    .knightDown2Left1,
+                    .fixedWarp
+                ]
+            ),
             (
                 .superWarpHighFrequency,
                 "全域ワープ高頻度構成",

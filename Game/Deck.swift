@@ -234,14 +234,30 @@ struct Deck {
             )
         }()
 
-        /// 固定座標ワープの連続使用に特化した構成
-        /// - Note: 固定ワープのみを引き続けることで、目的地ローテーションや設置ポイントの吟味に集中できる。
+        /// 固定座標ワープを高頻度で供給しつつ、基礎移動カードでフォローする構成
+        /// - Note: 固定ワープによる瞬間転移を主役に据えながらも、詰まりそうな局面では短距離移動で地道に調整できるよう
+        ///   サポートカードを混在させる。学習のテンポを維持するため、固定ワープの重みは他カードより大きく設定する。
         static let fixedWarpSpecialized: Configuration = {
-            let allowedMoves: [MoveCard] = [.fixedWarp]
+            // MARK: 固定ワープ練習を支える基礎移動カードの選定
+            // - 上下左右への 1 マス移動（キング型）と、代表的な桂馬ジャンプを組み合わせてリカバリー手段を確保する
+            let supportMoves: [MoveCard] = [
+                .kingUp,
+                .kingRight,
+                .kingDown,
+                .kingLeft,
+                .knightUp2Right1,
+                .knightUp2Left1,
+                .knightDown2Right1,
+                .knightDown2Left1
+            ]
+            // MARK: 固定ワープカードを末尾へ追加し、山札構成をまとめて管理する
+            let allowedMoves = supportMoves + [.fixedWarp]
+            // MARK: 固定ワープは重み 5 で高頻度化し、サポートカードは重み 1 のまま据え置く
+            let overrides: [MoveCard: Int] = [.fixedWarp: 5]
             return Configuration(
                 allowedMoves: allowedMoves,
-                weightProfile: WeightProfile(defaultWeight: 1),
-                deckSummaryText: "固定ワープ特化デッキ"
+                weightProfile: WeightProfile(defaultWeight: 1, overrides: overrides),
+                deckSummaryText: "固定ワープ基礎デッキ"
             )
         }()
 

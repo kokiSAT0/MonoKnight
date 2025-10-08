@@ -41,8 +41,8 @@ public enum GameDeckPreset: String, CaseIterable, Codable, Identifiable {
     /// 標準デッキにすべての選択カードを加えた構成
     /// - Note: 選択カード 10 種を網羅し、複合判断の最終確認に位置付ける。
     case standardWithAllChoices
-    /// 固定ワープカードのみで構成した特化デッキ
-    /// - Note: 固定ワープの目的地管理と活用手順に集中できる訓練用。
+    /// 固定ワープカードを主役に据えた基礎練習デッキ
+    /// - Note: 固定ワープを高頻度で引き込みつつ、近接移動でリカバリーできるようサポートカードも少量混在させる。
     case fixedWarpSpecialized
     /// 標準デッキに全域ワープを高重みで導入した構成
     /// - Note: 瞬間移動ルート構築を重点的に練習する上級者向けデッキ。
@@ -97,7 +97,7 @@ public enum GameDeckPreset: String, CaseIterable, Codable, Identifiable {
         case .standardWithAllChoices:
             return "標準＋全選択カード構成"
         case .fixedWarpSpecialized:
-            return "固定ワープ特化構成"
+            return "固定ワープ基礎構成"
         case .superWarpHighFrequency:
             return "全域ワープ高頻度構成"
         case .standardWithWarpCards:

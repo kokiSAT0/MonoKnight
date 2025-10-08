@@ -1953,11 +1953,11 @@ public struct CampaignLibrary {
         // ワープカードとスーパーワープカードを主役に据え、既存ギミックとの複合制御力を確認する終盤章。
         let chapter8Penalties = standardPenalties
 
-        // 8-1: 固定ワープのみを配布し、目的地ローテーションと瞬間転移の基礎を 38 手以内で学ぶ導入ステージ。
+        // 8-1: 固定ワープを高頻度で配布し、目的地ローテーションと瞬間転移を 38 手以内で学ぶ導入ステージ。
         let stage81 = CampaignStage(
             id: CampaignStageID(chapter: 8, index: 1),
             title: "固定ワープ基礎",
-            summary: "固定ワープカードのみで盤面を踏破し、38 手以内に配置ルートを最適化する基礎訓練です。",
+            summary: "固定ワープカードを高頻度で引き込みつつ、基礎移動で微調整しながら 38 手以内に踏破ルートを整える基礎訓練です。",
             regulation: GameMode.Regulation(
                 boardSize: 5,
                 handSize: 5,
