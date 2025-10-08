@@ -224,15 +224,36 @@ struct Deck {
                 .knightDownwardChoice,
                 .knightLeftwardChoice
             ]
-            let specialAdditions: [MoveCard] = selectionCards + [.superWarp]
-            let allowedMoves = MoveCard.standardSet + specialAdditions
-            // 選択式カードは重み 2、全域ワープは希少性を保つため重み 1 を適用する
-            var overrides = Dictionary(uniqueKeysWithValues: selectionCards.map { ($0, 2) })
-            overrides[.superWarp] = 1
+            let allowedMoves = MoveCard.standardSet + selectionCards
+            // 全域ワープは高難度専用デッキへ移譲したため、ここでは選択カードのみを重み 2 で強化する
+            let overrides = Dictionary(uniqueKeysWithValues: selectionCards.map { ($0, 2) })
             return Configuration(
                 allowedMoves: allowedMoves,
                 weightProfile: WeightProfile(defaultWeight: 1, overrides: overrides),
-                deckSummaryText: "標準＋全選択カード＋ワープ"
+                deckSummaryText: "標準＋全選択カード"
+            )
+        }()
+
+        /// 固定座標ワープの連続使用に特化した構成
+        /// - Note: 固定ワープのみを引き続けることで、目的地ローテーションや設置ポイントの吟味に集中できる。
+        static let fixedWarpSpecialized: Configuration = {
+            let allowedMoves: [MoveCard] = [.fixedWarp]
+            return Configuration(
+                allowedMoves: allowedMoves,
+                weightProfile: WeightProfile(defaultWeight: 1),
+                deckSummaryText: "固定ワープ特化デッキ"
+            )
+        }()
+
+        /// 全域ワープを高頻度で供給する上級者向け構成
+        /// - Note: 標準セットへ全域ワープを追加し、重み 4 で抽選頻度を引き上げて瞬間移動ルート構築を学習する。
+        static let superWarpHighFrequency: Configuration = {
+            let allowedMoves = MoveCard.standardSet + [.superWarp]
+            let overrides: [MoveCard: Int] = [.superWarp: 4]
+            return Configuration(
+                allowedMoves: allowedMoves,
+                weightProfile: WeightProfile(defaultWeight: 1, overrides: overrides),
+                deckSummaryText: "標準＋全域ワープ高頻度"
             )
         }()
 

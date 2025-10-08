@@ -6,40 +6,64 @@ import Foundation
 /// - Note: それぞれのケースは `Deck.Configuration` へ変換可能で、表示名や概要テキストも併せて提供する
 public enum GameDeckPreset: String, CaseIterable, Codable, Identifiable {
     /// スタンダードモードと同じ山札構成
+    /// - Note: 盤面 5×5 の基礎練習やランキング対象モードで共通採用するベースライン。
     case standard
     /// 長距離カードの出現頻度を抑えた標準構成
+    /// - Note: 直線・斜め 2 マスを軽量化して初心者が局所移動へ慣れやすくする。
     case standardLight
     /// クラシカルチャレンジと同じ桂馬のみの構成
+    /// - Note: ナイト系ジャンプだけで盤面踏破するため、騎士巡りの感覚を磨ける。
     case classicalChallenge
     /// 王将型カードのみの構成（序盤向け超短距離デッキ）
+    /// - Note: 近接移動だけを扱い、移動候補の読み替え負荷を最小化する。
     case kingOnly
     /// キングと桂馬の基本 16 種を収録した構成
+    /// - Note: 標準セットの短距離カードに限定し、中級者への橋渡しに使う。
     case kingAndKnightBasic
     /// キング 4 種と桂馬 4 種のみで構成した訓練向けデッキ
+    /// - Note: 3×3 盤での導入に最適化し、操作量をさらに絞り込む。
     case kingPlusKnightOnly
     /// キング型カードに上下左右の選択肢を加えた構成
+    /// - Note: 選択カードの初期学習として縦横 2 択の判断練習に活用する。
     case directionChoice
     /// レイ型カードを主体とした連続移動構成
+    /// - Note: レイ型と補助キングを組み合わせ、長距離掃討を重点的に学ぶ。
     case directionalRayFocus
     /// 標準デッキに上下左右の選択キングを加えた構成
+    /// - Note: 縦横選択を重み 2 で引きやすくし、標準カードとの切り替えを練習する。
     case standardWithOrthogonalChoices
     /// 標準デッキに斜め選択キングを加えた構成
+    /// - Note: 角方向の補正を習得する中盤トレーニングとして利用する。
     case standardWithDiagonalChoices
     /// 標準デッキに桂馬の選択カードを加えた構成
+    /// - Note: ナイト跳躍の柔軟性を高めるため、4 方向選択を重み 2 で供給する。
     case standardWithKnightChoices
     /// 標準デッキにすべての選択カードを加えた構成
+    /// - Note: 選択カード 10 種を網羅し、複合判断の最終確認に位置付ける。
     case standardWithAllChoices
+    /// 固定ワープカードのみで構成した特化デッキ
+    /// - Note: 固定ワープの目的地管理と活用手順に集中できる訓練用。
+    case fixedWarpSpecialized
+    /// 標準デッキに全域ワープを高重みで導入した構成
+    /// - Note: 瞬間移動ルート構築を重点的に練習する上級者向けデッキ。
+    case superWarpHighFrequency
     /// 標準デッキにワープカードを加えた構成
+    /// - Note: 固定ワープと全域ワープをバランス良く混在させ、応用期の訓練に用いる。
     case standardWithWarpCards
     /// 複数マス移動カードを重視した拡張構成
+    /// - Note: レイ型＋補助キングで盤面全域の掃討速度を高める目的。
     case extendedWithMultiStepMoves
     /// 上下左右の選択キングカードのみで構成した訓練デッキ
+    /// - Note: 選択式の基本挙動を短時間で体験できる限定構成。
     case kingOrthogonalChoiceOnly
     /// 斜め方向の選択キングカードのみで構成した訓練デッキ
+    /// - Note: 角移動の判断を集中的に磨く限定構成。
     case kingDiagonalChoiceOnly
     /// 桂馬の選択カードのみで構成した訓練デッキ
+    /// - Note: 桂馬系の到達パターンを把握するための専用メニュー。
     case knightChoiceOnly
     /// すべての選択カードを混合した総合デッキ
+    /// - Note: 選択カード全系統を均等重みで扱い、自由練習に向く構成。
     case allChoiceMixed
 
     /// `Identifiable` 準拠用の ID
@@ -72,6 +96,10 @@ public enum GameDeckPreset: String, CaseIterable, Codable, Identifiable {
             return "標準＋桂馬選択構成"
         case .standardWithAllChoices:
             return "標準＋全選択カード構成"
+        case .fixedWarpSpecialized:
+            return "固定ワープ特化構成"
+        case .superWarpHighFrequency:
+            return "全域ワープ高頻度構成"
         case .standardWithWarpCards:
             return "標準＋ワープカード構成"
         case .extendedWithMultiStepMoves:
@@ -119,6 +147,10 @@ public enum GameDeckPreset: String, CaseIterable, Codable, Identifiable {
             return .standardWithKnightChoices
         case .standardWithAllChoices:
             return .standardWithAllChoices
+        case .fixedWarpSpecialized:
+            return .fixedWarpSpecialized
+        case .superWarpHighFrequency:
+            return .superWarpHighFrequency
         case .standardWithWarpCards:
             return .standardWithWarpCards
         case .extendedWithMultiStepMoves:

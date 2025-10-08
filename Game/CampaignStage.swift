@@ -1953,17 +1953,17 @@ public struct CampaignLibrary {
         // ワープカードとスーパーワープカードを主役に据え、既存ギミックとの複合制御力を確認する終盤章。
         let chapter8Penalties = standardPenalties
 
-        // 8-1: ワープカードの挙動理解に集中させる導入。38 手以内でテンポ良く活用する。
+        // 8-1: 固定ワープのみを配布し、目的地ローテーションと瞬間転移の基礎を 38 手以内で学ぶ導入ステージ。
         let stage81 = CampaignStage(
             id: CampaignStageID(chapter: 8, index: 1),
-            title: "ワープカード訓練",
-            summary: "ワープカードで未踏マスへ瞬時に移動し、38 手以内で踏破する基本訓練です。",
+            title: "固定ワープ基礎",
+            summary: "固定ワープカードのみで盤面を踏破し、38 手以内に配置ルートを最適化する基礎訓練です。",
             regulation: GameMode.Regulation(
                 boardSize: 5,
                 handSize: 5,
                 nextPreviewCount: 3,
                 allowsStacking: true,
-                deckPreset: .standardWithWarpCards,
+                deckPreset: .fixedWarpSpecialized,
                 spawnRule: fixedSpawn5,
                 penalties: chapter8Penalties
             ),
@@ -1974,17 +1974,17 @@ public struct CampaignLibrary {
             unlockRequirement: .chapterTotalStars(chapter: 7, minimum: 12)
         )
 
-        // 8-2: スーパーワープカードで踏破済みマスも含めた再配置を練習。ペナルティ合計 2 以下を条件に落ち着いた判断を促す。
+        // 8-2: 全域ワープを高頻度で引ける構成で盤面全域の瞬間移動を練習し、ペナルティ合計 2 以下の冷静な運用を求める。
         let stage82 = CampaignStage(
             id: CampaignStageID(chapter: 8, index: 2),
-            title: "スーパーワープ試験",
-            summary: "スーパーワープカードで任意マスへ転移し、ペナルティ合計 2 以下でまとめる試験です。",
+            title: "全域ワープ試験",
+            summary: "全域ワープカードを高頻度で引き込み、ペナルティ合計 2 以下に抑えて瞬間転移ルートを構築する試験です。",
             regulation: GameMode.Regulation(
                 boardSize: 5,
                 handSize: 5,
                 nextPreviewCount: 3,
                 allowsStacking: true,
-                deckPreset: .standardWithWarpCards,
+                deckPreset: .superWarpHighFrequency,
                 spawnRule: fixedSpawn5,
                 penalties: chapter8Penalties
             ),
@@ -1994,7 +1994,7 @@ public struct CampaignLibrary {
             unlockRequirement: .stageClear(stage81.id)
         )
 
-        // 8-3: 中央障害物とワープカードの併用で位置取り調整力を鍛える。36 手以内の迅速な攻略を要求。
+        // 8-3: ここからは固定／全域ワープをバランス投入した標準構成へ移行し、中央障害物との併用で 36 手以内の迅速攻略を鍛える。
         let stage83Impassable: Set<GridPoint> = [
             GridPoint(x: 2, y: 2)
         ]
@@ -2019,7 +2019,7 @@ public struct CampaignLibrary {
             unlockRequirement: .stageClear(stage82.id)
         )
 
-        // 8-4: トグルマスとスーパーワープの組み合わせで踏破状況の再編成力を確認。34 手以内の短期決戦に設定。
+        // 8-4: トグルマスとバランス型ワープデッキの組み合わせで踏破状況の再編成力を確認し、34 手以内の短期決戦に設定。
         let stage84Toggles: Set<GridPoint> = [
             GridPoint(x: 1, y: 1),
             GridPoint(x: 3, y: 3)
@@ -2044,7 +2044,7 @@ public struct CampaignLibrary {
             unlockRequirement: .stageClear(stage83.id)
         )
 
-        // 8-5: 任意スポーンを導入し、二度踏みとワープカードの両立で再配置ルートを描く。ペナルティ合計 2 以下が条件。
+        // 8-5: 任意スポーンと二度踏みを導入し、バランス型ワープデッキで再配置ルートを描く。ペナルティ合計 2 以下が条件。
         let stage85AdditionalVisits: [GridPoint: Int] = [
             GridPoint(x: 2, y: 2): 2
         ]
@@ -2068,7 +2068,7 @@ public struct CampaignLibrary {
             unlockRequirement: .stageClear(stage84.id)
         )
 
-        // 8-6: ワープタイルとワープカードの混成運用。32 手以内で広域転移を制御する。
+        // 8-6: ワープタイルとワープカードを混成させ、バランス型デッキで 32 手以内の広域転移制御を目指す。
         let stage86WarpPairs: [String: [GridPoint]] = [
             "stage86_pair_cross": [
                 GridPoint(x: 0, y: 4),
@@ -2095,7 +2095,7 @@ public struct CampaignLibrary {
             unlockRequirement: .stageClear(stage85.id)
         )
 
-        // 8-7: トグルと障害物を絡めて空間支配力を測る。ペナルティ合計 1 以下で終える冷静さが求められる。
+        // 8-7: トグルと障害物を絡めた終盤演習。バランス型デッキでペナルティ合計 1 以下の冷静さが求められる。
         let stage87Toggles: Set<GridPoint> = [
             GridPoint(x: 2, y: 2)
         ]
@@ -2123,7 +2123,7 @@ public struct CampaignLibrary {
             unlockRequirement: .stageClear(stage86.id)
         )
 
-        // 8-8: 終章最終試験。二度踏み・トグル・障害物を同時管理しつつ、スーパーワープで局面を打開する。
+        // 8-8: 終章最終試験。二度踏み・トグル・障害物を同時管理しつつ、バランス型デッキに含まれるワープカードで局面を打開する。
         let stage88AdditionalVisits: [GridPoint: Int] = [
             GridPoint(x: 3, y: 1): 2
         ]
@@ -2136,7 +2136,7 @@ public struct CampaignLibrary {
         let stage88 = CampaignStage(
             id: CampaignStageID(chapter: 8, index: 8),
             title: "空間支配最終試験",
-            summary: "スーパーワープを駆使し、30 手以内＆ペナルティ合計 1 以下で空間支配を完成させる最終試験です。",
+            summary: "ワープカードを駆使し、30 手以内＆ペナルティ合計 1 以下で空間支配を完成させる最終試験です。",
             regulation: GameMode.Regulation(
                 boardSize: 5,
                 handSize: 5,
@@ -2158,7 +2158,7 @@ public struct CampaignLibrary {
         let chapter8 = CampaignChapter(
             id: 8,
             title: "空間支配",
-            summary: "ワープカードとスーパーワープカードで盤面を掌握する章。",
+            summary: "固定ワープから全域ワープまで段階的に習熟し、最終的に両者を併用して盤面を掌握する章。",
             stages: [stage81, stage82, stage83, stage84, stage85, stage86, stage87, stage88]
         )
 

@@ -246,7 +246,7 @@ final class GameViewIntegrationTests: XCTestCase {
         let adsService = AdsServiceSpy()
 
         // 全域ワープカードのみで構成されたデッキを用意し、常に同カードを引く状況を作る
-        let deck = Deck.makeTestDeck(cards: [.superWarp], configuration: .standardWithAllChoices)
+        let deck = Deck.makeTestDeck(cards: [.superWarp], configuration: .superWarpHighFrequency)
         let interfaces = GameModuleInterfaces { mode in
             GameCore.makeTestInstance(
                 deck: deck,
@@ -286,7 +286,7 @@ final class GameViewIntegrationTests: XCTestCase {
         let gameCenter = GameCenterServiceSpy()
         let adsService = AdsServiceSpy()
 
-        let deck = Deck.makeTestDeck(cards: [.superWarp], configuration: .standardWithAllChoices)
+        let deck = Deck.makeTestDeck(cards: [.superWarp], configuration: .superWarpHighFrequency)
         let interfaces = GameModuleInterfaces { mode in
             GameCore.makeTestInstance(
                 deck: deck,
