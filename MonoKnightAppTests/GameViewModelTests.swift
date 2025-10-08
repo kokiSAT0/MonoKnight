@@ -319,8 +319,14 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertEqual(campaignCore.liveElapsedSecondsForTesting(asOf: campaignDateProvider.now), 80, "バックグラウンド中にキャンペーンタイマーが進行しています")
 
         campaignViewModel.handleScenePhaseChange(.active)
+        XCTAssertTrue(campaignViewModel.isPauseMenuPresented, "バックグラウンド復帰後はポーズメニューが自動表示される必要があります")
+
         campaignDateProvider.now = campaignDateProvider.now.addingTimeInterval(40)
-        XCTAssertEqual(campaignCore.liveElapsedSecondsForTesting(asOf: campaignDateProvider.now), 120, "キャンペーンでの復帰後カウントが期待と異なります")
+        XCTAssertEqual(campaignCore.liveElapsedSecondsForTesting(asOf: campaignDateProvider.now), 80, "ポーズメニューを閉じるまではタイマーが再開されてはいけません")
+
+        campaignViewModel.setPauseMenuPresentedForTesting(false)
+        campaignDateProvider.now = campaignDateProvider.now.addingTimeInterval(30)
+        XCTAssertEqual(campaignCore.liveElapsedSecondsForTesting(asOf: campaignDateProvider.now), 110, "ポーズ解除後にタイマーが再開されていません")
 
         let scoreDateProvider = MutableDateProvider(now: Date(timeIntervalSince1970: 40_000))
         let (scoreViewModel, scoreCore) = makeViewModel(
