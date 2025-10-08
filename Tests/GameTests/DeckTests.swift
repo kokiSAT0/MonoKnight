@@ -129,16 +129,35 @@ final class DeckTests: XCTestCase {
             .knightLeftwardChoice
         ]
         XCTAssertTrue(expectedChoices.isSubset(of: allowedMoves), "全選択カードが揃っていません")
-        XCTAssertTrue(allowedMoves.contains(.superWarp), "全域ワープカードが追加デッキへ含まれていません")
+        XCTAssertFalse(allowedMoves.contains(.superWarp), "全域ワープカードは別デッキで練習する想定のため混在しません")
         // MARK: 選択式カードは単一方向カードの 2 倍である重み 2 に引き上げられているか検証
         expectedChoices.forEach { choice in
             XCTAssertEqual(config.weightProfile.weight(for: choice), 2, "全選択カードの重みが想定値 2 と異なります: \(choice)")
         }
-        // MARK: 全域ワープは希少カードとして重み 1 を維持しているか確認
-        XCTAssertEqual(config.weightProfile.weight(for: .superWarp), 1, "全域ワープの重みは 1 のままに設定する想定です")
         // MARK: 既存の単一方向カードは従来どおり重み 1 を維持しているかチェック
         XCTAssertEqual(config.weightProfile.weight(for: .kingUp), 1, "標準カードの重みが 1 から変化しています")
-        XCTAssertEqual(config.deckSummaryText, "標準＋全選択カード＋ワープ")
+        XCTAssertEqual(config.deckSummaryText, "標準＋全選択カード")
+    }
+
+    /// 固定ワープ特化デッキが固定ワープのみで構成されていることを検証する
+    func testFixedWarpSpecializedDeckConfiguration() {
+        let config = Deck.Configuration.fixedWarpSpecialized
+        XCTAssertEqual(config.allowedMoves, [.fixedWarp], "固定ワープ特化デッキには他カードを含めない想定です")
+        XCTAssertEqual(config.weightProfile.weight(for: .fixedWarp), 1, "固定ワープの重みは均一の 1 を維持する想定です")
+        XCTAssertEqual(config.deckSummaryText, "固定ワープ特化デッキ")
+    }
+
+    /// 全域ワープ高頻度デッキが標準カードと全域ワープを適切に混在させているか検証する
+    func testSuperWarpHighFrequencyDeckConfiguration() {
+        let config = Deck.Configuration.superWarpHighFrequency
+        let allowedMoves = Set(config.allowedMoves)
+        let standardMoves = Set(MoveCard.standardSet)
+
+        XCTAssertTrue(standardMoves.isSubset(of: allowedMoves), "標準カードが不足しています")
+        XCTAssertTrue(allowedMoves.contains(.superWarp), "全域ワープが含まれていません")
+        XCTAssertEqual(config.weightProfile.weight(for: .superWarp), 4, "全域ワープの重みが想定値 4 と異なります")
+        XCTAssertEqual(config.weightProfile.weight(for: .kingUp), 1, "標準カードの重みが 1 から変化しています")
+        XCTAssertEqual(config.deckSummaryText, "標準＋全域ワープ高頻度")
     }
 
     /// MoveCard.allCases にキング型 8 種が含まれているかを検証する

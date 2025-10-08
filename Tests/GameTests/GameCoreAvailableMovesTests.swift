@@ -149,7 +149,7 @@ final class GameCoreAvailableMovesTests: XCTestCase {
             handSize: 1,
             nextPreviewCount: 0,
             allowsStacking: true,
-            deckPreset: .standardWithAllChoices,
+            deckPreset: .superWarpHighFrequency,
             spawnRule: .fixed(origin),
             penalties: GameMode.PenaltySettings(
                 deadlockPenaltyCost: 0,
@@ -167,7 +167,7 @@ final class GameCoreAvailableMovesTests: XCTestCase {
             leaderboardEligible: false
         )
 
-        let deck = Deck.makeTestDeck(cards: [.superWarp], configuration: .standardWithAllChoices)
+        let deck = Deck.makeTestDeck(cards: [.superWarp], configuration: .superWarpHighFrequency)
         let visitedPoints = [origin, visitedPoint]
         let core = GameCore.makeTestInstance(
             deck: deck,
