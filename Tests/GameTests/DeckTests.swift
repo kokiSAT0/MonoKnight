@@ -139,12 +139,26 @@ final class DeckTests: XCTestCase {
         XCTAssertEqual(config.deckSummaryText, "標準＋全選択カード")
     }
 
-    /// 固定ワープ特化デッキが固定ワープのみで構成されていることを検証する
+    /// 固定ワープ基礎デッキが固定ワープを高頻度で供給しつつ基礎移動カードを含むことを検証する
     func testFixedWarpSpecializedDeckConfiguration() {
         let config = Deck.Configuration.fixedWarpSpecialized
-        XCTAssertEqual(config.allowedMoves, [.fixedWarp], "固定ワープ特化デッキには他カードを含めない想定です")
-        XCTAssertEqual(config.weightProfile.weight(for: .fixedWarp), 1, "固定ワープの重みは均一の 1 を維持する想定です")
-        XCTAssertEqual(config.deckSummaryText, "固定ワープ特化デッキ")
+        let expectedSupportMoves: [MoveCard] = [
+            .kingUp,
+            .kingRight,
+            .kingDown,
+            .kingLeft,
+            .knightUp2Right1,
+            .knightUp2Left1,
+            .knightDown2Right1,
+            .knightDown2Left1
+        ]
+        let expectedMoves = expectedSupportMoves + [.fixedWarp]
+        XCTAssertEqual(config.allowedMoves, expectedMoves, "固定ワープ基礎デッキの構成カードが仕様と一致しません")
+        XCTAssertEqual(config.weightProfile.weight(for: .fixedWarp), 5, "固定ワープの重みは 5 で高頻度供給する想定です")
+        expectedSupportMoves.forEach { move in
+            XCTAssertEqual(config.weightProfile.weight(for: move), 1, "サポートカードの重みは 1 を維持する想定です: \(move)")
+        }
+        XCTAssertEqual(config.deckSummaryText, "固定ワープ基礎デッキ")
     }
 
     /// 全域ワープ高頻度デッキが標準カードと全域ワープを適切に混在させているか検証する
