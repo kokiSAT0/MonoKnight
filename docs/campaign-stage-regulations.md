@@ -90,7 +90,7 @@ MonoKnight のキャンペーンモードに収録されている各ステージ
 - **ヒントホットスポット / 手札補充ブースト**: 実装済みだがキャンペーンでは未使用。将来採用時は本書へ追記する。<!-- 今後の運用余地を示す -->
 - **複数マス移動カード**: `MoveCard.directionalRayCards` を中心に設定し、SpriteKit ではレイ方向へ 0.3 秒の光軌跡アニメーションで複数ステップ移動を可視化（サウンド追加は行わない）。<!-- `extendedWithMultiStepMoves` で重み 3 を適用 -->
 - **ワープカード**: `MoveCard.fixedWarp` を基底に `fixedWarpCardTargets` を参照し、SpriteKit では発動マスから目的地へ収縮→拡張するリング演出で瞬間転移を表現（SE なし）。<!-- `standardWithWarpCards` で固定ワープを重み 1 に設定予定 -->
-- **スーパーワープカード**: `MoveCard.superWarp` の動的ターゲットを UI へ提示し、SpriteKit では多層リングと光柱 (0.35 秒) を描画して上位版らしさを出すが、サウンドは付与しない。<!-- `standardWithWarpCards` で上位カードの重み調整を実施 -->
+- **スーパーワープカード**: `MoveCard.superWarp` の動的ターゲットを UI へ提示し、SpriteKit では多層リングと光柱 (0.35 秒) を描画して上位版らしさを出すが、サウンドは付与しない。またカード選択時は盤面全域を淡いバフで包む強制ハイライトを表示し、「どのマスも選択可能」であることを示す。<!-- `standardWithWarpCards` で上位カードの重み調整を実施 -->
 
 ## 6. 章別詳細
 

@@ -239,8 +239,8 @@ final class GameViewIntegrationTests: XCTestCase {
         )
     }
 
-    /// 全域ワープカードを選択した際はガイドを非表示に保つことを確認する
-    func testSelectingSuperWarpClearsForcedHighlights() {
+    /// 全域ワープカードを選択した際は盤面全域を穏やかにハイライトすることを確認する
+    func testSelectingSuperWarpHighlightsAllTraversableTiles() {
         let scheduler = PenaltyBannerSchedulerSpy()
         let gameCenter = GameCenterServiceSpy()
         let adsService = AdsServiceSpy()
@@ -274,9 +274,25 @@ final class GameViewIntegrationTests: XCTestCase {
 
         viewModel.handleHandSlotTap(at: stackIndex)
 
-        XCTAssertTrue(
-            viewModel.boardBridge.forcedSelectionHighlightPoints.isEmpty,
-            "全域ワープ選択時のハイライトは非表示である必要があります"
+        guard let current = viewModel.core.current else {
+            XCTFail("現在地が取得できませんでした")
+            return
+        }
+
+        let board = viewModel.core.board
+        // 盤面全体から現在地と障害物を除外した集合を導出し、SpriteKit へ送信される想定と同期させる
+        let expectedHighlights = Set(
+            BoardGeometry
+                .allPoints(for: board.size)
+                .filter { point in
+                    point != current && board.contains(point) && board.isTraversable(point)
+                }
+        )
+
+        XCTAssertEqual(
+            viewModel.boardBridge.forcedSelectionHighlightPoints,
+            expectedHighlights,
+            "全域ワープ選択時の強制ハイライト集合が盤面の移動可能マスと一致していません"
         )
     }
 
