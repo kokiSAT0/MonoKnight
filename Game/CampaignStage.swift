@@ -787,17 +787,17 @@ public struct CampaignLibrary {
         // 選択カードを段階導入し、終盤は複数踏破ギミックと組み合わせる。
         let standardPenalties = unifiedMidCampaignPenalties
 
-        // 3-1: 4×4 盤で縦横選択カードを体験。ペナルティ合計 2 以下を目指しつつ丁寧な操作を促す。
+        // 3-1: 4×4 盤でキング＋ナイト基礎デッキに縦横選択カードを加え、短距離での判断力を鍛える。
         let stage31 = CampaignStage(
             id: CampaignStageID(chapter: 3, index: 1),
             title: "縦横選択チュートリアル",
-            summary: "4×4 盤で上下左右を選べるキングカードを試し、ペナルティ合計 2 以下を意識しながら基本操作を確認しましょう。",
+            summary: "4×4 盤でキング＋ナイト基礎デッキに上下左右選択キングを加え、ペナルティ合計 2 以下を意識しつつ短距離操作を磨きましょう。",
             regulation: GameMode.Regulation(
                 boardSize: 4,
                 handSize: 5,
                 nextPreviewCount: 3,
                 allowsStacking: true,
-                deckPreset: .standardWithOrthogonalChoices,
+                deckPreset: .kingAndKnightWithOrthogonalChoices,
                 spawnRule: .fixed(BoardGeometry.defaultSpawnPoint(for: 4)),
                 penalties: standardPenalties
             ),
@@ -809,17 +809,17 @@ public struct CampaignLibrary {
             unlockRequirement: .chapterTotalStars(chapter: 2, minimum: 12)
         )
 
-        // 3-2: 5×5 盤へ拡張し、縦横カードで 40 手以内の踏破を目指す。
+        // 3-2: 5×5 盤へ拡張し、キング＋ナイト基礎デッキに縦横選択カードを加えた構成で 40 手以内を目指す。
         let stage32 = CampaignStage(
             id: CampaignStageID(chapter: 3, index: 2),
             title: "縦横基礎",
-            summary: "5×5 盤で縦横選択カードを活用し、40 手以内で踏破する計画力を養います。",
+            summary: "5×5 盤でキング＋ナイト基礎デッキに上下左右選択キングを組み合わせ、40 手以内で踏破する計画力を養います。",
             regulation: GameMode.Regulation(
                 boardSize: 5,
                 handSize: 5,
                 nextPreviewCount: 3,
                 allowsStacking: true,
-                deckPreset: .standardWithOrthogonalChoices,
+                deckPreset: .kingAndKnightWithOrthogonalChoices,
                 spawnRule: .fixed(BoardGeometry.defaultSpawnPoint(for: 5)),
                 penalties: standardPenalties
             ),
@@ -829,17 +829,17 @@ public struct CampaignLibrary {
             unlockRequirement: .stageClear(stage31.id)
         )
 
-        // 3-3: 斜め選択カードを導入し、ペナルティ合計 2 以下で角マス攻略を学ぶ。
+        // 3-3: 斜め選択キングを導入し、キング＋ナイト基礎デッキのまま角マス攻略を学ぶ。
         let stage33 = CampaignStage(
             id: CampaignStageID(chapter: 3, index: 3),
             title: "斜め選択入門",
-            summary: "斜め 4 方向の選択キングを使い分け、ペナルティ合計 2 以下で角マスを制圧します。",
+            summary: "キング＋ナイト基礎デッキに斜め選択キングを足し、ペナルティ合計 2 以下で角マスを制圧します。",
             regulation: GameMode.Regulation(
                 boardSize: 5,
                 handSize: 5,
                 nextPreviewCount: 3,
                 allowsStacking: true,
-                deckPreset: .standardWithDiagonalChoices,
+                deckPreset: .kingAndKnightWithDiagonalChoices,
                 spawnRule: .fixed(BoardGeometry.defaultSpawnPoint(for: 5)),
                 penalties: standardPenalties
             ),
@@ -849,17 +849,17 @@ public struct CampaignLibrary {
             unlockRequirement: .stageClear(stage32.id)
         )
 
-        // 3-4: 桂馬選択カードを導入し、38 手以内のジャンプ操作を習得する。
+        // 3-4: 桂馬選択カードを導入し、キング＋ナイト基礎デッキの跳躍力を拡張して 38 手以内を狙う。
         let stage34 = CampaignStage(
             id: CampaignStageID(chapter: 3, index: 4),
             title: "桂馬選択入門",
-            summary: "桂馬の選択カードで遠距離マスを埋め、38 手以内で巡回する応用演習です。",
+            summary: "キング＋ナイト基礎デッキに桂馬選択カードを加え、38 手以内で巡回する応用演習です。",
             regulation: GameMode.Regulation(
                 boardSize: 5,
                 handSize: 5,
                 nextPreviewCount: 3,
                 allowsStacking: true,
-                deckPreset: .standardWithKnightChoices,
+                deckPreset: .kingAndKnightWithKnightChoices,
                 spawnRule: .fixed(BoardGeometry.defaultSpawnPoint(for: 5)),
                 penalties: standardPenalties
             ),

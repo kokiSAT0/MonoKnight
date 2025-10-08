@@ -50,13 +50,59 @@ final class CampaignLibraryTests: XCTestCase {
 
     /// 選択カード系プリセットが期待通りの構成を返すことを確認する
     func testChoiceDeckPresetConfigurations() {
+        let kingAndKnightBaseSet = Set(MoveCard.standardSet.filter { $0.isKingType || $0.isKnightType })
         let presets: [(GameDeckPreset, String, String, Set<MoveCard>)] = [
             (.standardLight, "スタンダード軽量構成", "長距離カード抑制型標準デッキ", Set(MoveCard.standardSet)),
             (
                 .kingAndKnightBasic,
                 "キング＋ナイト基礎構成",
                 "キングと桂馬の基礎デッキ",
-                Set(MoveCard.standardSet.filter { $0.isKingType || $0.isKnightType })
+                kingAndKnightBaseSet
+            ),
+            (
+                .kingAndKnightWithOrthogonalChoices,
+                "キング＋ナイト＋縦横選択構成",
+                "キングと桂馬＋上下左右選択カード",
+                kingAndKnightBaseSet.union([.kingUpOrDown, .kingLeftOrRight])
+            ),
+            (
+                .kingAndKnightWithDiagonalChoices,
+                "キング＋ナイト＋斜め選択構成",
+                "キングと桂馬＋斜め選択カード",
+                kingAndKnightBaseSet.union([
+                    .kingUpwardDiagonalChoice,
+                    .kingRightDiagonalChoice,
+                    .kingDownwardDiagonalChoice,
+                    .kingLeftDiagonalChoice
+                ])
+            ),
+            (
+                .kingAndKnightWithKnightChoices,
+                "キング＋ナイト＋桂馬選択構成",
+                "キングと桂馬＋桂馬選択カード",
+                kingAndKnightBaseSet.union([
+                    .knightUpwardChoice,
+                    .knightRightwardChoice,
+                    .knightDownwardChoice,
+                    .knightLeftwardChoice
+                ])
+            ),
+            (
+                .kingAndKnightWithAllChoices,
+                "キング＋ナイト＋全選択構成",
+                "キングと桂馬＋全選択カード",
+                kingAndKnightBaseSet.union([
+                    .kingUpOrDown,
+                    .kingLeftOrRight,
+                    .kingUpwardDiagonalChoice,
+                    .kingRightDiagonalChoice,
+                    .kingDownwardDiagonalChoice,
+                    .kingLeftDiagonalChoice,
+                    .knightUpwardChoice,
+                    .knightRightwardChoice,
+                    .knightDownwardChoice,
+                    .knightLeftwardChoice
+                ])
             ),
             (
                 .kingPlusKnightOnly,
@@ -180,6 +226,35 @@ final class CampaignLibraryTests: XCTestCase {
             if presetsRequiringStandard.contains(preset) {
                 let standardMoves = Set(MoveCard.standardSet)
                 XCTAssertTrue(standardMoves.isSubset(of: allowedMoves), "標準カードが欠落しています: \(preset)")
+            }
+        }
+    }
+
+    /// キング＋ナイト系派生プリセットが長距離カードを含まないことを確認する
+    func testKingAndKnightChoiceDecksExcludeLongRangeCards() {
+        // MARK: チェック対象のプリセットを列挙し、いずれも短距離カードのみで構成されていることを検証する
+        let presets: [GameDeckPreset] = [
+            .kingAndKnightBasic,
+            .kingAndKnightWithOrthogonalChoices,
+            .kingAndKnightWithDiagonalChoices,
+            .kingAndKnightWithKnightChoices,
+            .kingAndKnightWithAllChoices
+        ]
+
+        for preset in presets {
+            let configuration = preset.configuration
+            for card in configuration.allowedMoves {
+                // MARK: キング型または桂馬型に該当するカードのみで構成されていることを保証する
+                XCTAssertTrue(
+                    card.isKingType || card.isKnightType,
+                    "\(preset) に長距離カードが混入しています: \(card)"
+                )
+                // MARK: レイ型などの multiStep カードが含まれていないことも追加で確認する
+                XCTAssertNotEqual(
+                    card.kind,
+                    .multiStep,
+                    "\(preset) に連続レイ型カードが含まれています: \(card)"
+                )
             }
         }
     }
@@ -470,7 +545,7 @@ final class CampaignLibraryTests: XCTestCase {
             1: StageExpectation(
                 title: "縦横選択チュートリアル",
                 boardSize: 4,
-                deck: .standardWithOrthogonalChoices,
+                deck: .kingAndKnightWithOrthogonalChoices,
                 spawn: fixedSpawn4,
                 penalties: standardPenalties,
                 secondary: .finishWithPenaltyAtMost(maxPenaltyCount: 2),
@@ -481,7 +556,7 @@ final class CampaignLibraryTests: XCTestCase {
             2: StageExpectation(
                 title: "縦横基礎",
                 boardSize: 5,
-                deck: .standardWithOrthogonalChoices,
+                deck: .kingAndKnightWithOrthogonalChoices,
                 spawn: fixedSpawn5,
                 penalties: standardPenalties,
                 secondary: .finishWithinMoves(maxMoves: 40),
@@ -491,7 +566,7 @@ final class CampaignLibraryTests: XCTestCase {
             3: StageExpectation(
                 title: "斜め選択入門",
                 boardSize: 5,
-                deck: .standardWithDiagonalChoices,
+                deck: .kingAndKnightWithDiagonalChoices,
                 spawn: fixedSpawn5,
                 penalties: standardPenalties,
                 secondary: .finishWithPenaltyAtMost(maxPenaltyCount: 2),
@@ -501,7 +576,7 @@ final class CampaignLibraryTests: XCTestCase {
             4: StageExpectation(
                 title: "桂馬選択入門",
                 boardSize: 5,
-                deck: .standardWithKnightChoices,
+                deck: .kingAndKnightWithKnightChoices,
                 spawn: fixedSpawn5,
                 penalties: standardPenalties,
                 secondary: .finishWithinMoves(maxMoves: 38),
