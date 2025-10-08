@@ -20,6 +20,18 @@ public enum GameDeckPreset: String, CaseIterable, Codable, Identifiable {
     /// キングと桂馬の基本 16 種を収録した構成
     /// - Note: 標準セットの短距離カードに限定し、中級者への橋渡しに使う。
     case kingAndKnightBasic
+    /// キングと桂馬基礎デッキへ上下左右の選択キングカードを加えた構成
+    /// - Note: 長距離カードを避けたまま縦横の判断力だけを拡張する初級者向け派生。
+    case kingAndKnightWithOrthogonalChoices
+    /// キングと桂馬基礎デッキへ斜め選択キングカードを加えた構成
+    /// - Note: 角方向の処理を短距離カードのみで鍛えるための派生構成。
+    case kingAndKnightWithDiagonalChoices
+    /// キングと桂馬基礎デッキへ桂馬の選択カードを加えた構成
+    /// - Note: 跳躍系の自由度を高めつつ長距離カードを含めない応用派生。
+    case kingAndKnightWithKnightChoices
+    /// キングと桂馬基礎デッキへ全選択カードを網羅した構成
+    /// - Note: 短距離カードのみで構成したまま総合演習に挑める集大成デッキ。
+    case kingAndKnightWithAllChoices
     /// キング 4 種と桂馬 4 種のみで構成した訓練向けデッキ
     /// - Note: 3×3 盤での導入に最適化し、操作量をさらに絞り込む。
     case kingPlusKnightOnly
@@ -82,6 +94,14 @@ public enum GameDeckPreset: String, CaseIterable, Codable, Identifiable {
             return "王将構成"
         case .kingAndKnightBasic:
             return "キング＋ナイト基礎構成"
+        case .kingAndKnightWithOrthogonalChoices:
+            return "キング＋ナイト＋縦横選択構成"
+        case .kingAndKnightWithDiagonalChoices:
+            return "キング＋ナイト＋斜め選択構成"
+        case .kingAndKnightWithKnightChoices:
+            return "キング＋ナイト＋桂馬選択構成"
+        case .kingAndKnightWithAllChoices:
+            return "キング＋ナイト＋全選択構成"
         case .kingPlusKnightOnly:
             return "キング＋ナイト限定構成"
         case .directionChoice:
@@ -133,6 +153,14 @@ public enum GameDeckPreset: String, CaseIterable, Codable, Identifiable {
             return .kingOnly
         case .kingAndKnightBasic:
             return .kingAndKnightBasic
+        case .kingAndKnightWithOrthogonalChoices:
+            return .kingAndKnightWithOrthogonalChoices
+        case .kingAndKnightWithDiagonalChoices:
+            return .kingAndKnightWithDiagonalChoices
+        case .kingAndKnightWithKnightChoices:
+            return .kingAndKnightWithKnightChoices
+        case .kingAndKnightWithAllChoices:
+            return .kingAndKnightWithAllChoices
         case .kingPlusKnightOnly:
             return .kingPlusKnightOnly
         case .directionChoice:

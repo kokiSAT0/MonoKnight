@@ -320,6 +320,95 @@ struct Deck {
             )
         }()
 
+        /// キングと桂馬の基礎デッキへ上下左右の選択キングカードを加えた構成
+        /// - Note: 短距離のみの構成を維持したまま判断力を拡張するため、長距離カードを追加せず選択肢だけ増やしている
+        static let kingAndKnightWithOrthogonalChoices: Configuration = {
+            // MARK: 基礎セット（キング＋桂馬）のみを抽出し、長距離カードを完全に排除した母集団を作成する
+            let baseMoves = MoveCard.standardSet.filter { $0.isKingType || $0.isKnightType }
+            // MARK: 上下左右の選択キングカードのみを追加し、短距離移動に集中できるようにする
+            let choiceCards: [MoveCard] = [.kingUpOrDown, .kingLeftOrRight]
+            let allowedMoves = baseMoves + choiceCards
+            // MARK: 選択カードの学習機会を増やすため、対象カードの重みを 2 に引き上げて出現率を高める
+            let overrides = Dictionary(uniqueKeysWithValues: choiceCards.map { ($0, 2) })
+            return Configuration(
+                allowedMoves: allowedMoves,
+                weightProfile: WeightProfile(defaultWeight: 1, overrides: overrides),
+                deckSummaryText: "キングと桂馬＋上下左右選択カード"
+            )
+        }()
+
+        /// キングと桂馬の基礎デッキへ斜め方向の選択キングカードを追加した構成
+        /// - Note: 角マス攻略に必要な判断力を育てつつ、長距離カードを混在させないことで操作難度をコントロールする
+        static let kingAndKnightWithDiagonalChoices: Configuration = {
+            // MARK: 基礎セットからキング・桂馬のみを抽出し、長距離・レイ型カードを含めない母集団を用意する
+            let baseMoves = MoveCard.standardSet.filter { $0.isKingType || $0.isKnightType }
+            // MARK: 斜め 4 方向の選択キングカードを追加し、角度調整の練習を行いやすくする
+            let choiceCards: [MoveCard] = [
+                .kingUpwardDiagonalChoice,
+                .kingRightDiagonalChoice,
+                .kingDownwardDiagonalChoice,
+                .kingLeftDiagonalChoice
+            ]
+            let allowedMoves = baseMoves + choiceCards
+            // MARK: 追加カードの出現頻度を高め、学習ステージで繰り返し引けるように重み 2 を設定する
+            let overrides = Dictionary(uniqueKeysWithValues: choiceCards.map { ($0, 2) })
+            return Configuration(
+                allowedMoves: allowedMoves,
+                weightProfile: WeightProfile(defaultWeight: 1, overrides: overrides),
+                deckSummaryText: "キングと桂馬＋斜め選択カード"
+            )
+        }()
+
+        /// キングと桂馬の基礎デッキへ桂馬選択カードを加えた構成
+        /// - Note: 桂馬跳躍の応用力を高めながら、長距離移動カードを避けて操作難度を一定に保つ
+        static let kingAndKnightWithKnightChoices: Configuration = {
+            // MARK: 母集団はキングと桂馬のみとし、長距離カードやレイ型カードは加えない
+            let baseMoves = MoveCard.standardSet.filter { $0.isKingType || $0.isKnightType }
+            // MARK: 桂馬の各方向選択カードを追加し、ジャンプ移動の可動域を一気に広げる
+            let choiceCards: [MoveCard] = [
+                .knightUpwardChoice,
+                .knightRightwardChoice,
+                .knightDownwardChoice,
+                .knightLeftwardChoice
+            ]
+            let allowedMoves = baseMoves + choiceCards
+            // MARK: 桂馬選択カードを積極的に引けるよう重み 2 を設定し、デッキ内での存在感を高める
+            let overrides = Dictionary(uniqueKeysWithValues: choiceCards.map { ($0, 2) })
+            return Configuration(
+                allowedMoves: allowedMoves,
+                weightProfile: WeightProfile(defaultWeight: 1, overrides: overrides),
+                deckSummaryText: "キングと桂馬＋桂馬選択カード"
+            )
+        }()
+
+        /// キングと桂馬の基礎デッキへ全選択カードをまとめて追加した構成
+        /// - Note: 短距離移動のみで構成しつつ、選択式カードの総合演習を行えるよう全方向を網羅する
+        static let kingAndKnightWithAllChoices: Configuration = {
+            // MARK: 長距離カードを除いたキング＋桂馬基礎集合を軸とし、短距離の選択カードだけを追加する
+            let baseMoves = MoveCard.standardSet.filter { $0.isKingType || $0.isKnightType }
+            // MARK: キングと桂馬の選択カードをすべて追加し、判断負荷の段階的強化に対応する
+            let choiceCards: [MoveCard] = [
+                .kingUpOrDown,
+                .kingLeftOrRight,
+                .kingUpwardDiagonalChoice,
+                .kingRightDiagonalChoice,
+                .kingDownwardDiagonalChoice,
+                .kingLeftDiagonalChoice,
+                .knightUpwardChoice,
+                .knightRightwardChoice,
+                .knightDownwardChoice,
+                .knightLeftwardChoice
+            ]
+            let allowedMoves = baseMoves + choiceCards
+            // MARK: すべての選択カードを重み 2 に引き上げ、演習中に十分な試行回数を確保する
+            let overrides = Dictionary(uniqueKeysWithValues: choiceCards.map { ($0, 2) })
+            return Configuration(
+                allowedMoves: allowedMoves,
+                weightProfile: WeightProfile(defaultWeight: 1, overrides: overrides),
+                deckSummaryText: "キングと桂馬＋全選択カード"
+            )
+        }()
+
         /// 上下左右を選択できる複数方向カードを含む 5×5 盤向け構成
         static let directionChoice: Configuration = {
             let choiceCards: [MoveCard] = [.kingUpOrDown, .kingLeftOrRight]
