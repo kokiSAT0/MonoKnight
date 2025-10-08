@@ -1617,8 +1617,9 @@
                 zPosition = 1.06
             case .forcedSelection:
                 // NOTE: 全域ワープなどで盤面全体が候補になる際も駒や踏破状況が把握できるよう、彩度を落とした半透明フレームを適用する。
-                //       枠線は既存ガイド色を基調にしつつアルファを抑え、塗りつぶしには淡いベールを敷いて「どこでも選べる」指示を穏やかに伝える。
-                baseColor = palette.boardGuideHighlight
+                //       ガイド色は固定ワープと同じ紫系統へ統一し、ワープカード全体で演出の一貫性を確保する。
+                //       枠線はアルファを抑えつつ塗りつぶしには淡いベールを敷き、「どこでも選べる」指示を穏やかに伝える。
+                baseColor = palette.boardWarpHighlight
                 strokeAlpha = 0.82
                 strokeWidth = max(tileSize * 0.07, 2.4)
                 fillColor = baseColor.withAlphaComponent(0.16)
