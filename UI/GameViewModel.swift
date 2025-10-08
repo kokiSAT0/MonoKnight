@@ -812,13 +812,16 @@ final class GameViewModel: ObservableObject {
             return
         }
 
-        // 全域ワープは候補が盤面全域に広がり視認性を損ねるため、ガイドを強制的に非表示へ切り替える
+        // 全域ワープは候補が盤面全域へ広がる特殊カードのため、候補集合をそのまま強制ハイライトへ転送する
+        // - Note: 以前は視覚的な密度を避ける目的でハイライトを消灯していたが、盤面全体を対象にしたガイドを提示
+        //   することで「どのマスを選んでも良い」ことを明確に案内できるようにする。全域ワープ専用の描画は
+        //   `GameScene` 側で視認性確保用の淡い色味へ調整しており、盤面全体が光っても駒や踏破状況が識別しやすい。
+        let destinations = Set(moves.map(\.destination))
         if moves.first?.card.move == .superWarp {
-            boardBridge.updateForcedSelectionHighlights([])
+            boardBridge.updateForcedSelectionHighlights(destinations)
             return
         }
 
-        let destinations = Set(moves.map(\.destination))
         let vectors = moves.map(\.moveVector)
         boardBridge.updateForcedSelectionHighlights(destinations, origin: current, movementVectors: vectors)
     }

@@ -1548,12 +1548,13 @@
                 width: tileSize,
                 height: tileSize
             )
-            let baseColor: SKColor
-            let strokeAlpha: CGFloat
-            let zPosition: CGFloat
-            let strokeWidth: CGFloat
             // 単一・複数ガイドの双方で共有する線幅を定義し、視覚的一貫性を保つ
             let sharedGuideStrokeWidth = max(tileSize * 0.055, 2.0)
+            var baseColor = palette.boardGuideHighlight
+            var strokeAlpha: CGFloat = 1.0
+            var zPosition: CGFloat = 1.0
+            var strokeWidth: CGFloat = sharedGuideStrokeWidth
+            var fillColor = SKColor.clear
             // 複数ガイドが単一ガイドと重なった際に追加で内側へ寄せる量
             var overlapInset: CGFloat = 0
             switch kind {
@@ -1615,10 +1616,12 @@
                 }
                 zPosition = 1.06
             case .forcedSelection:
-                // NOTE: 現段階ではガイドと同じ色を使用しつつ、将来のカスタマイズ余地を残すため分岐を設けている
+                // NOTE: 全域ワープなどで盤面全体が候補になる際も駒や踏破状況が把握できるよう、彩度を落とした半透明フレームを適用する。
+                //       枠線は既存ガイド色を基調にしつつアルファを抑え、塗りつぶしには淡いベールを敷いて「どこでも選べる」指示を穏やかに伝える。
                 baseColor = palette.boardGuideHighlight
-                strokeAlpha = 1.0
+                strokeAlpha = 0.82
                 strokeWidth = max(tileSize * 0.07, 2.4)
+                fillColor = baseColor.withAlphaComponent(0.16)
                 zPosition = 1.1
             }
 
@@ -1630,8 +1633,8 @@
             )
             node.path = CGPath(rect: adjustedRect, transform: nil)
 
-            // 充填色は透過させ、枠線のみに集中させて過度な塗りつぶしを避ける
-            node.fillColor = SKColor.clear
+            // 通常は枠線中心の表示としつつ、強制ハイライト時は淡い塗りを併用して盤面全域の候補を認識しやすくする
+            node.fillColor = fillColor
             node.strokeColor = baseColor.withAlphaComponent(strokeAlpha)
             node.lineWidth = strokeWidth
             node.glowWidth = 0
