@@ -320,7 +320,8 @@ final class CampaignLibraryTests: XCTestCase {
                 penalties: penalties,
                 secondary: .finishWithPenaltyAtMost(maxPenaltyCount: 5),
                 scoreTarget: 450,
-                unlock: .chapterTotalStars(chapter: 1, minimum: 16),
+                // MARK: 章開始条件の緩和に合わせ、必要スター数は 12 個とする
+                unlock: .chapterTotalStars(chapter: 1, minimum: 12),
                 additional: [GridPoint(x: 0, y: 1): 2, GridPoint(x: 2, y: 3): 2]
             ),
             2: StageExpectation(
@@ -452,7 +453,8 @@ final class CampaignLibraryTests: XCTestCase {
                 penalties: standardPenalties,
                 secondary: .finishWithPenaltyAtMost(maxPenaltyCount: 2),
                 scoreTarget: 600,
-                unlock: .chapterTotalStars(chapter: 2, minimum: 16)
+                // MARK: 第 3 章開始条件も 12 個スター獲得へ合わせる
+                unlock: .chapterTotalStars(chapter: 2, minimum: 12)
             ),
             2: StageExpectation(
                 title: "縦横基礎",
@@ -570,7 +572,8 @@ final class CampaignLibraryTests: XCTestCase {
                 penalties: penalties,
                 secondary: .finishWithinMoves(maxMoves: 30),
                 scoreTarget: 520,
-                unlock: .chapterTotalStars(chapter: 3, minimum: 16),
+                // MARK: 第 4 章の解放条件も 12 個スターであることを確認する
+                unlock: .chapterTotalStars(chapter: 3, minimum: 12),
                 toggles: [GridPoint(x: 1, y: 1), GridPoint(x: 3, y: 3)]
             ),
             2: StageExpectation(
@@ -698,7 +701,8 @@ final class CampaignLibraryTests: XCTestCase {
                 penalties: penalties,
                 secondary: .finishWithinMoves(maxMoves: 30),
                 scoreTarget: 500,
-                unlock: .chapterTotalStars(chapter: 4, minimum: 16),
+                // MARK: 第 5 章の解放条件も 12 個スターへ変更されたことを反映する
+                unlock: .chapterTotalStars(chapter: 4, minimum: 12),
                 impassable: [GridPoint(x: 1, y: 1), GridPoint(x: 3, y: 3)]
             ),
             2: StageExpectation(
