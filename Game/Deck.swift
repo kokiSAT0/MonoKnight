@@ -328,8 +328,8 @@ struct Deck {
             // MARK: 上下左右の選択キングカードのみを追加し、短距離移動に集中できるようにする
             let choiceCards: [MoveCard] = [.kingUpOrDown, .kingLeftOrRight]
             let allowedMoves = baseMoves + choiceCards
-            // MARK: 選択カードの学習機会を増やすため、対象カードの重みを 2 に引き上げて出現率を高める
-            let overrides = Dictionary(uniqueKeysWithValues: choiceCards.map { ($0, 2) })
+            // MARK: 選択カードの学習機会をさらに増やすため、対象カードの重みを 3 に設定して引き当てやすくする
+            let overrides = Dictionary(uniqueKeysWithValues: choiceCards.map { ($0, 3) })
             return Configuration(
                 allowedMoves: allowedMoves,
                 weightProfile: WeightProfile(defaultWeight: 1, overrides: overrides),
@@ -350,8 +350,8 @@ struct Deck {
                 .kingLeftDiagonalChoice
             ]
             let allowedMoves = baseMoves + choiceCards
-            // MARK: 追加カードの出現頻度を高め、学習ステージで繰り返し引けるように重み 2 を設定する
-            let overrides = Dictionary(uniqueKeysWithValues: choiceCards.map { ($0, 2) })
+            // MARK: 追加カードを確実に体験してもらうため重み 3 を適用し、チュートリアル内での遭遇率を底上げする
+            let overrides = Dictionary(uniqueKeysWithValues: choiceCards.map { ($0, 3) })
             return Configuration(
                 allowedMoves: allowedMoves,
                 weightProfile: WeightProfile(defaultWeight: 1, overrides: overrides),
@@ -372,8 +372,8 @@ struct Deck {
                 .knightLeftwardChoice
             ]
             let allowedMoves = baseMoves + choiceCards
-            // MARK: 桂馬選択カードを積極的に引けるよう重み 2 を設定し、デッキ内での存在感を高める
-            let overrides = Dictionary(uniqueKeysWithValues: choiceCards.map { ($0, 2) })
+            // MARK: 桂馬選択カードの登場頻度を一段と高めるため重み 3 を付与し、序盤から活用体験を得られるようにする
+            let overrides = Dictionary(uniqueKeysWithValues: choiceCards.map { ($0, 3) })
             return Configuration(
                 allowedMoves: allowedMoves,
                 weightProfile: WeightProfile(defaultWeight: 1, overrides: overrides),
@@ -400,8 +400,8 @@ struct Deck {
                 .knightLeftwardChoice
             ]
             let allowedMoves = baseMoves + choiceCards
-            // MARK: すべての選択カードを重み 2 に引き上げ、演習中に十分な試行回数を確保する
-            let overrides = Dictionary(uniqueKeysWithValues: choiceCards.map { ($0, 2) })
+            // MARK: すべての選択カードへ重み 3 を適用し、総合演習でも新要素を継続的に体験できるようにする
+            let overrides = Dictionary(uniqueKeysWithValues: choiceCards.map { ($0, 3) })
             return Configuration(
                 allowedMoves: allowedMoves,
                 weightProfile: WeightProfile(defaultWeight: 1, overrides: overrides),
@@ -501,12 +501,13 @@ struct Deck {
         }()
 
         /// 複数マス移動カードとサポート用キングカードを組み合わせた拡張デッキ
-        /// - Note: レイ型カードを重み 3 に設定し、連続移動の出現率を高めつつ基本 4 方向キングで調整力を確保する
+        /// - Note: レイ型カードを重み 2 に抑えて過剰供給を防ぎ、基本 4 方向キングで調整力を確保する
         static let extendedWithMultiStepMoves: Configuration = {
             let multiStepCards = MoveCard.directionalRayCards
             let supportKings: [MoveCard] = [.kingUp, .kingRight, .kingDown, .kingLeft]
             let allowedMoves = multiStepCards + supportKings
-            let overrides = Dictionary(uniqueKeysWithValues: multiStepCards.map { ($0, 3) })
+            // MARK: 新要素の出現頻度を適正化するため、複数マス移動カードの重みを 2 に調整してバランスを整える
+            let overrides = Dictionary(uniqueKeysWithValues: multiStepCards.map { ($0, 2) })
             return Configuration(
                 allowedMoves: allowedMoves,
                 weightProfile: WeightProfile(defaultWeight: 1, overrides: overrides),
