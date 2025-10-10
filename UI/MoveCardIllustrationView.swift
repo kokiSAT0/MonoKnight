@@ -194,6 +194,10 @@ struct MoveCardIllustrationView: View {
         // 固定ワープカードへ固有の目的地が割り当てられているかどうか（カードデザイン変更のトリガー）
         let absoluteWarpDestination = fixedWarpDestination
         let warpAccentColor = isSuperWarpCard ? theme.superWarpCardAccent : theme.warpCardAccent
+        // MARK: - 固定ワープカードでは中央マスを他のマスと同一色に揃える
+        // 既存のハイライト色をそのまま適用すると薄いグレーが残り、盤面全体での一貫性が崩れるため
+        // 固定ワープカードの場合はハイライトを描かず、カード背景色をそのまま透過させる
+        let centerHighlightColor: Color? = isFixedWarpCard ? nil : mode.centerHighlightColor(using: theme)
         // MARK: - 枠線色の決定（選択カードや複数マス移動カードで個別に色を差し替える）
         let isSelectionCard = card.kind == .choice
         let borderColor: Color
@@ -263,10 +267,12 @@ struct MoveCardIllustrationView: View {
 
                     ZStack {
                         // MARK: 中央マスのハイライト
-                        Rectangle()
-                            .fill(mode.centerHighlightColor(using: theme))
-                            .frame(width: cellSize, height: cellSize)
-                            .position(startPoint)
+                        if let centerHighlightColor {
+                            Rectangle()
+                                .fill(centerHighlightColor)
+                                .frame(width: cellSize, height: cellSize)
+                                .position(startPoint)
+                        }
 
                         // MARK: グリッド線（縦横 5 分割）
                         Path { path in
