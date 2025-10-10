@@ -520,10 +520,8 @@ struct Deck {
     /// 現在採用している設定
     private let configuration: Configuration
     /// 固定ワープカードが参照する目的地リスト
-    /// - Note: カード配布時に順番へ割り当てるため、Deck 内で保持して消費インデックスを管理する
+    /// - Note: カード配布時に `nextFixedWarpDestination()` からランダム抽選するため、Deck 内で候補集合を保持しておく
     private let fixedWarpDestinations: [GridPoint]
-    /// 固定ワープ目的地を次回どこまで消費したかを追跡するカーソル
-    private var fixedWarpDestinationCursor: Int = 0
     /// 初期シード値。reset() 時に同じ乱数列へ戻すため保持する
     private let initialSeed: UInt64
     #if canImport(GameplayKit)
@@ -546,7 +544,7 @@ struct Deck {
     /// - Parameters:
     ///   - seed: 乱数シード。省略時はシステム乱数から採番する
     ///   - configuration: 採用する山札設定
-    ///   - fixedWarpDestinations: 固定ワープカードへ割り当てる目的地集合（順番に消費）
+    ///   - fixedWarpDestinations: 固定ワープカードへ割り当てる目的地集合（ランダム抽選の母集団）
     init(
         seed: UInt64? = nil,
         configuration: Configuration = .standard,
@@ -584,8 +582,7 @@ struct Deck {
         #else
         random = SeededGenerator(seed: initialSeed)
         #endif
-        // 固定ワープ目的地の消費順も初期化し、リセット後に同じ順番でカードへ割り当てる
-        fixedWarpDestinationCursor = 0
+        // 乱数シードを初期状態へ戻すことで、固定ワープ目的地の抽選結果も含めた乱数列を完全に再現する
         #if DEBUG
         presetDrawQueue = presetOriginal
         #endif
@@ -633,16 +630,12 @@ struct Deck {
         }
     }
 
-    /// 固定ワープカード向けの目的地を順番に取り出す
+    /// 固定ワープカード向けの目的地をランダムに抽選する
     /// - Returns: 次に割り当てる目的地（定義がない場合は nil）
     private mutating func nextFixedWarpDestination() -> GridPoint? {
         guard !fixedWarpDestinations.isEmpty else { return nil }
-        if fixedWarpDestinationCursor >= fixedWarpDestinations.count {
-            fixedWarpDestinationCursor = 0
-        }
-        let destination = fixedWarpDestinations[fixedWarpDestinationCursor]
-        fixedWarpDestinationCursor += 1
-        return destination
+        let index = nextRandomIndex(upperBound: fixedWarpDestinations.count)
+        return fixedWarpDestinations[index]
     }
 
     /// 重み付きプールからインデックスを 1 つ取得する
@@ -698,16 +691,18 @@ extension Deck {
 
     /// プリセットしたカード列を優先的に返すテスト用デッキを生成する
     /// - Parameters:
+    ///   - seed: 乱数シード。省略時は 1 を使用し、`reset()` で同じ抽選列を再現できるようにする
     ///   - cards: 先頭から消費させたいカード列（手札スロット数ぶんを優先消費し、残りが先読みキューへ入る）
     ///   - configuration: 検証対象の山札設定（省略時はスタンダード）
     ///   - fixedWarpDestinations: 固定ワープカードへ割り当てたい目的地リスト
     /// - Returns: プリセットを持った `Deck`
     static func makeTestDeck(
+        seed: UInt64 = 1,
         cards: [MoveCard],
         configuration: Configuration = .standard,
         fixedWarpDestinations: [GridPoint] = []
     ) -> Deck {
-        var deck = Deck(seed: 1, configuration: configuration, fixedWarpDestinations: fixedWarpDestinations)
+        var deck = Deck(seed: seed, configuration: configuration, fixedWarpDestinations: fixedWarpDestinations)
         deck.preload(cards: cards)
         return deck
     }

@@ -1,4 +1,7 @@
 import XCTest
+#if canImport(GameplayKit)
+import GameplayKit
+#endif
 @testable import Game
 
 /// 固定座標ワープカードに関する挙動を検証するテスト
@@ -215,13 +218,50 @@ final class GameCoreFixedWarpCardTests: XCTestCase {
         let firstMove = try XCTUnwrap(warpMoves.first, "固定ワープ候補が得られません")
         XCTAssertTrue(fallbackTargets.contains(firstMove.destination), "availableMoves() から取得した目的地がフォールバック集合に含まれていません")
 
-        // --- 最初のカードを使用し、次に配られるカードが順番に更新されるか確認 ---
+        // --- 最初のカードを使用しても、補充されるカードが候補集合から抽選されることを確認 ---
         core.playCard(using: firstMove)
-        if fallbackTargets.count >= 2 {
+        if fallbackTargets.count >= 1 {
             let nextCard = try XCTUnwrap(core.handStacks.first?.topCard, "ワープカードの再補充に失敗しています")
             let nextDestination = try XCTUnwrap(nextCard.fixedWarpDestination, "補充後の固定ワープ目的地が設定されていません")
             XCTAssertTrue(fallbackTargets.contains(nextDestination), "補充後の目的地がフォールバック集合に含まれていません")
-            XCTAssertNotEqual(nextDestination, firstMove.destination, "巡回中に同じ目的地が連続して割り当てられています")
         }
+
+        // --- シード 1 を指定したデッキで乱数列が再現されることを確認 ---
+        let drawCount = min(3, fallbackTargets.count)
+        guard drawCount > 0 else { return }
+
+        var expectedSequence: [GridPoint] = []
+        expectedSequence.reserveCapacity(drawCount)
+        #if canImport(GameplayKit)
+        let generator = GKMersenneTwisterRandomSource(seed: 1)
+        for _ in 0..<drawCount {
+            let index = generator.nextInt(upperBound: fallbackTargets.count)
+            expectedSequence.append(fallbackTargets[index])
+        }
+        #else
+        var generator = Deck.SeededGenerator(seed: 1)
+        for _ in 0..<drawCount {
+            let value = generator.next()
+            let index = Int(value % UInt64(fallbackTargets.count))
+            expectedSequence.append(fallbackTargets[index])
+        }
+        #endif
+
+        var deterministicDeck = Deck.makeTestDeck(
+            seed: 1,
+            cards: Array(repeating: MoveCard.fixedWarp, count: drawCount),
+            configuration: regulation.deckPreset.configuration,
+            fixedWarpDestinations: fallbackTargets
+        )
+        let drawnSequence = (0..<drawCount).compactMap { _ in
+            deterministicDeck.draw()?.fixedWarpDestination
+        }
+        XCTAssertEqual(drawnSequence, expectedSequence, "シード 1 に対する固定ワープ抽選結果が期待と一致しません")
+
+        deterministicDeck.reset()
+        let redrawnSequence = (0..<drawCount).compactMap { _ in
+            deterministicDeck.draw()?.fixedWarpDestination
+        }
+        XCTAssertEqual(redrawnSequence, expectedSequence, "reset() 後に同じ乱数列が再現されていません")
     }
 }
