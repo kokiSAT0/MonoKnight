@@ -91,13 +91,23 @@ final class HandManagerTests: XCTestCase {
         // 手札内で固定ワープカードが 2 スタックに分かれていることを確認する（他カードの補充でスタック数自体は増えても良い）
         let fixedWarpStacks = handManager.handStacks.filter { $0.topCard?.move == .fixedWarp }
         XCTAssertEqual(fixedWarpStacks.count, 2, "目的地が異なる固定ワープカードは別スタックで管理されるべきです")
-        XCTAssertTrue(fixedWarpStacks.allSatisfy { $0.count == 1 }, "各ワープスタックに 1 枚ずつのみ格納されている想定です")
         let obtainedDestinations = fixedWarpStacks.compactMap { $0.topCard?.fixedWarpDestination }
         XCTAssertEqual(
             Set(obtainedDestinations),
             Set(destinations),
             "手札に保持されたワープ先が想定と一致していません"
         )
+        // 各スタック内部でも目的地が混在していないことを念押しでチェックする
+        for stack in fixedWarpStacks {
+            guard let representative = stack.topCard?.fixedWarpDestination else {
+                XCTFail("ワープスタックの代表カードに目的地がありません")
+                continue
+            }
+            XCTAssertTrue(
+                stack.cards.allSatisfy { $0.fixedWarpDestination == representative },
+                "同一スタック内には同じ目的地のみが積まれている必要があります"
+            )
+        }
     }
 
     /// 固定ワープカードが同一目的地を共有している場合は従来通りスタックされることを確認する
