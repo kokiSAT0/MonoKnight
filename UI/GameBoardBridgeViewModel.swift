@@ -218,6 +218,46 @@ final class GameBoardBridgeViewModel: ObservableObject {
         scene.updateHighlights(highlights)
     }
 
+    /// ガイド集合の件数をまとめ、ログ用メッセージも同時に生成する
+    /// - Parameters:
+    ///   - buckets: 直近で計算したガイド候補の集合
+    ///   - logPrefix: 呼び出し元で使いたい冒頭のメッセージ
+    /// - Returns: 各集合の件数と合計、ならびに debugLog へ渡す整形済み文字列
+    /// - Note: 件数計算とログ文言の重複を避け、保守性を高めるために専用ヘルパーへ切り出している
+    private func makeGuideHighlightSummary(
+        _ buckets: GuideHighlightBuckets,
+        logPrefix: String
+    ) -> (
+        singleCount: Int,
+        multipleCount: Int,
+        multiStepCount: Int,
+        warpCount: Int,
+        totalCount: Int,
+        logMessage: String
+    ) {
+        // --- 集計対象それぞれの件数を求める ---
+        let singleCount = buckets.singleVectorDestinations.count
+        let multipleCount = buckets.multipleVectorDestinations.count
+        let multiStepCount = buckets.multiStepDestinations.count
+        let warpCount = buckets.warpDestinations.count
+        let totalCount = singleCount + multipleCount + multiStepCount + warpCount
+
+        // --- 呼び出し側で使うログ文面を一括生成する ---
+        let logMessage = (
+            "\(logPrefix) 単一=\(singleCount) 複数=\(multipleCount) " +
+            "連続=\(multiStepCount) ワープ=\(warpCount) 合計=\(totalCount)"
+        )
+
+        return (
+            singleCount,
+            multipleCount,
+            multiStepCount,
+            warpCount,
+            totalCount,
+            logMessage
+        )
+    }
+
     /// ガイドハイライトを最新状態へ更新する
     /// - Parameters:
     ///   - handOverride: 手札情報を差し替えたい場合に指定
@@ -280,15 +320,11 @@ final class GameBoardBridgeViewModel: ObservableObject {
             pendingGuideHand = nil
             pendingGuideCurrent = nil
             pendingGuideBuckets = nil
-            let singleCount = computedBuckets.singleVectorDestinations.count
-            let multipleCount = computedBuckets.multipleVectorDestinations.count
-            let multiStepCount = computedBuckets.multiStepDestinations.count
-            let warpCount = computedBuckets.warpDestinations.count
-            let total = singleCount + multipleCount + multiStepCount + warpCount
-            debugLog(
-                "ガイドを消灯: ガイドモードが無効 単一=\(singleCount) 複数=\(multipleCount) " +
-                "連続=\(multiStepCount) ワープ=\(warpCount) 合計=\(total)"
+            let summary = makeGuideHighlightSummary(
+                computedBuckets,
+                logPrefix: "ガイドを消灯: ガイドモードが無効"
             )
+            debugLog(summary.logMessage)
             return
         }
 
@@ -298,15 +334,11 @@ final class GameBoardBridgeViewModel: ObservableObject {
             pendingGuideBuckets = computedBuckets
             guideHighlightBuckets = .empty
             pushHighlightsToScene()
-            let singleCount = computedBuckets.singleVectorDestinations.count
-            let multipleCount = computedBuckets.multipleVectorDestinations.count
-            let multiStepCount = computedBuckets.multiStepDestinations.count
-            let warpCount = computedBuckets.warpDestinations.count
-            let total = singleCount + multipleCount + multiStepCount + warpCount
-            debugLog(
-                "ガイド更新を保留: 状態=\(String(describing: progress)) 単一=\(singleCount) 複数=\(multipleCount) " +
-                "連続=\(multiStepCount) ワープ=\(warpCount) 合計=\(total)"
+            let summary = makeGuideHighlightSummary(
+                computedBuckets,
+                logPrefix: "ガイド更新を保留: 状態=\(String(describing: progress))"
             )
+            debugLog(summary.logMessage)
             return
         }
 
@@ -315,14 +347,11 @@ final class GameBoardBridgeViewModel: ObservableObject {
         pendingGuideBuckets = nil
         guideHighlightBuckets = computedBuckets
         pushHighlightsToScene()
-        let singleCount = computedBuckets.singleVectorDestinations.count
-        let multipleCount = computedBuckets.multipleVectorDestinations.count
-        let multiStepCount = computedBuckets.multiStepDestinations.count
-        let warpCount = computedBuckets.warpDestinations.count
-        let total = singleCount + multipleCount + multiStepCount + warpCount
-        debugLog(
-            "ガイド描画: 単一=\(singleCount) 複数=\(multipleCount) 連続=\(multiStepCount) ワープ=\(warpCount) 合計=\(total)"
+        let summary = makeGuideHighlightSummary(
+            computedBuckets,
+            logPrefix: "ガイド描画"
         )
+        debugLog(summary.logMessage)
     }
 
     /// 強制的に表示したいハイライト集合を更新する
