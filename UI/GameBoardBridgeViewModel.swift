@@ -404,40 +404,16 @@ final class GameBoardBridgeViewModel: ObservableObject {
             return false
         }
 
-        // スタック位置が変化している可能性を考慮し、最新のインデックスを再評価する
-        let resolvedIndex: Int
-        let moveForExecution: ResolvedCardMove
-        if core.handStacks.indices.contains(resolvedMove.stackIndex),
-           core.handStacks[resolvedMove.stackIndex].id == resolvedMove.stackID {
-            resolvedIndex = resolvedMove.stackIndex
-            moveForExecution = resolvedMove
-        } else if let fallbackIndex = core.handStacks.firstIndex(where: { $0.id == resolvedMove.stackID }) {
-            resolvedIndex = fallbackIndex
-            moveForExecution = ResolvedCardMove(
-                stackID: resolvedMove.stackID,
-                stackIndex: fallbackIndex,
-                card: resolvedMove.card,
-                moveVector: resolvedMove.moveVector,
-                resolution: resolvedMove.resolution
-            )
-            debugLog(
-                "スタック位置を補正: 元index=\(resolvedMove.stackIndex) 新index=\(fallbackIndex) stackID=\(resolvedMove.stackID)"
-            )
-        } else {
-            debugLog("スタック演出を中止: 対象 stack が見つからない stackID=\(resolvedMove.stackID)")
+        // GameCore 側で提供するユーティリティを利用し、スタック位置の補正とカード一致検証を一括で行う
+        guard let (validatedMove, stack) = core.validatedResolvedMove(resolvedMove) else {
+            debugLog("スタック演出を中止: ResolvedCardMove の検証に失敗 stackID=\(resolvedMove.stackID)")
             return false
         }
 
-        let stack = core.handStacks[resolvedIndex]
+        // GameCore 側でインデックス補正済みの ResolvedCardMove をそのまま利用する
+        let moveForExecution = validatedMove
         guard let topCard = stack.topCard else {
             debugLog("スタック演出を中止: トップカードなし stackID=\(stack.id)")
-            return false
-        }
-
-        guard topCard.id == moveForExecution.card.id else {
-            debugLog(
-                "スタック演出を中止: トップカードが変化 requestCardID=\(moveForExecution.card.id) currentID=\(topCard.id)"
-            )
             return false
         }
 

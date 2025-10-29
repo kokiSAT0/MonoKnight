@@ -181,6 +181,65 @@ public final class GameCore: ObservableObject {
         playCard(using: resolvedMove)
     }
 
+    /// ResolvedCardMove が現在の手札情報と一致しているかを検証し、必要ならインデックスを補正する
+    /// - Parameter resolvedMove: UI やガイド計算から受け取った移動候補
+    /// - Returns: 最新のスタックインデックスへ正規化した `ResolvedCardMove` と対応する `HandStack`
+    ///            （不一致が検出された場合は nil を返して早期終了する）
+    public func validatedResolvedMove(
+        _ resolvedMove: ResolvedCardMove
+    ) -> (ResolvedCardMove, HandStack)? {
+        // --- まずは提示された index がそのまま利用できるかを確認する ---
+        let resolvedIndex: Int
+        if handStacks.indices.contains(resolvedMove.stackIndex),
+           handStacks[resolvedMove.stackIndex].id == resolvedMove.stackID {
+            resolvedIndex = resolvedMove.stackIndex
+        } else if let fallbackIndex = handStacks.firstIndex(where: { $0.id == resolvedMove.stackID }) {
+            // --- index が変化していた場合は補正し、原因追跡のためにログへ記録する ---
+            resolvedIndex = fallbackIndex
+            debugLog(
+                "ResolvedCardMove を補正: 元index=\(resolvedMove.stackIndex) 新index=\(fallbackIndex) stackID=\(resolvedMove.stackID)"
+            )
+        } else {
+            // --- スタックそのものが見つからなければカード不一致と判断し、nil で通知する ---
+            debugLog(
+                "ResolvedCardMove 検証失敗: 対象 stack が存在しない stackID=\(resolvedMove.stackID)"
+            )
+            return nil
+        }
+
+        let stack = handStacks[resolvedIndex]
+        // --- トップカードが存在しなければ使用不能のため nil を返す ---
+        guard let topCard = stack.topCard else {
+            debugLog(
+                "ResolvedCardMove 検証失敗: トップカードなし stackID=\(stack.id)"
+            )
+            return nil
+        }
+        // --- 指定されたカード ID と MoveCard が一致するか二重で確認する ---
+        guard topCard.id == resolvedMove.card.id, topCard.move == resolvedMove.card.move else {
+            debugLog(
+                "ResolvedCardMove 検証失敗: カード不一致 requestID=\(resolvedMove.card.id) currentID=\(topCard.id)"
+            )
+            return nil
+        }
+
+        // --- index 補正が発生した場合は新しい ResolvedCardMove を生成して返す ---
+        let normalizedMove: ResolvedCardMove
+        if resolvedIndex == resolvedMove.stackIndex {
+            normalizedMove = resolvedMove
+        } else {
+            normalizedMove = ResolvedCardMove(
+                stackID: resolvedMove.stackID,
+                stackIndex: resolvedIndex,
+                card: resolvedMove.card,
+                moveVector: resolvedMove.moveVector,
+                resolution: resolvedMove.resolution
+            )
+        }
+
+        return (normalizedMove, stack)
+    }
+
     /// ResolvedCardMove で指定されたベクトルを用いてカードをプレイする
     /// - Parameter resolvedMove: `availableMoves()` が返す候補の 1 つ
     public func playCard(using resolvedMove: ResolvedCardMove) {
@@ -189,10 +248,11 @@ public final class GameCore: ObservableObject {
         // 捨て札モード中は移動を開始せず安全に抜ける
         guard !isAwaitingManualDiscardSelection else { return }
         // UI 側で保持していた情報が古くなっていないかを安全確認
-        guard handStacks.indices.contains(resolvedMove.stackIndex) else { return }
-        let stack = handStacks[resolvedMove.stackIndex]
-        guard stack.id == resolvedMove.stackID else { return }
-        guard let card = stack.topCard, card.id == resolvedMove.card.id, card.move == resolvedMove.card.move else { return }
+        // - Note: validatedResolvedMove(_: ) が index 補正とカード一致チェックを共通化する
+        guard let (validatedMove, latestStack) = validatedResolvedMove(resolvedMove),
+              let card = latestStack.topCard else {
+            return
+        }
         // MovePattern から算出した経路が現時点でも有効かを検証し、不正な入力を排除する
         let snapshotBoard = board
         let context = MoveCard.MovePattern.ResolutionContext(
@@ -207,15 +267,15 @@ public final class GameCore: ObservableObject {
         if card.move == .fixedWarp {
             // --- 固定ワープカードはカード自身が持つ目的地と一致しているか二重に検証する ---
             guard let target = card.fixedWarpDestination else { return }
-            let destination = resolvedMove.resolution.finalPosition
-            let pathMatches = resolvedMove.path == [destination] && destination == target
+            let destination = validatedMove.resolution.finalPosition
+            let pathMatches = validatedMove.path == [destination] && destination == target
             let remainsAccessible = destination != currentPosition &&
                 snapshotBoard.contains(destination) &&
                 snapshotBoard.isTraversable(destination)
             isStillValid = pathMatches && remainsAccessible
         } else {
             isStillValid = validPaths.contains { path in
-                path.traversedPoints == resolvedMove.path
+                path.traversedPoints == validatedMove.path
             }
         }
         guard isStillValid else { return }
@@ -225,13 +285,13 @@ public final class GameCore: ObservableObject {
 
         // デバッグログ: 使用カードと移動先を出力（複数候補カードでも選択ベクトルを追跡できるよう詳細を含める）
         debugLog(
-            "カード \(card.move) を使用し \(currentPosition) -> \(resolvedMove.destination) へ移動予定 (vector=\(resolvedMove.moveVector))"
+            "カード \(card.move) を使用し \(currentPosition) -> \(validatedMove.destination) へ移動予定 (vector=\(validatedMove.moveVector))"
         )
 
         // 経路ごとの踏破判定と効果適用を順番に処理する
         // アニメーション用に経路を保持し、ワープ時は終点を追加して UI へ伝達する
-        var traversedPath = resolvedMove.path
-        let pathPoints = resolvedMove.path
+        var traversedPath = validatedMove.path
+        let pathPoints = validatedMove.path
         var finalPosition = currentPosition
         var encounteredRevisit = false
         var detectedEffects: [MovementResolution.AppliedEffect] = []
@@ -308,7 +368,7 @@ public final class GameCore: ObservableObject {
         announceRemainingTiles()
 
         // 使用済みカードは即座に破棄し、スタックから除去（残数がゼロになったらスタックごと取り除く）
-        let removedIndex = handManager.consumeTopCard(at: resolvedMove.stackIndex)
+        let removedIndex = handManager.consumeTopCard(at: validatedMove.stackIndex)
 
         // スロットの空きを埋めた上で並び順・先読みを整える
         rebuildHandAndNext(preferredInsertionIndices: removedIndex.map { [$0] } ?? [])
