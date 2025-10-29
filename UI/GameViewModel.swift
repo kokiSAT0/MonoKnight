@@ -57,6 +57,14 @@ final class PenaltyBannerScheduler: PenaltyBannerScheduling {
     }
 }
 
+/// タイマー停止理由を表す列挙型
+/// - Important: 重複管理を避けるため、必ず `activeTimerPauseReasons` を経由して追加・削除する
+enum TimerPauseReason: Hashable {
+    case menu
+    case scenePhase
+    case preparationOverlay
+}
+
 /// ポーズメニューへ渡すキャンペーン進捗のサマリー
 /// - Note: ステージ定義と保存済み進捗をまとめて保持し、View 側でのアンラップ処理を簡潔にする
 struct CampaignPauseSummary {
@@ -199,17 +207,12 @@ final class GameViewModel: ObservableObject {
     private var selectedCardSelection: SelectedCardSelection?
     /// 現在時刻を取得するためのクロージャ。テストでは任意の値へ差し替える
     private let currentDateProvider: () -> Date
-    /// ポーズメニューによってタイマーを停止しているかどうか
-    private var isTimerPausedForMenu = false
-    /// scenePhase 変化によってタイマーを停止しているかどうか
-    private var isTimerPausedForScenePhase = false
+    /// タイマー停止理由の集合
+    /// - Note: メニュー・scenePhase・ローディングなど複数要因が同時に発生する前提で、Set による管理へ切り替える
+    private var activeTimerPauseReasons: Set<TimerPauseReason> = []
     /// scenePhase 復帰後にポーズメニューを提示すべきかどうか
     /// - Note: バックグラウンド復帰直後に自動でタイマーを再開せず、ユーザーへ状況確認を促すためのフラグ
     private var shouldPresentPauseMenuAfterScenePhaseResume = false
-    /// ゲーム準備オーバーレイ表示によってタイマーを停止しているかどうか
-    /// - Note: RootView のローディング表示中はポーズメニューや scenePhase とは独立して停止を維持するため、
-    ///         理由ごとに個別のフラグを持ち、復帰条件を正しく判定できるようにする。
-    private var isTimerPausedForPreparationOverlay = false
 
     /// ViewModel の初期化
     /// - Parameters:
@@ -661,15 +664,15 @@ final class GameViewModel: ObservableObject {
 
         switch newPhase {
         case .inactive, .background:
-            // 既に一時停止済みであれば重複して pauseTimer を呼ばない
-            guard !isTimerPausedForScenePhase, core.progress == .playing else { return }
+            // 既に同じ理由で停止している場合は追加処理を行わない
+            guard !isPaused(for: .scenePhase), core.progress == .playing else { return }
             core.pauseTimer(referenceDate: currentDateProvider())
-            isTimerPausedForScenePhase = true
+            addPauseReason(.scenePhase)
             // 復帰時には必ずポーズメニューを挟み、ユーザー操作で再開してもらう
             shouldPresentPauseMenuAfterScenePhaseResume = true
 
         case .active:
-            guard isTimerPausedForScenePhase else {
+            guard isPaused(for: .scenePhase) else {
                 // 想定外の復帰ではポーズ要求フラグをリセットしておく
                 shouldPresentPauseMenuAfterScenePhaseResume = false
                 return
@@ -681,13 +684,11 @@ final class GameViewModel: ObservableObject {
             guard core.progress == .playing else {
                 // プレイが終了していればポーズメニュー提示は不要のため即座に解除する
                 shouldPresentPauseMenuAfterScenePhaseResume = false
-                isTimerPausedForScenePhase = false
+                removePauseReason(.scenePhase)
                 return
             }
 
-            guard
-                  !isTimerPausedForMenu,
-                  !isTimerPausedForPreparationOverlay else {
+            guard !hasActivePauseReason(excluding: [.scenePhase]) else {
                 return
             }
 
@@ -706,18 +707,18 @@ final class GameViewModel: ObservableObject {
 
         if isVisible {
             // 既に他要因で停止している場合でも理由を保持し、復帰条件の判定に利用する
-            guard !isTimerPausedForPreparationOverlay else { return }
-            isTimerPausedForPreparationOverlay = true
+            guard !isPaused(for: .preparationOverlay) else { return }
+            addPauseReason(.preparationOverlay)
 
             // 実際にプレイ中であればタイマーを停止させ、ローディング表示中の時間加算を防ぐ
-            guard !isTimerPausedForMenu, !isTimerPausedForScenePhase, core.progress == .playing else { return }
+            guard !hasActivePauseReason(excluding: [.preparationOverlay]), core.progress == .playing else { return }
             core.pauseTimer(referenceDate: currentDateProvider())
         } else {
-            guard isTimerPausedForPreparationOverlay else { return }
-            isTimerPausedForPreparationOverlay = false
+            guard isPaused(for: .preparationOverlay) else { return }
+            removePauseReason(.preparationOverlay)
 
             // scenePhase 由来の復帰待ちであれば、ローディング解除直後にポーズメニューを提示する
-            if isTimerPausedForScenePhase,
+            if isPaused(for: .scenePhase),
                shouldPresentPauseMenuAfterScenePhaseResume,
                core.progress == .playing {
                 presentPauseMenu()
@@ -725,7 +726,7 @@ final class GameViewModel: ObservableObject {
             }
 
             // 他の理由で停止している場合は再開を保留し、復帰条件が揃ったタイミングまで待つ
-            guard !isTimerPausedForMenu, !isTimerPausedForScenePhase, core.progress == .playing else { return }
+            guard !hasActivePauseReason(), core.progress == .playing else { return }
             core.resumeTimer(referenceDate: currentDateProvider())
         }
     }
@@ -885,9 +886,7 @@ final class GameViewModel: ObservableObject {
         cancelPenaltyBannerDisplay()
         showingResult = false
         adsService.resetPlayFlag()
-        isTimerPausedForMenu = false
-        isTimerPausedForScenePhase = false
-        isTimerPausedForPreparationOverlay = false
+        activeTimerPauseReasons.removeAll()
         shouldPresentPauseMenuAfterScenePhaseResume = false
     }
 
@@ -896,9 +895,7 @@ final class GameViewModel: ObservableObject {
     private func resetSessionForNewPlay() {
         prepareForReturnToTitle()
         core.reset()
-        isTimerPausedForMenu = false
-        isTimerPausedForScenePhase = false
-        isTimerPausedForPreparationOverlay = false
+        activeTimerPauseReasons.removeAll()
         shouldPresentPauseMenuAfterScenePhaseResume = false
     }
 
@@ -1058,6 +1055,32 @@ private extension GameViewModel {
         !mode.isLeaderboardEligible && mode.campaignMetadataSnapshot != nil
     }
 
+    /// 指定した理由でタイマーが停止しているかを判定するヘルパー
+    /// - Parameter reason: 停止状態を確認したい理由
+    /// - Returns: 指定した理由が `activeTimerPauseReasons` に含まれている場合は true
+    func isPaused(for reason: TimerPauseReason) -> Bool {
+        activeTimerPauseReasons.contains(reason)
+    }
+
+    /// 新しい停止理由を登録し、Set の一貫性を保つ
+    /// - Parameter reason: 追加したい停止理由
+    func addPauseReason(_ reason: TimerPauseReason) {
+        activeTimerPauseReasons.insert(reason)
+    }
+
+    /// 停止理由の解除を一元化する
+    /// - Parameter reason: 解除したい停止理由
+    func removePauseReason(_ reason: TimerPauseReason) {
+        activeTimerPauseReasons.remove(reason)
+    }
+
+    /// 指定した理由を除外した上で、他の停止理由が残っているかを確認する
+    /// - Parameter reasons: 無視したい停止理由の配列（Set 変換は内部で行う）
+    /// - Returns: 除外後も停止理由が存在する場合は true
+    func hasActivePauseReason(excluding reasons: [TimerPauseReason] = []) -> Bool {
+        !activeTimerPauseReasons.subtracting(Set(reasons)).isEmpty
+    }
+
     /// ポーズメニューの開閉に応じてタイマーの停止/再開を制御する
     /// - Parameter isPresented: 現在のポーズメニュー表示状態
     func handlePauseMenuVisibilityChange(isPresented: Bool) {
@@ -1066,25 +1089,27 @@ private extension GameViewModel {
         if isPresented {
             guard core.progress == .playing else { return }
             // 既にメニュー由来で停止済みなら何もしない
-            guard !isTimerPausedForMenu else { return }
+            guard !isPaused(for: .menu) else { return }
             // scenePhase で一時停止済みの場合は重複停止を避ける
-            if !isTimerPausedForScenePhase {
+            if !isPaused(for: .scenePhase) {
                 core.pauseTimer(referenceDate: currentDateProvider())
             }
-            isTimerPausedForMenu = true
+            addPauseReason(.menu)
         } else {
-            guard isTimerPausedForMenu else { return }
-            let wasMenuPauseActive = isTimerPausedForMenu
-            isTimerPausedForMenu = false
+            guard isPaused(for: .menu) else { return }
+            let wasMenuPauseActive = isPaused(for: .menu)
+            let wasScenePhasePauseActive = isPaused(for: .scenePhase)
+            removePauseReason(.menu)
             // scenePhase 由来の停止状態をここで開放し、再開許可を判断する
-            let wasScenePhasePauseActive = isTimerPausedForScenePhase
-            isTimerPausedForScenePhase = false
+            removePauseReason(.scenePhase)
             shouldPresentPauseMenuAfterScenePhaseResume = false
             // ローディングオーバーレイ表示中は復帰を保留する
-            guard !isTimerPausedForPreparationOverlay else { return }
+            guard !isPaused(for: .preparationOverlay) else { return }
             guard core.progress == .playing else { return }
             // メニュー／scenePhase いずれかで停止した場合のみ再開を行う
             guard wasScenePhasePauseActive || wasMenuPauseActive else { return }
+            // いずれかの要因が残っていれば再開を保留する
+            guard !hasActivePauseReason() else { return }
             core.resumeTimer(referenceDate: currentDateProvider())
         }
     }
