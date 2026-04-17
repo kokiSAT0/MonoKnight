@@ -38,14 +38,8 @@ struct PauseMenuView: View {
 
     /// シートを閉じるための環境ディスミス
     @Environment(\.dismiss) private var dismiss
-    /// テーマ設定の永続化キー
-    @AppStorage(StorageKey.AppStorage.preferredColorScheme) private var preferredColorSchemeRawValue: String = ThemePreference.system.rawValue
-    /// ハプティクスのオン/オフ
-    @AppStorage(StorageKey.AppStorage.hapticsEnabled) private var hapticsEnabled: Bool = true
-    /// ガイドモードのオン/オフ
-    @AppStorage(StorageKey.AppStorage.guideModeEnabled) private var guideModeEnabled: Bool = true
-    /// 手札並び設定
-    @AppStorage(HandOrderingStrategy.storageKey) private var handOrderingRawValue: String = HandOrderingStrategy.insertionOrder.rawValue
+    /// 共通設定ストア
+    @EnvironmentObject private var gameSettingsStore: GameSettingsStore
 
     /// 破壊的操作の確認用ステート
     @State private var pendingAction: PauseConfirmationAction?
@@ -103,8 +97,8 @@ struct PauseMenuView: View {
                     Picker(
                         "テーマ",
                         selection: Binding<ThemePreference>(
-                            get: { ThemePreference(rawValue: preferredColorSchemeRawValue) ?? .system },
-                            set: { preferredColorSchemeRawValue = $0.rawValue }
+                            get: { gameSettingsStore.preferredColorScheme },
+                            set: { gameSettingsStore.preferredColorScheme = $0 }
                         )
                     ) {
                         ForEach(ThemePreference.allCases) { preference in
@@ -113,14 +107,14 @@ struct PauseMenuView: View {
                         }
                     }
 
-                    Toggle("ハプティクスを有効にする", isOn: $hapticsEnabled)
-                    Toggle("ガイドモード（移動候補をハイライト）", isOn: $guideModeEnabled)
+                    Toggle("ハプティクスを有効にする", isOn: $gameSettingsStore.hapticsEnabled)
+                    Toggle("ガイドモード（移動候補をハイライト）", isOn: $gameSettingsStore.guideModeEnabled)
 
                     Picker(
                         "手札の並び順",
                         selection: Binding<HandOrderingStrategy>(
-                            get: { HandOrderingStrategy(rawValue: handOrderingRawValue) ?? .insertionOrder },
-                            set: { handOrderingRawValue = $0.rawValue }
+                            get: { gameSettingsStore.handOrderingStrategy },
+                            set: { gameSettingsStore.handOrderingStrategy = $0 }
                         )
                     ) {
                         ForEach(HandOrderingStrategy.allCases, id: \.self) { strategy in

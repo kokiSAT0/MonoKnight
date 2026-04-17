@@ -23,20 +23,11 @@ struct MonoKnightApp: App {
     @StateObject private var dailyChallengeAttemptStore: AnyDailyChallengeAttemptStore
     /// 日替わりチャレンジのレギュレーション定義を提供するサービス
     @StateObject private var dailyChallengeDefinitionService: DailyChallengeDefinitionService
-
+    /// アプリ全体で共有するユーザー設定ストア
+    @StateObject private var gameSettingsStore: GameSettingsStore
     /// 同意フローが完了したかどうかを保持するフラグ
     /// - NOTE: `UserDefaults` と連携し、次回以降はスキップする
     @AppStorage(StorageKey.AppStorage.hasCompletedConsentFlow) private var hasCompletedConsentFlow: Bool = false
-
-    /// ユーザーが選択したテーマモードを永続化する。デフォルトはシステム設定に追従する。
-    /// - NOTE: RawValue を直接保存し、列挙型との変換は `themePreference` プロパティで一元管理する。
-    @AppStorage(StorageKey.AppStorage.preferredColorScheme) private var preferredColorSchemeRawValue: String = ThemePreference.system.rawValue
-
-    /// `@AppStorage` から復元した値を `ThemePreference` に変換して利用するためのヘルパー
-    /// - Returns: 不正な値が保存されていた場合でも `.system` にフォールバックする。
-    private var themePreference: ThemePreference {
-        ThemePreference(rawValue: preferredColorSchemeRawValue) ?? .system
-    }
 
     /// 初期化時に環境変数を確認してモックの使用有無を決定する
     init() {
@@ -62,22 +53,26 @@ struct MonoKnightApp: App {
             let mockDefaults = UserDefaults(suiteName: suiteName)
             mockDefaults?.removePersistentDomain(forName: suiteName)
             let mockDailyStore = DailyChallengeAttemptStore(userDefaults: mockDefaults ?? .standard)
+            let mockSettingsStore = GameSettingsStore(userDefaults: mockDefaults ?? .standard)
             self.gameCenterService = mockGameCenter
             self.adsService = mockAds
             _storeService = StateObject(wrappedValue: AnyStoreService(base: mockStore))
             _dailyChallengeAttemptStore = StateObject(wrappedValue: AnyDailyChallengeAttemptStore(base: mockDailyStore))
             _dailyChallengeDefinitionService = StateObject(wrappedValue: DailyChallengeDefinitionService())
+            _gameSettingsStore = StateObject(wrappedValue: mockSettingsStore)
         } else {
             // 通常起動時はシングルトンを利用
             let liveGameCenter = GameCenterService.shared
             let liveAds = AdsService.shared
             let liveStore = StoreService.shared
             let liveDailyStore = DailyChallengeAttemptStore()
+            let liveSettingsStore = GameSettingsStore()
             self.gameCenterService = liveGameCenter
             self.adsService = liveAds
             _storeService = StateObject(wrappedValue: AnyStoreService(base: liveStore))
             _dailyChallengeAttemptStore = StateObject(wrappedValue: AnyDailyChallengeAttemptStore(base: liveDailyStore))
             _dailyChallengeDefinitionService = StateObject(wrappedValue: DailyChallengeDefinitionService())
+            _gameSettingsStore = StateObject(wrappedValue: liveSettingsStore)
         }
     }
 
@@ -92,7 +87,8 @@ struct MonoKnightApp: App {
                         gameCenterService: gameCenterService,
                         adsService: adsService,
                         dailyChallengeAttemptStore: dailyChallengeAttemptStore,
-                        dailyChallengeDefinitionService: dailyChallengeDefinitionService
+                        dailyChallengeDefinitionService: dailyChallengeDefinitionService,
+                        gameSettingsStore: gameSettingsStore
                     )
                 } else {
                     // 同意取得前はオンボーディング画面を表示
@@ -101,10 +97,11 @@ struct MonoKnightApp: App {
             }
             // MARK: テーマ適用
             // `Group` に適用することで、内部のどの画面が表示されていてもユーザー設定が反映される。
-            .preferredColorScheme(themePreference.preferredColorScheme)
+            .preferredColorScheme(gameSettingsStore.preferredColorScheme.preferredColorScheme)
             // - NOTE: `environmentObject` に乗せておくと、将来的に他画面からも購買状況を参照しやすくなる
             .environmentObject(storeService)
             .environmentObject(dailyChallengeAttemptStore)
+            .environmentObject(gameSettingsStore)
             // MARK: フォアグラウンド復帰時の Game Center 再認証
             // scenePhase が `.active` へ変化したときに再度認証を試み、バックグラウンド中に切断されていても即座に復帰させる
             .onChange(of: scenePhase) { _, newPhase in

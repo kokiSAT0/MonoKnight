@@ -26,6 +26,8 @@ struct SettingsView: View {
 
     // 日替わりチャレンジの挑戦回数ストアを共有し、デバッグ無制限モードの切り替えにも対応する。
     @EnvironmentObject private var dailyChallengeAttemptStore: AnyDailyChallengeAttemptStore
+    // 共通設定ストアを共有し、UI と永続化の責務を分離する。
+    @EnvironmentObject private var gameSettingsStore: GameSettingsStore
 
     // デバッグ解放や無制限モードのいずれかが有効かをまとめて判定するヘルパー。
     // - Note: テキストフィールドを無効化する条件やガード節で共通利用し、解除後に再入力できる状態を保証する。
@@ -73,26 +75,6 @@ struct SettingsView: View {
         self.gameCenterService = gameCenterService ?? GameCenterService.shared
         self._isGameCenterAuthenticated = isGameCenterAuthenticated
     }
-
-    // MARK: - テーマ設定
-    // ユーザーが任意に選択したカラースキームを保持する。初期値はシステム依存の `.system`。
-    @AppStorage(StorageKey.AppStorage.preferredColorScheme) private var preferredColorSchemeRawValue: String = ThemePreference.system.rawValue
-
-    // MARK: - ハプティクス設定
-    // ユーザーのハプティクス利用有無を永続化する。デフォルトは有効。
-    @AppStorage(StorageKey.AppStorage.hapticsEnabled) private var hapticsEnabled: Bool = true
-
-    // MARK: - ガイドモード設定
-    // 盤面の移動候補ハイライトを保存し、GameView 側の @AppStorage と連動させる。
-    @AppStorage(StorageKey.AppStorage.guideModeEnabled) private var guideModeEnabled: Bool = true
-
-    // MARK: - 手札並び設定
-    // 手札の並び替え方式を永続化し、GameView 側の @AppStorage と同期させる。
-    @AppStorage(HandOrderingStrategy.storageKey) private var handOrderingRawValue: String = HandOrderingStrategy.insertionOrder.rawValue
-
-    // MARK: - 戦績管理
-    // ベストポイントを UserDefaults から取得・更新する。未設定時は Int.max で初期化しておく。
-    @AppStorage(StorageKey.AppStorage.bestPoints5x5) private var bestPoints: Int = .max
 
     // 戦績リセット確認用のアラート表示フラグ。ユーザーが誤操作しないよう明示的に確認する。
     @State private var isResetAlertPresented = false
@@ -219,8 +201,8 @@ struct SettingsView: View {
                 Section {
                     // Picker の selection は ThemePreference を直接扱えるように Binding を手動で構築する。
                     Picker("テーマ", selection: Binding<ThemePreference>(
-                        get: { ThemePreference(rawValue: preferredColorSchemeRawValue) ?? .system },
-                        set: { newValue in preferredColorSchemeRawValue = newValue.rawValue }
+                        get: { gameSettingsStore.preferredColorScheme },
+                        set: { newValue in gameSettingsStore.preferredColorScheme = newValue }
                     )) {
                         // ユーザー向けラベルは ThemePreference 側で定義した displayName を利用し、将来のローカライズ変更にも追従しやすくする。
                         ForEach(ThemePreference.allCases) { preference in
@@ -238,7 +220,7 @@ struct SettingsView: View {
 
                 // ハプティクス制御セクション
                 Section {
-                    Toggle("ハプティクスを有効にする", isOn: $hapticsEnabled)
+                    Toggle("ハプティクスを有効にする", isOn: $gameSettingsStore.hapticsEnabled)
                 } header: {
                     Text("ハプティクス")
                 } footer: {
@@ -248,7 +230,7 @@ struct SettingsView: View {
 
                 // ガイドモードのオン/オフをユーザーが選択できるようにするセクション
                 Section {
-                    Toggle("ガイドモード（移動候補をハイライト）", isOn: $guideModeEnabled)
+                    Toggle("ガイドモード（移動候補をハイライト）", isOn: $gameSettingsStore.guideModeEnabled)
                 } header: {
                     Text("ガイド")
                 } footer: {
@@ -259,8 +241,8 @@ struct SettingsView: View {
                 // 手札の並び順を切り替える設定セクション
                 Section {
                     Picker("手札の並び順", selection: Binding<HandOrderingStrategy>(
-                        get: { HandOrderingStrategy(rawValue: handOrderingRawValue) ?? .insertionOrder },
-                        set: { handOrderingRawValue = $0.rawValue }
+                        get: { gameSettingsStore.handOrderingStrategy },
+                        set: { gameSettingsStore.handOrderingStrategy = $0 }
                     )) {
                         ForEach(HandOrderingStrategy.allCases, id: \.self) { strategy in
                             Text(strategy.displayName)
@@ -469,7 +451,7 @@ struct SettingsView: View {
                 Button("リセットする", role: .destructive) {
                     // ユーザーが確認した場合のみベスト記録を初期化する。
                     // Int.max を再代入することで「未記録」の状態に戻し、次回プレイで新たに更新される。
-                    bestPoints = .max
+                    gameSettingsStore.resetBestPoints()
                 }
                 Button("キャンセル", role: .cancel) {
                     // キャンセル時は何もしない。誤操作で記録が消えることを防ぐため。
@@ -501,7 +483,7 @@ struct SettingsView: View {
             }
             // 設定画面表示中でも `@AppStorage` の更新に合わせてカラースキームを反映させ、閉じる操作を待たずにテーマ変更が視覚化されるようにする。
             .preferredColorScheme(
-                ThemePreference(rawValue: preferredColorSchemeRawValue)?.preferredColorScheme
+                gameSettingsStore.preferredColorScheme.preferredColorScheme
             )
         }
         // デバッグ用パスコード入力成功時に状態を明示するアラートを表示し、検証モードへの切り替えを周知する。

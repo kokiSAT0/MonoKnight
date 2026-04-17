@@ -59,7 +59,7 @@ struct TitleScreenView: View {
     @State private var navigationPath: [TitleNavigationTarget] = []
     @State private var highlightedCampaignStageID: CampaignStageID?
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-    @AppStorage(StorageKey.AppStorage.bestPoints5x5) private var bestPoints: Int = .max
+    @EnvironmentObject private var gameSettingsStore: GameSettingsStore
     private let instanceIdentifier = UUID()
 
     /// ゲーム開始要求がどこから届いたかを判定するための文脈列挙
@@ -566,10 +566,10 @@ private extension TitleScreenView {
     }
 
     var highScoreTileHeadline: String {
-        if bestPoints == .max {
+        if gameSettingsStore.bestPoints == .max {
             return "ベストスコア: 記録なし"
         } else {
-            return "ベストスコア: \(bestPoints) pt"
+            return "ベストスコア: \(gameSettingsStore.bestPoints) pt"
         }
     }
 
@@ -600,10 +600,10 @@ private extension TitleScreenView {
     }
 
     var bestPointsDescription: String {
-        if bestPoints == .max {
+        if gameSettingsStore.bestPoints == .max {
             return "記録はまだありません"
         } else {
-            return "現在のベスト: \(bestPoints) pt（少ないほど上位）"
+            return "現在のベスト: \(gameSettingsStore.bestPoints) pt（少ないほど上位）"
         }
     }
 

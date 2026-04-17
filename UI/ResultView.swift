@@ -44,13 +44,10 @@ struct ResultView: View {
     /// 上記と同じく `init` で注入し、必要に応じてモックに差し替え可能にする
     private var adsService: AdsServiceProtocol
 
-    /// ベストポイントを `UserDefaults` に保存する
-    /// - Note: 新スコア方式に合わせてポイント単位で保持する
-    @AppStorage(StorageKey.AppStorage.bestPoints5x5) private var bestPoints: Int = .max
-    /// ハプティクスを有効にするかどうかの設定値
-    @AppStorage(StorageKey.AppStorage.hapticsEnabled) private var hapticsEnabled: Bool = true
     /// サイズクラスを参照し、iPad でのフォームシート表示時に余白を調整する
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    /// 共通設定ストア
+    @EnvironmentObject private var gameSettingsStore: GameSettingsStore
 
     /// 新記録を達成したかどうかを管理するステート
     @State private var isNewBest: Bool = false
@@ -200,7 +197,7 @@ struct ResultView: View {
                 if let onReturnToTitle {
                     Button {
                         // 成功ハプティクスで操作完了をフィードバックする
-                        if hapticsEnabled {
+                        if gameSettingsStore.hapticsEnabled {
                             UINotificationFeedbackGenerator().notificationOccurred(.success)
                         }
                         onReturnToTitle()
@@ -214,7 +211,7 @@ struct ResultView: View {
                 // MARK: - リトライボタン
                 Button(action: {
                     // 設定が有効なら成功フィードバックを発火
-                    if hapticsEnabled {
+                    if gameSettingsStore.hapticsEnabled {
                         UINotificationFeedbackGenerator().notificationOccurred(.success)
                     }
                     onRetry()
@@ -227,7 +224,7 @@ struct ResultView: View {
                 // MARK: - Game Center ランキングボタン
                 if showsLeaderboardButton {
                     Button(action: {
-                        if hapticsEnabled {
+                        if gameSettingsStore.hapticsEnabled {
                             UINotificationFeedbackGenerator().notificationOccurred(.success)
                         }
                         if isGameCenterAuthenticated {
@@ -420,7 +417,7 @@ struct ResultView: View {
                     ForEach(newlyUnlockedStages, id: \.id) { stage in
                         Button {
                             // ハプティクス設定に応じて軽いフィードバックを返し、ボタン操作の確実性を高める
-                            if hapticsEnabled {
+                            if gameSettingsStore.hapticsEnabled {
                                 UINotificationFeedbackGenerator().notificationOccurred(.success)
                             }
                             onSelectCampaignStage?(stage)
@@ -454,7 +451,7 @@ struct ResultView: View {
 
     /// ベスト記録を表示用の文字列に変換
     private var bestPointsText: String {
-        bestPoints == .max ? "-" : String(bestPoints)
+        gameSettingsStore.bestPoints == .max ? "-" : String(gameSettingsStore.bestPoints)
     }
 
     /// 合計手数を計算するヘルパー
@@ -661,17 +658,16 @@ struct ResultView: View {
     /// ベスト記録を更新する
     private func updateBest() {
         // 更新前のベストを保持して比較テキストに利用
-        previousBest = bestPoints == .max ? nil : bestPoints
+        previousBest = gameSettingsStore.updateBestPointsIfNeeded(points)
+        let isImproved = previousBest == nil || points < (previousBest ?? .max)
 
         // 今回のポイントと既存ベストを比較して更新するか判定
-        if points < bestPoints {
-            bestPoints = points
-
+        if isImproved {
             // 視覚的なアニメーションとハプティクスを新記録時に限定して発火
             withAnimation(.spring(response: 0.45, dampingFraction: 0.82)) {
                 isNewBest = true
             }
-            if hapticsEnabled {
+            if gameSettingsStore.hapticsEnabled {
                 UINotificationFeedbackGenerator().notificationOccurred(.success)
             }
         } else {

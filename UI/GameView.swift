@@ -38,6 +38,8 @@ struct GameView: View {
     /// - Note: safeAreaInset により増加した分を差し引くための基準値として利用する
     /// - Note: レイアウト補助用の拡張（`GameView+Layout`）でも参照するため、アクセスレベルは internal にとどめている
     @Environment(\.baseTopSafeAreaInset) var baseTopSafeAreaInset: CGFloat
+    /// 共通設定ストア
+    @EnvironmentObject private var gameSettingsStore: GameSettingsStore
     /// 手札スロットの数（常に 5 スロット分の枠を確保してレイアウトを安定させる）
     /// - Note: レイアウト拡張でハンド UI の構築にも利用するため、アクセスレベルは internal にとどめて同一型内で共有している。
     let handSlotCount = 5
@@ -55,21 +57,6 @@ struct GameView: View {
     @StateObject var viewModel: GameViewModel
     /// 警告トーストの自動消滅を制御する Task を保持し、連続表示時の競合を避ける
     @State private var boardTapWarningDismissTask: Task<Void, Never>?
-    /// ハプティクスを有効にするかどうかの設定値
-
-    /// - Note: 監視処理を別ファイルの拡張（`GameView+Observers`）へ切り出しているため、`fileprivate` ではアクセスできずビルドエラーとなる。
-    ///         internal（デフォルト）へ緩和してモジュール内の拡張から安全に共有する。
-
-    @AppStorage(StorageKey.AppStorage.hapticsEnabled) var hapticsEnabled: Bool = true
-    /// ガイドモードのオン/オフを永続化し、盤面ハイライト表示を制御する
-    /// - Note: こちらも監視処理を別ファイルで扱う必要があるため、`fileprivate` ではなく internal を維持して拡張から参照できるようにする。
-    @AppStorage(StorageKey.AppStorage.guideModeEnabled) var guideModeEnabled: Bool = true
-    /// 手札の並び替え方式。設定変更時に GameCore へ伝搬する
-
-    /// - Note: 監視系ロジックを切り出した `GameView+Observers` でも値を参照する必要があるため、
-    ///         デフォルトのアクセスレベル（internal）を維持し、モジュール内の別ファイル拡張からも安全に共有できるようにしている。
-
-    @AppStorage(HandOrderingStrategy.storageKey) var handOrderingRawValue: String = HandOrderingStrategy.insertionOrder.rawValue
     /// 手札や NEXT の位置をマッチングさせるための名前空間
     /// - Note: レイアウト拡張（GameView+Layout）でも利用するため、アクセスレベルを internal（デフォルト）で共有する。
     @Namespace var cardAnimationNamespace
@@ -146,7 +133,6 @@ struct GameView: View {
         // ここでは `StateObject` の初期化クロージャへ直接渡し、必要なタイミングでのみインスタンス化されるようにする。
         // MARK: - ユーザー設定を読み出して ViewModel 初期化へ渡す
         // `StateObject` へ直接クロージャを渡し、SwiftUI 側で既存インスタンスが再利用される場合はイニシャライザ評価をスキップさせる。
-        let savedOrdering = UserDefaults.standard.string(forKey: HandOrderingStrategy.storageKey)
         _isPreparationOverlayVisible = isPreparationOverlayVisible
         self.isGameCenterAuthenticated = resolvedIsAuthenticated
         self.onRequestGameCenterSignIn = onRequestGameCenterSignIn
@@ -160,7 +146,6 @@ struct GameView: View {
                 onRequestGameCenterSignIn: onRequestGameCenterSignIn,
                 onRequestReturnToTitle: onRequestReturnToTitle,
                 onRequestStartCampaignStage: onRequestStartCampaignStage,
-                initialHandOrderingRawValue: savedOrdering,
                 initialGameCenterAuthenticationState: resolvedIsAuthenticated
             )
         )
@@ -213,6 +198,7 @@ struct GameView: View {
                     performMenuAction(.returnToTitle)
                 }
             )
+            .environmentObject(gameSettingsStore)
         }
         // リザルトはゲーム体験の区切りとなるため、全画面カバーで没入感を維持する
         .fullScreenCover(isPresented: $viewModel.showingResult) {
@@ -242,6 +228,7 @@ struct GameView: View {
                 gameCenterService: viewModel.gameCenterService,
                 adsService: viewModel.adsService
             )
+            .environmentObject(gameSettingsStore)
         }
         // MARK: - レギュラー幅では確認をシートで提示
         // iPad では confirmationDialog だと文字が途切れやすいため、十分な横幅を確保できるシートで詳細文を表示する

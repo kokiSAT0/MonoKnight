@@ -104,13 +104,8 @@ final class AnyDailyChallengeAttemptStore: ObservableObject, DailyChallengeAttem
 /// UserDefaults へ挑戦回数の履歴を保存し、毎日 UTC 基準でリセットするストア
 @MainActor
 final class DailyChallengeAttemptStore: ObservableObject, DailyChallengeAttemptStoreProtocol {
-    /// UserDefaults 保存時のキー
-    /// - Important: バージョンを明記しておくことで将来のスキーマ変更に備える
-    private enum StorageKey {
-        /// 本日の挑戦状況（JSON エンコードした `State` を格納）
-        static let state = StorageKey.UserDefaults.dailyChallengeAttemptState // JSON で `State` を保存
-    }
-
+    /// 本日の挑戦状況を保存するキー
+    private static let attemptStateStorageKey = StorageKey.UserDefaults.dailyChallengeAttemptState
     /// デバッグ無制限モードの保存に利用するキー
     private static let debugUnlimitedStorageKey = StorageKey.UserDefaults.dailyChallengeDebugUnlimited
 
@@ -264,7 +259,7 @@ final class DailyChallengeAttemptStore: ObservableObject, DailyChallengeAttemptS
         let initialState: State
         var shouldPersistInitialState = false
 
-        if let data = userDefaults.data(forKey: StorageKey.state) {
+        if let data = userDefaults.data(forKey: Self.attemptStateStorageKey) {
             do {
                 let decoded = try JSONDecoder().decode(State.self, from: data)
                 if decoded.dateKey == currentDateKey {
@@ -410,7 +405,7 @@ final class DailyChallengeAttemptStore: ObservableObject, DailyChallengeAttemptS
     private func persistState() {
         do {
             let data = try JSONEncoder().encode(state)
-            userDefaults.set(data, forKey: StorageKey.state)
+            userDefaults.set(data, forKey: Self.attemptStateStorageKey)
             userDefaults.synchronize()
         } catch {
             debugError(error, message: "DailyChallengeAttemptStore: 永続化に失敗しました")

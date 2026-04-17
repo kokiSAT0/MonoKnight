@@ -21,6 +21,8 @@ struct RootView: View {
     private let dailyChallengeAttemptStore: AnyDailyChallengeAttemptStore
     /// 日替わりチャレンジのレギュレーション定義サービス
     private let dailyChallengeDefinitionService: DailyChallengeDefinitionProviding
+    /// ユーザー設定を集約したストア
+    private let gameSettingsStore: GameSettingsStore
     /// キャンペーンステージ定義を参照するライブラリ
     private let campaignLibrary = CampaignLibrary.shared
     /// デバイスの横幅サイズクラスを参照し、iPad などレギュラー幅での余白やログ出力を調整する
@@ -38,19 +40,22 @@ struct RootView: View {
          gameCenterService: GameCenterServiceProtocol? = nil,
          adsService: AdsServiceProtocol? = nil,
          dailyChallengeAttemptStore: AnyDailyChallengeAttemptStore? = nil,
-         dailyChallengeDefinitionService: DailyChallengeDefinitionProviding? = nil) {
+         dailyChallengeDefinitionService: DailyChallengeDefinitionProviding? = nil,
+         gameSettingsStore: GameSettingsStore? = nil) {
         // Swift 6 ではデフォルト引数の評価が非分離コンテキストで行われるため、
         // `@MainActor` に隔離されたシングルトンを安全に利用するためにイニシャライザ内で解決する。
         let resolvedGameCenterService = gameCenterService ?? GameCenterService.shared
         let resolvedAdsService = adsService ?? AdsService.shared
         let resolvedDailyStore = dailyChallengeAttemptStore ?? AnyDailyChallengeAttemptStore(base: DailyChallengeAttemptStore())
         let resolvedDailyDefinitionService = dailyChallengeDefinitionService ?? DailyChallengeDefinitionService()
+        let resolvedGameSettingsStore = gameSettingsStore ?? GameSettingsStore()
 
         self.gameInterfaces = gameInterfaces
         self.gameCenterService = resolvedGameCenterService
         self.adsService = resolvedAdsService
         self.dailyChallengeAttemptStore = resolvedDailyStore
         self.dailyChallengeDefinitionService = resolvedDailyDefinitionService
+        self.gameSettingsStore = resolvedGameSettingsStore
         // 画面状態を一括管理するステートストアを生成し、初期認証状態を反映する。
         _stateStore = StateObject(
             wrappedValue: RootViewStateStore(
@@ -71,6 +76,7 @@ struct RootView: View {
             }
         )
         .environmentObject(dailyChallengeAttemptStore)
+        .environmentObject(gameSettingsStore)
         .task {
             // 初回表示時に Game Center 認証を 1 度だけ試み、UI の表示ズレを防ぐ
             performInitialAuthenticationIfNeeded()
@@ -340,6 +346,7 @@ fileprivate extension RootView {
                     .environmentObject(campaignProgressStore)
                     // 日替わりチャレンジの挑戦回数ストアも共有し、設定画面からデバッグ無制限を切り替えられるようにする。
                     .environmentObject(dailyChallengeAttemptStore)
+                    .environmentObject(gameSettingsStore)
             }
             // Game Center の再サインインを促すためのアラートを監視する
             .alert(item: stateStore.binding(for: \.gameCenterSignInPrompt)) { prompt in
