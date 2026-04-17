@@ -56,7 +56,8 @@ private struct GameCenterLeaderboardCatalog {
     /// - Parameter identifier: 判定対象となるゲームモード識別子
     /// - Returns: マッチするリーダーボード定義。未定義の場合は `nil`
     static func entry(for identifier: GameMode.Identifier) -> Entry? {
-        allEntries.first { $0.supportedModes.contains(identifier) }
+        guard let resolvedIdentifier = identifier.scoreSubmissionIdentifier else { return nil }
+        return allEntries.first { $0.supportedModes.contains(resolvedIdentifier) }
     }
 }
 

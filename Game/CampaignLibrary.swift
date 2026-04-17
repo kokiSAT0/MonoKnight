@@ -1,0 +1,1875 @@
+import Foundation
+
+/// 章単位でステージを束ねる定義
+public struct CampaignChapter: Identifiable, Equatable {
+    public let id: Int
+    public let title: String
+    public let summary: String
+    public let stages: [CampaignStage]
+
+    public init(id: Int, title: String, summary: String, stages: [CampaignStage]) {
+        self.id = id
+        self.title = title
+        self.summary = summary
+        self.stages = stages
+    }
+}
+
+/// ステージ定義一式を提供するライブラリ
+public struct CampaignLibrary {
+    /// アプリ全体で共有するデフォルト定義
+    public static let shared = CampaignLibrary()
+
+    /// 章一覧
+    public let chapters: [CampaignChapter]
+
+    /// プライベートイニシャライザで定義を構築
+    public init() {
+        self.chapters = CampaignLibrary.buildChapters()
+    }
+
+    /// 指定 ID に一致するステージを検索
+    /// - Parameter id: 探索したいステージ ID
+    /// - Returns: 見つかった場合は該当ステージ
+    public func stage(with id: CampaignStageID) -> CampaignStage? {
+        for chapter in chapters {
+            if let stage = chapter.stages.first(where: { $0.id == id }) {
+                return stage
+            }
+        }
+        return nil
+    }
+
+    /// 全ステージの一次元配列
+    public var allStages: [CampaignStage] {
+        chapters.flatMap { $0.stages }
+    }
+
+    /// 定義の実装本体
+    private static func buildChapters() -> [CampaignChapter] {
+        // MARK: - 1 章のステージ群
+        // MARK: 章 1 のステージレギュレーション共通設定
+        // 章内で複数のステージが同一ルールを参照する場合に備え、先に共通変数へ切り出しておく。
+        // 1-1 は 3×3 盤かつ王将型カードのみで構成された超短距離訓練ステージ。
+        // ペナルティは +2 系で揃え、序盤のリトライに優しい難度へ調整する。
+        let stage11 = CampaignStage(
+            id: CampaignStageID(chapter: 1, index: 1),
+            title: "王将訓練",
+            summary: "3×3 の盤で王将カードだけを使い、基本の詰めを体験しましょう。",
+            regulation: GameMode.Regulation(
+                boardSize: 3,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .kingOnly,
+                spawnRule: .fixed(BoardGeometry.defaultSpawnPoint(for: 3)),
+                penalties: GameMode.PenaltySettings(
+                    deadlockPenaltyCost: 2,
+                    manualRedrawPenaltyCost: 2,
+                    manualDiscardPenaltyCost: 1,
+                    revisitPenaltyCost: 1
+                )
+            ),
+            // MARK: 2 個目のスター条件: 60 秒以内クリアで序盤からテンポを意識させる
+            secondaryObjective: .finishWithinSeconds(maxSeconds: 60),
+            scoreTarget: 300,
+            scoreTargetComparison: .lessThan,
+            // MARK: スタート地点となるため常時解放として整理する
+            unlockRequirement: .always
+        )
+
+        // 1-2 はキングと桂馬の最小構成で、ペナルティ合計 5 以下を目指す導入ステージ。
+        let stage12 = CampaignStage(
+            id: CampaignStageID(chapter: 1, index: 2),
+            title: "ナイト初見",
+            summary: "キングと桂馬だけの 3×3 で、跳躍移動の感覚を掴みましょう。",
+            regulation: GameMode.Regulation(
+                boardSize: 3,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .kingPlusKnightOnly,
+                spawnRule: .fixed(BoardGeometry.defaultSpawnPoint(for: 3)),
+                penalties: GameMode.PenaltySettings(
+                    deadlockPenaltyCost: 2,
+                    manualRedrawPenaltyCost: 2,
+                    manualDiscardPenaltyCost: 1,
+                    revisitPenaltyCost: 0
+                )
+            ),
+            // MARK: 2 個目のスター条件: ペナルティ合計 3 以下で締め、リトライ負荷を抑える
+            secondaryObjective: .finishWithPenaltyAtMost(maxPenaltyCount: 3),
+            scoreTarget: 300,
+            scoreTargetComparison: .lessThan,
+            unlockRequirement: .stageClear(stage11.id)
+        )
+
+        // 1-3 は 4×4 盤への移行。キング＆桂馬基礎デッキで持ち時間 60 秒以内を狙う。
+        let stage13 = CampaignStage(
+            id: CampaignStageID(chapter: 1, index: 3),
+            title: "4×4基礎",
+            summary: "4×4 盤でキングと桂馬の動きを整理し、視野を一段広げましょう。",
+            regulation: GameMode.Regulation(
+                boardSize: 4,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .kingAndKnightBasic,
+                spawnRule: .fixed(BoardGeometry.defaultSpawnPoint(for: 4)),
+                penalties: GameMode.PenaltySettings(
+                    deadlockPenaltyCost: 3,
+                    manualRedrawPenaltyCost: 1,
+                    manualDiscardPenaltyCost: 1,
+                    revisitPenaltyCost: 0
+                )
+            ),
+            // MARK: 2 個目のスター条件: 60 秒以内に踏破してテンポ良く盤面を巡回する
+            secondaryObjective: .finishWithinSeconds(maxSeconds: 60),
+            scoreTarget: 400,
+            scoreTargetComparison: .lessThan,
+            unlockRequirement: .stageClear(stage12.id)
+        )
+
+        // 1-4 は同じデッキで任意スポーンを導入し、ルート計画力を育てる。
+        let stage14 = CampaignStage(
+            id: CampaignStageID(chapter: 1, index: 4),
+            title: "4×4応用",
+            summary: "好きな開始マスを選び、4×4 で最適な踏破順を描きましょう。",
+            regulation: GameMode.Regulation(
+                boardSize: 4,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .kingAndKnightBasic,
+                spawnRule: .chooseAnyAfterPreview,
+                penalties: GameMode.PenaltySettings(
+                    deadlockPenaltyCost: 3,
+                    manualRedrawPenaltyCost: 1,
+                    manualDiscardPenaltyCost: 1,
+                    revisitPenaltyCost: 0
+                )
+            ),
+            // MARK: 2 個目のスター条件: ペナルティ合計 5 以下へ抑え、冷静な判断を促す
+            secondaryObjective: .finishWithPenaltyAtMost(maxPenaltyCount: 5),
+            scoreTarget: 400,
+            scoreTargetComparison: .lessThan,
+            unlockRequirement: .stageClear(stage13.id)
+        )
+
+        // 1-5 はスタンダード軽量デッキで持久戦。手数 30 以内を目指す。
+        let stage15 = CampaignStage(
+            id: CampaignStageID(chapter: 1, index: 5),
+            title: "4×4持久",
+            summary: "長距離カードを抑えた 4×4 で、丁寧にルートを構築しましょう。",
+            regulation: GameMode.Regulation(
+                boardSize: 4,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .standardLight,
+                spawnRule: .fixed(BoardGeometry.defaultSpawnPoint(for: 4)),
+                penalties: GameMode.PenaltySettings(
+                    deadlockPenaltyCost: 3,
+                    manualRedrawPenaltyCost: 2,
+                    manualDiscardPenaltyCost: 1,
+                    revisitPenaltyCost: 0
+                )
+            ),
+            // MARK: 2 個目のスター条件: 手数 30 以内を要求し、正確な踏破計画を促す
+            secondaryObjective: .finishWithinMoves(maxMoves: 30),
+            scoreTarget: 400,
+            scoreTargetComparison: .lessThan,
+            unlockRequirement: .stageClear(stage14.id)
+        )
+
+        // 1-6 は再び任意スポーンを採用し、ペナルティ合計 3 以下を狙う実戦訓練。
+        let stage16 = CampaignStage(
+            id: CampaignStageID(chapter: 1, index: 6),
+            title: "4×4戦略",
+            summary: "開始位置を自由に選び、ペナルティ合計 3 以下で踏破する戦略を組みましょう。",
+            regulation: GameMode.Regulation(
+                boardSize: 4,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .kingAndKnightBasic,
+                spawnRule: .chooseAnyAfterPreview,
+                penalties: GameMode.PenaltySettings(
+                    deadlockPenaltyCost: 3,
+                    manualRedrawPenaltyCost: 2,
+                    manualDiscardPenaltyCost: 1,
+                    revisitPenaltyCost: 0
+                )
+            ),
+            // MARK: 2 個目のスター条件: ペナルティ合計 3 以下で終える集中力を養う
+            secondaryObjective: .finishWithPenaltyAtMost(maxPenaltyCount: 3),
+            scoreTarget: 400,
+            scoreTargetComparison: .lessThan,
+            unlockRequirement: .stageClear(stage15.id)
+        )
+
+        // 1-7 は 5×5 盤を初めて扱う導入ステージ。スタンダード軽量構成で手数 40 以内を狙う。
+        let stage17 = CampaignStage(
+            id: CampaignStageID(chapter: 1, index: 7),
+            title: "5×5導入",
+            summary: "5×5 盤に挑み、長丁場でも安定して踏破する力を養いましょう。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .standardLight,
+                spawnRule: .fixed(BoardGeometry.defaultSpawnPoint(for: 5)),
+                penalties: GameMode.PenaltySettings(
+                    deadlockPenaltyCost: 3,
+                    manualRedrawPenaltyCost: 2,
+                    manualDiscardPenaltyCost: 1,
+                    revisitPenaltyCost: 0
+                )
+            ),
+            // MARK: 2 個目のスター条件: 40 手以内にまとめ、5×5 の巡回感覚を掴んでもらう
+            secondaryObjective: .finishWithinMoves(maxMoves: 40),
+            scoreTarget: 460,
+            scoreTargetComparison: .lessThan,
+            unlockRequirement: .stageClear(stage16.id)
+        )
+
+        // 1-8 は 5×5 での総合演習。任意スポーンを活かし、35 手以内を狙う。
+        let stage18 = CampaignStage(
+            id: CampaignStageID(chapter: 1, index: 8),
+            title: "総合演習",
+            summary: "任意の開始位置から 5×5 全域を巡り、総仕上げとして踏破しましょう。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .standardLight,
+                spawnRule: .chooseAnyAfterPreview,
+                penalties: GameMode.PenaltySettings(
+                    deadlockPenaltyCost: 3,
+                    manualRedrawPenaltyCost: 2,
+                    manualDiscardPenaltyCost: 1,
+                    revisitPenaltyCost: 0
+                )
+            ),
+            // MARK: 2 個目のスター条件: 35 手以内に踏破し、戦略・リスク管理の両立を狙う
+            secondaryObjective: .finishWithinMoves(maxMoves: 35),
+            scoreTarget: 440,
+            scoreTargetComparison: .lessThan,
+            unlockRequirement: .stageClear(stage17.id)
+        )
+
+        let chapter1 = CampaignChapter(
+            id: 1,
+            title: "基礎訓練",
+            summary: "小盤面から 5×5 まで段階的に学ぶ章。",
+            stages: [stage11, stage12, stage13, stage14, stage15, stage16, stage17, stage18]
+        )
+
+        // MARK: - 2 章のステージ群
+        // (1,2) と (3,4) の指定は 1 始まりの座標と解釈し、内部表現の 0 始まりへ変換する。
+        // MARK: - 2 章のステージ群
+        // 多重踏破マスの回数管理を段階的に学ぶ章。すべて `kingAndKnightBasic` デッキで統一する。
+        // MARK: 章 2 以降で共通利用する標準ペナルティ設定（deadlock +3 / redraw +2 / discard +1 / revisit 0）
+        // 序盤とは別軸で難度を構築したいため、数値をまとめて管理してバランス調整時の視認性を確保する。
+        let unifiedMidCampaignPenalties = GameMode.PenaltySettings(
+            deadlockPenaltyCost: 3,
+            manualRedrawPenaltyCost: 2,
+            manualDiscardPenaltyCost: 1,
+            revisitPenaltyCost: 0
+        )
+        let chapter2Penalties = unifiedMidCampaignPenalties
+
+        // 2-1: 4×4 盤で二度踏みマスの基礎を学ぶ導入。中央固定スポーンで落ち着いて操作する。
+        let stage21DoubleVisit: [GridPoint: Int] = [
+            GridPoint(x: 0, y: 1): 2,
+            GridPoint(x: 2, y: 3): 2
+        ]
+        let stage21 = CampaignStage(
+            id: CampaignStageID(chapter: 2, index: 1),
+            title: "重踏チュートリアル",
+            summary: "左列と右上を 2 回踏む練習です。ペナルティ合計 5 以下でリズムを掴みましょう。",
+            regulation: GameMode.Regulation(
+                boardSize: 4,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .kingAndKnightBasic,
+                spawnRule: .fixed(BoardGeometry.defaultSpawnPoint(for: 4)),
+                penalties: chapter2Penalties,
+                additionalVisitRequirements: stage21DoubleVisit
+            ),
+            secondaryObjective: .finishWithPenaltyAtMost(maxPenaltyCount: 5),
+            scoreTarget: 450,
+            scoreTargetComparison: .lessThanOrEqual,
+            // MARK: 第 2 章開始条件は第 1 章でスターを 12 個以上確保しているかを基準にする
+            //       章内 8 ステージで満点未満でも挑戦できるよう、閾値を 12 個へ緩和している
+            unlockRequirement: .chapterTotalStars(chapter: 1, minimum: 12)
+        )
+
+        // 2-2: 5×5 盤で対角二度踏みを巡回し、任意スポーンでも 45 手以内へ収める判断力を育てる。
+        let stage22DoubleVisit: [GridPoint: Int] = [
+            GridPoint(x: 1, y: 1): 2,
+            GridPoint(x: 3, y: 3): 2
+        ]
+        let stage22 = CampaignStage(
+            id: CampaignStageID(chapter: 2, index: 2),
+            title: "基礎演習",
+            summary: "広い 5×5 で二度踏みマスを巡り、45 手以内のルート構築を練習します。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .kingAndKnightBasic,
+                spawnRule: .chooseAnyAfterPreview,
+                penalties: chapter2Penalties,
+                additionalVisitRequirements: stage22DoubleVisit
+            ),
+            secondaryObjective: .finishWithinMoves(maxMoves: 45),
+            scoreTarget: 450,
+            scoreTargetComparison: .lessThanOrEqual,
+            unlockRequirement: .stageClear(stage21.id)
+        )
+
+        // 2-3: 中央三重踏みのテンポを身体で覚えるステージ。40 手以内が目標。
+        let stage23TripleVisit: [GridPoint: Int] = [
+            GridPoint(x: 2, y: 2): 3
+        ]
+        let stage23 = CampaignStage(
+            id: CampaignStageID(chapter: 2, index: 3),
+            title: "三重踏み入門",
+            summary: "中央マスを 3 回踏む課題です。ペナルティを抑えつつ 40 手以内を目指しましょう。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .kingAndKnightBasic,
+                spawnRule: .chooseAnyAfterPreview,
+                penalties: chapter2Penalties,
+                additionalVisitRequirements: stage23TripleVisit
+            ),
+            secondaryObjective: .finishWithinMoves(maxMoves: 40),
+            scoreTarget: 450,
+            scoreTargetComparison: .lessThanOrEqual,
+            unlockRequirement: .stageClear(stage22.id)
+        )
+
+        // 2-4: 三重踏みマスを左右へ分散し、ペナルティ合計 3 以下でバランスよく踏破する。
+        let stage24TripleVisit: [GridPoint: Int] = [
+            GridPoint(x: 1, y: 1): 3,
+            GridPoint(x: 3, y: 3): 3
+        ]
+        let stage24 = CampaignStage(
+            id: CampaignStageID(chapter: 2, index: 4),
+            title: "複数三重踏み",
+            summary: "左右対称の三重踏みマス 2 箇所を巡り、ペナルティ合計 3 以下でまとめる演習です。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .kingAndKnightBasic,
+                spawnRule: .chooseAnyAfterPreview,
+                penalties: chapter2Penalties,
+                additionalVisitRequirements: stage24TripleVisit
+            ),
+            secondaryObjective: .finishWithPenaltyAtMost(maxPenaltyCount: 3),
+            scoreTarget: 580,
+            scoreTargetComparison: .lessThanOrEqual,
+            unlockRequirement: .stageClear(stage23.id)
+        )
+
+        // 2-5: 中央四重踏みを 40 手以内で攻略し、手順管理の精度を高める。
+        let stage25QuadVisit: [GridPoint: Int] = [
+            GridPoint(x: 2, y: 2): 4
+        ]
+        let stage25 = CampaignStage(
+            id: CampaignStageID(chapter: 2, index: 5),
+            title: "中央集中",
+            summary: "中心マスを 4 回踏む必要があるため、40 手以内で効率良く往復しましょう。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .kingAndKnightBasic,
+                spawnRule: .chooseAnyAfterPreview,
+                penalties: chapter2Penalties,
+                additionalVisitRequirements: stage25QuadVisit
+            ),
+            secondaryObjective: .finishWithinMoves(maxMoves: 40),
+            scoreTarget: 570,
+            scoreTargetComparison: .lessThanOrEqual,
+            unlockRequirement: .stageClear(stage24.id)
+        )
+
+        // 2-6: 左右対称の四重踏みを 130 秒以内で処理し、時間管理を意識させる。
+        let stage26QuadVisit: [GridPoint: Int] = [
+            GridPoint(x: 1, y: 1): 4,
+            GridPoint(x: 3, y: 3): 4
+        ]
+        let stage26 = CampaignStage(
+            id: CampaignStageID(chapter: 2, index: 6),
+            title: "四重踏み分散",
+            summary: "左右に配置した四重踏みマスを巡回し、130 秒以内でテンポ良く踏破する課題です。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .kingAndKnightBasic,
+                spawnRule: .chooseAnyAfterPreview,
+                penalties: chapter2Penalties,
+                additionalVisitRequirements: stage26QuadVisit
+            ),
+            secondaryObjective: .finishWithinSeconds(maxSeconds: 130),
+            scoreTarget: 560,
+            scoreTargetComparison: .lessThanOrEqual,
+            unlockRequirement: .stageClear(stage25.id)
+        )
+
+        // 2-7: 2・3・4 回踏みを混在させ、38 手以内に収める応用課題。
+        let stage27MixedVisit: [GridPoint: Int] = [
+            GridPoint(x: 1, y: 1): 2,
+            GridPoint(x: 2, y: 2): 3,
+            GridPoint(x: 3, y: 3): 4
+        ]
+        let stage27 = CampaignStage(
+            id: CampaignStageID(chapter: 2, index: 7),
+            title: "複合課題",
+            summary: "踏破回数の異なるマスを組み合わせ、38 手以内で全域を巡る応用ステージです。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .kingAndKnightBasic,
+                spawnRule: .chooseAnyAfterPreview,
+                penalties: chapter2Penalties,
+                additionalVisitRequirements: stage27MixedVisit
+            ),
+            secondaryObjective: .finishWithinMoves(maxMoves: 38),
+            scoreTarget: 550,
+            scoreTargetComparison: .lessThanOrEqual,
+            unlockRequirement: .stageClear(stage26.id)
+        )
+
+        // 2-8: 盤面中央寄りの三重踏みをすべて達成する総合演習。任意スポーンでも 40 手以内を目指す。
+        let stage28QuadCorners: [GridPoint: Int] = [
+            GridPoint(x: 1, y: 1): 3,
+            GridPoint(x: 3, y: 1): 3,
+            GridPoint(x: 1, y: 3): 3,
+            GridPoint(x: 3, y: 3): 3
+        ]
+        let stage28 = CampaignStage(
+            id: CampaignStageID(chapter: 2, index: 8),
+            title: "総合演習",
+            summary: "盤面中央寄りの三重踏みを順序良く処理し、40 手以内で締める総仕上げです。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .kingAndKnightBasic,
+                spawnRule: .chooseAnyAfterPreview,
+                penalties: chapter2Penalties,
+                additionalVisitRequirements: stage28QuadCorners
+            ),
+            secondaryObjective: .finishWithinMoves(maxMoves: 40),
+            scoreTarget: 540,
+            scoreTargetComparison: .lessThanOrEqual,
+            unlockRequirement: .stageClear(stage27.id)
+        )
+
+        let chapter2 = CampaignChapter(
+            id: 2,
+            title: "応用特訓（重踏）",
+            summary: "多重踏破マスの扱いを習得する章。",
+            stages: [stage21, stage22, stage23, stage24, stage25, stage26, stage27, stage28]
+        )
+
+        // MARK: - 3 章のステージ群
+        // 選択カードを段階導入し、終盤は複数踏破ギミックと組み合わせる。
+        let standardPenalties = unifiedMidCampaignPenalties
+
+        // 3-1: 4×4 盤でキング＋ナイト基礎デッキに縦横選択カードを加え、短距離での判断力を鍛える。
+        let stage31 = CampaignStage(
+            id: CampaignStageID(chapter: 3, index: 1),
+            title: "縦横選択チュートリアル",
+            summary: "4×4 盤でキング＋ナイト基礎デッキに上下左右選択キングを加え、ペナルティ合計 2 以下を意識しつつ短距離操作を磨きましょう。",
+            regulation: GameMode.Regulation(
+                boardSize: 4,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .kingAndKnightWithOrthogonalChoices,
+                spawnRule: .fixed(BoardGeometry.defaultSpawnPoint(for: 4)),
+                penalties: standardPenalties
+            ),
+            secondaryObjective: .finishWithPenaltyAtMost(maxPenaltyCount: 2),
+            scoreTarget: 600,
+            scoreTargetComparison: .lessThanOrEqual,
+            // MARK: 第 3 章も前章スター総数 12 個以上で解放し、到達ハードルを統一する
+            //       章ごとに「1-1 は常時解放、以降は前章スター 12 個以上」を徹底するための設定
+            unlockRequirement: .chapterTotalStars(chapter: 2, minimum: 12)
+        )
+
+        // 3-2: 5×5 盤へ拡張し、キング＋ナイト基礎デッキに縦横選択カードを加えた構成で 40 手以内を目指す。
+        let stage32 = CampaignStage(
+            id: CampaignStageID(chapter: 3, index: 2),
+            title: "縦横基礎",
+            summary: "5×5 盤でキング＋ナイト基礎デッキに上下左右選択キングを組み合わせ、40 手以内で踏破する計画力を養います。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .kingAndKnightWithOrthogonalChoices,
+                spawnRule: .fixed(BoardGeometry.defaultSpawnPoint(for: 5)),
+                penalties: standardPenalties
+            ),
+            secondaryObjective: .finishWithinMoves(maxMoves: 40),
+            scoreTarget: 590,
+            scoreTargetComparison: .lessThanOrEqual,
+            unlockRequirement: .stageClear(stage31.id)
+        )
+
+        // 3-3: 斜め選択キングを導入し、キング＋ナイト基礎デッキのまま角マス攻略を学ぶ。
+        let stage33 = CampaignStage(
+            id: CampaignStageID(chapter: 3, index: 3),
+            title: "斜め選択入門",
+            summary: "キング＋ナイト基礎デッキに斜め選択キングを足し、ペナルティ合計 2 以下で角マスを制圧します。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .kingAndKnightWithDiagonalChoices,
+                spawnRule: .fixed(BoardGeometry.defaultSpawnPoint(for: 5)),
+                penalties: standardPenalties
+            ),
+            secondaryObjective: .finishWithPenaltyAtMost(maxPenaltyCount: 2),
+            scoreTarget: 580,
+            scoreTargetComparison: .lessThanOrEqual,
+            unlockRequirement: .stageClear(stage32.id)
+        )
+
+        // 3-4: 桂馬選択カードを導入し、キング＋ナイト基礎デッキの跳躍力を拡張して 38 手以内を狙う。
+        let stage34 = CampaignStage(
+            id: CampaignStageID(chapter: 3, index: 4),
+            title: "桂馬選択入門",
+            summary: "キング＋ナイト基礎デッキに桂馬選択カードを加え、38 手以内で巡回する応用演習です。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .kingAndKnightWithKnightChoices,
+                spawnRule: .fixed(BoardGeometry.defaultSpawnPoint(for: 5)),
+                penalties: standardPenalties
+            ),
+            secondaryObjective: .finishWithinMoves(maxMoves: 38),
+            scoreTarget: 570,
+            scoreTargetComparison: .lessThanOrEqual,
+            unlockRequirement: .stageClear(stage33.id)
+        )
+
+        // 3-5: 任意スポーン＋二度踏みで 36 手以内の調整力を試す。
+        let stage35DoubleVisit: [GridPoint: Int] = [
+            GridPoint(x: 1, y: 1): 2,
+            GridPoint(x: 3, y: 3): 2
+        ]
+        let stage35 = CampaignStage(
+            id: CampaignStageID(chapter: 3, index: 5),
+            title: "選択＋二度踏み",
+            summary: "任意スポーンで二度踏みマスを制御し、36 手以内でまとめる応用ステージです。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .standardWithOrthogonalChoices,
+                spawnRule: .chooseAnyAfterPreview,
+                penalties: standardPenalties,
+                additionalVisitRequirements: stage35DoubleVisit
+            ),
+            secondaryObjective: .finishWithinMoves(maxMoves: 36),
+            scoreTarget: 560,
+            scoreTargetComparison: .lessThanOrEqual,
+            unlockRequirement: .stageClear(stage34.id)
+        )
+
+        // 3-6: 全選択カードで三重踏みを処理し、ペナルティ合計 1 以下で安定攻略する。
+        let stage36TripleVisit: [GridPoint: Int] = [
+            GridPoint(x: 2, y: 2): 3,
+            GridPoint(x: 3, y: 1): 3
+        ]
+        let stage36 = CampaignStage(
+            id: CampaignStageID(chapter: 3, index: 6),
+            title: "全選択＋三重踏み",
+            summary: "全方向の選択カードを駆使し、三重踏みマスをペナルティ合計 1 以下で処理します。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .standardWithAllChoices,
+                spawnRule: .fixed(BoardGeometry.defaultSpawnPoint(for: 5)),
+                penalties: standardPenalties,
+                additionalVisitRequirements: stage36TripleVisit
+            ),
+            secondaryObjective: .finishWithPenaltyAtMost(maxPenaltyCount: 1),
+            scoreTarget: 550,
+            scoreTargetComparison: .lessThanOrEqual,
+            unlockRequirement: .stageClear(stage35.id)
+        )
+
+        // 3-7: 任意スポーン＋四重踏みで 36 手以内の高速巡回を狙う。
+        let stage37QuadVisit: [GridPoint: Int] = [
+            GridPoint(x: 1, y: 1): 4,
+            GridPoint(x: 3, y: 3): 4
+        ]
+        let stage37 = CampaignStage(
+            id: CampaignStageID(chapter: 3, index: 7),
+            title: "全選択＋四重踏み",
+            summary: "内側に配置された四重踏みを全選択カードで制御し、36 手以内を目指す高難度ステージです。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .standardWithAllChoices,
+                spawnRule: .chooseAnyAfterPreview,
+                penalties: standardPenalties,
+                additionalVisitRequirements: stage37QuadVisit
+            ),
+            secondaryObjective: .finishWithinMoves(maxMoves: 36),
+            scoreTarget: 540,
+            scoreTargetComparison: .lessThanOrEqual,
+            unlockRequirement: .stageClear(stage36.id)
+        )
+
+        // 3-8: ペナルティ合計 2 以下かつ 36 手以内を同時達成する総合演習。
+        let stage38MixedVisit: [GridPoint: Int] = [
+            GridPoint(x: 1, y: 1): 2,
+            GridPoint(x: 2, y: 2): 3,
+            GridPoint(x: 3, y: 3): 4
+        ]
+        let stage38 = CampaignStage(
+            id: CampaignStageID(chapter: 3, index: 8),
+            title: "総合演習",
+            summary: "2/3/4 回踏みを組み合わせ、ペナルティ合計 2 以下かつ 36 手以内を達成する総仕上げです。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .standardWithAllChoices,
+                spawnRule: .fixed(BoardGeometry.defaultSpawnPoint(for: 5)),
+                penalties: standardPenalties,
+                additionalVisitRequirements: stage38MixedVisit
+            ),
+            secondaryObjective: .finishWithPenaltyAtMostAndWithinMoves(maxPenaltyCount: 2, maxMoves: 36),
+            scoreTarget: 530,
+            scoreTargetComparison: .lessThanOrEqual,
+            unlockRequirement: .stageClear(stage37.id)
+        )
+
+        let chapter3 = CampaignChapter(
+            id: 3,
+            title: "多方向訓練",
+            summary: "選択カードと複数踏破を段階導入する章。",
+            stages: [stage31, stage32, stage33, stage34, stage35, stage36, stage37, stage38]
+        )
+
+        // MARK: - 4 章のステージ群
+        // トグルマスと複数踏破を組み合わせ、反転挙動への理解を深める。
+        let chapter4Penalties = standardPenalties
+        let fixedSpawn5 = GameMode.SpawnRule.fixed(BoardGeometry.defaultSpawnPoint(for: 5))
+
+        // 4-1: 基本のトグル 2 箇所を 30 手以内で制御。
+        let stage41Toggles: Set<GridPoint> = [
+            GridPoint(x: 1, y: 1),
+            GridPoint(x: 3, y: 3)
+        ]
+        let stage41 = CampaignStage(
+            id: CampaignStageID(chapter: 4, index: 1),
+            title: "トグル基礎",
+            summary: "2 箇所のトグルマスを操作し、30 手以内で反転ギミックに慣れる導入ステージです。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .standardLight,
+                spawnRule: fixedSpawn5,
+                penalties: chapter4Penalties,
+                toggleTilePoints: stage41Toggles
+            ),
+            secondaryObjective: .finishWithinMoves(maxMoves: 30),
+            scoreTarget: 520,
+            scoreTargetComparison: .lessThanOrEqual,
+            // MARK: 第 4 章も前章スター 12 個以上で解放し、章を跨ぐ進行条件を統一する
+            unlockRequirement: .chapterTotalStars(chapter: 3, minimum: 12)
+        )
+
+        // 4-2: トグル 3 箇所でペナルティ合計 2 以下に抑える。
+        let stage42Toggles: Set<GridPoint> = [
+            GridPoint(x: 2, y: 2),
+            GridPoint(x: 1, y: 3),
+            GridPoint(x: 3, y: 1)
+        ]
+        let stage42 = CampaignStage(
+            id: CampaignStageID(chapter: 4, index: 2),
+            title: "トグル応用",
+            summary: "3 箇所のトグルを捌き、ペナルティ合計 2 以下で制御する応用演習です。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .standardLight,
+                spawnRule: fixedSpawn5,
+                penalties: chapter4Penalties,
+                toggleTilePoints: stage42Toggles
+            ),
+            secondaryObjective: .finishWithPenaltyAtMost(maxPenaltyCount: 2),
+            scoreTarget: 510,
+            scoreTargetComparison: .lessThanOrEqual,
+            unlockRequirement: .stageClear(stage41.id)
+        )
+
+        // 4-3: トグルと二度踏みを組み合わせ、40 手以内でまとめる。
+        let stage43DoubleVisit: [GridPoint: Int] = [
+            GridPoint(x: 0, y: 2): 2,
+            GridPoint(x: 4, y: 2): 2
+        ]
+        let stage43 = CampaignStage(
+            id: CampaignStageID(chapter: 4, index: 3),
+            title: "トグル＋二度踏み",
+            summary: "左右に伸びる二度踏みマスとトグル制御を両立し、40 手以内を目指す課題です。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .standardLight,
+                spawnRule: fixedSpawn5,
+                penalties: chapter4Penalties,
+                additionalVisitRequirements: stage43DoubleVisit,
+                toggleTilePoints: stage41Toggles
+            ),
+            secondaryObjective: .finishWithinMoves(maxMoves: 40),
+            scoreTarget: 500,
+            scoreTargetComparison: .lessThanOrEqual,
+            unlockRequirement: .stageClear(stage42.id)
+        )
+
+        // 4-4: 全選択カードへ切り替え、三重踏みをペナルティ合計 1 以下で管理。
+        let stage44TripleVisit: [GridPoint: Int] = [
+            GridPoint(x: 2, y: 2): 3
+        ]
+        let stage44 = CampaignStage(
+            id: CampaignStageID(chapter: 4, index: 4),
+            title: "トグル＋三重踏み",
+            summary: "中央の三重踏みとトグルを同時に管理し、ペナルティ合計 1 以下でクリアする応用です。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .standardWithAllChoices,
+                spawnRule: fixedSpawn5,
+                penalties: chapter4Penalties,
+                additionalVisitRequirements: stage44TripleVisit,
+                toggleTilePoints: stage41Toggles
+            ),
+            secondaryObjective: .finishWithPenaltyAtMost(maxPenaltyCount: 1),
+            scoreTarget: 490,
+            scoreTargetComparison: .lessThanOrEqual,
+            unlockRequirement: .stageClear(stage43.id)
+        )
+
+        // 4-5: 任意スポーンで四隅のトグルを 38 手以内に制御。
+        let stage45Toggles: Set<GridPoint> = [
+            GridPoint(x: 0, y: 0),
+            GridPoint(x: 4, y: 0),
+            GridPoint(x: 0, y: 4),
+            GridPoint(x: 4, y: 4)
+        ]
+        let stage45 = CampaignStage(
+            id: CampaignStageID(chapter: 4, index: 5),
+            title: "トグル集中制御",
+            summary: "任意スポーンで四隅トグルの順番を調整し、38 手以内に踏破する訓練です。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .standardWithAllChoices,
+                spawnRule: .chooseAnyAfterPreview,
+                penalties: chapter4Penalties,
+                toggleTilePoints: stage45Toggles
+            ),
+            secondaryObjective: .finishWithinMoves(maxMoves: 38),
+            scoreTarget: 480,
+            scoreTargetComparison: .lessThanOrEqual,
+            unlockRequirement: .stageClear(stage44.id)
+        )
+
+        // 4-6: 四重踏みを追加し、36 手以内で速度感を鍛える。
+        let stage46QuadVisit: [GridPoint: Int] = [
+            GridPoint(x: 2, y: 2): 4
+        ]
+        let stage46 = CampaignStage(
+            id: CampaignStageID(chapter: 4, index: 6),
+            title: "トグル＋四重踏み",
+            summary: "中央の四重踏みとトグルを組み合わせ、36 手以内でまとめる高速課題です。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .standardWithAllChoices,
+                spawnRule: .chooseAnyAfterPreview,
+                penalties: chapter4Penalties,
+                additionalVisitRequirements: stage46QuadVisit,
+                toggleTilePoints: stage41Toggles
+            ),
+            secondaryObjective: .finishWithinMoves(maxMoves: 36),
+            scoreTarget: 470,
+            scoreTargetComparison: .lessThanOrEqual,
+            unlockRequirement: .stageClear(stage45.id)
+        )
+
+        // 4-7: ペナルティ合計を厳しく抑えた状態で複合ギミックを扱う。
+        let stage47Additional: [GridPoint: Int] = [
+            GridPoint(x: 0, y: 2): 2,
+            GridPoint(x: 4, y: 2): 2,
+            GridPoint(x: 2, y: 2): 3
+        ]
+        let stage47 = CampaignStage(
+            id: CampaignStageID(chapter: 4, index: 7),
+            title: "トグル＋複合踏破",
+            summary: "二度踏みと三重踏みをトグルと併用し、ペナルティ合計 2 以下で攻略する高難度課題です。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .standardWithAllChoices,
+                spawnRule: .chooseAnyAfterPreview,
+                penalties: chapter4Penalties,
+                additionalVisitRequirements: stage47Additional,
+                toggleTilePoints: stage41Toggles
+            ),
+            secondaryObjective: .finishWithPenaltyAtMost(maxPenaltyCount: 2),
+            scoreTarget: 460,
+            scoreTargetComparison: .lessThanOrEqual,
+            unlockRequirement: .stageClear(stage46.id)
+        )
+
+        // 4-8: 34 手以内＆ペナルティ合計 2 以下で締める総合試験。
+        let stage48Additional: [GridPoint: Int] = [
+            GridPoint(x: 1, y: 0): 2,
+            GridPoint(x: 3, y: 0): 3,
+            GridPoint(x: 2, y: 2): 4
+        ]
+        let stage48Toggles: Set<GridPoint> = [
+            GridPoint(x: 1, y: 1),
+            GridPoint(x: 3, y: 3),
+            GridPoint(x: 2, y: 4)
+        ]
+        let stage48 = CampaignStage(
+            id: CampaignStageID(chapter: 4, index: 8),
+            title: "総合演習",
+            summary: "トグルと複数踏破を総動員し、34 手以内かつペナルティ合計 2 以下で踏破する最終試験です。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .standardWithAllChoices,
+                spawnRule: fixedSpawn5,
+                penalties: chapter4Penalties,
+                additionalVisitRequirements: stage48Additional,
+                toggleTilePoints: stage48Toggles
+            ),
+            secondaryObjective: .finishWithPenaltyAtMostAndWithinMoves(maxPenaltyCount: 2, maxMoves: 34),
+            scoreTarget: 450,
+            scoreTargetComparison: .lessThanOrEqual,
+            unlockRequirement: .stageClear(stage47.id)
+        )
+
+        let chapter4 = CampaignChapter(
+            id: 4,
+            title: "反転応用",
+            summary: "トグルと複数踏破を組み合わせる章。",
+            stages: [stage41, stage42, stage43, stage44, stage45, stage46, stage47, stage48]
+        )
+
+        // MARK: - 5 章のステージ群
+        // 障害物マスと複数ギミックを組み合わせる総合章。
+        let chapter5Penalties = standardPenalties
+
+        // 5-1: 障害物 2 箇所で 30 手以内を目指す導入。
+        let stage51Impassable: Set<GridPoint> = [
+            GridPoint(x: 1, y: 1),
+            GridPoint(x: 3, y: 3)
+        ]
+        let stage51 = CampaignStage(
+            id: CampaignStageID(chapter: 5, index: 1),
+            title: "障害物基礎",
+            summary: "対角に置かれた障害物を避け、30 手以内で踏破するルート構築を学びます。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .standardWithAllChoices,
+                spawnRule: fixedSpawn5,
+                penalties: chapter5Penalties,
+                impassableTilePoints: stage51Impassable
+            ),
+            secondaryObjective: .finishWithinMoves(maxMoves: 30),
+            scoreTarget: 500,
+            scoreTargetComparison: .lessThanOrEqual,
+            // MARK: 第 5 章も直前章スター 12 個以上で解放し、以降の章と条件を合わせる
+            unlockRequirement: .chapterTotalStars(chapter: 4, minimum: 12)
+        )
+
+        // 5-2: 障害物を 3 箇所へ増やし、ペナルティ合計 2 以下で安定させる。
+        let stage52Impassable: Set<GridPoint> = [
+            GridPoint(x: 1, y: 1),
+            GridPoint(x: 3, y: 3),
+            GridPoint(x: 2, y: 2)
+        ]
+        let stage52 = CampaignStage(
+            id: CampaignStageID(chapter: 5, index: 2),
+            title: "障害物応用",
+            summary: "中心を含む障害物 3 箇所を管理し、ペナルティ合計 2 以下で踏破する演習です。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .standardWithAllChoices,
+                spawnRule: .chooseAnyAfterPreview, // 中央を含む障害物 `stage52Impassable` に合わせ、任意スポーンで初期詰みを回避
+                penalties: chapter5Penalties,
+                impassableTilePoints: stage52Impassable
+            ),
+            secondaryObjective: .finishWithPenaltyAtMost(maxPenaltyCount: 2),
+            scoreTarget: 490,
+            scoreTargetComparison: .lessThanOrEqual,
+            unlockRequirement: .stageClear(stage51.id)
+        )
+
+        // 5-3: 障害物と二度踏みを組み合わせ、40 手以内を狙う。
+        let stage53Impassable: Set<GridPoint> = [
+            GridPoint(x: 0, y: 1),
+            GridPoint(x: 4, y: 3)
+        ]
+        let stage53DoubleVisit: [GridPoint: Int] = [
+            GridPoint(x: 1, y: 3): 2,
+            GridPoint(x: 3, y: 1): 2
+        ]
+        let stage53 = CampaignStage(
+            id: CampaignStageID(chapter: 5, index: 3),
+            title: "障害物＋二度踏み",
+            summary: "障害物を避けながら二度踏みマスを処理し、40 手以内で踏破する実戦課題です。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .standardWithAllChoices,
+                spawnRule: fixedSpawn5,
+                penalties: chapter5Penalties,
+                additionalVisitRequirements: stage53DoubleVisit,
+                impassableTilePoints: stage53Impassable
+            ),
+            secondaryObjective: .finishWithinMoves(maxMoves: 40),
+            scoreTarget: 480,
+            scoreTargetComparison: .lessThanOrEqual,
+            unlockRequirement: .stageClear(stage52.id)
+        )
+
+        // 5-4: 任意スポーンで三重踏み＋障害物を扱い、ペナルティ合計 1 以下を目指す。
+        let stage54Impassable: Set<GridPoint> = [
+            GridPoint(x: 0, y: 2),
+            GridPoint(x: 4, y: 2)
+        ]
+        let stage54TripleVisit: [GridPoint: Int] = [
+            GridPoint(x: 2, y: 2): 3
+        ]
+        let stage54 = CampaignStage(
+            id: CampaignStageID(chapter: 5, index: 4),
+            title: "障害物＋三重踏み",
+            summary: "任意スポーンで三重踏みと障害物を管理し、ペナルティ合計 1 以下で安定攻略します。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .standardWithAllChoices,
+                spawnRule: .chooseAnyAfterPreview,
+                penalties: chapter5Penalties,
+                additionalVisitRequirements: stage54TripleVisit,
+                impassableTilePoints: stage54Impassable
+            ),
+            secondaryObjective: .finishWithPenaltyAtMost(maxPenaltyCount: 1),
+            scoreTarget: 470,
+            scoreTargetComparison: .lessThanOrEqual,
+            unlockRequirement: .stageClear(stage53.id)
+        )
+
+        // 5-5: 障害物とトグルを組み合わせ、38 手以内で制御する。
+        let stage55Impassable: Set<GridPoint> = [
+            GridPoint(x: 1, y: 1),
+            GridPoint(x: 3, y: 3)
+        ]
+        let stage55Toggles: Set<GridPoint> = [
+            GridPoint(x: 2, y: 1),
+            GridPoint(x: 2, y: 3)
+        ]
+        let stage55 = CampaignStage(
+            id: CampaignStageID(chapter: 5, index: 5),
+            title: "障害物＋トグル",
+            summary: "中央列のトグルと障害物を同時に捌き、38 手以内のルート最適化を図ります。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .standardWithAllChoices,
+                spawnRule: fixedSpawn5,
+                penalties: chapter5Penalties,
+                toggleTilePoints: stage55Toggles,
+                impassableTilePoints: stage55Impassable
+            ),
+            secondaryObjective: .finishWithinMoves(maxMoves: 38),
+            scoreTarget: 460,
+            scoreTargetComparison: .lessThanOrEqual,
+            unlockRequirement: .stageClear(stage54.id)
+        )
+
+        // 5-6: 任意スポーンで四重踏みとトグルを扱い、36 手以内を狙う。
+        let stage56Impassable: Set<GridPoint> = [
+            GridPoint(x: 1, y: 1),
+            GridPoint(x: 3, y: 3)
+        ]
+        let stage56QuadVisit: [GridPoint: Int] = [
+            GridPoint(x: 2, y: 2): 4
+        ]
+        let stage56Toggles: Set<GridPoint> = [
+            GridPoint(x: 0, y: 4)
+        ]
+        let stage56 = CampaignStage(
+            id: CampaignStageID(chapter: 5, index: 6),
+            title: "複合 (四重踏み含む)",
+            summary: "任意スポーンで四重踏みとトグルを裁き、36 手以内にまとめる複合課題です。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .standardWithAllChoices,
+                spawnRule: .chooseAnyAfterPreview,
+                penalties: chapter5Penalties,
+                additionalVisitRequirements: stage56QuadVisit,
+                toggleTilePoints: stage56Toggles,
+                impassableTilePoints: stage56Impassable
+            ),
+            secondaryObjective: .finishWithinMoves(maxMoves: 36),
+            scoreTarget: 450,
+            scoreTargetComparison: .lessThanOrEqual,
+            unlockRequirement: .stageClear(stage55.id)
+        )
+
+        // 5-7: ペナルティ合計を抑えつつ障害物＋複数踏破＋トグルを管理。
+        let stage57Impassable: Set<GridPoint> = [
+            GridPoint(x: 1, y: 1),
+            GridPoint(x: 3, y: 3),
+            GridPoint(x: 2, y: 4)
+        ]
+        let stage57Additional: [GridPoint: Int] = [
+            GridPoint(x: 0, y: 1): 2,
+            GridPoint(x: 4, y: 3): 3
+        ]
+        let stage57Toggles: Set<GridPoint> = [
+            GridPoint(x: 2, y: 2)
+        ]
+        let stage57 = CampaignStage(
+            id: CampaignStageID(chapter: 5, index: 7),
+            title: "複合 (多要素)",
+            summary: "障害物と複数踏破・トグルを同時に管理し、ペナルティ合計 2 以下で攻略する最終調整です。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .standardWithAllChoices,
+                spawnRule: .chooseAnyAfterPreview,
+                penalties: chapter5Penalties,
+                additionalVisitRequirements: stage57Additional,
+                toggleTilePoints: stage57Toggles,
+                impassableTilePoints: stage57Impassable
+            ),
+            secondaryObjective: .finishWithPenaltyAtMost(maxPenaltyCount: 2),
+            scoreTarget: 440,
+            scoreTargetComparison: .lessThanOrEqual,
+            unlockRequirement: .stageClear(stage56.id)
+        )
+
+        // 5-8: 34 手以内＆ペナルティ合計 2 以下で締める最終試験。
+        let stage58Impassable: Set<GridPoint> = [
+            GridPoint(x: 1, y: 1),
+            GridPoint(x: 3, y: 3),
+            GridPoint(x: 2, y: 2)
+        ]
+        let stage58Additional: [GridPoint: Int] = [
+            GridPoint(x: 1, y: 4): 2,
+            GridPoint(x: 3, y: 0): 3,
+            GridPoint(x: 2, y: 4): 4
+        ]
+        let stage58Toggles: Set<GridPoint> = [
+            GridPoint(x: 1, y: 3),
+            GridPoint(x: 3, y: 1)
+        ]
+        let stage58 = CampaignStage(
+            id: CampaignStageID(chapter: 5, index: 8),
+            title: "最終試験",
+            summary: "障害物・トグル・複数踏破を総動員し、34 手以内かつペナルティ合計 2 以下で仕上げる最終試験です。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .standardWithAllChoices,
+                spawnRule: .chooseAnyAfterPreview, // 中央を塞ぐ障害物と多重踏破の同居に合わせ、任意スポーンで整合性を確保
+                penalties: chapter5Penalties,
+                additionalVisitRequirements: stage58Additional,
+                toggleTilePoints: stage58Toggles,
+                impassableTilePoints: stage58Impassable
+            ),
+            secondaryObjective: .finishWithPenaltyAtMostAndWithinMoves(maxPenaltyCount: 2, maxMoves: 34),
+            scoreTarget: 430,
+            scoreTargetComparison: .lessThanOrEqual,
+            unlockRequirement: .stageClear(stage57.id)
+        )
+
+        let chapter5 = CampaignChapter(
+            id: 5,
+            title: "障害物攻略",
+            summary: "障害物と複合ギミックを乗り越える章。",
+            stages: [stage51, stage52, stage53, stage54, stage55, stage56, stage57, stage58]
+        )
+
+        // MARK: - 6 章のステージ群
+        // ワープマスを活用した転送戦術を段階導入し、既存ギミックとの複合を通じて応用力を引き上げる。
+        let chapter6Penalties = standardPenalties
+
+        // 6-1: 最初のワープ導入。対角転送だけに絞り、40 手以内でワープ挙動を安全に学ぶ。
+        let stage61WarpPairs: [String: [GridPoint]] = [
+            "stage61_pair_main": [
+                GridPoint(x: 0, y: 0),
+                GridPoint(x: 4, y: 4)
+            ]
+        ]
+        let stage61 = CampaignStage(
+            id: CampaignStageID(chapter: 6, index: 1),
+            title: "転送導入演習",
+            summary: "対角ワープを使い、40 手以内で踏破するワープ基礎訓練です。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .standardWithAllChoices,
+                spawnRule: fixedSpawn5,
+                penalties: chapter6Penalties,
+                warpTilePairs: stage61WarpPairs
+            ),
+            secondaryObjective: .finishWithinMoves(maxMoves: 40),
+            scoreTarget: 520,
+            scoreTargetComparison: .lessThanOrEqual,
+            // MARK: 第 6 章以降は「前章スター 12 個以上」で一律解放するため、章全体の達成度を評価する
+            //       具体的には第 5 章でスターを 12 個以上獲得すれば挑戦可能とする
+            unlockRequirement: .chapterTotalStars(chapter: 5, minimum: 12)
+        )
+
+        // 6-2: ワープペアを 2 組へ増やし、ペナルティ合計 2 以下を意識させる。
+        let stage62WarpPairs: [String: [GridPoint]] = [
+            "stage62_pair_cross": [
+                GridPoint(x: 0, y: 4),
+                GridPoint(x: 4, y: 0)
+            ],
+            "stage62_pair_center": [
+                GridPoint(x: 1, y: 1),
+                GridPoint(x: 3, y: 3)
+            ]
+        ]
+        let stage62 = CampaignStage(
+            id: CampaignStageID(chapter: 6, index: 2),
+            title: "二重転送訓練",
+            summary: "2 組のワープを調整し、ペナルティ合計 2 以下で安定させる応用演習です。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .standardWithAllChoices,
+                spawnRule: fixedSpawn5,
+                penalties: chapter6Penalties,
+                warpTilePairs: stage62WarpPairs
+            ),
+            secondaryObjective: .finishWithPenaltyAtMost(maxPenaltyCount: 2),
+            scoreTarget: 510,
+            scoreTargetComparison: .lessThanOrEqual,
+            unlockRequirement: .stageClear(stage61.id)
+        )
+
+        // 6-3: トグルを混在させ、ワープ後の踏破状態管理を体感する。38 手以内でテンポ維持を促す。
+        let stage63WarpPairs: [String: [GridPoint]] = [
+            "stage63_pair_center": [
+                GridPoint(x: 1, y: 1),
+                GridPoint(x: 3, y: 3)
+            ]
+        ]
+        let stage63Toggles: Set<GridPoint> = [
+            GridPoint(x: 2, y: 2)
+        ]
+        let stage63 = CampaignStage(
+            id: CampaignStageID(chapter: 6, index: 3),
+            title: "転送＋反転整備",
+            summary: "中央トグルとワープを連携させ、38 手以内で踏破状態を整える訓練です。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .standardWithAllChoices,
+                spawnRule: fixedSpawn5,
+                penalties: chapter6Penalties,
+                toggleTilePoints: stage63Toggles,
+                warpTilePairs: stage63WarpPairs
+            ),
+            secondaryObjective: .finishWithinMoves(maxMoves: 38),
+            scoreTarget: 500,
+            scoreTargetComparison: .lessThanOrEqual,
+            unlockRequirement: .stageClear(stage62.id)
+        )
+
+        // 6-4: 二度踏みを併用し、ワープ移動との往復で踏破回数を管理する。ペナルティは 1 以下を要求。
+        let stage64WarpPairs: [String: [GridPoint]] = [
+            "stage64_pair_cross": [
+                GridPoint(x: 0, y: 4),
+                GridPoint(x: 4, y: 0)
+            ]
+        ]
+        let stage64DoubleVisit: [GridPoint: Int] = [
+            GridPoint(x: 2, y: 2): 2
+        ]
+        let stage64 = CampaignStage(
+            id: CampaignStageID(chapter: 6, index: 4),
+            title: "転送＋多重踏破",
+            summary: "ワープと二度踏みを両立させ、ペナルティ合計 1 以下でまとめる応用課題です。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .standardWithAllChoices,
+                spawnRule: fixedSpawn5,
+                penalties: chapter6Penalties,
+                additionalVisitRequirements: stage64DoubleVisit,
+                warpTilePairs: stage64WarpPairs
+            ),
+            secondaryObjective: .finishWithPenaltyAtMost(maxPenaltyCount: 1),
+            scoreTarget: 490,
+            scoreTargetComparison: .lessThanOrEqual,
+            unlockRequirement: .stageClear(stage63.id)
+        )
+
+        // 6-5: 任意スポーンと複数ワープを組み合わせ、36 手以内のルート最適化を求める。
+        let stage65WarpPairs: [String: [GridPoint]] = [
+            "stage65_pair_center": [
+                GridPoint(x: 0, y: 0),
+                GridPoint(x: 2, y: 2)
+            ],
+            "stage65_pair_oblique": [
+                GridPoint(x: 1, y: 4),
+                GridPoint(x: 4, y: 1)
+            ],
+            "stage65_pair_cross": [
+                GridPoint(x: 0, y: 4),
+                GridPoint(x: 4, y: 0)
+            ]
+        ]
+        let stage65 = CampaignStage(
+            id: CampaignStageID(chapter: 6, index: 5),
+            title: "任意転送応用",
+            summary: "任意スポーンで 3 組のワープを捌き、36 手以内に踏破する計画力を鍛えます。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .standardWithAllChoices,
+                spawnRule: .chooseAnyAfterPreview,
+                penalties: chapter6Penalties,
+                warpTilePairs: stage65WarpPairs
+            ),
+            secondaryObjective: .finishWithinMoves(maxMoves: 36),
+            scoreTarget: 480,
+            scoreTargetComparison: .lessThanOrEqual,
+            unlockRequirement: .stageClear(stage64.id)
+        )
+
+        // 6-6: 障害物を導入し、ワープ地点の安全確認とルート修正力を養う。ペナルティ合計 2 以下を維持させる。
+        let stage66WarpPairs: [String: [GridPoint]] = [
+            "stage66_pair_center": [
+                GridPoint(x: 1, y: 1),
+                GridPoint(x: 3, y: 3)
+            ]
+        ]
+        let stage66Impassable: Set<GridPoint> = [
+            GridPoint(x: 2, y: 2)
+        ]
+        let stage66 = CampaignStage(
+            id: CampaignStageID(chapter: 6, index: 6),
+            title: "転送＋障害回避",
+            summary: "中央障害物とワープを同時管理し、ペナルティ合計 2 以下で踏破する防衛練習です。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .standardWithAllChoices,
+                spawnRule: .chooseAnyAfterPreview,
+                penalties: chapter6Penalties,
+                impassableTilePoints: stage66Impassable,
+                warpTilePairs: stage66WarpPairs
+            ),
+            secondaryObjective: .finishWithPenaltyAtMost(maxPenaltyCount: 2),
+            scoreTarget: 470,
+            scoreTargetComparison: .lessThanOrEqual,
+            unlockRequirement: .stageClear(stage65.id)
+        )
+
+        // 6-7: ワープ＋トグル＋三重踏みの統合。34 手以内で高密度な処理を求める。
+        let stage67WarpPairs: [String: [GridPoint]] = [
+            "stage67_pair_diagonal": [
+                GridPoint(x: 0, y: 0),
+                GridPoint(x: 4, y: 4)
+            ]
+        ]
+        let stage67Toggles: Set<GridPoint> = [
+            GridPoint(x: 1, y: 1),
+            GridPoint(x: 3, y: 3)
+        ]
+        let stage67TripleVisit: [GridPoint: Int] = [
+            GridPoint(x: 2, y: 2): 3
+        ]
+        let stage67 = CampaignStage(
+            id: CampaignStageID(chapter: 6, index: 7),
+            title: "転送統合課題",
+            summary: "ワープ・トグル・三重踏みを統合し、34 手以内で仕上げる高密度ステージです。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .standardWithAllChoices,
+                spawnRule: .chooseAnyAfterPreview,
+                penalties: chapter6Penalties,
+                additionalVisitRequirements: stage67TripleVisit,
+                toggleTilePoints: stage67Toggles,
+                warpTilePairs: stage67WarpPairs
+            ),
+            secondaryObjective: .finishWithinMoves(maxMoves: 34),
+            scoreTarget: 460,
+            scoreTargetComparison: .lessThanOrEqual,
+            unlockRequirement: .stageClear(stage66.id)
+        )
+
+        // 6-8: 最終演習。障害物・トグル・複数ワープを固定スポーンで裁き、ペナルティ合計 2 以下かつ 32 手以内で締める。
+        let stage68WarpPairs: [String: [GridPoint]] = [
+            "stage68_pair_cross": [
+                GridPoint(x: 0, y: 4),
+                GridPoint(x: 4, y: 0)
+            ],
+            "stage68_pair_inner": [
+                GridPoint(x: 1, y: 3),
+                GridPoint(x: 3, y: 1)
+            ]
+        ]
+        let stage68Impassable: Set<GridPoint> = [
+            GridPoint(x: 0, y: 0)
+        ]
+        let stage68Toggles: Set<GridPoint> = [
+            GridPoint(x: 2, y: 2)
+        ]
+        let stage68 = CampaignStage(
+            id: CampaignStageID(chapter: 6, index: 8),
+            title: "転送最終演習",
+            summary: "障害物とワープを固定スポーンで裁き、ペナルティ合計 2 以下＆32 手以内で完成させる最終試験です。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .standardWithAllChoices,
+                spawnRule: fixedSpawn5,
+                penalties: chapter6Penalties,
+                toggleTilePoints: stage68Toggles,
+                impassableTilePoints: stage68Impassable,
+                warpTilePairs: stage68WarpPairs
+            ),
+            secondaryObjective: .finishWithPenaltyAtMostAndWithinMoves(maxPenaltyCount: 2, maxMoves: 32),
+            scoreTarget: 450,
+            scoreTargetComparison: .lessThanOrEqual,
+            unlockRequirement: .stageClear(stage67.id)
+        )
+
+        let chapter6 = CampaignChapter(
+            id: 6,
+            title: "転送戦術",
+            summary: "ワープマスを軸に踏破ルートを再設計する章。",
+            stages: [stage61, stage62, stage63, stage64, stage65, stage66, stage67, stage68]
+        )
+
+        // MARK: - 7 章のステージ群
+        // 複数マス移動カードを常設し、後半でシャッフルマスを追加して手札の変動管理を練習させる章。
+        let chapter7Penalties = standardPenalties
+
+        // 7-1: 新カード導入。複数マス移動カードで 38 手以内クリアを目指し、基本挙動を把握する。
+        let stage71 = CampaignStage(
+            id: CampaignStageID(chapter: 7, index: 1),
+            title: "拡張移動導入",
+            summary: "複数マス移動カードを試し、38 手以内で踏破する導入ステージです。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .extendedWithMultiStepMoves,
+                spawnRule: fixedSpawn5,
+                penalties: chapter7Penalties
+            ),
+            secondaryObjective: .finishWithinMoves(maxMoves: 38),
+            scoreTarget: 440,
+            scoreTargetComparison: .lessThanOrEqual,
+            // MARK: 第 7 章も前章スター 12 個以上で解放し、ステージ 7-1 の挑戦条件を明確化する
+            unlockRequirement: .chapterTotalStars(chapter: 6, minimum: 12)
+        )
+
+        // 7-2: 桂馬強化カードの重み増しを想定した応用編。ペナルティ合計 2 以下で安定させる。
+        let stage72 = CampaignStage(
+            id: CampaignStageID(chapter: 7, index: 2),
+            title: "拡張移動応用",
+            summary: "複数マス移動と桂馬サポートを組み合わせ、ペナルティ合計 2 以下を狙う応用課題です。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .extendedWithMultiStepMoves,
+                spawnRule: fixedSpawn5,
+                penalties: chapter7Penalties
+            ),
+            secondaryObjective: .finishWithPenaltyAtMost(maxPenaltyCount: 2),
+            scoreTarget: 435,
+            scoreTargetComparison: .lessThanOrEqual,
+            unlockRequirement: .stageClear(stage71.id)
+        )
+
+        // 7-3: 中央障害物を配置し、複数マス移動カードでの経路修正力を高める。中央が封鎖されるため任意スポーンへ切り替え、36 手以内を要求。
+        let stage73Impassable: Set<GridPoint> = [
+            GridPoint(x: 2, y: 2)
+        ]
+        let stage73 = CampaignStage(
+            id: CampaignStageID(chapter: 7, index: 3),
+            title: "障害回避演習",
+            summary: "中央障害物を避けながら 36 手以内で踏破する複数マス移動の応用演習です。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .extendedWithMultiStepMoves,
+                spawnRule: .chooseAnyAfterPreview,
+                penalties: chapter7Penalties,
+                impassableTilePoints: stage73Impassable
+            ),
+            secondaryObjective: .finishWithinMoves(maxMoves: 36),
+            scoreTarget: 430,
+            scoreTargetComparison: .lessThanOrEqual,
+            unlockRequirement: .stageClear(stage72.id)
+        )
+
+        // 7-4: 二度踏みマスを配置し、直線 3 マス移動の活用でリズム良く処理する。ペナルティ合計 1 以下を条件にする。
+        let stage74AdditionalVisits: [GridPoint: Int] = [
+            GridPoint(x: 1, y: 1): 2,
+            GridPoint(x: 3, y: 3): 2
+        ]
+        let stage74 = CampaignStage(
+            id: CampaignStageID(chapter: 7, index: 4),
+            title: "直線連携訓練",
+            summary: "二度踏みマスを直線移動で裁き、ペナルティ合計 1 以下を目指す連携トレーニングです。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .extendedWithMultiStepMoves,
+                spawnRule: fixedSpawn5,
+                penalties: chapter7Penalties,
+                additionalVisitRequirements: stage74AdditionalVisits
+            ),
+            secondaryObjective: .finishWithPenaltyAtMost(maxPenaltyCount: 1),
+            scoreTarget: 425,
+            scoreTargetComparison: .lessThanOrEqual,
+            unlockRequirement: .stageClear(stage73.id)
+        )
+
+        // 7-5: シャッフルマス初登場。任意スポーン化で事故を抑えつつ、36 手以内にまとめる。
+        let stage75Shuffle: [GridPoint: TileEffect] = [
+            GridPoint(x: 2, y: 2): .shuffleHand
+        ]
+        let stage75 = CampaignStage(
+            id: CampaignStageID(chapter: 7, index: 5),
+            title: "シャッフル導入",
+            summary: "中央シャッフルマスを踏みつつ、36 手以内で安定攻略する導入ステージです。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .extendedWithMultiStepMoves,
+                spawnRule: .chooseAnyAfterPreview,
+                penalties: chapter7Penalties,
+                tileEffectOverrides: stage75Shuffle
+            ),
+            secondaryObjective: .finishWithinMoves(maxMoves: 36),
+            scoreTarget: 420,
+            scoreTargetComparison: .lessThanOrEqual,
+            unlockRequirement: .stageClear(stage74.id)
+        )
+
+        // 7-6: シャッフルと障害物を組み合わせ、ペナルティ合計 2 以下を保ちながら手札再構成に対応する。
+        let stage76Shuffle: [GridPoint: TileEffect] = [
+            GridPoint(x: 2, y: 2): .shuffleHand
+        ]
+        let stage76Impassable: Set<GridPoint> = [
+            GridPoint(x: 1, y: 3)
+        ]
+        let stage76 = CampaignStage(
+            id: CampaignStageID(chapter: 7, index: 6),
+            title: "シャッフル応用",
+            summary: "シャッフルと障害物の両立を図り、ペナルティ合計 2 以下で収める応用課題です。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .extendedWithMultiStepMoves,
+                spawnRule: .chooseAnyAfterPreview,
+                penalties: chapter7Penalties,
+                impassableTilePoints: stage76Impassable,
+                tileEffectOverrides: stage76Shuffle
+            ),
+            secondaryObjective: .finishWithPenaltyAtMost(maxPenaltyCount: 2),
+            scoreTarget: 415,
+            scoreTargetComparison: .lessThanOrEqual,
+            unlockRequirement: .stageClear(stage75.id)
+        )
+
+        // 7-7: シャッフルとトグルを同時制御し、34 手以内で複合ギミックを捌く。任意スポーンで初手詰みを回避する。
+        let stage77Shuffle: [GridPoint: TileEffect] = [
+            GridPoint(x: 2, y: 2): .shuffleHand
+        ]
+        let stage77Toggles: Set<GridPoint> = [
+            GridPoint(x: 1, y: 1),
+            GridPoint(x: 3, y: 3)
+        ]
+        let stage77 = CampaignStage(
+            id: CampaignStageID(chapter: 7, index: 7),
+            title: "複合行動課題",
+            summary: "シャッフルとトグルを併用し、34 手以内でルートをまとめる複合行動ステージです。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .extendedWithMultiStepMoves,
+                spawnRule: .chooseAnyAfterPreview,
+                penalties: chapter7Penalties,
+                toggleTilePoints: stage77Toggles,
+                tileEffectOverrides: stage77Shuffle
+            ),
+            secondaryObjective: .finishWithinMoves(maxMoves: 34),
+            scoreTarget: 410,
+            scoreTargetComparison: .lessThanOrEqual,
+            unlockRequirement: .stageClear(stage76.id)
+        )
+
+        // 7-8: シャッフル・二度踏み・障害物を集約した総決算。32 手以内かつペナルティ合計 2 以下を条件とする。
+        let stage78Shuffle: [GridPoint: TileEffect] = [
+            GridPoint(x: 0, y: 0): .shuffleHand,
+            GridPoint(x: 4, y: 4): .shuffleHand
+        ]
+        let stage78AdditionalVisits: [GridPoint: Int] = [
+            GridPoint(x: 2, y: 2): 2
+        ]
+        let stage78Impassable: Set<GridPoint> = [
+            GridPoint(x: 1, y: 1)
+        ]
+        let stage78 = CampaignStage(
+            id: CampaignStageID(chapter: 7, index: 8),
+            title: "拡張行動総決算",
+            summary: "シャッフル・二度踏み・障害物を乗り越え、32 手以内＆ペナルティ合計 2 以下で締める総仕上げです。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .extendedWithMultiStepMoves,
+                spawnRule: .chooseAnyAfterPreview,
+                penalties: chapter7Penalties,
+                additionalVisitRequirements: stage78AdditionalVisits,
+                impassableTilePoints: stage78Impassable,
+                tileEffectOverrides: stage78Shuffle
+            ),
+            secondaryObjective: .finishWithPenaltyAtMostAndWithinMoves(maxPenaltyCount: 2, maxMoves: 32),
+            scoreTarget: 405,
+            scoreTargetComparison: .lessThanOrEqual,
+            unlockRequirement: .stageClear(stage77.id)
+        )
+
+        let chapter7 = CampaignChapter(
+            id: 7,
+            title: "拡張行動",
+            summary: "複数マス移動カードとシャッフルマスで行動拡張力を養う章。",
+            stages: [stage71, stage72, stage73, stage74, stage75, stage76, stage77, stage78]
+        )
+
+        // MARK: - 8 章のステージ群
+        // ワープカードとスーパーワープカードを主役に据え、既存ギミックとの複合制御力を確認する終盤章。
+        let chapter8Penalties = standardPenalties
+
+        // 8-1: 固定ワープを高頻度で配布し、目的地ローテーションと瞬間転移を 38 手以内で学ぶ導入ステージ。
+        let stage81 = CampaignStage(
+            id: CampaignStageID(chapter: 8, index: 1),
+            title: "固定ワープ基礎",
+            summary: "固定ワープカードを高頻度で引き込みつつ、基礎移動で微調整しながら 38 手以内に踏破ルートを整える基礎訓練です。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .fixedWarpSpecialized,
+                spawnRule: fixedSpawn5,
+                penalties: chapter8Penalties
+            ),
+            secondaryObjective: .finishWithinMoves(maxMoves: 38),
+            scoreTarget: 400,
+            scoreTargetComparison: .lessThanOrEqual,
+            // MARK: 第 8 章も前章スター 12 個以上で解放し、最終章到達条件を統一する
+            unlockRequirement: .chapterTotalStars(chapter: 7, minimum: 12)
+        )
+
+        // 8-2: 全域ワープを高頻度で引ける構成で盤面全域の瞬間移動を練習し、ペナルティ合計 2 以下の冷静な運用を求める。
+        let stage82 = CampaignStage(
+            id: CampaignStageID(chapter: 8, index: 2),
+            title: "全域ワープ試験",
+            summary: "全域ワープカードを高頻度で引き込み、ペナルティ合計 2 以下に抑えて瞬間転移ルートを構築する試験です。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .superWarpHighFrequency,
+                spawnRule: fixedSpawn5,
+                penalties: chapter8Penalties
+            ),
+            secondaryObjective: .finishWithPenaltyAtMost(maxPenaltyCount: 2),
+            scoreTarget: 395,
+            scoreTargetComparison: .lessThanOrEqual,
+            unlockRequirement: .stageClear(stage81.id)
+        )
+
+        // 8-3: ここからは固定／全域ワープをバランス投入した標準構成へ移行し、中央障害物との併用で 36 手以内の迅速攻略を鍛える。
+        let stage83Impassable: Set<GridPoint> = [
+            GridPoint(x: 2, y: 2)
+        ]
+        let stage83 = CampaignStage(
+            id: CampaignStageID(chapter: 8, index: 3),
+            title: "障害物併用演習",
+            summary: "中央障害物を避けつつワープカードを活用し、36 手以内で収める応用演習です。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .standardWithWarpCards,
+                // 中央を障害物で塞ぐため、初期手詰まりを防ぐ目的で任意スポーンへ切り替える
+                spawnRule: .chooseAnyAfterPreview,
+                penalties: chapter8Penalties,
+                impassableTilePoints: stage83Impassable
+            ),
+            secondaryObjective: .finishWithinMoves(maxMoves: 36),
+            scoreTarget: 390,
+            scoreTargetComparison: .lessThanOrEqual,
+            unlockRequirement: .stageClear(stage82.id)
+        )
+
+        // 8-4: トグルマスとバランス型ワープデッキの組み合わせで踏破状況の再編成力を確認し、34 手以内の短期決戦に設定。
+        let stage84Toggles: Set<GridPoint> = [
+            GridPoint(x: 1, y: 1),
+            GridPoint(x: 3, y: 3)
+        ]
+        let stage84 = CampaignStage(
+            id: CampaignStageID(chapter: 8, index: 4),
+            title: "反転連動演習",
+            summary: "トグルマスとスーパーワープを連動させ、34 手以内で盤面を制御する演習です。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .standardWithWarpCards,
+                spawnRule: fixedSpawn5,
+                penalties: chapter8Penalties,
+                toggleTilePoints: stage84Toggles
+            ),
+            secondaryObjective: .finishWithinMoves(maxMoves: 34),
+            scoreTarget: 385,
+            scoreTargetComparison: .lessThanOrEqual,
+            unlockRequirement: .stageClear(stage83.id)
+        )
+
+        // 8-5: 任意スポーンと二度踏みを導入し、バランス型ワープデッキで再配置ルートを描く。ペナルティ合計 2 以下が条件。
+        let stage85AdditionalVisits: [GridPoint: Int] = [
+            GridPoint(x: 2, y: 2): 2
+        ]
+        let stage85 = CampaignStage(
+            id: CampaignStageID(chapter: 8, index: 5),
+            title: "任意転移演習",
+            summary: "任意スポーンと二度踏みを組み合わせ、ペナルティ合計 2 以下で仕上げる転移演習です。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .standardWithWarpCards,
+                spawnRule: .chooseAnyAfterPreview,
+                penalties: chapter8Penalties,
+                additionalVisitRequirements: stage85AdditionalVisits
+            ),
+            secondaryObjective: .finishWithPenaltyAtMost(maxPenaltyCount: 2),
+            scoreTarget: 380,
+            scoreTargetComparison: .lessThanOrEqual,
+            unlockRequirement: .stageClear(stage84.id)
+        )
+
+        // 8-6: ワープタイルとワープカードを混成させ、バランス型デッキで 32 手以内の広域転移制御を目指す。
+        let stage86WarpPairs: [String: [GridPoint]] = [
+            "stage86_pair_cross": [
+                GridPoint(x: 0, y: 4),
+                GridPoint(x: 4, y: 0)
+            ]
+        ]
+        let stage86 = CampaignStage(
+            id: CampaignStageID(chapter: 8, index: 6),
+            title: "デッキ混成実戦",
+            summary: "ワープタイルとワープカードを併用し、32 手以内で踏破する実戦形式ステージです。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .standardWithWarpCards,
+                spawnRule: .chooseAnyAfterPreview,
+                penalties: chapter8Penalties,
+                warpTilePairs: stage86WarpPairs
+            ),
+            secondaryObjective: .finishWithinMoves(maxMoves: 32),
+            scoreTarget: 375,
+            scoreTargetComparison: .lessThanOrEqual,
+            unlockRequirement: .stageClear(stage85.id)
+        )
+
+        // 8-7: トグルと障害物を絡めた終盤演習。バランス型デッキでペナルティ合計 1 以下の冷静さが求められる。
+        let stage87Toggles: Set<GridPoint> = [
+            GridPoint(x: 2, y: 2)
+        ]
+        let stage87Impassable: Set<GridPoint> = [
+            GridPoint(x: 1, y: 1)
+        ]
+        let stage87 = CampaignStage(
+            id: CampaignStageID(chapter: 8, index: 7),
+            title: "空間支配課題",
+            summary: "トグルと障害物を制御しながらワープカードを扱い、ペナルティ合計 1 以下で締める課題です。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .standardWithWarpCards,
+                spawnRule: .chooseAnyAfterPreview,
+                penalties: chapter8Penalties,
+                toggleTilePoints: stage87Toggles,
+                impassableTilePoints: stage87Impassable
+            ),
+            secondaryObjective: .finishWithPenaltyAtMost(maxPenaltyCount: 1),
+            scoreTarget: 370,
+            scoreTargetComparison: .lessThanOrEqual,
+            unlockRequirement: .stageClear(stage86.id)
+        )
+
+        // 8-8: 終章最終試験。二度踏み・トグル・障害物を同時管理しつつ、バランス型デッキに含まれるワープカードで局面を打開する。
+        let stage88AdditionalVisits: [GridPoint: Int] = [
+            GridPoint(x: 3, y: 1): 2
+        ]
+        let stage88Toggles: Set<GridPoint> = [
+            GridPoint(x: 1, y: 3)
+        ]
+        let stage88Impassable: Set<GridPoint> = [
+            GridPoint(x: 0, y: 0)
+        ]
+        let stage88 = CampaignStage(
+            id: CampaignStageID(chapter: 8, index: 8),
+            title: "空間支配最終試験",
+            summary: "ワープカードを駆使し、30 手以内＆ペナルティ合計 1 以下で空間支配を完成させる最終試験です。",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .standardWithWarpCards,
+                spawnRule: .chooseAnyAfterPreview,
+                penalties: chapter8Penalties,
+                additionalVisitRequirements: stage88AdditionalVisits,
+                toggleTilePoints: stage88Toggles,
+                impassableTilePoints: stage88Impassable
+            ),
+            secondaryObjective: .finishWithPenaltyAtMostAndWithinMoves(maxPenaltyCount: 1, maxMoves: 30),
+            scoreTarget: 365,
+            scoreTargetComparison: .lessThanOrEqual,
+            unlockRequirement: .stageClear(stage87.id)
+        )
+
+        let chapter8 = CampaignChapter(
+            id: 8,
+            title: "空間支配",
+            summary: "固定ワープから全域ワープまで段階的に習熟し、最終的に両者を併用して盤面を掌握する章。",
+            stages: [stage81, stage82, stage83, stage84, stage85, stage86, stage87, stage88]
+        )
+
+        return [chapter1, chapter2, chapter3, chapter4, chapter5, chapter6, chapter7, chapter8]
+    }
+}
