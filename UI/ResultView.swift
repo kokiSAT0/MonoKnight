@@ -49,11 +49,8 @@ struct ResultView: View {
     /// 共通設定ストア
     @EnvironmentObject private var gameSettingsStore: GameSettingsStore
 
-    /// 新記録を達成したかどうかを管理するステート
-    @State private var isNewBest: Bool = false
-
-    /// 新記録達成時に比較用として保持する旧ベスト値（存在しない場合は nil）
-    @State private var previousBest: Int?
+    /// リザルト表示に関する一時状態
+    @State private var viewState = ResultViewState()
 
     /// デフォルト実装のサービスを安全に取得するためのコンビニエンスイニシャライザ
     /// - NOTE: Swift 6 で厳格化されたコンカレンシーモデルに対応するため、`@MainActor` 上でシングルトンへアクセスする
@@ -138,497 +135,50 @@ struct ResultView: View {
     }
 
     var body: some View {
-        // MARK: - コンテンツ全体をスクロール可能にして、iPad のフォームシートでも情報が欠けないようにする
         ScrollView {
             VStack(spacing: 24) {
-                // MARK: - 合計ポイントと新記録バッジ
-                VStack(spacing: 12) {
-                    Text("総合ポイント: \(points)")
-                        .font(.title)
-                        // iPad のフォームシートでは上下の余白が圧縮されるため、独自に余白を確保して見栄えを整える
-                        .padding(.top, 16)
+                ResultSummarySection(presentation: summaryPresentation)
 
-                    // 新記録時のみアニメーション付きのバッジを表示
-                    if isNewBest {
-                        TimelineView(.animation) { context in
-                            // TimelineView の時刻から簡易的な脈動アニメーションを生成
-                            let progress = sin(context.date.timeIntervalSinceReferenceDate * 2.6)
-                            let scale = 1.0 + 0.08 * progress
-
-                            Text("新記録！")
-                                .font(.headline.weight(.bold))
-                                .foregroundColor(.yellow)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 8)
-                                .background(
-                                    Capsule()
-                                        .fill(Color.yellow.opacity(0.18))
-                                        .overlay(
-                                            Capsule()
-                                                .stroke(Color.yellow.opacity(0.55), lineWidth: 1)
-                                        )
-                                )
-                                .scaleEffect(scale)
-                                .accessibilityLabel("新記録を達成")
-                        }
-                        .transition(.scale.combined(with: .opacity))
-                    }
-
-                    // MARK: - ベストポイント表示（未記録の場合は '-'）
-                    Text("ベストポイント: \(bestPointsText)")
-                        .font(.headline)
-
-                    // 新旧の比較説明を追加し、振り返りの文脈を与える
-                    if let description = bestComparisonDescription {
-                        Text(description)
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.center)
-                            .transition(.opacity)
-                    }
-                }
-
-                // MARK: - キャンペーン用のリワード達成表示
                 if let record = campaignClearRecord {
-                    campaignRewardSummary(for: record)
+                    CampaignRewardSummarySection(
+                        record: record,
+                        newlyUnlockedStages: newlyUnlockedStages,
+                        onSelectCampaignStage: onSelectCampaignStage,
+                        hapticsEnabled: gameSettingsStore.hapticsEnabled
+                    )
                 }
 
-                // MARK: - ホームボタン（指定がある場合のみ表示）
-                if let onReturnToTitle {
-                    Button {
-                        // 成功ハプティクスで操作完了をフィードバックする
-                        if gameSettingsStore.hapticsEnabled {
-                            UINotificationFeedbackGenerator().notificationOccurred(.success)
-                        }
-                        onReturnToTitle()
-                    } label: {
-                        Label("ホームへ戻る", systemImage: "house")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
-                }
+                ResultActionSection(
+                    presentation: summaryPresentation,
+                    modeIdentifier: modeIdentifier,
+                    modeDisplayName: modeDisplayName,
+                    showsLeaderboardButton: showsLeaderboardButton,
+                    isGameCenterAuthenticated: isGameCenterAuthenticated,
+                    onRequestGameCenterSignIn: onRequestGameCenterSignIn,
+                    onRetry: onRetry,
+                    onReturnToTitle: onReturnToTitle,
+                    gameCenterService: gameCenterService,
+                    hapticsEnabled: gameSettingsStore.hapticsEnabled
+                )
 
-                // MARK: - リトライボタン
-                Button(action: {
-                    // 設定が有効なら成功フィードバックを発火
-                    if gameSettingsStore.hapticsEnabled {
-                        UINotificationFeedbackGenerator().notificationOccurred(.success)
-                    }
-                    onRetry()
-                }) {
-                    Text("リトライ")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-
-                // MARK: - Game Center ランキングボタン
-                if showsLeaderboardButton {
-                    Button(action: {
-                        if gameSettingsStore.hapticsEnabled {
-                            UINotificationFeedbackGenerator().notificationOccurred(.success)
-                        }
-                        if isGameCenterAuthenticated {
-                            gameCenterService.showLeaderboard(for: modeIdentifier)
-                        } else {
-                            // 未認証時はルートビューへ再サインインの促しを依頼する。
-                            onRequestGameCenterSignIn?(.leaderboardRequestedWhileUnauthenticated)
-                        }
-                    }) {
-                        Text(isGameCenterAuthenticated ? "ランキング" : "サインインしてランキングを見る")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
-                    if !isGameCenterAuthenticated {
-                        Text("Game Center にサインインするとランキングを表示できます。設定画面からサインインした後に再度お試しください。")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 8)
-                    }
-                }
-
-                // MARK: - リザルト詳細のテーブル
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("リザルト詳細")
-                        .font(.headline)
-                        .padding(.top, 8)
-
-                    Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 8) {
-                        GridRow {
-                            Text("合計手数")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                            Text("\(totalMoves) 手")
-                                .font(.body)
-                                .monospacedDigit()
-                        }
-
-                        GridRow {
-                            Text("移動回数")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                            Text("\(moveCount) 手")
-                                .font(.body)
-                                .monospacedDigit()
-                        }
-
-                        GridRow {
-                            Text("ペナルティ合計")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                            Text(penaltySummaryText)
-                                .font(.body)
-                                .monospacedDigit()
-                        }
-
-                        GridRow {
-                            Text("所要時間")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                            Text(formattedElapsedTime)
-                                .font(.body)
-                                .monospacedDigit()
-                        }
-
-                        Divider()
-                            .gridCellColumns(2)
-
-                        // MARK: - スコア計算過程を段階的に表示して透明性を高める
-                        GridRow {
-                            Text("手数ポイント")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                            Text("10pt × \(totalMoves)手 = \(movePoints) pt")
-                                .font(.body)
-                                .monospacedDigit()
-                        }
-
-                        GridRow {
-                            Text("時間ポイント")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                            Text("\(elapsedSeconds)秒 = \(timePoints) pt")
-                                .font(.body)
-                                .monospacedDigit()
-                        }
-
-                        Divider()
-                            .gridCellColumns(2)
-
-                        GridRow {
-                            Text("合計ポイント")
-                                .font(.subheadline.weight(.semibold))
-                            Text("\(movePoints) + \(timePoints) = \(points) pt")
-                                .font(.body.weight(.semibold))
-                                .monospacedDigit()
-                        }
-                    }
-                }
-
-                // MARK: - ShareLink で結果共有を促す
-                ShareLink(item: shareMessage) {
-                    Label("結果を共有", systemImage: "square.and.arrow.up")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-
-                // MARK: - 広告表示に関する補足
-                // インタースティシャル広告は結果画面への遷移直後に全画面で表示されるため、
-                // 画面下部に読み込み中の文言を残さず、実際の結果表示に集中できる構成にしている。
+                ResultDetailsSection(presentation: summaryPresentation)
             }
-            // MARK: - iPad を含むレギュラー幅でのレイアウト調整
-            // 最大幅を制限して中央寄せすることで、フォームシートでも読みやすくコンテンツを配置する。
             .padding(.horizontal, horizontalPadding)
             .padding(.vertical, 32)
             .frame(maxWidth: contentMaxWidth)
             .frame(maxWidth: .infinity)
         }
         .scrollIndicators(.hidden)
-        // フルスクリーンカバー内でも背景色が端まで届くよう、セーフエリアを越えて塗りつぶす
         .background {
             Color(UIColor.systemBackground)
                 .ignoresSafeArea()
         }
         .onAppear {
-            // ビュー表示時に広告表示をトリガー
             adsService.showInterstitial()
-            // ベスト記録の更新を判定
             if showsLeaderboardButton {
                 updateBest()
             }
         }
-    }
-
-    /// キャンペーンリワードの達成状況をまとめたセクションを生成
-    /// - Parameter record: 今回のクリア結果を反映した評価レコード
-    @ViewBuilder
-    private func campaignRewardSummary(for record: CampaignStageClearRecord) -> some View {
-        let starGain = max(0, record.progress.earnedStars - record.previousProgress.earnedStars)
-        VStack(alignment: .leading, spacing: 16) {
-            // ステージ名と獲得スター数を明示し、現在地を把握しやすくする
-            Text("キャンペーンリワード")
-                .font(.title3.weight(.semibold))
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text("ステージ \(record.stage.displayCode) \(record.stage.title)")
-                    .font(.headline)
-
-                CampaignStarProgressView(record: record)
-
-                Text("今回の獲得: \(record.evaluation.earnedStars) / 3")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-
-                if starGain > 0 {
-                    Text("累計スターが\(starGain)個増えました！")
-                        .font(.footnote.weight(.semibold))
-                        .foregroundColor(.yellow)
-                        .accessibilityLabel("累計スターが\(starGain)個増えました")
-                }
-            }
-
-            VStack(alignment: .leading, spacing: 10) {
-                ForEach(campaignRewardConditions(for: record), id: \.title) { item in
-                    HStack(spacing: 12) {
-                        Image(systemName: item.isAchieved ? "checkmark.circle.fill" : "circle")
-                            .foregroundColor(item.isAchieved ? .green : .secondary)
-                            .font(.system(size: 20, weight: .semibold))
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(item.title)
-                                .font(.subheadline.weight(.semibold))
-                            Text(item.description)
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
-            }
-
-            if !newlyUnlockedStages.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("新しく解放されたステージ")
-                        .font(.headline)
-
-                    Text("そのまま次のステージに進みましょう。")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-
-                    let canNavigate = onSelectCampaignStage != nil
-                    ForEach(newlyUnlockedStages, id: \.id) { stage in
-                        Button {
-                            // ハプティクス設定に応じて軽いフィードバックを返し、ボタン操作の確実性を高める
-                            if gameSettingsStore.hapticsEnabled {
-                                UINotificationFeedbackGenerator().notificationOccurred(.success)
-                            }
-                            onSelectCampaignStage?(stage)
-                        } label: {
-                            HStack {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text("ステージ \(stage.displayCode)")
-                                        .font(.subheadline.weight(.semibold))
-                                    Text(stage.title)
-                                        .font(.footnote)
-                                }
-                                Spacer(minLength: 0)
-                                Image(systemName: "chevron.right")
-                                    .font(.footnote.weight(.semibold))
-                            }
-                            .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(!canNavigate)
-                    }
-                }
-            }
-        }
-        .padding()
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(Color(UIColor.secondarySystemBackground))
-        )
-    }
-
-    /// ベスト記録を表示用の文字列に変換
-    private var bestPointsText: String {
-        gameSettingsStore.bestPoints == .max ? "-" : String(gameSettingsStore.bestPoints)
-    }
-
-    /// 合計手数を計算するヘルパー
-    private var totalMoves: Int {
-        moveCount + penaltyCount
-    }
-
-    /// キャンペーンリワードを行単位へ分解し、チェックリストとして利用しやすい形に整える
-    /// - Parameter record: 今回のクリア記録
-    /// - Returns: 表示用のタプル配列
-    private func campaignRewardConditions(for record: CampaignStageClearRecord) -> [(title: String, description: String, isAchieved: Bool)] {
-        var items: [(title: String, description: String, isAchieved: Bool)] = []
-
-        // ★1: ステージクリアは確定で達成済みのため、説明文を固定で挿入する
-        items.append((
-            title: "★1",
-            description: "ステージをクリア",  // 基本条件を明示してプレイヤーの達成感を補強する
-            isAchieved: true
-        ))
-
-        if let secondary = record.stage.secondaryObjectiveDescription {
-            items.append((
-                title: "★2",
-                description: secondary,
-                isAchieved: record.progress.achievedSecondaryObjective
-            ))
-        }
-
-        if let scoreTarget = record.stage.scoreTargetDescription {
-            items.append((
-                title: "★3",
-                description: scoreTarget,
-                isAchieved: record.progress.achievedScoreGoal
-            ))
-        }
-
-        return items
-    }
-
-    /// 獲得済みスター数の表示にアニメーションを適用する補助ビュー
-    private struct CampaignStarProgressView: View {
-        /// 表示対象のキャンペーンクリア記録
-        let record: CampaignStageClearRecord
-
-        /// 段階的に増加させるスター数（表示用）
-        @State private var animatedEarnedStars: Int
-        /// スターごとのバウンス演出フラグ（`true` の間は拡大させる）
-        @State private var bounceStates: [Bool] = Array(repeating: false, count: 3)
-        /// アニメーション制御用のタスク。ビューのライフサイクルに合わせてキャンセルする
-        @State private var animationTask: Task<Void, Never>?
-
-        /// 初期化時にベースとなるスター数を反映しておき、表示直後から実績値を示す
-        init(record: CampaignStageClearRecord) {
-            self.record = record
-            _animatedEarnedStars = State(initialValue: min(record.previousProgress.earnedStars, 3))
-        }
-
-        var body: some View {
-            HStack(spacing: 6) {
-                ForEach(0..<3, id: \.self) { index in
-                    Image(systemName: index < animatedEarnedStars ? "star.fill" : "star")
-                        .foregroundColor(index < animatedEarnedStars ? .yellow : .secondary)
-                        .scaleEffect(bounceStates[index] ? 1.24 : 1.0)
-                        .shadow(color: index < animatedEarnedStars ? Color.yellow.opacity(0.4) : .clear,
-                                radius: bounceStates[index] ? 6 : 0)
-                        .animation(.easeOut(duration: 0.18), value: bounceStates[index])
-                        .animation(.spring(response: 0.42, dampingFraction: 0.82), value: animatedEarnedStars)
-                }
-            }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("累計スター: \(record.progress.earnedStars) / 3")
-            .onAppear { startAnimation() }
-            // iOS 17 以降で推奨される 2 引数版 onChange を利用し、将来の非推奨 API を回避する
-            .onChange(of: record.progress.earnedStars) { _, _ in
-                startAnimation()
-            }
-            .onDisappear {
-                animationTask?.cancel()
-                animationTask = nil
-            }
-        }
-
-        /// アニメーションをリセットし、最新の進捗に応じてスターを増やす
-        private func startAnimation() {
-            animationTask?.cancel()
-            animationTask = Task {
-                await animateStarGain()
-            }
-        }
-
-        /// 累計スター数の増加に合わせて 1 個ずつ段階的に表示を切り替える
-        private func animateStarGain() async {
-            let baseline = baselineCount
-            let target = targetCount
-
-            await MainActor.run {
-                animatedEarnedStars = baseline
-                bounceStates = Array(repeating: false, count: 3)
-            }
-
-            guard target > baseline else {
-                await MainActor.run {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                        animatedEarnedStars = target
-                    }
-                }
-                return
-            }
-
-            var current = baseline
-            while current < target {
-                if Task.isCancelled { return }
-                try? await Task.sleep(nanoseconds: 220_000_000)
-                if Task.isCancelled { return }
-                current += 1
-                await MainActor.run {
-                    withAnimation(.spring(response: 0.44, dampingFraction: 0.74)) {
-                        animatedEarnedStars = current
-                        bounceStates[current - 1] = true
-                    }
-                }
-                if Task.isCancelled { return }
-                try? await Task.sleep(nanoseconds: 180_000_000)
-                if Task.isCancelled { return }
-                await MainActor.run {
-                    withAnimation(.easeOut(duration: 0.18)) {
-                        bounceStates[current - 1] = false
-                    }
-                }
-            }
-        }
-
-        /// クリア前の累計スター（最大 3 にクリップ）
-        private var baselineCount: Int {
-            min(record.previousProgress.earnedStars, 3)
-        }
-
-        /// 更新後の累計スター（最大 3 にクリップ）
-        private var targetCount: Int {
-            min(record.progress.earnedStars, 3)
-        }
-    }
-
-    /// 手数に 10 を掛けたポイント換算値
-    private var movePoints: Int {
-        totalMoves * 10
-    }
-
-    /// 所要時間をそのままポイントとみなした値（秒 = pt）
-    private var timePoints: Int {
-        elapsedSeconds
-    }
-
-    /// ポイント（手数×10 + 経過秒数）を算出
-    private var points: Int {
-        movePoints + timePoints
-    }
-
-    /// 所要時間を日本語表記へ整形する
-    private var formattedElapsedTime: String {
-        let minutes = elapsedSeconds / 60
-        let seconds = elapsedSeconds % 60
-        if minutes > 0 {
-            return "\(minutes)分\(seconds)秒"
-        } else {
-            return "\(seconds)秒"
-        }
-    }
-
-    /// ペナルティ量を UI や共有テキストで共通利用する
-    private var penaltySummaryText: String {
-        penaltyCount == 0 ? "ペナルティなし" : "ペナルティ合計 \(penaltyCount)"
-    }
-
-    /// ShareLink へ渡す共有メッセージを生成
-    private var shareMessage: String {
-        return "MonoKnight \(modeDisplayName) クリア！ポイント \(points)（移動 \(moveCount) 手 / \(penaltySummaryText) / 所要 \(formattedElapsedTime)）"
     }
 
     /// iPad 表示時の最大コンテンツ幅を制御し、中央寄せの見た目を整える
@@ -641,38 +191,34 @@ struct ResultView: View {
         horizontalSizeClass == .regular ? 32 : 20
     }
 
-    /// 新記録達成時の説明文を生成（旧ベストと比較する）
-    private var bestComparisonDescription: String? {
-        guard isNewBest else { return nil }
-
-        if let previousBest {
-            let diff = previousBest - points
-            // 旧ベストより何ポイント改善できたのかを明示
-            return "これまでのベスト \(previousBest) pt → 今回 \(points) pt（\(diff) pt 更新）"
-        } else {
-            // 初回登録時は比較対象が無いため、その旨を明示
-            return "初めてのベストポイントが登録されました"
-        }
+    private var summaryPresentation: ResultSummaryPresentation {
+        ResultSummaryPresentation(
+            moveCount: moveCount,
+            penaltyCount: penaltyCount,
+            elapsedSeconds: elapsedSeconds,
+            bestPoints: gameSettingsStore.bestPoints,
+            isNewBest: viewState.isNewBest,
+            previousBest: viewState.previousBest
+        )
     }
 
     /// ベスト記録を更新する
     private func updateBest() {
-        // 更新前のベストを保持して比較テキストに利用
-        previousBest = gameSettingsStore.updateBestPointsIfNeeded(points)
-        let isImproved = previousBest == nil || points < (previousBest ?? .max)
+        let didImprove = viewState.updateBest(
+            points: summaryPresentation.points,
+            settingsStore: gameSettingsStore
+        )
 
-        // 今回のポイントと既存ベストを比較して更新するか判定
-        if isImproved {
-            // 視覚的なアニメーションとハプティクスを新記録時に限定して発火
+        if didImprove {
             withAnimation(.spring(response: 0.45, dampingFraction: 0.82)) {
-                isNewBest = true
+                viewState.isNewBest = true
             }
             if gameSettingsStore.hapticsEnabled {
                 UINotificationFeedbackGenerator().notificationOccurred(.success)
             }
         } else {
             withAnimation(.easeOut(duration: 0.2)) {
-                isNewBest = false
+                viewState.isNewBest = false
             }
         }
     }
