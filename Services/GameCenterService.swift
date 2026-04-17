@@ -65,16 +65,17 @@ private struct GameCenterLeaderboardCatalog {
 /// 実際に Game Center と連携する実装
 final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCenterServiceProtocol {
     /// シングルトンインスタンス
-    static let shared = GameCenterService()
+    static let shared = GameCenterService(userDefaults: .standard)
 
     /// UserDefaults アクセスを司るインスタンス
-    private let userDefaults = UserDefaults.standard
+    private let userDefaults: UserDefaults
     /// 送信済みフラグを保存するためのキー
     private let hasSubmittedDictionaryKey = StorageKey.UserDefaults.gameCenterHasSubmittedByLeaderboard
     /// 送信済みスコアを保存するためのキー
     private let lastScoreDictionaryKey = StorageKey.UserDefaults.gameCenterLastScoreByLeaderboard
 
-    private override init() {
+    private init(userDefaults: UserDefaults) {
+        self.userDefaults = userDefaults
         super.init()
         // アプリ起動時点での Game Center 認証状態を読み取り、UI との乖離を防止する
         // - NOTE: `GKLocalPlayer.local.isAuthenticated` は非同期ハンドラよりも先に判定できるため、

@@ -18,19 +18,7 @@ final class FreeModeRegulationStore: ObservableObject {
     /// - Parameter userDefaults: テスト時などに差し替えたい場合の注入用引数
     init(userDefaults: UserDefaults = .standard) {
         self.userDefaults = userDefaults
-        if let data = userDefaults.data(forKey: Self.storageKey) {
-            do {
-                let decoded = try JSONDecoder().decode(GameMode.Regulation.self, from: data)
-                regulation = decoded
-                debugLog("FreeModeRegulationStore: 保存済み設定を復元しました")
-            } catch {
-                regulation = GameMode.standard.regulationSnapshot
-                debugError(error, message: "FreeModeRegulationStore: 復元に失敗したためスタンダードを適用")
-            }
-        } else {
-            regulation = GameMode.standard.regulationSnapshot
-            debugLog("FreeModeRegulationStore: 保存データが無いためスタンダードを初期値に設定")
-        }
+        regulation = Self.loadRegulation(from: userDefaults)
     }
 
     /// 現在のレギュレーションを別の値で更新し、ただちに永続化する
@@ -63,6 +51,22 @@ final class FreeModeRegulationStore: ObservableObject {
             userDefaults.synchronize()
         } catch {
             debugError(error, message: "FreeModeRegulationStore: 永続化に失敗")
+        }
+    }
+
+    private static func loadRegulation(from userDefaults: UserDefaults) -> GameMode.Regulation {
+        guard let data = userDefaults.data(forKey: Self.storageKey) else {
+            debugLog("FreeModeRegulationStore: 保存データが無いためスタンダードを初期値に設定")
+            return GameMode.standard.regulationSnapshot
+        }
+
+        do {
+            let decoded = try JSONDecoder().decode(GameMode.Regulation.self, from: data)
+            debugLog("FreeModeRegulationStore: 保存済み設定を復元しました")
+            return decoded
+        } catch {
+            debugError(error, message: "FreeModeRegulationStore: 復元に失敗したためスタンダードを適用")
+            return GameMode.standard.regulationSnapshot
         }
     }
 }

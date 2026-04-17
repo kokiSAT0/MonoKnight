@@ -1,5 +1,4 @@
 import Foundation
-import SwiftUI
 import UIKit
 import AppTrackingTransparency
 import GoogleMobileAds
@@ -112,9 +111,16 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol {
 
     /// シングルトンでサービスを共有
     static let shared = AdsService()
+    /// 設定と購入状態の永続化先
+    private let userDefaults: UserDefaults
 
-    @AppStorage(StorageKey.AppStorage.removeAdsPurchased) private var removeAdsMK: Bool = false
-    @AppStorage(StorageKey.AppStorage.hapticsEnabled) private var hapticsEnabled: Bool = true
+    private var removeAdsMK: Bool {
+        userDefaults.bool(forKey: StorageKey.AppStorage.removeAdsPurchased)
+    }
+
+    private var hapticsEnabled: Bool {
+        userDefaults.object(forKey: StorageKey.AppStorage.hapticsEnabled) as? Bool ?? true
+    }
 
     private let consentCoordinator: AdsConsentCoordinating
     private let interstitialController: InterstitialAdControlling
@@ -133,7 +139,8 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol {
         rewardedController: RewardedAdControlling? = nil,
         mobileAdsController: MobileAdsControlling = DefaultMobileAdsController(),
         trackingAuthorizationController: TrackingAuthorizationControlling = DefaultTrackingAuthorizationController(),
-        rootViewControllerProvider: RootViewControllerProviding = DefaultRootViewControllerProvider()
+        rootViewControllerProvider: RootViewControllerProviding = DefaultRootViewControllerProvider(),
+        userDefaults: UserDefaults = .standard
     ) {
         let resolvedConfiguration = configuration ?? AdsService.makeConfiguration()
         let resolvedTrackingController = trackingAuthorizationController
@@ -160,6 +167,7 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol {
         self.mobileAdsController = mobileAdsController
         self.trackingAuthorizationController = resolvedTrackingController
         self.rootViewControllerProvider = rootViewControllerProvider
+        self.userDefaults = userDefaults
         super.init()
 
         // デリゲートを接続して UI 連携と状態同期を AdsService 側で担う

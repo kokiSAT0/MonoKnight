@@ -7,9 +7,9 @@ import SharedSupport
 @MainActor
 final class CampaignProgressStore: ObservableObject {
     /// UserDefaults へ保存する際のキー
-    private let storageKey = StorageKey.UserDefaults.campaignProgress
+    private static let storageKey = StorageKey.UserDefaults.campaignProgress
     /// デバッグ用全解放フラグを保存するキー
-    private let debugUnlockStorageKey = StorageKey.UserDefaults.campaignDebugUnlock
+    private static let debugUnlockStorageKey = StorageKey.UserDefaults.campaignDebugUnlock
     /// 永続化先
     private let userDefaults: UserDefaults
 
@@ -38,7 +38,7 @@ final class CampaignProgressStore: ObservableObject {
         self.userDefaults = userDefaults
         self.progressMap = [:]
         // デバッグ用パスコード入力状態を先に復元し、View 側が即座に表示を更新できるようにする
-        self.isDebugUnlockEnabled = userDefaults.bool(forKey: debugUnlockStorageKey)
+        self.isDebugUnlockEnabled = userDefaults.bool(forKey: Self.debugUnlockStorageKey)
         self.progressMap = loadProgress()
     }
 
@@ -102,7 +102,7 @@ final class CampaignProgressStore: ObservableObject {
         current.bestElapsedSeconds = CampaignProgressStore.minValue(current.bestElapsedSeconds, newValue: metrics.elapsedSeconds)
 
         progressMap[stage.id] = current
-        saveProgress()
+        persistProgress()
 
         debugLog("CampaignProgressStore: ステージ \(stage.id.displayCode) を更新 スター=\(current.earnedStars)")
 
@@ -119,7 +119,7 @@ final class CampaignProgressStore: ObservableObject {
     func enableDebugUnlock() {
         guard !isDebugUnlockEnabled else { return }
         isDebugUnlockEnabled = true
-        userDefaults.set(true, forKey: debugUnlockStorageKey)
+        userDefaults.set(true, forKey: Self.debugUnlockStorageKey)
         debugLog("CampaignProgressStore: デバッグ用全ステージ解放フラグを有効化しました")
     }
 
@@ -129,13 +129,13 @@ final class CampaignProgressStore: ObservableObject {
         // 既に無効化済みであれば追加処理は不要なので早期リターンする
         guard isDebugUnlockEnabled else { return }
         isDebugUnlockEnabled = false
-        userDefaults.set(false, forKey: debugUnlockStorageKey)
+        userDefaults.set(false, forKey: Self.debugUnlockStorageKey)
         debugLog("CampaignProgressStore: デバッグ用全ステージ解放フラグを無効化しました")
     }
 
     /// 進捗データを読み出し
     private func loadProgress() -> [CampaignStageID: CampaignStageProgress] {
-        guard let data = userDefaults.data(forKey: storageKey) else { return [:] }
+        guard let data = userDefaults.data(forKey: Self.storageKey) else { return [:] }
         do {
             let decoded = try JSONDecoder().decode([String: CampaignStageProgress].self, from: data)
             var map: [CampaignStageID: CampaignStageProgress] = [:]
@@ -152,14 +152,14 @@ final class CampaignProgressStore: ObservableObject {
     }
 
     /// 現在の進捗を保存
-    private func saveProgress() {
+    private func persistProgress() {
         let encoder = JSONEncoder()
         let storageDictionary = progressMap.reduce(into: [String: CampaignStageProgress]()) { partialResult, element in
             partialResult[element.key.storageKey] = element.value
         }
         do {
             let data = try encoder.encode(storageDictionary)
-            userDefaults.set(data, forKey: storageKey)
+            userDefaults.set(data, forKey: Self.storageKey)
         } catch {
             // 保存時に失敗した場合もエラー内容と原因箇所を記録する
             debugError(error, message: "CampaignProgressStore: 保存に失敗しました")

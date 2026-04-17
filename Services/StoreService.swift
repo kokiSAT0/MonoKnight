@@ -1,7 +1,6 @@
 import Combine
 import Foundation
 import StoreKit
-import SwiftUI
 // Game モジュールに定義されたデータ型（GameMode.Identifier など）を利用するために読み込む
 import Game
 import SharedSupport // debugLog / debugError を利用するため追加
@@ -14,9 +13,11 @@ final class StoreService: ObservableObject, StoreServiceProtocol {
     /// - NOTE: StoreKit の購入結果に応じて広告表示を即座に停止させる必要があるため、
     ///         初期化時に依存を確定させておき、`AdsService.shared` への直接依存を排除する。
     private let adsService: AdsServiceProtocol
+    /// 購入状態の永続化先
+    private let userDefaults: UserDefaults
 
     /// シングルトンインスタンス
-    static let shared = StoreService(adsService: AdsService.shared)
+    static let shared = StoreService(adsService: AdsService.shared, userDefaults: .standard)
 
     /// StoreKit で参照する Product ID を一元管理する内部定数
     private enum ProductID {
@@ -36,17 +37,21 @@ final class StoreService: ObservableObject, StoreServiceProtocol {
 
     /// 広告除去購入済みフラグ
     /// - `true` の場合は AdsService が広告を読み込まない
-    @AppStorage(ProductID.removeAds) private var removeAdsMK: Bool = false
+    private var removeAdsMK: Bool {
+        get { userDefaults.bool(forKey: ProductID.removeAds) }
+        set { userDefaults.set(newValue, forKey: ProductID.removeAds) }
+    }
 
     /// 設定画面などから参照する広告除去商品のキャッシュ
     private var removeAdsProduct: Product? { products.first(where: { $0.id == ProductID.removeAds }) }
 
     /// - Parameter adsService: 広告表示の有効/無効を切り替えるためのサービス。
     ///                         デフォルトのシングルトンを注入するが、UI テストでは別実装にも差し替えられる。
-    private init(adsService: AdsServiceProtocol) {
+    private init(adsService: AdsServiceProtocol, userDefaults: UserDefaults) {
         self.adsService = adsService
+        self.userDefaults = userDefaults
         // 起動時点で保存済みの値を読み出し、UI の初期状態に反映する
-        self.isRemoveAdsPurchased = UserDefaults.standard.bool(forKey: ProductID.removeAds)
+        self.isRemoveAdsPurchased = userDefaults.bool(forKey: ProductID.removeAds)
         self.removeAdsPriceText = nil
 
         if removeAdsMK {
