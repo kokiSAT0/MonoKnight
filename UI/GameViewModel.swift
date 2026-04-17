@@ -227,6 +227,12 @@ final class GameViewModel: ObservableObject {
     private let pauseController: GamePauseController
     /// リザルト遷移とキャンペーン進捗更新を担当するヘルパー
     private let flowCoordinator: GameFlowCoordinator
+    /// 手札タップと盤面タップの入力フローを担当するヘルパー
+    private let inputFlowCoordinator: GameInputFlowCoordinator
+    /// GameCore 購読と progress 起点の副作用を担当するヘルパー
+    private let coreBindingCoordinator: GameCoreBindingCoordinator
+    /// タイトル復帰と新規プレイ開始時の後始末を担当するヘルパー
+    private let sessionResetCoordinator: GameSessionResetCoordinator
     /// リザルト表示の内部状態
     private var resultPresentationState = ResultPresentationState()
     /// セッション中の補助 UI 状態
@@ -268,6 +274,9 @@ final class GameViewModel: ObservableObject {
         self.penaltyBannerController = GamePenaltyBannerController(scheduler: penaltyBannerScheduler)
         self.pauseController = GamePauseController()
         self.flowCoordinator = GameFlowCoordinator()
+        self.inputFlowCoordinator = GameInputFlowCoordinator()
+        self.coreBindingCoordinator = GameCoreBindingCoordinator()
+        self.sessionResetCoordinator = GameSessionResetCoordinator()
         self.isGameCenterAuthenticated = initialGameCenterAuthenticationState
         self.currentDateProvider = currentDateProvider
 
@@ -441,172 +450,30 @@ final class GameViewModel: ObservableObject {
     /// 手札スロットがタップされた際の挙動を集約する
     /// - Parameter index: ユーザーが操作したスロットの添字
     func handleHandSlotTap(at index: Int) {
-        // 既に別カードの移動アニメーションが進行している場合は受け付けない
-        guard boardBridge.animatingCard == nil else { return }
-        // 範囲外アクセスを避けるため、安全にインデックスの存在を確認する
-        guard core.handStacks.indices.contains(index) else { return }
-
-        let latestStack = core.handStacks[index]
-
-        if core.isAwaitingManualDiscardSelection {
-            clearSelectedCardSelection()
-            // 捨て札モード中は対象スタックを破棄して新しいカードへ差し替える
-            withAnimation(.easeInOut(duration: 0.2)) {
-                let success = core.discardHandStack(withID: latestStack.id)
-                if success, hapticsEnabled {
-                    UINotificationFeedbackGenerator().notificationOccurred(.warning)
-                }
-            }
-            return
-        }
-
-        guard let topCard = latestStack.topCard else {
-            clearSelectedCardSelection()
-            return
-        }
-
-        // 同じスタックを再度タップした場合は選択解除として扱い、候補ハイライトを消去する
-        if sessionState.isSelected(stackID: latestStack.id) {
-            clearSelectedCardSelection()
-            return
-        }
-
-        guard core.progress == .playing else {
-            clearSelectedCardSelection()
-            return
-        }
-
-        guard isCardUsable(latestStack) else {
-            clearSelectedCardSelection()
-            if hapticsEnabled {
-                // 無効カードをタップした場合は警告ハプティクスのみ発生させる
-                UINotificationFeedbackGenerator().notificationOccurred(.warning)
-            }
-            return
-        }
-
-        // 候補マス一覧を GameCore.availableMoves() から抽出し、選択状態を更新する
-        let resolvedMoves = core.availableMoves().filter { candidate in
-            candidate.stackID == latestStack.id && candidate.card.id == topCard.id
-        }
-
-        // 候補が存在しない場合は選択状態をクリアして安全に終了する
-        guard !resolvedMoves.isEmpty else {
-            clearSelectedCardSelection()
-            return
-        }
-
-        if resolvedMoves.count == 1, let singleMove = resolvedMoves.first {
-            // 単一候補カードは盤面タップを挟まずに即座にプレイし、ハイライト更新をスキップする
-            clearSelectedCardSelection()
-            _ = boardBridge.animateCardPlay(using: singleMove)
-            return
-        }
-
-        sessionState.updateSelection(
-            stackID: latestStack.id,
-            cardID: topCard.id,
-            selectedHandStackID: &selectedHandStackID
-        )
-        sessionState.applyHighlights(
+        inputFlowCoordinator.handleHandSlotTap(
+            at: index,
             core: core,
             boardBridge: boardBridge,
-            using: resolvedMoves,
-            selectedHandStackID: &selectedHandStackID
+            sessionState: &sessionState,
+            selectedHandStackID: &selectedHandStackID,
+            hapticsEnabled: hapticsEnabled
         )
     }
 
     /// 盤面タップに応じたプレイ要求を処理する
     /// - Important: BoardTapPlayRequest の受付は GameViewModel が単一窓口となる。描画橋渡し層や View 側で同様の処理を複製しないこと
     func handleBoardTapPlayRequest(_ request: BoardTapPlayRequest) {
-        defer { core.clearBoardTapPlayRequest(request.id) }
-
-        // 既存の演出が継続中であれば、次の入力が完了するまで待機する
-        guard boardBridge.animatingCard == nil else { return }
-
-        // 選択済みカードが存在しない場合は、GameCore 側で確定済みの移動候補をそのまま採用する
-        guard sessionState.hasSelection else {
-            // GameCore.availableMoves() を再評価し、タップ座標へ進める候補が複数カードで競合していないかを確認する
-            let availableMoves = core.availableMoves()
-            let destinationCandidates = availableMoves.filter { $0.destination == request.destination }
-            // 同一座標に到達できる候補へ単一ベクトルカードが混在しているかを判定し、警告要否の判断材料にする
-            let containsSingleVectorCard = destinationCandidates.contains { candidate in
-                // movementVectors.count が 1 の場合は単一方向専用カードとみなし、自動プレイを許可する
-                candidate.card.move.movementVectors.count == 1
-            }
-            // 同一座標へ移動可能なスタック集合を直接求め、純粋にスタック数だけで競合を判断する
-            let conflictingStackIDs = Set(destinationCandidates.map(\.stackID))
-
-            if conflictingStackIDs.count >= 2 && !containsSingleVectorCard {
-                // 候補スタックが 2 件以上存在する場合は必ず警告し、意図しない自動プレイを防ぐ
-                boardTapSelectionWarning = BoardTapSelectionWarning(
-                    message: "複数のカードが同じマスを指定しています。手札から使いたいカードを選んでからマスをタップしてください。",
-                    destination: request.destination
-                )
-
-                if hapticsEnabled {
-                    // 視覚だけでなく触覚でも注意喚起できるように、警告ハプティクスを同じ分岐へまとめて呼び出す
-                    UINotificationFeedbackGenerator().notificationOccurred(.warning)
-                }
-
-                // 警告を提示した場合はここで処理を終了し、後続のアニメーション開始を確実に抑止する
-                return
-            }
-
-            // 全域ワープカードは手札から明示的に選んだときのみ使用を許可し、盤面タップだけでは発動させない
-            if request.resolvedMove.card.move == .superWarp {
-                // ガイド非表示仕様に合わせ、警告表示だけ行って演出は開始しない
-                boardTapSelectionWarning = BoardTapSelectionWarning(
-                    message: "全域ワープカードを使うには、先に手札からカードを選択してください。",
-                    destination: request.destination
-                )
-
-                if hapticsEnabled {
-                    // タップ結果が無視されたことを伝えるため軽い警告ハプティクスを鳴らす
-                    UINotificationFeedbackGenerator().notificationOccurred(.warning)
-                }
-
-                return
-            }
-
-            // request.resolvedMove は BoardTap 発生時点での最適候補なので、そのまま演出へ渡す
-            let didStart = boardBridge.animateCardPlay(using: request.resolvedMove)
-            if didStart {
-                // 選択状態が無くてもハイライトが残存している可能性があるため、必ず初期化する
-                clearSelectedCardSelection()
-            }
-            return
-        }
-
-        // 選択中カードに対応する候補のみを抽出し、盤面ハイライトと同期を取る
-        let matchingMoves = sessionState.matchingMoves(in: core)
-
-        guard !matchingMoves.isEmpty else {
-            clearSelectedCardSelection()
-            return
-        }
-
-        // タップされた座標に一致する候補が無ければ、ハイライトのみ更新して待機する
-        guard let chosenMove = matchingMoves.first(where: { $0.destination == request.destination }) else {
-            sessionState.applyHighlights(
-                core: core,
-                boardBridge: boardBridge,
-                using: matchingMoves,
-                selectedHandStackID: &selectedHandStackID
-            )
-            return
-        }
-
-        // 一致する候補が見つかった場合は演出を開始する。失敗時はハイライトを維持して再選択に備える
-        let didStart = boardBridge.animateCardPlay(using: chosenMove)
-        if didStart {
-            clearSelectedCardSelection()
-        } else {
-            sessionState.applyHighlights(
-                core: core,
-                boardBridge: boardBridge,
-                using: matchingMoves,
-                selectedHandStackID: &selectedHandStackID
+        inputFlowCoordinator.handleBoardTapPlayRequest(
+            request,
+            core: core,
+            boardBridge: boardBridge,
+            sessionState: &sessionState,
+            selectedHandStackID: &selectedHandStackID,
+            hapticsEnabled: hapticsEnabled
+        ) { [weak self] message, destination in
+            self?.boardTapSelectionWarning = BoardTapSelectionWarning(
+                message: message,
+                destination: destination
             )
         }
     }
@@ -794,7 +661,8 @@ final class GameViewModel: ObservableObject {
 
     /// 手札選択状態を初期化し、盤面ハイライトを消去する
     private func clearSelectedCardSelection() {
-        sessionState.clearSelection(
+        inputFlowCoordinator.clearSelectedCardSelection(
+            sessionState: &sessionState,
             boardBridge: boardBridge,
             selectedHandStackID: &selectedHandStackID
         )
@@ -803,10 +671,11 @@ final class GameViewModel: ObservableObject {
     /// 手札更新後も選択状態が維持できるか検証し、必要に応じてリセットする
     /// - Parameter handStacks: 最新の手札スタック一覧
     private func refreshSelectionIfNeeded(with handStacks: [HandStack]) {
-        sessionState.refreshSelectionIfNeeded(
+        inputFlowCoordinator.refreshSelectionIfNeeded(
             with: handStacks,
             core: core,
             boardBridge: boardBridge,
+            sessionState: &sessionState,
             selectedHandStackID: &selectedHandStackID
         )
     }
@@ -824,111 +693,118 @@ final class GameViewModel: ObservableObject {
     /// ホーム画面へ戻る際に共通で必要となる状態リセットをひとまとめにする
     /// - Important: タイトルへ戻る場合はプレイ内容を保持したまま、UI 状態のみを初期化したいので `core.reset()` は呼び出さない
     private func prepareForReturnToTitle() {
-        clearSelectedCardSelection()
-        cancelPenaltyBannerDisplay()
-        applyResultPresentationMutation { state in
-            state.hideResult()
-        }
-        applySessionUIMutation { state in
-            state.resetTransientUIForTitleReturn()
-        }
-        adsService.resetPlayFlag()
-        pauseController.reset()
+        sessionResetCoordinator.prepareForReturnToTitle(
+            clearSelectedCardSelection: { [self] in clearSelectedCardSelection() },
+            cancelPenaltyBannerDisplay: { [self] in cancelPenaltyBannerDisplay() },
+            hideResult: { [self] in
+                applyResultPresentationMutation { state in
+                    state.hideResult()
+                }
+            },
+            resetTransientUI: { [self] in
+                applySessionUIMutation { state in
+                    state.resetTransientUIForTitleReturn()
+                }
+            },
+            clearBoardTapSelectionWarning: { [self] in
+                clearBoardTapSelectionWarning()
+            },
+            resetAdsPlayFlag: { [self] in
+                adsService.resetPlayFlag()
+            },
+            resetPauseController: { [self] in
+                pauseController.reset()
+            }
+        )
     }
 
     /// 新しいプレイを始める際に必要な初期化処理を共通化する
     /// - Note: リザルトからのリトライやリセット操作で重複していた処理を一本化し、将来的な初期化追加にも対応しやすくする
     private func resetSessionForNewPlay() {
-        prepareForReturnToTitle()
-        core.reset()
-        pauseController.reset()
+        sessionResetCoordinator.resetSessionForNewPlay(
+            prepareForReturnToTitle: { [self] in prepareForReturnToTitle() },
+            resetCore: { [self] in core.reset() },
+            resetPauseController: { [self] in pauseController.reset() }
+        )
     }
 
     /// GameCore のストリームを監視し、UI 更新に必要な副作用を引き受ける
     private func bindGameCore() {
-        core.$penaltyEvent
-            .removeDuplicates()
-            .receive(on: RunLoop.main)
-            .sink { [weak self] event in
-                guard let self, let event else { return }
-                self.handlePenaltyEvent(event)
-            }
-            .store(in: &cancellables)
-
-        core.$handStacks
-            .receive(on: RunLoop.main)
-            .sink { [weak self] newHandStacks in
+        coreBindingCoordinator.bind(
+            core: core,
+            cancellables: &cancellables,
+            onPenaltyEvent: { [weak self] event in
+                self?.handlePenaltyEvent(event)
+            },
+            onHandStacksChange: { [weak self] newHandStacks in
                 self?.refreshSelectionIfNeeded(with: newHandStacks)
-            }
-            .store(in: &cancellables)
-
-        core.$boardTapPlayRequest
-            .receive(on: RunLoop.main)
-            .sink { [weak self] request in
-                guard let self, let request else { return }
-                self.handleBoardTapPlayRequest(request)
-            }
-            .store(in: &cancellables)
-
-        core.$progress
-            .receive(on: RunLoop.main)
-            .sink { [weak self] progress in
-                guard let self else { return }
-                self.handleProgressChange(progress)
-            }
-            .store(in: &cancellables)
-
-        core.$elapsedSeconds
-            .removeDuplicates()
-            .receive(on: RunLoop.main)
-            .sink { [weak self] _ in
+            },
+            onBoardTapPlayRequest: { [weak self] request in
+                self?.handleBoardTapPlayRequest(request)
+            },
+            onProgressChange: { [weak self] progress in
+                self?.handleProgressChange(progress)
+            },
+            onElapsedTimeChange: { [weak self] in
                 self?.updateDisplayedElapsedTime()
             }
-            .store(in: &cancellables)
+        )
     }
 
     /// 進行状態の変化に応じた副作用をまとめる
     /// - Parameter progress: GameCore が提供する現在の進行状態
     private func handleProgressChange(_ progress: GameProgress) {
-        debugLog("進行状態の更新を受信: 状態=\(String(describing: progress))")
-
-        updateDisplayedElapsedTime()
-        boardBridge.handleProgressChange(progress)
-
-        if progress != .playing {
-            clearSelectedCardSelection()
-        }
-
-        switch progress {
-        case .cleared:
-            let outcome = flowCoordinator.handleClearedProgress(
-                mode: mode,
-                core: core,
-                isGameCenterAuthenticated: isGameCenterAuthenticated,
-                gameCenterService: gameCenterService,
-                onRequestGameCenterSignIn: onRequestGameCenterSignIn,
-                campaignProgressStore: campaignProgressStore
-            )
-            applyResultPresentationMutation { state in
-                state.applyClearOutcome(outcome)
+        coreBindingCoordinator.handleProgressChange(
+            progress,
+            boardBridge: boardBridge,
+            updateDisplayedElapsedTime: { [self] in
+                updateDisplayedElapsedTime()
+            },
+            clearSelectedCardSelection: { [self] in
+                clearSelectedCardSelection()
+            },
+            resolveClearOutcome: { [self] in
+                guard progress == .cleared else { return nil }
+                return flowCoordinator.handleClearedProgress(
+                    mode: mode,
+                    core: core,
+                    isGameCenterAuthenticated: isGameCenterAuthenticated,
+                    gameCenterService: gameCenterService,
+                    onRequestGameCenterSignIn: onRequestGameCenterSignIn,
+                    campaignProgressStore: campaignProgressStore
+                )
+            },
+            applyClearOutcome: { [self] outcome in
+                applyResultPresentationMutation { state in
+                    state.applyClearOutcome(outcome)
+                }
             }
-        default:
-            break
-        }
+        )
     }
 
     /// 新しく解放されたキャンペーンステージへ遷移するリクエストを処理する
     /// - Parameter stage: 遷移先のステージ
     func handleCampaignStageAdvance(to stage: CampaignStage) {
         // バナー表示などの残留状態を片付けつつリザルトを閉じ、新規ステージへ進む準備を整える
-        cancelPenaltyBannerDisplay()
-        applyResultPresentationMutation { state in
-            state.hideResult()
-        }
-        applySessionUIMutation { state in
-            state.resetTransientUIForTitleReturn()
-        }
-        adsService.resetPlayFlag()
+        sessionResetCoordinator.prepareForCampaignStageAdvance(
+            cancelPenaltyBannerDisplay: { [self] in cancelPenaltyBannerDisplay() },
+            hideResult: { [self] in
+                applyResultPresentationMutation { state in
+                    state.hideResult()
+                }
+            },
+            resetTransientUI: { [self] in
+                applySessionUIMutation { state in
+                    state.resetTransientUIForTitleReturn()
+                }
+            },
+            clearBoardTapSelectionWarning: { [self] in
+                clearBoardTapSelectionWarning()
+            },
+            resetAdsPlayFlag: { [self] in
+                adsService.resetPlayFlag()
+            }
+        )
 
         // ルートビュー側へ遷移要求を転送し、ゲーム準備フローを再利用する
         if campaignProgressStore.isStageUnlocked(stage) {

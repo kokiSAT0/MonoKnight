@@ -192,6 +192,46 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertEqual(state.displayedElapsedSeconds, 77, "恒常表示値まで巻き戻してはいけません")
     }
 
+    /// SessionResetCoordinator がタイトル復帰時に UI 後始末だけを実行することを確認
+    func testSessionResetCoordinatorPrepareForReturnToTitleClearsUIOnly() {
+        let coordinator = GameSessionResetCoordinator()
+        var calledSteps: [String] = []
+
+        coordinator.prepareForReturnToTitle(
+            clearSelectedCardSelection: { calledSteps.append("clearSelection") },
+            cancelPenaltyBannerDisplay: { calledSteps.append("cancelBanner") },
+            hideResult: { calledSteps.append("hideResult") },
+            resetTransientUI: { calledSteps.append("resetTransientUI") },
+            clearBoardTapSelectionWarning: { calledSteps.append("clearWarning") },
+            resetAdsPlayFlag: { calledSteps.append("resetAds") },
+            resetPauseController: { calledSteps.append("resetPause") }
+        )
+
+        XCTAssertEqual(
+            calledSteps,
+            ["clearSelection", "cancelBanner", "hideResult", "resetTransientUI", "clearWarning", "resetAds", "resetPause"],
+            "タイトル復帰時の UI 後始末が想定順に実行されていません"
+        )
+    }
+
+    /// SessionResetCoordinator が新規プレイ開始時に title return 準備と core.reset() を両方実行することを確認
+    func testSessionResetCoordinatorResetSessionForNewPlayRunsCoreReset() {
+        let coordinator = GameSessionResetCoordinator()
+        var calledSteps: [String] = []
+
+        coordinator.resetSessionForNewPlay(
+            prepareForReturnToTitle: { calledSteps.append("prepareForReturnToTitle") },
+            resetCore: { calledSteps.append("resetCore") },
+            resetPauseController: { calledSteps.append("resetPause") }
+        )
+
+        XCTAssertEqual(
+            calledSteps,
+            ["prepareForReturnToTitle", "resetCore", "resetPause"],
+            "新規プレイ開始時の初期化順序が想定と異なります"
+        )
+    }
+
     /// キャンペーンステージを連続でクリアした場合でも次の未クリアステージを newlyUnlockedStages に保持することを確認
     func testNewlyUnlockedStagesRemainAfterClearingSameCampaignStageTwice() throws {
         // UserDefaults の衝突を避けるため、テスト専用のスイートを生成する
@@ -284,6 +324,25 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.showingResult, "タイトル復帰時には結果画面フラグが確実に折れている必要があります")
         XCTAssertEqual(adsService.resetPlayFlagCallCount, 1, "結果画面経由でも広告フラグの初期化が実行されていません")
         XCTAssertEqual(returnToTitleCallCount, 1, "タイトル復帰通知がルートへ届いていません")
+    }
+
+    /// reset 操作時は core.reset() を含む初期化が行われ、警告状態も残留しないことを確認
+    func testPerformMenuActionResetClearsWarningAndResetsCore() {
+        let (viewModel, core) = makeViewModel(mode: .standard)
+        core.overrideMetricsForTesting(moveCount: 18, penaltyCount: 2, elapsedSeconds: 70)
+        viewModel.boardTapSelectionWarning = GameViewModel.BoardTapSelectionWarning(
+            message: "warning",
+            destination: GridPoint(x: 1, y: 1)
+        )
+        viewModel.pendingMenuAction = .reset
+        viewModel.showingResult = true
+
+        viewModel.performMenuAction(.reset)
+
+        XCTAssertEqual(core.moveCount, 0, "reset 操作後は GameCore が初期化される必要があります")
+        XCTAssertNil(viewModel.boardTapSelectionWarning, "reset 操作後も盤面タップ警告が残っています")
+        XCTAssertNil(viewModel.pendingMenuAction, "reset 操作後も確認ダイアログが残っています")
+        XCTAssertFalse(viewModel.showingResult, "reset 操作後は結果画面表示フラグが閉じている必要があります")
     }
 
     /// ゲーム準備オーバーレイ表示中はキャンペーンタイマーが進行しないことを確認
