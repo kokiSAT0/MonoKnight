@@ -57,14 +57,6 @@ final class PenaltyBannerScheduler: PenaltyBannerScheduling {
     }
 }
 
-/// タイマー停止理由を表す列挙型
-/// - Important: 重複管理を避けるため、必ず `activeTimerPauseReasons` を経由して追加・削除する
-enum TimerPauseReason: Hashable {
-    case menu
-    case scenePhase
-    case preparationOverlay
-}
-
 /// ポーズメニューへ渡すキャンペーン進捗のサマリー
 /// - Note: ステージ定義と保存済み進捗をまとめて保持し、View 側でのアンラップ処理を簡潔にする
 struct CampaignPauseSummary {
@@ -107,16 +99,13 @@ final class GameViewModel: ObservableObject {
     /// 結果画面表示フラグ
     @Published var showingResult = false
     /// 直近のキャンペーンステージクリア記録
-    /// - Note: リザルト画面でリワード進捗を可視化するため、`registerCampaignResultIfNeeded` で更新する
+    /// - Note: リザルト画面でリワード進捗を可視化するため、クリア時に `flowCoordinator` から更新する
     @Published private(set) var latestCampaignClearRecord: CampaignStageClearRecord?
     /// 今回のクリアで新たに解放されたステージ一覧
     /// - Important: ユーザーをそのまま次の挑戦へ誘導するため、`ResultView` 側へ渡してボタン表示を制御する
     @Published private(set) var newlyUnlockedStages: [CampaignStage] = []
     /// 手詰まりバナーに表示するイベント情報
     @Published var activePenaltyBanner: PenaltyEvent?
-    /// ペナルティバナー表示のスケジューリングを管理するユーティリティ
-    /// - Note: `DispatchWorkItem` を直接保持せずに済むため、リセット処理の抜け漏れを防ぎやすくなる
-    private let penaltyBannerScheduler: PenaltyBannerScheduling
     /// メニューで確認待ちのアクション
     @Published var pendingMenuAction: GameMenuAction?
     /// ポーズメニューの表示状態
@@ -203,16 +192,16 @@ final class GameViewModel: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     /// キャンペーン定義
     private let campaignLibrary = CampaignLibrary.shared
-    /// 手札選択の内部状態
-    private var selectedCardSelection: SelectedCardSelection?
     /// 現在時刻を取得するためのクロージャ。テストでは任意の値へ差し替える
     private let currentDateProvider: () -> Date
-    /// タイマー停止理由の集合
-    /// - Note: メニュー・scenePhase・ローディングなど複数要因が同時に発生する前提で、Set による管理へ切り替える
-    private var activeTimerPauseReasons: Set<TimerPauseReason> = []
-    /// scenePhase 復帰後にポーズメニューを提示すべきかどうか
-    /// - Note: バックグラウンド復帰直後に自動でタイマーを再開せず、ユーザーへ状況確認を促すためのフラグ
-    private var shouldPresentPauseMenuAfterScenePhaseResume = false
+    /// 手札選択と強制ハイライト制御を担当する内部状態
+    private var sessionState = GameSessionState()
+    /// ペナルティバナー表示の責務を分離したヘルパー
+    private let penaltyBannerController: GamePenaltyBannerController
+    /// タイマー停止理由を一元管理するヘルパー
+    private let pauseController: GamePauseController
+    /// リザルト遷移とキャンペーン進捗更新を担当するヘルパー
+    private let flowCoordinator: GameFlowCoordinator
 
     /// ViewModel の初期化
     /// - Parameters:
@@ -247,7 +236,9 @@ final class GameViewModel: ObservableObject {
         self.onRequestGameCenterSignIn = onRequestGameCenterSignIn
         self.onRequestReturnToTitle = onRequestReturnToTitle
         self.onRequestStartCampaignStage = onRequestStartCampaignStage
-        self.penaltyBannerScheduler = penaltyBannerScheduler
+        self.penaltyBannerController = GamePenaltyBannerController(scheduler: penaltyBannerScheduler)
+        self.pauseController = GamePauseController()
+        self.flowCoordinator = GameFlowCoordinator()
         self.isGameCenterAuthenticated = initialGameCenterAuthenticationState
         self.currentDateProvider = currentDateProvider
 
@@ -312,14 +303,6 @@ final class GameViewModel: ObservableObject {
         let message: String
         /// 競合が発生した座標。デバッグ用途で参照できるようにしておく
         let destination: GridPoint
-    }
-
-    /// 手札選択を表す内部モデル
-    private struct SelectedCardSelection {
-        /// 選択中のスタック識別子
-        let stackID: UUID
-        /// 選択時点のトップカード識別子
-        let cardID: UUID
     }
 
     /// ガイドモードの設定値を更新し、必要に応じてハイライトを再描画する
@@ -450,7 +433,7 @@ final class GameViewModel: ObservableObject {
         }
 
         // 同じスタックを再度タップした場合は選択解除として扱い、候補ハイライトを消去する
-        if selectedCardSelection?.stackID == latestStack.id {
+        if sessionState.isSelected(stackID: latestStack.id) {
             clearSelectedCardSelection()
             return
         }
@@ -487,10 +470,17 @@ final class GameViewModel: ObservableObject {
             return
         }
 
-        let selection = SelectedCardSelection(stackID: latestStack.id, cardID: topCard.id)
-        selectedCardSelection = selection
-        selectedHandStackID = latestStack.id
-        applyHighlights(for: selection, using: resolvedMoves)
+        sessionState.updateSelection(
+            stackID: latestStack.id,
+            cardID: topCard.id,
+            selectedHandStackID: &selectedHandStackID
+        )
+        sessionState.applyHighlights(
+            core: core,
+            boardBridge: boardBridge,
+            using: resolvedMoves,
+            selectedHandStackID: &selectedHandStackID
+        )
     }
 
     /// 盤面タップに応じたプレイ要求を処理する
@@ -502,7 +492,7 @@ final class GameViewModel: ObservableObject {
         guard boardBridge.animatingCard == nil else { return }
 
         // 選択済みカードが存在しない場合は、GameCore 側で確定済みの移動候補をそのまま採用する
-        guard let selection = selectedCardSelection else {
+        guard sessionState.hasSelection else {
             // GameCore.availableMoves() を再評価し、タップ座標へ進める候補が複数カードで競合していないかを確認する
             let availableMoves = core.availableMoves()
             let destinationCandidates = availableMoves.filter { $0.destination == request.destination }
@@ -556,9 +546,7 @@ final class GameViewModel: ObservableObject {
         }
 
         // 選択中カードに対応する候補のみを抽出し、盤面ハイライトと同期を取る
-        let matchingMoves = core.availableMoves().filter { candidate in
-            candidate.stackID == selection.stackID && candidate.card.id == selection.cardID
-        }
+        let matchingMoves = sessionState.matchingMoves(in: core)
 
         guard !matchingMoves.isEmpty else {
             clearSelectedCardSelection()
@@ -567,7 +555,12 @@ final class GameViewModel: ObservableObject {
 
         // タップされた座標に一致する候補が無ければ、ハイライトのみ更新して待機する
         guard let chosenMove = matchingMoves.first(where: { $0.destination == request.destination }) else {
-            applyHighlights(for: selection, using: matchingMoves)
+            sessionState.applyHighlights(
+                core: core,
+                boardBridge: boardBridge,
+                using: matchingMoves,
+                selectedHandStackID: &selectedHandStackID
+            )
             return
         }
 
@@ -576,7 +569,12 @@ final class GameViewModel: ObservableObject {
         if didStart {
             clearSelectedCardSelection()
         } else {
-            applyHighlights(for: selection, using: matchingMoves)
+            sessionState.applyHighlights(
+                core: core,
+                boardBridge: boardBridge,
+                using: matchingMoves,
+                selectedHandStackID: &selectedHandStackID
+            )
         }
     }
 
@@ -660,75 +658,36 @@ final class GameViewModel: ObservableObject {
     /// scenePhase の変化に応じてタイマーの停止/再開を制御する
     /// - Parameter newPhase: 画面のアクティブ状態
     func handleScenePhaseChange(_ newPhase: ScenePhase) {
-        guard supportsTimerPausing else { return }
-
-        switch newPhase {
-        case .inactive, .background:
-            // 既に同じ理由で停止している場合は追加処理を行わない
-            guard !isPaused(for: .scenePhase), core.progress == .playing else { return }
-            core.pauseTimer(referenceDate: currentDateProvider())
-            addPauseReason(.scenePhase)
-            // 復帰時には必ずポーズメニューを挟み、ユーザー操作で再開してもらう
-            shouldPresentPauseMenuAfterScenePhaseResume = true
-
-        case .active:
-            guard isPaused(for: .scenePhase) else {
-                // 想定外の復帰ではポーズ要求フラグをリセットしておく
-                shouldPresentPauseMenuAfterScenePhaseResume = false
-                return
+        pauseController.handleScenePhaseChange(
+            newPhase,
+            supportsTimerPausing: supportsTimerPausing,
+            progress: core.progress,
+            pauseTimer: { [self] in
+                core.pauseTimer(referenceDate: currentDateProvider())
+            },
+            presentPauseMenu: { [self] in
+                presentPauseMenu()
             }
-
-            // 進行中かつ他要因で停止していない場合はポーズメニューを表示して復帰確認を促す
-            guard shouldPresentPauseMenuAfterScenePhaseResume else { return }
-
-            guard core.progress == .playing else {
-                // プレイが終了していればポーズメニュー提示は不要のため即座に解除する
-                shouldPresentPauseMenuAfterScenePhaseResume = false
-                removePauseReason(.scenePhase)
-                return
-            }
-
-            guard !hasActivePauseReason(excluding: [.scenePhase]) else {
-                return
-            }
-
-            shouldPresentPauseMenuAfterScenePhaseResume = false
-            presentPauseMenu()
-
-        @unknown default:
-            break
-        }
+        )
     }
 
     /// ゲーム準備オーバーレイの表示/非表示を受け取り、タイマー制御を統合する
     /// - Parameter isVisible: 現在のローディング表示状態
     func handlePreparationOverlayChange(isVisible: Bool) {
-        guard supportsTimerPausing else { return }
-
-        if isVisible {
-            // 既に他要因で停止している場合でも理由を保持し、復帰条件の判定に利用する
-            guard !isPaused(for: .preparationOverlay) else { return }
-            addPauseReason(.preparationOverlay)
-
-            // 実際にプレイ中であればタイマーを停止させ、ローディング表示中の時間加算を防ぐ
-            guard !hasActivePauseReason(excluding: [.preparationOverlay]), core.progress == .playing else { return }
-            core.pauseTimer(referenceDate: currentDateProvider())
-        } else {
-            guard isPaused(for: .preparationOverlay) else { return }
-            removePauseReason(.preparationOverlay)
-
-            // scenePhase 由来の復帰待ちであれば、ローディング解除直後にポーズメニューを提示する
-            if isPaused(for: .scenePhase),
-               shouldPresentPauseMenuAfterScenePhaseResume,
-               core.progress == .playing {
+        pauseController.handlePreparationOverlayChange(
+            isVisible: isVisible,
+            supportsTimerPausing: supportsTimerPausing,
+            progress: core.progress,
+            pauseTimer: { [self] in
+                core.pauseTimer(referenceDate: currentDateProvider())
+            },
+            resumeTimer: { [self] in
+                core.resumeTimer(referenceDate: currentDateProvider())
+            },
+            presentPauseMenu: { [self] in
                 presentPauseMenu()
-                return
             }
-
-            // 他の理由で停止している場合は再開を保留し、復帰条件が揃ったタイミングまで待つ
-            guard !hasActivePauseReason(), core.progress == .playing else { return }
-            core.resumeTimer(referenceDate: currentDateProvider())
-        }
+        )
     }
 
     /// ゲームの進行状況に応じた操作をまとめて処理する
@@ -773,22 +732,11 @@ final class GameViewModel: ObservableObject {
     /// ペナルティイベントを受信した際の処理
     /// - Parameter event: GameCore から通知された最新のペナルティ詳細
     func handlePenaltyEvent(_ event: PenaltyEvent) {
-        // 新しいバナー表示を開始する前に既存スケジュールを破棄し、二重実行を避ける
-        penaltyBannerScheduler.cancel()
-
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.8, blendDuration: 0.2)) {
-            activePenaltyBanner = event
-        }
-
-        if hapticsEnabled {
-            UINotificationFeedbackGenerator().notificationOccurred(.warning)
-        }
-
-        penaltyBannerScheduler.scheduleAutoDismiss(after: 2.6) { [weak self] in
-            guard let self else { return }
-            withAnimation(.easeOut(duration: 0.25)) {
-                self.activePenaltyBanner = nil
-            }
+        penaltyBannerController.handlePenaltyEvent(
+            event,
+            hapticsEnabled: hapticsEnabled
+        ) { [weak self] banner in
+            self?.activePenaltyBanner = banner
         }
     }
 
@@ -811,72 +759,29 @@ final class GameViewModel: ObservableObject {
 
     /// 手札選択状態を初期化し、盤面ハイライトを消去する
     private func clearSelectedCardSelection() {
-        // 選択状態だけでなく、強制ハイライトが残っているケースも初期化対象とする
-        let hasSelection = selectedCardSelection != nil || selectedHandStackID != nil
-        let hasForcedHighlights = !boardBridge.forcedSelectionHighlightPoints.isEmpty
-        guard hasSelection || hasForcedHighlights else { return }
-
-        selectedCardSelection = nil
-        selectedHandStackID = nil
-        boardBridge.updateForcedSelectionHighlights([])
-    }
-
-    /// 現在の選択状態に基づいて候補マスのハイライトを適用する
-    /// - Parameters:
-    ///   - selection: 選択中のスタック情報
-    ///   - resolvedMoves: 事前に算出済みの候補があれば指定する（省略時は再評価する）
-    private func applyHighlights(
-        for selection: SelectedCardSelection,
-        using resolvedMoves: [ResolvedCardMove]? = nil
-    ) {
-        guard let current = core.current else {
-            clearSelectedCardSelection()
-            return
-        }
-
-        let moves = resolvedMoves ?? core.availableMoves().filter { candidate in
-            candidate.stackID == selection.stackID && candidate.card.id == selection.cardID
-        }
-
-        guard !moves.isEmpty else {
-            clearSelectedCardSelection()
-            return
-        }
-
-        // 全域ワープは候補が盤面全域へ広がる特殊カードのため、候補集合をそのまま強制ハイライトへ転送する
-        // - Note: 以前は視覚的な密度を避ける目的でハイライトを消灯していたが、盤面全体を対象にしたガイドを提示
-        //   することで「どのマスを選んでも良い」ことを明確に案内できるようにする。全域ワープ専用の描画は
-        //   `GameScene` 側で視認性確保用の淡い色味へ調整しており、盤面全体が光っても駒や踏破状況が識別しやすい。
-        let destinations = Set(moves.map(\.destination))
-        if moves.first?.card.move == .superWarp {
-            boardBridge.updateForcedSelectionHighlights(destinations)
-            return
-        }
-
-        let vectors = moves.map(\.moveVector)
-        boardBridge.updateForcedSelectionHighlights(destinations, origin: current, movementVectors: vectors)
+        sessionState.clearSelection(
+            boardBridge: boardBridge,
+            selectedHandStackID: &selectedHandStackID
+        )
     }
 
     /// 手札更新後も選択状態が維持できるか検証し、必要に応じてリセットする
     /// - Parameter handStacks: 最新の手札スタック一覧
     private func refreshSelectionIfNeeded(with handStacks: [HandStack]) {
-        guard let selection = selectedCardSelection else { return }
-
-        guard let stack = handStacks.first(where: { $0.id == selection.stackID }),
-              let topCard = stack.topCard,
-              topCard.id == selection.cardID else {
-            clearSelectedCardSelection()
-            return
-        }
-
-        applyHighlights(for: selection)
+        sessionState.refreshSelectionIfNeeded(
+            with: handStacks,
+            core: core,
+            boardBridge: boardBridge,
+            selectedHandStackID: &selectedHandStackID
+        )
     }
 
     /// ペナルティバナー表示に関連する状態とワークアイテムをまとめて破棄する
     /// - Note: 手動ペナルティやリセット操作後にバナーが残存しないよう、共通処理として切り出している
     private func cancelPenaltyBannerDisplay() {
-        penaltyBannerScheduler.cancel()
-        activePenaltyBanner = nil
+        penaltyBannerController.cancel { [weak self] banner in
+            self?.activePenaltyBanner = banner
+        }
     }
 
     /// ホーム画面へ戻る際に共通で必要となる状態リセットをひとまとめにする
@@ -886,8 +791,7 @@ final class GameViewModel: ObservableObject {
         cancelPenaltyBannerDisplay()
         showingResult = false
         adsService.resetPlayFlag()
-        activeTimerPauseReasons.removeAll()
-        shouldPresentPauseMenuAfterScenePhaseResume = false
+        pauseController.reset()
     }
 
     /// 新しいプレイを始める際に必要な初期化処理を共通化する
@@ -895,8 +799,7 @@ final class GameViewModel: ObservableObject {
     private func resetSessionForNewPlay() {
         prepareForReturnToTitle()
         core.reset()
-        activeTimerPauseReasons.removeAll()
-        shouldPresentPauseMenuAfterScenePhaseResume = false
+        pauseController.reset()
     }
 
     /// GameCore のストリームを監視し、UI 更新に必要な副作用を引き受ける
@@ -956,66 +859,19 @@ final class GameViewModel: ObservableObject {
 
         switch progress {
         case .cleared:
-            if mode.isLeaderboardEligible {
-                if isGameCenterAuthenticated {
-                    gameCenterService.submitScore(core.score, for: mode.identifier)
-                } else {
-                    debugLog("GameViewModel: Game Center 未認証のためスコア送信をスキップしました")
-                    onRequestGameCenterSignIn?(.scoreSubmissionSkipped)
-                }
-            }
-            registerCampaignResultIfNeeded()
-            showingResult = true
+            let outcome = flowCoordinator.handleClearedProgress(
+                mode: mode,
+                core: core,
+                isGameCenterAuthenticated: isGameCenterAuthenticated,
+                gameCenterService: gameCenterService,
+                onRequestGameCenterSignIn: onRequestGameCenterSignIn,
+                campaignProgressStore: campaignProgressStore
+            )
+            latestCampaignClearRecord = outcome.latestCampaignClearRecord
+            newlyUnlockedStages = outcome.newlyUnlockedStages
+            showingResult = outcome.shouldShowResult
         default:
             break
-        }
-    }
-
-    /// キャンペーンステージの進捗を更新する
-    private func registerCampaignResultIfNeeded() {
-        guard let metadata = mode.campaignMetadataSnapshot,
-              let stage = campaignLibrary.stage(with: metadata.stageID) else {
-            // キャンペーン以外のモードではリザルト用データを初期化しておき、前回の値が残らないようにする
-            latestCampaignClearRecord = nil
-            newlyUnlockedStages = []
-            return
-        }
-
-        // クリア登録前の解放状況を控えておき、解放済みフラグの差分から新規解放ステージを特定する
-        let unlockedStageIDsBefore = Set(
-            campaignLibrary.allStages
-                .filter { campaignProgressStore.isStageUnlocked($0) }
-                .map(\.id)
-        )
-
-        let metrics = CampaignStageClearMetrics(
-            moveCount: core.moveCount,
-            penaltyCount: core.penaltyCount,
-            elapsedSeconds: core.elapsedSeconds,
-            totalMoveCount: core.totalMoveCount,
-            score: core.score,
-            hasRevisitedTile: core.hasRevisitedTile
-        )
-
-        let record = campaignProgressStore.registerClear(for: stage, metrics: metrics)
-
-        // リザルト画面で利用するため、更新後の記録を公開プロパティへ格納する
-        latestCampaignClearRecord = record
-
-        // 更新後の解放状況を再評価し、今回のクリアで新たに解放されたステージのみ抽出する
-        let unlockedStagesAfter = campaignLibrary.allStages.filter { campaignProgressStore.isStageUnlocked($0) }
-        let unlockedDiff = unlockedStagesAfter.filter { !unlockedStageIDsBefore.contains($0.id) }
-
-        if unlockedDiff.isEmpty {
-            // 差分が空の場合は「既に解放済みだが未クリアのステージ」を再提示し、ResultView のボタンが消えないようにする
-            newlyUnlockedStages = campaignLibrary.allStages.filter { stage in
-                // earnedStars が 0 のままなら未クリア扱いなので、ユーザーに次の行き先として案内する
-                campaignProgressStore.isStageUnlocked(stage) &&
-                    (campaignProgressStore.progress(for: stage.id)?.earnedStars ?? 0) == 0
-            }
-        } else {
-            // 通常ケースでは今回のクリアで解放されたステージのみを提示する
-            newlyUnlockedStages = unlockedDiff
         }
     }
 
@@ -1055,63 +911,20 @@ private extension GameViewModel {
         !mode.isLeaderboardEligible && mode.campaignMetadataSnapshot != nil
     }
 
-    /// 指定した理由でタイマーが停止しているかを判定するヘルパー
-    /// - Parameter reason: 停止状態を確認したい理由
-    /// - Returns: 指定した理由が `activeTimerPauseReasons` に含まれている場合は true
-    func isPaused(for reason: TimerPauseReason) -> Bool {
-        activeTimerPauseReasons.contains(reason)
-    }
-
-    /// 新しい停止理由を登録し、Set の一貫性を保つ
-    /// - Parameter reason: 追加したい停止理由
-    func addPauseReason(_ reason: TimerPauseReason) {
-        activeTimerPauseReasons.insert(reason)
-    }
-
-    /// 停止理由の解除を一元化する
-    /// - Parameter reason: 解除したい停止理由
-    func removePauseReason(_ reason: TimerPauseReason) {
-        activeTimerPauseReasons.remove(reason)
-    }
-
-    /// 指定した理由を除外した上で、他の停止理由が残っているかを確認する
-    /// - Parameter reasons: 無視したい停止理由の配列（Set 変換は内部で行う）
-    /// - Returns: 除外後も停止理由が存在する場合は true
-    func hasActivePauseReason(excluding reasons: [TimerPauseReason] = []) -> Bool {
-        !activeTimerPauseReasons.subtracting(Set(reasons)).isEmpty
-    }
-
     /// ポーズメニューの開閉に応じてタイマーの停止/再開を制御する
     /// - Parameter isPresented: 現在のポーズメニュー表示状態
     func handlePauseMenuVisibilityChange(isPresented: Bool) {
-        guard supportsTimerPausing else { return }
-
-        if isPresented {
-            guard core.progress == .playing else { return }
-            // 既にメニュー由来で停止済みなら何もしない
-            guard !isPaused(for: .menu) else { return }
-            // scenePhase で一時停止済みの場合は重複停止を避ける
-            if !isPaused(for: .scenePhase) {
+        pauseController.handlePauseMenuVisibilityChange(
+            isPresented: isPresented,
+            supportsTimerPausing: supportsTimerPausing,
+            progress: core.progress,
+            pauseTimer: { [self] in
                 core.pauseTimer(referenceDate: currentDateProvider())
+            },
+            resumeTimer: { [self] in
+                core.resumeTimer(referenceDate: currentDateProvider())
             }
-            addPauseReason(.menu)
-        } else {
-            guard isPaused(for: .menu) else { return }
-            let wasMenuPauseActive = isPaused(for: .menu)
-            let wasScenePhasePauseActive = isPaused(for: .scenePhase)
-            removePauseReason(.menu)
-            // scenePhase 由来の停止状態をここで開放し、再開許可を判断する
-            removePauseReason(.scenePhase)
-            shouldPresentPauseMenuAfterScenePhaseResume = false
-            // ローディングオーバーレイ表示中は復帰を保留する
-            guard !isPaused(for: .preparationOverlay) else { return }
-            guard core.progress == .playing else { return }
-            // メニュー／scenePhase いずれかで停止した場合のみ再開を行う
-            guard wasScenePhasePauseActive || wasMenuPauseActive else { return }
-            // いずれかの要因が残っていれば再開を保留する
-            guard !hasActivePauseReason() else { return }
-            core.resumeTimer(referenceDate: currentDateProvider())
-        }
+        )
     }
 }
 
