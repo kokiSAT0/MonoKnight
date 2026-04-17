@@ -316,14 +316,6 @@ fileprivate extension RootView {
         )
     }
 
-    /// 現在のモードに対応するキャンペーンステージを取得する
-    /// - Parameter mode: 判定対象のゲームモード
-    /// - Returns: キャンペーンステージであれば定義、該当しなければ nil
-    func campaignStage(for mode: GameMode) -> CampaignStage? {
-        guard let metadata = mode.campaignMetadataSnapshot else { return nil }
-        return campaignLibrary.stage(with: metadata.stageID)
-    }
-
     /// RootView 本体の `body` から切り離したメソッドで、サブビュー生成ロジックを共通化する
     /// - Parameter layoutContext: GeometryReader から構築したレイアウト情報
     /// - Returns: 依存サービスや状態をバインディングした `RootContentView`
@@ -1521,7 +1513,7 @@ fileprivate struct TitleScreenView: View {
     @State private var navigationPath: [TitleNavigationTarget] = []
     @State private var highlightedCampaignStageID: CampaignStageID?
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-    @AppStorage("best_points_5x5") private var bestPoints: Int = .max
+    @AppStorage(StorageKey.AppStorage.bestPoints5x5) private var bestPoints: Int = .max
     private let instanceIdentifier = UUID()
 
     /// ゲーム開始要求がどこから届いたかを判定するための文脈列挙

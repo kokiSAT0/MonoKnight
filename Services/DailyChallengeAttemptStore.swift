@@ -108,11 +108,11 @@ final class DailyChallengeAttemptStore: ObservableObject, DailyChallengeAttemptS
     /// - Important: バージョンを明記しておくことで将来のスキーマ変更に備える
     private enum StorageKey {
         /// 本日の挑戦状況（JSON エンコードした `State` を格納）
-        static let state = "daily_challenge_attempt_state_v2" // JSON で `State` を保存
+        static let state = StorageKey.UserDefaults.dailyChallengeAttemptState // JSON で `State` を保存
     }
 
     /// デバッグ無制限モードの保存に利用するキー
-    private static let debugUnlimitedStorageKey = "daily_challenge_debug_unlimited_v1"
+    private static let debugUnlimitedStorageKey = StorageKey.UserDefaults.dailyChallengeDebugUnlimited
 
     /// 日付キーを生成する際のフォーマット
     private enum DateFormat {

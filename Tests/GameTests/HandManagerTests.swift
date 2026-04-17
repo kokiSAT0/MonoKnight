@@ -82,7 +82,8 @@ final class HandManagerTests: XCTestCase {
         var deck = Deck.makeTestDeck(
             cards: [.fixedWarp, .fixedWarp],
             configuration: configuration,
-            fixedWarpDestinations: destinations
+            fixedWarpDestinations: destinations,
+            usesSequentialFixedWarpDestinations: true
         )
 
         let handManager = HandManager(handSize: 5, nextPreviewCount: 0, allowsCardStacking: true)
@@ -118,7 +119,8 @@ final class HandManagerTests: XCTestCase {
         var deck = Deck.makeTestDeck(
             cards: [.fixedWarp, .fixedWarp],
             configuration: configuration,
-            fixedWarpDestinations: [destination, destination]
+            fixedWarpDestinations: [destination, destination],
+            usesSequentialFixedWarpDestinations: true
         )
 
         let handManager = HandManager(handSize: 5, nextPreviewCount: 0, allowsCardStacking: true)

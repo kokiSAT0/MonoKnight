@@ -7,9 +7,9 @@ import SharedSupport
 @MainActor
 final class CampaignProgressStore: ObservableObject {
     /// UserDefaults へ保存する際のキー
-    private let storageKey = "campaign_progress_v1"
+    private let storageKey = StorageKey.UserDefaults.campaignProgress
     /// デバッグ用全解放フラグを保存するキー
-    private let debugUnlockStorageKey = "campaign_debug_unlock_enabled"
+    private let debugUnlockStorageKey = StorageKey.UserDefaults.campaignDebugUnlock
     /// 永続化先
     private let userDefaults: UserDefaults
 

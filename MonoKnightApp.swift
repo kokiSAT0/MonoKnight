@@ -26,11 +26,11 @@ struct MonoKnightApp: App {
 
     /// 同意フローが完了したかどうかを保持するフラグ
     /// - NOTE: `UserDefaults` と連携し、次回以降はスキップする
-    @AppStorage("has_completed_consent_flow") private var hasCompletedConsentFlow: Bool = false
+    @AppStorage(StorageKey.AppStorage.hasCompletedConsentFlow) private var hasCompletedConsentFlow: Bool = false
 
     /// ユーザーが選択したテーマモードを永続化する。デフォルトはシステム設定に追従する。
     /// - NOTE: RawValue を直接保存し、列挙型との変換は `themePreference` プロパティで一元管理する。
-    @AppStorage("preferred_color_scheme") private var preferredColorSchemeRawValue: String = ThemePreference.system.rawValue
+    @AppStorage(StorageKey.AppStorage.preferredColorScheme) private var preferredColorSchemeRawValue: String = ThemePreference.system.rawValue
 
     /// `@AppStorage` から復元した値を `ThemePreference` に変換して利用するためのヘルパー
     /// - Returns: 不正な値が保存されていた場合でも `.system` にフォールバックする。
@@ -166,4 +166,3 @@ enum ThemePreference: String, CaseIterable, Identifiable {
         }
     }
 }
-

@@ -39,11 +39,11 @@ struct PauseMenuView: View {
     /// シートを閉じるための環境ディスミス
     @Environment(\.dismiss) private var dismiss
     /// テーマ設定の永続化キー
-    @AppStorage("preferred_color_scheme") private var preferredColorSchemeRawValue: String = ThemePreference.system.rawValue
+    @AppStorage(StorageKey.AppStorage.preferredColorScheme) private var preferredColorSchemeRawValue: String = ThemePreference.system.rawValue
     /// ハプティクスのオン/オフ
-    @AppStorage("haptics_enabled") private var hapticsEnabled: Bool = true
+    @AppStorage(StorageKey.AppStorage.hapticsEnabled) private var hapticsEnabled: Bool = true
     /// ガイドモードのオン/オフ
-    @AppStorage("guide_mode_enabled") private var guideModeEnabled: Bool = true
+    @AppStorage(StorageKey.AppStorage.guideModeEnabled) private var guideModeEnabled: Bool = true
     /// 手札並び設定
     @AppStorage(HandOrderingStrategy.storageKey) private var handOrderingRawValue: String = HandOrderingStrategy.insertionOrder.rawValue
 

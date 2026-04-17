@@ -113,8 +113,8 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol {
     /// シングルトンでサービスを共有
     static let shared = AdsService()
 
-    @AppStorage("remove_ads_mk") private var removeAdsMK: Bool = false
-    @AppStorage("haptics_enabled") private var hapticsEnabled: Bool = true
+    @AppStorage(StorageKey.AppStorage.removeAdsPurchased) private var removeAdsMK: Bool = false
+    @AppStorage(StorageKey.AppStorage.hapticsEnabled) private var hapticsEnabled: Bool = true
 
     private let consentCoordinator: AdsConsentCoordinating
     private let interstitialController: InterstitialAdControlling

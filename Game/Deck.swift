@@ -537,6 +537,14 @@ struct Deck {
     private var presetDrawQueue: [MoveCard]
     /// reset() で戻すための元配列（テスト専用）
     private var presetOriginal: [MoveCard]
+    /// テスト時に固定ワープカードへ順番に割り当てる目的地列
+    private var presetFixedWarpDestinationQueue: [GridPoint]
+    /// reset() で戻すための元配列（固定ワープ目的地用）
+    private var presetOriginalFixedWarpDestinations: [GridPoint]
+    /// 固定ワープ目的地を順番に消費するかどうか
+    private var usesPresetFixedWarpDestinationsSequentially: Bool
+    /// reset() で戻すための元フラグ
+    private var presetOriginalUsesSequentialFixedWarpDestinations: Bool
     #endif
 
     // MARK: - 初期化
@@ -563,6 +571,10 @@ struct Deck {
         #if DEBUG
         presetDrawQueue = []
         presetOriginal = []
+        presetFixedWarpDestinationQueue = []
+        presetOriginalFixedWarpDestinations = []
+        usesPresetFixedWarpDestinationsSequentially = false
+        presetOriginalUsesSequentialFixedWarpDestinations = false
         #endif
         reset() // 乱数源とテスト用配列を初期状態へ戻す
     }
@@ -585,6 +597,8 @@ struct Deck {
         // 乱数シードを初期状態へ戻すことで、固定ワープ目的地の抽選結果も含めた乱数列を完全に再現する
         #if DEBUG
         presetDrawQueue = presetOriginal
+        presetFixedWarpDestinationQueue = presetOriginalFixedWarpDestinations
+        usesPresetFixedWarpDestinationsSequentially = presetOriginalUsesSequentialFixedWarpDestinations
         #endif
     }
 
@@ -633,6 +647,11 @@ struct Deck {
     /// 固定ワープカード向けの目的地をランダムに抽選する
     /// - Returns: 次に割り当てる目的地（定義がない場合は nil）
     private mutating func nextFixedWarpDestination() -> GridPoint? {
+#if DEBUG
+        if usesPresetFixedWarpDestinationsSequentially && !presetFixedWarpDestinationQueue.isEmpty {
+            return presetFixedWarpDestinationQueue.removeFirst()
+        }
+#endif
         guard !fixedWarpDestinations.isEmpty else { return nil }
         let index = nextRandomIndex(upperBound: fixedWarpDestinations.count)
         return fixedWarpDestinations[index]
@@ -683,10 +702,21 @@ struct Deck {
 #if DEBUG
 extension Deck {
     /// テストで特定順序のカードを排出させたい場合に使用する
-    /// - Parameter cards: 先頭から順番に返したいカード列
-    mutating func preload(cards: [MoveCard]) {
+    /// - Parameters:
+    ///   - cards: 先頭から順番に返したいカード列
+    ///   - fixedWarpDestinations: 固定ワープカードへ割り当てたい目的地列
+    ///   - usesSequentialFixedWarpDestinations: true の場合は目的地列を先頭から順に消費する
+    mutating func preload(
+        cards: [MoveCard],
+        fixedWarpDestinations: [GridPoint] = [],
+        usesSequentialFixedWarpDestinations: Bool = false
+    ) {
         presetDrawQueue = cards
         presetOriginal = cards
+        presetFixedWarpDestinationQueue = fixedWarpDestinations
+        presetOriginalFixedWarpDestinations = fixedWarpDestinations
+        self.usesPresetFixedWarpDestinationsSequentially = usesSequentialFixedWarpDestinations
+        presetOriginalUsesSequentialFixedWarpDestinations = usesSequentialFixedWarpDestinations
     }
 
     /// プリセットしたカード列を優先的に返すテスト用デッキを生成する
@@ -695,15 +725,21 @@ extension Deck {
     ///   - cards: 先頭から消費させたいカード列（手札スロット数ぶんを優先消費し、残りが先読みキューへ入る）
     ///   - configuration: 検証対象の山札設定（省略時はスタンダード）
     ///   - fixedWarpDestinations: 固定ワープカードへ割り当てたい目的地リスト
+    ///   - usesSequentialFixedWarpDestinations: true の場合、固定ワープ目的地を先頭から順に消費する
     /// - Returns: プリセットを持った `Deck`
     static func makeTestDeck(
         seed: UInt64 = 1,
         cards: [MoveCard],
         configuration: Configuration = .standard,
-        fixedWarpDestinations: [GridPoint] = []
+        fixedWarpDestinations: [GridPoint] = [],
+        usesSequentialFixedWarpDestinations: Bool = false
     ) -> Deck {
         var deck = Deck(seed: seed, configuration: configuration, fixedWarpDestinations: fixedWarpDestinations)
-        deck.preload(cards: cards)
+        deck.preload(
+            cards: cards,
+            fixedWarpDestinations: fixedWarpDestinations,
+            usesSequentialFixedWarpDestinations: usesSequentialFixedWarpDestinations
+        )
         return deck
     }
 }

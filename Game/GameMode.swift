@@ -729,87 +729,6 @@ public struct GameMode: Equatable, Identifiable {
     public var deckPreset: GameDeckPreset { regulation.deckPreset }
     /// UI で表示する山札の要約
     public var deckSummaryText: String { regulation.deckPreset.summaryText }
-    /// UI 表示用のアイコン名
-    /// - Note: SF Symbols のシステム名を返し、SwiftUI から共通の描画を行えるようにする
-    public var iconSystemName: String {
-        switch identifier {
-        case .standard5x5:
-            return "square.grid.3x3.fill"
-        case .classicalChallenge:
-            return "checkerboard.rectangle"
-        case .dailyFixedChallenge:
-            return "calendar"
-        case .dailyRandomChallenge:
-            return "sparkles"
-        case .freeCustom:
-            return "slider.horizontal.3"
-        case .campaignStage:
-            return "map.fill"
-        case .dailyFixed:
-            return "calendar"
-        case .dailyRandom:
-            return "sparkles"
-        }
-    }
-    /// モードの難易度ランク
-    /// - Note: UI 側でバッジ表示やアクセシビリティ説明に利用する
-    public var difficultyRank: DifficultyRank {
-        switch identifier {
-        case .standard5x5:
-            return .balanced
-        case .classicalChallenge:
-            return .advanced
-        case .dailyFixedChallenge:
-            return .balanced
-        case .dailyRandomChallenge:
-            return .advanced
-        case .freeCustom:
-            return .custom
-        case .campaignStage:
-            return .scenario
-        case .dailyFixed:
-            return .advanced
-        case .dailyRandom:
-            return .custom
-        }
-    }
-    /// 難易度バッジで利用する短縮ラベル
-    public var difficultyBadgeLabel: String { difficultyRank.badgeLabel }
-    /// 難易度に関するアクセシビリティ説明
-    public var difficultyAccessibilityDescription: String { difficultyRank.accessibilityDescription }
-    /// 手札スロットと先読み枚数をまとめた説明文
-    /// - Note: 同種カードを重ねられるスタック仕様を把握しやすいよう「種類数」で表現する。
-    public var handSummaryText: String {
-        let stacking = allowsCardStacking ? "スタック可" : "スタック不可"
-        return "手札スロット \(handSize) 種類 ・ 先読み \(nextPreviewCount) 枚 ・ \(stacking)"
-    }
-    /// 手動ペナルティの説明文
-    public var manualPenaltySummaryText: String {
-        let redrawText = "引き直し +\(manualRedrawPenaltyCost)"
-        let discardText: String
-        if manualDiscardPenaltyCost > 0 {
-            discardText = "捨て札 +\(manualDiscardPenaltyCost)"
-        } else {
-            discardText = "捨て札 ペナルティなし"
-        }
-        return "\(redrawText) / \(discardText)"
-    }
-    /// 再訪ペナルティの説明文
-    public var revisitPenaltySummaryText: String {
-        if revisitPenaltyCost > 0 {
-            return "再訪 +\(revisitPenaltyCost)"
-        } else {
-            return "再訪ペナルティなし"
-        }
-    }
-    /// 盤面サイズ・スポーン・山札をまとめた要約文
-    public var primarySummaryText: String {
-        "\(boardSize)×\(boardSize) ・ \(spawnRule.summaryText) ・ \(deckSummaryText)"
-    }
-    /// 手札・先読み・ペナルティ情報をまとめた詳細文
-    public var secondarySummaryText: String {
-        "\(handSummaryText) / \(manualPenaltySummaryText) / \(revisitPenaltySummaryText)"
-    }
 
     /// リーダーボードへスコアを送信する対象かどうか
     public var isLeaderboardEligible: Bool { leaderboardEligible }
@@ -819,15 +738,6 @@ public struct GameMode: Equatable, Identifiable {
 
     /// キャンペーンに紐付くメタデータのスナップショット
     public var campaignMetadataSnapshot: CampaignMetadata? { campaignMetadata }
-
-    /// スタック仕様の詳細説明文
-    public var stackingRuleDetailText: String {
-        if allowsCardStacking {
-            return "同じ種類のカードは同じスロット内で重なり、空きスロットがなくても補充できます。"
-        } else {
-            return "同じ種類のカードは別スロットを占有し、空きスロットが無いと新しいカードを引けません。"
-        }
-    }
 
     /// 現在のレギュレーションをそのまま取得するためのスナップショット
     public var regulationSnapshot: Regulation { regulation }

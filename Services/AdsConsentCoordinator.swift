@@ -162,7 +162,7 @@ final class AdsConsentCoordinator: AdsConsentCoordinating {
     /// - Important: ATT の結果次第で NPA 強制が必要になるため、イニシャライザ引数として差し替え可能にしている
     private let trackingAuthorizationStatusProvider: () -> ATTrackingManager.AuthorizationStatus
     /// AppStorage 経由で NPA 判定を永続化する
-    @AppStorage("ads_should_use_npa") private var shouldUseNPA: Bool = false
+    @AppStorage(StorageKey.AppStorage.adsShouldUseNPA) private var shouldUseNPA: Bool = false
 
     init(
         hasValidAdConfiguration: Bool,

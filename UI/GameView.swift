@@ -60,10 +60,10 @@ struct GameView: View {
     /// - Note: 監視処理を別ファイルの拡張（`GameView+Observers`）へ切り出しているため、`fileprivate` ではアクセスできずビルドエラーとなる。
     ///         internal（デフォルト）へ緩和してモジュール内の拡張から安全に共有する。
 
-    @AppStorage("haptics_enabled") var hapticsEnabled: Bool = true
+    @AppStorage(StorageKey.AppStorage.hapticsEnabled) var hapticsEnabled: Bool = true
     /// ガイドモードのオン/オフを永続化し、盤面ハイライト表示を制御する
     /// - Note: こちらも監視処理を別ファイルで扱う必要があるため、`fileprivate` ではなく internal を維持して拡張から参照できるようにする。
-    @AppStorage("guide_mode_enabled") var guideModeEnabled: Bool = true
+    @AppStorage(StorageKey.AppStorage.guideModeEnabled) var guideModeEnabled: Bool = true
     /// 手札の並び替え方式。設定変更時に GameCore へ伝搬する
 
     /// - Note: 監視系ロジックを切り出した `GameView+Observers` でも値を参照する必要があるため、

@@ -76,15 +76,15 @@ struct SettingsView: View {
 
     // MARK: - テーマ設定
     // ユーザーが任意に選択したカラースキームを保持する。初期値はシステム依存の `.system`。
-    @AppStorage("preferred_color_scheme") private var preferredColorSchemeRawValue: String = ThemePreference.system.rawValue
+    @AppStorage(StorageKey.AppStorage.preferredColorScheme) private var preferredColorSchemeRawValue: String = ThemePreference.system.rawValue
 
     // MARK: - ハプティクス設定
     // ユーザーのハプティクス利用有無を永続化する。デフォルトは有効。
-    @AppStorage("haptics_enabled") private var hapticsEnabled: Bool = true
+    @AppStorage(StorageKey.AppStorage.hapticsEnabled) private var hapticsEnabled: Bool = true
 
     // MARK: - ガイドモード設定
     // 盤面の移動候補ハイライトを保存し、GameView 側の @AppStorage と連動させる。
-    @AppStorage("guide_mode_enabled") private var guideModeEnabled: Bool = true
+    @AppStorage(StorageKey.AppStorage.guideModeEnabled) private var guideModeEnabled: Bool = true
 
     // MARK: - 手札並び設定
     // 手札の並び替え方式を永続化し、GameView 側の @AppStorage と同期させる。
@@ -92,7 +92,7 @@ struct SettingsView: View {
 
     // MARK: - 戦績管理
     // ベストポイントを UserDefaults から取得・更新する。未設定時は Int.max で初期化しておく。
-    @AppStorage("best_points_5x5") private var bestPoints: Int = .max
+    @AppStorage(StorageKey.AppStorage.bestPoints5x5) private var bestPoints: Int = .max
 
     // 戦績リセット確認用のアラート表示フラグ。ユーザーが誤操作しないよう明示的に確認する。
     @State private var isResetAlertPresented = false

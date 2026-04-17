@@ -9,7 +9,7 @@ struct ConsentFlowView: View {
     /// 広告サービス。ATT/UMP の許諾処理を呼び出す
     private let adsService: AdsServiceProtocol
     /// 同意フローが完了したかどうかを UserDefaults と連携して保持
-    @AppStorage("has_completed_consent_flow") private var hasCompletedConsentFlow: Bool = false
+    @AppStorage(StorageKey.AppStorage.hasCompletedConsentFlow) private var hasCompletedConsentFlow: Bool = false
     /// 処理中でボタンを無効化するためのフラグ
     @State private var isRequesting: Bool = false
 

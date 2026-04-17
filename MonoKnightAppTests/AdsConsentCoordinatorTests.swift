@@ -8,7 +8,7 @@ struct AdsConsentCoordinatorTests {
     /// requestConsentIfNeeded が必須同意の際にフォームを表示し、最終的に NPA フラグが false へ戻ることを検証
     @MainActor
     @Test func requestConsentIfNeeded_showsFormWhenRequired() async throws {
-        UserDefaults.standard.removeObject(forKey: "ads_should_use_npa")
+        UserDefaults.standard.removeObject(forKey: StorageKey.AppStorage.adsShouldUseNPA)
 
         let environment = TestAdsConsentEnvironment()
         environment.consentStatus = .required
@@ -46,13 +46,13 @@ struct AdsConsentCoordinatorTests {
             #expect(last.state.shouldUseNPA == false)
             #expect(last.state.canRequestAds == true)
         }
-        #expect(UserDefaults.standard.bool(forKey: "ads_should_use_npa") == false)
+        #expect(UserDefaults.standard.bool(forKey: StorageKey.AppStorage.adsShouldUseNPA) == false)
     }
 
     /// refreshConsentStatus がプライバシーオプション表示を要求することを確認
     @MainActor
     @Test func refreshConsentStatus_showsPrivacyOptions() async throws {
-        UserDefaults.standard.removeObject(forKey: "ads_should_use_npa")
+        UserDefaults.standard.removeObject(forKey: StorageKey.AppStorage.adsShouldUseNPA)
 
         let environment = TestAdsConsentEnvironment()
         environment.consentStatus = .obtained
@@ -113,7 +113,7 @@ struct AdsConsentCoordinatorTests {
     /// ATT が拒否されている場合は UMP が obtained でも NPA を維持する
     @MainActor
     @Test func coordinator_forcesNPA_whenTrackingDenied() async throws {
-        UserDefaults.standard.removeObject(forKey: "ads_should_use_npa")
+        UserDefaults.standard.removeObject(forKey: StorageKey.AppStorage.adsShouldUseNPA)
 
         let environment = TestAdsConsentEnvironment()
         environment.consentStatus = .obtained
@@ -132,13 +132,13 @@ struct AdsConsentCoordinatorTests {
 
         #expect(stateDelegate.recordedStates.last?.state.shouldUseNPA == true)
         #expect(coordinator.currentState.shouldUseNPA == true)
-        #expect(UserDefaults.standard.bool(forKey: "ads_should_use_npa") == true)
+        #expect(UserDefaults.standard.bool(forKey: StorageKey.AppStorage.adsShouldUseNPA) == true)
     }
 
     /// UMP 管理画面でフォームが未設定の場合でも NPA=1 で広告リクエストを許可するフォールバックが動作するか検証
     @MainActor
     @Test func coordinator_fallsBackWhenConsentFormMissing() async throws {
-        UserDefaults.standard.removeObject(forKey: "ads_should_use_npa")
+        UserDefaults.standard.removeObject(forKey: StorageKey.AppStorage.adsShouldUseNPA)
 
         let environment = TestAdsConsentEnvironment()
         environment.requestUpdateError = NSError(
@@ -163,7 +163,7 @@ struct AdsConsentCoordinatorTests {
         #expect(presenter.presentConsentFormCallCount == 0)
         #expect(stateDelegate.recordedStates.last?.state.shouldUseNPA == true)
         #expect(stateDelegate.recordedStates.last?.state.canRequestAds == true)
-        #expect(UserDefaults.standard.bool(forKey: "ads_should_use_npa") == true)
+        #expect(UserDefaults.standard.bool(forKey: StorageKey.AppStorage.adsShouldUseNPA) == true)
 
         let callCountAfterSync = environment.requestUpdateCallCount
         await coordinator.requestConsentIfNeeded()
@@ -176,7 +176,7 @@ struct AdsConsentCoordinatorTests {
     /// ATT の許諾状態が後から authorized へ変化した場合に NPA フラグが解除されるか検証
     @MainActor
     @Test func coordinator_updatesNPAAfterTrackingAuthorizationGranted() async throws {
-        UserDefaults.standard.removeObject(forKey: "ads_should_use_npa")
+        UserDefaults.standard.removeObject(forKey: StorageKey.AppStorage.adsShouldUseNPA)
 
         let environment = TestAdsConsentEnvironment()
         environment.consentStatus = .obtained
@@ -198,7 +198,7 @@ struct AdsConsentCoordinatorTests {
 
         await coordinator.requestConsentIfNeeded()
         #expect(stateDelegate.recordedStates.last?.state.shouldUseNPA == true)
-        #expect(UserDefaults.standard.bool(forKey: "ads_should_use_npa") == true)
+        #expect(UserDefaults.standard.bool(forKey: StorageKey.AppStorage.adsShouldUseNPA) == true)
 
         // --- ユーザーが後から ATT を許可したシナリオを再現 ---
         attStatus = .authorized
@@ -206,6 +206,6 @@ struct AdsConsentCoordinatorTests {
 
         #expect(stateDelegate.recordedStates.last?.state.shouldUseNPA == false)
         #expect(stateDelegate.recordedStates.last?.shouldReload == true)
-        #expect(UserDefaults.standard.bool(forKey: "ads_should_use_npa") == false)
+        #expect(UserDefaults.standard.bool(forKey: StorageKey.AppStorage.adsShouldUseNPA) == false)
     }
 }

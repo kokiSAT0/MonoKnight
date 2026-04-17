@@ -8,7 +8,7 @@ import SharedSupport // ログユーティリティを利用するため追加
 @MainActor
 final class FreeModeRegulationStore: ObservableObject {
     /// 保存に利用する UserDefaults のキー
-    private static let storageKey = "free_mode_regulation_v1"
+    private static let storageKey = StorageKey.UserDefaults.freeModeRegulation
     /// 監視対象のレギュレーション（変更時にビューを更新する）
     @Published private(set) var regulation: GameMode.Regulation
     /// 保存先の UserDefaults

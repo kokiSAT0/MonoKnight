@@ -46,9 +46,9 @@ struct ResultView: View {
 
     /// ベストポイントを `UserDefaults` に保存する
     /// - Note: 新スコア方式に合わせてポイント単位で保持する
-    @AppStorage("best_points_5x5") private var bestPoints: Int = .max
+    @AppStorage(StorageKey.AppStorage.bestPoints5x5) private var bestPoints: Int = .max
     /// ハプティクスを有効にするかどうかの設定値
-    @AppStorage("haptics_enabled") private var hapticsEnabled: Bool = true
+    @AppStorage(StorageKey.AppStorage.hapticsEnabled) private var hapticsEnabled: Bool = true
     /// サイズクラスを参照し、iPad でのフォームシート表示時に余白を調整する
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 

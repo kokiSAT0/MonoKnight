@@ -69,9 +69,9 @@ final class GameCenterService: NSObject, GKGameCenterControllerDelegate, GameCen
     /// UserDefaults アクセスを司るインスタンス
     private let userDefaults = UserDefaults.standard
     /// 送信済みフラグを保存するためのキー
-    private let hasSubmittedDictionaryKey = "gc_has_submitted_by_leaderboard"
+    private let hasSubmittedDictionaryKey = StorageKey.UserDefaults.gameCenterHasSubmittedByLeaderboard
     /// 送信済みスコアを保存するためのキー
-    private let lastScoreDictionaryKey = "gc_last_score_by_leaderboard"
+    private let lastScoreDictionaryKey = StorageKey.UserDefaults.gameCenterLastScoreByLeaderboard
 
     private override init() {
         super.init()

@@ -20,7 +20,7 @@ final class StoreService: ObservableObject, StoreServiceProtocol {
 
     /// StoreKit で参照する Product ID を一元管理する内部定数
     private enum ProductID {
-        static let removeAds = "remove_ads_mk"
+        static let removeAds = StorageKey.AppStorage.removeAdsPurchased
     }
 
     /// 取得済みのプロダクト一覧（現在は広告除去のみ）

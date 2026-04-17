@@ -122,8 +122,8 @@ struct AdsServiceCoordinatorIntegrationTests {
     /// AdsService が依存注入された協調クラスへ処理を委譲していることを確認
     @MainActor
     @Test func adsService_delegatesToInjectedComponents() async throws {
-        UserDefaults.standard.removeObject(forKey: "remove_ads_mk")
-        UserDefaults.standard.removeObject(forKey: "ads_should_use_npa")
+        UserDefaults.standard.removeObject(forKey: StorageKey.AppStorage.removeAdsPurchased)
+        UserDefaults.standard.removeObject(forKey: StorageKey.AppStorage.adsShouldUseNPA)
 
         let consent = StubAdsConsentCoordinator()
         let interstitial = StubInterstitialAdController()
@@ -165,8 +165,8 @@ struct AdsServiceCoordinatorIntegrationTests {
     /// AdsConsentCoordinator が通知する同意状態の変化を AdsService が橋渡しできているか検証
     @MainActor
     @Test func adsService_propagatesConsentStateChanges() async throws {
-        UserDefaults.standard.removeObject(forKey: "remove_ads_mk")
-        UserDefaults.standard.removeObject(forKey: "ads_should_use_npa")
+        UserDefaults.standard.removeObject(forKey: StorageKey.AppStorage.removeAdsPurchased)
+        UserDefaults.standard.removeObject(forKey: StorageKey.AppStorage.adsShouldUseNPA)
 
         let environment = TestAdsConsentEnvironment()
         environment.consentStatus = .obtained
@@ -231,8 +231,8 @@ struct AdsServiceCoordinatorIntegrationTests {
     /// requestConsentIfNeeded 実行時に AdsService が差し替えた ViewController プロバイダを利用してフォームを表示することを検証
     @MainActor
     @Test func adsService_presentsConsentFormUsingInjectedProvider() async throws {
-        UserDefaults.standard.removeObject(forKey: "remove_ads_mk")
-        UserDefaults.standard.removeObject(forKey: "ads_should_use_npa")
+        UserDefaults.standard.removeObject(forKey: StorageKey.AppStorage.removeAdsPurchased)
+        UserDefaults.standard.removeObject(forKey: StorageKey.AppStorage.adsShouldUseNPA)
 
         let environment = TestAdsConsentEnvironment()
         environment.consentStatus = .required
@@ -290,8 +290,8 @@ struct AdsServiceCoordinatorIntegrationTests {
     /// ATT 許諾が通った場合に consentCoordinator.refreshConsentStatus() を呼び出すことを確認
     @MainActor
     @Test func adsService_requestTrackingAuthorization_refreshesConsentOnApproval() async throws {
-        UserDefaults.standard.removeObject(forKey: "remove_ads_mk")
-        UserDefaults.standard.removeObject(forKey: "ads_should_use_npa")
+        UserDefaults.standard.removeObject(forKey: StorageKey.AppStorage.removeAdsPurchased)
+        UserDefaults.standard.removeObject(forKey: StorageKey.AppStorage.adsShouldUseNPA)
 
         let consent = StubAdsConsentCoordinator()
         let interstitial = StubInterstitialAdController()

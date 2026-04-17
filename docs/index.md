@@ -16,6 +16,7 @@
 - 旧仕様アーカイブ: [agents_legacy.md](agents_legacy.md)
 - 詳細ルール: [game-rules-handbook.md](game-rules-handbook.md)
 - リファクタリング原則: [refactoring-guidelines.md](refactoring-guidelines.md)
+- リファクタ計画: [refactor-plan.md](refactor-plan.md)
 - CLI ビルド手順: [development-basics.md](development-basics.md)
 - ATT / UMP 詳細: [att-ump-consent-flow.md](att-ump-consent-flow.md)
 - Game Center ID 管理: [game-center-leaderboards.md](game-center-leaderboards.md)
