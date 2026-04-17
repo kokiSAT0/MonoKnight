@@ -13,7 +13,6 @@ struct CampaignStageSelectionView: View {
     /// クローズハンドラ
     let onClose: () -> Void
     /// ナビゲーションバーに閉じるボタンを表示するかどうか
-    /// - NOTE: モーダルシート表示では `true`、NavigationStack のプッシュ遷移では戻るボタンと役割が重複するため `false` を渡す想定
     let showsCloseButton: Bool
     /// ステージ決定時のハンドラ
     let onSelectStage: (CampaignStage) -> Void
@@ -23,14 +22,6 @@ struct CampaignStageSelectionView: View {
     /// 展開中の章 ID を保持し、Disclosure 表現の開閉状態を制御する
     @State private var expandedChapters: Set<Int> = []
 
-    /// メンバーごとの初期化処理を明示しておき、外部ファイルからの生成時にアクセスレベルの問題が発生しないようにする
-    /// - Parameters:
-    ///   - campaignLibrary: キャンペーンの章とステージ情報
-    ///   - progressStore: 進捗管理を担当するストア（ObservableObject）
-    ///   - selectedStageID: すでに選択済みのステージ ID
-    ///   - onClose: ビューを閉じるためのコールバック
-    ///   - onSelectStage: ステージ選択確定時に呼び出されるコールバック
-    ///   - showsCloseButton: ナビゲーションバーへ「閉じる」ボタンを表示するかどうか（モーダルシートでは `true`、NavigationStack 遷移では `false` を想定）
     init(
         campaignLibrary: CampaignLibrary,
         progressStore: CampaignProgressStore,
@@ -39,7 +30,6 @@ struct CampaignStageSelectionView: View {
         onSelectStage: @escaping (CampaignStage) -> Void,
         showsCloseButton: Bool = true
     ) {
-        // @ObservedObject プロパティはラッパー経由で代入する必要があるため、明示的に初期化する
         self.campaignLibrary = campaignLibrary
         _progressStore = ObservedObject(wrappedValue: progressStore)
         self.selectedStageID = selectedStageID
@@ -51,39 +41,45 @@ struct CampaignStageSelectionView: View {
     var body: some View {
         Group {
             if campaignLibrary.chapters.isEmpty {
-                // 空配列の場合に章数とステージ数を記録し、データロード失敗の規模を把握できるようにする
-                emptyStateView
-                    .onAppear {
-                        // onAppear 内でログを記録し、ViewBuilder が Void を評価しないようにしておく
-                        debugLog("CampaignStageSelectionView.body: 章数=\(campaignLibrary.chapters.count) ステージ総数=\(campaignLibrary.allStages.count) -> emptyStateView を表示")
-                    }
+                CampaignStageSelectionEmptyState(
+                    theme: theme,
+                    chapterCount: campaignLibrary.chapters.count,
+                    stageCount: campaignLibrary.allStages.count,
+                    onClose: onClose
+                )
+                .onAppear {
+                    debugLog("CampaignStageSelectionView.body: 章数=\(campaignLibrary.chapters.count) ステージ総数=\(campaignLibrary.allStages.count) -> emptyStateView を表示")
+                }
             } else {
-                // 章が存在する場合にも章数とステージ数を残し、表示中リストの状態を可視化する
-                stageListView
-                    .onAppear {
-                        // onAppear 内にログを移し、ResultBuilder の副作用評価を避ける
-                        debugLog("CampaignStageSelectionView.body: 章数=\(campaignLibrary.chapters.count) ステージ総数=\(campaignLibrary.allStages.count) -> stageListView を表示")
-                    }
+                CampaignStageSelectionListView(
+                    campaignLibrary: campaignLibrary,
+                    progressStore: progressStore,
+                    selectedStageID: selectedStageID,
+                    theme: theme,
+                    expandedChapters: $expandedChapters,
+                    onSelectStage: onSelectStage
+                )
+                .onAppear {
+                    debugLog("CampaignStageSelectionView.body: 章数=\(campaignLibrary.chapters.count) ステージ総数=\(campaignLibrary.allStages.count) -> stageListView を表示")
+                }
             }
         }
         .navigationTitle("キャンペーン")
         .navigationBarBackButtonHidden(true)
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {
-                backButton
+                CampaignStageSelectionBackButton(onClose: onClose)
             }
             if showsCloseButton {
                 ToolbarItem(placement: .cancellationAction) {
-                    closeButton
+                    CampaignStageSelectionCloseButton(onClose: onClose)
                 }
             }
         }
-        // ステージ一覧の表示状態を追跡し、遷移の成否をログで確認できるようにする
         .onAppear {
             let unlockedCount = campaignLibrary.allStages.filter { progressStore.isStageUnlocked($0) }.count
-            // 章ごとのステージ数を列挙し、定義抜けによる空表示を切り分けやすくする
             let chapterSummaries = campaignLibrary.chapters
-                .map { chapter in "Chapter \(chapter.id):\(chapter.stages.count)" }
+                .map { chapter in "Chapter \($0.id):\($0.stages.count)" }
                 .joined(separator: ", ")
             let selectedDescription = selectedStageID?.displayCode ?? "なし"
             debugLog("CampaignStageSelectionView: onAppear -> ステージ総数=\(campaignLibrary.allStages.count) 解放済=\(unlockedCount) 章内訳=[\(chapterSummaries)] 選択中=\(selectedDescription)")
@@ -95,488 +91,4 @@ struct CampaignStageSelectionView: View {
             debugLog("CampaignStageSelectionView: onDisappear")
         }
     }
-
-    /// 星アイコンを生成する
-    /// - Parameter earnedStars: 獲得済みの星の数
-    /// - Returns: 星 3 つの並び
-    private func starIcons(for earnedStars: Int) -> some View {
-        HStack(spacing: 4) {
-            ForEach(0..<3, id: \.self) { index in
-                Image(systemName: index < earnedStars ? "star.fill" : "star")
-                    .foregroundColor(index < earnedStars ? theme.accentPrimary : theme.textSecondary.opacity(0.6))
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
-            }
-        }
-        .accessibilityLabel("スター獲得数: \(earnedStars) / 3")
-    }
-
-    /// 章とステージが正しく読み込めた場合の一覧表示
-    /// - Returns: DisclosureGroup 風のスクロールビュー
-    private var stageListView: some View {
-        // List 描画前に章ごとのステージ数を記録し、UI 側の表示内容と定義の整合性を検証しやすくする
-        let chapterDetails = campaignLibrary.chapters
-            .map { chapter in "Chapter \(chapter.id) \(chapter.title): \(chapter.stages.count)件" }
-            .joined(separator: ", ")
-        // ResultBuilder の返却型と副作用の整合性を保つため、ScrollView を戻り値として明示する
-        return ScrollView {
-            LazyVStack(spacing: 20, pinnedViews: []) {
-                ForEach(campaignLibrary.chapters) { chapter in
-                    chapterContainer(for: chapter)
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 24)
-        }
-        .background(theme.backgroundPrimary)
-        .onAppear {
-            // onAppear 時に章一覧のサマリーを出力し、ViewBuilder の評価と副作用を分離する
-            debugLog("CampaignStageSelectionView.stageListView: 表示対象章一覧 = [\(chapterDetails)]")
-            if expandedChapters.isEmpty {
-                // 未クリアかつ解放済みステージを含む章をすべて展開し、プレイヤーが残課題へすぐアクセスできるようにする
-                let targetChapterIDs = chapterIDsWithUnlockedUnclearedStages(library: campaignLibrary, progressStore: progressStore)
-                if targetChapterIDs.isEmpty {
-                    // 章が全く定義されていないケースでもログを残し、データ定義の見直しへ繋げられるようにする
-                    debugLog("CampaignStageSelectionView.stageListView: 初期展開対象が見つからず、展開状態を変更しませんでした")
-                } else {
-                    // Set へ該当章 ID 群を格納し、複数章にまたがる未クリア項目もワンタップで把握できるようにする
-                    expandedChapters = targetChapterIDs
-                    let sortedIDs = targetChapterIDs.sorted()
-                    debugLog("CampaignStageSelectionView.stageListView: 初期展開章 ID を \(sortedIDs) に設定（未クリア解放ステージを優先）")
-                }
-            }
-        }
-    }
-
-    /// 章単位の Disclosure コンテナを生成し、開閉状態とステージグリッドを制御する
-    /// - Parameter chapter: レイアウト対象の章データ
-    /// - Returns: 見出しと LazyVGrid を組み合わせたビュー
-    private func chapterContainer(for chapter: CampaignChapter) -> some View {
-        let isExpanded = expandedChapters.contains(chapter.id)
-        // 読みやすさ向上のため見出しとコンテンツを VStack でまとめ、背景カードを適用する
-        return VStack(alignment: .leading, spacing: 16) {
-            Button {
-                toggleChapterExpansion(for: chapter)
-            } label: {
-                // Disclosure を閉じたままでも進捗を把握できるよう、章単位のサマリーを先に計算しておく
-                let chapterProgress = chapterProgressSummary(for: chapter)
-                HStack(spacing: 16) {
-                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                        // トグル状態を視覚的に示す唯一のインジケーターとして chevron を採用
-                        .font(.system(size: 16, weight: .semibold, design: .rounded))
-                        .foregroundColor(theme.textSecondary)
-                        .accessibilityHidden(true)
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Chapter \(chapter.id) \(chapter.title)")
-                            .font(.system(size: 16, weight: .semibold, design: .rounded))
-                            .foregroundColor(theme.textPrimary)
-                        Text("ステージ \(chapter.stages.count) 件")
-                            .font(.system(size: 12, weight: .medium, design: .rounded))
-                            .foregroundColor(theme.textSecondary)
-                        chapterRewardProgressView(for: chapterProgress)
-                    }
-                    Spacer(minLength: 0)
-                }
-                .padding(.vertical, 4)
-                // VStack 部分の外周をボタンのタップ領域として扱うため矩形化し、VoiceOver 操作範囲も明示する
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("campaign_stage_chapter_toggle_\(chapter.id)")
-            .accessibilityLabel(Text("Chapter \(chapter.id) \(chapter.title)"))
-            .accessibilityHint(Text(isExpanded ? "折りたたむ" : "展開する"))
-
-            if isExpanded {
-                if !chapter.summary.isEmpty {
-                    // 章の概要は開いたときのみ表示し、情報量過多を防ぐ
-                    Text(chapter.summary)
-                        .font(.system(size: 12, weight: .regular, design: .rounded))
-                        .foregroundColor(theme.textSecondary)
-                }
-
-                LazyVGrid(columns: gridColumns, alignment: .leading, spacing: 12) {
-                    ForEach(chapter.stages) { stage in
-                        let isUnlocked = progressStore.isStageUnlocked(stage)
-                        let earnedStars = progressStore.progress(for: stage.id)?.earnedStars ?? 0
-                        let isSelected = stage.id == selectedStageID
-
-                        CampaignStageGridItemView(
-                            stage: stage,
-                            isUnlocked: isUnlocked,
-                            isSelected: isSelected,
-                            earnedStars: earnedStars,
-                            theme: theme,
-                            starContent: { count in AnyView(starIcons(for: count)) },
-                            onTap: {
-                                guard isUnlocked else { return }
-                                debugLog("CampaignStageSelectionView: ステージカードをタップ -> \(stage.id.displayCode)")
-                                onSelectStage(stage)
-                            }
-                        )
-                    }
-                }
-                .transition(.opacity.combined(with: .scale))
-            }
-        }
-        .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(theme.backgroundElevated.opacity(0.85))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .stroke(theme.textSecondary.opacity(0.2), lineWidth: 1)
-        )
-        .onAppear {
-            // 各章の表示タイミングでステージ数を記録し、展開状態と合わせて診断できるようにする
-            debugLog("CampaignStageSelectionView.stageListView: Chapter \(chapter.id) のステージ数 = \(chapter.stages.count)件 (expanded=\(isExpanded))")
-        }
-    }
-
-    /// LazyVGrid の列構成を返し、正方形カードが 4 列で並ぶようにする
-    private var gridColumns: [GridItem] {
-        Array(repeating: GridItem(.flexible(), spacing: 12, alignment: .top), count: 4)
-    }
-
-    /// 章の開閉状態をトグルし、ログとセット管理を同期する
-    /// - Parameter chapter: 操作対象の章データ
-    private func toggleChapterExpansion(for chapter: CampaignChapter) {
-        if expandedChapters.contains(chapter.id) {
-            expandedChapters.remove(chapter.id)
-            debugLog("CampaignStageSelectionView: Chapter \(chapter.id) を折りたたみ")
-        } else {
-            expandedChapters.insert(chapter.id)
-            debugLog("CampaignStageSelectionView: Chapter \(chapter.id) を展開")
-        }
-    }
-
-    /// 章単位の進捗サマリーを算出し、Disclosure が閉じている状態でも進捗を把握できるようにする
-    /// - Parameter chapter: 対象の章データ
-    /// - Returns: 獲得スターとクリア済みステージ数をまとめたサマリー
-    private func chapterProgressSummary(for chapter: CampaignChapter) -> ChapterProgressSummary {
-        // 各ステージの進捗を列挙し、スター数とクリア済み数の合計を同時に算出する
-        var earnedStars = 0
-        var clearedStageCount = 0
-        for stage in chapter.stages {
-            let progress = progressStore.progress(for: stage.id)
-            let stars = progress?.earnedStars ?? 0
-            earnedStars += stars
-            if stars > 0 {
-                clearedStageCount += 1
-            }
-        }
-        // 1 ステージあたり最大 3 スターのため、合計上限はステージ数×3 で計算する
-        let totalStars = chapter.stages.count * 3
-        return ChapterProgressSummary(
-            earnedStars: earnedStars,
-            totalStars: totalStars,
-            clearedStageCount: clearedStageCount,
-            totalStageCount: chapter.stages.count
-        )
-    }
-
-    /// 章の進捗サマリーをラベル表示へ整形し、章タイトル直下で進捗を確認できるようにする
-    /// - Parameter summary: 章全体のスター数とクリア数を格納したサマリー
-    /// - Returns: スターとチェックアイコンを組み合わせた表示
-    @ViewBuilder
-    private func chapterRewardProgressView(for summary: ChapterProgressSummary) -> some View {
-        // 章内に 1 ステージ以上存在する場合のみ進捗を表示し、空章でのゼロ除算を防ぐ
-        if summary.totalStageCount > 0 {
-            HStack(spacing: 12) {
-                // スター獲得状況をアイコンと分数形式で表示する
-                HStack(spacing: 4) {
-                    Image(systemName: "star.fill")
-                        .font(.system(size: 11, weight: .semibold, design: .rounded))
-                        .foregroundColor(theme.accentPrimary)
-                    Text("\(summary.earnedStars) / \(summary.totalStars)")
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .foregroundColor(theme.textSecondary)
-                }
-                .accessibilityLabel(Text("スター獲得状況 \(summary.earnedStars) 個 / \(summary.totalStars) 個"))
-
-                // クリア済みステージ数を表示し、章全体の進捗を把握しやすくする
-                HStack(spacing: 4) {
-                    Image(systemName: "checkmark.seal.fill")
-                        .font(.system(size: 11, weight: .semibold, design: .rounded))
-                        .foregroundColor(theme.accentPrimary)
-                    Text("\(summary.clearedStageCount) / \(summary.totalStageCount)")
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .foregroundColor(theme.textSecondary)
-                }
-                .accessibilityLabel(Text("クリア済みステージ \(summary.clearedStageCount) 件 / \(summary.totalStageCount) 件"))
-            }
-        }
-    }
-
-    /// キャンペーン情報のロードに失敗した際に表示する案内ビュー
-    /// - Returns: 再試行導線を含む縦方向の案内
-    private var emptyStateView: some View {
-        VStack(spacing: 20) {
-            Spacer(minLength: 0)
-
-            // ユーザーへ発生状況を説明するメインメッセージ
-            Text("ステージ情報を読み込めませんでした")
-                .font(.system(size: 18, weight: .semibold, design: .rounded))
-                .foregroundColor(theme.textPrimary)
-                .multilineTextAlignment(.center)
-
-            // 状況を補足し再試行の導線を案内するサブメッセージ
-            Text("通信状況をご確認のうえ、画面を閉じて再度開き直してください。")
-                .font(.system(size: 14, weight: .regular, design: .rounded))
-                .foregroundColor(theme.textSecondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 16)
-
-            // 再試行用のボタン。閉じるハンドラを通じて呼び出し元へ制御を戻す
-            Button {
-                debugLog("CampaignStageSelectionView: キャンペーンライブラリが空のため再試行ボタンからクローズを要求")
-                onClose()
-            } label: {
-                Text("閉じて再試行")
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
-                    .foregroundColor(theme.accentOnPrimary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .fill(theme.accentPrimary)
-                    )
-            }
-            .accessibilityLabel("キャンペーン画面を閉じて再読み込みを試す")
-            .padding(.horizontal, 32)
-
-            Spacer(minLength: 0)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(theme.backgroundPrimary)
-        .onAppear {
-            // データ欠落の発生タイミングと再試行導線の提示状況を把握するためログを出力
-            debugLog("CampaignStageSelectionView.emptyStateView: 再試行導線付きエンプティビューを表示 (章数=\(campaignLibrary.chapters.count) ステージ総数=\(campaignLibrary.allStages.count))")
-        }
-    }
-
 }
-
-/// キャンペーンのステージカードを 4 列グリッドで表示する専用ビュー
-/// - Note: コメントは全て日本語に統一し、デザイン意図を明示する
-private struct CampaignStageGridItemView<StarContent: View>: View {
-    /// 表示対象のステージ
-    let stage: CampaignStage
-    /// ステージが解放済みかどうか
-    let isUnlocked: Bool
-    /// 現在選択中のステージかどうか
-    let isSelected: Bool
-    /// 獲得済みスター数
-    let earnedStars: Int
-    /// 親ビューと揃えたテーマ情報
-    let theme: AppTheme
-    /// スター表示を親から差し込むためのクロージャ（ヘルパー再利用を目的とする）
-    let starContent: (Int) -> StarContent
-    /// タップ時に親へ通知するコールバック
-    let onTap: () -> Void
-
-    var body: some View {
-        Button {
-            // ロック時は遷移させず、誤操作によるログ汚染を防ぐ
-            guard isUnlocked else { return }
-            onTap()
-        } label: {
-            ZStack {
-                // ベースとなる正方形カード。解放状態で彩度を、ロック時に彩度を落とす
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(cardBackgroundColor)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .stroke(borderColor, lineWidth: isSelected ? 3 : 1)
-                    )
-
-                VStack(spacing: 8) {
-                    HStack {
-                        Spacer(minLength: 0)
-                        if isSelected {
-                            // 選択済み状態はチェックアイコンで強調する
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundColor(theme.accentPrimary)
-                                .font(.system(size: 18, weight: .bold, design: .rounded))
-                        }
-                    }
-
-                    Spacer(minLength: 0)
-
-                    // ステージ番号は中央寄せで大きく表示し、カード一覧で識別しやすくする
-                    Text(stage.displayCode)
-                        .font(.system(size: 18, weight: .semibold, design: .rounded))
-                        .foregroundColor(theme.textPrimary)
-
-                    Spacer(minLength: 0)
-
-                    // スターアイコンは親のヘルパーを利用し一貫した見た目を保つ
-                    starContent(earnedStars)
-
-                    Spacer(minLength: 0)
-                }
-                .padding(12)
-
-                if !isUnlocked {
-                    // ロック中は暗幕と説明文を重ね、タップ不可と解放条件を同時に伝える
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .fill(Color.black.opacity(0.55))
-                    VStack(spacing: 10) {
-                        // 鍵アイコンでロック状態を視覚化し、状況を即座に把握できるようにする
-                        Image(systemName: "lock.fill")
-                            .foregroundColor(theme.textPrimary)
-                            .font(.system(size: 20, weight: .bold, design: .rounded))
-                        // 解放条件をカード上で明示し、次の目標をその場で確認できるようにする
-                        Text(stage.unlockDescription)
-                            // フォントサイズを 1pt 下げ、カード内の改行頻度を抑制しつつ視認性を確保する
-                            .font(.system(size: 12, weight: .medium, design: .rounded))
-                            .foregroundColor(theme.textPrimary.opacity(0.9))
-                            .multilineTextAlignment(.center)
-                            .lineLimit(3)
-                            .minimumScaleFactor(0.85)
-                            .padding(.horizontal, 8)
-                    }
-                    .padding(.horizontal, 4)
-                }
-            }
-            .aspectRatio(1, contentMode: .fit)
-        }
-        .buttonStyle(.plain)
-        .disabled(!isUnlocked)
-        // UI テストで個別カードを操作できるよう識別子を設定する
-        .accessibilityIdentifier("campaign_stage_button_\(stage.id.displayCode)")
-        // VoiceOver 利用者へも解放条件を伝え、行動指針を把握しやすくする
-        .accessibilityHint(accessibilityHintText)
-        .accessibilityLabel(accessibilityLabelText)
-    }
-
-    /// 選択状態に応じた枠線色を返す
-    private var borderColor: Color {
-        isSelected ? theme.accentPrimary : theme.textSecondary.opacity(0.35)
-    }
-
-    /// ロック状態に応じて背景色を切り替える
-    private var cardBackgroundColor: Color {
-        isUnlocked ? theme.backgroundElevated : theme.backgroundElevated.opacity(0.6)
-    }
-
-    /// VoiceOver 用のラベルを生成し、ロック状況と解放条件を確実に伝える
-    private var accessibilityLabelText: Text {
-        if isUnlocked {
-            // 解放済みの場合でも条件を達成済みである旨を伝え、文脈情報を補う
-            return Text("ステージ \(stage.displayCode)。解放条件: \(stage.unlockDescription) を達成済み")
-        } else {
-            // ロック中は状態を明示し、プレイヤーが条件達成を優先できるようにする
-            return Text("ステージ \(stage.displayCode)（ロック中）。解放条件: \(stage.unlockDescription)")
-        }
-    }
-
-    /// VoiceOver 用のヒントを生成し、次のアクションを案内する
-    private var accessibilityHintText: Text {
-        if isUnlocked {
-            // 解放条件を満たしていることを補足し、遷移後の挙動を明確化する
-            return Text("解放条件を満たしています。選択するとゲーム準備画面に戻り、選んだステージで開始準備が行われます。")
-        } else {
-            // ロック中は条件を満たすことで選択可能になる旨を伝え、無駄なタップを防ぐ
-            return Text("解放条件: \(stage.unlockDescription)。条件を満たすと選択できるようになります。")
-        }
-    }
-}
-
-// MARK: - ツールバー構成要素
-
-private extension CampaignStageSelectionView {
-    /// タイトル画面へ戻るための独自戻るボタン
-    var backButton: some View {
-        Button {
-            // ユーザーが戻る操作を行ったタイミングをログに残し、意図しない遷移がないか追跡しやすくする
-            debugLog("CampaignStageSelectionView.toolbar: 戻るボタン押下 -> NavigationStackポップ要求")
-            onClose()
-        } label: {
-            Label("戻る", systemImage: "chevron.backward")
-                .font(.system(size: 15, weight: .medium, design: .rounded))
-        }
-        .accessibilityIdentifier("campaign_stage_back_button")
-    }
-
-    /// モーダル表示時に使用する「閉じる」ボタン
-    var closeButton: some View {
-        Button("閉じる") {
-            // モーダルの閉鎖契機を明示的に記録し、想定外の dismiss が起きた際の比較材料とする
-            debugLog("CampaignStageSelectionView.toolbar: 閉じるボタン押下 -> NavigationStackポップ要求")
-            onClose()
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-/// 章の進捗情報をまとめた内部利用向けモデル
-/// - Note: 表示専用のため View からのみ参照する
-private struct ChapterProgressSummary {
-    /// 獲得済みスター数の合計
-    let earnedStars: Int
-    /// 獲得可能なスターの合計
-    let totalStars: Int
-    /// クリア済みステージ数
-    let clearedStageCount: Int
-    /// 章内に存在するステージ総数
-    let totalStageCount: Int
-}
-
-/// 未クリアかつ解放済みステージを含む章 ID を抽出し、画面初期表示時の展開対象を決定する
-/// - Parameters:
-///   - library: 章とステージ定義を含むキャンペーンライブラリ
-///   - progressStore: ステージ解放状況と獲得スター数を保持する進捗ストア
-/// - Returns: 展開すべき章 ID の集合。該当章が無い場合は最新の解放章、さらに無い場合は先頭章を返す。
-@MainActor
-internal func chapterIDsWithUnlockedUnclearedStages(
-    library: CampaignLibrary,
-    progressStore: CampaignProgressStore
-) -> Set<Int> {
-    // メインアクター隔離を明示することで、progressStore の ObservableObject メソッドへ安全にアクセスできるようにする
-    // まずは未クリア（スター 0）でありながら解放済みのステージを探索し、同じ章を重複なく収集する
-    var unlockedUnclearedChapterIDs = Set<Int>()
-    for chapter in library.chapters {
-        var hasUnlockedUnclearedStage = false
-        for stage in chapter.stages {
-            // ステージがロック中であればスキップし、無駄な判定を避ける
-            guard progressStore.isStageUnlocked(stage) else { continue }
-            let earnedStars = progressStore.progress(for: stage.id)?.earnedStars ?? 0
-            if earnedStars == 0 {
-                hasUnlockedUnclearedStage = true
-                break
-            }
-        }
-        if hasUnlockedUnclearedStage {
-            unlockedUnclearedChapterIDs.insert(chapter.id)
-        }
-    }
-
-    if !unlockedUnclearedChapterIDs.isEmpty {
-        // 未クリアステージが存在する場合は、その章群をそのまま返しプレイヤーの目線誘導に繋げる
-        return unlockedUnclearedChapterIDs
-    }
-
-    // 未クリアステージが見つからない場合は、最後に解放済みとなった章 ID を拾い上げてフォールバックする
-    var latestUnlockedChapterID: Int?
-    for chapter in library.chapters {
-        for stage in chapter.stages {
-            if progressStore.isStageUnlocked(stage) {
-                latestUnlockedChapterID = chapter.id
-            }
-        }
-    }
-
-    if let latestUnlockedChapterID {
-        // 最後に解放された章が存在すれば、その章だけを展開し進捗確認の起点とする
-        return [latestUnlockedChapterID]
-    }
-
-    if let firstChapterID = library.chapters.first?.id {
-        // 全く解放済みステージが存在しない場合でも、先頭章を開いて空状態を利用者へ明示する
-        return [firstChapterID]
-    }
-
-    // 章定義が空の場合は空集合を返し、呼び出し側でログ済みのシナリオへ委ねる
-    return []
-}
-
