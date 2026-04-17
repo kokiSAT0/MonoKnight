@@ -1,5 +1,7 @@
 # MonoKnight Refactor Plan
 
+ファイル単位の最新進捗は `docs/refactoring-progress-tracker.md` を正本とする。
+
 ## 目的
 - 振る舞いを原則維持したまま、再開発・機能追加・保守を安全に進めやすい構造へ寄せる。
 - Swift 初心者でも追いやすいコードを保ち、App Store 提出品質を落とさない。
