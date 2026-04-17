@@ -30,8 +30,14 @@ struct RootView: View {
     /// 画面全体の状態とログ出力を一元管理するステートストア
     /// - NOTE: onChange 連鎖による複雑な型推論を避け、プロパティ監視をクラス内の didSet へ集約する
     @StateObject private var stateStore: RootViewStateStore
+    /// ゲーム準備のワークアイテムと開始待ち状態を調停する coordinator
+    @StateObject private var preparationCoordinator = RootViewPreparationCoordinator()
     /// キャンペーン進捗を管理するストア
     @StateObject private var campaignProgressStore: CampaignProgressStore
+    /// タイトル画面まわりの遷移要求をまとめる coordinator
+    private let titleFlowCoordinator = RootViewTitleFlowCoordinator()
+    /// Game Center の認証要求と再サインイン促しをまとめる補助
+    private let gameCenterPromptPresenter = RootViewGameCenterPromptPresenter()
     /// 依存サービスを外部から注入可能にする初期化処理
     /// - Parameters:
     ///   - gameCenterService: Game Center 連携用サービス（デフォルトはシングルトン）
@@ -79,7 +85,10 @@ struct RootView: View {
         .environmentObject(gameSettingsStore)
         .task {
             // 初回表示時に Game Center 認証を 1 度だけ試み、UI の表示ズレを防ぐ
-            performInitialAuthenticationIfNeeded()
+            gameCenterPromptPresenter.performInitialAuthenticationIfNeeded(
+                stateStore: stateStore,
+                gameCenterService: gameCenterService
+            )
         }
     }
 }
@@ -187,8 +196,6 @@ final class RootViewStateStore: ObservableObject {
         self.lastPreparationContext = nil
         self.pendingTitleNavigationTarget = nil
         self.hasAttemptedInitialAuthentication = false
-        // ビューの再生成に影響されない場所でワークアイテムを保持するためここで初期化する
-        self.pendingGameActivationWorkItem = nil
     }
 
     /// `@Published` プロパティへのバインディングを生成する補助メソッド
@@ -220,10 +227,6 @@ final class RootViewStateStore: ObservableObject {
     func logHorizontalSizeClassChange(_ newValue: UserInterfaceSizeClass?) {
         debugLog("RootView.horizontalSizeClass 更新: \(String(describing: newValue))")
     }
-
-    /// ローディング表示解除を遅延実行するワークアイテム
-    /// - NOTE: SwiftUI ビューの再生成で `@State` が初期化されても保持できるよう、`@StateObject` 管理下へ移動する
-var pendingGameActivationWorkItem: DispatchWorkItem?
 }
 
 // MARK: - レイアウト支援メソッドと定数
@@ -231,32 +234,6 @@ var pendingGameActivationWorkItem: DispatchWorkItem?
 /// `RootLayoutSnapshot` などをファイル内で共有するため、アクセスレベルを `fileprivate` に統一する
 /// - NOTE: Swift 6 のアクセス制御強化に合わせ、関連プロパティのアクセスレベルと矛盾しないように調整している
 fileprivate extension RootView {
-    /// 初期表示時に Game Center 認証を 1 回だけキックする
-    /// - Note: `RootViewStateStore` 側で多重呼び出しを防ぎ、`authenticateLocalPlayer` の UI が何度も提示されないようにする
-    private func performInitialAuthenticationIfNeeded() {
-        guard stateStore.markInitialAuthenticationAttemptedIfNeeded() else { return }
-
-        handleGameCenterAuthenticationRequest { success in
-            // 失敗時は設定画面やリザルト経由で再試行できるようにアラートを掲示する
-            if !success {
-                presentGameCenterSignInPrompt(for: .initialAuthenticationFailed)
-            }
-        }
-    }
-
-    /// Game Center 再認証を促すアラートを表示する
-    /// - Parameter reason: ユーザーへ伝える失敗理由
-    private func presentGameCenterSignInPrompt(for reason: GameCenterSignInPromptReason) {
-        debugLog("RootView: Game Center サインイン促しアラートを要求 reason=\(reason)")
-        stateStore.enqueueGameCenterSignInPrompt(reason: reason)
-    }
-
-    /// ゲーム中やリザルト画面から受け取ったサインイン要請を一元処理する
-    /// - Parameter reason: 再認証を促したい具体的な理由
-    private func handleGameCenterSignInRequest(reason: GameCenterSignInPromptReason) {
-        presentGameCenterSignInPrompt(for: reason)
-    }
-
     /// GeometryReader の値をまとめ直し、後続の View 生成で毎回同じ初期化コードを書かなくて済むようにする
     /// - Parameter geometry: SwiftUI が渡すレイアウト情報の生値
     /// - Returns: RootView 向けに整理したレイアウトコンテキスト
@@ -292,7 +269,6 @@ fileprivate extension RootView {
             gameSessionID: stateStore.binding(for: \.gameSessionID),
             topBarHeight: stateStore.binding(for: \.topBarHeight),
             lastLoggedLayoutSnapshot: stateStore.binding(for: \.lastLoggedLayoutSnapshot),
-            isPresentingTitleSettings: stateStore.binding(for: \.isPresentingTitleSettings),
             lastPreparationContext: stateStore.binding(for: \.lastPreparationContext),
             pendingTitleNavigationTarget: stateStore.binding(for: \.pendingTitleNavigationTarget),
             onRequestGameCenterSignInPrompt: handleGameCenterSignInRequest,
@@ -311,6 +287,9 @@ fileprivate extension RootView {
             onConfirmGameStart: {
                 // ローディング完了後の開始操作を受け取り、ゲームをスタートさせる
                 finishGamePreparationAndStart()
+            },
+            onOpenSettings: {
+                titleFlowCoordinator.presentSettings(stateStore: stateStore)
             }
         )
     }
@@ -356,9 +335,15 @@ fileprivate extension RootView {
                     primaryButton: .default(Text("再試行")) {
                         // 既存アラートを閉じてから認証を再実行する
                         stateStore.gameCenterSignInPrompt = nil
-                        handleGameCenterAuthenticationRequest { success in
+                        gameCenterPromptPresenter.requestAuthentication(
+                            stateStore: stateStore,
+                            gameCenterService: gameCenterService
+                        ) { success in
                             if !success {
-                                presentGameCenterSignInPrompt(for: .retryFailed)
+                                gameCenterPromptPresenter.presentPrompt(
+                                    for: .retryFailed,
+                                    stateStore: stateStore
+                                )
                             }
                         }
                     },
@@ -407,8 +392,6 @@ fileprivate extension RootView {
         @Binding var topBarHeight: CGFloat
         /// 直近で記録したレイアウトスナップショット
         @Binding var lastLoggedLayoutSnapshot: RootLayoutSnapshot?
-        /// タイトルから設定シートを開くためのフラグ
-        @Binding var isPresentingTitleSettings: Bool
         /// 直近のゲーム準備コンテキスト
         @Binding var lastPreparationContext: GamePreparationContext?
         /// タイトルへ戻った際に復元したいナビゲーションターゲット
@@ -423,6 +406,8 @@ fileprivate extension RootView {
         let onReturnToCampaignStageSelection: () -> Void
         /// ローディング完了後にユーザーが開始ボタンを押した際の処理
         let onConfirmGameStart: () -> Void
+        /// タイトルから設定シートを開く際の処理
+        let onOpenSettings: () -> Void
         /// 直近でログ出力したスナップショットをローカルに保持し、重複出力と同時にレイアウト警告も防ぐキャッシュ
         @State private var loggedSnapshotCache: RootLayoutSnapshot?
         /// トップバー高さを一度でも正しく計測できたかどうかを追跡するフラグ
@@ -595,7 +580,7 @@ fileprivate extension RootView {
                     },
                     onOpenSettings: {
                         // タイトルから詳細設定シートを開く
-                        isPresentingTitleSettings = true
+                        onOpenSettings()
                     }
                 )
                 .transition(.opacity.combined(with: .move(edge: .top)))

@@ -175,8 +175,7 @@ private final class StubDailyChallengeAttemptStore: ObservableObject, DailyChall
 
 struct MonoKnightAppTests {
 
-    /// RootView の初期状態が期待通りかつ依存サービスが適切に注入されるかのテスト
-    /// - Note: UI の初期表示はゲームタイトルが前面に出ている想定のため、`isShowingTitleScreen` が true であることを検証する
+    /// RootView の依存注入と、初期状態ストアの標準値が期待通りかを確認する
     @MainActor
     @Test func rootView_initialState_reflectsInjectedServices() throws {
         // MARK: 前提準備
@@ -206,26 +205,14 @@ struct MonoKnightAppTests {
         let mirroredDailyStore = mirror.children.first { $0.label == "dailyChallengeAttemptStore" }?.value as? AnyDailyChallengeAttemptStore
         #expect(mirroredDailyStore === anyDailyStore)
 
-        // MARK: @State 初期値の検証（タイトル表示フラグ）
-        let titleState = mirror.children.first { $0.label == "_isShowingTitleScreen" }?.value as? State<Bool>
-        #expect(titleState != nil)
-        if let titleState {
-            #expect(titleState.wrappedValue == true)
-        }
-
-        // MARK: @State 初期値の検証（ローディング中フラグ）
-        let preparingState = mirror.children.first { $0.label == "_isPreparingGame" }?.value as? State<Bool>
-        #expect(preparingState != nil)
-        if let preparingState {
-            #expect(preparingState.wrappedValue == false)
-        }
-
-        // MARK: @State 初期値の検証（認証状態）
-        let authState = mirror.children.first { $0.label == "_isAuthenticated" }?.value as? State<Bool>
-        #expect(authState != nil)
-        if let authState {
-            #expect(authState.wrappedValue == true)
-        }
+        // MARK: RootViewStateStore の標準初期値を検証
+        let stateStore = RootViewStateStore(initialIsAuthenticated: true)
+        #expect(stateStore.isAuthenticated == true)
+        #expect(stateStore.isShowingTitleScreen == true)
+        #expect(stateStore.isPreparingGame == false)
+        #expect(stateStore.isGameReadyForManualStart == false)
+        #expect(stateStore.pendingTitleNavigationTarget == nil)
+        #expect(stateStore.lastPreparationContext == nil)
     }
 
     /// 日替わりモード用リーダーボード ID のマッピングが期待通りかを検証する

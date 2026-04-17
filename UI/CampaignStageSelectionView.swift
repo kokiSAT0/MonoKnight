@@ -79,7 +79,7 @@ struct CampaignStageSelectionView: View {
         .onAppear {
             let unlockedCount = campaignLibrary.allStages.filter { progressStore.isStageUnlocked($0) }.count
             let chapterSummaries = campaignLibrary.chapters
-                .map { chapter in "Chapter \($0.id):\($0.stages.count)" }
+                .map { chapter in "Chapter \(chapter.id):\(chapter.stages.count)" }
                 .joined(separator: ", ")
             let selectedDescription = selectedStageID?.displayCode ?? "なし"
             debugLog("CampaignStageSelectionView: onAppear -> ステージ総数=\(campaignLibrary.allStages.count) 解放済=\(unlockedCount) 章内訳=[\(chapterSummaries)] 選択中=\(selectedDescription)")
