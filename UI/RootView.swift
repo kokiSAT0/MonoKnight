@@ -14,7 +14,7 @@ struct RootView: View {
     /// - NOTE: 依存をまとめておくことで、将来的にモック実装へ切り替える際も RootView の初期化だけで完結させられる
     private let gameInterfaces: GameModuleInterfaces
     /// Game Center 連携を扱うサービス（プロトコル型で受け取る）
-    private let gameCenterService: GameCenterServiceProtocol
+    let gameCenterService: GameCenterServiceProtocol
     /// 広告表示を扱うサービス（GameView へ受け渡す）
     private let adsService: AdsServiceProtocol
     /// 日替わりチャレンジの挑戦回数ストア
@@ -29,15 +29,15 @@ struct RootView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     /// 画面全体の状態とログ出力を一元管理するステートストア
     /// - NOTE: onChange 連鎖による複雑な型推論を避け、プロパティ監視をクラス内の didSet へ集約する
-    @StateObject private var stateStore: RootViewStateStore
+    @StateObject var stateStore: RootViewStateStore
     /// ゲーム準備のワークアイテムと開始待ち状態を調停する coordinator
-    @StateObject private var preparationCoordinator = RootViewPreparationCoordinator()
+    @StateObject var preparationCoordinator = RootViewPreparationCoordinator()
     /// キャンペーン進捗を管理するストア
     @StateObject private var campaignProgressStore: CampaignProgressStore
     /// タイトル画面まわりの遷移要求をまとめる coordinator
-    private let titleFlowCoordinator = RootViewTitleFlowCoordinator()
+    let titleFlowCoordinator = RootViewTitleFlowCoordinator()
     /// Game Center の認証要求と再サインイン促しをまとめる補助
-    private let gameCenterPromptPresenter = RootViewGameCenterPromptPresenter()
+    let gameCenterPromptPresenter = RootViewGameCenterPromptPresenter()
     /// 依存サービスを外部から注入可能にする初期化処理
     /// - Parameters:
     ///   - gameCenterService: Game Center 連携用サービス（デフォルトはシングルトン）

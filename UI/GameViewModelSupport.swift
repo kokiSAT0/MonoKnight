@@ -5,6 +5,7 @@ import SwiftUI
 import UIKit
 
 /// 手札選択と候補ハイライトに関する内部状態
+@MainActor
 struct GameSessionState {
     /// 手札選択を表す内部モデル
     struct SelectedCardSelection {
@@ -257,6 +258,7 @@ final class GamePauseController {
 }
 
 /// リザルト表示とキャンペーン進捗更新の責務をまとめたヘルパー
+@MainActor
 final class GameFlowCoordinator {
     struct ClearOutcome {
         let latestCampaignClearRecord: CampaignStageClearRecord?

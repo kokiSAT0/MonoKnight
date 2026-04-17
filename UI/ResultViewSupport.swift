@@ -65,6 +65,7 @@ struct ResultViewState {
     var isNewBest = false
     var previousBest: Int?
 
+    @MainActor
     mutating func updateBest(points: Int, settingsStore: GameSettingsStore) -> Bool {
         previousBest = settingsStore.updateBestPointsIfNeeded(points)
         let isImproved = previousBest == nil || points < (previousBest ?? .max)

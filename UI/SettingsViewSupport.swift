@@ -69,6 +69,7 @@ private enum SettingsDebugConfiguration {
     static let unlockPassword = "6031"
 }
 
+@MainActor
 extension SettingsView {
     var isDiagnosticsMenuAvailable: Bool {
         DebugLogHistory.shared.isFrontEndViewerEnabled

@@ -3,23 +3,23 @@ import SwiftUI
 
 @MainActor
 struct SettingsView: View {
-    private let adsService: AdsServiceProtocol
-    private let gameCenterService: GameCenterServiceProtocol
+    let adsService: AdsServiceProtocol
+    let gameCenterService: GameCenterServiceProtocol
 
     @Environment(\.dismiss) private var dismiss
-    @EnvironmentObject private var storeService: AnyStoreService
-    @EnvironmentObject private var campaignProgressStore: CampaignProgressStore
-    @EnvironmentObject private var dailyChallengeAttemptStore: AnyDailyChallengeAttemptStore
+    @EnvironmentObject var storeService: AnyStoreService
+    @EnvironmentObject var campaignProgressStore: CampaignProgressStore
+    @EnvironmentObject var dailyChallengeAttemptStore: AnyDailyChallengeAttemptStore
     @EnvironmentObject private var gameSettingsStore: GameSettingsStore
 
-    @State private var isPurchaseInProgress = false
-    @State private var isRestoreInProgress = false
-    @State private var storeAlert: StoreAlert?
-    @State private var debugUnlockInput: String = ""
-    @State private var isDebugUnlockSuccessAlertPresented = false
-    @Binding private var isGameCenterAuthenticated: Bool
-    @State private var isGameCenterAuthenticationInProgress = false
-    @State private var gameCenterAlert: GameCenterAlert?
+    @State var isPurchaseInProgress = false
+    @State var isRestoreInProgress = false
+    @State var storeAlert: StoreAlert?
+    @State var debugUnlockInput: String = ""
+    @State var isDebugUnlockSuccessAlertPresented = false
+    @Binding var isGameCenterAuthenticated: Bool
+    @State var isGameCenterAuthenticationInProgress = false
+    @State var gameCenterAlert: GameCenterAlert?
     @State private var isResetAlertPresented = false
 
     init(

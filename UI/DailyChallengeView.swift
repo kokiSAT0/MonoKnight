@@ -106,7 +106,7 @@ struct DailyChallengeView: View {
         adsService: AdsService.shared,
         gameCenterService: GameCenterService.shared
     )
-    return NavigationStack {
+    NavigationStack {
         DailyChallengeView(
             viewModel: viewModel,
             onDismiss: {},

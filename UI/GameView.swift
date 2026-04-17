@@ -39,7 +39,7 @@ struct GameView: View {
     /// - Note: レイアウト補助用の拡張（`GameView+Layout`）でも参照するため、アクセスレベルは internal にとどめている
     @Environment(\.baseTopSafeAreaInset) var baseTopSafeAreaInset: CGFloat
     /// 共通設定ストア
-    @EnvironmentObject private var gameSettingsStore: GameSettingsStore
+    @EnvironmentObject var gameSettingsStore: GameSettingsStore
     /// 手札スロットの数（常に 5 スロット分の枠を確保してレイアウトを安定させる）
     /// - Note: レイアウト拡張でハンド UI の構築にも利用するため、アクセスレベルは internal にとどめて同一型内で共有している。
     let handSlotCount = 5

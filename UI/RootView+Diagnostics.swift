@@ -1,3 +1,4 @@
+import Game
 import SwiftUI
 
 extension RootView {
@@ -95,7 +96,7 @@ extension RootView {
     }
 }
 
-fileprivate struct TopBarHeightPreferenceKey: PreferenceKey {
+struct TopBarHeightPreferenceKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
 
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
@@ -104,7 +105,7 @@ fileprivate struct TopBarHeightPreferenceKey: PreferenceKey {
 }
 
 @MainActor
-fileprivate struct TopStatusInsetView: View {
+struct TopStatusInsetView: View {
     let context: RootView.RootLayoutContext
     let theme: AppTheme
 
