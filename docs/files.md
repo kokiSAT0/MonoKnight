@@ -10,41 +10,43 @@ GitHub 上の **MonoKnight** リポジトリを Xcode
 
 ## フォルダ構成（最終版）
 
-    MonoKnight/
-    ├─ MonoKnight.xcodeproj      # Xcode プロジェクト
-    ├─ MonoKnightApp.swift       # アプリのエントリポイント
-    ├─ Info.plist                # アプリ設定
-    ├─ Package.swift             # SwiftPM 設定
-    ├─ README.md                 # プロジェクト概要
-    │
-    ├─ Game/                     # ゲームロジック
-    │   ├─ GameScene.swift
-    │   ├─ GameCore.swift
-    │   ├─ Deck.swift
-    │   ├─ MoveCard.swift
-    │   └─ Models.swift
-    │
-    ├─ UI/                       # 画面関連
-    │   ├─ RootView.swift
-    │   ├─ GameView.swift
-    │   ├─ ResultView.swift
-    │   └─ SettingsView.swift
-    │
-    ├─ Services/                 # プラットフォーム機能
-    │   ├─ StoreService.swift
-    │   ├─ AdsService.swift
-    │   └─ GameCenterService.swift
-    │
-    ├─ Tests/                    # テストコード
-    │   └─ ...
-    │
-    ├─ Config/
-    │   ├─ Default.xcconfig
-    │   └─ Local.xcconfig.sample
-    │
-    ├─ docs/                     # ドキュメント
-    ├─ AGENTS.md
-    └─ .gitignore
+```text
+MonoKnight/
+├─ MonoKnight.xcodeproj      # Xcode プロジェクト
+├─ MonoKnightApp.swift       # アプリのエントリポイント
+├─ Info.plist                # アプリ設定
+├─ Package.swift             # SwiftPM 設定
+├─ README.md                 # プロジェクト概要
+│
+├─ Game/                     # ゲームロジック
+│   ├─ GameScene.swift
+│   ├─ GameCore.swift
+│   ├─ Deck.swift
+│   ├─ MoveCard.swift
+│   └─ Models.swift
+│
+├─ UI/                       # 画面関連
+│   ├─ RootView.swift
+│   ├─ GameView.swift
+│   ├─ ResultView.swift
+│   └─ SettingsView.swift
+│
+├─ Services/                 # プラットフォーム機能
+│   ├─ StoreService.swift
+│   ├─ AdsService.swift
+│   └─ GameCenterService.swift
+│
+├─ Tests/                    # テストコード
+│   └─ ...
+│
+├─ Config/
+│   ├─ Default.xcconfig
+│   └─ Local.xcconfig.sample
+│
+├─ docs/                     # ドキュメント
+├─ AGENTS.md
+└─ .gitignore
+```
 
 ------------------------------------------------------------------------
 
@@ -102,29 +104,29 @@ BUNDLE_ID_SUFFIX = .koki
 
 ## 運用ルール
 
--   **リポジトリは1つ（MonoKnight）**\
+- **リポジトリは1つ（MonoKnight）**\
     → コード、UI、サービス、リソースをひとまとめ。
--   **個人依存を分離**\
+- **個人依存を分離**\
     → `Local.xcconfig` は追跡しない。
--   **衝突しやすいファイルは無視**\
+- **衝突しやすいファイルは無視**\
     → `.xcuserdata`, `DerivedData` はコミット禁止。
--   **共有したいスキームだけ Shared にする**\
--   **シミュレーター実行は署名不要**\
+- **共有したいスキームだけ Shared にする**\
+- **シミュレーター実行は署名不要**\
     → 実機を使う人だけ `Local.xcconfig` に `DEVELOPMENT_TEAM` を記載。
 
 ------------------------------------------------------------------------
 
 ## 開発フロー
 
-1.  リポジトリを `git clone`。
-2.  Xcode で `MonoKnight.xcodeproj` を開く。
-3.  Config を設定：
-    -   `Default.xcconfig` は共通\
-    -   `Local.xcconfig.sample` をコピーして `Local.xcconfig`
+1. リポジトリを `git clone`。
+2. Xcode で `MonoKnight.xcodeproj` を開く。
+3. Config を設定：
+    - `Default.xcconfig` は共通\
+    - `Local.xcconfig.sample` をコピーして `Local.xcconfig`
         を作り、必要に応じて編集
-4.  スキーム：`MonoKnight` を選択、デバイス：シミュレーター（例: iPhone
+4. スキーム：`MonoKnight` を選択、デバイス：シミュレーター（例: iPhone
     15）。
-5.  ⌘R で起動。
+5. ⌘R で起動。
 
 ------------------------------------------------------------------------
 
@@ -142,7 +144,7 @@ BUNDLE_ID_SUFFIX = .koki
 
 ## チェックリスト
 
--   [ ] `.gitignore` が正しいか？\
--   [ ] `Local.xcconfig` はコミットしていないか？\
--   [ ] スキームは Shared のみ共有されているか？\
--   [ ] シミュレーターで起動できるか？
+- [ ] `.gitignore` が正しいか？\
+- [ ] `Local.xcconfig` はコミットしていないか？\
+- [ ] スキームは Shared のみ共有されているか？\
+- [ ] シミュレーターで起動できるか？

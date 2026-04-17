@@ -17,7 +17,6 @@ swift test
 
 ## 開発ドキュメント
 
-
 - [`docs/development-basics.md`](docs/development-basics.md)：SPM を用いたビルド・テスト手順
 - [`docs/files.md`](docs/files.md)：リポジトリ構成とシミュレーター実行までの手順
 - [`docs/recommended-task-list.md`](docs/recommended-task-list.md)：リリースに向けて優先度別に整理した残タスク
@@ -35,7 +34,6 @@ MonoKnight/
 ├─ Config/                   # xcconfig など
 └─ docs/                     # ドキュメント
 ```
-
 
 ## VSCode の設定共有
 

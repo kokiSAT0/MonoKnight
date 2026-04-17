@@ -3,11 +3,13 @@
 本ドキュメントは、MonoKnight を継続的に改良・運用していくうえで優先すべきリファクタリングの考え方と進め方を整理したものです。現状の実装を大きく崩さずに改善を積み重ね、App Store 提出レベルの品質を保ちながら開発速度を落とさないことを目的とします。
 
 ## 1. 目標と前提
+
 - **品質の安定化**: App Store 審査を想定し、致命的バグや UI 崩れを防止する。
 - **負債の可視化と段階的解消**: 大規模改修ではなく、小さな単位で負債を洗い出し順次解消する。
 - **作業サイクルの最適化**: Windows + VSCode + codex での開発と、macOS + Xcode での検証を円滑に繋ぐ。
 
 ## 2. リファクタリング全体方針
+
 - **Swift Package を中核に据える**: `Game` ディレクトリ配下は Swift Package として機能分割済みのため、パッケージ境界を尊重しつつ、ロジックと UI の依存関係を明確に保つ。
 - **責務の単純化**: ObservableObject やサービス層が肥大化しないよう、役割ごとにファイルを整理し、1 ファイル 1 責務を意識する。
 - **テスト容易性の確保**: SPM テストで検証できる純粋ロジックを増やす。副作用を伴う処理はプロトコル抽象化で差し替え可能にする。
@@ -16,6 +18,7 @@
   を活用しつつ、各層のログ・計測を統一化する。
 
 ### 2.1 直近の改善サマリ
+
 - **Game モジュールの公開インターフェース整理**: `GameModuleInterfaces` を経由して `GameCore`
   を生成する流れが定着し、UI 側からの依存が一本化された。
 - **UI 層の三層分割が完了**: `GameView` 本体から描画以外の責務を切り出し、`GameViewModel` と `GameBoardBridgeViewModel`
@@ -40,6 +43,7 @@
   の内容をアプリ内で直接閲覧・削除できるようにした。公開ビルドでは環境変数でメニューを無効化できるため、ユーザー向け配信時も安全に利用できる。
 
 ### 2.2 診断ログ運用メモ
+
 - `MonoKnightApp` の初期化で `DebugLogHistory.shared.setFrontEndViewerEnabled` を制御している。
   - DEBUG ビルドでは常に `true` にして開発時の検証を容易にする。
   - リリースビルドでは環境変数 `ENABLE_DIAGNOSTICS_MENU=1` を指定したときのみ有効化されるため、TestFlight 用と App Store 用で挙動を切り替えられる。
@@ -50,8 +54,10 @@
 - ログ閲覧が不要なビルドでは `DebugLogHistory.shared.setFrontEndViewerEnabled(false)` を呼び出せば履歴がクリアされ、設定画面からもメニューが消える。
 
 ## 3. 優先すべきリファクタリング領域
+
 1. **ゲームコアロジック (`Game` パッケージ)**
    - `GameModuleInterfaces` を経由した依存注入が整備されたため、今後は `HandManager` や `Deck` の再利用性を高める。
+
   - 2024-05 リファクタリング: 移動量を `MovePattern` で抽象化し、`MoveCard.movePattern` / `primaryVector` を通じて参照する。
     - 旧実装で `dx` / `dy` を直接参照している箇所は、`primaryVector.dx` / `.dy` へ置き換える。
     - 同一挙動カードの比較は `MovePattern.Identity` をキーにする。`HandStack.representativePatternIdentity` や `Deck.Configuration.allowedMoveIdentities` を活用する。
@@ -59,6 +65,7 @@
     - テストは `MoveCard` の移動パターンと代表ベクトルが期待通りであることを明示的に検証し、回帰検知の指標とする。
    - モードごとのペナルティ・手札整理ロジックを `GameMode` のパラメータに一本化し、盤面追加時にも破綻しないようテストを拡充する。
      `GameCore+Penalty.swift` など機能別ファイルの役割をドキュメントへ反映しておく。
+
 2. **UI レイヤー (`UI/` ディレクトリ)**
    - `GameViewModel` / `GameBoardBridgeViewModel` / `GameViewLayoutCalculator` による三層構造を維持しつつ、Combine 購読や
      `DispatchWorkItem` の破棄漏れが起こらないようユニットテスト・統合テストを整える。
@@ -74,6 +81,7 @@
      する。ログ閲覧機能やレビュー履歴の UI を追加する際は、このモジュールを経由して一元管理する。
 
 ## 4. 実施プロセス
+
 1. **現状把握**
    - `docs/recommended-task-list.md` を参照し、未着手または負債化している項目を棚卸しする。
    - 主要ファイルの責務と依存関係を可視化し、優先度と影響範囲を評価する。
@@ -90,6 +98,7 @@
    - 開発の節目でリファクタリング計画を見直し、優先順位の入れ替えや完了済み項目のアーカイブを行う。
 
 ## 5. 実務上のチェックリスト
+
 - [ ] 変更対象の責務と依存を事前に整理し、PR 説明に記載したか。
 - [ ] Swift Package Manager のテストが成功するか（`swift test`）。
 - [ ] 主要画面（GameView/ResultView/SettingsView）で UI 崩れがないか実機またはシミュレーターで確認したか。
@@ -98,6 +107,7 @@
 - [ ] `BoardLayoutSnapshot` のログを確認し、セーフエリアや盤面サイズのフォールバックが意図通りか検証したか。
 
 ### 5.1 手動確認メモ（ハイライト挙動）
+
 - 2024-05-09: `GameScene.updateHighlights` リファクタリング後に以下の手動確認を実施。
   - ガイド設定 ON で手札を更新し、`.guideSingleCandidate` / `.guideMultipleCandidate` キー経由のハイライトが意図通り点灯することを確認。
   - ガイド設定 OFF の状態で `GameViewModel.updateForcedSelectionHighlight(for:)` を介して強制候補を送信し、`.forcedSelection` が単独で表示されることを確認。
@@ -105,6 +115,7 @@
   - 全域ワープカードを選択した際に盤面全域へ淡い強制ハイライトが乗り、駒や踏破済みマスが埋もれずに識別できるか目視で確認。
 
 ## 6. 今後の展開に向けた留意点
+
 - **可変盤サイズや追加モード**を視野に入れ、ゲームロジックを盤サイズ依存の定数から切り離す。
 - **アクセシビリティや多言語対応**の拡張を想定し、文字列・ラベル管理を一元化する。
 - **モジュール分割**が必要になった場合でも、既存の Swift Package 構成を基盤とし、依存方向は `Game` → `Services` → `UI` のように一方向を維持する。

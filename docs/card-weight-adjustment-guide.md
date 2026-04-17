@@ -21,6 +21,7 @@
 2. **重み上書きの設定**
    - 既存デッキを調整する場合は、`Configuration` の初期化ブロックで `WeightProfile(defaultWeight: 1, overrides: [...])` を設定します。
    - 例: 王将型カードの排出率を 2 倍にしたい場合
+
      ```swift
      // overrides の例（コメントも日本語で統一する）
      let overrides: [MoveCard: Int] = [
@@ -29,6 +30,7 @@
      ]
      let profile = Deck.WeightProfile(defaultWeight: 1, overrides: overrides)
      ```
+
 3. **コードの整合性確認**
    - 調整後は `Deck.Configuration` が想定通りのカード集合と重みを提供しているか、ユニットテストで検証します。
    - `Tests/GameTests/DeckTests.swift` を参考に、必要なアサーションを追加してください。
