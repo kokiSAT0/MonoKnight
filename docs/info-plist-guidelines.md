@@ -1,6 +1,12 @@
 # Info.plist 設定ガイドライン（Xcode 管理推奨）
 
-本ドキュメントでは、`Info.plist` へ設定すべき主要キーと推奨内容をまとめる。Apple および Google の SDK 設定は **Xcode のビルド設定（.xcconfig）や GUI エディタで管理することを推奨** し、リポジトリ内の `Info.plist` を直接編集しない運用とする。
+本ドキュメントは MonoKnight における `Info.plist` とビルド設定由来の値の運用ルール、および主要キー一覧の Source of Truth とする。
+
+- `Info.plist` やビルド設定由来の値は **Xcode の GUI / .xcconfig で管理** する
+- リポジトリ上では空テンプレートを維持し、**Git で直接編集しない**
+- 具体的なキー設定はリリース直前に Xcode プロジェクト上で確認、適用する
+
+本書はキー一覧と設定運用に専念し、Game Center / AdMob / IAP / ATT / UMP の挙動や連携方針は [integrations.md](integrations.md) を参照する。
 
 ## 1. バージョン関連
 - `CFBundleShortVersionString`
@@ -38,3 +44,4 @@
 - 上記キーは **Xcode のターゲット設定 or .xcconfig で管理** し、Git 上では空テンプレートを維持する。
 - 変更した値は TestFlight 用と App Store 審査用で整合性を取る。
 - 本番値は `Config/Release.xcconfig` 等に追記し、平文でのコミットを避ける場合は環境変数や CI シークレットを活用する。
+- リリース直前に Xcode 上で最終値を確認し、審査用説明文や広告設定と差異がないことを確認する。
