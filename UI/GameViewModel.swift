@@ -97,20 +97,41 @@ final class GameViewModel: ObservableObject {
     @Published private(set) var selectedHandStackID: UUID?
 
     /// 結果画面表示フラグ
-    @Published var showingResult = false
+    @Published var showingResult = false {
+        didSet {
+            resultPresentationState.showingResult = showingResult
+        }
+    }
     /// 直近のキャンペーンステージクリア記録
     /// - Note: リザルト画面でリワード進捗を可視化するため、クリア時に `flowCoordinator` から更新する
-    @Published private(set) var latestCampaignClearRecord: CampaignStageClearRecord?
+    @Published private(set) var latestCampaignClearRecord: CampaignStageClearRecord? {
+        didSet {
+            resultPresentationState.latestCampaignClearRecord = latestCampaignClearRecord
+        }
+    }
     /// 今回のクリアで新たに解放されたステージ一覧
     /// - Important: ユーザーをそのまま次の挑戦へ誘導するため、`ResultView` 側へ渡してボタン表示を制御する
-    @Published private(set) var newlyUnlockedStages: [CampaignStage] = []
+    @Published private(set) var newlyUnlockedStages: [CampaignStage] = [] {
+        didSet {
+            resultPresentationState.newlyUnlockedStages = newlyUnlockedStages
+        }
+    }
     /// 手詰まりバナーに表示するイベント情報
-    @Published var activePenaltyBanner: PenaltyEvent?
+    @Published var activePenaltyBanner: PenaltyEvent? {
+        didSet {
+            sessionUIState.activePenaltyBanner = activePenaltyBanner
+        }
+    }
     /// メニューで確認待ちのアクション
-    @Published var pendingMenuAction: GameMenuAction?
+    @Published var pendingMenuAction: GameMenuAction? {
+        didSet {
+            sessionUIState.pendingMenuAction = pendingMenuAction
+        }
+    }
     /// ポーズメニューの表示状態
     @Published var isPauseMenuPresented = false {
         didSet {
+            sessionUIState.setPauseMenuPresented(isPauseMenuPresented)
             handlePauseMenuVisibilityChange(isPresented: isPauseMenuPresented)
         }
     }
@@ -119,7 +140,11 @@ final class GameViewModel: ObservableObject {
     /// 手札セクションの高さ
     @Published var handSectionHeight: CGFloat = 0
     /// 画面に表示している経過秒数
-    @Published var displayedElapsedSeconds: Int = 0
+    @Published var displayedElapsedSeconds: Int = 0 {
+        didSet {
+            sessionUIState.displayedElapsedSeconds = displayedElapsedSeconds
+        }
+    }
     /// 暫定スコア
     var displayedScore: Int {
         core.totalMoveCount * 10 + displayedElapsedSeconds
@@ -202,6 +227,10 @@ final class GameViewModel: ObservableObject {
     private let pauseController: GamePauseController
     /// リザルト遷移とキャンペーン進捗更新を担当するヘルパー
     private let flowCoordinator: GameFlowCoordinator
+    /// リザルト表示の内部状態
+    private var resultPresentationState = ResultPresentationState()
+    /// セッション中の補助 UI 状態
+    private var sessionUIState = SessionUIState()
 
     /// ViewModel の初期化
     /// - Parameters:
@@ -327,7 +356,9 @@ final class GameViewModel: ObservableObject {
 
     /// 結果画面を閉じた際の後処理
     func finalizeResultDismissal() {
-        showingResult = false
+        applyResultPresentationMutation { state in
+            state.hideResult()
+        }
     }
 
     /// SpriteKit シーンの配色を更新する
@@ -391,7 +422,9 @@ final class GameViewModel: ObservableObject {
         // GameCore 側では経過秒数をリアルタイム計測しつつ、クリア確定時に `elapsedSeconds` へ確定値を格納する。
         // プレイ中に UI で使用する値は `liveElapsedSeconds` を参照することで、
         // ストップウォッチのように 1 秒刻みで増加し続ける体験を提供できるようにする。
-        displayedElapsedSeconds = core.liveElapsedSeconds
+        applySessionUIMutation { state in
+            state.updateDisplayedElapsedTime(core.liveElapsedSeconds)
+        }
     }
 
     /// 指定スタックのカードが現在位置から使用可能か判定する
@@ -583,23 +616,19 @@ final class GameViewModel: ObservableObject {
     /// 捨て札ボタンを操作可能かどうか判定する
     /// - Returns: 進行中かつ手札が 1 種類以上存在する場合に true
     var isManualDiscardButtonEnabled: Bool {
-        core.progress == .playing && !core.handStacks.isEmpty
+        sessionUIState.isManualDiscardButtonEnabled(
+            progress: core.progress,
+            handStacks: core.handStacks
+        )
     }
 
     /// 捨て札ボタンに設定するアクセシビリティ説明文
     /// - Returns: 選択モード中かどうか、およびペナルティの有無に応じた説明テキスト
     var manualDiscardAccessibilityHint: String {
-        let penaltyCost = core.mode.manualDiscardPenaltyCost
-
-        if core.isAwaitingManualDiscardSelection {
-            return "捨て札モードを終了します。カードを選ばずに通常操作へ戻ります。"
-        }
-
-        if penaltyCost > 0 {
-            return "手数を\(penaltyCost)消費して、選択した手札 1 種類をまとめて捨て札にし、新しいカードを補充します。"
-        } else {
-            return "手数を消費せずに、選択した手札 1 種類をまとめて捨て札にし、新しいカードを補充します。"
-        }
+        sessionUIState.manualDiscardAccessibilityHint(
+            penaltyCost: core.mode.manualDiscardPenaltyCost,
+            isAwaitingManualDiscardSelection: core.isAwaitingManualDiscardSelection
+        )
     }
 
     /// 捨て札モードの開始/終了をトグルする
@@ -618,41 +647,43 @@ final class GameViewModel: ObservableObject {
     /// 手動ペナルティボタンを操作可能かどうか判定する
     /// - Returns: プレイ中であれば true
     var isManualPenaltyButtonEnabled: Bool {
-        core.progress == .playing
+        sessionUIState.isManualPenaltyButtonEnabled(progress: core.progress)
     }
 
     /// 手動ペナルティボタンのアクセシビリティ説明文
     /// - Returns: 手数消費量とスタック仕様を含めた説明テキスト
     var manualPenaltyAccessibilityHint: String {
-        let cost = core.mode.manualRedrawPenaltyCost
-        let stackingDetail = core.mode.stackingRuleDetailText
-        let refillDescription = "手札スロットを全て空にし、新しいカードを最大 \(core.mode.handSize) 種類まで補充します。"
-
-        if cost > 0 {
-            return "手数を\(cost)消費して\(refillDescription)\(stackingDetail)"
-        } else {
-            return "手数を消費せずに\(refillDescription)\(stackingDetail)"
-        }
+        sessionUIState.manualPenaltyAccessibilityHint(
+            penaltyCost: core.mode.manualRedrawPenaltyCost,
+            handSize: core.mode.handSize,
+            stackingRuleDetailText: core.mode.stackingRuleDetailText
+        )
     }
 
     /// 手動ペナルティの確認ダイアログを表示するようリクエストする
     /// - Note: ゲームが進行中でない場合は無視し、誤操作によるダイアログ表示を防ぐ
     func requestManualPenalty() {
         guard isManualPenaltyButtonEnabled else { return }
-        pendingMenuAction = .manualPenalty(penaltyCost: core.mode.manualRedrawPenaltyCost)
+        applySessionUIMutation { state in
+            state.requestManualPenalty(cost: core.mode.manualRedrawPenaltyCost)
+        }
     }
 
     /// ホームボタンの押下をトリガーに、タイトルへ戻る確認ダイアログを表示する
     /// - Note: 直接リセットを実行せず、一度 pendingMenuAction へ格納して既存の確認フローを流用する
     func requestReturnToTitle() {
-        pendingMenuAction = .returnToTitle
+        applySessionUIMutation { state in
+            state.requestReturnToTitle()
+        }
     }
 
     /// ポーズメニューを表示する
     /// - Note: ログ出力もここでまとめて行い、UI 側の責務を軽量化する
     func presentPauseMenu() {
         debugLog("GameViewModel: ポーズメニュー表示要求")
-        isPauseMenuPresented = true
+        applySessionUIMutation { state in
+            state.presentPauseMenu()
+        }
     }
 
     /// scenePhase の変化に応じてタイマーの停止/再開を制御する
@@ -692,7 +723,9 @@ final class GameViewModel: ObservableObject {
 
     /// ゲームの進行状況に応じた操作をまとめて処理する
     func performMenuAction(_ action: GameMenuAction) {
-        pendingMenuAction = nil
+        applySessionUIMutation { state in
+            state.clearPendingMenuAction()
+        }
         clearSelectedCardSelection()
         switch action {
         case .manualPenalty:
@@ -736,7 +769,9 @@ final class GameViewModel: ObservableObject {
             event,
             hapticsEnabled: hapticsEnabled
         ) { [weak self] banner in
-            self?.activePenaltyBanner = banner
+            self?.applySessionUIMutation { state in
+                state.setActivePenaltyBanner(banner)
+            }
         }
     }
 
@@ -780,7 +815,9 @@ final class GameViewModel: ObservableObject {
     /// - Note: 手動ペナルティやリセット操作後にバナーが残存しないよう、共通処理として切り出している
     private func cancelPenaltyBannerDisplay() {
         penaltyBannerController.cancel { [weak self] banner in
-            self?.activePenaltyBanner = banner
+            self?.applySessionUIMutation { state in
+                state.setActivePenaltyBanner(banner)
+            }
         }
     }
 
@@ -789,7 +826,12 @@ final class GameViewModel: ObservableObject {
     private func prepareForReturnToTitle() {
         clearSelectedCardSelection()
         cancelPenaltyBannerDisplay()
-        showingResult = false
+        applyResultPresentationMutation { state in
+            state.hideResult()
+        }
+        applySessionUIMutation { state in
+            state.resetTransientUIForTitleReturn()
+        }
         adsService.resetPlayFlag()
         pauseController.reset()
     }
@@ -867,9 +909,9 @@ final class GameViewModel: ObservableObject {
                 onRequestGameCenterSignIn: onRequestGameCenterSignIn,
                 campaignProgressStore: campaignProgressStore
             )
-            latestCampaignClearRecord = outcome.latestCampaignClearRecord
-            newlyUnlockedStages = outcome.newlyUnlockedStages
-            showingResult = outcome.shouldShowResult
+            applyResultPresentationMutation { state in
+                state.applyClearOutcome(outcome)
+            }
         default:
             break
         }
@@ -880,7 +922,12 @@ final class GameViewModel: ObservableObject {
     func handleCampaignStageAdvance(to stage: CampaignStage) {
         // バナー表示などの残留状態を片付けつつリザルトを閉じ、新規ステージへ進む準備を整える
         cancelPenaltyBannerDisplay()
-        showingResult = false
+        applyResultPresentationMutation { state in
+            state.hideResult()
+        }
+        applySessionUIMutation { state in
+            state.resetTransientUIForTitleReturn()
+        }
         adsService.resetPlayFlag()
 
         // ルートビュー側へ遷移要求を転送し、ゲーム準備フローを再利用する
@@ -906,9 +953,42 @@ extension GameViewModel {
 #endif
 
 private extension GameViewModel {
+    func applyResultPresentationMutation(_ mutation: (inout ResultPresentationState) -> Void) {
+        mutation(&resultPresentationState)
+        syncResultPresentationFromState()
+    }
+
+    func syncResultPresentationFromState() {
+        if showingResult != resultPresentationState.showingResult {
+            showingResult = resultPresentationState.showingResult
+        }
+        latestCampaignClearRecord = resultPresentationState.latestCampaignClearRecord
+        newlyUnlockedStages = resultPresentationState.newlyUnlockedStages
+    }
+
+    func applySessionUIMutation(_ mutation: (inout SessionUIState) -> Void) {
+        mutation(&sessionUIState)
+        syncSessionUIFromState()
+    }
+
+    func syncSessionUIFromState() {
+        if activePenaltyBanner != sessionUIState.activePenaltyBanner {
+            activePenaltyBanner = sessionUIState.activePenaltyBanner
+        }
+        if pendingMenuAction != sessionUIState.pendingMenuAction {
+            pendingMenuAction = sessionUIState.pendingMenuAction
+        }
+        if isPauseMenuPresented != sessionUIState.isPauseMenuPresented {
+            isPauseMenuPresented = sessionUIState.isPauseMenuPresented
+        }
+        if displayedElapsedSeconds != sessionUIState.displayedElapsedSeconds {
+            displayedElapsedSeconds = sessionUIState.displayedElapsedSeconds
+        }
+    }
+
     /// キャンペーンモードでタイマー制御を行うべきかどうか
     var supportsTimerPausing: Bool {
-        !mode.isLeaderboardEligible && mode.campaignMetadataSnapshot != nil
+        pauseController.supportsTimerPausing(for: mode)
     }
 
     /// ポーズメニューの開閉に応じてタイマーの停止/再開を制御する

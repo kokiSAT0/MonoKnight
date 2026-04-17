@@ -138,12 +138,114 @@ final class GamePenaltyBannerController {
     }
 }
 
+/// リザルト表示周辺の UI 状態をまとめる内部ヘルパー
+@MainActor
+struct ResultPresentationState {
+    var showingResult = false
+    var latestCampaignClearRecord: CampaignStageClearRecord?
+    var newlyUnlockedStages: [CampaignStage] = []
+
+    mutating func applyClearOutcome(_ outcome: GameFlowCoordinator.ClearOutcome) {
+        latestCampaignClearRecord = outcome.latestCampaignClearRecord
+        newlyUnlockedStages = outcome.newlyUnlockedStages
+        showingResult = outcome.shouldShowResult
+    }
+
+    mutating func hideResult() {
+        showingResult = false
+    }
+}
+
+/// メニュー確認や一時的な UI 状態をまとめる内部ヘルパー
+@MainActor
+struct SessionUIState {
+    var activePenaltyBanner: PenaltyEvent?
+    var pendingMenuAction: GameMenuAction?
+    var isPauseMenuPresented = false
+    var displayedElapsedSeconds = 0
+
+    mutating func updateDisplayedElapsedTime(_ seconds: Int) {
+        displayedElapsedSeconds = seconds
+    }
+
+    mutating func presentPauseMenu() {
+        isPauseMenuPresented = true
+    }
+
+    mutating func setPauseMenuPresented(_ isPresented: Bool) {
+        isPauseMenuPresented = isPresented
+    }
+
+    mutating func requestManualPenalty(cost: Int) {
+        pendingMenuAction = .manualPenalty(penaltyCost: cost)
+    }
+
+    mutating func requestReturnToTitle() {
+        pendingMenuAction = .returnToTitle
+    }
+
+    mutating func clearPendingMenuAction() {
+        pendingMenuAction = nil
+    }
+
+    mutating func setActivePenaltyBanner(_ event: PenaltyEvent?) {
+        activePenaltyBanner = event
+    }
+
+    mutating func resetTransientUIForTitleReturn() {
+        activePenaltyBanner = nil
+        pendingMenuAction = nil
+        isPauseMenuPresented = false
+    }
+
+    func isManualDiscardButtonEnabled(progress: GameProgress, handStacks: [HandStack]) -> Bool {
+        progress == .playing && !handStacks.isEmpty
+    }
+
+    func manualDiscardAccessibilityHint(
+        penaltyCost: Int,
+        isAwaitingManualDiscardSelection: Bool
+    ) -> String {
+        if isAwaitingManualDiscardSelection {
+            return "捨て札モードを終了します。カードを選ばずに通常操作へ戻ります。"
+        }
+
+        if penaltyCost > 0 {
+            return "手数を\(penaltyCost)消費して、選択した手札 1 種類をまとめて捨て札にし、新しいカードを補充します。"
+        } else {
+            return "手数を消費せずに、選択した手札 1 種類をまとめて捨て札にし、新しいカードを補充します。"
+        }
+    }
+
+    func isManualPenaltyButtonEnabled(progress: GameProgress) -> Bool {
+        progress == .playing
+    }
+
+    func manualPenaltyAccessibilityHint(
+        penaltyCost: Int,
+        handSize: Int,
+        stackingRuleDetailText: String
+    ) -> String {
+        let refillDescription = "手札スロットを全て空にし、新しいカードを最大 \(handSize) 種類まで補充します。"
+
+        if penaltyCost > 0 {
+            return "手数を\(penaltyCost)消費して\(refillDescription)\(stackingRuleDetailText)"
+        } else {
+            return "手数を消費せずに\(refillDescription)\(stackingRuleDetailText)"
+        }
+    }
+}
+
 /// タイマー停止理由と復帰条件を一元管理するヘルパー
 final class GamePauseController {
     private(set) var isTimerPausedForMenu = false
     private(set) var isTimerPausedForScenePhase = false
     private(set) var shouldPresentPauseMenuAfterScenePhaseResume = false
     private(set) var isTimerPausedForPreparationOverlay = false
+
+    func supportsTimerPausing(for mode: GameMode) -> Bool {
+        !mode.isLeaderboardEligible && mode.campaignMetadataSnapshot != nil
+    }
 
     func reset() {
         isTimerPausedForMenu = false

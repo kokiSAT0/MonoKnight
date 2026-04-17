@@ -122,6 +122,76 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.pendingMenuAction, "プレイ開始前にペナルティ確認が設定されてはいけません")
     }
 
+    /// ResultPresentationState がクリア結果を UI 表示用の状態へ正しく反映することを確認
+    func testResultPresentationStateAppliesClearOutcome() {
+        let library = CampaignLibrary.shared
+        guard let stage = library.stage(with: CampaignStageID(chapter: 1, index: 1)) else {
+            XCTFail("キャンペーンステージの取得に失敗しました")
+            return
+        }
+
+        let progress = CampaignStageProgress(
+            earnedStars: 1,
+            achievedSecondaryObjective: false,
+            achievedScoreGoal: false,
+            bestScore: 120,
+            bestMoveCount: 12,
+            bestTotalMoveCount: 12,
+            bestPenaltyCount: 0,
+            bestElapsedSeconds: 80
+        )
+        let record = CampaignStageClearRecord(
+            stage: stage,
+            evaluation: CampaignStageEvaluation(
+                stageID: stage.id,
+                earnedStars: 1,
+                achievedSecondaryObjective: false,
+                achievedScoreGoal: false
+            ),
+            previousProgress: CampaignStageProgress(),
+            progress: progress
+        )
+        let outcome = GameFlowCoordinator.ClearOutcome(
+            latestCampaignClearRecord: record,
+            newlyUnlockedStages: [stage],
+            shouldShowResult: true
+        )
+
+        var state = ResultPresentationState()
+        state.applyClearOutcome(outcome)
+
+        XCTAssertTrue(state.showingResult, "クリア後は結果画面表示フラグが立つ必要があります")
+        XCTAssertEqual(state.latestCampaignClearRecord?.stage.id, stage.id, "クリア記録が保持されていません")
+        XCTAssertEqual(state.newlyUnlockedStages.map(\.id), [stage.id], "新規解放ステージが保持されていません")
+
+        state.hideResult()
+
+        XCTAssertFalse(state.showingResult, "結果画面非表示化が helper から行えません")
+    }
+
+    /// SessionUIState が確認ダイアログや一時 UI 状態の更新をまとめて扱えることを確認
+    func testSessionUIStateTracksTransientUIChanges() {
+        var state = SessionUIState()
+        let event = PenaltyEvent(penaltyAmount: 3, trigger: .automaticDeadlock)
+
+        state.requestManualPenalty(cost: 5)
+        state.setActivePenaltyBanner(event)
+        state.presentPauseMenu()
+        state.updateDisplayedElapsedTime(77)
+
+        XCTAssertEqual(state.pendingMenuAction, .manualPenalty(penaltyCost: 5), "手動ペナルティ要求が保持されていません")
+        XCTAssertEqual(state.activePenaltyBanner, event, "ペナルティバナー情報が保持されていません")
+        XCTAssertTrue(state.isPauseMenuPresented, "ポーズメニュー表示状態が保持されていません")
+        XCTAssertEqual(state.displayedElapsedSeconds, 77, "経過秒数の表示状態が更新されていません")
+
+        state.resetTransientUIForTitleReturn()
+
+        XCTAssertNil(state.pendingMenuAction, "タイトル復帰準備後も確認ダイアログが残っています")
+        XCTAssertNil(state.activePenaltyBanner, "タイトル復帰準備後もペナルティバナーが残っています")
+        XCTAssertFalse(state.isPauseMenuPresented, "タイトル復帰準備後はポーズメニューが閉じている必要があります")
+        XCTAssertEqual(state.displayedElapsedSeconds, 77, "恒常表示値まで巻き戻してはいけません")
+    }
+
     /// キャンペーンステージを連続でクリアした場合でも次の未クリアステージを newlyUnlockedStages に保持することを確認
     func testNewlyUnlockedStagesRemainAfterClearingSameCampaignStageTwice() throws {
         // UserDefaults の衝突を避けるため、テスト専用のスイートを生成する
