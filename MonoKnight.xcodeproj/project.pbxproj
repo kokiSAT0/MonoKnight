@@ -50,6 +50,7 @@
 		72CF38072E7162E20093B180 /* GameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF38002E7162E20093B180 /* GameView.swift */; };
 		72CF380B2E7162E20093B180 /* AdsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF37F82E7162E20093B180 /* AdsService.swift */; };
 		72CF380C2E7162E20093B180 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF38032E7162E20093B180 /* SettingsView.swift */; };
+		C26B69F22FFD64D4004DB899 /* ThemePreference.swift in Sources */ = {isa = PBXBuildFile; fileRef = C26B69F12FFD64D4004DB899 /* ThemePreference.swift */; };
 		72CF380E2E7162E20093B180 /* ServiceMocks.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF37FB2E7162E20093B180 /* ServiceMocks.swift */; };
 		72CF380F2E7162E20093B180 /* ResultView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF38012E7162E20093B180 /* ResultView.swift */; };
 		72CF38102E7162E20093B180 /* ConsentFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF37FE2E7162E20093B180 /* ConsentFlowView.swift */; };
@@ -170,6 +171,7 @@
 		72F554A72E7E40100098A1B0 /* MoveCardIllustrationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoveCardIllustrationView.swift; sourceTree = "<group>"; };
 		72F554A92E7E60850098A1B0 /* HowToPlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HowToPlayView.swift; sourceTree = "<group>"; };
 		72F554AA2E7E60850098A1B0 /* AppTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTheme.swift; sourceTree = "<group>"; };
+		C26B69F12FFD64D4004DB899 /* ThemePreference.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemePreference.swift; sourceTree = "<group>"; };
 		E765BB512E83469000C78E4F /* Default.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Default.xcconfig; sourceTree = "<group>"; };
 		E765BB522E83469000C78E4F /* Local.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Local.xcconfig; sourceTree = "<group>"; };
 		E79DD1472FFC8FEA0038C598 /* StorageKeys.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageKeys.swift; sourceTree = "<group>"; };
@@ -380,6 +382,7 @@
 			isa = PBXGroup;
 			children = (
 				72F554AA2E7E60850098A1B0 /* AppTheme.swift */,
+				C26B69F12FFD64D4004DB899 /* ThemePreference.swift */,
 			);
 			path = Theme;
 			sourceTree = "<group>";
@@ -631,6 +634,7 @@
 				726643072E85DAD1003EA325 /* CampaignProgressStore.swift in Sources */,
 				72F554AC2E7E60850098A1B0 /* HowToPlayView.swift in Sources */,
 				72F554AD2E7E60850098A1B0 /* AppTheme.swift in Sources */,
+				C26B69F22FFD64D4004DB899 /* ThemePreference.swift in Sources */,
 				726642EF2E85DA48003EA325 /* CampaignStageSelectionView.swift in Sources */,
 				726642482E826487003EA325 /* Environment+TopOverlayHeight.swift in Sources */,
 				E79DD15E2FFD1CC70038C598 /* SettingsViewSections.swift in Sources */,

@@ -212,6 +212,19 @@ struct MonoKnightAppTests {
         #expect(dependencies.gameSettingsStore.preferredColorScheme == .system)
     }
 
+    /// AppLifecycleCoordinator が active 復帰時だけ Game Center 再認証を要求することを確認する
+    @MainActor
+    @Test func appLifecycleCoordinator_onlyAuthenticatesOnActiveScenePhase() throws {
+        let service = StubGameCenterService(isAuthenticated: false)
+
+        AppLifecycleCoordinator.handleScenePhaseChange(.inactive, gameCenterService: service)
+        AppLifecycleCoordinator.handleScenePhaseChange(.background, gameCenterService: service)
+        #expect(service.authenticateCallCount == 0)
+
+        AppLifecycleCoordinator.handleScenePhaseChange(.active, gameCenterService: service)
+        #expect(service.authenticateCallCount == 1)
+    }
+
     /// RootView の依存注入と、初期状態ストアの標準値が期待通りかを確認する
     @MainActor
     @Test func rootView_initialState_reflectsInjectedServices() throws {
