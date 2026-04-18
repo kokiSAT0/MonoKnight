@@ -584,6 +584,133 @@ struct GameSessionResetCoordinator {
     }
 }
 
+/// 初期表示準備と設定同期をまとめるヘルパー
+@MainActor
+struct GameAppearanceSettingsCoordinator {
+    func restoreHandOrderingStrategy(from rawValue: String, core: GameCore) {
+        guard let strategy = HandOrderingStrategy(rawValue: rawValue) else { return }
+        core.updateHandOrderingStrategy(strategy)
+    }
+
+    func applyHandOrderingStrategy(rawValue: String, core: GameCore) {
+        let strategy = HandOrderingStrategy(rawValue: rawValue) ?? .insertionOrder
+        core.updateHandOrderingStrategy(strategy)
+    }
+
+    func updateGuideMode(
+        enabled: Bool,
+        boardBridge: GameBoardBridgeViewModel,
+        setGuideModeEnabled: (Bool) -> Void
+    ) {
+        setGuideModeEnabled(enabled)
+        boardBridge.updateGuideMode(enabled: enabled)
+    }
+
+    func updateHapticsSetting(
+        isEnabled: Bool,
+        boardBridge: GameBoardBridgeViewModel,
+        setHapticsEnabled: (Bool) -> Void
+    ) {
+        setHapticsEnabled(isEnabled)
+        boardBridge.updateHapticsSetting(isEnabled: isEnabled)
+    }
+
+    func updateDisplayedElapsedTime(
+        liveElapsedSeconds: Int,
+        applySessionUIMutation: (Int) -> Void
+    ) {
+        applySessionUIMutation(liveElapsedSeconds)
+    }
+
+    func prepareForAppear(
+        colorScheme: ColorScheme,
+        guideModeEnabled: Bool,
+        hapticsEnabled: Bool,
+        handOrderingStrategy: HandOrderingStrategy,
+        isPreparationOverlayVisible: Bool,
+        boardBridge: GameBoardBridgeViewModel,
+        core: GameCore,
+        updateGuideMode: (Bool) -> Void,
+        updateHapticsSetting: (Bool) -> Void,
+        updateDisplayedElapsedTime: () -> Void,
+        handlePreparationOverlayChange: (Bool) -> Void
+    ) {
+        boardBridge.prepareForAppear(
+            colorScheme: colorScheme,
+            guideModeEnabled: guideModeEnabled,
+            hapticsEnabled: hapticsEnabled
+        )
+        updateHapticsSetting(hapticsEnabled)
+        updateGuideMode(guideModeEnabled)
+        updateDisplayedElapsedTime()
+        core.updateHandOrderingStrategy(handOrderingStrategy)
+        handlePreparationOverlayChange(isPreparationOverlayVisible)
+    }
+}
+
+/// Game Center / CampaignProgress / Ads の橋渡しをまとめるヘルパー
+@MainActor
+struct GameSessionServicesCoordinator {
+    func updateGameCenterAuthenticationStatus(
+        currentValue: Bool,
+        newValue: Bool,
+        setAuthenticationStatus: (Bool) -> Void
+    ) {
+        guard currentValue != newValue else { return }
+        debugLog("GameViewModel: Game Center 認証状態が更新されました -> \(newValue)")
+        setAuthenticationStatus(newValue)
+    }
+
+    func makeCampaignPauseSummary(
+        mode: GameMode,
+        campaignLibrary: CampaignLibrary,
+        campaignProgressStore: CampaignProgressStore
+    ) -> CampaignPauseSummary? {
+        guard let metadata = mode.campaignMetadataSnapshot else {
+            return nil
+        }
+        let stageID = metadata.stageID
+        guard let stage = campaignLibrary.stage(with: stageID) else {
+            debugLog("GameViewModel: キャンペーンステージ定義が見つかりません stageID=\(stageID.displayCode)")
+            return nil
+        }
+        let progress = campaignProgressStore.progress(for: stage.id)
+        return CampaignPauseSummary(stage: stage, progress: progress)
+    }
+
+    func resolveClearOutcome(
+        mode: GameMode,
+        core: GameCore,
+        isGameCenterAuthenticated: Bool,
+        flowCoordinator: GameFlowCoordinator,
+        gameCenterService: GameCenterServiceProtocol,
+        onRequestGameCenterSignIn: ((GameCenterSignInPromptReason) -> Void)?,
+        campaignProgressStore: CampaignProgressStore
+    ) -> GameFlowCoordinator.ClearOutcome {
+        flowCoordinator.handleClearedProgress(
+            mode: mode,
+            core: core,
+            isGameCenterAuthenticated: isGameCenterAuthenticated,
+            gameCenterService: gameCenterService,
+            onRequestGameCenterSignIn: onRequestGameCenterSignIn,
+            campaignProgressStore: campaignProgressStore
+        )
+    }
+
+    func resetAdsPlayFlag(using adsService: AdsServiceProtocol) {
+        adsService.resetPlayFlag()
+    }
+
+    func handleCampaignStageAdvance(
+        to stage: CampaignStage,
+        campaignProgressStore: CampaignProgressStore,
+        onRequestStartCampaignStage: ((CampaignStage) -> Void)?
+    ) {
+        guard campaignProgressStore.isStageUnlocked(stage) else { return }
+        onRequestStartCampaignStage?(stage)
+    }
+}
+
 /// タイマー停止理由と復帰条件を一元管理するヘルパー
 final class GamePauseController {
     private(set) var isTimerPausedForMenu = false

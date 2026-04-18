@@ -164,16 +164,11 @@ final class GameViewModel: ObservableObject {
     /// ポーズメニューで表示するキャンペーン情報
     /// - Note: モードに紐付くステージ ID からライブラリを引き、保存済み進捗をまとめて返す
     var campaignPauseSummary: CampaignPauseSummary? {
-        guard let metadata = mode.campaignMetadataSnapshot else {
-            return nil
-        }
-        let stageID = metadata.stageID
-        guard let stage = campaignLibrary.stage(with: stageID) else {
-            debugLog("GameViewModel: キャンペーンステージ定義が見つかりません stageID=\(stageID.displayCode)")
-            return nil
-        }
-        let progress = campaignProgressStore.progress(for: stage.id)
-        return CampaignPauseSummary(stage: stage, progress: progress)
+        sessionServicesCoordinator.makeCampaignPauseSummary(
+            mode: mode,
+            campaignLibrary: campaignLibrary,
+            campaignProgressStore: campaignProgressStore
+        )
     }
     /// ポーズメニューで再利用するペナルティ説明文の一覧
     /// - Important: RootView の事前案内と文言・順序を揃え、体験の一貫性を保つ
@@ -233,6 +228,10 @@ final class GameViewModel: ObservableObject {
     private let coreBindingCoordinator: GameCoreBindingCoordinator
     /// タイトル復帰と新規プレイ開始時の後始末を担当するヘルパー
     private let sessionResetCoordinator: GameSessionResetCoordinator
+    /// 初期表示準備と設定同期を担当するヘルパー
+    private let appearanceSettingsCoordinator: GameAppearanceSettingsCoordinator
+    /// Game Center / Campaign / Ads の橋渡しを担当するヘルパー
+    private let sessionServicesCoordinator: GameSessionServicesCoordinator
     /// リザルト表示の内部状態
     private var resultPresentationState = ResultPresentationState()
     /// セッション中の補助 UI 状態
@@ -277,6 +276,8 @@ final class GameViewModel: ObservableObject {
         self.inputFlowCoordinator = GameInputFlowCoordinator()
         self.coreBindingCoordinator = GameCoreBindingCoordinator()
         self.sessionResetCoordinator = GameSessionResetCoordinator()
+        self.appearanceSettingsCoordinator = GameAppearanceSettingsCoordinator()
+        self.sessionServicesCoordinator = GameSessionServicesCoordinator()
         self.isGameCenterAuthenticated = initialGameCenterAuthenticationState
         self.currentDateProvider = currentDateProvider
 
@@ -313,23 +314,24 @@ final class GameViewModel: ObservableObject {
     /// ユーザー設定から手札の並び替え戦略を復元する
     /// - Parameter rawValue: UserDefaults に保存されている文字列値
     func restoreHandOrderingStrategy(from rawValue: String) {
-        guard let strategy = HandOrderingStrategy(rawValue: rawValue) else { return }
-        core.updateHandOrderingStrategy(strategy)
+        appearanceSettingsCoordinator.restoreHandOrderingStrategy(from: rawValue, core: core)
     }
 
     /// 手札表示の並び替え設定を即座に反映する
     /// - Parameter rawValue: AppStorage から得た値
     func applyHandOrderingStrategy(rawValue: String) {
-        let strategy = HandOrderingStrategy(rawValue: rawValue) ?? .insertionOrder
-        core.updateHandOrderingStrategy(strategy)
+        appearanceSettingsCoordinator.applyHandOrderingStrategy(rawValue: rawValue, core: core)
     }
 
     /// Game Center 認証状態を更新し、必要に応じてログへ記録する
     /// - Parameter newValue: 最新の認証可否
     func updateGameCenterAuthenticationStatus(_ newValue: Bool) {
-        guard isGameCenterAuthenticated != newValue else { return }
-        debugLog("GameViewModel: Game Center 認証状態が更新されました -> \(newValue)")
-        isGameCenterAuthenticated = newValue
+        sessionServicesCoordinator.updateGameCenterAuthenticationStatus(
+            currentValue: isGameCenterAuthenticated,
+            newValue: newValue
+        ) { [weak self] updatedValue in
+            self?.isGameCenterAuthenticated = updatedValue
+        }
     }
 
     /// 盤面タップ時に提示する警告ペイロード
@@ -346,15 +348,23 @@ final class GameViewModel: ObservableObject {
     /// ガイドモードの設定値を更新し、必要に応じてハイライトを再描画する
     /// - Parameter enabled: 新しいガイドモード設定
     func updateGuideMode(enabled: Bool) {
-        guideModeEnabled = enabled
-        boardBridge.updateGuideMode(enabled: enabled)
+        appearanceSettingsCoordinator.updateGuideMode(
+            enabled: enabled,
+            boardBridge: boardBridge
+        ) { [weak self] updatedValue in
+            self?.guideModeEnabled = updatedValue
+        }
     }
 
     /// ハプティクスの設定を更新する
     /// - Parameter isEnabled: ユーザー設定から得たハプティクス有効フラグ
     func updateHapticsSetting(isEnabled: Bool) {
-        hapticsEnabled = isEnabled
-        boardBridge.updateHapticsSetting(isEnabled: isEnabled)
+        appearanceSettingsCoordinator.updateHapticsSetting(
+            isEnabled: isEnabled,
+            boardBridge: boardBridge
+        ) { [weak self] updatedValue in
+            self?.hapticsEnabled = updatedValue
+        }
     }
 
     /// 盤面タップ警告を外部からクリアしたい場合のユーティリティ
@@ -431,8 +441,12 @@ final class GameViewModel: ObservableObject {
         // GameCore 側では経過秒数をリアルタイム計測しつつ、クリア確定時に `elapsedSeconds` へ確定値を格納する。
         // プレイ中に UI で使用する値は `liveElapsedSeconds` を参照することで、
         // ストップウォッチのように 1 秒刻みで増加し続ける体験を提供できるようにする。
-        applySessionUIMutation { state in
-            state.updateDisplayedElapsedTime(core.liveElapsedSeconds)
+        appearanceSettingsCoordinator.updateDisplayedElapsedTime(
+            liveElapsedSeconds: core.liveElapsedSeconds
+        ) { [weak self] seconds in
+            self?.applySessionUIMutation { state in
+                state.updateDisplayedElapsedTime(seconds)
+            }
         }
     }
 
@@ -616,17 +630,27 @@ final class GameViewModel: ObservableObject {
         handOrderingStrategy: HandOrderingStrategy,
         isPreparationOverlayVisible: Bool
     ) {
-        boardBridge.prepareForAppear(
+        appearanceSettingsCoordinator.prepareForAppear(
             colorScheme: colorScheme,
             guideModeEnabled: guideModeEnabled,
-            hapticsEnabled: hapticsEnabled
+            hapticsEnabled: hapticsEnabled,
+            handOrderingStrategy: handOrderingStrategy,
+            isPreparationOverlayVisible: isPreparationOverlayVisible,
+            boardBridge: boardBridge,
+            core: core,
+            updateGuideMode: { [weak self] enabled in
+                self?.updateGuideMode(enabled: enabled)
+            },
+            updateHapticsSetting: { [weak self] isEnabled in
+                self?.updateHapticsSetting(isEnabled: isEnabled)
+            },
+            updateDisplayedElapsedTime: { [weak self] in
+                self?.updateDisplayedElapsedTime()
+            },
+            handlePreparationOverlayChange: { [weak self] isVisible in
+                self?.handlePreparationOverlayChange(isVisible: isVisible)
+            }
         )
-        updateHapticsSetting(isEnabled: hapticsEnabled)
-        self.guideModeEnabled = guideModeEnabled
-        updateDisplayedElapsedTime()
-        core.updateHandOrderingStrategy(handOrderingStrategy)
-        // GameView の表示前にローディングオーバーレイの状態を反映し、表示直後のタイマー暴走を防ぐ
-        handlePreparationOverlayChange(isVisible: isPreparationOverlayVisible)
     }
 
     /// ペナルティイベントを受信した際の処理
@@ -710,7 +734,7 @@ final class GameViewModel: ObservableObject {
                 clearBoardTapSelectionWarning()
             },
             resetAdsPlayFlag: { [self] in
-                adsService.resetPlayFlag()
+                sessionServicesCoordinator.resetAdsPlayFlag(using: adsService)
             },
             resetPauseController: { [self] in
                 pauseController.reset()
@@ -765,10 +789,11 @@ final class GameViewModel: ObservableObject {
             },
             resolveClearOutcome: { [self] in
                 guard progress == .cleared else { return nil }
-                return flowCoordinator.handleClearedProgress(
+                return sessionServicesCoordinator.resolveClearOutcome(
                     mode: mode,
                     core: core,
                     isGameCenterAuthenticated: isGameCenterAuthenticated,
+                    flowCoordinator: flowCoordinator,
                     gameCenterService: gameCenterService,
                     onRequestGameCenterSignIn: onRequestGameCenterSignIn,
                     campaignProgressStore: campaignProgressStore
@@ -802,14 +827,16 @@ final class GameViewModel: ObservableObject {
                 clearBoardTapSelectionWarning()
             },
             resetAdsPlayFlag: { [self] in
-                adsService.resetPlayFlag()
+                sessionServicesCoordinator.resetAdsPlayFlag(using: adsService)
             }
         )
 
         // ルートビュー側へ遷移要求を転送し、ゲーム準備フローを再利用する
-        if campaignProgressStore.isStageUnlocked(stage) {
-            onRequestStartCampaignStage?(stage)
-        }
+        sessionServicesCoordinator.handleCampaignStageAdvance(
+            to: stage,
+            campaignProgressStore: campaignProgressStore,
+            onRequestStartCampaignStage: onRequestStartCampaignStage
+        )
     }
 }
 

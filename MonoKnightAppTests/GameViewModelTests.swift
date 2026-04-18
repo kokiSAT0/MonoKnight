@@ -232,6 +232,122 @@ final class GameViewModelTests: XCTestCase {
         )
     }
 
+    /// prepareForAppear が guide / haptics / elapsed time / overlay 連動を既存どおり反映することを確認
+    func testPrepareForAppearSynchronizesInitialSettings() throws {
+        let (defaults, suiteName) = try makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        guard let campaignMode = CampaignLibrary.shared.stage(with: CampaignStageID(chapter: 1, index: 1))?.makeGameMode() else {
+            XCTFail("キャンペーンモードの取得に失敗しました")
+            return
+        }
+
+        let dateProvider = MutableDateProvider(now: Date(timeIntervalSince1970: 90_000))
+        let (viewModel, core) = makeViewModel(
+            mode: campaignMode,
+            campaignProgressStore: CampaignProgressStore(userDefaults: defaults),
+            dateProvider: dateProvider
+        )
+        core.setStartDateForTesting(dateProvider.now.addingTimeInterval(-45))
+
+        viewModel.prepareForAppear(
+            colorScheme: .dark,
+            guideModeEnabled: false,
+            hapticsEnabled: false,
+            handOrderingStrategy: .directionSorted,
+            isPreparationOverlayVisible: true
+        )
+
+        XCTAssertFalse(viewModel.boardBridge.guideModeEnabled, "初期表示準備後に guide mode が反映されていません")
+        XCTAssertFalse(viewModel.boardBridge.hapticsEnabled, "初期表示準備後に haptics 設定が反映されていません")
+        XCTAssertGreaterThanOrEqual(viewModel.displayedElapsedSeconds, 45, "初期表示準備時に経過秒数が同期されていません")
+
+        dateProvider.now = dateProvider.now.addingTimeInterval(30)
+        XCTAssertEqual(core.liveElapsedSecondsForTesting(asOf: dateProvider.now), 45, "準備オーバーレイ表示中にもタイマーが進行しています")
+    }
+
+    /// Game Center 認証状態の同期が冪等で、変化時のみ反映されることを確認
+    func testUpdateGameCenterAuthenticationStatusIsIdempotent() {
+        let (viewModel, _) = makeViewModel(mode: .standard)
+
+        XCTAssertFalse(viewModel.isGameCenterAuthenticated, "初期状態では未認証である想定です")
+
+        viewModel.updateGameCenterAuthenticationStatus(true)
+        XCTAssertTrue(viewModel.isGameCenterAuthenticated, "認証状態の更新が反映されていません")
+
+        viewModel.updateGameCenterAuthenticationStatus(true)
+        XCTAssertTrue(viewModel.isGameCenterAuthenticated, "同値更新で認証状態が崩れてはいけません")
+    }
+
+    /// campaignPauseSummary がキャンペーン時のみ stage と progress を返すことを確認
+    func testCampaignPauseSummaryReturnsOnlyForCampaignMode() throws {
+        let (defaults, suiteName) = try makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let progressStore = CampaignProgressStore(userDefaults: defaults)
+        guard let stage = CampaignLibrary.shared.stage(with: CampaignStageID(chapter: 1, index: 1)) else {
+            XCTFail("キャンペーンステージの取得に失敗しました")
+            return
+        }
+
+        let (campaignViewModel, campaignCore) = makeViewModel(
+            mode: stage.makeGameMode(),
+            campaignProgressStore: progressStore
+        )
+        campaignCore.overrideMetricsForTesting(moveCount: 12, penaltyCount: 0, elapsedSeconds: 80)
+        campaignViewModel.handleProgressChangeForTesting(.cleared)
+
+        XCTAssertEqual(campaignViewModel.campaignPauseSummary?.stage.id, stage.id, "キャンペーン要約の stage が一致していません")
+        XCTAssertNotNil(campaignViewModel.campaignPauseSummary?.progress, "クリア後のキャンペーン進捗が pause summary に反映されていません")
+
+        let (scoreViewModel, _) = makeViewModel(mode: .standard, campaignProgressStore: progressStore)
+        XCTAssertNil(scoreViewModel.campaignPauseSummary, "非キャンペーンモードでは pause summary が nil のままになる必要があります")
+    }
+
+    /// handleCampaignStageAdvance が stage unlock 条件を守って遷移要求を出し分けることを確認
+    func testHandleCampaignStageAdvanceRequestsOnlyUnlockedStage() throws {
+        let (defaults, suiteName) = try makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let adsService = SpyAdsService()
+        let progressStore = CampaignProgressStore(userDefaults: defaults)
+        let library = CampaignLibrary.shared
+        guard
+            let unlockedStage = library.stage(with: CampaignStageID(chapter: 1, index: 1)),
+            let lockedStage = library.stage(with: CampaignStageID(chapter: 1, index: 2))
+        else {
+            XCTFail("キャンペーンステージの取得に失敗しました")
+            return
+        }
+
+        var requestedStages: [CampaignStageID] = []
+        let (viewModel, _) = makeViewModel(
+            mode: unlockedStage.makeGameMode(),
+            adsService: adsService,
+            campaignProgressStore: progressStore,
+            onRequestStartCampaignStage: { stage in
+                requestedStages.append(stage.id)
+            }
+        )
+
+        viewModel.showingResult = true
+        viewModel.pendingMenuAction = .returnToTitle
+        viewModel.boardTapSelectionWarning = GameViewModel.BoardTapSelectionWarning(
+            message: "warning",
+            destination: GridPoint(x: 1, y: 1)
+        )
+
+        viewModel.handleCampaignStageAdvance(to: lockedStage)
+        XCTAssertTrue(requestedStages.isEmpty, "未解放ステージへの遷移要求は転送されてはいけません")
+
+        viewModel.handleCampaignStageAdvance(to: unlockedStage)
+        XCTAssertEqual(requestedStages, [unlockedStage.id], "解放済みステージへの遷移要求が転送されていません")
+        XCTAssertFalse(viewModel.showingResult, "ステージ遷移準備後は結果表示が閉じている必要があります")
+        XCTAssertNil(viewModel.pendingMenuAction, "ステージ遷移準備後も確認ダイアログが残っています")
+        XCTAssertNil(viewModel.boardTapSelectionWarning, "ステージ遷移準備後も警告状態が残っています")
+        XCTAssertEqual(adsService.resetPlayFlagCallCount, 2, "ステージ遷移準備ごとの広告フラグ初期化回数が一致しません")
+    }
+
     /// キャンペーンステージを連続でクリアした場合でも次の未クリアステージを newlyUnlockedStages に保持することを確認
     func testNewlyUnlockedStagesRemainAfterClearingSameCampaignStageTwice() throws {
         // UserDefaults の衝突を避けるため、テスト専用のスイートを生成する
@@ -477,6 +593,7 @@ final class GameViewModelTests: XCTestCase {
         mode: GameMode,
         adsService: AdsServiceProtocol = DummyAdsService(),
         onRequestReturnToTitle: (() -> Void)? = nil,
+        onRequestStartCampaignStage: ((CampaignStage) -> Void)? = nil,
         campaignProgressStore: CampaignProgressStore = CampaignProgressStore(),
         dateProvider: MutableDateProvider? = nil
     ) -> (GameViewModel, GameCore) {
@@ -497,7 +614,7 @@ final class GameViewModelTests: XCTestCase {
             campaignProgressStore: campaignProgressStore,
             onRequestGameCenterSignIn: nil,
             onRequestReturnToTitle: onRequestReturnToTitle,
-            onRequestStartCampaignStage: nil,
+            onRequestStartCampaignStage: onRequestStartCampaignStage,
             currentDateProvider: { resolvedDateProvider.now }
         )
         return (viewModel, core)
