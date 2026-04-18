@@ -31,7 +31,7 @@
 
 | レイヤ | ファイル | 状態 | 現状 | 次の分割/整理先 | 完了条件 | 関連テスト/根拠 |
 | --- | --- | --- | --- | --- | --- | --- |
-| UI | `UI/RootView.swift` | 進行中 | `RootView+GameFlow.swift` と `RootView+Diagnostics.swift` へ一部分割済みだが、app shell、タイトル遷移、準備フロー、認証導線、状態保持がまだ厚い | app shell を残しつつ、navigation/preparation coordinator と title flow の責務をさらに外出しする | `RootView.swift` が入口と依存注入中心になり、画面遷移や準備制御の詳細を別ファイルへ委譲できている | `docs/refactor-plan.md` の責務表、`UI/RootView+GameFlow.swift`、`UI/RootView+Diagnostics.swift` |
+| UI | `UI/RootView.swift` | 進行中 | `RootView+GameFlow.swift`、`RootView+Diagnostics.swift`、`RootView+Shell.swift` へ分割が進み、本体は依存注入・`StateObject` 保持・`body` 入口・初回認証 task にかなり寄った。いっぽう shell composition の公開入口と state store 集約はまだ残る | shell composition の公開入口を監視しつつ、state store を含む残存責務が逆流しない状態を保つ。次の主対象は `Game/GameSceneSupport.swift` へ移す | `RootView.swift` が app shell の入口にほぼ限定され、タイトル組み立て・layout diagnostics・ルートイベント窓口が別ファイルで追える | `docs/refactor-plan.md` の責務表、`UI/RootView+GameFlow.swift`、`UI/RootView+Diagnostics.swift`、`UI/RootView+Shell.swift`、`swift test`、`xcodebuild -scheme MonoKnightApp -project MonoKnight.xcodeproj -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.5' build` |
 | UI | `UI/GameViewModel.swift` | 進行中 | `SessionUIState`、`ResultPresentationState`、input/core binding/session reset に加え、service bridge と初期表示同期も `GameViewModelSupport.swift` 側へ分離済み。公開 API の入口と helper 調停は本体に残るが、責務集中はかなり薄くなった | 残る公開入口の監視を続けつつ、次の主対象を `Game/CampaignLibrary.swift` へ移す | `GameViewModel.swift` が GameCore の窓口と helper 調停にほぼ限定され、設定反映・認証同期・広告/キャンペーン橋渡しの詳細が補助型へ逆流しない | `MonoKnightAppTests/GameViewIntegrationTests.swift`、`MonoKnightAppTests/GameViewModelTests.swift`、`swift test`、`xcodebuild -scheme MonoKnightApp -project MonoKnight.xcodeproj -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.5' build` |
 | Game | `Game/CampaignLibrary.swift` | 完了 | 本体は公開 API と chapter builder の組み立てに絞り、章定義は `CampaignLibrary+Chapter1.swift` 〜 `CampaignLibrary+Chapter8.swift` へ分割済み。共通 penalty / fixed spawn は shared helper へ集約した | 維持中心。章追加やバランス調整は該当 chapter source だけを触る運用を保つ | 章ごとの定義追加・調整が局所変更で済み、単一ファイル依存を避けられている | `Tests/GameTests/CampaignLibraryTests.swift`、`Tests/GameTests/GameModeIdentifierTests.swift`、`Tests/GameTests/DailyChallengeDefinitionTests.swift`、`swift test` |
 | Game | `Game/GameSceneSupport.swift` | 未着手 | SpriteKit 補助責務が 1 ファイルに集中し、layout / decoration / animation / highlight 系が混在している | layout、decoration、animation、highlight 系の補助を責務別に分割する | 描画補助ごとの変更影響範囲が限定され、ハイライトや装飾の修正が局所化されている | ファイル行数 1600 行超、`GameScene` 補助ロジックが集約 |
@@ -47,9 +47,9 @@
 
 ## 次に着手する順番
 
-1. `UI/RootView.swift`
-2. `UI/GameViewModel.swift`
-3. `Game/GameSceneSupport.swift`
+1. `Game/GameSceneSupport.swift`
+2. `UI/RootView.swift`
+3. `UI/GameViewModel.swift`
 4. `MonoKnightApp.swift`
 5. `Services/GameCenterService.swift`
 

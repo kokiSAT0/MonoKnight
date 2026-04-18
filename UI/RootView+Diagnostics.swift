@@ -2,6 +2,16 @@ import Game
 import SwiftUI
 
 extension RootView {
+    func makeLayoutContext(from geometry: GeometryProxy) -> RootLayoutContext {
+        RootLayoutContext(
+            geometrySize: geometry.size,
+            safeAreaInsets: geometry.safeAreaInsets,
+            horizontalSizeClass: horizontalSizeClass
+        )
+    }
+}
+
+extension RootView {
     struct RootLayoutContext {
         let geometrySize: CGSize
         let safeAreaInsets: EdgeInsets
@@ -93,6 +103,65 @@ extension RootView {
         static let topBarBackgroundOpacity: Double = 0.94
         static let topBarDividerOpacity: Double = 0.45
         static let gamePreparationMinimumDelay: Double = 0.35
+    }
+}
+
+extension RootView.RootContentView {
+    var layoutDiagnosticOverlay: some View {
+        let snapshot = RootView.RootLayoutSnapshot(
+            context: layoutContext,
+            isAuthenticated: isAuthenticated,
+            isShowingTitleScreen: isShowingTitleScreen,
+            activeMode: activeMode,
+            topBarHeight: topBarHeight
+        )
+
+        return Color.clear
+            .frame(width: 0, height: 0)
+            .allowsHitTesting(false)
+            .onAppear {
+                logLayoutSnapshot(snapshot, reason: "初期観測")
+            }
+            .onChange(of: snapshot) { _, newValue in
+                logLayoutSnapshot(newValue, reason: "値更新")
+            }
+    }
+
+    func logLayoutSnapshot(_ snapshot: RootView.RootLayoutSnapshot, reason: String) {
+        guard loggedSnapshotCache != snapshot else { return }
+        loggedSnapshotCache = snapshot
+
+        if lastLoggedLayoutSnapshot != snapshot {
+            DispatchQueue.main.async {
+                lastLoggedLayoutSnapshot = snapshot
+            }
+        }
+
+        let message = """
+        RootView.layout 観測: 理由=\(reason)
+          geometry=\(snapshot.geometrySize)
+          safeArea(top=\(snapshot.safeAreaTop), bottom=\(snapshot.safeAreaBottom), leading=\(snapshot.safeAreaLeading), trailing=\(snapshot.safeAreaTrailing))
+          horizontalSizeClass=\(snapshot.horizontalSizeClassDescription) topBarPadding=\(snapshot.topBarHorizontalPadding) topBarMaxWidth=\(snapshot.topBarMaxWidthDescription) fallbackTopPadding=\(snapshot.regularTopPaddingFallback)
+          states(authenticated=\(snapshot.isAuthenticated), showingTitle=\(snapshot.isShowingTitleScreen), activeMode=\(snapshot.activeModeIdentifier.rawValue), topBarHeight=\(snapshot.topBarHeight))
+        """
+
+        debugLog(message)
+
+        if snapshot.topBarHeight > 0 {
+            hasObservedPositiveTopBarHeight = true
+        }
+
+        if snapshot.topBarHeight <= 0 {
+            if snapshot.isAuthenticated {
+                guard hasObservedPositiveTopBarHeight else { return }
+                debugLog("RootView.layout 警告: topBarHeight が 0 以下です。safe area とフォールバック設定を確認してください。")
+            } else {
+                hasObservedPositiveTopBarHeight = false
+            }
+        }
+        if snapshot.safeAreaTop < 0 || snapshot.safeAreaBottom < 0 {
+            debugLog("RootView.layout 警告: safeArea が負値です。GeometryReader の取得値を再確認してください。")
+        }
     }
 }
 
