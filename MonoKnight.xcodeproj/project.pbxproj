@@ -68,6 +68,14 @@
 		72F554A82E7E40100098A1B0 /* MoveCardIllustrationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72F554A72E7E40100098A1B0 /* MoveCardIllustrationView.swift */; };
 		72F554AC2E7E60850098A1B0 /* HowToPlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72F554A92E7E60850098A1B0 /* HowToPlayView.swift */; };
 		72F554AD2E7E60850098A1B0 /* AppTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72F554AA2E7E60850098A1B0 /* AppTheme.swift */; };
+		A1B2C3D4E5F6010000000001 /* AppTheme+Badges.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6010000000101 /* AppTheme+Badges.swift */; };
+		A1B2C3D4E5F6010000000002 /* AppTheme+Cards.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6010000000102 /* AppTheme+Cards.swift */; };
+		A1B2C3D4E5F6010000000003 /* AppTheme+Chrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6010000000103 /* AppTheme+Chrome.swift */; };
+		A1B2C3D4E5F6010000000004 /* AppTheme+Board.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6010000000104 /* AppTheme+Board.swift */; };
+		A1B2C3D4E5F6010000000005 /* AppTheme+PlatformBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6010000000105 /* AppTheme+PlatformBridge.swift */; };
+		A1B2C3D4E5F6010000000006 /* GameSessionPresentationSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6010000000106 /* GameSessionPresentationSupport.swift */; };
+		A1B2C3D4E5F6010000000007 /* GameSessionInteractionSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6010000000107 /* GameSessionInteractionSupport.swift */; };
+		A1B2C3D4E5F6010000000008 /* GameSessionLifecycleSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6010000000108 /* GameSessionLifecycleSupport.swift */; };
 		E79DD1482FFC8FEA0038C598 /* StorageKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = E79DD1472FFC8FEA0038C598 /* StorageKeys.swift */; };
 		E79DD14A2FFD18810038C598 /* DailyChallengeViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E79DD1492FFD18810038C598 /* DailyChallengeViewModel.swift */; };
 		E79DD14C2FFD188D0038C598 /* DailyChallengeViewSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = E79DD14B2FFD188D0038C598 /* DailyChallengeViewSections.swift */; };
@@ -172,6 +180,14 @@
 		72F554A72E7E40100098A1B0 /* MoveCardIllustrationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoveCardIllustrationView.swift; sourceTree = "<group>"; };
 		72F554A92E7E60850098A1B0 /* HowToPlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HowToPlayView.swift; sourceTree = "<group>"; };
 		72F554AA2E7E60850098A1B0 /* AppTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTheme.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6010000000101 /* AppTheme+Badges.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppTheme+Badges.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6010000000102 /* AppTheme+Cards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppTheme+Cards.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6010000000103 /* AppTheme+Chrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppTheme+Chrome.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6010000000104 /* AppTheme+Board.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppTheme+Board.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6010000000105 /* AppTheme+PlatformBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppTheme+PlatformBridge.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6010000000106 /* GameSessionPresentationSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameSessionPresentationSupport.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6010000000107 /* GameSessionInteractionSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameSessionInteractionSupport.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6010000000108 /* GameSessionLifecycleSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameSessionLifecycleSupport.swift; sourceTree = "<group>"; };
 		C26B69F12FFD64D4004DB899 /* ThemePreference.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemePreference.swift; sourceTree = "<group>"; };
 		E765BB512E83469000C78E4F /* Default.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Default.xcconfig; sourceTree = "<group>"; };
 		E765BB522E83469000C78E4F /* Local.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Local.xcconfig; sourceTree = "<group>"; };
@@ -339,6 +355,9 @@
 				726642F62E85DA8E003EA325 /* GameHandSectionView.swift */,
 				726642F72E85DA8E003EA325 /* GameMenuActionConfirmationSheet.swift */,
 				726643082E85DAA5003EA325 /* GamePreparationOverlayView.swift */,
+				A1B2C3D4E5F6010000000107 /* GameSessionInteractionSupport.swift */,
+				A1B2C3D4E5F6010000000108 /* GameSessionLifecycleSupport.swift */,
+				A1B2C3D4E5F6010000000106 /* GameSessionPresentationSupport.swift */,
 				72CF38002E7162E20093B180 /* GameView.swift */,
 				726642FA2E85DA9D003EA325 /* GameView+Layout.swift */,
 				726642FB2E85DA9D003EA325 /* GameView+Logging.swift */,
@@ -385,6 +404,11 @@
 			isa = PBXGroup;
 			children = (
 				72F554AA2E7E60850098A1B0 /* AppTheme.swift */,
+				A1B2C3D4E5F6010000000104 /* AppTheme+Board.swift */,
+				A1B2C3D4E5F6010000000101 /* AppTheme+Badges.swift */,
+				A1B2C3D4E5F6010000000102 /* AppTheme+Cards.swift */,
+				A1B2C3D4E5F6010000000103 /* AppTheme+Chrome.swift */,
+				A1B2C3D4E5F6010000000105 /* AppTheme+PlatformBridge.swift */,
 				C26B69F12FFD64D4004DB899 /* ThemePreference.swift */,
 			);
 			path = Theme;
@@ -610,6 +634,9 @@
 				72185F542E84B4680057458C /* ServiceInterfaces.swift in Sources */,
 				7266429E2E849763003EA325 /* GameViewModel.swift in Sources */,
 				E79DD1562FFD1C960038C598 /* GameViewModelSupport.swift in Sources */,
+				A1B2C3D4E5F6010000000007 /* GameSessionInteractionSupport.swift in Sources */,
+				A1B2C3D4E5F6010000000008 /* GameSessionLifecycleSupport.swift in Sources */,
+				A1B2C3D4E5F6010000000006 /* GameSessionPresentationSupport.swift in Sources */,
 				726642982E848E91003EA325 /* AdsConsentCoordinator.swift in Sources */,
 				72F554A82E7E40100098A1B0 /* MoveCardIllustrationView.swift in Sources */,
 				726642F52E85DA84003EA325 /* GameCardAnimationOverlay.swift in Sources */,
@@ -638,6 +665,11 @@
 				726643072E85DAD1003EA325 /* CampaignProgressStore.swift in Sources */,
 				72F554AC2E7E60850098A1B0 /* HowToPlayView.swift in Sources */,
 				72F554AD2E7E60850098A1B0 /* AppTheme.swift in Sources */,
+				A1B2C3D4E5F6010000000004 /* AppTheme+Board.swift in Sources */,
+				A1B2C3D4E5F6010000000001 /* AppTheme+Badges.swift in Sources */,
+				A1B2C3D4E5F6010000000002 /* AppTheme+Cards.swift in Sources */,
+				A1B2C3D4E5F6010000000003 /* AppTheme+Chrome.swift in Sources */,
+				A1B2C3D4E5F6010000000005 /* AppTheme+PlatformBridge.swift in Sources */,
 				C26B69F22FFD64D4004DB899 /* ThemePreference.swift in Sources */,
 				726642EF2E85DA48003EA325 /* CampaignStageSelectionView.swift in Sources */,
 				726642482E826487003EA325 /* Environment+TopOverlayHeight.swift in Sources */,

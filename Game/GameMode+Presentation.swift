@@ -1,5 +1,47 @@
 import Foundation
 
+public extension GameMode.DifficultyRank {
+    /// バッジ表示で利用する短いラベル
+    var badgeLabel: String {
+        switch self {
+        case .balanced:
+            return "標準"
+        case .advanced:
+            return "高難度"
+        case .custom:
+            return "調整可"
+        case .scenario:
+            return "ステージ"
+        }
+    }
+
+    /// アクセシビリティ向けの詳細説明
+    var accessibilityDescription: String {
+        switch self {
+        case .balanced:
+            return "難易度は標準です"
+        case .advanced:
+            return "難易度は高難度です"
+        case .custom:
+            return "難易度はプレイヤーが調整できます"
+        case .scenario:
+            return "難易度はステージ進行に応じて変化します"
+        }
+    }
+}
+
+public extension GameMode.SpawnRule {
+    /// UI 表示用にルールの説明テキストを返す
+    var summaryText: String {
+        switch self {
+        case .fixed:
+            return "固定スポーン"
+        case .chooseAnyAfterPreview:
+            return "任意スポーン"
+        }
+    }
+}
+
 public extension GameMode {
     /// UI 表示用のアイコン名
     /// - Note: SF Symbols のシステム名を返し、SwiftUI から共通の描画を行えるようにする

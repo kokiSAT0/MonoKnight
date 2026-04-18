@@ -8,6 +8,8 @@
 import SwiftUI
 import Testing
 import Game
+import GameKit
+import SharedSupport
 @testable import MonoKnightApp
 
 // MARK: - テスト用スタブ定義
@@ -284,6 +286,186 @@ struct MonoKnightAppTests {
 
         #expect(service.leaderboardIdentifier(for: .dailyFixedChallenge) == "test_daily_fixed_v1")
         #expect(service.leaderboardIdentifier(for: .dailyRandomChallenge) == "test_daily_random_v1")
+    }
+
+    /// 設定不足のモードは leaderboard ID を解決せず nil を返すことを確認する
+    @MainActor
+    @Test func leaderboardIdentifier_missingConfiguration_returnsNilForUnsupportedMode() throws {
+        let service = GameCenterService(
+            userDefaults: UserDefaults(suiteName: "MonoKnightAppTests.GameCenterService.MissingConfig") ?? .standard,
+            infoDictionary: [
+                "GameCenterLeaderboardStandardReferenceName": "[TEST] Standard Leaderboard",
+                "GameCenterLeaderboardStandardID": "test_standard_moves_v1",
+                "GameCenterLeaderboardClassicalReferenceName": "[TEST] Classical Challenge Leaderboard",
+                "GameCenterLeaderboardClassicalID": "test_classical_moves_v1",
+            ]
+        )
+
+        #expect(service.leaderboardIdentifier(for: .standard5x5) == "test_standard_moves_v1")
+        #expect(service.leaderboardIdentifier(for: .dailyFixedChallenge) == nil)
+        #expect(service.leaderboardIdentifier(for: .dailyRandomChallenge) == nil)
+    }
+
+    /// resetSubmittedFlag(for:) が単一モードの送信記録だけを消せることを確認する
+    @MainActor
+    @Test func gameCenterService_resetSubmittedFlag_forSingleMode_removesOnlyTargetRecord() async throws {
+        let suiteName = "MonoKnightAppTests.GameCenterService.ResetSingle"
+        let defaults = UserDefaults(suiteName: suiteName) ?? .standard
+        defaults.removePersistentDomain(forName: suiteName)
+
+        var submittedLeaderboards: [String] = []
+        let service = GameCenterService(
+            userDefaults: defaults,
+            infoDictionary: [
+                "GameCenterLeaderboardStandardReferenceName": "[TEST] Standard Leaderboard",
+                "GameCenterLeaderboardStandardID": "test_standard_moves_v1",
+                "GameCenterLeaderboardClassicalReferenceName": "[TEST] Classical Challenge Leaderboard",
+                "GameCenterLeaderboardClassicalID": "test_classical_moves_v1",
+            ],
+            testHooks: GameCenterServiceTestHooks(
+                currentAuthenticationStateProvider: { true },
+                scoreSubmitter: { _, leaderboardID, completion in
+                    submittedLeaderboards.append(leaderboardID)
+                    completion(nil)
+                },
+                mainAsync: { $0() }
+            )
+        )
+
+        service.submitScore(10, for: .standard5x5)
+        await Task.yield()
+        service.submitScore(12, for: .classicalChallenge)
+        await Task.yield()
+        service.submitScore(20, for: .standard5x5)
+        await Task.yield()
+
+        #expect(submittedLeaderboards == ["test_standard_moves_v1", "test_classical_moves_v1"])
+
+        service.resetSubmittedFlag(for: .standard5x5)
+        service.submitScore(20, for: .standard5x5)
+        await Task.yield()
+        service.submitScore(18, for: .classicalChallenge)
+        await Task.yield()
+
+        #expect(submittedLeaderboards == [
+            "test_standard_moves_v1",
+            "test_classical_moves_v1",
+            "test_standard_moves_v1",
+        ])
+    }
+
+    /// 全モードの送信記録リセット後は各 leaderboard が再送信可能になることを確認する
+    @MainActor
+    @Test func gameCenterService_resetSubmittedFlag_forAllModes_clearsAllRecords() async throws {
+        let suiteName = "MonoKnightAppTests.GameCenterService.ResetAll"
+        let defaults = UserDefaults(suiteName: suiteName) ?? .standard
+        defaults.removePersistentDomain(forName: suiteName)
+
+        var submittedLeaderboards: [String] = []
+        let service = GameCenterService(
+            userDefaults: defaults,
+            infoDictionary: [
+                "GameCenterLeaderboardStandardReferenceName": "[TEST] Standard Leaderboard",
+                "GameCenterLeaderboardStandardID": "test_standard_moves_v1",
+                "GameCenterLeaderboardClassicalReferenceName": "[TEST] Classical Challenge Leaderboard",
+                "GameCenterLeaderboardClassicalID": "test_classical_moves_v1",
+            ],
+            testHooks: GameCenterServiceTestHooks(
+                currentAuthenticationStateProvider: { true },
+                scoreSubmitter: { _, leaderboardID, completion in
+                    submittedLeaderboards.append(leaderboardID)
+                    completion(nil)
+                },
+                mainAsync: { $0() }
+            )
+        )
+
+        service.submitScore(10, for: .standard5x5)
+        await Task.yield()
+        service.submitScore(12, for: .classicalChallenge)
+        await Task.yield()
+        service.resetSubmittedFlag()
+        service.submitScore(20, for: .standard5x5)
+        await Task.yield()
+        service.submitScore(18, for: .classicalChallenge)
+        await Task.yield()
+
+        #expect(submittedLeaderboards == [
+            "test_standard_moves_v1",
+            "test_classical_moves_v1",
+            "test_standard_moves_v1",
+            "test_classical_moves_v1",
+        ])
+    }
+
+    /// 既送信より悪いスコアは再送信されないことを確認する
+    @MainActor
+    @Test func gameCenterService_submitScore_skipsWorseScoresAfterBestRecord() async throws {
+        let suiteName = "MonoKnightAppTests.GameCenterService.WorseScore"
+        let defaults = UserDefaults(suiteName: suiteName) ?? .standard
+        defaults.removePersistentDomain(forName: suiteName)
+
+        var submittedScores: [(String, Int)] = []
+        let service = GameCenterService(
+            userDefaults: defaults,
+            infoDictionary: [
+                "GameCenterLeaderboardStandardReferenceName": "[TEST] Standard Leaderboard",
+                "GameCenterLeaderboardStandardID": "test_standard_moves_v1",
+            ],
+            testHooks: GameCenterServiceTestHooks(
+                currentAuthenticationStateProvider: { true },
+                scoreSubmitter: { score, leaderboardID, completion in
+                    submittedScores.append((leaderboardID, score))
+                    completion(nil)
+                },
+                mainAsync: { $0() }
+            )
+        )
+
+        service.submitScore(10, for: .standard5x5)
+        await Task.yield()
+        service.submitScore(20, for: .standard5x5)
+        await Task.yield()
+        service.submitScore(8, for: .standard5x5)
+        await Task.yield()
+
+        #expect(submittedScores.count == 2)
+        #expect(submittedScores.map(\.0) == ["test_standard_moves_v1", "test_standard_moves_v1"])
+        #expect(submittedScores.map(\.1) == [10, 8])
+    }
+
+    /// 認証キャンセル系のエラーは downgrade ログのみを残すことを確認する
+    @MainActor
+    @Test func gameCenterService_authenticationCancellation_logsDowngradedMessage() async throws {
+        DebugLogHistory.shared.clear()
+
+        let cancellationError = NSError(
+            domain: GKErrorDomain,
+            code: GKError.Code.cancelled.rawValue,
+            userInfo: [NSLocalizedDescriptionKey: "cancelled in test"]
+        )
+        let service = GameCenterService(
+            userDefaults: UserDefaults(suiteName: "MonoKnightAppTests.GameCenterService.Auth") ?? .standard,
+            infoDictionary: [:],
+            testHooks: GameCenterServiceTestHooks(
+                currentAuthenticationStateProvider: { false },
+                authenticateHandlerInstaller: { callback in
+                    callback(nil, false, cancellationError)
+                },
+                mainAsync: { $0() }
+            )
+        )
+
+        var completionResult: Bool?
+        service.authenticateLocalPlayer { success in
+            completionResult = success
+        }
+        await Task.yield()
+
+        let messages = DebugLogHistory.shared.snapshot().map(\.message)
+        #expect(completionResult == false)
+        #expect(messages.contains(where: { $0.contains("Game Center 認証が利用者操作により完了しませんでした") }))
+        #expect(messages.allSatisfy { !$0.contains("Game Center 認証失敗") })
     }
 
     /// SettingsActionCoordinator が Game Center 認証状態と alert を既存どおり更新することを確認する

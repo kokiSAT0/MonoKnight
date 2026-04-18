@@ -108,6 +108,7 @@ MonoKnight/
 - `StoreService`: StoreKit 2 を用いた広告除去 IAP
 - `AdsService`: AdMob のロードと表示制御
 - `GameCenterService`: 認証、スコア送信、leaderboard 導線
+  - サービス本体は façade とし、認証フロー・送信判定・leaderboard 提示は internal/private helper へ閉じ込め、UI へ GameKit 詳細を広げない
 
 ## 7. 状態管理方針
 

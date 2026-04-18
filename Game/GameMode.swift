@@ -37,36 +37,6 @@ public struct GameMode: Equatable, Identifiable {
         case custom
         /// キャンペーンなどシナリオ進行に応じて難度が変化するモード
         case scenario
-
-        /// バッジ表示で利用する短いラベル
-        /// - Returns: カード上に表示する 2〜3 文字の日本語表記
-        public var badgeLabel: String {
-            switch self {
-            case .balanced:
-                return "標準"
-            case .advanced:
-                return "高難度"
-            case .custom:
-                return "調整可"
-            case .scenario:
-                return "ステージ"
-            }
-        }
-
-        /// アクセシビリティ向けの詳細説明
-        /// - Returns: VoiceOver などで読み上げる文言
-        public var accessibilityDescription: String {
-            switch self {
-            case .balanced:
-                return "難易度は標準です"
-            case .advanced:
-                return "難易度は高難度です"
-            case .custom:
-                return "難易度はプレイヤーが調整できます"
-            case .scenario:
-                return "難易度はステージ進行に応じて変化します"
-            }
-        }
     }
 
     /// 初期スポーンの扱い
@@ -110,17 +80,6 @@ public struct GameMode: Equatable, Identifiable {
                 try container.encode(point, forKey: .point)
             case .chooseAnyAfterPreview:
                 try container.encode(Kind.chooseAnyAfterPreview, forKey: .type)
-            }
-        }
-
-        /// UI 表示用にルールの説明テキストを返す
-        /// - Note: モード追加時に文字列を個別で管理しなくても済むよう、ここで共通化しておく
-        public var summaryText: String {
-            switch self {
-            case .fixed:
-                return "固定スポーン"
-            case .chooseAnyAfterPreview:
-                return "任意スポーン"
             }
         }
 
@@ -204,7 +163,7 @@ public struct GameMode: Equatable, Identifiable {
         public var warpTilePairs: [String: [GridPoint]] = [:]
         /// 固定座標ワープカードで利用する目的地候補
         /// - Important: 盤外や障害物マスを事前に除外し、ゲーム中の `availableMoves` での防御的なチェックを補助する
-        public private(set) var fixedWarpCardTargets: [MoveCard: [GridPoint]] = [:]
+        public internal(set) var fixedWarpCardTargets: [MoveCard: [GridPoint]] = [:]
 
         /// レギュレーションを組み立てるためのイニシャライザ
         /// - Parameters:
@@ -250,102 +209,8 @@ public struct GameMode: Equatable, Identifiable {
             )
         }
 
-        /// 固定ワープカードの目的地を検証してから登録するヘルパー
-        /// - Parameters:
-        ///   - rawTargets: モード設定で宣言された元の座標集合
-        ///   - boardSize: 対象盤面サイズ
-        ///   - impassableTilePoints: 障害物として扱うマス集合
-        /// - Returns: 盤外・障害物・重複を除去した安全な辞書
-        private static func sanitizeFixedWarpTargets(
-            _ rawTargets: [MoveCard: [GridPoint]],
-            boardSize: Int,
-            impassableTilePoints: Set<GridPoint>
-        ) -> [MoveCard: [GridPoint]] {
-            guard boardSize > 0, !rawTargets.isEmpty else { return [:] }
-
-            let validRange = 0..<boardSize
-            let isInsideBoard: (GridPoint) -> Bool = { point in
-                validRange.contains(point.x) && validRange.contains(point.y)
-            }
-
-            var sanitized: [MoveCard: [GridPoint]] = [:]
-
-            for (card, points) in rawTargets {
-                guard !points.isEmpty else { continue }
-
-                var filtered: [GridPoint] = []
-                filtered.reserveCapacity(points.count)
-                var seen: Set<GridPoint> = []
-
-                for point in points {
-                    // --- 盤外や障害物は候補から除外し、ゲーム中の安全確認負荷を減らす ---
-                    guard isInsideBoard(point), !impassableTilePoints.contains(point) else { continue }
-                    // --- 同一座標は 1 度だけ登録して意図しない重複を防ぐ ---
-                    guard seen.insert(point).inserted else { continue }
-                    filtered.append(point)
-                }
-
-                guard !filtered.isEmpty else { continue }
-                sanitized[card] = filtered
-            }
-
-            return sanitized
-        }
-
-        /// 固定ワープカードの最終的な目的地リストを決定する
-        /// - Parameters:
-        ///   - rawTargets: モード設定で宣言されたターゲット一覧
-        ///   - boardSize: 対象となる盤面サイズ
-        ///   - impassableTilePoints: 障害物として扱うマス集合
-        ///   - deckPreset: 利用する山札プリセット
-        /// - Returns: バリデーション済みターゲット。未指定の場合は盤面全域から自動生成した候補を返す
-        private static func finalizeFixedWarpTargets(
-            rawTargets: [MoveCard: [GridPoint]],
-            boardSize: Int,
-            impassableTilePoints: Set<GridPoint>,
-            deckPreset: GameDeckPreset
-        ) -> [MoveCard: [GridPoint]] {
-            // --- まずは明示的に指定されたターゲットをバリデーションし、問題がなければそのまま採用する ---
-            let sanitized = sanitizeFixedWarpTargets(
-                rawTargets,
-                boardSize: boardSize,
-                impassableTilePoints: impassableTilePoints
-            )
-            if !sanitized.isEmpty {
-                return sanitized
-            }
-
-            // --- ワープカードを含むデッキでターゲット未指定の場合は、盤面全域から安全な候補を自動生成する ---
-            let allowedMoves = deckPreset.configuration.allowedMoves
-            guard allowedMoves.contains(.fixedWarp) else { return [:] }
-            return defaultFixedWarpTargets(
-                boardSize: boardSize,
-                impassableTilePoints: impassableTilePoints
-            )
-        }
-
-        /// 盤面全域から固定ワープカード用の目的地候補を生成する
-        /// - Parameters:
-        ///   - boardSize: 盤面の一辺サイズ
-        ///   - impassableTilePoints: 障害物マス集合（候補から除外する）
-        /// - Returns: 盤面内かつ移動可能な座標のみを含む辞書。候補が存在しない場合は空辞書を返す
-        private static func defaultFixedWarpTargets(
-            boardSize: Int,
-            impassableTilePoints: Set<GridPoint>
-        ) -> [MoveCard: [GridPoint]] {
-            guard boardSize > 0 else { return [:] }
-
-            // --- BoardGeometry を利用して盤面全座標を列挙し、障害物を除いた順序付きリストを生成する ---
-            let allPoints = BoardGeometry.allPoints(for: boardSize)
-            let traversablePoints = allPoints.filter { point in
-                !impassableTilePoints.contains(point)
-            }
-            guard !traversablePoints.isEmpty else { return [:] }
-            return [.fixedWarp: traversablePoints]
-        }
-
         /// Codable 対応のためのキー定義
-        private enum CodingKeys: String, CodingKey {
+        enum CodingKeys: String, CodingKey {
             case boardSize
             case handSize
             case nextPreviewCount
@@ -359,105 +224,6 @@ public struct GameMode: Equatable, Identifiable {
             case tileEffectOverrides
             case warpTilePairs
             case fixedWarpCardTargets
-        }
-
-        /// デコード処理（固定ワープ定義は一旦文字列キーとして受け取り、MoveCard へ変換する）
-        public init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-
-            let decodedBoardSize = try container.decode(Int.self, forKey: .boardSize)
-            let decodedHandSize = try container.decode(Int.self, forKey: .handSize)
-            let decodedNextPreview = try container.decode(Int.self, forKey: .nextPreviewCount)
-            let decodedAllowsStacking = try container.decode(Bool.self, forKey: .allowsStacking)
-            let decodedDeckPreset = try container.decode(GameDeckPreset.self, forKey: .deckPreset)
-            let decodedSpawnRule = try container.decode(SpawnRule.self, forKey: .spawnRule)
-            let decodedPenalties = try container.decode(PenaltySettings.self, forKey: .penalties)
-            let decodedAdditional = try container.decodeIfPresent([GridPoint: Int].self, forKey: .additionalVisitRequirements) ?? [:]
-            let decodedToggle = try container.decodeIfPresent(Set<GridPoint>.self, forKey: .toggleTilePoints) ?? []
-            let decodedImpassable = try container.decodeIfPresent(Set<GridPoint>.self, forKey: .impassableTilePoints) ?? []
-            let decodedEffects = try container.decodeIfPresent([GridPoint: TileEffect].self, forKey: .tileEffectOverrides) ?? [:]
-            let decodedWarpPairs = try container.decodeIfPresent([String: [GridPoint]].self, forKey: .warpTilePairs) ?? [:]
-            let rawFixedWarpTargets = try container.decodeIfPresent([String: [GridPoint]].self, forKey: .fixedWarpCardTargets) ?? [:]
-
-            let decodedTargets = Regulation.decodeFixedWarpTargets(from: rawFixedWarpTargets)
-            let sanitizedTargets = Regulation.finalizeFixedWarpTargets(
-                rawTargets: decodedTargets,
-                boardSize: decodedBoardSize,
-                impassableTilePoints: decodedImpassable,
-                deckPreset: decodedDeckPreset
-            )
-
-            boardSize = decodedBoardSize
-            handSize = decodedHandSize
-            nextPreviewCount = decodedNextPreview
-            allowsStacking = decodedAllowsStacking
-            deckPreset = decodedDeckPreset
-            spawnRule = decodedSpawnRule
-            penalties = decodedPenalties
-            additionalVisitRequirements = decodedAdditional
-            toggleTilePoints = decodedToggle
-            impassableTilePoints = decodedImpassable
-            tileEffectOverrides = decodedEffects
-            warpTilePairs = decodedWarpPairs
-            fixedWarpCardTargets = sanitizedTargets
-        }
-
-        /// エンコード処理（固定ワープ定義は MoveCard のインデックスをキーに変換する）
-        public func encode(to encoder: Encoder) throws {
-            var container = encoder.container(keyedBy: CodingKeys.self)
-            try container.encode(boardSize, forKey: .boardSize)
-            try container.encode(handSize, forKey: .handSize)
-            try container.encode(nextPreviewCount, forKey: .nextPreviewCount)
-            try container.encode(allowsStacking, forKey: .allowsStacking)
-            try container.encode(deckPreset, forKey: .deckPreset)
-            try container.encode(spawnRule, forKey: .spawnRule)
-            try container.encode(penalties, forKey: .penalties)
-            if !additionalVisitRequirements.isEmpty {
-                try container.encode(additionalVisitRequirements, forKey: .additionalVisitRequirements)
-            }
-            if !toggleTilePoints.isEmpty {
-                try container.encode(toggleTilePoints, forKey: .toggleTilePoints)
-            }
-            if !impassableTilePoints.isEmpty {
-                try container.encode(impassableTilePoints, forKey: .impassableTilePoints)
-            }
-            if !tileEffectOverrides.isEmpty {
-                try container.encode(tileEffectOverrides, forKey: .tileEffectOverrides)
-            }
-            if !warpTilePairs.isEmpty {
-                try container.encode(warpTilePairs, forKey: .warpTilePairs)
-            }
-            let encodedTargets = Regulation.encodeFixedWarpTargets(fixedWarpCardTargets)
-            if !encodedTargets.isEmpty {
-                try container.encode(encodedTargets, forKey: .fixedWarpCardTargets)
-            }
-        }
-
-        /// エンコード用に MoveCard を安定キーへ変換する
-        /// - Parameter targets: 変換対象の辞書
-        /// - Returns: MoveCard のインデックスを文字列化したキーを持つ辞書
-        private static func encodeFixedWarpTargets(_ targets: [MoveCard: [GridPoint]]) -> [String: [GridPoint]] {
-            guard !targets.isEmpty else { return [:] }
-            var encoded: [String: [GridPoint]] = [:]
-            for (card, points) in targets {
-                guard let index = MoveCard.allCases.firstIndex(of: card) else { continue }
-                encoded[String(index)] = points
-            }
-            return encoded
-        }
-
-        /// デコード時に MoveCard のインデックスへ戻す
-        /// - Parameter raw: 文字列キーで受け取った辞書
-        /// - Returns: MoveCard をキーにした辞書
-        private static func decodeFixedWarpTargets(from raw: [String: [GridPoint]]) -> [MoveCard: [GridPoint]] {
-            guard !raw.isEmpty else { return [:] }
-            var decoded: [MoveCard: [GridPoint]] = [:]
-            for (key, points) in raw {
-                guard let index = Int(key), MoveCard.allCases.indices.contains(index) else { continue }
-                let card = MoveCard.allCases[index]
-                decoded[card] = points
-            }
-            return decoded
         }
     }
 
@@ -582,67 +348,6 @@ public struct GameMode: Equatable, Identifiable {
         regulation.fixedWarpCardTargets[.fixedWarp] ?? []
     }
 
-    /// 盤面へ適用するタイル効果を合成して返す
-    /// - Important: ワープ定義は自動的に `TileEffect.warp` へ展開し、個別指定された効果より優先度は低い（手動指定があればそちらを採用）
-    public var tileEffects: [GridPoint: TileEffect] {
-        var effects = regulation.tileEffectOverrides
-        for (pairID, points) in regulation.warpTilePairs {
-            guard points.count >= 2 else { continue }
-            var uniquePoints: [GridPoint] = []
-            var seen: Set<GridPoint> = []
-            for point in points where seen.insert(point).inserted {
-                uniquePoints.append(point)
-            }
-            guard uniquePoints.count >= 2 else { continue }
-            for (index, point) in uniquePoints.enumerated() {
-                guard effects[point] == nil else { continue }
-                let destination = uniquePoints[(index + 1) % uniquePoints.count]
-                effects[point] = .warp(pairID: pairID, destination: destination)
-            }
-        }
-        return effects
-    }
-
-    /// スタンダードモード（既存仕様）
-    public static var standard: GameMode {
-        GameMode(identifier: .standard5x5, displayName: "スタンダード", regulation: buildStandardRegulation())
-    }
-
-    /// クラシカルチャレンジモード
-    public static var classicalChallenge: GameMode {
-        GameMode(identifier: .classicalChallenge, displayName: "クラシカルチャレンジ", regulation: buildClassicalChallengeRegulation())
-    }
-
-    /// ビルトインで用意しているモードの一覧
-    public static var builtInModes: [GameMode] { [standard, classicalChallenge] }
-
-    /// 識別子から対応するモード定義を取り出すヘルパー
-    /// - Parameter identifier: 利用したいモードの識別子
-    /// - Returns: `identifier` に対応する `GameMode`
-    public static func mode(for identifier: Identifier) -> GameMode {
-        switch identifier {
-        case .standard5x5:
-            return standard
-        case .classicalChallenge:
-            return classicalChallenge
-        case .dailyFixedChallenge:
-            // 日替わり固定シードは現状ビルトイン定義が存在しないため、スタンダード相当をフォールバックとして返す
-            return standard
-        case .dailyRandomChallenge:
-            // 日替わりランダムシードも同様に将来的な実装を想定し、暫定的にスタンダードを返しておく
-            return standard
-        case .freeCustom:
-            // フリーモードはユーザー設定によって変化するため、デフォルトとしてスタンダード相当を返す
-            return standard
-        case .campaignStage:
-            // キャンペーン専用モードは `CampaignStage` から生成されるため、ここではスタンダードをフォールバックとして返す
-            return standard
-        case .dailyFixed, .dailyRandom:
-            // 日替わりモードは日付とシードから別途生成されるため、ここでは安全側としてスタンダードを返す
-            return standard
-        }
-    }
-
     /// Equatable 準拠。識別子が一致すれば同一モードとみなす
     public static func == (lhs: GameMode, rhs: GameMode) -> Bool {
         guard lhs.identifier == rhs.identifier else { return false }
@@ -662,43 +367,5 @@ public struct GameMode: Equatable, Identifiable {
         case .standard5x5, .classicalChallenge:
             return false
         }
-    }
-
-    /// スタンダードモードの定義を生成する
-    private static func buildStandardRegulation() -> Regulation {
-        Regulation(
-            boardSize: BoardGeometry.standardSize,
-            handSize: 5,
-            nextPreviewCount: 3,
-            allowsStacking: true,
-            deckPreset: .standard,
-            // BoardGeometry を利用して中央座標を求めることで、盤面サイズが変わった場合の修正箇所を 1 箇所に抑える
-            spawnRule: .fixed(BoardGeometry.defaultSpawnPoint(for: BoardGeometry.standardSize)),
-            penalties: PenaltySettings(
-                // スタンダードモードの基準ペナルティは手詰まり 3／手動引き直し 2／捨て札 1／再訪問 0 に統一する
-                deadlockPenaltyCost: 3,
-                manualRedrawPenaltyCost: 2,
-                manualDiscardPenaltyCost: 1,
-                revisitPenaltyCost: 0
-            )
-        )
-    }
-
-    /// クラシカルチャレンジモードの定義を生成する
-    private static func buildClassicalChallengeRegulation() -> Regulation {
-        Regulation(
-            boardSize: 8,
-            handSize: 5,
-            nextPreviewCount: 3,
-            allowsStacking: true,
-            deckPreset: .classicalChallenge,
-            spawnRule: .chooseAnyAfterPreview,
-            penalties: PenaltySettings(
-                deadlockPenaltyCost: 2,
-                manualRedrawPenaltyCost: 2,
-                manualDiscardPenaltyCost: 1,
-                revisitPenaltyCost: 1
-            )
-        )
     }
 }

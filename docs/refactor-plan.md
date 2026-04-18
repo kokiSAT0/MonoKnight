@@ -9,8 +9,8 @@
 ## 現状構造
 | レイヤ | 現在の主責務 | 主なボトルネック |
 | --- | --- | --- |
-| `Game` | 盤面、移動、モード、キャンペーン定義、スコア | `GameMode.swift` と `CampaignStage.swift` が定義・表示・変換を兼任 |
-| `UI` | タイトル、ゲーム表示、設定、遷移 | `RootView.swift` と `GameViewModel.swift` に状態とフローが集中 |
+| `Game` | 盤面、移動、モード、キャンペーン定義、スコア | `CampaignStage.swift` は定義本体を薄化済み。現時点の主ボトルネックは `MoveCard.swift` に残る `MovePattern` 解決と registry 初期化支援 |
+| `UI` | タイトル、ゲーム表示、設定、遷移 | `RootView.swift` / `GameViewModel.swift` の façade 化は進んだが、`GameViewModelSupport.swift` の action surface と `AppTheme.swift` 由来のテーマトークン運用は継続整理が必要 |
 | `Services` | Ads / Game Center / StoreKit / 永続化ストア | 保存キーと責務の流儀が散っている |
 | `SharedSupport` | ログとクラッシュ補助 | 基盤は安定しているが利用点が散在 |
 | `MonoKnightApp.swift` | 起動、DI、同意フロー切替 | 設定キー依存が点在しやすい |
@@ -18,7 +18,11 @@
 ## 今回反映したベースライン整備
 - `HandManagerTests` が前提にしていた固定ワープ目的地の順序を、テストデッキで安定再現できるようにした。
 - `StorageKey` を追加し、`@AppStorage` / `UserDefaults` キーの主要な定義を 1 箇所へ集約した。
-- `GameMode` と `CampaignStage` の表示用ロジックを拡張ファイルへ分離し、定義本体の責務を少し軽くした。
+- `GameMode` の表示用ロジック、`Regulation` 補助、built-in mode 生成を拡張ファイルへ分離し、定義本体を façade として薄く保てる状態にした。
+- `CampaignStage` の表示・評価・進行用変換を拡張ファイルへ分離し、本体を公開データ定義中心へ整理した。
+- `GameViewModelSupport` の helper type 群を presentation / interaction / lifecycle support へ分割し、support 本体を `GameViewModel` の action / lifecycle 入口へ寄せた。
+- `MoveCard` の第1段階として registry と presentation metadata を拡張ファイルへ移し、ケース定義と移動解決の境界を明確にした。
+- `AppTheme` のトークンを badges / cards / chrome / board / platform bridge へ分割し、ベーステーマの入口を薄くした。
 - `RootView` 内の重複していた `campaignStage(for:)` ヘルパーを 1 箇所に整理した。
 
 ## RootView / GameViewModel 責務表
@@ -57,17 +61,17 @@
 
 ### Phase 3
 - `GameViewModel` を画面状態、結果遷移、タイマーポリシーに分ける。
-- 設定は `StorageKey` と将来の settings store に寄せる。
+- `GameViewModelSupport` の action surface を必要に応じて result / pause / service bridge 単位へさらに整理する。
 
 ### Phase 4
-- `GameMode` / `CampaignStage` を定義と表示へ分離し続ける。
+- `MoveCard` の第2段階として `MovePattern` 解決ロジックと registry 初期化支援の分離可否を見極める。
 - 日替わりは「プレイ用 mode ID」と「leaderboard 用 ID」を明示的に区別し続ける。
 
 ### Phase 5
-- `GameScene`、Services、各種 Store の責務をさらに整える。
+- `AppTheme`、`GameScene`、Services、各種 Store の責務をさらに整える。
 
 ## 今やるべきこと
 - `swift test` を常時グリーンに保つ。
-- `RootView` と `GameViewModel` の分割を小さい PR 単位で進める。
-- top bar 基盤は「停止中の構造」として扱い、復活要件が出るまで広げない。
-- 日替わりの ID 二重構造は docs と命名で明確化してから変更する。
+- `GameViewModelSupport` の action surface を小さい PR 単位で整理し、support file が再肥大化しないよう監視する。
+- `MoveCard` の第2段階は挙動固定テストを前提に小刻みに進める。
+- `AppTheme` は色値を変えず、extension 単位での変更運用を定着させる。
