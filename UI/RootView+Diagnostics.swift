@@ -128,8 +128,8 @@ extension RootView.RootContentView {
     }
 
     func logLayoutSnapshot(_ snapshot: RootView.RootLayoutSnapshot, reason: String) {
-        guard loggedSnapshotCache != snapshot else { return }
-        loggedSnapshotCache = snapshot
+        guard layoutObservationState.loggedSnapshotCache != snapshot else { return }
+        layoutObservationState.loggedSnapshotCache = snapshot
 
         if lastLoggedLayoutSnapshot != snapshot {
             DispatchQueue.main.async {
@@ -148,15 +148,15 @@ extension RootView.RootContentView {
         debugLog(message)
 
         if snapshot.topBarHeight > 0 {
-            hasObservedPositiveTopBarHeight = true
+            layoutObservationState.hasObservedPositiveTopBarHeight = true
         }
 
         if snapshot.topBarHeight <= 0 {
             if snapshot.isAuthenticated {
-                guard hasObservedPositiveTopBarHeight else { return }
+                guard layoutObservationState.hasObservedPositiveTopBarHeight else { return }
                 debugLog("RootView.layout 警告: topBarHeight が 0 以下です。safe area とフォールバック設定を確認してください。")
             } else {
-                hasObservedPositiveTopBarHeight = false
+                layoutObservationState.hasObservedPositiveTopBarHeight = false
             }
         }
         if snapshot.safeAreaTop < 0 || snapshot.safeAreaBottom < 0 {
