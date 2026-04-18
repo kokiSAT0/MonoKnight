@@ -11,3 +11,13 @@ BUNDLE_ID_SUFFIX = .koki
 // AdMob の本番アプリ ID と広告ユニット ID を記入する（以下は記入例）
 // GAD_APPLICATION_ID = ca-app-pub-xxxxxxxxxxxxxxxx~yyyyyyyyyy
 // GAD_INTERSTITIAL_UNIT_ID = ca-app-pub-xxxxxxxxxxxxxxxx/zzzzzzzzzz
+
+// Game Center leaderboard の本番値を上書きする場合は以下を記入する
+// GAMECENTER_LEADERBOARD_STANDARD_REFERENCE_NAME = Standard Leaderboard
+// GAMECENTER_LEADERBOARD_STANDARD_ID = prod_standard_moves_v1
+// GAMECENTER_LEADERBOARD_CLASSICAL_REFERENCE_NAME = Classical Challenge Leaderboard
+// GAMECENTER_LEADERBOARD_CLASSICAL_ID = prod_classical_moves_v1
+// GAMECENTER_LEADERBOARD_DAILY_FIXED_REFERENCE_NAME = Daily Fixed Leaderboard
+// GAMECENTER_LEADERBOARD_DAILY_FIXED_ID = prod_daily_fixed_v1
+// GAMECENTER_LEADERBOARD_DAILY_RANDOM_REFERENCE_NAME = Daily Random Leaderboard
+// GAMECENTER_LEADERBOARD_DAILY_RANDOM_ID = prod_daily_random_v1

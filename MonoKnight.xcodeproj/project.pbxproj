@@ -170,6 +170,7 @@
 		72F554A72E7E40100098A1B0 /* MoveCardIllustrationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoveCardIllustrationView.swift; sourceTree = "<group>"; };
 		72F554A92E7E60850098A1B0 /* HowToPlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HowToPlayView.swift; sourceTree = "<group>"; };
 		72F554AA2E7E60850098A1B0 /* AppTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTheme.swift; sourceTree = "<group>"; };
+		E765BB512E83469000C78E4F /* Default.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Default.xcconfig; sourceTree = "<group>"; };
 		E765BB522E83469000C78E4F /* Local.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Local.xcconfig; sourceTree = "<group>"; };
 		E79DD1472FFC8FEA0038C598 /* StorageKeys.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageKeys.swift; sourceTree = "<group>"; };
 		E79DD1492FFD18810038C598 /* DailyChallengeViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyChallengeViewModel.swift; sourceTree = "<group>"; };
@@ -228,6 +229,7 @@
 		000000000000000000000006 = {
 			isa = PBXGroup;
 			children = (
+				E765BB512E83469000C78E4F /* Default.xcconfig */,
 				E765BB522E83469000C78E4F /* Local.xcconfig */,
 				729791552E7EB35900361471 /* LaunchScreen.storyboard */,
 				000000000000000000000007,
@@ -766,7 +768,7 @@
 		};
 		72CF37E72E7161170093B180 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = E765BB522E83469000C78E4F /* Local.xcconfig */;
+			baseConfigurationReference = E765BB512E83469000C78E4F /* Default.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -858,7 +860,7 @@
 		};
 		72CF37E82E7161170093B180 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = E765BB522E83469000C78E4F /* Local.xcconfig */;
+			baseConfigurationReference = E765BB512E83469000C78E4F /* Default.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;

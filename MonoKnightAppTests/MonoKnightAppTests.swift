@@ -244,14 +244,24 @@ struct MonoKnightAppTests {
         #expect(stateStore.lastPreparationContext == nil)
     }
 
-    /// 日替わりモード用リーダーボード ID のマッピングが期待通りかを検証する
-    /// - Note: GameCenterService 側で xcconfig 差し替えを行う前提のため、仮 ID を固定で確認しておく
+    /// 日替わりモード用リーダーボード ID が Info.plist 相当の設定値から解決されることを検証する
     @MainActor
-    @Test func leaderboardIdentifier_dailyModes_haveExpectedTestIDs() throws {
-        let service = GameCenterService.shared
-        // 日替わり固定シード用リーダーボードの ID を確認
+    @Test func leaderboardIdentifier_dailyModes_useResolvedConfiguration() throws {
+        let service = GameCenterService(
+            userDefaults: UserDefaults(suiteName: "MonoKnightAppTests.GameCenterService") ?? .standard,
+            infoDictionary: [
+                "GameCenterLeaderboardStandardReferenceName": "[TEST] Standard Leaderboard",
+                "GameCenterLeaderboardStandardID": "test_standard_moves_v1",
+                "GameCenterLeaderboardClassicalReferenceName": "[TEST] Classical Challenge Leaderboard",
+                "GameCenterLeaderboardClassicalID": "test_classical_moves_v1",
+                "GameCenterLeaderboardDailyFixedReferenceName": "[TEST] Daily Fixed Leaderboard",
+                "GameCenterLeaderboardDailyFixedID": "test_daily_fixed_v1",
+                "GameCenterLeaderboardDailyRandomReferenceName": "[TEST] Daily Random Leaderboard",
+                "GameCenterLeaderboardDailyRandomID": "test_daily_random_v1",
+            ]
+        )
+
         #expect(service.leaderboardIdentifier(for: .dailyFixedChallenge) == "test_daily_fixed_v1")
-        // 日替わりランダムシード用リーダーボードの ID を確認
         #expect(service.leaderboardIdentifier(for: .dailyRandomChallenge) == "test_daily_random_v1")
     }
 }
