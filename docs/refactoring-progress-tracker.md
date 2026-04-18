@@ -22,8 +22,8 @@
 
 | 指標 | 件数 | 補足 |
 | --- | ---: | --- |
-| 完了 | 8 | 主責務の分離が完了し、今後は維持中心で進められるもの |
-| 進行中 | 4 | 分割は始まっているが、継続監視が必要なもの |
+| 完了 | 9 | 主責務の分離が完了し、今後は維持中心で進められるもの |
+| 進行中 | 3 | 分割は始まっているが、継続監視が必要なもの |
 | 未着手 | 0 | 大きい責務集中が残っているもの |
 | 保留 | 0 | 現時点では該当なし |
 
@@ -37,7 +37,7 @@
 | Game | `Game/GameSceneSupport.swift` | 完了 | `GameScene+LayoutSupport.swift`、`GameScene+DecorationRenderer.swift`、`GameScene+HighlightRenderer.swift`、`GameScene+KnightAnimator.swift`、`GameScene+AccessibilitySupport.swift` へ責務別分割済み。`GameSceneSupport.swift` 自体は shared support の薄い受け皿に縮退した | 維持中心。必要なら次段階で decoration renderer 内部の geometry/detail helper をさらに整理する | `GameScene` からの利用面を変えずに、layout / decoration / highlight / knight / accessibility の変更影響範囲がファイル単位で局所化されている | `MonoKnightAppTests/GameSceneAccessibilityTests.swift`、`MonoKnightAppTests/GameViewIntegrationTests.swift`、`swift test`、`xcodebuild -scheme MonoKnightApp -project MonoKnight.xcodeproj -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.5' build` |
 | App | `MonoKnightApp.swift` | 進行中 | `MonoKnightApp+Bootstrap.swift` へ bootstrap、root composition、lifecycle sync を分離済み。本体は App lifecycle の入口に寄ったが、テーマ列挙と最終的な bootstrap 境界の監視はまだ残る | bootstrap helper と root composition の責務を維持しつつ、残る app-level 設定や theme support の逆流を防ぐ。次の主対象候補は `UI/GameViewModel.swift` と `Services/GameCenterService.swift` | App 本体が `@main` の入口と Scene 接続に集中し、live/mock 組み立て・consent gate・active 復帰処理の詳細が補助型で追える | `MonoKnightAppTests/MonoKnightAppTests.swift`、`MonoKnightAppTests/AdsServiceCoordinatorIntegrationTests.swift`、`MonoKnightAppUITests`、`swift test`、`xcodebuild -scheme MonoKnightApp -project MonoKnight.xcodeproj -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.5' build` |
 | Services | `Services/GameCenterService.swift` | 進行中 | leaderboard config は `Info.plist <- xcconfig` 解決へ寄せ、submission state と presentation helper も内部整理済み。公開 API は維持したまま test 固定値の `FIXME` は解消したが、GameKit 依存の詳細は引き続き監視対象 | 現構成を維持しつつ、必要なら authentication / presentation の残存詳細をさらに薄くする | リーダーボード定義がコード直書きに戻らず、config・送信状態・表示フローの責務が局所化されている | `MonoKnightAppTests/MonoKnightAppTests.swift`、`docs/game-center-leaderboards.md`、`xcodebuild -scheme MonoKnightApp -project MonoKnight.xcodeproj -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.5' build` |
-| UI | `UI/SettingsView.swift` | 進行中 | `SettingsViewSections.swift` と `SettingsViewSupport.swift` が存在し、分割途中として扱える | セクション構築と表示用補助をさらに寄せ、設定画面本体を薄く保つ | `SettingsView.swift` が画面構成中心になり、詳細セクションや補助ロジックが外出しされている | `UI/SettingsViewSections.swift`、`UI/SettingsViewSupport.swift` |
+| UI | `UI/SettingsView.swift` | 完了 | `SettingsViewSections.swift` は section 定義専任、`SettingsViewSupport.swift` は action coordinator / alert state / debug unlock 制御の受け皿として整理済み。本体は `NavigationStack`、section 配線、alert 入口、toolbar に寄った | 維持中心。設定項目追加時も section と support へ局所的に追記する運用を保つ | 設定画面本体が screen shell として追え、購入復元・Game Center 再認証・privacy refresh・debug unlock の詳細が UI レイアウトへ逆流しない | `UI/SettingsViewSections.swift`、`UI/SettingsViewSupport.swift`、`MonoKnightAppTests/MonoKnightAppTests.swift`、`swift test`、`xcodebuild -scheme MonoKnightApp -project MonoKnight.xcodeproj -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.5' build` |
 | UI | `UI/GameView.swift` | 完了 | 描画以外の責務を `GameViewModel`、`GameBoardBridgeViewModel`、レイアウト補助へ移譲済み | 維持中心。大きな再分割は前提としない | View 本体が描画と組み立てに集中し、状態管理の追加逆流が起きていない | `docs/refactoring-task-board.md`、`MonoKnightAppTests/GameViewLayoutCalculatorTests.swift` |
 | UI | `UI/GameBoardBridgeViewModel.swift` | 完了 | SwiftUI と SpriteKit の橋渡し責務が独立し、状態管理の境界が明確 | 維持中心。描画連携の窓口として安定運用する | GameView 側へ SpriteKit 詳細を再流入させずに拡張できる | `docs/refactoring-task-board.md`、`MonoKnightAppTests/GameBoardBridgeViewModelHighlightTests.swift` |
 | Game | `Game/BoardGeometry.swift` | 完了 | 盤面サイズや座標計算の共通ロジックを集約済み | 維持中心。盤面拡張時にテスト追加で対応する | 座標・初期位置・盤面列挙の共通処理がここを正本として維持されている | `Tests/GameTests/BoardGeometryTests.swift` |
@@ -48,9 +48,8 @@
 ## 次に着手する順番
 
 1. `UI/RootView.swift`
-2. `UI/SettingsView.swift`
-3. `MonoKnightApp.swift`
-4. `UI/GameViewModel.swift`
-5. `Services/GameCenterService.swift`
+2. `MonoKnightApp.swift`
+3. `UI/GameViewModel.swift`
+4. `Services/GameCenterService.swift`
 
 上記 5 本柱を優先監視対象とし、着手した PR では本書の対象行も同時に更新する。

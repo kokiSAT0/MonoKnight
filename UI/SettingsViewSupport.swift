@@ -1,6 +1,66 @@
 import SharedSupport
 import SwiftUI
 
+struct SettingsPresentationState {
+    var isPurchaseInProgress = false
+    var isRestoreInProgress = false
+    var storeAlert: StoreAlert?
+    var isGameCenterAuthenticationInProgress = false
+    var gameCenterAlert: GameCenterAlert?
+    var isResetAlertPresented = false
+    var isDebugUnlockSuccessAlertPresented = false
+
+    mutating func beginGameCenterAuthenticationIfNeeded() -> Bool {
+        guard !isGameCenterAuthenticationInProgress else { return false }
+        isGameCenterAuthenticationInProgress = true
+        return true
+    }
+
+    mutating func completeGameCenterAuthentication(success: Bool) {
+        isGameCenterAuthenticationInProgress = false
+        gameCenterAlert = success ? .success : .failure
+    }
+
+    mutating func beginPurchaseIfNeeded() -> Bool {
+        guard !isPurchaseInProgress else { return false }
+        isPurchaseInProgress = true
+        return true
+    }
+
+    mutating func completePurchase() {
+        isPurchaseInProgress = false
+    }
+
+    mutating func beginRestoreIfNeeded() -> Bool {
+        guard !isRestoreInProgress else { return false }
+        isRestoreInProgress = true
+        return true
+    }
+
+    mutating func completeRestore(success: Bool) {
+        isRestoreInProgress = false
+        storeAlert = success ? .restoreFinished : .restoreFailed
+    }
+
+    mutating func presentResetAlert() {
+        isResetAlertPresented = true
+    }
+
+    mutating func handleRemoveAdsPurchaseChange(oldValue: Bool, newValue: Bool) {
+        if !oldValue && newValue {
+            storeAlert = .purchaseCompleted
+        }
+    }
+
+    mutating func presentDebugUnlockSuccessAlert() {
+        isDebugUnlockSuccessAlertPresented = true
+    }
+}
+
+struct SettingsDebugUnlockState {
+    var debugUnlockInput = ""
+}
+
 enum StoreAlert: Identifiable {
     case purchaseCompleted
     case restoreFinished
@@ -70,78 +130,116 @@ private enum SettingsDebugConfiguration {
 }
 
 @MainActor
-extension SettingsView {
-    var isDiagnosticsMenuAvailable: Bool {
-        DebugLogHistory.shared.isFrontEndViewerEnabled
-    }
+enum SettingsActionCoordinator {
+    static func authenticateGameCenter(
+        presentationState: Binding<SettingsPresentationState>,
+        isGameCenterAuthenticated: Binding<Bool>,
+        gameCenterService: GameCenterServiceProtocol
+    ) {
+        var shouldStartAuthentication = false
+        mutate(presentationState) {
+            shouldStartAuthentication = $0.beginGameCenterAuthenticationIfNeeded()
+        }
+        guard shouldStartAuthentication else { return }
 
-    func isDebugOverrideActive(
-        campaignProgressStore: CampaignProgressStore,
-        dailyChallengeAttemptStore: AnyDailyChallengeAttemptStore
-    ) -> Bool {
-        campaignProgressStore.isDebugUnlockEnabled || dailyChallengeAttemptStore.isDebugUnlimitedEnabled
-    }
-
-    func authenticateGameCenter() {
-        guard !isGameCenterAuthenticationInProgress else { return }
-        isGameCenterAuthenticationInProgress = true
         gameCenterService.authenticateLocalPlayer { success in
             Task { @MainActor in
-                isGameCenterAuthenticationInProgress = false
-                isGameCenterAuthenticated = success
-                gameCenterAlert = success ? .success : .failure
+                isGameCenterAuthenticated.wrappedValue = success
+                mutate(presentationState) {
+                    $0.completeGameCenterAuthentication(success: success)
+                }
             }
         }
     }
 
-    func purchaseRemoveAds() {
-        guard !isPurchaseInProgress else { return }
-        isPurchaseInProgress = true
+    static func purchaseRemoveAds(
+        presentationState: Binding<SettingsPresentationState>,
+        storeService: AnyStoreService
+    ) {
+        var shouldStartPurchase = false
+        mutate(presentationState) {
+            shouldStartPurchase = $0.beginPurchaseIfNeeded()
+        }
+        guard shouldStartPurchase else { return }
+
         Task {
             if storeService.removeAdsPriceText == nil {
                 await storeService.refreshProducts()
             }
             await storeService.purchaseRemoveAds()
             await MainActor.run {
-                isPurchaseInProgress = false
+                mutate(presentationState) {
+                    $0.completePurchase()
+                }
             }
         }
     }
 
-    func restorePurchases() {
-        guard !isRestoreInProgress else { return }
-        isRestoreInProgress = true
+    static func restorePurchases(
+        presentationState: Binding<SettingsPresentationState>,
+        storeService: AnyStoreService
+    ) {
+        var shouldStartRestore = false
+        mutate(presentationState) {
+            shouldStartRestore = $0.beginRestoreIfNeeded()
+        }
+        guard shouldStartRestore else { return }
+
         Task {
             let success = await storeService.restorePurchases()
             await MainActor.run {
-                isRestoreInProgress = false
-                storeAlert = success ? .restoreFinished : .restoreFailed
+                mutate(presentationState) {
+                    $0.completeRestore(success: success)
+                }
             }
         }
     }
 
-    func refreshPrivacySettings() {
+    static func refreshPrivacySettings(adsService: AdsServiceProtocol) {
         Task { await adsService.refreshConsentStatus() }
     }
 
-    func restartConsentFlow() {
+    static func restartConsentFlow(adsService: AdsServiceProtocol) {
         Task {
             await adsService.requestTrackingAuthorization()
             await adsService.requestConsentIfNeeded()
         }
     }
+}
 
-    func disableDebugOverrides() {
+@MainActor
+enum SettingsDebugUnlockCoordinator {
+    static func isDebugOverrideActive(
+        campaignProgressStore: CampaignProgressStore,
+        dailyChallengeAttemptStore: AnyDailyChallengeAttemptStore
+    ) -> Bool {
+        campaignProgressStore.isDebugUnlockEnabled || dailyChallengeAttemptStore.isDebugUnlimitedEnabled
+    }
+
+    static func disableDebugOverrides(
+        campaignProgressStore: CampaignProgressStore,
+        dailyChallengeAttemptStore: AnyDailyChallengeAttemptStore
+    ) {
         campaignProgressStore.disableDebugUnlock()
         dailyChallengeAttemptStore.disableDebugUnlimited()
     }
 
-    func handleDebugUnlockInputChange(_ newValue: String) {
-        let digitsOnly = newValue.filter { $0.isNumber }
-        let trimmed = String(digitsOnly.prefix(SettingsDebugConfiguration.unlockPassword.count))
+    static func handleDebugUnlockInputChange(
+        _ newValue: String,
+        debugState: Binding<SettingsDebugUnlockState>,
+        presentationState: Binding<SettingsPresentationState>,
+        campaignProgressStore: CampaignProgressStore,
+        dailyChallengeAttemptStore: AnyDailyChallengeAttemptStore
+    ) {
+        let trimmedInput = String(
+            newValue.filter(\.isNumber)
+                .prefix(SettingsDebugConfiguration.unlockPassword.count)
+        )
 
-        if trimmed != newValue {
-            debugUnlockInput = trimmed
+        if trimmedInput != newValue {
+            mutate(debugState) {
+                $0.debugUnlockInput = trimmedInput
+            }
             return
         }
 
@@ -149,19 +247,104 @@ extension SettingsView {
             campaignProgressStore: campaignProgressStore,
             dailyChallengeAttemptStore: dailyChallengeAttemptStore
         ) else {
-            debugUnlockInput = ""
+            mutate(debugState) {
+                $0.debugUnlockInput = ""
+            }
             return
         }
 
-        guard trimmed.count == SettingsDebugConfiguration.unlockPassword.count else { return }
+        guard trimmedInput.count == SettingsDebugConfiguration.unlockPassword.count else { return }
 
-        if trimmed == SettingsDebugConfiguration.unlockPassword {
-            campaignProgressStore.enableDebugUnlock()
-            dailyChallengeAttemptStore.enableDebugUnlimited()
-            debugUnlockInput = ""
-            isDebugUnlockSuccessAlertPresented = true
-        } else {
-            debugUnlockInput = ""
+        mutate(debugState) {
+            $0.debugUnlockInput = ""
         }
+
+        guard trimmedInput == SettingsDebugConfiguration.unlockPassword else { return }
+
+        campaignProgressStore.enableDebugUnlock()
+        dailyChallengeAttemptStore.enableDebugUnlimited()
+        mutate(presentationState) {
+            $0.presentDebugUnlockSuccessAlert()
+        }
+    }
+}
+
+@MainActor
+private func mutate<Value>(_ binding: Binding<Value>, _ update: (inout Value) -> Void) {
+    var value = binding.wrappedValue
+    update(&value)
+    binding.wrappedValue = value
+}
+
+@MainActor
+extension SettingsView {
+    var isDiagnosticsMenuAvailable: Bool {
+        DebugLogHistory.shared.isFrontEndViewerEnabled
+    }
+
+    var isDebugOverrideActive: Bool {
+        SettingsDebugUnlockCoordinator.isDebugOverrideActive(
+            campaignProgressStore: campaignProgressStore,
+            dailyChallengeAttemptStore: dailyChallengeAttemptStore
+        )
+    }
+
+    func authenticateGameCenter() {
+        SettingsActionCoordinator.authenticateGameCenter(
+            presentationState: $presentationState,
+            isGameCenterAuthenticated: $isGameCenterAuthenticated,
+            gameCenterService: gameCenterService
+        )
+    }
+
+    func purchaseRemoveAds() {
+        SettingsActionCoordinator.purchaseRemoveAds(
+            presentationState: $presentationState,
+            storeService: storeService
+        )
+    }
+
+    func restorePurchases() {
+        SettingsActionCoordinator.restorePurchases(
+            presentationState: $presentationState,
+            storeService: storeService
+        )
+    }
+
+    func refreshPrivacySettings() {
+        SettingsActionCoordinator.refreshPrivacySettings(adsService: adsService)
+    }
+
+    func restartConsentFlow() {
+        SettingsActionCoordinator.restartConsentFlow(adsService: adsService)
+    }
+
+    func disableDebugOverrides() {
+        SettingsDebugUnlockCoordinator.disableDebugOverrides(
+            campaignProgressStore: campaignProgressStore,
+            dailyChallengeAttemptStore: dailyChallengeAttemptStore
+        )
+    }
+
+    func handleDebugUnlockInputChange(_ newValue: String) {
+        SettingsDebugUnlockCoordinator.handleDebugUnlockInputChange(
+            newValue,
+            debugState: $debugUnlockState,
+            presentationState: $presentationState,
+            campaignProgressStore: campaignProgressStore,
+            dailyChallengeAttemptStore: dailyChallengeAttemptStore
+        )
+    }
+
+    func presentResetAlert() {
+        var updatedState = presentationState
+        updatedState.presentResetAlert()
+        presentationState = updatedState
+    }
+
+    func handleRemoveAdsPurchaseChange(oldValue: Bool, newValue: Bool) {
+        var updatedState = presentationState
+        updatedState.handleRemoveAdsPurchaseChange(oldValue: oldValue, newValue: newValue)
+        presentationState = updatedState
     }
 }

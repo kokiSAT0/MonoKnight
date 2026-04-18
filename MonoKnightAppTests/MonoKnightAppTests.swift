@@ -173,6 +173,14 @@ private final class StubDailyChallengeAttemptStore: ObservableObject, DailyChall
     }
 }
 
+@MainActor
+private func makeBinding<Value>(
+    get: @escaping () -> Value,
+    set: @escaping (Value) -> Void
+) -> Binding<Value> {
+    Binding(get: get, set: set)
+}
+
 struct MonoKnightAppTests {
 
     /// AppBootstrap が通常起動時に live 依存を組み立てることを確認する
@@ -263,5 +271,79 @@ struct MonoKnightAppTests {
 
         #expect(service.leaderboardIdentifier(for: .dailyFixedChallenge) == "test_daily_fixed_v1")
         #expect(service.leaderboardIdentifier(for: .dailyRandomChallenge) == "test_daily_random_v1")
+    }
+
+    /// SettingsActionCoordinator が Game Center 認証状態と alert を既存どおり更新することを確認する
+    @MainActor
+    @Test func settingsActionCoordinator_authenticateGameCenter_updatesBindingAndAlert() async throws {
+        let service = StubGameCenterService(isAuthenticated: true)
+        var presentationState = SettingsPresentationState()
+        var isAuthenticated = false
+
+        SettingsActionCoordinator.authenticateGameCenter(
+            presentationState: makeBinding(
+                get: { presentationState },
+                set: { presentationState = $0 }
+            ),
+            isGameCenterAuthenticated: makeBinding(
+                get: { isAuthenticated },
+                set: { isAuthenticated = $0 }
+            ),
+            gameCenterService: service
+        )
+
+        await Task.yield()
+
+        #expect(service.authenticateCallCount == 1)
+        #expect(isAuthenticated == true)
+        #expect(presentationState.isGameCenterAuthenticationInProgress == false)
+        #expect(presentationState.gameCenterAlert == .success)
+    }
+
+    /// SettingsDebugUnlockCoordinator が入力整形と debug override 有効化を既存どおり行うことを確認する
+    @MainActor
+    @Test func settingsDebugUnlockCoordinator_sanitizesInputAndEnablesOverrides() throws {
+        let campaignProgressStore = CampaignProgressStore()
+        let dailyStore = StubDailyChallengeAttemptStore()
+        let anyDailyStore = AnyDailyChallengeAttemptStore(base: dailyStore)
+        var debugState = SettingsDebugUnlockState()
+        var presentationState = SettingsPresentationState()
+
+        SettingsDebugUnlockCoordinator.handleDebugUnlockInputChange(
+            "1a2",
+            debugState: makeBinding(
+                get: { debugState },
+                set: { debugState = $0 }
+            ),
+            presentationState: makeBinding(
+                get: { presentationState },
+                set: { presentationState = $0 }
+            ),
+            campaignProgressStore: campaignProgressStore,
+            dailyChallengeAttemptStore: anyDailyStore
+        )
+
+        #expect(debugState.debugUnlockInput == "12")
+        #expect(campaignProgressStore.isDebugUnlockEnabled == false)
+        #expect(dailyStore.isDebugUnlimitedEnabled == false)
+
+        SettingsDebugUnlockCoordinator.handleDebugUnlockInputChange(
+            "6031",
+            debugState: makeBinding(
+                get: { debugState },
+                set: { debugState = $0 }
+            ),
+            presentationState: makeBinding(
+                get: { presentationState },
+                set: { presentationState = $0 }
+            ),
+            campaignProgressStore: campaignProgressStore,
+            dailyChallengeAttemptStore: anyDailyStore
+        )
+
+        #expect(debugState.debugUnlockInput.isEmpty)
+        #expect(campaignProgressStore.isDebugUnlockEnabled == true)
+        #expect(dailyStore.isDebugUnlimitedEnabled == true)
+        #expect(presentationState.isDebugUnlockSuccessAlertPresented == true)
     }
 }

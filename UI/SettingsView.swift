@@ -12,15 +12,9 @@ struct SettingsView: View {
     @EnvironmentObject var dailyChallengeAttemptStore: AnyDailyChallengeAttemptStore
     @EnvironmentObject private var gameSettingsStore: GameSettingsStore
 
-    @State var isPurchaseInProgress = false
-    @State var isRestoreInProgress = false
-    @State var storeAlert: StoreAlert?
-    @State var debugUnlockInput: String = ""
-    @State var isDebugUnlockSuccessAlertPresented = false
+    @State var presentationState = SettingsPresentationState()
+    @State var debugUnlockState = SettingsDebugUnlockState()
     @Binding var isGameCenterAuthenticated: Bool
-    @State var isGameCenterAuthenticationInProgress = false
-    @State var gameCenterAlert: GameCenterAlert?
-    @State private var isResetAlertPresented = false
 
     init(
         adsService: AdsServiceProtocol? = nil,
@@ -37,7 +31,7 @@ struct SettingsView: View {
             List {
                 SettingsGameCenterSection(
                     isAuthenticated: isGameCenterAuthenticated,
-                    isAuthenticationInProgress: isGameCenterAuthenticationInProgress,
+                    isAuthenticationInProgress: presentationState.isGameCenterAuthenticationInProgress,
                     onAuthenticate: authenticateGameCenter
                 )
                 SettingsThemeSection(gameSettingsStore: gameSettingsStore)
@@ -46,8 +40,8 @@ struct SettingsView: View {
                 SettingsHandOrderingSection(gameSettingsStore: gameSettingsStore)
                 SettingsAdsSection(
                     storeService: storeService,
-                    isPurchaseInProgress: isPurchaseInProgress,
-                    isRestoreInProgress: isRestoreInProgress,
+                    isPurchaseInProgress: presentationState.isPurchaseInProgress,
+                    isRestoreInProgress: presentationState.isRestoreInProgress,
                     onPurchase: purchaseRemoveAds,
                     onRestore: restorePurchases
                 )
@@ -56,13 +50,10 @@ struct SettingsView: View {
                     onRestartConsentFlow: restartConsentFlow
                 )
                 SettingsHelpSection()
-                SettingsStatsSection(onResetBestPoints: { isResetAlertPresented = true })
+                SettingsStatsSection(onResetBestPoints: presentResetAlert)
                 SettingsDebugSection(
-                    debugUnlockInput: $debugUnlockInput,
-                    isDebugOverrideActive: isDebugOverrideActive(
-                        campaignProgressStore: campaignProgressStore,
-                        dailyChallengeAttemptStore: dailyChallengeAttemptStore
-                    ),
+                    debugUnlockInput: $debugUnlockState.debugUnlockInput,
+                    isDebugOverrideActive: isDebugOverrideActive,
                     isCampaignDebugUnlockEnabled: campaignProgressStore.isDebugUnlockEnabled,
                     isDailyChallengeDebugUnlimitedEnabled: dailyChallengeAttemptStore
                         .isDebugUnlimitedEnabled,
@@ -73,7 +64,7 @@ struct SettingsView: View {
                     SettingsDiagnosticsSection()
                 }
             }
-            .alert("ベスト記録をリセット", isPresented: $isResetAlertPresented) {
+            .alert("ベスト記録をリセット", isPresented: $presentationState.isResetAlertPresented) {
                 Button("リセットする", role: .destructive) {
                     gameSettingsStore.resetBestPoints()
                 }
@@ -93,27 +84,25 @@ struct SettingsView: View {
                 }
             }
             .onChange(of: storeService.isRemoveAdsPurchased) { oldValue, newValue in
-                if !oldValue && newValue {
-                    storeAlert = .purchaseCompleted
-                }
+                handleRemoveAdsPurchaseChange(oldValue: oldValue, newValue: newValue)
             }
             .preferredColorScheme(
                 gameSettingsStore.preferredColorScheme.preferredColorScheme
             )
         }
-        .alert("全ステージを解放しました", isPresented: $isDebugUnlockSuccessAlertPresented) {
+        .alert("全ステージを解放しました", isPresented: $presentationState.isDebugUnlockSuccessAlertPresented) {
             Button("OK", role: .cancel) { }
         } message: {
             Text("キャンペーンモードの検証用として全てのステージが解放された状態になりました。")
         }
-        .alert(item: $gameCenterAlert) { alert in
+        .alert(item: $presentationState.gameCenterAlert) { alert in
             Alert(
                 title: Text(alert.title),
                 message: Text(alert.message),
                 dismissButton: .default(Text("OK"))
             )
         }
-        .alert(item: $storeAlert) { alert in
+        .alert(item: $presentationState.storeAlert) { alert in
             Alert(
                 title: Text(alert.title),
                 message: Text(alert.message),
