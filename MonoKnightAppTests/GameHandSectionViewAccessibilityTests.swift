@@ -30,7 +30,9 @@ final class GameHandSectionViewAccessibilityTests: XCTestCase {
             gameInterfaces: interfaces,
             gameCenterService: NoopGameCenterService(),
             adsService: NoopAdsService(),
-            onRequestReturnToTitle: nil
+            onRequestGameCenterSignIn: nil,
+            onRequestReturnToTitle: nil,
+            onRequestStartCampaignStage: nil
         )
 
         // テスト中は不要なハプティクスやアニメーション効果を抑制しておく

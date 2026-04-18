@@ -437,7 +437,7 @@ struct MonoKnightAppTests {
     /// 認証キャンセル系のエラーは downgrade ログのみを残すことを確認する
     @MainActor
     @Test func gameCenterService_authenticationCancellation_logsDowngradedMessage() async throws {
-        DebugLogHistory.shared.clear()
+        SharedSupport.DebugLogHistory.shared.clear()
 
         let cancellationError = NSError(
             domain: GKErrorDomain,
@@ -462,7 +462,7 @@ struct MonoKnightAppTests {
         }
         await Task.yield()
 
-        let messages = DebugLogHistory.shared.snapshot().map(\.message)
+        let messages = SharedSupport.DebugLogHistory.shared.snapshot().map(\.message)
         #expect(completionResult == false)
         #expect(messages.contains(where: { $0.contains("Game Center 認証が利用者操作により完了しませんでした") }))
         #expect(messages.allSatisfy { !$0.contains("Game Center 認証失敗") })

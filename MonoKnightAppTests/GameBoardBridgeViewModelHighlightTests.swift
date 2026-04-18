@@ -1,6 +1,6 @@
 import XCTest
 @testable import MonoKnightApp
-import Game
+@testable import Game
 
 /// GameBoardBridgeViewModel のハイライト分類ロジックを検証するテスト
 /// - Note: UI モジュールの ViewModel は MainActor での実行を前提としているため、各テストにも @MainActor を付与する
@@ -78,13 +78,13 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
         let core = GameCore.makeTestInstance(deck: deck, current: nil, mode: .classicalChallenge)
         let viewModel = GameBoardBridgeViewModel(core: core, mode: .classicalChallenge)
 
-        XCTAssertEqual(core.progress, .awaitingSpawn, "スポーン選択待機状態で開始できていません")
+        XCTAssertEqual(core.progress, GameProgress.awaitingSpawn, "スポーン選択待機状態で開始できていません")
 
         // 復帰後に確認したい手札を退避させ、ガイド集合が一時的に空になることを確認する
         let singleStack = HandStack(cards: [DealtCard(move: .kingUp)])
         viewModel.refreshGuideHighlights(
             handOverride: [singleStack],
-            progressOverride: .awaitingSpawn
+            progressOverride: GameProgress.awaitingSpawn
         )
 
         XCTAssertNotNil(viewModel.pendingGuideHand, "スポーン選択待機中でも手札退避が維持されていません")
@@ -179,4 +179,3 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
         return GameBoardBridgeViewModel(core: core, mode: .standard)
     }
 }
-

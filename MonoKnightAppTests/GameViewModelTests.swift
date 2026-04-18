@@ -1,7 +1,7 @@
 import XCTest
 import SwiftUI
 @testable import MonoKnightApp
-import Game
+@testable import Game
 
 /// GameViewModel の動作を検証するテスト群
 /// - Note: ViewModel は MainActor 上での実行を前提としているため、テストメソッドにも @MainActor を付与する。
@@ -22,7 +22,9 @@ final class GameViewModelTests: XCTestCase {
             gameInterfaces: interfaces,
             gameCenterService: DummyGameCenterService(),
             adsService: DummyAdsService(),
-            onRequestReturnToTitle: nil
+            onRequestGameCenterSignIn: nil,
+            onRequestReturnToTitle: nil,
+            onRequestStartCampaignStage: nil
         )
 
         // liveElapsedSeconds は Int へ丸められるため、呼び出し直後の差分許容範囲を確保して検証する。
@@ -647,10 +649,10 @@ final class GameViewModelTests: XCTestCase {
     /// テストで使い回す ViewModel と GameCore の組み合わせを生成するヘルパー
     private func makeViewModel(
         mode: GameMode,
-        adsService: AdsServiceProtocol = DummyAdsService(),
+        adsService: AdsServiceProtocol? = nil,
         onRequestReturnToTitle: (() -> Void)? = nil,
+        campaignProgressStore: CampaignProgressStore? = nil,
         onRequestStartCampaignStage: ((CampaignStage) -> Void)? = nil,
-        campaignProgressStore: CampaignProgressStore = CampaignProgressStore(),
         dateProvider: MutableDateProvider? = nil
     ) -> (GameViewModel, GameCore) {
         let core = GameCore(mode: mode)
@@ -662,12 +664,14 @@ final class GameViewModelTests: XCTestCase {
 
         let interfaces = GameModuleInterfaces { _ in core }
         let resolvedDateProvider = dateProvider ?? MutableDateProvider(now: Date())
+        let resolvedAdsService = adsService ?? DummyAdsService()
+        let resolvedCampaignProgressStore = campaignProgressStore ?? CampaignProgressStore()
         let viewModel = GameViewModel(
             mode: mode,
             gameInterfaces: interfaces,
             gameCenterService: DummyGameCenterService(),
-            adsService: adsService,
-            campaignProgressStore: campaignProgressStore,
+            adsService: resolvedAdsService,
+            campaignProgressStore: resolvedCampaignProgressStore,
             onRequestGameCenterSignIn: nil,
             onRequestReturnToTitle: onRequestReturnToTitle,
             onRequestStartCampaignStage: onRequestStartCampaignStage,

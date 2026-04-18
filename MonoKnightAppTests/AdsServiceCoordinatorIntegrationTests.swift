@@ -31,7 +31,7 @@ private final class StubAdsConsentCoordinator: AdsConsentCoordinating {
 }
 
 @MainActor
-private final class StubInterstitialAdController: InterstitialAdControlling {
+private final class StubInterstitialAdController: NSObject, InterstitialAdControlling {
     var delegate: InterstitialAdControllerDelegate?
     var areAdsDisabled: Bool = false
 
@@ -107,8 +107,12 @@ private final class StubRootViewControllerProvider: RootViewControllerProviding 
     /// AdsService からの取得要求回数
     private(set) var fetchCallCount: Int = 0
 
-    init(stubViewController: UIViewController = UIViewController()) {
+    init(stubViewController: UIViewController) {
         self.stubViewController = stubViewController
+    }
+
+    convenience init() {
+        self.init(stubViewController: UIViewController())
     }
 
     func topViewController() -> UIViewController? {
@@ -129,7 +133,12 @@ struct AdsServiceCoordinatorIntegrationTests {
         let interstitial = StubInterstitialAdController()
         let mobileAds = StubMobileAdsController()
         let tracking = StubTrackingAuthorizationController(currentStatus: .authorized, responseStatus: .authorized)
-        let configuration = AdsServiceConfiguration(interstitialAdUnitID: "test", hasValidAdConfiguration: true)
+        let configuration = AdsServiceConfiguration(
+            interstitialAdUnitID: "test",
+            rewardedAdUnitID: "rewarded-test",
+            hasValidAdConfiguration: true,
+            hasValidRewardedConfiguration: true
+        )
 
         let service = AdsService(
             configuration: configuration,
@@ -194,7 +203,12 @@ struct AdsServiceCoordinatorIntegrationTests {
         let interstitial = StubInterstitialAdController()
         let mobileAds = StubMobileAdsController()
         let tracking = StubTrackingAuthorizationController(currentStatus: .authorized, responseStatus: .authorized)
-        let configuration = AdsServiceConfiguration(interstitialAdUnitID: "test", hasValidAdConfiguration: true)
+        let configuration = AdsServiceConfiguration(
+            interstitialAdUnitID: "test",
+            rewardedAdUnitID: "rewarded-test",
+            hasValidAdConfiguration: true,
+            hasValidRewardedConfiguration: true
+        )
 
         let service = AdsService(
             configuration: configuration,
@@ -243,7 +257,12 @@ struct AdsServiceCoordinatorIntegrationTests {
         let mobileAds = StubMobileAdsController()
         let provider = StubRootViewControllerProvider()
         let tracking = StubTrackingAuthorizationController(currentStatus: .authorized, responseStatus: .authorized)
-        let configuration = AdsServiceConfiguration(interstitialAdUnitID: "test", hasValidAdConfiguration: true)
+        let configuration = AdsServiceConfiguration(
+            interstitialAdUnitID: "test",
+            rewardedAdUnitID: "rewarded-test",
+            hasValidAdConfiguration: true,
+            hasValidRewardedConfiguration: true
+        )
 
         environment.presenterFactory = {
             return { viewController, completion in
@@ -297,7 +316,12 @@ struct AdsServiceCoordinatorIntegrationTests {
         let interstitial = StubInterstitialAdController()
         let mobileAds = StubMobileAdsController()
         let tracking = StubTrackingAuthorizationController(currentStatus: .notDetermined, responseStatus: .authorized)
-        let configuration = AdsServiceConfiguration(interstitialAdUnitID: "test", hasValidAdConfiguration: true)
+        let configuration = AdsServiceConfiguration(
+            interstitialAdUnitID: "test",
+            rewardedAdUnitID: "rewarded-test",
+            hasValidAdConfiguration: true,
+            hasValidRewardedConfiguration: true
+        )
 
         let service = AdsService(
             configuration: configuration,

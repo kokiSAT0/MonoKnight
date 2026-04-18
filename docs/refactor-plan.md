@@ -10,7 +10,7 @@
 | レイヤ | 現在の主責務 | 主なボトルネック |
 | --- | --- | --- |
 | `Game` | 盤面、移動、モード、キャンペーン定義、スコア | `CampaignStage.swift` と `MoveCard.swift` の façade 化は完了。現時点では大きな tracked ボトルネックは解消済みで、今後は `GameCore.swift` / `Deck.swift` の監視を継続する |
-| `UI` | タイトル、ゲーム表示、設定、遷移 | `RootView.swift` / `GameViewModel.swift` の façade 化は進み、残る主要な tracked 対象は `AppTheme.swift` のテーマトークン運用 |
+| `UI` | タイトル、ゲーム表示、設定、遷移 | `RootView.swift` / `GameViewModel.swift` / `AppTheme.swift` の主要整理は完了。今後は `TitleFlowView.swift` や `MoveCardIllustrationView.swift` など高利用画面の監視を継続する |
 | `Services` | Ads / Game Center / StoreKit / 永続化ストア | 保存キーと責務の流儀が散っている |
 | `SharedSupport` | ログとクラッシュ補助 | 基盤は安定しているが利用点が散在 |
 | `MonoKnightApp.swift` | 起動、DI、同意フロー切替 | 設定キー依存が点在しやすい |
@@ -22,7 +22,7 @@
 - `CampaignStage` の表示・評価・進行用変換を拡張ファイルへ分離し、本体を公開データ定義中心へ整理した。
 - `GameViewModelSupport` の helper type 群を presentation / interaction / lifecycle support へ分割し、さらに action / lifecycle surface も input / flow / lifecycle / bindings extension へ再分割して、support 本体を state sync glue へ縮退させた。
 - `MoveCard` の第2段階として `MovePattern` 本体を pattern support へ、registry・解決・テスト override を resolution extension へ移し、本体を case 定義と façade へ整理した。
-- `AppTheme` のトークンを badges / cards / chrome / board / platform bridge へ分割し、ベーステーマの入口を薄くした。
+- `AppTheme` のトークンを badges / cards / board / controls / overlays / status chrome / platform bridge / bridge palette へ整理し、ベーステーマの入口を薄くした。
 - `RootView` 内の重複していた `campaignStage(for:)` ヘルパーを 1 箇所に整理した。
 
 ## RootView / GameViewModel 責務表
@@ -64,13 +64,14 @@
 - helper type と action surface の責務境界が崩れないよう、小さな PR 単位で維持する。
 
 ### Phase 4
-- `AppTheme` は色値を維持したまま extension 単位の責務境界を保ち、テーマ調整時の影響範囲をさらに狭める。
+- `AppTheme` は色値を維持したまま責務整理を完了し、今後は extension 単位の運用を維持する。
 - 日替わりは「プレイ用 mode ID」と「leaderboard 用 ID」を明示的に区別し続ける。
 
 ### Phase 5
-- `AppTheme`、`GameScene`、Services、各種 Store の責務をさらに整える。
+- `GameScene`、Services、各種 Store の責務をさらに整える。
+- 次の tracked 候補として `GameCore.swift` / `Deck.swift` / `TitleFlowView.swift` を再評価する。
 
 ## 今やるべきこと
 - `swift test` を常時グリーンに保つ。
-- `AppTheme` は色値を変えず、extension 単位での変更運用を定着させる。
+- `AppTheme` は色値を変えず、extension 単位での変更運用を維持する。
 - `Game` レイヤでは `MoveCard` 分離後も既存テストを維持し、移動仕様変更は小さな単位で固定する。

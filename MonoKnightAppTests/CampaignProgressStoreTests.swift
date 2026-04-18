@@ -3,6 +3,7 @@ import XCTest
 import Game
 
 /// キャンペーン進捗ストアの基本的な挙動を検証するテスト
+@MainActor
 final class CampaignProgressStoreTests: XCTestCase {
     /// テスト用に分離された UserDefaults を生成
     private func makeIsolatedDefaults() throws -> UserDefaults {

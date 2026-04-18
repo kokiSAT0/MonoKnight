@@ -74,12 +74,15 @@
 		72F554AD2E7E60850098A1B0 /* AppTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72F554AA2E7E60850098A1B0 /* AppTheme.swift */; };
 		A1B2C3D4E5F6010000000001 /* AppTheme+Badges.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6010000000101 /* AppTheme+Badges.swift */; };
 		A1B2C3D4E5F6010000000002 /* AppTheme+Cards.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6010000000102 /* AppTheme+Cards.swift */; };
-		A1B2C3D4E5F6010000000003 /* AppTheme+Chrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6010000000103 /* AppTheme+Chrome.swift */; };
+		A1B2C3D4E5F6010000000003 /* AppTheme+Controls.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6010000000103 /* AppTheme+Controls.swift */; };
 		A1B2C3D4E5F6010000000004 /* AppTheme+Board.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6010000000104 /* AppTheme+Board.swift */; };
 		A1B2C3D4E5F6010000000005 /* AppTheme+PlatformBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6010000000105 /* AppTheme+PlatformBridge.swift */; };
 		A1B2C3D4E5F6010000000006 /* GameSessionPresentationSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6010000000106 /* GameSessionPresentationSupport.swift */; };
 		A1B2C3D4E5F6010000000007 /* GameSessionInteractionSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6010000000107 /* GameSessionInteractionSupport.swift */; };
 		A1B2C3D4E5F6010000000008 /* GameSessionLifecycleSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6010000000108 /* GameSessionLifecycleSupport.swift */; };
+		A1B2C3D4E5F6010000000009 /* AppTheme+Overlays.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6010000000109 /* AppTheme+Overlays.swift */; };
+		A1B2C3D4E5F601000000000A /* AppTheme+StatusChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F601000000010A /* AppTheme+StatusChrome.swift */; };
+		A1B2C3D4E5F601000000000B /* AppTheme+BridgePalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F601000000010B /* AppTheme+BridgePalette.swift */; };
 		E79DD1482FFC8FEA0038C598 /* StorageKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = E79DD1472FFC8FEA0038C598 /* StorageKeys.swift */; };
 		E79DD14A2FFD18810038C598 /* DailyChallengeViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E79DD1492FFD18810038C598 /* DailyChallengeViewModel.swift */; };
 		E79DD14C2FFD188D0038C598 /* DailyChallengeViewSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = E79DD14B2FFD188D0038C598 /* DailyChallengeViewSections.swift */; };
@@ -190,12 +193,15 @@
 		72F554AA2E7E60850098A1B0 /* AppTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTheme.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F6010000000101 /* AppTheme+Badges.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppTheme+Badges.swift"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6010000000102 /* AppTheme+Cards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppTheme+Cards.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6010000000103 /* AppTheme+Chrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppTheme+Chrome.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6010000000103 /* AppTheme+Controls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppTheme+Controls.swift"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6010000000104 /* AppTheme+Board.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppTheme+Board.swift"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6010000000105 /* AppTheme+PlatformBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppTheme+PlatformBridge.swift"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6010000000106 /* GameSessionPresentationSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameSessionPresentationSupport.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F6010000000107 /* GameSessionInteractionSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameSessionInteractionSupport.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F6010000000108 /* GameSessionLifecycleSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameSessionLifecycleSupport.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6010000000109 /* AppTheme+Overlays.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppTheme+Overlays.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F601000000010A /* AppTheme+StatusChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppTheme+StatusChrome.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F601000000010B /* AppTheme+BridgePalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppTheme+BridgePalette.swift"; sourceTree = "<group>"; };
 		C26B69F12FFD64D4004DB899 /* ThemePreference.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemePreference.swift; sourceTree = "<group>"; };
 		E765BB512E83469000C78E4F /* Default.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Default.xcconfig; sourceTree = "<group>"; };
 		E765BB522E83469000C78E4F /* Local.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Local.xcconfig; sourceTree = "<group>"; };
@@ -418,9 +424,12 @@
 				72F554AA2E7E60850098A1B0 /* AppTheme.swift */,
 				A1B2C3D4E5F6010000000104 /* AppTheme+Board.swift */,
 				A1B2C3D4E5F6010000000101 /* AppTheme+Badges.swift */,
+				A1B2C3D4E5F601000000010B /* AppTheme+BridgePalette.swift */,
 				A1B2C3D4E5F6010000000102 /* AppTheme+Cards.swift */,
-				A1B2C3D4E5F6010000000103 /* AppTheme+Chrome.swift */,
+				A1B2C3D4E5F6010000000103 /* AppTheme+Controls.swift */,
+				A1B2C3D4E5F6010000000109 /* AppTheme+Overlays.swift */,
 				A1B2C3D4E5F6010000000105 /* AppTheme+PlatformBridge.swift */,
+				A1B2C3D4E5F601000000010A /* AppTheme+StatusChrome.swift */,
 				C26B69F12FFD64D4004DB899 /* ThemePreference.swift */,
 			);
 			path = Theme;
@@ -684,8 +693,11 @@
 				A1B2C3D4E5F6010000000004 /* AppTheme+Board.swift in Sources */,
 				A1B2C3D4E5F6010000000001 /* AppTheme+Badges.swift in Sources */,
 				A1B2C3D4E5F6010000000002 /* AppTheme+Cards.swift in Sources */,
-				A1B2C3D4E5F6010000000003 /* AppTheme+Chrome.swift in Sources */,
+				A1B2C3D4E5F601000000000B /* AppTheme+BridgePalette.swift in Sources */,
+				A1B2C3D4E5F6010000000003 /* AppTheme+Controls.swift in Sources */,
+				A1B2C3D4E5F6010000000009 /* AppTheme+Overlays.swift in Sources */,
 				A1B2C3D4E5F6010000000005 /* AppTheme+PlatformBridge.swift in Sources */,
+				A1B2C3D4E5F601000000000A /* AppTheme+StatusChrome.swift in Sources */,
 				C26B69F22FFD64D4004DB899 /* ThemePreference.swift in Sources */,
 				726642EF2E85DA48003EA325 /* CampaignStageSelectionView.swift in Sources */,
 				726642482E826487003EA325 /* Environment+TopOverlayHeight.swift in Sources */,

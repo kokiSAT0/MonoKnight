@@ -36,7 +36,7 @@ final class GameViewIntegrationTests: XCTestCase {
         XCTAssertEqual(viewModel.activePenaltyBanner?.penaltyAmount, testEvent.penaltyAmount, "ペナルティバナーへ金額が伝搬されていません")
         XCTAssertEqual(viewModel.activePenaltyBanner?.trigger, testEvent.trigger, "ペナルティイベントのトリガーが反映されていません")
         XCTAssertEqual(scheduler.scheduleCallCount, 1, "自動クローズのスケジュールが登録されていません")
-        XCTAssertEqual(scheduler.lastScheduledDelay, 2.6, accuracy: 0.001, "バナー自動クローズの遅延秒数が仕様と一致しません")
+        XCTAssertEqual(scheduler.lastScheduledDelay ?? 0, 2.6, accuracy: 0.001, "バナー自動クローズの遅延秒数が仕様と一致しません")
 
         // メニュー操作で手動ペナルティを適用すると、バナー表示がキャンセルされる想定
         viewModel.performMenuAction(.manualPenalty(penaltyCost: viewModel.core.mode.manualRedrawPenaltyCost))
@@ -252,7 +252,7 @@ final class GameViewIntegrationTests: XCTestCase {
                 deck: deck,
                 current: mode.initialSpawnPoint,
                 mode: mode,
-                initialVisitedPoints: [mode.initialSpawnPoint]
+                initialVisitedPoints: mode.initialSpawnPoint.map { [$0] } ?? []
             )
         }
 
@@ -281,12 +281,11 @@ final class GameViewIntegrationTests: XCTestCase {
 
         let board = viewModel.core.board
         // 盤面全体から現在地と障害物を除外した集合を導出し、SpriteKit へ送信される想定と同期させる
+        let traversablePoints = BoardGeometry.allPoints(for: board.size)
         let expectedHighlights = Set(
-            BoardGeometry
-                .allPoints(for: board.size)
-                .filter { point in
-                    point != current && board.contains(point) && board.isTraversable(point)
-                }
+            traversablePoints.filter { point in
+                point != current && board.contains(point) && board.isTraversable(point)
+            }
         )
 
         XCTAssertEqual(
@@ -308,7 +307,7 @@ final class GameViewIntegrationTests: XCTestCase {
                 deck: deck,
                 current: mode.initialSpawnPoint,
                 mode: mode,
-                initialVisitedPoints: [mode.initialSpawnPoint]
+                initialVisitedPoints: mode.initialSpawnPoint.map { [$0] } ?? []
             )
         }
 

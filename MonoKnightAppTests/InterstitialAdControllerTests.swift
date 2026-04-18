@@ -33,14 +33,14 @@ private final class StubInterstitialAdLoader: InterstitialAdLoading {
 }
 
 @MainActor
-private final class StubInterstitialAd: InterstitialAdPresentable {
+private final class StubInterstitialAd: NSObject, InterstitialAdPresentable {
     var fullScreenContentDelegate: FullScreenContentDelegate?
     /// present が呼ばれた回数
     private(set) var presentCallCount: Int = 0
 
-    func present(from viewController: UIViewController) {
+    func presentAd(from viewController: UIViewController) {
         presentCallCount += 1
-        fullScreenContentDelegate?.adWillPresentFullScreenContent(self)
+        fullScreenContentDelegate?.adWillPresentFullScreenContent?(self)
     }
 }
 

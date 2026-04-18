@@ -45,3 +45,15 @@ struct AppTheme: DynamicProperty {
     /// アクセント背景上で使用する文字色
     var accentOnPrimary: Color { Color("accentOnPrimary") }
 }
+
+extension AppTheme {
+    /// ライト/ダークで切り替える色を簡潔に定義するヘルパー
+    func schemeColor(light: Color, dark: Color) -> Color {
+        switch resolvedColorScheme {
+        case .dark:
+            return dark
+        default:
+            return light
+        }
+    }
+}

@@ -191,9 +191,9 @@ final class GameViewModel: ObservableObject {
         // ビルドエラーが発生する。そこで `@autoclosure` 付きのファクトリを受け取り、
         // メインアクター上で初期化処理を実行するようにする。
         campaignProgressStore: @MainActor @autoclosure () -> CampaignProgressStore = CampaignProgressStore(),
-        onRequestGameCenterSignIn: ((GameCenterSignInPromptReason) -> Void)?,
+        onRequestGameCenterSignIn: ((GameCenterSignInPromptReason) -> Void)? = nil,
         onRequestReturnToTitle: (() -> Void)?,
-        onRequestStartCampaignStage: ((CampaignStage) -> Void)?,
+        onRequestStartCampaignStage: ((CampaignStage) -> Void)? = nil,
         penaltyBannerScheduler: PenaltyBannerScheduling = PenaltyBannerScheduler(),
         initialHandOrderingRawValue: String? = nil,
         initialGameCenterAuthenticationState: Bool = false,
