@@ -1,0 +1,350 @@
+#if canImport(SpriteKit)
+    import SpriteKit
+    import SharedSupport
+
+    final class GameSceneKnightAnimator {
+        enum PendingKnightState {
+            case show(GridPoint)
+            case hide
+        }
+
+        private(set) var knightNode: SKShapeNode?
+        private(set) var knightPosition: GridPoint?
+        private(set) var pendingKnightState: PendingKnightState?
+        let transientEffectContainer = SKNode()
+
+        func reset(in scene: SKScene) {
+            if let knightNode {
+                knightNode.removeAllActions()
+                knightNode.removeFromParent()
+            }
+            knightNode = nil
+            knightPosition = nil
+            pendingKnightState = nil
+
+            transientEffectContainer.removeAllActions()
+            transientEffectContainer.removeAllChildren()
+            transientEffectContainer.position = .zero
+            transientEffectContainer.zPosition = 1.7
+            transientEffectContainer.isHidden = false
+            if transientEffectContainer.parent !== scene {
+                scene.addChild(transientEffectContainer)
+            }
+        }
+
+        func setupKnight(
+            in scene: SKScene,
+            boardSize: Int,
+            palette: GameScenePalette,
+            layout: GameSceneLayoutSupport
+        ) {
+            let radius = layout.tileSize * 0.4
+            let node = SKShapeNode(circleOfRadius: radius)
+            node.fillColor = palette.boardKnight
+            node.strokeColor = .clear
+            let initialPoint = knightPosition ?? GridPoint.center(of: boardSize)
+            node.position = layout.position(for: initialPoint)
+            node.zPosition = 2
+            node.isHidden = knightPosition == nil
+            scene.addChild(node)
+            knightNode = node
+
+            debugLog(
+                "GameScene.setupKnight: radius=\(radius), position=\(node.position), hidden=\(node.isHidden)"
+            )
+        }
+
+        func relayoutKnight(layout: GameSceneLayoutSupport) {
+            guard let knightNode else { return }
+
+            if let knightPosition {
+                knightNode.position = layout.position(for: knightPosition)
+            }
+
+            let radius = layout.tileSize * 0.4
+            let circleRect = CGRect(
+                x: -radius,
+                y: -radius,
+                width: radius * 2,
+                height: radius * 2
+            )
+            knightNode.path = CGPath(ellipseIn: circleRect, transform: nil)
+        }
+
+        func applyTheme(_ palette: GameScenePalette) {
+            knightNode?.fillColor = palette.boardKnight
+        }
+
+        func removeKnight() {
+            knightNode?.removeAllActions()
+            knightNode?.removeFromParent()
+            knightNode = nil
+            knightPosition = nil
+            pendingKnightState = nil
+        }
+
+        func moveKnight(
+            to point: GridPoint?,
+            in scene: SKScene,
+            layout: GameSceneLayoutSupport,
+            isLayoutReady: Bool,
+            updateAccessibility: @escaping () -> Void
+        ) {
+            debugLog(
+                "GameScene.moveKnight 要求: current=\(String(describing: knightPosition)), target=\(String(describing: point)), tileSize=\(layout.tileSize)"
+            )
+
+            guard isLayoutReady, let knightNode else {
+                if let point {
+                    pendingKnightState = .show(point)
+                    knightPosition = point
+                } else {
+                    pendingKnightState = .hide
+                    knightPosition = nil
+                }
+                debugLog("GameScene.moveKnight: レイアウト未確定のため移動を保留")
+                return
+            }
+
+            if let point {
+                if let skView = scene.view, skView.isPaused {
+                    skView.isPaused = false
+                }
+                if scene.isPaused {
+                    scene.isPaused = false
+                }
+
+                knightNode.isHidden = false
+                performKnightPlacement(
+                    to: point,
+                    layout: layout,
+                    animated: true,
+                    updateAccessibility: updateAccessibility
+                )
+            } else {
+                knightNode.removeAllActions()
+                knightNode.isHidden = true
+                knightPosition = nil
+                updateAccessibility()
+                debugLog("GameScene.moveKnight: 駒を非表示にしました")
+            }
+        }
+
+        func playWarpTransition(
+            using resolution: MovementResolution,
+            in scene: SKScene,
+            layout: GameSceneLayoutSupport,
+            isLayoutReady: Bool,
+            warpColor: @escaping (GridPoint) -> SKColor,
+            updateAccessibility: @escaping () -> Void
+        ) {
+            guard isLayoutReady, let knightNode else {
+                moveKnight(
+                    to: resolution.finalPosition,
+                    in: scene,
+                    layout: layout,
+                    isLayoutReady: isLayoutReady,
+                    updateAccessibility: updateAccessibility
+                )
+                return
+            }
+
+            guard let warpEvent = resolution.appliedEffects.first(where: { applied in
+                if case .warp = applied.effect { return true }
+                return false
+            }) else {
+                moveKnight(
+                    to: resolution.finalPosition,
+                    in: scene,
+                    layout: layout,
+                    isLayoutReady: isLayoutReady,
+                    updateAccessibility: updateAccessibility
+                )
+                return
+            }
+
+            guard case .warp(_, let destination) = warpEvent.effect else {
+                moveKnight(
+                    to: resolution.finalPosition,
+                    in: scene,
+                    layout: layout,
+                    isLayoutReady: isLayoutReady,
+                    updateAccessibility: updateAccessibility
+                )
+                return
+            }
+
+            var approachPoints: [GridPoint] = []
+            for point in resolution.path {
+                approachPoints.append(point)
+                if point == warpEvent.point { break }
+            }
+            guard approachPoints.contains(warpEvent.point) else {
+                moveKnight(
+                    to: resolution.finalPosition,
+                    in: scene,
+                    layout: layout,
+                    isLayoutReady: isLayoutReady,
+                    updateAccessibility: updateAccessibility
+                )
+                return
+            }
+
+            knightNode.removeAllActions()
+            knightNode.isHidden = false
+
+            let approachDuration: TimeInterval = 0.18
+            let warpOutDuration: TimeInterval = 0.14
+            let warpInDuration: TimeInterval = 0.14
+
+            var sequence: [SKAction] = []
+
+            if !approachPoints.isEmpty {
+                let stepDuration = approachDuration / Double(max(1, approachPoints.count))
+                for point in approachPoints {
+                    let move = SKAction.move(to: layout.position(for: point), duration: stepDuration)
+                    move.timingMode = .easeInEaseOut
+                    let updateState = SKAction.run { [weak self] in
+                        guard let self else { return }
+                        self.knightPosition = point
+                        updateAccessibility()
+                    }
+                    sequence.append(SKAction.sequence([move, updateState]))
+                }
+            }
+
+            sequence.append(SKAction.run { [weak self] in
+                guard let self else { return }
+                self.emitWarpRing(
+                    at: warpEvent.point,
+                    layout: layout,
+                    color: warpColor(warpEvent.point),
+                    expanding: true
+                )
+                self.animateWarpArrow(at: warpEvent.point)
+            })
+
+            let warpOut = SKAction.group([
+                SKAction.scale(to: 0.2, duration: warpOutDuration),
+                SKAction.fadeOut(withDuration: warpOutDuration),
+            ])
+            warpOut.timingMode = .easeIn
+            sequence.append(warpOut)
+
+            sequence.append(SKAction.run { [weak self] in
+                guard let self, let knightNode = self.knightNode else { return }
+                knightNode.position = layout.position(for: destination)
+                knightNode.setScale(0.2)
+                knightNode.alpha = 0.0
+                self.emitWarpRing(
+                    at: destination,
+                    layout: layout,
+                    color: warpColor(destination),
+                    expanding: false
+                )
+            })
+
+            let warpIn = SKAction.group([
+                SKAction.fadeIn(withDuration: warpInDuration),
+                SKAction.scale(to: 1.0, duration: warpInDuration),
+            ])
+            warpIn.timingMode = .easeOut
+            sequence.append(warpIn)
+
+            sequence.append(SKAction.run { [weak self] in
+                guard let self, let knightNode = self.knightNode else { return }
+                knightNode.alpha = 1.0
+                knightNode.setScale(1.0)
+                self.knightPosition = destination
+                updateAccessibility()
+            })
+
+            knightNode.run(SKAction.sequence(sequence))
+        }
+
+        func flushPendingState(
+            isLayoutReady: Bool,
+            layout: GameSceneLayoutSupport,
+            updateAccessibility: @escaping () -> Void
+        ) {
+            guard isLayoutReady, let knightNode, let pendingKnightState else { return }
+
+            self.pendingKnightState = nil
+            switch pendingKnightState {
+            case .show(let point):
+                knightNode.isHidden = false
+                performKnightPlacement(
+                    to: point,
+                    layout: layout,
+                    animated: false,
+                    updateAccessibility: updateAccessibility
+                )
+            case .hide:
+                knightNode.removeAllActions()
+                knightNode.isHidden = true
+                knightPosition = nil
+                updateAccessibility()
+            }
+        }
+
+        private func performKnightPlacement(
+            to point: GridPoint,
+            layout: GameSceneLayoutSupport,
+            animated: Bool,
+            updateAccessibility: @escaping () -> Void
+        ) {
+            guard let knightNode else { return }
+
+            let destination = layout.position(for: point)
+            knightNode.removeAllActions()
+
+            if animated {
+                let move = SKAction.move(to: destination, duration: 0.2)
+                knightNode.run(move)
+            } else {
+                knightNode.position = destination
+            }
+
+            knightPosition = point
+            updateAccessibility()
+
+            let positionDescription = knightPosition.map { "\($0)" } ?? "nil"
+            debugLog("GameScene.moveKnight 完了: 現在位置=\(positionDescription)")
+        }
+
+        private func emitWarpRing(
+            at point: GridPoint,
+            layout: GameSceneLayoutSupport,
+            color: SKColor,
+            expanding: Bool
+        ) {
+            guard layout.tileSize > 0 else { return }
+
+            let radius = layout.tileSize * 0.36
+            let ring = SKShapeNode(circleOfRadius: radius)
+            ring.name = "transientWarpRing"
+            ring.lineWidth = max(1.0, layout.tileSize * 0.06)
+            ring.strokeColor = color
+            ring.fillColor = color.withAlphaComponent(0.18)
+            ring.isAntialiased = true
+            ring.position = layout.position(for: point)
+            ring.zPosition = 0
+            ring.alpha = expanding ? 0.9 : 0.8
+            let startScale: CGFloat = expanding ? 0.4 : 1.4
+            let targetScale: CGFloat = expanding ? 1.55 : 0.55
+            ring.setScale(startScale)
+            transientEffectContainer.addChild(ring)
+
+            let duration: TimeInterval = 0.2
+            let scale = SKAction.scale(to: targetScale, duration: duration)
+            scale.timingMode = .easeOut
+            let fade = SKAction.fadeOut(withDuration: duration)
+            fade.timingMode = .easeOut
+            ring.run(SKAction.sequence([SKAction.group([scale, fade]), SKAction.removeFromParent()]))
+        }
+
+        private func animateWarpArrow(at point: GridPoint) {
+            _ = point
+        }
+    }
+#endif
