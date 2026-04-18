@@ -175,6 +175,35 @@ private final class StubDailyChallengeAttemptStore: ObservableObject, DailyChall
 
 struct MonoKnightAppTests {
 
+    /// AppBootstrap が通常起動時に live 依存を組み立てることを確認する
+    @MainActor
+    @Test func appBootstrap_liveEnvironment_buildsLiveDependencies() throws {
+        let dependencies = AppBootstrap.makeDependencies(environment: [:])
+
+        #expect(dependencies.gameCenterService as AnyObject === GameCenterService.shared)
+        #expect(dependencies.adsService as AnyObject === AdsService.shared)
+        #expect(dependencies.gameSettingsStore.preferredColorScheme == .system)
+    }
+
+    /// AppBootstrap が UI テスト時に mock 依存と専用 suite を使うことを確認する
+    @MainActor
+    @Test func appBootstrap_uiTestEnvironment_buildsMockDependencies() throws {
+        let suiteName = AppBootstrap.uiTestDailyChallengeSuiteName
+        let defaults = UserDefaults(suiteName: suiteName)
+        defaults?.set(
+            ThemePreference.dark.rawValue,
+            forKey: StorageKey.AppStorage.preferredColorScheme
+        )
+
+        let dependencies = AppBootstrap.makeDependencies(
+            environment: [AppBootstrap.uiTestModeKey: "1"]
+        )
+
+        #expect(dependencies.gameCenterService is MockGameCenterService)
+        #expect(dependencies.adsService is MockAdsService)
+        #expect(dependencies.gameSettingsStore.preferredColorScheme == .system)
+    }
+
     /// RootView の依存注入と、初期状態ストアの標準値が期待通りかを確認する
     @MainActor
     @Test func rootView_initialState_reflectsInjectedServices() throws {

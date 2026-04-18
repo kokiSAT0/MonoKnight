@@ -31,90 +31,37 @@ struct MonoKnightApp: App {
 
     /// 初期化時に環境変数を確認してモックの使用有無を決定する
     init() {
-        // MARK: グローバルエラーハンドラの設定
-        // デバッグ中にどこでクラッシュしても詳細な情報を得られるようにする
         ErrorReporter.setup()
-        // MARK: 診断ログの公開可否をビルドごとに制御
-        // TestFlight や開発ビルドではログビューアを有効にしつつ、App Store 提出向けビルドでは環境変数で明示的に許可された場合のみ表示する。
-#if DEBUG
-        DebugLogHistory.shared.setFrontEndViewerEnabled(true)
-#else
-        let diagnosticsEnabled = ProcessInfo.processInfo.environment["ENABLE_DIAGNOSTICS_MENU"] == "1"
-        DebugLogHistory.shared.setFrontEndViewerEnabled(diagnosticsEnabled)
-#endif
-        // MARK: サービスのインスタンス確定
-        // UI テスト環境ではモックを、それ以外では実サービスを採用
-        if ProcessInfo.processInfo.environment["UITEST_MODE"] != nil {
-            // UI テストではモックを利用して即時認証・ダミー広告を表示
-            let mockGameCenter = MockGameCenterService()
-            let mockAds = MockAdsService()
-            let mockStore = MockStoreService()
-            let suiteName = "monoKnight_ui_test_daily_challenge"
-            let mockDefaults = UserDefaults(suiteName: suiteName)
-            mockDefaults?.removePersistentDomain(forName: suiteName)
-            let mockDailyStore = DailyChallengeAttemptStore(userDefaults: mockDefaults ?? .standard)
-            let mockSettingsStore = GameSettingsStore(userDefaults: mockDefaults ?? .standard)
-            self.gameCenterService = mockGameCenter
-            self.adsService = mockAds
-            _storeService = StateObject(wrappedValue: AnyStoreService(base: mockStore))
-            _dailyChallengeAttemptStore = StateObject(wrappedValue: AnyDailyChallengeAttemptStore(base: mockDailyStore))
-            _dailyChallengeDefinitionService = StateObject(wrappedValue: DailyChallengeDefinitionService())
-            _gameSettingsStore = StateObject(wrappedValue: mockSettingsStore)
-        } else {
-            // 通常起動時はシングルトンを利用
-            let liveGameCenter = GameCenterService.shared
-            let liveAds = AdsService.shared
-            let liveStore = StoreService.shared
-            let liveDailyStore = DailyChallengeAttemptStore()
-            let liveSettingsStore = GameSettingsStore()
-            self.gameCenterService = liveGameCenter
-            self.adsService = liveAds
-            _storeService = StateObject(wrappedValue: AnyStoreService(base: liveStore))
-            _dailyChallengeAttemptStore = StateObject(wrappedValue: AnyDailyChallengeAttemptStore(base: liveDailyStore))
-            _dailyChallengeDefinitionService = StateObject(wrappedValue: DailyChallengeDefinitionService())
-            _gameSettingsStore = StateObject(wrappedValue: liveSettingsStore)
-        }
+        AppBootstrap.configureDiagnosticsViewer()
+
+        let dependencies = AppBootstrap.makeDependencies()
+        self.gameCenterService = dependencies.gameCenterService
+        self.adsService = dependencies.adsService
+        _storeService = StateObject(wrappedValue: dependencies.storeService)
+        _dailyChallengeAttemptStore = StateObject(
+            wrappedValue: dependencies.dailyChallengeAttemptStore
+        )
+        _dailyChallengeDefinitionService = StateObject(
+            wrappedValue: dependencies.dailyChallengeDefinitionService
+        )
+        _gameSettingsStore = StateObject(wrappedValue: dependencies.gameSettingsStore)
     }
 
     var body: some Scene {
         WindowGroup {
-            Group {
-                // MARK: 起動直後の表示切り替え
-                // 初回のみ同意フローを表示し、完了後に `RootView` へ遷移する
-                if hasCompletedConsentFlow {
-                    // 通常時はタブビューを提供するルート画面を表示
-                    RootView(
-                        gameCenterService: gameCenterService,
-                        adsService: adsService,
-                        dailyChallengeAttemptStore: dailyChallengeAttemptStore,
-                        dailyChallengeDefinitionService: dailyChallengeDefinitionService,
-                        gameSettingsStore: gameSettingsStore
-                    )
-                } else {
-                    // 同意取得前はオンボーディング画面を表示
-                    ConsentFlowView(adsService: adsService)
-                }
-            }
-            // MARK: テーマ適用
-            // `Group` に適用することで、内部のどの画面が表示されていてもユーザー設定が反映される。
-            .preferredColorScheme(gameSettingsStore.preferredColorScheme.preferredColorScheme)
-            // - NOTE: `environmentObject` に乗せておくと、将来的に他画面からも購買状況を参照しやすくなる
-            .environmentObject(storeService)
-            .environmentObject(dailyChallengeAttemptStore)
-            .environmentObject(gameSettingsStore)
-            // MARK: フォアグラウンド復帰時の Game Center 再認証
-            // scenePhase が `.active` へ変化したときに再度認証を試み、バックグラウンド中に切断されていても即座に復帰させる
+            RootAppContent(
+                hasCompletedConsentFlow: hasCompletedConsentFlow,
+                gameCenterService: gameCenterService,
+                adsService: adsService,
+                storeService: storeService,
+                dailyChallengeAttemptStore: dailyChallengeAttemptStore,
+                dailyChallengeDefinitionService: dailyChallengeDefinitionService,
+                gameSettingsStore: gameSettingsStore
+            )
             .onChange(of: scenePhase) { _, newPhase in
-                guard newPhase == .active else { return }
-                debugLog("MonoKnightApp: scenePhase が active へ遷移したため Game Center 認証を再試行します")
-                gameCenterService.authenticateLocalPlayer(completion: nil)
-                // MARK: クラッシュ履歴の定期レビュー
-                // アプリがフォアグラウンドへ戻ったタイミングでログを要約出力し、問題の早期発見につなげる
-                CrashFeedbackCollector.shared.logSummary(label: "scenePhase active", latestCount: 3)
-                // 直近にクラッシュやフィードバックがあればレビュー済みの履歴としてマークする
-                _ = CrashFeedbackCollector.shared.markReviewCompletedIfNeeded(
-                    note: "scenePhase active で自動レビュー",
-                    reviewer: "自動チェック"
+                AppLifecycleCoordinator.handleScenePhaseChange(
+                    newPhase,
+                    gameCenterService: gameCenterService
                 )
             }
         }

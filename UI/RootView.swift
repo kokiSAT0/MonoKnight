@@ -96,106 +96,167 @@ struct RootView: View {
 // MARK: - 画面状態ストア
 @MainActor
 final class RootViewStateStore: ObservableObject {
+    private struct PlayFlowState {
+        var isShowingTitleScreen: Bool
+        var isPreparingGame: Bool
+        var isGameReadyForManualStart: Bool
+        var activeMode: GameMode
+        var gameSessionID: UUID
+        var lastPreparationContext: GamePreparationContext?
+    }
+
+    private struct PresentationState {
+        var topBarHeight: CGFloat
+        var lastLoggedLayoutSnapshot: RootView.RootLayoutSnapshot?
+        var isPresentingTitleSettings: Bool
+        var pendingTitleNavigationTarget: TitleNavigationTarget?
+    }
+
+    private struct AuthPromptState {
+        var isAuthenticated: Bool
+        var gameCenterSignInPrompt: GameCenterSignInPrompt?
+        var hasAttemptedInitialAuthentication: Bool
+    }
+
+    @Published private var playFlowState: PlayFlowState
+    @Published private var presentationState: PresentationState
+    @Published private var authPromptState: AuthPromptState
+
     /// Game Center 認証済みかどうか
-    @Published var isAuthenticated: Bool {
-        didSet {
-            guard oldValue != isAuthenticated else { return }
-            debugLog("RootView.isAuthenticated 更新: \(isAuthenticated)")
+    var isAuthenticated: Bool {
+        get { authPromptState.isAuthenticated }
+        set {
+            guard authPromptState.isAuthenticated != newValue else { return }
+            authPromptState.isAuthenticated = newValue
+            debugLog("RootView.isAuthenticated 更新: \(newValue)")
         }
     }
     /// タイトル画面の表示/非表示
-    @Published var isShowingTitleScreen: Bool {
-        didSet {
-            guard oldValue != isShowingTitleScreen else { return }
-            debugLog("RootView.isShowingTitleScreen 更新: \(isShowingTitleScreen)")
+    var isShowingTitleScreen: Bool {
+        get { playFlowState.isShowingTitleScreen }
+        set {
+            guard playFlowState.isShowingTitleScreen != newValue else { return }
+            playFlowState.isShowingTitleScreen = newValue
+            debugLog("RootView.isShowingTitleScreen 更新: \(newValue)")
         }
     }
     /// ゲーム準備中（ローディング状態）かどうか
-    @Published var isPreparingGame: Bool {
-        didSet {
-            guard oldValue != isPreparingGame else { return }
-            debugLog("RootView.isPreparingGame 更新: \(isPreparingGame)")
+    var isPreparingGame: Bool {
+        get { playFlowState.isPreparingGame }
+        set {
+            guard playFlowState.isPreparingGame != newValue else { return }
+            playFlowState.isPreparingGame = newValue
+            debugLog("RootView.isPreparingGame 更新: \(newValue)")
         }
     }
     /// ゲーム開始準備が完了し、ユーザーの開始操作待ちかどうか
-    @Published var isGameReadyForManualStart: Bool {
-        didSet {
-            guard oldValue != isGameReadyForManualStart else { return }
-            debugLog("RootView.isGameReadyForManualStart 更新: \(isGameReadyForManualStart)")
+    var isGameReadyForManualStart: Bool {
+        get { playFlowState.isGameReadyForManualStart }
+        set {
+            guard playFlowState.isGameReadyForManualStart != newValue else { return }
+            playFlowState.isGameReadyForManualStart = newValue
+            debugLog("RootView.isGameReadyForManualStart 更新: \(newValue)")
         }
     }
     /// 実際にプレイへ適用しているモード
-    @Published var activeMode: GameMode {
-        didSet {
-            guard oldValue != activeMode else { return }
-            debugLog("RootView.activeMode 更新: \(activeMode.identifier.rawValue)")
+    var activeMode: GameMode {
+        get { playFlowState.activeMode }
+        set {
+            guard playFlowState.activeMode != newValue else { return }
+            playFlowState.activeMode = newValue
+            debugLog("RootView.activeMode 更新: \(newValue.identifier.rawValue)")
         }
     }
     /// GameView の再生成に利用するセッション ID
-    @Published var gameSessionID: UUID {
-        didSet {
-            guard oldValue != gameSessionID else { return }
-            debugLog("RootView.gameSessionID 更新: \(gameSessionID)")
+    var gameSessionID: UUID {
+        get { playFlowState.gameSessionID }
+        set {
+            guard playFlowState.gameSessionID != newValue else { return }
+            playFlowState.gameSessionID = newValue
+            debugLog("RootView.gameSessionID 更新: \(newValue)")
         }
     }
     /// トップバーの実測高さ
-    @Published var topBarHeight: CGFloat {
-        didSet {
-            guard oldValue != topBarHeight else { return }
-            debugLog("RootView.topBarHeight 更新: 旧値=\(oldValue), 新値=\(topBarHeight)")
+    var topBarHeight: CGFloat {
+        get { presentationState.topBarHeight }
+        set {
+            guard presentationState.topBarHeight != newValue else { return }
+            let oldValue = presentationState.topBarHeight
+            presentationState.topBarHeight = newValue
+            debugLog("RootView.topBarHeight 更新: 旧値=\(oldValue), 新値=\(newValue)")
         }
     }
     /// 直近に出力したレイアウトスナップショット
-    @Published var lastLoggedLayoutSnapshot: RootView.RootLayoutSnapshot?
+    var lastLoggedLayoutSnapshot: RootView.RootLayoutSnapshot? {
+        get { presentationState.lastLoggedLayoutSnapshot }
+        set { presentationState.lastLoggedLayoutSnapshot = newValue }
+    }
     /// タイトル設定シートの表示状態
-    @Published var isPresentingTitleSettings: Bool {
-        didSet {
-            guard oldValue != isPresentingTitleSettings else { return }
-            debugLog("RootView.isPresentingTitleSettings 更新: \(isPresentingTitleSettings)")
+    var isPresentingTitleSettings: Bool {
+        get { presentationState.isPresentingTitleSettings }
+        set {
+            guard presentationState.isPresentingTitleSettings != newValue else { return }
+            presentationState.isPresentingTitleSettings = newValue
+            debugLog("RootView.isPresentingTitleSettings 更新: \(newValue)")
         }
     }
     /// Game Center へのサインインを促すアラート情報
     /// - Important: 直前と同じ理由でも再掲示できるように `GameCenterSignInPrompt` を利用して一意 ID を保持する
-    @Published var gameCenterSignInPrompt: GameCenterSignInPrompt? {
-        didSet {
-            guard oldValue?.id != gameCenterSignInPrompt?.id else { return }
-            debugLog("RootView.gameCenterSignInPrompt 更新: reason=\(String(describing: gameCenterSignInPrompt?.reason))")
+    var gameCenterSignInPrompt: GameCenterSignInPrompt? {
+        get { authPromptState.gameCenterSignInPrompt }
+        set {
+            guard authPromptState.gameCenterSignInPrompt?.id != newValue?.id else { return }
+            authPromptState.gameCenterSignInPrompt = newValue
+            debugLog("RootView.gameCenterSignInPrompt 更新: reason=\(String(describing: newValue?.reason))")
         }
     }
     /// 直近でゲーム準備を開始した文脈
-    @Published var lastPreparationContext: GamePreparationContext? {
-        didSet {
-            guard oldValue != lastPreparationContext else { return }
-            debugLog("RootView.lastPreparationContext 更新: \(String(describing: lastPreparationContext?.logIdentifier))")
+    var lastPreparationContext: GamePreparationContext? {
+        get { playFlowState.lastPreparationContext }
+        set {
+            guard playFlowState.lastPreparationContext != newValue else { return }
+            playFlowState.lastPreparationContext = newValue
+            debugLog("RootView.lastPreparationContext 更新: \(String(describing: newValue?.logIdentifier))")
         }
     }
     /// タイトル画面で再表示したいナビゲーション先
     /// - NOTE: ローディング中に戻った際も NavigationStack が目的の画面を即座に復元できるようにする
-    @Published var pendingTitleNavigationTarget: TitleNavigationTarget? {
-        didSet {
-            guard oldValue != pendingTitleNavigationTarget else { return }
-            debugLog("RootView.pendingTitleNavigationTarget 更新: target=\(String(describing: pendingTitleNavigationTarget?.rawValue))")
+    var pendingTitleNavigationTarget: TitleNavigationTarget? {
+        get { presentationState.pendingTitleNavigationTarget }
+        set {
+            guard presentationState.pendingTitleNavigationTarget != newValue else { return }
+            presentationState.pendingTitleNavigationTarget = newValue
+            debugLog("RootView.pendingTitleNavigationTarget 更新: target=\(String(describing: newValue?.rawValue))")
         }
     }
     /// Game Center 認証の初回試行を完了したかどうか
     /// - NOTE: RootView が再描画されても `authenticateLocalPlayer` を重複呼び出ししないよう制御する
-    private(set) var hasAttemptedInitialAuthentication: Bool
+    private(set) var hasAttemptedInitialAuthentication: Bool {
+        get { authPromptState.hasAttemptedInitialAuthentication }
+        set { authPromptState.hasAttemptedInitialAuthentication = newValue }
+    }
     /// 初期化時に必要な値をまとめて受け取り、SwiftUI の `@StateObject` から利用できるようにする
     /// - Parameter initialIsAuthenticated: Game Center 認証済みかどうかの初期値
     init(initialIsAuthenticated: Bool) {
-        self.isAuthenticated = initialIsAuthenticated
-        self.isShowingTitleScreen = true
-        self.isPreparingGame = false
-        self.isGameReadyForManualStart = false
-        self.activeMode = .standard
-        self.gameSessionID = UUID()
-        self.topBarHeight = 0
-        self.lastLoggedLayoutSnapshot = nil
-        self.isPresentingTitleSettings = false
-        self.gameCenterSignInPrompt = nil
-        self.lastPreparationContext = nil
-        self.pendingTitleNavigationTarget = nil
-        self.hasAttemptedInitialAuthentication = false
+        self.playFlowState = PlayFlowState(
+            isShowingTitleScreen: true,
+            isPreparingGame: false,
+            isGameReadyForManualStart: false,
+            activeMode: .standard,
+            gameSessionID: UUID(),
+            lastPreparationContext: nil
+        )
+        self.presentationState = PresentationState(
+            topBarHeight: 0,
+            lastLoggedLayoutSnapshot: nil,
+            isPresentingTitleSettings: false,
+            pendingTitleNavigationTarget: nil
+        )
+        self.authPromptState = AuthPromptState(
+            isAuthenticated: initialIsAuthenticated,
+            gameCenterSignInPrompt: nil,
+            hasAttemptedInitialAuthentication: false
+        )
     }
 
     /// `@Published` プロパティへのバインディングを生成する補助メソッド

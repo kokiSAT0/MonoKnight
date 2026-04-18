@@ -45,6 +45,7 @@
 		729791562E7EB35900361471 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 729791552E7EB35900361471 /* LaunchScreen.storyboard */; };
 		72CAA2B40FE66746B51978FA /* BoardTapSelectionWarningToastView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 724954A75EC1545A2A92499B /* BoardTapSelectionWarningToastView.swift */; };
 		72CF37F02E71616C0093B180 /* MonoKnightApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000004 /* MonoKnightApp.swift */; };
+		E79DD1682FFF4B8A0038C598 /* MonoKnightApp+Bootstrap.swift in Sources */ = {isa = PBXBuildFile; fileRef = E79DD1672FFF4B8A0038C598 /* MonoKnightApp+Bootstrap.swift */; };
 		72CF38052E7162E20093B180 /* ErrorReporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF37F92E7162E20093B180 /* ErrorReporter.swift */; };
 		72CF38072E7162E20093B180 /* GameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF38002E7162E20093B180 /* GameView.swift */; };
 		72CF380B2E7162E20093B180 /* AdsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CF37F82E7162E20093B180 /* AdsService.swift */; };
@@ -103,6 +104,7 @@
 /* Begin PBXFileReference section */
 		000000000000000000000003 /* MonoKnight.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MonoKnight.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		000000000000000000000004 /* MonoKnightApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonoKnightApp.swift; sourceTree = "<group>"; };
+		E79DD1672FFF4B8A0038C598 /* MonoKnightApp+Bootstrap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MonoKnightApp+Bootstrap.swift"; sourceTree = "<group>"; };
 		000000000000000000000009 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		5B9170D4E6844EE280264226 /* GameCenterSignInPrompt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameCenterSignInPrompt.swift; sourceTree = "<group>"; };
 		72185F512E84B44F0057458C /* CrashFeedbackCollector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrashFeedbackCollector.swift; sourceTree = "<group>"; };
@@ -241,6 +243,7 @@
 			isa = PBXGroup;
 			children = (
 				000000000000000000000004 /* MonoKnightApp.swift */,
+				E79DD1672FFF4B8A0038C598 /* MonoKnightApp+Bootstrap.swift */,
 				72CF37F72E7162E20093B180 /* Game */,
 				72CF381B2E90AA000093B180 /* SharedSupport */,
 				72CF37FD2E7162E20093B180 /* Services */,
@@ -622,6 +625,7 @@
 				E79DD15C2FFD1CBC0038C598 /* RootViewCoordinators.swift in Sources */,
 				7266423C2E82397D003EA325 /* FreeModeRegulationView.swift in Sources */,
 				72CF37F02E71616C0093B180 /* MonoKnightApp.swift in Sources */,
+				E79DD1682FFF4B8A0038C598 /* MonoKnightApp+Bootstrap.swift in Sources */,
 				726643072E85DAD1003EA325 /* CampaignProgressStore.swift in Sources */,
 				72F554AC2E7E60850098A1B0 /* HowToPlayView.swift in Sources */,
 				72F554AD2E7E60850098A1B0 /* AppTheme.swift in Sources */,
