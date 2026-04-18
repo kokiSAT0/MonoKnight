@@ -25,6 +25,10 @@
 		726642982E848E91003EA325 /* AdsConsentCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 726642972E848E91003EA325 /* AdsConsentCoordinator.swift */; };
 		7266429A2E848E9A003EA325 /* InterstitialAdController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 726642992E848E9A003EA325 /* InterstitialAdController.swift */; };
 		7266429E2E849763003EA325 /* GameViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7266429D2E849763003EA325 /* GameViewModel.swift */; };
+		B10000000000000000000001 /* GameViewModel+Bindings.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000101 /* GameViewModel+Bindings.swift */; };
+		B10000000000000000000002 /* GameViewModel+FlowActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000102 /* GameViewModel+FlowActions.swift */; };
+		B10000000000000000000003 /* GameViewModel+InputActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000103 /* GameViewModel+InputActions.swift */; };
+		B10000000000000000000004 /* GameViewModel+Lifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000104 /* GameViewModel+Lifecycle.swift */; };
 		726642AF2E849978003EA325 /* CardAnimationPhase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 726642AE2E849978003EA325 /* CardAnimationPhase.swift */; };
 		726642B12E849982003EA325 /* BoardLayoutSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 726642B02E849982003EA325 /* BoardLayoutSnapshot.swift */; };
 		726642F12E85DA50003EA325 /* CampaignStageSelectionSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 726642F02E85DA50003EA325 /* CampaignStageSelectionSupport.swift */; };
@@ -132,6 +136,10 @@
 		726642972E848E91003EA325 /* AdsConsentCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdsConsentCoordinator.swift; sourceTree = "<group>"; };
 		726642992E848E9A003EA325 /* InterstitialAdController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InterstitialAdController.swift; sourceTree = "<group>"; };
 		7266429D2E849763003EA325 /* GameViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameViewModel.swift; sourceTree = "<group>"; };
+		B10000000000000000000101 /* GameViewModel+Bindings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GameViewModel+Bindings.swift"; sourceTree = "<group>"; };
+		B10000000000000000000102 /* GameViewModel+FlowActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GameViewModel+FlowActions.swift"; sourceTree = "<group>"; };
+		B10000000000000000000103 /* GameViewModel+InputActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GameViewModel+InputActions.swift"; sourceTree = "<group>"; };
+		B10000000000000000000104 /* GameViewModel+Lifecycle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GameViewModel+Lifecycle.swift"; sourceTree = "<group>"; };
 		726642AE2E849978003EA325 /* CardAnimationPhase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardAnimationPhase.swift; sourceTree = "<group>"; };
 		726642B02E849982003EA325 /* BoardLayoutSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardLayoutSnapshot.swift; sourceTree = "<group>"; };
 		726642F02E85DA50003EA325 /* CampaignStageSelectionSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CampaignStageSelectionSupport.swift; sourceTree = "<group>"; };
@@ -364,6 +372,10 @@
 				726642FC2E85DA9D003EA325 /* GameView+Observers.swift */,
 				72185F572E84B4B80057458C /* GameViewLayoutSupport.swift */,
 				7266429D2E849763003EA325 /* GameViewModel.swift */,
+				B10000000000000000000101 /* GameViewModel+Bindings.swift */,
+				B10000000000000000000102 /* GameViewModel+FlowActions.swift */,
+				B10000000000000000000103 /* GameViewModel+InputActions.swift */,
+				B10000000000000000000104 /* GameViewModel+Lifecycle.swift */,
 				E79DD1552FFD1C960038C598 /* GameViewModelSupport.swift */,
 				726642FD2E85DA9D003EA325 /* GameViewPreferenceKeys.swift */,
 				72D0C8B72E8E0AE900C6D0C5 /* HighScoreChallengeSelectionView.swift */,
@@ -633,6 +645,10 @@
 				72185F5A2E84B5200057458C /* GameSettingsStore.swift in Sources */,
 				72185F542E84B4680057458C /* ServiceInterfaces.swift in Sources */,
 				7266429E2E849763003EA325 /* GameViewModel.swift in Sources */,
+				B10000000000000000000001 /* GameViewModel+Bindings.swift in Sources */,
+				B10000000000000000000002 /* GameViewModel+FlowActions.swift in Sources */,
+				B10000000000000000000003 /* GameViewModel+InputActions.swift in Sources */,
+				B10000000000000000000004 /* GameViewModel+Lifecycle.swift in Sources */,
 				E79DD1562FFD1C960038C598 /* GameViewModelSupport.swift in Sources */,
 				A1B2C3D4E5F6010000000007 /* GameSessionInteractionSupport.swift in Sources */,
 				A1B2C3D4E5F6010000000008 /* GameSessionLifecycleSupport.swift in Sources */,

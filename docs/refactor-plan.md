@@ -9,8 +9,8 @@
 ## 現状構造
 | レイヤ | 現在の主責務 | 主なボトルネック |
 | --- | --- | --- |
-| `Game` | 盤面、移動、モード、キャンペーン定義、スコア | `CampaignStage.swift` は定義本体を薄化済み。現時点の主ボトルネックは `MoveCard.swift` に残る `MovePattern` 解決と registry 初期化支援 |
-| `UI` | タイトル、ゲーム表示、設定、遷移 | `RootView.swift` / `GameViewModel.swift` の façade 化は進んだが、`GameViewModelSupport.swift` の action surface と `AppTheme.swift` 由来のテーマトークン運用は継続整理が必要 |
+| `Game` | 盤面、移動、モード、キャンペーン定義、スコア | `CampaignStage.swift` と `MoveCard.swift` の façade 化は完了。現時点では大きな tracked ボトルネックは解消済みで、今後は `GameCore.swift` / `Deck.swift` の監視を継続する |
+| `UI` | タイトル、ゲーム表示、設定、遷移 | `RootView.swift` / `GameViewModel.swift` の façade 化は進み、残る主要な tracked 対象は `AppTheme.swift` のテーマトークン運用 |
 | `Services` | Ads / Game Center / StoreKit / 永続化ストア | 保存キーと責務の流儀が散っている |
 | `SharedSupport` | ログとクラッシュ補助 | 基盤は安定しているが利用点が散在 |
 | `MonoKnightApp.swift` | 起動、DI、同意フロー切替 | 設定キー依存が点在しやすい |
@@ -20,8 +20,8 @@
 - `StorageKey` を追加し、`@AppStorage` / `UserDefaults` キーの主要な定義を 1 箇所へ集約した。
 - `GameMode` の表示用ロジック、`Regulation` 補助、built-in mode 生成を拡張ファイルへ分離し、定義本体を façade として薄く保てる状態にした。
 - `CampaignStage` の表示・評価・進行用変換を拡張ファイルへ分離し、本体を公開データ定義中心へ整理した。
-- `GameViewModelSupport` の helper type 群を presentation / interaction / lifecycle support へ分割し、support 本体を `GameViewModel` の action / lifecycle 入口へ寄せた。
-- `MoveCard` の第1段階として registry と presentation metadata を拡張ファイルへ移し、ケース定義と移動解決の境界を明確にした。
+- `GameViewModelSupport` の helper type 群を presentation / interaction / lifecycle support へ分割し、さらに action / lifecycle surface も input / flow / lifecycle / bindings extension へ再分割して、support 本体を state sync glue へ縮退させた。
+- `MoveCard` の第2段階として `MovePattern` 本体を pattern support へ、registry・解決・テスト override を resolution extension へ移し、本体を case 定義と façade へ整理した。
 - `AppTheme` のトークンを badges / cards / chrome / board / platform bridge へ分割し、ベーステーマの入口を薄くした。
 - `RootView` 内の重複していた `campaignStage(for:)` ヘルパーを 1 箇所に整理した。
 
@@ -60,11 +60,11 @@
 - top bar 基盤は現状 `statusContent == EmptyView` で停止中のため、削除候補として扱う。
 
 ### Phase 3
-- `GameViewModel` を画面状態、結果遷移、タイマーポリシーに分ける。
-- `GameViewModelSupport` の action surface を必要に応じて result / pause / service bridge 単位へさらに整理する。
+- `GameViewModel` は façade と state sync glue を維持しつつ、追加 action は input / flow / lifecycle / bindings extension 単位で継続整理する。
+- helper type と action surface の責務境界が崩れないよう、小さな PR 単位で維持する。
 
 ### Phase 4
-- `MoveCard` の第2段階として `MovePattern` 解決ロジックと registry 初期化支援の分離可否を見極める。
+- `AppTheme` は色値を維持したまま extension 単位の責務境界を保ち、テーマ調整時の影響範囲をさらに狭める。
 - 日替わりは「プレイ用 mode ID」と「leaderboard 用 ID」を明示的に区別し続ける。
 
 ### Phase 5
@@ -72,6 +72,5 @@
 
 ## 今やるべきこと
 - `swift test` を常時グリーンに保つ。
-- `GameViewModelSupport` の action surface を小さい PR 単位で整理し、support file が再肥大化しないよう監視する。
-- `MoveCard` の第2段階は挙動固定テストを前提に小刻みに進める。
 - `AppTheme` は色値を変えず、extension 単位での変更運用を定着させる。
+- `Game` レイヤでは `MoveCard` 分離後も既存テストを維持し、移動仕様変更は小さな単位で固定する。

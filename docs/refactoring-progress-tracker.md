@@ -22,8 +22,8 @@
 
 | 指標 | 件数 | 補足 |
 | --- | ---: | --- |
-| 完了 | 15 | 主責務の分離が完了し、今後は維持中心で進められるもの |
-| 進行中 | 3 | 分割は始まっているが、継続監視が必要なもの |
+| 完了 | 16 | 主責務の分離が完了し、今後は維持中心で進められるもの |
+| 進行中 | 2 | 分割は始まっているが、継続監視が必要なもの |
 | 未着手 | 0 | 主要対象として追加済みのものは未着手なし |
 | 保留 | 0 | 現時点では該当なし |
 
@@ -43,8 +43,8 @@
 | Game | `Game/BoardGeometry.swift` | 完了 | 盤面サイズや座標計算の共通ロジックを集約済み | 維持中心。盤面拡張時にテスト追加で対応する | 座標・初期位置・盤面列挙の共通処理がここを正本として維持されている | `Tests/GameTests/BoardGeometryTests.swift` |
 | Game | `Game/GameMode.swift` | 完了 | `GameMode+Presentation.swift` へ表示文言、`GameMode+RegulationSupport.swift` へ `Regulation` の validation / Codable / tile effect 合成、`GameMode+BuiltIn.swift` へ built-in mode 生成を分離し、本体は公開型定義・主要公開プロパティ・`Equatable` の façade に整理済み | 維持中心。新モード追加時は built-in helper か presentation / regulation support 側へ局所変更し、定義本体へロジックを逆流させない | `GameMode.swift` 本体を読まずとも、表示・built-in 生成・Regulation 補助の責務が別ファイルで追え、公開契約を維持したままテストで encode/decode・fallback・文言を固定できる | `Tests/GameTests/GameModeIdentifierTests.swift`、`Tests/GameTests/GameModePenaltyTests.swift`、`Tests/GameTests/GameModeRegulationTests.swift`、`swift test`、`xcodebuild -scheme MonoKnightApp -project MonoKnight.xcodeproj -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.5' build` |
 | Game | `Game/CampaignStage.swift` | 完了 | 本体は公開データ構造と initializer にほぼ限定され、表示は `CampaignStage+Presentation.swift`、評価は `CampaignStage+Evaluation.swift`、進行用変換は `CampaignStage+Progression.swift` へ分離済み | 維持中心。ステージ追加時は定義元を触りつつ、表示文言・評価・`GameMode` 変換の逆流を防ぐ | `CampaignStage.swift` を読まずとも、表示・評価・進行用変換を別ファイルで追え、本体がデータ定義の façade として安定している | `Tests/GameTests/CampaignStagePresentationTests.swift`、`Tests/GameTests/GameModeIdentifierTests.swift`、`MonoKnightAppTests/CampaignStageSelectionViewTests.swift`、`swift test` |
-| UI | `UI/GameViewModelSupport.swift` | 進行中 | `GameSessionPresentationSupport.swift`、`GameSessionInteractionSupport.swift`、`GameSessionLifecycleSupport.swift` へ helper type 群を分離し、本体は `GameViewModel` façade extension と action / lifecycle 入口に寄せた。選択状態・バナー・購読 binding・サービス橋渡しを責務単位では追いやすくなった | `GameViewModel` extension 自体の action surface をさらに整理し、必要なら result / pause / service bridge の入口も追加分割する | `GameViewModel.swift` と `GameViewModelSupport.swift` を読めば公開 façade は追えるが、support extension にはまだ action surface が集中している状態を脱しきってはいない | `MonoKnightAppTests/GameViewIntegrationTests.swift`、`MonoKnightAppTests/GameViewModelTests.swift`、`swift test` |
-| Game | `Game/MoveCard.swift` | 進行中 | 第1段階として `MoveCard+Registry.swift` へ `directionalRayCards` / `standardSet` / `allCases`、`MoveCard+Presentation.swift` へ表示名・分類・アクセシビリティ寄りメタデータを移した。本体は case 定義、`MovePattern`、移動解決、利用判定に寄りつつある | 第2段階として `MovePattern` 解決ロジックと registry 初期化の支援をさらに分離する | registry / presentation は別責務化できたが、移動解決ロジックはまだ本体に集中している | `Tests/GameTests/DeckTests.swift`、`Tests/GameTests/GameCoreAvailableMovesTests.swift`、`Tests/GameTests/MoveCardPresentationTests.swift`、`swift test` |
+| UI | `UI/GameViewModelSupport.swift` | 完了 | state sync glue は `GameViewModelSupport.swift` に残しつつ、action / lifecycle surface を `GameViewModel+InputActions.swift`、`GameViewModel+FlowActions.swift`、`GameViewModel+Lifecycle.swift`、`GameViewModel+Bindings.swift` へ責務別に分割済み。既存の presentation / interaction / lifecycle helper type 群とも役割境界が揃い、support 本体は最小共通補助へ縮退した | 維持中心。新しい action 追加時は責務に対応する extension file へ寄せ、state sync glue へ逆流させない | `GameViewModelSupport.swift` を読まずとも、入力・結果/遷移・設定/ライフサイクル同期・GameCore binding をファイル単位で追え、`GameViewModel.swift` は façade のまま維持されている | `MonoKnightAppTests/GameViewIntegrationTests.swift`、`MonoKnightAppTests/GameViewModelTests.swift`、`swift test`、`xcodebuild -scheme MonoKnightApp -project MonoKnight.xcodeproj -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.5' build` |
+| Game | `Game/MoveCard.swift` | 完了 | `MoveCard+Registry.swift` へ集合定義、`MoveCard+Presentation.swift` へ表示メタデータ、`MoveCard+PatternSupport.swift` へ `MovePattern` 本体、`MoveCard+Resolution.swift` へ registry・解決・テスト override を分離済みで、本体は case 定義と公開 façade に整理された | 維持中心。新カード追加時は pattern support / resolution / presentation の責務境界を保ち、本体へロジックを逆流させない | `MoveCard.swift` を読まずとも、公開 enum・pattern 実装・registry 解決・表示責務を別ファイルで追え、既存 API を維持したまま回帰テストで fallback 順序と override 優先を固定できる | `Tests/GameTests/DeckTests.swift`、`Tests/GameTests/BoardMovementTests.swift`、`Tests/GameTests/GameCoreAvailableMovesTests.swift`、`Tests/GameTests/GameCoreFixedWarpCardTests.swift`、`Tests/GameTests/MoveCardPresentationTests.swift`、`Tests/GameTests/MoveCardResolutionTests.swift`、`swift test` |
 | UI | `UI/Theme/AppTheme.swift` | 進行中 | `AppTheme+Badges.swift`、`AppTheme+Cards.swift`、`AppTheme+Chrome.swift`、`AppTheme+Board.swift`、`AppTheme+PlatformBridge.swift` へ用途別トークンを分離し、本体はベースカラーとカラースキーム解決の入口に整理した | 必要なら card / board 系で再利用補助を追加しつつ、色値そのものは変えずに extension 単位の調整性を高める | API 名は維持したまま責務は薄くなったが、UI 見た目変更時の変更履歴をもう少し extension 単位で安定運用したい | `MonoKnightAppTests/GameViewIntegrationTests.swift`、`UI/Theme/AppTheme+*.swift`、`swift test`、`xcodebuild -scheme MonoKnightApp -project MonoKnight.xcodeproj -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.5' build` |
 | Game | `Game/GameModuleInterfaces.swift` | 完了 | UI からの `GameCore` 生成経路を一本化済み | 維持中心。依存注入の入口として保つ | `Game` 利用経路が分散せず、UI 側からの生成方法が統一されている | `docs/refactoring-task-board.md` |
 | Services | `Services/AdsConsentCoordinator.swift` | 完了 | ATT/UMP の状態遷移を踏まえた同意制御とテストが整っている | 維持中心。シナリオ追加はテスト拡充で吸収する | 同意状態ごとの挙動が既存テストで守られ、設計の再分割を必要としない | `MonoKnightAppTests/AdsConsentCoordinatorTests.swift`、`docs/att-ump-consent-flow.md` |
@@ -52,8 +52,6 @@
 
 ## 次に着手する順番
 
-1. `UI/GameViewModelSupport.swift` の action surface をさらに薄くし、support facade から result / pause / service bridge の責務を追いやすくする。
-2. `Game/MoveCard.swift` の第2段階として、`MovePattern` 解決ロジックと registry 初期化補助の分離可否を見極める。
-3. `UI/Theme/AppTheme.swift` は extension 単位の運用を継続し、テーマ調整時に責務逆流がないか監視する。
+1. `UI/Theme/AppTheme.swift` は extension 単位の運用を継続し、テーマ調整時に責務逆流がないか監視する。
 
 上記の進行中ファイルを優先監視対象とし、着手した PR では本書の対象行も同時に更新する。
