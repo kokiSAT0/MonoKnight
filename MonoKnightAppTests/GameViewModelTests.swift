@@ -192,6 +192,39 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.showingResult, "結果画面の明示クローズ後も showingResult が残っています")
     }
 
+    /// リザルト状態 mutation helper が公開 state へ同期されることを確認
+    func testApplyResultPresentationMutationSynchronizesPublishedState() {
+        let (viewModel, _) = makeViewModel(mode: .standard)
+        let stage = CampaignLibrary.shared.stage(with: CampaignStageID(chapter: 1, index: 1))
+
+        viewModel.applyResultPresentationMutation { state in
+            state.showingResult = true
+            state.latestCampaignClearRecord = nil
+            state.newlyUnlockedStages = stage.map { [$0] } ?? []
+        }
+
+        XCTAssertTrue(viewModel.showingResult, "リザルト同期 helper 経由で showingResult が更新されていません")
+        XCTAssertEqual(viewModel.newlyUnlockedStages.map(\.id), stage.map { [$0.id] } ?? [], "新規解放ステージが公開 state に同期されていません")
+    }
+
+    /// セッション UI mutation helper が公開 state へ同期されることを確認
+    func testApplySessionUIMutationSynchronizesPublishedState() {
+        let (viewModel, _) = makeViewModel(mode: .standard)
+        let event = PenaltyEvent(penaltyAmount: 2, trigger: .automaticDeadlock)
+
+        viewModel.applySessionUIMutation { state in
+            state.setActivePenaltyBanner(event)
+            state.requestReturnToTitle()
+            state.setPauseMenuPresented(true)
+            state.updateDisplayedElapsedTime(33)
+        }
+
+        XCTAssertEqual(viewModel.activePenaltyBanner, event, "ペナルティバナーが公開 state に同期されていません")
+        XCTAssertEqual(viewModel.pendingMenuAction, .returnToTitle, "pendingMenuAction が公開 state に同期されていません")
+        XCTAssertTrue(viewModel.isPauseMenuPresented, "ポーズメニュー表示状態が公開 state に同期されていません")
+        XCTAssertEqual(viewModel.displayedElapsedSeconds, 33, "経過秒数が公開 state に同期されていません")
+    }
+
     /// SessionUIState が確認ダイアログや一時 UI 状態の更新をまとめて扱えることを確認
     func testSessionUIStateTracksTransientUIChanges() {
         var state = SessionUIState()

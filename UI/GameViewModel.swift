@@ -3,68 +3,6 @@ import Foundation
 import Game
 import SharedSupport
 import SwiftUI
-import UIKit
-
-// MARK: - ペナルティバナー制御専用ユーティリティ
-
-/// ペナルティバナーの表示時間とキャンセル操作を抽象化するためのプロトコル
-/// - Important: テストではスパイ実装を注入し、`scheduleAutoDismiss` / `cancel` が期待通り呼ばれたか検証できるようにする。
-protocol PenaltyBannerScheduling: AnyObject {
-    /// バナーの自動クローズ処理を一定時間後に実行する
-    /// - Parameters:
-    ///   - delay: 自動的に閉じるまでの待機秒数
-    ///   - handler: 遅延実行したい処理本体
-    func scheduleAutoDismiss(after delay: TimeInterval, handler: @escaping () -> Void)
-
-    /// 保持している自動クローズ処理を破棄する
-    func cancel()
-}
-
-/// ペナルティ発生時に表示するバナーの自動クローズを一元管理するためのヘルパークラス
-/// - Note: `DispatchWorkItem` のライフサイクル管理を ViewModel 本体から切り離し、
-///   将来的にバナー表示の継続時間やディスパッチキューを差し替える際の影響範囲を最小化する狙いがある。
-final class PenaltyBannerScheduler: PenaltyBannerScheduling {
-    /// 自動クローズを担当する WorkItem。複数回表示された際にキャンセル漏れが起こらないよう保持する
-    private var dismissWorkItem: DispatchWorkItem?
-    /// 非同期実行に利用するディスパッチキュー
-    private let queue: DispatchQueue
-
-    /// - Parameter queue: デフォルトでメインキューを利用するが、テスト時に差し替えられるように引数化している
-    init(queue: DispatchQueue = .main) {
-        self.queue = queue
-    }
-
-    /// バナーを一定時間後に非表示へ戻すスケジュールを登録する
-    /// - Parameters:
-    ///   - delay: 非表示へ切り替えるまでの待ち時間（秒）
-    ///   - handler: 非表示へ切り替える際に実行するクロージャ
-    func scheduleAutoDismiss(after delay: TimeInterval, handler: @escaping () -> Void) {
-        cancel()
-
-        // WorkItem が完了したタイミングで自身の参照を解放し、再表示時に新しい WorkItem を安全に登録できるようにする
-        let workItem = DispatchWorkItem { [weak self] in
-            defer { self?.dismissWorkItem = nil }
-            handler()
-        }
-        dismissWorkItem = workItem
-        queue.asyncAfter(deadline: .now() + delay, execute: workItem)
-    }
-
-    /// 登録済みの WorkItem をキャンセルし、リセットする
-    func cancel() {
-        dismissWorkItem?.cancel()
-        dismissWorkItem = nil
-    }
-}
-
-/// ポーズメニューへ渡すキャンペーン進捗のサマリー
-/// - Note: ステージ定義と保存済み進捗をまとめて保持し、View 側でのアンラップ処理を簡潔にする
-struct CampaignPauseSummary {
-    /// 対象ステージの定義
-    let stage: CampaignStage
-    /// 保存済みの進捗（まだプレイしていない場合は nil）
-    let progress: CampaignStageProgress?
-}
 
 /// GameView のロジックとサービス連携を担う ViewModel
 /// 描画に直接関係しない処理を SwiftUI View から切り離し、責務を明確化する
@@ -104,14 +42,14 @@ final class GameViewModel: ObservableObject {
     }
     /// 直近のキャンペーンステージクリア記録
     /// - Note: リザルト画面でリワード進捗を可視化するため、クリア時に `flowCoordinator` から更新する
-    @Published private(set) var latestCampaignClearRecord: CampaignStageClearRecord? {
+    @Published var latestCampaignClearRecord: CampaignStageClearRecord? {
         didSet {
             resultPresentationState.latestCampaignClearRecord = latestCampaignClearRecord
         }
     }
     /// 今回のクリアで新たに解放されたステージ一覧
     /// - Important: ユーザーをそのまま次の挑戦へ誘導するため、`ResultView` 側へ渡してボタン表示を制御する
-    @Published private(set) var newlyUnlockedStages: [CampaignStage] = [] {
+    @Published var newlyUnlockedStages: [CampaignStage] = [] {
         didSet {
             resultPresentationState.newlyUnlockedStages = newlyUnlockedStages
         }
@@ -206,7 +144,7 @@ final class GameViewModel: ObservableObject {
     @Published var isGameCenterAuthenticated: Bool
     /// 盤面タップ時にカード選択が必要なケースを利用者へ知らせるための警告状態
     /// - Important: `Identifiable` なペイロードを保持し、SwiftUI 側で `.alert(item:)` を使って監視できるようにする
-    @Published var boardTapSelectionWarning: BoardTapSelectionWarning?
+    @Published var boardTapSelectionWarning: GameBoardTapSelectionWarning?
 
     /// Combine の購読を保持するセット
     var cancellables = Set<AnyCancellable>()
@@ -311,18 +249,6 @@ final class GameViewModel: ObservableObject {
         }
     }
 
-    /// 手札表示の並び替え設定を即座に反映する
-    /// 盤面タップ時に提示する警告ペイロード
-    /// - Note: View 層で扱いやすいよう `Identifiable` を満たし、メッセージや対象マスなどの情報をまとめて保持する
-    struct BoardTapSelectionWarning: Identifiable, Equatable {
-        /// 識別子。複数回同じ警告を表示するケースに備えて毎回新規 ID を採番する
-        let id = UUID()
-        /// 利用者へ表示する本文
-        let message: String
-        /// 競合が発生した座標。デバッグ用途で参照できるようにしておく
-        let destination: GridPoint
-    }
-
     // MARK: - 手動操作ボタンのサポート
 
     /// 捨て札ボタンを操作可能かどうか判定する
@@ -388,111 +314,3 @@ extension GameViewModel {
     }
 }
 #endif
-
-extension GameViewModel {
-    func applyResultPresentationMutation(_ mutation: (inout ResultPresentationState) -> Void) {
-        mutation(&resultPresentationState)
-        syncResultPresentationFromState()
-    }
-
-    func syncResultPresentationFromState() {
-        if showingResult != resultPresentationState.showingResult {
-            showingResult = resultPresentationState.showingResult
-        }
-        latestCampaignClearRecord = resultPresentationState.latestCampaignClearRecord
-        newlyUnlockedStages = resultPresentationState.newlyUnlockedStages
-    }
-
-    func applySessionUIMutation(_ mutation: (inout SessionUIState) -> Void) {
-        mutation(&sessionUIState)
-        syncSessionUIFromState()
-    }
-
-    func syncSessionUIFromState() {
-        if activePenaltyBanner != sessionUIState.activePenaltyBanner {
-            activePenaltyBanner = sessionUIState.activePenaltyBanner
-        }
-        if pendingMenuAction != sessionUIState.pendingMenuAction {
-            pendingMenuAction = sessionUIState.pendingMenuAction
-        }
-        if isPauseMenuPresented != sessionUIState.isPauseMenuPresented {
-            isPauseMenuPresented = sessionUIState.isPauseMenuPresented
-        }
-        if displayedElapsedSeconds != sessionUIState.displayedElapsedSeconds {
-            displayedElapsedSeconds = sessionUIState.displayedElapsedSeconds
-        }
-    }
-
-    /// キャンペーンモードでタイマー制御を行うべきかどうか
-    var supportsTimerPausing: Bool {
-        pauseController.supportsTimerPausing(for: mode)
-    }
-
-    /// ポーズメニューの開閉に応じてタイマーの停止/再開を制御する
-    /// - Parameter isPresented: 現在のポーズメニュー表示状態
-    func handlePauseMenuVisibilityChange(isPresented: Bool) {
-        pauseController.handlePauseMenuVisibilityChange(
-            isPresented: isPresented,
-            supportsTimerPausing: supportsTimerPausing,
-            progress: core.progress,
-            pauseTimer: { [self] in
-                core.pauseTimer(referenceDate: currentDateProvider())
-            },
-            resumeTimer: { [self] in
-                core.resumeTimer(referenceDate: currentDateProvider())
-            }
-        )
-    }
-}
-
-/// ゲーム画面のメニュー操作を表す列挙型
-enum GameMenuAction: Hashable, Identifiable {
-    case manualPenalty(penaltyCost: Int)
-    case reset
-    case returnToTitle
-
-    /// Identifiable 準拠のための識別子
-    var id: Int {
-        switch self {
-        case .manualPenalty:
-            return 0
-        case .reset:
-            return 1
-        case .returnToTitle:
-            return 2
-        }
-    }
-
-    /// 確認ダイアログ用のボタンタイトル
-    var confirmationButtonTitle: String {
-        switch self {
-        case .manualPenalty:
-            return "ペナルティを払う"
-        case .reset:
-            return "リセットする"
-        case .returnToTitle:
-            return "タイトルへ戻る"
-        }
-    }
-
-    /// 確認ダイアログで表示する説明文
-    var confirmationMessage: String {
-        switch self {
-        case .manualPenalty(let cost):
-            if cost > 0 {
-                return "手数を\(cost)増やして手札スロットを引き直します。現在の手札スロットは空になります。よろしいですか？"
-            } else {
-                return "手数を増やさずに手札スロットを引き直します。現在の手札スロットは空になります。よろしいですか？"
-            }
-        case .reset:
-            return "現在の進行状況を破棄して、最初からやり直します。よろしいですか？"
-        case .returnToTitle:
-            return "ゲームを終了してタイトル画面へ戻ります。現在のプレイ内容は保存されません。"
-        }
-    }
-
-    /// ボタンのロール種別
-    var buttonRole: ButtonRole? {
-        .destructive
-    }
-}
