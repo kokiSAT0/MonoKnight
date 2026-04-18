@@ -112,6 +112,19 @@ final class GameViewModelTests: XCTestCase {
         )
     }
 
+    /// タイトル復帰要求が既存の確認フローへ載ることを確認
+    func testRequestReturnToTitleSetsPendingAction() {
+        let (viewModel, _) = makeViewModel(mode: .standard)
+
+        viewModel.requestReturnToTitle()
+
+        XCTAssertEqual(
+            viewModel.pendingMenuAction,
+            .returnToTitle,
+            "タイトル復帰要求が確認ダイアログ用の pending action に反映されていません"
+        )
+    }
+
     /// プレイ待機中は手動ペナルティの確認がセットされないことを確認
     func testRequestManualPenaltyIgnoredWhenNotPlaying() {
         let (viewModel, core) = makeViewModel(mode: .classicalChallenge)
@@ -167,6 +180,16 @@ final class GameViewModelTests: XCTestCase {
         state.hideResult()
 
         XCTAssertFalse(state.showingResult, "結果画面非表示化が helper から行えません")
+    }
+
+    /// finalizeResultDismissal が結果表示フラグのみを閉じることを確認
+    func testFinalizeResultDismissalClosesResultFlag() {
+        let (viewModel, _) = makeViewModel(mode: .standard)
+        viewModel.showingResult = true
+
+        viewModel.finalizeResultDismissal()
+
+        XCTAssertFalse(viewModel.showingResult, "結果画面の明示クローズ後も showingResult が残っています")
     }
 
     /// SessionUIState が確認ダイアログや一時 UI 状態の更新をまとめて扱えることを確認

@@ -94,7 +94,7 @@ final class GameViewModel: ObservableObject {
     let boardBridge: GameBoardBridgeViewModel
     /// 現在選択中の手札スタック ID
     /// - Important: 手札スロットの選択状態を SwiftUI から装飾できるよう公開し、候補マス確定後にリセットする。
-    @Published private(set) var selectedHandStackID: UUID?
+    @Published var selectedHandStackID: UUID?
 
     /// 結果画面表示フラグ
     @Published var showingResult = false {
@@ -199,43 +199,43 @@ final class GameViewModel: ObservableObject {
     /// 経過秒数を 1 秒刻みで更新するためのタイマーパブリッシャ
     let elapsedTimer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
     /// ハプティクスの有効/無効設定
-    private(set) var hapticsEnabled = true
+    var hapticsEnabled = true
     /// ガイドモードの有効/無効設定
-    private(set) var guideModeEnabled = true
+    var guideModeEnabled = true
     /// Game Center 認証済みかどうかを UI と共有するフラグ
-    @Published private(set) var isGameCenterAuthenticated: Bool
+    @Published var isGameCenterAuthenticated: Bool
     /// 盤面タップ時にカード選択が必要なケースを利用者へ知らせるための警告状態
     /// - Important: `Identifiable` なペイロードを保持し、SwiftUI 側で `.alert(item:)` を使って監視できるようにする
     @Published var boardTapSelectionWarning: BoardTapSelectionWarning?
 
     /// Combine の購読を保持するセット
-    private var cancellables = Set<AnyCancellable>()
+    var cancellables = Set<AnyCancellable>()
     /// キャンペーン定義
     private let campaignLibrary = CampaignLibrary.shared
     /// 現在時刻を取得するためのクロージャ。テストでは任意の値へ差し替える
-    private let currentDateProvider: () -> Date
+    let currentDateProvider: () -> Date
     /// 手札選択と強制ハイライト制御を担当する内部状態
-    private var sessionState = GameSessionState()
+    var sessionState = GameSessionState()
     /// ペナルティバナー表示の責務を分離したヘルパー
-    private let penaltyBannerController: GamePenaltyBannerController
+    let penaltyBannerController: GamePenaltyBannerController
     /// タイマー停止理由を一元管理するヘルパー
-    private let pauseController: GamePauseController
+    let pauseController: GamePauseController
     /// リザルト遷移とキャンペーン進捗更新を担当するヘルパー
-    private let flowCoordinator: GameFlowCoordinator
+    let flowCoordinator: GameFlowCoordinator
     /// 手札タップと盤面タップの入力フローを担当するヘルパー
-    private let inputFlowCoordinator: GameInputFlowCoordinator
+    let inputFlowCoordinator: GameInputFlowCoordinator
     /// GameCore 購読と progress 起点の副作用を担当するヘルパー
-    private let coreBindingCoordinator: GameCoreBindingCoordinator
+    let coreBindingCoordinator: GameCoreBindingCoordinator
     /// タイトル復帰と新規プレイ開始時の後始末を担当するヘルパー
-    private let sessionResetCoordinator: GameSessionResetCoordinator
+    let sessionResetCoordinator: GameSessionResetCoordinator
     /// 初期表示準備と設定同期を担当するヘルパー
-    private let appearanceSettingsCoordinator: GameAppearanceSettingsCoordinator
+    let appearanceSettingsCoordinator: GameAppearanceSettingsCoordinator
     /// Game Center / Campaign / Ads の橋渡しを担当するヘルパー
-    private let sessionServicesCoordinator: GameSessionServicesCoordinator
+    let sessionServicesCoordinator: GameSessionServicesCoordinator
     /// リザルト表示の内部状態
-    private var resultPresentationState = ResultPresentationState()
+    var resultPresentationState = ResultPresentationState()
     /// セッション中の補助 UI 状態
-    private var sessionUIState = SessionUIState()
+    var sessionUIState = SessionUIState()
 
     /// ViewModel の初期化
     /// - Parameters:
@@ -311,29 +311,7 @@ final class GameViewModel: ObservableObject {
         }
     }
 
-    /// ユーザー設定から手札の並び替え戦略を復元する
-    /// - Parameter rawValue: UserDefaults に保存されている文字列値
-    func restoreHandOrderingStrategy(from rawValue: String) {
-        appearanceSettingsCoordinator.restoreHandOrderingStrategy(from: rawValue, core: core)
-    }
-
     /// 手札表示の並び替え設定を即座に反映する
-    /// - Parameter rawValue: AppStorage から得た値
-    func applyHandOrderingStrategy(rawValue: String) {
-        appearanceSettingsCoordinator.applyHandOrderingStrategy(rawValue: rawValue, core: core)
-    }
-
-    /// Game Center 認証状態を更新し、必要に応じてログへ記録する
-    /// - Parameter newValue: 最新の認証可否
-    func updateGameCenterAuthenticationStatus(_ newValue: Bool) {
-        sessionServicesCoordinator.updateGameCenterAuthenticationStatus(
-            currentValue: isGameCenterAuthenticated,
-            newValue: newValue
-        ) { [weak self] updatedValue in
-            self?.isGameCenterAuthenticated = updatedValue
-        }
-    }
-
     /// 盤面タップ時に提示する警告ペイロード
     /// - Note: View 層で扱いやすいよう `Identifiable` を満たし、メッセージや対象マスなどの情報をまとめて保持する
     struct BoardTapSelectionWarning: Identifiable, Equatable {
@@ -343,153 +321,6 @@ final class GameViewModel: ObservableObject {
         let message: String
         /// 競合が発生した座標。デバッグ用途で参照できるようにしておく
         let destination: GridPoint
-    }
-
-    /// ガイドモードの設定値を更新し、必要に応じてハイライトを再描画する
-    /// - Parameter enabled: 新しいガイドモード設定
-    func updateGuideMode(enabled: Bool) {
-        appearanceSettingsCoordinator.updateGuideMode(
-            enabled: enabled,
-            boardBridge: boardBridge
-        ) { [weak self] updatedValue in
-            self?.guideModeEnabled = updatedValue
-        }
-    }
-
-    /// ハプティクスの設定を更新する
-    /// - Parameter isEnabled: ユーザー設定から得たハプティクス有効フラグ
-    func updateHapticsSetting(isEnabled: Bool) {
-        appearanceSettingsCoordinator.updateHapticsSetting(
-            isEnabled: isEnabled,
-            boardBridge: boardBridge
-        ) { [weak self] updatedValue in
-            self?.hapticsEnabled = updatedValue
-        }
-    }
-
-    /// 盤面タップ警告を外部からクリアしたい場合のユーティリティ
-    /// - Important: トースト表示の自動消滅と同期させるため、View 層から明示的に呼び出せるよう公開する
-    func clearBoardTapSelectionWarning() {
-        boardTapSelectionWarning = nil
-    }
-
-    /// 結果画面を閉じた際の後処理
-    func finalizeResultDismissal() {
-        applyResultPresentationMutation { state in
-            state.hideResult()
-        }
-    }
-
-    /// SpriteKit シーンの配色を更新する
-    /// - Parameter scheme: 現在のカラースキーム
-    func applyScenePalette(for scheme: ColorScheme) {
-        boardBridge.applyScenePalette(for: scheme)
-    }
-
-    /// ハイライト表示を最新の状態へ更新する
-    func refreshGuideHighlights(
-        handOverride: [HandStack]? = nil,
-        currentOverride: GridPoint? = nil,
-        progressOverride: GameProgress? = nil
-    ) {
-        boardBridge.refreshGuideHighlights(
-            handOverride: handOverride,
-            currentOverride: currentOverride,
-            progressOverride: progressOverride
-        )
-    }
-
-    /// カード選択 UI から強制的に盤面ハイライトを表示したい場合のエントリポイント
-    /// - Parameter points: ユーザーに示したい候補座標集合。空集合を渡すと強制表示を解除する。
-    /// - Note: チュートリアルやヒント UI で特定マスを指示したいケースを想定し、View 層から直接 `GameScene` へ触れずに更新できるようにする。
-    func updateForcedSelectionHighlight(points: Set<GridPoint>) {
-        boardBridge.updateForcedSelectionHighlights(points)
-    }
-
-    /// 特定の手札スタックに応じた強制ハイライトを更新するユーティリティ
-    /// - Parameter stack: ハイライトしたいスタック。nil や未使用カードの場合は解除を行う。
-    /// - Important: カード選択 UI でフォーカスが移動した際に呼び出し、解除時は `nil` を渡す運用を想定している。
-    func updateForcedSelectionHighlight(for stack: HandStack?) {
-        guard
-            let stack,
-            let current = core.current,
-            let card = stack.topCard
-        else {
-            boardBridge.updateForcedSelectionHighlights([])
-            return
-        }
-
-        // --- 現在の盤面状態をスナップショットし、障害物や既踏マスを含めた判定コンテキストを構築する ---
-        let snapshotBoard = core.board
-        let context = MoveCard.MovePattern.ResolutionContext(
-            boardSize: snapshotBoard.size,
-            contains: { point in snapshotBoard.contains(point) },
-            isTraversable: { point in snapshotBoard.isTraversable(point) },
-            isVisited: { point in snapshotBoard.isVisited(point) }
-        )
-
-        // --- MovePattern.resolvePaths を用いて実際に到達可能な経路のみを抽出する ---
-        let availablePaths = card.move.resolvePaths(from: current, context: context)
-        let destinations = Set(availablePaths.map { $0.destination })
-
-        // --- 候補が存在しない場合は安全に解除し、存在する場合のみ強制ハイライトを更新する ---
-        boardBridge.updateForcedSelectionHighlights(destinations)
-    }
-
-    /// 表示用の経過時間を再計算する
-    func updateDisplayedElapsedTime() {
-        // GameCore 側では経過秒数をリアルタイム計測しつつ、クリア確定時に `elapsedSeconds` へ確定値を格納する。
-        // プレイ中に UI で使用する値は `liveElapsedSeconds` を参照することで、
-        // ストップウォッチのように 1 秒刻みで増加し続ける体験を提供できるようにする。
-        appearanceSettingsCoordinator.updateDisplayedElapsedTime(
-            liveElapsedSeconds: core.liveElapsedSeconds
-        ) { [weak self] seconds in
-            self?.applySessionUIMutation { state in
-                state.updateDisplayedElapsedTime(seconds)
-            }
-        }
-    }
-
-    /// 指定スタックのカードが現在位置から使用可能か判定する
-    func isCardUsable(_ stack: HandStack) -> Bool {
-        boardBridge.isCardUsable(stack)
-    }
-
-    /// 手札スタックのトップカードを盤面へ送るアニメーションを準備する
-    @discardableResult
-    func animateCardPlay(for stack: HandStack, at index: Int) -> Bool {
-        boardBridge.animateCardPlay(for: stack, at: index)
-    }
-
-    /// 手札スロットがタップされた際の挙動を集約する
-    /// - Parameter index: ユーザーが操作したスロットの添字
-    func handleHandSlotTap(at index: Int) {
-        inputFlowCoordinator.handleHandSlotTap(
-            at: index,
-            core: core,
-            boardBridge: boardBridge,
-            sessionState: &sessionState,
-            selectedHandStackID: &selectedHandStackID,
-            hapticsEnabled: hapticsEnabled
-        )
-    }
-
-    /// 盤面タップに応じたプレイ要求を処理する
-    /// - Important: BoardTapPlayRequest の受付は GameViewModel が単一窓口となる。描画橋渡し層や View 側で同様の処理を複製しないこと
-    func handleBoardTapPlayRequest(_ request: BoardTapPlayRequest) {
-        inputFlowCoordinator.handleBoardTapPlayRequest(
-            request,
-            core: core,
-            boardBridge: boardBridge,
-            sessionState: &sessionState,
-            selectedHandStackID: &selectedHandStackID,
-            hapticsEnabled: hapticsEnabled
-        ) { [weak self] message, destination in
-            self?.boardTapSelectionWarning = BoardTapSelectionWarning(
-                message: message,
-                destination: destination
-            )
-        }
     }
 
     // MARK: - 手動操作ボタンのサポート
@@ -541,303 +372,6 @@ final class GameViewModel: ObservableObject {
         )
     }
 
-    /// 手動ペナルティの確認ダイアログを表示するようリクエストする
-    /// - Note: ゲームが進行中でない場合は無視し、誤操作によるダイアログ表示を防ぐ
-    func requestManualPenalty() {
-        guard isManualPenaltyButtonEnabled else { return }
-        applySessionUIMutation { state in
-            state.requestManualPenalty(cost: core.mode.manualRedrawPenaltyCost)
-        }
-    }
-
-    /// ホームボタンの押下をトリガーに、タイトルへ戻る確認ダイアログを表示する
-    /// - Note: 直接リセットを実行せず、一度 pendingMenuAction へ格納して既存の確認フローを流用する
-    func requestReturnToTitle() {
-        applySessionUIMutation { state in
-            state.requestReturnToTitle()
-        }
-    }
-
-    /// ポーズメニューを表示する
-    /// - Note: ログ出力もここでまとめて行い、UI 側の責務を軽量化する
-    func presentPauseMenu() {
-        debugLog("GameViewModel: ポーズメニュー表示要求")
-        applySessionUIMutation { state in
-            state.presentPauseMenu()
-        }
-    }
-
-    /// scenePhase の変化に応じてタイマーの停止/再開を制御する
-    /// - Parameter newPhase: 画面のアクティブ状態
-    func handleScenePhaseChange(_ newPhase: ScenePhase) {
-        pauseController.handleScenePhaseChange(
-            newPhase,
-            supportsTimerPausing: supportsTimerPausing,
-            progress: core.progress,
-            pauseTimer: { [self] in
-                core.pauseTimer(referenceDate: currentDateProvider())
-            },
-            presentPauseMenu: { [self] in
-                presentPauseMenu()
-            }
-        )
-    }
-
-    /// ゲーム準備オーバーレイの表示/非表示を受け取り、タイマー制御を統合する
-    /// - Parameter isVisible: 現在のローディング表示状態
-    func handlePreparationOverlayChange(isVisible: Bool) {
-        pauseController.handlePreparationOverlayChange(
-            isVisible: isVisible,
-            supportsTimerPausing: supportsTimerPausing,
-            progress: core.progress,
-            pauseTimer: { [self] in
-                core.pauseTimer(referenceDate: currentDateProvider())
-            },
-            resumeTimer: { [self] in
-                core.resumeTimer(referenceDate: currentDateProvider())
-            },
-            presentPauseMenu: { [self] in
-                presentPauseMenu()
-            }
-        )
-    }
-
-    /// ゲームの進行状況に応じた操作をまとめて処理する
-    func performMenuAction(_ action: GameMenuAction) {
-        applySessionUIMutation { state in
-            state.clearPendingMenuAction()
-        }
-        clearSelectedCardSelection()
-        switch action {
-        case .manualPenalty:
-            cancelPenaltyBannerDisplay()
-            core.applyManualPenaltyRedraw()
-
-        case .reset:
-            resetSessionForNewPlay()
-
-        case .returnToTitle:
-            prepareForReturnToTitle()
-            onRequestReturnToTitle?()
-        }
-    }
-
-    /// 盤面サイズや踏破状況などを初期化する
-    func prepareForAppear(
-        colorScheme: ColorScheme,
-        guideModeEnabled: Bool,
-        hapticsEnabled: Bool,
-        handOrderingStrategy: HandOrderingStrategy,
-        isPreparationOverlayVisible: Bool
-    ) {
-        appearanceSettingsCoordinator.prepareForAppear(
-            colorScheme: colorScheme,
-            guideModeEnabled: guideModeEnabled,
-            hapticsEnabled: hapticsEnabled,
-            handOrderingStrategy: handOrderingStrategy,
-            isPreparationOverlayVisible: isPreparationOverlayVisible,
-            boardBridge: boardBridge,
-            core: core,
-            updateGuideMode: { [weak self] enabled in
-                self?.updateGuideMode(enabled: enabled)
-            },
-            updateHapticsSetting: { [weak self] isEnabled in
-                self?.updateHapticsSetting(isEnabled: isEnabled)
-            },
-            updateDisplayedElapsedTime: { [weak self] in
-                self?.updateDisplayedElapsedTime()
-            },
-            handlePreparationOverlayChange: { [weak self] isVisible in
-                self?.handlePreparationOverlayChange(isVisible: isVisible)
-            }
-        )
-    }
-
-    /// ペナルティイベントを受信した際の処理
-    /// - Parameter event: GameCore から通知された最新のペナルティ詳細
-    func handlePenaltyEvent(_ event: PenaltyEvent) {
-        penaltyBannerController.handlePenaltyEvent(
-            event,
-            hapticsEnabled: hapticsEnabled
-        ) { [weak self] banner in
-            self?.applySessionUIMutation { state in
-                state.setActivePenaltyBanner(banner)
-            }
-        }
-    }
-
-    /// 盤面レイアウト関連のアンカー情報を更新する
-    func updateBoardAnchor(_ anchor: Anchor<CGRect>?) {
-        boardBridge.updateBoardAnchor(anchor)
-    }
-
-    /// 結果画面からリトライを選択した際の共通処理
-    func handleResultRetry() {
-        resetSessionForNewPlay()
-    }
-
-    /// リザルト画面からホームへ戻るリクエストを受け取った際の共通処理
-    /// - Note: リトライ時と同じ初期化を行った上で、ルートビューへ遷移要求を転送する
-    func handleResultReturnToTitle() {
-        prepareForReturnToTitle()
-        onRequestReturnToTitle?()
-    }
-
-    /// 手札選択状態を初期化し、盤面ハイライトを消去する
-    private func clearSelectedCardSelection() {
-        inputFlowCoordinator.clearSelectedCardSelection(
-            sessionState: &sessionState,
-            boardBridge: boardBridge,
-            selectedHandStackID: &selectedHandStackID
-        )
-    }
-
-    /// 手札更新後も選択状態が維持できるか検証し、必要に応じてリセットする
-    /// - Parameter handStacks: 最新の手札スタック一覧
-    private func refreshSelectionIfNeeded(with handStacks: [HandStack]) {
-        inputFlowCoordinator.refreshSelectionIfNeeded(
-            with: handStacks,
-            core: core,
-            boardBridge: boardBridge,
-            sessionState: &sessionState,
-            selectedHandStackID: &selectedHandStackID
-        )
-    }
-
-    /// ペナルティバナー表示に関連する状態とワークアイテムをまとめて破棄する
-    /// - Note: 手動ペナルティやリセット操作後にバナーが残存しないよう、共通処理として切り出している
-    private func cancelPenaltyBannerDisplay() {
-        penaltyBannerController.cancel { [weak self] banner in
-            self?.applySessionUIMutation { state in
-                state.setActivePenaltyBanner(banner)
-            }
-        }
-    }
-
-    /// ホーム画面へ戻る際に共通で必要となる状態リセットをひとまとめにする
-    /// - Important: タイトルへ戻る場合はプレイ内容を保持したまま、UI 状態のみを初期化したいので `core.reset()` は呼び出さない
-    private func prepareForReturnToTitle() {
-        sessionResetCoordinator.prepareForReturnToTitle(
-            clearSelectedCardSelection: { [self] in clearSelectedCardSelection() },
-            cancelPenaltyBannerDisplay: { [self] in cancelPenaltyBannerDisplay() },
-            hideResult: { [self] in
-                applyResultPresentationMutation { state in
-                    state.hideResult()
-                }
-            },
-            resetTransientUI: { [self] in
-                applySessionUIMutation { state in
-                    state.resetTransientUIForTitleReturn()
-                }
-            },
-            clearBoardTapSelectionWarning: { [self] in
-                clearBoardTapSelectionWarning()
-            },
-            resetAdsPlayFlag: { [self] in
-                sessionServicesCoordinator.resetAdsPlayFlag(using: adsService)
-            },
-            resetPauseController: { [self] in
-                pauseController.reset()
-            }
-        )
-    }
-
-    /// 新しいプレイを始める際に必要な初期化処理を共通化する
-    /// - Note: リザルトからのリトライやリセット操作で重複していた処理を一本化し、将来的な初期化追加にも対応しやすくする
-    private func resetSessionForNewPlay() {
-        sessionResetCoordinator.resetSessionForNewPlay(
-            prepareForReturnToTitle: { [self] in prepareForReturnToTitle() },
-            resetCore: { [self] in core.reset() },
-            resetPauseController: { [self] in pauseController.reset() }
-        )
-    }
-
-    /// GameCore のストリームを監視し、UI 更新に必要な副作用を引き受ける
-    private func bindGameCore() {
-        coreBindingCoordinator.bind(
-            core: core,
-            cancellables: &cancellables,
-            onPenaltyEvent: { [weak self] event in
-                self?.handlePenaltyEvent(event)
-            },
-            onHandStacksChange: { [weak self] newHandStacks in
-                self?.refreshSelectionIfNeeded(with: newHandStacks)
-            },
-            onBoardTapPlayRequest: { [weak self] request in
-                self?.handleBoardTapPlayRequest(request)
-            },
-            onProgressChange: { [weak self] progress in
-                self?.handleProgressChange(progress)
-            },
-            onElapsedTimeChange: { [weak self] in
-                self?.updateDisplayedElapsedTime()
-            }
-        )
-    }
-
-    /// 進行状態の変化に応じた副作用をまとめる
-    /// - Parameter progress: GameCore が提供する現在の進行状態
-    private func handleProgressChange(_ progress: GameProgress) {
-        coreBindingCoordinator.handleProgressChange(
-            progress,
-            boardBridge: boardBridge,
-            updateDisplayedElapsedTime: { [self] in
-                updateDisplayedElapsedTime()
-            },
-            clearSelectedCardSelection: { [self] in
-                clearSelectedCardSelection()
-            },
-            resolveClearOutcome: { [self] in
-                guard progress == .cleared else { return nil }
-                return sessionServicesCoordinator.resolveClearOutcome(
-                    mode: mode,
-                    core: core,
-                    isGameCenterAuthenticated: isGameCenterAuthenticated,
-                    flowCoordinator: flowCoordinator,
-                    gameCenterService: gameCenterService,
-                    onRequestGameCenterSignIn: onRequestGameCenterSignIn,
-                    campaignProgressStore: campaignProgressStore
-                )
-            },
-            applyClearOutcome: { [self] outcome in
-                applyResultPresentationMutation { state in
-                    state.applyClearOutcome(outcome)
-                }
-            }
-        )
-    }
-
-    /// 新しく解放されたキャンペーンステージへ遷移するリクエストを処理する
-    /// - Parameter stage: 遷移先のステージ
-    func handleCampaignStageAdvance(to stage: CampaignStage) {
-        // バナー表示などの残留状態を片付けつつリザルトを閉じ、新規ステージへ進む準備を整える
-        sessionResetCoordinator.prepareForCampaignStageAdvance(
-            cancelPenaltyBannerDisplay: { [self] in cancelPenaltyBannerDisplay() },
-            hideResult: { [self] in
-                applyResultPresentationMutation { state in
-                    state.hideResult()
-                }
-            },
-            resetTransientUI: { [self] in
-                applySessionUIMutation { state in
-                    state.resetTransientUIForTitleReturn()
-                }
-            },
-            clearBoardTapSelectionWarning: { [self] in
-                clearBoardTapSelectionWarning()
-            },
-            resetAdsPlayFlag: { [self] in
-                sessionServicesCoordinator.resetAdsPlayFlag(using: adsService)
-            }
-        )
-
-        // ルートビュー側へ遷移要求を転送し、ゲーム準備フローを再利用する
-        sessionServicesCoordinator.handleCampaignStageAdvance(
-            to: stage,
-            campaignProgressStore: campaignProgressStore,
-            onRequestStartCampaignStage: onRequestStartCampaignStage
-        )
-    }
 }
 
 #if DEBUG || canImport(XCTest)
@@ -855,7 +389,7 @@ extension GameViewModel {
 }
 #endif
 
-private extension GameViewModel {
+extension GameViewModel {
     func applyResultPresentationMutation(_ mutation: (inout ResultPresentationState) -> Void) {
         mutation(&resultPresentationState)
         syncResultPresentationFromState()

@@ -907,3 +907,440 @@ final class GameFlowCoordinator {
         )
     }
 }
+
+// MARK: - GameViewModel split-file action and lifecycle surface
+
+@MainActor
+extension GameViewModel {
+    /// ユーザー設定から手札の並び替え戦略を復元する
+    /// - Parameter rawValue: UserDefaults に保存されている文字列値
+    func restoreHandOrderingStrategy(from rawValue: String) {
+        appearanceSettingsCoordinator.restoreHandOrderingStrategy(from: rawValue, core: core)
+    }
+
+    /// 手札表示の並び替え設定を即座に反映する
+    /// - Parameter rawValue: AppStorage から得た値
+    func applyHandOrderingStrategy(rawValue: String) {
+        appearanceSettingsCoordinator.applyHandOrderingStrategy(rawValue: rawValue, core: core)
+    }
+
+    /// Game Center 認証状態を更新し、必要に応じてログへ記録する
+    /// - Parameter newValue: 最新の認証可否
+    func updateGameCenterAuthenticationStatus(_ newValue: Bool) {
+        sessionServicesCoordinator.updateGameCenterAuthenticationStatus(
+            currentValue: isGameCenterAuthenticated,
+            newValue: newValue
+        ) { [weak self] updatedValue in
+            self?.isGameCenterAuthenticated = updatedValue
+        }
+    }
+
+    /// ガイドモードの設定値を更新し、必要に応じてハイライトを再描画する
+    /// - Parameter enabled: 新しいガイドモード設定
+    func updateGuideMode(enabled: Bool) {
+        appearanceSettingsCoordinator.updateGuideMode(
+            enabled: enabled,
+            boardBridge: boardBridge
+        ) { [weak self] updatedValue in
+            self?.guideModeEnabled = updatedValue
+        }
+    }
+
+    /// ハプティクスの設定を更新する
+    /// - Parameter isEnabled: ユーザー設定から得たハプティクス有効フラグ
+    func updateHapticsSetting(isEnabled: Bool) {
+        appearanceSettingsCoordinator.updateHapticsSetting(
+            isEnabled: isEnabled,
+            boardBridge: boardBridge
+        ) { [weak self] updatedValue in
+            self?.hapticsEnabled = updatedValue
+        }
+    }
+
+    /// 盤面タップ警告を外部からクリアしたい場合のユーティリティ
+    /// - Important: トースト表示の自動消滅と同期させるため、View 層から明示的に呼び出せるよう公開する
+    func clearBoardTapSelectionWarning() {
+        boardTapSelectionWarning = nil
+    }
+
+    /// 結果画面を閉じた際の後処理
+    func finalizeResultDismissal() {
+        applyResultPresentationMutation { state in
+            state.hideResult()
+        }
+    }
+
+    /// SpriteKit シーンの配色を更新する
+    /// - Parameter scheme: 現在のカラースキーム
+    func applyScenePalette(for scheme: ColorScheme) {
+        boardBridge.applyScenePalette(for: scheme)
+    }
+
+    /// ハイライト表示を最新の状態へ更新する
+    func refreshGuideHighlights(
+        handOverride: [HandStack]? = nil,
+        currentOverride: GridPoint? = nil,
+        progressOverride: GameProgress? = nil
+    ) {
+        boardBridge.refreshGuideHighlights(
+            handOverride: handOverride,
+            currentOverride: currentOverride,
+            progressOverride: progressOverride
+        )
+    }
+
+    /// カード選択 UI から強制的に盤面ハイライトを表示したい場合のエントリポイント
+    /// - Parameter points: ユーザーに示したい候補座標集合。空集合を渡すと強制表示を解除する。
+    func updateForcedSelectionHighlight(points: Set<GridPoint>) {
+        boardBridge.updateForcedSelectionHighlights(points)
+    }
+
+    /// 特定の手札スタックに応じた強制ハイライトを更新するユーティリティ
+    /// - Parameter stack: ハイライトしたいスタック。nil や未使用カードの場合は解除を行う。
+    func updateForcedSelectionHighlight(for stack: HandStack?) {
+        guard
+            let stack,
+            let current = core.current,
+            let card = stack.topCard
+        else {
+            boardBridge.updateForcedSelectionHighlights([])
+            return
+        }
+
+        let snapshotBoard = core.board
+        let context = MoveCard.MovePattern.ResolutionContext(
+            boardSize: snapshotBoard.size,
+            contains: { point in snapshotBoard.contains(point) },
+            isTraversable: { point in snapshotBoard.isTraversable(point) },
+            isVisited: { point in snapshotBoard.isVisited(point) }
+        )
+        let availablePaths = card.move.resolvePaths(from: current, context: context)
+        boardBridge.updateForcedSelectionHighlights(Set(availablePaths.map(\.destination)))
+    }
+
+    /// 表示用の経過時間を再計算する
+    func updateDisplayedElapsedTime() {
+        appearanceSettingsCoordinator.updateDisplayedElapsedTime(
+            liveElapsedSeconds: core.liveElapsedSeconds
+        ) { [weak self] seconds in
+            self?.applySessionUIMutation { state in
+                state.updateDisplayedElapsedTime(seconds)
+            }
+        }
+    }
+
+    /// 指定スタックのカードが現在位置から使用可能か判定する
+    func isCardUsable(_ stack: HandStack) -> Bool {
+        boardBridge.isCardUsable(stack)
+    }
+
+    /// 手札スタックのトップカードを盤面へ送るアニメーションを準備する
+    @discardableResult
+    func animateCardPlay(for stack: HandStack, at index: Int) -> Bool {
+        boardBridge.animateCardPlay(for: stack, at: index)
+    }
+
+    /// 手札スロットがタップされた際の挙動を集約する
+    /// - Parameter index: ユーザーが操作したスロットの添字
+    func handleHandSlotTap(at index: Int) {
+        inputFlowCoordinator.handleHandSlotTap(
+            at: index,
+            core: core,
+            boardBridge: boardBridge,
+            sessionState: &sessionState,
+            selectedHandStackID: &selectedHandStackID,
+            hapticsEnabled: hapticsEnabled
+        )
+    }
+
+    /// 盤面タップに応じたプレイ要求を処理する
+    func handleBoardTapPlayRequest(_ request: BoardTapPlayRequest) {
+        inputFlowCoordinator.handleBoardTapPlayRequest(
+            request,
+            core: core,
+            boardBridge: boardBridge,
+            sessionState: &sessionState,
+            selectedHandStackID: &selectedHandStackID,
+            hapticsEnabled: hapticsEnabled
+        ) { [weak self] message, destination in
+            self?.boardTapSelectionWarning = BoardTapSelectionWarning(
+                message: message,
+                destination: destination
+            )
+        }
+    }
+
+    /// 手動ペナルティの確認ダイアログを表示するようリクエストする
+    func requestManualPenalty() {
+        guard isManualPenaltyButtonEnabled else { return }
+        applySessionUIMutation { state in
+            state.requestManualPenalty(cost: core.mode.manualRedrawPenaltyCost)
+        }
+    }
+
+    /// ホームボタンの押下をトリガーに、タイトルへ戻る確認ダイアログを表示する
+    func requestReturnToTitle() {
+        applySessionUIMutation { state in
+            state.requestReturnToTitle()
+        }
+    }
+
+    /// ポーズメニューを表示する
+    func presentPauseMenu() {
+        debugLog("GameViewModel: ポーズメニュー表示要求")
+        applySessionUIMutation { state in
+            state.presentPauseMenu()
+        }
+    }
+
+    /// scenePhase の変化に応じてタイマーの停止/再開を制御する
+    func handleScenePhaseChange(_ newPhase: ScenePhase) {
+        pauseController.handleScenePhaseChange(
+            newPhase,
+            supportsTimerPausing: supportsTimerPausing,
+            progress: core.progress,
+            pauseTimer: { [self] in
+                core.pauseTimer(referenceDate: currentDateProvider())
+            },
+            presentPauseMenu: { [self] in
+                presentPauseMenu()
+            }
+        )
+    }
+
+    /// ゲーム準備オーバーレイの表示/非表示を受け取り、タイマー制御を統合する
+    func handlePreparationOverlayChange(isVisible: Bool) {
+        pauseController.handlePreparationOverlayChange(
+            isVisible: isVisible,
+            supportsTimerPausing: supportsTimerPausing,
+            progress: core.progress,
+            pauseTimer: { [self] in
+                core.pauseTimer(referenceDate: currentDateProvider())
+            },
+            resumeTimer: { [self] in
+                core.resumeTimer(referenceDate: currentDateProvider())
+            },
+            presentPauseMenu: { [self] in
+                presentPauseMenu()
+            }
+        )
+    }
+
+    /// ゲームの進行状況に応じた操作をまとめて処理する
+    func performMenuAction(_ action: GameMenuAction) {
+        applySessionUIMutation { state in
+            state.clearPendingMenuAction()
+        }
+        clearSelectedCardSelection()
+        switch action {
+        case .manualPenalty:
+            cancelPenaltyBannerDisplay()
+            core.applyManualPenaltyRedraw()
+        case .reset:
+            resetSessionForNewPlay()
+        case .returnToTitle:
+            prepareForReturnToTitle()
+            onRequestReturnToTitle?()
+        }
+    }
+
+    /// 盤面サイズや踏破状況などを初期化する
+    func prepareForAppear(
+        colorScheme: ColorScheme,
+        guideModeEnabled: Bool,
+        hapticsEnabled: Bool,
+        handOrderingStrategy: HandOrderingStrategy,
+        isPreparationOverlayVisible: Bool
+    ) {
+        appearanceSettingsCoordinator.prepareForAppear(
+            colorScheme: colorScheme,
+            guideModeEnabled: guideModeEnabled,
+            hapticsEnabled: hapticsEnabled,
+            handOrderingStrategy: handOrderingStrategy,
+            isPreparationOverlayVisible: isPreparationOverlayVisible,
+            boardBridge: boardBridge,
+            core: core,
+            updateGuideMode: { [weak self] enabled in
+                self?.updateGuideMode(enabled: enabled)
+            },
+            updateHapticsSetting: { [weak self] isEnabled in
+                self?.updateHapticsSetting(isEnabled: isEnabled)
+            },
+            updateDisplayedElapsedTime: { [weak self] in
+                self?.updateDisplayedElapsedTime()
+            },
+            handlePreparationOverlayChange: { [weak self] isVisible in
+                self?.handlePreparationOverlayChange(isVisible: isVisible)
+            }
+        )
+    }
+
+    /// ペナルティイベントを受信した際の処理
+    func handlePenaltyEvent(_ event: PenaltyEvent) {
+        penaltyBannerController.handlePenaltyEvent(
+            event,
+            hapticsEnabled: hapticsEnabled
+        ) { [weak self] banner in
+            self?.applySessionUIMutation { state in
+                state.setActivePenaltyBanner(banner)
+            }
+        }
+    }
+
+    /// 盤面レイアウト関連のアンカー情報を更新する
+    func updateBoardAnchor(_ anchor: Anchor<CGRect>?) {
+        boardBridge.updateBoardAnchor(anchor)
+    }
+
+    /// 結果画面からリトライを選択した際の共通処理
+    func handleResultRetry() {
+        resetSessionForNewPlay()
+    }
+
+    /// リザルト画面からホームへ戻るリクエストを受け取った際の共通処理
+    func handleResultReturnToTitle() {
+        prepareForReturnToTitle()
+        onRequestReturnToTitle?()
+    }
+
+    /// 新しく解放されたキャンペーンステージへ遷移するリクエストを処理する
+    func handleCampaignStageAdvance(to stage: CampaignStage) {
+        sessionResetCoordinator.prepareForCampaignStageAdvance(
+            cancelPenaltyBannerDisplay: { [self] in cancelPenaltyBannerDisplay() },
+            hideResult: { [self] in
+                applyResultPresentationMutation { state in
+                    state.hideResult()
+                }
+            },
+            resetTransientUI: { [self] in
+                applySessionUIMutation { state in
+                    state.resetTransientUIForTitleReturn()
+                }
+            },
+            clearBoardTapSelectionWarning: { [self] in
+                clearBoardTapSelectionWarning()
+            },
+            resetAdsPlayFlag: { [self] in
+                sessionServicesCoordinator.resetAdsPlayFlag(using: adsService)
+            }
+        )
+
+        sessionServicesCoordinator.handleCampaignStageAdvance(
+            to: stage,
+            campaignProgressStore: campaignProgressStore,
+            onRequestStartCampaignStage: onRequestStartCampaignStage
+        )
+    }
+
+    func clearSelectedCardSelection() {
+        inputFlowCoordinator.clearSelectedCardSelection(
+            sessionState: &sessionState,
+            boardBridge: boardBridge,
+            selectedHandStackID: &selectedHandStackID
+        )
+    }
+
+    func refreshSelectionIfNeeded(with handStacks: [HandStack]) {
+        inputFlowCoordinator.refreshSelectionIfNeeded(
+            with: handStacks,
+            core: core,
+            boardBridge: boardBridge,
+            sessionState: &sessionState,
+            selectedHandStackID: &selectedHandStackID
+        )
+    }
+
+    func cancelPenaltyBannerDisplay() {
+        penaltyBannerController.cancel { [weak self] banner in
+            self?.applySessionUIMutation { state in
+                state.setActivePenaltyBanner(banner)
+            }
+        }
+    }
+
+    func prepareForReturnToTitle() {
+        sessionResetCoordinator.prepareForReturnToTitle(
+            clearSelectedCardSelection: { [self] in clearSelectedCardSelection() },
+            cancelPenaltyBannerDisplay: { [self] in cancelPenaltyBannerDisplay() },
+            hideResult: { [self] in
+                applyResultPresentationMutation { state in
+                    state.hideResult()
+                }
+            },
+            resetTransientUI: { [self] in
+                applySessionUIMutation { state in
+                    state.resetTransientUIForTitleReturn()
+                }
+            },
+            clearBoardTapSelectionWarning: { [self] in
+                clearBoardTapSelectionWarning()
+            },
+            resetAdsPlayFlag: { [self] in
+                sessionServicesCoordinator.resetAdsPlayFlag(using: adsService)
+            },
+            resetPauseController: { [self] in
+                pauseController.reset()
+            }
+        )
+    }
+
+    func resetSessionForNewPlay() {
+        sessionResetCoordinator.resetSessionForNewPlay(
+            prepareForReturnToTitle: { [self] in prepareForReturnToTitle() },
+            resetCore: { [self] in core.reset() },
+            resetPauseController: { [self] in pauseController.reset() }
+        )
+    }
+
+    func bindGameCore() {
+        coreBindingCoordinator.bind(
+            core: core,
+            cancellables: &cancellables,
+            onPenaltyEvent: { [weak self] event in
+                self?.handlePenaltyEvent(event)
+            },
+            onHandStacksChange: { [weak self] newHandStacks in
+                self?.refreshSelectionIfNeeded(with: newHandStacks)
+            },
+            onBoardTapPlayRequest: { [weak self] request in
+                self?.handleBoardTapPlayRequest(request)
+            },
+            onProgressChange: { [weak self] progress in
+                self?.handleProgressChange(progress)
+            },
+            onElapsedTimeChange: { [weak self] in
+                self?.updateDisplayedElapsedTime()
+            }
+        )
+    }
+
+    func handleProgressChange(_ progress: GameProgress) {
+        coreBindingCoordinator.handleProgressChange(
+            progress,
+            boardBridge: boardBridge,
+            updateDisplayedElapsedTime: { [self] in
+                updateDisplayedElapsedTime()
+            },
+            clearSelectedCardSelection: { [self] in
+                clearSelectedCardSelection()
+            },
+            resolveClearOutcome: { [self] in
+                guard progress == .cleared else { return nil }
+                return sessionServicesCoordinator.resolveClearOutcome(
+                    mode: mode,
+                    core: core,
+                    isGameCenterAuthenticated: isGameCenterAuthenticated,
+                    flowCoordinator: flowCoordinator,
+                    gameCenterService: gameCenterService,
+                    onRequestGameCenterSignIn: onRequestGameCenterSignIn,
+                    campaignProgressStore: campaignProgressStore
+                )
+            },
+            applyClearOutcome: { [self] outcome in
+                applyResultPresentationMutation { state in
+                    state.applyClearOutcome(outcome)
+                }
+            }
+        )
+    }
+}
