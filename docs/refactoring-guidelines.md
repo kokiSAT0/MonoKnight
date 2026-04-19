@@ -17,7 +17,14 @@
 - **共通サポートモジュールの活用**: 共有ターゲット `SharedSupport` が導入されたため、`debugLog` や `CrashFeedbackCollector`
   を活用しつつ、各層のログ・計測を統一化する。
 
-### 2.1 直近の改善サマリ
+### 2.1 現在のフェーズ判断
+
+- 主要リファクタ対象の整理は一巡しており、現在は「再開発を始めながら局所的に整える」段階とする。
+- 包括的な再分割や再設計を次の前提にはしない。
+- 今後のリファクタリングは、新機能追加・ステージ追加・バグ修正に付随する局所改善を基本とする。
+- 出荷準備はまだ別論点であり、TestFlight 通し QA や本番値整備は `docs/release-checklist.md` と `docs/recommended-task-list.md` で別管理する。
+
+### 2.2 直近の改善サマリ
 
 - **Game モジュールの公開インターフェース整理**: `GameModuleInterfaces` を経由して `GameCore`
   を生成する流れが定着し、UI 側からの依存が一本化された。
@@ -42,7 +49,7 @@
 - **診断ログビューアの導線追加**: `SettingsView` に `DiagnosticsCenterView` を組み込み、`DebugLogHistory` / `CrashFeedbackCollector`
   の内容をアプリ内で直接閲覧・削除できるようにした。公開ビルドでは環境変数でメニューを無効化できるため、ユーザー向け配信時も安全に利用できる。
 
-### 2.2 診断ログ運用メモ
+### 2.3 診断ログ運用メモ
 
 - `MonoKnightApp` の初期化で `DebugLogHistory.shared.setFrontEndViewerEnabled` を制御している。
   - DEBUG ビルドでは常に `true` にして開発時の検証を容易にする。
@@ -54,6 +61,13 @@
 - ログ閲覧が不要なビルドでは `DebugLogHistory.shared.setFrontEndViewerEnabled(false)` を呼び出せば履歴がクリアされ、設定画面からもメニューが消える。
 
 ## 3. 優先すべきリファクタリング領域
+
+再開発フェーズでは、以下を「事前着手必須の大型リファクタ」ではなく「変更が入ったときに一緒に整理する監視対象」として扱う。
+
+- `Game/GameCore.swift`
+- `Game/Deck.swift`
+- `UI/TitleFlowView.swift`
+- `UI/MoveCardIllustrationView.swift`
 
 1. **ゲームコアロジック (`Game` パッケージ)**
    - `GameModuleInterfaces` を経由した依存注入が整備されたため、今後は `HandManager` や `Deck` の再利用性を高める。
@@ -96,6 +110,14 @@
 4. **継続的な振り返り**
    - リファクタリング後にクラッシュログやユーザーフィードバックを確認し、追加の負債が発生していないかチェックする。
    - 開発の節目でリファクタリング計画を見直し、優先順位の入れ替えや完了済み項目のアーカイブを行う。
+
+### 4.1 再開発フェーズでの進め方
+
+- 新機能やステージ追加を先に進め、必要に応じて触ったファイルだけを小さく整理する。
+- 変更に UI が含まれる場合は `swift test` に加えて App ビルド確認も行う。
+- 新ステージ追加時は `CampaignLibraryTests` と `GameModeIdentifierTests` 系を最低限の回帰確認とする。
+- ゲーム進行変更時は `GameCoreTests` と `DeckTests` の近傍ケースを補強する。
+- Swift Package 境界、`Game / UI / Services` の責務境界、外部サービス依存の閉じ込めは崩さない。
 
 ## 5. 実務上のチェックリスト
 

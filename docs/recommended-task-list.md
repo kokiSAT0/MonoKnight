@@ -5,12 +5,15 @@
 
 ## 必須（優先度: 高）
 <!-- 正式リリース直前に必ず完了させたいクリティカルタスク群 -->
+- [ ] 再開発と出荷準備を分けて扱う運用の維持<!-- 新機能追加の開始可否と App Store 提出準備完了は別判断とし、再開発中も `docs/release-checklist.md` の残項目を混同しない -->
 - [ ] TestFlight ビルドでの総合 QA<!-- Game Center 送信・広告除去 IAP・ATT/UMP 同意フローの通し確認を行い、リリースチェックリストの必須項目を埋める。`docs/att-ump-consent-flow.md` の状態表を参照しつつ実端末で検証する -->
 - [ ] App Store Connect のメタデータ最終更新<!-- プライバシー回答・広告設定・スクリーンショットを最新仕様へ合わせ、審査リジェクト要因を排除する -->
 - [ ] Info.plist / xcconfig の本番値整備<!-- 本番用 ID（Leaderboard / AdMob / IAP）を xcconfig 経由で管理し、テンプレートとの差分を確認できるようにする -->
 
 ## 推奨（優先度: 中）
 <!-- リリース後の改善も見据えた優先タスク群 -->
+- [ ] `Game/GameCore.swift` / `Game/Deck.swift` の局所整理を継続<!-- 再開発の前提作業としてではなく、該当ファイルを触る機能追加や調整と同じ変更で小さく整理する -->
+- [ ] `UI/TitleFlowView.swift` / `UI/MoveCardIllustrationView.swift` の肥大化監視<!-- UI 改修時に責務が逆流していないか確認し、必要なら局所分割で対応する -->
 - [x] `GameViewModel` / `GameBoardBridgeViewModel` の統合テスト整備<!-- `MonoKnightAppTests/GameViewIntegrationTests.swift` で Combine 購読やハプティクス制御をモック化し、DispatchWorkItem のキャンセルも含めて自動検証できるようにした -->
 - [x] `BoardLayoutSnapshot` ログの閲覧導線を整備<!-- 設定画面に開発者メニューを設け、`DiagnosticsCenterView` から `DebugLogHistory` のレイアウトログへ即座にアクセスできるようにした -->
 - [x] エラーハンドリングとログポリシーの整理<!-- `DiagnosticsCenterView` と `MonoKnightApp` の環境変数ガードで `DebugLogHistory` / `CrashFeedbackCollector` の運用手順と公開ビルドでの無効化方法を明文化した -->

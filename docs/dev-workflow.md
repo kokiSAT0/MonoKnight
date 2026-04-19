@@ -68,7 +68,22 @@ MonoKnight は以下のサイクルで開発する。
 - リファクタリング前に `docs/refactoring-guidelines.md` を確認する
 - 新しい判断基準や運用ルールが出た場合は docs へ反映する
 
-### 5.1 必須ルール
+### 5.1 再開発フェーズの標準運用
+
+- 現在は「再開発を開始してよい段階」とし、新機能追加やステージ追加を優先する
+- 事前の包括的なリファクタリングは原則として行わない
+- リファクタリングは「触った箇所だけ局所的に整える」運用を標準とする
+- 仕様や責務境界を崩す変更は、実装前に影響範囲を明示してから進める
+- `Game/GameCore.swift`、`Game/Deck.swift`、`UI/TitleFlowView.swift`、`UI/MoveCardIllustrationView.swift` は肥大化監視対象として扱い、変更時は同時に小さく整理してよい
+
+### 5.2 再開発フェーズの受け入れ基準
+
+- 変更単位で `swift test` をグリーンに保つ
+- UI を含む変更では `xcodebuild` による App ビルド成功を確認する
+- 新ステージ追加時は `CampaignLibraryTests` と `GameModeIdentifierTests` 系を維持する
+- ゲーム進行変更時は `GameCoreTests` と `DeckTests` の近傍テストを追加または更新する
+
+### 5.3 必須ルール
 
 - `Game` は Swift Package 経由のみで参照する
 - App ターゲットへ `Game` ファイルを直接追加しない
@@ -117,3 +132,4 @@ MonoKnight は以下のサイクルで開発する。
 - CLI ビルドとテスト: [development-basics.md](development-basics.md)
 - リファクタリング原則: [refactoring-guidelines.md](refactoring-guidelines.md)
 - リファクタリング品質確認: [refactoring-quality-checklist.md](refactoring-quality-checklist.md)
+- リリース前確認: [release-checklist.md](release-checklist.md)
