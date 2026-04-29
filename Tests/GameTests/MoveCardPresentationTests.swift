@@ -23,4 +23,57 @@ final class MoveCardPresentationTests: XCTestCase {
         XCTAssertEqual(MoveCard.effectAssistCards, [.effectStep, .effectKnight, .effectLine])
         XCTAssertTrue(MoveCard.allCases.contains(.effectLine))
     }
+
+    func testCardEncyclopediaEntriesCoverAllMoveCards() {
+        let entries = MoveCard.encyclopediaEntries
+
+        XCTAssertEqual(entries.count, MoveCard.allCases.count)
+        XCTAssertEqual(entries.map(\.card), MoveCard.allCases)
+        XCTAssertTrue(entries.allSatisfy { !$0.displayName.isEmpty })
+        XCTAssertTrue(entries.allSatisfy { !$0.category.isEmpty })
+        XCTAssertTrue(entries.allSatisfy { !$0.description.isEmpty })
+    }
+
+    func testRepresentativeCardEncyclopediaMetadata() {
+        XCTAssertEqual(MoveCard.kingUp.encyclopediaCategory, "キング")
+        XCTAssertTrue(MoveCard.kingUp.encyclopediaDescription.contains("1 マス"))
+
+        XCTAssertEqual(MoveCard.knightRightwardChoice.encyclopediaCategory, "選択ナイト")
+        XCTAssertTrue(MoveCard.knightRightwardChoice.encyclopediaDescription.contains("選んで跳びます"))
+
+        XCTAssertEqual(MoveCard.rayDown.encyclopediaCategory, "レイ")
+        XCTAssertTrue(MoveCard.rayDown.encyclopediaDescription.contains("盤端や障害物"))
+
+        XCTAssertEqual(MoveCard.superWarp.encyclopediaCategory, "ワープ")
+        XCTAssertTrue(MoveCard.effectLine.encyclopediaDescription.contains("特殊マス"))
+    }
+
+    func testTileEncyclopediaEntriesCoverCoreTileKinds() {
+        let entries = TileEncyclopediaEntry.allEntries
+        let entryIDs = Set(entries.map(\.id))
+
+        XCTAssertTrue(entries.allSatisfy { !$0.displayName.isEmpty })
+        XCTAssertTrue(entries.allSatisfy { !$0.category.isEmpty })
+        XCTAssertTrue(entries.allSatisfy { !$0.description.isEmpty })
+        XCTAssertTrue(entryIDs.isSuperset(of: [
+            "normal",
+            "spawn",
+            "target",
+            "nextTarget",
+            "multiVisit",
+            "toggle",
+            "impassable",
+            "warp",
+            "shuffleHand",
+            "boost",
+            "slow",
+            "nextRefresh",
+            "freeFocus",
+            "preserveCard",
+            "draft",
+            "overload",
+            "targetSwap",
+            "openGate"
+        ]))
+    }
 }

@@ -193,7 +193,7 @@ struct SettingsHelpSection: View {
         } header: {
             Text("ヘルプ")
         } footer: {
-            Text("カードの動きや勝利条件に加えて、手札スロットが最大 \(GameMode.standard.handSize) 種類で\(GameMode.standard.stackingRuleDetailText)という仕様も確認できます。")
+            Text("遊び方と辞典を確認できます。カードの動きや勝利条件に加えて、手札スロットが最大 \(GameMode.standard.handSize) 種類で\(GameMode.standard.stackingRuleDetailText)という仕様も確認できます。")
         }
     }
 }
