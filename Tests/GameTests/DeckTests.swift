@@ -86,6 +86,7 @@ final class DeckTests: XCTestCase {
         XCTAssertTrue(selectionCards.isSubset(of: allowedMoves))
         XCTAssertTrue(Set([MoveCard.fixedWarp, .superWarp]).isSubset(of: allowedMoves))
         XCTAssertTrue(Set(MoveCard.targetAssistCards).isSubset(of: allowedMoves))
+        XCTAssertTrue(Set(MoveCard.effectAssistCards).isSubset(of: allowedMoves))
 
         XCTAssertEqual(config.weightProfile.weight(for: .kingUp), 1)
         XCTAssertEqual(config.weightProfile.weight(for: .kingUpOrDown), 2)
@@ -95,6 +96,12 @@ final class DeckTests: XCTestCase {
         XCTAssertEqual(config.weightProfile.weight(for: .targetStep), 4)
         XCTAssertEqual(config.weightProfile.weight(for: .targetKnight), 4)
         XCTAssertEqual(config.weightProfile.weight(for: .targetLine), 4)
+        XCTAssertEqual(config.weightProfile.weight(for: .effectStep), 4)
+        XCTAssertEqual(config.weightProfile.weight(for: .effectKnight), 4)
+        XCTAssertEqual(config.weightProfile.weight(for: .effectLine), 4)
+        XCTAssertFalse(Set(Deck.Configuration.standard.allowedMoves).contains(.effectStep))
+        XCTAssertFalse(Set(Deck.Configuration.standardWithWarpCards.allowedMoves).contains(.effectKnight))
+        XCTAssertFalse(Set(Deck.Configuration.directionalRayFocus.allowedMoves).contains(.effectLine))
     }
 
     /// 標準デッキへ斜め選択カードを追加するプリセットの内容を検証する

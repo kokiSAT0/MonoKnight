@@ -45,6 +45,7 @@ extension CampaignLibrary {
         scoreTargetComparison: CampaignStage.ScoreTargetComparison = .lessThanOrEqual,
         unlockRequirement: CampaignStageUnlockRequirement,
         impassableTilePoints: Set<GridPoint> = [],
+        tileEffectOverrides: [GridPoint: TileEffect] = [:],
         warpTilePairs: [String: [GridPoint]] = [:],
         fixedWarpCardTargets: [MoveCard: [GridPoint]] = [:]
     ) -> CampaignStage {
@@ -61,6 +62,7 @@ extension CampaignLibrary {
                 spawnRule: spawnRule ?? fixedSpawn(boardSize),
                 penalties: targetModePenalties,
                 impassableTilePoints: impassableTilePoints,
+                tileEffectOverrides: tileEffectOverrides,
                 warpTilePairs: warpTilePairs,
                 fixedWarpCardTargets: fixedWarpCardTargets,
                 completionRule: .targetCollection(goalCount: goalCount)

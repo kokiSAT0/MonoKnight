@@ -160,7 +160,7 @@ extension GameCore {
     }
 
     /// シャッフルマスを踏んだ際に、ペナルティを加算せず手札・NEXT をすべて引き直す共通処理
-    func applyTileEffectHandRedraw() {
+    func applyTileEffectHandRedraw(preserving preservedCard: DealtCard? = nil) {
         // --- UI へ処理中であることを伝えるため、一時的に deadlock 状態へ遷移（入力抑止目的） ---
         updateProgressForPenaltyFlow(.deadlock)
 
@@ -171,8 +171,7 @@ extension GameCore {
         resetBoardTapPlayRequestForPenalty()
 
         // --- 現在の手札・先読みを完全に破棄し、山札から新規に配り直す（ペナルティ加算は行わない） ---
-        handManager.clearAll()
-        rebuildHandAndNext()
+        resetHandAndNextForTileRedraw(preserving: preservedCard)
 
         // --- VoiceOver 利用者へ効果適用を通知し、無料引き直しであることを案内 ---
 #if canImport(UIKit)

@@ -28,13 +28,100 @@ final class GameModeIdentifierTests: XCTestCase {
         let mode = GameMode.targetLab
 
         XCTAssertEqual(mode.identifier, .targetLab)
-        XCTAssertEqual(mode.boardSize, 5)
+        XCTAssertEqual(mode.boardSize, 8)
         XCTAssertTrue(mode.requiresSpawnSelection)
         XCTAssertTrue(mode.usesTargetCollection)
-        XCTAssertEqual(mode.targetGoalCount, 12)
+        XCTAssertEqual(mode.targetGoalCount, 20)
         XCTAssertEqual(mode.deckPreset, .targetLabAllIn)
         XCTAssertFalse(mode.isLeaderboardEligible)
         XCTAssertFalse(mode.isCampaignStage)
+        XCTAssertEqual(mode.tileEffects[GridPoint(x: 0, y: 0)], .warp(pairID: "lab_warp", destination: GridPoint(x: 7, y: 7)))
+        XCTAssertEqual(mode.tileEffects[GridPoint(x: 7, y: 7)], .warp(pairID: "lab_warp", destination: GridPoint(x: 0, y: 0)))
+        XCTAssertEqual(mode.tileEffects[GridPoint(x: 2, y: 5)], .shuffleHand)
+        XCTAssertEqual(mode.tileEffects[GridPoint(x: 5, y: 2)], .boost)
+        XCTAssertEqual(mode.tileEffects[GridPoint(x: 2, y: 2)], .slow)
+        XCTAssertEqual(mode.tileEffects[GridPoint(x: 0, y: 7)], .nextRefresh)
+        XCTAssertEqual(mode.tileEffects[GridPoint(x: 7, y: 0)], .freeFocus)
+        XCTAssertEqual(mode.tileEffects[GridPoint(x: 3, y: 0)], .preserveCard)
+        XCTAssertEqual(
+            mode.fixedWarpCardTargets[.fixedWarp],
+            [
+                GridPoint(x: 0, y: 0),
+                GridPoint(x: 3, y: 0),
+                GridPoint(x: 7, y: 0),
+                GridPoint(x: 0, y: 3),
+                GridPoint(x: 7, y: 3),
+                GridPoint(x: 0, y: 7),
+                GridPoint(x: 3, y: 7),
+                GridPoint(x: 7, y: 7),
+            ]
+        )
+    }
+
+    func testTargetLabDefaultExperimentSettingsEnableAllGroupsAndTiles() {
+        let settings = TargetLabExperimentSettings.default
+
+        XCTAssertEqual(settings.enabledCardGroups, Set(TargetLabCardGroup.allCases))
+        XCTAssertEqual(settings.enabledTileKinds, Set(TargetLabTileKind.allCases))
+        XCTAssertTrue(settings.hasPlayableCards)
+    }
+
+    func testTargetLabModeFiltersDeckByEnabledCardGroups() {
+        let settings = TargetLabExperimentSettings(
+            enabledCardGroups: [.standard, .effectAssist],
+            enabledTileKinds: Set(TargetLabTileKind.allCases)
+        )
+        let mode = GameMode.targetLab(settings: settings)
+        let allowedMoves = Set(mode.deckConfiguration.allowedMoves)
+
+        XCTAssertTrue(Set(TargetLabCardGroup.standard.cards).isSubset(of: allowedMoves))
+        XCTAssertTrue(Set(MoveCard.effectAssistCards).isSubset(of: allowedMoves))
+        XCTAssertFalse(allowedMoves.contains(.kingUpOrDown))
+        XCTAssertFalse(allowedMoves.contains(.rayRight))
+        XCTAssertFalse(allowedMoves.contains(.fixedWarp))
+        XCTAssertFalse(allowedMoves.contains(.targetStep))
+    }
+
+    func testTargetLabModeRemovesWarpCardsAndFixedWarpTargetsWhenWarpGroupDisabled() {
+        let settings = TargetLabExperimentSettings(
+            enabledCardGroups: [.standard],
+            enabledTileKinds: Set(TargetLabTileKind.allCases)
+        )
+        let mode = GameMode.targetLab(settings: settings)
+        let allowedMoves = Set(mode.deckConfiguration.allowedMoves)
+
+        XCTAssertFalse(allowedMoves.contains(.fixedWarp))
+        XCTAssertFalse(allowedMoves.contains(.superWarp))
+        XCTAssertEqual(mode.fixedWarpCardTargets[.fixedWarp], nil)
+    }
+
+    func testTargetLabModeFiltersTileKinds() {
+        let settings = TargetLabExperimentSettings(
+            enabledCardGroups: Set(TargetLabCardGroup.allCases),
+            enabledTileKinds: [.boost, .slow]
+        )
+        let mode = GameMode.targetLab(settings: settings)
+
+        XCTAssertEqual(mode.tileEffects[GridPoint(x: 5, y: 2)], .boost)
+        XCTAssertEqual(mode.tileEffects[GridPoint(x: 2, y: 2)], .slow)
+        XCTAssertNil(mode.tileEffects[GridPoint(x: 0, y: 0)])
+        XCTAssertNil(mode.tileEffects[GridPoint(x: 7, y: 7)])
+        XCTAssertNil(mode.tileEffects[GridPoint(x: 2, y: 5)])
+        XCTAssertNil(mode.tileEffects[GridPoint(x: 0, y: 7)])
+    }
+
+    func testTargetLabExperimentSettingsCodingIgnoresUnknownValuesAndRecoversEmptyCards() throws {
+        let json = """
+        {
+          "enabledCardGroups": ["unknown"],
+          "enabledTileKinds": ["boost", "unknownTile"]
+        }
+        """.data(using: .utf8)!
+
+        let decoded = try JSONDecoder().decode(TargetLabExperimentSettings.self, from: json)
+
+        XCTAssertEqual(decoded.enabledCardGroups, TargetLabExperimentSettings.default.enabledCardGroups)
+        XCTAssertEqual(decoded.enabledTileKinds, [.boost])
     }
 
     func testCampaignLibraryStageLookupReturnsStageForEveryRegisteredID() {

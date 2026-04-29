@@ -42,6 +42,7 @@
         private var upcomingTargetPoints: Set<GridPoint> = []
         private var targetApproachCandidatePoints: Set<GridPoint> = []
         private var targetCaptureCandidatePoints: Set<GridPoint> = []
+        private var latestHighlightPoints: [BoardHighlightKind: Set<GridPoint>] = [:]
 
         #if canImport(UIKit)
             private let accessibilitySupport = GameSceneAccessibilitySupport()
@@ -73,6 +74,7 @@
             upcomingTargetPoints = []
             targetApproachCandidatePoints = []
             targetCaptureCandidatePoints = []
+            latestHighlightPoints = [:]
             #if canImport(UIKit)
                 accessibilitySupport.reset()
             #endif
@@ -189,6 +191,7 @@
         }
 
         public func updateHighlights(_ highlights: [BoardHighlightKind: Set<GridPoint>]) {
+            latestHighlightPoints = highlights
             currentTargetPoints = highlights[.currentTarget] ?? []
             upcomingTargetPoints = highlights[.upcomingTarget] ?? []
             targetApproachCandidatePoints = highlights[.targetApproachCandidate] ?? []
@@ -202,6 +205,10 @@
                 isLayoutReady: isLayoutReady
             )
             updateAccessibilityElements()
+        }
+
+        public func latestHighlightPoints(for kind: BoardHighlightKind) -> Set<GridPoint> {
+            latestHighlightPoints[kind] ?? []
         }
 
         public func updateGuideHighlights(_ points: Set<GridPoint>) {

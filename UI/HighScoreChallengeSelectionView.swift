@@ -14,6 +14,7 @@ struct HighScoreChallengeSelectionView: View {
 
     /// 共通の配色を扱うテーマ
     private let theme = AppTheme()
+    @StateObject private var targetLabSettingsStore = TargetLabExperimentSettingsStore()
 
     /// 画面表示に必要な依存関係を受け取りプロパティへ格納する
     /// - Parameters:
@@ -44,9 +45,9 @@ struct HighScoreChallengeSelectionView: View {
             ),
             ModeCardData(
                 mode: .targetLab,
-                headline: "カード実験場",
-                rewardSummary: "ランキング対象外の実験枠です。カード調整のため、Game Center には送信されません。",
-                ruleSummary: "5×5 盤・開始位置選択可・目的地12個でクリア。標準、選択、レイ、ワープ、新しい目的地補助カードを全部入りで試せます。",
+                headline: "カード・特殊マス実験場",
+                rewardSummary: "ランキング対象外の実験枠です。カードと特殊マス調整のため、Game Center には送信されません。",
+                ruleSummary: "8×8 盤・開始位置選択可・目的地20個でクリア。全部入りカードと全種類の特殊マスを1個ずつ試せます。",
                 difficultyLabel: "実験",
                 accessibilityIdentifier: "high_score_mode_target_lab"
             ),
@@ -108,31 +109,166 @@ struct HighScoreChallengeSelectionView: View {
     }
 
     /// 個々のモードカードをボタンとして構築する
+    @ViewBuilder
     private func modeCardButton(for data: ModeCardData) -> some View {
-        Button {
+        if data.mode.identifier == .targetLab {
+            targetLabModeCard(for: data)
+        } else {
+            Button {
             // タップされたモードをタイトル画面へ返し、即時開始のトリガーへつなげる
-            onSelect(data.mode)
-        } label: {
-            VStack(alignment: .leading, spacing: 16) {
-                headerRow(for: data)
-                rewardRow(for: data)
-                Divider()
-                    .overlay(theme.textSecondary.opacity(0.2))
-                ruleSummaryRow(for: data)
+                onSelect(data.mode)
+            } label: {
+                modeCardContent(for: data)
             }
-            .padding(20)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(theme.backgroundElevated)
+            .buttonStyle(.plain)
+            .accessibilityIdentifier(data.accessibilityIdentifier)
+        }
+    }
+
+    private func modeCardContent(for data: ModeCardData) -> some View {
+        VStack(alignment: .leading, spacing: 16) {
+            headerRow(for: data)
+            rewardRow(for: data)
+            Divider()
+                .overlay(theme.textSecondary.opacity(0.2))
+            ruleSummaryRow(for: data)
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(theme.backgroundElevated)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(theme.accentPrimary.opacity(0.2), lineWidth: 1)
+        )
+    }
+
+    private func targetLabModeCard(for data: ModeCardData) -> some View {
+        VStack(alignment: .leading, spacing: 16) {
+            headerRow(for: data)
+            rewardRow(for: data)
+            Divider()
+                .overlay(theme.textSecondary.opacity(0.2))
+            ruleSummaryRow(for: data)
+            targetLabSettingsSection
+            targetLabStartButton
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(theme.backgroundElevated)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(theme.accentPrimary.opacity(0.2), lineWidth: 1)
+        )
+        .accessibilityIdentifier(data.accessibilityIdentifier)
+    }
+
+    private var targetLabSettingsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("実験設定")
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .foregroundColor(theme.textSecondary)
+
+            presetRow
+            toggleGrid(
+                title: "カード種類",
+                items: TargetLabCardGroup.allCases,
+                isOn: { targetLabSettingsStore.settings.enabledCardGroups.contains($0) },
+                toggle: { targetLabSettingsStore.toggleCardGroup($0) }
             )
-            .overlay(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .stroke(theme.accentPrimary.opacity(0.2), lineWidth: 1)
+            toggleGrid(
+                title: "特殊マス",
+                items: TargetLabTileKind.allCases,
+                isOn: { targetLabSettingsStore.settings.enabledTileKinds.contains($0) },
+                toggle: { targetLabSettingsStore.toggleTileKind($0) }
             )
+
+            if !targetLabSettingsStore.settings.hasPlayableCards {
+                Text("カード種類を1つ以上有効にしてください")
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .foregroundColor(.red)
+            }
+        }
+    }
+
+    private var presetRow: some View {
+        HStack(spacing: 8) {
+            ForEach(TargetLabSettingsPreset.allCases) { preset in
+                Button(preset.displayName) {
+                    targetLabSettingsStore.applyPreset(preset)
+                }
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .foregroundColor(theme.accentPrimary)
+                .padding(.vertical, 6)
+                .padding(.horizontal, 8)
+                .background(
+                    Capsule(style: .continuous)
+                        .stroke(theme.accentPrimary.opacity(0.55), lineWidth: 1)
+                )
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private func toggleGrid<Item: CaseIterable & Hashable>(
+        title: String,
+        items: Item.AllCases,
+        isOn: @escaping (Item) -> Bool,
+        toggle: @escaping (Item) -> Void
+    ) -> some View where Item.AllCases: RandomAccessCollection {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .foregroundColor(theme.textSecondary)
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 118), spacing: 8)], alignment: .leading, spacing: 8) {
+                ForEach(Array(items), id: \.self) { item in
+                    Toggle(isOn: Binding(
+                        get: { isOn(item) },
+                        set: { _ in toggle(item) }
+                    )) {
+                        Text(itemDisplayName(item))
+                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                            .foregroundColor(theme.textPrimary)
+                    }
+                    .toggleStyle(.switch)
+                }
+            }
+        }
+    }
+
+    private func itemDisplayName<Item>(_ item: Item) -> String {
+        if let group = item as? TargetLabCardGroup {
+            return group.displayName
+        }
+        if let tile = item as? TargetLabTileKind {
+            return tile.displayName
+        }
+        return String(describing: item)
+    }
+
+    private var targetLabStartButton: some View {
+        Button {
+            guard targetLabSettingsStore.settings.hasPlayableCards else { return }
+            onSelect(.targetLab(settings: targetLabSettingsStore.settings))
+        } label: {
+            Text("この設定で開始")
+                .font(.system(size: 14, weight: .semibold, design: .rounded))
+                .foregroundColor(theme.accentOnPrimary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(theme.accentPrimary.opacity(targetLabSettingsStore.settings.hasPlayableCards ? 1 : 0.35))
+                )
         }
         .buttonStyle(.plain)
-        .accessibilityIdentifier(data.accessibilityIdentifier)
+        .disabled(!targetLabSettingsStore.settings.hasPlayableCards)
+        .accessibilityIdentifier("target_lab_start_button")
     }
 
     /// カード上部の見出しと難易度バッジを表示する行
@@ -211,4 +347,101 @@ private struct ModeCardData: Identifiable {
     let accessibilityIdentifier: String
 
     var id: GameMode.Identifier { mode.identifier }
+}
+
+enum TargetLabSettingsPreset: String, CaseIterable, Identifiable {
+    case allIn
+    case cardsOnly
+    case tilesOnly
+    case minimal
+
+    var id: TargetLabSettingsPreset { self }
+
+    var displayName: String {
+        switch self {
+        case .allIn: return "全部入り"
+        case .cardsOnly: return "カード検証"
+        case .tilesOnly: return "マス検証"
+        case .minimal: return "最小構成"
+        }
+    }
+
+    var settings: TargetLabExperimentSettings {
+        switch self {
+        case .allIn:
+            return .default
+        case .cardsOnly:
+            return TargetLabExperimentSettings(
+                enabledCardGroups: Set(TargetLabCardGroup.allCases),
+                enabledTileKinds: []
+            )
+        case .tilesOnly:
+            return TargetLabExperimentSettings(
+                enabledCardGroups: [.standard],
+                enabledTileKinds: Set(TargetLabTileKind.allCases)
+            )
+        case .minimal:
+            return TargetLabExperimentSettings(
+                enabledCardGroups: [.standard],
+                enabledTileKinds: [.warp, .boost, .slow]
+            )
+        }
+    }
+}
+
+@MainActor
+final class TargetLabExperimentSettingsStore: ObservableObject {
+    private static let storageKey = StorageKey.UserDefaults.targetLabExperimentSettings
+
+    @Published private(set) var settings: TargetLabExperimentSettings
+    private let userDefaults: UserDefaults
+
+    init(userDefaults: UserDefaults = .standard) {
+        self.userDefaults = userDefaults
+        self.settings = Self.load(from: userDefaults)
+    }
+
+    func toggleCardGroup(_ group: TargetLabCardGroup) {
+        var next = settings
+        if next.enabledCardGroups.contains(group) {
+            next.enabledCardGroups.remove(group)
+        } else {
+            next.enabledCardGroups.insert(group)
+        }
+        update(next)
+    }
+
+    func toggleTileKind(_ kind: TargetLabTileKind) {
+        var next = settings
+        if next.enabledTileKinds.contains(kind) {
+            next.enabledTileKinds.remove(kind)
+        } else {
+            next.enabledTileKinds.insert(kind)
+        }
+        update(next)
+    }
+
+    func applyPreset(_ preset: TargetLabSettingsPreset) {
+        update(preset.settings)
+    }
+
+    func update(_ next: TargetLabExperimentSettings) {
+        guard settings != next else { return }
+        settings = next
+        persist()
+    }
+
+    private func persist() {
+        guard let data = try? JSONEncoder().encode(settings) else { return }
+        userDefaults.set(data, forKey: Self.storageKey)
+    }
+
+    private static func load(from userDefaults: UserDefaults) -> TargetLabExperimentSettings {
+        guard let data = userDefaults.data(forKey: storageKey),
+              let decoded = try? JSONDecoder().decode(TargetLabExperimentSettings.self, from: data)
+        else {
+            return .default
+        }
+        return decoded.hasPlayableCards ? decoded : .default
+    }
 }

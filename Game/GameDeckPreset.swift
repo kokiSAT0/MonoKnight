@@ -126,7 +126,7 @@ public enum GameDeckPreset: String, CaseIterable, Codable, Identifiable {
         case .standardWithWarpCards:
             return "標準＋ワープカード構成"
         case .targetLabAllIn:
-            return "カード実験場構成"
+            return "カード・特殊マス実験場構成"
         case .extendedWithMultiStepMoves:
             return "複数マス移動拡張構成"
         case .kingOrthogonalChoiceOnly:

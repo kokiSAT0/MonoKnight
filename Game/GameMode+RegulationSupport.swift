@@ -129,6 +129,10 @@ extension GameMode.Regulation {
         let decodedWarpPairs = try container.decodeIfPresent([String: [GridPoint]].self, forKey: .warpTilePairs) ?? [:]
         let rawFixedWarpTargets = try container.decodeIfPresent([String: [GridPoint]].self, forKey: .fixedWarpCardTargets) ?? [:]
         let decodedCompletionRule = try container.decodeIfPresent(GameMode.CompletionRule.self, forKey: .completionRule) ?? .boardClear
+        let decodedTargetLabSettings = try container.decodeIfPresent(
+            TargetLabExperimentSettings.self,
+            forKey: .targetLabExperimentSettings
+        )
 
         let decodedTargets = Self.decodeFixedWarpTargets(from: rawFixedWarpTargets)
         let sanitizedTargets = Self.finalizeFixedWarpTargets(
@@ -151,7 +155,11 @@ extension GameMode.Regulation {
         tileEffectOverrides = decodedEffects
         warpTilePairs = decodedWarpPairs
         fixedWarpCardTargets = sanitizedTargets
+        if decodedTargetLabSettings?.enabledCardGroups.contains(.warp) == false {
+            fixedWarpCardTargets = [:]
+        }
         completionRule = decodedCompletionRule
+        targetLabExperimentSettings = decodedTargetLabSettings
     }
 
     /// エンコード処理（固定ワープ定義は MoveCard のインデックスをキーに変換する）
@@ -184,6 +192,9 @@ extension GameMode.Regulation {
             try container.encode(encodedTargets, forKey: .fixedWarpCardTargets)
         }
         try container.encode(completionRule, forKey: .completionRule)
+        if let targetLabExperimentSettings {
+            try container.encode(targetLabExperimentSettings, forKey: .targetLabExperimentSettings)
+        }
     }
 
     /// エンコード用に MoveCard を安定キーへ変換する

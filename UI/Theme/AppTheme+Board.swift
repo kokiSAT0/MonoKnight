@@ -42,6 +42,21 @@ extension AppTheme {
 
     /// 手札シャッフル効果を描画する際のニュートラルカラー
     var boardTileEffectShuffle: Color { schemeColor(light: Self.lightBoardTileEffectShuffle, dark: Self.darkBoardTileEffectShuffle) }
+
+    /// 加速効果を描画する際のアクセントカラー
+    var boardTileEffectBoost: Color { schemeColor(light: Self.lightBoardTileEffectBoost, dark: Self.darkBoardTileEffectBoost) }
+
+    /// 減速効果を描画する際のアクセントカラー
+    var boardTileEffectSlow: Color { schemeColor(light: Self.lightBoardTileEffectSlow, dark: Self.darkBoardTileEffectSlow) }
+
+    /// NEXT 更新効果を描画する際のアクセントカラー
+    var boardTileEffectNextRefresh: Color { schemeColor(light: Self.lightBoardTileEffectNextRefresh, dark: Self.darkBoardTileEffectNextRefresh) }
+
+    /// 無料フォーカス効果を描画する際のアクセントカラー
+    var boardTileEffectFreeFocus: Color { schemeColor(light: Self.lightBoardTileEffectFreeFocus, dark: Self.darkBoardTileEffectFreeFocus) }
+
+    /// カード温存効果を描画する際のアクセントカラー
+    var boardTileEffectPreserveCard: Color { schemeColor(light: Self.lightBoardTileEffectPreserveCard, dark: Self.darkBoardTileEffectPreserveCard) }
 }
 
 private extension AppTheme {
@@ -55,4 +70,14 @@ private extension AppTheme {
     static let darkBoardTileEffectWarp = Color(red: 0.56, green: 0.75, blue: 1.0).opacity(0.95)
     static let lightBoardTileEffectShuffle = Color(red: 0.3, green: 0.3, blue: 0.3).opacity(0.92)
     static let darkBoardTileEffectShuffle = Color.white.opacity(0.9)
+    static let lightBoardTileEffectBoost = Color(red: 0.0, green: 0.68, blue: 0.86).opacity(0.95)
+    static let darkBoardTileEffectBoost = Color(red: 0.35, green: 0.85, blue: 0.95).opacity(0.95)
+    static let lightBoardTileEffectSlow = Color(red: 0.82, green: 0.22, blue: 0.26).opacity(0.95)
+    static let darkBoardTileEffectSlow = Color(red: 1.0, green: 0.46, blue: 0.50).opacity(0.95)
+    static let lightBoardTileEffectNextRefresh = Color(red: 0.13, green: 0.62, blue: 0.36).opacity(0.95)
+    static let darkBoardTileEffectNextRefresh = Color(red: 0.35, green: 0.86, blue: 0.56).opacity(0.95)
+    static let lightBoardTileEffectFreeFocus = Color(red: 0.62, green: 0.38, blue: 0.88).opacity(0.95)
+    static let darkBoardTileEffectFreeFocus = Color(red: 0.78, green: 0.62, blue: 1.0).opacity(0.95)
+    static let lightBoardTileEffectPreserveCard = Color(red: 0.90, green: 0.54, blue: 0.06).opacity(0.95)
+    static let darkBoardTileEffectPreserveCard = Color(red: 1.0, green: 0.72, blue: 0.24).opacity(0.95)
 }

@@ -177,6 +177,11 @@ final class GameBoardBridgeViewModel: ObservableObject {
             boardWarpHighlight: appTheme.skBoardWarpHighlight,
             boardTileEffectWarp: appTheme.skBoardTileEffectWarp,
             boardTileEffectShuffle: appTheme.skBoardTileEffectShuffle,
+            boardTileEffectBoost: appTheme.skBoardTileEffectBoost,
+            boardTileEffectSlow: appTheme.skBoardTileEffectSlow,
+            boardTileEffectNextRefresh: appTheme.skBoardTileEffectNextRefresh,
+            boardTileEffectFreeFocus: appTheme.skBoardTileEffectFreeFocus,
+            boardTileEffectPreserveCard: appTheme.skBoardTileEffectPreserveCard,
             // NOTE: ワープペアの配色セットを SpriteKit へ渡し、色と形の両面で組み合わせを識別させる
             warpPairAccentColors: appTheme.skWarpPairAccentColors
         )
@@ -214,13 +219,14 @@ final class GameBoardBridgeViewModel: ObservableObject {
     /// 現在保持しているハイライト状態を SpriteKit シーンへ反映する
     /// - Note: 種類ごとの集合を辞書にまとめ、`GameScene` 側の一括更新 API と齟齬なく連携する
     private func pushHighlightsToScene() {
+        let shouldHideGuideCandidates = !forcedSelectionHighlightPoints.isEmpty
         let highlights: [BoardHighlightKind: Set<GridPoint>] = [
-            .guideSingleCandidate: guideHighlightBuckets.singleVectorDestinations,
-            .guideMultipleCandidate: guideHighlightBuckets.multipleVectorDestinations,
-            .guideMultiStepCandidate: guideHighlightBuckets.multiStepDestinations,
-            .guideWarpCandidate: guideHighlightBuckets.warpDestinations,
-            .targetApproachCandidate: guideHighlightBuckets.targetApproachDestinations,
-            .targetCaptureCandidate: guideHighlightBuckets.targetCaptureDestinations,
+            .guideSingleCandidate: shouldHideGuideCandidates ? [] : guideHighlightBuckets.singleVectorDestinations,
+            .guideMultipleCandidate: shouldHideGuideCandidates ? [] : guideHighlightBuckets.multipleVectorDestinations,
+            .guideMultiStepCandidate: shouldHideGuideCandidates ? [] : guideHighlightBuckets.multiStepDestinations,
+            .guideWarpCandidate: shouldHideGuideCandidates ? [] : guideHighlightBuckets.warpDestinations,
+            .targetApproachCandidate: shouldHideGuideCandidates ? [] : guideHighlightBuckets.targetApproachDestinations,
+            .targetCaptureCandidate: shouldHideGuideCandidates ? [] : guideHighlightBuckets.targetCaptureDestinations,
             .forcedSelection: forcedSelectionHighlightPoints,
             .currentTarget: core.targetPoint.map { Set([$0]) } ?? [],
             .upcomingTarget: Set(core.upcomingTargetPoints)

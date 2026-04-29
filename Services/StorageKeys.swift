@@ -23,5 +23,6 @@ enum StorageKey {
         static let gameCenterHasSubmittedByLeaderboard = "gc_has_submitted_by_leaderboard"
         static let gameCenterLastScoreByLeaderboard = "gc_last_score_by_leaderboard"
         static let campaignTutorialSeenSteps = "campaign_tutorial_seen_steps_v1"
+        static let targetLabExperimentSettings = "target_lab_experiment_settings_v1"
     }
 }

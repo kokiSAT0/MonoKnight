@@ -109,6 +109,16 @@ struct Deck {
             )
         }
 
+        func filteringTargetLabCards(for settings: TargetLabExperimentSettings) -> Configuration {
+            let enabledMoves = Set(settings.enabledCardGroups.flatMap(\.cards))
+            let filteredMoves = allowedMoves.filter { enabledMoves.contains($0) }
+            return Configuration(
+                allowedMoves: filteredMoves,
+                weightProfile: weightProfile,
+                deckSummaryText: deckSummaryText
+            )
+        }
+
         /// スタンダードモード向け設定
         static let standard: Configuration = {
             // 現時点ではすべてのカードを均一重みで扱う
@@ -305,12 +315,14 @@ struct Deck {
             ]
             let warpCards: [MoveCard] = [.fixedWarp, .superWarp]
             let targetCards = MoveCard.targetAssistCards
-            let allowedMoves = MoveCard.standardSet + selectionCards + warpCards + targetCards
+            let effectCards = MoveCard.effectAssistCards
+            let allowedMoves = MoveCard.standardSet + selectionCards + warpCards + targetCards + effectCards
 
             var overrides: [MoveCard: Int] = [:]
             MoveCard.directionalRayCards.forEach { overrides[$0] = 3 }
             selectionCards.forEach { overrides[$0] = 2 }
             targetCards.forEach { overrides[$0] = 4 }
+            effectCards.forEach { overrides[$0] = 4 }
             overrides[.fixedWarp] = 3
             overrides[.superWarp] = 2
 

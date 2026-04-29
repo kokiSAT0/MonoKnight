@@ -80,6 +80,19 @@ final class MoveCardResolutionTests: XCTestCase {
         XCTAssertTrue(MoveCard.targetLine.resolvePaths(from: origin, context: context).isEmpty)
     }
 
+    func testEffectAssistCardsRequireTileEffects() {
+        let origin = GridPoint(x: 2, y: 2)
+        let context = MoveCard.MovePattern.ResolutionContext(
+            boardSize: BoardGeometry.standardSize,
+            contains: { $0.isInside(boardSize: BoardGeometry.standardSize) },
+            isTraversable: { $0.isInside(boardSize: BoardGeometry.standardSize) }
+        )
+
+        XCTAssertTrue(MoveCard.effectStep.resolvePaths(from: origin, context: context).isEmpty)
+        XCTAssertTrue(MoveCard.effectKnight.resolvePaths(from: origin, context: context).isEmpty)
+        XCTAssertTrue(MoveCard.effectLine.resolvePaths(from: origin, context: context).isEmpty)
+    }
+
     func testTargetAssistCardsResolveApproachingCandidatesWithTargetPoint() {
         let origin = GridPoint(x: 2, y: 2)
         let target = GridPoint(x: 4, y: 4)
@@ -108,5 +121,53 @@ final class MoveCardResolutionTests: XCTestCase {
         let linePath = MoveCard.targetLine.resolvePaths(from: origin, context: context).first
         XCTAssertEqual(linePath?.destination, GridPoint(x: 4, y: 4))
         XCTAssertEqual(linePath?.traversedPoints, [GridPoint(x: 3, y: 3), GridPoint(x: 4, y: 4)])
+    }
+
+    func testEffectAssistCardsResolveApproachingCandidatesToNearestEffectTile() {
+        let origin = GridPoint(x: 2, y: 2)
+        let effectPoint = GridPoint(x: 4, y: 4)
+        let context = MoveCard.MovePattern.ResolutionContext(
+            boardSize: BoardGeometry.standardSize,
+            contains: { $0.isInside(boardSize: BoardGeometry.standardSize) },
+            isTraversable: { $0.isInside(boardSize: BoardGeometry.standardSize) },
+            effectAt: { point in point == effectPoint ? .boost : nil }
+        )
+
+        let stepDestinations = Set(MoveCard.effectStep.resolvePaths(from: origin, context: context).map(\.destination))
+        XCTAssertEqual(stepDestinations, [
+            GridPoint(x: 2, y: 3),
+            GridPoint(x: 3, y: 2),
+            GridPoint(x: 3, y: 3)
+        ])
+
+        let knightDestinations = Set(MoveCard.effectKnight.resolvePaths(from: origin, context: context).map(\.destination))
+        XCTAssertEqual(knightDestinations, [
+            GridPoint(x: 3, y: 4),
+            GridPoint(x: 1, y: 4),
+            GridPoint(x: 4, y: 3),
+            GridPoint(x: 4, y: 1)
+        ])
+
+        let linePath = MoveCard.effectLine.resolvePaths(from: origin, context: context).first
+        XCTAssertEqual(linePath?.destination, GridPoint(x: 4, y: 4))
+        XCTAssertEqual(linePath?.traversedPoints, [GridPoint(x: 3, y: 3), GridPoint(x: 4, y: 4)])
+    }
+
+    func testEffectAssistNearestEffectTieBreaksByYThenX() {
+        let origin = GridPoint(x: 2, y: 2)
+        let lowerEffect = GridPoint(x: 2, y: 1)
+        let leftEffect = GridPoint(x: 1, y: 2)
+        let context = MoveCard.MovePattern.ResolutionContext(
+            boardSize: BoardGeometry.standardSize,
+            contains: { $0.isInside(boardSize: BoardGeometry.standardSize) },
+            isTraversable: { $0.isInside(boardSize: BoardGeometry.standardSize) },
+            effectAt: { point in
+                (point == lowerEffect || point == leftEffect) ? .slow : nil
+            }
+        )
+
+        let stepDestinations = Set(MoveCard.effectStep.resolvePaths(from: origin, context: context).map(\.destination))
+
+        XCTAssertEqual(stepDestinations, [lowerEffect])
     }
 }

@@ -208,6 +208,8 @@ public struct GameMode: Equatable, Identifiable {
         public internal(set) var fixedWarpCardTargets: [MoveCard: [GridPoint]] = [:]
         /// クリア条件
         public var completionRule: CompletionRule
+        /// 実験場用のカード・特殊マス有効設定
+        public var targetLabExperimentSettings: TargetLabExperimentSettings?
 
         /// レギュレーションを組み立てるためのイニシャライザ
         /// - Parameters:
@@ -232,7 +234,8 @@ public struct GameMode: Equatable, Identifiable {
             tileEffectOverrides: [GridPoint: TileEffect] = [:],
             warpTilePairs: [String: [GridPoint]] = [:],
             fixedWarpCardTargets: [MoveCard: [GridPoint]] = [:],
-            completionRule: CompletionRule = .boardClear
+            completionRule: CompletionRule = .boardClear,
+            targetLabExperimentSettings: TargetLabExperimentSettings? = nil
         ) {
             self.boardSize = boardSize
             self.handSize = handSize
@@ -252,7 +255,11 @@ public struct GameMode: Equatable, Identifiable {
                 impassableTilePoints: impassableTilePoints,
                 deckPreset: deckPreset
             )
+            if targetLabExperimentSettings?.enabledCardGroups.contains(.warp) == false {
+                self.fixedWarpCardTargets = [:]
+            }
             self.completionRule = completionRule
+            self.targetLabExperimentSettings = targetLabExperimentSettings
         }
 
         /// Codable 対応のためのキー定義
@@ -271,6 +278,7 @@ public struct GameMode: Equatable, Identifiable {
             case warpTilePairs
             case fixedWarpCardTargets
             case completionRule
+            case targetLabExperimentSettings
         }
     }
 
@@ -333,7 +341,13 @@ public struct GameMode: Equatable, Identifiable {
     /// 同種カードをスタックできるかどうか
     public var allowsCardStacking: Bool { regulation.allowsStacking }
     /// 山札構成設定（ゲームモジュール内部で使用）
-    var deckConfiguration: Deck.Configuration { regulation.deckPreset.configuration }
+    var deckConfiguration: Deck.Configuration {
+        if regulation.deckPreset == .targetLabAllIn,
+           let settings = regulation.targetLabExperimentSettings {
+            return regulation.deckPreset.configuration.filteringTargetLabCards(for: settings)
+        }
+        return regulation.deckPreset.configuration
+    }
     /// 利用中の山札プリセット
     public var deckPreset: GameDeckPreset { regulation.deckPreset }
     /// UI で表示する山札の要約

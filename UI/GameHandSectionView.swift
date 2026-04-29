@@ -384,6 +384,12 @@ private extension GameHandSectionView {
             return "現在目的地へ近づく桂馬候補"
         case .targetLine:
             return "現在目的地方向へ連続移動"
+        case .effectStep:
+            return "特殊マスへ近づく隣接 1 マス候補"
+        case .effectKnight:
+            return "特殊マスへ近づく桂馬候補"
+        case .effectLine:
+            return "特殊マス方向へ連続移動"
         }
     }
 }

@@ -13,10 +13,15 @@ public extension GameMode {
 
     /// カード再設計を安全に試すための全部入り実験モード
     static var targetLab: GameMode {
+        targetLab(settings: .default)
+    }
+
+    /// カード・特殊マス実験場を指定設定で生成する
+    static func targetLab(settings: TargetLabExperimentSettings) -> GameMode {
         GameMode(
             identifier: .targetLab,
-            displayName: "カード実験場",
-            regulation: buildTargetLabRegulation(),
+            displayName: "カード・特殊マス実験場",
+            regulation: buildTargetLabRegulation(settings: settings),
             leaderboardEligible: false
         )
     }
@@ -75,18 +80,35 @@ private extension GameMode {
         )
     }
 
-    static func buildTargetLabRegulation() -> Regulation {
-        let boardSize = BoardGeometry.standardSize
+    static func buildTargetLabRegulation(settings: TargetLabExperimentSettings) -> Regulation {
+        let boardSize = 8
+        let warpA = GridPoint(x: 0, y: 0)
+        let warpB = GridPoint(x: 7, y: 7)
         let fixedWarpTargets = [
-            GridPoint(x: 0, y: 0),
-            GridPoint(x: 2, y: 0),
-            GridPoint(x: 4, y: 0),
-            GridPoint(x: 0, y: 2),
-            GridPoint(x: 4, y: 2),
-            GridPoint(x: 0, y: 4),
-            GridPoint(x: 2, y: 4),
-            GridPoint(x: 4, y: 4)
+            warpA,
+            GridPoint(x: 3, y: 0),
+            GridPoint(x: 7, y: 0),
+            GridPoint(x: 0, y: 3),
+            GridPoint(x: 7, y: 3),
+            GridPoint(x: 0, y: 7),
+            GridPoint(x: 3, y: 7),
+            warpB
         ]
+        let allTileEffects: [(TargetLabTileKind, GridPoint, TileEffect)] = [
+            (.shuffleHand, GridPoint(x: 2, y: 5), .shuffleHand),
+            (.boost, GridPoint(x: 5, y: 2), .boost),
+            (.slow, GridPoint(x: 2, y: 2), .slow),
+            (.nextRefresh, GridPoint(x: 0, y: 7), .nextRefresh),
+            (.freeFocus, GridPoint(x: 7, y: 0), .freeFocus),
+            (.preserveCard, GridPoint(x: 3, y: 0), .preserveCard)
+        ]
+        let tileEffects = Dictionary(
+            uniqueKeysWithValues: allTileEffects.compactMap { kind, point, effect in
+                settings.enabledTileKinds.contains(kind) ? (point, effect) : nil
+            }
+        )
+        let warpTilePairs = settings.enabledTileKinds.contains(.warp) ? ["lab_warp": [warpA, warpB]] : [:]
+        let fixedWarpCardTargets: [MoveCard: [GridPoint]] = settings.enabledCardGroups.contains(.warp) ? [.fixedWarp: fixedWarpTargets] : [:]
         return Regulation(
             boardSize: boardSize,
             handSize: 5,
@@ -100,8 +122,11 @@ private extension GameMode {
                 manualDiscardPenaltyCost: 1,
                 revisitPenaltyCost: 0
             ),
-            fixedWarpCardTargets: [.fixedWarp: fixedWarpTargets],
-            completionRule: .targetCollection(goalCount: 12)
+            tileEffectOverrides: tileEffects,
+            warpTilePairs: warpTilePairs,
+            fixedWarpCardTargets: fixedWarpCardTargets,
+            completionRule: .targetCollection(goalCount: 20),
+            targetLabExperimentSettings: settings
         )
     }
 }

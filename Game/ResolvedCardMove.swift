@@ -130,6 +130,16 @@ public struct ResolvedCardMove: Hashable {
                 hasher.combine(destination.y)
             case .shuffleHand:
                 hasher.combine("shuffle")
+            case .boost:
+                hasher.combine("boost")
+            case .slow:
+                hasher.combine("slow")
+            case .nextRefresh:
+                hasher.combine("nextRefresh")
+            case .freeFocus:
+                hasher.combine("freeFocus")
+            case .preserveCard:
+                hasher.combine("preserveCard")
             }
         }
     }
@@ -148,4 +158,3 @@ public struct ResolvedCardMove: Hashable {
         lhs.resolution == rhs.resolution
     }
 }
-

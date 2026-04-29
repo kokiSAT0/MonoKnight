@@ -71,6 +71,8 @@ public extension MoveCard {
             private let visitedHandler: (GridPoint) -> Bool
             /// 目的地制で参照する現在目的地。目的地制でない場合は nil。
             public let targetPoint: GridPoint?
+            /// 盤面上の特殊効果マスを参照するクロージャ
+            private let effectHandler: (GridPoint) -> TileEffect?
 
             /// イニシャライザ
             /// - Parameters:
@@ -82,13 +84,15 @@ public extension MoveCard {
                 contains: @escaping (GridPoint) -> Bool,
                 isTraversable: @escaping (GridPoint) -> Bool,
                 isVisited: @escaping (GridPoint) -> Bool = { _ in false },
-                targetPoint: GridPoint? = nil
+                targetPoint: GridPoint? = nil,
+                effectAt: @escaping (GridPoint) -> TileEffect? = { _ in nil }
             ) {
                 self.boardSize = boardSize
                 self.containsHandler = contains
                 self.traversableHandler = isTraversable
                 self.visitedHandler = isVisited
                 self.targetPoint = targetPoint
+                self.effectHandler = effectAt
             }
 
             /// 指定座標が盤内かどうかを返す
@@ -104,6 +108,11 @@ public extension MoveCard {
             /// 指定座標が既に踏破済みかを返す
             public func isVisited(_ point: GridPoint) -> Bool {
                 visitedHandler(point)
+            }
+
+            /// 指定座標の特殊効果を返す
+            public func effect(at point: GridPoint) -> TileEffect? {
+                effectHandler(point)
             }
         }
 
@@ -333,6 +342,77 @@ public extension MoveCard {
             }
         }
 
+        /// 最寄り特殊マスへ近づく隣接マスを動的に生成する
+        public static func effectStep() -> MovePattern {
+            let vectors = [
+                MoveVector(dx: 0, dy: 1),
+                MoveVector(dx: 1, dy: 1),
+                MoveVector(dx: 1, dy: 0),
+                MoveVector(dx: 1, dy: -1),
+                MoveVector(dx: 0, dy: -1),
+                MoveVector(dx: -1, dy: -1),
+                MoveVector(dx: -1, dy: 0),
+                MoveVector(dx: -1, dy: 1)
+            ]
+            return effectApproachSteps(
+                vectors,
+                identity: .custom("effectStep")
+            )
+        }
+
+        /// 最寄り特殊マスへ近づく桂馬候補を動的に生成する
+        public static func effectKnight() -> MovePattern {
+            let vectors = [
+                MoveVector(dx: 1, dy: 2),
+                MoveVector(dx: -1, dy: 2),
+                MoveVector(dx: 2, dy: 1),
+                MoveVector(dx: -2, dy: 1),
+                MoveVector(dx: 1, dy: -2),
+                MoveVector(dx: -1, dy: -2),
+                MoveVector(dx: 2, dy: -1),
+                MoveVector(dx: -2, dy: -1)
+            ]
+            return effectApproachSteps(
+                vectors,
+                identity: .custom("effectKnight")
+            )
+        }
+
+        /// 最寄り特殊マス方向へ一直線に進む候補を生成する
+        public static func effectLine() -> MovePattern {
+            let fallbackVectors = [
+                MoveVector(dx: 0, dy: 1),
+                MoveVector(dx: 1, dy: 1),
+                MoveVector(dx: 1, dy: 0),
+                MoveVector(dx: 1, dy: -1),
+                MoveVector(dx: 0, dy: -1),
+                MoveVector(dx: -1, dy: -1),
+                MoveVector(dx: -1, dy: 0),
+                MoveVector(dx: -1, dy: 1)
+            ]
+            return MovePattern(baseVectors: fallbackVectors, identity: .custom("effectLine")) { origin, context in
+                guard let target = nearestEffectPoint(from: origin, context: context) else { return [] }
+                let deltaX = target.x - origin.x
+                let deltaY = target.y - origin.y
+                guard deltaX != 0 || deltaY != 0 else { return [] }
+                guard deltaX == 0 || deltaY == 0 || abs(deltaX) == abs(deltaY) else { return [] }
+
+                let direction = MoveVector(dx: Self.sign(deltaX), dy: Self.sign(deltaY))
+                var current = origin
+                var traversed: [GridPoint] = []
+
+                while true {
+                    current = current.offset(dx: direction.dx, dy: direction.dy)
+                    guard context.contains(current), context.isTraversable(current) else { break }
+                    traversed.append(current)
+                }
+
+                guard let destination = traversed.last else { return [] }
+                let vector = MoveVector(dx: destination.x - origin.x, dy: destination.y - origin.y)
+                return [Path(vector: vector, destination: destination, traversedPoints: traversed)]
+            }
+        }
+
         /// movementVectors のフォールバックとして利用する代表ベクトルを生成する
         private static func makeFallbackVectors(forBoardSize boardSize: Int) -> [MoveVector] {
             guard boardSize > 0 else { return [] }
@@ -364,6 +444,46 @@ public extension MoveCard {
                     return Path(vector: vector, destination: destination, traversedPoints: [destination])
                 }
             }
+        }
+
+        private static func effectApproachSteps(
+            _ vectors: [MoveVector],
+            identity: Identity
+        ) -> MovePattern {
+            MovePattern(baseVectors: vectors, identity: identity) { origin, context in
+                guard let target = nearestEffectPoint(from: origin, context: context) else { return [] }
+                let currentDistance = manhattanDistance(from: origin, to: target)
+                return vectors.compactMap { vector in
+                    let destination = origin.offset(dx: vector.dx, dy: vector.dy)
+                    guard context.contains(destination), context.isTraversable(destination) else { return nil }
+                    guard manhattanDistance(from: destination, to: target) < currentDistance else { return nil }
+                    return Path(vector: vector, destination: destination, traversedPoints: [destination])
+                }
+            }
+        }
+
+        private static func nearestEffectPoint(
+            from origin: GridPoint,
+            context: ResolutionContext
+        ) -> GridPoint? {
+            BoardGeometry.allPoints(for: context.boardSize)
+                .filter { point in
+                    point != origin &&
+                    context.contains(point) &&
+                    context.isTraversable(point) &&
+                    context.effect(at: point) != nil
+                }
+                .min { lhs, rhs in
+                    let lhsDistance = manhattanDistance(from: origin, to: lhs)
+                    let rhsDistance = manhattanDistance(from: origin, to: rhs)
+                    if lhsDistance != rhsDistance {
+                        return lhsDistance < rhsDistance
+                    }
+                    if lhs.y != rhs.y {
+                        return lhs.y < rhs.y
+                    }
+                    return lhs.x < rhs.x
+                }
         }
 
         private static func manhattanDistance(from lhs: GridPoint, to rhs: GridPoint) -> Int {

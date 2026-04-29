@@ -159,6 +159,9 @@ private extension MoveCard {
         mapping[.targetStep] = .targetStep()
         mapping[.targetKnight] = .targetKnight()
         mapping[.targetLine] = .targetLine()
+        mapping[.effectStep] = .effectStep()
+        mapping[.effectKnight] = .effectKnight()
+        mapping[.effectLine] = .effectLine()
 
         return mapping
     }()

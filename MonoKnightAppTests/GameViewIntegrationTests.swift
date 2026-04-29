@@ -212,6 +212,19 @@ final class GameViewIntegrationTests: XCTestCase {
             expectedHighlights,
             "カードタップ時のハイライト候補が想定と異なります"
         )
+        XCTAssertTrue(
+            viewModel.boardBridge.scene.latestHighlightPoints(for: .guideSingleCandidate).isEmpty,
+            "カード選択中は他カード由来の単一候補ガイドを消す想定です"
+        )
+        XCTAssertTrue(
+            viewModel.boardBridge.scene.latestHighlightPoints(for: .guideMultipleCandidate).isEmpty,
+            "カード選択中は他カード由来の複数候補ガイドを消す想定です"
+        )
+        XCTAssertEqual(
+            viewModel.boardBridge.scene.latestHighlightPoints(for: .forcedSelection),
+            expectedHighlights,
+            "カード選択中は選択カードの候補だけを Scene へ送る想定です"
+        )
         XCTAssertNil(viewModel.boardBridge.animatingCard, "盤面タップ前にアニメーションが開始されています")
 
         let chosenMove = candidateMoves[1]
@@ -236,6 +249,16 @@ final class GameViewIntegrationTests: XCTestCase {
         XCTAssertTrue(
             viewModel.boardBridge.forcedSelectionHighlightPoints.isEmpty,
             "カードプレイ後に強制ハイライトが解除されていません"
+        )
+        XCTAssertEqual(
+            viewModel.boardBridge.scene.latestHighlightPoints(for: .guideSingleCandidate),
+            viewModel.boardBridge.guideHighlightBuckets.singleVectorDestinations,
+            "カードプレイ後は通常ガイドの単一候補が Scene へ戻る想定です"
+        )
+        XCTAssertEqual(
+            viewModel.boardBridge.scene.latestHighlightPoints(for: .guideMultipleCandidate),
+            viewModel.boardBridge.guideHighlightBuckets.multipleVectorDestinations,
+            "カードプレイ後は通常ガイドの複数候補が Scene へ戻る想定です"
         )
     }
 

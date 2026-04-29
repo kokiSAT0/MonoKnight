@@ -39,6 +39,16 @@ public struct GameScenePalette {
     public let warpPairAccentColors: [SKColor]
     /// 手札シャッフル効果のアクセントカラー
     public let boardTileEffectShuffle: SKColor
+    /// 加速効果のアクセントカラー
+    public let boardTileEffectBoost: SKColor
+    /// 減速効果のアクセントカラー
+    public let boardTileEffectSlow: SKColor
+    /// NEXT 更新効果のアクセントカラー
+    public let boardTileEffectNextRefresh: SKColor
+    /// 無料フォーカス効果のアクセントカラー
+    public let boardTileEffectFreeFocus: SKColor
+    /// カード温存効果のアクセントカラー
+    public let boardTileEffectPreserveCard: SKColor
 
     /// 主要な色をまとめて指定できるイニシャライザ
     /// - Parameters:
@@ -68,6 +78,11 @@ public struct GameScenePalette {
         boardWarpHighlight: SKColor,
         boardTileEffectWarp: SKColor,
         boardTileEffectShuffle: SKColor,
+        boardTileEffectBoost: SKColor,
+        boardTileEffectSlow: SKColor,
+        boardTileEffectNextRefresh: SKColor,
+        boardTileEffectFreeFocus: SKColor,
+        boardTileEffectPreserveCard: SKColor,
         warpPairAccentColors: [SKColor]
     ) {
         self.boardBackground = boardBackground
@@ -84,6 +99,11 @@ public struct GameScenePalette {
         self.boardWarpHighlight = boardWarpHighlight
         self.boardTileEffectWarp = boardTileEffectWarp
         self.boardTileEffectShuffle = boardTileEffectShuffle
+        self.boardTileEffectBoost = boardTileEffectBoost
+        self.boardTileEffectSlow = boardTileEffectSlow
+        self.boardTileEffectNextRefresh = boardTileEffectNextRefresh
+        self.boardTileEffectFreeFocus = boardTileEffectFreeFocus
+        self.boardTileEffectPreserveCard = boardTileEffectPreserveCard
         self.warpPairAccentColors = warpPairAccentColors
     }
 }
@@ -119,6 +139,13 @@ public extension GameScenePalette {
         boardTileEffectWarp: SKColor(red: 0.36, green: 0.56, blue: 0.98, alpha: 0.95),
         // NOTE: 手札シャッフルはモノトーン基調を維持しつつも差別化できるようニュートラルグレーを活用する
         boardTileEffectShuffle: SKColor(white: 0.3, alpha: 0.92),
+        // NOTE: 加速マスはルート判断用の効果として、移動ガイド寄りのシアンで識別する
+        boardTileEffectBoost: SKColor(red: 0.0, green: 0.68, blue: 0.86, alpha: 0.95),
+        // NOTE: 減速マスは停止感を出すため、加速のシアンと離れた赤寄りのアクセントを使う
+        boardTileEffectSlow: SKColor(red: 0.82, green: 0.22, blue: 0.26, alpha: 0.95),
+        boardTileEffectNextRefresh: SKColor(red: 0.13, green: 0.62, blue: 0.36, alpha: 0.95),
+        boardTileEffectFreeFocus: SKColor(red: 0.62, green: 0.38, blue: 0.88, alpha: 0.95),
+        boardTileEffectPreserveCard: SKColor(red: 0.90, green: 0.54, blue: 0.06, alpha: 0.95),
         // NOTE: ワープペアの識別用に 6 色を用意し、同心円の層数と組み合わせて視認性を確保する
         warpPairAccentColors: [
             SKColor(red: 0.38, green: 0.68, blue: 1.0, alpha: 1.0),
@@ -156,6 +183,13 @@ public extension GameScenePalette {
         boardTileEffectWarp: SKColor(red: 0.56, green: 0.75, blue: 1.0, alpha: 0.95),
         // NOTE: シャッフルはライトテーマよりも明度を上げ、背景とのコントラストを十分に確保する
         boardTileEffectShuffle: SKColor(white: 0.7, alpha: 0.9),
+        // NOTE: ダークテーマでは加速マスのシアンを明るくし、盤面上の矢印が沈まないようにする
+        boardTileEffectBoost: SKColor(red: 0.35, green: 0.85, blue: 0.95, alpha: 0.95),
+        // NOTE: ダークテーマでは減速マスの赤を明るめにし、黒背景上でも形が沈まないようにする
+        boardTileEffectSlow: SKColor(red: 1.0, green: 0.46, blue: 0.50, alpha: 0.95),
+        boardTileEffectNextRefresh: SKColor(red: 0.35, green: 0.86, blue: 0.56, alpha: 0.95),
+        boardTileEffectFreeFocus: SKColor(red: 0.78, green: 0.62, blue: 1.0, alpha: 0.95),
+        boardTileEffectPreserveCard: SKColor(red: 1.0, green: 0.72, blue: 0.24, alpha: 0.95),
         // NOTE: ダークテーマ用にも発光感を残した 6 色を揃え、背景が暗くても埋もれないようにする
         warpPairAccentColors: [
             SKColor(red: 0.56, green: 0.78, blue: 1.0, alpha: 1.0),

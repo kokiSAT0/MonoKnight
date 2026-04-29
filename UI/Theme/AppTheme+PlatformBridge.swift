@@ -105,6 +105,41 @@ extension AppTheme {
             dark: color(for: .dark, keyPath: \.boardTileEffectShuffle)
         )
     }
+
+    var uiBoardTileEffectBoost: UIColor {
+        dynamicUIColor(
+            light: color(for: .light, keyPath: \.boardTileEffectBoost),
+            dark: color(for: .dark, keyPath: \.boardTileEffectBoost)
+        )
+    }
+
+    var uiBoardTileEffectSlow: UIColor {
+        dynamicUIColor(
+            light: color(for: .light, keyPath: \.boardTileEffectSlow),
+            dark: color(for: .dark, keyPath: \.boardTileEffectSlow)
+        )
+    }
+
+    var uiBoardTileEffectNextRefresh: UIColor {
+        dynamicUIColor(
+            light: color(for: .light, keyPath: \.boardTileEffectNextRefresh),
+            dark: color(for: .dark, keyPath: \.boardTileEffectNextRefresh)
+        )
+    }
+
+    var uiBoardTileEffectFreeFocus: UIColor {
+        dynamicUIColor(
+            light: color(for: .light, keyPath: \.boardTileEffectFreeFocus),
+            dark: color(for: .dark, keyPath: \.boardTileEffectFreeFocus)
+        )
+    }
+
+    var uiBoardTileEffectPreserveCard: UIColor {
+        dynamicUIColor(
+            light: color(for: .light, keyPath: \.boardTileEffectPreserveCard),
+            dark: color(for: .dark, keyPath: \.boardTileEffectPreserveCard)
+        )
+    }
     #endif
 
     #if canImport(SpriteKit) && canImport(UIKit)
@@ -122,5 +157,10 @@ extension AppTheme {
     var skBoardWarpHighlight: SKColor { SKColor(cgColor: uiBoardWarpHighlight.cgColor) }
     var skBoardTileEffectWarp: SKColor { SKColor(cgColor: uiBoardTileEffectWarp.cgColor) }
     var skBoardTileEffectShuffle: SKColor { SKColor(cgColor: uiBoardTileEffectShuffle.cgColor) }
+    var skBoardTileEffectBoost: SKColor { SKColor(cgColor: uiBoardTileEffectBoost.cgColor) }
+    var skBoardTileEffectSlow: SKColor { SKColor(cgColor: uiBoardTileEffectSlow.cgColor) }
+    var skBoardTileEffectNextRefresh: SKColor { SKColor(cgColor: uiBoardTileEffectNextRefresh.cgColor) }
+    var skBoardTileEffectFreeFocus: SKColor { SKColor(cgColor: uiBoardTileEffectFreeFocus.cgColor) }
+    var skBoardTileEffectPreserveCard: SKColor { SKColor(cgColor: uiBoardTileEffectPreserveCard.cgColor) }
     #endif
 }

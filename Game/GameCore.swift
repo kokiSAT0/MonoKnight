@@ -36,6 +36,13 @@ public struct PenaltyEvent: Identifiable, Equatable {
     }
 }
 
+/// 移動が完了してから手札へ適用するタイル効果
+private enum PostMoveTileEffect {
+    case shuffleHand
+    case nextRefresh
+    case freeFocus
+}
+
 /// ゲーム進行を統括するクラス
 /// - 盤面操作・手札管理・ペナルティ処理・スコア計算を担当する
 
@@ -313,17 +320,19 @@ public final class GameCore: ObservableObject {
 
         // 経路ごとの踏破判定と効果適用を順番に処理する
         // アニメーション用に経路を保持し、ワープ時は終点を追加して UI へ伝達する
-        let pathPoints = validatedMove.path
+        let pathPoints = effectivePathPoints(for: validatedMove, from: currentPosition)
         var finalPosition = currentPosition
         var actualTraversedPath: [GridPoint] = []
         var encounteredRevisit = false
         var detectedEffects: [MovementResolution.AppliedEffect] = []
-        var requiresHandShuffle = false
+        var postMoveTileEffect: PostMoveTileEffect?
+        var preservesPlayedCard = false
 
         var stepIndex = 0
         while stepIndex < pathPoints.count {
             let stepPoint = pathPoints[stepIndex]
             guard board.contains(stepPoint), board.isTraversable(stepPoint) else { return }
+            let previousPosition = finalPosition
 
             actualTraversedPath.append(stepPoint)
 
@@ -350,8 +359,63 @@ public final class GameCore: ObservableObject {
                     } else {
                         debugLog("ワープ先 \(destination) が盤面外または移動不可のため無視しました")
                     }
-                case .shuffleHand:
-                    requiresHandShuffle = true
+                case .shuffleHand, .nextRefresh, .freeFocus, .preserveCard:
+                    registerPostMoveTileEffect(
+                        effect,
+                        postMoveTileEffect: &postMoveTileEffect,
+                        preservesPlayedCard: &preservesPlayedCard
+                    )
+                case .slow:
+                    stepIndex = pathPoints.count
+                case .boost:
+                    let direction = normalizedDirection(from: previousPosition, to: stepPoint)
+                    let boostedPoint = stepPoint.offset(dx: direction.dx, dy: direction.dy)
+                    if direction.dx != 0 || direction.dy != 0,
+                       board.contains(boostedPoint),
+                       board.isTraversable(boostedPoint) {
+                        actualTraversedPath.append(boostedPoint)
+
+                        if board.isVisited(boostedPoint) {
+                            encounteredRevisit = true
+                        }
+
+                        board.markVisited(boostedPoint)
+                        finalPosition = boostedPoint
+
+                        if let boostedEffect = board.effect(at: boostedPoint) {
+                            detectedEffects.append(.init(point: boostedPoint, effect: boostedEffect))
+                            switch boostedEffect {
+                            case .warp(_, let destination):
+                                if board.contains(destination), board.isTraversable(destination) {
+                                    if board.isVisited(destination) {
+                                        encounteredRevisit = true
+                                    }
+                                    board.markVisited(destination)
+                                    finalPosition = destination
+                                    actualTraversedPath.append(destination)
+                                    stepIndex = pathPoints.count
+                                } else {
+                                    debugLog("ワープ先 \(destination) が盤面外または移動不可のため無視しました")
+                                }
+                            case .shuffleHand, .nextRefresh, .freeFocus, .preserveCard:
+                                registerPostMoveTileEffect(
+                                    boostedEffect,
+                                    postMoveTileEffect: &postMoveTileEffect,
+                                    preservesPlayedCard: &preservesPlayedCard
+                                )
+                            case .boost:
+                                break
+                            case .slow:
+                                stepIndex = pathPoints.count
+                            }
+                        }
+
+                        while stepIndex + 1 < pathPoints.count, pathPoints[stepIndex + 1] == finalPosition {
+                            stepIndex += 1
+                        }
+                    } else {
+                        debugLog("加速先 \(boostedPoint) が盤面外または移動不可のため加速しませんでした")
+                    }
                 }
             }
 
@@ -388,16 +452,19 @@ public final class GameCore: ObservableObject {
         // 盤面更新に合わせて残り踏破数を読み上げ
         announceRemainingTiles()
 
-        // 使用済みカードは即座に破棄し、スタックから除去（残数がゼロになったらスタックごと取り除く）
-        let removedIndex = handManager.consumeTopCard(at: validatedMove.stackIndex)
+        let preservedCard = preservesPlayedCard ? validatedMove.card : nil
+        if preservesPlayedCard {
+            debugLog("カード温存マス効果で使用カードを消費しませんでした")
+            refreshHandStateFromManager()
+        } else {
+            // 使用済みカードは即座に破棄し、スタックから除去（残数がゼロになったらスタックごと取り除く）
+            let removedIndex = handManager.consumeTopCard(at: validatedMove.stackIndex)
 
-        // スロットの空きを埋めた上で並び順・先読みを整える
-        rebuildHandAndNext(preferredInsertionIndices: removedIndex.map { [$0] } ?? [])
-
-        if requiresHandShuffle {
-            // --- シャッフルマスの効果が発動した場合は、手動ペナルティと同様に手札・NEXT を丸ごと引き直す（ペナルティ加算なし） ---
-            applyTileEffectHandRedraw()
+            // スロットの空きを埋めた上で並び順・先読みを整える
+            rebuildHandAndNext(preferredInsertionIndices: removedIndex.map { [$0] } ?? [])
         }
+
+        applyPostMoveTileEffect(postMoveTileEffect, preserving: preservedCard)
 
         // クリア判定
         if mode.usesTargetCollection {
@@ -429,6 +496,69 @@ public final class GameCore: ObservableObject {
 #endif
     }
 
+    private func registerPostMoveTileEffect(
+        _ effect: TileEffect,
+        postMoveTileEffect: inout PostMoveTileEffect?,
+        preservesPlayedCard: inout Bool
+    ) {
+        switch effect {
+        case .shuffleHand:
+            if postMoveTileEffect == nil {
+                postMoveTileEffect = .shuffleHand
+            }
+        case .nextRefresh:
+            if postMoveTileEffect == nil {
+                postMoveTileEffect = .nextRefresh
+            }
+        case .freeFocus:
+            if postMoveTileEffect == nil {
+                postMoveTileEffect = .freeFocus
+            }
+        case .preserveCard:
+            preservesPlayedCard = true
+        case .warp, .boost, .slow:
+            break
+        }
+    }
+
+    private func applyPostMoveTileEffect(_ effect: PostMoveTileEffect?, preserving preservedCard: DealtCard?) {
+        guard let effect else { return }
+
+        switch effect {
+        case .shuffleHand:
+            applyTileEffectHandRedraw(preserving: preservedCard)
+        case .nextRefresh:
+            applyTileEffectNextRefresh()
+        case .freeFocus:
+            applyTileEffectFreeFocus(preserving: preservedCard)
+        }
+    }
+
+    private func applyTileEffectNextRefresh() {
+        cancelManualDiscardSelection()
+        resetBoardTapPlayRequestForPenalty()
+        handManager.redrawNextPreview(using: &deck)
+        refreshHandStateFromManager()
+        debugLog("NEXT更新マス効果でNEXTのみ再配布")
+    }
+
+    func resetHandAndNextForTileRedraw(preserving preservedCard: DealtCard?) {
+        if let preservedCard {
+            handManager.resetAll(prioritizing: [preservedCard], using: &deck)
+            refreshHandStateFromManager()
+        } else {
+            handManager.clearAll()
+            rebuildHandAndNext()
+        }
+    }
+
+    private func applyTileEffectFreeFocus(preserving preservedCard: DealtCard?) {
+        let previousFocusCount = focusCount
+        rebuildFocusedHandAndNext(preserving: preservedCard)
+        focusCount = previousFocusCount
+        debugLog("無料フォーカスマス効果で手札とNEXTを再配布")
+    }
+
     /// 現在の状態から使用可能なカード移動候補を列挙する
     /// - Parameters:
     ///   - handStacksOverride: 手札スタックを差し替えたい場合に指定（省略時は `self.handStacks` を利用）
@@ -449,7 +579,8 @@ public final class GameCore: ObservableObject {
             contains: { point in activeBoard.contains(point) },
             isTraversable: { point in activeBoard.isTraversable(point) },
             isVisited: { point in activeBoard.isVisited(point) },
-            targetPoint: mode.usesTargetCollection ? targetPoint : nil
+            targetPoint: mode.usesTargetCollection ? targetPoint : nil,
+            effectAt: { point in activeBoard.effect(at: point) }
         )
 
         // 列挙中に同じ座標へ向かうカードを検出しやすいよう、結果は座標→スタック順でソートする
@@ -792,9 +923,14 @@ public final class GameCore: ObservableObject {
     }
 
     /// 目的地に近づくカードを優先して手札と NEXT を組み直す
-    func rebuildFocusedHandAndNext() {
+    func rebuildFocusedHandAndNext(preserving preservedCard: DealtCard? = nil) {
         guard mode.usesTargetCollection, let origin = current, let target = targetPoint else {
-            rebuildHandAndNext()
+            if let preservedCard {
+                handManager.resetAll(prioritizing: [preservedCard], using: &deck)
+                refreshHandStateFromManager()
+            } else {
+                rebuildHandAndNext()
+            }
             return
         }
 
@@ -817,6 +953,10 @@ public final class GameCore: ObservableObject {
                 return lhsScore.bestDistance < rhsScore.bestDistance
             }
             return lhs.move.displayName < rhs.move.displayName
+        }
+        if let preservedCard {
+            drawn.removeAll { $0.id == preservedCard.id }
+            drawn.insert(preservedCard, at: 0)
         }
 
         handManager.resetAll(prioritizing: drawn, using: &deck)
@@ -859,6 +999,52 @@ public final class GameCore: ObservableObject {
 
     private func manhattanDistance(from lhs: GridPoint, to rhs: GridPoint) -> Int {
         abs(lhs.x - rhs.x) + abs(lhs.y - rhs.y)
+    }
+
+    private func normalizedDirection(from origin: GridPoint, to destination: GridPoint) -> MoveVector {
+        MoveVector(
+            dx: destination.x == origin.x ? 0 : (destination.x > origin.x ? 1 : -1),
+            dy: destination.y == origin.y ? 0 : (destination.y > origin.y ? 1 : -1)
+        )
+    }
+
+    private func effectivePathPoints(for move: ResolvedCardMove, from origin: GridPoint) -> [GridPoint] {
+        let rawPath = move.path
+        guard rawPath.count == 1,
+              shouldExpandForSlowTileResolution(move.card.move),
+              let destination = rawPath.first
+        else { return rawPath }
+
+        let direction = normalizedDirection(from: origin, to: destination)
+        guard direction.dx != 0 || direction.dy != 0 else { return rawPath }
+
+        var current = origin
+        var expanded: [GridPoint] = []
+        while current != destination {
+            current = current.offset(dx: direction.dx, dy: direction.dy)
+            expanded.append(current)
+        }
+
+        let hasIntermediateSlowTile = expanded.dropLast().contains { point in
+            board.effect(at: point) == .slow
+        }
+        return hasIntermediateSlowTile ? expanded : rawPath
+    }
+
+    private func shouldExpandForSlowTileResolution(_ move: MoveCard) -> Bool {
+        switch move {
+        case .straightUp2,
+             .straightDown2,
+             .straightRight2,
+             .straightLeft2,
+             .diagonalUpRight2,
+             .diagonalDownRight2,
+             .diagonalDownLeft2,
+             .diagonalUpLeft2:
+            return true
+        default:
+            return false
+        }
     }
 }
 

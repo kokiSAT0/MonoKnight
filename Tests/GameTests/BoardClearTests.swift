@@ -72,12 +72,22 @@ final class BoardClearTests: XCTestCase {
         let warpA = GridPoint(x: 0, y: 0)
         let warpB = GridPoint(x: 1, y: 1)
         let shufflePoint = GridPoint(x: 2, y: 2)
+        let boostPoint = GridPoint(x: 0, y: 2)
+        let slowPoint = GridPoint(x: 1, y: 2)
+        let nextRefreshPoint = GridPoint(x: 2, y: 0)
+        let freeFocusPoint = GridPoint(x: 0, y: 1)
+        let preserveCardPoint = GridPoint(x: 2, y: 1)
         let board = Board(
             size: 3,
             tileEffects: [
                 warpA: .warp(pairID: "warp_pair", destination: warpB),
                 warpB: .warp(pairID: "warp_pair", destination: warpA),
                 shufflePoint: .shuffleHand,
+                boostPoint: .boost,
+                slowPoint: .slow,
+                nextRefreshPoint: .nextRefresh,
+                freeFocusPoint: .freeFocus,
+                preserveCardPoint: .preserveCard,
             ]
         )
 
@@ -86,6 +96,16 @@ final class BoardClearTests: XCTestCase {
         XCTAssertEqual(board.state(at: warpA)?.effect, .warp(pairID: "warp_pair", destination: warpB))
         XCTAssertEqual(board.effect(at: shufflePoint), .shuffleHand)
         XCTAssertEqual(board.state(at: shufflePoint)?.effect, .shuffleHand)
+        XCTAssertEqual(board.effect(at: boostPoint), .boost)
+        XCTAssertEqual(board.state(at: boostPoint)?.effect, .boost)
+        XCTAssertEqual(board.effect(at: slowPoint), .slow)
+        XCTAssertEqual(board.state(at: slowPoint)?.effect, .slow)
+        XCTAssertEqual(board.effect(at: nextRefreshPoint), .nextRefresh)
+        XCTAssertEqual(board.state(at: nextRefreshPoint)?.effect, .nextRefresh)
+        XCTAssertEqual(board.effect(at: freeFocusPoint), .freeFocus)
+        XCTAssertEqual(board.state(at: freeFocusPoint)?.effect, .freeFocus)
+        XCTAssertEqual(board.effect(at: preserveCardPoint), .preserveCard)
+        XCTAssertEqual(board.state(at: preserveCardPoint)?.effect, .preserveCard)
     }
 
     /// 不正なワープ定義が安全に除外されるか検証する

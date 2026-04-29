@@ -180,10 +180,14 @@ final class CampaignLibraryTests: XCTestCase {
     func testLateCampaignKeepsObstacleAndWarpLearningBeats() {
         let library = CampaignLibrary.shared
         let chapter5 = library.chapters.first { $0.id == 5 }?.stages ?? []
+        let chapter6 = library.chapters.first { $0.id == 6 }?.stages ?? []
         let chapter7 = library.chapters.first { $0.id == 7 }?.stages ?? []
         let chapter8 = library.chapters.first { $0.id == 8 }?.stages ?? []
 
         XCTAssertTrue(chapter5.allSatisfy { !$0.regulation.impassableTilePoints.isEmpty })
+        XCTAssertTrue(chapter6.contains { stage in
+            stage.regulation.tileEffectOverrides.values.contains(.boost)
+        })
         XCTAssertTrue(chapter7.contains { !$0.regulation.warpTilePairs.isEmpty })
         XCTAssertTrue(chapter8.contains { !$0.regulation.fixedWarpCardTargets.isEmpty })
         XCTAssertTrue(chapter8.contains { $0.regulation.deckPreset == .superWarpHighFrequency })

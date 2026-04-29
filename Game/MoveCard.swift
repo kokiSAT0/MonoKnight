@@ -11,6 +11,8 @@ public enum MoveCardKind {
     case multiStep
     /// 現在目的地へ近づく候補を動的に出す補助カード
     case targetAssist
+    /// 盤面上の特殊マスへ近づく候補を動的に出す補助カード
+    case effectAssist
 }
 
 /// 駒を移動させるカードの種類を定義する列挙型
@@ -119,4 +121,10 @@ public enum MoveCard: CaseIterable {
     case targetKnight
     /// 目的地補助: 現在目的地方向へ通過しやすい直線候補
     case targetLine
+    /// 特殊マス補助: 最寄り特殊マスへ近づく隣接 1 マス候補
+    case effectStep
+    /// 特殊マス補助: 最寄り特殊マスへ近づく桂馬候補
+    case effectKnight
+    /// 特殊マス補助: 最寄り特殊マス方向へ通過しやすい直線候補
+    case effectLine
 }

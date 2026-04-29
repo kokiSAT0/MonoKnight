@@ -76,6 +76,50 @@ final class GameModeRegulationTests: XCTestCase {
         XCTAssertEqual(mode.tileEffects[warpPointB], .warp(pairID: "pair", destination: warpPointA))
     }
 
+    func testBoostTileEffectRoundTripsThroughRegulationCoding() throws {
+        let boostPoint = GridPoint(x: 2, y: 1)
+        let slowPoint = GridPoint(x: 2, y: 3)
+        let nextRefreshPoint = GridPoint(x: 0, y: 4)
+        let freeFocusPoint = GridPoint(x: 4, y: 0)
+        let preserveCardPoint = GridPoint(x: 1, y: 1)
+        let regulation = GameMode.Regulation(
+            boardSize: 5,
+            handSize: 5,
+            nextPreviewCount: 3,
+            allowsStacking: true,
+            deckPreset: .standard,
+            spawnRule: .fixed(GridPoint(x: 2, y: 2)),
+            penalties: GameMode.PenaltySettings(
+                deadlockPenaltyCost: 0,
+                manualRedrawPenaltyCost: 0,
+                manualDiscardPenaltyCost: 1,
+                revisitPenaltyCost: 0
+            ),
+            tileEffectOverrides: [
+                boostPoint: .boost,
+                slowPoint: .slow,
+                nextRefreshPoint: .nextRefresh,
+                freeFocusPoint: .freeFocus,
+                preserveCardPoint: .preserveCard,
+            ],
+            completionRule: .targetCollection(goalCount: 12)
+        )
+
+        let data = try JSONEncoder().encode(regulation)
+        let decoded = try JSONDecoder().decode(GameMode.Regulation.self, from: data)
+
+        XCTAssertEqual(decoded.tileEffectOverrides[boostPoint], .boost)
+        XCTAssertEqual(decoded.resolvedTileEffects[boostPoint], .boost)
+        XCTAssertEqual(decoded.tileEffectOverrides[slowPoint], .slow)
+        XCTAssertEqual(decoded.resolvedTileEffects[slowPoint], .slow)
+        XCTAssertEqual(decoded.tileEffectOverrides[nextRefreshPoint], .nextRefresh)
+        XCTAssertEqual(decoded.resolvedTileEffects[nextRefreshPoint], .nextRefresh)
+        XCTAssertEqual(decoded.tileEffectOverrides[freeFocusPoint], .freeFocus)
+        XCTAssertEqual(decoded.resolvedTileEffects[freeFocusPoint], .freeFocus)
+        XCTAssertEqual(decoded.tileEffectOverrides[preserveCardPoint], .preserveCard)
+        XCTAssertEqual(decoded.resolvedTileEffects[preserveCardPoint], .preserveCard)
+    }
+
     func testModeForFallbackIdentifiersReturnsStandard() {
         let fallbackIdentifiers: [GameMode.Identifier] = [
             .dailyFixedChallenge,

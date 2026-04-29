@@ -73,6 +73,16 @@ public enum TileEffect: Equatable, Codable {
     case warp(pairID: String, destination: GridPoint)
     /// 手札をランダムに並び替える効果
     case shuffleHand
+    /// 進行方向へもう 1 マス加速する効果
+    case boost
+    /// このマスで残りの移動を止める効果
+    case slow
+    /// 手札は維持し、NEXT だけを引き直す効果
+    case nextRefresh
+    /// フォーカス回数を増やさず、現在目的地へ近づきやすい手札へ再配布する効果
+    case freeFocus
+    /// 使用したカードを消費せずに温存する効果
+    case preserveCard
 }
 
 /// 1 マスごとの踏破状態と必要踏破回数・挙動を保持する構造体
@@ -292,7 +302,7 @@ public struct Board: Equatable {
                 guard isWithinBoard(destination), !impassablePoints.contains(destination) else { continue }
                 sanitizedEffects[point] = effect
                 warpGroups[pairID, default: []].insert(point)
-            case .shuffleHand:
+            case .shuffleHand, .boost, .slow, .nextRefresh, .freeFocus, .preserveCard:
                 sanitizedEffects[point] = effect
             }
         }

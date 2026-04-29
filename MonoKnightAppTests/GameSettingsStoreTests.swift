@@ -58,4 +58,47 @@ struct GameSettingsStoreTests {
         #expect(store.bestPoints == .max)
         #expect(defaults.integer(forKey: StorageKey.AppStorage.bestPoints5x5) == .max)
     }
+
+    @MainActor
+    @Test func targetLabSettingsStorePersistsAndRestoresSettings() {
+        let suiteName = "TargetLabExperimentSettingsStoreTests.persist"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+
+        let store = TargetLabExperimentSettingsStore(userDefaults: defaults)
+        store.update(TargetLabExperimentSettings(
+            enabledCardGroups: [.standard, .effectAssist],
+            enabledTileKinds: [.boost, .slow]
+        ))
+
+        let restored = TargetLabExperimentSettingsStore(userDefaults: defaults)
+
+        #expect(restored.settings.enabledCardGroups == [.standard, .effectAssist])
+        #expect(restored.settings.enabledTileKinds == [.boost, .slow])
+    }
+
+    @MainActor
+    @Test func targetLabSettingsStoreFallsBackForInvalidSavedData() {
+        let suiteName = "TargetLabExperimentSettingsStoreTests.invalid"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defaults.set(Data("not json".utf8), forKey: StorageKey.UserDefaults.targetLabExperimentSettings)
+
+        let store = TargetLabExperimentSettingsStore(userDefaults: defaults)
+
+        #expect(store.settings == .default)
+    }
+
+    @MainActor
+    @Test func targetLabSettingsPresetAppliesExpectedSettings() {
+        let suiteName = "TargetLabExperimentSettingsStoreTests.presets"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        let store = TargetLabExperimentSettingsStore(userDefaults: defaults)
+
+        store.applyPreset(.minimal)
+
+        #expect(store.settings.enabledCardGroups == [.standard])
+        #expect(store.settings.enabledTileKinds == [.warp, .boost, .slow])
+    }
 }

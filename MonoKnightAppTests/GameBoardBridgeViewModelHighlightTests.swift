@@ -166,6 +166,70 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
         )
     }
 
+    /// 強制ハイライト表示中は通常ガイド枠を Scene へ送らず、目的地マーカーだけを維持することを検証する
+    func testForcedSelectionHidesGuideCandidatesButKeepsTargetMarkers() {
+        MoveCard.setTestMovementVectors([
+            MoveVector(dx: 1, dy: 0),
+            MoveVector(dx: -1, dy: 0)
+        ], for: .kingRight)
+        defer { MoveCard.setTestMovementVectors(nil, for: .kingRight) }
+
+        let core = GameCore(mode: .standard)
+        let viewModel = GameBoardBridgeViewModel(core: core, mode: .standard)
+        let origin = GridPoint(x: 2, y: 2)
+        let target = GridPoint(x: 4, y: 2)
+
+        core.overrideTargetStateForTesting(
+            targetPoint: target,
+            upcomingTargetPoints: [GridPoint(x: 0, y: 0)]
+        )
+
+        let singleStack = HandStack(cards: [DealtCard(move: .kingUp)])
+        let multipleStack = HandStack(cards: [DealtCard(move: .kingRight)])
+
+        viewModel.refreshGuideHighlights(
+            handOverride: [singleStack, multipleStack],
+            currentOverride: origin,
+            progressOverride: .playing
+        )
+
+        XCTAssertFalse(
+            viewModel.scene.latestHighlightPoints(for: .guideSingleCandidate).isEmpty,
+            "通常時は単一候補ガイドが Scene へ送られる想定です"
+        )
+        XCTAssertFalse(
+            viewModel.scene.latestHighlightPoints(for: .guideMultipleCandidate).isEmpty,
+            "通常時は複数候補ガイドが Scene へ送られる想定です"
+        )
+
+        let selectedDestinations: Set<GridPoint> = [GridPoint(x: 3, y: 2), GridPoint(x: 1, y: 2)]
+        viewModel.updateForcedSelectionHighlights(selectedDestinations)
+
+        XCTAssertTrue(
+            viewModel.scene.latestHighlightPoints(for: .guideSingleCandidate).isEmpty,
+            "カード選択中は単一候補ガイドを Scene へ送らない想定です"
+        )
+        XCTAssertTrue(
+            viewModel.scene.latestHighlightPoints(for: .guideMultipleCandidate).isEmpty,
+            "カード選択中は複数候補ガイドを Scene へ送らない想定です"
+        )
+        XCTAssertEqual(
+            viewModel.scene.latestHighlightPoints(for: .forcedSelection),
+            selectedDestinations,
+            "選択中カードの移動候補だけを強制ハイライトとして表示する想定です"
+        )
+        XCTAssertEqual(
+            viewModel.scene.latestHighlightPoints(for: .currentTarget),
+            [target],
+            "カード選択中でも現在目的地マーカーは維持する必要があります"
+        )
+        XCTAssertEqual(
+            viewModel.scene.latestHighlightPoints(for: .upcomingTarget),
+            [GridPoint(x: 0, y: 0)],
+            "カード選択中でも次目的地マーカーは維持する必要があります"
+        )
+    }
+
     /// 強制ハイライトが障害物マスを除外することを検証する
     func testForcedSelectionHighlightsExcludeImpassableTiles() {
         // --- 移動不可マスを含むモードを構築し、ViewModel に適用 ---

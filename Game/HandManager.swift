@@ -148,6 +148,13 @@ public final class HandManager: ObservableObject {
         }
     }
 
+    /// 手札は維持したまま NEXT キューだけを引き直す
+    /// - Parameter deck: 新しい NEXT を引く山札
+    func redrawNextPreview(using deck: inout Deck) {
+        nextCards.removeAll(keepingCapacity: true)
+        replenishNextPreview(using: &deck)
+    }
+
     /// NEXT キューを優先的に使いながら空きスロットへカードを補充する
     /// - Parameters:
     ///   - deck: ドロー元となる山札

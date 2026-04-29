@@ -65,6 +65,9 @@ public extension MoveCard {
         case .targetStep: return "目的地ステップ"
         case .targetKnight: return "目的地ナイト"
         case .targetLine: return "目的地ライン"
+        case .effectStep: return "特殊ステップ"
+        case .effectKnight: return "特殊ナイト"
+        case .effectLine: return "特殊ライン"
         }
     }
 
@@ -86,6 +89,10 @@ public extension MoveCard {
              .targetKnight,
              .targetLine:
             return .targetAssist
+        case .effectStep,
+             .effectKnight,
+             .effectLine:
+            return .effectAssist
         default:
             return MoveCard.directionalRayCards.contains(self) ? .multiStep : .normal
         }

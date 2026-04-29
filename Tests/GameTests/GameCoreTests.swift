@@ -1100,6 +1100,371 @@ final class GameCoreTests: XCTestCase {
         XCTAssertEqual(core.lastMovementResolution?.path, [GridPoint(x: 1, y: 2), GridPoint(x: 4, y: 4)])
     }
 
+    func testBoostTileMovesOneExtraPointInTravelDirection() {
+        let regulation = GameMode.Regulation(
+            boardSize: BoardGeometry.standardSize,
+            handSize: 5,
+            nextPreviewCount: 3,
+            allowsStacking: true,
+            deckPreset: .kingOnly,
+            spawnRule: .fixed(GridPoint(x: 1, y: 2)),
+            penalties: GameMode.PenaltySettings(
+                deadlockPenaltyCost: 0,
+                manualRedrawPenaltyCost: 0,
+                manualDiscardPenaltyCost: 1,
+                revisitPenaltyCost: 0
+            ),
+            tileEffectOverrides: [GridPoint(x: 2, y: 2): .boost],
+            completionRule: .targetCollection(goalCount: 12)
+        )
+        let mode = GameMode(
+            identifier: .freeCustom,
+            displayName: "加速テスト",
+            regulation: regulation,
+            leaderboardEligible: false
+        )
+        let deck = Deck.makeTestDeck(cards: [.kingRight, .kingUp, .kingLeft, .kingDown], configuration: .kingOnly)
+        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 1, y: 2), mode: mode)
+        core.overrideTargetStateForTesting(targetPoint: GridPoint(x: 3, y: 2))
+
+        guard let move = core.availableMoves().first(where: { $0.card.move == .kingRight }) else {
+            return XCTFail("右移動カードが見つかりません")
+        }
+        core.playCard(using: move)
+
+        XCTAssertEqual(core.current, GridPoint(x: 3, y: 2))
+        XCTAssertEqual(core.lastMovementResolution?.path, [GridPoint(x: 2, y: 2), GridPoint(x: 3, y: 2)])
+        XCTAssertEqual(core.capturedTargetCount, 1)
+    }
+
+    func testBoostTileStopsWhenBoostDestinationIsBlocked() {
+        let regulation = GameMode.Regulation(
+            boardSize: BoardGeometry.standardSize,
+            handSize: 5,
+            nextPreviewCount: 3,
+            allowsStacking: true,
+            deckPreset: .kingOnly,
+            spawnRule: .fixed(GridPoint(x: 1, y: 2)),
+            penalties: GameMode.PenaltySettings(
+                deadlockPenaltyCost: 0,
+                manualRedrawPenaltyCost: 0,
+                manualDiscardPenaltyCost: 1,
+                revisitPenaltyCost: 0
+            ),
+            impassableTilePoints: [GridPoint(x: 3, y: 2)],
+            tileEffectOverrides: [GridPoint(x: 2, y: 2): .boost],
+            completionRule: .targetCollection(goalCount: 12)
+        )
+        let mode = GameMode(
+            identifier: .freeCustom,
+            displayName: "加速停止テスト",
+            regulation: regulation,
+            leaderboardEligible: false
+        )
+        let deck = Deck.makeTestDeck(cards: [.kingRight, .kingUp, .kingLeft, .kingDown], configuration: .kingOnly)
+        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 1, y: 2), mode: mode)
+        core.overrideTargetStateForTesting(targetPoint: GridPoint(x: 3, y: 2))
+
+        guard let move = core.availableMoves().first(where: { $0.card.move == .kingRight }) else {
+            return XCTFail("右移動カードが見つかりません")
+        }
+        core.playCard(using: move)
+
+        XCTAssertEqual(core.current, GridPoint(x: 2, y: 2))
+        XCTAssertEqual(core.lastMovementResolution?.path, [GridPoint(x: 2, y: 2)])
+        XCTAssertEqual(core.capturedTargetCount, 0)
+    }
+
+    func testBoostedPointCanTriggerWarpTile() {
+        let regulation = GameMode.Regulation(
+            boardSize: BoardGeometry.standardSize,
+            handSize: 5,
+            nextPreviewCount: 3,
+            allowsStacking: true,
+            deckPreset: .kingOnly,
+            spawnRule: .fixed(GridPoint(x: 0, y: 2)),
+            penalties: GameMode.PenaltySettings(
+                deadlockPenaltyCost: 0,
+                manualRedrawPenaltyCost: 0,
+                manualDiscardPenaltyCost: 1,
+                revisitPenaltyCost: 0
+            ),
+            tileEffectOverrides: [
+                GridPoint(x: 1, y: 2): .boost,
+                GridPoint(x: 2, y: 2): .warp(pairID: "boost_warp", destination: GridPoint(x: 4, y: 4)),
+                GridPoint(x: 4, y: 4): .warp(pairID: "boost_warp", destination: GridPoint(x: 2, y: 2))
+            ],
+            completionRule: .targetCollection(goalCount: 12)
+        )
+        let mode = GameMode(
+            identifier: .freeCustom,
+            displayName: "加速ワープテスト",
+            regulation: regulation,
+            leaderboardEligible: false
+        )
+        let deck = Deck.makeTestDeck(cards: [.kingRight, .kingUp, .kingLeft, .kingDown], configuration: .kingOnly)
+        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 0, y: 2), mode: mode)
+
+        guard let move = core.availableMoves().first(where: { $0.card.move == .kingRight }) else {
+            return XCTFail("右移動カードが見つかりません")
+        }
+        core.playCard(using: move)
+
+        XCTAssertEqual(core.current, GridPoint(x: 4, y: 4))
+        XCTAssertEqual(core.lastMovementResolution?.path, [
+            GridPoint(x: 1, y: 2),
+            GridPoint(x: 2, y: 2),
+            GridPoint(x: 4, y: 4)
+        ])
+    }
+
+    func testSlowTileStopsDirectionalRayAndCapturesTargetOnSlowTile() {
+        let regulation = GameMode.Regulation(
+            boardSize: BoardGeometry.standardSize,
+            handSize: 5,
+            nextPreviewCount: 3,
+            allowsStacking: true,
+            deckPreset: .directionalRayFocus,
+            spawnRule: .fixed(GridPoint(x: 0, y: 2)),
+            penalties: GameMode.PenaltySettings(
+                deadlockPenaltyCost: 0,
+                manualRedrawPenaltyCost: 0,
+                manualDiscardPenaltyCost: 1,
+                revisitPenaltyCost: 0
+            ),
+            tileEffectOverrides: [GridPoint(x: 2, y: 2): .slow],
+            completionRule: .targetCollection(goalCount: 12)
+        )
+        let mode = GameMode(
+            identifier: .freeCustom,
+            displayName: "減速レイテスト",
+            regulation: regulation,
+            leaderboardEligible: false
+        )
+        let deck = Deck.makeTestDeck(cards: [.rayRight, .kingUp, .kingLeft, .kingDown], configuration: .directionalRayFocus)
+        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 0, y: 2), mode: mode)
+        core.overrideTargetStateForTesting(targetPoint: GridPoint(x: 2, y: 2))
+
+        guard let move = core.availableMoves().first(where: { $0.card.move == .rayRight }) else {
+            return XCTFail("レイ型カードが見つかりません")
+        }
+        core.playCard(using: move)
+
+        XCTAssertEqual(core.current, GridPoint(x: 2, y: 2))
+        XCTAssertEqual(core.lastMovementResolution?.path, [GridPoint(x: 1, y: 2), GridPoint(x: 2, y: 2)])
+        XCTAssertEqual(core.capturedTargetCount, 1)
+    }
+
+    func testSlowTileStopsTwoStepMoveAtIntermediatePoint() {
+        let regulation = GameMode.Regulation(
+            boardSize: BoardGeometry.standardSize,
+            handSize: 5,
+            nextPreviewCount: 3,
+            allowsStacking: true,
+            deckPreset: .standard,
+            spawnRule: .fixed(GridPoint(x: 1, y: 2)),
+            penalties: GameMode.PenaltySettings(
+                deadlockPenaltyCost: 0,
+                manualRedrawPenaltyCost: 0,
+                manualDiscardPenaltyCost: 1,
+                revisitPenaltyCost: 0
+            ),
+            tileEffectOverrides: [GridPoint(x: 2, y: 2): .slow],
+            completionRule: .targetCollection(goalCount: 12)
+        )
+        let mode = GameMode(
+            identifier: .freeCustom,
+            displayName: "減速2マステスト",
+            regulation: regulation,
+            leaderboardEligible: false
+        )
+        let deck = Deck.makeTestDeck(cards: [.straightRight2, .kingUp, .kingLeft, .kingDown], configuration: .standard)
+        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 1, y: 2), mode: mode)
+        core.overrideTargetStateForTesting(targetPoint: GridPoint(x: 3, y: 2))
+
+        guard let move = core.availableMoves().first(where: { $0.card.move == .straightRight2 }) else {
+            return XCTFail("右2カードが見つかりません")
+        }
+        core.playCard(using: move)
+
+        XCTAssertEqual(core.current, GridPoint(x: 2, y: 2))
+        XCTAssertEqual(core.lastMovementResolution?.path, [GridPoint(x: 2, y: 2)])
+        XCTAssertEqual(core.capturedTargetCount, 0)
+    }
+
+    func testBoostedPointCanStopOnSlowTile() {
+        let regulation = GameMode.Regulation(
+            boardSize: BoardGeometry.standardSize,
+            handSize: 5,
+            nextPreviewCount: 3,
+            allowsStacking: true,
+            deckPreset: .kingOnly,
+            spawnRule: .fixed(GridPoint(x: 0, y: 2)),
+            penalties: GameMode.PenaltySettings(
+                deadlockPenaltyCost: 0,
+                manualRedrawPenaltyCost: 0,
+                manualDiscardPenaltyCost: 1,
+                revisitPenaltyCost: 0
+            ),
+            tileEffectOverrides: [
+                GridPoint(x: 1, y: 2): .boost,
+                GridPoint(x: 2, y: 2): .slow
+            ],
+            completionRule: .targetCollection(goalCount: 12)
+        )
+        let mode = GameMode(
+            identifier: .freeCustom,
+            displayName: "加速減速テスト",
+            regulation: regulation,
+            leaderboardEligible: false
+        )
+        let deck = Deck.makeTestDeck(cards: [.kingRight, .kingUp, .kingLeft, .kingDown], configuration: .kingOnly)
+        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 0, y: 2), mode: mode)
+
+        guard let move = core.availableMoves().first(where: { $0.card.move == .kingRight }) else {
+            return XCTFail("右移動カードが見つかりません")
+        }
+        core.playCard(using: move)
+
+        XCTAssertEqual(core.current, GridPoint(x: 2, y: 2))
+        XCTAssertEqual(core.lastMovementResolution?.path, [GridPoint(x: 1, y: 2), GridPoint(x: 2, y: 2)])
+    }
+
+    func testNextRefreshTileRedrawsNextWithoutReplacingHand() {
+        let regulation = GameMode.Regulation(
+            boardSize: BoardGeometry.standardSize,
+            handSize: 5,
+            nextPreviewCount: 3,
+            allowsStacking: true,
+            deckPreset: .standard,
+            spawnRule: .fixed(GridPoint(x: 1, y: 2)),
+            penalties: GameMode.PenaltySettings(
+                deadlockPenaltyCost: 0,
+                manualRedrawPenaltyCost: 0,
+                manualDiscardPenaltyCost: 1,
+                revisitPenaltyCost: 0
+            ),
+            tileEffectOverrides: [GridPoint(x: 2, y: 2): .nextRefresh],
+            completionRule: .targetCollection(goalCount: 12)
+        )
+        let mode = GameMode(
+            identifier: .freeCustom,
+            displayName: "NEXT更新テスト",
+            regulation: regulation,
+            leaderboardEligible: false
+        )
+        let deck = Deck.makeTestDeck(cards: [
+            .kingRight, .kingUp, .kingLeft, .kingDown, .straightUp2,
+            .straightRight2, .straightLeft2, .straightDown2,
+            .diagonalUpRight2, .diagonalDownRight2, .diagonalDownLeft2, .diagonalUpLeft2,
+        ])
+        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 1, y: 2), mode: mode)
+
+        guard let move = core.availableMoves().first(where: { $0.card.move == .kingRight }) else {
+            return XCTFail("右移動カードが見つかりません")
+        }
+        core.playCard(using: move)
+
+        let handMoves = Set(core.handStacks.compactMap { $0.topCard?.move })
+        XCTAssertEqual(
+            handMoves,
+            Set([.kingUp, .kingLeft, .kingDown, .straightUp2, .straightRight2]),
+            "NEXT更新マスは通常消費・補充後の手札を丸ごと引き直さない想定です"
+        )
+        XCTAssertEqual(
+            core.nextCards.map(\.move),
+            [.diagonalDownRight2, .diagonalDownLeft2, .diagonalUpLeft2],
+            "NEXTだけが追加で引き直される想定です"
+        )
+    }
+
+    func testFreeFocusTileRebuildsTowardTargetWithoutIncrementingFocusCount() {
+        let regulation = GameMode.Regulation(
+            boardSize: BoardGeometry.standardSize,
+            handSize: 5,
+            nextPreviewCount: 3,
+            allowsStacking: true,
+            deckPreset: .standard,
+            spawnRule: .fixed(GridPoint(x: 2, y: 2)),
+            penalties: GameMode.PenaltySettings(
+                deadlockPenaltyCost: 0,
+                manualRedrawPenaltyCost: 0,
+                manualDiscardPenaltyCost: 1,
+                revisitPenaltyCost: 0
+            ),
+            tileEffectOverrides: [GridPoint(x: 3, y: 2): .freeFocus],
+            completionRule: .targetCollection(goalCount: 12)
+        )
+        let mode = GameMode(
+            identifier: .freeCustom,
+            displayName: "無料フォーカステスト",
+            regulation: regulation,
+            leaderboardEligible: false
+        )
+        let deck = Deck.makeTestDeck(cards: [
+            .kingRight, .kingUp, .kingLeft, .kingDown, .straightUp2,
+            .straightLeft2, .straightDown2, .diagonalUpLeft2,
+            .kingRight, .straightRight2, .kingUpRight, .kingDownRight, .knightUp1Right2, .kingUp,
+        ])
+        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 2, y: 2), mode: mode)
+        core.overrideTargetStateForTesting(targetPoint: GridPoint(x: 4, y: 2))
+
+        guard let move = core.availableMoves().first(where: { $0.card.move == .kingRight }) else {
+            return XCTFail("右移動カードが見つかりません")
+        }
+        core.playCard(using: move)
+
+        XCTAssertEqual(core.current, GridPoint(x: 3, y: 2))
+        XCTAssertEqual(core.focusCount, 0)
+        XCTAssertTrue(
+            core.availableMoves().contains { $0.destination == GridPoint(x: 4, y: 2) },
+            "無料フォーカス後は目的地へ近づける候補が手札に入る想定です"
+        )
+    }
+
+    func testPreserveCardTileDoesNotConsumePlayedCard() {
+        let regulation = GameMode.Regulation(
+            boardSize: BoardGeometry.standardSize,
+            handSize: 5,
+            nextPreviewCount: 3,
+            allowsStacking: true,
+            deckPreset: .standard,
+            spawnRule: .fixed(GridPoint(x: 1, y: 2)),
+            penalties: GameMode.PenaltySettings(
+                deadlockPenaltyCost: 0,
+                manualRedrawPenaltyCost: 0,
+                manualDiscardPenaltyCost: 1,
+                revisitPenaltyCost: 0
+            ),
+            tileEffectOverrides: [GridPoint(x: 2, y: 2): .preserveCard],
+            completionRule: .targetCollection(goalCount: 12)
+        )
+        let mode = GameMode(
+            identifier: .freeCustom,
+            displayName: "カード温存テスト",
+            regulation: regulation,
+            leaderboardEligible: false
+        )
+        let deck = Deck.makeTestDeck(cards: [
+            .kingRight, .kingUp, .kingLeft, .kingDown, .straightUp2,
+            .straightRight2, .straightLeft2, .straightDown2,
+        ])
+        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 1, y: 2), mode: mode)
+
+        guard let move = core.availableMoves().first(where: { $0.card.move == .kingRight }) else {
+            return XCTFail("右移動カードが見つかりません")
+        }
+        let playedCardID = move.card.id
+        core.playCard(using: move)
+
+        XCTAssertEqual(core.current, GridPoint(x: 2, y: 2))
+        XCTAssertEqual(core.moveCount, 1)
+        XCTAssertTrue(
+            core.handStacks.contains { stack in stack.cards.contains { $0.id == playedCardID } },
+            "カード温存マスを踏んだ手では使用カードが手札に残る想定です"
+        )
+    }
+
     /// 全マス踏破していなくても、目的地を規定数獲得すればクリアすることを確認
     func testTargetCollectionClearsBeforeBoardClear() {
         let deck = Deck.makeTestDeck(cards: [

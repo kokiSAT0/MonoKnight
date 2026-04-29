@@ -187,6 +187,7 @@ struct MoveCardIllustrationView: View {
         let candidateCount = movementVectors.count
         let isMultiStepCard = card.kind == .multiStep
         let isTargetAssistCard = card.kind == .targetAssist
+        let isEffectAssistCard = card.kind == .effectAssist
         let multiStepDirection = card.multiStepUnitVector
         // MARK: - ワープ系カードかどうか（枠色や描画内容を切り替えるため事前判定する）
         let isSuperWarpCard = card == .superWarp
@@ -205,8 +206,8 @@ struct MoveCardIllustrationView: View {
         if isWarpCard {
             // ワープカードは常に紫系の枠線で統一し、他カードとの差別化を図る
             borderColor = warpAccentColor
-        } else if isTargetAssistCard {
-            // 目的地補助カードは緑系の枠線で、通常の選択カードと区別する
+        } else if isTargetAssistCard || isEffectAssistCard {
+            // 補助カードは緑系の枠線で、通常の選択カードと区別する
             borderColor = theme.accentPrimary
         } else if isMultiStepCard {
             // 複数マス移動カードはシアン系アクセントを枠線へ適用し、盤面ハイライトと一貫した印象を持たせる
@@ -228,6 +229,13 @@ struct MoveCardIllustrationView: View {
                 mode == .hand
                     ? "ダブルタップでカードを選ぶと、現在目的地に近づく候補だけを盤面に表示します"
                     : "閲覧のみ: 目的地制のときだけ、現在目的地に近づく候補を出すカードです"
+            )
+        } else if isEffectAssistCard {
+            accessibilityLabelText = Text("特殊マス補助カード、\(card.displayName)")
+            accessibilityHintText = Text(
+                mode == .hand
+                    ? "ダブルタップでカードを選ぶと、最寄りの特殊マスに近づく候補だけを盤面に表示します"
+                    : "閲覧のみ: 特殊マスに近づく候補を出す実験場向けカードです"
             )
         } else if isMultiStepCard, let direction = multiStepDirection {
             let directionName = multiStepDirectionDisplayName(for: direction)
