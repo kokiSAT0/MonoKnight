@@ -62,15 +62,6 @@ private extension GameBoardControlRowView {
 
     /// スコアへ直接影響する指標群
     func scoreStatisticsGroup() -> some View {
-        let penaltyAccessibilityValue: String = {
-            // 0 件の場合は「ペナルティなし」と明言し、それ以外は合計値のみ伝える
-            if viewModel.penaltyCount == 0 {
-                return "ペナルティなし"
-            } else {
-                return "ペナルティ合計 \(viewModel.penaltyCount)"
-            }
-        }()
-
         return statisticsBadgeGroup {
             statisticBadge(
                 title: "移動",
@@ -79,12 +70,21 @@ private extension GameBoardControlRowView {
                 accessibilityValue: "\(viewModel.moveCount)回"
             )
 
-            statisticBadge(
-                title: "ペナルティ",
-                value: "\(viewModel.penaltyCount)",
-                accessibilityLabel: "ペナルティ合計",
-                accessibilityValue: penaltyAccessibilityValue
-            )
+            if viewModel.usesTargetCollection {
+                statisticBadge(
+                    title: "フォーカス",
+                    value: "\(viewModel.focusCount)",
+                    accessibilityLabel: "フォーカス回数",
+                    accessibilityValue: "\(viewModel.focusCount)回"
+                )
+            } else {
+                statisticBadge(
+                    title: "ペナルティ",
+                    value: "\(viewModel.penaltyCount)",
+                    accessibilityLabel: "ペナルティ合計",
+                    accessibilityValue: penaltyAccessibilityValue
+                )
+            }
 
             statisticBadge(
                 title: "経過時間",
@@ -105,12 +105,29 @@ private extension GameBoardControlRowView {
     /// 進行度合いを補足する指標群（残りマスなど）
     func supplementaryStatisticsGroup() -> some View {
         statisticsBadgeGroup {
-            statisticBadge(
-                title: "残りマス",
-                value: "\(viewModel.remainingTiles)",
-                accessibilityLabel: "残りマス数",
-                accessibilityValue: "残り\(viewModel.remainingTiles)マス"
-            )
+            if viewModel.usesTargetCollection {
+                statisticBadge(
+                    title: "目的地",
+                    value: "\(viewModel.capturedTargetCount)/\(viewModel.targetGoalCount)",
+                    accessibilityLabel: "目的地獲得数",
+                    accessibilityValue: "\(viewModel.targetGoalCount)個中\(viewModel.capturedTargetCount)個獲得"
+                )
+            } else {
+                statisticBadge(
+                    title: "残りマス",
+                    value: "\(viewModel.remainingTiles)",
+                    accessibilityLabel: "残りマス数",
+                    accessibilityValue: "残り\(viewModel.remainingTiles)マス"
+                )
+            }
+        }
+    }
+
+    var penaltyAccessibilityValue: String {
+        if viewModel.penaltyCount == 0 {
+            return "ペナルティなし"
+        } else {
+            return "ペナルティ合計 \(viewModel.penaltyCount)"
         }
     }
 
@@ -198,7 +215,7 @@ private extension GameBoardControlRowView {
         .opacity(isDisabled ? 0.45 : 1.0)
         .disabled(isDisabled)
         .accessibilityIdentifier("manual_penalty_button")
-        .accessibilityLabel(Text("ペナルティを払って手札スロットを引き直す"))
+        .accessibilityLabel(Text(viewModel.usesTargetCollection ? "フォーカスで手札を引き直す" : "ペナルティを払って手札スロットを引き直す"))
         .accessibilityHint(Text(viewModel.manualPenaltyAccessibilityHint))
     }
 

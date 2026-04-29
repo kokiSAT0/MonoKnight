@@ -22,14 +22,14 @@ final class CampaignStagePresentationTests: XCTestCase {
             title: "テストステージ",
             summary: "summary",
             regulation: regulation,
-            secondaryObjective: .finishWithinMoves(maxMoves: 7),
+            secondaryObjective: .finishWithFocusAtMostAndWithinMoves(maxFocusCount: 2, maxMoves: 7),
             scoreTarget: 42,
             scoreTargetComparison: .lessThan,
             unlockRequirement: .chapterTotalStars(chapter: 2, minimum: 5)
         )
 
         XCTAssertEqual(stage.displayCode, "2-3")
-        XCTAssertEqual(stage.secondaryObjectiveDescription, "移動 7 手以内でクリア")
+        XCTAssertEqual(stage.secondaryObjectiveDescription, "フォーカス 2 回以内かつ 7 手以内でクリア")
         XCTAssertEqual(stage.scoreTargetDescription, "スコア 42 pt 未満でクリア")
         XCTAssertEqual(stage.unlockDescription, "第2章でスターを合計 5 個集める")
     }
@@ -54,7 +54,7 @@ final class CampaignStagePresentationTests: XCTestCase {
             title: "評価テスト",
             summary: "summary",
             regulation: regulation,
-            secondaryObjective: .finishWithPenaltyAtMostAndWithinMoves(maxPenaltyCount: 1, maxMoves: 5),
+            secondaryObjective: .finishWithFocusAtMostAndWithinMoves(maxFocusCount: 1, maxMoves: 5),
             scoreTarget: 30,
             scoreTargetComparison: .lessThanOrEqual,
             unlockRequirement: .always
@@ -62,10 +62,12 @@ final class CampaignStagePresentationTests: XCTestCase {
         let metrics = CampaignStageClearMetrics(
             moveCount: 4,
             penaltyCount: 1,
+            focusCount: 1,
             elapsedSeconds: 25,
             totalMoveCount: 5,
             score: 30,
-            hasRevisitedTile: false
+            hasRevisitedTile: false,
+            capturedTargetCount: 4
         )
 
         let evaluation = stage.evaluateClear(with: metrics)

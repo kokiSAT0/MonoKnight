@@ -40,7 +40,7 @@ extension RootView {
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: LayoutMetrics.sectionSpacing) {
                         headerSection
-                        penaltySection
+                        ruleCostSection
                         campaignSummarySection
                         controlSection
                     }
@@ -99,9 +99,9 @@ extension RootView {
             }
         }
 
-        private var penaltySection: some View {
-            InfoSection(title: "ペナルティ") {
-                ForEach(penaltyItems, id: \.self) { item in
+        private var ruleCostSection: some View {
+            InfoSection(title: mode.usesTargetCollection ? "スコア要素" : "ペナルティ") {
+                ForEach(ruleCostItems, id: \.self) { item in
                     bulletRow(text: item)
                 }
             }
@@ -178,8 +178,17 @@ extension RootView {
             }
         }
 
-        private var penaltyItems: [String] {
-            [
+        private var ruleCostItems: [String] {
+            if mode.usesTargetCollection {
+                return [
+                    "目的地 \(mode.targetGoalCount) 個でクリア",
+                    "フォーカス 1回につきスコア +15",
+                    mode.manualDiscardPenaltyCost > 0 ? "捨て札 +\(mode.manualDiscardPenaltyCost) 手" : "捨て札 ペナルティなし",
+                    mode.revisitPenaltyCost > 0 ? "再訪 +\(mode.revisitPenaltyCost) 手" : "再訪ペナルティなし"
+                ]
+            }
+
+            return [
                 mode.deadlockPenaltyCost > 0 ? "手詰まり +\(mode.deadlockPenaltyCost) 手" : "手詰まり ペナルティなし",
                 mode.manualRedrawPenaltyCost > 0 ? "引き直し +\(mode.manualRedrawPenaltyCost) 手" : "引き直し ペナルティなし",
                 mode.manualDiscardPenaltyCost > 0 ? "捨て札 +\(mode.manualDiscardPenaltyCost) 手" : "捨て札 ペナルティなし",

@@ -205,6 +205,8 @@ struct GameView: View {
             ResultView(
                 moveCount: viewModel.moveCount,
                 penaltyCount: viewModel.penaltyCount,
+                focusCount: viewModel.focusCount,
+                usesTargetCollection: viewModel.usesTargetCollection,
                 elapsedSeconds: viewModel.elapsedSeconds,
                 modeIdentifier: viewModel.mode.identifier,
                 modeDisplayName: viewModel.mode.displayName,

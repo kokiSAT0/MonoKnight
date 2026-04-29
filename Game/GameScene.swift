@@ -11,6 +11,8 @@
         case guideMultiStepCandidate
         case guideWarpCandidate
         case forcedSelection
+        case currentTarget
+        case upcomingTarget
     }
 
     public protocol GameCoreProtocol: AnyObject {
@@ -34,6 +36,8 @@
         private let highlightRenderer = GameSceneHighlightRenderer()
         private let knightAnimator = GameSceneKnightAnimator()
         private var pendingBoard: Board?
+        private var currentTargetPoints: Set<GridPoint> = []
+        private var upcomingTargetPoints: Set<GridPoint> = []
 
         #if canImport(UIKit)
             private let accessibilitySupport = GameSceneAccessibilitySupport()
@@ -177,6 +181,8 @@
         }
 
         public func updateHighlights(_ highlights: [BoardHighlightKind: Set<GridPoint>]) {
+            currentTargetPoints = highlights[.currentTarget] ?? []
+            upcomingTargetPoints = highlights[.upcomingTarget] ?? []
             highlightRenderer.updateHighlights(
                 highlights,
                 board: board,
@@ -185,6 +191,7 @@
                 palette: palette,
                 isLayoutReady: isLayoutReady
             )
+            updateAccessibilityElements()
         }
 
         public func updateGuideHighlights(_ points: Set<GridPoint>) {
@@ -371,6 +378,8 @@
                 accessibilitySupport.update(
                     board: board,
                     knightPosition: knightAnimator.knightPosition,
+                    currentTargetPoints: currentTargetPoints,
+                    upcomingTargetPoints: upcomingTargetPoints,
                     layout: layoutSupport,
                     owner: self
                 )

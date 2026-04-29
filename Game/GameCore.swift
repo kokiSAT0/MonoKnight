@@ -87,13 +87,26 @@ public final class GameCore: ObservableObject {
     /// クリアまでに要した経過秒数
     /// - Note: クリア確定時に計測し、リセット時に 0 へ戻す
     @Published public private(set) var elapsedSeconds: Int = 0
+    /// 現在狙う目的地。目的地制ではこのマスに到達すると獲得数が増える
+    @Published public private(set) var targetPoint: GridPoint?
+    /// 次に出現する目的地の先読み
+    @Published public private(set) var upcomingTargetPoints: [GridPoint] = []
+    /// 目的地を獲得した数
+    @Published public private(set) var capturedTargetCount: Int = 0
+    /// フォーカスを使った回数
+    @Published public private(set) var focusCount: Int = 0
     /// 合計手数（移動 + ペナルティ）の計算プロパティ
     /// - Note: 将来的に別レギュレーションで利用する可能性があるため個別に保持
     public var totalMoveCount: Int { moveCount + penaltyCount }
 
     /// ポイント計算結果（小さいほど良い）
-    /// - Note: 「手数×10 + 所要秒数」の規則に基づく
-    public var score: Int { totalMoveCount * 10 + elapsedSeconds }
+    /// - Note: 目的地制ではフォーカス回数を軽く加算し、従来モードでは既存式を維持する
+    public var score: Int {
+        if mode.usesTargetCollection {
+            return moveCount * 10 + elapsedSeconds + focusCount * 15
+        }
+        return totalMoveCount * 10 + elapsedSeconds
+    }
     /// プレイ中の経過秒数をリアルタイムで取得する計算プロパティ
     /// - Note: クリア済みかどうかに応じて `GameSessionTimer` へ計算を委譲する。
     public var liveElapsedSeconds: Int {
@@ -101,7 +114,16 @@ public final class GameCore: ObservableObject {
     }
     /// 未踏破マスの残り数を UI へ公開する計算プロパティ
 
-    public var remainingTiles: Int { board.remainingCount }
+    public var remainingTiles: Int {
+        mode.usesTargetCollection ? remainingTargetCount : board.remainingCount
+    }
+    /// 目的地制における残り目標数
+    public var remainingTargetCount: Int {
+        guard mode.usesTargetCollection else { return 0 }
+        return max(mode.targetGoalCount - capturedTargetCount, 0)
+    }
+    /// 目的地制の目標獲得数
+    public var targetGoalCount: Int { mode.targetGoalCount }
 
     /// 山札管理（`Deck.swift` に定義された重み付き無限山札を使用）
     private var deck: Deck
@@ -379,7 +401,14 @@ public final class GameCore: ObservableObject {
         }
 
         // クリア判定
-        if board.isCleared {
+        if mode.usesTargetCollection {
+            applyTargetCaptureIfNeeded(at: finalPosition)
+            if capturedTargetCount >= mode.targetGoalCount {
+                finalizeElapsedTimeIfNeeded()
+                progress = .cleared
+                return
+            }
+        } else if board.isCleared {
             // クリア時点の経過秒数を確定させる
             finalizeElapsedTimeIfNeeded()
             progress = .cleared
@@ -549,6 +578,9 @@ public final class GameCore: ObservableObject {
         penaltyCount = 0
         hasRevisitedTile = false
         elapsedSeconds = 0
+        capturedTargetCount = 0
+        focusCount = 0
+        configureTargetsForNewSession()
         penaltyEvent = nil
         boardTapPlayRequest = nil
         isAwaitingManualDiscardSelection = false
@@ -608,6 +640,212 @@ public final class GameCore: ObservableObject {
 
         // デバッグ目的で計測結果をログに残す
         debugLog("クリア所要時間: \(elapsedSeconds) 秒")
+    }
+
+    /// 新規セッション用に目的地制の状態を初期化する
+    private func configureTargetsForNewSession() {
+        guard mode.usesTargetCollection, let origin = current else {
+            targetPoint = nil
+            upcomingTargetPoints = []
+            return
+        }
+
+        let first = chooseNextTarget(from: origin, previousTarget: nil, offset: 0)
+        targetPoint = first
+        upcomingTargetPoints = makeUpcomingTargets(
+            from: origin,
+            currentTarget: first,
+            count: 2
+        )
+    }
+
+    /// 目的地へ到達していれば獲得処理と次目的地の更新を行う
+    private func applyTargetCaptureIfNeeded(at finalPosition: GridPoint) {
+        guard mode.usesTargetCollection, finalPosition == targetPoint else { return }
+
+        capturedTargetCount += 1
+        debugLog("目的地獲得: \(capturedTargetCount)/\(mode.targetGoalCount) @\(finalPosition)")
+
+        guard capturedTargetCount < mode.targetGoalCount else {
+            targetPoint = nil
+            upcomingTargetPoints = []
+            return
+        }
+
+        let previousTarget = targetPoint
+        if !upcomingTargetPoints.isEmpty {
+            targetPoint = upcomingTargetPoints.removeFirst()
+        } else {
+            targetPoint = chooseNextTarget(from: finalPosition, previousTarget: previousTarget, offset: capturedTargetCount)
+        }
+
+        while upcomingTargetPoints.count < 2 {
+            let anchor = upcomingTargetPoints.last ?? targetPoint ?? finalPosition
+            var excludedTargets = Set(upcomingTargetPoints)
+            excludedTargets.insert(finalPosition)
+            if let targetPoint {
+                excludedTargets.insert(targetPoint)
+            }
+            let next = chooseNextTarget(
+                from: anchor,
+                previousTarget: upcomingTargetPoints.last ?? targetPoint,
+                offset: capturedTargetCount + upcomingTargetPoints.count + 1,
+                avoiding: excludedTargets
+            )
+            upcomingTargetPoints.append(next)
+        }
+    }
+
+    /// 先読み用の目的地列を作る
+    private func makeUpcomingTargets(
+        from origin: GridPoint,
+        currentTarget: GridPoint?,
+        count: Int
+    ) -> [GridPoint] {
+        guard count > 0 else { return [] }
+        var result: [GridPoint] = []
+        var anchor = currentTarget ?? origin
+        var previous = currentTarget
+        var used = Set([origin])
+        if let currentTarget {
+            used.insert(currentTarget)
+        }
+
+        while result.count < count {
+            var next = chooseNextTarget(
+                from: anchor,
+                previousTarget: previous,
+                offset: result.count + 1,
+                avoiding: used
+            )
+            var retryOffset = result.count + 2
+            while used.contains(next), retryOffset < 32 {
+                next = chooseNextTarget(
+                    from: anchor,
+                    previousTarget: previous,
+                    offset: retryOffset,
+                    avoiding: used
+                )
+                retryOffset += 1
+            }
+            result.append(next)
+            used.insert(next)
+            previous = next
+            anchor = next
+        }
+
+        return result
+    }
+
+    /// 現在地から近すぎず遠すぎない目的地を決定する
+    private func chooseNextTarget(
+        from origin: GridPoint,
+        previousTarget: GridPoint?,
+        offset: Int,
+        avoiding additionalExcludedPoints: Set<GridPoint> = []
+    ) -> GridPoint {
+        let allPoints = board.allTraversablePoints.sorted { lhs, rhs in
+            if lhs.y != rhs.y { return lhs.y < rhs.y }
+            return lhs.x < rhs.x
+        }
+
+        let preferred = allPoints.filter { point in
+            guard point != origin, point != previousTarget else { return false }
+            guard !additionalExcludedPoints.contains(point) else { return false }
+            let distance = manhattanDistance(from: origin, to: point)
+            return (2...4).contains(distance)
+        }
+        let fallback = allPoints.filter { point in
+            point != origin && point != previousTarget && !additionalExcludedPoints.contains(point)
+        }
+        let candidates = preferred.isEmpty ? fallback : preferred
+        guard !candidates.isEmpty else { return origin }
+
+        let seed = capturedTargetCount * 7 + origin.x * 3 + origin.y * 5 + offset * 11
+        let index = abs(seed) % candidates.count
+        return candidates[index]
+    }
+
+    /// フォーカス操作として、目的地に近づきやすいカードを優先して再配布する
+    public func applyFocusRedraw() {
+        guard mode.usesTargetCollection else {
+            applyManualPenaltyRedraw()
+            return
+        }
+        guard progress == .playing || progress == .awaitingSpawn else { return }
+
+        focusCount += 1
+        rebuildFocusedHandAndNext()
+        checkDeadlockAndApplyPenaltyIfNeeded(lastPaidPenaltyAmount: 0)
+    }
+
+    /// 目的地に近づくカードを優先して手札と NEXT を組み直す
+    func rebuildFocusedHandAndNext() {
+        guard mode.usesTargetCollection, let origin = current, let target = targetPoint else {
+            rebuildHandAndNext()
+            return
+        }
+
+        setManualDiscardSelectionState(false)
+        resetBoardTapPlayRequestForPenalty()
+
+        var drawn: [DealtCard] = deck.draw(count: 48)
+        if drawn.isEmpty {
+            rebuildHandAndNext()
+            return
+        }
+
+        drawn.sort { lhs, rhs in
+            let lhsScore = targetApproachScore(for: lhs, from: origin, target: target)
+            let rhsScore = targetApproachScore(for: rhs, from: origin, target: target)
+            if lhsScore.improvement != rhsScore.improvement {
+                return lhsScore.improvement > rhsScore.improvement
+            }
+            if lhsScore.bestDistance != rhsScore.bestDistance {
+                return lhsScore.bestDistance < rhsScore.bestDistance
+            }
+            return lhs.move.displayName < rhs.move.displayName
+        }
+
+        handManager.resetAll(prioritizing: drawn, using: &deck)
+        refreshHandStateFromManager()
+        debugLog("フォーカス再配布: focusCount=\(focusCount), target=\(target)")
+    }
+
+    /// 指定カードが目的地へどれだけ近づけるかを評価する
+    private func targetApproachScore(
+        for card: DealtCard,
+        from origin: GridPoint,
+        target: GridPoint
+    ) -> (improvement: Int, bestDistance: Int) {
+        let currentDistance = manhattanDistance(from: origin, to: target)
+        let activeBoard = board
+
+        if card.move == .fixedWarp, let destination = card.fixedWarpDestination {
+            guard destination != origin,
+                  activeBoard.contains(destination),
+                  activeBoard.isTraversable(destination) else {
+                return (Int.min, Int.max)
+            }
+            let distance = manhattanDistance(from: destination, to: target)
+            return (currentDistance - distance, distance)
+        }
+
+        let context = MoveCard.MovePattern.ResolutionContext(
+            boardSize: activeBoard.size,
+            contains: { point in activeBoard.contains(point) },
+            isTraversable: { point in activeBoard.isTraversable(point) },
+            isVisited: { point in activeBoard.isVisited(point) }
+        )
+        let destinations = card.move.resolvePaths(from: origin, context: context).compactMap(\.traversedPoints.last)
+        guard let bestDistance = destinations.map({ manhattanDistance(from: $0, to: target) }).min() else {
+            return (Int.min, Int.max)
+        }
+        return (currentDistance - bestDistance, bestDistance)
+    }
+
+    private func manhattanDistance(from lhs: GridPoint, to rhs: GridPoint) -> Int {
+        abs(lhs.x - rhs.x) + abs(lhs.y - rhs.y)
     }
 }
 
@@ -671,6 +909,7 @@ extension GameCore {
         debugLog("スポーン位置を \(point) に確定")
         current = point
         board.markVisited(point)
+        configureTargetsForNewSession()
         progress = .playing
         announceRemainingTiles()
         checkDeadlockAndApplyPenaltyIfNeeded()
@@ -758,6 +997,9 @@ extension GameCore {
         core.moveCount = 0
         core.penaltyCount = 0
         core.hasRevisitedTile = false
+        core.capturedTargetCount = 0
+        core.focusCount = 0
+        core.configureTargetsForNewSession()
         core.progress = (resolvedCurrent == nil && mode.requiresSpawnSelection) ? .awaitingSpawn : .playing
 
         core.handManager.resetAll(using: &core.deck)
@@ -769,6 +1011,19 @@ extension GameCore {
         core.resetTimer()
         core.isAwaitingManualDiscardSelection = false
         return core
+    }
+
+    /// テスト用に目的地制の状態を直接差し替える
+    func overrideTargetStateForTesting(
+        targetPoint: GridPoint?,
+        upcomingTargetPoints: [GridPoint] = [],
+        capturedTargetCount: Int = 0,
+        focusCount: Int = 0
+    ) {
+        self.targetPoint = targetPoint
+        self.upcomingTargetPoints = upcomingTargetPoints
+        self.capturedTargetCount = capturedTargetCount
+        self.focusCount = focusCount
     }
 
     /// テスト用に手数・ペナルティ・経過秒数を任意の値へ調整する

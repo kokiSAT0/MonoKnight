@@ -414,10 +414,12 @@ final class GameFlowCoordinator {
         let metrics = CampaignStageClearMetrics(
             moveCount: core.moveCount,
             penaltyCount: core.penaltyCount,
+            focusCount: core.focusCount,
             elapsedSeconds: core.elapsedSeconds,
             totalMoveCount: core.totalMoveCount,
             score: core.score,
-            hasRevisitedTile: core.hasRevisitedTile
+            hasRevisitedTile: core.hasRevisitedTile,
+            capturedTargetCount: core.capturedTargetCount
         )
 
         let record = campaignProgressStore.registerClear(for: stage, metrics: metrics)

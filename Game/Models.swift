@@ -384,6 +384,20 @@ public struct Board: Equatable {
         return tile.isTraversable
     }
 
+    /// 移動可能な全マスを座標配列で返す
+    public var allTraversablePoints: [GridPoint] {
+        var points: [GridPoint] = []
+        for y in 0..<size {
+            for x in 0..<size {
+                let point = GridPoint(x: x, y: y)
+                if isTraversable(point) {
+                    points.append(point)
+                }
+            }
+        }
+        return points
+    }
+
     /// 指定座標が移動不可マスかどうか
     /// - Parameter point: 判定したい座標
     /// - Returns: 盤面内に存在し、障害物であれば true
@@ -546,4 +560,3 @@ extension Board {
     }
 }
 #endif
-

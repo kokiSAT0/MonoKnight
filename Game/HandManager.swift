@@ -135,6 +135,19 @@ public final class HandManager: ObservableObject {
         rebuildHandAndPreview(using: &deck)
     }
 
+    /// 指定カードを優先して手札と先読みを再構成する
+    /// - Parameters:
+    ///   - prioritizedCards: 先頭から優先して配るカード
+    ///   - deck: 優先カードで不足したぶんを補う山札
+    func resetAll(prioritizing prioritizedCards: [DealtCard], using deck: inout Deck) {
+        clearAll()
+        nextCards = prioritizedCards
+        rebuildHandAndPreview(using: &deck)
+        if nextCards.count > nextPreviewCount {
+            nextCards = Array(nextCards.prefix(nextPreviewCount))
+        }
+    }
+
     /// NEXT キューを優先的に使いながら空きスロットへカードを補充する
     /// - Parameters:
     ///   - deck: ドロー元となる山札

@@ -16,6 +16,10 @@ extension CampaignStage.SecondaryObjective {
             return !metrics.hasRevisitedTile
         case .finishWithPenaltyAtMostAndWithinMoves(let maxPenaltyCount, let maxMoves):
             return metrics.penaltyCount <= maxPenaltyCount && metrics.moveCount <= maxMoves
+        case .finishWithFocusAtMost(let maxFocusCount):
+            return metrics.focusCount <= maxFocusCount
+        case .finishWithFocusAtMostAndWithinMoves(let maxFocusCount, let maxMoves):
+            return metrics.focusCount <= maxFocusCount && metrics.moveCount <= maxMoves
         }
     }
 }

@@ -130,6 +130,47 @@ public struct GameMode: Equatable, Identifiable {
         }
     }
 
+    /// ゲームの完了条件を表す設定
+    public enum CompletionRule: Equatable, Codable {
+        /// 従来通り、踏破対象マスをすべて踏むとクリア
+        case boardClear
+        /// 目的地を指定数獲得するとクリア
+        case targetCollection(goalCount: Int)
+
+        private enum CodingKeys: String, CodingKey {
+            case type
+            case goalCount
+        }
+
+        private enum Kind: String, Codable {
+            case boardClear
+            case targetCollection
+        }
+
+        public init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            let kind = try container.decode(Kind.self, forKey: .type)
+            switch kind {
+            case .boardClear:
+                self = .boardClear
+            case .targetCollection:
+                let goalCount = try container.decode(Int.self, forKey: .goalCount)
+                self = .targetCollection(goalCount: goalCount)
+            }
+        }
+
+        public func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            switch self {
+            case .boardClear:
+                try container.encode(Kind.boardClear, forKey: .type)
+            case .targetCollection(let goalCount):
+                try container.encode(Kind.targetCollection, forKey: .type)
+                try container.encode(goalCount, forKey: .goalCount)
+            }
+        }
+    }
+
     /// ゲームモードの根幹となるレギュレーション設定
     /// - Note: 盤面サイズや山札構成、手札スロット数などを一括で扱い、新しいモードを追加しやすくする。
     public struct Regulation: Equatable, Codable {
@@ -164,6 +205,8 @@ public struct GameMode: Equatable, Identifiable {
         /// 固定座標ワープカードで利用する目的地候補
         /// - Important: 盤外や障害物マスを事前に除外し、ゲーム中の `availableMoves` での防御的なチェックを補助する
         public internal(set) var fixedWarpCardTargets: [MoveCard: [GridPoint]] = [:]
+        /// クリア条件
+        public var completionRule: CompletionRule
 
         /// レギュレーションを組み立てるためのイニシャライザ
         /// - Parameters:
@@ -187,7 +230,8 @@ public struct GameMode: Equatable, Identifiable {
             impassableTilePoints: Set<GridPoint> = [],
             tileEffectOverrides: [GridPoint: TileEffect] = [:],
             warpTilePairs: [String: [GridPoint]] = [:],
-            fixedWarpCardTargets: [MoveCard: [GridPoint]] = [:]
+            fixedWarpCardTargets: [MoveCard: [GridPoint]] = [:],
+            completionRule: CompletionRule = .boardClear
         ) {
             self.boardSize = boardSize
             self.handSize = handSize
@@ -207,6 +251,7 @@ public struct GameMode: Equatable, Identifiable {
                 impassableTilePoints: impassableTilePoints,
                 deckPreset: deckPreset
             )
+            self.completionRule = completionRule
         }
 
         /// Codable 対応のためのキー定義
@@ -224,6 +269,7 @@ public struct GameMode: Equatable, Identifiable {
             case tileEffectOverrides
             case warpTilePairs
             case fixedWarpCardTargets
+            case completionRule
         }
     }
 
@@ -291,6 +337,20 @@ public struct GameMode: Equatable, Identifiable {
     public var deckPreset: GameDeckPreset { regulation.deckPreset }
     /// UI で表示する山札の要約
     public var deckSummaryText: String { regulation.deckPreset.summaryText }
+    /// クリア条件
+    public var completionRule: CompletionRule { regulation.completionRule }
+    /// 目的地制モードかどうか
+    public var usesTargetCollection: Bool {
+        if case .targetCollection = regulation.completionRule { return true }
+        return false
+    }
+    /// 目的地制モードの目標獲得数
+    public var targetGoalCount: Int {
+        if case .targetCollection(let goalCount) = regulation.completionRule {
+            return max(goalCount, 1)
+        }
+        return 0
+    }
 
     /// リーダーボードへスコアを送信する対象かどうか
     public var isLeaderboardEligible: Bool { leaderboardEligible }

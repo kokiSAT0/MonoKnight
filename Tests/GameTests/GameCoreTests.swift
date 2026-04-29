@@ -3,6 +3,30 @@ import XCTest
 
 /// GameCore の主要メソッドを検証するテスト
 final class GameCoreTests: XCTestCase {
+    private static var legacyStandardMode: GameMode {
+        let regulation = GameMode.Regulation(
+            boardSize: BoardGeometry.standardSize,
+            handSize: 5,
+            nextPreviewCount: 3,
+            allowsStacking: true,
+            deckPreset: .standard,
+            spawnRule: .fixed(BoardGeometry.defaultSpawnPoint(for: BoardGeometry.standardSize)),
+            penalties: GameMode.PenaltySettings(
+                deadlockPenaltyCost: 3,
+                manualRedrawPenaltyCost: 2,
+                manualDiscardPenaltyCost: 1,
+                revisitPenaltyCost: 0
+            ),
+            completionRule: .boardClear
+        )
+        return GameMode(
+            identifier: .freeCustom,
+            displayName: "旧スタンダード検証",
+            regulation: regulation,
+            leaderboardEligible: false
+        )
+    }
+
     /// 手札が全て盤外となった場合にペナルティが加算されるかを確認
     func testDeadlockPenaltyApplied() {
         // --- テスト用デッキ構築 ---
@@ -30,7 +54,11 @@ final class GameCoreTests: XCTestCase {
             .knightUp2Right1
         ])
         // 左下隅 (0,0) から開始し、全手札が盤外となる状況を用意
-        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 0, y: 0))
+        let core = GameCore.makeTestInstance(
+            deck: deck,
+            current: GridPoint(x: 0, y: 0),
+            mode: Self.legacyStandardMode
+        )
 
         // ペナルティが +3 されているか
         XCTAssertEqual(core.penaltyCount, 3, "手詰まり時にペナルティが加算されていない")
@@ -62,7 +90,11 @@ final class GameCoreTests: XCTestCase {
             .straightLeft2,
             .straightDown2
         ])
-        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 0, y: 0))
+        let core = GameCore.makeTestInstance(
+            deck: deck,
+            current: GridPoint(x: 0, y: 0),
+            mode: Self.legacyStandardMode
+        )
 
         let moves = core.availableMoves()
         XCTAssertEqual(moves.map { $0.destination }, [
@@ -152,7 +184,11 @@ final class GameCoreTests: XCTestCase {
         ])
 
         // 左下隅 (0,0) から開始し、連続手詰まりを強制
-        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 0, y: 0))
+        let core = GameCore.makeTestInstance(
+            deck: deck,
+            current: GridPoint(x: 0, y: 0),
+            mode: Self.legacyStandardMode
+        )
 
         // ペナルティは最初の支払いのみで +3 に留まるか
         XCTAssertEqual(core.penaltyCount, 3, "連続手詰まりでも追加ペナルティが加算されている")
@@ -961,13 +997,334 @@ final class GameCoreTests: XCTestCase {
         XCTAssertEqual(core.handStacks.compactMap { $0.topCard?.move }, expected, "カード使用後の方向ソート結果が期待と異なります")
     }
 
-    /// スコア計算が「手数×10 + 経過秒数」で行われることを確認
+    /// 目的地を踏むと獲得数が増え、次の目的地へ進むことを確認
+    func testTargetCaptureAdvancesTargetQueue() {
+        let deck = Deck.makeTestDeck(cards: [
+            .kingRight, .kingUp, .kingLeft, .kingDown, .straightUp2,
+            .straightRight2, .straightLeft2, .straightDown2
+        ])
+        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 2, y: 2))
+        core.overrideTargetStateForTesting(
+            targetPoint: GridPoint(x: 3, y: 2),
+            upcomingTargetPoints: [GridPoint(x: 3, y: 3), GridPoint(x: 1, y: 2)]
+        )
+
+        guard let move = core.availableMoves().first(where: { $0.destination == GridPoint(x: 3, y: 2) }) else {
+            return XCTFail("目的地へ移動できるカードが見つかりません")
+        }
+        core.playCard(using: move)
+
+        XCTAssertEqual(core.capturedTargetCount, 1)
+        XCTAssertEqual(core.targetPoint, GridPoint(x: 3, y: 3))
+        XCTAssertEqual(core.upcomingTargetPoints.count, 2)
+        XCTAssertEqual(core.progress, .playing)
+    }
+
+    /// 全マス踏破していなくても、目的地を規定数獲得すればクリアすることを確認
+    func testTargetCollectionClearsBeforeBoardClear() {
+        let deck = Deck.makeTestDeck(cards: [
+            .kingRight, .kingUp, .kingLeft, .kingDown, .straightUp2,
+            .straightRight2, .straightLeft2, .straightDown2
+        ])
+        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 2, y: 2))
+        core.overrideTargetStateForTesting(
+            targetPoint: GridPoint(x: 3, y: 2),
+            capturedTargetCount: core.targetGoalCount - 1
+        )
+
+        guard let move = core.availableMoves().first(where: { $0.destination == GridPoint(x: 3, y: 2) }) else {
+            return XCTFail("最後の目的地へ移動できるカードが見つかりません")
+        }
+        core.playCard(using: move)
+
+        XCTAssertEqual(core.progress, .cleared)
+        XCTAssertGreaterThan(core.board.remainingCount, 0, "全踏破前でも目的地制ではクリアできる想定です")
+    }
+
+    /// キャンペーンステージでも目的地獲得数をクリア条件として扱うことを確認
+    func testCampaignTargetCollectionClearsWithStageGoal() {
+        let stage = CampaignLibrary.shared.stage(with: CampaignStageID(chapter: 1, index: 1))!
+        let mode = stage.makeGameMode()
+        let deck = Deck.makeTestDeck(cards: [
+            .kingRight, .kingUp, .kingLeft, .kingDown, .kingRight,
+            .kingUp, .kingLeft, .kingDown
+        ])
+        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 1, y: 1), mode: mode)
+        core.overrideTargetStateForTesting(
+            targetPoint: GridPoint(x: 2, y: 1),
+            capturedTargetCount: mode.targetGoalCount - 1
+        )
+
+        guard let move = core.availableMoves().first(where: { $0.destination == GridPoint(x: 2, y: 1) }) else {
+            return XCTFail("キャンペーン目的地へ移動できるカードが見つかりません")
+        }
+        core.playCard(using: move)
+
+        XCTAssertEqual(core.progress, .cleared)
+        XCTAssertEqual(core.capturedTargetCount, mode.targetGoalCount)
+    }
+
+    /// 目的地生成が現在地と直前目的地を避けることを確認
+    func testTargetGenerationAvoidsCurrentAndPreviousTarget() {
+        let core = GameCore()
+
+        XCTAssertNotEqual(core.targetPoint, core.current)
+        XCTAssertEqual(core.upcomingTargetPoints.count, 2)
+        XCTAssertFalse(core.upcomingTargetPoints.contains { $0 == core.targetPoint })
+        XCTAssertFalse(core.upcomingTargetPoints.contains { $0 == core.current }, "先読み目的地が駒の下に隠れないよう、現在地も避けます")
+    }
+
+    /// 障害物があるキャンペーンでも目的地生成が移動不能マスを避けることを確認
+    func testTargetGenerationAvoidsImpassableTilesInCampaignMode() {
+        let stage = CampaignLibrary.shared.stage(with: CampaignStageID(chapter: 5, index: 1))!
+        let core = GameCore(mode: stage.makeGameMode())
+        let targets = [core.targetPoint].compactMap { $0 } + core.upcomingTargetPoints
+
+        XCTAssertFalse(targets.isEmpty)
+        XCTAssertTrue(targets.allSatisfy { !stage.regulation.impassableTilePoints.contains($0) })
+    }
+
+    /// 任意スポーンの目的地制ステージでは、開始位置確定後に目的地を生成する
+    func testTargetCollectionSpawnSelectionInitializesTargets() {
+        let mode = GameMode(
+            identifier: .freeCustom,
+            displayName: "任意スポーン目的地テスト",
+            regulation: GameMode.Regulation(
+                boardSize: BoardGeometry.standardSize,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .standard,
+                spawnRule: .chooseAnyAfterPreview,
+                penalties: GameMode.PenaltySettings(
+                    deadlockPenaltyCost: 0,
+                    manualRedrawPenaltyCost: 0,
+                    manualDiscardPenaltyCost: 1,
+                    revisitPenaltyCost: 0
+                ),
+                completionRule: .targetCollection(goalCount: 6)
+            )
+        )
+        let core = GameCore(mode: mode)
+        let spawn = GridPoint(x: 0, y: 0)
+
+        XCTAssertNil(core.targetPoint, "スポーン選択前は現在地がないため目的地を持たない想定です")
+
+        core.simulateSpawnSelection(forTesting: spawn)
+
+        XCTAssertEqual(core.progress, GameProgress.playing)
+        XCTAssertNotNil(core.targetPoint, "スポーン選択後に現在目的地が生成される必要があります")
+        XCTAssertNotEqual(core.targetPoint, spawn, "現在地と同じマスを目的地にしてはいけません")
+        XCTAssertEqual(core.upcomingTargetPoints.count, 2, "先読み目的地もスポーン確定後に生成します")
+        XCTAssertFalse(core.upcomingTargetPoints.contains(spawn), "スポーン直後の先読み目的地が駒の下に隠れないようにします")
+    }
+
+    /// 安定化QA対象の標準モードが目的地制として完走できることを確認
+    func testStandardTargetCollectionCanBeClearedByQaAutoplay() {
+        let result = runTargetQaAutoplay(mode: .standard)
+
+        XCTAssertEqual(result.progress, GameProgress.cleared)
+        XCTAssertEqual(result.capturedTargetCount, result.targetGoalCount)
+        XCTAssertLessThanOrEqual(result.moveCount, 120, "標準モードが長引きすぎています")
+        XCTAssertLessThanOrEqual(result.focusCount, 24, "フォーカス待ちが多すぎます")
+    }
+
+    /// 序盤キャンペーン代表面が目的地制として完走できることを確認
+    func testEarlyCampaignRepresentativeStagesCanBeClearedByQaAutoplay() {
+        let stageIDs = [
+            CampaignStageID(chapter: 1, index: 1),
+            CampaignStageID(chapter: 1, index: 4),
+            CampaignStageID(chapter: 1, index: 8),
+            CampaignStageID(chapter: 2, index: 1),
+            CampaignStageID(chapter: 2, index: 8),
+        ]
+
+        for stageID in stageIDs {
+            guard let stage = CampaignLibrary.shared.stage(with: stageID) else {
+                XCTFail("\(stageID.displayCode) が見つかりません")
+                continue
+            }
+
+            let result = runTargetQaAutoplay(mode: stage.makeGameMode())
+            XCTAssertEqual(result.progress, GameProgress.cleared, "\(stage.displayCode) が完走できません")
+            XCTAssertEqual(result.capturedTargetCount, result.targetGoalCount, "\(stage.displayCode) の目的地獲得数が不足しています")
+            XCTAssertLessThanOrEqual(result.moveCount, max(stage.makeGameMode().targetGoalCount * 10, 60), "\(stage.displayCode) が長引きすぎています")
+            XCTAssertLessThanOrEqual(result.focusCount, max(stage.makeGameMode().targetGoalCount * 3, 12), "\(stage.displayCode) のフォーカス回数が多すぎます")
+        }
+    }
+
+    /// フォーカスが目的地へ近づくカードを優先し、スコア用カウントを増やすことを確認
+    func testFocusRedrawPrioritizesCardsTowardTarget() {
+        let deck = Deck.makeTestDeck(cards: [
+            .kingUp, .kingLeft, .kingDown, .straightUp2, .straightLeft2,
+            .straightDown2, .diagonalUpLeft2, .diagonalDownLeft2,
+            .straightLeft2, .kingDown, .kingRight, .straightRight2, .kingUpRight,
+            .kingDownRight, .knightUp1Right2, .knightDown1Right2, .kingUp
+        ])
+        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 2, y: 2))
+        core.overrideTargetStateForTesting(targetPoint: GridPoint(x: 3, y: 2))
+
+        core.applyFocusRedraw()
+
+        XCTAssertEqual(core.focusCount, 1)
+        XCTAssertEqual(core.nextCards.count, 3)
+        XCTAssertTrue(
+            core.availableMoves().contains { $0.destination == GridPoint(x: 3, y: 2) },
+            "フォーカス後は現在目的地へ進める候補が手札に入る想定です"
+        )
+    }
+
+    /// 目的地制の手詰まりはペナルティではなくフォーカス寄り再配布で回復することを確認
+    func testTargetDeadlockUsesFocusedRedrawWithoutPenalty() {
+        let deck = Deck.makeTestDeck(cards: [
+            .diagonalDownLeft2, .straightLeft2, .straightDown2, .knightDown2Right1, .knightDown2Left1,
+            .diagonalUpLeft2, .straightUp2, .kingUp,
+            .kingRight, .kingUp, .straightRight2, .kingUpRight, .knightUp1Right2
+        ])
+        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 0, y: 0))
+        core.overrideTargetStateForTesting(targetPoint: GridPoint(x: 1, y: 0))
+        core.checkDeadlockAndApplyPenaltyIfNeeded()
+
+        XCTAssertEqual(core.penaltyCount, 0)
+        XCTAssertTrue(
+            core.availableMoves().contains { $0.destination == GridPoint(x: 1, y: 0) },
+            "手詰まり回復後は目的地へ近づける候補が必要です"
+        )
+    }
+
+    /// 目的地制のスコア計算が「移動×10 + 経過秒数 + フォーカス×15」で行われることを確認
     func testScoreCalculationUsesPointsFormula() {
         let core = GameCore()
         // テスト用に任意のメトリクスを設定
         core.overrideMetricsForTesting(moveCount: 12, penaltyCount: 5, elapsedSeconds: 37)
+        core.overrideTargetStateForTesting(targetPoint: core.targetPoint, focusCount: 5)
 
-        XCTAssertEqual(core.totalMoveCount, 17, "合計手数の算出が期待値と異なる")
-        XCTAssertEqual(core.score, 207, "ポイント計算が仕様と一致していない")
+        XCTAssertEqual(core.totalMoveCount, 17, "旧式の合計手数は互換値として保持する")
+        XCTAssertEqual(core.score, 232, "目的地制のポイント計算が仕様と一致していない")
+    }
+
+    /// キャンペーン評価でフォーカス回数がスター条件に反映されることを確認
+    func testCampaignEvaluationUsesFocusCount() {
+        let stage = CampaignStage(
+            id: CampaignStageID(chapter: 9, index: 1),
+            title: "フォーカス評価",
+            summary: "summary",
+            regulation: GameMode.standard.regulationSnapshot,
+            secondaryObjective: .finishWithFocusAtMost(maxFocusCount: 2),
+            scoreTarget: 300,
+            unlockRequirement: .always
+        )
+
+        let achieved = CampaignStageClearMetrics(
+            moveCount: 12,
+            penaltyCount: 0,
+            focusCount: 2,
+            elapsedSeconds: 30,
+            totalMoveCount: 12,
+            score: 180,
+            hasRevisitedTile: false,
+            capturedTargetCount: 12
+        )
+        let missed = CampaignStageClearMetrics(
+            moveCount: 12,
+            penaltyCount: 0,
+            focusCount: 3,
+            elapsedSeconds: 30,
+            totalMoveCount: 12,
+            score: 195,
+            hasRevisitedTile: false,
+            capturedTargetCount: 12
+        )
+
+        XCTAssertTrue(stage.evaluateClear(with: achieved).achievedSecondaryObjective)
+        XCTAssertFalse(stage.evaluateClear(with: missed).achievedSecondaryObjective)
+    }
+}
+
+private extension GameCoreTests {
+    struct TargetQaAutoplayResult {
+        let progress: GameProgress
+        let capturedTargetCount: Int
+        let targetGoalCount: Int
+        let moveCount: Int
+        let focusCount: Int
+    }
+
+    func runTargetQaAutoplay(mode: GameMode, maxTurns: Int = 240) -> TargetQaAutoplayResult {
+        let core = GameCore(mode: mode)
+
+        if core.progress == .awaitingSpawn {
+            core.simulateSpawnSelection(forTesting: preferredQaSpawnPoint(for: core))
+        }
+
+        var focusAttemptsSinceMove = 0
+        var lastMoveCount = core.moveCount
+
+        for _ in 0..<maxTurns {
+            if core.progress == .cleared { break }
+
+            guard let target = core.targetPoint else {
+                core.applyFocusRedraw()
+                continue
+            }
+
+            let moves = core.availableMoves()
+            guard let selectedMove = bestQaMove(from: moves, target: target) else {
+                core.applyFocusRedraw()
+                focusAttemptsSinceMove += 1
+                XCTAssertLessThanOrEqual(focusAttemptsSinceMove, 8, "フォーカス後も移動候補が出ません")
+                continue
+            }
+
+            let currentDistance = core.current.map { qaDistance(from: $0, to: target) } ?? Int.max
+            let nextDistance = qaDistance(from: selectedMove.destination, to: target)
+            if nextDistance >= currentDistance, focusAttemptsSinceMove < 2, moves.count > 1 {
+                core.applyFocusRedraw()
+                focusAttemptsSinceMove += 1
+                continue
+            }
+
+            core.playCard(using: selectedMove)
+            if core.moveCount != lastMoveCount {
+                focusAttemptsSinceMove = 0
+                lastMoveCount = core.moveCount
+            }
+        }
+
+        return TargetQaAutoplayResult(
+            progress: core.progress,
+            capturedTargetCount: core.capturedTargetCount,
+            targetGoalCount: core.targetGoalCount,
+            moveCount: core.moveCount,
+            focusCount: core.focusCount
+        )
+    }
+
+    func preferredQaSpawnPoint(for core: GameCore) -> GridPoint {
+        let center = BoardGeometry.defaultSpawnPoint(for: core.mode.boardSize)
+        if core.board.contains(center), core.board.isTraversable(center) {
+            return center
+        }
+
+        return core.board.allTraversablePoints.sorted { lhs, rhs in
+            if lhs.y != rhs.y { return lhs.y < rhs.y }
+            return lhs.x < rhs.x
+        }.first ?? center
+    }
+
+    func bestQaMove(from moves: [ResolvedCardMove], target: GridPoint) -> ResolvedCardMove? {
+        moves.min { lhs, rhs in
+            let lhsDistance = qaDistance(from: lhs.destination, to: target)
+            let rhsDistance = qaDistance(from: rhs.destination, to: target)
+            if lhsDistance != rhsDistance { return lhsDistance < rhsDistance }
+            let lhsPathCount = lhs.resolution.path.count
+            let rhsPathCount = rhs.resolution.path.count
+            if lhsPathCount != rhsPathCount { return lhsPathCount < rhsPathCount }
+            return lhs.stackIndex < rhs.stackIndex
+        }
+    }
+
+    func qaDistance(from origin: GridPoint, to target: GridPoint) -> Int {
+        abs(origin.x - target.x) + abs(origin.y - target.y)
     }
 }

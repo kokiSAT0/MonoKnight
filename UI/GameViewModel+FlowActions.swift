@@ -17,7 +17,7 @@ extension GameViewModel {
     func requestManualPenalty() {
         guard isManualPenaltyButtonEnabled else { return }
         applySessionUIMutation { state in
-            state.requestManualPenalty(cost: core.mode.manualRedrawPenaltyCost)
+            state.requestManualPenalty(cost: core.mode.usesTargetCollection ? -15 : core.mode.manualRedrawPenaltyCost)
         }
     }
 

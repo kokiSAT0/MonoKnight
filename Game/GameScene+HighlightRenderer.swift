@@ -9,6 +9,8 @@
         private var latestMultiStepGuidePoints: Set<GridPoint> = []
         private var latestWarpGuidePoints: Set<GridPoint> = []
         private var latestForcedSelectionPoints: Set<GridPoint> = []
+        private var latestCurrentTargetPoints: Set<GridPoint> = []
+        private var latestUpcomingTargetPoints: Set<GridPoint> = []
         private var pendingHighlightPoints: [BoardHighlightKind: Set<GridPoint>] = [:]
 
         init() {
@@ -27,6 +29,8 @@
             latestMultiStepGuidePoints = []
             latestWarpGuidePoints = []
             latestForcedSelectionPoints = []
+            latestCurrentTargetPoints = []
+            latestUpcomingTargetPoints = []
             pendingHighlightPoints = Dictionary(
                 uniqueKeysWithValues: BoardHighlightKind.allCases.map { ($0, []) }
             )
@@ -120,6 +124,8 @@
                     .guideMultiStepCandidate: latestMultiStepGuidePoints,
                     .guideWarpCandidate: latestWarpGuidePoints,
                     .forcedSelection: latestForcedSelectionPoints,
+                    .currentTarget: latestCurrentTargetPoints,
+                    .upcomingTarget: latestUpcomingTargetPoints,
                 ]
                 let hasLatestValues = latestSnapshot.values.contains { !$0.isEmpty }
                 if hasLatestValues {
@@ -149,6 +155,8 @@
             latestMultiStepGuidePoints = highlights[.guideMultiStepCandidate] ?? []
             latestWarpGuidePoints = highlights[.guideWarpCandidate] ?? []
             latestForcedSelectionPoints = highlights[.forcedSelection] ?? []
+            latestCurrentTargetPoints = highlights[.currentTarget] ?? []
+            latestUpcomingTargetPoints = highlights[.upcomingTarget] ?? []
         }
 
         private func applyHighlightsImmediately(
@@ -289,13 +297,29 @@
                 strokeWidth = max(layout.tileSize * 0.07, 2.4)
                 fillColor = baseColor.withAlphaComponent(0.16)
                 zPosition = 1.1
+            case .currentTarget:
+                baseColor = palette.boardWarpHighlight
+                strokeAlpha = 0
+                strokeWidth = 0
+                fillColor = baseColor.withAlphaComponent(0.86)
+                zPosition = 1.18
+            case .upcomingTarget:
+                baseColor = palette.boardGuideHighlight
+                strokeAlpha = 0
+                strokeWidth = 0
+                fillColor = baseColor.withAlphaComponent(0.44)
+                zPosition = 1.12
             }
 
             let adjustedRect = baseRect.insetBy(
                 dx: strokeWidth / 2 + overlapInset,
                 dy: strokeWidth / 2 + overlapInset
             )
-            node.path = CGPath(rect: adjustedRect, transform: nil)
+            node.path = highlightPath(
+                for: kind,
+                in: adjustedRect,
+                tileSize: layout.tileSize
+            )
             node.fillColor = fillColor
             node.strokeColor = baseColor.withAlphaComponent(strokeAlpha)
             node.lineWidth = strokeWidth
@@ -305,8 +329,49 @@
             node.lineCap = .square
             node.position = layout.position(for: point)
             node.zPosition = zPosition
-            node.isAntialiased = false
+            node.isAntialiased = kind == .currentTarget || kind == .upcomingTarget
             node.blendMode = .alpha
+        }
+
+        private func highlightPath(
+            for kind: BoardHighlightKind,
+            in rect: CGRect,
+            tileSize: CGFloat
+        ) -> CGPath {
+            switch kind {
+            case .currentTarget:
+                return currentTargetMarkerPath(center: CGPoint(x: rect.midX, y: rect.midY), tileSize: tileSize)
+            case .upcomingTarget:
+                return upcomingTargetMarkerPath(center: CGPoint(x: rect.midX, y: rect.midY), tileSize: tileSize)
+            case .guideSingleCandidate,
+                 .guideMultipleCandidate,
+                 .guideMultiStepCandidate,
+                 .guideWarpCandidate,
+                 .forcedSelection:
+                return CGPath(rect: rect, transform: nil)
+            }
+        }
+
+        private func currentTargetMarkerPath(center: CGPoint, tileSize: CGFloat) -> CGPath {
+            let radius = tileSize * 0.22
+            let path = CGMutablePath()
+            path.move(to: CGPoint(x: center.x, y: center.y + radius))
+            path.addLine(to: CGPoint(x: center.x + radius, y: center.y))
+            path.addLine(to: CGPoint(x: center.x, y: center.y - radius))
+            path.addLine(to: CGPoint(x: center.x - radius, y: center.y))
+            path.closeSubpath()
+            return path
+        }
+
+        private func upcomingTargetMarkerPath(center: CGPoint, tileSize: CGFloat) -> CGPath {
+            let side = max(tileSize * 0.18, 8.0)
+            let rect = CGRect(
+                x: center.x - side / 2,
+                y: center.y - side / 2,
+                width: side,
+                height: side
+            )
+            return CGPath(ellipseIn: rect, transform: nil)
         }
     }
 #endif

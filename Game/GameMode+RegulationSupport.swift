@@ -128,6 +128,7 @@ extension GameMode.Regulation {
         let decodedEffects = try container.decodeIfPresent([GridPoint: TileEffect].self, forKey: .tileEffectOverrides) ?? [:]
         let decodedWarpPairs = try container.decodeIfPresent([String: [GridPoint]].self, forKey: .warpTilePairs) ?? [:]
         let rawFixedWarpTargets = try container.decodeIfPresent([String: [GridPoint]].self, forKey: .fixedWarpCardTargets) ?? [:]
+        let decodedCompletionRule = try container.decodeIfPresent(GameMode.CompletionRule.self, forKey: .completionRule) ?? .boardClear
 
         let decodedTargets = Self.decodeFixedWarpTargets(from: rawFixedWarpTargets)
         let sanitizedTargets = Self.finalizeFixedWarpTargets(
@@ -150,6 +151,7 @@ extension GameMode.Regulation {
         tileEffectOverrides = decodedEffects
         warpTilePairs = decodedWarpPairs
         fixedWarpCardTargets = sanitizedTargets
+        completionRule = decodedCompletionRule
     }
 
     /// エンコード処理（固定ワープ定義は MoveCard のインデックスをキーに変換する）
@@ -181,6 +183,7 @@ extension GameMode.Regulation {
         if !encodedTargets.isEmpty {
             try container.encode(encodedTargets, forKey: .fixedWarpCardTargets)
         }
+        try container.encode(completionRule, forKey: .completionRule)
     }
 
     /// エンコード用に MoveCard を安定キーへ変換する

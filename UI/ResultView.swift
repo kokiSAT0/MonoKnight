@@ -11,6 +11,10 @@ struct ResultView: View {
 
     /// ペナルティで加算された手数
     let penaltyCount: Int
+    /// フォーカスを使った回数
+    let focusCount: Int
+    /// 目的地制のリザルトかどうか
+    let usesTargetCollection: Bool
 
     /// クリアまでに要した秒数
     let elapsedSeconds: Int
@@ -57,6 +61,8 @@ struct ResultView: View {
     init(
         moveCount: Int,
         penaltyCount: Int,
+        focusCount: Int = 0,
+        usesTargetCollection: Bool = false,
         elapsedSeconds: Int,
         modeIdentifier: GameMode.Identifier,
         modeDisplayName: String,
@@ -74,6 +80,8 @@ struct ResultView: View {
         self.init(
             moveCount: moveCount,
             penaltyCount: penaltyCount,
+            focusCount: focusCount,
+            usesTargetCollection: usesTargetCollection,
             elapsedSeconds: elapsedSeconds,
             modeIdentifier: modeIdentifier,
             modeDisplayName: modeDisplayName,
@@ -93,6 +101,8 @@ struct ResultView: View {
     init(
         moveCount: Int,
         penaltyCount: Int,
+        focusCount: Int = 0,
+        usesTargetCollection: Bool = false,
         elapsedSeconds: Int,
         modeIdentifier: GameMode.Identifier,
         modeDisplayName: String,
@@ -119,6 +129,8 @@ struct ResultView: View {
 
         self.moveCount = moveCount
         self.penaltyCount = penaltyCount
+        self.focusCount = focusCount
+        self.usesTargetCollection = usesTargetCollection
         self.elapsedSeconds = elapsedSeconds
         self.modeIdentifier = modeIdentifier
         self.modeDisplayName = modeDisplayName
@@ -195,6 +207,8 @@ struct ResultView: View {
         ResultSummaryPresentation(
             moveCount: moveCount,
             penaltyCount: penaltyCount,
+            focusCount: focusCount,
+            usesTargetCollection: usesTargetCollection,
             elapsedSeconds: elapsedSeconds,
             bestPoints: gameSettingsStore.bestPoints,
             isNewBest: viewState.isNewBest,

@@ -25,6 +25,10 @@ final class GameViewModel: ObservableObject {
     /// クリア後に別のキャンペーンステージへ遷移したい場合のリクエストクロージャ
     /// - Note: ルート側でゲーム準備フローを再実行するため、`GameView` から直接モードを差し替えずに委譲する
     let onRequestStartCampaignStage: ((CampaignStage) -> Void)?
+    /// キャンペーン導入チュートリアルの既読状態を管理するストア
+    let campaignTutorialStore: CampaignTutorialStore
+    /// キャンペーン導入チュートリアルの進行管理
+    let campaignTutorialController: CampaignTutorialController
 
     /// SwiftUI から観測するゲームロジック本体
     @Published private(set) var core: GameCore
@@ -85,7 +89,10 @@ final class GameViewModel: ObservableObject {
     }
     /// 暫定スコア
     var displayedScore: Int {
-        core.totalMoveCount * 10 + displayedElapsedSeconds
+        if mode.usesTargetCollection {
+            return core.moveCount * 10 + displayedElapsedSeconds + core.focusCount * 15
+        }
+        return core.totalMoveCount * 10 + displayedElapsedSeconds
     }
     /// 現在の移動回数
     /// - Note: 統計バッジ表示で利用し、View 側から GameCore への直接依存を減らす
@@ -99,6 +106,20 @@ final class GameViewModel: ObservableObject {
     /// 未踏破マスの残数
     /// - Note: 進行状況バッジに表示するために用意する
     var remainingTiles: Int { core.remainingTiles }
+    /// 目的地制で現在狙うマス
+    var targetPoint: GridPoint? { core.targetPoint }
+    /// 目的地制の先読み
+    var upcomingTargetPoints: [GridPoint] { core.upcomingTargetPoints }
+    /// 獲得済み目的地数
+    var capturedTargetCount: Int { core.capturedTargetCount }
+    /// 目標目的地数
+    var targetGoalCount: Int { core.targetGoalCount }
+    /// 残り目標数
+    var remainingTargetCount: Int { core.remainingTargetCount }
+    /// フォーカス使用回数
+    var focusCount: Int { core.focusCount }
+    /// 目的地制モードかどうか
+    var usesTargetCollection: Bool { mode.usesTargetCollection }
     /// ポーズメニューで表示するキャンペーン情報
     /// - Note: モードに紐付くステージ ID からライブラリを引き、保存済み進捗をまとめて返す
     var campaignPauseSummary: CampaignPauseSummary? {
@@ -111,7 +132,14 @@ final class GameViewModel: ObservableObject {
     /// ポーズメニューで再利用するペナルティ説明文の一覧
     /// - Important: RootView の事前案内と文言・順序を揃え、体験の一貫性を保つ
     var pauseMenuPenaltyItems: [String] {
-        [
+        if mode.usesTargetCollection {
+            return [
+                "フォーカス スコア +15",
+                mode.manualDiscardPenaltyCost > 0 ? "捨て札 +\(mode.manualDiscardPenaltyCost) 手" : "捨て札 ペナルティなし",
+                "目的地 \(mode.targetGoalCount) 個でクリア"
+            ]
+        }
+        return [
             mode.deadlockPenaltyCost > 0 ? "手詰まり +\(mode.deadlockPenaltyCost) 手" : "手詰まり ペナルティなし",
             mode.manualRedrawPenaltyCost > 0 ? "引き直し +\(mode.manualRedrawPenaltyCost) 手" : "引き直し ペナルティなし",
             mode.manualDiscardPenaltyCost > 0 ? "捨て札 +\(mode.manualDiscardPenaltyCost) 手" : "捨て札 ペナルティなし",
@@ -145,6 +173,8 @@ final class GameViewModel: ObservableObject {
     /// 盤面タップ時にカード選択が必要なケースを利用者へ知らせるための警告状態
     /// - Important: `Identifiable` なペイロードを保持し、SwiftUI 側で `.alert(item:)` を使って監視できるようにする
     @Published var boardTapSelectionWarning: GameBoardTapSelectionWarning?
+    /// キャンペーン導入チュートリアルで現在表示するカード
+    @Published var campaignTutorialCard: CampaignTutorialCard?
 
     /// Combine の購読を保持するセット
     var cancellables = Set<AnyCancellable>()
@@ -174,6 +204,14 @@ final class GameViewModel: ObservableObject {
     var resultPresentationState = ResultPresentationState()
     /// セッション中の補助 UI 状態
     var sessionUIState = SessionUIState()
+    /// チュートリアルイベント検出用の前回移動回数
+    var lastTutorialMoveCount: Int = 0
+    /// チュートリアルイベント検出用の前回目的地獲得数
+    var lastTutorialCapturedTargetCount: Int = 0
+    /// チュートリアルイベント検出用の前回フォーカス回数
+    var lastTutorialFocusCount: Int = 0
+    /// チュートリアルイベント検出用の前回進行状態
+    var lastTutorialProgress: GameProgress = .playing
 
     /// ViewModel の初期化
     /// - Parameters:
@@ -194,6 +232,7 @@ final class GameViewModel: ObservableObject {
         onRequestGameCenterSignIn: ((GameCenterSignInPromptReason) -> Void)? = nil,
         onRequestReturnToTitle: (() -> Void)?,
         onRequestStartCampaignStage: ((CampaignStage) -> Void)? = nil,
+        campaignTutorialStore: CampaignTutorialStore = CampaignTutorialStore(),
         penaltyBannerScheduler: PenaltyBannerScheduling = PenaltyBannerScheduler(),
         initialHandOrderingRawValue: String? = nil,
         initialGameCenterAuthenticationState: Bool = false,
@@ -208,6 +247,8 @@ final class GameViewModel: ObservableObject {
         self.onRequestGameCenterSignIn = onRequestGameCenterSignIn
         self.onRequestReturnToTitle = onRequestReturnToTitle
         self.onRequestStartCampaignStage = onRequestStartCampaignStage
+        self.campaignTutorialStore = campaignTutorialStore
+        self.campaignTutorialController = CampaignTutorialController(mode: mode, store: campaignTutorialStore)
         self.penaltyBannerController = GamePenaltyBannerController(scheduler: penaltyBannerScheduler)
         self.pauseController = GamePauseController()
         self.flowCoordinator = GameFlowCoordinator()
@@ -223,6 +264,10 @@ final class GameViewModel: ObservableObject {
         let generatedCore = gameInterfaces.makeGameCore(mode)
         self.core = generatedCore
         self.boardBridge = GameBoardBridgeViewModel(core: generatedCore, mode: mode)
+        self.lastTutorialMoveCount = generatedCore.moveCount
+        self.lastTutorialCapturedTargetCount = generatedCore.capturedTargetCount
+        self.lastTutorialFocusCount = generatedCore.focusCount
+        self.lastTutorialProgress = generatedCore.progress
 
         // GameCore の変更を ViewModel 経由で SwiftUI へ伝える
         generatedCore.objectWillChange
@@ -242,6 +287,7 @@ final class GameViewModel: ObservableObject {
 
         // GameCore が公開する各種状態を監視し、SwiftUI 側の責務を軽量化する
         bindGameCore()
+        startCampaignTutorialIfNeeded()
 
         // ユーザー設定から手札並び順を復元する
         if let rawValue = initialHandOrderingRawValue {
@@ -291,7 +337,10 @@ final class GameViewModel: ObservableObject {
     /// 手動ペナルティボタンのアクセシビリティ説明文
     /// - Returns: 手数消費量とスタック仕様を含めた説明テキスト
     var manualPenaltyAccessibilityHint: String {
-        sessionUIState.manualPenaltyAccessibilityHint(
+        if core.mode.usesTargetCollection {
+            return "現在の目的地へ近づきやすいカードを優先して手札を引き直します。スコアに15ポイント加算されます。"
+        }
+        return sessionUIState.manualPenaltyAccessibilityHint(
             penaltyCost: core.mode.manualRedrawPenaltyCost,
             handSize: core.mode.handSize,
             stackingRuleDetailText: core.mode.stackingRuleDetailText

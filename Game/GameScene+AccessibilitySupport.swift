@@ -33,6 +33,8 @@
             func update(
                 board: Board,
                 knightPosition: GridPoint?,
+                currentTargetPoints: Set<GridPoint>,
+                upcomingTargetPoints: Set<GridPoint>,
                 layout: GameSceneLayoutSupport,
                 owner: GameScene
             ) {
@@ -68,11 +70,17 @@
                             statusText = "未踏破"
                         }
 
+                        var labelParts: [String] = []
                         if let knightPosition, point == knightPosition {
-                            element.accessibilityLabel = "駒あり・" + statusText
-                        } else {
-                            element.accessibilityLabel = statusText
+                            labelParts.append("駒あり")
                         }
+                        if currentTargetPoints.contains(point) {
+                            labelParts.append("現在の目的地")
+                        } else if upcomingTargetPoints.contains(point) {
+                            labelParts.append("次の目的地候補")
+                        }
+                        labelParts.append(statusText)
+                        element.accessibilityLabel = labelParts.joined(separator: "・")
                         element.accessibilityTraits = [.button]
                         elements.append(element)
                     }

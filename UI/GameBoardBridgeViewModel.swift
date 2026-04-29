@@ -213,7 +213,9 @@ final class GameBoardBridgeViewModel: ObservableObject {
             .guideMultipleCandidate: guideHighlightBuckets.multipleVectorDestinations,
             .guideMultiStepCandidate: guideHighlightBuckets.multiStepDestinations,
             .guideWarpCandidate: guideHighlightBuckets.warpDestinations,
-            .forcedSelection: forcedSelectionHighlightPoints
+            .forcedSelection: forcedSelectionHighlightPoints,
+            .currentTarget: core.targetPoint.map { Set([$0]) } ?? [],
+            .upcomingTarget: Set(core.upcomingTargetPoints)
         ]
         scene.updateHighlights(highlights)
     }
@@ -567,6 +569,20 @@ final class GameBoardBridgeViewModel: ObservableObject {
                 // 一度利用した解決情報は破棄し、次の移動に備える
                 self.latestMovementResolution = nil
                 self.refreshGuideHighlights(currentOverride: newPoint)
+            }
+            .store(in: &cancellables)
+
+        core.$targetPoint
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.pushHighlightsToScene()
+            }
+            .store(in: &cancellables)
+
+        core.$upcomingTargetPoints
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.pushHighlightsToScene()
             }
             .store(in: &cancellables)
     }

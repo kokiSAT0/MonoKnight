@@ -109,7 +109,7 @@ final class GameViewModelTests: XCTestCase {
 
         XCTAssertEqual(
             viewModel.pendingMenuAction,
-            .manualPenalty(penaltyCost: core.mode.manualRedrawPenaltyCost),
+            .manualPenalty(penaltyCost: core.mode.usesTargetCollection ? -15 : core.mode.manualRedrawPenaltyCost),
             "ペナルティ要求時の確認アクションが期待と一致しません"
         )
     }
@@ -129,7 +129,7 @@ final class GameViewModelTests: XCTestCase {
 
     /// プレイ待機中は手動ペナルティの確認がセットされないことを確認
     func testRequestManualPenaltyIgnoredWhenNotPlaying() {
-        let (viewModel, core) = makeViewModel(mode: .classicalChallenge)
+        let (viewModel, core) = makeViewModel(mode: .classicalChallenge, resolvesSpawnSelection: false)
         XCTAssertEqual(core.progress, .awaitingSpawn, "クラシカルモードではスポーン待機が初期状態です")
 
         viewModel.requestManualPenalty()
@@ -646,6 +646,132 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertEqual(scoreCore.liveElapsedSecondsForTesting(asOf: scoreDateProvider.now), 150, "ハイスコアモードはバックグラウンドでも計測継続する想定です")
     }
 
+    /// キャンペーン導入チュートリアルが 1-1 の初回開始時に表示されることを確認
+    func testCampaignTutorialShowsCurrentTargetOnStage11FirstStart() throws {
+        let (defaults, suiteName) = try makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let stage = try XCTUnwrap(CampaignLibrary.shared.stage(with: CampaignStageID(chapter: 1, index: 1)))
+        let (viewModel, _) = makeViewModel(
+            mode: stage.makeGameMode(),
+            campaignTutorialStore: CampaignTutorialStore(userDefaults: defaults)
+        )
+
+        XCTAssertEqual(viewModel.campaignTutorialCard?.title, "紫の菱形を目指す")
+        XCTAssertTrue(viewModel.campaignTutorialCard?.message.contains("紫の菱形") == true)
+        XCTAssertTrue(
+            viewModel.boardBridge.forcedSelectionHighlightPoints.isEmpty,
+            "目的地チュートリアルで移動候補と同じ枠を出してはいけません"
+        )
+    }
+
+    func testCampaignTutorialAdvancesAfterTargetCaptureEvent() throws {
+        let (defaults, suiteName) = try makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let stage = try XCTUnwrap(CampaignLibrary.shared.stage(with: CampaignStageID(chapter: 1, index: 1)))
+        let (viewModel, _) = makeViewModel(
+            mode: stage.makeGameMode(),
+            campaignTutorialStore: CampaignTutorialStore(userDefaults: defaults)
+        )
+
+        viewModel.handleCampaignTutorialEvent(.handSelected)
+        viewModel.handleCampaignTutorialEvent(.firstMove)
+        viewModel.handleCampaignTutorialEvent(.targetCaptured)
+
+        XCTAssertEqual(viewModel.campaignTutorialCard?.title, "目的地を取る")
+        XCTAssertTrue(viewModel.campaignTutorialCard?.message.contains("獲得数") == true)
+    }
+
+    func testCampaignTutorialAdvancesAfterActualHandTap() throws {
+        let (defaults, suiteName) = try makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let stage = try XCTUnwrap(CampaignLibrary.shared.stage(with: CampaignStageID(chapter: 1, index: 1)))
+        let (viewModel, core) = makeViewModel(
+            mode: stage.makeGameMode(),
+            campaignTutorialStore: CampaignTutorialStore(userDefaults: defaults)
+        )
+        let usableIndex = try XCTUnwrap(core.handStacks.indices.first { index in
+            viewModel.isCardUsable(core.handStacks[index])
+        })
+
+        XCTAssertEqual(viewModel.campaignTutorialCard?.title, "紫の菱形を目指す")
+
+        viewModel.handleHandSlotTap(at: usableIndex)
+
+        XCTAssertNotEqual(viewModel.campaignTutorialCard?.title, "紫の菱形を目指す")
+    }
+
+    func testCampaignTutorialCurrentTargetFallsBackToFirstMoveEvent() throws {
+        let (defaults, suiteName) = try makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let stage = try XCTUnwrap(CampaignLibrary.shared.stage(with: CampaignStageID(chapter: 1, index: 1)))
+        let (viewModel, _) = makeViewModel(
+            mode: stage.makeGameMode(),
+            campaignTutorialStore: CampaignTutorialStore(userDefaults: defaults)
+        )
+
+        viewModel.handleCampaignTutorialEvent(.firstMove)
+
+        XCTAssertNotEqual(viewModel.campaignTutorialCard?.title, "紫の菱形を目指す")
+    }
+
+    func testCampaignTutorialCurrentTargetFallsBackToTargetCapturedEvent() throws {
+        let (defaults, suiteName) = try makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let stage = try XCTUnwrap(CampaignLibrary.shared.stage(with: CampaignStageID(chapter: 1, index: 1)))
+        let (viewModel, _) = makeViewModel(
+            mode: stage.makeGameMode(),
+            campaignTutorialStore: CampaignTutorialStore(userDefaults: defaults)
+        )
+
+        viewModel.handleCampaignTutorialEvent(.targetCaptured)
+
+        XCTAssertNotEqual(viewModel.campaignTutorialCard?.title, "紫の菱形を目指す")
+    }
+
+    func testCampaignTutorialShowsFocusOnStage14OnlyOnce() throws {
+        let (defaults, suiteName) = try makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = CampaignTutorialStore(userDefaults: defaults)
+        let stage = try XCTUnwrap(CampaignLibrary.shared.stage(with: CampaignStageID(chapter: 1, index: 4)))
+
+        let (firstViewModel, _) = makeViewModel(mode: stage.makeGameMode(), campaignTutorialStore: store)
+        XCTAssertEqual(firstViewModel.campaignTutorialCard?.title, "困ったらフォーカス")
+
+        firstViewModel.handleCampaignTutorialEvent(.focusUsed)
+
+        let (secondViewModel, _) = makeViewModel(mode: stage.makeGameMode(), campaignTutorialStore: store)
+        XCTAssertNil(secondViewModel.campaignTutorialCard)
+    }
+
+    func testCampaignTutorialShowsSpawnSelectionOnStage16AndDismissesAfterSpawn() throws {
+        let (defaults, suiteName) = try makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let stage = try XCTUnwrap(CampaignLibrary.shared.stage(with: CampaignStageID(chapter: 1, index: 6)))
+        let (viewModel, core) = makeViewModel(
+            mode: stage.makeGameMode(),
+            campaignTutorialStore: CampaignTutorialStore(userDefaults: defaults),
+            resolvesSpawnSelection: false
+        )
+
+        XCTAssertEqual(viewModel.campaignTutorialCard?.title, "開始マスを選ぶ")
+
+        core.simulateSpawnSelection(forTesting: GridPoint(x: 2, y: 2))
+        viewModel.handleTutorialProgressChange(.playing)
+
+        XCTAssertNil(viewModel.campaignTutorialCard)
+    }
+
+    func testCampaignTutorialDoesNotShowInStandardMode() throws {
+        let (defaults, suiteName) = try makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let (viewModel, _) = makeViewModel(
+            mode: .standard,
+            campaignTutorialStore: CampaignTutorialStore(userDefaults: defaults)
+        )
+
+        XCTAssertNil(viewModel.campaignTutorialCard)
+    }
+
     /// テストで使い回す ViewModel と GameCore の組み合わせを生成するヘルパー
     private func makeViewModel(
         mode: GameMode,
@@ -653,10 +779,12 @@ final class GameViewModelTests: XCTestCase {
         onRequestReturnToTitle: (() -> Void)? = nil,
         campaignProgressStore: CampaignProgressStore? = nil,
         onRequestStartCampaignStage: ((CampaignStage) -> Void)? = nil,
-        dateProvider: MutableDateProvider? = nil
+        campaignTutorialStore: CampaignTutorialStore = CampaignTutorialStore(),
+        dateProvider: MutableDateProvider? = nil,
+        resolvesSpawnSelection: Bool = true
     ) -> (GameViewModel, GameCore) {
         let core = GameCore(mode: mode)
-        if mode.requiresSpawnSelection {
+        if mode.requiresSpawnSelection && resolvesSpawnSelection {
             // テストがスポーン選択待機で停止しないように、盤面中央へスポーンを確定させる
             let spawnPoint = mode.initialSpawnPoint ?? GridPoint(x: mode.boardSize / 2, y: mode.boardSize / 2)
             core.simulateSpawnSelection(forTesting: spawnPoint)
@@ -675,6 +803,7 @@ final class GameViewModelTests: XCTestCase {
             onRequestGameCenterSignIn: nil,
             onRequestReturnToTitle: onRequestReturnToTitle,
             onRequestStartCampaignStage: onRequestStartCampaignStage,
+            campaignTutorialStore: campaignTutorialStore,
             currentDateProvider: { resolvedDateProvider.now }
         )
         return (viewModel, core)

@@ -21,5 +21,6 @@ enum StorageKey {
         static let dailyChallengeDebugUnlimited = "daily_challenge_debug_unlimited_v1"
         static let gameCenterHasSubmittedByLeaderboard = "gc_has_submitted_by_leaderboard"
         static let gameCenterLastScoreByLeaderboard = "gc_last_score_by_leaderboard"
+        static let campaignTutorialSeenSteps = "campaign_tutorial_seen_steps_v1"
     }
 }

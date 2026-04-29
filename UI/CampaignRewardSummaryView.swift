@@ -42,20 +42,22 @@ struct CampaignRewardSummaryView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: metrics.sectionSpacing) {
-            section(title: "リワード条件", subtitle: rewardConditionSummaryText) {
-                VStack(alignment: .leading, spacing: metrics.rowSpacing) {
-                    ForEach(Array(rewardConditions.enumerated()), id: \.offset) { index, condition in
-                        rewardConditionRow(index: index, condition: condition)
+            if stage != nil {
+                section(title: "リワード条件", subtitle: rewardConditionSummaryText) {
+                    VStack(alignment: .leading, spacing: metrics.rowSpacing) {
+                        ForEach(Array(rewardConditions.enumerated()), id: \.offset) { index, condition in
+                            rewardConditionRow(index: index, condition: condition)
+                        }
                     }
                 }
             }
 
-            if showsRecordSection {
+            if showsRecordSection, stage != nil {
                 // 記録を隠したい画面（例: ポーズメニュー）向けに、セクション自体を条件付きで表示する
                 section(title: "これまでの記録") {
                     VStack(alignment: .leading, spacing: metrics.rowSpacing) {
                         recordBulletRow(text: "ハイスコア: \(bestScoreText)")
-                        recordBulletRow(text: "最小ペナルティ: \(bestPenaltyText)")
+                        recordBulletRow(text: "最小フォーカス: \(bestFocusText)")
                         recordBulletRow(text: "最少合計手数: \(bestTotalMoveText)")
                         recordBulletRow(text: "最短クリアタイム: \(bestElapsedTimeText)")
                     }
@@ -182,14 +184,13 @@ private extension CampaignRewardSummaryView {
         }
     }
 
-    /// 最小ペナルティの表示文
-    private var bestPenaltyText: String {
-        guard let best = progress?.bestPenaltyCount else {
+    /// 最小フォーカス回数の表示文
+    private var bestFocusText: String {
+        guard let best = progress?.bestFocusCount else {
             return "未記録"
         }
 
-        // 0 の場合はノーペナルティを明示し、それ以外は合計値のみ表示する
-        return best == 0 ? "ペナルティなし" : "ペナルティ合計 \(best)"
+        return best == 0 ? "フォーカスなし" : "フォーカス \(best) 回"
     }
 
     /// 最少合計手数の表示文

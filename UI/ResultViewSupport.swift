@@ -5,25 +5,34 @@ import SwiftUI
 struct ResultSummaryPresentation {
     let moveCount: Int
     let penaltyCount: Int
+    let focusCount: Int
+    let usesTargetCollection: Bool
     let elapsedSeconds: Int
     let bestPoints: Int
     let isNewBest: Bool
     let previousBest: Int?
 
     var totalMoves: Int {
-        moveCount + penaltyCount
+        if usesTargetCollection {
+            return moveCount
+        }
+        return moveCount + penaltyCount
     }
 
     var movePoints: Int {
-        totalMoves * 10
+        return moveCount * 10
+    }
+
+    var focusPoints: Int {
+        return usesTargetCollection ? focusCount * 15 : 0
     }
 
     var timePoints: Int {
-        elapsedSeconds
+        return elapsedSeconds
     }
 
     var points: Int {
-        movePoints + timePoints
+        return movePoints + timePoints + focusPoints
     }
 
     var formattedElapsedTime: String {
@@ -37,11 +46,14 @@ struct ResultSummaryPresentation {
     }
 
     var penaltySummaryText: String {
-        penaltyCount == 0 ? "ペナルティなし" : "ペナルティ合計 \(penaltyCount)"
+        if usesTargetCollection {
+            return focusCount == 0 ? "フォーカスなし" : "フォーカス \(focusCount) 回"
+        }
+        return penaltyCount == 0 ? "ペナルティなし" : "ペナルティ合計 \(penaltyCount)"
     }
 
     var bestPointsText: String {
-        bestPoints == .max ? "-" : String(bestPoints)
+        return bestPoints == .max ? "-" : String(bestPoints)
     }
 
     var bestComparisonDescription: String? {
@@ -56,7 +68,10 @@ struct ResultSummaryPresentation {
     }
 
     func shareMessage(modeDisplayName: String) -> String {
-        "MonoKnight \(modeDisplayName) クリア！ポイント \(points)（移動 \(moveCount) 手 / \(penaltySummaryText) / 所要 \(formattedElapsedTime)）"
+        if usesTargetCollection {
+            return "MonoKnight \(modeDisplayName) クリア！ポイント \(points)（移動 \(moveCount) 手 / \(penaltySummaryText) / 所要 \(formattedElapsedTime)）"
+        }
+        return "MonoKnight \(modeDisplayName) クリア！ポイント \(points)（移動 \(moveCount) 手 / \(penaltySummaryText) / 所要 \(formattedElapsedTime)）"
     }
 }
 

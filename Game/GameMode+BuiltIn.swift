@@ -37,11 +37,12 @@ private extension GameMode {
             deckPreset: .standard,
             spawnRule: .fixed(BoardGeometry.defaultSpawnPoint(for: BoardGeometry.standardSize)),
             penalties: PenaltySettings(
-                deadlockPenaltyCost: 3,
-                manualRedrawPenaltyCost: 2,
+                deadlockPenaltyCost: 0,
+                manualRedrawPenaltyCost: 0,
                 manualDiscardPenaltyCost: 1,
                 revisitPenaltyCost: 0
-            )
+            ),
+            completionRule: .targetCollection(goalCount: 12)
         )
     }
 

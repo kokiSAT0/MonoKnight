@@ -38,7 +38,7 @@ struct HighScoreChallengeSelectionView: View {
                 mode: .standard,
                 headline: "スタンダード",
                 rewardSummary: "Game Center ランキングの基本カテゴリでスコアを競えます。",
-                ruleSummary: "5×5 盤・中央開始・手詰まり時は手数+3（手動引き直しは +2）。テンポよくスコア更新を狙える定番ルールです。",
+                ruleSummary: "5×5 盤・中央開始・目的地12個でクリア。フォーカスで目的地へ近づくカードを引き寄せ、移動手数・時間・フォーカス回数でスコアを競います。",
                 difficultyLabel: "難易度: ノーマル",
                 accessibilityIdentifier: "high_score_mode_standard"
             ),

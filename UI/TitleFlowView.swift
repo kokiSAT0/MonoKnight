@@ -184,7 +184,7 @@ struct TitleScreenView: View {
             Text("MonoKnight")
                 .font(.system(size: 32, weight: .heavy, design: .rounded))
                 .foregroundColor(theme.textPrimary)
-            Text("カードで騎士を導き、盤面を踏破しよう")
+            Text("カードで騎士を導き、目的地を取り切ろう")
                 .font(.system(size: 16, weight: .medium, design: .rounded))
                 .foregroundColor(theme.textSecondary)
                 .multilineTextAlignment(.center)
@@ -574,7 +574,7 @@ private extension TitleScreenView {
     }
 
     var highScoreTileDetail: String {
-        "スタンダードで手数とタイムを縮めましょう"
+        "スタンダードで手数・タイム・フォーカスを詰めましょう"
     }
 
     var dailyChallengeTileHeadline: String {

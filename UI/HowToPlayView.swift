@@ -24,7 +24,7 @@ struct HowToPlayView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 // MARK: - 導入文
-                Text("MonoKnight は移動カードを使って 5×5 の盤面を踏破するパズルです。手札スロットは最大 \(referenceMode.handSize) 種類まで保持でき、\(referenceMode.stackingRuleDetailText)以下の流れを押さえておけば、すぐにプレイを始められます。")
+                Text("MonoKnight は移動カードを使って、盤面上の目的地を連続で取るパズルです。手札スロットは最大 \(referenceMode.handSize) 種類まで保持でき、\(referenceMode.stackingRuleDetailText)以下の流れを押さえておけば、すぐにプレイを始められます。")
                     .font(.body)
                     .padding(.bottom, 8)
 
@@ -58,29 +58,30 @@ struct HowToPlayView: View {
                     card: .straightUp2,
                     tips: [
                         "盤外へ出るカードは自動で選べなくなり、半透明表示になります。",
-                        "移動先が未踏破マスであればカウントが増え、全マス踏破でクリアです。"
+                        "目的地に到達すると獲得数が増え、次の目的地へ切り替わります。"
                     ]
                 )
 
                 // MARK: - 勝利条件の説明
                 HowToPlaySectionView(
                     title: "4. 勝利条件",
-                    description: "25 マスすべてを一度ずつ踏破するとクリアとなり、手数がスコアとして記録されます。",
+                    description: "目的地を \(referenceMode.targetGoalCount) 個獲得するとクリアとなり、移動手数・時間・フォーカス回数からスコアが記録されます。",
                     card: nil,
                     tips: [
-                        "踏破済みマスはグレー表示になり、未踏破との区別がつきます。",
+                        "紫の菱形は現在の目的地、オレンジの点は次の目的地候補です。",
+                        "移動候補は枠で表示されるため、目的地マーカーとは分けて見られます。",
                         "最小の手数でクリアを目指し、Game Center ランキング上位を狙いましょう。"
                     ]
                 )
 
                 // MARK: - ペナルティの説明
                 HowToPlaySectionView(
-                    title: "5. 行き詰まったときはペナルティ",
-                    description: "手札スロットに並ぶすべてのカードが盤外で使えない場合、手数に +3 のペナルティが加算され、手札スロットがまとめて引き直されます。",
+                    title: "5. 目的地へ近づくフォーカス",
+                    description: "必要なカードが遠いときはフォーカスを使うと、現在の目的地へ近づきやすいカードを優先して手札を整えられます。",
                     card: nil,
                     tips: [
-                        "ペナルティ後は新しい手札スロットへ最大 \(referenceMode.handSize) 種類のカードが補充されます。同じ種類は重なったまま再配布されます。",
-                        "任意の引き直しを使う場合は +2 手の追加コストが発生するため、盤外になりやすいカードを連続で消費しないよう計画的にプレイしましょう。"
+                        "フォーカスは手数を増やさず、スコアに15ポイント加算されます。",
+                        "手詰まり時も、目的地へ近づきやすい再配布が自動で行われます。"
                     ]
                 )
             }

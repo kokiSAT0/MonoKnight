@@ -128,6 +128,16 @@ extension GameView {
 
         return VStack {
             VStack(spacing: stackSpacing) {
+                if let tutorialCard = viewModel.campaignTutorialCard {
+                    HStack {
+                        Spacer(minLength: 0)
+                        CampaignTutorialBannerView(card: tutorialCard, theme: theme)
+                            .padding(Edge.Set.horizontal, 20)
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                        Spacer(minLength: 0)
+                    }
+                }
+
                 if viewModel.progress == .awaitingSpawn {
                     // スポーン選択を促す案内を最優先で表示し、ユーザーの視線が最短距離で届くよう中央寄せする
                     HStack {

@@ -77,12 +77,23 @@ struct ResultDetailsSection: View {
                 }
 
                 GridRow {
-                    Text("ペナルティ合計")
+                    Text(presentation.usesTargetCollection ? "フォーカス" : "ペナルティ合計")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                     Text(presentation.penaltySummaryText)
                         .font(.body)
                         .monospacedDigit()
+                }
+
+                if presentation.usesTargetCollection {
+                    GridRow {
+                        Text("フォーカス加点")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        Text("\(presentation.focusPoints) pt")
+                            .font(.body)
+                            .monospacedDigit()
+                    }
                 }
 
                 GridRow {

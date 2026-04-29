@@ -99,6 +99,7 @@ final class CampaignProgressStore: ObservableObject {
         current.bestMoveCount = CampaignProgressStore.minValue(current.bestMoveCount, newValue: metrics.moveCount)
         current.bestTotalMoveCount = CampaignProgressStore.minValue(current.bestTotalMoveCount, newValue: metrics.totalMoveCount)
         current.bestPenaltyCount = CampaignProgressStore.minValue(current.bestPenaltyCount, newValue: metrics.penaltyCount)
+        current.bestFocusCount = CampaignProgressStore.minValue(current.bestFocusCount, newValue: metrics.focusCount)
         current.bestElapsedSeconds = CampaignProgressStore.minValue(current.bestElapsedSeconds, newValue: metrics.elapsedSeconds)
 
         progressMap[stage.id] = current
@@ -192,6 +193,8 @@ struct CampaignStageProgress: Codable {
     var bestTotalMoveCount: Int?
     /// 最小ペナルティ手数
     var bestPenaltyCount: Int?
+    /// 最小フォーカス回数
+    var bestFocusCount: Int?
     /// 最短クリアタイム（秒）
     var bestElapsedSeconds: Int?
 }

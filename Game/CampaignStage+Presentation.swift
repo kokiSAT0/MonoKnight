@@ -14,6 +14,10 @@ extension CampaignStage.SecondaryObjective {
             return "同じマスを 2 回踏まずにクリア"
         case .finishWithPenaltyAtMostAndWithinMoves(let maxPenaltyCount, let maxMoves):
             return "ペナルティ合計 \(maxPenaltyCount) 以下かつ \(maxMoves) 手以内でクリア"
+        case .finishWithFocusAtMost(let maxFocusCount):
+            return "フォーカス \(maxFocusCount) 回以内でクリア"
+        case .finishWithFocusAtMostAndWithinMoves(let maxFocusCount, let maxMoves):
+            return "フォーカス \(maxFocusCount) 回以内かつ \(maxMoves) 手以内でクリア"
         }
     }
 }

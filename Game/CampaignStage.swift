@@ -66,8 +66,10 @@ public struct CampaignStage: Identifiable, Equatable {
         case avoidRevisitingTiles
         /// ペナルティ合計を指定値以下へ抑えつつ、指定手数以内でクリア
         case finishWithPenaltyAtMostAndWithinMoves(maxPenaltyCount: Int, maxMoves: Int)
-
-
+        /// フォーカス使用回数を指定値以下に抑えてクリア
+        case finishWithFocusAtMost(maxFocusCount: Int)
+        /// フォーカス使用回数を指定値以下へ抑えつつ、指定手数以内でクリア
+        case finishWithFocusAtMostAndWithinMoves(maxFocusCount: Int, maxMoves: Int)
     }
 
     /// スコア目標の比較方式
@@ -123,25 +125,31 @@ public struct CampaignStage: Identifiable, Equatable {
 public struct CampaignStageClearMetrics {
     public let moveCount: Int
     public let penaltyCount: Int
+    public let focusCount: Int
     public let elapsedSeconds: Int
     public let totalMoveCount: Int
     public let score: Int
     public let hasRevisitedTile: Bool
+    public let capturedTargetCount: Int
 
     public init(
         moveCount: Int,
         penaltyCount: Int,
+        focusCount: Int = 0,
         elapsedSeconds: Int,
         totalMoveCount: Int,
         score: Int,
-        hasRevisitedTile: Bool
+        hasRevisitedTile: Bool,
+        capturedTargetCount: Int = 0
     ) {
         self.moveCount = moveCount
         self.penaltyCount = penaltyCount
+        self.focusCount = focusCount
         self.elapsedSeconds = elapsedSeconds
         self.totalMoveCount = totalMoveCount
         self.score = score
         self.hasRevisitedTile = hasRevisitedTile
+        self.capturedTargetCount = capturedTargetCount
     }
 }
 
