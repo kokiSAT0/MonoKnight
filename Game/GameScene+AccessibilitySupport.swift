@@ -86,6 +86,9 @@
                         } else if targetApproachCandidatePoints.contains(point) {
                             labelParts.append("目的地に近づく移動先")
                         }
+                        if let effect = board.effect(at: point) {
+                            labelParts.append(effect.accessibilityLabel)
+                        }
                         labelParts.append(statusText)
                         element.accessibilityLabel = labelParts.joined(separator: "・")
                         element.accessibilityTraits = [.button]
@@ -93,6 +96,35 @@
                     }
                 }
                 elementsCache = elements
+            }
+        }
+
+        private extension TileEffect {
+            var accessibilityLabel: String {
+                switch self {
+                case .warp:
+                    return "ワープマス"
+                case .shuffleHand:
+                    return "シャッフルマス"
+                case .boost:
+                    return "加速マス"
+                case .slow:
+                    return "減速マス"
+                case .nextRefresh:
+                    return "NEXT更新マス"
+                case .freeFocus:
+                    return "無料フォーカスマス"
+                case .preserveCard:
+                    return "カード温存マス"
+                case .draft:
+                    return "ドラフトマス"
+                case .overload:
+                    return "過負荷マス"
+                case .targetSwap:
+                    return "転換マス"
+                case .openGate:
+                    return "開門マス"
+                }
             }
         }
     #endif

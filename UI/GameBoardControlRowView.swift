@@ -120,6 +120,15 @@ private extension GameBoardControlRowView {
                     accessibilityValue: "残り\(viewModel.remainingTiles)マス"
                 )
             }
+
+            if viewModel.isOverloadCharged {
+                statisticBadge(
+                    title: "状態",
+                    value: "過負荷",
+                    accessibilityLabel: "過負荷状態",
+                    accessibilityValue: "次のカードは消費されません"
+                )
+            }
         }
     }
 

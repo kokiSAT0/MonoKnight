@@ -140,6 +140,34 @@ extension AppTheme {
             dark: color(for: .dark, keyPath: \.boardTileEffectPreserveCard)
         )
     }
+
+    var uiBoardTileEffectDraft: UIColor {
+        dynamicUIColor(
+            light: color(for: .light, keyPath: \.boardTileEffectDraft),
+            dark: color(for: .dark, keyPath: \.boardTileEffectDraft)
+        )
+    }
+
+    var uiBoardTileEffectOverload: UIColor {
+        dynamicUIColor(
+            light: color(for: .light, keyPath: \.boardTileEffectOverload),
+            dark: color(for: .dark, keyPath: \.boardTileEffectOverload)
+        )
+    }
+
+    var uiBoardTileEffectTargetSwap: UIColor {
+        dynamicUIColor(
+            light: color(for: .light, keyPath: \.boardTileEffectTargetSwap),
+            dark: color(for: .dark, keyPath: \.boardTileEffectTargetSwap)
+        )
+    }
+
+    var uiBoardTileEffectOpenGate: UIColor {
+        dynamicUIColor(
+            light: color(for: .light, keyPath: \.boardTileEffectOpenGate),
+            dark: color(for: .dark, keyPath: \.boardTileEffectOpenGate)
+        )
+    }
     #endif
 
     #if canImport(SpriteKit) && canImport(UIKit)
@@ -162,5 +190,9 @@ extension AppTheme {
     var skBoardTileEffectNextRefresh: SKColor { SKColor(cgColor: uiBoardTileEffectNextRefresh.cgColor) }
     var skBoardTileEffectFreeFocus: SKColor { SKColor(cgColor: uiBoardTileEffectFreeFocus.cgColor) }
     var skBoardTileEffectPreserveCard: SKColor { SKColor(cgColor: uiBoardTileEffectPreserveCard.cgColor) }
+    var skBoardTileEffectDraft: SKColor { SKColor(cgColor: uiBoardTileEffectDraft.cgColor) }
+    var skBoardTileEffectOverload: SKColor { SKColor(cgColor: uiBoardTileEffectOverload.cgColor) }
+    var skBoardTileEffectTargetSwap: SKColor { SKColor(cgColor: uiBoardTileEffectTargetSwap.cgColor) }
+    var skBoardTileEffectOpenGate: SKColor { SKColor(cgColor: uiBoardTileEffectOpenGate.cgColor) }
     #endif
 }

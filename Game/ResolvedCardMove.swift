@@ -140,6 +140,16 @@ public struct ResolvedCardMove: Hashable {
                 hasher.combine("freeFocus")
             case .preserveCard:
                 hasher.combine("preserveCard")
+            case .draft:
+                hasher.combine("draft")
+            case .overload:
+                hasher.combine("overload")
+            case .targetSwap:
+                hasher.combine("targetSwap")
+            case .openGate(let target):
+                hasher.combine("openGate")
+                hasher.combine(target.x)
+                hasher.combine(target.y)
             }
         }
     }

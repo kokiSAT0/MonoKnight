@@ -43,6 +43,11 @@ final class GameModeIdentifierTests: XCTestCase {
         XCTAssertEqual(mode.tileEffects[GridPoint(x: 0, y: 7)], .nextRefresh)
         XCTAssertEqual(mode.tileEffects[GridPoint(x: 7, y: 0)], .freeFocus)
         XCTAssertEqual(mode.tileEffects[GridPoint(x: 3, y: 0)], .preserveCard)
+        XCTAssertEqual(mode.tileEffects[GridPoint(x: 4, y: 4)], .draft)
+        XCTAssertEqual(mode.tileEffects[GridPoint(x: 5, y: 5)], .overload)
+        XCTAssertEqual(mode.tileEffects[GridPoint(x: 1, y: 6)], .targetSwap)
+        XCTAssertEqual(mode.tileEffects[GridPoint(x: 6, y: 1)], .openGate(target: GridPoint(x: 6, y: 4)))
+        XCTAssertTrue(mode.impassableTilePoints.contains(GridPoint(x: 6, y: 4)))
         XCTAssertEqual(
             mode.fixedWarpCardTargets[.fixedWarp],
             [
@@ -108,6 +113,62 @@ final class GameModeIdentifierTests: XCTestCase {
         XCTAssertNil(mode.tileEffects[GridPoint(x: 7, y: 7)])
         XCTAssertNil(mode.tileEffects[GridPoint(x: 2, y: 5)])
         XCTAssertNil(mode.tileEffects[GridPoint(x: 0, y: 7)])
+        XCTAssertNil(mode.tileEffects[GridPoint(x: 4, y: 4)])
+        XCTAssertNil(mode.tileEffects[GridPoint(x: 1, y: 6)])
+        XCTAssertNil(mode.tileEffects[GridPoint(x: 6, y: 1)])
+    }
+
+    func testTargetLabModeRemovesDraftTileWhenDraftDisabled() {
+        var enabledTileKinds = Set(TargetLabTileKind.allCases)
+        enabledTileKinds.remove(.draft)
+        let settings = TargetLabExperimentSettings(
+            enabledCardGroups: Set(TargetLabCardGroup.allCases),
+            enabledTileKinds: enabledTileKinds
+        )
+        let mode = GameMode.targetLab(settings: settings)
+
+        XCTAssertNil(mode.tileEffects[GridPoint(x: 4, y: 4)])
+        XCTAssertEqual(mode.tileEffects[GridPoint(x: 5, y: 2)], .boost)
+    }
+
+    func testTargetLabModeRemovesOverloadTileWhenOverloadDisabled() {
+        var enabledTileKinds = Set(TargetLabTileKind.allCases)
+        enabledTileKinds.remove(.overload)
+        let settings = TargetLabExperimentSettings(
+            enabledCardGroups: Set(TargetLabCardGroup.allCases),
+            enabledTileKinds: enabledTileKinds
+        )
+        let mode = GameMode.targetLab(settings: settings)
+
+        XCTAssertNil(mode.tileEffects[GridPoint(x: 5, y: 5)])
+        XCTAssertEqual(mode.tileEffects[GridPoint(x: 4, y: 4)], .draft)
+    }
+
+    func testTargetLabModeRemovesTargetSwapTileWhenTargetSwapDisabled() {
+        var enabledTileKinds = Set(TargetLabTileKind.allCases)
+        enabledTileKinds.remove(.targetSwap)
+        let settings = TargetLabExperimentSettings(
+            enabledCardGroups: Set(TargetLabCardGroup.allCases),
+            enabledTileKinds: enabledTileKinds
+        )
+        let mode = GameMode.targetLab(settings: settings)
+
+        XCTAssertNil(mode.tileEffects[GridPoint(x: 1, y: 6)])
+        XCTAssertEqual(mode.tileEffects[GridPoint(x: 5, y: 5)], .overload)
+    }
+
+    func testTargetLabModeRemovesOpenGateTileAndObstacleWhenOpenGateDisabled() {
+        var enabledTileKinds = Set(TargetLabTileKind.allCases)
+        enabledTileKinds.remove(.openGate)
+        let settings = TargetLabExperimentSettings(
+            enabledCardGroups: Set(TargetLabCardGroup.allCases),
+            enabledTileKinds: enabledTileKinds
+        )
+        let mode = GameMode.targetLab(settings: settings)
+
+        XCTAssertNil(mode.tileEffects[GridPoint(x: 6, y: 1)])
+        XCTAssertFalse(mode.impassableTilePoints.contains(GridPoint(x: 6, y: 4)))
+        XCTAssertEqual(mode.tileEffects[GridPoint(x: 1, y: 6)], .targetSwap)
     }
 
     func testTargetLabExperimentSettingsCodingIgnoresUnknownValuesAndRecoversEmptyCards() throws {

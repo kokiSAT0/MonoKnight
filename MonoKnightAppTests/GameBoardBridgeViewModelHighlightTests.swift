@@ -130,8 +130,8 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
         XCTAssertTrue(buckets.multipleVectorDestinations.isEmpty, "ワープカードが複数候補集合へ混入しています")
     }
 
-    /// 目的地制では合法手を「目的地を取れる」「近づく」「その他」の上位分類でも保持することを検証する
-    func testRefreshGuideHighlightsSeparatesTargetCaptureAndApproachCandidates() {
+    /// 目的地制では目的地を直接取れる候補だけを専用分類し、近づくだけの候補はオレンジ強調しないことを検証する
+    func testRefreshGuideHighlightsSeparatesTargetCaptureWithoutApproachHighlight() {
         let core = GameCore(mode: .standard)
         let viewModel = GameBoardBridgeViewModel(core: core, mode: .standard)
         let origin = GridPoint(x: 2, y: 2)
@@ -151,18 +151,22 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
 
         let buckets = viewModel.guideHighlightBuckets
         XCTAssertEqual(buckets.targetCaptureDestinations, [target], "目的地を直接取れる候補が専用集合へ分類されていません")
-        XCTAssertEqual(
-            buckets.targetApproachDestinations,
-            [GridPoint(x: 3, y: 2)],
-            "目的地に近づく候補が専用集合へ分類されていません"
+        XCTAssertTrue(buckets.targetApproachDestinations.isEmpty, "目的地に近づくだけの候補を専用集合へ分類しない想定です")
+        XCTAssertTrue(
+            buckets.singleVectorDestinations.contains(GridPoint(x: 3, y: 2)),
+            "目的地に近づく合法手は通常の単一候補ガイドとして残す必要があります"
         )
         XCTAssertTrue(
             buckets.singleVectorDestinations.contains(GridPoint(x: 2, y: 3)),
             "目的地に近づかない合法手も従来の合法手ハイライトには残す必要があります"
         )
-        XCTAssertFalse(
-            buckets.targetApproachDestinations.contains(target),
-            "目的地を取れる候補は接近集合ではなく獲得集合として扱う想定です"
+        XCTAssertTrue(
+            viewModel.scene.latestHighlightPoints(for: .guideMultipleCandidate).isEmpty,
+            "選択式カードがない場合はオレンジ枠を Scene へ送らない想定です"
+        )
+        XCTAssertTrue(
+            viewModel.scene.latestHighlightPoints(for: .targetApproachCandidate).isEmpty,
+            "目的地に近づくだけの候補はオレンジ系の接近ガイドとして Scene へ送らない想定です"
         )
     }
 

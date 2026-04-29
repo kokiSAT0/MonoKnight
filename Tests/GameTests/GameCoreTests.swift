@@ -1422,6 +1422,542 @@ final class GameCoreTests: XCTestCase {
         )
     }
 
+    func testDraftTileConsumesPlayedCardAndRebuildsTowardTargetWithoutCounters() {
+        let regulation = GameMode.Regulation(
+            boardSize: BoardGeometry.standardSize,
+            handSize: 5,
+            nextPreviewCount: 3,
+            allowsStacking: true,
+            deckPreset: .standard,
+            spawnRule: .fixed(GridPoint(x: 2, y: 2)),
+            penalties: GameMode.PenaltySettings(
+                deadlockPenaltyCost: 0,
+                manualRedrawPenaltyCost: 0,
+                manualDiscardPenaltyCost: 1,
+                revisitPenaltyCost: 0
+            ),
+            tileEffectOverrides: [GridPoint(x: 3, y: 2): .draft],
+            completionRule: .targetCollection(goalCount: 12)
+        )
+        let mode = GameMode(
+            identifier: .freeCustom,
+            displayName: "ドラフトテスト",
+            regulation: regulation,
+            leaderboardEligible: false
+        )
+        let deck = Deck.makeTestDeck(cards: [
+            .kingRight, .kingUp, .kingLeft, .kingDown, .straightUp2,
+            .straightLeft2, .straightDown2, .diagonalUpLeft2,
+            .kingRight, .straightRight2, .kingUpRight, .kingDownRight, .knightUp1Right2, .kingUp,
+        ])
+        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 2, y: 2), mode: mode)
+        core.overrideTargetStateForTesting(targetPoint: GridPoint(x: 4, y: 2))
+
+        guard let move = core.availableMoves().first(where: { $0.card.move == .kingRight }) else {
+            return XCTFail("右移動カードが見つかりません")
+        }
+        let playedCardID = move.card.id
+        core.playCard(using: move)
+
+        XCTAssertEqual(core.current, GridPoint(x: 3, y: 2))
+        XCTAssertEqual(core.moveCount, 1)
+        XCTAssertEqual(core.focusCount, 0)
+        XCTAssertEqual(core.penaltyCount, 0)
+        XCTAssertFalse(
+            core.handStacks.contains { stack in stack.cards.contains { $0.id == playedCardID } },
+            "ドラフトマスでは使用カード自体は通常どおり消費される想定です"
+        )
+        XCTAssertTrue(
+            core.availableMoves().contains { $0.destination == GridPoint(x: 4, y: 2) },
+            "ドラフト後は目的地へ近づける候補が手札に入る想定です"
+        )
+    }
+
+    func testDraftTileFallsBackToNormalRedrawOutsideTargetCollection() {
+        let regulation = GameMode.Regulation(
+            boardSize: BoardGeometry.standardSize,
+            handSize: 5,
+            nextPreviewCount: 3,
+            allowsStacking: true,
+            deckPreset: .standard,
+            spawnRule: .fixed(GridPoint(x: 1, y: 2)),
+            penalties: GameMode.PenaltySettings(
+                deadlockPenaltyCost: 0,
+                manualRedrawPenaltyCost: 0,
+                manualDiscardPenaltyCost: 1,
+                revisitPenaltyCost: 0
+            ),
+            tileEffectOverrides: [GridPoint(x: 2, y: 2): .draft]
+        )
+        let mode = GameMode(
+            identifier: .freeCustom,
+            displayName: "非目的地ドラフトテスト",
+            regulation: regulation,
+            leaderboardEligible: false
+        )
+        let deck = Deck.makeTestDeck(cards: [
+            .kingRight, .kingUp, .kingLeft, .kingDown, .straightUp2,
+            .straightRight2, .straightLeft2, .straightDown2,
+            .diagonalUpRight2, .diagonalDownRight2, .diagonalDownLeft2, .diagonalUpLeft2,
+        ])
+        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 1, y: 2), mode: mode)
+
+        guard let move = core.availableMoves().first(where: { $0.card.move == .kingRight }) else {
+            return XCTFail("右移動カードが見つかりません")
+        }
+        core.playCard(using: move)
+
+        XCTAssertEqual(core.current, GridPoint(x: 2, y: 2))
+        XCTAssertEqual(core.focusCount, 0)
+        XCTAssertEqual(core.penaltyCount, 0)
+        XCTAssertEqual(core.handStacks.count, 5)
+        XCTAssertEqual(core.nextCards.count, 3)
+    }
+
+    func testTargetSwapTileConsumesCardAndSwapsCurrentTargetWithFirstUpcoming() {
+        let regulation = GameMode.Regulation(
+            boardSize: BoardGeometry.standardSize,
+            handSize: 5,
+            nextPreviewCount: 3,
+            allowsStacking: true,
+            deckPreset: .standard,
+            spawnRule: .fixed(GridPoint(x: 2, y: 2)),
+            penalties: GameMode.PenaltySettings(
+                deadlockPenaltyCost: 0,
+                manualRedrawPenaltyCost: 0,
+                manualDiscardPenaltyCost: 1,
+                revisitPenaltyCost: 0
+            ),
+            tileEffectOverrides: [GridPoint(x: 3, y: 2): .targetSwap],
+            completionRule: .targetCollection(goalCount: 12)
+        )
+        let mode = GameMode(
+            identifier: .freeCustom,
+            displayName: "転換テスト",
+            regulation: regulation,
+            leaderboardEligible: false
+        )
+        let deck = Deck.makeTestDeck(cards: [
+            .kingRight, .kingUp, .kingLeft, .kingDown, .straightUp2,
+            .straightRight2, .straightLeft2, .straightDown2
+        ])
+        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 2, y: 2), mode: mode)
+        core.overrideTargetStateForTesting(
+            targetPoint: GridPoint(x: 4, y: 4),
+            upcomingTargetPoints: [GridPoint(x: 1, y: 1), GridPoint(x: 0, y: 4)]
+        )
+
+        guard let move = core.availableMoves().first(where: { $0.card.move == .kingRight }) else {
+            return XCTFail("右移動カードが見つかりません")
+        }
+        let playedCardID = move.card.id
+        core.playCard(using: move)
+
+        XCTAssertEqual(core.current, GridPoint(x: 3, y: 2))
+        XCTAssertFalse(
+            core.handStacks.contains { stack in stack.cards.contains { $0.id == playedCardID } },
+            "転換マスでは使用カードは通常どおり消費される想定です"
+        )
+        XCTAssertEqual(core.targetPoint, GridPoint(x: 1, y: 1))
+        XCTAssertEqual(core.upcomingTargetPoints.first, GridPoint(x: 4, y: 4))
+        XCTAssertEqual(core.upcomingTargetPoints.dropFirst().first, GridPoint(x: 0, y: 4))
+        XCTAssertEqual(core.capturedTargetCount, 0)
+        XCTAssertEqual(core.focusCount, 0)
+        XCTAssertEqual(core.penaltyCount, 0)
+    }
+
+    func testTargetSwapTileAppliesAfterTargetCapture() {
+        let regulation = GameMode.Regulation(
+            boardSize: BoardGeometry.standardSize,
+            handSize: 5,
+            nextPreviewCount: 3,
+            allowsStacking: true,
+            deckPreset: .standard,
+            spawnRule: .fixed(GridPoint(x: 2, y: 2)),
+            penalties: GameMode.PenaltySettings(
+                deadlockPenaltyCost: 0,
+                manualRedrawPenaltyCost: 0,
+                manualDiscardPenaltyCost: 1,
+                revisitPenaltyCost: 0
+            ),
+            tileEffectOverrides: [GridPoint(x: 4, y: 2): .targetSwap],
+            completionRule: .targetCollection(goalCount: 12)
+        )
+        let mode = GameMode(
+            identifier: .freeCustom,
+            displayName: "目的地取得後転換テスト",
+            regulation: regulation,
+            leaderboardEligible: false
+        )
+        let deck = Deck.makeTestDeck(cards: [
+            .rayRight, .kingUp, .kingLeft, .kingDown, .straightUp2,
+            .kingRight, .straightLeft2, .straightDown2
+        ])
+        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 2, y: 2), mode: mode)
+        core.overrideTargetStateForTesting(
+            targetPoint: GridPoint(x: 3, y: 2),
+            upcomingTargetPoints: [GridPoint(x: 4, y: 2), GridPoint(x: 1, y: 1)]
+        )
+
+        guard let move = core.availableMoves().first(where: { $0.card.move == .rayRight }) else {
+            return XCTFail("右方向レイカードが見つかりません")
+        }
+        core.playCard(using: move)
+
+        XCTAssertEqual(core.capturedTargetCount, 1)
+        XCTAssertEqual(core.current, GridPoint(x: 4, y: 2))
+        XCTAssertEqual(core.targetPoint, GridPoint(x: 1, y: 1))
+        XCTAssertEqual(core.upcomingTargetPoints.first, GridPoint(x: 4, y: 2))
+        XCTAssertEqual(core.focusCount, 0)
+        XCTAssertEqual(core.penaltyCount, 0)
+    }
+
+    func testTargetSwapTileIsNoOpOutsideTargetCollection() {
+        let regulation = GameMode.Regulation(
+            boardSize: BoardGeometry.standardSize,
+            handSize: 5,
+            nextPreviewCount: 3,
+            allowsStacking: true,
+            deckPreset: .standard,
+            spawnRule: .fixed(GridPoint(x: 1, y: 2)),
+            penalties: GameMode.PenaltySettings(
+                deadlockPenaltyCost: 0,
+                manualRedrawPenaltyCost: 0,
+                manualDiscardPenaltyCost: 1,
+                revisitPenaltyCost: 0
+            ),
+            tileEffectOverrides: [GridPoint(x: 2, y: 2): .targetSwap]
+        )
+        let mode = GameMode(
+            identifier: .freeCustom,
+            displayName: "非目的地転換テスト",
+            regulation: regulation,
+            leaderboardEligible: false
+        )
+        let deck = Deck.makeTestDeck(cards: [
+            .kingRight, .kingUp, .kingLeft, .kingDown, .straightUp2,
+            .straightRight2, .straightLeft2, .straightDown2
+        ])
+        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 1, y: 2), mode: mode)
+
+        guard let move = core.availableMoves().first(where: { $0.card.move == .kingRight }) else {
+            return XCTFail("右移動カードが見つかりません")
+        }
+        core.playCard(using: move)
+
+        XCTAssertEqual(core.current, GridPoint(x: 2, y: 2))
+        XCTAssertNil(core.targetPoint)
+        XCTAssertTrue(core.upcomingTargetPoints.isEmpty)
+        XCTAssertEqual(core.focusCount, 0)
+        XCTAssertEqual(core.penaltyCount, 0)
+    }
+
+    func testOpenGateTileConsumesCardAndOpensTargetObstacleWithoutCounters() {
+        let gatePoint = GridPoint(x: 2, y: 2)
+        let gateTarget = GridPoint(x: 3, y: 2)
+        let regulation = GameMode.Regulation(
+            boardSize: BoardGeometry.standardSize,
+            handSize: 5,
+            nextPreviewCount: 3,
+            allowsStacking: true,
+            deckPreset: .standard,
+            spawnRule: .fixed(GridPoint(x: 1, y: 2)),
+            penalties: GameMode.PenaltySettings(
+                deadlockPenaltyCost: 0,
+                manualRedrawPenaltyCost: 0,
+                manualDiscardPenaltyCost: 1,
+                revisitPenaltyCost: 0
+            ),
+            impassableTilePoints: [gateTarget],
+            tileEffectOverrides: [gatePoint: .openGate(target: gateTarget)],
+            completionRule: .targetCollection(goalCount: 12)
+        )
+        let mode = GameMode(
+            identifier: .freeCustom,
+            displayName: "開門テスト",
+            regulation: regulation,
+            leaderboardEligible: false
+        )
+        let deck = Deck.makeTestDeck(cards: [
+            .kingRight, .kingRight, .kingUp, .kingLeft, .kingDown,
+            .straightUp2, .straightLeft2, .straightDown2
+        ])
+        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 1, y: 2), mode: mode)
+        core.overrideTargetStateForTesting(targetPoint: GridPoint(x: 4, y: 4))
+
+        guard let move = core.availableMoves().first(where: { $0.card.move == .kingRight }) else {
+            return XCTFail("右移動カードが見つかりません")
+        }
+        let playedCardID = move.card.id
+        core.playCard(using: move)
+
+        XCTAssertEqual(core.current, gatePoint)
+        XCTAssertFalse(core.board.isImpassable(gateTarget))
+        XCTAssertTrue(core.board.isTraversable(gateTarget))
+        XCTAssertFalse(core.board.isVisited(gateTarget))
+        XCTAssertFalse(
+            core.handStacks.contains { stack in stack.cards.contains { $0.id == playedCardID } },
+            "開門マスでは使用カードは通常どおり消費される想定です"
+        )
+        XCTAssertTrue(
+            core.availableMoves().contains { $0.destination == gateTarget },
+            "開門後は新しく通れるマスが候補に含まれる想定です"
+        )
+        XCTAssertEqual(core.focusCount, 0)
+        XCTAssertEqual(core.penaltyCount, 0)
+    }
+
+    func testOpenGateTileNoOpsWhenTargetIsNotObstacle() {
+        let gatePoint = GridPoint(x: 2, y: 2)
+        let gateTarget = GridPoint(x: 3, y: 2)
+        let regulation = GameMode.Regulation(
+            boardSize: BoardGeometry.standardSize,
+            handSize: 5,
+            nextPreviewCount: 3,
+            allowsStacking: true,
+            deckPreset: .standard,
+            spawnRule: .fixed(GridPoint(x: 1, y: 2)),
+            penalties: GameMode.PenaltySettings(
+                deadlockPenaltyCost: 0,
+                manualRedrawPenaltyCost: 0,
+                manualDiscardPenaltyCost: 1,
+                revisitPenaltyCost: 0
+            ),
+            tileEffectOverrides: [gatePoint: .openGate(target: gateTarget)],
+            completionRule: .targetCollection(goalCount: 12)
+        )
+        let mode = GameMode(
+            identifier: .freeCustom,
+            displayName: "開門空振りテスト",
+            regulation: regulation,
+            leaderboardEligible: false
+        )
+        let deck = Deck.makeTestDeck(cards: [
+            .kingRight, .kingUp, .kingLeft, .kingDown, .straightUp2,
+            .straightRight2, .straightLeft2, .straightDown2
+        ])
+        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 1, y: 2), mode: mode)
+        core.overrideTargetStateForTesting(targetPoint: GridPoint(x: 4, y: 4))
+        let remainingBefore = core.board.remainingCount
+
+        guard let move = core.availableMoves().first(where: { $0.card.move == .kingRight }) else {
+            return XCTFail("右移動カードが見つかりません")
+        }
+        core.playCard(using: move)
+
+        XCTAssertEqual(core.current, gatePoint)
+        XCTAssertFalse(core.board.isImpassable(gateTarget))
+        XCTAssertTrue(core.board.isTraversable(gateTarget))
+        XCTAssertEqual(core.board.remainingCount, remainingBefore - 1)
+        XCTAssertEqual(core.focusCount, 0)
+        XCTAssertEqual(core.penaltyCount, 0)
+    }
+
+    func testOverloadTileConsumesCurrentCardAndChargesNextPreserveInTargetCollection() {
+        let regulation = GameMode.Regulation(
+            boardSize: BoardGeometry.standardSize,
+            handSize: 5,
+            nextPreviewCount: 3,
+            allowsStacking: true,
+            deckPreset: .standard,
+            spawnRule: .fixed(GridPoint(x: 1, y: 2)),
+            penalties: GameMode.PenaltySettings(
+                deadlockPenaltyCost: 0,
+                manualRedrawPenaltyCost: 0,
+                manualDiscardPenaltyCost: 1,
+                revisitPenaltyCost: 0
+            ),
+            tileEffectOverrides: [GridPoint(x: 2, y: 2): .overload],
+            completionRule: .targetCollection(goalCount: 12)
+        )
+        let mode = GameMode(
+            identifier: .freeCustom,
+            displayName: "過負荷テスト",
+            regulation: regulation,
+            leaderboardEligible: false
+        )
+        let deck = Deck.makeTestDeck(cards: [
+            .kingRight, .kingUp, .kingLeft, .kingDown, .straightUp2,
+            .straightRight2, .straightLeft2, .straightDown2,
+        ])
+        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 1, y: 2), mode: mode)
+        core.overrideTargetStateForTesting(targetPoint: GridPoint(x: 4, y: 4))
+
+        guard let overloadMove = core.availableMoves().first(where: { $0.card.move == .kingRight }) else {
+            return XCTFail("右移動カードが見つかりません")
+        }
+        let overloadCardID = overloadMove.card.id
+        core.playCard(using: overloadMove)
+
+        XCTAssertEqual(core.current, GridPoint(x: 2, y: 2))
+        XCTAssertEqual(core.focusCount, 1)
+        XCTAssertEqual(core.penaltyCount, 0)
+        XCTAssertTrue(core.isOverloadCharged)
+        XCTAssertFalse(
+            core.handStacks.contains { stack in stack.cards.contains { $0.id == overloadCardID } },
+            "過負荷マスを踏んだ手の使用カードは通常どおり消費される想定です"
+        )
+
+        guard let chargedMove = core.availableMoves().first(where: { $0.card.move == .kingUp }) else {
+            return XCTFail("上移動カードが見つかりません")
+        }
+        let chargedCardID = chargedMove.card.id
+        core.playCard(using: chargedMove)
+
+        XCTAssertEqual(core.current, GridPoint(x: 2, y: 3))
+        XCTAssertEqual(core.focusCount, 1)
+        XCTAssertFalse(core.isOverloadCharged)
+        XCTAssertTrue(
+            core.handStacks.contains { stack in stack.cards.contains { $0.id == chargedCardID } },
+            "過負荷状態の次手では使用カードが温存される想定です"
+        )
+    }
+
+    func testOverloadTileAddsPenaltyOutsideTargetCollection() {
+        let regulation = GameMode.Regulation(
+            boardSize: BoardGeometry.standardSize,
+            handSize: 5,
+            nextPreviewCount: 3,
+            allowsStacking: true,
+            deckPreset: .standard,
+            spawnRule: .fixed(GridPoint(x: 1, y: 2)),
+            penalties: GameMode.PenaltySettings(
+                deadlockPenaltyCost: 0,
+                manualRedrawPenaltyCost: 0,
+                manualDiscardPenaltyCost: 1,
+                revisitPenaltyCost: 0
+            ),
+            tileEffectOverrides: [GridPoint(x: 2, y: 2): .overload]
+        )
+        let mode = GameMode(
+            identifier: .freeCustom,
+            displayName: "非目的地過負荷テスト",
+            regulation: regulation,
+            leaderboardEligible: false
+        )
+        let deck = Deck.makeTestDeck(cards: [
+            .kingRight, .kingUp, .kingLeft, .kingDown, .straightUp2,
+            .straightRight2, .straightLeft2, .straightDown2,
+        ])
+        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 1, y: 2), mode: mode)
+
+        guard let move = core.availableMoves().first(where: { $0.card.move == .kingRight }) else {
+            return XCTFail("右移動カードが見つかりません")
+        }
+        core.playCard(using: move)
+
+        XCTAssertEqual(core.current, GridPoint(x: 2, y: 2))
+        XCTAssertEqual(core.focusCount, 0)
+        XCTAssertEqual(core.penaltyCount, 1)
+        XCTAssertTrue(core.isOverloadCharged)
+        XCTAssertEqual(core.score, 20)
+    }
+
+    func testOverloadChargeConsumedOnPreserveTileWithoutStackingState() {
+        let regulation = GameMode.Regulation(
+            boardSize: BoardGeometry.standardSize,
+            handSize: 5,
+            nextPreviewCount: 3,
+            allowsStacking: true,
+            deckPreset: .standard,
+            spawnRule: .fixed(GridPoint(x: 1, y: 2)),
+            penalties: GameMode.PenaltySettings(
+                deadlockPenaltyCost: 0,
+                manualRedrawPenaltyCost: 0,
+                manualDiscardPenaltyCost: 1,
+                revisitPenaltyCost: 0
+            ),
+            tileEffectOverrides: [
+                GridPoint(x: 2, y: 2): .overload,
+                GridPoint(x: 2, y: 3): .preserveCard,
+            ],
+            completionRule: .targetCollection(goalCount: 12)
+        )
+        let mode = GameMode(
+            identifier: .freeCustom,
+            displayName: "過負荷温存テスト",
+            regulation: regulation,
+            leaderboardEligible: false
+        )
+        let deck = Deck.makeTestDeck(cards: [
+            .kingRight, .kingUp, .kingLeft, .kingDown, .straightUp2,
+            .straightRight2, .straightLeft2, .straightDown2,
+        ])
+        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 1, y: 2), mode: mode)
+        core.overrideTargetStateForTesting(targetPoint: GridPoint(x: 4, y: 4))
+
+        guard let overloadMove = core.availableMoves().first(where: { $0.card.move == .kingRight }) else {
+            return XCTFail("右移動カードが見つかりません")
+        }
+        core.playCard(using: overloadMove)
+
+        guard let preserveMove = core.availableMoves().first(where: { $0.card.move == .kingUp }) else {
+            return XCTFail("上移動カードが見つかりません")
+        }
+        let preserveCardID = preserveMove.card.id
+        core.playCard(using: preserveMove)
+
+        XCTAssertEqual(core.current, GridPoint(x: 2, y: 3))
+        XCTAssertFalse(core.isOverloadCharged)
+        XCTAssertTrue(
+            core.handStacks.contains { stack in stack.cards.contains { $0.id == preserveCardID } },
+            "過負荷状態は消費され、カード自体は1回だけ温存される想定です"
+        )
+    }
+
+    func testOverloadTileCanRechargeAfterConsumingPreviousCharge() {
+        let regulation = GameMode.Regulation(
+            boardSize: BoardGeometry.standardSize,
+            handSize: 5,
+            nextPreviewCount: 3,
+            allowsStacking: true,
+            deckPreset: .standard,
+            spawnRule: .fixed(GridPoint(x: 1, y: 2)),
+            penalties: GameMode.PenaltySettings(
+                deadlockPenaltyCost: 0,
+                manualRedrawPenaltyCost: 0,
+                manualDiscardPenaltyCost: 1,
+                revisitPenaltyCost: 0
+            ),
+            tileEffectOverrides: [
+                GridPoint(x: 2, y: 2): .overload,
+                GridPoint(x: 2, y: 3): .overload,
+            ],
+            completionRule: .targetCollection(goalCount: 12)
+        )
+        let mode = GameMode(
+            identifier: .freeCustom,
+            displayName: "過負荷再付与テスト",
+            regulation: regulation,
+            leaderboardEligible: false
+        )
+        let deck = Deck.makeTestDeck(cards: [
+            .kingRight, .kingUp, .kingLeft, .kingDown, .straightUp2,
+            .straightRight2, .straightLeft2, .straightDown2,
+        ])
+        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 1, y: 2), mode: mode)
+        core.overrideTargetStateForTesting(targetPoint: GridPoint(x: 4, y: 4))
+
+        guard let firstMove = core.availableMoves().first(where: { $0.card.move == .kingRight }) else {
+            return XCTFail("右移動カードが見つかりません")
+        }
+        core.playCard(using: firstMove)
+
+        guard let secondMove = core.availableMoves().first(where: { $0.card.move == .kingUp }) else {
+            return XCTFail("上移動カードが見つかりません")
+        }
+        let secondCardID = secondMove.card.id
+        core.playCard(using: secondMove)
+
+        XCTAssertEqual(core.current, GridPoint(x: 2, y: 3))
+        XCTAssertEqual(core.focusCount, 2)
+        XCTAssertTrue(core.isOverloadCharged)
+        XCTAssertTrue(
+            core.handStacks.contains { stack in stack.cards.contains { $0.id == secondCardID } },
+            "既存の過負荷状態を消費した手で再び過負荷マスを踏むと、そのカードは温存される想定です"
+        )
+    }
+
     func testPreserveCardTileDoesNotConsumePlayedCard() {
         let regulation = GameMode.Regulation(
             boardSize: BoardGeometry.standardSize,

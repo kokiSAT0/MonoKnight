@@ -56,6 +56,10 @@ public enum TargetLabTileKind: String, CaseIterable, Codable, Hashable {
     case nextRefresh
     case freeFocus
     case preserveCard
+    case draft
+    case overload
+    case targetSwap
+    case openGate
 
     public var displayName: String {
         switch self {
@@ -66,6 +70,10 @@ public enum TargetLabTileKind: String, CaseIterable, Codable, Hashable {
         case .nextRefresh: return "NEXT更新"
         case .freeFocus: return "無料フォーカス"
         case .preserveCard: return "カード温存"
+        case .draft: return "ドラフト"
+        case .overload: return "過負荷"
+        case .targetSwap: return "転換"
+        case .openGate: return "開門"
         }
     }
 }

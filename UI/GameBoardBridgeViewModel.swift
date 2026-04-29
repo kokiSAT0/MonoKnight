@@ -182,6 +182,10 @@ final class GameBoardBridgeViewModel: ObservableObject {
             boardTileEffectNextRefresh: appTheme.skBoardTileEffectNextRefresh,
             boardTileEffectFreeFocus: appTheme.skBoardTileEffectFreeFocus,
             boardTileEffectPreserveCard: appTheme.skBoardTileEffectPreserveCard,
+            boardTileEffectDraft: appTheme.skBoardTileEffectDraft,
+            boardTileEffectOverload: appTheme.skBoardTileEffectOverload,
+            boardTileEffectTargetSwap: appTheme.skBoardTileEffectTargetSwap,
+            boardTileEffectOpenGate: appTheme.skBoardTileEffectOpenGate,
             // NOTE: ワープペアの配色セットを SpriteKit へ渡し、色と形の両面で組み合わせを識別させる
             warpPairAccentColors: appTheme.skWarpPairAccentColors
         )
@@ -225,7 +229,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
             .guideMultipleCandidate: shouldHideGuideCandidates ? [] : guideHighlightBuckets.multipleVectorDestinations,
             .guideMultiStepCandidate: shouldHideGuideCandidates ? [] : guideHighlightBuckets.multiStepDestinations,
             .guideWarpCandidate: shouldHideGuideCandidates ? [] : guideHighlightBuckets.warpDestinations,
-            .targetApproachCandidate: shouldHideGuideCandidates ? [] : guideHighlightBuckets.targetApproachDestinations,
+            .targetApproachCandidate: [],
             .targetCaptureCandidate: shouldHideGuideCandidates ? [] : guideHighlightBuckets.targetCaptureDestinations,
             .forcedSelection: forcedSelectionHighlightPoints,
             .currentTarget: core.targetPoint.map { Set([$0]) } ?? [],
@@ -305,20 +309,13 @@ final class GameBoardBridgeViewModel: ObservableObject {
         let resolvedMoves = core.availableMoves(handStacks: handStacks, current: current)
         let groupedByCard = Dictionary(grouping: resolvedMoves, by: { $0.card.id })
         var computedBuckets = GuideHighlightBuckets.empty
-        let currentTargetDistance = core.targetPoint.map { target in
-            Self.targetGuideDistance(from: current, to: target)
-        }
 
         for moves in groupedByCard.values {
             guard let representative = moves.first else { continue }
             let destinations = moves.map { $0.destination }
             let move = representative.card.move
 
-            classifyTargetGuideMoves(
-                moves,
-                currentTargetDistance: currentTargetDistance,
-                into: &computedBuckets
-            )
+            classifyTargetCaptureMoves(moves, into: &computedBuckets)
 
             if move == .superWarp {
                 // スーパーワープは盤面全域が候補となりガイドが画面を覆ってしまうため、あえて登録しない
@@ -383,36 +380,21 @@ final class GameBoardBridgeViewModel: ObservableObject {
         debugLog(summary.logMessage)
     }
 
-    /// 目的地制で合法手が「取れる」「近づく」のどちらに当たるかを分類する
-    private func classifyTargetGuideMoves(
+    /// 目的地制で合法手が現在目的地を直接取れるかを分類する
+    private func classifyTargetCaptureMoves(
         _ moves: [ResolvedCardMove],
-        currentTargetDistance: Int?,
         into buckets: inout GuideHighlightBuckets
     ) {
         guard mode.usesTargetCollection,
-              let target = core.targetPoint,
-              let currentTargetDistance else {
+              let target = core.targetPoint else {
             return
         }
 
         for move in moves {
             if move.traversedPoints.contains(target) {
                 buckets.targetCaptureDestinations.insert(target)
-                buckets.targetApproachDestinations.remove(target)
-                continue
-            }
-
-            let destination = move.destination
-            let nextDistance = Self.targetGuideDistance(from: destination, to: target)
-            if nextDistance < currentTargetDistance {
-                buckets.targetApproachDestinations.insert(destination)
             }
         }
-    }
-
-    /// 目的地への近さを測るシンプルなマンハッタン距離
-    private static func targetGuideDistance(from origin: GridPoint, to target: GridPoint) -> Int {
-        abs(origin.x - target.x) + abs(origin.y - target.y)
     }
 
     /// 強制的に表示したいハイライト集合を更新する

@@ -83,6 +83,14 @@ public enum TileEffect: Equatable, Codable {
     case freeFocus
     /// 使用したカードを消費せずに温存する効果
     case preserveCard
+    /// 手札と NEXT を目的地へ近づきやすい候補へ再配布する効果
+    case draft
+    /// 反動コストを受け、次の 1 手だけ使用カードを温存する効果
+    case overload
+    /// 現在目的地と NEXT 目的地の先頭を入れ替える効果
+    case targetSwap
+    /// 指定した障害物マスを通常マスへ変える効果
+    case openGate(target: GridPoint)
 }
 
 /// 1 マスごとの踏破状態と必要踏破回数・挙動を保持する構造体
@@ -302,7 +310,7 @@ public struct Board: Equatable {
                 guard isWithinBoard(destination), !impassablePoints.contains(destination) else { continue }
                 sanitizedEffects[point] = effect
                 warpGroups[pairID, default: []].insert(point)
-            case .shuffleHand, .boost, .slow, .nextRefresh, .freeFocus, .preserveCard:
+            case .shuffleHand, .boost, .slow, .nextRefresh, .freeFocus, .preserveCard, .draft, .overload, .targetSwap, .openGate:
                 sanitizedEffects[point] = effect
             }
         }
@@ -384,6 +392,17 @@ public struct Board: Equatable {
     public mutating func markVisited(_ point: GridPoint) {
         guard contains(point), tiles[point.y][point.x].isTraversable else { return }
         tiles[point.y][point.x].markVisited()
+    }
+
+    /// 指定座標の障害物を通常マスへ戻す
+    /// - Parameter point: 開門したい障害物マス
+    /// - Returns: 実際に障害物を開いた場合は true
+    @discardableResult
+    public mutating func openGate(at point: GridPoint) -> Bool {
+        guard contains(point), tiles[point.y][point.x].isImpassable else { return false }
+        tiles[point.y][point.x] = TileState()
+        tileEffects.removeValue(forKey: point)
+        return true
     }
 
     /// 指定座標が移動可能なマスかどうか

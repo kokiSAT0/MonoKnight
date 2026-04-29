@@ -84,6 +84,7 @@ private extension GameMode {
         let boardSize = 8
         let warpA = GridPoint(x: 0, y: 0)
         let warpB = GridPoint(x: 7, y: 7)
+        let openGateTarget = GridPoint(x: 6, y: 4)
         let fixedWarpTargets = [
             warpA,
             GridPoint(x: 3, y: 0),
@@ -100,7 +101,11 @@ private extension GameMode {
             (.slow, GridPoint(x: 2, y: 2), .slow),
             (.nextRefresh, GridPoint(x: 0, y: 7), .nextRefresh),
             (.freeFocus, GridPoint(x: 7, y: 0), .freeFocus),
-            (.preserveCard, GridPoint(x: 3, y: 0), .preserveCard)
+            (.preserveCard, GridPoint(x: 3, y: 0), .preserveCard),
+            (.draft, GridPoint(x: 4, y: 4), .draft),
+            (.overload, GridPoint(x: 5, y: 5), .overload),
+            (.targetSwap, GridPoint(x: 1, y: 6), .targetSwap),
+            (.openGate, GridPoint(x: 6, y: 1), .openGate(target: openGateTarget))
         ]
         let tileEffects = Dictionary(
             uniqueKeysWithValues: allTileEffects.compactMap { kind, point, effect in
@@ -109,6 +114,7 @@ private extension GameMode {
         )
         let warpTilePairs = settings.enabledTileKinds.contains(.warp) ? ["lab_warp": [warpA, warpB]] : [:]
         let fixedWarpCardTargets: [MoveCard: [GridPoint]] = settings.enabledCardGroups.contains(.warp) ? [.fixedWarp: fixedWarpTargets] : [:]
+        let impassableTilePoints: Set<GridPoint> = settings.enabledTileKinds.contains(.openGate) ? [openGateTarget] : []
         return Regulation(
             boardSize: boardSize,
             handSize: 5,
@@ -122,6 +128,7 @@ private extension GameMode {
                 manualDiscardPenaltyCost: 1,
                 revisitPenaltyCost: 0
             ),
+            impassableTilePoints: impassableTilePoints,
             tileEffectOverrides: tileEffects,
             warpTilePairs: warpTilePairs,
             fixedWarpCardTargets: fixedWarpCardTargets,

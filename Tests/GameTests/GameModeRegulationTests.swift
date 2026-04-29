@@ -82,6 +82,11 @@ final class GameModeRegulationTests: XCTestCase {
         let nextRefreshPoint = GridPoint(x: 0, y: 4)
         let freeFocusPoint = GridPoint(x: 4, y: 0)
         let preserveCardPoint = GridPoint(x: 1, y: 1)
+        let draftPoint = GridPoint(x: 3, y: 3)
+        let overloadPoint = GridPoint(x: 1, y: 3)
+        let targetSwapPoint = GridPoint(x: 3, y: 1)
+        let openGatePoint = GridPoint(x: 0, y: 2)
+        let openGateTarget = GridPoint(x: 4, y: 2)
         let regulation = GameMode.Regulation(
             boardSize: 5,
             handSize: 5,
@@ -101,6 +106,10 @@ final class GameModeRegulationTests: XCTestCase {
                 nextRefreshPoint: .nextRefresh,
                 freeFocusPoint: .freeFocus,
                 preserveCardPoint: .preserveCard,
+                draftPoint: .draft,
+                overloadPoint: .overload,
+                targetSwapPoint: .targetSwap,
+                openGatePoint: .openGate(target: openGateTarget),
             ],
             completionRule: .targetCollection(goalCount: 12)
         )
@@ -118,6 +127,14 @@ final class GameModeRegulationTests: XCTestCase {
         XCTAssertEqual(decoded.resolvedTileEffects[freeFocusPoint], .freeFocus)
         XCTAssertEqual(decoded.tileEffectOverrides[preserveCardPoint], .preserveCard)
         XCTAssertEqual(decoded.resolvedTileEffects[preserveCardPoint], .preserveCard)
+        XCTAssertEqual(decoded.tileEffectOverrides[draftPoint], .draft)
+        XCTAssertEqual(decoded.resolvedTileEffects[draftPoint], .draft)
+        XCTAssertEqual(decoded.tileEffectOverrides[overloadPoint], .overload)
+        XCTAssertEqual(decoded.resolvedTileEffects[overloadPoint], .overload)
+        XCTAssertEqual(decoded.tileEffectOverrides[targetSwapPoint], .targetSwap)
+        XCTAssertEqual(decoded.resolvedTileEffects[targetSwapPoint], .targetSwap)
+        XCTAssertEqual(decoded.tileEffectOverrides[openGatePoint], .openGate(target: openGateTarget))
+        XCTAssertEqual(decoded.resolvedTileEffects[openGatePoint], .openGate(target: openGateTarget))
     }
 
     func testModeForFallbackIdentifiersReturnsStandard() {

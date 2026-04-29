@@ -49,6 +49,14 @@ public struct GameScenePalette {
     public let boardTileEffectFreeFocus: SKColor
     /// カード温存効果のアクセントカラー
     public let boardTileEffectPreserveCard: SKColor
+    /// ドラフト効果のアクセントカラー
+    public let boardTileEffectDraft: SKColor
+    /// 過負荷効果のアクセントカラー
+    public let boardTileEffectOverload: SKColor
+    /// 転換効果のアクセントカラー
+    public let boardTileEffectTargetSwap: SKColor
+    /// 開門効果のアクセントカラー
+    public let boardTileEffectOpenGate: SKColor
 
     /// 主要な色をまとめて指定できるイニシャライザ
     /// - Parameters:
@@ -83,6 +91,10 @@ public struct GameScenePalette {
         boardTileEffectNextRefresh: SKColor,
         boardTileEffectFreeFocus: SKColor,
         boardTileEffectPreserveCard: SKColor,
+        boardTileEffectDraft: SKColor,
+        boardTileEffectOverload: SKColor,
+        boardTileEffectTargetSwap: SKColor,
+        boardTileEffectOpenGate: SKColor,
         warpPairAccentColors: [SKColor]
     ) {
         self.boardBackground = boardBackground
@@ -104,6 +116,10 @@ public struct GameScenePalette {
         self.boardTileEffectNextRefresh = boardTileEffectNextRefresh
         self.boardTileEffectFreeFocus = boardTileEffectFreeFocus
         self.boardTileEffectPreserveCard = boardTileEffectPreserveCard
+        self.boardTileEffectDraft = boardTileEffectDraft
+        self.boardTileEffectOverload = boardTileEffectOverload
+        self.boardTileEffectTargetSwap = boardTileEffectTargetSwap
+        self.boardTileEffectOpenGate = boardTileEffectOpenGate
         self.warpPairAccentColors = warpPairAccentColors
     }
 }
@@ -146,6 +162,10 @@ public extension GameScenePalette {
         boardTileEffectNextRefresh: SKColor(red: 0.13, green: 0.62, blue: 0.36, alpha: 0.95),
         boardTileEffectFreeFocus: SKColor(red: 0.62, green: 0.38, blue: 0.88, alpha: 0.95),
         boardTileEffectPreserveCard: SKColor(red: 0.90, green: 0.54, blue: 0.06, alpha: 0.95),
+        boardTileEffectDraft: SKColor(red: 0.78, green: 0.18, blue: 0.50, alpha: 0.95),
+        boardTileEffectOverload: SKColor(red: 0.94, green: 0.25, blue: 0.10, alpha: 0.95),
+        boardTileEffectTargetSwap: SKColor(red: 0.16, green: 0.56, blue: 0.62, alpha: 0.95),
+        boardTileEffectOpenGate: SKColor(red: 0.44, green: 0.50, blue: 0.16, alpha: 0.95),
         // NOTE: ワープペアの識別用に 6 色を用意し、同心円の層数と組み合わせて視認性を確保する
         warpPairAccentColors: [
             SKColor(red: 0.38, green: 0.68, blue: 1.0, alpha: 1.0),
@@ -190,6 +210,10 @@ public extension GameScenePalette {
         boardTileEffectNextRefresh: SKColor(red: 0.35, green: 0.86, blue: 0.56, alpha: 0.95),
         boardTileEffectFreeFocus: SKColor(red: 0.78, green: 0.62, blue: 1.0, alpha: 0.95),
         boardTileEffectPreserveCard: SKColor(red: 1.0, green: 0.72, blue: 0.24, alpha: 0.95),
+        boardTileEffectDraft: SKColor(red: 1.0, green: 0.45, blue: 0.72, alpha: 0.95),
+        boardTileEffectOverload: SKColor(red: 1.0, green: 0.56, blue: 0.32, alpha: 0.95),
+        boardTileEffectTargetSwap: SKColor(red: 0.42, green: 0.88, blue: 0.90, alpha: 0.95),
+        boardTileEffectOpenGate: SKColor(red: 0.78, green: 0.84, blue: 0.34, alpha: 0.95),
         // NOTE: ダークテーマ用にも発光感を残した 6 色を揃え、背景が暗くても埋もれないようにする
         warpPairAccentColors: [
             SKColor(red: 0.56, green: 0.78, blue: 1.0, alpha: 1.0),

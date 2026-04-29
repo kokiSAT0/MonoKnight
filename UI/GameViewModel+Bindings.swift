@@ -62,6 +62,14 @@ extension GameViewModel {
             }
             .store(in: &cancellables)
 
+        core.$isOverloadCharged
+            .removeDuplicates()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.objectWillChange.send()
+            }
+            .store(in: &cancellables)
+
         core.$progress
             .removeDuplicates()
             .receive(on: RunLoop.main)

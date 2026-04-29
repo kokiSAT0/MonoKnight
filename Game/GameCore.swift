@@ -41,6 +41,8 @@ private enum PostMoveTileEffect {
     case shuffleHand
     case nextRefresh
     case freeFocus
+    case draft
+    case overload
 }
 
 /// ゲーム進行を統括するクラス
@@ -102,6 +104,8 @@ public final class GameCore: ObservableObject {
     @Published public private(set) var capturedTargetCount: Int = 0
     /// フォーカスを使った回数
     @Published public private(set) var focusCount: Int = 0
+    /// 過負荷マスにより、次の 1 手だけ使用カードが温存される状態かどうか
+    @Published public private(set) var isOverloadCharged: Bool = false
     /// 合計手数（移動 + ペナルティ）の計算プロパティ
     /// - Note: 将来的に別レギュレーションで利用する可能性があるため個別に保持
     public var totalMoveCount: Int { moveCount + penaltyCount }
@@ -326,6 +330,8 @@ public final class GameCore: ObservableObject {
         var encounteredRevisit = false
         var detectedEffects: [MovementResolution.AppliedEffect] = []
         var postMoveTileEffect: PostMoveTileEffect?
+        var appliesTargetSwap = false
+        var openGateTargets: [GridPoint] = []
         var preservesPlayedCard = false
 
         var stepIndex = 0
@@ -359,10 +365,12 @@ public final class GameCore: ObservableObject {
                     } else {
                         debugLog("ワープ先 \(destination) が盤面外または移動不可のため無視しました")
                     }
-                case .shuffleHand, .nextRefresh, .freeFocus, .preserveCard:
+                case .shuffleHand, .nextRefresh, .freeFocus, .preserveCard, .draft, .overload, .targetSwap, .openGate:
                     registerPostMoveTileEffect(
                         effect,
                         postMoveTileEffect: &postMoveTileEffect,
+                        appliesTargetSwap: &appliesTargetSwap,
+                        openGateTargets: &openGateTargets,
                         preservesPlayedCard: &preservesPlayedCard
                     )
                 case .slow:
@@ -397,10 +405,12 @@ public final class GameCore: ObservableObject {
                                 } else {
                                     debugLog("ワープ先 \(destination) が盤面外または移動不可のため無視しました")
                                 }
-                            case .shuffleHand, .nextRefresh, .freeFocus, .preserveCard:
+                            case .shuffleHand, .nextRefresh, .freeFocus, .preserveCard, .draft, .overload, .targetSwap, .openGate:
                                 registerPostMoveTileEffect(
                                     boostedEffect,
                                     postMoveTileEffect: &postMoveTileEffect,
+                                    appliesTargetSwap: &appliesTargetSwap,
+                                    openGateTargets: &openGateTargets,
                                     preservesPlayedCard: &preservesPlayedCard
                                 )
                             case .boost:
@@ -452,9 +462,17 @@ public final class GameCore: ObservableObject {
         // 盤面更新に合わせて残り踏破数を読み上げ
         announceRemainingTiles()
 
-        let preservedCard = preservesPlayedCard ? validatedMove.card : nil
-        if preservesPlayedCard {
-            debugLog("カード温存マス効果で使用カードを消費しませんでした")
+        let consumesOverloadCharge = isOverloadCharged
+        let shouldPreservePlayedCard = consumesOverloadCharge || preservesPlayedCard
+        let preservedCard = shouldPreservePlayedCard ? validatedMove.card : nil
+        if consumesOverloadCharge {
+            isOverloadCharged = false
+            debugLog("過負荷状態を消費し、使用カードを温存しました")
+        }
+        if shouldPreservePlayedCard {
+            if preservesPlayedCard && !consumesOverloadCharge {
+                debugLog("カード温存マス効果で使用カードを消費しませんでした")
+            }
             refreshHandStateFromManager()
         } else {
             // 使用済みカードは即座に破棄し、スタックから除去（残数がゼロになったらスタックごと取り除く）
@@ -474,7 +492,16 @@ public final class GameCore: ObservableObject {
                 progress = .cleared
                 return
             }
-        } else if board.isCleared {
+            if appliesTargetSwap {
+                applyTileEffectTargetSwap()
+            }
+        }
+
+        for target in openGateTargets {
+            applyTileEffectOpenGate(target: target)
+        }
+
+        if !mode.usesTargetCollection, board.isCleared {
             // クリア時点の経過秒数を確定させる
             finalizeElapsedTimeIfNeeded()
             progress = .cleared
@@ -499,6 +526,8 @@ public final class GameCore: ObservableObject {
     private func registerPostMoveTileEffect(
         _ effect: TileEffect,
         postMoveTileEffect: inout PostMoveTileEffect?,
+        appliesTargetSwap: inout Bool,
+        openGateTargets: inout [GridPoint],
         preservesPlayedCard: inout Bool
     ) {
         switch effect {
@@ -514,6 +543,16 @@ public final class GameCore: ObservableObject {
             if postMoveTileEffect == nil {
                 postMoveTileEffect = .freeFocus
             }
+        case .draft:
+            if postMoveTileEffect == nil {
+                postMoveTileEffect = .draft
+            }
+        case .overload:
+            postMoveTileEffect = .overload
+        case .targetSwap:
+            appliesTargetSwap = true
+        case .openGate(let target):
+            openGateTargets.append(target)
         case .preserveCard:
             preservesPlayedCard = true
         case .warp, .boost, .slow:
@@ -531,6 +570,10 @@ public final class GameCore: ObservableObject {
             applyTileEffectNextRefresh()
         case .freeFocus:
             applyTileEffectFreeFocus(preserving: preservedCard)
+        case .draft:
+            applyTileEffectDraft()
+        case .overload:
+            applyTileEffectOverload()
         }
     }
 
@@ -557,6 +600,46 @@ public final class GameCore: ObservableObject {
         rebuildFocusedHandAndNext(preserving: preservedCard)
         focusCount = previousFocusCount
         debugLog("無料フォーカスマス効果で手札とNEXTを再配布")
+    }
+
+    private func applyTileEffectDraft() {
+        let previousFocusCount = focusCount
+        rebuildFocusedHandAndNext()
+        focusCount = previousFocusCount
+        debugLog("ドラフトマス効果で目的地に近づきやすい手札とNEXTを再配布")
+    }
+
+    private func applyTileEffectOverload() {
+        if mode.usesTargetCollection {
+            focusCount += 1
+            debugLog("過負荷マスの反動でフォーカス回数を +1")
+        } else {
+            penaltyCount += 1
+            debugLog("過負荷マスの反動でペナルティを +1")
+        }
+        isOverloadCharged = true
+        debugLog("過負荷状態を付与: 次の1手で使用カードを温存")
+    }
+
+    private func applyTileEffectTargetSwap() {
+        guard mode.usesTargetCollection,
+              let currentTarget = targetPoint,
+              let firstUpcomingTarget = upcomingTargetPoints.first
+        else { return }
+
+        targetPoint = firstUpcomingTarget
+        upcomingTargetPoints[0] = currentTarget
+        debugLog("転換マス効果で現在目的地とNEXT目的地を入れ替えました")
+    }
+
+    private func applyTileEffectOpenGate(target: GridPoint) {
+        var updatedBoard = board
+        guard updatedBoard.openGate(at: target) else {
+            debugLog("開門マス効果: \(target) は障害物ではないため変化なし")
+            return
+        }
+        board = updatedBoard
+        debugLog("開門マス効果で \(target) を通行可能にしました")
     }
 
     /// 現在の状態から使用可能なカード移動候補を列挙する
@@ -721,6 +804,7 @@ public final class GameCore: ObservableObject {
         elapsedSeconds = 0
         capturedTargetCount = 0
         focusCount = 0
+        isOverloadCharged = false
         configureTargetsForNewSession()
         penaltyEvent = nil
         boardTapPlayRequest = nil
@@ -1198,6 +1282,7 @@ extension GameCore {
         core.hasRevisitedTile = false
         core.capturedTargetCount = 0
         core.focusCount = 0
+        core.isOverloadCharged = false
         core.configureTargetsForNewSession()
         core.progress = (resolvedCurrent == nil && mode.requiresSpawnSelection) ? .awaitingSpawn : .playing
 

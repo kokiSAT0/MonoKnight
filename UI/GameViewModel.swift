@@ -118,6 +118,8 @@ final class GameViewModel: ObservableObject {
     var remainingTargetCount: Int { core.remainingTargetCount }
     /// フォーカス使用回数
     var focusCount: Int { core.focusCount }
+    /// 過負荷状態中かどうか
+    var isOverloadCharged: Bool { core.isOverloadCharged }
     /// 目的地制モードかどうか
     var usesTargetCollection: Bool { mode.usesTargetCollection }
     /// ポーズメニューで表示するキャンペーン情報
