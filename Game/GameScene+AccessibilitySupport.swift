@@ -35,6 +35,8 @@
                 knightPosition: GridPoint?,
                 currentTargetPoints: Set<GridPoint>,
                 upcomingTargetPoints: Set<GridPoint>,
+                targetApproachCandidatePoints: Set<GridPoint>,
+                targetCaptureCandidatePoints: Set<GridPoint>,
                 layout: GameSceneLayoutSupport,
                 owner: GameScene
             ) {
@@ -78,6 +80,11 @@
                             labelParts.append("現在の目的地")
                         } else if upcomingTargetPoints.contains(point) {
                             labelParts.append("次の目的地候補")
+                        }
+                        if targetCaptureCandidatePoints.contains(point) {
+                            labelParts.append("目的地を取れる移動先")
+                        } else if targetApproachCandidatePoints.contains(point) {
+                            labelParts.append("目的地に近づく移動先")
                         }
                         labelParts.append(statusText)
                         element.accessibilityLabel = labelParts.joined(separator: "・")

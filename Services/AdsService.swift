@@ -102,6 +102,8 @@ struct AdsServiceConfiguration {
 // MARK: - Google Mobile Ads 実装
 @MainActor
 final class AdsService: NSObject, ObservableObject, AdsServiceProtocol {
+    private static let interstitialClearInterval = 3
+
     /// Info.plist に定義するキー名をまとめる
     private enum InfoPlistKey {
         static let applicationIdentifier = "GADApplicationIdentifier"
@@ -231,6 +233,24 @@ final class AdsService: NSObject, ObservableObject, AdsServiceProtocol {
 
     func showInterstitial() {
         interstitialController.showInterstitial()
+    }
+
+    func showInterstitialAfterGameClearIfNeeded() {
+        guard !removeAdsMK else {
+            debugLog("広告除去オプションが有効なためクリア回数カウントと広告表示をスキップしました")
+            return
+        }
+
+        let nextCount = (userDefaults.integer(forKey: StorageKey.AppStorage.interstitialClearCounter) + 1) %
+            Self.interstitialClearInterval
+        userDefaults.set(nextCount, forKey: StorageKey.AppStorage.interstitialClearCounter)
+
+        guard nextCount == 0 else {
+            debugLog("インタースティシャル広告は \(Self.interstitialClearInterval) 回クリアごとに表示します (現在 \(nextCount) 回目)")
+            return
+        }
+
+        showInterstitial()
     }
 
     func resetPlayFlag() {

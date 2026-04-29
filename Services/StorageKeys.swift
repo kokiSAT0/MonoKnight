@@ -11,6 +11,7 @@ enum StorageKey {
         static let bestPoints5x5 = "best_points_5x5"
         static let removeAdsPurchased = "remove_ads_mk"
         static let adsShouldUseNPA = "ads_should_use_npa"
+        static let interstitialClearCounter = "interstitial_clear_counter"
     }
 
     enum UserDefaults {

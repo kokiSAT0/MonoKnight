@@ -281,7 +281,8 @@ public final class GameCore: ObservableObject {
             boardSize: snapshotBoard.size,
             contains: { point in snapshotBoard.contains(point) },
             isTraversable: { point in snapshotBoard.isTraversable(point) },
-            isVisited: { point in snapshotBoard.isVisited(point) }
+            isVisited: { point in snapshotBoard.isVisited(point) },
+            targetPoint: mode.usesTargetCollection ? targetPoint : nil
         )
         let validPaths = card.move.resolvePaths(from: currentPosition, context: context)
 
@@ -312,9 +313,9 @@ public final class GameCore: ObservableObject {
 
         // 経路ごとの踏破判定と効果適用を順番に処理する
         // アニメーション用に経路を保持し、ワープ時は終点を追加して UI へ伝達する
-        var traversedPath = validatedMove.path
         let pathPoints = validatedMove.path
         var finalPosition = currentPosition
+        var actualTraversedPath: [GridPoint] = []
         var encounteredRevisit = false
         var detectedEffects: [MovementResolution.AppliedEffect] = []
         var requiresHandShuffle = false
@@ -323,6 +324,8 @@ public final class GameCore: ObservableObject {
         while stepIndex < pathPoints.count {
             let stepPoint = pathPoints[stepIndex]
             guard board.contains(stepPoint), board.isTraversable(stepPoint) else { return }
+
+            actualTraversedPath.append(stepPoint)
 
             if board.isVisited(stepPoint) {
                 encounteredRevisit = true
@@ -341,6 +344,7 @@ public final class GameCore: ObservableObject {
                         }
                         board.markVisited(destination)
                         finalPosition = destination
+                        actualTraversedPath.append(destination)
                         // ワープを適用したら残りの経路処理を終了する
                         stepIndex = pathPoints.count
                     } else {
@@ -354,17 +358,12 @@ public final class GameCore: ObservableObject {
             stepIndex += 1
         }
 
-        // 目的地が経路の末尾に含まれていない場合はワープ先を追加し、UI 側で扱いやすい配列に整える
-        if let last = traversedPath.last {
-            if last != finalPosition {
-                traversedPath.append(finalPosition)
-            }
-        } else {
-            traversedPath.append(finalPosition)
+        if actualTraversedPath.isEmpty {
+            actualTraversedPath.append(finalPosition)
         }
         // 直近の移動解決結果を更新し、GameScene が効果に応じたアニメーションを選択できるようにする
         lastMovementResolution = MovementResolution(
-            path: traversedPath,
+            path: actualTraversedPath,
             finalPosition: finalPosition,
             appliedEffects: detectedEffects
         )
@@ -402,7 +401,7 @@ public final class GameCore: ObservableObject {
 
         // クリア判定
         if mode.usesTargetCollection {
-            applyTargetCaptureIfNeeded(at: finalPosition)
+            applyTargetCaptureIfNeeded(along: actualTraversedPath, finalPosition: finalPosition)
             if capturedTargetCount >= mode.targetGoalCount {
                 finalizeElapsedTimeIfNeeded()
                 progress = .cleared
@@ -449,7 +448,8 @@ public final class GameCore: ObservableObject {
             boardSize: activeBoard.size,
             contains: { point in activeBoard.contains(point) },
             isTraversable: { point in activeBoard.isTraversable(point) },
-            isVisited: { point in activeBoard.isVisited(point) }
+            isVisited: { point in activeBoard.isVisited(point) },
+            targetPoint: mode.usesTargetCollection ? targetPoint : nil
         )
 
         // 列挙中に同じ座標へ向かうカードを検出しやすいよう、結果は座標→スタック順でソートする
@@ -519,8 +519,18 @@ public final class GameCore: ObservableObject {
     /// - Parameter point: ユーザーがタップした盤面座標
     /// - Returns: 優先順位ロジックを適用した `ResolvedCardMove`（該当なしの場合は nil）
     func resolvedMoveForBoardTap(at point: GridPoint) -> ResolvedCardMove? {
+        let allMoves = availableMoves()
         // availableMoves() からタップ地点へ到達できる候補だけを抽出する
-        let matchingMoves = availableMoves().filter { $0.destination == point }
+        let destinationMatches = allMoves.filter { $0.destination == point }
+        let matchingMoves: [ResolvedCardMove]
+        if !destinationMatches.isEmpty {
+            matchingMoves = destinationMatches
+        } else if mode.usesTargetCollection, point == targetPoint {
+            // 目的地制では、終点ではなく通過途中の現在目的地タップでも該当カードを選べるようにする
+            matchingMoves = allMoves.filter { $0.traversedPoints.contains(point) }
+        } else {
+            matchingMoves = []
+        }
 
         // 候補が存在しない場合は nil を返して終了する
         guard !matchingMoves.isEmpty else { return nil }
@@ -660,11 +670,13 @@ public final class GameCore: ObservableObject {
     }
 
     /// 目的地へ到達していれば獲得処理と次目的地の更新を行う
-    private func applyTargetCaptureIfNeeded(at finalPosition: GridPoint) {
-        guard mode.usesTargetCollection, finalPosition == targetPoint else { return }
+    private func applyTargetCaptureIfNeeded(along traversedPoints: [GridPoint], finalPosition: GridPoint) {
+        guard mode.usesTargetCollection,
+              let activeTarget = targetPoint,
+              traversedPoints.contains(activeTarget) else { return }
 
         capturedTargetCount += 1
-        debugLog("目的地獲得: \(capturedTargetCount)/\(mode.targetGoalCount) @\(finalPosition)")
+        debugLog("目的地獲得: \(capturedTargetCount)/\(mode.targetGoalCount) @\(activeTarget)")
 
         guard capturedTargetCount < mode.targetGoalCount else {
             targetPoint = nil
@@ -672,7 +684,7 @@ public final class GameCore: ObservableObject {
             return
         }
 
-        let previousTarget = targetPoint
+        let previousTarget = activeTarget
         if !upcomingTargetPoints.isEmpty {
             targetPoint = upcomingTargetPoints.removeFirst()
         } else {
@@ -835,7 +847,8 @@ public final class GameCore: ObservableObject {
             boardSize: activeBoard.size,
             contains: { point in activeBoard.contains(point) },
             isTraversable: { point in activeBoard.isTraversable(point) },
-            isVisited: { point in activeBoard.isVisited(point) }
+            isVisited: { point in activeBoard.isVisited(point) },
+            targetPoint: target
         )
         let destinations = card.move.resolvePaths(from: origin, context: context).compactMap(\.traversedPoints.last)
         guard let bestDistance = destinations.map({ manhattanDistance(from: $0, to: target) }).min() else {

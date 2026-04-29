@@ -8,6 +8,12 @@ extension GameViewModel {
         boardTapSelectionWarning = nil
     }
 
+    func clearTargetCaptureFeedback() {
+        targetCaptureFeedbackDismissTask?.cancel()
+        targetCaptureFeedbackDismissTask = nil
+        targetCaptureFeedback = nil
+    }
+
     func finalizeResultDismissal() {
         applyResultPresentationMutation { state in
             state.hideResult()
@@ -72,6 +78,7 @@ extension GameViewModel {
                 applySessionUIMutation { state in
                     state.resetTransientUIForTitleReturn()
                 }
+                clearTargetCaptureFeedback()
             },
             clearBoardTapSelectionWarning: { [self] in
                 clearBoardTapSelectionWarning()
@@ -109,6 +116,7 @@ extension GameViewModel {
                 applySessionUIMutation { state in
                     state.resetTransientUIForTitleReturn()
                 }
+                clearTargetCaptureFeedback()
             },
             clearBoardTapSelectionWarning: { [self] in
                 clearBoardTapSelectionWarning()

@@ -289,6 +289,38 @@ struct Deck {
             )
         }()
 
+        /// 目的地制カード調整用の全部入り実験デッキ
+        static let targetLabAllIn: Configuration = {
+            let selectionCards: [MoveCard] = [
+                .kingUpOrDown,
+                .kingLeftOrRight,
+                .kingUpwardDiagonalChoice,
+                .kingRightDiagonalChoice,
+                .kingDownwardDiagonalChoice,
+                .kingLeftDiagonalChoice,
+                .knightUpwardChoice,
+                .knightRightwardChoice,
+                .knightDownwardChoice,
+                .knightLeftwardChoice
+            ]
+            let warpCards: [MoveCard] = [.fixedWarp, .superWarp]
+            let targetCards = MoveCard.targetAssistCards
+            let allowedMoves = MoveCard.standardSet + selectionCards + warpCards + targetCards
+
+            var overrides: [MoveCard: Int] = [:]
+            MoveCard.directionalRayCards.forEach { overrides[$0] = 3 }
+            selectionCards.forEach { overrides[$0] = 2 }
+            targetCards.forEach { overrides[$0] = 4 }
+            overrides[.fixedWarp] = 3
+            overrides[.superWarp] = 2
+
+            return Configuration(
+                allowedMoves: allowedMoves,
+                weightProfile: WeightProfile(defaultWeight: 1, overrides: overrides),
+                deckSummaryText: "全部入りカード実験デッキ"
+            )
+        }()
+
         /// クラシカルチャレンジ向け設定（桂馬のみ・均等抽選）
         static let classicalChallenge: Configuration = {
             let knightMoves = MoveCard.standardSet.filter { $0.isKnightType }

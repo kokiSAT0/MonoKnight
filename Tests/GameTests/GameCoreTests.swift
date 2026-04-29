@@ -1020,6 +1020,86 @@ final class GameCoreTests: XCTestCase {
         XCTAssertEqual(core.progress, .playing)
     }
 
+    func testTargetCaptureCanHappenAlongTraversedPathWhilePieceMovesToEndpoint() {
+        let deck = Deck.makeTestDeck(cards: [
+            .rayRight, .kingUp, .kingLeft, .kingDown, .straightUp2,
+            .straightRight2, .straightLeft2, .straightDown2
+        ])
+        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 0, y: 2))
+        core.overrideTargetStateForTesting(
+            targetPoint: GridPoint(x: 2, y: 2),
+            upcomingTargetPoints: [GridPoint(x: 3, y: 2), GridPoint(x: 1, y: 3)]
+        )
+
+        guard let move = core.availableMoves().first(where: { $0.card.move == .rayRight }) else {
+            return XCTFail("レイ型カードが見つかりません")
+        }
+        core.playCard(using: move)
+
+        XCTAssertEqual(core.capturedTargetCount, 1)
+        XCTAssertEqual(core.current, GridPoint(x: 4, y: 2))
+        XCTAssertEqual(core.targetPoint, GridPoint(x: 3, y: 2), "次目的地は同じ手では獲得されず、次の現在目的地になります")
+    }
+
+    func testBoardTapCanSelectCardThatCapturesTargetAlongPath() {
+        let deck = Deck.makeTestDeck(cards: [
+            .rayRight, .kingUp, .kingLeft, .kingDown, .straightUp2,
+            .straightRight2, .straightLeft2, .straightDown2
+        ])
+        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 0, y: 2))
+        core.overrideTargetStateForTesting(targetPoint: GridPoint(x: 2, y: 2))
+
+        let resolved = core.resolvedMoveForBoardTap(at: GridPoint(x: 2, y: 2))
+
+        XCTAssertEqual(resolved?.card.move, .rayRight)
+        XCTAssertEqual(resolved?.destination, GridPoint(x: 4, y: 2))
+        XCTAssertTrue(resolved?.traversedPoints.contains(GridPoint(x: 2, y: 2)) == true)
+    }
+
+    func testWarpInterruptedPathDoesNotCaptureUntraversedTarget() {
+        let regulation = GameMode.Regulation(
+            boardSize: BoardGeometry.standardSize,
+            handSize: 5,
+            nextPreviewCount: 3,
+            allowsStacking: true,
+            deckPreset: .standard,
+            spawnRule: .fixed(GridPoint(x: 0, y: 2)),
+            penalties: GameMode.PenaltySettings(
+                deadlockPenaltyCost: 0,
+                manualRedrawPenaltyCost: 0,
+                manualDiscardPenaltyCost: 1,
+                revisitPenaltyCost: 0
+            ),
+            tileEffectOverrides: [
+                GridPoint(x: 1, y: 2): .warp(pairID: "test", destination: GridPoint(x: 4, y: 4)),
+                GridPoint(x: 4, y: 4): .warp(pairID: "test", destination: GridPoint(x: 1, y: 2))
+            ],
+            completionRule: .targetCollection(goalCount: 12)
+        )
+        let mode = GameMode(
+            identifier: .freeCustom,
+            displayName: "ワープ中断テスト",
+            regulation: regulation,
+            leaderboardEligible: false
+        )
+        let deck = Deck.makeTestDeck(cards: [
+            .rayRight, .kingUp, .kingLeft, .kingDown, .straightUp2,
+            .straightRight2, .straightLeft2, .straightDown2
+        ])
+        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 0, y: 2), mode: mode)
+        core.overrideTargetStateForTesting(targetPoint: GridPoint(x: 2, y: 2))
+
+        guard let move = core.availableMoves().first(where: { $0.card.move == .rayRight }) else {
+            return XCTFail("レイ型カードが見つかりません")
+        }
+        core.playCard(using: move)
+
+        XCTAssertEqual(core.current, GridPoint(x: 4, y: 4))
+        XCTAssertEqual(core.capturedTargetCount, 0)
+        XCTAssertEqual(core.targetPoint, GridPoint(x: 2, y: 2))
+        XCTAssertEqual(core.lastMovementResolution?.path, [GridPoint(x: 1, y: 2), GridPoint(x: 4, y: 4)])
+    }
+
     /// 全マス踏破していなくても、目的地を規定数獲得すればクリアすることを確認
     func testTargetCollectionClearsBeforeBoardClear() {
         let deck = Deck.makeTestDeck(cards: [

@@ -22,7 +22,8 @@ extension GameViewModel {
             boardSize: snapshotBoard.size,
             contains: { point in snapshotBoard.contains(point) },
             isTraversable: { point in snapshotBoard.isTraversable(point) },
-            isVisited: { point in snapshotBoard.isVisited(point) }
+            isVisited: { point in snapshotBoard.isVisited(point) },
+            targetPoint: core.mode.usesTargetCollection ? core.targetPoint : nil
         )
         let availablePaths = card.move.resolvePaths(from: current, context: context)
         boardBridge.updateForcedSelectionHighlights(Set(availablePaths.map(\.destination)))

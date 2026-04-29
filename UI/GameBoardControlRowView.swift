@@ -198,7 +198,7 @@ private extension GameBoardControlRowView {
         return Button {
             viewModel.requestManualPenalty()
         } label: {
-            Image(systemName: "arrow.triangle.2.circlepath")
+            Image(systemName: viewModel.usesTargetCollection ? "scope" : "arrow.triangle.2.circlepath")
                 .font(.system(size: 20, weight: .semibold))
                 .foregroundColor(theme.menuIconForeground)
                 .frame(width: 44, height: 44)
@@ -215,7 +215,7 @@ private extension GameBoardControlRowView {
         .opacity(isDisabled ? 0.45 : 1.0)
         .disabled(isDisabled)
         .accessibilityIdentifier("manual_penalty_button")
-        .accessibilityLabel(Text(viewModel.usesTargetCollection ? "フォーカスで手札を引き直す" : "ペナルティを払って手札スロットを引き直す"))
+        .accessibilityLabel(Text(viewModel.usesTargetCollection ? "フォーカスで目的地へ寄せる" : "ペナルティを払って手札スロットを引き直す"))
         .accessibilityHint(Text(viewModel.manualPenaltyAccessibilityHint))
     }
 

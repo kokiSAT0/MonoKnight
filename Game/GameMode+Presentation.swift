@@ -51,6 +51,8 @@ public extension GameMode {
             return "square.grid.3x3.fill"
         case .classicalChallenge:
             return "checkerboard.rectangle"
+        case .targetLab:
+            return "flask.fill"
         case .dailyFixedChallenge:
             return "calendar"
         case .dailyRandomChallenge:
@@ -74,6 +76,8 @@ public extension GameMode {
             return .balanced
         case .classicalChallenge:
             return .advanced
+        case .targetLab:
+            return .custom
         case .dailyFixedChallenge:
             return .balanced
         case .dailyRandomChallenge:

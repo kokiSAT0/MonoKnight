@@ -5,6 +5,7 @@ public struct GameMode: Equatable, Identifiable {
     public enum Identifier: String, CaseIterable {
         case standard5x5
         case classicalChallenge
+        case targetLab
         case dailyFixedChallenge   // 日替わり固定シード用モード。Game Center の仮 ID から本番 ID へ差し替える想定
         case dailyRandomChallenge  // 日替わりランダムシード用モード。将来的に xcconfig で ID を設定予定
         case freeCustom
@@ -424,7 +425,7 @@ public struct GameMode: Equatable, Identifiable {
         switch identifier {
         case .freeCustom, .campaignStage, .dailyFixed, .dailyRandom, .dailyFixedChallenge, .dailyRandomChallenge:
             return true
-        case .standard5x5, .classicalChallenge:
+        case .standard5x5, .classicalChallenge, .targetLab:
             return false
         }
     }

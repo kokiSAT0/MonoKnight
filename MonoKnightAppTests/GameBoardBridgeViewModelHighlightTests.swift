@@ -130,6 +130,42 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
         XCTAssertTrue(buckets.multipleVectorDestinations.isEmpty, "ワープカードが複数候補集合へ混入しています")
     }
 
+    /// 目的地制では合法手を「目的地を取れる」「近づく」「その他」の上位分類でも保持することを検証する
+    func testRefreshGuideHighlightsSeparatesTargetCaptureAndApproachCandidates() {
+        let core = GameCore(mode: .standard)
+        let viewModel = GameBoardBridgeViewModel(core: core, mode: .standard)
+        let origin = GridPoint(x: 2, y: 2)
+        let target = GridPoint(x: 4, y: 2)
+
+        core.overrideTargetStateForTesting(targetPoint: target)
+
+        let captureStack = HandStack(cards: [DealtCard(move: .straightRight2)])
+        let approachStack = HandStack(cards: [DealtCard(move: .kingRight)])
+        let neutralStack = HandStack(cards: [DealtCard(move: .kingUp)])
+
+        viewModel.refreshGuideHighlights(
+            handOverride: [captureStack, approachStack, neutralStack],
+            currentOverride: origin,
+            progressOverride: .playing
+        )
+
+        let buckets = viewModel.guideHighlightBuckets
+        XCTAssertEqual(buckets.targetCaptureDestinations, [target], "目的地を直接取れる候補が専用集合へ分類されていません")
+        XCTAssertEqual(
+            buckets.targetApproachDestinations,
+            [GridPoint(x: 3, y: 2)],
+            "目的地に近づく候補が専用集合へ分類されていません"
+        )
+        XCTAssertTrue(
+            buckets.singleVectorDestinations.contains(GridPoint(x: 2, y: 3)),
+            "目的地に近づかない合法手も従来の合法手ハイライトには残す必要があります"
+        )
+        XCTAssertFalse(
+            buckets.targetApproachDestinations.contains(target),
+            "目的地を取れる候補は接近集合ではなく獲得集合として扱う想定です"
+        )
+    }
+
     /// 強制ハイライトが障害物マスを除外することを検証する
     func testForcedSelectionHighlightsExcludeImpassableTiles() {
         // --- 移動不可マスを含むモードを構築し、ViewModel に適用 ---

@@ -352,6 +352,67 @@ struct CampaignTutorialBannerView: View {
     }
 }
 
+struct TargetCaptureFeedback: Equatable {
+    let capturedCount: Int
+    let goalCount: Int
+
+    var remainingCount: Int {
+        max(goalCount - capturedCount, 0)
+    }
+
+    var title: String {
+        remainingCount == 0 ? "目的地獲得" : "目的地獲得"
+    }
+
+    var message: String {
+        if remainingCount == 0 {
+            return "クリア条件を達成しました"
+        }
+        return "次の目的地へ。残り \(remainingCount) 個"
+    }
+}
+
+struct TargetCaptureFeedbackBannerView: View {
+    let feedback: TargetCaptureFeedback
+    let theme: AppTheme
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            Image(systemName: feedback.remainingCount == 0 ? "checkmark.circle.fill" : "diamond.fill")
+                .font(.system(size: 18, weight: .bold, design: .rounded))
+                .foregroundColor(theme.accentOnPrimary)
+                .padding(8)
+                .background(Circle().fill(theme.accentPrimary))
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(feedback.title)
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .foregroundColor(theme.textPrimary)
+                Text(feedback.message)
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .foregroundColor(theme.textSecondary)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 14)
+        .padding(.horizontal, 18)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(theme.spawnOverlayBackground)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(theme.spawnOverlayBorder, lineWidth: 1)
+                )
+        )
+        .shadow(color: theme.spawnOverlayShadow, radius: 18, x: 0, y: 12)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("target_capture_feedback_banner")
+        .accessibilityLabel(Text("\(feedback.title)。\(feedback.message)"))
+    }
+}
+
 enum GameMenuAction: Hashable, Identifiable {
     case manualPenalty(penaltyCost: Int)
     case reset
@@ -370,7 +431,10 @@ enum GameMenuAction: Hashable, Identifiable {
 
     var confirmationButtonTitle: String {
         switch self {
-        case .manualPenalty:
+        case .manualPenalty(let cost):
+            if cost < 0 {
+                return "フォーカスする"
+            }
             return "実行する"
         case .reset:
             return "リセットする"
@@ -383,7 +447,7 @@ enum GameMenuAction: Hashable, Identifiable {
         switch self {
         case .manualPenalty(let cost):
             if cost < 0 {
-                return "フォーカスを使って、現在の目的地へ近づきやすいカードを優先して引き直します。スコアに15ポイント加算されます。"
+                return "フォーカスを使って、現在の目的地へ近づきやすいカードを優先して手札を整えます。スコアに15ポイント加算されます。"
             }
             if cost > 0 {
                 return "手数を\(cost)増やして手札スロットを引き直します。現在の手札スロットは空になります。よろしいですか？"
@@ -397,7 +461,14 @@ enum GameMenuAction: Hashable, Identifiable {
         }
     }
 
-    var buttonRole: ButtonRole? { .destructive }
+    var buttonRole: ButtonRole? {
+        switch self {
+        case .manualPenalty(let cost) where cost < 0:
+            return nil
+        default:
+            return .destructive
+        }
+    }
 }
 
 final class GamePenaltyBannerController {

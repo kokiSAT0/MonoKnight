@@ -29,6 +29,8 @@ protocol GameCenterServiceProtocol: AnyObject {
 protocol AdsServiceProtocol: AnyObject {
     /// インタースティシャル広告を表示する。
     func showInterstitial()
+    /// ゲームクリアを記録し、必要な頻度に達した場合のみインタースティシャル広告を表示する。
+    func showInterstitialAfterGameClearIfNeeded()
     /// プレイ開始フラグをリセットし、広告表示条件を初期化する。
     func resetPlayFlag()
     /// 広告読み込みを完全に停止する（IAP 購入時などに利用）。
@@ -41,6 +43,12 @@ protocol AdsServiceProtocol: AnyObject {
     func requestConsentIfNeeded() async
     /// 同意状態を最新化する。
     func refreshConsentStatus() async
+}
+
+extension AdsServiceProtocol {
+    func showInterstitialAfterGameClearIfNeeded() {
+        showInterstitial()
+    }
 }
 
 // MARK: StoreKit

@@ -8,6 +8,8 @@
         private var latestMultipleGuidePoints: Set<GridPoint> = []
         private var latestMultiStepGuidePoints: Set<GridPoint> = []
         private var latestWarpGuidePoints: Set<GridPoint> = []
+        private var latestTargetApproachPoints: Set<GridPoint> = []
+        private var latestTargetCapturePoints: Set<GridPoint> = []
         private var latestForcedSelectionPoints: Set<GridPoint> = []
         private var latestCurrentTargetPoints: Set<GridPoint> = []
         private var latestUpcomingTargetPoints: Set<GridPoint> = []
@@ -28,6 +30,8 @@
             latestMultipleGuidePoints = []
             latestMultiStepGuidePoints = []
             latestWarpGuidePoints = []
+            latestTargetApproachPoints = []
+            latestTargetCapturePoints = []
             latestForcedSelectionPoints = []
             latestCurrentTargetPoints = []
             latestUpcomingTargetPoints = []
@@ -123,6 +127,8 @@
                     .guideMultipleCandidate: latestMultipleGuidePoints,
                     .guideMultiStepCandidate: latestMultiStepGuidePoints,
                     .guideWarpCandidate: latestWarpGuidePoints,
+                    .targetApproachCandidate: latestTargetApproachPoints,
+                    .targetCaptureCandidate: latestTargetCapturePoints,
                     .forcedSelection: latestForcedSelectionPoints,
                     .currentTarget: latestCurrentTargetPoints,
                     .upcomingTarget: latestUpcomingTargetPoints,
@@ -154,6 +160,8 @@
             latestMultipleGuidePoints = highlights[.guideMultipleCandidate] ?? []
             latestMultiStepGuidePoints = highlights[.guideMultiStepCandidate] ?? []
             latestWarpGuidePoints = highlights[.guideWarpCandidate] ?? []
+            latestTargetApproachPoints = highlights[.targetApproachCandidate] ?? []
+            latestTargetCapturePoints = highlights[.targetCaptureCandidate] ?? []
             latestForcedSelectionPoints = highlights[.forcedSelection] ?? []
             latestCurrentTargetPoints = highlights[.currentTarget] ?? []
             latestUpcomingTargetPoints = highlights[.upcomingTarget] ?? []
@@ -291,6 +299,20 @@
                     overlapInset = max(overlapInset, strokeWidth * 1.2)
                 }
                 zPosition = 1.06
+            case .targetApproachCandidate:
+                baseColor = palette.boardGuideHighlight
+                strokeAlpha = 0.95
+                strokeWidth = max(layout.tileSize * 0.045, 2.0)
+                fillColor = baseColor.withAlphaComponent(0.10)
+                overlapInset = max(layout.tileSize * 0.16, strokeWidth * 2.2)
+                zPosition = 1.08
+            case .targetCaptureCandidate:
+                baseColor = palette.boardWarpHighlight
+                strokeAlpha = 0.98
+                strokeWidth = max(layout.tileSize * 0.075, 2.6)
+                fillColor = baseColor.withAlphaComponent(0.20)
+                overlapInset = max(layout.tileSize * 0.08, strokeWidth * 1.2)
+                zPosition = 1.16
             case .forcedSelection:
                 baseColor = palette.boardWarpHighlight
                 strokeAlpha = 0.82
@@ -301,13 +323,13 @@
                 baseColor = palette.boardWarpHighlight
                 strokeAlpha = 0
                 strokeWidth = 0
-                fillColor = baseColor.withAlphaComponent(0.86)
-                zPosition = 1.18
+                fillColor = baseColor.withAlphaComponent(0.94)
+                zPosition = 1.2
             case .upcomingTarget:
                 baseColor = palette.boardGuideHighlight
                 strokeAlpha = 0
                 strokeWidth = 0
-                fillColor = baseColor.withAlphaComponent(0.44)
+                fillColor = baseColor.withAlphaComponent(0.30)
                 zPosition = 1.12
             }
 
@@ -347,13 +369,15 @@
                  .guideMultipleCandidate,
                  .guideMultiStepCandidate,
                  .guideWarpCandidate,
+                 .targetApproachCandidate,
+                 .targetCaptureCandidate,
                  .forcedSelection:
                 return CGPath(rect: rect, transform: nil)
             }
         }
 
         private func currentTargetMarkerPath(center: CGPoint, tileSize: CGFloat) -> CGPath {
-            let radius = tileSize * 0.22
+            let radius = tileSize * 0.26
             let path = CGMutablePath()
             path.move(to: CGPoint(x: center.x, y: center.y + radius))
             path.addLine(to: CGPoint(x: center.x + radius, y: center.y))
@@ -364,7 +388,7 @@
         }
 
         private func upcomingTargetMarkerPath(center: CGPoint, tileSize: CGFloat) -> CGPath {
-            let side = max(tileSize * 0.18, 8.0)
+            let side = max(tileSize * 0.14, 6.0)
             let rect = CGRect(
                 x: center.x - side / 2,
                 y: center.y - side / 2,

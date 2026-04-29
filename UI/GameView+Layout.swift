@@ -149,6 +149,16 @@ extension GameView {
                     }
                 }
 
+                if let feedback = viewModel.targetCaptureFeedback {
+                    HStack {
+                        Spacer(minLength: 0)
+                        TargetCaptureFeedbackBannerView(feedback: feedback, theme: theme)
+                            .padding(Edge.Set.horizontal, 20)
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                        Spacer(minLength: 0)
+                    }
+                }
+
                 if let banner = viewModel.activePenaltyBanner {
                     HStack {
                         Spacer(minLength: 0)

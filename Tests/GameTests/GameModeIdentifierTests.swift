@@ -14,12 +14,27 @@ final class GameModeIdentifierTests: XCTestCase {
         XCTAssertEqual(GameMode.Identifier.dailyRandomChallenge.scoreSubmissionIdentifier, .dailyRandomChallenge)
         XCTAssertNil(GameMode.Identifier.freeCustom.scoreSubmissionIdentifier)
         XCTAssertNil(GameMode.Identifier.campaignStage.scoreSubmissionIdentifier)
+        XCTAssertNil(GameMode.Identifier.targetLab.scoreSubmissionIdentifier)
     }
 
     func testPlayModeIdentifierNormalizesLeaderboardIdentifiersBackToPlayableModes() {
         XCTAssertEqual(GameMode.Identifier.dailyFixedChallenge.playModeIdentifier, .dailyFixed)
         XCTAssertEqual(GameMode.Identifier.dailyRandomChallenge.playModeIdentifier, .dailyRandom)
         XCTAssertEqual(GameMode.Identifier.standard5x5.playModeIdentifier, .standard5x5)
+        XCTAssertEqual(GameMode.Identifier.targetLab.playModeIdentifier, .targetLab)
+    }
+
+    func testTargetLabModeUsesExperimentRulesWithoutLeaderboard() {
+        let mode = GameMode.targetLab
+
+        XCTAssertEqual(mode.identifier, .targetLab)
+        XCTAssertEqual(mode.boardSize, 5)
+        XCTAssertTrue(mode.requiresSpawnSelection)
+        XCTAssertTrue(mode.usesTargetCollection)
+        XCTAssertEqual(mode.targetGoalCount, 12)
+        XCTAssertEqual(mode.deckPreset, .targetLabAllIn)
+        XCTAssertFalse(mode.isLeaderboardEligible)
+        XCTAssertFalse(mode.isCampaignStage)
     }
 
     func testCampaignLibraryStageLookupReturnsStageForEveryRegisteredID() {

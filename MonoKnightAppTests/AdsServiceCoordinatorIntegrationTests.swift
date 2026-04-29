@@ -128,6 +128,7 @@ struct AdsServiceCoordinatorIntegrationTests {
     @Test func adsService_delegatesToInjectedComponents() async throws {
         UserDefaults.standard.removeObject(forKey: StorageKey.AppStorage.removeAdsPurchased)
         UserDefaults.standard.removeObject(forKey: StorageKey.AppStorage.adsShouldUseNPA)
+        UserDefaults.standard.removeObject(forKey: StorageKey.AppStorage.interstitialClearCounter)
 
         let consent = StubAdsConsentCoordinator()
         let interstitial = StubInterstitialAdController()
@@ -169,6 +170,47 @@ struct AdsServiceCoordinatorIntegrationTests {
         #expect(interstitial.showCallCount == 1)
         #expect(interstitial.resetCallCount == 1)
         #expect(interstitial.disableCallCount == 1)
+    }
+
+    /// クリア後インタースティシャルは 3 回クリアごとにのみ表示要求が流れることを確認
+    @MainActor
+    @Test func adsService_showsInterstitialEveryThirdGameClear() async throws {
+        let suiteName = "AdsServiceClearFrequencyTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let consent = StubAdsConsentCoordinator()
+        let interstitial = StubInterstitialAdController()
+        let configuration = AdsServiceConfiguration(
+            interstitialAdUnitID: "test",
+            rewardedAdUnitID: "rewarded-test",
+            hasValidAdConfiguration: true,
+            hasValidRewardedConfiguration: true
+        )
+
+        let service = AdsService(
+            configuration: configuration,
+            consentCoordinator: consent,
+            interstitialController: interstitial,
+            mobileAdsController: StubMobileAdsController(),
+            trackingAuthorizationController: StubTrackingAuthorizationController(currentStatus: .authorized, responseStatus: .authorized),
+            userDefaults: defaults
+        )
+
+        await Task.yield()
+        await Task.yield()
+
+        service.showInterstitialAfterGameClearIfNeeded()
+        service.showInterstitialAfterGameClearIfNeeded()
+        #expect(interstitial.showCallCount == 0)
+
+        service.showInterstitialAfterGameClearIfNeeded()
+        #expect(interstitial.showCallCount == 1)
+
+        service.showInterstitialAfterGameClearIfNeeded()
+        service.showInterstitialAfterGameClearIfNeeded()
+        service.showInterstitialAfterGameClearIfNeeded()
+        #expect(interstitial.showCallCount == 2)
     }
 
     /// AdsConsentCoordinator が通知する同意状態の変化を AdsService が橋渡しできているか検証

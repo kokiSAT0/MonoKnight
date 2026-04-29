@@ -156,6 +156,10 @@ private extension MoveCard {
             fallbackVectorsOverride: [MoveVector(dx: 0, dy: 0)]
         )
 
+        mapping[.targetStep] = .targetStep()
+        mapping[.targetKnight] = .targetKnight()
+        mapping[.targetLine] = .targetLine()
+
         return mapping
     }()
 

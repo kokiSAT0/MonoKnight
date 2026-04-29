@@ -43,6 +43,14 @@ struct HighScoreChallengeSelectionView: View {
                 accessibilityIdentifier: "high_score_mode_standard"
             ),
             ModeCardData(
+                mode: .targetLab,
+                headline: "カード実験場",
+                rewardSummary: "ランキング対象外の実験枠です。カード調整のため、Game Center には送信されません。",
+                ruleSummary: "5×5 盤・開始位置選択可・目的地12個でクリア。標準、選択、レイ、ワープ、新しい目的地補助カードを全部入りで試せます。",
+                difficultyLabel: "実験",
+                accessibilityIdentifier: "high_score_mode_target_lab"
+            ),
+            ModeCardData(
                 mode: .classicalChallenge,
                 headline: "クラシカルチャレンジ",
                 rewardSummary: "大盤での踏破を目指す上級者向けチャレンジです。ランキングでも差をつけやすい高難度カテゴリです。",

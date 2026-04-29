@@ -1,6 +1,8 @@
 import Combine
 import Foundation
 import Game
+import SwiftUI
+import UIKit
 
 @MainActor
 extension GameViewModel {
@@ -118,6 +120,7 @@ extension GameViewModel {
     func handleTutorialCapturedTargetCountChange(_ newCapturedTargetCount: Int) {
         defer { lastTutorialCapturedTargetCount = newCapturedTargetCount }
         guard newCapturedTargetCount > lastTutorialCapturedTargetCount else { return }
+        showTargetCaptureFeedback(capturedCount: newCapturedTargetCount)
         handleCampaignTutorialEvent(.targetCaptured)
     }
 
@@ -153,6 +156,40 @@ extension GameViewModel {
                 points.insert(targetPoint)
             }
             boardBridge.updateForcedSelectionHighlights(points)
+        }
+    }
+
+    func showTargetCaptureFeedback(capturedCount: Int) {
+        guard core.mode.usesTargetCollection else { return }
+
+        targetCaptureFeedbackDismissTask?.cancel()
+        targetCaptureFeedbackDismissTask = nil
+
+        withAnimation(.spring(response: 0.32, dampingFraction: 0.82, blendDuration: 0.18)) {
+            targetCaptureFeedback = TargetCaptureFeedback(
+                capturedCount: capturedCount,
+                goalCount: core.targetGoalCount
+            )
+        }
+
+        if hapticsEnabled {
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
+        }
+
+        targetCaptureFeedbackDismissTask = Task { [weak self] in
+            do {
+                try await Task.sleep(nanoseconds: 1_700_000_000)
+            } catch {
+                return
+            }
+
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                withAnimation(.easeOut(duration: 0.24)) {
+                    self?.targetCaptureFeedback = nil
+                }
+                self?.targetCaptureFeedbackDismissTask = nil
+            }
         }
     }
 }

@@ -62,6 +62,9 @@ public extension MoveCard {
         case .rayUpLeft: return "左上連続"
         case .superWarp: return "全域ワープ"
         case .fixedWarp: return "固定ワープ"
+        case .targetStep: return "目的地ステップ"
+        case .targetKnight: return "目的地ナイト"
+        case .targetLine: return "目的地ライン"
         }
     }
 
@@ -79,6 +82,10 @@ public extension MoveCard {
              .knightDownwardChoice,
              .knightLeftwardChoice:
             return .choice
+        case .targetStep,
+             .targetKnight,
+             .targetLine:
+            return .targetAssist
         default:
             return MoveCard.directionalRayCards.contains(self) ? .multiStep : .normal
         }

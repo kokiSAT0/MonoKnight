@@ -46,13 +46,19 @@ final class GameBoardBridgeViewModel: ObservableObject {
         var multiStepDestinations: Set<GridPoint>
         /// ワープ系カード専用の座標集合（紫枠で強調する）
         var warpDestinations: Set<GridPoint>
+        /// 目的地へ近づく合法手の座標集合
+        var targetApproachDestinations: Set<GridPoint>
+        /// 現在の目的地を獲得できる合法手の座標集合
+        var targetCaptureDestinations: Set<GridPoint>
 
         /// すべて空集合の初期値を返すヘルパー
         static let empty = GuideHighlightBuckets(
             singleVectorDestinations: [],
             multipleVectorDestinations: [],
             multiStepDestinations: [],
-            warpDestinations: []
+            warpDestinations: [],
+            targetApproachDestinations: [],
+            targetCaptureDestinations: []
         )
     }
 
@@ -213,6 +219,8 @@ final class GameBoardBridgeViewModel: ObservableObject {
             .guideMultipleCandidate: guideHighlightBuckets.multipleVectorDestinations,
             .guideMultiStepCandidate: guideHighlightBuckets.multiStepDestinations,
             .guideWarpCandidate: guideHighlightBuckets.warpDestinations,
+            .targetApproachCandidate: guideHighlightBuckets.targetApproachDestinations,
+            .targetCaptureCandidate: guideHighlightBuckets.targetCaptureDestinations,
             .forcedSelection: forcedSelectionHighlightPoints,
             .currentTarget: core.targetPoint.map { Set([$0]) } ?? [],
             .upcomingTarget: Set(core.upcomingTargetPoints)
@@ -242,12 +250,15 @@ final class GameBoardBridgeViewModel: ObservableObject {
         let multipleCount = buckets.multipleVectorDestinations.count
         let multiStepCount = buckets.multiStepDestinations.count
         let warpCount = buckets.warpDestinations.count
+        let approachCount = buckets.targetApproachDestinations.count
+        let captureCount = buckets.targetCaptureDestinations.count
         let totalCount = singleCount + multipleCount + multiStepCount + warpCount
 
         // --- 呼び出し側で使うログ文面を一括生成する ---
         let logMessage = (
             "\(logPrefix) 単一=\(singleCount) 複数=\(multipleCount) " +
-            "連続=\(multiStepCount) ワープ=\(warpCount) 合計=\(totalCount)"
+            "連続=\(multiStepCount) ワープ=\(warpCount) " +
+            "接近=\(approachCount) 獲得=\(captureCount) 合計=\(totalCount)"
         )
 
         return (
@@ -288,10 +299,20 @@ final class GameBoardBridgeViewModel: ObservableObject {
         let resolvedMoves = core.availableMoves(handStacks: handStacks, current: current)
         let groupedByCard = Dictionary(grouping: resolvedMoves, by: { $0.card.id })
         var computedBuckets = GuideHighlightBuckets.empty
+        let currentTargetDistance = core.targetPoint.map { target in
+            Self.targetGuideDistance(from: current, to: target)
+        }
+
         for moves in groupedByCard.values {
             guard let representative = moves.first else { continue }
             let destinations = moves.map { $0.destination }
             let move = representative.card.move
+
+            classifyTargetGuideMoves(
+                moves,
+                currentTargetDistance: currentTargetDistance,
+                into: &computedBuckets
+            )
 
             if move == .superWarp {
                 // スーパーワープは盤面全域が候補となりガイドが画面を覆ってしまうため、あえて登録しない
@@ -354,6 +375,38 @@ final class GameBoardBridgeViewModel: ObservableObject {
             logPrefix: "ガイド描画"
         )
         debugLog(summary.logMessage)
+    }
+
+    /// 目的地制で合法手が「取れる」「近づく」のどちらに当たるかを分類する
+    private func classifyTargetGuideMoves(
+        _ moves: [ResolvedCardMove],
+        currentTargetDistance: Int?,
+        into buckets: inout GuideHighlightBuckets
+    ) {
+        guard mode.usesTargetCollection,
+              let target = core.targetPoint,
+              let currentTargetDistance else {
+            return
+        }
+
+        for move in moves {
+            if move.traversedPoints.contains(target) {
+                buckets.targetCaptureDestinations.insert(target)
+                buckets.targetApproachDestinations.remove(target)
+                continue
+            }
+
+            let destination = move.destination
+            let nextDistance = Self.targetGuideDistance(from: destination, to: target)
+            if nextDistance < currentTargetDistance {
+                buckets.targetApproachDestinations.insert(destination)
+            }
+        }
+    }
+
+    /// 目的地への近さを測るシンプルなマンハッタン距離
+    private static func targetGuideDistance(from origin: GridPoint, to target: GridPoint) -> Int {
+        abs(origin.x - target.x) + abs(origin.y - target.y)
     }
 
     /// 強制的に表示したいハイライト集合を更新する

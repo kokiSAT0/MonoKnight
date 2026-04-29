@@ -186,7 +186,7 @@ struct ResultView: View {
                 .ignoresSafeArea()
         }
         .onAppear {
-            adsService.showInterstitial()
+            adsService.showInterstitialAfterGameClearIfNeeded()
             if showsLeaderboardButton {
                 updateBest()
             }

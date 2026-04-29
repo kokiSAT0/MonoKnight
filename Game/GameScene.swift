@@ -10,6 +10,8 @@
         case guideMultipleCandidate
         case guideMultiStepCandidate
         case guideWarpCandidate
+        case targetApproachCandidate
+        case targetCaptureCandidate
         case forcedSelection
         case currentTarget
         case upcomingTarget
@@ -38,6 +40,8 @@
         private var pendingBoard: Board?
         private var currentTargetPoints: Set<GridPoint> = []
         private var upcomingTargetPoints: Set<GridPoint> = []
+        private var targetApproachCandidatePoints: Set<GridPoint> = []
+        private var targetCaptureCandidatePoints: Set<GridPoint> = []
 
         #if canImport(UIKit)
             private let accessibilitySupport = GameSceneAccessibilitySupport()
@@ -65,6 +69,10 @@
             highlightRenderer.reset()
             knightAnimator.reset(in: self)
             pendingBoard = nil
+            currentTargetPoints = []
+            upcomingTargetPoints = []
+            targetApproachCandidatePoints = []
+            targetCaptureCandidatePoints = []
             #if canImport(UIKit)
                 accessibilitySupport.reset()
             #endif
@@ -183,6 +191,8 @@
         public func updateHighlights(_ highlights: [BoardHighlightKind: Set<GridPoint>]) {
             currentTargetPoints = highlights[.currentTarget] ?? []
             upcomingTargetPoints = highlights[.upcomingTarget] ?? []
+            targetApproachCandidatePoints = highlights[.targetApproachCandidate] ?? []
+            targetCaptureCandidatePoints = highlights[.targetCaptureCandidate] ?? []
             highlightRenderer.updateHighlights(
                 highlights,
                 board: board,
@@ -199,6 +209,8 @@
                 .guideSingleCandidate: [],
                 .guideMultipleCandidate: points,
                 .guideMultiStepCandidate: [],
+                .targetApproachCandidate: [],
+                .targetCaptureCandidate: [],
             ])
         }
 
@@ -380,6 +392,8 @@
                     knightPosition: knightAnimator.knightPosition,
                     currentTargetPoints: currentTargetPoints,
                     upcomingTargetPoints: upcomingTargetPoints,
+                    targetApproachCandidatePoints: targetApproachCandidatePoints,
+                    targetCaptureCandidatePoints: targetCaptureCandidatePoints,
                     layout: layoutSupport,
                     owner: self
                 )

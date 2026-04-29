@@ -11,7 +11,7 @@ public extension GameMode.Identifier {
             return .dailyFixedChallenge
         case .dailyRandom:
             return .dailyRandomChallenge
-        case .freeCustom, .campaignStage:
+        case .freeCustom, .campaignStage, .targetLab:
             return nil
         }
     }
@@ -24,7 +24,7 @@ public extension GameMode.Identifier {
             return .dailyFixed
         case .dailyRandomChallenge:
             return .dailyRandom
-        case .standard5x5, .classicalChallenge, .freeCustom, .campaignStage, .dailyFixed, .dailyRandom:
+        case .standard5x5, .classicalChallenge, .targetLab, .freeCustom, .campaignStage, .dailyFixed, .dailyRandom:
             return self
         }
     }

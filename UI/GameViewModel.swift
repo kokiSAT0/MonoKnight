@@ -175,9 +175,13 @@ final class GameViewModel: ObservableObject {
     @Published var boardTapSelectionWarning: GameBoardTapSelectionWarning?
     /// キャンペーン導入チュートリアルで現在表示するカード
     @Published var campaignTutorialCard: CampaignTutorialCard?
+    /// 目的地獲得直後に表示する短いフィードバック
+    @Published var targetCaptureFeedback: TargetCaptureFeedback?
 
     /// Combine の購読を保持するセット
     var cancellables = Set<AnyCancellable>()
+    /// 目的地獲得フィードバックの自動消滅タスク
+    var targetCaptureFeedbackDismissTask: Task<Void, Never>?
     /// キャンペーン定義
     private let campaignLibrary = CampaignLibrary.shared
     /// 現在時刻を取得するためのクロージャ。テストでは任意の値へ差し替える
@@ -338,7 +342,7 @@ final class GameViewModel: ObservableObject {
     /// - Returns: 手数消費量とスタック仕様を含めた説明テキスト
     var manualPenaltyAccessibilityHint: String {
         if core.mode.usesTargetCollection {
-            return "現在の目的地へ近づきやすいカードを優先して手札を引き直します。スコアに15ポイント加算されます。"
+            return "現在の目的地へ近づきやすいカードを優先して手札を整えます。スコアに15ポイント加算されます。"
         }
         return sessionUIState.manualPenaltyAccessibilityHint(
             penaltyCost: core.mode.manualRedrawPenaltyCost,

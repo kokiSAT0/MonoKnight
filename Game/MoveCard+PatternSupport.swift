@@ -69,6 +69,8 @@ public extension MoveCard {
             /// 既踏マスかどうかを判定するクロージャ
             /// - Note: 絶対座標ジャンプ系カードで未踏マス優先の挙動を実装するため追加
             private let visitedHandler: (GridPoint) -> Bool
+            /// 目的地制で参照する現在目的地。目的地制でない場合は nil。
+            public let targetPoint: GridPoint?
 
             /// イニシャライザ
             /// - Parameters:
@@ -79,12 +81,14 @@ public extension MoveCard {
                 boardSize: Int,
                 contains: @escaping (GridPoint) -> Bool,
                 isTraversable: @escaping (GridPoint) -> Bool,
-                isVisited: @escaping (GridPoint) -> Bool = { _ in false }
+                isVisited: @escaping (GridPoint) -> Bool = { _ in false },
+                targetPoint: GridPoint? = nil
             ) {
                 self.boardSize = boardSize
                 self.containsHandler = contains
                 self.traversableHandler = isTraversable
                 self.visitedHandler = isVisited
+                self.targetPoint = targetPoint
             }
 
             /// 指定座標が盤内かどうかを返す
@@ -258,6 +262,77 @@ public extension MoveCard {
             }
         }
 
+        /// 現在目的地へ近づく隣接マスを動的に生成する
+        public static func targetStep() -> MovePattern {
+            let vectors = [
+                MoveVector(dx: 0, dy: 1),
+                MoveVector(dx: 1, dy: 1),
+                MoveVector(dx: 1, dy: 0),
+                MoveVector(dx: 1, dy: -1),
+                MoveVector(dx: 0, dy: -1),
+                MoveVector(dx: -1, dy: -1),
+                MoveVector(dx: -1, dy: 0),
+                MoveVector(dx: -1, dy: 1)
+            ]
+            return targetApproachSteps(
+                vectors,
+                identity: .custom("targetStep")
+            )
+        }
+
+        /// 現在目的地へ近づく桂馬候補を動的に生成する
+        public static func targetKnight() -> MovePattern {
+            let vectors = [
+                MoveVector(dx: 1, dy: 2),
+                MoveVector(dx: -1, dy: 2),
+                MoveVector(dx: 2, dy: 1),
+                MoveVector(dx: -2, dy: 1),
+                MoveVector(dx: 1, dy: -2),
+                MoveVector(dx: -1, dy: -2),
+                MoveVector(dx: 2, dy: -1),
+                MoveVector(dx: -2, dy: -1)
+            ]
+            return targetApproachSteps(
+                vectors,
+                identity: .custom("targetKnight")
+            )
+        }
+
+        /// 現在目的地方向へ一直線に進む候補を生成する
+        public static func targetLine() -> MovePattern {
+            let fallbackVectors = [
+                MoveVector(dx: 0, dy: 1),
+                MoveVector(dx: 1, dy: 1),
+                MoveVector(dx: 1, dy: 0),
+                MoveVector(dx: 1, dy: -1),
+                MoveVector(dx: 0, dy: -1),
+                MoveVector(dx: -1, dy: -1),
+                MoveVector(dx: -1, dy: 0),
+                MoveVector(dx: -1, dy: 1)
+            ]
+            return MovePattern(baseVectors: fallbackVectors, identity: .custom("targetLine")) { origin, context in
+                guard let target = context.targetPoint else { return [] }
+                let deltaX = target.x - origin.x
+                let deltaY = target.y - origin.y
+                guard deltaX != 0 || deltaY != 0 else { return [] }
+                guard deltaX == 0 || deltaY == 0 || abs(deltaX) == abs(deltaY) else { return [] }
+
+                let direction = MoveVector(dx: Self.sign(deltaX), dy: Self.sign(deltaY))
+                var current = origin
+                var traversed: [GridPoint] = []
+
+                while true {
+                    current = current.offset(dx: direction.dx, dy: direction.dy)
+                    guard context.contains(current), context.isTraversable(current) else { break }
+                    traversed.append(current)
+                }
+
+                guard let destination = traversed.last else { return [] }
+                let vector = MoveVector(dx: destination.x - origin.x, dy: destination.y - origin.y)
+                return [Path(vector: vector, destination: destination, traversedPoints: traversed)]
+            }
+        }
+
         /// movementVectors のフォールバックとして利用する代表ベクトルを生成する
         private static func makeFallbackVectors(forBoardSize boardSize: Int) -> [MoveVector] {
             guard boardSize > 0 else { return [] }
@@ -273,6 +348,32 @@ public extension MoveCard {
                 }
                 return lhs.dx < rhs.dx
             }
+        }
+
+        private static func targetApproachSteps(
+            _ vectors: [MoveVector],
+            identity: Identity
+        ) -> MovePattern {
+            MovePattern(baseVectors: vectors, identity: identity) { origin, context in
+                guard let target = context.targetPoint else { return [] }
+                let currentDistance = manhattanDistance(from: origin, to: target)
+                return vectors.compactMap { vector in
+                    let destination = origin.offset(dx: vector.dx, dy: vector.dy)
+                    guard context.contains(destination), context.isTraversable(destination) else { return nil }
+                    guard manhattanDistance(from: destination, to: target) < currentDistance else { return nil }
+                    return Path(vector: vector, destination: destination, traversedPoints: [destination])
+                }
+            }
+        }
+
+        private static func manhattanDistance(from lhs: GridPoint, to rhs: GridPoint) -> Int {
+            abs(lhs.x - rhs.x) + abs(lhs.y - rhs.y)
+        }
+
+        private static func sign(_ value: Int) -> Int {
+            if value > 0 { return 1 }
+            if value < 0 { return -1 }
+            return 0
         }
 
         /// movementVectors 互換の代表ベクトル配列を返す

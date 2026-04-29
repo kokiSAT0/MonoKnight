@@ -186,6 +186,7 @@ struct MoveCardIllustrationView: View {
         let movementVectors = card.movementVectors
         let candidateCount = movementVectors.count
         let isMultiStepCard = card.kind == .multiStep
+        let isTargetAssistCard = card.kind == .targetAssist
         let multiStepDirection = card.multiStepUnitVector
         // MARK: - ワープ系カードかどうか（枠色や描画内容を切り替えるため事前判定する）
         let isSuperWarpCard = card == .superWarp
@@ -204,6 +205,9 @@ struct MoveCardIllustrationView: View {
         if isWarpCard {
             // ワープカードは常に紫系の枠線で統一し、他カードとの差別化を図る
             borderColor = warpAccentColor
+        } else if isTargetAssistCard {
+            // 目的地補助カードは緑系の枠線で、通常の選択カードと区別する
+            borderColor = theme.accentPrimary
         } else if isMultiStepCard {
             // 複数マス移動カードはシアン系アクセントを枠線へ適用し、盤面ハイライトと一貫した印象を持たせる
             borderColor = theme.multiStepAccent
@@ -218,7 +222,14 @@ struct MoveCardIllustrationView: View {
         // MARK: - アクセシビリティ文言の組み立て
         let accessibilityLabelText: Text
         let accessibilityHintText: Text
-        if isMultiStepCard, let direction = multiStepDirection {
+        if isTargetAssistCard {
+            accessibilityLabelText = Text("目的地補助カード、\(card.displayName)")
+            accessibilityHintText = Text(
+                mode == .hand
+                    ? "ダブルタップでカードを選ぶと、現在目的地に近づく候補だけを盤面に表示します"
+                    : "閲覧のみ: 目的地制のときだけ、現在目的地に近づく候補を出すカードです"
+            )
+        } else if isMultiStepCard, let direction = multiStepDirection {
             let directionName = multiStepDirectionDisplayName(for: direction)
             accessibilityLabelText = Text("複数マス移動カード、方向：\(directionName)。進めなくなるまで直進")
             accessibilityHintText = Text(mode.multiStepAccessibilityHint())
@@ -340,6 +351,46 @@ struct MoveCardIllustrationView: View {
                                     .position(destinationPoint)
                                     .accessibilityHidden(true)
                             }
+                        } else if isTargetAssistCard {
+                            let accentColor = theme.accentPrimary
+                            let targetIndex = (column: min(center.column + 1, gridCount - 1), row: max(center.row - 1, 0))
+                            let targetPoint = cellCenter(
+                                origin: origin,
+                                cellSize: cellSize,
+                                column: targetIndex.column,
+                                row: targetIndex.row
+                            )
+                            let markerSize = min(cellSize * 0.75, 18)
+
+                            Path { path in
+                                path.move(to: startPoint)
+                                path.addLine(to: targetPoint)
+                            }
+                            .stroke(accentColor.opacity(0.82), style: StrokeStyle(lineWidth: 2, lineCap: .round, dash: [4, 3]))
+                            .accessibilityHidden(true)
+
+                            ForEach(Array([MoveVector(dx: 1, dy: 0), MoveVector(dx: 1, dy: 1)].enumerated()), id: \.offset) { _, vector in
+                                let index = destinationCellIndex(for: vector)
+                                let destinationPoint = cellCenter(
+                                    origin: origin,
+                                    cellSize: cellSize,
+                                    column: index.column,
+                                    row: index.row
+                                )
+                                Circle()
+                                    .fill(accentColor.opacity(0.75))
+                                    .frame(width: min(cellSize * 0.42, 10), height: min(cellSize * 0.42, 10))
+                                    .position(destinationPoint)
+                                    .accessibilityHidden(true)
+                            }
+
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(accentColor.opacity(0.9))
+                                .frame(width: markerSize, height: markerSize)
+                                .rotationEffect(.degrees(45))
+                                .position(targetPoint)
+                                .shadow(color: accentColor.opacity(0.28), radius: 3)
+                                .accessibilityHidden(true)
                         } else if isMultiStepCard, let direction = multiStepDirection,
                            let route = multiStepRoute(direction: direction, origin: origin, cellSize: cellSize, centerIndex: center) {
                             let accentColor = theme.multiStepAccent
@@ -453,6 +504,7 @@ struct MoveCardIllustrationView: View {
             .padding(paddingInsets)
         }
         .frame(width: Self.defaultWidth, height: Self.defaultHeight)
+        .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabelText)
         .accessibilityHint(accessibilityHintText)
         .accessibilityAddTraits(mode.traitsToAdd)
