@@ -4,13 +4,22 @@ import Foundation
 public struct MoveCardEncyclopediaEntry: Identifiable, Equatable {
     public let id: Int
     public let card: MoveCard
+    public let includedCards: [MoveCard]
     public let displayName: String
     public let category: String
     public let description: String
 
-    public init(id: Int, card: MoveCard, displayName: String, category: String, description: String) {
+    public init(
+        id: Int,
+        card: MoveCard,
+        includedCards: [MoveCard]? = nil,
+        displayName: String,
+        category: String,
+        description: String
+    ) {
         self.id = id
         self.card = card
+        self.includedCards = includedCards ?? [card]
         self.displayName = displayName
         self.category = category
         self.description = description
@@ -97,16 +106,161 @@ public extension MoveCard {
         }
     }
 
-    /// カード辞典に表示する全カード
+    /// カード辞典に表示する代表項目
     static var encyclopediaEntries: [MoveCardEncyclopediaEntry] {
-        allCases.enumerated().map { index, card in
+        [
             MoveCardEncyclopediaEntry(
-                id: index,
-                card: card,
-                displayName: card.displayName,
-                category: card.encyclopediaCategory,
-                description: card.encyclopediaDescription
+                id: 0,
+                card: .kingUp,
+                includedCards: [
+                    .kingUp,
+                    .kingUpRight,
+                    .kingRight,
+                    .kingDownRight,
+                    .kingDown,
+                    .kingDownLeft,
+                    .kingLeft,
+                    .kingUpLeft
+                ],
+                displayName: "キング1マス",
+                category: "キング",
+                description: "上下左右・斜めのいずれかへ 1 マス進みます。小回りが利き、目的地への微調整に使いやすい基本カードです。"
+            ),
+            MoveCardEncyclopediaEntry(
+                id: 1,
+                card: .knightUp2Right1,
+                includedCards: [
+                    .knightUp2Right1,
+                    .knightUp2Left1,
+                    .knightUp1Right2,
+                    .knightUp1Left2,
+                    .knightDown2Right1,
+                    .knightDown2Left1,
+                    .knightDown1Right2,
+                    .knightDown1Left2
+                ],
+                displayName: "ナイト",
+                category: "ナイト",
+                description: "縦横どちらかへ 2 マス、もう片方へ 1 マスの L 字に跳びます。途中のマスは通らず、離れた目的地を狙えます。"
+            ),
+            MoveCardEncyclopediaEntry(
+                id: 2,
+                card: .straightUp2,
+                includedCards: [
+                    .straightUp2,
+                    .straightDown2,
+                    .straightRight2,
+                    .straightLeft2
+                ],
+                displayName: "直線2マス",
+                category: "直線2マス",
+                description: "上下左右のいずれかへ 2 マス進みます。目的地まで距離を詰めたいときに有効です。"
+            ),
+            MoveCardEncyclopediaEntry(
+                id: 3,
+                card: .diagonalUpRight2,
+                includedCards: [
+                    .diagonalUpRight2,
+                    .diagonalDownRight2,
+                    .diagonalDownLeft2,
+                    .diagonalUpLeft2
+                ],
+                displayName: "斜め2マス",
+                category: "斜め2マス",
+                description: "斜め4方向のいずれかへ 2 マス進みます。大きく位置を変えたい場面で役立ちます。"
+            ),
+            MoveCardEncyclopediaEntry(
+                id: 4,
+                card: .rayUp,
+                includedCards: directionalRayCards,
+                displayName: "レイ",
+                category: "レイ",
+                description: "8方向のいずれかへ、盤端や障害物の手前まで連続で進みます。通過したマスも踏破対象になります。"
+            ),
+            MoveCardEncyclopediaEntry(
+                id: 5,
+                card: .kingUpOrDown,
+                includedCards: [
+                    .kingUpOrDown,
+                    .kingLeftOrRight,
+                    .kingUpwardDiagonalChoice,
+                    .kingRightDiagonalChoice,
+                    .kingDownwardDiagonalChoice,
+                    .kingLeftDiagonalChoice
+                ],
+                displayName: "選択キング",
+                category: "選択キング",
+                description: "上下・左右・斜めペアの候補から、盤面上で進む 1 マスを選びます。"
+            ),
+            MoveCardEncyclopediaEntry(
+                id: 6,
+                card: .knightUpwardChoice,
+                includedCards: [
+                    .knightUpwardChoice,
+                    .knightRightwardChoice,
+                    .knightDownwardChoice,
+                    .knightLeftwardChoice
+                ],
+                displayName: "選択ナイト",
+                category: "選択ナイト",
+                description: "方向別の 2 つのナイト移動候補から、盤面上で跳ぶ先を選びます。"
+            ),
+            MoveCardEncyclopediaEntry(
+                id: 7,
+                card: .superWarp,
+                displayName: MoveCard.superWarp.displayName,
+                category: MoveCard.superWarp.encyclopediaCategory,
+                description: MoveCard.superWarp.encyclopediaDescription
+            ),
+            MoveCardEncyclopediaEntry(
+                id: 8,
+                card: .fixedWarp,
+                displayName: MoveCard.fixedWarp.displayName,
+                category: MoveCard.fixedWarp.encyclopediaCategory,
+                description: MoveCard.fixedWarp.encyclopediaDescription
+            ),
+            MoveCardEncyclopediaEntry(
+                id: 9,
+                card: .targetStep,
+                displayName: MoveCard.targetStep.displayName,
+                category: MoveCard.targetStep.encyclopediaCategory,
+                description: MoveCard.targetStep.encyclopediaDescription
+            ),
+            MoveCardEncyclopediaEntry(
+                id: 10,
+                card: .targetKnight,
+                displayName: MoveCard.targetKnight.displayName,
+                category: MoveCard.targetKnight.encyclopediaCategory,
+                description: MoveCard.targetKnight.encyclopediaDescription
+            ),
+            MoveCardEncyclopediaEntry(
+                id: 11,
+                card: .targetLine,
+                displayName: MoveCard.targetLine.displayName,
+                category: MoveCard.targetLine.encyclopediaCategory,
+                description: MoveCard.targetLine.encyclopediaDescription
+            ),
+            MoveCardEncyclopediaEntry(
+                id: 12,
+                card: .effectStep,
+                displayName: MoveCard.effectStep.displayName,
+                category: MoveCard.effectStep.encyclopediaCategory,
+                description: MoveCard.effectStep.encyclopediaDescription
+            ),
+            MoveCardEncyclopediaEntry(
+                id: 13,
+                card: .effectKnight,
+                displayName: MoveCard.effectKnight.displayName,
+                category: MoveCard.effectKnight.encyclopediaCategory,
+                description: MoveCard.effectKnight.encyclopediaDescription
+            ),
+            MoveCardEncyclopediaEntry(
+                id: 14,
+                card: .effectLine,
+                displayName: MoveCard.effectLine.displayName,
+                category: MoveCard.effectLine.encyclopediaCategory,
+                description: MoveCard.effectLine.encyclopediaDescription
             )
-        }
+        ]
     }
 }

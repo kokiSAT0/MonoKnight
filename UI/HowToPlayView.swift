@@ -145,7 +145,7 @@ private extension HowToPlayView {
     /// カード辞典本文
     var cardDictionaryContent: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text("カードの種類と動きを一覧で確認できます。")
+            Text("カードの種類と動きを代表的な系統ごとに確認できます。")
                 .font(.body)
 
             ForEach(cardCategoryOrder, id: \.self) { category in

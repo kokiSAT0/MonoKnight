@@ -24,14 +24,39 @@ final class MoveCardPresentationTests: XCTestCase {
         XCTAssertTrue(MoveCard.allCases.contains(.effectLine))
     }
 
-    func testCardEncyclopediaEntriesCoverAllMoveCards() {
+    func testCardEncyclopediaEntriesCoverAllMoveCardsByRepresentativeGroups() {
         let entries = MoveCard.encyclopediaEntries
+        let includedCards = entries.flatMap(\.includedCards)
 
-        XCTAssertEqual(entries.count, MoveCard.allCases.count)
-        XCTAssertEqual(entries.map(\.card), MoveCard.allCases)
+        XCTAssertEqual(entries.count, 15)
+        XCTAssertEqual(Set(includedCards), Set(MoveCard.allCases))
+        XCTAssertEqual(includedCards.count, MoveCard.allCases.count)
         XCTAssertTrue(entries.allSatisfy { !$0.displayName.isEmpty })
         XCTAssertTrue(entries.allSatisfy { !$0.category.isEmpty })
         XCTAssertTrue(entries.allSatisfy { !$0.description.isEmpty })
+    }
+
+    func testCardEncyclopediaCompressesDirectionVariants() {
+        let entries = MoveCard.encyclopediaEntries
+
+        XCTAssertEqual(entries.filter { $0.category == "キング" }.count, 1)
+        XCTAssertEqual(entries.filter { $0.category == "ナイト" }.count, 1)
+        XCTAssertEqual(entries.filter { $0.category == "直線2マス" }.count, 1)
+        XCTAssertEqual(entries.filter { $0.category == "斜め2マス" }.count, 1)
+        XCTAssertEqual(entries.filter { $0.category == "レイ" }.count, 1)
+
+        XCTAssertEqual(entries.first { $0.displayName == "キング1マス" }?.includedCards.count, 8)
+        XCTAssertEqual(entries.first { $0.displayName == "ナイト" }?.includedCards.count, 8)
+        XCTAssertEqual(entries.first { $0.displayName == "レイ" }?.includedCards, MoveCard.directionalRayCards)
+    }
+
+    func testCardEncyclopediaKeepsDistinctSpecialCardsSeparate() {
+        let entries = MoveCard.encyclopediaEntries
+
+        XCTAssertTrue(entries.contains { $0.card == .superWarp && $0.includedCards == [.superWarp] })
+        XCTAssertTrue(entries.contains { $0.card == .fixedWarp && $0.includedCards == [.fixedWarp] })
+        XCTAssertEqual(entries.filter { $0.category == "目的地補助" }.map(\.card), MoveCard.targetAssistCards)
+        XCTAssertEqual(entries.filter { $0.category == "特殊マス補助" }.map(\.card), MoveCard.effectAssistCards)
     }
 
     func testRepresentativeCardEncyclopediaMetadata() {

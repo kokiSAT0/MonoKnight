@@ -149,8 +149,8 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
         XCTAssertTrue(buckets.multipleVectorDestinations.isEmpty, "ワープカードが複数候補集合へ混入しています")
     }
 
-    /// 連続移動カードは終点だけでなく、移動中に踏む全マスを水色ガイドとして Scene へ渡すことを検証する
-    func testRefreshGuideHighlightsIncludesMultiStepTraversedPoints() {
+    /// 連続移動カードは移動中に踏むマスの塗りと、タップ可能な終点枠を分けて Scene へ渡すことを検証する
+    func testRefreshGuideHighlightsSeparatesMultiStepPathAndDestinationFrame() {
         let viewModel = makeViewModel()
         let origin = GridPoint(x: 1, y: 1)
         let rayStack = HandStack(cards: [DealtCard(move: .rayUpRight)])
@@ -166,16 +166,29 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
             GridPoint(x: 3, y: 3),
             GridPoint(x: 4, y: 4)
         ]
+        let expectedDestination: Set<GridPoint> = [
+            GridPoint(x: 4, y: 4)
+        ]
 
         XCTAssertEqual(
-            viewModel.guideHighlightBuckets.multiStepDestinations,
+            viewModel.guideHighlightBuckets.multiStepPathPoints,
             expectedTraversedPoints,
-            "連続移動カードの水色ガイドには、終点だけでなく途中で踏むマスも含める必要があります"
+            "連続移動カードの水色塗りには、終点だけでなく途中で踏むマスも含める必要があります"
+        )
+        XCTAssertEqual(
+            viewModel.scene.latestHighlightPoints(for: .guideMultiStepPath),
+            expectedTraversedPoints,
+            "Scene 側にも連続移動カードの通過マス全体を塗りとして渡す必要があります"
+        )
+        XCTAssertEqual(
+            viewModel.guideHighlightBuckets.multiStepDestinations,
+            expectedDestination,
+            "連続移動カードの水色枠は、タップ可能な終点だけに出す必要があります"
         )
         XCTAssertEqual(
             viewModel.scene.latestHighlightPoints(for: .guideMultiStepCandidate),
-            expectedTraversedPoints,
-            "Scene 側にも連続移動カードの通過マス全体を渡す必要があります"
+            expectedDestination,
+            "Scene 側にも連続移動カードの終点だけを枠として渡す必要があります"
         )
         XCTAssertTrue(
             viewModel.guideHighlightBuckets.singleVectorDestinations.isEmpty,

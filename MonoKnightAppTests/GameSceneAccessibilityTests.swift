@@ -129,5 +129,38 @@ final class GameSceneAccessibilityTests: XCTestCase {
             "通過で取れる目的地を移動先候補として読み上げない想定です"
         )
     }
+
+    /// 連続移動カードの途中マスは枠なしの塗り、終点は水色枠として描き分けることを確認する
+    func testMultiStepPathHighlightUsesFillWithoutFrame() {
+        let intermediatePoint = GridPoint(x: 2, y: 2)
+        let destinationPoint = GridPoint(x: 4, y: 4)
+        let (scene, view, _) = makeScene()
+        defer { view.presentScene(nil) }
+
+        scene.updateHighlights([
+            .guideMultiStepPath: [intermediatePoint, destinationPoint],
+            .guideMultiStepCandidate: [destinationPoint],
+        ])
+
+        guard let pathStyle = scene.highlightStyleForTesting(
+            kind: .guideMultiStepPath,
+            at: intermediatePoint
+        ) else {
+            XCTFail("連続移動の通過塗りノードを取得できません")
+            return
+        }
+        guard let destinationStyle = scene.highlightStyleForTesting(
+            kind: .guideMultiStepCandidate,
+            at: destinationPoint
+        ) else {
+            XCTFail("連続移動の終点枠ノードを取得できません")
+            return
+        }
+
+        XCTAssertEqual(pathStyle.lineWidth, 0, "途中マスはタップ可能な枠に見せないため線幅を持たない想定です")
+        XCTAssertFalse(pathStyle.fillColor.isEqual(SKColor.clear), "途中マスは薄い水色塗りで通過範囲を示します")
+        XCTAssertGreaterThan(destinationStyle.lineWidth, 0, "終点はタップ可能な移動先として水色枠を持つ想定です")
+        XCTAssertTrue(destinationStyle.fillColor.isEqual(SKColor.clear), "終点枠自体は塗りを持たず、通過塗りと重ねます")
+    }
 }
 #endif

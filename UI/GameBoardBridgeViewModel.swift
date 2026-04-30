@@ -42,7 +42,9 @@ final class GameBoardBridgeViewModel: ObservableObject {
         var singleVectorDestinations: Set<GridPoint>
         /// 複数ベクトルカードが到達できる座標集合
         var multipleVectorDestinations: Set<GridPoint>
-        /// 複数マス移動カード（レイ型）が到達できる座標集合
+        /// 複数マス移動カード（レイ型）が移動中に踏む座標集合
+        var multiStepPathPoints: Set<GridPoint>
+        /// 複数マス移動カード（レイ型）が最終的に到達できる座標集合
         var multiStepDestinations: Set<GridPoint>
         /// ワープ系カード専用の座標集合（紫枠で強調する）
         var warpDestinations: Set<GridPoint>
@@ -51,6 +53,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
         static let empty = GuideHighlightBuckets(
             singleVectorDestinations: [],
             multipleVectorDestinations: [],
+            multiStepPathPoints: [],
             multiStepDestinations: [],
             warpDestinations: []
         )
@@ -222,6 +225,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
         let highlights: [BoardHighlightKind: Set<GridPoint>] = [
             .guideSingleCandidate: shouldHideGuideCandidates ? [] : guideHighlightBuckets.singleVectorDestinations,
             .guideMultipleCandidate: shouldHideGuideCandidates ? [] : guideHighlightBuckets.multipleVectorDestinations,
+            .guideMultiStepPath: shouldHideGuideCandidates ? [] : guideHighlightBuckets.multiStepPathPoints,
             .guideMultiStepCandidate: shouldHideGuideCandidates ? [] : guideHighlightBuckets.multiStepDestinations,
             .guideWarpCandidate: shouldHideGuideCandidates ? [] : guideHighlightBuckets.warpDestinations,
             .targetApproachCandidate: [],
@@ -253,14 +257,16 @@ final class GameBoardBridgeViewModel: ObservableObject {
         // --- 集計対象それぞれの件数を求める ---
         let singleCount = buckets.singleVectorDestinations.count
         let multipleCount = buckets.multipleVectorDestinations.count
+        let multiStepPathCount = buckets.multiStepPathPoints.count
         let multiStepCount = buckets.multiStepDestinations.count
         let warpCount = buckets.warpDestinations.count
-        let totalCount = singleCount + multipleCount + multiStepCount + warpCount
+        let totalCount = singleCount + multipleCount + multiStepPathCount + multiStepCount + warpCount
 
         // --- 呼び出し側で使うログ文面を一括生成する ---
         let logMessage = (
             "\(logPrefix) 単一=\(singleCount) 複数=\(multipleCount) " +
-            "連続=\(multiStepCount) ワープ=\(warpCount) 合計=\(totalCount)"
+            "連続経路=\(multiStepPathCount) 連続終点=\(multiStepCount) " +
+            "ワープ=\(warpCount) 合計=\(totalCount)"
         )
 
         return (
@@ -320,8 +326,9 @@ final class GameBoardBridgeViewModel: ObservableObject {
             }
 
             if move.kind == .multiStep {
-                // 連続移動カードは途中マスも踏むため、終点だけでなく通過範囲全体をシアン表示へ渡す
-                computedBuckets.multiStepDestinations.formUnion(traversedPoints)
+                // 連続移動カードは、通過範囲を塗り、終点だけをタップ可能な枠として分けて渡す
+                computedBuckets.multiStepPathPoints.formUnion(traversedPoints)
+                computedBuckets.multiStepDestinations.formUnion(destinations)
             } else if move.movementVectors.count > 1 {
                 // 複数方向カードは従来どおりオレンジ枠で強調する
                 computedBuckets.multipleVectorDestinations.formUnion(destinations)

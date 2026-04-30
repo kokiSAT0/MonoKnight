@@ -6,6 +6,7 @@
         private(set) var highlightNodes: [BoardHighlightKind: [GridPoint: SKShapeNode]] = [:]
         private var latestSingleGuidePoints: Set<GridPoint> = []
         private var latestMultipleGuidePoints: Set<GridPoint> = []
+        private var latestMultiStepPathPoints: Set<GridPoint> = []
         private var latestMultiStepGuidePoints: Set<GridPoint> = []
         private var latestWarpGuidePoints: Set<GridPoint> = []
         private var latestTargetApproachPoints: Set<GridPoint> = []
@@ -28,6 +29,7 @@
             highlightNodes = [:]
             latestSingleGuidePoints = []
             latestMultipleGuidePoints = []
+            latestMultiStepPathPoints = []
             latestMultiStepGuidePoints = []
             latestWarpGuidePoints = []
             latestTargetApproachPoints = []
@@ -125,6 +127,7 @@
                 let latestSnapshot: [BoardHighlightKind: Set<GridPoint>] = [
                     .guideSingleCandidate: latestSingleGuidePoints,
                     .guideMultipleCandidate: latestMultipleGuidePoints,
+                    .guideMultiStepPath: latestMultiStepPathPoints,
                     .guideMultiStepCandidate: latestMultiStepGuidePoints,
                     .guideWarpCandidate: latestWarpGuidePoints,
                     .targetApproachCandidate: latestTargetApproachPoints,
@@ -158,6 +161,7 @@
         private func updateLatestPoints(using highlights: [BoardHighlightKind: Set<GridPoint>]) {
             latestSingleGuidePoints = highlights[.guideSingleCandidate] ?? []
             latestMultipleGuidePoints = highlights[.guideMultipleCandidate] ?? []
+            latestMultiStepPathPoints = highlights[.guideMultiStepPath] ?? []
             latestMultiStepGuidePoints = highlights[.guideMultiStepCandidate] ?? []
             latestWarpGuidePoints = highlights[.guideWarpCandidate] ?? []
             latestTargetApproachPoints = highlights[.targetApproachCandidate] ?? []
@@ -271,11 +275,16 @@
                     overlapInset = max(overlapInset, strokeWidth * 1.1)
                 }
                 zPosition = 1.02
+            case .guideMultiStepPath:
+                baseColor = palette.boardMultiStepHighlight
+                strokeAlpha = 0
+                strokeWidth = 0
+                fillColor = baseColor.withAlphaComponent(0.12)
+                zPosition = 1.03
             case .guideMultiStepCandidate:
                 baseColor = palette.boardMultiStepHighlight
                 strokeAlpha = 0.9
                 strokeWidth = sharedGuideStrokeWidth
-                fillColor = baseColor.withAlphaComponent(0.12)
                 if latestSingleGuidePoints.contains(point) {
                     overlapInset = max(overlapInset, strokeWidth * 2.0)
                 }
@@ -376,6 +385,7 @@
                 )
             case .guideSingleCandidate,
                  .guideMultipleCandidate,
+                 .guideMultiStepPath,
                  .guideMultiStepCandidate,
                  .guideWarpCandidate,
                  .targetApproachCandidate,

@@ -8,6 +8,7 @@
     public enum BoardHighlightKind: CaseIterable, Hashable {
         case guideSingleCandidate
         case guideMultipleCandidate
+        case guideMultiStepPath
         case guideMultiStepCandidate
         case guideWarpCandidate
         case targetApproachCandidate
@@ -222,6 +223,16 @@
             latestHighlightPoints[kind] ?? []
         }
 
+        func highlightStyleForTesting(
+            kind: BoardHighlightKind,
+            at point: GridPoint
+        ) -> (fillColor: SKColor, strokeColor: SKColor, lineWidth: CGFloat)? {
+            guard let node = highlightRenderer.highlightNodes[kind]?[point] else {
+                return nil
+            }
+            return (node.fillColor, node.strokeColor, node.lineWidth)
+        }
+
         func tileFillColorForTesting(at point: GridPoint) -> SKColor? {
             decorationRenderer.tileNodes[point]?.fillColor
         }
@@ -230,6 +241,7 @@
             updateHighlights([
                 .guideSingleCandidate: [],
                 .guideMultipleCandidate: points,
+                .guideMultiStepPath: [],
                 .guideMultiStepCandidate: [],
                 .targetApproachCandidate: [],
                 .targetCaptureCandidate: [],
