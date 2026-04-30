@@ -37,18 +37,20 @@ final class DailyChallengeDefinitionTests: XCTestCase {
         XCTAssertEqual(randomFromUnified, randomDirect, "ランダム版も統合 API と従来 API で完全一致する必要があります")
     }
 
-    /// 固定版がキャンペーン 5-8 と同じレギュレーションを持つことを確認
-    func testFixedModeMatchesCampaignStage58() {
+    /// 固定版が従来の 5×5 固定レギュレーションを維持することを確認
+    func testFixedModeKeepsLegacyFiveByFiveRegulation() {
         let seed: UInt64 = 12345
         let fixedMode = DailyChallengeDefinition.makeFixedMode(baseSeed: seed)
 
-        guard let stage = CampaignLibrary.shared.stage(with: CampaignStageID(chapter: 5, index: 8)) else {
-            XCTFail("キャンペーン 5-8 が定義されている前提です")
-            return
-        }
-        let campaignMode = stage.makeGameMode()
-
-        XCTAssertEqual(fixedMode.regulationSnapshot, campaignMode.regulationSnapshot, "固定版は 5-8 の設定と一致している必要があります")
+        XCTAssertEqual(fixedMode.boardSize, 5)
+        XCTAssertEqual(fixedMode.deckPreset, .standardWithAllChoices)
+        XCTAssertEqual(fixedMode.spawnRule, .chooseAnyAfterPreview)
+        XCTAssertEqual(fixedMode.targetGoalCount, 13)
+        XCTAssertTrue(fixedMode.impassableTilePoints.contains(GridPoint(x: 2, y: 3)))
+        XCTAssertEqual(
+            fixedMode.tileEffects[GridPoint(x: 4, y: 3)],
+            .openGate(target: GridPoint(x: 2, y: 3))
+        )
     }
 
     /// ランダム版で採用されるペナルティ範囲が新基準へ沿っているかを確認

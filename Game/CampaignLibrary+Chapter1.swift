@@ -51,7 +51,7 @@ extension CampaignLibrary {
             chapter: 1,
             index: 5,
             title: "標準盤入門",
-            summary: "5×5 盤で標準的な距離感を覚え、目的地をテンポ良く集めます。",
+            summary: "8×8 盤で標準的な距離感を覚え、目的地をテンポ良く集めます。",
             goalCount: 5,
             deckPreset: .standardLight,
             secondaryObjective: .finishWithinMoves(maxMoves: 12),

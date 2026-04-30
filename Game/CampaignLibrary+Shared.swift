@@ -1,6 +1,8 @@
 import Foundation
 
 extension CampaignLibrary {
+    static let campaignBoardSize = 8
+
     static var targetModePenalties: GameMode.PenaltySettings {
         GameMode.PenaltySettings(
             deadlockPenaltyCost: 0,
@@ -36,7 +38,7 @@ extension CampaignLibrary {
         index: Int,
         title: String,
         summary: String,
-        boardSize: Int = 5,
+        boardSize: Int = campaignBoardSize,
         goalCount: Int,
         deckPreset: GameDeckPreset,
         spawnRule: GameMode.SpawnRule? = nil,

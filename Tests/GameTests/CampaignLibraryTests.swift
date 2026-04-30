@@ -121,6 +121,7 @@ final class CampaignLibraryTests: XCTestCase {
 
             for stage in chapter.stages {
                 XCTAssertTrue(stage.regulation.handSize == 5)
+                XCTAssertEqual(stage.regulation.boardSize, 8, "\(stage.displayCode) はキャンペーン共通の 8×8 盤を使います")
                 XCTAssertTrue(stage.regulation.nextPreviewCount == 3)
                 XCTAssertTrue(stage.regulation.allowsStacking)
                 XCTAssertTrue(stage.regulation.toggleTilePoints.isEmpty, "\(stage.displayCode) では旧トグルギミックを使いません")
@@ -133,6 +134,7 @@ final class CampaignLibraryTests: XCTestCase {
                     continue
                 }
                 XCTAssertTrue(range.contains(goalCount), "\(stage.displayCode) の目的地数 \(goalCount) が章の難度範囲外です")
+                assertCampaignCoordinatesAreInsideBoard(stage)
             }
         }
     }
@@ -214,6 +216,34 @@ final class CampaignLibraryTests: XCTestCase {
             "2-2 までに視覚的に分かる補助要素を出し、新要素の実感を作ります"
         )
         XCTAssertEqual(stage22?.regulation.spawnRule, .chooseAnyAfterPreview)
+    }
+
+    private func assertCampaignCoordinatesAreInsideBoard(
+        _ stage: CampaignStage,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let boardSize = stage.regulation.boardSize
+        for point in stage.regulation.impassableTilePoints {
+            XCTAssertTrue(point.isInside(boardSize: boardSize), "\(stage.displayCode) の障害物 \(point) が盤外です", file: file, line: line)
+        }
+        for (point, effect) in stage.regulation.tileEffectOverrides {
+            XCTAssertTrue(point.isInside(boardSize: boardSize), "\(stage.displayCode) の特殊マス \(point) が盤外です", file: file, line: line)
+            if case .openGate(let target) = effect {
+                XCTAssertTrue(target.isInside(boardSize: boardSize), "\(stage.displayCode) の開門先 \(target) が盤外です", file: file, line: line)
+                XCTAssertTrue(stage.regulation.impassableTilePoints.contains(target), "\(stage.displayCode) の開門先 \(target) は障害物として配置されている必要があります", file: file, line: line)
+            }
+        }
+        for points in stage.regulation.warpTilePairs.values {
+            for point in points {
+                XCTAssertTrue(point.isInside(boardSize: boardSize), "\(stage.displayCode) のワープ \(point) が盤外です", file: file, line: line)
+            }
+        }
+        for points in stage.regulation.fixedWarpCardTargets.values {
+            for point in points {
+                XCTAssertTrue(point.isInside(boardSize: boardSize), "\(stage.displayCode) の固定ワープ先 \(point) が盤外です", file: file, line: line)
+            }
+        }
     }
 
     func testChapter2ExpandsChoiceCardsBeforeChapter3Applications() {

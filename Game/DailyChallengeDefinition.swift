@@ -8,7 +8,7 @@ import GameplayKit
 public enum DailyChallengeDefinition {
     /// 日替わりチャレンジのバリアント種別
     public enum Variant {
-        /// キャンペーン 5-8 と同じレギュレーションを採用する固定版
+        /// 旧キャンペーン 5-8 相当の 5×5 レギュレーションを採用する固定版
         case fixed
         /// 山札プリセットや盤面サイズを乱択するランダム版
         case random
@@ -58,16 +58,13 @@ public enum DailyChallengeDefinition {
 
     /// 固定版モードを生成する
     /// - Parameter baseSeed: 日付から導出したシード
-    /// - Returns: キャンペーン 5-8 と同一設定の日替わりモード
+    /// - Returns: 旧キャンペーン 5-8 と同一設定の日替わりモード
     public static func makeFixedMode(baseSeed: UInt64) -> GameMode {
-        let stageID = CampaignStageID(chapter: 5, index: 8)
-        // キャンペーンライブラリから直接レギュレーションを取得し、定義の二重管理を避ける。
-        let regulation = CampaignLibrary.shared.stage(with: stageID)?.regulation ?? GameMode.standard.regulationSnapshot
         let deckSeedValue = deckSeed(for: .fixed, baseSeed: baseSeed)
         return GameMode(
             identifier: .dailyFixed,
             displayName: "日替わり（固定）",
-            regulation: regulation,
+            regulation: legacyFixedDailyRegulation(),
             leaderboardEligible: false,
             deckSeed: deckSeedValue
         )
@@ -158,6 +155,32 @@ public enum DailyChallengeDefinition {
             deckPreset: deckPreset,
             spawnRule: spawnRule,
             penalties: penalties
+        )
+    }
+
+    private static func legacyFixedDailyRegulation() -> GameMode.Regulation {
+        GameMode.Regulation(
+            boardSize: 5,
+            handSize: 5,
+            nextPreviewCount: 3,
+            allowsStacking: true,
+            deckPreset: .standardWithAllChoices,
+            spawnRule: .chooseAnyAfterPreview,
+            penalties: GameMode.PenaltySettings(
+                deadlockPenaltyCost: 0,
+                manualRedrawPenaltyCost: 0,
+                manualDiscardPenaltyCost: 1,
+                revisitPenaltyCost: 0
+            ),
+            impassableTilePoints: [
+                GridPoint(x: 1, y: 1),
+                GridPoint(x: 2, y: 3),
+                GridPoint(x: 3, y: 1)
+            ],
+            tileEffectOverrides: [
+                GridPoint(x: 4, y: 3): .openGate(target: GridPoint(x: 2, y: 3))
+            ],
+            completionRule: .targetCollection(goalCount: 13)
         )
     }
 

@@ -1062,11 +1062,12 @@ public final class GameCore: ObservableObject {
             return lhs.x < rhs.x
         }
 
+        let preferredDistanceRange = preferredTargetDistanceRange()
         let preferred = allPoints.filter { point in
             guard point != origin, point != previousTarget else { return false }
             guard !additionalExcludedPoints.contains(point) else { return false }
             let distance = manhattanDistance(from: origin, to: point)
-            return (2...4).contains(distance)
+            return preferredDistanceRange.contains(distance)
         }
         let fallback = allPoints.filter { point in
             point != origin && point != previousTarget && !additionalExcludedPoints.contains(point)
@@ -1077,6 +1078,16 @@ public final class GameCore: ObservableObject {
         let seed = capturedTargetCount * 7 + origin.x * 3 + origin.y * 5 + offset * 11
         let index = abs(seed) % candidates.count
         return candidates[index]
+    }
+
+    private func preferredTargetDistanceRange() -> ClosedRange<Int> {
+        guard mode.isCampaignStage, mode.boardSize >= CampaignLibrary.campaignBoardSize else {
+            return 2...4
+        }
+        if let stageID = mode.campaignMetadataSnapshot?.stageID, stageID.chapter <= 1 {
+            return 2...4
+        }
+        return 3...6
     }
 
     /// フォーカス操作として、目的地に近づきやすいカードを優先して再配布する

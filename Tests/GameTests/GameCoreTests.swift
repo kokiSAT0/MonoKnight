@@ -2256,6 +2256,9 @@ final class GameCoreTests: XCTestCase {
             CampaignStageID(chapter: 1, index: 8),
             CampaignStageID(chapter: 2, index: 1),
             CampaignStageID(chapter: 2, index: 8),
+            CampaignStageID(chapter: 4, index: 8),
+            CampaignStageID(chapter: 6, index: 8),
+            CampaignStageID(chapter: 8, index: 8),
         ]
 
         for stageID in stageIDs {
