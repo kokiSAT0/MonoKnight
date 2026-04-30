@@ -24,37 +24,39 @@ extension CampaignStage.SecondaryObjective {
     }
 }
 
-extension CampaignStage.ScoreTargetComparison {
-    /// 条件を満たしているか判定する
-    /// - Parameters:
-    ///   - score: 実際のスコア
-    ///   - target: 目標値
-    /// - Returns: 達成していれば true
-    func isSatisfied(score: Int, target: Int) -> Bool {
-        switch self {
-        case .lessThanOrEqual:
-            return score <= target
-        case .lessThan:
-            return score < target
-        }
-    }
-}
-
 public extension CampaignStage {
+    /// 目的地をすべて取った場合のキャンペーン最大ポイント
+    var maxCampaignScore: Int {
+        guard case .targetCollection(let goalCount) = regulation.completionRule else { return 0 }
+        return goalCount * CampaignScoring.targetCapturePoints
+    }
+
+    /// 旧コストラインを加点式の 2 スター閾値へ変換した値
+    var twoStarPointThreshold: Int? {
+        guard let twoStarScoreTarget else { return nil }
+        return max(maxCampaignScore - twoStarScoreTarget, 0)
+    }
+
+    /// 旧コストラインを加点式の 3 スター閾値へ変換した値
+    var threeStarPointThreshold: Int? {
+        guard let scoreTarget else { return nil }
+        return max(maxCampaignScore - scoreTarget, 0)
+    }
+
     /// クリア時の成績から獲得スター数を判定
     /// - Parameter metrics: クリア時の統計値
     /// - Returns: 達成状況の評価結果
     func evaluateClear(with metrics: CampaignStageClearMetrics) -> CampaignStageEvaluation {
         let twoStarAchieved: Bool
-        if let twoStarScoreTarget {
-            twoStarAchieved = scoreTargetComparison.isSatisfied(score: metrics.score, target: twoStarScoreTarget)
+        if let twoStarPointThreshold {
+            twoStarAchieved = metrics.score >= twoStarPointThreshold
         } else {
             twoStarAchieved = false
         }
 
         let threeStarAchieved: Bool
-        if let scoreTarget {
-            threeStarAchieved = scoreTargetComparison.isSatisfied(score: metrics.score, target: scoreTarget)
+        if let threeStarPointThreshold {
+            threeStarAchieved = metrics.score >= threeStarPointThreshold
         } else {
             threeStarAchieved = false
         }

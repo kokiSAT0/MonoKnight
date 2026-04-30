@@ -14,7 +14,7 @@ final class GamePreparationOverlayPresentationTests: XCTestCase {
         XCTAssertEqual(presentation.clearConditionText, "クリア: 目的地 3 個")
         XCTAssertEqual(
             presentation.shortRuleSummaryText,
-            "スコア: 手数 + 時間 + フォーカス。スターはやり込み目標です。"
+            "目的地を取るほど加点。手数とフォーカスは控えめに。"
         )
         XCTAssertEqual(presentation.detailsTitle, "スター条件・記録を見る")
         XCTAssertTrue(presentation.prioritizesFeatureSpotlight)

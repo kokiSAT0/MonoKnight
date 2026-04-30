@@ -46,7 +46,7 @@ final class CampaignProgressStoreTests: XCTestCase {
             penaltyCount: 0,
             elapsedSeconds: 90,
             totalMoveCount: 16,
-            score: 110,
+            score: 205,
             hasRevisitedTile: false
         )
 
@@ -54,19 +54,60 @@ final class CampaignProgressStoreTests: XCTestCase {
         XCTAssertEqual(record.progress.earnedStars, 3, "1-1 は指定条件を満たすと 3 スター獲得できる想定です")
         XCTAssertEqual(store.totalStars, 3)
 
-        // より悪いスコアで再登録してもベスト値は維持されることを確認
+        // より低いスコアで再登録してもベスト値は維持されることを確認
         let worseMetrics = CampaignStageClearMetrics(
             moveCount: 20,
             penaltyCount: 2,
             elapsedSeconds: 140,
             totalMoveCount: 22,
-            score: 360,
+            score: 120,
             hasRevisitedTile: true
         )
         _ = store.registerClear(for: stage, metrics: worseMetrics)
         let stored = store.progress(for: stageID)
         XCTAssertEqual(stored?.bestScore, metrics.score, "ベストスコアはより良い値を保持する必要があります")
+        XCTAssertEqual(stored?.bestScoreVersion, CampaignScoring.currentVersion)
         XCTAssertEqual(stored?.earnedStars, 3, "一度獲得したスターは維持される想定です")
+    }
+
+    /// 旧スコア方式の保存値は、新方式の初回クリアで置き換えることを検証
+    func testRegisterClearReplacesLegacyBestScoreVersion() throws {
+        let defaults = try makeIsolatedDefaults()
+        let library = CampaignLibrary.shared
+        let stageID = CampaignStageID(chapter: 1, index: 1)
+        guard let stage = library.stage(with: stageID) else {
+            XCTFail("ステージ定義が見つかりません")
+            return
+        }
+
+        let legacyProgress = CampaignStageProgress(earnedStars: 1, bestScore: 20, bestScoreVersion: nil)
+        let encoded = try JSONEncoder().encode([stageID.storageKey: legacyProgress])
+        defaults.set(encoded, forKey: StorageKey.UserDefaults.campaignProgress)
+
+        let store = CampaignProgressStore(userDefaults: defaults)
+        let newMetrics = CampaignStageClearMetrics(
+            moveCount: 12,
+            penaltyCount: 0,
+            elapsedSeconds: 999,
+            totalMoveCount: 12,
+            score: 150,
+            hasRevisitedTile: false
+        )
+
+        _ = store.registerClear(for: stage, metrics: newMetrics)
+        XCTAssertEqual(store.progress(for: stageID)?.bestScore, 150)
+        XCTAssertEqual(store.progress(for: stageID)?.bestScoreVersion, CampaignScoring.currentVersion)
+
+        let lowerNewScoreMetrics = CampaignStageClearMetrics(
+            moveCount: 20,
+            penaltyCount: 0,
+            elapsedSeconds: 20,
+            totalMoveCount: 20,
+            score: 100,
+            hasRevisitedTile: false
+        )
+        _ = store.registerClear(for: stage, metrics: lowerNewScoreMetrics)
+        XCTAssertEqual(store.progress(for: stageID)?.bestScore, 150, "新方式同士では高いスコアを保持します")
     }
 
     /// デバッグ用パスコードを有効化すると全ステージの解放条件が満たされることを確認

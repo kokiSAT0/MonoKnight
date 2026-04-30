@@ -154,7 +154,10 @@ extension GameViewModel {
     func handleTutorialCapturedTargetCountChange(_ newCapturedTargetCount: Int) {
         defer { lastTutorialCapturedTargetCount = newCapturedTargetCount }
         guard newCapturedTargetCount > lastTutorialCapturedTargetCount else { return }
-        showTargetCaptureFeedback(capturedCount: newCapturedTargetCount)
+        showTargetCaptureFeedback(
+            capturedCount: newCapturedTargetCount,
+            incrementCount: newCapturedTargetCount - lastTutorialCapturedTargetCount
+        )
         handleCampaignTutorialEvent(.targetCaptured)
     }
 
@@ -193,8 +196,9 @@ extension GameViewModel {
         }
     }
 
-    func showTargetCaptureFeedback(capturedCount: Int) {
+    func showTargetCaptureFeedback(capturedCount: Int, incrementCount: Int) {
         guard core.mode.usesTargetCollection else { return }
+        guard incrementCount > 0 else { return }
 
         targetCaptureFeedbackDismissTask?.cancel()
         targetCaptureFeedbackDismissTask = nil
@@ -202,7 +206,7 @@ extension GameViewModel {
         withAnimation(.spring(response: 0.32, dampingFraction: 0.82, blendDuration: 0.18)) {
             targetCaptureFeedback = TargetCaptureFeedback(
                 capturedCount: capturedCount,
-                goalCount: core.targetGoalCount
+                incrementCount: incrementCount
             )
         }
 
@@ -212,7 +216,7 @@ extension GameViewModel {
 
         targetCaptureFeedbackDismissTask = Task { [weak self] in
             do {
-                try await Task.sleep(nanoseconds: 1_700_000_000)
+                try await Task.sleep(nanoseconds: 750_000_000)
             } catch {
                 return
             }

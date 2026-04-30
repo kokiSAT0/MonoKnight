@@ -22,18 +22,6 @@ extension CampaignStage.SecondaryObjective {
     }
 }
 
-extension CampaignStage.ScoreTargetComparison {
-    /// 表示用の比較記号を返す
-    var descriptionSuffix: String {
-        switch self {
-        case .lessThanOrEqual:
-            return "以下"
-        case .lessThan:
-            return "未満"
-        }
-    }
-}
-
 public extension CampaignStage {
     /// UI で表示する際のコード表記
     var displayCode: String { id.displayCode }
@@ -45,16 +33,14 @@ public extension CampaignStage {
 
     /// 二つ目のスター条件説明
     var twoStarScoreTargetDescription: String? {
-        guard let twoStarScoreTarget else { return nil }
-        let suffix = scoreTargetComparison.descriptionSuffix
-        return "スコア \(twoStarScoreTarget) pt \(suffix)でクリア"
+        guard let twoStarPointThreshold else { return nil }
+        return "\(twoStarPointThreshold) pt 到達"
     }
 
     /// 三つ目のスター条件説明
     var scoreTargetDescription: String? {
-        guard let scoreTarget else { return nil }
-        let suffix = scoreTargetComparison.descriptionSuffix
-        return "スコア \(scoreTarget) pt \(suffix)でクリア"
+        guard let threeStarPointThreshold else { return nil }
+        return "\(threeStarPointThreshold) pt 到達"
     }
 
     /// ステージ解放条件の説明

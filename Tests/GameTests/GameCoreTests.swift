@@ -2349,13 +2349,27 @@ final class GameCoreTests: XCTestCase {
         XCTAssertEqual(core.score, 232, "目的地制のポイント計算が仕様と一致していない")
     }
 
-    /// キャンペーン評価でスター条件がスコアラインに一本化されることを確認
+    /// キャンペーン評価でスター条件が加点式の評価ラインに一本化されることを確認
     func testCampaignEvaluationUsesScoreLinesForStars() {
         let stage = CampaignStage(
             id: CampaignStageID(chapter: 9, index: 1),
             title: "スコア評価",
             summary: "summary",
-            regulation: GameMode.standard.regulationSnapshot,
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .standard,
+                spawnRule: .fixed(GridPoint(x: 2, y: 2)),
+                penalties: GameMode.PenaltySettings(
+                    deadlockPenaltyCost: 3,
+                    manualRedrawPenaltyCost: 2,
+                    manualDiscardPenaltyCost: 1,
+                    revisitPenaltyCost: 0
+                ),
+                completionRule: .targetCollection(goalCount: 12)
+            ),
             secondaryObjective: .finishWithFocusAtMost(maxFocusCount: 2),
             twoStarScoreTarget: 210,
             scoreTarget: 180,
@@ -2368,7 +2382,7 @@ final class GameCoreTests: XCTestCase {
             focusCount: 4,
             elapsedSeconds: 25,
             totalMoveCount: 12,
-            score: 205,
+            score: 1_000,
             hasRevisitedTile: false,
             capturedTargetCount: 12
         )
@@ -2378,7 +2392,7 @@ final class GameCoreTests: XCTestCase {
             focusCount: 2,
             elapsedSeconds: 30,
             totalMoveCount: 12,
-            score: 180,
+            score: 1_020,
             hasRevisitedTile: false,
             capturedTargetCount: 12
         )

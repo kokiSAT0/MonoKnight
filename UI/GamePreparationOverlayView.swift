@@ -23,7 +23,7 @@ struct GamePreparationOverlayPresentation: Equatable {
         if mode.usesTargetCollection {
             primaryObjectiveText = "目的地を \(mode.targetGoalCount) 個取ればクリア"
             clearConditionText = "クリア: 目的地 \(mode.targetGoalCount) 個"
-            shortRuleSummaryText = "スコア: 手数 + 時間 + フォーカス。スターはやり込み目標です。"
+            shortRuleSummaryText = "目的地を取るほど加点。手数とフォーカスは控えめに。"
         } else {
             primaryObjectiveText = "盤面の必要マスを踏破すればクリア"
             clearConditionText = "クリア: 必要マスを踏破"

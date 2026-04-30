@@ -40,6 +40,25 @@ public struct CampaignStageID: Hashable, Codable {
     }
 }
 
+/// キャンペーンのスター評価に使う加点式スコア
+public enum CampaignScoring {
+    /// 保存済みベストスコアとの混在を避けるための方式バージョン
+    public static let currentVersion = 2
+    public static let targetCapturePoints = 100
+    public static let moveCost = 10
+    public static let focusCost = 15
+
+    /// 目的地獲得を加点、移動とフォーカスを小さなコストとして計算する
+    public static func score(capturedTargetCount: Int, moveCount: Int, focusCount: Int) -> Int {
+        max(
+            capturedTargetCount * targetCapturePoints
+            - moveCount * moveCost
+            - focusCount * focusCost,
+            0
+        )
+    }
+}
+
 /// ステージ解放に必要な条件
 public enum CampaignStageUnlockRequirement: Equatable {
     /// 常に解放済み
@@ -135,6 +154,14 @@ public struct CampaignStageClearMetrics {
     public let score: Int
     public let hasRevisitedTile: Bool
     public let capturedTargetCount: Int
+
+    public var campaignScore: Int {
+        CampaignScoring.score(
+            capturedTargetCount: capturedTargetCount,
+            moveCount: moveCount,
+            focusCount: focusCount
+        )
+    }
 
     public init(
         moveCount: Int,

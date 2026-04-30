@@ -51,8 +51,6 @@ enum GameViewLayoutMetrics {
     static let statisticsSectionFallbackHeight: CGFloat = 72
     /// 手札と先読みカードを含めた最低想定高さ。カード 2 段構成とテキストを見越したゆとりを確保する
     static let handSectionFallbackHeight: CGFloat = 220
-    /// 初期スポーン案内を通常レイアウト内へ置く際に確保する高さ
-    static let spawnSelectionBannerReservedHeight: CGFloat = 104
     /// iPad Portrait で盤面が大きくなりすぎ、手札や上部操作から視線が離れすぎることを防ぐ上限
     static let regularWidthMaximumBoardWidth: CGFloat = 660
     /// 手札カード同士の横方向スペース（カード拡大後も全体幅が収まるよう微調整）

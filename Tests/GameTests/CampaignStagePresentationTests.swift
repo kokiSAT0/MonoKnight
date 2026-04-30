@@ -15,7 +15,8 @@ final class CampaignStagePresentationTests: XCTestCase {
                 manualRedrawPenaltyCost: 2,
                 manualDiscardPenaltyCost: 1,
                 revisitPenaltyCost: 0
-            )
+            ),
+            completionRule: .targetCollection(goalCount: 4)
         )
         let stage = CampaignStage(
             id: CampaignStageID(chapter: 2, index: 3),
@@ -31,12 +32,30 @@ final class CampaignStagePresentationTests: XCTestCase {
 
         XCTAssertEqual(stage.displayCode, "2-3")
         XCTAssertEqual(stage.secondaryObjectiveDescription, "フォーカス 2 回以内かつ 7 手以内でクリア")
-        XCTAssertEqual(stage.twoStarScoreTargetDescription, "スコア 55 pt 未満でクリア")
-        XCTAssertEqual(stage.scoreTargetDescription, "スコア 42 pt 未満でクリア")
+        XCTAssertEqual(stage.twoStarScoreTargetDescription, "345 pt 到達")
+        XCTAssertEqual(stage.scoreTargetDescription, "358 pt 到達")
         XCTAssertEqual(stage.unlockDescription, "第2章でスターを合計 5 個集める")
     }
 
-    func testScoreEvaluationUsesTwoScoreLines() {
+    func testCampaignScoringUsesTargetPointsAndIgnoresElapsedSeconds() {
+        let shortTimeScore = CampaignScoring.score(capturedTargetCount: 3, moveCount: 8, focusCount: 1)
+        let longTimeMetrics = CampaignStageClearMetrics(
+            moveCount: 8,
+            penaltyCount: 0,
+            focusCount: 1,
+            elapsedSeconds: 999,
+            totalMoveCount: 8,
+            score: shortTimeScore,
+            hasRevisitedTile: false,
+            capturedTargetCount: 3
+        )
+
+        XCTAssertEqual(shortTimeScore, 205)
+        XCTAssertEqual(longTimeMetrics.campaignScore, 205)
+        XCTAssertEqual(CampaignScoring.score(capturedTargetCount: 0, moveCount: 8, focusCount: 3), 0)
+    }
+
+    func testScoreEvaluationUsesConvertedPointThresholds() {
         let regulation = GameMode.Regulation(
             boardSize: 5,
             handSize: 5,
@@ -49,7 +68,8 @@ final class CampaignStagePresentationTests: XCTestCase {
                 manualRedrawPenaltyCost: 2,
                 manualDiscardPenaltyCost: 1,
                 revisitPenaltyCost: 0
-            )
+            ),
+            completionRule: .targetCollection(goalCount: 4)
         )
         let stage = CampaignStage(
             id: CampaignStageID(chapter: 1, index: 1),
@@ -68,7 +88,7 @@ final class CampaignStagePresentationTests: XCTestCase {
             focusCount: 0,
             elapsedSeconds: 60,
             totalMoveCount: 5,
-            score: 41,
+            score: 359,
             hasRevisitedTile: false,
             capturedTargetCount: 4
         )
@@ -78,7 +98,7 @@ final class CampaignStagePresentationTests: XCTestCase {
             focusCount: 1,
             elapsedSeconds: 25,
             totalMoveCount: 5,
-            score: 40,
+            score: 360,
             hasRevisitedTile: false,
             capturedTargetCount: 4
         )
@@ -88,7 +108,7 @@ final class CampaignStagePresentationTests: XCTestCase {
             focusCount: 1,
             elapsedSeconds: 25,
             totalMoveCount: 5,
-            score: 30,
+            score: 370,
             hasRevisitedTile: false,
             capturedTargetCount: 4
         )

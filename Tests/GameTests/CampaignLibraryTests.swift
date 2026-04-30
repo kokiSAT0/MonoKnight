@@ -128,8 +128,8 @@ final class CampaignLibraryTests: XCTestCase {
                 XCTAssertTrue(stage.regulation.additionalVisitRequirements.isEmpty, "\(stage.displayCode) では全踏破用の追加踏破条件を使いません")
                 XCTAssertEqual(stage.regulation.penalties.manualRedrawPenaltyCost, 0)
                 XCTAssertEqual(stage.regulation.penalties.deadlockPenaltyCost, 0)
-                XCTAssertNotNil(stage.twoStarScoreTarget, "\(stage.displayCode) には★2スコアラインが必要です")
-                XCTAssertNotNil(stage.scoreTarget, "\(stage.displayCode) には★3スコアラインが必要です")
+                XCTAssertNotNil(stage.twoStarScoreTarget, "\(stage.displayCode) には★2評価ラインが必要です")
+                XCTAssertNotNil(stage.scoreTarget, "\(stage.displayCode) には★3評価ラインが必要です")
                 if let twoStarScoreTarget = stage.twoStarScoreTarget, let threeStarScoreTarget = stage.scoreTarget {
                     XCTAssertGreaterThan(
                         twoStarScoreTarget,

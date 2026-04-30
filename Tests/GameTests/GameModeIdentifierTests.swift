@@ -71,6 +71,16 @@ final class GameModeIdentifierTests: XCTestCase {
         XCTAssertTrue(settings.hasPlayableCards)
     }
 
+    func testTargetLabModesWithDifferentExperimentSettingsAreNotEqual() {
+        let allInMode = GameMode.targetLab(settings: .default)
+        let cardsOnlyMode = GameMode.targetLab(settings: TargetLabExperimentSettings(
+            enabledCardGroups: Set(TargetLabCardGroup.allCases),
+            enabledTileKinds: []
+        ))
+
+        XCTAssertNotEqual(allInMode, cardsOnlyMode)
+    }
+
     func testTargetLabModeFiltersDeckByEnabledCardGroups() {
         let settings = TargetLabExperimentSettings(
             enabledCardGroups: [.standard, .warp],

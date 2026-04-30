@@ -89,20 +89,28 @@ final class GameViewModel: ObservableObject {
     }
     /// 暫定スコア
     var displayedScore: Int {
-        if mode.usesTargetCollection {
+        if mode.isCampaignStage {
+            return core.campaignScore
+        } else if mode.usesTargetCollection {
             return core.moveCount * 10 + displayedElapsedSeconds + core.focusCount * 15
         }
         return core.totalMoveCount * 10 + displayedElapsedSeconds
     }
-    /// キャンペーンプレイ中に表示するスター別スコアライン
-    var campaignStarScoreTargets: (twoStar: Int, threeStar: Int)? {
+    /// キャンペーンプレイ中に表示するスターゲージの進捗
+    var campaignStarScoreProgress: CampaignStarScoreProgress? {
         guard let metadata = mode.campaignMetadataSnapshot,
               let stage = CampaignLibrary.shared.stage(with: metadata.stageID),
-              let twoStarScoreTarget = stage.twoStarScoreTarget,
-              let threeStarScoreTarget = stage.scoreTarget
+              let twoStarPointThreshold = stage.twoStarPointThreshold,
+              let threeStarPointThreshold = stage.threeStarPointThreshold,
+              threeStarPointThreshold > 0
         else { return nil }
 
-        return (twoStarScoreTarget, threeStarScoreTarget)
+        return CampaignStarScoreProgress(
+            currentScore: displayedScore,
+            twoStarThreshold: twoStarPointThreshold,
+            threeStarThreshold: threeStarPointThreshold,
+            baseStarEarned: core.progress == .cleared
+        )
     }
     /// 現在の移動回数
     /// - Note: 統計バッジ表示で利用し、View 側から GameCore への直接依存を減らす
@@ -132,6 +140,8 @@ final class GameViewModel: ObservableObject {
     var isOverloadCharged: Bool { core.isOverloadCharged }
     /// 目的地制モードかどうか
     var usesTargetCollection: Bool { mode.usesTargetCollection }
+    /// キャンペーンステージかどうか
+    var isCampaignStage: Bool { mode.isCampaignStage }
     /// ポーズメニューで表示するキャンペーン情報
     /// - Note: モードに紐付くステージ ID からライブラリを引き、保存済み進捗をまとめて返す
     var campaignPauseSummary: CampaignPauseSummary? {
@@ -146,7 +156,7 @@ final class GameViewModel: ObservableObject {
     var pauseMenuPenaltyItems: [String] {
         if mode.usesTargetCollection {
             return [
-                "フォーカス スコア +15",
+                "フォーカス -15 pt",
                 mode.manualDiscardPenaltyCost > 0 ? "捨て札 +\(mode.manualDiscardPenaltyCost) 手" : "捨て札 ペナルティなし",
                 "目的地 \(mode.targetGoalCount) 個でクリア"
             ]

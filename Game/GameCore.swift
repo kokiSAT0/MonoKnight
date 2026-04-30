@@ -125,6 +125,14 @@ public final class GameCore: ObservableObject {
         }
         return totalMoveCount * 10 + elapsedSeconds
     }
+    /// キャンペーンスター評価用の加点式スコア
+    public var campaignScore: Int {
+        CampaignScoring.score(
+            capturedTargetCount: capturedTargetCount,
+            moveCount: moveCount,
+            focusCount: focusCount
+        )
+    }
     /// プレイ中の経過秒数をリアルタイムで取得する計算プロパティ
     /// - Note: クリア済みかどうかに応じて `GameSessionTimer` へ計算を委譲する。
     public var liveElapsedSeconds: Int {

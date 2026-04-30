@@ -38,6 +38,53 @@ struct CampaignPauseSummary {
     let progress: CampaignStageProgress?
 }
 
+struct CampaignStarScoreProgress: Equatable {
+    let currentScore: Int
+    let twoStarThreshold: Int
+    let threeStarThreshold: Int
+    let baseStarEarned: Bool
+
+    var progressFraction: Double {
+        guard threeStarThreshold > 0 else { return 0 }
+        return min(max(Double(currentScore) / Double(threeStarThreshold), 0), 1)
+    }
+
+    var twoStarFraction: Double {
+        guard threeStarThreshold > 0 else { return 0 }
+        return min(max(Double(twoStarThreshold) / Double(threeStarThreshold), 0), 1)
+    }
+
+    var filledStarCount: Int {
+        var count = baseStarEarned ? 1 : 0
+        if currentScore >= twoStarThreshold { count = max(count, 2) }
+        if currentScore >= threeStarThreshold { count = max(count, 3) }
+        return count
+    }
+
+    var nextStarNumber: Int? {
+        if currentScore < twoStarThreshold { return 2 }
+        if currentScore < threeStarThreshold { return 3 }
+        return nil
+    }
+
+    var pointsToNextStar: Int? {
+        if currentScore < twoStarThreshold {
+            return twoStarThreshold - currentScore
+        }
+        if currentScore < threeStarThreshold {
+            return threeStarThreshold - currentScore
+        }
+        return nil
+    }
+
+    var nextStarText: String {
+        guard let nextStarNumber, let pointsToNextStar else {
+            return "★3達成"
+        }
+        return "あと \(pointsToNextStar) ptで★\(nextStarNumber)"
+    }
+}
+
 struct GameBoardTapSelectionWarning: Identifiable, Equatable {
     let id = UUID()
     let message: String
@@ -376,63 +423,9 @@ struct CampaignTutorialBannerView: View {
 
 struct TargetCaptureFeedback: Equatable {
     let capturedCount: Int
-    let goalCount: Int
+    let incrementCount: Int
 
-    var remainingCount: Int {
-        max(goalCount - capturedCount, 0)
-    }
-
-    var title: String {
-        remainingCount == 0 ? "目的地獲得" : "目的地獲得"
-    }
-
-    var message: String {
-        if remainingCount == 0 {
-            return "クリア条件を達成しました"
-        }
-        return "次の目的地へ。残り \(remainingCount) 個"
-    }
-}
-
-struct TargetCaptureFeedbackBannerView: View {
-    let feedback: TargetCaptureFeedback
-    let theme: AppTheme
-
-    var body: some View {
-        HStack(alignment: .center, spacing: 12) {
-            Image(systemName: feedback.remainingCount == 0 ? "checkmark.circle.fill" : "diamond.fill")
-                .font(.system(size: 18, weight: .bold, design: .rounded))
-                .foregroundColor(theme.accentOnPrimary)
-                .padding(8)
-                .background(Circle().fill(theme.accentPrimary))
-                .accessibilityHidden(true)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(feedback.title)
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
-                    .foregroundColor(theme.textPrimary)
-                Text(feedback.message)
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundColor(theme.textSecondary)
-            }
-
-            Spacer(minLength: 0)
-        }
-        .padding(.vertical, 14)
-        .padding(.horizontal, 18)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(theme.spawnOverlayBackground)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(theme.spawnOverlayBorder, lineWidth: 1)
-                )
-        )
-        .shadow(color: theme.spawnOverlayShadow, radius: 18, x: 0, y: 12)
-        .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("target_capture_feedback_banner")
-        .accessibilityLabel(Text("\(feedback.title)。\(feedback.message)"))
-    }
+    var incrementText: String { "+\(max(incrementCount, 1))" }
 }
 
 enum GameMenuAction: Hashable, Identifiable {

@@ -17,10 +17,7 @@ extension GameView {
             topOverlayHeight: topOverlayHeight,
             baseTopSafeAreaInset: baseTopSafeAreaInset,
             statisticsHeight: viewModel.statisticsHeight,
-            handSectionHeight: viewModel.handSectionHeight,
-            inlineMessageHeight: viewModel.progress == .awaitingSpawn
-                ? GameViewLayoutMetrics.spawnSelectionBannerReservedHeight
-                : 0
+            handSectionHeight: viewModel.handSectionHeight
         )
         let layoutContext = layoutCalculator.makeContext()
         // 監視用の不可視オーバーレイも先に生成し、View ビルダー内でのネストを浅く保つ
@@ -29,11 +26,6 @@ extension GameView {
         ZStack(alignment: .top) {
             VStack(spacing: GameViewLayoutMetrics.spacingBetweenBoardAndHand) {
                 boardSection(width: layoutContext.boardWidth)
-                if viewModel.progress == .awaitingSpawn {
-                    spawnSelectionBanner
-                        .padding(Edge.Set.horizontal, 20)
-                        .transition(.opacity.combined(with: .move(edge: .top)))
-                }
                 GameHandSectionView(
                     theme: theme,
                     viewModel: viewModel,
@@ -48,6 +40,13 @@ extension GameView {
             .padding(.top, layoutContext.controlRowTopPadding)
             // MARK: - 手詰まりペナルティ通知バナー
             penaltyBannerOverlay(contentTopInset: layoutContext.overlayAdjustedTopInset)
+            if viewModel.progress == .awaitingSpawn, isSpawnSelectionHintVisible {
+                spawnSelectionBanner
+                    .padding(Edge.Set.horizontal, 20)
+                    .padding(.top, spawnSelectionBannerTopPadding(using: layoutContext))
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                    .zIndex(1)
+            }
         }
         // 画面全体の背景もテーマで制御し、システム設定と調和させる
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -91,15 +90,28 @@ extension GameView {
             }
     }
 
-    /// スポーン位置選択中に盤面下へ表示する案内バナー
+    /// スポーン位置選択中に盤面へ重ねて表示する案内バナー
     var spawnSelectionBanner: some View {
-        // 盤面に重ねず、通常レイアウト内の案内として収める
-        VStack(alignment: .leading, spacing: 6) {
-            Text("開始マスを選択")
-                .font(.system(size: 17, weight: .semibold, design: .rounded))
-            Text("手札、先読み、目的地を確認してから、目的地以外のマスをタップしてください。")
-                .font(.system(size: 14, weight: .medium, design: .rounded))
-                .multilineTextAlignment(.leading)
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("開始マスを選択")
+                    .font(.system(size: 17, weight: .semibold, design: .rounded))
+                Text("手札、先読み、目的地を確認してから、目的地以外のマスをタップしてください。")
+                    .font(.system(size: 14, weight: .medium, design: .rounded))
+                    .multilineTextAlignment(.leading)
+            }
+            Spacer(minLength: 8)
+            Button {
+                isSpawnSelectionHintVisible = false
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundColor(theme.textSecondary)
+                    .frame(width: 32, height: 32)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("spawn_selection_banner_close_button")
+            .accessibilityLabel(Text("開始位置の案内を閉じる"))
         }
         .padding(.vertical, 14)
         .padding(.horizontal, 18)
@@ -113,10 +125,17 @@ extension GameView {
         )
         .shadow(color: theme.spawnOverlayShadow, radius: 20, x: 0, y: 10)
         .foregroundColor(theme.textPrimary)
-        .allowsHitTesting(false)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("spawn_selection_banner")
         .accessibilityLabel(Text("開始位置を選択してください。手札、次のカード、目的地を見てから、目的地以外のマスをタップできます。"))
+    }
+
+    /// 開始位置案内を盤面上部に重ねるための上余白
+    func spawnSelectionBannerTopPadding(using layoutContext: GameViewLayoutContext) -> CGFloat {
+        layoutContext.controlRowTopPadding
+            + layoutContext.resolvedStatisticsHeight
+            + GameViewLayoutMetrics.spacingBetweenStatisticsAndBoard
+            + 12
     }
 
     /// 手詰まりペナルティを知らせるバナーのレイヤーを構成
@@ -148,16 +167,6 @@ extension GameView {
                                 }
                             }
                         )
-                            .padding(Edge.Set.horizontal, 20)
-                            .transition(.move(edge: .top).combined(with: .opacity))
-                        Spacer(minLength: 0)
-                    }
-                }
-
-                if let feedback = viewModel.targetCaptureFeedback {
-                    HStack {
-                        Spacer(minLength: 0)
-                        TargetCaptureFeedbackBannerView(feedback: feedback, theme: theme)
                             .padding(Edge.Set.horizontal, 20)
                             .transition(.move(edge: .top).combined(with: .opacity))
                         Spacer(minLength: 0)

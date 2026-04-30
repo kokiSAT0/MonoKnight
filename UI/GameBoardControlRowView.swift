@@ -60,11 +60,18 @@ private extension GameBoardControlRowView {
         .layoutPriority(1)
     }
 
-    /// 統計バッジを 2 つのグループに分けて表示
+    /// 統計バッジを用途ごとのグループに分けて表示
     func statisticsBadgeContainer() -> some View {
         HStack(spacing: 12) {
-            scoreStatisticsGroup()
-            supplementaryStatisticsGroup()
+            if viewModel.isCampaignStage {
+                targetStatisticsGroup()
+                if let progress = viewModel.campaignStarScoreProgress {
+                    campaignStarGaugeGroup(progress)
+                }
+            } else {
+                scoreStatisticsGroup()
+                supplementaryStatisticsGroup()
+            }
         }
     }
 
@@ -114,22 +121,7 @@ private extension GameBoardControlRowView {
     func supplementaryStatisticsGroup() -> some View {
         statisticsBadgeGroup {
             if viewModel.usesTargetCollection {
-                statisticBadge(
-                    title: "目的地",
-                    value: "\(viewModel.capturedTargetCount)/\(viewModel.targetGoalCount)",
-                    accessibilityLabel: "目的地獲得数",
-                    accessibilityValue: "\(viewModel.targetGoalCount)個中\(viewModel.capturedTargetCount)個獲得"
-                )
-
-                if let targets = viewModel.campaignStarScoreTargets {
-                    statisticBadge(
-                        title: "星ライン",
-                        value: "★2 \(targets.twoStar) / ★3 \(targets.threeStar)",
-                        accessibilityLabel: "キャンペーンスターのスコアライン",
-                        accessibilityValue: starLineAccessibilityValue(targets),
-                        valueColor: starLineValueColor(targets)
-                    )
-                }
+                targetCountStatisticBadge()
             } else {
                 statisticBadge(
                     title: "残りマス",
@@ -147,6 +139,12 @@ private extension GameBoardControlRowView {
                     accessibilityValue: "次のカードは消費されません"
                 )
             }
+        }
+    }
+
+    func targetStatisticsGroup() -> some View {
+        statisticsBadgeGroup {
+            targetCountStatisticBadge()
         }
     }
 
@@ -174,6 +172,90 @@ private extension GameBoardControlRowView {
                 .stroke(theme.statisticBadgeBorder, lineWidth: 1)
         )
         .accessibilityElement(children: .contain)
+    }
+
+    /// 目的地獲得数と、獲得直後の軽い +N フィードバックを同じバッジ内へ表示
+    func targetCountStatisticBadge() -> some View {
+        statisticBadge(
+            title: "目的地",
+            value: "\(viewModel.capturedTargetCount)/\(viewModel.targetGoalCount)",
+            accessibilityLabel: "目的地獲得数",
+            accessibilityValue: targetCountAccessibilityValue
+        )
+        .overlay(alignment: .topTrailing) {
+            if let feedback = viewModel.targetCaptureFeedback {
+                Text(feedback.incrementText)
+                    .font(.system(size: 12, weight: .heavy, design: .rounded))
+                    .foregroundColor(theme.accentOnPrimary)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .background(Capsule(style: .continuous).fill(theme.accentPrimary))
+                    .shadow(color: theme.spawnOverlayShadow.opacity(0.7), radius: 8, x: 0, y: 4)
+                    .offset(x: 16, y: -12)
+                    .transition(.scale(scale: 0.8).combined(with: .opacity))
+                    .accessibilityIdentifier("target_capture_increment_badge")
+                    .accessibilityLabel(Text("目的地 \(feedback.incrementText)"))
+            }
+        }
+        .animation(.spring(response: 0.24, dampingFraction: 0.74), value: viewModel.targetCaptureFeedback)
+    }
+
+    func campaignStarGaugeGroup(_ progress: CampaignStarScoreProgress) -> some View {
+        statisticsBadgeGroup {
+            VStack(alignment: .leading, spacing: 7) {
+                HStack(alignment: .center, spacing: 8) {
+                    HStack(spacing: 3) {
+                        ForEach(1...3, id: \.self) { index in
+                            Image(systemName: index <= progress.filledStarCount ? "star.fill" : "star")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(index <= progress.filledStarCount ? .yellow : theme.statisticValueText.opacity(0.55))
+                        }
+                    }
+                    .accessibilityHidden(true)
+
+                    Text(progress.nextStarText)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundColor(theme.statisticTitleText)
+                        .lineLimit(1)
+                }
+
+                GeometryReader { geometry in
+                    ZStack(alignment: .leading) {
+                        Capsule(style: .continuous)
+                            .fill(theme.statisticValueText.opacity(0.18))
+
+                        Capsule(style: .continuous)
+                            .fill(theme.accentPrimary)
+                            .frame(width: geometry.size.width * CGFloat(progress.progressFraction))
+
+                        starGaugeTick(at: progress.twoStarFraction)
+                        starGaugeTick(at: 1)
+                    }
+                }
+                .frame(height: 10)
+            }
+            .frame(minWidth: 148, idealWidth: 180, maxWidth: 220, minHeight: 34, alignment: .leading)
+        }
+        .accessibilityIdentifier("campaign_star_score_gauge")
+        .accessibilityLabel(Text("キャンペーンスター進捗"))
+        .accessibilityValue(Text(campaignStarGaugeAccessibilityValue(progress)))
+    }
+
+    func starGaugeTick(at fraction: Double) -> some View {
+        GeometryReader { geometry in
+            Capsule(style: .continuous)
+                .fill(theme.statisticValueText.opacity(0.72))
+                .frame(width: 2, height: geometry.size.height)
+                .offset(x: max(0, min(geometry.size.width - 2, geometry.size.width * CGFloat(fraction) - 1)))
+        }
+        .allowsHitTesting(false)
+    }
+
+    var targetCountAccessibilityValue: String {
+        if let feedback = viewModel.targetCaptureFeedback {
+            return "\(viewModel.targetGoalCount)個中\(viewModel.capturedTargetCount)個獲得。直前に\(feedback.incrementCount)個獲得"
+        }
+        return "\(viewModel.targetGoalCount)個中\(viewModel.capturedTargetCount)個獲得"
     }
 
     /// 操作ボタン群
@@ -346,24 +428,7 @@ private extension GameBoardControlRowView {
         "\(score)ポイント"
     }
 
-    func starLineValueColor(_ targets: (twoStar: Int, threeStar: Int)) -> Color {
-        if viewModel.displayedScore <= targets.threeStar {
-            return .yellow
-        }
-        if viewModel.displayedScore <= targets.twoStar {
-            return theme.accentPrimary
-        }
-        return theme.statisticValueText
-    }
-
-    func starLineAccessibilityValue(_ targets: (twoStar: Int, threeStar: Int)) -> String {
-        let currentScore = viewModel.displayedScore
-        if currentScore <= targets.threeStar {
-            return "現在\(currentScore)ポイント。星3ライン\(targets.threeStar)ポイント以内を達成中。星2ラインは\(targets.twoStar)ポイント以内です"
-        }
-        if currentScore <= targets.twoStar {
-            return "現在\(currentScore)ポイント。星2ライン\(targets.twoStar)ポイント以内を達成中。星3ラインは\(targets.threeStar)ポイント以内です"
-        }
-        return "現在\(currentScore)ポイント。星2ラインは\(targets.twoStar)ポイント以内、星3ラインは\(targets.threeStar)ポイント以内です"
+    func campaignStarGaugeAccessibilityValue(_ progress: CampaignStarScoreProgress) -> String {
+        "現在\(progress.currentScore)ポイント。\(progress.nextStarText)。2つ目は\(progress.twoStarThreshold)ポイント、3つ目は\(progress.threeStarThreshold)ポイント"
     }
 }

@@ -57,6 +57,8 @@ struct GameView: View {
     @StateObject var viewModel: GameViewModel
     /// 警告トーストの自動消滅を制御する Task を保持し、連続表示時の競合を避ける
     @State private var boardTapWarningDismissTask: Task<Void, Never>?
+    /// 開始位置選択中の案内表示。閉じても次の選択待ちでは再表示する
+    @State var isSpawnSelectionHintVisible = true
     /// 手札や NEXT の位置をマッチングさせるための名前空間
     /// - Note: レイアウト拡張（GameView+Layout）でも利用するため、アクセスレベルを internal（デフォルト）で共有する。
     @Namespace var cardAnimationNamespace
@@ -172,6 +174,11 @@ struct GameView: View {
         .onChange(of: viewModel.boardTapSelectionWarning) { _, newValue in
             // 新しい警告が届いたらタイマーを再スケジュールし、nil になったときは確実にキャンセルする
             scheduleBoardTapWarningAutoDismiss(for: newValue)
+        }
+        .onChange(of: viewModel.progress) { oldValue, newValue in
+            if oldValue == .awaitingSpawn, newValue != .awaitingSpawn {
+                isSpawnSelectionHintVisible = true
+            }
         }
         // 画面を離れる際にタイマーを破棄し、不要なタスクがバックグラウンドで動き続けないようにする
         .onDisappear {

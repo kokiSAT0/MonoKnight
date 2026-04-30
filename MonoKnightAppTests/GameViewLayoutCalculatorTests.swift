@@ -120,8 +120,8 @@ final class GameViewLayoutCalculatorTests: XCTestCase {
         }
     }
 
-    /// 初期スポーン案内を盤面へ重ねず、通常レイアウト内に収めるための高さを確保する
-    func testSpawnSelectionBannerHeightReducesAvailableBoardHeight() {
+    /// 初期スポーン案内は盤面へ重ねるため、盤面サイズ計算へ予約高さを持ち込まない
+    func testSpawnSelectionOverlayDoesNotChangeBoardSize() {
         let parameters = GameViewLayoutParameters(
             size: CGSize(width: 390, height: 844),
             safeAreaTop: 47,
@@ -135,31 +135,29 @@ final class GameViewLayoutCalculatorTests: XCTestCase {
             statisticsHeight: 120,
             handSectionHeight: 260
         )
-        let spawnCalculator = GameViewLayoutCalculator(
+        let spawnOverlayCalculator = GameViewLayoutCalculator(
             parameters: parameters,
             horizontalSizeClass: .compact,
             topOverlayHeight: 0,
             baseTopSafeAreaInset: 47,
             statisticsHeight: 120,
-            handSectionHeight: 260,
-            inlineMessageHeight: GameViewLayoutMetrics.spawnSelectionBannerReservedHeight
+            handSectionHeight: 260
         )
 
         let baseContext = baseCalculator.makeContext()
-        let spawnContext = spawnCalculator.makeContext()
-        let expectedReduction = GameViewLayoutMetrics.spawnSelectionBannerReservedHeight
-            + GameViewLayoutMetrics.spacingBetweenBoardAndHand
+        let spawnOverlayContext = spawnOverlayCalculator.makeContext()
 
         XCTAssertEqual(
-            baseContext.availableHeightForBoard - spawnContext.availableHeightForBoard,
-            expectedReduction,
+            spawnOverlayContext.availableHeightForBoard,
+            baseContext.availableHeightForBoard,
             accuracy: 0.001,
-            "スポーン案内分の高さが盤面計算から差し引かれていません"
+            "スポーン案内はオーバーレイ表示なので盤面に使える高さを変えない想定です"
         )
-        XCTAssertLessThan(
-            spawnContext.boardWidth,
+        XCTAssertEqual(
+            spawnOverlayContext.boardWidth,
             baseContext.boardWidth,
-            "案内表示中も盤面幅が変わらず、盤面と案内が重なる恐れがあります"
+            accuracy: 0.001,
+            "開始位置選択中も盤面幅は通常時と同じに保つ想定です"
         )
     }
 }

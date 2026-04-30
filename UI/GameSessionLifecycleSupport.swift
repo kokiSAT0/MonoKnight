@@ -420,7 +420,7 @@ final class GameFlowCoordinator {
             focusCount: core.focusCount,
             elapsedSeconds: core.elapsedSeconds,
             totalMoveCount: core.totalMoveCount,
-            score: core.score,
+            score: core.campaignScore,
             hasRevisitedTile: core.hasRevisitedTile,
             capturedTargetCount: core.capturedTargetCount
         )

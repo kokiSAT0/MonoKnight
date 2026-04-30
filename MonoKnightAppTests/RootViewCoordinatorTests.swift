@@ -77,4 +77,28 @@ struct RootViewCoordinatorTests {
         #expect(stateStore.isPreparingGame == false)
         #expect(stateStore.isGameReadyForManualStart == false)
     }
+
+    @MainActor
+    @Test func startPreparation_updatesTargetLabModeWhenExperimentSettingsChange() {
+        let stateStore = RootViewStateStore(initialIsAuthenticated: true)
+        let preparationCoordinator = RootViewPreparationCoordinator()
+        let initialSettings = TargetLabExperimentSettings.default
+        let updatedSettings = TargetLabExperimentSettings(
+            enabledCardGroups: [.standard],
+            enabledTileKinds: [.boost, .slow]
+        )
+
+        preparationCoordinator.startPreparation(
+            for: .targetLab(settings: initialSettings),
+            context: .highScoreSelection,
+            stateStore: stateStore
+        )
+        preparationCoordinator.startPreparation(
+            for: .targetLab(settings: updatedSettings),
+            context: .highScoreSelection,
+            stateStore: stateStore
+        )
+
+        #expect(stateStore.activeMode.regulationSnapshot.targetLabExperimentSettings == updatedSettings)
+    }
 }

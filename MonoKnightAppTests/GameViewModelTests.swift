@@ -413,16 +413,31 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertNil(scoreViewModel.campaignPauseSummary, "非キャンペーンモードでは pause summary が nil のままになる必要があります")
     }
 
-    /// キャンペーン時だけプレイ中のスター用スコアラインを返すことを確認
-    func testCampaignStarScoreTargetsAreOnlyExposedForCampaignMode() throws {
+    /// キャンペーン時だけプレイ中のスターゲージ進捗を返すことを確認
+    func testCampaignStarScoreProgressIsOnlyExposedForCampaignMode() throws {
         let stage = try XCTUnwrap(CampaignLibrary.shared.stage(with: CampaignStageID(chapter: 1, index: 1)))
-        let (campaignViewModel, _) = makeViewModel(mode: stage.makeGameMode())
+        let (campaignViewModel, campaignCore) = makeViewModel(mode: stage.makeGameMode())
 
-        XCTAssertEqual(campaignViewModel.campaignStarScoreTargets?.twoStar, stage.twoStarScoreTarget)
-        XCTAssertEqual(campaignViewModel.campaignStarScoreTargets?.threeStar, stage.scoreTarget)
+        XCTAssertEqual(campaignViewModel.campaignStarScoreProgress?.twoStarThreshold, stage.twoStarPointThreshold)
+        XCTAssertEqual(campaignViewModel.campaignStarScoreProgress?.threeStarThreshold, stage.threeStarPointThreshold)
+        XCTAssertEqual(campaignViewModel.campaignStarScoreProgress?.nextStarNumber, 2)
+        XCTAssertEqual(campaignViewModel.campaignStarScoreProgress?.pointsToNextStar, stage.twoStarPointThreshold)
+        XCTAssertEqual(campaignViewModel.campaignStarScoreProgress?.nextStarText, "あと \(stage.twoStarPointThreshold ?? 0) ptで★2")
+
+        campaignCore.overrideTargetStateForTesting(targetPoint: campaignCore.targetPoint, capturedTargetCount: 2)
+        campaignCore.overrideMetricsForTesting(moveCount: 5, penaltyCount: 0, elapsedSeconds: 120)
+        XCTAssertEqual(campaignViewModel.campaignStarScoreProgress?.nextStarNumber, 3)
+        XCTAssertEqual(campaignViewModel.campaignStarScoreProgress?.pointsToNextStar, 30)
+        XCTAssertEqual(campaignViewModel.campaignStarScoreProgress?.nextStarText, "あと 30 ptで★3")
+
+        campaignCore.overrideTargetStateForTesting(targetPoint: campaignCore.targetPoint, capturedTargetCount: 3)
+        campaignCore.overrideMetricsForTesting(moveCount: 12, penaltyCount: 0, elapsedSeconds: 999)
+        XCTAssertNil(campaignViewModel.campaignStarScoreProgress?.nextStarNumber)
+        XCTAssertNil(campaignViewModel.campaignStarScoreProgress?.pointsToNextStar)
+        XCTAssertEqual(campaignViewModel.campaignStarScoreProgress?.nextStarText, "★3達成")
 
         let (standardViewModel, _) = makeViewModel(mode: .standard)
-        XCTAssertNil(standardViewModel.campaignStarScoreTargets, "標準モードではスターラインを表示しません")
+        XCTAssertNil(standardViewModel.campaignStarScoreProgress, "標準モードではスターゲージを表示しません")
     }
 
     /// handleCampaignStageAdvance が stage unlock 条件を守って遷移要求を出し分けることを確認
@@ -948,6 +963,19 @@ final class GameViewModelTests: XCTestCase {
             viewModel.boardTapSelectionWarning?.message,
             "目的地マスは開始位置にできません。目的地以外のマスを選んでください。"
         )
+    }
+
+    func testTargetCaptureFeedbackUsesCapturedIncrementCount() throws {
+        let (viewModel, _) = makeViewModel(mode: .standard)
+        viewModel.hapticsEnabled = false
+        viewModel.lastTutorialCapturedTargetCount = 2
+
+        viewModel.handleTutorialCapturedTargetCountChange(4)
+
+        XCTAssertEqual(viewModel.targetCaptureFeedback?.capturedCount, 4)
+        XCTAssertEqual(viewModel.targetCaptureFeedback?.incrementCount, 2)
+        XCTAssertEqual(viewModel.targetCaptureFeedback?.incrementText, "+2")
+        viewModel.clearTargetCaptureFeedback()
     }
 
     func testCampaignTutorialDoesNotShowInStandardMode() throws {

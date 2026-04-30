@@ -101,7 +101,7 @@ final class CampaignProgressStore: ObservableObject {
             current.achievedThreeStarScoreGoal = true
         }
 
-        current.bestScore = CampaignProgressStore.minValue(current.bestScore, newValue: metrics.score)
+        current.updateBestCampaignScore(metrics.score)
         current.bestMoveCount = CampaignProgressStore.minValue(current.bestMoveCount, newValue: metrics.moveCount)
         current.bestTotalMoveCount = CampaignProgressStore.minValue(current.bestTotalMoveCount, newValue: metrics.totalMoveCount)
         current.bestPenaltyCount = CampaignProgressStore.minValue(current.bestPenaltyCount, newValue: metrics.penaltyCount)
@@ -181,6 +181,7 @@ final class CampaignProgressStore: ObservableObject {
             return newValue
         }
     }
+
 }
 
 /// ステージの進捗を表すモデル
@@ -195,8 +196,10 @@ struct CampaignStageProgress: Codable {
     var achievedTwoStarScoreGoal: Bool
     /// 三つ目のスコアスター条件を達成したことがあるか
     var achievedThreeStarScoreGoal: Bool
-    /// ベストスコア（低いほど良い）
+    /// ベストスコア（キャンペーン現行方式では高いほど良い）
     var bestScore: Int?
+    /// ベストスコアを記録したスコア方式バージョン
+    var bestScoreVersion: Int?
     /// ベストの移動回数
     var bestMoveCount: Int?
     /// ベストの合計手数
@@ -215,6 +218,7 @@ struct CampaignStageProgress: Codable {
         achievedTwoStarScoreGoal: Bool = false,
         achievedThreeStarScoreGoal: Bool = false,
         bestScore: Int? = nil,
+        bestScoreVersion: Int? = nil,
         bestMoveCount: Int? = nil,
         bestTotalMoveCount: Int? = nil,
         bestPenaltyCount: Int? = nil,
@@ -227,6 +231,7 @@ struct CampaignStageProgress: Codable {
         self.achievedTwoStarScoreGoal = achievedTwoStarScoreGoal
         self.achievedThreeStarScoreGoal = achievedThreeStarScoreGoal
         self.bestScore = bestScore
+        self.bestScoreVersion = bestScoreVersion
         self.bestMoveCount = bestMoveCount
         self.bestTotalMoveCount = bestTotalMoveCount
         self.bestPenaltyCount = bestPenaltyCount
@@ -242,11 +247,21 @@ struct CampaignStageProgress: Codable {
         achievedTwoStarScoreGoal = try container.decodeIfPresent(Bool.self, forKey: .achievedTwoStarScoreGoal) ?? achievedSecondaryObjective
         achievedThreeStarScoreGoal = try container.decodeIfPresent(Bool.self, forKey: .achievedThreeStarScoreGoal) ?? achievedScoreGoal
         bestScore = try container.decodeIfPresent(Int.self, forKey: .bestScore)
+        bestScoreVersion = try container.decodeIfPresent(Int.self, forKey: .bestScoreVersion)
         bestMoveCount = try container.decodeIfPresent(Int.self, forKey: .bestMoveCount)
         bestTotalMoveCount = try container.decodeIfPresent(Int.self, forKey: .bestTotalMoveCount)
         bestPenaltyCount = try container.decodeIfPresent(Int.self, forKey: .bestPenaltyCount)
         bestFocusCount = try container.decodeIfPresent(Int.self, forKey: .bestFocusCount)
         bestElapsedSeconds = try container.decodeIfPresent(Int.self, forKey: .bestElapsedSeconds)
+    }
+
+    mutating func updateBestCampaignScore(_ newScore: Int) {
+        if bestScoreVersion != CampaignScoring.currentVersion {
+            bestScore = newScore
+            bestScoreVersion = CampaignScoring.currentVersion
+        } else {
+            bestScore = bestScore.map { max($0, newScore) } ?? newScore
+        }
     }
 }
 
