@@ -170,6 +170,32 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
         )
     }
 
+    func testRefreshGuideHighlightsTreatsUpcomingTargetsAsCapturable() {
+        let core = GameCore(mode: .standard)
+        let viewModel = GameBoardBridgeViewModel(core: core, mode: .standard)
+        let origin = GridPoint(x: 2, y: 2)
+        let currentTarget = GridPoint(x: 4, y: 4)
+        let upcomingTarget = GridPoint(x: 3, y: 2)
+
+        core.overrideTargetStateForTesting(
+            targetPoint: currentTarget,
+            upcomingTargetPoints: [upcomingTarget]
+        )
+
+        let captureStack = HandStack(cards: [DealtCard(move: .kingRight)])
+        viewModel.refreshGuideHighlights(
+            handOverride: [captureStack],
+            currentOverride: origin,
+            progressOverride: .playing
+        )
+
+        XCTAssertEqual(
+            viewModel.guideHighlightBuckets.targetCaptureDestinations,
+            [upcomingTarget],
+            "先読み表示中の目的地も獲得可能な目的地として専用集合へ分類する想定です"
+        )
+    }
+
     /// 強制ハイライト表示中は通常ガイド枠を Scene へ送らず、目的地マーカーだけを維持することを検証する
     func testForcedSelectionHidesGuideCandidatesButKeepsTargetMarkers() {
         MoveCard.setTestMovementVectors([

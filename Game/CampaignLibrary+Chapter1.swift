@@ -6,7 +6,7 @@ extension CampaignLibrary {
             chapter: 1,
             index: 1,
             title: "目的地の一歩",
-            summary: "広い盤面で王将カードだけを使い、目的地を順番に取る基本を学びます。",
+            summary: "王将カードだけで、表示中の目的地を好きな順に取る基本を学びます。",
             goalCount: 3,
             deckPreset: .kingOnly,
             secondaryObjective: .finishWithFocusAtMost(maxFocusCount: 2),
@@ -27,8 +27,8 @@ extension CampaignLibrary {
         let stage13 = targetStage(
             chapter: 1,
             index: 3,
-            title: "NEXT確認",
-            summary: "先読みを見ながら、次の目的地までの道筋を作ります。",
+            title: "三つの目的地",
+            summary: "表示中の三つを見比べ、近い目的地から取る感覚を掴みます。",
             goalCount: 4,
             deckPreset: .kingAndKnightBasic,
             secondaryObjective: .finishWithFocusAtMost(maxFocusCount: 2),
@@ -39,7 +39,7 @@ extension CampaignLibrary {
             chapter: 1,
             index: 4,
             title: "フォーカス練習",
-            summary: "必要な時だけフォーカスを使い、手札を目的地へ寄せる練習です。",
+            summary: "必要な時だけフォーカスを使い、取りやすい目的地へ手札を寄せる練習です。",
             goalCount: 5,
             deckPreset: .kingAndKnightBasic,
             spawnRule: .chooseAnyAfterPreview,
@@ -74,7 +74,7 @@ extension CampaignLibrary {
             chapter: 1,
             index: 7,
             title: "連続目的地",
-            summary: "目的地獲得後の次の一手を意識し、ルートをつなげます。",
+            summary: "同じ手で通れる目的地も意識し、ルートをつなげます。",
             goalCount: 6,
             deckPreset: .standardLight,
             secondaryObjective: .finishWithinMoves(maxMoves: 15),
@@ -85,7 +85,7 @@ extension CampaignLibrary {
             chapter: 1,
             index: 8,
             title: "基礎総合",
-            summary: "目的地、NEXT、フォーカスをまとめて使う最初の総合演習です。",
+            summary: "表示中の目的地、開始位置、フォーカスをまとめて使う最初の総合演習です。",
             goalCount: 6,
             deckPreset: .standard,
             spawnRule: .chooseAnyAfterPreview,
@@ -96,8 +96,8 @@ extension CampaignLibrary {
 
         return CampaignChapter(
             id: 1,
-            title: "目的地基礎",
-            summary: "目的地を取り続ける新しい標準ルールに慣れる章。",
+            title: "表示目的地の基礎",
+            summary: "三つの目的地から取りやすい順を選ぶ標準ルールに慣れる章。",
             stages: [stage11, stage12, stage13, stage14, stage15, stage16, stage17, stage18]
         )
     }

@@ -11,7 +11,7 @@ extension CampaignLibrary {
             deckPreset: .kingAndKnightBasic,
             secondaryObjective: .finishWithFocusAtMost(maxFocusCount: 3),
             scoreTarget: 215,
-            unlockRequirement: .chapterTotalStars(chapter: 1, minimum: 12)
+            unlockRequirement: .stageClear(CampaignStageID(chapter: 1, index: 8))
         )
         let stage22 = targetStage(
             chapter: 2,
@@ -51,10 +51,10 @@ extension CampaignLibrary {
         let stage25 = targetStage(
             chapter: 2,
             index: 5,
-            title: "斜めの切り返し",
-            summary: "斜め移動を混ぜ、回り道に見える近道を探します。",
+            title: "縦横の切り返し",
+            summary: "上下左右の選択カードで、近い目的地へ寄せる軸を選びます。",
             goalCount: 8,
-            deckPreset: .standardWithDiagonalChoices,
+            deckPreset: .standardWithOrthogonalChoices,
             secondaryObjective: .finishWithFocusAtMost(maxFocusCount: 3),
             scoreTarget: 270,
             unlockRequirement: .stageClear(stage24.id)
@@ -62,10 +62,10 @@ extension CampaignLibrary {
         let stage26 = targetStage(
             chapter: 2,
             index: 6,
-            title: "跳躍の戻り",
-            summary: "桂馬系カードで距離を詰めた後、目的地へ微調整します。",
+            title: "斜めの戻り",
+            summary: "斜め選択を混ぜ、回り道に見える近道を探します。",
             goalCount: 8,
-            deckPreset: .standardWithKnightChoices,
+            deckPreset: .standardWithDiagonalChoices,
             spawnRule: .chooseAnyAfterPreview,
             secondaryObjective: .finishWithinMoves(maxMoves: 21),
             scoreTarget: 270,

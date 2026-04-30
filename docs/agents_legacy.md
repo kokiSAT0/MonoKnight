@@ -1,5 +1,8 @@
 # AGENTS.md — MonoKnight
 
+> 注意: 本書は旧 `AGENTS.md` の退避アーカイブであり、現行仕様の正本ではない。
+> 現行判断は `../AGENTS.md`、`docs/index.md`、`docs/product-spec.md`、`docs/game-rules-handbook.md` を優先する。
+
 本リポジトリの開発方針・役割分担（AI エージェント含む）・作業手順を定義する文書。MVP の要件は達成済みとし、**正式リリースに耐える品質で App Store へ提出すること**を最優先とする。Swift 初心者・個人開発でも実装可能な範囲に限定しつつ、デザインは**シンプル＆モダン（モノクロ主体）**とし、**Apple HIG**に準拠する。
 基本的な開発方針は Windows11・VScode と codex でバイヴコーディングを行い、mac mini・xcode のエミュレーターでテストを行うサイクルで開発する。最終的には実機で Testflight によるテストを行う。
 

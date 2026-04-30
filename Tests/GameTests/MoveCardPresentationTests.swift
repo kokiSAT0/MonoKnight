@@ -55,6 +55,8 @@ final class MoveCardPresentationTests: XCTestCase {
         XCTAssertTrue(entries.allSatisfy { !$0.displayName.isEmpty })
         XCTAssertTrue(entries.allSatisfy { !$0.category.isEmpty })
         XCTAssertTrue(entries.allSatisfy { !$0.description.isEmpty })
+        let targetEntries = entries.filter { $0.category == "目的地" }
+        XCTAssertFalse(targetEntries.contains { $0.displayName.contains("NEXT") || $0.description.contains("紫") || $0.description.contains("オレンジ") })
         XCTAssertTrue(entryIDs.isSuperset(of: [
             "normal",
             "spawn",

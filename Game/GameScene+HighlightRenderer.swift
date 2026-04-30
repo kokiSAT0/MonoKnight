@@ -326,10 +326,10 @@
                 fillColor = baseColor.withAlphaComponent(0.94)
                 zPosition = 1.2
             case .upcomingTarget:
-                baseColor = palette.boardGuideHighlight
+                baseColor = palette.boardWarpHighlight
                 strokeAlpha = 0
                 strokeWidth = 0
-                fillColor = baseColor.withAlphaComponent(0.30)
+                fillColor = baseColor.withAlphaComponent(0.94)
                 zPosition = 1.12
             }
 
@@ -362,9 +362,17 @@
         ) -> CGPath {
             switch kind {
             case .currentTarget:
-                return currentTargetMarkerPath(center: CGPoint(x: rect.midX, y: rect.midY), tileSize: tileSize)
+                return targetMarkerPath(
+                    center: CGPoint(x: rect.midX, y: rect.midY),
+                    tileSize: tileSize,
+                    scale: 1.0
+                )
             case .upcomingTarget:
-                return upcomingTargetMarkerPath(center: CGPoint(x: rect.midX, y: rect.midY), tileSize: tileSize)
+                return targetMarkerPath(
+                    center: CGPoint(x: rect.midX, y: rect.midY),
+                    tileSize: tileSize,
+                    scale: 0.82
+                )
             case .guideSingleCandidate,
                  .guideMultipleCandidate,
                  .guideMultiStepCandidate,
@@ -376,8 +384,8 @@
             }
         }
 
-        private func currentTargetMarkerPath(center: CGPoint, tileSize: CGFloat) -> CGPath {
-            let radius = tileSize * 0.26
+        private func targetMarkerPath(center: CGPoint, tileSize: CGFloat, scale: CGFloat) -> CGPath {
+            let radius = tileSize * 0.26 * scale
             let path = CGMutablePath()
             path.move(to: CGPoint(x: center.x, y: center.y + radius))
             path.addLine(to: CGPoint(x: center.x + radius, y: center.y))
@@ -385,17 +393,6 @@
             path.addLine(to: CGPoint(x: center.x - radius, y: center.y))
             path.closeSubpath()
             return path
-        }
-
-        private func upcomingTargetMarkerPath(center: CGPoint, tileSize: CGFloat) -> CGPath {
-            let side = max(tileSize * 0.14, 6.0)
-            let rect = CGRect(
-                x: center.x - side / 2,
-                y: center.y - side / 2,
-                width: side,
-                height: side
-            )
-            return CGPath(ellipseIn: rect, transform: nil)
         }
     }
 #endif

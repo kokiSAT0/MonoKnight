@@ -228,17 +228,17 @@ final class CampaignTutorialController {
             return [
                 CampaignTutorialStep(
                     id: .currentTarget,
-                    title: "紫の菱形を目指す",
-                    message: "盤面の紫の菱形が、いま取りに行く目的地です。",
+                    title: "表示中の目的地を目指す",
+                    message: "盤面の目的地マーカーは、どれからでも取れる表示中の目的地です。",
                     instruction: "まずは目的地の位置を確認して、手札を1枚選びましょう。",
                     completionEvents: [.handSelected, .firstMove, .targetCaptured],
                     forcedHighlight: .none
                 ),
                 CampaignTutorialStep(
                     id: .upcomingTarget,
-                    title: "オレンジ点は次の候補",
-                    message: "オレンジの点は、このあと出てくる目的地候補です。今すぐ踏まなくても大丈夫です。",
-                    instruction: "紫の目的地へ近づくカードを使って移動しましょう。",
+                    title: "順番は自由",
+                    message: "表示中の目的地は、手札を見て取りやすいものから踏みましょう。",
+                    instruction: "表示中の目的地へ近づくカードを使って移動しましょう。",
                     completionEvent: .firstMove,
                     forcedHighlight: .none
                 ),
@@ -246,15 +246,15 @@ final class CampaignTutorialController {
                     id: .movement,
                     title: "枠のマスへ移動",
                     message: "手札カードを選ぶと、移動できるマスが枠で表示されます。目的地とは別の合図です。",
-                    instruction: "枠を見ながら紫の目的地まで進みましょう。",
+                    instruction: "枠を見ながら取りやすい目的地まで進みましょう。",
                     completionEvent: .targetCaptured,
                     forcedHighlight: .none
                 ),
                 CampaignTutorialStep(
                     id: .targetCapture,
                     title: "目的地を取る",
-                    message: "紫の目的地に着くと獲得数が増え、次の目的地へ切り替わります。",
-                    instruction: "紫のマスに到達して、目的地を1個獲得しましょう。",
+                    message: "表示中の目的地に着くと獲得数が増え、新しい目的地が補充されます。",
+                    instruction: "取りやすい目的地に到達して、目的地を1個獲得しましょう。",
                     completionEvent: .targetCaptured,
                     forcedHighlight: .none
                 ),
@@ -272,7 +272,7 @@ final class CampaignTutorialController {
                 CampaignTutorialStep(
                     id: .focus,
                     title: "困ったらフォーカス",
-                    message: "フォーカスは、現在の目的地へ近づきやすいカードを優先して手札を整えます。",
+                    message: "フォーカスは、表示中の目的地へ近づきやすいカードを優先して手札を整えます。",
                     instruction: "必要なカードが遠いと感じたら、フォーカスを使ってみましょう。",
                     completionEvent: .focusUsed,
                     forcedHighlight: .none
@@ -293,9 +293,9 @@ final class CampaignTutorialController {
             return [
                 CampaignTutorialStep(
                     id: .routePlanning,
-                    title: "次の候補も見る",
-                    message: "近い目的地だけでなく、オレンジ点の候補も見て、次に動きやすい位置を選びます。",
-                    instruction: "紫の目的地へ近づきつつ、次に戻りやすい一手を選びましょう。",
+                    title: "取りやすい順を選ぶ",
+                    message: "表示中の目的地を見比べ、次に動きやすい位置を選びます。",
+                    instruction: "表示中の目的地から、手札で取りやすい一手を選びましょう。",
                     completionEvent: .firstMove,
                     forcedHighlight: .none
                 )
@@ -306,7 +306,7 @@ final class CampaignTutorialController {
                     id: .chapterReview,
                     title: "2章の総合演習",
                     message: "フォーカス、先読み、戻り道の判断をまとめて使うステージです。",
-                    instruction: "オレンジ点も見ながら、目的地を取り切りましょう。",
+                    instruction: "表示中の目的地を見ながら、目的地を取り切りましょう。",
                     completionEvent: .targetCaptured,
                     forcedHighlight: .none
                 )
@@ -447,7 +447,7 @@ enum GameMenuAction: Hashable, Identifiable {
         switch self {
         case .manualPenalty(let cost):
             if cost < 0 {
-                return "フォーカスを使って、現在の目的地へ近づきやすいカードを優先して手札を整えます。スコアに15ポイント加算されます。"
+                return "フォーカスを使って、表示中の目的地へ近づきやすいカードを優先して手札を整えます。スコアに15ポイント加算されます。"
             }
             if cost > 0 {
                 return "手数を\(cost)増やして手札スロットを引き直します。現在の手札スロットは空になります。よろしいですか？"

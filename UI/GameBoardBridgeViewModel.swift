@@ -48,7 +48,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
         var warpDestinations: Set<GridPoint>
         /// 目的地へ近づく合法手の座標集合
         var targetApproachDestinations: Set<GridPoint>
-        /// 現在の目的地を獲得できる合法手の座標集合
+        /// 表示中の目的地を獲得できる合法手の座標集合
         var targetCaptureDestinations: Set<GridPoint>
 
         /// すべて空集合の初期値を返すヘルパー
@@ -380,18 +380,18 @@ final class GameBoardBridgeViewModel: ObservableObject {
         debugLog(summary.logMessage)
     }
 
-    /// 目的地制で合法手が現在目的地を直接取れるかを分類する
+    /// 目的地制で合法手が表示中目的地を直接取れるかを分類する
     private func classifyTargetCaptureMoves(
         _ moves: [ResolvedCardMove],
         into buckets: inout GuideHighlightBuckets
     ) {
-        guard mode.usesTargetCollection,
-              let target = core.targetPoint else {
+        guard mode.usesTargetCollection else {
             return
         }
 
+        let targets = core.activeTargetPoints
         for move in moves {
-            if move.traversedPoints.contains(target) {
+            for target in targets where move.traversedPoints.contains(target) {
                 buckets.targetCaptureDestinations.insert(target)
             }
         }

@@ -227,8 +227,8 @@ struct MoveCardIllustrationView: View {
             accessibilityLabelText = Text("目的地補助カード、\(card.displayName)")
             accessibilityHintText = Text(
                 mode == .hand
-                    ? "ダブルタップでカードを選ぶと、現在目的地に近づく候補だけを盤面に表示します"
-                    : "閲覧のみ: 目的地制のときだけ、現在目的地に近づく候補を出すカードです"
+                    ? "ダブルタップでカードを選ぶと、表示中の目的地に近づく候補だけを盤面に表示します"
+                    : "閲覧のみ: 目的地制のときだけ、表示中の目的地に近づく候補を出すカードです"
             )
         } else if isEffectAssistCard {
             accessibilityLabelText = Text("特殊マス補助カード、\(card.displayName)")

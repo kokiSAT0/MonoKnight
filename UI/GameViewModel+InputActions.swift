@@ -10,23 +10,17 @@ extension GameViewModel {
     func updateForcedSelectionHighlight(for stack: HandStack?) {
         guard
             let stack,
-            let current = core.current,
+            core.current != nil,
             let card = stack.topCard
         else {
             boardBridge.updateForcedSelectionHighlights([])
             return
         }
 
-        let snapshotBoard = core.board
-        let context = MoveCard.MovePattern.ResolutionContext(
-            boardSize: snapshotBoard.size,
-            contains: { point in snapshotBoard.contains(point) },
-            isTraversable: { point in snapshotBoard.isTraversable(point) },
-            isVisited: { point in snapshotBoard.isVisited(point) },
-            targetPoint: core.mode.usesTargetCollection ? core.targetPoint : nil
-        )
-        let availablePaths = card.move.resolvePaths(from: current, context: context)
-        boardBridge.updateForcedSelectionHighlights(Set(availablePaths.map(\.destination)))
+        let destinations = core.availableMoves()
+            .filter { $0.stackID == stack.id && $0.card.id == card.id }
+            .map(\.destination)
+        boardBridge.updateForcedSelectionHighlights(Set(destinations))
     }
 
     func isCardUsable(_ stack: HandStack) -> Bool {

@@ -79,7 +79,7 @@ public enum TileEffect: Equatable, Codable {
     case slow
     /// 手札は維持し、NEXT だけを引き直す効果
     case nextRefresh
-    /// フォーカス回数を増やさず、現在目的地へ近づきやすい手札へ再配布する効果
+    /// フォーカス回数を増やさず、表示中の目的地へ近づきやすい手札へ再配布する効果
     case freeFocus
     /// 使用したカードを消費せずに温存する効果
     case preserveCard
@@ -87,7 +87,7 @@ public enum TileEffect: Equatable, Codable {
     case draft
     /// 反動コストを受け、次の 1 手だけ使用カードを温存する効果
     case overload
-    /// 現在目的地と NEXT 目的地の先頭を入れ替える効果
+    /// 表示中目的地の先頭と NEXT 目的地の先頭を入れ替える効果
     case targetSwap
     /// 指定した障害物マスを通常マスへ変える効果
     case openGate(target: GridPoint)

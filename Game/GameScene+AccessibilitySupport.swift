@@ -76,10 +76,8 @@
                         if let knightPosition, point == knightPosition {
                             labelParts.append("駒あり")
                         }
-                        if currentTargetPoints.contains(point) {
-                            labelParts.append("現在の目的地")
-                        } else if upcomingTargetPoints.contains(point) {
-                            labelParts.append("次の目的地候補")
+                        if currentTargetPoints.contains(point) || upcomingTargetPoints.contains(point) {
+                            labelParts.append("表示中の目的地")
                         }
                         if targetCaptureCandidatePoints.contains(point) {
                             labelParts.append("目的地を取れる移動先")

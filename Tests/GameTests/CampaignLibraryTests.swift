@@ -145,13 +145,27 @@ final class CampaignLibraryTests: XCTestCase {
                 if chapter.id == 1 && stage.id.index == 1 {
                     XCTAssertEqual(stage.unlockRequirement, .always)
                 } else if stage.id.index == 1 {
-                    XCTAssertEqual(stage.unlockRequirement, .chapterTotalStars(chapter: chapter.id - 1, minimum: 12))
+                    XCTAssertEqual(
+                        stage.unlockRequirement,
+                        .stageClear(CampaignStageID(chapter: chapter.id - 1, index: 8))
+                    )
                 } else {
                     XCTAssertEqual(
                         stage.unlockRequirement,
                         .stageClear(CampaignStageID(chapter: chapter.id, index: stage.id.index - 1))
                     )
                 }
+            }
+        }
+    }
+
+    func testCampaignDoesNotUseStarGateUnlocks() {
+        for stage in CampaignLibrary.shared.allStages {
+            switch stage.unlockRequirement {
+            case .chapterTotalStars, .totalStars:
+                XCTFail("\(stage.displayCode) はスターゲートではなくクリア進行で解放します")
+            case .always, .stageClear:
+                continue
             }
         }
     }
@@ -177,6 +191,32 @@ final class CampaignLibraryTests: XCTestCase {
         })
     }
 
+    func testCampaignCoversTargetLabCardGroupsAndTileEffects() {
+        let stages = CampaignLibrary.shared.allStages
+        let allowedMovesByStage = stages.map { $0.regulation.deckPreset.configuration.allowedMoves }
+        let allAllowedMoves = Set(allowedMovesByStage.flatMap { $0 })
+
+        XCTAssertFalse(allAllowedMoves.intersection(MoveCard.standardSet).isEmpty)
+        XCTAssertTrue(allAllowedMoves.contains(.kingUpOrDown) || allAllowedMoves.contains(.kingLeftOrRight))
+        XCTAssertFalse(allAllowedMoves.intersection(MoveCard.directionalRayCards).isEmpty)
+        XCTAssertTrue(allAllowedMoves.contains(.fixedWarp) || allAllowedMoves.contains(.superWarp))
+        XCTAssertFalse(allAllowedMoves.intersection(MoveCard.targetAssistCards).isEmpty)
+        XCTAssertFalse(allAllowedMoves.intersection(MoveCard.effectAssistCards).isEmpty)
+
+        let allEffects = stages.flatMap { Array($0.regulation.resolvedTileEffects.values) }
+        XCTAssertTrue(allEffects.containsEffect(.warp))
+        XCTAssertTrue(allEffects.containsEffect(.shuffleHand))
+        XCTAssertTrue(allEffects.containsEffect(.boost))
+        XCTAssertTrue(allEffects.containsEffect(.slow))
+        XCTAssertTrue(allEffects.containsEffect(.nextRefresh))
+        XCTAssertTrue(allEffects.containsEffect(.freeFocus))
+        XCTAssertTrue(allEffects.containsEffect(.preserveCard))
+        XCTAssertTrue(allEffects.containsEffect(.draft))
+        XCTAssertTrue(allEffects.containsEffect(.overload))
+        XCTAssertTrue(allEffects.containsEffect(.targetSwap))
+        XCTAssertTrue(allEffects.containsEffect(.openGate))
+    }
+
     func testLateCampaignKeepsObstacleAndWarpLearningBeats() {
         let library = CampaignLibrary.shared
         let chapter5 = library.chapters.first { $0.id == 5 }?.stages ?? []
@@ -185,10 +225,22 @@ final class CampaignLibraryTests: XCTestCase {
         let chapter8 = library.chapters.first { $0.id == 8 }?.stages ?? []
 
         XCTAssertTrue(chapter5.allSatisfy { !$0.regulation.impassableTilePoints.isEmpty })
+        XCTAssertTrue(chapter5.contains { stage in
+            stage.regulation.tileEffectOverrides.values.containsEffect(.openGate)
+        })
         XCTAssertTrue(chapter6.contains { stage in
-            stage.regulation.tileEffectOverrides.values.contains(.boost)
+            stage.regulation.tileEffectOverrides.values.containsEffect(.boost)
+        })
+        XCTAssertTrue(chapter6.contains { stage in
+            stage.regulation.tileEffectOverrides.values.containsEffect(.slow)
+        })
+        XCTAssertTrue(chapter6.contains { stage in
+            stage.regulation.tileEffectOverrides.values.containsEffect(.overload)
         })
         XCTAssertTrue(chapter7.contains { !$0.regulation.warpTilePairs.isEmpty })
+        XCTAssertTrue(chapter7.contains { stage in
+            stage.regulation.tileEffectOverrides.values.containsEffect(.targetSwap)
+        })
         XCTAssertTrue(chapter8.contains { !$0.regulation.fixedWarpCardTargets.isEmpty })
         XCTAssertTrue(chapter8.contains { $0.regulation.deckPreset == .superWarpHighFrequency })
         XCTAssertTrue(chapter8.contains { $0.regulation.deckPreset == .standardWithWarpCards })
@@ -204,6 +256,43 @@ final class CampaignLibraryTests: XCTestCase {
                 )
             case .chooseAnyAfterPreview:
                 continue
+            }
+        }
+    }
+}
+
+private enum TileEffectKind {
+    case warp
+    case shuffleHand
+    case boost
+    case slow
+    case nextRefresh
+    case freeFocus
+    case preserveCard
+    case draft
+    case overload
+    case targetSwap
+    case openGate
+}
+
+private extension Sequence where Element == TileEffect {
+    func containsEffect(_ kind: TileEffectKind) -> Bool {
+        contains { effect in
+            switch (kind, effect) {
+            case (.warp, .warp(_, _)),
+                 (.shuffleHand, .shuffleHand),
+                 (.boost, .boost),
+                 (.slow, .slow),
+                 (.nextRefresh, .nextRefresh),
+                 (.freeFocus, .freeFocus),
+                 (.preserveCard, .preserveCard),
+                 (.draft, .draft),
+                 (.overload, .overload),
+                 (.targetSwap, .targetSwap),
+                 (.openGate, .openGate(_)):
+                return true
+            default:
+                return false
             }
         }
     }

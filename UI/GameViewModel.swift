@@ -344,7 +344,7 @@ final class GameViewModel: ObservableObject {
     /// - Returns: 手数消費量とスタック仕様を含めた説明テキスト
     var manualPenaltyAccessibilityHint: String {
         if core.mode.usesTargetCollection {
-            return "現在の目的地へ近づきやすいカードを優先して手札を整えます。スコアに15ポイント加算されます。"
+            return "表示中の目的地へ近づきやすいカードを優先して手札を整えます。スコアに15ポイント加算されます。"
         }
         return sessionUIState.manualPenaltyAccessibilityHint(
             penaltyCost: core.mode.manualRedrawPenaltyCost,

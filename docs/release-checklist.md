@@ -1,6 +1,7 @@
 # MonoKnight Release Checklist
 
-本書は MonoKnight を TestFlight と App Store 提出へ進める前の確認項目を整理したチェックリストである。`docs/agents_legacy.md` のリリース前チェック項目を土台に、カテゴリ別に読みやすく再編している。
+本書は MonoKnight を TestFlight と App Store 提出へ進める前の確認項目を整理したチェックリストである。
+仕様判断は [`product-spec.md`](product-spec.md) と [`game-rules-handbook.md`](game-rules-handbook.md) を優先する。
 
 ## 1. 前提
 
@@ -10,18 +11,24 @@
 
 ## 2. ゲーム仕様
 
-- [ ] 1 プレイを最後まで完走できる
-- [ ] 盤外カードが選択不可として正しく薄表示される
-- [ ] ペナルティ挙動が仕様通りである
-- [ ] 手詰まり時に `+3 手` と全引き直しが発生する
-- [ ] 任意の引き直しで `+2 手` が発生する
-- [ ] リザルト画面のスコアが仕様通りに計算される
+- [ ] スタンダードモードで 1 プレイを最後まで完走できる
+- [ ] 目的地を 12 個獲得するとクリアになる
+- [ ] 表示中の3目的地をどれから踏んでも `capturedTargetCount` が増え、新しい目的地が補充される
+- [ ] 盤外・障害物などで使えないカードが正しく選択不可になる
+- [ ] フォーカスで手札と先読みが表示中の目的地寄りに再配布される
+- [ ] フォーカス使用時に手数は増えず、フォーカス回数が増える
+- [ ] 目的地制の手詰まり時に、手数ペナルティではなく自動再配布で回復する
+- [ ] リザルト画面のスコアが `移動手数 × 10 + 所要秒数 + フォーカス回数 × 15` と一致する
+- [ ] キャンペーンは通常クリアで次ステージ・次章が解放され、スター不足で新章が止まらない
+- [ ] キャンペーン内で実験場の全カード群と全特殊マスを最低1回ずつ確認できる
+- [ ] キャンペーンの星2/星3条件が進行必須ではなく、やり込み目標として表示・記録される
 
 ## 3. Game Center
 
-- [ ] ランキングにスコアが送信される
+- [ ] スタンダードモードのクリア時にランキングへスコアが送信される
 - [ ] リーダーボード導線が機能する
-- [ ] 送信対象スコアが `手数 × 10 + 所要秒数` と一致する
+- [ ] 送信対象スコアがリザルト画面のスコアと一致する
+- [ ] `GameMode.targetLab` などランキング対象外モードでは送信されない
 
 ## 4. 広告と IAP
 
@@ -42,7 +49,7 @@
 ## 6. アクセシビリティ
 
 - [ ] VoiceOver ラベルが主要 UI で成立している
-- [ ] カード方向、使用可否、残り踏破数が読み上げ可能である
+- [ ] カード方向、使用可否、残り目的地数が読み上げ可能である
 - [ ] iPhone / iPad の両方で UI 崩れがない
 
 ## 7. 安定性
@@ -56,7 +63,7 @@
 - [ ] `SKAdNetworkItems` を最新 ID で確認した
 - [ ] 本番向けの `Info.plist` / `.xcconfig` 値を Xcode 上で最終確認した
 
-詳細なキー管理は [info-plist-guidelines.md](info-plist-guidelines.md) を参照する。
+詳細なキー管理は [`info-plist-guidelines.md`](info-plist-guidelines.md) を参照する。
 
 ## 9. App Store 提出前
 
@@ -66,6 +73,7 @@
 
 ## 10. 関連ドキュメント
 
-- プロダクト仕様: [product-spec.md](product-spec.md)
-- 外部連携: [integrations.md](integrations.md)
-- Info.plist 運用: [info-plist-guidelines.md](info-plist-guidelines.md)
+- プロダクト仕様: [`product-spec.md`](product-spec.md)
+- ゲームルール詳細: [`game-rules-handbook.md`](game-rules-handbook.md)
+- 外部連携: [`integrations.md`](integrations.md)
+- Info.plist 運用: [`info-plist-guidelines.md`](info-plist-guidelines.md)

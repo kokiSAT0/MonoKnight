@@ -656,8 +656,8 @@ final class GameViewModelTests: XCTestCase {
             campaignTutorialStore: CampaignTutorialStore(userDefaults: defaults)
         )
 
-        XCTAssertEqual(viewModel.campaignTutorialCard?.title, "紫の菱形を目指す")
-        XCTAssertTrue(viewModel.campaignTutorialCard?.message.contains("紫の菱形") == true)
+        XCTAssertEqual(viewModel.campaignTutorialCard?.title, "表示中の目的地を目指す")
+        XCTAssertTrue(viewModel.campaignTutorialCard?.message.contains("目的地マーカー") == true)
         XCTAssertTrue(
             viewModel.boardBridge.forcedSelectionHighlightPoints.isEmpty,
             "目的地チュートリアルで移動候補と同じ枠を出してはいけません"
@@ -693,11 +693,11 @@ final class GameViewModelTests: XCTestCase {
             viewModel.isCardUsable(core.handStacks[index])
         })
 
-        XCTAssertEqual(viewModel.campaignTutorialCard?.title, "紫の菱形を目指す")
+        XCTAssertEqual(viewModel.campaignTutorialCard?.title, "表示中の目的地を目指す")
 
         viewModel.handleHandSlotTap(at: usableIndex)
 
-        XCTAssertNotEqual(viewModel.campaignTutorialCard?.title, "紫の菱形を目指す")
+        XCTAssertNotEqual(viewModel.campaignTutorialCard?.title, "表示中の目的地を目指す")
     }
 
     func testCampaignTutorialCurrentTargetFallsBackToFirstMoveEvent() throws {
@@ -711,7 +711,7 @@ final class GameViewModelTests: XCTestCase {
 
         viewModel.handleCampaignTutorialEvent(.firstMove)
 
-        XCTAssertNotEqual(viewModel.campaignTutorialCard?.title, "紫の菱形を目指す")
+        XCTAssertNotEqual(viewModel.campaignTutorialCard?.title, "表示中の目的地を目指す")
     }
 
     func testCampaignTutorialCurrentTargetFallsBackToTargetCapturedEvent() throws {
@@ -725,7 +725,7 @@ final class GameViewModelTests: XCTestCase {
 
         viewModel.handleCampaignTutorialEvent(.targetCaptured)
 
-        XCTAssertNotEqual(viewModel.campaignTutorialCard?.title, "紫の菱形を目指す")
+        XCTAssertNotEqual(viewModel.campaignTutorialCard?.title, "表示中の目的地を目指す")
     }
 
     func testCampaignTutorialShowsFocusOnStage14OnlyOnce() throws {

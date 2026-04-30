@@ -83,11 +83,11 @@ public extension MoveCard {
         case .fixedWarp:
             return "モードで指定された固定座標へワープします。行き先はステージ設定に従います。"
         case .targetStep:
-            return "現在の目的地へ近づく 1 マス移動候補だけを表示します。"
+            return "表示中の目的地へ近づく 1 マス移動候補だけを表示します。"
         case .targetKnight:
-            return "現在の目的地へ近づくナイト移動候補だけを表示します。"
+            return "表示中の目的地へ近づくナイト移動候補だけを表示します。"
         case .targetLine:
-            return "現在の目的地方向へ通りやすい直線候補だけを表示します。"
+            return "表示中の目的地方向へ通りやすい直線候補だけを表示します。"
         case .effectStep:
             return "最寄りの特殊マスへ近づく 1 マス移動候補だけを表示します。"
         case .effectKnight:

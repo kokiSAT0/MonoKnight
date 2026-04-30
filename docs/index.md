@@ -1,41 +1,50 @@
 # MonoKnight Docs Index
 
-簡素化済み `AGENTS.md` から参照する主要ドキュメントと、既存詳細 docs の対応関係を一覧化する。
+このページは Codex と開発者が最初に参照する docs 入口である。
+現行判断は下記の正本を優先し、古い計画書やアーカイブは補助情報として扱う。
 
-## Source of Truth
+## 1. 最初に読むもの
 
-- 仕様: [product-spec.md](product-spec.md)
-- 構成: [architecture.md](architecture.md)
-- 開発手順: [dev-workflow.md](dev-workflow.md)
-- 外部連携: [integrations.md](integrations.md)
-- 設定: [info-plist-guidelines.md](info-plist-guidelines.md)
-- リリース条件: [release-checklist.md](release-checklist.md)
+- 最上位ルール: [`../AGENTS.md`](../AGENTS.md)
+- 仕様判断: [`product-spec.md`](product-spec.md)
+- 実装レベルのゲームルール: [`game-rules-handbook.md`](game-rules-handbook.md)
+- 構成と責務境界: [`architecture.md`](architecture.md)
+- 作業フローと検証方針: [`dev-workflow.md`](dev-workflow.md)
 
-## 補助ドキュメント
+## 2. Source of Truth
 
-- 旧仕様アーカイブ: [agents_legacy.md](agents_legacy.md)
-- 詳細ルール: [game-rules-handbook.md](game-rules-handbook.md)
-- リファクタリング原則: [refactoring-guidelines.md](refactoring-guidelines.md)
-- リファクタ計画: [refactor-plan.md](refactor-plan.md)
-- リファクタ進捗台帳: [refactoring-progress-tracker.md](refactoring-progress-tracker.md)
-- CLI ビルド手順: [development-basics.md](development-basics.md)
-- ATT / UMP 詳細: [att-ump-consent-flow.md](att-ump-consent-flow.md)
-- Game Center ID 管理: [game-center-leaderboards.md](game-center-leaderboards.md)
-- IAP カタログ: [iap-product-catalog.md](iap-product-catalog.md)
-
-## agents_legacy.md からの主な移管先
-
-| `agents_legacy.md` の章 | 主な移管先 |
+| 知りたいこと | 正本 |
 | --- | --- |
-| 0. プロダクト概要 | `product-spec.md` |
-| 1. スコープ | `product-spec.md` |
-| 2. 技術選定 | `architecture.md` |
-| 3. リポジトリ構成 | `architecture.md` |
-| 4. ルール仕様 | `product-spec.md` |
-| 5. デザイン指針 | `product-spec.md` |
-| 6. カード定義 | `product-spec.md` |
-| 7. 永続化・フラグ | `product-spec.md` |
-| 8. Game Center / AdMob / IAP 設定 | `integrations.md` |
-| 9. タスク分解 | `dev-workflow.md` |
-| 10. リリース前チェック | `release-checklist.md` |
-| Info.plist 運用方針 | `info-plist-guidelines.md` |
+| プロダクト要件、正式リリース範囲、非スコープ | [`product-spec.md`](product-spec.md) |
+| 盤面、カード、目的地、フォーカス、スコアなどの詳細ルール | [`game-rules-handbook.md`](game-rules-handbook.md) |
+| Swift Package 境界、UI / Game / Services の責務 | [`architecture.md`](architecture.md) |
+| Codex の作業手順、変更粒度、検証、コミット方針 | [`dev-workflow.md`](dev-workflow.md) |
+| Game Center / AdMob / IAP / ATT / UMP | [`integrations.md`](integrations.md) |
+| Info.plist とビルド設定由来の値 | [`info-plist-guidelines.md`](info-plist-guidelines.md) |
+| TestFlight / App Store 提出前チェック | [`release-checklist.md`](release-checklist.md) |
+
+## 3. 補助ドキュメント
+
+- キャンペーン規定: [`campaign-stage-regulations.md`](campaign-stage-regulations.md)
+- GameMode パラメータ: [`game-mode-parameters.md`](game-mode-parameters.md)
+- カード重み調整: [`card-weight-adjustment-guide.md`](card-weight-adjustment-guide.md)
+- ATT / UMP 詳細: [`att-ump-consent-flow.md`](att-ump-consent-flow.md)
+- Game Center ID 管理: [`game-center-leaderboards.md`](game-center-leaderboards.md)
+- IAP カタログ: [`iap-product-catalog.md`](iap-product-catalog.md)
+- CLI ビルドとテスト: [`development-basics.md`](development-basics.md)
+- Xcode / ローカル設定: [`files.md`](files.md)
+- リファクタリング原則: [`refactoring-guidelines.md`](refactoring-guidelines.md)
+- リファクタリング進捗: [`refactoring-progress-tracker.md`](refactoring-progress-tracker.md)
+
+## 4. アーカイブの扱い
+
+- [`agents_legacy.md`](agents_legacy.md) は旧 `AGENTS.md` の退避アーカイブであり、現行仕様の正本ではない。
+- 旧仕様と現行仕様が食い違う場合は、`product-spec.md`、`game-rules-handbook.md`、実装コードを優先する。
+- `refactor-plan.md`、`refactoring-roadmap.md`、`refactoring-task-board.md` は過去計画や進捗確認に使い、現在の作業判断は `dev-workflow.md` と `refactoring-guidelines.md` を優先する。
+
+## 5. 現行仕様の短縮メモ
+
+- スタンダードモードは目的地を 12 個獲得するとクリアする。
+- 任意の全引き直しは廃止し、フォーカスを使う。
+- 目的地制のスコアは `移動手数 × 10 + 所要秒数 + フォーカス回数 × 15` とする。
+- Game Center へ送信するスコアも同じ式を使う。

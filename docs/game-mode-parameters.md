@@ -1,52 +1,71 @@
 # GameMode パラメータ仕様
 
-MonoKnight の各モードは `GameMode` 構造体を通じて盤面サイズやペナルティ設定などをまとめて定義している。本ドキュメントでは、`GameMode.Regulation` が保持するパラメータ群と、フリーモード（ユーザーカスタム）との整合性要件を整理する。
+MonoKnight の各モードは `GameMode` 構造体を通じて盤面サイズ、山札、目的地、ペナルティなどをまとめて定義する。
+本書は `GameMode.Regulation` とフリーモードの整合性要件を整理する補助ドキュメントである。
+現行ゲームルールの正本は [`game-rules-handbook.md`](game-rules-handbook.md) とする。
 
-## 1. `GameMode.Regulation` のフィールド一覧
-
-| 項目 | 型 | 役割 | メモ |
-|------|----|------|------|
-| `boardSize` | `Int` | 盤面の一辺の長さ。盤面は常に正方形となる。 | 既定値は 5。`BoardGeometry` と連携して初期スポーン座標を算出する。 |
-| `handSize` | `Int` | 手札スロットの最大種類数。カードの枚数ではなく種類数で管理する。 | `allowsStacking` が `true` の場合、同種カードは 1 スロット内に積み重なる。 |
-| `nextPreviewCount` | `Int` | 先読みで画面下部に表示するカード枚数。 | UI での先読みスロット数と一致している必要がある。 |
-| `allowsStacking` | `Bool` | 同種カードを同じスロットに積み重ねられるか。 | `false` の場合、同一カードでも別スロットを消費する。 |
-| `deckPreset` | `GameDeckPreset` | 利用する山札構成プリセット。 | `Deck.Configuration` と 1 対 1 で対応し、UI の説明文でも利用される。 |
-| `spawnRule` | `GameMode.SpawnRule` | 初期スポーンの扱い。中央固定 or 任意選択を切り替える。 | `chooseAnyAfterPreview` の場合は初手で任意マスを選んで開始。 |
-| `penalties` | `GameMode.PenaltySettings` | 手詰まり/再訪などのペナルティ設定一式。 | 個別のフィールド詳細は後述。 |
-
-### 1-1. `PenaltySettings`
+## 1. `GameMode.Regulation` の主なフィールド
 
 | 項目 | 型 | 役割 | メモ |
-|------|----|------|------|
-| `deadlockPenaltyCost` | `Int` | 手札 5 種類すべてが使用不可となった際の自動ペナルティ。 | 既定値は +3 手。 |
-| `manualRedrawPenaltyCost` | `Int` | プレイヤーが任意に引き直しを実行した際に加算される手数。 | 既定値は +2 手。 |
-| `manualDiscardPenaltyCost` | `Int` | 任意のカード 1 種を捨て札にする操作時のペナルティ。 | 既定値は +1 手。 |
-| `revisitPenaltyCost` | `Int` | 既踏マスへ再訪した際に加算される手数。 | 既定値は 0 手（スタンダードの場合）。 |
+| --- | --- | --- | --- |
+| `boardSize` | `Int` | 盤面の一辺の長さ | 盤面は常に正方形。標準は 5。 |
+| `handSize` | `Int` | 手札スロットの最大種類数 | カード枚数ではなく種類数で管理する。 |
+| `nextPreviewCount` | `Int` | 先読み表示枚数 | 標準は 3 枚。 |
+| `allowsStacking` | `Bool` | 同種カードを同じスロットに積めるか | 標準では `true`。 |
+| `deckPreset` | `GameDeckPreset` | 利用する山札構成 | `Deck.Configuration` と対応する。 |
+| `spawnRule` | `GameMode.SpawnRule` | 初期スポーン | 中央固定または任意選択。 |
+| `completionRule` | `GameMode.CompletionRule` | クリア条件 | 標準は目的地 12 個獲得。 |
+| `penalties` | `GameMode.PenaltySettings` | 従来型モード向けペナルティ | 目的地制ではフォーカスや自動再配布を優先する。 |
 
-## 2. ビルトインモードの定義
+## 2. 目的地制モードの基準
 
-| モード | `identifier` | 主な設定 | 備考 |
-|--------|--------------|----------|------|
-| スタンダード | `.standard5x5` | `boardSize=5`, `spawnRule=.fixed(中央)`, `deckPreset=.standard`, `deadlockPenaltyCost=3` など | 初期スポーンは常に中央。フリーモード初期値としても利用。 |
-| クラシカルチャレンジ | `.classicalChallenge` | `boardSize=8`, `spawnRule=.chooseAnyAfterPreview`, `deckPreset=.classicalChallenge`, `deadlockPenaltyCost=2` など | 盤面が 8×8 に拡張され、桂馬カードのみで構成される。 |
+スタンダードおよび刷新後キャンペーンは目的地制を基準にする。
 
-## 3. フリーモードとの整合性要件
+- スタンダードは 5×5 盤、中央開始、目的地 12 個獲得でクリアする
+- キャンペーンはステージごとに目的地 4〜14 個獲得でクリアする
+- 表示中の目的地は最大 3 マスで、どれからでも獲得できる
+- 任意の全引き直しは廃止し、フォーカスを使う
+- フォーカス使用時は手数を増やさず、`focusCount` を 1 増やす
+- 目的地制の手詰まりは、手数ペナルティではなくフォーカス寄りの自動再配布で回復する
+- 目的地制のスコアは `移動手数 × 10 + 所要秒数 + フォーカス回数 × 15` とする
 
-フリーモード (`GameMode.Identifier.freeCustom`) はユーザーがカスタマイズした `GameMode.Regulation` を `UserDefaults` に保存し、必要に応じて `GameMode` を再構築して利用する。実装上のチェックポイントは次の通り。
+## 3. `PenaltySettings` の扱い
 
-1. **既定値の整合性**: 保存データが存在しない場合は `GameMode.standard.regulationSnapshot` を初期値とし、ビルトインモードと同じ挙動になること。特にペナルティは `deadlock=+3` / `manualRedraw=+2` / `manualDiscard=+1` / `revisit=0` を初期値として共有する。
-2. **シリアライズ互換性**: `GameMode.Regulation` / `PenaltySettings` / `SpawnRule` は `Codable` であり、`FreeModeRegulationStore` での JSON 保存・読み込みが破綻しないこと。
-3. **GameMode の識別子運用**: フリーモードとして生成した `GameMode` は常に `.freeCustom` を識別子とし、`regulationSnapshot` の内容で差分を判定できること。
-4. **プリセット適用時の同期**: `applyPreset(from:)` でビルトインモードの `regulationSnapshot` を適用することで、ユーザーがいつでも既定モードへ戻せること。
+`PenaltySettings` は従来型・クラシカル系モードとの互換のために保持する。
+スタンダードの目的地制挙動を説明する正本としては使わない。
 
-## 4. 自動テスト方針
+| 項目 | 型 | 役割 | 主な用途 |
+| --- | --- | --- | --- |
+| `deadlockPenaltyCost` | `Int` | 全カード使用不能時の自動ペナルティ | クラシカルなど従来型モード |
+| `manualRedrawPenaltyCost` | `Int` | 任意引き直し時の加算手数 | 従来型モード |
+| `manualDiscardPenaltyCost` | `Int` | 任意のカード破棄時の加算手数 | モード設定に応じて使用 |
+| `revisitPenaltyCost` | `Int` | 既踏マス再訪時の加算手数 | 従来型モード |
 
-- `MonoKnightAppTests/FreeModeRegulationStoreTests.swift` にて、以下を検証する。
-  - 保存データが無い状態で `FreeModeRegulationStore` を初期化すると、フリーモードのレギュレーションがスタンダードモードと一致する。
-  - カスタム設定へ更新すると、`UserDefaults` に永続化され、再生成時も同じ設定が復元される。
-  - プリセット適用が `GameMode.standard` などビルトインモードと一致すること。
-- これらにより、`GameMode` のパラメータ仕様とフリーモードの挙動が乖離しないことを継続的に保証する。
+代表値は [`game-rules-handbook.md`](game-rules-handbook.md) の「フォーカス・ペナルティと補助操作」を参照する。
 
----
+## 4. ビルトインモードの整理
 
-本ドキュメントはモード定義を変更する際のチェックリストとして活用し、値追加や仕様変更時には必ず更新すること。
+| モード | 主な設定 | 備考 |
+| --- | --- | --- |
+| スタンダード | 5×5、中央固定、標準デッキ、目的地 12 個 | ランキング対象。フォーカスと現行スコア式を使う。 |
+| キャンペーン | ステージ定義に従う、目的地 4〜14 個 | スター条件で手数、時間、フォーカス回数、スコアを評価する。 |
+| Target Lab | 8×8、全部入りカード、特殊マス検証 | ランキング対象外。 |
+| クラシカル系 | 全踏破やペナルティ設定を利用 | 従来型互換として扱い、標準仕様と混同しない。 |
+
+## 5. フリーモードとの整合性要件
+
+フリーモード (`GameMode.Identifier.freeCustom`) はユーザーがカスタマイズした `GameMode.Regulation` を保存し、必要に応じて `GameMode` を再構築して利用する。
+
+- 保存データがない場合は、現行スタンダード相当の目的地制設定を初期値にする
+- `GameMode.Regulation` / `PenaltySettings` / `SpawnRule` は `Codable` として保存・復元できること
+- フリーモードとして生成した `GameMode` は常に `.freeCustom` を識別子にする
+- プリセット適用時はビルトインモードの `regulationSnapshot` と一致すること
+- 目的地制と従来型モードのスコア・ペナルティを UI 表示で混同しないこと
+
+## 6. 自動テスト方針
+
+- 保存データがない状態でフリーモード初期値が現行スタンダード仕様と一致すること
+- カスタム設定が `UserDefaults` に永続化され、再生成時も復元されること
+- プリセット適用がビルトインモードと一致すること
+- 目的地制ではフォーカス、手詰まり自動再配布、現行スコア式が維持されること
+- 従来型モードでは `PenaltySettings` に基づく挙動が維持されること

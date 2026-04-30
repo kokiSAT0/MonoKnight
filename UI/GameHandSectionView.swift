@@ -379,11 +379,11 @@ private extension GameHandSectionView {
         case .fixedWarp:
             return "定められた座標へ固定ワープ"
         case .targetStep:
-            return "現在目的地へ近づく隣接 1 マス候補"
+            return "表示中の目的地へ近づく隣接 1 マス候補"
         case .targetKnight:
-            return "現在目的地へ近づく桂馬候補"
+            return "表示中の目的地へ近づく桂馬候補"
         case .targetLine:
-            return "現在目的地方向へ連続移動"
+            return "表示中の目的地方向へ連続移動"
         case .effectStep:
             return "特殊マスへ近づく隣接 1 マス候補"
         case .effectKnight:

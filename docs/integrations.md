@@ -20,12 +20,13 @@
 ## 2. Game Center
 
 - Leaderboard ID: `kc_moves_5x5`
-- ランキング対象スコア: `手数 × 10 + 所要秒数`
+- ランキング対象スコア: `移動手数 × 10 + 所要秒数 + フォーカス回数 × 15`
 - 認証導線:
   - アプリ内で Game Center 認証を行う
   - `GKAccessPoint` で leaderboard 導線を露出する
 - 送信タイミング:
-  - 対象モードのクリア時にスコア送信する
+  - スタンダードモードの目的地 12 個獲得クリア時にスコア送信する
+  - `GameMode.targetLab` などランキング対象外モードでは送信しない
 
 詳細な ID 管理は [game-center-leaderboards.md](game-center-leaderboards.md) を参照する。
 
@@ -100,6 +101,8 @@
 
 ## 9. 関連ドキュメント
 
+- プロダクト仕様とスコア式: [product-spec.md](product-spec.md)
+- ゲームルール詳細: [game-rules-handbook.md](game-rules-handbook.md)
 - 設定キーと運用: [info-plist-guidelines.md](info-plist-guidelines.md)
 - ATT / UMP 詳細: [att-ump-consent-flow.md](att-ump-consent-flow.md)
 - Game Center ID 管理: [game-center-leaderboards.md](game-center-leaderboards.md)

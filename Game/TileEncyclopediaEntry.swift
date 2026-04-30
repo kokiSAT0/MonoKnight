@@ -30,15 +30,15 @@ public struct TileEncyclopediaEntry: Identifiable, Equatable {
         ),
         TileEncyclopediaEntry(
             id: "target",
-            displayName: "目的地",
+            displayName: "目的地マーカー",
             category: "目的地",
-            description: "紫の菱形で表示されます。到達すると獲得数が増え、次の目的地へ切り替わります。"
+            description: "表示中の目的地です。どれからでも獲得でき、獲得後は新しい目的地が補充されます。"
         ),
         TileEncyclopediaEntry(
             id: "nextTarget",
-            displayName: "NEXT目的地",
+            displayName: "表示中の目的地",
             category: "目的地",
-            description: "オレンジの点で表示される次の候補です。現在の目的地を取ると先頭候補が目的地になります。"
+            description: "目的地マーカーとして表示されます。手札を見て取りやすいものから踏めます。"
         ),
         TileEncyclopediaEntry(
             id: "multiVisit",
@@ -116,7 +116,7 @@ public struct TileEncyclopediaEntry: Identifiable, Equatable {
             id: "targetSwap",
             displayName: "転換マス",
             category: "特殊効果",
-            description: "目的地取得を解決した後、現在の目的地と NEXT 目的地の先頭を入れ替えます。"
+            description: "目的地取得を解決した後、表示中目的地の先頭と NEXT 目的地の先頭を入れ替えます。"
         ),
         TileEncyclopediaEntry(
             id: "openGate",

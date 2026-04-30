@@ -135,12 +135,19 @@ public final class GameCore: ObservableObject {
     }
     /// 目的地制の目標獲得数
     public var targetGoalCount: Int { mode.targetGoalCount }
+    /// 表示中で獲得可能な目的地一覧
+    public var activeTargetPoints: [GridPoint] {
+        guard mode.usesTargetCollection else { return [] }
+        return [targetPoint].compactMap { $0 } + upcomingTargetPoints
+    }
 
     /// 山札管理（`Deck.swift` に定義された重み付き無限山札を使用）
     private var deck: Deck
     /// 経過時間を管理する専用タイマー
     /// - Note: GameCore の責務を整理するために専用構造体へ委譲する
     private var sessionTimer = GameSessionTimer()
+    /// 目的地制で同時に表示・獲得可能にする目的地数
+    private let activeTargetDisplayCount = 3
 
     /// 初期化時にモードを指定して各種状態を構築する
     /// - Parameter mode: 適用したいゲームモード（省略時はスタンダード）
@@ -288,14 +295,7 @@ public final class GameCore: ObservableObject {
         }
         // MovePattern から算出した経路が現時点でも有効かを検証し、不正な入力を排除する
         let snapshotBoard = board
-        let context = MoveCard.MovePattern.ResolutionContext(
-            boardSize: snapshotBoard.size,
-            contains: { point in snapshotBoard.contains(point) },
-            isTraversable: { point in snapshotBoard.isTraversable(point) },
-            isVisited: { point in snapshotBoard.isVisited(point) },
-            targetPoint: mode.usesTargetCollection ? targetPoint : nil
-        )
-        let validPaths = card.move.resolvePaths(from: currentPosition, context: context)
+        let validPaths = resolvedPaths(for: card, from: currentPosition, on: snapshotBoard)
 
         let isStillValid: Bool
         if card.move == .fixedWarp {
@@ -629,7 +629,7 @@ public final class GameCore: ObservableObject {
 
         targetPoint = firstUpcomingTarget
         upcomingTargetPoints[0] = currentTarget
-        debugLog("転換マス効果で現在目的地とNEXT目的地を入れ替えました")
+        debugLog("転換マス効果で表示中目的地の先頭と次の表示順を入れ替えました")
     }
 
     private func applyTileEffectOpenGate(target: GridPoint) {
@@ -640,6 +640,64 @@ public final class GameCore: ObservableObject {
         }
         board = updatedBoard
         debugLog("開門マス効果で \(target) を通行可能にしました")
+    }
+
+    /// カードの移動候補を、表示中の複数目的地を考慮して解決する
+    private func resolvedPaths(
+        for card: DealtCard,
+        from origin: GridPoint,
+        on activeBoard: Board
+    ) -> [MoveCard.MovePattern.Path] {
+        if mode.usesTargetCollection, card.move.kind == .targetAssist {
+            let targets = activeTargetPoints
+            guard !targets.isEmpty else { return [] }
+
+            var paths: [MoveCard.MovePattern.Path] = []
+            var seenKeys = Set<String>()
+            for target in targets {
+                let context = moveResolutionContext(on: activeBoard, targetPoint: target)
+                for path in card.move.resolvePaths(from: origin, context: context) {
+                    let key = "\(path.vector.dx),\(path.vector.dy):" +
+                        path.traversedPoints.map { "\($0.x),\($0.y)" }.joined(separator: "|")
+                    if seenKeys.insert(key).inserted {
+                        paths.append(path)
+                    }
+                }
+            }
+            return paths
+        }
+
+        let context = moveResolutionContext(
+            on: activeBoard,
+            targetPoint: mode.usesTargetCollection ? nearestActiveTarget(from: origin) : nil
+        )
+        return card.move.resolvePaths(from: origin, context: context)
+    }
+
+    private func moveResolutionContext(
+        on activeBoard: Board,
+        targetPoint: GridPoint?
+    ) -> MoveCard.MovePattern.ResolutionContext {
+        MoveCard.MovePattern.ResolutionContext(
+            boardSize: activeBoard.size,
+            contains: { point in activeBoard.contains(point) },
+            isTraversable: { point in activeBoard.isTraversable(point) },
+            isVisited: { point in activeBoard.isVisited(point) },
+            targetPoint: targetPoint,
+            effectAt: { point in activeBoard.effect(at: point) }
+        )
+    }
+
+    private func nearestActiveTarget(from origin: GridPoint) -> GridPoint? {
+        activeTargetPoints.min { lhs, rhs in
+            let lhsDistance = manhattanDistance(from: origin, to: lhs)
+            let rhsDistance = manhattanDistance(from: origin, to: rhs)
+            if lhsDistance != rhsDistance {
+                return lhsDistance < rhsDistance
+            }
+            if lhs.y != rhs.y { return lhs.y < rhs.y }
+            return lhs.x < rhs.x
+        }
     }
 
     /// 現在の状態から使用可能なカード移動候補を列挙する
@@ -657,15 +715,6 @@ public final class GameCore: ObservableObject {
 
         // 盤面境界を参照するためローカル変数として保持しておく
         let activeBoard = board
-        let resolutionContext = MoveCard.MovePattern.ResolutionContext(
-            boardSize: activeBoard.size,
-            contains: { point in activeBoard.contains(point) },
-            isTraversable: { point in activeBoard.isTraversable(point) },
-            isVisited: { point in activeBoard.isVisited(point) },
-            targetPoint: mode.usesTargetCollection ? targetPoint : nil,
-            effectAt: { point in activeBoard.effect(at: point) }
-        )
-
         // 列挙中に同じ座標へ向かうカードを検出しやすいよう、結果は座標→スタック順でソートする
         var resolved: [ResolvedCardMove] = []
         resolved.reserveCapacity(referenceHandStacks.count)
@@ -699,7 +748,7 @@ public final class GameCore: ObservableObject {
             }
 
             // MoveCard の MovePattern から盤面状況に応じた経路を算出する
-            for path in topCard.move.resolvePaths(from: origin, context: resolutionContext) {
+            for path in resolvedPaths(for: topCard, from: origin, on: activeBoard) {
                 let traversed = path.traversedPoints
                 guard let destination = traversed.last else { continue }
                 let resolution = MovementResolution(path: traversed, finalPosition: destination)
@@ -739,8 +788,8 @@ public final class GameCore: ObservableObject {
         let matchingMoves: [ResolvedCardMove]
         if !destinationMatches.isEmpty {
             matchingMoves = destinationMatches
-        } else if mode.usesTargetCollection, point == targetPoint {
-            // 目的地制では、終点ではなく通過途中の現在目的地タップでも該当カードを選べるようにする
+        } else if mode.usesTargetCollection, activeTargetPoints.contains(point) {
+            // 目的地制では、終点ではなく通過途中の表示中目的地タップでも該当カードを選べるようにする
             matchingMoves = allMoves.filter { $0.traversedPoints.contains(point) }
         } else {
             matchingMoves = []
@@ -884,14 +933,27 @@ public final class GameCore: ObservableObject {
         )
     }
 
-    /// 目的地へ到達していれば獲得処理と次目的地の更新を行う
+    /// 表示中目的地へ到達していれば獲得処理と次目的地の更新を行う
     private func applyTargetCaptureIfNeeded(along traversedPoints: [GridPoint], finalPosition: GridPoint) {
-        guard mode.usesTargetCollection,
-              let activeTarget = targetPoint,
-              traversedPoints.contains(activeTarget) else { return }
+        guard mode.usesTargetCollection else { return }
 
-        capturedTargetCount += 1
-        debugLog("目的地獲得: \(capturedTargetCount)/\(mode.targetGoalCount) @\(activeTarget)")
+        var visibleTargets = activeTargetPoints
+        guard !visibleTargets.isEmpty else { return }
+
+        var capturedTargets: [GridPoint] = []
+        for point in traversedPoints {
+            guard let capturedIndex = visibleTargets.firstIndex(of: point) else { continue }
+            let captured = visibleTargets.remove(at: capturedIndex)
+            capturedTargets.append(captured)
+            capturedTargetCount += 1
+            debugLog("目的地獲得: \(capturedTargetCount)/\(mode.targetGoalCount) @\(captured)")
+
+            if capturedTargetCount >= mode.targetGoalCount {
+                break
+            }
+        }
+
+        guard !capturedTargets.isEmpty else { return }
 
         guard capturedTargetCount < mode.targetGoalCount else {
             targetPoint = nil
@@ -899,28 +961,40 @@ public final class GameCore: ObservableObject {
             return
         }
 
-        let previousTarget = activeTarget
-        if !upcomingTargetPoints.isEmpty {
-            targetPoint = upcomingTargetPoints.removeFirst()
-        } else {
-            targetPoint = chooseNextTarget(from: finalPosition, previousTarget: previousTarget, offset: capturedTargetCount)
-        }
+        refillVisibleTargets(
+            &visibleTargets,
+            finalPosition: finalPosition,
+            previousTarget: capturedTargets.last
+        )
+        applyVisibleTargets(visibleTargets)
+    }
 
-        while upcomingTargetPoints.count < 2 {
-            let anchor = upcomingTargetPoints.last ?? targetPoint ?? finalPosition
-            var excludedTargets = Set(upcomingTargetPoints)
+    private func refillVisibleTargets(
+        _ visibleTargets: inout [GridPoint],
+        finalPosition: GridPoint,
+        previousTarget: GridPoint?
+    ) {
+        let desiredCount = min(activeTargetDisplayCount, remainingTargetCount)
+        while visibleTargets.count < desiredCount {
+            let anchor = visibleTargets.last ?? finalPosition
+            var excludedTargets = Set(visibleTargets)
             excludedTargets.insert(finalPosition)
-            if let targetPoint {
-                excludedTargets.insert(targetPoint)
+            if let previousTarget {
+                excludedTargets.insert(previousTarget)
             }
             let next = chooseNextTarget(
                 from: anchor,
-                previousTarget: upcomingTargetPoints.last ?? targetPoint,
-                offset: capturedTargetCount + upcomingTargetPoints.count + 1,
+                previousTarget: visibleTargets.last ?? previousTarget,
+                offset: capturedTargetCount + visibleTargets.count + 1,
                 avoiding: excludedTargets
             )
-            upcomingTargetPoints.append(next)
+            visibleTargets.append(next)
         }
+    }
+
+    private func applyVisibleTargets(_ visibleTargets: [GridPoint]) {
+        targetPoint = visibleTargets.first
+        upcomingTargetPoints = Array(visibleTargets.dropFirst())
     }
 
     /// 先読み用の目的地列を作る
@@ -1008,7 +1082,8 @@ public final class GameCore: ObservableObject {
 
     /// 目的地に近づくカードを優先して手札と NEXT を組み直す
     func rebuildFocusedHandAndNext(preserving preservedCard: DealtCard? = nil) {
-        guard mode.usesTargetCollection, let origin = current, let target = targetPoint else {
+        let targets = activeTargetPoints
+        guard mode.usesTargetCollection, let origin = current, !targets.isEmpty else {
             if let preservedCard {
                 handManager.resetAll(prioritizing: [preservedCard], using: &deck)
                 refreshHandStateFromManager()
@@ -1028,8 +1103,8 @@ public final class GameCore: ObservableObject {
         }
 
         drawn.sort { lhs, rhs in
-            let lhsScore = targetApproachScore(for: lhs, from: origin, target: target)
-            let rhsScore = targetApproachScore(for: rhs, from: origin, target: target)
+            let lhsScore = targetApproachScore(for: lhs, from: origin, targets: targets)
+            let rhsScore = targetApproachScore(for: rhs, from: origin, targets: targets)
             if lhsScore.improvement != rhsScore.improvement {
                 return lhsScore.improvement > rhsScore.improvement
             }
@@ -1045,10 +1120,26 @@ public final class GameCore: ObservableObject {
 
         handManager.resetAll(prioritizing: drawn, using: &deck)
         refreshHandStateFromManager()
-        debugLog("フォーカス再配布: focusCount=\(focusCount), target=\(target)")
+        debugLog("フォーカス再配布: focusCount=\(focusCount), targets=\(targets)")
     }
 
-    /// 指定カードが目的地へどれだけ近づけるかを評価する
+    /// 指定カードが表示中目的地へどれだけ近づけるかを評価する
+    private func targetApproachScore(
+        for card: DealtCard,
+        from origin: GridPoint,
+        targets: [GridPoint]
+    ) -> (improvement: Int, bestDistance: Int) {
+        targets
+            .map { targetApproachScore(for: card, from: origin, target: $0) }
+            .max { lhs, rhs in
+                if lhs.improvement != rhs.improvement {
+                    return lhs.improvement < rhs.improvement
+                }
+                return lhs.bestDistance > rhs.bestDistance
+            } ?? (Int.min, Int.max)
+    }
+
+    /// 指定カードが単一目的地へどれだけ近づけるかを評価する
     private func targetApproachScore(
         for card: DealtCard,
         from origin: GridPoint,
@@ -1067,13 +1158,7 @@ public final class GameCore: ObservableObject {
             return (currentDistance - distance, distance)
         }
 
-        let context = MoveCard.MovePattern.ResolutionContext(
-            boardSize: activeBoard.size,
-            contains: { point in activeBoard.contains(point) },
-            isTraversable: { point in activeBoard.isTraversable(point) },
-            isVisited: { point in activeBoard.isVisited(point) },
-            targetPoint: target
-        )
+        let context = moveResolutionContext(on: activeBoard, targetPoint: target)
         let destinations = card.move.resolvePaths(from: origin, context: context).compactMap(\.traversedPoints.last)
         guard let bestDistance = destinations.map({ manhattanDistance(from: $0, to: target) }).min() else {
             return (Int.min, Int.max)

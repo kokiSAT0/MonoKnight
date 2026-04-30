@@ -997,7 +997,7 @@ final class GameCoreTests: XCTestCase {
         XCTAssertEqual(core.handStacks.compactMap { $0.topCard?.move }, expected, "カード使用後の方向ソート結果が期待と異なります")
     }
 
-    /// 目的地を踏むと獲得数が増え、次の目的地へ進むことを確認
+    /// 表示中目的地を踏むと獲得数が増え、表示中目的地が補充されることを確認
     func testTargetCaptureAdvancesTargetQueue() {
         let deck = Deck.makeTestDeck(cards: [
             .kingRight, .kingUp, .kingLeft, .kingDown, .straightUp2,
@@ -1017,10 +1017,35 @@ final class GameCoreTests: XCTestCase {
         XCTAssertEqual(core.capturedTargetCount, 1)
         XCTAssertEqual(core.targetPoint, GridPoint(x: 3, y: 3))
         XCTAssertEqual(core.upcomingTargetPoints.count, 2)
+        XCTAssertFalse(core.activeTargetPoints.contains(GridPoint(x: 3, y: 2)))
         XCTAssertEqual(core.progress, .playing)
     }
 
-    func testTargetCaptureCanHappenAlongTraversedPathWhilePieceMovesToEndpoint() {
+    func testUpcomingTargetCanBeCapturedBeforeCurrentTarget() {
+        let deck = Deck.makeTestDeck(cards: [
+            .kingRight, .kingUp, .kingLeft, .kingDown, .straightUp2,
+            .straightRight2, .straightLeft2, .straightDown2
+        ])
+        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 2, y: 2))
+        let currentTarget = GridPoint(x: 4, y: 4)
+        let upcomingTarget = GridPoint(x: 3, y: 2)
+        core.overrideTargetStateForTesting(
+            targetPoint: currentTarget,
+            upcomingTargetPoints: [upcomingTarget, GridPoint(x: 1, y: 2)]
+        )
+
+        guard let move = core.availableMoves().first(where: { $0.destination == upcomingTarget }) else {
+            return XCTFail("先読み目的地へ移動できるカードが見つかりません")
+        }
+        core.playCard(using: move)
+
+        XCTAssertEqual(core.capturedTargetCount, 1)
+        XCTAssertEqual(core.targetPoint, currentTarget, "現在目的地を残したまま先読み目的地だけ獲得できる想定です")
+        XCTAssertFalse(core.activeTargetPoints.contains(upcomingTarget))
+        XCTAssertEqual(core.upcomingTargetPoints.count, 2)
+    }
+
+    func testTargetCaptureCanCollectMultipleVisibleTargetsAlongTraversedPath() {
         let deck = Deck.makeTestDeck(cards: [
             .rayRight, .kingUp, .kingLeft, .kingDown, .straightUp2,
             .straightRight2, .straightLeft2, .straightDown2
@@ -1036,9 +1061,11 @@ final class GameCoreTests: XCTestCase {
         }
         core.playCard(using: move)
 
-        XCTAssertEqual(core.capturedTargetCount, 1)
         XCTAssertEqual(core.current, GridPoint(x: 4, y: 2))
-        XCTAssertEqual(core.targetPoint, GridPoint(x: 3, y: 2), "次目的地は同じ手では獲得されず、次の現在目的地になります")
+        XCTAssertEqual(core.capturedTargetCount, 2, "同じ手で通過した表示中目的地は通過順に複数獲得する想定です")
+        XCTAssertFalse(core.activeTargetPoints.contains(GridPoint(x: 2, y: 2)))
+        XCTAssertFalse(core.activeTargetPoints.contains(GridPoint(x: 3, y: 2)))
+        XCTAssertEqual(core.activeTargetPoints.count, 3)
     }
 
     func testBoardTapCanSelectCardThatCapturesTargetAlongPath() {
@@ -1054,6 +1081,25 @@ final class GameCoreTests: XCTestCase {
         XCTAssertEqual(resolved?.card.move, .rayRight)
         XCTAssertEqual(resolved?.destination, GridPoint(x: 4, y: 2))
         XCTAssertTrue(resolved?.traversedPoints.contains(GridPoint(x: 2, y: 2)) == true)
+    }
+
+    func testBoardTapCanSelectCardThatCapturesUpcomingTargetAlongPath() {
+        let deck = Deck.makeTestDeck(cards: [
+            .rayRight, .kingUp, .kingLeft, .kingDown, .straightUp2,
+            .straightRight2, .straightLeft2, .straightDown2
+        ])
+        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 0, y: 2))
+        let upcomingTarget = GridPoint(x: 2, y: 2)
+        core.overrideTargetStateForTesting(
+            targetPoint: GridPoint(x: 4, y: 4),
+            upcomingTargetPoints: [upcomingTarget]
+        )
+
+        let resolved = core.resolvedMoveForBoardTap(at: upcomingTarget)
+
+        XCTAssertEqual(resolved?.card.move, .rayRight)
+        XCTAssertEqual(resolved?.destination, GridPoint(x: 4, y: 2))
+        XCTAssertTrue(resolved?.traversedPoints.contains(upcomingTarget) == true)
     }
 
     func testWarpInterruptedPathDoesNotCaptureUntraversedTarget() {
@@ -1596,7 +1642,7 @@ final class GameCoreTests: XCTestCase {
         let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 2, y: 2), mode: mode)
         core.overrideTargetStateForTesting(
             targetPoint: GridPoint(x: 3, y: 2),
-            upcomingTargetPoints: [GridPoint(x: 4, y: 2), GridPoint(x: 1, y: 1)]
+            upcomingTargetPoints: [GridPoint(x: 1, y: 1), GridPoint(x: 0, y: 4)]
         )
 
         guard let move = core.availableMoves().first(where: { $0.card.move == .rayRight }) else {
@@ -1606,8 +1652,8 @@ final class GameCoreTests: XCTestCase {
 
         XCTAssertEqual(core.capturedTargetCount, 1)
         XCTAssertEqual(core.current, GridPoint(x: 4, y: 2))
-        XCTAssertEqual(core.targetPoint, GridPoint(x: 1, y: 1))
-        XCTAssertEqual(core.upcomingTargetPoints.first, GridPoint(x: 4, y: 2))
+        XCTAssertEqual(core.targetPoint, GridPoint(x: 0, y: 4))
+        XCTAssertEqual(core.upcomingTargetPoints.first, GridPoint(x: 1, y: 1))
         XCTAssertEqual(core.focusCount, 0)
         XCTAssertEqual(core.penaltyCount, 0)
     }
@@ -2155,6 +2201,30 @@ final class GameCoreTests: XCTestCase {
         )
     }
 
+    func testFocusRedrawPrioritizesNearestVisibleTarget() {
+        let deck = Deck.makeTestDeck(cards: [
+            .kingUp, .kingLeft, .kingDown, .straightUp2, .straightLeft2,
+            .straightDown2, .diagonalUpLeft2, .diagonalDownLeft2,
+            .straightLeft2, .kingDown, .kingRight, .straightRight2, .kingUpRight,
+            .kingDownRight, .knightUp1Right2, .knightDown1Right2, .kingUp
+        ])
+        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 2, y: 2))
+        let farCurrentTarget = GridPoint(x: 2, y: 4)
+        let nearestUpcomingTarget = GridPoint(x: 3, y: 2)
+        core.overrideTargetStateForTesting(
+            targetPoint: farCurrentTarget,
+            upcomingTargetPoints: [nearestUpcomingTarget]
+        )
+
+        core.applyFocusRedraw()
+
+        XCTAssertEqual(core.focusCount, 1)
+        XCTAssertTrue(
+            core.availableMoves().contains { $0.destination == nearestUpcomingTarget },
+            "フォーカス後は先頭固定ではなく、表示中の近い目的地を取れる候補が手札に入る想定です"
+        )
+    }
+
     /// 目的地制の手詰まりはペナルティではなくフォーカス寄り再配布で回復することを確認
     func testTargetDeadlockUsesFocusedRedrawWithoutPenalty() {
         let deck = Deck.makeTestDeck(cards: [
@@ -2168,8 +2238,8 @@ final class GameCoreTests: XCTestCase {
 
         XCTAssertEqual(core.penaltyCount, 0)
         XCTAssertTrue(
-            core.availableMoves().contains { $0.destination == GridPoint(x: 1, y: 0) },
-            "手詰まり回復後は目的地へ近づける候補が必要です"
+            !core.availableMoves().isEmpty,
+            "手詰まり回復後は移動できる候補が必要です"
         )
     }
 

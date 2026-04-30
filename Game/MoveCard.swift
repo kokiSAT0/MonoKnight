@@ -9,7 +9,7 @@ public enum MoveCardKind {
     case choice
     /// 障害物か盤端まで直進し続ける複数マス移動カード
     case multiStep
-    /// 現在目的地へ近づく候補を動的に出す補助カード
+    /// 表示中の目的地へ近づく候補を動的に出す補助カード
     case targetAssist
     /// 盤面上の特殊マスへ近づく候補を動的に出す補助カード
     case effectAssist
@@ -115,11 +115,11 @@ public enum MoveCard: CaseIterable {
     /// 特殊: モードで指定された固定座標へワープするカード
     case fixedWarp
 
-    /// 目的地補助: 現在目的地へ近づく隣接 1 マス候補
+    /// 目的地補助: 表示中の目的地へ近づく隣接 1 マス候補
     case targetStep
-    /// 目的地補助: 現在目的地へ近づく桂馬候補
+    /// 目的地補助: 表示中の目的地へ近づく桂馬候補
     case targetKnight
-    /// 目的地補助: 現在目的地方向へ通過しやすい直線候補
+    /// 目的地補助: 表示中の目的地方向へ通過しやすい直線候補
     case targetLine
     /// 特殊マス補助: 最寄り特殊マスへ近づく隣接 1 マス候補
     case effectStep
