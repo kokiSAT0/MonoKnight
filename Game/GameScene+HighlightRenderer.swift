@@ -275,6 +275,7 @@
                 baseColor = palette.boardMultiStepHighlight
                 strokeAlpha = 0.9
                 strokeWidth = sharedGuideStrokeWidth
+                fillColor = baseColor.withAlphaComponent(0.12)
                 if latestSingleGuidePoints.contains(point) {
                     overlapInset = max(overlapInset, strokeWidth * 2.0)
                 }
@@ -371,7 +372,7 @@
                 return targetMarkerPath(
                     center: CGPoint(x: rect.midX, y: rect.midY),
                     tileSize: tileSize,
-                    scale: 0.82
+                    scale: 1.0
                 )
             case .guideSingleCandidate,
                  .guideMultipleCandidate,

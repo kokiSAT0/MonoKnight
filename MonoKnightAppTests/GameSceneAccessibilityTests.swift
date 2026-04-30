@@ -15,11 +15,12 @@ final class GameSceneAccessibilityTests: XCTestCase {
     /// - Returns: 生成したシーンとビューのタプル
     private func makeScene(
         impassablePoints: Set<GridPoint> = [],
-        size: Int = BoardGeometry.standardSize
+        size: Int = BoardGeometry.standardSize,
+        initialVisitedPoints: [GridPoint]? = nil
     ) -> (scene: GameScene, view: SKView, boardSize: Int) {
         let scene = GameScene(
             initialBoardSize: size,
-            initialVisitedPoints: BoardGeometry.defaultInitialVisitedPoints(for: size),
+            initialVisitedPoints: initialVisitedPoints ?? BoardGeometry.defaultInitialVisitedPoints(for: size),
             requiredVisitOverrides: [:],
             togglePoints: [],
             impassablePoints: impassablePoints
@@ -63,6 +64,70 @@ final class GameSceneAccessibilityTests: XCTestCase {
         let index = knightPoint.y * boardSize + knightPoint.x
         XCTAssertLessThan(index, elements.count, "騎士位置のインデックスが範囲外")
         XCTAssertEqual(elements[index].accessibilityLabel, "駒あり・未踏破")
+    }
+
+    /// 目的地制では通常マスの踏破済み塗りを出さないことを確認する
+    func testVisitedTileFillCanBeHiddenForTargetCollectionModes() {
+        let visitedPoint = GridPoint(x: 0, y: 0)
+        let unvisitedPoint = GridPoint(x: 1, y: 0)
+        let (scene, view, _) = makeScene(initialVisitedPoints: [visitedPoint])
+        defer { view.presentScene(nil) }
+
+        scene.updateShowsVisitedTileFill(false)
+
+        guard let visitedColor = scene.tileFillColorForTesting(at: visitedPoint),
+              let unvisitedColor = scene.tileFillColorForTesting(at: unvisitedPoint) else {
+            XCTFail("タイル塗り色を取得できません")
+            return
+        }
+        XCTAssertTrue(
+            visitedColor.isEqual(unvisitedColor),
+            "目的地制では踏破済み通常マスも未踏破通常マスと同じ塗り色にします"
+        )
+    }
+
+    /// 全踏破モードでは通常マスの踏破済み塗りを維持することを確認する
+    func testVisitedTileFillRemainsVisibleForBoardClearModes() {
+        let visitedPoint = GridPoint(x: 0, y: 0)
+        let unvisitedPoint = GridPoint(x: 1, y: 0)
+        let (scene, view, _) = makeScene(initialVisitedPoints: [visitedPoint])
+        defer { view.presentScene(nil) }
+
+        scene.updateShowsVisitedTileFill(true)
+
+        guard let visitedColor = scene.tileFillColorForTesting(at: visitedPoint),
+              let unvisitedColor = scene.tileFillColorForTesting(at: unvisitedPoint) else {
+            XCTFail("タイル塗り色を取得できません")
+            return
+        }
+        XCTAssertFalse(
+            visitedColor.isEqual(unvisitedColor),
+            "全踏破モードでは踏破済み通常マスの塗り分けを維持します"
+        )
+    }
+
+    /// 通過で取れる目的地は、移動先候補として読み上げないことを確認する
+    func testAccessibilityDoesNotDescribeTargetCaptureFrameAsMoveDestination() {
+        let targetPoint = GridPoint(x: 3, y: 2)
+        let (scene, view, boardSize) = makeScene()
+        defer { view.presentScene(nil) }
+
+        scene.updateHighlights([
+            .currentTarget: [targetPoint],
+            .targetCaptureCandidate: [targetPoint],
+        ])
+
+        guard let elements = scene.accessibilityElements as? [UIAccessibilityElement] else {
+            XCTFail("アクセシビリティ要素が生成されていない")
+            return
+        }
+        let index = targetPoint.y * boardSize + targetPoint.x
+        XCTAssertLessThan(index, elements.count, "目的地マスのインデックスが範囲外")
+        XCTAssertEqual(
+            elements[index].accessibilityLabel,
+            "表示中の目的地・未踏破",
+            "通過で取れる目的地を移動先候補として読み上げない想定です"
+        )
     }
 }
 #endif

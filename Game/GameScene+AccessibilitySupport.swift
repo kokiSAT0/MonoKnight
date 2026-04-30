@@ -79,9 +79,7 @@
                         if currentTargetPoints.contains(point) || upcomingTargetPoints.contains(point) {
                             labelParts.append("表示中の目的地")
                         }
-                        if targetCaptureCandidatePoints.contains(point) {
-                            labelParts.append("目的地を取れる移動先")
-                        } else if targetApproachCandidatePoints.contains(point) {
+                        if targetApproachCandidatePoints.contains(point) {
                             labelParts.append("目的地に近づく移動先")
                         }
                         if let effect = board.effect(at: point) {

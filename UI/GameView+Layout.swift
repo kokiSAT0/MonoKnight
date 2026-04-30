@@ -89,7 +89,7 @@ extension GameView {
         VStack(alignment: .leading, spacing: 6) {
             Text("開始マスを選択")
                 .font(.system(size: 17, weight: .semibold, design: .rounded))
-            Text("手札スロットと先読みを確認してから、好きなマスをタップしてください。")
+            Text("手札、先読み、目的地を確認してから、目的地以外のマスをタップしてください。")
                 .font(.system(size: 14, weight: .medium, design: .rounded))
                 .multilineTextAlignment(.leading)
         }
@@ -108,7 +108,7 @@ extension GameView {
         .allowsHitTesting(false)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("spawn_selection_banner")
-        .accessibilityLabel(Text("開始位置を選択してください。手札スロットと次のカードを見てから任意のマスをタップできます。"))
+        .accessibilityLabel(Text("開始位置を選択してください。手札、次のカード、目的地を見てから、目的地以外のマスをタップできます。"))
     }
 
     /// 手詰まりペナルティを知らせるバナーのレイヤーを構成
@@ -131,7 +131,15 @@ extension GameView {
                 if let tutorialCard = viewModel.campaignTutorialCard {
                     HStack {
                         Spacer(minLength: 0)
-                        CampaignTutorialBannerView(card: tutorialCard, theme: theme)
+                        CampaignTutorialBannerView(
+                            card: tutorialCard,
+                            theme: theme,
+                            onDismiss: {
+                                withAnimation(.easeOut(duration: 0.2)) {
+                                    viewModel.dismissCampaignTutorial()
+                                }
+                            }
+                        )
                             .padding(Edge.Set.horizontal, 20)
                             .transition(.move(edge: .top).combined(with: .opacity))
                         Spacer(minLength: 0)

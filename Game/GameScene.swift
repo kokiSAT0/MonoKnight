@@ -43,6 +43,7 @@
         private var targetApproachCandidatePoints: Set<GridPoint> = []
         private var targetCaptureCandidatePoints: Set<GridPoint> = []
         private var latestHighlightPoints: [BoardHighlightKind: Set<GridPoint>] = [:]
+        private var showsVisitedTileFill = true
 
         #if canImport(UIKit)
             private let accessibilitySupport = GameSceneAccessibilitySupport()
@@ -75,6 +76,7 @@
             targetApproachCandidatePoints = []
             targetCaptureCandidatePoints = []
             latestHighlightPoints = [:]
+            showsVisitedTileFill = true
             #if canImport(UIKit)
                 accessibilitySupport.reset()
             #endif
@@ -158,7 +160,8 @@
             decorationRenderer.relayoutTileNodes(
                 board: board,
                 palette: palette,
-                layout: layoutSupport
+                layout: layoutSupport,
+                showsVisitedTileFill: showsVisitedTileFill
             )
             knightAnimator.relayoutKnight(layout: layoutSupport)
             highlightRenderer.refreshAppearance(layout: layoutSupport, palette: palette)
@@ -190,14 +193,22 @@
             applyCurrentBoardStateToNodes(shouldLog: true)
         }
 
+        public func updateShowsVisitedTileFill(_ isEnabled: Bool) {
+            guard showsVisitedTileFill != isEnabled else { return }
+            showsVisitedTileFill = isEnabled
+            applyCurrentBoardStateToNodes(shouldLog: false)
+        }
+
         public func updateHighlights(_ highlights: [BoardHighlightKind: Set<GridPoint>]) {
-            latestHighlightPoints = highlights
-            currentTargetPoints = highlights[.currentTarget] ?? []
-            upcomingTargetPoints = highlights[.upcomingTarget] ?? []
-            targetApproachCandidatePoints = highlights[.targetApproachCandidate] ?? []
-            targetCaptureCandidatePoints = highlights[.targetCaptureCandidate] ?? []
+            var visibleHighlights = highlights
+            visibleHighlights[.targetCaptureCandidate] = []
+            latestHighlightPoints = visibleHighlights
+            currentTargetPoints = visibleHighlights[.currentTarget] ?? []
+            upcomingTargetPoints = visibleHighlights[.upcomingTarget] ?? []
+            targetApproachCandidatePoints = visibleHighlights[.targetApproachCandidate] ?? []
+            targetCaptureCandidatePoints = visibleHighlights[.targetCaptureCandidate] ?? []
             highlightRenderer.updateHighlights(
-                highlights,
+                visibleHighlights,
                 board: board,
                 scene: self,
                 layout: layoutSupport,
@@ -209,6 +220,10 @@
 
         public func latestHighlightPoints(for kind: BoardHighlightKind) -> Set<GridPoint> {
             latestHighlightPoints[kind] ?? []
+        }
+
+        func tileFillColorForTesting(at point: GridPoint) -> SKColor? {
+            decorationRenderer.tileNodes[point]?.fillColor
         }
 
         public func updateGuideHighlights(_ points: Set<GridPoint>) {
@@ -229,7 +244,8 @@
             decorationRenderer.updateBoardAppearance(
                 board: board,
                 palette: palette,
-                layout: layoutSupport
+                layout: layoutSupport,
+                showsVisitedTileFill: showsVisitedTileFill
             )
             highlightRenderer.refreshAppearance(layout: layoutSupport, palette: palette)
         }
@@ -287,7 +303,8 @@
                     in: self,
                     board: board,
                     palette: palette,
-                    layout: layoutSupport
+                    layout: layoutSupport,
+                    showsVisitedTileFill: showsVisitedTileFill
                 )
                 knightAnimator.setupKnight(
                     in: self,
@@ -366,7 +383,8 @@
             decorationRenderer.updateBoardAppearance(
                 board: board,
                 palette: palette,
-                layout: layoutSupport
+                layout: layoutSupport,
+                showsVisitedTileFill: showsVisitedTileFill
             )
             highlightRenderer.refreshAppearance(layout: layoutSupport, palette: palette)
             updateAccessibilityElements()

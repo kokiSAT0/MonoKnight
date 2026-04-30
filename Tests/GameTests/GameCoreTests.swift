@@ -1068,6 +1068,74 @@ final class GameCoreTests: XCTestCase {
         XCTAssertEqual(core.activeTargetPoints.count, 3)
     }
 
+    func testVisibleTargetsStayAtThreeWhenOnlyOneCaptureRemains() {
+        let deck = Deck.makeTestDeck(cards: [
+            .kingRight, .kingUp, .kingLeft, .kingDown, .straightUp2,
+            .straightRight2, .straightLeft2, .straightDown2
+        ])
+        let mode = GameMode(
+            identifier: .standard5x5,
+            displayName: "終盤目的地補充検証",
+            regulation: GameMode.Regulation(
+                boardSize: BoardGeometry.standardSize,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .standard,
+                spawnRule: .fixed(BoardGeometry.defaultSpawnPoint(for: BoardGeometry.standardSize)),
+                penalties: GameMode.PenaltySettings(
+                    deadlockPenaltyCost: 3,
+                    manualRedrawPenaltyCost: 2,
+                    manualDiscardPenaltyCost: 1,
+                    revisitPenaltyCost: 0
+                ),
+                impassableTilePoints: [GridPoint(x: 4, y: 4)],
+                completionRule: .targetCollection(goalCount: 12)
+            ),
+            leaderboardEligible: false
+        )
+        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 2, y: 2), mode: mode)
+        core.overrideTargetStateForTesting(
+            targetPoint: GridPoint(x: 3, y: 2),
+            upcomingTargetPoints: [GridPoint(x: 1, y: 2), GridPoint(x: 2, y: 4)],
+            capturedTargetCount: core.targetGoalCount - 2
+        )
+
+        guard let move = core.availableMoves().first(where: { $0.destination == GridPoint(x: 3, y: 2) }) else {
+            return XCTFail("終盤の目的地へ移動できるカードが見つかりません")
+        }
+        core.playCard(using: move)
+
+        XCTAssertEqual(core.remainingTargetCount, 1)
+        XCTAssertEqual(core.activeTargetPoints.count, 3, "残り1個でも選択肢として表示中目的地を3個維持します")
+        XCTAssertEqual(Set(core.activeTargetPoints).count, 3)
+        XCTAssertFalse(core.activeTargetPoints.contains(GridPoint(x: 3, y: 2)))
+        XCTAssertFalse(core.activeTargetPoints.contains(GridPoint(x: 4, y: 4)))
+        XCTAssertEqual(core.progress, .playing)
+    }
+
+    func testFinalCaptureClearsWithoutCountingExtraVisibleTargets() {
+        let deck = Deck.makeTestDeck(cards: [
+            .rayRight, .kingUp, .kingLeft, .kingDown, .straightUp2,
+            .straightRight2, .straightLeft2, .straightDown2
+        ])
+        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 0, y: 2))
+        core.overrideTargetStateForTesting(
+            targetPoint: GridPoint(x: 1, y: 2),
+            upcomingTargetPoints: [GridPoint(x: 2, y: 2), GridPoint(x: 3, y: 2)],
+            capturedTargetCount: core.targetGoalCount - 1
+        )
+
+        guard let move = core.availableMoves().first(where: { $0.card.move == .rayRight }) else {
+            return XCTFail("複数の表示中目的地を通過できるカードが見つかりません")
+        }
+        core.playCard(using: move)
+
+        XCTAssertEqual(core.progress, .cleared)
+        XCTAssertEqual(core.capturedTargetCount, core.targetGoalCount, "余剰表示された目的地は追加ノルマとして数えません")
+        XCTAssertTrue(core.activeTargetPoints.isEmpty)
+    }
+
     func testBoardTapCanSelectCardThatCapturesTargetAlongPath() {
         let deck = Deck.makeTestDeck(cards: [
             .rayRight, .kingUp, .kingLeft, .kingDown, .straightUp2,
@@ -2111,8 +2179,9 @@ final class GameCoreTests: XCTestCase {
         XCTAssertTrue(targets.allSatisfy { !stage.regulation.impassableTilePoints.contains($0) })
     }
 
-    /// 任意スポーンの目的地制ステージでは、開始位置確定後に目的地を生成する
+    /// 任意スポーンの目的地制ステージでは、開始位置確定前から目的地を表示する
     func testTargetCollectionSpawnSelectionInitializesTargets() {
+        let impassablePoint = GridPoint(x: 4, y: 4)
         let mode = GameMode(
             identifier: .freeCustom,
             displayName: "任意スポーン目的地テスト",
@@ -2129,21 +2198,44 @@ final class GameCoreTests: XCTestCase {
                     manualDiscardPenaltyCost: 1,
                     revisitPenaltyCost: 0
                 ),
+                impassableTilePoints: [impassablePoint],
                 completionRule: .targetCollection(goalCount: 6)
             )
         )
         let core = GameCore(mode: mode)
-        let spawn = GridPoint(x: 0, y: 0)
+        let targetsBeforeSpawn = core.activeTargetPoints
 
-        XCTAssertNil(core.targetPoint, "スポーン選択前は現在地がないため目的地を持たない想定です")
+        XCTAssertEqual(core.progress, GameProgress.awaitingSpawn)
+        XCTAssertNil(core.current, "スポーン未確定時は現在地が nil のままです")
+        XCTAssertEqual(targetsBeforeSpawn.count, 3, "スポーン選択前でも表示中目的地を3つ見せます")
+        XCTAssertEqual(Set(targetsBeforeSpawn).count, 3, "スポーン前目的地は重複しない想定です")
+        XCTAssertFalse(targetsBeforeSpawn.contains(impassablePoint), "スポーン前目的地が障害物と重なってはいけません")
+
+        guard let blockedSpawn = targetsBeforeSpawn.first else {
+            return XCTFail("スポーン前目的地が生成されていません")
+        }
+        core.simulateSpawnSelection(forTesting: blockedSpawn)
+
+        XCTAssertNil(core.current, "表示中目的地マスは初期位置として選べない想定です")
+        XCTAssertEqual(core.progress, GameProgress.awaitingSpawn)
+        XCTAssertEqual(core.spawnSelectionWarning?.point, blockedSpawn, "目的地マスを選んだことを UI に通知する想定です")
+        XCTAssertEqual(core.spawnSelectionWarning?.reason, .targetTile)
+        XCTAssertEqual(core.activeTargetPoints, targetsBeforeSpawn, "無効なスポーン選択では目的地を差し替えません")
+
+        guard let spawn = core.board.allTraversablePoints.first(where: { !targetsBeforeSpawn.contains($0) }) else {
+            return XCTFail("目的地以外の有効なスポーン候補が見つかりません")
+        }
+
+        if let warningID = core.spawnSelectionWarning?.id {
+            core.clearSpawnSelectionWarning(warningID)
+        }
 
         core.simulateSpawnSelection(forTesting: spawn)
 
         XCTAssertEqual(core.progress, GameProgress.playing)
-        XCTAssertNotNil(core.targetPoint, "スポーン選択後に現在目的地が生成される必要があります")
-        XCTAssertNotEqual(core.targetPoint, spawn, "現在地と同じマスを目的地にしてはいけません")
-        XCTAssertEqual(core.upcomingTargetPoints.count, 2, "先読み目的地もスポーン確定後に生成します")
-        XCTAssertFalse(core.upcomingTargetPoints.contains(spawn), "スポーン直後の先読み目的地が駒の下に隠れないようにします")
+        XCTAssertEqual(core.current, spawn)
+        XCTAssertEqual(core.activeTargetPoints, targetsBeforeSpawn, "スポーン確定後も表示済み目的地をそのまま使います")
+        XCTAssertFalse(core.activeTargetPoints.contains(spawn), "初期位置と目的地は重ならない想定です")
     }
 
     /// 安定化QA対象の標準モードが目的地制として完走できることを確認

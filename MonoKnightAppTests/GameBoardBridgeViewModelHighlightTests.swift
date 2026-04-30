@@ -110,6 +110,25 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
         XCTAssertNil(viewModel.pendingGuideCurrent, "ガイド復元後は pending 現在地を解放する必要があります")
     }
 
+    /// スポーン待機中でも目的地制の目的地マーカーが Scene へ送られることを検証する
+    func testTargetHighlightsRemainVisibleWhileAwaitingSpawnSelection() {
+        let core = GameCore(mode: .targetLab)
+        let viewModel = GameBoardBridgeViewModel(core: core, mode: .targetLab)
+
+        XCTAssertEqual(core.progress, GameProgress.awaitingSpawn)
+        XCTAssertEqual(core.activeTargetPoints.count, 3, "スポーン選択前でも目的地が生成される想定です")
+        XCTAssertEqual(
+            viewModel.scene.latestHighlightPoints(for: .currentTarget),
+            core.targetPoint.map { Set([$0]) } ?? [],
+            "スポーン待機中でも現在目的地マーカーを Scene へ渡します"
+        )
+        XCTAssertEqual(
+            viewModel.scene.latestHighlightPoints(for: .upcomingTarget),
+            Set(core.upcomingTargetPoints),
+            "スポーン待機中でも表示中目的地マーカーを Scene へ渡します"
+        )
+    }
+
     /// ワープカードが専用の紫ガイド集合へ分類されることを検証する
     func testRefreshGuideHighlightsSeparatesWarpCandidates() {
         let viewModel = makeViewModel()
@@ -130,8 +149,46 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
         XCTAssertTrue(buckets.multipleVectorDestinations.isEmpty, "ワープカードが複数候補集合へ混入しています")
     }
 
-    /// 目的地制では目的地を直接取れる候補だけを専用分類し、近づくだけの候補はオレンジ強調しないことを検証する
-    func testRefreshGuideHighlightsSeparatesTargetCaptureWithoutApproachHighlight() {
+    /// 連続移動カードは終点だけでなく、移動中に踏む全マスを水色ガイドとして Scene へ渡すことを検証する
+    func testRefreshGuideHighlightsIncludesMultiStepTraversedPoints() {
+        let viewModel = makeViewModel()
+        let origin = GridPoint(x: 1, y: 1)
+        let rayStack = HandStack(cards: [DealtCard(move: .rayUpRight)])
+
+        viewModel.refreshGuideHighlights(
+            handOverride: [rayStack],
+            currentOverride: origin,
+            progressOverride: .playing
+        )
+
+        let expectedTraversedPoints: Set<GridPoint> = [
+            GridPoint(x: 2, y: 2),
+            GridPoint(x: 3, y: 3),
+            GridPoint(x: 4, y: 4)
+        ]
+
+        XCTAssertEqual(
+            viewModel.guideHighlightBuckets.multiStepDestinations,
+            expectedTraversedPoints,
+            "連続移動カードの水色ガイドには、終点だけでなく途中で踏むマスも含める必要があります"
+        )
+        XCTAssertEqual(
+            viewModel.scene.latestHighlightPoints(for: .guideMultiStepCandidate),
+            expectedTraversedPoints,
+            "Scene 側にも連続移動カードの通過マス全体を渡す必要があります"
+        )
+        XCTAssertTrue(
+            viewModel.guideHighlightBuckets.singleVectorDestinations.isEmpty,
+            "連続移動カードが単一候補集合へ混入しています"
+        )
+        XCTAssertTrue(
+            viewModel.guideHighlightBuckets.multipleVectorDestinations.isEmpty,
+            "連続移動カードが複数候補集合へ混入しています"
+        )
+    }
+
+    /// 目的地制では、通過で取れる目的地を移動先候補の枠として強調しないことを検証する
+    func testRefreshGuideHighlightsDoesNotFramePassThroughTargetCapture() {
         let core = GameCore(mode: .standard)
         let viewModel = GameBoardBridgeViewModel(core: core, mode: .standard)
         let origin = GridPoint(x: 2, y: 2)
@@ -150,8 +207,10 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
         )
 
         let buckets = viewModel.guideHighlightBuckets
-        XCTAssertEqual(buckets.targetCaptureDestinations, [target], "目的地を直接取れる候補が専用集合へ分類されていません")
-        XCTAssertTrue(buckets.targetApproachDestinations.isEmpty, "目的地に近づくだけの候補を専用集合へ分類しない想定です")
+        XCTAssertTrue(
+            buckets.singleVectorDestinations.contains(target),
+            "目的地へ到達する合法手は通常の移動先候補として残す必要があります"
+        )
         XCTAssertTrue(
             buckets.singleVectorDestinations.contains(GridPoint(x: 3, y: 2)),
             "目的地に近づく合法手は通常の単一候補ガイドとして残す必要があります"
@@ -168,9 +227,18 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
             viewModel.scene.latestHighlightPoints(for: .targetApproachCandidate).isEmpty,
             "目的地に近づくだけの候補はオレンジ系の接近ガイドとして Scene へ送らない想定です"
         )
+        XCTAssertTrue(
+            viewModel.scene.latestHighlightPoints(for: .targetCaptureCandidate).isEmpty,
+            "通過で取れる目的地を移動先候補に見える紫枠として Scene へ送らない想定です"
+        )
+        XCTAssertEqual(
+            viewModel.scene.latestHighlightPoints(for: .currentTarget),
+            [target],
+            "目的地マーカー自体は枠を消しても維持する必要があります"
+        )
     }
 
-    func testRefreshGuideHighlightsTreatsUpcomingTargetsAsCapturable() {
+    func testRefreshGuideHighlightsKeepsUpcomingTargetMarkerWithoutCaptureFrame() {
         let core = GameCore(mode: .standard)
         let viewModel = GameBoardBridgeViewModel(core: core, mode: .standard)
         let origin = GridPoint(x: 2, y: 2)
@@ -189,10 +257,14 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
             progressOverride: .playing
         )
 
+        XCTAssertTrue(
+            viewModel.scene.latestHighlightPoints(for: .targetCaptureCandidate).isEmpty,
+            "先読み側の目的地を取れる手でも、目的地通過用の紫枠は表示しない想定です"
+        )
         XCTAssertEqual(
-            viewModel.guideHighlightBuckets.targetCaptureDestinations,
+            viewModel.scene.latestHighlightPoints(for: .upcomingTarget),
             [upcomingTarget],
-            "先読み表示中の目的地も獲得可能な目的地として専用集合へ分類する想定です"
+            "先読み側の目的地は獲得可能な目的地マーカーとして表示を維持します"
         )
     }
 

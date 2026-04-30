@@ -536,6 +536,29 @@ public struct BoardTapPlayRequest: Identifiable, Equatable {
     }
 }
 
+/// スポーン位置選択中に、選べないマスをタップしたことを UI へ知らせるイベント
+/// - Note: Game 側では理由だけを保持し、具体的な表示文言は UI 側で決める。
+public struct SpawnSelectionWarning: Identifiable, Equatable {
+    /// 選択できなかった理由
+    public enum Reason: Equatable {
+        /// 目的地マスは開始位置にできない
+        case targetTile
+    }
+
+    /// 各警告を一意に識別するための ID
+    public let id: UUID
+    /// タップされたマス
+    public let point: GridPoint
+    /// 選択できなかった理由
+    public let reason: Reason
+
+    public init(id: UUID = UUID(), point: GridPoint, reason: Reason) {
+        self.id = id
+        self.point = point
+        self.reason = reason
+    }
+}
+
 // MARK: - デバッグ支援
 extension GridPoint: CustomStringConvertible {
     /// デバッグ出力時に座標を分かりやすく表示する

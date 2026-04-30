@@ -12,6 +12,7 @@ struct GameCoreBindingCoordinator {
         onPenaltyEvent: @escaping (PenaltyEvent) -> Void,
         onHandStacksChange: @escaping ([HandStack]) -> Void,
         onBoardTapPlayRequest: @escaping (BoardTapPlayRequest) -> Void,
+        onSpawnSelectionWarning: @escaping (SpawnSelectionWarning) -> Void,
         onProgressChange: @escaping (GameProgress) -> Void,
         onElapsedTimeChange: @escaping () -> Void
     ) {
@@ -36,6 +37,14 @@ struct GameCoreBindingCoordinator {
             .sink { request in
                 guard let request else { return }
                 onBoardTapPlayRequest(request)
+            }
+            .store(in: &cancellables)
+
+        core.$spawnSelectionWarning
+            .receive(on: RunLoop.main)
+            .sink { warning in
+                guard let warning else { return }
+                onSpawnSelectionWarning(warning)
             }
             .store(in: &cancellables)
 
@@ -373,7 +382,7 @@ final class GamePauseController {
 final class GameFlowCoordinator {
     struct ClearOutcome {
         let latestCampaignClearRecord: CampaignStageClearRecord?
-        let newlyUnlockedStages: [CampaignStage]
+        let nextCampaignStage: CampaignStage?
         let shouldShowResult: Bool
     }
 
@@ -400,16 +409,10 @@ final class GameFlowCoordinator {
               let stage = campaignLibrary.stage(with: metadata.stageID) else {
             return ClearOutcome(
                 latestCampaignClearRecord: nil,
-                newlyUnlockedStages: [],
+                nextCampaignStage: nil,
                 shouldShowResult: true
             )
         }
-
-        let unlockedStageIDsBefore = Set(
-            campaignLibrary.allStages
-                .filter { campaignProgressStore.isStageUnlocked($0) }
-                .map(\.id)
-        )
 
         let metrics = CampaignStageClearMetrics(
             moveCount: core.moveCount,
@@ -423,22 +426,12 @@ final class GameFlowCoordinator {
         )
 
         let record = campaignProgressStore.registerClear(for: stage, metrics: metrics)
-        let unlockedStagesAfter = campaignLibrary.allStages.filter { campaignProgressStore.isStageUnlocked($0) }
-        let unlockedDiff = unlockedStagesAfter.filter { !unlockedStageIDsBefore.contains($0.id) }
-
-        let newlyUnlockedStages: [CampaignStage]
-        if unlockedDiff.isEmpty {
-            newlyUnlockedStages = campaignLibrary.allStages.filter { stage in
-                campaignProgressStore.isStageUnlocked(stage) &&
-                    (campaignProgressStore.progress(for: stage.id)?.earnedStars ?? 0) == 0
-            }
-        } else {
-            newlyUnlockedStages = unlockedDiff
-        }
+        let nextCampaignStage = campaignLibrary.nextStage(after: stage.id)
+            .flatMap { campaignProgressStore.isStageUnlocked($0) ? $0 : nil }
 
         return ClearOutcome(
             latestCampaignClearRecord: record,
-            newlyUnlockedStages: newlyUnlockedStages,
+            nextCampaignStage: nextCampaignStage,
             shouldShowResult: true
         )
     }

@@ -32,9 +32,9 @@ struct ResultView: View {
 
     /// キャンペーンステージのクリア記録（通常モードの場合は nil）
     let campaignClearRecord: CampaignStageClearRecord?
-    /// 今回のクリアで新しく解放されたキャンペーンステージ一覧
-    let newlyUnlockedStages: [CampaignStage]
-    /// 解放されたステージへ直接移動するためのクロージャ
+    /// キャンペーン定義順で次に進むステージ
+    let nextCampaignStage: CampaignStage?
+    /// 次のステージへ直接移動するためのクロージャ
     let onSelectCampaignStage: ((CampaignStage) -> Void)?
     /// 再戦処理を外部から受け取るクロージャ
     let onRetry: () -> Void
@@ -70,7 +70,7 @@ struct ResultView: View {
         isGameCenterAuthenticated: Bool? = nil,
         onRequestGameCenterSignIn: ((GameCenterSignInPromptReason) -> Void)? = nil,
         campaignClearRecord: CampaignStageClearRecord? = nil,
-        newlyUnlockedStages: [CampaignStage] = [],
+        nextCampaignStage: CampaignStage? = nil,
         onSelectCampaignStage: ((CampaignStage) -> Void)? = nil,
         onRetry: @escaping () -> Void,
         onReturnToTitle: (() -> Void)? = nil
@@ -89,7 +89,7 @@ struct ResultView: View {
             isGameCenterAuthenticated: resolvedIsAuthenticated,
             onRequestGameCenterSignIn: onRequestGameCenterSignIn,
             campaignClearRecord: campaignClearRecord,
-            newlyUnlockedStages: newlyUnlockedStages,
+            nextCampaignStage: nextCampaignStage,
             onSelectCampaignStage: onSelectCampaignStage,
             onRetry: onRetry,
             onReturnToTitle: onReturnToTitle,
@@ -110,7 +110,7 @@ struct ResultView: View {
         isGameCenterAuthenticated: Bool? = nil,
         onRequestGameCenterSignIn: ((GameCenterSignInPromptReason) -> Void)? = nil,
         campaignClearRecord: CampaignStageClearRecord? = nil,
-        newlyUnlockedStages: [CampaignStage] = [],
+        nextCampaignStage: CampaignStage? = nil,
         onSelectCampaignStage: ((CampaignStage) -> Void)? = nil,
         onRetry: @escaping () -> Void,
         onReturnToTitle: (() -> Void)? = nil,
@@ -138,7 +138,7 @@ struct ResultView: View {
         self.isGameCenterAuthenticated = resolvedIsAuthenticated
         self.onRequestGameCenterSignIn = onRequestGameCenterSignIn
         self.campaignClearRecord = campaignClearRecord
-        self.newlyUnlockedStages = newlyUnlockedStages
+        self.nextCampaignStage = nextCampaignStage
         self.onSelectCampaignStage = onSelectCampaignStage
         self.onRetry = onRetry
         self.onReturnToTitle = onReturnToTitle
@@ -154,7 +154,7 @@ struct ResultView: View {
                 if let record = campaignClearRecord {
                     CampaignRewardSummarySection(
                         record: record,
-                        newlyUnlockedStages: newlyUnlockedStages,
+                        nextCampaignStage: nextCampaignStage,
                         onSelectCampaignStage: onSelectCampaignStage,
                         hapticsEnabled: gameSettingsStore.hapticsEnabled
                     )
@@ -250,7 +250,7 @@ struct ResultView_Previews: PreviewProvider {
             modeIdentifier: .standard5x5,
             modeDisplayName: "スタンダード",
             campaignClearRecord: sample.record,
-            newlyUnlockedStages: [sample.stage],
+            nextCampaignStage: sample.stage,
             onRetry: {},
             gameCenterService: GameCenterService.shared,
             adsService: AdsService.shared
@@ -270,7 +270,7 @@ struct ResultView_Previews: PreviewProvider {
         modeIdentifier: .standard5x5,
         modeDisplayName: "スタンダード",
         campaignClearRecord: sample.record,
-        newlyUnlockedStages: [sample.stage],
+        nextCampaignStage: sample.stage,
         onRetry: {}
     )
 }

@@ -19,7 +19,7 @@ extension GameViewModel {
             showingResult = resultPresentationState.showingResult
         }
         latestCampaignClearRecord = resultPresentationState.latestCampaignClearRecord
-        newlyUnlockedStages = resultPresentationState.newlyUnlockedStages
+        nextCampaignStage = resultPresentationState.nextCampaignStage
     }
 
     func applySessionUIMutation(_ mutation: (inout SessionUIState) -> Void) {

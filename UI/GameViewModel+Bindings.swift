@@ -30,6 +30,9 @@ extension GameViewModel {
             onBoardTapPlayRequest: { [weak self] request in
                 self?.handleBoardTapPlayRequest(request)
             },
+            onSpawnSelectionWarning: { [weak self] warning in
+                self?.handleSpawnSelectionWarning(warning)
+            },
             onProgressChange: { [weak self] progress in
                 self?.handleProgressChange(progress)
             },
@@ -79,6 +82,24 @@ extension GameViewModel {
             .store(in: &cancellables)
     }
 
+    func handleSpawnSelectionWarning(_ warning: SpawnSelectionWarning) {
+        let message: String
+        switch warning.reason {
+        case .targetTile:
+            message = "目的地マスは開始位置にできません。目的地以外のマスを選んでください。"
+        }
+
+        boardTapSelectionWarning = BoardTapSelectionWarning(
+            message: message,
+            destination: warning.point
+        )
+        core.clearSpawnSelectionWarning(warning.id)
+
+        if hapticsEnabled {
+            UINotificationFeedbackGenerator().notificationOccurred(.warning)
+        }
+    }
+
     func handleProgressChange(_ progress: GameProgress) {
         coreBindingCoordinator.handleProgressChange(
             progress,
@@ -116,6 +137,11 @@ extension GameViewModel {
 
     func handleCampaignTutorialEvent(_ event: CampaignTutorialEvent) {
         campaignTutorialCard = campaignTutorialController.handle(event)?.card
+        applyCampaignTutorialHighlights()
+    }
+
+    func dismissCampaignTutorial() {
+        campaignTutorialCard = campaignTutorialController.dismissActiveStep()?.card
         applyCampaignTutorialHighlights()
     }
 

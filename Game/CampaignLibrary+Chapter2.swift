@@ -5,10 +5,10 @@ extension CampaignLibrary {
         let stage21 = targetStage(
             chapter: 2,
             index: 1,
-            title: "戻り道の判断",
-            summary: "近い目的地と戻る目的地を見比べ、短い手順で取り切ります。",
+            title: "縦横選択の一歩",
+            summary: "上下左右の選択カードで、目的地へ寄せる軸を自分で選びます。",
             goalCount: 6,
-            deckPreset: .kingAndKnightBasic,
+            deckPreset: .standardWithOrthogonalChoices,
             secondaryObjective: .finishWithFocusAtMost(maxFocusCount: 3),
             scoreTarget: 215,
             unlockRequirement: .stageClear(CampaignStageID(chapter: 1, index: 8))
@@ -16,22 +16,23 @@ extension CampaignLibrary {
         let stage22 = targetStage(
             chapter: 2,
             index: 2,
-            title: "近距離連鎖",
-            summary: "小さく寄せるカードを活かし、目的地を途切れず回収します。",
+            title: "無料フォーカス",
+            summary: "無料フォーカスマスで手札を整え、目的地の流れをつなげます。",
             goalCount: 6,
-            deckPreset: .kingAndKnightBasic,
+            deckPreset: .standardWithOrthogonalChoices,
             spawnRule: .chooseAnyAfterPreview,
             secondaryObjective: .finishWithinMoves(maxMoves: 17),
             scoreTarget: 210,
-            unlockRequirement: .stageClear(stage21.id)
+            unlockRequirement: .stageClear(stage21.id),
+            tileEffectOverrides: [GridPoint(x: 3, y: 1): .freeFocus]
         )
         let stage23 = targetStage(
             chapter: 2,
             index: 3,
-            title: "中央経由",
-            summary: "中央付近を経由し、次の目的地へ行きやすい位置を保ちます。",
+            title: "斜め選択",
+            summary: "斜め選択カードで、角度を変えて取りやすい目的地へ寄せます。",
             goalCount: 7,
-            deckPreset: .standardLight,
+            deckPreset: .standardWithDiagonalChoices,
             secondaryObjective: .finishWithFocusAtMost(maxFocusCount: 3),
             scoreTarget: 240,
             unlockRequirement: .stageClear(stage22.id)
@@ -39,10 +40,10 @@ extension CampaignLibrary {
         let stage24 = targetStage(
             chapter: 2,
             index: 4,
-            title: "端から端へ",
-            summary: "端の目的地に寄せた後、次の目的地へ戻る判断を練習します。",
+            title: "桂馬選択",
+            summary: "桂馬の選択カードで、大きく位置を変える入口を覚えます。",
             goalCount: 7,
-            deckPreset: .standardLight,
+            deckPreset: .standardWithKnightChoices,
             spawnRule: .chooseAnyAfterPreview,
             secondaryObjective: .finishWithinMoves(maxMoves: 19),
             scoreTarget: 240,
@@ -51,10 +52,10 @@ extension CampaignLibrary {
         let stage25 = targetStage(
             chapter: 2,
             index: 5,
-            title: "縦横の切り返し",
-            summary: "上下左右の選択カードで、近い目的地へ寄せる軸を選びます。",
+            title: "全選択カード",
+            summary: "縦横、斜め、桂馬を混ぜ、手札から取りやすい目的地を選びます。",
             goalCount: 8,
-            deckPreset: .standardWithOrthogonalChoices,
+            deckPreset: .standardWithAllChoices,
             secondaryObjective: .finishWithFocusAtMost(maxFocusCount: 3),
             scoreTarget: 270,
             unlockRequirement: .stageClear(stage24.id)
@@ -62,10 +63,10 @@ extension CampaignLibrary {
         let stage26 = targetStage(
             chapter: 2,
             index: 6,
-            title: "斜めの戻り",
-            summary: "斜め選択を混ぜ、回り道に見える近道を探します。",
+            title: "端から端へ",
+            summary: "選択カードで端の目的地へ寄せた後、次の目的地へ戻ります。",
             goalCount: 8,
-            deckPreset: .standardWithDiagonalChoices,
+            deckPreset: .standardWithAllChoices,
             spawnRule: .chooseAnyAfterPreview,
             secondaryObjective: .finishWithinMoves(maxMoves: 21),
             scoreTarget: 270,

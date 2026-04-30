@@ -40,6 +40,21 @@ public struct CampaignLibrary {
         return nil
     }
 
+    /// キャンペーン定義順で指定ステージの次に続くステージを取得
+    /// - Parameter id: 現在のステージ ID
+    /// - Returns: 次ステージ。最終ステージの場合は nil
+    public func nextStage(after id: CampaignStageID) -> CampaignStage? {
+        let stages = allStages
+        guard let currentIndex = stages.firstIndex(where: { $0.id == id }) else {
+            return nil
+        }
+        let nextIndex = stages.index(after: currentIndex)
+        guard nextIndex < stages.endIndex else {
+            return nil
+        }
+        return stages[nextIndex]
+    }
+
     /// 全ステージの一次元配列
     public var allStages: [CampaignStage] {
         chapters.flatMap { $0.stages }

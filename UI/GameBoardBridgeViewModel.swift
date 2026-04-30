@@ -46,19 +46,13 @@ final class GameBoardBridgeViewModel: ObservableObject {
         var multiStepDestinations: Set<GridPoint>
         /// ワープ系カード専用の座標集合（紫枠で強調する）
         var warpDestinations: Set<GridPoint>
-        /// 目的地へ近づく合法手の座標集合
-        var targetApproachDestinations: Set<GridPoint>
-        /// 表示中の目的地を獲得できる合法手の座標集合
-        var targetCaptureDestinations: Set<GridPoint>
 
         /// すべて空集合の初期値を返すヘルパー
         static let empty = GuideHighlightBuckets(
             singleVectorDestinations: [],
             multipleVectorDestinations: [],
             multiStepDestinations: [],
-            warpDestinations: [],
-            targetApproachDestinations: [],
-            targetCaptureDestinations: []
+            warpDestinations: []
         )
     }
 
@@ -109,6 +103,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
         )
         preparedScene.scaleMode = .resizeFill
         preparedScene.gameCore = core
+        preparedScene.updateShowsVisitedTileFill(!mode.usesTargetCollection)
         self.scene = preparedScene
 
         bindGameCore()
@@ -230,7 +225,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
             .guideMultiStepCandidate: shouldHideGuideCandidates ? [] : guideHighlightBuckets.multiStepDestinations,
             .guideWarpCandidate: shouldHideGuideCandidates ? [] : guideHighlightBuckets.warpDestinations,
             .targetApproachCandidate: [],
-            .targetCaptureCandidate: shouldHideGuideCandidates ? [] : guideHighlightBuckets.targetCaptureDestinations,
+            .targetCaptureCandidate: [],
             .forcedSelection: forcedSelectionHighlightPoints,
             .currentTarget: core.targetPoint.map { Set([$0]) } ?? [],
             .upcomingTarget: Set(core.upcomingTargetPoints)
@@ -260,15 +255,12 @@ final class GameBoardBridgeViewModel: ObservableObject {
         let multipleCount = buckets.multipleVectorDestinations.count
         let multiStepCount = buckets.multiStepDestinations.count
         let warpCount = buckets.warpDestinations.count
-        let approachCount = buckets.targetApproachDestinations.count
-        let captureCount = buckets.targetCaptureDestinations.count
         let totalCount = singleCount + multipleCount + multiStepCount + warpCount
 
         // --- 呼び出し側で使うログ文面を一括生成する ---
         let logMessage = (
             "\(logPrefix) 単一=\(singleCount) 複数=\(multipleCount) " +
-            "連続=\(multiStepCount) ワープ=\(warpCount) " +
-            "接近=\(approachCount) 獲得=\(captureCount) 合計=\(totalCount)"
+            "連続=\(multiStepCount) ワープ=\(warpCount) 合計=\(totalCount)"
         )
 
         return (
@@ -313,9 +305,8 @@ final class GameBoardBridgeViewModel: ObservableObject {
         for moves in groupedByCard.values {
             guard let representative = moves.first else { continue }
             let destinations = moves.map { $0.destination }
+            let traversedPoints = moves.flatMap(\.traversedPoints)
             let move = representative.card.move
-
-            classifyTargetCaptureMoves(moves, into: &computedBuckets)
 
             if move == .superWarp {
                 // スーパーワープは盤面全域が候補となりガイドが画面を覆ってしまうため、あえて登録しない
@@ -329,8 +320,8 @@ final class GameBoardBridgeViewModel: ObservableObject {
             }
 
             if move.kind == .multiStep {
-                // 連続移動カードは専用のシアン枠で描画するため、別バケットへ振り分ける
-                computedBuckets.multiStepDestinations.formUnion(destinations)
+                // 連続移動カードは途中マスも踏むため、終点だけでなく通過範囲全体をシアン表示へ渡す
+                computedBuckets.multiStepDestinations.formUnion(traversedPoints)
             } else if move.movementVectors.count > 1 {
                 // 複数方向カードは従来どおりオレンジ枠で強調する
                 computedBuckets.multipleVectorDestinations.formUnion(destinations)
@@ -378,23 +369,6 @@ final class GameBoardBridgeViewModel: ObservableObject {
             logPrefix: "ガイド描画"
         )
         debugLog(summary.logMessage)
-    }
-
-    /// 目的地制で合法手が表示中目的地を直接取れるかを分類する
-    private func classifyTargetCaptureMoves(
-        _ moves: [ResolvedCardMove],
-        into buckets: inout GuideHighlightBuckets
-    ) {
-        guard mode.usesTargetCollection else {
-            return
-        }
-
-        let targets = core.activeTargetPoints
-        for move in moves {
-            for target in targets where move.traversedPoints.contains(target) {
-                buckets.targetCaptureDestinations.insert(target)
-            }
-        }
     }
 
     /// 強制的に表示したいハイライト集合を更新する

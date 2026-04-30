@@ -159,6 +159,18 @@ final class CampaignLibraryTests: XCTestCase {
         }
     }
 
+    func testCampaignLibraryResolvesNextStageInDefinitionOrder() throws {
+        let library = CampaignLibrary.shared
+
+        let stage12 = try XCTUnwrap(library.nextStage(after: CampaignStageID(chapter: 1, index: 1)))
+        let stage21 = try XCTUnwrap(library.nextStage(after: CampaignStageID(chapter: 1, index: 8)))
+        let finalNext = library.nextStage(after: CampaignStageID(chapter: 8, index: 8))
+
+        XCTAssertEqual(stage12.id, CampaignStageID(chapter: 1, index: 2))
+        XCTAssertEqual(stage21.id, CampaignStageID(chapter: 2, index: 1))
+        XCTAssertNil(finalNext)
+    }
+
     func testCampaignDoesNotUseStarGateUnlocks() {
         for stage in CampaignLibrary.shared.allStages {
             switch stage.unlockRequirement {
@@ -189,6 +201,30 @@ final class CampaignLibraryTests: XCTestCase {
                 return false
             }
         })
+    }
+
+    func testEarlyCampaignIntroducesVisibleNewElementsByStage22() {
+        let library = CampaignLibrary.shared
+        let stage21 = library.stage(with: CampaignStageID(chapter: 2, index: 1))
+        let stage22 = library.stage(with: CampaignStageID(chapter: 2, index: 2))
+
+        XCTAssertEqual(stage21?.regulation.deckPreset, .standardWithOrthogonalChoices)
+        XCTAssertTrue(
+            stage22?.regulation.tileEffectOverrides.values.containsEffect(.freeFocus) == true,
+            "2-2 までに視覚的に分かる補助要素を出し、新要素の実感を作ります"
+        )
+        XCTAssertEqual(stage22?.regulation.spawnRule, .chooseAnyAfterPreview)
+    }
+
+    func testChapter2ExpandsChoiceCardsBeforeChapter3Applications() {
+        let chapter2Presets = CampaignLibrary.shared.chapters.first { $0.id == 2 }?.stages.map(\.regulation.deckPreset) ?? []
+        let chapter3 = CampaignLibrary.shared.chapters.first { $0.id == 3 }
+
+        XCTAssertTrue(chapter2Presets.contains(.standardWithOrthogonalChoices))
+        XCTAssertTrue(chapter2Presets.contains(.standardWithDiagonalChoices))
+        XCTAssertTrue(chapter2Presets.contains(.standardWithKnightChoices))
+        XCTAssertTrue(chapter2Presets.contains(.standardWithAllChoices))
+        XCTAssertEqual(chapter3?.title, "選択カード応用")
     }
 
     func testCampaignCoversTargetLabCardGroupsAndTileEffects() {

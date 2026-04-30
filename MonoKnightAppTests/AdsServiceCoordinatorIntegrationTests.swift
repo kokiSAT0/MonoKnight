@@ -172,9 +172,9 @@ struct AdsServiceCoordinatorIntegrationTests {
         #expect(interstitial.disableCallCount == 1)
     }
 
-    /// クリア後インタースティシャルは 3 回クリアごとにのみ表示要求が流れることを確認
+    /// クリア後インタースティシャルは 6 回クリアごとにのみ表示要求が流れることを確認
     @MainActor
-    @Test func adsService_showsInterstitialEveryThirdGameClear() async throws {
+    @Test func adsService_showsInterstitialEverySixthGameClear() async throws {
         let suiteName = "AdsServiceClearFrequencyTests.\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
@@ -202,6 +202,9 @@ struct AdsServiceCoordinatorIntegrationTests {
 
         service.showInterstitialAfterGameClearIfNeeded()
         service.showInterstitialAfterGameClearIfNeeded()
+        service.showInterstitialAfterGameClearIfNeeded()
+        service.showInterstitialAfterGameClearIfNeeded()
+        service.showInterstitialAfterGameClearIfNeeded()
         #expect(interstitial.showCallCount == 0)
 
         service.showInterstitialAfterGameClearIfNeeded()
@@ -209,6 +212,11 @@ struct AdsServiceCoordinatorIntegrationTests {
 
         service.showInterstitialAfterGameClearIfNeeded()
         service.showInterstitialAfterGameClearIfNeeded()
+        service.showInterstitialAfterGameClearIfNeeded()
+        service.showInterstitialAfterGameClearIfNeeded()
+        service.showInterstitialAfterGameClearIfNeeded()
+        #expect(interstitial.showCallCount == 1)
+
         service.showInterstitialAfterGameClearIfNeeded()
         #expect(interstitial.showCallCount == 2)
     }

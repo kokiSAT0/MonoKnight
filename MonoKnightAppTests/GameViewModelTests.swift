@@ -168,7 +168,7 @@ final class GameViewModelTests: XCTestCase {
         )
         let outcome = GameFlowCoordinator.ClearOutcome(
             latestCampaignClearRecord: record,
-            newlyUnlockedStages: [stage],
+            nextCampaignStage: stage,
             shouldShowResult: true
         )
 
@@ -177,7 +177,7 @@ final class GameViewModelTests: XCTestCase {
 
         XCTAssertTrue(state.showingResult, "クリア後は結果画面表示フラグが立つ必要があります")
         XCTAssertEqual(state.latestCampaignClearRecord?.stage.id, stage.id, "クリア記録が保持されていません")
-        XCTAssertEqual(state.newlyUnlockedStages.map(\.id), [stage.id], "新規解放ステージが保持されていません")
+        XCTAssertEqual(state.nextCampaignStage?.id, stage.id, "次ステージが保持されていません")
 
         state.hideResult()
 
@@ -202,11 +202,11 @@ final class GameViewModelTests: XCTestCase {
         viewModel.applyResultPresentationMutation { state in
             state.showingResult = true
             state.latestCampaignClearRecord = nil
-            state.newlyUnlockedStages = stage.map { [$0] } ?? []
+            state.nextCampaignStage = stage
         }
 
         XCTAssertTrue(viewModel.showingResult, "リザルト同期 helper 経由で showingResult が更新されていません")
-        XCTAssertEqual(viewModel.newlyUnlockedStages.map(\.id), stage.map { [$0.id] } ?? [], "新規解放ステージが公開 state に同期されていません")
+        XCTAssertEqual(viewModel.nextCampaignStage?.id, stage?.id, "次ステージが公開 state に同期されていません")
     }
 
     /// セッション UI mutation helper が公開 state へ同期されることを確認
@@ -406,8 +406,8 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertEqual(adsService.resetPlayFlagCallCount, 2, "ステージ遷移準備ごとの広告フラグ初期化回数が一致しません")
     }
 
-    /// キャンペーンステージを連続でクリアした場合でも次の未クリアステージを newlyUnlockedStages に保持することを確認
-    func testNewlyUnlockedStagesRemainAfterClearingSameCampaignStageTwice() throws {
+    /// キャンペーンステージを連続でクリアした場合でも定義順の次ステージを案内し続けることを確認
+    func testNextCampaignStageRemainsAfterClearingSameCampaignStageTwice() throws {
         // UserDefaults の衝突を避けるため、テスト専用のスイートを生成する
         let (defaults, suiteName) = try makeIsolatedDefaults()
         defer { defaults.removePersistentDomain(forName: suiteName) }
@@ -440,21 +440,77 @@ final class GameViewModelTests: XCTestCase {
             onRequestStartCampaignStage: nil
         )
 
-        XCTAssertTrue(viewModel.newlyUnlockedStages.isEmpty, "プレイ前は newlyUnlockedStages が空である必要があります")
+        XCTAssertNil(viewModel.nextCampaignStage, "プレイ前は nextCampaignStage が nil である必要があります")
 
-        // 1 回目のクリアで次ステージが解放され、newlyUnlockedStages に含まれることを検証する
+        // 1 回目のクリアで次ステージが解放され、nextCampaignStage に含まれることを検証する
         core.overrideMetricsForTesting(moveCount: 12, penaltyCount: 0, elapsedSeconds: 80)
         viewModel.handleProgressChangeForTesting(.cleared)
 
         XCTAssertTrue(progressStore.isStageUnlocked(stage12), "1-1 クリア後は 1-2 が解放される想定です")
-        XCTAssertEqual(viewModel.newlyUnlockedStages.map(\.id), [stage12.id], "解放直後は newlyUnlockedStages に 1-2 のみが含まれるべきです")
+        XCTAssertEqual(viewModel.nextCampaignStage?.id, stage12.id, "解放直後は nextCampaignStage が 1-2 であるべきです")
         XCTAssertEqual(viewModel.latestCampaignClearRecord?.stage.id, stage11.id, "最新クリア記録が 1-1 になっている必要があります")
 
         // 2 回目のクリアでも 1-2 を案内し続け、ボタン表示が維持されることを確認する
         core.overrideMetricsForTesting(moveCount: 10, penaltyCount: 0, elapsedSeconds: 75)
         viewModel.handleProgressChangeForTesting(.cleared)
 
-        XCTAssertEqual(viewModel.newlyUnlockedStages.map(\.id), [stage12.id], "2 回目のクリアでも未クリアの 1-2 を案内し続ける必要があります")
+        XCTAssertEqual(viewModel.nextCampaignStage?.id, stage12.id, "2 回目のクリアでも定義順の次ステージ 1-2 を案内し続ける必要があります")
+    }
+
+    /// 章末クリア時も章解放演出ではなく、定義順の次ステージを 1 件だけ案内することを確認
+    func testNextCampaignStageCrossesChapterBoundary() throws {
+        let (defaults, suiteName) = try makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let progressStore = CampaignProgressStore(userDefaults: defaults)
+        let library = CampaignLibrary.shared
+        let stage18 = try XCTUnwrap(library.stage(with: CampaignStageID(chapter: 1, index: 8)))
+        let stage21 = try XCTUnwrap(library.stage(with: CampaignStageID(chapter: 2, index: 1)))
+        let core = GameCore(mode: stage18.makeGameMode())
+        let interfaces = GameModuleInterfaces { _ in core }
+        let viewModel = GameViewModel(
+            mode: stage18.makeGameMode(),
+            gameInterfaces: interfaces,
+            gameCenterService: DummyGameCenterService(),
+            adsService: DummyAdsService(),
+            campaignProgressStore: progressStore,
+            onRequestGameCenterSignIn: nil,
+            onRequestReturnToTitle: nil,
+            onRequestStartCampaignStage: nil
+        )
+
+        core.overrideMetricsForTesting(moveCount: 12, penaltyCount: 0, elapsedSeconds: 80)
+        viewModel.handleProgressChangeForTesting(.cleared)
+
+        XCTAssertTrue(progressStore.isStageUnlocked(stage21), "1-8 クリア後は 2-1 が解放される想定です")
+        XCTAssertEqual(viewModel.nextCampaignStage?.id, stage21.id, "章境界でも定義順の次ステージ 2-1 だけを案内する必要があります")
+    }
+
+    /// 最終ステージクリア時は次ステージ案内を空にすることを確認
+    func testNextCampaignStageIsNilAfterFinalCampaignStage() throws {
+        let (defaults, suiteName) = try makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let progressStore = CampaignProgressStore(userDefaults: defaults)
+        let library = CampaignLibrary.shared
+        let stage88 = try XCTUnwrap(library.stage(with: CampaignStageID(chapter: 8, index: 8)))
+        let core = GameCore(mode: stage88.makeGameMode())
+        let interfaces = GameModuleInterfaces { _ in core }
+        let viewModel = GameViewModel(
+            mode: stage88.makeGameMode(),
+            gameInterfaces: interfaces,
+            gameCenterService: DummyGameCenterService(),
+            adsService: DummyAdsService(),
+            campaignProgressStore: progressStore,
+            onRequestGameCenterSignIn: nil,
+            onRequestReturnToTitle: nil,
+            onRequestStartCampaignStage: nil
+        )
+
+        core.overrideMetricsForTesting(moveCount: 12, penaltyCount: 0, elapsedSeconds: 80)
+        viewModel.handleProgressChangeForTesting(.cleared)
+
+        XCTAssertNil(viewModel.nextCampaignStage, "8-8 クリア後は次ステージ案内を表示しない想定です")
     }
 
     /// メニュー経由でタイトルへ戻る際に GameCore.reset() を呼び出さず、広告フラグのみ初期化されることを確認
@@ -681,6 +737,57 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.campaignTutorialCard?.message.contains("獲得数") == true)
     }
 
+    func testCampaignTutorialDismissMarksOnlyCurrentStepAsSeen() throws {
+        let (defaults, suiteName) = try makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = CampaignTutorialStore(userDefaults: defaults)
+        let stage = try XCTUnwrap(CampaignLibrary.shared.stage(with: CampaignStageID(chapter: 1, index: 1)))
+        let mode = stage.makeGameMode()
+
+        let (firstViewModel, _) = makeViewModel(mode: mode, campaignTutorialStore: store)
+        XCTAssertEqual(firstViewModel.campaignTutorialCard?.title, "表示中の目的地を目指す")
+
+        firstViewModel.dismissCampaignTutorial()
+
+        XCTAssertNil(firstViewModel.campaignTutorialCard, "閉じた直後は案内をいったん消す想定です")
+        XCTAssertTrue(
+            firstViewModel.boardBridge.forcedSelectionHighlightPoints.isEmpty,
+            "閉じる操作後もチュートリアル用の強制ハイライトは残さない想定です"
+        )
+
+        firstViewModel.handleCampaignTutorialEvent(.handSelected)
+        XCTAssertEqual(
+            firstViewModel.campaignTutorialCard?.title,
+            "順番は自由",
+            "次の未読案内は、閉じた後の操作イベントで通常どおり表示します"
+        )
+
+        let (secondViewModel, _) = makeViewModel(mode: mode, campaignTutorialStore: store)
+        XCTAssertEqual(
+            secondViewModel.campaignTutorialCard?.title,
+            "順番は自由",
+            "閉じたステップは同じステージを開き直しても再表示しません"
+        )
+    }
+
+    func testCampaignTutorialDismissDoesNotHideOtherStageTutorials() throws {
+        let (defaults, suiteName) = try makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = CampaignTutorialStore(userDefaults: defaults)
+        let stage11 = try XCTUnwrap(CampaignLibrary.shared.stage(with: CampaignStageID(chapter: 1, index: 1)))
+        let stage14 = try XCTUnwrap(CampaignLibrary.shared.stage(with: CampaignStageID(chapter: 1, index: 4)))
+
+        let (stage11ViewModel, _) = makeViewModel(mode: stage11.makeGameMode(), campaignTutorialStore: store)
+        stage11ViewModel.dismissCampaignTutorial()
+
+        let (stage14ViewModel, _) = makeViewModel(mode: stage14.makeGameMode(), campaignTutorialStore: store)
+        XCTAssertEqual(
+            stage14ViewModel.campaignTutorialCard?.title,
+            "困ったらフォーカス",
+            "1つの案内を閉じても、別ステージのチュートリアルは通常どおり表示します"
+        )
+    }
+
     func testCampaignTutorialAdvancesAfterActualHandTap() throws {
         let (defaults, suiteName) = try makeIsolatedDefaults()
         defer { defaults.removePersistentDomain(forName: suiteName) }
@@ -759,6 +866,25 @@ final class GameViewModelTests: XCTestCase {
         viewModel.handleTutorialProgressChange(.playing)
 
         XCTAssertNil(viewModel.campaignTutorialCard)
+    }
+
+    func testSpawnSelectionTargetWarningUsesBoardTapToastState() throws {
+        let stage = try XCTUnwrap(CampaignLibrary.shared.stage(with: CampaignStageID(chapter: 1, index: 6)))
+        let (viewModel, _) = makeViewModel(
+            mode: stage.makeGameMode(),
+            resolvesSpawnSelection: false
+        )
+        let targetPoint = GridPoint(x: 1, y: 1)
+
+        viewModel.handleSpawnSelectionWarning(
+            SpawnSelectionWarning(point: targetPoint, reason: .targetTile)
+        )
+
+        XCTAssertEqual(viewModel.boardTapSelectionWarning?.destination, targetPoint)
+        XCTAssertEqual(
+            viewModel.boardTapSelectionWarning?.message,
+            "目的地マスは開始位置にできません。目的地以外のマスを選んでください。"
+        )
     }
 
     func testCampaignTutorialDoesNotShowInStandardMode() throws {

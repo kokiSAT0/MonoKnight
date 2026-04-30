@@ -51,11 +51,11 @@ final class GameViewModel: ObservableObject {
             resultPresentationState.latestCampaignClearRecord = latestCampaignClearRecord
         }
     }
-    /// 今回のクリアで新たに解放されたステージ一覧
-    /// - Important: ユーザーをそのまま次の挑戦へ誘導するため、`ResultView` 側へ渡してボタン表示を制御する
-    @Published var newlyUnlockedStages: [CampaignStage] = [] {
+    /// キャンペーン定義順で次に進むステージ
+    /// - Important: ユーザーを直列の次ステージへ誘導するため、`ResultView` 側へ渡してボタン表示を制御する
+    @Published var nextCampaignStage: CampaignStage? {
         didSet {
-            resultPresentationState.newlyUnlockedStages = newlyUnlockedStages
+            resultPresentationState.nextCampaignStage = nextCampaignStage
         }
     }
     /// 手詰まりバナーに表示するイベント情報

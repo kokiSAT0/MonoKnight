@@ -79,6 +79,9 @@ public final class GameCore: ObservableObject {
     /// 盤面タップでカード使用を依頼された際のアニメーション要求
     /// - Note: UI 側がこの値を受け取ったら演出を実行し、完了後に `clearBoardTapPlayRequest` を呼び出してリセットする
     @Published public private(set) var boardTapPlayRequest: BoardTapPlayRequest?
+    /// スポーン位置選択中に選べないマスをタップした際の警告イベント
+    /// - Note: UI 側が表示へ変換したら `clearSpawnSelectionWarning` でリセットする。
+    @Published public private(set) var spawnSelectionWarning: SpawnSelectionWarning?
     /// 捨て札ペナルティの対象選択を待っているかどうか
     /// - Note: UI のハイライト切り替えや操作制御に利用する
     @Published public private(set) var isAwaitingManualDiscardSelection: Bool = false
@@ -816,6 +819,13 @@ public final class GameCore: ObservableObject {
         boardTapPlayRequest = nil
     }
 
+    /// スポーン位置選択警告を UI 側で表示したあとに呼び出す
+    /// - Parameter id: 消したい警告の識別子（不一致の場合は何もしない）
+    public func clearSpawnSelectionWarning(_ id: UUID) {
+        guard spawnSelectionWarning?.id == id else { return }
+        spawnSelectionWarning = nil
+    }
+
     /// ゲームを最初からやり直す
     /// - Parameter startNewGame: `true` の場合は乱数シードも新規採番して完全に新しいゲームを開始する。
     ///                           `false` の場合は同じシードを用いて同一展開を再現する。
@@ -857,6 +867,7 @@ public final class GameCore: ObservableObject {
         configureTargetsForNewSession()
         penaltyEvent = nil
         boardTapPlayRequest = nil
+        spawnSelectionWarning = nil
         isAwaitingManualDiscardSelection = false
         lastMovementResolution = nil
         progress = mode.requiresSpawnSelection ? .awaitingSpawn : .playing
@@ -918,12 +929,13 @@ public final class GameCore: ObservableObject {
 
     /// 新規セッション用に目的地制の状態を初期化する
     private func configureTargetsForNewSession() {
-        guard mode.usesTargetCollection, let origin = current else {
+        guard mode.usesTargetCollection else {
             targetPoint = nil
             upcomingTargetPoints = []
             return
         }
 
+        let origin = current ?? BoardGeometry.defaultSpawnPoint(for: mode.boardSize)
         let first = chooseNextTarget(from: origin, previousTarget: nil, offset: 0)
         targetPoint = first
         upcomingTargetPoints = makeUpcomingTargets(
@@ -974,7 +986,7 @@ public final class GameCore: ObservableObject {
         finalPosition: GridPoint,
         previousTarget: GridPoint?
     ) {
-        let desiredCount = min(activeTargetDisplayCount, remainingTargetCount)
+        let desiredCount = activeTargetDisplayCount
         while visibleTargets.count < desiredCount {
             let anchor = visibleTargets.last ?? finalPosition
             var excludedTargets = Set(visibleTargets)
@@ -1273,11 +1285,18 @@ extension GameCore {
         guard board.contains(point) else { return }
         // UI 側ではハイライト生成時点で障害物マスを弾いているが、二重チェックでゲームコアも移動可能かを検証する
         guard board.isTraversable(point) else { return }
+        // 任意スポーン前に表示している目的地は、開始時の即獲得や駒との重なりを避けるため選択不可にする
+        guard !activeTargetPoints.contains(point) else {
+            spawnSelectionWarning = SpawnSelectionWarning(point: point, reason: .targetTile)
+            return
+        }
 
         debugLog("スポーン位置を \(point) に確定")
         current = point
         board.markVisited(point)
-        configureTargetsForNewSession()
+        if mode.usesTargetCollection, activeTargetPoints.isEmpty {
+            configureTargetsForNewSession()
+        }
         progress = .playing
         announceRemainingTiles()
         checkDeadlockAndApplyPenaltyIfNeeded()

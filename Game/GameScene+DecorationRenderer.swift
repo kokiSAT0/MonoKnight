@@ -138,7 +138,8 @@
             in scene: SKScene,
             board: Board,
             palette: GameScenePalette,
-            layout: GameSceneLayoutSupport
+            layout: GameSceneLayoutSupport,
+            showsVisitedTileFill: Bool
         ) {
             guard layout.tileSize > 0 else { return }
 
@@ -157,7 +158,8 @@
                         at: point,
                         board: board,
                         palette: palette,
-                        layout: layout
+                        layout: layout,
+                        showsVisitedTileFill: showsVisitedTileFill
                     )
                 }
             }
@@ -170,7 +172,8 @@
         func relayoutTileNodes(
             board: Board,
             palette: GameScenePalette,
-            layout: GameSceneLayoutSupport
+            layout: GameSceneLayoutSupport,
+            showsVisitedTileFill: Bool
         ) {
             guard layout.tileSize > 0 else { return }
 
@@ -188,7 +191,8 @@
                     at: point,
                     board: board,
                     palette: palette,
-                    layout: layout
+                    layout: layout,
+                    showsVisitedTileFill: showsVisitedTileFill
                 )
             }
         }
@@ -218,7 +222,8 @@
         func updateBoardAppearance(
             board: Board,
             palette: GameScenePalette,
-            layout: GameSceneLayoutSupport
+            layout: GameSceneLayoutSupport,
+            showsVisitedTileFill: Bool
         ) {
             guard layout.tileSize > 0 else { return }
 
@@ -228,7 +233,8 @@
                     at: point,
                     board: board,
                     palette: palette,
-                    layout: layout
+                    layout: layout,
+                    showsVisitedTileFill: showsVisitedTileFill
                 )
             }
         }
@@ -270,9 +276,15 @@
             at point: GridPoint,
             board: Board,
             palette: GameScenePalette,
-            layout: GameSceneLayoutSupport
+            layout: GameSceneLayoutSupport,
+            showsVisitedTileFill: Bool
         ) {
-            node.fillColor = tileFillColor(for: point, board: board, palette: palette)
+            node.fillColor = tileFillColor(
+                for: point,
+                board: board,
+                palette: palette,
+                showsVisitedTileFill: showsVisitedTileFill
+            )
 
             guard let state = board.state(at: point) else {
                 applySingleVisitStyle(to: node, palette: palette)
@@ -323,13 +335,22 @@
         private func tileFillColor(
             for point: GridPoint,
             board: Board,
-            palette: GameScenePalette
+            palette: GameScenePalette,
+            showsVisitedTileFill: Bool
         ) -> SKColor {
             guard let state = board.state(at: point) else { return palette.boardTileUnvisited }
-            return tileFillColor(for: state, palette: palette)
+            return tileFillColor(
+                for: state,
+                palette: palette,
+                showsVisitedTileFill: showsVisitedTileFill
+            )
         }
 
-        private func tileFillColor(for state: TileState, palette: GameScenePalette) -> SKColor {
+        private func tileFillColor(
+            for state: TileState,
+            palette: GameScenePalette,
+            showsVisitedTileFill: Bool
+        ) -> SKColor {
             switch state.visitBehavior {
             case .impassable:
                 return palette.boardTileImpassable
@@ -338,7 +359,9 @@
             case .multi:
                 return .clear
             case .single:
-                return state.isVisited ? palette.boardTileVisited : palette.boardTileUnvisited
+                return state.isVisited && showsVisitedTileFill
+                    ? palette.boardTileVisited
+                    : palette.boardTileUnvisited
             }
         }
 

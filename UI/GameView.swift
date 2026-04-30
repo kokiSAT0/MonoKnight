@@ -214,7 +214,7 @@ struct GameView: View {
                 isGameCenterAuthenticated: viewModel.isGameCenterAuthenticated,
                 onRequestGameCenterSignIn: onRequestGameCenterSignIn,
                 campaignClearRecord: viewModel.latestCampaignClearRecord,
-                newlyUnlockedStages: viewModel.newlyUnlockedStages,
+                nextCampaignStage: viewModel.nextCampaignStage,
                 onSelectCampaignStage: { stage in
                     // ViewModel に処理を委譲してリザルト閉鎖と広告フラグの初期化を一元管理する
                     viewModel.handleCampaignStageAdvance(to: stage)

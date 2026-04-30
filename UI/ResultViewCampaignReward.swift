@@ -2,9 +2,30 @@ import Game
 import SwiftUI
 import UIKit
 
+struct CampaignRewardNavigationPresentation: Equatable {
+    let title: String
+    let message: String
+    let buttonTitle: String?
+    let stage: CampaignStage?
+
+    init(nextCampaignStage: CampaignStage?) {
+        if let nextCampaignStage {
+            title = "次のステージ"
+            message = "このまま順番に進んで、新しい要素に触れていきましょう。"
+            buttonTitle = "次へ: \(nextCampaignStage.displayCode)"
+            stage = nextCampaignStage
+        } else {
+            title = "キャンペーン完走"
+            message = "全ステージをクリアしました。星3や記録更新に挑戦できます。"
+            buttonTitle = nil
+            stage = nil
+        }
+    }
+}
+
 struct CampaignRewardSummarySection: View {
     let record: CampaignStageClearRecord
-    let newlyUnlockedStages: [CampaignStage]
+    let nextCampaignStage: CampaignStage?
     let onSelectCampaignStage: ((CampaignStage) -> Void)?
     let hapticsEnabled: Bool
 
@@ -12,12 +33,12 @@ struct CampaignRewardSummarySection: View {
 
     init(
         record: CampaignStageClearRecord,
-        newlyUnlockedStages: [CampaignStage],
+        nextCampaignStage: CampaignStage?,
         onSelectCampaignStage: ((CampaignStage) -> Void)?,
         hapticsEnabled: Bool
     ) {
         self.record = record
-        self.newlyUnlockedStages = newlyUnlockedStages
+        self.nextCampaignStage = nextCampaignStage
         self.onSelectCampaignStage = onSelectCampaignStage
         self.hapticsEnabled = hapticsEnabled
         self.presentation = CampaignRewardPresentation(record: record)
@@ -63,9 +84,7 @@ struct CampaignRewardSummarySection: View {
                 }
             }
 
-            if !newlyUnlockedStages.isEmpty {
-                newlyUnlockedStagesSection
-            }
+            navigationSection
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -76,17 +95,18 @@ struct CampaignRewardSummarySection: View {
     }
 
     @ViewBuilder
-    private var newlyUnlockedStagesSection: some View {
+    private var navigationSection: some View {
+        let navigation = CampaignRewardNavigationPresentation(nextCampaignStage: nextCampaignStage)
         VStack(alignment: .leading, spacing: 8) {
-            Text("新しく解放されたステージ")
+            Text(navigation.title)
                 .font(.headline)
 
-            Text("そのまま次のステージに進みましょう。")
+            Text(navigation.message)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
-            let canNavigate = onSelectCampaignStage != nil
-            ForEach(newlyUnlockedStages, id: \.id) { stage in
+            if let stage = navigation.stage, let buttonTitle = navigation.buttonTitle {
+                let canNavigate = onSelectCampaignStage != nil
                 Button {
                     if hapticsEnabled {
                         UINotificationFeedbackGenerator().notificationOccurred(.success)
@@ -95,7 +115,7 @@ struct CampaignRewardSummarySection: View {
                 } label: {
                     HStack {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("ステージ \(stage.displayCode)")
+                            Text(buttonTitle)
                                 .font(.subheadline.weight(.semibold))
                             Text(stage.title)
                                 .font(.footnote)

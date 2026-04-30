@@ -204,6 +204,14 @@ final class CampaignTutorialController {
         return activeStep
     }
 
+    func dismissActiveStep() -> CampaignTutorialStep? {
+        guard mode.isCampaignStage, let stageID, let activeStep else { return nil }
+
+        store.markSeen(stageID: stageID, stepID: activeStep.storageID)
+        activeIndex = nil
+        return nil
+    }
+
     private func showNextUnseenStep(startingAt startIndex: Int) -> CampaignTutorialStep? {
         guard let stageID else {
             activeIndex = nil
@@ -283,8 +291,8 @@ final class CampaignTutorialController {
                 CampaignTutorialStep(
                     id: .spawnSelection,
                     title: "開始マスを選ぶ",
-                    message: "このステージでは、手札と先読みを見てから好きな開始マスを選べます。",
-                    instruction: "動きやすそうなマスをタップして開始しましょう。",
+                    message: "このステージでは、手札、先読み、表示中の目的地を見てから開始マスを選べます。",
+                    instruction: "目的地以外で動きやすそうなマスをタップして開始しましょう。",
                     completionEvent: .spawnSelected,
                     forcedHighlight: .none
                 )
@@ -320,21 +328,38 @@ final class CampaignTutorialController {
 struct CampaignTutorialBannerView: View {
     let card: CampaignTutorialCard
     let theme: AppTheme
+    let onDismiss: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(card.title)
-                .font(.system(size: 17, weight: .semibold, design: .rounded))
-            Text(card.message)
-                .font(.system(size: 14, weight: .medium, design: .rounded))
-                .fixedSize(horizontal: false, vertical: true)
-            Text(card.instruction)
-                .font(.system(size: 13, weight: .semibold, design: .rounded))
-                .foregroundColor(theme.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(card.title)
+                    .font(.system(size: 17, weight: .semibold, design: .rounded))
+                Text(card.message)
+                    .font(.system(size: 14, weight: .medium, design: .rounded))
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(card.instruction)
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .foregroundColor(theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(Text("\(card.title)。\(card.message)。\(card.instruction)"))
+
+            Button(action: onDismiss) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 12, weight: .bold))
+                    .frame(width: 28, height: 28)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .foregroundColor(theme.textSecondary)
+            .accessibilityIdentifier("campaign_tutorial_dismiss_button")
+            .accessibilityLabel(Text("チュートリアル案内を閉じる"))
         }
         .padding(.vertical, 14)
-        .padding(.horizontal, 18)
+        .padding(.leading, 18)
+        .padding(.trailing, 10)
         .background(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .fill(theme.spawnOverlayBackground)
@@ -345,10 +370,7 @@ struct CampaignTutorialBannerView: View {
         )
         .shadow(color: theme.spawnOverlayShadow, radius: 20, x: 0, y: 10)
         .foregroundColor(theme.textPrimary)
-        .allowsHitTesting(false)
-        .accessibilityElement(children: .combine)
         .accessibilityIdentifier("campaign_tutorial_banner")
-        .accessibilityLabel(Text("\(card.title)。\(card.message)。\(card.instruction)"))
     }
 }
 
@@ -510,11 +532,11 @@ final class GamePenaltyBannerController {
 struct ResultPresentationState {
     var showingResult = false
     var latestCampaignClearRecord: CampaignStageClearRecord?
-    var newlyUnlockedStages: [CampaignStage] = []
+    var nextCampaignStage: CampaignStage?
 
     mutating func applyClearOutcome(_ outcome: GameFlowCoordinator.ClearOutcome) {
         latestCampaignClearRecord = outcome.latestCampaignClearRecord
-        newlyUnlockedStages = outcome.newlyUnlockedStages
+        nextCampaignStage = outcome.nextCampaignStage
         showingResult = outcome.shouldShowResult
     }
 
