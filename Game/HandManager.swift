@@ -22,21 +22,25 @@ public final class HandManager: ObservableObject {
     /// 並び替え設定
     private var handOrderingStrategy: HandOrderingStrategy
 
-    /// 移動パターン ID ごとのデフォルト順序をキャッシュし、安定ソートに利用する
-    private static let movePatternOrderingIndex: [MoveCard.MovePattern.Identity: Int] = {
-        var mapping: [MoveCard.MovePattern.Identity: Int] = [:]
+    /// カード種別ごとのデフォルト順序をキャッシュし、安定ソートに利用する
+    private static let playableOrderingIndex: [PlayableCard: Int] = {
+        var mapping: [PlayableCard: Int] = [:]
         mapping.reserveCapacity(MoveCard.allCases.count)
         for (index, card) in MoveCard.allCases.enumerated() {
-            let identity = card.movePattern.identity
-            if mapping[identity] == nil {
-                mapping[identity] = index
+            let playable = PlayableCard.move(card)
+            if mapping[playable] == nil {
+                mapping[playable] = index
             }
+        }
+        for (offset, support) in SupportCard.allCases.enumerated() {
+            mapping[.support(support)] = MoveCard.allCases.count + offset
         }
         return mapping
     }()
 
-    /// 並び替えカテゴリを判定する（0: 通常移動、1: 固定ワープ、2: スーパーワープ）
-    private static func orderingCategory(for move: MoveCard) -> Int {
+    /// 並び替えカテゴリを判定する（0: 通常移動、1: 固定ワープ、2: スーパーワープ、3: 補助）
+    private static func orderingCategory(for card: DealtCard) -> Int {
+        guard let move = card.moveCard else { return 3 }
         switch move {
         case .superWarp:
             return 2
@@ -48,7 +52,8 @@ public final class HandManager: ObservableObject {
     }
 
     /// 並び替えに利用する代表ベクトルを取得する（左方向優先で安定ソートを実現）
-    private static func orderingVector(for move: MoveCard) -> MoveVector {
+    private static func orderingVector(for card: DealtCard) -> MoveVector {
+        guard let move = card.moveCard else { return MoveVector(dx: 0, dy: 0) }
         let vectors = move.movementVectors
         // (0,0) ベクトルのみでは方向性が分からないため除外し、必要に応じてフォールバックを利用する
         let filtered = vectors.filter { $0.dx != 0 || $0.dy != 0 }
@@ -190,11 +195,11 @@ public final class HandManager: ObservableObject {
             guard let card = nextCard else { break }
 
             if allowsCardStacking {
-                let identity = card.move.movePattern.identity
+                let identity = card.playable
                 if let index = handStacks.firstIndex(where: { stack in
-                    guard let stackIdentity = stack.representativePatternIdentity else { return false }
+                    guard let stackIdentity = stack.representativePlayable else { return false }
                     guard stackIdentity == identity else { return false }
-                    if card.move == .fixedWarp {
+                    if card.moveCard == .fixedWarp {
                         // 固定ワープカードは目的地が異なると混同を招くため、ワープ先が一致する場合のみ同じスタックへ積む
                         guard
                             let newDestination = card.fixedWarpDestination,
@@ -253,15 +258,15 @@ public final class HandManager: ObservableObject {
                 return lhs.topCard != nil
             }
 
-            let leftCategory = HandManager.orderingCategory(for: leftCard.move)
-            let rightCategory = HandManager.orderingCategory(for: rightCard.move)
+            let leftCategory = HandManager.orderingCategory(for: leftCard)
+            let rightCategory = HandManager.orderingCategory(for: rightCard)
             if leftCategory != rightCategory {
                 return leftCategory < rightCategory
             }
 
             // 代表ベクトルを経由することで、将来的に複数候補を持つカードでも共通ロジックを流用できる
-            let leftVector = HandManager.orderingVector(for: leftCard.move)
-            let rightVector = HandManager.orderingVector(for: rightCard.move)
+            let leftVector = HandManager.orderingVector(for: leftCard)
+            let rightVector = HandManager.orderingVector(for: rightCard)
             let leftDX = leftVector.dx
             let rightDX = rightVector.dx
             if leftDX != rightDX {
@@ -273,10 +278,8 @@ public final class HandManager: ObservableObject {
                 return leftDY > rightDY
             }
 
-            let leftIdentity = leftCard.move.movePattern.identity
-            let rightIdentity = rightCard.move.movePattern.identity
-            let leftIndex = HandManager.movePatternOrderingIndex[leftIdentity] ?? 0
-            let rightIndex = HandManager.movePatternOrderingIndex[rightIdentity] ?? 0
+            let leftIndex = HandManager.playableOrderingIndex[leftCard.playable] ?? 0
+            let rightIndex = HandManager.playableOrderingIndex[rightCard.playable] ?? 0
             return leftIndex < rightIndex
         }
     }

@@ -129,6 +129,21 @@ struct GameInputFlowCoordinator {
             return
         }
 
+        if core.isAwaitingSupportSwapSelection {
+            clearSelectedCardSelection(
+                sessionState: &sessionState,
+                boardBridge: boardBridge,
+                selectedHandStackID: &selectedHandStackID
+            )
+            withAnimation(.easeInOut(duration: 0.2)) {
+                let success = core.applySupportSwap(toTargetStackID: latestStack.id)
+                if success, hapticsEnabled {
+                    UINotificationFeedbackGenerator().notificationOccurred(.success)
+                }
+            }
+            return
+        }
+
         guard let topCard = latestStack.topCard else {
             clearSelectedCardSelection(
                 sessionState: &sessionState,
@@ -153,6 +168,30 @@ struct GameInputFlowCoordinator {
                 boardBridge: boardBridge,
                 selectedHandStackID: &selectedHandStackID
             )
+            return
+        }
+
+        if topCard.supportCard != nil {
+            guard core.isSupportCardUsable(in: latestStack) else {
+                clearSelectedCardSelection(
+                    sessionState: &sessionState,
+                    boardBridge: boardBridge,
+                    selectedHandStackID: &selectedHandStackID
+                )
+                if hapticsEnabled {
+                    UINotificationFeedbackGenerator().notificationOccurred(.warning)
+                }
+                return
+            }
+            clearSelectedCardSelection(
+                sessionState: &sessionState,
+                boardBridge: boardBridge,
+                selectedHandStackID: &selectedHandStackID
+            )
+            core.playSupportCard(at: index)
+            if hapticsEnabled {
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
+            }
             return
         }
 

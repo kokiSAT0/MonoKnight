@@ -32,6 +32,15 @@ final class MoveCardPresentationTests: XCTestCase {
         XCTAssertTrue(entries.allSatisfy { !$0.description.isEmpty })
     }
 
+    func testSupportCardEncyclopediaEntriesCoverAllSupportCards() {
+        let entries = SupportCard.encyclopediaEntries
+
+        XCTAssertEqual(entries.map(\.card), SupportCard.allCases)
+        XCTAssertTrue(entries.allSatisfy { $0.category == "補助カード" })
+        XCTAssertTrue(entries.allSatisfy { !$0.displayName.isEmpty })
+        XCTAssertTrue(entries.allSatisfy { !$0.description.isEmpty })
+    }
+
     func testCardEncyclopediaCompressesDirectionVariants() {
         let entries = MoveCard.encyclopediaEntries
 

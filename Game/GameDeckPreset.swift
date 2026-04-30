@@ -65,6 +65,9 @@ public enum GameDeckPreset: String, CaseIterable, Codable, Identifiable {
     /// 目的地制カードの調整用に主要カード系統を混在させた実験構成
     /// - Note: 標準・選択・レイ・ワープカードをまとめて扱う。
     case targetLabAllIn
+    /// 補助専用カードの挙動確認に使う実験構成
+    /// - Note: NEXT更新・入替・導きを、基本移動カードと混ぜて確認する。
+    case supportToolkit
     /// 複数マス移動カードを重視した拡張構成
     /// - Note: レイ型＋補助キングで盤面全域の掃討速度を高める目的。
     case extendedWithMultiStepMoves
@@ -127,6 +130,8 @@ public enum GameDeckPreset: String, CaseIterable, Codable, Identifiable {
             return "標準＋ワープカード構成"
         case .targetLabAllIn:
             return "カード・特殊マス実験場構成"
+        case .supportToolkit:
+            return "補助カード実験構成"
         case .extendedWithMultiStepMoves:
             return "複数マス移動拡張構成"
         case .kingOrthogonalChoiceOnly:
@@ -188,6 +193,8 @@ public enum GameDeckPreset: String, CaseIterable, Codable, Identifiable {
             return .standardWithWarpCards
         case .targetLabAllIn:
             return .targetLabAllIn
+        case .supportToolkit:
+            return .supportToolkit
         case .extendedWithMultiStepMoves:
             return .extendedWithMultiStepMoves
         case .kingOrthogonalChoiceOnly:

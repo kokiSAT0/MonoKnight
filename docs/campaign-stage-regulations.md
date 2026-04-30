@@ -31,6 +31,7 @@ MonoKnight のキャンペーンは、標準ルールと同じ **目的地制** 
 ## 実験場要素の本編配置
 
 - カード群は `standard`、`choice`、`ray`、`warp` をすべてキャンペーン内で扱う。
+- 補助専用カード（NEXT更新、入替、導き）は v1 では実験場先行とし、`targetLabAllIn` と `supportToolkit` でのみ確認する。既存キャンペーン64ステージにはまだ組み込まない。
 - 特殊マスは `shuffleHand`、`boost`、`slow`、`nextRefresh`、`freeFocus`、`preserveCard`、`draft`、`overload`、`targetSwap`、`openGate` をすべてキャンペーン内で扱う。
 - 初出ステージでは効果を読みやすく単独または少数で配置し、8章で複数効果を組み合わせる。
 

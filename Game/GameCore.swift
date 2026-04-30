@@ -85,6 +85,8 @@ public final class GameCore: ObservableObject {
     /// 捨て札ペナルティの対象選択を待っているかどうか
     /// - Note: UI のハイライト切り替えや操作制御に利用する
     @Published public private(set) var isAwaitingManualDiscardSelection: Bool = false
+    /// 補助カード「入替」の対象選択を待っているかどうか
+    @Published public private(set) var isAwaitingSupportSwapSelection: Bool = false
     /// 直近の移動解決結果
     /// - Important: 盤面演出側がワープ等の専用アニメーションを再生できるよう、効果適用後の経路情報を公開する
     @Published public private(set) var lastMovementResolution: MovementResolution?
@@ -109,6 +111,8 @@ public final class GameCore: ObservableObject {
     @Published public private(set) var focusCount: Int = 0
     /// 過負荷マスにより、次の 1 手だけ使用カードが温存される状態かどうか
     @Published public private(set) var isOverloadCharged: Bool = false
+    /// 入替カードを使用するために選択中の補助カードスタック
+    private var pendingSupportSwapStackID: UUID?
     /// 合計手数（移動 + ペナルティ）の計算プロパティ
     /// - Note: 将来的に別レギュレーションで利用する可能性があるため個別に保持
     public var totalMoveCount: Int { moveCount + penaltyCount }
@@ -200,7 +204,12 @@ public final class GameCore: ObservableObject {
         // index が手札配列の範囲外なら即座に終了
         guard handStacks.indices.contains(index) else { return }
         // 現在地やスタックのトップカードが存在しなければ処理できない
-        guard current != nil, handStacks[index].topCard != nil else { return }
+        guard current != nil, let topCard = handStacks[index].topCard else { return }
+
+        if topCard.supportCard != nil {
+            playSupportCard(at: index)
+            return
+        }
 
         // --- 利用可能な候補の抽出 ---
         // availableMoves() は盤面内かつ移動可能なマスだけを列挙するため、
@@ -222,6 +231,105 @@ public final class GameCore: ObservableObject {
         // 適切な候補が見つかった場合のみ playCard(using:) へ委譲する
         guard let resolvedMove else { return }
         playCard(using: resolvedMove)
+    }
+
+    /// 補助カードが現在使用できるかを返す
+    public func isSupportCardUsable(in stack: HandStack) -> Bool {
+        guard progress == .playing, stack.topCard?.supportCard != nil else { return false }
+        if stack.topCard?.supportCard == .swapOne {
+            return handStacks.contains { candidate in
+                candidate.id != stack.id && candidate.topCard != nil
+            }
+        }
+        return true
+    }
+
+    /// 手札インデックスの補助カードを使用する
+    public func playSupportCard(at index: Int) {
+        guard progress == .playing, handStacks.indices.contains(index), current != nil else { return }
+        guard !isAwaitingManualDiscardSelection, !isAwaitingSupportSwapSelection else { return }
+        guard let card = handStacks[index].topCard, let support = card.supportCard else { return }
+        guard isSupportCardUsable(in: handStacks[index]) else { return }
+
+        switch support {
+        case .nextRefresh:
+            consumeSupportCard(at: index)
+            handManager.redrawNextPreview(using: &deck)
+            refreshHandStateFromManager()
+            checkDeadlockAndApplyPenaltyIfNeeded()
+            debugLog("補助カード NEXT更新: NEXTのみ再配布")
+        case .guidance:
+            consumeSupportCard(at: index)
+            let previousFocusCount = focusCount
+            rebuildFocusedHandAndNext()
+            focusCount = previousFocusCount
+            checkDeadlockAndApplyPenaltyIfNeeded()
+            debugLog("補助カード 導き: フォーカス回数を増やさず手札とNEXTを再配布")
+        case .swapOne:
+            pendingSupportSwapStackID = handStacks[index].id
+            isAwaitingSupportSwapSelection = true
+            resetBoardTapPlayRequestForPenalty()
+            debugLog("補助カード 入替: 対象スタック選択待ち")
+        }
+    }
+
+    /// 入替カードの対象選択をキャンセルする
+    public func cancelSupportSwapSelection() {
+        guard isAwaitingSupportSwapSelection || pendingSupportSwapStackID != nil else { return }
+        isAwaitingSupportSwapSelection = false
+        pendingSupportSwapStackID = nil
+        debugLog("補助カード 入替の対象選択をキャンセル")
+    }
+
+    /// 入替カードで指定した手札スタックを捨てて補充する
+    @discardableResult
+    public func applySupportSwap(toTargetStackID targetStackID: UUID) -> Bool {
+        guard progress == .playing, isAwaitingSupportSwapSelection else { return false }
+        guard let supportStackID = pendingSupportSwapStackID else { return false }
+        if supportStackID == targetStackID {
+            cancelSupportSwapSelection()
+            return false
+        }
+        guard let supportIndex = handStacks.firstIndex(where: { $0.id == supportStackID }),
+              handStacks[supportIndex].topCard?.supportCard == .swapOne,
+              let targetIndex = handStacks.firstIndex(where: { $0.id == targetStackID })
+        else {
+            cancelSupportSwapSelection()
+            return false
+        }
+
+        isAwaitingSupportSwapSelection = false
+        pendingSupportSwapStackID = nil
+        resetBoardTapPlayRequestForPenalty()
+
+        let removalIndices = [supportIndex, targetIndex].sorted(by: >)
+        var preferredInsertionIndices: [Int] = []
+        for removalIndex in removalIndices {
+            if removalIndex == supportIndex {
+                if let emptiedIndex = handManager.consumeTopCard(at: removalIndex) {
+                    preferredInsertionIndices.append(emptiedIndex)
+                }
+            } else {
+                _ = handManager.removeStack(at: removalIndex)
+                preferredInsertionIndices.append(removalIndex)
+            }
+        }
+
+        moveCount += 1
+        rebuildHandAndNext(preferredInsertionIndices: preferredInsertionIndices.sorted())
+        checkDeadlockAndApplyPenaltyIfNeeded()
+        debugLog("補助カード 入替: 対象スタックを破棄して補充")
+        return true
+    }
+
+    private func consumeSupportCard(at index: Int) {
+        isAwaitingSupportSwapSelection = false
+        pendingSupportSwapStackID = nil
+        cancelManualDiscardSelection()
+        resetBoardTapPlayRequestForPenalty()
+        let removedIndex = handManager.consumeTopCard(at: index)
+        moveCount += 1
+        rebuildHandAndNext(preferredInsertionIndices: removedIndex.map { [$0] } ?? [])
     }
 
     /// ResolvedCardMove が現在の手札情報と一致しているかを検証し、必要ならインデックスを補正する
@@ -258,8 +366,8 @@ public final class GameCore: ObservableObject {
             )
             return nil
         }
-        // --- 指定されたカード ID と MoveCard が一致するか二重で確認する ---
-        guard topCard.id == resolvedMove.card.id, topCard.move == resolvedMove.card.move else {
+        // --- 指定されたカード ID とカード種別が一致するか二重で確認する ---
+        guard topCard.id == resolvedMove.card.id, topCard.playable == resolvedMove.card.playable else {
             debugLog(
                 "ResolvedCardMove 検証失敗: カード不一致 requestID=\(resolvedMove.card.id) currentID=\(topCard.id)"
             )
@@ -296,12 +404,13 @@ public final class GameCore: ObservableObject {
               let card = latestStack.topCard else {
             return
         }
+        guard let cardMove = card.moveCard else { return }
         // MovePattern から算出した経路が現時点でも有効かを検証し、不正な入力を排除する
         let snapshotBoard = board
         let validPaths = resolvedPaths(for: card, from: currentPosition, on: snapshotBoard)
 
         let isStillValid: Bool
-        if card.move == .fixedWarp {
+        if cardMove == .fixedWarp {
             // --- 固定ワープカードはカード自身が持つ目的地と一致しているか二重に検証する ---
             guard let target = card.fixedWarpDestination else { return }
             let destination = validatedMove.resolution.finalPosition
@@ -322,7 +431,7 @@ public final class GameCore: ObservableObject {
 
         // デバッグログ: 使用カードと移動先を出力（複数候補カードでも選択ベクトルを追跡できるよう詳細を含める）
         debugLog(
-            "カード \(card.move) を使用し \(currentPosition) -> \(validatedMove.destination) へ移動予定 (vector=\(validatedMove.moveVector))"
+            "カード \(cardMove) を使用し \(currentPosition) -> \(validatedMove.destination) へ移動予定 (vector=\(validatedMove.moveVector))"
         )
 
         // 経路ごとの踏破判定と効果適用を順番に処理する
@@ -651,11 +760,12 @@ public final class GameCore: ObservableObject {
         from origin: GridPoint,
         on activeBoard: Board
     ) -> [MoveCard.MovePattern.Path] {
+        guard let move = card.moveCard else { return [] }
         let context = moveResolutionContext(
             on: activeBoard,
             targetPoint: mode.usesTargetCollection ? nearestActiveTarget(from: origin) : nil
         )
-        return card.move.resolvePaths(from: origin, context: context)
+        return move.resolvePaths(from: origin, context: context)
     }
 
     private func moveResolutionContext(
@@ -706,9 +816,10 @@ public final class GameCore: ObservableObject {
         for (index, stack) in referenceHandStacks.enumerated() {
             // トップカードが存在しなければスキップ
             guard let topCard = stack.topCard else { continue }
+            guard let moveCard = topCard.moveCard else { continue }
 
             // 固定ワープカードはカード自身が保持する目的地のみを候補として提示する
-            if topCard.move == .fixedWarp {
+            if moveCard == .fixedWarp {
                 // --- 目的地が未設定の場合は安全のためスキップする（モード側で最低 1 件を想定）---
                 guard let destination = topCard.fixedWarpDestination else { continue }
                 // --- 既に目的地へいる場合は使用できない仕様のため除外する ---
@@ -784,7 +895,7 @@ public final class GameCore: ObservableObject {
 
         // moveVector の候補数が 1 つだけのカード（通常カード）を優先する
         // - Important: 複数候補カードが存在しても、ユーザーの想定に近い通常カードを優先して消費する
-        if let singleVectorMove = matchingMoves.first(where: { $0.card.move.movementVectors.count == 1 }) {
+        if let singleVectorMove = matchingMoves.first(where: { $0.card.moveCard?.movementVectors.count == 1 }) {
             return singleVectorMove
         }
 
@@ -850,6 +961,8 @@ public final class GameCore: ObservableObject {
         boardTapPlayRequest = nil
         spawnSelectionWarning = nil
         isAwaitingManualDiscardSelection = false
+        isAwaitingSupportSwapSelection = false
+        pendingSupportSwapStackID = nil
         lastMovementResolution = nil
         progress = mode.requiresSpawnSelection ? .awaitingSpawn : .playing
 
@@ -865,7 +978,7 @@ public final class GameCore: ObservableObject {
             debugLog("スポーン位置選択待ち: 盤面サイズ=\(mode.boardSize)")
         }
 
-        let nextText = nextCards.isEmpty ? "なし" : nextCards.map { "\($0.move)" }.joined(separator: ", ")
+        let nextText = nextCards.isEmpty ? "なし" : nextCards.map { "\($0.displayName)" }.joined(separator: ", ")
         let handMoves = handStacks.debugSummaryJoined(emptyPlaceholder: "なし")
         debugLog("ゲームをリセット: 手札 [\(handMoves)], 次カード \(nextText)")
 #if DEBUG
@@ -1115,7 +1228,7 @@ public final class GameCore: ObservableObject {
             if lhsScore.bestDistance != rhsScore.bestDistance {
                 return lhsScore.bestDistance < rhsScore.bestDistance
             }
-            return lhs.move.displayName < rhs.move.displayName
+            return lhs.displayName < rhs.displayName
         }
         if let preservedCard {
             drawn.removeAll { $0.id == preservedCard.id }
@@ -1152,7 +1265,11 @@ public final class GameCore: ObservableObject {
         let currentDistance = manhattanDistance(from: origin, to: target)
         let activeBoard = board
 
-        if card.move == .fixedWarp, let destination = card.fixedWarpDestination {
+        guard let move = card.moveCard else {
+            return (Int.min, Int.max)
+        }
+
+        if move == .fixedWarp, let destination = card.fixedWarpDestination {
             guard destination != origin,
                   activeBoard.contains(destination),
                   activeBoard.isTraversable(destination) else {
@@ -1163,7 +1280,7 @@ public final class GameCore: ObservableObject {
         }
 
         let context = moveResolutionContext(on: activeBoard, targetPoint: target)
-        let destinations = card.move.resolvePaths(from: origin, context: context).compactMap(\.traversedPoints.last)
+        let destinations = move.resolvePaths(from: origin, context: context).compactMap(\.traversedPoints.last)
         guard let bestDistance = destinations.map({ manhattanDistance(from: $0, to: target) }).min() else {
             return (Int.min, Int.max)
         }
@@ -1184,7 +1301,8 @@ public final class GameCore: ObservableObject {
     private func effectivePathPoints(for move: ResolvedCardMove, from origin: GridPoint) -> [GridPoint] {
         let rawPath = move.path
         guard rawPath.count == 1,
-              shouldExpandForSlowTileResolution(move.card.move),
+              let moveCard = move.card.moveCard,
+              shouldExpandForSlowTileResolution(moveCard),
               let destination = rawPath.first
         else { return rawPath }
 
@@ -1390,6 +1508,8 @@ extension GameCore {
         }
         core.resetTimer()
         core.isAwaitingManualDiscardSelection = false
+        core.isAwaitingSupportSwapSelection = false
+        core.pendingSupportSwapStackID = nil
         return core
     }
 

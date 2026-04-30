@@ -48,6 +48,10 @@ struct Deck {
     struct Configuration {
         /// 抽選対象とするカード一覧（順序を維持する）
         let allowedMoves: [MoveCard]
+        /// 抽選対象とする補助カード一覧（順序を維持する）
+        let allowedSupportCards: [SupportCard]
+        /// 抽選対象カード本体（移動カード + 補助カード）
+        let allowedPlayableCards: [PlayableCard]
         /// 抽選対象カードの移動パターン ID（順序を維持する）
         let allowedMoveIdentities: [MoveCard.MovePattern.Identity]
         /// 重み計算ロジックをまとめたプロファイル
@@ -62,10 +66,13 @@ struct Deck {
         ///   - deckSummaryText: UI 表示用の簡易説明
         init(
             allowedMoves: [MoveCard],
+            allowedSupportCards: [SupportCard] = [],
             weightProfile: WeightProfile,
             deckSummaryText: String
         ) {
             self.allowedMoves = allowedMoves
+            self.allowedSupportCards = allowedSupportCards
+            self.allowedPlayableCards = allowedMoves.map(PlayableCard.move) + allowedSupportCards.map(PlayableCard.support)
             self.allowedMoveIdentities = allowedMoves.map { $0.movePattern.identity }
             self.weightProfile = weightProfile
             self.deckSummaryText = deckSummaryText
@@ -104,6 +111,7 @@ struct Deck {
 
             return Configuration(
                 allowedMoves: updatedMoves,
+                allowedSupportCards: allowedSupportCards,
                 weightProfile: updatedProfile,
                 deckSummaryText: updatedSummary
             )
@@ -111,9 +119,12 @@ struct Deck {
 
         func filteringTargetLabCards(for settings: TargetLabExperimentSettings) -> Configuration {
             let enabledMoves = Set(settings.enabledCardGroups.flatMap(\.cards))
+            let enabledSupportCards = Set(settings.enabledCardGroups.flatMap(\.supportCards))
             let filteredMoves = allowedMoves.filter { enabledMoves.contains($0) }
+            let filteredSupportCards = allowedSupportCards.filter { enabledSupportCards.contains($0) }
             return Configuration(
                 allowedMoves: filteredMoves,
+                allowedSupportCards: filteredSupportCards,
                 weightProfile: weightProfile,
                 deckSummaryText: deckSummaryText
             )
@@ -324,8 +335,29 @@ struct Deck {
 
             return Configuration(
                 allowedMoves: allowedMoves,
+                allowedSupportCards: SupportCard.allCases,
                 weightProfile: WeightProfile(defaultWeight: 1, overrides: overrides),
                 deckSummaryText: "全部入りカード実験デッキ"
+            )
+        }()
+
+        /// 補助専用カードの挙動を確認する実験用デッキ
+        static let supportToolkit: Configuration = {
+            let supportMoves: [MoveCard] = [
+                .kingUp,
+                .kingRight,
+                .kingDown,
+                .kingLeft,
+                .straightUp2,
+                .straightRight2,
+                .straightDown2,
+                .straightLeft2
+            ]
+            return Configuration(
+                allowedMoves: supportMoves,
+                allowedSupportCards: SupportCard.allCases,
+                weightProfile: WeightProfile(defaultWeight: 1),
+                deckSummaryText: "補助カード実験デッキ"
             )
         }()
 
@@ -574,9 +606,9 @@ struct Deck {
 
     #if DEBUG
     /// テスト時に優先して返すカード列（先頭から順に消費）
-    private var presetDrawQueue: [MoveCard]
+    private var presetDrawQueue: [PlayableCard]
     /// reset() で戻すための元配列（テスト専用）
-    private var presetOriginal: [MoveCard]
+    private var presetOriginal: [PlayableCard]
     /// テスト時に固定ワープカードへ順番に割り当てる目的地列
     private var presetFixedWarpDestinationQueue: [GridPoint]
     /// reset() で戻すための元配列（固定ワープ目的地用）
@@ -623,7 +655,7 @@ struct Deck {
     /// - Returns: 許可された移動パターン ID の種類数（重複は 1 つにまとめる）
     func uniqueMoveIdentityCount() -> Int {
         let unique = Set(configuration.allowedMoveIdentities)
-        return unique.count
+        return unique.count + configuration.allowedSupportCards.count
     }
 
     // MARK: - リセット
@@ -649,12 +681,12 @@ struct Deck {
 #if DEBUG
         // テストで事前登録されたカードがあれば優先的に返す
         if !presetDrawQueue.isEmpty {
-            let move = presetDrawQueue.removeFirst()
-            return makeDealtCard(for: move)
+            let playable = presetDrawQueue.removeFirst()
+            return makeDealtCard(for: playable)
         }
 #endif
-        guard let move = drawWithDynamicWeights() else { return nil }
-        return makeDealtCard(for: move)
+        guard let playable = drawWithDynamicWeights() else { return nil }
+        return makeDealtCard(for: playable)
     }
 
     /// 複数枚まとめて引く
@@ -676,6 +708,14 @@ struct Deck {
     /// - Parameter move: 山札から取り出した `MoveCard`
     /// - Returns: 必要に応じて固定ワープ先を埋め込んだ `DealtCard`
     private mutating func makeDealtCard(for move: MoveCard) -> DealtCard {
+        makeDealtCard(for: .move(move))
+    }
+
+    /// 指定されたカード種別に応じて `DealtCard` を生成する
+    private mutating func makeDealtCard(for playable: PlayableCard) -> DealtCard {
+        guard case .move(let move) = playable else {
+            return DealtCard(playable: playable)
+        }
         if move == .fixedWarp {
             let destination = nextFixedWarpDestination()
             return DealtCard(move: move, fixedWarpDestination: destination)
@@ -711,16 +751,23 @@ struct Deck {
     /// 現在の設定に基づき動的な重み抽選を実行する
     /// - Note: 連続排出抑制を廃止し、基礎重みのみで抽選するシンプルな構成へ統一している。
     /// - Returns: 抽選で選ばれたカード（総重量が 0 の場合は nil）
-    private mutating func drawWithDynamicWeights() -> MoveCard? {
-        var weightedCards: [(card: MoveCard, weight: Int)] = []
-        weightedCards.reserveCapacity(configuration.allowedMoves.count)
+    private mutating func drawWithDynamicWeights() -> PlayableCard? {
+        var weightedCards: [(card: PlayableCard, weight: Int)] = []
+        weightedCards.reserveCapacity(configuration.allowedPlayableCards.count)
         var totalWeight = 0
 
         for card in configuration.allowedMoves {
             let weight = configuration.weightProfile.weight(for: card)
             // 重みが 0 以下の場合は抽選対象から除外する（安全策）
             guard weight > 0 else { continue }
-            weightedCards.append((card, weight))
+            weightedCards.append((.move(card), weight))
+            totalWeight += weight
+        }
+
+        for support in configuration.allowedSupportCards {
+            let weight = configuration.weightProfile.defaultWeight
+            guard weight > 0 else { continue }
+            weightedCards.append((.support(support), weight))
             totalWeight += weight
         }
 
@@ -751,8 +798,20 @@ extension Deck {
         fixedWarpDestinations: [GridPoint] = [],
         usesSequentialFixedWarpDestinations: Bool = false
     ) {
-        presetDrawQueue = cards
-        presetOriginal = cards
+        preload(
+            playableCards: cards.map(PlayableCard.move),
+            fixedWarpDestinations: fixedWarpDestinations,
+            usesSequentialFixedWarpDestinations: usesSequentialFixedWarpDestinations
+        )
+    }
+
+    mutating func preload(
+        playableCards: [PlayableCard],
+        fixedWarpDestinations: [GridPoint] = [],
+        usesSequentialFixedWarpDestinations: Bool = false
+    ) {
+        presetDrawQueue = playableCards
+        presetOriginal = playableCards
         presetFixedWarpDestinationQueue = fixedWarpDestinations
         presetOriginalFixedWarpDestinations = fixedWarpDestinations
         self.usesPresetFixedWarpDestinationsSequentially = usesSequentialFixedWarpDestinations
@@ -777,6 +836,22 @@ extension Deck {
         var deck = Deck(seed: seed, configuration: configuration, fixedWarpDestinations: fixedWarpDestinations)
         deck.preload(
             cards: cards,
+            fixedWarpDestinations: fixedWarpDestinations,
+            usesSequentialFixedWarpDestinations: usesSequentialFixedWarpDestinations
+        )
+        return deck
+    }
+
+    static func makeTestDeck(
+        seed: UInt64 = 1,
+        playableCards: [PlayableCard],
+        configuration: Configuration = .standard,
+        fixedWarpDestinations: [GridPoint] = [],
+        usesSequentialFixedWarpDestinations: Bool = false
+    ) -> Deck {
+        var deck = Deck(seed: seed, configuration: configuration, fixedWarpDestinations: fixedWarpDestinations)
+        deck.preload(
+            playableCards: playableCards,
             fixedWarpDestinations: fixedWarpDestinations,
             usesSequentialFixedWarpDestinations: usesSequentialFixedWarpDestinations
         )

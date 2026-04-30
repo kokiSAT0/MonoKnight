@@ -158,6 +158,12 @@ private extension HowToPlayView {
                     }
                 }
             }
+
+            EncyclopediaGroupView(title: "補助カード") {
+                ForEach(SupportCard.encyclopediaEntries) { entry in
+                    SupportCardEncyclopediaRow(entry: entry)
+                }
+            }
         }
     }
 
@@ -262,6 +268,55 @@ private struct CardEncyclopediaRow: View {
                 .fill(Color(UIColor.secondarySystemBackground))
         )
         .accessibilityElement(children: .combine)
+    }
+}
+
+private struct SupportCardEncyclopediaRow: View {
+    let entry: SupportCardEncyclopediaEntry
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: symbolName)
+                .font(.system(size: 24, weight: .semibold))
+                .foregroundColor(.accentColor)
+                .frame(width: 66, height: 90)
+                .background(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(Color(UIColor.tertiarySystemBackground))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .stroke(Color.accentColor.opacity(0.45), lineWidth: 1)
+                        )
+                )
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text(entry.displayName)
+                    .font(.headline)
+                Text(entry.description)
+                    .font(.callout)
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color(UIColor.secondarySystemBackground))
+        )
+        .accessibilityElement(children: .combine)
+    }
+
+    private var symbolName: String {
+        switch entry.card {
+        case .nextRefresh:
+            return "arrow.triangle.2.circlepath"
+        case .swapOne:
+            return "arrow.left.arrow.right"
+        case .guidance:
+            return "scope"
+        }
     }
 }
 

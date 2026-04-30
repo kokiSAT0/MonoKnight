@@ -426,4 +426,33 @@ final class DeckTests: XCTestCase {
         }
         XCTAssertEqual(drawn, preset, "リセット後のプリセット順が一致しません")
     }
+
+    /// 補助カード実験デッキが v1 の補助カードをすべて含むことを確認
+    func testSupportToolkitDeckIncludesSupportCards() {
+        let config = Deck.Configuration.supportToolkit
+
+        XCTAssertEqual(Set(config.allowedSupportCards), Set(SupportCard.allCases), "補助カード実験デッキに補助カード3種が揃っていません")
+        XCTAssertFalse(config.allowedMoves.isEmpty, "補助カードだけでなく基本移動カードも混ぜる想定です")
+        XCTAssertEqual(config.deckSummaryText, "補助カード実験デッキ")
+    }
+
+    /// targetLabAllIn に補助カードが入り、標準デッキには混入しないことを確認
+    func testSupportCardsAreLimitedToExperimentDecks() {
+        XCTAssertEqual(Set(Deck.Configuration.targetLabAllIn.allowedSupportCards), Set(SupportCard.allCases))
+        XCTAssertTrue(Deck.Configuration.standard.allowedSupportCards.isEmpty, "標準デッキへ補助カードを混ぜない想定です")
+        XCTAssertTrue(Deck.Configuration.standardWithAllChoices.allowedSupportCards.isEmpty, "既存の標準派生へ補助カードを混ぜない想定です")
+    }
+
+    /// テスト用デッキで補助カードを固定順に配れることを確認
+    func testMakeTestDeckSupportsPlayableCardSequence() {
+        var deck = Deck.makeTestDeck(playableCards: [
+            .support(.nextRefresh),
+            .move(.kingRight),
+            .support(.guidance)
+        ], configuration: .supportToolkit)
+
+        XCTAssertEqual(deck.draw()?.supportCard, .nextRefresh)
+        XCTAssertEqual(deck.draw()?.moveCard, .kingRight)
+        XCTAssertEqual(deck.draw()?.supportCard, .guidance)
+    }
 }

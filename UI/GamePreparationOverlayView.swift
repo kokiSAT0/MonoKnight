@@ -161,6 +161,8 @@ private enum CampaignStageFeatureResolver {
             return [.warpCards]
         case .targetLabAllIn:
             return [.allChoice, .rayCards, .warpCards]
+        case .supportToolkit:
+            return []
         case .classicalChallenge:
             return [.knightCards]
         }
@@ -214,6 +216,7 @@ extension RootView {
 
         private let theme: AppTheme
         @State private var isDetailsExpanded = false
+        @Environment(\.horizontalSizeClass) private var horizontalSizeClass
         private var presentation: GamePreparationOverlayPresentation {
             GamePreparationOverlayPresentation(mode: mode, campaignStage: campaignStage)
         }
@@ -253,9 +256,9 @@ extension RootView {
                         detailsSection
                         controlSection
                     }
-                    .padding(LayoutMetrics.contentPadding)
+                    .padding(contentPadding)
                 }
-                .frame(maxWidth: LayoutMetrics.maxContentWidth)
+                .frame(maxWidth: contentMaxWidth)
                 .background(
                     theme.spawnOverlayBackground
                         .blur(radius: LayoutMetrics.backgroundBlur)
@@ -275,6 +278,18 @@ extension RootView {
                 .accessibilityIdentifier("game_preparation_overlay")
             }
             .transition(.opacity)
+        }
+
+        private var isRegularWidth: Bool {
+            horizontalSizeClass == .regular
+        }
+
+        private var contentMaxWidth: CGFloat {
+            isRegularWidth ? LayoutMetrics.regularWidthMaxContentWidth : LayoutMetrics.compactWidthMaxContentWidth
+        }
+
+        private var contentPadding: CGFloat {
+            isRegularWidth ? LayoutMetrics.regularWidthContentPadding : LayoutMetrics.compactWidthContentPadding
         }
 
         private var headerSection: some View {
@@ -604,10 +619,11 @@ extension RootView {
         private struct FlexibleFeatureChipGrid<ChipContent: View>: View {
             let chips: [GamePreparationOverlayPresentation.FeatureChip]
             let chipContent: (GamePreparationOverlayPresentation.FeatureChip, Bool) -> ChipContent
+            @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
             var body: some View {
                 let columns = [
-                    GridItem(.adaptive(minimum: 132), spacing: 8, alignment: .leading)
+                    GridItem(.adaptive(minimum: chipMinimumWidth), spacing: 8, alignment: .leading)
                 ]
 
                 LazyVGrid(columns: columns, alignment: .leading, spacing: 8) {
@@ -616,12 +632,18 @@ extension RootView {
                     }
                 }
             }
+
+            private var chipMinimumWidth: CGFloat {
+                horizontalSizeClass == .regular ? 156 : 132
+            }
         }
 
         private enum LayoutMetrics {
             static let dimmedBackgroundOpacity: Double = 0.45
-            static let maxContentWidth: CGFloat = 360
-            static let contentPadding: CGFloat = 24
+            static let compactWidthMaxContentWidth: CGFloat = 360
+            static let regularWidthMaxContentWidth: CGFloat = 640
+            static let compactWidthContentPadding: CGFloat = 24
+            static let regularWidthContentPadding: CGFloat = 30
             static let sectionSpacing: CGFloat = 18
             static let sectionContentSpacing: CGFloat = 12
             static let headerSpacing: CGFloat = 6

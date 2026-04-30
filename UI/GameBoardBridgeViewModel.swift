@@ -538,6 +538,9 @@ final class GameBoardBridgeViewModel: ObservableObject {
     /// - Returns: 使用可能なら true
     func isCardUsable(_ stack: HandStack) -> Bool {
         guard let card = stack.topCard else { return false }
+        if card.supportCard != nil {
+            return core.isSupportCardUsable(in: stack)
+        }
         // availableMoves() が primaryVector を利用しているため、1 候補カードと同じ手続きで拡張に備えられる
         return core.availableMoves().contains { candidate in
             candidate.stackID == stack.id && candidate.card.id == card.id

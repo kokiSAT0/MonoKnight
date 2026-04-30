@@ -41,6 +41,10 @@ struct GameHandSectionView: View {
                 discardSelectionNotice
                     .transition(.opacity)
             }
+            if core.isAwaitingSupportSwapSelection {
+                supportSwapSelectionNotice
+                    .transition(.opacity)
+            }
 
             // 手札スロットを横並びで描画し、欠番があっても空枠でレイアウトを安定させる
             HStack(spacing: GameViewLayoutMetrics.handCardSpacing) {
@@ -79,18 +83,14 @@ private extension GameHandSectionView {
             HStack(spacing: 12) {
                 ForEach(Array(core.nextCards.enumerated()), id: \.element.id) { index, dealtCard in
                     ZStack {
-                        MoveCardIllustrationView(
-                            card: dealtCard.move,
-                            mode: .next,
-                            fixedWarpDestination: dealtCard.fixedWarpDestination // 固定ワープは目的地を渡して紫マーカーを正しい位置へ描く
-                        )
+                        cardIllustration(for: dealtCard, mode: .next)
                             .opacity(boardBridge.hiddenCardIDs.contains(dealtCard.id) ? 0.0 : 1.0)
                             .matchedGeometryEffect(id: dealtCard.id, in: cardAnimationNamespace)
                             .anchorPreference(key: CardPositionPreferenceKey.self, value: .bounds) { [dealtCard.id: $0] }
                         NextCardOverlayView(order: index)
                     }
                     .accessibilityElement(children: .combine)
-                    .accessibilityLabel(Text("次のカード\(index == 0 ? "" : "+\(index)"): \(dealtCard.move.displayName)"))
+                    .accessibilityLabel(Text("次のカード\(index == 0 ? "" : "+\(index)"): \(dealtCard.displayName)"))
                     .accessibilityHint(Text("この順番で手札に補充されます"))
                     .allowsHitTesting(false)
                 }
@@ -144,6 +144,40 @@ private extension GameHandSectionView {
         .accessibilityLabel(Text("捨て札モードです。手札をタップして \(penaltyDescription)。"))
     }
 
+    private var supportSwapSelectionNotice: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "arrow.left.arrow.right")
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundColor(theme.accentOnPrimary)
+                .padding(10)
+                .background(Circle().fill(theme.accentPrimary))
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("入替する手札を選択中")
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .foregroundColor(theme.textPrimary)
+                Text("選んだ手札 1 種類を捨てて補充します")
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .foregroundColor(theme.textSecondary)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 10)
+        .padding(.horizontal, 14)
+        .background(
+            RoundedRectangle(cornerRadius: 14)
+                .fill(theme.cardBackgroundNext)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14)
+                        .stroke(theme.cardBorderHand.opacity(0.35), lineWidth: 1)
+                )
+        )
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(Text("入替する手札を選択中です。手札をタップすると 1 種類を捨てて補充します。"))
+    }
+
     /// 指定スロットに対応する `HandStack` を取得
     private func handCard(at index: Int) -> HandStack? {
         guard core.handStacks.indices.contains(index) else {
@@ -159,20 +193,18 @@ private extension GameHandSectionView {
                 let isHidden = boardBridge.hiddenCardIDs.contains(card.id)
                 let isUsable = viewModel.isCardUsable(stack)
                 let isSelectingDiscard = core.isAwaitingManualDiscardSelection
+                let isSelectingSupportSwap = core.isAwaitingSupportSwapSelection
                 // 現在のスタックが ViewModel で選択済みかどうか（通常プレイ時のみハイライトを出す）
                 let isSelected = viewModel.selectedHandStackID == stack.id
-                let shouldShowSelectionHighlight = isSelected && !isHidden && !isSelectingDiscard
+                let shouldShowSelectionHighlight = isSelected && !isHidden && !isSelectingDiscard && !isSelectingSupportSwap
 
                 HandStackCardView(stackCount: stack.count) {
-                    MoveCardIllustrationView(
-                        card: card.move,
-                        fixedWarpDestination: card.fixedWarpDestination // 手札表示でも固定ワープ先を反映したカードデザインにする
-                    )
+                    cardIllustration(for: card, mode: .hand)
                         .matchedGeometryEffect(id: card.id, in: cardAnimationNamespace)
                         .anchorPreference(key: CardPositionPreferenceKey.self, value: .bounds) { [card.id: $0] }
                 }
                 .opacity(
-                    isHidden ? 0.0 : (isSelectingDiscard ? 1.0 : (isUsable ? 1.0 : 0.4))
+                    isHidden ? 0.0 : ((isSelectingDiscard || isSelectingSupportSwap) ? 1.0 : (isUsable ? 1.0 : 0.4))
                 )
                 .allowsHitTesting(!isHidden)
                 // 選択中のカードは背景に淡いオレンジ色を敷き、捨て札モードとの視覚差を確保する
@@ -184,7 +216,7 @@ private extension GameHandSectionView {
                     }
                 }
                 .overlay {
-                    if isSelectingDiscard && !isHidden {
+                    if (isSelectingDiscard || isSelectingSupportSwap) && !isHidden {
                         RoundedRectangle(cornerRadius: 10)
                             .stroke(theme.accentPrimary.opacity(0.75), lineWidth: 3)
                             .shadow(color: theme.accentPrimary.opacity(0.45), radius: 6, x: 0, y: 3)
@@ -233,6 +265,9 @@ private extension GameHandSectionView {
 
     /// VoiceOver 向けに手札スタックの説明文を生成する
     private func accessibilityLabel(for stack: HandStack) -> String {
+        if let support = stack.topCard?.supportCard {
+            return "補助カード、\(support.displayName)、残り \(stack.count) 枚"
+        }
         guard let move = stack.topCard?.move else {
             return "カードなしのスロット"
         }
@@ -245,6 +280,19 @@ private extension GameHandSectionView {
         let candidateCount = stack.representativeVectors?.count ?? 0
         if isDiscardMode {
             return "ダブルタップでこの種類のカードをすべて捨て札にし、新しいカードを補充します。"
+        }
+        if let support = stack.topCard?.supportCard {
+            if core.isAwaitingSupportSwapSelection {
+                return "ダブルタップでこの手札を入替の対象にします。"
+            }
+            switch support {
+            case .nextRefresh:
+                return "ダブルタップで 1 手使い、NEXT の 3 枚だけを引き直します。"
+            case .swapOne:
+                return "ダブルタップで入替を開始し、このカード以外の手札 1 種類を選んで補充します。"
+            case .guidance:
+                return "ダブルタップで 1 手使い、目的地へ近づきやすい手札と NEXT に整えます。"
+            }
         }
 
         // 通常操作時に読み上げる基本説明文を状況ごとに作成する
@@ -283,6 +331,19 @@ private extension GameHandSectionView {
             return baseMessage + "現在このカードを選択中です。別の手札を選ぶか、もう一度ダブルタップすると解除されます。"
         } else {
             return baseMessage
+        }
+    }
+
+    @ViewBuilder
+    private func cardIllustration(for card: DealtCard, mode: MoveCardIllustrationView.Mode) -> some View {
+        if let support = card.supportCard {
+            SupportCardIllustrationView(card: support, mode: mode)
+        } else if let move = card.moveCard {
+            MoveCardIllustrationView(
+                card: move,
+                mode: mode,
+                fixedWarpDestination: card.fixedWarpDestination
+            )
         }
     }
 
@@ -414,5 +475,60 @@ private struct NextCardOverlayView: View {
             }
         }
         .allowsHitTesting(false)
+    }
+}
+
+private struct SupportCardIllustrationView: View {
+    let card: SupportCard
+    var mode: MoveCardIllustrationView.Mode = .hand
+    private let theme = AppTheme()
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Image(systemName: symbolName)
+                .font(.system(size: 24, weight: .semibold))
+                .foregroundColor(theme.accentPrimary)
+                .frame(width: 34, height: 34)
+                .background(
+                    Circle()
+                        .fill(theme.accentPrimary.opacity(0.14))
+                )
+                .accessibilityHidden(true)
+
+            Text(card.displayName)
+                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .foregroundColor(theme.textPrimary)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .minimumScaleFactor(0.75)
+
+            Text("補助")
+                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                .foregroundColor(theme.textSecondary)
+        }
+        .padding(8)
+        .frame(width: MoveCardIllustrationView.defaultWidth, height: MoveCardIllustrationView.defaultHeight)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(mode.backgroundColor(using: theme))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(theme.accentPrimary.opacity(0.75), lineWidth: mode.borderLineWidth)
+                )
+        )
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text("補助カード、\(card.displayName)"))
+        .accessibilityHint(Text(card.encyclopediaDescription))
+    }
+
+    private var symbolName: String {
+        switch card {
+        case .nextRefresh:
+            return "arrow.triangle.2.circlepath"
+        case .swapOne:
+            return "arrow.left.arrow.right"
+        case .guidance:
+            return "scope"
+        }
     }
 }

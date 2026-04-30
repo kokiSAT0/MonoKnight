@@ -54,6 +54,7 @@ extension GameCore {
 
         // 捨て札選択モードが残っていればここで解除しておく
         cancelManualDiscardSelection()
+        cancelSupportSwapSelection()
 
         // 共通処理を用いて手札を入れ替える
         applyPenaltyRedraw(
@@ -74,13 +75,13 @@ extension GameCore {
 
         // availableMoves() 内で primaryVector が評価されるため、将来の複数候補カードでも共通ロジックを維持できる
         let usableMoves = availableMoves(handStacks: handStacks, current: current)
-        guard usableMoves.isEmpty else { return }
+        guard usableMoves.isEmpty, !hasUsableSupportCard() else { return }
 
         if mode.usesTargetCollection {
             debugLog("手詰まり検出: 目的地へ近づくフォーカス再配布を実行")
             rebuildFocusedHandAndNext()
             let focusedMoves = availableMoves(handStacks: handStacks, current: current)
-            if !focusedMoves.isEmpty { return }
+            if !focusedMoves.isEmpty || hasUsableSupportCard() { return }
         }
 
         if let lastPenaltyAmount = lastPaidPenaltyAmount {
@@ -199,6 +200,7 @@ extension GameCore {
         // 既に捨て札モードであれば再度有効化する必要はない
         guard !isAwaitingManualDiscardSelection else { return }
 
+        cancelSupportSwapSelection()
         setManualDiscardSelectionState(true)
         debugLog("捨て札ペナルティ選択モード開始")
 
@@ -262,6 +264,10 @@ extension GameCore {
         // 捨て札後の手札が再び詰む場合に備えてチェックする
         checkDeadlockAndApplyPenaltyIfNeeded()
         return true
+    }
+
+    private func hasUsableSupportCard() -> Bool {
+        handStacks.contains { isSupportCardUsable(in: $0) }
     }
 
     /// 現在の残り踏破数を VoiceOver で通知する

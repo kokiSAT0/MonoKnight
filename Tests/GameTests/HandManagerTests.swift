@@ -132,4 +132,24 @@ final class HandManagerTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(fixedWarpStacks.first?.count ?? 0, 2, "同一スタック内に 2 枚以上積まれている必要があります")
         XCTAssertEqual(fixedWarpStacks.first?.topCard?.fixedWarpDestination, destination)
     }
+
+    /// 補助カードは移動カードとは別種としてスタック管理されることを確認する
+    func testSupportCardsStackSeparatelyFromMoveCards() {
+        var deck = Deck.makeTestDeck(playableCards: [
+            .support(.nextRefresh),
+            .move(.kingUp),
+            .support(.nextRefresh),
+            .move(.kingUp)
+        ], configuration: .supportToolkit)
+
+        let handManager = HandManager(handSize: 5, nextPreviewCount: 0, allowsCardStacking: true)
+        handManager.refillHandStacks(using: &deck)
+
+        let supportStacks = handManager.handStacks.filter { $0.topCard?.supportCard == .nextRefresh }
+        let kingStacks = handManager.handStacks.filter { $0.topCard?.moveCard == .kingUp }
+        XCTAssertEqual(supportStacks.count, 1, "同じ補助カードは同一スタックへまとまる想定です")
+        XCTAssertEqual(supportStacks.first?.count, 2)
+        XCTAssertEqual(kingStacks.count, 1, "同じ移動カードは従来通り同一スタックへまとまる想定です")
+        XCTAssertEqual(kingStacks.first?.count, 2)
+    }
 }

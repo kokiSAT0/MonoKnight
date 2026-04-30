@@ -29,7 +29,13 @@ public struct HandStack: Identifiable, Equatable {
     public var isEmpty: Bool { cards.isEmpty }
 
     /// 最新カードの MoveCard を取得する。スタックが空の場合は nil。
-    public var representativeMove: MoveCard? { topCard?.move }
+    public var representativeMove: MoveCard? { topCard?.moveCard }
+
+    /// 最新カードの補助カード種別を取得する。スタックが空または移動カードの場合は nil。
+    public var representativeSupport: SupportCard? { topCard?.supportCard }
+
+    /// スタック管理で利用するカード種別 ID
+    public var representativePlayable: PlayableCard? { topCard?.playable }
 
     /// 最新カードが持つ移動ベクトル配列を返す
     /// - Note: 今後同じ移動候補を持つ別カードが増えてもスタックを共用できるよう、MoveCard の列挙値ではなくベクトル列を比較基準とする
@@ -69,6 +75,9 @@ public extension HandStack {
     /// - Returns: 例) "Move(dx:1, dy:2)×3" のような形式。カードが空の場合は分かりやすく明示する。
     var debugSummary: String {
         guard let move = representativeMove else {
+            if let support = representativeSupport {
+                return "\(support.displayName)"
+            }
             return "(空スタック)"
         }
         if count > 1 {

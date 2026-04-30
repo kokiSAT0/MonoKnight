@@ -100,6 +100,57 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertFalse(core.isAwaitingManualDiscardSelection, "2 回目の操作で捨て札モードが解除されていません")
     }
 
+    /// 補助カードは盤面候補なしでも手札から使用できることを確認
+    func testSupportCardCanBeTappedWithoutBoardMoveCandidates() {
+        let deck = Deck.makeTestDeck(playableCards: [
+            .support(.nextRefresh),
+            .move(.kingRight),
+            .move(.kingUp),
+            .move(.kingLeft),
+            .move(.kingDown),
+            .move(.straightRight2),
+            .move(.straightUp2),
+            .move(.straightLeft2)
+        ], configuration: .supportToolkit)
+        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 2, y: 2))
+        let viewModel = makeViewModel(mode: .standard, core: core)
+
+        guard let supportIndex = core.handStacks.firstIndex(where: { $0.topCard?.supportCard == .nextRefresh }) else {
+            return XCTFail("NEXT更新補助カードが手札にありません")
+        }
+
+        XCTAssertTrue(viewModel.isCardUsable(core.handStacks[supportIndex]))
+        XCTAssertFalse(core.availableMoves().contains { $0.stackID == core.handStacks[supportIndex].id }, "補助カードは盤面移動候補を出さない想定です")
+
+        viewModel.handleHandSlotTap(at: supportIndex)
+
+        XCTAssertEqual(core.moveCount, 1, "補助カードタップで 1 手消費する想定です")
+    }
+
+    /// 入替補助カードは対象選択モードへ入り、キャンセルできることを確認
+    func testSupportSwapTapStartsSelectionAndCanCancel() {
+        let deck = Deck.makeTestDeck(playableCards: [
+            .support(.swapOne),
+            .move(.kingRight),
+            .move(.kingUp),
+            .move(.kingLeft),
+            .move(.kingDown)
+        ], configuration: .supportToolkit)
+        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 2, y: 2))
+        let viewModel = makeViewModel(mode: .standard, core: core)
+
+        guard let supportIndex = core.handStacks.firstIndex(where: { $0.topCard?.supportCard == .swapOne }) else {
+            return XCTFail("入替補助カードが手札にありません")
+        }
+
+        viewModel.handleHandSlotTap(at: supportIndex)
+        XCTAssertTrue(core.isAwaitingSupportSwapSelection)
+
+        core.cancelSupportSwapSelection()
+        XCTAssertFalse(core.isAwaitingSupportSwapSelection)
+        XCTAssertEqual(core.moveCount, 0)
+    }
+
     /// 手動ペナルティが進行中のみで発火し、ペナルティ量が一致することを確認
     func testRequestManualPenaltySetsPendingActionWhenPlayable() {
         let (viewModel, core) = makeViewModel(mode: .standard)
@@ -945,6 +996,19 @@ final class GameViewModelTests: XCTestCase {
             currentDateProvider: { resolvedDateProvider.now }
         )
         return (viewModel, core)
+    }
+
+    private func makeViewModel(mode: GameMode, core: GameCore) -> GameViewModel {
+        let interfaces = GameModuleInterfaces { _ in core }
+        return GameViewModel(
+            mode: mode,
+            gameInterfaces: interfaces,
+            gameCenterService: DummyGameCenterService(),
+            adsService: DummyAdsService(),
+            onRequestGameCenterSignIn: nil,
+            onRequestReturnToTitle: nil,
+            onRequestStartCampaignStage: nil
+        )
     }
 
     /// 任意の現在時刻を提供するためのテスト専用クラス

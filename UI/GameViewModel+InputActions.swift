@@ -37,9 +37,13 @@ extension GameViewModel {
             guard boardBridge.animatingCard == nil else { return false }
             guard core.progress == .playing else { return false }
             guard !core.isAwaitingManualDiscardSelection else { return false }
+            guard !core.isAwaitingSupportSwapSelection else { return false }
             guard core.handStacks.indices.contains(index) else { return false }
             let stack = core.handStacks[index]
             guard let topCard = stack.topCard else { return false }
+            if topCard.supportCard != nil {
+                return core.isSupportCardUsable(in: stack)
+            }
             guard boardBridge.isCardUsable(stack) else { return false }
             return core.availableMoves().contains { move in
                 move.stackID == stack.id && move.card.id == topCard.id

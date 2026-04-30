@@ -2386,6 +2386,125 @@ final class GameCoreTests: XCTestCase {
         XCTAssertEqual(stage.evaluateClear(with: twoStar).earnedStars, 2)
         XCTAssertEqual(stage.evaluateClear(with: threeStar).earnedStars, 3)
     }
+
+    /// NEXT更新補助カードは移動せず 1 手使い、NEXT だけを引き直すことを確認
+    func testSupportNextRefreshConsumesOneTurnAndRedrawsNextOnly() {
+        let deck = Deck.makeTestDeck(playableCards: [
+            .support(.nextRefresh),
+            .move(.kingRight),
+            .move(.kingUp),
+            .move(.kingLeft),
+            .move(.kingDown),
+            .move(.straightRight2),
+            .move(.straightUp2),
+            .move(.straightLeft2),
+            .move(.straightDown2),
+            .move(.diagonalUpRight2),
+            .move(.diagonalUpLeft2)
+        ], configuration: .supportToolkit)
+        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 2, y: 2))
+        let originalCurrent = core.current
+        let originalFocus = core.focusCount
+        let originalNextIDs = core.nextCards.map(\.id)
+
+        guard let supportIndex = core.handStacks.firstIndex(where: { $0.topCard?.supportCard == .nextRefresh }) else {
+            return XCTFail("NEXT更新補助カードが手札にありません")
+        }
+
+        core.playSupportCard(at: supportIndex)
+
+        XCTAssertEqual(core.current, originalCurrent, "補助カードでは駒は移動しない想定です")
+        XCTAssertEqual(core.moveCount, 1, "補助カード使用は 1 手として数えます")
+        XCTAssertEqual(core.focusCount, originalFocus, "NEXT更新ではフォーカス回数を増やしません")
+        XCTAssertEqual(core.nextCards.count, 3)
+        XCTAssertNotEqual(core.nextCards.map(\.id), originalNextIDs, "NEXTだけが新しいカードへ更新される想定です")
+    }
+
+    /// 導き補助カードはフォーカス回数を増やさず、目的地寄りに手札を再配布することを確認
+    func testSupportGuidanceRedrawsFocusedHandWithoutFocusCount() {
+        let mode = GameMode.standard
+        let deck = Deck.makeTestDeck(playableCards: [
+            .support(.guidance),
+            .move(.kingUp),
+            .move(.kingLeft),
+            .move(.kingDown),
+            .move(.straightLeft2),
+            .move(.kingRight),
+            .move(.straightRight2),
+            .move(.diagonalUpRight2),
+            .move(.diagonalDownRight2)
+        ], configuration: .supportToolkit)
+        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 2, y: 2), mode: mode)
+        core.overrideTargetStateForTesting(targetPoint: GridPoint(x: 4, y: 2))
+
+        guard let supportIndex = core.handStacks.firstIndex(where: { $0.topCard?.supportCard == .guidance }) else {
+            return XCTFail("導き補助カードが手札にありません")
+        }
+
+        core.playSupportCard(at: supportIndex)
+
+        XCTAssertEqual(core.current, GridPoint(x: 2, y: 2))
+        XCTAssertEqual(core.moveCount, 1)
+        XCTAssertEqual(core.focusCount, 0, "導きは通常フォーカス扱いにしない想定です")
+        XCTAssertTrue(
+            core.handStacks.contains { $0.topCard?.moveCard == .straightRight2 || $0.topCard?.moveCard == .kingRight },
+            "導き後は目的地へ近づきやすいカードが手札へ入る想定です"
+        )
+    }
+
+    /// 入替補助カードは対象選択後に別スタックを捨て、移動せず 1 手使うことを確認
+    func testSupportSwapDiscardsSelectedStackAfterSelection() {
+        let deck = Deck.makeTestDeck(playableCards: [
+            .support(.swapOne),
+            .move(.kingRight),
+            .move(.kingUp),
+            .move(.kingLeft),
+            .move(.kingDown),
+            .move(.straightRight2),
+            .move(.straightUp2),
+            .move(.straightLeft2)
+        ], configuration: .supportToolkit)
+        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 2, y: 2))
+        let originalCurrent = core.current
+
+        guard let supportIndex = core.handStacks.firstIndex(where: { $0.topCard?.supportCard == .swapOne }),
+              let targetStack = core.handStacks.first(where: { $0.topCard?.moveCard == .kingRight })
+        else {
+            return XCTFail("入替補助カードまたは対象カードが手札にありません")
+        }
+
+        core.playSupportCard(at: supportIndex)
+        XCTAssertTrue(core.isAwaitingSupportSwapSelection, "入替は対象選択待ちに入る想定です")
+
+        XCTAssertTrue(core.applySupportSwap(toTargetStackID: targetStack.id))
+
+        XCTAssertFalse(core.isAwaitingSupportSwapSelection)
+        XCTAssertEqual(core.current, originalCurrent)
+        XCTAssertEqual(core.moveCount, 1)
+        XCTAssertFalse(core.handStacks.contains { $0.id == targetStack.id }, "選んだ対象スタックは捨てられる想定です")
+    }
+
+    /// 入替補助カードの対象選択はキャンセル可能で、コストを発生させないことを確認
+    func testSupportSwapSelectionCanBeCancelled() {
+        let deck = Deck.makeTestDeck(playableCards: [
+            .support(.swapOne),
+            .move(.kingRight),
+            .move(.kingUp),
+            .move(.kingLeft),
+            .move(.kingDown)
+        ], configuration: .supportToolkit)
+        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 2, y: 2))
+        guard let supportIndex = core.handStacks.firstIndex(where: { $0.topCard?.supportCard == .swapOne }) else {
+            return XCTFail("入替補助カードが手札にありません")
+        }
+
+        core.playSupportCard(at: supportIndex)
+        core.cancelSupportSwapSelection()
+
+        XCTAssertFalse(core.isAwaitingSupportSwapSelection)
+        XCTAssertEqual(core.moveCount, 0, "キャンセルでは 1 手を消費しない想定です")
+        XCTAssertTrue(core.handStacks.contains { $0.topCard?.supportCard == .swapOne }, "キャンセルでは補助カードを消費しない想定です")
+    }
 }
 
 private extension GameCoreTests {
