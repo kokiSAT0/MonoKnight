@@ -73,18 +73,16 @@ final class GameModeIdentifierTests: XCTestCase {
 
     func testTargetLabModeFiltersDeckByEnabledCardGroups() {
         let settings = TargetLabExperimentSettings(
-            enabledCardGroups: [.standard, .effectAssist],
+            enabledCardGroups: [.standard, .warp],
             enabledTileKinds: Set(TargetLabTileKind.allCases)
         )
         let mode = GameMode.targetLab(settings: settings)
         let allowedMoves = Set(mode.deckConfiguration.allowedMoves)
 
         XCTAssertTrue(Set(TargetLabCardGroup.standard.cards).isSubset(of: allowedMoves))
-        XCTAssertTrue(Set(MoveCard.effectAssistCards).isSubset(of: allowedMoves))
+        XCTAssertTrue(Set(TargetLabCardGroup.warp.cards).isSubset(of: allowedMoves))
         XCTAssertFalse(allowedMoves.contains(.kingUpOrDown))
         XCTAssertFalse(allowedMoves.contains(.rayRight))
-        XCTAssertFalse(allowedMoves.contains(.fixedWarp))
-        XCTAssertFalse(allowedMoves.contains(.targetStep))
     }
 
     func testTargetLabModeRemovesWarpCardsAndFixedWarpTargetsWhenWarpGroupDisabled() {
@@ -174,7 +172,7 @@ final class GameModeIdentifierTests: XCTestCase {
     func testTargetLabExperimentSettingsCodingIgnoresUnknownValuesAndRecoversEmptyCards() throws {
         let json = """
         {
-          "enabledCardGroups": ["unknown"],
+          "enabledCardGroups": ["targetAssist", "effectAssist", "unknown"],
           "enabledTileKinds": ["boost", "unknownTile"]
         }
         """.data(using: .utf8)!

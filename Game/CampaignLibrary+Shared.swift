@@ -43,6 +43,7 @@ extension CampaignLibrary {
         deckPreset: GameDeckPreset,
         spawnRule: GameMode.SpawnRule? = nil,
         secondaryObjective: CampaignStage.SecondaryObjective,
+        twoStarScoreTarget: Int,
         scoreTarget: Int,
         scoreTargetComparison: CampaignStage.ScoreTargetComparison = .lessThanOrEqual,
         unlockRequirement: CampaignStageUnlockRequirement,
@@ -70,6 +71,7 @@ extension CampaignLibrary {
                 completionRule: .targetCollection(goalCount: goalCount)
             ),
             secondaryObjective: secondaryObjective,
+            twoStarScoreTarget: twoStarScoreTarget,
             scoreTarget: scoreTarget,
             scoreTargetComparison: scoreTargetComparison,
             unlockRequirement: unlockRequirement

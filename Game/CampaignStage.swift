@@ -91,6 +91,8 @@ public struct CampaignStage: Identifiable, Equatable {
     public let regulation: GameMode.Regulation
     /// 2 個目のスター獲得条件
     public let secondaryObjective: SecondaryObjective?
+    /// 2 個目のスター獲得に必要なスコア上限
+    public let twoStarScoreTarget: Int?
     /// 3 個目のスター獲得に必要なスコア上限
     public let scoreTarget: Int?
     /// スコア目標の比較方式
@@ -105,6 +107,7 @@ public struct CampaignStage: Identifiable, Equatable {
         summary: String,
         regulation: GameMode.Regulation,
         secondaryObjective: SecondaryObjective?,
+        twoStarScoreTarget: Int? = nil,
         scoreTarget: Int?,
         scoreTargetComparison: ScoreTargetComparison = .lessThanOrEqual,
         unlockRequirement: CampaignStageUnlockRequirement
@@ -114,6 +117,7 @@ public struct CampaignStage: Identifiable, Equatable {
         self.summary = summary
         self.regulation = regulation
         self.secondaryObjective = secondaryObjective
+        self.twoStarScoreTarget = twoStarScoreTarget
         self.scoreTarget = scoreTarget
         self.scoreTargetComparison = scoreTargetComparison
         self.unlockRequirement = unlockRequirement
@@ -157,6 +161,8 @@ public struct CampaignStageClearMetrics {
 public struct CampaignStageEvaluation {
     public let stageID: CampaignStageID
     public let earnedStars: Int
+    public let achievedTwoStarScoreGoal: Bool
+    public let achievedThreeStarScoreGoal: Bool
     public let achievedSecondaryObjective: Bool
     public let achievedScoreGoal: Bool
 
@@ -165,10 +171,14 @@ public struct CampaignStageEvaluation {
         stageID: CampaignStageID,
         earnedStars: Int,
         achievedSecondaryObjective: Bool,
-        achievedScoreGoal: Bool
+        achievedScoreGoal: Bool,
+        achievedTwoStarScoreGoal: Bool? = nil,
+        achievedThreeStarScoreGoal: Bool? = nil
     ) {
         self.stageID = stageID
         self.earnedStars = earnedStars
+        self.achievedTwoStarScoreGoal = achievedTwoStarScoreGoal ?? achievedSecondaryObjective
+        self.achievedThreeStarScoreGoal = achievedThreeStarScoreGoal ?? achievedScoreGoal
         self.achievedSecondaryObjective = achievedSecondaryObjective
         self.achievedScoreGoal = achievedScoreGoal
     }

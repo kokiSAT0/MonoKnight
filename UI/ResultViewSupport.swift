@@ -106,11 +106,11 @@ struct CampaignRewardPresentation {
             )
         ]
 
-        if let secondary = record.stage.secondaryObjectiveDescription {
+        if let twoStarTarget = record.stage.twoStarScoreTargetDescription {
             items.append((
                 title: "★2",
-                description: secondary,
-                isAchieved: record.progress.achievedSecondaryObjective
+                description: twoStarTarget,
+                isAchieved: record.progress.achievedTwoStarScoreGoal
             ))
         }
 
@@ -118,7 +118,7 @@ struct CampaignRewardPresentation {
             items.append((
                 title: "★3",
                 description: scoreTarget,
-                isAchieved: record.progress.achievedScoreGoal
+                isAchieved: record.progress.achievedThreeStarScoreGoal
             ))
         }
 

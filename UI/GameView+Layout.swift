@@ -17,7 +17,10 @@ extension GameView {
             topOverlayHeight: topOverlayHeight,
             baseTopSafeAreaInset: baseTopSafeAreaInset,
             statisticsHeight: viewModel.statisticsHeight,
-            handSectionHeight: viewModel.handSectionHeight
+            handSectionHeight: viewModel.handSectionHeight,
+            inlineMessageHeight: viewModel.progress == .awaitingSpawn
+                ? GameViewLayoutMetrics.spawnSelectionBannerReservedHeight
+                : 0
         )
         let layoutContext = layoutCalculator.makeContext()
         // 監視用の不可視オーバーレイも先に生成し、View ビルダー内でのネストを浅く保つ
@@ -26,6 +29,11 @@ extension GameView {
         ZStack(alignment: .top) {
             VStack(spacing: GameViewLayoutMetrics.spacingBetweenBoardAndHand) {
                 boardSection(width: layoutContext.boardWidth)
+                if viewModel.progress == .awaitingSpawn {
+                    spawnSelectionBanner
+                        .padding(Edge.Set.horizontal, 20)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                }
                 GameHandSectionView(
                     theme: theme,
                     viewModel: viewModel,
@@ -83,9 +91,9 @@ extension GameView {
             }
     }
 
-    /// スポーン位置選択中にトップ通知スタックへ表示する案内バナー
+    /// スポーン位置選択中に盤面下へ表示する案内バナー
     var spawnSelectionBanner: some View {
-        // トップバナーと整合するサイズ感に調整し、通知スタックへ積めるようにする
+        // 盤面に重ねず、通常レイアウト内の案内として収める
         VStack(alignment: .leading, spacing: 6) {
             Text("開始マスを選択")
                 .font(.system(size: 17, weight: .semibold, design: .rounded))
@@ -140,17 +148,6 @@ extension GameView {
                                 }
                             }
                         )
-                            .padding(Edge.Set.horizontal, 20)
-                            .transition(.move(edge: .top).combined(with: .opacity))
-                        Spacer(minLength: 0)
-                    }
-                }
-
-                if viewModel.progress == .awaitingSpawn {
-                    // スポーン選択を促す案内を最優先で表示し、ユーザーの視線が最短距離で届くよう中央寄せする
-                    HStack {
-                        Spacer(minLength: 0)
-                        spawnSelectionBanner
                             .padding(Edge.Set.horizontal, 20)
                             .transition(.move(edge: .top).combined(with: .opacity))
                         Spacer(minLength: 0)

@@ -15,6 +15,7 @@ struct HighScoreChallengeSelectionView: View {
     /// 共通の配色を扱うテーマ
     private let theme = AppTheme()
     @StateObject private var targetLabSettingsStore = TargetLabExperimentSettingsStore()
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     /// 画面表示に必要な依存関係を受け取りプロパティへ格納する
     /// - Parameters:
@@ -68,8 +69,10 @@ struct HighScoreChallengeSelectionView: View {
                 introductionSection
                 modeListSection
             }
-            .padding(.horizontal, 24)
+            .padding(.horizontal, horizontalPadding)
             .padding(.vertical, 28)
+            .frame(maxWidth: contentMaxWidth)
+            .frame(maxWidth: .infinity, alignment: .center)
         }
         .background(theme.backgroundPrimary.ignoresSafeArea())
         .navigationTitle("ハイスコア")
@@ -333,6 +336,14 @@ struct HighScoreChallengeSelectionView: View {
                 .font(.system(size: 15, weight: .medium, design: .rounded))
         }
         .accessibilityIdentifier("high_score_selection_back_button")
+    }
+
+    private var contentMaxWidth: CGFloat? {
+        horizontalSizeClass == .regular ? 760 : nil
+    }
+
+    private var horizontalPadding: CGFloat {
+        horizontalSizeClass == .regular ? 32 : 24
     }
 }
 

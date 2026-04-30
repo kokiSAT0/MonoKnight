@@ -5,8 +5,6 @@ public enum TargetLabCardGroup: String, CaseIterable, Codable, Hashable {
     case choice
     case ray
     case warp
-    case targetAssist
-    case effectAssist
 
     public var displayName: String {
         switch self {
@@ -14,8 +12,6 @@ public enum TargetLabCardGroup: String, CaseIterable, Codable, Hashable {
         case .choice: return "選択"
         case .ray: return "レイ"
         case .warp: return "ワープ"
-        case .targetAssist: return "目的地補助"
-        case .effectAssist: return "特殊マス補助"
         }
     }
 
@@ -40,10 +36,6 @@ public enum TargetLabCardGroup: String, CaseIterable, Codable, Hashable {
             return MoveCard.directionalRayCards
         case .warp:
             return [.fixedWarp, .superWarp]
-        case .targetAssist:
-            return MoveCard.targetAssistCards
-        case .effectAssist:
-            return MoveCard.effectAssistCards
         }
     }
 }

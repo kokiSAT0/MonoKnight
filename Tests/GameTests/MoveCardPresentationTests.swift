@@ -6,12 +6,10 @@ final class MoveCardPresentationTests: XCTestCase {
         XCTAssertEqual(MoveCard.kingUp.displayName, "上1")
         XCTAssertEqual(MoveCard.knightRightwardChoice.displayName, "右桂 (選択)")
         XCTAssertEqual(MoveCard.superWarp.displayName, "全域ワープ")
-        XCTAssertEqual(MoveCard.effectStep.displayName, "特殊ステップ")
 
         XCTAssertEqual(MoveCard.kingUp.kind, .normal)
         XCTAssertEqual(MoveCard.knightLeftwardChoice.kind, .choice)
         XCTAssertEqual(MoveCard.rayDown.kind, .multiStep)
-        XCTAssertEqual(MoveCard.effectKnight.kind, .effectAssist)
         XCTAssertEqual(MoveCard.rayDown.multiStepUnitVector, MoveVector(dx: 0, dy: -1))
     }
 
@@ -20,15 +18,13 @@ final class MoveCardPresentationTests: XCTestCase {
         XCTAssertEqual(MoveCard.standardSet.count, 32)
         XCTAssertTrue(MoveCard.allCases.contains(.fixedWarp))
         XCTAssertTrue(MoveCard.allCases.contains(.superWarp))
-        XCTAssertEqual(MoveCard.effectAssistCards, [.effectStep, .effectKnight, .effectLine])
-        XCTAssertTrue(MoveCard.allCases.contains(.effectLine))
     }
 
     func testCardEncyclopediaEntriesCoverAllMoveCardsByRepresentativeGroups() {
         let entries = MoveCard.encyclopediaEntries
         let includedCards = entries.flatMap(\.includedCards)
 
-        XCTAssertEqual(entries.count, 15)
+        XCTAssertEqual(entries.count, 9)
         XCTAssertEqual(Set(includedCards), Set(MoveCard.allCases))
         XCTAssertEqual(includedCards.count, MoveCard.allCases.count)
         XCTAssertTrue(entries.allSatisfy { !$0.displayName.isEmpty })
@@ -55,8 +51,6 @@ final class MoveCardPresentationTests: XCTestCase {
 
         XCTAssertTrue(entries.contains { $0.card == .superWarp && $0.includedCards == [.superWarp] })
         XCTAssertTrue(entries.contains { $0.card == .fixedWarp && $0.includedCards == [.fixedWarp] })
-        XCTAssertEqual(entries.filter { $0.category == "目的地補助" }.map(\.card), MoveCard.targetAssistCards)
-        XCTAssertEqual(entries.filter { $0.category == "特殊マス補助" }.map(\.card), MoveCard.effectAssistCards)
     }
 
     func testRepresentativeCardEncyclopediaMetadata() {
@@ -70,7 +64,7 @@ final class MoveCardPresentationTests: XCTestCase {
         XCTAssertTrue(MoveCard.rayDown.encyclopediaDescription.contains("盤端や障害物"))
 
         XCTAssertEqual(MoveCard.superWarp.encyclopediaCategory, "ワープ")
-        XCTAssertTrue(MoveCard.effectLine.encyclopediaDescription.contains("特殊マス"))
+        XCTAssertEqual(MoveCard.fixedWarp.encyclopediaCategory, "ワープ")
     }
 
     func testTileEncyclopediaEntriesCoverCoreTileKinds() {
@@ -80,6 +74,13 @@ final class MoveCardPresentationTests: XCTestCase {
         XCTAssertTrue(entries.allSatisfy { !$0.displayName.isEmpty })
         XCTAssertTrue(entries.allSatisfy { !$0.category.isEmpty })
         XCTAssertTrue(entries.allSatisfy { !$0.description.isEmpty })
+        XCTAssertEqual(entries.first { $0.id == "normal" }?.previewKind, .normal)
+        XCTAssertEqual(entries.first { $0.id == "spawn" }?.previewKind, .spawn)
+        XCTAssertEqual(entries.first { $0.id == "target" }?.previewKind, .target)
+        XCTAssertEqual(entries.first { $0.id == "nextTarget" }?.previewKind, .nextTarget)
+        XCTAssertEqual(entries.first { $0.id == "multiVisit" }?.previewKind, .multiVisit)
+        XCTAssertEqual(entries.first { $0.id == "toggle" }?.previewKind, .toggle)
+        XCTAssertEqual(entries.first { $0.id == "impassable" }?.previewKind, .impassable)
         let targetEntries = entries.filter { $0.category == "目的地" }
         XCTAssertFalse(targetEntries.contains { $0.displayName.contains("NEXT") || $0.description.contains("紫") || $0.description.contains("オレンジ") })
         XCTAssertTrue(entryIDs.isSuperset(of: [
@@ -102,5 +103,25 @@ final class MoveCardPresentationTests: XCTestCase {
             "targetSwap",
             "openGate"
         ]))
+
+        let specialPreviewIDs = Set(entries.compactMap { entry -> String? in
+            if case .effect = entry.previewKind {
+                return entry.id
+            }
+            return nil
+        })
+        XCTAssertEqual(specialPreviewIDs, [
+            "warp",
+            "shuffleHand",
+            "boost",
+            "slow",
+            "nextRefresh",
+            "freeFocus",
+            "preserveCard",
+            "draft",
+            "overload",
+            "targetSwap",
+            "openGate"
+        ])
     }
 }

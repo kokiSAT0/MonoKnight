@@ -128,6 +128,20 @@ final class CampaignLibraryTests: XCTestCase {
                 XCTAssertTrue(stage.regulation.additionalVisitRequirements.isEmpty, "\(stage.displayCode) では全踏破用の追加踏破条件を使いません")
                 XCTAssertEqual(stage.regulation.penalties.manualRedrawPenaltyCost, 0)
                 XCTAssertEqual(stage.regulation.penalties.deadlockPenaltyCost, 0)
+                XCTAssertNotNil(stage.twoStarScoreTarget, "\(stage.displayCode) には★2スコアラインが必要です")
+                XCTAssertNotNil(stage.scoreTarget, "\(stage.displayCode) には★3スコアラインが必要です")
+                if let twoStarScoreTarget = stage.twoStarScoreTarget, let threeStarScoreTarget = stage.scoreTarget {
+                    XCTAssertGreaterThan(
+                        twoStarScoreTarget,
+                        threeStarScoreTarget,
+                        "\(stage.displayCode) の★2ラインは★3ラインより緩い必要があります"
+                    )
+                    XCTAssertEqual(
+                        twoStarScoreTarget,
+                        ((threeStarScoreTarget + 3) / 4) * 5,
+                        "\(stage.displayCode) の★2ラインは★3×1.25を5pt単位で切り上げた値にします"
+                    )
+                }
 
                 guard case .targetCollection(let goalCount) = stage.regulation.completionRule else {
                     XCTFail("\(stage.displayCode) が目的地制に変換されていません")
@@ -266,8 +280,6 @@ final class CampaignLibraryTests: XCTestCase {
         XCTAssertTrue(allAllowedMoves.contains(.kingUpOrDown) || allAllowedMoves.contains(.kingLeftOrRight))
         XCTAssertFalse(allAllowedMoves.intersection(MoveCard.directionalRayCards).isEmpty)
         XCTAssertTrue(allAllowedMoves.contains(.fixedWarp) || allAllowedMoves.contains(.superWarp))
-        XCTAssertFalse(allAllowedMoves.intersection(MoveCard.targetAssistCards).isEmpty)
-        XCTAssertFalse(allAllowedMoves.intersection(MoveCard.effectAssistCards).isEmpty)
 
         let allEffects = stages.flatMap { Array($0.regulation.resolvedTileEffects.values) }
         XCTAssertTrue(allEffects.containsEffect(.warp))

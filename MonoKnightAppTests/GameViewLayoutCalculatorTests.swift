@@ -76,5 +76,90 @@ final class GameViewLayoutCalculatorTests: XCTestCase {
             "コントロール行の余白が基準値からずれています"
         )
     }
-}
 
+    /// iPad Portrait では盤面を十分に大きくしつつ、視線移動が広がりすぎない上限へ収める
+    func testRegularWidthPortraitBoardSizeIsCappedForIPad() {
+        let scenarios: [(name: String, size: CGSize, expectedMinimumWidth: CGFloat)] = [
+            ("iPad mini", CGSize(width: 744, height: 1_133), 560),
+            ("iPad 11-inch", CGSize(width: 834, height: 1_194), 600),
+            ("iPad 13-inch", CGSize(width: 1_032, height: 1_366), 600),
+        ]
+
+        for scenario in scenarios {
+            let parameters = GameViewLayoutParameters(
+                size: scenario.size,
+                safeAreaTop: 24,
+                safeAreaBottom: 20
+            )
+            let calculator = GameViewLayoutCalculator(
+                parameters: parameters,
+                horizontalSizeClass: .regular,
+                topOverlayHeight: 0,
+                baseTopSafeAreaInset: 24,
+                statisticsHeight: 92,
+                handSectionHeight: 248
+            )
+
+            let context = calculator.makeContext()
+
+            XCTAssertGreaterThanOrEqual(
+                context.boardWidth,
+                scenario.expectedMinimumWidth,
+                "\(scenario.name) の盤面幅が小さすぎます"
+            )
+            XCTAssertLessThanOrEqual(
+                context.boardWidth,
+                GameViewLayoutMetrics.regularWidthMaximumBoardWidth,
+                "\(scenario.name) の盤面幅が iPad 向け上限を超えています"
+            )
+            XCTAssertGreaterThan(
+                context.availableHeightForBoard,
+                context.resolvedStatisticsHeight,
+                "\(scenario.name) で上部操作領域を保てる高さが残っていません"
+            )
+        }
+    }
+
+    /// 初期スポーン案内を盤面へ重ねず、通常レイアウト内に収めるための高さを確保する
+    func testSpawnSelectionBannerHeightReducesAvailableBoardHeight() {
+        let parameters = GameViewLayoutParameters(
+            size: CGSize(width: 390, height: 844),
+            safeAreaTop: 47,
+            safeAreaBottom: 34
+        )
+        let baseCalculator = GameViewLayoutCalculator(
+            parameters: parameters,
+            horizontalSizeClass: .compact,
+            topOverlayHeight: 0,
+            baseTopSafeAreaInset: 47,
+            statisticsHeight: 120,
+            handSectionHeight: 260
+        )
+        let spawnCalculator = GameViewLayoutCalculator(
+            parameters: parameters,
+            horizontalSizeClass: .compact,
+            topOverlayHeight: 0,
+            baseTopSafeAreaInset: 47,
+            statisticsHeight: 120,
+            handSectionHeight: 260,
+            inlineMessageHeight: GameViewLayoutMetrics.spawnSelectionBannerReservedHeight
+        )
+
+        let baseContext = baseCalculator.makeContext()
+        let spawnContext = spawnCalculator.makeContext()
+        let expectedReduction = GameViewLayoutMetrics.spawnSelectionBannerReservedHeight
+            + GameViewLayoutMetrics.spacingBetweenBoardAndHand
+
+        XCTAssertEqual(
+            baseContext.availableHeightForBoard - spawnContext.availableHeightForBoard,
+            expectedReduction,
+            accuracy: 0.001,
+            "スポーン案内分の高さが盤面計算から差し引かれていません"
+        )
+        XCTAssertLessThan(
+            spawnContext.boardWidth,
+            baseContext.boardWidth,
+            "案内表示中も盤面幅が変わらず、盤面と案内が重なる恐れがあります"
+        )
+    }
+}

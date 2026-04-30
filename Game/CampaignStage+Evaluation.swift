@@ -45,23 +45,31 @@ public extension CampaignStage {
     /// - Parameter metrics: クリア時の統計値
     /// - Returns: 達成状況の評価結果
     func evaluateClear(with metrics: CampaignStageClearMetrics) -> CampaignStageEvaluation {
-        let objectiveAchieved = secondaryObjective?.isSatisfied(by: metrics) ?? false
-        let scoreAchieved: Bool
-        if let scoreTarget {
-            scoreAchieved = scoreTargetComparison.isSatisfied(score: metrics.score, target: scoreTarget)
+        let twoStarAchieved: Bool
+        if let twoStarScoreTarget {
+            twoStarAchieved = scoreTargetComparison.isSatisfied(score: metrics.score, target: twoStarScoreTarget)
         } else {
-            scoreAchieved = false
+            twoStarAchieved = false
+        }
+
+        let threeStarAchieved: Bool
+        if let scoreTarget {
+            threeStarAchieved = scoreTargetComparison.isSatisfied(score: metrics.score, target: scoreTarget)
+        } else {
+            threeStarAchieved = false
         }
 
         var stars = 1
-        if objectiveAchieved { stars += 1 }
-        if scoreAchieved { stars += 1 }
+        if twoStarAchieved { stars += 1 }
+        if threeStarAchieved { stars += 1 }
 
         return CampaignStageEvaluation(
             stageID: id,
             earnedStars: stars,
-            achievedSecondaryObjective: objectiveAchieved,
-            achievedScoreGoal: scoreAchieved
+            achievedSecondaryObjective: twoStarAchieved,
+            achievedScoreGoal: threeStarAchieved,
+            achievedTwoStarScoreGoal: twoStarAchieved,
+            achievedThreeStarScoreGoal: threeStarAchieved
         )
     }
 }

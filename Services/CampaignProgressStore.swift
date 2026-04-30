@@ -94,6 +94,12 @@ final class CampaignProgressStore: ObservableObject {
         if evaluation.achievedScoreGoal {
             current.achievedScoreGoal = true
         }
+        if evaluation.achievedTwoStarScoreGoal {
+            current.achievedTwoStarScoreGoal = true
+        }
+        if evaluation.achievedThreeStarScoreGoal {
+            current.achievedThreeStarScoreGoal = true
+        }
 
         current.bestScore = CampaignProgressStore.minValue(current.bestScore, newValue: metrics.score)
         current.bestMoveCount = CampaignProgressStore.minValue(current.bestMoveCount, newValue: metrics.moveCount)
@@ -180,11 +186,15 @@ final class CampaignProgressStore: ObservableObject {
 /// ステージの進捗を表すモデル
 struct CampaignStageProgress: Codable {
     /// 獲得済みスター数
-    var earnedStars: Int = 0
+    var earnedStars: Int
     /// 二つ目のスター条件を達成したことがあるか
-    var achievedSecondaryObjective: Bool = false
+    var achievedSecondaryObjective: Bool
     /// 三つ目のスター条件を達成したことがあるか
-    var achievedScoreGoal: Bool = false
+    var achievedScoreGoal: Bool
+    /// 二つ目のスコアスター条件を達成したことがあるか
+    var achievedTwoStarScoreGoal: Bool
+    /// 三つ目のスコアスター条件を達成したことがあるか
+    var achievedThreeStarScoreGoal: Bool
     /// ベストスコア（低いほど良い）
     var bestScore: Int?
     /// ベストの移動回数
@@ -197,6 +207,47 @@ struct CampaignStageProgress: Codable {
     var bestFocusCount: Int?
     /// 最短クリアタイム（秒）
     var bestElapsedSeconds: Int?
+
+    init(
+        earnedStars: Int = 0,
+        achievedSecondaryObjective: Bool = false,
+        achievedScoreGoal: Bool = false,
+        achievedTwoStarScoreGoal: Bool = false,
+        achievedThreeStarScoreGoal: Bool = false,
+        bestScore: Int? = nil,
+        bestMoveCount: Int? = nil,
+        bestTotalMoveCount: Int? = nil,
+        bestPenaltyCount: Int? = nil,
+        bestFocusCount: Int? = nil,
+        bestElapsedSeconds: Int? = nil
+    ) {
+        self.earnedStars = earnedStars
+        self.achievedSecondaryObjective = achievedSecondaryObjective
+        self.achievedScoreGoal = achievedScoreGoal
+        self.achievedTwoStarScoreGoal = achievedTwoStarScoreGoal
+        self.achievedThreeStarScoreGoal = achievedThreeStarScoreGoal
+        self.bestScore = bestScore
+        self.bestMoveCount = bestMoveCount
+        self.bestTotalMoveCount = bestTotalMoveCount
+        self.bestPenaltyCount = bestPenaltyCount
+        self.bestFocusCount = bestFocusCount
+        self.bestElapsedSeconds = bestElapsedSeconds
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        earnedStars = try container.decodeIfPresent(Int.self, forKey: .earnedStars) ?? 0
+        achievedSecondaryObjective = try container.decodeIfPresent(Bool.self, forKey: .achievedSecondaryObjective) ?? false
+        achievedScoreGoal = try container.decodeIfPresent(Bool.self, forKey: .achievedScoreGoal) ?? false
+        achievedTwoStarScoreGoal = try container.decodeIfPresent(Bool.self, forKey: .achievedTwoStarScoreGoal) ?? achievedSecondaryObjective
+        achievedThreeStarScoreGoal = try container.decodeIfPresent(Bool.self, forKey: .achievedThreeStarScoreGoal) ?? achievedScoreGoal
+        bestScore = try container.decodeIfPresent(Int.self, forKey: .bestScore)
+        bestMoveCount = try container.decodeIfPresent(Int.self, forKey: .bestMoveCount)
+        bestTotalMoveCount = try container.decodeIfPresent(Int.self, forKey: .bestTotalMoveCount)
+        bestPenaltyCount = try container.decodeIfPresent(Int.self, forKey: .bestPenaltyCount)
+        bestFocusCount = try container.decodeIfPresent(Int.self, forKey: .bestFocusCount)
+        bestElapsedSeconds = try container.decodeIfPresent(Int.self, forKey: .bestElapsedSeconds)
+    }
 }
 
 /// クリア登録後のレスポンス

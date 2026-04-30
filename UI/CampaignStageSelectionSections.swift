@@ -9,6 +9,7 @@ struct CampaignStageSelectionListView: View {
     let theme: AppTheme
     @Binding var expandedChapters: Set<Int>
     let onSelectStage: (CampaignStage) -> Void
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     var body: some View {
         ScrollView {
@@ -25,8 +26,10 @@ struct CampaignStageSelectionListView: View {
                     )
                 }
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, horizontalPadding)
             .padding(.vertical, 24)
+            .frame(maxWidth: contentMaxWidth)
+            .frame(maxWidth: .infinity)
         }
         .background(theme.backgroundPrimary)
         .onAppear {
@@ -56,6 +59,14 @@ struct CampaignStageSelectionListView: View {
             debugLog("CampaignStageSelectionView: Chapter \(chapter.id) を展開")
         }
     }
+
+    private var contentMaxWidth: CGFloat? {
+        horizontalSizeClass == .regular ? 860 : nil
+    }
+
+    private var horizontalPadding: CGFloat {
+        horizontalSizeClass == .regular ? 32 : 16
+    }
 }
 
 struct CampaignChapterSection: View {
@@ -66,9 +77,11 @@ struct CampaignChapterSection: View {
     let isExpanded: Bool
     let onToggle: () -> Void
     let onSelectStage: (CampaignStage) -> Void
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     private var gridColumns: [GridItem] {
-        Array(repeating: GridItem(.flexible(), spacing: 12, alignment: .top), count: 4)
+        let columnCount = horizontalSizeClass == .regular ? 6 : 4
+        return Array(repeating: GridItem(.flexible(), spacing: 12, alignment: .top), count: columnCount)
     }
 
     var body: some View {

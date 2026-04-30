@@ -2349,19 +2349,30 @@ final class GameCoreTests: XCTestCase {
         XCTAssertEqual(core.score, 232, "目的地制のポイント計算が仕様と一致していない")
     }
 
-    /// キャンペーン評価でフォーカス回数がスター条件に反映されることを確認
-    func testCampaignEvaluationUsesFocusCount() {
+    /// キャンペーン評価でスター条件がスコアラインに一本化されることを確認
+    func testCampaignEvaluationUsesScoreLinesForStars() {
         let stage = CampaignStage(
             id: CampaignStageID(chapter: 9, index: 1),
-            title: "フォーカス評価",
+            title: "スコア評価",
             summary: "summary",
             regulation: GameMode.standard.regulationSnapshot,
             secondaryObjective: .finishWithFocusAtMost(maxFocusCount: 2),
-            scoreTarget: 300,
+            twoStarScoreTarget: 210,
+            scoreTarget: 180,
             unlockRequirement: .always
         )
 
-        let achieved = CampaignStageClearMetrics(
+        let twoStar = CampaignStageClearMetrics(
+            moveCount: 12,
+            penaltyCount: 0,
+            focusCount: 4,
+            elapsedSeconds: 25,
+            totalMoveCount: 12,
+            score: 205,
+            hasRevisitedTile: false,
+            capturedTargetCount: 12
+        )
+        let threeStar = CampaignStageClearMetrics(
             moveCount: 12,
             penaltyCount: 0,
             focusCount: 2,
@@ -2371,19 +2382,9 @@ final class GameCoreTests: XCTestCase {
             hasRevisitedTile: false,
             capturedTargetCount: 12
         )
-        let missed = CampaignStageClearMetrics(
-            moveCount: 12,
-            penaltyCount: 0,
-            focusCount: 3,
-            elapsedSeconds: 30,
-            totalMoveCount: 12,
-            score: 195,
-            hasRevisitedTile: false,
-            capturedTargetCount: 12
-        )
 
-        XCTAssertTrue(stage.evaluateClear(with: achieved).achievedSecondaryObjective)
-        XCTAssertFalse(stage.evaluateClear(with: missed).achievedSecondaryObjective)
+        XCTAssertEqual(stage.evaluateClear(with: twoStar).earnedStars, 2)
+        XCTAssertEqual(stage.evaluateClear(with: threeStar).earnedStars, 3)
     }
 }
 

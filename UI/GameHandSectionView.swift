@@ -61,6 +61,9 @@ struct GameHandSectionView: View {
         }
         // 下方向の余白をまとめて適用し、ホームインジケータとの干渉を避ける
         .padding(.bottom, finalBottomPadding)
+        .padding(.horizontal, horizontalSizeClass == .regular ? 24 : 0)
+        .frame(maxWidth: horizontalSizeClass == .regular ? 760 : nil)
+        .frame(maxWidth: .infinity)
     }
 }
 
@@ -378,18 +381,6 @@ private extension GameHandSectionView {
             return "未踏マスへ全域ワープ"
         case .fixedWarp:
             return "定められた座標へ固定ワープ"
-        case .targetStep:
-            return "表示中の目的地へ近づく隣接 1 マス候補"
-        case .targetKnight:
-            return "表示中の目的地へ近づく桂馬候補"
-        case .targetLine:
-            return "表示中の目的地方向へ連続移動"
-        case .effectStep:
-            return "特殊マスへ近づく隣接 1 マス候補"
-        case .effectKnight:
-            return "特殊マスへ近づく桂馬候補"
-        case .effectLine:
-            return "特殊マス方向へ連続移動"
         }
     }
 }

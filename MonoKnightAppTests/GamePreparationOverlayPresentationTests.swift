@@ -20,8 +20,9 @@ final class GamePreparationOverlayPresentationTests: XCTestCase {
         XCTAssertTrue(presentation.prioritizesFeatureSpotlight)
         XCTAssertEqual(
             presentation.featuredChips.map(\.displayText),
-            ["NEW 目的地集め", "NEW 王将カード"]
+            ["NEW 王将カード"]
         )
+        XCTAssertFalse(presentation.featureChips.contains { $0.label == "目的地集め" })
     }
 
     func testNonCampaignPreparationUsesRuleDetailDisclosure() {

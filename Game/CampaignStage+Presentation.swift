@@ -43,6 +43,13 @@ public extension CampaignStage {
         secondaryObjective?.description
     }
 
+    /// 二つ目のスター条件説明
+    var twoStarScoreTargetDescription: String? {
+        guard let twoStarScoreTarget else { return nil }
+        let suffix = scoreTargetComparison.descriptionSuffix
+        return "スコア \(twoStarScoreTarget) pt \(suffix)でクリア"
+    }
+
     /// 三つ目のスター条件説明
     var scoreTargetDescription: String? {
         guard let scoreTarget else { return nil }

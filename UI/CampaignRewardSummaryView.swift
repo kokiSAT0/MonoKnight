@@ -151,13 +151,13 @@ private extension CampaignRewardSummaryView {
         // スター 1 個目はクリアそのものを意味する
         results.append(.init(title: "ステージクリア", achieved: earnedStars > 0))
 
-        if let stage = stage, let description = stage.secondaryObjectiveDescription {
-            let achieved = progress?.achievedSecondaryObjective ?? false
+        if let stage = stage, let description = stage.twoStarScoreTargetDescription {
+            let achieved = progress?.achievedTwoStarScoreGoal ?? false
             results.append(.init(title: description, achieved: achieved))
         }
 
         if let stage = stage, let scoreText = stage.scoreTargetDescription {
-            let achieved = progress?.achievedScoreGoal ?? false
+            let achieved = progress?.achievedThreeStarScoreGoal ?? false
             results.append(.init(title: scoreText, achieved: achieved))
         }
 

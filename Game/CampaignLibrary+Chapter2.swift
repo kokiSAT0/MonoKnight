@@ -10,6 +10,7 @@ extension CampaignLibrary {
             goalCount: 6,
             deckPreset: .standardWithOrthogonalChoices,
             secondaryObjective: .finishWithFocusAtMost(maxFocusCount: 3),
+            twoStarScoreTarget: 270,
             scoreTarget: 215,
             unlockRequirement: .stageClear(CampaignStageID(chapter: 1, index: 8))
         )
@@ -22,6 +23,7 @@ extension CampaignLibrary {
             deckPreset: .standardWithOrthogonalChoices,
             spawnRule: .chooseAnyAfterPreview,
             secondaryObjective: .finishWithinMoves(maxMoves: 17),
+            twoStarScoreTarget: 265,
             scoreTarget: 210,
             unlockRequirement: .stageClear(stage21.id),
             tileEffectOverrides: [GridPoint(x: 3, y: 1): .freeFocus]
@@ -34,6 +36,7 @@ extension CampaignLibrary {
             goalCount: 7,
             deckPreset: .standardWithDiagonalChoices,
             secondaryObjective: .finishWithFocusAtMost(maxFocusCount: 3),
+            twoStarScoreTarget: 300,
             scoreTarget: 240,
             unlockRequirement: .stageClear(stage22.id)
         )
@@ -46,6 +49,7 @@ extension CampaignLibrary {
             deckPreset: .standardWithKnightChoices,
             spawnRule: .chooseAnyAfterPreview,
             secondaryObjective: .finishWithinMoves(maxMoves: 19),
+            twoStarScoreTarget: 300,
             scoreTarget: 240,
             unlockRequirement: .stageClear(stage23.id)
         )
@@ -57,6 +61,7 @@ extension CampaignLibrary {
             goalCount: 8,
             deckPreset: .standardWithAllChoices,
             secondaryObjective: .finishWithFocusAtMost(maxFocusCount: 3),
+            twoStarScoreTarget: 340,
             scoreTarget: 270,
             unlockRequirement: .stageClear(stage24.id)
         )
@@ -69,6 +74,7 @@ extension CampaignLibrary {
             deckPreset: .standardWithAllChoices,
             spawnRule: .chooseAnyAfterPreview,
             secondaryObjective: .finishWithinMoves(maxMoves: 21),
+            twoStarScoreTarget: 340,
             scoreTarget: 270,
             unlockRequirement: .stageClear(stage25.id)
         )
@@ -80,6 +86,7 @@ extension CampaignLibrary {
             goalCount: 8,
             deckPreset: .standardWithAllChoices,
             secondaryObjective: .finishWithFocusAtMost(maxFocusCount: 2),
+            twoStarScoreTarget: 335,
             scoreTarget: 265,
             unlockRequirement: .stageClear(stage26.id)
         )
@@ -92,6 +99,7 @@ extension CampaignLibrary {
             deckPreset: .standardWithAllChoices,
             spawnRule: .chooseAnyAfterPreview,
             secondaryObjective: .finishWithFocusAtMostAndWithinMoves(maxFocusCount: 3, maxMoves: 22),
+            twoStarScoreTarget: 375,
             scoreTarget: 300,
             unlockRequirement: .stageClear(stage27.id)
         )

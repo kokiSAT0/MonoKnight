@@ -362,6 +362,18 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertNil(scoreViewModel.campaignPauseSummary, "非キャンペーンモードでは pause summary が nil のままになる必要があります")
     }
 
+    /// キャンペーン時だけプレイ中のスター用スコアラインを返すことを確認
+    func testCampaignStarScoreTargetsAreOnlyExposedForCampaignMode() throws {
+        let stage = try XCTUnwrap(CampaignLibrary.shared.stage(with: CampaignStageID(chapter: 1, index: 1)))
+        let (campaignViewModel, _) = makeViewModel(mode: stage.makeGameMode())
+
+        XCTAssertEqual(campaignViewModel.campaignStarScoreTargets?.twoStar, stage.twoStarScoreTarget)
+        XCTAssertEqual(campaignViewModel.campaignStarScoreTargets?.threeStar, stage.scoreTarget)
+
+        let (standardViewModel, _) = makeViewModel(mode: .standard)
+        XCTAssertNil(standardViewModel.campaignStarScoreTargets, "標準モードではスターラインを表示しません")
+    }
+
     /// handleCampaignStageAdvance が stage unlock 条件を守って遷移要求を出し分けることを確認
     func testHandleCampaignStageAdvanceRequestsOnlyUnlockedStage() throws {
         let (defaults, suiteName) = try makeIsolatedDefaults()

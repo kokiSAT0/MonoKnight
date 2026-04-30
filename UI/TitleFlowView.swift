@@ -240,7 +240,7 @@ struct TitleScreenView: View {
                 .font(.system(size: 18, weight: .semibold, design: .rounded))
                 .foregroundColor(theme.textPrimary)
 
-            VStack(spacing: 14) {
+            LazyVGrid(columns: featureTileColumns, alignment: .leading, spacing: 14) {
                 featureTile(
                     target: .campaign,
                     title: "キャンペーン",
@@ -608,10 +608,17 @@ private extension TitleScreenView {
     }
 
     var contentMaxWidth: CGFloat? {
-        horizontalSizeClass == .regular ? 520 : nil
+        horizontalSizeClass == .regular ? 760 : nil
     }
 
     var horizontalPadding: CGFloat {
-        horizontalSizeClass == .regular ? 80 : 32
+        horizontalSizeClass == .regular ? 56 : 32
+    }
+
+    var featureTileColumns: [GridItem] {
+        if horizontalSizeClass == .regular {
+            return [GridItem(.adaptive(minimum: 320), spacing: 14, alignment: .top)]
+        }
+        return [GridItem(.flexible(), spacing: 14, alignment: .top)]
     }
 }

@@ -94,6 +94,16 @@ final class GameViewModel: ObservableObject {
         }
         return core.totalMoveCount * 10 + displayedElapsedSeconds
     }
+    /// キャンペーンプレイ中に表示するスター別スコアライン
+    var campaignStarScoreTargets: (twoStar: Int, threeStar: Int)? {
+        guard let metadata = mode.campaignMetadataSnapshot,
+              let stage = CampaignLibrary.shared.stage(with: metadata.stageID),
+              let twoStarScoreTarget = stage.twoStarScoreTarget,
+              let threeStarScoreTarget = stage.scoreTarget
+        else { return nil }
+
+        return (twoStarScoreTarget, threeStarScoreTarget)
+    }
     /// 現在の移動回数
     /// - Note: 統計バッジ表示で利用し、View 側から GameCore への直接依存を減らす
     var moveCount: Int { core.moveCount }

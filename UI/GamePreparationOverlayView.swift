@@ -39,7 +39,6 @@ struct GamePreparationOverlayPresentation: Equatable {
 }
 
 private enum CampaignStageFeatureKey: Hashable {
-    case targetCollection
     case kingCards
     case knightCards
     case standardDeck
@@ -51,8 +50,6 @@ private enum CampaignStageFeatureKey: Hashable {
     case fixedWarpCard
     case superWarp
     case warpCards
-    case targetAssist
-    case effectAssist
     case spawnChoice
     case obstacles
     case warpTile
@@ -69,7 +66,6 @@ private enum CampaignStageFeatureKey: Hashable {
 
     var label: String {
         switch self {
-        case .targetCollection: return "目的地集め"
         case .kingCards: return "王将カード"
         case .knightCards: return "桂馬カード"
         case .standardDeck: return "標準カード"
@@ -81,8 +77,6 @@ private enum CampaignStageFeatureKey: Hashable {
         case .fixedWarpCard: return "固定ワープ"
         case .superWarp: return "全域ワープ"
         case .warpCards: return "ワープカード"
-        case .targetAssist: return "目的地補助"
-        case .effectAssist: return "特殊マス補助"
         case .spawnChoice: return "開始位置選び"
         case .obstacles: return "障害物"
         case .warpTile: return "ワープタイル"
@@ -122,8 +116,7 @@ private enum CampaignStageFeatureResolver {
     }
 
     private static func featureKeys(for stage: CampaignStage) -> [CampaignStageFeatureKey] {
-        var keys: [CampaignStageFeatureKey] = [.targetCollection]
-        keys.append(contentsOf: deckFeatureKeys(for: stage.regulation.deckPreset))
+        var keys = deckFeatureKeys(for: stage.regulation.deckPreset)
 
         if stage.regulation.spawnRule == .chooseAnyAfterPreview {
             keys.append(.spawnChoice)
@@ -167,7 +160,7 @@ private enum CampaignStageFeatureResolver {
         case .standardWithWarpCards:
             return [.warpCards]
         case .targetLabAllIn:
-            return [.targetAssist, .effectAssist]
+            return [.allChoice, .rayCards, .warpCards]
         case .classicalChallenge:
             return [.knightCards]
         }
@@ -436,9 +429,12 @@ extension RootView {
                 Text(chip.label)
                     .font(.system(size: isProminent ? 15 : 12, weight: .semibold, design: .rounded))
                     .foregroundColor(theme.textPrimary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.82)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.78)
+                    .multilineTextAlignment(.leading)
+                    .layoutPriority(1)
             }
+            .frame(minWidth: isProminent ? 132 : 112, alignment: .leading)
             .padding(.horizontal, isProminent ? 12 : 10)
             .padding(.vertical, isProminent ? 9 : 7)
             .background(
@@ -611,7 +607,7 @@ extension RootView {
 
             var body: some View {
                 let columns = [
-                    GridItem(.adaptive(minimum: 112), spacing: 8, alignment: .leading)
+                    GridItem(.adaptive(minimum: 132), spacing: 8, alignment: .leading)
                 ]
 
                 LazyVGrid(columns: columns, alignment: .leading, spacing: 8) {

@@ -7,6 +7,8 @@ struct GameBoardControlRowView: View {
     let theme: AppTheme
     /// ゲーム進行とサービス連携を管理する ViewModel
     @ObservedObject var viewModel: GameViewModel
+    /// iPad などレギュラー幅では統計と操作を中央のプレイ領域へまとめる
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     var body: some View {
         ViewThatFits(in: .horizontal) {
@@ -14,6 +16,8 @@ struct GameBoardControlRowView: View {
             stackedLayout
         }
         .padding(.horizontal, 16)
+        .frame(maxWidth: contentMaxWidth)
+        .frame(maxWidth: .infinity)
         // PreferenceKey へ高さを伝搬し、GeometryReader 側のレイアウト計算へ反映する
         .overlay(alignment: .topLeading) {
             HeightPreferenceReporter<StatisticsHeightPreferenceKey>()
@@ -22,6 +26,10 @@ struct GameBoardControlRowView: View {
 }
 
 private extension GameBoardControlRowView {
+    var contentMaxWidth: CGFloat? {
+        horizontalSizeClass == .regular ? 760 : nil
+    }
+
     /// 横幅に余裕がある場合に利用する 1 行構成
     var singleLineLayout: some View {
         HStack(alignment: .center, spacing: 12) {
@@ -112,6 +120,16 @@ private extension GameBoardControlRowView {
                     accessibilityLabel: "目的地獲得数",
                     accessibilityValue: "\(viewModel.targetGoalCount)個中\(viewModel.capturedTargetCount)個獲得"
                 )
+
+                if let targets = viewModel.campaignStarScoreTargets {
+                    statisticBadge(
+                        title: "星ライン",
+                        value: "★2 \(targets.twoStar) / ★3 \(targets.threeStar)",
+                        accessibilityLabel: "キャンペーンスターのスコアライン",
+                        accessibilityValue: starLineAccessibilityValue(targets),
+                        valueColor: starLineValueColor(targets)
+                    )
+                }
             } else {
                 statisticBadge(
                     title: "残りマス",
@@ -283,7 +301,8 @@ private extension GameBoardControlRowView {
         title: String,
         value: String,
         accessibilityLabel: String,
-        accessibilityValue: String
+        accessibilityValue: String,
+        valueColor: Color? = nil
     ) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title)
@@ -293,7 +312,7 @@ private extension GameBoardControlRowView {
 
             Text(value)
                 .font(.headline)
-                .foregroundColor(theme.statisticValueText)
+                .foregroundColor(valueColor ?? theme.statisticValueText)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabel)
@@ -325,5 +344,26 @@ private extension GameBoardControlRowView {
     /// スコアのアクセシビリティ説明
     func accessibilityScoreDescription(_ score: Int) -> String {
         "\(score)ポイント"
+    }
+
+    func starLineValueColor(_ targets: (twoStar: Int, threeStar: Int)) -> Color {
+        if viewModel.displayedScore <= targets.threeStar {
+            return .yellow
+        }
+        if viewModel.displayedScore <= targets.twoStar {
+            return theme.accentPrimary
+        }
+        return theme.statisticValueText
+    }
+
+    func starLineAccessibilityValue(_ targets: (twoStar: Int, threeStar: Int)) -> String {
+        let currentScore = viewModel.displayedScore
+        if currentScore <= targets.threeStar {
+            return "現在\(currentScore)ポイント。星3ライン\(targets.threeStar)ポイント以内を達成中。星2ラインは\(targets.twoStar)ポイント以内です"
+        }
+        if currentScore <= targets.twoStar {
+            return "現在\(currentScore)ポイント。星2ライン\(targets.twoStar)ポイント以内を達成中。星3ラインは\(targets.threeStar)ポイント以内です"
+        }
+        return "現在\(currentScore)ポイント。星2ラインは\(targets.twoStar)ポイント以内、星3ラインは\(targets.threeStar)ポイント以内です"
     }
 }

@@ -299,7 +299,7 @@ struct Deck {
             )
         }()
 
-        /// 目的地制カード調整用の全部入り実験デッキ
+        /// 目的地制カード調整用の実験デッキ
         static let targetLabAllIn: Configuration = {
             let selectionCards: [MoveCard] = [
                 .kingUpOrDown,
@@ -314,15 +314,11 @@ struct Deck {
                 .knightLeftwardChoice
             ]
             let warpCards: [MoveCard] = [.fixedWarp, .superWarp]
-            let targetCards = MoveCard.targetAssistCards
-            let effectCards = MoveCard.effectAssistCards
-            let allowedMoves = MoveCard.standardSet + selectionCards + warpCards + targetCards + effectCards
+            let allowedMoves = MoveCard.standardSet + selectionCards + warpCards
 
             var overrides: [MoveCard: Int] = [:]
             MoveCard.directionalRayCards.forEach { overrides[$0] = 3 }
             selectionCards.forEach { overrides[$0] = 2 }
-            targetCards.forEach { overrides[$0] = 4 }
-            effectCards.forEach { overrides[$0] = 4 }
             overrides[.fixedWarp] = 3
             overrides[.superWarp] = 2
 

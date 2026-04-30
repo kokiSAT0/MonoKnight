@@ -46,7 +46,7 @@ final class CampaignProgressStoreTests: XCTestCase {
             penaltyCount: 0,
             elapsedSeconds: 90,
             totalMoveCount: 16,
-            score: 250,
+            score: 110,
             hasRevisitedTile: false
         )
 
@@ -124,32 +124,26 @@ final class CampaignProgressStoreTests: XCTestCase {
         XCTAssertFalse(reloadedStore.isStageUnlocked(lockedStage), "再生成してもロック状態が維持されることを検証します")
     }
 
-    /// 章単位のスター合計が解放条件へ反映されることを検証する
-    func testChapterTotalStarsUnlocksNextChapter() throws {
+    /// 前章最終ステージのクリアが次章の解放条件へ反映されることを検証する
+    func testStageClearUnlocksNextChapter() throws {
         let defaults = try makeIsolatedDefaults()
         let store = CampaignProgressStore(userDefaults: defaults)
         let library = CampaignLibrary.shared
 
         let nextChapterStageID = CampaignStageID(chapter: 2, index: 1)
+        let previousChapterFinalStageID = CampaignStageID(chapter: 1, index: 8)
         guard let nextChapterStage = library.stage(with: nextChapterStageID) else {
             XCTFail("第2章のステージ定義が見つかりません")
             return
         }
+        guard let previousChapterFinalStage = library.stage(with: previousChapterFinalStageID) else {
+            XCTFail("第1章の最終ステージ定義が見つかりません")
+            return
+        }
 
-        // MARK: スター 0 の状態では第 2 章の入り口がロックされている想定
-        XCTAssertFalse(store.isStageUnlocked(nextChapterStage), "第1章のスター合計が不足している場合はロックが維持される必要があります")
+        XCTAssertFalse(store.isStageUnlocked(nextChapterStage), "前章最終ステージが未クリアの場合はロックが維持される必要があります")
 
-        // MARK: 第 1 章の 6 ステージ分を順番にクリアし、スター合計を 18 まで伸ばす
-        let stageIDsToClear: [CampaignStageID] = [
-            CampaignStageID(chapter: 1, index: 1),
-            CampaignStageID(chapter: 1, index: 2),
-            CampaignStageID(chapter: 1, index: 3),
-            CampaignStageID(chapter: 1, index: 4),
-            CampaignStageID(chapter: 1, index: 5),
-            CampaignStageID(chapter: 1, index: 6)
-        ]
-        // 3 スター獲得を想定した共通メトリクス（スコアとペナルティを十分小さく保つ）
-        let perfectMetrics = CampaignStageClearMetrics(
+        let clearMetrics = CampaignStageClearMetrics(
             moveCount: 10,
             penaltyCount: 0,
             elapsedSeconds: 50,
@@ -157,28 +151,8 @@ final class CampaignProgressStoreTests: XCTestCase {
             score: 200,
             hasRevisitedTile: false
         )
+        _ = store.registerClear(for: previousChapterFinalStage, metrics: clearMetrics)
 
-        for stageID in stageIDsToClear.prefix(5) {
-            guard let stage = library.stage(with: stageID) else {
-                XCTFail("ステージ \(stageID.displayCode) の定義が見つかりません")
-                return
-            }
-            _ = store.registerClear(for: stage, metrics: perfectMetrics)
-        }
-
-        // MARK: スター合計 15 の時点では解放条件に届かないことを確認
-        XCTAssertEqual(store.totalStars(inChapter: 1), 15, "5 ステージクリア後のスター合計が想定と異なります")
-        XCTAssertFalse(store.isStageUnlocked(nextChapterStage), "スターが 16 未満の場合はロックが継続する想定です")
-
-        // MARK: 6 ステージ目をクリアして合計 18 に達すると解放される
-        if let finalStage = library.stage(with: stageIDsToClear[5]) {
-            _ = store.registerClear(for: finalStage, metrics: perfectMetrics)
-        } else {
-            XCTFail("ステージ \(stageIDsToClear[5].displayCode) の定義が見つかりません")
-            return
-        }
-
-        XCTAssertEqual(store.totalStars(inChapter: 1), 18, "第1章で獲得したスター数の集計が期待値と異なります")
-        XCTAssertTrue(store.isStageUnlocked(nextChapterStage), "スターが 16 以上になった時点で第 2 章の入口は解放される必要があります")
+        XCTAssertTrue(store.isStageUnlocked(nextChapterStage), "前章最終ステージのクリア後に第2章の入口が解放される必要があります")
     }
 }

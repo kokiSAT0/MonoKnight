@@ -43,20 +43,6 @@ public extension MoveCard {
         .diagonalUpLeft2
     ] + directionalRayCards
 
-    /// 目的地制モードでのみ候補を出す補助カード
-    static let targetAssistCards: [MoveCard] = [
-        .targetStep,
-        .targetKnight,
-        .targetLine
-    ]
-
-    /// 実験場向けに特殊効果マスへ近づく補助カード
-    static let effectAssistCards: [MoveCard] = [
-        .effectStep,
-        .effectKnight,
-        .effectLine
-    ]
-
     /// `CaseIterable` の自動生成は internal となるため、外部モジュールからも全種類を参照できるよう明示的に公開配列を定義する
     /// - Note: スタンダードセットに複数方向カードを加えた順序で公開する
     static let allCases: [MoveCard] = standardSet + [
@@ -72,5 +58,5 @@ public extension MoveCard {
         .knightLeftwardChoice,
         .superWarp,
         .fixedWarp
-    ] + targetAssistCards + effectAssistCards
+    ]
 }

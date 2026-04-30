@@ -51,6 +51,10 @@ enum GameViewLayoutMetrics {
     static let statisticsSectionFallbackHeight: CGFloat = 72
     /// 手札と先読みカードを含めた最低想定高さ。カード 2 段構成とテキストを見越したゆとりを確保する
     static let handSectionFallbackHeight: CGFloat = 220
+    /// 初期スポーン案内を通常レイアウト内へ置く際に確保する高さ
+    static let spawnSelectionBannerReservedHeight: CGFloat = 104
+    /// iPad Portrait で盤面が大きくなりすぎ、手札や上部操作から視線が離れすぎることを防ぐ上限
+    static let regularWidthMaximumBoardWidth: CGFloat = 660
     /// 手札カード同士の横方向スペース（カード拡大後も全体幅が収まるよう微調整）
     static let handCardSpacing: CGFloat = 10
     /// 手札カードの幅。`MoveCardIllustrationView` 側の定義と同期させてサイズ差異を防ぐ
@@ -123,6 +127,8 @@ struct GameViewLayoutCalculator {
     let statisticsHeight: CGFloat
     /// 直近で計測された手札セクションの高さ
     let handSectionHeight: CGFloat
+    /// 盤面と手札の間へ挿入する補助 UI の想定高さ
+    let inlineMessageHeight: CGFloat
 
     /// GeometryProxy から生成したパラメータを用いて初期化するコンビニエンスイニシャライザ
     /// - Parameters:
@@ -138,7 +144,8 @@ struct GameViewLayoutCalculator {
         topOverlayHeight: CGFloat,
         baseTopSafeAreaInset: CGFloat,
         statisticsHeight: CGFloat,
-        handSectionHeight: CGFloat
+        handSectionHeight: CGFloat,
+        inlineMessageHeight: CGFloat = 0
     ) {
         self.init(
             parameters: GameViewLayoutParameters(geometry: geometry),
@@ -146,7 +153,8 @@ struct GameViewLayoutCalculator {
             topOverlayHeight: topOverlayHeight,
             baseTopSafeAreaInset: baseTopSafeAreaInset,
             statisticsHeight: statisticsHeight,
-            handSectionHeight: handSectionHeight
+            handSectionHeight: handSectionHeight,
+            inlineMessageHeight: inlineMessageHeight
         )
     }
 
@@ -164,7 +172,8 @@ struct GameViewLayoutCalculator {
         topOverlayHeight: CGFloat,
         baseTopSafeAreaInset: CGFloat,
         statisticsHeight: CGFloat,
-        handSectionHeight: CGFloat
+        handSectionHeight: CGFloat,
+        inlineMessageHeight: CGFloat = 0
     ) {
         self.parameters = parameters
         self.horizontalSizeClass = horizontalSizeClass
@@ -172,6 +181,7 @@ struct GameViewLayoutCalculator {
         self.baseTopSafeAreaInset = baseTopSafeAreaInset
         self.statisticsHeight = statisticsHeight
         self.handSectionHeight = handSectionHeight
+        self.inlineMessageHeight = max(inlineMessageHeight, 0)
     }
 
     /// レイアウト計算を実行し、`GameViewLayoutContext` を生成する
@@ -233,18 +243,26 @@ struct GameViewLayoutCalculator {
         let resolvedHandSectionHeight = isHandSectionHeightMeasured
             ? handSectionHeight
             : GameViewLayoutMetrics.handSectionFallbackHeight
+        let inlineMessageSpacing = inlineMessageHeight > 0
+            ? GameViewLayoutMetrics.spacingBetweenBoardAndHand
+            : 0
 
         // MARK: - 盤面に割り当てられる高さと正方形サイズの算出
         let availableHeightForBoard = parameters.size.height
             - resolvedStatisticsHeight
             - resolvedHandSectionHeight
+            - inlineMessageHeight
+            - inlineMessageSpacing
             - GameViewLayoutMetrics.spacingBetweenBoardAndHand
             - GameViewLayoutMetrics.spacingBetweenStatisticsAndBoard
             - handSectionBottomPadding
         let horizontalBoardBase = max(parameters.size.width, GameViewLayoutMetrics.minimumBoardFallbackSize)
         let verticalBoardBase = availableHeightForBoard > 0 ? availableHeightForBoard : horizontalBoardBase
         let boardBaseSize = min(horizontalBoardBase, verticalBoardBase)
-        let boardWidth = boardBaseSize * GameViewLayoutMetrics.boardScale
+        let scaledBoardWidth = boardBaseSize * GameViewLayoutMetrics.boardScale
+        let boardWidth = horizontalSizeClass == .regular
+            ? min(scaledBoardWidth, GameViewLayoutMetrics.regularWidthMaximumBoardWidth)
+            : scaledBoardWidth
 
         return GameViewLayoutContext(
             geometrySize: parameters.size,

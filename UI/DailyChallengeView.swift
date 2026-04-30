@@ -7,6 +7,7 @@ struct DailyChallengeView: View {
     let onDismiss: () -> Void
     let onStart: (GameMode) -> Void
     private let theme = AppTheme()
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     init(
         viewModel: DailyChallengeViewModel,
@@ -32,9 +33,10 @@ struct DailyChallengeView: View {
                     theme: theme
                 )
             }
-            .padding(.horizontal, 24)
+            .padding(.horizontal, horizontalPadding)
             .padding(.vertical, 32)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: contentMaxWidth, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .center)
         }
         .background(theme.backgroundPrimary.ignoresSafeArea())
         .navigationTitle("デイリーチャレンジ")
@@ -93,6 +95,14 @@ struct DailyChallengeView: View {
                 )
             }
         }
+    }
+
+    private var contentMaxWidth: CGFloat? {
+        horizontalSizeClass == .regular ? 760 : nil
+    }
+
+    private var horizontalPadding: CGFloat {
+        horizontalSizeClass == .regular ? 32 : 24
     }
 }
 

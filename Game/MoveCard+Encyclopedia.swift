@@ -34,10 +34,6 @@ public extension MoveCard {
             return isKnightType ? "選択ナイト" : "選択キング"
         case .multiStep:
             return "レイ"
-        case .targetAssist:
-            return "目的地補助"
-        case .effectAssist:
-            return "特殊マス補助"
         case .normal:
             if isKingType {
                 return "キング"
@@ -91,18 +87,6 @@ public extension MoveCard {
             return "盤面上の有効なマスから移動先を選んでワープします。遠い目的地へ一気に届く特殊カードです。"
         case .fixedWarp:
             return "モードで指定された固定座標へワープします。行き先はステージ設定に従います。"
-        case .targetStep:
-            return "表示中の目的地へ近づく 1 マス移動候補だけを表示します。"
-        case .targetKnight:
-            return "表示中の目的地へ近づくナイト移動候補だけを表示します。"
-        case .targetLine:
-            return "表示中の目的地方向へ通りやすい直線候補だけを表示します。"
-        case .effectStep:
-            return "最寄りの特殊マスへ近づく 1 マス移動候補だけを表示します。"
-        case .effectKnight:
-            return "最寄りの特殊マスへ近づくナイト移動候補だけを表示します。"
-        case .effectLine:
-            return "最寄りの特殊マス方向へ通りやすい直線候補だけを表示します。"
         }
     }
 
@@ -218,48 +202,6 @@ public extension MoveCard {
                 displayName: MoveCard.fixedWarp.displayName,
                 category: MoveCard.fixedWarp.encyclopediaCategory,
                 description: MoveCard.fixedWarp.encyclopediaDescription
-            ),
-            MoveCardEncyclopediaEntry(
-                id: 9,
-                card: .targetStep,
-                displayName: MoveCard.targetStep.displayName,
-                category: MoveCard.targetStep.encyclopediaCategory,
-                description: MoveCard.targetStep.encyclopediaDescription
-            ),
-            MoveCardEncyclopediaEntry(
-                id: 10,
-                card: .targetKnight,
-                displayName: MoveCard.targetKnight.displayName,
-                category: MoveCard.targetKnight.encyclopediaCategory,
-                description: MoveCard.targetKnight.encyclopediaDescription
-            ),
-            MoveCardEncyclopediaEntry(
-                id: 11,
-                card: .targetLine,
-                displayName: MoveCard.targetLine.displayName,
-                category: MoveCard.targetLine.encyclopediaCategory,
-                description: MoveCard.targetLine.encyclopediaDescription
-            ),
-            MoveCardEncyclopediaEntry(
-                id: 12,
-                card: .effectStep,
-                displayName: MoveCard.effectStep.displayName,
-                category: MoveCard.effectStep.encyclopediaCategory,
-                description: MoveCard.effectStep.encyclopediaDescription
-            ),
-            MoveCardEncyclopediaEntry(
-                id: 13,
-                card: .effectKnight,
-                displayName: MoveCard.effectKnight.displayName,
-                category: MoveCard.effectKnight.encyclopediaCategory,
-                description: MoveCard.effectKnight.encyclopediaDescription
-            ),
-            MoveCardEncyclopediaEntry(
-                id: 14,
-                card: .effectLine,
-                displayName: MoveCard.effectLine.displayName,
-                category: MoveCard.effectLine.encyclopediaCategory,
-                description: MoveCard.effectLine.encyclopediaDescription
             )
         ]
     }

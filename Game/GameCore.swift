@@ -651,25 +651,6 @@ public final class GameCore: ObservableObject {
         from origin: GridPoint,
         on activeBoard: Board
     ) -> [MoveCard.MovePattern.Path] {
-        if mode.usesTargetCollection, card.move.kind == .targetAssist {
-            let targets = activeTargetPoints
-            guard !targets.isEmpty else { return [] }
-
-            var paths: [MoveCard.MovePattern.Path] = []
-            var seenKeys = Set<String>()
-            for target in targets {
-                let context = moveResolutionContext(on: activeBoard, targetPoint: target)
-                for path in card.move.resolvePaths(from: origin, context: context) {
-                    let key = "\(path.vector.dx),\(path.vector.dy):" +
-                        path.traversedPoints.map { "\($0.x),\($0.y)" }.joined(separator: "|")
-                    if seenKeys.insert(key).inserted {
-                        paths.append(path)
-                    }
-                }
-            }
-            return paths
-        }
-
         let context = moveResolutionContext(
             on: activeBoard,
             targetPoint: mode.usesTargetCollection ? nearestActiveTarget(from: origin) : nil

@@ -184,7 +184,7 @@ private extension HowToPlayView {
 // MARK: - レイアウト調整用のヘルパー
 private extension HowToPlayView {
     var cardCategoryOrder: [String] {
-        ["キング", "ナイト", "直線2マス", "斜め2マス", "レイ", "選択キング", "選択ナイト", "ワープ", "目的地補助", "特殊マス補助"]
+        ["キング", "ナイト", "直線2マス", "斜め2マス", "レイ", "選択キング", "選択ナイト", "ワープ"]
     }
 
     var tileCategoryOrder: [String] {
@@ -270,21 +270,366 @@ private struct TileEncyclopediaRow: View {
     let entry: TileEncyclopediaEntry
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(entry.displayName)
-                .font(.headline)
-            Text(entry.description)
-                .font(.callout)
-                .foregroundColor(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+        HStack(alignment: .top, spacing: 12) {
+            TileMarkerPreviewView(kind: entry.previewKind)
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(entry.displayName)
+                    .font(.headline)
+                Text(entry.description)
+                    .font(.callout)
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(Color(UIColor.secondarySystemBackground))
         )
         .accessibilityElement(children: .combine)
+    }
+}
+
+// MARK: - マス辞典用プレビュー
+private struct TileMarkerPreviewView: View {
+    let kind: TileMarkerPreviewKind
+
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var theme: AppTheme {
+        AppTheme(colorScheme: colorScheme)
+    }
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(tileFill)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .stroke(theme.boardGridLine.opacity(0.72), lineWidth: 1)
+                )
+
+            marker
+        }
+        .frame(width: 48, height: 48)
+        .fixedSize()
+    }
+
+    private var tileFill: Color {
+        switch kind {
+        case .normal,
+             .spawn,
+             .target,
+             .nextTarget,
+             .multiVisit,
+             .effect:
+            return theme.boardTileUnvisited
+        case .toggle:
+            return theme.boardTileToggle
+        case .impassable:
+            return theme.boardTileImpassable
+        }
+    }
+
+    @ViewBuilder
+    private var marker: some View {
+        switch kind {
+        case .normal:
+            EmptyView()
+        case .spawn:
+            Circle()
+                .fill(theme.boardKnight)
+                .frame(width: 16, height: 16)
+                .overlay(Circle().stroke(theme.startMarkerStroke, lineWidth: 2))
+        case .target,
+             .nextTarget:
+            DiamondShape()
+                .fill(theme.boardWarpHighlight.opacity(0.94))
+                .frame(width: 26, height: 26)
+        case .multiVisit:
+            ZStack {
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .stroke(theme.boardTileMultiStroke, lineWidth: 2)
+                    .padding(5)
+                Text("2")
+                    .font(.caption.weight(.bold))
+                    .foregroundColor(theme.boardTileMultiStroke)
+            }
+        case .toggle:
+            ZStack {
+                DiagonalHalfShape(isTopLeft: true)
+                    .fill(theme.boardTileUnvisited)
+                DiagonalHalfShape(isTopLeft: false)
+                    .fill(theme.boardTileVisited)
+                DiagonalLineShape()
+                    .stroke(theme.boardTileMultiStroke, lineWidth: 1.4)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+        case .impassable:
+            Image(systemName: "xmark")
+                .font(.system(size: 20, weight: .bold))
+                .foregroundColor(.white.opacity(0.78))
+        case .effect(let effect):
+            TileEffectMarkerView(effect: effect, theme: theme)
+        }
+    }
+}
+
+private struct TileEffectMarkerView: View {
+    let effect: TileEffect
+    let theme: AppTheme
+
+    var body: some View {
+        switch effect {
+        case .warp:
+            ZStack {
+                Circle()
+                    .stroke(accent, lineWidth: 2.2)
+                    .frame(width: 31, height: 31)
+                Circle()
+                    .stroke(accent.opacity(0.75), lineWidth: 1.8)
+                    .frame(width: 21, height: 21)
+            }
+        case .shuffleHand:
+            ZStack {
+                DiamondShape()
+                    .stroke(accent, lineWidth: 2.2)
+                    .frame(width: 31, height: 31)
+                TriangleShape()
+                    .fill(accent.opacity(0.88))
+                    .frame(width: 12, height: 10)
+                    .rotationEffect(.degrees(45))
+                    .offset(x: -4, y: 0)
+                TriangleShape()
+                    .fill(accent.opacity(0.62))
+                    .frame(width: 12, height: 10)
+                    .rotationEffect(.degrees(225))
+                    .offset(x: 6, y: 0)
+            }
+        case .boost:
+            VStack(spacing: -4) {
+                ChevronShape()
+                    .fill(accent.opacity(0.92))
+                    .frame(width: 24, height: 15)
+                ChevronShape()
+                    .fill(accent.opacity(0.64))
+                    .frame(width: 18, height: 12)
+            }
+        case .slow:
+            VStack(spacing: 3) {
+                Capsule()
+                    .fill(accent.opacity(0.92))
+                    .frame(width: 23, height: 5)
+                ChevronShape()
+                    .fill(accent.opacity(0.72))
+                    .frame(width: 21, height: 14)
+                    .rotationEffect(.degrees(180))
+            }
+        case .nextRefresh:
+            ZStack {
+                Circle()
+                    .stroke(accent, lineWidth: 2)
+                    .frame(width: 25, height: 25)
+                TriangleShape()
+                    .fill(accent.opacity(0.9))
+                    .frame(width: 10, height: 9)
+                    .rotationEffect(.degrees(-35))
+                    .offset(x: 10, y: -2)
+            }
+        case .freeFocus:
+            ZStack {
+                Circle()
+                    .stroke(accent, lineWidth: 2)
+                    .frame(width: 29, height: 29)
+                Circle()
+                    .fill(accent.opacity(0.86))
+                    .frame(width: 9, height: 9)
+            }
+        case .preserveCard:
+            ZStack {
+                RoundedRectangle(cornerRadius: 2, style: .continuous)
+                    .stroke(accent, lineWidth: 2)
+                    .frame(width: 20, height: 26)
+                Capsule()
+                    .fill(accent.opacity(0.88))
+                    .frame(width: 14, height: 4)
+                    .offset(y: -5)
+            }
+        case .draft:
+            ZStack {
+                RoundedRectangle(cornerRadius: 2, style: .continuous)
+                    .fill(accent.opacity(0.14))
+                    .overlay(RoundedRectangle(cornerRadius: 2).stroke(accent.opacity(0.62), lineWidth: 1.6))
+                    .frame(width: 17, height: 22)
+                    .rotationEffect(.degrees(-8))
+                    .offset(x: -6, y: -2)
+                RoundedRectangle(cornerRadius: 2, style: .continuous)
+                    .fill(accent.opacity(0.20))
+                    .overlay(RoundedRectangle(cornerRadius: 2).stroke(accent, lineWidth: 1.8))
+                    .frame(width: 17, height: 22)
+                    .rotationEffect(.degrees(7))
+                    .offset(x: 4, y: 3)
+                TriangleShape()
+                    .fill(accent.opacity(0.92))
+                    .frame(width: 10, height: 9)
+                    .rotationEffect(.degrees(-25))
+                    .offset(x: 12, y: -11)
+            }
+        case .overload:
+            ZStack {
+                Circle()
+                    .fill(accent.opacity(0.10))
+                    .overlay(Circle().stroke(accent.opacity(0.82), lineWidth: 2))
+                    .frame(width: 29, height: 29)
+                BoltShape()
+                    .fill(accent.opacity(0.95))
+                    .frame(width: 18, height: 28)
+            }
+        case .targetSwap:
+            ZStack {
+                DiamondShape()
+                    .fill(accent.opacity(0.10))
+                    .overlay(DiamondShape().stroke(accent.opacity(0.72), lineWidth: 1.6))
+                    .frame(width: 16, height: 16)
+                    .offset(x: -7, y: 4)
+                DiamondShape()
+                    .fill(accent.opacity(0.18))
+                    .overlay(DiamondShape().stroke(accent, lineWidth: 1.6))
+                    .frame(width: 16, height: 16)
+                    .offset(x: 8, y: -4)
+                ChevronShape()
+                    .fill(accent.opacity(0.92))
+                    .frame(width: 15, height: 10)
+                    .rotationEffect(.degrees(-45))
+            }
+        case .openGate:
+            ZStack {
+                RoundedRectangle(cornerRadius: 2, style: .continuous)
+                    .fill(accent.opacity(0.08))
+                    .overlay(RoundedRectangle(cornerRadius: 2).stroke(accent.opacity(0.9), lineWidth: 1.8))
+                    .frame(width: 22, height: 27)
+                RoundedRectangle(cornerRadius: 2, style: .continuous)
+                    .fill(accent.opacity(0.18))
+                    .overlay(RoundedRectangle(cornerRadius: 2).stroke(accent, lineWidth: 1.6))
+                    .frame(width: 15, height: 24)
+                    .rotationEffect(.degrees(-8))
+                    .offset(x: 5)
+                Circle()
+                    .fill(accent.opacity(0.95))
+                    .frame(width: 4, height: 4)
+                    .offset(x: 8, y: 2)
+            }
+        }
+    }
+
+    private var accent: Color {
+        switch effect {
+        case .warp:
+            return theme.boardTileEffectWarp
+        case .shuffleHand:
+            return theme.boardTileEffectShuffle
+        case .boost:
+            return theme.boardTileEffectBoost
+        case .slow:
+            return theme.boardTileEffectSlow
+        case .nextRefresh:
+            return theme.boardTileEffectNextRefresh
+        case .freeFocus:
+            return theme.boardTileEffectFreeFocus
+        case .preserveCard:
+            return theme.boardTileEffectPreserveCard
+        case .draft:
+            return theme.boardTileEffectDraft
+        case .overload:
+            return theme.boardTileEffectOverload
+        case .targetSwap:
+            return theme.boardTileEffectTargetSwap
+        case .openGate:
+            return theme.boardTileEffectOpenGate
+        }
+    }
+}
+
+private struct DiamondShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.midX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.midY))
+        path.addLine(to: CGPoint(x: rect.midX, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.midY))
+        path.closeSubpath()
+        return path
+    }
+}
+
+private struct TriangleShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.maxX, y: rect.midY))
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+        path.closeSubpath()
+        return path
+    }
+}
+
+private struct ChevronShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let thickness = rect.height * 0.38
+        var path = Path()
+        path.move(to: CGPoint(x: rect.midX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - thickness))
+        path.addLine(to: CGPoint(x: rect.maxX - thickness, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.midX, y: rect.minY + thickness))
+        path.addLine(to: CGPoint(x: rect.minX + thickness, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY - thickness))
+        path.closeSubpath()
+        return path
+    }
+}
+
+private struct BoltShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.midX + rect.width * 0.05, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.18, y: rect.midY))
+        path.addLine(to: CGPoint(x: rect.midX - rect.width * 0.04, y: rect.midY))
+        path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.34, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.maxX - rect.width * 0.14, y: rect.midY - rect.height * 0.05))
+        path.addLine(to: CGPoint(x: rect.midX + rect.width * 0.08, y: rect.midY - rect.height * 0.05))
+        path.closeSubpath()
+        return path
+    }
+}
+
+private struct DiagonalHalfShape: Shape {
+    let isTopLeft: Bool
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        if isTopLeft {
+            path.move(to: CGPoint(x: rect.minX, y: rect.minY))
+            path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
+            path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+        } else {
+            path.move(to: CGPoint(x: rect.maxX, y: rect.maxY))
+            path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+            path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
+        }
+        path.closeSubpath()
+        return path
+    }
+}
+
+private struct DiagonalLineShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.maxX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+        return path
     }
 }
 
