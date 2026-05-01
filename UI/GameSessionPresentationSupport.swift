@@ -415,6 +415,7 @@ struct CampaignTutorialBannerView: View {
                         .stroke(theme.spawnOverlayBorder, lineWidth: 1)
                 )
         )
+        .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .shadow(color: theme.spawnOverlayShadow, radius: 20, x: 0, y: 10)
         .foregroundColor(theme.textPrimary)
         .accessibilityIdentifier("campaign_tutorial_banner")

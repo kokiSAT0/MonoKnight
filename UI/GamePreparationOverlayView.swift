@@ -372,8 +372,10 @@ extension RootView {
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
                     .foregroundColor(theme.textSecondary)
 
-                FlexibleFeatureChipGrid(chips: presentation.featuredChips) { chip, isProminent in
-                    featureChipView(chip, isProminent: isProminent)
+                VStack(spacing: 8) {
+                    ForEach(presentation.featuredChips, id: \.displayText) { chip in
+                        featureSpotlightRowView(chip)
+                    }
                 }
 
                 VStack(alignment: .leading, spacing: 4) {
@@ -400,6 +402,59 @@ extension RootView {
             )
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("game_preparation_feature_spotlight")
+        }
+
+        private func featureSpotlightRowView(
+            _ chip: GamePreparationOverlayPresentation.FeatureChip
+        ) -> some View {
+            HStack(spacing: 10) {
+                featureSpotlightMarkerView(isNew: chip.isNew)
+
+                Text(chip.label)
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .foregroundColor(theme.textPrimary)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.84)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(theme.backgroundElevated.opacity(0.85))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(
+                        chip.isNew ? theme.accentPrimary.opacity(0.55) : theme.spawnOverlayBorder,
+                        lineWidth: LayoutMetrics.borderWidth
+                    )
+            )
+            .accessibilityLabel(Text(chip.displayText))
+        }
+
+        @ViewBuilder
+        private func featureSpotlightMarkerView(isNew: Bool) -> some View {
+            if isNew {
+                Text("NEW")
+                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .foregroundColor(theme.accentOnPrimary)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(theme.accentPrimary)
+                    )
+                    .accessibilityHidden(true)
+            } else {
+                Circle()
+                    .fill(theme.textSecondary.opacity(0.5))
+                    .frame(width: 7, height: 7)
+                    .padding(.horizontal, 15)
+                    .accessibilityHidden(true)
+            }
         }
 
         @ViewBuilder
@@ -613,28 +668,6 @@ extension RootView {
 
                     content
                 }
-            }
-        }
-
-        private struct FlexibleFeatureChipGrid<ChipContent: View>: View {
-            let chips: [GamePreparationOverlayPresentation.FeatureChip]
-            let chipContent: (GamePreparationOverlayPresentation.FeatureChip, Bool) -> ChipContent
-            @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-
-            var body: some View {
-                let columns = [
-                    GridItem(.adaptive(minimum: chipMinimumWidth), spacing: 8, alignment: .leading)
-                ]
-
-                LazyVGrid(columns: columns, alignment: .leading, spacing: 8) {
-                    ForEach(Array(chips.enumerated()), id: \.element.displayText) { index, chip in
-                        chipContent(chip, index < 2)
-                    }
-                }
-            }
-
-            private var chipMinimumWidth: CGFloat {
-                horizontalSizeClass == .regular ? 156 : 132
             }
         }
 

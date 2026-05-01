@@ -5,14 +5,14 @@ import SharedSupport
 import UIKit
 
 typealias GameCenterAuthenticationHandlerInstaller = (@escaping (UIViewController?, Bool, Error?) -> Void) -> Void
-typealias GameCenterScoreSubmitter = (_ score: Int, _ leaderboardID: String, _ completion: @escaping (Error?) -> Void) -> Void
+typealias GameCenterScoreSubmitter = (_ score: Int, _ leaderboardID: String, _ completion: @escaping @Sendable (Error?) -> Void) -> Void
 
 struct GameCenterServiceTestHooks {
     var currentAuthenticationStateProvider: (() -> Bool)?
     var testAccountProvider: (() -> String?)?
     var authenticateHandlerInstaller: GameCenterAuthenticationHandlerInstaller?
     var scoreSubmitter: GameCenterScoreSubmitter?
-    var mainAsync: ((@escaping () -> Void) -> Void)?
+    var mainAsync: ((@escaping @MainActor @Sendable () -> Void) -> Void)?
 
     static let live = GameCenterServiceTestHooks()
 }
@@ -256,7 +256,7 @@ private final class GameCenterAuthenticationCoordinator {
     private let currentAuthenticationStateProvider: () -> Bool
     private let testAccountProvider: () -> String?
     private let authenticateHandlerInstaller: GameCenterAuthenticationHandlerInstaller
-    private let mainAsync: (@escaping () -> Void) -> Void
+    private let mainAsync: (@escaping @MainActor @Sendable () -> Void) -> Void
 
     var currentAuthenticationState: Bool {
         currentAuthenticationStateProvider()
@@ -267,7 +267,7 @@ private final class GameCenterAuthenticationCoordinator {
         currentAuthenticationStateProvider: @escaping () -> Bool,
         testAccountProvider: @escaping () -> String?,
         authenticateHandlerInstaller: @escaping GameCenterAuthenticationHandlerInstaller,
-        mainAsync: @escaping (@escaping () -> Void) -> Void
+        mainAsync: @escaping (@escaping @MainActor @Sendable () -> Void) -> Void
     ) {
         self.presentationCoordinator = presentationCoordinator
         self.currentAuthenticationStateProvider = currentAuthenticationStateProvider
@@ -486,7 +486,11 @@ final class GameCenterService: NSObject, GameCenterServiceProtocol {
             currentAuthenticationStateProvider: testHooks.currentAuthenticationStateProvider ?? { GKLocalPlayer.local.isAuthenticated },
             testAccountProvider: testHooks.testAccountProvider ?? { ProcessInfo.processInfo.environment["GC_TEST_ACCOUNT"] },
             authenticateHandlerInstaller: testHooks.authenticateHandlerInstaller ?? Self.makeLiveAuthenticateHandlerInstaller(),
-            mainAsync: testHooks.mainAsync ?? { DispatchQueue.main.async(execute: $0) }
+            mainAsync: testHooks.mainAsync ?? { operation in
+                Task { @MainActor in
+                    operation()
+                }
+            }
         )
         self.scoreSubmissionCoordinator = GameCenterScoreSubmissionCoordinator(
             submissionRecordStore: submissionRecordStore,

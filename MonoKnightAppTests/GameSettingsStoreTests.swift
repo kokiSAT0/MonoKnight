@@ -67,13 +67,13 @@ struct GameSettingsStoreTests {
 
         let store = TargetLabExperimentSettingsStore(userDefaults: defaults)
         store.update(TargetLabExperimentSettings(
-            enabledCardGroups: [.standard, .effectAssist],
+            enabledCardGroups: [.standard, .support],
             enabledTileKinds: [.boost, .slow]
         ))
 
         let restored = TargetLabExperimentSettingsStore(userDefaults: defaults)
 
-        #expect(restored.settings.enabledCardGroups == [.standard, .effectAssist])
+        #expect(restored.settings.enabledCardGroups == [.standard, .support])
         #expect(restored.settings.enabledTileKinds == [.boost, .slow])
     }
 

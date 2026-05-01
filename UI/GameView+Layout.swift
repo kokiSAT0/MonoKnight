@@ -180,6 +180,7 @@ extension GameView {
                             .padding(Edge.Set.horizontal, 20)
                             .transition(.move(edge: .top).combined(with: .opacity))
                             .accessibilityIdentifier("penalty_banner")
+                            .allowsHitTesting(false)
                         Spacer(minLength: 0)
                     }
                 }
@@ -192,6 +193,7 @@ extension GameView {
                             .padding(Edge.Set.horizontal, 24)
                             .transition(.move(edge: .top).combined(with: .opacity))
                             .accessibilityIdentifier("board_tap_warning_toast")
+                            .allowsHitTesting(false)
                         Spacer(minLength: 0)
                     }
                 }
@@ -200,7 +202,6 @@ extension GameView {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.top, resolvedTopPadding)
-        .allowsHitTesting(false)  // バナーやトーストが表示されていても下の UI を操作可能にする
         .zIndex(2)
     }
 
