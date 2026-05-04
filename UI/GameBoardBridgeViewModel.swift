@@ -256,6 +256,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
         scene.updateHighlights(highlights)
         let enemyDirectionPreviews = (
             core.enemyPatrolMovementPreviews.map(ScenePatrolMovementPreview.init)
+            + core.enemyChaserMovementPreviews.map(ScenePatrolMovementPreview.init)
             + core.enemyRotatingWatcherDirectionPreviews.map(ScenePatrolMovementPreview.init)
         )
         scene.updatePatrolMovementPreviews(enemyDirectionPreviews)
