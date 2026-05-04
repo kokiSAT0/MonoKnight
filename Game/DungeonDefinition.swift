@@ -48,6 +48,8 @@ public struct DungeonInventoryEntry: Codable, Equatable, Identifiable {
 public enum DungeonRewardSelection: Equatable {
     /// 新しい報酬カードを3回分追加する
     case add(MoveCard)
+    /// フロア内で拾って未使用分が残っているカードを報酬カードとして持ち越す
+    case carryOverPickup(MoveCard)
     /// 既存の持ち越し報酬カードの使用回数を1増やす
     case upgrade(MoveCard)
     /// 既存の持ち越し報酬カードをランから外す
@@ -111,11 +113,13 @@ public struct DungeonRunState: Codable, Equatable {
         currentInventoryEntries: [DungeonInventoryEntry]? = nil,
         rewardAddUses: Int = 3
     ) -> DungeonRunState {
-        let carriedEntries = currentInventoryEntries?.compactMap { $0.carryingRewardUsesOnly() } ?? rewardInventoryEntries
+        let sourceEntries = currentInventoryEntries ?? rewardInventoryEntries
+        let carriedEntries = sourceEntries.compactMap { $0.carryingRewardUsesOnly() }
         let selection = rewardSelection ?? rewardMoveCard.map { DungeonRewardSelection.add($0) }
         let updatedRewardInventoryEntries = DungeonRunState.applying(
             selection,
             to: carriedEntries,
+            sourceEntries: sourceEntries,
             rewardAddUses: rewardAddUses
         )
         return DungeonRunState(
@@ -149,11 +153,15 @@ public struct DungeonRunState: Codable, Equatable {
     private static func applying(
         _ selection: DungeonRewardSelection?,
         to entries: [DungeonInventoryEntry],
+        sourceEntries: [DungeonInventoryEntry],
         rewardAddUses: Int = 3
     ) -> [DungeonInventoryEntry] {
         var result = entries
         switch selection {
         case .add(let card):
+            result.append(DungeonInventoryEntry(card: card, rewardUses: max(rewardAddUses, 1), pickupUses: 0))
+        case .carryOverPickup(let card):
+            guard sourceEntries.contains(where: { $0.card == card && $0.pickupUses > 0 }) else { break }
             result.append(DungeonInventoryEntry(card: card, rewardUses: max(rewardAddUses, 1), pickupUses: 0))
         case .upgrade(let card):
             guard let index = result.firstIndex(where: { $0.card == card && $0.rewardUses > 0 }) else { break }

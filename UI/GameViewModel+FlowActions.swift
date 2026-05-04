@@ -205,6 +205,8 @@ extension GameViewModel {
         switch selection {
         case .add(let card):
             return availableDungeonRewardMoveCards.contains(card)
+        case .carryOverPickup(let card):
+            return carryoverCandidateDungeonPickupEntries.contains { $0.card == card && $0.pickupUses > 0 }
         case .upgrade(let card), .remove(let card):
             return adjustableDungeonRewardEntries.contains { $0.card == card && $0.rewardUses > 0 }
         }

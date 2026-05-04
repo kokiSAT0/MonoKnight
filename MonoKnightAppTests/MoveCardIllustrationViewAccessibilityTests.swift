@@ -54,7 +54,7 @@ final class MoveCardIllustrationViewAccessibilityTests: XCTestCase {
     /// 報酬カード選択 UI がカード名、使用回数、既存 ID を表示モデルへ持つことを確認する
     func testDungeonRewardCardChoicePresentationKeepsCardIdentityAndUses() {
         let rewardCards: [MoveCard] = [.straightRight2, .straightUp2, .knightRightwardChoice]
-        let choices = rewardCards.map(DungeonRewardCardChoicePresentation.init(card:))
+        let choices = rewardCards.map { DungeonRewardCardChoicePresentation(card: $0) }
 
         XCTAssertEqual(choices.count, 3, "報酬候補は3件を横並びカードとして表示する想定です")
         XCTAssertEqual(choices.map(\.accessibilityIdentifier), [
@@ -64,10 +64,31 @@ final class MoveCardIllustrationViewAccessibilityTests: XCTestCase {
         ])
 
         for choice in choices {
+            XCTAssertEqual(choice.actionText, "追加して持ち越す")
             XCTAssertEqual(choice.usesBadgeText, "3回使える")
             XCTAssertTrue(choice.accessibilityLabel.contains(choice.title), "読み上げにカード名が含まれていません")
+            XCTAssertTrue(choice.accessibilityLabel.contains("追加して持ち越す"), "読み上げに報酬カードを持ち越す操作が含まれていません")
             XCTAssertTrue(choice.accessibilityLabel.contains("3回使える"), "読み上げに報酬カードの使用回数が含まれていません")
+            XCTAssertTrue(choice.accessibilityLabel.contains("選ぶと次の階へ進みます"), "読み上げに選択後の遷移が含まれていません")
         }
+    }
+
+    func testDungeonPickupCarryoverChoicePresentationExplainsRewardConversion() {
+        let choice = DungeonRewardCardChoicePresentation(
+            card: .straightUp2,
+            rewardUses: 4,
+            actionText: "報酬カード化して持ち越す",
+            accessibilityIdentifierPrefix: "dungeon_pickup_carryover_card",
+            accessibilityRoleText: "床カードを報酬カード化して持ち越し"
+        )
+
+        XCTAssertEqual(choice.actionText, "報酬カード化して持ち越す")
+        XCTAssertEqual(choice.usesBadgeText, "4回使える")
+        XCTAssertEqual(choice.accessibilityIdentifier, "dungeon_pickup_carryover_card_上2")
+        XCTAssertTrue(choice.accessibilityLabel.contains("報酬カード化"))
+        XCTAssertTrue(choice.accessibilityLabel.contains("持ち越し"))
+        XCTAssertTrue(choice.accessibilityLabel.contains("4回使える"))
+        XCTAssertTrue(choice.accessibilityLabel.contains("選ぶと次の階へ進みます"))
     }
 }
 #endif

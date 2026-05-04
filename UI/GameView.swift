@@ -232,6 +232,8 @@ struct GameView: View {
                 nextDungeonFloorTitle: viewModel.nextDungeonFloorTitle,
                 dungeonRewardMoveCards: viewModel.availableDungeonRewardMoveCards,
                 dungeonInventoryEntries: viewModel.dungeonInventoryEntries,
+                dungeonPickupCarryoverEntries: viewModel.carryoverCandidateDungeonPickupEntries,
+                dungeonRewardAddUses: viewModel.dungeonRewardAddUses,
                 dungeonGrowthAward: viewModel.latestDungeonGrowthAward,
                 elapsedSeconds: viewModel.elapsedSeconds,
                 modeIdentifier: viewModel.mode.identifier,

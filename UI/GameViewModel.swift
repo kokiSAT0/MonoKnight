@@ -193,6 +193,25 @@ final class GameViewModel: ObservableObject {
         let baseCards = dungeon.floors[runState.currentFloorIndex].rewardMoveCardsAfterClear
         return dungeonGrowthStore.rewardMoveCards(for: baseCards, dungeon: dungeon)
     }
+    /// 現在フロアで拾って未使用分が残っている、報酬カード化できるカード
+    var carryoverCandidateDungeonPickupEntries: [DungeonInventoryEntry] {
+        guard !isResultFailed,
+              let metadata = mode.dungeonMetadataSnapshot,
+              let runState = metadata.runState,
+              let dungeon = DungeonLibrary.shared.dungeon(with: metadata.dungeonID),
+              dungeon.canAdvanceWithinRun(afterFloorIndex: runState.currentFloorIndex)
+        else { return [] }
+        return dungeonInventoryEntries
+            .filter { $0.pickupUses > 0 }
+            .map { DungeonInventoryEntry(card: $0.card, pickupUses: $0.pickupUses) }
+    }
+    /// 新しく報酬カード化したときに付与する使用回数
+    var dungeonRewardAddUses: Int {
+        guard let metadata = mode.dungeonMetadataSnapshot,
+              let dungeon = DungeonLibrary.shared.dungeon(with: metadata.dungeonID)
+        else { return 3 }
+        return dungeonGrowthStore.rewardAddUses(for: dungeon)
+    }
     /// クリア後に強化/削除できる持ち越し報酬カード
     var adjustableDungeonRewardEntries: [DungeonInventoryEntry] {
         guard !isResultFailed,

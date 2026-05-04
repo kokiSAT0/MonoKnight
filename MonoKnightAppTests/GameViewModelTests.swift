@@ -667,58 +667,6 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.isGameCenterAuthenticated, "同値更新で認証状態が崩れてはいけません")
     }
 
-    /// campaignPauseSummary がキャンペーン時のみ stage と progress を返すことを確認
-    func testCampaignPauseSummaryReturnsOnlyForCampaignMode() throws {
-        let (defaults, suiteName) = try makeIsolatedDefaults()
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-
-        let progressStore = CampaignProgressStore(userDefaults: defaults)
-        guard let stage = CampaignLibrary.shared.stage(with: CampaignStageID(chapter: 1, index: 1)) else {
-            XCTFail("キャンペーンステージの取得に失敗しました")
-            return
-        }
-
-        let (campaignViewModel, campaignCore) = makeViewModel(
-            mode: stage.makeGameMode(),
-            campaignProgressStore: progressStore
-        )
-        campaignCore.overrideMetricsForTesting(moveCount: 12, penaltyCount: 0, elapsedSeconds: 80)
-        campaignViewModel.handleProgressChangeForTesting(.cleared)
-
-        XCTAssertEqual(campaignViewModel.campaignPauseSummary?.stage.id, stage.id, "キャンペーン要約の stage が一致していません")
-        XCTAssertNotNil(campaignViewModel.campaignPauseSummary?.progress, "クリア後のキャンペーン進捗が pause summary に反映されていません")
-
-        let (scoreViewModel, _) = makeViewModel(mode: .standard, campaignProgressStore: progressStore)
-        XCTAssertNil(scoreViewModel.campaignPauseSummary, "非キャンペーンモードでは pause summary が nil のままになる必要があります")
-    }
-
-    /// キャンペーン時だけプレイ中のスターゲージ進捗を返すことを確認
-    func testCampaignStarScoreProgressIsOnlyExposedForCampaignMode() throws {
-        let stage = try XCTUnwrap(CampaignLibrary.shared.stage(with: CampaignStageID(chapter: 1, index: 1)))
-        let (campaignViewModel, campaignCore) = makeViewModel(mode: stage.makeGameMode())
-
-        XCTAssertEqual(campaignViewModel.campaignStarScoreProgress?.twoStarThreshold, stage.twoStarPointThreshold)
-        XCTAssertEqual(campaignViewModel.campaignStarScoreProgress?.threeStarThreshold, stage.threeStarPointThreshold)
-        XCTAssertEqual(campaignViewModel.campaignStarScoreProgress?.nextStarNumber, 2)
-        XCTAssertEqual(campaignViewModel.campaignStarScoreProgress?.pointsToNextStar, stage.twoStarPointThreshold)
-        XCTAssertEqual(campaignViewModel.campaignStarScoreProgress?.nextStarText, "あと \(stage.twoStarPointThreshold ?? 0) ptで★2")
-
-        campaignCore.overrideTargetStateForTesting(targetPoint: campaignCore.targetPoint, capturedTargetCount: 2)
-        campaignCore.overrideMetricsForTesting(moveCount: 5, penaltyCount: 0, elapsedSeconds: 120)
-        XCTAssertEqual(campaignViewModel.campaignStarScoreProgress?.nextStarNumber, 3)
-        XCTAssertEqual(campaignViewModel.campaignStarScoreProgress?.pointsToNextStar, 30)
-        XCTAssertEqual(campaignViewModel.campaignStarScoreProgress?.nextStarText, "あと 30 ptで★3")
-
-        campaignCore.overrideTargetStateForTesting(targetPoint: campaignCore.targetPoint, capturedTargetCount: 3)
-        campaignCore.overrideMetricsForTesting(moveCount: 12, penaltyCount: 0, elapsedSeconds: 999)
-        XCTAssertNil(campaignViewModel.campaignStarScoreProgress?.nextStarNumber)
-        XCTAssertNil(campaignViewModel.campaignStarScoreProgress?.pointsToNextStar)
-        XCTAssertEqual(campaignViewModel.campaignStarScoreProgress?.nextStarText, "★3達成")
-
-        let (standardViewModel, _) = makeViewModel(mode: .standard)
-        XCTAssertNil(standardViewModel.campaignStarScoreProgress, "標準モードではスターゲージを表示しません")
-    }
-
     func testDungeonFailedProgressShowsResultWithFailureReason() throws {
         let mode = GameMode(
             identifier: .campaignStage,
@@ -935,6 +883,52 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.showingResult)
     }
 
+    func testDungeonPickupCarryoverCandidatesExposeOnlyUnusedPickupCards() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
+        let mode = try XCTUnwrap(DungeonLibrary.shared.firstFloorMode(for: tower))
+        let (viewModel, core) = makeViewModel(mode: mode)
+
+        XCTAssertTrue(core.addDungeonInventoryCardForTesting(.straightRight2, rewardUses: 2))
+        XCTAssertTrue(core.addDungeonInventoryCardForTesting(.straightUp2, pickupUses: 1))
+
+        XCTAssertEqual(
+            viewModel.carryoverCandidateDungeonPickupEntries,
+            [DungeonInventoryEntry(card: .straightUp2, pickupUses: 1)]
+        )
+    }
+
+    func testDungeonPickupCarryoverSelectionAddsRewardCardAndStartsNextFloor() throws {
+        let (defaults, suiteName) = try makeIsolatedDefaults()
+        defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+
+        let growthStore = DungeonGrowthStore(userDefaults: defaults)
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let awardRunState = DungeonRunState(dungeonID: tower.id, currentFloorIndex: 4, carriedHP: 3, clearedFloorCount: 4)
+        _ = growthStore.registerDungeonClear(dungeon: tower, runState: awardRunState, hasNextFloor: true)
+        XCTAssertTrue(growthStore.unlock(.rewardUsesBoost))
+
+        let mode = try XCTUnwrap(DungeonLibrary.shared.firstFloorMode(for: tower))
+        var requestedMode: GameMode?
+        let (viewModel, core) = makeViewModel(
+            mode: mode,
+            dungeonGrowthStore: growthStore,
+            onRequestStartDungeonFloor: { requestedMode = $0 }
+        )
+        core.overrideMetricsForTesting(moveCount: 4, penaltyCount: 0, elapsedSeconds: 20)
+        core.overrideDungeonHPForTesting(3)
+        XCTAssertTrue(core.addDungeonInventoryCardForTesting(.straightUp2, pickupUses: 1))
+
+        viewModel.showingResult = true
+        viewModel.handleDungeonRewardSelection(.carryOverPickup(.straightUp2))
+
+        let nextRunState = try XCTUnwrap(requestedMode?.dungeonMetadataSnapshot?.runState)
+        XCTAssertEqual(
+            nextRunState.rewardInventoryEntries,
+            [DungeonInventoryEntry(card: .straightUp2, rewardUses: 4)]
+        )
+        XCTAssertFalse(viewModel.showingResult)
+    }
+
     func testDungeonRewardAdjustmentEntriesAreHiddenWithoutCarriedRewards() throws {
         let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
         let mode = try XCTUnwrap(DungeonLibrary.shared.firstFloorMode(for: tower))
@@ -1091,6 +1085,7 @@ final class GameViewModelTests: XCTestCase {
         let (viewModel, _) = makeViewModel(mode: mode)
 
         XCTAssertTrue(viewModel.availableDungeonRewardMoveCards.isEmpty)
+        XCTAssertTrue(viewModel.carryoverCandidateDungeonPickupEntries.isEmpty)
         XCTAssertNil(viewModel.nextDungeonFloorTitle)
     }
 

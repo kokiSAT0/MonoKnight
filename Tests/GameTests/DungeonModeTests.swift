@@ -1361,6 +1361,63 @@ final class DungeonModeTests: XCTestCase {
         )
     }
 
+    func testDungeonRewardSelectionCanCarryOverUnusedPickupCard() {
+        let runState = DungeonRunState(
+            dungeonID: "tutorial-tower",
+            currentFloorIndex: 0,
+            carriedHP: 3,
+            totalMoveCount: 0,
+            clearedFloorCount: 0,
+            rewardInventoryEntries: [DungeonInventoryEntry(card: .straightRight2, rewardUses: 2)]
+        )
+
+        let carriedPickup = runState.advancedToNextFloor(
+            carryoverHP: 2,
+            currentFloorMoveCount: 5,
+            rewardSelection: .carryOverPickup(.straightUp2),
+            currentInventoryEntries: [
+                DungeonInventoryEntry(card: .straightRight2, rewardUses: 2),
+                DungeonInventoryEntry(card: .straightUp2, pickupUses: 1)
+            ],
+            rewardAddUses: 4
+        )
+        let ignoredUsedPickup = runState.advancedToNextFloor(
+            carryoverHP: 2,
+            currentFloorMoveCount: 5,
+            rewardSelection: .carryOverPickup(.straightUp2),
+            currentInventoryEntries: [
+                DungeonInventoryEntry(card: .straightRight2, rewardUses: 2),
+                DungeonInventoryEntry(card: .straightUp2, pickupUses: 0)
+            ],
+            rewardAddUses: 4
+        )
+        let mergedExistingReward = runState.advancedToNextFloor(
+            carryoverHP: 2,
+            currentFloorMoveCount: 5,
+            rewardSelection: .carryOverPickup(.straightRight2),
+            currentInventoryEntries: [
+                DungeonInventoryEntry(card: .straightRight2, rewardUses: 2, pickupUses: 1)
+            ],
+            rewardAddUses: 3
+        )
+
+        XCTAssertEqual(
+            carriedPickup.rewardInventoryEntries,
+            [
+                DungeonInventoryEntry(card: .straightRight2, rewardUses: 2),
+                DungeonInventoryEntry(card: .straightUp2, rewardUses: 4)
+            ]
+        )
+        XCTAssertEqual(
+            ignoredUsedPickup.rewardInventoryEntries,
+            [DungeonInventoryEntry(card: .straightRight2, rewardUses: 2)]
+        )
+        XCTAssertEqual(
+            mergedExistingReward.rewardInventoryEntries,
+            [DungeonInventoryEntry(card: .straightRight2, rewardUses: 5)]
+        )
+    }
+
     func testDungeonRewardCardConsumptionReducesUsesAndRemovesEmptyHandStack() {
         let runState = DungeonRunState(
             dungeonID: "test-tower",
