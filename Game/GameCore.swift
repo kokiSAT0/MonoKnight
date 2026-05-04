@@ -1800,6 +1800,13 @@ public final class GameCore: ObservableObject {
                 let validDirections = normalizedDirections(directions)
                 guard !validDirections.isEmpty else { continue }
                 enemyStates[index].rotationIndex = (enemyStates[index].rotationIndex + 1) % validDirections.count
+            case .chaser:
+                guard let current,
+                      let nextPoint = chaserNextStep(from: enemyStates[index].position, toward: current)
+                else {
+                    continue
+                }
+                enemyStates[index].position = nextPoint
             }
         }
     }
@@ -1812,6 +1819,27 @@ public final class GameCore: ObservableObject {
         let nextIndex = (enemy.patrolIndex + 1) % validPath.count
         let nextPoint = validPath[nextIndex]
         guard nextPoint != enemy.position else { return nil }
+
+        let vector = MoveVector(
+            dx: nextPoint.x - enemy.position.x,
+            dy: nextPoint.y - enemy.position.y
+        )
+        return EnemyPatrolMovementPreview(
+            enemyID: enemy.id,
+            current: enemy.position,
+            next: nextPoint,
+            vector: vector
+        )
+    }
+
+    private func chaserMovementPreview(for enemy: EnemyState) -> EnemyPatrolMovementPreview? {
+        guard case .chaser = enemy.behavior,
+              let current,
+              let nextPoint = chaserNextStep(from: enemy.position, toward: current),
+              nextPoint != enemy.position
+        else {
+            return nil
+        }
 
         let vector = MoveVector(
             dx: nextPoint.x - enemy.position.x,
@@ -1867,7 +1895,7 @@ public final class GameCore: ObservableObject {
         for enemy in enemies {
             danger.insert(enemy.position)
             switch enemy.behavior {
-            case .guardPost, .patrol:
+            case .guardPost, .patrol, .chaser:
                 let offsets = [
                     MoveVector(dx: 0, dy: 1),
                     MoveVector(dx: 1, dy: 0),
@@ -1900,6 +1928,85 @@ public final class GameCore: ObservableObject {
             }
         }
         return danger
+    }
+
+    private func chaserNextStep(from origin: GridPoint, toward target: GridPoint) -> GridPoint? {
+        guard origin != target,
+              board.contains(origin),
+              board.contains(target),
+              board.isTraversable(target)
+        else {
+            return nil
+        }
+
+        var distances: [GridPoint: Int] = [target: 0]
+        var queue: [GridPoint] = [target]
+        var cursor = 0
+        let directions = [
+            MoveVector(dx: 1, dy: 0),
+            MoveVector(dx: -1, dy: 0),
+            MoveVector(dx: 0, dy: 1),
+            MoveVector(dx: 0, dy: -1)
+        ]
+
+        while cursor < queue.count {
+            let point = queue[cursor]
+            cursor += 1
+            let distance = distances[point] ?? 0
+
+            for direction in directions {
+                let next = point.offset(dx: direction.dx, dy: direction.dy)
+                guard board.contains(next),
+                      board.isTraversable(next),
+                      distances[next] == nil
+                else {
+                    continue
+                }
+                distances[next] = distance + 1
+                queue.append(next)
+            }
+        }
+
+        guard let originDistance = distances[origin] else { return nil }
+        for direction in chaserStepDirections(from: origin, toward: target) {
+            let candidate = origin.offset(dx: direction.dx, dy: direction.dy)
+            guard let distance = distances[candidate],
+                  distance < originDistance
+            else {
+                continue
+            }
+            return candidate
+        }
+
+        return nil
+    }
+
+    private func chaserStepDirections(from origin: GridPoint, toward target: GridPoint) -> [MoveVector] {
+        var directions: [MoveVector] = []
+
+        if target.x > origin.x {
+            directions.append(MoveVector(dx: 1, dy: 0))
+        } else if target.x < origin.x {
+            directions.append(MoveVector(dx: -1, dy: 0))
+        }
+
+        if target.y > origin.y {
+            directions.append(MoveVector(dx: 0, dy: 1))
+        } else if target.y < origin.y {
+            directions.append(MoveVector(dx: 0, dy: -1))
+        }
+
+        let fallbackDirections = [
+            MoveVector(dx: 1, dy: 0),
+            MoveVector(dx: -1, dy: 0),
+            MoveVector(dx: 0, dy: 1),
+            MoveVector(dx: 0, dy: -1)
+        ]
+        for direction in fallbackDirections where !directions.contains(direction) {
+            directions.append(direction)
+        }
+
+        return directions
     }
 
     private func normalizedDirections(_ directions: [MoveVector]) -> [MoveVector] {
