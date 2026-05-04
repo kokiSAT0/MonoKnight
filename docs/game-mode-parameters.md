@@ -1,100 +1,37 @@
 # GameMode パラメータ仕様
 
-MonoKnight の各モードは `GameMode` 構造体を通じて盤面サイズ、山札、目的地、ペナルティなどをまとめて定義する。
-本書は `GameMode.Regulation` とフリーモードの整合性要件を整理する補助ドキュメントである。
-現行ゲームルールの正本は [`game-rules-handbook.md`](game-rules-handbook.md) とする。
-
-通常ユーザー向けのメインコンテンツは塔ダンジョンのみとする。
-スタンダード、Target Lab、クラシカル、デイリー、旧目的地制キャンペーン、フリーモードは開発凍結コンテンツとして互換維持に留め、通常導線から外したあと段階的に削除する。
+MonoKnight の現行メインコンテンツは塔ダンジョンのみとする。`GameMode` は塔フロアのルールを `GameMode.Regulation` と `GameMode.DungeonMetadata` に束ね、旧目的地制キャンペーン、Daily、ハイスコア、旧標準/クラシカル/Target Lab 用の識別子は現行仕様として扱わない。
 
 ## 1. `GameMode.Regulation` の主なフィールド
 
-| 項目 | 型 | 役割 | メモ |
-| --- | --- | --- | --- |
-| `boardSize` | `Int` | 盤面の一辺の長さ | 盤面は常に正方形。標準は 5、キャンペーンは 8。 |
-| `handSize` | `Int` | 手札スロットの最大種類数 | カード枚数ではなく種類数で管理する。 |
-| `nextPreviewCount` | `Int` | 先読み表示枚数 | 標準は 3 枚。 |
-| `allowsStacking` | `Bool` | 同種カードを同じスロットに積めるか | 標準では `true`。 |
-| `deckPreset` | `GameDeckPreset` | 利用する山札構成 | `Deck.Configuration` と対応する。 |
-| `spawnRule` | `GameMode.SpawnRule` | 初期スポーン | 中央固定または任意選択。 |
-| `completionRule` | `GameMode.CompletionRule` | クリア条件 | 標準は目的地 12 個獲得。 |
-| `penalties` | `GameMode.PenaltySettings` | 従来型モード向けペナルティ | 目的地制ではフォーカスや自動再配布を優先する。 |
-| `bonusMoveCards` | `[MoveCard]?` | 目的地制/従来型向けの追加移動カード | 塔の inventory-only ルールでは使わない。 |
-| `dungeonRules` | `DungeonRules?` | 塔ダンジョン用追加ルール | 出口到達、HP、手数、敵、床ギミック、基本移動可否、カード取得方式をまとめる。 |
+| 項目 | 型 | 役割 |
+| --- | --- | --- |
+| `boardSize` | `Int` | フロア盤面の一辺の長さ |
+| `handSize` | `Int` | 所持カードの最大種類数 |
+| `deckPreset` | `GameDeckPreset` | フロア定義や報酬で使うカード構成 |
+| `spawnRule` | `GameMode.SpawnRule` | 初期位置。成長塔では前フロア階段位置を反映する |
+| `completionRule` | `GameMode.CompletionRule` | 塔では `.dungeonExit(exitPoint:)` を使う |
+| `dungeonRules` | `DungeonRules?` | HP、手数、敵、床ギミック、基本移動、カード取得方式 |
+| `bonusMoveCards` | `[MoveCard]?` | 報酬カードを初期手札へ反映するための補助 |
 
-## 2. 目的地制モードの基準
+## 2. 塔ダンジョンの基準
 
-目的地制モードは旧仕様互換として残す。
-新規のメインコンテンツや通常導線は塔ダンジョンを基準にし、目的地制の拡張は行わない。
-
-- スタンダードは 5×5 盤、中央開始、目的地 12 個獲得でクリアする
-- キャンペーンは 8×8 盤で統一し、ステージごとに目的地 3〜14 個獲得でクリアする
-- 表示中の目的地は最大 3 マスで、どれからでも獲得できる
-- 任意の全引き直しは廃止し、フォーカスを使う
-- フォーカス使用時は手数を増やさず、`focusCount` を 1 増やす
-- 目的地制の手詰まりは、手数ペナルティではなくフォーカス寄りの自動再配布で回復する
-- スタンダードなどランキング対象の目的地制スコアは `移動手数 × 10 + 所要秒数 + フォーカス回数 × 15` とする
-- キャンペーンのスター評価は `目的地獲得数 × 100 - 移動手数 × 10 - フォーカス回数 × 15` の加点式とし、最低 0、時間は含めない
-
-## 3. `PenaltySettings` の扱い
-
-`PenaltySettings` は従来型・クラシカル系モードとの互換のために保持する。
-スタンダードの目的地制挙動を説明する正本としては使わない。
-
-| 項目 | 型 | 役割 | 主な用途 |
-| --- | --- | --- | --- |
-| `deadlockPenaltyCost` | `Int` | 全カード使用不能時の自動ペナルティ | クラシカルなど従来型モード |
-| `manualRedrawPenaltyCost` | `Int` | 任意引き直し時の加算手数 | 従来型モード |
-| `manualDiscardPenaltyCost` | `Int` | 任意のカード破棄時の加算手数 | モード設定に応じて使用 |
-| `revisitPenaltyCost` | `Int` | 既踏マス再訪時の加算手数 | 従来型モード |
-
-代表値は [`game-rules-handbook.md`](game-rules-handbook.md) の「フォーカス・ペナルティと補助操作」を参照する。
-
-## 4. 塔ダンジョンモードの基準
-
-新キャンペーンは出口到達型の塔ダンジョンを基準にする。
-
-- `completionRule` は `.dungeonExit(exitPoint:)` を使う
-- 目的地補充は行わない
+- `GameMode.Identifier` は塔フロア用の `.dungeonFloor` を使う
+- `completionRule` は出口到達で、目的地補充や旧スコア計算は行わない
 - `DungeonRules.failureRule` で初期 HP と手数制限を管理する
-- 連続登塔では `DungeonRunState` を `GameMode.DungeonMetadata` に持たせ、次フロアの `failureRule.initialHP` へ引き継ぎ HP を反映する
+- `DungeonRunState` を `GameMode.DungeonMetadata` に持たせ、HP、総手数、報酬カード、ラン seed、成長塔の開始区間を引き継ぐ
 - `DungeonRules.cardAcquisitionMode == .inventoryOnly` の塔では、初期手札補充、NEXT補充、カード使用後の自動補充、手動引き直しを行わない
-- `DungeonFloorDefinition.cardPickups` でフロア内の床落ちカードを定義する。拾得カードは1回使い切りで、そのフロア限り有効。成長塔1-8Fはギミック追加より拾得カード密度で易しくするため、各5枚前後の床落ちカードを置く。成長塔では `DungeonRunState.cardVariationSeed` により、ランごとに拾得カードの種類/位置と報酬候補を変える。同じラン中は seed を引き継ぎ、解決済みの拾得カードは `DungeonRules.cardPickups` から表示/取得する。seed 変化は各階の基準候補の役割を壊さず、同系統のカード差し替えに留める。フロアクリア後の報酬選択では、未使用の拾得カードから1枚だけラン中報酬カード化できる。拾得/報酬候補には基本移動と同じ上下左右1マスカードを入れない
-- ラン中報酬カードは `DungeonRunState.rewardInventoryEntries` に残り回数つきで保持する。報酬カードは3回使用可能で、カード追加または拾得カードの報酬化で得た残り回数を次フロアへ持ち越す
-- 所持カードは `DungeonInventoryEntry` で管理し、同一カードの拾得回数と報酬回数を分けて保持する。使用時は拾得分から先に消費する
+- 拾得カードはフロア限りの1回使い切り、報酬カードは残り回数つきでフロア間へ持ち越す
 - 所持上限は10種類。同じカードは種類枠を増やさず、残り使用回数として積む
-- `DungeonRules.enemies` で番兵、巡回兵、見張りなどの敵を配置する
-- `DungeonRules.hazards` でひび割れ床などの床ギミックを配置する
-- `DungeonRules.allowsBasicOrthogonalMove` が true の塔では、カードを消費しない上下左右1マス移動を許可する。基本移動は手数を1増やし、所持カード、山札、手札、NEXT は変えない
-- 低難度塔では、基本移動だけでも出口到達でき、拾得カードやラン中報酬で手数や被弾を減らせるように調整する
-- 巡回塔などの `EnemyBehavior.patrol(path:)` は、プレイヤーの1手ごとに `path` の次座標へ進み、現在位置と上下左右隣接マスを危険範囲として扱う
+- 基本移動が許可された塔では、カードを消費しない上下左右1マス移動を許可する
 - 移動後は `床ギミック → 出口判定 → 敵ターン → 失敗判定` の順で解決する
 
-## 5. ビルトインモードの整理
+## 3. Game Center
 
-| モード | 主な設定 | 備考 |
-| --- | --- | --- |
-| 塔ダンジョン | フロア定義に従う、出口到達 | 唯一のメインコンテンツ。HP、手数、敵、床ギミックで失敗条件を作る。 |
-| スタンダード | 5×5、中央固定、標準デッキ、目的地 12 個 | 凍結。保存互換と既存テスト維持に留め、通常導線から外す。 |
-| 旧キャンペーン | 8×8、ステージ定義に従う、目的地 3〜14 個 | 凍結。移行元の目的地制定義として一時保持し、段階削除する。 |
-| Target Lab | 8×8、全部入りカード、特殊マス検証 | 凍結。必要な検証を塔側へ移したあと削除候補にする。 |
-| クラシカル/デイリー/フリー | 全踏破、固定シード、カスタム設定など | 凍結。新規拡張しない。 |
+Game Center は将来の試練塔向け leaderboard 基盤として、認証、スコア送信、leaderboard 表示のサービス境界だけを残す。現時点では旧モード用 leaderboard ID を設定せず、塔プレイから自動送信や自動サインイン促しを行わない。
 
-## 6. フリーモードとの整合性要件
+## 4. 自動テスト方針
 
-フリーモード (`GameMode.Identifier.freeCustom`) はユーザーがカスタマイズした `GameMode.Regulation` を保存し、必要に応じて `GameMode` を再構築して利用する。
-
-- 保存データがない場合は、現行スタンダード相当の目的地制設定を初期値にする
-- `GameMode.Regulation` / `PenaltySettings` / `SpawnRule` は `Codable` として保存・復元できること
-- フリーモードとして生成した `GameMode` は常に `.freeCustom` を識別子にする
-- プリセット適用時はビルトインモードの `regulationSnapshot` と一致すること
-- 目的地制と従来型モードのスコア・ペナルティを UI 表示で混同しないこと
-
-## 7. 自動テスト方針
-
-- 保存データがない状態でフリーモード初期値が現行スタンダード仕様と一致すること
-- カスタム設定が `UserDefaults` に永続化され、再生成時も復元されること
-- プリセット適用がビルトインモードと一致すること
-- 目的地制ではフォーカス、手詰まり自動再配布、現行スコア式が維持されること
-- 従来型モードでは `PenaltySettings` に基づく挙動が維持されること
-- 塔ダンジョンでは出口到達、HP 0、手数切れ、敵危険範囲、床割れの各判定が一致すること
+- `DungeonModeTests` で出口到達、HP 0、手数切れ、敵危険範囲、床割れ、報酬カード持ち越し、成長塔 seed 変化を確認する
+- `DungeonSelectionViewTests` でタイトルから塔選択だけが主導線になること、成長塔の区間解放と成長表示を確認する
+- 旧キャンペーン、Daily、ハイスコア、旧 leaderboard 設定前提のテストは削除対象とする

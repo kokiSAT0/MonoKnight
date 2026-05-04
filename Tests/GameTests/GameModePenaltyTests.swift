@@ -20,7 +20,7 @@ final class GameModePenaltyTests: XCTestCase {
                 revisitPenaltyCost: 0
             )
         )
-        let mode = GameMode(identifier: .freeCustom, displayName: "カスタム", regulation: regulation)
+        let mode = GameMode(identifier: .dungeonFloor, displayName: "カスタム", regulation: regulation)
 
         // --- 盤外カードのみの手札を用意し、初期化時に強制的に手詰まりへ誘導 ---
         let deck = Deck.makeTestDeck(cards: [
@@ -61,7 +61,7 @@ final class GameModePenaltyTests: XCTestCase {
                 revisitPenaltyCost: 0
             )
         )
-        let mode = GameMode(identifier: .freeCustom, displayName: "カスタム", regulation: regulation)
+        let mode = GameMode(identifier: .dungeonFloor, displayName: "カスタム", regulation: regulation)
 
         // --- 初期手札で盤内へ進めるカードを含め、手詰まりが発生しないようにする ---
         let deck = Deck.makeTestDeck(cards: [
@@ -104,7 +104,7 @@ final class GameModePenaltyTests: XCTestCase {
                 revisitPenaltyCost: 0
             )
         )
-        let mode = GameMode(identifier: .freeCustom, displayName: "カスタム", regulation: regulation)
+        let mode = GameMode(identifier: .dungeonFloor, displayName: "カスタム", regulation: regulation)
 
         let deck = Deck.makeTestDeck(cards: [
             .kingUp,

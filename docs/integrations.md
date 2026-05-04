@@ -5,7 +5,7 @@
 ## 1. 連携一覧
 
 - Game Center
-  - 用途: スコア送信と leaderboard 表示
+  - 用途: 将来の試練塔向けスコア送信と leaderboard 表示の薄いサービス境界
 - StoreKit 2
   - 用途: 広告除去 IAP の販売と復元
 - Google Mobile Ads SDK
@@ -19,14 +19,14 @@
 
 ## 2. Game Center
 
-- Leaderboard ID: `kc_moves_5x5`
-- ランキング対象スコア: `移動手数 × 10 + 所要秒数 + フォーカス回数 × 15`
+- Leaderboard ID: 現時点では未設定。旧モード用 ID は使わない。
+- ランキング対象スコア: 現時点では未定義。将来の試練塔で仕様を決める。
 - 認証導線:
-  - アプリ内で Game Center 認証を行う
-  - `GKAccessPoint` で leaderboard 導線を露出する
+  - 現行の塔攻略通常導線では自動サインイン促しを出さない
+  - `GKAccessPoint` の露出は将来の leaderboard 仕様確定まで行わない
 - 送信タイミング:
-  - スタンダードモードの目的地 12 個獲得クリア時にスコア送信する
-  - `GameMode.targetLab` などランキング対象外モードでは送信しない
+  - 現行の基礎塔、成長塔、試練塔からはスコア送信しない
+  - 将来の試練塔 leaderboard 追加時に、送信対象とスコア式を明示する
 
 詳細な ID 管理は [game-center-leaderboards.md](game-center-leaderboards.md) を参照する。
 
@@ -88,6 +88,8 @@
 - `GameCenterService`
   - 認証
   - スコア送信
+  - leaderboard 表示
+  - 現時点では旧 leaderboard 設定を持たない dormant な基盤として保持する
   - leaderboard 導線
 - `StoreService`
   - 商品取得

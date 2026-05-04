@@ -25,52 +25,6 @@ private struct GameCenterServiceConfiguration {
         let supportedModes: Set<GameMode.Identifier>
     }
 
-    private enum Definition: CaseIterable {
-        case standard
-        case classicalChallenge
-        case dailyFixed
-        case dailyRandom
-
-        var supportedModes: Set<GameMode.Identifier> {
-            switch self {
-            case .standard:
-                return [.standard5x5]
-            case .classicalChallenge:
-                return [.classicalChallenge]
-            case .dailyFixed:
-                return [.dailyFixedChallenge]
-            case .dailyRandom:
-                return [.dailyRandomChallenge]
-            }
-        }
-
-        var referenceNameInfoPlistKey: String {
-            switch self {
-            case .standard:
-                return "GameCenterLeaderboardStandardReferenceName"
-            case .classicalChallenge:
-                return "GameCenterLeaderboardClassicalReferenceName"
-            case .dailyFixed:
-                return "GameCenterLeaderboardDailyFixedReferenceName"
-            case .dailyRandom:
-                return "GameCenterLeaderboardDailyRandomReferenceName"
-            }
-        }
-
-        var leaderboardIDInfoPlistKey: String {
-            switch self {
-            case .standard:
-                return "GameCenterLeaderboardStandardID"
-            case .classicalChallenge:
-                return "GameCenterLeaderboardClassicalID"
-            case .dailyFixed:
-                return "GameCenterLeaderboardDailyFixedID"
-            case .dailyRandom:
-                return "GameCenterLeaderboardDailyRandomID"
-            }
-        }
-    }
-
     let entries: [Entry]
 
     static func make(from bundle: Bundle = .main) -> GameCenterServiceConfiguration {
@@ -78,39 +32,11 @@ private struct GameCenterServiceConfiguration {
     }
 
     static func make(infoDictionary: [String: Any]) -> GameCenterServiceConfiguration {
-        let resolvedEntries = Definition.allCases.compactMap { definition -> Entry? in
-            guard
-                let referenceName = infoDictionary[definition.referenceNameInfoPlistKey] as? String,
-                let leaderboardID = infoDictionary[definition.leaderboardIDInfoPlistKey] as? String
-            else {
-                debugLog(
-                    "Game Center 設定不足: \(definition.referenceNameInfoPlistKey) または \(definition.leaderboardIDInfoPlistKey) が見つかりません"
-                )
-                return nil
-            }
-
-            let trimmedReferenceName = referenceName.trimmingCharacters(in: .whitespacesAndNewlines)
-            let trimmedLeaderboardID = leaderboardID.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmedReferenceName.isEmpty, !trimmedLeaderboardID.isEmpty else {
-                debugLog(
-                    "Game Center 設定不足: \(definition.referenceNameInfoPlistKey) または \(definition.leaderboardIDInfoPlistKey) が空文字です"
-                )
-                return nil
-            }
-
-            return Entry(
-                referenceName: trimmedReferenceName,
-                leaderboardID: trimmedLeaderboardID,
-                supportedModes: definition.supportedModes
-            )
-        }
-
-        return GameCenterServiceConfiguration(entries: resolvedEntries)
+        GameCenterServiceConfiguration(entries: [])
     }
 
     func entry(for identifier: GameMode.Identifier) -> Entry? {
-        guard let resolvedIdentifier = identifier.scoreSubmissionIdentifier else { return nil }
-        return entries.first { $0.supportedModes.contains(resolvedIdentifier) }
+        entries.first { $0.supportedModes.contains(identifier) }
     }
 }
 

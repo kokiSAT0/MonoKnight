@@ -115,7 +115,7 @@
 
 - 新機能やステージ追加を先に進め、必要に応じて触ったファイルだけを小さく整理する。
 - 変更に UI が含まれる場合は `swift test` に加えて App ビルド確認も行う。
-- 新ステージ追加時は `CampaignLibraryTests` と `GameModeIdentifierTests` 系を最低限の回帰確認とする。
+- 新フロア追加時は `DungeonModeTests` と `DungeonSelectionViewTests` 系を最低限の回帰確認とする。
 - ゲーム進行変更時は `GameCoreTests` と `DeckTests` の近傍ケースを補強する。
 - Swift Package 境界、`Game / UI / Services` の責務境界、外部サービス依存の閉じ込めは崩さない。
 

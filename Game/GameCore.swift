@@ -215,14 +215,6 @@ public final class GameCore: ObservableObject {
         }
         return totalMoveCount * 10 + elapsedSeconds
     }
-    /// キャンペーンスター評価用の加点式スコア
-    public var campaignScore: Int {
-        CampaignScoring.score(
-            capturedTargetCount: capturedTargetCount,
-            moveCount: moveCount,
-            focusCount: focusCount
-        )
-    }
     /// プレイ中の経過秒数をリアルタイムで取得する計算プロパティ
     /// - Note: クリア済みかどうかに応じて `GameSessionTimer` へ計算を委譲する。
     public var liveElapsedSeconds: Int {
@@ -295,8 +287,8 @@ public final class GameCore: ObservableObject {
     private let activeTargetDisplayCount = 3
 
     /// 初期化時にモードを指定して各種状態を構築する
-    /// - Parameter mode: 適用したいゲームモード（省略時はスタンダード）
-    public init(mode: GameMode = .standard) {
+    /// - Parameter mode: 適用したいゲームモード（省略時は塔プレースホルダー）
+    public init(mode: GameMode = .dungeonPlaceholder) {
         self.mode = mode
         // BoardGeometry を介することで盤面サイズ拡張時も初期化処理を共通化できる
         board = Board(
@@ -1615,13 +1607,7 @@ public final class GameCore: ObservableObject {
     }
 
     private func preferredTargetDistanceRange() -> ClosedRange<Int> {
-        guard mode.isCampaignStage, mode.boardSize >= CampaignLibrary.campaignBoardSize else {
-            return 2...4
-        }
-        if let stageID = mode.campaignMetadataSnapshot?.stageID, stageID.chapter <= 1 {
-            return 2...4
-        }
-        return 3...6
+        2...4
     }
 
     private var brittleFloorPoints: Set<GridPoint> {
@@ -2309,7 +2295,7 @@ extension GameCore {
     static func makeTestInstance(
         deck: Deck,
         current: GridPoint? = nil,
-        mode: GameMode = .standard,
+        mode: GameMode = .dungeonPlaceholder,
         initialVisitedPoints: [GridPoint]? = nil
     ) -> GameCore {
         let core = GameCore(mode: mode)
@@ -2421,6 +2407,9 @@ extension GameCore {
     ) {
         crackedFloorPoints = cracked
         collapsedFloorPoints = collapsed
+        for point in collapsed {
+            board.collapseFloor(at: point)
+        }
     }
 
     @discardableResult

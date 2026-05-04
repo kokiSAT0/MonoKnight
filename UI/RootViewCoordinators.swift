@@ -111,20 +111,6 @@ struct RootViewTitleFlowCoordinator {
         }
     }
 
-    func handleReturnToCampaignStageSelectionRequest(
-        stateStore: RootViewStateStore,
-        preparationCoordinator: RootViewPreparationCoordinator
-    ) {
-        let contextDescription = stateStore.lastPreparationContext?.logIdentifier ?? "unknown"
-        debugLog("RootView: キャンペーンステージ選択へ戻る要求を受信 lastContext=\(contextDescription)")
-
-        stateStore.pendingTitleNavigationTarget = .campaign
-        handleReturnToTitleRequest(
-            stateStore: stateStore,
-            preparationCoordinator: preparationCoordinator
-        )
-    }
-
     func presentSettings(stateStore: RootViewStateStore) {
         stateStore.isPresentingTitleSettings = true
     }

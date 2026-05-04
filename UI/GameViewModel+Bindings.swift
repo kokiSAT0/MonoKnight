@@ -44,27 +44,11 @@ extension GameViewModel {
             }
         )
 
-        core.$moveCount
-            .removeDuplicates()
-            .receive(on: RunLoop.main)
-            .sink { [weak self] moveCount in
-                self?.handleTutorialMoveCountChange(moveCount)
-            }
-            .store(in: &cancellables)
-
         core.$capturedTargetCount
             .removeDuplicates()
             .receive(on: RunLoop.main)
             .sink { [weak self] capturedTargetCount in
-                self?.handleTutorialCapturedTargetCountChange(capturedTargetCount)
-            }
-            .store(in: &cancellables)
-
-        core.$focusCount
-            .removeDuplicates()
-            .receive(on: RunLoop.main)
-            .sink { [weak self] focusCount in
-                self?.handleTutorialFocusCountChange(focusCount)
+                self?.handleCapturedTargetCountChange(capturedTargetCount)
             }
             .store(in: &cancellables)
 
@@ -84,13 +68,6 @@ extension GameViewModel {
             }
             .store(in: &cancellables)
 
-        core.$progress
-            .removeDuplicates()
-            .receive(on: RunLoop.main)
-            .sink { [weak self] progress in
-                self?.handleTutorialProgressChange(progress)
-            }
-            .store(in: &cancellables)
     }
 
     func handleHandStacksChange(_ newHandStacks: [HandStack]) {
@@ -134,8 +111,7 @@ extension GameViewModel {
                     isGameCenterAuthenticated: isGameCenterAuthenticated,
                     flowCoordinator: flowCoordinator,
                     gameCenterService: gameCenterService,
-                    onRequestGameCenterSignIn: onRequestGameCenterSignIn,
-                    campaignProgressStore: campaignProgressStore
+                    onRequestGameCenterSignIn: onRequestGameCenterSignIn
                 )
                 latestDungeonGrowthAward = registerDungeonGrowthAwardIfNeeded()
                 return outcome
@@ -158,70 +134,13 @@ extension GameViewModel {
         return dungeonGrowthStore.registerDungeonClear(dungeon: dungeon, runState: runState, hasNextFloor: hasNextFloor)
     }
 
-    func startCampaignTutorialIfNeeded() {
-        campaignTutorialCard = campaignTutorialController.startIfNeeded()?.card
-        applyCampaignTutorialHighlights()
-    }
-
-    func handleCampaignTutorialEvent(_ event: CampaignTutorialEvent) {
-        campaignTutorialCard = campaignTutorialController.handle(event)?.card
-        applyCampaignTutorialHighlights()
-    }
-
-    func dismissCampaignTutorial() {
-        campaignTutorialCard = campaignTutorialController.dismissActiveStep()?.card
-        applyCampaignTutorialHighlights()
-    }
-
-    func handleTutorialMoveCountChange(_ newMoveCount: Int) {
-        defer { lastTutorialMoveCount = newMoveCount }
-        guard newMoveCount > lastTutorialMoveCount else { return }
-        handleCampaignTutorialEvent(.firstMove)
-    }
-
-    func handleTutorialCapturedTargetCountChange(_ newCapturedTargetCount: Int) {
+    func handleCapturedTargetCountChange(_ newCapturedTargetCount: Int) {
         defer { lastTutorialCapturedTargetCount = newCapturedTargetCount }
         guard newCapturedTargetCount > lastTutorialCapturedTargetCount else { return }
         showTargetCaptureFeedback(
             capturedCount: newCapturedTargetCount,
             incrementCount: newCapturedTargetCount - lastTutorialCapturedTargetCount
         )
-        handleCampaignTutorialEvent(.targetCaptured)
-    }
-
-    func handleTutorialFocusCountChange(_ newFocusCount: Int) {
-        defer { lastTutorialFocusCount = newFocusCount }
-        guard newFocusCount > lastTutorialFocusCount else { return }
-        handleCampaignTutorialEvent(.focusUsed)
-    }
-
-    func handleTutorialProgressChange(_ newProgress: GameProgress) {
-        defer { lastTutorialProgress = newProgress }
-        guard lastTutorialProgress == .awaitingSpawn, newProgress == .playing else { return }
-        handleCampaignTutorialEvent(.spawnSelected)
-    }
-
-    func applyCampaignTutorialHighlights() {
-        guard selectedHandStackID == nil else { return }
-        guard let step = campaignTutorialController.activeStep else {
-            boardBridge.updateForcedSelectionHighlights([])
-            return
-        }
-
-        switch step.forcedHighlight {
-        case .none:
-            boardBridge.updateForcedSelectionHighlights([])
-        case .currentTarget:
-            boardBridge.updateForcedSelectionHighlights(Set([core.targetPoint].compactMap { $0 }))
-        case .upcomingTargets:
-            boardBridge.updateForcedSelectionHighlights(Set(core.upcomingTargetPoints))
-        case .allTargets:
-            var points = Set(core.upcomingTargetPoints)
-            if let targetPoint = core.targetPoint {
-                points.insert(targetPoint)
-            }
-            boardBridge.updateForcedSelectionHighlights(points)
-        }
     }
 
     func showTargetCaptureFeedback(capturedCount: Int, incrementCount: Int) {

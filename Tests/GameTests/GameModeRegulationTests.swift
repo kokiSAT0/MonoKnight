@@ -52,7 +52,7 @@ final class GameModeRegulationTests: XCTestCase {
         let warpPointB = GridPoint(x: 4, y: 4)
         let overriddenEffect: TileEffect = .shuffleHand
         let mode = GameMode(
-            identifier: .freeCustom,
+            identifier: .dungeonFloor,
             displayName: "tile effect test",
             regulation: GameMode.Regulation(
                 boardSize: 5,
@@ -135,21 +135,6 @@ final class GameModeRegulationTests: XCTestCase {
         XCTAssertEqual(decoded.resolvedTileEffects[targetSwapPoint], .targetSwap)
         XCTAssertEqual(decoded.tileEffectOverrides[openGatePoint], .openGate(target: openGateTarget))
         XCTAssertEqual(decoded.resolvedTileEffects[openGatePoint], .openGate(target: openGateTarget))
-    }
-
-    func testModeForFallbackIdentifiersReturnsStandard() {
-        let fallbackIdentifiers: [GameMode.Identifier] = [
-            .dailyFixedChallenge,
-            .dailyRandomChallenge,
-            .freeCustom,
-            .campaignStage,
-            .dailyFixed,
-            .dailyRandom
-        ]
-
-        for identifier in fallbackIdentifiers {
-            XCTAssertEqual(GameMode.mode(for: identifier), .standard, "\(identifier) の fallback が standard ではありません")
-        }
     }
 
     func testPresentationStringsRemainStableAfterExtraction() {

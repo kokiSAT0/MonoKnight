@@ -2,7 +2,7 @@ import Game
 import SwiftUI
 
 /// 塔ダンジョンのフロアを選んで開始する入口。
-/// 旧キャンペーン一覧は互換 UI として残し、タイトルのキャンペーン導線だけをこちらへ向ける。
+/// タイトルから入る塔攻略専用の選択画面。
 struct DungeonSelectionView: View {
     let dungeonLibrary: DungeonLibrary
     @ObservedObject var dungeonGrowthStore: DungeonGrowthStore

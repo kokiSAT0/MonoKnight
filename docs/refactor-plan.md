@@ -9,7 +9,7 @@
 ## 現状構造
 | レイヤ | 現在の主責務 | 主なボトルネック |
 | --- | --- | --- |
-| `Game` | 盤面、移動、モード、キャンペーン定義、スコア | `CampaignStage.swift` と `MoveCard.swift` の façade 化は完了。現時点では大きな tracked ボトルネックは解消済みで、今後は `GameCore.swift` / `Deck.swift` の監視を継続する |
+| `Game` | 盤面、移動、モード、塔フロア定義 | `MoveCard.swift` の façade 化は完了。旧キャンペーン定義は削除済みで、今後は `GameCore.swift` / `Deck.swift` / `DungeonDefinition.swift` の監視を継続する |
 | `UI` | タイトル、ゲーム表示、設定、遷移 | `RootView.swift` / `GameViewModel.swift` / `AppTheme.swift` の主要整理は完了。今後は `TitleFlowView.swift` や `MoveCardIllustrationView.swift` など高利用画面の監視を継続する |
 | `Services` | Ads / Game Center / StoreKit / 永続化ストア | 保存キーと責務の流儀が散っている |
 | `SharedSupport` | ログとクラッシュ補助 | 基盤は安定しているが利用点が散在 |
@@ -19,11 +19,11 @@
 - `HandManagerTests` が前提にしていた固定ワープ目的地の順序を、テストデッキで安定再現できるようにした。
 - `StorageKey` を追加し、`@AppStorage` / `UserDefaults` キーの主要な定義を 1 箇所へ集約した。
 - `GameMode` の表示用ロジック、`Regulation` 補助、built-in mode 生成を拡張ファイルへ分離し、定義本体を façade として薄く保てる状態にした。
-- `CampaignStage` の表示・評価・進行用変換を拡張ファイルへ分離し、本体を公開データ定義中心へ整理した。
+- 旧 `CampaignStage` 系は塔攻略専用化で削除し、塔フロア定義は `DungeonDefinition.swift` へ集約した。
 - `GameViewModelSupport` の helper type 群を presentation / interaction / lifecycle support へ分割し、さらに action / lifecycle surface も input / flow / lifecycle / bindings extension へ再分割して、support 本体を state sync glue へ縮退させた。
 - `MoveCard` の第2段階として `MovePattern` 本体を pattern support へ、registry・解決・テスト override を resolution extension へ移し、本体を case 定義と façade へ整理した。
 - `AppTheme` のトークンを badges / cards / board / controls / overlays / status chrome / platform bridge / bridge palette へ整理し、ベーステーマの入口を薄くした。
-- `RootView` 内の重複していた `campaignStage(for:)` ヘルパーを 1 箇所に整理した。
+- `RootView` の旧キャンペーン分岐を削除し、塔選択への導線へ集約した。
 
 ## RootView / GameViewModel 責務表
 ### RootView
@@ -32,7 +32,7 @@
 | App shell | 起動後の Root 画面構成、設定シート、同意後の入口 | 維持 |
 | Navigation | タイトル / ゲーム / 準備オーバーレイの切替 | `Navigation/Preparation coordinator` |
 | Title flow | タイトルカード、各メニュー遷移、即時開始導線 | `TitleFlow` |
-| Game flow | ゲーム準備完了待ち、タイトル復帰、キャンペーン復帰 | `GameFlow` |
+| Game flow | ゲーム準備完了待ち、タイトル復帰、塔攻略復帰 | `GameFlow` |
 | Diagnostics | レイアウトログ、top bar 監視 | 凍結または削除候補 |
 
 ### GameViewModel
@@ -42,18 +42,18 @@
 | Overlay/UI state | ポーズ、警告、ペナルティバナー、結果表示 | `Session UI state` |
 | Flow handling | タイトル復帰、再挑戦、次ステージ開始 | `Result/transition handling` |
 | Timer policy | ポーズ理由別の停止・再開 | `Pause/overlay/timer policy` |
-| Service bridge | Ads / Game Center / CampaignProgress 呼び出し | 必要最小限を残す |
+| Service bridge | Ads / dormant Game Center 呼び出し | 必要最小限を残す |
 
 ## 不変条件
 - `Game` は Swift Package 経由のみで参照する。
-- スコア式、広告表示ポリシー、IAP 後の広告停止、ATT/UMP の順序は変えない。
-- キャンペーン・日替わり・フリーモードのルール結果は原則維持する。
+- 広告表示ポリシー、IAP 後の広告停止、ATT/UMP の順序は変えない。
+- 削除済み旧コンテンツのルール結果は現行仕様の不変条件に含めない。
 - UI は真実の源泉を持たず、ルール判定は `Game` に置く。
 
 ## フェーズ方針
 ### Phase 1
 - テストと docs を足場にして現状挙動を固定する。
-- 保存キー、日替わり ID、top bar のような横断的な前提を明文化する。
+- 保存キー、塔フロア ID、top bar のような横断的な前提を明文化する。
 
 ### Phase 2
 - `RootView` を App shell / Title flow / Game flow / coordinator に分割する。
@@ -65,7 +65,7 @@
 
 ### Phase 4
 - `AppTheme` は色値を維持したまま責務整理を完了し、今後は extension 単位の運用を維持する。
-- 日替わりは「プレイ用 mode ID」と「leaderboard 用 ID」を明示的に区別し続ける。
+- Game Center は将来の試練塔 leaderboard 仕様が固まるまで dormant な境界として保つ。
 
 ### Phase 5
 - `GameScene`、Services、各種 Store の責務をさらに整える。

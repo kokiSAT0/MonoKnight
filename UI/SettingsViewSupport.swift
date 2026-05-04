@@ -7,8 +7,6 @@ struct SettingsPresentationState {
     var storeAlert: StoreAlert?
     var isGameCenterAuthenticationInProgress = false
     var gameCenterAlert: GameCenterAlert?
-    var isResetAlertPresented = false
-    var isDebugUnlockSuccessAlertPresented = false
 
     mutating func beginGameCenterAuthenticationIfNeeded() -> Bool {
         guard !isGameCenterAuthenticationInProgress else { return false }
@@ -42,23 +40,12 @@ struct SettingsPresentationState {
         storeAlert = success ? .restoreFinished : .restoreFailed
     }
 
-    mutating func presentResetAlert() {
-        isResetAlertPresented = true
-    }
-
     mutating func handleRemoveAdsPurchaseChange(oldValue: Bool, newValue: Bool) {
         if !oldValue && newValue {
             storeAlert = .purchaseCompleted
         }
     }
 
-    mutating func presentDebugUnlockSuccessAlert() {
-        isDebugUnlockSuccessAlertPresented = true
-    }
-}
-
-struct SettingsDebugUnlockState {
-    var debugUnlockInput = ""
 }
 
 enum StoreAlert: Identifiable {
@@ -123,10 +110,6 @@ enum GameCenterAlert: Identifiable {
             "サインインに失敗しました。通信環境を確認し、時間を置いて再度お試しください。"
         }
     }
-}
-
-private enum SettingsDebugConfiguration {
-    static let unlockPassword = "6031"
 }
 
 @MainActor
@@ -208,68 +191,6 @@ enum SettingsActionCoordinator {
 }
 
 @MainActor
-enum SettingsDebugUnlockCoordinator {
-    static func isDebugOverrideActive(
-        campaignProgressStore: CampaignProgressStore,
-        dailyChallengeAttemptStore: AnyDailyChallengeAttemptStore
-    ) -> Bool {
-        campaignProgressStore.isDebugUnlockEnabled || dailyChallengeAttemptStore.isDebugUnlimitedEnabled
-    }
-
-    static func disableDebugOverrides(
-        campaignProgressStore: CampaignProgressStore,
-        dailyChallengeAttemptStore: AnyDailyChallengeAttemptStore
-    ) {
-        campaignProgressStore.disableDebugUnlock()
-        dailyChallengeAttemptStore.disableDebugUnlimited()
-    }
-
-    static func handleDebugUnlockInputChange(
-        _ newValue: String,
-        debugState: Binding<SettingsDebugUnlockState>,
-        presentationState: Binding<SettingsPresentationState>,
-        campaignProgressStore: CampaignProgressStore,
-        dailyChallengeAttemptStore: AnyDailyChallengeAttemptStore
-    ) {
-        let trimmedInput = String(
-            newValue.filter(\.isNumber)
-                .prefix(SettingsDebugConfiguration.unlockPassword.count)
-        )
-
-        if trimmedInput != newValue {
-            mutate(debugState) {
-                $0.debugUnlockInput = trimmedInput
-            }
-            return
-        }
-
-        guard !isDebugOverrideActive(
-            campaignProgressStore: campaignProgressStore,
-            dailyChallengeAttemptStore: dailyChallengeAttemptStore
-        ) else {
-            mutate(debugState) {
-                $0.debugUnlockInput = ""
-            }
-            return
-        }
-
-        guard trimmedInput.count == SettingsDebugConfiguration.unlockPassword.count else { return }
-
-        mutate(debugState) {
-            $0.debugUnlockInput = ""
-        }
-
-        guard trimmedInput == SettingsDebugConfiguration.unlockPassword else { return }
-
-        campaignProgressStore.enableDebugUnlock()
-        dailyChallengeAttemptStore.enableDebugUnlimited()
-        mutate(presentationState) {
-            $0.presentDebugUnlockSuccessAlert()
-        }
-    }
-}
-
-@MainActor
 private func mutate<Value>(_ binding: Binding<Value>, _ update: (inout Value) -> Void) {
     var value = binding.wrappedValue
     update(&value)
@@ -280,13 +201,6 @@ private func mutate<Value>(_ binding: Binding<Value>, _ update: (inout Value) ->
 extension SettingsView {
     var isDiagnosticsMenuAvailable: Bool {
         DebugLogHistory.shared.isFrontEndViewerEnabled
-    }
-
-    var isDebugOverrideActive: Bool {
-        SettingsDebugUnlockCoordinator.isDebugOverrideActive(
-            campaignProgressStore: campaignProgressStore,
-            dailyChallengeAttemptStore: dailyChallengeAttemptStore
-        )
     }
 
     func authenticateGameCenter() {
@@ -317,29 +231,6 @@ extension SettingsView {
 
     func restartConsentFlow() {
         SettingsActionCoordinator.restartConsentFlow(adsService: adsService)
-    }
-
-    func disableDebugOverrides() {
-        SettingsDebugUnlockCoordinator.disableDebugOverrides(
-            campaignProgressStore: campaignProgressStore,
-            dailyChallengeAttemptStore: dailyChallengeAttemptStore
-        )
-    }
-
-    func handleDebugUnlockInputChange(_ newValue: String) {
-        SettingsDebugUnlockCoordinator.handleDebugUnlockInputChange(
-            newValue,
-            debugState: $debugUnlockState,
-            presentationState: $presentationState,
-            campaignProgressStore: campaignProgressStore,
-            dailyChallengeAttemptStore: dailyChallengeAttemptStore
-        )
-    }
-
-    func presentResetAlert() {
-        var updatedState = presentationState
-        updatedState.presentResetAlert()
-        presentationState = updatedState
     }
 
     func handleRemoveAdsPurchaseChange(oldValue: Bool, newValue: Bool) {

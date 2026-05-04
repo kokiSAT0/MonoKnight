@@ -19,10 +19,6 @@ struct MonoKnightApp: App {
     /// StoreKit2 の購買状況を常に監視し、広告除去 IAP の適用状態をアプリ全体へ即時反映するためのオブジェクト
     /// - NOTE: タイプイレースしたラッパー `AnyStoreService` を採用し、UI テストではモックへ容易に差し替えられるようにする
     @StateObject private var storeService: AnyStoreService
-    /// 日替わりチャレンジの挑戦回数を管理するストア
-    @StateObject private var dailyChallengeAttemptStore: AnyDailyChallengeAttemptStore
-    /// 日替わりチャレンジのレギュレーション定義を提供するサービス
-    @StateObject private var dailyChallengeDefinitionService: DailyChallengeDefinitionService
     /// アプリ全体で共有するユーザー設定ストア
     @StateObject private var gameSettingsStore: GameSettingsStore
     /// 同意フローが完了したかどうかを保持するフラグ
@@ -38,12 +34,6 @@ struct MonoKnightApp: App {
         self.gameCenterService = dependencies.gameCenterService
         self.adsService = dependencies.adsService
         _storeService = StateObject(wrappedValue: dependencies.storeService)
-        _dailyChallengeAttemptStore = StateObject(
-            wrappedValue: dependencies.dailyChallengeAttemptStore
-        )
-        _dailyChallengeDefinitionService = StateObject(
-            wrappedValue: dependencies.dailyChallengeDefinitionService
-        )
         _gameSettingsStore = StateObject(wrappedValue: dependencies.gameSettingsStore)
     }
 
@@ -54,8 +44,6 @@ struct MonoKnightApp: App {
                 gameCenterService: gameCenterService,
                 adsService: adsService,
                 storeService: storeService,
-                dailyChallengeAttemptStore: dailyChallengeAttemptStore,
-                dailyChallengeDefinitionService: dailyChallengeDefinitionService,
                 gameSettingsStore: gameSettingsStore
             )
             .onChange(of: scenePhase) { _, newPhase in

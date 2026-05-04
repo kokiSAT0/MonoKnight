@@ -7,7 +7,7 @@
 - UI: `SwiftUI`
 - ゲーム描画: `SpriteKit`
 - 課金: `StoreKit 2`
-- ランキング: `GameKit`
+- ランキング: `GameKit`（将来の試練塔向けに薄い境界だけ保持）
 - 広告: `Google Mobile Ads SDK`
 - 同意管理: `Google UMP` と `AppTrackingTransparency`
 - 状態管理: `ObservableObject` と `@State`
@@ -22,7 +22,7 @@
 - `StoreKit 2`
   - 永続 IAP の取得、監視、復元を Apple 標準 API で行うため
 - `GameKit`
-  - Game Center 認証と leaderboard 送信を Apple 標準 API で扱うため
+  - 将来の Game Center 認証と leaderboard 送信を Apple 標準 API で扱える境界を残すため
 - `Google Mobile Ads SDK`
   - 結果画面のインタースティシャル配信に使うため
 - `GameplayKit`
@@ -48,7 +48,7 @@
 
 ### 4.2 責務による配置判断
 
-- ルール、モデル、デッキ、スコア計算: `Game`
+- ルール、モデル、デッキ、塔フロア判定: `Game`
 - 画面表示、レイアウト、操作導線: `UI`
 - StoreKit、Game Center、AdMob などの外部サービス: `Services`
 - アセットやローカライズ文字列: `Resources`
@@ -93,7 +93,7 @@ MonoKnight/
 - 座標管理
 - カード定義
 - 山札と手札管理
-- 手数、ペナルティ、クリア判定、スコア計算
+- 手数、ペナルティ、クリア判定、塔フロア判定
 - シード付き乱数による再現可能な抽選
 
 ### 6.3 UI
@@ -107,7 +107,8 @@ MonoKnight/
 
 - `StoreService`: StoreKit 2 を用いた広告除去 IAP
 - `AdsService`: AdMob のロードと表示制御
-- `GameCenterService`: 認証、スコア送信、leaderboard 導線
+- `GameCenterService`: 認証、スコア送信、leaderboard 導線の薄い境界
+  - 現時点では旧モード用 leaderboard 設定を持たない dormant な基盤として保持する
   - サービス本体は façade とし、認証フロー・送信判定・leaderboard 提示は internal/private helper へ閉じ込め、UI へ GameKit 詳細を広げない
 
 ## 7. 状態管理方針

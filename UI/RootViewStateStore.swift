@@ -146,7 +146,7 @@ final class RootViewStateStore: ObservableObject {
             isShowingTitleScreen: true,
             isPreparingGame: false,
             isGameReadyForManualStart: false,
-            activeMode: .standard,
+            activeMode: .dungeonPlaceholder,
             gameSessionID: UUID(),
             lastPreparationContext: nil
         )

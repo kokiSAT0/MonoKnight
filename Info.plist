@@ -4,22 +4,6 @@
 <dict>
 	<key>GADApplicationIdentifier</key>
 	<string>$(GAD_APPLICATION_ID)</string>
-	<key>GameCenterLeaderboardClassicalID</key>
-	<string>$(GAMECENTER_LEADERBOARD_CLASSICAL_ID)</string>
-	<key>GameCenterLeaderboardClassicalReferenceName</key>
-	<string>$(GAMECENTER_LEADERBOARD_CLASSICAL_REFERENCE_NAME)</string>
-	<key>GameCenterLeaderboardDailyFixedID</key>
-	<string>$(GAMECENTER_LEADERBOARD_DAILY_FIXED_ID)</string>
-	<key>GameCenterLeaderboardDailyFixedReferenceName</key>
-	<string>$(GAMECENTER_LEADERBOARD_DAILY_FIXED_REFERENCE_NAME)</string>
-	<key>GameCenterLeaderboardDailyRandomID</key>
-	<string>$(GAMECENTER_LEADERBOARD_DAILY_RANDOM_ID)</string>
-	<key>GameCenterLeaderboardDailyRandomReferenceName</key>
-	<string>$(GAMECENTER_LEADERBOARD_DAILY_RANDOM_REFERENCE_NAME)</string>
-	<key>GameCenterLeaderboardStandardID</key>
-	<string>$(GAMECENTER_LEADERBOARD_STANDARD_ID)</string>
-	<key>GameCenterLeaderboardStandardReferenceName</key>
-	<string>$(GAMECENTER_LEADERBOARD_STANDARD_REFERENCE_NAME)</string>
 	<key>GADInterstitialAdUnitID</key>
 	<string>$(GAD_INTERSTITIAL_UNIT_ID)</string>
 	<key>SKAdNetworkItems</key>

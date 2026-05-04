@@ -21,7 +21,7 @@ final class GameCoreAvailableMovesTests: XCTestCase {
             )
         )
         let edgeMode = GameMode(
-            identifier: .freeCustom,
+            identifier: .dungeonFloor,
             displayName: "レイ端テスト",
             regulation: edgeRegulation,
             leaderboardEligible: false
@@ -54,7 +54,7 @@ final class GameCoreAvailableMovesTests: XCTestCase {
             impassableTilePoints: [obstaclePoint]
         )
         let obstacleMode = GameMode(
-            identifier: .freeCustom,
+            identifier: .dungeonFloor,
             displayName: "レイ障害物テスト",
             regulation: obstacleRegulation,
             leaderboardEligible: false
@@ -86,7 +86,7 @@ final class GameCoreAvailableMovesTests: XCTestCase {
             )
         )
         let mode = GameMode(
-            identifier: .freeCustom,
+            identifier: .dungeonFloor,
             displayName: "レイ踏破テスト",
             regulation: regulation,
             leaderboardEligible: false
@@ -124,7 +124,7 @@ final class GameCoreAvailableMovesTests: XCTestCase {
             )
         )
         let mode = GameMode(
-            identifier: .freeCustom,
+            identifier: .dungeonFloor,
             displayName: "レイ候補数テスト",
             regulation: regulation,
             leaderboardEligible: false
@@ -161,7 +161,7 @@ final class GameCoreAvailableMovesTests: XCTestCase {
         )
 
         let mode = GameMode(
-            identifier: .freeCustom,
+            identifier: .dungeonFloor,
             displayName: "全域ワープ候補テスト",
             regulation: regulation,
             leaderboardEligible: false

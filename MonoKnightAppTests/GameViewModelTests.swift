@@ -12,19 +12,18 @@ final class GameViewModelTests: XCTestCase {
     func testUpdateDisplayedElapsedTimeUsesLiveElapsedSecondsWhilePlaying() {
         // 120 秒前にゲームが開始された状況を再現し、リアルタイム計測の挙動を確認する。
         let targetElapsedSeconds: TimeInterval = 120
-        let core = GameCore(mode: .standard)
+        let core = GameCore(mode: .dungeonPlaceholder)
         core.setStartDateForTesting(Date().addingTimeInterval(-targetElapsedSeconds))
 
         // GameModuleInterfaces 経由で上記 GameCore を注入し、サービスは最小限のダミーを渡す。
         let interfaces = GameModuleInterfaces { _ in core }
         let viewModel = GameViewModel(
-            mode: .standard,
+            mode: .dungeonPlaceholder,
             gameInterfaces: interfaces,
             gameCenterService: DummyGameCenterService(),
             adsService: DummyAdsService(),
             onRequestGameCenterSignIn: nil,
-            onRequestReturnToTitle: nil,
-            onRequestStartCampaignStage: nil
+            onRequestReturnToTitle: nil
         )
 
         // liveElapsedSeconds は Int へ丸められるため、呼び出し直後の差分許容範囲を確保して検証する。
@@ -60,7 +59,7 @@ final class GameViewModelTests: XCTestCase {
             penalties: penalties
         )
         let mode = GameMode(
-            identifier: .freeCustom,
+            identifier: .dungeonFloor,
             displayName: "テスト用カスタムモード",
             regulation: regulation
         )
@@ -80,7 +79,7 @@ final class GameViewModelTests: XCTestCase {
 
     /// 捨て札ボタンを押すとモードが開始されることを確認
     func testToggleManualDiscardSelectionActivatesWhenPlayable() {
-        let (viewModel, core) = makeViewModel(mode: .standard)
+        let (viewModel, core) = makeViewModel(mode: .dungeonPlaceholder)
         XCTAssertTrue(viewModel.isManualDiscardButtonEnabled, "スタンダードモードでは捨て札ボタンが有効であるべきです")
         XCTAssertFalse(core.isAwaitingManualDiscardSelection, "初期状態では捨て札モードが無効であるべきです")
 
@@ -91,7 +90,7 @@ final class GameViewModelTests: XCTestCase {
 
     /// 捨て札モード中に再度ボタンを押すと解除されることを確認
     func testToggleManualDiscardSelectionCancelsWhenAlreadyActive() {
-        let (viewModel, core) = makeViewModel(mode: .standard)
+        let (viewModel, core) = makeViewModel(mode: .dungeonPlaceholder)
         viewModel.toggleManualDiscardSelection()
         XCTAssertTrue(core.isAwaitingManualDiscardSelection, "前提として捨て札モードが開始している必要があります")
 
@@ -113,7 +112,7 @@ final class GameViewModelTests: XCTestCase {
             .move(.straightLeft2)
         ], configuration: .supportToolkit)
         let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 2, y: 2))
-        let viewModel = makeViewModel(mode: .standard, core: core)
+        let viewModel = makeViewModel(mode: .dungeonPlaceholder, core: core)
 
         guard let supportIndex = core.handStacks.firstIndex(where: { $0.topCard?.supportCard == .nextRefresh }) else {
             return XCTFail("NEXT更新補助カードが手札にありません")
@@ -137,7 +136,7 @@ final class GameViewModelTests: XCTestCase {
             .move(.kingDown)
         ], configuration: .supportToolkit)
         let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 2, y: 2))
-        let viewModel = makeViewModel(mode: .standard, core: core)
+        let viewModel = makeViewModel(mode: .dungeonPlaceholder, core: core)
 
         guard let supportIndex = core.handStacks.firstIndex(where: { $0.topCard?.supportCard == .swapOne }) else {
             return XCTFail("入替補助カードが手札にありません")
@@ -153,7 +152,7 @@ final class GameViewModelTests: XCTestCase {
 
     /// 手動ペナルティが進行中のみで発火し、ペナルティ量が一致することを確認
     func testRequestManualPenaltySetsPendingActionWhenPlayable() {
-        let (viewModel, core) = makeViewModel(mode: .standard)
+        let (viewModel, core) = makeViewModel(mode: .dungeonPlaceholder)
         XCTAssertNil(viewModel.pendingMenuAction, "初期状態では確認ダイアログが未設定であるべきです")
 
         viewModel.requestManualPenalty()
@@ -167,7 +166,7 @@ final class GameViewModelTests: XCTestCase {
 
     /// タイトル復帰要求が既存の確認フローへ載ることを確認
     func testRequestReturnToTitleSetsPendingAction() {
-        let (viewModel, _) = makeViewModel(mode: .standard)
+        let (viewModel, _) = makeViewModel(mode: .dungeonPlaceholder)
 
         viewModel.requestReturnToTitle()
 
@@ -180,59 +179,12 @@ final class GameViewModelTests: XCTestCase {
 
     /// プレイ待機中は手動ペナルティの確認がセットされないことを確認
     func testRequestManualPenaltyIgnoredWhenNotPlaying() {
-        let (viewModel, core) = makeViewModel(mode: .classicalChallenge, resolvesSpawnSelection: false)
+        let (viewModel, core) = makeViewModel(mode: .dungeonPlaceholder, resolvesSpawnSelection: false)
         XCTAssertEqual(core.progress, .awaitingSpawn, "クラシカルモードではスポーン待機が初期状態です")
 
         viewModel.requestManualPenalty()
 
         XCTAssertNil(viewModel.pendingMenuAction, "プレイ開始前にペナルティ確認が設定されてはいけません")
-    }
-
-    /// ResultPresentationState がクリア結果を UI 表示用の状態へ正しく反映することを確認
-    func testResultPresentationStateAppliesClearOutcome() {
-        let library = CampaignLibrary.shared
-        guard let stage = library.stage(with: CampaignStageID(chapter: 1, index: 1)) else {
-            XCTFail("キャンペーンステージの取得に失敗しました")
-            return
-        }
-
-        let progress = CampaignStageProgress(
-            earnedStars: 1,
-            achievedSecondaryObjective: false,
-            achievedScoreGoal: false,
-            bestScore: 120,
-            bestMoveCount: 12,
-            bestTotalMoveCount: 12,
-            bestPenaltyCount: 0,
-            bestElapsedSeconds: 80
-        )
-        let record = CampaignStageClearRecord(
-            stage: stage,
-            evaluation: CampaignStageEvaluation(
-                stageID: stage.id,
-                earnedStars: 1,
-                achievedSecondaryObjective: false,
-                achievedScoreGoal: false
-            ),
-            previousProgress: CampaignStageProgress(),
-            progress: progress
-        )
-        let outcome = GameFlowCoordinator.ClearOutcome(
-            latestCampaignClearRecord: record,
-            nextCampaignStage: stage,
-            shouldShowResult: true
-        )
-
-        var state = ResultPresentationState()
-        state.applyClearOutcome(outcome)
-
-        XCTAssertTrue(state.showingResult, "クリア後は結果画面表示フラグが立つ必要があります")
-        XCTAssertEqual(state.latestCampaignClearRecord?.stage.id, stage.id, "クリア記録が保持されていません")
-        XCTAssertEqual(state.nextCampaignStage?.id, stage.id, "次ステージが保持されていません")
-
-        state.hideResult()
-
-        XCTAssertFalse(state.showingResult, "結果画面非表示化が helper から行えません")
     }
 
     func testDungeonResultPresentationSeparatesRewardAndPickupCards() {
@@ -255,10 +207,7 @@ final class GameViewModelTests: XCTestCase {
             ],
             dungeonGrowthAward: nil,
             hasNextDungeonFloor: true,
-            elapsedSeconds: 20,
-            bestPoints: .max,
-            isNewBest: false,
-            previousBest: nil
+            elapsedSeconds: 20
         )
 
         XCTAssertEqual(presentation.dungeonRewardInventoryText, "右2×2")
@@ -282,10 +231,7 @@ final class GameViewModelTests: XCTestCase {
             dungeonInventoryEntries: [],
             dungeonGrowthAward: nil,
             hasNextDungeonFloor: false,
-            elapsedSeconds: 35,
-            bestPoints: .max,
-            isNewBest: false,
-            previousBest: nil
+            elapsedSeconds: 35
         )
 
         XCTAssertEqual(presentation.resultTitle, "巡回塔クリア")
@@ -295,7 +241,6 @@ final class GameViewModelTests: XCTestCase {
         let (defaults, suiteName) = try makeIsolatedDefaults()
         defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
 
-        let progressStore = CampaignProgressStore(userDefaults: defaults)
         let growthStore = DungeonGrowthStore(userDefaults: defaults)
         let dungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
         let milestoneFloor = dungeon.floors[4]
@@ -313,7 +258,6 @@ final class GameViewModelTests: XCTestCase {
         )
         let (viewModel, _) = makeViewModel(
             mode: mode,
-            campaignProgressStore: progressStore,
             dungeonGrowthStore: growthStore
         )
 
@@ -331,7 +275,6 @@ final class GameViewModelTests: XCTestCase {
         let (defaults, suiteName) = try makeIsolatedDefaults()
         defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
 
-        let progressStore = CampaignProgressStore(userDefaults: defaults)
         let growthStore = DungeonGrowthStore(userDefaults: defaults)
         let dungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
         let milestoneFloor = dungeon.floors[9]
@@ -349,7 +292,6 @@ final class GameViewModelTests: XCTestCase {
         )
         let (viewModel, _) = makeViewModel(
             mode: mode,
-            campaignProgressStore: progressStore,
             dungeonGrowthStore: growthStore
         )
 
@@ -368,7 +310,6 @@ final class GameViewModelTests: XCTestCase {
         let (defaults, suiteName) = try makeIsolatedDefaults()
         defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
 
-        let progressStore = CampaignProgressStore(userDefaults: defaults)
         let growthStore = DungeonGrowthStore(userDefaults: defaults)
         let dungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
         let finalFloor = dungeon.floors[19]
@@ -386,7 +327,6 @@ final class GameViewModelTests: XCTestCase {
         )
         let (viewModel, _) = makeViewModel(
             mode: mode,
-            campaignProgressStore: progressStore,
             dungeonGrowthStore: growthStore
         )
 
@@ -404,7 +344,6 @@ final class GameViewModelTests: XCTestCase {
         let (defaults, suiteName) = try makeIsolatedDefaults()
         defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
 
-        let progressStore = CampaignProgressStore(userDefaults: defaults)
         let growthStore = DungeonGrowthStore(userDefaults: defaults)
         let dungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "rogue-tower"))
         let finalFloor = try XCTUnwrap(dungeon.floors.last)
@@ -422,7 +361,6 @@ final class GameViewModelTests: XCTestCase {
         )
         let (viewModel, _) = makeViewModel(
             mode: mode,
-            campaignProgressStore: progressStore,
             dungeonGrowthStore: growthStore
         )
 
@@ -437,7 +375,6 @@ final class GameViewModelTests: XCTestCase {
         let (defaults, suiteName) = try makeIsolatedDefaults()
         defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
 
-        let progressStore = CampaignProgressStore(userDefaults: defaults)
         let growthStore = DungeonGrowthStore(userDefaults: defaults)
         let growthDungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
         let rogueDungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "rogue-tower"))
@@ -458,7 +395,6 @@ final class GameViewModelTests: XCTestCase {
         )
         let (viewModel, _) = makeViewModel(
             mode: mode,
-            campaignProgressStore: progressStore,
             dungeonGrowthStore: growthStore
         )
 
@@ -470,7 +406,6 @@ final class GameViewModelTests: XCTestCase {
         let (defaults, suiteName) = try makeIsolatedDefaults()
         defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
 
-        let progressStore = CampaignProgressStore(userDefaults: defaults)
         let growthStore = DungeonGrowthStore(userDefaults: defaults)
         let dungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
         let firstFloor = try XCTUnwrap(dungeon.floors.first)
@@ -481,7 +416,6 @@ final class GameViewModelTests: XCTestCase {
                 carriedHP: 3,
                 runState: mode.dungeonMetadataSnapshot?.runState
             ),
-            campaignProgressStore: progressStore,
             dungeonGrowthStore: growthStore
         )
 
@@ -495,7 +429,6 @@ final class GameViewModelTests: XCTestCase {
         let (defaults, suiteName) = try makeIsolatedDefaults()
         defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
 
-        let progressStore = CampaignProgressStore(userDefaults: defaults)
         let growthStore = DungeonGrowthStore(userDefaults: defaults)
         let dungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
         let runState = DungeonRunState(dungeonID: dungeon.id, currentFloorIndex: 4, carriedHP: 3, clearedFloorCount: 4)
@@ -505,7 +438,6 @@ final class GameViewModelTests: XCTestCase {
         let mode = try XCTUnwrap(DungeonLibrary.shared.firstFloorMode(for: dungeon))
         let (viewModel, _) = makeViewModel(
             mode: mode,
-            campaignProgressStore: progressStore,
             dungeonGrowthStore: growthStore
         )
 
@@ -522,7 +454,7 @@ final class GameViewModelTests: XCTestCase {
 
     /// finalizeResultDismissal が結果表示フラグのみを閉じることを確認
     func testFinalizeResultDismissalClosesResultFlag() {
-        let (viewModel, _) = makeViewModel(mode: .standard)
+        let (viewModel, _) = makeViewModel(mode: .dungeonPlaceholder)
         viewModel.showingResult = true
 
         viewModel.finalizeResultDismissal()
@@ -530,24 +462,9 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.showingResult, "結果画面の明示クローズ後も showingResult が残っています")
     }
 
-    /// リザルト状態 mutation helper が公開 state へ同期されることを確認
-    func testApplyResultPresentationMutationSynchronizesPublishedState() {
-        let (viewModel, _) = makeViewModel(mode: .standard)
-        let stage = CampaignLibrary.shared.stage(with: CampaignStageID(chapter: 1, index: 1))
-
-        viewModel.applyResultPresentationMutation { state in
-            state.showingResult = true
-            state.latestCampaignClearRecord = nil
-            state.nextCampaignStage = stage
-        }
-
-        XCTAssertTrue(viewModel.showingResult, "リザルト同期 helper 経由で showingResult が更新されていません")
-        XCTAssertEqual(viewModel.nextCampaignStage?.id, stage?.id, "次ステージが公開 state に同期されていません")
-    }
-
     /// セッション UI mutation helper が公開 state へ同期されることを確認
     func testApplySessionUIMutationSynchronizesPublishedState() {
-        let (viewModel, _) = makeViewModel(mode: .standard)
+        let (viewModel, _) = makeViewModel(mode: .dungeonPlaceholder)
         let event = PenaltyEvent(penaltyAmount: 2, trigger: .automaticDeadlock)
 
         viewModel.applySessionUIMutation { state in
@@ -631,15 +548,9 @@ final class GameViewModelTests: XCTestCase {
         let (defaults, suiteName) = try makeIsolatedDefaults()
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
-        guard let campaignMode = CampaignLibrary.shared.stage(with: CampaignStageID(chapter: 1, index: 1))?.makeGameMode() else {
-            XCTFail("キャンペーンモードの取得に失敗しました")
-            return
-        }
-
         let dateProvider = MutableDateProvider(now: Date(timeIntervalSince1970: 90_000))
         let (viewModel, core) = makeViewModel(
-            mode: campaignMode,
-            campaignProgressStore: CampaignProgressStore(userDefaults: defaults),
+            mode: .dungeonPlaceholder,
             dateProvider: dateProvider
         )
         core.setStartDateForTesting(dateProvider.now.addingTimeInterval(-45))
@@ -662,7 +573,7 @@ final class GameViewModelTests: XCTestCase {
 
     /// Game Center 認証状態の同期が冪等で、変化時のみ反映されることを確認
     func testUpdateGameCenterAuthenticationStatusIsIdempotent() {
-        let (viewModel, _) = makeViewModel(mode: .standard)
+        let (viewModel, _) = makeViewModel(mode: .dungeonPlaceholder)
 
         XCTAssertFalse(viewModel.isGameCenterAuthenticated, "初期状態では未認証である想定です")
 
@@ -675,7 +586,7 @@ final class GameViewModelTests: XCTestCase {
 
     func testDungeonFailedProgressShowsResultWithFailureReason() throws {
         let mode = GameMode(
-            identifier: .campaignStage,
+            identifier: .dungeonFloor,
             displayName: "手数切れテスト",
             regulation: GameMode.Regulation(
                 boardSize: 5,
@@ -1287,7 +1198,7 @@ final class GameViewModelTests: XCTestCase {
         let adsService = SpyAdsService()
         var returnToTitleCallCount = 0
         let (viewModel, core) = makeViewModel(
-            mode: .standard,
+            mode: .dungeonPlaceholder,
             adsService: adsService,
             onRequestReturnToTitle: { returnToTitleCallCount += 1 }
         )
@@ -1308,7 +1219,7 @@ final class GameViewModelTests: XCTestCase {
         let adsService = SpyAdsService()
         var returnToTitleCallCount = 0
         let (viewModel, core) = makeViewModel(
-            mode: .standard,
+            mode: .dungeonPlaceholder,
             adsService: adsService,
             onRequestReturnToTitle: { returnToTitleCallCount += 1 }
         )
@@ -1326,7 +1237,7 @@ final class GameViewModelTests: XCTestCase {
 
     /// reset 操作時は core.reset() を含む初期化が行われ、警告状態も残留しないことを確認
     func testPerformMenuActionResetClearsWarningAndResetsCore() {
-        let (viewModel, core) = makeViewModel(mode: .standard)
+        let (viewModel, core) = makeViewModel(mode: .dungeonPlaceholder)
         core.overrideMetricsForTesting(moveCount: 18, penaltyCount: 2, elapsedSeconds: 70)
         viewModel.boardTapSelectionWarning = GameViewModel.BoardTapSelectionWarning(
             message: "warning",
@@ -1348,11 +1259,8 @@ final class GameViewModelTests: XCTestCase {
         mode: GameMode,
         adsService: AdsServiceProtocol? = nil,
         onRequestReturnToTitle: (() -> Void)? = nil,
-        campaignProgressStore: CampaignProgressStore? = nil,
         dungeonGrowthStore: DungeonGrowthStore? = nil,
-        onRequestStartCampaignStage: ((CampaignStage) -> Void)? = nil,
         onRequestStartDungeonFloor: ((GameMode) -> Void)? = nil,
-        campaignTutorialStore: CampaignTutorialStore = CampaignTutorialStore(),
         dateProvider: MutableDateProvider? = nil,
         initialHandOrderingRawValue: String? = nil,
         resolvesSpawnSelection: Bool = true
@@ -1367,20 +1275,16 @@ final class GameViewModelTests: XCTestCase {
         let interfaces = GameModuleInterfaces { _ in core }
         let resolvedDateProvider = dateProvider ?? MutableDateProvider(now: Date())
         let resolvedAdsService = adsService ?? DummyAdsService()
-        let resolvedCampaignProgressStore = campaignProgressStore ?? CampaignProgressStore()
         let resolvedDungeonGrowthStore = dungeonGrowthStore ?? DungeonGrowthStore()
         let viewModel = GameViewModel(
             mode: mode,
             gameInterfaces: interfaces,
             gameCenterService: DummyGameCenterService(),
             adsService: resolvedAdsService,
-            campaignProgressStore: resolvedCampaignProgressStore,
             dungeonGrowthStore: resolvedDungeonGrowthStore,
             onRequestGameCenterSignIn: nil,
             onRequestReturnToTitle: onRequestReturnToTitle,
-            onRequestStartCampaignStage: onRequestStartCampaignStage,
             onRequestStartDungeonFloor: onRequestStartDungeonFloor,
-            campaignTutorialStore: campaignTutorialStore,
             initialHandOrderingRawValue: initialHandOrderingRawValue,
             currentDateProvider: { resolvedDateProvider.now }
         )
@@ -1397,7 +1301,6 @@ final class GameViewModelTests: XCTestCase {
             dungeonGrowthStore: DungeonGrowthStore(),
             onRequestGameCenterSignIn: nil,
             onRequestReturnToTitle: nil,
-            onRequestStartCampaignStage: nil,
             onRequestStartDungeonFloor: nil
         )
     }

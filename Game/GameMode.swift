@@ -3,28 +3,7 @@ import Foundation
 public struct GameMode: Equatable, Identifiable {
     /// 識別子。UI や永続化でも使用しやすいよう文字列 RawValue を採用する
     public enum Identifier: String, CaseIterable {
-        case standard5x5
-        case classicalChallenge
-        case targetLab
-        case dailyFixedChallenge   // 日替わり固定シード用モード。Game Center の仮 ID から本番 ID へ差し替える想定
-        case dailyRandomChallenge  // 日替わりランダムシード用モード。将来的に xcconfig で ID を設定予定
-        case freeCustom
-        case campaignStage
-        case dailyFixed
-        case dailyRandom
-    }
-
-    /// キャンペーン関連の補助情報
-    /// - Note: `GameMode` がどのキャンペーンステージから生成されたかを識別するためのメタデータ
-    public struct CampaignMetadata: Equatable {
-        /// ひも付いたステージの ID
-        public let stageID: CampaignStageID
-
-        /// 公開イニシャライザ
-        /// - Parameter stageID: 対象となるステージ ID
-        public init(stageID: CampaignStageID) {
-            self.stageID = stageID
-        }
+        case dungeonFloor
     }
 
     /// 塔ダンジョン関連の補助情報
@@ -238,8 +217,6 @@ public struct GameMode: Equatable, Identifiable {
         public internal(set) var fixedWarpCardTargets: [MoveCard: [GridPoint]] = [:]
         /// クリア条件
         public var completionRule: CompletionRule
-        /// 実験場用のカード・特殊マス有効設定
-        public var targetLabExperimentSettings: TargetLabExperimentSettings?
         /// 塔ダンジョン用の追加ルール。出口到達型以外では nil を基本とする
         public var dungeonRules: DungeonRules?
 
@@ -268,7 +245,6 @@ public struct GameMode: Equatable, Identifiable {
             warpTilePairs: [String: [GridPoint]] = [:],
             fixedWarpCardTargets: [MoveCard: [GridPoint]] = [:],
             completionRule: CompletionRule = .boardClear,
-            targetLabExperimentSettings: TargetLabExperimentSettings? = nil,
             dungeonRules: DungeonRules? = nil
         ) {
             self.boardSize = boardSize
@@ -290,11 +266,7 @@ public struct GameMode: Equatable, Identifiable {
                 impassableTilePoints: impassableTilePoints,
                 deckPreset: deckPreset
             )
-            if targetLabExperimentSettings?.enabledCardGroups.contains(.warp) == false {
-                self.fixedWarpCardTargets = [:]
-            }
             self.completionRule = completionRule
-            self.targetLabExperimentSettings = targetLabExperimentSettings
             self.dungeonRules = dungeonRules
         }
 
@@ -315,7 +287,6 @@ public struct GameMode: Equatable, Identifiable {
             case warpTilePairs
             case fixedWarpCardTargets
             case completionRule
-            case targetLabExperimentSettings
             case dungeonRules
         }
     }
@@ -328,8 +299,6 @@ public struct GameMode: Equatable, Identifiable {
     private let regulation: Regulation
     /// リーダーボードへスコアを送信するかどうか
     private let leaderboardEligible: Bool
-    /// キャンペーンステージ情報（該当しない場合は nil）
-    private let campaignMetadata: CampaignMetadata?
     /// 塔ダンジョン情報（該当しない場合は nil）
     private let dungeonMetadata: DungeonMetadata?
     /// 乱数シード（決定論的な山札を構築したい場合に利用）
@@ -347,8 +316,7 @@ public struct GameMode: Equatable, Identifiable {
         identifier: Identifier,
         displayName: String,
         regulation: Regulation,
-        leaderboardEligible: Bool = true,
-        campaignMetadata: CampaignMetadata? = nil,
+        leaderboardEligible: Bool = false,
         dungeonMetadata: DungeonMetadata? = nil,
         deckSeed: UInt64? = nil
     ) {
@@ -356,7 +324,6 @@ public struct GameMode: Equatable, Identifiable {
         self.displayName = displayName
         self.regulation = regulation
         self.leaderboardEligible = leaderboardEligible
-        self.campaignMetadata = campaignMetadata
         self.dungeonMetadata = dungeonMetadata
         self.deckSeed = deckSeed
     }
@@ -385,12 +352,6 @@ public struct GameMode: Equatable, Identifiable {
     /// 山札構成設定（ゲームモジュール内部で使用）
     var deckConfiguration: Deck.Configuration {
         let bonusMoveCards = regulation.bonusMoveCards ?? []
-        if regulation.deckPreset == .targetLabAllIn,
-           let settings = regulation.targetLabExperimentSettings {
-            return regulation.deckPreset.configuration
-                .filteringTargetLabCards(for: settings)
-                .addingBonusMoveCards(bonusMoveCards)
-        }
         return regulation.deckPreset.configuration.addingBonusMoveCards(bonusMoveCards)
     }
     /// 利用中の山札プリセット
@@ -430,12 +391,6 @@ public struct GameMode: Equatable, Identifiable {
 
     /// リーダーボードへスコアを送信する対象かどうか
     public var isLeaderboardEligible: Bool { leaderboardEligible }
-
-    /// キャンペーンステージから生成されたモードかどうか
-    public var isCampaignStage: Bool { campaignMetadata != nil }
-
-    /// キャンペーンに紐付くメタデータのスナップショット
-    public var campaignMetadataSnapshot: CampaignMetadata? { campaignMetadata }
 
     /// 塔ダンジョンに紐付くメタデータのスナップショット
     public var dungeonMetadataSnapshot: DungeonMetadata? { dungeonMetadata }
@@ -493,7 +448,6 @@ public struct GameMode: Equatable, Identifiable {
     /// Equatable 準拠。識別子が一致すれば同一モードとみなす
     public static func == (lhs: GameMode, rhs: GameMode) -> Bool {
         guard lhs.identifier == rhs.identifier else { return false }
-        guard lhs.campaignMetadata == rhs.campaignMetadata else { return false }
         guard lhs.dungeonMetadata == rhs.dungeonMetadata else { return false }
         guard lhs.deckSeed == rhs.deckSeed else { return false }
         if lhs.requiresRegulationComparison {
@@ -504,11 +458,6 @@ public struct GameMode: Equatable, Identifiable {
 
     /// レギュレーション比較が必要な識別子かどうかをまとめたヘルパー
     private var requiresRegulationComparison: Bool {
-        switch identifier {
-        case .targetLab, .freeCustom, .campaignStage, .dailyFixed, .dailyRandom, .dailyFixedChallenge, .dailyRandomChallenge:
-            return true
-        case .standard5x5, .classicalChallenge:
-            return false
-        }
+        true
     }
 }

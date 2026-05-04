@@ -162,6 +162,133 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertFalse(core.enemyDangerPoints.contains(GridPoint(x: 4, y: 1)))
     }
 
+    func testChaserMovesOneStepTowardPlayerWithStableHorizontalPreference() throws {
+        let chaser = EnemyDefinition(
+            id: "chaser",
+            name: "追跡兵",
+            position: GridPoint(x: 3, y: 3),
+            behavior: .chaser
+        )
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 3,
+            turnLimit: 8,
+            enemies: [chaser],
+            allowsBasicOrthogonalMove: true
+        )
+        let core = makeCore(mode: mode)
+
+        XCTAssertEqual(
+            core.enemyChaserMovementPreviews,
+            [
+                EnemyPatrolMovementPreview(
+                    enemyID: "chaser",
+                    current: GridPoint(x: 3, y: 3),
+                    next: GridPoint(x: 2, y: 3),
+                    vector: MoveVector(dx: -1, dy: 0)
+                )
+            ],
+            "同じ距離で詰められる場合は横方向を先に選びます"
+        )
+
+        playBasicMove(to: GridPoint(x: 1, y: 0), in: core)
+
+        XCTAssertEqual(core.enemyStates.first?.position, GridPoint(x: 2, y: 3))
+    }
+
+    func testChaserRoutesAroundImpassableAndCollapsedFloorsAndStaysWhenUnreachable() throws {
+        let chaser = EnemyDefinition(
+            id: "chaser",
+            name: "追跡兵",
+            position: GridPoint(x: 4, y: 0),
+            behavior: .chaser
+        )
+        let detourMode = makeDungeonMode(
+            spawn: GridPoint(x: 1, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 3,
+            turnLimit: 8,
+            enemies: [chaser],
+            impassableTilePoints: [GridPoint(x: 3, y: 0)],
+            allowsBasicOrthogonalMove: true
+        )
+        let detourCore = makeCore(mode: detourMode)
+
+        XCTAssertEqual(detourCore.enemyChaserMovementPreviews.first?.next, GridPoint(x: 4, y: 1))
+        playBasicMove(to: GridPoint(x: 1, y: 1), in: detourCore)
+        XCTAssertEqual(detourCore.enemyStates.first?.position, GridPoint(x: 4, y: 1))
+
+        let collapsedMode = makeDungeonMode(
+            spawn: GridPoint(x: 1, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 3,
+            turnLimit: 8,
+            enemies: [chaser],
+            allowsBasicOrthogonalMove: true
+        )
+        let collapsedCore = makeCore(mode: collapsedMode)
+        collapsedCore.overrideDungeonFloorStateForTesting(
+            cracked: [],
+            collapsed: [GridPoint(x: 3, y: 0)]
+        )
+
+        XCTAssertEqual(collapsedCore.enemyChaserMovementPreviews.first?.next, GridPoint(x: 4, y: 1))
+
+        let trappedChaser = EnemyDefinition(
+            id: "trapped-chaser",
+            name: "追跡兵",
+            position: GridPoint(x: 4, y: 4),
+            behavior: .chaser
+        )
+        let unreachableMode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 0, y: 4),
+            hp: 3,
+            turnLimit: 8,
+            enemies: [trappedChaser],
+            impassableTilePoints: [
+                GridPoint(x: 3, y: 4),
+                GridPoint(x: 4, y: 3)
+            ],
+            allowsBasicOrthogonalMove: true
+        )
+        let unreachableCore = makeCore(mode: unreachableMode)
+
+        XCTAssertTrue(unreachableCore.enemyChaserMovementPreviews.isEmpty)
+        playBasicMove(to: GridPoint(x: 1, y: 0), in: unreachableCore)
+        XCTAssertEqual(unreachableCore.enemyStates.first?.position, GridPoint(x: 4, y: 4))
+    }
+
+    func testChaserDangerAndDamageUseAdjacentPressureAfterMoving() throws {
+        let chaser = EnemyDefinition(
+            id: "chaser",
+            name: "追跡兵",
+            position: GridPoint(x: 3, y: 0),
+            behavior: .chaser
+        )
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 3,
+            turnLimit: 8,
+            enemies: [chaser],
+            allowsBasicOrthogonalMove: true
+        )
+        let core = makeCore(mode: mode)
+
+        XCTAssertTrue(core.enemyDangerPoints.contains(GridPoint(x: 3, y: 0)))
+        XCTAssertTrue(core.enemyDangerPoints.contains(GridPoint(x: 2, y: 0)))
+        XCTAssertTrue(core.enemyDangerPoints.contains(GridPoint(x: 3, y: 1)))
+        XCTAssertFalse(core.enemyDangerPoints.contains(GridPoint(x: 2, y: 1)))
+
+        playBasicMove(to: GridPoint(x: 1, y: 0), in: core)
+
+        XCTAssertEqual(core.enemyStates.first?.position, GridPoint(x: 2, y: 0))
+        XCTAssertEqual(core.dungeonHP, 2)
+        XCTAssertEqual(core.progress, .playing)
+    }
+
     func testPatrolEnemyAdvancesAfterPlayerMove() throws {
         let patrol = EnemyDefinition(
             id: "patrol",
@@ -960,6 +1087,7 @@ final class DungeonModeTests: XCTestCase {
     func testGrowthTowerDefinitionsStayInsideBoardAndExposeCombinedGimmicks() throws {
         let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
         var hasPatrol = false
+        var hasChaser = false
         var hasExitLock = false
         var hasDamageTrap = false
         var hasWarp = false
@@ -974,9 +1102,14 @@ final class DungeonModeTests: XCTestCase {
             hasImpassable = hasImpassable || !floor.impassableTilePoints.isEmpty
             points.append(contentsOf: floor.tileEffectOverrides.keys)
             for enemy in floor.enemies {
-                if case .patrol(let path) = enemy.behavior {
+                switch enemy.behavior {
+                case .patrol(let path):
                     hasPatrol = true
                     points.append(contentsOf: path)
+                case .chaser:
+                    hasChaser = true
+                case .guardPost, .watcher, .rotatingWatcher:
+                    break
                 }
             }
             for hazard in floor.hazards {
@@ -1008,6 +1141,7 @@ final class DungeonModeTests: XCTestCase {
         }
 
         XCTAssertTrue(hasPatrol)
+        XCTAssertTrue(hasChaser)
         XCTAssertTrue(hasExitLock)
         XCTAssertTrue(hasDamageTrap)
         XCTAssertTrue(hasWarp)
@@ -1066,6 +1200,102 @@ final class DungeonModeTests: XCTestCase {
                 $0.moveCard == .rayRight && $0.destination == GridPoint(x: 8, y: 0)
             },
             "16F の固定障害物をレイ型カードが通過してはいけません"
+        )
+    }
+
+    func testGrowthTowerChaserPunishesLooseDetoursWithoutBlockingClearRoute() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let floor = tower.floors[6]
+
+        XCTAssertTrue(
+            hasOrthogonalPath(from: floor.spawnPoint, to: floor.exitPoint, in: floor),
+            "追跡兵を足しても 7F の代表クリアルートは残します"
+        )
+
+        let core = makeCore(mode: floor.makeGameMode(dungeonID: tower.id, difficulty: tower.difficulty))
+        XCTAssertEqual(core.dungeonHP, 3)
+
+        playBasicMove(to: GridPoint(x: 5, y: 0), in: core)
+
+        XCTAssertLessThan(
+            core.dungeonHP,
+            3,
+            "追跡兵側へ雑に寄り道すると敵ターン後に被弾しうる想定です"
+        )
+    }
+
+    func testGrowthTowerPatrolRoutesExpandFromMidgameWithoutOverlaps() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let expectedExpandedFloorIndices: Set<Int> = [8, 9, 10, 14, 16, 18, 19]
+        var expandedFloorIndices: Set<Int> = []
+
+        for (index, floor) in tower.floors.enumerated() {
+            for enemy in floor.enemies {
+                guard case .patrol(let path) = enemy.behavior else { continue }
+
+                XCTAssertEqual(
+                    enemy.position,
+                    path.first,
+                    "\(floor.title) の巡回兵は初期位置を巡回パス先頭に揃えます"
+                )
+                XCTAssertTrue(
+                    path.allSatisfy { $0.isInside(boardSize: floor.boardSize) },
+                    "\(floor.title) の巡回パスはすべて盤面内に置きます"
+                )
+                for (current, next) in zip(path, path.dropFirst()) {
+                    XCTAssertEqual(
+                        manhattanDistance(from: current, to: next),
+                        1,
+                        "\(floor.title) の巡回パスは上下左右1マスずつ連続させます"
+                    )
+                }
+                XCTAssertTrue(
+                    Set(path).isDisjoint(with: disallowedGrowthTowerPatrolPoints(for: floor, excludingEnemyID: enemy.id)),
+                    "\(floor.title) の巡回パスは開始/階段/拾得カード/ワープ/岩柱/罠/他敵と重ねません"
+                )
+
+                if index >= 8 {
+                    XCTAssertGreaterThanOrEqual(
+                        path.count,
+                        6,
+                        "\(floor.title) の中盤以降の巡回兵は6マス以上の巡回圧を持たせます"
+                    )
+                    expandedFloorIndices.insert(index)
+                }
+            }
+        }
+
+        XCTAssertTrue(
+            expectedExpandedFloorIndices.isSubset(of: expandedFloorIndices),
+            "成長塔9F/10F/11F/15F/17F/19F/20Fで巡回範囲を段階拡大します"
+        )
+    }
+
+    func testExpandedGrowthTowerPatrolCanPunishLooseCentralEntry() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let floor = tower.floors[14]
+        let patrol = try XCTUnwrap(
+            floor.enemies.first { enemy in
+                if case .patrol = enemy.behavior { return true }
+                return false
+            }
+        )
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 2, y: 4),
+            exit: GridPoint(x: 8, y: 8),
+            hp: 3,
+            turnLimit: 6,
+            enemies: [patrol],
+            allowsBasicOrthogonalMove: true
+        )
+        let core = makeCore(mode: mode)
+
+        playBasicMove(to: GridPoint(x: 3, y: 4), in: core)
+
+        XCTAssertEqual(
+            core.dungeonHP,
+            2,
+            "15F以降の拡大巡回では、中央帯へ雑に入ると敵ターン後に被弾しうる想定です"
         )
     }
 
@@ -1995,7 +2225,7 @@ final class DungeonModeTests: XCTestCase {
             rewardInventoryEntries: [DungeonInventoryEntry(card: .straightRight2, rewardUses: 3)]
         )
         let mode = GameMode(
-            identifier: .campaignStage,
+            identifier: .dungeonFloor,
             displayName: "報酬消費テスト",
             regulation: GameMode.Regulation(
                 boardSize: 8,
@@ -2833,11 +3063,6 @@ final class DungeonModeTests: XCTestCase {
 
         XCTAssertTrue(disabledCore.availableBasicOrthogonalMoves().isEmpty)
 
-        let standardCore = makeCore(
-            mode: .standard,
-            cards: [.straightRight2, .straightLeft2, .diagonalUpRight2, .diagonalDownLeft2, .rayUp]
-        )
-        XCTAssertTrue(standardCore.availableBasicOrthogonalMoves().isEmpty)
     }
 
     func testBasicOrthogonalMoveConsumesTurnButNoCard() {
@@ -2923,7 +3148,7 @@ final class DungeonModeTests: XCTestCase {
         runState: DungeonRunState? = nil
     ) -> GameMode {
         GameMode(
-            identifier: .campaignStage,
+            identifier: .dungeonFloor,
             displayName: "塔テスト",
             regulation: GameMode.Regulation(
                 boardSize: 5,
@@ -3009,6 +3234,40 @@ final class DungeonModeTests: XCTestCase {
             }
         }
         return blocked
+    }
+
+    private func disallowedGrowthTowerPatrolPoints(
+        for floor: DungeonFloorDefinition,
+        excludingEnemyID enemyID: String
+    ) -> Set<GridPoint> {
+        var blocked: Set<GridPoint> = [
+            floor.spawnPoint,
+            floor.exitPoint
+        ]
+        blocked.formUnion(floor.cardPickups.map(\.point))
+        blocked.formUnion(floor.impassableTilePoints)
+        blocked.formUnion(floor.tileEffectOverrides.keys)
+        blocked.formUnion(floor.warpTilePairs.values.flatMap { $0 })
+        blocked.formUnion(floor.fixedWarpCardTargets.values.flatMap { $0 })
+        blocked.formUnion(floor.enemies.compactMap { enemy in
+            enemy.id == enemyID ? nil : enemy.position
+        })
+        if let unlockPoint = floor.exitLock?.unlockPoint {
+            blocked.insert(unlockPoint)
+        }
+        for hazard in floor.hazards {
+            switch hazard {
+            case .brittleFloor(let points):
+                blocked.formUnion(points)
+            case .damageTrap(let points, _):
+                blocked.formUnion(points)
+            }
+        }
+        return blocked
+    }
+
+    private func manhattanDistance(from a: GridPoint, to b: GridPoint) -> Int {
+        abs(a.x - b.x) + abs(a.y - b.y)
     }
 
     private func hasOrthogonalPath(

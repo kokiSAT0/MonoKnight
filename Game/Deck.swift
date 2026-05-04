@@ -146,19 +146,6 @@ struct Deck {
             )
         }
 
-        func filteringTargetLabCards(for settings: TargetLabExperimentSettings) -> Configuration {
-            let enabledMoves = Set(settings.enabledCardGroups.flatMap(\.cards))
-            let enabledSupportCards = Set(settings.enabledCardGroups.flatMap(\.supportCards))
-            let filteredMoves = allowedMoves.filter { enabledMoves.contains($0) }
-            let filteredSupportCards = allowedSupportCards.filter { enabledSupportCards.contains($0) }
-            return Configuration(
-                allowedMoves: filteredMoves,
-                allowedSupportCards: filteredSupportCards,
-                weightProfile: weightProfile,
-                deckSummaryText: deckSummaryText
-            )
-        }
-
         /// スタンダードモード向け設定
         static let standard: Configuration = {
             // 現時点ではすべてのカードを均一重みで扱う

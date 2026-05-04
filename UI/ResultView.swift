@@ -56,12 +56,6 @@ struct ResultView: View {
     /// ルートビューへ Game Center 再サインインを依頼するためのクロージャ
     let onRequestGameCenterSignIn: ((GameCenterSignInPromptReason) -> Void)?
 
-    /// キャンペーンステージのクリア記録（通常モードの場合は nil）
-    let campaignClearRecord: CampaignStageClearRecord?
-    /// キャンペーン定義順で次に進むステージ
-    let nextCampaignStage: CampaignStage?
-    /// 次のステージへ直接移動するためのクロージャ
-    let onSelectCampaignStage: ((CampaignStage) -> Void)?
     /// 次のダンジョンフロアへ直接移動するためのクロージャ
     let onSelectNextDungeonFloor: (() -> Void)?
     /// ダンジョン報酬カードを選んで次階へ進むためのクロージャ
@@ -116,9 +110,6 @@ struct ResultView: View {
         showsLeaderboardButton: Bool = true,
         isGameCenterAuthenticated: Bool? = nil,
         onRequestGameCenterSignIn: ((GameCenterSignInPromptReason) -> Void)? = nil,
-        campaignClearRecord: CampaignStageClearRecord? = nil,
-        nextCampaignStage: CampaignStage? = nil,
-        onSelectCampaignStage: ((CampaignStage) -> Void)? = nil,
         onSelectNextDungeonFloor: (() -> Void)? = nil,
         onSelectDungeonRewardMoveCard: ((MoveCard) -> Void)? = nil,
         onSelectDungeonReward: ((DungeonRewardSelection) -> Void)? = nil,
@@ -152,9 +143,6 @@ struct ResultView: View {
             showsLeaderboardButton: showsLeaderboardButton,
             isGameCenterAuthenticated: resolvedIsAuthenticated,
             onRequestGameCenterSignIn: onRequestGameCenterSignIn,
-            campaignClearRecord: campaignClearRecord,
-            nextCampaignStage: nextCampaignStage,
-            onSelectCampaignStage: onSelectCampaignStage,
             onSelectNextDungeonFloor: onSelectNextDungeonFloor,
             onSelectDungeonRewardMoveCard: onSelectDungeonRewardMoveCard,
             onSelectDungeonReward: onSelectDungeonReward,
@@ -190,9 +178,6 @@ struct ResultView: View {
         showsLeaderboardButton: Bool = true,
         isGameCenterAuthenticated: Bool? = nil,
         onRequestGameCenterSignIn: ((GameCenterSignInPromptReason) -> Void)? = nil,
-        campaignClearRecord: CampaignStageClearRecord? = nil,
-        nextCampaignStage: CampaignStage? = nil,
-        onSelectCampaignStage: ((CampaignStage) -> Void)? = nil,
         onSelectNextDungeonFloor: (() -> Void)? = nil,
         onSelectDungeonRewardMoveCard: ((MoveCard) -> Void)? = nil,
         onSelectDungeonReward: ((DungeonRewardSelection) -> Void)? = nil,
@@ -235,9 +220,6 @@ struct ResultView: View {
         self.showsLeaderboardButton = showsLeaderboardButton
         self.isGameCenterAuthenticated = resolvedIsAuthenticated
         self.onRequestGameCenterSignIn = onRequestGameCenterSignIn
-        self.campaignClearRecord = campaignClearRecord
-        self.nextCampaignStage = nextCampaignStage
-        self.onSelectCampaignStage = onSelectCampaignStage
         self.onSelectNextDungeonFloor = onSelectNextDungeonFloor
         self.onSelectDungeonRewardMoveCard = onSelectDungeonRewardMoveCard
         self.onSelectDungeonReward = onSelectDungeonReward
@@ -255,15 +237,6 @@ struct ResultView: View {
 
                 if let dungeonGrowthAward {
                     DungeonGrowthAwardSection(award: dungeonGrowthAward)
-                }
-
-                if let record = campaignClearRecord {
-                    CampaignRewardSummarySection(
-                        record: record,
-                        nextCampaignStage: nextCampaignStage,
-                        onSelectCampaignStage: onSelectCampaignStage,
-                        hapticsEnabled: gameSettingsStore.hapticsEnabled
-                    )
                 }
 
                 ResultActionSection(
@@ -333,48 +306,24 @@ struct ResultView: View {
             dungeonInventoryEntries: dungeonInventoryEntries,
             dungeonGrowthAward: dungeonGrowthAward,
             hasNextDungeonFloor: nextDungeonFloorTitle != nil,
-            elapsedSeconds: elapsedSeconds,
-            bestPoints: gameSettingsStore.bestPoints,
-            isNewBest: viewState.isNewBest,
-            previousBest: viewState.previousBest
+            elapsedSeconds: elapsedSeconds
         )
     }
 
     /// ベスト記録を更新する
     private func updateBest() {
-        let didImprove = viewState.updateBest(
-            points: summaryPresentation.points,
-            settingsStore: gameSettingsStore
-        )
-
-        if didImprove {
-            withAnimation(.spring(response: 0.45, dampingFraction: 0.82)) {
-                viewState.isNewBest = true
-            }
-            if gameSettingsStore.hapticsEnabled {
-                UINotificationFeedbackGenerator().notificationOccurred(.success)
-            }
-        } else {
-            withAnimation(.easeOut(duration: 0.2)) {
-                viewState.isNewBest = false
-            }
-        }
+        viewState.isNewBest = false
     }
 }
 
 struct ResultView_Previews: PreviewProvider {
     static var previews: some View {
-        // プレビュー共通のサンプルデータを取得
-        let sample = ResultView.makePreviewSample()
-
-        return ResultView(
+        ResultView(
             moveCount: 24,
             penaltyCount: 6,
             elapsedSeconds: 132,
-            modeIdentifier: .standard5x5,
-            modeDisplayName: "スタンダード",
-            campaignClearRecord: sample.record,
-            nextCampaignStage: sample.stage,
+            modeIdentifier: .dungeonFloor,
+            modeDisplayName: "塔ダンジョン",
             onRetry: {},
             gameCenterService: GameCenterService.shared,
             adsService: AdsService.shared
@@ -384,53 +333,12 @@ struct ResultView_Previews: PreviewProvider {
 
 
 #Preview {
-    // プレビュー共通処理を使い回して #Preview でも同じデータを利用
-    let sample = ResultView.makePreviewSample()
-
-    return ResultView(
+    ResultView(
         moveCount: 24,
         penaltyCount: 6,
         elapsedSeconds: 132,
-        modeIdentifier: .standard5x5,
-        modeDisplayName: "スタンダード",
-        campaignClearRecord: sample.record,
-        nextCampaignStage: sample.stage,
+        modeIdentifier: .dungeonFloor,
+        modeDisplayName: "塔ダンジョン",
         onRetry: {}
     )
-}
-
-private extension ResultView {
-    /// プレビュー用のサンプルステージとクリア記録をまとめて生成する
-    /// - Returns: ステージと評価レコードを含むタプル
-    /// - Note: 取得に失敗した場合はアプリの状態に問題があるため即座に開発者へ気付きを与える
-    static func makePreviewSample() -> (stage: CampaignStage, record: CampaignStageClearRecord) {
-        // guard を ViewBuilder 直下に置くと Swift 6 でエラーになるため、
-        // 補助メソッド内で安全に取り扱い、データ欠如時は前提崩壊として明示的に停止する。
-        guard let stage = CampaignLibrary.shared.chapters.first?.stages.first else {
-            preconditionFailure("プレビュー用のキャンペーンステージが取得できません")
-        }
-
-        // ダミーの進行状況を構築し、UI の検証に必要な最小限の値を詰める
-        var previousProgress = CampaignStageProgress()
-        previousProgress.earnedStars = 1
-        previousProgress.achievedSecondaryObjective = true
-
-        var progress = CampaignStageProgress()
-        progress.earnedStars = 2
-        progress.achievedSecondaryObjective = true
-
-        let record = CampaignStageClearRecord(
-            stage: stage,
-            evaluation: CampaignStageEvaluation(
-                stageID: stage.id,
-                earnedStars: 2,
-                achievedSecondaryObjective: true,
-                achievedScoreGoal: false
-            ),
-            previousProgress: previousProgress,
-            progress: progress
-        )
-
-        return (stage, record)
-    }
 }

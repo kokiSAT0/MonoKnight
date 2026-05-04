@@ -33,22 +33,6 @@ extension GameViewModel {
     }
 
     func handleHandSlotTap(at index: Int) {
-        let shouldNotifyTutorial: Bool = {
-            guard boardBridge.animatingCard == nil else { return false }
-            guard core.progress == .playing else { return false }
-            guard !core.isAwaitingManualDiscardSelection else { return false }
-            guard !core.isAwaitingSupportSwapSelection else { return false }
-            guard core.handStacks.indices.contains(index) else { return false }
-            let stack = core.handStacks[index]
-            guard let topCard = stack.topCard else { return false }
-            if topCard.supportCard != nil {
-                return core.isSupportCardUsable(in: stack)
-            }
-            guard boardBridge.isCardUsable(stack) else { return false }
-            return core.availableMoves().contains { move in
-                move.stackID == stack.id && move.card.id == topCard.id
-            }
-        }()
         inputFlowCoordinator.handleHandSlotTap(
             at: index,
             core: core,
@@ -57,9 +41,6 @@ extension GameViewModel {
             selectedHandStackID: &selectedHandStackID,
             hapticsEnabled: hapticsEnabled
         )
-        if shouldNotifyTutorial {
-            handleCampaignTutorialEvent(.handSelected)
-        }
     }
 
     func handleBoardTapPlayRequest(_ request: BoardTapPlayRequest) {

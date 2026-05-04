@@ -73,7 +73,7 @@ final class GameCoreFixedWarpCardTests: XCTestCase {
         // --- モードと GameCore を初期化し、片方のワープ先を既踏扱いにする ---
         let regulation = makeRegulation()
         let mode = GameMode(
-            identifier: .freeCustom,
+            identifier: .dungeonFloor,
             displayName: "固定ワープ候補テスト",
             regulation: regulation,
             leaderboardEligible: false
@@ -111,7 +111,7 @@ final class GameCoreFixedWarpCardTests: XCTestCase {
         // --- ワープ候補をすべて未踏状態にし、タップ選択を実行 ---
         let regulation = makeRegulation()
         let mode = GameMode(
-            identifier: .freeCustom,
+            identifier: .dungeonFloor,
             displayName: "固定ワープタップテスト",
             regulation: regulation,
             leaderboardEligible: false
@@ -137,7 +137,7 @@ final class GameCoreFixedWarpCardTests: XCTestCase {
         // --- 初期化して availableMoves() から固定ワープ候補を取得 ---
         let regulation = makeRegulation()
         let mode = GameMode(
-            identifier: .freeCustom,
+            identifier: .dungeonFloor,
             displayName: "固定ワープ実行テスト",
             regulation: regulation,
             leaderboardEligible: false
@@ -186,7 +186,7 @@ final class GameCoreFixedWarpCardTests: XCTestCase {
         )
 
         let mode = GameMode(
-            identifier: .freeCustom,
+            identifier: .dungeonFloor,
             displayName: "固定ワープ自動生成テスト",
             regulation: regulation,
             leaderboardEligible: false

@@ -18,42 +18,6 @@ struct ResultSummarySection: View {
                     .multilineTextAlignment(.center)
             }
 
-            if presentation.isNewBest {
-                TimelineView(.animation) { context in
-                    let progress = sin(context.date.timeIntervalSinceReferenceDate * 2.6)
-                    let scale = 1.0 + 0.08 * progress
-
-                    Text("新記録！")
-                        .font(.headline.weight(.bold))
-                        .foregroundColor(.yellow)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                        .background(
-                            Capsule()
-                                .fill(Color.yellow.opacity(0.18))
-                                .overlay(
-                                    Capsule()
-                                        .stroke(Color.yellow.opacity(0.55), lineWidth: 1)
-                                )
-                        )
-                        .scaleEffect(scale)
-                        .accessibilityLabel("新記録を達成")
-                }
-                .transition(.scale.combined(with: .opacity))
-            }
-
-            if !presentation.usesDungeonExit && !presentation.isFailed {
-                Text("ベストポイント: \(presentation.bestPointsText)")
-                    .font(.headline)
-            }
-
-            if let description = presentation.bestComparisonDescription {
-                Text(description)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-                    .transition(.opacity)
-            }
         }
     }
 }

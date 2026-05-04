@@ -16,23 +16,14 @@ final class GameViewModel: ObservableObject {
     let gameCenterService: GameCenterServiceProtocol
     /// 広告表示の状態管理を担当するサービス
     let adsService: AdsServiceProtocol
-    /// キャンペーン進捗ストア
-    let campaignProgressStore: CampaignProgressStore
     /// 塔ダンジョンの永続成長ストア
     let dungeonGrowthStore: DungeonGrowthStore
     /// Game Center サインインを再度促す要求を親へ伝えるクロージャ
     let onRequestGameCenterSignIn: ((GameCenterSignInPromptReason) -> Void)?
     /// タイトル復帰時に親へ伝えるためのクロージャ
     let onRequestReturnToTitle: (() -> Void)?
-    /// クリア後に別のキャンペーンステージへ遷移したい場合のリクエストクロージャ
-    /// - Note: ルート側でゲーム準備フローを再実行するため、`GameView` から直接モードを差し替えずに委譲する
-    let onRequestStartCampaignStage: ((CampaignStage) -> Void)?
     /// ダンジョンランで次のフロアへ遷移したい場合のリクエストクロージャ
     let onRequestStartDungeonFloor: ((GameMode) -> Void)?
-    /// キャンペーン導入チュートリアルの既読状態を管理するストア
-    let campaignTutorialStore: CampaignTutorialStore
-    /// キャンペーン導入チュートリアルの進行管理
-    let campaignTutorialController: CampaignTutorialController
 
     /// SwiftUI から観測するゲームロジック本体
     @Published private(set) var core: GameCore
@@ -49,20 +40,6 @@ final class GameViewModel: ObservableObject {
     @Published var showingResult = false {
         didSet {
             resultPresentationState.showingResult = showingResult
-        }
-    }
-    /// 直近のキャンペーンステージクリア記録
-    /// - Note: リザルト画面でリワード進捗を可視化するため、クリア時に `flowCoordinator` から更新する
-    @Published var latestCampaignClearRecord: CampaignStageClearRecord? {
-        didSet {
-            resultPresentationState.latestCampaignClearRecord = latestCampaignClearRecord
-        }
-    }
-    /// キャンペーン定義順で次に進むステージ
-    /// - Important: ユーザーを直列の次ステージへ誘導するため、`ResultView` 側へ渡してボタン表示を制御する
-    @Published var nextCampaignStage: CampaignStage? {
-        didSet {
-            resultPresentationState.nextCampaignStage = nextCampaignStage
         }
     }
     /// 直近の塔クリアで得た成長報酬
@@ -98,28 +75,10 @@ final class GameViewModel: ObservableObject {
     }
     /// 暫定スコア
     var displayedScore: Int {
-        if mode.isCampaignStage {
-            return core.campaignScore
-        } else if mode.usesTargetCollection {
+        if mode.usesTargetCollection {
             return core.moveCount * 10 + displayedElapsedSeconds + core.focusCount * 15
         }
         return core.totalMoveCount * 10 + displayedElapsedSeconds
-    }
-    /// キャンペーンプレイ中に表示するスターゲージの進捗
-    var campaignStarScoreProgress: CampaignStarScoreProgress? {
-        guard let metadata = mode.campaignMetadataSnapshot,
-              let stage = CampaignLibrary.shared.stage(with: metadata.stageID),
-              let twoStarPointThreshold = stage.twoStarPointThreshold,
-              let threeStarPointThreshold = stage.threeStarPointThreshold,
-              threeStarPointThreshold > 0
-        else { return nil }
-
-        return CampaignStarScoreProgress(
-            currentScore: displayedScore,
-            twoStarThreshold: twoStarPointThreshold,
-            threeStarThreshold: threeStarPointThreshold,
-            baseStarEarned: core.progress == .cleared
-        )
     }
     /// 現在の移動回数
     /// - Note: 統計バッジ表示で利用し、View 側から GameCore への直接依存を減らす
@@ -230,17 +189,6 @@ final class GameViewModel: ObservableObject {
     var nextDungeonFloorTitle: String? {
         makeNextDungeonFloorMode()?.displayName
     }
-    /// キャンペーンステージかどうか
-    var isCampaignStage: Bool { mode.isCampaignStage }
-    /// ポーズメニューで表示するキャンペーン情報
-    /// - Note: モードに紐付くステージ ID からライブラリを引き、保存済み進捗をまとめて返す
-    var campaignPauseSummary: CampaignPauseSummary? {
-        sessionServicesCoordinator.makeCampaignPauseSummary(
-            mode: mode,
-            campaignLibrary: campaignLibrary,
-            campaignProgressStore: campaignProgressStore
-        )
-    }
     /// ポーズメニューで再利用するペナルティ説明文の一覧
     /// - Important: RootView の事前案内と文言・順序を揃え、体験の一貫性を保つ
     var pauseMenuPenaltyItems: [String] {
@@ -317,8 +265,6 @@ final class GameViewModel: ObservableObject {
     /// 盤面タップ時にカード選択が必要なケースを利用者へ知らせるための警告状態
     /// - Important: `Identifiable` なペイロードを保持し、SwiftUI 側で `.alert(item:)` を使って監視できるようにする
     @Published var boardTapSelectionWarning: GameBoardTapSelectionWarning?
-    /// キャンペーン導入チュートリアルで現在表示するカード
-    @Published var campaignTutorialCard: CampaignTutorialCard?
     /// 目的地獲得直後に表示する短いフィードバック
     @Published var targetCaptureFeedback: TargetCaptureFeedback?
 
@@ -328,8 +274,6 @@ final class GameViewModel: ObservableObject {
     var targetCaptureFeedbackDismissTask: Task<Void, Never>?
     /// ひび割れ床落下後、次フロアへ移るまでの短い待機タスク
     var dungeonFallAdvanceTask: Task<Void, Never>?
-    /// キャンペーン定義
-    private let campaignLibrary = CampaignLibrary.shared
     /// 現在時刻を取得するためのクロージャ。テストでは任意の値へ差し替える
     let currentDateProvider: () -> Date
     /// 手札選択と強制ハイライト制御を担当する内部状態
@@ -348,7 +292,7 @@ final class GameViewModel: ObservableObject {
     let sessionResetCoordinator: GameSessionResetCoordinator
     /// 初期表示準備と設定同期を担当するヘルパー
     let appearanceSettingsCoordinator: GameAppearanceSettingsCoordinator
-    /// Game Center / Campaign / Ads の橋渡しを担当するヘルパー
+    /// Game Center / Ads の橋渡しを担当するヘルパー
     let sessionServicesCoordinator: GameSessionServicesCoordinator
     /// リザルト表示の内部状態
     var resultPresentationState = ResultPresentationState()
@@ -375,16 +319,10 @@ final class GameViewModel: ObservableObject {
         gameInterfaces: GameModuleInterfaces,
         gameCenterService: GameCenterServiceProtocol,
         adsService: AdsServiceProtocol,
-        // `CampaignProgressStore` は @MainActor 隔離のため、デフォルト引数で直接生成すると
-        // ビルドエラーが発生する。そこで `@autoclosure` 付きのファクトリを受け取り、
-        // メインアクター上で初期化処理を実行するようにする。
-        campaignProgressStore: @MainActor @autoclosure () -> CampaignProgressStore = CampaignProgressStore(),
         dungeonGrowthStore: @MainActor @autoclosure () -> DungeonGrowthStore = DungeonGrowthStore(),
         onRequestGameCenterSignIn: ((GameCenterSignInPromptReason) -> Void)? = nil,
         onRequestReturnToTitle: (() -> Void)?,
-        onRequestStartCampaignStage: ((CampaignStage) -> Void)? = nil,
         onRequestStartDungeonFloor: ((GameMode) -> Void)? = nil,
-        campaignTutorialStore: CampaignTutorialStore = CampaignTutorialStore(),
         penaltyBannerScheduler: PenaltyBannerScheduling = PenaltyBannerScheduler(),
         initialHandOrderingRawValue: String? = nil,
         initialGameCenterAuthenticationState: Bool = false,
@@ -394,15 +332,10 @@ final class GameViewModel: ObservableObject {
         self.gameInterfaces = gameInterfaces
         self.gameCenterService = gameCenterService
         self.adsService = adsService
-        // 上記のファクトリをここで評価し、@MainActor コンテキストから安全にインスタンス化する
-        self.campaignProgressStore = campaignProgressStore()
         self.dungeonGrowthStore = dungeonGrowthStore()
         self.onRequestGameCenterSignIn = onRequestGameCenterSignIn
         self.onRequestReturnToTitle = onRequestReturnToTitle
-        self.onRequestStartCampaignStage = onRequestStartCampaignStage
         self.onRequestStartDungeonFloor = onRequestStartDungeonFloor
-        self.campaignTutorialStore = campaignTutorialStore
-        self.campaignTutorialController = CampaignTutorialController(mode: mode, store: campaignTutorialStore)
         self.penaltyBannerController = GamePenaltyBannerController(scheduler: penaltyBannerScheduler)
         self.pauseController = GamePauseController()
         self.flowCoordinator = GameFlowCoordinator()
@@ -443,7 +376,6 @@ final class GameViewModel: ObservableObject {
         // GameCore が公開する各種状態を監視し、SwiftUI 側の責務を軽量化する
         bindGameCore()
         generatedCore.resolvePendingDungeonFallLandingIfNeeded()
-        startCampaignTutorialIfNeeded()
 
         // ユーザー設定から手札並び順を復元する
         if let rawValue = initialHandOrderingRawValue {

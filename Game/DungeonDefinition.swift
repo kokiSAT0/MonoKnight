@@ -559,7 +559,7 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
         )
         let resolvedSpawnPoint = runState?.pendingFallLandingPoint ?? spawnPoint
         return GameMode(
-            identifier: .campaignStage,
+            identifier: .dungeonFloor,
             displayName: title,
             regulation: GameMode.Regulation(
                 boardSize: boardSize,
@@ -569,7 +569,12 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
                 deckPreset: deckPreset,
                 bonusMoveCards: [],
                 spawnRule: .fixed(resolvedSpawnPoint),
-                penalties: CampaignLibrary.targetModePenalties,
+                penalties: GameMode.PenaltySettings(
+                    deadlockPenaltyCost: 0,
+                    manualRedrawPenaltyCost: 0,
+                    manualDiscardPenaltyCost: 1,
+                    revisitPenaltyCost: 0
+                ),
                 impassableTilePoints: impassableTilePoints,
                 tileEffectOverrides: tileEffectOverrides,
                 warpTilePairs: warpTilePairs,
@@ -1548,12 +1553,14 @@ public struct DungeonLibrary {
                 EnemyDefinition(
                     id: "growth-9-patrol",
                     name: "巡回兵",
-                    position: GridPoint(x: 4, y: 4),
+                    position: GridPoint(x: 4, y: 5),
                     behavior: .patrol(path: [
-                        GridPoint(x: 4, y: 4),
-                        GridPoint(x: 5, y: 4),
+                        GridPoint(x: 4, y: 5),
                         GridPoint(x: 5, y: 5),
-                        GridPoint(x: 4, y: 5)
+                        GridPoint(x: 6, y: 5),
+                        GridPoint(x: 7, y: 5),
+                        GridPoint(x: 6, y: 5),
+                        GridPoint(x: 5, y: 5)
                     ])
                 )
             ],
@@ -1622,12 +1629,14 @@ public struct DungeonLibrary {
                 EnemyDefinition(
                     id: "growth-10-patrol",
                     name: "巡回兵",
-                    position: GridPoint(x: 4, y: 3),
+                    position: GridPoint(x: 4, y: 4),
                     behavior: .patrol(path: [
-                        GridPoint(x: 4, y: 3),
-                        GridPoint(x: 5, y: 3),
+                        GridPoint(x: 4, y: 4),
                         GridPoint(x: 5, y: 4),
-                        GridPoint(x: 4, y: 4)
+                        GridPoint(x: 6, y: 4),
+                        GridPoint(x: 7, y: 4),
+                        GridPoint(x: 6, y: 4),
+                        GridPoint(x: 5, y: 4)
                     ])
                 ),
                 EnemyDefinition(
@@ -1676,21 +1685,28 @@ public struct DungeonLibrary {
                 EnemyDefinition(
                     id: "growth-11-patrol-a",
                     name: "巡回兵",
-                    position: GridPoint(x: 3, y: 3),
+                    position: GridPoint(x: 2, y: 3),
                     behavior: .patrol(path: [
+                        GridPoint(x: 2, y: 3),
                         GridPoint(x: 3, y: 3),
                         GridPoint(x: 4, y: 3),
                         GridPoint(x: 5, y: 3),
-                        GridPoint(x: 4, y: 3)
+                        GridPoint(x: 6, y: 3),
+                        GridPoint(x: 5, y: 3),
+                        GridPoint(x: 4, y: 3),
+                        GridPoint(x: 3, y: 3)
                     ])
                 ),
                 EnemyDefinition(
                     id: "growth-11-patrol-b",
                     name: "巡回兵",
-                    position: GridPoint(x: 6, y: 5),
+                    position: GridPoint(x: 6, y: 4),
                     behavior: .patrol(path: [
+                        GridPoint(x: 6, y: 4),
                         GridPoint(x: 6, y: 5),
                         GridPoint(x: 6, y: 6),
+                        GridPoint(x: 6, y: 7),
+                        GridPoint(x: 6, y: 8),
                         GridPoint(x: 6, y: 7),
                         GridPoint(x: 6, y: 6)
                     ])
@@ -1872,8 +1888,7 @@ public struct DungeonLibrary {
                         range: 4
                     )
                 ),
-                EnemyDefinition(id: "growth-15-patrol", name: "巡回兵", position: GridPoint(x: 4, y: 4), behavior: .patrol(path: [GridPoint(x: 4, y: 4), GridPoint(x: 5, y: 4), GridPoint(x: 5, y: 5), GridPoint(x: 4, y: 5)]))
-                ,
+                EnemyDefinition(id: "growth-15-patrol", name: "巡回兵", position: GridPoint(x: 3, y: 4), behavior: .patrol(path: [GridPoint(x: 3, y: 4), GridPoint(x: 4, y: 4), GridPoint(x: 5, y: 4), GridPoint(x: 6, y: 4), GridPoint(x: 5, y: 4), GridPoint(x: 4, y: 4)])),
                 EnemyDefinition(
                     id: "growth-15-chaser",
                     name: "追跡兵",
@@ -1959,7 +1974,7 @@ public struct DungeonLibrary {
             deckPreset: .standardLight,
             failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 17),
             enemies: [
-                EnemyDefinition(id: "growth-17-patrol", name: "巡回兵", position: GridPoint(x: 5, y: 2), behavior: .patrol(path: [GridPoint(x: 5, y: 2), GridPoint(x: 5, y: 3), GridPoint(x: 6, y: 3), GridPoint(x: 6, y: 2)]))
+                EnemyDefinition(id: "growth-17-patrol", name: "巡回兵", position: GridPoint(x: 3, y: 5), behavior: .patrol(path: [GridPoint(x: 3, y: 5), GridPoint(x: 4, y: 5), GridPoint(x: 5, y: 5), GridPoint(x: 6, y: 5), GridPoint(x: 5, y: 5), GridPoint(x: 4, y: 5)]))
             ],
             hazards: [.brittleFloor(points: [GridPoint(x: 3, y: 1), GridPoint(x: 3, y: 2), GridPoint(x: 3, y: 3)])],
             impassableTilePoints: [
@@ -2035,7 +2050,7 @@ public struct DungeonLibrary {
             deckPreset: .standardLight,
             failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 15),
             enemies: [
-                EnemyDefinition(id: "growth-19-patrol-a", name: "巡回兵", position: GridPoint(x: 4, y: 4), behavior: .patrol(path: [GridPoint(x: 4, y: 4), GridPoint(x: 5, y: 4), GridPoint(x: 5, y: 5), GridPoint(x: 4, y: 5)])),
+                EnemyDefinition(id: "growth-19-patrol-a", name: "巡回兵", position: GridPoint(x: 4, y: 4), behavior: .patrol(path: [GridPoint(x: 4, y: 4), GridPoint(x: 5, y: 4), GridPoint(x: 5, y: 5), GridPoint(x: 4, y: 5), GridPoint(x: 3, y: 5), GridPoint(x: 4, y: 5), GridPoint(x: 5, y: 5), GridPoint(x: 5, y: 4)])),
                 EnemyDefinition(id: "growth-19-watcher", name: "見張り", position: GridPoint(x: 7, y: 5), behavior: .watcher(direction: MoveVector(dx: -1, dy: 0), range: 5))
             ],
             hazards: [
@@ -2081,7 +2096,7 @@ public struct DungeonLibrary {
                         range: 4
                     )
                 ),
-                EnemyDefinition(id: "growth-20-patrol", name: "巡回兵", position: GridPoint(x: 4, y: 4), behavior: .patrol(path: [GridPoint(x: 4, y: 4), GridPoint(x: 5, y: 4), GridPoint(x: 5, y: 5), GridPoint(x: 4, y: 5)])),
+                EnemyDefinition(id: "growth-20-patrol", name: "巡回兵", position: GridPoint(x: 4, y: 5), behavior: .patrol(path: [GridPoint(x: 4, y: 5), GridPoint(x: 5, y: 5), GridPoint(x: 6, y: 5), GridPoint(x: 7, y: 5), GridPoint(x: 6, y: 5), GridPoint(x: 5, y: 5)])),
                 EnemyDefinition(
                     id: "growth-20-chaser",
                     name: "追跡兵",

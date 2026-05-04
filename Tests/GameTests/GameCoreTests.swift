@@ -20,7 +20,7 @@ final class GameCoreTests: XCTestCase {
             completionRule: .boardClear
         )
         return GameMode(
-            identifier: .freeCustom,
+            identifier: .dungeonFloor,
             displayName: "旧スタンダード検証",
             regulation: regulation,
             leaderboardEligible: false
@@ -125,7 +125,7 @@ final class GameCoreTests: XCTestCase {
             impassableTilePoints: [impassablePoint]
         )
         let mode = GameMode(
-            identifier: .freeCustom,
+            identifier: .dungeonFloor,
             displayName: "障害物テスト",
             regulation: regulation,
             leaderboardEligible: false
@@ -223,7 +223,7 @@ final class GameCoreTests: XCTestCase {
             tileEffectOverrides: [shufflePoint: .shuffleHand]
         )
         let mode = GameMode(
-            identifier: .freeCustom,
+            identifier: .dungeonFloor,
             displayName: "シャッフル検証",
             regulation: regulation,
             leaderboardEligible: false
@@ -284,7 +284,7 @@ final class GameCoreTests: XCTestCase {
             )
         )
         let customMode = GameMode(
-            identifier: .freeCustom,
+            identifier: .dungeonFloor,
             displayName: "テスト用",
             regulation: regulation,
             leaderboardEligible: false
@@ -446,7 +446,7 @@ final class GameCoreTests: XCTestCase {
             ]
         )
         let customMode = GameMode(
-            identifier: .freeCustom,
+            identifier: .dungeonFloor,
             displayName: "ワープ検証",
             regulation: regulation,
             leaderboardEligible: false
@@ -797,7 +797,7 @@ final class GameCoreTests: XCTestCase {
             ],
             configuration: .classicalChallenge
         )
-        let core = GameCore.makeTestInstance(deck: deck, current: nil, mode: .classicalChallenge)
+        let core = GameCore.makeTestInstance(deck: deck, current: nil, mode: .dungeonPlaceholder)
 
         XCTAssertNil(core.current, "クラシカルチャレンジでは初期位置が未決定のはず")
         XCTAssertEqual(core.progress, .awaitingSpawn)
@@ -830,7 +830,7 @@ final class GameCoreTests: XCTestCase {
             impassableTilePoints: [impassablePoint]
         )
         let mode = GameMode(
-            identifier: .freeCustom,
+            identifier: .dungeonFloor,
             displayName: "スポーン障害物テスト",
             regulation: regulation,
             leaderboardEligible: false
@@ -876,7 +876,7 @@ final class GameCoreTests: XCTestCase {
             ],
             configuration: .classicalChallenge
         )
-        let core = GameCore.makeTestInstance(deck: deck, current: nil, mode: .classicalChallenge)
+        let core = GameCore.makeTestInstance(deck: deck, current: nil, mode: .dungeonPlaceholder)
         let spawnPoint = GridPoint(x: 2, y: 2)
         core.simulateSpawnSelection(forTesting: spawnPoint)
 
@@ -922,7 +922,7 @@ final class GameCoreTests: XCTestCase {
             ],
             configuration: .classicalChallenge
         )
-        let core = GameCore.makeTestInstance(deck: deck, current: nil, mode: .classicalChallenge)
+        let core = GameCore.makeTestInstance(deck: deck, current: nil, mode: .dungeonPlaceholder)
         core.simulateSpawnSelection(forTesting: GridPoint(x: 1, y: 1))
 
         XCTAssertEqual(core.penaltyCount, 0)
@@ -1074,7 +1074,7 @@ final class GameCoreTests: XCTestCase {
             .straightRight2, .straightLeft2, .straightDown2
         ])
         let mode = GameMode(
-            identifier: .standard5x5,
+            identifier: .dungeonFloor,
             displayName: "終盤目的地補充検証",
             regulation: GameMode.Regulation(
                 boardSize: BoardGeometry.standardSize,
@@ -1191,7 +1191,7 @@ final class GameCoreTests: XCTestCase {
             completionRule: .targetCollection(goalCount: 12)
         )
         let mode = GameMode(
-            identifier: .freeCustom,
+            identifier: .dungeonFloor,
             displayName: "ワープ中断テスト",
             regulation: regulation,
             leaderboardEligible: false
@@ -1232,7 +1232,7 @@ final class GameCoreTests: XCTestCase {
             completionRule: .targetCollection(goalCount: 12)
         )
         let mode = GameMode(
-            identifier: .freeCustom,
+            identifier: .dungeonFloor,
             displayName: "加速テスト",
             regulation: regulation,
             leaderboardEligible: false
@@ -1270,7 +1270,7 @@ final class GameCoreTests: XCTestCase {
             completionRule: .targetCollection(goalCount: 12)
         )
         let mode = GameMode(
-            identifier: .freeCustom,
+            identifier: .dungeonFloor,
             displayName: "加速停止テスト",
             regulation: regulation,
             leaderboardEligible: false
@@ -1311,7 +1311,7 @@ final class GameCoreTests: XCTestCase {
             completionRule: .targetCollection(goalCount: 12)
         )
         let mode = GameMode(
-            identifier: .freeCustom,
+            identifier: .dungeonFloor,
             displayName: "加速ワープテスト",
             regulation: regulation,
             leaderboardEligible: false
@@ -1350,7 +1350,7 @@ final class GameCoreTests: XCTestCase {
             completionRule: .targetCollection(goalCount: 12)
         )
         let mode = GameMode(
-            identifier: .freeCustom,
+            identifier: .dungeonFloor,
             displayName: "減速レイテスト",
             regulation: regulation,
             leaderboardEligible: false
@@ -1387,7 +1387,7 @@ final class GameCoreTests: XCTestCase {
             completionRule: .targetCollection(goalCount: 12)
         )
         let mode = GameMode(
-            identifier: .freeCustom,
+            identifier: .dungeonFloor,
             displayName: "減速2マステスト",
             regulation: regulation,
             leaderboardEligible: false
@@ -1427,7 +1427,7 @@ final class GameCoreTests: XCTestCase {
             completionRule: .targetCollection(goalCount: 12)
         )
         let mode = GameMode(
-            identifier: .freeCustom,
+            identifier: .dungeonFloor,
             displayName: "加速減速テスト",
             regulation: regulation,
             leaderboardEligible: false
@@ -1462,7 +1462,7 @@ final class GameCoreTests: XCTestCase {
             completionRule: .targetCollection(goalCount: 12)
         )
         let mode = GameMode(
-            identifier: .freeCustom,
+            identifier: .dungeonFloor,
             displayName: "NEXT更新テスト",
             regulation: regulation,
             leaderboardEligible: false
@@ -1510,7 +1510,7 @@ final class GameCoreTests: XCTestCase {
             completionRule: .targetCollection(goalCount: 12)
         )
         let mode = GameMode(
-            identifier: .freeCustom,
+            identifier: .dungeonFloor,
             displayName: "無料フォーカステスト",
             regulation: regulation,
             leaderboardEligible: false
@@ -1554,7 +1554,7 @@ final class GameCoreTests: XCTestCase {
             completionRule: .targetCollection(goalCount: 12)
         )
         let mode = GameMode(
-            identifier: .freeCustom,
+            identifier: .dungeonFloor,
             displayName: "ドラフトテスト",
             regulation: regulation,
             leaderboardEligible: false
@@ -1604,7 +1604,7 @@ final class GameCoreTests: XCTestCase {
             tileEffectOverrides: [GridPoint(x: 2, y: 2): .draft]
         )
         let mode = GameMode(
-            identifier: .freeCustom,
+            identifier: .dungeonFloor,
             displayName: "非目的地ドラフトテスト",
             regulation: regulation,
             leaderboardEligible: false
@@ -1646,7 +1646,7 @@ final class GameCoreTests: XCTestCase {
             completionRule: .targetCollection(goalCount: 12)
         )
         let mode = GameMode(
-            identifier: .freeCustom,
+            identifier: .dungeonFloor,
             displayName: "転換テスト",
             regulation: regulation,
             leaderboardEligible: false
@@ -1698,7 +1698,7 @@ final class GameCoreTests: XCTestCase {
             completionRule: .targetCollection(goalCount: 12)
         )
         let mode = GameMode(
-            identifier: .freeCustom,
+            identifier: .dungeonFloor,
             displayName: "目的地取得後転換テスト",
             regulation: regulation,
             leaderboardEligible: false
@@ -1743,7 +1743,7 @@ final class GameCoreTests: XCTestCase {
             tileEffectOverrides: [GridPoint(x: 2, y: 2): .targetSwap]
         )
         let mode = GameMode(
-            identifier: .freeCustom,
+            identifier: .dungeonFloor,
             displayName: "非目的地転換テスト",
             regulation: regulation,
             leaderboardEligible: false
@@ -1787,7 +1787,7 @@ final class GameCoreTests: XCTestCase {
             completionRule: .targetCollection(goalCount: 12)
         )
         let mode = GameMode(
-            identifier: .freeCustom,
+            identifier: .dungeonFloor,
             displayName: "開門テスト",
             regulation: regulation,
             leaderboardEligible: false
@@ -1841,7 +1841,7 @@ final class GameCoreTests: XCTestCase {
             completionRule: .targetCollection(goalCount: 12)
         )
         let mode = GameMode(
-            identifier: .freeCustom,
+            identifier: .dungeonFloor,
             displayName: "開門空振りテスト",
             regulation: regulation,
             leaderboardEligible: false
@@ -1885,7 +1885,7 @@ final class GameCoreTests: XCTestCase {
             completionRule: .targetCollection(goalCount: 12)
         )
         let mode = GameMode(
-            identifier: .freeCustom,
+            identifier: .dungeonFloor,
             displayName: "過負荷テスト",
             regulation: regulation,
             leaderboardEligible: false
@@ -1944,7 +1944,7 @@ final class GameCoreTests: XCTestCase {
             tileEffectOverrides: [GridPoint(x: 2, y: 2): .overload]
         )
         let mode = GameMode(
-            identifier: .freeCustom,
+            identifier: .dungeonFloor,
             displayName: "非目的地過負荷テスト",
             regulation: regulation,
             leaderboardEligible: false
@@ -1988,7 +1988,7 @@ final class GameCoreTests: XCTestCase {
             completionRule: .targetCollection(goalCount: 12)
         )
         let mode = GameMode(
-            identifier: .freeCustom,
+            identifier: .dungeonFloor,
             displayName: "過負荷温存テスト",
             regulation: regulation,
             leaderboardEligible: false
@@ -2040,7 +2040,7 @@ final class GameCoreTests: XCTestCase {
             completionRule: .targetCollection(goalCount: 12)
         )
         let mode = GameMode(
-            identifier: .freeCustom,
+            identifier: .dungeonFloor,
             displayName: "過負荷再付与テスト",
             regulation: regulation,
             leaderboardEligible: false
@@ -2090,7 +2090,7 @@ final class GameCoreTests: XCTestCase {
             completionRule: .targetCollection(goalCount: 12)
         )
         let mode = GameMode(
-            identifier: .freeCustom,
+            identifier: .dungeonFloor,
             displayName: "カード温存テスト",
             regulation: regulation,
             leaderboardEligible: false
@@ -2136,29 +2136,6 @@ final class GameCoreTests: XCTestCase {
         XCTAssertGreaterThan(core.board.remainingCount, 0, "全踏破前でも目的地制ではクリアできる想定です")
     }
 
-    /// キャンペーンステージでも目的地獲得数をクリア条件として扱うことを確認
-    func testCampaignTargetCollectionClearsWithStageGoal() {
-        let stage = CampaignLibrary.shared.stage(with: CampaignStageID(chapter: 1, index: 1))!
-        let mode = stage.makeGameMode()
-        let deck = Deck.makeTestDeck(cards: [
-            .kingRight, .kingUp, .kingLeft, .kingDown, .kingRight,
-            .kingUp, .kingLeft, .kingDown
-        ])
-        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 1, y: 1), mode: mode)
-        core.overrideTargetStateForTesting(
-            targetPoint: GridPoint(x: 2, y: 1),
-            capturedTargetCount: mode.targetGoalCount - 1
-        )
-
-        guard let move = core.availableMoves().first(where: { $0.destination == GridPoint(x: 2, y: 1) }) else {
-            return XCTFail("キャンペーン目的地へ移動できるカードが見つかりません")
-        }
-        core.playCard(using: move)
-
-        XCTAssertEqual(core.progress, .cleared)
-        XCTAssertEqual(core.capturedTargetCount, mode.targetGoalCount)
-    }
-
     /// 目的地生成が現在地と直前目的地を避けることを確認
     func testTargetGenerationAvoidsCurrentAndPreviousTarget() {
         let core = GameCore()
@@ -2169,21 +2146,11 @@ final class GameCoreTests: XCTestCase {
         XCTAssertFalse(core.upcomingTargetPoints.contains { $0 == core.current }, "先読み目的地が駒の下に隠れないよう、現在地も避けます")
     }
 
-    /// 障害物があるキャンペーンでも目的地生成が移動不能マスを避けることを確認
-    func testTargetGenerationAvoidsImpassableTilesInCampaignMode() {
-        let stage = CampaignLibrary.shared.stage(with: CampaignStageID(chapter: 5, index: 1))!
-        let core = GameCore(mode: stage.makeGameMode())
-        let targets = [core.targetPoint].compactMap { $0 } + core.upcomingTargetPoints
-
-        XCTAssertFalse(targets.isEmpty)
-        XCTAssertTrue(targets.allSatisfy { !stage.regulation.impassableTilePoints.contains($0) })
-    }
-
     /// 任意スポーンの目的地制ステージでは、開始位置確定前から目的地を表示する
     func testTargetCollectionSpawnSelectionInitializesTargets() {
         let impassablePoint = GridPoint(x: 4, y: 4)
         let mode = GameMode(
-            identifier: .freeCustom,
+            identifier: .dungeonFloor,
             displayName: "任意スポーン目的地テスト",
             regulation: GameMode.Regulation(
                 boardSize: BoardGeometry.standardSize,
@@ -2240,39 +2207,12 @@ final class GameCoreTests: XCTestCase {
 
     /// 安定化QA対象の標準モードが目的地制として完走できることを確認
     func testStandardTargetCollectionCanBeClearedByQaAutoplay() {
-        let result = runTargetQaAutoplay(mode: .standard)
+        let result = runTargetQaAutoplay(mode: .dungeonPlaceholder)
 
         XCTAssertEqual(result.progress, GameProgress.cleared)
         XCTAssertEqual(result.capturedTargetCount, result.targetGoalCount)
         XCTAssertLessThanOrEqual(result.moveCount, 120, "標準モードが長引きすぎています")
         XCTAssertLessThanOrEqual(result.focusCount, 24, "フォーカス待ちが多すぎます")
-    }
-
-    /// 序盤キャンペーン代表面が目的地制として完走できることを確認
-    func testEarlyCampaignRepresentativeStagesCanBeClearedByQaAutoplay() {
-        let stageIDs = [
-            CampaignStageID(chapter: 1, index: 1),
-            CampaignStageID(chapter: 1, index: 4),
-            CampaignStageID(chapter: 1, index: 8),
-            CampaignStageID(chapter: 2, index: 1),
-            CampaignStageID(chapter: 2, index: 8),
-            CampaignStageID(chapter: 4, index: 8),
-            CampaignStageID(chapter: 6, index: 8),
-            CampaignStageID(chapter: 8, index: 8),
-        ]
-
-        for stageID in stageIDs {
-            guard let stage = CampaignLibrary.shared.stage(with: stageID) else {
-                XCTFail("\(stageID.displayCode) が見つかりません")
-                continue
-            }
-
-            let result = runTargetQaAutoplay(mode: stage.makeGameMode())
-            XCTAssertEqual(result.progress, GameProgress.cleared, "\(stage.displayCode) が完走できません")
-            XCTAssertEqual(result.capturedTargetCount, result.targetGoalCount, "\(stage.displayCode) の目的地獲得数が不足しています")
-            XCTAssertLessThanOrEqual(result.moveCount, max(stage.makeGameMode().targetGoalCount * 10, 60), "\(stage.displayCode) が長引きすぎています")
-            XCTAssertLessThanOrEqual(result.focusCount, max(stage.makeGameMode().targetGoalCount * 3, 12), "\(stage.displayCode) のフォーカス回数が多すぎます")
-        }
     }
 
     /// フォーカスが目的地へ近づくカードを優先し、スコア用カウントを増やすことを確認
@@ -2349,58 +2289,6 @@ final class GameCoreTests: XCTestCase {
         XCTAssertEqual(core.score, 232, "目的地制のポイント計算が仕様と一致していない")
     }
 
-    /// キャンペーン評価でスター条件が加点式の評価ラインに一本化されることを確認
-    func testCampaignEvaluationUsesScoreLinesForStars() {
-        let stage = CampaignStage(
-            id: CampaignStageID(chapter: 9, index: 1),
-            title: "スコア評価",
-            summary: "summary",
-            regulation: GameMode.Regulation(
-                boardSize: 5,
-                handSize: 5,
-                nextPreviewCount: 3,
-                allowsStacking: true,
-                deckPreset: .standard,
-                spawnRule: .fixed(GridPoint(x: 2, y: 2)),
-                penalties: GameMode.PenaltySettings(
-                    deadlockPenaltyCost: 3,
-                    manualRedrawPenaltyCost: 2,
-                    manualDiscardPenaltyCost: 1,
-                    revisitPenaltyCost: 0
-                ),
-                completionRule: .targetCollection(goalCount: 12)
-            ),
-            secondaryObjective: .finishWithFocusAtMost(maxFocusCount: 2),
-            twoStarScoreTarget: 210,
-            scoreTarget: 180,
-            unlockRequirement: .always
-        )
-
-        let twoStar = CampaignStageClearMetrics(
-            moveCount: 12,
-            penaltyCount: 0,
-            focusCount: 4,
-            elapsedSeconds: 25,
-            totalMoveCount: 12,
-            score: 1_000,
-            hasRevisitedTile: false,
-            capturedTargetCount: 12
-        )
-        let threeStar = CampaignStageClearMetrics(
-            moveCount: 12,
-            penaltyCount: 0,
-            focusCount: 2,
-            elapsedSeconds: 30,
-            totalMoveCount: 12,
-            score: 1_020,
-            hasRevisitedTile: false,
-            capturedTargetCount: 12
-        )
-
-        XCTAssertEqual(stage.evaluateClear(with: twoStar).earnedStars, 2)
-        XCTAssertEqual(stage.evaluateClear(with: threeStar).earnedStars, 3)
-    }
-
     /// NEXT更新補助カードは移動せず 1 手使い、NEXT だけを引き直すことを確認
     func testSupportNextRefreshConsumesOneTurnAndRedrawsNextOnly() {
         let deck = Deck.makeTestDeck(playableCards: [
@@ -2436,7 +2324,7 @@ final class GameCoreTests: XCTestCase {
 
     /// 導き補助カードはフォーカス回数を増やさず、目的地寄りに手札を再配布することを確認
     func testSupportGuidanceRedrawsFocusedHandWithoutFocusCount() {
-        let mode = GameMode.standard
+        let mode = GameMode.dungeonPlaceholder
         let deck = Deck.makeTestDeck(playableCards: [
             .support(.guidance),
             .move(.kingUp),

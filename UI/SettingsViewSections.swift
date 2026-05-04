@@ -193,76 +193,7 @@ struct SettingsHelpSection: View {
         } header: {
             Text("ヘルプ")
         } footer: {
-            Text("遊び方と辞典を確認できます。カードの動きや勝利条件に加えて、手札スロットが最大 \(GameMode.standard.handSize) 種類で\(GameMode.standard.stackingRuleDetailText)という仕様も確認できます。")
-        }
-    }
-}
-
-struct SettingsStatsSection: View {
-    let onResetBestPoints: () -> Void
-
-    var body: some View {
-        Section {
-            Button("ベスト記録をリセット", action: onResetBestPoints)
-                .accessibilityLabel(Text("ベスト記録をリセットする"))
-        } header: {
-            Text("戦績")
-        } footer: {
-            Text("ベストポイントを初期状態に戻します。リセット後は新しいプレイで再び記録されます。")
-        }
-    }
-}
-
-struct SettingsDebugSection: View {
-    @Binding var debugUnlockInput: String
-    let isDebugOverrideActive: Bool
-    let isCampaignDebugUnlockEnabled: Bool
-    let isDailyChallengeDebugUnlimitedEnabled: Bool
-    let onDebugUnlockInputChange: (String) -> Void
-    let onDisableDebugUnlock: () -> Void
-
-    var body: some View {
-        Section {
-            VStack(alignment: .leading, spacing: 8) {
-                TextField("デバッグ用パスコード", text: $debugUnlockInput)
-                    .keyboardType(.numberPad)
-                    .textContentType(.oneTimeCode)
-                    .disabled(isDebugOverrideActive)
-                    .onChange(of: debugUnlockInput) { _, newValue in
-                        onDebugUnlockInputChange(newValue)
-                    }
-
-                if isCampaignDebugUnlockEnabled {
-                    Label("全てのステージが解放されています（無効化ボタンから解除可能）", systemImage: "checkmark.circle.fill")
-                        .foregroundStyle(.tint)
-                } else {
-                    Text("社内検証で必要な場合のみ入力してください。")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-
-                if isDailyChallengeDebugUnlimitedEnabled {
-                    Label("デイリーチャレンジは無制限モードです", systemImage: "infinity")
-                        .foregroundStyle(.blue)
-                        .font(.subheadline)
-                    Text("デバッグ検証中は挑戦回数の消費と広告視聴がスキップされます。")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-
-                if isDebugOverrideActive {
-                    Button(action: onDisableDebugUnlock) {
-                        Label("全解放を無効化", systemImage: "lock.fill")
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.red)
-                    .accessibilityIdentifier("settings_disable_debug_unlock_button")
-                }
-            }
-        } header: {
-            Text("デバッグ")
-        } footer: {
-            Text("正しいパスコードを入力するとキャンペーンモードの全ステージが解放されます。アプリを再起動しても維持されます。")
+            Text("遊び方と辞典を確認できます。塔ダンジョンでは床で拾ったカードと報酬カードを使い、出口到達を目指します。")
         }
     }
 }

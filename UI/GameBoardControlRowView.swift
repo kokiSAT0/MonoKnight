@@ -65,11 +65,6 @@ private extension GameBoardControlRowView {
         HStack(spacing: 12) {
             if viewModel.usesDungeonExit {
                 dungeonStatisticsGroup()
-            } else if viewModel.isCampaignStage {
-                targetStatisticsGroup()
-                if let progress = viewModel.campaignStarScoreProgress {
-                    campaignStarGaugeGroup(progress)
-                }
             } else {
                 scoreStatisticsGroup()
                 supplementaryStatisticsGroup()
@@ -267,47 +262,6 @@ private extension GameBoardControlRowView {
         .animation(.spring(response: 0.24, dampingFraction: 0.74), value: viewModel.targetCaptureFeedback)
     }
 
-    func campaignStarGaugeGroup(_ progress: CampaignStarScoreProgress) -> some View {
-        statisticsBadgeGroup {
-            VStack(alignment: .leading, spacing: 7) {
-                HStack(alignment: .center, spacing: 8) {
-                    HStack(spacing: 3) {
-                        ForEach(1...3, id: \.self) { index in
-                            Image(systemName: index <= progress.filledStarCount ? "star.fill" : "star")
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundColor(index <= progress.filledStarCount ? .yellow : theme.statisticValueText.opacity(0.55))
-                        }
-                    }
-                    .accessibilityHidden(true)
-
-                    Text(progress.nextStarText)
-                        .font(.caption2.weight(.semibold))
-                        .foregroundColor(theme.statisticTitleText)
-                        .lineLimit(1)
-                }
-
-                GeometryReader { geometry in
-                    ZStack(alignment: .leading) {
-                        Capsule(style: .continuous)
-                            .fill(theme.statisticValueText.opacity(0.18))
-
-                        Capsule(style: .continuous)
-                            .fill(theme.accentPrimary)
-                            .frame(width: geometry.size.width * CGFloat(progress.progressFraction))
-
-                        starGaugeTick(at: progress.twoStarFraction)
-                        starGaugeTick(at: 1)
-                    }
-                }
-                .frame(height: 10)
-            }
-            .frame(minWidth: 148, idealWidth: 180, maxWidth: 220, minHeight: 34, alignment: .leading)
-        }
-        .accessibilityIdentifier("campaign_star_score_gauge")
-        .accessibilityLabel(Text("キャンペーンスター進捗"))
-        .accessibilityValue(Text(campaignStarGaugeAccessibilityValue(progress)))
-    }
-
     func starGaugeTick(at fraction: Double) -> some View {
         GeometryReader { geometry in
             Capsule(style: .continuous)
@@ -497,7 +451,4 @@ private extension GameBoardControlRowView {
         "\(score)ポイント"
     }
 
-    func campaignStarGaugeAccessibilityValue(_ progress: CampaignStarScoreProgress) -> String {
-        "現在\(progress.currentScore)ポイント。\(progress.nextStarText)。2つ目は\(progress.twoStarThreshold)ポイント、3つ目は\(progress.threeStarThreshold)ポイント"
-    }
 }

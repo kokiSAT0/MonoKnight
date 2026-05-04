@@ -76,16 +76,14 @@ struct GameView: View {
     ///   - gameInterfaces: GameCore 生成を担当するファクトリセット（省略時は `.live`）
     ///   - isPreparationOverlayVisible: RootView が保持するローディング表示のバインディング
     ///   - onRequestReturnToTitle: タイトル画面への遷移要求クロージャ（省略可）
-    ///   - onRequestStartCampaignStage: キャンペーンの別ステージを開始するリクエストクロージャ
     ///   - onRequestStartDungeonFloor: ダンジョンランの別フロアを開始するリクエストクロージャ
     init(
-        mode: GameMode = .standard,
+        mode: GameMode = .dungeonPlaceholder,
         gameInterfaces: GameModuleInterfaces = .live,
         isGameCenterAuthenticated: Bool? = nil,
         isPreparationOverlayVisible: Binding<Bool> = .constant(false),
         onRequestGameCenterSignIn: ((GameCenterSignInPromptReason) -> Void)? = nil,
         onRequestReturnToTitle: (() -> Void)? = nil,
-        onRequestStartCampaignStage: ((CampaignStage) -> Void)? = nil,
         onRequestStartDungeonFloor: ((GameMode) -> Void)? = nil
     ) {
         // 既定値はメインアクター上で解決し、@MainActor 隔離済みのシングルトンを安全に参照する
@@ -95,13 +93,11 @@ struct GameView: View {
             gameInterfaces: gameInterfaces,
             gameCenterService: GameCenterService.shared,
             adsService: AdsService.shared,
-            campaignProgressStore: CampaignProgressStore(),
             dungeonGrowthStore: DungeonGrowthStore(),
             isPreparationOverlayVisible: isPreparationOverlayVisible,
             isGameCenterAuthenticated: resolvedIsAuthenticated,
             onRequestGameCenterSignIn: onRequestGameCenterSignIn,
             onRequestReturnToTitle: onRequestReturnToTitle,
-            onRequestStartCampaignStage: onRequestStartCampaignStage,
             onRequestStartDungeonFloor: onRequestStartDungeonFloor
         )
     }
@@ -112,25 +108,21 @@ struct GameView: View {
     ///   - gameInterfaces: GameCore 生成用の依存セット
     ///   - gameCenterService: Game Center 連携サービス
     ///   - adsService: 広告制御サービス
-    ///   - campaignProgressStore: キャンペーン進捗ストア
     ///   - isPreparationOverlayVisible: ローディング表示状態を伝えるバインディング
     ///   - isGameCenterAuthenticated: Game Center 認証状態
     ///   - onRequestGameCenterSignIn: サインイン依頼クロージャ
     ///   - onRequestReturnToTitle: タイトル復帰依頼クロージャ
-    ///   - onRequestStartCampaignStage: キャンペーン継続依頼クロージャ
     ///   - onRequestStartDungeonFloor: ダンジョンラン継続依頼クロージャ
     init(
         mode: GameMode,
         gameInterfaces: GameModuleInterfaces,
         gameCenterService: GameCenterServiceProtocol,
         adsService: AdsServiceProtocol,
-        campaignProgressStore: CampaignProgressStore,
         dungeonGrowthStore: DungeonGrowthStore,
         isPreparationOverlayVisible: Binding<Bool>,
         isGameCenterAuthenticated: Bool?,
         onRequestGameCenterSignIn: ((GameCenterSignInPromptReason) -> Void)? = nil,
         onRequestReturnToTitle: (() -> Void)? = nil,
-        onRequestStartCampaignStage: ((CampaignStage) -> Void)? = nil,
         onRequestStartDungeonFloor: ((GameMode) -> Void)? = nil
     ) {
         // Game Center 認証状態をローカル変数へ束ね、後続の代入と ViewModel 初期化で同じ値を共有する
@@ -150,11 +142,9 @@ struct GameView: View {
                 gameInterfaces: gameInterfaces,
                 gameCenterService: gameCenterService,
                 adsService: adsService,
-                campaignProgressStore: campaignProgressStore,
                 dungeonGrowthStore: dungeonGrowthStore,
                 onRequestGameCenterSignIn: onRequestGameCenterSignIn,
                 onRequestReturnToTitle: onRequestReturnToTitle,
-                onRequestStartCampaignStage: onRequestStartCampaignStage,
                 onRequestStartDungeonFloor: onRequestStartDungeonFloor,
                 initialGameCenterAuthenticationState: resolvedIsAuthenticated
             )
@@ -196,7 +186,6 @@ struct GameView: View {
         // ポーズメニューをフルスクリーンで重ね、端末サイズに左右されずに全項目を視認できるようにする
         .fullScreenCover(isPresented: $viewModel.isPauseMenuPresented) {
             PauseMenuView(
-                campaignSummary: viewModel.campaignPauseSummary,
                 penaltyItems: viewModel.pauseMenuPenaltyItems,
                 onResume: {
                     // フルスクリーンカバーを閉じてプレイへ戻る
@@ -241,12 +230,6 @@ struct GameView: View {
                 showsLeaderboardButton: viewModel.isLeaderboardEligible,
                 isGameCenterAuthenticated: viewModel.isGameCenterAuthenticated,
                 onRequestGameCenterSignIn: onRequestGameCenterSignIn,
-                campaignClearRecord: viewModel.latestCampaignClearRecord,
-                nextCampaignStage: viewModel.nextCampaignStage,
-                onSelectCampaignStage: { stage in
-                    // ViewModel に処理を委譲してリザルト閉鎖と広告フラグの初期化を一元管理する
-                    viewModel.handleCampaignStageAdvance(to: stage)
-                },
                 onSelectNextDungeonFloor: {
                     viewModel.handleNextDungeonFloorAdvance()
                 },

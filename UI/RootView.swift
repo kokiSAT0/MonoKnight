@@ -17,14 +17,8 @@ struct RootView: View {
     let gameCenterService: GameCenterServiceProtocol
     /// 広告表示を扱うサービス（GameView へ受け渡す）
     let adsService: AdsServiceProtocol
-    /// 日替わりチャレンジの挑戦回数ストア
-    let dailyChallengeAttemptStore: AnyDailyChallengeAttemptStore
-    /// 日替わりチャレンジのレギュレーション定義サービス
-    let dailyChallengeDefinitionService: DailyChallengeDefinitionProviding
     /// ユーザー設定を集約したストア
     let gameSettingsStore: GameSettingsStore
-    /// キャンペーンステージ定義を参照するライブラリ
-    let campaignLibrary = CampaignLibrary.shared
     /// デバイスの横幅サイズクラスを参照し、iPad などレギュラー幅での余白やログ出力を調整する
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
     /// 画面全体の状態とログ出力を一元管理するステートストア
@@ -32,8 +26,6 @@ struct RootView: View {
     @StateObject var stateStore: RootViewStateStore
     /// ゲーム準備のワークアイテムと開始待ち状態を調停する coordinator
     @StateObject var preparationCoordinator = RootViewPreparationCoordinator()
-    /// キャンペーン進捗を管理するストア
-    @StateObject var campaignProgressStore: CampaignProgressStore
     /// 塔ダンジョンの永続成長を管理するストア
     @StateObject var dungeonGrowthStore: DungeonGrowthStore
     /// タイトル画面まわりの遷移要求をまとめる coordinator
@@ -47,22 +39,16 @@ struct RootView: View {
     init(gameInterfaces: GameModuleInterfaces = .live,
          gameCenterService: GameCenterServiceProtocol? = nil,
          adsService: AdsServiceProtocol? = nil,
-         dailyChallengeAttemptStore: AnyDailyChallengeAttemptStore? = nil,
-         dailyChallengeDefinitionService: DailyChallengeDefinitionProviding? = nil,
          gameSettingsStore: GameSettingsStore? = nil) {
         // Swift 6 ではデフォルト引数の評価が非分離コンテキストで行われるため、
         // `@MainActor` に隔離されたシングルトンを安全に利用するためにイニシャライザ内で解決する。
         let resolvedGameCenterService = gameCenterService ?? GameCenterService.shared
         let resolvedAdsService = adsService ?? AdsService.shared
-        let resolvedDailyStore = dailyChallengeAttemptStore ?? AnyDailyChallengeAttemptStore(base: DailyChallengeAttemptStore())
-        let resolvedDailyDefinitionService = dailyChallengeDefinitionService ?? DailyChallengeDefinitionService()
         let resolvedGameSettingsStore = gameSettingsStore ?? GameSettingsStore()
 
         self.gameInterfaces = gameInterfaces
         self.gameCenterService = resolvedGameCenterService
         self.adsService = resolvedAdsService
-        self.dailyChallengeAttemptStore = resolvedDailyStore
-        self.dailyChallengeDefinitionService = resolvedDailyDefinitionService
         self.gameSettingsStore = resolvedGameSettingsStore
         // 画面状態を一括管理するステートストアを生成し、初期認証状態を反映する。
         _stateStore = StateObject(
@@ -70,7 +56,6 @@ struct RootView: View {
                 initialIsAuthenticated: resolvedGameCenterService.isAuthenticated
             )
         )
-        _campaignProgressStore = StateObject(wrappedValue: CampaignProgressStore())
         _dungeonGrowthStore = StateObject(wrappedValue: DungeonGrowthStore())
     }
 
@@ -84,14 +69,6 @@ struct RootView: View {
                 makeRootContentView(with: layoutContext)
             }
         )
-        .environmentObject(dailyChallengeAttemptStore)
         .environmentObject(gameSettingsStore)
-        .task {
-            // 初回表示時に Game Center 認証を 1 度だけ試み、UI の表示ズレを防ぐ
-            gameCenterPromptPresenter.performInitialAuthenticationIfNeeded(
-                stateStore: stateStore,
-                gameCenterService: gameCenterService
-            )
-        }
     }
 }

@@ -47,24 +47,8 @@ public extension GameMode {
     /// - Note: SF Symbols のシステム名を返し、SwiftUI から共通の描画を行えるようにする
     var iconSystemName: String {
         switch identifier {
-        case .standard5x5:
-            return "square.grid.3x3.fill"
-        case .classicalChallenge:
-            return "checkerboard.rectangle"
-        case .targetLab:
-            return "flask.fill"
-        case .dailyFixedChallenge:
-            return "calendar"
-        case .dailyRandomChallenge:
-            return "sparkles"
-        case .freeCustom:
-            return "slider.horizontal.3"
-        case .campaignStage:
-            return "map.fill"
-        case .dailyFixed:
-            return "calendar"
-        case .dailyRandom:
-            return "sparkles"
+        case .dungeonFloor:
+            return "figure.stairs"
         }
     }
 
@@ -72,24 +56,8 @@ public extension GameMode {
     /// - Note: UI 側でバッジ表示やアクセシビリティ説明に利用する
     var difficultyRank: DifficultyRank {
         switch identifier {
-        case .standard5x5:
-            return .balanced
-        case .classicalChallenge:
-            return .advanced
-        case .targetLab:
-            return .custom
-        case .dailyFixedChallenge:
-            return .balanced
-        case .dailyRandomChallenge:
-            return .advanced
-        case .freeCustom:
-            return .custom
-        case .campaignStage:
+        case .dungeonFloor:
             return .scenario
-        case .dailyFixed:
-            return .advanced
-        case .dailyRandom:
-            return .custom
         }
     }
 

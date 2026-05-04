@@ -17,10 +17,10 @@ final class GameViewIntegrationTests: XCTestCase {
         let scheduler = PenaltyBannerSchedulerSpy()
         let gameCenter = GameCenterServiceSpy()
         let adsService = AdsServiceSpy()
-        let interfaces = GameModuleInterfaces { _ in GameCore(mode: .standard) }
+        let interfaces = GameModuleInterfaces { _ in GameCore(mode: .dungeonPlaceholder) }
 
         let viewModel = GameViewModel(
-            mode: .standard,
+            mode: .dungeonPlaceholder,
             gameInterfaces: interfaces,
             gameCenterService: gameCenter,
             adsService: adsService,
@@ -80,7 +80,7 @@ final class GameViewIntegrationTests: XCTestCase {
         }
 
         let viewModel = GameViewModel(
-            mode: .standard,
+            mode: .dungeonPlaceholder,
             gameInterfaces: interfaces,
             gameCenterService: gameCenter,
             adsService: adsService,
@@ -128,10 +128,10 @@ final class GameViewIntegrationTests: XCTestCase {
         let scheduler = PenaltyBannerSchedulerSpy()
         let gameCenter = GameCenterServiceSpy()
         let adsService = AdsServiceSpy()
-        let interfaces = GameModuleInterfaces { _ in GameCore(mode: .standard) }
+        let interfaces = GameModuleInterfaces { _ in GameCore(mode: .dungeonPlaceholder) }
 
         let viewModel = GameViewModel(
-            mode: .standard,
+            mode: .dungeonPlaceholder,
             gameInterfaces: interfaces,
             gameCenterService: gameCenter,
             adsService: adsService,
@@ -158,11 +158,11 @@ final class GameViewIntegrationTests: XCTestCase {
         let gameCenter = GameCenterServiceSpy()
         let adsService = AdsServiceSpy()
 
-        let core = GameCore(mode: .standard)
+        let core = GameCore(mode: .dungeonPlaceholder)
         let interfaces = GameModuleInterfaces { _ in core }
 
         let viewModel = GameViewModel(
-            mode: .standard,
+            mode: .dungeonPlaceholder,
             gameInterfaces: interfaces,
             gameCenterService: gameCenter,
             adsService: adsService,
@@ -280,7 +280,7 @@ final class GameViewIntegrationTests: XCTestCase {
         }
 
         let viewModel = GameViewModel(
-            mode: .standard,
+            mode: .dungeonPlaceholder,
             gameInterfaces: interfaces,
             gameCenterService: gameCenter,
             adsService: adsService,
@@ -335,7 +335,7 @@ final class GameViewIntegrationTests: XCTestCase {
         }
 
         let viewModel = GameViewModel(
-            mode: .standard,
+            mode: .dungeonPlaceholder,
             gameInterfaces: interfaces,
             gameCenterService: gameCenter,
             adsService: adsService,
@@ -381,11 +381,11 @@ final class GameViewIntegrationTests: XCTestCase {
             let gameCenter = GameCenterServiceSpy()
             let adsService = AdsServiceSpy()
 
-            let core = GameCore(mode: .standard)
+            let core = GameCore(mode: .dungeonPlaceholder)
             let interfaces = GameModuleInterfaces { _ in core }
 
             let viewModel = GameViewModel(
-                mode: .standard,
+                mode: .dungeonPlaceholder,
                 gameInterfaces: interfaces,
                 gameCenterService: gameCenter,
                 adsService: adsService,
@@ -449,11 +449,11 @@ final class GameViewIntegrationTests: XCTestCase {
             let gameCenter = GameCenterServiceSpy()
             let adsService = AdsServiceSpy()
 
-            let core = GameCore(mode: .standard)
+            let core = GameCore(mode: .dungeonPlaceholder)
             let interfaces = GameModuleInterfaces { _ in core }
 
             let viewModel = GameViewModel(
-                mode: .standard,
+                mode: .dungeonPlaceholder,
                 gameInterfaces: interfaces,
                 gameCenterService: gameCenter,
                 adsService: adsService,
@@ -526,11 +526,11 @@ final class GameViewIntegrationTests: XCTestCase {
         let gameCenter = GameCenterServiceSpy()
         let adsService = AdsServiceSpy()
 
-        let core = GameCore(mode: .standard)
+        let core = GameCore(mode: .dungeonPlaceholder)
         let interfaces = GameModuleInterfaces { _ in core }
 
         let viewModel = GameViewModel(
-            mode: .standard,
+            mode: .dungeonPlaceholder,
             gameInterfaces: interfaces,
             gameCenterService: gameCenter,
             adsService: adsService,
@@ -607,11 +607,11 @@ final class GameViewIntegrationTests: XCTestCase {
         let gameCenter = GameCenterServiceSpy()
         let adsService = AdsServiceSpy()
 
-        let core = GameCore(mode: .standard)
+        let core = GameCore(mode: .dungeonPlaceholder)
         let interfaces = GameModuleInterfaces { _ in core }
 
         let viewModel = GameViewModel(
-            mode: .standard,
+            mode: .dungeonPlaceholder,
             gameInterfaces: interfaces,
             gameCenterService: gameCenter,
             adsService: adsService,
@@ -684,10 +684,10 @@ final class GameViewIntegrationTests: XCTestCase {
         let adsService = AdsServiceSpy()
 
         // 標準モードのレギュレーションを基に、斜め選択カードを含む山札構成へ差し替えて再現性を高める
-        var diagonalRegulation = GameMode.standard.regulationSnapshot
+        var diagonalRegulation = GameMode.dungeonPlaceholder.regulationSnapshot
         diagonalRegulation.deckPreset = .standardWithDiagonalChoices
         let diagonalMode = GameMode(
-            identifier: .freeCustom,
+            identifier: .dungeonFloor,
             displayName: "斜め選択警告テスト",
             regulation: diagonalRegulation,
             leaderboardEligible: false
@@ -764,10 +764,10 @@ final class GameViewIntegrationTests: XCTestCase {
         let adsService = AdsServiceSpy()
 
         // 左下隅スタートのモードを構築し、盤外判定によって候補が欠ける状況を明示的に再現する
-        var edgeRegulation = GameMode.standard.regulationSnapshot
+        var edgeRegulation = GameMode.dungeonPlaceholder.regulationSnapshot
         edgeRegulation.spawnRule = .fixed(GridPoint(x: 0, y: 0))
         let edgeMode = GameMode(
-            identifier: .freeCustom,
+            identifier: .dungeonFloor,
             displayName: "端テスト",
             regulation: edgeRegulation,
             leaderboardEligible: false
@@ -853,11 +853,11 @@ final class GameViewIntegrationTests: XCTestCase {
         let gameCenter = GameCenterServiceSpy()
         let adsService = AdsServiceSpy()
 
-        let core = GameCore(mode: .standard)
+        let core = GameCore(mode: .dungeonPlaceholder)
         let interfaces = GameModuleInterfaces { _ in core }
 
         let viewModel = GameViewModel(
-            mode: .standard,
+            mode: .dungeonPlaceholder,
             gameInterfaces: interfaces,
             gameCenterService: gameCenter,
             adsService: adsService,
@@ -915,9 +915,9 @@ final class GameViewIntegrationTests: XCTestCase {
     #if canImport(SpriteKit)
     /// SpriteKit シーンのサイズ同期と GameCore の紐付けが正しく行われるかを確認する
     func testSceneSizeSyncOnAppear() {
-        let interfaces = GameModuleInterfaces { _ in GameCore(mode: .standard) }
+        let interfaces = GameModuleInterfaces { _ in GameCore(mode: .dungeonPlaceholder) }
         let viewModel = GameViewModel(
-            mode: .standard,
+            mode: .dungeonPlaceholder,
             gameInterfaces: interfaces,
             gameCenterService: GameCenterServiceSpy(),
             adsService: AdsServiceSpy(),

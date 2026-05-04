@@ -18,13 +18,6 @@ extension RootView {
         )
     }
 
-    func handleReturnToCampaignStageSelectionRequest() {
-        titleFlowCoordinator.handleReturnToCampaignStageSelectionRequest(
-            stateStore: stateStore,
-            preparationCoordinator: preparationCoordinator
-        )
-    }
-
     func cancelPendingGameActivationWorkItem() {
         preparationCoordinator.cancelPendingGameActivationWorkItem(stateStore: stateStore)
     }

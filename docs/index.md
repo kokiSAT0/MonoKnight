@@ -16,7 +16,7 @@
 | 知りたいこと | 正本 |
 | --- | --- |
 | プロダクト要件、正式リリース範囲、非スコープ | [`product-spec.md`](product-spec.md) |
-| 盤面、カード、目的地、フォーカス、スコアなどの詳細ルール | [`game-rules-handbook.md`](game-rules-handbook.md) |
+| 盤面、カード、塔フロア、報酬、敵、床ギミックなどの詳細ルール | [`game-rules-handbook.md`](game-rules-handbook.md) |
 | Swift Package 境界、UI / Game / Services の責務 | [`architecture.md`](architecture.md) |
 | Codex の作業手順、変更粒度、検証、コミット方針 | [`dev-workflow.md`](dev-workflow.md) |
 | Game Center / AdMob / IAP / ATT / UMP | [`integrations.md`](integrations.md) |
@@ -25,7 +25,7 @@
 
 ## 3. 補助ドキュメント
 
-- キャンペーン規定: [`campaign-stage-regulations.md`](campaign-stage-regulations.md)
+- 塔ダンジョン規定: [`campaign-stage-regulations.md`](campaign-stage-regulations.md)
 - 塔ダンジョン開発方針: [`dungeon-development-roadmap.md`](dungeon-development-roadmap.md)
 - GameMode パラメータ: [`game-mode-parameters.md`](game-mode-parameters.md)
 - カード重み調整: [`card-weight-adjustment-guide.md`](card-weight-adjustment-guide.md)
@@ -48,6 +48,6 @@
 - 通常ユーザー向けのメインコンテンツは塔ダンジョンのみとする。
 - タイトルの通常プレイ導線は `DungeonDefinition` / `DungeonLibrary` を使う塔選択へ集約する。
 - 塔ダンジョンは出口到達でフロアクリアし、HP 0 または残り手数 0 で失敗する。
-- スタンダード、ハイスコア、デイリーチャレンジ、Target Lab、クラシカル、旧目的地制キャンペーンは開発凍結コンテンツとして扱う。
-- 凍結対象は保存データ互換と既存テストを壊さない範囲で保持し、通常導線から外したあと段階的に削除する。
+- スタンダード、ハイスコア、デイリーチャレンジ、Target Lab、クラシカル、旧目的地制キャンペーンは通常導線と実コードから削除済みの旧コンテンツとして扱う。
+- 削除済み旧コンテンツの保存データ移行や互換 UI は現行スコープに含めない。
 - 当面は成長塔を本編として育て、20Fから50F以上へ伸ばせるように、10F区切り、周回成長、報酬選択の手触りを優先して固める。

@@ -93,8 +93,6 @@ struct GameCoreBindingCoordinator {
         if progress == .failed {
             applyClearOutcome(
                 GameFlowCoordinator.ClearOutcome(
-                    latestCampaignClearRecord: nil,
-                    nextCampaignStage: nil,
                     shouldShowResult: true
                 )
             )
@@ -136,7 +134,7 @@ struct GameSessionResetCoordinator {
         resetPauseController()
     }
 
-    func prepareForCampaignStageAdvance(
+    func prepareForDungeonAdvance(
         cancelPenaltyBannerDisplay: () -> Void,
         hideResult: () -> Void,
         resetTransientUI: () -> Void,
@@ -226,39 +224,20 @@ struct GameSessionServicesCoordinator {
         setAuthenticationStatus(newValue)
     }
 
-    func makeCampaignPauseSummary(
-        mode: GameMode,
-        campaignLibrary: CampaignLibrary,
-        campaignProgressStore: CampaignProgressStore
-    ) -> CampaignPauseSummary? {
-        guard let metadata = mode.campaignMetadataSnapshot else {
-            return nil
-        }
-        let stageID = metadata.stageID
-        guard let stage = campaignLibrary.stage(with: stageID) else {
-            debugLog("GameViewModel: キャンペーンステージ定義が見つかりません stageID=\(stageID.displayCode)")
-            return nil
-        }
-        let progress = campaignProgressStore.progress(for: stage.id)
-        return CampaignPauseSummary(stage: stage, progress: progress)
-    }
-
     func resolveClearOutcome(
         mode: GameMode,
         core: GameCore,
         isGameCenterAuthenticated: Bool,
         flowCoordinator: GameFlowCoordinator,
         gameCenterService: GameCenterServiceProtocol,
-        onRequestGameCenterSignIn: ((GameCenterSignInPromptReason) -> Void)?,
-        campaignProgressStore: CampaignProgressStore
+        onRequestGameCenterSignIn: ((GameCenterSignInPromptReason) -> Void)?
     ) -> GameFlowCoordinator.ClearOutcome {
         flowCoordinator.handleClearedProgress(
             mode: mode,
             core: core,
             isGameCenterAuthenticated: isGameCenterAuthenticated,
             gameCenterService: gameCenterService,
-            onRequestGameCenterSignIn: onRequestGameCenterSignIn,
-            campaignProgressStore: campaignProgressStore
+            onRequestGameCenterSignIn: onRequestGameCenterSignIn
         )
     }
 
@@ -266,14 +245,6 @@ struct GameSessionServicesCoordinator {
         adsService.resetPlayFlag()
     }
 
-    func handleCampaignStageAdvance(
-        to stage: CampaignStage,
-        campaignProgressStore: CampaignProgressStore,
-        onRequestStartCampaignStage: ((CampaignStage) -> Void)?
-    ) {
-        guard campaignProgressStore.isStageUnlocked(stage) else { return }
-        onRequestStartCampaignStage?(stage)
-    }
 }
 
 final class GamePauseController {
@@ -283,7 +254,7 @@ final class GamePauseController {
     private(set) var isTimerPausedForPreparationOverlay = false
 
     func supportsTimerPausing(for mode: GameMode) -> Bool {
-        !mode.isLeaderboardEligible && (mode.campaignMetadataSnapshot != nil || mode.usesDungeonExit)
+        !mode.isLeaderboardEligible && mode.usesDungeonExit
     }
 
     func reset() {
@@ -401,20 +372,15 @@ final class GamePauseController {
 @MainActor
 final class GameFlowCoordinator {
     struct ClearOutcome {
-        let latestCampaignClearRecord: CampaignStageClearRecord?
-        let nextCampaignStage: CampaignStage?
         let shouldShowResult: Bool
     }
-
-    private let campaignLibrary = CampaignLibrary.shared
 
     func handleClearedProgress(
         mode: GameMode,
         core: GameCore,
         isGameCenterAuthenticated: Bool,
         gameCenterService: GameCenterServiceProtocol,
-        onRequestGameCenterSignIn: ((GameCenterSignInPromptReason) -> Void)?,
-        campaignProgressStore: CampaignProgressStore
+        onRequestGameCenterSignIn: ((GameCenterSignInPromptReason) -> Void)?
     ) -> ClearOutcome {
         if mode.isLeaderboardEligible {
             if isGameCenterAuthenticated {
@@ -425,34 +391,6 @@ final class GameFlowCoordinator {
             }
         }
 
-        guard let metadata = mode.campaignMetadataSnapshot,
-              let stage = campaignLibrary.stage(with: metadata.stageID) else {
-            return ClearOutcome(
-                latestCampaignClearRecord: nil,
-                nextCampaignStage: nil,
-                shouldShowResult: true
-            )
-        }
-
-        let metrics = CampaignStageClearMetrics(
-            moveCount: core.moveCount,
-            penaltyCount: core.penaltyCount,
-            focusCount: core.focusCount,
-            elapsedSeconds: core.elapsedSeconds,
-            totalMoveCount: core.totalMoveCount,
-            score: core.campaignScore,
-            hasRevisitedTile: core.hasRevisitedTile,
-            capturedTargetCount: core.capturedTargetCount
-        )
-
-        let record = campaignProgressStore.registerClear(for: stage, metrics: metrics)
-        let nextCampaignStage = campaignLibrary.nextStage(after: stage.id)
-            .flatMap { campaignProgressStore.isStageUnlocked($0) ? $0 : nil }
-
-        return ClearOutcome(
-            latestCampaignClearRecord: record,
-            nextCampaignStage: nextCampaignStage,
-            shouldShowResult: true
-        )
+        return ClearOutcome(shouldShowResult: true)
     }
 }

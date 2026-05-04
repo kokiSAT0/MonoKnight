@@ -4,32 +4,26 @@ import SharedSupport
 
 /// タイトル画面での開始導線がどこから来たかを表す文脈
 enum GamePreparationContext: Equatable {
-    case campaignStageSelection
-    case campaignContinuation
-    case highScoreSelection
-    case dailyChallenge
+    case dungeonSelection
+    case dungeonContinuation
     case other
 
     var logIdentifier: String {
         switch self {
-        case .campaignStageSelection:
-            return "campaign_stage_selection"
-        case .campaignContinuation:
-            return "campaign_continuation"
-        case .highScoreSelection:
-            return "high_score_selection"
-        case .dailyChallenge:
-            return "daily_challenge"
+        case .dungeonSelection:
+            return "dungeon_selection"
+        case .dungeonContinuation:
+            return "dungeon_continuation"
         case .other:
             return "other"
         }
     }
 
-    var isCampaignDerived: Bool {
+    var isDungeonDerived: Bool {
         switch self {
-        case .campaignStageSelection, .campaignContinuation:
+        case .dungeonSelection, .dungeonContinuation:
             return true
-        case .highScoreSelection, .dailyChallenge, .other:
+        case .other:
             return false
         }
     }
@@ -37,82 +31,52 @@ enum GamePreparationContext: Equatable {
 
 /// タイトル画面での NavigationStack 先を外部から指示するためのターゲット
 enum TitleNavigationTarget: String, Hashable, Codable {
-    case campaign
-    case highScore
-    case dailyChallenge
+    case dungeon
 }
 
 // MARK: - タイトル画面（リニューアル）
 struct TitleScreenView: View {
-    @ObservedObject var campaignProgressStore: CampaignProgressStore
     @ObservedObject var dungeonGrowthStore: DungeonGrowthStore
-    @ObservedObject var dailyChallengeAttemptStore: AnyDailyChallengeAttemptStore
     @Binding private var pendingNavigationTarget: TitleNavigationTarget?
-    let dailyChallengeDefinitionService: DailyChallengeDefinitionProviding
-    let adsService: AdsServiceProtocol
-    let gameCenterService: GameCenterServiceProtocol
     let onStart: (GameMode, GamePreparationContext) -> Void
     let onOpenSettings: () -> Void
 
     private var theme = AppTheme()
-    private let campaignLibrary = CampaignLibrary.shared
     private let dungeonLibrary = DungeonLibrary.shared
     @State private var isPresentingHowToPlay: Bool = false
     @State private var navigationPath: [TitleNavigationTarget] = []
-    @State private var highlightedCampaignStageID: CampaignStageID?
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @EnvironmentObject private var gameSettingsStore: GameSettingsStore
     private let instanceIdentifier = UUID()
 
     /// ゲーム開始要求がどこから届いたかを判定するための文脈列挙
     private enum StartTriggerContext: String {
-        case campaignStageSelection = "campaign_stage_selection"
-        case highScoreSelection = "high_score_selection"
-        case dailyChallenge = "daily_challenge"
+        case dungeonSelection = "dungeon_selection"
 
         var logDescription: String {
             switch self {
-            case .campaignStageSelection:
-                return "キャンペーン一覧から開始"
-            case .highScoreSelection:
-                return "ハイスコア選択から開始"
-            case .dailyChallenge:
-                return "デイリーチャレンジ詳細から開始"
+            case .dungeonSelection:
+                return "塔選択から開始"
             }
         }
 
         var preparationContext: GamePreparationContext {
             switch self {
-            case .campaignStageSelection:
-                return .campaignStageSelection
-            case .highScoreSelection:
-                return .highScoreSelection
-            case .dailyChallenge:
-                return .dailyChallenge
+            case .dungeonSelection:
+                return .dungeonSelection
             }
         }
     }
 
-    init(campaignProgressStore: CampaignProgressStore,
-         dungeonGrowthStore: DungeonGrowthStore,
-         dailyChallengeAttemptStore: AnyDailyChallengeAttemptStore,
-         dailyChallengeDefinitionService: DailyChallengeDefinitionProviding,
-         adsService: AdsServiceProtocol,
-         gameCenterService: GameCenterServiceProtocol,
+    init(dungeonGrowthStore: DungeonGrowthStore,
          pendingNavigationTarget: Binding<TitleNavigationTarget?>,
          onStart: @escaping (GameMode, GamePreparationContext) -> Void,
         onOpenSettings: @escaping () -> Void) {
-        self._campaignProgressStore = ObservedObject(wrappedValue: campaignProgressStore)
         self._dungeonGrowthStore = ObservedObject(wrappedValue: dungeonGrowthStore)
-        self._dailyChallengeAttemptStore = ObservedObject(wrappedValue: dailyChallengeAttemptStore)
         self._pendingNavigationTarget = pendingNavigationTarget
-        self.dailyChallengeDefinitionService = dailyChallengeDefinitionService
-        self.adsService = adsService
-        self.gameCenterService = gameCenterService
         self.onStart = onStart
         self.onOpenSettings = onOpenSettings
         _isPresentingHowToPlay = State(initialValue: false)
-        dailyChallengeAttemptStore.refreshForCurrentDate()
         debugLog("TitleScreenView.init開始: instance=\(instanceIdentifier.uuidString) navigationPathCount=\(_navigationPath.wrappedValue.count)")
     }
 
@@ -135,9 +99,6 @@ struct TitleScreenView: View {
         }
         .onChange(of: isPresentingHowToPlay) { _, newValue in
             debugLog("TitleScreenView.isPresentingHowToPlay 更新: \(newValue)")
-        }
-        .onAppear {
-            dailyChallengeAttemptStore.refreshForCurrentDate()
         }
         .onChange(of: navigationPath) { oldValue, newValue in
             let stackDescription = newValue
@@ -246,12 +207,12 @@ struct TitleScreenView: View {
 
             LazyVGrid(columns: featureTileColumns, alignment: .leading, spacing: 14) {
                 featureTile(
-                    target: .campaign,
+                    target: .dungeon,
                     title: "塔ダンジョン",
                     systemImage: "figure.stairs",
-                    headline: campaignTileHeadline,
-                    detail: campaignTileDetail,
-                    accessibilityID: "title_tile_campaign",
+                    headline: dungeonTileHeadline,
+                    detail: dungeonTileDetail,
+                    accessibilityID: "title_tile_dungeon",
                     accessibilityHint: "塔ダンジョンの塔選択を表示します"
                 )
             }
@@ -317,12 +278,12 @@ struct TitleScreenView: View {
 
     private func navigationDestinationView(for target: TitleNavigationTarget) -> some View {
         switch target {
-        case .campaign:
+        case .dungeon:
             let stackDescription = navigationPath
                 .map { $0.rawValue }
                 .joined(separator: ",")
             let _ = debugLog(
-                "TitleScreenView: NavigationDestination.campaign 構築開始 -> instance=\(instanceIdentifier.uuidString) targetType=\(String(describing: type(of: target))) stackCount=\(navigationPath.count) stack=[\(stackDescription)]"
+                "TitleScreenView: NavigationDestination.dungeon 構築開始 -> instance=\(instanceIdentifier.uuidString) targetType=\(String(describing: type(of: target))) stackCount=\(navigationPath.count) stack=[\(stackDescription)]"
             )
             return AnyView(
                 DungeonSelectionView(
@@ -345,7 +306,7 @@ struct TitleScreenView: View {
                                 for: dungeon
                             )
                         ) else { return }
-                        let context: StartTriggerContext = .campaignStageSelection
+                        let context: StartTriggerContext = .dungeonSelection
                         debugLog(
                             "TitleScreenView: ダンジョン開始後 -> dungeon=\(dungeon.id) NavigationStack をリセットして即時開始を登録 context=\(context.rawValue)"
                         )
@@ -356,56 +317,10 @@ struct TitleScreenView: View {
                     }
                 )
                 .onAppear {
-                    debugLog("TitleScreenView: NavigationDestination.campaign 表示 -> 現在のスタック数=\(navigationPath.count)")
+                    debugLog("TitleScreenView: NavigationDestination.dungeon 表示 -> 現在のスタック数=\(navigationPath.count)")
                 }
                 .onDisappear {
-                    debugLog("TitleScreenView: NavigationDestination.campaign 非表示 -> 現在のスタック数=\(navigationPath.count)")
-                }
-            )
-        case .highScore:
-            return AnyView(
-                HighScoreChallengeSelectionView(
-                    onSelect: { mode in
-                        startHighScoreMode(mode)
-                    },
-                    onClose: { popNavigationStack() },
-                    bestScoreDescription: bestPointsDescription
-                )
-                .onAppear {
-                    debugLog("TitleScreenView: NavigationDestination.highScore 表示 -> 現在のスタック数=\(navigationPath.count)")
-                }
-                .onDisappear {
-                    debugLog("TitleScreenView: NavigationDestination.highScore 非表示 -> 現在のスタック数=\(navigationPath.count)")
-                }
-            )
-        case .dailyChallenge:
-            let viewModel = DailyChallengeViewModel(
-                attemptStore: dailyChallengeAttemptStore,
-                definitionService: dailyChallengeDefinitionService,
-                adsService: adsService,
-                gameCenterService: gameCenterService
-            )
-            return AnyView(
-                DailyChallengeView(
-                    viewModel: viewModel,
-                    onDismiss: {
-                        popNavigationStack()
-                    },
-                    onStart: { mode in
-                        let context: StartTriggerContext = .dailyChallenge
-                        debugLog("TitleScreenView: デイリーチャレンジ開始要求 -> mode=\(mode.identifier.rawValue) context=\(context.rawValue)")
-                        resetNavigationStack()
-                        DispatchQueue.main.async {
-                            triggerImmediateStart(for: mode, context: context)
-                        }
-                    }
-                )
-                .onAppear {
-                    dailyChallengeAttemptStore.refreshForCurrentDate()
-                    debugLog("TitleScreenView: NavigationDestination.dailyChallenge 表示 -> 現在のスタック数=\(navigationPath.count)")
-                }
-                .onDisappear {
-                    debugLog("TitleScreenView: NavigationDestination.dailyChallenge 非表示 -> 現在のスタック数=\(navigationPath.count)")
+                    debugLog("TitleScreenView: NavigationDestination.dungeon 非表示 -> 現在のスタック数=\(navigationPath.count)")
                 }
             )
         }
@@ -446,18 +361,12 @@ struct TitleScreenView: View {
 
     private func handleTileTapLogging(for target: TitleNavigationTarget) {
         switch target {
-        case .campaign:
-            logCampaignTileTap()
-        case .highScore:
-            debugLog("TitleScreenView: ハイスコアカードをタップ -> 詳細ページへ遷移要求")
-            logNavigationDepth(prefix: "TitleScreenView: NavigationStack 遷移直前状態")
-        case .dailyChallenge:
-            debugLog("TitleScreenView: デイリーチャレンジカードをタップ -> 詳細ページへ遷移要求")
-            logNavigationDepth(prefix: "TitleScreenView: NavigationStack 遷移直前状態")
+        case .dungeon:
+            logDungeonTileTap()
         }
     }
 
-    private func logCampaignTileTap() {
+    private func logDungeonTileTap() {
         let dungeonCount = dungeonLibrary.dungeons.count
         let floorCount = dungeonLibrary.allFloors.count
         debugLog("TitleScreenView: 塔ダンジョンカードタップ -> 塔数=\(dungeonCount) フロア数=\(floorCount)")
@@ -467,23 +376,6 @@ struct TitleScreenView: View {
     private func logNavigationDepth(prefix: String) {
         let currentDepth = navigationPath.count
         debugLog("\(prefix) -> 現在のスタック数=\(currentDepth)")
-    }
-
-    private func handleCampaignStageSelection(_ stage: CampaignStage) {
-        debugLog("TitleScreenView: キャンペーンステージを選択 -> \(stage.id.displayCode)")
-        highlightedCampaignStageID = stage.id
-        debugLog("TitleScreenView: キャンペーンステージ選択完了 -> 即時開始スケジュールを待機")
-    }
-
-    private func startHighScoreMode(_ mode: GameMode) {
-        let context: StartTriggerContext = .highScoreSelection
-        debugLog(
-            "TitleScreenView: ハイスコアチャレンジ開始要求 -> \(mode.identifier.rawValue) context=\(context.rawValue)"
-        )
-        resetNavigationStack()
-        DispatchQueue.main.async {
-            triggerImmediateStart(for: mode, context: context)
-        }
     }
 
     private func featureIconTile(systemName: String) -> some View {
@@ -531,68 +423,14 @@ struct TitleScreenView: View {
 }
 
 private extension TitleScreenView {
-    var highlightedCampaignStage: CampaignStage? {
-        highlightedCampaignStageID.flatMap { campaignLibrary.stage(with: $0) }
-    }
-
-    var totalCampaignStageCount: Int {
-        campaignLibrary.allStages.count
-    }
-
-    var unlockedCampaignStageCount: Int {
-        campaignLibrary.allStages.filter { campaignProgressStore.isStageUnlocked($0) }.count
-    }
-
-    var campaignTileHeadline: String {
+    var dungeonTileHeadline: String {
         let primaryDungeon = dungeonLibrary.dungeons.first
         let floorCount = primaryDungeon?.floors.count ?? dungeonLibrary.allFloors.count
         return "\(primaryDungeon?.title ?? "塔") \(floorCount)フロア・出口到達"
     }
 
-    var campaignTileDetail: String {
+    var dungeonTileDetail: String {
         "敵の警戒範囲や床ギミックを読みながら、HPを引き継いで登ります"
-    }
-
-    var highScoreTileHeadline: String {
-        if gameSettingsStore.bestPoints == .max {
-            return "ベストスコア: 記録なし"
-        } else {
-            return "ベストスコア: \(gameSettingsStore.bestPoints) pt"
-        }
-    }
-
-    var highScoreTileDetail: String {
-        "スタンダードで手数・タイム・フォーカスを詰めましょう"
-    }
-
-    var dailyChallengeTileHeadline: String {
-        let bundle = dailyChallengeBundle
-        let fixedRemaining = dailyChallengeAttemptStore.remainingAttempts(for: .fixed)
-        let randomRemaining = dailyChallengeAttemptStore.remainingAttempts(for: .random)
-        let modeNames = bundle.orderedInfos.map { $0.mode.displayName }.joined(separator: " / ")
-        return "\(modeNames) ・ 固定 残り \(fixedRemaining) 回 / ランダム 残り \(randomRemaining) 回"
-    }
-
-    var dailyChallengeTileDetail: String {
-        let bundle = dailyChallengeBundle
-        let fixedGranted = dailyChallengeAttemptStore.rewardedAttemptsGranted(for: .fixed)
-        let randomGranted = dailyChallengeAttemptStore.rewardedAttemptsGranted(for: .random)
-        let maximumRewarded = dailyChallengeAttemptStore.maximumRewardedAttempts
-        let fixedSummary = bundle.fixed.regulationPrimaryText
-        let randomSummary = bundle.random.regulationPrimaryText
-        return "固定: \(fixedSummary) / ランダム: \(randomSummary) ・ 広告追加 固定 \(fixedGranted)/\(maximumRewarded) ・ ランダム \(randomGranted)/\(maximumRewarded)"
-    }
-
-    var dailyChallengeBundle: DailyChallengeDefinitionService.ChallengeBundle {
-        dailyChallengeDefinitionService.challengeBundle(for: Date())
-    }
-
-    var bestPointsDescription: String {
-        if gameSettingsStore.bestPoints == .max {
-            return "記録はまだありません"
-        } else {
-            return "現在のベスト: \(gameSettingsStore.bestPoints) pt（少ないほど上位）"
-        }
     }
 
     var contentMaxWidth: CGFloat? {

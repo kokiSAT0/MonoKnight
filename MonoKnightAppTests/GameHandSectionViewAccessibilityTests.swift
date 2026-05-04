@@ -11,7 +11,7 @@ final class GameHandSectionViewAccessibilityTests: XCTestCase {
 
     /// 複数候補カードの手札ヒントに方向選択の案内が含まれることを確認する
     func testHandSlotHintAnnouncesMultipleDirectionChoice() {
-        let core = GameCore(mode: .standard)
+        let core = GameCore(mode: .dungeonPlaceholder)
         guard let stack = core.handStacks.first, let topCard = stack.topCard else {
             XCTFail("初期手札の取得に失敗しました")
             return
@@ -26,13 +26,12 @@ final class GameHandSectionViewAccessibilityTests: XCTestCase {
 
         let interfaces = GameModuleInterfaces { _ in core }
         let viewModel = GameViewModel(
-            mode: .standard,
+            mode: .dungeonPlaceholder,
             gameInterfaces: interfaces,
             gameCenterService: NoopGameCenterService(),
             adsService: NoopAdsService(),
             onRequestGameCenterSignIn: nil,
-            onRequestReturnToTitle: nil,
-            onRequestStartCampaignStage: nil
+            onRequestReturnToTitle: nil
         )
 
         // テスト中は不要なハプティクスやアニメーション効果を抑制しておく
@@ -82,8 +81,7 @@ final class GameHandSectionViewAccessibilityTests: XCTestCase {
             gameCenterService: NoopGameCenterService(),
             adsService: NoopAdsService(),
             onRequestGameCenterSignIn: nil,
-            onRequestReturnToTitle: nil,
-            onRequestStartCampaignStage: nil
+            onRequestReturnToTitle: nil
         )
 
         XCTAssertTrue(viewModel.displayedHandStacks.contains { $0.representativeMove == .straightRight2 })

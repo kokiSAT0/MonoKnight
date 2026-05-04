@@ -75,8 +75,8 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
     func testGuideHighlightsRestoreAfterSpawnSelection() {
         // スポーンを任意選択するモードで GameCore を初期化し、進行状態が awaitingSpawn で始まる状況を用意する
         let deck = Deck.makeTestDeck(cards: [.kingUp], configuration: .kingOnly)
-        let core = GameCore.makeTestInstance(deck: deck, current: nil, mode: .classicalChallenge)
-        let viewModel = GameBoardBridgeViewModel(core: core, mode: .classicalChallenge)
+        let core = GameCore.makeTestInstance(deck: deck, current: nil, mode: .dungeonPlaceholder)
+        let viewModel = GameBoardBridgeViewModel(core: core, mode: .dungeonPlaceholder)
 
         XCTAssertEqual(core.progress, GameProgress.awaitingSpawn, "スポーン選択待機状態で開始できていません")
 
@@ -112,8 +112,8 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
 
     /// スポーン待機中でも目的地制の目的地マーカーが Scene へ送られることを検証する
     func testTargetHighlightsRemainVisibleWhileAwaitingSpawnSelection() {
-        let core = GameCore(mode: .targetLab)
-        let viewModel = GameBoardBridgeViewModel(core: core, mode: .targetLab)
+        let core = GameCore(mode: .dungeonPlaceholder)
+        let viewModel = GameBoardBridgeViewModel(core: core, mode: .dungeonPlaceholder)
 
         XCTAssertEqual(core.progress, GameProgress.awaitingSpawn)
         XCTAssertEqual(core.activeTargetPoints.count, 3, "スポーン選択前でも目的地が生成される想定です")
@@ -202,8 +202,8 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
 
     /// 目的地制では、通過で取れる目的地を移動先候補の枠として強調しないことを検証する
     func testRefreshGuideHighlightsDoesNotFramePassThroughTargetCapture() {
-        let core = GameCore(mode: .standard)
-        let viewModel = GameBoardBridgeViewModel(core: core, mode: .standard)
+        let core = GameCore(mode: .dungeonPlaceholder)
+        let viewModel = GameBoardBridgeViewModel(core: core, mode: .dungeonPlaceholder)
         let origin = GridPoint(x: 2, y: 2)
         let target = GridPoint(x: 4, y: 2)
 
@@ -252,8 +252,8 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
     }
 
     func testRefreshGuideHighlightsKeepsUpcomingTargetMarkerWithoutCaptureFrame() {
-        let core = GameCore(mode: .standard)
-        let viewModel = GameBoardBridgeViewModel(core: core, mode: .standard)
+        let core = GameCore(mode: .dungeonPlaceholder)
+        let viewModel = GameBoardBridgeViewModel(core: core, mode: .dungeonPlaceholder)
         let origin = GridPoint(x: 2, y: 2)
         let currentTarget = GridPoint(x: 4, y: 4)
         let upcomingTarget = GridPoint(x: 3, y: 2)
@@ -289,8 +289,8 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
         ], for: .kingRight)
         defer { MoveCard.setTestMovementVectors(nil, for: .kingRight) }
 
-        let core = GameCore(mode: .standard)
-        let viewModel = GameBoardBridgeViewModel(core: core, mode: .standard)
+        let core = GameCore(mode: .dungeonPlaceholder)
+        let viewModel = GameBoardBridgeViewModel(core: core, mode: .dungeonPlaceholder)
         let origin = GridPoint(x: 2, y: 2)
         let target = GridPoint(x: 4, y: 2)
 
@@ -365,7 +365,7 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
             impassableTilePoints: [impassablePoint]
         )
         let mode = GameMode(
-            identifier: .freeCustom,
+            identifier: .dungeonFloor,
             displayName: "ハイライト障害物テスト",
             regulation: regulation,
             leaderboardEligible: false
@@ -522,12 +522,38 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
         let core = GameCore(mode: mode)
         let viewModel = GameBoardBridgeViewModel(core: core, mode: mode)
 
-        let expectedPreviews = core.enemyRotatingWatcherDirectionPreviews.map(ScenePatrolMovementPreview.init)
-        XCTAssertFalse(expectedPreviews.isEmpty, "成長塔7Fには回転見張りの次方向プレビューが必要です")
+        let rotatingWatcherPreviews = core.enemyRotatingWatcherDirectionPreviews.map(ScenePatrolMovementPreview.init)
+        let expectedPreviews = (
+            core.enemyPatrolMovementPreviews.map(ScenePatrolMovementPreview.init)
+            + core.enemyChaserMovementPreviews.map(ScenePatrolMovementPreview.init)
+            + rotatingWatcherPreviews
+        )
+        XCTAssertFalse(rotatingWatcherPreviews.isEmpty, "成長塔7Fには回転見張りの次方向プレビューが必要です")
         XCTAssertEqual(
             viewModel.scene.latestPatrolMovementPreviewsForTesting(),
             expectedPreviews,
             "回転見張りの次方向を Scene の軽量矢印へ渡す必要があります"
+        )
+    }
+
+    func testDungeonChaserMovementPreviewsArePassedToScene() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let floor = tower.floors[6]
+        let mode = floor.makeGameMode(dungeonID: tower.id)
+        let core = GameCore(mode: mode)
+        let viewModel = GameBoardBridgeViewModel(core: core, mode: mode)
+
+        let chaserPreviews = core.enemyChaserMovementPreviews.map(ScenePatrolMovementPreview.init)
+        let expectedPreviews = (
+            core.enemyPatrolMovementPreviews.map(ScenePatrolMovementPreview.init)
+            + chaserPreviews
+            + core.enemyRotatingWatcherDirectionPreviews.map(ScenePatrolMovementPreview.init)
+        )
+        XCTAssertFalse(chaserPreviews.isEmpty, "成長塔7Fには追跡兵の次移動プレビューが必要です")
+        XCTAssertEqual(
+            viewModel.scene.latestPatrolMovementPreviewsForTesting(),
+            expectedPreviews,
+            "追跡兵の次移動先を Scene の軽量矢印へ渡す必要があります"
         )
     }
 
@@ -614,7 +640,7 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
 
     /// テストで使い回す ViewModel を生成するヘルパー
     private func makeViewModel() -> GameBoardBridgeViewModel {
-        let core = GameCore(mode: .standard)
-        return GameBoardBridgeViewModel(core: core, mode: .standard)
+        let core = GameCore(mode: .dungeonPlaceholder)
+        return GameBoardBridgeViewModel(core: core, mode: .dungeonPlaceholder)
     }
 }

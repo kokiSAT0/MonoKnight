@@ -17,7 +17,7 @@ struct HowToPlayView: View {
     /// - Note: タイトル画面からシートで開く場合のみ true を渡す
     let showsCloseButton: Bool
     /// 説明に用いる基準モード（スタンダード）を保持し、手札スロット数などを文字列に反映する
-    private let referenceMode: GameMode = .standard
+    private let referenceMode: GameMode = .dungeonPlaceholder
     /// 画面を閉じるための環境変数
     @Environment(\.dismiss) private var dismiss
     /// iPad などレギュラー幅の端末でレイアウトを最適化するためのサイズクラス

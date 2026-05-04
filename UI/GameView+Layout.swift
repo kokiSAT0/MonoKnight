@@ -155,24 +155,6 @@ extension GameView {
 
         return VStack {
             VStack(spacing: stackSpacing) {
-                if let tutorialCard = viewModel.campaignTutorialCard {
-                    HStack {
-                        Spacer(minLength: 0)
-                        CampaignTutorialBannerView(
-                            card: tutorialCard,
-                            theme: theme,
-                            onDismiss: {
-                                withAnimation(.easeOut(duration: 0.2)) {
-                                    viewModel.dismissCampaignTutorial()
-                                }
-                            }
-                        )
-                            .padding(Edge.Set.horizontal, 20)
-                            .transition(.move(edge: .top).combined(with: .opacity))
-                        Spacer(minLength: 0)
-                    }
-                }
-
                 if let banner = viewModel.activePenaltyBanner {
                     HStack {
                         Spacer(minLength: 0)

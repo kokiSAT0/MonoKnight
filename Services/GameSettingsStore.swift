@@ -36,14 +36,6 @@ final class GameSettingsStore: ObservableObject {
         }
     }
 
-    /// ベストポイント
-    @Published private(set) var bestPoints: Int {
-        didSet {
-            guard oldValue != bestPoints else { return }
-            userDefaults.set(bestPoints, forKey: StorageKey.AppStorage.bestPoints5x5)
-        }
-    }
-
     /// 手札並び順設定
     @Published var handOrderingStrategy: HandOrderingStrategy {
         didSet {
@@ -63,8 +55,6 @@ final class GameSettingsStore: ObservableObject {
             userDefaults.object(forKey: StorageKey.AppStorage.hapticsEnabled) as? Bool ?? true
         self.guideModeEnabled =
             userDefaults.object(forKey: StorageKey.AppStorage.guideModeEnabled) as? Bool ?? true
-        self.bestPoints =
-            userDefaults.object(forKey: StorageKey.AppStorage.bestPoints5x5) as? Int ?? .max
         self.handOrderingStrategy =
             HandOrderingStrategy(
                 rawValue: userDefaults.string(forKey: HandOrderingStrategy.storageKey)
@@ -72,20 +62,4 @@ final class GameSettingsStore: ObservableObject {
             ) ?? .insertionOrder
     }
 
-    /// ベストポイントを必要な場合のみ更新する
-    /// - Parameter points: 今回のプレイ結果
-    /// - Returns: 更新前のベスト値。未記録の場合は `nil`
-    @discardableResult
-    func updateBestPointsIfNeeded(_ points: Int) -> Int? {
-        let previous = bestPoints == .max ? nil : bestPoints
-        if points < bestPoints {
-            bestPoints = points
-        }
-        return previous
-    }
-
-    /// ベストポイントを未記録状態へ戻す
-    func resetBestPoints() {
-        bestPoints = .max
-    }
 }

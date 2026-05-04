@@ -8,12 +8,9 @@ struct SettingsView: View {
 
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var storeService: AnyStoreService
-    @EnvironmentObject var campaignProgressStore: CampaignProgressStore
-    @EnvironmentObject var dailyChallengeAttemptStore: AnyDailyChallengeAttemptStore
     @EnvironmentObject private var gameSettingsStore: GameSettingsStore
 
     @State var presentationState = SettingsPresentationState()
-    @State var debugUnlockState = SettingsDebugUnlockState()
     @Binding var isGameCenterAuthenticated: Bool
 
     init(
@@ -50,27 +47,9 @@ struct SettingsView: View {
                     onRestartConsentFlow: restartConsentFlow
                 )
                 SettingsHelpSection()
-                SettingsStatsSection(onResetBestPoints: presentResetAlert)
-                SettingsDebugSection(
-                    debugUnlockInput: $debugUnlockState.debugUnlockInput,
-                    isDebugOverrideActive: isDebugOverrideActive,
-                    isCampaignDebugUnlockEnabled: campaignProgressStore.isDebugUnlockEnabled,
-                    isDailyChallengeDebugUnlimitedEnabled: dailyChallengeAttemptStore
-                        .isDebugUnlimitedEnabled,
-                    onDebugUnlockInputChange: handleDebugUnlockInputChange(_:),
-                    onDisableDebugUnlock: disableDebugOverrides
-                )
                 if isDiagnosticsMenuAvailable {
                     SettingsDiagnosticsSection()
                 }
-            }
-            .alert("ベスト記録をリセット", isPresented: $presentationState.isResetAlertPresented) {
-                Button("リセットする", role: .destructive) {
-                    gameSettingsStore.resetBestPoints()
-                }
-                Button("キャンセル", role: .cancel) { }
-            } message: {
-                Text("現在保存されているベストポイントを初期状態に戻します。この操作は取り消せません。")
             }
             .navigationTitle("設定")
             .toolbar {
@@ -89,11 +68,6 @@ struct SettingsView: View {
             .preferredColorScheme(
                 gameSettingsStore.preferredColorScheme.preferredColorScheme
             )
-        }
-        .alert("全ステージを解放しました", isPresented: $presentationState.isDebugUnlockSuccessAlertPresented) {
-            Button("OK", role: .cancel) { }
-        } message: {
-            Text("キャンペーンモードの検証用として全てのステージが解放された状態になりました。")
         }
         .alert(item: $presentationState.gameCenterAlert) { alert in
             Alert(

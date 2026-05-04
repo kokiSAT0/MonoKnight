@@ -101,39 +101,10 @@ extension GameViewModel {
         onRequestReturnToTitle?()
     }
 
-    func handleCampaignStageAdvance(to stage: CampaignStage) {
-        sessionResetCoordinator.prepareForCampaignStageAdvance(
-            cancelPenaltyBannerDisplay: { [self] in cancelPenaltyBannerDisplay() },
-            hideResult: { [self] in
-                applyResultPresentationMutation { state in
-                    state.hideResult()
-                }
-            },
-            resetTransientUI: { [self] in
-                applySessionUIMutation { state in
-                    state.resetTransientUIForTitleReturn()
-                }
-                clearTargetCaptureFeedback()
-            },
-            clearBoardTapSelectionWarning: { [self] in
-                clearBoardTapSelectionWarning()
-            },
-            resetAdsPlayFlag: { [self] in
-                sessionServicesCoordinator.resetAdsPlayFlag(using: adsService)
-            }
-        )
-
-        sessionServicesCoordinator.handleCampaignStageAdvance(
-            to: stage,
-            campaignProgressStore: campaignProgressStore,
-            onRequestStartCampaignStage: onRequestStartCampaignStage
-        )
-    }
-
     func prepareForDungeonFloorAdvance() {
         dungeonFallAdvanceTask?.cancel()
         dungeonFallAdvanceTask = nil
-        sessionResetCoordinator.prepareForCampaignStageAdvance(
+        sessionResetCoordinator.prepareForDungeonAdvance(
             cancelPenaltyBannerDisplay: { [self] in cancelPenaltyBannerDisplay() },
             hideResult: { [self] in
                 applyResultPresentationMutation { state in
