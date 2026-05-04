@@ -543,6 +543,11 @@ public final class GameCore: ObservableObject {
             board.markVisited(stepPoint)
             finalPosition = stepPoint
 
+            updateDungeonExitLockIfNeeded(at: stepPoint)
+            if shouldStopDungeonMovementAtExit(at: stepPoint) {
+                break
+            }
+
             if let effect = board.effect(at: stepPoint) {
                 detectedEffects.append(.init(point: stepPoint, effect: effect))
                 switch effect {
@@ -554,6 +559,7 @@ public final class GameCore: ObservableObject {
                         board.markVisited(destination)
                         finalPosition = destination
                         actualTraversedPath.append(destination)
+                        updateDungeonExitLockIfNeeded(at: destination)
                         // ワープを適用したら残りの経路処理を終了する
                         stepIndex = pathPoints.count
                     } else {
@@ -583,6 +589,11 @@ public final class GameCore: ObservableObject {
 
                         board.markVisited(boostedPoint)
                         finalPosition = boostedPoint
+                        updateDungeonExitLockIfNeeded(at: boostedPoint)
+                        if shouldStopDungeonMovementAtExit(at: boostedPoint) {
+                            stepIndex = pathPoints.count
+                            break
+                        }
 
                         if let boostedEffect = board.effect(at: boostedPoint) {
                             detectedEffects.append(.init(point: boostedPoint, effect: boostedEffect))
@@ -595,6 +606,7 @@ public final class GameCore: ObservableObject {
                                     board.markVisited(destination)
                                     finalPosition = destination
                                     actualTraversedPath.append(destination)
+                                    updateDungeonExitLockIfNeeded(at: destination)
                                     stepIndex = pathPoints.count
                                 } else {
                                     debugLog("ワープ先 \(destination) が盤面外または移動不可のため無視しました")
@@ -764,6 +776,11 @@ public final class GameCore: ObservableObject {
             board.markVisited(stepPoint)
             finalPosition = stepPoint
 
+            updateDungeonExitLockIfNeeded(at: stepPoint)
+            if shouldStopDungeonMovementAtExit(at: stepPoint) {
+                break
+            }
+
             if let effect = board.effect(at: stepPoint) {
                 detectedEffects.append(.init(point: stepPoint, effect: effect))
                 switch effect {
@@ -775,6 +792,7 @@ public final class GameCore: ObservableObject {
                         board.markVisited(destination)
                         finalPosition = destination
                         actualTraversedPath.append(destination)
+                        updateDungeonExitLockIfNeeded(at: destination)
                         stepIndex = pathPoints.count
                     }
                 case .shuffleHand, .nextRefresh, .freeFocus, .preserveCard, .draft, .overload, .targetSwap, .openGate:
@@ -799,6 +817,10 @@ public final class GameCore: ObservableObject {
                         }
                         board.markVisited(boostedPoint)
                         finalPosition = boostedPoint
+                        updateDungeonExitLockIfNeeded(at: boostedPoint)
+                        if shouldStopDungeonMovementAtExit(at: boostedPoint) {
+                            stepIndex = pathPoints.count
+                        }
                     }
                 }
             }
@@ -1600,11 +1622,11 @@ public final class GameCore: ObservableObject {
         return false
     }
 
-    private func updateDungeonExitLockIfNeeded() {
+    private func updateDungeonExitLockIfNeeded(at point: GridPoint? = nil) {
         guard mode.usesDungeonExit,
               !isDungeonExitUnlocked,
               let exitLock = mode.dungeonRules?.exitLock,
-              current == exitLock.unlockPoint
+              (point ?? current) == exitLock.unlockPoint
         else { return }
 
         isDungeonExitUnlocked = true
@@ -1615,6 +1637,14 @@ public final class GameCore: ObservableObject {
             )
         }
         debugLog("ダンジョン出口を解錠: key=\(exitLock.unlockPoint)")
+    }
+
+    private func shouldStopDungeonMovementAtExit(at point: GridPoint) -> Bool {
+        guard mode.usesDungeonExit,
+              isDungeonExitUnlocked,
+              point == mode.dungeonExitPoint
+        else { return false }
+        return true
     }
 
     private func advanceEnemiesForDungeonTurn() {

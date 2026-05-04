@@ -240,6 +240,96 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertEqual(core.progress, .playing)
     }
 
+    func testDirectionalRayStopsAtDungeonExitWhenExitIsTraversed() throws {
+        let exit = GridPoint(x: 2, y: 0)
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: exit,
+            hp: 3,
+            turnLimit: 8
+        )
+        let core = makeCore(mode: mode, cards: [.rayRight, .kingUp, .kingRight, .kingLeft, .kingDown])
+
+        playMove(to: GridPoint(x: 4, y: 0), in: core)
+
+        XCTAssertEqual(core.progress, .cleared)
+        XCTAssertEqual(core.current, exit)
+        XCTAssertEqual(core.lastMovementResolution?.finalPosition, exit)
+        XCTAssertEqual(
+            core.lastMovementResolution?.path,
+            [
+                GridPoint(x: 1, y: 0),
+                exit
+            ]
+        )
+    }
+
+    func testDirectionalRayDoesNotClearWhenLockedExitIsTraversedWithoutKey() throws {
+        let exit = GridPoint(x: 2, y: 0)
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: exit,
+            hp: 3,
+            turnLimit: 8,
+            exitLock: DungeonExitLock(unlockPoint: GridPoint(x: 4, y: 4))
+        )
+        let core = makeCore(mode: mode, cards: [.rayRight, .kingUp, .kingRight, .kingLeft, .kingDown])
+
+        playMove(to: GridPoint(x: 4, y: 0), in: core)
+
+        XCTAssertEqual(core.progress, .playing)
+        XCTAssertFalse(core.isDungeonExitUnlocked)
+        XCTAssertEqual(core.current, GridPoint(x: 4, y: 0))
+        XCTAssertEqual(core.lastMovementResolution?.finalPosition, GridPoint(x: 4, y: 0))
+    }
+
+    func testDirectionalRayUnlocksKeyThenClearsExitInSameMove() throws {
+        let exit = GridPoint(x: 3, y: 0)
+        let unlockPoint = GridPoint(x: 1, y: 0)
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: exit,
+            hp: 3,
+            turnLimit: 8,
+            exitLock: DungeonExitLock(unlockPoint: unlockPoint)
+        )
+        let core = makeCore(mode: mode, cards: [.rayRight, .kingUp, .kingRight, .kingLeft, .kingDown])
+
+        playMove(to: GridPoint(x: 4, y: 0), in: core)
+
+        XCTAssertEqual(core.progress, .cleared)
+        XCTAssertTrue(core.isDungeonExitUnlocked)
+        XCTAssertEqual(core.dungeonExitUnlockEvent?.unlockPoint, unlockPoint)
+        XCTAssertEqual(core.current, exit)
+        XCTAssertEqual(
+            core.lastMovementResolution?.path,
+            [
+                unlockPoint,
+                GridPoint(x: 2, y: 0),
+                exit
+            ]
+        )
+    }
+
+    func testDirectionalRayStopsAtExitBeforeDamageTrapBeyondExit() throws {
+        let exit = GridPoint(x: 2, y: 0)
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: exit,
+            hp: 3,
+            turnLimit: 8,
+            hazards: [.damageTrap(points: [GridPoint(x: 3, y: 0)], damage: 1)]
+        )
+        let core = makeCore(mode: mode, cards: [.rayRight, .kingUp, .kingRight, .kingLeft, .kingDown])
+
+        playMove(to: GridPoint(x: 4, y: 0), in: core)
+
+        XCTAssertEqual(core.progress, .cleared)
+        XCTAssertEqual(core.current, exit)
+        XCTAssertEqual(core.dungeonHP, 3)
+        XCTAssertEqual(core.lastMovementResolution?.path, [GridPoint(x: 1, y: 0), exit])
+    }
+
     func testTutorialTowerProvidesThreePlayableFloors() throws {
         let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
 
@@ -1751,6 +1841,7 @@ final class DungeonModeTests: XCTestCase {
         turnLimit: Int?,
         enemies: [EnemyDefinition] = [],
         hazards: [HazardDefinition] = [],
+        exitLock: DungeonExitLock? = nil,
         allowsBasicOrthogonalMove: Bool = false
     ) -> GameMode {
         GameMode(
@@ -1775,6 +1866,7 @@ final class DungeonModeTests: XCTestCase {
                     failureRule: DungeonFailureRule(initialHP: hp, turnLimit: turnLimit),
                     enemies: enemies,
                     hazards: hazards,
+                    exitLock: exitLock,
                     allowsBasicOrthogonalMove: allowsBasicOrthogonalMove
                 )
             ),
