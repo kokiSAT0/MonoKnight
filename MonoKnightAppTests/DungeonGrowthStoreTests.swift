@@ -71,6 +71,40 @@ final class DungeonGrowthStoreTests: XCTestCase {
         XCTAssertNotEqual(boostedCards, baseCards)
     }
 
+    func testRewardCandidateBoostVariesByExistingRewardShape() throws {
+        let (defaults, suiteName) = try makeIsolatedDefaults()
+        defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+
+        let store = DungeonGrowthStore(userDefaults: defaults)
+        let tutorialTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
+        let patrolTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "patrol-tower"))
+        let keyDoorTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "key-door-tower"))
+        _ = store.registerDungeonClear(dungeon: tutorialTower, hasNextFloor: false)
+        XCTAssertTrue(store.unlock(.rewardCandidateBoost))
+
+        let tutorialFirst = store.rewardMoveCards(
+            for: tutorialTower.floors[0].rewardMoveCardsAfterClear,
+            dungeon: tutorialTower
+        )
+        let tutorialSecond = store.rewardMoveCards(
+            for: tutorialTower.floors[1].rewardMoveCardsAfterClear,
+            dungeon: tutorialTower
+        )
+        let patrolFirst = store.rewardMoveCards(
+            for: patrolTower.floors[0].rewardMoveCardsAfterClear,
+            dungeon: patrolTower
+        )
+        let keyDoorSecond = store.rewardMoveCards(
+            for: keyDoorTower.floors[1].rewardMoveCardsAfterClear,
+            dungeon: keyDoorTower
+        )
+
+        XCTAssertEqual(tutorialFirst, [.straightRight2, .straightUp2, .rayUp])
+        XCTAssertEqual(tutorialSecond, [.rayRight, .straightRight2, .diagonalUpRight2])
+        XCTAssertEqual(patrolFirst, [.straightUp2, .straightRight2, .rayRight])
+        XCTAssertEqual(keyDoorSecond, [.straightUp2, .straightRight2, .rayUp])
+    }
+
     func testInitialHPBoostIsAppliedWhenStartingFirstFloor() throws {
         let (defaults, suiteName) = try makeIsolatedDefaults()
         defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }

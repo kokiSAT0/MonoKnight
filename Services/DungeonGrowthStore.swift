@@ -104,12 +104,7 @@ final class DungeonGrowthStore: ObservableObject {
             return Array(baseCards.prefix(3))
         }
 
-        let boostedCandidate = [
-            MoveCard.rayRight,
-            .diagonalUpRight2,
-            .rayUp,
-            .knightRightwardChoice
-        ].first { !baseCards.contains($0) }
+        let boostedCandidate = boostedRewardCandidate(for: baseCards)
 
         guard let boostedCandidate else {
             return Array(baseCards.prefix(3))
@@ -118,6 +113,21 @@ final class DungeonGrowthStore: ObservableObject {
         var result = Array(baseCards.prefix(2))
         result.append(boostedCandidate)
         return result
+    }
+
+    private func boostedRewardCandidate(for baseCards: [MoveCard]) -> MoveCard? {
+        let candidates: [MoveCard]
+        if baseCards.contains(.rayRight) {
+            candidates = [.diagonalUpRight2, .rayUp, .knightRightwardChoice]
+        } else if baseCards.contains(.diagonalUpRight2) {
+            candidates = [.rayUp, .rayRight, .knightRightwardChoice]
+        } else if baseCards.first == .straightRight2 {
+            candidates = [.rayUp, .rayRight, .diagonalUpRight2, .knightRightwardChoice]
+        } else {
+            candidates = [.rayRight, .diagonalUpRight2, .rayUp, .knightRightwardChoice]
+        }
+
+        return candidates.first { !baseCards.contains($0) }
     }
 
     func hasRewardedDungeon(_ dungeonID: String) -> Bool {
