@@ -295,10 +295,13 @@ final class DungeonModeTests: XCTestCase {
         )
         let core = makeCore(mode: mode, cards: [.rayRight, .kingUp, .kingRight, .kingLeft, .kingDown])
 
+        XCTAssertEqual(core.dungeonKeyPoints, [unlockPoint])
+
         playMove(to: GridPoint(x: 4, y: 0), in: core)
 
         XCTAssertEqual(core.progress, .cleared)
         XCTAssertTrue(core.isDungeonExitUnlocked)
+        XCTAssertTrue(core.dungeonKeyPoints.isEmpty)
         XCTAssertEqual(core.dungeonExitUnlockEvent?.unlockPoint, unlockPoint)
         XCTAssertEqual(core.current, exit)
         XCTAssertEqual(
@@ -554,6 +557,32 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertTrue(hasDamageTrap)
         XCTAssertTrue(hasWarp)
         XCTAssertTrue(hasBrittleFloor)
+    }
+
+    func testGrowthTowerKeysUnlockStairsWithoutOpenGateDoors() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let lockedFloors = tower.floors.filter { $0.exitLock != nil }
+
+        XCTAssertFalse(lockedFloors.isEmpty)
+
+        for floor in lockedFloors {
+            let unlockPoint = try XCTUnwrap(floor.exitLock?.unlockPoint)
+            XCTAssertNil(
+                floor.tileEffectOverrides[unlockPoint],
+                "\(floor.title) の鍵マスは openGate ではなく階段ロックの鍵として扱います"
+            )
+            XCTAssertFalse(
+                floor.tileEffectOverrides.values.contains { effect in
+                    if case .openGate = effect { return true }
+                    return false
+                },
+                "\(floor.title) では序盤の鍵学習用に障害物扉を使いません"
+            )
+
+            let core = makeCore(mode: floor.makeGameMode(dungeonID: tower.id))
+            XCTAssertFalse(core.isDungeonExitUnlocked)
+            XCTAssertEqual(core.dungeonKeyPoints, [unlockPoint])
+        }
     }
 
     func testGrowthTowerFinalFloorRepresentativeRouteCanClearCombinedGimmicks() throws {

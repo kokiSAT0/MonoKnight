@@ -225,6 +225,14 @@ public final class GameCore: ObservableObject {
         else { return [] }
         return floor.cardPickups.filter { !collectedDungeonCardPickupIDs.contains($0.id) }
     }
+    /// 未取得の塔鍵マス。階段が解錠されたら盤面表示から消える。
+    public var dungeonKeyPoints: Set<GridPoint> {
+        guard mode.usesDungeonExit,
+              !isDungeonExitUnlocked,
+              let unlockPoint = mode.dungeonRules?.exitLock?.unlockPoint
+        else { return [] }
+        return [unlockPoint]
+    }
     /// 塔専用の拾得/報酬インベントリを使うかどうか
     var usesDungeonInventoryCards: Bool {
         mode.dungeonRules?.cardAcquisitionMode == .inventoryOnly

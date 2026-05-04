@@ -240,6 +240,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
             .upcomingTarget: Set(core.upcomingTargetPoints),
             .dungeonExit: core.isDungeonExitUnlocked ? (mode.dungeonExitPoint.map { Set([$0]) } ?? []) : [],
             .dungeonExitLocked: core.isDungeonExitUnlocked ? [] : (mode.dungeonExitPoint.map { Set([$0]) } ?? []),
+            .dungeonKey: core.dungeonKeyPoints,
             .dungeonEnemy: Set(core.enemyStates.map(\.position)),
             .dungeonDanger: core.enemyDangerPoints,
             .dungeonCardPickup: Set(core.activeDungeonCardPickups.map(\.point)),

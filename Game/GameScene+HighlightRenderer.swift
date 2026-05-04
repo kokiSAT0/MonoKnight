@@ -18,6 +18,7 @@
         private var latestUpcomingTargetPoints: Set<GridPoint> = []
         private var latestDungeonExitPoints: Set<GridPoint> = []
         private var latestDungeonExitLockedPoints: Set<GridPoint> = []
+        private var latestDungeonKeyPoints: Set<GridPoint> = []
         private var latestDungeonEnemyPoints: Set<GridPoint> = []
         private var latestDungeonDangerPoints: Set<GridPoint> = []
         private var latestDungeonCardPickupPoints: Set<GridPoint> = []
@@ -59,6 +60,7 @@
             latestUpcomingTargetPoints = []
             latestDungeonExitPoints = []
             latestDungeonExitLockedPoints = []
+            latestDungeonKeyPoints = []
             latestDungeonEnemyPoints = []
             latestDungeonDangerPoints = []
             latestDungeonCardPickupPoints = []
@@ -208,6 +210,7 @@
                     .upcomingTarget: latestUpcomingTargetPoints,
                     .dungeonExit: latestDungeonExitPoints,
                     .dungeonExitLocked: latestDungeonExitLockedPoints,
+                    .dungeonKey: latestDungeonKeyPoints,
                     .dungeonEnemy: latestDungeonEnemyPoints,
                     .dungeonDanger: latestDungeonDangerPoints,
                     .dungeonCardPickup: latestDungeonCardPickupPoints,
@@ -268,6 +271,7 @@
             latestUpcomingTargetPoints = highlights[.upcomingTarget] ?? []
             latestDungeonExitPoints = highlights[.dungeonExit] ?? []
             latestDungeonExitLockedPoints = highlights[.dungeonExitLocked] ?? []
+            latestDungeonKeyPoints = highlights[.dungeonKey] ?? []
             latestDungeonEnemyPoints = highlights[.dungeonEnemy] ?? []
             latestDungeonDangerPoints = highlights[.dungeonDanger] ?? []
             latestDungeonCardPickupPoints = highlights[.dungeonCardPickup] ?? []
@@ -522,6 +526,12 @@
                 strokeWidth = max(layout.tileSize * 0.06, 2.2)
                 fillColor = baseColor.withAlphaComponent(0.28)
                 zPosition = 1.18
+            case .dungeonKey:
+                baseColor = SKColor(red: 0.96, green: 0.73, blue: 0.18, alpha: 1.0)
+                strokeAlpha = 0
+                strokeWidth = 0
+                fillColor = baseColor.withAlphaComponent(0.88)
+                zPosition = 1.16
             case .dungeonEnemy:
                 baseColor = SKColor(red: 0.86, green: 0.18, blue: 0.16, alpha: 1.0)
                 strokeAlpha = 0.95
@@ -582,6 +592,7 @@
                 || kind == .upcomingTarget
                 || kind == .dungeonExit
                 || kind == .dungeonExitLocked
+                || kind == .dungeonKey
                 || kind == .dungeonEnemy
                 || kind == .dungeonCardPickup
                 || kind == .dungeonDamageTrap
@@ -607,6 +618,11 @@
                 )
             case .dungeonExitLocked:
                 return lockedStaircaseMarkerPath(
+                    center: CGPoint(x: rect.midX, y: rect.midY),
+                    tileSize: tileSize
+                )
+            case .dungeonKey:
+                return dungeonKeyMarkerPath(
                     center: CGPoint(x: rect.midX, y: rect.midY),
                     tileSize: tileSize
                 )
@@ -697,6 +713,49 @@
                 startAngle: .pi,
                 endAngle: 0,
                 clockwise: false
+            )
+            return path
+        }
+
+        private func dungeonKeyMarkerPath(center: CGPoint, tileSize: CGFloat) -> CGPath {
+            let path = CGMutablePath()
+            let bowRadius = tileSize * 0.12
+            let bowCenter = CGPoint(x: center.x - tileSize * 0.13, y: center.y + tileSize * 0.04)
+            path.addEllipse(
+                in: CGRect(
+                    x: bowCenter.x - bowRadius,
+                    y: bowCenter.y - bowRadius,
+                    width: bowRadius * 2,
+                    height: bowRadius * 2
+                )
+            )
+
+            let shaftHeight = max(tileSize * 0.075, 2.0)
+            let shaftRect = CGRect(
+                x: bowCenter.x + bowRadius * 0.65,
+                y: bowCenter.y - shaftHeight / 2,
+                width: tileSize * 0.34,
+                height: shaftHeight
+            )
+            path.addRect(shaftRect)
+
+            let toothWidth = tileSize * 0.075
+            let toothHeight = tileSize * 0.14
+            path.addRect(
+                CGRect(
+                    x: shaftRect.maxX - toothWidth,
+                    y: shaftRect.minY - toothHeight * 0.75,
+                    width: toothWidth,
+                    height: toothHeight
+                )
+            )
+            path.addRect(
+                CGRect(
+                    x: shaftRect.maxX - toothWidth * 2.0,
+                    y: shaftRect.minY - toothHeight * 0.45,
+                    width: toothWidth,
+                    height: toothHeight * 0.7
+                )
             )
             return path
         }

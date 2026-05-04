@@ -19,6 +19,7 @@
         case upcomingTarget
         case dungeonExit
         case dungeonExitLocked
+        case dungeonKey
         case dungeonEnemy
         case dungeonDanger
         case dungeonCardPickup

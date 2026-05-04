@@ -743,16 +743,19 @@ public struct DungeonLibrary {
         let trapFloors = buildTrapTower().floors
         let floors = [
             patrolFloors[0],
-            keyDoorFloors[0],
+            stairKeyOnlyGrowthFloor(keyDoorFloors[0]),
             trapFloors[0],
             warpFloors[0],
             patrolFloors[1],
             warpFloors[1],
-            keyDoorFloors[2].withRewardMoveCardsAfterClear([
-                .diagonalUpRight2,
-                .rayRight,
-                .straightUp2
-            ]),
+            stairKeyOnlyGrowthFloor(
+                keyDoorFloors[2],
+                rewardMoveCardsAfterClear: [
+                    .diagonalUpRight2,
+                    .rayRight,
+                    .straightUp2
+                ]
+            ),
             trapFloors[2].withRewardMoveCardsAfterClear([
                 .straightRight2,
                 .fixedWarp,
@@ -778,6 +781,39 @@ public struct DungeonLibrary {
             summary: "巡回、鍵、罠、ワープを階ごとに重ね、周回成長で攻略方針を広げる標準塔。",
             difficulty: .growth,
             floors: floors
+        )
+    }
+
+    private static func stairKeyOnlyGrowthFloor(
+        _ floor: DungeonFloorDefinition,
+        rewardMoveCardsAfterClear: [MoveCard]? = nil
+    ) -> DungeonFloorDefinition {
+        var openGateTargets: Set<GridPoint> = []
+        let retainedEffects = floor.tileEffectOverrides.filter { _, effect in
+            if case .openGate(let target) = effect {
+                openGateTargets.insert(target)
+                return false
+            }
+            return true
+        }
+
+        return DungeonFloorDefinition(
+            id: floor.id,
+            title: floor.title,
+            boardSize: floor.boardSize,
+            spawnPoint: floor.spawnPoint,
+            exitPoint: floor.exitPoint,
+            deckPreset: floor.deckPreset,
+            failureRule: floor.failureRule,
+            enemies: floor.enemies,
+            hazards: floor.hazards,
+            impassableTilePoints: floor.impassableTilePoints.subtracting(openGateTargets),
+            tileEffectOverrides: retainedEffects,
+            warpTilePairs: floor.warpTilePairs,
+            fixedWarpCardTargets: floor.fixedWarpCardTargets,
+            exitLock: floor.exitLock,
+            cardPickups: floor.cardPickups,
+            rewardMoveCardsAfterClear: rewardMoveCardsAfterClear ?? floor.rewardMoveCardsAfterClear
         )
     }
 
@@ -823,12 +859,6 @@ public struct DungeonLibrary {
                     GridPoint(x: 3, y: 3),
                     GridPoint(x: 3, y: 4)
                 ])
-            ],
-            impassableTilePoints: [
-                GridPoint(x: 4, y: 6)
-            ],
-            tileEffectOverrides: [
-                GridPoint(x: 2, y: 1): .openGate(target: GridPoint(x: 4, y: 6))
             ],
             warpTilePairs: [
                 "growth-9-risk": [
@@ -981,8 +1011,6 @@ public struct DungeonLibrary {
                     GridPoint(x: 5, y: 4)
                 ], damage: 1)
             ],
-            impassableTilePoints: [GridPoint(x: 5, y: 7)],
-            tileEffectOverrides: [GridPoint(x: 2, y: 2): .openGate(target: GridPoint(x: 5, y: 7))],
             exitLock: DungeonExitLock(unlockPoint: GridPoint(x: 2, y: 2)),
             cardPickups: [
                 DungeonCardPickupDefinition(id: "growth-12-key-up2", point: GridPoint(x: 2, y: 2), card: .straightUp2),
@@ -1076,8 +1104,6 @@ public struct DungeonLibrary {
             hazards: [
                 .damageTrap(points: [GridPoint(x: 2, y: 1), GridPoint(x: 5, y: 5), GridPoint(x: 7, y: 6)], damage: 1)
             ],
-            impassableTilePoints: [GridPoint(x: 4, y: 7)],
-            tileEffectOverrides: [GridPoint(x: 2, y: 1): .openGate(target: GridPoint(x: 4, y: 7))],
             warpTilePairs: ["growth-15-warp": [GridPoint(x: 1, y: 2), GridPoint(x: 6, y: 6)]],
             fixedWarpCardTargets: [.fixedWarp: [GridPoint(x: 6, y: 6)]],
             exitLock: DungeonExitLock(unlockPoint: GridPoint(x: 2, y: 1)),
@@ -1126,8 +1152,6 @@ public struct DungeonLibrary {
                 EnemyDefinition(id: "growth-17-patrol", name: "巡回兵", position: GridPoint(x: 5, y: 2), behavior: .patrol(path: [GridPoint(x: 5, y: 2), GridPoint(x: 5, y: 3), GridPoint(x: 6, y: 3), GridPoint(x: 6, y: 2)]))
             ],
             hazards: [.brittleFloor(points: [GridPoint(x: 3, y: 1), GridPoint(x: 3, y: 2), GridPoint(x: 3, y: 3)])],
-            impassableTilePoints: [GridPoint(x: 6, y: 8)],
-            tileEffectOverrides: [GridPoint(x: 1, y: 5): .openGate(target: GridPoint(x: 6, y: 8))],
             fixedWarpCardTargets: [.fixedWarp: [GridPoint(x: 7, y: 7)]],
             exitLock: DungeonExitLock(unlockPoint: GridPoint(x: 1, y: 5)),
             cardPickups: [
@@ -1206,8 +1230,6 @@ public struct DungeonLibrary {
                 .damageTrap(points: [GridPoint(x: 2, y: 1), GridPoint(x: 3, y: 3), GridPoint(x: 6, y: 6)], damage: 1),
                 .brittleFloor(points: [GridPoint(x: 2, y: 4), GridPoint(x: 3, y: 4), GridPoint(x: 4, y: 4)])
             ],
-            impassableTilePoints: [GridPoint(x: 5, y: 8)],
-            tileEffectOverrides: [GridPoint(x: 2, y: 1): .openGate(target: GridPoint(x: 5, y: 8))],
             warpTilePairs: ["growth-20-risk": [GridPoint(x: 1, y: 2), GridPoint(x: 6, y: 6)]],
             fixedWarpCardTargets: [.fixedWarp: [GridPoint(x: 8, y: 6), GridPoint(x: 6, y: 6)]],
             exitLock: DungeonExitLock(unlockPoint: GridPoint(x: 2, y: 1)),

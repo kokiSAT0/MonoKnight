@@ -428,6 +428,19 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
             "見えているダメージ罠を専用ハイライトとして Scene へ渡します"
         )
 
+        let growthTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let lockedFloor = try XCTUnwrap(growthTower.floors.first { $0.exitLock != nil })
+        let lockedMode = lockedFloor.makeGameMode(dungeonID: growthTower.id)
+        let lockedCore = GameCore(mode: lockedMode)
+        let lockedViewModel = GameBoardBridgeViewModel(core: lockedCore, mode: lockedMode)
+        let unlockPoint = try XCTUnwrap(lockedFloor.exitLock?.unlockPoint)
+
+        XCTAssertEqual(
+            lockedViewModel.scene.latestHighlightPoints(for: .dungeonKey),
+            [unlockPoint],
+            "未取得の塔鍵を専用ハイライトとして Scene へ渡します"
+        )
+
         core.overrideDungeonFloorStateForTesting(
             cracked: [GridPoint(x: 1, y: 2)],
             collapsed: [GridPoint(x: 2, y: 2)]
@@ -442,6 +455,36 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
             viewModel.scene.latestHighlightPoints(for: .dungeonCollapsedFloor),
             [GridPoint(x: 2, y: 2)]
         )
+    }
+
+    func testDungeonKeyHighlightDisappearsAfterUnlock() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let floor = try XCTUnwrap(tower.floors.first { $0.id == "growth-9" })
+        let unlockPoint = try XCTUnwrap(floor.exitLock?.unlockPoint)
+        let mode = floor.makeGameMode(dungeonID: tower.id)
+        let core = GameCore(mode: mode)
+        let viewModel = GameBoardBridgeViewModel(core: core, mode: mode)
+
+        XCTAssertEqual(viewModel.scene.latestHighlightPoints(for: .dungeonKey), [unlockPoint])
+        XCTAssertEqual(viewModel.scene.latestHighlightPoints(for: .dungeonExitLocked), [floor.exitPoint])
+
+        for destination in [
+            GridPoint(x: 0, y: 1),
+            GridPoint(x: 1, y: 1),
+            unlockPoint
+        ] {
+            guard let move = core.availableBasicOrthogonalMoves().first(where: { $0.destination == destination }) else {
+                XCTFail("基本移動候補が見つかりません: \(destination)")
+                return
+            }
+            core.playBasicOrthogonalMove(using: move)
+        }
+        viewModel.refreshGuideHighlights()
+
+        XCTAssertTrue(core.isDungeonExitUnlocked)
+        XCTAssertTrue(viewModel.scene.latestHighlightPoints(for: .dungeonKey).isEmpty)
+        XCTAssertEqual(viewModel.scene.latestHighlightPoints(for: .dungeonExit), [floor.exitPoint])
+        XCTAssertTrue(viewModel.scene.latestHighlightPoints(for: .dungeonExitLocked).isEmpty)
     }
 
     func testDungeonPatrolMovementPreviewsArePassedToScene() throws {

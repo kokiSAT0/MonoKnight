@@ -201,6 +201,7 @@ final class GameSceneAccessibilityTests: XCTestCase {
         let cardMovePoint = GridPoint(x: 1, y: 2)
         let cardPickupPoint = GridPoint(x: 2, y: 1)
         let damageTrapPoint = GridPoint(x: 2, y: 2)
+        let keyPoint = GridPoint(x: 3, y: 2)
         let crackedFloorPoint = GridPoint(x: 3, y: 1)
         let collapsedFloorPoint = GridPoint(x: 4, y: 1)
         let (scene, view, _) = makeScene()
@@ -211,6 +212,7 @@ final class GameSceneAccessibilityTests: XCTestCase {
             .dungeonBasicMove: [basicMovePoint],
             .dungeonCardPickup: [cardPickupPoint],
             .dungeonDamageTrap: [damageTrapPoint],
+            .dungeonKey: [keyPoint],
             .dungeonCrackedFloor: [crackedFloorPoint],
             .dungeonCollapsedFloor: [collapsedFloorPoint],
         ])
@@ -250,6 +252,13 @@ final class GameSceneAccessibilityTests: XCTestCase {
             XCTFail("ダメージ罠のマーカーノードを取得できません")
             return
         }
+        guard let keyStyle = scene.highlightStyleForTesting(
+            kind: .dungeonKey,
+            at: keyPoint
+        ) else {
+            XCTFail("鍵のマーカーノードを取得できません")
+            return
+        }
         guard let collapsedFloorStyle = scene.highlightStyleForTesting(
             kind: .dungeonCollapsedFloor,
             at: collapsedFloorPoint
@@ -278,6 +287,8 @@ final class GameSceneAccessibilityTests: XCTestCase {
         XCTAssertFalse(cardPickupStyle.fillColor.isEqual(SKColor.clear), "床落ちカードは枠なしでも視認できる塗りを持ちます")
         XCTAssertEqual(damageTrapStyle.lineWidth, 0, "ダメージ罠は移動可能枠ではないためタイル枠を持ちません")
         XCTAssertFalse(damageTrapStyle.fillColor.isEqual(SKColor.clear), "ダメージ罠は踏む前に見える塗りを持ちます")
+        XCTAssertEqual(keyStyle.lineWidth, 0, "塔鍵は移動可能枠ではなく、枠なしの小マーカーで示します")
+        XCTAssertFalse(keyStyle.fillColor.isEqual(SKColor.clear), "塔鍵は取得前に見える塗りを持ちます")
         XCTAssertEqual(crackedFloorStyle.lineWidth, 0, "ひび割れ床は移動可能枠ではないためタイル枠を持ちません")
         XCTAssertEqual(collapsedFloorStyle.lineWidth, 0, "崩落床は移動可能枠ではないためタイル枠を持ちません")
     }
