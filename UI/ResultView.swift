@@ -35,6 +35,8 @@ struct ResultView: View {
     let dungeonRewardMoveCards: [MoveCard]
     /// リザルト時点で残っている塔所持カード
     let dungeonInventoryEntries: [DungeonInventoryEntry]
+    /// 塔クリアで得た永続成長ポイント
+    let dungeonGrowthAward: DungeonGrowthAward?
 
     /// クリアまでに要した秒数
     let elapsedSeconds: Int
@@ -97,6 +99,7 @@ struct ResultView: View {
         nextDungeonFloorTitle: String? = nil,
         dungeonRewardMoveCards: [MoveCard] = [],
         dungeonInventoryEntries: [DungeonInventoryEntry] = [],
+        dungeonGrowthAward: DungeonGrowthAward? = nil,
         elapsedSeconds: Int,
         modeIdentifier: GameMode.Identifier,
         modeDisplayName: String,
@@ -128,6 +131,7 @@ struct ResultView: View {
             nextDungeonFloorTitle: nextDungeonFloorTitle,
             dungeonRewardMoveCards: dungeonRewardMoveCards,
             dungeonInventoryEntries: dungeonInventoryEntries,
+            dungeonGrowthAward: dungeonGrowthAward,
             elapsedSeconds: elapsedSeconds,
             modeIdentifier: modeIdentifier,
             modeDisplayName: modeDisplayName,
@@ -161,6 +165,7 @@ struct ResultView: View {
         nextDungeonFloorTitle: String? = nil,
         dungeonRewardMoveCards: [MoveCard] = [],
         dungeonInventoryEntries: [DungeonInventoryEntry] = [],
+        dungeonGrowthAward: DungeonGrowthAward? = nil,
         elapsedSeconds: Int,
         modeIdentifier: GameMode.Identifier,
         modeDisplayName: String,
@@ -201,6 +206,7 @@ struct ResultView: View {
         self.nextDungeonFloorTitle = nextDungeonFloorTitle
         self.dungeonRewardMoveCards = dungeonRewardMoveCards
         self.dungeonInventoryEntries = dungeonInventoryEntries
+        self.dungeonGrowthAward = dungeonGrowthAward
         self.elapsedSeconds = elapsedSeconds
         self.modeIdentifier = modeIdentifier
         self.modeDisplayName = modeDisplayName
@@ -222,6 +228,10 @@ struct ResultView: View {
         ScrollView {
             VStack(spacing: 24) {
                 ResultSummarySection(presentation: summaryPresentation)
+
+                if let dungeonGrowthAward {
+                    DungeonGrowthAwardSection(award: dungeonGrowthAward)
+                }
 
                 if let record = campaignClearRecord {
                     CampaignRewardSummarySection(
@@ -294,6 +304,7 @@ struct ResultView: View {
             dungeonRunTotalMoveCount: dungeonRunTotalMoveCount,
             dungeonRewardMoveCards: dungeonRewardMoveCards,
             dungeonInventoryEntries: dungeonInventoryEntries,
+            dungeonGrowthAward: dungeonGrowthAward,
             hasNextDungeonFloor: nextDungeonFloorTitle != nil,
             elapsedSeconds: elapsedSeconds,
             bestPoints: gameSettingsStore.bestPoints,

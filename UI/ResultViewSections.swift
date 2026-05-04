@@ -213,6 +213,39 @@ struct ResultDetailsSection: View {
     }
 }
 
+struct DungeonGrowthAwardSection: View {
+    let award: DungeonGrowthAward
+    private var theme = AppTheme()
+
+    init(award: DungeonGrowthAward) {
+        self.award = award
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("成長ポイント +\(award.points)", systemImage: "sparkles")
+                .font(.headline)
+                .foregroundColor(theme.textPrimary)
+
+            Text("塔選択の成長から、初期HPや報酬候補を強化できます。")
+                .font(.subheadline)
+                .foregroundColor(theme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(theme.backgroundElevated.opacity(0.9))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(theme.statisticBadgeBorder, lineWidth: 1)
+        )
+        .accessibilityIdentifier("dungeon_growth_award_section")
+    }
+}
+
 struct ResultActionSection: View {
     let presentation: ResultSummaryPresentation
     let modeIdentifier: GameMode.Identifier

@@ -93,6 +93,21 @@ final class GameHandSectionViewAccessibilityTests: XCTestCase {
         XCTAssertEqual(firstDisplayedStack.count, 3)
         XCTAssertEqual(viewModel.displayedHandStacks, core.handStacks)
     }
+
+    func testTenHandSlotsUseTwoRowsOfFive() {
+        XCTAssertEqual(GameHandSectionView.handSlotRowRanges(for: 10), [0..<5, 5..<10])
+    }
+
+    func testFiveHandSlotsKeepSingleRow() {
+        XCTAssertEqual(GameHandSectionView.handSlotRowRanges(for: 5), [0..<5])
+    }
+
+    func testTenHandSlotRowsPreserveSlotAccessibilityIdentifiers() {
+        let identifiers = GameHandSectionView.handSlotRowRanges(for: 10)
+            .flatMap { range in range.map(GameHandSectionView.handSlotAccessibilityIdentifier(for:)) }
+
+        XCTAssertEqual(identifiers, (0..<10).map { "hand_slot_\($0)" })
+    }
 }
 
 // MARK: - テスト用ホストビュー

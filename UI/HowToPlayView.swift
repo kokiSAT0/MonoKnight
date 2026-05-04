@@ -562,20 +562,19 @@ private struct TileEffectMarkerView: View {
             }
         case .openGate:
             ZStack {
-                RoundedRectangle(cornerRadius: 2, style: .continuous)
-                    .fill(accent.opacity(0.08))
-                    .overlay(RoundedRectangle(cornerRadius: 2).stroke(accent.opacity(0.9), lineWidth: 1.8))
-                    .frame(width: 22, height: 27)
-                RoundedRectangle(cornerRadius: 2, style: .continuous)
-                    .fill(accent.opacity(0.18))
-                    .overlay(RoundedRectangle(cornerRadius: 2).stroke(accent, lineWidth: 1.6))
-                    .frame(width: 15, height: 24)
-                    .rotationEffect(.degrees(-8))
-                    .offset(x: 5)
                 Circle()
+                    .fill(accent.opacity(0.10))
+                    .overlay(Circle().stroke(accent.opacity(0.95), lineWidth: 2.3))
+                    .frame(width: 18, height: 18)
+                    .offset(x: -8, y: -1)
+                Capsule(style: .continuous)
                     .fill(accent.opacity(0.95))
-                    .frame(width: 4, height: 4)
-                    .offset(x: 8, y: 2)
+                    .frame(width: 22, height: 5)
+                    .offset(x: 7, y: -1)
+                RoundedRectangle(cornerRadius: 1.2, style: .continuous)
+                    .fill(accent.opacity(0.95))
+                    .frame(width: 5, height: 12)
+                    .offset(x: 17, y: 4)
             }
         }
     }

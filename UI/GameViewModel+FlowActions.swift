@@ -168,7 +168,10 @@ extension GameViewModel {
               let dungeon = DungeonLibrary.shared.dungeon(with: metadata.dungeonID)
         else { return nil }
 
-        return DungeonLibrary.shared.firstFloorMode(for: dungeon)
+        return DungeonLibrary.shared.firstFloorMode(
+            for: dungeon,
+            initialHPBonus: dungeonGrowthStore.initialHPBonus(for: dungeon)
+        )
     }
 
     func cancelPenaltyBannerDisplay() {

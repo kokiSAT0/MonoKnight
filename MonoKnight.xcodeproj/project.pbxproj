@@ -100,6 +100,7 @@
 		E79DD1642FFF12340038C598 /* RootView+Shell.swift in Sources */ = {isa = PBXBuildFile; fileRef = E79DD1632FFF12340038C598 /* RootView+Shell.swift */; };
 		E79DD1682FFF4B8A0038C598 /* MonoKnightApp+Bootstrap.swift in Sources */ = {isa = PBXBuildFile; fileRef = E79DD1672FFF4B8A0038C598 /* MonoKnightApp+Bootstrap.swift */; };
 		E79DD16A300AC5800038C598 /* RootViewStateStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = E79DD169300AC5800038C598 /* RootViewStateStore.swift */; };
+		E79DD16C300B01000038C598 /* DungeonGrowthStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = E79DD16B300B01000038C598 /* DungeonGrowthStore.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -223,6 +224,7 @@
 		E79DD1632FFF12340038C598 /* RootView+Shell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RootView+Shell.swift"; sourceTree = "<group>"; };
 		E79DD1672FFF4B8A0038C598 /* MonoKnightApp+Bootstrap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MonoKnightApp+Bootstrap.swift"; sourceTree = "<group>"; };
 		E79DD169300AC5800038C598 /* RootViewStateStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootViewStateStore.swift; sourceTree = "<group>"; };
+		E79DD16B300B01000038C598 /* DungeonGrowthStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DungeonGrowthStore.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -332,6 +334,7 @@
 				726643062E85DAD1003EA325 /* CampaignProgressStore.swift */,
 				72D0C96D2E8FAE7D00C6D0C5 /* DailyChallengeAttemptStore.swift */,
 				72D0C8C12E8E0BFF00C6D0C5 /* DailyChallengeDefinitionService.swift */,
+				E79DD16B300B01000038C598 /* DungeonGrowthStore.swift */,
 				72CF37F92E7162E20093B180 /* ErrorReporter.swift */,
 				726642392E823939003EA325 /* FreeModeRegulationStore.swift */,
 				72CF37FA2E7162E20093B180 /* GameCenterService.swift */,
@@ -686,6 +689,7 @@
 				E79DD1642FFF12340038C598 /* RootView+Shell.swift in Sources */,
 				72CF38142E7162E20093B180 /* RootView.swift in Sources */,
 				E79DD16A300AC5800038C598 /* RootViewStateStore.swift in Sources */,
+				E79DD16C300B01000038C598 /* DungeonGrowthStore.swift in Sources */,
 				E79DD15C2FFD1CBC0038C598 /* RootViewCoordinators.swift in Sources */,
 				7266423C2E82397D003EA325 /* FreeModeRegulationView.swift in Sources */,
 				72CF37F02E71616C0093B180 /* MonoKnightApp.swift in Sources */,

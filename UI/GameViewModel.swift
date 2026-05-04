@@ -18,6 +18,8 @@ final class GameViewModel: ObservableObject {
     let adsService: AdsServiceProtocol
     /// キャンペーン進捗ストア
     let campaignProgressStore: CampaignProgressStore
+    /// 塔ダンジョンの永続成長ストア
+    let dungeonGrowthStore: DungeonGrowthStore
     /// Game Center サインインを再度促す要求を親へ伝えるクロージャ
     let onRequestGameCenterSignIn: ((GameCenterSignInPromptReason) -> Void)?
     /// タイトル復帰時に親へ伝えるためのクロージャ
@@ -63,6 +65,8 @@ final class GameViewModel: ObservableObject {
             resultPresentationState.nextCampaignStage = nextCampaignStage
         }
     }
+    /// 直近の塔クリアで得た成長報酬
+    @Published var latestDungeonGrowthAward: DungeonGrowthAward?
     /// 手詰まりバナーに表示するイベント情報
     @Published var activePenaltyBanner: PenaltyEvent? {
         didSet {
@@ -186,7 +190,8 @@ final class GameViewModel: ObservableObject {
               dungeon.floors.indices.contains(runState.currentFloorIndex),
               dungeon.floors.indices.contains(runState.currentFloorIndex + 1)
         else { return [] }
-        return dungeon.floors[runState.currentFloorIndex].rewardMoveCardsAfterClear
+        let baseCards = dungeon.floors[runState.currentFloorIndex].rewardMoveCardsAfterClear
+        return dungeonGrowthStore.rewardMoveCards(for: baseCards, dungeon: dungeon)
     }
     /// 次のダンジョンフロア名
     var nextDungeonFloorTitle: String? {
@@ -339,6 +344,7 @@ final class GameViewModel: ObservableObject {
         // ビルドエラーが発生する。そこで `@autoclosure` 付きのファクトリを受け取り、
         // メインアクター上で初期化処理を実行するようにする。
         campaignProgressStore: @MainActor @autoclosure () -> CampaignProgressStore = CampaignProgressStore(),
+        dungeonGrowthStore: @MainActor @autoclosure () -> DungeonGrowthStore = DungeonGrowthStore(),
         onRequestGameCenterSignIn: ((GameCenterSignInPromptReason) -> Void)? = nil,
         onRequestReturnToTitle: (() -> Void)?,
         onRequestStartCampaignStage: ((CampaignStage) -> Void)? = nil,
@@ -355,6 +361,7 @@ final class GameViewModel: ObservableObject {
         self.adsService = adsService
         // 上記のファクトリをここで評価し、@MainActor コンテキストから安全にインスタンス化する
         self.campaignProgressStore = campaignProgressStore()
+        self.dungeonGrowthStore = dungeonGrowthStore()
         self.onRequestGameCenterSignIn = onRequestGameCenterSignIn
         self.onRequestReturnToTitle = onRequestReturnToTitle
         self.onRequestStartCampaignStage = onRequestStartCampaignStage

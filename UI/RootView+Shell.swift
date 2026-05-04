@@ -30,6 +30,7 @@ extension RootView {
             adsService: adsService,
             campaignLibrary: campaignLibrary,
             campaignProgressStore: campaignProgressStore,
+            dungeonGrowthStore: dungeonGrowthStore,
             dailyChallengeDefinitionService: dailyChallengeDefinitionService,
             dailyChallengeAttemptStore: dailyChallengeAttemptStore,
             isAuthenticated: stateStore.binding(for: \.isAuthenticated),
@@ -129,6 +130,7 @@ extension RootView {
         let adsService: AdsServiceProtocol
         let campaignLibrary: CampaignLibrary
         @ObservedObject var campaignProgressStore: CampaignProgressStore
+        @ObservedObject var dungeonGrowthStore: DungeonGrowthStore
         let dailyChallengeDefinitionService: DailyChallengeDefinitionProviding
         @ObservedObject var dailyChallengeAttemptStore: AnyDailyChallengeAttemptStore
         @Binding var isAuthenticated: Bool
@@ -219,6 +221,7 @@ extension RootView {
                     gameCenterService: gameCenterService,
                     adsService: adsService,
                     campaignProgressStore: campaignProgressStore,
+                    dungeonGrowthStore: dungeonGrowthStore,
                     isPreparationOverlayVisible: $isPreparingGame,
                     isGameCenterAuthenticated: isAuthenticated,
                     onRequestGameCenterSignIn: onRequestGameCenterSignInPrompt,
@@ -276,6 +279,7 @@ extension RootView {
             if isShowingTitleScreen {
                 TitleScreenView(
                     campaignProgressStore: campaignProgressStore,
+                    dungeonGrowthStore: dungeonGrowthStore,
                     dailyChallengeAttemptStore: dailyChallengeAttemptStore,
                     dailyChallengeDefinitionService: dailyChallengeDefinitionService,
                     adsService: adsService,

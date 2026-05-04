@@ -34,6 +34,8 @@ struct RootView: View {
     @StateObject var preparationCoordinator = RootViewPreparationCoordinator()
     /// キャンペーン進捗を管理するストア
     @StateObject var campaignProgressStore: CampaignProgressStore
+    /// 塔ダンジョンの永続成長を管理するストア
+    @StateObject var dungeonGrowthStore: DungeonGrowthStore
     /// タイトル画面まわりの遷移要求をまとめる coordinator
     let titleFlowCoordinator = RootViewTitleFlowCoordinator()
     /// Game Center の認証要求と再サインイン促しをまとめる補助
@@ -69,6 +71,7 @@ struct RootView: View {
             )
         )
         _campaignProgressStore = StateObject(wrappedValue: CampaignProgressStore())
+        _dungeonGrowthStore = StateObject(wrappedValue: DungeonGrowthStore())
     }
 
     var body: some View {

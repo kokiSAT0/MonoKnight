@@ -120,7 +120,7 @@ extension GameViewModel {
             },
             resolveClearOutcome: { [self] in
                 guard progress == .cleared else { return nil }
-                return sessionServicesCoordinator.resolveClearOutcome(
+                let outcome = sessionServicesCoordinator.resolveClearOutcome(
                     mode: mode,
                     core: core,
                     isGameCenterAuthenticated: isGameCenterAuthenticated,
@@ -129,6 +129,8 @@ extension GameViewModel {
                     onRequestGameCenterSignIn: onRequestGameCenterSignIn,
                     campaignProgressStore: campaignProgressStore
                 )
+                latestDungeonGrowthAward = registerDungeonGrowthAwardIfNeeded()
+                return outcome
             },
             applyClearOutcome: { [self] outcome in
                 applyResultPresentationMutation { state in
@@ -136,6 +138,16 @@ extension GameViewModel {
                 }
             }
         )
+    }
+
+    private func registerDungeonGrowthAwardIfNeeded() -> DungeonGrowthAward? {
+        guard let metadata = mode.dungeonMetadataSnapshot,
+              let runState = metadata.runState,
+              let dungeon = DungeonLibrary.shared.dungeon(with: metadata.dungeonID)
+        else { return nil }
+
+        let hasNextFloor = dungeon.floors.indices.contains(runState.currentFloorIndex + 1)
+        return dungeonGrowthStore.registerDungeonClear(dungeon: dungeon, hasNextFloor: hasNextFloor)
     }
 
     func startCampaignTutorialIfNeeded() {

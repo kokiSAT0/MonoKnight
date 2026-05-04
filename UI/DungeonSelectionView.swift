@@ -5,6 +5,7 @@ import SwiftUI
 /// 旧キャンペーン一覧は互換 UI として残し、タイトルのキャンペーン導線だけをこちらへ向ける。
 struct DungeonSelectionView: View {
     let dungeonLibrary: DungeonLibrary
+    @ObservedObject var dungeonGrowthStore: DungeonGrowthStore
     let onClose: () -> Void
     let onStartDungeon: (DungeonDefinition) -> Void
 
@@ -15,6 +16,7 @@ struct DungeonSelectionView: View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: 22) {
                 header
+                growthSection
 
                 ForEach(dungeonLibrary.dungeons) { dungeon in
                     dungeonSection(dungeon)
@@ -38,6 +40,65 @@ struct DungeonSelectionView: View {
         .accessibilityIdentifier("dungeon_selection_view")
     }
 
+    private var growthSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("成長")
+                    .font(.system(size: 20, weight: .semibold, design: .rounded))
+                    .foregroundColor(theme.textPrimary)
+                Spacer()
+                Text("ポイント \(dungeonGrowthStore.points)")
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundColor(theme.accentPrimary)
+            }
+
+            ForEach(DungeonGrowthUpgrade.allCases) { upgrade in
+                growthUpgradeRow(upgrade)
+            }
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(theme.backgroundElevated.opacity(0.86))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(theme.statisticBadgeBorder, lineWidth: 1)
+        )
+        .accessibilityIdentifier("dungeon_growth_section")
+    }
+
+    private func growthUpgradeRow(_ upgrade: DungeonGrowthUpgrade) -> some View {
+        let isUnlocked = dungeonGrowthStore.isUnlocked(upgrade)
+        let canUnlock = dungeonGrowthStore.points >= upgrade.cost && !isUnlocked
+
+        return HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(upgrade.title)
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .foregroundColor(theme.textPrimary)
+                Text(upgrade.summary)
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .foregroundColor(theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 8)
+
+            Button {
+                _ = dungeonGrowthStore.unlock(upgrade)
+            } label: {
+                Text(isUnlocked ? "取得済" : "\(upgrade.cost)pt")
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .frame(minWidth: 58)
+            }
+            .buttonStyle(.bordered)
+            .disabled(!canUnlock)
+            .accessibilityIdentifier("dungeon_growth_unlock_\(upgrade.rawValue)")
+        }
+        .padding(.vertical, 4)
+    }
+
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("キャンペーン")
@@ -58,17 +119,46 @@ struct DungeonSelectionView: View {
     private func dungeonSection(_ dungeon: DungeonDefinition) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             VStack(alignment: .leading, spacing: 6) {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                let growthStatus = DungeonGrowthRewardStatusPresentation.make(
+                    dungeon: dungeon,
+                    hasRewardedDungeon: dungeonGrowthStore.hasRewardedDungeon(dungeon.id)
+                )
+
+                VStack(alignment: .leading, spacing: 6) {
                     Text(dungeon.title)
                         .font(.system(size: 21, weight: .semibold, design: .rounded))
                         .foregroundColor(theme.textPrimary)
 
-                    Text(difficultyText(dungeon.difficulty))
-                        .font(.system(size: 12, weight: .semibold, design: .rounded))
-                        .foregroundColor(theme.textSecondary)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(Capsule().fill(theme.textSecondary.opacity(0.14)))
+                    HStack(alignment: .center, spacing: 8) {
+                        Text(difficultyText(dungeon.difficulty))
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .foregroundColor(theme.textSecondary)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(Capsule().fill(theme.textSecondary.opacity(0.14)))
+
+                        if let growthStatus {
+                            Text(growthStatus.text)
+                                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                                .foregroundColor(
+                                    growthStatus.isRewarded
+                                        ? theme.textSecondary
+                                        : theme.accentPrimary
+                                )
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 3)
+                                .background(
+                                    Capsule().fill(
+                                        growthStatus.isRewarded
+                                            ? theme.textSecondary.opacity(0.12)
+                                            : theme.accentPrimary.opacity(0.14)
+                                    )
+                                )
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.82)
+                                .accessibilityIdentifier(growthStatus.accessibilityIdentifier)
+                        }
+                    }
                 }
 
                 Text(dungeon.summary)
@@ -187,5 +277,23 @@ struct DungeonSelectionView: View {
 
     private var horizontalPadding: CGFloat {
         horizontalSizeClass == .regular ? 44 : 24
+    }
+}
+
+struct DungeonGrowthRewardStatusPresentation: Equatable {
+    let text: String
+    let accessibilityIdentifier: String
+    let isRewarded: Bool
+
+    static func make(
+        dungeon: DungeonDefinition,
+        hasRewardedDungeon: Bool
+    ) -> DungeonGrowthRewardStatusPresentation? {
+        guard dungeon.difficulty == .growth else { return nil }
+        return DungeonGrowthRewardStatusPresentation(
+            text: hasRewardedDungeon ? "成長ポイント 獲得済" : "成長ポイント 未獲得",
+            accessibilityIdentifier: "dungeon_growth_reward_status_\(dungeon.id)",
+            isRewarded: hasRewardedDungeon
+        )
     }
 }

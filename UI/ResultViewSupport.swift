@@ -17,6 +17,7 @@ struct ResultSummaryPresentation {
     let dungeonRunTotalMoveCount: Int?
     let dungeonRewardMoveCards: [MoveCard]
     let dungeonInventoryEntries: [DungeonInventoryEntry]
+    let dungeonGrowthAward: DungeonGrowthAward?
     let hasNextDungeonFloor: Bool
     let elapsedSeconds: Int
     let bestPoints: Int

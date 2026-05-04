@@ -93,13 +93,14 @@ private extension GameHandSectionView {
         }
     }
 
-    /// 手札スロット一覧。通常の 5 枠は従来通り固定表示し、塔の 10 種類所持だけ横スクロールにする。
+    /// 手札スロット一覧。通常の 5 枠は従来通り固定表示し、塔の 10 種類所持は 5 枚ずつ 2 行に並べる。
     @ViewBuilder
     private var handSlotsSection: some View {
         if handSlotCount > 5 {
-            ScrollView(.horizontal, showsIndicators: false) {
-                handSlotsRow
-                    .padding(.horizontal, 4)
+            VStack(spacing: GameViewLayoutMetrics.handCardSpacing) {
+                ForEach(Self.handSlotRowRanges(for: handSlotCount), id: \.lowerBound) { range in
+                    handSlotsRow(range: range)
+                }
             }
         } else {
             handSlotsRow
@@ -107,8 +108,12 @@ private extension GameHandSectionView {
     }
 
     private var handSlotsRow: some View {
+        handSlotsRow(range: 0..<handSlotCount)
+    }
+
+    private func handSlotsRow(range: Range<Int>) -> some View {
         HStack(spacing: GameViewLayoutMetrics.handCardSpacing) {
-            ForEach(0..<handSlotCount, id: \.self) { index in
+            ForEach(range, id: \.self) { index in
                 handSlotView(for: index)
             }
         }
@@ -260,7 +265,7 @@ private extension GameHandSectionView {
                     .accessibilityHint(Text("このスロットには現在カードがありません"))
             }
         }
-        .accessibilityIdentifier("hand_slot_\(index)")
+        .accessibilityIdentifier(Self.handSlotAccessibilityIdentifier(for: index))
     }
 
     /// 手札が空の際に表示するプレースホルダビュー
@@ -491,6 +496,22 @@ private struct NextCardOverlayView: View {
             }
         }
         .allowsHitTesting(false)
+    }
+}
+
+extension GameHandSectionView {
+    static func handSlotRowRanges(for slotCount: Int) -> [Range<Int>] {
+        guard slotCount > 5 else {
+            return [0..<slotCount]
+        }
+
+        return stride(from: 0, to: slotCount, by: 5).map { start in
+            start..<min(start + 5, slotCount)
+        }
+    }
+
+    static func handSlotAccessibilityIdentifier(for index: Int) -> String {
+        "hand_slot_\(index)"
     }
 }
 

@@ -978,38 +978,38 @@
                     fillNodes: [arrow]
                 )
             case .openGate:
-                let frame = SKShapeNode()
-                frame.name = "tileEffectOpenGateFrame"
-                frame.strokeColor = .clear
-                frame.fillColor = .clear
-                frame.lineWidth = 1
-                frame.isAntialiased = true
-                frame.blendMode = .alpha
+                let bow = SKShapeNode()
+                bow.name = "tileEffectOpenGateKeyBow"
+                bow.strokeColor = .clear
+                bow.fillColor = .clear
+                bow.lineWidth = 1
+                bow.isAntialiased = true
+                bow.blendMode = .alpha
 
-                let door = SKShapeNode()
-                door.name = "tileEffectOpenGateDoor"
-                door.strokeColor = .clear
-                door.fillColor = .clear
-                door.lineWidth = 1
-                door.isAntialiased = true
-                door.blendMode = .alpha
+                let shaft = SKShapeNode()
+                shaft.name = "tileEffectOpenGateKeyShaft"
+                shaft.strokeColor = .clear
+                shaft.fillColor = .clear
+                shaft.lineWidth = 0
+                shaft.isAntialiased = true
+                shaft.blendMode = .alpha
 
-                let keyhole = SKShapeNode()
-                keyhole.name = "tileEffectOpenGateKeyhole"
-                keyhole.strokeColor = .clear
-                keyhole.fillColor = .clear
-                keyhole.lineWidth = 0
-                keyhole.isAntialiased = true
-                keyhole.blendMode = .alpha
+                let tooth = SKShapeNode()
+                tooth.name = "tileEffectOpenGateKeyTooth"
+                tooth.strokeColor = .clear
+                tooth.fillColor = .clear
+                tooth.lineWidth = 0
+                tooth.isAntialiased = true
+                tooth.blendMode = .alpha
 
-                container.addChild(frame)
-                container.addChild(door)
-                container.addChild(keyhole)
+                container.addChild(bow)
+                container.addChild(shaft)
+                container.addChild(tooth)
                 return TileEffectDecorationCache(
                     container: container,
                     effect: effect,
-                    strokeNodes: [frame, door],
-                    fillNodes: [keyhole]
+                    strokeNodes: [bow],
+                    fillNodes: [shaft, tooth]
                 )
             }
         }
@@ -1240,40 +1240,54 @@
                 arrow.position = .zero
                 arrow.zRotation = -.pi / 4
             case .openGate:
-                guard decoration.strokeNodes.count >= 2,
-                      let keyhole = decoration.fillNodes.first
+                guard let bow = decoration.strokeNodes.first,
+                      decoration.fillNodes.count >= 2
                 else { return }
 
-                let frameWidth = layout.tileSize * 0.44
-                let frameHeight = layout.tileSize * 0.52
-                let frameRect = CGRect(
-                    x: -frameWidth / 2,
-                    y: -frameHeight / 2,
-                    width: frameWidth,
-                    height: frameHeight
+                let bowRadius = layout.tileSize * 0.16
+                bow.path = CGPath(
+                    ellipseIn: CGRect(
+                        x: -bowRadius,
+                        y: -bowRadius,
+                        width: bowRadius * 2,
+                        height: bowRadius * 2
+                    ),
+                    transform: nil
                 )
-                let frame = decoration.strokeNodes[0]
-                frame.path = CGPath(roundedRect: frameRect, cornerWidth: layout.tileSize * 0.04, cornerHeight: layout.tileSize * 0.04, transform: nil)
-                frame.lineWidth = max(1.0, layout.tileSize * 0.045)
-                frame.position = .zero
+                bow.lineWidth = max(1.4, layout.tileSize * 0.055)
+                bow.position = CGPoint(x: -layout.tileSize * 0.17, y: layout.tileSize * 0.08)
 
-                let doorWidth = layout.tileSize * 0.28
-                let doorHeight = layout.tileSize * 0.46
-                let doorRect = CGRect(
-                    x: -doorWidth / 2,
-                    y: -doorHeight / 2,
-                    width: doorWidth,
-                    height: doorHeight
+                let shaftWidth = layout.tileSize * 0.36
+                let shaftHeight = layout.tileSize * 0.085
+                let shaft = decoration.fillNodes[0]
+                shaft.path = CGPath(
+                    roundedRect: CGRect(
+                        x: -shaftWidth / 2,
+                        y: -shaftHeight / 2,
+                        width: shaftWidth,
+                        height: shaftHeight
+                    ),
+                    cornerWidth: shaftHeight / 2,
+                    cornerHeight: shaftHeight / 2,
+                    transform: nil
                 )
-                let door = decoration.strokeNodes[1]
-                door.path = CGPath(roundedRect: doorRect, cornerWidth: layout.tileSize * 0.035, cornerHeight: layout.tileSize * 0.035, transform: nil)
-                door.lineWidth = max(1.0, layout.tileSize * 0.04)
-                door.position = CGPoint(x: layout.tileSize * 0.12, y: 0)
-                door.zRotation = -.pi / 12
+                shaft.position = CGPoint(x: layout.tileSize * 0.10, y: layout.tileSize * 0.08)
 
-                keyhole.path = keyholePath(tileSize: layout.tileSize)
-                keyhole.position = CGPoint(x: layout.tileSize * 0.15, y: -layout.tileSize * 0.02)
-                keyhole.zRotation = -.pi / 12
+                let toothWidth = layout.tileSize * 0.10
+                let toothHeight = layout.tileSize * 0.16
+                let tooth = decoration.fillNodes[1]
+                tooth.path = CGPath(
+                    roundedRect: CGRect(
+                        x: -toothWidth / 2,
+                        y: -toothHeight / 2,
+                        width: toothWidth,
+                        height: toothHeight
+                    ),
+                    cornerWidth: layout.tileSize * 0.015,
+                    cornerHeight: layout.tileSize * 0.015,
+                    transform: nil
+                )
+                tooth.position = CGPoint(x: layout.tileSize * 0.27, y: -layout.tileSize * 0.01)
             }
         }
 
@@ -1395,9 +1409,9 @@
                 }
             case .openGate:
                 let accent = palette.boardTileEffectOpenGate
-                for (index, node) in decoration.strokeNodes.enumerated() {
-                    node.strokeColor = accent.withAlphaComponent(index == 0 ? 0.9 : 1.0)
-                    node.fillColor = accent.withAlphaComponent(index == 0 ? 0.08 : 0.18)
+                for node in decoration.strokeNodes {
+                    node.strokeColor = accent.withAlphaComponent(0.95)
+                    node.fillColor = accent.withAlphaComponent(0.10)
                     node.alpha = 1.0
                 }
                 for node in decoration.fillNodes {

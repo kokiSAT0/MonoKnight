@@ -45,6 +45,7 @@ enum TitleNavigationTarget: String, Hashable, Codable {
 // MARK: - タイトル画面（リニューアル）
 struct TitleScreenView: View {
     @ObservedObject var campaignProgressStore: CampaignProgressStore
+    @ObservedObject var dungeonGrowthStore: DungeonGrowthStore
     @ObservedObject var dailyChallengeAttemptStore: AnyDailyChallengeAttemptStore
     @Binding private var pendingNavigationTarget: TitleNavigationTarget?
     let dailyChallengeDefinitionService: DailyChallengeDefinitionProviding
@@ -93,14 +94,16 @@ struct TitleScreenView: View {
     }
 
     init(campaignProgressStore: CampaignProgressStore,
+         dungeonGrowthStore: DungeonGrowthStore,
          dailyChallengeAttemptStore: AnyDailyChallengeAttemptStore,
          dailyChallengeDefinitionService: DailyChallengeDefinitionProviding,
          adsService: AdsServiceProtocol,
          gameCenterService: GameCenterServiceProtocol,
          pendingNavigationTarget: Binding<TitleNavigationTarget?>,
          onStart: @escaping (GameMode, GamePreparationContext) -> Void,
-         onOpenSettings: @escaping () -> Void) {
+        onOpenSettings: @escaping () -> Void) {
         self._campaignProgressStore = ObservedObject(wrappedValue: campaignProgressStore)
+        self._dungeonGrowthStore = ObservedObject(wrappedValue: dungeonGrowthStore)
         self._dailyChallengeAttemptStore = ObservedObject(wrappedValue: dailyChallengeAttemptStore)
         self._pendingNavigationTarget = pendingNavigationTarget
         self.dailyChallengeDefinitionService = dailyChallengeDefinitionService
@@ -324,9 +327,13 @@ struct TitleScreenView: View {
             return AnyView(
                 DungeonSelectionView(
                     dungeonLibrary: dungeonLibrary,
+                    dungeonGrowthStore: dungeonGrowthStore,
                     onClose: { popNavigationStack() },
                     onStartDungeon: { dungeon in
-                        guard let mode = dungeonLibrary.firstFloorMode(for: dungeon) else { return }
+                        guard let mode = dungeonLibrary.firstFloorMode(
+                            for: dungeon,
+                            initialHPBonus: dungeonGrowthStore.initialHPBonus(for: dungeon)
+                        ) else { return }
                         let context: StartTriggerContext = .campaignStageSelection
                         debugLog(
                             "TitleScreenView: ダンジョン開始後 -> dungeon=\(dungeon.id) NavigationStack をリセットして即時開始を登録 context=\(context.rawValue)"

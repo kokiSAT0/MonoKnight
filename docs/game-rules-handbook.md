@@ -140,6 +140,9 @@
 - 拾得カードは `DungeonFloorDefinition.cardPickups` で定義し、そのマスを踏むと追加手数なしで取得する。拾得カードは1回使い切りで、次フロアへ持ち越さない。
 - 報酬カードは1F/2Fクリア後に選び、3回使用可能なカードとして `DungeonRunState.rewardInventoryEntries` に保持する。報酬カードだけが残り回数つきでフロア間を持ち越す。
 - 所持カードは10種類まで。同じカードは種類枠を増やさず残り使用回数として積み、使用時は拾得分から先に消費する。
+- 低難度塔を最後まで初回クリアすると、塔ごとに成長ポイントを 1 得る。塔選択では各低難度塔の成長ポイント獲得済み/未獲得を表示する。成長ポイントは塔選択の「成長」で使用し、v1 では「初期HP +1」と「報酬候補強化」を取得できる。
+- 「初期HP +1」は `.growth` 難度の塔の 1F 開始時だけ適用する。フロア間の HP 引き継ぎは通常どおり `DungeonRunState.carriedHP` を使い、旧目的地制や高難度ローグライクへは適用しない。
+- 「報酬候補強化」は `.growth` 難度の塔の 1F/2F クリア後に表示される 3 択報酬へ、既存候補を壊さず強めの移動カードを 1 枚混ぜる。候補数は 3 枚のまま維持する。
 - `DungeonRules.allowsBasicOrthogonalMove` が true のフロアでは、上下左右1マスへカードなしで基本移動できる。基本移動はカードを消費せず、所持カード/手札/NEXT/山札を変えないが、手数を1増やし、敵ターン、床ギミック、出口判定、手数切れ判定の対象になる。
 - ダンジョン失敗条件は `DungeonFailureRule` で管理する。初期実装では HP 0 と残り手数 0 を扱う。
 - 敵は `EnemyDefinition` で配置し、進行中は `EnemyState` として管理する。初期行動は番兵、巡回兵、見張りに絞る。
@@ -156,5 +159,5 @@
 - ルール全般の実装: `Game/GameCore.swift`・`Game/GameCore+Penalty.swift`。
 - カード定義と山札: `Game/MoveCard.swift`・`Game/Deck.swift`。
 - モードとレギュレーション: `Game/GameMode.swift`（`Regulation`・`PenaltySettings`）。
-- 旧目的地制キャンペーン固有設定: `Game/CampaignStage.swift`。塔ダンジョン固有設定: `Game/DungeonDefinition.swift`。詳細なステージ規定は [`docs/campaign-stage-regulations.md`](campaign-stage-regulations.md) を参照。<!-- 相互参照を整備 -->
+- 旧目的地制キャンペーン固有設定: `Game/CampaignStage.swift`。塔ダンジョン固有設定: `Game/DungeonDefinition.swift`。塔ダンジョンの永続成長保存と適用判断: `Services/DungeonGrowthStore.swift`。詳細なステージ規定は [`docs/campaign-stage-regulations.md`](campaign-stage-regulations.md) を参照。<!-- 相互参照を整備 -->
 - 更新フロー: コード変更 → 単体テスト更新 → 本書・キャンペーンドキュメント改訂 → PR 作成。<!-- 運用サイクルを明文化 -->

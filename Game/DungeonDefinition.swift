@@ -482,12 +482,12 @@ public struct DungeonLibrary {
         dungeons.first { $0.id == id }
     }
 
-    public func firstFloorMode(for dungeon: DungeonDefinition) -> GameMode? {
+    public func firstFloorMode(for dungeon: DungeonDefinition, initialHPBonus: Int = 0) -> GameMode? {
         guard let firstFloor = dungeon.floors.first else { return nil }
         let runState = DungeonRunState(
             dungeonID: dungeon.id,
             currentFloorIndex: 0,
-            carriedHP: firstFloor.failureRule.initialHP
+            carriedHP: firstFloor.failureRule.initialHP + max(initialHPBonus, 0)
         )
         return firstFloor.makeGameMode(
             dungeonID: dungeon.id,

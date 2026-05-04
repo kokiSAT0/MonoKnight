@@ -253,6 +253,7 @@ final class GameViewModelTests: XCTestCase {
                 DungeonInventoryEntry(card: .straightRight2, rewardUses: 2, pickupUses: 1),
                 DungeonInventoryEntry(card: .straightUp2, pickupUses: 1)
             ],
+            dungeonGrowthAward: nil,
             hasNextDungeonFloor: true,
             elapsedSeconds: 20,
             bestPoints: .max,
@@ -279,6 +280,7 @@ final class GameViewModelTests: XCTestCase {
             dungeonRunTotalMoveCount: 20,
             dungeonRewardMoveCards: [],
             dungeonInventoryEntries: [],
+            dungeonGrowthAward: nil,
             hasNextDungeonFloor: false,
             elapsedSeconds: 35,
             bestPoints: .max,
@@ -287,6 +289,87 @@ final class GameViewModelTests: XCTestCase {
         )
 
         XCTAssertEqual(presentation.resultTitle, "巡回塔クリア")
+    }
+
+    func testDungeonGrowthPointIsAwardedOnlyOnFinalFloorClear() throws {
+        let (defaults, suiteName) = try makeIsolatedDefaults()
+        defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+
+        let progressStore = CampaignProgressStore(userDefaults: defaults)
+        let growthStore = DungeonGrowthStore(userDefaults: defaults)
+        let dungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
+        let finalFloor = try XCTUnwrap(dungeon.floors.last)
+        let runState = DungeonRunState(
+            dungeonID: dungeon.id,
+            currentFloorIndex: 2,
+            carriedHP: 3,
+            clearedFloorCount: 2
+        )
+        let mode = finalFloor.makeGameMode(
+            dungeonID: dungeon.id,
+            carriedHP: 3,
+            runState: runState
+        )
+        let (viewModel, _) = makeViewModel(
+            mode: mode,
+            campaignProgressStore: progressStore,
+            dungeonGrowthStore: growthStore
+        )
+
+        viewModel.handleProgressChange(.cleared)
+
+        XCTAssertEqual(growthStore.points, 1)
+        XCTAssertEqual(viewModel.latestDungeonGrowthAward?.points, 1)
+
+        viewModel.handleProgressChange(.cleared)
+        XCTAssertEqual(growthStore.points, 1)
+    }
+
+    func testDungeonGrowthPointIsNotAwardedBeforeFinalFloor() throws {
+        let (defaults, suiteName) = try makeIsolatedDefaults()
+        defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+
+        let progressStore = CampaignProgressStore(userDefaults: defaults)
+        let growthStore = DungeonGrowthStore(userDefaults: defaults)
+        let dungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
+        let firstFloor = try XCTUnwrap(dungeon.floors.first)
+        let mode = try XCTUnwrap(DungeonLibrary.shared.firstFloorMode(for: dungeon))
+        let (viewModel, _) = makeViewModel(
+            mode: firstFloor.makeGameMode(
+                dungeonID: dungeon.id,
+                carriedHP: 3,
+                runState: mode.dungeonMetadataSnapshot?.runState
+            ),
+            campaignProgressStore: progressStore,
+            dungeonGrowthStore: growthStore
+        )
+
+        viewModel.handleProgressChange(.cleared)
+
+        XCTAssertEqual(growthStore.points, 0)
+        XCTAssertNil(viewModel.latestDungeonGrowthAward)
+    }
+
+    func testDungeonRewardCandidatesUseGrowthBoostWhenUnlocked() throws {
+        let (defaults, suiteName) = try makeIsolatedDefaults()
+        defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+
+        let progressStore = CampaignProgressStore(userDefaults: defaults)
+        let growthStore = DungeonGrowthStore(userDefaults: defaults)
+        let dungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
+        _ = growthStore.registerDungeonClear(dungeon: dungeon, hasNextFloor: false)
+        XCTAssertTrue(growthStore.unlock(.rewardCandidateBoost))
+
+        let mode = try XCTUnwrap(DungeonLibrary.shared.firstFloorMode(for: dungeon))
+        let (viewModel, _) = makeViewModel(
+            mode: mode,
+            campaignProgressStore: progressStore,
+            dungeonGrowthStore: growthStore
+        )
+
+        XCTAssertEqual(viewModel.availableDungeonRewardMoveCards.count, 3)
+        XCTAssertEqual(Array(viewModel.availableDungeonRewardMoveCards.prefix(2)), Array(dungeon.floors[0].rewardMoveCardsAfterClear.prefix(2)))
+        XCTAssertNotEqual(viewModel.availableDungeonRewardMoveCards, dungeon.floors[0].rewardMoveCardsAfterClear)
     }
 
     /// finalizeResultDismissal が結果表示フラグのみを閉じることを確認
@@ -1293,6 +1376,7 @@ final class GameViewModelTests: XCTestCase {
         adsService: AdsServiceProtocol? = nil,
         onRequestReturnToTitle: (() -> Void)? = nil,
         campaignProgressStore: CampaignProgressStore? = nil,
+        dungeonGrowthStore: DungeonGrowthStore? = nil,
         onRequestStartCampaignStage: ((CampaignStage) -> Void)? = nil,
         onRequestStartDungeonFloor: ((GameMode) -> Void)? = nil,
         campaignTutorialStore: CampaignTutorialStore = CampaignTutorialStore(),
@@ -1310,12 +1394,14 @@ final class GameViewModelTests: XCTestCase {
         let resolvedDateProvider = dateProvider ?? MutableDateProvider(now: Date())
         let resolvedAdsService = adsService ?? DummyAdsService()
         let resolvedCampaignProgressStore = campaignProgressStore ?? CampaignProgressStore()
+        let resolvedDungeonGrowthStore = dungeonGrowthStore ?? DungeonGrowthStore()
         let viewModel = GameViewModel(
             mode: mode,
             gameInterfaces: interfaces,
             gameCenterService: DummyGameCenterService(),
             adsService: resolvedAdsService,
             campaignProgressStore: resolvedCampaignProgressStore,
+            dungeonGrowthStore: resolvedDungeonGrowthStore,
             onRequestGameCenterSignIn: nil,
             onRequestReturnToTitle: onRequestReturnToTitle,
             onRequestStartCampaignStage: onRequestStartCampaignStage,
@@ -1333,6 +1419,7 @@ final class GameViewModelTests: XCTestCase {
             gameInterfaces: interfaces,
             gameCenterService: DummyGameCenterService(),
             adsService: DummyAdsService(),
+            dungeonGrowthStore: DungeonGrowthStore(),
             onRequestGameCenterSignIn: nil,
             onRequestReturnToTitle: nil,
             onRequestStartCampaignStage: nil,
