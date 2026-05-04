@@ -219,11 +219,9 @@ public final class GameCore: ObservableObject {
     /// まだ盤面上に残っている拾得カード
     public var activeDungeonCardPickups: [DungeonCardPickupDefinition] {
         guard mode.dungeonRules?.cardAcquisitionMode == .inventoryOnly,
-              let metadata = mode.dungeonMetadataSnapshot,
-              let dungeon = DungeonLibrary.shared.dungeon(with: metadata.dungeonID),
-              let floor = dungeon.floors.first(where: { $0.id == metadata.floorID })
+              let cardPickups = mode.dungeonRules?.cardPickups
         else { return [] }
-        return floor.cardPickups.filter { !collectedDungeonCardPickupIDs.contains($0.id) }
+        return cardPickups.filter { !collectedDungeonCardPickupIDs.contains($0.id) }
     }
     /// 未取得の塔鍵マス。階段が解錠されたら盤面表示から消える。
     public var dungeonKeyPoints: Set<GridPoint> {

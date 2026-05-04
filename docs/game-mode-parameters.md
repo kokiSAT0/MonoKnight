@@ -59,7 +59,7 @@ MonoKnight の各モードは `GameMode` 構造体を通じて盤面サイズ、
 - `DungeonRules.failureRule` で初期 HP と手数制限を管理する
 - 連続登塔では `DungeonRunState` を `GameMode.DungeonMetadata` に持たせ、次フロアの `failureRule.initialHP` へ引き継ぎ HP を反映する
 - `DungeonRules.cardAcquisitionMode == .inventoryOnly` の塔では、初期手札補充、NEXT補充、カード使用後の自動補充、手動引き直しを行わない
-- `DungeonFloorDefinition.cardPickups` でフロア内の床落ちカードを定義する。拾得カードは1回使い切りで、そのフロア限り有効。フロアクリア後の報酬選択では、未使用の拾得カードから1枚だけラン中報酬カード化できる。拾得/報酬候補には基本移動と同じ上下左右1マスカードを入れない
+- `DungeonFloorDefinition.cardPickups` でフロア内の床落ちカードを定義する。拾得カードは1回使い切りで、そのフロア限り有効。成長塔1-8Fはギミック追加より拾得カード密度で易しくするため、各5枚前後の床落ちカードを置く。成長塔では `DungeonRunState.cardVariationSeed` により、ランごとに拾得カードの種類/位置と報酬候補を変える。同じラン中は seed を引き継ぎ、解決済みの拾得カードは `DungeonRules.cardPickups` から表示/取得する。seed 変化は各階の基準候補の役割を壊さず、同系統のカード差し替えに留める。フロアクリア後の報酬選択では、未使用の拾得カードから1枚だけラン中報酬カード化できる。拾得/報酬候補には基本移動と同じ上下左右1マスカードを入れない
 - ラン中報酬カードは `DungeonRunState.rewardInventoryEntries` に残り回数つきで保持する。報酬カードは3回使用可能で、カード追加または拾得カードの報酬化で得た残り回数を次フロアへ持ち越す
 - 所持カードは `DungeonInventoryEntry` で管理し、同一カードの拾得回数と報酬回数を分けて保持する。使用時は拾得分から先に消費する
 - 所持上限は10種類。同じカードは種類枠を増やさず、残り使用回数として積む

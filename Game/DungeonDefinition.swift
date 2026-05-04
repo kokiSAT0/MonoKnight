@@ -84,6 +84,8 @@ public struct DungeonRunState: Codable, Equatable {
     public let clearedFloorCount: Int
     /// フロアをまたいで持ち越す報酬カードと残り使用回数
     public let rewardInventoryEntries: [DungeonInventoryEntry]
+    /// 成長塔の拾得/報酬カード変化に使うラン単位の seed
+    public let cardVariationSeed: UInt64?
 
     public init(
         dungeonID: String,
@@ -91,7 +93,8 @@ public struct DungeonRunState: Codable, Equatable {
         carriedHP: Int,
         totalMoveCount: Int = 0,
         clearedFloorCount: Int = 0,
-        rewardInventoryEntries: [DungeonInventoryEntry] = []
+        rewardInventoryEntries: [DungeonInventoryEntry] = [],
+        cardVariationSeed: UInt64? = nil
     ) {
         self.dungeonID = dungeonID
         self.currentFloorIndex = max(currentFloorIndex, 0)
@@ -99,6 +102,7 @@ public struct DungeonRunState: Codable, Equatable {
         self.totalMoveCount = max(totalMoveCount, 0)
         self.clearedFloorCount = max(clearedFloorCount, 0)
         self.rewardInventoryEntries = DungeonRunState.mergedRewardEntries(rewardInventoryEntries)
+        self.cardVariationSeed = cardVariationSeed
     }
 
     public var floorNumber: Int {
@@ -128,7 +132,8 @@ public struct DungeonRunState: Codable, Equatable {
             carriedHP: carryoverHP,
             totalMoveCount: totalMoveCount + max(currentFloorMoveCount, 0),
             clearedFloorCount: clearedFloorCount + 1,
-            rewardInventoryEntries: updatedRewardInventoryEntries.compactMap { $0.carryingRewardUsesOnly() }
+            rewardInventoryEntries: updatedRewardInventoryEntries.compactMap { $0.carryingRewardUsesOnly() },
+            cardVariationSeed: cardVariationSeed
         )
     }
 
@@ -432,7 +437,8 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
                     hazards: hazards,
                     exitLock: exitLock,
                     allowsBasicOrthogonalMove: true,
-                    cardAcquisitionMode: .inventoryOnly
+                    cardAcquisitionMode: .inventoryOnly,
+                    cardPickups: cardPickups
                 )
             ),
             leaderboardEligible: false,
@@ -461,6 +467,27 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
             fixedWarpCardTargets: fixedWarpCardTargets,
             exitLock: exitLock,
             cardPickups: cardPickups,
+            rewardMoveCardsAfterClear: rewardMoveCardsAfterClear
+        )
+    }
+
+    public func withAdditionalCardPickups(_ additionalCardPickups: [DungeonCardPickupDefinition]) -> DungeonFloorDefinition {
+        DungeonFloorDefinition(
+            id: id,
+            title: title,
+            boardSize: boardSize,
+            spawnPoint: spawnPoint,
+            exitPoint: exitPoint,
+            deckPreset: deckPreset,
+            failureRule: failureRule,
+            enemies: enemies,
+            hazards: hazards,
+            impassableTilePoints: impassableTilePoints,
+            tileEffectOverrides: tileEffectOverrides,
+            warpTilePairs: warpTilePairs,
+            fixedWarpCardTargets: fixedWarpCardTargets,
+            exitLock: exitLock,
+            cardPickups: cardPickups + additionalCardPickups,
             rewardMoveCardsAfterClear: rewardMoveCardsAfterClear
         )
     }
@@ -519,6 +546,243 @@ public struct DungeonDefinition: Codable, Equatable, Identifiable {
         }
         return true
     }
+
+    public func resolvedFloor(at floorIndex: Int, runState: DungeonRunState?) -> DungeonFloorDefinition? {
+        guard floors.indices.contains(floorIndex) else { return nil }
+        let floor = floors[floorIndex]
+        guard id == "growth-tower",
+              difficulty == .growth,
+              let seed = runState?.cardVariationSeed
+        else { return floor }
+        return DungeonCardVariationResolver.resolve(
+            floor: floor,
+            floorIndex: floorIndex,
+            seed: seed
+        )
+    }
+}
+
+private enum DungeonCardVariationResolver {
+    static func resolve(
+        floor: DungeonFloorDefinition,
+        floorIndex: Int,
+        seed: UInt64
+    ) -> DungeonFloorDefinition {
+        let cardPickups = resolvedPickups(
+            for: floor,
+            floorIndex: floorIndex,
+            seed: seed
+        )
+        let rewardMoveCards = resolvedRewardCards(
+            for: floor,
+            floorIndex: floorIndex,
+            seed: seed
+        )
+        return DungeonFloorDefinition(
+            id: floor.id,
+            title: floor.title,
+            boardSize: floor.boardSize,
+            spawnPoint: floor.spawnPoint,
+            exitPoint: floor.exitPoint,
+            deckPreset: floor.deckPreset,
+            failureRule: floor.failureRule,
+            enemies: floor.enemies,
+            hazards: floor.hazards,
+            impassableTilePoints: floor.impassableTilePoints,
+            tileEffectOverrides: floor.tileEffectOverrides,
+            warpTilePairs: floor.warpTilePairs,
+            fixedWarpCardTargets: floor.fixedWarpCardTargets,
+            exitLock: floor.exitLock,
+            cardPickups: cardPickups,
+            rewardMoveCardsAfterClear: rewardMoveCards
+        )
+    }
+
+    private static func resolvedPickups(
+        for floor: DungeonFloorDefinition,
+        floorIndex: Int,
+        seed: UInt64
+    ) -> [DungeonCardPickupDefinition] {
+        guard !floor.cardPickups.isEmpty else { return [] }
+        var randomizer = DungeonCardVariationRandomizer(seed: seed, floorIndex: floorIndex, salt: 0xC4D1)
+        var cards = variedCards(
+            from: floor.cardPickups.map(\.card),
+            randomizer: &randomizer
+        )
+        if cards.count < floor.cardPickups.count {
+            cards += floor.cardPickups.dropFirst(cards.count).map(\.card)
+        }
+
+        var positions = pickupPositions(
+            for: floor,
+            count: floor.cardPickups.count,
+            randomizer: &randomizer
+        )
+        if positions.count < floor.cardPickups.count {
+            positions += floor.cardPickups.dropFirst(positions.count).map(\.point)
+        }
+
+        return floor.cardPickups.enumerated().map { index, basePickup in
+            DungeonCardPickupDefinition(
+                id: basePickup.id,
+                point: positions[index],
+                card: cards[index],
+                uses: basePickup.uses
+            )
+        }
+    }
+
+    private static func resolvedRewardCards(
+        for floor: DungeonFloorDefinition,
+        floorIndex: Int,
+        seed: UInt64
+    ) -> [MoveCard] {
+        guard !floor.rewardMoveCardsAfterClear.isEmpty else { return [] }
+        var randomizer = DungeonCardVariationRandomizer(seed: seed, floorIndex: floorIndex, salt: 0xA11D)
+        return variedCards(from: floor.rewardMoveCardsAfterClear, randomizer: &randomizer)
+    }
+
+    private static func variedCards(
+        from baseCards: [MoveCard],
+        randomizer: inout DungeonCardVariationRandomizer
+    ) -> [MoveCard] {
+        var result: [MoveCard] = []
+        for baseCard in baseCards {
+            let alternatives = cardAlternatives(for: baseCard)
+            let startIndex = randomizer.nextIndex(upperBound: alternatives.count)
+            let selected = (0..<alternatives.count)
+                .map { alternatives[(startIndex + $0) % alternatives.count] }
+                .first { !result.contains($0) }
+                ?? baseCard
+            result.append(selected)
+        }
+        return result
+    }
+
+    private static func cardAlternatives(for card: MoveCard) -> [MoveCard] {
+        switch card {
+        case .straightRight2:
+            return [.straightRight2, .rayRight, .knightRightwardChoice]
+        case .straightLeft2:
+            return [.straightLeft2, .rayLeft, .knightLeftwardChoice]
+        case .straightUp2:
+            return [.straightUp2, .rayUp, .knightUpwardChoice]
+        case .straightDown2:
+            return [.straightDown2, .rayDown, .knightDownwardChoice]
+        case .diagonalUpRight2:
+            return [.diagonalUpRight2, .rayUpRight, .knightRightwardChoice]
+        case .diagonalUpLeft2:
+            return [.diagonalUpLeft2, .rayUpLeft, .knightLeftwardChoice]
+        case .diagonalDownRight2:
+            return [.diagonalDownRight2, .rayDownRight, .knightRightwardChoice]
+        case .diagonalDownLeft2:
+            return [.diagonalDownLeft2, .rayDownLeft, .knightLeftwardChoice]
+        case .rayRight:
+            return [.rayRight, .straightRight2, .knightRightwardChoice]
+        case .rayLeft:
+            return [.rayLeft, .straightLeft2, .knightLeftwardChoice]
+        case .rayUp:
+            return [.rayUp, .straightUp2, .knightUpwardChoice]
+        case .rayDown:
+            return [.rayDown, .straightDown2, .knightDownwardChoice]
+        case .rayUpRight:
+            return [.rayUpRight, .diagonalUpRight2, .knightUpwardChoice]
+        case .rayUpLeft:
+            return [.rayUpLeft, .diagonalUpLeft2, .knightUpwardChoice]
+        case .rayDownRight:
+            return [.rayDownRight, .diagonalDownRight2, .knightDownwardChoice]
+        case .rayDownLeft:
+            return [.rayDownLeft, .diagonalDownLeft2, .knightDownwardChoice]
+        case .knightRightwardChoice:
+            return [.knightRightwardChoice, .straightRight2, .diagonalUpRight2]
+        case .knightLeftwardChoice:
+            return [.knightLeftwardChoice, .straightLeft2, .diagonalUpLeft2]
+        case .knightUpwardChoice:
+            return [.knightUpwardChoice, .straightUp2, .diagonalUpRight2]
+        case .knightDownwardChoice:
+            return [.knightDownwardChoice, .straightDown2, .diagonalDownRight2]
+        default:
+            return [card]
+        }
+    }
+
+    private static func pickupPositions(
+        for floor: DungeonFloorDefinition,
+        count: Int,
+        randomizer: inout DungeonCardVariationRandomizer
+    ) -> [GridPoint] {
+        var candidates = safePickupPoints(for: floor)
+        var result: [GridPoint] = []
+        while !candidates.isEmpty && result.count < count {
+            let index = randomizer.nextIndex(upperBound: candidates.count)
+            result.append(candidates.remove(at: index))
+        }
+        return result
+    }
+
+    private static func safePickupPoints(for floor: DungeonFloorDefinition) -> [GridPoint] {
+        var blocked: Set<GridPoint> = [
+            floor.spawnPoint,
+            floor.exitPoint
+        ]
+        blocked.formUnion(floor.impassableTilePoints)
+        blocked.formUnion(floor.enemies.map(\.position))
+        blocked.formUnion(floor.hazards.flatMap(\.points))
+        blocked.formUnion(floor.warpTilePairs.values.flatMap { $0 })
+        if let unlockPoint = floor.exitLock?.unlockPoint {
+            blocked.insert(unlockPoint)
+        }
+
+        var points: [GridPoint] = []
+        for y in 0..<floor.boardSize {
+            for x in 0..<floor.boardSize {
+                let point = GridPoint(x: x, y: y)
+                if !blocked.contains(point) {
+                    points.append(point)
+                }
+            }
+        }
+        return points
+    }
+}
+
+private struct DungeonCardVariationRandomizer {
+    private var state: UInt64
+
+    init(seed: UInt64, floorIndex: Int, salt: UInt64) {
+        state = seed
+            ^ UInt64(floorIndex + 1).multipliedReportingOverflow(by: 0x9E37_79B9_7F4A_7C15).partialValue
+            ^ salt
+        advance()
+    }
+
+    mutating func nextIndex(upperBound: Int) -> Int {
+        guard upperBound > 1 else { return 0 }
+        return Int(advance() % UInt64(upperBound))
+    }
+
+    @discardableResult
+    private mutating func advance() -> UInt64 {
+        state = state &* 6364136223846793005 &+ 1442695040888963407
+        var value = state
+        value ^= value >> 30
+        value &*= 0xBF58_476D_1CE4_E5B9
+        value ^= value >> 27
+        value &*= 0x94D0_49BB_1331_11EB
+        value ^= value >> 31
+        return value
+    }
+}
+
+private extension HazardDefinition {
+    var points: Set<GridPoint> {
+        switch self {
+        case .brittleFloor(let points):
+            return points
+        case .damageTrap(let points, _):
+            return points
+        }
+    }
 }
 
 /// `GameMode.Regulation` に埋め込むダンジョン追加ルール
@@ -533,6 +797,8 @@ public struct DungeonRules: Codable, Equatable {
     public var allowsBasicOrthogonalMove: Bool
     /// 塔内でのカード獲得・補充方式
     public var cardAcquisitionMode: DungeonCardAcquisitionMode
+    /// この GameMode で解決済みの拾得カード配置
+    public var cardPickups: [DungeonCardPickupDefinition]
 
     public init(
         difficulty: DungeonDifficulty,
@@ -541,7 +807,8 @@ public struct DungeonRules: Codable, Equatable {
         hazards: [HazardDefinition] = [],
         exitLock: DungeonExitLock? = nil,
         allowsBasicOrthogonalMove: Bool = false,
-        cardAcquisitionMode: DungeonCardAcquisitionMode = .deck
+        cardAcquisitionMode: DungeonCardAcquisitionMode = .deck,
+        cardPickups: [DungeonCardPickupDefinition] = []
     ) {
         self.difficulty = difficulty
         self.failureRule = failureRule
@@ -550,6 +817,7 @@ public struct DungeonRules: Codable, Equatable {
         self.exitLock = exitLock
         self.allowsBasicOrthogonalMove = allowsBasicOrthogonalMove
         self.cardAcquisitionMode = cardAcquisitionMode
+        self.cardPickups = cardPickups
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -560,6 +828,7 @@ public struct DungeonRules: Codable, Equatable {
         case exitLock
         case allowsBasicOrthogonalMove
         case cardAcquisitionMode
+        case cardPickups
     }
 
     public init(from decoder: Decoder) throws {
@@ -571,6 +840,7 @@ public struct DungeonRules: Codable, Equatable {
         exitLock = try container.decodeIfPresent(DungeonExitLock.self, forKey: .exitLock)
         allowsBasicOrthogonalMove = try container.decodeIfPresent(Bool.self, forKey: .allowsBasicOrthogonalMove) ?? false
         cardAcquisitionMode = try container.decodeIfPresent(DungeonCardAcquisitionMode.self, forKey: .cardAcquisitionMode) ?? .deck
+        cardPickups = try container.decodeIfPresent([DungeonCardPickupDefinition].self, forKey: .cardPickups) ?? []
     }
 }
 
@@ -617,11 +887,16 @@ public struct DungeonLibrary {
         }
     }
 
-    public func firstFloorMode(for dungeon: DungeonDefinition, initialHPBonus: Int = 0) -> GameMode? {
+    public func firstFloorMode(
+        for dungeon: DungeonDefinition,
+        initialHPBonus: Int = 0,
+        cardVariationSeed: UInt64? = nil
+    ) -> GameMode? {
         floorMode(
             for: dungeon,
             floorIndex: 0,
-            initialHPBonus: initialHPBonus
+            initialHPBonus: initialHPBonus,
+            cardVariationSeed: cardVariationSeed
         )
     }
 
@@ -629,24 +904,36 @@ public struct DungeonLibrary {
         for dungeon: DungeonDefinition,
         floorIndex: Int,
         initialHPBonus: Int = 0,
-        startingRewardEntries: [DungeonInventoryEntry] = []
+        startingRewardEntries: [DungeonInventoryEntry] = [],
+        cardVariationSeed: UInt64? = nil
     ) -> GameMode? {
         guard dungeon.floors.indices.contains(floorIndex) else { return nil }
-        let floor = dungeon.floors[floorIndex]
+        let baseFloor = dungeon.floors[floorIndex]
         let resolvedInitialHPBonus = dungeon.difficulty == .growth ? max(initialHPBonus, 0) : 0
+        let resolvedCardVariationSeed = dungeon.id == "growth-tower"
+            ? cardVariationSeed ?? Self.makeCardVariationSeed()
+            : nil
         let runState = DungeonRunState(
             dungeonID: dungeon.id,
             currentFloorIndex: floorIndex,
-            carriedHP: floor.failureRule.initialHP + resolvedInitialHPBonus,
+            carriedHP: baseFloor.failureRule.initialHP + resolvedInitialHPBonus,
             clearedFloorCount: floorIndex,
-            rewardInventoryEntries: startingRewardEntries
+            rewardInventoryEntries: startingRewardEntries,
+            cardVariationSeed: resolvedCardVariationSeed
         )
+        let floor = dungeon.resolvedFloor(at: floorIndex, runState: runState) ?? baseFloor
         return floor.makeGameMode(
             dungeonID: dungeon.id,
             difficulty: dungeon.difficulty,
             carriedHP: runState.carriedHP,
             runState: runState
         )
+    }
+
+    private static func makeCardVariationSeed() -> UInt64 {
+        var seed = UInt64.random(in: 1...UInt64.max)
+        seed ^= UInt64(Date().timeIntervalSinceReferenceDate * 1000)
+        return seed == 0 ? 1 : seed
     }
 
     private static func buildTutorialTower() -> DungeonDefinition {
@@ -774,41 +1061,92 @@ public struct DungeonLibrary {
         let warpFloors = buildWarpTower().floors
         let trapFloors = buildTrapTower().floors
         let baseFloors = [
-            patrolFloors[0],
-            stairKeyOnlyGrowthFloor(keyDoorFloors[0]),
-            trapFloors[0],
-            growthFloorWithoutFixedWarp(
-                warpFloors[0],
+            patrolFloors[0]
+                .withAdditionalCardPickups([
+                    DungeonCardPickupDefinition(id: "growth-1-diagonal-up-right", point: GridPoint(x: 3, y: 0), card: .diagonalUpRight2),
+                    DungeonCardPickupDefinition(id: "growth-1-ray-right", point: GridPoint(x: 0, y: 2), card: .rayRight)
+                ])
+                .withRewardMoveCardsAfterClear([
+                    .rayLeft,
+                    .diagonalDownLeft2,
+                    .straightDown2
+                ]),
+            stairKeyOnlyGrowthFloor(
+                keyDoorFloors[0].withAdditionalCardPickups([
+                    DungeonCardPickupDefinition(id: "growth-2-left2", point: GridPoint(x: 6, y: 8), card: .straightLeft2),
+                    DungeonCardPickupDefinition(id: "growth-2-diagonal-down-left", point: GridPoint(x: 3, y: 6), card: .diagonalDownLeft2)
+                ]),
                 rewardMoveCardsAfterClear: [
-                    .straightRight2,
-                    .straightUp2,
-                    .rayRight
+                    .rayRight,
+                    .diagonalDownRight2,
+                    .straightDown2
                 ]
             ),
-            patrolFloors[1],
+            trapFloors[0]
+                .withAdditionalCardPickups([
+                    DungeonCardPickupDefinition(id: "growth-3-ray-right", point: GridPoint(x: 0, y: 3), card: .rayRight),
+                    DungeonCardPickupDefinition(id: "growth-3-diagonal-up-left", point: GridPoint(x: 8, y: 2), card: .diagonalUpLeft2)
+                ])
+                .withRewardMoveCardsAfterClear([
+                    .rayLeft,
+                    .diagonalUpLeft2,
+                    .straightUp2
+                ]),
             growthFloorWithoutFixedWarp(
-                warpFloors[1],
+                warpFloors[0].withAdditionalCardPickups([
+                    DungeonCardPickupDefinition(id: "growth-4-down2", point: GridPoint(x: 8, y: 2), card: .straightDown2),
+                    DungeonCardPickupDefinition(id: "growth-4-ray-left", point: GridPoint(x: 4, y: 8), card: .rayLeft)
+                ]),
+                rewardMoveCardsAfterClear: [
+                    .rayRight,
+                    .diagonalDownRight2,
+                    .straightDown2
+                ]
+            ),
+            patrolFloors[1]
+                .withAdditionalCardPickups([
+                    DungeonCardPickupDefinition(id: "growth-5-right2", point: GridPoint(x: 0, y: 6), card: .straightRight2),
+                    DungeonCardPickupDefinition(id: "growth-5-diagonal-up-right", point: GridPoint(x: 6, y: 1), card: .diagonalUpRight2)
+                ])
+                .withRewardMoveCardsAfterClear([
+                    .diagonalDownLeft2,
+                    .straightLeft2,
+                    .straightDown2
+                ]),
+            growthFloorWithoutFixedWarp(
+                warpFloors[1].withAdditionalCardPickups([
+                    DungeonCardPickupDefinition(id: "growth-6-left2", point: GridPoint(x: 8, y: 6), card: .straightLeft2),
+                    DungeonCardPickupDefinition(id: "growth-6-diagonal-down-right", point: GridPoint(x: 2, y: 2), card: .diagonalDownRight2)
+                ]),
                 title: "転移の抜け道",
                 replacementForFixedWarpPickups: .rayRight,
                 rewardMoveCardsAfterClear: [
-                    .rayRight,
-                    .diagonalUpRight2,
-                    .straightRight2
+                    .rayLeft,
+                    .straightLeft2,
+                    .knightLeftwardChoice
                 ]
             ),
             stairKeyOnlyGrowthFloor(
-                keyDoorFloors[2],
+                keyDoorFloors[2].withAdditionalCardPickups([
+                    DungeonCardPickupDefinition(id: "growth-7-ray-right", point: GridPoint(x: 0, y: 2), card: .rayRight),
+                    DungeonCardPickupDefinition(id: "growth-7-diagonal-up-right", point: GridPoint(x: 2, y: 5), card: .diagonalUpRight2)
+                ]),
                 rewardMoveCardsAfterClear: [
-                    .diagonalUpRight2,
-                    .rayRight,
-                    .straightUp2
+                    .straightUp2,
+                    .rayUp,
+                    .knightUpwardChoice
                 ]
             ),
-            trapFloors[2].withRewardMoveCardsAfterClear([
-                .straightRight2,
-                .diagonalUpRight2,
-                .straightUp2
-            ]),
+            trapFloors[2]
+                .withAdditionalCardPickups([
+                    DungeonCardPickupDefinition(id: "growth-8-right2", point: GridPoint(x: 0, y: 1), card: .straightRight2),
+                    DungeonCardPickupDefinition(id: "growth-8-up2", point: GridPoint(x: 3, y: 0), card: .straightUp2)
+                ])
+                .withRewardMoveCardsAfterClear([
+                    .straightRight2,
+                    .diagonalUpRight2,
+                    .rayRight
+                ]),
             buildGrowthTowerNinthFloor(),
             buildGrowthTowerTenthFloor(),
             buildGrowthTowerEleventhFloor(),
@@ -1023,7 +1361,7 @@ public struct DungeonLibrary {
             spawnPoint: GridPoint(x: 0, y: 0),
             exitPoint: GridPoint(x: 8, y: 8),
             deckPreset: .standardLight,
-            failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 17),
+            failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 16),
             enemies: [
                 EnemyDefinition(
                     id: "growth-10-patrol",
@@ -1077,7 +1415,7 @@ public struct DungeonLibrary {
             spawnPoint: GridPoint(x: 0, y: 0),
             exitPoint: GridPoint(x: 8, y: 8),
             deckPreset: .kingAndKnightBasic,
-            failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 16),
+            failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 15),
             enemies: [
                 EnemyDefinition(
                     id: "growth-11-patrol-a",
@@ -1107,7 +1445,7 @@ public struct DungeonLibrary {
                 DungeonCardPickupDefinition(id: "growth-11-up2", point: GridPoint(x: 4, y: 2), card: .straightUp2),
                 DungeonCardPickupDefinition(id: "growth-11-knight", point: GridPoint(x: 7, y: 5), card: .knightRightwardChoice)
             ],
-            rewardMoveCardsAfterClear: [.rayRight, .straightUp2, .diagonalUpRight2]
+            rewardMoveCardsAfterClear: [.rayDown, .straightDown2, .knightDownwardChoice]
         )
     }
 
@@ -1119,7 +1457,7 @@ public struct DungeonLibrary {
             spawnPoint: GridPoint(x: 0, y: 0),
             exitPoint: GridPoint(x: 8, y: 8),
             deckPreset: .standardLight,
-            failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 17),
+            failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 16),
             hazards: [
                 .damageTrap(points: [
                     GridPoint(x: 2, y: 1),
@@ -1134,7 +1472,7 @@ public struct DungeonLibrary {
                 DungeonCardPickupDefinition(id: "growth-12-right2", point: GridPoint(x: 0, y: 1), card: .straightRight2),
                 DungeonCardPickupDefinition(id: "growth-12-ray-right", point: GridPoint(x: 4, y: 5), card: .rayRight)
             ],
-            rewardMoveCardsAfterClear: [.diagonalUpRight2, .rayRight, .straightUp2]
+            rewardMoveCardsAfterClear: [.rayLeft, .diagonalUpLeft2, .straightUp2]
         )
     }
 
@@ -1146,7 +1484,7 @@ public struct DungeonLibrary {
             spawnPoint: GridPoint(x: 0, y: 4),
             exitPoint: GridPoint(x: 8, y: 4),
             deckPreset: .standardLight,
-            failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 14),
+            failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 13),
             enemies: [
                 EnemyDefinition(
                     id: "growth-13-watcher",
@@ -1170,7 +1508,7 @@ public struct DungeonLibrary {
                 DungeonCardPickupDefinition(id: "growth-13-up2", point: GridPoint(x: 2, y: 2), card: .straightUp2),
                 DungeonCardPickupDefinition(id: "growth-13-right2", point: GridPoint(x: 7, y: 5), card: .straightRight2)
             ],
-            rewardMoveCardsAfterClear: [.straightUp2, .rayRight, .diagonalUpRight2]
+            rewardMoveCardsAfterClear: [.straightRight2, .knightRightwardChoice, .diagonalUpRight2]
         )
     }
 
@@ -1182,7 +1520,7 @@ public struct DungeonLibrary {
             spawnPoint: GridPoint(x: 0, y: 2),
             exitPoint: GridPoint(x: 8, y: 6),
             deckPreset: .standardLight,
-            failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 16),
+            failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 15),
             enemies: [
                 EnemyDefinition(id: "growth-14-guard", name: "番兵", position: GridPoint(x: 4, y: 5), behavior: .guardPost)
             ],
@@ -1200,7 +1538,7 @@ public struct DungeonLibrary {
                 DungeonCardPickupDefinition(id: "growth-14-up2", point: GridPoint(x: 5, y: 3), card: .straightUp2),
                 DungeonCardPickupDefinition(id: "growth-14-diagonal", point: GridPoint(x: 6, y: 4), card: .diagonalUpRight2)
             ],
-            rewardMoveCardsAfterClear: [.rayRight, .straightUp2, .diagonalUpRight2]
+            rewardMoveCardsAfterClear: [.diagonalDownLeft2, .rayLeft, .straightDown2]
         )
     }
 
@@ -1212,7 +1550,7 @@ public struct DungeonLibrary {
             spawnPoint: GridPoint(x: 0, y: 0),
             exitPoint: GridPoint(x: 8, y: 8),
             deckPreset: .standardLight,
-            failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 16),
+            failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 15),
             enemies: [
                 EnemyDefinition(id: "growth-15-watcher", name: "見張り", position: GridPoint(x: 7, y: 4), behavior: .watcher(direction: MoveVector(dx: -1, dy: 0), range: 4)),
                 EnemyDefinition(id: "growth-15-patrol", name: "巡回兵", position: GridPoint(x: 4, y: 4), behavior: .patrol(path: [GridPoint(x: 4, y: 4), GridPoint(x: 5, y: 4), GridPoint(x: 5, y: 5), GridPoint(x: 4, y: 5)]))
@@ -1227,7 +1565,7 @@ public struct DungeonLibrary {
                 DungeonCardPickupDefinition(id: "growth-15-key-diagonal", point: GridPoint(x: 2, y: 1), card: .diagonalUpRight2),
                 DungeonCardPickupDefinition(id: "growth-15-up2", point: GridPoint(x: 6, y: 6), card: .straightUp2)
             ],
-            rewardMoveCardsAfterClear: [.straightUp2, .rayRight, .diagonalUpRight2]
+            rewardMoveCardsAfterClear: [.rayRight, .diagonalUpRight2, .straightRight2]
         )
     }
 
@@ -1239,7 +1577,7 @@ public struct DungeonLibrary {
             spawnPoint: GridPoint(x: 0, y: 4),
             exitPoint: GridPoint(x: 8, y: 4),
             deckPreset: .standardLight,
-            failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 13),
+            failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 12),
             enemies: [
                 EnemyDefinition(id: "growth-16-watch-up", name: "見張り", position: GridPoint(x: 4, y: 1), behavior: .watcher(direction: MoveVector(dx: 0, dy: 1), range: 6)),
                 EnemyDefinition(id: "growth-16-watch-down", name: "見張り", position: GridPoint(x: 6, y: 7), behavior: .watcher(direction: MoveVector(dx: 0, dy: -1), range: 5))
@@ -1250,7 +1588,7 @@ public struct DungeonLibrary {
                 DungeonCardPickupDefinition(id: "growth-16-diagonal", point: GridPoint(x: 3, y: 2), card: .diagonalUpRight2),
                 DungeonCardPickupDefinition(id: "growth-16-up2", point: GridPoint(x: 6, y: 5), card: .straightUp2)
             ],
-            rewardMoveCardsAfterClear: [.rayRight, .straightUp2, .knightRightwardChoice]
+            rewardMoveCardsAfterClear: [.diagonalUpLeft2, .rayLeft, .straightUp2]
         )
     }
 
@@ -1262,7 +1600,7 @@ public struct DungeonLibrary {
             spawnPoint: GridPoint(x: 0, y: 0),
             exitPoint: GridPoint(x: 8, y: 8),
             deckPreset: .standardLight,
-            failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 18),
+            failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 17),
             enemies: [
                 EnemyDefinition(id: "growth-17-patrol", name: "巡回兵", position: GridPoint(x: 5, y: 2), behavior: .patrol(path: [GridPoint(x: 5, y: 2), GridPoint(x: 5, y: 3), GridPoint(x: 6, y: 3), GridPoint(x: 6, y: 2)]))
             ],
@@ -1273,7 +1611,7 @@ public struct DungeonLibrary {
                 DungeonCardPickupDefinition(id: "growth-17-ray-right", point: GridPoint(x: 2, y: 0), card: .rayRight),
                 DungeonCardPickupDefinition(id: "growth-17-diagonal", point: GridPoint(x: 6, y: 6), card: .diagonalUpRight2)
             ],
-            rewardMoveCardsAfterClear: [.straightRight2, .diagonalUpRight2, .rayRight]
+            rewardMoveCardsAfterClear: [.straightRight2, .knightRightwardChoice, .diagonalDownRight2]
         )
     }
 
@@ -1285,7 +1623,7 @@ public struct DungeonLibrary {
             spawnPoint: GridPoint(x: 0, y: 0),
             exitPoint: GridPoint(x: 8, y: 8),
             deckPreset: .standardLight,
-            failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 15),
+            failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 14),
             enemies: [
                 EnemyDefinition(id: "growth-18-watcher", name: "見張り", position: GridPoint(x: 7, y: 6), behavior: .watcher(direction: MoveVector(dx: -1, dy: 0), range: 4))
             ],
@@ -1296,7 +1634,7 @@ public struct DungeonLibrary {
                 DungeonCardPickupDefinition(id: "growth-18-right2", point: GridPoint(x: 2, y: 1), card: .straightRight2),
                 DungeonCardPickupDefinition(id: "growth-18-up2", point: GridPoint(x: 8, y: 6), card: .straightUp2)
             ],
-            rewardMoveCardsAfterClear: [.diagonalUpRight2, .rayRight, .straightUp2]
+            rewardMoveCardsAfterClear: [.diagonalDownLeft2, .rayLeft, .straightDown2]
         )
     }
 
@@ -1308,7 +1646,7 @@ public struct DungeonLibrary {
             spawnPoint: GridPoint(x: 0, y: 2),
             exitPoint: GridPoint(x: 8, y: 8),
             deckPreset: .standardLight,
-            failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 16),
+            failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 15),
             enemies: [
                 EnemyDefinition(id: "growth-19-patrol-a", name: "巡回兵", position: GridPoint(x: 4, y: 4), behavior: .patrol(path: [GridPoint(x: 4, y: 4), GridPoint(x: 5, y: 4), GridPoint(x: 5, y: 5), GridPoint(x: 4, y: 5)])),
                 EnemyDefinition(id: "growth-19-watcher", name: "見張り", position: GridPoint(x: 7, y: 5), behavior: .watcher(direction: MoveVector(dx: -1, dy: 0), range: 5))
@@ -1322,7 +1660,7 @@ public struct DungeonLibrary {
                 DungeonCardPickupDefinition(id: "growth-19-diagonal", point: GridPoint(x: 4, y: 3), card: .diagonalUpRight2),
                 DungeonCardPickupDefinition(id: "growth-19-up2", point: GridPoint(x: 8, y: 6), card: .straightUp2)
             ],
-            rewardMoveCardsAfterClear: [.straightUp2, .rayRight, .diagonalUpRight2]
+            rewardMoveCardsAfterClear: [.straightRight2, .diagonalUpRight2, .rayRight]
         )
     }
 
@@ -1334,7 +1672,7 @@ public struct DungeonLibrary {
             spawnPoint: GridPoint(x: 0, y: 0),
             exitPoint: GridPoint(x: 8, y: 8),
             deckPreset: .standardLight,
-            failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 17),
+            failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 16),
             enemies: [
                 EnemyDefinition(id: "growth-20-watcher", name: "見張り", position: GridPoint(x: 7, y: 6), behavior: .watcher(direction: MoveVector(dx: -1, dy: 0), range: 4)),
                 EnemyDefinition(id: "growth-20-patrol", name: "巡回兵", position: GridPoint(x: 4, y: 4), behavior: .patrol(path: [GridPoint(x: 4, y: 4), GridPoint(x: 5, y: 4), GridPoint(x: 5, y: 5), GridPoint(x: 4, y: 5)]))

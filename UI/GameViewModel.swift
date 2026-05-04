@@ -190,7 +190,10 @@ final class GameViewModel: ObservableObject {
               dungeon.floors.indices.contains(runState.currentFloorIndex),
               dungeon.canAdvanceWithinRun(afterFloorIndex: runState.currentFloorIndex)
         else { return [] }
-        let baseCards = dungeon.floors[runState.currentFloorIndex].rewardMoveCardsAfterClear
+        let baseCards = dungeon.resolvedFloor(
+            at: runState.currentFloorIndex,
+            runState: runState
+        )?.rewardMoveCardsAfterClear ?? []
         return dungeonGrowthStore.rewardMoveCards(for: baseCards, dungeon: dungeon)
     }
     /// 現在フロアで拾って未使用分が残っている、報酬カード化できるカード

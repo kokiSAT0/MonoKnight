@@ -309,7 +309,7 @@ struct ResultActionSection: View {
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundStyle(.secondary)
 
-                            HStack(alignment: .top, spacing: 8) {
+                            LazyVGrid(columns: rewardCardGridColumns, alignment: .leading, spacing: 8) {
                                 ForEach(dungeonRewardMoveCards, id: \.self) { card in
                                     let choice = DungeonRewardCardChoicePresentation(
                                         card: card,
@@ -340,7 +340,7 @@ struct ResultActionSection: View {
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundStyle(.secondary)
 
-                            HStack(alignment: .top, spacing: 8) {
+                            LazyVGrid(columns: rewardCardGridColumns, alignment: .leading, spacing: 8) {
                                 ForEach(dungeonPickupCarryoverEntries) { entry in
                                     let choice = DungeonRewardCardChoicePresentation(
                                         card: entry.card,
@@ -373,47 +373,19 @@ struct ResultActionSection: View {
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundStyle(.secondary)
 
-                            VStack(spacing: 8) {
+                            LazyVGrid(columns: rewardCardGridColumns, alignment: .leading, spacing: 8) {
                                 ForEach(dungeonRewardInventoryEntries) { entry in
-                                    VStack(alignment: .leading, spacing: 8) {
-                                        Text("\(entry.card.displayName)×\(entry.rewardUses)")
-                                            .font(.subheadline.weight(.semibold))
-                                            .foregroundStyle(.primary)
-                                            .frame(maxWidth: .infinity, alignment: .leading)
-                                            .lineLimit(1)
-                                            .minimumScaleFactor(0.75)
-
-                                        HStack(spacing: 8) {
-                                            Button {
-                                                triggerSuccessHapticIfNeeded()
-                                                onSelectDungeonReward(.upgrade(entry.card))
-                                            } label: {
-                                                Label("使用回数+1", systemImage: "plus.circle")
-                                                    .frame(maxWidth: .infinity)
-                                            }
-                                            .buttonStyle(.bordered)
-                                            .controlSize(.small)
-                                            .accessibilityHint("選ぶと次の階へ進みます")
-                                            .accessibilityIdentifier("dungeon_reward_upgrade_\(entry.card.displayName)")
-
-                                            Button {
-                                                triggerSuccessHapticIfNeeded()
-                                                onSelectDungeonReward(.remove(entry.card))
-                                            } label: {
-                                                Label("外す", systemImage: "minus.circle")
-                                                    .frame(maxWidth: .infinity)
-                                            }
-                                            .buttonStyle(.bordered)
-                                            .controlSize(.small)
-                                            .accessibilityHint("選ぶと次の階へ進みます")
-                                            .accessibilityIdentifier("dungeon_reward_remove_\(entry.card.displayName)")
+                                    let carriedChoice = DungeonCarriedRewardChoicePresentation(entry: entry)
+                                    DungeonCarriedRewardCardView(
+                                        choice: carriedChoice,
+                                        onUpgrade: {
+                                            triggerSuccessHapticIfNeeded()
+                                            onSelectDungeonReward(.upgrade(entry.card))
+                                        },
+                                        onRemove: {
+                                            triggerSuccessHapticIfNeeded()
+                                            onSelectDungeonReward(.remove(entry.card))
                                         }
-                                    }
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 8)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                            .fill(Color(UIColor.secondarySystemBackground))
                                     )
                                 }
                             }
@@ -477,6 +449,12 @@ struct ResultActionSection: View {
         (onSelectDungeonRewardMoveCard != nil && !dungeonRewardMoveCards.isEmpty)
             || (onSelectDungeonReward != nil && !dungeonPickupCarryoverEntries.isEmpty)
             || (onSelectDungeonReward != nil && !dungeonRewardInventoryEntries.isEmpty)
+    }
+
+    private var rewardCardGridColumns: [GridItem] {
+        [
+            GridItem(.adaptive(minimum: 132, maximum: 180), spacing: 8, alignment: .top)
+        ]
     }
 
     private let modeDisplayName: String
@@ -616,5 +594,118 @@ private struct DungeonRewardCardChoiceView: View {
                 .stroke(theme.cardBorderHand.opacity(0.24), lineWidth: 1)
         )
         .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+}
+
+struct DungeonCarriedRewardChoicePresentation: Equatable {
+    let card: MoveCard
+    let rewardUses: Int
+
+    init(entry: DungeonInventoryEntry) {
+        self.card = entry.card
+        self.rewardUses = max(entry.rewardUses, 1)
+    }
+
+    var title: String { card.displayName }
+    var description: String { card.encyclopediaDescription }
+    var usesBadgeText: String { "現在\(rewardUses)回" }
+    var upgradeAccessibilityLabel: String {
+        "\(card.displayName)、持ち越しカード、現在\(rewardUses)回。使用回数+1。選ぶと次の階へ進みます。"
+    }
+    var removeAccessibilityLabel: String {
+        "\(card.displayName)、持ち越しカード、現在\(rewardUses)回。外す。選ぶと次の階へ進みます。"
+    }
+    var upgradeAccessibilityIdentifier: String { "dungeon_reward_upgrade_\(card.displayName)" }
+    var removeAccessibilityIdentifier: String { "dungeon_reward_remove_\(card.displayName)" }
+}
+
+private struct DungeonCarriedRewardCardView: View {
+    let choice: DungeonCarriedRewardChoicePresentation
+    let onUpgrade: () -> Void
+    let onRemove: () -> Void
+    private var theme = AppTheme()
+
+    init(
+        choice: DungeonCarriedRewardChoicePresentation,
+        onUpgrade: @escaping () -> Void,
+        onRemove: @escaping () -> Void
+    ) {
+        self.choice = choice
+        self.onUpgrade = onUpgrade
+        self.onRemove = onRemove
+    }
+
+    var body: some View {
+        VStack(spacing: 8) {
+            MoveCardIllustrationView(card: choice.card, mode: .hand)
+                .scaleEffect(0.92)
+                .frame(
+                    width: MoveCardIllustrationView.defaultWidth,
+                    height: MoveCardIllustrationView.defaultHeight * 0.92
+                )
+                .accessibilityHidden(true)
+
+            Text(choice.title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundColor(theme.textPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+
+            Text(choice.usesBadgeText)
+                .font(.caption2.weight(.bold))
+                .foregroundColor(theme.accentOnPrimary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(Capsule(style: .continuous).fill(theme.accentPrimary))
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+
+            Text(choice.description)
+                .font(.caption)
+                .foregroundColor(theme.textSecondary)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .minimumScaleFactor(0.78)
+                .frame(minHeight: 30, alignment: .top)
+
+            VStack(spacing: 6) {
+                Button {
+                    onUpgrade()
+                } label: {
+                    Label("使用回数+1", systemImage: "plus.circle")
+                        .frame(maxWidth: .infinity)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .accessibilityLabel(choice.upgradeAccessibilityLabel)
+                .accessibilityIdentifier(choice.upgradeAccessibilityIdentifier)
+
+                Button {
+                    onRemove()
+                } label: {
+                    Label("外す", systemImage: "minus.circle")
+                        .frame(maxWidth: .infinity)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .accessibilityLabel(choice.removeAccessibilityLabel)
+                .accessibilityIdentifier(choice.removeAccessibilityIdentifier)
+            }
+        }
+        .frame(maxWidth: .infinity, minHeight: 260, alignment: .top)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(theme.backgroundElevated)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(theme.cardBorderHand.opacity(0.24), lineWidth: 1)
+        )
     }
 }

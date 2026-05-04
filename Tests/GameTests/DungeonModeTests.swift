@@ -446,20 +446,73 @@ final class DungeonModeTests: XCTestCase {
             )
         }
         XCTAssertEqual(tower.floors[6].rewardMoveCardsAfterClear, [
-            .diagonalUpRight2,
-            .rayRight,
-            .straightUp2
+            .straightUp2,
+            .rayUp,
+            .knightUpwardChoice
         ])
         XCTAssertEqual(tower.floors[7].rewardMoveCardsAfterClear, [
             .straightRight2,
             .diagonalUpRight2,
-            .straightUp2
+            .rayRight
         ])
         XCTAssertFalse(tower.floors[8].rewardMoveCardsAfterClear.isEmpty)
         XCTAssertEqual(tower.floors[9].rewardMoveCardsAfterClear, [])
         XCTAssertEqual(tower.floors[19].rewardMoveCardsAfterClear, [])
         XCTAssertFalse(tower.canAdvanceWithinRun(afterFloorIndex: 9))
         XCTAssertTrue(tower.canAdvanceWithinRun(afterFloorIndex: 10))
+    }
+
+    func testGrowthTowerEarlyFloorsUseDensePickupCardsForLowDifficulty() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let runState = DungeonRunState(
+            dungeonID: tower.id,
+            carriedHP: 3,
+            cardVariationSeed: 321
+        )
+        let basicOneStepCards: Set<MoveCard> = [.kingUp, .kingDown, .kingLeft, .kingRight]
+
+        for floorIndex in 0..<8 {
+            let floor = tower.floors[floorIndex]
+            let resolvedFloor = try XCTUnwrap(tower.resolvedFloor(at: floorIndex, runState: runState))
+
+            XCTAssertEqual(
+                floor.cardPickups.count,
+                5,
+                "\(floorIndex + 1)F はギミック追加より拾得カード密度で易しくする想定です"
+            )
+            XCTAssertEqual(
+                resolvedFloor.cardPickups.count,
+                5,
+                "\(floorIndex + 1)F は seed 解決後も拾得カード数を保つ想定です"
+            )
+            XCTAssertTrue(
+                resolvedFloor.cardPickups.allSatisfy { $0.point.isInside(boardSize: resolvedFloor.boardSize) },
+                "\(floorIndex + 1)F の拾得カードは盤面内へ置く必要があります"
+            )
+            XCTAssertTrue(resolvedFloor.cardPickups.allSatisfy { !basicOneStepCards.contains($0.card) })
+            XCTAssertFalse(resolvedFloor.cardPickups.contains { $0.card == .fixedWarp })
+        }
+    }
+
+    func testGrowthTowerEarlyPickupCardsCanBeCollectedAsExtraOptions() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+
+        let firstCore = makeCore(mode: tower.floors[0].makeGameMode(dungeonID: tower.id))
+        playBasicMove(to: GridPoint(x: 1, y: 0), in: firstCore)
+        playBasicMove(to: GridPoint(x: 2, y: 0), in: firstCore)
+        playBasicMove(to: GridPoint(x: 3, y: 0), in: firstCore)
+        XCTAssertTrue(
+            firstCore.dungeonInventoryEntries.contains { $0.card == .diagonalUpRight2 && $0.pickupUses == 1 },
+            "1F の追加拾得カードは序盤から寄り道/短縮用の選択肢として拾える想定です"
+        )
+
+        let secondCore = makeCore(mode: tower.floors[1].makeGameMode(dungeonID: tower.id))
+        playBasicMove(to: GridPoint(x: 7, y: 8), in: secondCore)
+        playBasicMove(to: GridPoint(x: 6, y: 8), in: secondCore)
+        XCTAssertTrue(
+            secondCore.dungeonInventoryEntries.contains { $0.card == .straightLeft2 && $0.pickupUses == 1 },
+            "2F の追加拾得カードは鍵フロアの横移動を楽にする選択肢として拾える想定です"
+        )
     }
 
     func testGrowthTowerStairsBecomeNextFloorStartWithinRunSections() throws {
@@ -569,6 +622,39 @@ final class DungeonModeTests: XCTestCase {
             ninthCore.availableMoves().contains { $0.moveCard == .straightRight2 && $0.destination == GridPoint(x: 2, y: 2) },
             "8F報酬の右2は9Fで鍵側へ寄る最初の短縮候補になる想定です"
         )
+
+        let lateRewardCases: [(floorIndex: Int, card: MoveCard, destination: GridPoint, message: String)] = [
+            (10, .straightDown2, GridPoint(x: 8, y: 6), "11F報酬の下2は12Fの下り導線へ入る候補になる想定です"),
+            (11, .rayLeft, GridPoint(x: 0, y: 2), "12F報酬の左連続は13Fの横移動を大きく短縮する想定です"),
+            (12, .straightRight2, GridPoint(x: 2, y: 6), "13F報酬の右2は14Fの直線ルートを刻む候補になる想定です"),
+            (13, .diagonalDownLeft2, GridPoint(x: 6, y: 4), "14F報酬の左下2は15Fの鍵側へ寄る候補になる想定です"),
+            (15, .diagonalUpLeft2, GridPoint(x: 6, y: 6), "16F報酬の左上2は17Fの遠回りを短縮する想定です"),
+            (17, .diagonalDownLeft2, GridPoint(x: 6, y: 6), "18F報酬の左下2は19Fの罠側を避ける候補になる想定です"),
+            (18, .straightRight2, GridPoint(x: 2, y: 2), "19F報酬の右2は20Fの鍵ルートへ寄る候補になる想定です")
+        ]
+
+        for rewardCase in lateRewardCases {
+            let runState = DungeonRunState(
+                dungeonID: tower.id,
+                currentFloorIndex: rewardCase.floorIndex + 1,
+                carriedHP: 3,
+                clearedFloorCount: rewardCase.floorIndex + 1,
+                rewardInventoryEntries: [DungeonInventoryEntry(card: rewardCase.card, rewardUses: 3)]
+            )
+            let core = makeCore(
+                mode: tower.floors[rewardCase.floorIndex + 1].makeGameMode(
+                    dungeonID: tower.id,
+                    difficulty: tower.difficulty,
+                    runState: runState
+                )
+            )
+            XCTAssertTrue(
+                core.availableMoves().contains {
+                    $0.moveCard == rewardCase.card && $0.destination == rewardCase.destination
+                },
+                rewardCase.message
+            )
+        }
     }
 
     func testGrowthTowerDefinitionsStayInsideBoardAndExposeCombinedGimmicks() throws {
@@ -1266,6 +1352,111 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertTrue(core.handStacks.isEmpty)
         XCTAssertTrue(core.nextCards.isEmpty)
         XCTAssertTrue(core.dungeonInventoryEntries.isEmpty)
+    }
+
+    func testGrowthTowerCardVariationIsStableForSameSeed() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let firstMode = try XCTUnwrap(DungeonLibrary.shared.firstFloorMode(for: tower, cardVariationSeed: 42))
+        let secondMode = try XCTUnwrap(DungeonLibrary.shared.firstFloorMode(for: tower, cardVariationSeed: 42))
+        let firstRunState = try XCTUnwrap(firstMode.dungeonMetadataSnapshot?.runState)
+        let secondRunState = try XCTUnwrap(secondMode.dungeonMetadataSnapshot?.runState)
+
+        let firstFloor = try XCTUnwrap(tower.resolvedFloor(at: 0, runState: firstRunState))
+        let secondFloor = try XCTUnwrap(tower.resolvedFloor(at: 0, runState: secondRunState))
+
+        XCTAssertEqual(firstRunState.cardVariationSeed, 42)
+        XCTAssertEqual(secondRunState.cardVariationSeed, 42)
+        XCTAssertEqual(firstFloor.cardPickups, secondFloor.cardPickups)
+        XCTAssertEqual(firstFloor.rewardMoveCardsAfterClear, secondFloor.rewardMoveCardsAfterClear)
+        XCTAssertEqual(firstMode.dungeonRules?.cardPickups, firstFloor.cardPickups)
+
+        let core = makeCore(mode: firstMode)
+        XCTAssertEqual(core.activeDungeonCardPickups, firstFloor.cardPickups)
+    }
+
+    func testGrowthTowerCardVariationChangesAcrossSeedsAndKeepsSafeCells() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let firstRunState = DungeonRunState(
+            dungeonID: tower.id,
+            carriedHP: 3,
+            cardVariationSeed: 100
+        )
+        let secondRunState = DungeonRunState(
+            dungeonID: tower.id,
+            carriedHP: 3,
+            cardVariationSeed: 200
+        )
+
+        let firstFloors = try (0..<8).map { floorIndex in
+            try XCTUnwrap(tower.resolvedFloor(at: floorIndex, runState: firstRunState))
+        }
+        let secondFloors = try (0..<8).map { floorIndex in
+            try XCTUnwrap(tower.resolvedFloor(at: floorIndex, runState: secondRunState))
+        }
+
+        XCTAssertNotEqual(
+            firstFloors.flatMap(\.cardPickups),
+            secondFloors.flatMap(\.cardPickups)
+        )
+        XCTAssertNotEqual(
+            firstFloors.flatMap(\.rewardMoveCardsAfterClear),
+            secondFloors.flatMap(\.rewardMoveCardsAfterClear)
+        )
+
+        for floor in firstFloors {
+            let blocked = blockedGrowthTowerPickupPoints(for: floor)
+            XCTAssertTrue(floor.cardPickups.allSatisfy { !blocked.contains($0.point) })
+        }
+    }
+
+    func testGrowthTowerCardVariationSeedCarriesToNextFloor() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let mode = try XCTUnwrap(DungeonLibrary.shared.firstFloorMode(for: tower, cardVariationSeed: 999))
+        let runState = try XCTUnwrap(mode.dungeonMetadataSnapshot?.runState)
+
+        let advanced = runState.advancedToNextFloor(
+            carryoverHP: 2,
+            currentFloorMoveCount: 6,
+            rewardMoveCard: .straightRight2
+        )
+        let nextFloor = try XCTUnwrap(tower.resolvedFloor(at: 1, runState: advanced))
+        let repeatedNextFloor = try XCTUnwrap(tower.resolvedFloor(at: 1, runState: advanced))
+
+        XCTAssertEqual(advanced.cardVariationSeed, 999)
+        XCTAssertEqual(nextFloor, repeatedNextFloor)
+    }
+
+    func testGrowthTowerResolvedCardsExcludeBasicAndFixedWarp() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let runState = DungeonRunState(
+            dungeonID: tower.id,
+            carriedHP: 3,
+            cardVariationSeed: 777
+        )
+        let basicOneStepCards: Set<MoveCard> = [.kingUp, .kingDown, .kingLeft, .kingRight]
+
+        for floorIndex in tower.floors.indices {
+            let floor = try XCTUnwrap(tower.resolvedFloor(at: floorIndex, runState: runState))
+            XCTAssertTrue(floor.cardPickups.allSatisfy { !basicOneStepCards.contains($0.card) })
+            XCTAssertTrue(floor.rewardMoveCardsAfterClear.allSatisfy { !basicOneStepCards.contains($0) })
+            XCTAssertFalse(floor.cardPickups.contains { $0.card == .fixedWarp })
+            XCTAssertFalse(floor.rewardMoveCardsAfterClear.contains(.fixedWarp))
+        }
+    }
+
+    func testNonGrowthTowersDoNotResolveCardVariation() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
+        let runState = DungeonRunState(
+            dungeonID: tower.id,
+            carriedHP: 3,
+            cardVariationSeed: 123
+        )
+        let resolvedFloor = try XCTUnwrap(tower.resolvedFloor(at: 0, runState: runState))
+        let mode = try XCTUnwrap(DungeonLibrary.shared.firstFloorMode(for: tower, cardVariationSeed: 456))
+
+        XCTAssertEqual(resolvedFloor, tower.floors[0])
+        XCTAssertNil(mode.dungeonMetadataSnapshot?.runState?.cardVariationSeed)
+        XCTAssertEqual(mode.dungeonRules?.cardPickups, tower.floors[0].cardPickups)
     }
 
     func testDungeonCardPickupAddsSingleUseAndConsumptionRemovesIt() throws {
@@ -2367,6 +2558,28 @@ final class DungeonModeTests: XCTestCase {
             ),
             leaderboardEligible: false
         )
+    }
+
+    private func blockedGrowthTowerPickupPoints(for floor: DungeonFloorDefinition) -> Set<GridPoint> {
+        var blocked: Set<GridPoint> = [
+            floor.spawnPoint,
+            floor.exitPoint
+        ]
+        blocked.formUnion(floor.impassableTilePoints)
+        blocked.formUnion(floor.enemies.map(\.position))
+        blocked.formUnion(floor.warpTilePairs.values.flatMap { $0 })
+        if let unlockPoint = floor.exitLock?.unlockPoint {
+            blocked.insert(unlockPoint)
+        }
+        for hazard in floor.hazards {
+            switch hazard {
+            case .brittleFloor(let points):
+                blocked.formUnion(points)
+            case .damageTrap(let points, _):
+                blocked.formUnion(points)
+            }
+        }
+        return blocked
     }
 
     private func makeCore(

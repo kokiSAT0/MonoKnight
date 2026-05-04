@@ -90,5 +90,22 @@ final class MoveCardIllustrationViewAccessibilityTests: XCTestCase {
         XCTAssertTrue(choice.accessibilityLabel.contains("4回使える"))
         XCTAssertTrue(choice.accessibilityLabel.contains("選ぶと次の階へ進みます"))
     }
+
+    func testDungeonCarriedRewardChoicePresentationExplainsCardActions() {
+        let choice = DungeonCarriedRewardChoicePresentation(
+            entry: DungeonInventoryEntry(card: .straightRight2, rewardUses: 2)
+        )
+
+        XCTAssertEqual(choice.title, "右2")
+        XCTAssertEqual(choice.usesBadgeText, "現在2回")
+        XCTAssertEqual(choice.upgradeAccessibilityIdentifier, "dungeon_reward_upgrade_右2")
+        XCTAssertEqual(choice.removeAccessibilityIdentifier, "dungeon_reward_remove_右2")
+        XCTAssertTrue(choice.upgradeAccessibilityLabel.contains("右2"))
+        XCTAssertTrue(choice.upgradeAccessibilityLabel.contains("現在2回"))
+        XCTAssertTrue(choice.upgradeAccessibilityLabel.contains("使用回数+1"))
+        XCTAssertTrue(choice.upgradeAccessibilityLabel.contains("選ぶと次の階へ進みます"))
+        XCTAssertTrue(choice.removeAccessibilityLabel.contains("外す"))
+        XCTAssertTrue(choice.removeAccessibilityLabel.contains("選ぶと次の階へ進みます"))
+    }
 }
 #endif

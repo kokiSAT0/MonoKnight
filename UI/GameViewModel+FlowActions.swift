@@ -169,7 +169,7 @@ extension GameViewModel {
             currentInventoryEntries: core.dungeonInventoryEntries,
             rewardAddUses: dungeonGrowthStore.rewardAddUses(for: dungeon)
         )
-        let nextFloor = dungeon.floors[nextIndex]
+        let nextFloor = dungeon.resolvedFloor(at: nextIndex, runState: nextRunState) ?? dungeon.floors[nextIndex]
         return nextFloor.makeGameMode(
             dungeonID: dungeon.id,
             difficulty: dungeon.difficulty,
