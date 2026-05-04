@@ -323,6 +323,8 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
     public let hazards: [HazardDefinition]
     public let impassableTilePoints: Set<GridPoint>
     public let tileEffectOverrides: [GridPoint: TileEffect]
+    public let warpTilePairs: [String: [GridPoint]]
+    public let fixedWarpCardTargets: [MoveCard: [GridPoint]]
     public let exitLock: DungeonExitLock?
     public let cardPickups: [DungeonCardPickupDefinition]
     public let rewardMoveCardsAfterClear: [MoveCard]
@@ -339,6 +341,8 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
         hazards: [HazardDefinition] = [],
         impassableTilePoints: Set<GridPoint> = [],
         tileEffectOverrides: [GridPoint: TileEffect] = [:],
+        warpTilePairs: [String: [GridPoint]] = [:],
+        fixedWarpCardTargets: [MoveCard: [GridPoint]] = [:],
         exitLock: DungeonExitLock? = nil,
         cardPickups: [DungeonCardPickupDefinition] = [],
         rewardMoveCardsAfterClear: [MoveCard] = []
@@ -354,6 +358,8 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
         self.hazards = hazards
         self.impassableTilePoints = impassableTilePoints
         self.tileEffectOverrides = tileEffectOverrides
+        self.warpTilePairs = warpTilePairs
+        self.fixedWarpCardTargets = fixedWarpCardTargets
         self.exitLock = exitLock
         self.cardPickups = cardPickups
         var uniqueRewardMoveCards: [MoveCard] = []
@@ -386,6 +392,8 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
                 penalties: CampaignLibrary.targetModePenalties,
                 impassableTilePoints: impassableTilePoints,
                 tileEffectOverrides: tileEffectOverrides,
+                warpTilePairs: warpTilePairs,
+                fixedWarpCardTargets: fixedWarpCardTargets,
                 completionRule: .dungeonExit(exitPoint: exitPoint),
                 dungeonRules: DungeonRules(
                     difficulty: .growth,
@@ -496,7 +504,8 @@ public struct DungeonLibrary {
         dungeons = [
             DungeonLibrary.buildTutorialTower(),
             DungeonLibrary.buildPatrolTower(),
-            DungeonLibrary.buildKeyDoorTower()
+            DungeonLibrary.buildKeyDoorTower(),
+            DungeonLibrary.buildWarpTower()
         ]
     }
 
@@ -946,6 +955,139 @@ public struct DungeonLibrary {
             id: "key-door-tower",
             title: "鍵扉塔",
             summary: "鍵マスで扉を開き、寄り道と出口直行の手数差を読む低難度の塔。",
+            difficulty: .growth,
+            floors: floors
+        )
+    }
+
+    private static func buildWarpTower() -> DungeonDefinition {
+        let floors = [
+            DungeonFloorDefinition(
+                id: "warp-1",
+                title: "転移の入口",
+                boardSize: standardTowerBoardSize,
+                spawnPoint: GridPoint(x: 0, y: 0),
+                exitPoint: GridPoint(x: 8, y: 8),
+                deckPreset: .standardLight,
+                failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 18),
+                warpTilePairs: [
+                    "warp-1-shortcut": [
+                        GridPoint(x: 2, y: 1),
+                        GridPoint(x: 6, y: 6)
+                    ]
+                ],
+                cardPickups: [
+                    DungeonCardPickupDefinition(
+                        id: "warp-1-right2",
+                        point: GridPoint(x: 1, y: 0),
+                        card: .straightRight2
+                    ),
+                    DungeonCardPickupDefinition(
+                        id: "warp-1-up2",
+                        point: GridPoint(x: 6, y: 6),
+                        card: .straightUp2
+                    ),
+                    DungeonCardPickupDefinition(
+                        id: "warp-1-knight",
+                        point: GridPoint(x: 7, y: 6),
+                        card: .knightRightwardChoice
+                    )
+                ],
+                rewardMoveCardsAfterClear: [
+                    .fixedWarp,
+                    .straightUp2,
+                    .rayRight
+                ]
+            ),
+            DungeonFloorDefinition(
+                id: "warp-2",
+                title: "固定ワープの間",
+                boardSize: standardTowerBoardSize,
+                spawnPoint: GridPoint(x: 0, y: 4),
+                exitPoint: GridPoint(x: 8, y: 4),
+                deckPreset: .standardLight,
+                failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 13),
+                fixedWarpCardTargets: [
+                    .fixedWarp: [
+                        GridPoint(x: 6, y: 4),
+                        GridPoint(x: 7, y: 6)
+                    ]
+                ],
+                cardPickups: [
+                    DungeonCardPickupDefinition(
+                        id: "warp-2-fixed-warp",
+                        point: GridPoint(x: 1, y: 4),
+                        card: .fixedWarp
+                    ),
+                    DungeonCardPickupDefinition(
+                        id: "warp-2-right2",
+                        point: GridPoint(x: 6, y: 4),
+                        card: .straightRight2
+                    ),
+                    DungeonCardPickupDefinition(
+                        id: "warp-2-up2",
+                        point: GridPoint(x: 7, y: 4),
+                        card: .straightUp2
+                    )
+                ],
+                rewardMoveCardsAfterClear: [
+                    .fixedWarp,
+                    .rayRight,
+                    .diagonalUpRight2
+                ]
+            ),
+            DungeonFloorDefinition(
+                id: "warp-3",
+                title: "危険な転移先",
+                boardSize: standardTowerBoardSize,
+                spawnPoint: GridPoint(x: 0, y: 0),
+                exitPoint: GridPoint(x: 8, y: 8),
+                deckPreset: .standardLight,
+                failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 18),
+                enemies: [
+                    EnemyDefinition(
+                        id: "warp-3-watcher",
+                        name: "見張り",
+                        position: GridPoint(x: 7, y: 6),
+                        behavior: .watcher(direction: MoveVector(dx: -1, dy: 0), range: 2)
+                    )
+                ],
+                warpTilePairs: [
+                    "warp-3-risk": [
+                        GridPoint(x: 1, y: 1),
+                        GridPoint(x: 6, y: 6)
+                    ]
+                ],
+                fixedWarpCardTargets: [
+                    .fixedWarp: [
+                        GridPoint(x: 6, y: 6),
+                        GridPoint(x: 8, y: 6)
+                    ]
+                ],
+                cardPickups: [
+                    DungeonCardPickupDefinition(
+                        id: "warp-3-fixed-warp",
+                        point: GridPoint(x: 0, y: 1),
+                        card: .fixedWarp
+                    ),
+                    DungeonCardPickupDefinition(
+                        id: "warp-3-up2",
+                        point: GridPoint(x: 6, y: 6),
+                        card: .straightUp2
+                    ),
+                    DungeonCardPickupDefinition(
+                        id: "warp-3-diagonal-up-right",
+                        point: GridPoint(x: 6, y: 7),
+                        card: .diagonalUpRight2
+                    )
+                ]
+            )
+        ]
+
+        return DungeonDefinition(
+            id: "warp-tower",
+            title: "ワープ塔",
+            summary: "ワープ床と固定ワープカードを読み、遠回りと近道を切り替える低難度の塔。",
             difficulty: .growth,
             floors: floors
         )

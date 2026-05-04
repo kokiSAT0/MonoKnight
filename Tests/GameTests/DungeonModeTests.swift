@@ -220,7 +220,8 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertNotNil(library.dungeon(with: "tutorial-tower"))
         XCTAssertNotNil(library.dungeon(with: "patrol-tower"))
         XCTAssertNotNil(library.dungeon(with: "key-door-tower"))
-        XCTAssertEqual(library.dungeons.map(\.id), ["tutorial-tower", "patrol-tower", "key-door-tower"])
+        XCTAssertNotNil(library.dungeon(with: "warp-tower"))
+        XCTAssertEqual(library.dungeons.map(\.id), ["tutorial-tower", "patrol-tower", "key-door-tower", "warp-tower"])
     }
 
     func testPatrolTowerProvidesThreePlayableInventoryFloors() throws {
@@ -260,10 +261,12 @@ final class DungeonModeTests: XCTestCase {
         let tutorialTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
         let patrolTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "patrol-tower"))
         let keyDoorTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "key-door-tower"))
+        let warpTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "warp-tower"))
 
         XCTAssertEqual(tutorialTower.floors.map(\.boardSize), [5, 5, 5])
         XCTAssertEqual(patrolTower.floors.map(\.boardSize), [9, 9, 9])
         XCTAssertEqual(keyDoorTower.floors.map(\.boardSize), [9, 9, 9])
+        XCTAssertEqual(warpTower.floors.map(\.boardSize), [9, 9, 9])
     }
 
     func testPatrolTowerNineByNineDefinitionsStayInsideBoard() throws {
@@ -354,6 +357,165 @@ final class DungeonModeTests: XCTestCase {
                 "\(floor.title) の鍵/扉配置はすべて 9×9 盤面内に収める必要があります"
             )
         }
+    }
+
+    func testWarpTowerProvidesThreePlayableInventoryFloors() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "warp-tower"))
+
+        XCTAssertEqual(tower.title, "ワープ塔")
+        XCTAssertEqual(tower.difficulty, .growth)
+        XCTAssertEqual(tower.floors.count, 3)
+        XCTAssertEqual(tower.floors.map(\.title), ["転移の入口", "固定ワープの間", "危険な転移先"])
+        XCTAssertEqual(tower.floors[0].rewardMoveCardsAfterClear, [
+            .fixedWarp,
+            .straightUp2,
+            .rayRight
+        ])
+        XCTAssertEqual(tower.floors[1].rewardMoveCardsAfterClear, [
+            .fixedWarp,
+            .rayRight,
+            .diagonalUpRight2
+        ])
+        XCTAssertTrue(tower.floors[2].rewardMoveCardsAfterClear.isEmpty)
+
+        for floor in tower.floors {
+            let mode = floor.makeGameMode(dungeonID: tower.id)
+            XCTAssertTrue(mode.usesDungeonExit)
+            XCTAssertFalse(mode.usesTargetCollection)
+            XCTAssertEqual(mode.dungeonExitPoint, floor.exitPoint)
+            XCTAssertEqual(mode.dungeonRules?.allowsBasicOrthogonalMove, true)
+            XCTAssertEqual(mode.dungeonRules?.cardAcquisitionMode, .inventoryOnly)
+            XCTAssertEqual(mode.dungeonMetadataSnapshot?.dungeonID, tower.id)
+            XCTAssertEqual(mode.dungeonMetadataSnapshot?.floorID, floor.id)
+            XCTAssertFalse(floor.cardPickups.isEmpty)
+        }
+
+        XCTAssertFalse(tower.floors[0].warpTilePairs.isEmpty)
+        XCTAssertFalse(tower.floors[1].fixedWarpCardTargets.isEmpty)
+        XCTAssertFalse(tower.floors[2].warpTilePairs.isEmpty)
+        XCTAssertFalse(tower.floors[2].fixedWarpCardTargets.isEmpty)
+    }
+
+    func testWarpTowerDefinitionsStayInsideBoardAndWarpLinksResolve() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "warp-tower"))
+
+        for floor in tower.floors {
+            var points: [GridPoint] = [floor.spawnPoint, floor.exitPoint]
+            points.append(contentsOf: floor.cardPickups.map(\.point))
+            points.append(contentsOf: floor.enemies.map(\.position))
+            points.append(contentsOf: floor.impassableTilePoints)
+            points.append(contentsOf: floor.tileEffectOverrides.keys)
+            for enemy in floor.enemies {
+                if case .patrol(let path) = enemy.behavior {
+                    points.append(contentsOf: path)
+                }
+            }
+            for warpPoints in floor.warpTilePairs.values {
+                XCTAssertGreaterThanOrEqual(warpPoints.count, 2)
+                points.append(contentsOf: warpPoints)
+            }
+            for targets in floor.fixedWarpCardTargets.values {
+                XCTAssertFalse(targets.isEmpty)
+                points.append(contentsOf: targets)
+            }
+
+            XCTAssertTrue(
+                points.allSatisfy { $0.isInside(boardSize: floor.boardSize) },
+                "\(floor.title) のワープ配置はすべて 9×9 盤面内に収める必要があります"
+            )
+
+            let mode = floor.makeGameMode(dungeonID: tower.id)
+            for warpPoints in floor.warpTilePairs.values {
+                for point in warpPoints {
+                    guard case .warp = mode.tileEffects[point] else {
+                        XCTFail("\(floor.title) の \(point) はワープ床として解決される必要があります")
+                        continue
+                    }
+                }
+            }
+            XCTAssertEqual(mode.fixedWarpCardTargets, floor.fixedWarpCardTargets)
+        }
+    }
+
+    func testWarpTowerWarpRoutesShortenRepresentativeBasicRoutes() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "warp-tower"))
+
+        let firstCore = makeCore(mode: tower.floors[0].makeGameMode(dungeonID: tower.id))
+        for destination in [
+            GridPoint(x: 1, y: 0),
+            GridPoint(x: 2, y: 0),
+            GridPoint(x: 2, y: 1),
+            GridPoint(x: 7, y: 6),
+            GridPoint(x: 8, y: 6),
+            GridPoint(x: 8, y: 7),
+            GridPoint(x: 8, y: 8)
+        ] {
+            playBasicMove(to: destination, in: firstCore)
+        }
+        XCTAssertEqual(firstCore.progress, .cleared)
+        XCTAssertLessThan(firstCore.moveCount, 16)
+
+        let secondRunState = DungeonRunState(
+            dungeonID: tower.id,
+            currentFloorIndex: 1,
+            carriedHP: 3,
+            clearedFloorCount: 1,
+            rewardInventoryEntries: [DungeonInventoryEntry(card: .fixedWarp, rewardUses: 3)]
+        )
+        let secondCore = makeCore(
+            mode: tower.floors[1].makeGameMode(dungeonID: tower.id, runState: secondRunState)
+        )
+        playMove(to: GridPoint(x: 6, y: 4), in: secondCore)
+        playBasicMove(to: GridPoint(x: 7, y: 4), in: secondCore)
+        playBasicMove(to: GridPoint(x: 8, y: 4), in: secondCore)
+        XCTAssertEqual(secondCore.progress, .cleared)
+        XCTAssertLessThan(secondCore.moveCount, 8)
+
+        let thirdCore = makeCore(mode: tower.floors[2].makeGameMode(dungeonID: tower.id))
+        for destination in [
+            GridPoint(x: 0, y: 1),
+            GridPoint(x: 1, y: 1),
+            GridPoint(x: 6, y: 7),
+            GridPoint(x: 6, y: 8),
+            GridPoint(x: 7, y: 8),
+            GridPoint(x: 8, y: 8)
+        ] {
+            playBasicMove(to: destination, in: thirdCore)
+        }
+        XCTAssertEqual(thirdCore.progress, .cleared)
+        XCTAssertEqual(thirdCore.dungeonHP, 2, "危険な転移先は近道だが見張りの危険範囲で HP を 1 失う想定です")
+        XCTAssertLessThan(thirdCore.moveCount, 16)
+    }
+
+    func testWarpTowerRewardCardsAreUsableOnNextFloorStart() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "warp-tower"))
+        let secondRunState = DungeonRunState(
+            dungeonID: tower.id,
+            currentFloorIndex: 1,
+            carriedHP: 3,
+            clearedFloorCount: 1,
+            rewardInventoryEntries: [DungeonInventoryEntry(card: .fixedWarp, rewardUses: 3)]
+        )
+        let secondCore = makeCore(mode: tower.floors[1].makeGameMode(dungeonID: tower.id, runState: secondRunState))
+
+        XCTAssertTrue(
+            secondCore.availableMoves().contains { $0.moveCard == .fixedWarp && $0.destination == GridPoint(x: 6, y: 4) },
+            "ワープ塔 1F 報酬の固定ワープは 2F 初手で出口側へ短縮できる必要があります"
+        )
+
+        let thirdRunState = DungeonRunState(
+            dungeonID: tower.id,
+            currentFloorIndex: 2,
+            carriedHP: 3,
+            clearedFloorCount: 2,
+            rewardInventoryEntries: [DungeonInventoryEntry(card: .fixedWarp, rewardUses: 3)]
+        )
+        let thirdCore = makeCore(mode: tower.floors[2].makeGameMode(dungeonID: tower.id, runState: thirdRunState))
+
+        XCTAssertTrue(
+            thirdCore.availableMoves().contains { $0.moveCard == .fixedWarp && $0.destination == GridPoint(x: 6, y: 6) },
+            "ワープ塔 2F 報酬の固定ワープは 3F の危険な転移先を読む候補になる想定です"
+        )
     }
 
     func testTutorialTowerInitialRunStartsAtFirstFloor() throws {

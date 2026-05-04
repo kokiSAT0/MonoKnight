@@ -1266,7 +1266,15 @@ public final class GameCore: ObservableObject {
         dungeonInventoryEntries = liveEntries
         handStacks = liveEntries.map { entry in
             let existingStack = existingStacksByCard[entry.card]
-            var cards = Array(existingStack?.cards.prefix(entry.totalUses) ?? [])
+            var cards: [DealtCard]
+            if entry.card == .fixedWarp {
+                let destination = mode.fixedWarpDestinationPool.first
+                cards = (0..<entry.totalUses).map { _ in
+                    DealtCard(move: entry.card, fixedWarpDestination: destination)
+                }
+            } else {
+                cards = Array(existingStack?.cards.prefix(entry.totalUses) ?? [])
+            }
             while cards.count < entry.totalUses {
                 cards.append(DealtCard(move: entry.card))
             }

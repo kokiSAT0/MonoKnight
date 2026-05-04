@@ -325,6 +325,41 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertEqual(growthStore.points, 1)
     }
 
+    func testWarpTowerGrowthPointIsAwardedOnlyOnceOnFinalFloorClear() throws {
+        let (defaults, suiteName) = try makeIsolatedDefaults()
+        defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+
+        let progressStore = CampaignProgressStore(userDefaults: defaults)
+        let growthStore = DungeonGrowthStore(userDefaults: defaults)
+        let dungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "warp-tower"))
+        let finalFloor = try XCTUnwrap(dungeon.floors.last)
+        let runState = DungeonRunState(
+            dungeonID: dungeon.id,
+            currentFloorIndex: 2,
+            carriedHP: 3,
+            clearedFloorCount: 2
+        )
+        let mode = finalFloor.makeGameMode(
+            dungeonID: dungeon.id,
+            carriedHP: 3,
+            runState: runState
+        )
+        let (viewModel, _) = makeViewModel(
+            mode: mode,
+            campaignProgressStore: progressStore,
+            dungeonGrowthStore: growthStore
+        )
+
+        viewModel.handleProgressChange(.cleared)
+
+        XCTAssertEqual(growthStore.points, 1)
+        XCTAssertEqual(viewModel.latestDungeonGrowthAward?.points, 1)
+        XCTAssertTrue(growthStore.hasRewardedDungeon(dungeon.id))
+
+        viewModel.handleProgressChange(.cleared)
+        XCTAssertEqual(growthStore.points, 1)
+    }
+
     func testDungeonGrowthPointIsNotAwardedBeforeFinalFloor() throws {
         let (defaults, suiteName) = try makeIsolatedDefaults()
         defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
@@ -781,6 +816,34 @@ final class GameViewModelTests: XCTestCase {
         nextViewModel.handleHandSlotTap(at: rewardIndex)
 
         XCTAssertEqual(nextViewModel.boardBridge.animatingCard?.moveCard, reward)
+    }
+
+    func testWarpTowerFixedWarpRewardAppearsUsableOnStartedNextFloor() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "warp-tower"))
+        let firstMode = try XCTUnwrap(DungeonLibrary.shared.firstFloorMode(for: tower))
+        var requestedMode: GameMode?
+        let (firstViewModel, firstCore) = makeViewModel(
+            mode: firstMode,
+            onRequestStartDungeonFloor: { requestedMode = $0 }
+        )
+        firstCore.overrideMetricsForTesting(moveCount: 6, penaltyCount: 0, elapsedSeconds: 20)
+        firstCore.overrideDungeonHPForTesting(3)
+
+        firstViewModel.showingResult = true
+        firstViewModel.handleDungeonRewardSelection(.fixedWarp)
+
+        let nextMode = try XCTUnwrap(requestedMode)
+        let (nextViewModel, nextCore) = makeViewModel(mode: nextMode)
+        let rewardStack = try XCTUnwrap(nextCore.handStacks.first { $0.representativeMove == .fixedWarp })
+
+        XCTAssertEqual(nextMode.dungeonMetadataSnapshot?.floorID, "warp-2")
+        XCTAssertEqual(nextCore.dungeonInventoryEntries, [DungeonInventoryEntry(card: .fixedWarp, rewardUses: 3)])
+        XCTAssertTrue(nextViewModel.displayedHandStacks.contains { $0.representativeMove == .fixedWarp })
+        XCTAssertTrue(nextViewModel.isCardUsable(rewardStack))
+        XCTAssertTrue(
+            nextCore.availableMoves().contains { $0.stackID == rewardStack.id && $0.destination == GridPoint(x: 6, y: 4) },
+            "固定ワープ報酬は次階開始直後からワープ塔の短縮先へ使える必要があります"
+        )
     }
 
     func testCarriedDungeonRewardCardIsUsableImmediatelyOnNextFloorStart() throws {
