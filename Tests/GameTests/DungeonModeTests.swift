@@ -462,6 +462,50 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertTrue(tower.canAdvanceWithinRun(afterFloorIndex: 10))
     }
 
+    func testGrowthTowerStairsBecomeNextFloorStartWithinRunSections() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let firstSectionIndexes = 0..<9
+        let secondSectionIndexes = 10..<19
+
+        for index in firstSectionIndexes {
+            XCTAssertEqual(
+                tower.floors[index + 1].spawnPoint,
+                tower.floors[index].exitPoint,
+                "\(index + 1)F の階段位置から \(index + 2)F が始まる必要があります"
+            )
+        }
+        for index in secondSectionIndexes {
+            XCTAssertEqual(
+                tower.floors[index + 1].spawnPoint,
+                tower.floors[index].exitPoint,
+                "\(index + 1)F の階段位置から \(index + 2)F が始まる必要があります"
+            )
+        }
+        XCTAssertNotEqual(
+            tower.floors[10].spawnPoint,
+            tower.floors[9].exitPoint,
+            "11F はチェックポイント開始なので 10F 階段からの連続開始にはしません"
+        )
+    }
+
+    func testGrowthTowerUsesVariedStairPositions() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let uniqueExitPoints = Set(tower.floors.map(\.exitPoint))
+
+        XCTAssertGreaterThanOrEqual(
+            uniqueExitPoints.count,
+            8,
+            "成長塔は周回時の固定感を減らすため、階段位置を複数パターンに分散します"
+        )
+        for floor in tower.floors {
+            XCTAssertNotEqual(
+                floor.spawnPoint,
+                floor.exitPoint,
+                "\(floor.title) は開始直後に同じマスの階段でクリアしない配置にします"
+            )
+        }
+    }
+
     func testGrowthTowerUsesWarpTilesWithoutFixedWarpCards() throws {
         let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
         var hasWarpTile = false
@@ -522,7 +566,7 @@ final class DungeonModeTests: XCTestCase {
             )
         )
         XCTAssertTrue(
-            ninthCore.availableMoves().contains { $0.moveCard == .straightRight2 && $0.destination == GridPoint(x: 2, y: 0) },
+            ninthCore.availableMoves().contains { $0.moveCard == .straightRight2 && $0.destination == GridPoint(x: 2, y: 2) },
             "8F報酬の右2は9Fで鍵側へ寄る最初の短縮候補になる想定です"
         )
     }

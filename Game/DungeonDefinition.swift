@@ -456,6 +456,30 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
             rewardMoveCardsAfterClear: rewardMoveCardsAfterClear
         )
     }
+
+    public func withEndpoints(
+        spawnPoint: GridPoint? = nil,
+        exitPoint: GridPoint? = nil
+    ) -> DungeonFloorDefinition {
+        DungeonFloorDefinition(
+            id: id,
+            title: title,
+            boardSize: boardSize,
+            spawnPoint: spawnPoint ?? self.spawnPoint,
+            exitPoint: exitPoint ?? self.exitPoint,
+            deckPreset: deckPreset,
+            failureRule: failureRule,
+            enemies: enemies,
+            hazards: hazards,
+            impassableTilePoints: impassableTilePoints,
+            tileEffectOverrides: tileEffectOverrides,
+            warpTilePairs: warpTilePairs,
+            fixedWarpCardTargets: fixedWarpCardTargets,
+            exitLock: exitLock,
+            cardPickups: cardPickups,
+            rewardMoveCardsAfterClear: rewardMoveCardsAfterClear
+        )
+    }
 }
 
 /// ダンジョン単位の定義
@@ -741,7 +765,7 @@ public struct DungeonLibrary {
         let keyDoorFloors = buildKeyDoorTower().floors
         let warpFloors = buildWarpTower().floors
         let trapFloors = buildTrapTower().floors
-        let floors = [
+        let baseFloors = [
             patrolFloors[0],
             stairKeyOnlyGrowthFloor(keyDoorFloors[0]),
             trapFloors[0],
@@ -790,6 +814,7 @@ public struct DungeonLibrary {
             buildGrowthTowerNineteenthFloor(),
             buildGrowthTowerTwentiethFloor()
         ]
+        let floors = buildStitchedGrowthTowerFloors(from: baseFloors)
 
         return DungeonDefinition(
             id: "growth-tower",
@@ -798,6 +823,45 @@ public struct DungeonLibrary {
             difficulty: .growth,
             floors: floors
         )
+    }
+
+    private static func buildStitchedGrowthTowerFloors(
+        from floors: [DungeonFloorDefinition]
+    ) -> [DungeonFloorDefinition] {
+        let exitPointsByFloorIndex: [Int: GridPoint] = [
+            0: GridPoint(x: 8, y: 8),
+            1: GridPoint(x: 0, y: 4),
+            2: GridPoint(x: 8, y: 0),
+            3: GridPoint(x: 0, y: 8),
+            4: GridPoint(x: 8, y: 4),
+            5: GridPoint(x: 4, y: 0),
+            6: GridPoint(x: 0, y: 0),
+            7: GridPoint(x: 0, y: 2),
+            8: GridPoint(x: 8, y: 8),
+            9: GridPoint(x: 0, y: 8),
+            10: GridPoint(x: 8, y: 8),
+            11: GridPoint(x: 8, y: 2),
+            12: GridPoint(x: 0, y: 6),
+            13: GridPoint(x: 8, y: 6),
+            14: GridPoint(x: 0, y: 0),
+            15: GridPoint(x: 8, y: 4),
+            16: GridPoint(x: 2, y: 8),
+            17: GridPoint(x: 8, y: 8),
+            18: GridPoint(x: 0, y: 2),
+            19: GridPoint(x: 8, y: 8)
+        ]
+        let sectionStartIndexes: Set<Int> = [0, 10]
+        var previousExitPoint: GridPoint?
+
+        return floors.enumerated().map { index, floor in
+            let spawnPoint = sectionStartIndexes.contains(index) ? floor.spawnPoint : previousExitPoint
+            let exitPoint = exitPointsByFloorIndex[index] ?? floor.exitPoint
+            previousExitPoint = exitPoint
+            return floor.withEndpoints(
+                spawnPoint: spawnPoint,
+                exitPoint: exitPoint
+            )
+        }
     }
 
     private static func stairKeyOnlyGrowthFloor(
