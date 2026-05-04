@@ -57,6 +57,16 @@ final class DungeonGrowthStoreTests: XCTestCase {
         XCTAssertEqual(store.points, 2)
     }
 
+    func testDungeonGrowthAwardExposesMilestoneFloorNumber() {
+        let award = DungeonGrowthAward(
+            dungeonID: "growth-tower",
+            milestoneID: "growth-tower-6f",
+            points: 1
+        )
+
+        XCTAssertEqual(award.milestoneFloorNumber, 6)
+    }
+
     func testGrowthEffectsApplyOnlyWhenUnlocked() throws {
         let (defaults, suiteName) = try makeIsolatedDefaults()
         defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }

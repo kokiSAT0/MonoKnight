@@ -419,7 +419,65 @@ final class DungeonModeTests: XCTestCase {
             "罠と見張り",
             "総合演習"
         ])
+        for floorIndex in 0..<8 {
+            XCTAssertFalse(
+                tower.floors[floorIndex].rewardMoveCardsAfterClear.isEmpty,
+                "\(tower.floors[floorIndex].title) は次階へ向けた報酬候補を出す必要があります"
+            )
+        }
+        XCTAssertEqual(tower.floors[6].rewardMoveCardsAfterClear, [
+            .diagonalUpRight2,
+            .rayRight,
+            .straightUp2
+        ])
+        XCTAssertEqual(tower.floors[7].rewardMoveCardsAfterClear, [
+            .straightRight2,
+            .fixedWarp,
+            .straightUp2
+        ])
         XCTAssertEqual(tower.floors[8].rewardMoveCardsAfterClear, [])
+    }
+
+    func testGrowthTowerLateRewardsFeedIntoCombinedFloors() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+
+        let eighthRunState = DungeonRunState(
+            dungeonID: tower.id,
+            currentFloorIndex: 7,
+            carriedHP: 3,
+            clearedFloorCount: 7,
+            rewardInventoryEntries: [DungeonInventoryEntry(card: .diagonalUpRight2, rewardUses: 3)]
+        )
+        let eighthCore = makeCore(
+            mode: tower.floors[7].makeGameMode(
+                dungeonID: tower.id,
+                difficulty: tower.difficulty,
+                runState: eighthRunState
+            )
+        )
+        XCTAssertTrue(
+            eighthCore.availableMoves().contains { $0.moveCard == .diagonalUpRight2 && $0.destination == GridPoint(x: 2, y: 2) },
+            "7F報酬の右上2は8Fで罠列をまたぐ候補になる想定です"
+        )
+
+        let ninthRunState = DungeonRunState(
+            dungeonID: tower.id,
+            currentFloorIndex: 8,
+            carriedHP: 3,
+            clearedFloorCount: 8,
+            rewardInventoryEntries: [DungeonInventoryEntry(card: .straightRight2, rewardUses: 3)]
+        )
+        let ninthCore = makeCore(
+            mode: tower.floors[8].makeGameMode(
+                dungeonID: tower.id,
+                difficulty: tower.difficulty,
+                runState: ninthRunState
+            )
+        )
+        XCTAssertTrue(
+            ninthCore.availableMoves().contains { $0.moveCard == .straightRight2 && $0.destination == GridPoint(x: 2, y: 0) },
+            "8F報酬の右2は9Fで鍵側へ寄る最初の短縮候補になる想定です"
+        )
     }
 
     func testGrowthTowerDefinitionsStayInsideBoardAndExposeCombinedGimmicks() throws {

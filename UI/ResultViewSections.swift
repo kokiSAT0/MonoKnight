@@ -228,7 +228,7 @@ struct DungeonGrowthAwardSection: View {
                 .font(.headline)
                 .foregroundColor(theme.textPrimary)
 
-            Text("塔選択の成長から、初期HPや報酬候補を強化できます。")
+            Text(rewardSummaryText)
                 .font(.subheadline)
                 .foregroundColor(theme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -244,6 +244,13 @@ struct DungeonGrowthAwardSection: View {
                 .stroke(theme.statisticBadgeBorder, lineWidth: 1)
         )
         .accessibilityIdentifier("dungeon_growth_award_section")
+    }
+
+    private var rewardSummaryText: String {
+        if let floorNumber = award.milestoneFloorNumber {
+            return "\(floorNumber)Fの区切りに到達しました。塔選択の成長から、初期HPや報酬候補を強化できます。"
+        }
+        return "塔選択の成長から、初期HPや報酬候補を強化できます。"
     }
 }
 

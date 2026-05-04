@@ -429,6 +429,27 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
             )
         )
     }
+
+    public func withRewardMoveCardsAfterClear(_ rewardMoveCardsAfterClear: [MoveCard]) -> DungeonFloorDefinition {
+        DungeonFloorDefinition(
+            id: id,
+            title: title,
+            boardSize: boardSize,
+            spawnPoint: spawnPoint,
+            exitPoint: exitPoint,
+            deckPreset: deckPreset,
+            failureRule: failureRule,
+            enemies: enemies,
+            hazards: hazards,
+            impassableTilePoints: impassableTilePoints,
+            tileEffectOverrides: tileEffectOverrides,
+            warpTilePairs: warpTilePairs,
+            fixedWarpCardTargets: fixedWarpCardTargets,
+            exitLock: exitLock,
+            cardPickups: cardPickups,
+            rewardMoveCardsAfterClear: rewardMoveCardsAfterClear
+        )
+    }
 }
 
 /// ダンジョン単位の定義
@@ -697,8 +718,16 @@ public struct DungeonLibrary {
             warpFloors[0],
             patrolFloors[1],
             warpFloors[1],
-            keyDoorFloors[2],
-            trapFloors[2],
+            keyDoorFloors[2].withRewardMoveCardsAfterClear([
+                .diagonalUpRight2,
+                .rayRight,
+                .straightUp2
+            ]),
+            trapFloors[2].withRewardMoveCardsAfterClear([
+                .straightRight2,
+                .fixedWarp,
+                .straightUp2
+            ]),
             buildGrowthTowerFinalFloor()
         ]
 

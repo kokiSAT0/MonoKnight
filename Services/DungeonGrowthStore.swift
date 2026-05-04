@@ -33,6 +33,13 @@ struct DungeonGrowthAward: Equatable {
     let dungeonID: String
     let milestoneID: String
     let points: Int
+
+    var milestoneFloorNumber: Int? {
+        guard let suffix = milestoneID.split(separator: "-").last,
+              suffix.hasSuffix("f")
+        else { return nil }
+        return Int(suffix.dropLast())
+    }
 }
 
 struct DungeonGrowthSnapshot: Codable, Equatable {
