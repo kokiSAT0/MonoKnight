@@ -147,7 +147,7 @@ extension GameViewModel {
         else { return nil }
 
         let hasNextFloor = dungeon.floors.indices.contains(runState.currentFloorIndex + 1)
-        return dungeonGrowthStore.registerDungeonClear(dungeon: dungeon, hasNextFloor: hasNextFloor)
+        return dungeonGrowthStore.registerDungeonClear(dungeon: dungeon, runState: runState, hasNextFloor: hasNextFloor)
     }
 
     func startCampaignTutorialIfNeeded() {

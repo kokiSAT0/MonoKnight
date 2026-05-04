@@ -291,22 +291,23 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertEqual(presentation.resultTitle, "巡回塔クリア")
     }
 
-    func testDungeonGrowthPointIsAwardedOnlyOnFinalFloorClear() throws {
+    func testGrowthTowerPointIsAwardedAtThirdFloorMilestoneOnlyOnce() throws {
         let (defaults, suiteName) = try makeIsolatedDefaults()
         defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
 
         let progressStore = CampaignProgressStore(userDefaults: defaults)
         let growthStore = DungeonGrowthStore(userDefaults: defaults)
-        let dungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
-        let finalFloor = try XCTUnwrap(dungeon.floors.last)
+        let dungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let milestoneFloor = dungeon.floors[2]
         let runState = DungeonRunState(
             dungeonID: dungeon.id,
             currentFloorIndex: 2,
             carriedHP: 3,
             clearedFloorCount: 2
         )
-        let mode = finalFloor.makeGameMode(
+        let mode = milestoneFloor.makeGameMode(
             dungeonID: dungeon.id,
+            difficulty: dungeon.difficulty,
             carriedHP: 3,
             runState: runState
         )
@@ -320,27 +321,29 @@ final class GameViewModelTests: XCTestCase {
 
         XCTAssertEqual(growthStore.points, 1)
         XCTAssertEqual(viewModel.latestDungeonGrowthAward?.points, 1)
+        XCTAssertEqual(viewModel.latestDungeonGrowthAward?.milestoneID, "growth-tower-3f")
 
         viewModel.handleProgressChange(.cleared)
         XCTAssertEqual(growthStore.points, 1)
     }
 
-    func testWarpTowerGrowthPointIsAwardedOnlyOnceOnFinalFloorClear() throws {
+    func testGrowthTowerPointIsAwardedAtSixthFloorMilestoneOnlyOnce() throws {
         let (defaults, suiteName) = try makeIsolatedDefaults()
         defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
 
         let progressStore = CampaignProgressStore(userDefaults: defaults)
         let growthStore = DungeonGrowthStore(userDefaults: defaults)
-        let dungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "warp-tower"))
-        let finalFloor = try XCTUnwrap(dungeon.floors.last)
+        let dungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let milestoneFloor = dungeon.floors[5]
         let runState = DungeonRunState(
             dungeonID: dungeon.id,
-            currentFloorIndex: 2,
+            currentFloorIndex: 5,
             carriedHP: 3,
-            clearedFloorCount: 2
+            clearedFloorCount: 5
         )
-        let mode = finalFloor.makeGameMode(
+        let mode = milestoneFloor.makeGameMode(
             dungeonID: dungeon.id,
+            difficulty: dungeon.difficulty,
             carriedHP: 3,
             runState: runState
         )
@@ -354,28 +357,29 @@ final class GameViewModelTests: XCTestCase {
 
         XCTAssertEqual(growthStore.points, 1)
         XCTAssertEqual(viewModel.latestDungeonGrowthAward?.points, 1)
-        XCTAssertTrue(growthStore.hasRewardedDungeon(dungeon.id))
+        XCTAssertTrue(growthStore.hasRewardedGrowthMilestone("growth-tower-6f"))
 
         viewModel.handleProgressChange(.cleared)
         XCTAssertEqual(growthStore.points, 1)
     }
 
-    func testTrapTowerGrowthPointIsAwardedOnlyOnceOnFinalFloorClear() throws {
+    func testGrowthTowerPointIsAwardedAtNinthFloorMilestoneOnlyOnce() throws {
         let (defaults, suiteName) = try makeIsolatedDefaults()
         defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
 
         let progressStore = CampaignProgressStore(userDefaults: defaults)
         let growthStore = DungeonGrowthStore(userDefaults: defaults)
-        let dungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "trap-tower"))
-        let finalFloor = try XCTUnwrap(dungeon.floors.last)
+        let dungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let finalFloor = dungeon.floors[8]
         let runState = DungeonRunState(
             dungeonID: dungeon.id,
-            currentFloorIndex: 2,
+            currentFloorIndex: 8,
             carriedHP: 3,
-            clearedFloorCount: 2
+            clearedFloorCount: 8
         )
         let mode = finalFloor.makeGameMode(
             dungeonID: dungeon.id,
+            difficulty: dungeon.difficulty,
             carriedHP: 3,
             runState: runState
         )
@@ -389,7 +393,7 @@ final class GameViewModelTests: XCTestCase {
 
         XCTAssertEqual(growthStore.points, 1)
         XCTAssertEqual(viewModel.latestDungeonGrowthAward?.points, 1)
-        XCTAssertTrue(growthStore.hasRewardedDungeon(dungeon.id))
+        XCTAssertTrue(growthStore.hasRewardedGrowthMilestone("growth-tower-9f"))
 
         viewModel.handleProgressChange(.cleared)
         XCTAssertEqual(growthStore.points, 1)
@@ -425,7 +429,7 @@ final class GameViewModelTests: XCTestCase {
 
         XCTAssertEqual(growthStore.points, 0)
         XCTAssertNil(viewModel.latestDungeonGrowthAward)
-        XCTAssertFalse(growthStore.hasRewardedDungeon(dungeon.id))
+        XCTAssertTrue(growthStore.growthMilestoneIDs(for: dungeon).isEmpty)
     }
 
     func testRoguelikeTowerDoesNotUseGrowthRewardBoostOrRewardAdjustment() throws {
@@ -434,9 +438,10 @@ final class GameViewModelTests: XCTestCase {
 
         let progressStore = CampaignProgressStore(userDefaults: defaults)
         let growthStore = DungeonGrowthStore(userDefaults: defaults)
-        let growthDungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
+        let growthDungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
         let rogueDungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "rogue-tower"))
-        _ = growthStore.registerDungeonClear(dungeon: growthDungeon, hasNextFloor: false)
+        let growthRunState = DungeonRunState(dungeonID: growthDungeon.id, currentFloorIndex: 2, carriedHP: 3, clearedFloorCount: 2)
+        _ = growthStore.registerDungeonClear(dungeon: growthDungeon, runState: growthRunState, hasNextFloor: true)
         XCTAssertTrue(growthStore.unlock(.rewardCandidateBoost))
 
         let runState = DungeonRunState(
@@ -466,7 +471,7 @@ final class GameViewModelTests: XCTestCase {
 
         let progressStore = CampaignProgressStore(userDefaults: defaults)
         let growthStore = DungeonGrowthStore(userDefaults: defaults)
-        let dungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
+        let dungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
         let firstFloor = try XCTUnwrap(dungeon.floors.first)
         let mode = try XCTUnwrap(DungeonLibrary.shared.firstFloorMode(for: dungeon))
         let (viewModel, _) = makeViewModel(
@@ -491,8 +496,9 @@ final class GameViewModelTests: XCTestCase {
 
         let progressStore = CampaignProgressStore(userDefaults: defaults)
         let growthStore = DungeonGrowthStore(userDefaults: defaults)
-        let dungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
-        _ = growthStore.registerDungeonClear(dungeon: dungeon, hasNextFloor: false)
+        let dungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let runState = DungeonRunState(dungeonID: dungeon.id, currentFloorIndex: 2, carriedHP: 3, clearedFloorCount: 2)
+        _ = growthStore.registerDungeonClear(dungeon: dungeon, runState: runState, hasNextFloor: true)
         XCTAssertTrue(growthStore.unlock(.rewardCandidateBoost))
 
         let mode = try XCTUnwrap(DungeonLibrary.shared.firstFloorMode(for: dungeon))
@@ -804,7 +810,7 @@ final class GameViewModelTests: XCTestCase {
     }
 
     func testDungeonRewardUpgradeIncreasesCarriedRewardUsesAndStartsNextFloor() throws {
-        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
         let runState = DungeonRunState(
             dungeonID: tower.id,
             currentFloorIndex: 1,
@@ -839,7 +845,7 @@ final class GameViewModelTests: XCTestCase {
     }
 
     func testDungeonRewardRemoveDropsCarriedRewardAndStartsNextFloor() throws {
-        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
         let runState = DungeonRunState(
             dungeonID: tower.id,
             currentFloorIndex: 1,

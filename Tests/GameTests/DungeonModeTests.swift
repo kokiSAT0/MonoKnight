@@ -334,7 +334,7 @@ final class DungeonModeTests: XCTestCase {
         let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
 
         XCTAssertEqual(tower.floors.count, 3)
-        XCTAssertEqual(tower.difficulty, .growth)
+        XCTAssertEqual(tower.difficulty, .tutorial)
 
         for floor in tower.floors {
             let mode = floor.makeGameMode(dungeonID: tower.id)
@@ -347,18 +347,15 @@ final class DungeonModeTests: XCTestCase {
         }
     }
 
-    func testDungeonLibraryProvidesTutorialAndPatrolTowers() throws {
+    func testDungeonLibraryProvidesThreeVisibleTowers() throws {
         let library = DungeonLibrary.shared
 
         XCTAssertNotNil(library.dungeon(with: "tutorial-tower"))
-        XCTAssertNotNil(library.dungeon(with: "patrol-tower"))
-        XCTAssertNotNil(library.dungeon(with: "key-door-tower"))
-        XCTAssertNotNil(library.dungeon(with: "warp-tower"))
-        XCTAssertNotNil(library.dungeon(with: "trap-tower"))
+        XCTAssertNotNil(library.dungeon(with: "growth-tower"))
         XCTAssertNotNil(library.dungeon(with: "rogue-tower"))
         XCTAssertEqual(
             library.dungeons.map(\.id),
-            ["tutorial-tower", "patrol-tower", "key-door-tower", "warp-tower", "trap-tower", "rogue-tower"]
+            ["tutorial-tower", "growth-tower", "rogue-tower"]
         )
     }
 
@@ -397,18 +394,112 @@ final class DungeonModeTests: XCTestCase {
 
     func testDungeonTowerBoardSizesFollowTutorialAndStandardPolicy() throws {
         let tutorialTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
-        let patrolTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "patrol-tower"))
-        let keyDoorTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "key-door-tower"))
-        let warpTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "warp-tower"))
-        let trapTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "trap-tower"))
+        let growthTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
         let rogueTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "rogue-tower"))
 
         XCTAssertEqual(tutorialTower.floors.map(\.boardSize), [5, 5, 5])
-        XCTAssertEqual(patrolTower.floors.map(\.boardSize), [9, 9, 9])
-        XCTAssertEqual(keyDoorTower.floors.map(\.boardSize), [9, 9, 9])
-        XCTAssertEqual(warpTower.floors.map(\.boardSize), [9, 9, 9])
-        XCTAssertEqual(trapTower.floors.map(\.boardSize), [9, 9, 9])
+        XCTAssertEqual(growthTower.floors.map(\.boardSize), Array(repeating: 9, count: 9))
         XCTAssertEqual(rogueTower.floors.map(\.boardSize), [9, 9, 9])
+    }
+
+    func testGrowthTowerIntegratesNineProgressiveFloors() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+
+        XCTAssertEqual(tower.title, "成長塔")
+        XCTAssertEqual(tower.difficulty, .growth)
+        XCTAssertEqual(tower.floors.count, 9)
+        XCTAssertEqual(tower.floors.map(\.title), [
+            "巡回の間",
+            "鍵の小部屋",
+            "見える罠",
+            "転移の入口",
+            "すれ違い",
+            "固定ワープの間",
+            "扉の見張り",
+            "罠と見張り",
+            "総合演習"
+        ])
+        XCTAssertEqual(tower.floors[8].rewardMoveCardsAfterClear, [])
+    }
+
+    func testGrowthTowerDefinitionsStayInsideBoardAndExposeCombinedGimmicks() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        var hasPatrol = false
+        var hasExitLock = false
+        var hasDamageTrap = false
+        var hasWarp = false
+        var hasBrittleFloor = false
+
+        for floor in tower.floors {
+            var points: [GridPoint] = [floor.spawnPoint, floor.exitPoint]
+            points.append(contentsOf: floor.cardPickups.map(\.point))
+            points.append(contentsOf: floor.enemies.map(\.position))
+            points.append(contentsOf: floor.impassableTilePoints)
+            points.append(contentsOf: floor.tileEffectOverrides.keys)
+            for enemy in floor.enemies {
+                if case .patrol(let path) = enemy.behavior {
+                    hasPatrol = true
+                    points.append(contentsOf: path)
+                }
+            }
+            for hazard in floor.hazards {
+                switch hazard {
+                case .damageTrap(let trapPoints, _):
+                    hasDamageTrap = true
+                    points.append(contentsOf: trapPoints)
+                case .brittleFloor(let brittlePoints):
+                    hasBrittleFloor = true
+                    points.append(contentsOf: brittlePoints)
+                }
+            }
+            for warpPoints in floor.warpTilePairs.values {
+                hasWarp = true
+                points.append(contentsOf: warpPoints)
+            }
+            for targets in floor.fixedWarpCardTargets.values {
+                points.append(contentsOf: targets)
+            }
+            if let exitLock = floor.exitLock {
+                hasExitLock = true
+                points.append(exitLock.unlockPoint)
+            }
+
+            XCTAssertTrue(
+                points.allSatisfy { $0.isInside(boardSize: floor.boardSize) },
+                "\(floor.title) の配置はすべて 9×9 盤面内に収める必要があります"
+            )
+        }
+
+        XCTAssertTrue(hasPatrol)
+        XCTAssertTrue(hasExitLock)
+        XCTAssertTrue(hasDamageTrap)
+        XCTAssertTrue(hasWarp)
+        XCTAssertTrue(hasBrittleFloor)
+    }
+
+    func testGrowthTowerFinalFloorRepresentativeRouteCanClearCombinedGimmicks() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let runState = DungeonRunState(
+            dungeonID: tower.id,
+            currentFloorIndex: 8,
+            carriedHP: 3,
+            clearedFloorCount: 8
+        )
+        let core = makeCore(
+            mode: tower.floors[8].makeGameMode(
+                dungeonID: tower.id,
+                difficulty: tower.difficulty,
+                runState: runState
+            )
+        )
+
+        playBasicMove(to: GridPoint(x: 0, y: 1), in: core)
+        playMove(to: GridPoint(x: 2, y: 1), in: core)
+        playMove(to: GridPoint(x: 8, y: 6), in: core)
+        playMove(to: GridPoint(x: 8, y: 8), in: core)
+
+        XCTAssertEqual(core.progress, .cleared)
+        XCTAssertEqual(core.dungeonHP, 3)
     }
 
     func testPatrolTowerNineByNineDefinitionsStayInsideBoard() throws {

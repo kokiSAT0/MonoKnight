@@ -31,22 +31,23 @@ enum DungeonGrowthUpgrade: String, Codable, CaseIterable, Identifiable {
 
 struct DungeonGrowthAward: Equatable {
     let dungeonID: String
+    let milestoneID: String
     let points: Int
 }
 
 struct DungeonGrowthSnapshot: Codable, Equatable {
     var points: Int
     var unlockedUpgrades: Set<DungeonGrowthUpgrade>
-    var rewardedDungeonIDs: Set<String>
+    var rewardedGrowthMilestoneIDs: Set<String>
 
     init(
         points: Int = 0,
         unlockedUpgrades: Set<DungeonGrowthUpgrade> = [],
-        rewardedDungeonIDs: Set<String> = []
+        rewardedGrowthMilestoneIDs: Set<String> = []
     ) {
         self.points = max(points, 0)
         self.unlockedUpgrades = unlockedUpgrades
-        self.rewardedDungeonIDs = rewardedDungeonIDs
+        self.rewardedGrowthMilestoneIDs = rewardedGrowthMilestoneIDs
     }
 }
 
@@ -82,17 +83,17 @@ final class DungeonGrowthStore: ObservableObject {
     }
 
     @discardableResult
-    func registerDungeonClear(dungeon: DungeonDefinition, hasNextFloor: Bool) -> DungeonGrowthAward? {
+    func registerDungeonClear(dungeon: DungeonDefinition, runState: DungeonRunState, hasNextFloor: Bool) -> DungeonGrowthAward? {
         guard dungeon.difficulty == .growth,
-              !hasNextFloor,
-              !snapshot.rewardedDungeonIDs.contains(dungeon.id)
+              let milestoneID = growthMilestoneID(for: dungeon, clearedFloorIndex: runState.currentFloorIndex),
+              !snapshot.rewardedGrowthMilestoneIDs.contains(milestoneID)
         else { return nil }
 
         snapshot.points += 1
-        snapshot.rewardedDungeonIDs.insert(dungeon.id)
+        snapshot.rewardedGrowthMilestoneIDs.insert(milestoneID)
         persist()
-        debugLog("DungeonGrowthStore: \(dungeon.id) クリア報酬として成長ポイント +1")
-        return DungeonGrowthAward(dungeonID: dungeon.id, points: 1)
+        debugLog("DungeonGrowthStore: \(milestoneID) クリア報酬として成長ポイント +1")
+        return DungeonGrowthAward(dungeonID: dungeon.id, milestoneID: milestoneID, points: 1)
     }
 
     func initialHPBonus(for dungeon: DungeonDefinition) -> Int {
@@ -130,8 +131,35 @@ final class DungeonGrowthStore: ObservableObject {
         return candidates.first { !baseCards.contains($0) }
     }
 
-    func hasRewardedDungeon(_ dungeonID: String) -> Bool {
-        snapshot.rewardedDungeonIDs.contains(dungeonID)
+    func hasRewardedGrowthMilestone(_ milestoneID: String) -> Bool {
+        snapshot.rewardedGrowthMilestoneIDs.contains(milestoneID)
+    }
+
+    func growthMilestoneIDs(for dungeon: DungeonDefinition) -> [String] {
+        guard dungeon.difficulty == .growth else { return [] }
+        return [3, 6, 9]
+            .filter { dungeon.floors.indices.contains($0 - 1) }
+            .map { growthMilestoneID(dungeonID: dungeon.id, floorNumber: $0) }
+    }
+
+    func growthMilestoneID(for dungeon: DungeonDefinition, clearedFloorIndex: Int) -> String? {
+        let floorNumber = clearedFloorIndex + 1
+        guard [3, 6, 9].contains(floorNumber),
+              dungeon.floors.indices.contains(clearedFloorIndex)
+        else { return nil }
+        return growthMilestoneID(dungeonID: dungeon.id, floorNumber: floorNumber)
+    }
+
+    func growthMilestoneFloorNumber(for milestoneID: String) -> Int? {
+        guard let suffix = milestoneID.split(separator: "-").last,
+              suffix.hasSuffix("f"),
+              let number = Int(suffix.dropLast())
+        else { return nil }
+        return number
+    }
+
+    private func growthMilestoneID(dungeonID: String, floorNumber: Int) -> String {
+        "\(dungeonID)-\(floorNumber)f"
     }
 
     private func persist() {

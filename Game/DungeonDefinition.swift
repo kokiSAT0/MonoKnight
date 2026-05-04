@@ -2,6 +2,8 @@ import Foundation
 
 /// 塔ダンジョンの難度と成長持ち込み方針
 public enum DungeonDifficulty: String, Codable, Equatable {
+    /// 操作と基本ルールを学ぶチュートリアル塔
+    case tutorial
     /// 永続強化を持ち込める低難度ダンジョン
     case growth
     /// 一時報酬だけで進む中難度ダンジョン
@@ -517,10 +519,7 @@ public struct DungeonLibrary {
     public init() {
         dungeons = [
             DungeonLibrary.buildTutorialTower(),
-            DungeonLibrary.buildPatrolTower(),
-            DungeonLibrary.buildKeyDoorTower(),
-            DungeonLibrary.buildWarpTower(),
-            DungeonLibrary.buildTrapTower(),
+            DungeonLibrary.buildGrowthTower(),
             DungeonLibrary.buildRoguelikeTower()
         ]
     }
@@ -530,7 +529,25 @@ public struct DungeonLibrary {
     }
 
     public func dungeon(with id: String) -> DungeonDefinition? {
-        dungeons.first { $0.id == id }
+        if let visibleDungeon = dungeons.first(where: { $0.id == id }) {
+            return visibleDungeon
+        }
+        return legacyDungeon(with: id)
+    }
+
+    private func legacyDungeon(with id: String) -> DungeonDefinition? {
+        switch id {
+        case "patrol-tower":
+            return DungeonLibrary.buildPatrolTower()
+        case "key-door-tower":
+            return DungeonLibrary.buildKeyDoorTower()
+        case "warp-tower":
+            return DungeonLibrary.buildWarpTower()
+        case "trap-tower":
+            return DungeonLibrary.buildTrapTower()
+        default:
+            return nil
+        }
     }
 
     public func firstFloorMode(for dungeon: DungeonDefinition, initialHPBonus: Int = 0) -> GameMode? {
@@ -662,9 +679,117 @@ public struct DungeonLibrary {
         return DungeonDefinition(
             id: "tutorial-tower",
             title: "基礎塔",
-            summary: "出口到達、敵の警戒範囲、ひび割れ床を順に学ぶ低難度の塔。",
+            summary: "出口到達、敵の警戒範囲、ひび割れ床を順に学ぶチュートリアル塔。",
+            difficulty: .tutorial,
+            floors: floors
+        )
+    }
+
+    private static func buildGrowthTower() -> DungeonDefinition {
+        let patrolFloors = buildPatrolTower().floors
+        let keyDoorFloors = buildKeyDoorTower().floors
+        let warpFloors = buildWarpTower().floors
+        let trapFloors = buildTrapTower().floors
+        let floors = [
+            patrolFloors[0],
+            keyDoorFloors[0],
+            trapFloors[0],
+            warpFloors[0],
+            patrolFloors[1],
+            warpFloors[1],
+            keyDoorFloors[2],
+            trapFloors[2],
+            buildGrowthTowerFinalFloor()
+        ]
+
+        return DungeonDefinition(
+            id: "growth-tower",
+            title: "成長塔",
+            summary: "巡回、鍵、罠、ワープを階ごとに重ね、周回成長で攻略方針を広げる標準塔。",
             difficulty: .growth,
             floors: floors
+        )
+    }
+
+    private static func buildGrowthTowerFinalFloor() -> DungeonFloorDefinition {
+        DungeonFloorDefinition(
+            id: "growth-9",
+            title: "総合演習",
+            boardSize: standardTowerBoardSize,
+            spawnPoint: GridPoint(x: 0, y: 0),
+            exitPoint: GridPoint(x: 8, y: 8),
+            deckPreset: .standardLight,
+            failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 18),
+            enemies: [
+                EnemyDefinition(
+                    id: "growth-9-watcher",
+                    name: "見張り",
+                    position: GridPoint(x: 7, y: 6),
+                    behavior: .watcher(direction: MoveVector(dx: -1, dy: 0), range: 3)
+                ),
+                EnemyDefinition(
+                    id: "growth-9-patrol",
+                    name: "巡回兵",
+                    position: GridPoint(x: 4, y: 4),
+                    behavior: .patrol(path: [
+                        GridPoint(x: 4, y: 4),
+                        GridPoint(x: 5, y: 4),
+                        GridPoint(x: 5, y: 5),
+                        GridPoint(x: 4, y: 5)
+                    ])
+                )
+            ],
+            hazards: [
+                .damageTrap(
+                    points: [
+                        GridPoint(x: 2, y: 2),
+                        GridPoint(x: 4, y: 4),
+                        GridPoint(x: 6, y: 6)
+                    ],
+                    damage: 1
+                ),
+                .brittleFloor(points: [
+                    GridPoint(x: 3, y: 2),
+                    GridPoint(x: 3, y: 3),
+                    GridPoint(x: 3, y: 4)
+                ])
+            ],
+            impassableTilePoints: [
+                GridPoint(x: 4, y: 6)
+            ],
+            tileEffectOverrides: [
+                GridPoint(x: 2, y: 1): .openGate(target: GridPoint(x: 4, y: 6))
+            ],
+            warpTilePairs: [
+                "growth-9-risk": [
+                    GridPoint(x: 1, y: 2),
+                    GridPoint(x: 6, y: 6)
+                ]
+            ],
+            fixedWarpCardTargets: [
+                .fixedWarp: [
+                    GridPoint(x: 8, y: 6),
+                    GridPoint(x: 6, y: 6)
+                ]
+            ],
+            exitLock: DungeonExitLock(unlockPoint: GridPoint(x: 2, y: 1)),
+            cardPickups: [
+                DungeonCardPickupDefinition(
+                    id: "growth-9-key-route-right2",
+                    point: GridPoint(x: 0, y: 1),
+                    card: .straightRight2
+                ),
+                DungeonCardPickupDefinition(
+                    id: "growth-9-fixed-warp",
+                    point: GridPoint(x: 2, y: 1),
+                    card: .fixedWarp
+                ),
+                DungeonCardPickupDefinition(
+                    id: "growth-9-up2",
+                    point: GridPoint(x: 8, y: 6),
+                    card: .straightUp2
+                )
+            ]
         )
     }
 

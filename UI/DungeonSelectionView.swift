@@ -119,9 +119,9 @@ struct DungeonSelectionView: View {
     private func dungeonSection(_ dungeon: DungeonDefinition) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             VStack(alignment: .leading, spacing: 6) {
-                let growthStatus = DungeonGrowthRewardStatusPresentation.make(
+                let growthStatuses = DungeonGrowthRewardStatusPresentation.make(
                     dungeon: dungeon,
-                    hasRewardedDungeon: dungeonGrowthStore.hasRewardedDungeon(dungeon.id)
+                    growthStore: dungeonGrowthStore
                 )
 
                 VStack(alignment: .leading, spacing: 6) {
@@ -137,26 +137,8 @@ struct DungeonSelectionView: View {
                             .padding(.vertical, 3)
                             .background(Capsule().fill(theme.textSecondary.opacity(0.14)))
 
-                        if let growthStatus {
-                            Text(growthStatus.text)
-                                .font(.system(size: 12, weight: .semibold, design: .rounded))
-                                .foregroundColor(
-                                    growthStatus.isRewarded
-                                        ? theme.textSecondary
-                                        : theme.accentPrimary
-                                )
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 3)
-                                .background(
-                                    Capsule().fill(
-                                        growthStatus.isRewarded
-                                            ? theme.textSecondary.opacity(0.12)
-                                            : theme.accentPrimary.opacity(0.14)
-                                    )
-                                )
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.82)
-                                .accessibilityIdentifier(growthStatus.accessibilityIdentifier)
+                        ForEach(growthStatuses, id: \.accessibilityIdentifier) { growthStatus in
+                            growthStatusBadge(growthStatus)
                         }
                     }
                 }
@@ -187,6 +169,28 @@ struct DungeonSelectionView: View {
                 }
             }
         }
+    }
+
+    private func growthStatusBadge(_ growthStatus: DungeonGrowthRewardStatusPresentation) -> some View {
+        Text(growthStatus.text)
+            .font(.system(size: 12, weight: .semibold, design: .rounded))
+            .foregroundColor(
+                growthStatus.isRewarded
+                    ? theme.textSecondary
+                    : theme.accentPrimary
+            )
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(
+                Capsule().fill(
+                    growthStatus.isRewarded
+                        ? theme.textSecondary.opacity(0.12)
+                        : theme.accentPrimary.opacity(0.14)
+                )
+            )
+            .lineLimit(1)
+            .minimumScaleFactor(0.82)
+            .accessibilityIdentifier(growthStatus.accessibilityIdentifier)
     }
 
     private func floorInfoRow(
@@ -262,8 +266,10 @@ struct DungeonSelectionView: View {
 
     private func difficultyText(_ difficulty: DungeonDifficulty) -> String {
         switch difficulty {
+        case .tutorial:
+            return "チュートリアル"
         case .growth:
-            return "低難度"
+            return "成長あり"
         case .tactical:
             return "中難度"
         case .roguelike:
@@ -285,15 +291,19 @@ struct DungeonGrowthRewardStatusPresentation: Equatable {
     let accessibilityIdentifier: String
     let isRewarded: Bool
 
+    @MainActor
     static func make(
         dungeon: DungeonDefinition,
-        hasRewardedDungeon: Bool
-    ) -> DungeonGrowthRewardStatusPresentation? {
-        guard dungeon.difficulty == .growth else { return nil }
-        return DungeonGrowthRewardStatusPresentation(
-            text: hasRewardedDungeon ? "成長ポイント 獲得済" : "成長ポイント 未獲得",
-            accessibilityIdentifier: "dungeon_growth_reward_status_\(dungeon.id)",
-            isRewarded: hasRewardedDungeon
-        )
+        growthStore: DungeonGrowthStore
+    ) -> [DungeonGrowthRewardStatusPresentation] {
+        growthStore.growthMilestoneIDs(for: dungeon).map { milestoneID in
+            let floorNumber = growthStore.growthMilestoneFloorNumber(for: milestoneID) ?? 0
+            let isRewarded = growthStore.hasRewardedGrowthMilestone(milestoneID)
+            return DungeonGrowthRewardStatusPresentation(
+                text: "\(floorNumber)F \(isRewarded ? "獲得済" : "未獲得")",
+                accessibilityIdentifier: "dungeon_growth_reward_status_\(milestoneID)",
+                isRewarded: isRewarded
+            )
+        }
     }
 }
