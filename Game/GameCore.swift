@@ -1531,6 +1531,21 @@ public final class GameCore: ObservableObject {
             switch hazard {
             case .brittleFloor(let floorPoints):
                 points.formUnion(floorPoints)
+            case .damageTrap:
+                break
+            }
+        }
+        return points
+    }
+
+    public var damageTrapPoints: Set<GridPoint> {
+        var points: Set<GridPoint> = []
+        for hazard in mode.dungeonRules?.hazards ?? [] {
+            switch hazard {
+            case .damageTrap(let trapPoints, _):
+                points.formUnion(trapPoints)
+            case .brittleFloor:
+                break
             }
         }
         return points
@@ -1539,18 +1554,28 @@ public final class GameCore: ObservableObject {
     private func applyDungeonHazards(along traversedPoints: [GridPoint]) {
         guard mode.usesDungeonExit else { return }
         let brittlePoints = brittleFloorPoints
-        guard !brittlePoints.isEmpty else { return }
 
-        for point in traversedPoints where brittlePoints.contains(point) {
-            if crackedFloorPoints.contains(point) {
-                crackedFloorPoints.remove(point)
-                collapsedFloorPoints.insert(point)
-                board.collapseFloor(at: point)
-                dungeonHP = max(dungeonHP - 1, 0)
-                debugLog("ひび割れ床が崩落: \(point), HP=\(dungeonHP)")
-            } else if !collapsedFloorPoints.contains(point) {
-                crackedFloorPoints.insert(point)
-                debugLog("床にひび割れ: \(point)")
+        for point in traversedPoints {
+            if brittlePoints.contains(point) {
+                if crackedFloorPoints.contains(point) {
+                    crackedFloorPoints.remove(point)
+                    collapsedFloorPoints.insert(point)
+                    board.collapseFloor(at: point)
+                    dungeonHP = max(dungeonHP - 1, 0)
+                    debugLog("ひび割れ床が崩落: \(point), HP=\(dungeonHP)")
+                } else if !collapsedFloorPoints.contains(point) {
+                    crackedFloorPoints.insert(point)
+                    debugLog("床にひび割れ: \(point)")
+                }
+            }
+
+            for hazard in mode.dungeonRules?.hazards ?? [] {
+                guard case .damageTrap(let trapPoints, let damage) = hazard,
+                      trapPoints.contains(point)
+                else { continue }
+                let appliedDamage = max(damage, 1)
+                dungeonHP = max(dungeonHP - appliedDamage, 0)
+                debugLog("罠を踏みました: \(point), -\(appliedDamage), HP=\(dungeonHP)")
             }
         }
     }

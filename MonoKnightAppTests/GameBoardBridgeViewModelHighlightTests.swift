@@ -416,6 +416,18 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
             "床落ちカードも専用ハイライトとして Scene へ渡します"
         )
 
+        let trapTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "trap-tower"))
+        let trapFloor = try XCTUnwrap(trapTower.floors.first)
+        let trapMode = trapFloor.makeGameMode(dungeonID: trapTower.id)
+        let trapCore = GameCore(mode: trapMode)
+        let trapViewModel = GameBoardBridgeViewModel(core: trapCore, mode: trapMode)
+
+        XCTAssertEqual(
+            trapViewModel.scene.latestHighlightPoints(for: .dungeonDamageTrap),
+            trapCore.damageTrapPoints,
+            "見えているダメージ罠を専用ハイライトとして Scene へ渡します"
+        )
+
         core.overrideDungeonFloorStateForTesting(
             cracked: [GridPoint(x: 1, y: 2)],
             collapsed: [GridPoint(x: 2, y: 2)]

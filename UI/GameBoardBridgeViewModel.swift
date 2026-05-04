@@ -243,6 +243,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
             .dungeonEnemy: Set(core.enemyStates.map(\.position)),
             .dungeonDanger: core.enemyDangerPoints,
             .dungeonCardPickup: Set(core.activeDungeonCardPickups.map(\.point)),
+            .dungeonDamageTrap: core.damageTrapPoints,
             .dungeonCrackedFloor: core.crackedFloorPoints,
             .dungeonCollapsedFloor: core.collapsedFloorPoints
         ]

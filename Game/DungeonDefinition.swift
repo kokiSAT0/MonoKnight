@@ -281,14 +281,18 @@ public struct EnemyState: Codable, Equatable, Identifiable {
 public enum HazardDefinition: Codable, Equatable {
     /// 1 回踏むとひび割れ、2 回目で崩落して通行不可になる床
     case brittleFloor(points: Set<GridPoint>)
+    /// 見えている罠床。踏むたびに指定ダメージを受ける
+    case damageTrap(points: Set<GridPoint>, damage: Int)
 
     private enum CodingKeys: String, CodingKey {
         case type
         case points
+        case damage
     }
 
     private enum Kind: String, Codable {
         case brittleFloor
+        case damageTrap
     }
 
     public init(from decoder: Decoder) throws {
@@ -297,6 +301,11 @@ public enum HazardDefinition: Codable, Equatable {
         switch kind {
         case .brittleFloor:
             self = .brittleFloor(points: try container.decode(Set<GridPoint>.self, forKey: .points))
+        case .damageTrap:
+            self = .damageTrap(
+                points: try container.decode(Set<GridPoint>.self, forKey: .points),
+                damage: try container.decodeIfPresent(Int.self, forKey: .damage) ?? 1
+            )
         }
     }
 
@@ -306,6 +315,10 @@ public enum HazardDefinition: Codable, Equatable {
         case .brittleFloor(let points):
             try container.encode(Kind.brittleFloor, forKey: .type)
             try container.encode(points, forKey: .points)
+        case .damageTrap(let points, let damage):
+            try container.encode(Kind.damageTrap, forKey: .type)
+            try container.encode(points, forKey: .points)
+            try container.encode(max(damage, 1), forKey: .damage)
         }
     }
 }
@@ -505,7 +518,8 @@ public struct DungeonLibrary {
             DungeonLibrary.buildTutorialTower(),
             DungeonLibrary.buildPatrolTower(),
             DungeonLibrary.buildKeyDoorTower(),
-            DungeonLibrary.buildWarpTower()
+            DungeonLibrary.buildWarpTower(),
+            DungeonLibrary.buildTrapTower()
         ]
     }
 
@@ -1088,6 +1102,153 @@ public struct DungeonLibrary {
             id: "warp-tower",
             title: "ワープ塔",
             summary: "ワープ床と固定ワープカードを読み、遠回りと近道を切り替える低難度の塔。",
+            difficulty: .growth,
+            floors: floors
+        )
+    }
+
+    private static func buildTrapTower() -> DungeonDefinition {
+        let floors = [
+            DungeonFloorDefinition(
+                id: "trap-1",
+                title: "見える罠",
+                boardSize: standardTowerBoardSize,
+                spawnPoint: GridPoint(x: 0, y: 0),
+                exitPoint: GridPoint(x: 8, y: 8),
+                deckPreset: .kingAndKnightBasic,
+                failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 18),
+                hazards: [
+                    .damageTrap(
+                        points: [
+                            GridPoint(x: 2, y: 2),
+                            GridPoint(x: 3, y: 3),
+                            GridPoint(x: 4, y: 4),
+                            GridPoint(x: 5, y: 5),
+                            GridPoint(x: 6, y: 6)
+                        ],
+                        damage: 1
+                    )
+                ],
+                cardPickups: [
+                    DungeonCardPickupDefinition(
+                        id: "trap-1-right2",
+                        point: GridPoint(x: 1, y: 0),
+                        card: .straightRight2
+                    ),
+                    DungeonCardPickupDefinition(
+                        id: "trap-1-up2",
+                        point: GridPoint(x: 7, y: 1),
+                        card: .straightUp2
+                    ),
+                    DungeonCardPickupDefinition(
+                        id: "trap-1-knight",
+                        point: GridPoint(x: 8, y: 3),
+                        card: .knightRightwardChoice
+                    )
+                ],
+                rewardMoveCardsAfterClear: [
+                    .straightRight2,
+                    .straightUp2,
+                    .diagonalUpRight2
+                ]
+            ),
+            DungeonFloorDefinition(
+                id: "trap-2",
+                title: "罠列の抜け道",
+                boardSize: standardTowerBoardSize,
+                spawnPoint: GridPoint(x: 0, y: 4),
+                exitPoint: GridPoint(x: 8, y: 4),
+                deckPreset: .standardLight,
+                failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 15),
+                hazards: [
+                    .damageTrap(
+                        points: [
+                            GridPoint(x: 3, y: 3),
+                            GridPoint(x: 3, y: 4),
+                            GridPoint(x: 3, y: 5),
+                            GridPoint(x: 5, y: 3),
+                            GridPoint(x: 5, y: 4),
+                            GridPoint(x: 5, y: 5)
+                        ],
+                        damage: 1
+                    )
+                ],
+                cardPickups: [
+                    DungeonCardPickupDefinition(
+                        id: "trap-2-ray-right",
+                        point: GridPoint(x: 1, y: 4),
+                        card: .rayRight
+                    ),
+                    DungeonCardPickupDefinition(
+                        id: "trap-2-up2",
+                        point: GridPoint(x: 2, y: 6),
+                        card: .straightUp2
+                    ),
+                    DungeonCardPickupDefinition(
+                        id: "trap-2-diagonal-up-right",
+                        point: GridPoint(x: 4, y: 2),
+                        card: .diagonalUpRight2
+                    )
+                ],
+                rewardMoveCardsAfterClear: [
+                    .rayRight,
+                    .diagonalUpRight2,
+                    .straightUp2
+                ]
+            ),
+            DungeonFloorDefinition(
+                id: "trap-3",
+                title: "罠と見張り",
+                boardSize: standardTowerBoardSize,
+                spawnPoint: GridPoint(x: 0, y: 0),
+                exitPoint: GridPoint(x: 8, y: 8),
+                deckPreset: .standardLight,
+                failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 18),
+                enemies: [
+                    EnemyDefinition(
+                        id: "trap-3-watcher",
+                        name: "見張り",
+                        position: GridPoint(x: 6, y: 5),
+                        behavior: .watcher(direction: MoveVector(dx: -1, dy: 0), range: 3)
+                    )
+                ],
+                hazards: [
+                    .damageTrap(
+                        points: [
+                            GridPoint(x: 2, y: 1),
+                            GridPoint(x: 3, y: 2),
+                            GridPoint(x: 4, y: 3),
+                            GridPoint(x: 5, y: 4),
+                            GridPoint(x: 6, y: 5),
+                            GridPoint(x: 7, y: 6)
+                        ],
+                        damage: 1
+                    )
+                ],
+                cardPickups: [
+                    DungeonCardPickupDefinition(
+                        id: "trap-3-right2",
+                        point: GridPoint(x: 2, y: 0),
+                        card: .straightRight2
+                    ),
+                    DungeonCardPickupDefinition(
+                        id: "trap-3-ray-right",
+                        point: GridPoint(x: 0, y: 2),
+                        card: .rayRight
+                    ),
+                    DungeonCardPickupDefinition(
+                        id: "trap-3-diagonal-up-right",
+                        point: GridPoint(x: 5, y: 6),
+                        card: .diagonalUpRight2
+                    )
+                ]
+            )
+        ]
+
+        return DungeonDefinition(
+            id: "trap-tower",
+            title: "罠塔",
+            summary: "見えている罠を避けるか、HPを支払って近道するかを読む低難度の塔。",
             difficulty: .growth,
             floors: floors
         )

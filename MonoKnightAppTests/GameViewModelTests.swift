@@ -360,6 +360,41 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertEqual(growthStore.points, 1)
     }
 
+    func testTrapTowerGrowthPointIsAwardedOnlyOnceOnFinalFloorClear() throws {
+        let (defaults, suiteName) = try makeIsolatedDefaults()
+        defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+
+        let progressStore = CampaignProgressStore(userDefaults: defaults)
+        let growthStore = DungeonGrowthStore(userDefaults: defaults)
+        let dungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "trap-tower"))
+        let finalFloor = try XCTUnwrap(dungeon.floors.last)
+        let runState = DungeonRunState(
+            dungeonID: dungeon.id,
+            currentFloorIndex: 2,
+            carriedHP: 3,
+            clearedFloorCount: 2
+        )
+        let mode = finalFloor.makeGameMode(
+            dungeonID: dungeon.id,
+            carriedHP: 3,
+            runState: runState
+        )
+        let (viewModel, _) = makeViewModel(
+            mode: mode,
+            campaignProgressStore: progressStore,
+            dungeonGrowthStore: growthStore
+        )
+
+        viewModel.handleProgressChange(.cleared)
+
+        XCTAssertEqual(growthStore.points, 1)
+        XCTAssertEqual(viewModel.latestDungeonGrowthAward?.points, 1)
+        XCTAssertTrue(growthStore.hasRewardedDungeon(dungeon.id))
+
+        viewModel.handleProgressChange(.cleared)
+        XCTAssertEqual(growthStore.points, 1)
+    }
+
     func testDungeonGrowthPointIsNotAwardedBeforeFinalFloor() throws {
         let (defaults, suiteName) = try makeIsolatedDefaults()
         defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }

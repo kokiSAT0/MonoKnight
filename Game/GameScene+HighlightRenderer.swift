@@ -21,6 +21,7 @@
         private var latestDungeonEnemyPoints: Set<GridPoint> = []
         private var latestDungeonDangerPoints: Set<GridPoint> = []
         private var latestDungeonCardPickupPoints: Set<GridPoint> = []
+        private var latestDungeonDamageTrapPoints: Set<GridPoint> = []
         private var latestDungeonCrackedFloorPoints: Set<GridPoint> = []
         private var latestDungeonCollapsedFloorPoints: Set<GridPoint> = []
         private var latestPatrolMovementPreviews: [ScenePatrolMovementPreview] = []
@@ -61,6 +62,7 @@
             latestDungeonEnemyPoints = []
             latestDungeonDangerPoints = []
             latestDungeonCardPickupPoints = []
+            latestDungeonDamageTrapPoints = []
             latestDungeonCrackedFloorPoints = []
             latestDungeonCollapsedFloorPoints = []
             latestPatrolMovementPreviews = []
@@ -209,6 +211,7 @@
                     .dungeonEnemy: latestDungeonEnemyPoints,
                     .dungeonDanger: latestDungeonDangerPoints,
                     .dungeonCardPickup: latestDungeonCardPickupPoints,
+                    .dungeonDamageTrap: latestDungeonDamageTrapPoints,
                     .dungeonCrackedFloor: latestDungeonCrackedFloorPoints,
                     .dungeonCollapsedFloor: latestDungeonCollapsedFloorPoints,
                 ]
@@ -268,6 +271,7 @@
             latestDungeonEnemyPoints = highlights[.dungeonEnemy] ?? []
             latestDungeonDangerPoints = highlights[.dungeonDanger] ?? []
             latestDungeonCardPickupPoints = highlights[.dungeonCardPickup] ?? []
+            latestDungeonDamageTrapPoints = highlights[.dungeonDamageTrap] ?? []
             latestDungeonCrackedFloorPoints = highlights[.dungeonCrackedFloor] ?? []
             latestDungeonCollapsedFloorPoints = highlights[.dungeonCollapsedFloor] ?? []
         }
@@ -536,6 +540,12 @@
                 strokeWidth = 0
                 fillColor = baseColor.withAlphaComponent(0.78)
                 zPosition = 1.14
+            case .dungeonDamageTrap:
+                baseColor = SKColor(red: 0.82, green: 0.10, blue: 0.08, alpha: 1.0)
+                strokeAlpha = 0
+                strokeWidth = 0
+                fillColor = baseColor.withAlphaComponent(0.70)
+                zPosition = 1.13
             case .dungeonCrackedFloor:
                 baseColor = SKColor(red: 0.95, green: 0.60, blue: 0.12, alpha: 1.0)
                 strokeAlpha = 0
@@ -574,6 +584,7 @@
                 || kind == .dungeonExitLocked
                 || kind == .dungeonEnemy
                 || kind == .dungeonCardPickup
+                || kind == .dungeonDamageTrap
             node.blendMode = .alpha
         }
 
@@ -619,6 +630,8 @@
                 return CGPath(rect: rect, transform: nil)
             case .dungeonCardPickup:
                 return cardPickupMarkerPath(center: CGPoint(x: rect.midX, y: rect.midY), tileSize: tileSize)
+            case .dungeonDamageTrap:
+                return damageTrapMarkerPath(center: CGPoint(x: rect.midX, y: rect.midY), tileSize: tileSize)
             case .dungeonCrackedFloor:
                 return crackedFloorFillPath(in: rect)
             }
@@ -700,6 +713,16 @@
             let radius = max(tileSize * 0.025, 1.0)
             let path = CGMutablePath()
             path.addRoundedRect(in: rect, cornerWidth: radius, cornerHeight: radius)
+            return path
+        }
+
+        private func damageTrapMarkerPath(center: CGPoint, tileSize: CGFloat) -> CGPath {
+            let radius = tileSize * 0.28
+            let path = CGMutablePath()
+            path.move(to: CGPoint(x: center.x, y: center.y + radius))
+            path.addLine(to: CGPoint(x: center.x + radius, y: center.y - radius * 0.55))
+            path.addLine(to: CGPoint(x: center.x - radius, y: center.y - radius * 0.55))
+            path.closeSubpath()
             return path
         }
 

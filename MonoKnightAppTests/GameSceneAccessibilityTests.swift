@@ -200,6 +200,7 @@ final class GameSceneAccessibilityTests: XCTestCase {
         let basicMovePoint = GridPoint(x: 1, y: 1)
         let cardMovePoint = GridPoint(x: 1, y: 2)
         let cardPickupPoint = GridPoint(x: 2, y: 1)
+        let damageTrapPoint = GridPoint(x: 2, y: 2)
         let crackedFloorPoint = GridPoint(x: 3, y: 1)
         let collapsedFloorPoint = GridPoint(x: 4, y: 1)
         let (scene, view, _) = makeScene()
@@ -209,6 +210,7 @@ final class GameSceneAccessibilityTests: XCTestCase {
             .guideSingleCandidate: [cardMovePoint],
             .dungeonBasicMove: [basicMovePoint],
             .dungeonCardPickup: [cardPickupPoint],
+            .dungeonDamageTrap: [damageTrapPoint],
             .dungeonCrackedFloor: [crackedFloorPoint],
             .dungeonCollapsedFloor: [collapsedFloorPoint],
         ])
@@ -241,6 +243,13 @@ final class GameSceneAccessibilityTests: XCTestCase {
             XCTFail("ひび割れ床のマーカーノードを取得できません")
             return
         }
+        guard let damageTrapStyle = scene.highlightStyleForTesting(
+            kind: .dungeonDamageTrap,
+            at: damageTrapPoint
+        ) else {
+            XCTFail("ダメージ罠のマーカーノードを取得できません")
+            return
+        }
         guard let collapsedFloorStyle = scene.highlightStyleForTesting(
             kind: .dungeonCollapsedFloor,
             at: collapsedFloorPoint
@@ -267,6 +276,8 @@ final class GameSceneAccessibilityTests: XCTestCase {
         XCTAssertTrue(basicMoveStyle.fillColor.isClearForTesting, "基本移動枠自体は塗りを持たない想定です")
         XCTAssertEqual(cardPickupStyle.lineWidth, 0, "床落ちカードは移動可能枠ではなく、枠なしの小マーカーで示します")
         XCTAssertFalse(cardPickupStyle.fillColor.isEqual(SKColor.clear), "床落ちカードは枠なしでも視認できる塗りを持ちます")
+        XCTAssertEqual(damageTrapStyle.lineWidth, 0, "ダメージ罠は移動可能枠ではないためタイル枠を持ちません")
+        XCTAssertFalse(damageTrapStyle.fillColor.isEqual(SKColor.clear), "ダメージ罠は踏む前に見える塗りを持ちます")
         XCTAssertEqual(crackedFloorStyle.lineWidth, 0, "ひび割れ床は移動可能枠ではないためタイル枠を持ちません")
         XCTAssertEqual(collapsedFloorStyle.lineWidth, 0, "崩落床は移動可能枠ではないためタイル枠を持ちません")
     }

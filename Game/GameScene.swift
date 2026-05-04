@@ -22,6 +22,7 @@
         case dungeonEnemy
         case dungeonDanger
         case dungeonCardPickup
+        case dungeonDamageTrap
         case dungeonCrackedFloor
         case dungeonCollapsedFloor
     }
