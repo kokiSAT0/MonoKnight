@@ -1369,6 +1369,12 @@ public struct DungeonLibrary {
                             ],
                             range: 2
                         )
+                    ),
+                    EnemyDefinition(
+                        id: "growth-7-chaser",
+                        name: "追跡兵",
+                        position: GridPoint(x: 6, y: 1),
+                        behavior: .chaser
                     )
                 ]),
                 rewardMoveCardsAfterClear: [
@@ -1726,6 +1732,12 @@ public struct DungeonLibrary {
                         ],
                         range: 3
                     )
+                ),
+                EnemyDefinition(
+                    id: "growth-12-chaser",
+                    name: "追跡兵",
+                    position: GridPoint(x: 7, y: 1),
+                    behavior: .chaser
                 )
             ],
             hazards: [
@@ -1861,6 +1873,13 @@ public struct DungeonLibrary {
                     )
                 ),
                 EnemyDefinition(id: "growth-15-patrol", name: "巡回兵", position: GridPoint(x: 4, y: 4), behavior: .patrol(path: [GridPoint(x: 4, y: 4), GridPoint(x: 5, y: 4), GridPoint(x: 5, y: 5), GridPoint(x: 4, y: 5)]))
+                ,
+                EnemyDefinition(
+                    id: "growth-15-chaser",
+                    name: "追跡兵",
+                    position: GridPoint(x: 3, y: 7),
+                    behavior: .chaser
+                )
             ],
             hazards: [
                 .damageTrap(points: [GridPoint(x: 2, y: 1), GridPoint(x: 5, y: 5), GridPoint(x: 7, y: 6)], damage: 1)
@@ -1906,7 +1925,13 @@ public struct DungeonLibrary {
                         range: 5
                     )
                 ),
-                EnemyDefinition(id: "growth-16-watch-down", name: "見張り", position: GridPoint(x: 6, y: 7), behavior: .watcher(direction: MoveVector(dx: 0, dy: -1), range: 5))
+                EnemyDefinition(id: "growth-16-watch-down", name: "見張り", position: GridPoint(x: 6, y: 7), behavior: .watcher(direction: MoveVector(dx: 0, dy: -1), range: 5)),
+                EnemyDefinition(
+                    id: "growth-16-chaser",
+                    name: "追跡兵",
+                    position: GridPoint(x: 7, y: 7),
+                    behavior: .chaser
+                )
             ],
             hazards: [.damageTrap(points: [GridPoint(x: 3, y: 4), GridPoint(x: 5, y: 4)], damage: 1)],
             impassableTilePoints: [
@@ -1975,6 +2000,12 @@ public struct DungeonLibrary {
                         ],
                         range: 4
                     )
+                ),
+                EnemyDefinition(
+                    id: "growth-18-chaser",
+                    name: "追跡兵",
+                    position: GridPoint(x: 5, y: 7),
+                    behavior: .chaser
                 )
             ],
             hazards: [.damageTrap(points: [GridPoint(x: 1, y: 1), GridPoint(x: 2, y: 2), GridPoint(x: 3, y: 3), GridPoint(x: 6, y: 6)], damage: 1)],
@@ -2050,7 +2081,13 @@ public struct DungeonLibrary {
                         range: 4
                     )
                 ),
-                EnemyDefinition(id: "growth-20-patrol", name: "巡回兵", position: GridPoint(x: 4, y: 4), behavior: .patrol(path: [GridPoint(x: 4, y: 4), GridPoint(x: 5, y: 4), GridPoint(x: 5, y: 5), GridPoint(x: 4, y: 5)]))
+                EnemyDefinition(id: "growth-20-patrol", name: "巡回兵", position: GridPoint(x: 4, y: 4), behavior: .patrol(path: [GridPoint(x: 4, y: 4), GridPoint(x: 5, y: 4), GridPoint(x: 5, y: 5), GridPoint(x: 4, y: 5)])),
+                EnemyDefinition(
+                    id: "growth-20-chaser",
+                    name: "追跡兵",
+                    position: GridPoint(x: 7, y: 7),
+                    behavior: .chaser
+                )
             ],
             hazards: [
                 .damageTrap(points: [GridPoint(x: 2, y: 1), GridPoint(x: 3, y: 3), GridPoint(x: 6, y: 6)], damage: 1)
