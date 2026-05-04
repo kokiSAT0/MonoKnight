@@ -432,6 +432,34 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
         )
     }
 
+    func testDungeonPatrolMovementPreviewsArePassedToScene() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "patrol-tower"))
+        let floor = tower.floors[0]
+        let mode = floor.makeGameMode(dungeonID: tower.id)
+        let core = GameCore(mode: mode)
+        let viewModel = GameBoardBridgeViewModel(core: core, mode: mode)
+
+        XCTAssertEqual(viewModel.boardSize, 9)
+        XCTAssertEqual(
+            viewModel.scene.latestPatrolMovementPreviewsForTesting(),
+            core.enemyPatrolMovementPreviews.map(ScenePatrolMovementPreview.init),
+            "巡回兵の次移動プレビューを Scene へ渡す必要があります"
+        )
+
+        guard let basicMove = core.availableBasicOrthogonalMoves().first(where: { $0.destination == GridPoint(x: 1, y: 0) }) else {
+            XCTFail("基本移動候補が見つかりません")
+            return
+        }
+        core.playBasicOrthogonalMove(using: basicMove)
+        viewModel.refreshGuideHighlights()
+
+        XCTAssertEqual(
+            viewModel.scene.latestPatrolMovementPreviewsForTesting(),
+            core.enemyPatrolMovementPreviews.map(ScenePatrolMovementPreview.init),
+            "敵ターン後も古い巡回プレビューを残さず更新する必要があります"
+        )
+    }
+
     func testDungeonInitialRewardCardGuideIsAvailableWithoutManualRefresh() throws {
         let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
         let runState = DungeonRunState(

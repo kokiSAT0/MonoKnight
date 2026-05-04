@@ -91,6 +91,81 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertEqual(core.enemyStates.first?.position, GridPoint(x: 2, y: 1))
     }
 
+    func testPatrolMovementPreviewFollowsNextPatrolStep() throws {
+        let patrol = EnemyDefinition(
+            id: "patrol",
+            name: "巡回兵",
+            position: GridPoint(x: 1, y: 1),
+            behavior: .patrol(path: [
+                GridPoint(x: 1, y: 1),
+                GridPoint(x: 2, y: 1),
+                GridPoint(x: 3, y: 1)
+            ])
+        )
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 3,
+            turnLimit: 4,
+            enemies: [patrol]
+        )
+        let core = makeCore(
+            mode: mode,
+            cards: [.kingUp, .kingRight, .kingLeft, .kingDown, .straightRight2]
+        )
+
+        XCTAssertEqual(
+            core.enemyPatrolMovementPreviews,
+            [
+                EnemyPatrolMovementPreview(
+                    enemyID: "patrol",
+                    current: GridPoint(x: 1, y: 1),
+                    next: GridPoint(x: 2, y: 1),
+                    vector: MoveVector(dx: 1, dy: 0)
+                )
+            ]
+        )
+
+        playMove(to: GridPoint(x: 0, y: 1), in: core)
+
+        XCTAssertEqual(
+            core.enemyPatrolMovementPreviews,
+            [
+                EnemyPatrolMovementPreview(
+                    enemyID: "patrol",
+                    current: GridPoint(x: 2, y: 1),
+                    next: GridPoint(x: 3, y: 1),
+                    vector: MoveVector(dx: 1, dy: 0)
+                )
+            ]
+        )
+    }
+
+    func testPatrolMovementPreviewExcludesNonMovingEnemies() throws {
+        let guardPost = EnemyDefinition(
+            id: "guard",
+            name: "番兵",
+            position: GridPoint(x: 1, y: 1),
+            behavior: .guardPost
+        )
+        let watcher = EnemyDefinition(
+            id: "watcher",
+            name: "見張り",
+            position: GridPoint(x: 3, y: 0),
+            behavior: .watcher(direction: MoveVector(dx: 0, dy: 1), range: 3)
+        )
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 3,
+            turnLimit: 4,
+            enemies: [guardPost, watcher]
+        )
+        let core = makeCore(mode: mode)
+
+        XCTAssertTrue(core.enemyPatrolMovementPreviews.isEmpty)
+    }
+
     func testBrittleFloorCracksThenCollapsesOnSecondStep() throws {
         let brittlePoint = GridPoint(x: 1, y: 0)
         let mode = makeDungeonMode(
@@ -177,6 +252,39 @@ final class DungeonModeTests: XCTestCase {
             XCTAssertEqual(mode.dungeonMetadataSnapshot?.floorID, floor.id)
             XCTAssertFalse(floor.enemies.isEmpty)
             XCTAssertFalse(floor.cardPickups.isEmpty)
+        }
+    }
+
+    func testDungeonTowerBoardSizesFollowTutorialAndStandardPolicy() throws {
+        let tutorialTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
+        let patrolTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "patrol-tower"))
+
+        XCTAssertEqual(tutorialTower.floors.map(\.boardSize), [5, 5, 5])
+        XCTAssertEqual(patrolTower.floors.map(\.boardSize), [9, 9, 9])
+    }
+
+    func testPatrolTowerNineByNineDefinitionsStayInsideBoard() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "patrol-tower"))
+
+        for floor in tower.floors {
+            var points: [GridPoint] = [floor.spawnPoint, floor.exitPoint]
+            points.append(contentsOf: floor.cardPickups.map(\.point))
+            points.append(contentsOf: floor.enemies.map(\.position))
+            for enemy in floor.enemies {
+                if case .patrol(let path) = enemy.behavior {
+                    points.append(contentsOf: path)
+                }
+            }
+            for hazard in floor.hazards {
+                if case .brittleFloor(let brittlePoints) = hazard {
+                    points.append(contentsOf: brittlePoints)
+                }
+            }
+
+            XCTAssertTrue(
+                points.allSatisfy { $0.isInside(boardSize: floor.boardSize) },
+                "\(floor.title) の配置はすべて 9×9 盤面内に収める必要があります"
+            )
         }
     }
 
@@ -490,30 +598,54 @@ final class DungeonModeTests: XCTestCase {
                 GridPoint(x: 2, y: 0),
                 GridPoint(x: 3, y: 0),
                 GridPoint(x: 4, y: 0),
-                GridPoint(x: 4, y: 1),
-                GridPoint(x: 4, y: 2),
-                GridPoint(x: 4, y: 3),
-                GridPoint(x: 4, y: 4)
+                GridPoint(x: 5, y: 0),
+                GridPoint(x: 6, y: 0),
+                GridPoint(x: 7, y: 0),
+                GridPoint(x: 8, y: 0),
+                GridPoint(x: 8, y: 1),
+                GridPoint(x: 8, y: 2),
+                GridPoint(x: 8, y: 3),
+                GridPoint(x: 8, y: 4),
+                GridPoint(x: 8, y: 5),
+                GridPoint(x: 8, y: 6),
+                GridPoint(x: 8, y: 7),
+                GridPoint(x: 8, y: 8)
             ],
             [
+                GridPoint(x: 0, y: 3),
+                GridPoint(x: 0, y: 2),
                 GridPoint(x: 0, y: 1),
                 GridPoint(x: 0, y: 0),
                 GridPoint(x: 1, y: 0),
                 GridPoint(x: 2, y: 0),
                 GridPoint(x: 3, y: 0),
                 GridPoint(x: 4, y: 0),
-                GridPoint(x: 4, y: 1),
-                GridPoint(x: 4, y: 2)
+                GridPoint(x: 5, y: 0),
+                GridPoint(x: 6, y: 0),
+                GridPoint(x: 7, y: 0),
+                GridPoint(x: 8, y: 0),
+                GridPoint(x: 8, y: 1),
+                GridPoint(x: 8, y: 2),
+                GridPoint(x: 8, y: 3),
+                GridPoint(x: 8, y: 4)
             ],
             [
                 GridPoint(x: 1, y: 0),
                 GridPoint(x: 2, y: 0),
                 GridPoint(x: 3, y: 0),
                 GridPoint(x: 4, y: 0),
-                GridPoint(x: 4, y: 1),
-                GridPoint(x: 4, y: 2),
-                GridPoint(x: 4, y: 3),
-                GridPoint(x: 4, y: 4)
+                GridPoint(x: 5, y: 0),
+                GridPoint(x: 6, y: 0),
+                GridPoint(x: 7, y: 0),
+                GridPoint(x: 8, y: 0),
+                GridPoint(x: 8, y: 1),
+                GridPoint(x: 8, y: 2),
+                GridPoint(x: 8, y: 3),
+                GridPoint(x: 8, y: 4),
+                GridPoint(x: 8, y: 5),
+                GridPoint(x: 8, y: 6),
+                GridPoint(x: 8, y: 7),
+                GridPoint(x: 8, y: 8)
             ]
         ]
 
@@ -535,17 +667,25 @@ final class DungeonModeTests: XCTestCase {
 
         let firstCore = makeCore(mode: tower.floors[0].makeGameMode(dungeonID: tower.id))
         playBasicMove(to: GridPoint(x: 1, y: 0), in: firstCore)
-        playMove(to: GridPoint(x: 3, y: 0), in: firstCore)
-        playMove(to: GridPoint(x: 3, y: 2), in: firstCore)
+        playBasicMove(to: GridPoint(x: 2, y: 0), in: firstCore)
+        playMove(to: GridPoint(x: 4, y: 0), in: firstCore)
+        playBasicMove(to: GridPoint(x: 5, y: 0), in: firstCore)
+        playBasicMove(to: GridPoint(x: 6, y: 0), in: firstCore)
+        playMove(to: GridPoint(x: 6, y: 2), in: firstCore)
+        playBasicMove(to: GridPoint(x: 7, y: 2), in: firstCore)
+        playBasicMove(to: GridPoint(x: 8, y: 2), in: firstCore)
+        playBasicMove(to: GridPoint(x: 8, y: 3), in: firstCore)
         for destination in [
-            GridPoint(x: 4, y: 2),
-            GridPoint(x: 4, y: 3),
-            GridPoint(x: 4, y: 4)
+            GridPoint(x: 8, y: 4),
+            GridPoint(x: 8, y: 5),
+            GridPoint(x: 8, y: 6),
+            GridPoint(x: 8, y: 7),
+            GridPoint(x: 8, y: 8)
         ] {
             playBasicMove(to: destination, in: firstCore)
         }
         XCTAssertEqual(firstCore.progress, .cleared)
-        XCTAssertLessThan(firstCore.moveCount, 8)
+        XCTAssertLessThan(firstCore.moveCount, 16)
 
         let secondRunState = DungeonRunState(
             dungeonID: tower.id,
@@ -557,13 +697,13 @@ final class DungeonModeTests: XCTestCase {
         let secondCore = makeCore(
             mode: tower.floors[1].makeGameMode(dungeonID: tower.id, runState: secondRunState)
         )
-        playMove(to: GridPoint(x: 0, y: 4), in: secondCore)
-        playBasicMove(to: GridPoint(x: 1, y: 4), in: secondCore)
-        playMove(to: GridPoint(x: 4, y: 4), in: secondCore)
-        playBasicMove(to: GridPoint(x: 4, y: 3), in: secondCore)
-        playBasicMove(to: GridPoint(x: 4, y: 2), in: secondCore)
+        playMove(to: GridPoint(x: 0, y: 6), in: secondCore)
+        playBasicMove(to: GridPoint(x: 1, y: 6), in: secondCore)
+        playMove(to: GridPoint(x: 8, y: 6), in: secondCore)
+        playBasicMove(to: GridPoint(x: 8, y: 5), in: secondCore)
+        playBasicMove(to: GridPoint(x: 8, y: 4), in: secondCore)
         XCTAssertEqual(secondCore.progress, .cleared)
-        XCTAssertLessThan(secondCore.moveCount, 8)
+        XCTAssertLessThan(secondCore.moveCount, 16)
 
         let thirdRunState = DungeonRunState(
             dungeonID: tower.id,
@@ -575,12 +715,21 @@ final class DungeonModeTests: XCTestCase {
         let thirdCore = makeCore(
             mode: tower.floors[2].makeGameMode(dungeonID: tower.id, runState: thirdRunState)
         )
-        playMove(to: GridPoint(x: 4, y: 0), in: thirdCore)
-        playBasicMove(to: GridPoint(x: 4, y: 1), in: thirdCore)
-        playMove(to: GridPoint(x: 4, y: 3), in: thirdCore)
-        playBasicMove(to: GridPoint(x: 4, y: 4), in: thirdCore)
+        playMove(to: GridPoint(x: 8, y: 0), in: thirdCore)
+        for destination in [
+            GridPoint(x: 8, y: 1),
+            GridPoint(x: 8, y: 2),
+            GridPoint(x: 8, y: 3),
+            GridPoint(x: 8, y: 4),
+            GridPoint(x: 8, y: 5),
+            GridPoint(x: 8, y: 6),
+            GridPoint(x: 8, y: 7),
+            GridPoint(x: 8, y: 8)
+        ] {
+            playBasicMove(to: destination, in: thirdCore)
+        }
         XCTAssertEqual(thirdCore.progress, .cleared)
-        XCTAssertLessThan(thirdCore.moveCount, 8)
+        XCTAssertLessThan(thirdCore.moveCount, 16)
     }
 
     func testPatrolTowerRewardCardsAreUsableOnNextFloorStart() throws {
@@ -595,7 +744,7 @@ final class DungeonModeTests: XCTestCase {
         let secondCore = makeCore(mode: tower.floors[1].makeGameMode(dungeonID: tower.id, runState: secondRunState))
 
         XCTAssertTrue(
-            secondCore.availableMoves().contains { $0.moveCard == .straightUp2 && $0.destination == GridPoint(x: 0, y: 4) },
+            secondCore.availableMoves().contains { $0.moveCard == .straightUp2 && $0.destination == GridPoint(x: 0, y: 6) },
             "巡回塔 1F 報酬の上2は 2F 初手で上側ルートへ入る候補になる想定です"
         )
 
@@ -609,7 +758,7 @@ final class DungeonModeTests: XCTestCase {
         let thirdCore = makeCore(mode: tower.floors[2].makeGameMode(dungeonID: tower.id, runState: thirdRunState))
 
         XCTAssertTrue(
-            thirdCore.availableMoves().contains { $0.moveCard == .rayRight && $0.destination == GridPoint(x: 4, y: 0) },
+            thirdCore.availableMoves().contains { $0.moveCard == .rayRight && $0.destination == GridPoint(x: 8, y: 0) },
             "巡回塔 2F 報酬の右連続は 3F 初手で巡回網の下側を抜ける候補になる想定です"
         )
     }
@@ -633,14 +782,18 @@ final class DungeonModeTests: XCTestCase {
         let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "patrol-tower"))
         let mode = tower.floors[2].makeGameMode(dungeonID: tower.id)
         let core = makeCore(mode: mode, cards: [.kingRight, .kingLeft, .straightRight2])
-        let brittlePoint = GridPoint(x: 2, y: 1)
+        let brittlePoint = GridPoint(x: 4, y: 3)
 
         for destination in [
             GridPoint(x: 1, y: 0),
             GridPoint(x: 2, y: 0),
-            GridPoint(x: 2, y: 1),
-            GridPoint(x: 2, y: 0),
-            GridPoint(x: 2, y: 1)
+            GridPoint(x: 3, y: 0),
+            GridPoint(x: 4, y: 0),
+            GridPoint(x: 4, y: 1),
+            GridPoint(x: 4, y: 2),
+            GridPoint(x: 4, y: 3),
+            GridPoint(x: 4, y: 2),
+            GridPoint(x: 4, y: 3)
         ] {
             playBasicMove(to: destination, in: core)
         }
@@ -661,9 +814,10 @@ final class DungeonModeTests: XCTestCase {
         playBasicMove(to: GridPoint(x: 4, y: 0), in: core)
         playBasicMove(to: GridPoint(x: 4, y: 1), in: core)
         playBasicMove(to: GridPoint(x: 4, y: 2), in: core)
+        playBasicMove(to: GridPoint(x: 4, y: 3), in: core)
 
         XCTAssertEqual(core.dungeonHP, 2)
-        XCTAssertTrue(core.enemyDangerPoints.contains(GridPoint(x: 4, y: 2)))
+        XCTAssertTrue(core.enemyDangerPoints.contains(GridPoint(x: 4, y: 3)))
     }
 
     func testDungeonRunStateAdvancesWithCarryoverHPMoveCountAndRewardCard() {

@@ -246,6 +246,9 @@ final class GameBoardBridgeViewModel: ObservableObject {
             .dungeonCollapsedFloor: core.collapsedFloorPoints
         ]
         scene.updateHighlights(highlights)
+        scene.updatePatrolMovementPreviews(
+            core.enemyPatrolMovementPreviews.map(ScenePatrolMovementPreview.init)
+        )
     }
 
     /// ガイド集合の件数をまとめ、ログ用メッセージも同時に生成する

@@ -25,6 +25,31 @@
         case dungeonCollapsedFloor
     }
 
+    public struct ScenePatrolMovementPreview: Identifiable, Equatable {
+        public let enemyID: String
+        public let current: GridPoint
+        public let next: GridPoint
+        public let vector: MoveVector
+
+        public var id: String { enemyID }
+
+        public init(enemyID: String, current: GridPoint, next: GridPoint, vector: MoveVector) {
+            self.enemyID = enemyID
+            self.current = current
+            self.next = next
+            self.vector = vector
+        }
+
+        public init(_ preview: EnemyPatrolMovementPreview) {
+            self.init(
+                enemyID: preview.enemyID,
+                current: preview.current,
+                next: preview.next,
+                vector: preview.vector
+            )
+        }
+    }
+
     public protocol GameCoreProtocol: AnyObject {
         func handleTap(at point: GridPoint)
     }
@@ -51,6 +76,7 @@
         private var targetApproachCandidatePoints: Set<GridPoint> = []
         private var targetCaptureCandidatePoints: Set<GridPoint> = []
         private var latestHighlightPoints: [BoardHighlightKind: Set<GridPoint>] = [:]
+        private var latestPatrolMovementPreviews: [ScenePatrolMovementPreview] = []
         private var showsVisitedTileFill = true
 
         #if canImport(UIKit)
@@ -84,6 +110,7 @@
             targetApproachCandidatePoints = []
             targetCaptureCandidatePoints = []
             latestHighlightPoints = [:]
+            latestPatrolMovementPreviews = []
             showsVisitedTileFill = true
             #if canImport(UIKit)
                 accessibilitySupport.reset()
@@ -224,6 +251,32 @@
                 isLayoutReady: isLayoutReady
             )
             updateAccessibilityElements()
+        }
+
+        public func updatePatrolMovementPreviews(_ previews: [ScenePatrolMovementPreview]) {
+            let visiblePreviews = previews.filter { preview in
+                board.contains(preview.current)
+                    && board.contains(preview.next)
+                    && board.isTraversable(preview.current)
+                    && board.isTraversable(preview.next)
+                    && preview.current != preview.next
+            }
+            latestPatrolMovementPreviews = visiblePreviews
+            highlightRenderer.updatePatrolMovementPreviews(
+                visiblePreviews,
+                scene: self,
+                layout: layoutSupport,
+                palette: palette,
+                isLayoutReady: isLayoutReady
+            )
+        }
+
+        public func latestPatrolMovementPreviewsForTesting() -> [ScenePatrolMovementPreview] {
+            latestPatrolMovementPreviews
+        }
+
+        func patrolMovementArrowCountForTesting() -> Int {
+            highlightRenderer.patrolMovementArrowCount
         }
 
         public func latestHighlightPoints(for kind: BoardHighlightKind) -> Set<GridPoint> {

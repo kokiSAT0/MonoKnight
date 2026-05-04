@@ -36,6 +36,23 @@ public struct PenaltyEvent: Identifiable, Equatable {
     }
 }
 
+/// 巡回兵が次に進む向きを UI へ渡すためのプレビュー情報
+public struct EnemyPatrolMovementPreview: Identifiable, Equatable {
+    public let enemyID: String
+    public let current: GridPoint
+    public let next: GridPoint
+    public let vector: MoveVector
+
+    public var id: String { enemyID }
+
+    public init(enemyID: String, current: GridPoint, next: GridPoint, vector: MoveVector) {
+        self.enemyID = enemyID
+        self.current = current
+        self.next = next
+        self.vector = vector
+    }
+}
+
 /// 移動が完了してから手札へ適用するタイル効果
 private enum PostMoveTileEffect {
     case shuffleHand
@@ -177,6 +194,10 @@ public final class GameCore: ObservableObject {
     /// 敵が次に攻撃または接触判定を持つ危険マス
     public var enemyDangerPoints: Set<GridPoint> {
         dangerPoints(for: enemyStates)
+    }
+    /// 巡回兵ごとの次移動方向
+    public var enemyPatrolMovementPreviews: [EnemyPatrolMovementPreview] {
+        enemyStates.compactMap { patrolMovementPreview(for: $0) }
     }
     /// まだ盤面上に残っている拾得カード
     public var activeDungeonCardPickups: [DungeonCardPickupDefinition] {
@@ -1541,6 +1562,27 @@ public final class GameCore: ObservableObject {
                 enemyStates[index].position = validPath[nextIndex]
             }
         }
+    }
+
+    private func patrolMovementPreview(for enemy: EnemyState) -> EnemyPatrolMovementPreview? {
+        guard case .patrol(let path) = enemy.behavior else { return nil }
+        let validPath = path.filter { board.contains($0) && board.isTraversable($0) }
+        guard !validPath.isEmpty else { return nil }
+
+        let nextIndex = (enemy.patrolIndex + 1) % validPath.count
+        let nextPoint = validPath[nextIndex]
+        guard nextPoint != enemy.position else { return nil }
+
+        let vector = MoveVector(
+            dx: nextPoint.x - enemy.position.x,
+            dy: nextPoint.y - enemy.position.y
+        )
+        return EnemyPatrolMovementPreview(
+            enemyID: enemy.id,
+            current: enemy.position,
+            next: nextPoint,
+            vector: vector
+        )
     }
 
     private func applyDungeonEnemyDamageIfNeeded() {

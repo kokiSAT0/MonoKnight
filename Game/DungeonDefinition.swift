@@ -438,6 +438,9 @@ public struct DungeonRules: Codable, Equatable {
 public struct DungeonLibrary {
     public static let shared = DungeonLibrary()
 
+    private static let tutorialTowerBoardSize = 5
+    private static let standardTowerBoardSize = 9
+
     public let dungeons: [DungeonDefinition]
 
     public init() {
@@ -474,7 +477,7 @@ public struct DungeonLibrary {
             DungeonFloorDefinition(
                 id: "tutorial-1",
                 title: "塔の入口",
-                boardSize: 5,
+                boardSize: tutorialTowerBoardSize,
                 spawnPoint: GridPoint(x: 1, y: 0),
                 exitPoint: GridPoint(x: 3, y: 4),
                 deckPreset: .kingAndKnightBasic,
@@ -500,7 +503,7 @@ public struct DungeonLibrary {
             DungeonFloorDefinition(
                 id: "tutorial-2",
                 title: "見張りの間",
-                boardSize: 5,
+                boardSize: tutorialTowerBoardSize,
                 spawnPoint: GridPoint(x: 0, y: 0),
                 exitPoint: GridPoint(x: 4, y: 4),
                 deckPreset: .kingAndKnightBasic,
@@ -539,7 +542,7 @@ public struct DungeonLibrary {
             DungeonFloorDefinition(
                 id: "tutorial-3",
                 title: "ひび割れ床",
-                boardSize: 5,
+                boardSize: tutorialTowerBoardSize,
                 spawnPoint: GridPoint(x: 0, y: 2),
                 exitPoint: GridPoint(x: 4, y: 2),
                 deckPreset: .standardLight,
@@ -593,38 +596,38 @@ public struct DungeonLibrary {
             DungeonFloorDefinition(
                 id: "patrol-1",
                 title: "巡回の間",
-                boardSize: 5,
+                boardSize: standardTowerBoardSize,
                 spawnPoint: GridPoint(x: 0, y: 0),
-                exitPoint: GridPoint(x: 4, y: 4),
+                exitPoint: GridPoint(x: 8, y: 8),
                 deckPreset: .kingAndKnightBasic,
-                failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 9),
+                failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 17),
                 enemies: [
                     EnemyDefinition(
                         id: "patrol-1-guard",
                         name: "巡回兵",
-                        position: GridPoint(x: 1, y: 2),
+                        position: GridPoint(x: 3, y: 4),
                         behavior: .patrol(path: [
-                            GridPoint(x: 1, y: 2),
-                            GridPoint(x: 2, y: 2),
-                            GridPoint(x: 3, y: 2),
-                            GridPoint(x: 2, y: 2)
+                            GridPoint(x: 3, y: 4),
+                            GridPoint(x: 4, y: 4),
+                            GridPoint(x: 5, y: 4),
+                            GridPoint(x: 4, y: 4)
                         ])
                     )
                 ],
                 cardPickups: [
                     DungeonCardPickupDefinition(
                         id: "patrol-1-right2",
-                        point: GridPoint(x: 1, y: 0),
+                        point: GridPoint(x: 2, y: 0),
                         card: .straightRight2
                     ),
                     DungeonCardPickupDefinition(
                         id: "patrol-1-up2",
-                        point: GridPoint(x: 3, y: 0),
+                        point: GridPoint(x: 6, y: 0),
                         card: .straightUp2
                     ),
                     DungeonCardPickupDefinition(
                         id: "patrol-1-knight",
-                        point: GridPoint(x: 4, y: 2),
+                        point: GridPoint(x: 8, y: 3),
                         card: .knightRightwardChoice
                     )
                 ],
@@ -637,53 +640,53 @@ public struct DungeonLibrary {
             DungeonFloorDefinition(
                 id: "patrol-2",
                 title: "すれ違い",
-                boardSize: 5,
-                spawnPoint: GridPoint(x: 0, y: 2),
-                exitPoint: GridPoint(x: 4, y: 2),
+                boardSize: standardTowerBoardSize,
+                spawnPoint: GridPoint(x: 0, y: 4),
+                exitPoint: GridPoint(x: 8, y: 4),
                 deckPreset: .kingAndKnightBasic,
-                failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 8),
+                failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 17),
                 enemies: [
                     EnemyDefinition(
                         id: "patrol-2-vertical",
                         name: "巡回兵A",
-                        position: GridPoint(x: 2, y: 0),
+                        position: GridPoint(x: 4, y: 2),
                         behavior: .patrol(path: [
-                            GridPoint(x: 2, y: 0),
-                            GridPoint(x: 2, y: 1),
-                            GridPoint(x: 2, y: 2),
-                            GridPoint(x: 2, y: 3),
-                            GridPoint(x: 2, y: 4),
-                            GridPoint(x: 2, y: 3),
-                            GridPoint(x: 2, y: 2),
-                            GridPoint(x: 2, y: 1)
+                            GridPoint(x: 4, y: 2),
+                            GridPoint(x: 4, y: 3),
+                            GridPoint(x: 4, y: 4),
+                            GridPoint(x: 4, y: 5),
+                            GridPoint(x: 4, y: 6),
+                            GridPoint(x: 4, y: 5),
+                            GridPoint(x: 4, y: 4),
+                            GridPoint(x: 4, y: 3)
                         ])
                     ),
                     EnemyDefinition(
                         id: "patrol-2-horizontal",
                         name: "巡回兵B",
-                        position: GridPoint(x: 3, y: 4),
+                        position: GridPoint(x: 5, y: 7),
                         behavior: .patrol(path: [
-                            GridPoint(x: 3, y: 4),
-                            GridPoint(x: 4, y: 4),
-                            GridPoint(x: 3, y: 4),
-                            GridPoint(x: 2, y: 4)
+                            GridPoint(x: 5, y: 7),
+                            GridPoint(x: 6, y: 7),
+                            GridPoint(x: 7, y: 7),
+                            GridPoint(x: 6, y: 7)
                         ])
                     )
                 ],
                 cardPickups: [
                     DungeonCardPickupDefinition(
                         id: "patrol-2-right2",
-                        point: GridPoint(x: 0, y: 1),
+                        point: GridPoint(x: 1, y: 0),
                         card: .straightRight2
                     ),
                     DungeonCardPickupDefinition(
                         id: "patrol-2-up2",
-                        point: GridPoint(x: 4, y: 0),
+                        point: GridPoint(x: 7, y: 2),
                         card: .straightUp2
                     ),
                     DungeonCardPickupDefinition(
                         id: "patrol-2-ray-right",
-                        point: GridPoint(x: 1, y: 4),
+                        point: GridPoint(x: 1, y: 6),
                         card: .rayRight
                     )
                 ],
@@ -696,40 +699,40 @@ public struct DungeonLibrary {
             DungeonFloorDefinition(
                 id: "patrol-3",
                 title: "巡回網",
-                boardSize: 5,
+                boardSize: standardTowerBoardSize,
                 spawnPoint: GridPoint(x: 0, y: 0),
-                exitPoint: GridPoint(x: 4, y: 4),
+                exitPoint: GridPoint(x: 8, y: 8),
                 deckPreset: .standardLight,
-                failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 8),
+                failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 17),
                 enemies: [
                     EnemyDefinition(
                         id: "patrol-3-horizontal",
                         name: "巡回兵A",
-                        position: GridPoint(x: 1, y: 2),
+                        position: GridPoint(x: 3, y: 4),
                         behavior: .patrol(path: [
-                            GridPoint(x: 1, y: 2),
-                            GridPoint(x: 2, y: 2),
-                            GridPoint(x: 3, y: 2),
-                            GridPoint(x: 2, y: 2)
+                            GridPoint(x: 3, y: 4),
+                            GridPoint(x: 4, y: 4),
+                            GridPoint(x: 5, y: 4),
+                            GridPoint(x: 4, y: 4)
                         ])
                     ),
                     EnemyDefinition(
                         id: "patrol-3-vertical",
                         name: "巡回兵B",
-                        position: GridPoint(x: 3, y: 1),
+                        position: GridPoint(x: 5, y: 3),
                         behavior: .patrol(path: [
-                            GridPoint(x: 3, y: 1),
-                            GridPoint(x: 3, y: 2),
-                            GridPoint(x: 3, y: 3),
-                            GridPoint(x: 3, y: 2)
+                            GridPoint(x: 5, y: 3),
+                            GridPoint(x: 5, y: 4),
+                            GridPoint(x: 5, y: 5),
+                            GridPoint(x: 5, y: 4)
                         ])
                     )
                 ],
                 hazards: [
                     .brittleFloor(points: [
-                        GridPoint(x: 2, y: 1),
-                        GridPoint(x: 2, y: 2),
-                        GridPoint(x: 2, y: 3)
+                        GridPoint(x: 4, y: 3),
+                        GridPoint(x: 4, y: 4),
+                        GridPoint(x: 4, y: 5)
                     ])
                 ],
                 cardPickups: [
@@ -740,12 +743,12 @@ public struct DungeonLibrary {
                     ),
                     DungeonCardPickupDefinition(
                         id: "patrol-3-up2",
-                        point: GridPoint(x: 4, y: 1),
+                        point: GridPoint(x: 8, y: 1),
                         card: .straightUp2
                     ),
                     DungeonCardPickupDefinition(
                         id: "patrol-3-diagonal-up-right",
-                        point: GridPoint(x: 2, y: 0),
+                        point: GridPoint(x: 4, y: 0),
                         card: .diagonalUpRight2
                     )
                 ]

@@ -4,6 +4,7 @@
 
     final class GameSceneHighlightRenderer {
         private(set) var highlightNodes: [BoardHighlightKind: [GridPoint: SKShapeNode]] = [:]
+        private(set) var patrolMovementArrowNodes: [String: SKShapeNode] = [:]
         private var latestSingleGuidePoints: Set<GridPoint> = []
         private var latestMultipleGuidePoints: Set<GridPoint> = []
         private var latestMultiStepPathPoints: Set<GridPoint> = []
@@ -21,7 +22,12 @@
         private var latestDungeonCardPickupPoints: Set<GridPoint> = []
         private var latestDungeonCrackedFloorPoints: Set<GridPoint> = []
         private var latestDungeonCollapsedFloorPoints: Set<GridPoint> = []
+        private var latestPatrolMovementPreviews: [ScenePatrolMovementPreview] = []
+        private var pendingPatrolMovementPreviews: [ScenePatrolMovementPreview] = []
+        private var hasPendingPatrolMovementPreviewUpdate = false
         private var pendingHighlightPoints: [BoardHighlightKind: Set<GridPoint>] = [:]
+
+        var patrolMovementArrowCount: Int { patrolMovementArrowNodes.count }
 
         init() {
             reset()
@@ -33,7 +39,11 @@
                     node.removeFromParent()
                 }
             }
+            for node in patrolMovementArrowNodes.values {
+                node.removeFromParent()
+            }
             highlightNodes = [:]
+            patrolMovementArrowNodes = [:]
             latestSingleGuidePoints = []
             latestMultipleGuidePoints = []
             latestMultiStepPathPoints = []
@@ -51,6 +61,9 @@
             latestDungeonCardPickupPoints = []
             latestDungeonCrackedFloorPoints = []
             latestDungeonCollapsedFloorPoints = []
+            latestPatrolMovementPreviews = []
+            pendingPatrolMovementPreviews = []
+            hasPendingPatrolMovementPreviewUpdate = false
             pendingHighlightPoints = Dictionary(
                 uniqueKeysWithValues: BoardHighlightKind.allCases.map { ($0, []) }
             )
@@ -99,6 +112,26 @@
             clearPending()
         }
 
+        func updatePatrolMovementPreviews(
+            _ previews: [ScenePatrolMovementPreview],
+            scene: SKScene,
+            layout: GameSceneLayoutSupport,
+            palette: GameScenePalette,
+            isLayoutReady: Bool
+        ) {
+            latestPatrolMovementPreviews = previews
+            pendingPatrolMovementPreviews = previews
+            hasPendingPatrolMovementPreviewUpdate = true
+
+            debugLog(
+                "GameScene 巡回プレビュー更新要求: count=\(previews.count), レイアウト確定=\(isLayoutReady)"
+            )
+
+            guard isLayoutReady else { return }
+            applyPatrolMovementPreviews(previews, scene: scene, layout: layout, palette: palette)
+            hasPendingPatrolMovementPreviewUpdate = false
+        }
+
         func refreshAppearance(
             layout: GameSceneLayoutSupport,
             palette: GameScenePalette
@@ -115,6 +148,15 @@
                         palette: palette
                     )
                 }
+            }
+
+            for preview in latestPatrolMovementPreviews {
+                guard let node = patrolMovementArrowNodes[preview.enemyID] else { continue }
+                configurePatrolMovementArrowNode(
+                    node,
+                    preview: preview,
+                    layout: layout
+                )
             }
         }
 
@@ -137,7 +179,13 @@
 
             let hasPendingValues = snapshot.values.contains { !$0.isEmpty }
             let hasRenderedHighlights = highlightNodes.values.contains { !$0.isEmpty }
-            guard hasPendingValues || hasRenderedHighlights else { return }
+            let hasRenderedPatrolPreviews = !patrolMovementArrowNodes.isEmpty
+            guard hasPendingValues
+                    || hasRenderedHighlights
+                    || hasPendingPatrolMovementPreviewUpdate
+                    || hasRenderedPatrolPreviews
+                    || !latestPatrolMovementPreviews.isEmpty
+            else { return }
 
             if hasPendingValues {
                 applyHighlightsImmediately(snapshot, scene: scene, layout: layout, palette: palette)
@@ -172,6 +220,23 @@
                 } else {
                     applyHighlightsImmediately(snapshot, scene: scene, layout: layout, palette: palette)
                 }
+            }
+
+            if hasPendingPatrolMovementPreviewUpdate {
+                applyPatrolMovementPreviews(
+                    pendingPatrolMovementPreviews,
+                    scene: scene,
+                    layout: layout,
+                    palette: palette
+                )
+                hasPendingPatrolMovementPreviewUpdate = false
+            } else if hasRenderedPatrolPreviews || !latestPatrolMovementPreviews.isEmpty {
+                applyPatrolMovementPreviews(
+                    latestPatrolMovementPreviews,
+                    scene: scene,
+                    layout: layout,
+                    palette: palette
+                )
             }
 
             clearPending()
@@ -266,6 +331,64 @@
             highlightNodes[kind] = nodesForKind
         }
 
+        private func applyPatrolMovementPreviews(
+            _ previews: [ScenePatrolMovementPreview],
+            scene: SKScene,
+            layout: GameSceneLayoutSupport,
+            palette: GameScenePalette
+        ) {
+            latestPatrolMovementPreviews = previews
+
+            let previewIDs = Set(previews.map(\.enemyID))
+            let staleEnemyIDs = patrolMovementArrowNodes.keys.filter { !previewIDs.contains($0) }
+            for enemyID in staleEnemyIDs {
+                guard let node = patrolMovementArrowNodes[enemyID] else { continue }
+                node.removeFromParent()
+                patrolMovementArrowNodes.removeValue(forKey: enemyID)
+            }
+
+            for preview in previews {
+                if let node = patrolMovementArrowNodes[preview.enemyID] {
+                    if node.parent !== scene {
+                        scene.addChild(node)
+                    }
+                    configurePatrolMovementArrowNode(
+                        node,
+                        preview: preview,
+                        layout: layout
+                    )
+                } else {
+                    let node = SKShapeNode()
+                    configurePatrolMovementArrowNode(
+                        node,
+                        preview: preview,
+                        layout: layout
+                    )
+                    scene.addChild(node)
+                    patrolMovementArrowNodes[preview.enemyID] = node
+                }
+            }
+        }
+
+        private func configurePatrolMovementArrowNode(
+            _ node: SKShapeNode,
+            preview: ScenePatrolMovementPreview,
+            layout: GameSceneLayoutSupport
+        ) {
+            let baseColor = patrolMovementArrowColor()
+            node.path = patrolMovementArrowPath(vector: preview.vector, tileSize: layout.tileSize)
+            node.fillColor = SKColor.clear
+            node.strokeColor = baseColor
+            node.lineWidth = max(layout.tileSize * 0.045, 2.0)
+            node.glowWidth = max(layout.tileSize * 0.025, 1.0)
+            node.lineJoin = .round
+            node.lineCap = .round
+            node.position = layout.position(for: preview.current)
+            node.zPosition = 1.24
+            node.isAntialiased = true
+            node.blendMode = .alpha
+        }
+
         private func configureHighlightNode(
             _ node: SKShapeNode,
             for point: GridPoint,
@@ -343,11 +466,11 @@
                 zPosition = 1.06
             case .dungeonBasicMove:
                 baseColor = palette.boardTileVisited
-                strokeAlpha = 0.55
-                strokeWidth = max(layout.tileSize * 0.035, 1.5)
-                fillColor = baseColor.withAlphaComponent(0.08)
-                overlapInset = max(layout.tileSize * 0.20, strokeWidth * 2.0)
-                zPosition = 0.94
+                strokeAlpha = 0.82
+                strokeWidth = max(layout.tileSize * 0.050, 2.0)
+                fillColor = SKColor.clear
+                overlapInset = max(layout.tileSize * 0.15, strokeWidth * 1.4)
+                zPosition = 1.01
             case .targetApproachCandidate:
                 baseColor = palette.boardGuideHighlight
                 strokeAlpha = 0.95
@@ -400,20 +523,20 @@
                 zPosition = 1.05
             case .dungeonCardPickup:
                 baseColor = SKColor(red: 0.10, green: 0.62, blue: 0.52, alpha: 1.0)
-                strokeAlpha = 0.96
-                strokeWidth = max(layout.tileSize * 0.050, 2.0)
-                fillColor = baseColor.withAlphaComponent(0.24)
+                strokeAlpha = 0
+                strokeWidth = 0
+                fillColor = baseColor.withAlphaComponent(0.78)
                 zPosition = 1.14
             case .dungeonCrackedFloor:
                 baseColor = SKColor(red: 0.95, green: 0.60, blue: 0.12, alpha: 1.0)
-                strokeAlpha = 0.92
-                strokeWidth = max(layout.tileSize * 0.045, 2.0)
+                strokeAlpha = 0
+                strokeWidth = 0
                 fillColor = baseColor.withAlphaComponent(0.18)
                 zPosition = 1.07
             case .dungeonCollapsedFloor:
                 baseColor = SKColor(red: 0.20, green: 0.22, blue: 0.24, alpha: 1.0)
-                strokeAlpha = 0.98
-                strokeWidth = max(layout.tileSize * 0.045, 2.0)
+                strokeAlpha = 0
+                strokeWidth = 0
                 fillColor = baseColor.withAlphaComponent(0.58)
                 zPosition = 1.09
             }
@@ -472,10 +595,12 @@
                  .targetCaptureCandidate,
                  .forcedSelection,
                  .dungeonDanger,
-                 .dungeonCardPickup,
-                 .dungeonCrackedFloor,
                  .dungeonCollapsedFloor:
                 return CGPath(rect: rect, transform: nil)
+            case .dungeonCardPickup:
+                return cardPickupMarkerPath(center: CGPoint(x: rect.midX, y: rect.midY), tileSize: tileSize)
+            case .dungeonCrackedFloor:
+                return crackedFloorFillPath(in: rect)
             }
         }
 
@@ -488,6 +613,75 @@
             path.addLine(to: CGPoint(x: center.x - radius, y: center.y))
             path.closeSubpath()
             return path
+        }
+
+        private func cardPickupMarkerPath(center: CGPoint, tileSize: CGFloat) -> CGPath {
+            let width = tileSize * 0.28
+            let height = tileSize * 0.36
+            let rect = CGRect(
+                x: center.x - width / 2,
+                y: center.y - height / 2,
+                width: width,
+                height: height
+            )
+            let radius = max(tileSize * 0.025, 1.0)
+            let path = CGMutablePath()
+            path.addRoundedRect(in: rect, cornerWidth: radius, cornerHeight: radius)
+            return path
+        }
+
+        private func crackedFloorFillPath(in rect: CGRect) -> CGPath {
+            let path = CGMutablePath()
+            path.move(to: CGPoint(x: rect.minX, y: rect.maxY))
+            path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+            path.addLine(to: CGPoint(x: rect.maxX, y: rect.midY))
+            path.addLine(to: CGPoint(x: rect.midX, y: rect.midY))
+            path.addLine(to: CGPoint(x: rect.midX, y: rect.minY))
+            path.addLine(to: CGPoint(x: rect.minX, y: rect.minY))
+            path.closeSubpath()
+            return path
+        }
+
+        private func patrolMovementArrowPath(vector: MoveVector, tileSize: CGFloat) -> CGPath {
+            let dx = CGFloat(vector.dx)
+            let dy = CGFloat(vector.dy)
+            let length = max(sqrt(dx * dx + dy * dy), 1.0)
+            let unitX = dx / length
+            let unitY = dy / length
+            let perpendicularX = -unitY
+            let perpendicularY = unitX
+
+            let startDistance = tileSize * 0.03
+            let endDistance = tileSize * 0.31
+            let headLength = tileSize * 0.11
+            let headSpread = tileSize * 0.075
+
+            let start = CGPoint(x: unitX * startDistance, y: unitY * startDistance)
+            let tip = CGPoint(x: unitX * endDistance, y: unitY * endDistance)
+            let headBase = CGPoint(
+                x: tip.x - unitX * headLength,
+                y: tip.y - unitY * headLength
+            )
+            let leftHead = CGPoint(
+                x: headBase.x + perpendicularX * headSpread,
+                y: headBase.y + perpendicularY * headSpread
+            )
+            let rightHead = CGPoint(
+                x: headBase.x - perpendicularX * headSpread,
+                y: headBase.y - perpendicularY * headSpread
+            )
+
+            let path = CGMutablePath()
+            path.move(to: start)
+            path.addLine(to: tip)
+            path.move(to: leftHead)
+            path.addLine(to: tip)
+            path.addLine(to: rightHead)
+            return path
+        }
+
+        private func patrolMovementArrowColor() -> SKColor {
+            return SKColor(red: 1.0, green: 0.82, blue: 0.24, alpha: 0.96)
         }
     }
 #endif

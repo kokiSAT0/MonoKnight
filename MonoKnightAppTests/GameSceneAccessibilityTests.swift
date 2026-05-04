@@ -162,5 +162,76 @@ final class GameSceneAccessibilityTests: XCTestCase {
         XCTAssertGreaterThan(destinationStyle.lineWidth, 0, "終点はタップ可能な移動先として水色枠を持つ想定です")
         XCTAssertTrue(destinationStyle.fillColor.isEqual(SKColor.clear), "終点枠自体は塗りを持たず、通過塗りと重ねます")
     }
+
+    func testDungeonBasicMoveUsesFrameAndDungeonMarkersAvoidTileFrames() {
+        let basicMovePoint = GridPoint(x: 1, y: 1)
+        let cardPickupPoint = GridPoint(x: 2, y: 1)
+        let crackedFloorPoint = GridPoint(x: 3, y: 1)
+        let collapsedFloorPoint = GridPoint(x: 4, y: 1)
+        let (scene, view, _) = makeScene()
+        defer { view.presentScene(nil) }
+
+        scene.updateHighlights([
+            .dungeonBasicMove: [basicMovePoint],
+            .dungeonCardPickup: [cardPickupPoint],
+            .dungeonCrackedFloor: [crackedFloorPoint],
+            .dungeonCollapsedFloor: [collapsedFloorPoint],
+        ])
+
+        guard let basicMoveStyle = scene.highlightStyleForTesting(
+            kind: .dungeonBasicMove,
+            at: basicMovePoint
+        ) else {
+            XCTFail("基本移動の枠ノードを取得できません")
+            return
+        }
+        guard let cardPickupStyle = scene.highlightStyleForTesting(
+            kind: .dungeonCardPickup,
+            at: cardPickupPoint
+        ) else {
+            XCTFail("床落ちカードのマーカーノードを取得できません")
+            return
+        }
+        guard let crackedFloorStyle = scene.highlightStyleForTesting(
+            kind: .dungeonCrackedFloor,
+            at: crackedFloorPoint
+        ) else {
+            XCTFail("ひび割れ床のマーカーノードを取得できません")
+            return
+        }
+        guard let collapsedFloorStyle = scene.highlightStyleForTesting(
+            kind: .dungeonCollapsedFloor,
+            at: collapsedFloorPoint
+        ) else {
+            XCTFail("崩落床のマーカーノードを取得できません")
+            return
+        }
+
+        XCTAssertGreaterThan(basicMoveStyle.lineWidth, 0, "基本移動はこのターンに移動可能なマスなので枠を持ちます")
+        XCTAssertEqual(cardPickupStyle.lineWidth, 0, "床落ちカードは移動可能枠ではなく、枠なしの小マーカーで示します")
+        XCTAssertFalse(cardPickupStyle.fillColor.isEqual(SKColor.clear), "床落ちカードは枠なしでも視認できる塗りを持ちます")
+        XCTAssertEqual(crackedFloorStyle.lineWidth, 0, "ひび割れ床は移動可能枠ではないためタイル枠を持ちません")
+        XCTAssertEqual(collapsedFloorStyle.lineWidth, 0, "崩落床は移動可能枠ではないためタイル枠を持ちません")
+    }
+
+    func testPatrolMovementArrowNodesUpdateAndClear() {
+        let (scene, view, _) = makeScene()
+        defer { view.presentScene(nil) }
+
+        scene.updatePatrolMovementPreviews([
+            ScenePatrolMovementPreview(
+                enemyID: "patrol",
+                current: GridPoint(x: 1, y: 1),
+                next: GridPoint(x: 2, y: 1),
+                vector: MoveVector(dx: 1, dy: 0)
+            )
+        ])
+
+        XCTAssertEqual(scene.patrolMovementArrowCountForTesting(), 1, "巡回兵1体につき矢印を1本表示する想定です")
+
+        scene.updatePatrolMovementPreviews([])
+
+        XCTAssertEqual(scene.patrolMovementArrowCountForTesting(), 0, "巡回プレビューが空になったら古い矢印を消す必要があります")
+    }
 }
 #endif

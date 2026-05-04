@@ -30,6 +30,7 @@ final class DungeonSelectionViewTests: XCTestCase {
         XCTAssertEqual(firstMode.dungeonMetadataSnapshot?.dungeonID, patrolTower.id)
         XCTAssertEqual(firstMode.dungeonMetadataSnapshot?.floorID, "patrol-1")
         XCTAssertEqual(firstMode.dungeonMetadataSnapshot?.runState?.currentFloorIndex, 0)
+        XCTAssertEqual(firstMode.boardSize, 9)
         XCTAssertNil(startedDungeon)
     }
 }
