@@ -388,6 +388,105 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
         )
     }
 
+    func testDungeonHighlightsExposeExitEnemyDangerAndHazards() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
+        let floor = try XCTUnwrap(tower.floors.first { $0.id == "tutorial-3" })
+        let mode = floor.makeGameMode(dungeonID: tower.id)
+        let core = GameCore(mode: mode)
+        let viewModel = GameBoardBridgeViewModel(core: core, mode: mode)
+
+        XCTAssertEqual(
+            viewModel.scene.latestHighlightPoints(for: .dungeonExit),
+            [floor.exitPoint],
+            "ダンジョン出口を Scene へ渡す必要があります"
+        )
+        XCTAssertEqual(
+            viewModel.scene.latestHighlightPoints(for: .dungeonEnemy),
+            Set(floor.enemies.map(\.position)),
+            "敵位置を Scene へ渡す必要があります"
+        )
+        XCTAssertEqual(
+            viewModel.scene.latestHighlightPoints(for: .dungeonDanger),
+            core.enemyDangerPoints,
+            "危険範囲表示は GameCore の判定集合と一致させます"
+        )
+        XCTAssertEqual(
+            viewModel.scene.latestHighlightPoints(for: .dungeonCardPickup),
+            Set(floor.cardPickups.map(\.point)),
+            "床落ちカードも専用ハイライトとして Scene へ渡します"
+        )
+
+        core.overrideDungeonFloorStateForTesting(
+            cracked: [GridPoint(x: 1, y: 2)],
+            collapsed: [GridPoint(x: 2, y: 2)]
+        )
+        viewModel.refreshGuideHighlights()
+
+        XCTAssertEqual(
+            viewModel.scene.latestHighlightPoints(for: .dungeonCrackedFloor),
+            [GridPoint(x: 1, y: 2)]
+        )
+        XCTAssertEqual(
+            viewModel.scene.latestHighlightPoints(for: .dungeonCollapsedFloor),
+            [GridPoint(x: 2, y: 2)]
+        )
+    }
+
+    func testDungeonInitialRewardCardGuideIsAvailableWithoutManualRefresh() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
+        let runState = DungeonRunState(
+            dungeonID: tower.id,
+            currentFloorIndex: 1,
+            carriedHP: 2,
+            totalMoveCount: 4,
+            clearedFloorCount: 1,
+            rewardInventoryEntries: [DungeonInventoryEntry(card: .straightRight2, rewardUses: 3)]
+        )
+        let floor = tower.floors[1]
+        let mode = floor.makeGameMode(
+            dungeonID: tower.id,
+            carriedHP: runState.carriedHP,
+            runState: runState
+        )
+        let core = GameCore(mode: mode)
+        let viewModel = GameBoardBridgeViewModel(core: core, mode: mode)
+
+        XCTAssertTrue(core.availableMoves().contains { $0.moveCard == .straightRight2 && $0.destination == GridPoint(x: 2, y: 0) })
+        XCTAssertTrue(
+            viewModel.scene.latestHighlightPoints(for: .guideSingleCandidate).contains(GridPoint(x: 2, y: 0)),
+            "初期化直後から報酬カードの候補を盤面へ渡す必要があります"
+        )
+    }
+
+    func testDungeonBasicMoveHighlightsAreSeparateFromCardCandidates() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
+        let floor = try XCTUnwrap(tower.floors.first)
+        let mode = floor.makeGameMode(dungeonID: tower.id)
+        let core = GameCore(mode: mode)
+        let viewModel = GameBoardBridgeViewModel(core: core, mode: mode)
+
+        viewModel.refreshGuideHighlights(progressOverride: .playing)
+
+        let expectedBasicMoves = Set(core.availableBasicOrthogonalMoves().map(\.destination))
+        XCTAssertFalse(expectedBasicMoves.isEmpty, "基礎塔では基本移動候補が必要です")
+        XCTAssertEqual(
+            viewModel.guideHighlightBuckets.basicMoveDestinations,
+            expectedBasicMoves,
+            "基本移動候補はカード候補とは別集合で保持します"
+        )
+        XCTAssertEqual(
+            viewModel.scene.latestHighlightPoints(for: .dungeonBasicMove),
+            expectedBasicMoves,
+            "Scene 側にも基本移動候補を専用ハイライトとして渡します"
+        )
+
+        viewModel.updateForcedSelectionHighlights([floor.exitPoint])
+        XCTAssertTrue(
+            viewModel.scene.latestHighlightPoints(for: .dungeonBasicMove).isEmpty,
+            "カード選択中は基本移動候補を隠し、選択カードの候補を優先します"
+        )
+    }
+
     /// テストで使い回す ViewModel を生成するヘルパー
     private func makeViewModel() -> GameBoardBridgeViewModel {
         let core = GameCore(mode: .standard)

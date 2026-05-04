@@ -55,6 +55,7 @@ struct TitleScreenView: View {
 
     private var theme = AppTheme()
     private let campaignLibrary = CampaignLibrary.shared
+    private let dungeonLibrary = DungeonLibrary.shared
     @State private var isPresentingHowToPlay: Bool = false
     @State private var navigationPath: [TitleNavigationTarget] = []
     @State private var highlightedCampaignStageID: CampaignStageID?
@@ -248,7 +249,7 @@ struct TitleScreenView: View {
                     headline: campaignTileHeadline,
                     detail: campaignTileDetail,
                     accessibilityID: "title_tile_campaign",
-                    accessibilityHint: "ステージ一覧を表示します"
+                    accessibilityHint: "塔ダンジョンのフロア一覧を表示します"
                 )
 
                 featureTile(
@@ -341,24 +342,20 @@ struct TitleScreenView: View {
                 "TitleScreenView: NavigationDestination.campaign 構築開始 -> instance=\(instanceIdentifier.uuidString) targetType=\(String(describing: type(of: target))) stackCount=\(navigationPath.count) stack=[\(stackDescription)]"
             )
             return AnyView(
-                CampaignStageSelectionView(
-                    campaignLibrary: campaignLibrary,
-                    progressStore: campaignProgressStore,
-                    selectedStageID: highlightedCampaignStageID,
+                DungeonSelectionView(
+                    dungeonLibrary: dungeonLibrary,
                     onClose: { popNavigationStack() },
-                    onSelectStage: { stage in
-                        handleCampaignStageSelection(stage)
-                        let mode = stage.makeGameMode()
+                    onStartDungeon: { dungeon in
+                        guard let mode = dungeonLibrary.firstFloorMode(for: dungeon) else { return }
                         let context: StartTriggerContext = .campaignStageSelection
                         debugLog(
-                            "TitleScreenView: キャンペーンステージ選択後 -> NavigationStack をリセットして即時開始をメインキューへ登録 context=\(context.rawValue)"
+                            "TitleScreenView: ダンジョン開始後 -> dungeon=\(dungeon.id) NavigationStack をリセットして即時開始を登録 context=\(context.rawValue)"
                         )
                         resetNavigationStack()
                         DispatchQueue.main.async {
                             triggerImmediateStart(for: mode, context: context)
                         }
-                    },
-                    showsCloseButton: false
+                    }
                 )
                 .onAppear {
                     debugLog("TitleScreenView: NavigationDestination.campaign 表示 -> 現在のスタック数=\(navigationPath.count)")
@@ -463,11 +460,9 @@ struct TitleScreenView: View {
     }
 
     private func logCampaignTileTap() {
-        let stageIDDescription = highlightedCampaignStageID?.displayCode ?? "未選択"
-        let chaptersCount = campaignLibrary.chapters.count
-        let totalStageCount = campaignLibrary.allStages.count
-        let unlockedCount = unlockedCampaignStageCount
-        debugLog("TitleScreenView: キャンペーンカードタップ -> 章数=\(chaptersCount) 総ステージ数=\(totalStageCount) 最新選択=\(stageIDDescription) 解放済=\(unlockedCount)")
+        let dungeonCount = dungeonLibrary.dungeons.count
+        let floorCount = dungeonLibrary.allFloors.count
+        debugLog("TitleScreenView: キャンペーンカードタップ -> 塔数=\(dungeonCount) フロア数=\(floorCount)")
         logNavigationDepth(prefix: "TitleScreenView: NavigationStack 遷移直前状態")
     }
 
@@ -551,18 +546,13 @@ private extension TitleScreenView {
     }
 
     var campaignTileHeadline: String {
-        let unlocked = unlockedCampaignStageCount
-        let total = totalCampaignStageCount
-        let stars = campaignProgressStore.totalStars
-        return "解放済み \(unlocked)/\(total) ステージ・スター \(stars)"
+        let primaryDungeon = dungeonLibrary.dungeons.first
+        let floorCount = primaryDungeon?.floors.count ?? dungeonLibrary.allFloors.count
+        return "\(primaryDungeon?.title ?? "塔") \(floorCount)フロア・出口到達"
     }
 
     var campaignTileDetail: String {
-        if let stage = highlightedCampaignStage {
-            return "最新選択: \(stage.displayCode) \(stage.title)"
-        } else {
-            return "ステージを選んでストーリーを進めましょう"
-        }
+        "敵の警戒範囲や床ギミックを読みながら、HPを引き継いで登ります"
     }
 
     var highScoreTileHeadline: String {

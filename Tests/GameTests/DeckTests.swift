@@ -443,6 +443,19 @@ final class DeckTests: XCTestCase {
         XCTAssertTrue(Deck.Configuration.standardWithAllChoices.allowedSupportCards.isEmpty, "既存の標準派生へ補助カードを混ぜない想定です")
     }
 
+    /// ラン報酬カードが未収録カードを追加し、既存カードの重みを増やすことを確認
+    func testBonusMoveCardsAddMissingCardsAndIncreaseExistingWeights() {
+        let config = Deck.Configuration.kingOnly.addingBonusMoveCards([
+            .kingUp,
+            .kingLeftOrRight
+        ])
+
+        XCTAssertTrue(config.allowedMoves.contains(.kingLeftOrRight))
+        XCTAssertEqual(config.weightProfile.weight(for: .kingUp), 2)
+        XCTAssertEqual(config.weightProfile.weight(for: .kingLeftOrRight), 2)
+        XCTAssertTrue(config.deckSummaryText.contains("報酬"))
+    }
+
     /// テスト用デッキで補助カードを固定順に配れることを確認
     func testMakeTestDeckSupportsPlayableCardSequence() {
         var deck = Deck.makeTestDeck(playableCards: [

@@ -25,10 +25,13 @@ extension GameViewModel {
                 self?.handlePenaltyEvent(event)
             },
             onHandStacksChange: { [weak self] newHandStacks in
-                self?.refreshSelectionIfNeeded(with: newHandStacks)
+                self?.handleHandStacksChange(newHandStacks)
             },
             onBoardTapPlayRequest: { [weak self] request in
                 self?.handleBoardTapPlayRequest(request)
+            },
+            onBoardTapBasicMoveRequest: { [weak self] request in
+                self?.handleBoardTapBasicMoveRequest(request)
             },
             onSpawnSelectionWarning: { [weak self] warning in
                 self?.handleSpawnSelectionWarning(warning)
@@ -80,6 +83,11 @@ extension GameViewModel {
                 self?.handleTutorialProgressChange(progress)
             }
             .store(in: &cancellables)
+    }
+
+    func handleHandStacksChange(_ newHandStacks: [HandStack]) {
+        displayedHandStacks = newHandStacks
+        refreshSelectionIfNeeded(with: newHandStacks)
     }
 
     func handleSpawnSelectionWarning(_ warning: SpawnSelectionWarning) {

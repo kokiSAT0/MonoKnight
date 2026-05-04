@@ -78,6 +78,16 @@ extension GameViewModel {
         }
     }
 
+    func handleBoardTapBasicMoveRequest(_ request: BoardTapBasicMoveRequest) {
+        inputFlowCoordinator.handleBoardTapBasicMoveRequest(
+            request,
+            core: core,
+            boardBridge: boardBridge,
+            sessionState: &sessionState,
+            selectedHandStackID: &selectedHandStackID
+        )
+    }
+
     func clearSelectedCardSelection() {
         inputFlowCoordinator.clearSelectedCardSelection(
             sessionState: &sessionState,

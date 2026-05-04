@@ -117,6 +117,35 @@ struct Deck {
             )
         }
 
+        /// ラン中の報酬カードを山札構成へ加えた新しい設定を返す
+        /// - Note: 既存カードは重みを増やし、未収録カードは抽選対象へ追加する。
+        func addingBonusMoveCards(_ cards: [MoveCard]) -> Configuration {
+            guard !cards.isEmpty else { return self }
+
+            let cardCounts = Dictionary(grouping: cards, by: { $0 }).mapValues(\.count)
+            var updatedMoves = allowedMoves
+            var updatedProfile = weightProfile
+
+            for card in cards {
+                if !updatedMoves.contains(card) {
+                    updatedMoves.append(card)
+                }
+            }
+
+            for (card, count) in cardCounts {
+                let currentWeight = updatedProfile.weight(for: card)
+                updatedProfile = updatedProfile.overridingWeight(for: card, weight: currentWeight + count)
+            }
+
+            let rewardText = cards.map(\.displayName).joined(separator: "、")
+            return Configuration(
+                allowedMoves: updatedMoves,
+                allowedSupportCards: allowedSupportCards,
+                weightProfile: updatedProfile,
+                deckSummaryText: deckSummaryText + "＋報酬: " + rewardText
+            )
+        }
+
         func filteringTargetLabCards(for settings: TargetLabExperimentSettings) -> Configuration {
             let enabledMoves = Set(settings.enabledCardGroups.flatMap(\.cards))
             let enabledSupportCards = Set(settings.enabledCardGroups.flatMap(\.supportCards))

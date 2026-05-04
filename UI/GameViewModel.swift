@@ -25,6 +25,8 @@ final class GameViewModel: ObservableObject {
     /// クリア後に別のキャンペーンステージへ遷移したい場合のリクエストクロージャ
     /// - Note: ルート側でゲーム準備フローを再実行するため、`GameView` から直接モードを差し替えずに委譲する
     let onRequestStartCampaignStage: ((CampaignStage) -> Void)?
+    /// ダンジョンランで次のフロアへ遷移したい場合のリクエストクロージャ
+    let onRequestStartDungeonFloor: ((GameMode) -> Void)?
     /// キャンペーン導入チュートリアルの既読状態を管理するストア
     let campaignTutorialStore: CampaignTutorialStore
     /// キャンペーン導入チュートリアルの進行管理
@@ -32,6 +34,9 @@ final class GameViewModel: ObservableObject {
 
     /// SwiftUI から観測するゲームロジック本体
     @Published private(set) var core: GameCore
+    /// 初回描画から使う手札表示用スナップショット
+    /// - Note: `core.$handStacks` の初回通知を待たず、塔の持ち越し報酬カードを開始直後から表示する。
+    @Published var displayedHandStacks: [HandStack] = []
     /// SpriteKit と SwiftUI を仲介するための ViewModel
     let boardBridge: GameBoardBridgeViewModel
     /// 現在選択中の手札スタック ID
@@ -140,6 +145,51 @@ final class GameViewModel: ObservableObject {
     var isOverloadCharged: Bool { core.isOverloadCharged }
     /// 目的地制モードかどうか
     var usesTargetCollection: Bool { mode.usesTargetCollection }
+    /// 出口到達型ダンジョンかどうか
+    var usesDungeonExit: Bool { mode.usesDungeonExit }
+    /// ダンジョン HP
+    var dungeonHP: Int { core.dungeonHP }
+    /// ダンジョン残り手数
+    var remainingDungeonTurns: Int? { core.remainingDungeonTurns }
+    /// ダンジョン出口座標
+    var dungeonExitPoint: GridPoint? { mode.dungeonExitPoint }
+    /// ダンジョンラン状態
+    var dungeonRunState: DungeonRunState? { mode.dungeonMetadataSnapshot?.runState }
+    /// ダンジョンランの階層表示
+    var dungeonRunFloorText: String? {
+        guard let metadata = mode.dungeonMetadataSnapshot,
+              let runState = metadata.runState,
+              let dungeon = DungeonLibrary.shared.dungeon(with: metadata.dungeonID)
+        else { return nil }
+        return "\(dungeon.title) \(runState.floorNumber)/\(dungeon.floors.count)F"
+    }
+    /// ダンジョンランの累計移動手数
+    var dungeonRunTotalMoveCount: Int? {
+        dungeonRunState?.totalMoveCountIncludingCurrentFloor(core.moveCount)
+    }
+    /// ラン中に持ち越している報酬カード
+    var dungeonRewardInventoryEntries: [DungeonInventoryEntry] {
+        core.dungeonInventoryEntries.compactMap { $0.carryingRewardUsesOnly() }
+    }
+    /// 塔で現在所持しているカード
+    var dungeonInventoryEntries: [DungeonInventoryEntry] {
+        core.dungeonInventoryEntries
+    }
+    /// 現在フロアのクリア後に選べる報酬カード
+    var availableDungeonRewardMoveCards: [MoveCard] {
+        guard !isResultFailed,
+              let metadata = mode.dungeonMetadataSnapshot,
+              let runState = metadata.runState,
+              let dungeon = DungeonLibrary.shared.dungeon(with: metadata.dungeonID),
+              dungeon.floors.indices.contains(runState.currentFloorIndex),
+              dungeon.floors.indices.contains(runState.currentFloorIndex + 1)
+        else { return [] }
+        return dungeon.floors[runState.currentFloorIndex].rewardMoveCardsAfterClear
+    }
+    /// 次のダンジョンフロア名
+    var nextDungeonFloorTitle: String? {
+        makeNextDungeonFloorMode()?.displayName
+    }
     /// キャンペーンステージかどうか
     var isCampaignStage: Bool { mode.isCampaignStage }
     /// ポーズメニューで表示するキャンペーン情報
@@ -154,6 +204,23 @@ final class GameViewModel: ObservableObject {
     /// ポーズメニューで再利用するペナルティ説明文の一覧
     /// - Important: RootView の事前案内と文言・順序を揃え、体験の一貫性を保つ
     var pauseMenuPenaltyItems: [String] {
+        if mode.usesDungeonExit {
+            var items = [
+                "出口へ到達でクリア",
+                "HP 0 で失敗"
+            ]
+            if mode.dungeonRules?.allowsBasicOrthogonalMove == true {
+                items.append("上下左右1マスはカードなしで移動")
+            }
+            if let remainingDungeonTurns {
+                items.append("残り手数 \(remainingDungeonTurns)")
+            }
+            if !core.enemyStates.isEmpty {
+                items.append("敵の危険範囲で HP 減少")
+            }
+            return items
+        }
+
         if mode.usesTargetCollection {
             return [
                 "フォーカス -15 pt",
@@ -171,6 +238,21 @@ final class GameViewModel: ObservableObject {
     /// 現在のゲーム進行状態
     /// - Note: GameView 側でオーバーレイ表示を切り替える際に利用する
     var progress: GameProgress { core.progress }
+    /// リザルト表示中の失敗状態
+    var isResultFailed: Bool { core.progress == .failed }
+    /// 失敗理由の短い表示文
+    var failureReasonText: String? {
+        guard core.progress == .failed else { return nil }
+        if mode.usesDungeonExit {
+            if core.dungeonHP <= 0 {
+                return "HPが0になりました"
+            }
+            if core.remainingDungeonTurns == 0 {
+                return "残り手数が0になりました"
+            }
+        }
+        return "攻略に失敗しました"
+    }
     /// ペナルティバナー表示中かどうか
     /// - Note: SwiftUI 側の表示切り替えで利用するシンプルなフラグ
     var isShowingPenaltyBanner: Bool { activePenaltyBanner != nil }
@@ -258,6 +340,7 @@ final class GameViewModel: ObservableObject {
         onRequestGameCenterSignIn: ((GameCenterSignInPromptReason) -> Void)? = nil,
         onRequestReturnToTitle: (() -> Void)?,
         onRequestStartCampaignStage: ((CampaignStage) -> Void)? = nil,
+        onRequestStartDungeonFloor: ((GameMode) -> Void)? = nil,
         campaignTutorialStore: CampaignTutorialStore = CampaignTutorialStore(),
         penaltyBannerScheduler: PenaltyBannerScheduling = PenaltyBannerScheduler(),
         initialHandOrderingRawValue: String? = nil,
@@ -273,6 +356,7 @@ final class GameViewModel: ObservableObject {
         self.onRequestGameCenterSignIn = onRequestGameCenterSignIn
         self.onRequestReturnToTitle = onRequestReturnToTitle
         self.onRequestStartCampaignStage = onRequestStartCampaignStage
+        self.onRequestStartDungeonFloor = onRequestStartDungeonFloor
         self.campaignTutorialStore = campaignTutorialStore
         self.campaignTutorialController = CampaignTutorialController(mode: mode, store: campaignTutorialStore)
         self.penaltyBannerController = GamePenaltyBannerController(scheduler: penaltyBannerScheduler)
@@ -289,6 +373,7 @@ final class GameViewModel: ObservableObject {
         // GameCore を生成し、ViewModel 経由で観測できるようにする
         let generatedCore = gameInterfaces.makeGameCore(mode)
         self.core = generatedCore
+        self.displayedHandStacks = generatedCore.handStacks
         self.boardBridge = GameBoardBridgeViewModel(core: generatedCore, mode: mode)
         self.lastTutorialMoveCount = generatedCore.moveCount
         self.lastTutorialCapturedTargetCount = generatedCore.capturedTargetCount

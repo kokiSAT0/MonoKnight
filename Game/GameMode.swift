@@ -27,6 +27,24 @@ public struct GameMode: Equatable, Identifiable {
         }
     }
 
+    /// 塔ダンジョン関連の補助情報
+    /// - Note: UI が選択元のダンジョンとフロアを参照するための軽量なメタデータ。
+    public struct DungeonMetadata: Equatable {
+        public let dungeonID: String
+        public let floorID: String
+        public let runState: DungeonRunState?
+
+        public init(
+            dungeonID: String,
+            floorID: String,
+            runState: DungeonRunState? = nil
+        ) {
+            self.dungeonID = dungeonID
+            self.floorID = floorID
+            self.runState = runState
+        }
+    }
+
     /// UI で利用する難易度ランク定義
     /// - Note: 文字列を個別に管理すると重複や表記揺れが発生しやすいため、列挙体で統一しておく
     public enum DifficultyRank: String, Codable {
@@ -137,15 +155,19 @@ public struct GameMode: Equatable, Identifiable {
         case boardClear
         /// 目的地を指定数獲得するとクリア
         case targetCollection(goalCount: Int)
+        /// 指定出口マスへ到達するとクリア
+        case dungeonExit(exitPoint: GridPoint)
 
         private enum CodingKeys: String, CodingKey {
             case type
             case goalCount
+            case exitPoint
         }
 
         private enum Kind: String, Codable {
             case boardClear
             case targetCollection
+            case dungeonExit
         }
 
         public init(from decoder: Decoder) throws {
@@ -157,6 +179,9 @@ public struct GameMode: Equatable, Identifiable {
             case .targetCollection:
                 let goalCount = try container.decode(Int.self, forKey: .goalCount)
                 self = .targetCollection(goalCount: goalCount)
+            case .dungeonExit:
+                let exitPoint = try container.decode(GridPoint.self, forKey: .exitPoint)
+                self = .dungeonExit(exitPoint: exitPoint)
             }
         }
 
@@ -168,6 +193,9 @@ public struct GameMode: Equatable, Identifiable {
             case .targetCollection(let goalCount):
                 try container.encode(Kind.targetCollection, forKey: .type)
                 try container.encode(goalCount, forKey: .goalCount)
+            case .dungeonExit(let exitPoint):
+                try container.encode(Kind.dungeonExit, forKey: .type)
+                try container.encode(exitPoint, forKey: .exitPoint)
             }
         }
     }
@@ -185,6 +213,8 @@ public struct GameMode: Equatable, Identifiable {
         public var allowsStacking: Bool
         /// 適用する山札構成プリセット
         public var deckPreset: GameDeckPreset
+        /// ラン中報酬などで一時的に山札へ加える移動カード
+        public var bonusMoveCards: [MoveCard]?
         /// 初期スポーンの扱い
         public var spawnRule: SpawnRule
         /// ペナルティ設定一式
@@ -210,6 +240,8 @@ public struct GameMode: Equatable, Identifiable {
         public var completionRule: CompletionRule
         /// 実験場用のカード・特殊マス有効設定
         public var targetLabExperimentSettings: TargetLabExperimentSettings?
+        /// 塔ダンジョン用の追加ルール。出口到達型以外では nil を基本とする
+        public var dungeonRules: DungeonRules?
 
         /// レギュレーションを組み立てるためのイニシャライザ
         /// - Parameters:
@@ -226,6 +258,7 @@ public struct GameMode: Equatable, Identifiable {
             nextPreviewCount: Int,
             allowsStacking: Bool,
             deckPreset: GameDeckPreset,
+            bonusMoveCards: [MoveCard] = [],
             spawnRule: SpawnRule,
             penalties: PenaltySettings,
             additionalVisitRequirements: [GridPoint: Int] = [:],
@@ -235,13 +268,15 @@ public struct GameMode: Equatable, Identifiable {
             warpTilePairs: [String: [GridPoint]] = [:],
             fixedWarpCardTargets: [MoveCard: [GridPoint]] = [:],
             completionRule: CompletionRule = .boardClear,
-            targetLabExperimentSettings: TargetLabExperimentSettings? = nil
+            targetLabExperimentSettings: TargetLabExperimentSettings? = nil,
+            dungeonRules: DungeonRules? = nil
         ) {
             self.boardSize = boardSize
             self.handSize = handSize
             self.nextPreviewCount = nextPreviewCount
             self.allowsStacking = allowsStacking
             self.deckPreset = deckPreset
+            self.bonusMoveCards = bonusMoveCards.isEmpty ? nil : bonusMoveCards
             self.spawnRule = spawnRule
             self.penalties = penalties
             self.additionalVisitRequirements = additionalVisitRequirements
@@ -260,6 +295,7 @@ public struct GameMode: Equatable, Identifiable {
             }
             self.completionRule = completionRule
             self.targetLabExperimentSettings = targetLabExperimentSettings
+            self.dungeonRules = dungeonRules
         }
 
         /// Codable 対応のためのキー定義
@@ -269,6 +305,7 @@ public struct GameMode: Equatable, Identifiable {
             case nextPreviewCount
             case allowsStacking
             case deckPreset
+            case bonusMoveCards
             case spawnRule
             case penalties
             case additionalVisitRequirements
@@ -279,6 +316,7 @@ public struct GameMode: Equatable, Identifiable {
             case fixedWarpCardTargets
             case completionRule
             case targetLabExperimentSettings
+            case dungeonRules
         }
     }
 
@@ -292,6 +330,8 @@ public struct GameMode: Equatable, Identifiable {
     private let leaderboardEligible: Bool
     /// キャンペーンステージ情報（該当しない場合は nil）
     private let campaignMetadata: CampaignMetadata?
+    /// 塔ダンジョン情報（該当しない場合は nil）
+    private let dungeonMetadata: DungeonMetadata?
     /// 乱数シード（決定論的な山札を構築したい場合に利用）
     public let deckSeed: UInt64?
 
@@ -309,6 +349,7 @@ public struct GameMode: Equatable, Identifiable {
         regulation: Regulation,
         leaderboardEligible: Bool = true,
         campaignMetadata: CampaignMetadata? = nil,
+        dungeonMetadata: DungeonMetadata? = nil,
         deckSeed: UInt64? = nil
     ) {
         self.identifier = identifier
@@ -316,6 +357,7 @@ public struct GameMode: Equatable, Identifiable {
         self.regulation = regulation
         self.leaderboardEligible = leaderboardEligible
         self.campaignMetadata = campaignMetadata
+        self.dungeonMetadata = dungeonMetadata
         self.deckSeed = deckSeed
     }
 
@@ -342,16 +384,21 @@ public struct GameMode: Equatable, Identifiable {
     public var allowsCardStacking: Bool { regulation.allowsStacking }
     /// 山札構成設定（ゲームモジュール内部で使用）
     var deckConfiguration: Deck.Configuration {
+        let bonusMoveCards = regulation.bonusMoveCards ?? []
         if regulation.deckPreset == .targetLabAllIn,
            let settings = regulation.targetLabExperimentSettings {
-            return regulation.deckPreset.configuration.filteringTargetLabCards(for: settings)
+            return regulation.deckPreset.configuration
+                .filteringTargetLabCards(for: settings)
+                .addingBonusMoveCards(bonusMoveCards)
         }
-        return regulation.deckPreset.configuration
+        return regulation.deckPreset.configuration.addingBonusMoveCards(bonusMoveCards)
     }
     /// 利用中の山札プリセット
     public var deckPreset: GameDeckPreset { regulation.deckPreset }
+    /// ラン中報酬などで一時的に山札へ加わった移動カード
+    public var bonusMoveCards: [MoveCard] { regulation.bonusMoveCards ?? [] }
     /// UI で表示する山札の要約
-    public var deckSummaryText: String { regulation.deckPreset.summaryText }
+    public var deckSummaryText: String { deckConfiguration.deckSummaryText }
     /// クリア条件
     public var completionRule: CompletionRule { regulation.completionRule }
     /// 目的地制モードかどうか
@@ -359,6 +406,20 @@ public struct GameMode: Equatable, Identifiable {
         if case .targetCollection = regulation.completionRule { return true }
         return false
     }
+    /// 出口到達型ダンジョンモードかどうか
+    public var usesDungeonExit: Bool {
+        if case .dungeonExit = regulation.completionRule { return true }
+        return false
+    }
+    /// 出口到達型ダンジョンの出口マス
+    public var dungeonExitPoint: GridPoint? {
+        if case .dungeonExit(let exitPoint) = regulation.completionRule {
+            return exitPoint
+        }
+        return nil
+    }
+    /// 出口到達型ダンジョンの追加ルール
+    public var dungeonRules: DungeonRules? { regulation.dungeonRules }
     /// 目的地制モードの目標獲得数
     public var targetGoalCount: Int {
         if case .targetCollection(let goalCount) = regulation.completionRule {
@@ -375,6 +436,12 @@ public struct GameMode: Equatable, Identifiable {
 
     /// キャンペーンに紐付くメタデータのスナップショット
     public var campaignMetadataSnapshot: CampaignMetadata? { campaignMetadata }
+
+    /// 塔ダンジョンに紐付くメタデータのスナップショット
+    public var dungeonMetadataSnapshot: DungeonMetadata? { dungeonMetadata }
+
+    /// 塔ダンジョンのフロアとして扱うモードかどうか
+    public var isDungeonFloor: Bool { usesDungeonExit }
 
     /// 現在のレギュレーションをそのまま取得するためのスナップショット
     public var regulationSnapshot: Regulation { regulation }
@@ -427,6 +494,7 @@ public struct GameMode: Equatable, Identifiable {
     public static func == (lhs: GameMode, rhs: GameMode) -> Bool {
         guard lhs.identifier == rhs.identifier else { return false }
         guard lhs.campaignMetadata == rhs.campaignMetadata else { return false }
+        guard lhs.dungeonMetadata == rhs.dungeonMetadata else { return false }
         guard lhs.deckSeed == rhs.deckSeed else { return false }
         if lhs.requiresRegulationComparison {
             return lhs.regulation == rhs.regulation

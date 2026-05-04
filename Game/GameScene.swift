@@ -11,11 +11,18 @@
         case guideMultiStepPath
         case guideMultiStepCandidate
         case guideWarpCandidate
+        case dungeonBasicMove
         case targetApproachCandidate
         case targetCaptureCandidate
         case forcedSelection
         case currentTarget
         case upcomingTarget
+        case dungeonExit
+        case dungeonEnemy
+        case dungeonDanger
+        case dungeonCardPickup
+        case dungeonCrackedFloor
+        case dungeonCollapsedFloor
     }
 
     public protocol GameCoreProtocol: AnyObject {

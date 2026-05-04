@@ -405,6 +405,17 @@ public struct Board: Equatable {
         return true
     }
 
+    /// 指定座標を崩落床として通行不可へ変える
+    /// - Parameter point: 崩落させたいマス
+    /// - Returns: 実際に通行不可へ変わった場合は true
+    @discardableResult
+    public mutating func collapseFloor(at point: GridPoint) -> Bool {
+        guard contains(point), tiles[point.y][point.x].isTraversable else { return false }
+        tiles[point.y][point.x] = TileState(visitBehavior: .impassable, isTraversable: false)
+        tileEffects.removeValue(forKey: point)
+        return true
+    }
+
     /// 指定座標が移動可能なマスかどうか
     /// - Parameter point: 判定したい座標
     /// - Returns: 盤面内に存在し、踏破可能であれば true
@@ -468,6 +479,8 @@ public enum GameProgress {
     case playing
     /// 全マス踏破でクリア
     case cleared
+    /// HP 0 や手数切れなどで失敗
+    case failed
     /// 手詰まりなどで一時停止（ペナルティ対象）
     case deadlock
 }
@@ -533,6 +546,31 @@ public struct BoardTapPlayRequest: Identifiable, Equatable {
     /// - Note: 同じリクエストかどうかを識別子でのみ比較し、カード差し替え時も継続扱いにする
     public static func == (lhs: BoardTapPlayRequest, rhs: BoardTapPlayRequest) -> Bool {
         lhs.id == rhs.id
+    }
+}
+
+/// 盤面タップでカードを使わない基本移動を要求するときに利用する構造体
+public struct BoardTapBasicMoveRequest: Identifiable, Equatable {
+    public let id: UUID
+    public let move: BasicOrthogonalMove
+
+    public init(id: UUID = UUID(), move: BasicOrthogonalMove) {
+        self.id = id
+        self.move = move
+    }
+}
+
+/// 塔ダンジョンで使えるカードなしの上下左右 1 マス移動候補
+public struct BasicOrthogonalMove: Equatable {
+    public let moveVector: MoveVector
+    public let resolution: MovementResolution
+
+    public var destination: GridPoint { resolution.finalPosition }
+    public var path: [GridPoint] { resolution.path }
+
+    public init(moveVector: MoveVector, resolution: MovementResolution) {
+        self.moveVector = moveVector
+        self.resolution = resolution
     }
 }
 

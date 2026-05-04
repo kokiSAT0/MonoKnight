@@ -41,6 +41,7 @@ extension GameCore {
     /// UI 側から手動でペナルティを支払い、手札スロットを引き直すための公開メソッド
     /// - Note: 既にゲームが終了している場合や、ペナルティ中は何もしない
     public func applyManualPenaltyRedraw() {
+        guard !usesDungeonInventoryCards else { return }
         if mode.usesTargetCollection {
             applyFocusRedraw()
             return
@@ -70,6 +71,7 @@ extension GameCore {
     /// 手札スロットがすべて盤外となる場合にペナルティを課し、手札スロットを引き直す
     /// - Parameter lastPaidPenaltyAmount: 直前に支払ったペナルティ手数（未支払いなら `nil`）
     func checkDeadlockAndApplyPenaltyIfNeeded(lastPaidPenaltyAmount: Int? = nil) {
+        guard !usesDungeonInventoryCards else { return }
         // スポーン待機中は判定不要
         guard progress != .awaitingSpawn, let current = current else { return }
 

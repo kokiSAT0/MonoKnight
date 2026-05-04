@@ -120,6 +120,7 @@ extension GameMode.Regulation {
         let decodedNextPreview = try container.decode(Int.self, forKey: .nextPreviewCount)
         let decodedAllowsStacking = try container.decode(Bool.self, forKey: .allowsStacking)
         let decodedDeckPreset = try container.decode(GameDeckPreset.self, forKey: .deckPreset)
+        let decodedBonusMoveCards = try container.decodeIfPresent([MoveCard].self, forKey: .bonusMoveCards) ?? []
         let decodedSpawnRule = try container.decode(GameMode.SpawnRule.self, forKey: .spawnRule)
         let decodedPenalties = try container.decode(GameMode.PenaltySettings.self, forKey: .penalties)
         let decodedAdditional = try container.decodeIfPresent([GridPoint: Int].self, forKey: .additionalVisitRequirements) ?? [:]
@@ -133,6 +134,7 @@ extension GameMode.Regulation {
             TargetLabExperimentSettings.self,
             forKey: .targetLabExperimentSettings
         )
+        let decodedDungeonRules = try container.decodeIfPresent(DungeonRules.self, forKey: .dungeonRules)
 
         let decodedTargets = Self.decodeFixedWarpTargets(from: rawFixedWarpTargets)
         let sanitizedTargets = Self.finalizeFixedWarpTargets(
@@ -147,6 +149,7 @@ extension GameMode.Regulation {
         nextPreviewCount = decodedNextPreview
         allowsStacking = decodedAllowsStacking
         deckPreset = decodedDeckPreset
+        bonusMoveCards = decodedBonusMoveCards.isEmpty ? nil : decodedBonusMoveCards
         spawnRule = decodedSpawnRule
         penalties = decodedPenalties
         additionalVisitRequirements = decodedAdditional
@@ -160,6 +163,7 @@ extension GameMode.Regulation {
         }
         completionRule = decodedCompletionRule
         targetLabExperimentSettings = decodedTargetLabSettings
+        dungeonRules = decodedDungeonRules
     }
 
     /// エンコード処理（固定ワープ定義は MoveCard のインデックスをキーに変換する）
@@ -170,6 +174,9 @@ extension GameMode.Regulation {
         try container.encode(nextPreviewCount, forKey: .nextPreviewCount)
         try container.encode(allowsStacking, forKey: .allowsStacking)
         try container.encode(deckPreset, forKey: .deckPreset)
+        if let bonusMoveCards, !bonusMoveCards.isEmpty {
+            try container.encode(bonusMoveCards, forKey: .bonusMoveCards)
+        }
         try container.encode(spawnRule, forKey: .spawnRule)
         try container.encode(penalties, forKey: .penalties)
         if !additionalVisitRequirements.isEmpty {
@@ -194,6 +201,9 @@ extension GameMode.Regulation {
         try container.encode(completionRule, forKey: .completionRule)
         if let targetLabExperimentSettings {
             try container.encode(targetLabExperimentSettings, forKey: .targetLabExperimentSettings)
+        }
+        if let dungeonRules {
+            try container.encode(dungeonRules, forKey: .dungeonRules)
         }
     }
 

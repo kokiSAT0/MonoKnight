@@ -46,12 +46,7 @@ struct GameHandSectionView: View {
                     .transition(.opacity)
             }
 
-            // 手札スロットを横並びで描画し、欠番があっても空枠でレイアウトを安定させる
-            HStack(spacing: GameViewLayoutMetrics.handCardSpacing) {
-                ForEach(0..<handSlotCount, id: \.self) { index in
-                    handSlotView(for: index)
-                }
-            }
+            handSlotsSection
 
             // NEXT 表示が存在する場合にのみ案内を表示
             if !core.nextCards.isEmpty {
@@ -94,6 +89,27 @@ private extension GameHandSectionView {
                     .accessibilityHint(Text("この順番で手札に補充されます"))
                     .allowsHitTesting(false)
                 }
+            }
+        }
+    }
+
+    /// 手札スロット一覧。通常の 5 枠は従来通り固定表示し、塔の 10 種類所持だけ横スクロールにする。
+    @ViewBuilder
+    private var handSlotsSection: some View {
+        if handSlotCount > 5 {
+            ScrollView(.horizontal, showsIndicators: false) {
+                handSlotsRow
+                    .padding(.horizontal, 4)
+            }
+        } else {
+            handSlotsRow
+        }
+    }
+
+    private var handSlotsRow: some View {
+        HStack(spacing: GameViewLayoutMetrics.handCardSpacing) {
+            ForEach(0..<handSlotCount, id: \.self) { index in
+                handSlotView(for: index)
             }
         }
     }
@@ -180,10 +196,10 @@ private extension GameHandSectionView {
 
     /// 指定スロットに対応する `HandStack` を取得
     private func handCard(at index: Int) -> HandStack? {
-        guard core.handStacks.indices.contains(index) else {
+        guard viewModel.displayedHandStacks.indices.contains(index) else {
             return nil
         }
-        return core.handStacks[index]
+        return viewModel.displayedHandStacks[index]
     }
 
     /// 手札スロット 1 枠を描画するビュー

@@ -63,7 +63,9 @@ private extension GameBoardControlRowView {
     /// 統計バッジを用途ごとのグループに分けて表示
     func statisticsBadgeContainer() -> some View {
         HStack(spacing: 12) {
-            if viewModel.isCampaignStage {
+            if viewModel.usesDungeonExit {
+                dungeonStatisticsGroup()
+            } else if viewModel.isCampaignStage {
                 targetStatisticsGroup()
                 if let progress = viewModel.campaignStarScoreProgress {
                     campaignStarGaugeGroup(progress)
@@ -148,12 +150,75 @@ private extension GameBoardControlRowView {
         }
     }
 
+    func dungeonStatisticsGroup() -> some View {
+        statisticsBadgeGroup {
+            if let floorText = viewModel.dungeonRunFloorText {
+                statisticBadge(
+                    title: "階層",
+                    value: floorText,
+                    accessibilityLabel: "現在の階層",
+                    accessibilityValue: floorText
+                )
+            }
+
+            statisticBadge(
+                title: "HP",
+                value: "\(viewModel.dungeonHP)",
+                accessibilityLabel: "残りHP",
+                accessibilityValue: "\(viewModel.dungeonHP)"
+            )
+
+            statisticBadge(
+                title: "手数",
+                value: viewModel.remainingDungeonTurns.map(String.init) ?? "-",
+                accessibilityLabel: "残り手数",
+                accessibilityValue: viewModel.remainingDungeonTurns.map { "残り\($0)手" } ?? "制限なし"
+            )
+
+            statisticBadge(
+                title: "出口",
+                value: dungeonExitValue,
+                accessibilityLabel: "出口",
+                accessibilityValue: dungeonExitAccessibilityValue
+            )
+
+            if !viewModel.dungeonRewardInventoryEntries.isEmpty {
+                let rewardText = viewModel.dungeonRewardInventoryEntries
+                    .map { "\($0.card.displayName)×\($0.rewardUses)" }
+                    .joined(separator: "、")
+                statisticBadge(
+                    title: "追加",
+                    value: "\(viewModel.dungeonRewardInventoryEntries.count)",
+                    accessibilityLabel: "追加カード",
+                    accessibilityValue: rewardText
+                )
+            }
+
+            statisticBadge(
+                title: "移動",
+                value: "\(viewModel.moveCount)",
+                accessibilityLabel: "移動回数",
+                accessibilityValue: "\(viewModel.moveCount)回"
+            )
+        }
+    }
+
     var penaltyAccessibilityValue: String {
         if viewModel.penaltyCount == 0 {
             return "ペナルティなし"
         } else {
             return "ペナルティ合計 \(viewModel.penaltyCount)"
         }
+    }
+
+    var dungeonExitValue: String {
+        guard let point = viewModel.dungeonExitPoint else { return "-" }
+        return "\(point.x),\(point.y)"
+    }
+
+    var dungeonExitAccessibilityValue: String {
+        guard let point = viewModel.dungeonExitPoint else { return "未設定" }
+        return "横\(point.x)、縦\(point.y)"
     }
 
     /// 共通の装飾を適用した統計バッジコンテナ
@@ -261,8 +326,10 @@ private extension GameBoardControlRowView {
     /// 操作ボタン群
     func controlButtonCluster() -> some View {
         HStack(spacing: 12) {
-            manualDiscardButton
-            manualPenaltyButton
+            if !viewModel.usesDungeonExit {
+                manualDiscardButton
+                manualPenaltyButton
+            }
             pauseButton
             returnToTitleButton
         }

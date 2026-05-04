@@ -48,6 +48,8 @@ final class GameBoardBridgeViewModel: ObservableObject {
         var multiStepDestinations: Set<GridPoint>
         /// ワープ系カード専用の座標集合（紫枠で強調する）
         var warpDestinations: Set<GridPoint>
+        /// 塔ダンジョンでカードなしに歩ける上下左右 1 マス候補
+        var basicMoveDestinations: Set<GridPoint>
 
         /// すべて空集合の初期値を返すヘルパー
         static let empty = GuideHighlightBuckets(
@@ -55,7 +57,8 @@ final class GameBoardBridgeViewModel: ObservableObject {
             multipleVectorDestinations: [],
             multiStepPathPoints: [],
             multiStepDestinations: [],
-            warpDestinations: []
+            warpDestinations: [],
+            basicMoveDestinations: []
         )
     }
 
@@ -106,10 +109,11 @@ final class GameBoardBridgeViewModel: ObservableObject {
         )
         preparedScene.scaleMode = .resizeFill
         preparedScene.gameCore = core
-        preparedScene.updateShowsVisitedTileFill(!mode.usesTargetCollection)
+        preparedScene.updateShowsVisitedTileFill(!(mode.usesTargetCollection || mode.usesDungeonExit))
         self.scene = preparedScene
 
         bindGameCore()
+        handleHandStacksUpdate(core.handStacks)
     }
 
     /// 表示直前にシーン設定を整え、必要な状態を初期化する
@@ -228,11 +232,18 @@ final class GameBoardBridgeViewModel: ObservableObject {
             .guideMultiStepPath: shouldHideGuideCandidates ? [] : guideHighlightBuckets.multiStepPathPoints,
             .guideMultiStepCandidate: shouldHideGuideCandidates ? [] : guideHighlightBuckets.multiStepDestinations,
             .guideWarpCandidate: shouldHideGuideCandidates ? [] : guideHighlightBuckets.warpDestinations,
+            .dungeonBasicMove: shouldHideGuideCandidates ? [] : guideHighlightBuckets.basicMoveDestinations,
             .targetApproachCandidate: [],
             .targetCaptureCandidate: [],
             .forcedSelection: forcedSelectionHighlightPoints,
             .currentTarget: core.targetPoint.map { Set([$0]) } ?? [],
-            .upcomingTarget: Set(core.upcomingTargetPoints)
+            .upcomingTarget: Set(core.upcomingTargetPoints),
+            .dungeonExit: mode.dungeonExitPoint.map { Set([$0]) } ?? [],
+            .dungeonEnemy: Set(core.enemyStates.map(\.position)),
+            .dungeonDanger: core.enemyDangerPoints,
+            .dungeonCardPickup: Set(core.activeDungeonCardPickups.map(\.point)),
+            .dungeonCrackedFloor: core.crackedFloorPoints,
+            .dungeonCollapsedFloor: core.collapsedFloorPoints
         ]
         scene.updateHighlights(highlights)
     }
@@ -260,13 +271,14 @@ final class GameBoardBridgeViewModel: ObservableObject {
         let multiStepPathCount = buckets.multiStepPathPoints.count
         let multiStepCount = buckets.multiStepDestinations.count
         let warpCount = buckets.warpDestinations.count
-        let totalCount = singleCount + multipleCount + multiStepPathCount + multiStepCount + warpCount
+        let basicCount = buckets.basicMoveDestinations.count
+        let totalCount = singleCount + multipleCount + multiStepPathCount + multiStepCount + warpCount + basicCount
 
         // --- 呼び出し側で使うログ文面を一括生成する ---
         let logMessage = (
             "\(logPrefix) 単一=\(singleCount) 複数=\(multipleCount) " +
             "連続経路=\(multiStepPathCount) 連続終点=\(multiStepCount) " +
-            "ワープ=\(warpCount) 合計=\(totalCount)"
+            "ワープ=\(warpCount) 基本移動=\(basicCount) 合計=\(totalCount)"
         )
 
         return (
@@ -307,6 +319,9 @@ final class GameBoardBridgeViewModel: ObservableObject {
         let resolvedMoves = core.availableMoves(handStacks: handStacks, current: current)
         let groupedByCard = Dictionary(grouping: resolvedMoves, by: { $0.card.id })
         var computedBuckets = GuideHighlightBuckets.empty
+        computedBuckets.basicMoveDestinations = Set(
+            core.availableBasicOrthogonalMoves(current: current).map(\.destination)
+        )
 
         for moves in groupedByCard.values {
             guard let representative = moves.first else { continue }
@@ -605,6 +620,34 @@ final class GameBoardBridgeViewModel: ObservableObject {
             .store(in: &cancellables)
 
         core.$upcomingTargetPoints
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.pushHighlightsToScene()
+            }
+            .store(in: &cancellables)
+
+        core.$enemyStates
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.pushHighlightsToScene()
+            }
+            .store(in: &cancellables)
+
+        core.$crackedFloorPoints
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.pushHighlightsToScene()
+            }
+            .store(in: &cancellables)
+
+        core.$collapsedFloorPoints
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.pushHighlightsToScene()
+            }
+            .store(in: &cancellables)
+
+        core.$collectedDungeonCardPickupIDs
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
                 self?.pushHighlightsToScene()

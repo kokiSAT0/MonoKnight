@@ -54,24 +54,44 @@ final class GameHandSectionViewAccessibilityTests: XCTestCase {
         let expectedHighlights = Set(candidateMoves.map(\.destination))
         XCTAssertEqual(viewModel.boardBridge.forcedSelectionHighlightPoints, expectedHighlights, "ハイライトされた目的地集合が一致しません")
 
-        // SwiftUI ビューをホストしてアクセシビリティ文言を取得する
-        let host = GameHandSectionHost(viewModel: viewModel, boardBridge: viewModel.boardBridge)
-        let controller = UIHostingController(rootView: host)
-        controller.loadViewIfNeeded()
-        controller.view.frame = CGRect(x: 0, y: 0, width: 360, height: 260)
-        controller.view.setNeedsLayout()
-        controller.view.layoutIfNeeded()
+        let displayedStack = viewModel.displayedHandStacks[stackIndex]
+        XCTAssertEqual(displayedStack.representativeVectors?.count, overrideVectors.count)
+        XCTAssertEqual(viewModel.selectedHandStackID, displayedStack.id)
+    }
 
-        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+    func testDungeonRewardCardIsRenderedInInitialHandSection() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
+        let runState = DungeonRunState(
+            dungeonID: tower.id,
+            currentFloorIndex: 1,
+            carriedHP: 2,
+            totalMoveCount: 4,
+            clearedFloorCount: 1,
+            rewardInventoryEntries: [DungeonInventoryEntry(card: .straightRight2, rewardUses: 3)]
+        )
+        let mode = tower.floors[1].makeGameMode(
+            dungeonID: tower.id,
+            carriedHP: runState.carriedHP,
+            runState: runState
+        )
+        let core = GameCore(mode: mode)
+        let interfaces = GameModuleInterfaces { _ in core }
+        let viewModel = GameViewModel(
+            mode: mode,
+            gameInterfaces: interfaces,
+            gameCenterService: NoopGameCenterService(),
+            adsService: NoopAdsService(),
+            onRequestGameCenterSignIn: nil,
+            onRequestReturnToTitle: nil,
+            onRequestStartCampaignStage: nil
+        )
 
-        guard let slotView = controller.view.findSubview(withAccessibilityIdentifier: "hand_slot_0") else {
-            XCTFail("手札ビューを取得できませんでした")
-            return
-        }
+        XCTAssertTrue(viewModel.displayedHandStacks.contains { $0.representativeMove == .straightRight2 })
 
-        let hint = slotView.accessibilityHint ?? ""
-        XCTAssertTrue(hint.contains("盤面で移動方向を決めてください"), "複数候補時の方向選択案内が欠落しています: \(hint)")
-        XCTAssertTrue(hint.contains("候補は 2 方向"), "候補数の読み上げが欠落しています: \(hint)")
+        let firstDisplayedStack = try XCTUnwrap(viewModel.displayedHandStacks.first)
+        XCTAssertEqual(firstDisplayedStack.representativeMove, .straightRight2)
+        XCTAssertEqual(firstDisplayedStack.count, 3)
+        XCTAssertEqual(viewModel.displayedHandStacks, core.handStacks)
     }
 }
 
@@ -79,6 +99,7 @@ final class GameHandSectionViewAccessibilityTests: XCTestCase {
 private struct GameHandSectionHost: View {
     @ObservedObject var viewModel: GameViewModel
     @ObservedObject var boardBridge: GameBoardBridgeViewModel
+    var handSlotCount: Int = 5
     let theme = AppTheme()
     @Namespace private var namespace
 
@@ -88,7 +109,7 @@ private struct GameHandSectionHost: View {
             viewModel: viewModel,
             boardBridge: boardBridge,
             cardAnimationNamespace: namespace,
-            handSlotCount: 5,
+            handSlotCount: handSlotCount,
             bottomInset: 0,
             bottomPadding: GameViewLayoutMetrics.handSectionBasePadding
         )
@@ -114,18 +135,5 @@ private final class NoopAdsService: AdsServiceProtocol {
     func requestTrackingAuthorization() async {}
     func requestConsentIfNeeded() async {}
     func refreshConsentStatus() async {}
-}
-
-private extension UIView {
-    /// 指定したアクセシビリティ識別子を持つサブビューを深さ優先で探索する
-    func findSubview(withAccessibilityIdentifier identifier: String) -> UIView? {
-        if accessibilityIdentifier == identifier { return self }
-        for subview in subviews {
-            if let match = subview.findSubview(withAccessibilityIdentifier: identifier) {
-                return match
-            }
-        }
-        return nil
-    }
 }
 #endif

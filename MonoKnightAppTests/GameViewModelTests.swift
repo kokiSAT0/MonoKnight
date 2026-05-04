@@ -235,6 +235,60 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertFalse(state.showingResult, "結果画面非表示化が helper から行えません")
     }
 
+    func testDungeonResultPresentationSeparatesRewardAndPickupCards() {
+        let presentation = ResultSummaryPresentation(
+            moveCount: 6,
+            penaltyCount: 0,
+            focusCount: 0,
+            usesTargetCollection: false,
+            usesDungeonExit: true,
+            isFailed: false,
+            failureReason: nil,
+            dungeonHP: 2,
+            remainingDungeonTurns: 3,
+            dungeonRunFloorText: "基礎塔 2/3F",
+            dungeonRunTotalMoveCount: 10,
+            dungeonRewardMoveCards: [],
+            dungeonInventoryEntries: [
+                DungeonInventoryEntry(card: .straightRight2, rewardUses: 2, pickupUses: 1),
+                DungeonInventoryEntry(card: .straightUp2, pickupUses: 1)
+            ],
+            hasNextDungeonFloor: true,
+            elapsedSeconds: 20,
+            bestPoints: .max,
+            isNewBest: false,
+            previousBest: nil
+        )
+
+        XCTAssertEqual(presentation.dungeonRewardInventoryText, "右2×2")
+        XCTAssertEqual(presentation.dungeonPickupInventoryText, "右2×1、上2×1")
+    }
+
+    func testDungeonResultTitleUsesCurrentTowerName() {
+        let presentation = ResultSummaryPresentation(
+            moveCount: 8,
+            penaltyCount: 0,
+            focusCount: 0,
+            usesTargetCollection: false,
+            usesDungeonExit: true,
+            isFailed: false,
+            failureReason: nil,
+            dungeonHP: 2,
+            remainingDungeonTurns: 0,
+            dungeonRunFloorText: "巡回塔 3/3F",
+            dungeonRunTotalMoveCount: 20,
+            dungeonRewardMoveCards: [],
+            dungeonInventoryEntries: [],
+            hasNextDungeonFloor: false,
+            elapsedSeconds: 35,
+            bestPoints: .max,
+            isNewBest: false,
+            previousBest: nil
+        )
+
+        XCTAssertEqual(presentation.resultTitle, "巡回塔クリア")
+    }
+
     /// finalizeResultDismissal が結果表示フラグのみを閉じることを確認
     func testFinalizeResultDismissalClosesResultFlag() {
         let (viewModel, _) = makeViewModel(mode: .standard)
@@ -438,6 +492,216 @@ final class GameViewModelTests: XCTestCase {
 
         let (standardViewModel, _) = makeViewModel(mode: .standard)
         XCTAssertNil(standardViewModel.campaignStarScoreProgress, "標準モードではスターゲージを表示しません")
+    }
+
+    func testDungeonFailedProgressShowsResultWithFailureReason() throws {
+        let mode = GameMode(
+            identifier: .campaignStage,
+            displayName: "手数切れテスト",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .kingOnly,
+                spawnRule: .fixed(GridPoint(x: 0, y: 0)),
+                penalties: GameMode.PenaltySettings(
+                    deadlockPenaltyCost: 0,
+                    manualRedrawPenaltyCost: 0,
+                    manualDiscardPenaltyCost: 0,
+                    revisitPenaltyCost: 0
+                ),
+                completionRule: .dungeonExit(exitPoint: GridPoint(x: 4, y: 4)),
+                dungeonRules: DungeonRules(
+                    difficulty: .growth,
+                    failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 1)
+                )
+            ),
+            leaderboardEligible: false,
+            dungeonMetadata: .init(dungeonID: "test-tower", floorID: "turn-limit")
+        )
+        let (viewModel, core) = makeViewModel(mode: mode)
+        let move = try XCTUnwrap(core.availableMoves().first { $0.destination != mode.dungeonExitPoint })
+
+        core.playCard(using: move)
+        viewModel.handleProgressChangeForTesting(core.progress)
+
+        XCTAssertEqual(core.progress, .failed)
+        XCTAssertTrue(viewModel.showingResult)
+        XCTAssertTrue(viewModel.isResultFailed)
+        XCTAssertEqual(viewModel.failureReasonText, "残り手数が0になりました")
+    }
+
+    func testDungeonRunNextFloorCarriesHPAndResetsFloorState() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
+        let mode = try XCTUnwrap(DungeonLibrary.shared.firstFloorMode(for: tower))
+        var requestedMode: GameMode?
+        let (viewModel, core) = makeViewModel(
+            mode: mode,
+            onRequestStartDungeonFloor: { requestedMode = $0 }
+        )
+        core.overrideMetricsForTesting(moveCount: 5, penaltyCount: 0, elapsedSeconds: 30)
+        core.overrideDungeonHPForTesting(2)
+
+        let nextMode = try XCTUnwrap(viewModel.makeNextDungeonFloorMode())
+        let nextRunState = try XCTUnwrap(nextMode.dungeonMetadataSnapshot?.runState)
+
+        XCTAssertEqual(nextMode.dungeonMetadataSnapshot?.floorID, tower.floors[1].id)
+        XCTAssertEqual(nextMode.dungeonRules?.failureRule.initialHP, 2)
+        XCTAssertEqual(nextRunState.currentFloorIndex, 1)
+        XCTAssertEqual(nextRunState.clearedFloorCount, 1)
+        XCTAssertEqual(nextRunState.totalMoveCount, 5)
+        XCTAssertEqual(nextMode.dungeonRules?.failureRule.turnLimit, tower.floors[1].failureRule.turnLimit)
+
+        viewModel.showingResult = true
+        viewModel.handleNextDungeonFloorAdvance()
+
+        XCTAssertEqual(requestedMode?.dungeonMetadataSnapshot?.floorID, tower.floors[1].id)
+        XCTAssertFalse(viewModel.showingResult)
+    }
+
+    func testDungeonRewardSelectionAddsCardAndStartsNextFloor() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
+        let mode = try XCTUnwrap(DungeonLibrary.shared.firstFloorMode(for: tower))
+        var requestedMode: GameMode?
+        let (viewModel, core) = makeViewModel(
+            mode: mode,
+            onRequestStartDungeonFloor: { requestedMode = $0 }
+        )
+        core.overrideMetricsForTesting(moveCount: 4, penaltyCount: 0, elapsedSeconds: 20)
+        core.overrideDungeonHPForTesting(2)
+
+        let reward = try XCTUnwrap(viewModel.availableDungeonRewardMoveCards.first)
+        viewModel.showingResult = true
+        viewModel.handleDungeonRewardSelection(reward)
+
+        let nextMode = try XCTUnwrap(requestedMode)
+        XCTAssertEqual(nextMode.dungeonMetadataSnapshot?.floorID, tower.floors[1].id)
+        XCTAssertEqual(
+            nextMode.dungeonMetadataSnapshot?.runState?.rewardInventoryEntries,
+            [DungeonInventoryEntry(card: reward, rewardUses: 3)]
+        )
+        XCTAssertTrue(nextMode.bonusMoveCards.isEmpty)
+        XCTAssertFalse(viewModel.showingResult)
+    }
+
+    func testCarriedDungeonRewardCardIsUsableImmediatelyOnNextFloorStart() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
+        let runState = DungeonRunState(
+            dungeonID: tower.id,
+            currentFloorIndex: 1,
+            carriedHP: 2,
+            totalMoveCount: 4,
+            clearedFloorCount: 1,
+            rewardInventoryEntries: [DungeonInventoryEntry(card: .straightRight2, rewardUses: 3)]
+        )
+        let mode = tower.floors[1].makeGameMode(
+            dungeonID: tower.id,
+            carriedHP: runState.carriedHP,
+            runState: runState
+        )
+        let (viewModel, core) = makeViewModel(mode: mode)
+        let rewardIndex = try XCTUnwrap(core.handStacks.firstIndex { $0.representativeMove == .straightRight2 })
+        let rewardStack = core.handStacks[rewardIndex]
+
+        XCTAssertEqual(core.dungeonInventoryEntries, runState.rewardInventoryEntries)
+        XCTAssertEqual(viewModel.displayedHandStacks, core.handStacks)
+        XCTAssertTrue(viewModel.displayedHandStacks.contains { $0.representativeMove == .straightRight2 })
+        XCTAssertTrue(viewModel.isCardUsable(rewardStack))
+        XCTAssertTrue(core.availableMoves().contains { $0.stackID == rewardStack.id && $0.destination == GridPoint(x: 2, y: 0) })
+        XCTAssertTrue(viewModel.boardBridge.scene.latestHighlightPoints(for: .guideSingleCandidate).contains(GridPoint(x: 2, y: 0)))
+
+        viewModel.handleHandSlotTap(at: rewardIndex)
+
+        XCTAssertEqual(viewModel.boardBridge.animatingCard?.moveCard, .straightRight2)
+        XCTAssertEqual(viewModel.boardBridge.animationTargetGridPoint, GridPoint(x: 2, y: 0))
+    }
+
+    func testCarriedDungeonRewardCardIsUsableImmediatelyOnThirdFloorStart() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
+        let runState = DungeonRunState(
+            dungeonID: tower.id,
+            currentFloorIndex: 2,
+            carriedHP: 2,
+            totalMoveCount: 10,
+            clearedFloorCount: 2,
+            rewardInventoryEntries: [DungeonInventoryEntry(card: .rayRight, rewardUses: 3)]
+        )
+        let mode = tower.floors[2].makeGameMode(
+            dungeonID: tower.id,
+            carriedHP: runState.carriedHP,
+            runState: runState
+        )
+        let (viewModel, core) = makeViewModel(mode: mode)
+        let rewardStack = try XCTUnwrap(core.handStacks.first { $0.representativeMove == .rayRight })
+
+        XCTAssertEqual(viewModel.displayedHandStacks, core.handStacks)
+        XCTAssertTrue(viewModel.displayedHandStacks.contains { $0.representativeMove == .rayRight })
+        XCTAssertTrue(viewModel.isCardUsable(rewardStack))
+        XCTAssertTrue(core.availableMoves().contains { $0.stackID == rewardStack.id && $0.destination == GridPoint(x: 4, y: 2) })
+        XCTAssertTrue(viewModel.boardBridge.scene.latestHighlightPoints(for: .guideMultiStepCandidate).contains(GridPoint(x: 4, y: 2)))
+    }
+
+    func testFirstDungeonFloorStartsWithNoDisplayedCards() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
+        let mode = try XCTUnwrap(DungeonLibrary.shared.firstFloorMode(for: tower))
+        let (viewModel, core) = makeViewModel(mode: mode)
+
+        XCTAssertTrue(core.handStacks.isEmpty)
+        XCTAssertTrue(viewModel.displayedHandStacks.isEmpty)
+        XCTAssertTrue(core.availableBasicOrthogonalMoves().isEmpty == false)
+    }
+
+    func testFinalDungeonFloorDoesNotOfferRewardCards() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
+        let runState = DungeonRunState(
+            dungeonID: tower.id,
+            currentFloorIndex: 2,
+            carriedHP: 2,
+            totalMoveCount: 10,
+            clearedFloorCount: 2,
+            rewardInventoryEntries: [DungeonInventoryEntry(card: .kingLeftOrRight, rewardUses: 2)]
+        )
+        let mode = tower.floors[2].makeGameMode(
+            dungeonID: tower.id,
+            carriedHP: runState.carriedHP,
+            runState: runState
+        )
+        let (viewModel, _) = makeViewModel(mode: mode)
+
+        XCTAssertTrue(viewModel.availableDungeonRewardMoveCards.isEmpty)
+        XCTAssertNil(viewModel.nextDungeonFloorTitle)
+    }
+
+    func testDungeonRunRetryRestartsFromFirstFloor() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
+        let runState = DungeonRunState(
+            dungeonID: tower.id,
+            currentFloorIndex: 2,
+            carriedHP: 1,
+            totalMoveCount: 12,
+            clearedFloorCount: 2,
+            rewardInventoryEntries: [DungeonInventoryEntry(card: .kingLeftOrRight, rewardUses: 2)]
+        )
+        let mode = tower.floors[2].makeGameMode(
+            dungeonID: tower.id,
+            carriedHP: runState.carriedHP,
+            runState: runState
+        )
+        var requestedMode: GameMode?
+        let (viewModel, _) = makeViewModel(
+            mode: mode,
+            onRequestStartDungeonFloor: { requestedMode = $0 }
+        )
+
+        viewModel.showingResult = true
+        viewModel.handleResultRetry()
+
+        XCTAssertEqual(requestedMode?.dungeonMetadataSnapshot?.floorID, tower.floors[0].id)
+        XCTAssertEqual(requestedMode?.dungeonMetadataSnapshot?.runState?.currentFloorIndex, 0)
+        XCTAssertEqual(requestedMode?.dungeonMetadataSnapshot?.runState?.totalMoveCount, 0)
+        XCTAssertEqual(requestedMode?.dungeonMetadataSnapshot?.runState?.rewardInventoryEntries, [])
+        XCTAssertFalse(viewModel.showingResult)
     }
 
     /// handleCampaignStageAdvance が stage unlock 条件を守って遷移要求を出し分けることを確認
@@ -996,6 +1260,7 @@ final class GameViewModelTests: XCTestCase {
         onRequestReturnToTitle: (() -> Void)? = nil,
         campaignProgressStore: CampaignProgressStore? = nil,
         onRequestStartCampaignStage: ((CampaignStage) -> Void)? = nil,
+        onRequestStartDungeonFloor: ((GameMode) -> Void)? = nil,
         campaignTutorialStore: CampaignTutorialStore = CampaignTutorialStore(),
         dateProvider: MutableDateProvider? = nil,
         resolvesSpawnSelection: Bool = true
@@ -1020,6 +1285,7 @@ final class GameViewModelTests: XCTestCase {
             onRequestGameCenterSignIn: nil,
             onRequestReturnToTitle: onRequestReturnToTitle,
             onRequestStartCampaignStage: onRequestStartCampaignStage,
+            onRequestStartDungeonFloor: onRequestStartDungeonFloor,
             campaignTutorialStore: campaignTutorialStore,
             currentDateProvider: { resolvedDateProvider.now }
         )
@@ -1035,7 +1301,8 @@ final class GameViewModelTests: XCTestCase {
             adsService: DummyAdsService(),
             onRequestGameCenterSignIn: nil,
             onRequestReturnToTitle: nil,
-            onRequestStartCampaignStage: nil
+            onRequestStartCampaignStage: nil,
+            onRequestStartDungeonFloor: nil
         )
     }
 

@@ -20,7 +20,21 @@ struct GamePreparationOverlayPresentation: Equatable {
     let prioritizesFeatureSpotlight: Bool
 
     init(mode: GameMode, campaignStage: CampaignStage?) {
-        if mode.usesTargetCollection {
+        if mode.usesDungeonExit {
+            let exitText = mode.dungeonExitPoint.map { "(\($0.x),\($0.y))" } ?? "-"
+            let hpLabel = mode.dungeonMetadataSnapshot?.runState?.currentFloorIndex ?? 0 > 0 ? "引き継ぎHP" : "HP"
+            let hpText = mode.dungeonRules.map { "\(hpLabel) \($0.failureRule.initialHP)" } ?? "HPあり"
+            let turnText = mode.dungeonRules?.failureRule.turnLimit.map { "残り手数 \($0)" } ?? "手数制限なし"
+            let rewardEntries = mode.dungeonMetadataSnapshot?.runState?.rewardInventoryEntries ?? []
+            let rewardText = rewardEntries.isEmpty
+                ? nil
+                : "報酬カード \(rewardEntries.map { "\($0.card.displayName)×\($0.rewardUses)" }.joined(separator: "、"))"
+            primaryObjectiveText = "出口へ到達すればクリア"
+            clearConditionText = "クリア: 出口 \(exitText)"
+            shortRuleSummaryText = [hpText, turnText, rewardText]
+                .compactMap { $0 }
+                .joined(separator: " / ") + "。最初は基本移動のみ。床のカードは1回使い切り、報酬カードは3回使えて持ち越せます。"
+        } else if mode.usesTargetCollection {
             primaryObjectiveText = "目的地を \(mode.targetGoalCount) 個取ればクリア"
             clearConditionText = "クリア: 目的地 \(mode.targetGoalCount) 個"
             shortRuleSummaryText = "目的地を取るほど加点。手数とフォーカスは控えめに。"
@@ -30,11 +44,44 @@ struct GamePreparationOverlayPresentation: Equatable {
             shortRuleSummaryText = "ペナルティを抑えながら、使えるカードで盤面を埋めましょう。"
         }
 
-        detailsTitle = campaignStage == nil ? "ルール詳細を見る" : "スター条件・記録を見る"
-        let resolvedChips = campaignStage.map(CampaignStageFeatureResolver.chips(for:)) ?? []
+        detailsTitle = mode.usesDungeonExit
+            ? "塔のルールを見る"
+            : (campaignStage == nil ? "ルール詳細を見る" : "スター条件・記録を見る")
+        let resolvedChips = mode.usesDungeonExit
+            ? DungeonFeatureResolver.chips(for: mode)
+            : (campaignStage.map(CampaignStageFeatureResolver.chips(for:)) ?? [])
         featureChips = resolvedChips
         featuredChips = resolvedChips.filter(\.isNew) + resolvedChips.filter { !$0.isNew }
-        prioritizesFeatureSpotlight = campaignStage != nil && !resolvedChips.isEmpty
+        prioritizesFeatureSpotlight = (campaignStage != nil || mode.usesDungeonExit) && !resolvedChips.isEmpty
+    }
+}
+
+private enum DungeonFeatureResolver {
+    static func chips(for mode: GameMode) -> [GamePreparationOverlayPresentation.FeatureChip] {
+        guard let rules = mode.dungeonRules else { return [] }
+        let hpLabel = mode.dungeonMetadataSnapshot?.runState?.currentFloorIndex ?? 0 > 0 ? "引継ぎHP" : "HP"
+        var chips: [GamePreparationOverlayPresentation.FeatureChip] = [
+            .init(label: "出口到達", isNew: true),
+            .init(label: "\(hpLabel) \(rules.failureRule.initialHP)", isNew: false)
+        ]
+
+        if let turnLimit = rules.failureRule.turnLimit {
+            chips.append(.init(label: "手数 \(turnLimit)", isNew: false))
+        }
+        if rules.allowsBasicOrthogonalMove {
+            chips.append(.init(label: "基本移動", isNew: true))
+        }
+        if !rules.enemies.isEmpty {
+            chips.append(.init(label: "敵 \(rules.enemies.count)", isNew: false))
+        }
+        if !rules.hazards.isEmpty {
+            chips.append(.init(label: "床ギミック", isNew: false))
+        }
+        let rewardEntries = mode.dungeonMetadataSnapshot?.runState?.rewardInventoryEntries ?? []
+        if !rewardEntries.isEmpty {
+            chips.append(.init(label: "報酬カード \(rewardEntries.count)", isNew: false))
+        }
+        return chips
     }
 }
 
@@ -294,7 +341,27 @@ extension RootView {
 
         private var headerSection: some View {
             VStack(alignment: .leading, spacing: LayoutMetrics.headerSpacing) {
-                if let stage = campaignStage {
+                if mode.usesDungeonExit {
+                    HStack(spacing: 8) {
+                        Text("塔ダンジョン")
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .foregroundColor(theme.textSecondary)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(
+                                Capsule()
+                                    .fill(theme.textSecondary.opacity(0.14))
+                            )
+                    }
+
+                    Text(dungeonHeaderTitle)
+                        .font(.system(size: 22, weight: .semibold, design: .rounded))
+                        .foregroundColor(theme.textPrimary)
+
+                    Text(dungeonHeaderSummary)
+                        .font(.system(size: 14, weight: .regular, design: .rounded))
+                        .foregroundColor(theme.textSecondary)
+                } else if let stage = campaignStage {
                     HStack(spacing: 8) {
                         Text(stage.displayCode)
                             .font(.system(size: 13, weight: .semibold, design: .rounded))
@@ -534,7 +601,7 @@ extension RootView {
                         )
                     }
 
-                    InfoSection(title: mode.usesTargetCollection ? "スコア要素" : "ペナルティ") {
+                    InfoSection(title: detailInfoTitle) {
                         ForEach(ruleCostItems, id: \.self) { item in
                             bulletRow(text: item)
                         }
@@ -571,7 +638,7 @@ extension RootView {
                         onStart()
                     }
                 }) {
-                    Text("ステージを開始")
+                    Text(startButtonTitle)
                         .font(.system(size: 17, weight: .semibold, design: .rounded))
                         .foregroundColor(theme.accentOnPrimary)
                         .frame(maxWidth: .infinity)
@@ -583,7 +650,7 @@ extension RootView {
                 }
                 .buttonStyle(.plain)
                 .disabled(!isReady)
-                .accessibilityLabel("ステージを開始")
+                .accessibilityLabel(startButtonTitle)
                 .accessibilityHint(isReady ? "ゲームを開始します" : "準備が完了すると押せるようになります")
                 .accessibilityAddTraits(.isButton)
 
@@ -613,6 +680,37 @@ extension RootView {
         }
 
         private var ruleCostItems: [String] {
+            if mode.usesDungeonExit {
+                let exitText = mode.dungeonExitPoint.map { "出口 (\($0.x),\($0.y)) へ到達でクリア" } ?? "出口へ到達でクリア"
+                var items = [exitText]
+
+                if let rules = mode.dungeonRules {
+                    let hpLabel = mode.dungeonMetadataSnapshot?.runState?.currentFloorIndex ?? 0 > 0 ? "引き継ぎHP" : "HP"
+                    items.append("\(hpLabel) \(rules.failureRule.initialHP)。0 になると失敗")
+                    if let turnLimit = rules.failureRule.turnLimit {
+                        items.append("残り手数 \(turnLimit)。0 になると失敗")
+                    } else {
+                        items.append("手数制限なし")
+                    }
+                    if !rules.enemies.isEmpty {
+                        items.append("敵の危険範囲に入ると HP 減少")
+                    }
+                    if !rules.hazards.isEmpty {
+                        items.append("ひび割れ床は踏むと壊れやすくなります")
+                    }
+                    if rules.cardAcquisitionMode == .inventoryOnly {
+                        items.append("カードは床で拾うか、階層報酬で獲得")
+                        items.append("床のカードは1回、報酬カードは3回使用可能")
+                    }
+                    let rewardEntries = mode.dungeonMetadataSnapshot?.runState?.rewardInventoryEntries ?? []
+                    if !rewardEntries.isEmpty {
+                        items.append("報酬カード: \(rewardEntries.map { "\($0.card.displayName)×\($0.rewardUses)" }.joined(separator: "、"))")
+                    }
+                }
+
+                return items
+            }
+
             if mode.usesTargetCollection {
                 return [
                     "目的地 \(mode.targetGoalCount) 個でクリア",
@@ -644,11 +742,46 @@ extension RootView {
         }
 
         private var returnButtonTitle: String {
-            isCampaignContext ? "ステージ選択に戻る" : "タイトルへ戻る"
+            if mode.usesDungeonExit && isCampaignContext {
+                return "塔選択に戻る"
+            }
+            return isCampaignContext ? "ステージ選択に戻る" : "タイトルへ戻る"
         }
 
         private var returnButtonHint: String {
-            isCampaignContext ? "キャンペーンのステージ選択画面へ戻ります" : "タイトル画面へ戻ります"
+            if mode.usesDungeonExit && isCampaignContext {
+                return "塔ダンジョンのフロア選択画面へ戻ります"
+            }
+            return isCampaignContext ? "キャンペーンのステージ選択画面へ戻ります" : "タイトル画面へ戻ります"
+        }
+
+        private var startButtonTitle: String {
+            mode.usesDungeonExit ? "この階を開始" : "ステージを開始"
+        }
+
+        private var detailInfoTitle: String {
+            if mode.usesDungeonExit {
+                return "失敗条件"
+            }
+            return mode.usesTargetCollection ? "スコア要素" : "ペナルティ"
+        }
+
+        private var dungeonHeaderTitle: String {
+            if let metadata = mode.dungeonMetadataSnapshot,
+               let dungeon = DungeonLibrary.shared.dungeon(with: metadata.dungeonID),
+               let floorIndex = dungeon.floors.firstIndex(where: { $0.id == metadata.floorID }) {
+                let floorText = metadata.runState.map { "\($0.floorNumber)/\(dungeon.floors.count)F" } ?? "\(floorIndex + 1)F"
+                return "\(dungeon.title) \(floorText): \(mode.displayName)"
+            }
+            return mode.displayName
+        }
+
+        private var dungeonHeaderSummary: String {
+            if let metadata = mode.dungeonMetadataSnapshot,
+               let dungeon = DungeonLibrary.shared.dungeon(with: metadata.dungeonID) {
+                return dungeon.summary
+            }
+            return mode.primarySummaryText
         }
 
         private struct InfoSection<Content: View>: View {

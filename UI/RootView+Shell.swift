@@ -227,6 +227,9 @@ extension RootView {
                     },
                     onRequestStartCampaignStage: { stage in
                         onStartGame(stage.makeGameMode(), .campaignContinuation)
+                    },
+                    onRequestStartDungeonFloor: { mode in
+                        onStartGame(mode, .campaignContinuation)
                     }
                 )
                 .id(gameSessionID)
@@ -242,7 +245,8 @@ extension RootView {
             if isPreparingGame {
                 let stage = campaignStage(for: activeMode)
                 let progress = stage.flatMap { campaignProgressStore.progress(for: $0.id) }
-                let shouldReturnToCampaignSelection = lastPreparationContext?.isCampaignDerived ?? (stage != nil)
+                let shouldReturnToCampaignSelection =
+                    lastPreparationContext?.isCampaignDerived ?? (stage != nil || activeMode.usesDungeonExit)
 
                 GamePreparationOverlayView(
                     mode: activeMode,

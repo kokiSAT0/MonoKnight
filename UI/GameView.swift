@@ -40,9 +40,8 @@ struct GameView: View {
     @Environment(\.baseTopSafeAreaInset) var baseTopSafeAreaInset: CGFloat
     /// 共通設定ストア
     @EnvironmentObject var gameSettingsStore: GameSettingsStore
-    /// 手札スロットの数（常に 5 スロット分の枠を確保してレイアウトを安定させる）
-    /// - Note: レイアウト拡張でハンド UI の構築にも利用するため、アクセスレベルは internal にとどめて同一型内で共有している。
-    let handSlotCount = 5
+    /// 手札スロットの数。塔ダンジョンでは拾得カードを多く保持できるよう 10 種類まで表示する。
+    var handSlotCount: Int { viewModel.usesDungeonExit ? 10 : 5 }
     /// ゲーム準備オーバーレイの表示状態を親ビューから受け取り、タイマー制御と同期する
     /// - Note: RootView 側のローディング表示と GameViewModel 内の pause/resume 呼び出しを結び付けるため、
     ///         `@Binding` を用いて双方向に状態を監視できるようにしている。
@@ -78,6 +77,7 @@ struct GameView: View {
     ///   - isPreparationOverlayVisible: RootView が保持するローディング表示のバインディング
     ///   - onRequestReturnToTitle: タイトル画面への遷移要求クロージャ（省略可）
     ///   - onRequestStartCampaignStage: キャンペーンの別ステージを開始するリクエストクロージャ
+    ///   - onRequestStartDungeonFloor: ダンジョンランの別フロアを開始するリクエストクロージャ
     init(
         mode: GameMode = .standard,
         gameInterfaces: GameModuleInterfaces = .live,
@@ -85,7 +85,8 @@ struct GameView: View {
         isPreparationOverlayVisible: Binding<Bool> = .constant(false),
         onRequestGameCenterSignIn: ((GameCenterSignInPromptReason) -> Void)? = nil,
         onRequestReturnToTitle: (() -> Void)? = nil,
-        onRequestStartCampaignStage: ((CampaignStage) -> Void)? = nil
+        onRequestStartCampaignStage: ((CampaignStage) -> Void)? = nil,
+        onRequestStartDungeonFloor: ((GameMode) -> Void)? = nil
     ) {
         // 既定値はメインアクター上で解決し、@MainActor 隔離済みのシングルトンを安全に参照する
         let resolvedIsAuthenticated = isGameCenterAuthenticated ?? GameCenterService.shared.isAuthenticated
@@ -99,7 +100,8 @@ struct GameView: View {
             isGameCenterAuthenticated: resolvedIsAuthenticated,
             onRequestGameCenterSignIn: onRequestGameCenterSignIn,
             onRequestReturnToTitle: onRequestReturnToTitle,
-            onRequestStartCampaignStage: onRequestStartCampaignStage
+            onRequestStartCampaignStage: onRequestStartCampaignStage,
+            onRequestStartDungeonFloor: onRequestStartDungeonFloor
         )
     }
 
@@ -115,6 +117,7 @@ struct GameView: View {
     ///   - onRequestGameCenterSignIn: サインイン依頼クロージャ
     ///   - onRequestReturnToTitle: タイトル復帰依頼クロージャ
     ///   - onRequestStartCampaignStage: キャンペーン継続依頼クロージャ
+    ///   - onRequestStartDungeonFloor: ダンジョンラン継続依頼クロージャ
     init(
         mode: GameMode,
         gameInterfaces: GameModuleInterfaces,
@@ -125,7 +128,8 @@ struct GameView: View {
         isGameCenterAuthenticated: Bool?,
         onRequestGameCenterSignIn: ((GameCenterSignInPromptReason) -> Void)? = nil,
         onRequestReturnToTitle: (() -> Void)? = nil,
-        onRequestStartCampaignStage: ((CampaignStage) -> Void)? = nil
+        onRequestStartCampaignStage: ((CampaignStage) -> Void)? = nil,
+        onRequestStartDungeonFloor: ((GameMode) -> Void)? = nil
     ) {
         // Game Center 認証状態をローカル変数へ束ね、後続の代入と ViewModel 初期化で同じ値を共有する
         let resolvedIsAuthenticated = isGameCenterAuthenticated ?? gameCenterService.isAuthenticated
@@ -148,6 +152,7 @@ struct GameView: View {
                 onRequestGameCenterSignIn: onRequestGameCenterSignIn,
                 onRequestReturnToTitle: onRequestReturnToTitle,
                 onRequestStartCampaignStage: onRequestStartCampaignStage,
+                onRequestStartDungeonFloor: onRequestStartDungeonFloor,
                 initialGameCenterAuthenticationState: resolvedIsAuthenticated
             )
         )
@@ -214,6 +219,16 @@ struct GameView: View {
                 penaltyCount: viewModel.penaltyCount,
                 focusCount: viewModel.focusCount,
                 usesTargetCollection: viewModel.usesTargetCollection,
+                usesDungeonExit: viewModel.usesDungeonExit,
+                isFailed: viewModel.isResultFailed,
+                failureReason: viewModel.failureReasonText,
+                dungeonHP: viewModel.dungeonHP,
+                remainingDungeonTurns: viewModel.remainingDungeonTurns,
+                dungeonRunFloorText: viewModel.dungeonRunFloorText,
+                dungeonRunTotalMoveCount: viewModel.dungeonRunTotalMoveCount,
+                nextDungeonFloorTitle: viewModel.nextDungeonFloorTitle,
+                dungeonRewardMoveCards: viewModel.availableDungeonRewardMoveCards,
+                dungeonInventoryEntries: viewModel.dungeonInventoryEntries,
                 elapsedSeconds: viewModel.elapsedSeconds,
                 modeIdentifier: viewModel.mode.identifier,
                 modeDisplayName: viewModel.mode.displayName,
@@ -225,6 +240,12 @@ struct GameView: View {
                 onSelectCampaignStage: { stage in
                     // ViewModel に処理を委譲してリザルト閉鎖と広告フラグの初期化を一元管理する
                     viewModel.handleCampaignStageAdvance(to: stage)
+                },
+                onSelectNextDungeonFloor: {
+                    viewModel.handleNextDungeonFloorAdvance()
+                },
+                onSelectDungeonRewardMoveCard: { card in
+                    viewModel.handleDungeonRewardSelection(card)
                 },
                 onRetry: {
                     // ViewModel 側でリセットと広告フラグの再設定をまとめて処理する

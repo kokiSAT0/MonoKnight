@@ -15,7 +15,7 @@ public enum MoveCardKind {
 /// - Note: 周囲 1 マスのキング型 8 種、ナイト型 8 種、距離 2 の直線/斜め 8 種の計 24 種に加え、キャンペーン専用の複数方向カードや
 ///         盤面全域ワープといった特殊カードをサポート
 /// - Note: SwiftUI モジュールからも扱うため `public` とし、全ケース配列も公開する
-public enum MoveCard: CaseIterable {
+public enum MoveCard: CaseIterable, Codable {
     // MARK: - ケース定義
     /// キング型: 上に 1
     case kingUp

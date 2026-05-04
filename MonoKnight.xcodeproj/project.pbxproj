@@ -30,6 +30,7 @@
 		726642EF2E85DA48003EA325 /* CampaignStageSelectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 726642EE2E85DA48003EA325 /* CampaignStageSelectionView.swift */; };
 		726642F12E85DA50003EA325 /* CampaignStageSelectionSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 726642F02E85DA50003EA325 /* CampaignStageSelectionSupport.swift */; };
 		726642F12E85DA54003EA325 /* DiagnosticsCenterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 726642F02E85DA54003EA325 /* DiagnosticsCenterView.swift */; };
+		726642F12E85DA56003EA325 /* DungeonSelectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 726642F02E85DA56003EA325 /* DungeonSelectionView.swift */; };
 		726642F32E85DA73003EA325 /* GameBoardControlRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 726642F22E85DA73003EA325 /* GameBoardControlRowView.swift */; };
 		726642F52E85DA84003EA325 /* GameCardAnimationOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 726642F42E85DA84003EA325 /* GameCardAnimationOverlay.swift */; };
 		726642F82E85DA8E003EA325 /* GameMenuActionConfirmationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 726642F72E85DA8E003EA325 /* GameMenuActionConfirmationSheet.swift */; };
@@ -143,6 +144,7 @@
 		726642EE2E85DA48003EA325 /* CampaignStageSelectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CampaignStageSelectionView.swift; sourceTree = "<group>"; };
 		726642F02E85DA50003EA325 /* CampaignStageSelectionSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CampaignStageSelectionSupport.swift; sourceTree = "<group>"; };
 		726642F02E85DA54003EA325 /* DiagnosticsCenterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsCenterView.swift; sourceTree = "<group>"; };
+		726642F02E85DA56003EA325 /* DungeonSelectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DungeonSelectionView.swift; sourceTree = "<group>"; };
 		726642F22E85DA73003EA325 /* GameBoardControlRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameBoardControlRowView.swift; sourceTree = "<group>"; };
 		726642F42E85DA84003EA325 /* GameCardAnimationOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameCardAnimationOverlay.swift; sourceTree = "<group>"; };
 		726642F62E85DA8E003EA325 /* GameHandSectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameHandSectionView.swift; sourceTree = "<group>"; };
@@ -359,6 +361,7 @@
 				E79DD14B2FFD188D0038C598 /* DailyChallengeViewSections.swift */,
 				E79DD1492FFD18810038C598 /* DailyChallengeViewModel.swift */,
 				726642F02E85DA54003EA325 /* DiagnosticsCenterView.swift */,
+				726642F02E85DA56003EA325 /* DungeonSelectionView.swift */,
 				726642532E826754003EA325 /* Environment+BaseSafeAreaInsets.swift */,
 				726642472E826487003EA325 /* Environment+TopOverlayHeight.swift */,
 				7266423B2E82397D003EA325 /* FreeModeRegulationView.swift */,
@@ -700,6 +703,7 @@
 				A1B2C3D4E5F601000000000A /* AppTheme+StatusChrome.swift in Sources */,
 				C26B69F22FFD64D4004DB899 /* ThemePreference.swift in Sources */,
 				726642EF2E85DA48003EA325 /* CampaignStageSelectionView.swift in Sources */,
+				726642F12E85DA56003EA325 /* DungeonSelectionView.swift in Sources */,
 				726642482E826487003EA325 /* Environment+TopOverlayHeight.swift in Sources */,
 				E79DD15E2FFD1CC70038C598 /* SettingsViewSections.swift in Sources */,
 				E79DD1602FFD1CD50038C598 /* SettingsViewSupport.swift in Sources */,

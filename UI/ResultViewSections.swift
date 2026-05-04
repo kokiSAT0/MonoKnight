@@ -6,9 +6,16 @@ struct ResultSummarySection: View {
 
     var body: some View {
         VStack(spacing: 12) {
-            Text("総合ポイント: \(presentation.points)")
+            Text(presentation.resultTitle)
                 .font(.title)
                 .padding(.top, 16)
+
+            if let subtitle = presentation.resultSubtitle {
+                Text(subtitle)
+                    .font(.headline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
 
             if presentation.isNewBest {
                 TimelineView(.animation) { context in
@@ -34,8 +41,10 @@ struct ResultSummarySection: View {
                 .transition(.scale.combined(with: .opacity))
             }
 
-            Text("ベストポイント: \(presentation.bestPointsText)")
-                .font(.headline)
+            if !presentation.usesDungeonExit && !presentation.isFailed {
+                Text("ベストポイント: \(presentation.bestPointsText)")
+                    .font(.headline)
+            }
 
             if let description = presentation.bestComparisonDescription {
                 Text(description)
@@ -96,6 +105,67 @@ struct ResultDetailsSection: View {
                     }
                 }
 
+                if presentation.usesDungeonExit {
+                    if let dungeonRunFloorText = presentation.dungeonRunFloorText {
+                        GridRow {
+                            Text("到達階")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                            Text(dungeonRunFloorText)
+                                .font(.body)
+                        }
+                    }
+
+                    if let dungeonRunTotalMoveCount = presentation.dungeonRunTotalMoveCount {
+                        GridRow {
+                            Text("塔累計手数")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                            Text("\(dungeonRunTotalMoveCount) 手")
+                                .font(.body)
+                                .monospacedDigit()
+                        }
+                    }
+
+                    GridRow {
+                        Text("残HP")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        Text("\(presentation.dungeonHP ?? 0)")
+                            .font(.body)
+                            .monospacedDigit()
+                    }
+
+                    GridRow {
+                        Text("残り手数")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        Text(presentation.remainingDungeonTurns.map { "\($0) 手" } ?? "-")
+                            .font(.body)
+                            .monospacedDigit()
+                    }
+
+                    if !presentation.dungeonRewardInventoryEntries.isEmpty {
+                        GridRow {
+                            Text("報酬カード")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                            Text(presentation.dungeonRewardInventoryText)
+                                .font(.body)
+                        }
+                    }
+
+                    if !presentation.dungeonPickupInventoryEntries.isEmpty {
+                        GridRow {
+                            Text("床カード")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                            Text(presentation.dungeonPickupInventoryText)
+                                .font(.body)
+                        }
+                    }
+                }
+
                 GridRow {
                     Text("所要時間")
                         .font(.subheadline)
@@ -105,36 +175,38 @@ struct ResultDetailsSection: View {
                         .monospacedDigit()
                 }
 
-                Divider()
-                    .gridCellColumns(2)
+                if !presentation.usesDungeonExit && !presentation.isFailed {
+                    Divider()
+                        .gridCellColumns(2)
 
-                GridRow {
-                    Text("手数ポイント")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                    Text("10pt × \(presentation.totalMoves)手 = \(presentation.movePoints) pt")
-                        .font(.body)
-                        .monospacedDigit()
-                }
+                    GridRow {
+                        Text("手数ポイント")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        Text("10pt × \(presentation.totalMoves)手 = \(presentation.movePoints) pt")
+                            .font(.body)
+                            .monospacedDigit()
+                    }
 
-                GridRow {
-                    Text("時間ポイント")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                    Text("\(presentation.elapsedSeconds)秒 = \(presentation.timePoints) pt")
-                        .font(.body)
-                        .monospacedDigit()
-                }
+                    GridRow {
+                        Text("時間ポイント")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        Text("\(presentation.elapsedSeconds)秒 = \(presentation.timePoints) pt")
+                            .font(.body)
+                            .monospacedDigit()
+                    }
 
-                Divider()
-                    .gridCellColumns(2)
+                    Divider()
+                        .gridCellColumns(2)
 
-                GridRow {
-                    Text("合計ポイント")
-                        .font(.subheadline.weight(.semibold))
-                    Text("\(presentation.movePoints) + \(presentation.timePoints) = \(presentation.points) pt")
-                        .font(.body.weight(.semibold))
-                        .monospacedDigit()
+                    GridRow {
+                        Text("合計ポイント")
+                            .font(.subheadline.weight(.semibold))
+                        Text("\(presentation.movePoints) + \(presentation.timePoints) = \(presentation.points) pt")
+                            .font(.body.weight(.semibold))
+                            .monospacedDigit()
+                    }
                 }
             }
         }
@@ -144,9 +216,13 @@ struct ResultDetailsSection: View {
 struct ResultActionSection: View {
     let presentation: ResultSummaryPresentation
     let modeIdentifier: GameMode.Identifier
+    let nextDungeonFloorTitle: String?
+    let dungeonRewardMoveCards: [MoveCard]
     let showsLeaderboardButton: Bool
     let isGameCenterAuthenticated: Bool
     let onRequestGameCenterSignIn: ((GameCenterSignInPromptReason) -> Void)?
+    let onSelectNextDungeonFloor: (() -> Void)?
+    let onSelectDungeonRewardMoveCard: ((MoveCard) -> Void)?
     let onRetry: () -> Void
     let onReturnToTitle: (() -> Void)?
     let gameCenterService: GameCenterServiceProtocol
@@ -154,6 +230,50 @@ struct ResultActionSection: View {
 
     var body: some View {
         VStack(spacing: 16) {
+            if let nextDungeonFloorTitle,
+               let onSelectNextDungeonFloor,
+               presentation.usesDungeonExit,
+               !presentation.isFailed,
+               dungeonRewardMoveCards.isEmpty {
+                Button {
+                    triggerSuccessHapticIfNeeded()
+                    onSelectNextDungeonFloor()
+                } label: {
+                    Label("次の階へ: \(nextDungeonFloorTitle)", systemImage: "arrow.up.forward")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+            }
+
+            if let onSelectDungeonRewardMoveCard,
+               presentation.usesDungeonExit,
+               !presentation.isFailed,
+               !dungeonRewardMoveCards.isEmpty {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("報酬を選んで次の階へ")
+                        .font(.headline)
+
+                    ForEach(dungeonRewardMoveCards, id: \.self) { card in
+                        Button {
+                            triggerSuccessHapticIfNeeded()
+                            onSelectDungeonRewardMoveCard(card)
+                        } label: {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Label(card.displayName, systemImage: "rectangle.stack.badge.plus")
+                                    .font(.body.weight(.semibold))
+                                Text(card.encyclopediaDescription)
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                                    .multilineTextAlignment(.leading)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .accessibilityIdentifier("dungeon_reward_card_\(card.displayName)")
+                    }
+                }
+            }
+
             if let onReturnToTitle {
                 Button {
                     triggerSuccessHapticIfNeeded()
@@ -169,7 +289,7 @@ struct ResultActionSection: View {
                 triggerSuccessHapticIfNeeded()
                 onRetry()
             } label: {
-                Text("リトライ")
+                Text(presentation.usesDungeonExit ? "もう一度挑戦" : "リトライ")
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
@@ -211,9 +331,13 @@ struct ResultActionSection: View {
         presentation: ResultSummaryPresentation,
         modeIdentifier: GameMode.Identifier,
         modeDisplayName: String,
+        nextDungeonFloorTitle: String?,
+        dungeonRewardMoveCards: [MoveCard] = [],
         showsLeaderboardButton: Bool,
         isGameCenterAuthenticated: Bool,
         onRequestGameCenterSignIn: ((GameCenterSignInPromptReason) -> Void)?,
+        onSelectNextDungeonFloor: (() -> Void)?,
+        onSelectDungeonRewardMoveCard: ((MoveCard) -> Void)? = nil,
         onRetry: @escaping () -> Void,
         onReturnToTitle: (() -> Void)?,
         gameCenterService: GameCenterServiceProtocol,
@@ -222,9 +346,13 @@ struct ResultActionSection: View {
         self.presentation = presentation
         self.modeIdentifier = modeIdentifier
         self.modeDisplayName = modeDisplayName
+        self.nextDungeonFloorTitle = nextDungeonFloorTitle
+        self.dungeonRewardMoveCards = dungeonRewardMoveCards
         self.showsLeaderboardButton = showsLeaderboardButton
         self.isGameCenterAuthenticated = isGameCenterAuthenticated
         self.onRequestGameCenterSignIn = onRequestGameCenterSignIn
+        self.onSelectNextDungeonFloor = onSelectNextDungeonFloor
+        self.onSelectDungeonRewardMoveCard = onSelectDungeonRewardMoveCard
         self.onRetry = onRetry
         self.onReturnToTitle = onReturnToTitle
         self.gameCenterService = gameCenterService

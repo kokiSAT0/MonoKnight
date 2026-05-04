@@ -15,6 +15,26 @@ struct ResultView: View {
     let focusCount: Int
     /// 目的地制のリザルトかどうか
     let usesTargetCollection: Bool
+    /// 出口到達型ダンジョンのリザルトかどうか
+    let usesDungeonExit: Bool
+    /// 失敗リザルトかどうか
+    let isFailed: Bool
+    /// 失敗理由
+    let failureReason: String?
+    /// ダンジョン残 HP
+    let dungeonHP: Int?
+    /// ダンジョン残り手数
+    let remainingDungeonTurns: Int?
+    /// ダンジョンランの階層表示
+    let dungeonRunFloorText: String?
+    /// ダンジョンランの累計移動手数
+    let dungeonRunTotalMoveCount: Int?
+    /// 次のダンジョンフロア名
+    let nextDungeonFloorTitle: String?
+    /// 次階へ進む前に選べる報酬カード
+    let dungeonRewardMoveCards: [MoveCard]
+    /// リザルト時点で残っている塔所持カード
+    let dungeonInventoryEntries: [DungeonInventoryEntry]
 
     /// クリアまでに要した秒数
     let elapsedSeconds: Int
@@ -36,6 +56,10 @@ struct ResultView: View {
     let nextCampaignStage: CampaignStage?
     /// 次のステージへ直接移動するためのクロージャ
     let onSelectCampaignStage: ((CampaignStage) -> Void)?
+    /// 次のダンジョンフロアへ直接移動するためのクロージャ
+    let onSelectNextDungeonFloor: (() -> Void)?
+    /// ダンジョン報酬カードを選んで次階へ進むためのクロージャ
+    let onSelectDungeonRewardMoveCard: ((MoveCard) -> Void)?
     /// 再戦処理を外部から受け取るクロージャ
     let onRetry: () -> Void
     /// ホームへ戻る操作を外部へ依頼するクロージャ（未指定の場合はボタンを表示しない）
@@ -63,6 +87,16 @@ struct ResultView: View {
         penaltyCount: Int,
         focusCount: Int = 0,
         usesTargetCollection: Bool = false,
+        usesDungeonExit: Bool = false,
+        isFailed: Bool = false,
+        failureReason: String? = nil,
+        dungeonHP: Int? = nil,
+        remainingDungeonTurns: Int? = nil,
+        dungeonRunFloorText: String? = nil,
+        dungeonRunTotalMoveCount: Int? = nil,
+        nextDungeonFloorTitle: String? = nil,
+        dungeonRewardMoveCards: [MoveCard] = [],
+        dungeonInventoryEntries: [DungeonInventoryEntry] = [],
         elapsedSeconds: Int,
         modeIdentifier: GameMode.Identifier,
         modeDisplayName: String,
@@ -72,6 +106,8 @@ struct ResultView: View {
         campaignClearRecord: CampaignStageClearRecord? = nil,
         nextCampaignStage: CampaignStage? = nil,
         onSelectCampaignStage: ((CampaignStage) -> Void)? = nil,
+        onSelectNextDungeonFloor: (() -> Void)? = nil,
+        onSelectDungeonRewardMoveCard: ((MoveCard) -> Void)? = nil,
         onRetry: @escaping () -> Void,
         onReturnToTitle: (() -> Void)? = nil
     ) {
@@ -82,6 +118,16 @@ struct ResultView: View {
             penaltyCount: penaltyCount,
             focusCount: focusCount,
             usesTargetCollection: usesTargetCollection,
+            usesDungeonExit: usesDungeonExit,
+            isFailed: isFailed,
+            failureReason: failureReason,
+            dungeonHP: dungeonHP,
+            remainingDungeonTurns: remainingDungeonTurns,
+            dungeonRunFloorText: dungeonRunFloorText,
+            dungeonRunTotalMoveCount: dungeonRunTotalMoveCount,
+            nextDungeonFloorTitle: nextDungeonFloorTitle,
+            dungeonRewardMoveCards: dungeonRewardMoveCards,
+            dungeonInventoryEntries: dungeonInventoryEntries,
             elapsedSeconds: elapsedSeconds,
             modeIdentifier: modeIdentifier,
             modeDisplayName: modeDisplayName,
@@ -91,6 +137,8 @@ struct ResultView: View {
             campaignClearRecord: campaignClearRecord,
             nextCampaignStage: nextCampaignStage,
             onSelectCampaignStage: onSelectCampaignStage,
+            onSelectNextDungeonFloor: onSelectNextDungeonFloor,
+            onSelectDungeonRewardMoveCard: onSelectDungeonRewardMoveCard,
             onRetry: onRetry,
             onReturnToTitle: onReturnToTitle,
             gameCenterService: GameCenterService.shared,
@@ -103,6 +151,16 @@ struct ResultView: View {
         penaltyCount: Int,
         focusCount: Int = 0,
         usesTargetCollection: Bool = false,
+        usesDungeonExit: Bool = false,
+        isFailed: Bool = false,
+        failureReason: String? = nil,
+        dungeonHP: Int? = nil,
+        remainingDungeonTurns: Int? = nil,
+        dungeonRunFloorText: String? = nil,
+        dungeonRunTotalMoveCount: Int? = nil,
+        nextDungeonFloorTitle: String? = nil,
+        dungeonRewardMoveCards: [MoveCard] = [],
+        dungeonInventoryEntries: [DungeonInventoryEntry] = [],
         elapsedSeconds: Int,
         modeIdentifier: GameMode.Identifier,
         modeDisplayName: String,
@@ -112,6 +170,8 @@ struct ResultView: View {
         campaignClearRecord: CampaignStageClearRecord? = nil,
         nextCampaignStage: CampaignStage? = nil,
         onSelectCampaignStage: ((CampaignStage) -> Void)? = nil,
+        onSelectNextDungeonFloor: (() -> Void)? = nil,
+        onSelectDungeonRewardMoveCard: ((MoveCard) -> Void)? = nil,
         onRetry: @escaping () -> Void,
         onReturnToTitle: (() -> Void)? = nil,
 
@@ -131,6 +191,16 @@ struct ResultView: View {
         self.penaltyCount = penaltyCount
         self.focusCount = focusCount
         self.usesTargetCollection = usesTargetCollection
+        self.usesDungeonExit = usesDungeonExit
+        self.isFailed = isFailed
+        self.failureReason = failureReason
+        self.dungeonHP = dungeonHP
+        self.remainingDungeonTurns = remainingDungeonTurns
+        self.dungeonRunFloorText = dungeonRunFloorText
+        self.dungeonRunTotalMoveCount = dungeonRunTotalMoveCount
+        self.nextDungeonFloorTitle = nextDungeonFloorTitle
+        self.dungeonRewardMoveCards = dungeonRewardMoveCards
+        self.dungeonInventoryEntries = dungeonInventoryEntries
         self.elapsedSeconds = elapsedSeconds
         self.modeIdentifier = modeIdentifier
         self.modeDisplayName = modeDisplayName
@@ -140,6 +210,8 @@ struct ResultView: View {
         self.campaignClearRecord = campaignClearRecord
         self.nextCampaignStage = nextCampaignStage
         self.onSelectCampaignStage = onSelectCampaignStage
+        self.onSelectNextDungeonFloor = onSelectNextDungeonFloor
+        self.onSelectDungeonRewardMoveCard = onSelectDungeonRewardMoveCard
         self.onRetry = onRetry
         self.onReturnToTitle = onReturnToTitle
         self.gameCenterService = resolvedGameCenterService
@@ -164,9 +236,13 @@ struct ResultView: View {
                     presentation: summaryPresentation,
                     modeIdentifier: modeIdentifier,
                     modeDisplayName: modeDisplayName,
+                    nextDungeonFloorTitle: nextDungeonFloorTitle,
+                    dungeonRewardMoveCards: dungeonRewardMoveCards,
                     showsLeaderboardButton: showsLeaderboardButton,
                     isGameCenterAuthenticated: isGameCenterAuthenticated,
                     onRequestGameCenterSignIn: onRequestGameCenterSignIn,
+                    onSelectNextDungeonFloor: onSelectNextDungeonFloor,
+                    onSelectDungeonRewardMoveCard: onSelectDungeonRewardMoveCard,
                     onRetry: onRetry,
                     onReturnToTitle: onReturnToTitle,
                     gameCenterService: gameCenterService,
@@ -209,6 +285,16 @@ struct ResultView: View {
             penaltyCount: penaltyCount,
             focusCount: focusCount,
             usesTargetCollection: usesTargetCollection,
+            usesDungeonExit: usesDungeonExit,
+            isFailed: isFailed,
+            failureReason: failureReason,
+            dungeonHP: dungeonHP,
+            remainingDungeonTurns: remainingDungeonTurns,
+            dungeonRunFloorText: dungeonRunFloorText,
+            dungeonRunTotalMoveCount: dungeonRunTotalMoveCount,
+            dungeonRewardMoveCards: dungeonRewardMoveCards,
+            dungeonInventoryEntries: dungeonInventoryEntries,
+            hasNextDungeonFloor: nextDungeonFloorTitle != nil,
             elapsedSeconds: elapsedSeconds,
             bestPoints: gameSettingsStore.bestPoints,
             isNewBest: viewState.isNewBest,

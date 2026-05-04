@@ -9,11 +9,18 @@
         private var latestMultiStepPathPoints: Set<GridPoint> = []
         private var latestMultiStepGuidePoints: Set<GridPoint> = []
         private var latestWarpGuidePoints: Set<GridPoint> = []
+        private var latestDungeonBasicMovePoints: Set<GridPoint> = []
         private var latestTargetApproachPoints: Set<GridPoint> = []
         private var latestTargetCapturePoints: Set<GridPoint> = []
         private var latestForcedSelectionPoints: Set<GridPoint> = []
         private var latestCurrentTargetPoints: Set<GridPoint> = []
         private var latestUpcomingTargetPoints: Set<GridPoint> = []
+        private var latestDungeonExitPoints: Set<GridPoint> = []
+        private var latestDungeonEnemyPoints: Set<GridPoint> = []
+        private var latestDungeonDangerPoints: Set<GridPoint> = []
+        private var latestDungeonCardPickupPoints: Set<GridPoint> = []
+        private var latestDungeonCrackedFloorPoints: Set<GridPoint> = []
+        private var latestDungeonCollapsedFloorPoints: Set<GridPoint> = []
         private var pendingHighlightPoints: [BoardHighlightKind: Set<GridPoint>] = [:]
 
         init() {
@@ -32,11 +39,18 @@
             latestMultiStepPathPoints = []
             latestMultiStepGuidePoints = []
             latestWarpGuidePoints = []
+            latestDungeonBasicMovePoints = []
             latestTargetApproachPoints = []
             latestTargetCapturePoints = []
             latestForcedSelectionPoints = []
             latestCurrentTargetPoints = []
             latestUpcomingTargetPoints = []
+            latestDungeonExitPoints = []
+            latestDungeonEnemyPoints = []
+            latestDungeonDangerPoints = []
+            latestDungeonCardPickupPoints = []
+            latestDungeonCrackedFloorPoints = []
+            latestDungeonCollapsedFloorPoints = []
             pendingHighlightPoints = Dictionary(
                 uniqueKeysWithValues: BoardHighlightKind.allCases.map { ($0, []) }
             )
@@ -55,7 +69,11 @@
                 let requestedPoints = highlights[kind] ?? []
                 let validPoints = Set(
                     requestedPoints.filter { point in
-                        board.contains(point) && board.isTraversable(point)
+                        guard board.contains(point) else { return false }
+                        if kind == .dungeonCollapsedFloor {
+                            return true
+                        }
+                        return board.isTraversable(point)
                     }
                 )
                 sanitized[kind] = validPoints
@@ -130,11 +148,18 @@
                     .guideMultiStepPath: latestMultiStepPathPoints,
                     .guideMultiStepCandidate: latestMultiStepGuidePoints,
                     .guideWarpCandidate: latestWarpGuidePoints,
+                    .dungeonBasicMove: latestDungeonBasicMovePoints,
                     .targetApproachCandidate: latestTargetApproachPoints,
                     .targetCaptureCandidate: latestTargetCapturePoints,
                     .forcedSelection: latestForcedSelectionPoints,
                     .currentTarget: latestCurrentTargetPoints,
                     .upcomingTarget: latestUpcomingTargetPoints,
+                    .dungeonExit: latestDungeonExitPoints,
+                    .dungeonEnemy: latestDungeonEnemyPoints,
+                    .dungeonDanger: latestDungeonDangerPoints,
+                    .dungeonCardPickup: latestDungeonCardPickupPoints,
+                    .dungeonCrackedFloor: latestDungeonCrackedFloorPoints,
+                    .dungeonCollapsedFloor: latestDungeonCollapsedFloorPoints,
                 ]
                 let hasLatestValues = latestSnapshot.values.contains { !$0.isEmpty }
                 if hasLatestValues {
@@ -164,11 +189,18 @@
             latestMultiStepPathPoints = highlights[.guideMultiStepPath] ?? []
             latestMultiStepGuidePoints = highlights[.guideMultiStepCandidate] ?? []
             latestWarpGuidePoints = highlights[.guideWarpCandidate] ?? []
+            latestDungeonBasicMovePoints = highlights[.dungeonBasicMove] ?? []
             latestTargetApproachPoints = highlights[.targetApproachCandidate] ?? []
             latestTargetCapturePoints = highlights[.targetCaptureCandidate] ?? []
             latestForcedSelectionPoints = highlights[.forcedSelection] ?? []
             latestCurrentTargetPoints = highlights[.currentTarget] ?? []
             latestUpcomingTargetPoints = highlights[.upcomingTarget] ?? []
+            latestDungeonExitPoints = highlights[.dungeonExit] ?? []
+            latestDungeonEnemyPoints = highlights[.dungeonEnemy] ?? []
+            latestDungeonDangerPoints = highlights[.dungeonDanger] ?? []
+            latestDungeonCardPickupPoints = highlights[.dungeonCardPickup] ?? []
+            latestDungeonCrackedFloorPoints = highlights[.dungeonCrackedFloor] ?? []
+            latestDungeonCollapsedFloorPoints = highlights[.dungeonCollapsedFloor] ?? []
         }
 
         private func applyHighlightsImmediately(
@@ -309,6 +341,13 @@
                     overlapInset = max(overlapInset, strokeWidth * 1.2)
                 }
                 zPosition = 1.06
+            case .dungeonBasicMove:
+                baseColor = palette.boardTileVisited
+                strokeAlpha = 0.55
+                strokeWidth = max(layout.tileSize * 0.035, 1.5)
+                fillColor = baseColor.withAlphaComponent(0.08)
+                overlapInset = max(layout.tileSize * 0.20, strokeWidth * 2.0)
+                zPosition = 0.94
             case .targetApproachCandidate:
                 baseColor = palette.boardGuideHighlight
                 strokeAlpha = 0.95
@@ -341,6 +380,42 @@
                 strokeWidth = 0
                 fillColor = baseColor.withAlphaComponent(0.94)
                 zPosition = 1.12
+            case .dungeonExit:
+                baseColor = palette.boardWarpHighlight
+                strokeAlpha = 0.98
+                strokeWidth = max(layout.tileSize * 0.065, 2.4)
+                fillColor = baseColor.withAlphaComponent(0.20)
+                zPosition = 1.18
+            case .dungeonEnemy:
+                baseColor = SKColor(red: 0.86, green: 0.18, blue: 0.16, alpha: 1.0)
+                strokeAlpha = 0.95
+                strokeWidth = max(layout.tileSize * 0.055, 2.2)
+                fillColor = baseColor.withAlphaComponent(0.32)
+                zPosition = 1.17
+            case .dungeonDanger:
+                baseColor = SKColor(red: 0.90, green: 0.16, blue: 0.12, alpha: 1.0)
+                strokeAlpha = 0
+                strokeWidth = 0
+                fillColor = baseColor.withAlphaComponent(0.16)
+                zPosition = 1.05
+            case .dungeonCardPickup:
+                baseColor = SKColor(red: 0.10, green: 0.62, blue: 0.52, alpha: 1.0)
+                strokeAlpha = 0.96
+                strokeWidth = max(layout.tileSize * 0.050, 2.0)
+                fillColor = baseColor.withAlphaComponent(0.24)
+                zPosition = 1.14
+            case .dungeonCrackedFloor:
+                baseColor = SKColor(red: 0.95, green: 0.60, blue: 0.12, alpha: 1.0)
+                strokeAlpha = 0.92
+                strokeWidth = max(layout.tileSize * 0.045, 2.0)
+                fillColor = baseColor.withAlphaComponent(0.18)
+                zPosition = 1.07
+            case .dungeonCollapsedFloor:
+                baseColor = SKColor(red: 0.20, green: 0.22, blue: 0.24, alpha: 1.0)
+                strokeAlpha = 0.98
+                strokeWidth = max(layout.tileSize * 0.045, 2.0)
+                fillColor = baseColor.withAlphaComponent(0.58)
+                zPosition = 1.09
             }
 
             let adjustedRect = baseRect.insetBy(
@@ -361,7 +436,11 @@
             node.lineCap = .square
             node.position = layout.position(for: point)
             node.zPosition = zPosition
-            node.isAntialiased = kind == .currentTarget || kind == .upcomingTarget
+            node.isAntialiased = kind == .currentTarget
+                || kind == .upcomingTarget
+                || kind == .dungeonExit
+                || kind == .dungeonEnemy
+                || kind == .dungeonCardPickup
             node.blendMode = .alpha
         }
 
@@ -371,13 +450,13 @@
             tileSize: CGFloat
         ) -> CGPath {
             switch kind {
-            case .currentTarget:
+            case .currentTarget, .dungeonExit:
                 return targetMarkerPath(
                     center: CGPoint(x: rect.midX, y: rect.midY),
                     tileSize: tileSize,
                     scale: 1.0
                 )
-            case .upcomingTarget:
+            case .upcomingTarget, .dungeonEnemy:
                 return targetMarkerPath(
                     center: CGPoint(x: rect.midX, y: rect.midY),
                     tileSize: tileSize,
@@ -388,9 +467,14 @@
                  .guideMultiStepPath,
                  .guideMultiStepCandidate,
                  .guideWarpCandidate,
+                 .dungeonBasicMove,
                  .targetApproachCandidate,
                  .targetCaptureCandidate,
-                 .forcedSelection:
+                 .forcedSelection,
+                 .dungeonDanger,
+                 .dungeonCardPickup,
+                 .dungeonCrackedFloor,
+                 .dungeonCollapsedFloor:
                 return CGPath(rect: rect, transform: nil)
             }
         }

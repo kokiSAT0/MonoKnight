@@ -26,6 +26,7 @@
 ## 3. 補助ドキュメント
 
 - キャンペーン規定: [`campaign-stage-regulations.md`](campaign-stage-regulations.md)
+- 塔ダンジョン開発方針: [`dungeon-development-roadmap.md`](dungeon-development-roadmap.md)
 - GameMode パラメータ: [`game-mode-parameters.md`](game-mode-parameters.md)
 - カード重み調整: [`card-weight-adjustment-guide.md`](card-weight-adjustment-guide.md)
 - ATT / UMP 詳細: [`att-ump-consent-flow.md`](att-ump-consent-flow.md)
@@ -48,3 +49,6 @@
 - 任意の全引き直しは廃止し、フォーカスを使う。
 - ランキング対象の目的地制スコアは `移動手数 × 10 + 所要秒数 + フォーカス回数 × 15` とし、Game Center へも同じ式を送信する。
 - キャンペーンスター評価は `目的地獲得数 × 100 - 移動手数 × 10 - フォーカス回数 × 15` の加点式とし、時間は含めない。
+- 新キャンペーンは塔ダンジョン型へ刷新する。各フロアは出口到達でクリアし、HP 0 または残り手数 0 で失敗する。
+- 旧目的地制キャンペーンは移行元として保持し、新規キャンペーン設計は `DungeonDefinition` / `DungeonLibrary` を優先する。
+- 当面は基礎塔の手触り固め、低難度塔追加、永続成長、報酬拡張、高難度ローグライクの順で育てる。

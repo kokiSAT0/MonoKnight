@@ -12,6 +12,7 @@ struct GameCoreBindingCoordinator {
         onPenaltyEvent: @escaping (PenaltyEvent) -> Void,
         onHandStacksChange: @escaping ([HandStack]) -> Void,
         onBoardTapPlayRequest: @escaping (BoardTapPlayRequest) -> Void,
+        onBoardTapBasicMoveRequest: @escaping (BoardTapBasicMoveRequest) -> Void,
         onSpawnSelectionWarning: @escaping (SpawnSelectionWarning) -> Void,
         onProgressChange: @escaping (GameProgress) -> Void,
         onElapsedTimeChange: @escaping () -> Void
@@ -37,6 +38,14 @@ struct GameCoreBindingCoordinator {
             .sink { request in
                 guard let request else { return }
                 onBoardTapPlayRequest(request)
+            }
+            .store(in: &cancellables)
+
+        core.$boardTapBasicMoveRequest
+            .receive(on: RunLoop.main)
+            .sink { request in
+                guard let request else { return }
+                onBoardTapBasicMoveRequest(request)
             }
             .store(in: &cancellables)
 
@@ -79,6 +88,17 @@ struct GameCoreBindingCoordinator {
 
         if progress != .playing {
             clearSelectedCardSelection()
+        }
+
+        if progress == .failed {
+            applyClearOutcome(
+                GameFlowCoordinator.ClearOutcome(
+                    latestCampaignClearRecord: nil,
+                    nextCampaignStage: nil,
+                    shouldShowResult: true
+                )
+            )
+            return
         }
 
         guard progress == .cleared, let outcome = resolveClearOutcome() else { return }
@@ -263,7 +283,7 @@ final class GamePauseController {
     private(set) var isTimerPausedForPreparationOverlay = false
 
     func supportsTimerPausing(for mode: GameMode) -> Bool {
-        !mode.isLeaderboardEligible && mode.campaignMetadataSnapshot != nil
+        !mode.isLeaderboardEligible && (mode.campaignMetadataSnapshot != nil || mode.usesDungeonExit)
     }
 
     func reset() {

@@ -337,6 +337,43 @@ struct GameInputFlowCoordinator {
         }
     }
 
+    func handleBoardTapBasicMoveRequest(
+        _ request: BoardTapBasicMoveRequest,
+        core: GameCore,
+        boardBridge: GameBoardBridgeViewModel,
+        sessionState: inout GameSessionState,
+        selectedHandStackID: inout UUID?
+    ) {
+        defer { core.clearBoardTapBasicMoveRequest(request.id) }
+        guard boardBridge.animatingCard == nil else { return }
+
+        guard !sessionState.hasSelection else {
+            let matchingMoves = sessionState.matchingMoves(in: core)
+            if matchingMoves.isEmpty {
+                clearSelectedCardSelection(
+                    sessionState: &sessionState,
+                    boardBridge: boardBridge,
+                    selectedHandStackID: &selectedHandStackID
+                )
+            } else {
+                sessionState.applyHighlights(
+                    core: core,
+                    boardBridge: boardBridge,
+                    using: matchingMoves,
+                    selectedHandStackID: &selectedHandStackID
+                )
+            }
+            return
+        }
+
+        clearSelectedCardSelection(
+            sessionState: &sessionState,
+            boardBridge: boardBridge,
+            selectedHandStackID: &selectedHandStackID
+        )
+        core.playBasicOrthogonalMove(using: request.move)
+    }
+
     func refreshSelectionIfNeeded(
         with handStacks: [HandStack],
         core: GameCore,
