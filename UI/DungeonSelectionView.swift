@@ -7,7 +7,7 @@ struct DungeonSelectionView: View {
     let dungeonLibrary: DungeonLibrary
     @ObservedObject var dungeonGrowthStore: DungeonGrowthStore
     let onClose: () -> Void
-    let onStartDungeon: (DungeonDefinition) -> Void
+    let onStartDungeon: (DungeonDefinition, Int) -> Void
 
     private let theme = AppTheme()
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -149,19 +149,23 @@ struct DungeonSelectionView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            Button {
-                onStartDungeon(dungeon)
-            } label: {
-                Label("1Fから開始", systemImage: "figure.stairs")
-                    .font(.system(size: 16, weight: .semibold, design: .rounded))
-                    .frame(maxWidth: .infinity)
+            VStack(spacing: 8) {
+                ForEach(startFloorNumbers(for: dungeon), id: \.self) { floorNumber in
+                    Button {
+                        onStartDungeon(dungeon, floorNumber - 1)
+                    } label: {
+                        Label("\(floorNumber)Fから開始", systemImage: floorNumber == 1 ? "figure.stairs" : "flag.checkered")
+                            .font(.system(size: 16, weight: .semibold, design: .rounded))
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(theme.accentPrimary)
+                    .foregroundColor(theme.accentOnPrimary)
+                    .controlSize(.large)
+                    .accessibilityIdentifier("dungeon_start_button_\(dungeon.id)_\(floorNumber)f")
+                    .accessibilityHint("この塔を\(floorNumber)階から連続で開始します")
+                }
             }
-            .buttonStyle(.borderedProminent)
-            .tint(theme.accentPrimary)
-            .foregroundColor(theme.accentOnPrimary)
-            .controlSize(.large)
-            .accessibilityIdentifier("dungeon_start_button_\(dungeon.id)")
-            .accessibilityHint("この塔を1階から連続で開始します")
 
             VStack(spacing: 10) {
                 ForEach(Array(dungeon.floors.enumerated()), id: \.element.id) { index, floor in
@@ -275,6 +279,11 @@ struct DungeonSelectionView: View {
         case .roguelike:
             return "高難度"
         }
+    }
+
+    @MainActor
+    private func startFloorNumbers(for dungeon: DungeonDefinition) -> [Int] {
+        dungeonGrowthStore.availableGrowthStartFloorNumbers(for: dungeon)
     }
 
     private var contentMaxWidth: CGFloat? {

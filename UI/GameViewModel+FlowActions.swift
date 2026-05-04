@@ -160,13 +160,14 @@ extension GameViewModel {
         else { return nil }
 
         let nextIndex = runState.currentFloorIndex + 1
-        guard dungeon.floors.indices.contains(nextIndex) else { return nil }
+        guard dungeon.canAdvanceWithinRun(afterFloorIndex: runState.currentFloorIndex) else { return nil }
 
         let nextRunState = runState.advancedToNextFloor(
             carryoverHP: core.dungeonHP,
             currentFloorMoveCount: core.moveCount,
             rewardSelection: rewardSelection,
-            currentInventoryEntries: core.dungeonInventoryEntries
+            currentInventoryEntries: core.dungeonInventoryEntries,
+            rewardAddUses: dungeonGrowthStore.rewardAddUses(for: dungeon)
         )
         let nextFloor = dungeon.floors[nextIndex]
         return nextFloor.makeGameMode(
@@ -182,9 +183,21 @@ extension GameViewModel {
               let dungeon = DungeonLibrary.shared.dungeon(with: metadata.dungeonID)
         else { return nil }
 
-        return DungeonLibrary.shared.firstFloorMode(
+        let restartFloorIndex = metadata.runState?.currentFloorIndex ?? 0
+        let sectionStartFloorIndex = dungeon.difficulty == .growth
+            ? (restartFloorIndex / 10) * 10
+            : 0
+        return DungeonLibrary.shared.floorMode(
             for: dungeon,
-            initialHPBonus: dungeonGrowthStore.initialHPBonus(for: dungeon)
+            floorIndex: sectionStartFloorIndex,
+            initialHPBonus: dungeonGrowthStore.initialHPBonus(
+                for: dungeon,
+                startingFloorIndex: sectionStartFloorIndex
+            ),
+            startingRewardEntries: dungeonGrowthStore.startingRewardEntries(
+                for: dungeon,
+                startingFloorIndex: sectionStartFloorIndex
+            )
         )
     }
 

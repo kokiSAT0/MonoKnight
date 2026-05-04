@@ -2,22 +2,17 @@ import XCTest
 import Game
 @testable import MonoKnightApp
 
+/// 旧目的地制キャンペーンの結果導線は凍結中のため、表示モデルが壊れない最低限だけ確認する。
 final class CampaignRewardNavigationPresentationTests: XCTestCase {
-    func testNextStagePresentationUsesSingleSequentialCallToAction() throws {
-        let stage = try XCTUnwrap(CampaignLibrary.shared.stage(with: CampaignStageID(chapter: 2, index: 1)))
-
+    func testLegacyCampaignRewardNavigationPresentationStillFormats() throws {
+        let stage = try XCTUnwrap(CampaignLibrary.shared.allStages.first)
         let presentation = CampaignRewardNavigationPresentation(nextCampaignStage: stage)
+        let finalPresentation = CampaignRewardNavigationPresentation(nextCampaignStage: nil)
 
-        XCTAssertEqual(presentation.title, "次のステージ")
-        XCTAssertEqual(presentation.buttonTitle, "次へ: 2-1")
+        XCTAssertFalse(presentation.title.isEmpty)
+        XCTAssertNotNil(presentation.buttonTitle)
         XCTAssertEqual(presentation.stage?.id, stage.id)
-    }
-
-    func testFinalStagePresentationOmitsNextStageButton() {
-        let presentation = CampaignRewardNavigationPresentation(nextCampaignStage: nil)
-
-        XCTAssertEqual(presentation.title, "キャンペーン完走")
-        XCTAssertNil(presentation.buttonTitle)
-        XCTAssertNil(presentation.stage)
+        XCTAssertFalse(finalPresentation.title.isEmpty)
+        XCTAssertNil(finalPresentation.buttonTitle)
     }
 }

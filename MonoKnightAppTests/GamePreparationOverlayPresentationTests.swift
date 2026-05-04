@@ -3,26 +3,17 @@ import Game
 @testable import MonoKnightApp
 
 final class GamePreparationOverlayPresentationTests: XCTestCase {
-    func testCampaignPreparationPrioritizesFeatureSpotlight() throws {
-        let stage = try XCTUnwrap(CampaignLibrary.shared.stage(with: CampaignStageID(chapter: 1, index: 1)))
+    func testLegacyCampaignPreparationStillFormats() throws {
+        let stage = try XCTUnwrap(CampaignLibrary.shared.allStages.first)
         let presentation = GamePreparationOverlayPresentation(
             mode: stage.makeGameMode(),
             campaignStage: stage
         )
 
-        XCTAssertEqual(presentation.primaryObjectiveText, "目的地を 3 個取ればクリア")
-        XCTAssertEqual(presentation.clearConditionText, "クリア: 目的地 3 個")
-        XCTAssertEqual(
-            presentation.shortRuleSummaryText,
-            "目的地を取るほど加点。手数とフォーカスは控えめに。"
-        )
-        XCTAssertEqual(presentation.detailsTitle, "スター条件・記録を見る")
-        XCTAssertTrue(presentation.prioritizesFeatureSpotlight)
-        XCTAssertEqual(
-            presentation.featuredChips.map(\.displayText),
-            ["NEW 王将カード"]
-        )
-        XCTAssertFalse(presentation.featureChips.contains { $0.label == "目的地集め" })
+        XCTAssertFalse(presentation.primaryObjectiveText.isEmpty)
+        XCTAssertFalse(presentation.clearConditionText.isEmpty)
+        XCTAssertFalse(presentation.shortRuleSummaryText.isEmpty)
+        XCTAssertFalse(presentation.detailsTitle.isEmpty)
     }
 
     func testNonCampaignPreparationUsesRuleDetailDisclosure() {
@@ -63,38 +54,4 @@ final class GamePreparationOverlayPresentationTests: XCTestCase {
         XCTAssertFalse(presentation.detailsTitle.contains("スター"))
     }
 
-    func testCampaignPreparationHighlightsNewEarlyChoiceCards() throws {
-        let stage = try XCTUnwrap(CampaignLibrary.shared.stage(with: CampaignStageID(chapter: 2, index: 1)))
-        let presentation = GamePreparationOverlayPresentation(
-            mode: stage.makeGameMode(),
-            campaignStage: stage
-        )
-
-        XCTAssertTrue(presentation.featureChips.contains(.init(label: "選択カード", isNew: true)))
-        XCTAssertEqual(presentation.featuredChips.first, .init(label: "選択カード", isNew: true))
-    }
-
-    func testCampaignPreparationHighlightsNewFreeFocusTile() throws {
-        let stage = try XCTUnwrap(CampaignLibrary.shared.stage(with: CampaignStageID(chapter: 2, index: 2)))
-        let presentation = GamePreparationOverlayPresentation(
-            mode: stage.makeGameMode(),
-            campaignStage: stage
-        )
-
-        XCTAssertTrue(presentation.featureChips.contains(.init(label: "開始位置選び", isNew: false)))
-        XCTAssertTrue(presentation.featureChips.contains(.init(label: "無料フォーカス", isNew: true)))
-        XCTAssertEqual(presentation.featuredChips.first, .init(label: "無料フォーカス", isNew: true))
-    }
-
-    func testCampaignPreparationKeepsFeatureSpotlightWithoutNewElements() throws {
-        let stage = try XCTUnwrap(CampaignLibrary.shared.stage(with: CampaignStageID(chapter: 2, index: 6)))
-        let presentation = GamePreparationOverlayPresentation(
-            mode: stage.makeGameMode(),
-            campaignStage: stage
-        )
-
-        XCTAssertTrue(presentation.prioritizesFeatureSpotlight)
-        XCTAssertFalse(presentation.featuredChips.isEmpty)
-        XCTAssertFalse(presentation.featuredChips.contains { $0.isNew })
-    }
 }

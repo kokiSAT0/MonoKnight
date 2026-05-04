@@ -329,10 +329,18 @@ struct TitleScreenView: View {
                     dungeonLibrary: dungeonLibrary,
                     dungeonGrowthStore: dungeonGrowthStore,
                     onClose: { popNavigationStack() },
-                    onStartDungeon: { dungeon in
-                        guard let mode = dungeonLibrary.firstFloorMode(
+                    onStartDungeon: { dungeon, floorIndex in
+                        guard let mode = dungeonLibrary.floorMode(
                             for: dungeon,
-                            initialHPBonus: dungeonGrowthStore.initialHPBonus(for: dungeon)
+                            floorIndex: floorIndex,
+                            initialHPBonus: dungeonGrowthStore.initialHPBonus(
+                                for: dungeon,
+                                startingFloorIndex: floorIndex
+                            ),
+                            startingRewardEntries: dungeonGrowthStore.startingRewardEntries(
+                                for: dungeon,
+                                startingFloorIndex: floorIndex
+                            )
                         ) else { return }
                         let context: StartTriggerContext = .campaignStageSelection
                         debugLog(

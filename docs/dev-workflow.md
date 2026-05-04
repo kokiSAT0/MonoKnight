@@ -82,6 +82,10 @@ UI や外部連携を含む変更は、必要に応じて限定 app test、Xcode
 UI テストは実行時間と状態依存が大きいため、必要なケースだけ個別に実行する。
 重い全体 `xcodebuild test` は既定では実行せず、必要なテストだけ `app-test` で個別指定する。
 
+塔ダンジョンをメイン開発対象とし、標準検証は「塔攻略本線 + 旧モード最小互換」に寄せる。
+新規テストは原則として `DungeonModeTests`、`DungeonGrowthStoreTests`、`DungeonSelectionViewTests`、`GameViewModelTests` の塔文脈へ追加する。
+スタンダード、Daily、Target Lab、クラシカル、旧目的地制キャンペーンは凍結コンテンツとして扱い、詳細な品質保証テストは増やさず、ロード、保存互換、ID 変換、クラッシュ回避の smoke test に留める。
+
 安全検証スクリプトは Xcode 系コマンドの並列数、診断収集、DerivedData 出力先を抑える。
 空きディスク容量が少ない場合は、シミュレーターや Xcode を使う重い検証を中止する。
 

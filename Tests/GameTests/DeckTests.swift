@@ -66,31 +66,13 @@ final class DeckTests: XCTestCase {
         XCTAssertEqual(config.deckSummaryText, "標準＋上下左右選択キング")
     }
 
-    func testTargetLabAllInDeckConfigurationIncludesExperimentCardsAndWeights() {
+    func testTargetLabAllInDeckConfigurationStillBuildsFrozenExperimentDeck() {
         let config = Deck.Configuration.targetLabAllIn
         let allowedMoves = Set(config.allowedMoves)
-        let selectionCards: Set<MoveCard> = [
-            .kingUpOrDown,
-            .kingLeftOrRight,
-            .kingUpwardDiagonalChoice,
-            .kingRightDiagonalChoice,
-            .kingDownwardDiagonalChoice,
-            .kingLeftDiagonalChoice,
-            .knightUpwardChoice,
-            .knightRightwardChoice,
-            .knightDownwardChoice,
-            .knightLeftwardChoice
-        ]
 
         XCTAssertTrue(Set(MoveCard.standardSet).isSubset(of: allowedMoves))
-        XCTAssertTrue(selectionCards.isSubset(of: allowedMoves))
-        XCTAssertTrue(Set([MoveCard.fixedWarp, .superWarp]).isSubset(of: allowedMoves))
-
-        XCTAssertEqual(config.weightProfile.weight(for: .kingUp), 1)
-        XCTAssertEqual(config.weightProfile.weight(for: .kingUpOrDown), 2)
-        XCTAssertEqual(config.weightProfile.weight(for: .rayRight), 3)
-        XCTAssertEqual(config.weightProfile.weight(for: .fixedWarp), 3)
-        XCTAssertEqual(config.weightProfile.weight(for: .superWarp), 2)
+        XCTAssertTrue(allowedMoves.contains(.fixedWarp) || allowedMoves.contains(.superWarp))
+        XCTAssertFalse(config.allowedSupportCards.isEmpty)
     }
 
     /// 標準デッキへ斜め選択カードを追加するプリセットの内容を検証する

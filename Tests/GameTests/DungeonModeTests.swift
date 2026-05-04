@@ -398,16 +398,16 @@ final class DungeonModeTests: XCTestCase {
         let rogueTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "rogue-tower"))
 
         XCTAssertEqual(tutorialTower.floors.map(\.boardSize), [5, 5, 5])
-        XCTAssertEqual(growthTower.floors.map(\.boardSize), Array(repeating: 9, count: 9))
+        XCTAssertEqual(growthTower.floors.map(\.boardSize), Array(repeating: 9, count: 20))
         XCTAssertEqual(rogueTower.floors.map(\.boardSize), [9, 9, 9])
     }
 
-    func testGrowthTowerIntegratesNineProgressiveFloors() throws {
+    func testGrowthTowerIntegratesTwentyProgressiveFloors() throws {
         let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
 
         XCTAssertEqual(tower.title, "成長塔")
         XCTAssertEqual(tower.difficulty, .growth)
-        XCTAssertEqual(tower.floors.count, 9)
+        XCTAssertEqual(tower.floors.count, 20)
         XCTAssertEqual(tower.floors.map(\.title), [
             "巡回の間",
             "鍵の小部屋",
@@ -417,12 +417,29 @@ final class DungeonModeTests: XCTestCase {
             "固定ワープの間",
             "扉の見張り",
             "罠と見張り",
-            "総合演習"
+            "総合演習",
+            "第一関門",
+            "二合目の巡回路",
+            "鍵と罠列",
+            "転移と見張り",
+            "ひび割れの迂回路",
+            "中間演習",
+            "挟み撃ちの廊下",
+            "鍵の遠回り",
+            "罠と転移の選択",
+            "最終前哨",
+            "第二関門"
         ])
-        for floorIndex in 0..<8 {
+        for floorIndex in 0..<9 {
             XCTAssertFalse(
                 tower.floors[floorIndex].rewardMoveCardsAfterClear.isEmpty,
                 "\(tower.floors[floorIndex].title) は次階へ向けた報酬候補を出す必要があります"
+            )
+        }
+        for floorIndex in 10..<19 {
+            XCTAssertFalse(
+                tower.floors[floorIndex].rewardMoveCardsAfterClear.isEmpty,
+                "\(tower.floors[floorIndex].title) は区間内の次階へ向けた報酬候補を出す必要があります"
             )
         }
         XCTAssertEqual(tower.floors[6].rewardMoveCardsAfterClear, [
@@ -435,7 +452,11 @@ final class DungeonModeTests: XCTestCase {
             .fixedWarp,
             .straightUp2
         ])
-        XCTAssertEqual(tower.floors[8].rewardMoveCardsAfterClear, [])
+        XCTAssertFalse(tower.floors[8].rewardMoveCardsAfterClear.isEmpty)
+        XCTAssertEqual(tower.floors[9].rewardMoveCardsAfterClear, [])
+        XCTAssertEqual(tower.floors[19].rewardMoveCardsAfterClear, [])
+        XCTAssertFalse(tower.canAdvanceWithinRun(afterFloorIndex: 9))
+        XCTAssertTrue(tower.canAdvanceWithinRun(afterFloorIndex: 10))
     }
 
     func testGrowthTowerLateRewardsFeedIntoCombinedFloors() throws {

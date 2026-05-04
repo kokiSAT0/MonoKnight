@@ -108,11 +108,16 @@ public struct DungeonRunState: Codable, Equatable {
         currentFloorMoveCount: Int,
         rewardMoveCard: MoveCard? = nil,
         rewardSelection: DungeonRewardSelection? = nil,
-        currentInventoryEntries: [DungeonInventoryEntry]? = nil
+        currentInventoryEntries: [DungeonInventoryEntry]? = nil,
+        rewardAddUses: Int = 3
     ) -> DungeonRunState {
         let carriedEntries = currentInventoryEntries?.compactMap { $0.carryingRewardUsesOnly() } ?? rewardInventoryEntries
         let selection = rewardSelection ?? rewardMoveCard.map { DungeonRewardSelection.add($0) }
-        let updatedRewardInventoryEntries = DungeonRunState.applying(selection, to: carriedEntries)
+        let updatedRewardInventoryEntries = DungeonRunState.applying(
+            selection,
+            to: carriedEntries,
+            rewardAddUses: rewardAddUses
+        )
         return DungeonRunState(
             dungeonID: dungeonID,
             currentFloorIndex: currentFloorIndex + 1,
@@ -143,12 +148,13 @@ public struct DungeonRunState: Codable, Equatable {
 
     private static func applying(
         _ selection: DungeonRewardSelection?,
-        to entries: [DungeonInventoryEntry]
+        to entries: [DungeonInventoryEntry],
+        rewardAddUses: Int = 3
     ) -> [DungeonInventoryEntry] {
         var result = entries
         switch selection {
         case .add(let card):
-            result.append(DungeonInventoryEntry(card: card, rewardUses: 3, pickupUses: 0))
+            result.append(DungeonInventoryEntry(card: card, rewardUses: max(rewardAddUses, 1), pickupUses: 0))
         case .upgrade(let card):
             guard let index = result.firstIndex(where: { $0.card == card && $0.rewardUses > 0 }) else { break }
             result[index].rewardUses += 1
@@ -473,6 +479,14 @@ public struct DungeonDefinition: Codable, Equatable, Identifiable {
         self.difficulty = difficulty
         self.floors = floors
     }
+
+    public func canAdvanceWithinRun(afterFloorIndex floorIndex: Int) -> Bool {
+        guard floors.indices.contains(floorIndex + 1) else { return false }
+        if difficulty == .growth, (floorIndex + 1).isMultiple(of: 10) {
+            return false
+        }
+        return true
+    }
 }
 
 /// `GameMode.Regulation` に埋め込むダンジョン追加ルール
@@ -572,14 +586,30 @@ public struct DungeonLibrary {
     }
 
     public func firstFloorMode(for dungeon: DungeonDefinition, initialHPBonus: Int = 0) -> GameMode? {
-        guard let firstFloor = dungeon.floors.first else { return nil }
+        floorMode(
+            for: dungeon,
+            floorIndex: 0,
+            initialHPBonus: initialHPBonus
+        )
+    }
+
+    public func floorMode(
+        for dungeon: DungeonDefinition,
+        floorIndex: Int,
+        initialHPBonus: Int = 0,
+        startingRewardEntries: [DungeonInventoryEntry] = []
+    ) -> GameMode? {
+        guard dungeon.floors.indices.contains(floorIndex) else { return nil }
+        let floor = dungeon.floors[floorIndex]
         let resolvedInitialHPBonus = dungeon.difficulty == .growth ? max(initialHPBonus, 0) : 0
         let runState = DungeonRunState(
             dungeonID: dungeon.id,
-            currentFloorIndex: 0,
-            carriedHP: firstFloor.failureRule.initialHP + resolvedInitialHPBonus
+            currentFloorIndex: floorIndex,
+            carriedHP: floor.failureRule.initialHP + resolvedInitialHPBonus,
+            clearedFloorCount: floorIndex,
+            rewardInventoryEntries: startingRewardEntries
         )
-        return firstFloor.makeGameMode(
+        return floor.makeGameMode(
             dungeonID: dungeon.id,
             difficulty: dungeon.difficulty,
             carriedHP: runState.carriedHP,
@@ -728,7 +758,18 @@ public struct DungeonLibrary {
                 .fixedWarp,
                 .straightUp2
             ]),
-            buildGrowthTowerFinalFloor()
+            buildGrowthTowerNinthFloor(),
+            buildGrowthTowerTenthFloor(),
+            buildGrowthTowerEleventhFloor(),
+            buildGrowthTowerTwelfthFloor(),
+            buildGrowthTowerThirteenthFloor(),
+            buildGrowthTowerFourteenthFloor(),
+            buildGrowthTowerFifteenthFloor(),
+            buildGrowthTowerSixteenthFloor(),
+            buildGrowthTowerSeventeenthFloor(),
+            buildGrowthTowerEighteenthFloor(),
+            buildGrowthTowerNineteenthFloor(),
+            buildGrowthTowerTwentiethFloor()
         ]
 
         return DungeonDefinition(
@@ -740,7 +781,7 @@ public struct DungeonLibrary {
         )
     }
 
-    private static func buildGrowthTowerFinalFloor() -> DungeonFloorDefinition {
+    private static func buildGrowthTowerNinthFloor() -> DungeonFloorDefinition {
         DungeonFloorDefinition(
             id: "growth-9",
             title: "総合演習",
@@ -818,6 +859,362 @@ public struct DungeonLibrary {
                     point: GridPoint(x: 8, y: 6),
                     card: .straightUp2
                 )
+            ],
+            rewardMoveCardsAfterClear: [
+                .fixedWarp,
+                .rayRight,
+                .straightUp2
+            ]
+        )
+    }
+
+    private static func buildGrowthTowerTenthFloor() -> DungeonFloorDefinition {
+        DungeonFloorDefinition(
+            id: "growth-10",
+            title: "第一関門",
+            boardSize: standardTowerBoardSize,
+            spawnPoint: GridPoint(x: 0, y: 0),
+            exitPoint: GridPoint(x: 8, y: 8),
+            deckPreset: .standardLight,
+            failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 17),
+            enemies: [
+                EnemyDefinition(
+                    id: "growth-10-patrol",
+                    name: "巡回兵",
+                    position: GridPoint(x: 4, y: 3),
+                    behavior: .patrol(path: [
+                        GridPoint(x: 4, y: 3),
+                        GridPoint(x: 5, y: 3),
+                        GridPoint(x: 5, y: 4),
+                        GridPoint(x: 4, y: 4)
+                    ])
+                ),
+                EnemyDefinition(
+                    id: "growth-10-watcher",
+                    name: "見張り",
+                    position: GridPoint(x: 6, y: 6),
+                    behavior: .watcher(direction: MoveVector(dx: -1, dy: 0), range: 3)
+                )
+            ],
+            hazards: [
+                .damageTrap(points: [
+                    GridPoint(x: 2, y: 2),
+                    GridPoint(x: 3, y: 3),
+                    GridPoint(x: 6, y: 5)
+                ], damage: 1),
+                .brittleFloor(points: [
+                    GridPoint(x: 1, y: 4),
+                    GridPoint(x: 2, y: 4),
+                    GridPoint(x: 3, y: 4)
+                ])
+            ],
+            warpTilePairs: [
+                "growth-10-shortcut": [
+                    GridPoint(x: 1, y: 1),
+                    GridPoint(x: 7, y: 6)
+                ]
+            ],
+            cardPickups: [
+                DungeonCardPickupDefinition(id: "growth-10-right2", point: GridPoint(x: 1, y: 0), card: .straightRight2),
+                DungeonCardPickupDefinition(id: "growth-10-fixed-warp", point: GridPoint(x: 1, y: 1), card: .fixedWarp),
+                DungeonCardPickupDefinition(id: "growth-10-up2", point: GridPoint(x: 7, y: 6), card: .straightUp2)
+            ]
+        )
+    }
+
+    private static func buildGrowthTowerEleventhFloor() -> DungeonFloorDefinition {
+        DungeonFloorDefinition(
+            id: "growth-11",
+            title: "二合目の巡回路",
+            boardSize: standardTowerBoardSize,
+            spawnPoint: GridPoint(x: 0, y: 0),
+            exitPoint: GridPoint(x: 8, y: 8),
+            deckPreset: .kingAndKnightBasic,
+            failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 16),
+            enemies: [
+                EnemyDefinition(
+                    id: "growth-11-patrol-a",
+                    name: "巡回兵",
+                    position: GridPoint(x: 3, y: 3),
+                    behavior: .patrol(path: [
+                        GridPoint(x: 3, y: 3),
+                        GridPoint(x: 4, y: 3),
+                        GridPoint(x: 5, y: 3),
+                        GridPoint(x: 4, y: 3)
+                    ])
+                ),
+                EnemyDefinition(
+                    id: "growth-11-patrol-b",
+                    name: "巡回兵",
+                    position: GridPoint(x: 6, y: 5),
+                    behavior: .patrol(path: [
+                        GridPoint(x: 6, y: 5),
+                        GridPoint(x: 6, y: 6),
+                        GridPoint(x: 6, y: 7),
+                        GridPoint(x: 6, y: 6)
+                    ])
+                )
+            ],
+            cardPickups: [
+                DungeonCardPickupDefinition(id: "growth-11-right2", point: GridPoint(x: 2, y: 0), card: .straightRight2),
+                DungeonCardPickupDefinition(id: "growth-11-up2", point: GridPoint(x: 4, y: 2), card: .straightUp2),
+                DungeonCardPickupDefinition(id: "growth-11-knight", point: GridPoint(x: 7, y: 5), card: .knightRightwardChoice)
+            ],
+            rewardMoveCardsAfterClear: [.rayRight, .straightUp2, .diagonalUpRight2]
+        )
+    }
+
+    private static func buildGrowthTowerTwelfthFloor() -> DungeonFloorDefinition {
+        DungeonFloorDefinition(
+            id: "growth-12",
+            title: "鍵と罠列",
+            boardSize: standardTowerBoardSize,
+            spawnPoint: GridPoint(x: 0, y: 0),
+            exitPoint: GridPoint(x: 8, y: 8),
+            deckPreset: .standardLight,
+            failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 17),
+            hazards: [
+                .damageTrap(points: [
+                    GridPoint(x: 2, y: 1),
+                    GridPoint(x: 3, y: 2),
+                    GridPoint(x: 4, y: 3),
+                    GridPoint(x: 5, y: 4)
+                ], damage: 1)
+            ],
+            impassableTilePoints: [GridPoint(x: 5, y: 7)],
+            tileEffectOverrides: [GridPoint(x: 2, y: 2): .openGate(target: GridPoint(x: 5, y: 7))],
+            exitLock: DungeonExitLock(unlockPoint: GridPoint(x: 2, y: 2)),
+            cardPickups: [
+                DungeonCardPickupDefinition(id: "growth-12-key-up2", point: GridPoint(x: 2, y: 2), card: .straightUp2),
+                DungeonCardPickupDefinition(id: "growth-12-right2", point: GridPoint(x: 0, y: 1), card: .straightRight2),
+                DungeonCardPickupDefinition(id: "growth-12-ray-right", point: GridPoint(x: 4, y: 5), card: .rayRight)
+            ],
+            rewardMoveCardsAfterClear: [.diagonalUpRight2, .rayRight, .straightUp2]
+        )
+    }
+
+    private static func buildGrowthTowerThirteenthFloor() -> DungeonFloorDefinition {
+        DungeonFloorDefinition(
+            id: "growth-13",
+            title: "転移と見張り",
+            boardSize: standardTowerBoardSize,
+            spawnPoint: GridPoint(x: 0, y: 4),
+            exitPoint: GridPoint(x: 8, y: 4),
+            deckPreset: .standardLight,
+            failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 14),
+            enemies: [
+                EnemyDefinition(
+                    id: "growth-13-watcher",
+                    name: "見張り",
+                    position: GridPoint(x: 6, y: 3),
+                    behavior: .watcher(direction: MoveVector(dx: 0, dy: 1), range: 4)
+                )
+            ],
+            warpTilePairs: [
+                "growth-13-risk": [
+                    GridPoint(x: 1, y: 4),
+                    GridPoint(x: 6, y: 3)
+                ],
+                "growth-13-safe": [
+                    GridPoint(x: 2, y: 2),
+                    GridPoint(x: 7, y: 5)
+                ]
+            ],
+            fixedWarpCardTargets: [.fixedWarp: [GridPoint(x: 7, y: 5), GridPoint(x: 6, y: 3)]],
+            cardPickups: [
+                DungeonCardPickupDefinition(id: "growth-13-fixed-warp", point: GridPoint(x: 0, y: 3), card: .fixedWarp),
+                DungeonCardPickupDefinition(id: "growth-13-up2", point: GridPoint(x: 2, y: 2), card: .straightUp2),
+                DungeonCardPickupDefinition(id: "growth-13-right2", point: GridPoint(x: 7, y: 5), card: .straightRight2)
+            ],
+            rewardMoveCardsAfterClear: [.fixedWarp, .rayRight, .diagonalUpRight2]
+        )
+    }
+
+    private static func buildGrowthTowerFourteenthFloor() -> DungeonFloorDefinition {
+        DungeonFloorDefinition(
+            id: "growth-14",
+            title: "ひび割れの迂回路",
+            boardSize: standardTowerBoardSize,
+            spawnPoint: GridPoint(x: 0, y: 2),
+            exitPoint: GridPoint(x: 8, y: 6),
+            deckPreset: .standardLight,
+            failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 16),
+            enemies: [
+                EnemyDefinition(id: "growth-14-guard", name: "番兵", position: GridPoint(x: 4, y: 5), behavior: .guardPost)
+            ],
+            hazards: [
+                .brittleFloor(points: [
+                    GridPoint(x: 2, y: 2),
+                    GridPoint(x: 3, y: 2),
+                    GridPoint(x: 4, y: 2),
+                    GridPoint(x: 5, y: 2)
+                ]),
+                .damageTrap(points: [GridPoint(x: 6, y: 4), GridPoint(x: 7, y: 5)], damage: 1)
+            ],
+            cardPickups: [
+                DungeonCardPickupDefinition(id: "growth-14-ray-right", point: GridPoint(x: 0, y: 1), card: .rayRight),
+                DungeonCardPickupDefinition(id: "growth-14-up2", point: GridPoint(x: 5, y: 3), card: .straightUp2),
+                DungeonCardPickupDefinition(id: "growth-14-diagonal", point: GridPoint(x: 6, y: 4), card: .diagonalUpRight2)
+            ],
+            rewardMoveCardsAfterClear: [.rayRight, .straightUp2, .fixedWarp]
+        )
+    }
+
+    private static func buildGrowthTowerFifteenthFloor() -> DungeonFloorDefinition {
+        DungeonFloorDefinition(
+            id: "growth-15",
+            title: "中間演習",
+            boardSize: standardTowerBoardSize,
+            spawnPoint: GridPoint(x: 0, y: 0),
+            exitPoint: GridPoint(x: 8, y: 8),
+            deckPreset: .standardLight,
+            failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 16),
+            enemies: [
+                EnemyDefinition(id: "growth-15-watcher", name: "見張り", position: GridPoint(x: 7, y: 4), behavior: .watcher(direction: MoveVector(dx: -1, dy: 0), range: 4)),
+                EnemyDefinition(id: "growth-15-patrol", name: "巡回兵", position: GridPoint(x: 4, y: 4), behavior: .patrol(path: [GridPoint(x: 4, y: 4), GridPoint(x: 5, y: 4), GridPoint(x: 5, y: 5), GridPoint(x: 4, y: 5)]))
+            ],
+            hazards: [
+                .damageTrap(points: [GridPoint(x: 2, y: 1), GridPoint(x: 5, y: 5), GridPoint(x: 7, y: 6)], damage: 1)
+            ],
+            impassableTilePoints: [GridPoint(x: 4, y: 7)],
+            tileEffectOverrides: [GridPoint(x: 2, y: 1): .openGate(target: GridPoint(x: 4, y: 7))],
+            warpTilePairs: ["growth-15-warp": [GridPoint(x: 1, y: 2), GridPoint(x: 6, y: 6)]],
+            fixedWarpCardTargets: [.fixedWarp: [GridPoint(x: 6, y: 6)]],
+            exitLock: DungeonExitLock(unlockPoint: GridPoint(x: 2, y: 1)),
+            cardPickups: [
+                DungeonCardPickupDefinition(id: "growth-15-right2", point: GridPoint(x: 0, y: 1), card: .straightRight2),
+                DungeonCardPickupDefinition(id: "growth-15-fixed-warp", point: GridPoint(x: 2, y: 1), card: .fixedWarp),
+                DungeonCardPickupDefinition(id: "growth-15-up2", point: GridPoint(x: 6, y: 6), card: .straightUp2)
+            ],
+            rewardMoveCardsAfterClear: [.fixedWarp, .rayRight, .diagonalUpRight2]
+        )
+    }
+
+    private static func buildGrowthTowerSixteenthFloor() -> DungeonFloorDefinition {
+        DungeonFloorDefinition(
+            id: "growth-16",
+            title: "挟み撃ちの廊下",
+            boardSize: standardTowerBoardSize,
+            spawnPoint: GridPoint(x: 0, y: 4),
+            exitPoint: GridPoint(x: 8, y: 4),
+            deckPreset: .standardLight,
+            failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 13),
+            enemies: [
+                EnemyDefinition(id: "growth-16-watch-up", name: "見張り", position: GridPoint(x: 4, y: 1), behavior: .watcher(direction: MoveVector(dx: 0, dy: 1), range: 6)),
+                EnemyDefinition(id: "growth-16-watch-down", name: "見張り", position: GridPoint(x: 6, y: 7), behavior: .watcher(direction: MoveVector(dx: 0, dy: -1), range: 5))
+            ],
+            hazards: [.damageTrap(points: [GridPoint(x: 3, y: 4), GridPoint(x: 5, y: 4)], damage: 1)],
+            cardPickups: [
+                DungeonCardPickupDefinition(id: "growth-16-ray-right", point: GridPoint(x: 1, y: 4), card: .rayRight),
+                DungeonCardPickupDefinition(id: "growth-16-diagonal", point: GridPoint(x: 3, y: 2), card: .diagonalUpRight2),
+                DungeonCardPickupDefinition(id: "growth-16-up2", point: GridPoint(x: 6, y: 5), card: .straightUp2)
+            ],
+            rewardMoveCardsAfterClear: [.rayRight, .straightUp2, .knightRightwardChoice]
+        )
+    }
+
+    private static func buildGrowthTowerSeventeenthFloor() -> DungeonFloorDefinition {
+        DungeonFloorDefinition(
+            id: "growth-17",
+            title: "鍵の遠回り",
+            boardSize: standardTowerBoardSize,
+            spawnPoint: GridPoint(x: 0, y: 0),
+            exitPoint: GridPoint(x: 8, y: 8),
+            deckPreset: .standardLight,
+            failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 18),
+            enemies: [
+                EnemyDefinition(id: "growth-17-patrol", name: "巡回兵", position: GridPoint(x: 5, y: 2), behavior: .patrol(path: [GridPoint(x: 5, y: 2), GridPoint(x: 5, y: 3), GridPoint(x: 6, y: 3), GridPoint(x: 6, y: 2)]))
+            ],
+            hazards: [.brittleFloor(points: [GridPoint(x: 3, y: 1), GridPoint(x: 3, y: 2), GridPoint(x: 3, y: 3)])],
+            impassableTilePoints: [GridPoint(x: 6, y: 8)],
+            tileEffectOverrides: [GridPoint(x: 1, y: 5): .openGate(target: GridPoint(x: 6, y: 8))],
+            fixedWarpCardTargets: [.fixedWarp: [GridPoint(x: 7, y: 7)]],
+            exitLock: DungeonExitLock(unlockPoint: GridPoint(x: 1, y: 5)),
+            cardPickups: [
+                DungeonCardPickupDefinition(id: "growth-17-up2", point: GridPoint(x: 1, y: 5), card: .straightUp2),
+                DungeonCardPickupDefinition(id: "growth-17-ray-right", point: GridPoint(x: 2, y: 0), card: .rayRight),
+                DungeonCardPickupDefinition(id: "growth-17-fixed-warp", point: GridPoint(x: 6, y: 6), card: .fixedWarp)
+            ],
+            rewardMoveCardsAfterClear: [.fixedWarp, .diagonalUpRight2, .rayRight]
+        )
+    }
+
+    private static func buildGrowthTowerEighteenthFloor() -> DungeonFloorDefinition {
+        DungeonFloorDefinition(
+            id: "growth-18",
+            title: "罠と転移の選択",
+            boardSize: standardTowerBoardSize,
+            spawnPoint: GridPoint(x: 0, y: 0),
+            exitPoint: GridPoint(x: 8, y: 8),
+            deckPreset: .standardLight,
+            failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 15),
+            enemies: [
+                EnemyDefinition(id: "growth-18-watcher", name: "見張り", position: GridPoint(x: 7, y: 6), behavior: .watcher(direction: MoveVector(dx: -1, dy: 0), range: 4))
+            ],
+            hazards: [.damageTrap(points: [GridPoint(x: 1, y: 1), GridPoint(x: 2, y: 2), GridPoint(x: 3, y: 3), GridPoint(x: 6, y: 6)], damage: 1)],
+            warpTilePairs: ["growth-18-choice": [GridPoint(x: 1, y: 0), GridPoint(x: 6, y: 6)]],
+            fixedWarpCardTargets: [.fixedWarp: [GridPoint(x: 6, y: 6), GridPoint(x: 8, y: 6)]],
+            cardPickups: [
+                DungeonCardPickupDefinition(id: "growth-18-fixed-warp", point: GridPoint(x: 1, y: 0), card: .fixedWarp),
+                DungeonCardPickupDefinition(id: "growth-18-right2", point: GridPoint(x: 2, y: 1), card: .straightRight2),
+                DungeonCardPickupDefinition(id: "growth-18-up2", point: GridPoint(x: 8, y: 6), card: .straightUp2)
+            ],
+            rewardMoveCardsAfterClear: [.fixedWarp, .rayRight, .straightUp2]
+        )
+    }
+
+    private static func buildGrowthTowerNineteenthFloor() -> DungeonFloorDefinition {
+        DungeonFloorDefinition(
+            id: "growth-19",
+            title: "最終前哨",
+            boardSize: standardTowerBoardSize,
+            spawnPoint: GridPoint(x: 0, y: 2),
+            exitPoint: GridPoint(x: 8, y: 8),
+            deckPreset: .standardLight,
+            failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 16),
+            enemies: [
+                EnemyDefinition(id: "growth-19-patrol-a", name: "巡回兵", position: GridPoint(x: 4, y: 4), behavior: .patrol(path: [GridPoint(x: 4, y: 4), GridPoint(x: 5, y: 4), GridPoint(x: 5, y: 5), GridPoint(x: 4, y: 5)])),
+                EnemyDefinition(id: "growth-19-watcher", name: "見張り", position: GridPoint(x: 7, y: 5), behavior: .watcher(direction: MoveVector(dx: -1, dy: 0), range: 5))
+            ],
+            hazards: [
+                .brittleFloor(points: [GridPoint(x: 2, y: 2), GridPoint(x: 3, y: 2)]),
+                .damageTrap(points: [GridPoint(x: 5, y: 6), GridPoint(x: 6, y: 7)], damage: 1)
+            ],
+            cardPickups: [
+                DungeonCardPickupDefinition(id: "growth-19-ray-right", point: GridPoint(x: 0, y: 1), card: .rayRight),
+                DungeonCardPickupDefinition(id: "growth-19-diagonal", point: GridPoint(x: 4, y: 3), card: .diagonalUpRight2),
+                DungeonCardPickupDefinition(id: "growth-19-up2", point: GridPoint(x: 8, y: 6), card: .straightUp2)
+            ],
+            rewardMoveCardsAfterClear: [.fixedWarp, .rayRight, .diagonalUpRight2]
+        )
+    }
+
+    private static func buildGrowthTowerTwentiethFloor() -> DungeonFloorDefinition {
+        DungeonFloorDefinition(
+            id: "growth-20",
+            title: "第二関門",
+            boardSize: standardTowerBoardSize,
+            spawnPoint: GridPoint(x: 0, y: 0),
+            exitPoint: GridPoint(x: 8, y: 8),
+            deckPreset: .standardLight,
+            failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 17),
+            enemies: [
+                EnemyDefinition(id: "growth-20-watcher", name: "見張り", position: GridPoint(x: 7, y: 6), behavior: .watcher(direction: MoveVector(dx: -1, dy: 0), range: 4)),
+                EnemyDefinition(id: "growth-20-patrol", name: "巡回兵", position: GridPoint(x: 4, y: 4), behavior: .patrol(path: [GridPoint(x: 4, y: 4), GridPoint(x: 5, y: 4), GridPoint(x: 5, y: 5), GridPoint(x: 4, y: 5)]))
+            ],
+            hazards: [
+                .damageTrap(points: [GridPoint(x: 2, y: 1), GridPoint(x: 3, y: 3), GridPoint(x: 6, y: 6)], damage: 1),
+                .brittleFloor(points: [GridPoint(x: 2, y: 4), GridPoint(x: 3, y: 4), GridPoint(x: 4, y: 4)])
+            ],
+            impassableTilePoints: [GridPoint(x: 5, y: 8)],
+            tileEffectOverrides: [GridPoint(x: 2, y: 1): .openGate(target: GridPoint(x: 5, y: 8))],
+            warpTilePairs: ["growth-20-risk": [GridPoint(x: 1, y: 2), GridPoint(x: 6, y: 6)]],
+            fixedWarpCardTargets: [.fixedWarp: [GridPoint(x: 8, y: 6), GridPoint(x: 6, y: 6)]],
+            exitLock: DungeonExitLock(unlockPoint: GridPoint(x: 2, y: 1)),
+            cardPickups: [
+                DungeonCardPickupDefinition(id: "growth-20-right2", point: GridPoint(x: 0, y: 1), card: .straightRight2),
+                DungeonCardPickupDefinition(id: "growth-20-fixed-warp", point: GridPoint(x: 2, y: 1), card: .fixedWarp),
+                DungeonCardPickupDefinition(id: "growth-20-up2", point: GridPoint(x: 8, y: 6), card: .straightUp2)
             ]
         )
     }

@@ -154,7 +154,8 @@ public enum DailyChallengeDefinition {
             allowsStacking: true,
             deckPreset: deckPreset,
             spawnRule: spawnRule,
-            penalties: penalties
+            penalties: penalties,
+            completionRule: .targetCollection(goalCount: 12)
         )
     }
 

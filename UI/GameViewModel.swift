@@ -188,7 +188,7 @@ final class GameViewModel: ObservableObject {
               let runState = metadata.runState,
               let dungeon = DungeonLibrary.shared.dungeon(with: metadata.dungeonID),
               dungeon.floors.indices.contains(runState.currentFloorIndex),
-              dungeon.floors.indices.contains(runState.currentFloorIndex + 1)
+              dungeon.canAdvanceWithinRun(afterFloorIndex: runState.currentFloorIndex)
         else { return [] }
         let baseCards = dungeon.floors[runState.currentFloorIndex].rewardMoveCardsAfterClear
         return dungeonGrowthStore.rewardMoveCards(for: baseCards, dungeon: dungeon)
@@ -197,9 +197,10 @@ final class GameViewModel: ObservableObject {
     var adjustableDungeonRewardEntries: [DungeonInventoryEntry] {
         guard !isResultFailed,
               let metadata = mode.dungeonMetadataSnapshot,
-              metadata.runState != nil,
+              let runState = metadata.runState,
               let dungeon = DungeonLibrary.shared.dungeon(with: metadata.dungeonID),
-              dungeon.difficulty == .growth
+              dungeon.difficulty == .growth,
+              dungeon.canAdvanceWithinRun(afterFloorIndex: runState.currentFloorIndex)
         else { return [] }
         return dungeonRewardInventoryEntries
     }

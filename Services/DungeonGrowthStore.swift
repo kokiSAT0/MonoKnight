@@ -4,7 +4,11 @@ import SharedSupport
 
 enum DungeonGrowthUpgrade: String, Codable, CaseIterable, Identifiable {
     case initialHPBoost
+    case initialHPBoost2
     case rewardCandidateBoost
+    case starterCard
+    case sectionStartHPBoost
+    case rewardUsesBoost
 
     var id: String { rawValue }
 
@@ -12,17 +16,33 @@ enum DungeonGrowthUpgrade: String, Codable, CaseIterable, Identifiable {
         switch self {
         case .initialHPBoost:
             return "初期HP +1"
+        case .initialHPBoost2:
+            return "初期HP +2"
         case .rewardCandidateBoost:
             return "報酬候補強化"
+        case .starterCard:
+            return "開始カード +1"
+        case .sectionStartHPBoost:
+            return "区間開始HP +1"
+        case .rewardUsesBoost:
+            return "報酬使用回数 +1"
         }
     }
 
     var summary: String {
         switch self {
         case .initialHPBoost:
-            return "低難度塔の1F開始時にHPを1増やします"
+            return "成長塔の1F開始時にHPを1増やします"
+        case .initialHPBoost2:
+            return "成長塔の1F開始時にHPを2増やします"
         case .rewardCandidateBoost:
-            return "1F/2F後の報酬候補に強めの移動カードを混ぜます"
+            return "報酬候補に強めの移動カードを混ぜます"
+        case .starterCard:
+            return "区間開始時に右2を2回分持って始めます"
+        case .sectionStartHPBoost:
+            return "11Fなど区間開始時のHPを1増やします"
+        case .rewardUsesBoost:
+            return "追加した報酬カードの使用回数を1増やします"
         }
     }
 
@@ -46,15 +66,33 @@ struct DungeonGrowthSnapshot: Codable, Equatable {
     var points: Int
     var unlockedUpgrades: Set<DungeonGrowthUpgrade>
     var rewardedGrowthMilestoneIDs: Set<String>
+    var unlockedGrowthCheckpointFloorNumbers: Set<Int>
 
     init(
         points: Int = 0,
         unlockedUpgrades: Set<DungeonGrowthUpgrade> = [],
-        rewardedGrowthMilestoneIDs: Set<String> = []
+        rewardedGrowthMilestoneIDs: Set<String> = [],
+        unlockedGrowthCheckpointFloorNumbers: Set<Int> = []
     ) {
         self.points = max(points, 0)
         self.unlockedUpgrades = unlockedUpgrades
         self.rewardedGrowthMilestoneIDs = rewardedGrowthMilestoneIDs
+        self.unlockedGrowthCheckpointFloorNumbers = unlockedGrowthCheckpointFloorNumbers
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case points
+        case unlockedUpgrades
+        case rewardedGrowthMilestoneIDs
+        case unlockedGrowthCheckpointFloorNumbers
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        points = max(try container.decodeIfPresent(Int.self, forKey: .points) ?? 0, 0)
+        unlockedUpgrades = try container.decodeIfPresent(Set<DungeonGrowthUpgrade>.self, forKey: .unlockedUpgrades) ?? []
+        rewardedGrowthMilestoneIDs = try container.decodeIfPresent(Set<String>.self, forKey: .rewardedGrowthMilestoneIDs) ?? []
+        unlockedGrowthCheckpointFloorNumbers = try container.decodeIfPresent(Set<Int>.self, forKey: .unlockedGrowthCheckpointFloorNumbers) ?? []
     }
 }
 
@@ -67,6 +105,7 @@ final class DungeonGrowthStore: ObservableObject {
 
     var points: Int { snapshot.points }
     var unlockedUpgrades: Set<DungeonGrowthUpgrade> { snapshot.unlockedUpgrades }
+    var unlockedGrowthCheckpointFloorNumbers: Set<Int> { snapshot.unlockedGrowthCheckpointFloorNumbers }
 
     init(userDefaults: UserDefaults = .standard) {
         self.userDefaults = userDefaults
@@ -96,15 +135,39 @@ final class DungeonGrowthStore: ObservableObject {
               !snapshot.rewardedGrowthMilestoneIDs.contains(milestoneID)
         else { return nil }
 
+        let floorNumber = runState.currentFloorIndex + 1
         snapshot.points += 1
         snapshot.rewardedGrowthMilestoneIDs.insert(milestoneID)
+        if floorNumber == 10, dungeon.floors.indices.contains(10) {
+            snapshot.unlockedGrowthCheckpointFloorNumbers.insert(11)
+        }
         persist()
         debugLog("DungeonGrowthStore: \(milestoneID) クリア報酬として成長ポイント +1")
         return DungeonGrowthAward(dungeonID: dungeon.id, milestoneID: milestoneID, points: 1)
     }
 
     func initialHPBonus(for dungeon: DungeonDefinition) -> Int {
-        dungeon.difficulty == .growth && isUnlocked(.initialHPBoost) ? 1 : 0
+        initialHPBonus(for: dungeon, startingFloorIndex: 0)
+    }
+
+    func initialHPBonus(for dungeon: DungeonDefinition, startingFloorIndex: Int) -> Int {
+        guard dungeon.difficulty == .growth else { return 0 }
+        if startingFloorIndex > 0 {
+            return isUnlocked(.sectionStartHPBoost) ? 1 : 0
+        }
+        if isUnlocked(.initialHPBoost2) {
+            return 2
+        }
+        return isUnlocked(.initialHPBoost) ? 1 : 0
+    }
+
+    func startingRewardEntries(for dungeon: DungeonDefinition, startingFloorIndex: Int) -> [DungeonInventoryEntry] {
+        guard dungeon.difficulty == .growth, isUnlocked(.starterCard) else { return [] }
+        return [DungeonInventoryEntry(card: .straightRight2, rewardUses: startingFloorIndex == 0 ? 1 : 2)]
+    }
+
+    func rewardAddUses(for dungeon: DungeonDefinition) -> Int {
+        dungeon.difficulty == .growth && isUnlocked(.rewardUsesBoost) ? 4 : 3
     }
 
     func rewardMoveCards(for baseCards: [MoveCard], dungeon: DungeonDefinition) -> [MoveCard] {
@@ -144,17 +207,29 @@ final class DungeonGrowthStore: ObservableObject {
 
     func growthMilestoneIDs(for dungeon: DungeonDefinition) -> [String] {
         guard dungeon.difficulty == .growth else { return [] }
-        return [3, 6, 9]
+        return [5, 10, 15, 20]
             .filter { dungeon.floors.indices.contains($0 - 1) }
             .map { growthMilestoneID(dungeonID: dungeon.id, floorNumber: $0) }
     }
 
     func growthMilestoneID(for dungeon: DungeonDefinition, clearedFloorIndex: Int) -> String? {
         let floorNumber = clearedFloorIndex + 1
-        guard [3, 6, 9].contains(floorNumber),
+        guard [5, 10, 15, 20].contains(floorNumber),
               dungeon.floors.indices.contains(clearedFloorIndex)
         else { return nil }
         return growthMilestoneID(dungeonID: dungeon.id, floorNumber: floorNumber)
+    }
+
+    func availableGrowthStartFloorNumbers(for dungeon: DungeonDefinition) -> [Int] {
+        guard dungeon.difficulty == .growth else { return [1] }
+        let unlocked = snapshot.unlockedGrowthCheckpointFloorNumbers
+            .filter { $0 > 1 && dungeon.floors.indices.contains($0 - 1) }
+            .sorted()
+        return [1] + unlocked
+    }
+
+    func isGrowthCheckpointStartUnlocked(floorNumber: Int) -> Bool {
+        floorNumber == 1 || snapshot.unlockedGrowthCheckpointFloorNumbers.contains(floorNumber)
     }
 
     func growthMilestoneFloorNumber(for milestoneID: String) -> Int? {
