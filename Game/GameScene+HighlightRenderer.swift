@@ -558,15 +558,15 @@
                 zPosition = 1.13
             case .dungeonCrackedFloor:
                 baseColor = SKColor(red: 0.95, green: 0.60, blue: 0.12, alpha: 1.0)
-                strokeAlpha = 0
-                strokeWidth = 0
-                fillColor = baseColor.withAlphaComponent(0.18)
+                strokeAlpha = 0.92
+                strokeWidth = max(layout.tileSize * 0.045, 1.4)
+                fillColor = SKColor.clear
                 zPosition = 1.07
             case .dungeonCollapsedFloor:
-                baseColor = SKColor(red: 0.20, green: 0.22, blue: 0.24, alpha: 1.0)
+                baseColor = SKColor(red: 0.08, green: 0.09, blue: 0.10, alpha: 1.0)
                 strokeAlpha = 0
                 strokeWidth = 0
-                fillColor = baseColor.withAlphaComponent(0.58)
+                fillColor = baseColor.withAlphaComponent(0.72)
                 zPosition = 1.09
             }
 
@@ -585,7 +585,7 @@
             node.glowWidth = 0
             node.lineJoin = .miter
             node.miterLimit = 2.5
-            node.lineCap = .square
+            node.lineCap = kind == .dungeonCrackedFloor ? .round : .square
             node.position = layout.position(for: point)
             node.zPosition = zPosition
             node.isAntialiased = kind == .currentTarget
@@ -596,6 +596,8 @@
                 || kind == .dungeonEnemy
                 || kind == .dungeonCardPickup
                 || kind == .dungeonDamageTrap
+                || kind == .dungeonCrackedFloor
+                || kind == .dungeonCollapsedFloor
             node.blendMode = .alpha
         }
 
@@ -641,15 +643,16 @@
                  .targetApproachCandidate,
                  .targetCaptureCandidate,
                  .forcedSelection,
-                 .dungeonDanger,
-                 .dungeonCollapsedFloor:
+                 .dungeonDanger:
                 return CGPath(rect: rect, transform: nil)
             case .dungeonCardPickup:
                 return cardPickupMarkerPath(center: CGPoint(x: rect.midX, y: rect.midY), tileSize: tileSize)
             case .dungeonDamageTrap:
                 return damageTrapMarkerPath(center: CGPoint(x: rect.midX, y: rect.midY), tileSize: tileSize)
             case .dungeonCrackedFloor:
-                return crackedFloorFillPath(in: rect)
+                return crackedFloorMarkerPath(in: rect)
+            case .dungeonCollapsedFloor:
+                return collapsedFloorHolePath(in: rect)
             }
         }
 
@@ -785,14 +788,29 @@
             return path
         }
 
-        private func crackedFloorFillPath(in rect: CGRect) -> CGPath {
+        private func crackedFloorMarkerPath(in rect: CGRect) -> CGPath {
             let path = CGMutablePath()
-            path.move(to: CGPoint(x: rect.minX, y: rect.maxY))
-            path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
-            path.addLine(to: CGPoint(x: rect.maxX, y: rect.midY))
-            path.addLine(to: CGPoint(x: rect.midX, y: rect.midY))
-            path.addLine(to: CGPoint(x: rect.midX, y: rect.minY))
-            path.addLine(to: CGPoint(x: rect.minX, y: rect.minY))
+            path.move(to: CGPoint(x: rect.midX, y: rect.minY + rect.height * 0.14))
+            path.addLine(to: CGPoint(x: rect.midX - rect.width * 0.10, y: rect.midY - rect.height * 0.08))
+            path.addLine(to: CGPoint(x: rect.midX + rect.width * 0.08, y: rect.midY + rect.height * 0.06))
+            path.addLine(to: CGPoint(x: rect.midX - rect.width * 0.02, y: rect.maxY - rect.height * 0.12))
+            path.move(to: CGPoint(x: rect.midX - rect.width * 0.10, y: rect.midY - rect.height * 0.08))
+            path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.18, y: rect.midY + rect.height * 0.18))
+            path.move(to: CGPoint(x: rect.midX + rect.width * 0.08, y: rect.midY + rect.height * 0.06))
+            path.addLine(to: CGPoint(x: rect.maxX - rect.width * 0.16, y: rect.midY - rect.height * 0.16))
+            return path
+        }
+
+        private func collapsedFloorHolePath(in rect: CGRect) -> CGPath {
+            let path = CGMutablePath()
+            path.move(to: CGPoint(x: rect.midX, y: rect.minY + rect.height * 0.12))
+            path.addLine(to: CGPoint(x: rect.maxX - rect.width * 0.18, y: rect.minY + rect.height * 0.26))
+            path.addLine(to: CGPoint(x: rect.maxX - rect.width * 0.12, y: rect.midY))
+            path.addLine(to: CGPoint(x: rect.maxX - rect.width * 0.28, y: rect.maxY - rect.height * 0.16))
+            path.addLine(to: CGPoint(x: rect.midX - rect.width * 0.08, y: rect.maxY - rect.height * 0.10))
+            path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.16, y: rect.maxY - rect.height * 0.30))
+            path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.12, y: rect.midY - rect.height * 0.08))
+            path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.28, y: rect.minY + rect.height * 0.18))
             path.closeSubpath()
             return path
         }

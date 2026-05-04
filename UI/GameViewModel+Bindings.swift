@@ -76,6 +76,14 @@ extension GameViewModel {
             }
             .store(in: &cancellables)
 
+        core.$dungeonFallEvent
+            .receive(on: RunLoop.main)
+            .sink { [weak self] event in
+                guard let event else { return }
+                self?.handleDungeonFallEvent(event)
+            }
+            .store(in: &cancellables)
+
         core.$progress
             .removeDuplicates()
             .receive(on: RunLoop.main)

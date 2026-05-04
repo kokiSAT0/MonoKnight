@@ -515,6 +515,22 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
         )
     }
 
+    func testDungeonRotatingWatcherDirectionPreviewsArePassedToScene() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let floor = tower.floors[6]
+        let mode = floor.makeGameMode(dungeonID: tower.id)
+        let core = GameCore(mode: mode)
+        let viewModel = GameBoardBridgeViewModel(core: core, mode: mode)
+
+        let expectedPreviews = core.enemyRotatingWatcherDirectionPreviews.map(ScenePatrolMovementPreview.init)
+        XCTAssertFalse(expectedPreviews.isEmpty, "成長塔7Fには回転見張りの次方向プレビューが必要です")
+        XCTAssertEqual(
+            viewModel.scene.latestPatrolMovementPreviewsForTesting(),
+            expectedPreviews,
+            "回転見張りの次方向を Scene の軽量矢印へ渡す必要があります"
+        )
+    }
+
     func testDungeonInitialRewardCardGuideIsAvailableWithoutManualRefresh() throws {
         let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
         let runState = DungeonRunState(

@@ -53,6 +53,21 @@ public struct EnemyPatrolMovementPreview: Identifiable, Equatable {
     }
 }
 
+/// 回転見張りが次に向く方向を UI へ渡すためのプレビュー情報
+public struct EnemyRotatingWatcherDirectionPreview: Identifiable, Equatable {
+    public let enemyID: String
+    public let current: GridPoint
+    public let vector: MoveVector
+
+    public var id: String { enemyID }
+
+    public init(enemyID: String, current: GridPoint, vector: MoveVector) {
+        self.enemyID = enemyID
+        self.current = current
+        self.vector = vector
+    }
+}
+
 /// 鍵取得によってダンジョン出口が解錠されたことを UI へ知らせるイベント
 public struct DungeonExitUnlockEvent: Identifiable, Equatable {
     public let id: UUID
@@ -63,6 +78,29 @@ public struct DungeonExitUnlockEvent: Identifiable, Equatable {
         self.id = id
         self.exitPoint = exitPoint
         self.unlockPoint = unlockPoint
+    }
+}
+
+/// ひび割れ床が崩落し、下階へ落下することを UI へ知らせるイベント
+public struct DungeonFallEvent: Identifiable, Equatable {
+    public let id: UUID
+    public let point: GridPoint
+    public let sourceFloorIndex: Int
+    public let destinationFloorIndex: Int
+    public let hpAfterDamage: Int
+
+    public init(
+        id: UUID = UUID(),
+        point: GridPoint,
+        sourceFloorIndex: Int,
+        destinationFloorIndex: Int,
+        hpAfterDamage: Int
+    ) {
+        self.id = id
+        self.point = point
+        self.sourceFloorIndex = sourceFloorIndex
+        self.destinationFloorIndex = destinationFloorIndex
+        self.hpAfterDamage = hpAfterDamage
     }
 }
 
@@ -145,6 +183,8 @@ public final class GameCore: ObservableObject {
     @Published public private(set) var isOverloadCharged: Bool = false
     /// 塔ダンジョンで利用する現在 HP
     @Published public private(set) var dungeonHP: Int = 0
+    /// 成長塔の区間内で罠/床崩落ダメージを無効化できる残り回数
+    @Published public private(set) var hazardDamageMitigationsRemaining: Int = 0
     /// 塔ダンジョンで利用する敵状態
     @Published public private(set) var enemyStates: [EnemyState] = []
     /// ひび割れ状態の床
@@ -159,6 +199,8 @@ public final class GameCore: ObservableObject {
     @Published public private(set) var isDungeonExitUnlocked: Bool = true
     /// 出口解錠演出用の単発イベント
     @Published public private(set) var dungeonExitUnlockEvent: DungeonExitUnlockEvent?
+    /// ひび割れ床崩落による下階落下イベント
+    @Published public private(set) var dungeonFallEvent: DungeonFallEvent?
     /// 入替カードを使用するために選択中の補助カードスタック
     private var pendingSupportSwapStackID: UUID?
     /// 合計手数（移動 + ペナルティ）の計算プロパティ
@@ -215,6 +257,14 @@ public final class GameCore: ObservableObject {
     /// 巡回兵ごとの次移動方向
     public var enemyPatrolMovementPreviews: [EnemyPatrolMovementPreview] {
         enemyStates.compactMap { patrolMovementPreview(for: $0) }
+    }
+    /// 追跡兵ごとの次移動方向
+    public var enemyChaserMovementPreviews: [EnemyPatrolMovementPreview] {
+        enemyStates.compactMap { chaserMovementPreview(for: $0) }
+    }
+    /// 回転見張りごとの次視線方向
+    public var enemyRotatingWatcherDirectionPreviews: [EnemyRotatingWatcherDirectionPreview] {
+        enemyStates.compactMap { rotatingWatcherDirectionPreview(for: $0) }
     }
     /// まだ盤面上に残っている拾得カード
     public var activeDungeonCardPickups: [DungeonCardPickupDefinition] {
@@ -279,6 +329,10 @@ public final class GameCore: ObservableObject {
     /// - Parameter newStrategy: ユーザーが選択した並び替え方式
     public func updateHandOrderingStrategy(_ newStrategy: HandOrderingStrategy) {
         handManager.updateHandOrderingStrategy(newStrategy)
+        if usesDungeonInventoryCards {
+            syncDungeonInventoryHandStacks()
+            return
+        }
         refreshHandStateFromManager()
     }
 
@@ -1232,13 +1286,19 @@ public final class GameCore: ObservableObject {
         focusCount = 0
         isOverloadCharged = false
         dungeonHP = mode.dungeonRules?.failureRule.initialHP ?? 0
+        hazardDamageMitigationsRemaining = mode.dungeonMetadataSnapshot?.runState?.hazardDamageMitigationsRemaining ?? 0
         enemyStates = mode.dungeonRules?.enemies.map(EnemyState.init(definition:)) ?? []
-        crackedFloorPoints = []
-        collapsedFloorPoints = []
+        let currentFloorIndex = mode.dungeonMetadataSnapshot?.runState?.currentFloorIndex ?? 0
+        crackedFloorPoints = mode.dungeonMetadataSnapshot?.runState?.crackedFloorPoints(for: currentFloorIndex) ?? []
+        collapsedFloorPoints = mode.dungeonMetadataSnapshot?.runState?.collapsedFloorPoints(for: currentFloorIndex) ?? []
+        for point in collapsedFloorPoints {
+            board.collapseFloor(at: point)
+        }
         dungeonInventoryEntries = mode.dungeonMetadataSnapshot?.runState?.rewardInventoryEntries ?? []
         collectedDungeonCardPickupIDs = []
         isDungeonExitUnlocked = mode.dungeonRules?.exitLock == nil
         dungeonExitUnlockEvent = nil
+        dungeonFallEvent = nil
         configureTargetsForNewSession()
         penaltyEvent = nil
         boardTapPlayRequest = nil
@@ -1348,6 +1408,17 @@ public final class GameCore: ObservableObject {
             dungeonInventoryEntries[index].rewardUses -= 1
         }
         syncDungeonInventoryHandStacks()
+    }
+
+    @discardableResult
+    public func removeDungeonRewardInventoryCard(_ card: MoveCard) -> Bool {
+        guard usesDungeonInventoryCards,
+              let index = dungeonInventoryEntries.firstIndex(where: { $0.card == card && $0.rewardUses > 0 })
+        else { return false }
+
+        dungeonInventoryEntries[index].rewardUses = 0
+        syncDungeonInventoryHandStacks()
+        return true
     }
 
     private func collectDungeonCardPickups(along traversedPath: [GridPoint]) {
@@ -1579,19 +1650,22 @@ public final class GameCore: ObservableObject {
         return points
     }
 
-    private func applyDungeonHazards(along traversedPoints: [GridPoint]) {
-        guard mode.usesDungeonExit else { return }
+    private func applyDungeonHazards(along traversedPoints: [GridPoint]) -> Bool {
+        guard mode.usesDungeonExit else { return false }
         let brittlePoints = brittleFloorPoints
 
         for point in traversedPoints {
             if brittlePoints.contains(point) {
-                if crackedFloorPoints.contains(point) {
+                if collapsedFloorPoints.contains(point) {
+                    debugLog("崩落済みの床へ落下: \(point)")
+                    return triggerDungeonFall(at: point)
+                } else if crackedFloorPoints.contains(point) {
                     crackedFloorPoints.remove(point)
                     collapsedFloorPoints.insert(point)
                     board.collapseFloor(at: point)
-                    dungeonHP = max(dungeonHP - 1, 0)
-                    debugLog("ひび割れ床が崩落: \(point), HP=\(dungeonHP)")
-                } else if !collapsedFloorPoints.contains(point) {
+                    debugLog("ひび割れ床が崩落: \(point)")
+                    return triggerDungeonFall(at: point)
+                } else {
                     crackedFloorPoints.insert(point)
                     debugLog("床にひび割れ: \(point)")
                 }
@@ -1602,16 +1676,31 @@ public final class GameCore: ObservableObject {
                       trapPoints.contains(point)
                 else { continue }
                 let appliedDamage = max(damage, 1)
-                dungeonHP = max(dungeonHP - appliedDamage, 0)
-                debugLog("罠を踏みました: \(point), -\(appliedDamage), HP=\(dungeonHP)")
+                if consumeDungeonHazardDamageMitigation() {
+                    debugLog("罠ダメージを成長効果で無効化: \(point), 残り=\(hazardDamageMitigationsRemaining)")
+                } else {
+                    dungeonHP = max(dungeonHP - appliedDamage, 0)
+                    debugLog("罠を踏みました: \(point), -\(appliedDamage), HP=\(dungeonHP)")
+                }
             }
         }
+        return false
+    }
+
+    private func consumeDungeonHazardDamageMitigation() -> Bool {
+        guard mode.dungeonRules?.difficulty == .growth,
+              hazardDamageMitigationsRemaining > 0
+        else { return false }
+        hazardDamageMitigationsRemaining -= 1
+        return true
     }
 
     @discardableResult
     private func applyDungeonPostMoveChecks(along traversedPoints: [GridPoint]) -> Bool {
         guard mode.usesDungeonExit else { return false }
-        applyDungeonHazards(along: traversedPoints)
+        if applyDungeonHazards(along: traversedPoints) {
+            return true
+        }
         updateDungeonExitLockIfNeeded()
         if current == mode.dungeonExitPoint, isDungeonExitUnlocked {
             finalizeElapsedTimeIfNeeded()
@@ -1626,6 +1715,47 @@ public final class GameCore: ObservableObject {
             return true
         }
         return false
+    }
+
+    @discardableResult
+    private func triggerDungeonFall(at point: GridPoint) -> Bool {
+        if consumeDungeonHazardDamageMitigation() {
+            debugLog("床崩落ダメージを成長効果で無効化: \(point), HP=\(dungeonHP), 残り=\(hazardDamageMitigationsRemaining)")
+        } else {
+            dungeonHP = max(dungeonHP - 1, 0)
+            debugLog("床崩落で下階へ落下: \(point), HP=\(dungeonHP)")
+        }
+        if dungeonHP <= 0 {
+            finalizeElapsedTimeIfNeeded()
+            progress = .failed
+            return true
+        }
+
+        let sourceFloorIndex = mode.dungeonMetadataSnapshot?.runState?.currentFloorIndex ?? 0
+        dungeonFallEvent = DungeonFallEvent(
+            point: point,
+            sourceFloorIndex: sourceFloorIndex,
+            destinationFloorIndex: sourceFloorIndex + 1,
+            hpAfterDamage: dungeonHP
+        )
+        return true
+    }
+
+    public func clearDungeonFallEvent(_ id: UUID) {
+        guard dungeonFallEvent?.id == id else { return }
+        dungeonFallEvent = nil
+    }
+
+    public func resolvePendingDungeonFallLandingIfNeeded() {
+        guard mode.usesDungeonExit,
+              let landingPoint = mode.dungeonMetadataSnapshot?.runState?.pendingFallLandingPoint,
+              current == landingPoint,
+              progress == .playing
+        else { return }
+
+        debugLog("落下着地処理を開始: \(landingPoint)")
+        collectDungeonCardPickups(along: [landingPoint])
+        _ = applyDungeonPostMoveChecks(along: [landingPoint])
     }
 
     private func updateDungeonExitLockIfNeeded(at point: GridPoint? = nil) {
@@ -1666,6 +1796,10 @@ public final class GameCore: ObservableObject {
                 let nextIndex = (enemyStates[index].patrolIndex + 1) % validPath.count
                 enemyStates[index].patrolIndex = nextIndex
                 enemyStates[index].position = validPath[nextIndex]
+            case .rotatingWatcher(let directions, _):
+                let validDirections = normalizedDirections(directions)
+                guard !validDirections.isEmpty else { continue }
+                enemyStates[index].rotationIndex = (enemyStates[index].rotationIndex + 1) % validDirections.count
             }
         }
     }
@@ -1688,6 +1822,20 @@ public final class GameCore: ObservableObject {
             current: enemy.position,
             next: nextPoint,
             vector: vector
+        )
+    }
+
+    private func rotatingWatcherDirectionPreview(
+        for enemy: EnemyState
+    ) -> EnemyRotatingWatcherDirectionPreview? {
+        guard case .rotatingWatcher(let directions, _) = enemy.behavior else { return nil }
+        let validDirections = normalizedDirections(directions)
+        guard !validDirections.isEmpty else { return nil }
+        let nextIndex = (enemy.rotationIndex + 1) % validDirections.count
+        return EnemyRotatingWatcherDirectionPreview(
+            enemyID: enemy.id,
+            current: enemy.position,
+            vector: validDirections[nextIndex]
         )
     }
 
@@ -1733,17 +1881,50 @@ public final class GameCore: ObservableObject {
                     }
                 }
             case .watcher(let direction, let range):
-                let dx = direction.dx == 0 ? 0 : (direction.dx > 0 ? 1 : -1)
-                let dy = direction.dy == 0 ? 0 : (direction.dy > 0 ? 1 : -1)
-                guard dx != 0 || dy != 0 else { break }
-                for step in 1...max(range, 1) {
-                    let point = enemy.position.offset(dx: dx * step, dy: dy * step)
-                    guard board.contains(point), board.isTraversable(point) else { break }
-                    danger.insert(point)
-                }
+                insertWatcherDanger(
+                    from: enemy.position,
+                    direction: direction,
+                    range: range,
+                    into: &danger
+                )
+            case .rotatingWatcher(let directions, let range):
+                let validDirections = normalizedDirections(directions)
+                guard !validDirections.isEmpty else { break }
+                let direction = validDirections[enemy.rotationIndex % validDirections.count]
+                insertWatcherDanger(
+                    from: enemy.position,
+                    direction: direction,
+                    range: range,
+                    into: &danger
+                )
             }
         }
         return danger
+    }
+
+    private func normalizedDirections(_ directions: [MoveVector]) -> [MoveVector] {
+        directions.compactMap { direction in
+            let dx = direction.dx == 0 ? 0 : (direction.dx > 0 ? 1 : -1)
+            let dy = direction.dy == 0 ? 0 : (direction.dy > 0 ? 1 : -1)
+            guard dx != 0 || dy != 0 else { return nil }
+            return MoveVector(dx: dx, dy: dy)
+        }
+    }
+
+    private func insertWatcherDanger(
+        from origin: GridPoint,
+        direction: MoveVector,
+        range: Int,
+        into danger: inout Set<GridPoint>
+    ) {
+        let dx = direction.dx == 0 ? 0 : (direction.dx > 0 ? 1 : -1)
+        let dy = direction.dy == 0 ? 0 : (direction.dy > 0 ? 1 : -1)
+        guard dx != 0 || dy != 0 else { return }
+        for step in 1...max(range, 1) {
+            let point = origin.offset(dx: dx * step, dy: dy * step)
+            guard board.contains(point), board.isTraversable(point) else { break }
+            danger.insert(point)
+        }
     }
 
     /// フォーカス操作として、目的地に近づきやすいカードを優先して再配布する
@@ -2065,11 +2246,17 @@ extension GameCore {
         core.focusCount = 0
         core.isOverloadCharged = false
         core.dungeonHP = mode.dungeonRules?.failureRule.initialHP ?? 0
+        core.hazardDamageMitigationsRemaining = mode.dungeonMetadataSnapshot?.runState?.hazardDamageMitigationsRemaining ?? 0
         core.enemyStates = mode.dungeonRules?.enemies.map(EnemyState.init(definition:)) ?? []
-        core.crackedFloorPoints = []
-        core.collapsedFloorPoints = []
+        let currentFloorIndex = mode.dungeonMetadataSnapshot?.runState?.currentFloorIndex ?? 0
+        core.crackedFloorPoints = mode.dungeonMetadataSnapshot?.runState?.crackedFloorPoints(for: currentFloorIndex) ?? []
+        core.collapsedFloorPoints = mode.dungeonMetadataSnapshot?.runState?.collapsedFloorPoints(for: currentFloorIndex) ?? []
+        for point in core.collapsedFloorPoints {
+            core.board.collapseFloor(at: point)
+        }
         core.isDungeonExitUnlocked = mode.dungeonRules?.exitLock == nil
         core.dungeonExitUnlockEvent = nil
+        core.dungeonFallEvent = nil
         core.configureTargetsForNewSession()
         core.progress = (resolvedCurrent == nil && mode.requiresSpawnSelection) ? .awaitingSpawn : .playing
 

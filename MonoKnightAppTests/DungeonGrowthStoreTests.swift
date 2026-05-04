@@ -4,7 +4,7 @@ import XCTest
 
 @MainActor
 final class DungeonGrowthStoreTests: XCTestCase {
-    func testDungeonGrowthStorePersistsPointsAndUnlockedUpgrades() throws {
+    func testDungeonGrowthStorePersistsPointsAndUnlockedTreeUpgrades() throws {
         let (defaults, suiteName) = try makeIsolatedDefaults()
         defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
 
@@ -13,27 +13,76 @@ final class DungeonGrowthStoreTests: XCTestCase {
         let runState = DungeonRunState(dungeonID: dungeon.id, currentFloorIndex: 4, carriedHP: 3, clearedFloorCount: 4)
 
         XCTAssertNotNil(store.registerDungeonClear(dungeon: dungeon, runState: runState, hasNextFloor: true))
-        XCTAssertTrue(store.unlock(.initialHPBoost))
+        XCTAssertTrue(store.unlock(.toolPouch))
 
         let reloadedStore = DungeonGrowthStore(userDefaults: defaults)
-        XCTAssertTrue(reloadedStore.isUnlocked(.initialHPBoost))
+        XCTAssertTrue(reloadedStore.isUnlocked(.toolPouch))
         XCTAssertEqual(reloadedStore.points, 0)
         XCTAssertTrue(reloadedStore.hasRewardedGrowthMilestone("growth-tower-5f"))
     }
 
-    func testDungeonGrowthStoreRejectsDuplicateUnlockAndInsufficientPoints() throws {
+    func testDungeonGrowthStoreStartsFreshFromV3StorageKey() throws {
+        let (defaults, suiteName) = try makeIsolatedDefaults()
+        defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+
+        let oldData = try JSONEncoder().encode(
+            DungeonGrowthSnapshot(
+                points: 4,
+                unlockedUpgrades: [.toolPouch],
+                rewardedGrowthMilestoneIDs: ["growth-tower-5f"],
+                unlockedGrowthCheckpointFloorNumbers: [11]
+            )
+        )
+        defaults.set(oldData, forKey: "dungeon_growth_v2")
+
+        let store = DungeonGrowthStore(userDefaults: defaults)
+
+        XCTAssertEqual(store.points, 0)
+        XCTAssertFalse(store.isUnlocked(.toolPouch))
+        XCTAssertFalse(store.hasRewardedGrowthMilestone("growth-tower-5f"))
+        XCTAssertEqual(store.availableGrowthStartFloorNumbers(for: try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))), [1])
+    }
+
+    func testDungeonGrowthStoreRejectsLockedDuplicateAndInsufficientUnlocks() throws {
         let (defaults, suiteName) = try makeIsolatedDefaults()
         defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
 
         let store = DungeonGrowthStore(userDefaults: defaults)
-        XCTAssertFalse(store.unlock(.initialHPBoost))
+        XCTAssertFalse(store.unlock(.toolPouch))
 
         let dungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
-        let runState = DungeonRunState(dungeonID: dungeon.id, currentFloorIndex: 4, carriedHP: 3, clearedFloorCount: 4)
-        _ = store.registerDungeonClear(dungeon: dungeon, runState: runState, hasNextFloor: true)
+        let fifthFloor = DungeonRunState(dungeonID: dungeon.id, currentFloorIndex: 4, carriedHP: 3, clearedFloorCount: 4)
+        _ = store.registerDungeonClear(dungeon: dungeon, runState: fifthFloor, hasNextFloor: true)
 
-        XCTAssertTrue(store.unlock(.initialHPBoost))
-        XCTAssertFalse(store.unlock(.initialHPBoost))
+        XCTAssertFalse(store.canUnlock(.climbingKit))
+        XCTAssertEqual(store.lockReason(for: .climbingKit), "前提: 道具袋")
+        XCTAssertTrue(store.unlock(.toolPouch))
+        XCTAssertFalse(store.unlock(.toolPouch))
+        XCTAssertFalse(store.canUnlock(.climbingKit))
+        XCTAssertEqual(store.lockReason(for: .climbingKit), "10F到達後")
+    }
+
+    func testDungeonGrowthStoreLocksStrongNodesBehindMilestones() throws {
+        let (defaults, suiteName) = try makeIsolatedDefaults()
+        defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+
+        let store = DungeonGrowthStore(userDefaults: defaults)
+        let dungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        for floorIndex in [4, 9, 14] {
+            let runState = DungeonRunState(
+                dungeonID: dungeon.id,
+                currentFloorIndex: floorIndex,
+                carriedHP: 3,
+                clearedFloorCount: floorIndex
+            )
+            _ = store.registerDungeonClear(dungeon: dungeon, runState: runState, hasNextFloor: true)
+        }
+
+        XCTAssertEqual(store.lockReason(for: .secondStep), "前提: 足場読み")
+        XCTAssertTrue(store.unlock(.footingRead))
+        XCTAssertTrue(store.canUnlock(.secondStep))
+        XCTAssertTrue(store.unlock(.toolPouch))
+        XCTAssertTrue(store.canUnlock(.climbingKit))
     }
 
     func testDungeonGrowthAwardIsGrantedOnlyForGrowthTowerMilestonesOnce() throws {
@@ -83,11 +132,13 @@ final class DungeonGrowthStoreTests: XCTestCase {
         let baseCards = firstFloor.rewardMoveCardsAfterClear
 
         XCTAssertEqual(store.initialHPBonus(for: dungeon), 0)
+        XCTAssertEqual(store.startingRewardEntries(for: dungeon, startingFloorIndex: 0), [])
+        XCTAssertEqual(store.startingHazardDamageMitigations(for: dungeon), 0)
         XCTAssertEqual(store.rewardMoveCards(for: baseCards, dungeon: dungeon), baseCards)
 
         let runState = DungeonRunState(dungeonID: dungeon.id, currentFloorIndex: 4, carriedHP: 3, clearedFloorCount: 4)
         _ = store.registerDungeonClear(dungeon: dungeon, runState: runState, hasNextFloor: true)
-        XCTAssertTrue(store.unlock(.rewardCandidateBoost))
+        XCTAssertTrue(store.unlock(.rewardScout))
 
         let boostedCards = store.rewardMoveCards(for: baseCards, dungeon: dungeon)
         XCTAssertEqual(boostedCards.count, 3)
@@ -104,7 +155,7 @@ final class DungeonGrowthStoreTests: XCTestCase {
         let growthTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
         let runState = DungeonRunState(dungeonID: growthTower.id, currentFloorIndex: 4, carriedHP: 3, clearedFloorCount: 4)
         _ = store.registerDungeonClear(dungeon: growthTower, runState: runState, hasNextFloor: true)
-        XCTAssertTrue(store.unlock(.rewardCandidateBoost))
+        XCTAssertTrue(store.unlock(.rewardScout))
 
         let tutorialFirst = store.rewardMoveCards(
             for: tutorialTower.floors[0].rewardMoveCardsAfterClear,
@@ -125,32 +176,15 @@ final class DungeonGrowthStoreTests: XCTestCase {
 
         XCTAssertEqual(tutorialFirst, [.straightRight2, .straightUp2, .knightRightwardChoice])
         XCTAssertEqual(tutorialSecond, [.rayRight, .straightRight2, .knightRightwardChoice])
-        XCTAssertEqual(growthFirst, [.straightUp2, .straightRight2, .rayRight])
-        XCTAssertEqual(growthSecond, [.straightRight2, .straightUp2, .rayUp])
+        XCTAssertEqual(growthFirst.count, 3)
+        XCTAssertEqual(growthSecond.count, 3)
+        XCTAssertEqual(growthFirst.prefix(2), growthTower.floors[0].rewardMoveCardsAfterClear.prefix(2))
+        XCTAssertEqual(growthSecond.prefix(2), growthTower.floors[1].rewardMoveCardsAfterClear.prefix(2))
+        XCTAssertNotEqual(growthFirst, Array(growthTower.floors[0].rewardMoveCardsAfterClear.prefix(3)))
+        XCTAssertNotEqual(growthSecond, Array(growthTower.floors[1].rewardMoveCardsAfterClear.prefix(3)))
     }
 
-    func testInitialHPBoostIsAppliedWhenStartingFirstFloor() throws {
-        let (defaults, suiteName) = try makeIsolatedDefaults()
-        defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
-
-        let store = DungeonGrowthStore(userDefaults: defaults)
-        let dungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
-        let runState = DungeonRunState(dungeonID: dungeon.id, currentFloorIndex: 4, carriedHP: 3, clearedFloorCount: 4)
-        _ = store.registerDungeonClear(dungeon: dungeon, runState: runState, hasNextFloor: true)
-        XCTAssertTrue(store.unlock(.initialHPBoost))
-
-        let mode = try XCTUnwrap(
-            DungeonLibrary.shared.firstFloorMode(
-                for: dungeon,
-                initialHPBonus: store.initialHPBonus(for: dungeon)
-            )
-        )
-
-        XCTAssertEqual(mode.dungeonRules?.failureRule.initialHP, 4)
-        XCTAssertEqual(mode.dungeonMetadataSnapshot?.runState?.carriedHP, 4)
-    }
-
-    func testExpandedGrowthUpgradesAffectOnlyGrowthTowerStartsAndRewards() throws {
+    func testTreeGrowthUpgradesAffectOnlyGrowthTowerStartsAndRewards() throws {
         let (defaults, suiteName) = try makeIsolatedDefaults()
         defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
 
@@ -166,18 +200,44 @@ final class DungeonGrowthStoreTests: XCTestCase {
             _ = store.registerDungeonClear(dungeon: dungeon, runState: runState, hasNextFloor: floorIndex < 19)
         }
 
-        XCTAssertTrue(store.unlock(.initialHPBoost2))
-        XCTAssertTrue(store.unlock(.starterCard))
-        XCTAssertTrue(store.unlock(.sectionStartHPBoost))
-        XCTAssertTrue(store.unlock(.rewardUsesBoost))
+        XCTAssertTrue(store.unlock(.toolPouch))
+        XCTAssertTrue(store.unlock(.climbingKit))
+        XCTAssertTrue(store.unlock(.rewardScout))
+        XCTAssertTrue(store.unlock(.cardPreservation))
 
-        XCTAssertEqual(store.initialHPBonus(for: dungeon, startingFloorIndex: 0), 2)
-        XCTAssertEqual(store.initialHPBonus(for: dungeon, startingFloorIndex: 10), 1)
+        XCTAssertEqual(store.initialHPBonus(for: dungeon, startingFloorIndex: 0), 0)
+        XCTAssertEqual(store.initialHPBonus(for: dungeon, startingFloorIndex: 10), 0)
         XCTAssertEqual(
             store.startingRewardEntries(for: dungeon, startingFloorIndex: 10),
-            [DungeonInventoryEntry(card: .straightRight2, rewardUses: 2)]
+            [
+                DungeonInventoryEntry(card: .straightRight2, rewardUses: 1),
+                DungeonInventoryEntry(card: .straightUp2, rewardUses: 1)
+            ]
         )
         XCTAssertEqual(store.rewardAddUses(for: dungeon), 4)
+        XCTAssertEqual(store.startingHazardDamageMitigations(for: dungeon), 0)
+    }
+
+    func testHazardGrowthBranchCanReachSecondStepWithFifteenthFloorMilestone() throws {
+        let (defaults, suiteName) = try makeIsolatedDefaults()
+        defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+
+        let store = DungeonGrowthStore(userDefaults: defaults)
+        let dungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        for floorIndex in [4, 9, 14] {
+            let runState = DungeonRunState(
+                dungeonID: dungeon.id,
+                currentFloorIndex: floorIndex,
+                carriedHP: 3,
+                clearedFloorCount: floorIndex
+            )
+            _ = store.registerDungeonClear(dungeon: dungeon, runState: runState, hasNextFloor: true)
+        }
+
+        XCTAssertTrue(store.unlock(.footingRead))
+        XCTAssertTrue(store.unlock(.secondStep))
+
+        XCTAssertEqual(store.startingHazardDamageMitigations(for: dungeon), 2)
     }
 
     func testGrowthEffectsDoNotApplyToRoguelikeTower() throws {
@@ -189,20 +249,23 @@ final class DungeonGrowthStoreTests: XCTestCase {
         let rogueDungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "rogue-tower"))
         let runState = DungeonRunState(dungeonID: growthDungeon.id, currentFloorIndex: 4, carriedHP: 3, clearedFloorCount: 4)
         _ = store.registerDungeonClear(dungeon: growthDungeon, runState: runState, hasNextFloor: true)
-        XCTAssertTrue(store.unlock(.initialHPBoost))
+        XCTAssertTrue(store.unlock(.toolPouch))
 
         let rogueRunState = DungeonRunState(dungeonID: rogueDungeon.id, currentFloorIndex: 2, carriedHP: 3, clearedFloorCount: 2)
         XCTAssertNil(store.registerDungeonClear(dungeon: rogueDungeon, runState: rogueRunState, hasNextFloor: false))
         XCTAssertEqual(store.initialHPBonus(for: rogueDungeon), 0)
+        XCTAssertTrue(store.startingRewardEntries(for: rogueDungeon, startingFloorIndex: 0).isEmpty)
+        XCTAssertEqual(store.startingHazardDamageMitigations(for: rogueDungeon), 0)
         XCTAssertEqual(
             store.rewardMoveCards(for: rogueDungeon.floors[0].rewardMoveCardsAfterClear, dungeon: rogueDungeon),
             Array(rogueDungeon.floors[0].rewardMoveCardsAfterClear.prefix(3))
         )
 
         let firstMode = try XCTUnwrap(
-            DungeonLibrary.shared.firstFloorMode(for: rogueDungeon, initialHPBonus: 99)
+            DungeonLibrary.shared.firstFloorMode(for: rogueDungeon, initialHPBonus: 99, startingHazardDamageMitigations: 99)
         )
         XCTAssertEqual(firstMode.dungeonRules?.failureRule.initialHP, rogueDungeon.floors[0].failureRule.initialHP)
+        XCTAssertEqual(firstMode.dungeonMetadataSnapshot?.runState?.hazardDamageMitigationsRemaining, 0)
     }
 
     private func makeIsolatedDefaults() throws -> (UserDefaults, String) {

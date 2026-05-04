@@ -51,7 +51,7 @@ final class MoveCardIllustrationViewAccessibilityTests: XCTestCase {
         XCTAssertTrue(label.contains("複数方向の候補あり"), "複数候補を示す補足がラベルに含まれていません: \(label)")
     }
 
-    /// 報酬カード選択 UI がカード名、使用回数、既存 ID を表示モデルへ持つことを確認する
+    /// 報酬カード選択 UI が表示を軽くしても、読み上げに必要な情報を保持することを確認する
     func testDungeonRewardCardChoicePresentationKeepsCardIdentityAndUses() {
         let rewardCards: [MoveCard] = [.straightRight2, .straightUp2, .knightRightwardChoice]
         let choices = rewardCards.map { DungeonRewardCardChoicePresentation(card: $0) }
@@ -70,6 +70,10 @@ final class MoveCardIllustrationViewAccessibilityTests: XCTestCase {
             XCTAssertTrue(choice.accessibilityLabel.contains("追加して持ち越す"), "読み上げに報酬カードを持ち越す操作が含まれていません")
             XCTAssertTrue(choice.accessibilityLabel.contains("3回使える"), "読み上げに報酬カードの使用回数が含まれていません")
             XCTAssertTrue(choice.accessibilityLabel.contains("選ぶと次の階へ進みます"), "読み上げに選択後の遷移が含まれていません")
+            XCTAssertTrue(
+                choice.accessibilityLabel.contains(choice.card.encyclopediaDescription),
+                "画面上の説明文を省略しても、読み上げにはカード説明を残します"
+            )
         }
     }
 
@@ -89,6 +93,10 @@ final class MoveCardIllustrationViewAccessibilityTests: XCTestCase {
         XCTAssertTrue(choice.accessibilityLabel.contains("持ち越し"))
         XCTAssertTrue(choice.accessibilityLabel.contains("4回使える"))
         XCTAssertTrue(choice.accessibilityLabel.contains("選ぶと次の階へ進みます"))
+        XCTAssertTrue(
+            choice.accessibilityLabel.contains(choice.card.encyclopediaDescription),
+            "床カード報酬化でも読み上げにはカード説明を残します"
+        )
     }
 
     func testDungeonCarriedRewardChoicePresentationExplainsCardActions() {
@@ -104,8 +112,57 @@ final class MoveCardIllustrationViewAccessibilityTests: XCTestCase {
         XCTAssertTrue(choice.upgradeAccessibilityLabel.contains("現在2回"))
         XCTAssertTrue(choice.upgradeAccessibilityLabel.contains("使用回数+1"))
         XCTAssertTrue(choice.upgradeAccessibilityLabel.contains("選ぶと次の階へ進みます"))
-        XCTAssertTrue(choice.removeAccessibilityLabel.contains("外す"))
-        XCTAssertTrue(choice.removeAccessibilityLabel.contains("選ぶと次の階へ進みます"))
+        XCTAssertTrue(choice.removeAccessibilityLabel.contains("持ち越しから外す"))
+        XCTAssertTrue(choice.removeAccessibilityLabel.contains("報酬は消費しません"))
+        XCTAssertFalse(choice.removeAccessibilityLabel.contains("選ぶと次の階へ進みます"))
+    }
+
+    func testResultActionPolicyHidesPersistentActionsDuringIntermediateDungeonClear() {
+        let policy = ResultActionDisplayPolicy(
+            usesDungeonExit: true,
+            isFailed: false,
+            hasNextDungeonFloor: true,
+            allowsLeaderboardButton: true,
+            hasReturnToTitle: true
+        )
+
+        XCTAssertTrue(policy.isIntermediateDungeonClear)
+        XCTAssertFalse(policy.showsReturnToTitleButton)
+        XCTAssertFalse(policy.showsRetryButton)
+        XCTAssertFalse(policy.showsLeaderboardButton)
+        XCTAssertFalse(policy.showsShareLink)
+    }
+
+    func testResultActionPolicyShowsPersistentActionsForFinalDungeonClear() {
+        let policy = ResultActionDisplayPolicy(
+            usesDungeonExit: true,
+            isFailed: false,
+            hasNextDungeonFloor: false,
+            allowsLeaderboardButton: true,
+            hasReturnToTitle: true
+        )
+
+        XCTAssertFalse(policy.isIntermediateDungeonClear)
+        XCTAssertTrue(policy.showsReturnToTitleButton)
+        XCTAssertTrue(policy.showsRetryButton)
+        XCTAssertTrue(policy.showsLeaderboardButton)
+        XCTAssertTrue(policy.showsShareLink)
+    }
+
+    func testResultActionPolicyShowsPersistentActionsForDungeonFailure() {
+        let policy = ResultActionDisplayPolicy(
+            usesDungeonExit: true,
+            isFailed: true,
+            hasNextDungeonFloor: true,
+            allowsLeaderboardButton: false,
+            hasReturnToTitle: true
+        )
+
+        XCTAssertFalse(policy.isIntermediateDungeonClear)
+        XCTAssertTrue(policy.showsReturnToTitleButton)
+        XCTAssertTrue(policy.showsRetryButton)
+        XCTAssertFalse(policy.showsLeaderboardButton)
+        XCTAssertTrue(policy.showsShareLink)
     }
 }
 #endif

@@ -215,7 +215,7 @@ final class GameViewModel: ObservableObject {
         else { return 3 }
         return dungeonGrowthStore.rewardAddUses(for: dungeon)
     }
-    /// クリア後に強化/削除できる持ち越し報酬カード
+    /// クリア後に強化/整理できる持ち越し報酬カード
     var adjustableDungeonRewardEntries: [DungeonInventoryEntry] {
         guard !isResultFailed,
               let metadata = mode.dungeonMetadataSnapshot,
@@ -326,6 +326,8 @@ final class GameViewModel: ObservableObject {
     var cancellables = Set<AnyCancellable>()
     /// 目的地獲得フィードバックの自動消滅タスク
     var targetCaptureFeedbackDismissTask: Task<Void, Never>?
+    /// ひび割れ床落下後、次フロアへ移るまでの短い待機タスク
+    var dungeonFallAdvanceTask: Task<Void, Never>?
     /// キャンペーン定義
     private let campaignLibrary = CampaignLibrary.shared
     /// 現在時刻を取得するためのクロージャ。テストでは任意の値へ差し替える
@@ -440,6 +442,7 @@ final class GameViewModel: ObservableObject {
 
         // GameCore が公開する各種状態を監視し、SwiftUI 側の責務を軽量化する
         bindGameCore()
+        generatedCore.resolvePendingDungeonFallLandingIfNeeded()
         startCampaignTutorialIfNeeded()
 
         // ユーザー設定から手札並び順を復元する

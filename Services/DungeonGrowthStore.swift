@@ -3,50 +3,104 @@ import Game
 import SharedSupport
 
 enum DungeonGrowthUpgrade: String, Codable, CaseIterable, Identifiable {
-    case initialHPBoost
-    case initialHPBoost2
-    case rewardCandidateBoost
-    case starterCard
-    case sectionStartHPBoost
-    case rewardUsesBoost
+    case toolPouch
+    case climbingKit
+    case rewardScout
+    case cardPreservation
+    case footingRead
+    case secondStep
 
     var id: String { rawValue }
 
+    var branch: DungeonGrowthBranch {
+        switch self {
+        case .toolPouch, .climbingKit:
+            return .preparation
+        case .rewardScout, .cardPreservation:
+            return .reward
+        case .footingRead, .secondStep:
+            return .hazard
+        }
+    }
+
     var title: String {
         switch self {
-        case .initialHPBoost:
-            return "初期HP +1"
-        case .initialHPBoost2:
-            return "初期HP +2"
-        case .rewardCandidateBoost:
-            return "報酬候補強化"
-        case .starterCard:
-            return "開始カード +1"
-        case .sectionStartHPBoost:
-            return "区間開始HP +1"
-        case .rewardUsesBoost:
-            return "報酬使用回数 +1"
+        case .toolPouch:
+            return "道具袋"
+        case .climbingKit:
+            return "登り支度"
+        case .rewardScout:
+            return "報酬の目利き"
+        case .cardPreservation:
+            return "カード温存"
+        case .footingRead:
+            return "足場読み"
+        case .secondStep:
+            return "踏み直し"
         }
     }
 
     var summary: String {
         switch self {
-        case .initialHPBoost:
-            return "成長塔の1F開始時にHPを1増やします"
-        case .initialHPBoost2:
-            return "成長塔の1F開始時にHPを2増やします"
-        case .rewardCandidateBoost:
-            return "報酬候補に強めの移動カードを混ぜます"
-        case .starterCard:
-            return "区間開始時に右2を2回分持って始めます"
-        case .sectionStartHPBoost:
-            return "11Fなど区間開始時のHPを1増やします"
-        case .rewardUsesBoost:
-            return "追加した報酬カードの使用回数を1増やします"
+        case .toolPouch:
+            return "区間開始時に右2を1回分持って始めます"
+        case .climbingKit:
+            return "区間開始時に右2と上2を各1回分持って始めます"
+        case .rewardScout:
+            return "報酬候補に既存候補を補完するカードを混ぜます"
+        case .cardPreservation:
+            return "追加した報酬カードを4回使えるようにします"
+        case .footingRead:
+            return "区間ごとに最初の罠か床崩落ダメージを無効化します"
+        case .secondStep:
+            return "区間ごとに2回目まで罠か床崩落ダメージを無効化します"
         }
     }
 
     var cost: Int { 1 }
+
+    var requiredUpgrades: Set<DungeonGrowthUpgrade> {
+        switch self {
+        case .toolPouch, .rewardScout, .footingRead:
+            return []
+        case .climbingKit:
+            return [.toolPouch]
+        case .cardPreservation:
+            return [.rewardScout]
+        case .secondStep:
+            return [.footingRead]
+        }
+    }
+
+    var requiredMilestoneFloor: Int? {
+        switch self {
+        case .toolPouch, .rewardScout, .footingRead:
+            return nil
+        case .climbingKit, .cardPreservation:
+            return 10
+        case .secondStep:
+            return 15
+        }
+    }
+}
+
+enum DungeonGrowthBranch: String, CaseIterable, Identifiable {
+    case preparation
+    case reward
+    case hazard
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .preparation:
+            return "準備"
+        case .reward:
+            return "報酬"
+        case .hazard:
+            return "危険回避"
+        }
+    }
 }
 
 struct DungeonGrowthAward: Equatable {
@@ -116,9 +170,42 @@ final class DungeonGrowthStore: ObservableObject {
         snapshot.unlockedUpgrades.contains(upgrade)
     }
 
+    func canUnlock(_ upgrade: DungeonGrowthUpgrade) -> Bool {
+        guard !isUnlocked(upgrade), snapshot.points >= upgrade.cost else {
+            return false
+        }
+        guard upgrade.requiredUpgrades.isSubset(of: snapshot.unlockedUpgrades) else {
+            return false
+        }
+        guard let requiredMilestoneFloor = upgrade.requiredMilestoneFloor else {
+            return true
+        }
+        return hasRewardedGrowthMilestoneFloor(requiredMilestoneFloor)
+    }
+
+    func lockReason(for upgrade: DungeonGrowthUpgrade) -> String? {
+        if isUnlocked(upgrade) {
+            return nil
+        }
+        let missingPrerequisites = upgrade.requiredUpgrades
+            .filter { !isUnlocked($0) }
+            .map(\.title)
+        if !missingPrerequisites.isEmpty {
+            return "前提: \(missingPrerequisites.joined(separator: "、"))"
+        }
+        if let requiredMilestoneFloor = upgrade.requiredMilestoneFloor,
+           !hasRewardedGrowthMilestoneFloor(requiredMilestoneFloor) {
+            return "\(requiredMilestoneFloor)F到達後"
+        }
+        if snapshot.points < upgrade.cost {
+            return "ポイント不足"
+        }
+        return nil
+    }
+
     @discardableResult
     func unlock(_ upgrade: DungeonGrowthUpgrade) -> Bool {
-        guard !isUnlocked(upgrade), snapshot.points >= upgrade.cost else {
+        guard canUnlock(upgrade) else {
             return false
         }
 
@@ -151,27 +238,29 @@ final class DungeonGrowthStore: ObservableObject {
     }
 
     func initialHPBonus(for dungeon: DungeonDefinition, startingFloorIndex: Int) -> Int {
-        guard dungeon.difficulty == .growth else { return 0 }
-        if startingFloorIndex > 0 {
-            return isUnlocked(.sectionStartHPBoost) ? 1 : 0
-        }
-        if isUnlocked(.initialHPBoost2) {
-            return 2
-        }
-        return isUnlocked(.initialHPBoost) ? 1 : 0
+        0
     }
 
     func startingRewardEntries(for dungeon: DungeonDefinition, startingFloorIndex: Int) -> [DungeonInventoryEntry] {
-        guard dungeon.difficulty == .growth, isUnlocked(.starterCard) else { return [] }
-        return [DungeonInventoryEntry(card: .straightRight2, rewardUses: startingFloorIndex == 0 ? 1 : 2)]
+        guard dungeon.difficulty == .growth else { return [] }
+        if isUnlocked(.climbingKit) {
+            return [
+                DungeonInventoryEntry(card: .straightRight2, rewardUses: 1),
+                DungeonInventoryEntry(card: .straightUp2, rewardUses: 1)
+            ]
+        }
+        if isUnlocked(.toolPouch) {
+            return [DungeonInventoryEntry(card: .straightRight2, rewardUses: 1)]
+        }
+        return []
     }
 
     func rewardAddUses(for dungeon: DungeonDefinition) -> Int {
-        dungeon.difficulty == .growth && isUnlocked(.rewardUsesBoost) ? 4 : 3
+        dungeon.difficulty == .growth && isUnlocked(.cardPreservation) ? 4 : 3
     }
 
     func rewardMoveCards(for baseCards: [MoveCard], dungeon: DungeonDefinition) -> [MoveCard] {
-        guard dungeon.difficulty == .growth, isUnlocked(.rewardCandidateBoost) else {
+        guard dungeon.difficulty == .growth, isUnlocked(.rewardScout) else {
             return Array(baseCards.prefix(3))
         }
 
@@ -199,6 +288,14 @@ final class DungeonGrowthStore: ObservableObject {
         }
 
         return candidates.first { !baseCards.contains($0) }
+    }
+
+    func startingHazardDamageMitigations(for dungeon: DungeonDefinition) -> Int {
+        guard dungeon.difficulty == .growth else { return 0 }
+        if isUnlocked(.secondStep) {
+            return 2
+        }
+        return isUnlocked(.footingRead) ? 1 : 0
     }
 
     func hasRewardedGrowthMilestone(_ milestoneID: String) -> Bool {
@@ -238,6 +335,12 @@ final class DungeonGrowthStore: ObservableObject {
               let number = Int(suffix.dropLast())
         else { return nil }
         return number
+    }
+
+    private func hasRewardedGrowthMilestoneFloor(_ floorNumber: Int) -> Bool {
+        snapshot.rewardedGrowthMilestoneIDs.contains { milestoneID in
+            growthMilestoneFloorNumber(for: milestoneID) == floorNumber
+        }
     }
 
     private func growthMilestoneID(dungeonID: String, floorNumber: Int) -> String {

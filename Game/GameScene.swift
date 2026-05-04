@@ -51,6 +51,15 @@
                 vector: preview.vector
             )
         }
+
+        public init(_ preview: EnemyRotatingWatcherDirectionPreview) {
+            self.init(
+                enemyID: preview.enemyID,
+                current: preview.current,
+                next: preview.current.offset(dx: preview.vector.dx, dy: preview.vector.dy),
+                vector: preview.vector
+            )
+        }
     }
 
     public protocol GameCoreProtocol: AnyObject {
@@ -325,6 +334,12 @@
             board.isImpassable(point)
         }
 
+#if DEBUG
+        func impassableMarkerCountForTesting() -> Int {
+            decorationRenderer.impassableMarkerCountForTesting()
+        }
+#endif
+
         public func updateGuideHighlights(_ points: Set<GridPoint>) {
             updateHighlights([
                 .guideSingleCandidate: [],
@@ -399,6 +414,21 @@
             expand.timingMode = .easeOut
             ring.run(.sequence([expand, .removeFromParent()]))
         }
+
+        public func playDungeonFallEffect(at point: GridPoint) {
+            knightAnimator.playDungeonFallEffect(
+                at: point,
+                in: self,
+                layout: layoutSupport,
+                isLayoutReady: isLayoutReady
+            )
+        }
+
+#if DEBUG
+        func transientEffectNodeCountForTesting() -> Int {
+            knightAnimator.transientEffectContainer.children.count
+        }
+#endif
 
         private func calculateLayout(trigger: LayoutTrigger) {
             layoutSupport.calculateLayout(

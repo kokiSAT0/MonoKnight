@@ -11,6 +11,7 @@ struct DungeonSelectionView: View {
 
     private let theme = AppTheme()
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @State private var isGrowthSectionExpanded = false
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
@@ -42,18 +43,29 @@ struct DungeonSelectionView: View {
 
     private var growthSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .firstTextBaseline) {
-                Text("成長")
-                    .font(.system(size: 20, weight: .semibold, design: .rounded))
-                    .foregroundColor(theme.textPrimary)
-                Spacer()
-                Text("ポイント \(dungeonGrowthStore.points)")
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
-                    .foregroundColor(theme.accentPrimary)
+            Button {
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    isGrowthSectionExpanded.toggle()
+                }
+            } label: {
+                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                    Label("成長", systemImage: isGrowthSectionExpanded ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 20, weight: .semibold, design: .rounded))
+                        .foregroundColor(theme.textPrimary)
+                    Spacer()
+                    Text("ポイント \(dungeonGrowthStore.points)")
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .foregroundColor(theme.accentPrimary)
+                }
             }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("dungeon_growth_toggle")
+            .accessibilityHint(isGrowthSectionExpanded ? "成長ツリーを閉じます" : "成長ツリーを開きます")
 
-            ForEach(DungeonGrowthUpgrade.allCases) { upgrade in
-                growthUpgradeRow(upgrade)
+            if isGrowthSectionExpanded {
+                ForEach(DungeonGrowthBranch.allCases) { branch in
+                    growthBranchSection(branch)
+                }
             }
         }
         .padding(14)
@@ -68,9 +80,23 @@ struct DungeonSelectionView: View {
         .accessibilityIdentifier("dungeon_growth_section")
     }
 
+    private func growthBranchSection(_ branch: DungeonGrowthBranch) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(branch.title)
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .foregroundColor(theme.textSecondary)
+
+            ForEach(DungeonGrowthUpgrade.allCases.filter { $0.branch == branch }) { upgrade in
+                growthUpgradeRow(upgrade)
+            }
+        }
+        .padding(.top, 4)
+    }
+
     private func growthUpgradeRow(_ upgrade: DungeonGrowthUpgrade) -> some View {
         let isUnlocked = dungeonGrowthStore.isUnlocked(upgrade)
-        let canUnlock = dungeonGrowthStore.points >= upgrade.cost && !isUnlocked
+        let canUnlock = dungeonGrowthStore.canUnlock(upgrade)
+        let lockReason = dungeonGrowthStore.lockReason(for: upgrade)
 
         return HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
@@ -81,6 +107,12 @@ struct DungeonSelectionView: View {
                     .font(.system(size: 12, weight: .medium, design: .rounded))
                     .foregroundColor(theme.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
+                if let lockReason {
+                    Text(lockReason)
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .foregroundColor(theme.textSecondary.opacity(0.72))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
 
             Spacer(minLength: 8)
@@ -88,7 +120,7 @@ struct DungeonSelectionView: View {
             Button {
                 _ = dungeonGrowthStore.unlock(upgrade)
             } label: {
-                Text(isUnlocked ? "取得済" : "\(upgrade.cost)pt")
+                Text(isUnlocked ? "取得済" : canUnlock ? "\(upgrade.cost)pt" : "ロック")
                     .font(.system(size: 13, weight: .bold, design: .rounded))
                     .frame(minWidth: 58)
             }
@@ -149,30 +181,56 @@ struct DungeonSelectionView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            VStack(spacing: 8) {
-                ForEach(startFloorNumbers(for: dungeon), id: \.self) { floorNumber in
-                    Button {
-                        onStartDungeon(dungeon, floorNumber - 1)
-                    } label: {
-                        Label("\(floorNumber)Fから開始", systemImage: floorNumber == 1 ? "figure.stairs" : "flag.checkered")
-                            .font(.system(size: 16, weight: .semibold, design: .rounded))
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(theme.accentPrimary)
-                    .foregroundColor(theme.accentOnPrimary)
-                    .controlSize(.large)
-                    .accessibilityIdentifier("dungeon_start_button_\(dungeon.id)_\(floorNumber)f")
-                    .accessibilityHint("この塔を\(floorNumber)階から連続で開始します")
-                }
-            }
+            startButtons(for: dungeon)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(theme.backgroundElevated.opacity(0.86))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(theme.statisticBadgeBorder, lineWidth: 1)
+        )
+        .accessibilityIdentifier("dungeon_card_\(dungeon.id)")
+    }
 
-            VStack(spacing: 10) {
-                ForEach(Array(dungeon.floors.enumerated()), id: \.element.id) { index, floor in
-                    floorInfoRow(dungeon: dungeon, floor: floor, floorNumber: index + 1)
+    @ViewBuilder
+    private func startButtons(for dungeon: DungeonDefinition) -> some View {
+        let floorNumbers = startFloorNumbers(for: dungeon)
+        if floorNumbers.count <= 1, let floorNumber = floorNumbers.first {
+            dungeonStartButton(dungeon: dungeon, floorNumber: floorNumber, isCompact: false)
+        } else {
+            HStack(spacing: 8) {
+                ForEach(floorNumbers, id: \.self) { floorNumber in
+                    dungeonStartButton(dungeon: dungeon, floorNumber: floorNumber, isCompact: true)
                 }
             }
         }
+    }
+
+    private func dungeonStartButton(
+        dungeon: DungeonDefinition,
+        floorNumber: Int,
+        isCompact: Bool
+    ) -> some View {
+        Button {
+            onStartDungeon(dungeon, floorNumber - 1)
+        } label: {
+            Label(
+                isCompact ? "\(floorNumber)Fから" : "開始",
+                systemImage: floorNumber == 1 ? "figure.stairs" : "flag.checkered"
+            )
+            .font(.system(size: isCompact ? 14 : 16, weight: .semibold, design: .rounded))
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.borderedProminent)
+        .tint(theme.accentPrimary)
+        .foregroundColor(theme.accentOnPrimary)
+        .controlSize(isCompact ? .regular : .large)
+        .accessibilityIdentifier("dungeon_start_button_\(dungeon.id)_\(floorNumber)f")
+        .accessibilityHint("この塔を\(floorNumber)階から連続で開始します")
     }
 
     private func growthStatusBadge(_ growthStatus: DungeonGrowthRewardStatusPresentation) -> some View {
@@ -195,77 +253,6 @@ struct DungeonSelectionView: View {
             .lineLimit(1)
             .minimumScaleFactor(0.82)
             .accessibilityIdentifier(growthStatus.accessibilityIdentifier)
-    }
-
-    private func floorInfoRow(
-        dungeon: DungeonDefinition,
-        floor: DungeonFloorDefinition,
-        floorNumber: Int
-    ) -> some View {
-        HStack(alignment: .center, spacing: 14) {
-            VStack(spacing: 2) {
-                Text("\(floorNumber)")
-                    .font(.system(size: 18, weight: .heavy, design: .rounded))
-                    .foregroundColor(theme.accentOnPrimary)
-                Text("F")
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
-                    .foregroundColor(theme.accentOnPrimary.opacity(0.82))
-            }
-            .frame(width: 44, height: 44)
-            .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(theme.accentPrimary)
-            )
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text(floor.title)
-                    .font(.system(size: 17, weight: .semibold, design: .rounded))
-                    .foregroundColor(theme.textPrimary)
-                    .lineLimit(2)
-
-                Text(floorSummary(floor))
-                    .font(.system(size: 13, weight: .medium, design: .rounded))
-                    .foregroundColor(theme.textSecondary)
-                    .lineLimit(3)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Spacer(minLength: 0)
-        }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(theme.backgroundElevated.opacity(0.86))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(theme.statisticBadgeBorder, lineWidth: 1)
-        )
-        .accessibilityIdentifier("dungeon_floor_info_\(floor.id)")
-        .accessibilityLabel("\(dungeon.title) \(floorNumber)階 \(floor.title)")
-        .accessibilityHint("この階のルール概要です。塔は1階から開始します")
-    }
-
-    private func floorSummary(_ floor: DungeonFloorDefinition) -> String {
-        var items = [
-            "HP \(floor.failureRule.initialHP)",
-            floor.failureRule.turnLimit.map { "手数 \($0)" } ?? "手数制限なし",
-            "出口 \(pointText(floor.exitPoint))"
-        ]
-
-        if !floor.enemies.isEmpty {
-            items.append("敵 \(floor.enemies.count)")
-        }
-        if !floor.hazards.isEmpty {
-            items.append("床ギミック \(floor.hazards.count)")
-        }
-
-        return items.joined(separator: " / ")
-    }
-
-    private func pointText(_ point: GridPoint) -> String {
-        "(\(point.x),\(point.y))"
     }
 
     private func difficultyText(_ difficulty: DungeonDifficulty) -> String {

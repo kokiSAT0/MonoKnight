@@ -287,6 +287,68 @@
             }
         }
 
+        func playDungeonFallEffect(
+            at point: GridPoint,
+            in scene: SKScene,
+            layout: GameSceneLayoutSupport,
+            isLayoutReady: Bool
+        ) {
+            guard isLayoutReady, layout.tileSize > 0 else { return }
+            if transientEffectContainer.parent !== scene {
+                scene.addChild(transientEffectContainer)
+            }
+
+            let center = layout.position(for: point)
+            let shadowRadius = layout.tileSize * 0.30
+            let shadow = SKShapeNode(ellipseOf: CGSize(width: shadowRadius * 2.2, height: shadowRadius * 0.8))
+            shadow.name = "transientDungeonFallShadow"
+            shadow.position = center
+            shadow.fillColor = SKColor.black.withAlphaComponent(0.28)
+            shadow.strokeColor = .clear
+            shadow.zPosition = 0.05
+            shadow.setScale(0.45)
+            transientEffectContainer.addChild(shadow)
+
+            let ring = SKShapeNode(circleOfRadius: layout.tileSize * 0.34)
+            ring.name = "transientDungeonFallRing"
+            ring.position = center
+            ring.strokeColor = SKColor.black.withAlphaComponent(0.36)
+            ring.fillColor = SKColor.clear
+            ring.lineWidth = max(1.0, layout.tileSize * 0.045)
+            ring.zPosition = 0.06
+            ring.setScale(0.35)
+            transientEffectContainer.addChild(ring)
+
+            if let knightNode {
+                knightNode.removeAllActions()
+                let sink = SKAction.group([
+                    SKAction.scale(to: 0.52, duration: 0.12),
+                    SKAction.fadeAlpha(to: 0.45, duration: 0.12)
+                ])
+                sink.timingMode = .easeIn
+                let restore = SKAction.group([
+                    SKAction.scale(to: 1.0, duration: 0.12),
+                    SKAction.fadeAlpha(to: 1.0, duration: 0.12)
+                ])
+                restore.timingMode = .easeOut
+                knightNode.run(.sequence([sink, restore]))
+            }
+
+            let expandShadow = SKAction.group([
+                SKAction.scale(to: 1.1, duration: 0.22),
+                SKAction.fadeOut(withDuration: 0.22)
+            ])
+            expandShadow.timingMode = .easeOut
+            shadow.run(.sequence([expandShadow, .removeFromParent()]))
+
+            let expandRing = SKAction.group([
+                SKAction.scale(to: 1.35, duration: 0.22),
+                SKAction.fadeOut(withDuration: 0.22)
+            ])
+            expandRing.timingMode = .easeOut
+            ring.run(.sequence([expandRing, .removeFromParent()]))
+        }
+
         private func performKnightPlacement(
             to point: GridPoint,
             layout: GameSceneLayoutSupport,

@@ -86,6 +86,14 @@ public struct DungeonRunState: Codable, Equatable {
     public let rewardInventoryEntries: [DungeonInventoryEntry]
     /// 成長塔の拾得/報酬カード変化に使うラン単位の seed
     public let cardVariationSeed: UInt64?
+    /// フロアごとのひび割れ床状態
+    public let crackedFloorPointsByFloor: [Int: Set<GridPoint>]
+    /// フロアごとの崩落床状態
+    public let collapsedFloorPointsByFloor: [Int: Set<GridPoint>]
+    /// 落下で次フロアへ入る場合の着地点
+    public let pendingFallLandingPoint: GridPoint?
+    /// 成長塔の区間内で罠/床崩落ダメージを無効化できる残り回数
+    public let hazardDamageMitigationsRemaining: Int
 
     public init(
         dungeonID: String,
@@ -94,7 +102,11 @@ public struct DungeonRunState: Codable, Equatable {
         totalMoveCount: Int = 0,
         clearedFloorCount: Int = 0,
         rewardInventoryEntries: [DungeonInventoryEntry] = [],
-        cardVariationSeed: UInt64? = nil
+        cardVariationSeed: UInt64? = nil,
+        crackedFloorPointsByFloor: [Int: Set<GridPoint>] = [:],
+        collapsedFloorPointsByFloor: [Int: Set<GridPoint>] = [:],
+        pendingFallLandingPoint: GridPoint? = nil,
+        hazardDamageMitigationsRemaining: Int = 0
     ) {
         self.dungeonID = dungeonID
         self.currentFloorIndex = max(currentFloorIndex, 0)
@@ -103,6 +115,10 @@ public struct DungeonRunState: Codable, Equatable {
         self.clearedFloorCount = max(clearedFloorCount, 0)
         self.rewardInventoryEntries = DungeonRunState.mergedRewardEntries(rewardInventoryEntries)
         self.cardVariationSeed = cardVariationSeed
+        self.crackedFloorPointsByFloor = crackedFloorPointsByFloor.filter { !$0.value.isEmpty }
+        self.collapsedFloorPointsByFloor = collapsedFloorPointsByFloor.filter { !$0.value.isEmpty }
+        self.pendingFallLandingPoint = pendingFallLandingPoint
+        self.hazardDamageMitigationsRemaining = max(hazardDamageMitigationsRemaining, 0)
     }
 
     public var floorNumber: Int {
@@ -115,7 +131,8 @@ public struct DungeonRunState: Codable, Equatable {
         rewardMoveCard: MoveCard? = nil,
         rewardSelection: DungeonRewardSelection? = nil,
         currentInventoryEntries: [DungeonInventoryEntry]? = nil,
-        rewardAddUses: Int = 3
+        rewardAddUses: Int = 3,
+        hazardDamageMitigationsRemaining: Int? = nil
     ) -> DungeonRunState {
         let sourceEntries = currentInventoryEntries ?? rewardInventoryEntries
         let carriedEntries = sourceEntries.compactMap { $0.carryingRewardUsesOnly() }
@@ -133,12 +150,84 @@ public struct DungeonRunState: Codable, Equatable {
             totalMoveCount: totalMoveCount + max(currentFloorMoveCount, 0),
             clearedFloorCount: clearedFloorCount + 1,
             rewardInventoryEntries: updatedRewardInventoryEntries.compactMap { $0.carryingRewardUsesOnly() },
-            cardVariationSeed: cardVariationSeed
+            cardVariationSeed: cardVariationSeed,
+            crackedFloorPointsByFloor: crackedFloorPointsByFloor,
+            collapsedFloorPointsByFloor: collapsedFloorPointsByFloor,
+            hazardDamageMitigationsRemaining: hazardDamageMitigationsRemaining ?? self.hazardDamageMitigationsRemaining
+        )
+    }
+
+    public func fallenToNextFloor(
+        carryoverHP: Int,
+        currentFloorMoveCount: Int,
+        currentInventoryEntries: [DungeonInventoryEntry],
+        landingPoint: GridPoint,
+        currentFloorCrackedPoints: Set<GridPoint>,
+        currentFloorCollapsedPoints: Set<GridPoint>,
+        hazardDamageMitigationsRemaining: Int? = nil
+    ) -> DungeonRunState {
+        let recordedState = recordingFloorState(
+            floorIndex: currentFloorIndex,
+            cracked: currentFloorCrackedPoints,
+            collapsed: currentFloorCollapsedPoints
+        )
+        return DungeonRunState(
+            dungeonID: dungeonID,
+            currentFloorIndex: currentFloorIndex + 1,
+            carriedHP: carryoverHP,
+            totalMoveCount: totalMoveCount + max(currentFloorMoveCount, 0),
+            clearedFloorCount: clearedFloorCount,
+            rewardInventoryEntries: currentInventoryEntries.compactMap { $0.carryingRewardUsesOnly() },
+            cardVariationSeed: cardVariationSeed,
+            crackedFloorPointsByFloor: recordedState.crackedFloorPointsByFloor,
+            collapsedFloorPointsByFloor: recordedState.collapsedFloorPointsByFloor,
+            pendingFallLandingPoint: landingPoint,
+            hazardDamageMitigationsRemaining: hazardDamageMitigationsRemaining ?? self.hazardDamageMitigationsRemaining
         )
     }
 
     public func totalMoveCountIncludingCurrentFloor(_ currentFloorMoveCount: Int) -> Int {
         totalMoveCount + max(currentFloorMoveCount, 0)
+    }
+
+    public func crackedFloorPoints(for floorIndex: Int) -> Set<GridPoint> {
+        crackedFloorPointsByFloor[floorIndex] ?? []
+    }
+
+    public func collapsedFloorPoints(for floorIndex: Int) -> Set<GridPoint> {
+        collapsedFloorPointsByFloor[floorIndex] ?? []
+    }
+
+    public func recordingFloorState(
+        floorIndex: Int,
+        cracked: Set<GridPoint>,
+        collapsed: Set<GridPoint>
+    ) -> DungeonRunState {
+        var crackedByFloor = crackedFloorPointsByFloor
+        var collapsedByFloor = collapsedFloorPointsByFloor
+        if cracked.isEmpty {
+            crackedByFloor.removeValue(forKey: floorIndex)
+        } else {
+            crackedByFloor[floorIndex] = cracked
+        }
+        if collapsed.isEmpty {
+            collapsedByFloor.removeValue(forKey: floorIndex)
+        } else {
+            collapsedByFloor[floorIndex] = collapsed
+        }
+        return DungeonRunState(
+            dungeonID: dungeonID,
+            currentFloorIndex: currentFloorIndex,
+            carriedHP: carriedHP,
+            totalMoveCount: totalMoveCount,
+            clearedFloorCount: clearedFloorCount,
+            rewardInventoryEntries: rewardInventoryEntries,
+            cardVariationSeed: cardVariationSeed,
+            crackedFloorPointsByFloor: crackedByFloor,
+            collapsedFloorPointsByFloor: collapsedByFloor,
+            pendingFallLandingPoint: pendingFallLandingPoint,
+            hazardDamageMitigationsRemaining: hazardDamageMitigationsRemaining
+        )
     }
 
     private static func mergedRewardEntries(_ entries: [DungeonInventoryEntry]) -> [DungeonInventoryEntry] {
@@ -210,11 +299,16 @@ public enum EnemyBehavior: Codable, Equatable {
     case patrol(path: [GridPoint])
     /// 指定方向の直線を見張る
     case watcher(direction: MoveVector, range: Int)
+    /// 指定方向を順に向き直す見張り
+    case rotatingWatcher(directions: [MoveVector], range: Int)
+    /// プレイヤーへ1マスずつ近づく
+    case chaser
 
     private enum CodingKeys: String, CodingKey {
         case type
         case path
         case direction
+        case directions
         case range
     }
 
@@ -222,21 +316,31 @@ public enum EnemyBehavior: Codable, Equatable {
         case guardPost
         case patrol
         case watcher
+        case rotatingWatcher
+        case chaser
     }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        let kind = try container.decode(Kind.self, forKey: .type)
+        let rawKind = try container.decodeIfPresent(String.self, forKey: .type)
+        let kind = rawKind.flatMap(Kind.init(rawValue:)) ?? .guardPost
         switch kind {
         case .guardPost:
             self = .guardPost
         case .patrol:
-            self = .patrol(path: try container.decode([GridPoint].self, forKey: .path))
+            self = .patrol(path: try container.decodeIfPresent([GridPoint].self, forKey: .path) ?? [])
         case .watcher:
             self = .watcher(
-                direction: try container.decode(MoveVector.self, forKey: .direction),
-                range: try container.decode(Int.self, forKey: .range)
+                direction: try container.decodeIfPresent(MoveVector.self, forKey: .direction) ?? MoveVector(dx: 1, dy: 0),
+                range: try container.decodeIfPresent(Int.self, forKey: .range) ?? 1
             )
+        case .rotatingWatcher:
+            self = .rotatingWatcher(
+                directions: try container.decodeIfPresent([MoveVector].self, forKey: .directions) ?? [],
+                range: try container.decodeIfPresent(Int.self, forKey: .range) ?? 1
+            )
+        case .chaser:
+            self = .chaser
         }
     }
 
@@ -252,6 +356,12 @@ public enum EnemyBehavior: Codable, Equatable {
             try container.encode(Kind.watcher, forKey: .type)
             try container.encode(direction, forKey: .direction)
             try container.encode(range, forKey: .range)
+        case .rotatingWatcher(let directions, let range):
+            try container.encode(Kind.rotatingWatcher, forKey: .type)
+            try container.encode(directions, forKey: .directions)
+            try container.encode(range, forKey: .range)
+        case .chaser:
+            try container.encode(Kind.chaser, forKey: .type)
         }
     }
 }
@@ -287,6 +397,7 @@ public struct EnemyState: Codable, Equatable, Identifiable {
     public let behavior: EnemyBehavior
     public let damage: Int
     public var patrolIndex: Int
+    public var rotationIndex: Int
 
     public init(definition: EnemyDefinition) {
         id = definition.id
@@ -295,6 +406,39 @@ public struct EnemyState: Codable, Equatable, Identifiable {
         behavior = definition.behavior
         damage = definition.damage
         patrolIndex = 0
+        rotationIndex = 0
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case position
+        case behavior
+        case damage
+        case patrolIndex
+        case rotationIndex
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        position = try container.decode(GridPoint.self, forKey: .position)
+        behavior = try container.decode(EnemyBehavior.self, forKey: .behavior)
+        damage = max(try container.decodeIfPresent(Int.self, forKey: .damage) ?? 1, 1)
+        patrolIndex = max(try container.decodeIfPresent(Int.self, forKey: .patrolIndex) ?? 0, 0)
+        rotationIndex = max(try container.decodeIfPresent(Int.self, forKey: .rotationIndex) ?? 0, 0)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(name, forKey: .name)
+        try container.encode(position, forKey: .position)
+        try container.encode(behavior, forKey: .behavior)
+        try container.encode(damage, forKey: .damage)
+        try container.encode(patrolIndex, forKey: .patrolIndex)
+        try container.encode(rotationIndex, forKey: .rotationIndex)
     }
 }
 
@@ -413,6 +557,7 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
             initialHP: carriedHP ?? runState?.carriedHP ?? failureRule.initialHP,
             turnLimit: failureRule.turnLimit
         )
+        let resolvedSpawnPoint = runState?.pendingFallLandingPoint ?? spawnPoint
         return GameMode(
             identifier: .campaignStage,
             displayName: title,
@@ -423,7 +568,7 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
                 allowsStacking: true,
                 deckPreset: deckPreset,
                 bonusMoveCards: [],
-                spawnRule: .fixed(spawnPoint),
+                spawnRule: .fixed(resolvedSpawnPoint),
                 penalties: CampaignLibrary.targetModePenalties,
                 impassableTilePoints: impassableTilePoints,
                 tileEffectOverrides: tileEffectOverrides,
@@ -490,6 +635,52 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
             cardPickups: cardPickups + additionalCardPickups,
             rewardMoveCardsAfterClear: rewardMoveCardsAfterClear
         )
+    }
+
+    public func withEnemies(_ enemies: [EnemyDefinition]) -> DungeonFloorDefinition {
+        DungeonFloorDefinition(
+            id: id,
+            title: title,
+            boardSize: boardSize,
+            spawnPoint: spawnPoint,
+            exitPoint: exitPoint,
+            deckPreset: deckPreset,
+            failureRule: failureRule,
+            enemies: enemies,
+            hazards: hazards,
+            impassableTilePoints: impassableTilePoints,
+            tileEffectOverrides: tileEffectOverrides,
+            warpTilePairs: warpTilePairs,
+            fixedWarpCardTargets: fixedWarpCardTargets,
+            exitLock: exitLock,
+            cardPickups: cardPickups,
+            rewardMoveCardsAfterClear: rewardMoveCardsAfterClear
+        )
+    }
+
+    public func withImpassableTilePoints(_ impassableTilePoints: Set<GridPoint>) -> DungeonFloorDefinition {
+        DungeonFloorDefinition(
+            id: id,
+            title: title,
+            boardSize: boardSize,
+            spawnPoint: spawnPoint,
+            exitPoint: exitPoint,
+            deckPreset: deckPreset,
+            failureRule: failureRule,
+            enemies: enemies,
+            hazards: hazards,
+            impassableTilePoints: impassableTilePoints,
+            tileEffectOverrides: tileEffectOverrides,
+            warpTilePairs: warpTilePairs,
+            fixedWarpCardTargets: fixedWarpCardTargets,
+            exitLock: exitLock,
+            cardPickups: cardPickups,
+            rewardMoveCardsAfterClear: rewardMoveCardsAfterClear
+        )
+    }
+
+    public func withAdditionalImpassableTilePoints(_ additionalPoints: Set<GridPoint>) -> DungeonFloorDefinition {
+        withImpassableTilePoints(impassableTilePoints.union(additionalPoints))
     }
 
     public func withEndpoints(
@@ -890,12 +1081,14 @@ public struct DungeonLibrary {
     public func firstFloorMode(
         for dungeon: DungeonDefinition,
         initialHPBonus: Int = 0,
+        startingHazardDamageMitigations: Int = 0,
         cardVariationSeed: UInt64? = nil
     ) -> GameMode? {
         floorMode(
             for: dungeon,
             floorIndex: 0,
             initialHPBonus: initialHPBonus,
+            startingHazardDamageMitigations: startingHazardDamageMitigations,
             cardVariationSeed: cardVariationSeed
         )
     }
@@ -905,6 +1098,7 @@ public struct DungeonLibrary {
         floorIndex: Int,
         initialHPBonus: Int = 0,
         startingRewardEntries: [DungeonInventoryEntry] = [],
+        startingHazardDamageMitigations: Int = 0,
         cardVariationSeed: UInt64? = nil
     ) -> GameMode? {
         guard dungeon.floors.indices.contains(floorIndex) else { return nil }
@@ -919,7 +1113,8 @@ public struct DungeonLibrary {
             carriedHP: baseFloor.failureRule.initialHP + resolvedInitialHPBonus,
             clearedFloorCount: floorIndex,
             rewardInventoryEntries: startingRewardEntries,
-            cardVariationSeed: resolvedCardVariationSeed
+            cardVariationSeed: resolvedCardVariationSeed,
+            hazardDamageMitigationsRemaining: dungeon.difficulty == .growth ? startingHazardDamageMitigations : 0
         )
         let floor = dungeon.resolvedFloor(at: floorIndex, runState: runState) ?? baseFloor
         return floor.makeGameMode(
@@ -1066,6 +1261,10 @@ public struct DungeonLibrary {
                     DungeonCardPickupDefinition(id: "growth-1-diagonal-up-right", point: GridPoint(x: 3, y: 0), card: .diagonalUpRight2),
                     DungeonCardPickupDefinition(id: "growth-1-ray-right", point: GridPoint(x: 0, y: 2), card: .rayRight)
                 ])
+                .withAdditionalImpassableTilePoints([
+                    GridPoint(x: 1, y: 2),
+                    GridPoint(x: 6, y: 6)
+                ])
                 .withRewardMoveCardsAfterClear([
                     .rayLeft,
                     .diagonalDownLeft2,
@@ -1075,6 +1274,10 @@ public struct DungeonLibrary {
                 keyDoorFloors[0].withAdditionalCardPickups([
                     DungeonCardPickupDefinition(id: "growth-2-left2", point: GridPoint(x: 6, y: 8), card: .straightLeft2),
                     DungeonCardPickupDefinition(id: "growth-2-diagonal-down-left", point: GridPoint(x: 3, y: 6), card: .diagonalDownLeft2)
+                ])
+                .withAdditionalImpassableTilePoints([
+                    GridPoint(x: 5, y: 6),
+                    GridPoint(x: 7, y: 6)
                 ]),
                 rewardMoveCardsAfterClear: [
                     .rayRight,
@@ -1087,6 +1290,10 @@ public struct DungeonLibrary {
                     DungeonCardPickupDefinition(id: "growth-3-ray-right", point: GridPoint(x: 0, y: 3), card: .rayRight),
                     DungeonCardPickupDefinition(id: "growth-3-diagonal-up-left", point: GridPoint(x: 8, y: 2), card: .diagonalUpLeft2)
                 ])
+                .withAdditionalImpassableTilePoints([
+                    GridPoint(x: 1, y: 5),
+                    GridPoint(x: 5, y: 1)
+                ])
                 .withRewardMoveCardsAfterClear([
                     .rayLeft,
                     .diagonalUpLeft2,
@@ -1096,6 +1303,10 @@ public struct DungeonLibrary {
                 warpFloors[0].withAdditionalCardPickups([
                     DungeonCardPickupDefinition(id: "growth-4-down2", point: GridPoint(x: 8, y: 2), card: .straightDown2),
                     DungeonCardPickupDefinition(id: "growth-4-ray-left", point: GridPoint(x: 4, y: 8), card: .rayLeft)
+                ])
+                .withAdditionalImpassableTilePoints([
+                    GridPoint(x: 3, y: 3),
+                    GridPoint(x: 6, y: 2)
                 ]),
                 rewardMoveCardsAfterClear: [
                     .rayRight,
@@ -1108,6 +1319,10 @@ public struct DungeonLibrary {
                     DungeonCardPickupDefinition(id: "growth-5-right2", point: GridPoint(x: 0, y: 6), card: .straightRight2),
                     DungeonCardPickupDefinition(id: "growth-5-diagonal-up-right", point: GridPoint(x: 6, y: 1), card: .diagonalUpRight2)
                 ])
+                .withAdditionalImpassableTilePoints([
+                    GridPoint(x: 2, y: 2),
+                    GridPoint(x: 6, y: 6)
+                ])
                 .withRewardMoveCardsAfterClear([
                     .diagonalDownLeft2,
                     .straightLeft2,
@@ -1117,6 +1332,10 @@ public struct DungeonLibrary {
                 warpFloors[1].withAdditionalCardPickups([
                     DungeonCardPickupDefinition(id: "growth-6-left2", point: GridPoint(x: 8, y: 6), card: .straightLeft2),
                     DungeonCardPickupDefinition(id: "growth-6-diagonal-down-right", point: GridPoint(x: 2, y: 2), card: .diagonalDownRight2)
+                ])
+                .withAdditionalImpassableTilePoints([
+                    GridPoint(x: 3, y: 5),
+                    GridPoint(x: 6, y: 2)
                 ]),
                 title: "転移の抜け道",
                 replacementForFixedWarpPickups: .rayRight,
@@ -1130,6 +1349,27 @@ public struct DungeonLibrary {
                 keyDoorFloors[2].withAdditionalCardPickups([
                     DungeonCardPickupDefinition(id: "growth-7-ray-right", point: GridPoint(x: 0, y: 2), card: .rayRight),
                     DungeonCardPickupDefinition(id: "growth-7-diagonal-up-right", point: GridPoint(x: 2, y: 5), card: .diagonalUpRight2)
+                ])
+                .withImpassableTilePoints([
+                    GridPoint(x: 4, y: 2),
+                    GridPoint(x: 4, y: 6),
+                    GridPoint(x: 7, y: 2)
+                ])
+                .withEnemies([
+                    EnemyDefinition(
+                        id: "growth-7-rotating-watcher",
+                        name: "回転見張り",
+                        position: GridPoint(x: 6, y: 5),
+                        behavior: .rotatingWatcher(
+                            directions: [
+                                MoveVector(dx: -1, dy: 0),
+                                MoveVector(dx: 0, dy: -1),
+                                MoveVector(dx: -1, dy: 0),
+                                MoveVector(dx: 0, dy: 1)
+                            ],
+                            range: 2
+                        )
+                    )
                 ]),
                 rewardMoveCardsAfterClear: [
                     .straightUp2,
@@ -1141,6 +1381,11 @@ public struct DungeonLibrary {
                 .withAdditionalCardPickups([
                     DungeonCardPickupDefinition(id: "growth-8-right2", point: GridPoint(x: 0, y: 1), card: .straightRight2),
                     DungeonCardPickupDefinition(id: "growth-8-up2", point: GridPoint(x: 3, y: 0), card: .straightUp2)
+                ])
+                .withAdditionalImpassableTilePoints([
+                    GridPoint(x: 1, y: 5),
+                    GridPoint(x: 4, y: 1),
+                    GridPoint(x: 7, y: 3)
                 ])
                 .withRewardMoveCardsAfterClear([
                     .straightRight2,
@@ -1321,6 +1566,11 @@ public struct DungeonLibrary {
                     GridPoint(x: 3, y: 4)
                 ])
             ],
+            impassableTilePoints: [
+                GridPoint(x: 3, y: 6),
+                GridPoint(x: 5, y: 2),
+                GridPoint(x: 7, y: 3)
+            ],
             warpTilePairs: [
                 "growth-9-risk": [
                     GridPoint(x: 1, y: 2),
@@ -1386,12 +1636,12 @@ public struct DungeonLibrary {
                     GridPoint(x: 2, y: 2),
                     GridPoint(x: 3, y: 3),
                     GridPoint(x: 6, y: 5)
-                ], damage: 1),
-                .brittleFloor(points: [
-                    GridPoint(x: 1, y: 4),
-                    GridPoint(x: 2, y: 4),
-                    GridPoint(x: 3, y: 4)
-                ])
+                ], damage: 1)
+            ],
+            impassableTilePoints: [
+                GridPoint(x: 2, y: 5),
+                GridPoint(x: 4, y: 7),
+                GridPoint(x: 7, y: 2)
             ],
             warpTilePairs: [
                 "growth-10-shortcut": [
@@ -1440,6 +1690,11 @@ public struct DungeonLibrary {
                     ])
                 )
             ],
+            impassableTilePoints: [
+                GridPoint(x: 1, y: 3),
+                GridPoint(x: 3, y: 6),
+                GridPoint(x: 7, y: 2)
+            ],
             cardPickups: [
                 DungeonCardPickupDefinition(id: "growth-11-right2", point: GridPoint(x: 2, y: 0), card: .straightRight2),
                 DungeonCardPickupDefinition(id: "growth-11-up2", point: GridPoint(x: 4, y: 2), card: .straightUp2),
@@ -1458,6 +1713,21 @@ public struct DungeonLibrary {
             exitPoint: GridPoint(x: 8, y: 8),
             deckPreset: .standardLight,
             failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 16),
+            enemies: [
+                EnemyDefinition(
+                    id: "growth-12-rotating-watcher",
+                    name: "回転見張り",
+                    position: GridPoint(x: 5, y: 3),
+                    behavior: .rotatingWatcher(
+                        directions: [
+                            MoveVector(dx: -1, dy: 0),
+                            MoveVector(dx: 0, dy: 1),
+                            MoveVector(dx: 1, dy: 0)
+                        ],
+                        range: 3
+                    )
+                )
+            ],
             hazards: [
                 .damageTrap(points: [
                     GridPoint(x: 2, y: 1),
@@ -1465,6 +1735,11 @@ public struct DungeonLibrary {
                     GridPoint(x: 4, y: 3),
                     GridPoint(x: 5, y: 4)
                 ], damage: 1)
+            ],
+            impassableTilePoints: [
+                GridPoint(x: 1, y: 5),
+                GridPoint(x: 5, y: 2),
+                GridPoint(x: 7, y: 6)
             ],
             exitLock: DungeonExitLock(unlockPoint: GridPoint(x: 2, y: 2)),
             cardPickups: [
@@ -1488,10 +1763,23 @@ public struct DungeonLibrary {
             enemies: [
                 EnemyDefinition(
                     id: "growth-13-watcher",
-                    name: "見張り",
+                    name: "回転見張り",
                     position: GridPoint(x: 6, y: 3),
-                    behavior: .watcher(direction: MoveVector(dx: 0, dy: 1), range: 4)
+                    behavior: .rotatingWatcher(
+                        directions: [
+                            MoveVector(dx: 0, dy: 1),
+                            MoveVector(dx: -1, dy: 0),
+                            MoveVector(dx: 0, dy: 1),
+                            MoveVector(dx: 1, dy: 0)
+                        ],
+                        range: 4
+                    )
                 )
+            ],
+            impassableTilePoints: [
+                GridPoint(x: 3, y: 4),
+                GridPoint(x: 5, y: 1),
+                GridPoint(x: 7, y: 7)
             ],
             warpTilePairs: [
                 "growth-13-risk": [
@@ -1533,6 +1821,12 @@ public struct DungeonLibrary {
                 ]),
                 .damageTrap(points: [GridPoint(x: 6, y: 4), GridPoint(x: 7, y: 5)], damage: 1)
             ],
+            impassableTilePoints: [
+                GridPoint(x: 1, y: 4),
+                GridPoint(x: 3, y: 6),
+                GridPoint(x: 6, y: 1),
+                GridPoint(x: 7, y: 3)
+            ],
             cardPickups: [
                 DungeonCardPickupDefinition(id: "growth-14-ray-right", point: GridPoint(x: 0, y: 1), card: .rayRight),
                 DungeonCardPickupDefinition(id: "growth-14-up2", point: GridPoint(x: 5, y: 3), card: .straightUp2),
@@ -1552,11 +1846,30 @@ public struct DungeonLibrary {
             deckPreset: .standardLight,
             failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 15),
             enemies: [
-                EnemyDefinition(id: "growth-15-watcher", name: "見張り", position: GridPoint(x: 7, y: 4), behavior: .watcher(direction: MoveVector(dx: -1, dy: 0), range: 4)),
+                EnemyDefinition(
+                    id: "growth-15-watcher",
+                    name: "回転見張り",
+                    position: GridPoint(x: 7, y: 4),
+                    behavior: .rotatingWatcher(
+                        directions: [
+                            MoveVector(dx: -1, dy: 0),
+                            MoveVector(dx: 0, dy: 1),
+                            MoveVector(dx: -1, dy: 0),
+                            MoveVector(dx: 0, dy: -1)
+                        ],
+                        range: 4
+                    )
+                ),
                 EnemyDefinition(id: "growth-15-patrol", name: "巡回兵", position: GridPoint(x: 4, y: 4), behavior: .patrol(path: [GridPoint(x: 4, y: 4), GridPoint(x: 5, y: 4), GridPoint(x: 5, y: 5), GridPoint(x: 4, y: 5)]))
             ],
             hazards: [
                 .damageTrap(points: [GridPoint(x: 2, y: 1), GridPoint(x: 5, y: 5), GridPoint(x: 7, y: 6)], damage: 1)
+            ],
+            impassableTilePoints: [
+                GridPoint(x: 1, y: 6),
+                GridPoint(x: 3, y: 3),
+                GridPoint(x: 5, y: 1),
+                GridPoint(x: 7, y: 2)
             ],
             warpTilePairs: ["growth-15-warp": [GridPoint(x: 1, y: 2), GridPoint(x: 6, y: 6)]],
             exitLock: DungeonExitLock(unlockPoint: GridPoint(x: 2, y: 1)),
@@ -1579,10 +1892,29 @@ public struct DungeonLibrary {
             deckPreset: .standardLight,
             failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 12),
             enemies: [
-                EnemyDefinition(id: "growth-16-watch-up", name: "見張り", position: GridPoint(x: 4, y: 1), behavior: .watcher(direction: MoveVector(dx: 0, dy: 1), range: 6)),
+                EnemyDefinition(
+                    id: "growth-16-watch-up",
+                    name: "回転見張り",
+                    position: GridPoint(x: 4, y: 1),
+                    behavior: .rotatingWatcher(
+                        directions: [
+                            MoveVector(dx: 0, dy: 1),
+                            MoveVector(dx: 1, dy: 0),
+                            MoveVector(dx: 0, dy: 1),
+                            MoveVector(dx: -1, dy: 0)
+                        ],
+                        range: 5
+                    )
+                ),
                 EnemyDefinition(id: "growth-16-watch-down", name: "見張り", position: GridPoint(x: 6, y: 7), behavior: .watcher(direction: MoveVector(dx: 0, dy: -1), range: 5))
             ],
             hazards: [.damageTrap(points: [GridPoint(x: 3, y: 4), GridPoint(x: 5, y: 4)], damage: 1)],
+            impassableTilePoints: [
+                GridPoint(x: 2, y: 6),
+                GridPoint(x: 4, y: 0),
+                GridPoint(x: 4, y: 3),
+                GridPoint(x: 7, y: 2)
+            ],
             cardPickups: [
                 DungeonCardPickupDefinition(id: "growth-16-ray-right", point: GridPoint(x: 1, y: 4), card: .rayRight),
                 DungeonCardPickupDefinition(id: "growth-16-diagonal", point: GridPoint(x: 3, y: 2), card: .diagonalUpRight2),
@@ -1605,6 +1937,11 @@ public struct DungeonLibrary {
                 EnemyDefinition(id: "growth-17-patrol", name: "巡回兵", position: GridPoint(x: 5, y: 2), behavior: .patrol(path: [GridPoint(x: 5, y: 2), GridPoint(x: 5, y: 3), GridPoint(x: 6, y: 3), GridPoint(x: 6, y: 2)]))
             ],
             hazards: [.brittleFloor(points: [GridPoint(x: 3, y: 1), GridPoint(x: 3, y: 2), GridPoint(x: 3, y: 3)])],
+            impassableTilePoints: [
+                GridPoint(x: 2, y: 4),
+                GridPoint(x: 4, y: 6),
+                GridPoint(x: 7, y: 1)
+            ],
             exitLock: DungeonExitLock(unlockPoint: GridPoint(x: 1, y: 5)),
             cardPickups: [
                 DungeonCardPickupDefinition(id: "growth-17-up2", point: GridPoint(x: 1, y: 5), card: .straightUp2),
@@ -1625,9 +1962,28 @@ public struct DungeonLibrary {
             deckPreset: .standardLight,
             failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 14),
             enemies: [
-                EnemyDefinition(id: "growth-18-watcher", name: "見張り", position: GridPoint(x: 7, y: 6), behavior: .watcher(direction: MoveVector(dx: -1, dy: 0), range: 4))
+                EnemyDefinition(
+                    id: "growth-18-watcher",
+                    name: "回転見張り",
+                    position: GridPoint(x: 7, y: 6),
+                    behavior: .rotatingWatcher(
+                        directions: [
+                            MoveVector(dx: -1, dy: 0),
+                            MoveVector(dx: 0, dy: -1),
+                            MoveVector(dx: -1, dy: 0),
+                            MoveVector(dx: 0, dy: 1)
+                        ],
+                        range: 4
+                    )
+                )
             ],
             hazards: [.damageTrap(points: [GridPoint(x: 1, y: 1), GridPoint(x: 2, y: 2), GridPoint(x: 3, y: 3), GridPoint(x: 6, y: 6)], damage: 1)],
+            impassableTilePoints: [
+                GridPoint(x: 3, y: 7),
+                GridPoint(x: 4, y: 2),
+                GridPoint(x: 5, y: 5),
+                GridPoint(x: 7, y: 3)
+            ],
             warpTilePairs: ["growth-18-choice": [GridPoint(x: 1, y: 0), GridPoint(x: 6, y: 6)]],
             cardPickups: [
                 DungeonCardPickupDefinition(id: "growth-18-ray-right", point: GridPoint(x: 1, y: 0), card: .rayRight),
@@ -1655,6 +2011,12 @@ public struct DungeonLibrary {
                 .brittleFloor(points: [GridPoint(x: 2, y: 2), GridPoint(x: 3, y: 2)]),
                 .damageTrap(points: [GridPoint(x: 5, y: 6), GridPoint(x: 6, y: 7)], damage: 1)
             ],
+            impassableTilePoints: [
+                GridPoint(x: 1, y: 4),
+                GridPoint(x: 3, y: 6),
+                GridPoint(x: 6, y: 3),
+                GridPoint(x: 7, y: 1)
+            ],
             cardPickups: [
                 DungeonCardPickupDefinition(id: "growth-19-ray-right", point: GridPoint(x: 0, y: 1), card: .rayRight),
                 DungeonCardPickupDefinition(id: "growth-19-diagonal", point: GridPoint(x: 4, y: 3), card: .diagonalUpRight2),
@@ -1674,12 +2036,30 @@ public struct DungeonLibrary {
             deckPreset: .standardLight,
             failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 16),
             enemies: [
-                EnemyDefinition(id: "growth-20-watcher", name: "見張り", position: GridPoint(x: 7, y: 6), behavior: .watcher(direction: MoveVector(dx: -1, dy: 0), range: 4)),
+                EnemyDefinition(
+                    id: "growth-20-watcher",
+                    name: "回転見張り",
+                    position: GridPoint(x: 7, y: 6),
+                    behavior: .rotatingWatcher(
+                        directions: [
+                            MoveVector(dx: -1, dy: 0),
+                            MoveVector(dx: 0, dy: -1),
+                            MoveVector(dx: -1, dy: 0),
+                            MoveVector(dx: 0, dy: 1)
+                        ],
+                        range: 4
+                    )
+                ),
                 EnemyDefinition(id: "growth-20-patrol", name: "巡回兵", position: GridPoint(x: 4, y: 4), behavior: .patrol(path: [GridPoint(x: 4, y: 4), GridPoint(x: 5, y: 4), GridPoint(x: 5, y: 5), GridPoint(x: 4, y: 5)]))
             ],
             hazards: [
-                .damageTrap(points: [GridPoint(x: 2, y: 1), GridPoint(x: 3, y: 3), GridPoint(x: 6, y: 6)], damage: 1),
-                .brittleFloor(points: [GridPoint(x: 2, y: 4), GridPoint(x: 3, y: 4), GridPoint(x: 4, y: 4)])
+                .damageTrap(points: [GridPoint(x: 2, y: 1), GridPoint(x: 3, y: 3), GridPoint(x: 6, y: 6)], damage: 1)
+            ],
+            impassableTilePoints: [
+                GridPoint(x: 1, y: 5),
+                GridPoint(x: 3, y: 6),
+                GridPoint(x: 6, y: 2),
+                GridPoint(x: 7, y: 4)
             ],
             warpTilePairs: ["growth-20-risk": [GridPoint(x: 1, y: 2), GridPoint(x: 6, y: 6)]],
             exitLock: DungeonExitLock(unlockPoint: GridPoint(x: 2, y: 1)),

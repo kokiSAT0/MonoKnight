@@ -89,6 +89,13 @@ extension GameViewModel {
         onRequestStartDungeonFloor?(nextMode)
     }
 
+    func handleDungeonRewardCardRemoval(_ card: MoveCard) {
+        guard adjustableDungeonRewardEntries.contains(where: { $0.card == card && $0.rewardUses > 0 }) else {
+            return
+        }
+        _ = core.removeDungeonRewardInventoryCard(card)
+    }
+
     func handleResultReturnToTitle() {
         prepareForReturnToTitle()
         onRequestReturnToTitle?()
@@ -124,6 +131,8 @@ extension GameViewModel {
     }
 
     func prepareForDungeonFloorAdvance() {
+        dungeonFallAdvanceTask?.cancel()
+        dungeonFallAdvanceTask = nil
         sessionResetCoordinator.prepareForCampaignStageAdvance(
             cancelPenaltyBannerDisplay: { [self] in cancelPenaltyBannerDisplay() },
             hideResult: { [self] in
@@ -147,6 +156,26 @@ extension GameViewModel {
         pauseController.reset()
     }
 
+    func handleDungeonFallEvent(_ event: DungeonFallEvent) {
+        guard let nextMode = makeFallenDungeonFloorMode(event: event) else {
+            core.clearDungeonFallEvent(event.id)
+            return
+        }
+
+        core.clearDungeonFallEvent(event.id)
+        boardBridge.playDungeonFallEffect(at: event.point)
+        dungeonFallAdvanceTask?.cancel()
+        dungeonFallAdvanceTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 240_000_000)
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                guard let self else { return }
+                self.prepareForDungeonFloorAdvance()
+                self.onRequestStartDungeonFloor?(nextMode)
+            }
+        }
+    }
+
     func makeNextDungeonFloorMode(rewardMoveCard: MoveCard? = nil) -> GameMode? {
         let selection = rewardMoveCard.map { DungeonRewardSelection.add($0) }
         return makeNextDungeonFloorMode(rewardSelection: selection)
@@ -167,7 +196,36 @@ extension GameViewModel {
             currentFloorMoveCount: core.moveCount,
             rewardSelection: rewardSelection,
             currentInventoryEntries: core.dungeonInventoryEntries,
-            rewardAddUses: dungeonGrowthStore.rewardAddUses(for: dungeon)
+            rewardAddUses: dungeonGrowthStore.rewardAddUses(for: dungeon),
+            hazardDamageMitigationsRemaining: core.hazardDamageMitigationsRemaining
+        )
+        let nextFloor = dungeon.resolvedFloor(at: nextIndex, runState: nextRunState) ?? dungeon.floors[nextIndex]
+        return nextFloor.makeGameMode(
+            dungeonID: dungeon.id,
+            difficulty: dungeon.difficulty,
+            carriedHP: nextRunState.carriedHP,
+            runState: nextRunState
+        )
+    }
+
+    func makeFallenDungeonFloorMode(event: DungeonFallEvent) -> GameMode? {
+        guard core.dungeonHP > 0,
+              let metadata = mode.dungeonMetadataSnapshot,
+              let runState = metadata.runState,
+              runState.currentFloorIndex == event.sourceFloorIndex,
+              let dungeon = DungeonLibrary.shared.dungeon(with: metadata.dungeonID),
+              dungeon.canAdvanceWithinRun(afterFloorIndex: runState.currentFloorIndex)
+        else { return nil }
+
+        let nextIndex = runState.currentFloorIndex + 1
+        let nextRunState = runState.fallenToNextFloor(
+            carryoverHP: core.dungeonHP,
+            currentFloorMoveCount: core.moveCount,
+            currentInventoryEntries: core.dungeonInventoryEntries,
+            landingPoint: event.point,
+            currentFloorCrackedPoints: core.crackedFloorPoints,
+            currentFloorCollapsedPoints: core.collapsedFloorPoints,
+            hazardDamageMitigationsRemaining: core.hazardDamageMitigationsRemaining
         )
         let nextFloor = dungeon.resolvedFloor(at: nextIndex, runState: nextRunState) ?? dungeon.floors[nextIndex]
         return nextFloor.makeGameMode(
@@ -197,6 +255,9 @@ extension GameViewModel {
             startingRewardEntries: dungeonGrowthStore.startingRewardEntries(
                 for: dungeon,
                 startingFloorIndex: sectionStartFloorIndex
+            ),
+            startingHazardDamageMitigations: dungeonGrowthStore.startingHazardDamageMitigations(
+                for: dungeon
             )
         )
     }

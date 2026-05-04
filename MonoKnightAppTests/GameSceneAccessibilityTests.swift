@@ -49,6 +49,18 @@ final class GameSceneAccessibilityTests: XCTestCase {
         XCTAssertEqual(elements[index].accessibilityLabel, "移動不可")
     }
 
+    /// 障害物マスには岩/柱として読める小マーカーを重ねることを確認する
+    func testImpassableTilesShowRockMarkers() {
+        let impassablePoints: Set<GridPoint> = [
+            GridPoint(x: 0, y: 0),
+            GridPoint(x: 2, y: 2)
+        ]
+        let (scene, view, _) = makeScene(impassablePoints: impassablePoints)
+        defer { view.presentScene(nil) }
+
+        XCTAssertEqual(scene.impassableMarkerCountForTesting(), impassablePoints.count)
+    }
+
     /// 駒が乗っている場合は「駒あり・状態」の書式で読み上げることを確認する
     func testAccessibilityLabelIncludesKnightPrefix() {
         let (scene, view, boardSize) = makeScene()
@@ -289,8 +301,23 @@ final class GameSceneAccessibilityTests: XCTestCase {
         XCTAssertFalse(damageTrapStyle.fillColor.isEqual(SKColor.clear), "ダメージ罠は踏む前に見える塗りを持ちます")
         XCTAssertEqual(keyStyle.lineWidth, 0, "塔鍵は移動可能枠ではなく、枠なしの小マーカーで示します")
         XCTAssertFalse(keyStyle.fillColor.isEqual(SKColor.clear), "塔鍵は取得前に見える塗りを持ちます")
-        XCTAssertEqual(crackedFloorStyle.lineWidth, 0, "ひび割れ床は移動可能枠ではないためタイル枠を持ちません")
+        XCTAssertGreaterThan(crackedFloorStyle.lineWidth, 0, "ひび割れ床はタイル枠ではなく亀裂線で示します")
         XCTAssertEqual(collapsedFloorStyle.lineWidth, 0, "崩落床は移動可能枠ではないためタイル枠を持ちません")
+    }
+
+    func testDungeonFallEffectAddsTransientNodes() {
+        let fallPoint = GridPoint(x: 2, y: 2)
+        let (scene, view, _) = makeScene()
+        defer { view.presentScene(nil) }
+
+        scene.moveKnight(to: fallPoint)
+        scene.playDungeonFallEffect(at: fallPoint)
+
+        XCTAssertGreaterThan(
+            scene.transientEffectNodeCountForTesting(),
+            0,
+            "落下時は短い影やリングで落ちたことを示す必要があります"
+        )
     }
 
     func testPatrolMovementArrowNodesUpdateAndClear() {

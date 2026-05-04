@@ -222,6 +222,11 @@ final class GameBoardBridgeViewModel: ObservableObject {
         boardAnchor = anchor
     }
 
+    /// ひび割れ床の落下を軽く見せるための盤面演出を再生する
+    func playDungeonFallEffect(at point: GridPoint) {
+        scene.playDungeonFallEffect(at: point)
+    }
+
     /// 現在保持しているハイライト状態を SpriteKit シーンへ反映する
     /// - Note: 種類ごとの集合を辞書にまとめ、`GameScene` 側の一括更新 API と齟齬なく連携する
     private func pushHighlightsToScene() {
@@ -249,9 +254,11 @@ final class GameBoardBridgeViewModel: ObservableObject {
             .dungeonCollapsedFloor: core.collapsedFloorPoints
         ]
         scene.updateHighlights(highlights)
-        scene.updatePatrolMovementPreviews(
+        let enemyDirectionPreviews = (
             core.enemyPatrolMovementPreviews.map(ScenePatrolMovementPreview.init)
+            + core.enemyRotatingWatcherDirectionPreviews.map(ScenePatrolMovementPreview.init)
         )
+        scene.updatePatrolMovementPreviews(enemyDirectionPreviews)
     }
 
     /// ガイド集合の件数をまとめ、ログ用メッセージも同時に生成する

@@ -107,6 +107,7 @@
         private var tileEffectDecorations: [GridPoint: TileEffectDecorationCache] = [:]
         private var warpVisualStyles: [String: WarpVisualStyle] = [:]
         private let maxWarpCircleLayers = 4
+        private let impassableMarkerNodeName = "impassableRockMarker"
 
         func reset() {
             removeAllNodes()
@@ -250,6 +251,14 @@
             return palette.boardTileEffectWarp
         }
 
+#if DEBUG
+        func impassableMarkerCountForTesting() -> Int {
+            tileNodes.values.reduce(0) { count, node in
+                count + (node.childNode(withName: impassableMarkerNodeName) == nil ? 0 : 1)
+            }
+        }
+#endif
+
         private func warpAccentColor(for pairIndex: Int, palette: GameScenePalette) -> SKColor {
             if pairIndex < palette.warpPairAccentColors.count {
                 return palette.warpPairAccentColors[pairIndex]
@@ -290,6 +299,7 @@
                 applySingleVisitStyle(to: node, palette: palette)
                 removeMultiVisitDecoration(for: point)
                 removeToggleDecoration(for: point)
+                removeImpassableDecoration(from: node)
                 removeEffectDecoration(for: point)
                 return
             }
@@ -304,6 +314,7 @@
                     layout: layout
                 )
                 removeToggleDecoration(for: point)
+                removeImpassableDecoration(from: node)
             case .toggle:
                 applyToggleStyle(
                     to: node,
@@ -313,14 +324,16 @@
                     layout: layout
                 )
                 removeMultiVisitDecoration(for: point)
+                removeImpassableDecoration(from: node)
             case .impassable:
-                applyImpassableStyle(to: node)
+                applyImpassableStyle(to: node, layout: layout, palette: palette)
                 removeMultiVisitDecoration(for: point)
                 removeToggleDecoration(for: point)
             case .single:
                 applySingleVisitStyle(to: node, palette: palette)
                 removeMultiVisitDecoration(for: point)
                 removeToggleDecoration(for: point)
+                removeImpassableDecoration(from: node)
             }
 
             updateEffectDecoration(
@@ -406,10 +419,52 @@
             )
         }
 
-        private func applyImpassableStyle(to node: SKShapeNode) {
+        private func applyImpassableStyle(
+            to node: SKShapeNode,
+            layout: GameSceneLayoutSupport,
+            palette: GameScenePalette
+        ) {
             node.strokeColor = .clear
             node.lineWidth = 0
             node.glowWidth = 0
+
+            let marker: SKShapeNode
+            if let existingMarker = node.childNode(withName: impassableMarkerNodeName) as? SKShapeNode {
+                marker = existingMarker
+            } else {
+                marker = SKShapeNode()
+                marker.name = impassableMarkerNodeName
+                marker.isAntialiased = true
+                marker.lineJoin = .round
+                marker.lineCap = .round
+                marker.zPosition = 0.08
+                node.addChild(marker)
+            }
+
+            marker.path = impassableMarkerPath(tileSize: layout.tileSize)
+            marker.fillColor = palette.boardTileUnvisited.withAlphaComponent(0.65)
+            marker.strokeColor = palette.boardGridLine.withAlphaComponent(0.95)
+            marker.lineWidth = max(1.0, layout.tileSize * 0.035)
+            marker.position = .zero
+            marker.isHidden = false
+        }
+
+        private func removeImpassableDecoration(from node: SKShapeNode) {
+            node.childNode(withName: impassableMarkerNodeName)?.removeFromParent()
+        }
+
+        private func impassableMarkerPath(tileSize: CGFloat) -> CGPath {
+            let radius = tileSize * 0.26
+            let path = CGMutablePath()
+            path.move(to: CGPoint(x: -radius * 0.55, y: radius * 0.75))
+            path.addLine(to: CGPoint(x: radius * 0.25, y: radius * 0.92))
+            path.addLine(to: CGPoint(x: radius * 0.82, y: radius * 0.35))
+            path.addLine(to: CGPoint(x: radius * 0.7, y: -radius * 0.55))
+            path.addLine(to: CGPoint(x: radius * 0.05, y: -radius * 0.88))
+            path.addLine(to: CGPoint(x: -radius * 0.75, y: -radius * 0.45))
+            path.addLine(to: CGPoint(x: -radius * 0.9, y: radius * 0.22))
+            path.closeSubpath()
+            return path
         }
 
         private func updateMultiVisitDecoration(

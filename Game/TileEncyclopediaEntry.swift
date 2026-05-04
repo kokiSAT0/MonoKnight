@@ -82,7 +82,7 @@ public struct TileEncyclopediaEntry: Identifiable, Equatable {
             id: "impassable",
             displayName: "障害物マス",
             category: "障害物",
-            description: "移動できない黒いマスです。移動候補から除外され、レイカードも手前で止まります。",
+            description: "岩や柱の印がある移動できないマスです。移動候補から除外され、レイカードや敵の視線も手前で止まります。",
             previewKind: .impassable
         ),
         TileEncyclopediaEntry(

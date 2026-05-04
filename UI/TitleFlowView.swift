@@ -252,7 +252,7 @@ struct TitleScreenView: View {
                     headline: campaignTileHeadline,
                     detail: campaignTileDetail,
                     accessibilityID: "title_tile_campaign",
-                    accessibilityHint: "塔ダンジョンのフロア一覧を表示します"
+                    accessibilityHint: "塔ダンジョンの塔選択を表示します"
                 )
             }
         }
@@ -340,6 +340,9 @@ struct TitleScreenView: View {
                             startingRewardEntries: dungeonGrowthStore.startingRewardEntries(
                                 for: dungeon,
                                 startingFloorIndex: floorIndex
+                            ),
+                            startingHazardDamageMitigations: dungeonGrowthStore.startingHazardDamageMitigations(
+                                for: dungeon
                             )
                         ) else { return }
                         let context: StartTriggerContext = .campaignStageSelection

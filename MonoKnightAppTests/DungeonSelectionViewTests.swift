@@ -6,7 +6,7 @@ import XCTest
 
 @MainActor
 final class DungeonSelectionViewTests: XCTestCase {
-    func testDungeonSelectionCanListAndStartGrowthTower() throws {
+    func testDungeonSelectionCanShowThreeTowerCardsAndStartGrowthTower() throws {
         let suiteName = "DungeonSelectionViewTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName) ?? .standard
         defer { defaults.removePersistentDomain(forName: suiteName) }
@@ -47,6 +47,22 @@ final class DungeonSelectionViewTests: XCTestCase {
         XCTAssertNil(startedFloorIndex)
     }
 
+    func testDungeonSelectionShowsOnlyTowerCardsWithoutFloorInfoRows() throws {
+        XCTAssertEqual(
+            DungeonLibrary.shared.dungeons.map { "dungeon_card_\($0.id)" },
+            [
+                "dungeon_card_tutorial-tower",
+                "dungeon_card_growth-tower",
+                "dungeon_card_rogue-tower"
+            ]
+        )
+        XCTAssertFalse(
+            DungeonLibrary.shared.allFloors
+                .map { "dungeon_floor_info_\($0.id)" }
+                .contains("dungeon_card_growth-tower")
+        )
+    }
+
     func testDungeonSelectionShowsGrowthRewardStatusForGrowthTowers() throws {
         let suiteName = "DungeonSelectionViewTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName) ?? .standard
@@ -82,5 +98,52 @@ final class DungeonSelectionViewTests: XCTestCase {
         _ = growthStore.registerDungeonClear(dungeon: growthTower, runState: tenthFloor, hasNextFloor: true)
 
         XCTAssertEqual(growthStore.availableGrowthStartFloorNumbers(for: growthTower), [1, 11])
+    }
+
+    func testDungeonSelectionStartButtonsStayAvailableForUnlockedFloors() throws {
+        let suiteName = "DungeonSelectionViewTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName) ?? .standard
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let growthStore = DungeonGrowthStore(userDefaults: defaults)
+        let growthTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let tenthFloor = DungeonRunState(dungeonID: growthTower.id, currentFloorIndex: 9, carriedHP: 3, clearedFloorCount: 9)
+
+        XCTAssertEqual(
+            growthStore.availableGrowthStartFloorNumbers(for: growthTower)
+                .map { "dungeon_start_button_\(growthTower.id)_\($0)f" },
+            ["dungeon_start_button_growth-tower_1f"]
+        )
+
+        _ = growthStore.registerDungeonClear(dungeon: growthTower, runState: tenthFloor, hasNextFloor: true)
+
+        XCTAssertEqual(
+            growthStore.availableGrowthStartFloorNumbers(for: growthTower)
+                .map { "dungeon_start_button_\(growthTower.id)_\($0)f" },
+            [
+                "dungeon_start_button_growth-tower_1f",
+                "dungeon_start_button_growth-tower_11f"
+            ]
+        )
+    }
+
+    func testDungeonSelectionGrowthTreeLockStateChangesAfterMilestones() throws {
+        let suiteName = "DungeonSelectionViewTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName) ?? .standard
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let growthStore = DungeonGrowthStore(userDefaults: defaults)
+        let growthTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let fifthFloor = DungeonRunState(dungeonID: growthTower.id, currentFloorIndex: 4, carriedHP: 3, clearedFloorCount: 4)
+        let tenthFloor = DungeonRunState(dungeonID: growthTower.id, currentFloorIndex: 9, carriedHP: 3, clearedFloorCount: 9)
+
+        _ = growthStore.registerDungeonClear(dungeon: growthTower, runState: fifthFloor, hasNextFloor: true)
+
+        XCTAssertTrue(growthStore.canUnlock(.toolPouch))
+        XCTAssertEqual(growthStore.lockReason(for: .climbingKit), "前提: 道具袋")
+        XCTAssertTrue(growthStore.unlock(.toolPouch))
+        XCTAssertEqual(growthStore.lockReason(for: .climbingKit), "10F到達後")
+
+        _ = growthStore.registerDungeonClear(dungeon: growthTower, runState: tenthFloor, hasNextFloor: true)
+
+        XCTAssertTrue(growthStore.canUnlock(.climbingKit))
     }
 }
