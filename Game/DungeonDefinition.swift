@@ -42,6 +42,16 @@ public struct DungeonInventoryEntry: Codable, Equatable, Identifiable {
     }
 }
 
+/// フロアクリア後に選ぶ塔報酬
+public enum DungeonRewardSelection: Equatable {
+    /// 新しい報酬カードを3回分追加する
+    case add(MoveCard)
+    /// 既存の持ち越し報酬カードの使用回数を1増やす
+    case upgrade(MoveCard)
+    /// 既存の持ち越し報酬カードをランから外す
+    case remove(MoveCard)
+}
+
 /// フロア内に配置する拾得カード
 public struct DungeonCardPickupDefinition: Codable, Equatable, Identifiable {
     public let id: String
@@ -95,15 +105,12 @@ public struct DungeonRunState: Codable, Equatable {
         carryoverHP: Int,
         currentFloorMoveCount: Int,
         rewardMoveCard: MoveCard? = nil,
+        rewardSelection: DungeonRewardSelection? = nil,
         currentInventoryEntries: [DungeonInventoryEntry]? = nil
     ) -> DungeonRunState {
         let carriedEntries = currentInventoryEntries?.compactMap { $0.carryingRewardUsesOnly() } ?? rewardInventoryEntries
-        var updatedRewardInventoryEntries = carriedEntries
-        if let rewardMoveCard {
-            updatedRewardInventoryEntries.append(
-                DungeonInventoryEntry(card: rewardMoveCard, rewardUses: 3, pickupUses: 0)
-            )
-        }
+        let selection = rewardSelection ?? rewardMoveCard.map { DungeonRewardSelection.add($0) }
+        let updatedRewardInventoryEntries = DungeonRunState.applying(selection, to: carriedEntries)
         return DungeonRunState(
             dungeonID: dungeonID,
             currentFloorIndex: currentFloorIndex + 1,
@@ -128,6 +135,25 @@ public struct DungeonRunState: Codable, Equatable {
                     DungeonInventoryEntry(card: entry.card, rewardUses: entry.rewardUses, pickupUses: 0)
                 )
             }
+        }
+        return result
+    }
+
+    private static func applying(
+        _ selection: DungeonRewardSelection?,
+        to entries: [DungeonInventoryEntry]
+    ) -> [DungeonInventoryEntry] {
+        var result = entries
+        switch selection {
+        case .add(let card):
+            result.append(DungeonInventoryEntry(card: card, rewardUses: 3, pickupUses: 0))
+        case .upgrade(let card):
+            guard let index = result.firstIndex(where: { $0.card == card && $0.rewardUses > 0 }) else { break }
+            result[index].rewardUses += 1
+        case .remove(let card):
+            result.removeAll { $0.card == card }
+        case .none:
+            break
         }
         return result
     }

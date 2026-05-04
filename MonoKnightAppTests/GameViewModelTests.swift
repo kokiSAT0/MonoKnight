@@ -668,6 +668,87 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.showingResult)
     }
 
+    func testDungeonRewardUpgradeIncreasesCarriedRewardUsesAndStartsNextFloor() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
+        let runState = DungeonRunState(
+            dungeonID: tower.id,
+            currentFloorIndex: 1,
+            carriedHP: 2,
+            totalMoveCount: 4,
+            clearedFloorCount: 1,
+            rewardInventoryEntries: [DungeonInventoryEntry(card: .straightRight2, rewardUses: 2)]
+        )
+        let mode = tower.floors[1].makeGameMode(
+            dungeonID: tower.id,
+            carriedHP: runState.carriedHP,
+            runState: runState
+        )
+        var requestedMode: GameMode?
+        let (viewModel, core) = makeViewModel(
+            mode: mode,
+            onRequestStartDungeonFloor: { requestedMode = $0 }
+        )
+        core.overrideMetricsForTesting(moveCount: 3, penaltyCount: 0, elapsedSeconds: 12)
+        core.overrideDungeonHPForTesting(2)
+
+        viewModel.showingResult = true
+        viewModel.handleDungeonRewardSelection(.upgrade(.straightRight2))
+
+        let nextRunState = try XCTUnwrap(requestedMode?.dungeonMetadataSnapshot?.runState)
+        XCTAssertEqual(nextRunState.currentFloorIndex, 2)
+        XCTAssertEqual(
+            nextRunState.rewardInventoryEntries,
+            [DungeonInventoryEntry(card: .straightRight2, rewardUses: 3)]
+        )
+        XCTAssertFalse(viewModel.showingResult)
+    }
+
+    func testDungeonRewardRemoveDropsCarriedRewardAndStartsNextFloor() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
+        let runState = DungeonRunState(
+            dungeonID: tower.id,
+            currentFloorIndex: 1,
+            carriedHP: 2,
+            totalMoveCount: 4,
+            clearedFloorCount: 1,
+            rewardInventoryEntries: [
+                DungeonInventoryEntry(card: .straightRight2, rewardUses: 2),
+                DungeonInventoryEntry(card: .straightUp2, rewardUses: 1)
+            ]
+        )
+        let mode = tower.floors[1].makeGameMode(
+            dungeonID: tower.id,
+            carriedHP: runState.carriedHP,
+            runState: runState
+        )
+        var requestedMode: GameMode?
+        let (viewModel, core) = makeViewModel(
+            mode: mode,
+            onRequestStartDungeonFloor: { requestedMode = $0 }
+        )
+        core.overrideMetricsForTesting(moveCount: 3, penaltyCount: 0, elapsedSeconds: 12)
+        core.overrideDungeonHPForTesting(2)
+
+        viewModel.showingResult = true
+        viewModel.handleDungeonRewardSelection(.remove(.straightUp2))
+
+        let nextRunState = try XCTUnwrap(requestedMode?.dungeonMetadataSnapshot?.runState)
+        XCTAssertEqual(
+            nextRunState.rewardInventoryEntries,
+            [DungeonInventoryEntry(card: .straightRight2, rewardUses: 2)]
+        )
+        XCTAssertFalse(viewModel.showingResult)
+    }
+
+    func testDungeonRewardAdjustmentEntriesAreHiddenWithoutCarriedRewards() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
+        let mode = try XCTUnwrap(DungeonLibrary.shared.firstFloorMode(for: tower))
+        let (viewModel, _) = makeViewModel(mode: mode)
+
+        XCTAssertFalse(viewModel.availableDungeonRewardMoveCards.isEmpty)
+        XCTAssertTrue(viewModel.adjustableDungeonRewardEntries.isEmpty)
+    }
+
     func testSelectedDungeonRewardAppearsInDisplayedHandOnStartedNextFloor() throws {
         let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
         let firstMode = try XCTUnwrap(DungeonLibrary.shared.firstFloorMode(for: tower))

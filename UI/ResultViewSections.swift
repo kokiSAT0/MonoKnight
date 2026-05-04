@@ -1,5 +1,6 @@
 import Game
 import SwiftUI
+import UIKit
 
 struct ResultSummarySection: View {
     let presentation: ResultSummaryPresentation
@@ -251,11 +252,13 @@ struct ResultActionSection: View {
     let modeIdentifier: GameMode.Identifier
     let nextDungeonFloorTitle: String?
     let dungeonRewardMoveCards: [MoveCard]
+    let dungeonRewardInventoryEntries: [DungeonInventoryEntry]
     let showsLeaderboardButton: Bool
     let isGameCenterAuthenticated: Bool
     let onRequestGameCenterSignIn: ((GameCenterSignInPromptReason) -> Void)?
     let onSelectNextDungeonFloor: (() -> Void)?
     let onSelectDungeonRewardMoveCard: ((MoveCard) -> Void)?
+    let onSelectDungeonReward: ((DungeonRewardSelection) -> Void)?
     let onRetry: () -> Void
     let onReturnToTitle: (() -> Void)?
     let gameCenterService: GameCenterServiceProtocol
@@ -283,7 +286,7 @@ struct ResultActionSection: View {
                !presentation.isFailed,
                !dungeonRewardMoveCards.isEmpty {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("報酬を選んで次の階へ")
+                    Text("カードを増やす")
                         .font(.headline)
 
                     HStack(alignment: .top, spacing: 8) {
@@ -301,6 +304,59 @@ struct ResultActionSection: View {
                             .accessibilityHint("ダブルタップでこの報酬を選び、次の階へ進みます")
                             .accessibilityAddTraits(.isButton)
                             .accessibilityIdentifier(choice.accessibilityIdentifier)
+                        }
+                    }
+                }
+            }
+
+            if let onSelectDungeonReward,
+               presentation.usesDungeonExit,
+               !presentation.isFailed,
+               !dungeonRewardInventoryEntries.isEmpty {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("持ち越しカードを整える")
+                        .font(.headline)
+
+                    VStack(spacing: 8) {
+                        ForEach(dungeonRewardInventoryEntries) { entry in
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("\(entry.card.displayName)×\(entry.rewardUses)")
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(.primary)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.75)
+
+                                HStack(spacing: 8) {
+                                    Button {
+                                        triggerSuccessHapticIfNeeded()
+                                        onSelectDungeonReward(.upgrade(entry.card))
+                                    } label: {
+                                        Label("使用回数+1", systemImage: "plus.circle")
+                                            .frame(maxWidth: .infinity)
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .controlSize(.small)
+                                    .accessibilityIdentifier("dungeon_reward_upgrade_\(entry.card.displayName)")
+
+                                    Button {
+                                        triggerSuccessHapticIfNeeded()
+                                        onSelectDungeonReward(.remove(entry.card))
+                                    } label: {
+                                        Label("持ち越しから外す", systemImage: "minus.circle")
+                                            .frame(maxWidth: .infinity)
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .controlSize(.small)
+                                    .accessibilityIdentifier("dungeon_reward_remove_\(entry.card.displayName)")
+                                }
+                            }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 8)
+                            .background(
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .fill(Color(UIColor.secondarySystemBackground))
+                            )
                         }
                     }
                 }
@@ -365,11 +421,13 @@ struct ResultActionSection: View {
         modeDisplayName: String,
         nextDungeonFloorTitle: String?,
         dungeonRewardMoveCards: [MoveCard] = [],
+        dungeonRewardInventoryEntries: [DungeonInventoryEntry] = [],
         showsLeaderboardButton: Bool,
         isGameCenterAuthenticated: Bool,
         onRequestGameCenterSignIn: ((GameCenterSignInPromptReason) -> Void)?,
         onSelectNextDungeonFloor: (() -> Void)?,
         onSelectDungeonRewardMoveCard: ((MoveCard) -> Void)? = nil,
+        onSelectDungeonReward: ((DungeonRewardSelection) -> Void)? = nil,
         onRetry: @escaping () -> Void,
         onReturnToTitle: (() -> Void)?,
         gameCenterService: GameCenterServiceProtocol,
@@ -380,11 +438,13 @@ struct ResultActionSection: View {
         self.modeDisplayName = modeDisplayName
         self.nextDungeonFloorTitle = nextDungeonFloorTitle
         self.dungeonRewardMoveCards = dungeonRewardMoveCards
+        self.dungeonRewardInventoryEntries = dungeonRewardInventoryEntries.filter { $0.rewardUses > 0 }
         self.showsLeaderboardButton = showsLeaderboardButton
         self.isGameCenterAuthenticated = isGameCenterAuthenticated
         self.onRequestGameCenterSignIn = onRequestGameCenterSignIn
         self.onSelectNextDungeonFloor = onSelectNextDungeonFloor
         self.onSelectDungeonRewardMoveCard = onSelectDungeonRewardMoveCard
+        self.onSelectDungeonReward = onSelectDungeonReward
         self.onRetry = onRetry
         self.onReturnToTitle = onReturnToTitle
         self.gameCenterService = gameCenterService

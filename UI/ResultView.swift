@@ -62,6 +62,8 @@ struct ResultView: View {
     let onSelectNextDungeonFloor: (() -> Void)?
     /// ダンジョン報酬カードを選んで次階へ進むためのクロージャ
     let onSelectDungeonRewardMoveCard: ((MoveCard) -> Void)?
+    /// ダンジョン報酬を追加/強化/削除から選んで次階へ進むためのクロージャ
+    let onSelectDungeonReward: ((DungeonRewardSelection) -> Void)?
     /// 再戦処理を外部から受け取るクロージャ
     let onRetry: () -> Void
     /// ホームへ戻る操作を外部へ依頼するクロージャ（未指定の場合はボタンを表示しない）
@@ -111,6 +113,7 @@ struct ResultView: View {
         onSelectCampaignStage: ((CampaignStage) -> Void)? = nil,
         onSelectNextDungeonFloor: (() -> Void)? = nil,
         onSelectDungeonRewardMoveCard: ((MoveCard) -> Void)? = nil,
+        onSelectDungeonReward: ((DungeonRewardSelection) -> Void)? = nil,
         onRetry: @escaping () -> Void,
         onReturnToTitle: (() -> Void)? = nil
     ) {
@@ -143,6 +146,7 @@ struct ResultView: View {
             onSelectCampaignStage: onSelectCampaignStage,
             onSelectNextDungeonFloor: onSelectNextDungeonFloor,
             onSelectDungeonRewardMoveCard: onSelectDungeonRewardMoveCard,
+            onSelectDungeonReward: onSelectDungeonReward,
             onRetry: onRetry,
             onReturnToTitle: onReturnToTitle,
             gameCenterService: GameCenterService.shared,
@@ -177,6 +181,7 @@ struct ResultView: View {
         onSelectCampaignStage: ((CampaignStage) -> Void)? = nil,
         onSelectNextDungeonFloor: (() -> Void)? = nil,
         onSelectDungeonRewardMoveCard: ((MoveCard) -> Void)? = nil,
+        onSelectDungeonReward: ((DungeonRewardSelection) -> Void)? = nil,
         onRetry: @escaping () -> Void,
         onReturnToTitle: (() -> Void)? = nil,
 
@@ -218,6 +223,7 @@ struct ResultView: View {
         self.onSelectCampaignStage = onSelectCampaignStage
         self.onSelectNextDungeonFloor = onSelectNextDungeonFloor
         self.onSelectDungeonRewardMoveCard = onSelectDungeonRewardMoveCard
+        self.onSelectDungeonReward = onSelectDungeonReward
         self.onRetry = onRetry
         self.onReturnToTitle = onReturnToTitle
         self.gameCenterService = resolvedGameCenterService
@@ -248,11 +254,13 @@ struct ResultView: View {
                     modeDisplayName: modeDisplayName,
                     nextDungeonFloorTitle: nextDungeonFloorTitle,
                     dungeonRewardMoveCards: dungeonRewardMoveCards,
+                    dungeonRewardInventoryEntries: dungeonInventoryEntries,
                     showsLeaderboardButton: showsLeaderboardButton,
                     isGameCenterAuthenticated: isGameCenterAuthenticated,
                     onRequestGameCenterSignIn: onRequestGameCenterSignIn,
                     onSelectNextDungeonFloor: onSelectNextDungeonFloor,
                     onSelectDungeonRewardMoveCard: onSelectDungeonRewardMoveCard,
+                    onSelectDungeonReward: onSelectDungeonReward,
                     onRetry: onRetry,
                     onReturnToTitle: onReturnToTitle,
                     gameCenterService: gameCenterService,

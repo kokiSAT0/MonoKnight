@@ -251,6 +251,9 @@ struct GameView: View {
                 onSelectDungeonRewardMoveCard: { card in
                     viewModel.handleDungeonRewardSelection(card)
                 },
+                onSelectDungeonReward: { selection in
+                    viewModel.handleDungeonRewardSelection(selection)
+                },
                 onRetry: {
                     // ViewModel 側でリセットと広告フラグの再設定をまとめて処理する
                     viewModel.handleResultRetry()

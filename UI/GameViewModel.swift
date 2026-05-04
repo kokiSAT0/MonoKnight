@@ -193,6 +193,16 @@ final class GameViewModel: ObservableObject {
         let baseCards = dungeon.floors[runState.currentFloorIndex].rewardMoveCardsAfterClear
         return dungeonGrowthStore.rewardMoveCards(for: baseCards, dungeon: dungeon)
     }
+    /// クリア後に強化/削除できる持ち越し報酬カード
+    var adjustableDungeonRewardEntries: [DungeonInventoryEntry] {
+        guard !isResultFailed,
+              let metadata = mode.dungeonMetadataSnapshot,
+              metadata.runState != nil,
+              let dungeon = DungeonLibrary.shared.dungeon(with: metadata.dungeonID),
+              dungeon.difficulty == .growth
+        else { return [] }
+        return dungeonRewardInventoryEntries
+    }
     /// 次のダンジョンフロア名
     var nextDungeonFloorTitle: String? {
         makeNextDungeonFloorMode()?.displayName

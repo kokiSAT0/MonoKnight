@@ -427,6 +427,56 @@ final class DungeonModeTests: XCTestCase {
         )
     }
 
+    func testDungeonRewardSelectionCanAddUpgradeAndRemoveCarriedRewardCards() {
+        let runState = DungeonRunState(
+            dungeonID: "tutorial-tower",
+            currentFloorIndex: 0,
+            carriedHP: 3,
+            totalMoveCount: 0,
+            clearedFloorCount: 0,
+            rewardInventoryEntries: [
+                DungeonInventoryEntry(card: .straightRight2, rewardUses: 2),
+                DungeonInventoryEntry(card: .straightUp2, rewardUses: 1)
+            ]
+        )
+
+        let added = runState.advancedToNextFloor(
+            carryoverHP: 2,
+            currentFloorMoveCount: 5,
+            rewardSelection: .add(.rayRight)
+        )
+        let upgraded = runState.advancedToNextFloor(
+            carryoverHP: 2,
+            currentFloorMoveCount: 5,
+            rewardSelection: .upgrade(.straightRight2)
+        )
+        let removed = runState.advancedToNextFloor(
+            carryoverHP: 2,
+            currentFloorMoveCount: 5,
+            rewardSelection: .remove(.straightUp2)
+        )
+
+        XCTAssertEqual(
+            added.rewardInventoryEntries,
+            [
+                DungeonInventoryEntry(card: .straightRight2, rewardUses: 2),
+                DungeonInventoryEntry(card: .straightUp2, rewardUses: 1),
+                DungeonInventoryEntry(card: .rayRight, rewardUses: 3)
+            ]
+        )
+        XCTAssertEqual(
+            upgraded.rewardInventoryEntries,
+            [
+                DungeonInventoryEntry(card: .straightRight2, rewardUses: 3),
+                DungeonInventoryEntry(card: .straightUp2, rewardUses: 1)
+            ]
+        )
+        XCTAssertEqual(
+            removed.rewardInventoryEntries,
+            [DungeonInventoryEntry(card: .straightRight2, rewardUses: 2)]
+        )
+    }
+
     func testDungeonRewardCardConsumptionReducesUsesAndRemovesEmptyHandStack() {
         let runState = DungeonRunState(
             dungeonID: "test-tower",

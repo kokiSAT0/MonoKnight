@@ -75,7 +75,15 @@ extension GameViewModel {
 
     func handleDungeonRewardSelection(_ rewardMoveCard: MoveCard) {
         guard availableDungeonRewardMoveCards.contains(rewardMoveCard),
-              let nextMode = makeNextDungeonFloorMode(rewardMoveCard: rewardMoveCard)
+              let nextMode = makeNextDungeonFloorMode(rewardSelection: .add(rewardMoveCard))
+        else { return }
+        prepareForDungeonFloorAdvance()
+        onRequestStartDungeonFloor?(nextMode)
+    }
+
+    func handleDungeonRewardSelection(_ selection: DungeonRewardSelection) {
+        guard isDungeonRewardSelectionAvailable(selection),
+              let nextMode = makeNextDungeonFloorMode(rewardSelection: selection)
         else { return }
         prepareForDungeonFloorAdvance()
         onRequestStartDungeonFloor?(nextMode)
@@ -140,6 +148,11 @@ extension GameViewModel {
     }
 
     func makeNextDungeonFloorMode(rewardMoveCard: MoveCard? = nil) -> GameMode? {
+        let selection = rewardMoveCard.map { DungeonRewardSelection.add($0) }
+        return makeNextDungeonFloorMode(rewardSelection: selection)
+    }
+
+    func makeNextDungeonFloorMode(rewardSelection: DungeonRewardSelection?) -> GameMode? {
         guard !isResultFailed,
               let metadata = mode.dungeonMetadataSnapshot,
               let runState = metadata.runState,
@@ -152,7 +165,7 @@ extension GameViewModel {
         let nextRunState = runState.advancedToNextFloor(
             carryoverHP: core.dungeonHP,
             currentFloorMoveCount: core.moveCount,
-            rewardMoveCard: rewardMoveCard,
+            rewardSelection: rewardSelection,
             currentInventoryEntries: core.dungeonInventoryEntries
         )
         let nextFloor = dungeon.floors[nextIndex]
@@ -172,6 +185,15 @@ extension GameViewModel {
             for: dungeon,
             initialHPBonus: dungeonGrowthStore.initialHPBonus(for: dungeon)
         )
+    }
+
+    private func isDungeonRewardSelectionAvailable(_ selection: DungeonRewardSelection) -> Bool {
+        switch selection {
+        case .add(let card):
+            return availableDungeonRewardMoveCards.contains(card)
+        case .upgrade(let card), .remove(let card):
+            return adjustableDungeonRewardEntries.contains { $0.card == card && $0.rewardUses > 0 }
+        }
     }
 
     func cancelPenaltyBannerDisplay() {
