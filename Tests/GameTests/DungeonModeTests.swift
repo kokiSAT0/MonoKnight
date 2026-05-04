@@ -219,7 +219,8 @@ final class DungeonModeTests: XCTestCase {
 
         XCTAssertNotNil(library.dungeon(with: "tutorial-tower"))
         XCTAssertNotNil(library.dungeon(with: "patrol-tower"))
-        XCTAssertEqual(library.dungeons.map(\.id), ["tutorial-tower", "patrol-tower"])
+        XCTAssertNotNil(library.dungeon(with: "key-door-tower"))
+        XCTAssertEqual(library.dungeons.map(\.id), ["tutorial-tower", "patrol-tower", "key-door-tower"])
     }
 
     func testPatrolTowerProvidesThreePlayableInventoryFloors() throws {
@@ -258,9 +259,11 @@ final class DungeonModeTests: XCTestCase {
     func testDungeonTowerBoardSizesFollowTutorialAndStandardPolicy() throws {
         let tutorialTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
         let patrolTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "patrol-tower"))
+        let keyDoorTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "key-door-tower"))
 
         XCTAssertEqual(tutorialTower.floors.map(\.boardSize), [5, 5, 5])
         XCTAssertEqual(patrolTower.floors.map(\.boardSize), [9, 9, 9])
+        XCTAssertEqual(keyDoorTower.floors.map(\.boardSize), [9, 9, 9])
     }
 
     func testPatrolTowerNineByNineDefinitionsStayInsideBoard() throws {
@@ -284,6 +287,71 @@ final class DungeonModeTests: XCTestCase {
             XCTAssertTrue(
                 points.allSatisfy { $0.isInside(boardSize: floor.boardSize) },
                 "\(floor.title) の配置はすべて 9×9 盤面内に収める必要があります"
+            )
+        }
+    }
+
+    func testKeyDoorTowerProvidesThreePlayableInventoryFloors() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "key-door-tower"))
+
+        XCTAssertEqual(tower.title, "鍵扉塔")
+        XCTAssertEqual(tower.difficulty, .growth)
+        XCTAssertEqual(tower.floors.count, 3)
+        XCTAssertEqual(tower.floors.map(\.title), ["鍵の小部屋", "上の鍵道", "扉の見張り"])
+        XCTAssertEqual(tower.floors[0].rewardMoveCardsAfterClear, [
+            .straightRight2,
+            .straightUp2,
+            .knightRightwardChoice
+        ])
+        XCTAssertEqual(tower.floors[1].rewardMoveCardsAfterClear, [
+            .straightUp2,
+            .straightRight2,
+            .diagonalUpRight2
+        ])
+        XCTAssertTrue(tower.floors[2].rewardMoveCardsAfterClear.isEmpty)
+
+        for floor in tower.floors {
+            let mode = floor.makeGameMode(dungeonID: tower.id)
+            XCTAssertTrue(mode.usesDungeonExit)
+            XCTAssertFalse(mode.usesTargetCollection)
+            XCTAssertEqual(mode.dungeonExitPoint, floor.exitPoint)
+            XCTAssertEqual(mode.dungeonRules?.allowsBasicOrthogonalMove, true)
+            XCTAssertEqual(mode.dungeonRules?.cardAcquisitionMode, .inventoryOnly)
+            XCTAssertEqual(mode.dungeonMetadataSnapshot?.dungeonID, tower.id)
+            XCTAssertEqual(mode.dungeonMetadataSnapshot?.floorID, floor.id)
+            XCTAssertFalse(floor.impassableTilePoints.isEmpty)
+            XCTAssertFalse(floor.tileEffectOverrides.isEmpty)
+            XCTAssertFalse(floor.cardPickups.isEmpty)
+        }
+    }
+
+    func testKeyDoorTowerDefinitionsStayInsideBoardAndOpenGateTargetsAreDoors() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "key-door-tower"))
+
+        for floor in tower.floors {
+            var points: [GridPoint] = [floor.spawnPoint, floor.exitPoint]
+            points.append(contentsOf: floor.cardPickups.map(\.point))
+            points.append(contentsOf: floor.enemies.map(\.position))
+            points.append(contentsOf: floor.impassableTilePoints)
+            points.append(contentsOf: floor.tileEffectOverrides.keys)
+            for enemy in floor.enemies {
+                if case .patrol(let path) = enemy.behavior {
+                    points.append(contentsOf: path)
+                }
+            }
+            for effect in floor.tileEffectOverrides.values {
+                if case .openGate(let target) = effect {
+                    points.append(target)
+                    XCTAssertTrue(
+                        floor.impassableTilePoints.contains(target),
+                        "\(floor.title) の開門先は初期扉として障害物配置する必要があります"
+                    )
+                }
+            }
+
+            XCTAssertTrue(
+                points.allSatisfy { $0.isInside(boardSize: floor.boardSize) },
+                "\(floor.title) の鍵/扉配置はすべて 9×9 盤面内に収める必要があります"
             )
         }
     }
@@ -357,6 +425,65 @@ final class DungeonModeTests: XCTestCase {
             advanced.rewardInventoryEntries,
             [DungeonInventoryEntry(card: .straightRight2, rewardUses: 2, pickupUses: 0)]
         )
+    }
+
+    func testDungeonRewardCardConsumptionReducesUsesAndRemovesEmptyHandStack() {
+        let runState = DungeonRunState(
+            dungeonID: "test-tower",
+            currentFloorIndex: 1,
+            carriedHP: 3,
+            clearedFloorCount: 1,
+            rewardInventoryEntries: [DungeonInventoryEntry(card: .straightRight2, rewardUses: 3)]
+        )
+        let mode = GameMode(
+            identifier: .campaignStage,
+            displayName: "報酬消費テスト",
+            regulation: GameMode.Regulation(
+                boardSize: 8,
+                handSize: 10,
+                nextPreviewCount: 0,
+                allowsStacking: true,
+                deckPreset: .standard,
+                spawnRule: .fixed(GridPoint(x: 0, y: 0)),
+                penalties: GameMode.PenaltySettings(
+                    deadlockPenaltyCost: 0,
+                    manualRedrawPenaltyCost: 0,
+                    manualDiscardPenaltyCost: 1,
+                    revisitPenaltyCost: 0
+                ),
+                completionRule: .dungeonExit(exitPoint: GridPoint(x: 7, y: 7)),
+                dungeonRules: DungeonRules(
+                    difficulty: .growth,
+                    failureRule: DungeonFailureRule(initialHP: 3, turnLimit: nil),
+                    allowsBasicOrthogonalMove: true,
+                    cardAcquisitionMode: .inventoryOnly
+                )
+            ),
+            leaderboardEligible: false,
+            dungeonMetadata: .init(
+                dungeonID: runState.dungeonID,
+                floorID: "reward-consumption",
+                runState: runState
+            )
+        )
+        let core = GameCore(mode: mode)
+
+        XCTAssertEqual(core.dungeonInventoryEntries, runState.rewardInventoryEntries)
+        XCTAssertEqual(core.handStacks.first { $0.representativeMove == .straightRight2 }?.count, 3)
+
+        playMove(to: GridPoint(x: 2, y: 0), in: core)
+        XCTAssertEqual(core.dungeonInventoryEntries, [DungeonInventoryEntry(card: .straightRight2, rewardUses: 2)])
+        XCTAssertEqual(core.handStacks.first { $0.representativeMove == .straightRight2 }?.count, 2)
+
+        playBasicMove(to: GridPoint(x: 1, y: 0), in: core)
+        playMove(to: GridPoint(x: 3, y: 0), in: core)
+        XCTAssertEqual(core.dungeonInventoryEntries, [DungeonInventoryEntry(card: .straightRight2, rewardUses: 1)])
+        XCTAssertEqual(core.handStacks.first { $0.representativeMove == .straightRight2 }?.count, 1)
+
+        playBasicMove(to: GridPoint(x: 2, y: 0), in: core)
+        playMove(to: GridPoint(x: 4, y: 0), in: core)
+        XCTAssertTrue(core.dungeonInventoryEntries.isEmpty)
+        XCTAssertFalse(core.handStacks.contains { $0.representativeMove == .straightRight2 })
     }
 
     func testDungeonInventoryStacksDuplicateCardsAndRejectsNewCardAtTenKinds() throws {
@@ -818,6 +945,233 @@ final class DungeonModeTests: XCTestCase {
 
         XCTAssertEqual(core.dungeonHP, 2)
         XCTAssertTrue(core.enemyDangerPoints.contains(GridPoint(x: 4, y: 3)))
+    }
+
+    func testKeyDoorTowerOpenGateUnlocksDoorAndCandidates() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "key-door-tower"))
+        let floor = tower.floors[0]
+        let doorPoint = GridPoint(x: 4, y: 4)
+        let core = makeCore(mode: floor.makeGameMode(dungeonID: tower.id))
+
+        XCTAssertTrue(core.board.isImpassable(doorPoint))
+
+        for destination in [
+            GridPoint(x: 1, y: 4),
+            GridPoint(x: 2, y: 4),
+            GridPoint(x: 2, y: 5),
+            GridPoint(x: 2, y: 6)
+        ] {
+            playBasicMove(to: destination, in: core)
+        }
+
+        XCTAssertFalse(core.board.isImpassable(doorPoint))
+        XCTAssertTrue(core.board.isTraversable(doorPoint))
+
+        playMove(to: GridPoint(x: 4, y: 6), in: core)
+        playBasicMove(to: GridPoint(x: 4, y: 5), in: core)
+
+        XCTAssertTrue(
+            core.availableBasicOrthogonalMoves().contains { $0.destination == doorPoint },
+            "鍵マスで開門した扉は、その後の基本移動候補へ反映される必要があります"
+        )
+    }
+
+    func testKeyDoorTowerBasicMoveRoutesFitTurnLimits() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "key-door-tower"))
+        let basicRoutes: [[GridPoint]] = [
+            [
+                GridPoint(x: 0, y: 3),
+                GridPoint(x: 0, y: 2),
+                GridPoint(x: 0, y: 1),
+                GridPoint(x: 0, y: 0),
+                GridPoint(x: 1, y: 0),
+                GridPoint(x: 2, y: 0),
+                GridPoint(x: 3, y: 0),
+                GridPoint(x: 4, y: 0),
+                GridPoint(x: 5, y: 0),
+                GridPoint(x: 6, y: 0),
+                GridPoint(x: 7, y: 0),
+                GridPoint(x: 8, y: 0),
+                GridPoint(x: 8, y: 1),
+                GridPoint(x: 8, y: 2),
+                GridPoint(x: 8, y: 3),
+                GridPoint(x: 8, y: 4)
+            ],
+            [
+                GridPoint(x: 0, y: 3),
+                GridPoint(x: 0, y: 2),
+                GridPoint(x: 0, y: 1),
+                GridPoint(x: 0, y: 0),
+                GridPoint(x: 1, y: 0),
+                GridPoint(x: 2, y: 0),
+                GridPoint(x: 3, y: 0),
+                GridPoint(x: 4, y: 0),
+                GridPoint(x: 5, y: 0),
+                GridPoint(x: 6, y: 0),
+                GridPoint(x: 7, y: 0),
+                GridPoint(x: 8, y: 0),
+                GridPoint(x: 8, y: 1),
+                GridPoint(x: 8, y: 2),
+                GridPoint(x: 8, y: 3),
+                GridPoint(x: 8, y: 4)
+            ],
+            [
+                GridPoint(x: 1, y: 0),
+                GridPoint(x: 2, y: 0),
+                GridPoint(x: 3, y: 0),
+                GridPoint(x: 4, y: 0),
+                GridPoint(x: 5, y: 0),
+                GridPoint(x: 6, y: 0),
+                GridPoint(x: 7, y: 0),
+                GridPoint(x: 8, y: 0),
+                GridPoint(x: 8, y: 1),
+                GridPoint(x: 8, y: 2),
+                GridPoint(x: 8, y: 3),
+                GridPoint(x: 8, y: 4),
+                GridPoint(x: 8, y: 5),
+                GridPoint(x: 8, y: 6),
+                GridPoint(x: 8, y: 7),
+                GridPoint(x: 8, y: 8)
+            ]
+        ]
+
+        for (floor, route) in zip(tower.floors, basicRoutes) {
+            let core = makeCore(mode: floor.makeGameMode(dungeonID: tower.id))
+
+            for destination in route {
+                playBasicMove(to: destination, in: core)
+            }
+
+            XCTAssertEqual(core.progress, .cleared, "\(floor.title) は基本移動だけでも出口へ届く必要があります")
+            XCTAssertLessThanOrEqual(core.moveCount, floor.failureRule.turnLimit ?? .max)
+        }
+    }
+
+    func testKeyDoorTowerKeyAndCardRoutesShortenRepresentativeBasicRoutes() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "key-door-tower"))
+
+        let firstCore = makeCore(mode: tower.floors[0].makeGameMode(dungeonID: tower.id))
+        for destination in [
+            GridPoint(x: 1, y: 4),
+            GridPoint(x: 2, y: 4),
+            GridPoint(x: 2, y: 5),
+            GridPoint(x: 2, y: 6)
+        ] {
+            playBasicMove(to: destination, in: firstCore)
+        }
+        playMove(to: GridPoint(x: 4, y: 6), in: firstCore)
+        for destination in [
+            GridPoint(x: 4, y: 5),
+            GridPoint(x: 4, y: 4),
+            GridPoint(x: 5, y: 4),
+            GridPoint(x: 6, y: 4),
+            GridPoint(x: 7, y: 4),
+            GridPoint(x: 8, y: 4)
+        ] {
+            playBasicMove(to: destination, in: firstCore)
+        }
+        XCTAssertEqual(firstCore.progress, .cleared)
+        XCTAssertLessThan(firstCore.moveCount, 16)
+
+        let secondRunState = DungeonRunState(
+            dungeonID: tower.id,
+            currentFloorIndex: 1,
+            carriedHP: 3,
+            clearedFloorCount: 1,
+            rewardInventoryEntries: [DungeonInventoryEntry(card: .straightUp2, rewardUses: 3)]
+        )
+        let secondCore = makeCore(
+            mode: tower.floors[1].makeGameMode(dungeonID: tower.id, runState: secondRunState)
+        )
+        playMove(to: GridPoint(x: 0, y: 6), in: secondCore)
+        for destination in [
+            GridPoint(x: 1, y: 6),
+            GridPoint(x: 2, y: 6),
+            GridPoint(x: 2, y: 7)
+        ] {
+            playBasicMove(to: destination, in: secondCore)
+        }
+        playMove(to: GridPoint(x: 4, y: 7), in: secondCore)
+        for destination in [
+            GridPoint(x: 4, y: 6),
+            GridPoint(x: 4, y: 5),
+            GridPoint(x: 4, y: 4),
+            GridPoint(x: 5, y: 4),
+            GridPoint(x: 6, y: 4),
+            GridPoint(x: 7, y: 4),
+            GridPoint(x: 8, y: 4)
+        ] {
+            playBasicMove(to: destination, in: secondCore)
+        }
+        XCTAssertEqual(secondCore.progress, .cleared)
+        XCTAssertLessThan(secondCore.moveCount, 16)
+
+        let thirdRunState = DungeonRunState(
+            dungeonID: tower.id,
+            currentFloorIndex: 2,
+            carriedHP: 3,
+            clearedFloorCount: 2,
+            rewardInventoryEntries: [DungeonInventoryEntry(card: .straightRight2, rewardUses: 3)]
+        )
+        let thirdCore = makeCore(
+            mode: tower.floors[2].makeGameMode(dungeonID: tower.id, runState: thirdRunState)
+        )
+        for destination in [
+            GridPoint(x: 1, y: 0),
+            GridPoint(x: 2, y: 0),
+            GridPoint(x: 2, y: 1),
+            GridPoint(x: 2, y: 2),
+            GridPoint(x: 2, y: 3),
+            GridPoint(x: 2, y: 4)
+        ] {
+            playBasicMove(to: destination, in: thirdCore)
+        }
+        playMove(to: GridPoint(x: 4, y: 4), in: thirdCore)
+        for destination in [
+            GridPoint(x: 5, y: 4),
+            GridPoint(x: 6, y: 4),
+            GridPoint(x: 7, y: 4),
+            GridPoint(x: 8, y: 4),
+            GridPoint(x: 8, y: 5),
+            GridPoint(x: 8, y: 6),
+            GridPoint(x: 8, y: 7),
+            GridPoint(x: 8, y: 8)
+        ] {
+            playBasicMove(to: destination, in: thirdCore)
+        }
+        XCTAssertEqual(thirdCore.progress, .cleared)
+        XCTAssertLessThan(thirdCore.moveCount, 16)
+    }
+
+    func testKeyDoorTowerRewardCardsAreUsableOnNextFloorStart() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "key-door-tower"))
+        let secondRunState = DungeonRunState(
+            dungeonID: tower.id,
+            currentFloorIndex: 1,
+            carriedHP: 3,
+            clearedFloorCount: 1,
+            rewardInventoryEntries: [DungeonInventoryEntry(card: .straightUp2, rewardUses: 3)]
+        )
+        let secondCore = makeCore(mode: tower.floors[1].makeGameMode(dungeonID: tower.id, runState: secondRunState))
+
+        XCTAssertTrue(
+            secondCore.availableMoves().contains { $0.moveCard == .straightUp2 && $0.destination == GridPoint(x: 0, y: 6) },
+            "鍵扉塔 1F 報酬の上2は 2F 初手で鍵道へ入る候補になる想定です"
+        )
+
+        let thirdRunState = DungeonRunState(
+            dungeonID: tower.id,
+            currentFloorIndex: 2,
+            carriedHP: 3,
+            clearedFloorCount: 2,
+            rewardInventoryEntries: [DungeonInventoryEntry(card: .straightRight2, rewardUses: 3)]
+        )
+        let thirdCore = makeCore(mode: tower.floors[2].makeGameMode(dungeonID: tower.id, runState: thirdRunState))
+
+        XCTAssertTrue(
+            thirdCore.availableMoves().contains { $0.moveCard == .straightRight2 && $0.destination == GridPoint(x: 2, y: 0) },
+            "鍵扉塔 2F 報酬の右2は 3F 初手で鍵側へ寄る候補になる想定です"
+        )
     }
 
     func testDungeonRunStateAdvancesWithCarryoverHPMoveCountAndRewardCard() {

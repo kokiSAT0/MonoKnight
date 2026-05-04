@@ -42,8 +42,19 @@ ls .build/debug
 ## 4. テストの実行
 
 ```bash
-# ビルド済みターゲットに対してユニットテストを実行
-swift test
+# Codex 経由の通常検証は、低負荷設定の安全スクリプトを優先
+Scripts/codex-safe-validate.sh logic
+```
+
+手元で直接 SPM テストを実行したい場合は `swift test` でもよいが、開発終盤や Codex に検証を任せる場合は安全スクリプトを使う。
+アプリ側の限定テストやシミュレーター build が必要な場合も、PC の安定性を優先して以下を使う。
+
+```bash
+# 必要な app test だけを実行
+Scripts/codex-safe-validate.sh app-test MonoKnightAppTests/GameViewModelTests
+
+# テスト実行なしでシミュレーター向け build だけを確認
+Scripts/codex-safe-validate.sh build
 ```
 
 ## 5. 実行とデバッグ

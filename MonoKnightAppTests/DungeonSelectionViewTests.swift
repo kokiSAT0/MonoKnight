@@ -5,7 +5,7 @@ import XCTest
 @testable import MonoKnightApp
 
 final class DungeonSelectionViewTests: XCTestCase {
-    func testDungeonSelectionCanListAndStartPatrolTower() throws {
+    func testDungeonSelectionCanListAndStartKeyDoorTower() throws {
         var startedDungeon: DungeonDefinition?
         let view = NavigationStack {
             DungeonSelectionView(
@@ -23,12 +23,12 @@ final class DungeonSelectionViewTests: XCTestCase {
         controller.view.setNeedsLayout()
         controller.view.layoutIfNeeded()
 
-        XCTAssertEqual(DungeonLibrary.shared.dungeons.map(\.id), ["tutorial-tower", "patrol-tower"])
-        let patrolTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "patrol-tower"))
-        let firstMode = try XCTUnwrap(DungeonLibrary.shared.firstFloorMode(for: patrolTower))
+        XCTAssertEqual(DungeonLibrary.shared.dungeons.map(\.id), ["tutorial-tower", "patrol-tower", "key-door-tower"])
+        let keyDoorTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "key-door-tower"))
+        let firstMode = try XCTUnwrap(DungeonLibrary.shared.firstFloorMode(for: keyDoorTower))
 
-        XCTAssertEqual(firstMode.dungeonMetadataSnapshot?.dungeonID, patrolTower.id)
-        XCTAssertEqual(firstMode.dungeonMetadataSnapshot?.floorID, "patrol-1")
+        XCTAssertEqual(firstMode.dungeonMetadataSnapshot?.dungeonID, keyDoorTower.id)
+        XCTAssertEqual(firstMode.dungeonMetadataSnapshot?.floorID, "key-door-1")
         XCTAssertEqual(firstMode.dungeonMetadataSnapshot?.runState?.currentFloorIndex, 0)
         XCTAssertEqual(firstMode.boardSize, 9)
         XCTAssertNil(startedDungeon)

@@ -465,11 +465,10 @@
                 }
                 zPosition = 1.06
             case .dungeonBasicMove:
-                baseColor = palette.boardTileVisited
-                strokeAlpha = 0.82
-                strokeWidth = max(layout.tileSize * 0.050, 2.0)
+                baseColor = SKColor.black
+                strokeAlpha = 1.0
+                strokeWidth = sharedGuideStrokeWidth
                 fillColor = SKColor.clear
-                overlapInset = max(layout.tileSize * 0.15, strokeWidth * 1.4)
                 zPosition = 1.01
             case .targetApproachCandidate:
                 baseColor = palette.boardGuideHighlight
@@ -573,11 +572,16 @@
             tileSize: CGFloat
         ) -> CGPath {
             switch kind {
-            case .currentTarget, .dungeonExit:
+            case .currentTarget:
                 return targetMarkerPath(
                     center: CGPoint(x: rect.midX, y: rect.midY),
                     tileSize: tileSize,
                     scale: 1.0
+                )
+            case .dungeonExit:
+                return staircaseMarkerPath(
+                    center: CGPoint(x: rect.midX, y: rect.midY),
+                    tileSize: tileSize
                 )
             case .upcomingTarget, .dungeonEnemy:
                 return targetMarkerPath(
@@ -612,6 +616,25 @@
             path.addLine(to: CGPoint(x: center.x, y: center.y - radius))
             path.addLine(to: CGPoint(x: center.x - radius, y: center.y))
             path.closeSubpath()
+            return path
+        }
+
+        private func staircaseMarkerPath(center: CGPoint, tileSize: CGFloat) -> CGPath {
+            let stepWidth = tileSize * 0.15
+            let stepHeight = tileSize * 0.12
+            let start = CGPoint(
+                x: center.x - stepWidth * 1.5,
+                y: center.y - stepHeight * 1.5
+            )
+            let path = CGMutablePath()
+            path.move(to: start)
+            for index in 0..<3 {
+                let x = start.x + CGFloat(index + 1) * stepWidth
+                let y = start.y + CGFloat(index) * stepHeight
+                path.addLine(to: CGPoint(x: x, y: y))
+                path.addLine(to: CGPoint(x: x, y: y + stepHeight))
+            }
+            path.addLine(to: CGPoint(x: start.x + stepWidth * 3.4, y: start.y + stepHeight * 3))
             return path
         }
 

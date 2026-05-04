@@ -515,6 +515,32 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
         )
     }
 
+    func testKeyDoorTowerOpenGateAndDoorStateArePassedToScene() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "key-door-tower"))
+        let floor = try XCTUnwrap(tower.floors.first)
+        let mode = floor.makeGameMode(dungeonID: tower.id)
+        let core = GameCore(mode: mode)
+        let viewModel = GameBoardBridgeViewModel(core: core, mode: mode)
+
+        let keyPoint = GridPoint(x: 2, y: 6)
+        let doorPoint = GridPoint(x: 4, y: 4)
+
+        XCTAssertEqual(viewModel.boardSize, 9)
+        XCTAssertEqual(mode.tileEffects[keyPoint], .openGate(target: doorPoint))
+        XCTAssertTrue(core.board.isImpassable(doorPoint))
+        XCTAssertTrue(
+            viewModel.scene.boardIsImpassableForTesting(at: doorPoint),
+            "鍵扉塔の扉マスも Scene の盤面へ渡す必要があります"
+        )
+
+        viewModel.refreshGuideHighlights(progressOverride: .playing)
+        XCTAssertEqual(
+            viewModel.scene.latestHighlightPoints(for: .dungeonBasicMove),
+            Set(core.availableBasicOrthogonalMoves().map(\.destination)),
+            "鍵扉塔でも基本移動候補を Scene へ渡します"
+        )
+    }
+
     /// テストで使い回す ViewModel を生成するヘルパー
     private func makeViewModel() -> GameBoardBridgeViewModel {
         let core = GameCore(mode: .standard)

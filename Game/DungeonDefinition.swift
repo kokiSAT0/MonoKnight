@@ -287,6 +287,7 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
     public let enemies: [EnemyDefinition]
     public let hazards: [HazardDefinition]
     public let impassableTilePoints: Set<GridPoint>
+    public let tileEffectOverrides: [GridPoint: TileEffect]
     public let cardPickups: [DungeonCardPickupDefinition]
     public let rewardMoveCardsAfterClear: [MoveCard]
 
@@ -301,6 +302,7 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
         enemies: [EnemyDefinition] = [],
         hazards: [HazardDefinition] = [],
         impassableTilePoints: Set<GridPoint> = [],
+        tileEffectOverrides: [GridPoint: TileEffect] = [:],
         cardPickups: [DungeonCardPickupDefinition] = [],
         rewardMoveCardsAfterClear: [MoveCard] = []
     ) {
@@ -314,6 +316,7 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
         self.enemies = enemies
         self.hazards = hazards
         self.impassableTilePoints = impassableTilePoints
+        self.tileEffectOverrides = tileEffectOverrides
         self.cardPickups = cardPickups
         var uniqueRewardMoveCards: [MoveCard] = []
         for card in rewardMoveCardsAfterClear where !uniqueRewardMoveCards.contains(card) {
@@ -344,6 +347,7 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
                 spawnRule: .fixed(spawnPoint),
                 penalties: CampaignLibrary.targetModePenalties,
                 impassableTilePoints: impassableTilePoints,
+                tileEffectOverrides: tileEffectOverrides,
                 completionRule: .dungeonExit(exitPoint: exitPoint),
                 dungeonRules: DungeonRules(
                     difficulty: .growth,
@@ -446,7 +450,8 @@ public struct DungeonLibrary {
     public init() {
         dungeons = [
             DungeonLibrary.buildTutorialTower(),
-            DungeonLibrary.buildPatrolTower()
+            DungeonLibrary.buildPatrolTower(),
+            DungeonLibrary.buildKeyDoorTower()
         ]
     }
 
@@ -759,6 +764,140 @@ public struct DungeonLibrary {
             id: "patrol-tower",
             title: "巡回塔",
             summary: "巡回兵の移動ルートを読み、すれ違うタイミングを作る低難度の塔。",
+            difficulty: .growth,
+            floors: floors
+        )
+    }
+
+    private static func buildKeyDoorTower() -> DungeonDefinition {
+        let floors = [
+            DungeonFloorDefinition(
+                id: "key-door-1",
+                title: "鍵の小部屋",
+                boardSize: standardTowerBoardSize,
+                spawnPoint: GridPoint(x: 0, y: 4),
+                exitPoint: GridPoint(x: 8, y: 4),
+                deckPreset: .kingAndKnightBasic,
+                failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 18),
+                impassableTilePoints: [
+                    GridPoint(x: 4, y: 4)
+                ],
+                tileEffectOverrides: [
+                    GridPoint(x: 2, y: 6): .openGate(target: GridPoint(x: 4, y: 4))
+                ],
+                cardPickups: [
+                    DungeonCardPickupDefinition(
+                        id: "key-door-1-right2",
+                        point: GridPoint(x: 1, y: 4),
+                        card: .straightRight2
+                    ),
+                    DungeonCardPickupDefinition(
+                        id: "key-door-1-up2",
+                        point: GridPoint(x: 2, y: 5),
+                        card: .straightUp2
+                    ),
+                    DungeonCardPickupDefinition(
+                        id: "key-door-1-knight",
+                        point: GridPoint(x: 5, y: 4),
+                        card: .knightRightwardChoice
+                    )
+                ],
+                rewardMoveCardsAfterClear: [
+                    .straightRight2,
+                    .straightUp2,
+                    .knightRightwardChoice
+                ]
+            ),
+            DungeonFloorDefinition(
+                id: "key-door-2",
+                title: "上の鍵道",
+                boardSize: standardTowerBoardSize,
+                spawnPoint: GridPoint(x: 0, y: 4),
+                exitPoint: GridPoint(x: 8, y: 4),
+                deckPreset: .kingAndKnightBasic,
+                failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 18),
+                impassableTilePoints: [
+                    GridPoint(x: 4, y: 4)
+                ],
+                tileEffectOverrides: [
+                    GridPoint(x: 2, y: 7): .openGate(target: GridPoint(x: 4, y: 4))
+                ],
+                cardPickups: [
+                    DungeonCardPickupDefinition(
+                        id: "key-door-2-ray-right",
+                        point: GridPoint(x: 0, y: 6),
+                        card: .rayRight
+                    ),
+                    DungeonCardPickupDefinition(
+                        id: "key-door-2-right2",
+                        point: GridPoint(x: 2, y: 7),
+                        card: .straightRight2
+                    ),
+                    DungeonCardPickupDefinition(
+                        id: "key-door-2-up2",
+                        point: GridPoint(x: 7, y: 2),
+                        card: .straightUp2
+                    )
+                ],
+                rewardMoveCardsAfterClear: [
+                    .straightUp2,
+                    .straightRight2,
+                    .diagonalUpRight2
+                ]
+            ),
+            DungeonFloorDefinition(
+                id: "key-door-3",
+                title: "扉の見張り",
+                boardSize: standardTowerBoardSize,
+                spawnPoint: GridPoint(x: 0, y: 0),
+                exitPoint: GridPoint(x: 8, y: 8),
+                deckPreset: .standardLight,
+                failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 18),
+                enemies: [
+                    EnemyDefinition(
+                        id: "key-door-3-watcher",
+                        name: "見張り",
+                        position: GridPoint(x: 6, y: 5),
+                        behavior: .watcher(direction: MoveVector(dx: -1, dy: 0), range: 2)
+                    )
+                ],
+                impassableTilePoints: [
+                    GridPoint(x: 4, y: 1),
+                    GridPoint(x: 4, y: 2),
+                    GridPoint(x: 4, y: 3),
+                    GridPoint(x: 4, y: 4),
+                    GridPoint(x: 4, y: 5),
+                    GridPoint(x: 4, y: 6),
+                    GridPoint(x: 4, y: 7),
+                    GridPoint(x: 4, y: 8)
+                ],
+                tileEffectOverrides: [
+                    GridPoint(x: 2, y: 3): .openGate(target: GridPoint(x: 4, y: 4))
+                ],
+                cardPickups: [
+                    DungeonCardPickupDefinition(
+                        id: "key-door-3-right2",
+                        point: GridPoint(x: 3, y: 0),
+                        card: .straightRight2
+                    ),
+                    DungeonCardPickupDefinition(
+                        id: "key-door-3-up2",
+                        point: GridPoint(x: 2, y: 3),
+                        card: .straightUp2
+                    ),
+                    DungeonCardPickupDefinition(
+                        id: "key-door-3-diagonal-up-right",
+                        point: GridPoint(x: 1, y: 1),
+                        card: .diagonalUpRight2
+                    )
+                ]
+            )
+        ]
+
+        return DungeonDefinition(
+            id: "key-door-tower",
+            title: "鍵扉塔",
+            summary: "鍵マスで扉を開き、寄り道と出口直行の手数差を読む低難度の塔。",
             difficulty: .growth,
             floors: floors
         )

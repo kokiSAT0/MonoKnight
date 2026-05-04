@@ -177,7 +177,7 @@ struct TitleScreenView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(theme.backgroundPrimary)
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("タイトル画面。キャンペーン、ハイスコア、デイリーチャレンジの各カードから詳細へ進めます。")
+        .accessibilityLabel("タイトル画面。塔ダンジョンからプレイを開始できます。")
     }
 
     private var headerSection: some View {
@@ -185,7 +185,7 @@ struct TitleScreenView: View {
             Text("MonoKnight")
                 .font(.system(size: 32, weight: .heavy, design: .rounded))
                 .foregroundColor(theme.textPrimary)
-            Text("カードで騎士を導き、目的地を取り切ろう")
+            Text("カードで騎士を導き、塔を登ろう")
                 .font(.system(size: 16, weight: .medium, design: .rounded))
                 .foregroundColor(theme.textSecondary)
                 .multilineTextAlignment(.center)
@@ -237,39 +237,19 @@ struct TitleScreenView: View {
 
     private var featureTilesSection: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("プレイメニュー")
+            Text("メインコンテンツ")
                 .font(.system(size: 18, weight: .semibold, design: .rounded))
                 .foregroundColor(theme.textPrimary)
 
             LazyVGrid(columns: featureTileColumns, alignment: .leading, spacing: 14) {
                 featureTile(
                     target: .campaign,
-                    title: "キャンペーン",
-                    systemImage: "flag.checkered",
+                    title: "塔ダンジョン",
+                    systemImage: "figure.stairs",
                     headline: campaignTileHeadline,
                     detail: campaignTileDetail,
                     accessibilityID: "title_tile_campaign",
                     accessibilityHint: "塔ダンジョンのフロア一覧を表示します"
-                )
-
-                featureTile(
-                    target: .highScore,
-                    title: "ハイスコア",
-                    systemImage: "trophy.fill",
-                    headline: highScoreTileHeadline,
-                    detail: highScoreTileDetail,
-                    accessibilityID: "title_tile_high_score",
-                    accessibilityHint: "スコアアタックの詳細を確認できます"
-                )
-
-                featureTile(
-                    target: .dailyChallenge,
-                    title: "デイリーチャレンジ",
-                    systemImage: "calendar",
-                    headline: dailyChallengeTileHeadline,
-                    detail: dailyChallengeTileDetail,
-                    accessibilityID: "title_tile_daily_challenge",
-                    accessibilityHint: "日替わりチャレンジの情報を表示します"
                 )
             }
         }
@@ -462,7 +442,7 @@ struct TitleScreenView: View {
     private func logCampaignTileTap() {
         let dungeonCount = dungeonLibrary.dungeons.count
         let floorCount = dungeonLibrary.allFloors.count
-        debugLog("TitleScreenView: キャンペーンカードタップ -> 塔数=\(dungeonCount) フロア数=\(floorCount)")
+        debugLog("TitleScreenView: 塔ダンジョンカードタップ -> 塔数=\(dungeonCount) フロア数=\(floorCount)")
         logNavigationDepth(prefix: "TitleScreenView: NavigationStack 遷移直前状態")
     }
 

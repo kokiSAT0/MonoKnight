@@ -130,6 +130,39 @@ final class GameSceneAccessibilityTests: XCTestCase {
         )
     }
 
+    /// 塔ダンジョンの出口は、通常目的地のひし形ではなく階段形状で示すことを確認する
+    func testDungeonExitHighlightUsesStaircaseShape() {
+        let targetPoint = GridPoint(x: 1, y: 1)
+        let exitPoint = GridPoint(x: 3, y: 3)
+        let (scene, view, _) = makeScene()
+        defer { view.presentScene(nil) }
+
+        scene.updateHighlights([
+            .currentTarget: [targetPoint],
+            .dungeonExit: [exitPoint],
+        ])
+
+        guard let targetBounds = scene.highlightPathBoundsForTesting(
+            kind: .currentTarget,
+            at: targetPoint
+        ), let exitBounds = scene.highlightPathBoundsForTesting(
+            kind: .dungeonExit,
+            at: exitPoint
+        ), let targetElementCount = scene.highlightPathElementCountForTesting(
+            kind: .currentTarget,
+            at: targetPoint
+        ), let exitElementCount = scene.highlightPathElementCountForTesting(
+            kind: .dungeonExit,
+            at: exitPoint
+        ) else {
+            XCTFail("目的地と出口のマーカー形状を取得できません")
+            return
+        }
+
+        XCTAssertGreaterThan(exitElementCount, targetElementCount, "出口は段付きの階段形状として描きます")
+        XCTAssertLessThan(exitBounds.height, targetBounds.height, "出口はひし形ではなく、横方向に段が並ぶ階段形状にします")
+    }
+
     /// 連続移動カードの途中マスは枠なしの塗り、終点は水色枠として描き分けることを確認する
     func testMultiStepPathHighlightUsesFillWithoutFrame() {
         let intermediatePoint = GridPoint(x: 2, y: 2)
@@ -160,11 +193,12 @@ final class GameSceneAccessibilityTests: XCTestCase {
         XCTAssertEqual(pathStyle.lineWidth, 0, "途中マスはタップ可能な枠に見せないため線幅を持たない想定です")
         XCTAssertFalse(pathStyle.fillColor.isEqual(SKColor.clear), "途中マスは薄い水色塗りで通過範囲を示します")
         XCTAssertGreaterThan(destinationStyle.lineWidth, 0, "終点はタップ可能な移動先として水色枠を持つ想定です")
-        XCTAssertTrue(destinationStyle.fillColor.isEqual(SKColor.clear), "終点枠自体は塗りを持たず、通過塗りと重ねます")
+        XCTAssertTrue(destinationStyle.fillColor.isClearForTesting, "終点枠自体は塗りを持たず、通過塗りと重ねます")
     }
 
     func testDungeonBasicMoveUsesFrameAndDungeonMarkersAvoidTileFrames() {
         let basicMovePoint = GridPoint(x: 1, y: 1)
+        let cardMovePoint = GridPoint(x: 1, y: 2)
         let cardPickupPoint = GridPoint(x: 2, y: 1)
         let crackedFloorPoint = GridPoint(x: 3, y: 1)
         let collapsedFloorPoint = GridPoint(x: 4, y: 1)
@@ -172,6 +206,7 @@ final class GameSceneAccessibilityTests: XCTestCase {
         defer { view.presentScene(nil) }
 
         scene.updateHighlights([
+            .guideSingleCandidate: [cardMovePoint],
             .dungeonBasicMove: [basicMovePoint],
             .dungeonCardPickup: [cardPickupPoint],
             .dungeonCrackedFloor: [crackedFloorPoint],
@@ -183,6 +218,13 @@ final class GameSceneAccessibilityTests: XCTestCase {
             at: basicMovePoint
         ) else {
             XCTFail("基本移動の枠ノードを取得できません")
+            return
+        }
+        guard let cardMoveStyle = scene.highlightStyleForTesting(
+            kind: .guideSingleCandidate,
+            at: cardMovePoint
+        ) else {
+            XCTFail("カード移動の枠ノードを取得できません")
             return
         }
         guard let cardPickupStyle = scene.highlightStyleForTesting(
@@ -206,8 +248,23 @@ final class GameSceneAccessibilityTests: XCTestCase {
             XCTFail("崩落床のマーカーノードを取得できません")
             return
         }
+        guard let basicMoveBounds = scene.highlightPathBoundsForTesting(
+            kind: .dungeonBasicMove,
+            at: basicMovePoint
+        ), let cardMoveBounds = scene.highlightPathBoundsForTesting(
+            kind: .guideSingleCandidate,
+            at: cardMovePoint
+        ) else {
+            XCTFail("基本移動とカード移動の枠サイズを取得できません")
+            return
+        }
 
         XCTAssertGreaterThan(basicMoveStyle.lineWidth, 0, "基本移動はこのターンに移動可能なマスなので枠を持ちます")
+        XCTAssertTrue(basicMoveStyle.strokeColor.isBlackForTesting, "基本移動はカードなしの初期移動として黒枠で示します")
+        XCTAssertEqual(basicMoveStyle.lineWidth, cardMoveStyle.lineWidth, accuracy: 0.01, "基本移動枠はカード移動候補と同じ線幅に揃えます")
+        XCTAssertEqual(basicMoveBounds.width, cardMoveBounds.width, accuracy: 0.01, "基本移動枠はカード移動候補と同じ横幅に揃えます")
+        XCTAssertEqual(basicMoveBounds.height, cardMoveBounds.height, accuracy: 0.01, "基本移動枠はカード移動候補と同じ高さに揃えます")
+        XCTAssertTrue(basicMoveStyle.fillColor.isClearForTesting, "基本移動枠自体は塗りを持たない想定です")
         XCTAssertEqual(cardPickupStyle.lineWidth, 0, "床落ちカードは移動可能枠ではなく、枠なしの小マーカーで示します")
         XCTAssertFalse(cardPickupStyle.fillColor.isEqual(SKColor.clear), "床落ちカードは枠なしでも視認できる塗りを持ちます")
         XCTAssertEqual(crackedFloorStyle.lineWidth, 0, "ひび割れ床は移動可能枠ではないためタイル枠を持ちません")
@@ -232,6 +289,21 @@ final class GameSceneAccessibilityTests: XCTestCase {
         scene.updatePatrolMovementPreviews([])
 
         XCTAssertEqual(scene.patrolMovementArrowCountForTesting(), 0, "巡回プレビューが空になったら古い矢印を消す必要があります")
+    }
+}
+
+private extension SKColor {
+    var isBlackForTesting: Bool {
+        var red: CGFloat = 0
+        var green: CGFloat = 0
+        var blue: CGFloat = 0
+        var alpha: CGFloat = 0
+        guard getRed(&red, green: &green, blue: &blue, alpha: &alpha) else { return false }
+        return red <= 0.01 && green <= 0.01 && blue <= 0.01 && alpha >= 0.99
+    }
+
+    var isClearForTesting: Bool {
+        cgColor.alpha <= 0.01
     }
 }
 #endif

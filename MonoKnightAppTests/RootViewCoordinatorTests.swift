@@ -101,4 +101,49 @@ struct RootViewCoordinatorTests {
 
         #expect(stateStore.activeMode.regulationSnapshot.targetLabExperimentSettings == updatedSettings)
     }
+
+    @MainActor
+    @Test func startPreparation_updatesDungeonRewardModeAndSessionTogether() throws {
+        let stateStore = RootViewStateStore(initialIsAuthenticated: true)
+        let preparationCoordinator = RootViewPreparationCoordinator()
+        let tower = try #require(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
+        let initialMode = try #require(DungeonLibrary.shared.firstFloorMode(for: tower))
+        let initialSessionID = stateStore.gameSessionID
+
+        preparationCoordinator.startPreparation(
+            for: initialMode,
+            context: .campaignStageSelection,
+            stateStore: stateStore
+        )
+
+        let firstPreparationSessionID = stateStore.gameSessionID
+        let runState = DungeonRunState(
+            dungeonID: tower.id,
+            currentFloorIndex: 1,
+            carriedHP: 2,
+            totalMoveCount: 4,
+            clearedFloorCount: 1,
+            rewardInventoryEntries: [DungeonInventoryEntry(card: .straightRight2, rewardUses: 3)]
+        )
+        let nextMode = tower.floors[1].makeGameMode(
+            dungeonID: tower.id,
+            carriedHP: runState.carriedHP,
+            runState: runState
+        )
+
+        preparationCoordinator.startPreparation(
+            for: nextMode,
+            context: .campaignContinuation,
+            stateStore: stateStore
+        )
+
+        #expect(firstPreparationSessionID != initialSessionID)
+        #expect(stateStore.gameSessionID != firstPreparationSessionID)
+        #expect(stateStore.activeMode == nextMode)
+        #expect(stateStore.activeMode.dungeonMetadataSnapshot?.runState?.rewardInventoryEntries == runState.rewardInventoryEntries)
+
+        let core = GameCore(mode: stateStore.activeMode)
+        #expect(core.handStacks.contains { $0.representativeMove == .straightRight2 })
+        #expect(core.dungeonInventoryEntries == runState.rewardInventoryEntries)
+    }
 }

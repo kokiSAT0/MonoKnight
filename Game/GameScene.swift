@@ -293,8 +293,33 @@
             return (node.fillColor, node.strokeColor, node.lineWidth)
         }
 
+        func highlightPathBoundsForTesting(
+            kind: BoardHighlightKind,
+            at point: GridPoint
+        ) -> CGRect? {
+            highlightRenderer.highlightNodes[kind]?[point]?.path?.boundingBox
+        }
+
+        func highlightPathElementCountForTesting(
+            kind: BoardHighlightKind,
+            at point: GridPoint
+        ) -> Int? {
+            guard let path = highlightRenderer.highlightNodes[kind]?[point]?.path else {
+                return nil
+            }
+            var count = 0
+            path.applyWithBlock { _ in
+                count += 1
+            }
+            return count
+        }
+
         func tileFillColorForTesting(at point: GridPoint) -> SKColor? {
             decorationRenderer.tileNodes[point]?.fillColor
+        }
+
+        func boardIsImpassableForTesting(at point: GridPoint) -> Bool {
+            board.isImpassable(point)
         }
 
         public func updateGuideHighlights(_ points: Set<GridPoint>) {

@@ -20,18 +20,15 @@ final class RootViewPreparationCoordinator: ObservableObject {
 
         debugLog("RootView: ゲーム準備開始リクエストを処理 選択モード=\(mode.identifier.rawValue) context=\(context.logIdentifier)")
 
-        stateStore.activeMode = mode
-        stateStore.lastPreparationContext = context
-        stateStore.gameSessionID = UUID()
-
-        let scheduledSessionID = stateStore.gameSessionID
+        let scheduledSessionID = UUID()
         debugLog("RootView: 新規ゲームセッションを割り当て sessionID=\(scheduledSessionID)")
 
-        stateStore.isGameReadyForManualStart = false
-
         withAnimation(.easeInOut(duration: 0.25)) {
-            stateStore.isShowingTitleScreen = false
-            stateStore.isPreparingGame = true
+            stateStore.beginGamePreparation(
+                for: mode,
+                context: context,
+                sessionID: scheduledSessionID
+            )
         }
 
         scheduleGameActivationCompletion(for: scheduledSessionID, stateStore: stateStore)

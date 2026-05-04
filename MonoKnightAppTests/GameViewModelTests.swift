@@ -585,6 +585,40 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.showingResult)
     }
 
+    func testSelectedDungeonRewardAppearsInDisplayedHandOnStartedNextFloor() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
+        let firstMode = try XCTUnwrap(DungeonLibrary.shared.firstFloorMode(for: tower))
+        var requestedMode: GameMode?
+        let (firstViewModel, firstCore) = makeViewModel(
+            mode: firstMode,
+            onRequestStartDungeonFloor: { requestedMode = $0 }
+        )
+        firstCore.overrideMetricsForTesting(moveCount: 4, penaltyCount: 0, elapsedSeconds: 20)
+        firstCore.overrideDungeonHPForTesting(2)
+
+        let reward = try XCTUnwrap(firstViewModel.availableDungeonRewardMoveCards.first)
+        firstViewModel.showingResult = true
+        firstViewModel.handleDungeonRewardSelection(reward)
+
+        let nextMode = try XCTUnwrap(requestedMode)
+        let (nextViewModel, nextCore) = makeViewModel(mode: nextMode)
+        let rewardStack = try XCTUnwrap(nextCore.handStacks.first { $0.representativeMove == reward })
+
+        XCTAssertEqual(nextMode.dungeonMetadataSnapshot?.floorID, tower.floors[1].id)
+        XCTAssertEqual(nextCore.dungeonInventoryEntries, [DungeonInventoryEntry(card: reward, rewardUses: 3)])
+        XCTAssertTrue(nextViewModel.displayedHandStacks.contains { $0.representativeMove == reward })
+        XCTAssertTrue(nextViewModel.isCardUsable(rewardStack))
+        XCTAssertTrue(
+            nextCore.availableMoves().contains { $0.stackID == rewardStack.id },
+            "報酬カードは次階開始直後から使用候補へ含める必要があります"
+        )
+
+        let rewardIndex = try XCTUnwrap(nextCore.handStacks.firstIndex { $0.id == rewardStack.id })
+        nextViewModel.handleHandSlotTap(at: rewardIndex)
+
+        XCTAssertEqual(nextViewModel.boardBridge.animatingCard?.moveCard, reward)
+    }
+
     func testCarriedDungeonRewardCardIsUsableImmediatelyOnNextFloorStart() throws {
         let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
         let runState = DungeonRunState(
