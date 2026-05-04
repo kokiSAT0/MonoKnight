@@ -954,6 +954,7 @@ final class DungeonModeTests: XCTestCase {
         let core = makeCore(mode: floor.makeGameMode(dungeonID: tower.id))
 
         XCTAssertTrue(core.board.isImpassable(doorPoint))
+        XCTAssertFalse(core.isDungeonExitUnlocked)
 
         for destination in [
             GridPoint(x: 1, y: 4),
@@ -966,6 +967,8 @@ final class DungeonModeTests: XCTestCase {
 
         XCTAssertFalse(core.board.isImpassable(doorPoint))
         XCTAssertTrue(core.board.isTraversable(doorPoint))
+        XCTAssertTrue(core.isDungeonExitUnlocked)
+        XCTAssertEqual(core.dungeonExitUnlockEvent?.exitPoint, floor.exitPoint)
 
         playMove(to: GridPoint(x: 4, y: 6), in: core)
         playBasicMove(to: GridPoint(x: 4, y: 5), in: core)
@@ -976,9 +979,9 @@ final class DungeonModeTests: XCTestCase {
         )
     }
 
-    func testKeyDoorTowerBasicMoveRoutesFitTurnLimits() throws {
+    func testKeyDoorTowerExitStaysLockedWhenKeyIsSkipped() throws {
         let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "key-door-tower"))
-        let basicRoutes: [[GridPoint]] = [
+        let routesSkippingKey: [[GridPoint]] = [
             [
                 GridPoint(x: 0, y: 3),
                 GridPoint(x: 0, y: 2),
@@ -1035,14 +1038,16 @@ final class DungeonModeTests: XCTestCase {
             ]
         ]
 
-        for (floor, route) in zip(tower.floors, basicRoutes) {
+        for (floor, route) in zip(tower.floors, routesSkippingKey) {
             let core = makeCore(mode: floor.makeGameMode(dungeonID: tower.id))
 
             for destination in route {
                 playBasicMove(to: destination, in: core)
             }
 
-            XCTAssertEqual(core.progress, .cleared, "\(floor.title) は基本移動だけでも出口へ届く必要があります")
+            XCTAssertEqual(core.current, floor.exitPoint)
+            XCTAssertFalse(core.isDungeonExitUnlocked)
+            XCTAssertEqual(core.progress, .playing, "\(floor.title) は鍵を取るまで出口へ到達してもクリアしない必要があります")
             XCTAssertLessThanOrEqual(core.moveCount, floor.failureRule.turnLimit ?? .max)
         }
     }

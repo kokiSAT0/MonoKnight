@@ -17,6 +17,7 @@
         private var latestCurrentTargetPoints: Set<GridPoint> = []
         private var latestUpcomingTargetPoints: Set<GridPoint> = []
         private var latestDungeonExitPoints: Set<GridPoint> = []
+        private var latestDungeonExitLockedPoints: Set<GridPoint> = []
         private var latestDungeonEnemyPoints: Set<GridPoint> = []
         private var latestDungeonDangerPoints: Set<GridPoint> = []
         private var latestDungeonCardPickupPoints: Set<GridPoint> = []
@@ -56,6 +57,7 @@
             latestCurrentTargetPoints = []
             latestUpcomingTargetPoints = []
             latestDungeonExitPoints = []
+            latestDungeonExitLockedPoints = []
             latestDungeonEnemyPoints = []
             latestDungeonDangerPoints = []
             latestDungeonCardPickupPoints = []
@@ -203,6 +205,7 @@
                     .currentTarget: latestCurrentTargetPoints,
                     .upcomingTarget: latestUpcomingTargetPoints,
                     .dungeonExit: latestDungeonExitPoints,
+                    .dungeonExitLocked: latestDungeonExitLockedPoints,
                     .dungeonEnemy: latestDungeonEnemyPoints,
                     .dungeonDanger: latestDungeonDangerPoints,
                     .dungeonCardPickup: latestDungeonCardPickupPoints,
@@ -261,6 +264,7 @@
             latestCurrentTargetPoints = highlights[.currentTarget] ?? []
             latestUpcomingTargetPoints = highlights[.upcomingTarget] ?? []
             latestDungeonExitPoints = highlights[.dungeonExit] ?? []
+            latestDungeonExitLockedPoints = highlights[.dungeonExitLocked] ?? []
             latestDungeonEnemyPoints = highlights[.dungeonEnemy] ?? []
             latestDungeonDangerPoints = highlights[.dungeonDanger] ?? []
             latestDungeonCardPickupPoints = highlights[.dungeonCardPickup] ?? []
@@ -508,6 +512,12 @@
                 strokeWidth = max(layout.tileSize * 0.065, 2.4)
                 fillColor = baseColor.withAlphaComponent(0.20)
                 zPosition = 1.18
+            case .dungeonExitLocked:
+                baseColor = SKColor(red: 0.45, green: 0.47, blue: 0.50, alpha: 1.0)
+                strokeAlpha = 0.98
+                strokeWidth = max(layout.tileSize * 0.06, 2.2)
+                fillColor = baseColor.withAlphaComponent(0.28)
+                zPosition = 1.18
             case .dungeonEnemy:
                 baseColor = SKColor(red: 0.86, green: 0.18, blue: 0.16, alpha: 1.0)
                 strokeAlpha = 0.95
@@ -561,6 +571,7 @@
             node.isAntialiased = kind == .currentTarget
                 || kind == .upcomingTarget
                 || kind == .dungeonExit
+                || kind == .dungeonExitLocked
                 || kind == .dungeonEnemy
                 || kind == .dungeonCardPickup
             node.blendMode = .alpha
@@ -580,6 +591,11 @@
                 )
             case .dungeonExit:
                 return staircaseMarkerPath(
+                    center: CGPoint(x: rect.midX, y: rect.midY),
+                    tileSize: tileSize
+                )
+            case .dungeonExitLocked:
+                return lockedStaircaseMarkerPath(
                     center: CGPoint(x: rect.midX, y: rect.midY),
                     tileSize: tileSize
                 )
@@ -635,6 +651,40 @@
                 path.addLine(to: CGPoint(x: x, y: y + stepHeight))
             }
             path.addLine(to: CGPoint(x: start.x + stepWidth * 3.4, y: start.y + stepHeight * 3))
+            return path
+        }
+
+        private func lockedStaircaseMarkerPath(center: CGPoint, tileSize: CGFloat) -> CGPath {
+            let path = CGMutablePath()
+            path.addPath(staircaseMarkerPath(center: center, tileSize: tileSize))
+
+            let bodyWidth = tileSize * 0.27
+            let bodyHeight = tileSize * 0.20
+            let bodyRect = CGRect(
+                x: center.x - bodyWidth / 2,
+                y: center.y - tileSize * 0.33,
+                width: bodyWidth,
+                height: bodyHeight
+            )
+            path.addRoundedRect(
+                in: bodyRect,
+                cornerWidth: max(tileSize * 0.025, 1.0),
+                cornerHeight: max(tileSize * 0.025, 1.0)
+            )
+
+            let shackleRect = CGRect(
+                x: center.x - bodyWidth * 0.32,
+                y: bodyRect.maxY - bodyHeight * 0.12,
+                width: bodyWidth * 0.64,
+                height: tileSize * 0.22
+            )
+            path.addArc(
+                center: CGPoint(x: shackleRect.midX, y: shackleRect.minY),
+                radius: shackleRect.width / 2,
+                startAngle: .pi,
+                endAngle: 0,
+                clockwise: false
+            )
             return path
         }
 

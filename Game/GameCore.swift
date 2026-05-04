@@ -53,6 +53,19 @@ public struct EnemyPatrolMovementPreview: Identifiable, Equatable {
     }
 }
 
+/// 鍵取得によってダンジョン出口が解錠されたことを UI へ知らせるイベント
+public struct DungeonExitUnlockEvent: Identifiable, Equatable {
+    public let id: UUID
+    public let exitPoint: GridPoint
+    public let unlockPoint: GridPoint
+
+    public init(id: UUID = UUID(), exitPoint: GridPoint, unlockPoint: GridPoint) {
+        self.id = id
+        self.exitPoint = exitPoint
+        self.unlockPoint = unlockPoint
+    }
+}
+
 /// 移動が完了してから手札へ適用するタイル効果
 private enum PostMoveTileEffect {
     case shuffleHand
@@ -142,6 +155,10 @@ public final class GameCore: ObservableObject {
     @Published public private(set) var dungeonInventoryEntries: [DungeonInventoryEntry] = []
     /// 取得済みのフロア内カード ID
     @Published public private(set) var collectedDungeonCardPickupIDs: Set<String> = []
+    /// 塔ダンジョン出口が現在有効かどうか
+    @Published public private(set) var isDungeonExitUnlocked: Bool = true
+    /// 出口解錠演出用の単発イベント
+    @Published public private(set) var dungeonExitUnlockEvent: DungeonExitUnlockEvent?
     /// 入替カードを使用するために選択中の補助カードスタック
     private var pendingSupportSwapStackID: UUID?
     /// 合計手数（移動 + ペナルティ）の計算プロパティ
@@ -1192,6 +1209,8 @@ public final class GameCore: ObservableObject {
         collapsedFloorPoints = []
         dungeonInventoryEntries = mode.dungeonMetadataSnapshot?.runState?.rewardInventoryEntries ?? []
         collectedDungeonCardPickupIDs = []
+        isDungeonExitUnlocked = mode.dungeonRules?.exitLock == nil
+        dungeonExitUnlockEvent = nil
         configureTargetsForNewSession()
         penaltyEvent = nil
         boardTapPlayRequest = nil
@@ -1532,7 +1551,8 @@ public final class GameCore: ObservableObject {
     private func applyDungeonPostMoveChecks(along traversedPoints: [GridPoint]) -> Bool {
         guard mode.usesDungeonExit else { return false }
         applyDungeonHazards(along: traversedPoints)
-        if current == mode.dungeonExitPoint {
+        updateDungeonExitLockIfNeeded()
+        if current == mode.dungeonExitPoint, isDungeonExitUnlocked {
             finalizeElapsedTimeIfNeeded()
             progress = .cleared
             return true
@@ -1545,6 +1565,23 @@ public final class GameCore: ObservableObject {
             return true
         }
         return false
+    }
+
+    private func updateDungeonExitLockIfNeeded() {
+        guard mode.usesDungeonExit,
+              !isDungeonExitUnlocked,
+              let exitLock = mode.dungeonRules?.exitLock,
+              current == exitLock.unlockPoint
+        else { return }
+
+        isDungeonExitUnlocked = true
+        if let exitPoint = mode.dungeonExitPoint {
+            dungeonExitUnlockEvent = DungeonExitUnlockEvent(
+                exitPoint: exitPoint,
+                unlockPoint: exitLock.unlockPoint
+            )
+        }
+        debugLog("ダンジョン出口を解錠: key=\(exitLock.unlockPoint)")
     }
 
     private func advanceEnemiesForDungeonTurn() {
@@ -1962,6 +1999,8 @@ extension GameCore {
         core.enemyStates = mode.dungeonRules?.enemies.map(EnemyState.init(definition:)) ?? []
         core.crackedFloorPoints = []
         core.collapsedFloorPoints = []
+        core.isDungeonExitUnlocked = mode.dungeonRules?.exitLock == nil
+        core.dungeonExitUnlockEvent = nil
         core.configureTargetsForNewSession()
         core.progress = (resolvedCurrent == nil && mode.requiresSpawnSelection) ? .awaitingSpawn : .playing
 

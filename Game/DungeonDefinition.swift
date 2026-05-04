@@ -146,6 +146,15 @@ public struct DungeonFailureRule: Codable, Equatable {
     }
 }
 
+/// ダンジョン出口を開けるために踏む必要がある鍵マス
+public struct DungeonExitLock: Codable, Equatable {
+    public let unlockPoint: GridPoint
+
+    public init(unlockPoint: GridPoint) {
+        self.unlockPoint = unlockPoint
+    }
+}
+
 /// 敵の行動パターン
 public enum EnemyBehavior: Codable, Equatable {
     /// その場から動かず、隣接マスを警戒する
@@ -288,6 +297,7 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
     public let hazards: [HazardDefinition]
     public let impassableTilePoints: Set<GridPoint>
     public let tileEffectOverrides: [GridPoint: TileEffect]
+    public let exitLock: DungeonExitLock?
     public let cardPickups: [DungeonCardPickupDefinition]
     public let rewardMoveCardsAfterClear: [MoveCard]
 
@@ -303,6 +313,7 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
         hazards: [HazardDefinition] = [],
         impassableTilePoints: Set<GridPoint> = [],
         tileEffectOverrides: [GridPoint: TileEffect] = [:],
+        exitLock: DungeonExitLock? = nil,
         cardPickups: [DungeonCardPickupDefinition] = [],
         rewardMoveCardsAfterClear: [MoveCard] = []
     ) {
@@ -317,6 +328,7 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
         self.hazards = hazards
         self.impassableTilePoints = impassableTilePoints
         self.tileEffectOverrides = tileEffectOverrides
+        self.exitLock = exitLock
         self.cardPickups = cardPickups
         var uniqueRewardMoveCards: [MoveCard] = []
         for card in rewardMoveCardsAfterClear where !uniqueRewardMoveCards.contains(card) {
@@ -354,6 +366,7 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
                     failureRule: resolvedFailureRule,
                     enemies: enemies,
                     hazards: hazards,
+                    exitLock: exitLock,
                     allowsBasicOrthogonalMove: true,
                     cardAcquisitionMode: .inventoryOnly
                 )
@@ -397,6 +410,8 @@ public struct DungeonRules: Codable, Equatable {
     public var failureRule: DungeonFailureRule
     public var enemies: [EnemyDefinition]
     public var hazards: [HazardDefinition]
+    /// 指定がある場合、鍵マスを踏むまで出口到達ではクリアしない
+    public var exitLock: DungeonExitLock?
     /// カードを消費しない上下左右 1 マス移動を許可するか
     public var allowsBasicOrthogonalMove: Bool
     /// 塔内でのカード獲得・補充方式
@@ -407,6 +422,7 @@ public struct DungeonRules: Codable, Equatable {
         failureRule: DungeonFailureRule,
         enemies: [EnemyDefinition] = [],
         hazards: [HazardDefinition] = [],
+        exitLock: DungeonExitLock? = nil,
         allowsBasicOrthogonalMove: Bool = false,
         cardAcquisitionMode: DungeonCardAcquisitionMode = .deck
     ) {
@@ -414,6 +430,7 @@ public struct DungeonRules: Codable, Equatable {
         self.failureRule = failureRule
         self.enemies = enemies
         self.hazards = hazards
+        self.exitLock = exitLock
         self.allowsBasicOrthogonalMove = allowsBasicOrthogonalMove
         self.cardAcquisitionMode = cardAcquisitionMode
     }
@@ -423,6 +440,7 @@ public struct DungeonRules: Codable, Equatable {
         case failureRule
         case enemies
         case hazards
+        case exitLock
         case allowsBasicOrthogonalMove
         case cardAcquisitionMode
     }
@@ -433,6 +451,7 @@ public struct DungeonRules: Codable, Equatable {
         failureRule = try container.decode(DungeonFailureRule.self, forKey: .failureRule)
         enemies = try container.decodeIfPresent([EnemyDefinition].self, forKey: .enemies) ?? []
         hazards = try container.decodeIfPresent([HazardDefinition].self, forKey: .hazards) ?? []
+        exitLock = try container.decodeIfPresent(DungeonExitLock.self, forKey: .exitLock)
         allowsBasicOrthogonalMove = try container.decodeIfPresent(Bool.self, forKey: .allowsBasicOrthogonalMove) ?? false
         cardAcquisitionMode = try container.decodeIfPresent(DungeonCardAcquisitionMode.self, forKey: .cardAcquisitionMode) ?? .deck
     }
@@ -785,6 +804,7 @@ public struct DungeonLibrary {
                 tileEffectOverrides: [
                     GridPoint(x: 2, y: 6): .openGate(target: GridPoint(x: 4, y: 4))
                 ],
+                exitLock: DungeonExitLock(unlockPoint: GridPoint(x: 2, y: 6)),
                 cardPickups: [
                     DungeonCardPickupDefinition(
                         id: "key-door-1-right2",
@@ -822,6 +842,7 @@ public struct DungeonLibrary {
                 tileEffectOverrides: [
                     GridPoint(x: 2, y: 7): .openGate(target: GridPoint(x: 4, y: 4))
                 ],
+                exitLock: DungeonExitLock(unlockPoint: GridPoint(x: 2, y: 7)),
                 cardPickups: [
                     DungeonCardPickupDefinition(
                         id: "key-door-2-ray-right",
@@ -874,6 +895,7 @@ public struct DungeonLibrary {
                 tileEffectOverrides: [
                     GridPoint(x: 2, y: 3): .openGate(target: GridPoint(x: 4, y: 4))
                 ],
+                exitLock: DungeonExitLock(unlockPoint: GridPoint(x: 2, y: 3)),
                 cardPickups: [
                     DungeonCardPickupDefinition(
                         id: "key-door-3-right2",

@@ -153,6 +153,8 @@ final class GameViewModel: ObservableObject {
     var remainingDungeonTurns: Int? { core.remainingDungeonTurns }
     /// ダンジョン出口座標
     var dungeonExitPoint: GridPoint? { mode.dungeonExitPoint }
+    /// ダンジョン出口が解錠済みかどうか
+    var isDungeonExitUnlocked: Bool { core.isDungeonExitUnlocked }
     /// ダンジョンラン状態
     var dungeonRunState: DungeonRunState? { mode.dungeonMetadataSnapshot?.runState }
     /// ダンジョンランの階層表示

@@ -18,6 +18,7 @@
         case currentTarget
         case upcomingTarget
         case dungeonExit
+        case dungeonExitLocked
         case dungeonEnemy
         case dungeonDanger
         case dungeonCardPickup
@@ -373,6 +374,28 @@
                 },
                 updateAccessibility: { [weak self] in self?.updateAccessibilityElements() }
             )
+        }
+
+        public func playDungeonExitUnlockEffect(at point: GridPoint) {
+            guard isLayoutReady, board.contains(point) else { return }
+
+            let ring = SKShapeNode(circleOfRadius: layoutSupport.tileSize * 0.28)
+            ring.position = layoutSupport.position(for: point)
+            ring.strokeColor = palette.boardWarpHighlight
+            ring.fillColor = .clear
+            ring.lineWidth = max(layoutSupport.tileSize * 0.045, 2.0)
+            ring.glowWidth = max(layoutSupport.tileSize * 0.08, 3.0)
+            ring.zPosition = 1.35
+            ring.alpha = 0.95
+            ring.isAntialiased = true
+            addChild(ring)
+
+            let expand = SKAction.group([
+                SKAction.scale(to: 1.55, duration: 0.32),
+                SKAction.fadeOut(withDuration: 0.32)
+            ])
+            expand.timingMode = .easeOut
+            ring.run(.sequence([expand, .removeFromParent()]))
         }
 
         private func calculateLayout(trigger: LayoutTrigger) {

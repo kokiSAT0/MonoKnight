@@ -253,23 +253,22 @@ struct ResultActionSection: View {
                     Text("報酬を選んで次の階へ")
                         .font(.headline)
 
-                    ForEach(dungeonRewardMoveCards, id: \.self) { card in
-                        Button {
-                            triggerSuccessHapticIfNeeded()
-                            onSelectDungeonRewardMoveCard(card)
-                        } label: {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Label(card.displayName, systemImage: "rectangle.stack.badge.plus")
-                                    .font(.body.weight(.semibold))
-                                Text(card.encyclopediaDescription)
-                                    .font(.footnote)
-                                    .foregroundStyle(.secondary)
-                                    .multilineTextAlignment(.leading)
+                    HStack(alignment: .top, spacing: 8) {
+                        ForEach(dungeonRewardMoveCards, id: \.self) { card in
+                            let choice = DungeonRewardCardChoicePresentation(card: card)
+                            Button {
+                                triggerSuccessHapticIfNeeded()
+                                onSelectDungeonRewardMoveCard(card)
+                            } label: {
+                                DungeonRewardCardChoiceView(choice: choice)
                             }
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .buttonStyle(.plain)
+                            .accessibilityElement(children: .ignore)
+                            .accessibilityLabel(choice.accessibilityLabel)
+                            .accessibilityHint("ダブルタップでこの報酬を選び、次の階へ進みます")
+                            .accessibilityAddTraits(.isButton)
+                            .accessibilityIdentifier(choice.accessibilityIdentifier)
                         }
-                        .buttonStyle(.borderedProminent)
-                        .accessibilityIdentifier("dungeon_reward_card_\(card.displayName)")
                     }
                 }
             }
@@ -362,5 +361,73 @@ struct ResultActionSection: View {
     private func triggerSuccessHapticIfNeeded() {
         guard hapticsEnabled else { return }
         UINotificationFeedbackGenerator().notificationOccurred(.success)
+    }
+}
+
+struct DungeonRewardCardChoicePresentation: Equatable {
+    let card: MoveCard
+
+    var title: String { card.displayName }
+    var description: String { card.encyclopediaDescription }
+    var usesBadgeText: String { "3回使える" }
+    var accessibilityIdentifier: String { "dungeon_reward_card_\(card.displayName)" }
+    var accessibilityLabel: String {
+        "\(card.displayName)、報酬カード、3回使える。\(card.encyclopediaDescription)"
+    }
+}
+
+private struct DungeonRewardCardChoiceView: View {
+    let choice: DungeonRewardCardChoicePresentation
+    private var theme = AppTheme()
+
+    init(choice: DungeonRewardCardChoicePresentation) {
+        self.choice = choice
+    }
+
+    var body: some View {
+        VStack(spacing: 8) {
+            MoveCardIllustrationView(card: choice.card, mode: .hand)
+                .scaleEffect(0.92)
+                .frame(
+                    width: MoveCardIllustrationView.defaultWidth,
+                    height: MoveCardIllustrationView.defaultHeight * 0.92
+                )
+                .accessibilityHidden(true)
+
+            Text(choice.title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundColor(theme.textPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+
+            Text(choice.usesBadgeText)
+                .font(.caption2.weight(.bold))
+                .foregroundColor(theme.accentOnPrimary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(Capsule(style: .continuous).fill(theme.accentPrimary))
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+
+            Text(choice.description)
+                .font(.caption)
+                .foregroundColor(theme.textSecondary)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .minimumScaleFactor(0.78)
+                .frame(minHeight: 30, alignment: .top)
+        }
+        .frame(maxWidth: .infinity, minHeight: 190, alignment: .top)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(theme.backgroundElevated)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(theme.cardBorderHand.opacity(0.24), lineWidth: 1)
+        )
+        .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 }

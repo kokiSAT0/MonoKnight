@@ -212,11 +212,13 @@ private extension GameBoardControlRowView {
     }
 
     var dungeonExitValue: String {
+        guard viewModel.isDungeonExitUnlocked else { return "施錠中" }
         guard let point = viewModel.dungeonExitPoint else { return "-" }
         return "\(point.x),\(point.y)"
     }
 
     var dungeonExitAccessibilityValue: String {
+        guard viewModel.isDungeonExitUnlocked else { return "施錠中。鍵を取得すると有効になります" }
         guard let point = viewModel.dungeonExitPoint else { return "未設定" }
         return "横\(point.x)、縦\(point.y)"
     }

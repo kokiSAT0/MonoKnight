@@ -238,7 +238,8 @@ final class GameBoardBridgeViewModel: ObservableObject {
             .forcedSelection: forcedSelectionHighlightPoints,
             .currentTarget: core.targetPoint.map { Set([$0]) } ?? [],
             .upcomingTarget: Set(core.upcomingTargetPoints),
-            .dungeonExit: mode.dungeonExitPoint.map { Set([$0]) } ?? [],
+            .dungeonExit: core.isDungeonExitUnlocked ? (mode.dungeonExitPoint.map { Set([$0]) } ?? []) : [],
+            .dungeonExitLocked: core.isDungeonExitUnlocked ? [] : (mode.dungeonExitPoint.map { Set([$0]) } ?? []),
             .dungeonEnemy: Set(core.enemyStates.map(\.position)),
             .dungeonDanger: core.enemyDangerPoints,
             .dungeonCardPickup: Set(core.activeDungeonCardPickups.map(\.point)),
@@ -654,6 +655,21 @@ final class GameBoardBridgeViewModel: ObservableObject {
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
                 self?.pushHighlightsToScene()
+            }
+            .store(in: &cancellables)
+
+        core.$isDungeonExitUnlocked
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.pushHighlightsToScene()
+            }
+            .store(in: &cancellables)
+
+        core.$dungeonExitUnlockEvent
+            .receive(on: RunLoop.main)
+            .sink { [weak self] event in
+                guard let self, let event else { return }
+                self.scene.playDungeonExitUnlockEffect(at: event.exitPoint)
             }
             .store(in: &cancellables)
     }

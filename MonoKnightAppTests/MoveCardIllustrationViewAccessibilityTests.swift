@@ -50,5 +50,24 @@ final class MoveCardIllustrationViewAccessibilityTests: XCTestCase {
         let label = controller.view.accessibilityLabel ?? ""
         XCTAssertTrue(label.contains("複数方向の候補あり"), "複数候補を示す補足がラベルに含まれていません: \(label)")
     }
+
+    /// 報酬カード選択 UI がカード名、使用回数、既存 ID を表示モデルへ持つことを確認する
+    func testDungeonRewardCardChoicePresentationKeepsCardIdentityAndUses() {
+        let rewardCards: [MoveCard] = [.straightRight2, .straightUp2, .knightRightwardChoice]
+        let choices = rewardCards.map(DungeonRewardCardChoicePresentation.init(card:))
+
+        XCTAssertEqual(choices.count, 3, "報酬候補は3件を横並びカードとして表示する想定です")
+        XCTAssertEqual(choices.map(\.accessibilityIdentifier), [
+            "dungeon_reward_card_右2",
+            "dungeon_reward_card_上2",
+            "dungeon_reward_card_右桂 (選択)"
+        ])
+
+        for choice in choices {
+            XCTAssertEqual(choice.usesBadgeText, "3回使える")
+            XCTAssertTrue(choice.accessibilityLabel.contains(choice.title), "読み上げにカード名が含まれていません")
+            XCTAssertTrue(choice.accessibilityLabel.contains("3回使える"), "読み上げに報酬カードの使用回数が含まれていません")
+        }
+    }
 }
 #endif
