@@ -745,9 +745,25 @@ public struct DungeonLibrary {
             patrolFloors[0],
             stairKeyOnlyGrowthFloor(keyDoorFloors[0]),
             trapFloors[0],
-            warpFloors[0],
+            growthFloorWithoutFixedWarp(
+                warpFloors[0],
+                rewardMoveCardsAfterClear: [
+                    .straightRight2,
+                    .straightUp2,
+                    .rayRight
+                ]
+            ),
             patrolFloors[1],
-            warpFloors[1],
+            growthFloorWithoutFixedWarp(
+                warpFloors[1],
+                title: "転移の抜け道",
+                replacementForFixedWarpPickups: .rayRight,
+                rewardMoveCardsAfterClear: [
+                    .rayRight,
+                    .diagonalUpRight2,
+                    .straightRight2
+                ]
+            ),
             stairKeyOnlyGrowthFloor(
                 keyDoorFloors[2],
                 rewardMoveCardsAfterClear: [
@@ -758,7 +774,7 @@ public struct DungeonLibrary {
             ),
             trapFloors[2].withRewardMoveCardsAfterClear([
                 .straightRight2,
-                .fixedWarp,
+                .diagonalUpRight2,
                 .straightUp2
             ]),
             buildGrowthTowerNinthFloor(),
@@ -817,6 +833,41 @@ public struct DungeonLibrary {
         )
     }
 
+    private static func growthFloorWithoutFixedWarp(
+        _ floor: DungeonFloorDefinition,
+        title: String? = nil,
+        replacementForFixedWarpPickups: MoveCard = .straightRight2,
+        rewardMoveCardsAfterClear: [MoveCard]? = nil
+    ) -> DungeonFloorDefinition {
+        let cardPickups = floor.cardPickups.map { pickup in
+            guard pickup.card == .fixedWarp else { return pickup }
+            return DungeonCardPickupDefinition(
+                id: pickup.id,
+                point: pickup.point,
+                card: replacementForFixedWarpPickups
+            )
+        }
+
+        return DungeonFloorDefinition(
+            id: floor.id,
+            title: title ?? floor.title,
+            boardSize: floor.boardSize,
+            spawnPoint: floor.spawnPoint,
+            exitPoint: floor.exitPoint,
+            deckPreset: floor.deckPreset,
+            failureRule: floor.failureRule,
+            enemies: floor.enemies,
+            hazards: floor.hazards,
+            impassableTilePoints: floor.impassableTilePoints,
+            tileEffectOverrides: floor.tileEffectOverrides,
+            warpTilePairs: floor.warpTilePairs,
+            fixedWarpCardTargets: [:],
+            exitLock: floor.exitLock,
+            cardPickups: cardPickups,
+            rewardMoveCardsAfterClear: rewardMoveCardsAfterClear ?? floor.rewardMoveCardsAfterClear
+        )
+    }
+
     private static func buildGrowthTowerNinthFloor() -> DungeonFloorDefinition {
         DungeonFloorDefinition(
             id: "growth-9",
@@ -866,12 +917,6 @@ public struct DungeonLibrary {
                     GridPoint(x: 6, y: 6)
                 ]
             ],
-            fixedWarpCardTargets: [
-                .fixedWarp: [
-                    GridPoint(x: 8, y: 6),
-                    GridPoint(x: 6, y: 6)
-                ]
-            ],
             exitLock: DungeonExitLock(unlockPoint: GridPoint(x: 2, y: 1)),
             cardPickups: [
                 DungeonCardPickupDefinition(
@@ -880,9 +925,9 @@ public struct DungeonLibrary {
                     card: .straightRight2
                 ),
                 DungeonCardPickupDefinition(
-                    id: "growth-9-fixed-warp",
+                    id: "growth-9-key-diagonal",
                     point: GridPoint(x: 2, y: 1),
-                    card: .fixedWarp
+                    card: .diagonalUpRight2
                 ),
                 DungeonCardPickupDefinition(
                     id: "growth-9-up2",
@@ -891,7 +936,7 @@ public struct DungeonLibrary {
                 )
             ],
             rewardMoveCardsAfterClear: [
-                .fixedWarp,
+                .diagonalUpRight2,
                 .rayRight,
                 .straightUp2
             ]
@@ -946,7 +991,7 @@ public struct DungeonLibrary {
             ],
             cardPickups: [
                 DungeonCardPickupDefinition(id: "growth-10-right2", point: GridPoint(x: 1, y: 0), card: .straightRight2),
-                DungeonCardPickupDefinition(id: "growth-10-fixed-warp", point: GridPoint(x: 1, y: 1), card: .fixedWarp),
+                DungeonCardPickupDefinition(id: "growth-10-diagonal", point: GridPoint(x: 1, y: 1), card: .diagonalUpRight2),
                 DungeonCardPickupDefinition(id: "growth-10-up2", point: GridPoint(x: 7, y: 6), card: .straightUp2)
             ]
         )
@@ -1048,13 +1093,12 @@ public struct DungeonLibrary {
                     GridPoint(x: 7, y: 5)
                 ]
             ],
-            fixedWarpCardTargets: [.fixedWarp: [GridPoint(x: 7, y: 5), GridPoint(x: 6, y: 3)]],
             cardPickups: [
-                DungeonCardPickupDefinition(id: "growth-13-fixed-warp", point: GridPoint(x: 0, y: 3), card: .fixedWarp),
+                DungeonCardPickupDefinition(id: "growth-13-ray-right", point: GridPoint(x: 0, y: 3), card: .rayRight),
                 DungeonCardPickupDefinition(id: "growth-13-up2", point: GridPoint(x: 2, y: 2), card: .straightUp2),
                 DungeonCardPickupDefinition(id: "growth-13-right2", point: GridPoint(x: 7, y: 5), card: .straightRight2)
             ],
-            rewardMoveCardsAfterClear: [.fixedWarp, .rayRight, .diagonalUpRight2]
+            rewardMoveCardsAfterClear: [.straightUp2, .rayRight, .diagonalUpRight2]
         )
     }
 
@@ -1084,7 +1128,7 @@ public struct DungeonLibrary {
                 DungeonCardPickupDefinition(id: "growth-14-up2", point: GridPoint(x: 5, y: 3), card: .straightUp2),
                 DungeonCardPickupDefinition(id: "growth-14-diagonal", point: GridPoint(x: 6, y: 4), card: .diagonalUpRight2)
             ],
-            rewardMoveCardsAfterClear: [.rayRight, .straightUp2, .fixedWarp]
+            rewardMoveCardsAfterClear: [.rayRight, .straightUp2, .diagonalUpRight2]
         )
     }
 
@@ -1105,14 +1149,13 @@ public struct DungeonLibrary {
                 .damageTrap(points: [GridPoint(x: 2, y: 1), GridPoint(x: 5, y: 5), GridPoint(x: 7, y: 6)], damage: 1)
             ],
             warpTilePairs: ["growth-15-warp": [GridPoint(x: 1, y: 2), GridPoint(x: 6, y: 6)]],
-            fixedWarpCardTargets: [.fixedWarp: [GridPoint(x: 6, y: 6)]],
             exitLock: DungeonExitLock(unlockPoint: GridPoint(x: 2, y: 1)),
             cardPickups: [
                 DungeonCardPickupDefinition(id: "growth-15-right2", point: GridPoint(x: 0, y: 1), card: .straightRight2),
-                DungeonCardPickupDefinition(id: "growth-15-fixed-warp", point: GridPoint(x: 2, y: 1), card: .fixedWarp),
+                DungeonCardPickupDefinition(id: "growth-15-key-diagonal", point: GridPoint(x: 2, y: 1), card: .diagonalUpRight2),
                 DungeonCardPickupDefinition(id: "growth-15-up2", point: GridPoint(x: 6, y: 6), card: .straightUp2)
             ],
-            rewardMoveCardsAfterClear: [.fixedWarp, .rayRight, .diagonalUpRight2]
+            rewardMoveCardsAfterClear: [.straightUp2, .rayRight, .diagonalUpRight2]
         )
     }
 
@@ -1152,14 +1195,13 @@ public struct DungeonLibrary {
                 EnemyDefinition(id: "growth-17-patrol", name: "巡回兵", position: GridPoint(x: 5, y: 2), behavior: .patrol(path: [GridPoint(x: 5, y: 2), GridPoint(x: 5, y: 3), GridPoint(x: 6, y: 3), GridPoint(x: 6, y: 2)]))
             ],
             hazards: [.brittleFloor(points: [GridPoint(x: 3, y: 1), GridPoint(x: 3, y: 2), GridPoint(x: 3, y: 3)])],
-            fixedWarpCardTargets: [.fixedWarp: [GridPoint(x: 7, y: 7)]],
             exitLock: DungeonExitLock(unlockPoint: GridPoint(x: 1, y: 5)),
             cardPickups: [
                 DungeonCardPickupDefinition(id: "growth-17-up2", point: GridPoint(x: 1, y: 5), card: .straightUp2),
                 DungeonCardPickupDefinition(id: "growth-17-ray-right", point: GridPoint(x: 2, y: 0), card: .rayRight),
-                DungeonCardPickupDefinition(id: "growth-17-fixed-warp", point: GridPoint(x: 6, y: 6), card: .fixedWarp)
+                DungeonCardPickupDefinition(id: "growth-17-diagonal", point: GridPoint(x: 6, y: 6), card: .diagonalUpRight2)
             ],
-            rewardMoveCardsAfterClear: [.fixedWarp, .diagonalUpRight2, .rayRight]
+            rewardMoveCardsAfterClear: [.straightRight2, .diagonalUpRight2, .rayRight]
         )
     }
 
@@ -1177,13 +1219,12 @@ public struct DungeonLibrary {
             ],
             hazards: [.damageTrap(points: [GridPoint(x: 1, y: 1), GridPoint(x: 2, y: 2), GridPoint(x: 3, y: 3), GridPoint(x: 6, y: 6)], damage: 1)],
             warpTilePairs: ["growth-18-choice": [GridPoint(x: 1, y: 0), GridPoint(x: 6, y: 6)]],
-            fixedWarpCardTargets: [.fixedWarp: [GridPoint(x: 6, y: 6), GridPoint(x: 8, y: 6)]],
             cardPickups: [
-                DungeonCardPickupDefinition(id: "growth-18-fixed-warp", point: GridPoint(x: 1, y: 0), card: .fixedWarp),
+                DungeonCardPickupDefinition(id: "growth-18-ray-right", point: GridPoint(x: 1, y: 0), card: .rayRight),
                 DungeonCardPickupDefinition(id: "growth-18-right2", point: GridPoint(x: 2, y: 1), card: .straightRight2),
                 DungeonCardPickupDefinition(id: "growth-18-up2", point: GridPoint(x: 8, y: 6), card: .straightUp2)
             ],
-            rewardMoveCardsAfterClear: [.fixedWarp, .rayRight, .straightUp2]
+            rewardMoveCardsAfterClear: [.diagonalUpRight2, .rayRight, .straightUp2]
         )
     }
 
@@ -1209,7 +1250,7 @@ public struct DungeonLibrary {
                 DungeonCardPickupDefinition(id: "growth-19-diagonal", point: GridPoint(x: 4, y: 3), card: .diagonalUpRight2),
                 DungeonCardPickupDefinition(id: "growth-19-up2", point: GridPoint(x: 8, y: 6), card: .straightUp2)
             ],
-            rewardMoveCardsAfterClear: [.fixedWarp, .rayRight, .diagonalUpRight2]
+            rewardMoveCardsAfterClear: [.straightUp2, .rayRight, .diagonalUpRight2]
         )
     }
 
@@ -1231,11 +1272,10 @@ public struct DungeonLibrary {
                 .brittleFloor(points: [GridPoint(x: 2, y: 4), GridPoint(x: 3, y: 4), GridPoint(x: 4, y: 4)])
             ],
             warpTilePairs: ["growth-20-risk": [GridPoint(x: 1, y: 2), GridPoint(x: 6, y: 6)]],
-            fixedWarpCardTargets: [.fixedWarp: [GridPoint(x: 8, y: 6), GridPoint(x: 6, y: 6)]],
             exitLock: DungeonExitLock(unlockPoint: GridPoint(x: 2, y: 1)),
             cardPickups: [
                 DungeonCardPickupDefinition(id: "growth-20-right2", point: GridPoint(x: 0, y: 1), card: .straightRight2),
-                DungeonCardPickupDefinition(id: "growth-20-fixed-warp", point: GridPoint(x: 2, y: 1), card: .fixedWarp),
+                DungeonCardPickupDefinition(id: "growth-20-key-diagonal", point: GridPoint(x: 2, y: 1), card: .diagonalUpRight2),
                 DungeonCardPickupDefinition(id: "growth-20-up2", point: GridPoint(x: 8, y: 6), card: .straightUp2)
             ]
         )

@@ -417,7 +417,7 @@ final class DungeonModeTests: XCTestCase {
             "見える罠",
             "転移の入口",
             "すれ違い",
-            "固定ワープの間",
+            "転移の抜け道",
             "扉の見張り",
             "罠と見張り",
             "総合演習",
@@ -452,7 +452,7 @@ final class DungeonModeTests: XCTestCase {
         ])
         XCTAssertEqual(tower.floors[7].rewardMoveCardsAfterClear, [
             .straightRight2,
-            .fixedWarp,
+            .diagonalUpRight2,
             .straightUp2
         ])
         XCTAssertFalse(tower.floors[8].rewardMoveCardsAfterClear.isEmpty)
@@ -460,6 +460,29 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertEqual(tower.floors[19].rewardMoveCardsAfterClear, [])
         XCTAssertFalse(tower.canAdvanceWithinRun(afterFloorIndex: 9))
         XCTAssertTrue(tower.canAdvanceWithinRun(afterFloorIndex: 10))
+    }
+
+    func testGrowthTowerUsesWarpTilesWithoutFixedWarpCards() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        var hasWarpTile = false
+
+        for floor in tower.floors {
+            hasWarpTile = hasWarpTile || !floor.warpTilePairs.isEmpty
+            XCTAssertTrue(
+                floor.fixedWarpCardTargets.isEmpty,
+                "\(floor.title) は成長塔では固定ワープカード目的地を持たない想定です"
+            )
+            XCTAssertFalse(
+                floor.cardPickups.contains { $0.card == .fixedWarp },
+                "\(floor.title) の拾得カードに固定ワープを混ぜない想定です"
+            )
+            XCTAssertFalse(
+                floor.rewardMoveCardsAfterClear.contains(.fixedWarp),
+                "\(floor.title) の報酬候補に固定ワープを混ぜない想定です"
+            )
+        }
+
+        XCTAssertTrue(hasWarpTile, "成長塔のワープ要素は床ギミックとして残します")
     }
 
     func testGrowthTowerLateRewardsFeedIntoCombinedFloors() throws {
@@ -603,8 +626,23 @@ final class DungeonModeTests: XCTestCase {
 
         playBasicMove(to: GridPoint(x: 0, y: 1), in: core)
         playMove(to: GridPoint(x: 2, y: 1), in: core)
-        playMove(to: GridPoint(x: 8, y: 6), in: core)
-        playMove(to: GridPoint(x: 8, y: 8), in: core)
+        for destination in [
+            GridPoint(x: 3, y: 1),
+            GridPoint(x: 4, y: 1),
+            GridPoint(x: 5, y: 1),
+            GridPoint(x: 6, y: 1),
+            GridPoint(x: 7, y: 1),
+            GridPoint(x: 8, y: 1),
+            GridPoint(x: 8, y: 2),
+            GridPoint(x: 8, y: 3),
+            GridPoint(x: 8, y: 4),
+            GridPoint(x: 8, y: 5),
+            GridPoint(x: 8, y: 6),
+            GridPoint(x: 8, y: 7),
+            GridPoint(x: 8, y: 8)
+        ] {
+            playBasicMove(to: destination, in: core)
+        }
 
         XCTAssertEqual(core.progress, .cleared)
         XCTAssertEqual(core.dungeonHP, 3)
