@@ -384,6 +384,7 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
 
     public func makeGameMode(
         dungeonID: String = "tutorial-tower",
+        difficulty: DungeonDifficulty = .growth,
         carriedHP: Int? = nil,
         runState: DungeonRunState? = nil
     ) -> GameMode {
@@ -409,7 +410,7 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
                 fixedWarpCardTargets: fixedWarpCardTargets,
                 completionRule: .dungeonExit(exitPoint: exitPoint),
                 dungeonRules: DungeonRules(
-                    difficulty: .growth,
+                    difficulty: difficulty,
                     failureRule: resolvedFailureRule,
                     enemies: enemies,
                     hazards: hazards,
@@ -519,7 +520,8 @@ public struct DungeonLibrary {
             DungeonLibrary.buildPatrolTower(),
             DungeonLibrary.buildKeyDoorTower(),
             DungeonLibrary.buildWarpTower(),
-            DungeonLibrary.buildTrapTower()
+            DungeonLibrary.buildTrapTower(),
+            DungeonLibrary.buildRoguelikeTower()
         ]
     }
 
@@ -533,13 +535,15 @@ public struct DungeonLibrary {
 
     public func firstFloorMode(for dungeon: DungeonDefinition, initialHPBonus: Int = 0) -> GameMode? {
         guard let firstFloor = dungeon.floors.first else { return nil }
+        let resolvedInitialHPBonus = dungeon.difficulty == .growth ? max(initialHPBonus, 0) : 0
         let runState = DungeonRunState(
             dungeonID: dungeon.id,
             currentFloorIndex: 0,
-            carriedHP: firstFloor.failureRule.initialHP + max(initialHPBonus, 0)
+            carriedHP: firstFloor.failureRule.initialHP + resolvedInitialHPBonus
         )
         return firstFloor.makeGameMode(
             dungeonID: dungeon.id,
+            difficulty: dungeon.difficulty,
             carriedHP: runState.carriedHP,
             runState: runState
         )
@@ -1250,6 +1254,205 @@ public struct DungeonLibrary {
             title: "罠塔",
             summary: "見えている罠を避けるか、HPを支払って近道するかを読む低難度の塔。",
             difficulty: .growth,
+            floors: floors
+        )
+    }
+
+    private static func buildRoguelikeTower() -> DungeonDefinition {
+        let floors = [
+            DungeonFloorDefinition(
+                id: "rogue-1",
+                title: "試練の入口",
+                boardSize: standardTowerBoardSize,
+                spawnPoint: GridPoint(x: 0, y: 0),
+                exitPoint: GridPoint(x: 8, y: 8),
+                deckPreset: .standardLight,
+                failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 14),
+                enemies: [
+                    EnemyDefinition(
+                        id: "rogue-1-watcher",
+                        name: "見張り",
+                        position: GridPoint(x: 5, y: 5),
+                        behavior: .watcher(direction: MoveVector(dx: -1, dy: 0), range: 3)
+                    )
+                ],
+                hazards: [
+                    .damageTrap(
+                        points: [
+                            GridPoint(x: 3, y: 3),
+                            GridPoint(x: 4, y: 4),
+                            GridPoint(x: 5, y: 5)
+                        ],
+                        damage: 1
+                    )
+                ],
+                cardPickups: [
+                    DungeonCardPickupDefinition(
+                        id: "rogue-1-right2",
+                        point: GridPoint(x: 1, y: 0),
+                        card: .straightRight2
+                    ),
+                    DungeonCardPickupDefinition(
+                        id: "rogue-1-diagonal-up-right",
+                        point: GridPoint(x: 4, y: 0),
+                        card: .diagonalUpRight2
+                    ),
+                    DungeonCardPickupDefinition(
+                        id: "rogue-1-up2",
+                        point: GridPoint(x: 8, y: 1),
+                        card: .straightUp2
+                    )
+                ],
+                rewardMoveCardsAfterClear: [
+                    .rayRight,
+                    .fixedWarp,
+                    .diagonalUpRight2
+                ]
+            ),
+            DungeonFloorDefinition(
+                id: "rogue-2",
+                title: "罠列と短縮路",
+                boardSize: standardTowerBoardSize,
+                spawnPoint: GridPoint(x: 0, y: 4),
+                exitPoint: GridPoint(x: 8, y: 4),
+                deckPreset: .standardLight,
+                failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 12),
+                enemies: [
+                    EnemyDefinition(
+                        id: "rogue-2-patrol",
+                        name: "巡回兵",
+                        position: GridPoint(x: 4, y: 2),
+                        behavior: .patrol(path: [
+                            GridPoint(x: 4, y: 2),
+                            GridPoint(x: 4, y: 3),
+                            GridPoint(x: 4, y: 4),
+                            GridPoint(x: 4, y: 5),
+                            GridPoint(x: 4, y: 4),
+                            GridPoint(x: 4, y: 3)
+                        ])
+                    )
+                ],
+                hazards: [
+                    .damageTrap(
+                        points: [
+                            GridPoint(x: 3, y: 4),
+                            GridPoint(x: 5, y: 4)
+                        ],
+                        damage: 1
+                    ),
+                    .brittleFloor(points: [
+                        GridPoint(x: 2, y: 5),
+                        GridPoint(x: 6, y: 5)
+                    ])
+                ],
+                fixedWarpCardTargets: [
+                    .fixedWarp: [
+                        GridPoint(x: 6, y: 4),
+                        GridPoint(x: 7, y: 6)
+                    ]
+                ],
+                cardPickups: [
+                    DungeonCardPickupDefinition(
+                        id: "rogue-2-fixed-warp",
+                        point: GridPoint(x: 1, y: 4),
+                        card: .fixedWarp
+                    ),
+                    DungeonCardPickupDefinition(
+                        id: "rogue-2-right2",
+                        point: GridPoint(x: 6, y: 4),
+                        card: .straightRight2
+                    ),
+                    DungeonCardPickupDefinition(
+                        id: "rogue-2-up2",
+                        point: GridPoint(x: 7, y: 4),
+                        card: .straightUp2
+                    )
+                ],
+                rewardMoveCardsAfterClear: [
+                    .fixedWarp,
+                    .rayUp,
+                    .straightRight2
+                ]
+            ),
+            DungeonFloorDefinition(
+                id: "rogue-3",
+                title: "混成試練",
+                boardSize: standardTowerBoardSize,
+                spawnPoint: GridPoint(x: 0, y: 0),
+                exitPoint: GridPoint(x: 8, y: 8),
+                deckPreset: .standardLight,
+                failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 16),
+                enemies: [
+                    EnemyDefinition(
+                        id: "rogue-3-watcher",
+                        name: "見張り",
+                        position: GridPoint(x: 7, y: 6),
+                        behavior: .watcher(direction: MoveVector(dx: -1, dy: 0), range: 3)
+                    ),
+                    EnemyDefinition(
+                        id: "rogue-3-patrol",
+                        name: "巡回兵",
+                        position: GridPoint(x: 3, y: 4),
+                        behavior: .patrol(path: [
+                            GridPoint(x: 3, y: 4),
+                            GridPoint(x: 4, y: 4),
+                            GridPoint(x: 5, y: 4),
+                            GridPoint(x: 4, y: 4)
+                        ])
+                    )
+                ],
+                hazards: [
+                    .damageTrap(
+                        points: [
+                            GridPoint(x: 2, y: 2),
+                            GridPoint(x: 4, y: 4),
+                            GridPoint(x: 6, y: 6)
+                        ],
+                        damage: 1
+                    ),
+                    .brittleFloor(points: [
+                        GridPoint(x: 1, y: 2),
+                        GridPoint(x: 2, y: 3),
+                        GridPoint(x: 3, y: 4)
+                    ])
+                ],
+                warpTilePairs: [
+                    "rogue-3-risk": [
+                        GridPoint(x: 1, y: 1),
+                        GridPoint(x: 6, y: 6)
+                    ]
+                ],
+                fixedWarpCardTargets: [
+                    .fixedWarp: [
+                        GridPoint(x: 8, y: 6),
+                        GridPoint(x: 6, y: 6)
+                    ]
+                ],
+                cardPickups: [
+                    DungeonCardPickupDefinition(
+                        id: "rogue-3-ray-right",
+                        point: GridPoint(x: 0, y: 1),
+                        card: .rayRight
+                    ),
+                    DungeonCardPickupDefinition(
+                        id: "rogue-3-fixed-warp",
+                        point: GridPoint(x: 2, y: 0),
+                        card: .fixedWarp
+                    ),
+                    DungeonCardPickupDefinition(
+                        id: "rogue-3-up2",
+                        point: GridPoint(x: 6, y: 6),
+                        card: .straightUp2
+                    )
+                ]
+            )
+        ]
+
+        return DungeonDefinition(
+            id: "rogue-tower",
+            title: "試練塔",
+            summary: "永続成長を持ち込まず、拾得カードと報酬ビルドだけで罠・敵・ワープを読む高難度プロトタイプ。",
+            difficulty: .roguelike,
             floors: floors
         )
     }

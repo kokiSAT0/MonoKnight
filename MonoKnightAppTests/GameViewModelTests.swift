@@ -395,6 +395,71 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertEqual(growthStore.points, 1)
     }
 
+    func testRoguelikeTowerDoesNotAwardGrowthPointOnFinalFloorClear() throws {
+        let (defaults, suiteName) = try makeIsolatedDefaults()
+        defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+
+        let progressStore = CampaignProgressStore(userDefaults: defaults)
+        let growthStore = DungeonGrowthStore(userDefaults: defaults)
+        let dungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "rogue-tower"))
+        let finalFloor = try XCTUnwrap(dungeon.floors.last)
+        let runState = DungeonRunState(
+            dungeonID: dungeon.id,
+            currentFloorIndex: 2,
+            carriedHP: 3,
+            clearedFloorCount: 2
+        )
+        let mode = finalFloor.makeGameMode(
+            dungeonID: dungeon.id,
+            difficulty: dungeon.difficulty,
+            carriedHP: 3,
+            runState: runState
+        )
+        let (viewModel, _) = makeViewModel(
+            mode: mode,
+            campaignProgressStore: progressStore,
+            dungeonGrowthStore: growthStore
+        )
+
+        viewModel.handleProgressChange(.cleared)
+
+        XCTAssertEqual(growthStore.points, 0)
+        XCTAssertNil(viewModel.latestDungeonGrowthAward)
+        XCTAssertFalse(growthStore.hasRewardedDungeon(dungeon.id))
+    }
+
+    func testRoguelikeTowerDoesNotUseGrowthRewardBoostOrRewardAdjustment() throws {
+        let (defaults, suiteName) = try makeIsolatedDefaults()
+        defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+
+        let progressStore = CampaignProgressStore(userDefaults: defaults)
+        let growthStore = DungeonGrowthStore(userDefaults: defaults)
+        let growthDungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
+        let rogueDungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "rogue-tower"))
+        _ = growthStore.registerDungeonClear(dungeon: growthDungeon, hasNextFloor: false)
+        XCTAssertTrue(growthStore.unlock(.rewardCandidateBoost))
+
+        let runState = DungeonRunState(
+            dungeonID: rogueDungeon.id,
+            currentFloorIndex: 0,
+            carriedHP: 3,
+            rewardInventoryEntries: [DungeonInventoryEntry(card: .fixedWarp, rewardUses: 2)]
+        )
+        let mode = rogueDungeon.floors[0].makeGameMode(
+            dungeonID: rogueDungeon.id,
+            difficulty: rogueDungeon.difficulty,
+            runState: runState
+        )
+        let (viewModel, _) = makeViewModel(
+            mode: mode,
+            campaignProgressStore: progressStore,
+            dungeonGrowthStore: growthStore
+        )
+
+        XCTAssertEqual(viewModel.availableDungeonRewardMoveCards, rogueDungeon.floors[0].rewardMoveCardsAfterClear)
+        XCTAssertTrue(viewModel.adjustableDungeonRewardEntries.isEmpty)
+    }
+
     func testDungeonGrowthPointIsNotAwardedBeforeFinalFloor() throws {
         let (defaults, suiteName) = try makeIsolatedDefaults()
         defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }

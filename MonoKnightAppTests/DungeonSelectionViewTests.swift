@@ -30,7 +30,7 @@ final class DungeonSelectionViewTests: XCTestCase {
 
         XCTAssertEqual(
             DungeonLibrary.shared.dungeons.map(\.id),
-            ["tutorial-tower", "patrol-tower", "key-door-tower", "warp-tower", "trap-tower"]
+            ["tutorial-tower", "patrol-tower", "key-door-tower", "warp-tower", "trap-tower", "rogue-tower"]
         )
         let trapTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "trap-tower"))
         let firstMode = try XCTUnwrap(DungeonLibrary.shared.firstFloorMode(for: trapTower))
@@ -51,6 +51,7 @@ final class DungeonSelectionViewTests: XCTestCase {
         let patrolTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "patrol-tower"))
         let warpTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "warp-tower"))
         let trapTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "trap-tower"))
+        let rogueTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "rogue-tower"))
         _ = growthStore.registerDungeonClear(dungeon: tutorialTower, hasNextFloor: false)
 
         let tutorialStatus = try XCTUnwrap(
@@ -90,5 +91,11 @@ final class DungeonSelectionViewTests: XCTestCase {
         XCTAssertEqual(trapStatus.text, "成長ポイント 未獲得")
         XCTAssertFalse(trapStatus.isRewarded)
         XCTAssertEqual(trapStatus.accessibilityIdentifier, "dungeon_growth_reward_status_\(trapTower.id)")
+        XCTAssertNil(
+            DungeonGrowthRewardStatusPresentation.make(
+                dungeon: rogueTower,
+                hasRewardedDungeon: growthStore.hasRewardedDungeon(rogueTower.id)
+            )
+        )
     }
 }

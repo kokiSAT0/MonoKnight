@@ -171,6 +171,7 @@ extension GameViewModel {
         let nextFloor = dungeon.floors[nextIndex]
         return nextFloor.makeGameMode(
             dungeonID: dungeon.id,
+            difficulty: dungeon.difficulty,
             carriedHP: nextRunState.carriedHP,
             runState: nextRunState
         )

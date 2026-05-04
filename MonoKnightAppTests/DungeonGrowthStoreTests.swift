@@ -125,6 +125,29 @@ final class DungeonGrowthStoreTests: XCTestCase {
         XCTAssertEqual(mode.dungeonMetadataSnapshot?.runState?.carriedHP, 4)
     }
 
+    func testGrowthEffectsDoNotApplyToRoguelikeTower() throws {
+        let (defaults, suiteName) = try makeIsolatedDefaults()
+        defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+
+        let store = DungeonGrowthStore(userDefaults: defaults)
+        let growthDungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
+        let rogueDungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "rogue-tower"))
+        _ = store.registerDungeonClear(dungeon: growthDungeon, hasNextFloor: false)
+        XCTAssertTrue(store.unlock(.initialHPBoost))
+
+        XCTAssertNil(store.registerDungeonClear(dungeon: rogueDungeon, hasNextFloor: false))
+        XCTAssertEqual(store.initialHPBonus(for: rogueDungeon), 0)
+        XCTAssertEqual(
+            store.rewardMoveCards(for: rogueDungeon.floors[0].rewardMoveCardsAfterClear, dungeon: rogueDungeon),
+            Array(rogueDungeon.floors[0].rewardMoveCardsAfterClear.prefix(3))
+        )
+
+        let firstMode = try XCTUnwrap(
+            DungeonLibrary.shared.firstFloorMode(for: rogueDungeon, initialHPBonus: 99)
+        )
+        XCTAssertEqual(firstMode.dungeonRules?.failureRule.initialHP, rogueDungeon.floors[0].failureRule.initialHP)
+    }
+
     private func makeIsolatedDefaults() throws -> (UserDefaults, String) {
         let suiteName = "DungeonGrowthStoreTests.\(UUID().uuidString)"
         guard let defaults = UserDefaults(suiteName: suiteName) else {
