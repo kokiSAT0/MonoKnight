@@ -349,6 +349,60 @@
             ring.run(.sequence([expandRing, .removeFromParent()]))
         }
 
+        func playDamageEffect(
+            in scene: SKScene,
+            palette: GameScenePalette,
+            layout: GameSceneLayoutSupport,
+            isLayoutReady: Bool
+        ) {
+            guard isLayoutReady,
+                  layout.tileSize > 0,
+                  let knightNode,
+                  !knightNode.isHidden
+            else { return }
+
+            if transientEffectContainer.parent !== scene {
+                scene.addChild(transientEffectContainer)
+            }
+
+            let impact = SKShapeNode(circleOfRadius: layout.tileSize * 0.32)
+            impact.name = "transientDamageImpact"
+            impact.position = knightNode.position
+            impact.strokeColor = SKColor.systemRed.withAlphaComponent(0.72)
+            impact.fillColor = SKColor.systemRed.withAlphaComponent(0.18)
+            impact.lineWidth = max(1.5, layout.tileSize * 0.055)
+            impact.glowWidth = max(2.0, layout.tileSize * 0.08)
+            impact.zPosition = 0.12
+            impact.setScale(0.72)
+            transientEffectContainer.addChild(impact)
+
+            let flashColor = SKColor.systemRed
+            let flashKey = "damageFlash"
+            knightNode.removeAction(forKey: flashKey)
+            knightNode.fillColor = flashColor
+            let restore = SKAction.run { [weak knightNode] in
+                knightNode?.fillColor = palette.boardKnight
+            }
+            let flash = SKAction.sequence([
+                SKAction.wait(forDuration: 0.08),
+                restore,
+                SKAction.wait(forDuration: 0.07),
+                SKAction.run { [weak knightNode] in
+                    knightNode?.fillColor = flashColor
+                },
+                SKAction.wait(forDuration: 0.06),
+                restore
+            ])
+            knightNode.run(flash, withKey: flashKey)
+
+            let pulse = SKAction.group([
+                SKAction.scale(to: 1.26, duration: 0.24),
+                SKAction.fadeOut(withDuration: 0.24)
+            ])
+            pulse.timingMode = .easeOut
+            impact.run(.sequence([pulse, .removeFromParent()]))
+        }
+
         private func performKnightPlacement(
             to point: GridPoint,
             layout: GameSceneLayoutSupport,

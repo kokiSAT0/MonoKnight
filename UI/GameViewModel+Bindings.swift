@@ -79,7 +79,8 @@ extension GameViewModel {
         core.$dungeonHP
             .removeDuplicates()
             .receive(on: RunLoop.main)
-            .sink { [weak self] _ in
+            .sink { [weak self] dungeonHP in
+                self?.handleDungeonHPChange(dungeonHP)
                 self?.saveCurrentDungeonResumeIfPossible()
             }
             .store(in: &cancellables)
@@ -168,6 +169,16 @@ extension GameViewModel {
             capturedCount: newCapturedTargetCount,
             incrementCount: newCapturedTargetCount - lastTutorialCapturedTargetCount
         )
+    }
+
+    func handleDungeonHPChange(_ newHP: Int) {
+        defer { lastObservedDungeonHPForDamageEffect = newHP }
+        guard mode.usesDungeonExit,
+              let previousHP = lastObservedDungeonHPForDamageEffect,
+              newHP < previousHP
+        else { return }
+
+        boardBridge.playDamageEffect()
     }
 
     func showTargetCaptureFeedback(capturedCount: Int, incrementCount: Int) {

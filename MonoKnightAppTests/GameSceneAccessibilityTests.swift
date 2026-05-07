@@ -268,6 +268,21 @@ final class GameSceneAccessibilityTests: XCTestCase {
         )
     }
 
+    func testDamageEffectAddsTransientNodes() {
+        let hitPoint = GridPoint(x: 2, y: 2)
+        let (scene, view, _) = makeScene()
+        defer { view.presentScene(nil) }
+
+        scene.moveKnight(to: hitPoint)
+        scene.playDamageEffect()
+
+        XCTAssertGreaterThan(
+            scene.transientEffectNodeCountForTesting(),
+            0,
+            "被ダメージ時は短い赤い反応で HP が減ったことを示す必要があります"
+        )
+    }
+
     func testPatrolMovementArrowNodesUpdateAndClear() {
         let (scene, view, _) = makeScene()
         defer { view.presentScene(nil) }

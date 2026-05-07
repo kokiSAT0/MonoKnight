@@ -653,6 +653,32 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.showingResult)
     }
 
+    func testDungeonHPDropPlaysDamageEffectOnlyAfterBaselineIsKnown() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
+        let mode = try XCTUnwrap(DungeonLibrary.shared.firstFloorMode(for: tower))
+        let (viewModel, _) = makeViewModel(mode: mode)
+
+        viewModel.handleDungeonHPChange(3)
+        XCTAssertEqual(viewModel.boardBridge.damageEffectPlayCountForTesting, 0)
+
+        viewModel.handleDungeonHPChange(3)
+        XCTAssertEqual(viewModel.boardBridge.damageEffectPlayCountForTesting, 0)
+
+        viewModel.handleDungeonHPChange(2)
+        XCTAssertEqual(viewModel.boardBridge.damageEffectPlayCountForTesting, 1)
+    }
+
+    func testDungeonHPIncreaseDoesNotPlayDamageEffect() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
+        let mode = try XCTUnwrap(DungeonLibrary.shared.firstFloorMode(for: tower))
+        let (viewModel, _) = makeViewModel(mode: mode)
+
+        viewModel.handleDungeonHPChange(2)
+        viewModel.handleDungeonHPChange(3)
+
+        XCTAssertEqual(viewModel.boardBridge.damageEffectPlayCountForTesting, 0)
+    }
+
     func testDungeonFallRequestsNextFloorWithoutResultPresentation() async throws {
         let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
         let fallPoint = GridPoint(x: 3, y: 4)

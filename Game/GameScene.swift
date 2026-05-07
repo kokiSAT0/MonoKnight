@@ -424,6 +424,15 @@
             )
         }
 
+        public func playDamageEffect() {
+            knightAnimator.playDamageEffect(
+                in: self,
+                palette: palette,
+                layout: layoutSupport,
+                isLayoutReady: isLayoutReady
+            )
+        }
+
 #if DEBUG
         func transientEffectNodeCountForTesting() -> Int {
             knightAnimator.transientEffectContainer.children.count

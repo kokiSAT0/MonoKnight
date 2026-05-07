@@ -227,6 +227,14 @@ final class GameBoardBridgeViewModel: ObservableObject {
         scene.playDungeonFallEffect(at: point)
     }
 
+    /// HP 減少を軽く伝えるため、盤面上の騎士へ短い被弾演出を再生する
+    func playDamageEffect() {
+        damageEffectPlayCountForTesting += 1
+        scene.playDamageEffect()
+    }
+
+    private(set) var damageEffectPlayCountForTesting = 0
+
     /// 現在保持しているハイライト状態を SpriteKit シーンへ反映する
     /// - Note: 種類ごとの集合を辞書にまとめ、`GameScene` 側の一括更新 API と齟齬なく連携する
     private func pushHighlightsToScene() {

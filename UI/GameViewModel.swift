@@ -269,6 +269,8 @@ final class GameViewModel: ObservableObject {
     @Published var boardTapSelectionWarning: GameBoardTapSelectionWarning?
     /// 目的地獲得直後に表示する短いフィードバック
     @Published var targetCaptureFeedback: TargetCaptureFeedback?
+    /// HP 低下演出の誤発火を避けるため、直近に観測したダンジョン HP を保持する
+    var lastObservedDungeonHPForDamageEffect: Int?
 
     /// Combine の購読を保持するセット
     var cancellables = Set<AnyCancellable>()

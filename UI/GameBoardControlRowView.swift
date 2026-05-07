@@ -25,6 +25,16 @@ struct GameBoardControlRowView: View {
     }
 }
 
+extension GameBoardControlRowView {
+    static func isCriticalDungeonHP(_ hp: Int) -> Bool {
+        hp <= 1
+    }
+
+    static func dungeonHPAccessibilityValue(for hp: Int) -> String {
+        isCriticalDungeonHP(hp) ? "\(hp)、瀕死" : "\(hp)"
+    }
+}
+
 private extension GameBoardControlRowView {
     var contentMaxWidth: CGFloat? {
         horizontalSizeClass == .regular ? 760 : nil
@@ -160,7 +170,9 @@ private extension GameBoardControlRowView {
                 title: "HP",
                 value: "\(viewModel.dungeonHP)",
                 accessibilityLabel: "残りHP",
-                accessibilityValue: "\(viewModel.dungeonHP)"
+                accessibilityValue: Self.dungeonHPAccessibilityValue(for: viewModel.dungeonHP),
+                valueColor: Self.isCriticalDungeonHP(viewModel.dungeonHP) ? .red : nil,
+                isHighlighted: Self.isCriticalDungeonHP(viewModel.dungeonHP)
             )
 
             statisticBadge(
@@ -407,7 +419,8 @@ private extension GameBoardControlRowView {
         value: String,
         accessibilityLabel: String,
         accessibilityValue: String,
-        valueColor: Color? = nil
+        valueColor: Color? = nil,
+        isHighlighted: Bool = false
     ) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title)
@@ -418,6 +431,20 @@ private extension GameBoardControlRowView {
             Text(value)
                 .font(.headline)
                 .foregroundColor(valueColor ?? theme.statisticValueText)
+        }
+        .padding(.horizontal, isHighlighted ? 8 : 0)
+        .padding(.vertical, isHighlighted ? 4 : 0)
+        .background {
+            if isHighlighted {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Color.red.opacity(0.12))
+            }
+        }
+        .overlay {
+            if isHighlighted {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(Color.red.opacity(0.56), lineWidth: 1)
+            }
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabel)
