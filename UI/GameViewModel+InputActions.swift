@@ -32,54 +32,72 @@ extension GameViewModel {
         boardBridge.animateCardPlay(for: stack, at: index)
     }
 
-    func handleHandSlotTap(at index: Int) {
-        inputFlowCoordinator.handleHandSlotTap(
-            at: index,
-            core: core,
-            boardBridge: boardBridge,
-            sessionState: &sessionState,
-            selectedHandStackID: &selectedHandStackID,
-            hapticsEnabled: hapticsEnabled,
-            guideModeEnabled: guideModeEnabled,
-            basicMoveSlotIndex: presentsBasicMoveCard ? Self.dungeonBasicMoveSlotIndex : nil,
-            presentsBasicMoveCard: presentsBasicMoveCard
-        )
+    private func mutateSelectionState(
+        _ mutation: (inout GameSessionState, inout UUID?) -> Void
+    ) {
+        var nextSessionState = sessionState
+        var nextSelectedHandStackID = selectedHandStackID
+        mutation(&nextSessionState, &nextSelectedHandStackID)
+        sessionState = nextSessionState
+        selectedHandStackID = nextSelectedHandStackID
     }
 
-    func handleBoardTapPlayRequest(_ request: BoardTapPlayRequest) {
-        inputFlowCoordinator.handleBoardTapPlayRequest(
-            request,
-            core: core,
-            boardBridge: boardBridge,
-            sessionState: &sessionState,
-            selectedHandStackID: &selectedHandStackID,
-            guideModeEnabled: guideModeEnabled,
-            hapticsEnabled: hapticsEnabled
-        ) { [weak self] message, destination in
-            self?.boardTapSelectionWarning = BoardTapSelectionWarning(
-                message: message,
-                destination: destination
+    func handleHandSlotTap(at index: Int) {
+        mutateSelectionState { sessionState, selectedHandStackID in
+            inputFlowCoordinator.handleHandSlotTap(
+                at: index,
+                core: core,
+                boardBridge: boardBridge,
+                sessionState: &sessionState,
+                selectedHandStackID: &selectedHandStackID,
+                hapticsEnabled: hapticsEnabled,
+                guideModeEnabled: guideModeEnabled,
+                basicMoveSlotIndex: presentsBasicMoveCard ? Self.dungeonBasicMoveSlotIndex : nil,
+                presentsBasicMoveCard: presentsBasicMoveCard
             )
         }
     }
 
+    func handleBoardTapPlayRequest(_ request: BoardTapPlayRequest) {
+        mutateSelectionState { sessionState, selectedHandStackID in
+            inputFlowCoordinator.handleBoardTapPlayRequest(
+                request,
+                core: core,
+                boardBridge: boardBridge,
+                sessionState: &sessionState,
+                selectedHandStackID: &selectedHandStackID,
+                guideModeEnabled: guideModeEnabled,
+                hapticsEnabled: hapticsEnabled
+            ) { [weak self] message, destination in
+                self?.boardTapSelectionWarning = BoardTapSelectionWarning(
+                    message: message,
+                    destination: destination
+                )
+            }
+        }
+    }
+
     func handleBoardTapBasicMoveRequest(_ request: BoardTapBasicMoveRequest) {
-        inputFlowCoordinator.handleBoardTapBasicMoveRequest(
-            request,
-            core: core,
-            boardBridge: boardBridge,
-            sessionState: &sessionState,
-            selectedHandStackID: &selectedHandStackID,
-            guideModeEnabled: guideModeEnabled
-        )
+        mutateSelectionState { sessionState, selectedHandStackID in
+            inputFlowCoordinator.handleBoardTapBasicMoveRequest(
+                request,
+                core: core,
+                boardBridge: boardBridge,
+                sessionState: &sessionState,
+                selectedHandStackID: &selectedHandStackID,
+                guideModeEnabled: guideModeEnabled
+            )
+        }
     }
 
     func clearSelectedCardSelection() {
-        inputFlowCoordinator.clearSelectedCardSelection(
-            sessionState: &sessionState,
-            boardBridge: boardBridge,
-            selectedHandStackID: &selectedHandStackID
-        )
+        mutateSelectionState { sessionState, selectedHandStackID in
+            inputFlowCoordinator.clearSelectedCardSelection(
+                sessionState: &sessionState,
+                boardBridge: boardBridge,
+                selectedHandStackID: &selectedHandStackID
+            )
+        }
     }
 
     func discardPendingDungeonPickupCard() {

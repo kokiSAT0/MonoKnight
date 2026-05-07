@@ -294,6 +294,8 @@ final class GameViewModel: ObservableObject {
     @Published var targetCaptureFeedback: TargetCaptureFeedback?
     /// HP 低下演出の誤発火を避けるため、直近に観測したダンジョン HP を保持する
     var lastObservedDungeonHPForDamageEffect: Int?
+    /// 敵ターン演出へ委譲した HP 低下イベントを重複再生しないために保持する
+    var deferredEnemyDamageEventID: UUID?
 
     /// Combine の購読を保持するセット
     var cancellables = Set<AnyCancellable>()

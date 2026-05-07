@@ -25,6 +25,8 @@ final class GameBoardBridgeViewModel: ObservableObject {
     @Published var hiddenCardIDs: Set<UUID> = []
     /// カード演出の状態管理
     @Published var animationState: CardAnimationPhase = .idle
+    /// 敵ターンの可視化演出中かどうか
+    @Published private(set) var isEnemyTurnAnimationActive = false
     /// 盤面アンカーのキャッシュ
     @Published var boardAnchor: Anchor<CGRect>?
     /// 演出ターゲットとなる座標
@@ -90,6 +92,8 @@ final class GameBoardBridgeViewModel: ObservableObject {
 
     /// Combine の購読を保持するためのセット
     private var cancellables = Set<AnyCancellable>()
+    /// 敵ターン演出完了予定を保持し、連続イベント時に古い解除を無効化する
+    private var enemyTurnAnimationCompletionWorkItem: DispatchWorkItem?
 
     /// 初期化で GameScene を構築し、GameCore と紐付ける
     /// - Parameters:
@@ -234,6 +238,36 @@ final class GameBoardBridgeViewModel: ObservableObject {
     }
 
     private(set) var damageEffectPlayCountForTesting = 0
+
+    var isInputAnimationActive: Bool {
+        animatingCard != nil || isEnemyTurnAnimationActive
+    }
+
+    func playDungeonEnemyTurn(_ event: DungeonEnemyTurnEvent) {
+        enemyTurnAnimationCompletionWorkItem?.cancel()
+        let duration = scene.playDungeonEnemyTurn(event)
+
+        isEnemyTurnAnimationActive = true
+        let shouldPlayDamage = event.attackedPlayer && event.hpAfter < event.hpBefore
+        let damageDelay = max(duration - 0.08, 0)
+        let completionDelay = max(duration, 0.12)
+
+        if shouldPlayDamage {
+            DispatchQueue.main.asyncAfter(deadline: .now() + damageDelay) { [weak self] in
+                guard let self, self.isEnemyTurnAnimationActive else { return }
+                self.playDamageEffect()
+            }
+        }
+
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.isEnemyTurnAnimationActive = false
+            self.enemyTurnAnimationCompletionWorkItem = nil
+            self.refreshGuideHighlights()
+        }
+        enemyTurnAnimationCompletionWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + completionDelay, execute: workItem)
+    }
 
     /// 現在保持しているハイライト状態を SpriteKit シーンへ反映する
     /// - Note: 種類ごとの集合を辞書にまとめ、`GameScene` 側の一括更新 API と齟齬なく連携する
@@ -455,7 +489,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
     /// - Returns: アニメーションを開始できた場合は true
     @discardableResult
     func animateCardPlay(using resolvedMove: ResolvedCardMove) -> Bool {
-        guard animatingCard == nil else {
+        guard !isInputAnimationActive else {
             debugLog(
                 "スタック演出を中止: 別演出が進行中 stackID=\(resolvedMove.stackID) dest=\(resolvedMove.destination)"
             )
@@ -653,6 +687,14 @@ final class GameBoardBridgeViewModel: ObservableObject {
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
                 self?.pushHighlightsToScene()
+            }
+            .store(in: &cancellables)
+
+        core.$dungeonEnemyTurnEvent
+            .compactMap { $0 }
+            .receive(on: RunLoop.main)
+            .sink { [weak self] event in
+                self?.playDungeonEnemyTurn(event)
             }
             .store(in: &cancellables)
 

@@ -425,6 +425,58 @@
             )
         }
 
+        @discardableResult
+        public func playDungeonEnemyTurn(_ event: DungeonEnemyTurnEvent) -> TimeInterval {
+            guard isLayoutReady else { return 0 }
+
+            let movingTransitions = event.transitions.filter(\.didMove)
+            let stationaryTransitions = event.transitions.filter { !$0.didMove && $0.didRotate }
+            let stepDuration: TimeInterval = 0.22
+            let flashDuration: TimeInterval = 0.22
+
+            for (index, transition) in movingTransitions.enumerated() {
+                guard board.contains(transition.before.position),
+                      board.contains(transition.after.position)
+                else { continue }
+                let marker = makeEnemyTurnMarker(at: transition.before.position)
+                marker.alpha = 0
+                addChild(marker)
+
+                let wait = SKAction.wait(forDuration: stepDuration * Double(index))
+                let fadeIn = SKAction.fadeAlpha(to: 0.95, duration: 0.04)
+                let move = SKAction.move(
+                    to: layoutSupport.position(for: transition.after.position),
+                    duration: stepDuration
+                )
+                move.timingMode = .easeInEaseOut
+                let fadeOut = SKAction.fadeOut(withDuration: 0.08)
+                marker.run(.sequence([wait, fadeIn, move, fadeOut, .removeFromParent()]))
+            }
+
+            for transition in stationaryTransitions {
+                pulseEnemyTurnPoint(transition.after.position, duration: flashDuration)
+            }
+
+            let dangerDelay = stepDuration * Double(movingTransitions.count)
+            let dangerPoints = (latestHighlightPoints[.dungeonDanger] ?? [])
+                .union(latestHighlightPoints[.dungeonEnemyWarning] ?? [])
+            for point in dangerPoints {
+                guard board.contains(point) else { continue }
+                let wait = SKAction.wait(forDuration: dangerDelay)
+                let pulse = makeDangerPulse(at: point)
+                pulse.alpha = 0
+                addChild(pulse)
+                pulse.run(.sequence([
+                    wait,
+                    .fadeAlpha(to: 0.5, duration: 0.06),
+                    .fadeOut(withDuration: flashDuration),
+                    .removeFromParent()
+                ]))
+            }
+
+            return dangerDelay + flashDuration
+        }
+
         public func playDamageEffect() {
             knightAnimator.playDamageEffect(
                 in: self,
@@ -432,6 +484,43 @@
                 layout: layoutSupport,
                 isLayoutReady: isLayoutReady
             )
+        }
+
+        private func makeEnemyTurnMarker(at point: GridPoint) -> SKShapeNode {
+            let marker = SKShapeNode(circleOfRadius: layoutSupport.tileSize * 0.24)
+            marker.position = layoutSupport.position(for: point)
+            marker.fillColor = palette.boardGuideHighlight.withAlphaComponent(0.82)
+            marker.strokeColor = palette.boardGridLine.withAlphaComponent(0.92)
+            marker.lineWidth = max(layoutSupport.tileSize * 0.035, 1.5)
+            marker.glowWidth = max(layoutSupport.tileSize * 0.04, 2.0)
+            marker.zPosition = 1.55
+            marker.isAntialiased = true
+            return marker
+        }
+
+        private func makeDangerPulse(at point: GridPoint) -> SKShapeNode {
+            let size = layoutSupport.tileSize * 0.72
+            let rect = CGRect(x: -size / 2, y: -size / 2, width: size, height: size)
+            let pulse = SKShapeNode(rect: rect, cornerRadius: layoutSupport.tileSize * 0.1)
+            pulse.position = layoutSupport.position(for: point)
+            pulse.fillColor = SKColor.systemRed.withAlphaComponent(0.36)
+            pulse.strokeColor = SKColor.systemRed.withAlphaComponent(0.7)
+            pulse.lineWidth = max(layoutSupport.tileSize * 0.03, 1.5)
+            pulse.zPosition = 1.32
+            pulse.isAntialiased = true
+            return pulse
+        }
+
+        private func pulseEnemyTurnPoint(_ point: GridPoint, duration: TimeInterval) {
+            guard board.contains(point) else { return }
+            let marker = makeEnemyTurnMarker(at: point)
+            marker.alpha = 0
+            addChild(marker)
+            marker.run(.sequence([
+                .fadeAlpha(to: 0.75, duration: 0.05),
+                .fadeOut(withDuration: duration),
+                .removeFromParent()
+            ]))
         }
 
 #if DEBUG

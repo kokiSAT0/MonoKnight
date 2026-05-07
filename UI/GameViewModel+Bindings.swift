@@ -183,6 +183,15 @@ extension GameViewModel {
               newHP < previousHP
         else { return }
 
+        if let enemyTurnEvent = core.dungeonEnemyTurnEvent,
+           enemyTurnEvent.id != deferredEnemyDamageEventID,
+           enemyTurnEvent.attackedPlayer,
+           enemyTurnEvent.hpBefore == previousHP,
+           enemyTurnEvent.hpAfter == newHP {
+            deferredEnemyDamageEventID = enemyTurnEvent.id
+            return
+        }
+
         boardBridge.playDamageEffect()
     }
 

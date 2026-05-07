@@ -137,6 +137,108 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertEqual(core.progress, .playing)
     }
 
+    func testDungeonEnemyTurnEventCapturesEnemyStateTransitions() throws {
+        let patrol = EnemyDefinition(
+            id: "patrol",
+            name: "巡回兵",
+            position: GridPoint(x: 2, y: 1),
+            behavior: .patrol(path: [
+                GridPoint(x: 2, y: 1),
+                GridPoint(x: 3, y: 1)
+            ])
+        )
+        let rotatingWatcher = EnemyDefinition(
+            id: "rotating-watcher",
+            name: "回転見張り",
+            position: GridPoint(x: 1, y: 4),
+            behavior: .rotatingWatcher(
+                directions: [
+                    MoveVector(dx: 1, dy: 0),
+                    MoveVector(dx: 0, dy: -1)
+                ],
+                range: 2
+            )
+        )
+        let chaser = EnemyDefinition(
+            id: "chaser",
+            name: "追跡兵",
+            position: GridPoint(x: 4, y: 4),
+            behavior: .chaser
+        )
+        let marker = EnemyDefinition(
+            id: "marker",
+            name: "予告兵",
+            position: GridPoint(x: 4, y: 0),
+            behavior: .marker(
+                directions: [
+                    MoveVector(dx: 0, dy: 1),
+                    MoveVector(dx: -1, dy: 0)
+                ],
+                range: 2
+            )
+        )
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 2),
+            hp: 3,
+            turnLimit: 4,
+            enemies: [patrol, rotatingWatcher, chaser, marker],
+            allowsBasicOrthogonalMove: true
+        )
+        let core = makeCore(mode: mode)
+
+        playBasicMove(to: GridPoint(x: 0, y: 1), in: core)
+
+        let event = try XCTUnwrap(core.dungeonEnemyTurnEvent)
+        XCTAssertFalse(event.attackedPlayer)
+        XCTAssertEqual(event.hpBefore, 3)
+        XCTAssertEqual(event.hpAfter, 3)
+        XCTAssertEqual(Set(event.transitions.map(\.enemyID)), ["patrol", "rotating-watcher", "chaser", "marker"])
+
+        let transitions = Dictionary(uniqueKeysWithValues: event.transitions.map { ($0.enemyID, $0) })
+        XCTAssertEqual(transitions["patrol"]?.before.position, GridPoint(x: 2, y: 1))
+        XCTAssertEqual(transitions["patrol"]?.after.position, GridPoint(x: 3, y: 1))
+        XCTAssertEqual(transitions["chaser"]?.before.position, GridPoint(x: 4, y: 4))
+        XCTAssertEqual(transitions["chaser"]?.after.position, core.enemyStates.first(where: { $0.id == "chaser" })?.position)
+        XCTAssertTrue(transitions["rotating-watcher"]?.didRotate == true)
+        XCTAssertTrue(transitions["marker"]?.didRotate == true)
+    }
+
+    func testDungeonEnemyTurnEventCapturesAttackDamage() throws {
+        let rotatingWatcher = EnemyDefinition(
+            id: "rotating-watcher",
+            name: "回転見張り",
+            position: GridPoint(x: 2, y: 1),
+            behavior: .rotatingWatcher(
+                directions: [
+                    MoveVector(dx: 1, dy: 0),
+                    MoveVector(dx: 0, dy: 1)
+                ],
+                range: 2
+            )
+        )
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 1, y: 1),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 3,
+            turnLimit: 4,
+            enemies: [rotatingWatcher]
+        )
+        let core = makeCore(
+            mode: mode,
+            cards: [.kingUpRight, .kingRight, .kingUp, .kingLeft, .kingDown]
+        )
+
+        playMove(to: GridPoint(x: 2, y: 2), in: core)
+
+        let event = try XCTUnwrap(core.dungeonEnemyTurnEvent)
+        XCTAssertTrue(event.attackedPlayer)
+        XCTAssertEqual(event.hpBefore, 3)
+        XCTAssertEqual(event.hpAfter, 2)
+        XCTAssertEqual(event.transitions.first?.enemyID, "rotating-watcher")
+        XCTAssertTrue(event.transitions.first?.didRotate == true)
+    }
+
     func testRotatingWatcherDangerStopsAtImpassableTile() throws {
         let rotatingWatcher = EnemyDefinition(
             id: "rotating-watcher",

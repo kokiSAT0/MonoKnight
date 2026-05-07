@@ -52,6 +52,7 @@ extension GameViewModel {
         case .reset:
             resetSessionForNewPlay()
         case .returnToTitle:
+            saveCurrentDungeonResumeIfPossible()
             prepareForReturnToTitle()
             onRequestReturnToTitle?()
         }
@@ -277,7 +278,6 @@ extension GameViewModel {
     }
 
     func prepareForReturnToTitle() {
-        dungeonRunResumeStore.clear()
         sessionResetCoordinator.prepareForReturnToTitle(
             clearSelectedCardSelection: { [self] in clearSelectedCardSelection() },
             cancelPenaltyBannerDisplay: { [self] in cancelPenaltyBannerDisplay() },

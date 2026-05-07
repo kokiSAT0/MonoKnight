@@ -1089,7 +1089,7 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertEqual(snapshot.dungeonHP, 2)
     }
 
-    func testDungeonResumeStoreClearsOnFailureAndTitleReturn() throws {
+    func testDungeonResumeStoreKeepsSnapshotOnTitleReturnAndClearsOnFailure() throws {
         let (defaults, suiteName) = try makeIsolatedDefaults()
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let resumeStore = DungeonRunResumeStore(userDefaults: defaults)
@@ -1101,11 +1101,62 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertNotNil(resumeStore.snapshot)
 
         viewModel.prepareForReturnToTitle()
+        XCTAssertNotNil(resumeStore.snapshot)
+
+        viewModel.handleProgressChangeForTesting(.failed)
         XCTAssertNil(resumeStore.snapshot)
+    }
+
+    func testDungeonResumeStoreSavesBeforeMenuReturnToTitle() throws {
+        let (defaults, suiteName) = try makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let resumeStore = DungeonRunResumeStore(userDefaults: defaults)
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
+        let mode = try XCTUnwrap(DungeonLibrary.shared.firstFloorMode(for: tower))
+        let (viewModel, core) = makeViewModel(mode: mode, dungeonRunResumeStore: resumeStore)
+
+        core.overrideMetricsForTesting(moveCount: 5, penaltyCount: 0, elapsedSeconds: 24)
+        core.overrideDungeonHPForTesting(2)
+        viewModel.performMenuAction(.returnToTitle)
+
+        let snapshot = try XCTUnwrap(resumeStore.snapshot)
+        XCTAssertEqual(snapshot.dungeonID, tower.id)
+        XCTAssertEqual(snapshot.moveCount, 5)
+        XCTAssertEqual(snapshot.elapsedSeconds, 24)
+        XCTAssertEqual(snapshot.dungeonHP, 2)
+    }
+
+    func testDungeonResumeStoreKeepsExistingSnapshotOnResultReturnToTitle() throws {
+        let (defaults, suiteName) = try makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let resumeStore = DungeonRunResumeStore(userDefaults: defaults)
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
+        let mode = try XCTUnwrap(DungeonLibrary.shared.firstFloorMode(for: tower))
+        let (viewModel, core) = makeViewModel(mode: mode, dungeonRunResumeStore: resumeStore)
+
+        core.overrideMetricsForTesting(moveCount: 4, penaltyCount: 0, elapsedSeconds: 20)
+        viewModel.saveCurrentDungeonResumeIfPossible()
+        core.overrideMetricsForTesting(moveCount: 7, penaltyCount: 0, elapsedSeconds: 40)
+        viewModel.showingResult = true
+        viewModel.handleResultReturnToTitle()
+
+        let snapshot = try XCTUnwrap(resumeStore.snapshot)
+        XCTAssertEqual(snapshot.moveCount, 4)
+        XCTAssertEqual(snapshot.elapsedSeconds, 20)
+    }
+
+    func testDungeonResumeStoreClearsOnReset() throws {
+        let (defaults, suiteName) = try makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let resumeStore = DungeonRunResumeStore(userDefaults: defaults)
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
+        let mode = try XCTUnwrap(DungeonLibrary.shared.firstFloorMode(for: tower))
+        let (viewModel, _) = makeViewModel(mode: mode, dungeonRunResumeStore: resumeStore)
 
         viewModel.saveCurrentDungeonResumeIfPossible()
         XCTAssertNotNil(resumeStore.snapshot)
-        viewModel.handleProgressChangeForTesting(.failed)
+
+        viewModel.performMenuAction(.reset)
         XCTAssertNil(resumeStore.snapshot)
     }
 

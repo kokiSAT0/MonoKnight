@@ -155,7 +155,7 @@ struct GameInputFlowCoordinator {
         basicMoveSlotIndex: Int?,
         presentsBasicMoveCard: Bool
     ) {
-        guard boardBridge.animatingCard == nil else { return }
+        guard !boardBridge.isInputAnimationActive else { return }
         guard !core.isAwaitingDungeonPickupChoice else { return }
         if presentsBasicMoveCard, let basicMoveSlotIndex, index == basicMoveSlotIndex {
             handleBasicMoveSlotTap(
@@ -366,7 +366,7 @@ struct GameInputFlowCoordinator {
     ) {
         defer { core.clearBoardTapPlayRequest(request.id) }
 
-        guard boardBridge.animatingCard == nil else { return }
+        guard !boardBridge.isInputAnimationActive else { return }
         guard !core.isAwaitingDungeonPickupChoice else { return }
 
         guard sessionState.hasSelection else {
@@ -466,7 +466,7 @@ struct GameInputFlowCoordinator {
         guideModeEnabled: Bool
     ) {
         defer { core.clearBoardTapBasicMoveRequest(request.id) }
-        guard boardBridge.animatingCard == nil else { return }
+        guard !boardBridge.isInputAnimationActive else { return }
         guard !core.isAwaitingDungeonPickupChoice else { return }
 
         if sessionState.isBasicOrthogonalSelected {

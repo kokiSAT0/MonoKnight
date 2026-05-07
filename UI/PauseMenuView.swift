@@ -214,7 +214,7 @@ private extension PauseMenuView {
             case .reset:
                 return "現在の進行状況を破棄して最初からやり直します。よろしいですか？"
             case .returnToTitle:
-                return "ゲームを終了してタイトル画面へ戻ります。現在のプレイ内容は保存されません。"
+                return "ゲームを中断してタイトル画面へ戻ります。塔攻略中は続きから再開できます。"
             }
         }
     }

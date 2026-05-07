@@ -203,6 +203,8 @@ public final class GameCore: ObservableObject {
     @Published public private(set) var dungeonExitUnlockEvent: DungeonExitUnlockEvent?
     /// ひび割れ床崩落による下階落下イベント
     @Published public private(set) var dungeonFallEvent: DungeonFallEvent?
+    /// プレイヤー行動後に発生した敵ターンの可視化用イベント
+    @Published public private(set) var dungeonEnemyTurnEvent: DungeonEnemyTurnEvent?
     /// 入替カードを使用するために選択中の補助カードスタック
     private var pendingSupportSwapStackID: UUID?
     /// 合計手数（移動 + ペナルティ）の計算プロパティ
@@ -1430,6 +1432,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         isDungeonExitUnlocked = mode.dungeonRules?.exitLock == nil
         dungeonExitUnlockEvent = nil
         dungeonFallEvent = nil
+        dungeonEnemyTurnEvent = nil
         configureTargetsForNewSession()
         penaltyEvent = nil
         boardTapPlayRequest = nil
@@ -1958,8 +1961,17 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             return true
         }
         let pendingMarkerDamagePoints = enemyWarningPoints
+        let enemyStatesBeforeTurn = enemyStates
         advanceEnemiesForDungeonTurn()
-        applyDungeonEnemyDamageIfNeeded(markerDamagePoints: pendingMarkerDamagePoints)
+        let hpBeforeEnemyDamage = dungeonHP
+        let enemyDamage = applyDungeonEnemyDamageIfNeeded(markerDamagePoints: pendingMarkerDamagePoints)
+        publishDungeonEnemyTurnEventIfNeeded(
+            before: enemyStatesBeforeTurn,
+            after: enemyStates,
+            hpBefore: hpBeforeEnemyDamage,
+            hpAfter: dungeonHP,
+            damage: enemyDamage
+        )
         if shouldFailDungeonRun() {
             finalizeElapsedTimeIfNeeded()
             progress = .failed
@@ -2122,8 +2134,9 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         )
     }
 
-    private func applyDungeonEnemyDamageIfNeeded(markerDamagePoints: Set<GridPoint>) {
-        guard mode.usesDungeonExit, let current else { return }
+    @discardableResult
+    private func applyDungeonEnemyDamageIfNeeded(markerDamagePoints: Set<GridPoint>) -> Int {
+        guard mode.usesDungeonExit, let current else { return 0 }
         var totalDamage = 0
 
         for enemy in enemyStates {
@@ -2134,9 +2147,39 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             }
         }
 
-        guard totalDamage > 0 else { return }
+        guard totalDamage > 0 else { return 0 }
         dungeonHP = max(dungeonHP - totalDamage, 0)
         debugLog("敵の攻撃を受けました: -\(totalDamage), HP=\(dungeonHP)")
+        return totalDamage
+    }
+
+    private func publishDungeonEnemyTurnEventIfNeeded(
+        before: [EnemyState],
+        after: [EnemyState],
+        hpBefore: Int,
+        hpAfter: Int,
+        damage: Int
+    ) {
+        guard mode.usesDungeonExit, (!before.isEmpty || !after.isEmpty) else { return }
+
+        let beforeByID = Dictionary(before.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let transitions = after.compactMap { afterEnemy -> DungeonEnemyTurnTransition? in
+            guard let beforeEnemy = beforeByID[afterEnemy.id] else { return nil }
+            return DungeonEnemyTurnTransition(
+                enemyID: afterEnemy.id,
+                name: afterEnemy.name,
+                before: beforeEnemy,
+                after: afterEnemy
+            )
+        }
+
+        guard !transitions.isEmpty || damage > 0 else { return }
+        dungeonEnemyTurnEvent = DungeonEnemyTurnEvent(
+            transitions: transitions,
+            attackedPlayer: damage > 0,
+            hpBefore: hpBefore,
+            hpAfter: hpAfter
+        )
     }
 
     private func shouldFailDungeonRun() -> Bool {
@@ -2646,6 +2689,7 @@ extension GameCore {
         core.isDungeonExitUnlocked = mode.dungeonRules?.exitLock == nil
         core.dungeonExitUnlockEvent = nil
         core.dungeonFallEvent = nil
+        core.dungeonEnemyTurnEvent = nil
         core.configureTargetsForNewSession()
         core.progress = (resolvedCurrent == nil && mode.requiresSpawnSelection) ? .awaitingSpawn : .playing
 

@@ -539,6 +539,48 @@ public struct EnemyState: Codable, Equatable, Identifiable {
     }
 }
 
+/// 敵ターン中に各敵がどの状態からどの状態へ進んだかを UI へ伝える差分
+public struct DungeonEnemyTurnTransition: Equatable, Identifiable {
+    public let enemyID: String
+    public let name: String
+    public let before: EnemyState
+    public let after: EnemyState
+
+    public var id: String { enemyID }
+    public var didMove: Bool { before.position != after.position }
+    public var didRotate: Bool { before.rotationIndex != after.rotationIndex }
+
+    public init(enemyID: String, name: String, before: EnemyState, after: EnemyState) {
+        self.enemyID = enemyID
+        self.name = name
+        self.before = before
+        self.after = after
+    }
+}
+
+/// プレイヤー行動後に発生した敵ターンの可視化用イベント
+public struct DungeonEnemyTurnEvent: Equatable, Identifiable {
+    public let id: UUID
+    public let transitions: [DungeonEnemyTurnTransition]
+    public let attackedPlayer: Bool
+    public let hpBefore: Int
+    public let hpAfter: Int
+
+    public init(
+        id: UUID = UUID(),
+        transitions: [DungeonEnemyTurnTransition],
+        attackedPlayer: Bool,
+        hpBefore: Int,
+        hpAfter: Int
+    ) {
+        self.id = id
+        self.transitions = transitions
+        self.attackedPlayer = attackedPlayer
+        self.hpBefore = max(hpBefore, 0)
+        self.hpAfter = max(hpAfter, 0)
+    }
+}
+
 /// 床や罠など、敵以外のフロアギミック
 public enum HazardDefinition: Codable, Equatable {
     /// 1 回踏むとひび割れ、2 回目で崩落して通行不可になる床

@@ -374,6 +374,43 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
         )
     }
 
+    func testDungeonEnemyTurnAnimationLocksInputAndReleasesAfterPlayback() async throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
+        let mode = try XCTUnwrap(DungeonLibrary.shared.firstFloorMode(for: tower))
+        let core = GameCore(mode: mode)
+        let viewModel = GameBoardBridgeViewModel(core: core, mode: mode)
+        let before = EnemyState(
+            definition: EnemyDefinition(
+                id: "patrol",
+                name: "巡回兵",
+                position: GridPoint(x: 1, y: 1),
+                behavior: .patrol(path: [GridPoint(x: 1, y: 1), GridPoint(x: 2, y: 1)])
+            )
+        )
+        var after = before
+        after.position = GridPoint(x: 2, y: 1)
+        let event = DungeonEnemyTurnEvent(
+            transitions: [
+                DungeonEnemyTurnTransition(
+                    enemyID: before.id,
+                    name: before.name,
+                    before: before,
+                    after: after
+                )
+            ],
+            attackedPlayer: true,
+            hpBefore: 3,
+            hpAfter: 2
+        )
+
+        viewModel.playDungeonEnemyTurn(event)
+
+        XCTAssertTrue(viewModel.isInputAnimationActive)
+        try await Task.sleep(nanoseconds: 180_000_000)
+        XCTAssertFalse(viewModel.isInputAnimationActive)
+        XCTAssertEqual(viewModel.damageEffectPlayCountForTesting, 1)
+    }
+
     func testDungeonInitialRewardCardGuideIsAvailableWithoutManualRefresh() throws {
         let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
         let runState = DungeonRunState(
