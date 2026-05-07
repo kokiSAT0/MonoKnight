@@ -191,7 +191,7 @@ private extension GameBoardControlRowView {
 
             if !viewModel.dungeonRewardInventoryEntries.isEmpty {
                 let rewardText = viewModel.dungeonRewardInventoryEntries
-                    .map { "\($0.card.displayName)×\($0.rewardUses)" }
+                    .map { "\($0.playable.displayName)×\($0.rewardUses)" }
                     .joined(separator: "、")
                 statisticBadge(
                     title: "追加",

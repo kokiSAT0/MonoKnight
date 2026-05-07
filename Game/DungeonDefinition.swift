@@ -22,25 +22,75 @@ public enum DungeonCardAcquisitionMode: String, Codable, Equatable {
 
 /// 塔ラン中に所持しているカードと残り使用回数
 public struct DungeonInventoryEntry: Codable, Equatable, Identifiable {
-    public let card: MoveCard
+    public let playable: PlayableCard
     /// フロアをまたいで持ち越せる報酬由来の残り使用回数
     public var rewardUses: Int
     /// 現在フロア限りの拾得由来の残り使用回数
     public var pickupUses: Int
 
+    public var card: MoveCard {
+        guard let move = playable.move else {
+            preconditionFailure("補助カードには MoveCard がありません")
+        }
+        return move
+    }
+
+    public var moveCard: MoveCard? { playable.move }
+    public var supportCard: SupportCard? { playable.support }
+
     public init(card: MoveCard, rewardUses: Int = 0, pickupUses: Int = 0) {
-        self.card = card
+        self.playable = .move(card)
         self.rewardUses = max(rewardUses, 0)
         self.pickupUses = max(pickupUses, 0)
     }
 
-    public var id: MoveCard { card }
+    public init(support: SupportCard, rewardUses: Int = 0, pickupUses: Int = 0) {
+        self.playable = .support(support)
+        self.rewardUses = max(rewardUses, 0)
+        self.pickupUses = max(pickupUses, 0)
+    }
+
+    public init(playable: PlayableCard, rewardUses: Int = 0, pickupUses: Int = 0) {
+        self.playable = playable
+        self.rewardUses = max(rewardUses, 0)
+        self.pickupUses = max(pickupUses, 0)
+    }
+
+    public var id: String { playable.identityText }
     public var totalUses: Int { rewardUses + pickupUses }
     public var hasUsesRemaining: Bool { totalUses > 0 }
 
     public func carryingRewardUsesOnly() -> DungeonInventoryEntry? {
         guard rewardUses > 0 else { return nil }
-        return DungeonInventoryEntry(card: card, rewardUses: rewardUses, pickupUses: 0)
+        return DungeonInventoryEntry(playable: playable, rewardUses: rewardUses, pickupUses: 0)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case playable
+        case card
+        case rewardUses
+        case pickupUses
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        if let playable = try container.decodeIfPresent(PlayableCard.self, forKey: .playable) {
+            self.playable = playable
+        } else {
+            self.playable = .move(try container.decode(MoveCard.self, forKey: .card))
+        }
+        rewardUses = max(try container.decodeIfPresent(Int.self, forKey: .rewardUses) ?? 0, 0)
+        pickupUses = max(try container.decodeIfPresent(Int.self, forKey: .pickupUses) ?? 0, 0)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(playable, forKey: .playable)
+        if let move = playable.move {
+            try container.encode(move, forKey: .card)
+        }
+        try container.encode(rewardUses, forKey: .rewardUses)
+        try container.encode(pickupUses, forKey: .pickupUses)
     }
 }
 
@@ -48,12 +98,18 @@ public struct DungeonInventoryEntry: Codable, Equatable, Identifiable {
 public enum DungeonRewardSelection: Equatable {
     /// 新しい報酬カードを3回分追加する
     case add(MoveCard)
+    /// 新しい補助報酬カードを追加する
+    case addSupport(SupportCard)
     /// フロア内で拾って未使用分が残っているカードを報酬カードとして持ち越す
     case carryOverPickup(MoveCard)
     /// 既存の持ち越し報酬カードの使用回数を1増やす
     case upgrade(MoveCard)
+    /// 既存の持ち越し補助報酬カードの使用回数を1増やす
+    case upgradeSupport(SupportCard)
     /// 既存の持ち越し報酬カードをランから外す
     case remove(MoveCard)
+    /// 既存の持ち越し補助報酬カードをランから外す
+    case removeSupport(SupportCard)
 }
 
 /// フロア内に配置する拾得カード
@@ -68,6 +124,19 @@ public struct DungeonCardPickupDefinition: Codable, Equatable, Identifiable {
         self.point = point
         self.card = card
         self.uses = max(uses, 1)
+    }
+}
+
+/// 所持枠が満杯のときに床落ちカード取得の解決を待つ状態
+public struct PendingDungeonPickupChoice: Codable, Equatable {
+    /// 拾おうとしている床落ちカード
+    public let pickup: DungeonCardPickupDefinition
+    /// 代わりに捨てられる現在の所持カード候補
+    public let discardCandidates: [DungeonInventoryEntry]
+
+    public init(pickup: DungeonCardPickupDefinition, discardCandidates: [DungeonInventoryEntry]) {
+        self.pickup = pickup
+        self.discardCandidates = discardCandidates.filter(\.hasUsesRemaining)
     }
 }
 
@@ -233,11 +302,11 @@ public struct DungeonRunState: Codable, Equatable {
     private static func mergedRewardEntries(_ entries: [DungeonInventoryEntry]) -> [DungeonInventoryEntry] {
         var result: [DungeonInventoryEntry] = []
         for entry in entries where entry.rewardUses > 0 {
-            if let index = result.firstIndex(where: { $0.card == entry.card }) {
+            if let index = result.firstIndex(where: { $0.playable == entry.playable }) {
                 result[index].rewardUses += entry.rewardUses
             } else {
                 result.append(
-                    DungeonInventoryEntry(card: entry.card, rewardUses: entry.rewardUses, pickupUses: 0)
+                    DungeonInventoryEntry(playable: entry.playable, rewardUses: entry.rewardUses, pickupUses: 0)
                 )
             }
         }
@@ -254,18 +323,34 @@ public struct DungeonRunState: Codable, Equatable {
         switch selection {
         case .add(let card):
             result.append(DungeonInventoryEntry(card: card, rewardUses: max(rewardAddUses, 1), pickupUses: 0))
+        case .addSupport(let support):
+            result.append(DungeonInventoryEntry(support: support, rewardUses: DungeonRunState.rewardUses(for: support), pickupUses: 0))
         case .carryOverPickup(let card):
-            guard sourceEntries.contains(where: { $0.card == card && $0.pickupUses > 0 }) else { break }
+            guard sourceEntries.contains(where: { $0.moveCard == card && $0.pickupUses > 0 }) else { break }
             result.append(DungeonInventoryEntry(card: card, rewardUses: max(rewardAddUses, 1), pickupUses: 0))
         case .upgrade(let card):
-            guard let index = result.firstIndex(where: { $0.card == card && $0.rewardUses > 0 }) else { break }
+            guard let index = result.firstIndex(where: { $0.moveCard == card && $0.rewardUses > 0 }) else { break }
+            result[index].rewardUses += 1
+        case .upgradeSupport(let support):
+            guard let index = result.firstIndex(where: { $0.supportCard == support && $0.rewardUses > 0 }) else { break }
             result[index].rewardUses += 1
         case .remove(let card):
-            result.removeAll { $0.card == card }
+            result.removeAll { $0.moveCard == card }
+        case .removeSupport(let support):
+            result.removeAll { $0.supportCard == support }
         case .none:
             break
         }
         return result
+    }
+
+    public static func rewardUses(for support: SupportCard) -> Int {
+        switch support {
+        case .refillEmptySlots:
+            return 1
+        case .nextRefresh, .swapOne, .guidance:
+            return 3
+        }
     }
 }
 
@@ -303,6 +388,8 @@ public enum EnemyBehavior: Codable, Equatable {
     case rotatingWatcher(directions: [MoveVector], range: Int)
     /// プレイヤーへ1マスずつ近づく
     case chaser
+    /// 指定方向へ次ターン危険になるマスを予告する
+    case marker(directions: [MoveVector], range: Int)
 
     private enum CodingKeys: String, CodingKey {
         case type
@@ -318,6 +405,7 @@ public enum EnemyBehavior: Codable, Equatable {
         case watcher
         case rotatingWatcher
         case chaser
+        case marker
     }
 
     public init(from decoder: Decoder) throws {
@@ -341,6 +429,11 @@ public enum EnemyBehavior: Codable, Equatable {
             )
         case .chaser:
             self = .chaser
+        case .marker:
+            self = .marker(
+                directions: try container.decodeIfPresent([MoveVector].self, forKey: .directions) ?? [],
+                range: try container.decodeIfPresent(Int.self, forKey: .range) ?? 1
+            )
         }
     }
 
@@ -362,6 +455,10 @@ public enum EnemyBehavior: Codable, Equatable {
             try container.encode(range, forKey: .range)
         case .chaser:
             try container.encode(Kind.chaser, forKey: .type)
+        case .marker(let directions, let range):
+            try container.encode(Kind.marker, forKey: .type)
+            try container.encode(directions, forKey: .directions)
+            try container.encode(range, forKey: .range)
         }
     }
 }
@@ -506,6 +603,7 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
     public let exitLock: DungeonExitLock?
     public let cardPickups: [DungeonCardPickupDefinition]
     public let rewardMoveCardsAfterClear: [MoveCard]
+    public let rewardSupportCardsAfterClear: [SupportCard]
 
     public init(
         id: String,
@@ -523,7 +621,8 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
         fixedWarpCardTargets: [MoveCard: [GridPoint]] = [:],
         exitLock: DungeonExitLock? = nil,
         cardPickups: [DungeonCardPickupDefinition] = [],
-        rewardMoveCardsAfterClear: [MoveCard] = []
+        rewardMoveCardsAfterClear: [MoveCard] = [],
+        rewardSupportCardsAfterClear: [SupportCard] = []
     ) {
         self.id = id
         self.title = title
@@ -545,6 +644,75 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
             uniqueRewardMoveCards.append(card)
         }
         self.rewardMoveCardsAfterClear = uniqueRewardMoveCards
+        var uniqueRewardSupportCards: [SupportCard] = []
+        for card in rewardSupportCardsAfterClear where !uniqueRewardSupportCards.contains(card) {
+            uniqueRewardSupportCards.append(card)
+        }
+        self.rewardSupportCardsAfterClear = uniqueRewardSupportCards
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case title
+        case boardSize
+        case spawnPoint
+        case exitPoint
+        case deckPreset
+        case failureRule
+        case enemies
+        case hazards
+        case impassableTilePoints
+        case tileEffectOverrides
+        case warpTilePairs
+        case fixedWarpCardTargets
+        case exitLock
+        case cardPickups
+        case rewardMoveCardsAfterClear
+        case rewardSupportCardsAfterClear
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            id: try container.decode(String.self, forKey: .id),
+            title: try container.decode(String.self, forKey: .title),
+            boardSize: try container.decode(Int.self, forKey: .boardSize),
+            spawnPoint: try container.decode(GridPoint.self, forKey: .spawnPoint),
+            exitPoint: try container.decode(GridPoint.self, forKey: .exitPoint),
+            deckPreset: try container.decode(GameDeckPreset.self, forKey: .deckPreset),
+            failureRule: try container.decode(DungeonFailureRule.self, forKey: .failureRule),
+            enemies: try container.decodeIfPresent([EnemyDefinition].self, forKey: .enemies) ?? [],
+            hazards: try container.decodeIfPresent([HazardDefinition].self, forKey: .hazards) ?? [],
+            impassableTilePoints: try container.decodeIfPresent(Set<GridPoint>.self, forKey: .impassableTilePoints) ?? [],
+            tileEffectOverrides: try container.decodeIfPresent([GridPoint: TileEffect].self, forKey: .tileEffectOverrides) ?? [:],
+            warpTilePairs: try container.decodeIfPresent([String: [GridPoint]].self, forKey: .warpTilePairs) ?? [:],
+            fixedWarpCardTargets: try container.decodeIfPresent([MoveCard: [GridPoint]].self, forKey: .fixedWarpCardTargets) ?? [:],
+            exitLock: try container.decodeIfPresent(DungeonExitLock.self, forKey: .exitLock),
+            cardPickups: try container.decodeIfPresent([DungeonCardPickupDefinition].self, forKey: .cardPickups) ?? [],
+            rewardMoveCardsAfterClear: try container.decodeIfPresent([MoveCard].self, forKey: .rewardMoveCardsAfterClear) ?? [],
+            rewardSupportCardsAfterClear: try container.decodeIfPresent([SupportCard].self, forKey: .rewardSupportCardsAfterClear) ?? []
+        )
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(title, forKey: .title)
+        try container.encode(boardSize, forKey: .boardSize)
+        try container.encode(spawnPoint, forKey: .spawnPoint)
+        try container.encode(exitPoint, forKey: .exitPoint)
+        try container.encode(deckPreset, forKey: .deckPreset)
+        try container.encode(failureRule, forKey: .failureRule)
+        try container.encode(enemies, forKey: .enemies)
+        try container.encode(hazards, forKey: .hazards)
+        try container.encode(impassableTilePoints, forKey: .impassableTilePoints)
+        try container.encode(tileEffectOverrides, forKey: .tileEffectOverrides)
+        try container.encode(warpTilePairs, forKey: .warpTilePairs)
+        try container.encode(fixedWarpCardTargets, forKey: .fixedWarpCardTargets)
+        try container.encodeIfPresent(exitLock, forKey: .exitLock)
+        try container.encode(cardPickups, forKey: .cardPickups)
+        try container.encode(rewardMoveCardsAfterClear, forKey: .rewardMoveCardsAfterClear)
+        try container.encode(rewardSupportCardsAfterClear, forKey: .rewardSupportCardsAfterClear)
     }
 
     public func makeGameMode(
@@ -617,7 +785,8 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
             fixedWarpCardTargets: fixedWarpCardTargets,
             exitLock: exitLock,
             cardPickups: cardPickups,
-            rewardMoveCardsAfterClear: rewardMoveCardsAfterClear
+            rewardMoveCardsAfterClear: rewardMoveCardsAfterClear,
+            rewardSupportCardsAfterClear: rewardSupportCardsAfterClear
         )
     }
 
@@ -638,7 +807,8 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
             fixedWarpCardTargets: fixedWarpCardTargets,
             exitLock: exitLock,
             cardPickups: cardPickups + additionalCardPickups,
-            rewardMoveCardsAfterClear: rewardMoveCardsAfterClear
+            rewardMoveCardsAfterClear: rewardMoveCardsAfterClear,
+            rewardSupportCardsAfterClear: rewardSupportCardsAfterClear
         )
     }
 
@@ -659,7 +829,8 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
             fixedWarpCardTargets: fixedWarpCardTargets,
             exitLock: exitLock,
             cardPickups: cardPickups,
-            rewardMoveCardsAfterClear: rewardMoveCardsAfterClear
+            rewardMoveCardsAfterClear: rewardMoveCardsAfterClear,
+            rewardSupportCardsAfterClear: rewardSupportCardsAfterClear
         )
     }
 
@@ -680,7 +851,8 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
             fixedWarpCardTargets: fixedWarpCardTargets,
             exitLock: exitLock,
             cardPickups: cardPickups,
-            rewardMoveCardsAfterClear: rewardMoveCardsAfterClear
+            rewardMoveCardsAfterClear: rewardMoveCardsAfterClear,
+            rewardSupportCardsAfterClear: rewardSupportCardsAfterClear
         )
     }
 
@@ -708,7 +880,8 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
             fixedWarpCardTargets: fixedWarpCardTargets,
             exitLock: exitLock,
             cardPickups: cardPickups,
-            rewardMoveCardsAfterClear: rewardMoveCardsAfterClear
+            rewardMoveCardsAfterClear: rewardMoveCardsAfterClear,
+            rewardSupportCardsAfterClear: rewardSupportCardsAfterClear
         )
     }
 }
@@ -790,7 +963,8 @@ private enum DungeonCardVariationResolver {
             fixedWarpCardTargets: floor.fixedWarpCardTargets,
             exitLock: floor.exitLock,
             cardPickups: cardPickups,
-            rewardMoveCardsAfterClear: rewardMoveCards
+            rewardMoveCardsAfterClear: rewardMoveCards,
+            rewardSupportCardsAfterClear: floor.rewardSupportCardsAfterClear
         )
     }
 
@@ -1513,7 +1687,8 @@ public struct DungeonLibrary {
             fixedWarpCardTargets: floor.fixedWarpCardTargets,
             exitLock: floor.exitLock,
             cardPickups: floor.cardPickups,
-            rewardMoveCardsAfterClear: rewardMoveCardsAfterClear ?? floor.rewardMoveCardsAfterClear
+            rewardMoveCardsAfterClear: rewardMoveCardsAfterClear ?? floor.rewardMoveCardsAfterClear,
+            rewardSupportCardsAfterClear: floor.rewardSupportCardsAfterClear
         )
     }
 
@@ -1548,7 +1723,8 @@ public struct DungeonLibrary {
             fixedWarpCardTargets: [:],
             exitLock: floor.exitLock,
             cardPickups: cardPickups,
-            rewardMoveCardsAfterClear: rewardMoveCardsAfterClear ?? floor.rewardMoveCardsAfterClear
+            rewardMoveCardsAfterClear: rewardMoveCardsAfterClear ?? floor.rewardMoveCardsAfterClear,
+            rewardSupportCardsAfterClear: floor.rewardSupportCardsAfterClear
         )
     }
 
@@ -1740,7 +1916,8 @@ public struct DungeonLibrary {
                 DungeonCardPickupDefinition(id: "growth-11-up2", point: GridPoint(x: 4, y: 2), card: .straightUp2),
                 DungeonCardPickupDefinition(id: "growth-11-knight", point: GridPoint(x: 7, y: 5), card: .knightRightwardChoice)
             ],
-            rewardMoveCardsAfterClear: [.rayDown, .straightDown2, .knightDownwardChoice]
+            rewardMoveCardsAfterClear: [.rayDown, .straightDown2, .knightDownwardChoice],
+            rewardSupportCardsAfterClear: [.refillEmptySlots]
         )
     }
 
@@ -1930,7 +2107,8 @@ public struct DungeonLibrary {
                 DungeonCardPickupDefinition(id: "growth-15-key-diagonal", point: GridPoint(x: 2, y: 1), card: .diagonalUpRight2),
                 DungeonCardPickupDefinition(id: "growth-15-up2", point: GridPoint(x: 6, y: 6), card: .straightUp2)
             ],
-            rewardMoveCardsAfterClear: [.rayRight, .diagonalUpRight2, .straightRight2]
+            rewardMoveCardsAfterClear: [.rayRight, .diagonalUpRight2, .straightRight2],
+            rewardSupportCardsAfterClear: [.refillEmptySlots]
         )
     }
 
@@ -1992,7 +2170,19 @@ public struct DungeonLibrary {
             deckPreset: .standardLight,
             failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 17),
             enemies: [
-                EnemyDefinition(id: "growth-17-patrol", name: "巡回兵", position: GridPoint(x: 3, y: 5), behavior: .patrol(path: [GridPoint(x: 3, y: 5), GridPoint(x: 4, y: 5), GridPoint(x: 5, y: 5), GridPoint(x: 6, y: 5), GridPoint(x: 5, y: 5), GridPoint(x: 4, y: 5)]))
+                EnemyDefinition(id: "growth-17-patrol", name: "巡回兵", position: GridPoint(x: 3, y: 5), behavior: .patrol(path: [GridPoint(x: 3, y: 5), GridPoint(x: 4, y: 5), GridPoint(x: 5, y: 5), GridPoint(x: 6, y: 5), GridPoint(x: 5, y: 5), GridPoint(x: 4, y: 5)])),
+                EnemyDefinition(
+                    id: "growth-17-marker",
+                    name: "予告兵",
+                    position: GridPoint(x: 7, y: 4),
+                    behavior: .marker(
+                        directions: [
+                            MoveVector(dx: -1, dy: 0),
+                            MoveVector(dx: 0, dy: 1)
+                        ],
+                        range: 3
+                    )
+                )
             ],
             hazards: [.brittleFloor(points: [GridPoint(x: 3, y: 1), GridPoint(x: 3, y: 2), GridPoint(x: 3, y: 3)])],
             impassableTilePoints: [

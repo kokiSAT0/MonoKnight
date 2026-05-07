@@ -210,7 +210,9 @@ private extension GameHandSectionView {
     /// 手札スロット 1 枠を描画するビュー
     private func handSlotView(for index: Int) -> some View {
         ZStack {
-            if let stack = handCard(at: index), let card = stack.topCard {
+            if viewModel.presentsBasicMoveCard, index == GameViewModel.dungeonBasicMoveSlotIndex {
+                basicMoveCardView()
+            } else if let stack = handCard(at: index), let card = stack.topCard {
                 let isHidden = boardBridge.hiddenCardIDs.contains(card.id)
                 let isUsable = viewModel.isCardUsable(stack)
                 let isSelectingDiscard = core.isAwaitingManualDiscardSelection
@@ -268,6 +270,70 @@ private extension GameHandSectionView {
         .accessibilityIdentifier(Self.handSlotAccessibilityIdentifier(for: index))
     }
 
+    private func basicMoveCardView() -> some View {
+        let isSelected = viewModel.isBasicMoveCardSelected
+        let isSelectingDiscard = core.isAwaitingManualDiscardSelection
+        let isSelectingSupportSwap = core.isAwaitingSupportSwapSelection
+        let isUsable = core.progress == .playing
+            && !isSelectingDiscard
+            && !isSelectingSupportSwap
+            && !core.availableBasicOrthogonalMoves().isEmpty
+
+        return HandStackCardView(stackCount: 1) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(theme.cardBackgroundHand)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(theme.cardBorderHand, lineWidth: 1.5)
+                    )
+
+                VStack(spacing: 7) {
+                    Image(systemName: "arrow.up.and.down.and.arrow.left.and.right")
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundColor(theme.cardContentPrimary)
+                        .accessibilityHidden(true)
+                    Text("基本移動")
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .foregroundColor(theme.cardContentPrimary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+                    Text("消費なし")
+                        .font(.system(size: 9, weight: .medium, design: .rounded))
+                        .foregroundColor(theme.textSecondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+                }
+                .padding(.horizontal, 5)
+            }
+            .frame(width: GameViewLayoutMetrics.handCardWidth, height: GameViewLayoutMetrics.handCardHeight)
+        }
+        .opacity(isUsable ? 1.0 : 0.4)
+        .background {
+            if isSelected {
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(theme.accentPrimary.opacity(0.12))
+                    .accessibilityHidden(true)
+            }
+        }
+        .overlay {
+            if isSelected {
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(theme.accentPrimary, lineWidth: 2)
+                    .shadow(color: theme.accentPrimary.opacity(0.25), radius: 5, x: 0, y: 2)
+                    .accessibilityHidden(true)
+            }
+        }
+        .onTapGesture {
+            viewModel.handleHandSlotTap(at: GameViewModel.dungeonBasicMoveSlotIndex)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text("基本移動、上下左右1マス、消費なし"))
+        .accessibilityHint(Text(isUsable ? "ダブルタップで基本移動を選択し、盤面で移動先を決めてください。" : "現在使える基本移動候補がありません。"))
+        .accessibilityValue(Text(isSelected ? "選択中" : ""))
+        .accessibilityAddTraits(.isButton)
+    }
+
     /// 手札が空の際に表示するプレースホルダビュー
     private func placeholderCardView() -> some View {
         RoundedRectangle(cornerRadius: 8)
@@ -313,6 +379,8 @@ private extension GameHandSectionView {
                 return "ダブルタップで入替を開始し、このカード以外の手札 1 種類を選んで補充します。"
             case .guidance:
                 return "ダブルタップで 1 手使い、目的地へ近づきやすい手札と NEXT に整えます。"
+            case .refillEmptySlots:
+                return "ダブルタップで 1 手使い、空いている手札枠を移動カードで補給します。"
             }
         }
 
@@ -566,6 +634,8 @@ private struct SupportCardIllustrationView: View {
             return "arrow.left.arrow.right"
         case .guidance:
             return "scope"
+        case .refillEmptySlots:
+            return "square.grid.3x3.fill"
         }
     }
 }

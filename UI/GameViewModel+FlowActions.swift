@@ -83,6 +83,15 @@ extension GameViewModel {
         onRequestStartDungeonFloor?(nextMode)
     }
 
+    func handleDungeonRewardSupportSelection(_ supportCard: SupportCard) {
+        guard availableDungeonRewardSupportCards.contains(supportCard),
+              let nextMode = makeNextDungeonFloorMode(rewardSelection: .addSupport(supportCard))
+        else { return }
+        saveInitialDungeonResume(for: nextMode)
+        prepareForDungeonFloorAdvance()
+        onRequestStartDungeonFloor?(nextMode)
+    }
+
     func handleDungeonRewardSelection(_ selection: DungeonRewardSelection) {
         guard isDungeonRewardSelectionAvailable(selection),
               let nextMode = makeNextDungeonFloorMode(rewardSelection: selection)
@@ -93,10 +102,17 @@ extension GameViewModel {
     }
 
     func handleDungeonRewardCardRemoval(_ card: MoveCard) {
-        guard adjustableDungeonRewardEntries.contains(where: { $0.card == card && $0.rewardUses > 0 }) else {
+        guard adjustableDungeonRewardEntries.contains(where: { $0.moveCard == card && $0.rewardUses > 0 }) else {
             return
         }
         _ = core.removeDungeonRewardInventoryCard(card)
+    }
+
+    func handleDungeonRewardSupportRemoval(_ support: SupportCard) {
+        guard adjustableDungeonRewardEntries.contains(where: { $0.supportCard == support && $0.rewardUses > 0 }) else {
+            return
+        }
+        _ = core.removeDungeonRewardInventorySupportCard(support)
     }
 
     func handleResultReturnToTitle() {
@@ -241,10 +257,14 @@ extension GameViewModel {
         switch selection {
         case .add(let card):
             return availableDungeonRewardMoveCards.contains(card)
+        case .addSupport(let support):
+            return availableDungeonRewardSupportCards.contains(support)
         case .carryOverPickup(let card):
             return carryoverCandidateDungeonPickupEntries.contains { $0.card == card && $0.pickupUses > 0 }
         case .upgrade(let card), .remove(let card):
-            return adjustableDungeonRewardEntries.contains { $0.card == card && $0.rewardUses > 0 }
+            return adjustableDungeonRewardEntries.contains { $0.moveCard == card && $0.rewardUses > 0 }
+        case .upgradeSupport(let support), .removeSupport(let support):
+            return adjustableDungeonRewardEntries.contains { $0.supportCard == support && $0.rewardUses > 0 }
         }
     }
 

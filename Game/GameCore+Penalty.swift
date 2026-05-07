@@ -197,6 +197,7 @@ extension GameCore {
     public func beginManualDiscardSelection() {
         // プレイ中以外は受け付けない
         guard progress == .playing else { return }
+        guard pendingDungeonPickupChoice == nil else { return }
         // 手札が空の場合は選択しても意味がないため無視する
         guard !handStacks.isEmpty else { return }
         // 既に捨て札モードであれば再度有効化する必要はない
@@ -233,6 +234,7 @@ extension GameCore {
     public func discardHandStack(withID stackID: UUID) -> Bool {
         // プレイ中以外では捨て札を実行しない
         guard progress == .playing else { return false }
+        guard pendingDungeonPickupChoice == nil else { return false }
         // 捨て札モードでなければ誤操作とみなし拒否する
         guard isAwaitingManualDiscardSelection else { return false }
         // 指定 ID のスタックが存在するか確認

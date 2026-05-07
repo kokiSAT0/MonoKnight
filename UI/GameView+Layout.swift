@@ -1,3 +1,4 @@
+import Game
 import SpriteKit
 import SwiftUI
 
@@ -46,6 +47,20 @@ extension GameView {
                     .padding(.top, spawnSelectionBannerTopPadding(using: layoutContext))
                     .transition(.opacity.combined(with: .move(edge: .top)))
                     .zIndex(1)
+            }
+            if let pendingChoice = viewModel.pendingDungeonPickupChoice {
+                DungeonPickupChoiceOverlayView(
+                    theme: theme,
+                    choice: pendingChoice,
+                    onDiscardPickup: {
+                        viewModel.discardPendingDungeonPickupCard()
+                    },
+                    onDiscardExisting: { playable in
+                        viewModel.replaceDungeonInventoryEntryForPendingPickup(discarding: playable)
+                    }
+                )
+                .transition(.opacity)
+                .zIndex(3)
             }
         }
         // 画面全体の背景もテーマで制御し、システム設定と調和させる
@@ -206,5 +221,207 @@ extension GameView {
                 // レイアウト値が変動するたびにスナップショットを残し、問題の再現条件を追跡する
                 logLayoutSnapshot(newValue, reason: "値更新")
             }
+    }
+}
+
+struct DungeonPickupChoiceOverlayView: View {
+    let theme: AppTheme
+    let choice: PendingDungeonPickupChoice
+    let onDiscardPickup: () -> Void
+    let onDiscardExisting: (PlayableCard) -> Void
+
+    private var columns: [GridItem] {
+        [GridItem(.adaptive(minimum: 96, maximum: 128), spacing: 10, alignment: .top)]
+    }
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.42)
+                .ignoresSafeArea()
+                .accessibilityHidden(true)
+
+            VStack(spacing: 12) {
+                VStack(spacing: 4) {
+                    Text("手札がいっぱいです")
+                        .font(.system(size: 19, weight: .bold, design: .rounded))
+                        .foregroundColor(theme.textPrimary)
+                    Text("拾ったカードか、手札の 1 種類を選んで捨てます")
+                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .foregroundColor(theme.textSecondary)
+                        .multilineTextAlignment(.center)
+                }
+
+                ScrollView {
+                    LazyVGrid(columns: columns, spacing: 10) {
+                        pickupChoiceButton
+                        ForEach(Array(choice.discardCandidates.enumerated()), id: \.element.id) { index, entry in
+                            existingChoiceButton(entry: entry, index: index)
+                        }
+                    }
+                    .padding(.vertical, 2)
+                }
+                .frame(maxHeight: 330)
+            }
+            .padding(14)
+            .frame(maxWidth: 560)
+            .background(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(theme.spawnOverlayBackground)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .stroke(theme.spawnOverlayBorder, lineWidth: 1)
+                    )
+            )
+            .shadow(color: theme.spawnOverlayShadow, radius: 20, x: 0, y: 10)
+            .padding(.horizontal, 18)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("dungeon_pickup_choice_overlay")
+    }
+
+    private var pickupChoiceButton: some View {
+        Button(action: onDiscardPickup) {
+            DungeonPickupChoiceCardView(
+                theme: theme,
+                playable: .move(choice.pickup.card),
+                uses: choice.pickup.uses,
+                badgeText: "拾ったカード",
+                actionText: "取得しない",
+                isPickupCandidate: true
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("dungeon_pickup_choice_discard_new")
+        .accessibilityLabel(Text("拾ったカード、\(choice.pickup.card.displayName)、取得しない"))
+    }
+
+    private func existingChoiceButton(entry: DungeonInventoryEntry, index: Int) -> some View {
+        Button {
+            onDiscardExisting(entry.playable)
+        } label: {
+            DungeonPickupChoiceCardView(
+                theme: theme,
+                playable: entry.playable,
+                uses: entry.totalUses,
+                badgeText: "手札",
+                actionText: "この種類を捨てる",
+                isPickupCandidate: false
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("dungeon_pickup_choice_discard_existing_\(index)")
+        .accessibilityLabel(Text("手札、\(entry.playable.displayName)、残り \(entry.totalUses)、この種類を捨てる"))
+    }
+}
+
+private struct DungeonPickupChoiceCardView: View {
+    let theme: AppTheme
+    let playable: PlayableCard
+    let uses: Int
+    let badgeText: String
+    let actionText: String
+    let isPickupCandidate: Bool
+
+    var body: some View {
+        VStack(spacing: 6) {
+            Text(badgeText)
+                .font(.system(size: 10, weight: .bold, design: .rounded))
+                .foregroundColor(isPickupCandidate ? theme.accentOnPrimary : theme.textSecondary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(
+                    Capsule()
+                        .fill(isPickupCandidate ? theme.accentPrimary : theme.cardBackgroundNext)
+                )
+
+            cardArtwork
+                .scaleEffect(0.86)
+                .frame(width: 76, height: 104)
+
+            Text(playable.displayName)
+                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .foregroundColor(theme.textPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+
+            Text("残り \(uses)")
+                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                .foregroundColor(theme.textSecondary)
+
+            Text(actionText)
+                .font(.system(size: 10, weight: .bold, design: .rounded))
+                .foregroundColor(isPickupCandidate ? theme.textSecondary : theme.accentPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+        }
+        .padding(8)
+        .frame(width: 104)
+        .frame(minHeight: 178)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(theme.cardBackgroundHand)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(isPickupCandidate ? theme.accentPrimary.opacity(0.65) : theme.cardBorderHand, lineWidth: 1.5)
+                )
+        )
+    }
+
+    @ViewBuilder
+    private var cardArtwork: some View {
+        if let move = playable.move {
+            MoveCardIllustrationView(card: move, mode: .hand)
+        } else if let support = playable.support {
+            SupportPickupChoiceIllustrationView(card: support, theme: theme)
+        }
+    }
+}
+
+private struct SupportPickupChoiceIllustrationView: View {
+    let card: SupportCard
+    let theme: AppTheme
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Image(systemName: symbolName)
+                .font(.system(size: 24, weight: .semibold))
+                .foregroundColor(theme.accentPrimary)
+                .frame(width: 34, height: 34)
+                .background(Circle().fill(theme.accentPrimary.opacity(0.14)))
+
+            Text(card.displayName)
+                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .foregroundColor(theme.textPrimary)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .minimumScaleFactor(0.75)
+
+            Text("補助")
+                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                .foregroundColor(theme.textSecondary)
+        }
+        .padding(8)
+        .frame(width: MoveCardIllustrationView.defaultWidth, height: MoveCardIllustrationView.defaultHeight)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(theme.cardBackgroundHand)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(theme.cardBorderHand, lineWidth: 1.5)
+                )
+        )
+    }
+
+    private var symbolName: String {
+        switch card {
+        case .nextRefresh:
+            return "arrow.triangle.2.circlepath"
+        case .swapOne:
+            return "arrow.left.arrow.right"
+        case .guidance:
+            return "scope"
+        case .refillEmptySlots:
+            return "square.grid.3x3.fill"
+        }
     }
 }

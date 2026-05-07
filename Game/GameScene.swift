@@ -22,6 +22,7 @@
         case dungeonKey
         case dungeonEnemy
         case dungeonDanger
+        case dungeonEnemyWarning
         case dungeonCardPickup
         case dungeonDamageTrap
         case dungeonCrackedFloor

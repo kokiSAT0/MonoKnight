@@ -223,6 +223,7 @@ struct ResultActionSection: View {
     let modeIdentifier: GameMode.Identifier
     let nextDungeonFloorTitle: String?
     let dungeonRewardMoveCards: [MoveCard]
+    let dungeonRewardSupportCards: [SupportCard]
     let dungeonRewardInventoryEntries: [DungeonInventoryEntry]
     let dungeonPickupCarryoverEntries: [DungeonInventoryEntry]
     let dungeonRewardAddUses: Int
@@ -233,6 +234,7 @@ struct ResultActionSection: View {
     let onSelectDungeonRewardMoveCard: ((MoveCard) -> Void)?
     let onSelectDungeonReward: ((DungeonRewardSelection) -> Void)?
     let onRemoveDungeonRewardCard: ((MoveCard) -> Void)?
+    let onRemoveDungeonRewardSupportCard: ((SupportCard) -> Void)?
     let onRetry: () -> Void
     let onReturnToTitle: (() -> Void)?
     let gameCenterService: GameCenterServiceProtocol
@@ -268,6 +270,7 @@ struct ResultActionSection: View {
                     }
 
                     if (onSelectDungeonRewardMoveCard != nil && !dungeonRewardMoveCards.isEmpty)
+                        || (onSelectDungeonReward != nil && !dungeonRewardSupportCards.isEmpty)
                         || (onSelectDungeonReward != nil && !dungeonPickupCarryoverEntries.isEmpty) {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("カードを手札に追加")
@@ -291,6 +294,29 @@ struct ResultActionSection: View {
                                         .accessibilityElement(children: .ignore)
                                         .accessibilityLabel(choice.accessibilityLabel)
                                         .accessibilityHint("ダブルタップでこのカードを手札に追加し、次の階へ進みます")
+                                        .accessibilityAddTraits(.isButton)
+                                        .accessibilityIdentifier(choice.accessibilityIdentifier)
+                                    }
+                                }
+
+                                if let onSelectDungeonReward {
+                                    ForEach(dungeonRewardSupportCards, id: \.self) { support in
+                                        let choice = DungeonRewardCardChoicePresentation(
+                                            playable: .support(support),
+                                            rewardUses: DungeonRunState.rewardUses(for: support),
+                                            accessibilityIdentifierPrefix: "dungeon_reward_support_card",
+                                            accessibilityRoleText: "手札に追加する補助カード"
+                                        )
+                                        Button {
+                                            triggerSuccessHapticIfNeeded()
+                                            onSelectDungeonReward(.addSupport(support))
+                                        } label: {
+                                            DungeonRewardCardChoiceView(choice: choice)
+                                        }
+                                        .buttonStyle(.plain)
+                                        .accessibilityElement(children: .ignore)
+                                        .accessibilityLabel(choice.accessibilityLabel)
+                                        .accessibilityHint("ダブルタップでこの補助カードを手札に追加し、次の階へ進みます")
                                         .accessibilityAddTraits(.isButton)
                                         .accessibilityIdentifier(choice.accessibilityIdentifier)
                                     }
@@ -323,8 +349,7 @@ struct ResultActionSection: View {
                         }
                     }
 
-                    if let onSelectDungeonReward,
-                       let onRemoveDungeonRewardCard,
+                if let onSelectDungeonReward,
                        !dungeonRewardInventoryEntries.isEmpty {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("手札")
@@ -338,11 +363,19 @@ struct ResultActionSection: View {
                                         choice: carriedChoice,
                                         onUpgrade: {
                                             triggerSuccessHapticIfNeeded()
-                                            onSelectDungeonReward(.upgrade(entry.card))
+                                            if let move = entry.moveCard {
+                                                onSelectDungeonReward(.upgrade(move))
+                                            } else if let support = entry.supportCard {
+                                                onSelectDungeonReward(.upgradeSupport(support))
+                                            }
                                         },
                                         onRemove: {
                                             triggerSuccessHapticIfNeeded()
-                                            onRemoveDungeonRewardCard(entry.card)
+                                            if let move = entry.moveCard {
+                                                onRemoveDungeonRewardCard?(move)
+                                            } else if let support = entry.supportCard {
+                                                onRemoveDungeonRewardSupportCard?(support)
+                                            }
                                         }
                                     )
                                 }
@@ -410,6 +443,7 @@ struct ResultActionSection: View {
 
     private var hasDungeonRewardChoices: Bool {
         (onSelectDungeonRewardMoveCard != nil && !dungeonRewardMoveCards.isEmpty)
+            || (onSelectDungeonReward != nil && !dungeonRewardSupportCards.isEmpty)
             || (onSelectDungeonReward != nil && !dungeonPickupCarryoverEntries.isEmpty)
             || (onSelectDungeonReward != nil && !dungeonRewardInventoryEntries.isEmpty)
     }
@@ -445,6 +479,7 @@ struct ResultActionSection: View {
         modeDisplayName: String,
         nextDungeonFloorTitle: String?,
         dungeonRewardMoveCards: [MoveCard] = [],
+        dungeonRewardSupportCards: [SupportCard] = [],
         dungeonRewardInventoryEntries: [DungeonInventoryEntry] = [],
         dungeonPickupCarryoverEntries: [DungeonInventoryEntry] = [],
         dungeonRewardAddUses: Int = 3,
@@ -455,6 +490,7 @@ struct ResultActionSection: View {
         onSelectDungeonRewardMoveCard: ((MoveCard) -> Void)? = nil,
         onSelectDungeonReward: ((DungeonRewardSelection) -> Void)? = nil,
         onRemoveDungeonRewardCard: ((MoveCard) -> Void)? = nil,
+        onRemoveDungeonRewardSupportCard: ((SupportCard) -> Void)? = nil,
         onRetry: @escaping () -> Void,
         onReturnToTitle: (() -> Void)?,
         gameCenterService: GameCenterServiceProtocol,
@@ -465,6 +501,7 @@ struct ResultActionSection: View {
         self.modeDisplayName = modeDisplayName
         self.nextDungeonFloorTitle = nextDungeonFloorTitle
         self.dungeonRewardMoveCards = dungeonRewardMoveCards
+        self.dungeonRewardSupportCards = dungeonRewardSupportCards
         self.dungeonRewardInventoryEntries = dungeonRewardInventoryEntries.filter { $0.rewardUses > 0 }
         self.dungeonPickupCarryoverEntries = dungeonPickupCarryoverEntries.filter { $0.pickupUses > 0 }
         self.dungeonRewardAddUses = max(dungeonRewardAddUses, 1)
@@ -475,6 +512,7 @@ struct ResultActionSection: View {
         self.onSelectDungeonRewardMoveCard = onSelectDungeonRewardMoveCard
         self.onSelectDungeonReward = onSelectDungeonReward
         self.onRemoveDungeonRewardCard = onRemoveDungeonRewardCard
+        self.onRemoveDungeonRewardSupportCard = onRemoveDungeonRewardSupportCard
         self.onRetry = onRetry
         self.onReturnToTitle = onReturnToTitle
         self.gameCenterService = gameCenterService
@@ -516,7 +554,7 @@ struct ResultActionDisplayPolicy: Equatable {
 }
 
 struct DungeonRewardCardChoicePresentation: Equatable {
-    let card: MoveCard
+    let playable: PlayableCard
     let rewardUses: Int
     let actionText: String
     let sourceText: String?
@@ -531,7 +569,7 @@ struct DungeonRewardCardChoicePresentation: Equatable {
         accessibilityIdentifierPrefix: String = "dungeon_reward_card",
         accessibilityRoleText: String = "手札に追加するカード"
     ) {
-        self.card = card
+        self.playable = .move(card)
         self.rewardUses = max(rewardUses, 1)
         self.actionText = actionText
         self.sourceText = sourceText
@@ -539,12 +577,43 @@ struct DungeonRewardCardChoicePresentation: Equatable {
         self.accessibilityRoleText = accessibilityRoleText
     }
 
-    var title: String { card.displayName }
+    init(
+        playable: PlayableCard,
+        rewardUses: Int = 3,
+        actionText: String = "手札に追加",
+        sourceText: String? = nil,
+        accessibilityIdentifierPrefix: String = "dungeon_reward_card",
+        accessibilityRoleText: String = "手札に追加するカード"
+    ) {
+        self.playable = playable
+        self.rewardUses = max(rewardUses, 1)
+        self.actionText = actionText
+        self.sourceText = sourceText
+        self.accessibilityIdentifierPrefix = accessibilityIdentifierPrefix
+        self.accessibilityRoleText = accessibilityRoleText
+    }
+
+    var title: String { playable.displayName }
+    var card: MoveCard {
+        guard let move = playable.move else {
+            preconditionFailure("補助カードには MoveCard がありません")
+        }
+        return move
+    }
     var usesBadgeText: String { "\(rewardUses)回使える" }
-    var accessibilityIdentifier: String { "\(accessibilityIdentifierPrefix)_\(card.displayName)" }
+    var accessibilityIdentifier: String { "\(accessibilityIdentifierPrefix)_\(playable.displayName)" }
     var accessibilityLabel: String {
         let sourceDescription = sourceText.map { "、\($0)" } ?? ""
-        return "\(card.displayName)、\(accessibilityRoleText)\(sourceDescription)、\(actionText)、\(rewardUses)回使える。選ぶと次の階へ進みます。\(card.encyclopediaDescription)"
+        return "\(playable.displayName)、\(accessibilityRoleText)\(sourceDescription)、\(actionText)、\(rewardUses)回使える。選ぶと次の階へ進みます。\(descriptionText)"
+    }
+
+    private var descriptionText: String {
+        switch playable {
+        case .move(let card):
+            return card.encyclopediaDescription
+        case .support(let support):
+            return support.encyclopediaDescription
+        }
     }
 }
 
@@ -558,13 +627,7 @@ private struct DungeonRewardCardChoiceView: View {
 
     var body: some View {
         VStack(spacing: 7) {
-            MoveCardIllustrationView(card: choice.card, mode: .hand)
-                .scaleEffect(0.82)
-                .frame(
-                    width: MoveCardIllustrationView.defaultWidth * 0.82,
-                    height: MoveCardIllustrationView.defaultHeight * 0.82
-                )
-                .accessibilityHidden(true)
+            rewardIllustration
 
             Text(choice.title)
                 .font(.subheadline.weight(.semibold))
@@ -602,27 +665,49 @@ private struct DungeonRewardCardChoiceView: View {
         )
         .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
+
+    @ViewBuilder
+    private var rewardIllustration: some View {
+        switch choice.playable {
+        case .move(let card):
+            MoveCardIllustrationView(card: card, mode: .hand)
+                .scaleEffect(0.82)
+                .frame(
+                    width: MoveCardIllustrationView.defaultWidth * 0.82,
+                    height: MoveCardIllustrationView.defaultHeight * 0.82
+                )
+                .accessibilityHidden(true)
+        case .support(let support):
+            SupportRewardCardIllustrationView(card: support)
+                .scaleEffect(0.82)
+                .frame(
+                    width: MoveCardIllustrationView.defaultWidth * 0.82,
+                    height: MoveCardIllustrationView.defaultHeight * 0.82
+                )
+                .accessibilityHidden(true)
+        }
+    }
 }
 
 struct DungeonCarriedRewardChoicePresentation: Equatable {
-    let card: MoveCard
+    let playable: PlayableCard
     let rewardUses: Int
 
     init(entry: DungeonInventoryEntry) {
-        self.card = entry.card
+        self.playable = entry.playable
         self.rewardUses = max(entry.rewardUses, 1)
     }
 
-    var title: String { card.displayName }
+    var title: String { playable.displayName }
     var usesBadgeText: String { "現在\(rewardUses)回" }
     var upgradeAccessibilityLabel: String {
-        "\(card.displayName)、手札、現在\(rewardUses)回。使用回数+1。選ぶと次の階へ進みます。"
+        "\(playable.displayName)、手札、現在\(rewardUses)回。使用回数+1。選ぶと次の階へ進みます。"
     }
     var removeAccessibilityLabel: String {
-        "\(card.displayName)、手札、現在\(rewardUses)回。手札から外す。報酬は消費しません。"
+        "\(playable.displayName)、手札、現在\(rewardUses)回。手札から外す。報酬は消費しません。"
     }
-    var upgradeAccessibilityIdentifier: String { "dungeon_reward_upgrade_\(card.displayName)" }
-    var removeAccessibilityIdentifier: String { "dungeon_reward_remove_\(card.displayName)" }
+    var upgradeAccessibilityIdentifier: String { "dungeon_reward_upgrade_\(playable.displayName)" }
+    var removeAccessibilityIdentifier: String { "dungeon_reward_remove_\(playable.displayName)" }
 }
 
 private struct DungeonCarriedRewardCardView: View {
@@ -643,13 +728,7 @@ private struct DungeonCarriedRewardCardView: View {
 
     var body: some View {
         VStack(spacing: 7) {
-            MoveCardIllustrationView(card: choice.card, mode: .hand)
-                .scaleEffect(0.92)
-                .frame(
-                    width: MoveCardIllustrationView.defaultWidth,
-                    height: MoveCardIllustrationView.defaultHeight * 0.92
-                )
-                .accessibilityHidden(true)
+            carriedIllustration
 
             Text(choice.title)
                 .font(.subheadline.weight(.semibold))
@@ -715,5 +794,80 @@ private struct DungeonCarriedRewardCardView: View {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(theme.cardBorderHand.opacity(0.24), lineWidth: 1)
         )
+    }
+
+    @ViewBuilder
+    private var carriedIllustration: some View {
+        switch choice.playable {
+        case .move(let card):
+            MoveCardIllustrationView(card: card, mode: .hand)
+                .scaleEffect(0.92)
+                .frame(
+                    width: MoveCardIllustrationView.defaultWidth,
+                    height: MoveCardIllustrationView.defaultHeight * 0.92
+                )
+                .accessibilityHidden(true)
+        case .support(let support):
+            SupportRewardCardIllustrationView(card: support)
+                .scaleEffect(0.92)
+                .frame(
+                    width: MoveCardIllustrationView.defaultWidth,
+                    height: MoveCardIllustrationView.defaultHeight * 0.92
+                )
+                .accessibilityHidden(true)
+        }
+    }
+}
+
+private struct SupportRewardCardIllustrationView: View {
+    let card: SupportCard
+    private var theme = AppTheme()
+
+    init(card: SupportCard) {
+        self.card = card
+    }
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Image(systemName: symbolName)
+                .font(.system(size: 24, weight: .semibold))
+                .foregroundColor(theme.accentPrimary)
+                .frame(width: 34, height: 34)
+                .background(Circle().fill(theme.accentPrimary.opacity(0.14)))
+
+            Text(card.displayName)
+                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .foregroundColor(theme.textPrimary)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .minimumScaleFactor(0.75)
+
+            Text("補助")
+                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                .foregroundColor(theme.textSecondary)
+        }
+        .padding(8)
+        .frame(width: MoveCardIllustrationView.defaultWidth, height: MoveCardIllustrationView.defaultHeight)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(theme.cardBackgroundHand)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(theme.accentPrimary.opacity(0.75), lineWidth: 2)
+                )
+        )
+    }
+
+    private var symbolName: String {
+        switch card {
+        case .nextRefresh:
+            return "arrow.triangle.2.circlepath"
+        case .swapOne:
+            return "arrow.left.arrow.right"
+        case .guidance:
+            return "scope"
+        case .refillEmptySlots:
+            return "square.grid.3x3.fill"
+        }
     }
 }

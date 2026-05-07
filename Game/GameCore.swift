@@ -195,6 +195,8 @@ public final class GameCore: ObservableObject {
     @Published public private(set) var dungeonInventoryEntries: [DungeonInventoryEntry] = []
     /// 取得済みのフロア内カード ID
     @Published public private(set) var collectedDungeonCardPickupIDs: Set<String> = []
+    /// 所持枠が満杯で床落ちカードの取捨選択を待っている状態
+    @Published public private(set) var pendingDungeonPickupChoice: PendingDungeonPickupChoice?
     /// 塔ダンジョン出口が現在有効かどうか
     @Published public private(set) var isDungeonExitUnlocked: Bool = true
     /// 出口解錠演出用の単発イベント
@@ -246,6 +248,10 @@ public final class GameCore: ObservableObject {
     public var enemyDangerPoints: Set<GridPoint> {
         dangerPoints(for: enemyStates)
     }
+    /// 予告兵が次の敵ターンに攻撃するマス
+    public var enemyWarningPoints: Set<GridPoint> {
+        markerWarningPoints(for: enemyStates)
+    }
     /// 巡回兵ごとの次移動方向
     public var enemyPatrolMovementPreviews: [EnemyPatrolMovementPreview] {
         enemyStates.compactMap { patrolMovementPreview(for: $0) }
@@ -264,6 +270,9 @@ public final class GameCore: ObservableObject {
               let cardPickups = mode.dungeonRules?.cardPickups
         else { return [] }
         return cardPickups.filter { !collectedDungeonCardPickupIDs.contains($0.id) }
+    }
+    public var isAwaitingDungeonPickupChoice: Bool {
+        pendingDungeonPickupChoice != nil
     }
     /// 未取得の塔鍵マス。階段が解錠されたら盤面表示から消える。
     public var dungeonKeyPoints: Set<GridPoint> {
@@ -341,7 +350,8 @@ public final class GameCore: ObservableObject {
             collapsedFloorPoints: collapsedFloorPoints,
             dungeonInventoryEntries: dungeonInventoryEntries,
             collectedDungeonCardPickupIDs: collectedDungeonCardPickupIDs,
-            isDungeonExitUnlocked: isDungeonExitUnlocked
+            isDungeonExitUnlocked: isDungeonExitUnlocked,
+            pendingDungeonPickupChoice: pendingDungeonPickupChoice
         )
     }
 
@@ -391,6 +401,7 @@ public final class GameCore: ObservableObject {
         collapsedFloorPoints = validCollapsedPoints
         dungeonInventoryEntries = snapshot.dungeonInventoryEntries
         collectedDungeonCardPickupIDs = snapshot.collectedDungeonCardPickupIDs
+        pendingDungeonPickupChoice = snapshot.pendingDungeonPickupChoice
         isDungeonExitUnlocked = snapshot.isDungeonExitUnlocked
         dungeonExitUnlockEvent = nil
         dungeonFallEvent = nil
@@ -480,6 +491,7 @@ public final class GameCore: ObservableObject {
     /// 手札インデックスの補助カードを使用する
     public func playSupportCard(at index: Int) {
         guard progress == .playing, handStacks.indices.contains(index), current != nil else { return }
+        guard pendingDungeonPickupChoice == nil else { return }
         guard !isAwaitingManualDiscardSelection, !isAwaitingSupportSwapSelection else { return }
         guard let card = handStacks[index].topCard, let support = card.supportCard else { return }
         guard isSupportCardUsable(in: handStacks[index]) else { return }
@@ -498,6 +510,15 @@ public final class GameCore: ObservableObject {
             focusCount = previousFocusCount
             checkDeadlockAndApplyPenaltyIfNeeded()
             debugLog("補助カード 導き: フォーカス回数を増やさず手札とNEXTを再配布")
+        case .refillEmptySlots:
+            let canRefillExistingEmptySlots = !usesDungeonInventoryCards ||
+                dungeonInventoryEntries.filter(\.hasUsesRemaining).count < 9
+            consumeSupportCard(at: index)
+            if canRefillExistingEmptySlots {
+                refillDungeonEmptySlotsWithRandomMoveCards()
+            }
+            checkDeadlockAndApplyPenaltyIfNeeded()
+            debugLog("補助カード 補給: 空き手札枠へ移動カードを補給")
         case .swapOne:
             pendingSupportSwapStackID = handStacks[index].id
             isAwaitingSupportSwapSelection = true
@@ -560,9 +581,18 @@ public final class GameCore: ObservableObject {
         pendingSupportSwapStackID = nil
         cancelManualDiscardSelection()
         resetBoardTapPlayRequestForPenalty()
-        let removedIndex = handManager.consumeTopCard(at: index)
+        let support = handStacks.indices.contains(index) ? handStacks[index].topCard?.supportCard : nil
+        let removedIndex: Int?
+        if usesDungeonInventoryCards, let support {
+            consumeDungeonInventorySupportCard(support)
+            removedIndex = nil
+        } else {
+            removedIndex = handManager.consumeTopCard(at: index)
+        }
         moveCount += 1
-        rebuildHandAndNext(preferredInsertionIndices: removedIndex.map { [$0] } ?? [])
+        if !usesDungeonInventoryCards {
+            rebuildHandAndNext(preferredInsertionIndices: removedIndex.map { [$0] } ?? [])
+        }
     }
 
     /// ResolvedCardMove が現在の手札情報と一致しているかを検証し、必要ならインデックスを補正する
@@ -629,6 +659,7 @@ public final class GameCore: ObservableObject {
     public func playCard(using resolvedMove: ResolvedCardMove) {
         // スポーン待ちやクリア済み・ペナルティ中は操作不可
         guard progress == .playing, let currentPosition = current else { return }
+        guard pendingDungeonPickupChoice == nil else { return }
         // 捨て札モード中は移動を開始せず安全に抜ける
         guard !isAwaitingManualDiscardSelection else { return }
         // UI 側で保持していた情報が古くなっていないかを安全確認
@@ -888,9 +919,23 @@ public final class GameCore: ObservableObject {
 #endif
     }
 
+private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
+    private var state: UInt64
+
+    init(seed: UInt64) {
+        state = seed == 0 ? 0x4d595df4d0f33173 : seed
+    }
+
+    mutating func next() -> UInt64 {
+        state = 6364136223846793005 &* state &+ 1442695040888963407
+        return state
+    }
+}
+
     /// 塔ダンジョン用のカードなし基本移動を実行する
     public func playBasicOrthogonalMove(using basicMove: BasicOrthogonalMove) {
         guard progress == .playing, let currentPosition = current else { return }
+        guard pendingDungeonPickupChoice == nil else { return }
         guard !isAwaitingManualDiscardSelection, !isAwaitingSupportSwapSelection else { return }
         guard mode.dungeonRules?.allowsBasicOrthogonalMove == true else { return }
         guard availableBasicOrthogonalMoves().contains(where: { candidate in
@@ -1381,6 +1426,7 @@ public final class GameCore: ObservableObject {
         }
         dungeonInventoryEntries = mode.dungeonMetadataSnapshot?.runState?.rewardInventoryEntries ?? []
         collectedDungeonCardPickupIDs = []
+        pendingDungeonPickupChoice = nil
         isDungeonExitUnlocked = mode.dungeonRules?.exitLock == nil
         dungeonExitUnlockEvent = nil
         dungeonFallEvent = nil
@@ -1429,18 +1475,19 @@ public final class GameCore: ObservableObject {
     /// ダンジョンの所持カード一覧を既存の手札表示/移動候補へ反映する
     private func syncDungeonInventoryHandStacks() {
         guard usesDungeonInventoryCards else { return }
-        let existingStacksByCard = Dictionary(
-            uniqueKeysWithValues: handStacks.compactMap { stack -> (MoveCard, HandStack)? in
-                guard let card = stack.representativeMove else { return nil }
-                return (card, stack)
+        let existingStacksByPlayable = Dictionary(
+            uniqueKeysWithValues: handStacks.compactMap { stack -> (PlayableCard, HandStack)? in
+                guard let playable = stack.representativePlayable else { return nil }
+                return (playable, stack)
             }
         )
-        let liveEntries = dungeonInventoryEntries.filter(\.hasUsesRemaining)
+        let inventoryKindLimit = 9
+        let liveEntries = Array(dungeonInventoryEntries.filter(\.hasUsesRemaining).prefix(inventoryKindLimit))
         dungeonInventoryEntries = liveEntries
         handStacks = liveEntries.map { entry in
-            let existingStack = existingStacksByCard[entry.card]
+            let existingStack = existingStacksByPlayable[entry.playable]
             var cards: [DealtCard]
-            if entry.card == .fixedWarp {
+            if entry.moveCard == .fixedWarp {
                 let destination = mode.fixedWarpDestinationPool.first
                 cards = (0..<entry.totalUses).map { _ in
                     DealtCard(move: entry.card, fixedWarpDestination: destination)
@@ -1449,7 +1496,7 @@ public final class GameCore: ObservableObject {
                 cards = Array(existingStack?.cards.prefix(entry.totalUses) ?? [])
             }
             while cards.count < entry.totalUses {
-                cards.append(DealtCard(move: entry.card))
+                cards.append(DealtCard(playable: entry.playable))
             }
             return HandStack(id: existingStack?.id ?? UUID(), cards: cards)
         }
@@ -1458,22 +1505,31 @@ public final class GameCore: ObservableObject {
     }
 
     private func addDungeonInventoryCard(_ card: MoveCard, pickupUses: Int = 0, rewardUses: Int = 0) -> Bool {
+        addDungeonInventoryPlayable(.move(card), pickupUses: pickupUses, rewardUses: rewardUses)
+    }
+
+    private func addDungeonInventorySupportCard(_ support: SupportCard, pickupUses: Int = 0, rewardUses: Int = 0) -> Bool {
+        addDungeonInventoryPlayable(.support(support), pickupUses: pickupUses, rewardUses: rewardUses)
+    }
+
+    private func addDungeonInventoryPlayable(_ playable: PlayableCard, pickupUses: Int = 0, rewardUses: Int = 0) -> Bool {
         guard usesDungeonInventoryCards else { return false }
         let normalizedPickupUses = max(pickupUses, 0)
         let normalizedRewardUses = max(rewardUses, 0)
         guard normalizedPickupUses + normalizedRewardUses > 0 else { return false }
+        let inventoryKindLimit = 9
 
-        if let index = dungeonInventoryEntries.firstIndex(where: { $0.card == card }) {
+        if let index = dungeonInventoryEntries.firstIndex(where: { $0.playable == playable }) {
             dungeonInventoryEntries[index].pickupUses += normalizedPickupUses
             dungeonInventoryEntries[index].rewardUses += normalizedRewardUses
             syncDungeonInventoryHandStacks()
             return true
         }
 
-        guard dungeonInventoryEntries.filter(\.hasUsesRemaining).count < 10 else { return false }
+        guard dungeonInventoryEntries.filter(\.hasUsesRemaining).count < inventoryKindLimit else { return false }
         dungeonInventoryEntries.append(
             DungeonInventoryEntry(
-                card: card,
+                playable: playable,
                 rewardUses: normalizedRewardUses,
                 pickupUses: normalizedPickupUses
             )
@@ -1483,8 +1539,16 @@ public final class GameCore: ObservableObject {
     }
 
     private func consumeDungeonInventoryCard(_ card: MoveCard) {
+        consumeDungeonInventoryPlayable(.move(card))
+    }
+
+    private func consumeDungeonInventorySupportCard(_ support: SupportCard) {
+        consumeDungeonInventoryPlayable(.support(support))
+    }
+
+    private func consumeDungeonInventoryPlayable(_ playable: PlayableCard) {
         guard usesDungeonInventoryCards,
-              let index = dungeonInventoryEntries.firstIndex(where: { $0.card == card })
+              let index = dungeonInventoryEntries.firstIndex(where: { $0.playable == playable })
         else { return }
 
         if dungeonInventoryEntries[index].pickupUses > 0 {
@@ -1498,7 +1562,7 @@ public final class GameCore: ObservableObject {
     @discardableResult
     public func removeDungeonRewardInventoryCard(_ card: MoveCard) -> Bool {
         guard usesDungeonInventoryCards,
-              let index = dungeonInventoryEntries.firstIndex(where: { $0.card == card && $0.rewardUses > 0 })
+              let index = dungeonInventoryEntries.firstIndex(where: { $0.moveCard == card && $0.rewardUses > 0 })
         else { return false }
 
         dungeonInventoryEntries[index].rewardUses = 0
@@ -1506,16 +1570,123 @@ public final class GameCore: ObservableObject {
         return true
     }
 
+    @discardableResult
+    public func removeDungeonRewardInventorySupportCard(_ support: SupportCard) -> Bool {
+        guard usesDungeonInventoryCards,
+              let index = dungeonInventoryEntries.firstIndex(where: { $0.supportCard == support && $0.rewardUses > 0 })
+        else { return false }
+
+        dungeonInventoryEntries[index].rewardUses = 0
+        syncDungeonInventoryHandStacks()
+        return true
+    }
+
+    @discardableResult
+    public func discardPendingDungeonPickupCard() -> Bool {
+        guard usesDungeonInventoryCards,
+              let choice = pendingDungeonPickupChoice
+        else { return false }
+
+        collectedDungeonCardPickupIDs.insert(choice.pickup.id)
+        pendingDungeonPickupChoice = nil
+        syncDungeonInventoryHandStacks()
+        debugLog("満杯拾得カードを取得せず破棄: \(choice.pickup.card.displayName) @\(choice.pickup.point)")
+        return true
+    }
+
+    @discardableResult
+    public func replaceDungeonInventoryEntryForPendingPickup(discarding playable: PlayableCard) -> Bool {
+        guard usesDungeonInventoryCards,
+              let choice = pendingDungeonPickupChoice,
+              choice.discardCandidates.contains(where: { $0.playable == playable }),
+              dungeonInventoryEntries.contains(where: { $0.playable == playable && $0.hasUsesRemaining })
+        else { return false }
+
+        dungeonInventoryEntries.removeAll { $0.playable == playable }
+        pendingDungeonPickupChoice = nil
+        let didAdd = addDungeonInventoryCard(choice.pickup.card, pickupUses: choice.pickup.uses)
+        guard didAdd else {
+            syncDungeonInventoryHandStacks()
+            return false
+        }
+
+        collectedDungeonCardPickupIDs.insert(choice.pickup.id)
+        debugLog("満杯拾得カードを取得: \(choice.pickup.card.displayName), 破棄=\(playable.displayName)")
+        return true
+    }
+
     private func collectDungeonCardPickups(along traversedPath: [GridPoint]) {
         guard usesDungeonInventoryCards else { return }
+        guard pendingDungeonPickupChoice == nil else { return }
         let visitedPoints = Set(traversedPath)
         for pickup in activeDungeonCardPickups where visitedPoints.contains(pickup.point) {
             if addDungeonInventoryCard(pickup.card, pickupUses: pickup.uses) {
                 collectedDungeonCardPickupIDs.insert(pickup.id)
                 debugLog("拾得カードを取得: \(pickup.card.displayName) 残り+\(pickup.uses) @\(pickup.point)")
+            } else if beginPendingDungeonPickupChoiceIfNeeded(for: pickup) {
+                break
             }
         }
         syncDungeonInventoryHandStacks()
+    }
+
+    private func beginPendingDungeonPickupChoiceIfNeeded(for pickup: DungeonCardPickupDefinition) -> Bool {
+        let liveEntries = Array(dungeonInventoryEntries.filter(\.hasUsesRemaining).prefix(9))
+        guard liveEntries.count >= 9,
+              !liveEntries.contains(where: { $0.moveCard == pickup.card })
+        else { return false }
+
+        pendingDungeonPickupChoice = PendingDungeonPickupChoice(
+            pickup: pickup,
+            discardCandidates: liveEntries
+        )
+        isAwaitingManualDiscardSelection = false
+        cancelSupportSwapSelection()
+        boardTapPlayRequest = nil
+        boardTapBasicMoveRequest = nil
+        debugLog("満杯のため拾得カード選択待ち: \(pickup.card.displayName) @\(pickup.point)")
+        return true
+    }
+
+    private func refillDungeonEmptySlotsWithRandomMoveCards() {
+        guard usesDungeonInventoryCards else { return }
+        let inventoryKindLimit = 9
+        let occupiedCount = dungeonInventoryEntries.filter(\.hasUsesRemaining).count
+        let emptySlotCount = max(0, inventoryKindLimit - occupiedCount)
+        guard emptySlotCount > 0 else { return }
+
+        let ownedMoves = Set(dungeonInventoryEntries.compactMap(\.moveCard))
+        var candidates = dungeonRefillMoveCardPool().filter { !ownedMoves.contains($0) }
+        guard !candidates.isEmpty else { return }
+
+        var generator = DungeonRefillRandomGenerator(seed: dungeonRefillSeed())
+        candidates.shuffle(using: &generator)
+        for card in candidates.prefix(emptySlotCount) {
+            _ = addDungeonInventoryCard(card, pickupUses: 1)
+        }
+    }
+
+    private func dungeonRefillMoveCardPool() -> [MoveCard] {
+        guard let metadata = mode.dungeonMetadataSnapshot,
+              let runState = metadata.runState,
+              let dungeon = DungeonLibrary.shared.dungeon(with: metadata.dungeonID),
+              let floor = dungeon.resolvedFloor(at: runState.currentFloorIndex, runState: runState)
+        else { return [] }
+        return floor.rewardMoveCardsAfterClear
+    }
+
+    private func dungeonRefillSeed() -> UInt64 {
+        var seed = mode.dungeonMetadataSnapshot?.runState?.cardVariationSeed ?? mode.deckSeed ?? 1
+        let floorIndex = UInt64(mode.dungeonMetadataSnapshot?.runState?.currentFloorIndex ?? 0)
+        seed ^= (floorIndex &+ 1) &* 0x9E37_79B9_7F4A_7C15
+        seed ^= UInt64(max(moveCount, 0) + 1) &* 0xBF58_476D_1CE4_E5B9
+        for entry in dungeonInventoryEntries.sorted(by: { $0.id < $1.id }) {
+            for scalar in entry.id.unicodeScalars {
+                seed = seed &* 1099511628211 &+ UInt64(scalar.value)
+            }
+            seed ^= UInt64(entry.totalUses &+ 31)
+        }
+        return seed == 0 ? 1 : seed
     }
 
     /// 一時停止ボタンなどからの操作でタイマーを停止する
@@ -1786,8 +1957,9 @@ public final class GameCore: ObservableObject {
             progress = .cleared
             return true
         }
+        let pendingMarkerDamagePoints = enemyWarningPoints
         advanceEnemiesForDungeonTurn()
-        applyDungeonEnemyDamageIfNeeded()
+        applyDungeonEnemyDamageIfNeeded(markerDamagePoints: pendingMarkerDamagePoints)
         if shouldFailDungeonRun() {
             finalizeElapsedTimeIfNeeded()
             progress = .failed
@@ -1886,6 +2058,10 @@ public final class GameCore: ObservableObject {
                     continue
                 }
                 enemyStates[index].position = nextPoint
+            case .marker(let directions, _):
+                let validDirections = normalizedDirections(directions)
+                guard !validDirections.isEmpty else { continue }
+                enemyStates[index].rotationIndex = (enemyStates[index].rotationIndex + 1) % validDirections.count
             }
         }
     }
@@ -1946,13 +2122,16 @@ public final class GameCore: ObservableObject {
         )
     }
 
-    private func applyDungeonEnemyDamageIfNeeded() {
+    private func applyDungeonEnemyDamageIfNeeded(markerDamagePoints: Set<GridPoint>) {
         guard mode.usesDungeonExit, let current else { return }
         var totalDamage = 0
-        let danger = enemyDangerPoints
 
-        for enemy in enemyStates where enemy.position == current || danger.contains(current) {
-            totalDamage += enemy.damage
+        for enemy in enemyStates {
+            if enemy.position == current || dangerPoints(for: [enemy]).contains(current) {
+                totalDamage += enemy.damage
+            } else if case .marker = enemy.behavior, markerDamagePoints.contains(current) {
+                totalDamage += enemy.damage
+            }
         }
 
         guard totalDamage > 0 else { return }
@@ -2004,9 +2183,28 @@ public final class GameCore: ObservableObject {
                     range: range,
                     into: &danger
                 )
+            case .marker:
+                break
             }
         }
         return danger
+    }
+
+    private func markerWarningPoints(for enemies: [EnemyState]) -> Set<GridPoint> {
+        var warning: Set<GridPoint> = []
+        for enemy in enemies {
+            guard case .marker(let directions, let range) = enemy.behavior else { continue }
+            let validDirections = normalizedDirections(directions)
+            guard !validDirections.isEmpty else { continue }
+            let direction = validDirections[enemy.rotationIndex % validDirections.count]
+            insertWatcherDanger(
+                from: enemy.position,
+                direction: direction,
+                range: range,
+                into: &warning
+            )
+        }
+        return warning
     }
 
     private func chaserNextStep(from origin: GridPoint, toward target: GridPoint) -> GridPoint? {
@@ -2283,6 +2481,7 @@ extension GameCore: GameCoreProtocol {
 
         // ゲーム進行中でなければ入力を無視
         guard progress == .playing else { return }
+        guard pendingDungeonPickupChoice == nil else { return }
 
         // デバッグログ: タップされたマスを表示
         debugLog("マス \(point) をタップ")
@@ -2306,6 +2505,7 @@ extension GameCore: GameCoreProtocol {
         }
     }
 }
+
 #endif
 
 @available(iOS 13.0, macOS 10.15, tvOS 13.0, watchOS 6.0, *)
@@ -2452,6 +2652,7 @@ extension GameCore {
         if core.usesDungeonInventoryCards {
             core.dungeonInventoryEntries = mode.dungeonMetadataSnapshot?.runState?.rewardInventoryEntries ?? []
             core.collectedDungeonCardPickupIDs = []
+            core.pendingDungeonPickupChoice = nil
             core.syncDungeonInventoryHandStacks()
         } else {
             core.handManager.resetAll(using: &core.deck)

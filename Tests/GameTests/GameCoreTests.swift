@@ -43,21 +43,25 @@ final class GameCoreTests: XCTestCase {
         XCTAssertTrue(core.board.isVisited(warpDestination), "ワープ先マスも踏破扱いにします")
     }
 
-    func testDungeonInventoryStacksDuplicateCardsAndRejectsNewCardAtTenKinds() {
-        let mode = makeInventoryDungeonMode(spawn: GridPoint(x: 0, y: 0), exit: GridPoint(x: 4, y: 4))
+    func testDungeonInventoryStacksDuplicateCardsAndRejectsNewCardAtNineKindsWhenBasicMoveUsesTenthSlot() {
+        let mode = makeInventoryDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            allowsBasicOrthogonalMove: true
+        )
         let core = GameCore(mode: mode)
-        let tenCards = Array(MoveCard.allCases.prefix(10))
-        let eleventh = MoveCard.allCases[10]
+        let nineCards = Array(MoveCard.allCases.prefix(9))
+        let tenth = MoveCard.allCases[9]
 
-        for card in tenCards {
+        for card in nineCards {
             XCTAssertTrue(core.addDungeonInventoryCardForTesting(card, pickupUses: 1))
         }
 
-        XCTAssertEqual(core.dungeonInventoryEntries.count, 10)
-        XCTAssertFalse(core.addDungeonInventoryCardForTesting(eleventh, pickupUses: 1), "塔攻略の所持カード種類数は10種類までです")
-        XCTAssertTrue(core.addDungeonInventoryCardForTesting(tenCards[0], pickupUses: 1), "同じカードは種類枠を増やさず回数として積めます")
-        XCTAssertEqual(core.dungeonInventoryEntries.count, 10)
-        XCTAssertEqual(core.dungeonInventoryEntries.first { $0.card == tenCards[0] }?.pickupUses, 2)
+        XCTAssertEqual(core.dungeonInventoryEntries.count, 9)
+        XCTAssertFalse(core.addDungeonInventoryCardForTesting(tenth, pickupUses: 1), "塔攻略の通常カード種類数は基本移動固定枠を除く9種類までです")
+        XCTAssertTrue(core.addDungeonInventoryCardForTesting(nineCards[0], pickupUses: 1), "同じカードは種類枠を増やさず回数として積めます")
+        XCTAssertEqual(core.dungeonInventoryEntries.count, 9)
+        XCTAssertEqual(core.dungeonInventoryEntries.first { $0.card == nineCards[0] }?.pickupUses, 2)
     }
 
     func testHandleTapPrefersBasicOrthogonalMoveOverMatchingCardMove() {
@@ -114,12 +118,194 @@ final class GameCoreTests: XCTestCase {
         XCTAssertEqual(resolved?.moveCard, .rayRight, "単一方向カードを自動優先せず、代表候補だけを返す想定です")
     }
 
+    func testRefillSupportCardFillsDungeonEmptySlotsWithTemporaryMoveCards() throws {
+        let dungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let runState = DungeonRunState(
+            dungeonID: dungeon.id,
+            currentFloorIndex: 10,
+            carriedHP: 3,
+            rewardInventoryEntries: [DungeonInventoryEntry(support: .refillEmptySlots, rewardUses: 1)],
+            cardVariationSeed: 42
+        )
+        let floor = try XCTUnwrap(dungeon.resolvedFloor(at: 10, runState: runState))
+        let core = GameCore(mode: floor.makeGameMode(dungeonID: dungeon.id, difficulty: dungeon.difficulty, runState: runState))
+        let supportIndex = try XCTUnwrap(core.handStacks.firstIndex { $0.topCard?.supportCard == .refillEmptySlots })
+
+        core.playSupportCard(at: supportIndex)
+
+        XCTAssertFalse(core.dungeonInventoryEntries.contains { $0.supportCard == .refillEmptySlots })
+        XCTAssertEqual(core.dungeonInventoryEntries.count, floor.rewardMoveCardsAfterClear.count)
+        XCTAssertTrue(core.dungeonInventoryEntries.allSatisfy { $0.pickupUses == 1 && $0.rewardUses == 0 })
+        XCTAssertTrue(Set(core.dungeonInventoryEntries.compactMap(\.moveCard)).isSubset(of: Set(floor.rewardMoveCardsAfterClear)))
+    }
+
+    func testRefillSupportRewardCarriesOnlyOneUse() {
+        let runState = DungeonRunState(dungeonID: "growth-tower", carriedHP: 3)
+
+        let advanced = runState.advancedToNextFloor(
+            carryoverHP: 3,
+            currentFloorMoveCount: 4,
+            rewardSelection: .addSupport(.refillEmptySlots),
+            rewardAddUses: 4
+        )
+
+        XCTAssertEqual(
+            advanced.rewardInventoryEntries,
+            [DungeonInventoryEntry(support: .refillEmptySlots, rewardUses: 1)]
+        )
+    }
+
+    func testRefillSupportCardDoesNotAddCardsWhenInventoryWasAlreadyFull() throws {
+        let dungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let runState = DungeonRunState(
+            dungeonID: dungeon.id,
+            currentFloorIndex: 10,
+            carriedHP: 3,
+            rewardInventoryEntries: [
+                DungeonInventoryEntry(support: .refillEmptySlots, rewardUses: 1),
+                DungeonInventoryEntry(card: .straightRight2, rewardUses: 1),
+                DungeonInventoryEntry(card: .straightLeft2, rewardUses: 1),
+                DungeonInventoryEntry(card: .straightUp2, rewardUses: 1),
+                DungeonInventoryEntry(card: .straightDown2, rewardUses: 1),
+                DungeonInventoryEntry(card: .diagonalUpRight2, rewardUses: 1),
+                DungeonInventoryEntry(card: .diagonalDownRight2, rewardUses: 1),
+                DungeonInventoryEntry(card: .diagonalDownLeft2, rewardUses: 1),
+                DungeonInventoryEntry(card: .diagonalUpLeft2, rewardUses: 1)
+            ],
+            cardVariationSeed: 42
+        )
+        let floor = try XCTUnwrap(dungeon.resolvedFloor(at: 10, runState: runState))
+        let core = GameCore(mode: floor.makeGameMode(dungeonID: dungeon.id, difficulty: dungeon.difficulty, runState: runState))
+        let supportIndex = try XCTUnwrap(core.handStacks.firstIndex { $0.topCard?.supportCard == .refillEmptySlots })
+
+        core.playSupportCard(at: supportIndex)
+
+        XCTAssertFalse(core.dungeonInventoryEntries.contains { $0.supportCard == .refillEmptySlots })
+        XCTAssertEqual(core.dungeonInventoryEntries.count, 8)
+        XCTAssertFalse(core.dungeonInventoryEntries.contains { $0.pickupUses > 0 })
+    }
+
+    func testFullDungeonPickupStartsDiscardChoiceForNewCard() throws {
+        let pickupPoint = GridPoint(x: 1, y: 0)
+        let nineCards = Array(MoveCard.allCases.prefix(9))
+        let newCard = try XCTUnwrap(MoveCard.allCases.dropFirst(9).first)
+        let pickup = DungeonCardPickupDefinition(id: "new_pickup", point: pickupPoint, card: newCard)
+        let mode = makeInventoryDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            allowsBasicOrthogonalMove: true,
+            cardPickups: [pickup]
+        )
+        let core = GameCore(mode: mode)
+        for card in nineCards {
+            XCTAssertTrue(core.addDungeonInventoryCardForTesting(card, pickupUses: 1))
+        }
+
+        let move = try XCTUnwrap(core.availableBasicOrthogonalMoves().first { $0.destination == pickupPoint })
+        core.playBasicOrthogonalMove(using: move)
+
+        XCTAssertEqual(core.pendingDungeonPickupChoice?.pickup, pickup)
+        XCTAssertEqual(core.pendingDungeonPickupChoice?.discardCandidates.count, 9)
+        XCTAssertTrue(core.activeDungeonCardPickups.contains { $0.id == pickup.id })
+        XCTAssertEqual(core.dungeonInventoryEntries.count, 9)
+    }
+
+    func testFullDungeonPickupStacksExistingCardWithoutChoice() throws {
+        let pickupPoint = GridPoint(x: 1, y: 0)
+        let nineCards = Array(MoveCard.allCases.prefix(9))
+        let pickup = DungeonCardPickupDefinition(id: "same_pickup", point: pickupPoint, card: nineCards[0])
+        let mode = makeInventoryDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            allowsBasicOrthogonalMove: true,
+            cardPickups: [pickup]
+        )
+        let core = GameCore(mode: mode)
+        for card in nineCards {
+            XCTAssertTrue(core.addDungeonInventoryCardForTesting(card, pickupUses: 1))
+        }
+
+        let move = try XCTUnwrap(core.availableBasicOrthogonalMoves().first { $0.destination == pickupPoint })
+        core.playBasicOrthogonalMove(using: move)
+
+        XCTAssertNil(core.pendingDungeonPickupChoice)
+        XCTAssertFalse(core.activeDungeonCardPickups.contains { $0.id == pickup.id })
+        XCTAssertEqual(core.dungeonInventoryEntries.first { $0.card == nineCards[0] }?.pickupUses, 2)
+        XCTAssertEqual(core.dungeonInventoryEntries.count, 9)
+    }
+
+    func testPendingDungeonPickupCanDiscardNewCardWithoutPenalty() throws {
+        let pickupPoint = GridPoint(x: 1, y: 0)
+        let nineCards = Array(MoveCard.allCases.prefix(9))
+        let newCard = try XCTUnwrap(MoveCard.allCases.dropFirst(9).first)
+        let pickup = DungeonCardPickupDefinition(id: "discard_new_pickup", point: pickupPoint, card: newCard)
+        let core = try makeCoreWithFullInventoryAndPendingPickup(pickup: pickup, existingCards: nineCards)
+        let moveCountAfterPickup = core.moveCount
+        let penaltyAfterPickup = core.penaltyCount
+        let inventoryBefore = core.dungeonInventoryEntries
+
+        XCTAssertTrue(core.discardPendingDungeonPickupCard())
+
+        XCTAssertNil(core.pendingDungeonPickupChoice)
+        XCTAssertEqual(core.dungeonInventoryEntries, inventoryBefore)
+        XCTAssertFalse(core.activeDungeonCardPickups.contains { $0.id == pickup.id })
+        XCTAssertEqual(core.moveCount, moveCountAfterPickup)
+        XCTAssertEqual(core.penaltyCount, penaltyAfterPickup)
+    }
+
+    func testPendingDungeonPickupCanReplaceExistingCardWithoutPenalty() throws {
+        let pickupPoint = GridPoint(x: 1, y: 0)
+        let nineCards = Array(MoveCard.allCases.prefix(9))
+        let newCard = try XCTUnwrap(MoveCard.allCases.dropFirst(9).first)
+        let pickup = DungeonCardPickupDefinition(id: "replace_pickup", point: pickupPoint, card: newCard)
+        let core = try makeCoreWithFullInventoryAndPendingPickup(pickup: pickup, existingCards: nineCards)
+        let discarded = PlayableCard.move(nineCards[0])
+        let moveCountAfterPickup = core.moveCount
+        let penaltyAfterPickup = core.penaltyCount
+
+        XCTAssertTrue(core.replaceDungeonInventoryEntryForPendingPickup(discarding: discarded))
+
+        XCTAssertNil(core.pendingDungeonPickupChoice)
+        XCTAssertFalse(core.dungeonInventoryEntries.contains { $0.playable == discarded })
+        XCTAssertTrue(core.dungeonInventoryEntries.contains { $0.moveCard == newCard && $0.pickupUses == pickup.uses && $0.rewardUses == 0 })
+        XCTAssertFalse(core.activeDungeonCardPickups.contains { $0.id == pickup.id })
+        XCTAssertEqual(core.dungeonInventoryEntries.count, 9)
+        XCTAssertEqual(core.moveCount, moveCountAfterPickup)
+        XCTAssertEqual(core.penaltyCount, penaltyAfterPickup)
+    }
+
+    func testPendingDungeonPickupChoiceBlocksMovementAndRestoresFromSnapshot() throws {
+        let pickupPoint = GridPoint(x: 1, y: 0)
+        let nineCards = Array(MoveCard.allCases.prefix(9))
+        let newCard = try XCTUnwrap(MoveCard.allCases.dropFirst(9).first)
+        let pickup = DungeonCardPickupDefinition(id: "resume_pickup", point: pickupPoint, card: newCard)
+        let core = try makeCoreWithFullInventoryAndPendingPickup(pickup: pickup, existingCards: nineCards)
+        let currentAfterPickup = core.current
+        let moveCountAfterPickup = core.moveCount
+
+        if let blockedMove = core.availableBasicOrthogonalMoves().first {
+            core.playBasicOrthogonalMove(using: blockedMove)
+        }
+        XCTAssertEqual(core.current, currentAfterPickup)
+        XCTAssertEqual(core.moveCount, moveCountAfterPickup)
+
+        let snapshot = try XCTUnwrap(core.makeDungeonResumeSnapshot())
+        let data = try JSONEncoder().encode(snapshot)
+        let decodedSnapshot = try JSONDecoder().decode(DungeonRunResumeSnapshot.self, from: data)
+        let restoredCore = GameCore(mode: core.mode)
+
+        XCTAssertTrue(restoredCore.restoreDungeonResumeSnapshot(decodedSnapshot))
+        XCTAssertEqual(restoredCore.pendingDungeonPickupChoice, core.pendingDungeonPickupChoice)
+        XCTAssertEqual(restoredCore.current, currentAfterPickup)
+    }
+
     private func makeInventoryDungeonMode(
         spawn: GridPoint,
         exit: GridPoint,
         impassableTilePoints: Set<GridPoint> = [],
         warpTilePairs: [String: [GridPoint]] = [:],
-        allowsBasicOrthogonalMove: Bool = false
+        allowsBasicOrthogonalMove: Bool = false,
+        cardPickups: [DungeonCardPickupDefinition] = []
     ) -> GameMode {
         GameMode(
             identifier: .dungeonFloor,
@@ -144,10 +330,36 @@ final class GameCoreTests: XCTestCase {
                     difficulty: .growth,
                     failureRule: DungeonFailureRule(initialHP: 3, turnLimit: nil),
                     allowsBasicOrthogonalMove: allowsBasicOrthogonalMove,
-                    cardAcquisitionMode: .inventoryOnly
+                    cardAcquisitionMode: .inventoryOnly,
+                    cardPickups: cardPickups
                 )
             ),
-            leaderboardEligible: false
+            leaderboardEligible: false,
+            dungeonMetadata: GameMode.DungeonMetadata(
+                dungeonID: "test-dungeon",
+                floorID: "test-floor",
+                runState: DungeonRunState(dungeonID: "test-dungeon", carriedHP: 3)
+            )
         )
+    }
+
+    private func makeCoreWithFullInventoryAndPendingPickup(
+        pickup: DungeonCardPickupDefinition,
+        existingCards: [MoveCard]
+    ) throws -> GameCore {
+        let mode = makeInventoryDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            allowsBasicOrthogonalMove: true,
+            cardPickups: [pickup]
+        )
+        let core = GameCore(mode: mode)
+        for card in existingCards {
+            XCTAssertTrue(core.addDungeonInventoryCardForTesting(card, pickupUses: 1))
+        }
+        let move = try XCTUnwrap(core.availableBasicOrthogonalMoves().first { $0.destination == pickup.point })
+        core.playBasicOrthogonalMove(using: move)
+        XCTAssertNotNil(core.pendingDungeonPickupChoice)
+        return core
     }
 }

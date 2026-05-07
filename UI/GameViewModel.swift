@@ -32,6 +32,8 @@ final class GameViewModel: ObservableObject {
     /// 初回描画から使う手札表示用スナップショット
     /// - Note: `core.$handStacks` の初回通知を待たず、塔の持ち越し報酬カードを開始直後から表示する。
     @Published var displayedHandStacks: [HandStack] = []
+    static let dungeonInventoryVisibleSlotCount = 9
+    static let dungeonBasicMoveSlotIndex = 9
     /// SpriteKit と SwiftUI を仲介するための ViewModel
     let boardBridge: GameBoardBridgeViewModel
     /// 現在選択中の手札スタック ID
@@ -157,6 +159,20 @@ final class GameViewModel: ObservableObject {
         )?.rewardMoveCardsAfterClear ?? []
         return dungeonGrowthStore.rewardMoveCards(for: baseCards, dungeon: dungeon)
     }
+    /// 現在フロアのクリア後に選べる補助報酬カード
+    var availableDungeonRewardSupportCards: [SupportCard] {
+        guard !isResultFailed,
+              let metadata = mode.dungeonMetadataSnapshot,
+              let runState = metadata.runState,
+              let dungeon = DungeonLibrary.shared.dungeon(with: metadata.dungeonID),
+              dungeon.floors.indices.contains(runState.currentFloorIndex),
+              dungeon.canAdvanceWithinRun(afterFloorIndex: runState.currentFloorIndex)
+        else { return [] }
+        return dungeon.resolvedFloor(
+            at: runState.currentFloorIndex,
+            runState: runState
+        )?.rewardSupportCardsAfterClear ?? []
+    }
     /// 現在フロアで拾って未使用分が残っている、手札に追加できるカード
     var carryoverCandidateDungeonPickupEntries: [DungeonInventoryEntry] {
         guard !isResultFailed,
@@ -200,7 +216,7 @@ final class GameViewModel: ObservableObject {
                 "HP 0 で失敗"
             ]
             if mode.dungeonRules?.allowsBasicOrthogonalMove == true {
-                items.append("上下左右1マスはカードなしで移動")
+                items.append("基本移動カードで上下左右1マス")
             }
             if let remainingDungeonTurns {
                 items.append("残り手数 \(remainingDungeonTurns)")
@@ -249,6 +265,13 @@ final class GameViewModel: ObservableObject {
     /// 捨て札選択待機中かどうか
     /// - Note: ボタンのスタイル切り替えに必要な状態をカプセル化する
     var isAwaitingManualDiscardSelection: Bool { core.isAwaitingManualDiscardSelection }
+    var pendingDungeonPickupChoice: PendingDungeonPickupChoice? { core.pendingDungeonPickupChoice }
+    var presentsBasicMoveCard: Bool {
+        mode.usesDungeonExit && mode.dungeonRules?.allowsBasicOrthogonalMove == true
+    }
+    var isBasicMoveCardSelected: Bool {
+        sessionState.isBasicOrthogonalSelected
+    }
     /// 現在の駒位置
     /// - Note: カード移動演出でフォールバック座標として参照する
     var currentPosition: GridPoint? { core.current }
@@ -363,7 +386,7 @@ final class GameViewModel: ObservableObject {
             }
         }
         self.core = generatedCore
-        self.displayedHandStacks = generatedCore.handStacks
+        self.displayedHandStacks = Self.visibleHandStacks(from: generatedCore.handStacks, mode: mode)
         self.boardBridge = GameBoardBridgeViewModel(core: generatedCore, mode: mode)
         self.lastTutorialMoveCount = generatedCore.moveCount
         self.lastTutorialCapturedTargetCount = generatedCore.capturedTargetCount

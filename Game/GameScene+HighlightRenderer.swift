@@ -21,6 +21,7 @@
         private var latestDungeonKeyPoints: Set<GridPoint> = []
         private var latestDungeonEnemyPoints: Set<GridPoint> = []
         private var latestDungeonDangerPoints: Set<GridPoint> = []
+        private var latestDungeonEnemyWarningPoints: Set<GridPoint> = []
         private var latestDungeonCardPickupPoints: Set<GridPoint> = []
         private var latestDungeonDamageTrapPoints: Set<GridPoint> = []
         private var latestDungeonCrackedFloorPoints: Set<GridPoint> = []
@@ -63,6 +64,7 @@
             latestDungeonKeyPoints = []
             latestDungeonEnemyPoints = []
             latestDungeonDangerPoints = []
+            latestDungeonEnemyWarningPoints = []
             latestDungeonCardPickupPoints = []
             latestDungeonDamageTrapPoints = []
             latestDungeonCrackedFloorPoints = []
@@ -213,6 +215,7 @@
                     .dungeonKey: latestDungeonKeyPoints,
                     .dungeonEnemy: latestDungeonEnemyPoints,
                     .dungeonDanger: latestDungeonDangerPoints,
+                    .dungeonEnemyWarning: latestDungeonEnemyWarningPoints,
                     .dungeonCardPickup: latestDungeonCardPickupPoints,
                     .dungeonDamageTrap: latestDungeonDamageTrapPoints,
                     .dungeonCrackedFloor: latestDungeonCrackedFloorPoints,
@@ -274,6 +277,7 @@
             latestDungeonKeyPoints = highlights[.dungeonKey] ?? []
             latestDungeonEnemyPoints = highlights[.dungeonEnemy] ?? []
             latestDungeonDangerPoints = highlights[.dungeonDanger] ?? []
+            latestDungeonEnemyWarningPoints = highlights[.dungeonEnemyWarning] ?? []
             latestDungeonCardPickupPoints = highlights[.dungeonCardPickup] ?? []
             latestDungeonDamageTrapPoints = highlights[.dungeonDamageTrap] ?? []
             latestDungeonCrackedFloorPoints = highlights[.dungeonCrackedFloor] ?? []
@@ -544,6 +548,12 @@
                 strokeWidth = 0
                 fillColor = baseColor.withAlphaComponent(0.16)
                 zPosition = 1.05
+            case .dungeonEnemyWarning:
+                baseColor = SKColor(red: 1.0, green: 0.56, blue: 0.12, alpha: 1.0)
+                strokeAlpha = 0.70
+                strokeWidth = max(layout.tileSize * 0.035, 1.2)
+                fillColor = baseColor.withAlphaComponent(0.12)
+                zPosition = 1.06
             case .dungeonCardPickup:
                 baseColor = SKColor(red: 0.10, green: 0.62, blue: 0.52, alpha: 1.0)
                 strokeAlpha = 0
@@ -643,7 +653,8 @@
                  .targetApproachCandidate,
                  .targetCaptureCandidate,
                  .forcedSelection,
-                 .dungeonDanger:
+                 .dungeonDanger,
+                 .dungeonEnemyWarning:
                 return CGPath(rect: rect, transform: nil)
             case .dungeonCardPickup:
                 return cardPickupMarkerPath(center: CGPoint(x: rect.midX, y: rect.midY), tileSize: tileSize)

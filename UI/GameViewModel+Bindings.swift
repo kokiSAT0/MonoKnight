@@ -88,8 +88,13 @@ extension GameViewModel {
     }
 
     func handleHandStacksChange(_ newHandStacks: [HandStack]) {
-        displayedHandStacks = newHandStacks
-        refreshSelectionIfNeeded(with: newHandStacks)
+        displayedHandStacks = Self.visibleHandStacks(from: newHandStacks, mode: mode)
+        refreshSelectionIfNeeded(with: displayedHandStacks)
+    }
+
+    static func visibleHandStacks(from handStacks: [HandStack], mode: GameMode) -> [HandStack] {
+        guard mode.usesDungeonExit else { return handStacks }
+        return Array(handStacks.prefix(dungeonInventoryVisibleSlotCount))
     }
 
     func handleSpawnSelectionWarning(_ warning: SpawnSelectionWarning) {

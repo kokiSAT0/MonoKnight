@@ -625,6 +625,51 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.failureReasonText, "残り手数が0になりました")
     }
 
+    func testPendingDungeonPickupDiscardNewCardResolvesThroughViewModel() throws {
+        let pickupPoint = GridPoint(x: 1, y: 0)
+        let existingCards = Array(MoveCard.allCases.prefix(9))
+        let newCard = try XCTUnwrap(MoveCard.allCases.dropFirst(9).first)
+        let pickup = DungeonCardPickupDefinition(id: "view_model_discard_new", point: pickupPoint, card: newCard)
+        let (viewModel, core) = makeViewModel(mode: makePickupChoiceMode(pickup: pickup))
+        for card in existingCards {
+            XCTAssertTrue(core.addDungeonInventoryCardForTesting(card, pickupUses: 1))
+        }
+        let move = try XCTUnwrap(core.availableBasicOrthogonalMoves().first { $0.destination == pickupPoint })
+
+        core.playBasicOrthogonalMove(using: move)
+        XCTAssertEqual(viewModel.pendingDungeonPickupChoice?.pickup, pickup)
+
+        viewModel.discardPendingDungeonPickupCard()
+
+        XCTAssertNil(viewModel.pendingDungeonPickupChoice)
+        XCTAssertFalse(core.activeDungeonCardPickups.contains { $0.id == pickup.id })
+        XCTAssertFalse(core.dungeonInventoryEntries.contains { $0.moveCard == newCard })
+        XCTAssertEqual(core.dungeonInventoryEntries.count, 9)
+    }
+
+    func testPendingDungeonPickupReplaceExistingCardResolvesThroughViewModel() throws {
+        let pickupPoint = GridPoint(x: 1, y: 0)
+        let existingCards = Array(MoveCard.allCases.prefix(9))
+        let newCard = try XCTUnwrap(MoveCard.allCases.dropFirst(9).first)
+        let pickup = DungeonCardPickupDefinition(id: "view_model_replace", point: pickupPoint, card: newCard)
+        let (viewModel, core) = makeViewModel(mode: makePickupChoiceMode(pickup: pickup))
+        for card in existingCards {
+            XCTAssertTrue(core.addDungeonInventoryCardForTesting(card, pickupUses: 1))
+        }
+        let move = try XCTUnwrap(core.availableBasicOrthogonalMoves().first { $0.destination == pickupPoint })
+
+        core.playBasicOrthogonalMove(using: move)
+        XCTAssertNotNil(viewModel.pendingDungeonPickupChoice)
+
+        viewModel.replaceDungeonInventoryEntryForPendingPickup(discarding: .move(existingCards[0]))
+
+        XCTAssertNil(viewModel.pendingDungeonPickupChoice)
+        XCTAssertFalse(core.dungeonInventoryEntries.contains { $0.moveCard == existingCards[0] })
+        XCTAssertTrue(core.dungeonInventoryEntries.contains { $0.moveCard == newCard && $0.pickupUses == 1 })
+        XCTAssertFalse(core.activeDungeonCardPickups.contains { $0.id == pickup.id })
+        XCTAssertEqual(core.dungeonInventoryEntries.count, 9)
+    }
+
     func testDungeonRunNextFloorCarriesHPAndResetsFloorState() throws {
         let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
         let mode = try XCTUnwrap(DungeonLibrary.shared.firstFloorMode(for: tower))
@@ -1347,6 +1392,41 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.boardTapSelectionWarning, "reset 操作後も盤面タップ警告が残っています")
         XCTAssertNil(viewModel.pendingMenuAction, "reset 操作後も確認ダイアログが残っています")
         XCTAssertFalse(viewModel.showingResult, "reset 操作後は結果画面表示フラグが閉じている必要があります")
+    }
+
+    private func makePickupChoiceMode(pickup: DungeonCardPickupDefinition) -> GameMode {
+        GameMode(
+            identifier: .dungeonFloor,
+            displayName: "満杯拾得テスト",
+            regulation: GameMode.Regulation(
+                boardSize: BoardGeometry.standardSize,
+                handSize: 10,
+                nextPreviewCount: 0,
+                allowsStacking: true,
+                deckPreset: .standard,
+                spawnRule: .fixed(GridPoint(x: 0, y: 0)),
+                penalties: GameMode.PenaltySettings(
+                    deadlockPenaltyCost: 0,
+                    manualRedrawPenaltyCost: 0,
+                    manualDiscardPenaltyCost: 0,
+                    revisitPenaltyCost: 0
+                ),
+                completionRule: .dungeonExit(exitPoint: GridPoint(x: 4, y: 4)),
+                dungeonRules: DungeonRules(
+                    difficulty: .growth,
+                    failureRule: DungeonFailureRule(initialHP: 3, turnLimit: nil),
+                    allowsBasicOrthogonalMove: true,
+                    cardAcquisitionMode: .inventoryOnly,
+                    cardPickups: [pickup]
+                )
+            ),
+            leaderboardEligible: false,
+            dungeonMetadata: GameMode.DungeonMetadata(
+                dungeonID: "view-model-pickup-test",
+                floorID: "pickup-choice",
+                runState: DungeonRunState(dungeonID: "view-model-pickup-test", carriedHP: 3)
+            )
+        )
     }
 
     /// テストで使い回す ViewModel と GameCore の組み合わせを生成するヘルパー

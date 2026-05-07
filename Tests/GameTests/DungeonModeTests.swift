@@ -162,6 +162,123 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertFalse(core.enemyDangerPoints.contains(GridPoint(x: 4, y: 1)))
     }
 
+    func testMarkerEnemyWarnsNextTurnDamagePointsAndDamagesAfterPlayerMove() throws {
+        let marker = EnemyDefinition(
+            id: "marker",
+            name: "予告兵",
+            position: GridPoint(x: 3, y: 1),
+            behavior: .marker(
+                directions: [MoveVector(dx: -1, dy: 0)],
+                range: 2
+            )
+        )
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 1, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 3,
+            turnLimit: 4,
+            enemies: [marker],
+            allowsBasicOrthogonalMove: true
+        )
+        let core = makeCore(mode: mode)
+
+        XCTAssertEqual(
+            core.enemyWarningPoints,
+            [
+                GridPoint(x: 2, y: 1),
+                GridPoint(x: 1, y: 1)
+            ]
+        )
+        XCTAssertFalse(core.enemyDangerPoints.contains(GridPoint(x: 1, y: 1)))
+
+        playBasicMove(to: GridPoint(x: 1, y: 1), in: core)
+
+        XCTAssertEqual(core.dungeonHP, 2)
+        XCTAssertEqual(core.progress, .playing)
+    }
+
+    func testMarkerEnemyWarningStopsAtImpassableTiles() throws {
+        let marker = EnemyDefinition(
+            id: "marker",
+            name: "予告兵",
+            position: GridPoint(x: 4, y: 1),
+            behavior: .marker(
+                directions: [MoveVector(dx: -1, dy: 0)],
+                range: 4
+            )
+        )
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 3,
+            turnLimit: 4,
+            enemies: [marker],
+            impassableTilePoints: [GridPoint(x: 2, y: 1)],
+            allowsBasicOrthogonalMove: true
+        )
+        let core = makeCore(mode: mode)
+
+        XCTAssertEqual(core.enemyWarningPoints, [GridPoint(x: 3, y: 1)])
+    }
+
+    func testMarkerEnemyWarningCyclesAfterEnemyTurn() throws {
+        let marker = EnemyDefinition(
+            id: "marker",
+            name: "予告兵",
+            position: GridPoint(x: 3, y: 1),
+            behavior: .marker(
+                directions: [
+                    MoveVector(dx: -1, dy: 0),
+                    MoveVector(dx: 0, dy: 1)
+                ],
+                range: 2
+            )
+        )
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 3,
+            turnLimit: 4,
+            enemies: [marker],
+            allowsBasicOrthogonalMove: true
+        )
+        let core = makeCore(mode: mode)
+
+        XCTAssertEqual(
+            core.enemyWarningPoints,
+            [
+                GridPoint(x: 2, y: 1),
+                GridPoint(x: 1, y: 1)
+            ]
+        )
+
+        playBasicMove(to: GridPoint(x: 0, y: 1), in: core)
+
+        XCTAssertEqual(
+            core.enemyWarningPoints,
+            [
+                GridPoint(x: 3, y: 2),
+                GridPoint(x: 3, y: 3)
+            ]
+        )
+        XCTAssertEqual(core.dungeonHP, 3)
+    }
+
+    func testMarkerEnemyBehaviorCodableRoundTrip() throws {
+        let behavior = EnemyBehavior.marker(
+            directions: [
+                MoveVector(dx: -1, dy: 0),
+                MoveVector(dx: 0, dy: 1)
+            ],
+            range: 3
+        )
+
+        let encoded = try JSONEncoder().encode(behavior)
+        let decoded = try JSONDecoder().decode(EnemyBehavior.self, from: encoded)
+
+        XCTAssertEqual(decoded, behavior)
+    }
+
     func testChaserMovesOneStepTowardPlayerWithStableHorizontalPreference() throws {
         let chaser = EnemyDefinition(
             id: "chaser",
@@ -1088,6 +1205,7 @@ final class DungeonModeTests: XCTestCase {
         let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
         var hasPatrol = false
         var hasChaser = false
+        var hasMarker = false
         var hasExitLock = false
         var hasDamageTrap = false
         var hasWarp = false
@@ -1108,6 +1226,8 @@ final class DungeonModeTests: XCTestCase {
                     points.append(contentsOf: path)
                 case .chaser:
                     hasChaser = true
+                case .marker:
+                    hasMarker = true
                 case .guardPost, .watcher, .rotatingWatcher:
                     break
                 }
@@ -1142,6 +1262,7 @@ final class DungeonModeTests: XCTestCase {
 
         XCTAssertTrue(hasPatrol)
         XCTAssertTrue(hasChaser)
+        XCTAssertTrue(hasMarker)
         XCTAssertTrue(hasExitLock)
         XCTAssertTrue(hasDamageTrap)
         XCTAssertTrue(hasWarp)
@@ -2355,23 +2476,23 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertFalse(core.removeDungeonRewardInventoryCard(.straightRight2))
     }
 
-    func testDungeonInventoryStacksDuplicateCardsAndRejectsNewCardAtTenKinds() throws {
+    func testDungeonInventoryStacksDuplicateCardsAndRejectsNewCardAtNineKindsWhenBasicMoveUsesTenthSlot() throws {
         let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
         let mode = try XCTUnwrap(DungeonLibrary.shared.firstFloorMode(for: tower))
         let core = makeCore(mode: mode)
-        let tenCards = Array(MoveCard.allCases.prefix(10))
-        let eleventh = try XCTUnwrap(MoveCard.allCases.dropFirst(10).first)
+        let nineCards = Array(MoveCard.allCases.prefix(9))
+        let tenth = try XCTUnwrap(MoveCard.allCases.dropFirst(9).first)
 
-        for card in tenCards {
+        for card in nineCards {
             XCTAssertTrue(core.addDungeonInventoryCardForTesting(card, pickupUses: 1))
         }
 
-        XCTAssertEqual(core.dungeonInventoryEntries.count, 10)
-        XCTAssertFalse(core.addDungeonInventoryCardForTesting(eleventh, pickupUses: 1))
-        XCTAssertEqual(core.dungeonInventoryEntries.count, 10)
-        XCTAssertTrue(core.addDungeonInventoryCardForTesting(tenCards[0], pickupUses: 1))
-        XCTAssertEqual(core.dungeonInventoryEntries.count, 10)
-        XCTAssertEqual(core.dungeonInventoryEntries.first { $0.card == tenCards[0] }?.pickupUses, 2)
+        XCTAssertEqual(core.dungeonInventoryEntries.count, 9)
+        XCTAssertFalse(core.addDungeonInventoryCardForTesting(tenth, pickupUses: 1))
+        XCTAssertEqual(core.dungeonInventoryEntries.count, 9)
+        XCTAssertTrue(core.addDungeonInventoryCardForTesting(nineCards[0], pickupUses: 1))
+        XCTAssertEqual(core.dungeonInventoryEntries.count, 9)
+        XCTAssertEqual(core.dungeonInventoryEntries.first { $0.card == nineCards[0] }?.pickupUses, 2)
     }
 
     func testDungeonInventorySyncPreservesStackIDForSameCard() throws {

@@ -316,6 +316,8 @@ private struct SupportCardEncyclopediaRow: View {
             return "arrow.left.arrow.right"
         case .guidance:
             return "scope"
+        case .refillEmptySlots:
+            return "square.grid.3x3.fill"
         }
     }
 }

@@ -33,6 +33,8 @@ struct ResultView: View {
     let nextDungeonFloorTitle: String?
     /// 次階へ進む前に選べる報酬カード
     let dungeonRewardMoveCards: [MoveCard]
+    /// 次階へ進む前に選べる補助報酬カード
+    let dungeonRewardSupportCards: [SupportCard]
     /// リザルト時点で残っている塔所持カード
     let dungeonInventoryEntries: [DungeonInventoryEntry]
     /// 手札に追加できる未使用の床カード
@@ -64,6 +66,8 @@ struct ResultView: View {
     let onSelectDungeonReward: ((DungeonRewardSelection) -> Void)?
     /// 手札のカードを報酬消費なしで整理するためのクロージャ
     let onRemoveDungeonRewardCard: ((MoveCard) -> Void)?
+    /// 手札の補助カードを報酬消費なしで整理するためのクロージャ
+    let onRemoveDungeonRewardSupportCard: ((SupportCard) -> Void)?
     /// 再戦処理を外部から受け取るクロージャ
     let onRetry: () -> Void
     /// ホームへ戻る操作を外部へ依頼するクロージャ（未指定の場合はボタンを表示しない）
@@ -100,6 +104,7 @@ struct ResultView: View {
         dungeonRunTotalMoveCount: Int? = nil,
         nextDungeonFloorTitle: String? = nil,
         dungeonRewardMoveCards: [MoveCard] = [],
+        dungeonRewardSupportCards: [SupportCard] = [],
         dungeonInventoryEntries: [DungeonInventoryEntry] = [],
         dungeonPickupCarryoverEntries: [DungeonInventoryEntry] = [],
         dungeonRewardAddUses: Int = 3,
@@ -114,6 +119,7 @@ struct ResultView: View {
         onSelectDungeonRewardMoveCard: ((MoveCard) -> Void)? = nil,
         onSelectDungeonReward: ((DungeonRewardSelection) -> Void)? = nil,
         onRemoveDungeonRewardCard: ((MoveCard) -> Void)? = nil,
+        onRemoveDungeonRewardSupportCard: ((SupportCard) -> Void)? = nil,
         onRetry: @escaping () -> Void,
         onReturnToTitle: (() -> Void)? = nil
     ) {
@@ -133,6 +139,7 @@ struct ResultView: View {
             dungeonRunTotalMoveCount: dungeonRunTotalMoveCount,
             nextDungeonFloorTitle: nextDungeonFloorTitle,
             dungeonRewardMoveCards: dungeonRewardMoveCards,
+            dungeonRewardSupportCards: dungeonRewardSupportCards,
             dungeonInventoryEntries: dungeonInventoryEntries,
             dungeonPickupCarryoverEntries: dungeonPickupCarryoverEntries,
             dungeonRewardAddUses: dungeonRewardAddUses,
@@ -147,6 +154,7 @@ struct ResultView: View {
             onSelectDungeonRewardMoveCard: onSelectDungeonRewardMoveCard,
             onSelectDungeonReward: onSelectDungeonReward,
             onRemoveDungeonRewardCard: onRemoveDungeonRewardCard,
+            onRemoveDungeonRewardSupportCard: onRemoveDungeonRewardSupportCard,
             onRetry: onRetry,
             onReturnToTitle: onReturnToTitle,
             gameCenterService: GameCenterService.shared,
@@ -168,6 +176,7 @@ struct ResultView: View {
         dungeonRunTotalMoveCount: Int? = nil,
         nextDungeonFloorTitle: String? = nil,
         dungeonRewardMoveCards: [MoveCard] = [],
+        dungeonRewardSupportCards: [SupportCard] = [],
         dungeonInventoryEntries: [DungeonInventoryEntry] = [],
         dungeonPickupCarryoverEntries: [DungeonInventoryEntry] = [],
         dungeonRewardAddUses: Int = 3,
@@ -182,6 +191,7 @@ struct ResultView: View {
         onSelectDungeonRewardMoveCard: ((MoveCard) -> Void)? = nil,
         onSelectDungeonReward: ((DungeonRewardSelection) -> Void)? = nil,
         onRemoveDungeonRewardCard: ((MoveCard) -> Void)? = nil,
+        onRemoveDungeonRewardSupportCard: ((SupportCard) -> Void)? = nil,
         onRetry: @escaping () -> Void,
         onReturnToTitle: (() -> Void)? = nil,
 
@@ -210,6 +220,7 @@ struct ResultView: View {
         self.dungeonRunTotalMoveCount = dungeonRunTotalMoveCount
         self.nextDungeonFloorTitle = nextDungeonFloorTitle
         self.dungeonRewardMoveCards = dungeonRewardMoveCards
+        self.dungeonRewardSupportCards = dungeonRewardSupportCards
         self.dungeonInventoryEntries = dungeonInventoryEntries
         self.dungeonPickupCarryoverEntries = dungeonPickupCarryoverEntries
         self.dungeonRewardAddUses = max(dungeonRewardAddUses, 1)
@@ -224,6 +235,7 @@ struct ResultView: View {
         self.onSelectDungeonRewardMoveCard = onSelectDungeonRewardMoveCard
         self.onSelectDungeonReward = onSelectDungeonReward
         self.onRemoveDungeonRewardCard = onRemoveDungeonRewardCard
+        self.onRemoveDungeonRewardSupportCard = onRemoveDungeonRewardSupportCard
         self.onRetry = onRetry
         self.onReturnToTitle = onReturnToTitle
         self.gameCenterService = resolvedGameCenterService
@@ -245,6 +257,7 @@ struct ResultView: View {
                     modeDisplayName: modeDisplayName,
                     nextDungeonFloorTitle: nextDungeonFloorTitle,
                     dungeonRewardMoveCards: dungeonRewardMoveCards,
+                    dungeonRewardSupportCards: dungeonRewardSupportCards,
                     dungeonRewardInventoryEntries: dungeonInventoryEntries,
                     dungeonPickupCarryoverEntries: dungeonPickupCarryoverEntries,
                     dungeonRewardAddUses: dungeonRewardAddUses,
@@ -255,6 +268,7 @@ struct ResultView: View {
                     onSelectDungeonRewardMoveCard: onSelectDungeonRewardMoveCard,
                     onSelectDungeonReward: onSelectDungeonReward,
                     onRemoveDungeonRewardCard: onRemoveDungeonRewardCard,
+                    onRemoveDungeonRewardSupportCard: onRemoveDungeonRewardSupportCard,
                     onRetry: onRetry,
                     onReturnToTitle: onReturnToTitle,
                     gameCenterService: gameCenterService,

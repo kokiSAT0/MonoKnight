@@ -223,6 +223,7 @@ struct GameView: View {
                 dungeonRunTotalMoveCount: viewModel.dungeonRunTotalMoveCount,
                 nextDungeonFloorTitle: viewModel.nextDungeonFloorTitle,
                 dungeonRewardMoveCards: viewModel.availableDungeonRewardMoveCards,
+                dungeonRewardSupportCards: viewModel.availableDungeonRewardSupportCards,
                 dungeonInventoryEntries: viewModel.dungeonInventoryEntries,
                 dungeonPickupCarryoverEntries: viewModel.carryoverCandidateDungeonPickupEntries,
                 dungeonRewardAddUses: viewModel.dungeonRewardAddUses,
@@ -244,6 +245,9 @@ struct GameView: View {
                 },
                 onRemoveDungeonRewardCard: { card in
                     viewModel.handleDungeonRewardCardRemoval(card)
+                },
+                onRemoveDungeonRewardSupportCard: { support in
+                    viewModel.handleDungeonRewardSupportRemoval(support)
                 },
                 onRetry: {
                     // ViewModel 側でリセットと広告フラグの再設定をまとめて処理する

@@ -39,7 +39,10 @@ extension GameViewModel {
             boardBridge: boardBridge,
             sessionState: &sessionState,
             selectedHandStackID: &selectedHandStackID,
-            hapticsEnabled: hapticsEnabled
+            hapticsEnabled: hapticsEnabled,
+            guideModeEnabled: guideModeEnabled,
+            basicMoveSlotIndex: presentsBasicMoveCard ? Self.dungeonBasicMoveSlotIndex : nil,
+            presentsBasicMoveCard: presentsBasicMoveCard
         )
     }
 
@@ -50,6 +53,7 @@ extension GameViewModel {
             boardBridge: boardBridge,
             sessionState: &sessionState,
             selectedHandStackID: &selectedHandStackID,
+            guideModeEnabled: guideModeEnabled,
             hapticsEnabled: hapticsEnabled
         ) { [weak self] message, destination in
             self?.boardTapSelectionWarning = BoardTapSelectionWarning(
@@ -65,7 +69,8 @@ extension GameViewModel {
             core: core,
             boardBridge: boardBridge,
             sessionState: &sessionState,
-            selectedHandStackID: &selectedHandStackID
+            selectedHandStackID: &selectedHandStackID,
+            guideModeEnabled: guideModeEnabled
         )
     }
 
@@ -75,6 +80,18 @@ extension GameViewModel {
             boardBridge: boardBridge,
             selectedHandStackID: &selectedHandStackID
         )
+    }
+
+    func discardPendingDungeonPickupCard() {
+        clearSelectedCardSelection()
+        _ = core.discardPendingDungeonPickupCard()
+        saveCurrentDungeonResumeIfPossible()
+    }
+
+    func replaceDungeonInventoryEntryForPendingPickup(discarding playable: PlayableCard) {
+        clearSelectedCardSelection()
+        _ = core.replaceDungeonInventoryEntryForPendingPickup(discarding: playable)
+        saveCurrentDungeonResumeIfPossible()
     }
 
     func refreshSelectionIfNeeded(with handStacks: [HandStack]) {

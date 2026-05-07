@@ -984,9 +984,103 @@ final class GameViewIntegrationTests: XCTestCase {
         XCTAssertNil(core.boardTapPlayRequest, "盤面タップ要求が不要に残っています")
     }
 
+    func testGuideOffBoardTapWithoutSelectionDoesNotMoveByBasicCandidate() {
+        let mode = makeInventoryDungeonMode(allowsBasicOrthogonalMove: true)
+        let core = GameCore(mode: mode)
+        let interfaces = GameModuleInterfaces { _ in core }
+        let viewModel = GameViewModel(
+            mode: mode,
+            gameInterfaces: interfaces,
+            gameCenterService: GameCenterServiceSpy(),
+            adsService: AdsServiceSpy(),
+            onRequestReturnToTitle: nil,
+            penaltyBannerScheduler: PenaltyBannerSchedulerSpy()
+        )
+        viewModel.updateHapticsSetting(isEnabled: false)
+        viewModel.updateGuideMode(enabled: false)
+
+        let start = core.current
+        let destination = GridPoint(x: 3, y: 2)
+        core.handleTap(at: destination)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+
+        XCTAssertEqual(core.current, start, "ガイドOFFでは未選択の盤面タップで基本移動しない想定です")
+        XCTAssertNil(core.boardTapBasicMoveRequest, "無視した基本移動リクエストは残さない想定です")
+        XCTAssertTrue(viewModel.boardBridge.forcedSelectionHighlightPoints.isEmpty)
+    }
+
+    func testGuideOffBasicMoveCardSelectionEnablesCandidateTap() {
+        let mode = makeInventoryDungeonMode(allowsBasicOrthogonalMove: true)
+        let core = GameCore(mode: mode)
+        let interfaces = GameModuleInterfaces { _ in core }
+        let viewModel = GameViewModel(
+            mode: mode,
+            gameInterfaces: interfaces,
+            gameCenterService: GameCenterServiceSpy(),
+            adsService: AdsServiceSpy(),
+            onRequestReturnToTitle: nil,
+            penaltyBannerScheduler: PenaltyBannerSchedulerSpy()
+        )
+        viewModel.updateHapticsSetting(isEnabled: false)
+        viewModel.updateGuideMode(enabled: false)
+
+        let destination = GridPoint(x: 3, y: 2)
+        viewModel.handleHandSlotTap(at: GameViewModel.dungeonBasicMoveSlotIndex)
+
+        XCTAssertTrue(viewModel.isBasicMoveCardSelected, "10枠目の基本移動カードが選択状態になる想定です")
+        XCTAssertEqual(
+            viewModel.boardBridge.forcedSelectionHighlightPoints,
+            Set(core.availableBasicOrthogonalMoves().map(\.destination)),
+            "基本移動カード選択時は上下左右候補を強制ハイライトする想定です"
+        )
+
+        core.handleTap(at: destination)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+
+        XCTAssertEqual(core.current, destination, "基本移動カード選択後は候補タップで移動する想定です")
+        XCTAssertFalse(viewModel.isBasicMoveCardSelected, "移動確定後は基本移動選択を解除します")
+        XCTAssertTrue(core.dungeonInventoryEntries.isEmpty, "基本移動カードはインベントリへ混ざらない想定です")
+    }
+
+    func testGuideOffSingleCandidateCardRequiresBoardConfirmation() {
+        let mode = makeInventoryDungeonMode()
+        let core = GameCore(mode: mode)
+        XCTAssertTrue(core.addDungeonInventoryCardForTesting(.kingRight, pickupUses: 1))
+        let interfaces = GameModuleInterfaces { _ in core }
+        let viewModel = GameViewModel(
+            mode: mode,
+            gameInterfaces: interfaces,
+            gameCenterService: GameCenterServiceSpy(),
+            adsService: AdsServiceSpy(),
+            onRequestReturnToTitle: nil,
+            penaltyBannerScheduler: PenaltyBannerSchedulerSpy()
+        )
+        viewModel.updateHapticsSetting(isEnabled: false)
+        viewModel.updateGuideMode(enabled: false)
+
+        let start = core.current
+        let stackIndex = try! XCTUnwrap(core.handStacks.firstIndex { $0.representativeMove == .kingRight })
+        let destination = GridPoint(x: 3, y: 2)
+
+        viewModel.handleHandSlotTap(at: stackIndex)
+
+        XCTAssertEqual(core.current, start, "ガイドOFFでは単一候補カードも手札タップだけでは動かない想定です")
+        XCTAssertNil(viewModel.boardBridge.animatingCard)
+        XCTAssertEqual(viewModel.selectedHandStackID, core.handStacks[stackIndex].id)
+        XCTAssertEqual(viewModel.boardBridge.forcedSelectionHighlightPoints, [destination])
+
+        core.handleTap(at: destination)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.35))
+
+        XCTAssertEqual(core.current, destination, "カード選択後の候補タップで移動する想定です")
+        XCTAssertNil(viewModel.selectedHandStackID)
+        XCTAssertEqual(core.dungeonInventoryEntries.first { $0.card == .kingRight }?.pickupUses, nil)
+    }
+
     private func makeInventoryDungeonMode(
         spawn: GridPoint = GridPoint(x: 2, y: 2),
-        exit: GridPoint = GridPoint(x: 4, y: 4)
+        exit: GridPoint = GridPoint(x: 4, y: 4),
+        allowsBasicOrthogonalMove: Bool = false
     ) -> GameMode {
         GameMode(
             identifier: .dungeonFloor,
@@ -1008,6 +1102,7 @@ final class GameViewIntegrationTests: XCTestCase {
                 dungeonRules: DungeonRules(
                     difficulty: .growth,
                     failureRule: DungeonFailureRule(initialHP: 3, turnLimit: nil),
+                    allowsBasicOrthogonalMove: allowsBasicOrthogonalMove,
                     cardAcquisitionMode: .inventoryOnly
                 )
             ),

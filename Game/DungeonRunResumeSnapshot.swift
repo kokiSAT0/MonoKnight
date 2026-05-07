@@ -21,6 +21,7 @@ public struct DungeonRunResumeSnapshot: Codable, Equatable {
     public let dungeonInventoryEntries: [DungeonInventoryEntry]
     public let collectedDungeonCardPickupIDs: Set<String>
     public let isDungeonExitUnlocked: Bool
+    public let pendingDungeonPickupChoice: PendingDungeonPickupChoice?
 
     public init(
         version: Int = Self.currentVersion,
@@ -38,7 +39,8 @@ public struct DungeonRunResumeSnapshot: Codable, Equatable {
         collapsedFloorPoints: Set<GridPoint>,
         dungeonInventoryEntries: [DungeonInventoryEntry],
         collectedDungeonCardPickupIDs: Set<String>,
-        isDungeonExitUnlocked: Bool
+        isDungeonExitUnlocked: Bool,
+        pendingDungeonPickupChoice: PendingDungeonPickupChoice? = nil
     ) {
         self.version = version
         self.dungeonID = dungeonID
@@ -56,5 +58,70 @@ public struct DungeonRunResumeSnapshot: Codable, Equatable {
         self.dungeonInventoryEntries = dungeonInventoryEntries.filter(\.hasUsesRemaining)
         self.collectedDungeonCardPickupIDs = collectedDungeonCardPickupIDs
         self.isDungeonExitUnlocked = isDungeonExitUnlocked
+        self.pendingDungeonPickupChoice = pendingDungeonPickupChoice
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case version
+        case dungeonID
+        case floorIndex
+        case runState
+        case currentPoint
+        case visitedPoints
+        case moveCount
+        case elapsedSeconds
+        case dungeonHP
+        case hazardDamageMitigationsRemaining
+        case enemyStates
+        case crackedFloorPoints
+        case collapsedFloorPoints
+        case dungeonInventoryEntries
+        case collectedDungeonCardPickupIDs
+        case isDungeonExitUnlocked
+        case pendingDungeonPickupChoice
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            version: try container.decodeIfPresent(Int.self, forKey: .version) ?? Self.currentVersion,
+            dungeonID: try container.decode(String.self, forKey: .dungeonID),
+            floorIndex: try container.decode(Int.self, forKey: .floorIndex),
+            runState: try container.decode(DungeonRunState.self, forKey: .runState),
+            currentPoint: try container.decode(GridPoint.self, forKey: .currentPoint),
+            visitedPoints: try container.decode(Set<GridPoint>.self, forKey: .visitedPoints),
+            moveCount: try container.decode(Int.self, forKey: .moveCount),
+            elapsedSeconds: try container.decode(Int.self, forKey: .elapsedSeconds),
+            dungeonHP: try container.decode(Int.self, forKey: .dungeonHP),
+            hazardDamageMitigationsRemaining: try container.decodeIfPresent(Int.self, forKey: .hazardDamageMitigationsRemaining) ?? 0,
+            enemyStates: try container.decodeIfPresent([EnemyState].self, forKey: .enemyStates) ?? [],
+            crackedFloorPoints: try container.decodeIfPresent(Set<GridPoint>.self, forKey: .crackedFloorPoints) ?? [],
+            collapsedFloorPoints: try container.decodeIfPresent(Set<GridPoint>.self, forKey: .collapsedFloorPoints) ?? [],
+            dungeonInventoryEntries: try container.decodeIfPresent([DungeonInventoryEntry].self, forKey: .dungeonInventoryEntries) ?? [],
+            collectedDungeonCardPickupIDs: try container.decodeIfPresent(Set<String>.self, forKey: .collectedDungeonCardPickupIDs) ?? [],
+            isDungeonExitUnlocked: try container.decodeIfPresent(Bool.self, forKey: .isDungeonExitUnlocked) ?? true,
+            pendingDungeonPickupChoice: try container.decodeIfPresent(PendingDungeonPickupChoice.self, forKey: .pendingDungeonPickupChoice)
+        )
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(version, forKey: .version)
+        try container.encode(dungeonID, forKey: .dungeonID)
+        try container.encode(floorIndex, forKey: .floorIndex)
+        try container.encode(runState, forKey: .runState)
+        try container.encode(currentPoint, forKey: .currentPoint)
+        try container.encode(visitedPoints, forKey: .visitedPoints)
+        try container.encode(moveCount, forKey: .moveCount)
+        try container.encode(elapsedSeconds, forKey: .elapsedSeconds)
+        try container.encode(dungeonHP, forKey: .dungeonHP)
+        try container.encode(hazardDamageMitigationsRemaining, forKey: .hazardDamageMitigationsRemaining)
+        try container.encode(enemyStates, forKey: .enemyStates)
+        try container.encode(crackedFloorPoints, forKey: .crackedFloorPoints)
+        try container.encode(collapsedFloorPoints, forKey: .collapsedFloorPoints)
+        try container.encode(dungeonInventoryEntries, forKey: .dungeonInventoryEntries)
+        try container.encode(collectedDungeonCardPickupIDs, forKey: .collectedDungeonCardPickupIDs)
+        try container.encode(isDungeonExitUnlocked, forKey: .isDungeonExitUnlocked)
+        try container.encodeIfPresent(pendingDungeonPickupChoice, forKey: .pendingDungeonPickupChoice)
     }
 }

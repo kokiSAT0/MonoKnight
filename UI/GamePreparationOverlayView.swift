@@ -27,7 +27,7 @@ struct GamePreparationOverlayPresentation: Equatable {
         let rewardEntries = mode.dungeonMetadataSnapshot?.runState?.rewardInventoryEntries ?? []
         let rewardText = rewardEntries.isEmpty
             ? nil
-            : "報酬カード \(rewardEntries.map { "\($0.card.displayName)×\($0.rewardUses)" }.joined(separator: "、"))"
+            : "報酬カード \(rewardEntries.map { "\($0.playable.displayName)×\($0.rewardUses)" }.joined(separator: "、"))"
 
         primaryObjectiveText = "出口へ到達すればクリア"
         clearConditionText = "クリア: 出口 \(exitText)"

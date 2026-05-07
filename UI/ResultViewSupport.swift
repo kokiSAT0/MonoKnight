@@ -97,7 +97,7 @@ struct ResultSummaryPresentation {
     var dungeonRewardInventoryEntries: [DungeonInventoryEntry] {
         dungeonInventoryEntries
             .filter { $0.rewardUses > 0 }
-            .map { DungeonInventoryEntry(card: $0.card, rewardUses: $0.rewardUses) }
+            .map { DungeonInventoryEntry(playable: $0.playable, rewardUses: $0.rewardUses) }
     }
 
     var dungeonPickupInventoryEntries: [DungeonInventoryEntry] {
@@ -108,7 +108,7 @@ struct ResultSummaryPresentation {
 
     var dungeonRewardInventoryText: String {
         dungeonRewardInventoryEntries
-            .map { "\($0.card.displayName)×\($0.rewardUses)" }
+            .map { "\($0.playable.displayName)×\($0.rewardUses)" }
             .joined(separator: "、")
     }
 

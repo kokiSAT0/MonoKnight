@@ -208,6 +208,11 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
             "危険範囲表示は GameCore の判定集合と一致させます"
         )
         XCTAssertEqual(
+            viewModel.scene.latestHighlightPoints(for: .dungeonEnemyWarning),
+            core.enemyWarningPoints,
+            "予告兵の次ターン危険範囲を専用ハイライトとして Scene へ渡します"
+        )
+        XCTAssertEqual(
             viewModel.scene.latestHighlightPoints(for: .dungeonCardPickup),
             Set(floor.cardPickups.map(\.point)),
             "床落ちカードも専用ハイライトとして Scene へ渡します"
@@ -351,6 +356,21 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
             viewModel.scene.latestPatrolMovementPreviewsForTesting(),
             expectedPreviews,
             "追跡兵の次移動先を Scene の軽量矢印へ渡す必要があります"
+        )
+    }
+
+    func testDungeonMarkerWarningHighlightsArePassedToScene() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let floor = try XCTUnwrap(tower.floors.first { $0.id == "growth-17" })
+        let mode = floor.makeGameMode(dungeonID: tower.id)
+        let core = GameCore(mode: mode)
+        let viewModel = GameBoardBridgeViewModel(core: core, mode: mode)
+
+        XCTAssertFalse(core.enemyWarningPoints.isEmpty, "成長塔17Fには予告兵の警告マスが必要です")
+        XCTAssertEqual(
+            viewModel.scene.latestHighlightPoints(for: .dungeonEnemyWarning),
+            core.enemyWarningPoints,
+            "予告兵の警告マスを Scene の専用ハイライトへ渡す必要があります"
         )
     }
 

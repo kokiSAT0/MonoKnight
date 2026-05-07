@@ -1,13 +1,15 @@
 import Foundation
 
 /// 移動せずに手札を整える補助専用カード
-public enum SupportCard: CaseIterable, Hashable {
+public enum SupportCard: String, CaseIterable, Codable, Hashable {
     /// NEXT 表示だけを引き直す
     case nextRefresh
     /// 別の手札スタックを 1 種類捨てて補充する
     case swapOne
     /// 表示中目的地へ近づきやすい手札へ寄せる
     case guidance
+    /// 空き手札枠を移動カードで補給する
+    case refillEmptySlots
 
     public var displayName: String {
         switch self {
@@ -17,6 +19,8 @@ public enum SupportCard: CaseIterable, Hashable {
             return "入替"
         case .guidance:
             return "導き"
+        case .refillEmptySlots:
+            return "補給"
         }
     }
 
@@ -28,12 +32,14 @@ public enum SupportCard: CaseIterable, Hashable {
             return "移動せず 1 手使い、このカード以外の手札 1 種類を捨てて補充します。"
         case .guidance:
             return "移動せず 1 手使い、表示中の目的地へ近づきやすい手札と NEXT に整えます。フォーカス回数は増えません。"
+        case .refillEmptySlots:
+            return "移動せず 1 手使い、空いている手札枠をランダムな移動カードで補給します。"
         }
     }
 }
 
 /// 手札や山札で扱うカード本体
-public enum PlayableCard: Hashable {
+public enum PlayableCard: Codable, Hashable {
     /// 盤面上で駒を移動させるカード
     case move(MoveCard)
     /// 移動せずに手札を整える補助カード
@@ -61,6 +67,49 @@ public enum PlayableCard: Hashable {
     public var isSupport: Bool {
         if case .support = self { return true }
         return false
+    }
+
+    public var identityText: String {
+        switch self {
+        case .move(let move):
+            return "move:\(move.displayName)"
+        case .support(let support):
+            return "support:\(support.rawValue)"
+        }
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case type
+        case move
+        case support
+    }
+
+    private enum Kind: String, Codable {
+        case move
+        case support
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let kind = try container.decodeIfPresent(Kind.self, forKey: .type) ?? .move
+        switch kind {
+        case .move:
+            self = .move(try container.decode(MoveCard.self, forKey: .move))
+        case .support:
+            self = .support(try container.decode(SupportCard.self, forKey: .support))
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case .move(let move):
+            try container.encode(Kind.move, forKey: .type)
+            try container.encode(move, forKey: .move)
+        case .support(let support):
+            try container.encode(Kind.support, forKey: .type)
+            try container.encode(support, forKey: .support)
+        }
     }
 }
 

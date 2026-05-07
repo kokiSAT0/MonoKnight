@@ -10,23 +10,43 @@ struct GameSessionState {
         let cardID: UUID
     }
 
-    private var selectedCardSelection: SelectedCardSelection?
+    private enum Selection {
+        case handStack(SelectedCardSelection)
+        case basicOrthogonal
+    }
+
+    private var selection: Selection?
 
     var hasSelection: Bool {
-        selectedCardSelection != nil
+        selection != nil
+    }
+
+    var isBasicOrthogonalSelected: Bool {
+        if case .basicOrthogonal = selection {
+            return true
+        }
+        return false
     }
 
     func isSelected(stackID: UUID) -> Bool {
-        selectedCardSelection?.stackID == stackID
+        if case let .handStack(selectedCardSelection) = selection {
+            return selectedCardSelection.stackID == stackID
+        }
+        return false
     }
 
     mutating func updateSelection(stackID: UUID, cardID: UUID, selectedHandStackID: inout UUID?) {
-        selectedCardSelection = SelectedCardSelection(stackID: stackID, cardID: cardID)
+        selection = .handStack(SelectedCardSelection(stackID: stackID, cardID: cardID))
         selectedHandStackID = stackID
     }
 
+    mutating func updateBasicOrthogonalSelection(selectedHandStackID: inout UUID?) {
+        selection = .basicOrthogonal
+        selectedHandStackID = nil
+    }
+
     func matchingMoves(in core: GameCore) -> [ResolvedCardMove] {
-        guard let selection = selectedCardSelection else { return [] }
+        guard case let .handStack(selection) = selection else { return [] }
         return core.availableMoves().filter { candidate in
             candidate.stackID == selection.stackID && candidate.card.id == selection.cardID
         }
@@ -36,11 +56,11 @@ struct GameSessionState {
         boardBridge: GameBoardBridgeViewModel,
         selectedHandStackID: inout UUID?
     ) {
-        let hasSelection = selectedCardSelection != nil || selectedHandStackID != nil
+        let hasSelection = selection != nil || selectedHandStackID != nil
         let hasForcedHighlights = !boardBridge.forcedSelectionHighlightPoints.isEmpty
         guard hasSelection || hasForcedHighlights else { return }
 
-        selectedCardSelection = nil
+        selection = nil
         selectedHandStackID = nil
         boardBridge.updateForcedSelectionHighlights([])
     }
@@ -51,7 +71,14 @@ struct GameSessionState {
         boardBridge: GameBoardBridgeViewModel,
         selectedHandStackID: inout UUID?
     ) {
-        guard let selection = selectedCardSelection else { return }
+        guard case let .handStack(selection) = selection else {
+            applyHighlights(
+                core: core,
+                boardBridge: boardBridge,
+                selectedHandStackID: &selectedHandStackID
+            )
+            return
+        }
 
         guard let stack = handStacks.first(where: { $0.id == selection.stackID }),
               let topCard = stack.topCard,
@@ -73,14 +100,30 @@ struct GameSessionState {
         using resolvedMoves: [ResolvedCardMove]? = nil,
         selectedHandStackID: inout UUID?
     ) {
-        guard let current = core.current,
-              let selection = selectedCardSelection else {
+        guard core.current != nil,
+              let selection else {
+            clearSelection(boardBridge: boardBridge, selectedHandStackID: &selectedHandStackID)
+            return
+        }
+
+        if case .basicOrthogonal = selection {
+            let destinations = Set(core.availableBasicOrthogonalMoves().map(\.destination))
+            guard !destinations.isEmpty else {
+                clearSelection(boardBridge: boardBridge, selectedHandStackID: &selectedHandStackID)
+                return
+            }
+            boardBridge.updateForcedSelectionHighlights(destinations)
+            return
+        }
+
+        guard case let .handStack(selectedCardSelection) = selection,
+              let current = core.current else {
             clearSelection(boardBridge: boardBridge, selectedHandStackID: &selectedHandStackID)
             return
         }
 
         let moves = resolvedMoves ?? core.availableMoves().filter { candidate in
-            candidate.stackID == selection.stackID && candidate.card.id == selection.cardID
+            candidate.stackID == selectedCardSelection.stackID && candidate.card.id == selectedCardSelection.cardID
         }
 
         guard !moves.isEmpty else {
@@ -107,9 +150,23 @@ struct GameInputFlowCoordinator {
         boardBridge: GameBoardBridgeViewModel,
         sessionState: inout GameSessionState,
         selectedHandStackID: inout UUID?,
-        hapticsEnabled: Bool
+        hapticsEnabled: Bool,
+        guideModeEnabled: Bool,
+        basicMoveSlotIndex: Int?,
+        presentsBasicMoveCard: Bool
     ) {
         guard boardBridge.animatingCard == nil else { return }
+        guard !core.isAwaitingDungeonPickupChoice else { return }
+        if presentsBasicMoveCard, let basicMoveSlotIndex, index == basicMoveSlotIndex {
+            handleBasicMoveSlotTap(
+                core: core,
+                boardBridge: boardBridge,
+                sessionState: &sessionState,
+                selectedHandStackID: &selectedHandStackID,
+                hapticsEnabled: hapticsEnabled
+            )
+            return
+        }
         guard core.handStacks.indices.contains(index) else { return }
 
         let latestStack = core.handStacks[index]
@@ -220,7 +277,7 @@ struct GameInputFlowCoordinator {
             return
         }
 
-        if resolvedMoves.count == 1, let singleMove = resolvedMoves.first {
+        if guideModeEnabled, resolvedMoves.count == 1, let singleMove = resolvedMoves.first {
             clearSelectedCardSelection(
                 sessionState: &sessionState,
                 boardBridge: boardBridge,
@@ -243,20 +300,77 @@ struct GameInputFlowCoordinator {
         )
     }
 
+    private func handleBasicMoveSlotTap(
+        core: GameCore,
+        boardBridge: GameBoardBridgeViewModel,
+        sessionState: inout GameSessionState,
+        selectedHandStackID: inout UUID?,
+        hapticsEnabled: Bool
+    ) {
+        if core.isAwaitingManualDiscardSelection || core.isAwaitingSupportSwapSelection {
+            clearSelectedCardSelection(
+                sessionState: &sessionState,
+                boardBridge: boardBridge,
+                selectedHandStackID: &selectedHandStackID
+            )
+            return
+        }
+
+        guard core.progress == .playing else {
+            clearSelectedCardSelection(
+                sessionState: &sessionState,
+                boardBridge: boardBridge,
+                selectedHandStackID: &selectedHandStackID
+            )
+            return
+        }
+
+        if sessionState.isBasicOrthogonalSelected {
+            clearSelectedCardSelection(
+                sessionState: &sessionState,
+                boardBridge: boardBridge,
+                selectedHandStackID: &selectedHandStackID
+            )
+            return
+        }
+
+        guard !core.availableBasicOrthogonalMoves().isEmpty else {
+            clearSelectedCardSelection(
+                sessionState: &sessionState,
+                boardBridge: boardBridge,
+                selectedHandStackID: &selectedHandStackID
+            )
+            if hapticsEnabled {
+                UINotificationFeedbackGenerator().notificationOccurred(.warning)
+            }
+            return
+        }
+
+        sessionState.updateBasicOrthogonalSelection(selectedHandStackID: &selectedHandStackID)
+        sessionState.applyHighlights(
+            core: core,
+            boardBridge: boardBridge,
+            selectedHandStackID: &selectedHandStackID
+        )
+    }
+
     func handleBoardTapPlayRequest(
         _ request: BoardTapPlayRequest,
         core: GameCore,
         boardBridge: GameBoardBridgeViewModel,
         sessionState: inout GameSessionState,
         selectedHandStackID: inout UUID?,
+        guideModeEnabled: Bool,
         hapticsEnabled: Bool,
         presentBoardTapSelectionWarning: (String, GridPoint) -> Void
     ) {
         defer { core.clearBoardTapPlayRequest(request.id) }
 
         guard boardBridge.animatingCard == nil else { return }
+        guard !core.isAwaitingDungeonPickupChoice else { return }
 
         guard sessionState.hasSelection else {
+            guard guideModeEnabled else { return }
             let availableMoves = core.availableMoves()
             let destinationCandidates = availableMoves.filter { $0.destination == request.destination }
             let conflictingStackIDs = Set(destinationCandidates.map(\.stackID))
@@ -293,6 +407,15 @@ struct GameInputFlowCoordinator {
                     selectedHandStackID: &selectedHandStackID
                 )
             }
+            return
+        }
+
+        if sessionState.isBasicOrthogonalSelected {
+            sessionState.applyHighlights(
+                core: core,
+                boardBridge: boardBridge,
+                selectedHandStackID: &selectedHandStackID
+            )
             return
         }
 
@@ -339,10 +462,22 @@ struct GameInputFlowCoordinator {
         core: GameCore,
         boardBridge: GameBoardBridgeViewModel,
         sessionState: inout GameSessionState,
-        selectedHandStackID: inout UUID?
+        selectedHandStackID: inout UUID?,
+        guideModeEnabled: Bool
     ) {
         defer { core.clearBoardTapBasicMoveRequest(request.id) }
         guard boardBridge.animatingCard == nil else { return }
+        guard !core.isAwaitingDungeonPickupChoice else { return }
+
+        if sessionState.isBasicOrthogonalSelected {
+            clearSelectedCardSelection(
+                sessionState: &sessionState,
+                boardBridge: boardBridge,
+                selectedHandStackID: &selectedHandStackID
+            )
+            core.playBasicOrthogonalMove(using: request.move)
+            return
+        }
 
         guard !sessionState.hasSelection else {
             let matchingMoves = sessionState.matchingMoves(in: core)
@@ -353,6 +488,17 @@ struct GameInputFlowCoordinator {
                     selectedHandStackID: &selectedHandStackID
                 )
             } else {
+                if let chosenMove = matchingMoves.first(where: { $0.destination == request.move.destination }) {
+                    let didStart = boardBridge.animateCardPlay(using: chosenMove)
+                    if didStart {
+                        clearSelectedCardSelection(
+                            sessionState: &sessionState,
+                            boardBridge: boardBridge,
+                            selectedHandStackID: &selectedHandStackID
+                        )
+                    }
+                    return
+                }
                 sessionState.applyHighlights(
                     core: core,
                     boardBridge: boardBridge,
@@ -362,6 +508,8 @@ struct GameInputFlowCoordinator {
             }
             return
         }
+
+        guard guideModeEnabled else { return }
 
         clearSelectedCardSelection(
             sessionState: &sessionState,
