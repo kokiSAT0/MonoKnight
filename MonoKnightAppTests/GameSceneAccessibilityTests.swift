@@ -302,6 +302,38 @@ final class GameSceneAccessibilityTests: XCTestCase {
 
         XCTAssertEqual(scene.patrolMovementArrowCountForTesting(), 0, "巡回プレビューが空になったら古い矢印を消す必要があります")
     }
+
+    func testPatrolRailNodesUpdateAndClearWithoutRemovingArrow() {
+        let (scene, view, _) = makeScene()
+        defer { view.presentScene(nil) }
+
+        scene.updatePatrolRailPreviews([
+            ScenePatrolRailPreview(
+                enemyID: "patrol",
+                path: [
+                    GridPoint(x: 1, y: 1),
+                    GridPoint(x: 2, y: 1),
+                    GridPoint(x: 3, y: 1)
+                ]
+            )
+        ])
+        scene.updatePatrolMovementPreviews([
+            ScenePatrolMovementPreview(
+                enemyID: "patrol",
+                current: GridPoint(x: 1, y: 1),
+                next: GridPoint(x: 2, y: 1),
+                vector: MoveVector(dx: 1, dy: 0)
+            )
+        ])
+
+        XCTAssertEqual(scene.patrolRailCountForTesting(), 1, "巡回兵1体につきレールを1本表示する想定です")
+        XCTAssertEqual(scene.patrolMovementArrowCountForTesting(), 1, "レール表示後も次方向矢印は残します")
+
+        scene.updatePatrolRailPreviews([])
+
+        XCTAssertEqual(scene.patrolRailCountForTesting(), 0, "巡回レールが空になったら古いレールを消す必要があります")
+        XCTAssertEqual(scene.patrolMovementArrowCountForTesting(), 1, "レールを消しても矢印は別ノードとして残します")
+    }
 }
 
 private extension SKColor {

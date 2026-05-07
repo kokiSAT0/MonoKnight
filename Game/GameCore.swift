@@ -53,6 +53,19 @@ public struct EnemyPatrolMovementPreview: Identifiable, Equatable {
     }
 }
 
+/// 巡回兵の巡回範囲を UI へ渡すためのレール情報
+public struct EnemyPatrolRailPreview: Identifiable, Equatable {
+    public let enemyID: String
+    public let path: [GridPoint]
+
+    public var id: String { enemyID }
+
+    public init(enemyID: String, path: [GridPoint]) {
+        self.enemyID = enemyID
+        self.path = path
+    }
+}
+
 /// 回転見張りが次に向く方向を UI へ渡すためのプレビュー情報
 public struct EnemyRotatingWatcherDirectionPreview: Identifiable, Equatable {
     public let enemyID: String
@@ -257,6 +270,10 @@ public final class GameCore: ObservableObject {
     /// 巡回兵ごとの次移動方向
     public var enemyPatrolMovementPreviews: [EnemyPatrolMovementPreview] {
         enemyStates.compactMap { patrolMovementPreview(for: $0) }
+    }
+    /// 巡回兵ごとの巡回範囲レール
+    public var enemyPatrolRailPreviews: [EnemyPatrolRailPreview] {
+        enemyStates.compactMap { patrolRailPreview(for: $0) }
     }
     /// 追跡兵ごとの次移動方向
     public var enemyChaserMovementPreviews: [EnemyPatrolMovementPreview] {
@@ -2097,6 +2114,19 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             next: nextPoint,
             vector: vector
         )
+    }
+
+    private func patrolRailPreview(for enemy: EnemyState) -> EnemyPatrolRailPreview? {
+        guard case .patrol(let path) = enemy.behavior else { return nil }
+        let validPath = path.filter { board.contains($0) && board.isTraversable($0) }
+        guard validPath.count > 1 else { return nil }
+        guard validPath.indices.contains(enemy.patrolIndex),
+              validPath[enemy.patrolIndex] == enemy.position
+        else {
+            return nil
+        }
+
+        return EnemyPatrolRailPreview(enemyID: enemy.id, path: validPath)
     }
 
     private func chaserMovementPreview(for enemy: EnemyState) -> EnemyPatrolMovementPreview? {

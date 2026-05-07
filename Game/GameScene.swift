@@ -63,6 +63,22 @@
         }
     }
 
+    public struct ScenePatrolRailPreview: Identifiable, Equatable {
+        public let enemyID: String
+        public let path: [GridPoint]
+
+        public var id: String { enemyID }
+
+        public init(enemyID: String, path: [GridPoint]) {
+            self.enemyID = enemyID
+            self.path = path
+        }
+
+        public init(_ preview: EnemyPatrolRailPreview) {
+            self.init(enemyID: preview.enemyID, path: preview.path)
+        }
+    }
+
     public protocol GameCoreProtocol: AnyObject {
         func handleTap(at point: GridPoint)
     }
@@ -89,6 +105,7 @@
         private var targetApproachCandidatePoints: Set<GridPoint> = []
         private var targetCaptureCandidatePoints: Set<GridPoint> = []
         private var latestHighlightPoints: [BoardHighlightKind: Set<GridPoint>] = [:]
+        private var latestPatrolRailPreviews: [ScenePatrolRailPreview] = []
         private var latestPatrolMovementPreviews: [ScenePatrolMovementPreview] = []
         private var showsVisitedTileFill = true
 
@@ -123,6 +140,7 @@
             targetApproachCandidatePoints = []
             targetCaptureCandidatePoints = []
             latestHighlightPoints = [:]
+            latestPatrolRailPreviews = []
             latestPatrolMovementPreviews = []
             showsVisitedTileFill = true
             #if canImport(UIKit)
@@ -284,8 +302,34 @@
             )
         }
 
+        public func updatePatrolRailPreviews(_ previews: [ScenePatrolRailPreview]) {
+            let visiblePreviews = previews.compactMap { preview -> ScenePatrolRailPreview? in
+                let validPath = preview.path.filter { point in
+                    board.contains(point) && board.isTraversable(point)
+                }
+                guard validPath.count > 1 else { return nil }
+                return ScenePatrolRailPreview(enemyID: preview.enemyID, path: validPath)
+            }
+            latestPatrolRailPreviews = visiblePreviews
+            highlightRenderer.updatePatrolRailPreviews(
+                visiblePreviews,
+                scene: self,
+                layout: layoutSupport,
+                palette: palette,
+                isLayoutReady: isLayoutReady
+            )
+        }
+
+        public func latestPatrolRailPreviewsForTesting() -> [ScenePatrolRailPreview] {
+            latestPatrolRailPreviews
+        }
+
         public func latestPatrolMovementPreviewsForTesting() -> [ScenePatrolMovementPreview] {
             latestPatrolMovementPreviews
+        }
+
+        func patrolRailCountForTesting() -> Int {
+            highlightRenderer.patrolRailCount
         }
 
         func patrolMovementArrowCountForTesting() -> Int {

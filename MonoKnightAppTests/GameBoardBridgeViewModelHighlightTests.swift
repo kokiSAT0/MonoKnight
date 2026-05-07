@@ -302,6 +302,11 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
             core.enemyPatrolMovementPreviews.map(ScenePatrolMovementPreview.init),
             "巡回兵の次移動プレビューを Scene へ渡す必要があります"
         )
+        XCTAssertEqual(
+            viewModel.scene.latestPatrolRailPreviewsForTesting(),
+            core.enemyPatrolRailPreviews.map(ScenePatrolRailPreview.init),
+            "巡回兵の巡回範囲レールを Scene へ渡す必要があります"
+        )
 
         guard let basicMove = core.availableBasicOrthogonalMoves().first(where: { $0.destination == GridPoint(x: 1, y: 0) }) else {
             XCTFail("基本移動候補が見つかりません")
@@ -314,6 +319,11 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
             viewModel.scene.latestPatrolMovementPreviewsForTesting(),
             core.enemyPatrolMovementPreviews.map(ScenePatrolMovementPreview.init),
             "敵ターン後も古い巡回プレビューを残さず更新する必要があります"
+        )
+        XCTAssertEqual(
+            viewModel.scene.latestPatrolRailPreviewsForTesting(),
+            core.enemyPatrolRailPreviews.map(ScenePatrolRailPreview.init),
+            "敵ターン後も古い巡回レールを残さず更新する必要があります"
         )
     }
 

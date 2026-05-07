@@ -585,6 +585,115 @@ final class DungeonModeTests: XCTestCase {
         )
     }
 
+    func testPatrolRailPreviewExposesFullValidPatrolPath() throws {
+        let patrol = EnemyDefinition(
+            id: "patrol",
+            name: "巡回兵",
+            position: GridPoint(x: 1, y: 1),
+            behavior: .patrol(path: [
+                GridPoint(x: 1, y: 1),
+                GridPoint(x: 2, y: 1),
+                GridPoint(x: 3, y: 1)
+            ])
+        )
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 3,
+            turnLimit: 4,
+            enemies: [patrol]
+        )
+        let core = makeCore(mode: mode)
+
+        XCTAssertEqual(
+            core.enemyPatrolRailPreviews,
+            [
+                EnemyPatrolRailPreview(
+                    enemyID: "patrol",
+                    path: [
+                        GridPoint(x: 1, y: 1),
+                        GridPoint(x: 2, y: 1),
+                        GridPoint(x: 3, y: 1)
+                    ]
+                )
+            ]
+        )
+    }
+
+    func testPatrolRailPreviewFiltersInvalidTilesAndRequiresCurrentPathPosition() throws {
+        let patrol = EnemyDefinition(
+            id: "patrol",
+            name: "巡回兵",
+            position: GridPoint(x: 1, y: 1),
+            behavior: .patrol(path: [
+                GridPoint(x: 1, y: 1),
+                GridPoint(x: 2, y: 1),
+                GridPoint(x: 3, y: 1),
+                GridPoint(x: 6, y: 1)
+            ])
+        )
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 3,
+            turnLimit: 4,
+            enemies: [patrol],
+            impassableTilePoints: [GridPoint(x: 3, y: 1)]
+        )
+        let core = makeCore(mode: mode)
+
+        XCTAssertEqual(
+            core.enemyPatrolRailPreviews,
+            [
+                EnemyPatrolRailPreview(
+                    enemyID: "patrol",
+                    path: [
+                        GridPoint(x: 1, y: 1),
+                        GridPoint(x: 2, y: 1)
+                    ]
+                )
+            ]
+        )
+
+        playMove(to: GridPoint(x: 0, y: 1), in: core)
+
+        XCTAssertEqual(
+            core.enemyPatrolRailPreviews,
+            [
+                EnemyPatrolRailPreview(
+                    enemyID: "patrol",
+                    path: [
+                        GridPoint(x: 1, y: 1),
+                        GridPoint(x: 2, y: 1)
+                    ]
+                )
+            ]
+        )
+    }
+
+    func testPatrolRailPreviewExcludesMismatchedCurrentPosition() throws {
+        let patrol = EnemyDefinition(
+            id: "patrol",
+            name: "巡回兵",
+            position: GridPoint(x: 4, y: 1),
+            behavior: .patrol(path: [
+                GridPoint(x: 1, y: 1),
+                GridPoint(x: 2, y: 1),
+                GridPoint(x: 3, y: 1)
+            ])
+        )
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 3,
+            turnLimit: 4,
+            enemies: [patrol]
+        )
+        let core = makeCore(mode: mode)
+
+        XCTAssertTrue(core.enemyPatrolRailPreviews.isEmpty)
+    }
+
     func testPatrolMovementPreviewExcludesNonMovingEnemies() throws {
         let guardPost = EnemyDefinition(
             id: "guard",
@@ -608,6 +717,7 @@ final class DungeonModeTests: XCTestCase {
         let core = makeCore(mode: mode)
 
         XCTAssertTrue(core.enemyPatrolMovementPreviews.isEmpty)
+        XCTAssertTrue(core.enemyPatrolRailPreviews.isEmpty)
     }
 
     func testBrittleFloorCracksThenCollapsesOnSecondStep() throws {

@@ -4,6 +4,7 @@
 
     final class GameSceneHighlightRenderer {
         private(set) var highlightNodes: [BoardHighlightKind: [GridPoint: SKShapeNode]] = [:]
+        private(set) var patrolRailNodes: [String: SKShapeNode] = [:]
         private(set) var patrolMovementArrowNodes: [String: SKShapeNode] = [:]
         private var latestSingleGuidePoints: Set<GridPoint> = []
         private var latestMultipleGuidePoints: Set<GridPoint> = []
@@ -26,11 +27,15 @@
         private var latestDungeonDamageTrapPoints: Set<GridPoint> = []
         private var latestDungeonCrackedFloorPoints: Set<GridPoint> = []
         private var latestDungeonCollapsedFloorPoints: Set<GridPoint> = []
+        private var latestPatrolRailPreviews: [ScenePatrolRailPreview] = []
+        private var pendingPatrolRailPreviews: [ScenePatrolRailPreview] = []
+        private var hasPendingPatrolRailUpdate = false
         private var latestPatrolMovementPreviews: [ScenePatrolMovementPreview] = []
         private var pendingPatrolMovementPreviews: [ScenePatrolMovementPreview] = []
         private var hasPendingPatrolMovementPreviewUpdate = false
         private var pendingHighlightPoints: [BoardHighlightKind: Set<GridPoint>] = [:]
 
+        var patrolRailCount: Int { patrolRailNodes.count }
         var patrolMovementArrowCount: Int { patrolMovementArrowNodes.count }
 
         init() {
@@ -46,7 +51,11 @@
             for node in patrolMovementArrowNodes.values {
                 node.removeFromParent()
             }
+            for node in patrolRailNodes.values {
+                node.removeFromParent()
+            }
             highlightNodes = [:]
+            patrolRailNodes = [:]
             patrolMovementArrowNodes = [:]
             latestSingleGuidePoints = []
             latestMultipleGuidePoints = []
@@ -69,6 +78,9 @@
             latestDungeonDamageTrapPoints = []
             latestDungeonCrackedFloorPoints = []
             latestDungeonCollapsedFloorPoints = []
+            latestPatrolRailPreviews = []
+            pendingPatrolRailPreviews = []
+            hasPendingPatrolRailUpdate = false
             latestPatrolMovementPreviews = []
             pendingPatrolMovementPreviews = []
             hasPendingPatrolMovementPreviewUpdate = false
@@ -140,6 +152,26 @@
             hasPendingPatrolMovementPreviewUpdate = false
         }
 
+        func updatePatrolRailPreviews(
+            _ previews: [ScenePatrolRailPreview],
+            scene: SKScene,
+            layout: GameSceneLayoutSupport,
+            palette: GameScenePalette,
+            isLayoutReady: Bool
+        ) {
+            latestPatrolRailPreviews = previews
+            pendingPatrolRailPreviews = previews
+            hasPendingPatrolRailUpdate = true
+
+            debugLog(
+                "GameScene 巡回レール更新要求: count=\(previews.count), レイアウト確定=\(isLayoutReady)"
+            )
+
+            guard isLayoutReady else { return }
+            applyPatrolRailPreviews(previews, scene: scene, layout: layout, palette: palette)
+            hasPendingPatrolRailUpdate = false
+        }
+
         func refreshAppearance(
             layout: GameSceneLayoutSupport,
             palette: GameScenePalette
@@ -156,6 +188,15 @@
                         palette: palette
                     )
                 }
+            }
+
+            for preview in latestPatrolRailPreviews {
+                guard let node = patrolRailNodes[preview.enemyID] else { continue }
+                configurePatrolRailNode(
+                    node,
+                    preview: preview,
+                    layout: layout
+                )
             }
 
             for preview in latestPatrolMovementPreviews {
@@ -187,9 +228,13 @@
 
             let hasPendingValues = snapshot.values.contains { !$0.isEmpty }
             let hasRenderedHighlights = highlightNodes.values.contains { !$0.isEmpty }
+            let hasRenderedPatrolRails = !patrolRailNodes.isEmpty
             let hasRenderedPatrolPreviews = !patrolMovementArrowNodes.isEmpty
             guard hasPendingValues
                     || hasRenderedHighlights
+                    || hasPendingPatrolRailUpdate
+                    || hasRenderedPatrolRails
+                    || !latestPatrolRailPreviews.isEmpty
                     || hasPendingPatrolMovementPreviewUpdate
                     || hasRenderedPatrolPreviews
                     || !latestPatrolMovementPreviews.isEmpty
@@ -232,6 +277,23 @@
                 } else {
                     applyHighlightsImmediately(snapshot, scene: scene, layout: layout, palette: palette)
                 }
+            }
+
+            if hasPendingPatrolRailUpdate {
+                applyPatrolRailPreviews(
+                    pendingPatrolRailPreviews,
+                    scene: scene,
+                    layout: layout,
+                    palette: palette
+                )
+                hasPendingPatrolRailUpdate = false
+            } else if hasRenderedPatrolRails || !latestPatrolRailPreviews.isEmpty {
+                applyPatrolRailPreviews(
+                    latestPatrolRailPreviews,
+                    scene: scene,
+                    layout: layout,
+                    palette: palette
+                )
             }
 
             if hasPendingPatrolMovementPreviewUpdate {
@@ -345,6 +407,64 @@
             }
 
             highlightNodes[kind] = nodesForKind
+        }
+
+        private func applyPatrolRailPreviews(
+            _ previews: [ScenePatrolRailPreview],
+            scene: SKScene,
+            layout: GameSceneLayoutSupport,
+            palette: GameScenePalette
+        ) {
+            latestPatrolRailPreviews = previews
+
+            let previewIDs = Set(previews.map(\.enemyID))
+            let staleEnemyIDs = patrolRailNodes.keys.filter { !previewIDs.contains($0) }
+            for enemyID in staleEnemyIDs {
+                guard let node = patrolRailNodes[enemyID] else { continue }
+                node.removeFromParent()
+                patrolRailNodes.removeValue(forKey: enemyID)
+            }
+
+            for preview in previews {
+                if let node = patrolRailNodes[preview.enemyID] {
+                    if node.parent !== scene {
+                        scene.addChild(node)
+                    }
+                    configurePatrolRailNode(
+                        node,
+                        preview: preview,
+                        layout: layout
+                    )
+                } else {
+                    let node = SKShapeNode()
+                    configurePatrolRailNode(
+                        node,
+                        preview: preview,
+                        layout: layout
+                    )
+                    scene.addChild(node)
+                    patrolRailNodes[preview.enemyID] = node
+                }
+            }
+        }
+
+        private func configurePatrolRailNode(
+            _ node: SKShapeNode,
+            preview: ScenePatrolRailPreview,
+            layout: GameSceneLayoutSupport
+        ) {
+            let baseColor = patrolMovementArrowColor()
+            node.path = patrolRailPath(points: preview.path, layout: layout)
+            node.fillColor = SKColor.clear
+            node.strokeColor = baseColor.withAlphaComponent(0.42)
+            node.lineWidth = max(layout.tileSize * 0.024, 1.2)
+            node.glowWidth = 0
+            node.lineJoin = .round
+            node.lineCap = .round
+            node.position = .zero
+            node.zPosition = 1.04
+            node.isAntialiased = true
+            node.blendMode = .alpha
         }
 
         private func applyPatrolMovementPreviews(
@@ -824,6 +944,36 @@
             path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.28, y: rect.minY + rect.height * 0.18))
             path.closeSubpath()
             return path
+        }
+
+        private func patrolRailPath(points: [GridPoint], layout: GameSceneLayoutSupport) -> CGPath {
+            let path = CGMutablePath()
+            guard points.count > 1 else { return path }
+
+            let centers = points.map { layout.position(for: $0) }
+            path.move(to: centers[0])
+            for center in centers.dropFirst() {
+                path.addLine(to: center)
+            }
+
+            if let first = points.first,
+               let last = points.last,
+               manhattanDistance(from: first, to: last) == 1 {
+                path.addLine(to: centers[0])
+            }
+
+            let dotRadius = max(layout.tileSize * 0.055, 2.0)
+            var uniquePoints: Set<GridPoint> = []
+            for point in points where uniquePoints.insert(point).inserted {
+                let center = layout.position(for: point)
+                path.move(to: CGPoint(x: center.x - dotRadius * 0.5, y: center.y))
+                path.addLine(to: CGPoint(x: center.x + dotRadius * 0.5, y: center.y))
+            }
+            return path
+        }
+
+        private func manhattanDistance(from a: GridPoint, to b: GridPoint) -> Int {
+            abs(a.x - b.x) + abs(a.y - b.y)
         }
 
         private func patrolMovementArrowPath(vector: MoveVector, tileSize: CGFloat) -> CGPath {

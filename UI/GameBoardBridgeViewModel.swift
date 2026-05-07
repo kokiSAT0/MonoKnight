@@ -297,6 +297,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
             .dungeonCollapsedFloor: core.collapsedFloorPoints
         ]
         scene.updateHighlights(highlights)
+        scene.updatePatrolRailPreviews(core.enemyPatrolRailPreviews.map(ScenePatrolRailPreview.init))
         let enemyDirectionPreviews = (
             core.enemyPatrolMovementPreviews.map(ScenePatrolMovementPreview.init)
             + core.enemyChaserMovementPreviews.map(ScenePatrolMovementPreview.init)
