@@ -28,6 +28,8 @@ struct RootView: View {
     @StateObject var preparationCoordinator = RootViewPreparationCoordinator()
     /// 塔ダンジョンの永続成長を管理するストア
     @StateObject var dungeonGrowthStore: DungeonGrowthStore
+    /// 塔攻略の中断復帰を管理するストア
+    @StateObject var dungeonRunResumeStore: DungeonRunResumeStore
     /// タイトル画面まわりの遷移要求をまとめる coordinator
     let titleFlowCoordinator = RootViewTitleFlowCoordinator()
     /// Game Center の認証要求と再サインイン促しをまとめる補助
@@ -57,6 +59,7 @@ struct RootView: View {
             )
         )
         _dungeonGrowthStore = StateObject(wrappedValue: DungeonGrowthStore())
+        _dungeonRunResumeStore = StateObject(wrappedValue: DungeonRunResumeStore())
     }
 
     var body: some View {

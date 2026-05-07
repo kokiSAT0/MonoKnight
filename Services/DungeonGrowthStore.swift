@@ -369,3 +369,46 @@ final class DungeonGrowthStore: ObservableObject {
         }
     }
 }
+
+final class DungeonRunResumeStore: ObservableObject {
+    private static let storageKey = StorageKey.UserDefaults.dungeonRunResume
+    private let userDefaults: UserDefaults
+
+    @Published private(set) var snapshot: DungeonRunResumeSnapshot?
+
+    init(userDefaults: UserDefaults = .standard) {
+        self.userDefaults = userDefaults
+        self.snapshot = Self.loadSnapshot(from: userDefaults)
+    }
+
+    func save(_ snapshot: DungeonRunResumeSnapshot) {
+        guard snapshot.version == DungeonRunResumeSnapshot.currentVersion else {
+            clear()
+            return
+        }
+        do {
+            let data = try JSONEncoder().encode(snapshot)
+            userDefaults.set(data, forKey: Self.storageKey)
+            self.snapshot = snapshot
+        } catch {
+            debugError(error, message: "DungeonRunResumeStore: 保存に失敗しました")
+        }
+    }
+
+    func clear() {
+        userDefaults.removeObject(forKey: Self.storageKey)
+        snapshot = nil
+    }
+
+    private static func loadSnapshot(from userDefaults: UserDefaults) -> DungeonRunResumeSnapshot? {
+        guard let data = userDefaults.data(forKey: storageKey) else { return nil }
+        do {
+            let snapshot = try JSONDecoder().decode(DungeonRunResumeSnapshot.self, from: data)
+            guard snapshot.version == DungeonRunResumeSnapshot.currentVersion else { return nil }
+            return snapshot
+        } catch {
+            debugError(error, message: "DungeonRunResumeStore: 読み込みに失敗しました")
+            return nil
+        }
+    }
+}

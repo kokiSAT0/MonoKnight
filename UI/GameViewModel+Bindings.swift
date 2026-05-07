@@ -68,6 +68,22 @@ extension GameViewModel {
             }
             .store(in: &cancellables)
 
+        core.$moveCount
+            .removeDuplicates()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.saveCurrentDungeonResumeIfPossible()
+            }
+            .store(in: &cancellables)
+
+        core.$dungeonHP
+            .removeDuplicates()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.saveCurrentDungeonResumeIfPossible()
+            }
+            .store(in: &cancellables)
+
     }
 
     func handleHandStacksChange(_ newHandStacks: [HandStack]) {
@@ -94,6 +110,9 @@ extension GameViewModel {
     }
 
     func handleProgressChange(_ progress: GameProgress) {
+        if progress == .failed || shouldClearDungeonResumeAfterClear(progress) {
+            dungeonRunResumeStore.clear()
+        }
         coreBindingCoordinator.handleProgressChange(
             progress,
             boardBridge: boardBridge,
@@ -122,6 +141,14 @@ extension GameViewModel {
                 }
             }
         )
+    }
+
+    private func shouldClearDungeonResumeAfterClear(_ progress: GameProgress) -> Bool {
+        guard progress == .cleared,
+              let runState = dungeonRunState,
+              let dungeon = DungeonLibrary.shared.dungeon(with: runState.dungeonID)
+        else { return false }
+        return !dungeon.canAdvanceWithinRun(afterFloorIndex: runState.currentFloorIndex)
     }
 
     private func registerDungeonGrowthAwardIfNeeded() -> DungeonGrowthAward? {

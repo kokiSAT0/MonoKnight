@@ -64,10 +64,10 @@ final class MoveCardIllustrationViewAccessibilityTests: XCTestCase {
         ])
 
         for choice in choices {
-            XCTAssertEqual(choice.actionText, "追加して持ち越す")
+            XCTAssertEqual(choice.actionText, "手札に追加")
             XCTAssertEqual(choice.usesBadgeText, "3回使える")
             XCTAssertTrue(choice.accessibilityLabel.contains(choice.title), "読み上げにカード名が含まれていません")
-            XCTAssertTrue(choice.accessibilityLabel.contains("追加して持ち越す"), "読み上げに報酬カードを持ち越す操作が含まれていません")
+            XCTAssertTrue(choice.accessibilityLabel.contains("手札に追加"), "読み上げにカードを手札へ追加する操作が含まれていません")
             XCTAssertTrue(choice.accessibilityLabel.contains("3回使える"), "読み上げに報酬カードの使用回数が含まれていません")
             XCTAssertTrue(choice.accessibilityLabel.contains("選ぶと次の階へ進みます"), "読み上げに選択後の遷移が含まれていません")
             XCTAssertTrue(
@@ -77,25 +77,28 @@ final class MoveCardIllustrationViewAccessibilityTests: XCTestCase {
         }
     }
 
-    func testDungeonPickupCarryoverChoicePresentationExplainsRewardConversion() {
+    func testDungeonPickupCarryoverChoicePresentationExplainsHandAddition() {
         let choice = DungeonRewardCardChoicePresentation(
             card: .straightUp2,
             rewardUses: 4,
-            actionText: "報酬カード化して持ち越す",
+            sourceText: "このフロアで拾ったカード",
             accessibilityIdentifierPrefix: "dungeon_pickup_carryover_card",
-            accessibilityRoleText: "床カードを報酬カード化して持ち越し"
+            accessibilityRoleText: "手札に追加するカード"
         )
 
-        XCTAssertEqual(choice.actionText, "報酬カード化して持ち越す")
+        XCTAssertEqual(choice.actionText, "手札に追加")
+        XCTAssertEqual(choice.sourceText, "このフロアで拾ったカード")
         XCTAssertEqual(choice.usesBadgeText, "4回使える")
         XCTAssertEqual(choice.accessibilityIdentifier, "dungeon_pickup_carryover_card_上2")
-        XCTAssertTrue(choice.accessibilityLabel.contains("報酬カード化"))
-        XCTAssertTrue(choice.accessibilityLabel.contains("持ち越し"))
+        XCTAssertTrue(choice.accessibilityLabel.contains("このフロアで拾ったカード"))
+        XCTAssertTrue(choice.accessibilityLabel.contains("手札に追加"))
+        XCTAssertFalse(choice.accessibilityLabel.contains("報酬カード化"))
+        XCTAssertFalse(choice.accessibilityLabel.contains("持ち越し"))
         XCTAssertTrue(choice.accessibilityLabel.contains("4回使える"))
         XCTAssertTrue(choice.accessibilityLabel.contains("選ぶと次の階へ進みます"))
         XCTAssertTrue(
             choice.accessibilityLabel.contains(choice.card.encyclopediaDescription),
-            "床カード報酬化でも読み上げにはカード説明を残します"
+            "床カード由来でも読み上げにはカード説明を残します"
         )
     }
 
@@ -109,10 +112,11 @@ final class MoveCardIllustrationViewAccessibilityTests: XCTestCase {
         XCTAssertEqual(choice.upgradeAccessibilityIdentifier, "dungeon_reward_upgrade_右2")
         XCTAssertEqual(choice.removeAccessibilityIdentifier, "dungeon_reward_remove_右2")
         XCTAssertTrue(choice.upgradeAccessibilityLabel.contains("右2"))
+        XCTAssertTrue(choice.upgradeAccessibilityLabel.contains("手札"))
         XCTAssertTrue(choice.upgradeAccessibilityLabel.contains("現在2回"))
         XCTAssertTrue(choice.upgradeAccessibilityLabel.contains("使用回数+1"))
         XCTAssertTrue(choice.upgradeAccessibilityLabel.contains("選ぶと次の階へ進みます"))
-        XCTAssertTrue(choice.removeAccessibilityLabel.contains("持ち越しから外す"))
+        XCTAssertTrue(choice.removeAccessibilityLabel.contains("手札から外す"))
         XCTAssertTrue(choice.removeAccessibilityLabel.contains("報酬は消費しません"))
         XCTAssertFalse(choice.removeAccessibilityLabel.contains("選ぶと次の階へ進みます"))
     }

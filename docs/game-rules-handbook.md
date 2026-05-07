@@ -18,9 +18,9 @@
 - `DungeonFloorDefinition.cardPickups` のマスを踏むと、追加手数なしでカードを取得する。拾得カードは1回使い切りで、原則として次フロアへ持ち越さない。
 - 報酬カードは `DungeonRunState.rewardInventoryEntries` に保持し、区間内フロア間だけ持ち越す。
 - 所持カードは10種類まで。同じカードは種類枠を増やさず残り使用回数として積み、使用時は拾得分から先に消費する。
-- 報酬は同一区間内に次フロアがあるクリア後に選ぶ。カード追加、未使用拾得カード1枚の報酬カード化、所持報酬カードの強化から1つ選ぶ。
-- カード追加と拾得カードの報酬カード化は通常3回使用可能なカードにする。成長スキル「カード温存」取得後は対象の使用回数を4回にする。
-- `DungeonRules.allowsBasicOrthogonalMove` が true のフロアでは、上下左右1マスへカードなしで基本移動できる。基本移動はカードを消費せず、手数を1増やし、敵ターン、床ギミック、出口判定、手数切れ判定の対象になる。
+- 報酬は同一区間内に次フロアがあるクリア後に選ぶ。新しいカードまたは未使用拾得カード1枚を手札に追加するか、所持報酬カードを強化する。
+- 手札に追加したカードは通常3回使用可能にする。成長スキル「カード温存」取得後は対象の使用回数を4回にする。
+- `DungeonRules.allowsBasicOrthogonalMove` が true のフロアでは、上下左右1マスへカードなしで基本移動できる。基本移動はカードを消費せず、手数を1増やし、敵ターン、床ギミック、出口判定、手数切れ判定の対象になる。盤面タップ時に基本移動とカード移動が同じマスを指す場合は、基本移動を優先する。
 
 ## 3. クリア・失敗・処理順
 
@@ -75,5 +75,6 @@
 - モードとレギュレーション: `Game/GameMode.swift`（`Regulation`・`PenaltySettings`・`DungeonMetadata`）。
 - 塔ダンジョン固有設定: `Game/DungeonDefinition.swift`。
 - 塔ダンジョンの永続成長保存と適用判断: `Services/DungeonGrowthStore.swift`。
+- 塔攻略の中断復帰保存: `DungeonRunResumeSnapshot` と `DungeonRunResumeStore`。保存枠は1つだけで、塔選択の「続きから」から直近の一手後へ戻る。
 - 詳細な塔ごとの規定は [`docs/campaign-stage-regulations.md`](campaign-stage-regulations.md) を参照。
 - 更新フロー: コード変更 → 単体テスト更新 → 本書・塔ドキュメント改訂 → 検証。

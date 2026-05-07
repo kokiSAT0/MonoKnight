@@ -69,6 +69,7 @@ extension GameViewModel {
 
     func handleNextDungeonFloorAdvance() {
         guard let nextMode = makeNextDungeonFloorMode() else { return }
+        saveInitialDungeonResume(for: nextMode)
         prepareForDungeonFloorAdvance()
         onRequestStartDungeonFloor?(nextMode)
     }
@@ -77,6 +78,7 @@ extension GameViewModel {
         guard availableDungeonRewardMoveCards.contains(rewardMoveCard),
               let nextMode = makeNextDungeonFloorMode(rewardSelection: .add(rewardMoveCard))
         else { return }
+        saveInitialDungeonResume(for: nextMode)
         prepareForDungeonFloorAdvance()
         onRequestStartDungeonFloor?(nextMode)
     }
@@ -85,6 +87,7 @@ extension GameViewModel {
         guard isDungeonRewardSelectionAvailable(selection),
               let nextMode = makeNextDungeonFloorMode(rewardSelection: selection)
         else { return }
+        saveInitialDungeonResume(for: nextMode)
         prepareForDungeonFloorAdvance()
         onRequestStartDungeonFloor?(nextMode)
     }
@@ -141,6 +144,7 @@ extension GameViewModel {
             guard !Task.isCancelled else { return }
             await MainActor.run {
                 guard let self else { return }
+                self.saveInitialDungeonResume(for: nextMode)
                 self.prepareForDungeonFloorAdvance()
                 self.onRequestStartDungeonFloor?(nextMode)
             }
@@ -253,6 +257,7 @@ extension GameViewModel {
     }
 
     func prepareForReturnToTitle() {
+        dungeonRunResumeStore.clear()
         sessionResetCoordinator.prepareForReturnToTitle(
             clearSelectedCardSelection: { [self] in clearSelectedCardSelection() },
             cancelPenaltyBannerDisplay: { [self] in cancelPenaltyBannerDisplay() },
@@ -280,10 +285,23 @@ extension GameViewModel {
     }
 
     func resetSessionForNewPlay() {
+        dungeonRunResumeStore.clear()
         sessionResetCoordinator.resetSessionForNewPlay(
             prepareForReturnToTitle: { [self] in prepareForReturnToTitle() },
             resetCore: { [self] in core.reset() },
             resetPauseController: { [self] in pauseController.reset() }
         )
+    }
+
+    func saveCurrentDungeonResumeIfPossible() {
+        guard let snapshot = core.makeDungeonResumeSnapshot() else { return }
+        dungeonRunResumeStore.save(snapshot)
+    }
+
+    func saveInitialDungeonResume(for mode: GameMode) {
+        let nextCore = GameCore(mode: mode)
+        nextCore.resolvePendingDungeonFallLandingIfNeeded()
+        guard let snapshot = nextCore.makeDungeonResumeSnapshot() else { return }
+        dungeonRunResumeStore.save(snapshot)
     }
 }

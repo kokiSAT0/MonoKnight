@@ -317,6 +317,105 @@ public final class GameCore: ObservableObject {
         configureForNewSession(regenerateDeck: false)
     }
 
+    /// 現在の塔攻略を中断復帰用スナップショットへ変換する
+    public func makeDungeonResumeSnapshot() -> DungeonRunResumeSnapshot? {
+        guard mode.usesDungeonExit,
+              progress == .playing,
+              let metadata = mode.dungeonMetadataSnapshot,
+              let runState = metadata.runState,
+              let current
+        else { return nil }
+
+        return DungeonRunResumeSnapshot(
+            dungeonID: metadata.dungeonID,
+            floorIndex: runState.currentFloorIndex,
+            runState: runState,
+            currentPoint: current,
+            visitedPoints: Set(board.visitedPoints),
+            moveCount: moveCount,
+            elapsedSeconds: liveElapsedSeconds,
+            dungeonHP: dungeonHP,
+            hazardDamageMitigationsRemaining: hazardDamageMitigationsRemaining,
+            enemyStates: enemyStates,
+            crackedFloorPoints: crackedFloorPoints,
+            collapsedFloorPoints: collapsedFloorPoints,
+            dungeonInventoryEntries: dungeonInventoryEntries,
+            collectedDungeonCardPickupIDs: collectedDungeonCardPickupIDs,
+            isDungeonExitUnlocked: isDungeonExitUnlocked
+        )
+    }
+
+    /// 保存済みの塔攻略スナップショットを現在の `GameMode` へ復元する
+    @discardableResult
+    public func restoreDungeonResumeSnapshot(_ snapshot: DungeonRunResumeSnapshot) -> Bool {
+        guard snapshot.version == DungeonRunResumeSnapshot.currentVersion,
+              mode.usesDungeonExit,
+              let metadata = mode.dungeonMetadataSnapshot,
+              let runState = metadata.runState,
+              metadata.dungeonID == snapshot.dungeonID,
+              runState.currentFloorIndex == snapshot.floorIndex,
+              runState.dungeonID == snapshot.runState.dungeonID,
+              snapshot.currentPoint.isInside(boardSize: mode.boardSize)
+        else { return false }
+
+        let validVisitedPoints = snapshot.visitedPoints.filter { $0.isInside(boardSize: mode.boardSize) }
+        let validCollapsedPoints = snapshot.collapsedFloorPoints.filter { $0.isInside(boardSize: mode.boardSize) }
+        guard validVisitedPoints.count == snapshot.visitedPoints.count,
+              validCollapsedPoints.count == snapshot.collapsedFloorPoints.count
+        else { return false }
+
+        board = Board(
+            size: mode.boardSize,
+            initialVisitedPoints: Array(validVisitedPoints),
+            requiredVisitOverrides: mode.additionalVisitRequirements,
+            togglePoints: mode.toggleTilePoints,
+            impassablePoints: mode.impassableTilePoints,
+            tileEffects: mode.tileEffects
+        )
+        for point in validCollapsedPoints {
+            board.collapseFloor(at: point)
+        }
+        guard board.isTraversable(snapshot.currentPoint) else { return false }
+
+        current = snapshot.currentPoint
+        moveCount = snapshot.moveCount
+        penaltyCount = 0
+        hasRevisitedTile = false
+        capturedTargetCount = 0
+        focusCount = 0
+        isOverloadCharged = false
+        dungeonHP = snapshot.dungeonHP
+        hazardDamageMitigationsRemaining = snapshot.hazardDamageMitigationsRemaining
+        enemyStates = snapshot.enemyStates
+        crackedFloorPoints = snapshot.crackedFloorPoints
+        collapsedFloorPoints = validCollapsedPoints
+        dungeonInventoryEntries = snapshot.dungeonInventoryEntries
+        collectedDungeonCardPickupIDs = snapshot.collectedDungeonCardPickupIDs
+        isDungeonExitUnlocked = snapshot.isDungeonExitUnlocked
+        dungeonExitUnlockEvent = nil
+        dungeonFallEvent = nil
+        penaltyEvent = nil
+        boardTapPlayRequest = nil
+        boardTapBasicMoveRequest = nil
+        spawnSelectionWarning = nil
+        isAwaitingManualDiscardSelection = false
+        isAwaitingSupportSwapSelection = false
+        pendingSupportSwapStackID = nil
+        lastMovementResolution = nil
+        progress = .playing
+        sessionTimer.resumeFromElapsedSeconds(snapshot.elapsedSeconds)
+        elapsedSeconds = sessionTimer.elapsedSeconds
+
+        if usesDungeonInventoryCards {
+            syncDungeonInventoryHandStacks()
+        } else {
+            handManager.resetAll(using: &deck)
+            refreshHandStateFromManager()
+        }
+        announceRemainingTiles()
+        return true
+    }
+
     /// 手札の並び順設定を更新し、必要であれば再ソートする
     /// - Parameter newStrategy: ユーザーが選択した並び替え方式
     public func updateHandOrderingStrategy(_ newStrategy: HandOrderingStrategy) {
@@ -2194,7 +2293,13 @@ extension GameCore: GameCoreProtocol {
         // デバッグログ: タップされたマスを表示
         debugLog("マス \(point) をタップ")
 
-        // 優先順位付きのカード候補を先に算出し、該当するものがあればカード演出を優先する
+        // 基本移動で届くマスはカードより先に扱い、カード消費なしの移動を優先する
+        if let basicMove = availableBasicOrthogonalMoves().first(where: { $0.destination == point }) {
+            boardTapBasicMoveRequest = BoardTapBasicMoveRequest(move: basicMove)
+            return
+        }
+
+        // 基本移動で届かないマスだけ、優先順位付きのカード候補を算出する
         if let resolved = resolvedMoveForBoardTap(at: point) {
             boardTapPlayRequest = BoardTapPlayRequest(
                 stackID: resolved.stackID,
@@ -2205,9 +2310,6 @@ extension GameCore: GameCoreProtocol {
             )
             return
         }
-
-        guard let basicMove = availableBasicOrthogonalMoves().first(where: { $0.destination == point }) else { return }
-        boardTapBasicMoveRequest = BoardTapBasicMoveRequest(move: basicMove)
     }
 }
 #endif

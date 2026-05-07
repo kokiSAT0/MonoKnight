@@ -80,6 +80,9 @@ extension GameViewModel {
     }
 
     func handleScenePhaseChange(_ newPhase: ScenePhase) {
+        if newPhase == .inactive || newPhase == .background {
+            saveCurrentDungeonResumeIfPossible()
+        }
         pauseController.handleScenePhaseChange(
             newPhase,
             supportsTimerPausing: supportsTimerPausing,

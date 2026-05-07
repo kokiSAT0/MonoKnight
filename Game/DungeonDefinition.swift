@@ -1130,6 +1130,24 @@ public struct DungeonLibrary {
         )
     }
 
+    public func resumeMode(from snapshot: DungeonRunResumeSnapshot) -> GameMode? {
+        guard snapshot.version == DungeonRunResumeSnapshot.currentVersion,
+              let dungeon = dungeon(with: snapshot.dungeonID),
+              dungeon.floors.indices.contains(snapshot.floorIndex),
+              snapshot.runState.dungeonID == dungeon.id,
+              snapshot.runState.currentFloorIndex == snapshot.floorIndex
+        else { return nil }
+
+        let floor = dungeon.resolvedFloor(at: snapshot.floorIndex, runState: snapshot.runState)
+            ?? dungeon.floors[snapshot.floorIndex]
+        return floor.makeGameMode(
+            dungeonID: dungeon.id,
+            difficulty: dungeon.difficulty,
+            carriedHP: max(snapshot.dungeonHP, 1),
+            runState: snapshot.runState
+        )
+    }
+
     private static func makeCardVariationSeed() -> UInt64 {
         var seed = UInt64.random(in: 1...UInt64.max)
         seed ^= UInt64(Date().timeIntervalSinceReferenceDate * 1000)

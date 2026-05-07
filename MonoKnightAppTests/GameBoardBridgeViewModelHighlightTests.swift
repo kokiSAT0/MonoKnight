@@ -71,64 +71,6 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
         )
     }
 
-    /// スポーン選択待機状態から `.playing` 復帰直後にガイド集合が復元されることを検証する
-    func testGuideHighlightsRestoreAfterSpawnSelection() {
-        // スポーンを任意選択するモードで GameCore を初期化し、進行状態が awaitingSpawn で始まる状況を用意する
-        let deck = Deck.makeTestDeck(cards: [.kingUp], configuration: .kingOnly)
-        let core = GameCore.makeTestInstance(deck: deck, current: nil, mode: .dungeonPlaceholder)
-        let viewModel = GameBoardBridgeViewModel(core: core, mode: .dungeonPlaceholder)
-
-        XCTAssertEqual(core.progress, GameProgress.awaitingSpawn, "スポーン選択待機状態で開始できていません")
-
-        // 復帰後に確認したい手札を退避させ、ガイド集合が一時的に空になることを確認する
-        let singleStack = HandStack(cards: [DealtCard(move: .kingUp)])
-        viewModel.refreshGuideHighlights(
-            handOverride: [singleStack],
-            progressOverride: GameProgress.awaitingSpawn
-        )
-
-        XCTAssertNotNil(viewModel.pendingGuideHand, "スポーン選択待機中でも手札退避が維持されていません")
-        XCTAssertTrue(viewModel.guideHighlightBuckets.singleVectorDestinations.isEmpty, "待機中はガイドを非表示にしておく必要があります")
-        XCTAssertTrue(viewModel.guideHighlightBuckets.multipleVectorDestinations.isEmpty, "待機中はガイドを非表示にしておく必要があります")
-
-        // 任意スポーンを確定し、進行状態を playing に戻した直後の処理を模擬する
-        let spawnPoint = GridPoint(x: 3, y: 3)
-        core.simulateSpawnSelection(forTesting: spawnPoint)
-        viewModel.handleProgressChange(core.progress)
-
-        // 復帰後は pending 手札から再計算されたガイド集合が復元される
-        let expectedDestination = GridPoint(x: spawnPoint.x, y: spawnPoint.y + 1)
-        XCTAssertTrue(
-            viewModel.guideHighlightBuckets.singleVectorDestinations.contains(expectedDestination),
-            "スポーン確定直後に単一候補のガイドが復元されていません"
-        )
-        XCTAssertTrue(
-            viewModel.guideHighlightBuckets.multipleVectorDestinations.isEmpty,
-            "今回の手札では複数候補のガイドが存在しない想定です"
-        )
-        XCTAssertNil(viewModel.pendingGuideHand, "ガイド復元後は pending 手札を解放する必要があります")
-        XCTAssertNil(viewModel.pendingGuideCurrent, "ガイド復元後は pending 現在地を解放する必要があります")
-    }
-
-    /// スポーン待機中でも目的地制の目的地マーカーが Scene へ送られることを検証する
-    func testTargetHighlightsRemainVisibleWhileAwaitingSpawnSelection() {
-        let core = GameCore(mode: .dungeonPlaceholder)
-        let viewModel = GameBoardBridgeViewModel(core: core, mode: .dungeonPlaceholder)
-
-        XCTAssertEqual(core.progress, GameProgress.awaitingSpawn)
-        XCTAssertEqual(core.activeTargetPoints.count, 3, "スポーン選択前でも目的地が生成される想定です")
-        XCTAssertEqual(
-            viewModel.scene.latestHighlightPoints(for: .currentTarget),
-            core.targetPoint.map { Set([$0]) } ?? [],
-            "スポーン待機中でも現在目的地マーカーを Scene へ渡します"
-        )
-        XCTAssertEqual(
-            viewModel.scene.latestHighlightPoints(for: .upcomingTarget),
-            Set(core.upcomingTargetPoints),
-            "スポーン待機中でも表示中目的地マーカーを Scene へ渡します"
-        )
-    }
-
     /// ワープカードが専用の紫ガイド集合へ分類されることを検証する
     func testRefreshGuideHighlightsSeparatesWarpCandidates() {
         let viewModel = makeViewModel()
@@ -197,151 +139,6 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
         XCTAssertTrue(
             viewModel.guideHighlightBuckets.multipleVectorDestinations.isEmpty,
             "連続移動カードが複数候補集合へ混入しています"
-        )
-    }
-
-    /// 目的地制では、通過で取れる目的地を移動先候補の枠として強調しないことを検証する
-    func testRefreshGuideHighlightsDoesNotFramePassThroughTargetCapture() {
-        let core = GameCore(mode: .dungeonPlaceholder)
-        let viewModel = GameBoardBridgeViewModel(core: core, mode: .dungeonPlaceholder)
-        let origin = GridPoint(x: 2, y: 2)
-        let target = GridPoint(x: 4, y: 2)
-
-        core.overrideTargetStateForTesting(targetPoint: target)
-
-        let captureStack = HandStack(cards: [DealtCard(move: .straightRight2)])
-        let approachStack = HandStack(cards: [DealtCard(move: .kingRight)])
-        let neutralStack = HandStack(cards: [DealtCard(move: .kingUp)])
-
-        viewModel.refreshGuideHighlights(
-            handOverride: [captureStack, approachStack, neutralStack],
-            currentOverride: origin,
-            progressOverride: .playing
-        )
-
-        let buckets = viewModel.guideHighlightBuckets
-        XCTAssertTrue(
-            buckets.singleVectorDestinations.contains(target),
-            "目的地へ到達する合法手は通常の移動先候補として残す必要があります"
-        )
-        XCTAssertTrue(
-            buckets.singleVectorDestinations.contains(GridPoint(x: 3, y: 2)),
-            "目的地に近づく合法手は通常の単一候補ガイドとして残す必要があります"
-        )
-        XCTAssertTrue(
-            buckets.singleVectorDestinations.contains(GridPoint(x: 2, y: 3)),
-            "目的地に近づかない合法手も従来の合法手ハイライトには残す必要があります"
-        )
-        XCTAssertTrue(
-            viewModel.scene.latestHighlightPoints(for: .guideMultipleCandidate).isEmpty,
-            "選択式カードがない場合はオレンジ枠を Scene へ送らない想定です"
-        )
-        XCTAssertTrue(
-            viewModel.scene.latestHighlightPoints(for: .targetApproachCandidate).isEmpty,
-            "目的地に近づくだけの候補はオレンジ系の接近ガイドとして Scene へ送らない想定です"
-        )
-        XCTAssertTrue(
-            viewModel.scene.latestHighlightPoints(for: .targetCaptureCandidate).isEmpty,
-            "通過で取れる目的地を移動先候補に見える紫枠として Scene へ送らない想定です"
-        )
-        XCTAssertEqual(
-            viewModel.scene.latestHighlightPoints(for: .currentTarget),
-            [target],
-            "目的地マーカー自体は枠を消しても維持する必要があります"
-        )
-    }
-
-    func testRefreshGuideHighlightsKeepsUpcomingTargetMarkerWithoutCaptureFrame() {
-        let core = GameCore(mode: .dungeonPlaceholder)
-        let viewModel = GameBoardBridgeViewModel(core: core, mode: .dungeonPlaceholder)
-        let origin = GridPoint(x: 2, y: 2)
-        let currentTarget = GridPoint(x: 4, y: 4)
-        let upcomingTarget = GridPoint(x: 3, y: 2)
-
-        core.overrideTargetStateForTesting(
-            targetPoint: currentTarget,
-            upcomingTargetPoints: [upcomingTarget]
-        )
-
-        let captureStack = HandStack(cards: [DealtCard(move: .kingRight)])
-        viewModel.refreshGuideHighlights(
-            handOverride: [captureStack],
-            currentOverride: origin,
-            progressOverride: .playing
-        )
-
-        XCTAssertTrue(
-            viewModel.scene.latestHighlightPoints(for: .targetCaptureCandidate).isEmpty,
-            "先読み側の目的地を取れる手でも、目的地通過用の紫枠は表示しない想定です"
-        )
-        XCTAssertEqual(
-            viewModel.scene.latestHighlightPoints(for: .upcomingTarget),
-            [upcomingTarget],
-            "先読み側の目的地は獲得可能な目的地マーカーとして表示を維持します"
-        )
-    }
-
-    /// 強制ハイライト表示中は通常ガイド枠を Scene へ送らず、目的地マーカーだけを維持することを検証する
-    func testForcedSelectionHidesGuideCandidatesButKeepsTargetMarkers() {
-        MoveCard.setTestMovementVectors([
-            MoveVector(dx: 1, dy: 0),
-            MoveVector(dx: -1, dy: 0)
-        ], for: .kingRight)
-        defer { MoveCard.setTestMovementVectors(nil, for: .kingRight) }
-
-        let core = GameCore(mode: .dungeonPlaceholder)
-        let viewModel = GameBoardBridgeViewModel(core: core, mode: .dungeonPlaceholder)
-        let origin = GridPoint(x: 2, y: 2)
-        let target = GridPoint(x: 4, y: 2)
-
-        core.overrideTargetStateForTesting(
-            targetPoint: target,
-            upcomingTargetPoints: [GridPoint(x: 0, y: 0)]
-        )
-
-        let singleStack = HandStack(cards: [DealtCard(move: .kingUp)])
-        let multipleStack = HandStack(cards: [DealtCard(move: .kingRight)])
-
-        viewModel.refreshGuideHighlights(
-            handOverride: [singleStack, multipleStack],
-            currentOverride: origin,
-            progressOverride: .playing
-        )
-
-        XCTAssertFalse(
-            viewModel.scene.latestHighlightPoints(for: .guideSingleCandidate).isEmpty,
-            "通常時は単一候補ガイドが Scene へ送られる想定です"
-        )
-        XCTAssertFalse(
-            viewModel.scene.latestHighlightPoints(for: .guideMultipleCandidate).isEmpty,
-            "通常時は複数候補ガイドが Scene へ送られる想定です"
-        )
-
-        let selectedDestinations: Set<GridPoint> = [GridPoint(x: 3, y: 2), GridPoint(x: 1, y: 2)]
-        viewModel.updateForcedSelectionHighlights(selectedDestinations)
-
-        XCTAssertTrue(
-            viewModel.scene.latestHighlightPoints(for: .guideSingleCandidate).isEmpty,
-            "カード選択中は単一候補ガイドを Scene へ送らない想定です"
-        )
-        XCTAssertTrue(
-            viewModel.scene.latestHighlightPoints(for: .guideMultipleCandidate).isEmpty,
-            "カード選択中は複数候補ガイドを Scene へ送らない想定です"
-        )
-        XCTAssertEqual(
-            viewModel.scene.latestHighlightPoints(for: .forcedSelection),
-            selectedDestinations,
-            "選択中カードの移動候補だけを強制ハイライトとして表示する想定です"
-        )
-        XCTAssertEqual(
-            viewModel.scene.latestHighlightPoints(for: .currentTarget),
-            [target],
-            "カード選択中でも現在目的地マーカーは維持する必要があります"
-        )
-        XCTAssertEqual(
-            viewModel.scene.latestHighlightPoints(for: .upcomingTarget),
-            [GridPoint(x: 0, y: 0)],
-            "カード選択中でも次目的地マーカーは維持する必要があります"
         )
     }
 
@@ -640,7 +437,9 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
 
     /// テストで使い回す ViewModel を生成するヘルパー
     private func makeViewModel() -> GameBoardBridgeViewModel {
-        let core = GameCore(mode: .dungeonPlaceholder)
-        return GameBoardBridgeViewModel(core: core, mode: .dungeonPlaceholder)
+        let tower = DungeonLibrary.shared.dungeon(with: "tutorial-tower")!
+        let mode = DungeonLibrary.shared.firstFloorMode(for: tower)!
+        let core = GameCore(mode: mode)
+        return GameBoardBridgeViewModel(core: core, mode: mode)
     }
 }

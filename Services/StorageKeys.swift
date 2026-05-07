@@ -17,5 +17,6 @@ enum StorageKey {
         static let gameCenterHasSubmittedByLeaderboard = "gc_has_submitted_by_leaderboard"
         static let gameCenterLastScoreByLeaderboard = "gc_last_score_by_leaderboard"
         static let dungeonGrowth = "dungeon_growth_v3"
+        static let dungeonRunResume = "dungeon_run_resume_v1"
     }
 }

@@ -438,6 +438,20 @@ public struct Board: Equatable {
         return points
     }
 
+    /// 現在踏破済みの全マスを座標配列で返す
+    public var visitedPoints: [GridPoint] {
+        var points: [GridPoint] = []
+        for y in 0..<size {
+            for x in 0..<size {
+                let point = GridPoint(x: x, y: y)
+                if isVisited(point) {
+                    points.append(point)
+                }
+            }
+        }
+        return points
+    }
+
     /// 指定座標が移動不可マスかどうか
     /// - Parameter point: 判定したい座標
     /// - Returns: 盤面内に存在し、障害物であれば true

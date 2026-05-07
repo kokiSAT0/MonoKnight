@@ -18,6 +18,8 @@ final class GameViewModel: ObservableObject {
     let adsService: AdsServiceProtocol
     /// 塔ダンジョンの永続成長ストア
     let dungeonGrowthStore: DungeonGrowthStore
+    /// 塔攻略の中断復帰ストア
+    let dungeonRunResumeStore: DungeonRunResumeStore
     /// Game Center サインインを再度促す要求を親へ伝えるクロージャ
     let onRequestGameCenterSignIn: ((GameCenterSignInPromptReason) -> Void)?
     /// タイトル復帰時に親へ伝えるためのクロージャ
@@ -155,7 +157,7 @@ final class GameViewModel: ObservableObject {
         )?.rewardMoveCardsAfterClear ?? []
         return dungeonGrowthStore.rewardMoveCards(for: baseCards, dungeon: dungeon)
     }
-    /// 現在フロアで拾って未使用分が残っている、報酬カード化できるカード
+    /// 現在フロアで拾って未使用分が残っている、手札に追加できるカード
     var carryoverCandidateDungeonPickupEntries: [DungeonInventoryEntry] {
         guard !isResultFailed,
               let metadata = mode.dungeonMetadataSnapshot,
@@ -167,14 +169,14 @@ final class GameViewModel: ObservableObject {
             .filter { $0.pickupUses > 0 }
             .map { DungeonInventoryEntry(card: $0.card, pickupUses: $0.pickupUses) }
     }
-    /// 新しく報酬カード化したときに付与する使用回数
+    /// 新しく手札へ追加したカードに付与する使用回数
     var dungeonRewardAddUses: Int {
         guard let metadata = mode.dungeonMetadataSnapshot,
               let dungeon = DungeonLibrary.shared.dungeon(with: metadata.dungeonID)
         else { return 3 }
         return dungeonGrowthStore.rewardAddUses(for: dungeon)
     }
-    /// クリア後に強化/整理できる持ち越し報酬カード
+    /// クリア後に強化/整理できる手札の報酬カード
     var adjustableDungeonRewardEntries: [DungeonInventoryEntry] {
         guard !isResultFailed,
               let metadata = mode.dungeonMetadataSnapshot,
@@ -320,6 +322,7 @@ final class GameViewModel: ObservableObject {
         gameCenterService: GameCenterServiceProtocol,
         adsService: AdsServiceProtocol,
         dungeonGrowthStore: @MainActor @autoclosure () -> DungeonGrowthStore = DungeonGrowthStore(),
+        dungeonRunResumeStore: @MainActor @autoclosure () -> DungeonRunResumeStore = DungeonRunResumeStore(),
         onRequestGameCenterSignIn: ((GameCenterSignInPromptReason) -> Void)? = nil,
         onRequestReturnToTitle: (() -> Void)?,
         onRequestStartDungeonFloor: ((GameMode) -> Void)? = nil,
@@ -333,6 +336,7 @@ final class GameViewModel: ObservableObject {
         self.gameCenterService = gameCenterService
         self.adsService = adsService
         self.dungeonGrowthStore = dungeonGrowthStore()
+        self.dungeonRunResumeStore = dungeonRunResumeStore()
         self.onRequestGameCenterSignIn = onRequestGameCenterSignIn
         self.onRequestReturnToTitle = onRequestReturnToTitle
         self.onRequestStartDungeonFloor = onRequestStartDungeonFloor
@@ -349,6 +353,13 @@ final class GameViewModel: ObservableObject {
 
         // GameCore を生成し、ViewModel 経由で観測できるようにする
         let generatedCore = gameInterfaces.makeGameCore(mode)
+        if let snapshot = self.dungeonRunResumeStore.snapshot,
+           snapshot.dungeonID == mode.dungeonMetadataSnapshot?.dungeonID {
+            let restored = generatedCore.restoreDungeonResumeSnapshot(snapshot)
+            if !restored {
+                self.dungeonRunResumeStore.clear()
+            }
+        }
         self.core = generatedCore
         self.displayedHandStacks = generatedCore.handStacks
         self.boardBridge = GameBoardBridgeViewModel(core: generatedCore, mode: mode)

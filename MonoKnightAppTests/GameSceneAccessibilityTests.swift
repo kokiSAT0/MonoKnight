@@ -78,26 +78,6 @@ final class GameSceneAccessibilityTests: XCTestCase {
         XCTAssertEqual(elements[index].accessibilityLabel, "駒あり・未踏破")
     }
 
-    /// 目的地制では通常マスの踏破済み塗りを出さないことを確認する
-    func testVisitedTileFillCanBeHiddenForTargetCollectionModes() {
-        let visitedPoint = GridPoint(x: 0, y: 0)
-        let unvisitedPoint = GridPoint(x: 1, y: 0)
-        let (scene, view, _) = makeScene(initialVisitedPoints: [visitedPoint])
-        defer { view.presentScene(nil) }
-
-        scene.updateShowsVisitedTileFill(false)
-
-        guard let visitedColor = scene.tileFillColorForTesting(at: visitedPoint),
-              let unvisitedColor = scene.tileFillColorForTesting(at: unvisitedPoint) else {
-            XCTFail("タイル塗り色を取得できません")
-            return
-        }
-        XCTAssertTrue(
-            visitedColor.isEqual(unvisitedColor),
-            "目的地制では踏破済み通常マスも未踏破通常マスと同じ塗り色にします"
-        )
-    }
-
     /// 全踏破モードでは通常マスの踏破済み塗りを維持することを確認する
     func testVisitedTileFillRemainsVisibleForBoardClearModes() {
         let visitedPoint = GridPoint(x: 0, y: 0)
@@ -118,61 +98,29 @@ final class GameSceneAccessibilityTests: XCTestCase {
         )
     }
 
-    /// 通過で取れる目的地は、移動先候補として読み上げないことを確認する
-    func testAccessibilityDoesNotDescribeTargetCaptureFrameAsMoveDestination() {
-        let targetPoint = GridPoint(x: 3, y: 2)
-        let (scene, view, boardSize) = makeScene()
-        defer { view.presentScene(nil) }
-
-        scene.updateHighlights([
-            .currentTarget: [targetPoint],
-            .targetCaptureCandidate: [targetPoint],
-        ])
-
-        guard let elements = scene.accessibilityElements as? [UIAccessibilityElement] else {
-            XCTFail("アクセシビリティ要素が生成されていない")
-            return
-        }
-        let index = targetPoint.y * boardSize + targetPoint.x
-        XCTAssertLessThan(index, elements.count, "目的地マスのインデックスが範囲外")
-        XCTAssertEqual(
-            elements[index].accessibilityLabel,
-            "表示中の目的地・未踏破",
-            "通過で取れる目的地を移動先候補として読み上げない想定です"
-        )
-    }
-
-    /// 塔ダンジョンの出口は、通常目的地のひし形ではなく階段形状で示すことを確認する
+    /// 塔ダンジョンの出口は、階段形状で示すことを確認する
     func testDungeonExitHighlightUsesStaircaseShape() {
-        let targetPoint = GridPoint(x: 1, y: 1)
         let exitPoint = GridPoint(x: 3, y: 3)
         let (scene, view, _) = makeScene()
         defer { view.presentScene(nil) }
 
         scene.updateHighlights([
-            .currentTarget: [targetPoint],
             .dungeonExit: [exitPoint],
         ])
 
-        guard let targetBounds = scene.highlightPathBoundsForTesting(
-            kind: .currentTarget,
-            at: targetPoint
-        ), let exitBounds = scene.highlightPathBoundsForTesting(
+        guard let exitBounds = scene.highlightPathBoundsForTesting(
             kind: .dungeonExit,
             at: exitPoint
-        ), let targetElementCount = scene.highlightPathElementCountForTesting(
-            kind: .currentTarget,
-            at: targetPoint
         ), let exitElementCount = scene.highlightPathElementCountForTesting(
             kind: .dungeonExit,
             at: exitPoint
         ) else {
-            XCTFail("目的地と出口のマーカー形状を取得できません")
+            XCTFail("出口のマーカー形状を取得できません")
             return
         }
 
-        XCTAssertGreaterThan(exitElementCount, targetElementCount, "出口は段付きの階段形状として描きます")
-        XCTAssertLessThan(exitBounds.height, targetBounds.height, "出口はひし形ではなく、横方向に段が並ぶ階段形状にします")
+        XCTAssertGreaterThan(exitElementCount, 3, "出口は段付きの階段形状として描きます")
+        XCTAssertGreaterThan(exitBounds.width, exitBounds.height, "出口は横方向に段が並ぶ階段形状にします")
     }
 
     /// 連続移動カードの途中マスは枠なしの塗り、終点は水色枠として描き分けることを確認する

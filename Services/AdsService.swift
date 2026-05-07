@@ -102,7 +102,7 @@ struct AdsServiceConfiguration {
 // MARK: - Google Mobile Ads 実装
 @MainActor
 final class AdsService: NSObject, ObservableObject, AdsServiceProtocol {
-    private static let interstitialClearInterval = 6
+    private static let interstitialClearInterval = 10
 
     /// Info.plist に定義するキー名をまとめる
     private enum InfoPlistKey {

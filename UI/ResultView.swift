@@ -35,9 +35,9 @@ struct ResultView: View {
     let dungeonRewardMoveCards: [MoveCard]
     /// リザルト時点で残っている塔所持カード
     let dungeonInventoryEntries: [DungeonInventoryEntry]
-    /// 報酬カードとして持ち越せる未使用の床カード
+    /// 手札に追加できる未使用の床カード
     let dungeonPickupCarryoverEntries: [DungeonInventoryEntry]
-    /// 新しく報酬カード化したときの使用回数
+    /// 新しく手札へ追加したカードの使用回数
     let dungeonRewardAddUses: Int
     /// 塔クリアで得た永続成長ポイント
     let dungeonGrowthAward: DungeonGrowthAward?
@@ -62,7 +62,7 @@ struct ResultView: View {
     let onSelectDungeonRewardMoveCard: ((MoveCard) -> Void)?
     /// ダンジョン報酬を追加/強化などから選んで次階へ進むためのクロージャ
     let onSelectDungeonReward: ((DungeonRewardSelection) -> Void)?
-    /// 持ち越しカードを報酬消費なしで整理するためのクロージャ
+    /// 手札のカードを報酬消費なしで整理するためのクロージャ
     let onRemoveDungeonRewardCard: ((MoveCard) -> Void)?
     /// 再戦処理を外部から受け取るクロージャ
     let onRetry: () -> Void

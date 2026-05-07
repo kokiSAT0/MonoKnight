@@ -40,6 +40,19 @@ struct GameSessionTimer {
         pauseStartedAt = nil
     }
 
+    /// 中断復帰時に、保存済みの経過秒から計測を再開する
+    /// - Parameters:
+    ///   - elapsedSeconds: 保存時点までに経過していた秒数
+    ///   - now: 再開時刻
+    mutating func resumeFromElapsedSeconds(_ elapsedSeconds: Int, now: Date = Date()) {
+        let restoredSeconds = max(elapsedSeconds, 0)
+        startDate = now.addingTimeInterval(TimeInterval(-restoredSeconds))
+        endDate = nil
+        finalizedElapsedSeconds = restoredSeconds
+        pausedDuration = 0
+        pauseStartedAt = nil
+    }
+
     /// 一時停止を開始し、以降の経過時間から差し引けるようにする
     /// - Parameter referenceDate: 一時停止が開始された時刻
     mutating func beginPause(at referenceDate: Date = Date()) {

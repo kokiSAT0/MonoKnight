@@ -94,6 +94,7 @@ struct GameView: View {
             gameCenterService: GameCenterService.shared,
             adsService: AdsService.shared,
             dungeonGrowthStore: DungeonGrowthStore(),
+            dungeonRunResumeStore: DungeonRunResumeStore(),
             isPreparationOverlayVisible: isPreparationOverlayVisible,
             isGameCenterAuthenticated: resolvedIsAuthenticated,
             onRequestGameCenterSignIn: onRequestGameCenterSignIn,
@@ -119,6 +120,7 @@ struct GameView: View {
         gameCenterService: GameCenterServiceProtocol,
         adsService: AdsServiceProtocol,
         dungeonGrowthStore: DungeonGrowthStore,
+        dungeonRunResumeStore: DungeonRunResumeStore,
         isPreparationOverlayVisible: Binding<Bool>,
         isGameCenterAuthenticated: Bool?,
         onRequestGameCenterSignIn: ((GameCenterSignInPromptReason) -> Void)? = nil,
@@ -143,6 +145,7 @@ struct GameView: View {
                 gameCenterService: gameCenterService,
                 adsService: adsService,
                 dungeonGrowthStore: dungeonGrowthStore,
+                dungeonRunResumeStore: dungeonRunResumeStore,
                 onRequestGameCenterSignIn: onRequestGameCenterSignIn,
                 onRequestReturnToTitle: onRequestReturnToTitle,
                 onRequestStartDungeonFloor: onRequestStartDungeonFloor,
@@ -341,5 +344,14 @@ struct GameView: View {
 // MARK: - プレビュー
 #Preview {
     // Xcode の Canvas で GameView を表示するためのプレビュー
-    GameView()
+    GameView(
+        mode: .dungeonPlaceholder,
+        gameInterfaces: .live,
+        gameCenterService: MockGameCenterService(),
+        adsService: MockAdsService(),
+        dungeonGrowthStore: DungeonGrowthStore(),
+        dungeonRunResumeStore: DungeonRunResumeStore(),
+        isPreparationOverlayVisible: .constant(false),
+        isGameCenterAuthenticated: false
+    )
 }

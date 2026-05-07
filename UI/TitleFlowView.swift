@@ -37,6 +37,7 @@ enum TitleNavigationTarget: String, Hashable, Codable {
 // MARK: - タイトル画面（リニューアル）
 struct TitleScreenView: View {
     @ObservedObject var dungeonGrowthStore: DungeonGrowthStore
+    @ObservedObject var dungeonRunResumeStore: DungeonRunResumeStore
     @Binding private var pendingNavigationTarget: TitleNavigationTarget?
     let onStart: (GameMode, GamePreparationContext) -> Void
     let onOpenSettings: () -> Void
@@ -69,10 +70,12 @@ struct TitleScreenView: View {
     }
 
     init(dungeonGrowthStore: DungeonGrowthStore,
+         dungeonRunResumeStore: DungeonRunResumeStore,
          pendingNavigationTarget: Binding<TitleNavigationTarget?>,
          onStart: @escaping (GameMode, GamePreparationContext) -> Void,
         onOpenSettings: @escaping () -> Void) {
         self._dungeonGrowthStore = ObservedObject(wrappedValue: dungeonGrowthStore)
+        self._dungeonRunResumeStore = ObservedObject(wrappedValue: dungeonRunResumeStore)
         self._pendingNavigationTarget = pendingNavigationTarget
         self.onStart = onStart
         self.onOpenSettings = onOpenSettings
@@ -289,8 +292,21 @@ struct TitleScreenView: View {
                 DungeonSelectionView(
                     dungeonLibrary: dungeonLibrary,
                     dungeonGrowthStore: dungeonGrowthStore,
+                    dungeonRunResumeStore: dungeonRunResumeStore,
                     onClose: { popNavigationStack() },
+                    onResumeDungeon: { snapshot in
+                        guard let mode = dungeonLibrary.resumeMode(from: snapshot) else {
+                            dungeonRunResumeStore.clear()
+                            return
+                        }
+                        let context: StartTriggerContext = .dungeonSelection
+                        resetNavigationStack()
+                        DispatchQueue.main.async {
+                            triggerImmediateStart(for: mode, context: context)
+                        }
+                    },
                     onStartDungeon: { dungeon, floorIndex in
+                        dungeonRunResumeStore.clear()
                         guard let mode = dungeonLibrary.floorMode(
                             for: dungeon,
                             floorIndex: floorIndex,

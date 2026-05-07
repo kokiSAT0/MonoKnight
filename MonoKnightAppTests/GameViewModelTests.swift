@@ -22,6 +22,7 @@ final class GameViewModelTests: XCTestCase {
             gameInterfaces: interfaces,
             gameCenterService: DummyGameCenterService(),
             adsService: DummyAdsService(),
+            dungeonRunResumeStore: makeIsolatedDungeonRunResumeStore(),
             onRequestGameCenterSignIn: nil,
             onRequestReturnToTitle: nil
         )
@@ -79,7 +80,7 @@ final class GameViewModelTests: XCTestCase {
 
     /// 捨て札ボタンを押すとモードが開始されることを確認
     func testToggleManualDiscardSelectionActivatesWhenPlayable() {
-        let (viewModel, core) = makeViewModel(mode: .dungeonPlaceholder)
+        let (viewModel, core) = makeViewModel(mode: legacyControlTestMode)
         XCTAssertTrue(viewModel.isManualDiscardButtonEnabled, "スタンダードモードでは捨て札ボタンが有効であるべきです")
         XCTAssertFalse(core.isAwaitingManualDiscardSelection, "初期状態では捨て札モードが無効であるべきです")
 
@@ -90,7 +91,7 @@ final class GameViewModelTests: XCTestCase {
 
     /// 捨て札モード中に再度ボタンを押すと解除されることを確認
     func testToggleManualDiscardSelectionCancelsWhenAlreadyActive() {
-        let (viewModel, core) = makeViewModel(mode: .dungeonPlaceholder)
+        let (viewModel, core) = makeViewModel(mode: legacyControlTestMode)
         viewModel.toggleManualDiscardSelection()
         XCTAssertTrue(core.isAwaitingManualDiscardSelection, "前提として捨て札モードが開始している必要があります")
 
@@ -111,8 +112,9 @@ final class GameViewModelTests: XCTestCase {
             .move(.straightUp2),
             .move(.straightLeft2)
         ], configuration: .supportToolkit)
-        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 2, y: 2))
-        let viewModel = makeViewModel(mode: .dungeonPlaceholder, core: core)
+        let mode = legacyControlTestMode
+        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 2, y: 2), mode: mode)
+        let viewModel = makeViewModel(mode: mode, core: core)
 
         guard let supportIndex = core.handStacks.firstIndex(where: { $0.topCard?.supportCard == .nextRefresh }) else {
             return XCTFail("NEXT更新補助カードが手札にありません")
@@ -135,8 +137,9 @@ final class GameViewModelTests: XCTestCase {
             .move(.kingLeft),
             .move(.kingDown)
         ], configuration: .supportToolkit)
-        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 2, y: 2))
-        let viewModel = makeViewModel(mode: .dungeonPlaceholder, core: core)
+        let mode = legacyControlTestMode
+        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 2, y: 2), mode: mode)
+        let viewModel = makeViewModel(mode: mode, core: core)
 
         guard let supportIndex = core.handStacks.firstIndex(where: { $0.topCard?.supportCard == .swapOne }) else {
             return XCTFail("入替補助カードが手札にありません")
@@ -152,7 +155,7 @@ final class GameViewModelTests: XCTestCase {
 
     /// 手動ペナルティが進行中のみで発火し、ペナルティ量が一致することを確認
     func testRequestManualPenaltySetsPendingActionWhenPlayable() {
-        let (viewModel, core) = makeViewModel(mode: .dungeonPlaceholder)
+        let (viewModel, core) = makeViewModel(mode: legacyControlTestMode)
         XCTAssertNil(viewModel.pendingMenuAction, "初期状態では確認ダイアログが未設定であるべきです")
 
         viewModel.requestManualPenalty()
@@ -179,7 +182,7 @@ final class GameViewModelTests: XCTestCase {
 
     /// プレイ待機中は手動ペナルティの確認がセットされないことを確認
     func testRequestManualPenaltyIgnoredWhenNotPlaying() {
-        let (viewModel, core) = makeViewModel(mode: .dungeonPlaceholder, resolvesSpawnSelection: false)
+        let (viewModel, core) = makeViewModel(mode: legacyControlTestMode, resolvesSpawnSelection: false)
         XCTAssertEqual(core.progress, .awaitingSpawn, "クラシカルモードではスポーン待機が初期状態です")
 
         viewModel.requestManualPenalty()
@@ -995,6 +998,72 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertEqual(nextViewModel.boardBridge.animatingCard?.moveCard, reward)
     }
 
+    func testDungeonResumeStoreSavesCurrentPlayingSnapshot() throws {
+        let (defaults, suiteName) = try makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let resumeStore = DungeonRunResumeStore(userDefaults: defaults)
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
+        let mode = try XCTUnwrap(DungeonLibrary.shared.firstFloorMode(for: tower))
+        let (viewModel, core) = makeViewModel(mode: mode, dungeonRunResumeStore: resumeStore)
+
+        core.overrideMetricsForTesting(moveCount: 3, penaltyCount: 0, elapsedSeconds: 18)
+        core.overrideDungeonHPForTesting(2)
+        viewModel.saveCurrentDungeonResumeIfPossible()
+
+        let snapshot = try XCTUnwrap(resumeStore.snapshot)
+        XCTAssertEqual(snapshot.dungeonID, tower.id)
+        XCTAssertEqual(snapshot.floorIndex, 0)
+        XCTAssertEqual(snapshot.moveCount, 3)
+        XCTAssertEqual(snapshot.elapsedSeconds, 18)
+        XCTAssertEqual(snapshot.dungeonHP, 2)
+    }
+
+    func testDungeonResumeStoreClearsOnFailureAndTitleReturn() throws {
+        let (defaults, suiteName) = try makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let resumeStore = DungeonRunResumeStore(userDefaults: defaults)
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
+        let mode = try XCTUnwrap(DungeonLibrary.shared.firstFloorMode(for: tower))
+        let (viewModel, _) = makeViewModel(mode: mode, dungeonRunResumeStore: resumeStore)
+
+        viewModel.saveCurrentDungeonResumeIfPossible()
+        XCTAssertNotNil(resumeStore.snapshot)
+
+        viewModel.prepareForReturnToTitle()
+        XCTAssertNil(resumeStore.snapshot)
+
+        viewModel.saveCurrentDungeonResumeIfPossible()
+        XCTAssertNotNil(resumeStore.snapshot)
+        viewModel.handleProgressChangeForTesting(.failed)
+        XCTAssertNil(resumeStore.snapshot)
+    }
+
+    func testDungeonResumeStoreSavesStartedNextFloorAfterRewardSelection() throws {
+        let (defaults, suiteName) = try makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let resumeStore = DungeonRunResumeStore(userDefaults: defaults)
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
+        let firstMode = try XCTUnwrap(DungeonLibrary.shared.firstFloorMode(for: tower))
+        var requestedMode: GameMode?
+        let (viewModel, core) = makeViewModel(
+            mode: firstMode,
+            dungeonRunResumeStore: resumeStore,
+            onRequestStartDungeonFloor: { requestedMode = $0 }
+        )
+        core.overrideMetricsForTesting(moveCount: 4, penaltyCount: 0, elapsedSeconds: 20)
+        core.overrideDungeonHPForTesting(2)
+
+        let reward = try XCTUnwrap(viewModel.availableDungeonRewardMoveCards.first)
+        viewModel.showingResult = true
+        viewModel.handleDungeonRewardSelection(reward)
+
+        let nextMode = try XCTUnwrap(requestedMode)
+        let snapshot = try XCTUnwrap(resumeStore.snapshot)
+        XCTAssertEqual(nextMode.dungeonMetadataSnapshot?.runState?.currentFloorIndex, 1)
+        XCTAssertEqual(snapshot.floorIndex, 1)
+        XCTAssertEqual(snapshot.runState.rewardInventoryEntries, [DungeonInventoryEntry(card: reward, rewardUses: 3)])
+    }
+
     func testWarpTowerFixedWarpRewardAppearsUsableOnStartedNextFloor() throws {
         let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "warp-tower"))
         let firstMode = try XCTUnwrap(DungeonLibrary.shared.firstFloorMode(for: tower))
@@ -1260,6 +1329,7 @@ final class GameViewModelTests: XCTestCase {
         adsService: AdsServiceProtocol? = nil,
         onRequestReturnToTitle: (() -> Void)? = nil,
         dungeonGrowthStore: DungeonGrowthStore? = nil,
+        dungeonRunResumeStore: DungeonRunResumeStore? = nil,
         onRequestStartDungeonFloor: ((GameMode) -> Void)? = nil,
         dateProvider: MutableDateProvider? = nil,
         initialHandOrderingRawValue: String? = nil,
@@ -1276,12 +1346,14 @@ final class GameViewModelTests: XCTestCase {
         let resolvedDateProvider = dateProvider ?? MutableDateProvider(now: Date())
         let resolvedAdsService = adsService ?? DummyAdsService()
         let resolvedDungeonGrowthStore = dungeonGrowthStore ?? DungeonGrowthStore()
+        let resolvedDungeonRunResumeStore = dungeonRunResumeStore ?? makeIsolatedDungeonRunResumeStore()
         let viewModel = GameViewModel(
             mode: mode,
             gameInterfaces: interfaces,
             gameCenterService: DummyGameCenterService(),
             adsService: resolvedAdsService,
             dungeonGrowthStore: resolvedDungeonGrowthStore,
+            dungeonRunResumeStore: resolvedDungeonRunResumeStore,
             onRequestGameCenterSignIn: nil,
             onRequestReturnToTitle: onRequestReturnToTitle,
             onRequestStartDungeonFloor: onRequestStartDungeonFloor,
@@ -1299,9 +1371,39 @@ final class GameViewModelTests: XCTestCase {
             gameCenterService: DummyGameCenterService(),
             adsService: DummyAdsService(),
             dungeonGrowthStore: DungeonGrowthStore(),
+            dungeonRunResumeStore: makeIsolatedDungeonRunResumeStore(),
             onRequestGameCenterSignIn: nil,
             onRequestReturnToTitle: nil,
             onRequestStartDungeonFloor: nil
+        )
+    }
+
+    private func makeIsolatedDungeonRunResumeStore() -> DungeonRunResumeStore {
+        let suiteName = "MonoKnightAppTests.resume.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        return DungeonRunResumeStore(userDefaults: defaults)
+    }
+
+    private var legacyControlTestMode: GameMode {
+        GameMode(
+            identifier: .dungeonFloor,
+            displayName: "テスト用標準モード",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .standard,
+                spawnRule: .chooseAnyAfterPreview,
+                penalties: GameMode.PenaltySettings(
+                    deadlockPenaltyCost: 5,
+                    manualRedrawPenaltyCost: 3,
+                    manualDiscardPenaltyCost: 1,
+                    revisitPenaltyCost: 0
+                ),
+                completionRule: .boardClear
+            )
         )
     }
 

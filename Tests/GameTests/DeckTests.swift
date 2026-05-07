@@ -66,15 +66,6 @@ final class DeckTests: XCTestCase {
         XCTAssertEqual(config.deckSummaryText, "標準＋上下左右選択キング")
     }
 
-    func testTargetLabAllInDeckConfigurationStillBuildsFrozenExperimentDeck() {
-        let config = Deck.Configuration.targetLabAllIn
-        let allowedMoves = Set(config.allowedMoves)
-
-        XCTAssertTrue(Set(MoveCard.standardSet).isSubset(of: allowedMoves))
-        XCTAssertTrue(allowedMoves.contains(.fixedWarp) || allowedMoves.contains(.superWarp))
-        XCTAssertFalse(config.allowedSupportCards.isEmpty)
-    }
-
     /// 標準デッキへ斜め選択カードを追加するプリセットの内容を検証する
     func testStandardWithDiagonalChoicesDeckConfiguration() {
         let config = Deck.Configuration.standardWithDiagonalChoices
@@ -317,19 +308,6 @@ final class DeckTests: XCTestCase {
         XCTAssertEqual(config.deckSummaryText, "選択カード総合ミックス", "サマリーテキストが仕様と異なります")
     }
 
-    /// クラシカルチャレンジ設定では桂馬カードのみが配られるか検証する
-    func testClassicalChallengeDeckDrawsOnlyKnightMoves() {
-        var deck = Deck(seed: 2024, configuration: .classicalChallenge)
-        let sampleCount = 200
-        for _ in 0..<sampleCount {
-            guard let card = deck.draw()?.move else {
-                XCTFail("クラシカルチャレンジのデッキで nil が返却されました")
-                return
-            }
-            XCTAssertTrue(card.isKnightType, "桂馬以外のカードが出現: \(card)")
-        }
-    }
-
     /// キングと桂馬 16 種構成デッキの内容を検証する
     func testKingAndKnightBasicDeckConfiguration() {
         let config = Deck.Configuration.kingAndKnightBasic
@@ -409,22 +387,6 @@ final class DeckTests: XCTestCase {
         XCTAssertEqual(drawn, preset, "リセット後のプリセット順が一致しません")
     }
 
-    /// 補助カード実験デッキが v1 の補助カードをすべて含むことを確認
-    func testSupportToolkitDeckIncludesSupportCards() {
-        let config = Deck.Configuration.supportToolkit
-
-        XCTAssertEqual(Set(config.allowedSupportCards), Set(SupportCard.allCases), "補助カード実験デッキに補助カード3種が揃っていません")
-        XCTAssertFalse(config.allowedMoves.isEmpty, "補助カードだけでなく基本移動カードも混ぜる想定です")
-        XCTAssertEqual(config.deckSummaryText, "補助カード実験デッキ")
-    }
-
-    /// targetLabAllIn に補助カードが入り、標準デッキには混入しないことを確認
-    func testSupportCardsAreLimitedToExperimentDecks() {
-        XCTAssertEqual(Set(Deck.Configuration.targetLabAllIn.allowedSupportCards), Set(SupportCard.allCases))
-        XCTAssertTrue(Deck.Configuration.standard.allowedSupportCards.isEmpty, "標準デッキへ補助カードを混ぜない想定です")
-        XCTAssertTrue(Deck.Configuration.standardWithAllChoices.allowedSupportCards.isEmpty, "既存の標準派生へ補助カードを混ぜない想定です")
-    }
-
     /// ラン報酬カードが未収録カードを追加し、既存カードの重みを増やすことを確認
     func testBonusMoveCardsAddMissingCardsAndIncreaseExistingWeights() {
         let config = Deck.Configuration.kingOnly.addingBonusMoveCards([
@@ -438,16 +400,4 @@ final class DeckTests: XCTestCase {
         XCTAssertTrue(config.deckSummaryText.contains("報酬"))
     }
 
-    /// テスト用デッキで補助カードを固定順に配れることを確認
-    func testMakeTestDeckSupportsPlayableCardSequence() {
-        var deck = Deck.makeTestDeck(playableCards: [
-            .support(.nextRefresh),
-            .move(.kingRight),
-            .support(.guidance)
-        ], configuration: .supportToolkit)
-
-        XCTAssertEqual(deck.draw()?.supportCard, .nextRefresh)
-        XCTAssertEqual(deck.draw()?.moveCard, .kingRight)
-        XCTAssertEqual(deck.draw()?.supportCard, .guidance)
-    }
 }

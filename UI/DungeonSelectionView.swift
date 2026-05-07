@@ -6,12 +6,30 @@ import SwiftUI
 struct DungeonSelectionView: View {
     let dungeonLibrary: DungeonLibrary
     @ObservedObject var dungeonGrowthStore: DungeonGrowthStore
+    @ObservedObject var dungeonRunResumeStore: DungeonRunResumeStore
     let onClose: () -> Void
+    let onResumeDungeon: (DungeonRunResumeSnapshot) -> Void
     let onStartDungeon: (DungeonDefinition, Int) -> Void
 
     private let theme = AppTheme()
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var isGrowthSectionExpanded = false
+
+    init(
+        dungeonLibrary: DungeonLibrary,
+        dungeonGrowthStore: DungeonGrowthStore,
+        dungeonRunResumeStore: DungeonRunResumeStore = DungeonRunResumeStore(),
+        onClose: @escaping () -> Void,
+        onResumeDungeon: @escaping (DungeonRunResumeSnapshot) -> Void = { _ in },
+        onStartDungeon: @escaping (DungeonDefinition, Int) -> Void
+    ) {
+        self.dungeonLibrary = dungeonLibrary
+        self._dungeonGrowthStore = ObservedObject(wrappedValue: dungeonGrowthStore)
+        self._dungeonRunResumeStore = ObservedObject(wrappedValue: dungeonRunResumeStore)
+        self.onClose = onClose
+        self.onResumeDungeon = onResumeDungeon
+        self.onStartDungeon = onStartDungeon
+    }
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
@@ -181,6 +199,7 @@ struct DungeonSelectionView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
+            resumeButtonIfNeeded(for: dungeon)
             startButtons(for: dungeon)
         }
         .padding(14)
@@ -194,6 +213,28 @@ struct DungeonSelectionView: View {
                 .stroke(theme.statisticBadgeBorder, lineWidth: 1)
         )
         .accessibilityIdentifier("dungeon_card_\(dungeon.id)")
+    }
+
+    @ViewBuilder
+    private func resumeButtonIfNeeded(for dungeon: DungeonDefinition) -> some View {
+        if let presentation = DungeonResumePresentation.make(
+            dungeon: dungeon,
+            snapshot: dungeonRunResumeStore.snapshot
+        ) {
+            Button {
+                onResumeDungeon(presentation.snapshot)
+            } label: {
+                Label(presentation.buttonTitle, systemImage: "arrow.clockwise.circle.fill")
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(theme.accentPrimary)
+            .foregroundColor(theme.accentOnPrimary)
+            .controlSize(.large)
+            .accessibilityIdentifier(presentation.accessibilityIdentifier)
+            .accessibilityHint(Text(presentation.accessibilityHint))
+        }
     }
 
     @ViewBuilder
@@ -279,6 +320,27 @@ struct DungeonSelectionView: View {
 
     private var horizontalPadding: CGFloat {
         horizontalSizeClass == .regular ? 44 : 24
+    }
+}
+
+struct DungeonResumePresentation: Equatable {
+    let snapshot: DungeonRunResumeSnapshot
+    let buttonTitle: String
+    let accessibilityIdentifier: String
+    let accessibilityHint: String
+
+    static func make(dungeon: DungeonDefinition, snapshot: DungeonRunResumeSnapshot?) -> DungeonResumePresentation? {
+        guard let snapshot,
+              snapshot.dungeonID == dungeon.id,
+              dungeon.floors.indices.contains(snapshot.floorIndex)
+        else { return nil }
+        let floorNumber = snapshot.floorIndex + 1
+        return DungeonResumePresentation(
+            snapshot: snapshot,
+            buttonTitle: "続きから \(floorNumber)F",
+            accessibilityIdentifier: "dungeon_resume_button_\(dungeon.id)",
+            accessibilityHint: "\(dungeon.title) \(floorNumber)階の続きから再開します"
+        )
     }
 }
 

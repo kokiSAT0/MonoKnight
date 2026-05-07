@@ -63,6 +63,31 @@ final class DungeonSelectionViewTests: XCTestCase {
         )
     }
 
+    func testDungeonSelectionResumePresentationAppearsOnlyForSavedTower() throws {
+        let tutorialTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
+        let growthTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let snapshot = makeResumeSnapshot(dungeonID: growthTower.id, floorIndex: 2)
+
+        XCTAssertNil(DungeonResumePresentation.make(dungeon: tutorialTower, snapshot: snapshot))
+
+        let presentation = try XCTUnwrap(DungeonResumePresentation.make(dungeon: growthTower, snapshot: snapshot))
+        XCTAssertEqual(presentation.buttonTitle, "続きから 3F")
+        XCTAssertEqual(presentation.accessibilityIdentifier, "dungeon_resume_button_growth-tower")
+        XCTAssertEqual(presentation.accessibilityHint, "成長塔 3階の続きから再開します")
+    }
+
+    func testDungeonSelectionResumeModeUsesSavedSnapshot() throws {
+        let growthTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let snapshot = makeResumeSnapshot(dungeonID: growthTower.id, floorIndex: 1, cardVariationSeed: 777)
+
+        let mode = try XCTUnwrap(DungeonLibrary.shared.resumeMode(from: snapshot))
+
+        XCTAssertEqual(mode.dungeonMetadataSnapshot?.dungeonID, growthTower.id)
+        XCTAssertEqual(mode.dungeonMetadataSnapshot?.runState?.currentFloorIndex, 1)
+        XCTAssertEqual(mode.dungeonMetadataSnapshot?.runState?.cardVariationSeed, 777)
+        XCTAssertEqual(mode.dungeonRules?.failureRule.initialHP, snapshot.dungeonHP)
+    }
+
     func testDungeonSelectionShowsGrowthRewardStatusForGrowthTowers() throws {
         let suiteName = "DungeonSelectionViewTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName) ?? .standard
@@ -145,5 +170,36 @@ final class DungeonSelectionViewTests: XCTestCase {
         _ = growthStore.registerDungeonClear(dungeon: growthTower, runState: tenthFloor, hasNextFloor: true)
 
         XCTAssertTrue(growthStore.canUnlock(.climbingKit))
+    }
+
+    private func makeResumeSnapshot(
+        dungeonID: String,
+        floorIndex: Int,
+        cardVariationSeed: UInt64? = nil
+    ) -> DungeonRunResumeSnapshot {
+        let runState = DungeonRunState(
+            dungeonID: dungeonID,
+            currentFloorIndex: floorIndex,
+            carriedHP: 3,
+            clearedFloorCount: floorIndex,
+            cardVariationSeed: cardVariationSeed
+        )
+        return DungeonRunResumeSnapshot(
+            dungeonID: dungeonID,
+            floorIndex: floorIndex,
+            runState: runState,
+            currentPoint: GridPoint(x: 4, y: 4),
+            visitedPoints: [GridPoint(x: 4, y: 4)],
+            moveCount: 2,
+            elapsedSeconds: 12,
+            dungeonHP: 2,
+            hazardDamageMitigationsRemaining: 0,
+            enemyStates: [],
+            crackedFloorPoints: [],
+            collapsedFloorPoints: [],
+            dungeonInventoryEntries: [],
+            collectedDungeonCardPickupIDs: [],
+            isDungeonExitUnlocked: true
+        )
     }
 }

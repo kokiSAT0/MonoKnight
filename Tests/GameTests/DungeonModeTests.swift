@@ -2085,6 +2085,73 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertTrue(core.dungeonInventoryEntries.contains { $0.card == .straightRight2 && $0.pickupUses == 1 })
     }
 
+    func testDungeonResumeSnapshotRestoresCurrentFloorState() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
+        let mode = try XCTUnwrap(DungeonLibrary.shared.firstFloorMode(for: tower))
+        let core = makeCore(mode: mode)
+
+        playBasicMove(to: GridPoint(x: 1, y: 1), in: core)
+
+        let snapshot = try XCTUnwrap(core.makeDungeonResumeSnapshot())
+        let resumeMode = try XCTUnwrap(DungeonLibrary.shared.resumeMode(from: snapshot))
+        let restoredCore = makeCore(mode: resumeMode)
+
+        XCTAssertTrue(restoredCore.restoreDungeonResumeSnapshot(snapshot))
+        XCTAssertEqual(restoredCore.current, core.current)
+        XCTAssertEqual(restoredCore.moveCount, core.moveCount)
+        XCTAssertEqual(restoredCore.dungeonHP, core.dungeonHP)
+        XCTAssertEqual(restoredCore.remainingDungeonTurns, core.remainingDungeonTurns)
+        XCTAssertEqual(restoredCore.dungeonInventoryEntries, core.dungeonInventoryEntries)
+        XCTAssertEqual(restoredCore.collectedDungeonCardPickupIDs, core.collectedDungeonCardPickupIDs)
+        XCTAssertEqual(Set(restoredCore.activeDungeonCardPickups.map(\.id)), Set(core.activeDungeonCardPickups.map(\.id)))
+    }
+
+    func testDungeonResumeSnapshotRestoresKeyEnemiesAndFloorDamageState() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "key-door-tower"))
+        let mode = try XCTUnwrap(DungeonLibrary.shared.floorMode(for: tower, floorIndex: 0))
+        let core = makeCore(mode: mode)
+
+        for destination in [
+            GridPoint(x: 1, y: 4),
+            GridPoint(x: 2, y: 4),
+            GridPoint(x: 2, y: 5),
+            GridPoint(x: 2, y: 6)
+        ] {
+            playBasicMove(to: destination, in: core)
+        }
+
+        let snapshot = try XCTUnwrap(core.makeDungeonResumeSnapshot())
+        let restoredCore = makeCore(mode: try XCTUnwrap(DungeonLibrary.shared.resumeMode(from: snapshot)))
+
+        XCTAssertTrue(restoredCore.restoreDungeonResumeSnapshot(snapshot))
+        XCTAssertEqual(restoredCore.current, core.current)
+        XCTAssertEqual(restoredCore.enemyStates, core.enemyStates)
+        XCTAssertEqual(restoredCore.isDungeonExitUnlocked, core.isDungeonExitUnlocked)
+        XCTAssertEqual(restoredCore.crackedFloorPoints, core.crackedFloorPoints)
+        XCTAssertEqual(restoredCore.collapsedFloorPoints, core.collapsedFloorPoints)
+        XCTAssertEqual(restoredCore.hazardDamageMitigationsRemaining, core.hazardDamageMitigationsRemaining)
+        XCTAssertEqual(restoredCore.dungeonHP, core.dungeonHP)
+    }
+
+    func testGrowthTowerResumeSnapshotKeepsCardVariationSeedStable() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let mode = try XCTUnwrap(DungeonLibrary.shared.firstFloorMode(for: tower, cardVariationSeed: 999))
+        let core = makeCore(mode: mode)
+
+        let basicMove = try XCTUnwrap(core.availableBasicOrthogonalMoves().first)
+        core.playBasicOrthogonalMove(using: basicMove)
+
+        let snapshot = try XCTUnwrap(core.makeDungeonResumeSnapshot())
+        let resumedMode = try XCTUnwrap(DungeonLibrary.shared.resumeMode(from: snapshot))
+        let originalFloor = try XCTUnwrap(tower.resolvedFloor(at: 0, runState: snapshot.runState))
+        let resumedFloor = try XCTUnwrap(tower.resolvedFloor(at: 0, runState: resumedMode.dungeonMetadataSnapshot?.runState))
+
+        XCTAssertEqual(snapshot.runState.cardVariationSeed, 999)
+        XCTAssertEqual(resumedMode.dungeonMetadataSnapshot?.runState?.cardVariationSeed, 999)
+        XCTAssertEqual(resumedFloor.cardPickups, originalFloor.cardPickups)
+        XCTAssertEqual(resumedFloor.rewardMoveCardsAfterClear, originalFloor.rewardMoveCardsAfterClear)
+    }
+
     func testDungeonInventoryCarriesOnlyRewardUsesBetweenFloors() {
         let runState = DungeonRunState(
             dungeonID: "tutorial-tower",

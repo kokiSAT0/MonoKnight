@@ -520,6 +520,66 @@ final class GameViewIntegrationTests: XCTestCase {
         }
     }
 
+    /// 基本移動とカード候補が重なる場合でも、ViewModel 経由ではカードを消費せず基本移動を実行する
+    func testBoardTapExecutesBasicMoveBeforeMatchingCardMove() {
+        let scheduler = PenaltyBannerSchedulerSpy()
+        let gameCenter = GameCenterServiceSpy()
+        let adsService = AdsServiceSpy()
+        let origin = GridPoint(x: 0, y: 0)
+        let destination = GridPoint(x: 1, y: 0)
+        let blocker = GridPoint(x: 2, y: 0)
+        let regulation = GameMode.Regulation(
+            boardSize: BoardGeometry.standardSize,
+            handSize: 1,
+            nextPreviewCount: 0,
+            allowsStacking: true,
+            deckPreset: .directionalRayFocus,
+            spawnRule: .fixed(origin),
+            penalties: GameMode.PenaltySettings(
+                deadlockPenaltyCost: 0,
+                manualRedrawPenaltyCost: 0,
+                manualDiscardPenaltyCost: 0,
+                revisitPenaltyCost: 0
+            ),
+            impassableTilePoints: [blocker],
+            completionRule: .dungeonExit(exitPoint: GridPoint(x: 4, y: 4)),
+            dungeonRules: DungeonRules(
+                difficulty: .growth,
+                failureRule: DungeonFailureRule(initialHP: 3, turnLimit: nil),
+                allowsBasicOrthogonalMove: true
+            )
+        )
+        let mode = GameMode(
+            identifier: .dungeonFloor,
+            displayName: "基本移動優先テスト",
+            regulation: regulation,
+            leaderboardEligible: false
+        )
+        let deck = Deck.makeTestDeck(cards: [.rayRight], configuration: regulation.deckPreset.configuration)
+        let core = GameCore.makeTestInstance(deck: deck, current: origin, mode: mode)
+        let initialCardID = core.handStacks.first?.topCard?.id
+        let interfaces = GameModuleInterfaces { _ in core }
+        let viewModel = GameViewModel(
+            mode: mode,
+            gameInterfaces: interfaces,
+            gameCenterService: gameCenter,
+            adsService: adsService,
+            onRequestReturnToTitle: nil,
+            penaltyBannerScheduler: scheduler
+        )
+
+        viewModel.boardBridge.updateHapticsSetting(isEnabled: false)
+        core.handleTap(at: destination)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+
+        XCTAssertEqual(core.current, destination, "基本移動リクエストが ViewModel 経由で実行されていません")
+        XCTAssertEqual(core.moveCount, 1, "基本移動は1手として数える想定です")
+        XCTAssertEqual(core.handStacks.first?.topCard?.id, initialCardID, "基本移動ではカードを消費しない想定です")
+        XCTAssertNil(core.boardTapPlayRequest, "基本移動で届くマスではカード使用リクエストを残さない想定です")
+        XCTAssertNil(core.boardTapBasicMoveRequest, "基本移動リクエストは処理後にクリアされる想定です")
+        XCTAssertNil(viewModel.boardBridge.animatingCard, "基本移動ではカード演出を開始しない想定です")
+    }
+
     /// 複数の複数候補カードが同一マスへ移動可能な状態で盤面をタップした場合、警告が表示されることを確認する
     func testBoardTapWithoutSelectionPresentsWarningWhenConflictingMultiCandidateCardsExist() {
         let scheduler = PenaltyBannerSchedulerSpy()

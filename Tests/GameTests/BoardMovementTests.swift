@@ -96,16 +96,36 @@ final class BoardMovementTests: XCTestCase {
     }
 
     /// availableMoves() が MovementResolution の経路情報を露出することを確認する
-    func testAvailableMovesProvidesMovementPath() {
-        let deck = Deck.makeTestDeck(cards: [
-            .straightRight2,
-            .kingUp,
-            .kingLeft,
-            .kingDown,
-            .kingRight
-        ])
+    func testAvailableMovesProvidesMovementPathForDungeonInventoryCard() {
         let origin = GridPoint.center(of: BoardGeometry.standardSize)
-        let core = GameCore.makeTestInstance(deck: deck, current: origin)
+        let mode = GameMode(
+            identifier: .dungeonFloor,
+            displayName: "塔移動経路テスト",
+            regulation: GameMode.Regulation(
+                boardSize: BoardGeometry.standardSize,
+                handSize: 5,
+                nextPreviewCount: 0,
+                allowsStacking: true,
+                deckPreset: .standard,
+                spawnRule: .fixed(origin),
+                penalties: GameMode.PenaltySettings(
+                    deadlockPenaltyCost: 0,
+                    manualRedrawPenaltyCost: 0,
+                    manualDiscardPenaltyCost: 0,
+                    revisitPenaltyCost: 0
+                ),
+                completionRule: .dungeonExit(exitPoint: GridPoint(x: 4, y: 4)),
+                dungeonRules: DungeonRules(
+                    difficulty: .growth,
+                    failureRule: DungeonFailureRule(initialHP: 3, turnLimit: nil),
+                    cardAcquisitionMode: .inventoryOnly
+                )
+            ),
+            leaderboardEligible: false
+        )
+        let core = GameCore(mode: mode)
+
+        XCTAssertTrue(core.addDungeonInventoryCardForTesting(.straightRight2, pickupUses: 1))
 
         guard let straightMove = core.availableMoves().first(where: { $0.card.move == .straightRight2 }) else {
             XCTFail("直進 2 マスカードが候補に含まれていません")
