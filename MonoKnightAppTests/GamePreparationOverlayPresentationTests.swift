@@ -14,8 +14,7 @@ final class GamePreparationOverlayPresentationTests: XCTestCase {
         XCTAssertEqual(presentation.clearConditionText, "クリア: 出口 (3,4)")
         XCTAssertTrue(presentation.shortRuleSummaryText.contains("HP 3"))
         XCTAssertTrue(presentation.shortRuleSummaryText.contains("残り手数 7"))
-        XCTAssertTrue(presentation.shortRuleSummaryText.contains("床のカードは1回使い切り"))
-        XCTAssertTrue(presentation.shortRuleSummaryText.contains("報酬カードは持ち越せます"))
+        XCTAssertTrue(presentation.shortRuleSummaryText.contains("床のカードも未使用分は次の階へ持ち越せます"))
         XCTAssertEqual(presentation.detailsTitle, "塔のルールを見る")
         XCTAssertTrue(
             presentation.featureChips.contains(

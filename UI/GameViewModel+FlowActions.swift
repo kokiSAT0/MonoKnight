@@ -20,6 +20,17 @@ extension GameViewModel {
         }
     }
 
+    var isInspectingFailedBoard: Bool {
+        isResultFailed && !showingResult
+    }
+
+    func showFailedResultFromBoardInspection() {
+        guard isResultFailed else { return }
+        applyResultPresentationMutation { state in
+            state.showingResult = true
+        }
+    }
+
     func requestManualPenalty() {
         guard isManualPenaltyButtonEnabled else { return }
         applySessionUIMutation { state in

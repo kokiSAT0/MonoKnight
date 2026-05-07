@@ -62,6 +62,16 @@ extension GameView {
                 .transition(.opacity)
                 .zIndex(3)
             }
+            if viewModel.isInspectingFailedBoard {
+                VStack {
+                    Spacer(minLength: 0)
+                    failedBoardInspectionBar
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, max(layoutContext.bottomInset, 12))
+                }
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .zIndex(4)
+            }
         }
         // 画面全体の背景もテーマで制御し、システム設定と調和させる
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -103,6 +113,98 @@ extension GameView {
             .onChange(of: width) { _, newWidth in
                 boardBridge.updateSceneSize(to: newWidth)
             }
+    }
+
+    var failedBoardInspectionBar: some View {
+        ViewThatFits(in: .horizontal) {
+            failedBoardInspectionBarContent(isStacked: false)
+            failedBoardInspectionBarContent(isStacked: true)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(theme.spawnOverlayBackground)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(theme.spawnOverlayBorder, lineWidth: 1)
+                )
+        )
+        .shadow(color: theme.spawnOverlayShadow.opacity(0.8), radius: 18, x: 0, y: 8)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("failed_board_inspection_bar")
+    }
+
+    func failedBoardInspectionBarContent(isStacked: Bool) -> some View {
+        let summary = failedBoardInspectionSummaryText
+
+        return Group {
+            if isStacked {
+                VStack(alignment: .leading, spacing: 10) {
+                    failedBoardInspectionText(summary: summary)
+                    failedBoardInspectionActions
+                }
+            } else {
+                HStack(alignment: .center, spacing: 12) {
+                    failedBoardInspectionText(summary: summary)
+                    Spacer(minLength: 8)
+                    failedBoardInspectionActions
+                }
+            }
+        }
+    }
+
+    func failedBoardInspectionText(summary: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text("ゲームオーバー")
+                .font(.system(size: 15, weight: .bold, design: .rounded))
+                .foregroundColor(theme.textPrimary)
+            Text(summary)
+                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .foregroundColor(theme.textSecondary)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    var failedBoardInspectionActions: some View {
+        HStack(spacing: 8) {
+            Button {
+                viewModel.showFailedResultFromBoardInspection()
+            } label: {
+                Label("結果", systemImage: "list.bullet.rectangle")
+                    .labelStyle(.titleAndIcon)
+                    .frame(minWidth: 76)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+            .accessibilityIdentifier("failed_board_result_button")
+            .accessibilityLabel(Text("結果へ戻る"))
+
+            Button {
+                viewModel.handleResultReturnToTitle()
+            } label: {
+                Label("ホーム", systemImage: "house")
+                    .labelStyle(.titleAndIcon)
+                    .frame(minWidth: 82)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .accessibilityIdentifier("failed_board_return_to_title_button")
+            .accessibilityLabel(Text("ホームへ戻る"))
+        }
+    }
+
+    var failedBoardInspectionSummaryText: String {
+        var parts: [String] = []
+        if let reason = viewModel.failureReasonText {
+            parts.append(reason)
+        }
+        parts.append("HP \(viewModel.dungeonHP)")
+        if let remainingTurns = viewModel.remainingDungeonTurns {
+            parts.append("残り手数 \(remainingTurns)")
+        }
+        return parts.joined(separator: " / ")
     }
 
     /// スポーン位置選択中に盤面へ重ねて表示する案内バナー

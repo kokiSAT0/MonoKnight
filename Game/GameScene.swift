@@ -470,7 +470,10 @@
         }
 
         @discardableResult
-        public func playDungeonEnemyTurn(_ event: DungeonEnemyTurnEvent) -> TimeInterval {
+        public func playDungeonEnemyTurn(
+            _ event: DungeonEnemyTurnEvent,
+            finalDangerPoints: Set<GridPoint>
+        ) -> TimeInterval {
             guard isLayoutReady else { return 0 }
 
             let movingTransitions = event.transitions.filter(\.didMove)
@@ -479,43 +482,21 @@
             let flashDuration: TimeInterval = 0.22
 
             for (index, transition) in movingTransitions.enumerated() {
-                guard board.contains(transition.before.position),
-                      board.contains(transition.after.position)
-                else { continue }
-                let marker = makeEnemyTurnMarker(at: transition.before.position)
-                marker.alpha = 0
-                addChild(marker)
-
-                let wait = SKAction.wait(forDuration: stepDuration * Double(index))
-                let fadeIn = SKAction.fadeAlpha(to: 0.95, duration: 0.04)
-                let move = SKAction.move(
-                    to: layoutSupport.position(for: transition.after.position),
+                animateDungeonEnemyHighlight(
+                    from: transition.before.position,
+                    to: transition.after.position,
+                    after: stepDuration * Double(index),
                     duration: stepDuration
                 )
-                move.timingMode = .easeInEaseOut
-                let fadeOut = SKAction.fadeOut(withDuration: 0.08)
-                marker.run(.sequence([wait, fadeIn, move, fadeOut, .removeFromParent()]))
             }
 
             for transition in stationaryTransitions {
-                pulseEnemyTurnPoint(transition.after.position, duration: flashDuration)
+                pulseDangerPoint(transition.after.position, delay: 0, duration: flashDuration)
             }
 
             let dangerDelay = stepDuration * Double(movingTransitions.count)
-            let dangerPoints = (latestHighlightPoints[.dungeonDanger] ?? [])
-                .union(latestHighlightPoints[.dungeonEnemyWarning] ?? [])
-            for point in dangerPoints {
-                guard board.contains(point) else { continue }
-                let wait = SKAction.wait(forDuration: dangerDelay)
-                let pulse = makeDangerPulse(at: point)
-                pulse.alpha = 0
-                addChild(pulse)
-                pulse.run(.sequence([
-                    wait,
-                    .fadeAlpha(to: 0.5, duration: 0.06),
-                    .fadeOut(withDuration: flashDuration),
-                    .removeFromParent()
-                ]))
+            for point in finalDangerPoints {
+                pulseDangerPoint(point, delay: dangerDelay, duration: flashDuration)
             }
 
             return dangerDelay + flashDuration
@@ -530,16 +511,21 @@
             )
         }
 
-        private func makeEnemyTurnMarker(at point: GridPoint) -> SKShapeNode {
-            let marker = SKShapeNode(circleOfRadius: layoutSupport.tileSize * 0.24)
-            marker.position = layoutSupport.position(for: point)
-            marker.fillColor = palette.boardGuideHighlight.withAlphaComponent(0.82)
-            marker.strokeColor = palette.boardGridLine.withAlphaComponent(0.92)
-            marker.lineWidth = max(layoutSupport.tileSize * 0.035, 1.5)
-            marker.glowWidth = max(layoutSupport.tileSize * 0.04, 2.0)
-            marker.zPosition = 1.55
-            marker.isAntialiased = true
-            return marker
+        private func animateDungeonEnemyHighlight(
+            from before: GridPoint,
+            to after: GridPoint,
+            after delay: TimeInterval,
+            duration: TimeInterval
+        ) {
+            guard board.contains(before),
+                  board.contains(after),
+                  let node = highlightRenderer.highlightNodes[.dungeonEnemy]?[before]
+            else { return }
+
+            let wait = SKAction.wait(forDuration: delay)
+            let move = SKAction.move(to: layoutSupport.position(for: after), duration: duration)
+            move.timingMode = .easeInEaseOut
+            node.run(.sequence([wait, move]))
         }
 
         private func makeDangerPulse(at point: GridPoint) -> SKShapeNode {
@@ -555,12 +541,13 @@
             return pulse
         }
 
-        private func pulseEnemyTurnPoint(_ point: GridPoint, duration: TimeInterval) {
+        private func pulseDangerPoint(_ point: GridPoint, delay: TimeInterval, duration: TimeInterval) {
             guard board.contains(point) else { return }
-            let marker = makeEnemyTurnMarker(at: point)
-            marker.alpha = 0
-            addChild(marker)
-            marker.run(.sequence([
+            let pulse = makeDangerPulse(at: point)
+            pulse.alpha = 0
+            addChild(pulse)
+            pulse.run(.sequence([
+                .wait(forDuration: delay),
                 .fadeAlpha(to: 0.75, duration: 0.05),
                 .fadeOut(withDuration: duration),
                 .removeFromParent()

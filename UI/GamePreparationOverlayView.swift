@@ -33,7 +33,7 @@ struct GamePreparationOverlayPresentation: Equatable {
         clearConditionText = "クリア: 出口 \(exitText)"
         shortRuleSummaryText = [hpText, turnText, rewardText]
             .compactMap { $0 }
-            .joined(separator: " / ") + "。床のカードは1回使い切り、報酬カードは持ち越せます。"
+            .joined(separator: " / ") + "。床のカードも未使用分は次の階へ持ち越せます。"
         detailsTitle = "塔のルールを見る"
 
         let chips = DungeonFeatureResolver.chips(for: mode)

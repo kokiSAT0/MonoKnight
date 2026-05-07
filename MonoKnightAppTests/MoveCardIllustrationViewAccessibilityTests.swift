@@ -65,10 +65,10 @@ final class MoveCardIllustrationViewAccessibilityTests: XCTestCase {
 
         for choice in choices {
             XCTAssertEqual(choice.actionText, "手札に追加")
-            XCTAssertEqual(choice.usesBadgeText, "3回使える")
+            XCTAssertEqual(choice.usesBadgeText, "2回使える")
             XCTAssertTrue(choice.accessibilityLabel.contains(choice.title), "読み上げにカード名が含まれていません")
             XCTAssertTrue(choice.accessibilityLabel.contains("手札に追加"), "読み上げにカードを手札へ追加する操作が含まれていません")
-            XCTAssertTrue(choice.accessibilityLabel.contains("3回使える"), "読み上げに報酬カードの使用回数が含まれていません")
+            XCTAssertTrue(choice.accessibilityLabel.contains("2回使える"), "読み上げに報酬カードの使用回数が含まれていません")
             XCTAssertTrue(choice.accessibilityLabel.contains("選ぶと次の階へ進みます"), "読み上げに選択後の遷移が含まれていません")
             XCTAssertTrue(
                 choice.accessibilityLabel.contains(choice.card.encyclopediaDescription),
@@ -80,7 +80,7 @@ final class MoveCardIllustrationViewAccessibilityTests: XCTestCase {
     func testDungeonPickupCarryoverChoicePresentationExplainsHandAddition() {
         let choice = DungeonRewardCardChoicePresentation(
             card: .straightUp2,
-            rewardUses: 4,
+            rewardUses: 1,
             sourceText: "このフロアで拾ったカード",
             accessibilityIdentifierPrefix: "dungeon_pickup_carryover_card",
             accessibilityRoleText: "手札に追加するカード"
@@ -88,13 +88,13 @@ final class MoveCardIllustrationViewAccessibilityTests: XCTestCase {
 
         XCTAssertEqual(choice.actionText, "手札に追加")
         XCTAssertEqual(choice.sourceText, "このフロアで拾ったカード")
-        XCTAssertEqual(choice.usesBadgeText, "4回使える")
+        XCTAssertEqual(choice.usesBadgeText, "1回使える")
         XCTAssertEqual(choice.accessibilityIdentifier, "dungeon_pickup_carryover_card_上2")
         XCTAssertTrue(choice.accessibilityLabel.contains("このフロアで拾ったカード"))
         XCTAssertTrue(choice.accessibilityLabel.contains("手札に追加"))
         XCTAssertFalse(choice.accessibilityLabel.contains("報酬カード化"))
         XCTAssertFalse(choice.accessibilityLabel.contains("持ち越し"))
-        XCTAssertTrue(choice.accessibilityLabel.contains("4回使える"))
+        XCTAssertTrue(choice.accessibilityLabel.contains("1回使える"))
         XCTAssertTrue(choice.accessibilityLabel.contains("選ぶと次の階へ進みます"))
         XCTAssertTrue(
             choice.accessibilityLabel.contains(choice.card.encyclopediaDescription),
@@ -132,6 +132,7 @@ final class MoveCardIllustrationViewAccessibilityTests: XCTestCase {
 
         XCTAssertTrue(policy.isIntermediateDungeonClear)
         XCTAssertFalse(policy.showsReturnToTitleButton)
+        XCTAssertFalse(policy.showsInspectFailedBoardButton)
         XCTAssertFalse(policy.showsRetryButton)
         XCTAssertFalse(policy.showsLeaderboardButton)
         XCTAssertFalse(policy.showsShareLink)
@@ -148,6 +149,7 @@ final class MoveCardIllustrationViewAccessibilityTests: XCTestCase {
 
         XCTAssertFalse(policy.isIntermediateDungeonClear)
         XCTAssertTrue(policy.showsReturnToTitleButton)
+        XCTAssertFalse(policy.showsInspectFailedBoardButton)
         XCTAssertTrue(policy.showsRetryButton)
         XCTAssertTrue(policy.showsLeaderboardButton)
         XCTAssertTrue(policy.showsShareLink)
@@ -164,6 +166,7 @@ final class MoveCardIllustrationViewAccessibilityTests: XCTestCase {
 
         XCTAssertFalse(policy.isIntermediateDungeonClear)
         XCTAssertTrue(policy.showsReturnToTitleButton)
+        XCTAssertTrue(policy.showsInspectFailedBoardButton)
         XCTAssertTrue(policy.showsRetryButton)
         XCTAssertFalse(policy.showsLeaderboardButton)
         XCTAssertTrue(policy.showsShareLink)

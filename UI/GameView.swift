@@ -249,6 +249,9 @@ struct GameView: View {
                 onRemoveDungeonRewardSupportCard: { support in
                     viewModel.handleDungeonRewardSupportRemoval(support)
                 },
+                onInspectFailedBoard: {
+                    viewModel.finalizeResultDismissal()
+                },
                 onRetry: {
                     // ViewModel 側でリセットと広告フラグの再設定をまとめて処理する
                     viewModel.handleResultRetry()

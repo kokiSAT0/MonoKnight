@@ -37,7 +37,7 @@ struct ResultView: View {
     let dungeonRewardSupportCards: [SupportCard]
     /// リザルト時点で残っている塔所持カード
     let dungeonInventoryEntries: [DungeonInventoryEntry]
-    /// 手札に追加できる未使用の床カード
+    /// 旧互換用: 拾得カード持ち越し候補。通常 UI では自動持ち越しのため空配列を渡す。
     let dungeonPickupCarryoverEntries: [DungeonInventoryEntry]
     /// 新しく手札へ追加したカードの使用回数
     let dungeonRewardAddUses: Int
@@ -68,6 +68,8 @@ struct ResultView: View {
     let onRemoveDungeonRewardCard: ((MoveCard) -> Void)?
     /// 手札の補助カードを報酬消費なしで整理するためのクロージャ
     let onRemoveDungeonRewardSupportCard: ((SupportCard) -> Void)?
+    /// 失敗時にリザルトを一時的に閉じて盤面を確認するためのクロージャ
+    let onInspectFailedBoard: (() -> Void)?
     /// 再戦処理を外部から受け取るクロージャ
     let onRetry: () -> Void
     /// ホームへ戻る操作を外部へ依頼するクロージャ（未指定の場合はボタンを表示しない）
@@ -107,7 +109,7 @@ struct ResultView: View {
         dungeonRewardSupportCards: [SupportCard] = [],
         dungeonInventoryEntries: [DungeonInventoryEntry] = [],
         dungeonPickupCarryoverEntries: [DungeonInventoryEntry] = [],
-        dungeonRewardAddUses: Int = 3,
+        dungeonRewardAddUses: Int = 2,
         dungeonGrowthAward: DungeonGrowthAward? = nil,
         elapsedSeconds: Int,
         modeIdentifier: GameMode.Identifier,
@@ -120,6 +122,7 @@ struct ResultView: View {
         onSelectDungeonReward: ((DungeonRewardSelection) -> Void)? = nil,
         onRemoveDungeonRewardCard: ((MoveCard) -> Void)? = nil,
         onRemoveDungeonRewardSupportCard: ((SupportCard) -> Void)? = nil,
+        onInspectFailedBoard: (() -> Void)? = nil,
         onRetry: @escaping () -> Void,
         onReturnToTitle: (() -> Void)? = nil
     ) {
@@ -155,6 +158,7 @@ struct ResultView: View {
             onSelectDungeonReward: onSelectDungeonReward,
             onRemoveDungeonRewardCard: onRemoveDungeonRewardCard,
             onRemoveDungeonRewardSupportCard: onRemoveDungeonRewardSupportCard,
+            onInspectFailedBoard: onInspectFailedBoard,
             onRetry: onRetry,
             onReturnToTitle: onReturnToTitle,
             gameCenterService: GameCenterService.shared,
@@ -179,7 +183,7 @@ struct ResultView: View {
         dungeonRewardSupportCards: [SupportCard] = [],
         dungeonInventoryEntries: [DungeonInventoryEntry] = [],
         dungeonPickupCarryoverEntries: [DungeonInventoryEntry] = [],
-        dungeonRewardAddUses: Int = 3,
+        dungeonRewardAddUses: Int = 2,
         dungeonGrowthAward: DungeonGrowthAward? = nil,
         elapsedSeconds: Int,
         modeIdentifier: GameMode.Identifier,
@@ -192,6 +196,7 @@ struct ResultView: View {
         onSelectDungeonReward: ((DungeonRewardSelection) -> Void)? = nil,
         onRemoveDungeonRewardCard: ((MoveCard) -> Void)? = nil,
         onRemoveDungeonRewardSupportCard: ((SupportCard) -> Void)? = nil,
+        onInspectFailedBoard: (() -> Void)? = nil,
         onRetry: @escaping () -> Void,
         onReturnToTitle: (() -> Void)? = nil,
 
@@ -236,6 +241,7 @@ struct ResultView: View {
         self.onSelectDungeonReward = onSelectDungeonReward
         self.onRemoveDungeonRewardCard = onRemoveDungeonRewardCard
         self.onRemoveDungeonRewardSupportCard = onRemoveDungeonRewardSupportCard
+        self.onInspectFailedBoard = onInspectFailedBoard
         self.onRetry = onRetry
         self.onReturnToTitle = onReturnToTitle
         self.gameCenterService = resolvedGameCenterService
@@ -269,6 +275,7 @@ struct ResultView: View {
                     onSelectDungeonReward: onSelectDungeonReward,
                     onRemoveDungeonRewardCard: onRemoveDungeonRewardCard,
                     onRemoveDungeonRewardSupportCard: onRemoveDungeonRewardSupportCard,
+                    onInspectFailedBoard: onInspectFailedBoard,
                     onRetry: onRetry,
                     onReturnToTitle: onReturnToTitle,
                     gameCenterService: gameCenterService,

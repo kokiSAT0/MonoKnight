@@ -8,6 +8,11 @@ extension RootView {
     }
 
     func startGamePreparation(for mode: GameMode, context: GamePreparationContext) {
+        if mode.dungeonMetadataSnapshot?.runState?.pendingFallLandingPoint != nil {
+            preparationCoordinator.startImmediately(for: mode, context: context, stateStore: stateStore)
+            return
+        }
+
         preparationCoordinator.startPreparation(for: mode, context: context, stateStore: stateStore)
     }
 

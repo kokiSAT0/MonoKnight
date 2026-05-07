@@ -623,6 +623,19 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.showingResult)
         XCTAssertTrue(viewModel.isResultFailed)
         XCTAssertEqual(viewModel.failureReasonText, "残り手数が0になりました")
+
+        let failedPosition = core.current
+        viewModel.finalizeResultDismissal()
+
+        XCTAssertFalse(viewModel.showingResult)
+        XCTAssertTrue(viewModel.isInspectingFailedBoard)
+        XCTAssertEqual(core.progress, .failed)
+        XCTAssertEqual(core.current, failedPosition)
+
+        viewModel.showFailedResultFromBoardInspection()
+
+        XCTAssertTrue(viewModel.showingResult)
+        XCTAssertEqual(core.progress, .failed)
     }
 
     func testPendingDungeonPickupDiscardNewCardResolvesThroughViewModel() throws {
@@ -793,7 +806,7 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertEqual(nextMode.dungeonMetadataSnapshot?.floorID, tower.floors[1].id)
         XCTAssertEqual(
             nextMode.dungeonMetadataSnapshot?.runState?.rewardInventoryEntries,
-            [DungeonInventoryEntry(card: reward, rewardUses: 3)]
+            [DungeonInventoryEntry(card: reward, rewardUses: 2)]
         )
         XCTAssertTrue(nextMode.bonusMoveCards.isEmpty)
         XCTAssertFalse(viewModel.showingResult)
@@ -822,7 +835,7 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.nextDungeonFloorTitle)
     }
 
-    func testGrowthRewardUsesBoostAddsFourUsesWhenUnlocked() throws {
+    func testGrowthRewardUsesBoostAddsThreeUsesWhenUnlocked() throws {
         let (defaults, suiteName) = try makeIsolatedDefaults()
         defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
 
@@ -851,7 +864,7 @@ final class GameViewModelTests: XCTestCase {
 
         XCTAssertEqual(
             requestedMode?.dungeonMetadataSnapshot?.runState?.rewardInventoryEntries,
-            [DungeonInventoryEntry(card: reward, rewardUses: 4)]
+            [DungeonInventoryEntry(card: reward, rewardUses: 3)]
         )
     }
 
@@ -973,11 +986,11 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertFalse(nextRunState.rewardInventoryEntries.contains { $0.card == .straightUp2 })
         XCTAssertFalse(nextRunState.rewardInventoryEntries.contains { $0.card == .diagonalUpRight2 })
         XCTAssertTrue(nextRunState.rewardInventoryEntries.contains(DungeonInventoryEntry(card: .straightRight2, rewardUses: 2)))
-        XCTAssertTrue(nextRunState.rewardInventoryEntries.contains(DungeonInventoryEntry(card: reward, rewardUses: 3)))
+        XCTAssertTrue(nextRunState.rewardInventoryEntries.contains(DungeonInventoryEntry(card: reward, rewardUses: 2)))
         XCTAssertFalse(viewModel.showingResult)
     }
 
-    func testDungeonPickupCarryoverCandidatesExposeOnlyUnusedPickupCards() throws {
+    func testDungeonPickupCarryoverCandidatesAreHiddenBecausePickupsCarryAutomatically() throws {
         let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
         let mode = try XCTUnwrap(DungeonLibrary.shared.firstFloorMode(for: tower))
         let (viewModel, core) = makeViewModel(mode: mode)
@@ -985,13 +998,10 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertTrue(core.addDungeonInventoryCardForTesting(.straightRight2, rewardUses: 2))
         XCTAssertTrue(core.addDungeonInventoryCardForTesting(.straightUp2, pickupUses: 1))
 
-        XCTAssertEqual(
-            viewModel.carryoverCandidateDungeonPickupEntries,
-            [DungeonInventoryEntry(card: .straightUp2, pickupUses: 1)]
-        )
+        XCTAssertTrue(viewModel.carryoverCandidateDungeonPickupEntries.isEmpty)
     }
 
-    func testDungeonPickupCarryoverSelectionAddsRewardCardAndStartsNextFloor() throws {
+    func testDungeonPickupUsesCarryAutomaticallyWhenSelectingClearReward() throws {
         let (defaults, suiteName) = try makeIsolatedDefaults()
         defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
 
@@ -1015,14 +1025,13 @@ final class GameViewModelTests: XCTestCase {
         core.overrideDungeonHPForTesting(3)
         XCTAssertTrue(core.addDungeonInventoryCardForTesting(.straightUp2, pickupUses: 1))
 
+        let reward = try XCTUnwrap(viewModel.availableDungeonRewardMoveCards.first)
         viewModel.showingResult = true
-        viewModel.handleDungeonRewardSelection(.carryOverPickup(.straightUp2))
+        viewModel.handleDungeonRewardSelection(reward)
 
         let nextRunState = try XCTUnwrap(requestedMode?.dungeonMetadataSnapshot?.runState)
-        XCTAssertEqual(
-            nextRunState.rewardInventoryEntries,
-            [DungeonInventoryEntry(card: .straightUp2, rewardUses: 4)]
-        )
+        XCTAssertTrue(nextRunState.rewardInventoryEntries.contains(DungeonInventoryEntry(card: .straightUp2, rewardUses: 1)))
+        XCTAssertTrue(nextRunState.rewardInventoryEntries.contains(DungeonInventoryEntry(card: reward, rewardUses: 3)))
         XCTAssertFalse(viewModel.showingResult)
     }
 
@@ -1055,7 +1064,7 @@ final class GameViewModelTests: XCTestCase {
         let rewardStack = try XCTUnwrap(nextCore.handStacks.first { $0.representativeMove == reward })
 
         XCTAssertEqual(nextMode.dungeonMetadataSnapshot?.floorID, tower.floors[1].id)
-        XCTAssertEqual(nextCore.dungeonInventoryEntries, [DungeonInventoryEntry(card: reward, rewardUses: 3)])
+        XCTAssertEqual(nextCore.dungeonInventoryEntries, [DungeonInventoryEntry(card: reward, rewardUses: 2)])
         XCTAssertTrue(nextViewModel.displayedHandStacks.contains { $0.representativeMove == reward })
         XCTAssertTrue(nextViewModel.isCardUsable(rewardStack))
         XCTAssertTrue(
@@ -1183,7 +1192,7 @@ final class GameViewModelTests: XCTestCase {
         let snapshot = try XCTUnwrap(resumeStore.snapshot)
         XCTAssertEqual(nextMode.dungeonMetadataSnapshot?.runState?.currentFloorIndex, 1)
         XCTAssertEqual(snapshot.floorIndex, 1)
-        XCTAssertEqual(snapshot.runState.rewardInventoryEntries, [DungeonInventoryEntry(card: reward, rewardUses: 3)])
+        XCTAssertEqual(snapshot.runState.rewardInventoryEntries, [DungeonInventoryEntry(card: reward, rewardUses: 2)])
     }
 
     func testWarpTowerFixedWarpRewardAppearsUsableOnStartedNextFloor() throws {
@@ -1205,7 +1214,7 @@ final class GameViewModelTests: XCTestCase {
         let rewardStack = try XCTUnwrap(nextCore.handStacks.first { $0.representativeMove == .fixedWarp })
 
         XCTAssertEqual(nextMode.dungeonMetadataSnapshot?.floorID, "warp-2")
-        XCTAssertEqual(nextCore.dungeonInventoryEntries, [DungeonInventoryEntry(card: .fixedWarp, rewardUses: 3)])
+        XCTAssertEqual(nextCore.dungeonInventoryEntries, [DungeonInventoryEntry(card: .fixedWarp, rewardUses: 2)])
         XCTAssertTrue(nextViewModel.displayedHandStacks.contains { $0.representativeMove == .fixedWarp })
         XCTAssertTrue(nextViewModel.isCardUsable(rewardStack))
         XCTAssertTrue(

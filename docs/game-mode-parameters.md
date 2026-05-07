@@ -19,9 +19,9 @@ MonoKnight の現行メインコンテンツは塔ダンジョンのみとする
 - `GameMode.Identifier` は塔フロア用の `.dungeonFloor` を使う
 - `completionRule` は出口到達で、目的地補充や旧スコア計算は行わない
 - `DungeonRules.failureRule` で初期 HP と手数制限を管理する
-- `DungeonRunState` を `GameMode.DungeonMetadata` に持たせ、HP、総手数、報酬カード、ラン seed、成長塔の開始区間を引き継ぐ
+- `DungeonRunState` を `GameMode.DungeonMetadata` に持たせ、HP、総手数、所持カード、ラン seed、成長塔の開始区間を引き継ぐ
 - `DungeonRules.cardAcquisitionMode == .inventoryOnly` の塔では、初期手札補充、NEXT補充、カード使用後の自動補充、手動引き直しを行わない
-- 拾得カードはフロア限りの1回使い切り、報酬カードは残り回数つきでフロア間へ持ち越す
+- 拾得カードは1回使い切りで、クリア時に未使用分が残っていれば報酬カードと同じ所持品としてフロア間へ持ち越す
 - 所持上限は通常カード9種類。基本移動が許可されたフロアでは10枠目を消費されない基本移動カードとして固定表示し、同じカードは種類枠を増やさず、残り使用回数として積む
 - 基本移動が許可された塔では、カードを消費しない上下左右1マス移動を許可する
 - 移動後は `床ギミック → 出口判定 → 敵ターン → 失敗判定` の順で解決する

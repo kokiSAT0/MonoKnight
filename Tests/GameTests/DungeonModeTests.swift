@@ -1499,6 +1499,18 @@ final class DungeonModeTests: XCTestCase {
         }
     }
 
+    func testGrowthTowerMajorGimmicksDoNotOverlap() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+
+        for floor in tower.floors {
+            let overlaps = majorGrowthTowerGimmickOverlaps(for: floor)
+            XCTAssertTrue(
+                overlaps.isEmpty,
+                "\(floor.title) の主要ギミックは開始/階段/鍵/拾得カード/敵/巡回/障害物/罠/ひび割れ/ワープで重ねません: \(overlaps)"
+            )
+        }
+    }
+
     func testGrowthTowerFixedRocksLeaveRepresentativeRoutesOpen() throws {
         let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
 
@@ -2485,7 +2497,7 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertEqual(resumedFloor.rewardMoveCardsAfterClear, originalFloor.rewardMoveCardsAfterClear)
     }
 
-    func testDungeonInventoryCarriesOnlyRewardUsesBetweenFloors() {
+    func testDungeonInventoryCarriesAllRemainingUsesBetweenFloors() {
         let runState = DungeonRunState(
             dungeonID: "tutorial-tower",
             currentFloorIndex: 0,
@@ -2505,7 +2517,10 @@ final class DungeonModeTests: XCTestCase {
 
         XCTAssertEqual(
             advanced.rewardInventoryEntries,
-            [DungeonInventoryEntry(card: .straightRight2, rewardUses: 2, pickupUses: 0)]
+            [
+                DungeonInventoryEntry(card: .straightRight2, rewardUses: 6, pickupUses: 0),
+                DungeonInventoryEntry(card: .straightUp2, rewardUses: 1, pickupUses: 0)
+            ]
         )
     }
 
@@ -2543,7 +2558,7 @@ final class DungeonModeTests: XCTestCase {
             [
                 DungeonInventoryEntry(card: .straightRight2, rewardUses: 2),
                 DungeonInventoryEntry(card: .straightUp2, rewardUses: 1),
-                DungeonInventoryEntry(card: .rayRight, rewardUses: 3)
+                DungeonInventoryEntry(card: .rayRight, rewardUses: 2)
             ]
         )
         XCTAssertEqual(
@@ -2559,7 +2574,7 @@ final class DungeonModeTests: XCTestCase {
         )
     }
 
-    func testDungeonRewardSelectionCanCarryOverUnusedPickupCard() {
+    func testDungeonRewardSelectionKeepsPickupUsesAutomatically() {
         let runState = DungeonRunState(
             dungeonID: "tutorial-tower",
             currentFloorIndex: 0,
@@ -2572,12 +2587,10 @@ final class DungeonModeTests: XCTestCase {
         let carriedPickup = runState.advancedToNextFloor(
             carryoverHP: 2,
             currentFloorMoveCount: 5,
-            rewardSelection: .carryOverPickup(.straightUp2),
             currentInventoryEntries: [
                 DungeonInventoryEntry(card: .straightRight2, rewardUses: 2),
                 DungeonInventoryEntry(card: .straightUp2, pickupUses: 1)
-            ],
-            rewardAddUses: 4
+            ]
         )
         let ignoredUsedPickup = runState.advancedToNextFloor(
             carryoverHP: 2,
@@ -2587,7 +2600,7 @@ final class DungeonModeTests: XCTestCase {
                 DungeonInventoryEntry(card: .straightRight2, rewardUses: 2),
                 DungeonInventoryEntry(card: .straightUp2, pickupUses: 0)
             ],
-            rewardAddUses: 4
+            rewardAddUses: 3
         )
         let mergedExistingReward = runState.advancedToNextFloor(
             carryoverHP: 2,
@@ -2596,14 +2609,14 @@ final class DungeonModeTests: XCTestCase {
             currentInventoryEntries: [
                 DungeonInventoryEntry(card: .straightRight2, rewardUses: 2, pickupUses: 1)
             ],
-            rewardAddUses: 3
+            rewardAddUses: 2
         )
 
         XCTAssertEqual(
             carriedPickup.rewardInventoryEntries,
             [
                 DungeonInventoryEntry(card: .straightRight2, rewardUses: 2),
-                DungeonInventoryEntry(card: .straightUp2, rewardUses: 4)
+                DungeonInventoryEntry(card: .straightUp2, rewardUses: 1)
             ]
         )
         XCTAssertEqual(
@@ -2612,7 +2625,7 @@ final class DungeonModeTests: XCTestCase {
         )
         XCTAssertEqual(
             mergedExistingReward.rewardInventoryEntries,
-            [DungeonInventoryEntry(card: .straightRight2, rewardUses: 5)]
+            [DungeonInventoryEntry(card: .straightRight2, rewardUses: 3)]
         )
     }
 
@@ -3401,7 +3414,7 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertEqual(advanced.carriedHP, 2)
         XCTAssertEqual(advanced.totalMoveCount, 10)
         XCTAssertEqual(advanced.clearedFloorCount, 1)
-        XCTAssertEqual(advanced.rewardInventoryEntries, [DungeonInventoryEntry(card: .kingLeftOrRight, rewardUses: 3)])
+        XCTAssertEqual(advanced.rewardInventoryEntries, [DungeonInventoryEntry(card: .kingLeftOrRight, rewardUses: 2)])
     }
 
     func testRewardCardsApplyToNextFloorInventoryWithoutDeckBonus() throws {
@@ -3605,6 +3618,62 @@ final class DungeonModeTests: XCTestCase {
             }
         }
         return blocked
+    }
+
+    private func majorGrowthTowerGimmickOverlaps(for floor: DungeonFloorDefinition) -> [String] {
+        var occupantsByPoint: [GridPoint: [String]] = [:]
+
+        func add(_ label: String, at point: GridPoint) {
+            if occupantsByPoint[point]?.contains(label) == true {
+                return
+            }
+            occupantsByPoint[point, default: []].append(label)
+        }
+
+        add("開始", at: floor.spawnPoint)
+        add("階段", at: floor.exitPoint)
+        if let unlockPoint = floor.exitLock?.unlockPoint {
+            add("鍵", at: unlockPoint)
+        }
+
+        for pickup in floor.cardPickups {
+            add("拾得カード:\(pickup.id)", at: pickup.point)
+        }
+        for enemy in floor.enemies {
+            switch enemy.behavior {
+            case .patrol(let path):
+                for point in Set(path) {
+                    add("巡回:\(enemy.id)", at: point)
+                }
+            case .chaser, .guardPost, .marker, .watcher, .rotatingWatcher:
+                add("敵:\(enemy.id)", at: enemy.position)
+            }
+        }
+        for point in floor.impassableTilePoints {
+            add("固定障害物", at: point)
+        }
+        for hazard in floor.hazards {
+            switch hazard {
+            case .brittleFloor(let points):
+                for point in points {
+                    add("ひび割れ床", at: point)
+                }
+            case .damageTrap(let points, _):
+                for point in points {
+                    add("ダメージ罠", at: point)
+                }
+            }
+        }
+        for points in floor.warpTilePairs.values {
+            for point in points {
+                add("ワープ床", at: point)
+            }
+        }
+
+        return occupantsByPoint
+            .filter { $0.value.count > 1 }
+            .map { point, occupants in "\(point): \(occupants.joined(separator: ", "))" }
+            .sorted()
     }
 
     private func disallowedGrowthTowerImpassablePoints(for floor: DungeonFloorDefinition) -> Set<GridPoint> {

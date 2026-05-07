@@ -34,6 +34,25 @@ final class RootViewPreparationCoordinator: ObservableObject {
         scheduleGameActivationCompletion(for: scheduledSessionID, stateStore: stateStore)
     }
 
+    func startImmediately(
+        for mode: GameMode,
+        context: GamePreparationContext,
+        stateStore: RootViewStateStore
+    ) {
+        cancelPendingGameActivationWorkItem(stateStore: stateStore)
+
+        let sessionID = UUID()
+        debugLog("RootView: 準備画面なしでゲーム開始 選択モード=\(mode.identifier.rawValue) context=\(context.logIdentifier) sessionID=\(sessionID)")
+
+        withAnimation(.easeInOut(duration: 0.12)) {
+            stateStore.beginGameImmediately(
+                for: mode,
+                context: context,
+                sessionID: sessionID
+            )
+        }
+    }
+
     func finishPreparationAndStart(stateStore: RootViewStateStore) {
         guard stateStore.isPreparingGame else { return }
 

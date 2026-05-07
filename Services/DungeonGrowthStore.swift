@@ -49,7 +49,7 @@ enum DungeonGrowthUpgrade: String, Codable, CaseIterable, Identifiable {
         case .rewardScout:
             return "報酬候補に既存候補を補完するカードを混ぜます"
         case .cardPreservation:
-            return "追加した報酬カードを4回使えるようにします"
+            return "追加した移動報酬カードを3回使えるようにします"
         case .footingRead:
             return "区間ごとに最初の罠か床崩落ダメージを無効化します"
         case .secondStep:
@@ -256,7 +256,7 @@ final class DungeonGrowthStore: ObservableObject {
     }
 
     func rewardAddUses(for dungeon: DungeonDefinition) -> Int {
-        dungeon.difficulty == .growth && isUnlocked(.cardPreservation) ? 4 : 3
+        dungeon.difficulty == .growth && isUnlocked(.cardPreservation) ? 3 : 2
     }
 
     func rewardMoveCards(for baseCards: [MoveCard], dungeon: DungeonDefinition) -> [MoveCard] {

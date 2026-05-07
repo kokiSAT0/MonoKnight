@@ -173,23 +173,15 @@ final class GameViewModel: ObservableObject {
             runState: runState
         )?.rewardSupportCardsAfterClear ?? []
     }
-    /// 現在フロアで拾って未使用分が残っている、手札に追加できるカード
+    /// 旧互換用: 拾得カードはクリア時に自動で次フロアへ持ち越すため、通常 UI では選択候補を出さない
     var carryoverCandidateDungeonPickupEntries: [DungeonInventoryEntry] {
-        guard !isResultFailed,
-              let metadata = mode.dungeonMetadataSnapshot,
-              let runState = metadata.runState,
-              let dungeon = DungeonLibrary.shared.dungeon(with: metadata.dungeonID),
-              dungeon.canAdvanceWithinRun(afterFloorIndex: runState.currentFloorIndex)
-        else { return [] }
-        return dungeonInventoryEntries
-            .filter { $0.pickupUses > 0 }
-            .map { DungeonInventoryEntry(card: $0.card, pickupUses: $0.pickupUses) }
+        []
     }
     /// 新しく手札へ追加したカードに付与する使用回数
     var dungeonRewardAddUses: Int {
         guard let metadata = mode.dungeonMetadataSnapshot,
               let dungeon = DungeonLibrary.shared.dungeon(with: metadata.dungeonID)
-        else { return 3 }
+        else { return 2 }
         return dungeonGrowthStore.rewardAddUses(for: dungeon)
     }
     /// クリア後に強化/整理できる手札の報酬カード

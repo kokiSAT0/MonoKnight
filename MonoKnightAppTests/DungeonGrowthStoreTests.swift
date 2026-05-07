@@ -214,7 +214,7 @@ final class DungeonGrowthStoreTests: XCTestCase {
                 DungeonInventoryEntry(card: .straightUp2, rewardUses: 1)
             ]
         )
-        XCTAssertEqual(store.rewardAddUses(for: dungeon), 4)
+        XCTAssertEqual(store.rewardAddUses(for: dungeon), 3)
         XCTAssertEqual(store.startingHazardDamageMitigations(for: dungeon), 0)
     }
 

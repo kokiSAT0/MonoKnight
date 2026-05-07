@@ -65,4 +65,43 @@ struct RootViewCoordinatorTests {
         #expect(core.handStacks.contains { $0.representativeMove == .straightRight2 })
         #expect(core.dungeonInventoryEntries == runState.rewardInventoryEntries)
     }
+
+    @MainActor
+    @Test func startImmediatelyForFallLanding_skipsPreparationOverlayAndUpdatesSession() throws {
+        let stateStore = RootViewStateStore(initialIsAuthenticated: true)
+        let preparationCoordinator = RootViewPreparationCoordinator()
+        let tower = try #require(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let initialSessionID = stateStore.gameSessionID
+        let landingPoint = GridPoint(x: 3, y: 4)
+        let runState = DungeonRunState(
+            dungeonID: tower.id,
+            currentFloorIndex: 14,
+            carriedHP: 1,
+            totalMoveCount: 7,
+            clearedFloorCount: 13,
+            rewardInventoryEntries: [DungeonInventoryEntry(card: .straightRight2, rewardUses: 2)],
+            pendingFallLandingPoint: landingPoint
+        )
+        let fallMode = tower.floors[14].makeGameMode(
+            dungeonID: tower.id,
+            difficulty: tower.difficulty,
+            carriedHP: runState.carriedHP,
+            runState: runState
+        )
+
+        preparationCoordinator.startImmediately(
+            for: fallMode,
+            context: .dungeonContinuation,
+            stateStore: stateStore
+        )
+
+        #expect(stateStore.gameSessionID != initialSessionID)
+        #expect(stateStore.activeMode == fallMode)
+        #expect(stateStore.lastPreparationContext == .dungeonContinuation)
+        #expect(stateStore.isShowingTitleScreen == false)
+        #expect(stateStore.isPreparingGame == false)
+        #expect(stateStore.isGameReadyForManualStart == false)
+        #expect(stateStore.activeMode.initialSpawnPoint == landingPoint)
+        #expect(stateStore.activeMode.dungeonMetadataSnapshot?.runState?.pendingFallLandingPoint == landingPoint)
+    }
 }

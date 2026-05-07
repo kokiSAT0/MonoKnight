@@ -416,8 +416,22 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
         viewModel.playDungeonEnemyTurn(event)
 
         XCTAssertTrue(viewModel.isInputAnimationActive)
+        XCTAssertEqual(
+            viewModel.scene.latestHighlightPoints(for: .dungeonEnemy),
+            [GridPoint(x: 1, y: 1)],
+            "敵ターン演出の開始時は敵アイコンを移動前の位置に戻して表示します"
+        )
+        XCTAssertTrue(
+            viewModel.scene.latestHighlightPoints(for: .dungeonDanger).isEmpty,
+            "敵移動中は最終位置の危険マスだけが先に見えないよう一時的に隠します"
+        )
         try await Task.sleep(nanoseconds: 180_000_000)
         XCTAssertFalse(viewModel.isInputAnimationActive)
+        XCTAssertEqual(
+            viewModel.scene.latestHighlightPoints(for: .dungeonEnemy),
+            Set(core.enemyStates.map(\.position)),
+            "敵ターン演出後は最新の敵位置へ同期します"
+        )
         XCTAssertEqual(viewModel.damageEffectPlayCountForTesting, 1)
     }
 

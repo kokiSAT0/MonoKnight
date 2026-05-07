@@ -235,6 +235,7 @@ struct ResultActionSection: View {
     let onSelectDungeonReward: ((DungeonRewardSelection) -> Void)?
     let onRemoveDungeonRewardCard: ((MoveCard) -> Void)?
     let onRemoveDungeonRewardSupportCard: ((SupportCard) -> Void)?
+    let onInspectFailedBoard: (() -> Void)?
     let onRetry: () -> Void
     let onReturnToTitle: (() -> Void)?
     let gameCenterService: GameCenterServiceProtocol
@@ -385,6 +386,18 @@ struct ResultActionSection: View {
                 }
             }
 
+            if displayPolicy.showsInspectFailedBoardButton,
+               let onInspectFailedBoard {
+                Button {
+                    triggerSuccessHapticIfNeeded()
+                    onInspectFailedBoard()
+                } label: {
+                    Label("盤面を見る", systemImage: "square.grid.3x3")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+            }
+
             if displayPolicy.showsReturnToTitleButton,
                let onReturnToTitle {
                 Button {
@@ -482,7 +495,7 @@ struct ResultActionSection: View {
         dungeonRewardSupportCards: [SupportCard] = [],
         dungeonRewardInventoryEntries: [DungeonInventoryEntry] = [],
         dungeonPickupCarryoverEntries: [DungeonInventoryEntry] = [],
-        dungeonRewardAddUses: Int = 3,
+        dungeonRewardAddUses: Int = 2,
         showsLeaderboardButton: Bool,
         isGameCenterAuthenticated: Bool,
         onRequestGameCenterSignIn: ((GameCenterSignInPromptReason) -> Void)?,
@@ -491,6 +504,7 @@ struct ResultActionSection: View {
         onSelectDungeonReward: ((DungeonRewardSelection) -> Void)? = nil,
         onRemoveDungeonRewardCard: ((MoveCard) -> Void)? = nil,
         onRemoveDungeonRewardSupportCard: ((SupportCard) -> Void)? = nil,
+        onInspectFailedBoard: (() -> Void)? = nil,
         onRetry: @escaping () -> Void,
         onReturnToTitle: (() -> Void)?,
         gameCenterService: GameCenterServiceProtocol,
@@ -513,6 +527,7 @@ struct ResultActionSection: View {
         self.onSelectDungeonReward = onSelectDungeonReward
         self.onRemoveDungeonRewardCard = onRemoveDungeonRewardCard
         self.onRemoveDungeonRewardSupportCard = onRemoveDungeonRewardSupportCard
+        self.onInspectFailedBoard = onInspectFailedBoard
         self.onRetry = onRetry
         self.onReturnToTitle = onReturnToTitle
         self.gameCenterService = gameCenterService
@@ -540,6 +555,10 @@ struct ResultActionDisplayPolicy: Equatable {
         !isIntermediateDungeonClear && hasReturnToTitle
     }
 
+    var showsInspectFailedBoardButton: Bool {
+        usesDungeonExit && isFailed
+    }
+
     var showsRetryButton: Bool {
         !isIntermediateDungeonClear
     }
@@ -563,7 +582,7 @@ struct DungeonRewardCardChoicePresentation: Equatable {
 
     init(
         card: MoveCard,
-        rewardUses: Int = 3,
+        rewardUses: Int = 2,
         actionText: String = "手札に追加",
         sourceText: String? = nil,
         accessibilityIdentifierPrefix: String = "dungeon_reward_card",
@@ -579,7 +598,7 @@ struct DungeonRewardCardChoicePresentation: Equatable {
 
     init(
         playable: PlayableCard,
-        rewardUses: Int = 3,
+        rewardUses: Int = 2,
         actionText: String = "手札に追加",
         sourceText: String? = nil,
         accessibilityIdentifierPrefix: String = "dungeon_reward_card",

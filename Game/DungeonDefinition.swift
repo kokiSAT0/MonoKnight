@@ -23,9 +23,9 @@ public enum DungeonCardAcquisitionMode: String, Codable, Equatable {
 /// 塔ラン中に所持しているカードと残り使用回数
 public struct DungeonInventoryEntry: Codable, Equatable, Identifiable {
     public let playable: PlayableCard
-    /// フロアをまたいで持ち越せる報酬由来の残り使用回数
+    /// フロアをまたいで持ち越せる残り使用回数
     public var rewardUses: Int
-    /// 現在フロア限りの拾得由来の残り使用回数
+    /// 現在フロア中に拾得由来として残っている使用回数
     public var pickupUses: Int
 
     public var card: MoveCard {
@@ -65,6 +65,11 @@ public struct DungeonInventoryEntry: Codable, Equatable, Identifiable {
         return DungeonInventoryEntry(playable: playable, rewardUses: rewardUses, pickupUses: 0)
     }
 
+    public func carryingAllUsesAsReward() -> DungeonInventoryEntry? {
+        guard totalUses > 0 else { return nil }
+        return DungeonInventoryEntry(playable: playable, rewardUses: totalUses, pickupUses: 0)
+    }
+
     private enum CodingKeys: String, CodingKey {
         case playable
         case card
@@ -96,11 +101,11 @@ public struct DungeonInventoryEntry: Codable, Equatable, Identifiable {
 
 /// フロアクリア後に選ぶ塔報酬
 public enum DungeonRewardSelection: Equatable {
-    /// 新しい報酬カードを3回分追加する
+    /// 新しい移動報酬カードを追加する
     case add(MoveCard)
     /// 新しい補助報酬カードを追加する
     case addSupport(SupportCard)
-    /// フロア内で拾って未使用分が残っているカードを報酬カードとして持ち越す
+    /// 旧互換用: フロア内で拾って未使用分が残っているカードを報酬カードとして持ち越す
     case carryOverPickup(MoveCard)
     /// 既存の持ち越し報酬カードの使用回数を1増やす
     case upgrade(MoveCard)
@@ -151,7 +156,7 @@ public struct DungeonRunState: Codable, Equatable {
     public let totalMoveCount: Int
     /// クリア済みフロア数
     public let clearedFloorCount: Int
-    /// フロアをまたいで持ち越す報酬カードと残り使用回数
+    /// フロアをまたいで持ち越す所持カードと残り使用回数
     public let rewardInventoryEntries: [DungeonInventoryEntry]
     /// 成長塔の拾得/報酬カード変化に使うラン単位の seed
     public let cardVariationSeed: UInt64?
@@ -200,11 +205,11 @@ public struct DungeonRunState: Codable, Equatable {
         rewardMoveCard: MoveCard? = nil,
         rewardSelection: DungeonRewardSelection? = nil,
         currentInventoryEntries: [DungeonInventoryEntry]? = nil,
-        rewardAddUses: Int = 3,
+        rewardAddUses: Int = 2,
         hazardDamageMitigationsRemaining: Int? = nil
     ) -> DungeonRunState {
         let sourceEntries = currentInventoryEntries ?? rewardInventoryEntries
-        let carriedEntries = sourceEntries.compactMap { $0.carryingRewardUsesOnly() }
+        let carriedEntries = sourceEntries.compactMap { $0.carryingAllUsesAsReward() }
         let selection = rewardSelection ?? rewardMoveCard.map { DungeonRewardSelection.add($0) }
         let updatedRewardInventoryEntries = DungeonRunState.applying(
             selection,
@@ -317,7 +322,7 @@ public struct DungeonRunState: Codable, Equatable {
         _ selection: DungeonRewardSelection?,
         to entries: [DungeonInventoryEntry],
         sourceEntries: [DungeonInventoryEntry],
-        rewardAddUses: Int = 3
+        rewardAddUses: Int = 2
     ) -> [DungeonInventoryEntry] {
         var result = entries
         switch selection {
@@ -327,7 +332,7 @@ public struct DungeonRunState: Codable, Equatable {
             result.append(DungeonInventoryEntry(support: support, rewardUses: DungeonRunState.rewardUses(for: support), pickupUses: 0))
         case .carryOverPickup(let card):
             guard sourceEntries.contains(where: { $0.moveCard == card && $0.pickupUses > 0 }) else { break }
-            result.append(DungeonInventoryEntry(card: card, rewardUses: max(rewardAddUses, 1), pickupUses: 0))
+            break
         case .upgrade(let card):
             guard let index = result.firstIndex(where: { $0.moveCard == card && $0.rewardUses > 0 }) else { break }
             result[index].rewardUses += 1
@@ -1823,7 +1828,7 @@ public struct DungeonLibrary {
             warpTilePairs: [
                 "growth-9-risk": [
                     GridPoint(x: 1, y: 2),
-                    GridPoint(x: 6, y: 6)
+                    GridPoint(x: 7, y: 7)
                 ]
             ],
             exitLock: DungeonExitLock(unlockPoint: GridPoint(x: 2, y: 1)),
@@ -1835,7 +1840,7 @@ public struct DungeonLibrary {
                 ),
                 DungeonCardPickupDefinition(
                     id: "growth-9-key-diagonal",
-                    point: GridPoint(x: 2, y: 1),
+                    point: GridPoint(x: 1, y: 1),
                     card: .diagonalUpRight2
                 ),
                 DungeonCardPickupDefinition(
@@ -1902,8 +1907,8 @@ public struct DungeonLibrary {
             ],
             cardPickups: [
                 DungeonCardPickupDefinition(id: "growth-10-right2", point: GridPoint(x: 1, y: 0), card: .straightRight2),
-                DungeonCardPickupDefinition(id: "growth-10-diagonal", point: GridPoint(x: 1, y: 1), card: .diagonalUpRight2),
-                DungeonCardPickupDefinition(id: "growth-10-up2", point: GridPoint(x: 7, y: 6), card: .straightUp2)
+                DungeonCardPickupDefinition(id: "growth-10-diagonal", point: GridPoint(x: 2, y: 0), card: .diagonalUpRight2),
+                DungeonCardPickupDefinition(id: "growth-10-up2", point: GridPoint(x: 8, y: 6), card: .straightUp2)
             ]
         )
     }
@@ -2008,7 +2013,7 @@ public struct DungeonLibrary {
             ],
             exitLock: DungeonExitLock(unlockPoint: GridPoint(x: 2, y: 2)),
             cardPickups: [
-                DungeonCardPickupDefinition(id: "growth-12-key-up2", point: GridPoint(x: 2, y: 2), card: .straightUp2),
+                DungeonCardPickupDefinition(id: "growth-12-key-up2", point: GridPoint(x: 1, y: 2), card: .straightUp2),
                 DungeonCardPickupDefinition(id: "growth-12-right2", point: GridPoint(x: 0, y: 1), card: .straightRight2),
                 DungeonCardPickupDefinition(id: "growth-12-ray-right", point: GridPoint(x: 4, y: 5), card: .rayRight)
             ],
@@ -2049,7 +2054,7 @@ public struct DungeonLibrary {
             warpTilePairs: [
                 "growth-13-risk": [
                     GridPoint(x: 1, y: 4),
-                    GridPoint(x: 6, y: 3)
+                    GridPoint(x: 6, y: 4)
                 ],
                 "growth-13-safe": [
                     GridPoint(x: 2, y: 2),
@@ -2058,8 +2063,8 @@ public struct DungeonLibrary {
             ],
             cardPickups: [
                 DungeonCardPickupDefinition(id: "growth-13-ray-right", point: GridPoint(x: 0, y: 3), card: .rayRight),
-                DungeonCardPickupDefinition(id: "growth-13-up2", point: GridPoint(x: 2, y: 2), card: .straightUp2),
-                DungeonCardPickupDefinition(id: "growth-13-right2", point: GridPoint(x: 7, y: 5), card: .straightRight2)
+                DungeonCardPickupDefinition(id: "growth-13-up2", point: GridPoint(x: 3, y: 2), card: .straightUp2),
+                DungeonCardPickupDefinition(id: "growth-13-right2", point: GridPoint(x: 7, y: 4), card: .straightRight2)
             ],
             rewardMoveCardsAfterClear: [.straightRight2, .knightRightwardChoice, .diagonalUpRight2]
         )
@@ -2095,7 +2100,7 @@ public struct DungeonLibrary {
             cardPickups: [
                 DungeonCardPickupDefinition(id: "growth-14-ray-right", point: GridPoint(x: 0, y: 1), card: .rayRight),
                 DungeonCardPickupDefinition(id: "growth-14-up2", point: GridPoint(x: 5, y: 3), card: .straightUp2),
-                DungeonCardPickupDefinition(id: "growth-14-diagonal", point: GridPoint(x: 6, y: 4), card: .diagonalUpRight2)
+                DungeonCardPickupDefinition(id: "growth-14-diagonal", point: GridPoint(x: 6, y: 3), card: .diagonalUpRight2)
             ],
             rewardMoveCardsAfterClear: [.diagonalDownLeft2, .rayLeft, .straightDown2]
         )
@@ -2134,7 +2139,7 @@ public struct DungeonLibrary {
                 )
             ],
             hazards: [
-                .damageTrap(points: [GridPoint(x: 2, y: 1), GridPoint(x: 5, y: 5), GridPoint(x: 7, y: 6)], damage: 1)
+                .damageTrap(points: [GridPoint(x: 2, y: 2), GridPoint(x: 5, y: 5), GridPoint(x: 7, y: 6)], damage: 1)
             ],
             impassableTilePoints: [
                 GridPoint(x: 1, y: 6),
@@ -2146,8 +2151,8 @@ public struct DungeonLibrary {
             exitLock: DungeonExitLock(unlockPoint: GridPoint(x: 2, y: 1)),
             cardPickups: [
                 DungeonCardPickupDefinition(id: "growth-15-right2", point: GridPoint(x: 0, y: 1), card: .straightRight2),
-                DungeonCardPickupDefinition(id: "growth-15-key-diagonal", point: GridPoint(x: 2, y: 1), card: .diagonalUpRight2),
-                DungeonCardPickupDefinition(id: "growth-15-up2", point: GridPoint(x: 6, y: 6), card: .straightUp2)
+                DungeonCardPickupDefinition(id: "growth-15-key-diagonal", point: GridPoint(x: 2, y: 0), card: .diagonalUpRight2),
+                DungeonCardPickupDefinition(id: "growth-15-up2", point: GridPoint(x: 6, y: 7), card: .straightUp2)
             ],
             rewardMoveCardsAfterClear: [.rayRight, .diagonalUpRight2, .straightRight2],
             rewardSupportCardsAfterClear: [.refillEmptySlots]
@@ -2234,7 +2239,7 @@ public struct DungeonLibrary {
             ],
             exitLock: DungeonExitLock(unlockPoint: GridPoint(x: 1, y: 5)),
             cardPickups: [
-                DungeonCardPickupDefinition(id: "growth-17-up2", point: GridPoint(x: 1, y: 5), card: .straightUp2),
+                DungeonCardPickupDefinition(id: "growth-17-up2", point: GridPoint(x: 1, y: 4), card: .straightUp2),
                 DungeonCardPickupDefinition(id: "growth-17-ray-right", point: GridPoint(x: 2, y: 0), card: .rayRight),
                 DungeonCardPickupDefinition(id: "growth-17-diagonal", point: GridPoint(x: 6, y: 6), card: .diagonalUpRight2)
             ],
@@ -2273,7 +2278,7 @@ public struct DungeonLibrary {
                     behavior: .chaser
                 )
             ],
-            hazards: [.damageTrap(points: [GridPoint(x: 1, y: 1), GridPoint(x: 2, y: 2), GridPoint(x: 3, y: 3), GridPoint(x: 6, y: 6)], damage: 1)],
+            hazards: [.damageTrap(points: [GridPoint(x: 1, y: 1), GridPoint(x: 2, y: 2), GridPoint(x: 3, y: 3), GridPoint(x: 6, y: 5)], damage: 1)],
             impassableTilePoints: [
                 GridPoint(x: 3, y: 7),
                 GridPoint(x: 4, y: 2),
@@ -2282,7 +2287,7 @@ public struct DungeonLibrary {
             ],
             warpTilePairs: ["growth-18-choice": [GridPoint(x: 1, y: 0), GridPoint(x: 6, y: 6)]],
             cardPickups: [
-                DungeonCardPickupDefinition(id: "growth-18-ray-right", point: GridPoint(x: 1, y: 0), card: .rayRight),
+                DungeonCardPickupDefinition(id: "growth-18-ray-right", point: GridPoint(x: 0, y: 1), card: .rayRight),
                 DungeonCardPickupDefinition(id: "growth-18-right2", point: GridPoint(x: 2, y: 1), card: .straightRight2),
                 DungeonCardPickupDefinition(id: "growth-18-up2", point: GridPoint(x: 8, y: 6), card: .straightUp2)
             ],
@@ -2355,7 +2360,7 @@ public struct DungeonLibrary {
                 )
             ],
             hazards: [
-                .damageTrap(points: [GridPoint(x: 2, y: 1), GridPoint(x: 3, y: 3), GridPoint(x: 6, y: 6)], damage: 1)
+                .damageTrap(points: [GridPoint(x: 2, y: 2), GridPoint(x: 3, y: 3), GridPoint(x: 5, y: 6)], damage: 1)
             ],
             impassableTilePoints: [
                 GridPoint(x: 1, y: 5),
@@ -2367,7 +2372,7 @@ public struct DungeonLibrary {
             exitLock: DungeonExitLock(unlockPoint: GridPoint(x: 2, y: 1)),
             cardPickups: [
                 DungeonCardPickupDefinition(id: "growth-20-right2", point: GridPoint(x: 0, y: 1), card: .straightRight2),
-                DungeonCardPickupDefinition(id: "growth-20-key-diagonal", point: GridPoint(x: 2, y: 1), card: .diagonalUpRight2),
+                DungeonCardPickupDefinition(id: "growth-20-key-diagonal", point: GridPoint(x: 2, y: 0), card: .diagonalUpRight2),
                 DungeonCardPickupDefinition(id: "growth-20-up2", point: GridPoint(x: 8, y: 6), card: .straightUp2)
             ]
         )
@@ -2662,7 +2667,7 @@ public struct DungeonLibrary {
                     ),
                     DungeonCardPickupDefinition(
                         id: "key-door-3-up2",
-                        point: GridPoint(x: 2, y: 3),
+                        point: GridPoint(x: 2, y: 4),
                         card: .straightUp2
                     ),
                     DungeonCardPickupDefinition(
@@ -2707,7 +2712,7 @@ public struct DungeonLibrary {
                     ),
                     DungeonCardPickupDefinition(
                         id: "warp-1-up2",
-                        point: GridPoint(x: 6, y: 6),
+                        point: GridPoint(x: 6, y: 5),
                         card: .straightUp2
                     ),
                     DungeonCardPickupDefinition(
@@ -2928,7 +2933,7 @@ public struct DungeonLibrary {
                             GridPoint(x: 3, y: 2),
                             GridPoint(x: 4, y: 3),
                             GridPoint(x: 5, y: 4),
-                            GridPoint(x: 6, y: 5),
+                            GridPoint(x: 6, y: 4),
                             GridPoint(x: 7, y: 6)
                         ],
                         damage: 1
@@ -2942,7 +2947,7 @@ public struct DungeonLibrary {
                     ),
                     DungeonCardPickupDefinition(
                         id: "trap-3-ray-right",
-                        point: GridPoint(x: 0, y: 2),
+                        point: GridPoint(x: 1, y: 2),
                         card: .rayRight
                     ),
                     DungeonCardPickupDefinition(

@@ -94,6 +94,10 @@ final class GameBoardBridgeViewModel: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     /// 敵ターン演出完了予定を保持し、連続イベント時に古い解除を無効化する
     private var enemyTurnAnimationCompletionWorkItem: DispatchWorkItem?
+    /// 敵ターン演出中に盤面へ表示する敵の前後状態
+    private var activeEnemyTurnEvent: DungeonEnemyTurnEvent?
+    /// 再生済みの敵ターンイベントを保持し、通常更新時に古いイベントを再利用しないようにする
+    private var completedEnemyTurnEventID: UUID?
 
     /// 初期化で GameScene を構築し、GameCore と紐付ける
     /// - Parameters:
@@ -245,9 +249,12 @@ final class GameBoardBridgeViewModel: ObservableObject {
 
     func playDungeonEnemyTurn(_ event: DungeonEnemyTurnEvent) {
         enemyTurnAnimationCompletionWorkItem?.cancel()
-        let duration = scene.playDungeonEnemyTurn(event)
-
+        activeEnemyTurnEvent = event
         isEnemyTurnAnimationActive = true
+        pushHighlightsToScene()
+
+        let finalDangerPoints = core.enemyDangerPoints.union(core.enemyWarningPoints)
+        let duration = scene.playDungeonEnemyTurn(event, finalDangerPoints: finalDangerPoints)
         let shouldPlayDamage = event.attackedPlayer && event.hpAfter < event.hpBefore
         let damageDelay = max(duration - 0.08, 0)
         let completionDelay = max(duration, 0.12)
@@ -261,6 +268,8 @@ final class GameBoardBridgeViewModel: ObservableObject {
 
         let workItem = DispatchWorkItem { [weak self] in
             guard let self else { return }
+            self.completedEnemyTurnEventID = event.id
+            self.activeEnemyTurnEvent = nil
             self.isEnemyTurnAnimationActive = false
             self.enemyTurnAnimationCompletionWorkItem = nil
             self.refreshGuideHighlights()
@@ -273,6 +282,11 @@ final class GameBoardBridgeViewModel: ObservableObject {
     /// - Note: 種類ごとの集合を辞書にまとめ、`GameScene` 側の一括更新 API と齟齬なく連携する
     private func pushHighlightsToScene() {
         let shouldHideGuideCandidates = !forcedSelectionHighlightPoints.isEmpty
+        let enemyTurnBeforeStates = activeEnemyTurnEvent?.transitions.map(\.before) ?? []
+        let displayedEnemyPoints = activeEnemyTurnEvent.map { _ in
+            Set(enemyTurnBeforeStates.map(\.position))
+        } ?? Set(core.enemyStates.map(\.position))
+        let shouldDeferEnemyThreatHighlights = activeEnemyTurnEvent != nil
         let highlights: [BoardHighlightKind: Set<GridPoint>] = [
             .guideSingleCandidate: shouldHideGuideCandidates ? [] : guideHighlightBuckets.singleVectorDestinations,
             .guideMultipleCandidate: shouldHideGuideCandidates ? [] : guideHighlightBuckets.multipleVectorDestinations,
@@ -288,17 +302,19 @@ final class GameBoardBridgeViewModel: ObservableObject {
             .dungeonExit: core.isDungeonExitUnlocked ? (mode.dungeonExitPoint.map { Set([$0]) } ?? []) : [],
             .dungeonExitLocked: core.isDungeonExitUnlocked ? [] : (mode.dungeonExitPoint.map { Set([$0]) } ?? []),
             .dungeonKey: core.dungeonKeyPoints,
-            .dungeonEnemy: Set(core.enemyStates.map(\.position)),
-            .dungeonDanger: core.enemyDangerPoints,
-            .dungeonEnemyWarning: core.enemyWarningPoints,
+            .dungeonEnemy: displayedEnemyPoints,
+            .dungeonDanger: shouldDeferEnemyThreatHighlights ? [] : core.enemyDangerPoints,
+            .dungeonEnemyWarning: shouldDeferEnemyThreatHighlights ? [] : core.enemyWarningPoints,
             .dungeonCardPickup: Set(core.activeDungeonCardPickups.map(\.point)),
             .dungeonDamageTrap: core.damageTrapPoints,
             .dungeonCrackedFloor: core.crackedFloorPoints,
             .dungeonCollapsedFloor: core.collapsedFloorPoints
         ]
         scene.updateHighlights(highlights)
-        scene.updatePatrolRailPreviews(core.enemyPatrolRailPreviews.map(ScenePatrolRailPreview.init))
-        let enemyDirectionPreviews = (
+        scene.updatePatrolRailPreviews(
+            shouldDeferEnemyThreatHighlights ? [] : core.enemyPatrolRailPreviews.map(ScenePatrolRailPreview.init)
+        )
+        let enemyDirectionPreviews = shouldDeferEnemyThreatHighlights ? [] : (
             core.enemyPatrolMovementPreviews.map(ScenePatrolMovementPreview.init)
             + core.enemyChaserMovementPreviews.map(ScenePatrolMovementPreview.init)
             + core.enemyRotatingWatcherDirectionPreviews.map(ScenePatrolMovementPreview.init)
@@ -687,7 +703,14 @@ final class GameBoardBridgeViewModel: ObservableObject {
         core.$enemyStates
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
-                self?.pushHighlightsToScene()
+                guard let self else { return }
+                if let event = self.core.dungeonEnemyTurnEvent,
+                   event.id != self.completedEnemyTurnEventID,
+                   self.activeEnemyTurnEvent?.id != event.id {
+                    self.activeEnemyTurnEvent = event
+                    self.isEnemyTurnAnimationActive = true
+                }
+                self.pushHighlightsToScene()
             }
             .store(in: &cancellables)
 

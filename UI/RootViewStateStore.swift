@@ -177,6 +177,20 @@ final class RootViewStateStore: ObservableObject {
         )
     }
 
+    func beginGameImmediately(for mode: GameMode, context: GamePreparationContext, sessionID: UUID) {
+        var updatedState = playFlowState
+        updatedState.activeMode = mode
+        updatedState.lastPreparationContext = context
+        updatedState.gameSessionID = sessionID
+        updatedState.isGameReadyForManualStart = false
+        updatedState.isShowingTitleScreen = false
+        updatedState.isPreparingGame = false
+        playFlowState = updatedState
+        debugLog(
+            "RootView: ゲームを即時開始 activeMode=\(mode.identifier.rawValue) sessionID=\(sessionID) context=\(context.logIdentifier)"
+        )
+    }
+
     func binding<Value>(for keyPath: ReferenceWritableKeyPath<RootViewStateStore, Value>) -> Binding<Value> {
         Binding(
             get: { self[keyPath: keyPath] },
