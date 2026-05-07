@@ -259,12 +259,9 @@ struct GameInputFlowCoordinator {
         guard sessionState.hasSelection else {
             let availableMoves = core.availableMoves()
             let destinationCandidates = availableMoves.filter { $0.destination == request.destination }
-            let containsSingleVectorCard = destinationCandidates.contains { candidate in
-                candidate.card.move.movementVectors.count == 1
-            }
             let conflictingStackIDs = Set(destinationCandidates.map(\.stackID))
 
-            if conflictingStackIDs.count >= 2 && !containsSingleVectorCard {
+            if conflictingStackIDs.count >= 2 {
                 presentBoardTapSelectionWarning(
                     "複数のカードが同じマスを指定しています。手札から使いたいカードを選んでからマスをタップしてください。",
                     request.destination

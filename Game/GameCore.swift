@@ -1287,9 +1287,9 @@ public final class GameCore: ObservableObject {
         return moves
     }
 
-    /// 盤面タップ時に使用する移動候補を優先順位付きで選び出す
+    /// 盤面タップ時に使用する移動候補を選び出す
     /// - Parameter point: ユーザーがタップした盤面座標
-    /// - Returns: 優先順位ロジックを適用した `ResolvedCardMove`（該当なしの場合は nil）
+    /// - Returns: タップ地点へ届く代表 `ResolvedCardMove`（該当なしの場合は nil）
     func resolvedMoveForBoardTap(at point: GridPoint) -> ResolvedCardMove? {
         let allMoves = availableMoves()
         // availableMoves() からタップ地点へ到達できる候補だけを抽出する
@@ -1307,13 +1307,7 @@ public final class GameCore: ObservableObject {
         // 候補が存在しない場合は nil を返して終了する
         guard !matchingMoves.isEmpty else { return nil }
 
-        // moveVector の候補数が 1 つだけのカード（通常カード）を優先する
-        // - Important: 複数候補カードが存在しても、ユーザーの想定に近い通常カードを優先して消費する
-        if let singleVectorMove = matchingMoves.first(where: { $0.card.moveCard?.movementVectors.count == 1 }) {
-            return singleVectorMove
-        }
-
-        // 通常カードが存在しない場合は availableMoves() の並び順（座標→スタック順）に従って最初の候補を返す
+        // 複数スタックの競合は UI 側で警告するため、ここでは代表候補だけを返す
         return matchingMoves.first
     }
 
@@ -2299,7 +2293,7 @@ extension GameCore: GameCoreProtocol {
             return
         }
 
-        // 基本移動で届かないマスだけ、優先順位付きのカード候補を算出する
+        // 基本移動で届かないマスだけ、カード候補を算出する
         if let resolved = resolvedMoveForBoardTap(at: point) {
             boardTapPlayRequest = BoardTapPlayRequest(
                 stackID: resolved.stackID,

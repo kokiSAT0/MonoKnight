@@ -93,6 +93,27 @@ final class GameCoreTests: XCTestCase {
         #endif
     }
 
+    func testResolvedMoveForBoardTapDoesNotAutoPreferSingleVectorCard() {
+        let origin = GridPoint(x: 0, y: 0)
+        let destination = GridPoint(x: 1, y: 0)
+        let blocker = GridPoint(x: 2, y: 0)
+        let mode = makeInventoryDungeonMode(
+            spawn: origin,
+            exit: GridPoint(x: 4, y: 4),
+            impassableTilePoints: [blocker]
+        )
+        let core = GameCore(mode: mode)
+
+        XCTAssertTrue(core.addDungeonInventoryCardForTesting(.rayRight, pickupUses: 1))
+        XCTAssertTrue(core.addDungeonInventoryCardForTesting(.kingRight, pickupUses: 1))
+
+        let destinationMoves = core.availableMoves().filter { $0.destination == destination }
+        XCTAssertEqual(Set(destinationMoves.map(\.stackID)).count, 2, "異なるカードスタックの競合前提が崩れています")
+
+        let resolved = core.resolvedMoveForBoardTap(at: destination)
+        XCTAssertEqual(resolved?.moveCard, .rayRight, "単一方向カードを自動優先せず、代表候補だけを返す想定です")
+    }
+
     private func makeInventoryDungeonMode(
         spawn: GridPoint,
         exit: GridPoint,

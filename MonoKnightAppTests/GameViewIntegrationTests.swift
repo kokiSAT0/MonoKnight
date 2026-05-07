@@ -158,11 +158,14 @@ final class GameViewIntegrationTests: XCTestCase {
         let gameCenter = GameCenterServiceSpy()
         let adsService = AdsServiceSpy()
 
-        let core = GameCore(mode: .dungeonPlaceholder)
+        let mode = makeInventoryDungeonMode()
+        let core = GameCore(mode: mode)
+        XCTAssertTrue(core.addDungeonInventoryCardForTesting(.kingRight, pickupUses: 1))
+        XCTAssertTrue(core.addDungeonInventoryCardForTesting(.kingUp, pickupUses: 1))
         let interfaces = GameModuleInterfaces { _ in core }
 
         let viewModel = GameViewModel(
-            mode: .dungeonPlaceholder,
+            mode: mode,
             gameInterfaces: interfaces,
             gameCenterService: gameCenter,
             adsService: adsService,
@@ -374,18 +377,20 @@ final class GameViewIntegrationTests: XCTestCase {
         )
     }
 
-    /// カード未選択時でも盤面タップで移動が開始され、通常カードが優先されることを確認する
-    func testBoardTapWithoutSelectionTriggersPlayAndPrefersSingleVectorCards() {
+    /// カード未選択時の盤面タップは、単独候補なら移動し、複数カード競合なら選択を促す
+    func testBoardTapWithoutSelectionTriggersPlayOrPromptsForCardConflicts() {
         XCTContext.runActivity(named: "複数候補カードのみでも移動が開始される") { _ in
             let scheduler = PenaltyBannerSchedulerSpy()
             let gameCenter = GameCenterServiceSpy()
             let adsService = AdsServiceSpy()
 
-            let core = GameCore(mode: .dungeonPlaceholder)
+            let mode = makeInventoryDungeonMode()
+            let core = GameCore(mode: mode)
+            XCTAssertTrue(core.addDungeonInventoryCardForTesting(.kingRight, pickupUses: 1))
             let interfaces = GameModuleInterfaces { _ in core }
 
             let viewModel = GameViewModel(
-                mode: .dungeonPlaceholder,
+                mode: mode,
                 gameInterfaces: interfaces,
                 gameCenterService: gameCenter,
                 adsService: adsService,
@@ -444,16 +449,19 @@ final class GameViewIntegrationTests: XCTestCase {
             XCTAssertNil(viewModel.boardBridge.animatingCard, "演出完了後も animatingCard が解放されていません")
         }
 
-        XCTContext.runActivity(named: "通常カードが存在する場合はそちらが優先される") { _ in
+        XCTContext.runActivity(named: "通常カードが混ざる競合でも選択を促す") { _ in
             let scheduler = PenaltyBannerSchedulerSpy()
             let gameCenter = GameCenterServiceSpy()
             let adsService = AdsServiceSpy()
 
-            let core = GameCore(mode: .dungeonPlaceholder)
+            let mode = makeInventoryDungeonMode()
+            let core = GameCore(mode: mode)
+            XCTAssertTrue(core.addDungeonInventoryCardForTesting(.kingRight, pickupUses: 1))
+            XCTAssertTrue(core.addDungeonInventoryCardForTesting(.kingUp, pickupUses: 1))
             let interfaces = GameModuleInterfaces { _ in core }
 
             let viewModel = GameViewModel(
-                mode: .dungeonPlaceholder,
+                mode: mode,
                 gameInterfaces: interfaces,
                 gameCenterService: gameCenter,
                 adsService: adsService,
@@ -500,23 +508,18 @@ final class GameViewIntegrationTests: XCTestCase {
             XCTAssertNotNil(singleVectorMove, "通常カードの移動が見つかりません")
 
             core.handleTap(at: destination)
+            RunLoop.main.run(until: Date().addingTimeInterval(0.2))
 
-            guard let pendingRequest = core.boardTapPlayRequest else {
-                XCTFail("BoardTapPlayRequest が生成されていません")
-                return
-            }
-
-            XCTAssertEqual(pendingRequest.stackID, singleCandidateStack.id, "通常カードが優先されていません")
-            XCTAssertEqual(pendingRequest.moveVector, MoveVector(dx: 1, dy: 0), "選択された移動ベクトルが想定と異なります")
-
-            RunLoop.main.run(until: Date().addingTimeInterval(0.7))
-
-            XCTAssertEqual(core.current, destination, "盤面タップで選択した通常カードの移動が反映されていません")
-            XCTAssertEqual(core.moveCount, 1, "カード使用回数が加算されていません")
-            XCTAssertNil(core.boardTapPlayRequest, "処理後に BoardTapPlayRequest が残っています")
-            XCTAssertNil(viewModel.selectedHandStackID, "カードプレイ後も選択状態が残っています")
-            XCTAssertTrue(viewModel.boardBridge.forcedSelectionHighlightPoints.isEmpty, "カードプレイ後に強制ハイライトが解除されていません")
-            XCTAssertNil(viewModel.boardBridge.animatingCard, "演出完了後も animatingCard が解放されていません")
+            XCTAssertEqual(core.current, current, "競合警告にもかかわらず駒が移動しています")
+            XCTAssertEqual(core.moveCount, 0, "競合警告ではカードを消費しない想定です")
+            XCTAssertNil(core.boardTapPlayRequest, "警告処理後に BoardTapPlayRequest が残っています")
+            XCTAssertNil(viewModel.boardBridge.animatingCard, "警告表示中にもかかわらずアニメーションが開始されています")
+            XCTAssertEqual(viewModel.boardTapSelectionWarning?.destination, destination, "警告に記録された目的地が一致していません")
+            XCTAssertEqual(
+                viewModel.boardTapSelectionWarning?.message,
+                "複数のカードが同じマスを指定しています。手札から使いたいカードを選んでからマスをタップしてください。",
+                "警告メッセージが仕様と一致していません"
+            )
         }
     }
 
@@ -586,11 +589,14 @@ final class GameViewIntegrationTests: XCTestCase {
         let gameCenter = GameCenterServiceSpy()
         let adsService = AdsServiceSpy()
 
-        let core = GameCore(mode: .dungeonPlaceholder)
+        let mode = makeInventoryDungeonMode()
+        let core = GameCore(mode: mode)
+        XCTAssertTrue(core.addDungeonInventoryCardForTesting(.kingRight, pickupUses: 1))
+        XCTAssertTrue(core.addDungeonInventoryCardForTesting(.kingUp, pickupUses: 1))
         let interfaces = GameModuleInterfaces { _ in core }
 
         let viewModel = GameViewModel(
-            mode: .dungeonPlaceholder,
+            mode: mode,
             gameInterfaces: interfaces,
             gameCenterService: gameCenter,
             adsService: adsService,
@@ -661,17 +667,20 @@ final class GameViewIntegrationTests: XCTestCase {
         )
     }
 
-    /// 単一ベクトルカードが競合に含まれる場合は警告が表示されず、自動的に通常カードが消費されることを確認する
-    func testBoardTapWithoutSelectionSkipsWarningWhenSingleVectorCandidateExists() {
+    /// 単一ベクトルカードが競合に含まれる場合でも、警告を表示して消費カードを選ばせる
+    func testBoardTapWithoutSelectionPresentsWarningWhenSingleVectorCandidateExists() {
         let scheduler = PenaltyBannerSchedulerSpy()
         let gameCenter = GameCenterServiceSpy()
         let adsService = AdsServiceSpy()
 
-        let core = GameCore(mode: .dungeonPlaceholder)
+        let mode = makeInventoryDungeonMode()
+        let core = GameCore(mode: mode)
+        XCTAssertTrue(core.addDungeonInventoryCardForTesting(.kingRight, pickupUses: 1))
+        XCTAssertTrue(core.addDungeonInventoryCardForTesting(.kingUp, pickupUses: 1))
         let interfaces = GameModuleInterfaces { _ in core }
 
         let viewModel = GameViewModel(
-            mode: .dungeonPlaceholder,
+            mode: mode,
             gameInterfaces: interfaces,
             gameCenterService: gameCenter,
             adsService: adsService,
@@ -725,16 +734,19 @@ final class GameViewIntegrationTests: XCTestCase {
 
         core.handleTap(at: destination)
 
-        // Combine の購読を通じたアニメーション処理完了まで十分な時間待機する（約 0.7 秒で移動が完了する）
-        RunLoop.main.run(until: Date().addingTimeInterval(0.7))
+        // Combine の購読を通じて ViewModel 側の警告状態が更新されるまで待機する
+        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
 
-        XCTAssertEqual(core.current, destination, "単一ベクトルカードが自動消費されず、駒の位置が更新されていません")
-        XCTAssertEqual(core.moveCount, 1, "カード使用回数が加算されていません")
-        XCTAssertNil(core.boardTapPlayRequest, "処理後に BoardTapPlayRequest が残っています")
-        XCTAssertNil(viewModel.boardTapSelectionWarning, "単一ベクトルカードが存在するにもかかわらず警告が残っています")
-        XCTAssertNil(viewModel.selectedHandStackID, "カードプレイ後も選択状態が残っています")
-        XCTAssertTrue(viewModel.boardBridge.forcedSelectionHighlightPoints.isEmpty, "カードプレイ後に強制ハイライトが解除されていません")
-        XCTAssertNil(viewModel.boardBridge.animatingCard, "演出完了後も animatingCard が解放されていません")
+        XCTAssertEqual(core.current, current, "警告表示にもかかわらず駒が移動しています")
+        XCTAssertEqual(core.moveCount, 0, "警告表示ではカード使用回数を加算しない想定です")
+        XCTAssertNil(core.boardTapPlayRequest, "警告処理後に BoardTapPlayRequest が残っています")
+        XCTAssertNil(viewModel.boardBridge.animatingCard, "警告表示中にもかかわらずアニメーションが開始されています")
+        XCTAssertEqual(viewModel.boardTapSelectionWarning?.destination, destination, "警告に記録された目的地が一致していません")
+        XCTAssertEqual(
+            viewModel.boardTapSelectionWarning?.message,
+            "複数のカードが同じマスを指定しています。手札から使いたいカードを選んでからマスをタップしてください。",
+            "警告メッセージが仕様と一致していません"
+        )
     }
 
     /// 斜め選択カード同士が同一点を指す場合も警告表示が行われることを確認する（キャンペーン 3-2 相当）
@@ -970,6 +982,37 @@ final class GameViewIntegrationTests: XCTestCase {
         XCTAssertEqual(core.current, expectedMove.destination, "単一候補カードの移動先が一致しません")
         XCTAssertEqual(core.moveCount, 1, "単一候補カード実行後の移動回数が加算されていません")
         XCTAssertNil(core.boardTapPlayRequest, "盤面タップ要求が不要に残っています")
+    }
+
+    private func makeInventoryDungeonMode(
+        spawn: GridPoint = GridPoint(x: 2, y: 2),
+        exit: GridPoint = GridPoint(x: 4, y: 4)
+    ) -> GameMode {
+        GameMode(
+            identifier: .dungeonFloor,
+            displayName: "塔攻略入力テスト",
+            regulation: GameMode.Regulation(
+                boardSize: BoardGeometry.standardSize,
+                handSize: 5,
+                nextPreviewCount: 0,
+                allowsStacking: true,
+                deckPreset: .standard,
+                spawnRule: .fixed(spawn),
+                penalties: GameMode.PenaltySettings(
+                    deadlockPenaltyCost: 0,
+                    manualRedrawPenaltyCost: 0,
+                    manualDiscardPenaltyCost: 0,
+                    revisitPenaltyCost: 0
+                ),
+                completionRule: .dungeonExit(exitPoint: exit),
+                dungeonRules: DungeonRules(
+                    difficulty: .growth,
+                    failureRule: DungeonFailureRule(initialHP: 3, turnLimit: nil),
+                    cardAcquisitionMode: .inventoryOnly
+                )
+            ),
+            leaderboardEligible: false
+        )
     }
 
     #if canImport(SpriteKit)
