@@ -546,9 +546,6 @@ private struct TileMarkerPreviewView: View {
         switch kind {
         case .normal,
              .spawn,
-             .target,
-             .nextTarget,
-             .multiVisit,
              .dungeonExit,
              .lockedDungeonExit,
              .dungeonKey,
@@ -560,8 +557,6 @@ private struct TileMarkerPreviewView: View {
              .enemyWarning,
              .effect:
             return theme.boardTileUnvisited
-        case .toggle:
-            return theme.boardTileToggle
         case .impassable,
              .collapsedFloor:
             return theme.boardTileImpassable
@@ -578,30 +573,6 @@ private struct TileMarkerPreviewView: View {
                 .fill(theme.boardKnight)
                 .frame(width: 16, height: 16)
                 .overlay(Circle().stroke(theme.startMarkerStroke, lineWidth: 2))
-        case .target,
-             .nextTarget:
-            DiamondShape()
-                .fill(theme.boardWarpHighlight.opacity(0.94))
-                .frame(width: 26, height: 26)
-        case .multiVisit:
-            ZStack {
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .stroke(theme.boardTileMultiStroke, lineWidth: 2)
-                    .padding(5)
-                Text("2")
-                    .font(.caption.weight(.bold))
-                    .foregroundColor(theme.boardTileMultiStroke)
-            }
-        case .toggle:
-            ZStack {
-                DiagonalHalfShape(isTopLeft: true)
-                    .fill(theme.boardTileUnvisited)
-                DiagonalHalfShape(isTopLeft: false)
-                    .fill(theme.boardTileVisited)
-                DiagonalLineShape()
-                    .stroke(theme.boardTileMultiStroke, lineWidth: 1.4)
-            }
-            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         case .dungeonExit:
             VStack(spacing: 3) {
                 ForEach(0..<3, id: \.self) { index in
@@ -787,6 +758,25 @@ private struct TileEffectMarkerView: View {
                     .frame(width: 14, height: 4)
                     .offset(y: -5)
             }
+        case .discardRandomHand:
+            BrokenCardMarker(accent: accent, scale: 1.0)
+                .frame(width: 32, height: 32)
+                .rotationEffect(.degrees(-8))
+        case .discardAllHands:
+            ZStack {
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .stroke(accent, lineWidth: 2.4)
+                    .frame(width: 32, height: 32)
+                BrokenCardMarker(accent: accent, scale: 0.62)
+                    .offset(x: -5, y: -4)
+                    .rotationEffect(.degrees(-12))
+                BrokenCardMarker(accent: accent, scale: 0.62)
+                    .offset(x: 5, y: 2)
+                    .rotationEffect(.degrees(10))
+                BrokenCardMarker(accent: accent, scale: 0.62)
+                    .offset(x: 0, y: 7)
+                    .rotationEffect(.degrees(-3))
+            }
         }
     }
 
@@ -802,6 +792,8 @@ private struct TileEffectMarkerView: View {
             return theme.boardTileEffectSlow
         case .preserveCard:
             return theme.boardTileEffectPreserveCard
+        case .discardRandomHand, .discardAllHands:
+            return theme.boardTileEffectDiscardHand
         }
     }
 }
@@ -814,6 +806,37 @@ private struct DiamondShape: Shape {
         path.addLine(to: CGPoint(x: rect.midX, y: rect.maxY))
         path.addLine(to: CGPoint(x: rect.minX, y: rect.midY))
         path.closeSubpath()
+        return path
+    }
+}
+
+private struct BrokenCardMarker: View {
+    let accent: Color
+    let scale: CGFloat
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 2, style: .continuous)
+                .fill(accent.opacity(0.10))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 2, style: .continuous)
+                        .stroke(accent, lineWidth: max(1.0, 2.0 * scale))
+                )
+                .frame(width: 20 * scale, height: 27 * scale)
+            CrackShape()
+                .stroke(accent.opacity(0.82), style: StrokeStyle(lineWidth: max(1.0, 1.7 * scale), lineCap: .round, lineJoin: .round))
+                .frame(width: 14 * scale, height: 24 * scale)
+        }
+    }
+}
+
+private struct CrackShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.midX - rect.width * 0.18, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.midX + rect.width * 0.10, y: rect.midY - rect.height * 0.16))
+        path.addLine(to: CGPoint(x: rect.midX - rect.width * 0.10, y: rect.midY + rect.height * 0.04))
+        path.addLine(to: CGPoint(x: rect.midX + rect.width * 0.22, y: rect.maxY))
         return path
     }
 }

@@ -33,9 +33,6 @@ extension GameViewModel {
             onBoardTapBasicMoveRequest: { [weak self] request in
                 self?.handleBoardTapBasicMoveRequest(request)
             },
-            onSpawnSelectionWarning: { [weak self] warning in
-                self?.handleSpawnSelectionWarning(warning)
-            },
             onProgressChange: { [weak self] progress in
                 self?.handleProgressChange(progress)
             },
@@ -43,14 +40,6 @@ extension GameViewModel {
                 self?.updateDisplayedElapsedTime()
             }
         )
-
-        core.$capturedTargetCount
-            .removeDuplicates()
-            .receive(on: RunLoop.main)
-            .sink { [weak self] capturedTargetCount in
-                self?.handleCapturedTargetCountChange(capturedTargetCount)
-            }
-            .store(in: &cancellables)
 
         core.$dungeonFallEvent
             .receive(on: RunLoop.main)
@@ -104,24 +93,6 @@ extension GameViewModel {
     static func visibleHandStacks(from handStacks: [HandStack], mode: GameMode) -> [HandStack] {
         guard mode.usesDungeonExit else { return handStacks }
         return Array(handStacks.prefix(dungeonInventoryVisibleSlotCount))
-    }
-
-    func handleSpawnSelectionWarning(_ warning: SpawnSelectionWarning) {
-        let message: String
-        switch warning.reason {
-        case .targetTile:
-            message = "目的地マスは開始位置にできません。目的地以外のマスを選んでください。"
-        }
-
-        boardTapSelectionWarning = BoardTapSelectionWarning(
-            message: message,
-            destination: warning.point
-        )
-        core.clearSpawnSelectionWarning(warning.id)
-
-        if hapticsEnabled {
-            UINotificationFeedbackGenerator().notificationOccurred(.warning)
-        }
     }
 
     func handleProgressChange(_ progress: GameProgress) {
@@ -255,15 +226,6 @@ extension GameViewModel {
         return dungeonGrowthStore.registerDungeonClear(dungeon: dungeon, runState: runState, hasNextFloor: hasNextFloor)
     }
 
-    func handleCapturedTargetCountChange(_ newCapturedTargetCount: Int) {
-        defer { lastTutorialCapturedTargetCount = newCapturedTargetCount }
-        guard newCapturedTargetCount > lastTutorialCapturedTargetCount else { return }
-        showTargetCaptureFeedback(
-            capturedCount: newCapturedTargetCount,
-            incrementCount: newCapturedTargetCount - lastTutorialCapturedTargetCount
-        )
-    }
-
     func handleDungeonHPChange(_ newHP: Int) {
         guard !isMovementPresentationActive else { return }
         if core.lastMovementResolution?.presentationSteps.contains(where: \.tookDamage) == true {
@@ -288,38 +250,4 @@ extension GameViewModel {
         boardBridge.playDamageEffect()
     }
 
-    func showTargetCaptureFeedback(capturedCount: Int, incrementCount: Int) {
-        guard core.mode.usesTargetCollection else { return }
-        guard incrementCount > 0 else { return }
-
-        targetCaptureFeedbackDismissTask?.cancel()
-        targetCaptureFeedbackDismissTask = nil
-
-        withAnimation(.spring(response: 0.32, dampingFraction: 0.82, blendDuration: 0.18)) {
-            targetCaptureFeedback = TargetCaptureFeedback(
-                capturedCount: capturedCount,
-                incrementCount: incrementCount
-            )
-        }
-
-        if hapticsEnabled {
-            UINotificationFeedbackGenerator().notificationOccurred(.success)
-        }
-
-        targetCaptureFeedbackDismissTask = Task { [weak self] in
-            do {
-                try await Task.sleep(nanoseconds: 750_000_000)
-            } catch {
-                return
-            }
-
-            guard !Task.isCancelled else { return }
-            await MainActor.run {
-                withAnimation(.easeOut(duration: 0.24)) {
-                    self?.targetCaptureFeedback = nil
-                }
-                self?.targetCaptureFeedbackDismissTask = nil
-            }
-        }
-    }
 }

@@ -12,8 +12,6 @@ final class MoveCardIllustrationViewAccessibilityTests: XCTestCase {
         ResultSummaryPresentation(
             moveCount: 6,
             penaltyCount: 0,
-            focusCount: 0,
-            usesTargetCollection: false,
             usesDungeonExit: true,
             isFailed: false,
             failureReason: nil,

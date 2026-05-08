@@ -21,8 +21,6 @@ final class GameSceneAccessibilityTests: XCTestCase {
         let scene = GameScene(
             initialBoardSize: size,
             initialVisitedPoints: initialVisitedPoints ?? BoardGeometry.defaultInitialVisitedPoints(for: size),
-            requiredVisitOverrides: [:],
-            togglePoints: [],
             impassablePoints: impassablePoints
         )
         scene.scaleMode = .resizeFill
@@ -78,8 +76,8 @@ final class GameSceneAccessibilityTests: XCTestCase {
         XCTAssertEqual(elements[index].accessibilityLabel, "駒あり・未踏破")
     }
 
-    /// 全踏破モードでは通常マスの踏破済み塗りを維持することを確認する
-    func testVisitedTileFillRemainsVisibleForBoardClearModes() {
+    /// 塔の盤面表示で通常マスの踏破済み塗りを維持することを確認する
+    func testVisitedTileFillRemainsVisibleForDungeonBoard() {
         let visitedPoint = GridPoint(x: 0, y: 0)
         let unvisitedPoint = GridPoint(x: 1, y: 0)
         let (scene, view, _) = makeScene(initialVisitedPoints: [visitedPoint])
@@ -94,7 +92,7 @@ final class GameSceneAccessibilityTests: XCTestCase {
         }
         XCTAssertFalse(
             visitedColor.isEqual(unvisitedColor),
-            "全踏破モードでは踏破済み通常マスの塗り分けを維持します"
+            "塔の盤面表示では踏破済み通常マスの塗り分けを維持します"
         )
     }
 

@@ -105,6 +105,8 @@ public struct DungeonFallEvent: Identifiable, Equatable {
 /// 移動が完了してから手札へ適用するタイル効果
 private enum PostMoveTileEffect {
     case shuffleHand
+    case discardRandomHand
+    case discardAllHands
 }
 
 private struct MovementProcessingResult {
@@ -161,9 +163,6 @@ public final class GameCore: ObservableObject {
     @Published public private(set) var boardTapPlayRequest: BoardTapPlayRequest?
     /// 盤面タップでカードなし基本移動を依頼された際の要求
     @Published public private(set) var boardTapBasicMoveRequest: BoardTapBasicMoveRequest?
-    /// スポーン位置選択中に選べないマスをタップした際の警告イベント
-    /// - Note: UI 側が表示へ変換したら `clearSpawnSelectionWarning` でリセットする。
-    @Published public private(set) var spawnSelectionWarning: SpawnSelectionWarning?
     /// 捨て札ペナルティの対象選択を待っているかどうか
     /// - Note: UI のハイライト切り替えや操作制御に利用する
     @Published public private(set) var isAwaitingManualDiscardSelection: Bool = false
@@ -181,14 +180,6 @@ public final class GameCore: ObservableObject {
     /// クリアまでに要した経過秒数
     /// - Note: クリア確定時に計測し、リセット時に 0 へ戻す
     @Published public private(set) var elapsedSeconds: Int = 0
-    /// 現在狙う目的地。目的地制ではこのマスに到達すると獲得数が増える
-    @Published public private(set) var targetPoint: GridPoint?
-    /// 次に出現する目的地の先読み
-    @Published public private(set) var upcomingTargetPoints: [GridPoint] = []
-    /// 目的地を獲得した数
-    @Published public private(set) var capturedTargetCount: Int = 0
-    /// フォーカスを使った回数
-    @Published public private(set) var focusCount: Int = 0
     /// 塔ダンジョンで利用する現在 HP
     @Published public private(set) var dungeonHP: Int = 0
     /// 成長塔の区間内で罠/床崩落ダメージを無効化できる残り回数
@@ -220,11 +211,7 @@ public final class GameCore: ObservableObject {
     public var totalMoveCount: Int { moveCount + penaltyCount }
 
     /// ポイント計算結果（小さいほど良い）
-    /// - Note: 目的地制ではフォーカス回数を軽く加算し、従来モードでは既存式を維持する
     public var score: Int {
-        if mode.usesTargetCollection {
-            return moveCount * 10 + elapsedSeconds + focusCount * 15
-        }
         return totalMoveCount * 10 + elapsedSeconds
     }
     /// プレイ中の経過秒数をリアルタイムで取得する計算プロパティ
@@ -235,19 +222,7 @@ public final class GameCore: ObservableObject {
     /// 未踏破マスの残り数を UI へ公開する計算プロパティ
 
     public var remainingTiles: Int {
-        mode.usesTargetCollection ? remainingTargetCount : board.remainingCount
-    }
-    /// 目的地制における残り目標数
-    public var remainingTargetCount: Int {
-        guard mode.usesTargetCollection else { return 0 }
-        return max(mode.targetGoalCount - capturedTargetCount, 0)
-    }
-    /// 目的地制の目標獲得数
-    public var targetGoalCount: Int { mode.targetGoalCount }
-    /// 表示中で獲得可能な目的地一覧
-    public var activeTargetPoints: [GridPoint] {
-        guard mode.usesTargetCollection else { return [] }
-        return [targetPoint].compactMap { $0 } + upcomingTargetPoints
+        board.remainingCount
     }
     /// 塔ダンジョンの残り手数
     public var remainingDungeonTurns: Int? {
@@ -328,9 +303,6 @@ public final class GameCore: ObservableObject {
     /// 経過時間を管理する専用タイマー
     /// - Note: GameCore の責務を整理するために専用構造体へ委譲する
     private var sessionTimer = GameSessionTimer()
-    /// 目的地制で同時に表示・獲得可能にする目的地数
-    private let activeTargetDisplayCount = 3
-
     /// 初期化時にモードを指定して各種状態を構築する
     /// - Parameter mode: 適用したいゲームモード（省略時は塔プレースホルダー）
     public init(mode: GameMode = .dungeonPlaceholder) {
@@ -339,8 +311,6 @@ public final class GameCore: ObservableObject {
         board = Board(
             size: mode.boardSize,
             initialVisitedPoints: mode.initialVisitedPoints,
-            requiredVisitOverrides: mode.additionalVisitRequirements,
-            togglePoints: mode.toggleTilePoints,
             impassablePoints: mode.impassableTilePoints,
             tileEffects: mode.tileEffects
         )
@@ -415,8 +385,6 @@ public final class GameCore: ObservableObject {
         board = Board(
             size: mode.boardSize,
             initialVisitedPoints: Array(validVisitedPoints),
-            requiredVisitOverrides: mode.additionalVisitRequirements,
-            togglePoints: mode.toggleTilePoints,
             impassablePoints: mode.impassableTilePoints,
             tileEffects: mode.tileEffects
         )
@@ -426,8 +394,6 @@ public final class GameCore: ObservableObject {
         moveCount = snapshot.moveCount
         penaltyCount = 0
         hasRevisitedTile = false
-        capturedTargetCount = 0
-        focusCount = 0
         dungeonHP = snapshot.dungeonHP
         hazardDamageMitigationsRemaining = snapshot.hazardDamageMitigationsRemaining
         enemyStates = snapshot.enemyStates
@@ -443,7 +409,6 @@ public final class GameCore: ObservableObject {
         penaltyEvent = nil
         boardTapPlayRequest = nil
         boardTapBasicMoveRequest = nil
-        spawnSelectionWarning = nil
         isAwaitingManualDiscardSelection = false
         lastMovementResolution = nil
         progress = .playing
@@ -714,33 +679,11 @@ public final class GameCore: ObservableObject {
             applyPostMoveTileEffect(postMoveTileEffect, preserving: preservedCard)
         }
 
-        // クリア判定
-        if mode.usesTargetCollection {
-            applyTargetCaptureIfNeeded(along: actualTraversedPath, finalPosition: finalPosition)
-            if capturedTargetCount >= mode.targetGoalCount {
-                finalizeElapsedTimeIfNeeded()
-                progress = .cleared
-                return
-            }
-        }
-
         if applyDungeonPostMoveChecks(
             along: actualTraversedPath,
             initialMarkerDamagePoints: pendingMarkerDamagePoints,
             paralysisTrapPoint: paralysisTrapPoint
         ) { return }
-
-        if !mode.usesTargetCollection, !mode.usesDungeonExit, board.isCleared {
-            // クリア時点の経過秒数を確定させる
-            finalizeElapsedTimeIfNeeded()
-            progress = .cleared
-            // デバッグ: クリア時の盤面を表示
-#if DEBUG
-            // デバッグ目的でのみ盤面を出力する
-            board.debugDump(current: current)
-#endif
-            return
-        }
 
         // 手詰まりチェック（全カード盤外ならペナルティ）
         checkDeadlockAndApplyPenaltyIfNeeded()
@@ -946,7 +889,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                         debugLog("ワープ先 \(destination) が盤面外または移動不可のため無視しました")
                     }
                     stopReason = .warp
-                case .shuffleHand, .preserveCard:
+                case .shuffleHand, .preserveCard, .discardRandomHand, .discardAllHands:
                     registerPostMoveTileEffect(
                         effect,
                         postMoveTileEffect: &postMoveTileEffect,
@@ -1033,6 +976,12 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             if postMoveTileEffect == nil {
                 postMoveTileEffect = .shuffleHand
             }
+        case .discardRandomHand:
+            if postMoveTileEffect != .discardAllHands {
+                postMoveTileEffect = .discardRandomHand
+            }
+        case .discardAllHands:
+            postMoveTileEffect = .discardAllHands
         case .preserveCard:
             preservesPlayedCard = true
         case .warp, .blast, .slow:
@@ -1046,7 +995,105 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         switch effect {
         case .shuffleHand:
             applyTileEffectHandRedraw(preserving: preservedCard)
+        case .discardRandomHand:
+            applyTileEffectHandDiscardAllowsNextPreservation(.random)
+        case .discardAllHands:
+            applyTileEffectHandDiscardAllowsNextPreservation(.all)
         }
+    }
+
+    private enum TileEffectHandDiscardScope {
+        case random
+        case all
+    }
+
+    private func applyTileEffectHandDiscardAllowsNextPreservation(_ scope: TileEffectHandDiscardScope) {
+        updateProgressForPenaltyFlow(.deadlock)
+        cancelManualDiscardSelection()
+        resetBoardTapPlayRequestForPenalty()
+
+        if usesDungeonInventoryCards {
+            applyDungeonInventoryHandDiscard(scope)
+        } else {
+            applyStandardHandDiscard(scope)
+        }
+
+#if canImport(UIKit)
+        let message: String
+        switch scope {
+        case .random:
+            message = "手札喪失罠の効果で手札を1つ失いました。"
+        case .all:
+            message = "全手札喪失罠の効果で手札をすべて失いました。"
+        }
+        UIAccessibility.post(notification: .announcement, argument: message)
+#endif
+
+        debugLog("手札喪失罠効果を適用: scope=\(scope), 手札=\(handStacks.count), NEXT=\(nextCards.count)")
+
+        if mode.requiresSpawnSelection && current == nil {
+            updateProgressForPenaltyFlow(.awaitingSpawn)
+        } else {
+            updateProgressForPenaltyFlow(.playing)
+        }
+    }
+
+    private func applyStandardHandDiscard(_ scope: TileEffectHandDiscardScope) {
+        switch scope {
+        case .random:
+            guard let index = deterministicHandDiscardIndex(candidates: Array(handManager.handStacks.indices)) else {
+                refreshHandStateFromManager()
+                return
+            }
+            let removedStack = handManager.removeStack(at: index)
+            debugLog("手札喪失罠: stackIndex=\(index), 枚数=\(removedStack.count)")
+        case .all:
+            handManager.clearHandStacks()
+            debugLog("全手札喪失罠: 通常手札を全破棄")
+        }
+        refreshHandStateFromManager()
+    }
+
+    private func applyDungeonInventoryHandDiscard(_ scope: TileEffectHandDiscardScope) {
+        let liveIndices = dungeonInventoryEntries.indices.filter { dungeonInventoryEntries[$0].hasUsesRemaining }
+        switch scope {
+        case .random:
+            guard let selectedLiveOffset = deterministicHandDiscardIndex(candidates: Array(liveIndices.indices)) else {
+                syncDungeonInventoryHandStacks()
+                return
+            }
+            let entryIndex = liveIndices[selectedLiveOffset]
+            let discarded = dungeonInventoryEntries[entryIndex].playable
+            dungeonInventoryEntries[entryIndex].rewardUses = 0
+            dungeonInventoryEntries[entryIndex].pickupUses = 0
+            debugLog("手札喪失罠: 所持枠を破棄 \(discarded.identityText)")
+        case .all:
+            for index in liveIndices {
+                dungeonInventoryEntries[index].rewardUses = 0
+                dungeonInventoryEntries[index].pickupUses = 0
+            }
+            debugLog("全手札喪失罠: 所持枠を全破棄")
+        }
+        syncDungeonInventoryHandStacks()
+    }
+
+    private func deterministicHandDiscardIndex(candidates: [Int]) -> Int? {
+        guard !candidates.isEmpty else { return nil }
+        var generator = DungeonRefillRandomGenerator(seed: handDiscardSeed())
+        let offset = Int(generator.next() % UInt64(candidates.count))
+        return candidates[offset]
+    }
+
+    private func handDiscardSeed() -> UInt64 {
+        var seed = mode.dungeonMetadataSnapshot?.runState?.cardVariationSeed ?? mode.deckSeed ?? 1
+        seed ^= UInt64(board.size) &* 0x9E37_79B9_7F4A_7C15
+        seed ^= UInt64(max(moveCount, 0) + 1) &* 0xBF58_476D_1CE4_E5B9
+        seed ^= UInt64(handStacks.count + 17) &* 0x94D0_49BB_1331_11EB
+        if let current {
+            seed ^= UInt64(current.x + 31) &* 1099511628211
+            seed ^= UInt64(current.y + 37) &* 1469598103934665603
+        }
+        return seed == 0 ? 1 : seed
     }
 
     func resetHandAndNextForTileRedraw(preserving preservedCard: DealtCard?) {
@@ -1061,44 +1108,25 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
     }
 
 
-    /// カードの移動候補を、表示中の複数目的地を考慮して解決する
+    /// カードの移動候補を解決する
     private func resolvedPaths(
         for card: DealtCard,
         from origin: GridPoint,
         on activeBoard: Board
     ) -> [MoveCard.MovePattern.Path] {
         guard let move = card.moveCard else { return [] }
-        let context = moveResolutionContext(
-            on: activeBoard,
-            targetPoint: mode.usesTargetCollection ? nearestActiveTarget(from: origin) : nil
-        )
+        let context = moveResolutionContext(on: activeBoard)
         return move.resolvePaths(from: origin, context: context)
     }
 
-    private func moveResolutionContext(
-        on activeBoard: Board,
-        targetPoint: GridPoint?
-    ) -> MoveCard.MovePattern.ResolutionContext {
+    private func moveResolutionContext(on activeBoard: Board) -> MoveCard.MovePattern.ResolutionContext {
         MoveCard.MovePattern.ResolutionContext(
             boardSize: activeBoard.size,
             contains: { point in activeBoard.contains(point) },
             isTraversable: { point in activeBoard.isTraversable(point) },
             isVisited: { point in activeBoard.isVisited(point) },
-            targetPoint: targetPoint,
             effectAt: { point in activeBoard.effect(at: point) }
         )
-    }
-
-    private func nearestActiveTarget(from origin: GridPoint) -> GridPoint? {
-        activeTargetPoints.min { lhs, rhs in
-            let lhsDistance = manhattanDistance(from: origin, to: lhs)
-            let rhsDistance = manhattanDistance(from: origin, to: rhs)
-            if lhsDistance != rhsDistance {
-                return lhsDistance < rhsDistance
-            }
-            if lhs.y != rhs.y { return lhs.y < rhs.y }
-            return lhs.x < rhs.x
-        }
     }
 
     /// 現在の状態から使用可能なカード移動候補を列挙する
@@ -1123,7 +1151,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         for (index, stack) in referenceHandStacks.enumerated() {
             // トップカードが存在しなければスキップ
             guard let topCard = stack.topCard else { continue }
-            guard let moveCard = topCard.moveCard else { continue }
+            guard topCard.moveCard != nil else { continue }
 
             // MoveCard の MovePattern から盤面状況に応じた経路を算出する
             for path in resolvedPaths(for: topCard, from: origin, on: activeBoard) {
@@ -1196,21 +1224,12 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         let allMoves = availableMoves()
         // availableMoves() からタップ地点へ到達できる候補だけを抽出する
         let destinationMatches = allMoves.filter { $0.destination == point }
-        let matchingMoves: [ResolvedCardMove]
-        if !destinationMatches.isEmpty {
-            matchingMoves = destinationMatches
-        } else if mode.usesTargetCollection, activeTargetPoints.contains(point) {
-            // 目的地制では、終点ではなく通過途中の表示中目的地タップでも該当カードを選べるようにする
-            matchingMoves = allMoves.filter { $0.traversedPoints.contains(point) }
-        } else {
-            matchingMoves = []
-        }
 
         // 候補が存在しない場合は nil を返して終了する
-        guard !matchingMoves.isEmpty else { return nil }
+        guard !destinationMatches.isEmpty else { return nil }
 
         // 複数スタックの競合は UI 側で警告するため、ここでは代表候補だけを返す
-        return matchingMoves.first
+        return destinationMatches.first
     }
 
     /// 盤面タップ由来のアニメーション要求を UI 側で処理したあとに呼び出す
@@ -1225,13 +1244,6 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
     public func clearBoardTapBasicMoveRequest(_ id: UUID) {
         guard boardTapBasicMoveRequest?.id == id else { return }
         boardTapBasicMoveRequest = nil
-    }
-
-    /// スポーン位置選択警告を UI 側で表示したあとに呼び出す
-    /// - Parameter id: 消したい警告の識別子（不一致の場合は何もしない）
-    public func clearSpawnSelectionWarning(_ id: UUID) {
-        guard spawnSelectionWarning?.id == id else { return }
-        spawnSelectionWarning = nil
     }
 
     /// ゲームを最初からやり直す
@@ -1258,8 +1270,6 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         board = Board(
             size: mode.boardSize,
             initialVisitedPoints: mode.initialVisitedPoints,
-            requiredVisitOverrides: mode.additionalVisitRequirements,
-            togglePoints: mode.toggleTilePoints,
             impassablePoints: mode.impassableTilePoints,
             tileEffects: mode.tileEffects
         )
@@ -1268,8 +1278,6 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         penaltyCount = 0
         hasRevisitedTile = false
         elapsedSeconds = 0
-        capturedTargetCount = 0
-        focusCount = 0
         dungeonHP = mode.dungeonRules?.failureRule.initialHP ?? 0
         hazardDamageMitigationsRemaining = mode.dungeonMetadataSnapshot?.runState?.hazardDamageMitigationsRemaining ?? 0
         enemyStates = mode.dungeonRules?.enemies.map(EnemyState.init(definition:)) ?? []
@@ -1284,11 +1292,9 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         dungeonExitUnlockEvent = nil
         dungeonFallEvent = nil
         dungeonEnemyTurnEvent = nil
-        configureTargetsForNewSession()
         penaltyEvent = nil
         boardTapPlayRequest = nil
         boardTapBasicMoveRequest = nil
-        spawnSelectionWarning = nil
         isAwaitingManualDiscardSelection = false
         lastMovementResolution = nil
         progress = mode.requiresSpawnSelection ? .awaitingSpawn : .playing
@@ -1608,163 +1614,6 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
 
         // デバッグ目的で計測結果をログに残す
         debugLog("クリア所要時間: \(elapsedSeconds) 秒")
-    }
-
-    /// 新規セッション用に目的地制の状態を初期化する
-    private func configureTargetsForNewSession() {
-        guard mode.usesTargetCollection else {
-            targetPoint = nil
-            upcomingTargetPoints = []
-            return
-        }
-
-        let origin = current ?? BoardGeometry.defaultSpawnPoint(for: mode.boardSize)
-        let first = chooseNextTarget(from: origin, previousTarget: nil, offset: 0)
-        targetPoint = first
-        upcomingTargetPoints = makeUpcomingTargets(
-            from: origin,
-            currentTarget: first,
-            count: 2
-        )
-    }
-
-    /// 表示中目的地へ到達していれば獲得処理と次目的地の更新を行う
-    private func applyTargetCaptureIfNeeded(along traversedPoints: [GridPoint], finalPosition: GridPoint) {
-        guard mode.usesTargetCollection else { return }
-
-        var visibleTargets = activeTargetPoints
-        guard !visibleTargets.isEmpty else { return }
-
-        var capturedTargets: [GridPoint] = []
-        for point in traversedPoints {
-            guard let capturedIndex = visibleTargets.firstIndex(of: point) else { continue }
-            let captured = visibleTargets.remove(at: capturedIndex)
-            capturedTargets.append(captured)
-            capturedTargetCount += 1
-            debugLog("目的地獲得: \(capturedTargetCount)/\(mode.targetGoalCount) @\(captured)")
-
-            if capturedTargetCount >= mode.targetGoalCount {
-                break
-            }
-        }
-
-        guard !capturedTargets.isEmpty else { return }
-
-        guard capturedTargetCount < mode.targetGoalCount else {
-            targetPoint = nil
-            upcomingTargetPoints = []
-            return
-        }
-
-        refillVisibleTargets(
-            &visibleTargets,
-            finalPosition: finalPosition,
-            previousTarget: capturedTargets.last
-        )
-        applyVisibleTargets(visibleTargets)
-    }
-
-    private func refillVisibleTargets(
-        _ visibleTargets: inout [GridPoint],
-        finalPosition: GridPoint,
-        previousTarget: GridPoint?
-    ) {
-        let desiredCount = activeTargetDisplayCount
-        while visibleTargets.count < desiredCount {
-            let anchor = visibleTargets.last ?? finalPosition
-            var excludedTargets = Set(visibleTargets)
-            excludedTargets.insert(finalPosition)
-            if let previousTarget {
-                excludedTargets.insert(previousTarget)
-            }
-            let next = chooseNextTarget(
-                from: anchor,
-                previousTarget: visibleTargets.last ?? previousTarget,
-                offset: capturedTargetCount + visibleTargets.count + 1,
-                avoiding: excludedTargets
-            )
-            visibleTargets.append(next)
-        }
-    }
-
-    private func applyVisibleTargets(_ visibleTargets: [GridPoint]) {
-        targetPoint = visibleTargets.first
-        upcomingTargetPoints = Array(visibleTargets.dropFirst())
-    }
-
-    /// 先読み用の目的地列を作る
-    private func makeUpcomingTargets(
-        from origin: GridPoint,
-        currentTarget: GridPoint?,
-        count: Int
-    ) -> [GridPoint] {
-        guard count > 0 else { return [] }
-        var result: [GridPoint] = []
-        var anchor = currentTarget ?? origin
-        var previous = currentTarget
-        var used = Set([origin])
-        if let currentTarget {
-            used.insert(currentTarget)
-        }
-
-        while result.count < count {
-            var next = chooseNextTarget(
-                from: anchor,
-                previousTarget: previous,
-                offset: result.count + 1,
-                avoiding: used
-            )
-            var retryOffset = result.count + 2
-            while used.contains(next), retryOffset < 32 {
-                next = chooseNextTarget(
-                    from: anchor,
-                    previousTarget: previous,
-                    offset: retryOffset,
-                    avoiding: used
-                )
-                retryOffset += 1
-            }
-            result.append(next)
-            used.insert(next)
-            previous = next
-            anchor = next
-        }
-
-        return result
-    }
-
-    /// 現在地から近すぎず遠すぎない目的地を決定する
-    private func chooseNextTarget(
-        from origin: GridPoint,
-        previousTarget: GridPoint?,
-        offset: Int,
-        avoiding additionalExcludedPoints: Set<GridPoint> = []
-    ) -> GridPoint {
-        let allPoints = board.allTraversablePoints.sorted { lhs, rhs in
-            if lhs.y != rhs.y { return lhs.y < rhs.y }
-            return lhs.x < rhs.x
-        }
-
-        let preferredDistanceRange = preferredTargetDistanceRange()
-        let preferred = allPoints.filter { point in
-            guard point != origin, point != previousTarget else { return false }
-            guard !additionalExcludedPoints.contains(point) else { return false }
-            let distance = manhattanDistance(from: origin, to: point)
-            return preferredDistanceRange.contains(distance)
-        }
-        let fallback = allPoints.filter { point in
-            point != origin && point != previousTarget && !additionalExcludedPoints.contains(point)
-        }
-        let candidates = preferred.isEmpty ? fallback : preferred
-        guard !candidates.isEmpty else { return origin }
-
-        let seed = capturedTargetCount * 7 + origin.x * 3 + origin.y * 5 + offset * 11
-        let index = abs(seed) % candidates.count
-        return candidates[index]
-    }
-
-    private func preferredTargetDistanceRange() -> ClosedRange<Int> {
-        2...4
     }
 
     private var brittleFloorPoints: Set<GridPoint> {
@@ -2534,99 +2383,6 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         board.contains(point) && board.isTraversable(point) && !collapsedFloorPoints.contains(point)
     }
 
-    /// フォーカス操作として、目的地に近づきやすいカードを優先して再配布する
-    public func applyFocusRedraw() {
-        guard mode.usesTargetCollection else {
-            applyManualPenaltyRedraw()
-            return
-        }
-        guard progress == .playing || progress == .awaitingSpawn else { return }
-
-        focusCount += 1
-        rebuildFocusedHandAndNext()
-        checkDeadlockAndApplyPenaltyIfNeeded(lastPaidPenaltyAmount: 0)
-    }
-
-    /// 目的地に近づくカードを優先して手札と NEXT を組み直す
-    func rebuildFocusedHandAndNext(preserving preservedCard: DealtCard? = nil) {
-        let targets = activeTargetPoints
-        guard mode.usesTargetCollection, let origin = current, !targets.isEmpty else {
-            if let preservedCard {
-                handManager.resetAll(prioritizing: [preservedCard], using: &deck)
-                refreshHandStateFromManager()
-            } else {
-                rebuildHandAndNext()
-            }
-            return
-        }
-
-        setManualDiscardSelectionState(false)
-        resetBoardTapPlayRequestForPenalty()
-
-        var drawn: [DealtCard] = deck.draw(count: 48)
-        if drawn.isEmpty {
-            rebuildHandAndNext()
-            return
-        }
-
-        drawn.sort { lhs, rhs in
-            let lhsScore = targetApproachScore(for: lhs, from: origin, targets: targets)
-            let rhsScore = targetApproachScore(for: rhs, from: origin, targets: targets)
-            if lhsScore.improvement != rhsScore.improvement {
-                return lhsScore.improvement > rhsScore.improvement
-            }
-            if lhsScore.bestDistance != rhsScore.bestDistance {
-                return lhsScore.bestDistance < rhsScore.bestDistance
-            }
-            return lhs.displayName < rhs.displayName
-        }
-        if let preservedCard {
-            drawn.removeAll { $0.id == preservedCard.id }
-            drawn.insert(preservedCard, at: 0)
-        }
-
-        handManager.resetAll(prioritizing: drawn, using: &deck)
-        refreshHandStateFromManager()
-        debugLog("フォーカス再配布: focusCount=\(focusCount), targets=\(targets)")
-    }
-
-    /// 指定カードが表示中目的地へどれだけ近づけるかを評価する
-    private func targetApproachScore(
-        for card: DealtCard,
-        from origin: GridPoint,
-        targets: [GridPoint]
-    ) -> (improvement: Int, bestDistance: Int) {
-        targets
-            .map { targetApproachScore(for: card, from: origin, target: $0) }
-            .max { lhs, rhs in
-                if lhs.improvement != rhs.improvement {
-                    return lhs.improvement < rhs.improvement
-                }
-                return lhs.bestDistance > rhs.bestDistance
-            } ?? (Int.min, Int.max)
-    }
-
-    /// 指定カードが単一目的地へどれだけ近づけるかを評価する
-    private func targetApproachScore(
-        for card: DealtCard,
-        from origin: GridPoint,
-        target: GridPoint
-    ) -> (improvement: Int, bestDistance: Int) {
-        let currentDistance = manhattanDistance(from: origin, to: target)
-        let activeBoard = board
-
-        guard let move = card.moveCard else {
-            return (Int.min, Int.max)
-        }
-
-        let context = moveResolutionContext(on: activeBoard, targetPoint: target)
-        let destinations = move.resolvePaths(from: origin, context: context).compactMap(\.traversedPoints.last)
-        guard let bestDistance = destinations.map({ manhattanDistance(from: $0, to: target) }).min() else {
-            return (Int.min, Int.max)
-        }
-        return (currentDistance - bestDistance, bestDistance)
-    }
-
     private func manhattanDistance(from lhs: GridPoint, to rhs: GridPoint) -> Int {
         abs(lhs.x - rhs.x) + abs(lhs.y - rhs.y)
     }
@@ -2744,18 +2500,10 @@ extension GameCore {
         guard board.contains(point) else { return }
         // UI 側ではハイライト生成時点で障害物マスを弾いているが、二重チェックでゲームコアも移動可能かを検証する
         guard board.isTraversable(point) else { return }
-        // 任意スポーン前に表示している目的地は、開始時の即獲得や駒との重なりを避けるため選択不可にする
-        guard !activeTargetPoints.contains(point) else {
-            spawnSelectionWarning = SpawnSelectionWarning(point: point, reason: .targetTile)
-            return
-        }
 
         debugLog("スポーン位置を \(point) に確定")
         current = point
         board.markVisited(point)
-        if mode.usesTargetCollection, activeTargetPoints.isEmpty {
-            configureTargetsForNewSession()
-        }
         progress = .playing
         announceRemainingTiles()
         checkDeadlockAndApplyPenaltyIfNeeded()
@@ -2825,8 +2573,6 @@ extension GameCore {
             core.board = Board(
                 size: mode.boardSize,
                 initialVisitedPoints: visitedPoints,
-                requiredVisitOverrides: mode.additionalVisitRequirements,
-                togglePoints: mode.toggleTilePoints,
                 impassablePoints: mode.impassableTilePoints,
                 tileEffects: mode.tileEffects
             )
@@ -2834,8 +2580,6 @@ extension GameCore {
             core.board = Board(
                 size: mode.boardSize,
                 initialVisitedPoints: visitedPoints,
-                requiredVisitOverrides: mode.additionalVisitRequirements,
-                togglePoints: mode.toggleTilePoints,
                 impassablePoints: mode.impassableTilePoints,
                 tileEffects: mode.tileEffects
             )
@@ -2844,8 +2588,6 @@ extension GameCore {
         core.moveCount = 0
         core.penaltyCount = 0
         core.hasRevisitedTile = false
-        core.capturedTargetCount = 0
-        core.focusCount = 0
         core.dungeonHP = mode.dungeonRules?.failureRule.initialHP ?? 0
         core.hazardDamageMitigationsRemaining = mode.dungeonMetadataSnapshot?.runState?.hazardDamageMitigationsRemaining ?? 0
         core.enemyStates = mode.dungeonRules?.enemies.map(EnemyState.init(definition:)) ?? []
@@ -2857,7 +2599,6 @@ extension GameCore {
         core.dungeonExitUnlockEvent = nil
         core.dungeonFallEvent = nil
         core.dungeonEnemyTurnEvent = nil
-        core.configureTargetsForNewSession()
         core.progress = (resolvedCurrent == nil && mode.requiresSpawnSelection) ? .awaitingSpawn : .playing
 
         if core.usesDungeonInventoryCards {
@@ -2877,19 +2618,6 @@ extension GameCore {
         core.isAwaitingManualDiscardSelection = false
         core.boardTapBasicMoveRequest = nil
         return core
-    }
-
-    /// テスト用に目的地制の状態を直接差し替える
-    func overrideTargetStateForTesting(
-        targetPoint: GridPoint?,
-        upcomingTargetPoints: [GridPoint] = [],
-        capturedTargetCount: Int = 0,
-        focusCount: Int = 0
-    ) {
-        self.targetPoint = targetPoint
-        self.upcomingTargetPoints = upcomingTargetPoints
-        self.capturedTargetCount = capturedTargetCount
-        self.focusCount = focusCount
     }
 
     /// テスト用に手数・ペナルティ・経過秒数を任意の値へ調整する

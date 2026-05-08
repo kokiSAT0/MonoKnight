@@ -13,11 +13,7 @@
         private var latestMultiStepGuidePoints: Set<GridPoint> = []
         private var latestWarpGuidePoints: Set<GridPoint> = []
         private var latestDungeonBasicMovePoints: Set<GridPoint> = []
-        private var latestTargetApproachPoints: Set<GridPoint> = []
-        private var latestTargetCapturePoints: Set<GridPoint> = []
         private var latestForcedSelectionPoints: Set<GridPoint> = []
-        private var latestCurrentTargetPoints: Set<GridPoint> = []
-        private var latestUpcomingTargetPoints: Set<GridPoint> = []
         private var latestDungeonExitPoints: Set<GridPoint> = []
         private var latestDungeonExitLockedPoints: Set<GridPoint> = []
         private var latestDungeonKeyPoints: Set<GridPoint> = []
@@ -72,11 +68,7 @@
             latestMultiStepGuidePoints = []
             latestWarpGuidePoints = []
             latestDungeonBasicMovePoints = []
-            latestTargetApproachPoints = []
-            latestTargetCapturePoints = []
             latestForcedSelectionPoints = []
-            latestCurrentTargetPoints = []
-            latestUpcomingTargetPoints = []
             latestDungeonExitPoints = []
             latestDungeonExitLockedPoints = []
             latestDungeonKeyPoints = []
@@ -297,11 +289,7 @@
                     .guideMultiStepCandidate: latestMultiStepGuidePoints,
                     .guideWarpCandidate: latestWarpGuidePoints,
                     .dungeonBasicMove: latestDungeonBasicMovePoints,
-                    .targetApproachCandidate: latestTargetApproachPoints,
-                    .targetCaptureCandidate: latestTargetCapturePoints,
                     .forcedSelection: latestForcedSelectionPoints,
-                    .currentTarget: latestCurrentTargetPoints,
-                    .upcomingTarget: latestUpcomingTargetPoints,
                     .dungeonExit: latestDungeonExitPoints,
                     .dungeonExitLocked: latestDungeonExitLockedPoints,
                     .dungeonKey: latestDungeonKeyPoints,
@@ -394,11 +382,7 @@
             latestMultiStepGuidePoints = highlights[.guideMultiStepCandidate] ?? []
             latestWarpGuidePoints = highlights[.guideWarpCandidate] ?? []
             latestDungeonBasicMovePoints = highlights[.dungeonBasicMove] ?? []
-            latestTargetApproachPoints = highlights[.targetApproachCandidate] ?? []
-            latestTargetCapturePoints = highlights[.targetCaptureCandidate] ?? []
             latestForcedSelectionPoints = highlights[.forcedSelection] ?? []
-            latestCurrentTargetPoints = highlights[.currentTarget] ?? []
-            latestUpcomingTargetPoints = highlights[.upcomingTarget] ?? []
             latestDungeonExitPoints = highlights[.dungeonExit] ?? []
             latestDungeonExitLockedPoints = highlights[.dungeonExitLocked] ?? []
             latestDungeonKeyPoints = highlights[.dungeonKey] ?? []
@@ -960,38 +944,12 @@
                 strokeWidth = sharedGuideStrokeWidth
                 fillColor = SKColor.clear
                 zPosition = 1.01
-            case .targetApproachCandidate:
-                baseColor = palette.boardGuideHighlight
-                strokeAlpha = 0.95
-                strokeWidth = max(layout.tileSize * 0.045, 2.0)
-                fillColor = baseColor.withAlphaComponent(0.10)
-                overlapInset = max(layout.tileSize * 0.16, strokeWidth * 2.2)
-                zPosition = 1.08
-            case .targetCaptureCandidate:
-                baseColor = palette.boardWarpHighlight
-                strokeAlpha = 0.98
-                strokeWidth = max(layout.tileSize * 0.075, 2.6)
-                fillColor = baseColor.withAlphaComponent(0.20)
-                overlapInset = max(layout.tileSize * 0.08, strokeWidth * 1.2)
-                zPosition = 1.16
             case .forcedSelection:
                 baseColor = palette.boardWarpHighlight
                 strokeAlpha = 0.82
                 strokeWidth = max(layout.tileSize * 0.07, 2.4)
                 fillColor = baseColor.withAlphaComponent(0.16)
                 zPosition = 1.1
-            case .currentTarget:
-                baseColor = palette.boardWarpHighlight
-                strokeAlpha = 0
-                strokeWidth = 0
-                fillColor = baseColor.withAlphaComponent(0.94)
-                zPosition = 1.2
-            case .upcomingTarget:
-                baseColor = palette.boardWarpHighlight
-                strokeAlpha = 0
-                strokeWidth = 0
-                fillColor = baseColor.withAlphaComponent(0.94)
-                zPosition = 1.12
             case .dungeonExit:
                 baseColor = palette.boardWarpHighlight
                 strokeAlpha = 0.98
@@ -1078,9 +1036,7 @@
             node.lineCap = kind == .dungeonCrackedFloor || kind == .dungeonEnemyWarning ? .round : .square
             node.position = layout.position(for: point)
             node.zPosition = zPosition
-            node.isAntialiased = kind == .currentTarget
-                || kind == .upcomingTarget
-                || kind == .dungeonExit
+            node.isAntialiased = kind == .dungeonExit
                 || kind == .dungeonExitLocked
                 || kind == .dungeonKey
                 || kind == .dungeonEnemy
@@ -1099,12 +1055,6 @@
             tileSize: CGFloat
         ) -> CGPath {
             switch kind {
-            case .currentTarget:
-                return targetMarkerPath(
-                    center: CGPoint(x: rect.midX, y: rect.midY),
-                    tileSize: tileSize,
-                    scale: 1.0
-                )
             case .dungeonExit:
                 return staircaseMarkerPath(
                     center: CGPoint(x: rect.midX, y: rect.midY),
@@ -1120,7 +1070,7 @@
                     center: CGPoint(x: rect.midX, y: rect.midY),
                     tileSize: tileSize
                 )
-            case .upcomingTarget, .dungeonEnemy:
+            case .dungeonEnemy:
                 return targetMarkerPath(
                     center: CGPoint(x: rect.midX, y: rect.midY),
                     tileSize: tileSize,
@@ -1132,8 +1082,6 @@
                  .guideMultiStepCandidate,
                  .guideWarpCandidate,
                  .dungeonBasicMove,
-                 .targetApproachCandidate,
-                 .targetCaptureCandidate,
                  .forcedSelection,
                  .dungeonDanger:
                 return CGPath(rect: rect, transform: nil)

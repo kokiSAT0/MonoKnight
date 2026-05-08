@@ -28,7 +28,7 @@
 - 塔ダンジョン規定: [`campaign-stage-regulations.md`](campaign-stage-regulations.md)
 - 塔ダンジョン開発方針: [`dungeon-development-roadmap.md`](dungeon-development-roadmap.md)
 - GameMode パラメータ: [`game-mode-parameters.md`](game-mode-parameters.md)
-- カード重み調整: [`card-weight-adjustment-guide.md`](card-weight-adjustment-guide.md)
+- 塔カード候補調整: [`card-weight-adjustment-guide.md`](card-weight-adjustment-guide.md)
 - ATT / UMP 詳細: [`att-ump-consent-flow.md`](att-ump-consent-flow.md)
 - Game Center ID 管理: [`game-center-leaderboards.md`](game-center-leaderboards.md)
 - IAP カタログ: [`iap-product-catalog.md`](iap-product-catalog.md)

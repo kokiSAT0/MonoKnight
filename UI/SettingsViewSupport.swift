@@ -5,19 +5,6 @@ struct SettingsPresentationState {
     var isPurchaseInProgress = false
     var isRestoreInProgress = false
     var storeAlert: StoreAlert?
-    var isGameCenterAuthenticationInProgress = false
-    var gameCenterAlert: GameCenterAlert?
-
-    mutating func beginGameCenterAuthenticationIfNeeded() -> Bool {
-        guard !isGameCenterAuthenticationInProgress else { return false }
-        isGameCenterAuthenticationInProgress = true
-        return true
-    }
-
-    mutating func completeGameCenterAuthentication(success: Bool) {
-        isGameCenterAuthenticationInProgress = false
-        gameCenterAlert = success ? .success : .failure
-    }
 
     mutating func beginPurchaseIfNeeded() -> Bool {
         guard !isPurchaseInProgress else { return false }
@@ -87,54 +74,8 @@ enum StoreAlert: Identifiable {
     }
 }
 
-enum GameCenterAlert: Identifiable {
-    case success
-    case failure
-
-    var id: String {
-        switch self {
-        case .success:
-            "gc_success"
-        case .failure:
-            "gc_failure"
-        }
-    }
-
-    var title: String { "Game Center" }
-
-    var message: String {
-        switch self {
-        case .success:
-            "Game Center へのサインインが完了しました。ランキングとスコア送信が利用可能です。"
-        case .failure:
-            "サインインに失敗しました。通信環境を確認し、時間を置いて再度お試しください。"
-        }
-    }
-}
-
 @MainActor
 enum SettingsActionCoordinator {
-    static func authenticateGameCenter(
-        presentationState: Binding<SettingsPresentationState>,
-        isGameCenterAuthenticated: Binding<Bool>,
-        gameCenterService: GameCenterServiceProtocol
-    ) {
-        var shouldStartAuthentication = false
-        mutate(presentationState) {
-            shouldStartAuthentication = $0.beginGameCenterAuthenticationIfNeeded()
-        }
-        guard shouldStartAuthentication else { return }
-
-        gameCenterService.authenticateLocalPlayer { success in
-            Task { @MainActor in
-                isGameCenterAuthenticated.wrappedValue = success
-                mutate(presentationState) {
-                    $0.completeGameCenterAuthentication(success: success)
-                }
-            }
-        }
-    }
-
     static func purchaseRemoveAds(
         presentationState: Binding<SettingsPresentationState>,
         storeService: AnyStoreService
@@ -201,14 +142,6 @@ private func mutate<Value>(_ binding: Binding<Value>, _ update: (inout Value) ->
 extension SettingsView {
     var isDiagnosticsMenuAvailable: Bool {
         DebugLogHistory.shared.isFrontEndViewerEnabled
-    }
-
-    func authenticateGameCenter() {
-        SettingsActionCoordinator.authenticateGameCenter(
-            presentationState: $presentationState,
-            isGameCenterAuthenticated: $isGameCenterAuthenticated,
-            gameCenterService: gameCenterService
-        )
     }
 
     func purchaseRemoveAds() {

@@ -44,12 +44,11 @@ extension GameMode.Regulation {
         let decodedBonusMoveCards = try container.decodeIfPresent([MoveCard].self, forKey: .bonusMoveCards) ?? []
         let decodedSpawnRule = try container.decode(GameMode.SpawnRule.self, forKey: .spawnRule)
         let decodedPenalties = try container.decode(GameMode.PenaltySettings.self, forKey: .penalties)
-        let decodedAdditional = try container.decodeIfPresent([GridPoint: Int].self, forKey: .additionalVisitRequirements) ?? [:]
-        let decodedToggle = try container.decodeIfPresent(Set<GridPoint>.self, forKey: .toggleTilePoints) ?? []
         let decodedImpassable = try container.decodeIfPresent(Set<GridPoint>.self, forKey: .impassableTilePoints) ?? []
         let decodedEffects = try container.decodeIfPresent([GridPoint: TileEffect].self, forKey: .tileEffectOverrides) ?? [:]
         let decodedWarpPairs = try container.decodeIfPresent([String: [GridPoint]].self, forKey: .warpTilePairs) ?? [:]
-        let decodedCompletionRule = try container.decodeIfPresent(GameMode.CompletionRule.self, forKey: .completionRule) ?? .boardClear
+        let decodedCompletionRule = try container.decodeIfPresent(GameMode.CompletionRule.self, forKey: .completionRule)
+            ?? .dungeonExit(exitPoint: BoardGeometry.defaultSpawnPoint(for: decodedBoardSize))
         let decodedDungeonRules = try container.decodeIfPresent(DungeonRules.self, forKey: .dungeonRules)
 
         boardSize = decodedBoardSize
@@ -60,8 +59,6 @@ extension GameMode.Regulation {
         bonusMoveCards = decodedBonusMoveCards.isEmpty ? nil : decodedBonusMoveCards
         spawnRule = decodedSpawnRule
         penalties = decodedPenalties
-        additionalVisitRequirements = decodedAdditional
-        toggleTilePoints = decodedToggle
         impassableTilePoints = decodedImpassable
         tileEffectOverrides = decodedEffects
         warpTilePairs = decodedWarpPairs
@@ -82,12 +79,6 @@ extension GameMode.Regulation {
         }
         try container.encode(spawnRule, forKey: .spawnRule)
         try container.encode(penalties, forKey: .penalties)
-        if !additionalVisitRequirements.isEmpty {
-            try container.encode(additionalVisitRequirements, forKey: .additionalVisitRequirements)
-        }
-        if !toggleTilePoints.isEmpty {
-            try container.encode(toggleTilePoints, forKey: .toggleTilePoints)
-        }
         if !impassableTilePoints.isEmpty {
             try container.encode(impassableTilePoints, forKey: .impassableTilePoints)
         }

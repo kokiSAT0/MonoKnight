@@ -89,9 +89,6 @@ final class GameViewModel: ObservableObject {
     }
     /// 暫定スコア
     var displayedScore: Int {
-        if mode.usesTargetCollection {
-            return core.moveCount * 10 + displayedElapsedSeconds + core.focusCount * 15
-        }
         return core.totalMoveCount * 10 + displayedElapsedSeconds
     }
     /// 現在の移動回数
@@ -106,20 +103,6 @@ final class GameViewModel: ObservableObject {
     /// 未踏破マスの残数
     /// - Note: 進行状況バッジに表示するために用意する
     var remainingTiles: Int { core.remainingTiles }
-    /// 目的地制で現在狙うマス
-    var targetPoint: GridPoint? { core.targetPoint }
-    /// 目的地制の先読み
-    var upcomingTargetPoints: [GridPoint] { core.upcomingTargetPoints }
-    /// 獲得済み目的地数
-    var capturedTargetCount: Int { core.capturedTargetCount }
-    /// 目標目的地数
-    var targetGoalCount: Int { core.targetGoalCount }
-    /// 残り目標数
-    var remainingTargetCount: Int { core.remainingTargetCount }
-    /// フォーカス使用回数
-    var focusCount: Int { core.focusCount }
-    /// 目的地制モードかどうか
-    var usesTargetCollection: Bool { mode.usesTargetCollection }
     /// 出口到達型ダンジョンかどうか
     var usesDungeonExit: Bool { mode.usesDungeonExit }
     /// ダンジョン HP
@@ -218,7 +201,7 @@ final class GameViewModel: ObservableObject {
     func canAddDungeonRewardSupportCard(_ support: SupportCard) -> Bool {
         canAddDungeonRewardPlayable(.support(support))
     }
-    /// 旧互換用: 拾得カードはクリア時に自動で次フロアへ持ち越すため、通常 UI では選択候補を出さない
+    /// 拾得カードはクリア時に自動で次フロアへ持ち越すため、通常 UI では選択候補を出さない
     var carryoverCandidateDungeonPickupEntries: [DungeonInventoryEntry] {
         []
     }
@@ -284,7 +267,7 @@ final class GameViewModel: ObservableObject {
     /// 現在の駒位置
     /// - Note: カード移動演出でフォールバック座標として参照する
     var currentPosition: GridPoint? { core.current }
-    /// ランキング送信対象かどうか
+    /// 将来の試練塔でスコア送信対象にするかどうか
     var isLeaderboardEligible: Bool { mode.isLeaderboardEligible }
     /// レイアウト診断用のスナップショット
     @Published var lastLoggedLayoutSnapshot: BoardLayoutSnapshot?
@@ -299,8 +282,6 @@ final class GameViewModel: ObservableObject {
     /// 盤面タップ時にカード選択が必要なケースを利用者へ知らせるための警告状態
     /// - Important: `Identifiable` なペイロードを保持し、SwiftUI 側で `.alert(item:)` を使って監視できるようにする
     @Published var boardTapSelectionWarning: GameBoardTapSelectionWarning?
-    /// 目的地獲得直後に表示する短いフィードバック
-    @Published var targetCaptureFeedback: TargetCaptureFeedback?
     /// HP 低下演出の誤発火を避けるため、直近に観測したダンジョン HP を保持する
     var lastObservedDungeonHPForDamageEffect: Int?
     /// 敵ターン演出へ委譲した HP 低下イベントを重複再生しないために保持する
@@ -308,8 +289,6 @@ final class GameViewModel: ObservableObject {
 
     /// Combine の購読を保持するセット
     var cancellables = Set<AnyCancellable>()
-    /// 目的地獲得フィードバックの自動消滅タスク
-    var targetCaptureFeedbackDismissTask: Task<Void, Never>?
     /// ひび割れ床落下後、次フロアへ移るまでの短い待機タスク
     var dungeonFallAdvanceTask: Task<Void, Never>?
     /// 現在時刻を取得するためのクロージャ。テストでは任意の値へ差し替える
@@ -338,10 +317,6 @@ final class GameViewModel: ObservableObject {
     var sessionUIState = SessionUIState()
     /// チュートリアルイベント検出用の前回移動回数
     var lastTutorialMoveCount: Int = 0
-    /// チュートリアルイベント検出用の前回目的地獲得数
-    var lastTutorialCapturedTargetCount: Int = 0
-    /// チュートリアルイベント検出用の前回フォーカス回数
-    var lastTutorialFocusCount: Int = 0
     /// チュートリアルイベント検出用の前回進行状態
     var lastTutorialProgress: GameProgress = .playing
 
@@ -415,8 +390,6 @@ final class GameViewModel: ObservableObject {
             self?.finishEnemyTurnPresentation(event)
         }
         self.lastTutorialMoveCount = generatedCore.moveCount
-        self.lastTutorialCapturedTargetCount = generatedCore.capturedTargetCount
-        self.lastTutorialFocusCount = generatedCore.focusCount
         self.lastTutorialProgress = generatedCore.progress
 
         // GameCore の変更を ViewModel 経由で SwiftUI へ伝える
@@ -487,9 +460,6 @@ final class GameViewModel: ObservableObject {
     /// 手動ペナルティボタンのアクセシビリティ説明文
     /// - Returns: 手数消費量とスタック仕様を含めた説明テキスト
     var manualPenaltyAccessibilityHint: String {
-        if core.mode.usesTargetCollection {
-            return "表示中の目的地へ近づきやすいカードを優先して手札を整えます。スコアに15ポイント加算されます。"
-        }
         return sessionUIState.manualPenaltyAccessibilityHint(
             penaltyCost: core.mode.manualRedrawPenaltyCost,
             handSize: core.mode.handSize,

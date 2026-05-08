@@ -69,8 +69,6 @@ public extension MoveCard {
             /// 既踏マスかどうかを判定するクロージャ
             /// - Note: 絶対座標ジャンプ系カードで未踏マス優先の挙動を実装するため追加
             private let visitedHandler: (GridPoint) -> Bool
-            /// 目的地制で参照する現在目的地。目的地制でない場合は nil。
-            public let targetPoint: GridPoint?
             /// 盤面上の特殊効果マスを参照するクロージャ
             private let effectHandler: (GridPoint) -> TileEffect?
 
@@ -84,14 +82,12 @@ public extension MoveCard {
                 contains: @escaping (GridPoint) -> Bool,
                 isTraversable: @escaping (GridPoint) -> Bool,
                 isVisited: @escaping (GridPoint) -> Bool = { _ in false },
-                targetPoint: GridPoint? = nil,
                 effectAt: @escaping (GridPoint) -> TileEffect? = { _ in nil }
             ) {
                 self.boardSize = boardSize
                 self.containsHandler = contains
                 self.traversableHandler = isTraversable
                 self.visitedHandler = isVisited
-                self.targetPoint = targetPoint
                 self.effectHandler = effectAt
             }
 

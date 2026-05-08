@@ -1,53 +1,50 @@
-# カード重み調整ガイド
+# 塔カード候補調整ガイド
 
-本ガイドは `Game/Deck.swift` に定義されている重み付き山札の調整手順をまとめたものです。初期状態では全カードが同一重み（1）で扱われますが、デッキごとに `WeightProfile` を用いることで特定カードだけを強調・抑制できます。
+MonoKnight の現行メインコンテンツは塔ダンジョンのみである。
+カードの出現調整は、旧山札の重み付き抽選ではなく、塔フロアごとの拾得カードとクリア報酬カードの候補を調整して行う。
 
-## 1. 重みプロファイルの基本構造
+## 1. 正本
 
-- `Deck.WeightProfile`
-  - `defaultWeight`: 全カードへ適用する基礎重み。初期値は 1。
-  - `overrides`: 特定カードだけ重みを上書きしたい場合に使用する辞書（`[MoveCard: Int]`）。
-- `Deck.Configuration`
-  - `weightProfile` プロパティから重みプロファイルを参照します。
-  - デッキの `allowedMoves` と組み合わせて、抽選対象と重みの両方を管理します。
+- 塔の定義は `Game/DungeonDefinition.swift` を正本とする。
+- 通常プレイで選べる塔は `tutorial-tower`、`growth-tower`、`rogue-tower` の3本のみとする。
+- フロア内の拾得カードは `DungeonFloorDefinition.cardPickups` で定義する。
+- フロアクリア後の移動カード報酬は `rewardMoveCardsAfterClear` で定義する。
+- フロアクリア後の補助カード報酬は `rewardSupportCardsAfterClear` で定義する。
 
-> **メモ:** 重みは自然数で管理されます。抽選時は重みに比例して当選確率が変動するため、`defaultWeight` を 1 に保ったまま強調したいカードへ `overrides` で加算する運用が推奨です。
+## 2. 候補変化の仕組み
 
-## 2. プロファイル調整の手順
+塔の拾得/報酬カードは、同じフロア構成を保ちながらカード候補だけを軽く変化させられる。
 
-1. **対象デッキの特定**
-   - `Deck.Configuration` に必要なデッキが定義済みか確認します。
-   - 新規デッキを追加する場合は `allowedMoves` を含めた構成を先に確定させます。
-2. **重み上書きの設定**
-   - 既存デッキを調整する場合は、`Configuration` の初期化ブロックで `WeightProfile(defaultWeight: 1, overrides: [...])` を設定します。
-   - 例: 斜めキングカードの排出率を 2 倍にしたい場合
+- `DungeonDefinition.resolvedPickups` はフロア内の拾得カード候補を解決する。
+- `DungeonDefinition.resolvedRewardCards` はクリア報酬カード候補を解決する。
+- `variedCards` と `cardAlternatives` は、基準カードから置き換え候補を選ぶ。
+- `DungeonRunState.cardVariationSeed` により、同じラン内では候補変化が安定する。
 
-     ```swift
-     // overrides の例（コメントも日本語で統一する）
-     let overrides: [MoveCard: Int] = [
-         .kingUpRight: 2,    // 右上 1 マスを 2 倍に設定
-         .kingDownRight: 2   // 右下 1 マスを 2 倍に設定
-     ]
-     let profile = Deck.WeightProfile(defaultWeight: 1, overrides: overrides)
-     ```
+この仕組みは「排出率」そのものではなく、塔フロアに置くカード候補の揺らぎを作るためのものと考える。
 
-3. **コードの整合性確認**
-   - 調整後は `Deck.Configuration` が想定通りのカード集合と重みを提供しているか、ユニットテストで検証します。
-   - `Tests/GameTests/DeckTests.swift` を参考に、必要なアサーションを追加してください。
+## 3. 配置調整
 
-## 3. テスト観点
+拾得カードの置き場所は `pickupPositions` と `safePickupPoints` を使う。
 
-- `swift test` を実行し、全テストが成功すること。
-- 重み調整に伴う新規テストでは、以下を最低限確認します。
-  - `allowedMoves` に対象カードが含まれていること。
-  - `weightProfile.weight(for:)` で期待する重みが取得できること。
-  - 重み変更によって既存デッキの均一性が崩れていないか（必要であれば別テストで確認）。
-- 乱数挙動を確認したい場合は `Deck.makeTestDeck` を活用し、固定シーケンスでの挙動検証を行います。
+- 出口、開始地点、障害物、敵、罠、回復マスなどと競合しない位置を選ぶ。
+- フロアの主要ギミックを壊す位置には置かない。
+- 序盤は基本移動を補うカードを近めに置き、中盤以降はリスクを取る導線に報酬カードを置く。
 
-## 4. リリース前のチェックポイント
+## 4. `Deck.Configuration` の扱い
 
-- バランス調整の理由を `docs/` 配下の設計資料へ記録し、意図を共有する。
-- UI やヘルプテキストでデッキ特徴を説明する場合は、`Configuration.deckSummaryText` の更新を忘れない。
-- 重み変更に伴うゲームプレイへの影響を QA で確認し、必要に応じてプレイテストの結果を記録する。
+`Deck.Configuration` は塔本編のカード排出率の正本ではない。
+現在残す用途は次の最小範囲に限る。
 
-以上の手順を踏むことで、デッキ単位の重み調整を安全に行えます。必要な変更は必ずテストとドキュメントで裏付けてからリリースフローへ進めてください。
+- 塔外の補助的なカード候補セット。
+- テスト用の固定ドロー。
+- 旧手札/NEXT処理が必要な検証の互換支援。
+
+新しい塔カードの出現調整は、まず `DungeonDefinition.swift` のフロア定義側へ入れる。
+
+## 5. テスト観点
+
+- `swift test` を実行し、Game パッケージ全体が成功すること。
+- `DungeonModeTests` で通常ライブラリが3塔のみを返すことを確認する。
+- `patrol-tower`、`key-door-tower`、`warp-tower`、`trap-tower` が取得できないことを確認する。
+- フロア内の拾得カード、報酬カード、所持カードの使用回数が塔の進行で破綻しないことを確認する。
+- 旧モード名、旧目的地制、旧デッキプリセットの文言が通常 UI と docs に戻っていないことを検索で確認する。

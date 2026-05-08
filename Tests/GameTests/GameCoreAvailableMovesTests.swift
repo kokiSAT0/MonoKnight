@@ -11,7 +11,7 @@ final class GameCoreAvailableMovesTests: XCTestCase {
             handSize: 1,
             nextPreviewCount: 0,
             allowsStacking: true,
-            deckPreset: .directionalRayFocus,
+            deckPreset: .standardLight,
             spawnRule: .fixed(GridPoint(x: 2, y: 2)),
             penalties: GameMode.PenaltySettings(
                 deadlockPenaltyCost: 0,
@@ -43,7 +43,7 @@ final class GameCoreAvailableMovesTests: XCTestCase {
             handSize: 1,
             nextPreviewCount: 0,
             allowsStacking: true,
-            deckPreset: .directionalRayFocus,
+            deckPreset: .standardLight,
             spawnRule: .fixed(GridPoint(x: 2, y: 2)),
             penalties: GameMode.PenaltySettings(
                 deadlockPenaltyCost: 0,
@@ -76,7 +76,7 @@ final class GameCoreAvailableMovesTests: XCTestCase {
             handSize: 1,
             nextPreviewCount: 0,
             allowsStacking: true,
-            deckPreset: .directionalRayFocus,
+            deckPreset: .standardLight,
             spawnRule: .fixed(GridPoint(x: 0, y: 0)),
             penalties: GameMode.PenaltySettings(
                 deadlockPenaltyCost: 0,
@@ -114,7 +114,7 @@ final class GameCoreAvailableMovesTests: XCTestCase {
             handSize: 1,
             nextPreviewCount: 0,
             allowsStacking: true,
-            deckPreset: .directionalRayFocus,
+            deckPreset: .standardLight,
             spawnRule: .fixed(GridPoint(x: 2, y: 2)),
             penalties: GameMode.PenaltySettings(
                 deadlockPenaltyCost: 0,
@@ -143,7 +143,7 @@ final class GameCoreAvailableMovesTests: XCTestCase {
             handSize: 1,
             nextPreviewCount: 0,
             allowsStacking: true,
-            deckPreset: .directionalRayFocus,
+            deckPreset: .standardLight,
             spawnRule: .fixed(GridPoint(x: 1, y: 2)),
             penalties: GameMode.PenaltySettings(
                 deadlockPenaltyCost: 0,

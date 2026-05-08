@@ -39,13 +39,6 @@ struct GameBoardTapSelectionWarning: Identifiable, Equatable {
     let destination: GridPoint
 }
 
-struct TargetCaptureFeedback: Equatable {
-    let capturedCount: Int
-    let incrementCount: Int
-
-    var incrementText: String { "+\(max(incrementCount, 1))" }
-}
-
 enum GameMenuAction: Hashable, Identifiable {
     case manualPenalty(penaltyCost: Int)
     case reset
@@ -64,10 +57,7 @@ enum GameMenuAction: Hashable, Identifiable {
 
     var confirmationButtonTitle: String {
         switch self {
-        case .manualPenalty(let cost):
-            if cost < 0 {
-                return "フォーカスする"
-            }
+        case .manualPenalty:
             return "実行する"
         case .reset:
             return "リセットする"
@@ -79,9 +69,6 @@ enum GameMenuAction: Hashable, Identifiable {
     var confirmationMessage: String {
         switch self {
         case .manualPenalty(let cost):
-            if cost < 0 {
-                return "フォーカスを使って、表示中の目的地へ近づきやすいカードを優先して手札を整えます。スコアに15ポイント加算されます。"
-            }
             if cost > 0 {
                 return "手数を\(cost)増やして手札スロットを引き直します。現在の手札スロットは空になります。よろしいですか？"
             } else {
@@ -96,8 +83,6 @@ enum GameMenuAction: Hashable, Identifiable {
 
     var buttonRole: ButtonRole? {
         switch self {
-        case .manualPenalty(let cost) where cost < 0:
-            return nil
         default:
             return .destructive
         }

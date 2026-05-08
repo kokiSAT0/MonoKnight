@@ -424,7 +424,7 @@ final class GameViewIntegrationTests: XCTestCase {
             handSize: 1,
             nextPreviewCount: 0,
             allowsStacking: true,
-            deckPreset: .directionalRayFocus,
+            deckPreset: .standardLight,
             spawnRule: .fixed(origin),
             penalties: GameMode.PenaltySettings(
                 deadlockPenaltyCost: 0,
@@ -645,7 +645,7 @@ final class GameViewIntegrationTests: XCTestCase {
 
         // 標準モードのレギュレーションを基に、斜め選択カードを含む山札構成へ差し替えて再現性を高める
         var diagonalRegulation = GameMode.dungeonPlaceholder.regulationSnapshot
-        diagonalRegulation.deckPreset = .standardWithDiagonalChoices
+        diagonalRegulation.deckPreset = .standardLight
         let diagonalMode = GameMode(
             identifier: .dungeonFloor,
             displayName: "斜め選択警告テスト",
@@ -978,7 +978,7 @@ final class GameViewIntegrationTests: XCTestCase {
                 handSize: 5,
                 nextPreviewCount: 0,
                 allowsStacking: true,
-                deckPreset: .standard,
+                deckPreset: .standardLight,
                 spawnRule: .fixed(spawn),
                 penalties: GameMode.PenaltySettings(
                     deadlockPenaltyCost: 0,

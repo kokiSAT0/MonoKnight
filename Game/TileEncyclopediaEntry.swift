@@ -4,10 +4,6 @@ import Foundation
 public enum TileMarkerPreviewKind: Equatable {
     case normal
     case spawn
-    case target
-    case nextTarget
-    case multiVisit
-    case toggle
     case dungeonExit
     case lockedDungeonExit
     case dungeonKey
@@ -157,6 +153,20 @@ public struct TileEncyclopediaEntry: Identifiable, Equatable {
             category: "危険",
             description: "踏むとしびれて1回休みになります。レイ型移動はこの罠で止まり、敵が続けて動きます。",
             previewKind: .effect(.slow)
+        ),
+        TileEncyclopediaEntry(
+            id: "discardRandomHandTrap",
+            displayName: "手札喪失罠",
+            category: "危険",
+            description: "踏むと手札スロットをランダムに1つ失います。失った枠はすぐには補充されません。",
+            previewKind: .effect(.discardRandomHand)
+        ),
+        TileEncyclopediaEntry(
+            id: "discardAllHandsTrap",
+            displayName: "全手札喪失罠",
+            category: "危険",
+            description: "踏むと手札スロットをすべて失います。複数の割れたカードが目印の上位罠です。",
+            previewKind: .effect(.discardAllHands)
         )
     ]
 }

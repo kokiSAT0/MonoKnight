@@ -136,14 +136,12 @@ final class GameBoardBridgeViewModel: ObservableObject {
         let preparedScene = GameScene(
             initialBoardSize: mode.boardSize,
             initialVisitedPoints: mode.initialVisitedPoints,
-            requiredVisitOverrides: mode.additionalVisitRequirements,
-            togglePoints: mode.toggleTilePoints,
             impassablePoints: mode.impassableTilePoints,
             tileEffects: mode.tileEffects
         )
         preparedScene.scaleMode = .resizeFill
         preparedScene.gameCore = core
-        preparedScene.updateShowsVisitedTileFill(!(mode.usesTargetCollection || mode.usesDungeonExit))
+        preparedScene.updateShowsVisitedTileFill(!mode.usesDungeonExit)
         self.scene = preparedScene
 
         bindGameCore()
@@ -216,6 +214,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
             boardTileEffectBlast: appTheme.skBoardTileEffectBlast,
             boardTileEffectSlow: appTheme.skBoardTileEffectSlow,
             boardTileEffectPreserveCard: appTheme.skBoardTileEffectPreserveCard,
+            boardTileEffectDiscardHand: appTheme.skBoardTileEffectDiscardHand,
             // NOTE: ワープペアの配色セットを SpriteKit へ渡し、色と形の両面で組み合わせを識別させる
             warpPairAccentColors: appTheme.skWarpPairAccentColors
         )
@@ -431,11 +430,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
             .guideMultiStepCandidate: shouldHideGuideCandidates ? [] : guideHighlightBuckets.multiStepDestinations,
             .guideWarpCandidate: shouldHideGuideCandidates ? [] : guideHighlightBuckets.warpDestinations,
             .dungeonBasicMove: shouldHideGuideCandidates ? [] : guideHighlightBuckets.basicMoveDestinations,
-            .targetApproachCandidate: [],
-            .targetCaptureCandidate: [],
             .forcedSelection: forcedSelectionHighlightPoints,
-            .currentTarget: core.targetPoint.map { Set([$0]) } ?? [],
-            .upcomingTarget: Set(core.upcomingTargetPoints),
             .dungeonExit: core.isDungeonExitUnlocked ? (mode.dungeonExitPoint.map { Set([$0]) } ?? []) : [],
             .dungeonExitLocked: core.isDungeonExitUnlocked ? [] : (mode.dungeonExitPoint.map { Set([$0]) } ?? []),
             .dungeonKey: core.dungeonKeyPoints,
@@ -695,15 +690,15 @@ final class GameBoardBridgeViewModel: ObservableObject {
         }
 
         // 現在位置からカードの移動量を適用し、演出で目指す盤面座標を算出する
-        let targetPoint = moveForExecution.destination
-        animationTargetGridPoint = targetPoint
+        let destinationPoint = moveForExecution.destination
+        animationTargetGridPoint = destinationPoint
         hiddenCardIDs.insert(topCard.id)
         animatingCard = topCard
         animatingStackID = stack.id
         animationState = .idle
 
         debugLog(
-            "スタック演出開始: stackID=\(stack.id) card=\(topCard.move.displayName) dest=\(targetPoint) vector=(dx:\(moveForExecution.moveVector.dx), dy:\(moveForExecution.moveVector.dy)) 残枚数=\(stack.count)"
+            "スタック演出開始: stackID=\(stack.id) card=\(topCard.move.displayName) dest=\(destinationPoint) vector=(dx:\(moveForExecution.moveVector.dx), dy:\(moveForExecution.moveVector.dy)) 残枚数=\(stack.count)"
         )
 
         if hapticsEnabled {
@@ -860,20 +855,6 @@ final class GameBoardBridgeViewModel: ObservableObject {
                 // 一度利用した解決情報は破棄し、次の移動に備える
                 self.latestMovementResolution = nil
                 self.refreshGuideHighlights(currentOverride: newPoint)
-            }
-            .store(in: &cancellables)
-
-        core.$targetPoint
-            .receive(on: RunLoop.main)
-            .sink { [weak self] _ in
-                self?.pushHighlightsToScene()
-            }
-            .store(in: &cancellables)
-
-        core.$upcomingTargetPoints
-            .receive(on: RunLoop.main)
-            .sink { [weak self] _ in
-                self?.pushHighlightsToScene()
             }
             .store(in: &cancellables)
 

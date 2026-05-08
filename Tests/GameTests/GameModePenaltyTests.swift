@@ -11,7 +11,7 @@ final class GameModePenaltyTests: XCTestCase {
             handSize: 5,
             nextPreviewCount: 3,
             allowsStacking: true,
-            deckPreset: .standard,
+            deckPreset: .standardLight,
             spawnRule: .fixed(BoardGeometry.defaultSpawnPoint(for: 5)),
             penalties: GameMode.PenaltySettings(
                 deadlockPenaltyCost: 7,
@@ -52,7 +52,7 @@ final class GameModePenaltyTests: XCTestCase {
             handSize: 5,
             nextPreviewCount: 3,
             allowsStacking: true,
-            deckPreset: .standard,
+            deckPreset: .standardLight,
             spawnRule: .fixed(BoardGeometry.defaultSpawnPoint(for: 5)),
             penalties: GameMode.PenaltySettings(
                 deadlockPenaltyCost: 0,
@@ -95,7 +95,7 @@ final class GameModePenaltyTests: XCTestCase {
             handSize: 5,
             nextPreviewCount: 3,
             allowsStacking: true,
-            deckPreset: .standard,
+            deckPreset: .standardLight,
             spawnRule: .fixed(BoardGeometry.defaultSpawnPoint(for: 5)),
             penalties: GameMode.PenaltySettings(
                 deadlockPenaltyCost: 0,

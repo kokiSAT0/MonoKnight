@@ -33,10 +33,6 @@
             func update(
                 board: Board,
                 knightPosition: GridPoint?,
-                currentTargetPoints: Set<GridPoint>,
-                upcomingTargetPoints: Set<GridPoint>,
-                targetApproachCandidatePoints: Set<GridPoint>,
-                targetCaptureCandidatePoints: Set<GridPoint>,
                 layout: GameSceneLayoutSupport,
                 owner: GameScene
             ) {
@@ -63,8 +59,6 @@
                                 statusText = "移動不可"
                             } else if state.isVisited {
                                 statusText = "踏破済み"
-                            } else if state.requiresMultipleVisits {
-                                statusText = "踏破まであと\(state.remainingVisits)回"
                             } else {
                                 statusText = "未踏破"
                             }
@@ -75,12 +69,6 @@
                         var labelParts: [String] = []
                         if let knightPosition, point == knightPosition {
                             labelParts.append("駒あり")
-                        }
-                        if currentTargetPoints.contains(point) || upcomingTargetPoints.contains(point) {
-                            labelParts.append("表示中の目的地")
-                        }
-                        if targetApproachCandidatePoints.contains(point) {
-                            labelParts.append("目的地に近づく移動先")
                         }
                         if let effect = board.effect(at: point) {
                             labelParts.append(effect.accessibilityLabel)
@@ -108,6 +96,10 @@
                     return "麻痺罠"
                 case .preserveCard:
                     return "カード温存マス"
+                case .discardRandomHand:
+                    return "手札喪失罠"
+                case .discardAllHands:
+                    return "全手札喪失罠"
                 }
             }
         }

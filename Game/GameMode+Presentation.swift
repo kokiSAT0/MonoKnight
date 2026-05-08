@@ -76,12 +76,6 @@ public extension GameMode {
 
     /// 手動ペナルティの説明文
     var manualPenaltySummaryText: String {
-        if usesTargetCollection {
-            let focusText = "フォーカス スコア+15"
-            let discardText = manualDiscardPenaltyCost > 0 ? "捨て札 +\(manualDiscardPenaltyCost)" : "捨て札 ペナルティなし"
-            return "\(focusText) / \(discardText)"
-        }
-
         let redrawText = "引き直し +\(manualRedrawPenaltyCost)"
         let discardText: String
         if manualDiscardPenaltyCost > 0 {

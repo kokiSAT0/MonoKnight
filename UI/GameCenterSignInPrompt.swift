@@ -5,7 +5,7 @@ import Foundation
 enum GameCenterSignInPromptReason {
     /// アプリ起動時の自動認証が失敗した場合に表示する
     case initialAuthenticationFailed
-    /// ランキング表示を要求したが未認証のため開けない場合に使用する
+    /// 将来のスコア表示を要求したが未認証のため開けない場合に使用する
     case leaderboardRequestedWhileUnauthenticated
     /// スコア送信を試みたが未認証でスキップした際に利用する
     case scoreSubmissionSkipped
@@ -18,9 +18,9 @@ enum GameCenterSignInPromptReason {
         case .initialAuthenticationFailed:
             return "Game Center へのサインインに失敗しました。通信環境を確認のうえ、再試行するか設定画面からサインインしてください。"
         case .leaderboardRequestedWhileUnauthenticated:
-            return "ランキングを表示するには Game Center へサインインする必要があります。設定画面からサインインを実行してから再度お試しください。"
+            return "スコア機能を表示するには Game Center 認証が必要です。設定画面から認証してから再度お試しください。"
         case .scoreSubmissionSkipped:
-            return "Game Center にサインインしていないため、今回のスコアはランキングへ送信されませんでした。設定画面からサインインすると次回以降は自動送信されます。"
+            return "Game Center 未認証のため、今回のスコア送信はスキップされました。設定画面から認証すると次回以降に利用できます。"
         case .retryFailed:
             return "Game Center へのサインインに再度失敗しました。しばらく時間を置くか、設定画面から改めてサインインをお試しください。"
         }

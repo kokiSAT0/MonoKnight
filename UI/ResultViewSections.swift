@@ -51,23 +51,12 @@ struct ResultDetailsSection: View {
                 }
 
                 GridRow {
-                    Text(presentation.usesTargetCollection ? "フォーカス" : "ペナルティ合計")
+                    Text("ペナルティ合計")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                     Text(presentation.penaltySummaryText)
                         .font(.body)
                         .monospacedDigit()
-                }
-
-                if presentation.usesTargetCollection {
-                    GridRow {
-                        Text("フォーカス加点")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                        Text("\(presentation.focusPoints) pt")
-                            .font(.body)
-                            .monospacedDigit()
-                    }
                 }
 
                 if presentation.usesDungeonExit {
@@ -367,29 +356,6 @@ struct ResultActionSection: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
-            }
-
-            if displayPolicy.showsLeaderboardButton {
-                Button {
-                    triggerSuccessHapticIfNeeded()
-                    if isGameCenterAuthenticated {
-                        gameCenterService.showLeaderboard(for: modeIdentifier)
-                    } else {
-                        onRequestGameCenterSignIn?(.leaderboardRequestedWhileUnauthenticated)
-                    }
-                } label: {
-                    Text(isGameCenterAuthenticated ? "ランキング" : "サインインしてランキングを見る")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-
-                if !isGameCenterAuthenticated {
-                    Text("Game Center にサインインするとランキングを表示できます。設定画面からサインインした後に再度お試しください。")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 8)
-                }
             }
 
             if displayPolicy.showsShareLink {

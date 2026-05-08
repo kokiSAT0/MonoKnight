@@ -106,7 +106,7 @@ final class BoardMovementTests: XCTestCase {
                 handSize: 5,
                 nextPreviewCount: 0,
                 allowsStacking: true,
-                deckPreset: .standard,
+                deckPreset: .standardLight,
                 spawnRule: .fixed(origin),
                 penalties: GameMode.PenaltySettings(
                     deadlockPenaltyCost: 0,

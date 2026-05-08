@@ -410,7 +410,7 @@ final class GameCoreTests: XCTestCase {
                 handSize: 5,
                 nextPreviewCount: 0,
                 allowsStacking: true,
-                deckPreset: .standard,
+                deckPreset: .standardLight,
                 spawnRule: .fixed(spawn),
                 penalties: GameMode.PenaltySettings(
                     deadlockPenaltyCost: 0,

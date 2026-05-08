@@ -8,92 +8,6 @@
             let circleCount: Int
         }
 
-        private enum MultiVisitTriangle: CaseIterable {
-            case top
-            case right
-            case bottom
-            case left
-
-            var nodeName: String {
-                switch self {
-                case .top: return "multiVisitTriangleTop"
-                case .right: return "multiVisitTriangleRight"
-                case .bottom: return "multiVisitTriangleBottom"
-                case .left: return "multiVisitTriangleLeft"
-                }
-            }
-
-            func path(tileSize: CGFloat) -> CGPath {
-                let half = tileSize / 2
-                let path = CGMutablePath()
-                path.move(to: .zero)
-
-                switch self {
-                case .top:
-                    path.addLine(to: CGPoint(x: -half, y: half))
-                    path.addLine(to: CGPoint(x: half, y: half))
-                case .right:
-                    path.addLine(to: CGPoint(x: half, y: half))
-                    path.addLine(to: CGPoint(x: half, y: -half))
-                case .bottom:
-                    path.addLine(to: CGPoint(x: half, y: -half))
-                    path.addLine(to: CGPoint(x: -half, y: -half))
-                case .left:
-                    path.addLine(to: CGPoint(x: -half, y: -half))
-                    path.addLine(to: CGPoint(x: -half, y: half))
-                }
-
-                path.closeSubpath()
-                return path
-            }
-        }
-
-        private struct MultiVisitDecorationCache {
-            let container: SKNode
-            let segments: [MultiVisitTriangle: SKShapeNode]
-            let primaryDiagonal: SKShapeNode
-            let secondaryDiagonal: SKShapeNode
-        }
-
-        private enum ToggleDecorationTriangle {
-            case topLeft
-            case bottomRight
-
-            var nodeName: String {
-                switch self {
-                case .topLeft: return "toggleTriangleTopLeft"
-                case .bottomRight: return "toggleTriangleBottomRight"
-                }
-            }
-
-            func path(tileSize: CGFloat) -> CGPath {
-                let half = tileSize / 2
-                let path = CGMutablePath()
-
-                switch self {
-                case .topLeft:
-                    path.move(to: CGPoint(x: -half, y: half))
-                    path.addLine(to: CGPoint(x: half, y: half))
-                    path.addLine(to: CGPoint(x: -half, y: -half))
-                case .bottomRight:
-                    path.move(to: CGPoint(x: half, y: -half))
-                    path.addLine(to: CGPoint(x: -half, y: -half))
-                    path.addLine(to: CGPoint(x: half, y: half))
-                }
-
-                path.closeSubpath()
-                return path
-            }
-        }
-
-        private struct ToggleDecorationCache {
-            let container: SKNode
-            let cover: SKShapeNode
-            let topLeftTriangle: SKShapeNode
-            let bottomRightTriangle: SKShapeNode
-            let diagonal: SKShapeNode
-        }
-
         private struct TileEffectDecorationCache {
             let container: SKNode
             var effect: TileEffect
@@ -102,8 +16,6 @@
         }
 
         private(set) var tileNodes: [GridPoint: SKShapeNode] = [:]
-        private var tileMultiVisitDecorations: [GridPoint: MultiVisitDecorationCache] = [:]
-        private var tileToggleDecorations: [GridPoint: ToggleDecorationCache] = [:]
         private var tileEffectDecorations: [GridPoint: TileEffectDecorationCache] = [:]
         private var warpVisualStyles: [String: WarpVisualStyle] = [:]
         private let maxWarpCircleLayers = 4
@@ -204,16 +116,6 @@
             }
             tileNodes.removeAll()
 
-            for decoration in tileMultiVisitDecorations.values {
-                decoration.container.removeFromParent()
-            }
-            tileMultiVisitDecorations.removeAll()
-
-            for decoration in tileToggleDecorations.values {
-                decoration.container.removeFromParent()
-            }
-            tileToggleDecorations.removeAll()
-
             for decoration in tileEffectDecorations.values {
                 decoration.container.removeFromParent()
             }
@@ -297,42 +199,16 @@
 
             guard let state = board.state(at: point) else {
                 applySingleVisitStyle(to: node, palette: palette)
-                removeMultiVisitDecoration(for: point)
-                removeToggleDecoration(for: point)
                 removeImpassableDecoration(from: node)
                 removeEffectDecoration(for: point)
                 return
             }
 
             switch state.visitBehavior {
-            case .multi:
-                applyMultiVisitStyle(
-                    to: node,
-                    state: state,
-                    at: point,
-                    palette: palette,
-                    layout: layout
-                )
-                removeToggleDecoration(for: point)
-                removeImpassableDecoration(from: node)
-            case .toggle:
-                applyToggleStyle(
-                    to: node,
-                    state: state,
-                    at: point,
-                    palette: palette,
-                    layout: layout
-                )
-                removeMultiVisitDecoration(for: point)
-                removeImpassableDecoration(from: node)
             case .impassable:
                 applyImpassableStyle(to: node, layout: layout, palette: palette)
-                removeMultiVisitDecoration(for: point)
-                removeToggleDecoration(for: point)
             case .single:
                 applySingleVisitStyle(to: node, palette: palette)
-                removeMultiVisitDecoration(for: point)
-                removeToggleDecoration(for: point)
                 removeImpassableDecoration(from: node)
             }
 
@@ -367,10 +243,6 @@
             switch state.visitBehavior {
             case .impassable:
                 return palette.boardTileImpassable
-            case .toggle:
-                return .clear
-            case .multi:
-                return .clear
             case .single:
                 return state.isVisited && showsVisitedTileFill
                     ? palette.boardTileVisited
@@ -378,45 +250,15 @@
             }
         }
 
+        private func removeEffectDecoration(for point: GridPoint) {
+            guard let decoration = tileEffectDecorations.removeValue(forKey: point) else { return }
+            decoration.container.removeAllActions()
+            decoration.container.removeFromParent()
+        }
+
         private func applySingleVisitStyle(to node: SKShapeNode, palette: GameScenePalette) {
             node.strokeColor = palette.boardGridLine
             node.lineWidth = 1
-        }
-
-        private func applyMultiVisitStyle(
-            to node: SKShapeNode,
-            state: TileState,
-            at point: GridPoint,
-            palette: GameScenePalette,
-            layout: GameSceneLayoutSupport
-        ) {
-            node.strokeColor = palette.boardTileMultiStroke
-            node.lineWidth = 1
-            updateMultiVisitDecoration(
-                for: point,
-                parentNode: node,
-                state: state,
-                palette: palette,
-                layout: layout
-            )
-        }
-
-        private func applyToggleStyle(
-            to node: SKShapeNode,
-            state: TileState,
-            at point: GridPoint,
-            palette: GameScenePalette,
-            layout: GameSceneLayoutSupport
-        ) {
-            node.strokeColor = palette.boardTileMultiStroke
-            node.lineWidth = 1
-            updateToggleDecoration(
-                for: point,
-                parentNode: node,
-                state: state,
-                palette: palette,
-                layout: layout
-            )
         }
 
         private func applyImpassableStyle(
@@ -465,265 +307,6 @@
             path.addLine(to: CGPoint(x: -radius * 0.9, y: radius * 0.22))
             path.closeSubpath()
             return path
-        }
-
-        private func updateMultiVisitDecoration(
-            for point: GridPoint,
-            parentNode: SKShapeNode,
-            state: TileState,
-            palette: GameScenePalette,
-            layout: GameSceneLayoutSupport
-        ) {
-            let decoration: MultiVisitDecorationCache
-
-            if let cached = tileMultiVisitDecorations[point] {
-                decoration = cached
-            } else {
-                let container = SKNode()
-                container.name = "multiVisitDecorationContainer"
-                container.zPosition = 0.14
-
-                var segments: [MultiVisitTriangle: SKShapeNode] = [:]
-                for triangle in MultiVisitTriangle.allCases {
-                    let segmentNode = SKShapeNode()
-                    segmentNode.name = triangle.nodeName
-                    segmentNode.strokeColor = .clear
-                    segmentNode.lineWidth = 0
-                    segmentNode.isAntialiased = true
-                    segmentNode.blendMode = .alpha
-                    segmentNode.zPosition = 0
-                    container.addChild(segmentNode)
-                    segments[triangle] = segmentNode
-                }
-
-                let primaryDiagonal = SKShapeNode()
-                primaryDiagonal.name = "multiVisitDiagonalPrimary"
-                primaryDiagonal.fillColor = .clear
-                primaryDiagonal.lineJoin = .round
-                primaryDiagonal.lineCap = .round
-                primaryDiagonal.isAntialiased = true
-                primaryDiagonal.zPosition = 0.05
-                container.addChild(primaryDiagonal)
-
-                let secondaryDiagonal = SKShapeNode()
-                secondaryDiagonal.name = "multiVisitDiagonalSecondary"
-                secondaryDiagonal.fillColor = .clear
-                secondaryDiagonal.lineJoin = .round
-                secondaryDiagonal.lineCap = .round
-                secondaryDiagonal.isAntialiased = true
-                secondaryDiagonal.zPosition = 0.05
-                container.addChild(secondaryDiagonal)
-
-                let cache = MultiVisitDecorationCache(
-                    container: container,
-                    segments: segments,
-                    primaryDiagonal: primaryDiagonal,
-                    secondaryDiagonal: secondaryDiagonal
-                )
-                tileMultiVisitDecorations[point] = cache
-                decoration = cache
-            }
-
-            if decoration.container.parent !== parentNode {
-                decoration.container.removeFromParent()
-                parentNode.addChild(decoration.container)
-            }
-
-            decoration.container.position = .zero
-
-            for triangle in MultiVisitTriangle.allCases {
-                decoration.segments[triangle]?.path = triangle.path(tileSize: layout.tileSize)
-            }
-
-            let totalSegmentCount = MultiVisitTriangle.allCases.count
-            let requiredVisits = max(0, state.requiredVisitCount)
-            if requiredVisits > totalSegmentCount {
-                debugLog(
-                    "GameScene.updateMultiVisitDecoration 警告: 対応上限を超える踏破回数を検出 point=\(point) required=\(requiredVisits)"
-                )
-            }
-
-            let clampedRemaining = max(0, min(state.remainingVisits, totalSegmentCount))
-            let filledSegmentCount = max(
-                0, min(totalSegmentCount, totalSegmentCount - clampedRemaining))
-            let activeSegmentCount = totalSegmentCount
-            let isCompleted = state.isVisited || clampedRemaining == 0
-            let shouldShowProgress = requiredVisits > 1
-
-            if !shouldShowProgress {
-                let baseColor = isCompleted ? palette.boardTileVisited : palette.boardTileUnvisited
-                decoration.container.isHidden = true
-
-                for triangle in MultiVisitTriangle.allCases {
-                    guard let segmentNode = decoration.segments[triangle] else { continue }
-                    segmentNode.fillColor = baseColor
-                    segmentNode.isHidden = true
-                }
-
-                decoration.primaryDiagonal.isHidden = true
-                decoration.secondaryDiagonal.isHidden = true
-                return
-            }
-
-            decoration.container.isHidden = false
-            decoration.primaryDiagonal.isHidden = false
-            decoration.secondaryDiagonal.isHidden = false
-
-            let completedColor = palette.boardTileVisited
-            let pendingColor = palette.boardTileUnvisited
-
-            for (index, triangle) in MultiVisitTriangle.allCases.enumerated() {
-                guard let segmentNode = decoration.segments[triangle] else { continue }
-                segmentNode.fillColor = index < filledSegmentCount ? completedColor : pendingColor
-                segmentNode.alpha = 1.0
-                segmentNode.isHidden = index >= activeSegmentCount
-            }
-
-            let half = layout.tileSize / 2
-            let diagonalWidth: CGFloat = 1.0
-            let diagonalAlpha: CGFloat = 0.9
-
-            let primaryPath = CGMutablePath()
-            primaryPath.move(to: CGPoint(x: -half, y: -half))
-            primaryPath.addLine(to: CGPoint(x: half, y: half))
-            decoration.primaryDiagonal.path = primaryPath
-            decoration.primaryDiagonal.strokeColor = palette.boardTileMultiStroke
-            decoration.primaryDiagonal.lineWidth = diagonalWidth
-            decoration.primaryDiagonal.alpha = diagonalAlpha
-
-            let secondaryPath = CGMutablePath()
-            secondaryPath.move(to: CGPoint(x: -half, y: half))
-            secondaryPath.addLine(to: CGPoint(x: half, y: -half))
-            decoration.secondaryDiagonal.path = secondaryPath
-            decoration.secondaryDiagonal.strokeColor = palette.boardTileMultiStroke
-            decoration.secondaryDiagonal.lineWidth = diagonalWidth
-            decoration.secondaryDiagonal.alpha = diagonalAlpha
-        }
-
-        private func removeMultiVisitDecoration(for point: GridPoint) {
-            guard let decoration = tileMultiVisitDecorations.removeValue(forKey: point) else {
-                return
-            }
-            decoration.container.removeAllActions()
-            decoration.container.removeFromParent()
-        }
-
-        private func removeToggleDecoration(for point: GridPoint) {
-            guard let decoration = tileToggleDecorations.removeValue(forKey: point) else { return }
-            decoration.container.removeAllActions()
-            decoration.container.removeFromParent()
-        }
-
-        private func removeEffectDecoration(for point: GridPoint) {
-            guard let decoration = tileEffectDecorations.removeValue(forKey: point) else { return }
-            decoration.container.removeAllActions()
-            decoration.container.removeFromParent()
-        }
-
-        private func updateToggleDecoration(
-            for point: GridPoint,
-            parentNode: SKShapeNode,
-            state: TileState,
-            palette: GameScenePalette,
-            layout: GameSceneLayoutSupport
-        ) {
-            let decoration: ToggleDecorationCache
-
-            if let cached = tileToggleDecorations[point] {
-                decoration = cached
-            } else {
-                let container = SKNode()
-                container.name = "toggleDecorationContainer"
-                container.zPosition = 0.13
-
-                let cover = SKShapeNode(rectOf: CGSize(width: layout.tileSize, height: layout.tileSize))
-                cover.name = "toggleCover"
-                cover.strokeColor = .clear
-                cover.isAntialiased = false
-                cover.blendMode = .alpha
-                cover.zPosition = -0.01
-                container.addChild(cover)
-
-                let topLeftTriangle = SKShapeNode()
-                topLeftTriangle.name = ToggleDecorationTriangle.topLeft.nodeName
-                topLeftTriangle.strokeColor = .clear
-                topLeftTriangle.lineWidth = 0
-                topLeftTriangle.isAntialiased = true
-                topLeftTriangle.blendMode = .alpha
-                container.addChild(topLeftTriangle)
-
-                let bottomRightTriangle = SKShapeNode()
-                bottomRightTriangle.name = ToggleDecorationTriangle.bottomRight.nodeName
-                bottomRightTriangle.strokeColor = .clear
-                bottomRightTriangle.lineWidth = 0
-                bottomRightTriangle.isAntialiased = true
-                bottomRightTriangle.blendMode = .alpha
-                container.addChild(bottomRightTriangle)
-
-                let diagonal = SKShapeNode()
-                diagonal.name = "toggleDecorationDiagonal"
-                diagonal.fillColor = .clear
-                diagonal.strokeColor = palette.boardTileMultiStroke
-                diagonal.lineWidth = 1
-                diagonal.lineJoin = .round
-                diagonal.lineCap = .round
-                diagonal.isAntialiased = true
-                diagonal.blendMode = .alpha
-                container.addChild(diagonal)
-
-                let cache = ToggleDecorationCache(
-                    container: container,
-                    cover: cover,
-                    topLeftTriangle: topLeftTriangle,
-                    bottomRightTriangle: bottomRightTriangle,
-                    diagonal: diagonal
-                )
-                tileToggleDecorations[point] = cache
-                decoration = cache
-            }
-
-            if decoration.container.parent !== parentNode {
-                decoration.container.removeFromParent()
-                parentNode.addChild(decoration.container)
-            }
-
-            decoration.container.position = .zero
-            decoration.container.isHidden = false
-
-            let coverRect = CGRect(
-                x: -layout.tileSize / 2,
-                y: -layout.tileSize / 2,
-                width: layout.tileSize,
-                height: layout.tileSize
-            )
-            decoration.cover.path = CGPath(rect: coverRect, transform: nil)
-            decoration.cover.fillColor = .clear
-            decoration.cover.alpha = 0.0
-            decoration.cover.isHidden = false
-
-            decoration.topLeftTriangle.path = ToggleDecorationTriangle.topLeft.path(
-                tileSize: layout.tileSize)
-            decoration.bottomRightTriangle.path = ToggleDecorationTriangle.bottomRight.path(
-                tileSize: layout.tileSize)
-
-            decoration.bottomRightTriangle.fillColor = palette.boardTileVisited
-            decoration.bottomRightTriangle.alpha = 1.0
-            decoration.bottomRightTriangle.isHidden = false
-
-            decoration.topLeftTriangle.fillColor =
-                state.isVisited ? palette.boardTileVisited : palette.boardTileUnvisited
-            decoration.topLeftTriangle.alpha = 1.0
-            decoration.topLeftTriangle.isHidden = false
-
-            let half = layout.tileSize / 2
-            let diagonalPath = CGMutablePath()
-            diagonalPath.move(to: CGPoint(x: half, y: half))
-            diagonalPath.addLine(to: CGPoint(x: -half, y: -half))
-            decoration.diagonal.path = diagonalPath
-            decoration.diagonal.strokeColor = palette.boardTileMultiStroke
-            decoration.diagonal.lineWidth = 1
-            decoration.diagonal.alpha = 1.0
-            decoration.diagonal.isHidden = false
         }
 
         private func updateEffectDecoration(
@@ -907,6 +490,70 @@
                     strokeNodes: [card],
                     fillNodes: [notch]
                 )
+            case .discardRandomHand:
+                let card = SKShapeNode()
+                card.name = "tileEffectDiscardCardBody"
+                card.strokeColor = .clear
+                card.fillColor = .clear
+                card.lineWidth = 1
+                card.isAntialiased = true
+                card.blendMode = .alpha
+
+                let crack = SKShapeNode()
+                crack.name = "tileEffectDiscardCardCrack"
+                crack.strokeColor = .clear
+                crack.fillColor = .clear
+                crack.lineWidth = 1
+                crack.isAntialiased = true
+                crack.blendMode = .alpha
+
+                container.addChild(card)
+                container.addChild(crack)
+                return TileEffectDecorationCache(
+                    container: container,
+                    effect: effect,
+                    strokeNodes: [card, crack],
+                    fillNodes: []
+                )
+            case .discardAllHands:
+                let outerFrame = SKShapeNode()
+                outerFrame.name = "tileEffectDiscardAllFrame"
+                outerFrame.strokeColor = .clear
+                outerFrame.fillColor = .clear
+                outerFrame.lineWidth = 1
+                outerFrame.isAntialiased = true
+                outerFrame.blendMode = .alpha
+                container.addChild(outerFrame)
+
+                var strokeNodes: [SKShapeNode] = [outerFrame]
+                for index in 0..<3 {
+                    let card = SKShapeNode()
+                    card.name = "tileEffectDiscardAllCard\(index)"
+                    card.strokeColor = .clear
+                    card.fillColor = .clear
+                    card.lineWidth = 1
+                    card.isAntialiased = true
+                    card.blendMode = .alpha
+
+                    let crack = SKShapeNode()
+                    crack.name = "tileEffectDiscardAllCrack\(index)"
+                    crack.strokeColor = .clear
+                    crack.fillColor = .clear
+                    crack.lineWidth = 1
+                    crack.isAntialiased = true
+                    crack.blendMode = .alpha
+
+                    container.addChild(card)
+                    container.addChild(crack)
+                    strokeNodes.append(card)
+                    strokeNodes.append(crack)
+                }
+                return TileEffectDecorationCache(
+                    container: container,
+                    effect: effect,
+                    strokeNodes: strokeNodes,
+                    fillNodes: []
+                )
             }
         }
 
@@ -1056,6 +703,56 @@
                     transform: nil
                 )
                 notch.position = CGPoint(x: 0, y: layout.tileSize * 0.12)
+            case .discardRandomHand:
+                guard decoration.strokeNodes.count >= 2 else { return }
+                let card = decoration.strokeNodes[0]
+                let crack = decoration.strokeNodes[1]
+                card.path = brokenCardPath(tileSize: layout.tileSize, scale: 0.92)
+                card.lineWidth = max(1.2, layout.tileSize * 0.045)
+                card.position = .zero
+                card.zRotation = -.pi / 18
+
+                crack.path = brokenCardCrackPath(tileSize: layout.tileSize, scale: 0.92)
+                crack.lineWidth = max(1.2, layout.tileSize * 0.04)
+                crack.position = .zero
+                crack.zRotation = card.zRotation
+            case .discardAllHands:
+                guard decoration.strokeNodes.count >= 7 else { return }
+                let frame = decoration.strokeNodes[0]
+                let frameInset = layout.tileSize * 0.18
+                frame.path = CGPath(
+                    roundedRect: CGRect(
+                        x: -layout.tileSize / 2 + frameInset,
+                        y: -layout.tileSize / 2 + frameInset,
+                        width: layout.tileSize - frameInset * 2,
+                        height: layout.tileSize - frameInset * 2
+                    ),
+                    cornerWidth: layout.tileSize * 0.08,
+                    cornerHeight: layout.tileSize * 0.08,
+                    transform: nil
+                )
+                frame.lineWidth = max(2.0, layout.tileSize * 0.07)
+                frame.position = .zero
+
+                let offsets = [
+                    CGPoint(x: -layout.tileSize * 0.12, y: layout.tileSize * 0.09),
+                    CGPoint(x: layout.tileSize * 0.10, y: -layout.tileSize * 0.02),
+                    CGPoint(x: -layout.tileSize * 0.02, y: -layout.tileSize * 0.14)
+                ]
+                let rotations: [CGFloat] = [-.pi / 10, .pi / 12, -.pi / 30]
+                for index in 0..<3 {
+                    let card = decoration.strokeNodes[1 + index * 2]
+                    let crack = decoration.strokeNodes[2 + index * 2]
+                    card.path = brokenCardPath(tileSize: layout.tileSize, scale: 0.55)
+                    card.lineWidth = max(1.0, layout.tileSize * 0.035)
+                    card.position = offsets[index]
+                    card.zRotation = rotations[index]
+
+                    crack.path = brokenCardCrackPath(tileSize: layout.tileSize, scale: 0.55)
+                    crack.lineWidth = max(1.0, layout.tileSize * 0.03)
+                    crack.position = offsets[index]
+                    crack.zRotation = rotations[index]
+                }
             }
         }
 
@@ -1118,6 +815,20 @@
                 for node in decoration.fillNodes {
                     node.fillColor = accent.withAlphaComponent(0.88)
                     node.strokeColor = .clear
+                    node.alpha = 1.0
+                }
+            case .discardRandomHand:
+                let accent = palette.boardTileEffectDiscardHand
+                for (index, node) in decoration.strokeNodes.enumerated() {
+                    node.strokeColor = accent.withAlphaComponent(index == 0 ? 0.95 : 0.78)
+                    node.fillColor = index == 0 ? accent.withAlphaComponent(0.10) : .clear
+                    node.alpha = 1.0
+                }
+            case .discardAllHands:
+                let accent = palette.boardTileEffectDiscardHand
+                for (index, node) in decoration.strokeNodes.enumerated() {
+                    node.strokeColor = accent.withAlphaComponent(index == 0 ? 1.0 : 0.88)
+                    node.fillColor = index == 0 ? accent.withAlphaComponent(0.10) : accent.withAlphaComponent(0.08)
                     node.alpha = 1.0
                 }
             }
@@ -1195,6 +906,28 @@
             path.addLine(to: CGPoint(x: -headWidth / 2, y: shaftTopY))
             path.addLine(to: CGPoint(x: -shaftWidth / 2, y: shaftTopY))
             path.closeSubpath()
+            return path
+        }
+
+        private func brokenCardPath(tileSize: CGFloat, scale: CGFloat) -> CGPath {
+            let cardWidth = tileSize * 0.42 * scale
+            let cardHeight = tileSize * 0.56 * scale
+            let rect = CGRect(x: -cardWidth / 2, y: -cardHeight / 2, width: cardWidth, height: cardHeight)
+            return CGPath(
+                roundedRect: rect,
+                cornerWidth: tileSize * 0.04 * scale,
+                cornerHeight: tileSize * 0.04 * scale,
+                transform: nil
+            )
+        }
+
+        private func brokenCardCrackPath(tileSize: CGFloat, scale: CGFloat) -> CGPath {
+            let s = tileSize * scale
+            let path = CGMutablePath()
+            path.move(to: CGPoint(x: -s * 0.06, y: s * 0.25))
+            path.addLine(to: CGPoint(x: s * 0.02, y: s * 0.08))
+            path.addLine(to: CGPoint(x: -s * 0.04, y: -s * 0.02))
+            path.addLine(to: CGPoint(x: s * 0.07, y: -s * 0.24))
             return path
         }
 

@@ -42,10 +42,6 @@ extension GameCore {
     /// - Note: 既にゲームが終了している場合や、ペナルティ中は何もしない
     public func applyManualPenaltyRedraw() {
         guard !usesDungeonInventoryCards else { return }
-        if mode.usesTargetCollection {
-            applyFocusRedraw()
-            return
-        }
 
         // クリア済み・ペナルティ処理中は無視し、進行中のみ受け付ける
         guard progress == .playing || progress == .awaitingSpawn else { return }
@@ -77,13 +73,6 @@ extension GameCore {
         // availableMoves() 内で primaryVector が評価されるため、将来の複数候補カードでも共通ロジックを維持できる
         let usableMoves = availableMoves(handStacks: handStacks, current: current)
         guard usableMoves.isEmpty, !hasUsableSupportCard() else { return }
-
-        if mode.usesTargetCollection {
-            debugLog("手詰まり検出: 目的地へ近づくフォーカス再配布を実行")
-            rebuildFocusedHandAndNext()
-            let focusedMoves = availableMoves(handStacks: handStacks, current: current)
-            if !focusedMoves.isEmpty || hasUsableSupportCard() { return }
-        }
 
         if let lastPenaltyAmount = lastPaidPenaltyAmount {
             // デバッグログ: 連続手詰まりを通知し、追加ペナルティ無しで再抽選する
@@ -275,13 +264,8 @@ extension GameCore {
     /// 現在の残り踏破数を VoiceOver で通知する
     func announceRemainingTiles() {
 #if canImport(UIKit)
-        let message: String
-        if mode.usesTargetCollection {
-            message = "残り目標は\(remainingTargetCount)です"
-        } else {
-            let remaining = board.remainingCount
-            message = "残り踏破数は\(remaining)です"
-        }
+        let remaining = board.remainingCount
+        let message = "残り踏破数は\(remaining)です"
         UIAccessibility.post(notification: .announcement, argument: message)
 #endif
     }

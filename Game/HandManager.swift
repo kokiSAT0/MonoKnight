@@ -125,6 +125,11 @@ public final class HandManager: ObservableObject {
         nextCards.removeAll(keepingCapacity: true)
     }
 
+    /// 手札スロットだけをすべて破棄し、NEXT 表示は維持する
+    func clearHandStacks() {
+        handStacks.removeAll(keepingCapacity: true)
+    }
+
     /// 手札と先読みを一括で初期化する
     /// - Parameter deck: ドローに使用する山札
     func resetAll(using deck: inout Deck) {

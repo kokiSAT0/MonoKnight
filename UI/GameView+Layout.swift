@@ -215,7 +215,7 @@ extension GameView {
             VStack(alignment: .leading, spacing: 6) {
                 Text("開始マスを選択")
                     .font(.system(size: 17, weight: .semibold, design: .rounded))
-                Text("手札、先読み、目的地を確認してから、目的地以外のマスをタップしてください。")
+                Text("手札と盤面を確認してから、開始マスをタップしてください。")
                     .font(.system(size: 14, weight: .medium, design: .rounded))
                     .multilineTextAlignment(.leading)
             }
@@ -246,7 +246,7 @@ extension GameView {
         .foregroundColor(theme.textPrimary)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("spawn_selection_banner")
-        .accessibilityLabel(Text("開始位置を選択してください。手札、次のカード、目的地を見てから、目的地以外のマスをタップできます。"))
+        .accessibilityLabel(Text("開始位置を選択してください。手札と盤面を見てから開始マスをタップできます。"))
     }
 
     /// 開始位置案内を盤面上部に重ねるための上余白

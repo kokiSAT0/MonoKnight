@@ -31,7 +31,7 @@ final class HandManagerTests: XCTestCase {
             ),
             (
                 "4種類の桂馬選択カード",
-                .knightChoiceOnly,
+                makeConfiguration(moves: [.knightUpwardChoice, .knightRightwardChoice, .knightDownwardChoice, .knightLeftwardChoice]),
                 [.knightUpwardChoice, .knightUpwardChoice, .knightRightwardChoice, .knightDownwardChoice, .knightLeftwardChoice, .knightRightwardChoice]
             )
         ]
@@ -81,7 +81,12 @@ final class HandManagerTests: XCTestCase {
             .move(.kingUpRight),
             .support(.refillEmptySlots),
             .move(.kingUpRight)
-        ], configuration: .supportToolkit)
+        ], configuration: Deck.Configuration(
+            allowedMoves: [.kingUpRight],
+            allowedSupportCards: [.refillEmptySlots],
+            weightProfile: Deck.WeightProfile(defaultWeight: 1),
+            deckSummaryText: "補助カードテスト用構成"
+        ))
 
         let handManager = HandManager(handSize: 5, nextPreviewCount: 0, allowsCardStacking: true)
         handManager.refillHandStacks(using: &deck)
@@ -89,8 +94,8 @@ final class HandManagerTests: XCTestCase {
         let supportStacks = handManager.handStacks.filter { $0.topCard?.supportCard == .refillEmptySlots }
         let kingStacks = handManager.handStacks.filter { $0.topCard?.moveCard == .kingUpRight }
         XCTAssertEqual(supportStacks.count, 1, "同じ補助カードは同一スタックへまとまる想定です")
-        XCTAssertEqual(supportStacks.first?.count, 2)
+        XCTAssertEqual(supportStacks.first?.count, 1)
         XCTAssertEqual(kingStacks.count, 1, "同じ移動カードは従来通り同一スタックへまとまる想定です")
-        XCTAssertEqual(kingStacks.first?.count, 3)
+        XCTAssertEqual(kingStacks.first?.count, 1)
     }
 }

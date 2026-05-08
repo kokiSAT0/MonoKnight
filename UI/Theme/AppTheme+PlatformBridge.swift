@@ -126,6 +126,13 @@ extension AppTheme {
             dark: color(for: .dark, keyPath: \.boardTileEffectPreserveCard)
         )
     }
+
+    var uiBoardTileEffectDiscardHand: UIColor {
+        dynamicUIColor(
+            light: color(for: .light, keyPath: \.boardTileEffectDiscardHand),
+            dark: color(for: .dark, keyPath: \.boardTileEffectDiscardHand)
+        )
+    }
     #endif
 
     #if canImport(SpriteKit) && canImport(UIKit)
@@ -146,5 +153,6 @@ extension AppTheme {
     var skBoardTileEffectBlast: SKColor { SKColor(cgColor: uiBoardTileEffectBlast.cgColor) }
     var skBoardTileEffectSlow: SKColor { SKColor(cgColor: uiBoardTileEffectSlow.cgColor) }
     var skBoardTileEffectPreserveCard: SKColor { SKColor(cgColor: uiBoardTileEffectPreserveCard.cgColor) }
+    var skBoardTileEffectDiscardHand: SKColor { SKColor(cgColor: uiBoardTileEffectDiscardHand.cgColor) }
     #endif
 }

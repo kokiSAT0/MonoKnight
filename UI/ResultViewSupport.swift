@@ -6,8 +6,6 @@ import SwiftUI
 struct ResultSummaryPresentation {
     let moveCount: Int
     let penaltyCount: Int
-    let focusCount: Int
-    let usesTargetCollection: Bool
     let usesDungeonExit: Bool
     let isFailed: Bool
     let failureReason: String?
@@ -22,9 +20,6 @@ struct ResultSummaryPresentation {
     let elapsedSeconds: Int
 
     var totalMoves: Int {
-        if usesTargetCollection {
-            return moveCount
-        }
         return moveCount + penaltyCount
     }
 
@@ -32,16 +27,12 @@ struct ResultSummaryPresentation {
         return moveCount * 10
     }
 
-    var focusPoints: Int {
-        return usesTargetCollection ? focusCount * 15 : 0
-    }
-
     var timePoints: Int {
         return elapsedSeconds
     }
 
     var points: Int {
-        return movePoints + timePoints + focusPoints
+        return movePoints + timePoints
     }
 
     var formattedElapsedTime: String {
@@ -55,9 +46,6 @@ struct ResultSummaryPresentation {
     }
 
     var penaltySummaryText: String {
-        if usesTargetCollection {
-            return focusCount == 0 ? "フォーカスなし" : "フォーカス \(focusCount) 回"
-        }
         return penaltyCount == 0 ? "ペナルティなし" : "ペナルティ合計 \(penaltyCount)"
     }
 
@@ -121,9 +109,6 @@ struct ResultSummaryPresentation {
         }
         if usesDungeonExit {
             return "MonoKnight \(modeDisplayName) フロアクリア！（移動 \(moveCount) 手 / 残HP \(dungeonHP ?? 0) / 所要 \(formattedElapsedTime)）"
-        }
-        if usesTargetCollection {
-            return "MonoKnight \(modeDisplayName) クリア！ポイント \(points)（移動 \(moveCount) 手 / \(penaltySummaryText) / 所要 \(formattedElapsedTime)）"
         }
         return "MonoKnight \(modeDisplayName) クリア！ポイント \(points)（移動 \(moveCount) 手 / \(penaltySummaryText) / 所要 \(formattedElapsedTime)）"
     }

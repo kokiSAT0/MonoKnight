@@ -8,12 +8,6 @@ extension GameViewModel {
         boardTapSelectionWarning = nil
     }
 
-    func clearTargetCaptureFeedback() {
-        targetCaptureFeedbackDismissTask?.cancel()
-        targetCaptureFeedbackDismissTask = nil
-        targetCaptureFeedback = nil
-    }
-
     func finalizeResultDismissal() {
         applyResultPresentationMutation { state in
             state.hideResult()
@@ -34,7 +28,7 @@ extension GameViewModel {
     func requestManualPenalty() {
         guard isManualPenaltyButtonEnabled else { return }
         applySessionUIMutation { state in
-            state.requestManualPenalty(cost: core.mode.usesTargetCollection ? -15 : core.mode.manualRedrawPenaltyCost)
+            state.requestManualPenalty(cost: core.mode.manualRedrawPenaltyCost)
         }
     }
 
@@ -148,7 +142,6 @@ extension GameViewModel {
                 applySessionUIMutation { state in
                     state.resetTransientUIForTitleReturn()
                 }
-                clearTargetCaptureFeedback()
             },
             clearBoardTapSelectionWarning: { [self] in
                 clearBoardTapSelectionWarning()
@@ -305,7 +298,6 @@ extension GameViewModel {
                 applySessionUIMutation { state in
                     state.resetTransientUIForTitleReturn()
                 }
-                clearTargetCaptureFeedback()
             },
             clearBoardTapSelectionWarning: { [self] in
                 clearBoardTapSelectionWarning()

@@ -43,8 +43,8 @@ final class GameViewModelTests: XCTestCase {
 
     /// 捨て札ボタンを押すとモードが開始されることを確認
     func testToggleManualDiscardSelectionActivatesWhenPlayable() {
-        let (viewModel, core) = makeViewModel(mode: legacyControlTestMode)
-        XCTAssertTrue(viewModel.isManualDiscardButtonEnabled, "スタンダードモードでは捨て札ボタンが有効であるべきです")
+        let (viewModel, core) = makeViewModel(mode: controlTestDungeonMode)
+        XCTAssertTrue(viewModel.isManualDiscardButtonEnabled, "塔テストモードでは捨て札ボタンが有効であるべきです")
         XCTAssertFalse(core.isAwaitingManualDiscardSelection, "初期状態では捨て札モードが無効であるべきです")
 
         viewModel.toggleManualDiscardSelection()
@@ -54,7 +54,7 @@ final class GameViewModelTests: XCTestCase {
 
     /// 捨て札モード中に再度ボタンを押すと解除されることを確認
     func testToggleManualDiscardSelectionCancelsWhenAlreadyActive() {
-        let (viewModel, core) = makeViewModel(mode: legacyControlTestMode)
+        let (viewModel, core) = makeViewModel(mode: controlTestDungeonMode)
         viewModel.toggleManualDiscardSelection()
         XCTAssertTrue(core.isAwaitingManualDiscardSelection, "前提として捨て札モードが開始している必要があります")
 
@@ -74,8 +74,13 @@ final class GameViewModelTests: XCTestCase {
             .move(.straightRight2),
             .move(.straightUp2),
             .move(.straightLeft2)
-        ], configuration: .supportToolkit)
-        let mode = legacyControlTestMode
+        ], configuration: Deck.Configuration(
+            allowedMoves: [.straightRight2, .kingUpRight, .straightLeft2, .straightDown2, .straightUp2],
+            allowedSupportCards: [.refillEmptySlots],
+            weightProfile: Deck.WeightProfile(defaultWeight: 1),
+            deckSummaryText: "補助カードテスト用構成"
+        ))
+        let mode = controlTestDungeonMode
         let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 2, y: 2), mode: mode)
         let viewModel = makeViewModel(mode: mode, core: core)
 
@@ -93,14 +98,14 @@ final class GameViewModelTests: XCTestCase {
 
     /// 手動ペナルティが進行中のみで発火し、ペナルティ量が一致することを確認
     func testRequestManualPenaltySetsPendingActionWhenPlayable() {
-        let (viewModel, core) = makeViewModel(mode: legacyControlTestMode)
+        let (viewModel, core) = makeViewModel(mode: controlTestDungeonMode)
         XCTAssertNil(viewModel.pendingMenuAction, "初期状態では確認ダイアログが未設定であるべきです")
 
         viewModel.requestManualPenalty()
 
         XCTAssertEqual(
             viewModel.pendingMenuAction,
-            .manualPenalty(penaltyCost: core.mode.usesTargetCollection ? -15 : core.mode.manualRedrawPenaltyCost),
+            .manualPenalty(penaltyCost: core.mode.manualRedrawPenaltyCost),
             "ペナルティ要求時の確認アクションが期待と一致しません"
         )
     }
@@ -120,8 +125,8 @@ final class GameViewModelTests: XCTestCase {
 
     /// プレイ待機中は手動ペナルティの確認がセットされないことを確認
     func testRequestManualPenaltyIgnoredWhenNotPlaying() {
-        let (viewModel, core) = makeViewModel(mode: legacyControlTestMode, resolvesSpawnSelection: false)
-        XCTAssertEqual(core.progress, .awaitingSpawn, "クラシカルモードではスポーン待機が初期状態です")
+        let (viewModel, core) = makeViewModel(mode: controlTestDungeonMode, resolvesSpawnSelection: false)
+        XCTAssertEqual(core.progress, .awaitingSpawn, "任意スポーンの塔テストモードではスポーン待機が初期状態です")
 
         viewModel.requestManualPenalty()
 
@@ -132,8 +137,6 @@ final class GameViewModelTests: XCTestCase {
         let presentation = ResultSummaryPresentation(
             moveCount: 6,
             penaltyCount: 0,
-            focusCount: 0,
-            usesTargetCollection: false,
             usesDungeonExit: true,
             isFailed: false,
             failureReason: nil,
@@ -159,8 +162,6 @@ final class GameViewModelTests: XCTestCase {
         let presentation = ResultSummaryPresentation(
             moveCount: 8,
             penaltyCount: 0,
-            focusCount: 0,
-            usesTargetCollection: false,
             usesDungeonExit: true,
             isFailed: false,
             failureReason: nil,
@@ -572,7 +573,7 @@ final class GameViewModelTests: XCTestCase {
                 handSize: 5,
                 nextPreviewCount: 3,
                 allowsStacking: true,
-                deckPreset: .kingOnly,
+                deckPreset: .kingAndKnightBasic,
                 spawnRule: .fixed(GridPoint(x: 0, y: 0)),
                 penalties: GameMode.PenaltySettings(
                     deadlockPenaltyCost: 0,
@@ -1347,7 +1348,7 @@ final class GameViewModelTests: XCTestCase {
     }
 
     func testWarpTowerRewardAppearsUsableOnStartedNextFloor() throws {
-        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "warp-tower"))
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
         let firstMode = try XCTUnwrap(DungeonLibrary.shared.firstFloorMode(for: tower))
         var requestedMode: GameMode?
         let (firstViewModel, firstCore) = makeViewModel(
@@ -1665,7 +1666,7 @@ final class GameViewModelTests: XCTestCase {
                 handSize: 5,
                 nextPreviewCount: 0,
                 allowsStacking: true,
-                deckPreset: .standard,
+                deckPreset: .standardLight,
                 spawnRule: .fixed(GridPoint(x: 0, y: 0)),
                 penalties: GameMode.PenaltySettings(
                     deadlockPenaltyCost: 0,
@@ -1710,7 +1711,7 @@ final class GameViewModelTests: XCTestCase {
                 handSize: 10,
                 nextPreviewCount: 0,
                 allowsStacking: true,
-                deckPreset: .standard,
+                deckPreset: .standardLight,
                 spawnRule: .fixed(GridPoint(x: 0, y: 0)),
                 penalties: GameMode.PenaltySettings(
                     deadlockPenaltyCost: 0,
@@ -1745,7 +1746,7 @@ final class GameViewModelTests: XCTestCase {
                 handSize: 5,
                 nextPreviewCount: 0,
                 allowsStacking: true,
-                deckPreset: .standard,
+                deckPreset: .standardLight,
                 spawnRule: .fixed(GridPoint(x: 0, y: 0)),
                 penalties: GameMode.PenaltySettings(
                     deadlockPenaltyCost: 0,
@@ -1826,16 +1827,16 @@ final class GameViewModelTests: XCTestCase {
         return DungeonRunResumeStore(userDefaults: defaults)
     }
 
-    private var legacyControlTestMode: GameMode {
+    private var controlTestDungeonMode: GameMode {
         GameMode(
             identifier: .dungeonFloor,
-            displayName: "テスト用標準モード",
+            displayName: "テスト用塔モード",
             regulation: GameMode.Regulation(
                 boardSize: 5,
                 handSize: 5,
                 nextPreviewCount: 3,
                 allowsStacking: true,
-                deckPreset: .standard,
+                deckPreset: .standardLight,
                 spawnRule: .chooseAnyAfterPreview,
                 penalties: GameMode.PenaltySettings(
                     deadlockPenaltyCost: 5,
@@ -1843,7 +1844,7 @@ final class GameViewModelTests: XCTestCase {
                     manualDiscardPenaltyCost: 1,
                     revisitPenaltyCost: 0
                 ),
-                completionRule: .boardClear
+                completionRule: .dungeonExit(exitPoint: GridPoint(x: 4, y: 4))
             )
         )
     }

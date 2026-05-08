@@ -51,6 +51,9 @@ extension AppTheme {
 
     /// カード温存効果を描画する際のアクセントカラー
     var boardTileEffectPreserveCard: Color { schemeColor(light: Self.lightBoardTileEffectPreserveCard, dark: Self.darkBoardTileEffectPreserveCard) }
+
+    /// 手札喪失罠を描画する際のアクセントカラー
+    var boardTileEffectDiscardHand: Color { schemeColor(light: Self.lightBoardTileEffectDiscardHand, dark: Self.darkBoardTileEffectDiscardHand) }
 }
 
 private extension AppTheme {
@@ -70,4 +73,6 @@ private extension AppTheme {
     static let darkBoardTileEffectSlow = Color(red: 0.94, green: 0.56, blue: 1.0).opacity(0.95)
     static let lightBoardTileEffectPreserveCard = Color(red: 0.90, green: 0.54, blue: 0.06).opacity(0.95)
     static let darkBoardTileEffectPreserveCard = Color(red: 1.0, green: 0.72, blue: 0.24).opacity(0.95)
+    static let lightBoardTileEffectDiscardHand = Color(red: 0.72, green: 0.08, blue: 0.18).opacity(0.95)
+    static let darkBoardTileEffectDiscardHand = Color(red: 1.0, green: 0.42, blue: 0.48).opacity(0.95)
 }

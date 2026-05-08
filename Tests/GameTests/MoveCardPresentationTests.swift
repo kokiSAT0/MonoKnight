@@ -136,6 +136,8 @@ final class MoveCardPresentationTests: XCTestCase {
             "warp",
             "blast",
             "paralysisTrap",
+            "discardRandomHandTrap",
+            "discardAllHandsTrap",
         ]))
 
         let specialPreviewIDs = Set(entries.compactMap { entry -> String? in
@@ -146,6 +148,8 @@ final class MoveCardPresentationTests: XCTestCase {
         })
         XCTAssertEqual(specialPreviewIDs, [
             "blast",
+            "discardAllHandsTrap",
+            "discardRandomHandTrap",
             "paralysisTrap",
             "warp"
         ])

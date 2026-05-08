@@ -206,8 +206,6 @@ struct GameView: View {
             ResultView(
                 moveCount: viewModel.moveCount,
                 penaltyCount: viewModel.penaltyCount,
-                focusCount: viewModel.focusCount,
-                usesTargetCollection: viewModel.usesTargetCollection,
                 usesDungeonExit: viewModel.usesDungeonExit,
                 isFailed: viewModel.isResultFailed,
                 failureReason: viewModel.failureReasonText,

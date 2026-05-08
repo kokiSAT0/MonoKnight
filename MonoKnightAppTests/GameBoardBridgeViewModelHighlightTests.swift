@@ -560,7 +560,7 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
             handSize: 5,
             nextPreviewCount: 3,
             allowsStacking: true,
-            deckPreset: .standard,
+            deckPreset: .standardLight,
             spawnRule: .fixed(BoardGeometry.defaultSpawnPoint(for: BoardGeometry.standardSize)),
             penalties: GameMode.PenaltySettings(
                 deadlockPenaltyCost: 3,
@@ -637,7 +637,7 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
             "床落ちカードも専用ハイライトとして Scene へ渡します"
         )
 
-        let trapTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "trap-tower"))
+        let trapTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
         let trapFloor = try XCTUnwrap(trapTower.floors.first)
         let trapMode = trapFloor.makeGameMode(dungeonID: trapTower.id)
         let trapCore = GameCore(mode: trapMode)
@@ -728,7 +728,7 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
     }
 
     func testDungeonPatrolMovementPreviewsArePassedToScene() throws {
-        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "patrol-tower"))
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
         let floor = tower.floors[0]
         let mode = floor.makeGameMode(dungeonID: tower.id)
         let core = GameCore(mode: mode)
@@ -786,7 +786,7 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
     }
 
     func testDungeonEnemyTurnAnimationKeepsPatrolRailsVisible() throws {
-        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "patrol-tower"))
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
         let floor = tower.floors[0]
         let mode = floor.makeGameMode(dungeonID: tower.id)
         let core = GameCore(mode: mode)
@@ -999,9 +999,9 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
         )
     }
 
-    func testKeyDoorTowerFixedDoorStateIsPassedToScene() throws {
-        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "key-door-tower"))
-        let floor = try XCTUnwrap(tower.floors.first)
+    func testGrowthTowerKeyDoorStateIsPassedToScene() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let floor = try XCTUnwrap(tower.floors.first { $0.exitLock != nil })
         let mode = floor.makeGameMode(dungeonID: tower.id)
         let core = GameCore(mode: mode)
         let viewModel = GameBoardBridgeViewModel(core: core, mode: mode)
@@ -1013,7 +1013,7 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
         XCTAssertTrue(core.board.isImpassable(doorPoint))
         XCTAssertTrue(
             viewModel.scene.boardIsImpassableForTesting(at: doorPoint),
-            "鍵扉塔の扉マスも Scene の盤面へ渡す必要があります"
+            "成長塔の施錠階段フロアの扉マスも Scene の盤面へ渡す必要があります"
         )
 
         viewModel.refreshGuideHighlights(progressOverride: .playing)
@@ -1054,7 +1054,7 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
                 handSize: 5,
                 nextPreviewCount: 0,
                 allowsStacking: true,
-                deckPreset: .standard,
+                deckPreset: .standardLight,
                 spawnRule: .fixed(GridPoint(x: 0, y: 0)),
                 penalties: .init(
                     deadlockPenaltyCost: 0,
@@ -1082,7 +1082,7 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
                 handSize: 5,
                 nextPreviewCount: 0,
                 allowsStacking: true,
-                deckPreset: .standard,
+                deckPreset: .standardLight,
                 spawnRule: .fixed(GridPoint(x: 0, y: 0)),
                 penalties: .init(
                     deadlockPenaltyCost: 0,
@@ -1110,7 +1110,7 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
                 handSize: 5,
                 nextPreviewCount: 0,
                 allowsStacking: true,
-                deckPreset: .standard,
+                deckPreset: .standardLight,
                 spawnRule: .fixed(GridPoint(x: 0, y: 0)),
                 penalties: .init(
                     deadlockPenaltyCost: 0,
@@ -1155,7 +1155,7 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
                 handSize: 5,
                 nextPreviewCount: 0,
                 allowsStacking: true,
-                deckPreset: .standard,
+                deckPreset: .standardLight,
                 spawnRule: .fixed(GridPoint(x: 0, y: 0)),
                 penalties: .init(
                     deadlockPenaltyCost: 0,
@@ -1183,7 +1183,7 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
                 handSize: 5,
                 nextPreviewCount: 0,
                 allowsStacking: true,
-                deckPreset: .standard,
+                deckPreset: .standardLight,
                 spawnRule: .fixed(GridPoint(x: 0, y: 0)),
                 penalties: .init(
                     deadlockPenaltyCost: 0,

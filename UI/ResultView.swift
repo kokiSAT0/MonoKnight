@@ -11,10 +11,6 @@ struct ResultView: View {
 
     /// ペナルティで加算された手数
     let penaltyCount: Int
-    /// フォーカスを使った回数
-    let focusCount: Int
-    /// 目的地制のリザルトかどうか
-    let usesTargetCollection: Bool
     /// 出口到達型ダンジョンのリザルトかどうか
     let usesDungeonExit: Bool
     /// 失敗リザルトかどうか
@@ -41,7 +37,7 @@ struct ResultView: View {
     let dungeonRewardSupportCards: [SupportCard]
     /// リザルト時点で残っている塔所持カード
     let dungeonInventoryEntries: [DungeonInventoryEntry]
-    /// 旧互換用: 拾得カード持ち越し候補。通常 UI では自動持ち越しのため空配列を渡す。
+    /// 拾得カード持ち越し候補。通常 UI では自動持ち越しのため空配列を渡す。
     let dungeonPickupCarryoverEntries: [DungeonInventoryEntry]
     /// 新しく手札へ追加したカードの使用回数
     let dungeonRewardAddUses: Int
@@ -51,13 +47,13 @@ struct ResultView: View {
     /// クリアまでに要した秒数
     let elapsedSeconds: Int
 
-    /// スコア送信・ランキング表示に利用するゲームモード識別子
+    /// 将来の試練塔スコア境界で利用するゲームモード識別子
     let modeIdentifier: GameMode.Identifier
     /// 表示用のモード名称
     let modeDisplayName: String
-    /// ランキングボタンを表示するかどうか
+    /// 将来の試練塔スコア導線を表示するかどうか
     let showsLeaderboardButton: Bool
-    /// Game Center にサインイン済みかどうか
+    /// Game Center 認証済みかどうか
     let isGameCenterAuthenticated: Bool
     /// ルートビューへ Game Center 再サインインを依頼するためのクロージャ
     let onRequestGameCenterSignIn: ((GameCenterSignInPromptReason) -> Void)?
@@ -103,8 +99,6 @@ struct ResultView: View {
     init(
         moveCount: Int,
         penaltyCount: Int,
-        focusCount: Int = 0,
-        usesTargetCollection: Bool = false,
         usesDungeonExit: Bool = false,
         isFailed: Bool = false,
         failureReason: String? = nil,
@@ -143,8 +137,6 @@ struct ResultView: View {
         self.init(
             moveCount: moveCount,
             penaltyCount: penaltyCount,
-            focusCount: focusCount,
-            usesTargetCollection: usesTargetCollection,
             usesDungeonExit: usesDungeonExit,
             isFailed: isFailed,
             failureReason: failureReason,
@@ -185,8 +177,6 @@ struct ResultView: View {
     init(
         moveCount: Int,
         penaltyCount: Int,
-        focusCount: Int = 0,
-        usesTargetCollection: Bool = false,
         usesDungeonExit: Bool = false,
         isFailed: Bool = false,
         failureReason: String? = nil,
@@ -234,8 +224,6 @@ struct ResultView: View {
 
         self.moveCount = moveCount
         self.penaltyCount = penaltyCount
-        self.focusCount = focusCount
-        self.usesTargetCollection = usesTargetCollection
         self.usesDungeonExit = usesDungeonExit
         self.isFailed = isFailed
         self.failureReason = failureReason
@@ -355,8 +343,6 @@ struct ResultView: View {
         ResultSummaryPresentation(
             moveCount: moveCount,
             penaltyCount: penaltyCount,
-            focusCount: focusCount,
-            usesTargetCollection: usesTargetCollection,
             usesDungeonExit: usesDungeonExit,
             isFailed: isFailed,
             failureReason: failureReason,

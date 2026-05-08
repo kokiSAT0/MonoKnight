@@ -231,6 +231,10 @@ public struct ResolvedCardMove: Hashable {
                 hasher.combine("slow")
             case .preserveCard:
                 hasher.combine("preserveCard")
+            case .discardRandomHand:
+                hasher.combine("discardRandomHand")
+            case .discardAllHands:
+                hasher.combine("discardAllHands")
             }
         }
         hasher.combine(resolution.presentationInitialHP)

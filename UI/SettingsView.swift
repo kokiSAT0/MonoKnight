@@ -26,11 +26,6 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             List {
-                SettingsGameCenterSection(
-                    isAuthenticated: isGameCenterAuthenticated,
-                    isAuthenticationInProgress: presentationState.isGameCenterAuthenticationInProgress,
-                    onAuthenticate: authenticateGameCenter
-                )
                 SettingsThemeSection(gameSettingsStore: gameSettingsStore)
                 SettingsHapticsSection(gameSettingsStore: gameSettingsStore)
                 SettingsGuideSection(gameSettingsStore: gameSettingsStore)
@@ -67,13 +62,6 @@ struct SettingsView: View {
             }
             .preferredColorScheme(
                 gameSettingsStore.preferredColorScheme.preferredColorScheme
-            )
-        }
-        .alert(item: $presentationState.gameCenterAlert) { alert in
-            Alert(
-                title: Text(alert.title),
-                message: Text(alert.message),
-                dismissButton: .default(Text("OK"))
             )
         }
         .alert(item: $presentationState.storeAlert) { alert in

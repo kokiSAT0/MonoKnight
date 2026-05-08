@@ -1,41 +1,4 @@
-import Game
 import SwiftUI
-
-struct SettingsGameCenterSection: View {
-    let isAuthenticated: Bool
-    let isAuthenticationInProgress: Bool
-    let onAuthenticate: () -> Void
-
-    var body: some View {
-        Section {
-            Label {
-                Text(isAuthenticated ? "サインイン済み" : "未サインイン")
-                    .font(.headline)
-            } icon: {
-                Image(systemName: isAuthenticated ? "checkmark.circle.fill" : "person.crop.circle.badge.exclamationmark")
-            }
-            .foregroundStyle(isAuthenticated ? .green : .orange)
-            .accessibilityIdentifier("settings_gc_status_label")
-
-            Button(action: onAuthenticate) {
-                HStack {
-                    Text(isAuthenticated ? "状態を再確認" : "Game Center にサインイン")
-                    Spacer()
-                    if isAuthenticationInProgress {
-                        ProgressView()
-                    }
-                }
-            }
-            .buttonStyle(.borderedProminent)
-            .disabled(isAuthenticationInProgress)
-            .accessibilityIdentifier("settings_gc_sign_in_button")
-        } header: {
-            Text("Game Center")
-        } footer: {
-            Text("ランキング表示やスコア送信を行うには Game Center へのサインインが必要です。サインイン済みの場合は結果画面から自動で送信されます。")
-        }
-    }
-}
 
 struct SettingsThemeSection: View {
     @ObservedObject var gameSettingsStore: GameSettingsStore

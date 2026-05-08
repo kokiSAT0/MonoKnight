@@ -13,7 +13,6 @@ struct GameCoreBindingCoordinator {
         onHandStacksChange: @escaping ([HandStack]) -> Void,
         onBoardTapPlayRequest: @escaping (BoardTapPlayRequest) -> Void,
         onBoardTapBasicMoveRequest: @escaping (BoardTapBasicMoveRequest) -> Void,
-        onSpawnSelectionWarning: @escaping (SpawnSelectionWarning) -> Void,
         onProgressChange: @escaping (GameProgress) -> Void,
         onElapsedTimeChange: @escaping () -> Void
     ) {
@@ -46,14 +45,6 @@ struct GameCoreBindingCoordinator {
             .sink { request in
                 guard let request else { return }
                 onBoardTapBasicMoveRequest(request)
-            }
-            .store(in: &cancellables)
-
-        core.$spawnSelectionWarning
-            .receive(on: RunLoop.main)
-            .sink { warning in
-                guard let warning else { return }
-                onSpawnSelectionWarning(warning)
             }
             .store(in: &cancellables)
 

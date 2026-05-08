@@ -14,11 +14,9 @@ final class DungeonModeTests: XCTestCase {
         )
 
         XCTAssertTrue(mode.usesDungeonExit)
-        XCTAssertFalse(mode.usesTargetCollection)
         playMove(to: GridPoint(x: 1, y: 0), in: core)
 
         XCTAssertEqual(core.progress, .cleared)
-        XCTAssertEqual(core.capturedTargetCount, 0)
     }
 
     func testDungeonTurnLimitFailsRunAfterNonExitMove() throws {
@@ -1246,6 +1244,112 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertEqual(core.damageTrapPoints, [trapPoint])
     }
 
+    func testDiscardRandomHandTrapRemovesOneHandSlotWithoutRefill() throws {
+        let trapPoint = GridPoint(x: 1, y: 0)
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 3,
+            turnLimit: 8,
+            tileEffectOverrides: [trapPoint: .discardRandomHand],
+            allowsBasicOrthogonalMove: true
+        )
+        let core = makeCore(mode: mode)
+        let initialHandCount = core.handStacks.count
+        let initialNextCards = core.nextCards
+
+        playBasicMove(to: trapPoint, in: core)
+
+        XCTAssertEqual(core.handStacks.count, initialHandCount - 1)
+        XCTAssertEqual(core.nextCards, initialNextCards)
+        XCTAssertEqual(core.progress, .playing)
+        XCTAssertTrue(core.lastMovementResolution?.appliedEffects.contains { $0.point == trapPoint && $0.effect == .discardRandomHand } == true)
+    }
+
+    func testDiscardAllHandsTrapClearsHandWithoutChangingNextCards() throws {
+        let trapPoint = GridPoint(x: 1, y: 0)
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 3,
+            turnLimit: 8,
+            tileEffectOverrides: [trapPoint: .discardAllHands],
+            allowsBasicOrthogonalMove: true
+        )
+        let core = makeCore(mode: mode)
+        let initialNextCards = core.nextCards
+
+        playBasicMove(to: trapPoint, in: core)
+
+        XCTAssertTrue(core.handStacks.isEmpty)
+        XCTAssertEqual(core.nextCards, initialNextCards)
+        XCTAssertEqual(core.progress, .playing)
+    }
+
+    func testDiscardRandomHandTrapRemovesOneInventorySlot() throws {
+        let trapPoint = GridPoint(x: 1, y: 0)
+        let runState = DungeonRunState(
+            dungeonID: "discard-random-test",
+            carriedHP: 3,
+            rewardInventoryEntries: [
+                DungeonInventoryEntry(card: .straightRight2, rewardUses: 2),
+                DungeonInventoryEntry(card: .straightUp2, rewardUses: 1),
+                DungeonInventoryEntry(card: .rayRight, rewardUses: 1),
+            ],
+            cardVariationSeed: 42
+        )
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 3,
+            turnLimit: 8,
+            tileEffectOverrides: [trapPoint: .discardRandomHand],
+            allowsBasicOrthogonalMove: true,
+            cardAcquisitionMode: .inventoryOnly,
+            runState: runState
+        )
+        let core = makeCore(mode: mode)
+        let initialInventoryCount = core.dungeonInventoryEntries.filter(\.hasUsesRemaining).count
+
+        playBasicMove(to: trapPoint, in: core)
+
+        XCTAssertEqual(core.dungeonInventoryEntries.filter(\.hasUsesRemaining).count, initialInventoryCount - 1)
+        XCTAssertEqual(core.handStacks.count, initialInventoryCount - 1)
+        XCTAssertEqual(core.nextCards, [])
+        XCTAssertEqual(core.progress, .playing)
+    }
+
+    func testDiscardAllHandsTrapRemovesAllInventorySlots() throws {
+        let trapPoint = GridPoint(x: 1, y: 0)
+        let runState = DungeonRunState(
+            dungeonID: "discard-all-test",
+            carriedHP: 3,
+            rewardInventoryEntries: [
+                DungeonInventoryEntry(card: .straightRight2, rewardUses: 2),
+                DungeonInventoryEntry(card: .straightUp2, rewardUses: 1),
+            ],
+            cardVariationSeed: 43
+        )
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 3,
+            turnLimit: 8,
+            tileEffectOverrides: [trapPoint: .discardAllHands],
+            allowsBasicOrthogonalMove: true,
+            cardAcquisitionMode: .inventoryOnly,
+            runState: runState
+        )
+        let core = makeCore(mode: mode)
+
+        playBasicMove(to: trapPoint, in: core)
+
+        XCTAssertTrue(core.dungeonInventoryEntries.filter(\.hasUsesRemaining).isEmpty)
+        XCTAssertTrue(core.handStacks.isEmpty)
+        XCTAssertEqual(core.progress, .playing)
+        XCTAssertFalse(core.availableBasicOrthogonalMoves().isEmpty)
+    }
+
     func testDamageTrapDamagesCardMoveIntermediatePoints() throws {
         let mode = makeDungeonMode(
             spawn: GridPoint(x: 0, y: 0),
@@ -1920,7 +2024,6 @@ final class DungeonModeTests: XCTestCase {
         for floor in tower.floors {
             let mode = floor.makeGameMode(dungeonID: tower.id)
             XCTAssertTrue(mode.usesDungeonExit)
-            XCTAssertFalse(mode.usesTargetCollection)
             XCTAssertEqual(mode.dungeonExitPoint, floor.exitPoint)
             XCTAssertEqual(mode.dungeonRules?.failureRule, floor.failureRule)
             XCTAssertEqual(mode.dungeonMetadataSnapshot?.dungeonID, tower.id)
@@ -1938,40 +2041,12 @@ final class DungeonModeTests: XCTestCase {
             library.dungeons.map(\.id),
             ["tutorial-tower", "growth-tower", "rogue-tower"]
         )
+        XCTAssertNil(library.dungeon(with: "patrol-tower"))
+        XCTAssertNil(library.dungeon(with: "key-door-tower"))
+        XCTAssertNil(library.dungeon(with: "warp-tower"))
+        XCTAssertNil(library.dungeon(with: "trap-tower"))
     }
 
-    func testPatrolTowerProvidesThreePlayableInventoryFloors() throws {
-        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "patrol-tower"))
-
-        XCTAssertEqual(tower.title, "巡回塔")
-        XCTAssertEqual(tower.difficulty, .growth)
-        XCTAssertEqual(tower.floors.count, 3)
-        XCTAssertEqual(tower.floors.map(\.title), ["巡回の間", "すれ違い", "巡回網"])
-        XCTAssertEqual(tower.floors[0].rewardMoveCardsAfterClear, [
-            .straightUp2,
-            .straightRight2,
-            .knightRightwardChoice
-        ])
-        XCTAssertEqual(tower.floors[1].rewardMoveCardsAfterClear, [
-            .rayRight,
-            .straightUp2,
-            .knightRightwardChoice
-        ])
-        XCTAssertTrue(tower.floors[2].rewardMoveCardsAfterClear.isEmpty)
-
-        for floor in tower.floors {
-            let mode = floor.makeGameMode(dungeonID: tower.id)
-            XCTAssertTrue(mode.usesDungeonExit)
-            XCTAssertFalse(mode.usesTargetCollection)
-            XCTAssertEqual(mode.dungeonExitPoint, floor.exitPoint)
-            XCTAssertEqual(mode.dungeonRules?.allowsBasicOrthogonalMove, true)
-            XCTAssertEqual(mode.dungeonRules?.cardAcquisitionMode, .inventoryOnly)
-            XCTAssertEqual(mode.dungeonMetadataSnapshot?.dungeonID, tower.id)
-            XCTAssertEqual(mode.dungeonMetadataSnapshot?.floorID, floor.id)
-            XCTAssertFalse(floor.enemies.isEmpty)
-            XCTAssertFalse(floor.cardPickups.isEmpty)
-        }
-    }
 
     func testDungeonTowerBoardSizesFollowTutorialAndStandardPolicy() throws {
         let tutorialTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
@@ -2602,362 +2677,7 @@ final class DungeonModeTests: XCTestCase {
         assertTurnLimitSlack(for: tower.floors[8], after: core)
     }
 
-    func testPatrolTowerNineByNineDefinitionsStayInsideBoard() throws {
-        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "patrol-tower"))
 
-        for floor in tower.floors {
-            var points: [GridPoint] = [floor.spawnPoint, floor.exitPoint]
-            points.append(contentsOf: floor.cardPickups.map(\.point))
-            points.append(contentsOf: floor.enemies.map(\.position))
-            for enemy in floor.enemies {
-                if case .patrol(let path) = enemy.behavior {
-                    points.append(contentsOf: path)
-                }
-            }
-            for hazard in floor.hazards {
-                if case .brittleFloor(let brittlePoints) = hazard {
-                    points.append(contentsOf: brittlePoints)
-                } else if case .damageTrap(let trapPoints, _) = hazard {
-                    points.append(contentsOf: trapPoints)
-                }
-            }
-
-            XCTAssertTrue(
-                points.allSatisfy { $0.isInside(boardSize: floor.boardSize) },
-                "\(floor.title) の配置はすべて 9×9 盤面内に収める必要があります"
-            )
-        }
-    }
-
-    func testKeyDoorTowerProvidesThreePlayableInventoryFloors() throws {
-        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "key-door-tower"))
-
-        XCTAssertEqual(tower.title, "鍵扉塔")
-        XCTAssertEqual(tower.difficulty, .growth)
-        XCTAssertEqual(tower.floors.count, 3)
-        XCTAssertEqual(tower.floors.map(\.title), ["鍵の小部屋", "上の鍵道", "扉の見張り"])
-        XCTAssertEqual(tower.floors[0].rewardMoveCardsAfterClear, [
-            .straightRight2,
-            .straightUp2,
-            .knightRightwardChoice
-        ])
-        XCTAssertEqual(tower.floors[1].rewardMoveCardsAfterClear, [
-            .straightUp2,
-            .straightRight2,
-            .diagonalUpRight2
-        ])
-        XCTAssertTrue(tower.floors[2].rewardMoveCardsAfterClear.isEmpty)
-
-        for floor in tower.floors {
-            let mode = floor.makeGameMode(dungeonID: tower.id)
-            XCTAssertTrue(mode.usesDungeonExit)
-            XCTAssertFalse(mode.usesTargetCollection)
-            XCTAssertEqual(mode.dungeonExitPoint, floor.exitPoint)
-            XCTAssertEqual(mode.dungeonRules?.allowsBasicOrthogonalMove, true)
-            XCTAssertEqual(mode.dungeonRules?.cardAcquisitionMode, .inventoryOnly)
-            XCTAssertEqual(mode.dungeonMetadataSnapshot?.dungeonID, tower.id)
-            XCTAssertEqual(mode.dungeonMetadataSnapshot?.floorID, floor.id)
-            XCTAssertFalse(floor.impassableTilePoints.isEmpty)
-            XCTAssertFalse(floor.cardPickups.isEmpty)
-        }
-    }
-
-    func testKeyDoorTowerDefinitionsStayInsideBoardAndOpenGateTargetsAreDoors() throws {
-        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "key-door-tower"))
-
-        for floor in tower.floors {
-            var points: [GridPoint] = [floor.spawnPoint, floor.exitPoint]
-            points.append(contentsOf: floor.cardPickups.map(\.point))
-            points.append(contentsOf: floor.enemies.map(\.position))
-            points.append(contentsOf: floor.impassableTilePoints)
-            points.append(contentsOf: floor.tileEffectOverrides.keys)
-            for enemy in floor.enemies {
-                if case .patrol(let path) = enemy.behavior {
-                    points.append(contentsOf: path)
-                }
-            }
-            XCTAssertTrue(
-                points.allSatisfy { $0.isInside(boardSize: floor.boardSize) },
-                "\(floor.title) の鍵/扉配置はすべて 9×9 盤面内に収める必要があります"
-            )
-        }
-    }
-
-    func testWarpTowerProvidesThreePlayableInventoryFloors() throws {
-        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "warp-tower"))
-
-        XCTAssertEqual(tower.title, "ワープ塔")
-        XCTAssertEqual(tower.difficulty, .growth)
-        XCTAssertEqual(tower.floors.count, 3)
-        XCTAssertEqual(tower.floors.map(\.title), ["転移の入口", "転移床の間", "危険な転移先"])
-        XCTAssertEqual(tower.floors[0].rewardMoveCardsAfterClear, [
-            .rayRight,
-            .straightUp2
-        ])
-        XCTAssertEqual(tower.floors[1].rewardMoveCardsAfterClear, [
-            .straightRight2,
-            .rayRight,
-            .diagonalUpRight2
-        ])
-        XCTAssertTrue(tower.floors[2].rewardMoveCardsAfterClear.isEmpty)
-
-        for floor in tower.floors {
-            let mode = floor.makeGameMode(dungeonID: tower.id)
-            XCTAssertTrue(mode.usesDungeonExit)
-            XCTAssertFalse(mode.usesTargetCollection)
-            XCTAssertEqual(mode.dungeonExitPoint, floor.exitPoint)
-            XCTAssertEqual(mode.dungeonRules?.allowsBasicOrthogonalMove, true)
-            XCTAssertEqual(mode.dungeonRules?.cardAcquisitionMode, .inventoryOnly)
-            XCTAssertEqual(mode.dungeonMetadataSnapshot?.dungeonID, tower.id)
-            XCTAssertEqual(mode.dungeonMetadataSnapshot?.floorID, floor.id)
-            XCTAssertFalse(floor.cardPickups.isEmpty)
-        }
-
-        XCTAssertFalse(tower.floors[0].warpTilePairs.isEmpty)
-        XCTAssertTrue(tower.floors[1].warpTilePairs.isEmpty)
-        XCTAssertFalse(tower.floors[2].warpTilePairs.isEmpty)
-    }
-
-    func testWarpTowerDefinitionsStayInsideBoardAndWarpLinksResolve() throws {
-        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "warp-tower"))
-
-        for floor in tower.floors {
-            var points: [GridPoint] = [floor.spawnPoint, floor.exitPoint]
-            points.append(contentsOf: floor.cardPickups.map(\.point))
-            points.append(contentsOf: floor.enemies.map(\.position))
-            points.append(contentsOf: floor.impassableTilePoints)
-            points.append(contentsOf: floor.tileEffectOverrides.keys)
-            for enemy in floor.enemies {
-                if case .patrol(let path) = enemy.behavior {
-                    points.append(contentsOf: path)
-                }
-            }
-            for warpPoints in floor.warpTilePairs.values {
-                XCTAssertGreaterThanOrEqual(warpPoints.count, 2)
-                points.append(contentsOf: warpPoints)
-            }
-
-            XCTAssertTrue(
-                points.allSatisfy { $0.isInside(boardSize: floor.boardSize) },
-                "\(floor.title) のワープ配置はすべて 9×9 盤面内に収める必要があります"
-            )
-
-            let mode = floor.makeGameMode(dungeonID: tower.id)
-            for warpPoints in floor.warpTilePairs.values {
-                for point in warpPoints {
-                    guard case .warp = mode.tileEffects[point] else {
-                        XCTFail("\(floor.title) の \(point) はワープ床として解決される必要があります")
-                        continue
-                    }
-                }
-            }
-        }
-    }
-
-    func testWarpTowerWarpRoutesShortenRepresentativeBasicRoutes() throws {
-        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "warp-tower"))
-
-        let firstCore = makeCore(mode: tower.floors[0].makeGameMode(dungeonID: tower.id))
-        for destination in [
-            GridPoint(x: 1, y: 0),
-            GridPoint(x: 2, y: 0),
-            GridPoint(x: 2, y: 1),
-            GridPoint(x: 7, y: 6),
-            GridPoint(x: 8, y: 6),
-            GridPoint(x: 8, y: 7),
-            GridPoint(x: 8, y: 8)
-        ] {
-            playBasicMove(to: destination, in: firstCore)
-        }
-        XCTAssertEqual(firstCore.progress, .cleared)
-        assertTurnLimitSlack(for: tower.floors[0], after: firstCore)
-
-        let secondCore = makeCore(mode: tower.floors[1].makeGameMode(dungeonID: tower.id))
-        playBasicMove(to: GridPoint(x: 1, y: 4), in: secondCore)
-        playMove(to: GridPoint(x: 8, y: 4), in: secondCore)
-        XCTAssertEqual(secondCore.progress, .cleared)
-        assertTurnLimitSlack(for: tower.floors[1], after: secondCore)
-
-        let thirdCore = makeCore(mode: tower.floors[2].makeGameMode(dungeonID: tower.id))
-        for destination in [
-            GridPoint(x: 0, y: 1),
-            GridPoint(x: 1, y: 1),
-            GridPoint(x: 6, y: 7),
-            GridPoint(x: 6, y: 8),
-            GridPoint(x: 7, y: 8),
-            GridPoint(x: 8, y: 8)
-        ] {
-            playBasicMove(to: destination, in: thirdCore)
-        }
-        XCTAssertEqual(thirdCore.progress, .cleared)
-        XCTAssertEqual(thirdCore.dungeonHP, 2, "危険な転移先は近道だが見張りの危険範囲で HP を 1 失う想定です")
-        assertTurnLimitSlack(for: tower.floors[2], after: thirdCore)
-    }
-
-    func testTrapTowerProvidesThreePlayableInventoryFloors() throws {
-        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "trap-tower"))
-
-        XCTAssertEqual(tower.title, "罠塔")
-        XCTAssertEqual(tower.difficulty, .growth)
-        XCTAssertEqual(tower.floors.count, 3)
-        XCTAssertEqual(tower.floors.map(\.title), ["見える罠", "罠列の抜け道", "罠と見張り"])
-        XCTAssertEqual(tower.floors[0].rewardMoveCardsAfterClear, [
-            .straightRight2,
-            .straightUp2,
-            .diagonalUpRight2
-        ])
-        XCTAssertEqual(tower.floors[1].rewardMoveCardsAfterClear, [
-            .rayRight,
-            .diagonalUpRight2,
-            .straightUp2
-        ])
-        XCTAssertTrue(tower.floors[2].rewardMoveCardsAfterClear.isEmpty)
-
-        for floor in tower.floors {
-            let mode = floor.makeGameMode(dungeonID: tower.id)
-            XCTAssertTrue(mode.usesDungeonExit)
-            XCTAssertFalse(mode.usesTargetCollection)
-            XCTAssertEqual(mode.dungeonExitPoint, floor.exitPoint)
-            XCTAssertEqual(mode.dungeonRules?.allowsBasicOrthogonalMove, true)
-            XCTAssertEqual(mode.dungeonRules?.cardAcquisitionMode, .inventoryOnly)
-            XCTAssertEqual(mode.dungeonMetadataSnapshot?.dungeonID, tower.id)
-            XCTAssertEqual(mode.dungeonMetadataSnapshot?.floorID, floor.id)
-            XCTAssertFalse(floor.hazards.isEmpty)
-            XCTAssertFalse(floor.cardPickups.isEmpty)
-        }
-    }
-
-    func testTrapTowerDefinitionsStayInsideBoardAndExposeDamageTrapPoints() throws {
-        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "trap-tower"))
-
-        for floor in tower.floors {
-            var points: [GridPoint] = [floor.spawnPoint, floor.exitPoint]
-            points.append(contentsOf: floor.cardPickups.map(\.point))
-            points.append(contentsOf: floor.enemies.map(\.position))
-            for enemy in floor.enemies {
-                if case .patrol(let path) = enemy.behavior {
-                    points.append(contentsOf: path)
-                }
-            }
-
-            var expectedTrapPoints: Set<GridPoint> = []
-            for hazard in floor.hazards {
-                switch hazard {
-                case .damageTrap(let trapPoints, let damage):
-                    XCTAssertEqual(damage, 1)
-                    XCTAssertFalse(trapPoints.isEmpty)
-                    expectedTrapPoints.formUnion(trapPoints)
-                    points.append(contentsOf: trapPoints)
-                case .brittleFloor(let brittlePoints):
-                    points.append(contentsOf: brittlePoints)
-                case .healingTile(let healingPoints, _):
-                    points.append(contentsOf: healingPoints)
-                }
-            }
-
-            XCTAssertTrue(
-                points.allSatisfy { $0.isInside(boardSize: floor.boardSize) },
-                "\(floor.title) の罠配置はすべて 9×9 盤面内に収める必要があります"
-            )
-            let core = makeCore(mode: floor.makeGameMode(dungeonID: tower.id))
-            XCTAssertEqual(core.damageTrapPoints, expectedTrapPoints)
-        }
-    }
-
-    func testTrapTowerRepresentativeRoutesCanClearWithVisibleTrapTradeoffs() throws {
-        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "trap-tower"))
-
-        let firstCore = makeCore(mode: tower.floors[0].makeGameMode(dungeonID: tower.id))
-        for destination in [
-            GridPoint(x: 1, y: 0),
-            GridPoint(x: 2, y: 0),
-            GridPoint(x: 3, y: 0),
-            GridPoint(x: 4, y: 0),
-            GridPoint(x: 5, y: 0),
-            GridPoint(x: 6, y: 0),
-            GridPoint(x: 7, y: 0),
-            GridPoint(x: 8, y: 0),
-            GridPoint(x: 8, y: 1),
-            GridPoint(x: 8, y: 2),
-            GridPoint(x: 8, y: 3),
-            GridPoint(x: 8, y: 4),
-            GridPoint(x: 8, y: 5),
-            GridPoint(x: 8, y: 6),
-            GridPoint(x: 8, y: 7),
-            GridPoint(x: 8, y: 8)
-        ] {
-            playBasicMove(to: destination, in: firstCore)
-        }
-        XCTAssertEqual(firstCore.progress, .cleared)
-        XCTAssertEqual(firstCore.dungeonHP, 3, "1F は罠を避ける遠回りでノーダメージ突破できる想定です")
-        assertTurnLimitSlack(for: tower.floors[0], after: firstCore)
-
-        let secondCore = makeCore(mode: tower.floors[1].makeGameMode(dungeonID: tower.id))
-        playBasicMove(to: GridPoint(x: 1, y: 4), in: secondCore)
-        playMove(to: GridPoint(x: 8, y: 4), in: secondCore)
-        XCTAssertEqual(secondCore.progress, .cleared)
-        XCTAssertEqual(secondCore.dungeonHP, 1, "罠列は近道になるが、途中の罠2枚ぶんHPを支払う想定です")
-        assertTurnLimitSlack(for: tower.floors[1], after: secondCore)
-
-        let thirdCore = makeCore(mode: tower.floors[2].makeGameMode(dungeonID: tower.id))
-        for destination in [
-            GridPoint(x: 1, y: 0),
-            GridPoint(x: 2, y: 0),
-            GridPoint(x: 3, y: 0),
-            GridPoint(x: 4, y: 0),
-            GridPoint(x: 5, y: 0),
-            GridPoint(x: 6, y: 0),
-            GridPoint(x: 7, y: 0),
-            GridPoint(x: 8, y: 0),
-            GridPoint(x: 8, y: 1),
-            GridPoint(x: 8, y: 2),
-            GridPoint(x: 8, y: 3),
-            GridPoint(x: 8, y: 4),
-            GridPoint(x: 8, y: 5),
-            GridPoint(x: 8, y: 6),
-            GridPoint(x: 8, y: 7),
-            GridPoint(x: 8, y: 8)
-        ] {
-            playBasicMove(to: destination, in: thirdCore)
-        }
-        XCTAssertEqual(thirdCore.progress, .cleared)
-        XCTAssertEqual(thirdCore.dungeonHP, 3)
-        assertTurnLimitSlack(for: tower.floors[2], after: thirdCore)
-    }
-
-    func testRoguelikeTowerProvidesThreePlayableInventoryFloorsWithoutGrowthDifficulty() throws {
-        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "rogue-tower"))
-
-        XCTAssertEqual(tower.title, "試練塔")
-        XCTAssertEqual(tower.difficulty, .roguelike)
-        XCTAssertEqual(tower.floors.count, 3)
-        XCTAssertEqual(tower.floors.map(\.title), ["試練の入口", "罠列と短縮路", "混成試練"])
-        XCTAssertEqual(tower.floors[0].rewardMoveCardsAfterClear, [
-            .rayRight,
-            .straightRight2,
-            .diagonalUpRight2
-        ])
-        XCTAssertEqual(tower.floors[1].rewardMoveCardsAfterClear, [
-            .straightRight2,
-            .rayUp
-        ])
-        XCTAssertTrue(tower.floors[2].rewardMoveCardsAfterClear.isEmpty)
-
-        let firstMode = try XCTUnwrap(DungeonLibrary.shared.firstFloorMode(for: tower))
-        XCTAssertEqual(firstMode.dungeonRules?.difficulty, .roguelike)
-        XCTAssertEqual(firstMode.dungeonRules?.allowsBasicOrthogonalMove, true)
-        XCTAssertEqual(firstMode.dungeonRules?.cardAcquisitionMode, .inventoryOnly)
-
-        for floor in tower.floors {
-            let mode = floor.makeGameMode(dungeonID: tower.id, difficulty: tower.difficulty)
-            XCTAssertTrue(mode.usesDungeonExit)
-            XCTAssertFalse(mode.usesTargetCollection)
-            XCTAssertEqual(mode.dungeonExitPoint, floor.exitPoint)
-            XCTAssertEqual(mode.dungeonRules?.difficulty, .roguelike)
-            XCTAssertFalse(floor.hazards.isEmpty)
-            XCTAssertFalse(floor.cardPickups.isEmpty)
-        }
-    }
 
     func testRoguelikeTowerDefinitionsStayInsideBoardAndExposeMixedGimmicks() throws {
         let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "rogue-tower"))
@@ -3075,22 +2795,6 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertEqual(thirdCore.progress, .cleared)
     }
 
-    func testTrapTowerRewardCardsAreUsableOnNextFloorStart() throws {
-        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "trap-tower"))
-        let secondRunState = DungeonRunState(
-            dungeonID: tower.id,
-            currentFloorIndex: 1,
-            carriedHP: 3,
-            clearedFloorCount: 1,
-            rewardInventoryEntries: [DungeonInventoryEntry(card: .diagonalUpRight2, rewardUses: 3)]
-        )
-        let secondCore = makeCore(mode: tower.floors[1].makeGameMode(dungeonID: tower.id, runState: secondRunState))
-
-        XCTAssertTrue(
-            secondCore.availableMoves().contains { $0.moveCard == .diagonalUpRight2 && $0.destination == GridPoint(x: 2, y: 6) },
-            "罠塔 1F 報酬の斜め移動は 2F の上側迂回へ使える必要があります"
-        )
-    }
 
     func testTutorialTowerInitialRunStartsAtFirstFloor() throws {
         let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
@@ -3263,32 +2967,6 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertEqual(Set(restoredCore.activeDungeonCardPickups.map(\.id)), Set(core.activeDungeonCardPickups.map(\.id)))
     }
 
-    func testDungeonResumeSnapshotRestoresKeyEnemiesAndFloorDamageState() throws {
-        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "key-door-tower"))
-        let mode = try XCTUnwrap(DungeonLibrary.shared.floorMode(for: tower, floorIndex: 0))
-        let core = makeCore(mode: mode)
-
-        for destination in [
-            GridPoint(x: 1, y: 4),
-            GridPoint(x: 2, y: 4),
-            GridPoint(x: 2, y: 5),
-            GridPoint(x: 2, y: 6)
-        ] {
-            playBasicMove(to: destination, in: core)
-        }
-
-        let snapshot = try XCTUnwrap(core.makeDungeonResumeSnapshot())
-        let restoredCore = makeCore(mode: try XCTUnwrap(DungeonLibrary.shared.resumeMode(from: snapshot)))
-
-        XCTAssertTrue(restoredCore.restoreDungeonResumeSnapshot(snapshot))
-        XCTAssertEqual(restoredCore.current, core.current)
-        XCTAssertEqual(restoredCore.enemyStates, core.enemyStates)
-        XCTAssertEqual(restoredCore.isDungeonExitUnlocked, core.isDungeonExitUnlocked)
-        XCTAssertEqual(restoredCore.crackedFloorPoints, core.crackedFloorPoints)
-        XCTAssertEqual(restoredCore.collapsedFloorPoints, core.collapsedFloorPoints)
-        XCTAssertEqual(restoredCore.hazardDamageMitigationsRemaining, core.hazardDamageMitigationsRemaining)
-        XCTAssertEqual(restoredCore.dungeonHP, core.dungeonHP)
-    }
 
     func testGrowthTowerResumeSnapshotKeepsCardVariationSeedStable() throws {
         let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
@@ -3465,7 +3143,7 @@ final class DungeonModeTests: XCTestCase {
                 handSize: 10,
                 nextPreviewCount: 0,
                 allowsStacking: true,
-                deckPreset: .standard,
+                deckPreset: .standardLight,
                 spawnRule: .fixed(GridPoint(x: 0, y: 0)),
                 penalties: GameMode.PenaltySettings(
                     deadlockPenaltyCost: 0,
@@ -3747,220 +3425,8 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertTrue(core.crackedFloorPoints.contains(GridPoint(x: 3, y: 2)))
     }
 
-    func testPatrolTowerBasicMoveRoutesFitTurnLimits() throws {
-        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "patrol-tower"))
-        let basicRoutes: [[GridPoint]] = [
-            [
-                GridPoint(x: 1, y: 0),
-                GridPoint(x: 2, y: 0),
-                GridPoint(x: 3, y: 0),
-                GridPoint(x: 4, y: 0),
-                GridPoint(x: 5, y: 0),
-                GridPoint(x: 6, y: 0),
-                GridPoint(x: 7, y: 0),
-                GridPoint(x: 8, y: 0),
-                GridPoint(x: 8, y: 1),
-                GridPoint(x: 8, y: 2),
-                GridPoint(x: 8, y: 3),
-                GridPoint(x: 8, y: 4),
-                GridPoint(x: 8, y: 5),
-                GridPoint(x: 8, y: 6),
-                GridPoint(x: 8, y: 7),
-                GridPoint(x: 8, y: 8)
-            ],
-            [
-                GridPoint(x: 0, y: 3),
-                GridPoint(x: 0, y: 2),
-                GridPoint(x: 0, y: 1),
-                GridPoint(x: 0, y: 0),
-                GridPoint(x: 1, y: 0),
-                GridPoint(x: 2, y: 0),
-                GridPoint(x: 3, y: 0),
-                GridPoint(x: 4, y: 0),
-                GridPoint(x: 5, y: 0),
-                GridPoint(x: 6, y: 0),
-                GridPoint(x: 7, y: 0),
-                GridPoint(x: 8, y: 0),
-                GridPoint(x: 8, y: 1),
-                GridPoint(x: 8, y: 2),
-                GridPoint(x: 8, y: 3),
-                GridPoint(x: 8, y: 4)
-            ],
-            [
-                GridPoint(x: 1, y: 0),
-                GridPoint(x: 2, y: 0),
-                GridPoint(x: 3, y: 0),
-                GridPoint(x: 4, y: 0),
-                GridPoint(x: 5, y: 0),
-                GridPoint(x: 6, y: 0),
-                GridPoint(x: 7, y: 0),
-                GridPoint(x: 8, y: 0),
-                GridPoint(x: 8, y: 1),
-                GridPoint(x: 8, y: 2),
-                GridPoint(x: 8, y: 3),
-                GridPoint(x: 8, y: 4),
-                GridPoint(x: 8, y: 5),
-                GridPoint(x: 8, y: 6),
-                GridPoint(x: 8, y: 7),
-                GridPoint(x: 8, y: 8)
-            ]
-        ]
 
-        for (floor, route) in zip(tower.floors, basicRoutes) {
-            let mode = floor.makeGameMode(dungeonID: tower.id)
-            let core = makeCore(mode: mode)
 
-            for destination in route {
-                playBasicMove(to: destination, in: core)
-            }
-
-            XCTAssertEqual(core.progress, .cleared, "\(floor.title) は基本移動だけでも出口へ届く必要があります")
-            assertTurnLimitSlack(for: floor, after: core)
-        }
-    }
-
-    func testPatrolTowerCardRoutesShortenRepresentativeBasicRoutes() throws {
-        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "patrol-tower"))
-
-        let firstCore = makeCore(mode: tower.floors[0].makeGameMode(dungeonID: tower.id))
-        playBasicMove(to: GridPoint(x: 1, y: 0), in: firstCore)
-        playBasicMove(to: GridPoint(x: 2, y: 0), in: firstCore)
-        playMove(to: GridPoint(x: 4, y: 0), in: firstCore)
-        playBasicMove(to: GridPoint(x: 5, y: 0), in: firstCore)
-        playBasicMove(to: GridPoint(x: 6, y: 0), in: firstCore)
-        playMove(to: GridPoint(x: 6, y: 2), in: firstCore)
-        playBasicMove(to: GridPoint(x: 7, y: 2), in: firstCore)
-        playBasicMove(to: GridPoint(x: 8, y: 2), in: firstCore)
-        playBasicMove(to: GridPoint(x: 8, y: 3), in: firstCore)
-        for destination in [
-            GridPoint(x: 8, y: 4),
-            GridPoint(x: 8, y: 5),
-            GridPoint(x: 8, y: 6),
-            GridPoint(x: 8, y: 7),
-            GridPoint(x: 8, y: 8)
-        ] {
-            playBasicMove(to: destination, in: firstCore)
-        }
-        XCTAssertEqual(firstCore.progress, .cleared)
-        assertTurnLimitSlack(for: tower.floors[0], after: firstCore)
-
-        let secondRunState = DungeonRunState(
-            dungeonID: tower.id,
-            currentFloorIndex: 1,
-            carriedHP: 3,
-            clearedFloorCount: 1,
-            rewardInventoryEntries: [DungeonInventoryEntry(card: .straightUp2, rewardUses: 3)]
-        )
-        let secondCore = makeCore(
-            mode: tower.floors[1].makeGameMode(dungeonID: tower.id, runState: secondRunState)
-        )
-        playMove(to: GridPoint(x: 0, y: 6), in: secondCore)
-        playBasicMove(to: GridPoint(x: 1, y: 6), in: secondCore)
-        playMove(to: GridPoint(x: 8, y: 6), in: secondCore)
-        playBasicMove(to: GridPoint(x: 8, y: 5), in: secondCore)
-        playBasicMove(to: GridPoint(x: 8, y: 4), in: secondCore)
-        XCTAssertEqual(secondCore.progress, .cleared)
-        assertTurnLimitSlack(for: tower.floors[1], after: secondCore)
-
-        let thirdRunState = DungeonRunState(
-            dungeonID: tower.id,
-            currentFloorIndex: 2,
-            carriedHP: 3,
-            clearedFloorCount: 2,
-            rewardInventoryEntries: [DungeonInventoryEntry(card: .rayRight, rewardUses: 3)]
-        )
-        let thirdCore = makeCore(
-            mode: tower.floors[2].makeGameMode(dungeonID: tower.id, runState: thirdRunState)
-        )
-        playMove(to: GridPoint(x: 8, y: 0), in: thirdCore)
-        for destination in [
-            GridPoint(x: 8, y: 1),
-            GridPoint(x: 8, y: 2),
-            GridPoint(x: 8, y: 3),
-            GridPoint(x: 8, y: 4),
-            GridPoint(x: 8, y: 5),
-            GridPoint(x: 8, y: 6),
-            GridPoint(x: 8, y: 7),
-            GridPoint(x: 8, y: 8)
-        ] {
-            playBasicMove(to: destination, in: thirdCore)
-        }
-        XCTAssertEqual(thirdCore.progress, .cleared)
-        assertTurnLimitSlack(for: tower.floors[2], after: thirdCore)
-    }
-
-    func testPatrolTowerRewardCardsAreUsableOnNextFloorStart() throws {
-        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "patrol-tower"))
-        let secondRunState = DungeonRunState(
-            dungeonID: tower.id,
-            currentFloorIndex: 1,
-            carriedHP: 3,
-            clearedFloorCount: 1,
-            rewardInventoryEntries: [DungeonInventoryEntry(card: .straightUp2, rewardUses: 3)]
-        )
-        let secondCore = makeCore(mode: tower.floors[1].makeGameMode(dungeonID: tower.id, runState: secondRunState))
-
-        XCTAssertTrue(
-            secondCore.availableMoves().contains { $0.moveCard == .straightUp2 && $0.destination == GridPoint(x: 0, y: 6) },
-            "巡回塔 1F 報酬の上2は 2F 初手で上側ルートへ入る候補になる想定です"
-        )
-
-        let thirdRunState = DungeonRunState(
-            dungeonID: tower.id,
-            currentFloorIndex: 2,
-            carriedHP: 3,
-            clearedFloorCount: 2,
-            rewardInventoryEntries: [DungeonInventoryEntry(card: .rayRight, rewardUses: 3)]
-        )
-        let thirdCore = makeCore(mode: tower.floors[2].makeGameMode(dungeonID: tower.id, runState: thirdRunState))
-
-        XCTAssertTrue(
-            thirdCore.availableMoves().contains { $0.moveCard == .rayRight && $0.destination == GridPoint(x: 8, y: 0) },
-            "巡回塔 2F 報酬の右連続は 3F 初手で巡回網の下側を抜ける候補になる想定です"
-        )
-    }
-
-    func testPatrolTowerPickupsAndRewardsUseCurrentMoveCards() throws {
-        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "patrol-tower"))
-        let currentMoveCards = Set(MoveCard.allCases)
-
-        for floor in tower.floors {
-            XCTAssertTrue(floor.cardPickups.allSatisfy { currentMoveCards.contains($0.card) })
-            XCTAssertTrue(floor.rewardMoveCardsAfterClear.allSatisfy { currentMoveCards.contains($0) })
-        }
-    }
-
-    func testPatrolTowerThirdFloorBrittleTilesCollapseIntoReusableHole() throws {
-        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "patrol-tower"))
-        let runState = DungeonRunState(
-            dungeonID: tower.id,
-            currentFloorIndex: 2,
-            carriedHP: 3
-        )
-        let mode = tower.floors[2].makeGameMode(dungeonID: tower.id, runState: runState)
-        let core = makeCore(mode: mode, cards: [.straightRight2, .straightLeft2, .straightRight2])
-        let brittlePoint = GridPoint(x: 4, y: 3)
-
-        for destination in [
-            GridPoint(x: 1, y: 0),
-            GridPoint(x: 2, y: 0),
-            GridPoint(x: 3, y: 0),
-            GridPoint(x: 4, y: 0),
-            GridPoint(x: 4, y: 1),
-            GridPoint(x: 4, y: 2),
-            GridPoint(x: 4, y: 3),
-            GridPoint(x: 4, y: 2),
-            GridPoint(x: 4, y: 3)
-        ] {
-            playBasicMove(to: destination, in: core)
-        }
-
-        XCTAssertTrue(core.collapsedFloorPoints.contains(brittlePoint))
-        XCTAssertTrue(core.board.isTraversable(brittlePoint))
-        XCTAssertEqual(core.dungeonFallEvent?.point, brittlePoint)
-        XCTAssertEqual(core.dungeonFallEvent?.sourceFloorIndex, 2)
-        XCTAssertEqual(core.dungeonFallEvent?.destinationFloorIndex, 1)
-    }
 
     func testCollapsedBrittleFloorRemainsEnterableWhenRevisitingFloor() {
         let brittlePoint = GridPoint(x: 1, y: 0)
@@ -4032,232 +3498,6 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertFalse(core.enemyChaserMovementPreviews.contains { $0.next == holePoint })
     }
 
-    func testPatrolTowerPatrolDangerMatchesDamageAfterEnemyTurn() throws {
-        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "patrol-tower"))
-        let core = makeCore(mode: tower.floors[0].makeGameMode(dungeonID: tower.id))
-
-        playBasicMove(to: GridPoint(x: 1, y: 0), in: core)
-        playBasicMove(to: GridPoint(x: 2, y: 0), in: core)
-        playBasicMove(to: GridPoint(x: 3, y: 0), in: core)
-        playBasicMove(to: GridPoint(x: 4, y: 0), in: core)
-        playBasicMove(to: GridPoint(x: 4, y: 1), in: core)
-        playBasicMove(to: GridPoint(x: 4, y: 2), in: core)
-        playBasicMove(to: GridPoint(x: 4, y: 3), in: core)
-
-        XCTAssertEqual(core.dungeonHP, 2)
-        XCTAssertTrue(core.enemyDangerPoints.contains(GridPoint(x: 4, y: 3)))
-    }
-
-    func testKeyDoorTowerKeyUnlocksExitWithoutOpeningDoor() throws {
-        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "key-door-tower"))
-        let floor = tower.floors[0]
-        let doorPoint = GridPoint(x: 4, y: 4)
-        let core = makeCore(mode: floor.makeGameMode(dungeonID: tower.id))
-
-        XCTAssertTrue(core.board.isImpassable(doorPoint))
-        XCTAssertFalse(core.isDungeonExitUnlocked)
-
-        for destination in [
-            GridPoint(x: 1, y: 4),
-            GridPoint(x: 2, y: 4),
-            GridPoint(x: 2, y: 5),
-            GridPoint(x: 2, y: 6)
-        ] {
-            playBasicMove(to: destination, in: core)
-        }
-
-        XCTAssertTrue(core.board.isImpassable(doorPoint))
-        XCTAssertFalse(core.board.isTraversable(doorPoint))
-        XCTAssertTrue(core.isDungeonExitUnlocked)
-        XCTAssertEqual(core.dungeonExitUnlockEvent?.exitPoint, floor.exitPoint)
-    }
-
-    func testKeyDoorTowerExitStaysLockedWhenKeyIsSkipped() throws {
-        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "key-door-tower"))
-        let routesSkippingKey: [[GridPoint]] = [
-            [
-                GridPoint(x: 0, y: 3),
-                GridPoint(x: 0, y: 2),
-                GridPoint(x: 0, y: 1),
-                GridPoint(x: 0, y: 0),
-                GridPoint(x: 1, y: 0),
-                GridPoint(x: 2, y: 0),
-                GridPoint(x: 3, y: 0),
-                GridPoint(x: 4, y: 0),
-                GridPoint(x: 5, y: 0),
-                GridPoint(x: 6, y: 0),
-                GridPoint(x: 7, y: 0),
-                GridPoint(x: 8, y: 0),
-                GridPoint(x: 8, y: 1),
-                GridPoint(x: 8, y: 2),
-                GridPoint(x: 8, y: 3),
-                GridPoint(x: 8, y: 4)
-            ],
-            [
-                GridPoint(x: 0, y: 3),
-                GridPoint(x: 0, y: 2),
-                GridPoint(x: 0, y: 1),
-                GridPoint(x: 0, y: 0),
-                GridPoint(x: 1, y: 0),
-                GridPoint(x: 2, y: 0),
-                GridPoint(x: 3, y: 0),
-                GridPoint(x: 4, y: 0),
-                GridPoint(x: 5, y: 0),
-                GridPoint(x: 6, y: 0),
-                GridPoint(x: 7, y: 0),
-                GridPoint(x: 8, y: 0),
-                GridPoint(x: 8, y: 1),
-                GridPoint(x: 8, y: 2),
-                GridPoint(x: 8, y: 3),
-                GridPoint(x: 8, y: 4)
-            ],
-            [
-                GridPoint(x: 1, y: 0),
-                GridPoint(x: 2, y: 0),
-                GridPoint(x: 3, y: 0),
-                GridPoint(x: 4, y: 0),
-                GridPoint(x: 5, y: 0),
-                GridPoint(x: 6, y: 0),
-                GridPoint(x: 7, y: 0),
-                GridPoint(x: 8, y: 0),
-                GridPoint(x: 8, y: 1),
-                GridPoint(x: 8, y: 2),
-                GridPoint(x: 8, y: 3),
-                GridPoint(x: 8, y: 4),
-                GridPoint(x: 8, y: 5),
-                GridPoint(x: 8, y: 6),
-                GridPoint(x: 8, y: 7),
-                GridPoint(x: 8, y: 8)
-            ]
-        ]
-
-        for (floor, route) in zip(tower.floors, routesSkippingKey) {
-            let core = makeCore(mode: floor.makeGameMode(dungeonID: tower.id))
-
-            for destination in route {
-                playBasicMove(to: destination, in: core)
-            }
-
-            XCTAssertEqual(core.current, floor.exitPoint)
-            XCTAssertFalse(core.isDungeonExitUnlocked)
-            XCTAssertEqual(core.progress, .playing, "\(floor.title) は鍵を取るまで出口へ到達してもクリアしない必要があります")
-            assertTurnLimitSlack(for: floor, after: core)
-        }
-    }
-
-    func testKeyDoorTowerKeyAndCardRoutesShortenRepresentativeBasicRoutes() throws {
-        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "key-door-tower"))
-
-        let firstCore = makeCore(mode: tower.floors[0].makeGameMode(dungeonID: tower.id))
-        for destination in [
-            GridPoint(x: 1, y: 4),
-            GridPoint(x: 2, y: 4),
-            GridPoint(x: 2, y: 5),
-            GridPoint(x: 2, y: 6)
-        ] {
-            playBasicMove(to: destination, in: firstCore)
-        }
-        playMove(to: GridPoint(x: 4, y: 6), in: firstCore)
-        for destination in [
-            GridPoint(x: 5, y: 6),
-            GridPoint(x: 5, y: 5),
-            GridPoint(x: 5, y: 4),
-            GridPoint(x: 6, y: 4),
-            GridPoint(x: 7, y: 4),
-            GridPoint(x: 8, y: 4)
-        ] {
-            playBasicMove(to: destination, in: firstCore)
-        }
-        XCTAssertEqual(firstCore.progress, .cleared)
-        assertTurnLimitSlack(for: tower.floors[0], after: firstCore)
-
-        let secondRunState = DungeonRunState(
-            dungeonID: tower.id,
-            currentFloorIndex: 1,
-            carriedHP: 3,
-            clearedFloorCount: 1,
-            rewardInventoryEntries: [DungeonInventoryEntry(card: .straightUp2, rewardUses: 3)]
-        )
-        let secondCore = makeCore(
-            mode: tower.floors[1].makeGameMode(dungeonID: tower.id, runState: secondRunState)
-        )
-        playMove(to: GridPoint(x: 0, y: 6), in: secondCore)
-        for destination in [
-            GridPoint(x: 1, y: 6),
-            GridPoint(x: 2, y: 6),
-            GridPoint(x: 2, y: 7)
-        ] {
-            playBasicMove(to: destination, in: secondCore)
-        }
-        playMove(to: GridPoint(x: 4, y: 7), in: secondCore)
-        for destination in [
-            GridPoint(x: 5, y: 7),
-            GridPoint(x: 5, y: 6),
-            GridPoint(x: 5, y: 5),
-            GridPoint(x: 5, y: 4),
-            GridPoint(x: 6, y: 4),
-            GridPoint(x: 7, y: 4),
-            GridPoint(x: 8, y: 4)
-        ] {
-            playBasicMove(to: destination, in: secondCore)
-        }
-        XCTAssertEqual(secondCore.progress, .cleared)
-        assertTurnLimitSlack(for: tower.floors[1], after: secondCore)
-    }
-
-    func testKeyDoorTowerRewardCardsAreUsableOnNextFloorStart() throws {
-        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "key-door-tower"))
-        let secondRunState = DungeonRunState(
-            dungeonID: tower.id,
-            currentFloorIndex: 1,
-            carriedHP: 3,
-            clearedFloorCount: 1,
-            rewardInventoryEntries: [DungeonInventoryEntry(card: .straightUp2, rewardUses: 3)]
-        )
-        let secondCore = makeCore(mode: tower.floors[1].makeGameMode(dungeonID: tower.id, runState: secondRunState))
-
-        XCTAssertTrue(
-            secondCore.availableMoves().contains { $0.moveCard == .straightUp2 && $0.destination == GridPoint(x: 0, y: 6) },
-            "鍵扉塔 1F 報酬の上2は 2F 初手で鍵道へ入る候補になる想定です"
-        )
-
-        let thirdRunState = DungeonRunState(
-            dungeonID: tower.id,
-            currentFloorIndex: 2,
-            carriedHP: 3,
-            clearedFloorCount: 2,
-            rewardInventoryEntries: [DungeonInventoryEntry(card: .straightRight2, rewardUses: 3)]
-        )
-        let thirdCore = makeCore(mode: tower.floors[2].makeGameMode(dungeonID: tower.id, runState: thirdRunState))
-
-        XCTAssertTrue(
-            thirdCore.availableMoves().contains { $0.moveCard == .straightRight2 && $0.destination == GridPoint(x: 2, y: 0) },
-            "鍵扉塔 2F 報酬の右2は 3F 初手で鍵側へ寄る候補になる想定です"
-        )
-    }
-
-    func testDungeonRunStateAdvancesWithCarryoverHPMoveCountAndRewardCard() {
-        let runState = DungeonRunState(
-            dungeonID: "tutorial-tower",
-            currentFloorIndex: 0,
-            carriedHP: 3,
-            totalMoveCount: 4,
-            clearedFloorCount: 0
-        )
-
-        let advanced = runState.advancedToNextFloor(
-            carryoverHP: 2,
-            currentFloorMoveCount: 6,
-            rewardMoveCard: .kingRightDiagonalChoice
-        )
-
-        XCTAssertEqual(advanced.currentFloorIndex, 1)
-        XCTAssertEqual(advanced.floorNumber, 2)
-        XCTAssertEqual(advanced.carriedHP, 2)
-        XCTAssertEqual(advanced.totalMoveCount, 10)
-        XCTAssertEqual(advanced.clearedFloorCount, 1)
-        XCTAssertEqual(advanced.rewardInventoryEntries, [DungeonInventoryEntry(card: .kingRightDiagonalChoice, rewardUses: 2)])
-    }
 
     func testDungeonRunStateFallsFromNinthFloorToEighthFloor() throws {
         let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
@@ -4446,7 +3686,7 @@ final class DungeonModeTests: XCTestCase {
                 handSize: 5,
                 nextPreviewCount: 3,
                 allowsStacking: true,
-                deckPreset: .standard,
+                deckPreset: .standardLight,
                 spawnRule: .fixed(spawn),
                 penalties: GameMode.PenaltySettings(
                     deadlockPenaltyCost: 0,

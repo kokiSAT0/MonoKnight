@@ -45,6 +45,8 @@ public struct GameScenePalette {
     public let boardTileEffectSlow: SKColor
     /// カード温存効果のアクセントカラー
     public let boardTileEffectPreserveCard: SKColor
+    /// 手札喪失罠のアクセントカラー
+    public let boardTileEffectDiscardHand: SKColor
 
     /// 主要な色をまとめて指定できるイニシャライザ
     /// - Parameters:
@@ -77,6 +79,7 @@ public struct GameScenePalette {
         boardTileEffectBlast: SKColor,
         boardTileEffectSlow: SKColor,
         boardTileEffectPreserveCard: SKColor,
+        boardTileEffectDiscardHand: SKColor,
         warpPairAccentColors: [SKColor]
     ) {
         self.boardBackground = boardBackground
@@ -96,6 +99,7 @@ public struct GameScenePalette {
         self.boardTileEffectBlast = boardTileEffectBlast
         self.boardTileEffectSlow = boardTileEffectSlow
         self.boardTileEffectPreserveCard = boardTileEffectPreserveCard
+        self.boardTileEffectDiscardHand = boardTileEffectDiscardHand
         self.warpPairAccentColors = warpPairAccentColors
     }
 }
@@ -136,6 +140,7 @@ public extension GameScenePalette {
         // NOTE: 麻痺罠はしびれと危険を同時に読めるよう、吹き飛ばしのシアンと離れた紫寄りの警戒色を使う
         boardTileEffectSlow: SKColor(red: 0.62, green: 0.20, blue: 0.78, alpha: 0.95),
         boardTileEffectPreserveCard: SKColor(red: 0.90, green: 0.54, blue: 0.06, alpha: 0.95),
+        boardTileEffectDiscardHand: SKColor(red: 0.72, green: 0.08, blue: 0.18, alpha: 0.95),
         // NOTE: ワープペアの識別用に 6 色を用意し、同心円の層数と組み合わせて視認性を確保する
         warpPairAccentColors: [
             SKColor(red: 0.38, green: 0.68, blue: 1.0, alpha: 1.0),
@@ -178,6 +183,7 @@ public extension GameScenePalette {
         // NOTE: ダークテーマでは麻痺罠の紫を明るめにし、黒背景上でもしびれ線が沈まないようにする
         boardTileEffectSlow: SKColor(red: 0.94, green: 0.56, blue: 1.0, alpha: 0.95),
         boardTileEffectPreserveCard: SKColor(red: 1.0, green: 0.72, blue: 0.24, alpha: 0.95),
+        boardTileEffectDiscardHand: SKColor(red: 1.0, green: 0.42, blue: 0.48, alpha: 0.95),
         // NOTE: ダークテーマ用にも発光感を残した 6 色を揃え、背景が暗くても埋もれないようにする
         warpPairAccentColors: [
             SKColor(red: 0.56, green: 0.78, blue: 1.0, alpha: 1.0),

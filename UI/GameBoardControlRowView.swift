@@ -112,21 +112,12 @@ private extension GameBoardControlRowView {
                 accessibilityValue: "\(viewModel.moveCount)回"
             )
 
-            if viewModel.usesTargetCollection {
-                statisticBadge(
-                    title: "フォーカス",
-                    value: "\(viewModel.focusCount)",
-                    accessibilityLabel: "フォーカス回数",
-                    accessibilityValue: "\(viewModel.focusCount)回"
-                )
-            } else {
-                statisticBadge(
-                    title: "ペナルティ",
-                    value: "\(viewModel.penaltyCount)",
-                    accessibilityLabel: "ペナルティ合計",
-                    accessibilityValue: penaltyAccessibilityValue
-                )
-            }
+            statisticBadge(
+                title: "ペナルティ",
+                value: "\(viewModel.penaltyCount)",
+                accessibilityLabel: "ペナルティ合計",
+                accessibilityValue: penaltyAccessibilityValue
+            )
 
             statisticBadge(
                 title: "経過時間",
@@ -147,22 +138,12 @@ private extension GameBoardControlRowView {
     /// 進行度合いを補足する指標群（残りマスなど）
     func supplementaryStatisticsGroup() -> some View {
         statisticsBadgeGroup {
-            if viewModel.usesTargetCollection {
-                targetCountStatisticBadge()
-            } else {
-                statisticBadge(
-                    title: "残りマス",
-                    value: "\(viewModel.remainingTiles)",
-                    accessibilityLabel: "残りマス数",
-                    accessibilityValue: "残り\(viewModel.remainingTiles)マス"
-                )
-            }
-        }
-    }
-
-    func targetStatisticsGroup() -> some View {
-        statisticsBadgeGroup {
-            targetCountStatisticBadge()
+            statisticBadge(
+                title: "残りマス",
+                value: "\(viewModel.remainingTiles)",
+                accessibilityLabel: "残りマス数",
+                accessibilityValue: "残り\(viewModel.remainingTiles)マス"
+            )
         }
     }
 
@@ -267,32 +248,6 @@ private extension GameBoardControlRowView {
         .accessibilityValue(Self.dungeonTurnAccessibilityValue(remaining: remaining, limit: limit))
     }
 
-    /// 目的地獲得数と、獲得直後の軽い +N フィードバックを同じバッジ内へ表示
-    func targetCountStatisticBadge() -> some View {
-        statisticBadge(
-            title: "目的地",
-            value: "\(viewModel.capturedTargetCount)/\(viewModel.targetGoalCount)",
-            accessibilityLabel: "目的地獲得数",
-            accessibilityValue: targetCountAccessibilityValue
-        )
-        .overlay(alignment: .topTrailing) {
-            if let feedback = viewModel.targetCaptureFeedback {
-                Text(feedback.incrementText)
-                    .font(.system(size: 12, weight: .heavy, design: .rounded))
-                    .foregroundColor(theme.accentOnPrimary)
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 3)
-                    .background(Capsule(style: .continuous).fill(theme.accentPrimary))
-                    .shadow(color: theme.spawnOverlayShadow.opacity(0.7), radius: 8, x: 0, y: 4)
-                    .offset(x: 16, y: -12)
-                    .transition(.scale(scale: 0.8).combined(with: .opacity))
-                    .accessibilityIdentifier("target_capture_increment_badge")
-                    .accessibilityLabel(Text("目的地 \(feedback.incrementText)"))
-            }
-        }
-        .animation(.spring(response: 0.24, dampingFraction: 0.74), value: viewModel.targetCaptureFeedback)
-    }
-
     func starGaugeTick(at fraction: Double) -> some View {
         GeometryReader { geometry in
             Capsule(style: .continuous)
@@ -301,13 +256,6 @@ private extension GameBoardControlRowView {
                 .offset(x: max(0, min(geometry.size.width - 2, geometry.size.width * CGFloat(fraction) - 1)))
         }
         .allowsHitTesting(false)
-    }
-
-    var targetCountAccessibilityValue: String {
-        if let feedback = viewModel.targetCaptureFeedback {
-            return "\(viewModel.targetGoalCount)個中\(viewModel.capturedTargetCount)個獲得。直前に\(feedback.incrementCount)個獲得"
-        }
-        return "\(viewModel.targetGoalCount)個中\(viewModel.capturedTargetCount)個獲得"
     }
 
     /// 操作ボタン群
@@ -361,7 +309,7 @@ private extension GameBoardControlRowView {
         return Button {
             viewModel.requestManualPenalty()
         } label: {
-            Image(systemName: viewModel.usesTargetCollection ? "scope" : "arrow.triangle.2.circlepath")
+            Image(systemName: "arrow.triangle.2.circlepath")
                 .font(.system(size: 20, weight: .semibold))
                 .foregroundColor(theme.menuIconForeground)
                 .frame(width: 44, height: 44)
@@ -378,7 +326,7 @@ private extension GameBoardControlRowView {
         .opacity(isDisabled ? 0.45 : 1.0)
         .disabled(isDisabled)
         .accessibilityIdentifier("manual_penalty_button")
-        .accessibilityLabel(Text(viewModel.usesTargetCollection ? "フォーカスで目的地へ寄せる" : "ペナルティを払って手札スロットを引き直す"))
+        .accessibilityLabel(Text("ペナルティを払って手札スロットを引き直す"))
         .accessibilityHint(Text(viewModel.manualPenaltyAccessibilityHint))
     }
 

@@ -1420,25 +1420,7 @@ public struct DungeonLibrary {
     }
 
     public func dungeon(with id: String) -> DungeonDefinition? {
-        if let visibleDungeon = dungeons.first(where: { $0.id == id }) {
-            return visibleDungeon
-        }
-        return legacyDungeon(with: id)
-    }
-
-    private func legacyDungeon(with id: String) -> DungeonDefinition? {
-        switch id {
-        case "patrol-tower":
-            return DungeonLibrary.buildPatrolTower()
-        case "key-door-tower":
-            return DungeonLibrary.buildKeyDoorTower()
-        case "warp-tower":
-            return DungeonLibrary.buildWarpTower()
-        case "trap-tower":
-            return DungeonLibrary.buildTrapTower()
-        default:
-            return nil
-        }
+        dungeons.first(where: { $0.id == id })
     }
 
     public func firstFloorMode(
@@ -1632,10 +1614,10 @@ public struct DungeonLibrary {
     }
 
     private static func buildGrowthTower() -> DungeonDefinition {
-        let patrolFloors = buildPatrolTower().floors
-        let keyDoorFloors = buildKeyDoorTower().floors
-        let warpFloors = buildWarpTower().floors
-        let trapFloors = buildTrapTower().floors
+        let patrolFloors = buildGrowthPatrolBaseFloors()
+        let keyDoorFloors = buildGrowthKeyBaseFloors()
+        let warpFloors = buildGrowthWarpBaseFloors()
+        let trapFloors = buildGrowthTrapBaseFloors()
         let baseFloors = [
             patrolFloors[0]
                 .withAdditionalCardPickups([
@@ -2478,8 +2460,8 @@ public struct DungeonLibrary {
         )
     }
 
-    private static func buildPatrolTower() -> DungeonDefinition {
-        let floors = [
+    private static func buildGrowthPatrolBaseFloors() -> [DungeonFloorDefinition] {
+        [
             DungeonFloorDefinition(
                 id: "patrol-1",
                 title: "巡回の間",
@@ -2641,18 +2623,10 @@ public struct DungeonLibrary {
                 ]
             )
         ]
-
-        return DungeonDefinition(
-            id: "patrol-tower",
-            title: "巡回塔",
-            summary: "巡回兵の移動ルートを読み、すれ違うタイミングを作る低難度の塔。",
-            difficulty: .growth,
-            floors: floors
-        )
     }
 
-    private static func buildKeyDoorTower() -> DungeonDefinition {
-        let floors = [
+    private static func buildGrowthKeyBaseFloors() -> [DungeonFloorDefinition] {
+        [
             DungeonFloorDefinition(
                 id: "key-door-1",
                 title: "鍵の小部屋",
@@ -2769,18 +2743,10 @@ public struct DungeonLibrary {
                 ]
             )
         ]
-
-        return DungeonDefinition(
-            id: "key-door-tower",
-            title: "鍵扉塔",
-            summary: "鍵マスで扉を開き、寄り道と出口直行の手数差を読む低難度の塔。",
-            difficulty: .growth,
-            floors: floors
-        )
     }
 
-    private static func buildWarpTower() -> DungeonDefinition {
-        let floors = [
+    private static func buildGrowthWarpBaseFloors() -> [DungeonFloorDefinition] {
+        [
             DungeonFloorDefinition(
                 id: "warp-1",
                 title: "転移の入口",
@@ -2890,18 +2856,10 @@ public struct DungeonLibrary {
                 ]
             )
         ]
-
-        return DungeonDefinition(
-            id: "warp-tower",
-            title: "ワープ塔",
-            summary: "ワープ床を読み、遠回りと近道を切り替える低難度の塔。",
-            difficulty: .growth,
-            floors: floors
-        )
     }
 
-    private static func buildTrapTower() -> DungeonDefinition {
-        let floors = [
+    private static func buildGrowthTrapBaseFloors() -> [DungeonFloorDefinition] {
+        [
             DungeonFloorDefinition(
                 id: "trap-1",
                 title: "見える罠",
@@ -3037,14 +2995,6 @@ public struct DungeonLibrary {
                 ]
             )
         ]
-
-        return DungeonDefinition(
-            id: "trap-tower",
-            title: "罠塔",
-            summary: "見えている罠を避けるか、HPを支払って近道するかを読む低難度の塔。",
-            difficulty: .growth,
-            floors: floors
-        )
     }
 
     private static func buildRoguelikeTower() -> DungeonDefinition {

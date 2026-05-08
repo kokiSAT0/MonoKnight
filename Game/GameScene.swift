@@ -12,11 +12,7 @@
         case guideMultiStepCandidate
         case guideWarpCandidate
         case dungeonBasicMove
-        case targetApproachCandidate
-        case targetCaptureCandidate
         case forcedSelection
-        case currentTarget
-        case upcomingTarget
         case dungeonExit
         case dungeonExitLocked
         case dungeonKey
@@ -133,8 +129,6 @@
 
         private let initialBoardSize: Int
         private let initialVisitedPoints: [GridPoint]
-        private let initialRequiredVisitOverrides: [GridPoint: Int]
-        private let initialTogglePoints: Set<GridPoint>
         private let initialImpassablePoints: Set<GridPoint>
         private let initialTileEffects: [GridPoint: TileEffect]
 
@@ -145,10 +139,6 @@
         private let highlightRenderer = GameSceneHighlightRenderer()
         private let knightAnimator = GameSceneKnightAnimator()
         private var pendingBoard: Board?
-        private var currentTargetPoints: Set<GridPoint> = []
-        private var upcomingTargetPoints: Set<GridPoint> = []
-        private var targetApproachCandidatePoints: Set<GridPoint> = []
-        private var targetCaptureCandidatePoints: Set<GridPoint> = []
         private var latestHighlightPoints: [BoardHighlightKind: Set<GridPoint>] = [:]
         private var latestDungeonEnemyMarkers: [SceneDungeonEnemyMarker] = []
         private var latestPatrolRailPreviews: [ScenePatrolRailPreview] = []
@@ -176,8 +166,6 @@
             board = Board(
                 size: initialBoardSize,
                 initialVisitedPoints: initialVisitedPoints,
-                requiredVisitOverrides: initialRequiredVisitOverrides,
-                togglePoints: initialTogglePoints,
                 impassablePoints: initialImpassablePoints,
                 tileEffects: initialTileEffects
             )
@@ -188,10 +176,6 @@
             highlightRenderer.reset()
             knightAnimator.reset(in: self)
             pendingBoard = nil
-            currentTargetPoints = []
-            upcomingTargetPoints = []
-            targetApproachCandidatePoints = []
-            targetCaptureCandidatePoints = []
             latestHighlightPoints = [:]
             latestDungeonEnemyMarkers = []
             latestPatrolRailPreviews = []
@@ -220,8 +204,6 @@
         public init(
             initialBoardSize: Int,
             initialVisitedPoints: [GridPoint]? = nil,
-            requiredVisitOverrides: [GridPoint: Int] = [:],
-            togglePoints: Set<GridPoint> = [],
             impassablePoints: Set<GridPoint> = [],
             tileEffects: [GridPoint: TileEffect] = [:]
         ) {
@@ -230,15 +212,11 @@
                 ?? BoardGeometry.defaultInitialVisitedPoints(for: initialBoardSize)
             self.initialBoardSize = initialBoardSize
             self.initialVisitedPoints = resolvedVisitedPoints
-            self.initialRequiredVisitOverrides = requiredVisitOverrides
-            self.initialTogglePoints = togglePoints
             self.initialImpassablePoints = impassablePoints
             self.initialTileEffects = tileEffects
             self.board = Board(
                 size: initialBoardSize,
                 initialVisitedPoints: resolvedVisitedPoints,
-                requiredVisitOverrides: requiredVisitOverrides,
-                togglePoints: togglePoints,
                 impassablePoints: impassablePoints,
                 tileEffects: tileEffects
             )
@@ -251,15 +229,11 @@
             let defaultVisitedPoints = BoardGeometry.defaultInitialVisitedPoints(
                 for: BoardGeometry.standardSize)
             self.initialVisitedPoints = defaultVisitedPoints
-            self.initialRequiredVisitOverrides = [:]
-            self.initialTogglePoints = []
             self.initialImpassablePoints = []
             self.initialTileEffects = [:]
             self.board = Board(
                 size: BoardGeometry.standardSize,
                 initialVisitedPoints: defaultVisitedPoints,
-                requiredVisitOverrides: [:],
-                togglePoints: [],
                 impassablePoints: [],
                 tileEffects: [:]
             )
@@ -327,15 +301,9 @@
         }
 
         public func updateHighlights(_ highlights: [BoardHighlightKind: Set<GridPoint>]) {
-            var visibleHighlights = highlights
-            visibleHighlights[.targetCaptureCandidate] = []
-            latestHighlightPoints = visibleHighlights
-            currentTargetPoints = visibleHighlights[.currentTarget] ?? []
-            upcomingTargetPoints = visibleHighlights[.upcomingTarget] ?? []
-            targetApproachCandidatePoints = visibleHighlights[.targetApproachCandidate] ?? []
-            targetCaptureCandidatePoints = visibleHighlights[.targetCaptureCandidate] ?? []
+            latestHighlightPoints = highlights
             highlightRenderer.updateHighlights(
-                visibleHighlights,
+                highlights,
                 board: board,
                 scene: self,
                 layout: layoutSupport,
@@ -493,8 +461,6 @@
                 .guideMultipleCandidate: points,
                 .guideMultiStepPath: [],
                 .guideMultiStepCandidate: [],
-                .targetApproachCandidate: [],
-                .targetCaptureCandidate: [],
             ])
         }
 
@@ -1011,10 +977,6 @@
                 accessibilitySupport.update(
                     board: board,
                     knightPosition: knightAnimator.knightPosition,
-                    currentTargetPoints: currentTargetPoints,
-                    upcomingTargetPoints: upcomingTargetPoints,
-                    targetApproachCandidatePoints: targetApproachCandidatePoints,
-                    targetCaptureCandidatePoints: targetCaptureCandidatePoints,
                     layout: layoutSupport,
                     owner: self
                 )

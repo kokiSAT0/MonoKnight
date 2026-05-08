@@ -130,22 +130,15 @@ public struct GameMode: Equatable, Identifiable {
 
     /// ゲームの完了条件を表す設定
     public enum CompletionRule: Equatable, Codable {
-        /// 従来通り、踏破対象マスをすべて踏むとクリア
-        case boardClear
-        /// 目的地を指定数獲得するとクリア
-        case targetCollection(goalCount: Int)
         /// 指定出口マスへ到達するとクリア
         case dungeonExit(exitPoint: GridPoint)
 
         private enum CodingKeys: String, CodingKey {
             case type
-            case goalCount
             case exitPoint
         }
 
         private enum Kind: String, Codable {
-            case boardClear
-            case targetCollection
             case dungeonExit
         }
 
@@ -153,11 +146,6 @@ public struct GameMode: Equatable, Identifiable {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             let kind = try container.decode(Kind.self, forKey: .type)
             switch kind {
-            case .boardClear:
-                self = .boardClear
-            case .targetCollection:
-                let goalCount = try container.decode(Int.self, forKey: .goalCount)
-                self = .targetCollection(goalCount: goalCount)
             case .dungeonExit:
                 let exitPoint = try container.decode(GridPoint.self, forKey: .exitPoint)
                 self = .dungeonExit(exitPoint: exitPoint)
@@ -167,11 +155,6 @@ public struct GameMode: Equatable, Identifiable {
         public func encode(to encoder: Encoder) throws {
             var container = encoder.container(keyedBy: CodingKeys.self)
             switch self {
-            case .boardClear:
-                try container.encode(Kind.boardClear, forKey: .type)
-            case .targetCollection(let goalCount):
-                try container.encode(Kind.targetCollection, forKey: .type)
-                try container.encode(goalCount, forKey: .goalCount)
             case .dungeonExit(let exitPoint):
                 try container.encode(Kind.dungeonExit, forKey: .type)
                 try container.encode(exitPoint, forKey: .exitPoint)
@@ -198,12 +181,6 @@ public struct GameMode: Equatable, Identifiable {
         public var spawnRule: SpawnRule
         /// ペナルティ設定一式
         public var penalties: PenaltySettings
-        /// マスごとの追加踏破回数設定
-        public var additionalVisitRequirements: [GridPoint: Int] = [:]
-        /// トグル挙動を適用するマス集合
-        /// - Important: 同じ座標に `additionalVisitRequirements` が存在する場合はトグルが優先され、
-        ///   ギミックとして 1 回踏むごとに踏破⇔未踏破が反転する。
-        public var toggleTilePoints: Set<GridPoint> = []
         /// 完全に移動を禁止する障害物マス集合
         public var impassableTilePoints: Set<GridPoint> = []
         /// 盤面タイルへ付与する特殊効果一覧
@@ -235,12 +212,10 @@ public struct GameMode: Equatable, Identifiable {
             bonusMoveCards: [MoveCard] = [],
             spawnRule: SpawnRule,
             penalties: PenaltySettings,
-            additionalVisitRequirements: [GridPoint: Int] = [:],
-            toggleTilePoints: Set<GridPoint> = [],
             impassableTilePoints: Set<GridPoint> = [],
             tileEffectOverrides: [GridPoint: TileEffect] = [:],
             warpTilePairs: [String: [GridPoint]] = [:],
-            completionRule: CompletionRule = .boardClear,
+            completionRule: CompletionRule = .dungeonExit(exitPoint: BoardGeometry.defaultSpawnPoint(for: BoardGeometry.standardSize)),
             dungeonRules: DungeonRules? = nil
         ) {
             self.boardSize = boardSize
@@ -251,8 +226,6 @@ public struct GameMode: Equatable, Identifiable {
             self.bonusMoveCards = bonusMoveCards.isEmpty ? nil : bonusMoveCards
             self.spawnRule = spawnRule
             self.penalties = penalties
-            self.additionalVisitRequirements = additionalVisitRequirements
-            self.toggleTilePoints = toggleTilePoints
             self.impassableTilePoints = impassableTilePoints
             self.tileEffectOverrides = tileEffectOverrides
             self.warpTilePairs = warpTilePairs
@@ -270,8 +243,6 @@ public struct GameMode: Equatable, Identifiable {
             case bonusMoveCards
             case spawnRule
             case penalties
-            case additionalVisitRequirements
-            case toggleTilePoints
             case impassableTilePoints
             case tileEffectOverrides
             case warpTilePairs
@@ -351,11 +322,6 @@ public struct GameMode: Equatable, Identifiable {
     public var deckSummaryText: String { deckConfiguration.deckSummaryText }
     /// クリア条件
     public var completionRule: CompletionRule { regulation.completionRule }
-    /// 目的地制モードかどうか
-    public var usesTargetCollection: Bool {
-        if case .targetCollection = regulation.completionRule { return true }
-        return false
-    }
     /// 出口到達型ダンジョンモードかどうか
     public var usesDungeonExit: Bool {
         if case .dungeonExit = regulation.completionRule { return true }
@@ -370,13 +336,6 @@ public struct GameMode: Equatable, Identifiable {
     }
     /// 出口到達型ダンジョンの追加ルール
     public var dungeonRules: DungeonRules? { regulation.dungeonRules }
-    /// 目的地制モードの目標獲得数
-    public var targetGoalCount: Int {
-        if case .targetCollection(let goalCount) = regulation.completionRule {
-            return max(goalCount, 1)
-        }
-        return 0
-    }
 
     /// リーダーボードへスコアを送信する対象かどうか
     public var isLeaderboardEligible: Bool { leaderboardEligible }
@@ -416,10 +375,6 @@ public struct GameMode: Equatable, Identifiable {
         }
     }
 
-    /// 追加踏破回数が必要なマス集合
-    public var additionalVisitRequirements: [GridPoint: Int] { regulation.additionalVisitRequirements }
-    /// トグル挙動を割り当てたマス集合
-    public var toggleTilePoints: Set<GridPoint> { regulation.toggleTilePoints }
     /// 障害物として扱う移動不可マス集合
     public var impassableTilePoints: Set<GridPoint> { regulation.impassableTilePoints }
     /// ワープ定義のスナップショット
