@@ -7,6 +7,26 @@ import XCTest
 @MainActor
 final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
 
+    func testSceneRecordsMultiStepMovementPathForReplay() {
+        let scene = GameScene(initialBoardSize: 5, initialVisitedPoints: [GridPoint(x: 0, y: 0)])
+        let resolution = MovementResolution(
+            path: [
+                GridPoint(x: 1, y: 0),
+                GridPoint(x: 2, y: 0),
+                GridPoint(x: 3, y: 0)
+            ],
+            finalPosition: GridPoint(x: 3, y: 0)
+        )
+
+        scene.playMovementTransition(using: resolution)
+
+        XCTAssertEqual(
+            scene.latestMovementPathForTesting,
+            resolution.path,
+            "ワープなしの複数マス移動も、最終地点への一括移動ではなく経路を Scene に渡す想定です"
+        )
+    }
+
     /// 単一候補カードと複数候補カードが個別の集合へ分類されることを確認する
     func testRefreshGuideHighlightsSeparatesSingleAndMultipleCandidates() {
         // 右方向カードをテスト用に複数ベクトルへ差し替え、選択肢が 2 件になる状況を作る
@@ -69,26 +89,6 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
             buckets.multipleVectorDestinations.contains(singleDestination),
             "複数候補集合に重なりマスが含まれておらず、重ね表示が機能しません"
         )
-    }
-
-    /// ワープカードが専用の紫ガイド集合へ分類されることを検証する
-    func testRefreshGuideHighlightsSeparatesWarpCandidates() {
-        let viewModel = makeViewModel()
-        let origin = GridPoint(x: 2, y: 2)
-        let warpDestination = GridPoint(x: 2, y: 3)
-
-        let warpStack = HandStack(cards: [DealtCard(move: .fixedWarp, fixedWarpDestination: warpDestination)])
-
-        viewModel.refreshGuideHighlights(
-            handOverride: [warpStack],
-            currentOverride: origin,
-            progressOverride: .playing
-        )
-
-        let buckets = viewModel.guideHighlightBuckets
-        XCTAssertTrue(buckets.warpDestinations.contains(warpDestination), "ワープ専用集合に目的地が含まれていません")
-        XCTAssertTrue(buckets.singleVectorDestinations.isEmpty, "ワープカードが単一候補集合へ混入しています")
-        XCTAssertTrue(buckets.multipleVectorDestinations.isEmpty, "ワープカードが複数候補集合へ混入しています")
     }
 
     /// 連続移動カードは移動中に踏むマスの塗りと、タップ可能な終点枠を分けて Scene へ渡すことを検証する
@@ -201,6 +201,11 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
             viewModel.scene.latestHighlightPoints(for: .dungeonEnemy),
             Set(floor.enemies.map(\.position)),
             "敵位置を Scene へ渡す必要があります"
+        )
+        XCTAssertEqual(
+            viewModel.scene.latestDungeonEnemyMarkersForTesting(),
+            floor.enemies.map(SceneDungeonEnemyMarker.init),
+            "敵の種類を行動前に見分けられるよう、種類付きマーカーを Scene へ渡します"
         )
         XCTAssertEqual(
             viewModel.scene.latestHighlightPoints(for: .dungeonDanger),
@@ -384,6 +389,42 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
         )
     }
 
+    func testDungeonEnemyTurnAnimationKeepsDangerAndWarningPulsesSeparate() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let floor = try XCTUnwrap(tower.floors.first { $0.id == "growth-17" })
+        let mode = floor.makeGameMode(dungeonID: tower.id)
+        let core = GameCore(mode: mode)
+        let viewModel = GameBoardBridgeViewModel(core: core, mode: mode)
+        let event = DungeonEnemyTurnEvent(
+            transitions: [],
+            attackedPlayer: false,
+            hpBefore: core.dungeonHP,
+            hpAfter: core.dungeonHP
+        )
+
+        XCTAssertFalse(core.enemyDangerPoints.isEmpty, "成長塔17Fには敵の危険範囲が必要です")
+        XCTAssertFalse(core.enemyWarningPoints.isEmpty, "成長塔17Fには予告兵の警告マスが必要です")
+
+        viewModel.playDungeonEnemyTurn(event)
+
+        XCTAssertEqual(
+            viewModel.scene.latestEnemyTurnDangerPulsePointsForTesting,
+            core.enemyDangerPoints,
+            "敵ターン演出の赤パルスには現在の危険範囲だけを渡します"
+        )
+        XCTAssertEqual(
+            viewModel.scene.latestEnemyTurnWarningPulsePointsForTesting,
+            core.enemyWarningPoints,
+            "敵ターン演出のオレンジ破線パルスには予告床だけを渡します"
+        )
+        XCTAssertTrue(
+            viewModel.scene.latestEnemyTurnDangerPulsePointsForTesting
+                .intersection(viewModel.scene.latestEnemyTurnWarningPulsePointsForTesting)
+                .isEmpty,
+            "危険範囲と予告床が同じ赤点滅に混ざらないようにします"
+        )
+    }
+
     func testDungeonEnemyTurnAnimationLocksInputAndReleasesAfterPlayback() async throws {
         let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
         let mode = try XCTUnwrap(DungeonLibrary.shared.firstFloorMode(for: tower))
@@ -490,18 +531,17 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
         )
     }
 
-    func testKeyDoorTowerOpenGateAndDoorStateArePassedToScene() throws {
+    func testKeyDoorTowerFixedDoorStateIsPassedToScene() throws {
         let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "key-door-tower"))
         let floor = try XCTUnwrap(tower.floors.first)
         let mode = floor.makeGameMode(dungeonID: tower.id)
         let core = GameCore(mode: mode)
         let viewModel = GameBoardBridgeViewModel(core: core, mode: mode)
 
-        let keyPoint = GridPoint(x: 2, y: 6)
         let doorPoint = GridPoint(x: 4, y: 4)
 
         XCTAssertEqual(viewModel.boardSize, 9)
-        XCTAssertEqual(mode.tileEffects[keyPoint], .openGate(target: doorPoint))
+        XCTAssertTrue(mode.tileEffects.isEmpty)
         XCTAssertTrue(core.board.isImpassable(doorPoint))
         XCTAssertTrue(
             viewModel.scene.boardIsImpassableForTesting(at: doorPoint),

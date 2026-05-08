@@ -92,8 +92,8 @@ final class GameHandSectionViewAccessibilityTests: XCTestCase {
         XCTAssertEqual(viewModel.displayedHandStacks, core.handStacks)
     }
 
-    func testTenHandSlotsUseTwoRowsOfFive() {
-        XCTAssertEqual(GameHandSectionView.handSlotRowRanges(for: 10), [0..<5, 5..<10])
+    func testTenHandSlotsUseThreeColumnRows() {
+        XCTAssertEqual(GameHandSectionView.handSlotRowRanges(for: 10), [0..<3, 3..<6, 6..<9, 9..<10])
     }
 
     func testFiveHandSlotsKeepSingleRow() {
@@ -105,6 +105,16 @@ final class GameHandSectionViewAccessibilityTests: XCTestCase {
             .flatMap { range in range.map(GameHandSectionView.handSlotAccessibilityIdentifier(for:)) }
 
         XCTAssertEqual(identifiers, (0..<10).map { "hand_slot_\($0)" })
+    }
+
+    func testDungeonPickupReplacementHintUsesExistingHandSlot() {
+        let stack = HandStack(cards: [DealtCard(move: .straightRight2)])
+
+        XCTAssertEqual(
+            GameHandSectionView.dungeonPickupReplacementAccessibilityHint(for: stack),
+            "ダブルタップで 右2 をすべて捨て、拾ったカードを取得します。"
+        )
+        XCTAssertEqual(GameHandSectionView.handSlotAccessibilityIdentifier(for: 0), "hand_slot_0")
     }
 }
 

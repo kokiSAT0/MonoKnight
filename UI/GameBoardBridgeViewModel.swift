@@ -187,15 +187,9 @@ final class GameBoardBridgeViewModel: ObservableObject {
             boardWarpHighlight: appTheme.skBoardWarpHighlight,
             boardTileEffectWarp: appTheme.skBoardTileEffectWarp,
             boardTileEffectShuffle: appTheme.skBoardTileEffectShuffle,
-            boardTileEffectBoost: appTheme.skBoardTileEffectBoost,
+            boardTileEffectBlast: appTheme.skBoardTileEffectBlast,
             boardTileEffectSlow: appTheme.skBoardTileEffectSlow,
-            boardTileEffectNextRefresh: appTheme.skBoardTileEffectNextRefresh,
-            boardTileEffectFreeFocus: appTheme.skBoardTileEffectFreeFocus,
             boardTileEffectPreserveCard: appTheme.skBoardTileEffectPreserveCard,
-            boardTileEffectDraft: appTheme.skBoardTileEffectDraft,
-            boardTileEffectOverload: appTheme.skBoardTileEffectOverload,
-            boardTileEffectTargetSwap: appTheme.skBoardTileEffectTargetSwap,
-            boardTileEffectOpenGate: appTheme.skBoardTileEffectOpenGate,
             // NOTE: ワープペアの配色セットを SpriteKit へ渡し、色と形の両面で組み合わせを識別させる
             warpPairAccentColors: appTheme.skWarpPairAccentColors
         )
@@ -253,8 +247,11 @@ final class GameBoardBridgeViewModel: ObservableObject {
         isEnemyTurnAnimationActive = true
         pushHighlightsToScene()
 
-        let finalDangerPoints = core.enemyDangerPoints.union(core.enemyWarningPoints)
-        let duration = scene.playDungeonEnemyTurn(event, finalDangerPoints: finalDangerPoints)
+        let duration = scene.playDungeonEnemyTurn(
+            event,
+            dangerPoints: core.enemyDangerPoints,
+            warningPoints: core.enemyWarningPoints
+        )
         let shouldPlayDamage = event.attackedPlayer && event.hpAfter < event.hpBefore
         let damageDelay = max(duration - 0.08, 0)
         let completionDelay = max(duration, 0.12)
@@ -282,7 +279,8 @@ final class GameBoardBridgeViewModel: ObservableObject {
     /// - Note: 種類ごとの集合を辞書にまとめ、`GameScene` 側の一括更新 API と齟齬なく連携する
     private func pushHighlightsToScene() {
         let shouldHideGuideCandidates = !forcedSelectionHighlightPoints.isEmpty
-        let enemyTurnBeforeStates = activeEnemyTurnEvent?.transitions.map(\.before) ?? []
+        let enemyTurnBeforeStates = activeEnemyTurnEvent?.phases.first?.transitions.map(\.before) ?? []
+        let displayedEnemyStates = activeEnemyTurnEvent.map { _ in enemyTurnBeforeStates } ?? core.enemyStates
         let displayedEnemyPoints = activeEnemyTurnEvent.map { _ in
             Set(enemyTurnBeforeStates.map(\.position))
         } ?? Set(core.enemyStates.map(\.position))
@@ -311,6 +309,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
             .dungeonCollapsedFloor: core.collapsedFloorPoints
         ]
         scene.updateHighlights(highlights)
+        scene.updateDungeonEnemyMarkers(displayedEnemyStates.map(SceneDungeonEnemyMarker.init))
         scene.updatePatrolRailPreviews(
             shouldDeferEnemyThreatHighlights ? [] : core.enemyPatrolRailPreviews.map(ScenePatrolRailPreview.init)
         )
@@ -402,17 +401,6 @@ final class GameBoardBridgeViewModel: ObservableObject {
             let destinations = moves.map { $0.destination }
             let traversedPoints = moves.flatMap(\.traversedPoints)
             let move = representative.card.move
-
-            if move == .superWarp {
-                // スーパーワープは盤面全域が候補となりガイドが画面を覆ってしまうため、あえて登録しない
-                continue
-            }
-
-            if move == .fixedWarp {
-                // 固定ワープのみ紫枠で視認性を高めるため専用バケットへ分類する
-                computedBuckets.warpDestinations.formUnion(destinations)
-                continue
-            }
 
             if move.kind == .multiStep {
                 // 連続移動カードは、通過範囲を塗り、終点だけをタップ可能な枠として分けて渡す
@@ -676,6 +664,12 @@ final class GameBoardBridgeViewModel: ObservableObject {
                    }) {
                     // ワープ効果が含まれている場合は専用演出を再生し、より没入感のある挙動に切り替える
                     self.scene.playWarpTransition(using: resolution)
+                } else if let destination = newPoint,
+                          let resolution = self.latestMovementResolution,
+                          resolution.finalPosition == destination,
+                          resolution.path.count > 1 {
+                    // レイ型などの複数マス移動は、途中処理と対応するよう通過マスを一歩ずつ再生する
+                    self.scene.playMovementTransition(using: resolution)
                 } else {
                     // 条件を満たさない場合は従来の単純移動を行う
                     self.scene.moveKnight(to: newPoint)

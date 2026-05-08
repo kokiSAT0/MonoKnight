@@ -102,24 +102,12 @@
                     return "ワープマス"
                 case .shuffleHand:
                     return "シャッフルマス"
-                case .boost:
-                    return "加速マス"
+                case .blast:
+                    return "吹き飛ばしマス"
                 case .slow:
-                    return "減速マス"
-                case .nextRefresh:
-                    return "NEXT更新マス"
-                case .freeFocus:
-                    return "無料フォーカスマス"
+                    return "麻痺罠"
                 case .preserveCard:
                     return "カード温存マス"
-                case .draft:
-                    return "ドラフトマス"
-                case .overload:
-                    return "過負荷マス"
-                case .targetSwap:
-                    return "転換マス"
-                case .openGate:
-                    return "開門マス"
                 }
             }
         }

@@ -38,17 +38,9 @@ public final class HandManager: ObservableObject {
         return mapping
     }()
 
-    /// 並び替えカテゴリを判定する（0: 通常移動、1: 固定ワープ、2: スーパーワープ、3: 補助）
+    /// 並び替えカテゴリを判定する（0: 通常移動、1: 補助）
     private static func orderingCategory(for card: DealtCard) -> Int {
-        guard let move = card.moveCard else { return 3 }
-        switch move {
-        case .superWarp:
-            return 2
-        case .fixedWarp:
-            return 1
-        default:
-            return 0
-        }
+        card.moveCard == nil ? 1 : 0
     }
 
     /// 並び替えに利用する代表ベクトルを取得する（左方向優先で安定ソートを実現）
@@ -198,19 +190,7 @@ public final class HandManager: ObservableObject {
                 let identity = card.playable
                 if let index = handStacks.firstIndex(where: { stack in
                     guard let stackIdentity = stack.representativePlayable else { return false }
-                    guard stackIdentity == identity else { return false }
-                    if card.moveCard == .fixedWarp {
-                        // 固定ワープカードは目的地が異なると混同を招くため、ワープ先が一致する場合のみ同じスタックへ積む
-                        guard
-                            let newDestination = card.fixedWarpDestination,
-                            let existingDestination = stack.topCard?.fixedWarpDestination
-                        else {
-                            // 目的地が不明なカードは安全側で新規スタック扱いにする
-                            return false
-                        }
-                        return existingDestination == newDestination
-                    }
-                    return true
+                    return stackIdentity == identity
                 }) {
                     var existing = handStacks[index]
                     existing.append(card)

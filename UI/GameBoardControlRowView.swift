@@ -33,6 +33,26 @@ extension GameBoardControlRowView {
     static func dungeonHPAccessibilityValue(for hp: Int) -> String {
         isCriticalDungeonHP(hp) ? "\(hp)、瀕死" : "\(hp)"
     }
+
+    static func dungeonTurnProgress(remaining: Int?, limit: Int?) -> Double? {
+        guard let limit, limit > 0, let remaining else { return nil }
+        return Double(max(0, min(remaining, limit))) / Double(limit)
+    }
+
+    static func isCriticalDungeonTurns(remaining: Int?, limit: Int?) -> Bool {
+        guard let progress = dungeonTurnProgress(remaining: remaining, limit: limit) else { return false }
+        return progress <= 0.25
+    }
+
+    static func dungeonTurnValueText(remaining: Int?, limit: Int?) -> String {
+        guard let limit, let remaining else { return "制限なし" }
+        return "残り \(max(remaining, 0)) / \(limit)"
+    }
+
+    static func dungeonTurnAccessibilityValue(remaining: Int?, limit: Int?) -> String {
+        guard let limit, let remaining else { return "制限なし" }
+        return "\(limit)手中\(max(remaining, 0))手残り"
+    }
 }
 
 private extension GameBoardControlRowView {
@@ -137,15 +157,6 @@ private extension GameBoardControlRowView {
                     accessibilityValue: "残り\(viewModel.remainingTiles)マス"
                 )
             }
-
-            if viewModel.isOverloadCharged {
-                statisticBadge(
-                    title: "状態",
-                    value: "過負荷",
-                    accessibilityLabel: "過負荷状態",
-                    accessibilityValue: "次のカードは消費されません"
-                )
-            }
         }
     }
 
@@ -175,37 +186,9 @@ private extension GameBoardControlRowView {
                 isHighlighted: Self.isCriticalDungeonHP(viewModel.dungeonHP)
             )
 
-            statisticBadge(
-                title: "手数",
-                value: viewModel.remainingDungeonTurns.map(String.init) ?? "-",
-                accessibilityLabel: "残り手数",
-                accessibilityValue: viewModel.remainingDungeonTurns.map { "残り\($0)手" } ?? "制限なし"
-            )
-
-            statisticBadge(
-                title: "出口",
-                value: dungeonExitValue,
-                accessibilityLabel: "出口",
-                accessibilityValue: dungeonExitAccessibilityValue
-            )
-
-            if !viewModel.dungeonRewardInventoryEntries.isEmpty {
-                let rewardText = viewModel.dungeonRewardInventoryEntries
-                    .map { "\($0.playable.displayName)×\($0.rewardUses)" }
-                    .joined(separator: "、")
-                statisticBadge(
-                    title: "追加",
-                    value: "\(viewModel.dungeonRewardInventoryEntries.count)",
-                    accessibilityLabel: "追加カード",
-                    accessibilityValue: rewardText
-                )
-            }
-
-            statisticBadge(
-                title: "移動",
-                value: "\(viewModel.moveCount)",
-                accessibilityLabel: "移動回数",
-                accessibilityValue: "\(viewModel.moveCount)回"
+            dungeonTurnStatisticBadge(
+                remaining: viewModel.remainingDungeonTurns,
+                limit: viewModel.dungeonTurnLimit
             )
         }
     }
@@ -216,18 +199,6 @@ private extension GameBoardControlRowView {
         } else {
             return "ペナルティ合計 \(viewModel.penaltyCount)"
         }
-    }
-
-    var dungeonExitValue: String {
-        guard viewModel.isDungeonExitUnlocked else { return "施錠中" }
-        guard let point = viewModel.dungeonExitPoint else { return "-" }
-        return "\(point.x),\(point.y)"
-    }
-
-    var dungeonExitAccessibilityValue: String {
-        guard viewModel.isDungeonExitUnlocked else { return "施錠中。鍵を取得すると有効になります" }
-        guard let point = viewModel.dungeonExitPoint else { return "未設定" }
-        return "横\(point.x)、縦\(point.y)"
     }
 
     /// 共通の装飾を適用した統計バッジコンテナ
@@ -246,6 +217,54 @@ private extension GameBoardControlRowView {
                 .stroke(theme.statisticBadgeBorder, lineWidth: 1)
         )
         .accessibilityElement(children: .contain)
+    }
+
+    func dungeonTurnStatisticBadge(remaining: Int?, limit: Int?) -> some View {
+        let progress = Self.dungeonTurnProgress(remaining: remaining, limit: limit)
+        let isCritical = Self.isCriticalDungeonTurns(remaining: remaining, limit: limit)
+        let valueColor: Color = isCritical ? .red : theme.statisticValueText
+
+        return VStack(alignment: .leading, spacing: 5) {
+            Text("残り手数")
+                .font(.caption2)
+                .fontWeight(.medium)
+                .foregroundColor(theme.statisticTitleText)
+
+            Text(Self.dungeonTurnValueText(remaining: remaining, limit: limit))
+                .font(.headline)
+                .foregroundColor(valueColor)
+
+            if let progress {
+                GeometryReader { geometry in
+                    ZStack(alignment: .leading) {
+                        Capsule(style: .continuous)
+                            .fill(theme.statisticBadgeBorder.opacity(0.7))
+                        Capsule(style: .continuous)
+                            .fill(valueColor)
+                            .frame(width: geometry.size.width * CGFloat(progress))
+                    }
+                }
+                .frame(width: 118, height: 7)
+                .accessibilityHidden(true)
+            }
+        }
+        .padding(.horizontal, isCritical ? 8 : 0)
+        .padding(.vertical, isCritical ? 4 : 0)
+        .background {
+            if isCritical {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Color.red.opacity(0.12))
+            }
+        }
+        .overlay {
+            if isCritical {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(Color.red.opacity(0.56), lineWidth: 1)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("残り手数")
+        .accessibilityValue(Self.dungeonTurnAccessibilityValue(remaining: remaining, limit: limit))
     }
 
     /// 目的地獲得数と、獲得直後の軽い +N フィードバックを同じバッジ内へ表示

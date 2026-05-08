@@ -4,6 +4,7 @@
 
     final class GameSceneHighlightRenderer {
         private(set) var highlightNodes: [BoardHighlightKind: [GridPoint: SKShapeNode]] = [:]
+        private(set) var dungeonEnemyMarkerNodes: [String: SKShapeNode] = [:]
         private(set) var patrolRailNodes: [String: SKShapeNode] = [:]
         private(set) var patrolMovementArrowNodes: [String: SKShapeNode] = [:]
         private var latestSingleGuidePoints: Set<GridPoint> = []
@@ -27,6 +28,9 @@
         private var latestDungeonDamageTrapPoints: Set<GridPoint> = []
         private var latestDungeonCrackedFloorPoints: Set<GridPoint> = []
         private var latestDungeonCollapsedFloorPoints: Set<GridPoint> = []
+        private var latestDungeonEnemyMarkers: [SceneDungeonEnemyMarker] = []
+        private var pendingDungeonEnemyMarkers: [SceneDungeonEnemyMarker] = []
+        private var hasPendingDungeonEnemyMarkerUpdate = false
         private var latestPatrolRailPreviews: [ScenePatrolRailPreview] = []
         private var pendingPatrolRailPreviews: [ScenePatrolRailPreview] = []
         private var hasPendingPatrolRailUpdate = false
@@ -48,6 +52,9 @@
                     node.removeFromParent()
                 }
             }
+            for node in dungeonEnemyMarkerNodes.values {
+                node.removeFromParent()
+            }
             for node in patrolMovementArrowNodes.values {
                 node.removeFromParent()
             }
@@ -55,6 +62,7 @@
                 node.removeFromParent()
             }
             highlightNodes = [:]
+            dungeonEnemyMarkerNodes = [:]
             patrolRailNodes = [:]
             patrolMovementArrowNodes = [:]
             latestSingleGuidePoints = []
@@ -78,6 +86,9 @@
             latestDungeonDamageTrapPoints = []
             latestDungeonCrackedFloorPoints = []
             latestDungeonCollapsedFloorPoints = []
+            latestDungeonEnemyMarkers = []
+            pendingDungeonEnemyMarkers = []
+            hasPendingDungeonEnemyMarkerUpdate = false
             latestPatrolRailPreviews = []
             pendingPatrolRailPreviews = []
             hasPendingPatrolRailUpdate = false
@@ -130,6 +141,26 @@
                 palette: palette
             )
             clearPending()
+        }
+
+        func updateDungeonEnemyMarkers(
+            _ markers: [SceneDungeonEnemyMarker],
+            scene: SKScene,
+            layout: GameSceneLayoutSupport,
+            palette: GameScenePalette,
+            isLayoutReady: Bool
+        ) {
+            latestDungeonEnemyMarkers = markers
+            pendingDungeonEnemyMarkers = markers
+            hasPendingDungeonEnemyMarkerUpdate = true
+
+            debugLog(
+                "GameScene 敵マーカー更新要求: count=\(markers.count), レイアウト確定=\(isLayoutReady)"
+            )
+
+            guard isLayoutReady else { return }
+            applyDungeonEnemyMarkers(markers, scene: scene, layout: layout, palette: palette)
+            hasPendingDungeonEnemyMarkerUpdate = false
         }
 
         func updatePatrolMovementPreviews(
@@ -190,6 +221,16 @@
                 }
             }
 
+            for marker in latestDungeonEnemyMarkers {
+                guard let node = dungeonEnemyMarkerNodes[marker.enemyID] else { continue }
+                configureDungeonEnemyMarkerNode(
+                    node,
+                    marker: marker,
+                    layout: layout,
+                    palette: palette
+                )
+            }
+
             for preview in latestPatrolRailPreviews {
                 guard let node = patrolRailNodes[preview.enemyID] else { continue }
                 configurePatrolRailNode(
@@ -228,10 +269,14 @@
 
             let hasPendingValues = snapshot.values.contains { !$0.isEmpty }
             let hasRenderedHighlights = highlightNodes.values.contains { !$0.isEmpty }
+            let hasRenderedEnemyMarkers = !dungeonEnemyMarkerNodes.isEmpty
             let hasRenderedPatrolRails = !patrolRailNodes.isEmpty
             let hasRenderedPatrolPreviews = !patrolMovementArrowNodes.isEmpty
             guard hasPendingValues
                     || hasRenderedHighlights
+                    || hasPendingDungeonEnemyMarkerUpdate
+                    || hasRenderedEnemyMarkers
+                    || !latestDungeonEnemyMarkers.isEmpty
                     || hasPendingPatrolRailUpdate
                     || hasRenderedPatrolRails
                     || !latestPatrolRailPreviews.isEmpty
@@ -277,6 +322,23 @@
                 } else {
                     applyHighlightsImmediately(snapshot, scene: scene, layout: layout, palette: palette)
                 }
+            }
+
+            if hasPendingDungeonEnemyMarkerUpdate {
+                applyDungeonEnemyMarkers(
+                    pendingDungeonEnemyMarkers,
+                    scene: scene,
+                    layout: layout,
+                    palette: palette
+                )
+                hasPendingDungeonEnemyMarkerUpdate = false
+            } else if hasRenderedEnemyMarkers || !latestDungeonEnemyMarkers.isEmpty {
+                applyDungeonEnemyMarkers(
+                    latestDungeonEnemyMarkers,
+                    scene: scene,
+                    layout: layout,
+                    palette: palette
+                )
             }
 
             if hasPendingPatrolRailUpdate {
@@ -373,6 +435,16 @@
             layout: GameSceneLayoutSupport,
             palette: GameScenePalette
         ) {
+            if kind == .dungeonEnemy {
+                if let existingNodes = highlightNodes[kind]?.values {
+                    for node in existingNodes {
+                        node.removeFromParent()
+                    }
+                }
+                highlightNodes[kind] = [:]
+                return
+            }
+
             var nodesForKind = highlightNodes[kind] ?? [:]
 
             for (point, node) in nodesForKind where !points.contains(point) {
@@ -407,6 +479,173 @@
             }
 
             highlightNodes[kind] = nodesForKind
+        }
+
+        private func applyDungeonEnemyMarkers(
+            _ markers: [SceneDungeonEnemyMarker],
+            scene: SKScene,
+            layout: GameSceneLayoutSupport,
+            palette: GameScenePalette
+        ) {
+            latestDungeonEnemyMarkers = markers
+
+            let markerIDs = Set(markers.map(\.enemyID))
+            let staleEnemyIDs = dungeonEnemyMarkerNodes.keys.filter { !markerIDs.contains($0) }
+            for enemyID in staleEnemyIDs {
+                guard let node = dungeonEnemyMarkerNodes[enemyID] else { continue }
+                node.removeFromParent()
+                dungeonEnemyMarkerNodes.removeValue(forKey: enemyID)
+            }
+
+            for marker in markers {
+                if let node = dungeonEnemyMarkerNodes[marker.enemyID] {
+                    if node.parent !== scene {
+                        scene.addChild(node)
+                    }
+                    configureDungeonEnemyMarkerNode(
+                        node,
+                        marker: marker,
+                        layout: layout,
+                        palette: palette
+                    )
+                } else {
+                    let node = SKShapeNode()
+                    configureDungeonEnemyMarkerNode(
+                        node,
+                        marker: marker,
+                        layout: layout,
+                        palette: palette
+                    )
+                    scene.addChild(node)
+                    dungeonEnemyMarkerNodes[marker.enemyID] = node
+                }
+            }
+        }
+
+        private func configureDungeonEnemyMarkerNode(
+            _ node: SKShapeNode,
+            marker: SceneDungeonEnemyMarker,
+            layout: GameSceneLayoutSupport,
+            palette: GameScenePalette
+        ) {
+            let style = dungeonEnemyMarkerStyle(for: marker.kind)
+            node.path = dungeonEnemyMarkerPath(kind: marker.kind, tileSize: layout.tileSize)
+            node.fillColor = style.fill
+            node.strokeColor = style.stroke
+            node.lineWidth = max(layout.tileSize * 0.045, 1.8)
+            node.glowWidth = max(layout.tileSize * 0.012, 0.5)
+            node.lineJoin = .round
+            node.lineCap = .round
+            node.position = layout.position(for: marker.point)
+            node.zPosition = 1.19
+            node.isAntialiased = true
+            node.blendMode = .alpha
+        }
+
+        private func dungeonEnemyMarkerStyle(for kind: EnemyPresentationKind) -> (fill: SKColor, stroke: SKColor) {
+            switch kind {
+            case .guardPost:
+                return (
+                    SKColor(red: 0.82, green: 0.16, blue: 0.16, alpha: 0.36),
+                    SKColor(red: 0.92, green: 0.20, blue: 0.18, alpha: 0.96)
+                )
+            case .patrol:
+                return (
+                    SKColor(red: 0.95, green: 0.45, blue: 0.12, alpha: 0.34),
+                    SKColor(red: 1.00, green: 0.56, blue: 0.18, alpha: 0.96)
+                )
+            case .watcher:
+                return (
+                    SKColor(red: 0.72, green: 0.20, blue: 0.58, alpha: 0.34),
+                    SKColor(red: 0.90, green: 0.28, blue: 0.74, alpha: 0.96)
+                )
+            case .rotatingWatcher:
+                return (
+                    SKColor(red: 0.42, green: 0.32, blue: 0.84, alpha: 0.34),
+                    SKColor(red: 0.62, green: 0.50, blue: 1.00, alpha: 0.96)
+                )
+            case .chaser:
+                return (
+                    SKColor(red: 0.10, green: 0.53, blue: 0.52, alpha: 0.34),
+                    SKColor(red: 0.13, green: 0.74, blue: 0.70, alpha: 0.96)
+                )
+            case .marker:
+                return (
+                    SKColor(red: 0.95, green: 0.72, blue: 0.12, alpha: 0.34),
+                    SKColor(red: 1.00, green: 0.78, blue: 0.16, alpha: 0.96)
+                )
+            }
+        }
+
+        private func dungeonEnemyMarkerPath(kind: EnemyPresentationKind, tileSize: CGFloat) -> CGPath {
+            let path = CGMutablePath()
+            let radius = tileSize * 0.28
+            switch kind {
+            case .guardPost:
+                path.move(to: CGPoint(x: 0, y: radius))
+                path.addLine(to: CGPoint(x: radius * 0.78, y: radius * 0.55))
+                path.addLine(to: CGPoint(x: radius * 0.62, y: -radius * 0.48))
+                path.addLine(to: CGPoint(x: 0, y: -radius))
+                path.addLine(to: CGPoint(x: -radius * 0.62, y: -radius * 0.48))
+                path.addLine(to: CGPoint(x: -radius * 0.78, y: radius * 0.55))
+                path.closeSubpath()
+            case .patrol:
+                path.move(to: CGPoint(x: 0, y: radius))
+                path.addLine(to: CGPoint(x: radius, y: 0))
+                path.addLine(to: CGPoint(x: 0, y: -radius))
+                path.addLine(to: CGPoint(x: -radius, y: 0))
+                path.closeSubpath()
+                path.move(to: CGPoint(x: -radius * 0.54, y: 0))
+                path.addLine(to: CGPoint(x: radius * 0.54, y: 0))
+                path.move(to: CGPoint(x: radius * 0.22, y: radius * 0.26))
+                path.addLine(to: CGPoint(x: radius * 0.54, y: 0))
+                path.addLine(to: CGPoint(x: radius * 0.22, y: -radius * 0.26))
+            case .watcher:
+                path.move(to: CGPoint(x: -radius, y: 0))
+                path.addQuadCurve(to: CGPoint(x: radius, y: 0), control: CGPoint(x: 0, y: radius * 0.78))
+                path.addQuadCurve(to: CGPoint(x: -radius, y: 0), control: CGPoint(x: 0, y: -radius * 0.78))
+                path.closeSubpath()
+                path.addEllipse(in: CGRect(
+                    x: -radius * 0.26,
+                    y: -radius * 0.26,
+                    width: radius * 0.52,
+                    height: radius * 0.52
+                ))
+            case .rotatingWatcher:
+                path.addArc(
+                    center: .zero,
+                    radius: radius * 0.78,
+                    startAngle: .pi * 0.20,
+                    endAngle: .pi * 1.62,
+                    clockwise: false
+                )
+                path.move(to: CGPoint(x: radius * 0.68, y: radius * 0.44))
+                path.addLine(to: CGPoint(x: radius * 0.94, y: radius * 0.06))
+                path.addLine(to: CGPoint(x: radius * 0.48, y: radius * 0.04))
+                path.move(to: CGPoint(x: -radius * 0.62, y: 0))
+                path.addQuadCurve(to: CGPoint(x: radius * 0.62, y: 0), control: CGPoint(x: 0, y: radius * 0.45))
+                path.addQuadCurve(to: CGPoint(x: -radius * 0.62, y: 0), control: CGPoint(x: 0, y: -radius * 0.45))
+                path.closeSubpath()
+            case .chaser:
+                path.move(to: CGPoint(x: -radius * 0.85, y: radius * 0.48))
+                path.addLine(to: CGPoint(x: radius * 0.18, y: radius * 0.48))
+                path.addLine(to: CGPoint(x: radius * 0.18, y: radius * 0.78))
+                path.addLine(to: CGPoint(x: radius, y: 0))
+                path.addLine(to: CGPoint(x: radius * 0.18, y: -radius * 0.78))
+                path.addLine(to: CGPoint(x: radius * 0.18, y: -radius * 0.48))
+                path.addLine(to: CGPoint(x: -radius * 0.85, y: -radius * 0.48))
+                path.closeSubpath()
+            case .marker:
+                path.move(to: CGPoint(x: 0, y: radius))
+                path.addLine(to: CGPoint(x: radius * 0.92, y: -radius * 0.66))
+                path.addLine(to: CGPoint(x: -radius * 0.92, y: -radius * 0.66))
+                path.closeSubpath()
+                path.move(to: CGPoint(x: 0, y: radius * 0.34))
+                path.addLine(to: CGPoint(x: 0, y: -radius * 0.18))
+                path.move(to: CGPoint(x: 0, y: -radius * 0.42))
+                path.addLine(to: CGPoint(x: 0, y: -radius * 0.45))
+            }
+            return path
         }
 
         private func applyPatrolRailPreviews(
@@ -453,11 +692,10 @@
             preview: ScenePatrolRailPreview,
             layout: GameSceneLayoutSupport
         ) {
-            let baseColor = patrolMovementArrowColor()
             node.path = patrolRailPath(points: preview.path, layout: layout)
             node.fillColor = SKColor.clear
-            node.strokeColor = baseColor.withAlphaComponent(0.42)
-            node.lineWidth = max(layout.tileSize * 0.024, 1.2)
+            node.strokeColor = patrolRailColor()
+            node.lineWidth = patrolRailLineWidth(tileSize: layout.tileSize)
             node.glowWidth = 0
             node.lineJoin = .round
             node.lineCap = .round
@@ -910,11 +1148,21 @@
         }
 
         private func damageTrapMarkerPath(center: CGPoint, tileSize: CGFloat) -> CGPath {
-            let radius = tileSize * 0.28
+            let halfWidth = tileSize * 0.31
+            let baseTopY = center.y - tileSize * 0.18
+            let baseBottomY = center.y - tileSize * 0.29
+            let leftX = center.x - halfWidth
+            let rightX = center.x + halfWidth
             let path = CGMutablePath()
-            path.move(to: CGPoint(x: center.x, y: center.y + radius))
-            path.addLine(to: CGPoint(x: center.x + radius, y: center.y - radius * 0.55))
-            path.addLine(to: CGPoint(x: center.x - radius, y: center.y - radius * 0.55))
+            path.move(to: CGPoint(x: leftX, y: baseBottomY))
+            path.addLine(to: CGPoint(x: leftX, y: baseTopY))
+            path.addLine(to: CGPoint(x: center.x - tileSize * 0.22, y: center.y + tileSize * 0.18))
+            path.addLine(to: CGPoint(x: center.x - tileSize * 0.11, y: baseTopY + tileSize * 0.02))
+            path.addLine(to: CGPoint(x: center.x, y: center.y + tileSize * 0.28))
+            path.addLine(to: CGPoint(x: center.x + tileSize * 0.11, y: baseTopY + tileSize * 0.02))
+            path.addLine(to: CGPoint(x: center.x + tileSize * 0.22, y: center.y + tileSize * 0.18))
+            path.addLine(to: CGPoint(x: rightX, y: baseTopY))
+            path.addLine(to: CGPoint(x: rightX, y: baseBottomY))
             path.closeSubpath()
             return path
         }
@@ -962,12 +1210,12 @@
                 path.addLine(to: centers[0])
             }
 
-            let dotRadius = max(layout.tileSize * 0.055, 2.0)
+            let nodeTickHalfLength = patrolRailLineWidth(tileSize: layout.tileSize) * 0.9
             var uniquePoints: Set<GridPoint> = []
             for point in points where uniquePoints.insert(point).inserted {
                 let center = layout.position(for: point)
-                path.move(to: CGPoint(x: center.x - dotRadius * 0.5, y: center.y))
-                path.addLine(to: CGPoint(x: center.x + dotRadius * 0.5, y: center.y))
+                path.move(to: CGPoint(x: center.x - nodeTickHalfLength, y: center.y))
+                path.addLine(to: CGPoint(x: center.x + nodeTickHalfLength, y: center.y))
             }
             return path
         }
@@ -1016,6 +1264,14 @@
 
         private func patrolMovementArrowColor() -> SKColor {
             return SKColor(red: 1.0, green: 0.82, blue: 0.24, alpha: 0.96)
+        }
+
+        private func patrolRailColor() -> SKColor {
+            return SKColor(white: 0.48, alpha: 0.86)
+        }
+
+        private func patrolRailLineWidth(tileSize: CGFloat) -> CGFloat {
+            return min(max(tileSize * 0.032, 2.0), 2.8)
         }
     }
 #endif

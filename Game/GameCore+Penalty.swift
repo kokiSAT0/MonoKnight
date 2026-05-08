@@ -55,7 +55,6 @@ extension GameCore {
 
         // 捨て札選択モードが残っていればここで解除しておく
         cancelManualDiscardSelection()
-        cancelSupportSwapSelection()
 
         // 共通処理を用いて手札を入れ替える
         applyPenaltyRedraw(
@@ -203,7 +202,6 @@ extension GameCore {
         // 既に捨て札モードであれば再度有効化する必要はない
         guard !isAwaitingManualDiscardSelection else { return }
 
-        cancelSupportSwapSelection()
         setManualDiscardSelectionState(true)
         debugLog("捨て札ペナルティ選択モード開始")
 

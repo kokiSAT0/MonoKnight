@@ -189,15 +189,9 @@ struct GameView: View {
         // ポーズメニューをフルスクリーンで重ね、端末サイズに左右されずに全項目を視認できるようにする
         .fullScreenCover(isPresented: $viewModel.isPauseMenuPresented) {
             PauseMenuView(
-                penaltyItems: viewModel.pauseMenuPenaltyItems,
                 onResume: {
                     // フルスクリーンカバーを閉じてプレイへ戻る
                     viewModel.isPauseMenuPresented = false
-                },
-                onConfirmReset: {
-                    // リセット確定後はフルスクリーンカバーを閉じてから共通処理を呼び出す
-                    viewModel.isPauseMenuPresented = false
-                    performMenuAction(.reset)
                 },
                 onConfirmReturnToTitle: {
                     // タイトル復帰時もポーズメニューを閉じてから処理を実行する
@@ -222,6 +216,7 @@ struct GameView: View {
                 dungeonRunFloorText: viewModel.dungeonRunFloorText,
                 dungeonRunTotalMoveCount: viewModel.dungeonRunTotalMoveCount,
                 nextDungeonFloorTitle: viewModel.nextDungeonFloorTitle,
+                retryButtonTitle: viewModel.resultRetryButtonTitle,
                 dungeonRewardMoveCards: viewModel.availableDungeonRewardMoveCards,
                 dungeonRewardSupportCards: viewModel.availableDungeonRewardSupportCards,
                 dungeonInventoryEntries: viewModel.dungeonInventoryEntries,

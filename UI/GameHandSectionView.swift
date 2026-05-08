@@ -37,12 +37,12 @@ struct GameHandSectionView: View {
         let finalBottomPadding = max(bottomPadding, expectedPadding)
 
         return VStack(spacing: 8) {
-            if core.isAwaitingManualDiscardSelection {
-                discardSelectionNotice
+            if let pendingChoice = core.pendingDungeonPickupChoice {
+                dungeonPickupChoiceNotice(for: pendingChoice)
                     .transition(.opacity)
             }
-            if core.isAwaitingSupportSwapSelection {
-                supportSwapSelectionNotice
+            if core.isAwaitingManualDiscardSelection {
+                discardSelectionNotice
                     .transition(.opacity)
             }
 
@@ -93,7 +93,7 @@ private extension GameHandSectionView {
         }
     }
 
-    /// 手札スロット一覧。通常の 5 枠は従来通り固定表示し、塔の 10 種類所持は 5 枚ずつ 2 行に並べる。
+    /// 手札スロット一覧。通常の 5 枠は従来通り固定表示し、塔の 10 種類所持は 3 列で折り返す。
     @ViewBuilder
     private var handSlotsSection: some View {
         if handSlotCount > 5 {
@@ -165,9 +165,9 @@ private extension GameHandSectionView {
         .accessibilityLabel(Text("捨て札モードです。手札をタップして \(penaltyDescription)。"))
     }
 
-    private var supportSwapSelectionNotice: some View {
+    private func dungeonPickupChoiceNotice(for choice: PendingDungeonPickupChoice) -> some View {
         HStack(spacing: 12) {
-            Image(systemName: "arrow.left.arrow.right")
+            Image(systemName: "rectangle.stack.badge.plus")
                 .font(.system(size: 20, weight: .semibold))
                 .foregroundColor(theme.accentOnPrimary)
                 .padding(10)
@@ -175,12 +175,14 @@ private extension GameHandSectionView {
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("入替する手札を選択中")
+                Text("入れ替える手札を選択中")
                     .font(.system(size: 14, weight: .semibold, design: .rounded))
                     .foregroundColor(theme.textPrimary)
-                Text("選んだ手札 1 種類を捨てて補充します")
+                Text("手札をタップすると、その種類を捨てて \(choice.pickup.card.displayName) を取得します")
                     .font(.system(size: 12, weight: .medium, design: .rounded))
                     .foregroundColor(theme.textSecondary)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.8)
             }
 
             Spacer(minLength: 0)
@@ -196,7 +198,7 @@ private extension GameHandSectionView {
                 )
         )
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(Text("入替する手札を選択中です。手札をタップすると 1 種類を捨てて補充します。"))
+        .accessibilityLabel(Text("手札がいっぱいです。捨てる手札を選ぶと \(choice.pickup.card.displayName) を取得します。"))
     }
 
     /// 指定スロットに対応する `HandStack` を取得
@@ -216,10 +218,11 @@ private extension GameHandSectionView {
                 let isHidden = boardBridge.hiddenCardIDs.contains(card.id)
                 let isUsable = viewModel.isCardUsable(stack)
                 let isSelectingDiscard = core.isAwaitingManualDiscardSelection
-                let isSelectingSupportSwap = core.isAwaitingSupportSwapSelection
+                let isSelectingDungeonPickup = core.isAwaitingDungeonPickupChoice
                 // 現在のスタックが ViewModel で選択済みかどうか（通常プレイ時のみハイライトを出す）
                 let isSelected = viewModel.selectedHandStackID == stack.id
-                let shouldShowSelectionHighlight = isSelected && !isHidden && !isSelectingDiscard && !isSelectingSupportSwap
+                let shouldShowSelectionHighlight = isSelected && !isHidden && !isSelectingDiscard && !isSelectingDungeonPickup
+                let isChoosingReplacement = isSelectingDiscard || isSelectingDungeonPickup
 
                 HandStackCardView(stackCount: stack.count) {
                     cardIllustration(for: card, mode: .hand)
@@ -227,7 +230,7 @@ private extension GameHandSectionView {
                         .anchorPreference(key: CardPositionPreferenceKey.self, value: .bounds) { [card.id: $0] }
                 }
                 .opacity(
-                    isHidden ? 0.0 : ((isSelectingDiscard || isSelectingSupportSwap) ? 1.0 : (isUsable ? 1.0 : 0.4))
+                    isHidden ? 0.0 : (isChoosingReplacement ? 1.0 : (isUsable ? 1.0 : 0.4))
                 )
                 .allowsHitTesting(!isHidden)
                 // 選択中のカードは背景に淡いオレンジ色を敷き、捨て札モードとの視覚差を確保する
@@ -239,7 +242,7 @@ private extension GameHandSectionView {
                     }
                 }
                 .overlay {
-                    if (isSelectingDiscard || isSelectingSupportSwap) && !isHidden {
+                    if isChoosingReplacement && !isHidden {
                         RoundedRectangle(cornerRadius: 10)
                             .stroke(theme.accentPrimary.opacity(0.75), lineWidth: 3)
                             .shadow(color: theme.accentPrimary.opacity(0.45), radius: 6, x: 0, y: 3)
@@ -257,7 +260,7 @@ private extension GameHandSectionView {
                 }
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(Text(accessibilityLabel(for: stack)))
-                .accessibilityHint(Text(accessibilityHint(for: stack, isUsable: isUsable, isDiscardMode: isSelectingDiscard, isSelected: isSelected)))
+                .accessibilityHint(Text(accessibilityHint(for: stack, isUsable: isUsable, isDiscardMode: isSelectingDiscard, isDungeonPickupChoiceMode: isSelectingDungeonPickup, isSelected: isSelected)))
                 .accessibilityValue(Text(isSelected ? "選択中" : ""))
                 .accessibilityAddTraits(.isButton)
             } else {
@@ -273,10 +276,10 @@ private extension GameHandSectionView {
     private func basicMoveCardView() -> some View {
         let isSelected = viewModel.isBasicMoveCardSelected
         let isSelectingDiscard = core.isAwaitingManualDiscardSelection
-        let isSelectingSupportSwap = core.isAwaitingSupportSwapSelection
+        let isSelectingDungeonPickup = core.isAwaitingDungeonPickupChoice
         let isUsable = core.progress == .playing
             && !isSelectingDiscard
-            && !isSelectingSupportSwap
+            && !isSelectingDungeonPickup
             && !core.availableBasicOrthogonalMoves().isEmpty
 
         return HandStackCardView(stackCount: 1) {
@@ -310,14 +313,14 @@ private extension GameHandSectionView {
         }
         .opacity(isUsable ? 1.0 : 0.4)
         .background {
-            if isSelected {
+            if isSelected && !isSelectingDungeonPickup {
                 RoundedRectangle(cornerRadius: 10)
                     .fill(theme.accentPrimary.opacity(0.12))
                     .accessibilityHidden(true)
             }
         }
         .overlay {
-            if isSelected {
+            if isSelected && !isSelectingDungeonPickup {
                 RoundedRectangle(cornerRadius: 10)
                     .stroke(theme.accentPrimary, lineWidth: 2)
                     .shadow(color: theme.accentPrimary.opacity(0.25), radius: 5, x: 0, y: 2)
@@ -329,7 +332,7 @@ private extension GameHandSectionView {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text("基本移動、上下左右1マス、消費なし"))
-        .accessibilityHint(Text(isUsable ? "ダブルタップで基本移動を選択し、盤面で移動先を決めてください。" : "現在使える基本移動候補がありません。"))
+        .accessibilityHint(Text(isSelectingDungeonPickup ? "拾得カードの取捨選択中は基本移動を選べません。" : (isUsable ? "ダブルタップで基本移動を選択し、盤面で移動先を決めてください。" : "現在使える基本移動候補がありません。")))
         .accessibilityValue(Text(isSelected ? "選択中" : ""))
         .accessibilityAddTraits(.isButton)
     }
@@ -362,23 +365,17 @@ private extension GameHandSectionView {
     }
 
     /// VoiceOver のヒント文を生成する
-    private func accessibilityHint(for stack: HandStack, isUsable: Bool, isDiscardMode: Bool, isSelected: Bool) -> String {
+    private func accessibilityHint(for stack: HandStack, isUsable: Bool, isDiscardMode: Bool, isDungeonPickupChoiceMode: Bool, isSelected: Bool) -> String {
         // MARK: - 候補数と残枚数の算出
         let candidateCount = stack.representativeVectors?.count ?? 0
         if isDiscardMode {
             return "ダブルタップでこの種類のカードをすべて捨て札にし、新しいカードを補充します。"
         }
+        if isDungeonPickupChoiceMode {
+            return Self.dungeonPickupReplacementAccessibilityHint(for: stack)
+        }
         if let support = stack.topCard?.supportCard {
-            if core.isAwaitingSupportSwapSelection {
-                return "ダブルタップでこの手札を入替の対象にします。"
-            }
             switch support {
-            case .nextRefresh:
-                return "ダブルタップで 1 手使い、NEXT の 3 枚だけを引き直します。"
-            case .swapOne:
-                return "ダブルタップで入替を開始し、このカード以外の手札 1 種類を選んで補充します。"
-            case .guidance:
-                return "ダブルタップで 1 手使い、目的地へ近づきやすい手札と NEXT に整えます。"
             case .refillEmptySlots:
                 return "ダブルタップで 1 手使い、空いている手札枠を移動カードで補給します。"
             }
@@ -430,8 +427,7 @@ private extension GameHandSectionView {
         } else if let move = card.moveCard {
             MoveCardIllustrationView(
                 card: move,
-                mode: mode,
-                fixedWarpDestination: card.fixedWarpDestination
+                mode: mode
             )
         }
     }
@@ -526,11 +522,6 @@ private extension GameHandSectionView {
             return "左方向へ連続移動"
         case .rayUpLeft:
             return "左上方向へ連続移動"
-        // ワープ系カードは挙動が特殊なので、対象範囲を明確に読み上げて誤操作を防ぐ
-        case .superWarp:
-            return "未踏マスへ全域ワープ"
-        case .fixedWarp:
-            return "定められた座標へ固定ワープ"
         }
     }
 }
@@ -573,13 +564,21 @@ extension GameHandSectionView {
             return [0..<slotCount]
         }
 
-        return stride(from: 0, to: slotCount, by: 5).map { start in
-            start..<min(start + 5, slotCount)
+        let columnsPerRow = 3
+        return stride(from: 0, to: slotCount, by: columnsPerRow).map { start in
+            start..<min(start + columnsPerRow, slotCount)
         }
     }
 
     static func handSlotAccessibilityIdentifier(for index: Int) -> String {
         "hand_slot_\(index)"
+    }
+
+    static func dungeonPickupReplacementAccessibilityHint(for stack: HandStack) -> String {
+        guard let playable = stack.representativePlayable else {
+            return "このスロットは取捨選択の対象外です。"
+        }
+        return "ダブルタップで \(playable.displayName) をすべて捨て、拾ったカードを取得します。"
     }
 }
 
@@ -628,12 +627,6 @@ private struct SupportCardIllustrationView: View {
 
     private var symbolName: String {
         switch card {
-        case .nextRefresh:
-            return "arrow.triangle.2.circlepath"
-        case .swapOne:
-            return "arrow.left.arrow.right"
-        case .guidance:
-            return "scope"
         case .refillEmptySlots:
             return "square.grid.3x3.fill"
         }

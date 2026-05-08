@@ -814,105 +814,73 @@
                     strokeNodes: [diamond],
                     fillNodes: [leftArrow, rightArrow]
                 )
-            case .boost:
-                let outerChevron = SKShapeNode()
-                outerChevron.name = "tileEffectBoostOuterChevron"
-                outerChevron.strokeColor = .clear
-                outerChevron.fillColor = .clear
-                outerChevron.lineWidth = 0
-                outerChevron.isAntialiased = true
-                outerChevron.blendMode = .alpha
+            case .blast:
+                let outerArrow = SKShapeNode()
+                outerArrow.name = "tileEffectBlastOuterArrow"
+                outerArrow.strokeColor = .clear
+                outerArrow.fillColor = .clear
+                outerArrow.lineWidth = 0
+                outerArrow.isAntialiased = true
+                outerArrow.blendMode = .alpha
 
-                let innerChevron = SKShapeNode()
-                innerChevron.name = "tileEffectBoostInnerChevron"
-                innerChevron.strokeColor = .clear
-                innerChevron.fillColor = .clear
-                innerChevron.lineWidth = 0
-                innerChevron.isAntialiased = true
-                innerChevron.blendMode = .alpha
+                let innerArrow = SKShapeNode()
+                innerArrow.name = "tileEffectBlastInnerArrow"
+                innerArrow.strokeColor = .clear
+                innerArrow.fillColor = .clear
+                innerArrow.lineWidth = 0
+                innerArrow.isAntialiased = true
+                innerArrow.blendMode = .alpha
 
-                container.addChild(outerChevron)
-                container.addChild(innerChevron)
+                container.addChild(outerArrow)
+                container.addChild(innerArrow)
                 return TileEffectDecorationCache(
                     container: container,
                     effect: effect,
                     strokeNodes: [],
-                    fillNodes: [outerChevron, innerChevron]
+                    fillNodes: [outerArrow, innerArrow]
                 )
             case .slow:
-                let stopBar = SKShapeNode()
-                stopBar.name = "tileEffectSlowStopBar"
-                stopBar.strokeColor = .clear
-                stopBar.fillColor = .clear
-                stopBar.lineWidth = 0
-                stopBar.isAntialiased = true
-                stopBar.blendMode = .alpha
+                let trapPlate = SKShapeNode()
+                trapPlate.name = "tileEffectParalysisTrapPlate"
+                trapPlate.strokeColor = .clear
+                trapPlate.fillColor = .clear
+                trapPlate.lineWidth = 1
+                trapPlate.isAntialiased = true
+                trapPlate.blendMode = .alpha
 
-                let chevron = SKShapeNode()
-                chevron.name = "tileEffectSlowChevron"
-                chevron.strokeColor = .clear
-                chevron.fillColor = .clear
-                chevron.lineWidth = 0
-                chevron.isAntialiased = true
-                chevron.blendMode = .alpha
+                let bolt = SKShapeNode()
+                bolt.name = "tileEffectParalysisBolt"
+                bolt.strokeColor = .clear
+                bolt.fillColor = .clear
+                bolt.lineWidth = 0
+                bolt.isAntialiased = true
+                bolt.blendMode = .alpha
 
-                container.addChild(stopBar)
-                container.addChild(chevron)
+                let leftSpark = SKShapeNode()
+                leftSpark.name = "tileEffectParalysisLeftSpark"
+                leftSpark.strokeColor = .clear
+                leftSpark.fillColor = .clear
+                leftSpark.lineWidth = 0
+                leftSpark.isAntialiased = true
+                leftSpark.blendMode = .alpha
+
+                let rightSpark = SKShapeNode()
+                rightSpark.name = "tileEffectParalysisRightSpark"
+                rightSpark.strokeColor = .clear
+                rightSpark.fillColor = .clear
+                rightSpark.lineWidth = 0
+                rightSpark.isAntialiased = true
+                rightSpark.blendMode = .alpha
+
+                container.addChild(trapPlate)
+                container.addChild(bolt)
+                container.addChild(leftSpark)
+                container.addChild(rightSpark)
                 return TileEffectDecorationCache(
                     container: container,
                     effect: effect,
-                    strokeNodes: [],
-                    fillNodes: [stopBar, chevron]
-                )
-            case .nextRefresh:
-                let ring = SKShapeNode()
-                ring.name = "tileEffectNextRefreshRing"
-                ring.strokeColor = .clear
-                ring.fillColor = .clear
-                ring.lineWidth = 1
-                ring.isAntialiased = true
-                ring.blendMode = .alpha
-
-                let arrow = SKShapeNode()
-                arrow.name = "tileEffectNextRefreshArrow"
-                arrow.strokeColor = .clear
-                arrow.fillColor = .clear
-                arrow.lineWidth = 0
-                arrow.isAntialiased = true
-                arrow.blendMode = .alpha
-
-                container.addChild(ring)
-                container.addChild(arrow)
-                return TileEffectDecorationCache(
-                    container: container,
-                    effect: effect,
-                    strokeNodes: [ring],
-                    fillNodes: [arrow]
-                )
-            case .freeFocus:
-                let outerRing = SKShapeNode()
-                outerRing.name = "tileEffectFreeFocusOuterRing"
-                outerRing.strokeColor = .clear
-                outerRing.fillColor = .clear
-                outerRing.lineWidth = 1
-                outerRing.isAntialiased = true
-                outerRing.blendMode = .alpha
-
-                let innerDot = SKShapeNode()
-                innerDot.name = "tileEffectFreeFocusDot"
-                innerDot.strokeColor = .clear
-                innerDot.fillColor = .clear
-                innerDot.lineWidth = 0
-                innerDot.isAntialiased = true
-                innerDot.blendMode = .alpha
-
-                container.addChild(outerRing)
-                container.addChild(innerDot)
-                return TileEffectDecorationCache(
-                    container: container,
-                    effect: effect,
-                    strokeNodes: [outerRing],
-                    fillNodes: [innerDot]
+                    strokeNodes: [trapPlate],
+                    fillNodes: [bolt, leftSpark, rightSpark]
                 )
             case .preserveCard:
                 let card = SKShapeNode()
@@ -938,133 +906,6 @@
                     effect: effect,
                     strokeNodes: [card],
                     fillNodes: [notch]
-                )
-            case .draft:
-                let rearCard = SKShapeNode()
-                rearCard.name = "tileEffectDraftRearCard"
-                rearCard.strokeColor = .clear
-                rearCard.fillColor = .clear
-                rearCard.lineWidth = 1
-                rearCard.isAntialiased = true
-                rearCard.blendMode = .alpha
-
-                let frontCard = SKShapeNode()
-                frontCard.name = "tileEffectDraftFrontCard"
-                frontCard.strokeColor = .clear
-                frontCard.fillColor = .clear
-                frontCard.lineWidth = 1
-                frontCard.isAntialiased = true
-                frontCard.blendMode = .alpha
-
-                let arrow = SKShapeNode()
-                arrow.name = "tileEffectDraftArrow"
-                arrow.strokeColor = .clear
-                arrow.fillColor = .clear
-                arrow.lineWidth = 0
-                arrow.isAntialiased = true
-                arrow.blendMode = .alpha
-
-                container.addChild(rearCard)
-                container.addChild(frontCard)
-                container.addChild(arrow)
-                return TileEffectDecorationCache(
-                    container: container,
-                    effect: effect,
-                    strokeNodes: [rearCard, frontCard],
-                    fillNodes: [arrow]
-                )
-            case .overload:
-                let ring = SKShapeNode()
-                ring.name = "tileEffectOverloadRing"
-                ring.strokeColor = .clear
-                ring.fillColor = .clear
-                ring.lineWidth = 1
-                ring.isAntialiased = true
-                ring.blendMode = .alpha
-
-                let bolt = SKShapeNode()
-                bolt.name = "tileEffectOverloadBolt"
-                bolt.strokeColor = .clear
-                bolt.fillColor = .clear
-                bolt.lineWidth = 0
-                bolt.isAntialiased = true
-                bolt.blendMode = .alpha
-
-                container.addChild(ring)
-                container.addChild(bolt)
-                return TileEffectDecorationCache(
-                    container: container,
-                    effect: effect,
-                    strokeNodes: [ring],
-                    fillNodes: [bolt]
-                )
-            case .targetSwap:
-                let currentTarget = SKShapeNode()
-                currentTarget.name = "tileEffectTargetSwapCurrent"
-                currentTarget.strokeColor = .clear
-                currentTarget.fillColor = .clear
-                currentTarget.lineWidth = 1
-                currentTarget.isAntialiased = true
-                currentTarget.blendMode = .alpha
-
-                let nextTarget = SKShapeNode()
-                nextTarget.name = "tileEffectTargetSwapNext"
-                nextTarget.strokeColor = .clear
-                nextTarget.fillColor = .clear
-                nextTarget.lineWidth = 1
-                nextTarget.isAntialiased = true
-                nextTarget.blendMode = .alpha
-
-                let arrow = SKShapeNode()
-                arrow.name = "tileEffectTargetSwapArrow"
-                arrow.strokeColor = .clear
-                arrow.fillColor = .clear
-                arrow.lineWidth = 0
-                arrow.isAntialiased = true
-                arrow.blendMode = .alpha
-
-                container.addChild(currentTarget)
-                container.addChild(nextTarget)
-                container.addChild(arrow)
-                return TileEffectDecorationCache(
-                    container: container,
-                    effect: effect,
-                    strokeNodes: [currentTarget, nextTarget],
-                    fillNodes: [arrow]
-                )
-            case .openGate:
-                let bow = SKShapeNode()
-                bow.name = "tileEffectOpenGateKeyBow"
-                bow.strokeColor = .clear
-                bow.fillColor = .clear
-                bow.lineWidth = 1
-                bow.isAntialiased = true
-                bow.blendMode = .alpha
-
-                let shaft = SKShapeNode()
-                shaft.name = "tileEffectOpenGateKeyShaft"
-                shaft.strokeColor = .clear
-                shaft.fillColor = .clear
-                shaft.lineWidth = 0
-                shaft.isAntialiased = true
-                shaft.blendMode = .alpha
-
-                let tooth = SKShapeNode()
-                tooth.name = "tileEffectOpenGateKeyTooth"
-                tooth.strokeColor = .clear
-                tooth.fillColor = .clear
-                tooth.lineWidth = 0
-                tooth.isAntialiased = true
-                tooth.blendMode = .alpha
-
-                container.addChild(bow)
-                container.addChild(shaft)
-                container.addChild(tooth)
-                return TileEffectDecorationCache(
-                    container: container,
-                    effect: effect,
-                    strokeNodes: [bow],
-                    fillNodes: [shaft, tooth]
                 )
             }
         }
@@ -1155,65 +996,42 @@
                 rightArrow.path = rightPath
                 rightArrow.position = CGPoint(x: layout.tileSize * 0.08, y: 0)
                 rightArrow.zRotation = -.pi / 4
-            case .boost:
+            case .blast(let direction):
                 guard decoration.fillNodes.count >= 2 else { return }
 
-                let outerChevron = decoration.fillNodes[0]
-                outerChevron.path = boostChevronPath(tileSize: layout.tileSize, scale: 1.0)
-                outerChevron.position = CGPoint(x: 0, y: layout.tileSize * 0.08)
+                let rotation = blastArrowRotation(for: direction)
+                let outerArrow = decoration.fillNodes[0]
+                outerArrow.path = blastArrowPath(tileSize: layout.tileSize, scale: 1.0)
+                outerArrow.position = .zero
+                outerArrow.zRotation = rotation
 
-                let innerChevron = decoration.fillNodes[1]
-                innerChevron.path = boostChevronPath(tileSize: layout.tileSize, scale: 0.72)
-                innerChevron.position = CGPoint(x: 0, y: -layout.tileSize * 0.08)
+                let innerArrow = decoration.fillNodes[1]
+                innerArrow.path = blastArrowPath(tileSize: layout.tileSize, scale: 0.66)
+                innerArrow.position = CGPoint(x: -sin(rotation) * layout.tileSize * 0.13, y: cos(rotation) * layout.tileSize * 0.13)
+                innerArrow.zRotation = rotation
             case .slow:
-                guard decoration.fillNodes.count >= 2 else { return }
-
-                let stopBar = decoration.fillNodes[0]
-                let barWidth = layout.tileSize * 0.46
-                let barHeight = max(layout.tileSize * 0.09, 2.0)
-                stopBar.path = CGPath(
-                    roundedRect: CGRect(
-                        x: -barWidth / 2,
-                        y: -barHeight / 2,
-                        width: barWidth,
-                        height: barHeight
-                    ),
-                    cornerWidth: barHeight * 0.35,
-                    cornerHeight: barHeight * 0.35,
-                    transform: nil
-                )
-                stopBar.position = CGPoint(x: 0, y: layout.tileSize * 0.16)
-
-                let chevron = decoration.fillNodes[1]
-                chevron.path = boostChevronPath(tileSize: layout.tileSize, scale: 0.82)
-                chevron.position = CGPoint(x: 0, y: -layout.tileSize * 0.10)
-                chevron.zRotation = .pi
-            case .nextRefresh:
-                guard let ring = decoration.strokeNodes.first,
-                      let arrow = decoration.fillNodes.first
+                guard let trapPlate = decoration.strokeNodes.first,
+                      decoration.fillNodes.count >= 3
                 else { return }
 
-                let radius = layout.tileSize * 0.26
-                ring.path = CGPath(ellipseIn: CGRect(x: -radius, y: -radius, width: radius * 2, height: radius * 2), transform: nil)
-                ring.lineWidth = max(1.0, layout.tileSize * 0.045)
-                ring.position = .zero
+                trapPlate.path = paralysisTrapPlatePath(tileSize: layout.tileSize)
+                trapPlate.position = .zero
+                trapPlate.lineWidth = max(layout.tileSize * 0.035, 1.4)
 
-                arrow.path = trianglePath(width: layout.tileSize * 0.20, height: layout.tileSize * 0.18)
-                arrow.position = CGPoint(x: layout.tileSize * 0.20, y: layout.tileSize * 0.05)
-                arrow.zRotation = -.pi / 5
-            case .freeFocus:
-                guard let outerRing = decoration.strokeNodes.first,
-                      let innerDot = decoration.fillNodes.first
-                else { return }
+                let bolt = decoration.fillNodes[0]
+                bolt.path = paralysisBoltPath(tileSize: layout.tileSize, scale: 0.82)
+                bolt.position = .zero
+                bolt.zRotation = 0
 
-                let radius = layout.tileSize * 0.30
-                outerRing.path = CGPath(ellipseIn: CGRect(x: -radius, y: -radius, width: radius * 2, height: radius * 2), transform: nil)
-                outerRing.lineWidth = max(1.0, layout.tileSize * 0.045)
-                outerRing.position = .zero
+                let leftSpark = decoration.fillNodes[1]
+                leftSpark.path = paralysisSparkPath(tileSize: layout.tileSize, scale: 0.58)
+                leftSpark.position = CGPoint(x: -layout.tileSize * 0.22, y: layout.tileSize * 0.02)
+                leftSpark.zRotation = -.pi / 12
 
-                let dotRadius = layout.tileSize * 0.095
-                innerDot.path = CGPath(ellipseIn: CGRect(x: -dotRadius, y: -dotRadius, width: dotRadius * 2, height: dotRadius * 2), transform: nil)
-                innerDot.position = .zero
+                let rightSpark = decoration.fillNodes[2]
+                rightSpark.path = paralysisSparkPath(tileSize: layout.tileSize, scale: 0.48)
+                rightSpark.position = CGPoint(x: layout.tileSize * 0.24, y: -layout.tileSize * 0.03)
+                rightSpark.zRotation = .pi
             case .preserveCard:
                 guard let card = decoration.strokeNodes.first,
                       let notch = decoration.fillNodes.first
@@ -1238,111 +1056,6 @@
                     transform: nil
                 )
                 notch.position = CGPoint(x: 0, y: layout.tileSize * 0.12)
-            case .draft:
-                guard decoration.strokeNodes.count >= 2,
-                      let arrow = decoration.fillNodes.first
-                else { return }
-
-                let cardWidth = layout.tileSize * 0.34
-                let cardHeight = layout.tileSize * 0.44
-                let corner = layout.tileSize * 0.035
-                let rect = CGRect(x: -cardWidth / 2, y: -cardHeight / 2, width: cardWidth, height: cardHeight)
-
-                let rearCard = decoration.strokeNodes[0]
-                rearCard.path = CGPath(roundedRect: rect, cornerWidth: corner, cornerHeight: corner, transform: nil)
-                rearCard.lineWidth = max(1.0, layout.tileSize * 0.04)
-                rearCard.position = CGPoint(x: -layout.tileSize * 0.10, y: layout.tileSize * 0.05)
-                rearCard.zRotation = -.pi / 14
-
-                let frontCard = decoration.strokeNodes[1]
-                frontCard.path = CGPath(roundedRect: rect, cornerWidth: corner, cornerHeight: corner, transform: nil)
-                frontCard.lineWidth = max(1.0, layout.tileSize * 0.045)
-                frontCard.position = CGPoint(x: layout.tileSize * 0.08, y: -layout.tileSize * 0.04)
-                frontCard.zRotation = .pi / 16
-
-                arrow.path = trianglePath(width: layout.tileSize * 0.18, height: layout.tileSize * 0.16)
-                arrow.position = CGPoint(x: layout.tileSize * 0.22, y: layout.tileSize * 0.17)
-                arrow.zRotation = -.pi / 7
-            case .overload:
-                guard let ring = decoration.strokeNodes.first,
-                      let bolt = decoration.fillNodes.first
-                else { return }
-
-                let radius = layout.tileSize * 0.31
-                ring.path = CGPath(ellipseIn: CGRect(x: -radius, y: -radius, width: radius * 2, height: radius * 2), transform: nil)
-                ring.lineWidth = max(1.0, layout.tileSize * 0.045)
-                ring.position = .zero
-
-                bolt.path = overloadBoltPath(tileSize: layout.tileSize)
-                bolt.position = CGPoint(x: layout.tileSize * 0.01, y: .zero)
-            case .targetSwap:
-                guard decoration.strokeNodes.count >= 2,
-                      let arrow = decoration.fillNodes.first
-                else { return }
-
-                let diamondSize = layout.tileSize * 0.23
-                let currentTarget = decoration.strokeNodes[0]
-                currentTarget.path = diamondPath(size: diamondSize)
-                currentTarget.lineWidth = max(1.0, layout.tileSize * 0.04)
-                currentTarget.position = CGPoint(x: -layout.tileSize * 0.15, y: -layout.tileSize * 0.05)
-
-                let nextTarget = decoration.strokeNodes[1]
-                nextTarget.path = diamondPath(size: diamondSize)
-                nextTarget.lineWidth = max(1.0, layout.tileSize * 0.04)
-                nextTarget.position = CGPoint(x: layout.tileSize * 0.15, y: layout.tileSize * 0.05)
-
-                arrow.path = boostChevronPath(tileSize: layout.tileSize, scale: 0.52)
-                arrow.position = .zero
-                arrow.zRotation = -.pi / 4
-            case .openGate:
-                guard let bow = decoration.strokeNodes.first,
-                      decoration.fillNodes.count >= 2
-                else { return }
-
-                let bowRadius = layout.tileSize * 0.16
-                bow.path = CGPath(
-                    ellipseIn: CGRect(
-                        x: -bowRadius,
-                        y: -bowRadius,
-                        width: bowRadius * 2,
-                        height: bowRadius * 2
-                    ),
-                    transform: nil
-                )
-                bow.lineWidth = max(1.4, layout.tileSize * 0.055)
-                bow.position = CGPoint(x: -layout.tileSize * 0.17, y: layout.tileSize * 0.08)
-
-                let shaftWidth = layout.tileSize * 0.36
-                let shaftHeight = layout.tileSize * 0.085
-                let shaft = decoration.fillNodes[0]
-                shaft.path = CGPath(
-                    roundedRect: CGRect(
-                        x: -shaftWidth / 2,
-                        y: -shaftHeight / 2,
-                        width: shaftWidth,
-                        height: shaftHeight
-                    ),
-                    cornerWidth: shaftHeight / 2,
-                    cornerHeight: shaftHeight / 2,
-                    transform: nil
-                )
-                shaft.position = CGPoint(x: layout.tileSize * 0.10, y: layout.tileSize * 0.08)
-
-                let toothWidth = layout.tileSize * 0.10
-                let toothHeight = layout.tileSize * 0.16
-                let tooth = decoration.fillNodes[1]
-                tooth.path = CGPath(
-                    roundedRect: CGRect(
-                        x: -toothWidth / 2,
-                        y: -toothHeight / 2,
-                        width: toothWidth,
-                        height: toothHeight
-                    ),
-                    cornerWidth: layout.tileSize * 0.015,
-                    cornerHeight: layout.tileSize * 0.015,
-                    transform: nil
-                )
-                tooth.position = CGPoint(x: layout.tileSize * 0.27, y: -layout.tileSize * 0.01)
             }
         }
 
@@ -1376,8 +1089,8 @@
                 decoration.fillNodes[1].fillColor = secondaryFill
                 decoration.fillNodes[1].strokeColor = .clear
                 decoration.fillNodes[1].alpha = 1.0
-            case .boost:
-                let fillColor = palette.boardTileEffectBoost
+            case .blast:
+                let fillColor = palette.boardTileEffectBlast
                 for (index, node) in decoration.fillNodes.enumerated() {
                     node.fillColor = fillColor.withAlphaComponent(index == 0 ? 0.92 : 0.64)
                     node.strokeColor = .clear
@@ -1385,32 +1098,13 @@
                 }
             case .slow:
                 let fillColor = palette.boardTileEffectSlow
+                for node in decoration.strokeNodes {
+                    node.strokeColor = fillColor.withAlphaComponent(0.88)
+                    node.fillColor = fillColor.withAlphaComponent(0.14)
+                    node.alpha = 1.0
+                }
                 for (index, node) in decoration.fillNodes.enumerated() {
-                    node.fillColor = fillColor.withAlphaComponent(index == 0 ? 0.92 : 0.72)
-                    node.strokeColor = .clear
-                    node.alpha = 1.0
-                }
-            case .nextRefresh:
-                let accent = palette.boardTileEffectNextRefresh
-                for node in decoration.strokeNodes {
-                    node.strokeColor = accent
-                    node.fillColor = .clear
-                    node.alpha = 1.0
-                }
-                for node in decoration.fillNodes {
-                    node.fillColor = accent.withAlphaComponent(0.9)
-                    node.strokeColor = .clear
-                    node.alpha = 1.0
-                }
-            case .freeFocus:
-                let accent = palette.boardTileEffectFreeFocus
-                for node in decoration.strokeNodes {
-                    node.strokeColor = accent
-                    node.fillColor = .clear
-                    node.alpha = 1.0
-                }
-                for node in decoration.fillNodes {
-                    node.fillColor = accent.withAlphaComponent(0.86)
+                    node.fillColor = fillColor.withAlphaComponent(index == 0 ? 0.94 : 0.68)
                     node.strokeColor = .clear
                     node.alpha = 1.0
                 }
@@ -1426,64 +1120,7 @@
                     node.strokeColor = .clear
                     node.alpha = 1.0
                 }
-            case .draft:
-                let accent = palette.boardTileEffectDraft
-                for (index, node) in decoration.strokeNodes.enumerated() {
-                    node.strokeColor = accent.withAlphaComponent(index == 0 ? 0.62 : 1.0)
-                    node.fillColor = accent.withAlphaComponent(index == 0 ? 0.14 : 0.20)
-                    node.alpha = 1.0
-                }
-                for node in decoration.fillNodes {
-                    node.fillColor = accent.withAlphaComponent(0.92)
-                    node.strokeColor = .clear
-                    node.alpha = 1.0
-                }
-            case .overload:
-                let accent = palette.boardTileEffectOverload
-                for node in decoration.strokeNodes {
-                    node.strokeColor = accent.withAlphaComponent(0.82)
-                    node.fillColor = accent.withAlphaComponent(0.10)
-                    node.alpha = 1.0
-                }
-                for node in decoration.fillNodes {
-                    node.fillColor = accent.withAlphaComponent(0.95)
-                    node.strokeColor = .clear
-                    node.alpha = 1.0
-                }
-            case .targetSwap:
-                let accent = palette.boardTileEffectTargetSwap
-                for (index, node) in decoration.strokeNodes.enumerated() {
-                    node.strokeColor = accent.withAlphaComponent(index == 0 ? 0.72 : 1.0)
-                    node.fillColor = accent.withAlphaComponent(index == 0 ? 0.10 : 0.18)
-                    node.alpha = 1.0
-                }
-                for node in decoration.fillNodes {
-                    node.fillColor = accent.withAlphaComponent(0.92)
-                    node.strokeColor = .clear
-                    node.alpha = 1.0
-                }
-            case .openGate:
-                let accent = palette.boardTileEffectOpenGate
-                for node in decoration.strokeNodes {
-                    node.strokeColor = accent.withAlphaComponent(0.95)
-                    node.fillColor = accent.withAlphaComponent(0.10)
-                    node.alpha = 1.0
-                }
-                for node in decoration.fillNodes {
-                    node.fillColor = accent.withAlphaComponent(0.95)
-                    node.strokeColor = .clear
-                    node.alpha = 1.0
-                }
             }
-        }
-
-        private func trianglePath(width: CGFloat, height: CGFloat) -> CGPath {
-            let path = CGMutablePath()
-            path.move(to: CGPoint(x: width / 2, y: 0))
-            path.addLine(to: CGPoint(x: -width / 2, y: height / 2))
-            path.addLine(to: CGPoint(x: -width / 2, y: -height / 2))
-            path.closeSubpath()
-            return path
         }
 
         private func boostChevronPath(tileSize: CGFloat, scale: CGFloat) -> CGPath {
@@ -1501,37 +1138,72 @@
             return path
         }
 
-        private func diamondPath(size: CGFloat) -> CGPath {
+        private func paralysisTrapPlatePath(tileSize: CGFloat) -> CGPath {
+            let size = tileSize * 0.54
+            let half = size / 2
             let path = CGMutablePath()
-            path.move(to: CGPoint(x: 0, y: size / 2))
-            path.addLine(to: CGPoint(x: size / 2, y: 0))
-            path.addLine(to: CGPoint(x: 0, y: -size / 2))
-            path.addLine(to: CGPoint(x: -size / 2, y: 0))
+            path.move(to: CGPoint(x: 0, y: half))
+            path.addLine(to: CGPoint(x: half, y: 0))
+            path.addLine(to: CGPoint(x: 0, y: -half))
+            path.addLine(to: CGPoint(x: -half, y: 0))
             path.closeSubpath()
             return path
         }
 
-        private func keyholePath(tileSize: CGFloat) -> CGPath {
-            let radius = tileSize * 0.045
-            let stemWidth = tileSize * 0.045
-            let stemHeight = tileSize * 0.12
+        private func paralysisBoltPath(tileSize: CGFloat, scale: CGFloat) -> CGPath {
+            let width = tileSize * 0.32 * scale
+            let height = tileSize * 0.52 * scale
             let path = CGMutablePath()
-            path.addEllipse(in: CGRect(x: -radius, y: radius * 0.15, width: radius * 2, height: radius * 2))
-            path.addRect(CGRect(x: -stemWidth / 2, y: -stemHeight, width: stemWidth, height: stemHeight))
-            return path
-        }
-
-        private func overloadBoltPath(tileSize: CGFloat) -> CGPath {
-            let scale = tileSize * 0.50
-            let path = CGMutablePath()
-            path.move(to: CGPoint(x: scale * 0.06, y: scale * 0.50))
-            path.addLine(to: CGPoint(x: -scale * 0.30, y: scale * 0.02))
-            path.addLine(to: CGPoint(x: -scale * 0.06, y: scale * 0.02))
-            path.addLine(to: CGPoint(x: -scale * 0.18, y: -scale * 0.50))
-            path.addLine(to: CGPoint(x: scale * 0.30, y: -scale * 0.02))
-            path.addLine(to: CGPoint(x: scale * 0.06, y: -scale * 0.02))
+            path.move(to: CGPoint(x: width * 0.10, y: height / 2))
+            path.addLine(to: CGPoint(x: -width * 0.40, y: height * 0.04))
+            path.addLine(to: CGPoint(x: -width * 0.08, y: height * 0.04))
+            path.addLine(to: CGPoint(x: -width * 0.30, y: -height / 2))
+            path.addLine(to: CGPoint(x: width * 0.42, y: -height * 0.05))
+            path.addLine(to: CGPoint(x: width * 0.10, y: -height * 0.05))
             path.closeSubpath()
             return path
         }
+
+        private func paralysisSparkPath(tileSize: CGFloat, scale: CGFloat) -> CGPath {
+            let width = tileSize * 0.20 * scale
+            let height = tileSize * 0.28 * scale
+            let path = CGMutablePath()
+            path.move(to: CGPoint(x: 0, y: height / 2))
+            path.addLine(to: CGPoint(x: -width * 0.5, y: 0))
+            path.addLine(to: CGPoint(x: -width * 0.12, y: 0))
+            path.addLine(to: CGPoint(x: -width * 0.32, y: -height / 2))
+            path.addLine(to: CGPoint(x: width * 0.5, y: -height * 0.04))
+            path.addLine(to: CGPoint(x: width * 0.12, y: -height * 0.04))
+            path.closeSubpath()
+            return path
+        }
+
+        private func blastArrowPath(tileSize: CGFloat, scale: CGFloat) -> CGPath {
+            let shaftWidth = tileSize * 0.12 * scale
+            let shaftHeight = tileSize * 0.30 * scale
+            let headWidth = tileSize * 0.34 * scale
+            let headHeight = tileSize * 0.22 * scale
+            let bottomY = -(shaftHeight + headHeight) / 2
+            let shaftTopY = bottomY + shaftHeight
+            let topY = shaftTopY + headHeight
+            let path = CGMutablePath()
+            path.move(to: CGPoint(x: -shaftWidth / 2, y: bottomY))
+            path.addLine(to: CGPoint(x: shaftWidth / 2, y: bottomY))
+            path.addLine(to: CGPoint(x: shaftWidth / 2, y: shaftTopY))
+            path.addLine(to: CGPoint(x: headWidth / 2, y: shaftTopY))
+            path.addLine(to: CGPoint(x: 0, y: topY))
+            path.addLine(to: CGPoint(x: -headWidth / 2, y: shaftTopY))
+            path.addLine(to: CGPoint(x: -shaftWidth / 2, y: shaftTopY))
+            path.closeSubpath()
+            return path
+        }
+
+        private func blastArrowRotation(for direction: MoveVector) -> CGFloat {
+            if direction.dx > 0 { return -.pi / 2 }
+            if direction.dx < 0 { return .pi / 2 }
+            if direction.dy < 0 { return .pi }
+            return 0
+        }
+
     }
 #endif

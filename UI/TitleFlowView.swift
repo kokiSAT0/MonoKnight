@@ -293,7 +293,6 @@ struct TitleScreenView: View {
                     dungeonLibrary: dungeonLibrary,
                     dungeonGrowthStore: dungeonGrowthStore,
                     dungeonRunResumeStore: dungeonRunResumeStore,
-                    onClose: { popNavigationStack() },
                     onResumeDungeon: { snapshot in
                         guard let mode = dungeonLibrary.resumeMode(from: snapshot) else {
                             dungeonRunResumeStore.clear()

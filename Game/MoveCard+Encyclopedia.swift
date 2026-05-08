@@ -41,8 +41,6 @@ public extension MoveCard {
                 return "ナイト"
             } else if isDiagonalDistanceFour {
                 return "斜め2マス"
-            } else if self == .superWarp || self == .fixedWarp {
-                return "ワープ"
             } else {
                 return "直線2マス"
             }
@@ -53,7 +51,7 @@ public extension MoveCard {
     var encyclopediaDescription: String {
         switch self {
         case .kingUp, .kingUpRight, .kingRight, .kingDownRight, .kingDown, .kingDownLeft, .kingLeft, .kingUpLeft:
-            return "\(displayName)へ 1 マス進みます。小回りが利き、目的地への微調整に使いやすい基本カードです。"
+            return "\(displayName)へ 1 マス進みます。鍵や床カードへ寄り道したり、階段前の位置調整に使いやすい基本カードです。"
         case .kingUpOrDown:
             return "上か下のどちらか 1 マスを盤面上で選んで進みます。"
         case .kingLeftOrRight:
@@ -68,7 +66,7 @@ public extension MoveCard {
             return "左上か左下のどちらか 1 マスを盤面上で選んで進みます。"
         case .knightUp2Right1, .knightUp2Left1, .knightUp1Right2, .knightUp1Left2,
              .knightDown2Right1, .knightDown2Left1, .knightDown1Right2, .knightDown1Left2:
-            return "\(displayName)へ L 字に跳びます。途中のマスは通らず、離れた目的地を狙えます。"
+            return "\(displayName)へ L 字に跳びます。途中のマスは通らず、危険範囲や罠を飛び越えやすいカードです。"
         case .knightUpwardChoice:
             return "上2右1か上2左1のどちらかを盤面上で選んで跳びます。"
         case .knightRightwardChoice:
@@ -78,15 +76,11 @@ public extension MoveCard {
         case .knightLeftwardChoice:
             return "上1左2か下1左2のどちらかを盤面上で選んで跳びます。"
         case .straightUp2, .straightDown2, .straightRight2, .straightLeft2:
-            return "\(displayName)へ 2 マス進みます。目的地まで距離を詰めたいときに有効です。"
+            return "\(displayName)へ 2 マス進みます。階段へ急ぐ、または危険な隣接マスを避けるときに有効です。"
         case .diagonalUpRight2, .diagonalDownRight2, .diagonalDownLeft2, .diagonalUpLeft2:
             return "\(displayName)へ斜めに 2 マス進みます。大きく位置を変えたい場面で役立ちます。"
         case .rayUp, .rayUpRight, .rayRight, .rayDownRight, .rayDown, .rayDownLeft, .rayLeft, .rayUpLeft:
-            return "\(displayName)方向へ、盤端や障害物の手前まで連続で進みます。通過したマスも踏破対象になります。"
-        case .superWarp:
-            return "盤面上の有効なマスから移動先を選んでワープします。遠い目的地へ一気に届く特殊カードです。"
-        case .fixedWarp:
-            return "モードで指定された固定座標へワープします。行き先はステージ設定に従います。"
+            return "\(displayName)方向へ、盤端や障害物の手前まで連続で進みます。通過した鍵、床カード、階段も途中で処理されます。"
         }
     }
 
@@ -108,7 +102,7 @@ public extension MoveCard {
                 ],
                 displayName: "キング1マス",
                 category: "キング",
-                description: "上下左右・斜めのいずれかへ 1 マス進みます。小回りが利き、目的地への微調整に使いやすい基本カードです。"
+                description: "上下左右・斜めのいずれかへ 1 マス進みます。鍵や床カードへ寄り道したり、階段前の位置調整に使いやすい基本カードです。"
             ),
             MoveCardEncyclopediaEntry(
                 id: 1,
@@ -125,7 +119,7 @@ public extension MoveCard {
                 ],
                 displayName: "ナイト",
                 category: "ナイト",
-                description: "縦横どちらかへ 2 マス、もう片方へ 1 マスの L 字に跳びます。途中のマスは通らず、離れた目的地を狙えます。"
+                description: "縦横どちらかへ 2 マス、もう片方へ 1 マスの L 字に跳びます。途中のマスは通らず、危険範囲や罠を飛び越えやすいカードです。"
             ),
             MoveCardEncyclopediaEntry(
                 id: 2,
@@ -138,7 +132,7 @@ public extension MoveCard {
                 ],
                 displayName: "直線2マス",
                 category: "直線2マス",
-                description: "上下左右のいずれかへ 2 マス進みます。目的地まで距離を詰めたいときに有効です。"
+                description: "上下左右のいずれかへ 2 マス進みます。階段へ急ぐ、または危険な隣接マスを避けるときに有効です。"
             ),
             MoveCardEncyclopediaEntry(
                 id: 3,
@@ -159,7 +153,7 @@ public extension MoveCard {
                 includedCards: directionalRayCards,
                 displayName: "レイ",
                 category: "レイ",
-                description: "8方向のいずれかへ、盤端や障害物の手前まで連続で進みます。通過したマスも踏破対象になります。"
+                description: "8方向のいずれかへ、盤端や障害物の手前まで連続で進みます。通過した鍵、床カード、階段も途中で処理されます。"
             ),
             MoveCardEncyclopediaEntry(
                 id: 5,
@@ -188,20 +182,6 @@ public extension MoveCard {
                 displayName: "選択ナイト",
                 category: "選択ナイト",
                 description: "方向別の 2 つのナイト移動候補から、盤面上で跳ぶ先を選びます。"
-            ),
-            MoveCardEncyclopediaEntry(
-                id: 7,
-                card: .superWarp,
-                displayName: MoveCard.superWarp.displayName,
-                category: MoveCard.superWarp.encyclopediaCategory,
-                description: MoveCard.superWarp.encyclopediaDescription
-            ),
-            MoveCardEncyclopediaEntry(
-                id: 8,
-                card: .fixedWarp,
-                displayName: MoveCard.fixedWarp.displayName,
-                category: MoveCard.fixedWarp.encyclopediaCategory,
-                description: MoveCard.fixedWarp.encyclopediaDescription
             )
         ]
     }

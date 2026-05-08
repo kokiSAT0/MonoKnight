@@ -2,23 +2,11 @@ import Foundation
 
 /// 移動せずに手札を整える補助専用カード
 public enum SupportCard: String, CaseIterable, Codable, Hashable {
-    /// NEXT 表示だけを引き直す
-    case nextRefresh
-    /// 別の手札スタックを 1 種類捨てて補充する
-    case swapOne
-    /// 表示中目的地へ近づきやすい手札へ寄せる
-    case guidance
     /// 空き手札枠を移動カードで補給する
     case refillEmptySlots
 
     public var displayName: String {
         switch self {
-        case .nextRefresh:
-            return "NEXT更新"
-        case .swapOne:
-            return "入替"
-        case .guidance:
-            return "導き"
         case .refillEmptySlots:
             return "補給"
         }
@@ -26,14 +14,8 @@ public enum SupportCard: String, CaseIterable, Codable, Hashable {
 
     public var encyclopediaDescription: String {
         switch self {
-        case .nextRefresh:
-            return "移動せず 1 手使い、NEXT の 3 枚だけを引き直します。手札はそのまま残ります。"
-        case .swapOne:
-            return "移動せず 1 手使い、このカード以外の手札 1 種類を捨てて補充します。"
-        case .guidance:
-            return "移動せず 1 手使い、表示中の目的地へ近づきやすい手札と NEXT に整えます。フォーカス回数は増えません。"
         case .refillEmptySlots:
-            return "移動せず 1 手使い、空いている手札枠をランダムな移動カードで補給します。"
+            return "移動せず 1 手使い、空いている所持枠を塔用移動カード全体から未所持の移動カードで補給します。"
         }
     }
 }

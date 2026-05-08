@@ -146,16 +146,6 @@ private extension MoveCard {
             mapping[card] = .directionalRayFinalStep(direction: vector, limit: nil)
         }
 
-        mapping[.superWarp] = .dynamicAbsoluteTargets(
-            identity: .custom("superWarp")
-        )
-
-        mapping[.fixedWarp] = .absoluteTargets(
-            [],
-            identity: .custom("fixedWarp"),
-            fallbackVectorsOverride: [MoveVector(dx: 0, dy: 0)]
-        )
-
         return mapping
     }()
 

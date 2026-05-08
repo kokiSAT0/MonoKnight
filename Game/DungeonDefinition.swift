@@ -231,7 +231,7 @@ public struct DungeonRunState: Codable, Equatable {
         )
     }
 
-    public func fallenToNextFloor(
+    public func fallenToPreviousFloor(
         carryoverHP: Int,
         currentFloorMoveCount: Int,
         currentInventoryEntries: [DungeonInventoryEntry],
@@ -247,7 +247,7 @@ public struct DungeonRunState: Codable, Equatable {
         )
         return DungeonRunState(
             dungeonID: dungeonID,
-            currentFloorIndex: currentFloorIndex + 1,
+            currentFloorIndex: max(currentFloorIndex - 1, 0),
             carriedHP: carryoverHP,
             totalMoveCount: totalMoveCount + max(currentFloorMoveCount, 0),
             clearedFloorCount: clearedFloorCount,
@@ -353,8 +353,6 @@ public struct DungeonRunState: Codable, Equatable {
         switch support {
         case .refillEmptySlots:
             return 1
-        case .nextRefresh, .swapOne, .guidance:
-            return 3
         }
     }
 }
@@ -564,7 +562,7 @@ public struct DungeonEnemyTurnTransition: Equatable, Identifiable {
 }
 
 /// プレイヤー行動後に発生した敵ターンの可視化用イベント
-public struct DungeonEnemyTurnEvent: Equatable, Identifiable {
+public struct DungeonEnemyTurnPhase: Equatable, Identifiable {
     public let id: UUID
     public let transitions: [DungeonEnemyTurnTransition]
     public let attackedPlayer: Bool
@@ -583,6 +581,65 @@ public struct DungeonEnemyTurnEvent: Equatable, Identifiable {
         self.attackedPlayer = attackedPlayer
         self.hpBefore = max(hpBefore, 0)
         self.hpAfter = max(hpAfter, 0)
+    }
+}
+
+public struct DungeonEnemyTurnEvent: Equatable, Identifiable {
+    public let id: UUID
+    public let phases: [DungeonEnemyTurnPhase]
+    public let isParalysisRest: Bool
+    public let paralysisTrapPoint: GridPoint?
+
+    public var transitions: [DungeonEnemyTurnTransition] {
+        phases.flatMap(\.transitions)
+    }
+
+    public var attackedPlayer: Bool {
+        phases.contains { $0.attackedPlayer }
+    }
+
+    public var hpBefore: Int {
+        phases.first?.hpBefore ?? 0
+    }
+
+    public var hpAfter: Int {
+        phases.last?.hpAfter ?? hpBefore
+    }
+
+    public init(
+        id: UUID = UUID(),
+        transitions: [DungeonEnemyTurnTransition],
+        attackedPlayer: Bool,
+        hpBefore: Int,
+        hpAfter: Int,
+        isParalysisRest: Bool = false,
+        paralysisTrapPoint: GridPoint? = nil
+    ) {
+        self.init(
+            id: id,
+            phases: [
+                DungeonEnemyTurnPhase(
+                    transitions: transitions,
+                    attackedPlayer: attackedPlayer,
+                    hpBefore: hpBefore,
+                    hpAfter: hpAfter
+                )
+            ],
+            isParalysisRest: isParalysisRest,
+            paralysisTrapPoint: paralysisTrapPoint
+        )
+    }
+
+    public init(
+        id: UUID = UUID(),
+        phases: [DungeonEnemyTurnPhase],
+        isParalysisRest: Bool = false,
+        paralysisTrapPoint: GridPoint? = nil
+    ) {
+        self.id = id
+        self.phases = phases
+        self.isParalysisRest = isParalysisRest
+        self.paralysisTrapPoint = paralysisTrapPoint
     }
 }
 
@@ -646,7 +703,6 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
     public let impassableTilePoints: Set<GridPoint>
     public let tileEffectOverrides: [GridPoint: TileEffect]
     public let warpTilePairs: [String: [GridPoint]]
-    public let fixedWarpCardTargets: [MoveCard: [GridPoint]]
     public let exitLock: DungeonExitLock?
     public let cardPickups: [DungeonCardPickupDefinition]
     public let rewardMoveCardsAfterClear: [MoveCard]
@@ -665,7 +721,6 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
         impassableTilePoints: Set<GridPoint> = [],
         tileEffectOverrides: [GridPoint: TileEffect] = [:],
         warpTilePairs: [String: [GridPoint]] = [:],
-        fixedWarpCardTargets: [MoveCard: [GridPoint]] = [:],
         exitLock: DungeonExitLock? = nil,
         cardPickups: [DungeonCardPickupDefinition] = [],
         rewardMoveCardsAfterClear: [MoveCard] = [],
@@ -683,7 +738,6 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
         self.impassableTilePoints = impassableTilePoints
         self.tileEffectOverrides = tileEffectOverrides
         self.warpTilePairs = warpTilePairs
-        self.fixedWarpCardTargets = fixedWarpCardTargets
         self.exitLock = exitLock
         self.cardPickups = cardPickups
         var uniqueRewardMoveCards: [MoveCard] = []
@@ -711,7 +765,6 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
         case impassableTilePoints
         case tileEffectOverrides
         case warpTilePairs
-        case fixedWarpCardTargets
         case exitLock
         case cardPickups
         case rewardMoveCardsAfterClear
@@ -733,7 +786,6 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
             impassableTilePoints: try container.decodeIfPresent(Set<GridPoint>.self, forKey: .impassableTilePoints) ?? [],
             tileEffectOverrides: try container.decodeIfPresent([GridPoint: TileEffect].self, forKey: .tileEffectOverrides) ?? [:],
             warpTilePairs: try container.decodeIfPresent([String: [GridPoint]].self, forKey: .warpTilePairs) ?? [:],
-            fixedWarpCardTargets: try container.decodeIfPresent([MoveCard: [GridPoint]].self, forKey: .fixedWarpCardTargets) ?? [:],
             exitLock: try container.decodeIfPresent(DungeonExitLock.self, forKey: .exitLock),
             cardPickups: try container.decodeIfPresent([DungeonCardPickupDefinition].self, forKey: .cardPickups) ?? [],
             rewardMoveCardsAfterClear: try container.decodeIfPresent([MoveCard].self, forKey: .rewardMoveCardsAfterClear) ?? [],
@@ -755,7 +807,6 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
         try container.encode(impassableTilePoints, forKey: .impassableTilePoints)
         try container.encode(tileEffectOverrides, forKey: .tileEffectOverrides)
         try container.encode(warpTilePairs, forKey: .warpTilePairs)
-        try container.encode(fixedWarpCardTargets, forKey: .fixedWarpCardTargets)
         try container.encodeIfPresent(exitLock, forKey: .exitLock)
         try container.encode(cardPickups, forKey: .cardPickups)
         try container.encode(rewardMoveCardsAfterClear, forKey: .rewardMoveCardsAfterClear)
@@ -793,7 +844,6 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
                 impassableTilePoints: impassableTilePoints,
                 tileEffectOverrides: tileEffectOverrides,
                 warpTilePairs: warpTilePairs,
-                fixedWarpCardTargets: fixedWarpCardTargets,
                 completionRule: .dungeonExit(exitPoint: exitPoint),
                 dungeonRules: DungeonRules(
                     difficulty: difficulty,
@@ -829,7 +879,6 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
             impassableTilePoints: impassableTilePoints,
             tileEffectOverrides: tileEffectOverrides,
             warpTilePairs: warpTilePairs,
-            fixedWarpCardTargets: fixedWarpCardTargets,
             exitLock: exitLock,
             cardPickups: cardPickups,
             rewardMoveCardsAfterClear: rewardMoveCardsAfterClear,
@@ -851,7 +900,6 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
             impassableTilePoints: impassableTilePoints,
             tileEffectOverrides: tileEffectOverrides,
             warpTilePairs: warpTilePairs,
-            fixedWarpCardTargets: fixedWarpCardTargets,
             exitLock: exitLock,
             cardPickups: cardPickups + additionalCardPickups,
             rewardMoveCardsAfterClear: rewardMoveCardsAfterClear,
@@ -873,7 +921,6 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
             impassableTilePoints: impassableTilePoints,
             tileEffectOverrides: tileEffectOverrides,
             warpTilePairs: warpTilePairs,
-            fixedWarpCardTargets: fixedWarpCardTargets,
             exitLock: exitLock,
             cardPickups: cardPickups,
             rewardMoveCardsAfterClear: rewardMoveCardsAfterClear,
@@ -895,7 +942,6 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
             impassableTilePoints: impassableTilePoints,
             tileEffectOverrides: tileEffectOverrides,
             warpTilePairs: warpTilePairs,
-            fixedWarpCardTargets: fixedWarpCardTargets,
             exitLock: exitLock,
             cardPickups: cardPickups,
             rewardMoveCardsAfterClear: rewardMoveCardsAfterClear,
@@ -924,7 +970,6 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
             impassableTilePoints: impassableTilePoints,
             tileEffectOverrides: tileEffectOverrides,
             warpTilePairs: warpTilePairs,
-            fixedWarpCardTargets: fixedWarpCardTargets,
             exitLock: exitLock,
             cardPickups: cardPickups,
             rewardMoveCardsAfterClear: rewardMoveCardsAfterClear,
@@ -956,11 +1001,7 @@ public struct DungeonDefinition: Codable, Equatable, Identifiable {
     }
 
     public func canAdvanceWithinRun(afterFloorIndex floorIndex: Int) -> Bool {
-        guard floors.indices.contains(floorIndex + 1) else { return false }
-        if difficulty == .growth, (floorIndex + 1).isMultiple(of: 10) {
-            return false
-        }
-        return true
+        floors.indices.contains(floorIndex + 1)
     }
 
     public func resolvedFloor(at floorIndex: Int, runState: DungeonRunState?) -> DungeonFloorDefinition? {
@@ -1007,7 +1048,6 @@ private enum DungeonCardVariationResolver {
             impassableTilePoints: floor.impassableTilePoints,
             tileEffectOverrides: floor.tileEffectOverrides,
             warpTilePairs: floor.warpTilePairs,
-            fixedWarpCardTargets: floor.fixedWarpCardTargets,
             exitLock: floor.exitLock,
             cardPickups: cardPickups,
             rewardMoveCardsAfterClear: rewardMoveCards,
@@ -1384,7 +1424,7 @@ public struct DungeonLibrary {
                 spawnPoint: GridPoint(x: 1, y: 0),
                 exitPoint: GridPoint(x: 3, y: 4),
                 deckPreset: .kingAndKnightBasic,
-                failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 7),
+                failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 9),
                 cardPickups: [
                     DungeonCardPickupDefinition(
                         id: "tutorial-1-up2",
@@ -1410,7 +1450,7 @@ public struct DungeonLibrary {
                 spawnPoint: GridPoint(x: 0, y: 0),
                 exitPoint: GridPoint(x: 4, y: 4),
                 deckPreset: .kingAndKnightBasic,
-                failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 9),
+                failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 11),
                 enemies: [
                     EnemyDefinition(
                         id: "watcher-1",
@@ -1449,7 +1489,7 @@ public struct DungeonLibrary {
                 spawnPoint: GridPoint(x: 0, y: 2),
                 exitPoint: GridPoint(x: 4, y: 2),
                 deckPreset: .standardLight,
-                failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 6),
+                failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 9),
                 enemies: [
                     EnemyDefinition(
                         id: "guard-1",
@@ -1543,7 +1583,7 @@ public struct DungeonLibrary {
                     .diagonalUpLeft2,
                     .straightUp2
                 ]),
-            growthFloorWithoutFixedWarp(
+            growthFloorWithRewardCards(
                 warpFloors[0].withAdditionalCardPickups([
                     DungeonCardPickupDefinition(id: "growth-4-down2", point: GridPoint(x: 8, y: 2), card: .straightDown2),
                     DungeonCardPickupDefinition(id: "growth-4-ray-left", point: GridPoint(x: 4, y: 8), card: .rayLeft)
@@ -1572,7 +1612,7 @@ public struct DungeonLibrary {
                     .straightLeft2,
                     .straightDown2
                 ]),
-            growthFloorWithoutFixedWarp(
+            growthFloorWithRewardCards(
                 warpFloors[1].withAdditionalCardPickups([
                     DungeonCardPickupDefinition(id: "growth-6-left2", point: GridPoint(x: 8, y: 6), card: .straightLeft2),
                     DungeonCardPickupDefinition(id: "growth-6-diagonal-down-right", point: GridPoint(x: 2, y: 2), card: .diagonalDownRight2)
@@ -1582,7 +1622,6 @@ public struct DungeonLibrary {
                     GridPoint(x: 6, y: 2)
                 ]),
                 title: "転移の抜け道",
-                replacementForFixedWarpPickups: .rayRight,
                 rewardMoveCardsAfterClear: [
                     .rayLeft,
                     .straightLeft2,
@@ -1709,15 +1748,6 @@ public struct DungeonLibrary {
         _ floor: DungeonFloorDefinition,
         rewardMoveCardsAfterClear: [MoveCard]? = nil
     ) -> DungeonFloorDefinition {
-        var openGateTargets: Set<GridPoint> = []
-        let retainedEffects = floor.tileEffectOverrides.filter { _, effect in
-            if case .openGate(let target) = effect {
-                openGateTargets.insert(target)
-                return false
-            }
-            return true
-        }
-
         return DungeonFloorDefinition(
             id: floor.id,
             title: floor.title,
@@ -1728,10 +1758,9 @@ public struct DungeonLibrary {
             failureRule: floor.failureRule,
             enemies: floor.enemies,
             hazards: floor.hazards,
-            impassableTilePoints: floor.impassableTilePoints.subtracting(openGateTargets),
-            tileEffectOverrides: retainedEffects,
+            impassableTilePoints: floor.impassableTilePoints,
+            tileEffectOverrides: floor.tileEffectOverrides,
             warpTilePairs: floor.warpTilePairs,
-            fixedWarpCardTargets: floor.fixedWarpCardTargets,
             exitLock: floor.exitLock,
             cardPickups: floor.cardPickups,
             rewardMoveCardsAfterClear: rewardMoveCardsAfterClear ?? floor.rewardMoveCardsAfterClear,
@@ -1739,20 +1768,12 @@ public struct DungeonLibrary {
         )
     }
 
-    private static func growthFloorWithoutFixedWarp(
+    private static func growthFloorWithRewardCards(
         _ floor: DungeonFloorDefinition,
         title: String? = nil,
-        replacementForFixedWarpPickups: MoveCard = .straightRight2,
         rewardMoveCardsAfterClear: [MoveCard]? = nil
     ) -> DungeonFloorDefinition {
-        let cardPickups = floor.cardPickups.map { pickup in
-            guard pickup.card == .fixedWarp else { return pickup }
-            return DungeonCardPickupDefinition(
-                id: pickup.id,
-                point: pickup.point,
-                card: replacementForFixedWarpPickups
-            )
-        }
+        let cardPickups = floor.cardPickups
 
         return DungeonFloorDefinition(
             id: floor.id,
@@ -1767,7 +1788,6 @@ public struct DungeonLibrary {
             impassableTilePoints: floor.impassableTilePoints,
             tileEffectOverrides: floor.tileEffectOverrides,
             warpTilePairs: floor.warpTilePairs,
-            fixedWarpCardTargets: [:],
             exitLock: floor.exitLock,
             cardPickups: cardPickups,
             rewardMoveCardsAfterClear: rewardMoveCardsAfterClear ?? floor.rewardMoveCardsAfterClear,
@@ -1909,6 +1929,11 @@ public struct DungeonLibrary {
                 DungeonCardPickupDefinition(id: "growth-10-right2", point: GridPoint(x: 1, y: 0), card: .straightRight2),
                 DungeonCardPickupDefinition(id: "growth-10-diagonal", point: GridPoint(x: 2, y: 0), card: .diagonalUpRight2),
                 DungeonCardPickupDefinition(id: "growth-10-up2", point: GridPoint(x: 8, y: 6), card: .straightUp2)
+            ],
+            rewardMoveCardsAfterClear: [
+                .straightRight2,
+                .straightUp2,
+                .diagonalUpRight2
             ]
         )
     }
@@ -2387,7 +2412,7 @@ public struct DungeonLibrary {
                 spawnPoint: GridPoint(x: 0, y: 0),
                 exitPoint: GridPoint(x: 8, y: 8),
                 deckPreset: .kingAndKnightBasic,
-                failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 17),
+                failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 19),
                 enemies: [
                     EnemyDefinition(
                         id: "patrol-1-guard",
@@ -2431,7 +2456,7 @@ public struct DungeonLibrary {
                 spawnPoint: GridPoint(x: 0, y: 4),
                 exitPoint: GridPoint(x: 8, y: 4),
                 deckPreset: .kingAndKnightBasic,
-                failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 17),
+                failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 19),
                 enemies: [
                     EnemyDefinition(
                         id: "patrol-2-vertical",
@@ -2490,7 +2515,7 @@ public struct DungeonLibrary {
                 spawnPoint: GridPoint(x: 0, y: 0),
                 exitPoint: GridPoint(x: 8, y: 8),
                 deckPreset: .standardLight,
-                failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 17),
+                failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 19),
                 enemies: [
                     EnemyDefinition(
                         id: "patrol-3-horizontal",
@@ -2560,12 +2585,9 @@ public struct DungeonLibrary {
                 spawnPoint: GridPoint(x: 0, y: 4),
                 exitPoint: GridPoint(x: 8, y: 4),
                 deckPreset: .kingAndKnightBasic,
-                failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 18),
+                failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 19),
                 impassableTilePoints: [
                     GridPoint(x: 4, y: 4)
-                ],
-                tileEffectOverrides: [
-                    GridPoint(x: 2, y: 6): .openGate(target: GridPoint(x: 4, y: 4))
                 ],
                 exitLock: DungeonExitLock(unlockPoint: GridPoint(x: 2, y: 6)),
                 cardPickups: [
@@ -2598,12 +2620,9 @@ public struct DungeonLibrary {
                 spawnPoint: GridPoint(x: 0, y: 4),
                 exitPoint: GridPoint(x: 8, y: 4),
                 deckPreset: .kingAndKnightBasic,
-                failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 18),
+                failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 19),
                 impassableTilePoints: [
                     GridPoint(x: 4, y: 4)
-                ],
-                tileEffectOverrides: [
-                    GridPoint(x: 2, y: 7): .openGate(target: GridPoint(x: 4, y: 4))
                 ],
                 exitLock: DungeonExitLock(unlockPoint: GridPoint(x: 2, y: 7)),
                 cardPickups: [
@@ -2636,7 +2655,7 @@ public struct DungeonLibrary {
                 spawnPoint: GridPoint(x: 0, y: 0),
                 exitPoint: GridPoint(x: 8, y: 8),
                 deckPreset: .standardLight,
-                failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 18),
+                failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 19),
                 enemies: [
                     EnemyDefinition(
                         id: "key-door-3-watcher",
@@ -2654,9 +2673,6 @@ public struct DungeonLibrary {
                     GridPoint(x: 4, y: 6),
                     GridPoint(x: 4, y: 7),
                     GridPoint(x: 4, y: 8)
-                ],
-                tileEffectOverrides: [
-                    GridPoint(x: 2, y: 3): .openGate(target: GridPoint(x: 4, y: 4))
                 ],
                 exitLock: DungeonExitLock(unlockPoint: GridPoint(x: 2, y: 3)),
                 cardPickups: [
@@ -2722,30 +2738,24 @@ public struct DungeonLibrary {
                     )
                 ],
                 rewardMoveCardsAfterClear: [
-                    .fixedWarp,
+                    .rayRight,
                     .straightUp2,
                     .rayRight
                 ]
             ),
             DungeonFloorDefinition(
                 id: "warp-2",
-                title: "固定ワープの間",
+                title: "転移床の間",
                 boardSize: standardTowerBoardSize,
                 spawnPoint: GridPoint(x: 0, y: 4),
                 exitPoint: GridPoint(x: 8, y: 4),
                 deckPreset: .standardLight,
                 failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 13),
-                fixedWarpCardTargets: [
-                    .fixedWarp: [
-                        GridPoint(x: 6, y: 4),
-                        GridPoint(x: 7, y: 6)
-                    ]
-                ],
                 cardPickups: [
                     DungeonCardPickupDefinition(
-                        id: "warp-2-fixed-warp",
+                        id: "warp-2-ray-right",
                         point: GridPoint(x: 1, y: 4),
-                        card: .fixedWarp
+                        card: .rayRight
                     ),
                     DungeonCardPickupDefinition(
                         id: "warp-2-right2",
@@ -2759,7 +2769,7 @@ public struct DungeonLibrary {
                     )
                 ],
                 rewardMoveCardsAfterClear: [
-                    .fixedWarp,
+                    .straightRight2,
                     .rayRight,
                     .diagonalUpRight2
                 ]
@@ -2786,17 +2796,11 @@ public struct DungeonLibrary {
                         GridPoint(x: 6, y: 6)
                     ]
                 ],
-                fixedWarpCardTargets: [
-                    .fixedWarp: [
-                        GridPoint(x: 6, y: 6),
-                        GridPoint(x: 8, y: 6)
-                    ]
-                ],
                 cardPickups: [
                     DungeonCardPickupDefinition(
-                        id: "warp-3-fixed-warp",
+                        id: "warp-3-ray-right",
                         point: GridPoint(x: 0, y: 1),
-                        card: .fixedWarp
+                        card: .rayRight
                     ),
                     DungeonCardPickupDefinition(
                         id: "warp-3-up2",
@@ -2815,7 +2819,7 @@ public struct DungeonLibrary {
         return DungeonDefinition(
             id: "warp-tower",
             title: "ワープ塔",
-            summary: "ワープ床と固定ワープカードを読み、遠回りと近道を切り替える低難度の塔。",
+            summary: "ワープ床を読み、遠回りと近道を切り替える低難度の塔。",
             difficulty: .growth,
             floors: floors
         )
@@ -2830,7 +2834,7 @@ public struct DungeonLibrary {
                 spawnPoint: GridPoint(x: 0, y: 0),
                 exitPoint: GridPoint(x: 8, y: 8),
                 deckPreset: .kingAndKnightBasic,
-                failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 18),
+                failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 19),
                 hazards: [
                     .damageTrap(
                         points: [
@@ -2917,7 +2921,7 @@ public struct DungeonLibrary {
                 spawnPoint: GridPoint(x: 0, y: 0),
                 exitPoint: GridPoint(x: 8, y: 8),
                 deckPreset: .standardLight,
-                failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 18),
+                failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 19),
                 enemies: [
                     EnemyDefinition(
                         id: "trap-3-watcher",
@@ -3015,7 +3019,7 @@ public struct DungeonLibrary {
                 ],
                 rewardMoveCardsAfterClear: [
                     .rayRight,
-                    .fixedWarp,
+                    .straightRight2,
                     .diagonalUpRight2
                 ]
             ),
@@ -3055,17 +3059,11 @@ public struct DungeonLibrary {
                         GridPoint(x: 6, y: 5)
                     ])
                 ],
-                fixedWarpCardTargets: [
-                    .fixedWarp: [
-                        GridPoint(x: 6, y: 4),
-                        GridPoint(x: 7, y: 6)
-                    ]
-                ],
                 cardPickups: [
                     DungeonCardPickupDefinition(
-                        id: "rogue-2-fixed-warp",
+                        id: "rogue-2-ray-right",
                         point: GridPoint(x: 1, y: 4),
-                        card: .fixedWarp
+                        card: .rayRight
                     ),
                     DungeonCardPickupDefinition(
                         id: "rogue-2-right2",
@@ -3079,7 +3077,7 @@ public struct DungeonLibrary {
                     )
                 ],
                 rewardMoveCardsAfterClear: [
-                    .fixedWarp,
+                    .straightRight2,
                     .rayUp,
                     .straightRight2
                 ]
@@ -3132,12 +3130,6 @@ public struct DungeonLibrary {
                         GridPoint(x: 6, y: 6)
                     ]
                 ],
-                fixedWarpCardTargets: [
-                    .fixedWarp: [
-                        GridPoint(x: 8, y: 6),
-                        GridPoint(x: 6, y: 6)
-                    ]
-                ],
                 cardPickups: [
                     DungeonCardPickupDefinition(
                         id: "rogue-3-ray-right",
@@ -3145,9 +3137,9 @@ public struct DungeonLibrary {
                         card: .rayRight
                     ),
                     DungeonCardPickupDefinition(
-                        id: "rogue-3-fixed-warp",
+                        id: "rogue-3-diagonal-up-right",
                         point: GridPoint(x: 2, y: 0),
-                        card: .fixedWarp
+                        card: .diagonalUpRight2
                     ),
                     DungeonCardPickupDefinition(
                         id: "rogue-3-up2",

@@ -202,6 +202,9 @@ public extension MoveCard {
 
                     traversed.append(nextPoint)
                     current = nextPoint
+                    if context.effect(at: nextPoint) == .slow {
+                        break
+                    }
                 }
 
                 guard let destination = traversed.last else { return [] }

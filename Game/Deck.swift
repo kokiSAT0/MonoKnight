@@ -78,45 +78,6 @@ struct Deck {
             self.deckSummaryText = deckSummaryText
         }
 
-        /// 固定座標ワープカードを抽選対象へ追加した新しい設定を返す
-        /// - Parameters:
-        ///   - weight: 追加する固定ワープカードへ割り当てたい重み（既定値は 1）
-        ///   - summarySuffix: 山札概要へ追記するサフィックス（nil の場合は変更しない）
-        /// - Returns: 固定ワープカードを含む新しい `Configuration`
-        func addingFixedWarpCard(weight: Int = 1, summarySuffix: String? = "＋固定ワープ") -> Configuration {
-            let alreadyIncluded = allowedMoves.contains(.fixedWarp)
-            var updatedMoves = allowedMoves
-            if !alreadyIncluded {
-                updatedMoves.append(.fixedWarp)
-            }
-
-            let originalWeight = weightProfile.weight(for: .fixedWarp)
-            let updatedProfile: WeightProfile
-            if alreadyIncluded && originalWeight == weight {
-                updatedProfile = weightProfile
-            } else {
-                updatedProfile = weightProfile.overridingWeight(for: .fixedWarp, weight: weight)
-            }
-
-            let updatedSummary: String
-            if !alreadyIncluded, let suffix = summarySuffix, !suffix.isEmpty {
-                updatedSummary = deckSummaryText + suffix
-            } else {
-                updatedSummary = deckSummaryText
-            }
-
-            if alreadyIncluded && originalWeight == weight && updatedSummary == deckSummaryText {
-                return self
-            }
-
-            return Configuration(
-                allowedMoves: updatedMoves,
-                allowedSupportCards: allowedSupportCards,
-                weightProfile: updatedProfile,
-                deckSummaryText: updatedSummary
-            )
-        }
-
         /// ラン中の報酬カードを山札構成へ加えた新しい設定を返す
         /// - Note: 既存カードは重みを増やし、未収録カードは抽選対象へ追加する。
         func addingBonusMoveCards(_ cards: [MoveCard]) -> Configuration {
@@ -262,67 +223,12 @@ struct Deck {
                 .knightLeftwardChoice
             ]
             let allowedMoves = MoveCard.standardSet + selectionCards
-            // 全域ワープは高難度専用デッキへ移譲したため、ここでは選択カードのみを重み 2 で強化する
+            // 選択カードのみを重み 2 で強化する
             let overrides = Dictionary(uniqueKeysWithValues: selectionCards.map { ($0, 2) })
             return Configuration(
                 allowedMoves: allowedMoves,
                 weightProfile: WeightProfile(defaultWeight: 1, overrides: overrides),
                 deckSummaryText: "標準＋全選択カード"
-            )
-        }()
-
-        /// 固定座標ワープを高頻度で供給しつつ、基礎移動カードでフォローする構成
-        /// - Note: 固定ワープによる瞬間転移を主役に据えながらも、詰まりそうな局面では短距離移動で地道に調整できるよう
-        ///   サポートカードを混在させる。学習のテンポを維持するため、固定ワープの重みは他カードより大きく設定する。
-        static let fixedWarpSpecialized: Configuration = {
-            // MARK: 固定ワープ練習を支える基礎移動カードの選定
-            // - 上下左右への 1 マス移動（キング型）と、代表的な桂馬ジャンプを組み合わせてリカバリー手段を確保する
-            let supportMoves: [MoveCard] = [
-                .kingUp,
-                .kingRight,
-                .kingDown,
-                .kingLeft,
-                .knightUp2Right1,
-                .knightUp2Left1,
-                .knightDown2Right1,
-                .knightDown2Left1
-            ]
-            // MARK: 固定ワープカードを末尾へ追加し、山札構成をまとめて管理する
-            let allowedMoves = supportMoves + [.fixedWarp]
-            // MARK: 固定ワープは重み 5 で高頻度化し、サポートカードは重み 1 のまま据え置く
-            let overrides: [MoveCard: Int] = [.fixedWarp: 5]
-            return Configuration(
-                allowedMoves: allowedMoves,
-                weightProfile: WeightProfile(defaultWeight: 1, overrides: overrides),
-                deckSummaryText: "固定ワープ基礎デッキ"
-            )
-        }()
-
-        /// 全域ワープを高頻度で供給する上級者向け構成
-        /// - Note: 標準セットへ全域ワープを追加し、重み 4 で抽選頻度を引き上げて瞬間移動ルート構築を学習する。
-        static let superWarpHighFrequency: Configuration = {
-            let allowedMoves = MoveCard.standardSet + [.superWarp]
-            let overrides: [MoveCard: Int] = [.superWarp: 4]
-            return Configuration(
-                allowedMoves: allowedMoves,
-                weightProfile: WeightProfile(defaultWeight: 1, overrides: overrides),
-                deckSummaryText: "標準＋全域ワープ高頻度"
-            )
-        }()
-
-        /// 標準デッキへワープカードを段階的に組み込んだ構成
-        /// - Note: 固定ワープは 3、スーパーワープは 2 の重みで供給し、訓練目的で出現頻度を引き上げる
-        static let standardWithWarpCards: Configuration = {
-            let warpCards: [MoveCard] = [.fixedWarp, .superWarp]
-            let allowedMoves = MoveCard.standardSet + warpCards
-            let overrides: [MoveCard: Int] = [
-                .fixedWarp: 3,
-                .superWarp: 2
-            ]
-            return Configuration(
-                allowedMoves: allowedMoves,
-                weightProfile: WeightProfile(defaultWeight: 1, overrides: overrides),
-                deckSummaryText: "標準＋ワープ／スーパーワープ"
             )
         }()
 
@@ -340,20 +246,17 @@ struct Deck {
                 .knightDownwardChoice,
                 .knightLeftwardChoice
             ]
-            let warpCards: [MoveCard] = [.fixedWarp, .superWarp]
-            let allowedMoves = MoveCard.standardSet + selectionCards + warpCards
+            let allowedMoves = MoveCard.standardSet + selectionCards
 
             var overrides: [MoveCard: Int] = [:]
             MoveCard.directionalRayCards.forEach { overrides[$0] = 3 }
             selectionCards.forEach { overrides[$0] = 2 }
-            overrides[.fixedWarp] = 3
-            overrides[.superWarp] = 2
 
             return Configuration(
                 allowedMoves: allowedMoves,
                 allowedSupportCards: SupportCard.allCases,
                 weightProfile: WeightProfile(defaultWeight: 1, overrides: overrides),
-                deckSummaryText: "全部入りカード実験デッキ"
+                deckSummaryText: "塔向けカード実験デッキ"
             )
         }()
 
@@ -607,9 +510,6 @@ struct Deck {
     // MARK: - プロパティ
     /// 現在採用している設定
     private let configuration: Configuration
-    /// 固定ワープカードが参照する目的地リスト
-    /// - Note: カード配布時に `nextFixedWarpDestination()` からランダム抽選するため、Deck 内で候補集合を保持しておく
-    private let fixedWarpDestinations: [GridPoint]
     /// 初期シード値。reset() 時に同じ乱数列へ戻すため保持する
     private let initialSeed: UInt64
     #if canImport(GameplayKit)
@@ -625,14 +525,6 @@ struct Deck {
     private var presetDrawQueue: [PlayableCard]
     /// reset() で戻すための元配列（テスト専用）
     private var presetOriginal: [PlayableCard]
-    /// テスト時に固定ワープカードへ順番に割り当てる目的地列
-    private var presetFixedWarpDestinationQueue: [GridPoint]
-    /// reset() で戻すための元配列（固定ワープ目的地用）
-    private var presetOriginalFixedWarpDestinations: [GridPoint]
-    /// 固定ワープ目的地を順番に消費するかどうか
-    private var usesPresetFixedWarpDestinationsSequentially: Bool
-    /// reset() で戻すための元フラグ
-    private var presetOriginalUsesSequentialFixedWarpDestinations: Bool
     #endif
 
     // MARK: - 初期化
@@ -640,14 +532,11 @@ struct Deck {
     /// - Parameters:
     ///   - seed: 乱数シード。省略時はシステム乱数から採番する
     ///   - configuration: 採用する山札設定
-    ///   - fixedWarpDestinations: 固定ワープカードへ割り当てる目的地集合（ランダム抽選の母集団）
     init(
         seed: UInt64? = nil,
-        configuration: Configuration = .standard,
-        fixedWarpDestinations: [GridPoint] = []
+        configuration: Configuration = .standard
     ) {
         self.configuration = configuration
-        self.fixedWarpDestinations = fixedWarpDestinations
         var systemGenerator = SystemRandomNumberGenerator()
         let resolvedSeed = seed ?? UInt64.random(in: UInt64.min...UInt64.max, using: &systemGenerator)
         initialSeed = resolvedSeed
@@ -659,10 +548,6 @@ struct Deck {
         #if DEBUG
         presetDrawQueue = []
         presetOriginal = []
-        presetFixedWarpDestinationQueue = []
-        presetOriginalFixedWarpDestinations = []
-        usesPresetFixedWarpDestinationsSequentially = false
-        presetOriginalUsesSequentialFixedWarpDestinations = false
         #endif
         reset() // 乱数源とテスト用配列を初期状態へ戻す
     }
@@ -682,11 +567,8 @@ struct Deck {
         #else
         random = SeededGenerator(seed: initialSeed)
         #endif
-        // 乱数シードを初期状態へ戻すことで、固定ワープ目的地の抽選結果も含めた乱数列を完全に再現する
         #if DEBUG
         presetDrawQueue = presetOriginal
-        presetFixedWarpDestinationQueue = presetOriginalFixedWarpDestinations
-        usesPresetFixedWarpDestinationsSequentially = presetOriginalUsesSequentialFixedWarpDestinations
         #endif
     }
 
@@ -722,35 +604,14 @@ struct Deck {
 
     /// 指定されたカード種別に応じて `DealtCard` を生成する
     /// - Parameter move: 山札から取り出した `MoveCard`
-    /// - Returns: 必要に応じて固定ワープ先を埋め込んだ `DealtCard`
+    /// - Returns: 山札から配る `DealtCard`
     private mutating func makeDealtCard(for move: MoveCard) -> DealtCard {
         makeDealtCard(for: .move(move))
     }
 
     /// 指定されたカード種別に応じて `DealtCard` を生成する
     private mutating func makeDealtCard(for playable: PlayableCard) -> DealtCard {
-        guard case .move(let move) = playable else {
-            return DealtCard(playable: playable)
-        }
-        if move == .fixedWarp {
-            let destination = nextFixedWarpDestination()
-            return DealtCard(move: move, fixedWarpDestination: destination)
-        } else {
-            return DealtCard(move: move)
-        }
-    }
-
-    /// 固定ワープカード向けの目的地をランダムに抽選する
-    /// - Returns: 次に割り当てる目的地（定義がない場合は nil）
-    private mutating func nextFixedWarpDestination() -> GridPoint? {
-#if DEBUG
-        if usesPresetFixedWarpDestinationsSequentially && !presetFixedWarpDestinationQueue.isEmpty {
-            return presetFixedWarpDestinationQueue.removeFirst()
-        }
-#endif
-        guard !fixedWarpDestinations.isEmpty else { return nil }
-        let index = nextRandomIndex(upperBound: fixedWarpDestinations.count)
-        return fixedWarpDestinations[index]
+        DealtCard(playable: playable)
     }
 
     /// 重み付きプールからインデックスを 1 つ取得する
@@ -807,31 +668,19 @@ extension Deck {
     /// テストで特定順序のカードを排出させたい場合に使用する
     /// - Parameters:
     ///   - cards: 先頭から順番に返したいカード列
-    ///   - fixedWarpDestinations: 固定ワープカードへ割り当てたい目的地列
-    ///   - usesSequentialFixedWarpDestinations: true の場合は目的地列を先頭から順に消費する
     mutating func preload(
-        cards: [MoveCard],
-        fixedWarpDestinations: [GridPoint] = [],
-        usesSequentialFixedWarpDestinations: Bool = false
+        cards: [MoveCard]
     ) {
         preload(
-            playableCards: cards.map(PlayableCard.move),
-            fixedWarpDestinations: fixedWarpDestinations,
-            usesSequentialFixedWarpDestinations: usesSequentialFixedWarpDestinations
+            playableCards: cards.map(PlayableCard.move)
         )
     }
 
     mutating func preload(
-        playableCards: [PlayableCard],
-        fixedWarpDestinations: [GridPoint] = [],
-        usesSequentialFixedWarpDestinations: Bool = false
+        playableCards: [PlayableCard]
     ) {
         presetDrawQueue = playableCards
         presetOriginal = playableCards
-        presetFixedWarpDestinationQueue = fixedWarpDestinations
-        presetOriginalFixedWarpDestinations = fixedWarpDestinations
-        self.usesPresetFixedWarpDestinationsSequentially = usesSequentialFixedWarpDestinations
-        presetOriginalUsesSequentialFixedWarpDestinations = usesSequentialFixedWarpDestinations
     }
 
     /// プリセットしたカード列を優先的に返すテスト用デッキを生成する
@@ -839,38 +688,24 @@ extension Deck {
     ///   - seed: 乱数シード。省略時は 1 を使用し、`reset()` で同じ抽選列を再現できるようにする
     ///   - cards: 先頭から消費させたいカード列（手札スロット数ぶんを優先消費し、残りが先読みキューへ入る）
     ///   - configuration: 検証対象の山札設定（省略時はスタンダード）
-    ///   - fixedWarpDestinations: 固定ワープカードへ割り当てたい目的地リスト
-    ///   - usesSequentialFixedWarpDestinations: true の場合、固定ワープ目的地を先頭から順に消費する
     /// - Returns: プリセットを持った `Deck`
     static func makeTestDeck(
         seed: UInt64 = 1,
         cards: [MoveCard],
-        configuration: Configuration = .standard,
-        fixedWarpDestinations: [GridPoint] = [],
-        usesSequentialFixedWarpDestinations: Bool = false
+        configuration: Configuration = .standard
     ) -> Deck {
-        var deck = Deck(seed: seed, configuration: configuration, fixedWarpDestinations: fixedWarpDestinations)
-        deck.preload(
-            cards: cards,
-            fixedWarpDestinations: fixedWarpDestinations,
-            usesSequentialFixedWarpDestinations: usesSequentialFixedWarpDestinations
-        )
+        var deck = Deck(seed: seed, configuration: configuration)
+        deck.preload(cards: cards)
         return deck
     }
 
     static func makeTestDeck(
         seed: UInt64 = 1,
         playableCards: [PlayableCard],
-        configuration: Configuration = .standard,
-        fixedWarpDestinations: [GridPoint] = [],
-        usesSequentialFixedWarpDestinations: Bool = false
+        configuration: Configuration = .standard
     ) -> Deck {
-        var deck = Deck(seed: seed, configuration: configuration, fixedWarpDestinations: fixedWarpDestinations)
-        deck.preload(
-            playableCards: playableCards,
-            fixedWarpDestinations: fixedWarpDestinations,
-            usesSequentialFixedWarpDestinations: usesSequentialFixedWarpDestinations
-        )
+        var deck = Deck(seed: seed, configuration: configuration)
+        deck.preload(playableCards: playableCards)
         return deck
     }
 }

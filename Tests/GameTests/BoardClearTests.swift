@@ -72,31 +72,18 @@ final class BoardClearTests: XCTestCase {
         let warpA = GridPoint(x: 0, y: 0)
         let warpB = GridPoint(x: 1, y: 1)
         let shufflePoint = GridPoint(x: 2, y: 2)
-        let boostPoint = GridPoint(x: 0, y: 2)
+        let blastPoint = GridPoint(x: 0, y: 2)
         let slowPoint = GridPoint(x: 1, y: 2)
-        let nextRefreshPoint = GridPoint(x: 2, y: 0)
-        let freeFocusPoint = GridPoint(x: 0, y: 1)
         let preserveCardPoint = GridPoint(x: 2, y: 1)
-        let draftPoint = GridPoint(x: 1, y: 0)
-        let overloadPoint = GridPoint(x: 3, y: 0)
-        let targetSwapPoint = GridPoint(x: 3, y: 1)
-        let openGatePoint = GridPoint(x: 3, y: 3)
-        let openGateTarget = GridPoint(x: 0, y: 3)
         let board = Board(
             size: 4,
             tileEffects: [
                 warpA: .warp(pairID: "warp_pair", destination: warpB),
                 warpB: .warp(pairID: "warp_pair", destination: warpA),
                 shufflePoint: .shuffleHand,
-                boostPoint: .boost,
+                blastPoint: .blast(direction: MoveVector(dx: 1, dy: 0)),
                 slowPoint: .slow,
-                nextRefreshPoint: .nextRefresh,
-                freeFocusPoint: .freeFocus,
                 preserveCardPoint: .preserveCard,
-                draftPoint: .draft,
-                overloadPoint: .overload,
-                targetSwapPoint: .targetSwap,
-                openGatePoint: .openGate(target: openGateTarget),
             ]
         )
 
@@ -105,40 +92,33 @@ final class BoardClearTests: XCTestCase {
         XCTAssertEqual(board.state(at: warpA)?.effect, .warp(pairID: "warp_pair", destination: warpB))
         XCTAssertEqual(board.effect(at: shufflePoint), .shuffleHand)
         XCTAssertEqual(board.state(at: shufflePoint)?.effect, .shuffleHand)
-        XCTAssertEqual(board.effect(at: boostPoint), .boost)
-        XCTAssertEqual(board.state(at: boostPoint)?.effect, .boost)
+        XCTAssertEqual(board.effect(at: blastPoint), .blast(direction: MoveVector(dx: 1, dy: 0)))
+        XCTAssertEqual(board.state(at: blastPoint)?.effect, .blast(direction: MoveVector(dx: 1, dy: 0)))
         XCTAssertEqual(board.effect(at: slowPoint), .slow)
         XCTAssertEqual(board.state(at: slowPoint)?.effect, .slow)
-        XCTAssertEqual(board.effect(at: nextRefreshPoint), .nextRefresh)
-        XCTAssertEqual(board.state(at: nextRefreshPoint)?.effect, .nextRefresh)
-        XCTAssertEqual(board.effect(at: freeFocusPoint), .freeFocus)
-        XCTAssertEqual(board.state(at: freeFocusPoint)?.effect, .freeFocus)
         XCTAssertEqual(board.effect(at: preserveCardPoint), .preserveCard)
         XCTAssertEqual(board.state(at: preserveCardPoint)?.effect, .preserveCard)
-        XCTAssertEqual(board.effect(at: draftPoint), .draft)
-        XCTAssertEqual(board.state(at: draftPoint)?.effect, .draft)
-        XCTAssertEqual(board.effect(at: overloadPoint), .overload)
-        XCTAssertEqual(board.state(at: overloadPoint)?.effect, .overload)
-        XCTAssertEqual(board.effect(at: targetSwapPoint), .targetSwap)
-        XCTAssertEqual(board.state(at: targetSwapPoint)?.effect, .targetSwap)
-        XCTAssertEqual(board.effect(at: openGatePoint), .openGate(target: openGateTarget))
-        XCTAssertEqual(board.state(at: openGatePoint)?.effect, .openGate(target: openGateTarget))
     }
 
-    func testBoardOpenGateTurnsImpassableTileIntoUnvisitedTraversableTile() {
-        let gateTarget = GridPoint(x: 1, y: 1)
-        var board = Board(size: 3, impassablePoints: [gateTarget])
+    func testInvalidBlastDirectionsAreDiscarded() {
+        let validBlastPoint = GridPoint(x: 0, y: 0)
+        let diagonalBlastPoint = GridPoint(x: 1, y: 0)
+        let longBlastPoint = GridPoint(x: 2, y: 0)
+        let zeroBlastPoint = GridPoint(x: 0, y: 1)
+        let board = Board(
+            size: 4,
+            tileEffects: [
+                validBlastPoint: .blast(direction: MoveVector(dx: 0, dy: 1)),
+                diagonalBlastPoint: .blast(direction: MoveVector(dx: 1, dy: 1)),
+                longBlastPoint: .blast(direction: MoveVector(dx: 2, dy: 0)),
+                zeroBlastPoint: .blast(direction: MoveVector(dx: 0, dy: 0)),
+            ]
+        )
 
-        XCTAssertTrue(board.isImpassable(gateTarget))
-        XCTAssertFalse(board.isTraversable(gateTarget))
-        XCTAssertEqual(board.remainingCount, 8)
-
-        XCTAssertTrue(board.openGate(at: gateTarget))
-
-        XCTAssertFalse(board.isImpassable(gateTarget))
-        XCTAssertTrue(board.isTraversable(gateTarget))
-        XCTAssertFalse(board.isVisited(gateTarget))
-        XCTAssertEqual(board.remainingCount, 9)
+        XCTAssertEqual(board.effect(at: validBlastPoint), .blast(direction: MoveVector(dx: 0, dy: 1)))
+        XCTAssertNil(board.effect(at: diagonalBlastPoint))
+        XCTAssertNil(board.effect(at: longBlastPoint))
+        XCTAssertNil(board.effect(at: zeroBlastPoint))
     }
 
     /// 不正なワープ定義が安全に除外されるか検証する

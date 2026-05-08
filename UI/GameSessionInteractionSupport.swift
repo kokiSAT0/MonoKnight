@@ -132,11 +132,6 @@ struct GameSessionState {
         }
 
         let destinations = Set(moves.map(\.destination))
-        if moves.first?.card.move == .superWarp {
-            boardBridge.updateForcedSelectionHighlights(destinations)
-            return
-        }
-
         let vectors = moves.map(\.moveVector)
         boardBridge.updateForcedSelectionHighlights(destinations, origin: current, movementVectors: vectors)
     }
@@ -156,8 +151,8 @@ struct GameInputFlowCoordinator {
         presentsBasicMoveCard: Bool
     ) {
         guard !boardBridge.isInputAnimationActive else { return }
-        guard !core.isAwaitingDungeonPickupChoice else { return }
         if presentsBasicMoveCard, let basicMoveSlotIndex, index == basicMoveSlotIndex {
+            guard !core.isAwaitingDungeonPickupChoice else { return }
             handleBasicMoveSlotTap(
                 core: core,
                 boardBridge: boardBridge,
@@ -171,6 +166,22 @@ struct GameInputFlowCoordinator {
 
         let latestStack = core.handStacks[index]
 
+        if core.isAwaitingDungeonPickupChoice {
+            clearSelectedCardSelection(
+                sessionState: &sessionState,
+                boardBridge: boardBridge,
+                selectedHandStackID: &selectedHandStackID
+            )
+            guard let playable = latestStack.representativePlayable else { return }
+            withAnimation(.easeInOut(duration: 0.2)) {
+                let success = core.replaceDungeonInventoryEntryForPendingPickup(discarding: playable)
+                if success, hapticsEnabled {
+                    UINotificationFeedbackGenerator().notificationOccurred(.success)
+                }
+            }
+            return
+        }
+
         if core.isAwaitingManualDiscardSelection {
             clearSelectedCardSelection(
                 sessionState: &sessionState,
@@ -181,21 +192,6 @@ struct GameInputFlowCoordinator {
                 let success = core.discardHandStack(withID: latestStack.id)
                 if success, hapticsEnabled {
                     UINotificationFeedbackGenerator().notificationOccurred(.warning)
-                }
-            }
-            return
-        }
-
-        if core.isAwaitingSupportSwapSelection {
-            clearSelectedCardSelection(
-                sessionState: &sessionState,
-                boardBridge: boardBridge,
-                selectedHandStackID: &selectedHandStackID
-            )
-            withAnimation(.easeInOut(duration: 0.2)) {
-                let success = core.applySupportSwap(toTargetStackID: latestStack.id)
-                if success, hapticsEnabled {
-                    UINotificationFeedbackGenerator().notificationOccurred(.success)
                 }
             }
             return
@@ -307,7 +303,7 @@ struct GameInputFlowCoordinator {
         selectedHandStackID: inout UUID?,
         hapticsEnabled: Bool
     ) {
-        if core.isAwaitingManualDiscardSelection || core.isAwaitingSupportSwapSelection {
+        if core.isAwaitingManualDiscardSelection {
             clearSelectedCardSelection(
                 sessionState: &sessionState,
                 boardBridge: boardBridge,
@@ -378,18 +374,6 @@ struct GameInputFlowCoordinator {
             if conflictingStackIDs.count >= 2 {
                 presentBoardTapSelectionWarning(
                     "複数のカードが同じマスを指定しています。手札から使いたいカードを選んでからマスをタップしてください。",
-                    request.destination
-                )
-
-                if hapticsEnabled {
-                    UINotificationFeedbackGenerator().notificationOccurred(.warning)
-                }
-                return
-            }
-
-            if request.resolvedMove.card.move == .superWarp {
-                presentBoardTapSelectionWarning(
-                    "全域ワープカードを使うには、先に手札からカードを選択してください。",
                     request.destination
                 )
 

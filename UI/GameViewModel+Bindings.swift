@@ -52,19 +52,23 @@ extension GameViewModel {
             }
             .store(in: &cancellables)
 
-        core.$isOverloadCharged
-            .removeDuplicates()
-            .receive(on: RunLoop.main)
-            .sink { [weak self] _ in
-                self?.objectWillChange.send()
-            }
-            .store(in: &cancellables)
-
         core.$dungeonFallEvent
             .receive(on: RunLoop.main)
             .sink { [weak self] event in
                 guard let event else { return }
                 self?.handleDungeonFallEvent(event)
+            }
+            .store(in: &cancellables)
+
+        core.$dungeonEnemyTurnEvent
+            .compactMap { $0 }
+            .receive(on: RunLoop.main)
+            .sink { [weak self] event in
+                guard event.isParalysisRest, let point = event.paralysisTrapPoint else { return }
+                self?.boardTapSelectionWarning = BoardTapSelectionWarning(
+                    message: "麻痺罠で1回休み。敵が続けて動きます。",
+                    destination: point
+                )
             }
             .store(in: &cancellables)
 

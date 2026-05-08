@@ -32,86 +32,7 @@ extension GameMode.Regulation {
         return effects
     }
 
-    /// 固定ワープカードの目的地を検証してから登録するヘルパー
-    /// - Parameters:
-    ///   - rawTargets: モード設定で宣言された元の座標集合
-    ///   - boardSize: 対象盤面サイズ
-    ///   - impassableTilePoints: 障害物として扱うマス集合
-    /// - Returns: 盤外・障害物・重複を除去した安全な辞書
-    static func sanitizeFixedWarpTargets(
-        _ rawTargets: [MoveCard: [GridPoint]],
-        boardSize: Int,
-        impassableTilePoints: Set<GridPoint>
-    ) -> [MoveCard: [GridPoint]] {
-        guard boardSize > 0, !rawTargets.isEmpty else { return [:] }
-
-        let validRange = 0..<boardSize
-        let isInsideBoard: (GridPoint) -> Bool = { point in
-            validRange.contains(point.x) && validRange.contains(point.y)
-        }
-
-        var sanitized: [MoveCard: [GridPoint]] = [:]
-
-        for (card, points) in rawTargets {
-            guard !points.isEmpty else { continue }
-
-            var filtered: [GridPoint] = []
-            filtered.reserveCapacity(points.count)
-            var seen: Set<GridPoint> = []
-
-            for point in points {
-                guard isInsideBoard(point), !impassableTilePoints.contains(point) else { continue }
-                guard seen.insert(point).inserted else { continue }
-                filtered.append(point)
-            }
-
-            guard !filtered.isEmpty else { continue }
-            sanitized[card] = filtered
-        }
-
-        return sanitized
-    }
-
-    /// 固定ワープカードの最終的な目的地リストを決定する
-    static func finalizeFixedWarpTargets(
-        rawTargets: [MoveCard: [GridPoint]],
-        boardSize: Int,
-        impassableTilePoints: Set<GridPoint>,
-        deckPreset: GameDeckPreset
-    ) -> [MoveCard: [GridPoint]] {
-        let sanitized = sanitizeFixedWarpTargets(
-            rawTargets,
-            boardSize: boardSize,
-            impassableTilePoints: impassableTilePoints
-        )
-        if !sanitized.isEmpty {
-            return sanitized
-        }
-
-        let allowedMoves = deckPreset.configuration.allowedMoves
-        guard allowedMoves.contains(.fixedWarp) else { return [:] }
-        return defaultFixedWarpTargets(
-            boardSize: boardSize,
-            impassableTilePoints: impassableTilePoints
-        )
-    }
-
-    /// 盤面全域から固定ワープカード用の目的地候補を生成する
-    static func defaultFixedWarpTargets(
-        boardSize: Int,
-        impassableTilePoints: Set<GridPoint>
-    ) -> [MoveCard: [GridPoint]] {
-        guard boardSize > 0 else { return [:] }
-
-        let allPoints = BoardGeometry.allPoints(for: boardSize)
-        let traversablePoints = allPoints.filter { point in
-            !impassableTilePoints.contains(point)
-        }
-        guard !traversablePoints.isEmpty else { return [:] }
-        return [.fixedWarp: traversablePoints]
-    }
-
-    /// デコード処理（固定ワープ定義は一旦文字列キーとして受け取り、MoveCard へ変換する）
+    /// デコード処理
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
 
@@ -128,17 +49,8 @@ extension GameMode.Regulation {
         let decodedImpassable = try container.decodeIfPresent(Set<GridPoint>.self, forKey: .impassableTilePoints) ?? []
         let decodedEffects = try container.decodeIfPresent([GridPoint: TileEffect].self, forKey: .tileEffectOverrides) ?? [:]
         let decodedWarpPairs = try container.decodeIfPresent([String: [GridPoint]].self, forKey: .warpTilePairs) ?? [:]
-        let rawFixedWarpTargets = try container.decodeIfPresent([String: [GridPoint]].self, forKey: .fixedWarpCardTargets) ?? [:]
         let decodedCompletionRule = try container.decodeIfPresent(GameMode.CompletionRule.self, forKey: .completionRule) ?? .boardClear
         let decodedDungeonRules = try container.decodeIfPresent(DungeonRules.self, forKey: .dungeonRules)
-
-        let decodedTargets = Self.decodeFixedWarpTargets(from: rawFixedWarpTargets)
-        let sanitizedTargets = Self.finalizeFixedWarpTargets(
-            rawTargets: decodedTargets,
-            boardSize: decodedBoardSize,
-            impassableTilePoints: decodedImpassable,
-            deckPreset: decodedDeckPreset
-        )
 
         boardSize = decodedBoardSize
         handSize = decodedHandSize
@@ -153,12 +65,11 @@ extension GameMode.Regulation {
         impassableTilePoints = decodedImpassable
         tileEffectOverrides = decodedEffects
         warpTilePairs = decodedWarpPairs
-        fixedWarpCardTargets = sanitizedTargets
         completionRule = decodedCompletionRule
         dungeonRules = decodedDungeonRules
     }
 
-    /// エンコード処理（固定ワープ定義は MoveCard のインデックスをキーに変換する）
+    /// エンコード処理
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(boardSize, forKey: .boardSize)
@@ -186,36 +97,10 @@ extension GameMode.Regulation {
         if !warpTilePairs.isEmpty {
             try container.encode(warpTilePairs, forKey: .warpTilePairs)
         }
-        let encodedTargets = Self.encodeFixedWarpTargets(fixedWarpCardTargets)
-        if !encodedTargets.isEmpty {
-            try container.encode(encodedTargets, forKey: .fixedWarpCardTargets)
-        }
         try container.encode(completionRule, forKey: .completionRule)
         if let dungeonRules {
             try container.encode(dungeonRules, forKey: .dungeonRules)
         }
     }
 
-    /// エンコード用に MoveCard を安定キーへ変換する
-    static func encodeFixedWarpTargets(_ targets: [MoveCard: [GridPoint]]) -> [String: [GridPoint]] {
-        guard !targets.isEmpty else { return [:] }
-        var encoded: [String: [GridPoint]] = [:]
-        for (card, points) in targets {
-            guard let index = MoveCard.allCases.firstIndex(of: card) else { continue }
-            encoded[String(index)] = points
-        }
-        return encoded
-    }
-
-    /// デコード時に MoveCard のインデックスへ戻す
-    static func decodeFixedWarpTargets(from raw: [String: [GridPoint]]) -> [MoveCard: [GridPoint]] {
-        guard !raw.isEmpty else { return [:] }
-        var decoded: [MoveCard: [GridPoint]] = [:]
-        for (key, points) in raw {
-            guard let index = Int(key), MoveCard.allCases.indices.contains(index) else { continue }
-            let card = MoveCard.allCases[index]
-            decoded[card] = points
-        }
-        return decoded
-    }
 }

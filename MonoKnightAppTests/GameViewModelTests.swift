@@ -41,43 +41,6 @@ final class GameViewModelTests: XCTestCase {
         )
     }
 
-    /// ポーズメニュー用のペナルティ説明がモード設定と一致することを確認
-    func testPauseMenuPenaltyItemsMatchModePenalties() {
-        // 手詰まりと捨て札のみペナルティが発生するモードを用意し、ゼロの場合の表記も同時に検証する。
-        let penalties = GameMode.PenaltySettings(
-            deadlockPenaltyCost: 7,
-            manualRedrawPenaltyCost: 0,
-            manualDiscardPenaltyCost: 4,
-            revisitPenaltyCost: 0
-        )
-        let regulation = GameMode.Regulation(
-            boardSize: 5,
-            handSize: 5,
-            nextPreviewCount: 3,
-            allowsStacking: true,
-            deckPreset: .standard,
-            spawnRule: .fixed(GridPoint(x: 2, y: 2)),
-            penalties: penalties
-        )
-        let mode = GameMode(
-            identifier: .dungeonFloor,
-            displayName: "テスト用カスタムモード",
-            regulation: regulation
-        )
-        let (viewModel, _) = makeViewModel(mode: mode)
-
-        XCTAssertEqual(
-            viewModel.pauseMenuPenaltyItems,
-            [
-                "手詰まり +7 手",
-                "引き直し ペナルティなし",
-                "捨て札 +4 手",
-                "再訪ペナルティなし"
-            ],
-            "RootView の表記と同じ並び・文言でペナルティ説明が生成される必要があります"
-        )
-    }
-
     /// 捨て札ボタンを押すとモードが開始されることを確認
     func testToggleManualDiscardSelectionActivatesWhenPlayable() {
         let (viewModel, core) = makeViewModel(mode: legacyControlTestMode)
@@ -103,7 +66,7 @@ final class GameViewModelTests: XCTestCase {
     /// 補助カードは盤面候補なしでも手札から使用できることを確認
     func testSupportCardCanBeTappedWithoutBoardMoveCandidates() {
         let deck = Deck.makeTestDeck(playableCards: [
-            .support(.nextRefresh),
+            .support(.refillEmptySlots),
             .move(.kingRight),
             .move(.kingUp),
             .move(.kingLeft),
@@ -116,8 +79,8 @@ final class GameViewModelTests: XCTestCase {
         let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 2, y: 2), mode: mode)
         let viewModel = makeViewModel(mode: mode, core: core)
 
-        guard let supportIndex = core.handStacks.firstIndex(where: { $0.topCard?.supportCard == .nextRefresh }) else {
-            return XCTFail("NEXT更新補助カードが手札にありません")
+        guard let supportIndex = core.handStacks.firstIndex(where: { $0.topCard?.supportCard == .refillEmptySlots }) else {
+            return XCTFail("補給補助カードが手札にありません")
         }
 
         XCTAssertTrue(viewModel.isCardUsable(core.handStacks[supportIndex]))
@@ -126,31 +89,6 @@ final class GameViewModelTests: XCTestCase {
         viewModel.handleHandSlotTap(at: supportIndex)
 
         XCTAssertEqual(core.moveCount, 1, "補助カードタップで 1 手消費する想定です")
-    }
-
-    /// 入替補助カードは対象選択モードへ入り、キャンセルできることを確認
-    func testSupportSwapTapStartsSelectionAndCanCancel() {
-        let deck = Deck.makeTestDeck(playableCards: [
-            .support(.swapOne),
-            .move(.kingRight),
-            .move(.kingUp),
-            .move(.kingLeft),
-            .move(.kingDown)
-        ], configuration: .supportToolkit)
-        let mode = legacyControlTestMode
-        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 2, y: 2), mode: mode)
-        let viewModel = makeViewModel(mode: mode, core: core)
-
-        guard let supportIndex = core.handStacks.firstIndex(where: { $0.topCard?.supportCard == .swapOne }) else {
-            return XCTFail("入替補助カードが手札にありません")
-        }
-
-        viewModel.handleHandSlotTap(at: supportIndex)
-        XCTAssertTrue(core.isAwaitingSupportSwapSelection)
-
-        core.cancelSupportSwapSelection()
-        XCTAssertFalse(core.isAwaitingSupportSwapSelection)
-        XCTAssertEqual(core.moveCount, 0)
     }
 
     /// 手動ペナルティが進行中のみで発火し、ペナルティ量が一致することを確認
@@ -389,7 +327,7 @@ final class GameViewModelTests: XCTestCase {
             dungeonID: rogueDungeon.id,
             currentFloorIndex: 0,
             carriedHP: 3,
-            rewardInventoryEntries: [DungeonInventoryEntry(card: .fixedWarp, rewardUses: 2)]
+            rewardInventoryEntries: [DungeonInventoryEntry(card: .rayRight, rewardUses: 2)]
         )
         let mode = rogueDungeon.floors[0].makeGameMode(
             dungeonID: rogueDungeon.id,
@@ -683,6 +621,49 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertEqual(core.dungeonInventoryEntries.count, 9)
     }
 
+    func testPendingDungeonPickupReplacementResolvesFromDisplayedHandTap() throws {
+        let pickupPoint = GridPoint(x: 1, y: 0)
+        let existingCards = Array(MoveCard.allCases.prefix(9))
+        let newCard = try XCTUnwrap(MoveCard.allCases.dropFirst(9).first)
+        let pickup = DungeonCardPickupDefinition(id: "view_model_hand_tap_replace", point: pickupPoint, card: newCard)
+        let (viewModel, core) = makeViewModel(mode: makePickupChoiceMode(pickup: pickup))
+        for card in existingCards {
+            XCTAssertTrue(core.addDungeonInventoryCardForTesting(card, pickupUses: 1))
+        }
+        let move = try XCTUnwrap(core.availableBasicOrthogonalMoves().first { $0.destination == pickupPoint })
+        core.playBasicOrthogonalMove(using: move)
+        XCTAssertNotNil(viewModel.pendingDungeonPickupChoice)
+
+        viewModel.handleHandSlotTap(at: 0)
+
+        XCTAssertNil(viewModel.pendingDungeonPickupChoice)
+        XCTAssertFalse(core.dungeonInventoryEntries.contains { $0.moveCard == existingCards[0] })
+        XCTAssertTrue(core.dungeonInventoryEntries.contains { $0.moveCard == newCard && $0.pickupUses == 1 })
+        XCTAssertFalse(core.activeDungeonCardPickups.contains { $0.id == pickup.id })
+        XCTAssertEqual(core.dungeonInventoryEntries.count, 9)
+    }
+
+    func testPendingDungeonPickupIgnoresBasicMoveSlotTap() throws {
+        let pickupPoint = GridPoint(x: 1, y: 0)
+        let existingCards = Array(MoveCard.allCases.prefix(9))
+        let newCard = try XCTUnwrap(MoveCard.allCases.dropFirst(9).first)
+        let pickup = DungeonCardPickupDefinition(id: "view_model_basic_slot_ignored", point: pickupPoint, card: newCard)
+        let (viewModel, core) = makeViewModel(mode: makePickupChoiceMode(pickup: pickup))
+        for card in existingCards {
+            XCTAssertTrue(core.addDungeonInventoryCardForTesting(card, pickupUses: 1))
+        }
+        let inventoryBefore = core.dungeonInventoryEntries
+        let move = try XCTUnwrap(core.availableBasicOrthogonalMoves().first { $0.destination == pickupPoint })
+        core.playBasicOrthogonalMove(using: move)
+        XCTAssertNotNil(viewModel.pendingDungeonPickupChoice)
+
+        viewModel.handleHandSlotTap(at: GameViewModel.dungeonBasicMoveSlotIndex)
+
+        XCTAssertNotNil(viewModel.pendingDungeonPickupChoice)
+        XCTAssertEqual(core.dungeonInventoryEntries, inventoryBefore)
+        XCTAssertTrue(core.activeDungeonCardPickups.contains { $0.id == pickup.id })
+    }
+
     func testDungeonRunNextFloorCarriesHPAndResetsFloorState() throws {
         let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
         let mode = try XCTUnwrap(DungeonLibrary.shared.firstFloorMode(for: tower))
@@ -766,7 +747,7 @@ final class GameViewModelTests: XCTestCase {
             DungeonFallEvent(
                 point: fallPoint,
                 sourceFloorIndex: 13,
-                destinationFloorIndex: 14,
+                destinationFloorIndex: 12,
                 hpAfterDamage: 1
             )
         )
@@ -778,9 +759,9 @@ final class GameViewModelTests: XCTestCase {
         let nextMode = try XCTUnwrap(requestedMode)
         let nextRunState = try XCTUnwrap(nextMode.dungeonMetadataSnapshot?.runState)
         XCTAssertFalse(viewModel.showingResult)
-        XCTAssertEqual(nextMode.dungeonMetadataSnapshot?.floorID, tower.floors[14].id)
+        XCTAssertEqual(nextMode.dungeonMetadataSnapshot?.floorID, tower.floors[12].id)
         XCTAssertEqual(nextMode.initialSpawnPoint, fallPoint)
-        XCTAssertEqual(nextRunState.currentFloorIndex, 14)
+        XCTAssertEqual(nextRunState.currentFloorIndex, 12)
         XCTAssertEqual(nextRunState.clearedFloorCount, 13)
         XCTAssertEqual(nextRunState.totalMoveCount, 7)
         XCTAssertEqual(nextRunState.pendingFallLandingPoint, fallPoint)
@@ -812,7 +793,7 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.showingResult)
     }
 
-    func testGrowthTowerCheckpointFloorEndsCurrentRunSection() throws {
+    func testGrowthTowerTenthFloorOffersRewardAndStartsEleventhFloor() throws {
         let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
         let runState = DungeonRunState(
             dungeonID: tower.id,
@@ -828,11 +809,36 @@ final class GameViewModelTests: XCTestCase {
             carriedHP: runState.carriedHP,
             runState: runState
         )
-        let (viewModel, _) = makeViewModel(mode: mode)
+        var requestedMode: GameMode?
+        let (viewModel, _) = makeViewModel(
+            mode: mode,
+            onRequestStartDungeonFloor: { requestedMode = $0 }
+        )
 
-        XCTAssertTrue(viewModel.availableDungeonRewardMoveCards.isEmpty)
-        XCTAssertTrue(viewModel.adjustableDungeonRewardEntries.isEmpty)
-        XCTAssertNil(viewModel.nextDungeonFloorTitle)
+        XCTAssertEqual(viewModel.availableDungeonRewardMoveCards, tower.floors[9].rewardMoveCardsAfterClear)
+        XCTAssertEqual(viewModel.adjustableDungeonRewardEntries, [
+            DungeonInventoryEntry(card: .straightRight2, rewardUses: 2)
+        ])
+        XCTAssertEqual(viewModel.nextDungeonFloorTitle, tower.floors[10].makeGameMode(
+            dungeonID: tower.id,
+            difficulty: tower.difficulty,
+            carriedHP: runState.carriedHP,
+            runState: runState.advancedToNextFloor(
+                carryoverHP: runState.carriedHP,
+                currentFloorMoveCount: 0,
+                currentInventoryEntries: runState.rewardInventoryEntries
+            )
+        ).displayName)
+
+        viewModel.handleDungeonRewardSelection(.straightUp2)
+
+        let nextMode = try XCTUnwrap(requestedMode)
+        XCTAssertEqual(nextMode.dungeonMetadataSnapshot?.floorID, tower.floors[10].id)
+        XCTAssertEqual(nextMode.dungeonMetadataSnapshot?.runState?.currentFloorIndex, 10)
+        XCTAssertEqual(nextMode.dungeonMetadataSnapshot?.runState?.rewardInventoryEntries, [
+            DungeonInventoryEntry(card: .straightRight2, rewardUses: 2),
+            DungeonInventoryEntry(card: .straightUp2, rewardUses: 2)
+        ])
     }
 
     func testGrowthRewardUsesBoostAddsThreeUsesWhenUnlocked() throws {
@@ -1195,7 +1201,7 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertEqual(snapshot.runState.rewardInventoryEntries, [DungeonInventoryEntry(card: reward, rewardUses: 2)])
     }
 
-    func testWarpTowerFixedWarpRewardAppearsUsableOnStartedNextFloor() throws {
+    func testWarpTowerRewardAppearsUsableOnStartedNextFloor() throws {
         let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "warp-tower"))
         let firstMode = try XCTUnwrap(DungeonLibrary.shared.firstFloorMode(for: tower))
         var requestedMode: GameMode?
@@ -1207,19 +1213,19 @@ final class GameViewModelTests: XCTestCase {
         firstCore.overrideDungeonHPForTesting(3)
 
         firstViewModel.showingResult = true
-        firstViewModel.handleDungeonRewardSelection(.fixedWarp)
+        firstViewModel.handleDungeonRewardSelection(.rayRight)
 
         let nextMode = try XCTUnwrap(requestedMode)
         let (nextViewModel, nextCore) = makeViewModel(mode: nextMode)
-        let rewardStack = try XCTUnwrap(nextCore.handStacks.first { $0.representativeMove == .fixedWarp })
+        let rewardStack = try XCTUnwrap(nextCore.handStacks.first { $0.representativeMove == .rayRight })
 
         XCTAssertEqual(nextMode.dungeonMetadataSnapshot?.floorID, "warp-2")
-        XCTAssertEqual(nextCore.dungeonInventoryEntries, [DungeonInventoryEntry(card: .fixedWarp, rewardUses: 2)])
-        XCTAssertTrue(nextViewModel.displayedHandStacks.contains { $0.representativeMove == .fixedWarp })
+        XCTAssertEqual(nextCore.dungeonInventoryEntries, [DungeonInventoryEntry(card: .rayRight, rewardUses: 2)])
+        XCTAssertTrue(nextViewModel.displayedHandStacks.contains { $0.representativeMove == .rayRight })
         XCTAssertTrue(nextViewModel.isCardUsable(rewardStack))
         XCTAssertTrue(
-            nextCore.availableMoves().contains { $0.stackID == rewardStack.id && $0.destination == GridPoint(x: 6, y: 4) },
-            "固定ワープ報酬は次階開始直後からワープ塔の短縮先へ使える必要があります"
+            nextCore.availableMoves().contains { $0.stackID == rewardStack.id && $0.destination == GridPoint(x: 8, y: 4) },
+            "ワープ塔 1F 報酬のレイ型カードは 2F 開始直後から短縮に使える必要があります"
         )
     }
 
@@ -1392,6 +1398,56 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.showingResult)
     }
 
+    func testDungeonRetryButtonTitleShowsGrowthTowerFirstSectionStartFloor() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let runState = DungeonRunState(
+            dungeonID: tower.id,
+            currentFloorIndex: 4,
+            carriedHP: 1,
+            totalMoveCount: 18,
+            clearedFloorCount: 4
+        )
+        let mode = tower.floors[4].makeGameMode(
+            dungeonID: tower.id,
+            carriedHP: runState.carriedHP,
+            runState: runState
+        )
+        let (viewModel, _) = makeViewModel(mode: mode)
+
+        XCTAssertEqual(viewModel.dungeonRetryStartFloorText, "1F")
+        XCTAssertEqual(viewModel.resultRetryButtonTitle, "1Fから再挑戦")
+    }
+
+    func testDungeonRetryButtonTitleShowsGrowthTowerSecondSectionStartFloor() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let runState = DungeonRunState(
+            dungeonID: tower.id,
+            currentFloorIndex: 13,
+            carriedHP: 1,
+            totalMoveCount: 42,
+            clearedFloorCount: 13
+        )
+        let mode = tower.floors[13].makeGameMode(
+            dungeonID: tower.id,
+            carriedHP: runState.carriedHP,
+            runState: runState
+        )
+        var requestedMode: GameMode?
+        let (viewModel, _) = makeViewModel(
+            mode: mode,
+            onRequestStartDungeonFloor: { requestedMode = $0 }
+        )
+
+        XCTAssertEqual(viewModel.dungeonRetryStartFloorText, "11F")
+        XCTAssertEqual(viewModel.resultRetryButtonTitle, "11Fから再挑戦")
+
+        viewModel.showingResult = true
+        viewModel.handleResultRetry()
+
+        XCTAssertEqual(requestedMode?.dungeonMetadataSnapshot?.floorID, tower.floors[10].id)
+        XCTAssertEqual(requestedMode?.dungeonMetadataSnapshot?.runState?.currentFloorIndex, 10)
+    }
+
     /// メニュー経由でタイトルへ戻る際に GameCore.reset() を呼び出さず、広告フラグのみ初期化されることを確認
     func testPerformMenuActionReturnToTitleSkipsCoreResetButResetsAdsFlag() {
         // タイトル遷移コールバックの呼び出し回数と広告リセットを検証するため、専用のスパイを注入する
@@ -1452,6 +1508,52 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.boardTapSelectionWarning, "reset 操作後も盤面タップ警告が残っています")
         XCTAssertNil(viewModel.pendingMenuAction, "reset 操作後も確認ダイアログが残っています")
         XCTAssertFalse(viewModel.showingResult, "reset 操作後は結果画面表示フラグが閉じている必要があります")
+    }
+
+    func testParalysisTrapEnemyTurnShowsRestToast() {
+        let paralysisTrap = GridPoint(x: 1, y: 0)
+        let mode = GameMode(
+            identifier: .dungeonFloor,
+            displayName: "麻痺罠トーストテスト",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 0,
+                allowsStacking: true,
+                deckPreset: .standard,
+                spawnRule: .fixed(GridPoint(x: 0, y: 0)),
+                penalties: GameMode.PenaltySettings(
+                    deadlockPenaltyCost: 0,
+                    manualRedrawPenaltyCost: 0,
+                    manualDiscardPenaltyCost: 0,
+                    revisitPenaltyCost: 0
+                ),
+                tileEffectOverrides: [paralysisTrap: .slow],
+                completionRule: .dungeonExit(exitPoint: GridPoint(x: 4, y: 4)),
+                dungeonRules: DungeonRules(
+                    difficulty: .growth,
+                    failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 8),
+                    enemies: []
+                )
+            ),
+            leaderboardEligible: false
+        )
+        let core = GameCore.makeTestInstance(
+            deck: Deck.makeTestDeck(cards: [.rayRight, .kingUp, .kingRight], configuration: mode.deckConfiguration),
+            current: GridPoint(x: 0, y: 0),
+            mode: mode
+        )
+        let viewModel = makeViewModel(mode: mode, core: core)
+        let move = try! XCTUnwrap(core.availableMoves().first { $0.destination == paralysisTrap })
+
+        core.playCard(using: move)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+
+        XCTAssertEqual(viewModel.boardTapSelectionWarning?.destination, paralysisTrap)
+        XCTAssertEqual(
+            viewModel.boardTapSelectionWarning?.message,
+            "麻痺罠で1回休み。敵が続けて動きます。"
+        )
     }
 
     private func makePickupChoiceMode(pickup: DungeonCardPickupDefinition) -> GameMode {

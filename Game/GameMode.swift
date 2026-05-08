@@ -212,9 +212,6 @@ public struct GameMode: Equatable, Identifiable {
         /// ワープペアの定義（pairID ごとに 2 点以上の座標を列挙する）
         /// - Important: ここで指定した座標群から `TileEffect.warp` を自動生成し、片方向のみの登録ミスを防ぐ
         public var warpTilePairs: [String: [GridPoint]] = [:]
-        /// 固定座標ワープカードで利用する目的地候補
-        /// - Important: 盤外や障害物マスを事前に除外し、ゲーム中の `availableMoves` での防御的なチェックを補助する
-        public internal(set) var fixedWarpCardTargets: [MoveCard: [GridPoint]] = [:]
         /// クリア条件
         public var completionRule: CompletionRule
         /// 塔ダンジョン用の追加ルール。出口到達型以外では nil を基本とする
@@ -243,7 +240,6 @@ public struct GameMode: Equatable, Identifiable {
             impassableTilePoints: Set<GridPoint> = [],
             tileEffectOverrides: [GridPoint: TileEffect] = [:],
             warpTilePairs: [String: [GridPoint]] = [:],
-            fixedWarpCardTargets: [MoveCard: [GridPoint]] = [:],
             completionRule: CompletionRule = .boardClear,
             dungeonRules: DungeonRules? = nil
         ) {
@@ -260,12 +256,6 @@ public struct GameMode: Equatable, Identifiable {
             self.impassableTilePoints = impassableTilePoints
             self.tileEffectOverrides = tileEffectOverrides
             self.warpTilePairs = warpTilePairs
-            self.fixedWarpCardTargets = Regulation.finalizeFixedWarpTargets(
-                rawTargets: fixedWarpCardTargets,
-                boardSize: boardSize,
-                impassableTilePoints: impassableTilePoints,
-                deckPreset: deckPreset
-            )
             self.completionRule = completionRule
             self.dungeonRules = dungeonRules
         }
@@ -285,7 +275,6 @@ public struct GameMode: Equatable, Identifiable {
             case impassableTilePoints
             case tileEffectOverrides
             case warpTilePairs
-            case fixedWarpCardTargets
             case completionRule
             case dungeonRules
         }
@@ -437,14 +426,6 @@ public struct GameMode: Equatable, Identifiable {
     public var warpTilePairs: [String: [GridPoint]] { regulation.warpTilePairs }
     /// 任意に上書きしたタイル効果一覧
     public var tileEffectOverrides: [GridPoint: TileEffect] { regulation.tileEffectOverrides }
-    /// 固定ワープカード用の目的地辞書
-    public var fixedWarpCardTargets: [MoveCard: [GridPoint]] { regulation.fixedWarpCardTargets }
-    /// 固定ワープカードが利用する目的地集合（Deck で順番に割り当てる）
-    /// - Note: `.fixedWarp` キーに対応する座標リストのみを公開し、カード配布時のメタデータとして活用する
-    public var fixedWarpDestinationPool: [GridPoint] {
-        regulation.fixedWarpCardTargets[.fixedWarp] ?? []
-    }
-
     /// Equatable 準拠。識別子が一致すれば同一モードとみなす
     public static func == (lhs: GameMode, rhs: GameMode) -> Bool {
         guard lhs.identifier == rhs.identifier else { return false }

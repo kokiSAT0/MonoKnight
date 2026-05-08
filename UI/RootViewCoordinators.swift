@@ -54,9 +54,13 @@ final class RootViewPreparationCoordinator: ObservableObject {
     }
 
     func finishPreparationAndStart(stateStore: RootViewStateStore) {
-        guard stateStore.isPreparingGame else { return }
+        guard stateStore.isPreparingGame,
+              stateStore.isGameReadyForManualStart else { return }
 
-        debugLog("RootView: ユーザー操作によりゲームを開始")
+        pendingGameActivationWorkItem?.cancel()
+        pendingGameActivationWorkItem = nil
+
+        debugLog("RootView: 開始演出を終了してゲームを開始")
 
         withAnimation(.easeInOut(duration: 0.25)) {
             stateStore.isPreparingGame = false
@@ -93,16 +97,40 @@ final class RootViewPreparationCoordinator: ObservableObject {
                 return
             }
 
-            debugLog("RootView: ゲーム準備完了 手動開始待ちへ移行 sessionID=\(sessionID)")
+            debugLog("RootView: ゲーム準備完了 短い開始演出を表示 sessionID=\(sessionID)")
 
             stateStore.isGameReadyForManualStart = true
-            self.pendingGameActivationWorkItem = nil
+            self.scheduleAutomaticGameStart(for: sessionID, stateStore: stateStore)
         }
 
         pendingGameActivationWorkItem = workItem
 
         DispatchQueue.main.asyncAfter(
             deadline: .now() + RootView.RootLayoutMetrics.gamePreparationMinimumDelay,
+            execute: workItem
+        )
+    }
+
+    private func scheduleAutomaticGameStart(for sessionID: UUID, stateStore: RootViewStateStore) {
+        let workItem = DispatchWorkItem { [weak self, weak stateStore, sessionID] in
+            guard let self,
+                  let stateStore else {
+                return
+            }
+
+            guard sessionID == stateStore.gameSessionID else {
+                debugLog("RootView: 自動開始を破棄 scheduled=\(sessionID) current=\(stateStore.gameSessionID)")
+                self.pendingGameActivationWorkItem = nil
+                return
+            }
+
+            self.finishPreparationAndStart(stateStore: stateStore)
+        }
+
+        pendingGameActivationWorkItem = workItem
+
+        DispatchQueue.main.asyncAfter(
+            deadline: .now() + RootView.RootLayoutMetrics.gamePreparationChapterDisplayDuration,
             execute: workItem
         )
     }

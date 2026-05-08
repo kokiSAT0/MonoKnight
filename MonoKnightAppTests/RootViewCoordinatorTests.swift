@@ -67,6 +67,46 @@ struct RootViewCoordinatorTests {
     }
 
     @MainActor
+    @Test func finishPreparationBeforeReadyDoesNotStartGame() throws {
+        let stateStore = RootViewStateStore(initialIsAuthenticated: true)
+        let preparationCoordinator = RootViewPreparationCoordinator()
+        let tower = try #require(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
+        let mode = try #require(DungeonLibrary.shared.firstFloorMode(for: tower))
+
+        preparationCoordinator.startPreparation(
+            for: mode,
+            context: .dungeonSelection,
+            stateStore: stateStore
+        )
+        preparationCoordinator.finishPreparationAndStart(stateStore: stateStore)
+
+        #expect(stateStore.isPreparingGame == true)
+        #expect(stateStore.isGameReadyForManualStart == false)
+    }
+
+    @MainActor
+    @Test func startPreparationAutomaticallyStartsAfterChapterDisplay() async throws {
+        let stateStore = RootViewStateStore(initialIsAuthenticated: true)
+        let preparationCoordinator = RootViewPreparationCoordinator()
+        let tower = try #require(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
+        let mode = try #require(DungeonLibrary.shared.firstFloorMode(for: tower))
+
+        preparationCoordinator.startPreparation(
+            for: mode,
+            context: .dungeonSelection,
+            stateStore: stateStore
+        )
+
+        #expect(stateStore.isPreparingGame == true)
+
+        try await Task.sleep(nanoseconds: 1_500_000_000)
+
+        #expect(stateStore.isPreparingGame == false)
+        #expect(stateStore.isGameReadyForManualStart == false)
+        #expect(stateStore.isShowingTitleScreen == false)
+    }
+
+    @MainActor
     @Test func startImmediatelyForFallLanding_skipsPreparationOverlayAndUpdatesSession() throws {
         let stateStore = RootViewStateStore(initialIsAuthenticated: true)
         let preparationCoordinator = RootViewPreparationCoordinator()

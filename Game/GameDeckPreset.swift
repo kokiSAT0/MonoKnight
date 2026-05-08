@@ -53,20 +53,11 @@ public enum GameDeckPreset: String, CaseIterable, Codable, Identifiable {
     /// 標準デッキにすべての選択カードを加えた構成
     /// - Note: 選択カード 10 種を網羅し、複合判断の最終確認に位置付ける。
     case standardWithAllChoices
-    /// 固定ワープカードを主役に据えた基礎練習デッキ
-    /// - Note: 固定ワープを高頻度で引き込みつつ、近接移動でリカバリーできるようサポートカードも少量混在させる。
-    case fixedWarpSpecialized
-    /// 標準デッキに全域ワープを高重みで導入した構成
-    /// - Note: 瞬間移動ルート構築を重点的に練習する上級者向けデッキ。
-    case superWarpHighFrequency
-    /// 標準デッキにワープカードを加えた構成
-    /// - Note: 固定ワープと全域ワープをバランス良く混在させ、応用期の訓練に用いる。
-    case standardWithWarpCards
     /// 目的地制カードの調整用に主要カード系統を混在させた実験構成
-    /// - Note: 標準・選択・レイ・ワープカードをまとめて扱う。
+    /// - Note: 標準・選択・レイカードをまとめて扱う。
     case targetLabAllIn
     /// 補助専用カードの挙動確認に使う実験構成
-    /// - Note: NEXT更新・入替・導きを、基本移動カードと混ぜて確認する。
+    /// - Note: 補給を、基本移動カードと混ぜて確認する。
     case supportToolkit
     /// 複数マス移動カードを重視した拡張構成
     /// - Note: レイ型＋補助キングで盤面全域の掃討速度を高める目的。
@@ -122,12 +113,6 @@ public enum GameDeckPreset: String, CaseIterable, Codable, Identifiable {
             return "標準＋桂馬選択構成"
         case .standardWithAllChoices:
             return "標準＋全選択カード構成"
-        case .fixedWarpSpecialized:
-            return "固定ワープ基礎構成"
-        case .superWarpHighFrequency:
-            return "全域ワープ高頻度構成"
-        case .standardWithWarpCards:
-            return "標準＋ワープカード構成"
         case .targetLabAllIn:
             return "カード・特殊マス実験場構成"
         case .supportToolkit:
@@ -185,12 +170,6 @@ public enum GameDeckPreset: String, CaseIterable, Codable, Identifiable {
             return .standardWithKnightChoices
         case .standardWithAllChoices:
             return .standardWithAllChoices
-        case .fixedWarpSpecialized:
-            return .fixedWarpSpecialized
-        case .superWarpHighFrequency:
-            return .superWarpHighFrequency
-        case .standardWithWarpCards:
-            return .standardWithWarpCards
         case .targetLabAllIn:
             return .targetLabAllIn
         case .supportToolkit:
@@ -208,12 +187,4 @@ public enum GameDeckPreset: String, CaseIterable, Codable, Identifiable {
         }
     }
 
-    /// 固定ワープカードを含めた構成を取得するヘルパー
-    /// - Parameters:
-    ///   - weight: 固定ワープカードへ割り当てたい重み（既定値は 1）
-    ///   - summarySuffix: 山札概要テキストへ追記するサフィックス（nil の場合は変更しない）
-    /// - Returns: 固定ワープカードを含む `Deck.Configuration`
-    func configurationIncludingFixedWarpCard(weight: Int = 1, summarySuffix: String? = "＋固定ワープ") -> Deck.Configuration {
-        configuration.addingFixedWarpCard(weight: weight, summarySuffix: summarySuffix)
-    }
 }

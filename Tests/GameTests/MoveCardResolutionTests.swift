@@ -2,16 +2,6 @@ import XCTest
 @testable import Game
 
 final class MoveCardResolutionTests: XCTestCase {
-    func testSuperWarpFallbackVectorsRemainStableAfterExtraction() {
-        let expectedVectors = (-2...2).flatMap { dy in
-            (-2...2).compactMap { dx in
-                (dx == 0 && dy == 0) ? nil : MoveVector(dx: dx, dy: dy)
-            }
-        }
-
-        XCTAssertEqual(MoveCard.superWarp.movementVectors, expectedVectors)
-    }
-
     func testDirectionalRayFinalStepResolvesSingleTerminalPath() {
         let origin = GridPoint(x: 1, y: 1)
         let boardSize = BoardGeometry.standardSize
@@ -30,18 +20,6 @@ final class MoveCardResolutionTests: XCTestCase {
             paths.first?.traversedPoints,
             [GridPoint(x: 2, y: 2), GridPoint(x: 3, y: 3), GridPoint(x: 4, y: 4)]
         )
-    }
-
-    func testFixedWarpFallbackVectorAndResolvedPathsRemainCompatible() {
-        let origin = GridPoint.center(of: BoardGeometry.standardSize)
-        let context = MoveCard.MovePattern.ResolutionContext(
-            boardSize: BoardGeometry.standardSize,
-            contains: { $0.isInside(boardSize: BoardGeometry.standardSize) },
-            isTraversable: { $0.isInside(boardSize: BoardGeometry.standardSize) }
-        )
-
-        XCTAssertEqual(MoveCard.fixedWarp.movementVectors, [MoveVector(dx: 0, dy: 0)])
-        XCTAssertTrue(MoveCard.fixedWarp.resolvePaths(from: origin, context: context).isEmpty)
     }
 
     func testMovementVectorOverrideTakesPrecedenceOverRegistryResolution() {

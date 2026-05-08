@@ -2,12 +2,13 @@ import SwiftUI
 import Game // MoveCard 型を利用するためゲームロジックモジュールを読み込む
 
 /// ゲームの遊び方を段階的に説明するビュー
-/// カード挙動の例や勝利条件・ペナルティの概要をまとめ、初見でも流れを理解しやすくする
+/// 塔攻略の流れ、カード、盤面マーカーをまとめ、初見でも出口到達の判断を理解しやすくする
 struct HowToPlayView: View {
     /// ヘルプ内で表示するページ
     private enum HelpPage: String, CaseIterable, Identifiable {
         case guide = "遊び方"
         case cardDictionary = "カード辞典"
+        case enemyDictionary = "敵辞典"
         case tileDictionary = "マス辞典"
 
         var id: HelpPage { self }
@@ -16,7 +17,7 @@ struct HowToPlayView: View {
     /// モーダル表示時に閉じるボタンを出すかどうかのフラグ
     /// - Note: タイトル画面からシートで開く場合のみ true を渡す
     let showsCloseButton: Bool
-    /// 説明に用いる基準モード（スタンダード）を保持し、手札スロット数などを文字列に反映する
+    /// 説明に用いる基準モードを保持し、手札スロット数などを文字列に反映する
     private let referenceMode: GameMode = .dungeonPlaceholder
     /// 画面を閉じるための環境変数
     @Environment(\.dismiss) private var dismiss
@@ -46,6 +47,8 @@ struct HowToPlayView: View {
                     guideContent
                 case .cardDictionary:
                     cardDictionaryContent
+                case .enemyDictionary:
+                    enemyDictionaryContent
                 case .tileDictionary:
                     tileDictionaryContent
                 }
@@ -79,64 +82,68 @@ private extension HowToPlayView {
     var guideContent: some View {
         VStack(alignment: .leading, spacing: 24) {
             // MARK: - 導入文
-            Text("MonoKnight は移動カードを使って、盤面上の目的地を連続で取るパズルです。手札スロットは最大 \(referenceMode.handSize) 種類まで保持でき、\(referenceMode.stackingRuleDetailText)以下の流れを押さえておけば、すぐにプレイを始められます。")
+            Text("MonoKnight は、カードで騎士を動かして塔の出口を目指すダンジョンです。HP、敵の危険範囲、床ギミックを読みながら、残り手数に少し余裕を残して階段までの道を作ります。")
                 .font(.body)
                 .padding(.bottom, 8)
 
             // MARK: - 基本移動の説明
             HowToPlaySectionView(
-                title: "1. カードを 1 枚選んで駒を動かす",
-                description: "手札スロットに並ぶカードから 1 枚を選び、描かれた方向へ騎士を移動させます。",
+                title: "1. 塔を選んで階段を目指す",
+                description: "塔選択から基礎塔、成長塔、試練塔を選び、各フロアの出口や階段へ到達すると次の階へ進みます。",
                 card: .kingUp,
                 tips: [
-                    "カードの矢印が示す方向に 1 マス進みます。",
-                    "白い丸が現在位置、黒い丸が移動先を表します。",
-                    stackingTip
+                    "基礎塔は基本を学ぶ短い塔です。",
+                    "成長塔は周回成長と報酬カードで少しずつ登りやすくなる本編塔です。",
+                    "試練塔は永続成長を持ち込まず、その場のカードで突破する高難度塔です。"
                 ]
             )
 
             // MARK: - ナイト移動の例
             HowToPlaySectionView(
-                title: "2. ナイト型カードで L 字に跳ぶ",
-                description: "一部のカードはチェスのナイトと同じく L 字に移動します。盤面を広く踏破する鍵になります。",
+                title: "2. 基本移動とカードを使い分ける",
+                description: "基本移動が使える塔では、上下左右 1 マスへカードを消費せずに歩けます。移動カードは危険な場所を避けたり、階段までの手数を短くしたいときに使います。",
                 card: .knightUp2Right1,
                 tips: [
-                    "2 マス進んだ後に 1 マス横へ曲がります。",
-                    "行き止まりを回避するために温存しておく戦略も重要です。"
+                    "基本移動も 1 手として数えられ、敵や床ギミックが反応します。",
+                    "ナイト型カードは途中のマスを通らず、敵の危険範囲や罠を飛び越えやすいカードです。",
+                    stackingTip
                 ]
             )
 
             // MARK: - 遠距離カードの例
             HowToPlaySectionView(
-                title: "3. 2 マス先まで届くカード",
-                description: "直線や斜めに 2 マス進むカードもあります。使えるマスが限られるため、盤外判定に注意しましょう。",
+                title: "3. 床カードと報酬を持ち越す",
+                description: "床に落ちているカードは、踏むだけで拾えます。フロアをクリアしたあとに残っているカードや報酬カードは、同じ区間の次の階へ持ち越せます。",
                 card: .straightUp2,
                 tips: [
-                    "盤外へ出るカードは自動で選べなくなり、半透明表示になります。",
-                    "表示中の目的地に到達すると獲得数が増え、新しい目的地が補充されます。"
+                    "カードは通常 9 種類まで持てます。同じカードは種類枠を増やさず、残り回数としてまとまります。",
+                    "報酬では新しいカードの追加や、持っているカードの使用回数強化を選べます。",
+                    "補給カードは空いた枠を一時カードで埋める強力な報酬です。"
                 ]
             )
 
             // MARK: - 勝利条件の説明
             HowToPlaySectionView(
-                title: "4. 勝利条件",
-                description: "目的地を \(referenceMode.targetGoalCount) 個獲得するとクリアとなり、移動手数・時間・フォーカス回数からスコアが記録されます。",
+                title: "4. 敵と床ギミックを読む",
+                description: "塔では敵の危険範囲、見えている罠、鍵、ワープ床、ひび割れ床などを読みながらルートを選びます。",
                 card: nil,
                 tips: [
-                    "目的地マーカーは、どれからでも獲得できる表示中の目的地です。",
-                    "移動候補は枠で表示されるため、目的地マーカーとは分けて見られます。",
-                    "最小の手数でクリアを目指し、Game Center ランキング上位を狙いましょう。"
+                    "危険範囲へ入ると HP を失います。敵によって動き方や警告の出方が違います。",
+                    "敵の形で種類を見分け、詳しい読み方は敵辞典で確認できます。",
+                    "鍵がある階では、鍵マスを踏むまで階段が施錠されています。",
+                    "ひび割れ床はもう一度踏むと崩れ、HP を失って下の階へ落ちることがあります。"
                 ]
             )
 
             // MARK: - ペナルティの説明
             HowToPlaySectionView(
-                title: "5. 目的地へ近づくフォーカス",
-                description: "必要なカードが遠いときはフォーカスを使うと、表示中の目的地へ近づきやすいカードを優先して手札を整えられます。",
+                title: "5. 失敗しても成長塔で伸ばす",
+                description: "HP が 0 になると失敗です。残り手数 0 も失敗ですが、通常ルートには余裕があります。成長塔では区切り階の初回クリアで成長ポイントを得て、次の挑戦を少し有利にできます。",
                 card: nil,
                 tips: [
-                    "フォーカスは手数を増やさず、スコアに15ポイント加算されます。",
-                    "手詰まり時も、目的地へ近づきやすい再配布が自動で行われます。"
+                    "失敗したときは現在の区間開始階から再挑戦します。",
+                    "成長塔は 5F、10F、15F、20F の初回クリアで成長ポイントを得ます。",
+                    "成長は成長塔だけに反映され、基礎塔と試練塔には持ち込みません。"
                 ]
             )
         }
@@ -145,7 +152,7 @@ private extension HowToPlayView {
     /// カード辞典本文
     var cardDictionaryContent: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text("カードの種類と動きを代表的な系統ごとに確認できます。")
+            Text("塔攻略で使うカードの動きと、階段までのルート作りでの役割を確認できます。")
                 .font(.body)
 
             ForEach(cardCategoryOrder, id: \.self) { category in
@@ -167,10 +174,24 @@ private extension HowToPlayView {
         }
     }
 
+    /// 敵辞典本文
+    var enemyDictionaryContent: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Text("塔に出る敵の見た目と、危険範囲の読み方を確認できます。")
+                .font(.body)
+
+            EncyclopediaGroupView(title: "敵") {
+                ForEach(EnemyEncyclopediaEntry.allEntries) { entry in
+                    EnemyEncyclopediaRow(entry: entry)
+                }
+            }
+        }
+    }
+
     /// マス辞典本文
     var tileDictionaryContent: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text("盤面に登場するマスやマーカーの効果を確認できます。")
+            Text("塔攻略中に盤面へ出るマスやマーカーの効果を確認できます。")
                 .font(.body)
 
             ForEach(tileCategoryOrder, id: \.self) { category in
@@ -194,7 +215,7 @@ private extension HowToPlayView {
     }
 
     var tileCategoryOrder: [String] {
-        ["基本", "目的地", "踏破", "障害物", "特殊効果"]
+        ["基本", "攻略", "危険", "障害物", "特殊効果"]
     }
 
     func cardEntries(for category: String) -> [MoveCardEncyclopediaEntry] {
@@ -205,10 +226,10 @@ private extension HowToPlayView {
         TileEncyclopediaEntry.allEntries.filter { $0.category == category }
     }
 
-    /// スタック仕様を説明する文言。スタンダード以外に差し替えた場合でも整合が取れるようにする
+    /// スタック仕様を説明する文言。塔の所持カード枠と整合が取れるようにする
     var stackingTip: String {
         if referenceMode.allowsCardStacking {
-            return "同じ種類のカードは手札スロット内で重なり、消費するとまとめて補充されます。"
+            return "同じ種類のカードは所持枠内でまとまり、残り使用回数として表示されます。"
         } else {
             return "同じ種類のカードでも別スロットを占有するため、空き枠を意識した立ち回りが重要です。"
         }
@@ -310,14 +331,147 @@ private struct SupportCardEncyclopediaRow: View {
 
     private var symbolName: String {
         switch entry.card {
-        case .nextRefresh:
-            return "arrow.triangle.2.circlepath"
-        case .swapOne:
-            return "arrow.left.arrow.right"
-        case .guidance:
-            return "scope"
         case .refillEmptySlots:
             return "square.grid.3x3.fill"
+        }
+    }
+}
+
+// MARK: - 敵辞典行
+private struct EnemyEncyclopediaRow: View {
+    let entry: EnemyEncyclopediaEntry
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            EnemyMarkerPreviewView(kind: entry.kind)
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(entry.displayName)
+                    .font(.headline)
+                Text(entry.behaviorSummary)
+                    .font(.callout)
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(entry.dangerSummary)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color(UIColor.secondarySystemBackground))
+        )
+        .accessibilityElement(children: .combine)
+    }
+}
+
+// MARK: - 敵辞典用プレビュー
+private struct EnemyMarkerPreviewView: View {
+    let kind: EnemyPresentationKind
+
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var theme: AppTheme {
+        AppTheme(colorScheme: colorScheme)
+    }
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(theme.boardTileUnvisited)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .stroke(theme.boardGridLine.opacity(0.72), lineWidth: 1)
+                )
+
+            marker
+                .frame(width: 31, height: 31)
+        }
+        .frame(width: 48, height: 48)
+        .fixedSize()
+    }
+
+    @ViewBuilder
+    private var marker: some View {
+        switch kind {
+        case .guardPost:
+            ShieldMarkerShape()
+                .fill(fill)
+                .overlay(ShieldMarkerShape().stroke(stroke, lineWidth: 2))
+        case .patrol:
+            DiamondShape()
+                .fill(fill)
+                .overlay(DiamondShape().stroke(stroke, lineWidth: 2))
+                .overlay(
+                    Image(systemName: "arrow.right")
+                        .font(.system(size: 12, weight: .black))
+                        .foregroundColor(stroke)
+                )
+        case .watcher:
+            EyeMarkerShape()
+                .fill(fill)
+                .overlay(EyeMarkerShape().stroke(stroke, lineWidth: 2))
+                .overlay(Circle().fill(stroke).frame(width: 8, height: 8))
+        case .rotatingWatcher:
+            EyeMarkerShape()
+                .fill(fill)
+                .overlay(EyeMarkerShape().stroke(stroke, lineWidth: 2))
+                .overlay(
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 13, weight: .black))
+                        .foregroundColor(stroke)
+                )
+        case .chaser:
+            ChaserMarkerShape()
+                .fill(fill)
+                .overlay(ChaserMarkerShape().stroke(stroke, lineWidth: 2))
+        case .marker:
+            TriangleShape()
+                .fill(fill)
+                .overlay(TriangleShape().stroke(stroke, lineWidth: 2))
+                .overlay(
+                    Image(systemName: "exclamationmark")
+                        .font(.system(size: 15, weight: .black))
+                        .foregroundColor(stroke)
+                )
+        }
+    }
+
+    private var fill: Color {
+        switch kind {
+        case .guardPost:
+            return Color.red.opacity(0.24)
+        case .patrol:
+            return Color.orange.opacity(0.24)
+        case .watcher:
+            return Color.pink.opacity(0.22)
+        case .rotatingWatcher:
+            return Color.indigo.opacity(0.22)
+        case .chaser:
+            return Color.teal.opacity(0.24)
+        case .marker:
+            return Color.yellow.opacity(0.28)
+        }
+    }
+
+    private var stroke: Color {
+        switch kind {
+        case .guardPost:
+            return .red
+        case .patrol:
+            return .orange
+        case .watcher:
+            return .pink
+        case .rotatingWatcher:
+            return .indigo
+        case .chaser:
+            return .teal
+        case .marker:
+            return .yellow
         }
     }
 }
@@ -382,11 +536,20 @@ private struct TileMarkerPreviewView: View {
              .target,
              .nextTarget,
              .multiVisit,
+             .dungeonExit,
+             .lockedDungeonExit,
+             .dungeonKey,
+             .cardPickup,
+             .damageTrap,
+             .brittleFloor,
+             .enemyDanger,
+             .enemyWarning,
              .effect:
             return theme.boardTileUnvisited
         case .toggle:
             return theme.boardTileToggle
-        case .impassable:
+        case .impassable,
+             .collapsedFloor:
             return theme.boardTileImpassable
         }
     }
@@ -425,6 +588,98 @@ private struct TileMarkerPreviewView: View {
                     .stroke(theme.boardTileMultiStroke, lineWidth: 1.4)
             }
             .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+        case .dungeonExit:
+            VStack(spacing: 3) {
+                ForEach(0..<3, id: \.self) { index in
+                    RoundedRectangle(cornerRadius: 1, style: .continuous)
+                        .fill(theme.boardKnight.opacity(0.88))
+                        .frame(width: CGFloat(12 + index * 6), height: 4)
+                }
+            }
+        case .lockedDungeonExit:
+            ZStack {
+                VStack(spacing: 3) {
+                    ForEach(0..<3, id: \.self) { index in
+                        RoundedRectangle(cornerRadius: 1, style: .continuous)
+                            .fill(theme.boardKnight.opacity(0.42))
+                            .frame(width: CGFloat(12 + index * 6), height: 4)
+                    }
+                }
+                Image(systemName: "lock.fill")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundColor(theme.boardTileEffectPreserveCard)
+                    .offset(y: -11)
+            }
+        case .dungeonKey:
+            Image(systemName: "key.fill")
+                .font(.system(size: 22, weight: .semibold))
+                .foregroundColor(theme.boardTileEffectPreserveCard)
+        case .cardPickup:
+            RoundedRectangle(cornerRadius: 3, style: .continuous)
+                .fill(theme.cardBackgroundHand)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 3, style: .continuous)
+                        .stroke(theme.cardBorderHand.opacity(0.8), lineWidth: 1.5)
+                )
+                .frame(width: 22, height: 30)
+                .overlay(
+                    Image(systemName: "arrow.up")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(theme.cardContentPrimary)
+                )
+        case .damageTrap:
+            ZStack {
+                TriangleShape()
+                    .fill(theme.boardTileEffectSlow.opacity(0.22))
+                    .frame(width: 32, height: 28)
+                    .rotationEffect(.degrees(180))
+                Image(systemName: "exclamationmark")
+                    .font(.system(size: 19, weight: .black))
+                    .foregroundColor(theme.boardTileEffectSlow)
+            }
+        case .brittleFloor:
+            ZStack {
+                Path { path in
+                    path.move(to: CGPoint(x: 17, y: 10))
+                    path.addLine(to: CGPoint(x: 23, y: 20))
+                    path.addLine(to: CGPoint(x: 18, y: 28))
+                    path.addLine(to: CGPoint(x: 26, y: 38))
+                }
+                .stroke(theme.boardTileMultiStroke, lineWidth: 2)
+                Path { path in
+                    path.move(to: CGPoint(x: 32, y: 13))
+                    path.addLine(to: CGPoint(x: 27, y: 23))
+                    path.addLine(to: CGPoint(x: 33, y: 33))
+                }
+                .stroke(theme.boardTileMultiStroke.opacity(0.72), lineWidth: 1.6)
+            }
+        case .collapsedFloor:
+            Image(systemName: "xmark")
+                .font(.system(size: 20, weight: .bold))
+                .foregroundColor(.white.opacity(0.78))
+        case .enemyDanger:
+            Circle()
+                .fill(theme.boardTileEffectSlow.opacity(0.18))
+                .overlay(Circle().stroke(theme.boardTileEffectSlow, lineWidth: 2))
+                .frame(width: 31, height: 31)
+                .overlay(
+                    Image(systemName: "eye.fill")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(theme.boardTileEffectSlow)
+                )
+        case .enemyWarning:
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(theme.boardTileEffectPreserveCard.opacity(0.16))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .stroke(theme.boardTileEffectPreserveCard, style: StrokeStyle(lineWidth: 2, dash: [4, 3]))
+                )
+                .frame(width: 32, height: 32)
+                .overlay(
+                    Image(systemName: "arrow.right")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundColor(theme.boardTileEffectPreserveCard)
+                )
         case .impassable:
             Image(systemName: "xmark")
                 .font(.system(size: 20, weight: .bold))
@@ -466,44 +721,38 @@ private struct TileEffectMarkerView: View {
                     .rotationEffect(.degrees(225))
                     .offset(x: 6, y: 0)
             }
-        case .boost:
-            VStack(spacing: -4) {
-                ChevronShape()
+        case .blast(let direction):
+            ZStack {
+                BlastArrowShape()
                     .fill(accent.opacity(0.92))
-                    .frame(width: 24, height: 15)
-                ChevronShape()
+                    .frame(width: 24, height: 30)
+                BlastArrowShape()
                     .fill(accent.opacity(0.64))
-                    .frame(width: 18, height: 12)
+                    .frame(width: 16, height: 22)
+                    .offset(y: -5)
             }
+            .rotationEffect(blastArrowRotation(for: direction))
         case .slow:
-            VStack(spacing: 3) {
-                Capsule()
-                    .fill(accent.opacity(0.92))
-                    .frame(width: 23, height: 5)
-                ChevronShape()
-                    .fill(accent.opacity(0.72))
-                    .frame(width: 21, height: 14)
-                    .rotationEffect(.degrees(180))
-            }
-        case .nextRefresh:
             ZStack {
-                Circle()
-                    .stroke(accent, lineWidth: 2)
-                    .frame(width: 25, height: 25)
-                TriangleShape()
-                    .fill(accent.opacity(0.9))
-                    .frame(width: 10, height: 9)
-                    .rotationEffect(.degrees(-35))
-                    .offset(x: 10, y: -2)
-            }
-        case .freeFocus:
-            ZStack {
-                Circle()
-                    .stroke(accent, lineWidth: 2)
-                    .frame(width: 29, height: 29)
-                Circle()
-                    .fill(accent.opacity(0.86))
-                    .frame(width: 9, height: 9)
+                DiamondShape()
+                    .fill(accent.opacity(0.14))
+                    .frame(width: 31, height: 31)
+                DiamondShape()
+                    .stroke(accent.opacity(0.88), lineWidth: 2.1)
+                    .frame(width: 31, height: 31)
+                BoltShape()
+                    .fill(accent.opacity(0.94))
+                    .frame(width: 17, height: 25)
+                BoltShape()
+                    .fill(accent.opacity(0.68))
+                    .frame(width: 8, height: 13)
+                    .rotationEffect(.degrees(-18))
+                    .offset(x: -11, y: 0)
+                BoltShape()
+                    .fill(accent.opacity(0.62))
+                    .frame(width: 7, height: 12)
+                    .rotationEffect(.degrees(162))
+                    .offset(x: 12, y: 1)
             }
         case .preserveCard:
             ZStack {
@@ -515,69 +764,6 @@ private struct TileEffectMarkerView: View {
                     .frame(width: 14, height: 4)
                     .offset(y: -5)
             }
-        case .draft:
-            ZStack {
-                RoundedRectangle(cornerRadius: 2, style: .continuous)
-                    .fill(accent.opacity(0.14))
-                    .overlay(RoundedRectangle(cornerRadius: 2).stroke(accent.opacity(0.62), lineWidth: 1.6))
-                    .frame(width: 17, height: 22)
-                    .rotationEffect(.degrees(-8))
-                    .offset(x: -6, y: -2)
-                RoundedRectangle(cornerRadius: 2, style: .continuous)
-                    .fill(accent.opacity(0.20))
-                    .overlay(RoundedRectangle(cornerRadius: 2).stroke(accent, lineWidth: 1.8))
-                    .frame(width: 17, height: 22)
-                    .rotationEffect(.degrees(7))
-                    .offset(x: 4, y: 3)
-                TriangleShape()
-                    .fill(accent.opacity(0.92))
-                    .frame(width: 10, height: 9)
-                    .rotationEffect(.degrees(-25))
-                    .offset(x: 12, y: -11)
-            }
-        case .overload:
-            ZStack {
-                Circle()
-                    .fill(accent.opacity(0.10))
-                    .overlay(Circle().stroke(accent.opacity(0.82), lineWidth: 2))
-                    .frame(width: 29, height: 29)
-                BoltShape()
-                    .fill(accent.opacity(0.95))
-                    .frame(width: 18, height: 28)
-            }
-        case .targetSwap:
-            ZStack {
-                DiamondShape()
-                    .fill(accent.opacity(0.10))
-                    .overlay(DiamondShape().stroke(accent.opacity(0.72), lineWidth: 1.6))
-                    .frame(width: 16, height: 16)
-                    .offset(x: -7, y: 4)
-                DiamondShape()
-                    .fill(accent.opacity(0.18))
-                    .overlay(DiamondShape().stroke(accent, lineWidth: 1.6))
-                    .frame(width: 16, height: 16)
-                    .offset(x: 8, y: -4)
-                ChevronShape()
-                    .fill(accent.opacity(0.92))
-                    .frame(width: 15, height: 10)
-                    .rotationEffect(.degrees(-45))
-            }
-        case .openGate:
-            ZStack {
-                Circle()
-                    .fill(accent.opacity(0.10))
-                    .overlay(Circle().stroke(accent.opacity(0.95), lineWidth: 2.3))
-                    .frame(width: 18, height: 18)
-                    .offset(x: -8, y: -1)
-                Capsule(style: .continuous)
-                    .fill(accent.opacity(0.95))
-                    .frame(width: 22, height: 5)
-                    .offset(x: 7, y: -1)
-                RoundedRectangle(cornerRadius: 1.2, style: .continuous)
-                    .fill(accent.opacity(0.95))
-                    .frame(width: 5, height: 12)
-                    .offset(x: 17, y: 4)
-            }
         }
     }
 
@@ -587,24 +773,12 @@ private struct TileEffectMarkerView: View {
             return theme.boardTileEffectWarp
         case .shuffleHand:
             return theme.boardTileEffectShuffle
-        case .boost:
-            return theme.boardTileEffectBoost
+        case .blast:
+            return theme.boardTileEffectBlast
         case .slow:
             return theme.boardTileEffectSlow
-        case .nextRefresh:
-            return theme.boardTileEffectNextRefresh
-        case .freeFocus:
-            return theme.boardTileEffectFreeFocus
         case .preserveCard:
             return theme.boardTileEffectPreserveCard
-        case .draft:
-            return theme.boardTileEffectDraft
-        case .overload:
-            return theme.boardTileEffectOverload
-        case .targetSwap:
-            return theme.boardTileEffectTargetSwap
-        case .openGate:
-            return theme.boardTileEffectOpenGate
         }
     }
 }
@@ -616,6 +790,79 @@ private struct DiamondShape: Shape {
         path.addLine(to: CGPoint(x: rect.maxX, y: rect.midY))
         path.addLine(to: CGPoint(x: rect.midX, y: rect.maxY))
         path.addLine(to: CGPoint(x: rect.minX, y: rect.midY))
+        path.closeSubpath()
+        return path
+    }
+}
+
+private struct BlastArrowShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let shaftWidth = rect.width * 0.34
+        let shaftLeft = rect.midX - shaftWidth / 2
+        let shaftRight = rect.midX + shaftWidth / 2
+        let shaftTop = rect.minY + rect.height * 0.52
+
+        path.move(to: CGPoint(x: shaftLeft, y: rect.maxY))
+        path.addLine(to: CGPoint(x: shaftRight, y: rect.maxY))
+        path.addLine(to: CGPoint(x: shaftRight, y: shaftTop))
+        path.addLine(to: CGPoint(x: rect.maxX, y: shaftTop))
+        path.addLine(to: CGPoint(x: rect.midX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.minX, y: shaftTop))
+        path.addLine(to: CGPoint(x: shaftLeft, y: shaftTop))
+        path.closeSubpath()
+        return path
+    }
+}
+
+private func blastArrowRotation(for direction: MoveVector) -> Angle {
+    if direction.dx > 0 { return .degrees(90) }
+    if direction.dx < 0 { return .degrees(-90) }
+    if direction.dy < 0 { return .degrees(180) }
+    return .degrees(0)
+}
+
+private struct ShieldMarkerShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.midX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX * 0.86, y: rect.minY + rect.height * 0.22))
+        path.addLine(to: CGPoint(x: rect.maxX * 0.76, y: rect.minY + rect.height * 0.72))
+        path.addLine(to: CGPoint(x: rect.midX, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.24, y: rect.minY + rect.height * 0.72))
+        path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.14, y: rect.minY + rect.height * 0.22))
+        path.closeSubpath()
+        return path
+    }
+}
+
+private struct EyeMarkerShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX, y: rect.midY))
+        path.addQuadCurve(
+            to: CGPoint(x: rect.maxX, y: rect.midY),
+            control: CGPoint(x: rect.midX, y: rect.minY)
+        )
+        path.addQuadCurve(
+            to: CGPoint(x: rect.minX, y: rect.midY),
+            control: CGPoint(x: rect.midX, y: rect.maxY)
+        )
+        path.closeSubpath()
+        return path
+    }
+}
+
+private struct ChaserMarkerShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX, y: rect.minY + rect.height * 0.22))
+        path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.58, y: rect.minY + rect.height * 0.22))
+        path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.58, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.midY))
+        path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.58, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.58, y: rect.minY + rect.height * 0.78))
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.minY + rect.height * 0.78))
         path.closeSubpath()
         return path
     }

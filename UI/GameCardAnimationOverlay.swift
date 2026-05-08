@@ -43,10 +43,7 @@ private extension GameCardAnimationOverlay {
                 in: boardFrame
             )
 
-            MoveCardIllustrationView(
-                card: animatingCard.move,
-                fixedWarpDestination: animatingCard.fixedWarpDestination // アニメーション中も固定ワープ先に合わせたカード絵柄を維持する
-            )
+            MoveCardIllustrationView(card: animatingCard.move)
                 // 盤面オーバーレイ側は matchedGeometryEffect のターゲット役に固定し、
                 // 手札側のビューと同時に isSource: true になる事態を避けて警告を抑止する
                 .matchedGeometryEffect(

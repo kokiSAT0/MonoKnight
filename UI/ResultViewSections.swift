@@ -212,9 +212,9 @@ struct DungeonGrowthAwardSection: View {
 
     private var rewardSummaryText: String {
         if let floorNumber = award.milestoneFloorNumber {
-            return "\(floorNumber)Fの区切りに到達しました。塔選択の成長から、初期HPや報酬候補を強化できます。"
+            return "\(floorNumber)Fの区切りに到達しました。成長塔カードの成長から、初期HPや報酬候補を強化できます。"
         }
-        return "塔選択の成長から、初期HPや報酬候補を強化できます。"
+        return "成長塔カードの成長から、初期HPや報酬候補を強化できます。"
     }
 }
 
@@ -222,6 +222,7 @@ struct ResultActionSection: View {
     let presentation: ResultSummaryPresentation
     let modeIdentifier: GameMode.Identifier
     let nextDungeonFloorTitle: String?
+    let retryButtonTitle: String
     let dungeonRewardMoveCards: [MoveCard]
     let dungeonRewardSupportCards: [SupportCard]
     let dungeonRewardInventoryEntries: [DungeonInventoryEntry]
@@ -350,40 +351,14 @@ struct ResultActionSection: View {
                         }
                     }
 
-                if let onSelectDungeonReward,
-                       !dungeonRewardInventoryEntries.isEmpty {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("手札")
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(.secondary)
-
-                            LazyVGrid(columns: rewardCardGridColumns, alignment: .leading, spacing: 8) {
-                                ForEach(dungeonRewardInventoryEntries) { entry in
-                                    let carriedChoice = DungeonCarriedRewardChoicePresentation(entry: entry)
-                                    DungeonCarriedRewardCardView(
-                                        choice: carriedChoice,
-                                        onUpgrade: {
-                                            triggerSuccessHapticIfNeeded()
-                                            if let move = entry.moveCard {
-                                                onSelectDungeonReward(.upgrade(move))
-                                            } else if let support = entry.supportCard {
-                                                onSelectDungeonReward(.upgradeSupport(support))
-                                            }
-                                        },
-                                        onRemove: {
-                                            triggerSuccessHapticIfNeeded()
-                                            if let move = entry.moveCard {
-                                                onRemoveDungeonRewardCard?(move)
-                                            } else if let support = entry.supportCard {
-                                                onRemoveDungeonRewardSupportCard?(support)
-                                            }
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                    }
+                    dungeonInventoryHandSection
                 }
+            }
+
+            if !hasDungeonRewardChoices,
+               presentation.usesDungeonExit,
+               !presentation.isFailed {
+                dungeonInventoryHandSection
             }
 
             if displayPolicy.showsInspectFailedBoardButton,
@@ -415,7 +390,7 @@ struct ResultActionSection: View {
                     triggerSuccessHapticIfNeeded()
                     onRetry()
                 } label: {
-                    Text(presentation.usesDungeonExit ? "もう一度挑戦" : "リトライ")
+                    Text(retryButtonTitle)
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
@@ -458,7 +433,62 @@ struct ResultActionSection: View {
         (onSelectDungeonRewardMoveCard != nil && !dungeonRewardMoveCards.isEmpty)
             || (onSelectDungeonReward != nil && !dungeonRewardSupportCards.isEmpty)
             || (onSelectDungeonReward != nil && !dungeonPickupCarryoverEntries.isEmpty)
-            || (onSelectDungeonReward != nil && !dungeonRewardInventoryEntries.isEmpty)
+            || (onSelectDungeonReward != nil && !adjustableDungeonRewardInventoryEntries.isEmpty)
+    }
+
+    private var adjustableDungeonRewardInventoryEntries: [DungeonInventoryEntry] {
+        dungeonRewardInventoryEntries.filter { $0.rewardUses > 0 }
+    }
+
+    @ViewBuilder
+    private var dungeonInventoryHandSection: some View {
+        if !dungeonRewardInventoryEntries.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("手札")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.secondary)
+
+                LazyVGrid(columns: rewardCardGridColumns, alignment: .leading, spacing: 8) {
+                    ForEach(dungeonRewardInventoryEntries) { entry in
+                        let carriedChoice = DungeonCarriedRewardChoicePresentation(entry: entry)
+                        DungeonCarriedRewardCardView(
+                            choice: carriedChoice,
+                            onUpgrade: upgradeAction(for: entry),
+                            onRemove: removeAction(for: entry)
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    private func upgradeAction(for entry: DungeonInventoryEntry) -> (() -> Void)? {
+        guard entry.rewardUses > 0, let onSelectDungeonReward else { return nil }
+        return {
+            triggerSuccessHapticIfNeeded()
+            if let move = entry.moveCard {
+                onSelectDungeonReward(.upgrade(move))
+            } else if let support = entry.supportCard {
+                onSelectDungeonReward(.upgradeSupport(support))
+            }
+        }
+    }
+
+    private func removeAction(for entry: DungeonInventoryEntry) -> (() -> Void)? {
+        guard entry.rewardUses > 0 else { return nil }
+        if entry.moveCard != nil {
+            guard onRemoveDungeonRewardCard != nil else { return nil }
+        } else if entry.supportCard != nil {
+            guard onRemoveDungeonRewardSupportCard != nil else { return nil }
+        }
+        return {
+            triggerSuccessHapticIfNeeded()
+            if let move = entry.moveCard {
+                onRemoveDungeonRewardCard?(move)
+            } else if let support = entry.supportCard {
+                onRemoveDungeonRewardSupportCard?(support)
+            }
+        }
     }
 
     private var rewardCardGridColumns: [GridItem] {
@@ -491,6 +521,7 @@ struct ResultActionSection: View {
         modeIdentifier: GameMode.Identifier,
         modeDisplayName: String,
         nextDungeonFloorTitle: String?,
+        retryButtonTitle: String,
         dungeonRewardMoveCards: [MoveCard] = [],
         dungeonRewardSupportCards: [SupportCard] = [],
         dungeonRewardInventoryEntries: [DungeonInventoryEntry] = [],
@@ -514,9 +545,10 @@ struct ResultActionSection: View {
         self.modeIdentifier = modeIdentifier
         self.modeDisplayName = modeDisplayName
         self.nextDungeonFloorTitle = nextDungeonFloorTitle
+        self.retryButtonTitle = retryButtonTitle
         self.dungeonRewardMoveCards = dungeonRewardMoveCards
         self.dungeonRewardSupportCards = dungeonRewardSupportCards
-        self.dungeonRewardInventoryEntries = dungeonRewardInventoryEntries.filter { $0.rewardUses > 0 }
+        self.dungeonRewardInventoryEntries = dungeonRewardInventoryEntries.filter(\.hasUsesRemaining)
         self.dungeonPickupCarryoverEntries = dungeonPickupCarryoverEntries.filter { $0.pickupUses > 0 }
         self.dungeonRewardAddUses = max(dungeonRewardAddUses, 1)
         self.showsLeaderboardButton = showsLeaderboardButton
@@ -619,11 +651,11 @@ struct DungeonRewardCardChoicePresentation: Equatable {
         }
         return move
     }
-    var usesBadgeText: String { "\(rewardUses)回使える" }
+    var usesBadgeText: String { "\(rewardUses)回" }
     var accessibilityIdentifier: String { "\(accessibilityIdentifierPrefix)_\(playable.displayName)" }
     var accessibilityLabel: String {
         let sourceDescription = sourceText.map { "、\($0)" } ?? ""
-        return "\(playable.displayName)、\(accessibilityRoleText)\(sourceDescription)、\(actionText)、\(rewardUses)回使える。選ぶと次の階へ進みます。\(descriptionText)"
+        return "\(playable.displayName)、\(accessibilityRoleText)\(sourceDescription)、\(actionText)、\(rewardUses)回。選ぶと次の階へ進みます。\(descriptionText)"
     }
 
     private var descriptionText: String {
@@ -710,20 +742,22 @@ private struct DungeonRewardCardChoiceView: View {
 
 struct DungeonCarriedRewardChoicePresentation: Equatable {
     let playable: PlayableCard
-    let rewardUses: Int
+    let totalUses: Int
+    let isAdjustable: Bool
 
     init(entry: DungeonInventoryEntry) {
         self.playable = entry.playable
-        self.rewardUses = max(entry.rewardUses, 1)
+        self.totalUses = max(entry.totalUses, 1)
+        self.isAdjustable = entry.rewardUses > 0
     }
 
     var title: String { playable.displayName }
-    var usesBadgeText: String { "現在\(rewardUses)回" }
+    var usesBadgeText: String { "現在\(totalUses)回" }
     var upgradeAccessibilityLabel: String {
-        "\(playable.displayName)、手札、現在\(rewardUses)回。使用回数+1。選ぶと次の階へ進みます。"
+        "\(playable.displayName)、手札、現在\(totalUses)回。使用回数+1。選ぶと次の階へ進みます。"
     }
     var removeAccessibilityLabel: String {
-        "\(playable.displayName)、手札、現在\(rewardUses)回。手札から外す。報酬は消費しません。"
+        "\(playable.displayName)、手札、現在\(totalUses)回。手札から外す。報酬は消費しません。"
     }
     var upgradeAccessibilityIdentifier: String { "dungeon_reward_upgrade_\(playable.displayName)" }
     var removeAccessibilityIdentifier: String { "dungeon_reward_remove_\(playable.displayName)" }
@@ -731,14 +765,14 @@ struct DungeonCarriedRewardChoicePresentation: Equatable {
 
 private struct DungeonCarriedRewardCardView: View {
     let choice: DungeonCarriedRewardChoicePresentation
-    let onUpgrade: () -> Void
-    let onRemove: () -> Void
+    let onUpgrade: (() -> Void)?
+    let onRemove: (() -> Void)?
     private var theme = AppTheme()
 
     init(
         choice: DungeonCarriedRewardChoicePresentation,
-        onUpgrade: @escaping () -> Void,
-        onRemove: @escaping () -> Void
+        onUpgrade: (() -> Void)?,
+        onRemove: (() -> Void)?
     ) {
         self.choice = choice
         self.onUpgrade = onUpgrade
@@ -764,42 +798,48 @@ private struct DungeonCarriedRewardCardView: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
 
-            HStack(spacing: 10) {
-                Button {
-                    onUpgrade()
-                } label: {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.title3.weight(.semibold))
-                        .frame(width: 34, height: 34)
-                        .foregroundStyle(theme.accentPrimary)
-                        .background(
-                            Circle()
-                                .fill(theme.accentPrimary.opacity(0.12))
-                        )
-                }
-                .buttonStyle(.plain)
-                .controlSize(.small)
-                .accessibilityLabel(choice.upgradeAccessibilityLabel)
-                .accessibilityHint("ダブルタップでこのカードの使用回数を増やし、次の階へ進みます")
-                .accessibilityIdentifier(choice.upgradeAccessibilityIdentifier)
+            if choice.isAdjustable {
+                HStack(spacing: 10) {
+                    if let onUpgrade {
+                        Button {
+                            onUpgrade()
+                        } label: {
+                            Image(systemName: "plus.circle.fill")
+                                .font(.title3.weight(.semibold))
+                                .frame(width: 34, height: 34)
+                                .foregroundStyle(theme.accentPrimary)
+                                .background(
+                                    Circle()
+                                        .fill(theme.accentPrimary.opacity(0.12))
+                                )
+                        }
+                        .buttonStyle(.plain)
+                        .controlSize(.small)
+                        .accessibilityLabel(choice.upgradeAccessibilityLabel)
+                        .accessibilityHint("ダブルタップでこのカードの使用回数を増やし、次の階へ進みます")
+                        .accessibilityIdentifier(choice.upgradeAccessibilityIdentifier)
+                    }
 
-                Button {
-                    onRemove()
-                } label: {
-                    Image(systemName: "trash.circle.fill")
-                        .font(.title3.weight(.semibold))
-                        .frame(width: 34, height: 34)
-                        .foregroundStyle(.red)
-                        .background(
-                            Circle()
-                                .fill(Color.red.opacity(0.11))
-                        )
+                    if let onRemove {
+                        Button {
+                            onRemove()
+                        } label: {
+                            Image(systemName: "trash.circle.fill")
+                                .font(.title3.weight(.semibold))
+                                .frame(width: 34, height: 34)
+                                .foregroundStyle(.red)
+                                .background(
+                                    Circle()
+                                        .fill(Color.red.opacity(0.11))
+                                )
+                        }
+                        .buttonStyle(.plain)
+                        .controlSize(.small)
+                        .accessibilityLabel(choice.removeAccessibilityLabel)
+                        .accessibilityHint("ダブルタップでこのカードを手札から外します")
+                        .accessibilityIdentifier(choice.removeAccessibilityIdentifier)
+                    }
                 }
-                .buttonStyle(.plain)
-                .controlSize(.small)
-                .accessibilityLabel(choice.removeAccessibilityLabel)
-                .accessibilityHint("ダブルタップでこのカードを手札から外します")
-                .accessibilityIdentifier(choice.removeAccessibilityIdentifier)
             }
         }
         .frame(maxWidth: .infinity, minHeight: 170, alignment: .top)
@@ -879,12 +919,6 @@ private struct SupportRewardCardIllustrationView: View {
 
     private var symbolName: String {
         switch card {
-        case .nextRefresh:
-            return "arrow.triangle.2.circlepath"
-        case .swapOne:
-            return "arrow.left.arrow.right"
-        case .guidance:
-            return "scope"
         case .refillEmptySlots:
             return "square.grid.3x3.fill"
         }

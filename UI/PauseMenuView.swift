@@ -6,29 +6,20 @@ import Game  // ゲームパッケージ内の HandOrderingStrategy などを利
 struct PauseMenuView: View {
     /// カラーテーマを共有し、背景色やボタン色を統一する
     private var theme = AppTheme()
-    /// ポーズメニューに並べるペナルティ説明文の一覧
-    let penaltyItems: [String]
     /// プレイ再開ボタン押下時の処理
     let onResume: () -> Void
-    /// リセット確定時の処理
-    let onConfirmReset: () -> Void
     /// タイトルへ戻る確定時の処理
     let onConfirmReturnToTitle: () -> Void
 
     /// GameView 側から利用できるようアクセスレベルを明示したカスタムイニシャライザ
     /// - Parameters:
     ///   - onResume: ポーズ解除時に実行するクロージャ
-    ///   - onConfirmReset: ゲームリセット確定時に実行するクロージャ
     ///   - onConfirmReturnToTitle: タイトル復帰確定時に実行するクロージャ
     init(
-        penaltyItems: [String] = [],
         onResume: @escaping () -> Void,
-        onConfirmReset: @escaping () -> Void,
         onConfirmReturnToTitle: @escaping () -> Void
     ) {
-        self.penaltyItems = penaltyItems
         self.onResume = onResume
-        self.onConfirmReset = onConfirmReset
         self.onConfirmReturnToTitle = onConfirmReturnToTitle
     }
 
@@ -43,18 +34,7 @@ struct PauseMenuView: View {
     var body: some View {
         NavigationStack {
             List {
-                // MARK: - ペナルティ一覧
-                if !penaltyItems.isEmpty {
-                    Section {
-                        ForEach(penaltyItems, id: \.self) { item in
-                            Text(item)
-                                .accessibilityLabel(Text("ペナルティ項目: \(item)"))
-                        }
-                    } header: {
-                        Text("ペナルティ")
-                    }
-                }
-                // MARK: - プレイ再開ボタン
+                // MARK: - 操作セクション
                 Section {
                     Button {
                         // フルスクリーンカバーを閉じて直ちにプレイへ戻る
@@ -63,26 +43,12 @@ struct PauseMenuView: View {
                     } label: {
                         Label("プレイを再開", systemImage: "play.fill")
                     }
-                    .accessibilityHint("ポーズを解除してゲームを続けます")
-                }
 
-                // MARK: - 操作セクション
-                Section {
-                    Button(role: .destructive) {
-                        pendingAction = .reset
-                    } label: {
-                        Label("ゲームをリセット", systemImage: "arrow.counterclockwise")
-                    }
-
-                    Button(role: .destructive) {
+                    Button {
                         pendingAction = .returnToTitle
                     } label: {
                         Label("タイトルへ戻る", systemImage: "house")
                     }
-                } header: {
-                    Text("操作")
-                } footer: {
-                    Text("リセットやタイトル復帰は確認ダイアログを経由して実行します。")
                 }
 
                 // MARK: - ゲーム設定セクション
@@ -117,29 +83,10 @@ struct PauseMenuView: View {
                     }
                 } header: {
                     Text("ゲーム設定")
-                } footer: {
-                    Text("テーマやハプティクス、ガイド表示を素早く切り替えられます。これらの項目はタイトル画面の設定からも調整できます。")
-                }
-
-                // MARK: - 詳細設定についての案内
-                Section {
-                    Text("広告やプライバシー設定などの詳細はタイトル画面右上のギアアイコンから確認できます。")
-                        .foregroundStyle(.secondary)
-                        .padding(.vertical, 4)
-                } header: {
-                    Text("詳細設定")
                 }
             }
             .listStyle(.insetGrouped)
             .navigationTitle("ポーズ")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("閉じる") {
-                        onResume()
-                        dismiss()
-                    }
-                }
-            }
             .background(theme.backgroundPrimary)
         }
         // 破壊的操作の確認ダイアログ
@@ -178,9 +125,6 @@ struct PauseMenuView: View {
     /// - Parameter action: ユーザーが確定した操作種別
     private func handleConfirmation(_ action: PauseConfirmationAction) {
         switch action {
-        case .reset:
-            onConfirmReset()
-            dismiss()
         case .returnToTitle:
             onConfirmReturnToTitle()
             dismiss()
@@ -192,27 +136,22 @@ struct PauseMenuView: View {
 private extension PauseMenuView {
     /// ポーズメニュー内で扱う確認対象の列挙体
     enum PauseConfirmationAction: Identifiable {
-        case reset
         case returnToTitle
 
         var id: Int {
             switch self {
-            case .reset: return 0
-            case .returnToTitle: return 1
+            case .returnToTitle: return 0
             }
         }
 
         var confirmationButtonTitle: String {
             switch self {
-            case .reset: return "リセットする"
             case .returnToTitle: return "タイトルへ戻る"
             }
         }
 
         var message: String {
             switch self {
-            case .reset:
-                return "現在の進行状況を破棄して最初からやり直します。よろしいですか？"
             case .returnToTitle:
                 return "ゲームを中断してタイトル画面へ戻ります。塔攻略中は続きから再開できます。"
             }

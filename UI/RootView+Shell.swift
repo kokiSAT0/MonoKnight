@@ -176,21 +176,9 @@ extension RootView {
         @ViewBuilder
         private var loadingOverlay: some View {
             if isPreparingGame {
-                let shouldReturnToDungeonSelection =
-                    lastPreparationContext?.isDungeonDerived ?? activeMode.usesDungeonExit
-
                 GamePreparationOverlayView(
                     mode: activeMode,
                     isReady: isGameReadyForManualStart,
-                    isDungeonContext: shouldReturnToDungeonSelection,
-                    onReturnToDungeonSelection: {
-                        if shouldReturnToDungeonSelection {
-                            pendingTitleNavigationTarget = .dungeon
-                            onReturnToTitle()
-                        } else {
-                            onReturnToTitle()
-                        }
-                    },
                     onStart: {
                         onConfirmGameStart()
                     }

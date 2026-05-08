@@ -73,24 +73,12 @@ public enum TileEffect: Equatable, Codable {
     case warp(pairID: String, destination: GridPoint)
     /// 手札をランダムに並び替える効果
     case shuffleHand
-    /// 進行方向へもう 1 マス加速する効果
-    case boost
+    /// 指定方向へ障害物または盤端に当たる直前まで吹き飛ばす効果
+    case blast(direction: MoveVector)
     /// このマスで残りの移動を止める効果
     case slow
-    /// 手札は維持し、NEXT だけを引き直す効果
-    case nextRefresh
-    /// フォーカス回数を増やさず、表示中の目的地へ近づきやすい手札へ再配布する効果
-    case freeFocus
     /// 使用したカードを消費せずに温存する効果
     case preserveCard
-    /// 手札と NEXT を目的地へ近づきやすい候補へ再配布する効果
-    case draft
-    /// 反動コストを受け、次の 1 手だけ使用カードを温存する効果
-    case overload
-    /// 表示中目的地の先頭と NEXT 目的地の先頭を入れ替える効果
-    case targetSwap
-    /// 指定した障害物マスを通常マスへ変える効果
-    case openGate(target: GridPoint)
 }
 
 /// 1 マスごとの踏破状態と必要踏破回数・挙動を保持する構造体
@@ -310,7 +298,11 @@ public struct Board: Equatable {
                 guard isWithinBoard(destination), !impassablePoints.contains(destination) else { continue }
                 sanitizedEffects[point] = effect
                 warpGroups[pairID, default: []].insert(point)
-            case .shuffleHand, .boost, .slow, .nextRefresh, .freeFocus, .preserveCard, .draft, .overload, .targetSwap, .openGate:
+            case .blast(let direction):
+                let isOrthogonalOneStep = abs(direction.dx) + abs(direction.dy) == 1
+                guard isOrthogonalOneStep else { continue }
+                sanitizedEffects[point] = effect
+            case .shuffleHand, .slow, .preserveCard:
                 sanitizedEffects[point] = effect
             }
         }
@@ -392,17 +384,6 @@ public struct Board: Equatable {
     public mutating func markVisited(_ point: GridPoint) {
         guard contains(point), tiles[point.y][point.x].isTraversable else { return }
         tiles[point.y][point.x].markVisited()
-    }
-
-    /// 指定座標の障害物を通常マスへ戻す
-    /// - Parameter point: 開門したい障害物マス
-    /// - Returns: 実際に障害物を開いた場合は true
-    @discardableResult
-    public mutating func openGate(at point: GridPoint) -> Bool {
-        guard contains(point), tiles[point.y][point.x].isImpassable else { return false }
-        tiles[point.y][point.x] = TileState()
-        tileEffects.removeValue(forKey: point)
-        return true
     }
 
     /// 指定座標を崩落床として通行不可へ変える

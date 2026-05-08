@@ -106,10 +106,10 @@ extension AppTheme {
         )
     }
 
-    var uiBoardTileEffectBoost: UIColor {
+    var uiBoardTileEffectBlast: UIColor {
         dynamicUIColor(
-            light: color(for: .light, keyPath: \.boardTileEffectBoost),
-            dark: color(for: .dark, keyPath: \.boardTileEffectBoost)
+            light: color(for: .light, keyPath: \.boardTileEffectBlast),
+            dark: color(for: .dark, keyPath: \.boardTileEffectBlast)
         )
     }
 
@@ -120,52 +120,10 @@ extension AppTheme {
         )
     }
 
-    var uiBoardTileEffectNextRefresh: UIColor {
-        dynamicUIColor(
-            light: color(for: .light, keyPath: \.boardTileEffectNextRefresh),
-            dark: color(for: .dark, keyPath: \.boardTileEffectNextRefresh)
-        )
-    }
-
-    var uiBoardTileEffectFreeFocus: UIColor {
-        dynamicUIColor(
-            light: color(for: .light, keyPath: \.boardTileEffectFreeFocus),
-            dark: color(for: .dark, keyPath: \.boardTileEffectFreeFocus)
-        )
-    }
-
     var uiBoardTileEffectPreserveCard: UIColor {
         dynamicUIColor(
             light: color(for: .light, keyPath: \.boardTileEffectPreserveCard),
             dark: color(for: .dark, keyPath: \.boardTileEffectPreserveCard)
-        )
-    }
-
-    var uiBoardTileEffectDraft: UIColor {
-        dynamicUIColor(
-            light: color(for: .light, keyPath: \.boardTileEffectDraft),
-            dark: color(for: .dark, keyPath: \.boardTileEffectDraft)
-        )
-    }
-
-    var uiBoardTileEffectOverload: UIColor {
-        dynamicUIColor(
-            light: color(for: .light, keyPath: \.boardTileEffectOverload),
-            dark: color(for: .dark, keyPath: \.boardTileEffectOverload)
-        )
-    }
-
-    var uiBoardTileEffectTargetSwap: UIColor {
-        dynamicUIColor(
-            light: color(for: .light, keyPath: \.boardTileEffectTargetSwap),
-            dark: color(for: .dark, keyPath: \.boardTileEffectTargetSwap)
-        )
-    }
-
-    var uiBoardTileEffectOpenGate: UIColor {
-        dynamicUIColor(
-            light: color(for: .light, keyPath: \.boardTileEffectOpenGate),
-            dark: color(for: .dark, keyPath: \.boardTileEffectOpenGate)
         )
     }
     #endif
@@ -185,14 +143,8 @@ extension AppTheme {
     var skBoardWarpHighlight: SKColor { SKColor(cgColor: uiBoardWarpHighlight.cgColor) }
     var skBoardTileEffectWarp: SKColor { SKColor(cgColor: uiBoardTileEffectWarp.cgColor) }
     var skBoardTileEffectShuffle: SKColor { SKColor(cgColor: uiBoardTileEffectShuffle.cgColor) }
-    var skBoardTileEffectBoost: SKColor { SKColor(cgColor: uiBoardTileEffectBoost.cgColor) }
+    var skBoardTileEffectBlast: SKColor { SKColor(cgColor: uiBoardTileEffectBlast.cgColor) }
     var skBoardTileEffectSlow: SKColor { SKColor(cgColor: uiBoardTileEffectSlow.cgColor) }
-    var skBoardTileEffectNextRefresh: SKColor { SKColor(cgColor: uiBoardTileEffectNextRefresh.cgColor) }
-    var skBoardTileEffectFreeFocus: SKColor { SKColor(cgColor: uiBoardTileEffectFreeFocus.cgColor) }
     var skBoardTileEffectPreserveCard: SKColor { SKColor(cgColor: uiBoardTileEffectPreserveCard.cgColor) }
-    var skBoardTileEffectDraft: SKColor { SKColor(cgColor: uiBoardTileEffectDraft.cgColor) }
-    var skBoardTileEffectOverload: SKColor { SKColor(cgColor: uiBoardTileEffectOverload.cgColor) }
-    var skBoardTileEffectTargetSwap: SKColor { SKColor(cgColor: uiBoardTileEffectTargetSwap.cgColor) }
-    var skBoardTileEffectOpenGate: SKColor { SKColor(cgColor: uiBoardTileEffectOpenGate.cgColor) }
     #endif
 }

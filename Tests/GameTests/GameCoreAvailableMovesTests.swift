@@ -136,80 +136,38 @@ final class GameCoreAvailableMovesTests: XCTestCase {
         XCTAssertEqual(moves.count, 1, "レイ型カードが複数候補を返しています")
     }
 
-    /// 全域ワープカードが障害物のみを除外し、既踏マスも含めて盤面全域へ移動できることを検証する
-    func testSuperWarpIncludesVisitedAndExcludesImpassableTiles() {
-        // --- 盤面条件を定義（障害物と既踏マスを意図的に配置） ---
-        let boardSize = BoardGeometry.standardSize
-        let origin = GridPoint(x: 2, y: 2)
-        let visitedPoint = GridPoint(x: 4, y: 4)
-        let impassablePoint = GridPoint(x: 1, y: 3)
-
+    func testDirectionalRayStopsAtParalysisTrapCandidate() {
+        let paralysisTrap = GridPoint(x: 3, y: 2)
         let regulation = GameMode.Regulation(
-            boardSize: boardSize,
+            boardSize: BoardGeometry.standardSize,
             handSize: 1,
             nextPreviewCount: 0,
             allowsStacking: true,
-            deckPreset: .superWarpHighFrequency,
-            spawnRule: .fixed(origin),
+            deckPreset: .directionalRayFocus,
+            spawnRule: .fixed(GridPoint(x: 1, y: 2)),
             penalties: GameMode.PenaltySettings(
                 deadlockPenaltyCost: 0,
                 manualRedrawPenaltyCost: 0,
                 manualDiscardPenaltyCost: 0,
                 revisitPenaltyCost: 0
             ),
-            impassableTilePoints: [impassablePoint]
+            tileEffectOverrides: [paralysisTrap: .slow]
         )
-
         let mode = GameMode(
             identifier: .dungeonFloor,
-            displayName: "全域ワープ候補テスト",
+            displayName: "麻痺罠レイ停止テスト",
             regulation: regulation,
             leaderboardEligible: false
         )
+        let deck = Deck.makeTestDeck(cards: [.rayRight], configuration: regulation.deckPreset.configuration)
+        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 1, y: 2), mode: mode)
+        let stack = HandStack(cards: [DealtCard(move: .rayRight)])
 
-        let deck = Deck.makeTestDeck(cards: [.superWarp], configuration: .superWarpHighFrequency)
-        let visitedPoints = [origin, visitedPoint]
-        let core = GameCore.makeTestInstance(
-            deck: deck,
-            current: origin,
-            mode: mode,
-            initialVisitedPoints: visitedPoints
-        )
+        let moves = core.availableMoves(handStacks: [stack], current: GridPoint(x: 1, y: 2))
 
-        // --- 手札スタックを手動構築し、availableMoves の結果を取得 ---
-        let stack = HandStack(cards: [DealtCard(move: .superWarp)])
-        let moves = core.availableMoves(handStacks: [stack], current: origin)
-
-        // --- 盤面全域から障害物のみが除外され、既踏マスも候補へ含まれることを検証 ---
-        let destinations = Set(moves.map { $0.destination })
-        XCTAssertFalse(destinations.contains(impassablePoint), "障害物マスが候補に含まれています")
-
-        let expectedDestinations = Set(
-            BoardGeometry.allPoints(for: boardSize).filter { point in
-                point != origin && point != impassablePoint
-            }
-        )
-        XCTAssertEqual(destinations, expectedDestinations, "全域ワープの到達候補集合が仕様と一致しません")
-
-        // --- 候補数も計算上の期待値と一致することを確認 ---
-        let blockedPoints = Set([origin, impassablePoint])
-        let expectedCount = boardSize * boardSize - blockedPoints.count
-        XCTAssertEqual(moves.count, expectedCount, "全域ワープの候補数が期待値と異なります")
-
-        // --- 盤面タップ選択が有効マスに対して成功し、無効マスでは nil を返すことを検証 ---
-        if let tapMove = core.resolvedMoveForBoardTap(at: GridPoint(x: 0, y: 0)) {
-            XCTAssertEqual(tapMove.destination, GridPoint(x: 0, y: 0), "盤面タップで解決した目的地が想定と異なります")
-            XCTAssertEqual(tapMove.card.move, .superWarp, "盤面タップで解決したカード種別が全域ワープではありません")
-        } else {
-            XCTFail("有効マスをタップした際に候補が返されませんでした")
-        }
-        if let visitedTapMove = core.resolvedMoveForBoardTap(at: visitedPoint) {
-            // 既踏マスも候補へ含まれるため、カード種別と目的地が正しいか再確認する
-            XCTAssertEqual(visitedTapMove.destination, visitedPoint, "既踏マスへのワープ先が想定と異なります")
-            XCTAssertEqual(visitedTapMove.card.move, .superWarp, "既踏マス選択時のカード種別が全域ワープではありません")
-        } else {
-            XCTFail("既踏マスをタップした際に候補が返されませんでした")
-        }
-        XCTAssertNil(core.resolvedMoveForBoardTap(at: impassablePoint), "障害物タップ時は候補が存在しない想定です")
+        XCTAssertEqual(moves.count, 1, "麻痺罠で止まるレイ型カードも候補は 1 件のままです")
+        XCTAssertEqual(moves.first?.destination, paralysisTrap)
+        XCTAssertEqual(moves.first?.path, [GridPoint(x: 2, y: 2), paralysisTrap])
     }
+
 }

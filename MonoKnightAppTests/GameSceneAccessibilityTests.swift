@@ -232,8 +232,18 @@ final class GameSceneAccessibilityTests: XCTestCase {
         ), let cardMoveBounds = scene.highlightPathBoundsForTesting(
             kind: .guideSingleCandidate,
             at: cardMovePoint
+        ), let damageTrapBounds = scene.highlightPathBoundsForTesting(
+            kind: .dungeonDamageTrap,
+            at: damageTrapPoint
         ) else {
-            XCTFail("基本移動とカード移動の枠サイズを取得できません")
+            XCTFail("基本移動、カード移動、ダメージ罠のマーカーサイズを取得できません")
+            return
+        }
+        guard let damageTrapElementCount = scene.highlightPathElementCountForTesting(
+            kind: .dungeonDamageTrap,
+            at: damageTrapPoint
+        ) else {
+            XCTFail("ダメージ罠のマーカーパスを取得できません")
             return
         }
 
@@ -247,6 +257,9 @@ final class GameSceneAccessibilityTests: XCTestCase {
         XCTAssertFalse(cardPickupStyle.fillColor.isEqual(SKColor.clear), "床落ちカードは枠なしでも視認できる塗りを持ちます")
         XCTAssertEqual(damageTrapStyle.lineWidth, 0, "ダメージ罠は移動可能枠ではないためタイル枠を持ちません")
         XCTAssertFalse(damageTrapStyle.fillColor.isEqual(SKColor.clear), "ダメージ罠は踏む前に見える塗りを持ちます")
+        XCTAssertGreaterThan(damageTrapBounds.width, cardMoveBounds.width * 0.45, "ダメージ罠は小さな点ではなく横幅のある棘マーカーで示します")
+        XCTAssertGreaterThan(damageTrapBounds.height, cardMoveBounds.height * 0.45, "ダメージ罠は踏むと危険だと読める高さのある棘マーカーで示します")
+        XCTAssertGreaterThan(damageTrapElementCount, 7, "ダメージ罠は単一三角ではなく複数の棘を持つパスで示します")
         XCTAssertEqual(keyStyle.lineWidth, 0, "塔鍵は移動可能枠ではなく、枠なしの小マーカーで示します")
         XCTAssertFalse(keyStyle.fillColor.isEqual(SKColor.clear), "塔鍵は取得前に見える塗りを持ちます")
         XCTAssertGreaterThan(crackedFloorStyle.lineWidth, 0, "ひび割れ床はタイル枠ではなく亀裂線で示します")
@@ -328,6 +341,16 @@ final class GameSceneAccessibilityTests: XCTestCase {
 
         XCTAssertEqual(scene.patrolRailCountForTesting(), 1, "巡回兵1体につきレールを1本表示する想定です")
         XCTAssertEqual(scene.patrolMovementArrowCountForTesting(), 1, "レール表示後も次方向矢印は残します")
+        guard let railStyle = scene.patrolRailStyleForTesting(enemyID: "patrol"),
+              let arrowStyle = scene.patrolMovementArrowStyleForTesting(enemyID: "patrol") else {
+            XCTFail("巡回レールと矢印の描画スタイルを取得できません")
+            return
+        }
+        XCTAssertTrue(railStyle.strokeColor.isNeutralGrayForTesting, "巡回レールは黄色ではなく中間グレーで表示します")
+        XCTAssertFalse(railStyle.strokeColor.isYellowForTesting, "巡回レールは次方向矢印と色を分けます")
+        XCTAssertTrue(arrowStyle.strokeColor.isYellowForTesting, "次方向矢印は黄色のまま強調します")
+        XCTAssertGreaterThanOrEqual(railStyle.lineWidth, 2.0, "巡回レールは極端に細くならない太さにします")
+        XCTAssertLessThan(railStyle.lineWidth, arrowStyle.lineWidth, "巡回レールは次方向矢印より細くして役割を分けます")
 
         scene.updatePatrolRailPreviews([])
 
@@ -348,6 +371,28 @@ private extension SKColor {
 
     var isClearForTesting: Bool {
         cgColor.alpha <= 0.01
+    }
+
+    var isNeutralGrayForTesting: Bool {
+        var red: CGFloat = 0
+        var green: CGFloat = 0
+        var blue: CGFloat = 0
+        var alpha: CGFloat = 0
+        guard getRed(&red, green: &green, blue: &blue, alpha: &alpha) else { return false }
+        return abs(red - green) <= 0.02
+            && abs(green - blue) <= 0.02
+            && red >= 0.35
+            && red <= 0.65
+            && alpha >= 0.75
+    }
+
+    var isYellowForTesting: Bool {
+        var red: CGFloat = 0
+        var green: CGFloat = 0
+        var blue: CGFloat = 0
+        var alpha: CGFloat = 0
+        guard getRed(&red, green: &green, blue: &blue, alpha: &alpha) else { return false }
+        return red >= 0.85 && green >= 0.65 && blue <= 0.35 && alpha >= 0.75
     }
 }
 #endif

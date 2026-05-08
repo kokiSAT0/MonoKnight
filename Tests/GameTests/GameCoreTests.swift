@@ -43,6 +43,97 @@ final class GameCoreTests: XCTestCase {
         XCTAssertTrue(core.board.isVisited(warpDestination), "ワープ先マスも踏破扱いにします")
     }
 
+    func testPlayCardAppliesBlastTileFixedDirectionUntilObstacle() throws {
+        let blastPoint = GridPoint(x: 1, y: 1)
+        let obstacle = GridPoint(x: 1, y: 3)
+        let mode = makeInventoryDungeonMode(
+            spawn: GridPoint(x: 0, y: 1),
+            exit: GridPoint(x: 4, y: 4),
+            impassableTilePoints: [obstacle],
+            tileEffectOverrides: [blastPoint: .blast(direction: MoveVector(dx: 0, dy: 1))]
+        )
+        let core = GameCore(mode: mode)
+        XCTAssertTrue(core.addDungeonInventoryCardForTesting(.kingRight, pickupUses: 1))
+
+        let move = try XCTUnwrap(core.availableMoves().first { $0.moveCard == .kingRight })
+        core.playCard(using: move)
+
+        XCTAssertEqual(core.current, GridPoint(x: 1, y: 2), "進入方向ではなく床に表示された方向へ吹き飛び、障害物直前で止まります")
+        XCTAssertEqual(core.lastMovementResolution?.path, [blastPoint, GridPoint(x: 1, y: 2)])
+    }
+
+    func testBlastTileDoesNotMoveWhenNextTileIsBlocked() throws {
+        let blastPoint = GridPoint(x: 1, y: 1)
+        let obstacle = GridPoint(x: 2, y: 1)
+        let mode = makeInventoryDungeonMode(
+            spawn: GridPoint(x: 0, y: 1),
+            exit: GridPoint(x: 4, y: 4),
+            impassableTilePoints: [obstacle],
+            tileEffectOverrides: [blastPoint: .blast(direction: MoveVector(dx: 1, dy: 0))]
+        )
+        let core = GameCore(mode: mode)
+        XCTAssertTrue(core.addDungeonInventoryCardForTesting(.kingRight, pickupUses: 1))
+
+        let move = try XCTUnwrap(core.availableMoves().first { $0.moveCard == .kingRight })
+        core.playCard(using: move)
+
+        XCTAssertEqual(core.current, blastPoint)
+        XCTAssertEqual(core.lastMovementResolution?.path, [blastPoint])
+    }
+
+    func testBasicOrthogonalMoveAppliesBlastTile() throws {
+        let blastPoint = GridPoint(x: 1, y: 0)
+        let mode = makeInventoryDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            tileEffectOverrides: [blastPoint: .blast(direction: MoveVector(dx: 1, dy: 0))],
+            allowsBasicOrthogonalMove: true
+        )
+        let core = GameCore(mode: mode)
+
+        let move = try XCTUnwrap(core.availableBasicOrthogonalMoves().first { $0.destination == blastPoint })
+        core.playBasicOrthogonalMove(using: move)
+
+        XCTAssertEqual(core.current, GridPoint(x: 4, y: 0))
+        XCTAssertEqual(core.lastMovementResolution?.path, [
+            GridPoint(x: 1, y: 0),
+            GridPoint(x: 2, y: 0),
+            GridPoint(x: 3, y: 0),
+            GridPoint(x: 4, y: 0),
+        ])
+    }
+
+    func testBlastPathDefeatsEnemiesAndCollectsPickupsAlongTheWay() throws {
+        let blastPoint = GridPoint(x: 1, y: 0)
+        let enemy = EnemyDefinition(
+            id: "blast-path-enemy",
+            name: "番兵",
+            position: GridPoint(x: 2, y: 0),
+            behavior: .guardPost
+        )
+        let pickup = DungeonCardPickupDefinition(
+            id: "blast-path-pickup",
+            point: GridPoint(x: 3, y: 0),
+            card: .kingUp
+        )
+        let mode = makeInventoryDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            tileEffectOverrides: [blastPoint: .blast(direction: MoveVector(dx: 1, dy: 0))],
+            cardPickups: [pickup],
+            enemies: [enemy]
+        )
+        let core = GameCore(mode: mode)
+        XCTAssertTrue(core.addDungeonInventoryCardForTesting(.kingRight, pickupUses: 1))
+
+        let move = try XCTUnwrap(core.availableMoves().first { $0.moveCard == .kingRight })
+        core.playCard(using: move)
+
+        XCTAssertFalse(core.enemyStates.contains { $0.id == enemy.id })
+        XCTAssertFalse(core.activeDungeonCardPickups.contains { $0.id == pickup.id })
+        XCTAssertTrue(core.dungeonInventoryEntries.contains { $0.card == pickup.card })
+    }
+
     func testDungeonInventoryStacksDuplicateCardsAndRejectsNewCardAtNineKindsWhenBasicMoveUsesTenthSlot() {
         let mode = makeInventoryDungeonMode(
             spawn: GridPoint(x: 0, y: 0),
@@ -134,9 +225,12 @@ final class GameCoreTests: XCTestCase {
         core.playSupportCard(at: supportIndex)
 
         XCTAssertFalse(core.dungeonInventoryEntries.contains { $0.supportCard == .refillEmptySlots })
-        XCTAssertEqual(core.dungeonInventoryEntries.count, floor.rewardMoveCardsAfterClear.count)
+        XCTAssertEqual(core.dungeonInventoryEntries.count, 9)
         XCTAssertTrue(core.dungeonInventoryEntries.allSatisfy { $0.pickupUses == 1 && $0.rewardUses == 0 })
-        XCTAssertTrue(Set(core.dungeonInventoryEntries.compactMap(\.moveCard)).isSubset(of: Set(floor.rewardMoveCardsAfterClear)))
+        let refilledMoves = core.dungeonInventoryEntries.compactMap(\.moveCard)
+        XCTAssertEqual(Set(refilledMoves).count, 9)
+        XCTAssertFalse(refilledMoves.contains { [.kingUp, .kingRight, .kingDown, .kingLeft].contains($0) })
+        XCTAssertTrue(Set(refilledMoves).isSubset(of: Set(MoveCard.allCases)))
     }
 
     func testRefillSupportRewardCarriesOnlyOneUse() {
@@ -304,8 +398,10 @@ final class GameCoreTests: XCTestCase {
         exit: GridPoint,
         impassableTilePoints: Set<GridPoint> = [],
         warpTilePairs: [String: [GridPoint]] = [:],
+        tileEffectOverrides: [GridPoint: TileEffect] = [:],
         allowsBasicOrthogonalMove: Bool = false,
-        cardPickups: [DungeonCardPickupDefinition] = []
+        cardPickups: [DungeonCardPickupDefinition] = [],
+        enemies: [EnemyDefinition] = []
     ) -> GameMode {
         GameMode(
             identifier: .dungeonFloor,
@@ -324,11 +420,13 @@ final class GameCoreTests: XCTestCase {
                     revisitPenaltyCost: 0
                 ),
                 impassableTilePoints: impassableTilePoints,
+                tileEffectOverrides: tileEffectOverrides,
                 warpTilePairs: warpTilePairs,
                 completionRule: .dungeonExit(exitPoint: exit),
                 dungeonRules: DungeonRules(
                     difficulty: .growth,
                     failureRule: DungeonFailureRule(initialHP: 3, turnLimit: nil),
+                    enemies: enemies,
                     allowsBasicOrthogonalMove: allowsBasicOrthogonalMove,
                     cardAcquisitionMode: .inventoryOnly,
                     cardPickups: cardPickups

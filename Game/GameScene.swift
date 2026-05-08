@@ -79,6 +79,36 @@
         }
     }
 
+    public struct SceneDungeonEnemyMarker: Identifiable, Equatable {
+        public let enemyID: String
+        public let point: GridPoint
+        public let kind: EnemyPresentationKind
+
+        public var id: String { enemyID }
+
+        public init(enemyID: String, point: GridPoint, kind: EnemyPresentationKind) {
+            self.enemyID = enemyID
+            self.point = point
+            self.kind = kind
+        }
+
+        public init(_ enemy: EnemyDefinition) {
+            self.init(
+                enemyID: enemy.id,
+                point: enemy.position,
+                kind: enemy.behavior.presentationKind
+            )
+        }
+
+        public init(_ enemy: EnemyState) {
+            self.init(
+                enemyID: enemy.id,
+                point: enemy.position,
+                kind: enemy.behavior.presentationKind
+            )
+        }
+    }
+
     public protocol GameCoreProtocol: AnyObject {
         func handleTap(at point: GridPoint)
     }
@@ -105,9 +135,13 @@
         private var targetApproachCandidatePoints: Set<GridPoint> = []
         private var targetCaptureCandidatePoints: Set<GridPoint> = []
         private var latestHighlightPoints: [BoardHighlightKind: Set<GridPoint>] = [:]
+        private var latestDungeonEnemyMarkers: [SceneDungeonEnemyMarker] = []
         private var latestPatrolRailPreviews: [ScenePatrolRailPreview] = []
         private var latestPatrolMovementPreviews: [ScenePatrolMovementPreview] = []
         private var showsVisitedTileFill = true
+        public private(set) var latestMovementPathForTesting: [GridPoint] = []
+        public private(set) var latestEnemyTurnDangerPulsePointsForTesting: Set<GridPoint> = []
+        public private(set) var latestEnemyTurnWarningPulsePointsForTesting: Set<GridPoint> = []
 
         #if canImport(UIKit)
             private let accessibilitySupport = GameSceneAccessibilitySupport()
@@ -140,9 +174,13 @@
             targetApproachCandidatePoints = []
             targetCaptureCandidatePoints = []
             latestHighlightPoints = [:]
+            latestDungeonEnemyMarkers = []
             latestPatrolRailPreviews = []
             latestPatrolMovementPreviews = []
             showsVisitedTileFill = true
+            latestMovementPathForTesting = []
+            latestEnemyTurnDangerPulsePointsForTesting = []
+            latestEnemyTurnWarningPulsePointsForTesting = []
             #if canImport(UIKit)
                 accessibilitySupport.reset()
             #endif
@@ -284,6 +322,21 @@
             updateAccessibilityElements()
         }
 
+        public func updateDungeonEnemyMarkers(_ markers: [SceneDungeonEnemyMarker]) {
+            let visibleMarkers = markers.filter { marker in
+                board.contains(marker.point) && board.isTraversable(marker.point)
+            }
+            latestDungeonEnemyMarkers = visibleMarkers
+            highlightRenderer.updateDungeonEnemyMarkers(
+                visibleMarkers,
+                scene: self,
+                layout: layoutSupport,
+                palette: palette,
+                isLayoutReady: isLayoutReady
+            )
+            updateAccessibilityElements()
+        }
+
         public func updatePatrolMovementPreviews(_ previews: [ScenePatrolMovementPreview]) {
             let visiblePreviews = previews.filter { preview in
                 board.contains(preview.current)
@@ -328,12 +381,34 @@
             latestPatrolMovementPreviews
         }
 
+        public func latestDungeonEnemyMarkersForTesting() -> [SceneDungeonEnemyMarker] {
+            latestDungeonEnemyMarkers
+        }
+
         func patrolRailCountForTesting() -> Int {
             highlightRenderer.patrolRailCount
         }
 
         func patrolMovementArrowCountForTesting() -> Int {
             highlightRenderer.patrolMovementArrowCount
+        }
+
+        func patrolRailStyleForTesting(
+            enemyID: String
+        ) -> (strokeColor: SKColor, lineWidth: CGFloat)? {
+            guard let node = highlightRenderer.patrolRailNodes[enemyID] else {
+                return nil
+            }
+            return (node.strokeColor, node.lineWidth)
+        }
+
+        func patrolMovementArrowStyleForTesting(
+            enemyID: String
+        ) -> (strokeColor: SKColor, lineWidth: CGFloat)? {
+            guard let node = highlightRenderer.patrolMovementArrowNodes[enemyID] else {
+                return nil
+            }
+            return (node.strokeColor, node.lineWidth)
         }
 
         public func latestHighlightPoints(for kind: BoardHighlightKind) -> Set<GridPoint> {
@@ -421,6 +496,7 @@
         }
 
         public func playWarpTransition(using resolution: MovementResolution) {
+            latestMovementPathForTesting = resolution.path
             knightAnimator.playWarpTransition(
                 using: resolution,
                 in: self,
@@ -434,6 +510,17 @@
                         palette: self.palette
                     )
                 },
+                updateAccessibility: { [weak self] in self?.updateAccessibilityElements() }
+            )
+        }
+
+        public func playMovementTransition(using resolution: MovementResolution) {
+            latestMovementPathForTesting = resolution.path
+            knightAnimator.playMovementTransition(
+                using: resolution,
+                in: self,
+                layout: layoutSupport,
+                isLayoutReady: isLayoutReady,
                 updateAccessibility: { [weak self] in self?.updateAccessibilityElements() }
             )
         }
@@ -472,34 +559,61 @@
         @discardableResult
         public func playDungeonEnemyTurn(
             _ event: DungeonEnemyTurnEvent,
-            finalDangerPoints: Set<GridPoint>
+            dangerPoints: Set<GridPoint>,
+            warningPoints: Set<GridPoint>
         ) -> TimeInterval {
+            latestEnemyTurnDangerPulsePointsForTesting = Set(dangerPoints.filter(board.contains))
+            latestEnemyTurnWarningPulsePointsForTesting = Set(warningPoints.filter(board.contains))
             guard isLayoutReady else { return 0 }
 
-            let movingTransitions = event.transitions.filter(\.didMove)
-            let stationaryTransitions = event.transitions.filter { !$0.didMove && $0.didRotate }
             let stepDuration: TimeInterval = 0.22
             let flashDuration: TimeInterval = 0.22
+            var phaseOffset: TimeInterval = 0
 
-            for (index, transition) in movingTransitions.enumerated() {
-                animateDungeonEnemyHighlight(
-                    from: transition.before.position,
-                    to: transition.after.position,
-                    after: stepDuration * Double(index),
-                    duration: stepDuration
-                )
+            if event.isParalysisRest, let point = event.paralysisTrapPoint {
+                pulseParalysisTrap(at: point, delay: 0)
+                phaseOffset += 0.16
             }
 
-            for transition in stationaryTransitions {
-                pulseDangerPoint(transition.after.position, delay: 0, duration: flashDuration)
+            for phase in event.phases {
+                let movingTransitions = phase.transitions.filter(\.didMove)
+                let stationaryTransitions = phase.transitions.filter { !$0.didMove && $0.didRotate }
+
+                for (index, transition) in movingTransitions.enumerated() {
+                    animateDungeonEnemyHighlight(
+                        enemyID: transition.enemyID,
+                        from: transition.before.position,
+                        to: transition.after.position,
+                        after: phaseOffset + stepDuration * Double(index),
+                        duration: stepDuration
+                    )
+                }
+
+                for transition in stationaryTransitions {
+                    pulseEnemyTurnDangerPoint(transition.after.position, delay: phaseOffset, duration: flashDuration)
+                }
+
+                phaseOffset += stepDuration * Double(movingTransitions.count)
+                if phase.attackedPlayer && phase.hpAfter < phase.hpBefore {
+                    playParalysisRestEffectIfNeeded(for: event, at: phaseOffset)
+                }
+                phaseOffset += flashDuration
             }
 
-            let dangerDelay = stepDuration * Double(movingTransitions.count)
-            for point in finalDangerPoints {
-                pulseDangerPoint(point, delay: dangerDelay, duration: flashDuration)
+            let dangerDelay = max(phaseOffset - flashDuration, 0)
+            for point in dangerPoints {
+                pulseEnemyTurnDangerPoint(point, delay: dangerDelay, duration: flashDuration)
+            }
+            for point in warningPoints {
+                pulseEnemyTurnWarningPoint(point, delay: dangerDelay, duration: flashDuration)
             }
 
-            return dangerDelay + flashDuration
+            return phaseOffset + flashDuration
+        }
+
+        private func playParalysisRestEffectIfNeeded(for event: DungeonEnemyTurnEvent, at delay: TimeInterval) {
+            guard event.isParalysisRest, let point = event.paralysisTrapPoint else { return }
+            pulseParalysisTrap(at: point, delay: delay)
         }
 
         public func playDamageEffect() {
@@ -512,6 +626,7 @@
         }
 
         private func animateDungeonEnemyHighlight(
+            enemyID: String,
             from before: GridPoint,
             to after: GridPoint,
             after delay: TimeInterval,
@@ -519,7 +634,7 @@
         ) {
             guard board.contains(before),
                   board.contains(after),
-                  let node = highlightRenderer.highlightNodes[.dungeonEnemy]?[before]
+                  let node = highlightRenderer.dungeonEnemyMarkerNodes[enemyID]
             else { return }
 
             let wait = SKAction.wait(forDuration: delay)
@@ -528,7 +643,7 @@
             node.run(.sequence([wait, move]))
         }
 
-        private func makeDangerPulse(at point: GridPoint) -> SKShapeNode {
+        private func makeEnemyTurnDangerPulse(at point: GridPoint) -> SKShapeNode {
             let size = layoutSupport.tileSize * 0.72
             let rect = CGRect(x: -size / 2, y: -size / 2, width: size, height: size)
             let pulse = SKShapeNode(rect: rect, cornerRadius: layoutSupport.tileSize * 0.1)
@@ -541,9 +656,109 @@
             return pulse
         }
 
-        private func pulseDangerPoint(_ point: GridPoint, delay: TimeInterval, duration: TimeInterval) {
+        private func makeEnemyTurnWarningPulse(at point: GridPoint) -> SKShapeNode {
+            let size = layoutSupport.tileSize * 0.72
+            let rect = CGRect(x: -size / 2, y: -size / 2, width: size, height: size)
+            let pulse = SKShapeNode(rect: rect, cornerRadius: layoutSupport.tileSize * 0.1)
+            pulse.position = layoutSupport.position(for: point)
+            pulse.fillColor = palette.boardTileEffectPreserveCard.withAlphaComponent(0.20)
+            pulse.strokeColor = .clear
+            pulse.lineWidth = 0
+            pulse.zPosition = 1.32
+            pulse.isAntialiased = true
+            let stroke = SKShapeNode(path: enemyTurnWarningPulseDashPath(size: size))
+            stroke.strokeColor = palette.boardTileEffectPreserveCard.withAlphaComponent(0.82)
+            stroke.fillColor = .clear
+            stroke.lineWidth = max(layoutSupport.tileSize * 0.03, 1.5)
+            stroke.lineCap = .round
+            stroke.lineJoin = .round
+            stroke.isAntialiased = true
+            pulse.addChild(stroke)
+            return pulse
+        }
+
+        private func enemyTurnWarningPulseDashPath(size: CGFloat) -> CGPath {
+            let half = size / 2
+            let dashLength = max(size * 0.18, 5)
+            let gapLength = max(size * 0.12, 3)
+            let path = CGMutablePath()
+
+            func addDashedLine(from start: CGPoint, to end: CGPoint) {
+                let vector = CGPoint(x: end.x - start.x, y: end.y - start.y)
+                let length = hypot(vector.x, vector.y)
+                guard length > 0 else { return }
+                let unit = CGPoint(x: vector.x / length, y: vector.y / length)
+                var offset: CGFloat = 0
+
+                while offset < length {
+                    let segmentEnd = min(offset + dashLength, length)
+                    path.move(to: CGPoint(
+                        x: start.x + unit.x * offset,
+                        y: start.y + unit.y * offset
+                    ))
+                    path.addLine(to: CGPoint(
+                        x: start.x + unit.x * segmentEnd,
+                        y: start.y + unit.y * segmentEnd
+                    ))
+                    offset += dashLength + gapLength
+                }
+            }
+
+            addDashedLine(from: CGPoint(x: -half, y: -half), to: CGPoint(x: half, y: -half))
+            addDashedLine(from: CGPoint(x: half, y: -half), to: CGPoint(x: half, y: half))
+            addDashedLine(from: CGPoint(x: half, y: half), to: CGPoint(x: -half, y: half))
+            addDashedLine(from: CGPoint(x: -half, y: half), to: CGPoint(x: -half, y: -half))
+            return path
+        }
+
+        private func pulseEnemyTurnDangerPoint(
+            _ point: GridPoint,
+            delay: TimeInterval,
+            duration: TimeInterval
+        ) {
             guard board.contains(point) else { return }
-            let pulse = makeDangerPulse(at: point)
+            latestEnemyTurnDangerPulsePointsForTesting.insert(point)
+            let pulse = makeEnemyTurnDangerPulse(at: point)
+            runEnemyTurnPulse(pulse, delay: delay, duration: duration)
+        }
+
+        private func pulseEnemyTurnWarningPoint(
+            _ point: GridPoint,
+            delay: TimeInterval,
+            duration: TimeInterval
+        ) {
+            guard board.contains(point) else { return }
+            latestEnemyTurnWarningPulsePointsForTesting.insert(point)
+            let pulse = makeEnemyTurnWarningPulse(at: point)
+            runEnemyTurnPulse(pulse, delay: delay, duration: duration)
+        }
+
+        private func pulseParalysisTrap(at point: GridPoint, delay: TimeInterval) {
+            guard board.contains(point) else { return }
+            let size = layoutSupport.tileSize * 0.86
+            let pulse = SKShapeNode(rectOf: CGSize(width: size, height: size), cornerRadius: layoutSupport.tileSize * 0.12)
+            pulse.position = layoutSupport.position(for: point)
+            pulse.fillColor = palette.boardTileEffectSlow.withAlphaComponent(0.22)
+            pulse.strokeColor = palette.boardTileEffectSlow.withAlphaComponent(0.9)
+            pulse.lineWidth = max(layoutSupport.tileSize * 0.035, 1.5)
+            pulse.zPosition = 1.34
+            pulse.isAntialiased = true
+
+            let bolt = SKShapeNode(path: paralysisBoltPath(tileSize: layoutSupport.tileSize, scale: 0.9))
+            bolt.fillColor = palette.boardTileEffectSlow.withAlphaComponent(0.92)
+            bolt.strokeColor = .clear
+            bolt.zPosition = 0.1
+            bolt.isAntialiased = true
+            pulse.addChild(bolt)
+
+            runEnemyTurnPulse(pulse, delay: delay, duration: 0.28)
+        }
+
+        private func runEnemyTurnPulse(
+            _ pulse: SKShapeNode,
+            delay: TimeInterval,
+            duration: TimeInterval
+        ) {
             pulse.alpha = 0
             addChild(pulse)
             pulse.run(.sequence([
@@ -552,6 +767,20 @@
                 .fadeOut(withDuration: duration),
                 .removeFromParent()
             ]))
+        }
+
+        private func paralysisBoltPath(tileSize: CGFloat, scale: CGFloat) -> CGPath {
+            let width = tileSize * 0.38 * scale
+            let height = tileSize * 0.56 * scale
+            let path = CGMutablePath()
+            path.move(to: CGPoint(x: width * 0.10, y: height / 2))
+            path.addLine(to: CGPoint(x: -width * 0.38, y: height * 0.02))
+            path.addLine(to: CGPoint(x: -width * 0.08, y: height * 0.02))
+            path.addLine(to: CGPoint(x: -width * 0.30, y: -height / 2))
+            path.addLine(to: CGPoint(x: width * 0.42, y: -height * 0.05))
+            path.addLine(to: CGPoint(x: width * 0.12, y: -height * 0.05))
+            path.closeSubpath()
+            return path
         }
 
 #if DEBUG

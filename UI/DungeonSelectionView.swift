@@ -7,7 +7,6 @@ struct DungeonSelectionView: View {
     let dungeonLibrary: DungeonLibrary
     @ObservedObject var dungeonGrowthStore: DungeonGrowthStore
     @ObservedObject var dungeonRunResumeStore: DungeonRunResumeStore
-    let onClose: () -> Void
     let onResumeDungeon: (DungeonRunResumeSnapshot) -> Void
     let onStartDungeon: (DungeonDefinition, Int) -> Void
 
@@ -19,14 +18,12 @@ struct DungeonSelectionView: View {
         dungeonLibrary: DungeonLibrary,
         dungeonGrowthStore: DungeonGrowthStore,
         dungeonRunResumeStore: DungeonRunResumeStore = DungeonRunResumeStore(),
-        onClose: @escaping () -> Void,
         onResumeDungeon: @escaping (DungeonRunResumeSnapshot) -> Void = { _ in },
         onStartDungeon: @escaping (DungeonDefinition, Int) -> Void
     ) {
         self.dungeonLibrary = dungeonLibrary
         self._dungeonGrowthStore = ObservedObject(wrappedValue: dungeonGrowthStore)
         self._dungeonRunResumeStore = ObservedObject(wrappedValue: dungeonRunResumeStore)
-        self.onClose = onClose
         self.onResumeDungeon = onResumeDungeon
         self.onStartDungeon = onStartDungeon
     }
@@ -35,7 +32,6 @@ struct DungeonSelectionView: View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: 22) {
                 header
-                growthSection
 
                 ForEach(dungeonLibrary.dungeons) { dungeon in
                     dungeonSection(dungeon)
@@ -50,52 +46,7 @@ struct DungeonSelectionView: View {
         .background(theme.backgroundPrimary.ignoresSafeArea())
         .navigationTitle("塔ダンジョン")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                Button("戻る", action: onClose)
-                    .accessibilityIdentifier("dungeon_selection_close_button")
-            }
-        }
         .accessibilityIdentifier("dungeon_selection_view")
-    }
-
-    private var growthSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Button {
-                withAnimation(.easeInOut(duration: 0.18)) {
-                    isGrowthSectionExpanded.toggle()
-                }
-            } label: {
-                HStack(alignment: .firstTextBaseline, spacing: 10) {
-                    Label("成長", systemImage: isGrowthSectionExpanded ? "chevron.down" : "chevron.right")
-                        .font(.system(size: 20, weight: .semibold, design: .rounded))
-                        .foregroundColor(theme.textPrimary)
-                    Spacer()
-                    Text("ポイント \(dungeonGrowthStore.points)")
-                        .font(.system(size: 13, weight: .bold, design: .rounded))
-                        .foregroundColor(theme.accentPrimary)
-                }
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("dungeon_growth_toggle")
-            .accessibilityHint(isGrowthSectionExpanded ? "成長ツリーを閉じます" : "成長ツリーを開きます")
-
-            if isGrowthSectionExpanded {
-                ForEach(DungeonGrowthBranch.allCases) { branch in
-                    growthBranchSection(branch)
-                }
-            }
-        }
-        .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(theme.backgroundElevated.opacity(0.86))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(theme.statisticBadgeBorder, lineWidth: 1)
-        )
-        .accessibilityIdentifier("dungeon_growth_section")
     }
 
     private func growthBranchSection(_ branch: DungeonGrowthBranch) -> some View {
@@ -199,6 +150,7 @@ struct DungeonSelectionView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
+            growthSection(for: dungeon)
             resumeButtonIfNeeded(for: dungeon)
             startButtons(for: dungeon)
         }
@@ -213,6 +165,48 @@ struct DungeonSelectionView: View {
                 .stroke(theme.statisticBadgeBorder, lineWidth: 1)
         )
         .accessibilityIdentifier("dungeon_card_\(dungeon.id)")
+    }
+
+    @ViewBuilder
+    private func growthSection(for dungeon: DungeonDefinition) -> some View {
+        if let presentation = DungeonGrowthTreeCardPresentation.make(
+            dungeon: dungeon,
+            points: dungeonGrowthStore.points
+        ) {
+            VStack(alignment: .leading, spacing: 12) {
+                Divider()
+                    .overlay(theme.statisticBadgeBorder.opacity(0.7))
+
+                Button {
+                    withAnimation(.easeInOut(duration: 0.18)) {
+                        isGrowthSectionExpanded.toggle()
+                    }
+                } label: {
+                    HStack(alignment: .firstTextBaseline, spacing: 10) {
+                        Label(
+                            presentation.title,
+                            systemImage: isGrowthSectionExpanded ? "chevron.down" : "chevron.right"
+                        )
+                        .font(.system(size: 17, weight: .semibold, design: .rounded))
+                        .foregroundColor(theme.textPrimary)
+                        Spacer()
+                        Text(presentation.pointsText)
+                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                            .foregroundColor(theme.accentPrimary)
+                    }
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier(presentation.toggleAccessibilityIdentifier)
+                .accessibilityHint(isGrowthSectionExpanded ? "成長ツリーを閉じます" : "成長ツリーを開きます")
+
+                if isGrowthSectionExpanded {
+                    ForEach(DungeonGrowthBranch.allCases) { branch in
+                        growthBranchSection(branch)
+                    }
+                }
+            }
+            .accessibilityIdentifier(presentation.sectionAccessibilityIdentifier)
+        }
     }
 
     @ViewBuilder
@@ -363,5 +357,22 @@ struct DungeonGrowthRewardStatusPresentation: Equatable {
                 isRewarded: isRewarded
             )
         }
+    }
+}
+
+struct DungeonGrowthTreeCardPresentation: Equatable {
+    let title: String
+    let pointsText: String
+    let sectionAccessibilityIdentifier: String
+    let toggleAccessibilityIdentifier: String
+
+    static func make(dungeon: DungeonDefinition, points: Int) -> DungeonGrowthTreeCardPresentation? {
+        guard dungeon.difficulty == .growth else { return nil }
+        return DungeonGrowthTreeCardPresentation(
+            title: "成長",
+            pointsText: "ポイント \(max(points, 0))",
+            sectionAccessibilityIdentifier: "dungeon_growth_section",
+            toggleAccessibilityIdentifier: "dungeon_growth_toggle"
+        )
     }
 }

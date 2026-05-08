@@ -103,6 +103,7 @@ extension RootView {
         static let topBarBackgroundOpacity: Double = 0.94
         static let topBarDividerOpacity: Double = 0.45
         static let gamePreparationMinimumDelay: Double = 0.35
+        static let gamePreparationChapterDisplayDuration: Double = 1.0
     }
 }
 

@@ -55,8 +55,6 @@ public extension MoveCard {
         .knightUpwardChoice,
         .knightRightwardChoice,
         .knightDownwardChoice,
-        .knightLeftwardChoice,
-        .superWarp,
-        .fixedWarp
+        .knightLeftwardChoice
     ]
 }

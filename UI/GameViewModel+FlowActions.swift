@@ -217,11 +217,12 @@ extension GameViewModel {
               let runState = metadata.runState,
               runState.currentFloorIndex == event.sourceFloorIndex,
               let dungeon = DungeonLibrary.shared.dungeon(with: metadata.dungeonID),
-              dungeon.canAdvanceWithinRun(afterFloorIndex: runState.currentFloorIndex)
+              dungeon.floors.indices.contains(event.destinationFloorIndex),
+              event.destinationFloorIndex == runState.currentFloorIndex - 1,
+              event.destinationFloorIndex < runState.currentFloorIndex
         else { return nil }
 
-        let nextIndex = runState.currentFloorIndex + 1
-        let nextRunState = runState.fallenToNextFloor(
+        let nextRunState = runState.fallenToPreviousFloor(
             carryoverHP: core.dungeonHP,
             currentFloorMoveCount: core.moveCount,
             currentInventoryEntries: core.dungeonInventoryEntries,
@@ -230,7 +231,8 @@ extension GameViewModel {
             currentFloorCollapsedPoints: core.collapsedFloorPoints,
             hazardDamageMitigationsRemaining: core.hazardDamageMitigationsRemaining
         )
-        let nextFloor = dungeon.resolvedFloor(at: nextIndex, runState: nextRunState) ?? dungeon.floors[nextIndex]
+        let nextFloor = dungeon.resolvedFloor(at: event.destinationFloorIndex, runState: nextRunState)
+            ?? dungeon.floors[event.destinationFloorIndex]
         return nextFloor.makeGameMode(
             dungeonID: dungeon.id,
             difficulty: dungeon.difficulty,
@@ -331,7 +333,6 @@ extension GameViewModel {
 
     func saveInitialDungeonResume(for mode: GameMode) {
         let nextCore = GameCore(mode: mode)
-        nextCore.resolvePendingDungeonFallLandingIfNeeded()
         guard let snapshot = nextCore.makeDungeonResumeSnapshot() else { return }
         dungeonRunResumeStore.save(snapshot)
     }

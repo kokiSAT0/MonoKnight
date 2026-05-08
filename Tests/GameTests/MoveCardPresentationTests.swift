@@ -5,7 +5,6 @@ final class MoveCardPresentationTests: XCTestCase {
     func testPresentationMetadataRemainsStableAfterExtraction() {
         XCTAssertEqual(MoveCard.kingUp.displayName, "上1")
         XCTAssertEqual(MoveCard.knightRightwardChoice.displayName, "右桂 (選択)")
-        XCTAssertEqual(MoveCard.superWarp.displayName, "全域ワープ")
 
         XCTAssertEqual(MoveCard.kingUp.kind, .normal)
         XCTAssertEqual(MoveCard.knightLeftwardChoice.kind, .choice)
@@ -16,15 +15,15 @@ final class MoveCardPresentationTests: XCTestCase {
     func testRegistrySetsRemainStableAfterExtraction() {
         XCTAssertEqual(MoveCard.directionalRayCards.count, 8)
         XCTAssertEqual(MoveCard.standardSet.count, 32)
-        XCTAssertTrue(MoveCard.allCases.contains(.fixedWarp))
-        XCTAssertTrue(MoveCard.allCases.contains(.superWarp))
+        XCTAssertFalse(MoveCard.allCases.map(\.displayName).contains("固定ワープ"))
+        XCTAssertFalse(MoveCard.allCases.map(\.displayName).contains("全域ワープ"))
     }
 
     func testCardEncyclopediaEntriesCoverAllMoveCardsByRepresentativeGroups() {
         let entries = MoveCard.encyclopediaEntries
         let includedCards = entries.flatMap(\.includedCards)
 
-        XCTAssertEqual(entries.count, 9)
+        XCTAssertEqual(entries.count, 7)
         XCTAssertEqual(Set(includedCards), Set(MoveCard.allCases))
         XCTAssertEqual(includedCards.count, MoveCard.allCases.count)
         XCTAssertTrue(entries.allSatisfy { !$0.displayName.isEmpty })
@@ -39,6 +38,26 @@ final class MoveCardPresentationTests: XCTestCase {
         XCTAssertTrue(entries.allSatisfy { $0.category == "補助カード" })
         XCTAssertTrue(entries.allSatisfy { !$0.displayName.isEmpty })
         XCTAssertTrue(entries.allSatisfy { !$0.description.isEmpty })
+        XCTAssertTrue(entries.first { $0.card == .refillEmptySlots }?.description.contains("塔用移動カード全体") == true)
+    }
+
+    func testEnemyEncyclopediaEntriesCoverAllEnemyPresentationKinds() {
+        let entries = EnemyEncyclopediaEntry.allEntries
+
+        XCTAssertEqual(entries.map(\.kind), EnemyPresentationKind.allCases)
+        XCTAssertEqual(entries.count, 6)
+        XCTAssertTrue(entries.allSatisfy { !$0.displayName.isEmpty })
+        XCTAssertTrue(entries.allSatisfy { !$0.behaviorSummary.isEmpty })
+        XCTAssertTrue(entries.allSatisfy { !$0.dangerSummary.isEmpty })
+    }
+
+    func testEnemyBehaviorPresentationKindsRemainStable() {
+        XCTAssertEqual(EnemyBehavior.guardPost.presentationKind, .guardPost)
+        XCTAssertEqual(EnemyBehavior.patrol(path: []).presentationKind, .patrol)
+        XCTAssertEqual(EnemyBehavior.watcher(direction: MoveVector(dx: 1, dy: 0), range: 2).presentationKind, .watcher)
+        XCTAssertEqual(EnemyBehavior.rotatingWatcher(directions: [], range: 2).presentationKind, .rotatingWatcher)
+        XCTAssertEqual(EnemyBehavior.chaser.presentationKind, .chaser)
+        XCTAssertEqual(EnemyBehavior.marker(directions: [], range: 2).presentationKind, .marker)
     }
 
     func testCardEncyclopediaCompressesDirectionVariants() {
@@ -55,25 +74,16 @@ final class MoveCardPresentationTests: XCTestCase {
         XCTAssertEqual(entries.first { $0.displayName == "レイ" }?.includedCards, MoveCard.directionalRayCards)
     }
 
-    func testCardEncyclopediaKeepsDistinctSpecialCardsSeparate() {
-        let entries = MoveCard.encyclopediaEntries
-
-        XCTAssertTrue(entries.contains { $0.card == .superWarp && $0.includedCards == [.superWarp] })
-        XCTAssertTrue(entries.contains { $0.card == .fixedWarp && $0.includedCards == [.fixedWarp] })
-    }
-
     func testRepresentativeCardEncyclopediaMetadata() {
         XCTAssertEqual(MoveCard.kingUp.encyclopediaCategory, "キング")
         XCTAssertTrue(MoveCard.kingUp.encyclopediaDescription.contains("1 マス"))
+        XCTAssertTrue(MoveCard.kingUp.encyclopediaDescription.contains("階段"))
 
         XCTAssertEqual(MoveCard.knightRightwardChoice.encyclopediaCategory, "選択ナイト")
         XCTAssertTrue(MoveCard.knightRightwardChoice.encyclopediaDescription.contains("選んで跳びます"))
 
         XCTAssertEqual(MoveCard.rayDown.encyclopediaCategory, "レイ")
         XCTAssertTrue(MoveCard.rayDown.encyclopediaDescription.contains("盤端や障害物"))
-
-        XCTAssertEqual(MoveCard.superWarp.encyclopediaCategory, "ワープ")
-        XCTAssertEqual(MoveCard.fixedWarp.encyclopediaCategory, "ワープ")
     }
 
     func testTileEncyclopediaEntriesCoverCoreTileKinds() {
@@ -85,32 +95,37 @@ final class MoveCardPresentationTests: XCTestCase {
         XCTAssertTrue(entries.allSatisfy { !$0.description.isEmpty })
         XCTAssertEqual(entries.first { $0.id == "normal" }?.previewKind, .normal)
         XCTAssertEqual(entries.first { $0.id == "spawn" }?.previewKind, .spawn)
-        XCTAssertEqual(entries.first { $0.id == "target" }?.previewKind, .target)
-        XCTAssertEqual(entries.first { $0.id == "nextTarget" }?.previewKind, .nextTarget)
-        XCTAssertEqual(entries.first { $0.id == "multiVisit" }?.previewKind, .multiVisit)
-        XCTAssertEqual(entries.first { $0.id == "toggle" }?.previewKind, .toggle)
+        XCTAssertEqual(entries.first { $0.id == "dungeonExit" }?.previewKind, .dungeonExit)
+        XCTAssertEqual(entries.first { $0.id == "lockedDungeonExit" }?.previewKind, .lockedDungeonExit)
+        XCTAssertEqual(entries.first { $0.id == "dungeonKey" }?.previewKind, .dungeonKey)
+        XCTAssertEqual(entries.first { $0.id == "cardPickup" }?.previewKind, .cardPickup)
         XCTAssertEqual(entries.first { $0.id == "impassable" }?.previewKind, .impassable)
-        let targetEntries = entries.filter { $0.category == "目的地" }
-        XCTAssertFalse(targetEntries.contains { $0.displayName.contains("NEXT") || $0.description.contains("紫") || $0.description.contains("オレンジ") })
+        XCTAssertEqual(entries.first { $0.id == "damageTrap" }?.previewKind, .damageTrap)
+        XCTAssertEqual(entries.first { $0.id == "brittleFloor" }?.previewKind, .brittleFloor)
+        XCTAssertEqual(entries.first { $0.id == "collapsedFloor" }?.previewKind, .collapsedFloor)
+        XCTAssertEqual(entries.first { $0.id == "enemyDanger" }?.previewKind, .enemyDanger)
+        XCTAssertEqual(entries.first { $0.id == "enemyWarning" }?.previewKind, .enemyWarning)
+        XCTAssertFalse(entries.contains { ["目的地", "踏破"].contains($0.category) })
+        XCTAssertFalse(entryIDs.contains("target"))
+        XCTAssertFalse(entryIDs.contains("nextTarget"))
+        XCTAssertFalse(entryIDs.contains("multiVisit"))
+        XCTAssertFalse(entryIDs.contains("toggle"))
         XCTAssertTrue(entryIDs.isSuperset(of: [
             "normal",
             "spawn",
-            "target",
-            "nextTarget",
-            "multiVisit",
-            "toggle",
+            "dungeonExit",
+            "lockedDungeonExit",
+            "dungeonKey",
+            "cardPickup",
             "impassable",
+            "damageTrap",
+            "brittleFloor",
+            "collapsedFloor",
+            "enemyDanger",
+            "enemyWarning",
             "warp",
-            "shuffleHand",
-            "boost",
-            "slow",
-            "nextRefresh",
-            "freeFocus",
-            "preserveCard",
-            "draft",
-            "overload",
-            "targetSwap",
-            "openGate"
+            "blast",
+            "paralysisTrap",
         ]))
 
         let specialPreviewIDs = Set(entries.compactMap { entry -> String? in
@@ -120,17 +135,25 @@ final class MoveCardPresentationTests: XCTestCase {
             return nil
         })
         XCTAssertEqual(specialPreviewIDs, [
-            "warp",
-            "shuffleHand",
-            "boost",
-            "slow",
-            "nextRefresh",
-            "freeFocus",
-            "preserveCard",
-            "draft",
-            "overload",
-            "targetSwap",
-            "openGate"
+            "blast",
+            "paralysisTrap",
+            "warp"
         ])
+    }
+
+    func testHelpEncyclopediaTextAvoidsRemovedLegacyModeTerms() {
+        let cardTexts = MoveCard.encyclopediaEntries.flatMap { [$0.displayName, $0.category, $0.description] }
+        let supportTexts = SupportCard.encyclopediaEntries.flatMap { [$0.displayName, $0.category, $0.description] }
+        let enemyTexts = EnemyEncyclopediaEntry.allEntries.flatMap { [$0.displayName, $0.behaviorSummary, $0.dangerSummary] }
+        let tileTexts = TileEncyclopediaEntry.allEntries.flatMap { [$0.displayName, $0.category, $0.description] }
+        let allTexts = cardTexts + supportTexts + enemyTexts + tileTexts
+        let removedTerms = ["目的地", "全踏破", "フォーカス", "Game Center", "ランキング", "踏破対象"]
+
+        for term in removedTerms {
+            XCTAssertFalse(
+                allTexts.contains { $0.contains(term) },
+                "ヘルプ辞典に旧モード由来の文言 \(term) が残っています"
+            )
+        }
     }
 }

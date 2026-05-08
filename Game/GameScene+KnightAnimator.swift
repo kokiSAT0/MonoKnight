@@ -262,6 +262,52 @@
             knightNode.run(SKAction.sequence(sequence))
         }
 
+        func playMovementTransition(
+            using resolution: MovementResolution,
+            in scene: SKScene,
+            layout: GameSceneLayoutSupport,
+            isLayoutReady: Bool,
+            updateAccessibility: @escaping () -> Void
+        ) {
+            guard isLayoutReady, let knightNode, !resolution.path.isEmpty else {
+                moveKnight(
+                    to: resolution.finalPosition,
+                    in: scene,
+                    layout: layout,
+                    isLayoutReady: isLayoutReady,
+                    updateAccessibility: updateAccessibility
+                )
+                return
+            }
+
+            if let skView = scene.view, skView.isPaused {
+                skView.isPaused = false
+            }
+            if scene.isPaused {
+                scene.isPaused = false
+            }
+
+            knightNode.removeAllActions()
+            knightNode.isHidden = false
+
+            let totalDuration = min(0.36, max(0.18, Double(resolution.path.count) * 0.09))
+            let stepDuration = totalDuration / Double(max(1, resolution.path.count))
+            var sequence: [SKAction] = []
+
+            for point in resolution.path {
+                let move = SKAction.move(to: layout.position(for: point), duration: stepDuration)
+                move.timingMode = .easeInEaseOut
+                let updateState = SKAction.run { [weak self] in
+                    guard let self else { return }
+                    self.knightPosition = point
+                    updateAccessibility()
+                }
+                sequence.append(SKAction.sequence([move, updateState]))
+            }
+
+            knightNode.run(SKAction.sequence(sequence))
+        }
+
         func flushPendingState(
             isLayoutReady: Bool,
             layout: GameSceneLayoutSupport,

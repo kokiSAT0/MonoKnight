@@ -130,26 +130,14 @@ public struct ResolvedCardMove: Hashable {
                 hasher.combine(destination.y)
             case .shuffleHand:
                 hasher.combine("shuffle")
-            case .boost:
-                hasher.combine("boost")
+            case .blast(let direction):
+                hasher.combine("blast")
+                hasher.combine(direction.dx)
+                hasher.combine(direction.dy)
             case .slow:
                 hasher.combine("slow")
-            case .nextRefresh:
-                hasher.combine("nextRefresh")
-            case .freeFocus:
-                hasher.combine("freeFocus")
             case .preserveCard:
                 hasher.combine("preserveCard")
-            case .draft:
-                hasher.combine("draft")
-            case .overload:
-                hasher.combine("overload")
-            case .targetSwap:
-                hasher.combine("targetSwap")
-            case .openGate(let target):
-                hasher.combine("openGate")
-                hasher.combine(target.x)
-                hasher.combine(target.y)
             }
         }
     }

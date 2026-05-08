@@ -108,8 +108,6 @@ final class GameViewModel: ObservableObject {
     var remainingTargetCount: Int { core.remainingTargetCount }
     /// フォーカス使用回数
     var focusCount: Int { core.focusCount }
-    /// 過負荷状態中かどうか
-    var isOverloadCharged: Bool { core.isOverloadCharged }
     /// 目的地制モードかどうか
     var usesTargetCollection: Bool { mode.usesTargetCollection }
     /// 出口到達型ダンジョンかどうか
@@ -118,6 +116,8 @@ final class GameViewModel: ObservableObject {
     var dungeonHP: Int { core.dungeonHP }
     /// ダンジョン残り手数
     var remainingDungeonTurns: Int? { core.remainingDungeonTurns }
+    /// ダンジョン手数上限
+    var dungeonTurnLimit: Int? { mode.dungeonRules?.failureRule.turnLimit }
     /// ダンジョン出口座標
     var dungeonExitPoint: GridPoint? { mode.dungeonExitPoint }
     /// ダンジョン出口が解錠済みかどうか
@@ -131,6 +131,23 @@ final class GameViewModel: ObservableObject {
               let dungeon = DungeonLibrary.shared.dungeon(with: metadata.dungeonID)
         else { return nil }
         return "\(dungeon.title) \(runState.floorNumber)/\(dungeon.floors.count)F"
+    }
+    /// リザルトの再挑戦ボタンに表示する開始階
+    var dungeonRetryStartFloorText: String? {
+        guard let metadata = mode.dungeonMetadataSnapshot,
+              let dungeon = DungeonLibrary.shared.dungeon(with: metadata.dungeonID)
+        else { return nil }
+
+        let currentFloorIndex = metadata.runState?.currentFloorIndex ?? 0
+        let startFloorIndex = dungeon.difficulty == .growth
+            ? (currentFloorIndex / 10) * 10
+            : 0
+        return "\(startFloorIndex + 1)F"
+    }
+    /// リザルトの再挑戦ボタン文言
+    var resultRetryButtonTitle: String {
+        guard mode.usesDungeonExit else { return "リトライ" }
+        return "\(dungeonRetryStartFloorText ?? "1F")から再挑戦"
     }
     /// ダンジョンランの累計移動手数
     var dungeonRunTotalMoveCount: Int? {
@@ -198,40 +215,6 @@ final class GameViewModel: ObservableObject {
     /// 次のダンジョンフロア名
     var nextDungeonFloorTitle: String? {
         makeNextDungeonFloorMode()?.displayName
-    }
-    /// ポーズメニューで再利用するペナルティ説明文の一覧
-    /// - Important: RootView の事前案内と文言・順序を揃え、体験の一貫性を保つ
-    var pauseMenuPenaltyItems: [String] {
-        if mode.usesDungeonExit {
-            var items = [
-                "出口へ到達でクリア",
-                "HP 0 で失敗"
-            ]
-            if mode.dungeonRules?.allowsBasicOrthogonalMove == true {
-                items.append("基本移動カードで上下左右1マス")
-            }
-            if let remainingDungeonTurns {
-                items.append("残り手数 \(remainingDungeonTurns)")
-            }
-            if !core.enemyStates.isEmpty {
-                items.append("敵の危険範囲で HP 減少")
-            }
-            return items
-        }
-
-        if mode.usesTargetCollection {
-            return [
-                "フォーカス -15 pt",
-                mode.manualDiscardPenaltyCost > 0 ? "捨て札 +\(mode.manualDiscardPenaltyCost) 手" : "捨て札 ペナルティなし",
-                "目的地 \(mode.targetGoalCount) 個でクリア"
-            ]
-        }
-        return [
-            mode.deadlockPenaltyCost > 0 ? "手詰まり +\(mode.deadlockPenaltyCost) 手" : "手詰まり ペナルティなし",
-            mode.manualRedrawPenaltyCost > 0 ? "引き直し +\(mode.manualRedrawPenaltyCost) 手" : "引き直し ペナルティなし",
-            mode.manualDiscardPenaltyCost > 0 ? "捨て札 +\(mode.manualDiscardPenaltyCost) 手" : "捨て札 ペナルティなし",
-            mode.revisitPenaltyCost > 0 ? "再訪 +\(mode.revisitPenaltyCost) 手" : "再訪ペナルティなし"
-        ]
     }
     /// 現在のゲーム進行状態
     /// - Note: GameView 側でオーバーレイ表示を切り替える際に利用する

@@ -16,7 +16,6 @@ final class DungeonSelectionViewTests: XCTestCase {
             DungeonSelectionView(
                 dungeonLibrary: .shared,
                 dungeonGrowthStore: DungeonGrowthStore(userDefaults: defaults),
-                onClose: {},
                 onStartDungeon: {
                     startedDungeon = $0
                     startedFloorIndex = $1
@@ -109,6 +108,21 @@ final class DungeonSelectionViewTests: XCTestCase {
             "dungeon_growth_reward_status_growth-tower-20f"
         ])
         XCTAssertTrue(DungeonGrowthRewardStatusPresentation.make(dungeon: rogueTower, growthStore: growthStore).isEmpty)
+    }
+
+    func testDungeonSelectionPlacesGrowthTreeOnlyInsideGrowthTowerCard() throws {
+        let tutorialTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
+        let growthTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let rogueTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "rogue-tower"))
+
+        XCTAssertNil(DungeonGrowthTreeCardPresentation.make(dungeon: tutorialTower, points: 2))
+        XCTAssertNil(DungeonGrowthTreeCardPresentation.make(dungeon: rogueTower, points: 2))
+
+        let presentation = try XCTUnwrap(DungeonGrowthTreeCardPresentation.make(dungeon: growthTower, points: 2))
+        XCTAssertEqual(presentation.title, "成長")
+        XCTAssertEqual(presentation.pointsText, "ポイント 2")
+        XCTAssertEqual(presentation.sectionAccessibilityIdentifier, "dungeon_growth_section")
+        XCTAssertEqual(presentation.toggleAccessibilityIdentifier, "dungeon_growth_toggle")
     }
 
     func testDungeonSelectionExposesSecondSectionAfterCheckpointUnlock() throws {

@@ -52,11 +52,13 @@ extension GameView {
                 DungeonPickupChoiceOverlayView(
                     theme: theme,
                     choice: pendingChoice,
+                    dimmedHeight: layoutContext.controlRowTopPadding
+                        + layoutContext.resolvedStatisticsHeight
+                        + GameViewLayoutMetrics.spacingBetweenStatisticsAndBoard
+                        + layoutContext.boardWidth
+                        + GameViewLayoutMetrics.spacingBetweenBoardAndHand,
                     onDiscardPickup: {
                         viewModel.discardPendingDungeonPickupCard()
-                    },
-                    onDiscardExisting: { playable in
-                        viewModel.replaceDungeonInventoryEntryForPendingPickup(discarding: playable)
                     }
                 )
                 .transition(.opacity)
@@ -329,53 +331,47 @@ extension GameView {
 struct DungeonPickupChoiceOverlayView: View {
     let theme: AppTheme
     let choice: PendingDungeonPickupChoice
+    let dimmedHeight: CGFloat
     let onDiscardPickup: () -> Void
-    let onDiscardExisting: (PlayableCard) -> Void
-
-    private var columns: [GridItem] {
-        [GridItem(.adaptive(minimum: 96, maximum: 128), spacing: 10, alignment: .top)]
-    }
 
     var body: some View {
-        ZStack {
-            Color.black.opacity(0.42)
-                .ignoresSafeArea()
-                .accessibilityHidden(true)
+        ZStack(alignment: .top) {
+            VStack(spacing: 0) {
+                Color.black.opacity(0.42)
+                    .frame(height: dimmedHeight)
+                    .ignoresSafeArea(edges: [.top, .horizontal])
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+                Spacer(minLength: 0)
+            }
+            .allowsHitTesting(false)
 
-            VStack(spacing: 12) {
+            VStack(spacing: 10) {
                 VStack(spacing: 4) {
                     Text("手札がいっぱいです")
                         .font(.system(size: 19, weight: .bold, design: .rounded))
                         .foregroundColor(theme.textPrimary)
-                    Text("拾ったカードか、手札の 1 種類を選んで捨てます")
+                    Text("下の手札を選ぶと入れ替えます")
                         .font(.system(size: 13, weight: .medium, design: .rounded))
                         .foregroundColor(theme.textSecondary)
                         .multilineTextAlignment(.center)
                 }
 
-                ScrollView {
-                    LazyVGrid(columns: columns, spacing: 10) {
-                        pickupChoiceButton
-                        ForEach(Array(choice.discardCandidates.enumerated()), id: \.element.id) { index, entry in
-                            existingChoiceButton(entry: entry, index: index)
-                        }
-                    }
-                    .padding(.vertical, 2)
-                }
-                .frame(maxHeight: 330)
+                pickupChoiceButton
             }
-            .padding(14)
-            .frame(maxWidth: 560)
+            .padding(12)
+            .frame(maxWidth: 220)
             .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .fill(theme.spawnOverlayBackground)
                     .overlay(
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
                             .stroke(theme.spawnOverlayBorder, lineWidth: 1)
                     )
             )
-            .shadow(color: theme.spawnOverlayShadow, radius: 20, x: 0, y: 10)
-            .padding(.horizontal, 18)
+            .shadow(color: theme.spawnOverlayShadow, radius: 16, x: 0, y: 8)
+            .padding(.top, 96)
+            .padding(.horizontal, 16)
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("dungeon_pickup_choice_overlay")
@@ -395,24 +391,7 @@ struct DungeonPickupChoiceOverlayView: View {
         .buttonStyle(.plain)
         .accessibilityIdentifier("dungeon_pickup_choice_discard_new")
         .accessibilityLabel(Text("拾ったカード、\(choice.pickup.card.displayName)、取得しない"))
-    }
-
-    private func existingChoiceButton(entry: DungeonInventoryEntry, index: Int) -> some View {
-        Button {
-            onDiscardExisting(entry.playable)
-        } label: {
-            DungeonPickupChoiceCardView(
-                theme: theme,
-                playable: entry.playable,
-                uses: entry.totalUses,
-                badgeText: "手札",
-                actionText: "この種類を捨てる",
-                isPickupCandidate: false
-            )
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("dungeon_pickup_choice_discard_existing_\(index)")
-        .accessibilityLabel(Text("手札、\(entry.playable.displayName)、残り \(entry.totalUses)、この種類を捨てる"))
+        .accessibilityHint(Text("取得せずに消します。手札は変わりません。"))
     }
 }
 
@@ -516,12 +495,6 @@ private struct SupportPickupChoiceIllustrationView: View {
 
     private var symbolName: String {
         switch card {
-        case .nextRefresh:
-            return "arrow.triangle.2.circlepath"
-        case .swapOne:
-            return "arrow.left.arrow.right"
-        case .guidance:
-            return "scope"
         case .refillEmptySlots:
             return "square.grid.3x3.fill"
         }

@@ -60,8 +60,6 @@ public extension MoveCard {
         case .rayDownLeft: return "左下連続"
         case .rayLeft: return "左連続"
         case .rayUpLeft: return "左上連続"
-        case .superWarp: return "全域ワープ"
-        case .fixedWarp: return "固定ワープ"
         }
     }
 

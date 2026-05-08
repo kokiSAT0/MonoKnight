@@ -16,9 +16,6 @@ extension AppTheme {
     /// ワープ系カード全体に使う紫系アクセント色
     var warpCardAccent: Color { schemeColor(light: Self.lightWarpAccent, dark: Self.darkWarpAccent) }
 
-    /// スーパーワープカード専用の明るいアクセント色
-    var superWarpCardAccent: Color { schemeColor(light: Self.lightSuperWarpAccent, dark: Self.darkSuperWarpAccent) }
-
     /// 盤面中央セルのハイライト色（手札用）
     var centerHighlightHand: Color { schemeColor(light: Color.black.opacity(0.08), dark: Color.white.opacity(0.12)) }
 
@@ -50,8 +47,6 @@ extension AppTheme {
 private extension AppTheme {
     static let lightWarpAccent = Color(red: 0.56, green: 0.42, blue: 0.86)
     static let darkWarpAccent = Color(red: 0.70, green: 0.55, blue: 0.93)
-    static let lightSuperWarpAccent = Color(red: 0.64, green: 0.48, blue: 0.92)
-    static let darkSuperWarpAccent = Color(red: 0.80, green: 0.62, blue: 0.98)
     static let lightMultiStepAccent = Color(red: 0.0, green: 0.68, blue: 0.86)
     static let darkMultiStepAccent = Color(red: 0.35, green: 0.85, blue: 0.95)
 }

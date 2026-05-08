@@ -31,6 +31,8 @@ struct ResultView: View {
     let dungeonRunTotalMoveCount: Int?
     /// 次のダンジョンフロア名
     let nextDungeonFloorTitle: String?
+    /// 再挑戦ボタンの表示名
+    let retryButtonTitle: String
     /// 次階へ進む前に選べる報酬カード
     let dungeonRewardMoveCards: [MoveCard]
     /// 次階へ進む前に選べる補助報酬カード
@@ -105,6 +107,7 @@ struct ResultView: View {
         dungeonRunFloorText: String? = nil,
         dungeonRunTotalMoveCount: Int? = nil,
         nextDungeonFloorTitle: String? = nil,
+        retryButtonTitle: String = "リトライ",
         dungeonRewardMoveCards: [MoveCard] = [],
         dungeonRewardSupportCards: [SupportCard] = [],
         dungeonInventoryEntries: [DungeonInventoryEntry] = [],
@@ -141,6 +144,7 @@ struct ResultView: View {
             dungeonRunFloorText: dungeonRunFloorText,
             dungeonRunTotalMoveCount: dungeonRunTotalMoveCount,
             nextDungeonFloorTitle: nextDungeonFloorTitle,
+            retryButtonTitle: retryButtonTitle,
             dungeonRewardMoveCards: dungeonRewardMoveCards,
             dungeonRewardSupportCards: dungeonRewardSupportCards,
             dungeonInventoryEntries: dungeonInventoryEntries,
@@ -179,6 +183,7 @@ struct ResultView: View {
         dungeonRunFloorText: String? = nil,
         dungeonRunTotalMoveCount: Int? = nil,
         nextDungeonFloorTitle: String? = nil,
+        retryButtonTitle: String = "リトライ",
         dungeonRewardMoveCards: [MoveCard] = [],
         dungeonRewardSupportCards: [SupportCard] = [],
         dungeonInventoryEntries: [DungeonInventoryEntry] = [],
@@ -224,6 +229,7 @@ struct ResultView: View {
         self.dungeonRunFloorText = dungeonRunFloorText
         self.dungeonRunTotalMoveCount = dungeonRunTotalMoveCount
         self.nextDungeonFloorTitle = nextDungeonFloorTitle
+        self.retryButtonTitle = retryButtonTitle
         self.dungeonRewardMoveCards = dungeonRewardMoveCards
         self.dungeonRewardSupportCards = dungeonRewardSupportCards
         self.dungeonInventoryEntries = dungeonInventoryEntries
@@ -262,6 +268,7 @@ struct ResultView: View {
                     modeIdentifier: modeIdentifier,
                     modeDisplayName: modeDisplayName,
                     nextDungeonFloorTitle: nextDungeonFloorTitle,
+                    retryButtonTitle: retryButtonTitle,
                     dungeonRewardMoveCards: dungeonRewardMoveCards,
                     dungeonRewardSupportCards: dungeonRewardSupportCards,
                     dungeonRewardInventoryEntries: dungeonInventoryEntries,

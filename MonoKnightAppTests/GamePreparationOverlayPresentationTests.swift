@@ -3,28 +3,34 @@ import Game
 @testable import MonoKnightApp
 
 final class GamePreparationOverlayPresentationTests: XCTestCase {
-    func testDungeonPreparationUsesExitHPAndTurnLimit() throws {
+    func testDungeonPreparationShowsOnlyTowerAndFloor() throws {
         let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
         let floor = try XCTUnwrap(tower.floors.first)
         let presentation = GamePreparationOverlayPresentation(
             mode: floor.makeGameMode(dungeonID: tower.id)
         )
 
-        XCTAssertEqual(presentation.primaryObjectiveText, "出口へ到達すればクリア")
-        XCTAssertEqual(presentation.clearConditionText, "クリア: 出口 (3,4)")
-        XCTAssertTrue(presentation.shortRuleSummaryText.contains("HP 3"))
-        XCTAssertTrue(presentation.shortRuleSummaryText.contains("残り手数 7"))
-        XCTAssertTrue(presentation.shortRuleSummaryText.contains("床のカードも未使用分は次の階へ持ち越せます"))
-        XCTAssertEqual(presentation.detailsTitle, "塔のルールを見る")
-        XCTAssertTrue(
-            presentation.featureChips.contains(
-                GamePreparationOverlayPresentation.FeatureChip(label: "出口到達", isNew: true)
-            )
+        XCTAssertEqual(presentation.titleText, "基礎塔 1F")
+        XCTAssertEqual(presentation.subtitleText, "Floor 1")
+    }
+
+    func testDungeonPreparationUsesRunStateFloorNumber() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let runState = DungeonRunState(
+            dungeonID: tower.id,
+            currentFloorIndex: 6,
+            carriedHP: 3,
+            clearedFloorCount: 6
         )
-        XCTAssertTrue(
-            presentation.featureChips.contains(
-                GamePreparationOverlayPresentation.FeatureChip(label: "基本移動", isNew: true)
-            )
+        let mode = tower.floors[6].makeGameMode(
+            dungeonID: tower.id,
+            difficulty: tower.difficulty,
+            carriedHP: runState.carriedHP,
+            runState: runState
         )
+        let presentation = GamePreparationOverlayPresentation(mode: mode)
+
+        XCTAssertEqual(presentation.titleText, "成長塔 7F")
+        XCTAssertEqual(presentation.subtitleText, "Floor 7")
     }
 }
