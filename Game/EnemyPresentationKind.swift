@@ -24,7 +24,7 @@ public enum EnemyPresentationKind: String, CaseIterable, Equatable, Identifiable
         case .chaser:
             return "追跡兵"
         case .marker:
-            return "予告兵"
+            return "メテオ兵"
         }
     }
 
@@ -37,11 +37,11 @@ public enum EnemyPresentationKind: String, CaseIterable, Equatable, Identifiable
         case .watcher:
             return "向いている直線方向を見張ります。"
         case .rotatingWatcher:
-            return "1手ごとに視線方向を順番に変えます。"
+            return "1手ごとに視線方向を右回りまたは左回りに変えます。"
         case .chaser:
-            return "プレイヤーへ最短経路で1マス近づきます。"
+            return "足跡の敵です。プレイヤーへ最短経路で1マス近づきます。"
         case .marker:
-            return "次の敵ターンで危険になる床を予告します。"
+            return "ランダムな床へメテオの落下予告を出します。"
         }
     }
 
@@ -54,11 +54,11 @@ public enum EnemyPresentationKind: String, CaseIterable, Equatable, Identifiable
         case .watcher:
             return "視線の直線上が危険です。岩、柱、壁の手前で視線は止まります。"
         case .rotatingWatcher:
-            return "今の視線と次の向きを合わせて読みます。矢印方向へ次に向き直ります。"
+            return "今の視線と敵アイコンの回転方向を合わせて、次に向く向きを読みます。"
         case .chaser:
-            return "近づいた後の隣接範囲まで危険になります。寄り道や待機で詰められます。"
+            return "移動先は盤面の小矢印で読みます。近づいた後の隣接範囲まで危険です。"
         case .marker:
-            return "薄い警告床は次の敵ターンだけ危険です。今安全でも、待つ場所をずらします。"
+            return "着弾予告マスは次の敵ターンだけ危険です。予告を見て、止まる場所をずらします。"
         }
     }
 }
@@ -79,6 +79,11 @@ public extension EnemyBehavior {
         case .marker:
             return .marker
         }
+    }
+
+    var rotatingWatcherDirection: RotatingWatcherDirection? {
+        guard case .rotatingWatcher(_, let rotationDirection, _) = self else { return nil }
+        return rotationDirection
     }
 }
 

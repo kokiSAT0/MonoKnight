@@ -20,9 +20,6 @@ public enum GameDeckPreset: String, CaseIterable, Codable, Identifiable {
     /// キングと桂馬の基本 16 種を収録した構成
     /// - Note: 標準セットの短距離カードに限定し、中級者への橋渡しに使う。
     case kingAndKnightBasic
-    /// キングと桂馬基礎デッキへ上下左右の選択キングカードを加えた構成
-    /// - Note: 長距離カードを避けたまま縦横の判断力だけを拡張する初級者向け派生。
-    case kingAndKnightWithOrthogonalChoices
     /// キングと桂馬基礎デッキへ斜め選択キングカードを加えた構成
     /// - Note: 角方向の処理を短距離カードのみで鍛えるための派生構成。
     case kingAndKnightWithDiagonalChoices
@@ -35,15 +32,9 @@ public enum GameDeckPreset: String, CaseIterable, Codable, Identifiable {
     /// キング 4 種と桂馬 4 種のみで構成した訓練向けデッキ
     /// - Note: 3×3 盤での導入に最適化し、操作量をさらに絞り込む。
     case kingPlusKnightOnly
-    /// キング型カードに上下左右の選択肢を加えた構成
-    /// - Note: 選択カードの初期学習として縦横 2 択の判断練習に活用する。
-    case directionChoice
     /// レイ型カードを主体とした連続移動構成
     /// - Note: レイ型と補助キングを組み合わせ、長距離掃討を重点的に学ぶ。
     case directionalRayFocus
-    /// 標準デッキに上下左右の選択キングを加えた構成
-    /// - Note: 縦横選択を重み 2 で引きやすくし、標準カードとの切り替えを練習する。
-    case standardWithOrthogonalChoices
     /// 標準デッキに斜め選択キングを加えた構成
     /// - Note: 角方向の補正を習得する中盤トレーニングとして利用する。
     case standardWithDiagonalChoices
@@ -62,9 +53,6 @@ public enum GameDeckPreset: String, CaseIterable, Codable, Identifiable {
     /// 複数マス移動カードを重視した拡張構成
     /// - Note: レイ型＋補助キングで盤面全域の掃討速度を高める目的。
     case extendedWithMultiStepMoves
-    /// 上下左右の選択キングカードのみで構成した訓練デッキ
-    /// - Note: 選択式の基本挙動を短時間で体験できる限定構成。
-    case kingOrthogonalChoiceOnly
     /// 斜め方向の選択キングカードのみで構成した訓練デッキ
     /// - Note: 角移動の判断を集中的に磨く限定構成。
     case kingDiagonalChoiceOnly
@@ -91,8 +79,6 @@ public enum GameDeckPreset: String, CaseIterable, Codable, Identifiable {
             return "王将構成"
         case .kingAndKnightBasic:
             return "キング＋ナイト基礎構成"
-        case .kingAndKnightWithOrthogonalChoices:
-            return "キング＋ナイト＋縦横選択構成"
         case .kingAndKnightWithDiagonalChoices:
             return "キング＋ナイト＋斜め選択構成"
         case .kingAndKnightWithKnightChoices:
@@ -100,13 +86,9 @@ public enum GameDeckPreset: String, CaseIterable, Codable, Identifiable {
         case .kingAndKnightWithAllChoices:
             return "キング＋ナイト＋全選択構成"
         case .kingPlusKnightOnly:
-            return "キング＋ナイト限定構成"
-        case .directionChoice:
-            return "選択式キング構成"
+            return "斜めキング＋ナイト限定構成"
         case .directionalRayFocus:
             return "連続移動カード構成"
-        case .standardWithOrthogonalChoices:
-            return "標準＋縦横選択キング構成"
         case .standardWithDiagonalChoices:
             return "標準＋斜め選択キング構成"
         case .standardWithKnightChoices:
@@ -119,8 +101,6 @@ public enum GameDeckPreset: String, CaseIterable, Codable, Identifiable {
             return "補助カード実験構成"
         case .extendedWithMultiStepMoves:
             return "複数マス移動拡張構成"
-        case .kingOrthogonalChoiceOnly:
-            return "上下左右選択キング構成"
         case .kingDiagonalChoiceOnly:
             return "斜め選択キング構成"
         case .knightChoiceOnly:
@@ -148,8 +128,6 @@ public enum GameDeckPreset: String, CaseIterable, Codable, Identifiable {
             return .kingOnly
         case .kingAndKnightBasic:
             return .kingAndKnightBasic
-        case .kingAndKnightWithOrthogonalChoices:
-            return .kingAndKnightWithOrthogonalChoices
         case .kingAndKnightWithDiagonalChoices:
             return .kingAndKnightWithDiagonalChoices
         case .kingAndKnightWithKnightChoices:
@@ -158,12 +136,8 @@ public enum GameDeckPreset: String, CaseIterable, Codable, Identifiable {
             return .kingAndKnightWithAllChoices
         case .kingPlusKnightOnly:
             return .kingPlusKnightOnly
-        case .directionChoice:
-            return .directionChoice
         case .directionalRayFocus:
             return .directionalRayFocus
-        case .standardWithOrthogonalChoices:
-            return .standardWithOrthogonalChoices
         case .standardWithDiagonalChoices:
             return .standardWithDiagonalChoices
         case .standardWithKnightChoices:
@@ -176,8 +150,6 @@ public enum GameDeckPreset: String, CaseIterable, Codable, Identifiable {
             return .supportToolkit
         case .extendedWithMultiStepMoves:
             return .extendedWithMultiStepMoves
-        case .kingOrthogonalChoiceOnly:
-            return .kingOrthogonalChoiceOnly
         case .kingDiagonalChoiceOnly:
             return .kingDiagonalChoiceOnly
         case .knightChoiceOnly:

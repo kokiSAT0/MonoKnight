@@ -14,16 +14,12 @@ public extension MoveCard {
         .rayUpLeft
     ]
 
-    /// 標準デッキで採用している 32 種類のカード集合
+    /// 標準デッキで採用しているカード集合
     /// - Important: 選択式カードは含めず、単方向カードと連続レイ型カードのみで構成する
     static let standardSet: [MoveCard] = [
-        .kingUp,
         .kingUpRight,
-        .kingRight,
         .kingDownRight,
-        .kingDown,
         .kingDownLeft,
-        .kingLeft,
         .kingUpLeft,
         .knightUp2Right1,
         .knightUp2Left1,
@@ -46,8 +42,6 @@ public extension MoveCard {
     /// `CaseIterable` の自動生成は internal となるため、外部モジュールからも全種類を参照できるよう明示的に公開配列を定義する
     /// - Note: スタンダードセットに複数方向カードを加えた順序で公開する
     static let allCases: [MoveCard] = standardSet + [
-        .kingUpOrDown,
-        .kingLeftOrRight,
         .kingUpwardDiagonalChoice,
         .kingRightDiagonalChoice,
         .kingDownwardDiagonalChoice,

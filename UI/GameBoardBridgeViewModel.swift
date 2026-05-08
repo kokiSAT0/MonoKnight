@@ -74,6 +74,30 @@ final class GameBoardBridgeViewModel: ObservableObject {
     /// 直近に受信した移動解決情報
     /// - Note: Combine で current が更新される前に GameScene へ渡すため、一時的に保持するバッファとして利用する
     private var latestMovementResolution: MovementResolution?
+    /// Core の最終状態通知が先に届いても、移動リプレイ開始までは初期表示を維持するための解決情報
+    private var preparedMovementReplayResolution: MovementResolution?
+    /// 再生済みの解決情報を保持し、後続の敵ターンなどで古い移動を再準備しないようにする
+    private var completedMovementReplayResolution: MovementResolution?
+    /// 移動演出の開始を GameViewModel 側へ伝える
+    var onMovementPresentationStarted: ((MovementResolution) -> Void)?
+    /// 移動演出の各ステップを GameViewModel 側へ伝える
+    var onMovementPresentationStep: ((MovementResolution.PresentationStep) -> Void)?
+    /// 移動演出の完了を GameViewModel 側へ伝える
+    var onMovementPresentationFinished: (() -> Void)?
+    /// 敵ターン中にプレイヤーへダメージが入った瞬間を GameViewModel 側へ伝える
+    var onEnemyTurnDamageResolved: ((DungeonEnemyTurnEvent) -> Void)?
+    /// 敵ターン演出の完了を GameViewModel 側へ伝える
+    var onEnemyTurnAnimationFinished: ((DungeonEnemyTurnEvent) -> Void)?
+    /// 移動演出中だけ拾得カード消失を段階表示するための上書き
+    private var presentationCollectedDungeonCardPickupIDs: Set<String>?
+    /// 移動演出中だけ敵表示を段階表示するための上書き
+    private var presentationEnemyStates: [EnemyState]?
+    /// 移動演出中だけひび割れ床を段階表示するための上書き
+    private var presentationCrackedFloorPoints: Set<GridPoint>?
+    /// 移動演出中だけ崩落床を段階表示するための上書き
+    private var presentationCollapsedFloorPoints: Set<GridPoint>?
+    /// 経路移動の再生中かどうか
+    @Published private(set) var isMovementReplayActive = false
     /// スタックごとのトップカード ID を追跡し、レイアウト同期を最適化する
     @Published var topCardIDsByStack: [UUID: UUID] = [:]
 
@@ -96,6 +120,8 @@ final class GameBoardBridgeViewModel: ObservableObject {
     private var enemyTurnAnimationCompletionWorkItem: DispatchWorkItem?
     /// 敵ターン演出中に盤面へ表示する敵の前後状態
     private var activeEnemyTurnEvent: DungeonEnemyTurnEvent?
+    /// 移動リプレイ完了まで再生を待つ敵ターンイベント
+    private(set) var pendingEnemyTurnEventAfterMovementReplay: DungeonEnemyTurnEvent?
     /// 再生済みの敵ターンイベントを保持し、通常更新時に古いイベントを再利用しないようにする
     private var completedEnemyTurnEventID: UUID?
 
@@ -237,11 +263,104 @@ final class GameBoardBridgeViewModel: ObservableObject {
 
     private(set) var damageEffectPlayCountForTesting = 0
 
+    private func beginMovementReplay(using resolution: MovementResolution) {
+        prepareMovementReplayPresentationIfNeeded(using: resolution)
+        isMovementReplayActive = true
+        onMovementPresentationStarted?(resolution)
+        scene.playMovementTransition(
+            using: resolution,
+            onStep: { [weak self] step in
+                self?.applyMovementPresentationStep(step)
+            },
+            onCompletion: { [weak self] in
+                self?.finishMovementReplay()
+            }
+        )
+    }
+
+    #if DEBUG
+        func beginMovementReplayForTesting(using resolution: MovementResolution) {
+            beginMovementReplay(using: resolution)
+        }
+
+        func setMovementReplayActiveForTesting(_ isActive: Bool) {
+            isMovementReplayActive = isActive
+        }
+
+        func playPendingEnemyTurnAfterMovementReplayForTesting() {
+            playPendingEnemyTurnAfterMovementReplayIfNeeded()
+        }
+    #endif
+
+    @discardableResult
+    private func preparePendingMovementReplayPresentationIfNeeded() -> Bool {
+        guard let resolution = latestMovementResolution ?? core.lastMovementResolution,
+              resolution.finalPosition == core.current,
+              isMovementReplayCandidate(resolution),
+              resolution != completedMovementReplayResolution
+        else {
+            return false
+        }
+        prepareMovementReplayPresentationIfNeeded(using: resolution)
+        return true
+    }
+
+    private func prepareMovementReplayPresentationIfNeeded(using resolution: MovementResolution) {
+        guard isMovementReplayCandidate(resolution) else { return }
+        if preparedMovementReplayResolution == resolution {
+            pushHighlightsToScene()
+            return
+        }
+        preparedMovementReplayResolution = resolution
+        if let initialBoard = resolution.presentationInitialBoard {
+            scene.updateBoard(initialBoard)
+        }
+        presentationCollectedDungeonCardPickupIDs = resolution.presentationInitialCollectedDungeonCardPickupIDs
+        presentationEnemyStates = resolution.presentationInitialEnemyStates
+        presentationCrackedFloorPoints = resolution.presentationInitialCrackedFloorPoints
+        presentationCollapsedFloorPoints = resolution.presentationInitialCollapsedFloorPoints
+        pushHighlightsToScene()
+    }
+
+    private func isMovementReplayCandidate(_ resolution: MovementResolution) -> Bool {
+        !resolution.presentationSteps.isEmpty || resolution.path.count > 1
+    }
+
+    private func applyMovementPresentationStep(_ step: MovementResolution.PresentationStep) {
+        if let boardAfter = step.boardAfter {
+            scene.updateBoard(boardAfter)
+        }
+        presentationCollectedDungeonCardPickupIDs = step.collectedDungeonCardPickupIDsAfter
+        presentationEnemyStates = step.enemyStatesAfter
+        presentationCrackedFloorPoints = step.crackedFloorPointsAfter
+        presentationCollapsedFloorPoints = step.collapsedFloorPointsAfter
+        pushHighlightsToScene()
+        onMovementPresentationStep?(step)
+    }
+
+    private func finishMovementReplay() {
+        presentationCollectedDungeonCardPickupIDs = nil
+        presentationEnemyStates = nil
+        presentationCrackedFloorPoints = nil
+        presentationCollapsedFloorPoints = nil
+        completedMovementReplayResolution = preparedMovementReplayResolution
+        preparedMovementReplayResolution = nil
+        isMovementReplayActive = false
+        scene.updateBoard(core.board)
+        pushHighlightsToScene()
+        onMovementPresentationFinished?()
+        playPendingEnemyTurnAfterMovementReplayIfNeeded()
+    }
+
     var isInputAnimationActive: Bool {
-        animatingCard != nil || isEnemyTurnAnimationActive
+        animatingCard != nil || isEnemyTurnAnimationActive || isMovementReplayActive
     }
 
     func playDungeonEnemyTurn(_ event: DungeonEnemyTurnEvent) {
+        if isMovementReplayActive {
+            pendingEnemyTurnEventAfterMovementReplay = event
+            return
+        }
         enemyTurnAnimationCompletionWorkItem?.cancel()
         activeEnemyTurnEvent = event
         isEnemyTurnAnimationActive = true
@@ -259,6 +378,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
         if shouldPlayDamage {
             DispatchQueue.main.asyncAfter(deadline: .now() + damageDelay) { [weak self] in
                 guard let self, self.isEnemyTurnAnimationActive else { return }
+                self.onEnemyTurnDamageResolved?(event)
                 self.playDamageEffect()
             }
         }
@@ -270,9 +390,17 @@ final class GameBoardBridgeViewModel: ObservableObject {
             self.isEnemyTurnAnimationActive = false
             self.enemyTurnAnimationCompletionWorkItem = nil
             self.refreshGuideHighlights()
+            self.onEnemyTurnAnimationFinished?(event)
         }
         enemyTurnAnimationCompletionWorkItem = workItem
         DispatchQueue.main.asyncAfter(deadline: .now() + completionDelay, execute: workItem)
+    }
+
+    private func playPendingEnemyTurnAfterMovementReplayIfNeeded() {
+        guard let event = pendingEnemyTurnEventAfterMovementReplay else { return }
+        pendingEnemyTurnEventAfterMovementReplay = nil
+        guard event.id != completedEnemyTurnEventID else { return }
+        playDungeonEnemyTurn(event)
     }
 
     /// 現在保持しているハイライト状態を SpriteKit シーンへ反映する
@@ -280,11 +408,22 @@ final class GameBoardBridgeViewModel: ObservableObject {
     private func pushHighlightsToScene() {
         let shouldHideGuideCandidates = !forcedSelectionHighlightPoints.isEmpty
         let enemyTurnBeforeStates = activeEnemyTurnEvent?.phases.first?.transitions.map(\.before) ?? []
-        let displayedEnemyStates = activeEnemyTurnEvent.map { _ in enemyTurnBeforeStates } ?? core.enemyStates
-        let displayedEnemyPoints = activeEnemyTurnEvent.map { _ in
-            Set(enemyTurnBeforeStates.map(\.position))
-        } ?? Set(core.enemyStates.map(\.position))
+        let activeEnemyTurnDisplayStates = enemyTurnBeforeStates.isEmpty ? core.enemyStates : enemyTurnBeforeStates
+        let stepEnemyStates = presentationEnemyStates ?? core.enemyStates
+        let displayedEnemyStates = activeEnemyTurnEvent.map { _ in activeEnemyTurnDisplayStates } ?? stepEnemyStates
+        let displayedEnemyPoints = Set(displayedEnemyStates.map(\.position))
         let shouldDeferEnemyThreatHighlights = activeEnemyTurnEvent != nil
+        let displayedEnemyDangerPoints = core.enemyDangerPoints(forDisplayedEnemyStates: displayedEnemyStates)
+        let displayedEnemyWarningPoints = core.enemyWarningPoints(forDisplayedEnemyStates: displayedEnemyStates)
+        let patrolFacingVectors = patrolFacingVectorsForDisplayedEnemies(displayedEnemyStates)
+        let collectedPickupIDs = presentationCollectedDungeonCardPickupIDs ?? core.collectedDungeonCardPickupIDs
+        let displayedCardPickupPoints = Set(
+            mode.dungeonRules?.cardPickups
+                .filter { !collectedPickupIDs.contains($0.id) }
+                .map(\.point) ?? []
+        )
+        let displayedCrackedFloorPoints = presentationCrackedFloorPoints ?? core.crackedFloorPoints
+        let displayedCollapsedFloorPoints = presentationCollapsedFloorPoints ?? core.collapsedFloorPoints
         let highlights: [BoardHighlightKind: Set<GridPoint>] = [
             .guideSingleCandidate: shouldHideGuideCandidates ? [] : guideHighlightBuckets.singleVectorDestinations,
             .guideMultipleCandidate: shouldHideGuideCandidates ? [] : guideHighlightBuckets.multipleVectorDestinations,
@@ -301,24 +440,55 @@ final class GameBoardBridgeViewModel: ObservableObject {
             .dungeonExitLocked: core.isDungeonExitUnlocked ? [] : (mode.dungeonExitPoint.map { Set([$0]) } ?? []),
             .dungeonKey: core.dungeonKeyPoints,
             .dungeonEnemy: displayedEnemyPoints,
-            .dungeonDanger: shouldDeferEnemyThreatHighlights ? [] : core.enemyDangerPoints,
-            .dungeonEnemyWarning: shouldDeferEnemyThreatHighlights ? [] : core.enemyWarningPoints,
-            .dungeonCardPickup: Set(core.activeDungeonCardPickups.map(\.point)),
+            .dungeonDanger: shouldDeferEnemyThreatHighlights ? [] : displayedEnemyDangerPoints,
+            .dungeonEnemyWarning: shouldDeferEnemyThreatHighlights ? [] : displayedEnemyWarningPoints,
+            .dungeonCardPickup: displayedCardPickupPoints,
             .dungeonDamageTrap: core.damageTrapPoints,
-            .dungeonCrackedFloor: core.crackedFloorPoints,
-            .dungeonCollapsedFloor: core.collapsedFloorPoints
+            .dungeonHealingTile: core.healingTilePoints,
+            .dungeonCrackedFloor: displayedCrackedFloorPoints,
+            .dungeonCollapsedFloor: displayedCollapsedFloorPoints
         ]
         scene.updateHighlights(highlights)
-        scene.updateDungeonEnemyMarkers(displayedEnemyStates.map(SceneDungeonEnemyMarker.init))
+        scene.updateDungeonEnemyMarkers(displayedEnemyStates.map { enemy in
+            SceneDungeonEnemyMarker(enemy, facingVector: patrolFacingVectors[enemy.id])
+        })
         scene.updatePatrolRailPreviews(
-            shouldDeferEnemyThreatHighlights ? [] : core.enemyPatrolRailPreviews.map(ScenePatrolRailPreview.init)
+            core.enemyPatrolRailPreviews(forDisplayedEnemyStates: displayedEnemyStates).map(ScenePatrolRailPreview.init)
         )
         let enemyDirectionPreviews = shouldDeferEnemyThreatHighlights ? [] : (
-            core.enemyPatrolMovementPreviews.map(ScenePatrolMovementPreview.init)
-            + core.enemyChaserMovementPreviews.map(ScenePatrolMovementPreview.init)
-            + core.enemyRotatingWatcherDirectionPreviews.map(ScenePatrolMovementPreview.init)
+            core.enemyChaserMovementPreviews(forDisplayedEnemyStates: displayedEnemyStates).map(ScenePatrolMovementPreview.init)
         )
         scene.updatePatrolMovementPreviews(enemyDirectionPreviews)
+    }
+
+    private func patrolFacingVectorsForDisplayedEnemies(_ displayedEnemyStates: [EnemyState]) -> [String: MoveVector] {
+        if let activeEnemyTurnEvent {
+            return Dictionary(
+                activeEnemyTurnEvent.phases
+                    .flatMap(\.transitions)
+                    .compactMap { transition -> (String, MoveVector)? in
+                        guard transition.before.behavior.presentationKind == .patrol,
+                              transition.before.position != transition.after.position else {
+                            return nil
+                        }
+                        return (
+                            transition.enemyID,
+                            MoveVector(
+                                dx: transition.after.position.x - transition.before.position.x,
+                                dy: transition.after.position.y - transition.before.position.y
+                            )
+                        )
+                    },
+                uniquingKeysWith: { first, _ in first }
+            )
+        }
+
+        return Dictionary(
+            core.enemyPatrolMovementPreviews(forDisplayedEnemyStates: displayedEnemyStates).map { preview in
+                (preview.enemyID, preview.vector)
+            },
+            uniquingKeysWith: { first, _ in first }
+        )
     }
 
     /// ガイド集合の件数をまとめ、ログ用メッセージも同時に生成する
@@ -414,6 +584,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
                 computedBuckets.singleVectorDestinations.formUnion(destinations)
             }
         }
+        computedBuckets.multiStepPathPoints.subtract(core.enemyDangerPoints)
 
         guard guideModeEnabled else {
             guideHighlightBuckets = .empty
@@ -638,6 +809,9 @@ final class GameBoardBridgeViewModel: ObservableObject {
             .receive(on: RunLoop.main)
             .sink { [weak self] newBoard in
                 guard let self else { return }
+                if self.isMovementReplayActive || self.preparePendingMovementReplayPresentationIfNeeded() {
+                    return
+                }
                 self.scene.updateBoard(newBoard)
                 self.refreshGuideHighlights()
             }
@@ -647,7 +821,14 @@ final class GameBoardBridgeViewModel: ObservableObject {
             .receive(on: RunLoop.main)
             .sink { [weak self] resolution in
                 // ワープ演出などを current 更新と同期させるため、最新の移動結果を控えておく
-                self?.latestMovementResolution = resolution
+                guard let self else { return }
+                self.latestMovementResolution = resolution
+                self.completedMovementReplayResolution = nil
+                if let resolution,
+                   resolution.finalPosition == self.core.current,
+                   self.isMovementReplayCandidate(resolution) {
+                    self.prepareMovementReplayPresentationIfNeeded(using: resolution)
+                }
             }
             .store(in: &cancellables)
 
@@ -656,20 +837,22 @@ final class GameBoardBridgeViewModel: ObservableObject {
             .sink { [weak self] newPoint in
                 guard let self else { return }
                 if let destination = newPoint,
-                   let resolution = self.latestMovementResolution,
+                   let resolution = self.latestMovementResolution ?? self.core.lastMovementResolution,
                    resolution.finalPosition == destination,
-                   resolution.appliedEffects.contains(where: { appliedEffect in
-                       if case .warp = appliedEffect.effect { return true }
-                       return false
-                   }) {
-                    // ワープ効果が含まれている場合は専用演出を再生し、より没入感のある挙動に切り替える
-                    self.scene.playWarpTransition(using: resolution)
+                   resolution != self.completedMovementReplayResolution,
+                   self.isMovementReplayCandidate(resolution) {
+                    // レイ型などの途中処理を持つ移動は、盤面状態も含めて一歩ずつ再生する
+                    self.beginMovementReplay(using: resolution)
                 } else if let destination = newPoint,
-                          let resolution = self.latestMovementResolution,
+                          let resolution = self.latestMovementResolution ?? self.core.lastMovementResolution,
                           resolution.finalPosition == destination,
-                          resolution.path.count > 1 {
-                    // レイ型などの複数マス移動は、途中処理と対応するよう通過マスを一歩ずつ再生する
-                    self.scene.playMovementTransition(using: resolution)
+                          resolution != self.completedMovementReplayResolution,
+                          resolution.appliedEffects.contains(where: { appliedEffect in
+                              if case .warp = appliedEffect.effect { return true }
+                              return false
+                          }) {
+                    // 単純なワープだけは従来の専用演出を利用する
+                    self.scene.playWarpTransition(using: resolution)
                 } else {
                     // 条件を満たさない場合は従来の単純移動を行う
                     self.scene.moveKnight(to: newPoint)
@@ -701,8 +884,16 @@ final class GameBoardBridgeViewModel: ObservableObject {
                 if let event = self.core.dungeonEnemyTurnEvent,
                    event.id != self.completedEnemyTurnEventID,
                    self.activeEnemyTurnEvent?.id != event.id {
+                    if self.isMovementReplayActive || self.preparePendingMovementReplayPresentationIfNeeded() {
+                        self.pendingEnemyTurnEventAfterMovementReplay = event
+                        self.pushHighlightsToScene()
+                        return
+                    }
                     self.activeEnemyTurnEvent = event
                     self.isEnemyTurnAnimationActive = true
+                }
+                if self.isMovementReplayActive || self.preparePendingMovementReplayPresentationIfNeeded() {
+                    return
                 }
                 self.pushHighlightsToScene()
             }
@@ -712,35 +903,64 @@ final class GameBoardBridgeViewModel: ObservableObject {
             .compactMap { $0 }
             .receive(on: RunLoop.main)
             .sink { [weak self] event in
-                self?.playDungeonEnemyTurn(event)
+                guard let self else { return }
+                guard event.id != self.completedEnemyTurnEventID else { return }
+                self.playDungeonEnemyTurn(event)
             }
             .store(in: &cancellables)
 
         core.$crackedFloorPoints
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
-                self?.pushHighlightsToScene()
+                guard let self else { return }
+                if self.isMovementReplayActive || self.preparePendingMovementReplayPresentationIfNeeded() {
+                    return
+                }
+                self.pushHighlightsToScene()
             }
             .store(in: &cancellables)
 
         core.$collapsedFloorPoints
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
-                self?.pushHighlightsToScene()
+                guard let self else { return }
+                if self.isMovementReplayActive || self.preparePendingMovementReplayPresentationIfNeeded() {
+                    return
+                }
+                self.pushHighlightsToScene()
+            }
+            .store(in: &cancellables)
+
+        core.$consumedHealingTilePoints
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                guard let self else { return }
+                if self.isMovementReplayActive || self.preparePendingMovementReplayPresentationIfNeeded() {
+                    return
+                }
+                self.pushHighlightsToScene()
             }
             .store(in: &cancellables)
 
         core.$collectedDungeonCardPickupIDs
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
-                self?.pushHighlightsToScene()
+                guard let self else { return }
+                if self.isMovementReplayActive || self.preparePendingMovementReplayPresentationIfNeeded() {
+                    return
+                }
+                self.pushHighlightsToScene()
             }
             .store(in: &cancellables)
 
         core.$isDungeonExitUnlocked
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
-                self?.pushHighlightsToScene()
+                guard let self else { return }
+                if self.isMovementReplayActive || self.preparePendingMovementReplayPresentationIfNeeded() {
+                    return
+                }
+                self.pushHighlightsToScene()
             }
             .store(in: &cancellables)
 

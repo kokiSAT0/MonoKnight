@@ -296,7 +296,7 @@ final class GameSceneAccessibilityTests: XCTestCase {
         )
     }
 
-    func testPatrolMovementArrowNodesUpdateAndClear() {
+    func testMovementArrowNodesUpdateAndClear() {
         let (scene, view, _) = makeScene()
         defer { view.presentScene(nil) }
 
@@ -309,14 +309,14 @@ final class GameSceneAccessibilityTests: XCTestCase {
             )
         ])
 
-        XCTAssertEqual(scene.patrolMovementArrowCountForTesting(), 1, "巡回兵1体につき矢印を1本表示する想定です")
+        XCTAssertEqual(scene.patrolMovementArrowCountForTesting(), 1, "移動方向プレビュー1件につき矢印を1本表示する想定です")
 
         scene.updatePatrolMovementPreviews([])
 
-        XCTAssertEqual(scene.patrolMovementArrowCountForTesting(), 0, "巡回プレビューが空になったら古い矢印を消す必要があります")
+        XCTAssertEqual(scene.patrolMovementArrowCountForTesting(), 0, "移動方向プレビューが空になったら古い矢印を消す必要があります")
     }
 
-    func testPatrolRailNodesUpdateAndClearWithoutRemovingArrow() {
+    func testPatrolRailNodesUpdateAndClearWithoutShowingArrow() {
         let (scene, view, _) = makeScene()
         defer { view.presentScene(nil) }
 
@@ -330,32 +330,59 @@ final class GameSceneAccessibilityTests: XCTestCase {
                 ]
             )
         ])
-        scene.updatePatrolMovementPreviews([
-            ScenePatrolMovementPreview(
-                enemyID: "patrol",
-                current: GridPoint(x: 1, y: 1),
-                next: GridPoint(x: 2, y: 1),
-                vector: MoveVector(dx: 1, dy: 0)
-            )
-        ])
 
         XCTAssertEqual(scene.patrolRailCountForTesting(), 1, "巡回兵1体につきレールを1本表示する想定です")
-        XCTAssertEqual(scene.patrolMovementArrowCountForTesting(), 1, "レール表示後も次方向矢印は残します")
-        guard let railStyle = scene.patrolRailStyleForTesting(enemyID: "patrol"),
-              let arrowStyle = scene.patrolMovementArrowStyleForTesting(enemyID: "patrol") else {
-            XCTFail("巡回レールと矢印の描画スタイルを取得できません")
+        XCTAssertEqual(scene.patrolMovementArrowCountForTesting(), 0, "巡回兵の次方向は黄色い別矢印では表示しません")
+        guard let railStyle = scene.patrolRailStyleForTesting(enemyID: "patrol") else {
+            XCTFail("巡回レールの描画スタイルを取得できません")
             return
         }
         XCTAssertTrue(railStyle.strokeColor.isNeutralGrayForTesting, "巡回レールは黄色ではなく中間グレーで表示します")
-        XCTAssertFalse(railStyle.strokeColor.isYellowForTesting, "巡回レールは次方向矢印と色を分けます")
-        XCTAssertTrue(arrowStyle.strokeColor.isYellowForTesting, "次方向矢印は黄色のまま強調します")
+        XCTAssertFalse(railStyle.strokeColor.isYellowForTesting, "巡回レールは黄色い次方向矢印とは別の見た目にします")
         XCTAssertGreaterThanOrEqual(railStyle.lineWidth, 2.0, "巡回レールは極端に細くならない太さにします")
-        XCTAssertLessThan(railStyle.lineWidth, arrowStyle.lineWidth, "巡回レールは次方向矢印より細くして役割を分けます")
+        XCTAssertLessThanOrEqual(railStyle.lineWidth, 2.2, "巡回レールは節や点で太く見えない一本線の太さにします")
 
         scene.updatePatrolRailPreviews([])
 
         XCTAssertEqual(scene.patrolRailCountForTesting(), 0, "巡回レールが空になったら古いレールを消す必要があります")
-        XCTAssertEqual(scene.patrolMovementArrowCountForTesting(), 1, "レールを消しても矢印は別ノードとして残します")
+        XCTAssertEqual(scene.patrolMovementArrowCountForTesting(), 0, "巡回レールを消しても黄色い別矢印は作られません")
+    }
+
+    func testPatrolEnemyMarkerFacingDoesNotCreateYellowArrowNode() {
+        let (scene, view, _) = makeScene()
+        defer { view.presentScene(nil) }
+
+        scene.updateDungeonEnemyMarkers([
+            SceneDungeonEnemyMarker(
+                enemyID: "patrol",
+                point: GridPoint(x: 1, y: 1),
+                kind: .patrol,
+                facingVector: MoveVector(dx: 0, dy: 1)
+            )
+        ])
+
+        XCTAssertEqual(scene.latestDungeonEnemyMarkersForTesting().first?.facingVector, MoveVector(dx: 0, dy: 1))
+        XCTAssertEqual(scene.patrolMovementArrowCountForTesting(), 0, "巡回兵の向きは敵アイコン内に持たせ、黄色い別矢印は作りません")
+    }
+
+    func testRotatingWatcherMarkerDirectionDoesNotCreateYellowArrowNode() {
+        let (scene, view, _) = makeScene()
+        defer { view.presentScene(nil) }
+
+        scene.updateDungeonEnemyMarkers([
+            SceneDungeonEnemyMarker(
+                enemyID: "rotating-watcher",
+                point: GridPoint(x: 1, y: 1),
+                kind: .rotatingWatcher,
+                rotationDirection: .counterclockwise
+            )
+        ])
+
+        XCTAssertEqual(
+            scene.latestDungeonEnemyMarkersForTesting().first?.rotationDirection,
+            .counterclockwise
+        )
+        XCTAssertEqual(scene.patrolMovementArrowCountForTesting(), 0, "回転見張りの回転方向は敵アイコン内に持たせ、黄色い別矢印は作りません")
     }
 }
 

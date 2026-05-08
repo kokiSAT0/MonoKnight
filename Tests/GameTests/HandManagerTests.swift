@@ -20,14 +20,14 @@ final class HandManagerTests: XCTestCase {
         // それぞれ異なるユニーク数になる構成を並べ、ループで一括検証する
         let scenarios: [(description: String, configuration: Deck.Configuration, preset: [MoveCard])] = [
             (
-                "2種類の選択キング",
-                .kingOrthogonalChoiceOnly,
-                [.kingUpOrDown, .kingUpOrDown, .kingUpOrDown, .kingLeftOrRight, .kingUpOrDown, .kingLeftOrRight]
+                "2種類の斜め選択キング",
+                makeConfiguration(moves: [.kingUpwardDiagonalChoice, .kingRightDiagonalChoice]),
+                [.kingUpwardDiagonalChoice, .kingUpwardDiagonalChoice, .kingUpwardDiagonalChoice, .kingRightDiagonalChoice, .kingUpwardDiagonalChoice, .kingRightDiagonalChoice]
             ),
             (
                 "3種類の直線移動",
-                makeConfiguration(moves: [.kingUp, .kingRight, .kingDown]),
-                [.kingUp, .kingUp, .kingRight, .kingUp, .kingDown, .kingRight, .kingDown]
+                makeConfiguration(moves: [.straightUp2, .straightRight2, .straightDown2]),
+                [.straightUp2, .straightUp2, .straightRight2, .straightUp2, .straightDown2, .straightRight2, .straightDown2]
             ),
             (
                 "4種類の桂馬選択カード",
@@ -55,13 +55,16 @@ final class HandManagerTests: XCTestCase {
     /// preferredInsertionIndices が上限超過していても無限ループに陥らないことを検証する
     func testRefillHandStacksHandlesExcessPreferredInsertionIndices() {
         let preset: [MoveCard] = [
-            .kingUpOrDown,
-            .kingLeftOrRight,
-            .kingUpOrDown,
-            .kingUpOrDown,
-            .kingLeftOrRight
+            .kingUpwardDiagonalChoice,
+            .kingRightDiagonalChoice,
+            .kingUpwardDiagonalChoice,
+            .kingUpwardDiagonalChoice,
+            .kingRightDiagonalChoice
         ]
-        var deck = Deck.makeTestDeck(cards: preset, configuration: .kingOrthogonalChoiceOnly)
+        var deck = Deck.makeTestDeck(
+            cards: preset,
+            configuration: makeConfiguration(moves: [.kingUpwardDiagonalChoice, .kingRightDiagonalChoice])
+        )
         let uniqueCount = deck.uniqueMoveIdentityCount()
 
         let handManager = HandManager(handSize: 5, nextPreviewCount: 0, allowsCardStacking: true)
@@ -75,16 +78,16 @@ final class HandManagerTests: XCTestCase {
     func testSupportCardsStackSeparatelyFromMoveCards() {
         var deck = Deck.makeTestDeck(playableCards: [
             .support(.refillEmptySlots),
-            .move(.kingUp),
+            .move(.kingUpRight),
             .support(.refillEmptySlots),
-            .move(.kingUp)
+            .move(.kingUpRight)
         ], configuration: .supportToolkit)
 
         let handManager = HandManager(handSize: 5, nextPreviewCount: 0, allowsCardStacking: true)
         handManager.refillHandStacks(using: &deck)
 
         let supportStacks = handManager.handStacks.filter { $0.topCard?.supportCard == .refillEmptySlots }
-        let kingStacks = handManager.handStacks.filter { $0.topCard?.moveCard == .kingUp }
+        let kingStacks = handManager.handStacks.filter { $0.topCard?.moveCard == .kingUpRight }
         XCTAssertEqual(supportStacks.count, 1, "同じ補助カードは同一スタックへまとまる想定です")
         XCTAssertEqual(supportStacks.first?.count, 2)
         XCTAssertEqual(kingStacks.count, 1, "同じ移動カードは従来通り同一スタックへまとまる想定です")

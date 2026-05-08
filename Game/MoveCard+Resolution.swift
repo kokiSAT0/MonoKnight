@@ -65,22 +65,10 @@ private extension MoveCard {
     static let patternRegistry: [MoveCard: MovePattern] = {
         var mapping: [MoveCard: MovePattern] = [:]
 
-        mapping[.kingUp] = .relativeSteps([MoveVector(dx: 0, dy: 1)])
         mapping[.kingUpRight] = .relativeSteps([MoveVector(dx: 1, dy: 1)])
-        mapping[.kingRight] = .relativeSteps([MoveVector(dx: 1, dy: 0)])
         mapping[.kingDownRight] = .relativeSteps([MoveVector(dx: 1, dy: -1)])
-        mapping[.kingDown] = .relativeSteps([MoveVector(dx: 0, dy: -1)])
         mapping[.kingDownLeft] = .relativeSteps([MoveVector(dx: -1, dy: -1)])
-        mapping[.kingLeft] = .relativeSteps([MoveVector(dx: -1, dy: 0)])
         mapping[.kingUpLeft] = .relativeSteps([MoveVector(dx: -1, dy: 1)])
-        mapping[.kingUpOrDown] = .relativeSteps([
-            MoveVector(dx: 0, dy: 1),
-            MoveVector(dx: 0, dy: -1)
-        ])
-        mapping[.kingLeftOrRight] = .relativeSteps([
-            MoveVector(dx: 1, dy: 0),
-            MoveVector(dx: -1, dy: 0)
-        ])
         mapping[.kingUpwardDiagonalChoice] = .relativeSteps([
             MoveVector(dx: 1, dy: 1),
             MoveVector(dx: -1, dy: 1)

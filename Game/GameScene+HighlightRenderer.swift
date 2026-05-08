@@ -26,6 +26,7 @@
         private var latestDungeonEnemyWarningPoints: Set<GridPoint> = []
         private var latestDungeonCardPickupPoints: Set<GridPoint> = []
         private var latestDungeonDamageTrapPoints: Set<GridPoint> = []
+        private var latestDungeonHealingTilePoints: Set<GridPoint> = []
         private var latestDungeonCrackedFloorPoints: Set<GridPoint> = []
         private var latestDungeonCollapsedFloorPoints: Set<GridPoint> = []
         private var latestDungeonEnemyMarkers: [SceneDungeonEnemyMarker] = []
@@ -84,6 +85,7 @@
             latestDungeonEnemyWarningPoints = []
             latestDungeonCardPickupPoints = []
             latestDungeonDamageTrapPoints = []
+            latestDungeonHealingTilePoints = []
             latestDungeonCrackedFloorPoints = []
             latestDungeonCollapsedFloorPoints = []
             latestDungeonEnemyMarkers = []
@@ -308,6 +310,7 @@
                     .dungeonEnemyWarning: latestDungeonEnemyWarningPoints,
                     .dungeonCardPickup: latestDungeonCardPickupPoints,
                     .dungeonDamageTrap: latestDungeonDamageTrapPoints,
+                    .dungeonHealingTile: latestDungeonHealingTilePoints,
                     .dungeonCrackedFloor: latestDungeonCrackedFloorPoints,
                     .dungeonCollapsedFloor: latestDungeonCollapsedFloorPoints,
                 ]
@@ -404,6 +407,7 @@
             latestDungeonEnemyWarningPoints = highlights[.dungeonEnemyWarning] ?? []
             latestDungeonCardPickupPoints = highlights[.dungeonCardPickup] ?? []
             latestDungeonDamageTrapPoints = highlights[.dungeonDamageTrap] ?? []
+            latestDungeonHealingTilePoints = highlights[.dungeonHealingTile] ?? []
             latestDungeonCrackedFloorPoints = highlights[.dungeonCrackedFloor] ?? []
             latestDungeonCollapsedFloorPoints = highlights[.dungeonCollapsedFloor] ?? []
         }
@@ -529,10 +533,10 @@
             palette: GameScenePalette
         ) {
             let style = dungeonEnemyMarkerStyle(for: marker.kind)
-            node.path = dungeonEnemyMarkerPath(kind: marker.kind, tileSize: layout.tileSize)
+            node.path = dungeonEnemyMarkerPath(marker: marker, tileSize: layout.tileSize)
             node.fillColor = style.fill
             node.strokeColor = style.stroke
-            node.lineWidth = max(layout.tileSize * 0.045, 1.8)
+            node.lineWidth = dungeonEnemyMarkerLineWidth(for: marker.kind, tileSize: layout.tileSize)
             node.glowWidth = max(layout.tileSize * 0.012, 0.5)
             node.lineJoin = .round
             node.lineCap = .round
@@ -561,7 +565,7 @@
                 )
             case .rotatingWatcher:
                 return (
-                    SKColor(red: 0.42, green: 0.32, blue: 0.84, alpha: 0.34),
+                    SKColor(red: 0.42, green: 0.32, blue: 0.84, alpha: 0.0),
                     SKColor(red: 0.62, green: 0.50, blue: 1.00, alpha: 0.96)
                 )
             case .chaser:
@@ -571,16 +575,16 @@
                 )
             case .marker:
                 return (
-                    SKColor(red: 0.95, green: 0.72, blue: 0.12, alpha: 0.34),
-                    SKColor(red: 1.00, green: 0.78, blue: 0.16, alpha: 0.96)
+                    SKColor(red: 0.96, green: 0.30, blue: 0.12, alpha: 0.34),
+                    SKColor(red: 1.00, green: 0.46, blue: 0.16, alpha: 0.96)
                 )
             }
         }
 
-        private func dungeonEnemyMarkerPath(kind: EnemyPresentationKind, tileSize: CGFloat) -> CGPath {
+        private func dungeonEnemyMarkerPath(marker: SceneDungeonEnemyMarker, tileSize: CGFloat) -> CGPath {
             let path = CGMutablePath()
-            let radius = tileSize * 0.28
-            switch kind {
+            let radius = dungeonEnemyMarkerRadius(for: marker.kind, tileSize: tileSize)
+            switch marker.kind {
             case .guardPost:
                 path.move(to: CGPoint(x: 0, y: radius))
                 path.addLine(to: CGPoint(x: radius * 0.78, y: radius * 0.55))
@@ -595,11 +599,7 @@
                 path.addLine(to: CGPoint(x: 0, y: -radius))
                 path.addLine(to: CGPoint(x: -radius, y: 0))
                 path.closeSubpath()
-                path.move(to: CGPoint(x: -radius * 0.54, y: 0))
-                path.addLine(to: CGPoint(x: radius * 0.54, y: 0))
-                path.move(to: CGPoint(x: radius * 0.22, y: radius * 0.26))
-                path.addLine(to: CGPoint(x: radius * 0.54, y: 0))
-                path.addLine(to: CGPoint(x: radius * 0.22, y: -radius * 0.26))
+                addPatrolFacingGlyph(to: path, radius: radius, vector: marker.facingVector ?? MoveVector(dx: 1, dy: 0))
             case .watcher:
                 path.move(to: CGPoint(x: -radius, y: 0))
                 path.addQuadCurve(to: CGPoint(x: radius, y: 0), control: CGPoint(x: 0, y: radius * 0.78))
@@ -612,40 +612,156 @@
                     height: radius * 0.52
                 ))
             case .rotatingWatcher:
-                path.addArc(
-                    center: .zero,
-                    radius: radius * 0.78,
-                    startAngle: .pi * 0.20,
-                    endAngle: .pi * 1.62,
-                    clockwise: false
+                path.move(to: CGPoint(x: -radius, y: 0))
+                path.addQuadCurve(to: CGPoint(x: radius, y: 0), control: CGPoint(x: 0, y: radius * 0.78))
+                path.addQuadCurve(to: CGPoint(x: -radius, y: 0), control: CGPoint(x: 0, y: -radius * 0.78))
+                path.closeSubpath()
+                addRotatingWatcherPupilArrow(
+                    to: path,
+                    radius: radius,
+                    direction: marker.rotationDirection ?? .clockwise
                 )
-                path.move(to: CGPoint(x: radius * 0.68, y: radius * 0.44))
-                path.addLine(to: CGPoint(x: radius * 0.94, y: radius * 0.06))
-                path.addLine(to: CGPoint(x: radius * 0.48, y: radius * 0.04))
-                path.move(to: CGPoint(x: -radius * 0.62, y: 0))
-                path.addQuadCurve(to: CGPoint(x: radius * 0.62, y: 0), control: CGPoint(x: 0, y: radius * 0.45))
-                path.addQuadCurve(to: CGPoint(x: -radius * 0.62, y: 0), control: CGPoint(x: 0, y: -radius * 0.45))
-                path.closeSubpath()
             case .chaser:
-                path.move(to: CGPoint(x: -radius * 0.85, y: radius * 0.48))
-                path.addLine(to: CGPoint(x: radius * 0.18, y: radius * 0.48))
-                path.addLine(to: CGPoint(x: radius * 0.18, y: radius * 0.78))
-                path.addLine(to: CGPoint(x: radius, y: 0))
-                path.addLine(to: CGPoint(x: radius * 0.18, y: -radius * 0.78))
-                path.addLine(to: CGPoint(x: radius * 0.18, y: -radius * 0.48))
-                path.addLine(to: CGPoint(x: -radius * 0.85, y: -radius * 0.48))
-                path.closeSubpath()
+                addChaserFootprintGlyph(to: path, radius: radius)
             case .marker:
-                path.move(to: CGPoint(x: 0, y: radius))
-                path.addLine(to: CGPoint(x: radius * 0.92, y: -radius * 0.66))
-                path.addLine(to: CGPoint(x: -radius * 0.92, y: -radius * 0.66))
-                path.closeSubpath()
-                path.move(to: CGPoint(x: 0, y: radius * 0.34))
-                path.addLine(to: CGPoint(x: 0, y: -radius * 0.18))
-                path.move(to: CGPoint(x: 0, y: -radius * 0.42))
-                path.addLine(to: CGPoint(x: 0, y: -radius * 0.45))
+                path.move(to: CGPoint(x: -radius * 0.88, y: radius * 0.74))
+                path.addLine(to: CGPoint(x: -radius * 0.28, y: radius * 0.34))
+                path.move(to: CGPoint(x: -radius * 0.98, y: radius * 0.24))
+                path.addLine(to: CGPoint(x: -radius * 0.36, y: -radius * 0.02))
+                path.addEllipse(in: CGRect(
+                    x: -radius * 0.24,
+                    y: -radius * 0.52,
+                    width: radius * 1.04,
+                    height: radius * 1.04
+                ))
+                path.move(to: CGPoint(x: radius * 0.10, y: -radius * 0.16))
+                path.addLine(to: CGPoint(x: radius * 0.62, y: -radius * 0.48))
+                path.move(to: CGPoint(x: radius * 0.10, y: -radius * 0.16))
+                path.addLine(to: CGPoint(x: radius * 0.38, y: radius * 0.40))
             }
             return path
+        }
+
+        private func dungeonEnemyMarkerRadius(for kind: EnemyPresentationKind, tileSize: CGFloat) -> CGFloat {
+            switch kind {
+            case .rotatingWatcher:
+                return tileSize * 0.39
+            default:
+                return tileSize * 0.28
+            }
+        }
+
+        private func dungeonEnemyMarkerLineWidth(for kind: EnemyPresentationKind, tileSize: CGFloat) -> CGFloat {
+            switch kind {
+            case .rotatingWatcher:
+                return max(tileSize * 0.036, 1.6)
+            default:
+                return max(tileSize * 0.045, 1.8)
+            }
+        }
+
+        private func addRotatingWatcherPupilArrow(
+            to path: CGMutablePath,
+            radius: CGFloat,
+            direction: RotatingWatcherDirection
+        ) {
+            let arcRadius = radius * 0.32
+            switch direction {
+            case .clockwise:
+                path.addArc(
+                    center: .zero,
+                    radius: arcRadius,
+                    startAngle: .pi * 0.12,
+                    endAngle: .pi * 1.64,
+                    clockwise: false
+                )
+                path.move(to: CGPoint(x: radius * 0.27, y: radius * 0.17))
+                path.addLine(to: CGPoint(x: radius * 0.41, y: radius * 0.02))
+                path.addLine(to: CGPoint(x: radius * 0.21, y: -radius * 0.05))
+            case .counterclockwise:
+                path.addArc(
+                    center: .zero,
+                    radius: arcRadius,
+                    startAngle: .pi * 0.88,
+                    endAngle: -.pi * 0.64,
+                    clockwise: true
+                )
+                path.move(to: CGPoint(x: -radius * 0.27, y: radius * 0.17))
+                path.addLine(to: CGPoint(x: -radius * 0.41, y: radius * 0.02))
+                path.addLine(to: CGPoint(x: -radius * 0.21, y: -radius * 0.05))
+            }
+        }
+
+        private func addChaserFootprintGlyph(to path: CGMutablePath, radius: CGFloat) {
+            let footprints: [(center: CGPoint, angle: CGFloat)] = [
+                (CGPoint(x: -radius * 0.34, y: radius * 0.28), -.pi * 0.10),
+                (CGPoint(x: radius * 0.34, y: -radius * 0.22), .pi * 0.10)
+            ]
+
+            for footprint in footprints {
+                var transform = CGAffineTransform(translationX: footprint.center.x, y: footprint.center.y)
+                    .rotated(by: footprint.angle)
+                path.addEllipse(
+                    in: CGRect(
+                        x: -radius * 0.22,
+                        y: -radius * 0.38,
+                        width: radius * 0.44,
+                        height: radius * 0.56
+                    ),
+                    transform: transform
+                )
+
+                let toeY = radius * 0.30
+                let toeOffsets: [CGFloat] = [-radius * 0.18, 0, radius * 0.18]
+                for offset in toeOffsets {
+                    transform = CGAffineTransform(translationX: footprint.center.x, y: footprint.center.y)
+                        .rotated(by: footprint.angle)
+                    path.addEllipse(
+                        in: CGRect(
+                            x: offset - radius * 0.07,
+                            y: toeY - radius * 0.07,
+                            width: radius * 0.14,
+                            height: radius * 0.14
+                        ),
+                        transform: transform
+                    )
+                }
+            }
+        }
+
+        private func addPatrolFacingGlyph(to path: CGMutablePath, radius: CGFloat, vector: MoveVector) {
+            let dx = CGFloat(vector.dx)
+            let dy = CGFloat(vector.dy)
+            let length = max(sqrt(dx * dx + dy * dy), 1.0)
+            let unitX = dx / length
+            let unitY = dy / length
+            let perpendicularX = -unitY
+            let perpendicularY = unitX
+
+            let tailDistance = radius * 0.54
+            let tipDistance = radius * 0.54
+            let headBackDistance = radius * 0.32
+            let headSpread = radius * 0.26
+            let tail = CGPoint(x: -unitX * tailDistance, y: -unitY * tailDistance)
+            let tip = CGPoint(x: unitX * tipDistance, y: unitY * tipDistance)
+            let headBase = CGPoint(
+                x: tip.x - unitX * headBackDistance,
+                y: tip.y - unitY * headBackDistance
+            )
+            let leftHead = CGPoint(
+                x: headBase.x + perpendicularX * headSpread,
+                y: headBase.y + perpendicularY * headSpread
+            )
+            let rightHead = CGPoint(
+                x: headBase.x - perpendicularX * headSpread,
+                y: headBase.y - perpendicularY * headSpread
+            )
+
+            path.move(to: tail)
+            path.addLine(to: tip)
+            path.move(to: leftHead)
+            path.addLine(to: tip)
+            path.addLine(to: rightHead)
         }
 
         private func applyPatrolRailPreviews(
@@ -697,8 +813,8 @@
             node.strokeColor = patrolRailColor()
             node.lineWidth = patrolRailLineWidth(tileSize: layout.tileSize)
             node.glowWidth = 0
-            node.lineJoin = .round
-            node.lineCap = .round
+            node.lineJoin = .miter
+            node.lineCap = .square
             node.position = .zero
             node.zPosition = 1.04
             node.isAntialiased = true
@@ -907,10 +1023,10 @@
                 fillColor = baseColor.withAlphaComponent(0.16)
                 zPosition = 1.05
             case .dungeonEnemyWarning:
-                baseColor = SKColor(red: 1.0, green: 0.56, blue: 0.12, alpha: 1.0)
-                strokeAlpha = 0.70
-                strokeWidth = max(layout.tileSize * 0.035, 1.2)
-                fillColor = baseColor.withAlphaComponent(0.12)
+                baseColor = SKColor(red: 1.0, green: 0.34, blue: 0.10, alpha: 1.0)
+                strokeAlpha = 0.86
+                strokeWidth = max(layout.tileSize * 0.045, 1.4)
+                fillColor = baseColor.withAlphaComponent(0.16)
                 zPosition = 1.06
             case .dungeonCardPickup:
                 baseColor = SKColor(red: 0.10, green: 0.62, blue: 0.52, alpha: 1.0)
@@ -923,6 +1039,12 @@
                 strokeAlpha = 0
                 strokeWidth = 0
                 fillColor = baseColor.withAlphaComponent(0.70)
+                zPosition = 1.13
+            case .dungeonHealingTile:
+                baseColor = SKColor(red: 0.10, green: 0.62, blue: 0.34, alpha: 1.0)
+                strokeAlpha = 0
+                strokeWidth = 0
+                fillColor = baseColor.withAlphaComponent(0.72)
                 zPosition = 1.13
             case .dungeonCrackedFloor:
                 baseColor = SKColor(red: 0.95, green: 0.60, blue: 0.12, alpha: 1.0)
@@ -953,7 +1075,7 @@
             node.glowWidth = 0
             node.lineJoin = .miter
             node.miterLimit = 2.5
-            node.lineCap = kind == .dungeonCrackedFloor ? .round : .square
+            node.lineCap = kind == .dungeonCrackedFloor || kind == .dungeonEnemyWarning ? .round : .square
             node.position = layout.position(for: point)
             node.zPosition = zPosition
             node.isAntialiased = kind == .currentTarget
@@ -962,8 +1084,10 @@
                 || kind == .dungeonExitLocked
                 || kind == .dungeonKey
                 || kind == .dungeonEnemy
+                || kind == .dungeonEnemyWarning
                 || kind == .dungeonCardPickup
                 || kind == .dungeonDamageTrap
+                || kind == .dungeonHealingTile
                 || kind == .dungeonCrackedFloor
                 || kind == .dungeonCollapsedFloor
             node.blendMode = .alpha
@@ -1011,18 +1135,38 @@
                  .targetApproachCandidate,
                  .targetCaptureCandidate,
                  .forcedSelection,
-                 .dungeonDanger,
-                 .dungeonEnemyWarning:
+                 .dungeonDanger:
                 return CGPath(rect: rect, transform: nil)
+            case .dungeonEnemyWarning:
+                return meteorWarningMarkerPath(in: rect)
             case .dungeonCardPickup:
                 return cardPickupMarkerPath(center: CGPoint(x: rect.midX, y: rect.midY), tileSize: tileSize)
             case .dungeonDamageTrap:
                 return damageTrapMarkerPath(center: CGPoint(x: rect.midX, y: rect.midY), tileSize: tileSize)
+            case .dungeonHealingTile:
+                return healingTileMarkerPath(center: CGPoint(x: rect.midX, y: rect.midY), tileSize: tileSize)
             case .dungeonCrackedFloor:
                 return crackedFloorMarkerPath(in: rect)
             case .dungeonCollapsedFloor:
                 return collapsedFloorHolePath(in: rect)
             }
+        }
+
+        private func meteorWarningMarkerPath(in rect: CGRect) -> CGPath {
+            let path = CGMutablePath()
+            let center = CGPoint(x: rect.midX, y: rect.midY)
+            let radius = min(rect.width, rect.height) * 0.34
+            path.addEllipse(in: CGRect(
+                x: center.x - radius,
+                y: center.y - radius,
+                width: radius * 2,
+                height: radius * 2
+            ))
+            path.move(to: CGPoint(x: center.x - radius * 0.38, y: center.y))
+            path.addLine(to: CGPoint(x: center.x + radius * 0.38, y: center.y))
+            path.move(to: CGPoint(x: center.x, y: center.y - radius * 0.38))
+            path.addLine(to: CGPoint(x: center.x, y: center.y + radius * 0.38))
+            return path
         }
 
         private func targetMarkerPath(center: CGPoint, tileSize: CGFloat, scale: CGFloat) -> CGPath {
@@ -1167,6 +1311,28 @@
             return path
         }
 
+        private func healingTileMarkerPath(center: CGPoint, tileSize: CGFloat) -> CGPath {
+            let armLength = tileSize * 0.50
+            let armWidth = tileSize * 0.18
+            let halfLength = armLength / 2
+            let halfWidth = armWidth / 2
+            let path = CGMutablePath()
+            path.move(to: CGPoint(x: center.x - halfWidth, y: center.y - halfLength))
+            path.addLine(to: CGPoint(x: center.x + halfWidth, y: center.y - halfLength))
+            path.addLine(to: CGPoint(x: center.x + halfWidth, y: center.y - halfWidth))
+            path.addLine(to: CGPoint(x: center.x + halfLength, y: center.y - halfWidth))
+            path.addLine(to: CGPoint(x: center.x + halfLength, y: center.y + halfWidth))
+            path.addLine(to: CGPoint(x: center.x + halfWidth, y: center.y + halfWidth))
+            path.addLine(to: CGPoint(x: center.x + halfWidth, y: center.y + halfLength))
+            path.addLine(to: CGPoint(x: center.x - halfWidth, y: center.y + halfLength))
+            path.addLine(to: CGPoint(x: center.x - halfWidth, y: center.y + halfWidth))
+            path.addLine(to: CGPoint(x: center.x - halfLength, y: center.y + halfWidth))
+            path.addLine(to: CGPoint(x: center.x - halfLength, y: center.y - halfWidth))
+            path.addLine(to: CGPoint(x: center.x - halfWidth, y: center.y - halfWidth))
+            path.closeSubpath()
+            return path
+        }
+
         private func crackedFloorMarkerPath(in rect: CGRect) -> CGPath {
             let path = CGMutablePath()
             path.move(to: CGPoint(x: rect.midX, y: rect.minY + rect.height * 0.14))
@@ -1210,13 +1376,6 @@
                 path.addLine(to: centers[0])
             }
 
-            let nodeTickHalfLength = patrolRailLineWidth(tileSize: layout.tileSize) * 0.9
-            var uniquePoints: Set<GridPoint> = []
-            for point in points where uniquePoints.insert(point).inserted {
-                let center = layout.position(for: point)
-                path.move(to: CGPoint(x: center.x - nodeTickHalfLength, y: center.y))
-                path.addLine(to: CGPoint(x: center.x + nodeTickHalfLength, y: center.y))
-            }
             return path
         }
 
@@ -1271,7 +1430,7 @@
         }
 
         private func patrolRailLineWidth(tileSize: CGFloat) -> CGFloat {
-            return min(max(tileSize * 0.032, 2.0), 2.8)
+            return min(max(tileSize * 0.024, 2.0), 2.2)
         }
     }
 #endif

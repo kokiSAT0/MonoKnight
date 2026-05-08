@@ -33,6 +33,8 @@ struct ResultView: View {
     let nextDungeonFloorTitle: String?
     /// 再挑戦ボタンの表示名
     let retryButtonTitle: String
+    /// 次階へ進む前に選べる報酬カード。移動/補助を合わせた表示上の3択。
+    let dungeonRewardCards: [PlayableCard]
     /// 次階へ進む前に選べる報酬カード
     let dungeonRewardMoveCards: [MoveCard]
     /// 次階へ進む前に選べる補助報酬カード
@@ -64,6 +66,10 @@ struct ResultView: View {
     let onSelectNextDungeonFloor: (() -> Void)?
     /// ダンジョン報酬カードを選んで次階へ進むためのクロージャ
     let onSelectDungeonRewardMoveCard: ((MoveCard) -> Void)?
+    /// 手札満杯などで追加できないダンジョン報酬カード
+    let disabledDungeonRewardMoveCards: Set<MoveCard>
+    /// 手札満杯などで追加できないダンジョン補助報酬カード
+    let disabledDungeonRewardSupportCards: Set<SupportCard>
     /// ダンジョン報酬を追加/強化などから選んで次階へ進むためのクロージャ
     let onSelectDungeonReward: ((DungeonRewardSelection) -> Void)?
     /// 手札のカードを報酬消費なしで整理するためのクロージャ
@@ -108,6 +114,7 @@ struct ResultView: View {
         dungeonRunTotalMoveCount: Int? = nil,
         nextDungeonFloorTitle: String? = nil,
         retryButtonTitle: String = "リトライ",
+        dungeonRewardCards: [PlayableCard] = [],
         dungeonRewardMoveCards: [MoveCard] = [],
         dungeonRewardSupportCards: [SupportCard] = [],
         dungeonInventoryEntries: [DungeonInventoryEntry] = [],
@@ -122,6 +129,8 @@ struct ResultView: View {
         onRequestGameCenterSignIn: ((GameCenterSignInPromptReason) -> Void)? = nil,
         onSelectNextDungeonFloor: (() -> Void)? = nil,
         onSelectDungeonRewardMoveCard: ((MoveCard) -> Void)? = nil,
+        disabledDungeonRewardMoveCards: Set<MoveCard> = [],
+        disabledDungeonRewardSupportCards: Set<SupportCard> = [],
         onSelectDungeonReward: ((DungeonRewardSelection) -> Void)? = nil,
         onRemoveDungeonRewardCard: ((MoveCard) -> Void)? = nil,
         onRemoveDungeonRewardSupportCard: ((SupportCard) -> Void)? = nil,
@@ -145,6 +154,7 @@ struct ResultView: View {
             dungeonRunTotalMoveCount: dungeonRunTotalMoveCount,
             nextDungeonFloorTitle: nextDungeonFloorTitle,
             retryButtonTitle: retryButtonTitle,
+            dungeonRewardCards: dungeonRewardCards,
             dungeonRewardMoveCards: dungeonRewardMoveCards,
             dungeonRewardSupportCards: dungeonRewardSupportCards,
             dungeonInventoryEntries: dungeonInventoryEntries,
@@ -159,6 +169,8 @@ struct ResultView: View {
             onRequestGameCenterSignIn: onRequestGameCenterSignIn,
             onSelectNextDungeonFloor: onSelectNextDungeonFloor,
             onSelectDungeonRewardMoveCard: onSelectDungeonRewardMoveCard,
+            disabledDungeonRewardMoveCards: disabledDungeonRewardMoveCards,
+            disabledDungeonRewardSupportCards: disabledDungeonRewardSupportCards,
             onSelectDungeonReward: onSelectDungeonReward,
             onRemoveDungeonRewardCard: onRemoveDungeonRewardCard,
             onRemoveDungeonRewardSupportCard: onRemoveDungeonRewardSupportCard,
@@ -184,6 +196,7 @@ struct ResultView: View {
         dungeonRunTotalMoveCount: Int? = nil,
         nextDungeonFloorTitle: String? = nil,
         retryButtonTitle: String = "リトライ",
+        dungeonRewardCards: [PlayableCard] = [],
         dungeonRewardMoveCards: [MoveCard] = [],
         dungeonRewardSupportCards: [SupportCard] = [],
         dungeonInventoryEntries: [DungeonInventoryEntry] = [],
@@ -198,6 +211,8 @@ struct ResultView: View {
         onRequestGameCenterSignIn: ((GameCenterSignInPromptReason) -> Void)? = nil,
         onSelectNextDungeonFloor: (() -> Void)? = nil,
         onSelectDungeonRewardMoveCard: ((MoveCard) -> Void)? = nil,
+        disabledDungeonRewardMoveCards: Set<MoveCard> = [],
+        disabledDungeonRewardSupportCards: Set<SupportCard> = [],
         onSelectDungeonReward: ((DungeonRewardSelection) -> Void)? = nil,
         onRemoveDungeonRewardCard: ((MoveCard) -> Void)? = nil,
         onRemoveDungeonRewardSupportCard: ((SupportCard) -> Void)? = nil,
@@ -230,6 +245,11 @@ struct ResultView: View {
         self.dungeonRunTotalMoveCount = dungeonRunTotalMoveCount
         self.nextDungeonFloorTitle = nextDungeonFloorTitle
         self.retryButtonTitle = retryButtonTitle
+        self.dungeonRewardCards = Self.resolvedDungeonRewardCards(
+            dungeonRewardCards,
+            moveCards: dungeonRewardMoveCards,
+            supportCards: dungeonRewardSupportCards
+        )
         self.dungeonRewardMoveCards = dungeonRewardMoveCards
         self.dungeonRewardSupportCards = dungeonRewardSupportCards
         self.dungeonInventoryEntries = dungeonInventoryEntries
@@ -244,6 +264,8 @@ struct ResultView: View {
         self.onRequestGameCenterSignIn = onRequestGameCenterSignIn
         self.onSelectNextDungeonFloor = onSelectNextDungeonFloor
         self.onSelectDungeonRewardMoveCard = onSelectDungeonRewardMoveCard
+        self.disabledDungeonRewardMoveCards = disabledDungeonRewardMoveCards
+        self.disabledDungeonRewardSupportCards = disabledDungeonRewardSupportCards
         self.onSelectDungeonReward = onSelectDungeonReward
         self.onRemoveDungeonRewardCard = onRemoveDungeonRewardCard
         self.onRemoveDungeonRewardSupportCard = onRemoveDungeonRewardSupportCard
@@ -269,11 +291,14 @@ struct ResultView: View {
                     modeDisplayName: modeDisplayName,
                     nextDungeonFloorTitle: nextDungeonFloorTitle,
                     retryButtonTitle: retryButtonTitle,
+                    dungeonRewardCards: dungeonRewardCards,
                     dungeonRewardMoveCards: dungeonRewardMoveCards,
                     dungeonRewardSupportCards: dungeonRewardSupportCards,
                     dungeonRewardInventoryEntries: dungeonInventoryEntries,
                     dungeonPickupCarryoverEntries: dungeonPickupCarryoverEntries,
                     dungeonRewardAddUses: dungeonRewardAddUses,
+                    disabledDungeonRewardMoveCards: disabledDungeonRewardMoveCards,
+                    disabledDungeonRewardSupportCards: disabledDungeonRewardSupportCards,
                     showsLeaderboardButton: showsLeaderboardButton,
                     isGameCenterAuthenticated: isGameCenterAuthenticated,
                     onRequestGameCenterSignIn: onRequestGameCenterSignIn,
@@ -315,6 +340,15 @@ struct ResultView: View {
     /// 横方向のパディングをサイズクラスごとに最適化する
     private var horizontalPadding: CGFloat {
         horizontalSizeClass == .regular ? 32 : 20
+    }
+
+    private static func resolvedDungeonRewardCards(
+        _ cards: [PlayableCard],
+        moveCards: [MoveCard],
+        supportCards: [SupportCard]
+    ) -> [PlayableCard] {
+        guard cards.isEmpty else { return Array(cards.prefix(3)) }
+        return Array((moveCards.map(PlayableCard.move) + supportCards.map(PlayableCard.support)).prefix(3))
     }
 
     private var summaryPresentation: ResultSummaryPresentation {

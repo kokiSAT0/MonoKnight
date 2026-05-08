@@ -31,43 +31,19 @@ final class MoveCardIllustrationViewAccessibilityTests: XCTestCase {
 
     /// 複数候補カードでは盤面で方向を選ぶ旨が案内されることを確認する
     func testHandModeAccessibilityHintMentionsDirectionChoiceWhenMultipleCandidatesExist() {
-        let overrideVectors = [
-            MoveVector(dx: 1, dy: 0),
-            MoveVector(dx: -1, dy: 0),
-            MoveVector(dx: 0, dy: 1)
-        ]
-        MoveCard.setTestMovementVectors(overrideVectors, for: .kingRight)
-        defer { MoveCard.setTestMovementVectors(nil, for: .kingRight) }
+        let candidateCount = MoveCard.kingRightDiagonalChoice.movementVectors.count
 
-        let view = MoveCardIllustrationView(card: .kingRight, mode: .hand)
-        let controller = UIHostingController(rootView: view)
-        controller.loadViewIfNeeded()
-        controller.view.frame = CGRect(x: 0, y: 0, width: 120, height: 180)
-        controller.view.setNeedsLayout()
-        controller.view.layoutIfNeeded()
-
-        let hint = controller.view.accessibilityHint ?? ""
+        let hint = MoveCardIllustrationView.Mode.hand.accessibilityHint(forCandidateCount: candidateCount)
         XCTAssertTrue(hint.contains("盤面で移動方向を決めてください"), "複数候補時に方向選択を促す文言が含まれていません")
-        XCTAssertTrue(hint.contains("候補は 3 方向"), "候補数の案内が含まれていません: \(hint)")
+        XCTAssertTrue(hint.contains("候補は 2 方向"), "候補数の案内が含まれていません: \(hint)")
     }
 
     /// 複数候補カードではラベル末尾に補足が追加されることを確認する
     func testHandModeAccessibilityLabelAddsMultipleDirectionSuffix() {
-        let overrideVectors = [
-            MoveVector(dx: 2, dy: 0),
-            MoveVector(dx: -2, dy: 0)
-        ]
-        MoveCard.setTestMovementVectors(overrideVectors, for: .straightRight2)
-        defer { MoveCard.setTestMovementVectors(nil, for: .straightRight2) }
+        let candidateCount = MoveCard.kingRightDiagonalChoice.movementVectors.count
 
-        let view = MoveCardIllustrationView(card: .straightRight2, mode: .hand)
-        let controller = UIHostingController(rootView: view)
-        controller.loadViewIfNeeded()
-        controller.view.frame = CGRect(x: 0, y: 0, width: 120, height: 180)
-        controller.view.setNeedsLayout()
-        controller.view.layoutIfNeeded()
-
-        let label = controller.view.accessibilityLabel ?? ""
+        let label = MoveCard.kingRightDiagonalChoice.displayName
+            + MoveCardIllustrationView.Mode.hand.accessibilitySuffix(forCandidateCount: candidateCount)
         XCTAssertTrue(label.contains("複数方向の候補あり"), "複数候補を示す補足がラベルに含まれていません: \(label)")
     }
 
@@ -95,6 +71,19 @@ final class MoveCardIllustrationViewAccessibilityTests: XCTestCase {
                 "画面上の説明文を省略しても、読み上げにはカード説明を残します"
             )
         }
+    }
+
+    func testDungeonRewardCardChoicePresentationExplainsDisabledFullHand() {
+        let choice = DungeonRewardCardChoicePresentation(
+            card: .straightRight2,
+            isEnabled: false
+        )
+
+        XCTAssertFalse(choice.isEnabled)
+        XCTAssertTrue(choice.accessibilityLabel.contains("手札がいっぱいです"))
+        XCTAssertTrue(choice.accessibilityLabel.contains("手札から外して空きを作ってください"))
+        XCTAssertTrue(choice.accessibilityHint.contains("手札がいっぱいです"))
+        XCTAssertFalse(choice.accessibilityLabel.contains("選ぶと次の階へ進みます"))
     }
 
     func testDungeonPickupCarryoverChoicePresentationExplainsHandAddition() {
@@ -142,14 +131,14 @@ final class MoveCardIllustrationViewAccessibilityTests: XCTestCase {
         XCTAssertFalse(choice.removeAccessibilityLabel.contains("選ぶと次の階へ進みます"))
     }
 
-    func testDungeonCarriedRewardChoicePresentationShowsPickupUses() {
+    func testDungeonCarriedRewardChoicePresentationTreatsPickupUsesAsHandUses() {
         let choice = DungeonCarriedRewardChoicePresentation(
             entry: DungeonInventoryEntry(card: .straightUp2, pickupUses: 1)
         )
 
         XCTAssertEqual(choice.title, "上2")
         XCTAssertEqual(choice.usesBadgeText, "現在1回")
-        XCTAssertFalse(choice.isAdjustable)
+        XCTAssertTrue(choice.isAdjustable)
         XCTAssertTrue(choice.upgradeAccessibilityLabel.contains("現在1回"))
         XCTAssertTrue(choice.removeAccessibilityLabel.contains("現在1回"))
     }
@@ -185,6 +174,11 @@ final class MoveCardIllustrationViewAccessibilityTests: XCTestCase {
         )
 
         XCTAssertEqual(section.dungeonRewardInventoryEntries, [pickupOnly])
+    }
+
+    func testResultActionSectionUsesThreeColumnsForHandInventory() {
+        XCTAssertEqual(ResultActionSection.resultHandGridColumnCount, 3)
+        XCTAssertEqual(ResultActionSection.fixedThreeColumnGridItems(spacing: 8).count, 3)
     }
 
     func testResultActionPolicyHidesPersistentActionsDuringIntermediateDungeonClear() {

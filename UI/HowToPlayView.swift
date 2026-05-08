@@ -90,7 +90,7 @@ private extension HowToPlayView {
             HowToPlaySectionView(
                 title: "1. 塔を選んで階段を目指す",
                 description: "塔選択から基礎塔、成長塔、試練塔を選び、各フロアの出口や階段へ到達すると次の階へ進みます。",
-                card: .kingUp,
+                card: .kingUpRight,
                 tips: [
                     "基礎塔は基本を学ぶ短い塔です。",
                     "成長塔は周回成長と報酬カードで少しずつ登りやすくなる本編塔です。",
@@ -113,7 +113,7 @@ private extension HowToPlayView {
             // MARK: - 遠距離カードの例
             HowToPlaySectionView(
                 title: "3. 床カードと報酬を持ち越す",
-                description: "床に落ちているカードは、踏むだけで拾えます。フロアをクリアしたあとに残っているカードや報酬カードは、同じ区間の次の階へ持ち越せます。",
+                description: "床に落ちているカードは、踏むだけで拾えます。拾ったカードもフロア報酬も同じ手札として扱い、残り使用回数を同じ区間の次の階へ持ち越せます。",
                 card: .straightUp2,
                 tips: [
                     "カードは通常 9 種類まで持てます。同じカードは種類枠を増やさず、残り回数としてまとまります。",
@@ -389,7 +389,7 @@ private struct EnemyMarkerPreviewView: View {
                 )
 
             marker
-                .frame(width: 31, height: 31)
+                .frame(width: markerFrameSize.width, height: markerFrameSize.height)
         }
         .frame(width: 48, height: 48)
         .fixedSize()
@@ -414,15 +414,15 @@ private struct EnemyMarkerPreviewView: View {
         case .watcher:
             EyeMarkerShape()
                 .fill(fill)
-                .overlay(EyeMarkerShape().stroke(stroke, lineWidth: 2))
+                .overlay(EyeMarkerShape().stroke(stroke, lineWidth: markerStrokeWidth))
                 .overlay(Circle().fill(stroke).frame(width: 8, height: 8))
         case .rotatingWatcher:
             EyeMarkerShape()
                 .fill(fill)
-                .overlay(EyeMarkerShape().stroke(stroke, lineWidth: 2))
+                .overlay(EyeMarkerShape().stroke(stroke, lineWidth: markerStrokeWidth))
                 .overlay(
                     Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 13, weight: .black))
+                        .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(stroke)
                 )
         case .chaser:
@@ -441,6 +441,19 @@ private struct EnemyMarkerPreviewView: View {
         }
     }
 
+    private var markerFrameSize: CGSize {
+        switch kind {
+        case .rotatingWatcher:
+            return CGSize(width: 40, height: 38)
+        default:
+            return CGSize(width: 31, height: 31)
+        }
+    }
+
+    private var markerStrokeWidth: CGFloat {
+        kind == .rotatingWatcher ? 1.6 : 2
+    }
+
     private var fill: Color {
         switch kind {
         case .guardPost:
@@ -450,7 +463,7 @@ private struct EnemyMarkerPreviewView: View {
         case .watcher:
             return Color.pink.opacity(0.22)
         case .rotatingWatcher:
-            return Color.indigo.opacity(0.22)
+            return .clear
         case .chaser:
             return Color.teal.opacity(0.24)
         case .marker:
@@ -541,6 +554,7 @@ private struct TileMarkerPreviewView: View {
              .dungeonKey,
              .cardPickup,
              .damageTrap,
+             .healingTile,
              .brittleFloor,
              .enemyDanger,
              .enemyWarning,
@@ -636,6 +650,15 @@ private struct TileMarkerPreviewView: View {
                 Image(systemName: "exclamationmark")
                     .font(.system(size: 19, weight: .black))
                     .foregroundColor(theme.boardTileEffectSlow)
+            }
+        case .healingTile:
+            ZStack {
+                RoundedRectangle(cornerRadius: 3, style: .continuous)
+                    .fill(Color.green)
+                    .frame(width: 9, height: 30)
+                RoundedRectangle(cornerRadius: 3, style: .continuous)
+                    .fill(Color.green)
+                    .frame(width: 30, height: 9)
             }
         case .brittleFloor:
             ZStack {
@@ -856,15 +879,39 @@ private struct EyeMarkerShape: Shape {
 private struct ChaserMarkerShape: Shape {
     func path(in rect: CGRect) -> Path {
         var path = Path()
-        path.move(to: CGPoint(x: rect.minX, y: rect.minY + rect.height * 0.22))
-        path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.58, y: rect.minY + rect.height * 0.22))
-        path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.58, y: rect.minY))
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.midY))
-        path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.58, y: rect.maxY))
-        path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.58, y: rect.minY + rect.height * 0.78))
-        path.addLine(to: CGPoint(x: rect.minX, y: rect.minY + rect.height * 0.78))
-        path.closeSubpath()
+        addFootprint(
+            to: &path,
+            center: CGPoint(x: rect.minX + rect.width * 0.34, y: rect.minY + rect.height * 0.38),
+            size: rect.size
+        )
+        addFootprint(
+            to: &path,
+            center: CGPoint(x: rect.minX + rect.width * 0.66, y: rect.minY + rect.height * 0.62),
+            size: rect.size
+        )
         return path
+    }
+
+    private func addFootprint(to path: inout Path, center: CGPoint, size: CGSize) {
+        let baseWidth = size.width * 0.18
+        let baseHeight = size.height * 0.25
+        path.addEllipse(in: CGRect(
+            x: center.x - baseWidth / 2,
+            y: center.y - baseHeight / 2,
+            width: baseWidth,
+            height: baseHeight
+        ))
+
+        let toeY = center.y - size.height * 0.18
+        for offset in [-size.width * 0.08, 0, size.width * 0.08] {
+            let toeSize = size.width * 0.06
+            path.addEllipse(in: CGRect(
+                x: center.x + offset - toeSize / 2,
+                y: toeY - toeSize / 2,
+                width: toeSize,
+                height: toeSize
+            ))
+        }
     }
 }
 

@@ -142,30 +142,16 @@ struct Deck {
         }()
 
         /// 連続レイ型カードの練習に特化した構成
-        /// - Note: レイ型カードは重み 3、サポート用に上下左右キングを重み 1 で混在させ、盤面調整しやすくする
+        /// - Note: レイ型カードは重み 3、サポート用に斜めキングを重み 1 で混在させ、盤面調整しやすくする
         static let directionalRayFocus: Configuration = {
             let rayCards = MoveCard.directionalRayCards
-            let supportKings: [MoveCard] = [.kingUp, .kingRight, .kingDown, .kingLeft]
+            let supportKings: [MoveCard] = [.kingUpRight, .kingDownRight, .kingDownLeft, .kingUpLeft]
             let allowedMoves = rayCards + supportKings
             let overrides = Dictionary(uniqueKeysWithValues: rayCards.map { ($0, 3) })
             return Configuration(
                 allowedMoves: allowedMoves,
                 weightProfile: WeightProfile(defaultWeight: 1, overrides: overrides),
                 deckSummaryText: "連続移動カード集中デッキ"
-            )
-        }()
-
-        /// 標準デッキへ上下左右の選択キングカードを加えた構成
-        /// - Note: 標準セットの操作感を維持しながら、選択式カードの導入に慣れてもらうためのプリセット。
-        static let standardWithOrthogonalChoices: Configuration = {
-            let choiceCards: [MoveCard] = [.kingUpOrDown, .kingLeftOrRight]
-            let allowedMoves = MoveCard.standardSet + choiceCards
-            // 選択式カードの初動習得を早めるため、該当カードだけ重みを 2 に引き上げてドロー頻度を上げる
-            let overrides = Dictionary(uniqueKeysWithValues: choiceCards.map { ($0, 2) })
-            return Configuration(
-                allowedMoves: allowedMoves,
-                weightProfile: WeightProfile(defaultWeight: 1, overrides: overrides),
-                deckSummaryText: "標準＋上下左右選択キング"
             )
         }()
 
@@ -208,11 +194,9 @@ struct Deck {
         }()
 
         /// 標準デッキへ全選択カードを網羅的に追加した構成
-        /// - Note: 最終的な多方向対応力を測るため、標準セットに全選択カード 10 種をミックスする。
+        /// - Note: 最終的な多方向対応力を測るため、標準セットに選択カードをミックスする。
         static let standardWithAllChoices: Configuration = {
             let selectionCards: [MoveCard] = [
-                .kingUpOrDown,
-                .kingLeftOrRight,
                 .kingUpwardDiagonalChoice,
                 .kingRightDiagonalChoice,
                 .kingDownwardDiagonalChoice,
@@ -235,8 +219,6 @@ struct Deck {
         /// 目的地制カード調整用の実験デッキ
         static let targetLabAllIn: Configuration = {
             let selectionCards: [MoveCard] = [
-                .kingUpOrDown,
-                .kingLeftOrRight,
                 .kingUpwardDiagonalChoice,
                 .kingRightDiagonalChoice,
                 .kingDownwardDiagonalChoice,
@@ -263,10 +245,10 @@ struct Deck {
         /// 補助専用カードの挙動を確認する実験用デッキ
         static let supportToolkit: Configuration = {
             let supportMoves: [MoveCard] = [
-                .kingUp,
-                .kingRight,
-                .kingDown,
-                .kingLeft,
+                .kingUpRight,
+                .kingDownRight,
+                .kingDownLeft,
+                .kingUpLeft,
                 .straightUp2,
                 .straightRight2,
                 .straightDown2,
@@ -308,23 +290,6 @@ struct Deck {
                 allowedMoves: allowedMoves,
                 weightProfile: WeightProfile(defaultWeight: 1),
                 deckSummaryText: "キングと桂馬の基礎デッキ"
-            )
-        }()
-
-        /// キングと桂馬の基礎デッキへ上下左右の選択キングカードを加えた構成
-        /// - Note: 短距離のみの構成を維持したまま判断力を拡張するため、長距離カードを追加せず選択肢だけ増やしている
-        static let kingAndKnightWithOrthogonalChoices: Configuration = {
-            // MARK: 基礎セット（キング＋桂馬）のみを抽出し、長距離カードを完全に排除した母集団を作成する
-            let baseMoves = MoveCard.standardSet.filter { $0.isKingType || $0.isKnightType }
-            // MARK: 上下左右の選択キングカードのみを追加し、短距離移動に集中できるようにする
-            let choiceCards: [MoveCard] = [.kingUpOrDown, .kingLeftOrRight]
-            let allowedMoves = baseMoves + choiceCards
-            // MARK: 選択カードの学習機会をさらに増やすため、対象カードの重みを 3 に設定して引き当てやすくする
-            let overrides = Dictionary(uniqueKeysWithValues: choiceCards.map { ($0, 3) })
-            return Configuration(
-                allowedMoves: allowedMoves,
-                weightProfile: WeightProfile(defaultWeight: 1, overrides: overrides),
-                deckSummaryText: "キングと桂馬＋上下左右選択カード"
             )
         }()
 
@@ -373,14 +338,12 @@ struct Deck {
         }()
 
         /// キングと桂馬の基礎デッキへ全選択カードをまとめて追加した構成
-        /// - Note: 短距離移動のみで構成しつつ、選択式カードの総合演習を行えるよう全方向を網羅する
+        /// - Note: 短距離移動のみで構成しつつ、選択式カードの総合演習を行えるようにする
         static let kingAndKnightWithAllChoices: Configuration = {
             // MARK: 長距離カードを除いたキング＋桂馬基礎集合を軸とし、短距離の選択カードだけを追加する
             let baseMoves = MoveCard.standardSet.filter { $0.isKingType || $0.isKnightType }
             // MARK: キングと桂馬の選択カードをすべて追加し、判断負荷の段階的強化に対応する
             let choiceCards: [MoveCard] = [
-                .kingUpOrDown,
-                .kingLeftOrRight,
                 .kingUpwardDiagonalChoice,
                 .kingRightDiagonalChoice,
                 .kingDownwardDiagonalChoice,
@@ -400,32 +363,10 @@ struct Deck {
             )
         }()
 
-        /// 上下左右を選択できる複数方向カードを含む 5×5 盤向け構成
-        static let directionChoice: Configuration = {
-            let choiceCards: [MoveCard] = [.kingUpOrDown, .kingLeftOrRight]
-            let allowedMoves = MoveCard.standardSet + choiceCards
-            let overrides: [MoveCard: Int] = [:] // 将来的に選択カードへ個別重みを設定したい場合に備える
-            return Configuration(
-                allowedMoves: allowedMoves,
-                weightProfile: WeightProfile(defaultWeight: 1, overrides: overrides),
-                deckSummaryText: "選択式キングカード入り"
-            )
-        }()
-
-        /// キング型の上下左右選択カードのみで構成した訓練用デッキ
-        static let kingOrthogonalChoiceOnly: Configuration = {
-            let moves: [MoveCard] = [.kingUpOrDown, .kingLeftOrRight]
-            return Configuration(
-                allowedMoves: moves,
-                weightProfile: WeightProfile(defaultWeight: 1),
-                deckSummaryText: "上下左右の選択キング限定"
-            )
-        }()
-
-        /// キング 4 種と桂馬 4 種のみを収録した限定デッキ
-        /// - Note: 直感的な上下左右移動と跳躍行動だけで構成し、操作習熟を狙う
+        /// 斜めキング 4 種と桂馬 4 種のみを収録した限定デッキ
+        /// - Note: 基本移動で届かない角方向と跳躍行動だけで構成し、操作習熟を狙う
         static let kingPlusKnightOnly: Configuration = {
-            let kingMoves: [MoveCard] = [.kingUp, .kingRight, .kingDown, .kingLeft]
+            let kingMoves: [MoveCard] = [.kingUpRight, .kingDownRight, .kingDownLeft, .kingUpLeft]
             let knightMoves: [MoveCard] = [
                 .knightUp2Right1,
                 .knightUp2Left1,
@@ -473,8 +414,6 @@ struct Deck {
         /// すべての選択式カードを均等配分で混在させた総合練習デッキ
         static let allChoiceMixed: Configuration = {
             let moves: [MoveCard] = [
-                .kingUpOrDown,
-                .kingLeftOrRight,
                 .kingUpwardDiagonalChoice,
                 .kingRightDiagonalChoice,
                 .kingDownwardDiagonalChoice,
@@ -491,11 +430,11 @@ struct Deck {
             )
         }()
 
-        /// 複数マス移動カードとサポート用キングカードを組み合わせた拡張デッキ
-        /// - Note: レイ型カードを重み 2 に抑えて過剰供給を防ぎ、基本 4 方向キングで調整力を確保する
+        /// 複数マス移動カードとサポート用斜めキングカードを組み合わせた拡張デッキ
+        /// - Note: レイ型カードを重み 2 に抑えて過剰供給を防ぎ、斜め 4 方向キングで調整力を確保する
         static let extendedWithMultiStepMoves: Configuration = {
             let multiStepCards = MoveCard.directionalRayCards
-            let supportKings: [MoveCard] = [.kingUp, .kingRight, .kingDown, .kingLeft]
+            let supportKings: [MoveCard] = [.kingUpRight, .kingDownRight, .kingDownLeft, .kingUpLeft]
             let allowedMoves = multiStepCards + supportKings
             // MARK: 新要素の出現頻度を適正化するため、複数マス移動カードの重みを 2 に調整してバランスを整える
             let overrides = Dictionary(uniqueKeysWithValues: multiStepCards.map { ($0, 2) })

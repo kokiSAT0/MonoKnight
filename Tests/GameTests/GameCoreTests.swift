@@ -12,26 +12,26 @@ final class GameCoreTests: XCTestCase {
         )
         let core = GameCore(mode: mode)
 
-        XCTAssertTrue(core.addDungeonInventoryCardForTesting(.kingRight, pickupUses: 1))
-        XCTAssertTrue(core.addDungeonInventoryCardForTesting(.kingUp, pickupUses: 1))
+        XCTAssertTrue(core.addDungeonInventoryCardForTesting(.straightRight2, pickupUses: 1))
+        XCTAssertTrue(core.addDungeonInventoryCardForTesting(.kingUpRight, pickupUses: 1))
 
         let destinations = Set(core.availableMoves().map(\.destination))
         XCTAssertFalse(destinations.contains(impassablePoint), "塔攻略の移動候補に通行不可マスを含めてはいけません")
-        XCTAssertTrue(destinations.contains(GridPoint(x: 2, y: 3)), "通行可能なカード移動候補まで消えてはいけません")
+        XCTAssertTrue(destinations.contains(GridPoint(x: 3, y: 3)), "通行可能なカード移動候補まで消えてはいけません")
     }
 
     func testPlayCardAppliesWarpEffectInDungeonInventoryMode() {
         let warpSource = GridPoint(x: 3, y: 2)
         let warpDestination = GridPoint(x: 1, y: 4)
         let mode = makeInventoryDungeonMode(
-            spawn: GridPoint(x: 2, y: 2),
+            spawn: GridPoint(x: 1, y: 2),
             exit: GridPoint(x: 4, y: 4),
             warpTilePairs: ["test_warp": [warpSource, warpDestination]]
         )
         let core = GameCore(mode: mode)
 
-        XCTAssertTrue(core.addDungeonInventoryCardForTesting(.kingRight, pickupUses: 1))
-        guard let move = core.availableMoves().first(where: { $0.moveCard == .kingRight }) else {
+        XCTAssertTrue(core.addDungeonInventoryCardForTesting(.straightRight2, pickupUses: 1))
+        guard let move = core.availableMoves().first(where: { $0.moveCard == .straightRight2 }) else {
             XCTFail("右方向カードが候補に含まれていません")
             return
         }
@@ -44,8 +44,8 @@ final class GameCoreTests: XCTestCase {
     }
 
     func testPlayCardAppliesBlastTileFixedDirectionUntilObstacle() throws {
-        let blastPoint = GridPoint(x: 1, y: 1)
-        let obstacle = GridPoint(x: 1, y: 3)
+        let blastPoint = GridPoint(x: 2, y: 1)
+        let obstacle = GridPoint(x: 2, y: 3)
         let mode = makeInventoryDungeonMode(
             spawn: GridPoint(x: 0, y: 1),
             exit: GridPoint(x: 4, y: 4),
@@ -53,18 +53,18 @@ final class GameCoreTests: XCTestCase {
             tileEffectOverrides: [blastPoint: .blast(direction: MoveVector(dx: 0, dy: 1))]
         )
         let core = GameCore(mode: mode)
-        XCTAssertTrue(core.addDungeonInventoryCardForTesting(.kingRight, pickupUses: 1))
+        XCTAssertTrue(core.addDungeonInventoryCardForTesting(.straightRight2, pickupUses: 1))
 
-        let move = try XCTUnwrap(core.availableMoves().first { $0.moveCard == .kingRight })
+        let move = try XCTUnwrap(core.availableMoves().first { $0.moveCard == .straightRight2 })
         core.playCard(using: move)
 
-        XCTAssertEqual(core.current, GridPoint(x: 1, y: 2), "進入方向ではなく床に表示された方向へ吹き飛び、障害物直前で止まります")
-        XCTAssertEqual(core.lastMovementResolution?.path, [blastPoint, GridPoint(x: 1, y: 2)])
+        XCTAssertEqual(core.current, GridPoint(x: 2, y: 2), "進入方向ではなく床に表示された方向へ吹き飛び、障害物直前で止まります")
+        XCTAssertEqual(core.lastMovementResolution?.path, [blastPoint, GridPoint(x: 2, y: 2)])
     }
 
     func testBlastTileDoesNotMoveWhenNextTileIsBlocked() throws {
-        let blastPoint = GridPoint(x: 1, y: 1)
-        let obstacle = GridPoint(x: 2, y: 1)
+        let blastPoint = GridPoint(x: 2, y: 1)
+        let obstacle = GridPoint(x: 3, y: 1)
         let mode = makeInventoryDungeonMode(
             spawn: GridPoint(x: 0, y: 1),
             exit: GridPoint(x: 4, y: 4),
@@ -72,9 +72,9 @@ final class GameCoreTests: XCTestCase {
             tileEffectOverrides: [blastPoint: .blast(direction: MoveVector(dx: 1, dy: 0))]
         )
         let core = GameCore(mode: mode)
-        XCTAssertTrue(core.addDungeonInventoryCardForTesting(.kingRight, pickupUses: 1))
+        XCTAssertTrue(core.addDungeonInventoryCardForTesting(.straightRight2, pickupUses: 1))
 
-        let move = try XCTUnwrap(core.availableMoves().first { $0.moveCard == .kingRight })
+        let move = try XCTUnwrap(core.availableMoves().first { $0.moveCard == .straightRight2 })
         core.playCard(using: move)
 
         XCTAssertEqual(core.current, blastPoint)
@@ -104,17 +104,17 @@ final class GameCoreTests: XCTestCase {
     }
 
     func testBlastPathDefeatsEnemiesAndCollectsPickupsAlongTheWay() throws {
-        let blastPoint = GridPoint(x: 1, y: 0)
+        let blastPoint = GridPoint(x: 2, y: 0)
         let enemy = EnemyDefinition(
             id: "blast-path-enemy",
             name: "番兵",
-            position: GridPoint(x: 2, y: 0),
+            position: GridPoint(x: 3, y: 0),
             behavior: .guardPost
         )
         let pickup = DungeonCardPickupDefinition(
             id: "blast-path-pickup",
-            point: GridPoint(x: 3, y: 0),
-            card: .kingUp
+            point: GridPoint(x: 4, y: 0),
+            card: .kingUpRight
         )
         let mode = makeInventoryDungeonMode(
             spawn: GridPoint(x: 0, y: 0),
@@ -124,9 +124,9 @@ final class GameCoreTests: XCTestCase {
             enemies: [enemy]
         )
         let core = GameCore(mode: mode)
-        XCTAssertTrue(core.addDungeonInventoryCardForTesting(.kingRight, pickupUses: 1))
+        XCTAssertTrue(core.addDungeonInventoryCardForTesting(.straightRight2, pickupUses: 1))
 
-        let move = try XCTUnwrap(core.availableMoves().first { $0.moveCard == .kingRight })
+        let move = try XCTUnwrap(core.availableMoves().first { $0.moveCard == .straightRight2 })
         core.playCard(using: move)
 
         XCTAssertFalse(core.enemyStates.contains { $0.id == enemy.id })
@@ -152,7 +152,7 @@ final class GameCoreTests: XCTestCase {
         XCTAssertFalse(core.addDungeonInventoryCardForTesting(tenth, pickupUses: 1), "塔攻略の通常カード種類数は基本移動固定枠を除く9種類までです")
         XCTAssertTrue(core.addDungeonInventoryCardForTesting(nineCards[0], pickupUses: 1), "同じカードは種類枠を増やさず回数として積めます")
         XCTAssertEqual(core.dungeonInventoryEntries.count, 9)
-        XCTAssertEqual(core.dungeonInventoryEntries.first { $0.card == nineCards[0] }?.pickupUses, 2)
+        XCTAssertEqual(core.dungeonInventoryEntries.first { $0.card == nineCards[0] }?.rewardUses, 2)
     }
 
     func testHandleTapPrefersBasicOrthogonalMoveOverMatchingCardMove() {
@@ -190,8 +190,8 @@ final class GameCoreTests: XCTestCase {
 
     func testResolvedMoveForBoardTapDoesNotAutoPreferSingleVectorCard() {
         let origin = GridPoint(x: 0, y: 0)
-        let destination = GridPoint(x: 1, y: 0)
-        let blocker = GridPoint(x: 2, y: 0)
+        let destination = GridPoint(x: 2, y: 0)
+        let blocker = GridPoint(x: 3, y: 0)
         let mode = makeInventoryDungeonMode(
             spawn: origin,
             exit: GridPoint(x: 4, y: 4),
@@ -200,7 +200,7 @@ final class GameCoreTests: XCTestCase {
         let core = GameCore(mode: mode)
 
         XCTAssertTrue(core.addDungeonInventoryCardForTesting(.rayRight, pickupUses: 1))
-        XCTAssertTrue(core.addDungeonInventoryCardForTesting(.kingRight, pickupUses: 1))
+        XCTAssertTrue(core.addDungeonInventoryCardForTesting(.straightRight2, pickupUses: 1))
 
         let destinationMoves = core.availableMoves().filter { $0.destination == destination }
         XCTAssertEqual(Set(destinationMoves.map(\.stackID)).count, 2, "異なるカードスタックの競合前提が崩れています")
@@ -226,10 +226,9 @@ final class GameCoreTests: XCTestCase {
 
         XCTAssertFalse(core.dungeonInventoryEntries.contains { $0.supportCard == .refillEmptySlots })
         XCTAssertEqual(core.dungeonInventoryEntries.count, 9)
-        XCTAssertTrue(core.dungeonInventoryEntries.allSatisfy { $0.pickupUses == 1 && $0.rewardUses == 0 })
+        XCTAssertTrue(core.dungeonInventoryEntries.allSatisfy { $0.rewardUses == 1 && $0.pickupUses == 0 })
         let refilledMoves = core.dungeonInventoryEntries.compactMap(\.moveCard)
         XCTAssertEqual(Set(refilledMoves).count, 9)
-        XCTAssertFalse(refilledMoves.contains { [.kingUp, .kingRight, .kingDown, .kingLeft].contains($0) })
         XCTAssertTrue(Set(refilledMoves).isSubset(of: Set(MoveCard.allCases)))
     }
 
@@ -324,7 +323,7 @@ final class GameCoreTests: XCTestCase {
 
         XCTAssertNil(core.pendingDungeonPickupChoice)
         XCTAssertFalse(core.activeDungeonCardPickups.contains { $0.id == pickup.id })
-        XCTAssertEqual(core.dungeonInventoryEntries.first { $0.card == nineCards[0] }?.pickupUses, 2)
+        XCTAssertEqual(core.dungeonInventoryEntries.first { $0.card == nineCards[0] }?.rewardUses, 2)
         XCTAssertEqual(core.dungeonInventoryEntries.count, 9)
     }
 
@@ -361,7 +360,7 @@ final class GameCoreTests: XCTestCase {
 
         XCTAssertNil(core.pendingDungeonPickupChoice)
         XCTAssertFalse(core.dungeonInventoryEntries.contains { $0.playable == discarded })
-        XCTAssertTrue(core.dungeonInventoryEntries.contains { $0.moveCard == newCard && $0.pickupUses == pickup.uses && $0.rewardUses == 0 })
+        XCTAssertTrue(core.dungeonInventoryEntries.contains { $0.moveCard == newCard && $0.rewardUses == pickup.uses && $0.pickupUses == 0 })
         XCTAssertFalse(core.activeDungeonCardPickups.contains { $0.id == pickup.id })
         XCTAssertEqual(core.dungeonInventoryEntries.count, 9)
         XCTAssertEqual(core.moveCount, moveCountAfterPickup)

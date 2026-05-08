@@ -12,31 +12,19 @@ public enum MoveCardKind {
 }
 
 /// 駒を移動させるカードの種類を定義する列挙型
-/// - Note: 周囲 1 マスのキング型 8 種、ナイト型 8 種、距離 2 の直線/斜め 8 種の計 24 種に加え、
-///         塔攻略向けの複数方向カードをサポート
+/// - Note: 斜め 1 マスのキング型 4 種、ナイト型 8 種、距離 2 の直線/斜め 8 種に加え、
+///         塔攻略向けの複数方向カードをサポートする。上下左右 1 マスは基本移動専用。
 /// - Note: SwiftUI モジュールからも扱うため `public` とし、全ケース配列も公開する
 public enum MoveCard: CaseIterable, Codable {
     // MARK: - ケース定義
-    /// キング型: 上に 1
-    case kingUp
     /// キング型: 右上に 1
     case kingUpRight
-    /// キング型: 右に 1
-    case kingRight
     /// キング型: 右下に 1
     case kingDownRight
-    /// キング型: 下に 1
-    case kingDown
     /// キング型: 左下に 1
     case kingDownLeft
-    /// キング型: 左に 1
-    case kingLeft
     /// キング型: 左上に 1
     case kingUpLeft
-    /// キング型: 上下いずれか 1 マスの選択移動
-    case kingUpOrDown
-    /// キング型: 左右いずれか 1 マスの選択移動
-    case kingLeftOrRight
     /// キング型: 上方向の斜め 2 方向（右上・左上）から選択するカード
     case kingUpwardDiagonalChoice
     /// キング型: 右方向の斜め 2 方向（右上・右下）から選択するカード

@@ -13,6 +13,7 @@ public enum TileMarkerPreviewKind: Equatable {
     case dungeonKey
     case cardPickup
     case damageTrap
+    case healingTile
     case brittleFloor
     case collapsedFloor
     case enemyDanger
@@ -102,6 +103,13 @@ public struct TileEncyclopediaEntry: Identifiable, Equatable {
             previewKind: .damageTrap
         ),
         TileEncyclopediaEntry(
+            id: "healingTile",
+            displayName: "回復マス",
+            category: "攻略",
+            description: "踏むと HP が 1 増えて消費されます。最大 HP を超えて増えるため、危険な近道の前後で立て直せます。",
+            previewKind: .healingTile
+        ),
+        TileEncyclopediaEntry(
             id: "brittleFloor",
             displayName: "ひび割れ床",
             category: "危険",
@@ -112,7 +120,7 @@ public struct TileEncyclopediaEntry: Identifiable, Equatable {
             id: "collapsedFloor",
             displayName: "崩落床",
             category: "危険",
-            description: "崩れたあとの床です。通行できず、移動候補や敵の経路から外れます。",
+            description: "崩れたあとの穴です。入るともう一度落下し、敵の経路からは外れます。",
             previewKind: .collapsedFloor
         ),
         TileEncyclopediaEntry(

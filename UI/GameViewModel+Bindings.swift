@@ -56,6 +56,10 @@ extension GameViewModel {
             .receive(on: RunLoop.main)
             .sink { [weak self] event in
                 guard let event else { return }
+                guard self?.isMovementPresentationActive != true else {
+                    self?.deferredDungeonFallEventDuringMovementPresentation = event
+                    return
+                }
                 self?.handleDungeonFallEvent(event)
             }
             .store(in: &cancellables)
@@ -92,6 +96,7 @@ extension GameViewModel {
     }
 
     func handleHandStacksChange(_ newHandStacks: [HandStack]) {
+        guard !isMovementPresentationActive else { return }
         displayedHandStacks = Self.visibleHandStacks(from: newHandStacks, mode: mode)
         refreshSelectionIfNeeded(with: displayedHandStacks)
     }
@@ -120,6 +125,14 @@ extension GameViewModel {
     }
 
     func handleProgressChange(_ progress: GameProgress) {
+        guard !isWaitingForEnemyTurnPresentationAfterMovement else {
+            deferredProgressDuringMovementPresentation = progress
+            return
+        }
+        guard !isMovementPresentationActive else {
+            deferredProgressDuringMovementPresentation = progress
+            return
+        }
         if progress == .failed || shouldClearDungeonResumeAfterClear(progress) {
             dungeonRunResumeStore.clear()
         }
@@ -153,6 +166,77 @@ extension GameViewModel {
         )
     }
 
+    func beginMovementPresentation(using resolution: MovementResolution) {
+        guard mode.usesDungeonExit else { return }
+        isMovementPresentationActive = true
+        deferredProgressDuringMovementPresentation = nil
+        deferredDungeonFallEventDuringMovementPresentation = nil
+        movementPresentationDungeonHP = resolution.presentationInitialHP ?? core.dungeonHP
+        if let initialHandStacks = resolution.presentationInitialHandStacks {
+            displayedHandStacks = Self.visibleHandStacks(from: initialHandStacks, mode: mode)
+            refreshSelectionIfNeeded(with: displayedHandStacks)
+        }
+    }
+
+    func applyMovementPresentationStep(_ step: MovementResolution.PresentationStep) {
+        guard mode.usesDungeonExit else { return }
+        isMovementPresentationActive = true
+        movementPresentationDungeonHP = step.hpAfter
+        displayedHandStacks = Self.visibleHandStacks(from: step.handStacksAfter, mode: mode)
+        refreshSelectionIfNeeded(with: displayedHandStacks)
+        if step.tookDamage {
+            boardBridge.playDamageEffect()
+            lastObservedDungeonHPForDamageEffect = step.hpAfter
+        }
+    }
+
+    func finishMovementPresentation() {
+        guard isMovementPresentationActive else { return }
+        let pendingEnemyTurn = boardBridge.pendingEnemyTurnEventAfterMovementReplay
+        isMovementPresentationActive = false
+        isWaitingForEnemyTurnPresentationAfterMovement = pendingEnemyTurn != nil
+        if let pendingEnemyTurn, pendingEnemyTurn.attackedPlayer {
+            movementPresentationDungeonHP = pendingEnemyTurn.hpBefore
+            lastObservedDungeonHPForDamageEffect = pendingEnemyTurn.hpBefore
+        } else {
+            movementPresentationDungeonHP = nil
+        }
+        displayedHandStacks = Self.visibleHandStacks(from: core.handStacks, mode: mode)
+        refreshSelectionIfNeeded(with: displayedHandStacks)
+
+        guard !isWaitingForEnemyTurnPresentationAfterMovement else { return }
+        flushDeferredMovementPresentationOutcomes()
+        handleDungeonHPChange(core.dungeonHP)
+    }
+
+    func applyEnemyTurnDamagePresentation(_ event: DungeonEnemyTurnEvent) {
+        guard mode.usesDungeonExit else { return }
+        guard event.attackedPlayer, event.hpAfter < event.hpBefore else { return }
+        movementPresentationDungeonHP = event.hpAfter
+        lastObservedDungeonHPForDamageEffect = event.hpAfter
+        deferredEnemyDamageEventID = event.id
+    }
+
+    func finishEnemyTurnPresentation(_ event: DungeonEnemyTurnEvent) {
+        guard mode.usesDungeonExit else { return }
+        guard isWaitingForEnemyTurnPresentationAfterMovement || movementPresentationDungeonHP != nil else { return }
+        isWaitingForEnemyTurnPresentationAfterMovement = false
+        movementPresentationDungeonHP = nil
+        flushDeferredMovementPresentationOutcomes()
+        handleDungeonHPChange(core.dungeonHP)
+    }
+
+    private func flushDeferredMovementPresentationOutcomes() {
+        if let deferredFall = deferredDungeonFallEventDuringMovementPresentation {
+            deferredDungeonFallEventDuringMovementPresentation = nil
+            handleDungeonFallEvent(deferredFall)
+        }
+        if let deferredProgress = deferredProgressDuringMovementPresentation {
+            deferredProgressDuringMovementPresentation = nil
+            handleProgressChange(deferredProgress)
+        }
+    }
+
     private func shouldClearDungeonResumeAfterClear(_ progress: GameProgress) -> Bool {
         guard progress == .cleared,
               let runState = dungeonRunState,
@@ -181,6 +265,10 @@ extension GameViewModel {
     }
 
     func handleDungeonHPChange(_ newHP: Int) {
+        guard !isMovementPresentationActive else { return }
+        if core.lastMovementResolution?.presentationSteps.contains(where: \.tookDamage) == true {
+            return
+        }
         defer { lastObservedDungeonHPForDamageEffect = newHP }
         guard mode.usesDungeonExit,
               let previousHP = lastObservedDungeonHPForDamageEffect,
@@ -192,6 +280,7 @@ extension GameViewModel {
            enemyTurnEvent.attackedPlayer,
            enemyTurnEvent.hpBefore == previousHP,
            enemyTurnEvent.hpAfter == newHP {
+            movementPresentationDungeonHP = previousHP
             deferredEnemyDamageEventID = enemyTurnEvent.id
             return
         }

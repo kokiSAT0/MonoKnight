@@ -93,7 +93,7 @@ private extension GameHandSectionView {
         }
     }
 
-    /// 手札スロット一覧。通常の 5 枠は従来通り固定表示し、塔の 10 種類所持は 3 列で折り返す。
+    /// 手札スロット一覧。通常の 5 枠は従来通り固定表示し、塔の 10 種類所持は 5 枚ずつ 2 行に並べる。
     @ViewBuilder
     private var handSlotsSection: some View {
         if handSlotCount > 5 {
@@ -435,26 +435,14 @@ private extension GameHandSectionView {
     /// MoveCard を読み上げ用の日本語へ変換する
     private func directionPhrase(for move: MoveCard) -> String {
         switch move {
-        case .kingUp:
-            return "上へ 1"
         case .kingUpRight:
             return "右上へ 1"
-        case .kingRight:
-            return "右へ 1"
         case .kingDownRight:
             return "右下へ 1"
-        case .kingDown:
-            return "下へ 1"
         case .kingDownLeft:
             return "左下へ 1"
-        case .kingLeft:
-            return "左へ 1"
         case .kingUpLeft:
             return "左上へ 1"
-        case .kingUpOrDown:
-            return "上下いずれかへ 1"
-        case .kingLeftOrRight:
-            return "左右いずれかへ 1"
         // キング型の選択式カードは斜め方向の 2 択であることを明確に伝える
         case .kingUpwardDiagonalChoice:
             return "右上または左上へ 1 (選択)"
@@ -564,7 +552,7 @@ extension GameHandSectionView {
             return [0..<slotCount]
         }
 
-        let columnsPerRow = 3
+        let columnsPerRow = 5
         return stride(from: 0, to: slotCount, by: columnsPerRow).map { start in
             start..<min(start + columnsPerRow, slotCount)
         }

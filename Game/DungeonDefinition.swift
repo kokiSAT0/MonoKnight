@@ -23,9 +23,9 @@ public enum DungeonCardAcquisitionMode: String, Codable, Equatable {
 /// 塔ラン中に所持しているカードと残り使用回数
 public struct DungeonInventoryEntry: Codable, Equatable, Identifiable {
     public let playable: PlayableCard
-    /// フロアをまたいで持ち越せる残り使用回数
+    /// 残り使用回数。旧保存データの拾得回数もここへ畳み込む。
     public var rewardUses: Int
-    /// 現在フロア中に拾得由来として残っている使用回数
+    /// 旧保存データ互換用。現行ルールでは新規状態を 0 に正規化する。
     public var pickupUses: Int
 
     public var card: MoveCard {
@@ -40,20 +40,20 @@ public struct DungeonInventoryEntry: Codable, Equatable, Identifiable {
 
     public init(card: MoveCard, rewardUses: Int = 0, pickupUses: Int = 0) {
         self.playable = .move(card)
-        self.rewardUses = max(rewardUses, 0)
-        self.pickupUses = max(pickupUses, 0)
+        self.rewardUses = Self.normalizedTotalUses(rewardUses: rewardUses, pickupUses: pickupUses)
+        self.pickupUses = 0
     }
 
     public init(support: SupportCard, rewardUses: Int = 0, pickupUses: Int = 0) {
         self.playable = .support(support)
-        self.rewardUses = max(rewardUses, 0)
-        self.pickupUses = max(pickupUses, 0)
+        self.rewardUses = Self.normalizedTotalUses(rewardUses: rewardUses, pickupUses: pickupUses)
+        self.pickupUses = 0
     }
 
     public init(playable: PlayableCard, rewardUses: Int = 0, pickupUses: Int = 0) {
         self.playable = playable
-        self.rewardUses = max(rewardUses, 0)
-        self.pickupUses = max(pickupUses, 0)
+        self.rewardUses = Self.normalizedTotalUses(rewardUses: rewardUses, pickupUses: pickupUses)
+        self.pickupUses = 0
     }
 
     public var id: String { playable.identityText }
@@ -61,13 +61,16 @@ public struct DungeonInventoryEntry: Codable, Equatable, Identifiable {
     public var hasUsesRemaining: Bool { totalUses > 0 }
 
     public func carryingRewardUsesOnly() -> DungeonInventoryEntry? {
-        guard rewardUses > 0 else { return nil }
-        return DungeonInventoryEntry(playable: playable, rewardUses: rewardUses, pickupUses: 0)
+        carryingAllUsesAsReward()
     }
 
     public func carryingAllUsesAsReward() -> DungeonInventoryEntry? {
         guard totalUses > 0 else { return nil }
         return DungeonInventoryEntry(playable: playable, rewardUses: totalUses, pickupUses: 0)
+    }
+
+    private static func normalizedTotalUses(rewardUses: Int, pickupUses: Int) -> Int {
+        max(rewardUses, 0) + max(pickupUses, 0)
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -84,8 +87,11 @@ public struct DungeonInventoryEntry: Codable, Equatable, Identifiable {
         } else {
             self.playable = .move(try container.decode(MoveCard.self, forKey: .card))
         }
-        rewardUses = max(try container.decodeIfPresent(Int.self, forKey: .rewardUses) ?? 0, 0)
-        pickupUses = max(try container.decodeIfPresent(Int.self, forKey: .pickupUses) ?? 0, 0)
+        rewardUses = Self.normalizedTotalUses(
+            rewardUses: try container.decodeIfPresent(Int.self, forKey: .rewardUses) ?? 0,
+            pickupUses: try container.decodeIfPresent(Int.self, forKey: .pickupUses) ?? 0
+        )
+        pickupUses = 0
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -331,13 +337,13 @@ public struct DungeonRunState: Codable, Equatable {
         case .addSupport(let support):
             result.append(DungeonInventoryEntry(support: support, rewardUses: DungeonRunState.rewardUses(for: support), pickupUses: 0))
         case .carryOverPickup(let card):
-            guard sourceEntries.contains(where: { $0.moveCard == card && $0.pickupUses > 0 }) else { break }
+            guard sourceEntries.contains(where: { $0.moveCard == card && $0.hasUsesRemaining }) else { break }
             break
         case .upgrade(let card):
-            guard let index = result.firstIndex(where: { $0.moveCard == card && $0.rewardUses > 0 }) else { break }
+            guard let index = result.firstIndex(where: { $0.moveCard == card && $0.hasUsesRemaining }) else { break }
             result[index].rewardUses += 1
         case .upgradeSupport(let support):
-            guard let index = result.firstIndex(where: { $0.supportCard == support && $0.rewardUses > 0 }) else { break }
+            guard let index = result.firstIndex(where: { $0.supportCard == support && $0.hasUsesRemaining }) else { break }
             result[index].rewardUses += 1
         case .remove(let card):
             result.removeAll { $0.moveCard == card }
@@ -379,6 +385,12 @@ public struct DungeonExitLock: Codable, Equatable {
     }
 }
 
+/// 回転見張りの回転方向
+public enum RotatingWatcherDirection: String, Codable, Equatable {
+    case clockwise
+    case counterclockwise
+}
+
 /// 敵の行動パターン
 public enum EnemyBehavior: Codable, Equatable {
     /// その場から動かず、隣接マスを警戒する
@@ -387,17 +399,20 @@ public enum EnemyBehavior: Codable, Equatable {
     case patrol(path: [GridPoint])
     /// 指定方向の直線を見張る
     case watcher(direction: MoveVector, range: Int)
-    /// 指定方向を順に向き直す見張り
-    case rotatingWatcher(directions: [MoveVector], range: Int)
+    /// 4方向を右回りまたは左回りに向き直す見張り
+    case rotatingWatcher(initialDirection: MoveVector, rotationDirection: RotatingWatcherDirection, range: Int)
     /// プレイヤーへ1マスずつ近づく
     case chaser
-    /// 指定方向へ次ターン危険になるマスを予告する
+    /// 次ターンにメテオが着弾するマスを予告する
+    /// - Note: 旧保存データとの互換のため `directions` を保持するが、現行ルールでは `range` を予告数として扱う。
     case marker(directions: [MoveVector], range: Int)
 
     private enum CodingKeys: String, CodingKey {
         case type
         case path
         case direction
+        case initialDirection
+        case rotationDirection
         case directions
         case range
     }
@@ -426,8 +441,17 @@ public enum EnemyBehavior: Codable, Equatable {
                 range: try container.decodeIfPresent(Int.self, forKey: .range) ?? 1
             )
         case .rotatingWatcher:
+            let legacyDirections = try container.decodeIfPresent([MoveVector].self, forKey: .directions) ?? []
+            let initialDirection = try container.decodeIfPresent(MoveVector.self, forKey: .initialDirection)
+                ?? legacyDirections.first
+                ?? MoveVector(dx: 0, dy: 1)
+            let rotationDirection = try container.decodeIfPresent(
+                RotatingWatcherDirection.self,
+                forKey: .rotationDirection
+            ) ?? Self.inferredRotationDirection(from: legacyDirections)
             self = .rotatingWatcher(
-                directions: try container.decodeIfPresent([MoveVector].self, forKey: .directions) ?? [],
+                initialDirection: initialDirection,
+                rotationDirection: rotationDirection,
                 range: try container.decodeIfPresent(Int.self, forKey: .range) ?? 1
             )
         case .chaser:
@@ -452,9 +476,10 @@ public enum EnemyBehavior: Codable, Equatable {
             try container.encode(Kind.watcher, forKey: .type)
             try container.encode(direction, forKey: .direction)
             try container.encode(range, forKey: .range)
-        case .rotatingWatcher(let directions, let range):
+        case .rotatingWatcher(let initialDirection, let rotationDirection, let range):
             try container.encode(Kind.rotatingWatcher, forKey: .type)
-            try container.encode(directions, forKey: .directions)
+            try container.encode(initialDirection, forKey: .initialDirection)
+            try container.encode(rotationDirection, forKey: .rotationDirection)
             try container.encode(range, forKey: .range)
         case .chaser:
             try container.encode(Kind.chaser, forKey: .type)
@@ -464,6 +489,42 @@ public enum EnemyBehavior: Codable, Equatable {
             try container.encode(range, forKey: .range)
         }
     }
+
+    private static func inferredRotationDirection(from directions: [MoveVector]) -> RotatingWatcherDirection {
+        let normalized = directions.compactMap(normalizedOrthogonalDirection)
+        guard normalized.count >= 2,
+              let firstIndex = rotatingWatcherClockwiseDirections.firstIndex(of: normalized[0]),
+              let secondIndex = rotatingWatcherClockwiseDirections.firstIndex(of: normalized[1])
+        else {
+            return .clockwise
+        }
+
+        let clockwiseIndex = (firstIndex + 1) % rotatingWatcherClockwiseDirections.count
+        let counterclockwiseIndex = (
+            firstIndex + rotatingWatcherClockwiseDirections.count - 1
+        ) % rotatingWatcherClockwiseDirections.count
+        if secondIndex == counterclockwiseIndex {
+            return .counterclockwise
+        }
+        if secondIndex == clockwiseIndex {
+            return .clockwise
+        }
+        return .clockwise
+    }
+
+    static func normalizedOrthogonalDirection(_ direction: MoveVector) -> MoveVector? {
+        let dx = direction.dx == 0 ? 0 : (direction.dx > 0 ? 1 : -1)
+        let dy = direction.dy == 0 ? 0 : (direction.dy > 0 ? 1 : -1)
+        guard abs(dx) + abs(dy) == 1 else { return nil }
+        return MoveVector(dx: dx, dy: dy)
+    }
+
+    static let rotatingWatcherClockwiseDirections: [MoveVector] = [
+        MoveVector(dx: 0, dy: 1),
+        MoveVector(dx: 1, dy: 0),
+        MoveVector(dx: 0, dy: -1),
+        MoveVector(dx: -1, dy: 0)
+    ]
 }
 
 /// フロア開始時に配置する敵
@@ -645,20 +706,24 @@ public struct DungeonEnemyTurnEvent: Equatable, Identifiable {
 
 /// 床や罠など、敵以外のフロアギミック
 public enum HazardDefinition: Codable, Equatable {
-    /// 1 回踏むとひび割れ、2 回目で崩落して通行不可になる床
+    /// 1 回踏むとひび割れ、2 回目以降は崩落穴として落下する床
     case brittleFloor(points: Set<GridPoint>)
     /// 見えている罠床。踏むたびに指定ダメージを受ける
     case damageTrap(points: Set<GridPoint>, damage: Int)
+    /// 見えている回復床。1 回踏むと指定量だけ HP が増え、そのフロア中は消費済みになる
+    case healingTile(points: Set<GridPoint>, amount: Int)
 
     private enum CodingKeys: String, CodingKey {
         case type
         case points
         case damage
+        case amount
     }
 
     private enum Kind: String, Codable {
         case brittleFloor
         case damageTrap
+        case healingTile
     }
 
     public init(from decoder: Decoder) throws {
@@ -671,6 +736,11 @@ public enum HazardDefinition: Codable, Equatable {
             self = .damageTrap(
                 points: try container.decode(Set<GridPoint>.self, forKey: .points),
                 damage: try container.decodeIfPresent(Int.self, forKey: .damage) ?? 1
+            )
+        case .healingTile:
+            self = .healingTile(
+                points: try container.decode(Set<GridPoint>.self, forKey: .points),
+                amount: try container.decodeIfPresent(Int.self, forKey: .amount) ?? 1
             )
         }
     }
@@ -685,6 +755,10 @@ public enum HazardDefinition: Codable, Equatable {
             try container.encode(Kind.damageTrap, forKey: .type)
             try container.encode(points, forKey: .points)
             try container.encode(max(damage, 1), forKey: .damage)
+        case .healingTile(let points, let amount):
+            try container.encode(Kind.healingTile, forKey: .type)
+            try container.encode(points, forKey: .points)
+            try container.encode(max(amount, 1), forKey: .amount)
         }
     }
 }
@@ -902,6 +976,27 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
             warpTilePairs: warpTilePairs,
             exitLock: exitLock,
             cardPickups: cardPickups + additionalCardPickups,
+            rewardMoveCardsAfterClear: rewardMoveCardsAfterClear,
+            rewardSupportCardsAfterClear: rewardSupportCardsAfterClear
+        )
+    }
+
+    public func withAdditionalHazards(_ additionalHazards: [HazardDefinition]) -> DungeonFloorDefinition {
+        DungeonFloorDefinition(
+            id: id,
+            title: title,
+            boardSize: boardSize,
+            spawnPoint: spawnPoint,
+            exitPoint: exitPoint,
+            deckPreset: deckPreset,
+            failureRule: failureRule,
+            enemies: enemies,
+            hazards: hazards + additionalHazards,
+            impassableTilePoints: impassableTilePoints,
+            tileEffectOverrides: tileEffectOverrides,
+            warpTilePairs: warpTilePairs,
+            exitLock: exitLock,
+            cardPickups: cardPickups,
             rewardMoveCardsAfterClear: rewardMoveCardsAfterClear,
             rewardSupportCardsAfterClear: rewardSupportCardsAfterClear
         )
@@ -1237,6 +1332,8 @@ private extension HazardDefinition {
         case .brittleFloor(let points):
             return points
         case .damageTrap(let points, _):
+            return points
+        case .healingTile(let points, _):
             return points
         }
     }
@@ -1620,6 +1717,9 @@ public struct DungeonLibrary {
                 .withAdditionalImpassableTilePoints([
                     GridPoint(x: 3, y: 5),
                     GridPoint(x: 6, y: 2)
+                ])
+                .withAdditionalHazards([
+                    .healingTile(points: [GridPoint(x: 5, y: 3)], amount: 1)
                 ]),
                 title: "転移の抜け道",
                 rewardMoveCardsAfterClear: [
@@ -1644,12 +1744,8 @@ public struct DungeonLibrary {
                         name: "回転見張り",
                         position: GridPoint(x: 6, y: 5),
                         behavior: .rotatingWatcher(
-                            directions: [
-                                MoveVector(dx: -1, dy: 0),
-                                MoveVector(dx: 0, dy: -1),
-                                MoveVector(dx: -1, dy: 0),
-                                MoveVector(dx: 0, dy: 1)
-                            ],
+                            initialDirection: MoveVector(dx: -1, dy: 0),
+                            rotationDirection: .counterclockwise,
                             range: 2
                         )
                     ),
@@ -1988,7 +2084,7 @@ public struct DungeonLibrary {
                 DungeonCardPickupDefinition(id: "growth-11-up2", point: GridPoint(x: 4, y: 2), card: .straightUp2),
                 DungeonCardPickupDefinition(id: "growth-11-knight", point: GridPoint(x: 7, y: 5), card: .knightRightwardChoice)
             ],
-            rewardMoveCardsAfterClear: [.rayDown, .straightDown2, .knightDownwardChoice],
+            rewardMoveCardsAfterClear: [.rayDown, .straightDown2],
             rewardSupportCardsAfterClear: [.refillEmptySlots]
         )
     }
@@ -2008,11 +2104,8 @@ public struct DungeonLibrary {
                     name: "回転見張り",
                     position: GridPoint(x: 5, y: 3),
                     behavior: .rotatingWatcher(
-                        directions: [
-                            MoveVector(dx: -1, dy: 0),
-                            MoveVector(dx: 0, dy: 1),
-                            MoveVector(dx: 1, dy: 0)
-                        ],
+                        initialDirection: MoveVector(dx: -1, dy: 0),
+                        rotationDirection: .clockwise,
                         range: 3
                     )
                 ),
@@ -2029,7 +2122,8 @@ public struct DungeonLibrary {
                     GridPoint(x: 3, y: 2),
                     GridPoint(x: 4, y: 3),
                     GridPoint(x: 5, y: 4)
-                ], damage: 1)
+                ], damage: 1),
+                .healingTile(points: [GridPoint(x: 6, y: 4)], amount: 1)
             ],
             impassableTilePoints: [
                 GridPoint(x: 1, y: 5),
@@ -2061,12 +2155,8 @@ public struct DungeonLibrary {
                     name: "回転見張り",
                     position: GridPoint(x: 6, y: 3),
                     behavior: .rotatingWatcher(
-                        directions: [
-                            MoveVector(dx: 0, dy: 1),
-                            MoveVector(dx: -1, dy: 0),
-                            MoveVector(dx: 0, dy: 1),
-                            MoveVector(dx: 1, dy: 0)
-                        ],
+                        initialDirection: MoveVector(dx: 0, dy: 1),
+                        rotationDirection: .counterclockwise,
                         range: 4
                     )
                 )
@@ -2146,12 +2236,8 @@ public struct DungeonLibrary {
                     name: "回転見張り",
                     position: GridPoint(x: 7, y: 4),
                     behavior: .rotatingWatcher(
-                        directions: [
-                            MoveVector(dx: -1, dy: 0),
-                            MoveVector(dx: 0, dy: 1),
-                            MoveVector(dx: -1, dy: 0),
-                            MoveVector(dx: 0, dy: -1)
-                        ],
+                        initialDirection: MoveVector(dx: -1, dy: 0),
+                        rotationDirection: .clockwise,
                         range: 4
                     )
                 ),
@@ -2179,7 +2265,7 @@ public struct DungeonLibrary {
                 DungeonCardPickupDefinition(id: "growth-15-key-diagonal", point: GridPoint(x: 2, y: 0), card: .diagonalUpRight2),
                 DungeonCardPickupDefinition(id: "growth-15-up2", point: GridPoint(x: 6, y: 7), card: .straightUp2)
             ],
-            rewardMoveCardsAfterClear: [.rayRight, .diagonalUpRight2, .straightRight2],
+            rewardMoveCardsAfterClear: [.rayRight, .diagonalUpRight2],
             rewardSupportCardsAfterClear: [.refillEmptySlots]
         )
     }
@@ -2199,12 +2285,8 @@ public struct DungeonLibrary {
                     name: "回転見張り",
                     position: GridPoint(x: 4, y: 1),
                     behavior: .rotatingWatcher(
-                        directions: [
-                            MoveVector(dx: 0, dy: 1),
-                            MoveVector(dx: 1, dy: 0),
-                            MoveVector(dx: 0, dy: 1),
-                            MoveVector(dx: -1, dy: 0)
-                        ],
+                        initialDirection: MoveVector(dx: 0, dy: 1),
+                        rotationDirection: .clockwise,
                         range: 5
                     )
                 ),
@@ -2216,7 +2298,10 @@ public struct DungeonLibrary {
                     behavior: .chaser
                 )
             ],
-            hazards: [.damageTrap(points: [GridPoint(x: 3, y: 4), GridPoint(x: 5, y: 4)], damage: 1)],
+            hazards: [
+                .damageTrap(points: [GridPoint(x: 3, y: 4), GridPoint(x: 5, y: 4)], damage: 1),
+                .healingTile(points: [GridPoint(x: 2, y: 4)], amount: 1)
+            ],
             impassableTilePoints: [
                 GridPoint(x: 2, y: 6),
                 GridPoint(x: 4, y: 0),
@@ -2245,13 +2330,10 @@ public struct DungeonLibrary {
                 EnemyDefinition(id: "growth-17-patrol", name: "巡回兵", position: GridPoint(x: 3, y: 5), behavior: .patrol(path: [GridPoint(x: 3, y: 5), GridPoint(x: 4, y: 5), GridPoint(x: 5, y: 5), GridPoint(x: 6, y: 5), GridPoint(x: 5, y: 5), GridPoint(x: 4, y: 5)])),
                 EnemyDefinition(
                     id: "growth-17-marker",
-                    name: "予告兵",
+                    name: "メテオ兵",
                     position: GridPoint(x: 7, y: 4),
                     behavior: .marker(
-                        directions: [
-                            MoveVector(dx: -1, dy: 0),
-                            MoveVector(dx: 0, dy: 1)
-                        ],
+                        directions: [],
                         range: 3
                     )
                 )
@@ -2287,12 +2369,8 @@ public struct DungeonLibrary {
                     name: "回転見張り",
                     position: GridPoint(x: 7, y: 6),
                     behavior: .rotatingWatcher(
-                        directions: [
-                            MoveVector(dx: -1, dy: 0),
-                            MoveVector(dx: 0, dy: -1),
-                            MoveVector(dx: -1, dy: 0),
-                            MoveVector(dx: 0, dy: 1)
-                        ],
+                        initialDirection: MoveVector(dx: -1, dy: 0),
+                        rotationDirection: .counterclockwise,
                         range: 4
                     )
                 ),
@@ -2335,7 +2413,8 @@ public struct DungeonLibrary {
             ],
             hazards: [
                 .brittleFloor(points: [GridPoint(x: 2, y: 2), GridPoint(x: 3, y: 2)]),
-                .damageTrap(points: [GridPoint(x: 5, y: 6), GridPoint(x: 6, y: 7)], damage: 1)
+                .damageTrap(points: [GridPoint(x: 5, y: 6), GridPoint(x: 6, y: 7)], damage: 1),
+                .healingTile(points: [GridPoint(x: 2, y: 5)], amount: 1)
             ],
             impassableTilePoints: [
                 GridPoint(x: 1, y: 4),
@@ -2367,12 +2446,8 @@ public struct DungeonLibrary {
                     name: "回転見張り",
                     position: GridPoint(x: 7, y: 6),
                     behavior: .rotatingWatcher(
-                        directions: [
-                            MoveVector(dx: -1, dy: 0),
-                            MoveVector(dx: 0, dy: -1),
-                            MoveVector(dx: -1, dy: 0),
-                            MoveVector(dx: 0, dy: 1)
-                        ],
+                        initialDirection: MoveVector(dx: -1, dy: 0),
+                        rotationDirection: .counterclockwise,
                         range: 4
                     )
                 ),

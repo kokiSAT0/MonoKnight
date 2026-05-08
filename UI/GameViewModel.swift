@@ -32,6 +32,16 @@ final class GameViewModel: ObservableObject {
     /// 初回描画から使う手札表示用スナップショット
     /// - Note: `core.$handStacks` の初回通知を待たず、塔の持ち越し報酬カードを開始直後から表示する。
     @Published var displayedHandStacks: [HandStack] = []
+    /// 移動演出中だけ利用する HP 表示上書き
+    @Published var movementPresentationDungeonHP: Int?
+    /// 移動演出中は手札/HP の通常同期を一時停止する
+    var isMovementPresentationActive = false
+    /// 移動演出が終わってから反映する進行状態
+    var deferredProgressDuringMovementPresentation: GameProgress?
+    /// 移動演出が終わってから反映する落下イベント
+    var deferredDungeonFallEventDuringMovementPresentation: DungeonFallEvent?
+    /// 移動後に保留された敵ターンが終わるまで結果表示を待つかどうか
+    var isWaitingForEnemyTurnPresentationAfterMovement = false
     static let dungeonInventoryVisibleSlotCount = 9
     static let dungeonBasicMoveSlotIndex = 9
     /// SpriteKit と SwiftUI を仲介するための ViewModel
@@ -113,7 +123,7 @@ final class GameViewModel: ObservableObject {
     /// 出口到達型ダンジョンかどうか
     var usesDungeonExit: Bool { mode.usesDungeonExit }
     /// ダンジョン HP
-    var dungeonHP: Int { core.dungeonHP }
+    var dungeonHP: Int { movementPresentationDungeonHP ?? core.dungeonHP }
     /// ダンジョン残り手数
     var remainingDungeonTurns: Int? { core.remainingDungeonTurns }
     /// ダンジョン手数上限
@@ -176,6 +186,20 @@ final class GameViewModel: ObservableObject {
         )?.rewardMoveCardsAfterClear ?? []
         return dungeonGrowthStore.rewardMoveCards(for: baseCards, dungeon: dungeon)
     }
+    /// 現在フロアのクリア後に選べる報酬カードを、移動/補助を同じ3択枠として返す
+    var availableDungeonRewardCards: [PlayableCard] {
+        Array(
+            (
+                availableDungeonRewardMoveCards.map(PlayableCard.move)
+                    + availableDungeonRewardSupportCards.map(PlayableCard.support)
+            )
+            .prefix(3)
+        )
+    }
+    /// 満杯時でも既存カードの重ね取りは許可し、新規種類だけを止める
+    func canAddDungeonRewardMoveCard(_ card: MoveCard) -> Bool {
+        canAddDungeonRewardPlayable(.move(card))
+    }
     /// 現在フロアのクリア後に選べる補助報酬カード
     var availableDungeonRewardSupportCards: [SupportCard] {
         guard !isResultFailed,
@@ -189,6 +213,10 @@ final class GameViewModel: ObservableObject {
             at: runState.currentFloorIndex,
             runState: runState
         )?.rewardSupportCardsAfterClear ?? []
+    }
+    /// 満杯時でも既存補助カードの重ね取りは許可し、新規種類だけを止める
+    func canAddDungeonRewardSupportCard(_ support: SupportCard) -> Bool {
+        canAddDungeonRewardPlayable(.support(support))
     }
     /// 旧互換用: 拾得カードはクリア時に自動で次フロアへ持ち越すため、通常 UI では選択候補を出さない
     var carryoverCandidateDungeonPickupEntries: [DungeonInventoryEntry] {
@@ -207,10 +235,16 @@ final class GameViewModel: ObservableObject {
               let metadata = mode.dungeonMetadataSnapshot,
               let runState = metadata.runState,
               let dungeon = DungeonLibrary.shared.dungeon(with: metadata.dungeonID),
-              dungeon.difficulty == .growth,
               dungeon.canAdvanceWithinRun(afterFloorIndex: runState.currentFloorIndex)
         else { return [] }
-        return dungeonRewardInventoryEntries
+        return dungeonInventoryEntries.filter(\.hasUsesRemaining)
+    }
+    private func canAddDungeonRewardPlayable(_ playable: PlayableCard) -> Bool {
+        let liveEntries = dungeonInventoryEntries.filter(\.hasUsesRemaining)
+        if liveEntries.contains(where: { $0.playable == playable }) {
+            return true
+        }
+        return liveEntries.count < 9
     }
     /// 次のダンジョンフロア名
     var nextDungeonFloorTitle: String? {
@@ -365,6 +399,21 @@ final class GameViewModel: ObservableObject {
         self.core = generatedCore
         self.displayedHandStacks = Self.visibleHandStacks(from: generatedCore.handStacks, mode: mode)
         self.boardBridge = GameBoardBridgeViewModel(core: generatedCore, mode: mode)
+        self.boardBridge.onMovementPresentationStarted = { [weak self] resolution in
+            self?.beginMovementPresentation(using: resolution)
+        }
+        self.boardBridge.onMovementPresentationStep = { [weak self] step in
+            self?.applyMovementPresentationStep(step)
+        }
+        self.boardBridge.onMovementPresentationFinished = { [weak self] in
+            self?.finishMovementPresentation()
+        }
+        self.boardBridge.onEnemyTurnDamageResolved = { [weak self] event in
+            self?.applyEnemyTurnDamagePresentation(event)
+        }
+        self.boardBridge.onEnemyTurnAnimationFinished = { [weak self] event in
+            self?.finishEnemyTurnPresentation(event)
+        }
         self.lastTutorialMoveCount = generatedCore.moveCount
         self.lastTutorialCapturedTargetCount = generatedCore.capturedTargetCount
         self.lastTutorialFocusCount = generatedCore.focusCount

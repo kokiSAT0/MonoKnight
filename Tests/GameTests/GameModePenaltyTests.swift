@@ -29,11 +29,11 @@ final class GameModePenaltyTests: XCTestCase {
             .straightDown2,
             .knightDown2Right1,
             .knightDown2Left1,
-            .kingRight,
-            .kingUp,
+            .straightRight2,
+            .kingUpRight,
             .diagonalUpLeft2,
             .kingUpLeft,
-            .kingLeft
+            .straightLeft2
         ])
 
         let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 0, y: 0), mode: mode)
@@ -65,11 +65,11 @@ final class GameModePenaltyTests: XCTestCase {
 
         // --- 初期手札で盤内へ進めるカードを含め、手詰まりが発生しないようにする ---
         let deck = Deck.makeTestDeck(cards: [
-            .kingUp,
-            .kingLeft,
-            .kingRight,
+            .kingUpRight,
+            .straightLeft2,
+            .straightRight2,
             .knightUp1Right2,
-            .kingDown,
+            .straightDown2,
             .straightUp2,
             .straightRight2,
             .diagonalUpRight2,
@@ -107,11 +107,11 @@ final class GameModePenaltyTests: XCTestCase {
         let mode = GameMode(identifier: .dungeonFloor, displayName: "カスタム", regulation: regulation)
 
         let deck = Deck.makeTestDeck(cards: [
-            .kingUp,
-            .kingLeft,
+            .kingUpRight,
+            .straightLeft2,
             .knightUp1Right2,
-            .kingRight,
-            .kingDown,
+            .straightRight2,
+            .straightDown2,
             .straightUp2,
             .knightUp2Right1,
             .diagonalUpRight2,

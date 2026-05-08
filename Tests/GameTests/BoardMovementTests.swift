@@ -34,11 +34,11 @@ final class BoardMovementTests: XCTestCase {
             isTraversable: { board.isTraversable($0) }
         )
 
-        let card = MoveCard.kingRight
-        let expectedVector = MoveVector(dx: 1, dy: 0)
+        let card = MoveCard.kingUpRight
+        let expectedVector = MoveVector(dx: 1, dy: 1)
         let kingPaths = card.resolvePaths(from: origin, context: context)
         XCTAssertEqual(kingPaths.map(\.vector), [expectedVector], "移動パターンが想定ベクトルを返していません")
-        XCTAssertEqual(kingPaths.first?.destination, origin.offset(dx: 1, dy: 0), "移動先が従来の仕様と一致していません")
+        XCTAssertEqual(kingPaths.first?.destination, origin.offset(dx: 1, dy: 1), "移動先が従来の仕様と一致していません")
         XCTAssertEqual(card.movePattern.identity, .relativeSteps([expectedVector]), "アイデンティティが想定の相対単歩と一致しません")
         XCTAssertEqual(card.primaryVector, expectedVector, "primaryVector が従来値と一致しません")
 
@@ -62,21 +62,21 @@ final class BoardMovementTests: XCTestCase {
             isTraversable: { board.isTraversable($0) }
         )
 
-        let verticalChoice = MoveCard.kingUpOrDown
-        let verticalPaths = verticalChoice.resolvePaths(from: origin, context: context)
-        XCTAssertEqual(verticalPaths.count, 2, "上下選択カードの候補数が 2 ではありません")
-        XCTAssertEqual(verticalPaths[0].vector, MoveVector(dx: 0, dy: 1), "上下選択カードの先頭ベクトルが上方向になっていません")
-        XCTAssertEqual(verticalPaths[1].vector, MoveVector(dx: 0, dy: -1), "上下選択カードの 2 番目ベクトルが下方向になっていません")
-        XCTAssertEqual(verticalChoice.movePattern.identity, .relativeSteps([MoveVector(dx: 0, dy: 1), MoveVector(dx: 0, dy: -1)]), "上下選択カードのアイデンティティが想定と異なります")
-        XCTAssertEqual(verticalChoice.primaryVector, MoveVector(dx: 0, dy: 1), "上下選択カードの primaryVector が想定外です")
+        let upwardDiagonalChoice = MoveCard.kingUpwardDiagonalChoice
+        let upwardPaths = upwardDiagonalChoice.resolvePaths(from: origin, context: context)
+        XCTAssertEqual(upwardPaths.count, 2, "上斜め選択カードの候補数が 2 ではありません")
+        XCTAssertEqual(upwardPaths[0].vector, MoveVector(dx: 1, dy: 1), "上斜め選択カードの先頭ベクトルが右上方向になっていません")
+        XCTAssertEqual(upwardPaths[1].vector, MoveVector(dx: -1, dy: 1), "上斜め選択カードの 2 番目ベクトルが左上方向になっていません")
+        XCTAssertEqual(upwardDiagonalChoice.movePattern.identity, .relativeSteps([MoveVector(dx: 1, dy: 1), MoveVector(dx: -1, dy: 1)]), "上斜め選択カードのアイデンティティが想定と異なります")
+        XCTAssertEqual(upwardDiagonalChoice.primaryVector, MoveVector(dx: 1, dy: 1), "上斜め選択カードの primaryVector が想定外です")
 
-        let horizontalChoice = MoveCard.kingLeftOrRight
-        let horizontalPaths = horizontalChoice.resolvePaths(from: origin, context: context)
-        XCTAssertEqual(horizontalPaths.count, 2, "左右選択カードの候補数が 2 ではありません")
-        XCTAssertEqual(horizontalPaths[0].vector, MoveVector(dx: 1, dy: 0), "左右選択カードの先頭ベクトルが右方向になっていません")
-        XCTAssertEqual(horizontalPaths[1].vector, MoveVector(dx: -1, dy: 0), "左右選択カードの 2 番目ベクトルが左方向になっていません")
-        XCTAssertEqual(horizontalChoice.movePattern.identity, .relativeSteps([MoveVector(dx: 1, dy: 0), MoveVector(dx: -1, dy: 0)]), "左右選択カードのアイデンティティが想定と異なります")
-        XCTAssertEqual(horizontalChoice.primaryVector, MoveVector(dx: 1, dy: 0), "左右選択カードの primaryVector が想定外です")
+        let rightDiagonalChoice = MoveCard.kingRightDiagonalChoice
+        let rightPaths = rightDiagonalChoice.resolvePaths(from: origin, context: context)
+        XCTAssertEqual(rightPaths.count, 2, "右斜め選択カードの候補数が 2 ではありません")
+        XCTAssertEqual(rightPaths[0].vector, MoveVector(dx: 1, dy: 1), "右斜め選択カードの先頭ベクトルが右上方向になっていません")
+        XCTAssertEqual(rightPaths[1].vector, MoveVector(dx: 1, dy: -1), "右斜め選択カードの 2 番目ベクトルが右下方向になっていません")
+        XCTAssertEqual(rightDiagonalChoice.movePattern.identity, .relativeSteps([MoveVector(dx: 1, dy: 1), MoveVector(dx: 1, dy: -1)]), "右斜め選択カードのアイデンティティが想定と異なります")
+        XCTAssertEqual(rightDiagonalChoice.primaryVector, MoveVector(dx: 1, dy: 1), "右斜め選択カードの primaryVector が想定外です")
     }
 
     /// 複数候補のうち一部のみ盤内となるケースで canUse が true を返すか確認する
@@ -87,12 +87,12 @@ final class BoardMovementTests: XCTestCase {
         // 最初の候補は盤外、次の候補は盤内となるようベクトルを差し替える
         let outsideVector = MoveVector(dx: -1, dy: 0)
         let insideVector = MoveVector(dx: 0, dy: 1)
-        MoveCard.setTestMovementVectors([outsideVector, insideVector], for: .kingRight)
+        MoveCard.setTestMovementVectors([outsideVector, insideVector], for: .kingUpRight)
         // テスト後は副作用を残さないように元の定義へ戻す
-        defer { MoveCard.setTestMovementVectors(nil, for: .kingRight) }
+        defer { MoveCard.setTestMovementVectors(nil, for: .kingUpRight) }
 
         // 盤内に入る候補が存在するため true を期待する（修正前は false だった想定ケース）
-        XCTAssertTrue(MoveCard.kingRight.canUse(from: origin, boardSize: boardSize))
+        XCTAssertTrue(MoveCard.kingUpRight.canUse(from: origin, boardSize: boardSize))
     }
 
     /// availableMoves() が MovementResolution の経路情報を露出することを確認する

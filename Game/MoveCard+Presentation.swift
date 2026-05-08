@@ -4,26 +4,14 @@ public extension MoveCard {
     /// UI に表示する日本語の名前
     var displayName: String {
         switch self {
-        case .kingUp:
-            return "上1"
         case .kingUpRight:
             return "右上1"
-        case .kingRight:
-            return "右1"
         case .kingDownRight:
             return "右下1"
-        case .kingDown:
-            return "下1"
         case .kingDownLeft:
             return "左下1"
-        case .kingLeft:
-            return "左1"
         case .kingUpLeft:
             return "左上1"
-        case .kingUpOrDown:
-            return "上下1 (選択)"
-        case .kingLeftOrRight:
-            return "左右1 (選択)"
         case .kingUpwardDiagonalChoice:
             return "上斜め1 (選択)"
         case .kingRightDiagonalChoice:
@@ -66,9 +54,7 @@ public extension MoveCard {
     /// カード種別の分類を返す
     var kind: MoveCardKind {
         switch self {
-        case .kingUpOrDown,
-             .kingLeftOrRight,
-             .kingUpwardDiagonalChoice,
+        case .kingUpwardDiagonalChoice,
              .kingRightDiagonalChoice,
              .kingDownwardDiagonalChoice,
              .kingLeftDiagonalChoice,
@@ -110,16 +96,10 @@ public extension MoveCard {
     /// 王将型（キング型）に該当するかを判定するフラグ
     var isKingType: Bool {
         switch self {
-        case .kingUp,
-             .kingUpRight,
-             .kingRight,
+        case .kingUpRight,
              .kingDownRight,
-             .kingDown,
              .kingDownLeft,
-             .kingLeft,
              .kingUpLeft,
-             .kingUpOrDown,
-             .kingLeftOrRight,
              .kingUpwardDiagonalChoice,
              .kingRightDiagonalChoice,
              .kingDownwardDiagonalChoice,

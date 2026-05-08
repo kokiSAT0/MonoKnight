@@ -96,19 +96,16 @@ struct ResultSummaryPresentation {
 
     var dungeonRewardInventoryEntries: [DungeonInventoryEntry] {
         dungeonInventoryEntries
-            .filter { $0.rewardUses > 0 }
-            .map { DungeonInventoryEntry(playable: $0.playable, rewardUses: $0.rewardUses) }
+            .compactMap { $0.carryingAllUsesAsReward() }
     }
 
     var dungeonPickupInventoryEntries: [DungeonInventoryEntry] {
-        dungeonInventoryEntries
-            .filter { $0.pickupUses > 0 }
-            .map { DungeonInventoryEntry(card: $0.card, pickupUses: $0.pickupUses) }
+        []
     }
 
     var dungeonRewardInventoryText: String {
         dungeonRewardInventoryEntries
-            .map { "\($0.playable.displayName)×\($0.rewardUses)" }
+            .map { "\($0.playable.displayName)×\($0.totalUses)" }
             .joined(separator: "、")
     }
 

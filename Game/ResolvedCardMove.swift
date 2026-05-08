@@ -4,6 +4,63 @@ import Foundation
 /// - Important: 移動アニメーションやタイル効果適用後の最終座標を UI へ正確に伝えるため、開始地点を除外した経路情報と
 ///              効果発動履歴をひとまとめに管理する。
 public struct MovementResolution: Equatable {
+    /// 移動演出で 1 マスごとに反映したい表示状態
+    public struct PresentationStep: Equatable {
+        /// そのマスで移動を止める理由
+        public enum StopReason: Equatable {
+            case exit
+            case failed
+            case fall
+            case slow
+            case warp
+        }
+
+        /// 到達したマス
+        public let point: GridPoint
+        /// このマスの処理後に表示したい HP
+        public let hpAfter: Int
+        /// このマスの処理後に表示したい手札
+        public let handStacksAfter: [HandStack]
+        /// このマスの処理後に非表示にする拾得カード ID
+        public let collectedDungeonCardPickupIDsAfter: Set<String>
+        /// このマスの処理後に表示したい敵状態
+        public let enemyStatesAfter: [EnemyState]
+        /// このマスの処理後に表示したいひび割れ床
+        public let crackedFloorPointsAfter: Set<GridPoint>
+        /// このマスの処理後に表示したい崩落床
+        public let collapsedFloorPointsAfter: Set<GridPoint>
+        /// このマスの処理後に表示したい盤面
+        public let boardAfter: Board?
+        /// このマスで HP 減少が起きたか
+        public let tookDamage: Bool
+        /// このマスで移動を止める場合の理由
+        public let stopReason: StopReason?
+
+        public init(
+            point: GridPoint,
+            hpAfter: Int,
+            handStacksAfter: [HandStack],
+            collectedDungeonCardPickupIDsAfter: Set<String>,
+            enemyStatesAfter: [EnemyState],
+            crackedFloorPointsAfter: Set<GridPoint>,
+            collapsedFloorPointsAfter: Set<GridPoint>,
+            boardAfter: Board? = nil,
+            tookDamage: Bool,
+            stopReason: StopReason? = nil
+        ) {
+            self.point = point
+            self.hpAfter = hpAfter
+            self.handStacksAfter = handStacksAfter
+            self.collectedDungeonCardPickupIDsAfter = collectedDungeonCardPickupIDsAfter
+            self.enemyStatesAfter = enemyStatesAfter
+            self.crackedFloorPointsAfter = crackedFloorPointsAfter
+            self.collapsedFloorPointsAfter = collapsedFloorPointsAfter
+            self.boardAfter = boardAfter
+            self.tookDamage = tookDamage
+            self.stopReason = stopReason
+        }
+    }
+
     /// タイル効果の適用履歴を表現するためのサブ構造体
     /// - Note: 効果が発動した座標と内容を記録し、UI 側で演出を切り替える際に利用することを想定している。
     public struct AppliedEffect: Equatable {
@@ -28,16 +85,52 @@ public struct MovementResolution: Equatable {
     public private(set) var finalPosition: GridPoint
     /// 経路中に発生した効果の履歴
     public private(set) var appliedEffects: [AppliedEffect]
+    /// 移動演出開始時に表示へ固定したい HP
+    public private(set) var presentationInitialHP: Int?
+    /// 移動演出開始時に表示へ固定したい手札
+    public private(set) var presentationInitialHandStacks: [HandStack]?
+    /// 移動演出開始時に表示へ固定したい拾得カード状態
+    public private(set) var presentationInitialCollectedDungeonCardPickupIDs: Set<String>?
+    /// 移動演出開始時に表示へ固定したい敵状態
+    public private(set) var presentationInitialEnemyStates: [EnemyState]?
+    /// 移動演出開始時に表示へ固定したいひび割れ床
+    public private(set) var presentationInitialCrackedFloorPoints: Set<GridPoint>?
+    /// 移動演出開始時に表示へ固定したい崩落床
+    public private(set) var presentationInitialCollapsedFloorPoints: Set<GridPoint>?
+    /// 移動演出開始時に表示へ固定したい盤面
+    public private(set) var presentationInitialBoard: Board?
+    /// UI が途中解決を一歩ずつ反映するための表示ステップ
+    public private(set) var presentationSteps: [PresentationStep]
 
     /// 経路を用いて初期化する
     /// - Parameters:
     ///   - path: 始点を除いた通過マス配列（最後の要素が目的地になるように並べる）
     ///   - finalPosition: 効果適用後の最終到達地点
     ///   - appliedEffects: 既に判明している効果履歴（通常は空配列で渡す）
-    public init(path: [GridPoint], finalPosition: GridPoint, appliedEffects: [AppliedEffect] = []) {
+    public init(
+        path: [GridPoint],
+        finalPosition: GridPoint,
+        appliedEffects: [AppliedEffect] = [],
+        presentationInitialHP: Int? = nil,
+        presentationInitialHandStacks: [HandStack]? = nil,
+        presentationInitialCollectedDungeonCardPickupIDs: Set<String>? = nil,
+        presentationInitialEnemyStates: [EnemyState]? = nil,
+        presentationInitialCrackedFloorPoints: Set<GridPoint>? = nil,
+        presentationInitialCollapsedFloorPoints: Set<GridPoint>? = nil,
+        presentationInitialBoard: Board? = nil,
+        presentationSteps: [PresentationStep] = []
+    ) {
         self.path = path
         self.finalPosition = finalPosition
         self.appliedEffects = appliedEffects
+        self.presentationInitialHP = presentationInitialHP
+        self.presentationInitialHandStacks = presentationInitialHandStacks
+        self.presentationInitialCollectedDungeonCardPickupIDs = presentationInitialCollectedDungeonCardPickupIDs
+        self.presentationInitialEnemyStates = presentationInitialEnemyStates
+        self.presentationInitialCrackedFloorPoints = presentationInitialCrackedFloorPoints
+        self.presentationInitialCollapsedFloorPoints = presentationInitialCollapsedFloorPoints
+        self.presentationInitialBoard = presentationInitialBoard
+        self.presentationSteps = presentationSteps
     }
 
     /// 経路を拡張し、最新の最終地点へ更新する
@@ -138,6 +231,40 @@ public struct ResolvedCardMove: Hashable {
                 hasher.combine("slow")
             case .preserveCard:
                 hasher.combine("preserveCard")
+            }
+        }
+        hasher.combine(resolution.presentationInitialHP)
+        hasher.combine(resolution.presentationInitialHandStacks?.count ?? -1)
+        hasher.combine(resolution.presentationInitialCollectedDungeonCardPickupIDs?.count ?? -1)
+        hasher.combine(resolution.presentationInitialEnemyStates?.count ?? -1)
+        hasher.combine(resolution.presentationInitialCrackedFloorPoints?.count ?? -1)
+        hasher.combine(resolution.presentationInitialCollapsedFloorPoints?.count ?? -1)
+        hasher.combine(resolution.presentationInitialBoard?.visitedPoints.count ?? -1)
+        hasher.combine(resolution.presentationSteps.count)
+        for step in resolution.presentationSteps {
+            hasher.combine(step.point.x)
+            hasher.combine(step.point.y)
+            hasher.combine(step.hpAfter)
+            hasher.combine(step.handStacksAfter.count)
+            hasher.combine(step.collectedDungeonCardPickupIDsAfter.count)
+            hasher.combine(step.enemyStatesAfter.count)
+            hasher.combine(step.crackedFloorPointsAfter.count)
+            hasher.combine(step.collapsedFloorPointsAfter.count)
+            hasher.combine(step.boardAfter?.visitedPoints.count ?? -1)
+            hasher.combine(step.tookDamage)
+            switch step.stopReason {
+            case .exit:
+                hasher.combine("exit")
+            case .failed:
+                hasher.combine("failed")
+            case .fall:
+                hasher.combine("fall")
+            case .slow:
+                hasher.combine("slow")
+            case .warp:
+                hasher.combine("warp")
+            case nil:
+                hasher.combine("none")
             }
         }
     }

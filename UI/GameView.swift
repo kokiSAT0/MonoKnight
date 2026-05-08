@@ -217,6 +217,7 @@ struct GameView: View {
                 dungeonRunTotalMoveCount: viewModel.dungeonRunTotalMoveCount,
                 nextDungeonFloorTitle: viewModel.nextDungeonFloorTitle,
                 retryButtonTitle: viewModel.resultRetryButtonTitle,
+                dungeonRewardCards: viewModel.availableDungeonRewardCards,
                 dungeonRewardMoveCards: viewModel.availableDungeonRewardMoveCards,
                 dungeonRewardSupportCards: viewModel.availableDungeonRewardSupportCards,
                 dungeonInventoryEntries: viewModel.dungeonInventoryEntries,
@@ -235,6 +236,12 @@ struct GameView: View {
                 onSelectDungeonRewardMoveCard: { card in
                     viewModel.handleDungeonRewardSelection(card)
                 },
+                disabledDungeonRewardMoveCards: Set(
+                    viewModel.availableDungeonRewardMoveCards.filter { !viewModel.canAddDungeonRewardMoveCard($0) }
+                ),
+                disabledDungeonRewardSupportCards: Set(
+                    viewModel.availableDungeonRewardSupportCards.filter { !viewModel.canAddDungeonRewardSupportCard($0) }
+                ),
                 onSelectDungeonReward: { selection in
                     viewModel.handleDungeonRewardSelection(selection)
                 },

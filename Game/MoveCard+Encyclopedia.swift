@@ -50,12 +50,8 @@ public extension MoveCard {
     /// カード辞典で使う説明文
     var encyclopediaDescription: String {
         switch self {
-        case .kingUp, .kingUpRight, .kingRight, .kingDownRight, .kingDown, .kingDownLeft, .kingLeft, .kingUpLeft:
-            return "\(displayName)へ 1 マス進みます。鍵や床カードへ寄り道したり、階段前の位置調整に使いやすい基本カードです。"
-        case .kingUpOrDown:
-            return "上か下のどちらか 1 マスを盤面上で選んで進みます。"
-        case .kingLeftOrRight:
-            return "左か右のどちらか 1 マスを盤面上で選んで進みます。"
+        case .kingUpRight, .kingDownRight, .kingDownLeft, .kingUpLeft:
+            return "\(displayName)へ斜めに 1 マス進みます。基本移動では届かない角方向へ位置調整できます。"
         case .kingUpwardDiagonalChoice:
             return "右上か左上のどちらか 1 マスを盤面上で選んで進みます。"
         case .kingRightDiagonalChoice:
@@ -89,20 +85,16 @@ public extension MoveCard {
         [
             MoveCardEncyclopediaEntry(
                 id: 0,
-                card: .kingUp,
+                card: .kingUpRight,
                 includedCards: [
-                    .kingUp,
                     .kingUpRight,
-                    .kingRight,
                     .kingDownRight,
-                    .kingDown,
                     .kingDownLeft,
-                    .kingLeft,
                     .kingUpLeft
                 ],
-                displayName: "キング1マス",
+                displayName: "斜めキング1マス",
                 category: "キング",
-                description: "上下左右・斜めのいずれかへ 1 マス進みます。鍵や床カードへ寄り道したり、階段前の位置調整に使いやすい基本カードです。"
+                description: "斜め4方向のいずれかへ 1 マス進みます。上下左右 1 マスは消費されない基本移動だけが担当します。"
             ),
             MoveCardEncyclopediaEntry(
                 id: 1,
@@ -157,10 +149,8 @@ public extension MoveCard {
             ),
             MoveCardEncyclopediaEntry(
                 id: 5,
-                card: .kingUpOrDown,
+                card: .kingUpwardDiagonalChoice,
                 includedCards: [
-                    .kingUpOrDown,
-                    .kingLeftOrRight,
                     .kingUpwardDiagonalChoice,
                     .kingRightDiagonalChoice,
                     .kingDownwardDiagonalChoice,
@@ -168,7 +158,7 @@ public extension MoveCard {
                 ],
                 displayName: "選択キング",
                 category: "選択キング",
-                description: "上下・左右・斜めペアの候補から、盤面上で進む 1 マスを選びます。"
+                description: "斜めペアの候補から、盤面上で進む 1 マスを選びます。"
             ),
             MoveCardEncyclopediaEntry(
                 id: 6,

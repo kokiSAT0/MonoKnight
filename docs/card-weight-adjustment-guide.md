@@ -20,13 +20,13 @@
    - 新規デッキを追加する場合は `allowedMoves` を含めた構成を先に確定させます。
 2. **重み上書きの設定**
    - 既存デッキを調整する場合は、`Configuration` の初期化ブロックで `WeightProfile(defaultWeight: 1, overrides: [...])` を設定します。
-   - 例: 王将型カードの排出率を 2 倍にしたい場合
+   - 例: 斜めキングカードの排出率を 2 倍にしたい場合
 
      ```swift
      // overrides の例（コメントも日本語で統一する）
      let overrides: [MoveCard: Int] = [
-         .kingUp: 2,      // 王将上方向を 2 倍に設定
-         .kingRight: 2    // 王将右方向を 2 倍に設定
+         .kingUpRight: 2,    // 右上 1 マスを 2 倍に設定
+         .kingDownRight: 2   // 右下 1 マスを 2 倍に設定
      ]
      let profile = Deck.WeightProfile(defaultWeight: 1, overrides: overrides)
      ```

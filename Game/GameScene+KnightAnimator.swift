@@ -3,6 +3,12 @@
     import SharedSupport
 
     final class GameSceneKnightAnimator {
+        static let movementReplayStepDuration: TimeInterval = 0.16
+        static let movementReplayHoldDuration: TimeInterval = 0.06
+        static let movementReplayDamageHoldDuration: TimeInterval = 0.16
+        static let movementReplayWarpOutDuration: TimeInterval = 0.14
+        static let movementReplayWarpInDuration: TimeInterval = 0.14
+
         enum PendingKnightState {
             case show(GridPoint)
             case hide
@@ -267,7 +273,10 @@
             in scene: SKScene,
             layout: GameSceneLayoutSupport,
             isLayoutReady: Bool,
-            updateAccessibility: @escaping () -> Void
+            warpColor: @escaping (GridPoint) -> SKColor,
+            updateAccessibility: @escaping () -> Void,
+            onStep: @escaping (MovementResolution.PresentationStep) -> Void = { _ in },
+            onCompletion: @escaping () -> Void = {}
         ) {
             guard isLayoutReady, let knightNode, !resolution.path.isEmpty else {
                 moveKnight(
@@ -277,6 +286,8 @@
                     isLayoutReady: isLayoutReady,
                     updateAccessibility: updateAccessibility
                 )
+                resolution.presentationSteps.forEach(onStep)
+                onCompletion()
                 return
             }
 
@@ -290,22 +301,166 @@
             knightNode.removeAllActions()
             knightNode.isHidden = false
 
-            let totalDuration = min(0.36, max(0.18, Double(resolution.path.count) * 0.09))
-            let stepDuration = totalDuration / Double(max(1, resolution.path.count))
+            let stepDuration = Self.movementReplayStepDuration
             var sequence: [SKAction] = []
 
-            for point in resolution.path {
+            if let warpReplay = warpReplayContext(for: resolution) {
+                for index in 0...warpReplay.sourceIndex {
+                    let point = resolution.path[index]
+                    let move = SKAction.move(to: layout.position(for: point), duration: stepDuration)
+                    move.timingMode = .easeInEaseOut
+                    let step = resolution.presentationSteps.indices.contains(index)
+                        ? resolution.presentationSteps[index]
+                        : nil
+                    let updateState = SKAction.run { [weak self] in
+                        guard let self else { return }
+                        self.knightPosition = point
+                        updateAccessibility()
+                        if let step {
+                            onStep(step)
+                        }
+                    }
+                    var stepActions: [SKAction] = [move, updateState]
+                    let holdDuration = Self.holdDuration(after: step, isLastStep: false)
+                    if holdDuration > 0 {
+                        stepActions.append(SKAction.wait(forDuration: holdDuration))
+                    }
+                    sequence.append(SKAction.sequence(stepActions))
+                }
+
+                sequence.append(SKAction.run { [weak self] in
+                    guard let self else { return }
+                    self.emitWarpRing(
+                        at: warpReplay.source,
+                        layout: layout,
+                        color: warpColor(warpReplay.source),
+                        expanding: true
+                    )
+                    self.animateWarpArrow(at: warpReplay.source)
+                })
+
+                let warpOut = SKAction.group([
+                    SKAction.scale(to: 0.2, duration: Self.movementReplayWarpOutDuration),
+                    SKAction.fadeOut(withDuration: Self.movementReplayWarpOutDuration),
+                ])
+                warpOut.timingMode = .easeIn
+                sequence.append(warpOut)
+
+                sequence.append(SKAction.run { [weak self] in
+                    guard let self, let knightNode = self.knightNode else { return }
+                    knightNode.position = layout.position(for: warpReplay.destination)
+                    knightNode.setScale(0.2)
+                    knightNode.alpha = 0.0
+                    self.emitWarpRing(
+                        at: warpReplay.destination,
+                        layout: layout,
+                        color: warpColor(warpReplay.destination),
+                        expanding: false
+                    )
+                })
+
+                let warpIn = SKAction.group([
+                    SKAction.fadeIn(withDuration: Self.movementReplayWarpInDuration),
+                    SKAction.scale(to: 1.0, duration: Self.movementReplayWarpInDuration),
+                ])
+                warpIn.timingMode = .easeOut
+                sequence.append(warpIn)
+
+                sequence.append(SKAction.run { [weak self] in
+                    guard let self, let knightNode = self.knightNode else { return }
+                    knightNode.alpha = 1.0
+                    knightNode.setScale(1.0)
+                    self.knightPosition = warpReplay.destination
+                    updateAccessibility()
+                    if let destinationStep = warpReplay.destinationStep {
+                        onStep(destinationStep)
+                    }
+                })
+
+                let destinationHoldDuration = Self.holdDuration(
+                    after: warpReplay.destinationStep,
+                    isLastStep: true
+                )
+                if destinationHoldDuration > 0 {
+                    sequence.append(SKAction.wait(forDuration: destinationHoldDuration))
+                }
+                sequence.append(SKAction.run(onCompletion))
+
+                knightNode.run(SKAction.sequence(sequence))
+                return
+            }
+
+            for (index, point) in resolution.path.enumerated() {
                 let move = SKAction.move(to: layout.position(for: point), duration: stepDuration)
                 move.timingMode = .easeInEaseOut
+                let step = resolution.presentationSteps.indices.contains(index)
+                    ? resolution.presentationSteps[index]
+                    : nil
                 let updateState = SKAction.run { [weak self] in
                     guard let self else { return }
                     self.knightPosition = point
                     updateAccessibility()
+                    if let step {
+                        onStep(step)
+                    }
                 }
-                sequence.append(SKAction.sequence([move, updateState]))
+                var stepActions: [SKAction] = [move, updateState]
+                let holdDuration = Self.holdDuration(
+                    after: step,
+                    isLastStep: index == resolution.path.count - 1
+                )
+                if holdDuration > 0 {
+                    stepActions.append(SKAction.wait(forDuration: holdDuration))
+                }
+                sequence.append(SKAction.sequence(stepActions))
             }
+            sequence.append(SKAction.run(onCompletion))
 
             knightNode.run(SKAction.sequence(sequence))
+        }
+
+        private struct WarpReplayContext {
+            let source: GridPoint
+            let sourceIndex: Int
+            let destination: GridPoint
+            let destinationStep: MovementResolution.PresentationStep?
+        }
+
+        private func warpReplayContext(for resolution: MovementResolution) -> WarpReplayContext? {
+            guard let warpEvent = resolution.appliedEffects.first(where: { applied in
+                if case .warp = applied.effect { return true }
+                return false
+            }),
+                  case .warp(_, let destination) = warpEvent.effect,
+                  let sourceIndex = resolution.path.firstIndex(of: warpEvent.point)
+            else {
+                return nil
+            }
+
+            let destinationIndex = resolution.path[(sourceIndex + 1)...]
+                .firstIndex(of: destination)
+            let destinationStep = destinationIndex.flatMap { index in
+                resolution.presentationSteps.indices.contains(index)
+                    ? resolution.presentationSteps[index]
+                    : nil
+            }
+
+            return WarpReplayContext(
+                source: warpEvent.point,
+                sourceIndex: sourceIndex,
+                destination: destination,
+                destinationStep: destinationStep
+            )
+        }
+
+        static func holdDuration(
+            after step: MovementResolution.PresentationStep?,
+            isLastStep: Bool
+        ) -> TimeInterval {
+            if step?.tookDamage == true {
+                return movementReplayDamageHoldDuration
+            }
+            return isLastStep ? 0 : movementReplayHoldDuration
         }
 
         func flushPendingState(

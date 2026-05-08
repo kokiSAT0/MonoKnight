@@ -35,7 +35,7 @@ final class DeckTests: XCTestCase {
         XCTAssertEqual(allowedMoves, standardMoves, "スタンダード軽量構成のカード集合が標準セットと一致しません")
 
         // MARK: 長距離カードの重みが通常カードより低く設定されているか検証
-        let kingWeight = config.weightProfile.weight(for: .kingUp)
+        let kingWeight = config.weightProfile.weight(for: .kingUpRight)
         let longRangeWeight = config.weightProfile.weight(for: .straightUp2)
         XCTAssertGreaterThan(kingWeight, longRangeWeight, "長距離カードの重みが軽量化されていません")
         XCTAssertEqual(longRangeWeight, 1, "長距離カードの重みが想定値と異なります")
@@ -44,26 +44,6 @@ final class DeckTests: XCTestCase {
 
         // MARK: サマリー文言が仕様通りかチェック
         XCTAssertEqual(config.deckSummaryText, "長距離カード抑制型標準デッキ")
-    }
-
-    /// 標準デッキへ縦横選択カードを追加するプリセットの内容を検証する
-    func testStandardWithOrthogonalChoicesDeckConfiguration() {
-        let config = Deck.Configuration.standardWithOrthogonalChoices
-        let allowedMoves = Set(config.allowedMoves)
-        let standardMoves = Set(MoveCard.standardSet)
-        // MARK: 標準カード群がすべて含まれていることを確認
-        XCTAssertTrue(standardMoves.isSubset(of: allowedMoves), "標準カードが欠落しています")
-        // MARK: 追加カードが正しく入っているか確認
-        let expectedChoices: Set<MoveCard> = [.kingUpOrDown, .kingLeftOrRight]
-        XCTAssertTrue(expectedChoices.isSubset(of: allowedMoves), "上下左右選択キングが不足しています")
-        // MARK: 選択式キングの学習を促すため重み 2 で上書きされていることを確認
-        expectedChoices.forEach { choice in
-            XCTAssertEqual(config.weightProfile.weight(for: choice), 2, "縦横選択キングの重みが想定値の 2 ではありません: \(choice)")
-        }
-        // MARK: 既存カードは重み 1 を維持しているか念のためチェック
-        XCTAssertEqual(config.weightProfile.weight(for: .kingUp), 1, "標準カードの重みが 1 から変化しています")
-        // MARK: サマリー文言がプレイヤー向け説明と一致しているか検証
-        XCTAssertEqual(config.deckSummaryText, "標準＋上下左右選択キング")
     }
 
     /// 標準デッキへ斜め選択カードを追加するプリセットの内容を検証する
@@ -84,7 +64,7 @@ final class DeckTests: XCTestCase {
             XCTAssertEqual(config.weightProfile.weight(for: choice), 2, "斜め選択キングの重みが想定値の 2 ではありません: \(choice)")
         }
         // MARK: 標準カードが従来通り重み 1 のままか確認
-        XCTAssertEqual(config.weightProfile.weight(for: .kingUp), 1, "標準カードの重みが 1 から変化しています")
+        XCTAssertEqual(config.weightProfile.weight(for: .kingUpRight), 1, "標準カードの重みが 1 から変化しています")
         XCTAssertEqual(config.deckSummaryText, "標準＋斜め選択キング")
     }
 
@@ -117,8 +97,6 @@ final class DeckTests: XCTestCase {
         let standardMoves = Set(MoveCard.standardSet)
         XCTAssertTrue(standardMoves.isSubset(of: allowedMoves), "標準カードが欠落しています")
         let expectedChoices: Set<MoveCard> = [
-            .kingUpOrDown,
-            .kingLeftOrRight,
             .kingUpwardDiagonalChoice,
             .kingRightDiagonalChoice,
             .kingDownwardDiagonalChoice,
@@ -134,24 +112,18 @@ final class DeckTests: XCTestCase {
             XCTAssertEqual(config.weightProfile.weight(for: choice), 2, "全選択カードの重みが想定値 2 と異なります: \(choice)")
         }
         // MARK: 既存の単一方向カードは従来どおり重み 1 を維持しているかチェック
-        XCTAssertEqual(config.weightProfile.weight(for: .kingUp), 1, "標準カードの重みが 1 から変化しています")
+        XCTAssertEqual(config.weightProfile.weight(for: .kingUpRight), 1, "標準カードの重みが 1 から変化しています")
         XCTAssertEqual(config.deckSummaryText, "標準＋全選択カード")
     }
 
-    /// MoveCard.allCases にキング型 8 種が含まれているかを検証する
+    /// MoveCard.allCases に現行キング型が含まれているかを検証する
     func testMoveCardAllCasesContainsKingMoves() {
         // 期待するキング型カードを明示的に列挙し、抜け漏れを防ぐ
         let kingMoves: Set<MoveCard> = [
-            .kingUp,
             .kingUpRight,
-            .kingRight,
             .kingDownRight,
-            .kingDown,
             .kingDownLeft,
-            .kingLeft,
             .kingUpLeft,
-            .kingUpOrDown,
-            .kingLeftOrRight,
             .kingUpwardDiagonalChoice,
             .kingRightDiagonalChoice,
             .kingDownwardDiagonalChoice,
@@ -165,11 +137,9 @@ final class DeckTests: XCTestCase {
         XCTAssertTrue(kingMoves.isSubset(of: allCasesSet))
     }
 
-    /// standardSet が単方向＋レイ型 32 種のみで構成され、選択カードが含まれないことを確認する
+    /// standardSet が単方向＋レイ型 28 種のみで構成され、選択カードが含まれないことを確認する
     func testStandardSetDoesNotIncludeChoiceCards() {
-        XCTAssertEqual(MoveCard.standardSet.count, 32, "スタンダードセットの枚数が 32 枚ではありません")
-        XCTAssertFalse(MoveCard.standardSet.contains(.kingUpOrDown), "選択式カードがスタンダードセットへ混入しています")
-        XCTAssertFalse(MoveCard.standardSet.contains(.kingLeftOrRight), "選択式カードがスタンダードセットへ混入しています")
+        XCTAssertEqual(MoveCard.standardSet.count, 28, "スタンダードセットの枚数が 28 枚ではありません")
         XCTAssertFalse(MoveCard.standardSet.contains(.kingUpwardDiagonalChoice), "選択式カードがスタンダードセットへ混入しています")
         XCTAssertFalse(MoveCard.standardSet.contains(.kingRightDiagonalChoice), "選択式カードがスタンダードセットへ混入しています")
         XCTAssertFalse(MoveCard.standardSet.contains(.kingDownwardDiagonalChoice), "選択式カードがスタンダードセットへ混入しています")
@@ -188,7 +158,7 @@ final class DeckTests: XCTestCase {
         let config = Deck.Configuration.directionalRayFocus
         let allowedMoves = Set(config.allowedMoves)
         let expectedRays = Set(MoveCard.directionalRayCards)
-        let supportKings: Set<MoveCard> = [.kingUp, .kingRight, .kingDown, .kingLeft]
+        let supportKings: Set<MoveCard> = [.kingUpRight, .kingDownRight, .kingDownLeft, .kingUpLeft]
 
         XCTAssertTrue(expectedRays.isSubset(of: allowedMoves), "レイ型カードが不足しています")
         XCTAssertTrue(supportKings.isSubset(of: allowedMoves), "補助用キングが不足しています")
@@ -201,27 +171,6 @@ final class DeckTests: XCTestCase {
         }
 
         XCTAssertEqual(config.deckSummaryText, "連続移動カード集中デッキ", "サマリー文言が仕様と一致していません")
-    }
-
-    /// directionChoice 構成が新カードを含み、重みも設定されていることを検証する
-    func testDirectionChoiceDeckIncludesMultiDirectionCards() {
-        let config = Deck.Configuration.directionChoice
-        let allowedMoves = config.allowedMoves
-        XCTAssertTrue(allowedMoves.contains(.kingUpOrDown), "上下選択カードがデッキに含まれていません")
-        XCTAssertTrue(allowedMoves.contains(.kingLeftOrRight), "左右選択カードがデッキに含まれていません")
-
-        // 重みプロファイル経由で均一重みになっているかを確認
-        XCTAssertEqual(config.weightProfile.weight(for: .kingUpOrDown), 1, "上下選択カードの重みが均一ではありません")
-        XCTAssertEqual(config.weightProfile.weight(for: .kingLeftOrRight), 1, "左右選択カードの重みが均一ではありません")
-    }
-
-    /// 上下左右選択キング専用デッキの設定を確認する
-    func testKingOrthogonalChoiceOnlyDeckConfiguration() {
-        let config = Deck.Configuration.kingOrthogonalChoiceOnly
-        XCTAssertEqual(Set(config.allowedMoves), [.kingUpOrDown, .kingLeftOrRight], "許可カードが縦横選択キングのみになっていません")
-        XCTAssertEqual(config.deckSummaryText, "上下左右の選択キング限定", "サマリーテキストが仕様と異なります")
-        XCTAssertEqual(config.weightProfile.weight(for: .kingUpOrDown), 1, "上下選択キングの重みが均一ではありません")
-        XCTAssertEqual(config.weightProfile.weight(for: .kingLeftOrRight), 1, "左右選択キングの重みが均一ではありません")
     }
 
     /// 斜め選択キング専用デッキの設定を確認する
@@ -256,8 +205,6 @@ final class DeckTests: XCTestCase {
     func testAllChoiceMixedDeckConfiguration() {
         let config = Deck.Configuration.allChoiceMixed
         let expected: Set<MoveCard> = [
-            .kingUpOrDown,
-            .kingLeftOrRight,
             .kingUpwardDiagonalChoice,
             .kingRightDiagonalChoice,
             .kingDownwardDiagonalChoice,
@@ -278,11 +225,11 @@ final class DeckTests: XCTestCase {
         let allowedMoves = Set(config.allowedMoves)
         let expectedMoves = Set(MoveCard.standardSet.filter { $0.isKingType || $0.isKnightType })
 
-        // MARK: キング＋桂馬 16 種が揃っているか確認
+        // MARK: キング＋桂馬が揃っているか確認
         XCTAssertEqual(allowedMoves, expectedMoves, "キング＋ナイト基礎構成のカード集合が仕様と一致しません")
 
         // MARK: 重み設定が均一かどうか検証
-        XCTAssertEqual(config.weightProfile.weight(for: .kingUp), 1, "キングカードの重みが均一ではありません")
+        XCTAssertEqual(config.weightProfile.weight(for: .kingUpRight), 1, "キングカードの重みが均一ではありません")
         XCTAssertEqual(config.weightProfile.weight(for: .knightUp2Right1), 1, "桂馬カードの重みが均一ではありません")
 
         // MARK: サマリー文言が仕様通りか確認
@@ -293,10 +240,10 @@ final class DeckTests: XCTestCase {
     func testKingPlusKnightOnlyDeckConfiguration() {
         let config = Deck.Configuration.kingPlusKnightOnly
         let expected: Set<MoveCard> = [
-            .kingUp,
-            .kingRight,
-            .kingDown,
-            .kingLeft,
+            .kingUpRight,
+            .kingDownRight,
+            .kingDownLeft,
+            .kingUpLeft,
             .knightUp2Right1,
             .knightUp2Left1,
             .knightDown2Right1,
@@ -316,7 +263,7 @@ final class DeckTests: XCTestCase {
     /// makeTestDeck で指定した配列が優先的に返され、reset() で再利用できるか確認
     func testMakeTestDeckUsesPresetSequence() {
         let preset: [MoveCard] = [
-            .kingUp,
+            .kingUpRight,
             .straightRight2,
             .diagonalDownLeft2
         ]
@@ -354,13 +301,13 @@ final class DeckTests: XCTestCase {
     /// ラン報酬カードが未収録カードを追加し、既存カードの重みを増やすことを確認
     func testBonusMoveCardsAddMissingCardsAndIncreaseExistingWeights() {
         let config = Deck.Configuration.kingOnly.addingBonusMoveCards([
-            .kingUp,
-            .kingLeftOrRight
+            .kingUpRight,
+            .kingRightDiagonalChoice
         ])
 
-        XCTAssertTrue(config.allowedMoves.contains(.kingLeftOrRight))
-        XCTAssertEqual(config.weightProfile.weight(for: .kingUp), 2)
-        XCTAssertEqual(config.weightProfile.weight(for: .kingLeftOrRight), 2)
+        XCTAssertTrue(config.allowedMoves.contains(.kingRightDiagonalChoice))
+        XCTAssertEqual(config.weightProfile.weight(for: .kingUpRight), 2)
+        XCTAssertEqual(config.weightProfile.weight(for: .kingRightDiagonalChoice), 2)
         XCTAssertTrue(config.deckSummaryText.contains("報酬"))
     }
 

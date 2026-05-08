@@ -3,10 +3,10 @@ import XCTest
 
 final class MoveCardPresentationTests: XCTestCase {
     func testPresentationMetadataRemainsStableAfterExtraction() {
-        XCTAssertEqual(MoveCard.kingUp.displayName, "上1")
+        XCTAssertEqual(MoveCard.kingUpRight.displayName, "右上1")
         XCTAssertEqual(MoveCard.knightRightwardChoice.displayName, "右桂 (選択)")
 
-        XCTAssertEqual(MoveCard.kingUp.kind, .normal)
+        XCTAssertEqual(MoveCard.kingUpRight.kind, .normal)
         XCTAssertEqual(MoveCard.knightLeftwardChoice.kind, .choice)
         XCTAssertEqual(MoveCard.rayDown.kind, .multiStep)
         XCTAssertEqual(MoveCard.rayDown.multiStepUnitVector, MoveVector(dx: 0, dy: -1))
@@ -14,7 +14,7 @@ final class MoveCardPresentationTests: XCTestCase {
 
     func testRegistrySetsRemainStableAfterExtraction() {
         XCTAssertEqual(MoveCard.directionalRayCards.count, 8)
-        XCTAssertEqual(MoveCard.standardSet.count, 32)
+        XCTAssertEqual(MoveCard.standardSet.count, 28)
         XCTAssertFalse(MoveCard.allCases.map(\.displayName).contains("固定ワープ"))
         XCTAssertFalse(MoveCard.allCases.map(\.displayName).contains("全域ワープ"))
     }
@@ -49,13 +49,21 @@ final class MoveCardPresentationTests: XCTestCase {
         XCTAssertTrue(entries.allSatisfy { !$0.displayName.isEmpty })
         XCTAssertTrue(entries.allSatisfy { !$0.behaviorSummary.isEmpty })
         XCTAssertTrue(entries.allSatisfy { !$0.dangerSummary.isEmpty })
+        XCTAssertEqual(entries.first { $0.kind == .marker }?.displayName, "メテオ兵")
     }
 
     func testEnemyBehaviorPresentationKindsRemainStable() {
         XCTAssertEqual(EnemyBehavior.guardPost.presentationKind, .guardPost)
         XCTAssertEqual(EnemyBehavior.patrol(path: []).presentationKind, .patrol)
         XCTAssertEqual(EnemyBehavior.watcher(direction: MoveVector(dx: 1, dy: 0), range: 2).presentationKind, .watcher)
-        XCTAssertEqual(EnemyBehavior.rotatingWatcher(directions: [], range: 2).presentationKind, .rotatingWatcher)
+        XCTAssertEqual(
+            EnemyBehavior.rotatingWatcher(
+                initialDirection: MoveVector(dx: 0, dy: 1),
+                rotationDirection: .clockwise,
+                range: 2
+            ).presentationKind,
+            .rotatingWatcher
+        )
         XCTAssertEqual(EnemyBehavior.chaser.presentationKind, .chaser)
         XCTAssertEqual(EnemyBehavior.marker(directions: [], range: 2).presentationKind, .marker)
     }
@@ -69,15 +77,15 @@ final class MoveCardPresentationTests: XCTestCase {
         XCTAssertEqual(entries.filter { $0.category == "斜め2マス" }.count, 1)
         XCTAssertEqual(entries.filter { $0.category == "レイ" }.count, 1)
 
-        XCTAssertEqual(entries.first { $0.displayName == "キング1マス" }?.includedCards.count, 8)
+        XCTAssertEqual(entries.first { $0.displayName == "斜めキング1マス" }?.includedCards.count, 4)
         XCTAssertEqual(entries.first { $0.displayName == "ナイト" }?.includedCards.count, 8)
         XCTAssertEqual(entries.first { $0.displayName == "レイ" }?.includedCards, MoveCard.directionalRayCards)
     }
 
     func testRepresentativeCardEncyclopediaMetadata() {
-        XCTAssertEqual(MoveCard.kingUp.encyclopediaCategory, "キング")
-        XCTAssertTrue(MoveCard.kingUp.encyclopediaDescription.contains("1 マス"))
-        XCTAssertTrue(MoveCard.kingUp.encyclopediaDescription.contains("階段"))
+        XCTAssertEqual(MoveCard.kingUpRight.encyclopediaCategory, "キング")
+        XCTAssertTrue(MoveCard.kingUpRight.encyclopediaDescription.contains("1 マス"))
+        XCTAssertTrue(MoveCard.kingUpRight.encyclopediaDescription.contains("基本移動"))
 
         XCTAssertEqual(MoveCard.knightRightwardChoice.encyclopediaCategory, "選択ナイト")
         XCTAssertTrue(MoveCard.knightRightwardChoice.encyclopediaDescription.contains("選んで跳びます"))
@@ -101,6 +109,7 @@ final class MoveCardPresentationTests: XCTestCase {
         XCTAssertEqual(entries.first { $0.id == "cardPickup" }?.previewKind, .cardPickup)
         XCTAssertEqual(entries.first { $0.id == "impassable" }?.previewKind, .impassable)
         XCTAssertEqual(entries.first { $0.id == "damageTrap" }?.previewKind, .damageTrap)
+        XCTAssertEqual(entries.first { $0.id == "healingTile" }?.previewKind, .healingTile)
         XCTAssertEqual(entries.first { $0.id == "brittleFloor" }?.previewKind, .brittleFloor)
         XCTAssertEqual(entries.first { $0.id == "collapsedFloor" }?.previewKind, .collapsedFloor)
         XCTAssertEqual(entries.first { $0.id == "enemyDanger" }?.previewKind, .enemyDanger)
@@ -119,6 +128,7 @@ final class MoveCardPresentationTests: XCTestCase {
             "cardPickup",
             "impassable",
             "damageTrap",
+            "healingTile",
             "brittleFloor",
             "collapsedFloor",
             "enemyDanger",

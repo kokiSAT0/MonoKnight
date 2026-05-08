@@ -18,6 +18,7 @@ public struct DungeonRunResumeSnapshot: Codable, Equatable {
     public let enemyStates: [EnemyState]
     public let crackedFloorPoints: Set<GridPoint>
     public let collapsedFloorPoints: Set<GridPoint>
+    public let consumedHealingTilePoints: Set<GridPoint>
     public let dungeonInventoryEntries: [DungeonInventoryEntry]
     public let collectedDungeonCardPickupIDs: Set<String>
     public let isDungeonExitUnlocked: Bool
@@ -37,6 +38,7 @@ public struct DungeonRunResumeSnapshot: Codable, Equatable {
         enemyStates: [EnemyState],
         crackedFloorPoints: Set<GridPoint>,
         collapsedFloorPoints: Set<GridPoint>,
+        consumedHealingTilePoints: Set<GridPoint> = [],
         dungeonInventoryEntries: [DungeonInventoryEntry],
         collectedDungeonCardPickupIDs: Set<String>,
         isDungeonExitUnlocked: Bool,
@@ -55,6 +57,7 @@ public struct DungeonRunResumeSnapshot: Codable, Equatable {
         self.enemyStates = enemyStates
         self.crackedFloorPoints = crackedFloorPoints
         self.collapsedFloorPoints = collapsedFloorPoints
+        self.consumedHealingTilePoints = consumedHealingTilePoints
         self.dungeonInventoryEntries = dungeonInventoryEntries.filter(\.hasUsesRemaining)
         self.collectedDungeonCardPickupIDs = collectedDungeonCardPickupIDs
         self.isDungeonExitUnlocked = isDungeonExitUnlocked
@@ -75,6 +78,7 @@ public struct DungeonRunResumeSnapshot: Codable, Equatable {
         case enemyStates
         case crackedFloorPoints
         case collapsedFloorPoints
+        case consumedHealingTilePoints
         case dungeonInventoryEntries
         case collectedDungeonCardPickupIDs
         case isDungeonExitUnlocked
@@ -97,6 +101,7 @@ public struct DungeonRunResumeSnapshot: Codable, Equatable {
             enemyStates: try container.decodeIfPresent([EnemyState].self, forKey: .enemyStates) ?? [],
             crackedFloorPoints: try container.decodeIfPresent(Set<GridPoint>.self, forKey: .crackedFloorPoints) ?? [],
             collapsedFloorPoints: try container.decodeIfPresent(Set<GridPoint>.self, forKey: .collapsedFloorPoints) ?? [],
+            consumedHealingTilePoints: try container.decodeIfPresent(Set<GridPoint>.self, forKey: .consumedHealingTilePoints) ?? [],
             dungeonInventoryEntries: try container.decodeIfPresent([DungeonInventoryEntry].self, forKey: .dungeonInventoryEntries) ?? [],
             collectedDungeonCardPickupIDs: try container.decodeIfPresent(Set<String>.self, forKey: .collectedDungeonCardPickupIDs) ?? [],
             isDungeonExitUnlocked: try container.decodeIfPresent(Bool.self, forKey: .isDungeonExitUnlocked) ?? true,
@@ -119,6 +124,7 @@ public struct DungeonRunResumeSnapshot: Codable, Equatable {
         try container.encode(enemyStates, forKey: .enemyStates)
         try container.encode(crackedFloorPoints, forKey: .crackedFloorPoints)
         try container.encode(collapsedFloorPoints, forKey: .collapsedFloorPoints)
+        try container.encode(consumedHealingTilePoints, forKey: .consumedHealingTilePoints)
         try container.encode(dungeonInventoryEntries, forKey: .dungeonInventoryEntries)
         try container.encode(collectedDungeonCardPickupIDs, forKey: .collectedDungeonCardPickupIDs)
         try container.encode(isDungeonExitUnlocked, forKey: .isDungeonExitUnlocked)

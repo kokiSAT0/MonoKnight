@@ -65,8 +65,8 @@ final class GameViewIntegrationTests: XCTestCase {
             .knightDown2Right1,
             // 3 回目以降に脱出できるよう、盤内へ進めるカードも混ぜて無限ループを防止
             .kingUpRight,
-            .kingRight,
-            .kingUp,
+            .straightRight2,
+            .kingUpRight,
             .knightUp2Right1,
             .knightUp1Right2
         ]
@@ -160,8 +160,8 @@ final class GameViewIntegrationTests: XCTestCase {
 
         let mode = makeInventoryDungeonMode()
         let core = GameCore(mode: mode)
-        XCTAssertTrue(core.addDungeonInventoryCardForTesting(.kingRight, pickupUses: 1))
-        XCTAssertTrue(core.addDungeonInventoryCardForTesting(.kingUp, pickupUses: 1))
+        XCTAssertTrue(core.addDungeonInventoryCardForTesting(.straightRight2, pickupUses: 1))
+        XCTAssertTrue(core.addDungeonInventoryCardForTesting(.kingUpRight, pickupUses: 1))
         let interfaces = GameModuleInterfaces { _ in core }
 
         let viewModel = GameViewModel(
@@ -274,7 +274,7 @@ final class GameViewIntegrationTests: XCTestCase {
 
             let mode = makeInventoryDungeonMode()
             let core = GameCore(mode: mode)
-            XCTAssertTrue(core.addDungeonInventoryCardForTesting(.kingRight, pickupUses: 1))
+            XCTAssertTrue(core.addDungeonInventoryCardForTesting(.straightRight2, pickupUses: 1))
             let interfaces = GameModuleInterfaces { _ in core }
 
             let viewModel = GameViewModel(
@@ -344,8 +344,8 @@ final class GameViewIntegrationTests: XCTestCase {
 
             let mode = makeInventoryDungeonMode()
             let core = GameCore(mode: mode)
-            XCTAssertTrue(core.addDungeonInventoryCardForTesting(.kingRight, pickupUses: 1))
-            XCTAssertTrue(core.addDungeonInventoryCardForTesting(.kingUp, pickupUses: 1))
+            XCTAssertTrue(core.addDungeonInventoryCardForTesting(.straightRight2, pickupUses: 1))
+            XCTAssertTrue(core.addDungeonInventoryCardForTesting(.kingUpRight, pickupUses: 1))
             let interfaces = GameModuleInterfaces { _ in core }
 
             let viewModel = GameViewModel(
@@ -479,8 +479,8 @@ final class GameViewIntegrationTests: XCTestCase {
 
         let mode = makeInventoryDungeonMode()
         let core = GameCore(mode: mode)
-        XCTAssertTrue(core.addDungeonInventoryCardForTesting(.kingRight, pickupUses: 1))
-        XCTAssertTrue(core.addDungeonInventoryCardForTesting(.kingUp, pickupUses: 1))
+        XCTAssertTrue(core.addDungeonInventoryCardForTesting(.straightRight2, pickupUses: 1))
+        XCTAssertTrue(core.addDungeonInventoryCardForTesting(.kingUpRight, pickupUses: 1))
         let interfaces = GameModuleInterfaces { _ in core }
 
         let viewModel = GameViewModel(
@@ -563,8 +563,8 @@ final class GameViewIntegrationTests: XCTestCase {
 
         let mode = makeInventoryDungeonMode()
         let core = GameCore(mode: mode)
-        XCTAssertTrue(core.addDungeonInventoryCardForTesting(.kingRight, pickupUses: 1))
-        XCTAssertTrue(core.addDungeonInventoryCardForTesting(.kingUp, pickupUses: 1))
+        XCTAssertTrue(core.addDungeonInventoryCardForTesting(.straightRight2, pickupUses: 1))
+        XCTAssertTrue(core.addDungeonInventoryCardForTesting(.kingUpRight, pickupUses: 1))
         let interfaces = GameModuleInterfaces { _ in core }
 
         let viewModel = GameViewModel(
@@ -762,7 +762,7 @@ final class GameViewIntegrationTests: XCTestCase {
             return
         }
 
-        // 左端にいるため、左右選択カードのうち左方向だけが盤外となり、候補数が片側に縮む状況を再現する
+        // 左端にいるため、斜め選択カードのうち左方向だけが盤外となり、候補数が片側に縮む状況を再現する
         let overrideVectors = [
             MoveVector(dx: 1, dy: 0),
             MoveVector(dx: -1, dy: 0)
@@ -933,7 +933,7 @@ final class GameViewIntegrationTests: XCTestCase {
     func testGuideOffSingleCandidateCardRequiresBoardConfirmation() {
         let mode = makeInventoryDungeonMode()
         let core = GameCore(mode: mode)
-        XCTAssertTrue(core.addDungeonInventoryCardForTesting(.kingRight, pickupUses: 1))
+        XCTAssertTrue(core.addDungeonInventoryCardForTesting(.straightRight2, pickupUses: 1))
         let interfaces = GameModuleInterfaces { _ in core }
         let viewModel = GameViewModel(
             mode: mode,
@@ -947,7 +947,7 @@ final class GameViewIntegrationTests: XCTestCase {
         viewModel.updateGuideMode(enabled: false)
 
         let start = core.current
-        let stackIndex = try! XCTUnwrap(core.handStacks.firstIndex { $0.representativeMove == .kingRight })
+        let stackIndex = try! XCTUnwrap(core.handStacks.firstIndex { $0.representativeMove == .straightRight2 })
         let destination = GridPoint(x: 3, y: 2)
 
         viewModel.handleHandSlotTap(at: stackIndex)
@@ -962,7 +962,7 @@ final class GameViewIntegrationTests: XCTestCase {
 
         XCTAssertEqual(core.current, destination, "カード選択後の候補タップで移動する想定です")
         XCTAssertNil(viewModel.selectedHandStackID)
-        XCTAssertEqual(core.dungeonInventoryEntries.first { $0.card == .kingRight }?.pickupUses, nil)
+        XCTAssertEqual(core.dungeonInventoryEntries.first { $0.card == .straightRight2 }?.pickupUses, nil)
     }
 
     private func makeInventoryDungeonMode(

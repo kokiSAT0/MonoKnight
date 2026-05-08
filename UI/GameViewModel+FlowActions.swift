@@ -88,6 +88,7 @@ extension GameViewModel {
 
     func handleDungeonRewardSelection(_ rewardMoveCard: MoveCard) {
         guard availableDungeonRewardMoveCards.contains(rewardMoveCard),
+              canAddDungeonRewardMoveCard(rewardMoveCard),
               let nextMode = makeNextDungeonFloorMode(rewardSelection: .add(rewardMoveCard))
         else { return }
         saveInitialDungeonResume(for: nextMode)
@@ -97,6 +98,7 @@ extension GameViewModel {
 
     func handleDungeonRewardSupportSelection(_ supportCard: SupportCard) {
         guard availableDungeonRewardSupportCards.contains(supportCard),
+              canAddDungeonRewardSupportCard(supportCard),
               let nextMode = makeNextDungeonFloorMode(rewardSelection: .addSupport(supportCard))
         else { return }
         saveInitialDungeonResume(for: nextMode)
@@ -114,14 +116,14 @@ extension GameViewModel {
     }
 
     func handleDungeonRewardCardRemoval(_ card: MoveCard) {
-        guard adjustableDungeonRewardEntries.contains(where: { $0.moveCard == card && $0.rewardUses > 0 }) else {
+        guard adjustableDungeonRewardEntries.contains(where: { $0.moveCard == card && $0.hasUsesRemaining }) else {
             return
         }
         _ = core.removeDungeonRewardInventoryCard(card)
     }
 
     func handleDungeonRewardSupportRemoval(_ support: SupportCard) {
-        guard adjustableDungeonRewardEntries.contains(where: { $0.supportCard == support && $0.rewardUses > 0 }) else {
+        guard adjustableDungeonRewardEntries.contains(where: { $0.supportCard == support && $0.hasUsesRemaining }) else {
             return
         }
         _ = core.removeDungeonRewardInventorySupportCard(support)
@@ -270,15 +272,15 @@ extension GameViewModel {
     private func isDungeonRewardSelectionAvailable(_ selection: DungeonRewardSelection) -> Bool {
         switch selection {
         case .add(let card):
-            return availableDungeonRewardMoveCards.contains(card)
+            return availableDungeonRewardMoveCards.contains(card) && canAddDungeonRewardMoveCard(card)
         case .addSupport(let support):
-            return availableDungeonRewardSupportCards.contains(support)
+            return availableDungeonRewardSupportCards.contains(support) && canAddDungeonRewardSupportCard(support)
         case .carryOverPickup(let card):
-            return carryoverCandidateDungeonPickupEntries.contains { $0.card == card && $0.pickupUses > 0 }
+            return carryoverCandidateDungeonPickupEntries.contains { $0.card == card && $0.hasUsesRemaining }
         case .upgrade(let card), .remove(let card):
-            return adjustableDungeonRewardEntries.contains { $0.moveCard == card && $0.rewardUses > 0 }
+            return adjustableDungeonRewardEntries.contains { $0.moveCard == card && $0.hasUsesRemaining }
         case .upgradeSupport(let support), .removeSupport(let support):
-            return adjustableDungeonRewardEntries.contains { $0.supportCard == support && $0.rewardUses > 0 }
+            return adjustableDungeonRewardEntries.contains { $0.supportCard == support && $0.hasUsesRemaining }
         }
     }
 

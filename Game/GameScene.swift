@@ -25,6 +25,7 @@
         case dungeonEnemyWarning
         case dungeonCardPickup
         case dungeonDamageTrap
+        case dungeonHealingTile
         case dungeonCrackedFloor
         case dungeonCollapsedFloor
     }
@@ -53,14 +54,6 @@
             )
         }
 
-        public init(_ preview: EnemyRotatingWatcherDirectionPreview) {
-            self.init(
-                enemyID: preview.enemyID,
-                current: preview.current,
-                next: preview.current.offset(dx: preview.vector.dx, dy: preview.vector.dy),
-                vector: preview.vector
-            )
-        }
     }
 
     public struct ScenePatrolRailPreview: Identifiable, Equatable {
@@ -83,28 +76,50 @@
         public let enemyID: String
         public let point: GridPoint
         public let kind: EnemyPresentationKind
+        public let facingVector: MoveVector?
+        public let rotationDirection: RotatingWatcherDirection?
 
         public var id: String { enemyID }
 
-        public init(enemyID: String, point: GridPoint, kind: EnemyPresentationKind) {
+        public init(
+            enemyID: String,
+            point: GridPoint,
+            kind: EnemyPresentationKind,
+            facingVector: MoveVector? = nil,
+            rotationDirection: RotatingWatcherDirection? = nil
+        ) {
             self.enemyID = enemyID
             self.point = point
             self.kind = kind
+            self.facingVector = facingVector
+            self.rotationDirection = rotationDirection
         }
 
-        public init(_ enemy: EnemyDefinition) {
+        public init(
+            _ enemy: EnemyDefinition,
+            facingVector: MoveVector? = nil,
+            rotationDirection: RotatingWatcherDirection? = nil
+        ) {
             self.init(
                 enemyID: enemy.id,
                 point: enemy.position,
-                kind: enemy.behavior.presentationKind
+                kind: enemy.behavior.presentationKind,
+                facingVector: facingVector,
+                rotationDirection: rotationDirection ?? enemy.behavior.rotatingWatcherDirection
             )
         }
 
-        public init(_ enemy: EnemyState) {
+        public init(
+            _ enemy: EnemyState,
+            facingVector: MoveVector? = nil,
+            rotationDirection: RotatingWatcherDirection? = nil
+        ) {
             self.init(
                 enemyID: enemy.id,
                 point: enemy.position,
-                kind: enemy.behavior.presentationKind
+                kind: enemy.behavior.presentationKind,
+                facingVector: facingVector,
+                rotationDirection: rotationDirection ?? enemy.behavior.rotatingWatcherDirection
             )
         }
     }
@@ -140,6 +155,10 @@
         private var latestPatrolMovementPreviews: [ScenePatrolMovementPreview] = []
         private var showsVisitedTileFill = true
         public private(set) var latestMovementPathForTesting: [GridPoint] = []
+        public private(set) var latestMovementStepDurationForTesting: TimeInterval = 0
+        public private(set) var latestMovementHoldDurationForTesting: TimeInterval = 0
+        public private(set) var latestMovementDamageHoldDurationForTesting: TimeInterval = 0
+        public private(set) var latestMovementTotalDurationForTesting: TimeInterval = 0
         public private(set) var latestEnemyTurnDangerPulsePointsForTesting: Set<GridPoint> = []
         public private(set) var latestEnemyTurnWarningPulsePointsForTesting: Set<GridPoint> = []
 
@@ -179,6 +198,10 @@
             latestPatrolMovementPreviews = []
             showsVisitedTileFill = true
             latestMovementPathForTesting = []
+            latestMovementStepDurationForTesting = 0
+            latestMovementHoldDurationForTesting = 0
+            latestMovementDamageHoldDurationForTesting = 0
+            latestMovementTotalDurationForTesting = 0
             latestEnemyTurnDangerPulsePointsForTesting = []
             latestEnemyTurnWarningPulsePointsForTesting = []
             #if canImport(UIKit)
@@ -454,6 +477,10 @@
             board.isImpassable(point)
         }
 
+        func boardIsVisitedForTesting(at point: GridPoint) -> Bool {
+            board.isVisited(point)
+        }
+
 #if DEBUG
         func impassableMarkerCountForTesting() -> Int {
             decorationRenderer.impassableMarkerCountForTesting()
@@ -514,15 +541,76 @@
             )
         }
 
-        public func playMovementTransition(using resolution: MovementResolution) {
+        public func playMovementTransition(
+            using resolution: MovementResolution,
+            onStep: @escaping (MovementResolution.PresentationStep) -> Void = { _ in },
+            onCompletion: @escaping () -> Void = {}
+        ) {
             latestMovementPathForTesting = resolution.path
+            latestMovementStepDurationForTesting = GameSceneKnightAnimator.movementReplayStepDuration
+            latestMovementHoldDurationForTesting = GameSceneKnightAnimator.movementReplayHoldDuration
+            latestMovementDamageHoldDurationForTesting = GameSceneKnightAnimator.movementReplayDamageHoldDuration
+            latestMovementTotalDurationForTesting = movementReplayTotalDuration(for: resolution)
             knightAnimator.playMovementTransition(
                 using: resolution,
                 in: self,
                 layout: layoutSupport,
                 isLayoutReady: isLayoutReady,
-                updateAccessibility: { [weak self] in self?.updateAccessibilityElements() }
+                warpColor: { [weak self] point in
+                    guard let self else { return GameScenePalette.fallback.boardTileEffectWarp }
+                    return self.decorationRenderer.warpAccentColor(
+                        at: point,
+                        board: self.board,
+                        palette: self.palette
+                    )
+                },
+                updateAccessibility: { [weak self] in self?.updateAccessibilityElements() },
+                onStep: onStep,
+                onCompletion: onCompletion
             )
+        }
+
+        private func movementReplayTotalDuration(for resolution: MovementResolution) -> TimeInterval {
+            if let warpEvent = resolution.appliedEffects.first(where: { applied in
+                if case .warp = applied.effect { return true }
+                return false
+            }),
+               case .warp(_, let destination) = warpEvent.effect,
+               let sourceIndex = resolution.path.firstIndex(of: warpEvent.point) {
+                let approachDuration =
+                    Double(sourceIndex + 1) * GameSceneKnightAnimator.movementReplayStepDuration
+                    + (0...sourceIndex).reduce(TimeInterval(0)) { total, index in
+                        let step = resolution.presentationSteps.indices.contains(index)
+                            ? resolution.presentationSteps[index]
+                            : nil
+                        return total + GameSceneKnightAnimator.holdDuration(
+                            after: step,
+                            isLastStep: false
+                        )
+                    }
+                let destinationIndex = resolution.path[(sourceIndex + 1)...]
+                    .firstIndex(of: destination)
+                let destinationStep = destinationIndex.flatMap { index in
+                    resolution.presentationSteps.indices.contains(index)
+                        ? resolution.presentationSteps[index]
+                        : nil
+                }
+                return approachDuration
+                    + GameSceneKnightAnimator.movementReplayWarpOutDuration
+                    + GameSceneKnightAnimator.movementReplayWarpInDuration
+                    + GameSceneKnightAnimator.holdDuration(after: destinationStep, isLastStep: true)
+            }
+
+            return Double(resolution.path.count) * GameSceneKnightAnimator.movementReplayStepDuration
+                + resolution.path.enumerated().reduce(TimeInterval(0)) { total, item in
+                    let step = resolution.presentationSteps.indices.contains(item.offset)
+                        ? resolution.presentationSteps[item.offset]
+                        : nil
+                    return total + GameSceneKnightAnimator.holdDuration(
+                        after: step,
+                        isLastStep: item.offset == resolution.path.count - 1
+                    )
+                }
         }
 
         public func playDungeonExitUnlockEffect(at point: GridPoint) {
@@ -562,7 +650,7 @@
             dangerPoints: Set<GridPoint>,
             warningPoints: Set<GridPoint>
         ) -> TimeInterval {
-            latestEnemyTurnDangerPulsePointsForTesting = Set(dangerPoints.filter(board.contains))
+            latestEnemyTurnDangerPulsePointsForTesting = []
             latestEnemyTurnWarningPulsePointsForTesting = Set(warningPoints.filter(board.contains))
             guard isLayoutReady else { return 0 }
 
@@ -601,14 +689,11 @@
             }
 
             let dangerDelay = max(phaseOffset - flashDuration, 0)
-            for point in dangerPoints {
-                pulseEnemyTurnDangerPoint(point, delay: dangerDelay, duration: flashDuration)
-            }
             for point in warningPoints {
                 pulseEnemyTurnWarningPoint(point, delay: dangerDelay, duration: flashDuration)
             }
 
-            return phaseOffset + flashDuration
+            return phaseOffset + (warningPoints.isEmpty ? 0 : flashDuration)
         }
 
         private func playParalysisRestEffectIfNeeded(for event: DungeonEnemyTurnEvent, at delay: TimeInterval) {

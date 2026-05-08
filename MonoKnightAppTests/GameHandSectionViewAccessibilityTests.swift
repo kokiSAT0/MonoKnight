@@ -92,8 +92,8 @@ final class GameHandSectionViewAccessibilityTests: XCTestCase {
         XCTAssertEqual(viewModel.displayedHandStacks, core.handStacks)
     }
 
-    func testTenHandSlotsUseThreeColumnRows() {
-        XCTAssertEqual(GameHandSectionView.handSlotRowRanges(for: 10), [0..<3, 3..<6, 6..<9, 9..<10])
+    func testTenHandSlotsUseTwoRowsOfFive() {
+        XCTAssertEqual(GameHandSectionView.handSlotRowRanges(for: 10), [0..<5, 5..<10])
     }
 
     func testFiveHandSlotsKeepSingleRow() {
