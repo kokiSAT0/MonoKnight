@@ -139,6 +139,7 @@ final class GameHandSectionViewAccessibilityTests: XCTestCase {
     func testDungeonRelicAccessibilityTextUsesRelicDetails() {
         let relic = DungeonRelicEntry(relicID: .crackedShield)
         let silverNeedle = DungeonRelicEntry(relicID: .silverNeedle)
+        let heavyCrown = DungeonRelicEntry(relicID: .heavyCrown)
 
         XCTAssertEqual(
             GameHandSectionView.dungeonRelicAccessibilityIdentifier(for: relic),
@@ -146,16 +147,24 @@ final class GameHandSectionViewAccessibilityTests: XCTestCase {
         )
         XCTAssertEqual(
             GameHandSectionView.dungeonRelicAccessibilityLabel(for: relic),
-            "遺物、割れた盾"
+            "一時レリック、割れた盾"
         )
+        XCTAssertTrue(GameHandSectionView.dungeonRelicAccessibilityHint(for: relic).contains("一時レリック"))
+        XCTAssertTrue(GameHandSectionView.dungeonRelicAccessibilityHint(for: relic).contains("残り 1 回"))
         XCTAssertTrue(GameHandSectionView.dungeonRelicAccessibilityHint(for: relic).contains("次に受けるダメージ"))
         XCTAssertFalse(GameHandSectionView.dungeonRelicAccessibilityHint(for: relic).contains("取得時にHPが1減る"))
         XCTAssertEqual(silverNeedle.symbolName, "pin.fill")
         XCTAssertEqual(
             GameHandSectionView.dungeonRelicAccessibilityLabel(for: silverNeedle),
-            "遺物、銀の針"
+            "一時レリック、銀の針"
         )
         XCTAssertTrue(GameHandSectionView.dungeonRelicAccessibilityHint(for: silverNeedle).contains("罠または崩落ダメージ"))
+        XCTAssertEqual(
+            GameHandSectionView.dungeonRelicAccessibilityLabel(for: heavyCrown),
+            "永続レリック、重い王冠"
+        )
+        XCTAssertTrue(GameHandSectionView.dungeonRelicAccessibilityHint(for: heavyCrown).contains("永続レリック"))
+        XCTAssertFalse(GameHandSectionView.dungeonRelicAccessibilityHint(for: heavyCrown).contains("残り"))
     }
 
     func testDungeonCurseAccessibilityTextUsesCurseDetails() {

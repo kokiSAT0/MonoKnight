@@ -441,6 +441,33 @@ public enum DungeonRelicID: String, Codable, CaseIterable, Equatable, Identifiab
             return 0
         }
     }
+
+    public var displayKind: DungeonRelicDisplayKind {
+        startingUses > 0 ? .temporary : .persistent
+    }
+}
+
+public enum DungeonRelicDisplayKind: Equatable {
+    case temporary
+    case persistent
+
+    public var displayName: String {
+        switch self {
+        case .temporary:
+            return "一時レリック"
+        case .persistent:
+            return "永続レリック"
+        }
+    }
+
+    public var badgeText: String {
+        switch self {
+        case .temporary:
+            return "一"
+        case .persistent:
+            return "永"
+        }
+    }
 }
 
 /// ヘルプ内の遺物辞典で表示する 1 件分の情報
@@ -452,6 +479,7 @@ public struct DungeonRelicEncyclopediaEntry: Identifiable, Equatable {
     public var effectDescription: String { relicID.effectDescription }
     public var noteDescription: String? { relicID.noteDescription }
     public var symbolName: String { relicID.symbolName }
+    public var displayKind: DungeonRelicDisplayKind { relicID.displayKind }
     public var encyclopediaDiscoveryID: EncyclopediaDiscoveryID { relicID.encyclopediaDiscoveryID }
 
     public init(relicID: DungeonRelicID) {
@@ -693,6 +721,7 @@ public struct DungeonRelicEntry: Codable, Equatable, Identifiable {
     public var noteDescription: String? { relicID.noteDescription }
     public var symbolName: String { relicID.symbolName }
     public var hasLimitedUses: Bool { relicID.startingUses > 0 }
+    public var displayKind: DungeonRelicDisplayKind { relicID.displayKind }
 
     public init(relicID: DungeonRelicID, remainingUses: Int? = nil) {
         self.relicID = relicID
@@ -784,7 +813,7 @@ public struct DungeonRelicAcquisitionPresentation: Equatable, Identifiable {
         public var primaryDescription: String {
             switch self {
             case .relic(let relic):
-                return relic.effectDescription
+                return "\(relic.displayKind.displayName) / \(relic.effectDescription)"
             case .curse(let curse):
                 return "\(curse.displayKind.displayName) / 利点: \(curse.upsideDescription)"
             case .mimicDamage(let damage):

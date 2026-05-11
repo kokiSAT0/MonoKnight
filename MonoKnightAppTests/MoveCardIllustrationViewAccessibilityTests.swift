@@ -92,10 +92,11 @@ final class MoveCardIllustrationViewAccessibilityTests: XCTestCase {
             accessibilityRoleText: "獲得する遺物"
         )
 
-        XCTAssertEqual(choice.usesBadgeText, "遺物")
+        XCTAssertEqual(choice.usesBadgeText, "一時レリック")
         XCTAssertEqual(DungeonRelicID.silverNeedle.symbolName, "pin.fill")
         XCTAssertEqual(choice.accessibilityIdentifier, "dungeon_reward_relic_銀の針")
         XCTAssertTrue(choice.accessibilityHint.contains("詳細を確認します"))
+        XCTAssertTrue(choice.accessibilityLabel.contains("一時レリック"))
         XCTAssertTrue(choice.accessibilityLabel.contains(DungeonRelicID.silverNeedle.effectDescription))
     }
 

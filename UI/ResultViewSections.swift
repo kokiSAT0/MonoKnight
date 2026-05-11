@@ -762,7 +762,10 @@ struct DungeonRewardCardChoicePresentation: Equatable {
         return move
     }
     var usesBadgeText: String {
-        offer.relic == nil ? "\(rewardUses)回" : "遺物"
+        if let relic = offer.relic {
+            return relic.displayKind.displayName
+        }
+        return "\(rewardUses)回"
     }
     var accessibilityIdentifier: String { "\(accessibilityIdentifierPrefix)_\(offer.displayName)" }
     var accessibilityLabel: String {
@@ -790,9 +793,9 @@ struct DungeonRewardCardChoicePresentation: Equatable {
             return support.encyclopediaDescription
         case .relic(let relic):
             if let note = relic.noteDescription {
-                return "\(relic.effectDescription) \(note)"
+                return "\(relic.displayKind.displayName)。\(relic.effectDescription) \(note)"
             }
-            return relic.effectDescription
+            return "\(relic.displayKind.displayName)。\(relic.effectDescription)"
         }
     }
 }
@@ -902,9 +905,9 @@ private struct DungeonRewardRelicIllustrationView: View {
                 .lineLimit(2)
                 .minimumScaleFactor(0.7)
 
-            Text("遺物")
+            Text(relic.displayKind.displayName)
                 .font(.system(size: 10, weight: .semibold, design: .rounded))
-                .foregroundColor(theme.textSecondary)
+                .foregroundColor(relic.displayKind.tintColor(theme: theme))
         }
         .padding(8)
         .frame(width: MoveCardIllustrationView.defaultWidth, height: MoveCardIllustrationView.defaultHeight)
@@ -1055,20 +1058,24 @@ private struct DungeonRelicAcquisitionItemRow: View {
 
     private var itemTint: Color {
         switch item {
+        case .relic(let relic):
+            return relic.displayKind.tintColor(theme: theme)
         case .curse(let curse):
             return curse.displayKind.tintColor
         case .mimicDamage:
             return Color(red: 0.82, green: 0.16, blue: 0.22)
-        case .relic, .hpCompensation:
+        case .hpCompensation:
             return theme.accentPrimary
         }
     }
 
     private var badgeText: String? {
         switch item {
+        case .relic(let relic):
+            return relic.displayKind.displayName
         case .curse(let curse):
             return curse.displayKind.displayName
-        case .relic, .mimicDamage, .hpCompensation:
+        case .mimicDamage, .hpCompensation:
             return nil
         }
     }
@@ -1086,6 +1093,17 @@ private extension DungeonCurseDisplayKind {
             return Color(red: 0.82, green: 0.16, blue: 0.22)
         case .persistent:
             return Color(red: 0.50, green: 0.22, blue: 0.78)
+        }
+    }
+}
+
+private extension DungeonRelicDisplayKind {
+    func tintColor(theme: AppTheme) -> Color {
+        switch self {
+        case .temporary:
+            return Color(red: 0.91, green: 0.46, blue: 0.10)
+        case .persistent:
+            return theme.accentPrimary
         }
     }
 }

@@ -649,14 +649,15 @@ extension GameHandSectionView {
     }
 
     static func dungeonRelicAccessibilityLabel(for relic: DungeonRelicEntry) -> String {
-        "遺物、\(relic.displayName)"
+        "\(relic.displayKind.displayName)、\(relic.displayName)"
     }
 
     static func dungeonRelicAccessibilityHint(for relic: DungeonRelicEntry) -> String {
+        let remainingText = relic.hasLimitedUses ? "残り \(relic.remainingUses) 回。" : ""
         if let note = relic.noteDescription {
-            return "ダブルタップで効果を確認します。\(relic.effectDescription)\(note)"
+            return "ダブルタップで効果を確認します。\(relic.displayKind.displayName)。\(relic.effectDescription)\(remainingText)\(note)"
         }
-        return "ダブルタップで効果を確認します。\(relic.effectDescription)"
+        return "ダブルタップで効果を確認します。\(relic.displayKind.displayName)。\(relic.effectDescription)\(remainingText)"
     }
 
     static func dungeonCurseAccessibilityIdentifier(for curse: DungeonCurseEntry) -> String {
@@ -683,9 +684,21 @@ private extension DungeonCurseDisplayKind {
     }
 }
 
+private extension DungeonRelicDisplayKind {
+    func tintColor(theme: AppTheme) -> Color {
+        switch self {
+        case .temporary:
+            return Color(red: 0.91, green: 0.46, blue: 0.10)
+        case .persistent:
+            return theme.accentPrimary
+        }
+    }
+}
+
 private struct DungeonRelicIconView: View {
     let theme: AppTheme
     let relic: DungeonRelicEntry
+    private var tint: Color { relic.displayKind.tintColor(theme: theme) }
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
@@ -693,23 +706,21 @@ private struct DungeonRelicIconView: View {
                 .fill(theme.cardBackgroundHand)
                 .overlay(
                     RoundedRectangle(cornerRadius: 8)
-                        .stroke(theme.accentPrimary.opacity(0.55), lineWidth: 1)
+                        .stroke(tint.opacity(0.72), lineWidth: 1.5)
                 )
 
             Image(systemName: relic.symbolName)
                 .font(.system(size: 19, weight: .semibold))
-                .foregroundColor(theme.accentPrimary)
+                .foregroundColor(tint)
                 .accessibilityHidden(true)
 
-            if relic.hasLimitedUses {
-                Text("\(relic.remainingUses)")
-                    .font(.system(size: 10, weight: .bold, design: .rounded))
-                    .foregroundColor(theme.accentOnPrimary)
-                    .frame(width: 16, height: 16)
-                    .background(Circle().fill(theme.accentPrimary))
-                    .offset(x: 4, y: 4)
-                    .accessibilityHidden(true)
-            }
+            Text(relic.displayKind.badgeText)
+                .font(.system(size: 10, weight: .bold, design: .rounded))
+                .foregroundColor(theme.accentOnPrimary)
+                .frame(width: 16, height: 16)
+                .background(Circle().fill(tint))
+                .offset(x: 4, y: 4)
+                .accessibilityHidden(true)
         }
         .frame(width: 44, height: 44)
     }
@@ -719,6 +730,7 @@ private struct DungeonRelicDetailView: View {
     let theme: AppTheme
     let relic: DungeonRelicEntry
     @Environment(\.dismiss) private var dismiss
+    private var tint: Color { relic.displayKind.tintColor(theme: theme) }
 
     var body: some View {
         NavigationStack {
@@ -726,12 +738,17 @@ private struct DungeonRelicDetailView: View {
                 HStack(spacing: 12) {
                     Image(systemName: relic.symbolName)
                         .font(.system(size: 24, weight: .semibold))
-                        .foregroundColor(theme.accentPrimary)
+                        .foregroundColor(tint)
                         .frame(width: 44, height: 44)
-                        .background(Circle().fill(theme.accentPrimary.opacity(0.14)))
-                    Text(relic.displayName)
-                        .font(.system(size: 22, weight: .bold, design: .rounded))
-                        .foregroundColor(theme.textPrimary)
+                        .background(Circle().fill(tint.opacity(0.14)))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(relic.displayKind.displayName)
+                            .font(.system(size: 12, weight: .bold, design: .rounded))
+                            .foregroundColor(tint)
+                        Text(relic.displayName)
+                            .font(.system(size: 22, weight: .bold, design: .rounded))
+                            .foregroundColor(theme.textPrimary)
+                    }
                 }
 
                 VStack(alignment: .leading, spacing: 10) {
