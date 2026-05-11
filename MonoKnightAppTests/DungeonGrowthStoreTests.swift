@@ -151,8 +151,8 @@ final class DungeonGrowthStoreTests: XCTestCase {
         defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
 
         let store = DungeonGrowthStore(userDefaults: defaults)
-        let twentyFloorDungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
-        let fiftyFloorDungeon = makeGrowthDungeon(floorCount: 50)
+        let fiftyFloorDungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let twentyFloorDungeon = makeGrowthDungeon(floorCount: 20)
 
         XCTAssertEqual(
             store.growthMilestoneIDs(for: twentyFloorDungeon).compactMap { store.growthMilestoneFloorNumber(for: $0) },

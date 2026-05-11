@@ -18,7 +18,7 @@ MonoKnight の現行メインコンテンツは塔ダンジョンのみである
 
 - `DungeonDefinition.resolvedPickups` はフロア内の拾得カード候補を解決する。
 - `DungeonDefinition.resolvedRewardCards` は互換用のクリア報酬カード候補を解決する。実際のリザルト候補は `GameViewModel.availableDungeonRewardOffers` が移動/補助/遺物を同じ枠として返す。
-- `DungeonWeightedRewardPools.entries(floorIndex:context:)` は、1-5F、6-10F、11-15F、16-20F ごとの候補と weight を返す。
+- `DungeonWeightedRewardPools.entries(floorIndex:context:)` は、1-5F、6-10F、11-15F、16-20F、21-30F、31-40F、41-50F ごとの候補と weight を返す。
 - `DungeonWeightedRewardPools.drawUniqueOffers` は category weight と個別 weight の両方を見て抽選し、weight 0 を除外し、同一抽選内で同じ候補を重複させない。
 - `DungeonRunState.cardVariationSeed` により、同じラン内では候補変化が安定する。クリア報酬は seed に加えてクリア手数と手数上限から低手数ボーナス状態を決めるため、同じ seed と同じ手数なら同じ候補になる。
 

@@ -3482,16 +3482,16 @@ final class DungeonModeTests: XCTestCase {
         let rogueTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "rogue-tower"))
 
         XCTAssertEqual(tutorialTower.floors.map(\.boardSize), [5, 5, 5])
-        XCTAssertEqual(growthTower.floors.map(\.boardSize), Array(repeating: 9, count: 20))
+        XCTAssertEqual(growthTower.floors.map(\.boardSize), Array(repeating: 9, count: 50))
         XCTAssertEqual(rogueTower.floors.map(\.boardSize), [9, 9, 9])
     }
 
-    func testGrowthTowerIntegratesTwentyProgressiveFloors() throws {
+    func testGrowthTowerIntegratesFiftyProgressiveFloors() throws {
         let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
 
         XCTAssertEqual(tower.title, "成長塔")
         XCTAssertEqual(tower.difficulty, .growth)
-        XCTAssertEqual(tower.floors.count, 20)
+        XCTAssertEqual(tower.floors.count, 50)
         XCTAssertEqual(tower.floors.map(\.title), [
             "巡回の間",
             "鍵の小部屋",
@@ -3512,17 +3512,42 @@ final class DungeonModeTests: XCTestCase {
             "暗闇の遠回り",
             "暗闇の射線",
             "暗闇の前哨",
-            "第二関門"
+            "第二関門",
+            "寄り道の分岐",
+            "宝箱の門番",
+            "転移待ち",
+            "鍵の遠回り",
+            "第三関門",
+            "回復を挟む廊下",
+            "巡回の鍵束",
+            "追跡と抜け道",
+            "宝箱の近道",
+            "第三関門・総合",
+            "毒の見取り図",
+            "足枷の迂回",
+            "幻惑の小部屋",
+            "暗闇の薬棚",
+            "第四関門",
+            "解毒の遠回り",
+            "見えない巡回路",
+            "幻惑と転移",
+            "暗闇の補給線",
+            "第四関門・総合",
+            "踏破への入口",
+            "呪い箱の岐路",
+            "落下を読む橋",
+            "追跡の薬路",
+            "第五関門",
+            "暗闇の総力戦",
+            "巡回の包囲網",
+            "幻惑の最短路",
+            "踏破前夜",
+            "最上階"
         ])
-        for floorIndex in 0..<10 {
+        for floorIndex in 0..<49 {
             XCTAssertFalse(
-                tower.floors[floorIndex].rewardMoveCardsAfterClear.isEmpty,
-                "\(tower.floors[floorIndex].title) は次階へ向けた報酬候補を出す必要があります"
-            )
-        }
-        for floorIndex in 10..<19 {
-            XCTAssertFalse(
-                tower.floors[floorIndex].rewardMoveCardsAfterClear.isEmpty,
+                tower.floors[floorIndex].rewardMoveCardsAfterClear.isEmpty
+                    && tower.floors[floorIndex].rewardSupportCardsAfterClear.isEmpty,
                 "\(tower.floors[floorIndex].title) は区間内の次階へ向けた報酬候補を出す必要があります"
             )
         }
@@ -3602,16 +3627,31 @@ final class DungeonModeTests: XCTestCase {
             3,
             "障壁の呪文も報酬3択の1枠として出す想定です"
         )
-        XCTAssertEqual(tower.floors[19].rewardMoveCardsAfterClear, [])
+        XCTAssertEqual(
+            tower.floors[19].rewardMoveCardsAfterClear.count + tower.floors[19].rewardSupportCardsAfterClear.count,
+            3,
+            "20Fは区間終端ですが、50F構成では21Fへ進む報酬を出します"
+        )
+        XCTAssertEqual(tower.floors[49].rewardMoveCardsAfterClear, [])
+        XCTAssertEqual(tower.floors[49].rewardSupportCardsAfterClear, [])
         XCTAssertTrue(tower.canAdvanceWithinRun(afterFloorIndex: 9))
-        XCTAssertTrue(tower.canAdvanceWithinRun(afterFloorIndex: 10))
+        XCTAssertTrue(tower.canAdvanceWithinRun(afterFloorIndex: 19))
+        XCTAssertTrue(tower.canAdvanceWithinRun(afterFloorIndex: 39))
+        XCTAssertFalse(tower.canAdvanceWithinRun(afterFloorIndex: 49))
     }
 
-    func testGrowthTowerAddsDarknessOnlyToLateFloors() throws {
+    func testGrowthTowerAddsDarknessAsLateInformationPressure() throws {
         let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
         let darknessFloorIDs = Set(tower.floors.filter(\.isDarknessEnabled).map(\.id))
 
-        XCTAssertEqual(darknessFloorIDs, ["growth-17", "growth-18", "growth-19"])
+        XCTAssertEqual(
+            darknessFloorIDs,
+            [
+                "growth-17", "growth-18", "growth-19",
+                "growth-34", "growth-35", "growth-37", "growth-39", "growth-40",
+                "growth-42", "growth-45", "growth-46", "growth-48", "growth-49", "growth-50"
+            ]
+        )
         for floor in tower.floors where floor.isDarknessEnabled {
             let mode = floor.makeGameMode(dungeonID: tower.id, difficulty: tower.difficulty)
             XCTAssertEqual(mode.dungeonRules?.isDarknessEnabled, true)
@@ -3921,8 +3961,11 @@ final class DungeonModeTests: XCTestCase {
             return points.isEmpty ? nil : (index + 1, points)
         }
 
-        XCTAssertEqual(healingFloors.map(\.0), [6, 12, 16, 19])
-        XCTAssertEqual(healingFloors.reduce(0) { $0 + $1.1.count }, 4)
+        XCTAssertEqual(
+            healingFloors.map(\.0),
+            [6, 12, 16, 19, 22, 24, 26, 28, 31, 33, 34, 36, 38, 40, 41, 44, 46, 48, 50]
+        )
+        XCTAssertEqual(healingFloors.reduce(0) { $0 + $1.1.count }, 19)
 
         for tower in allTowers where tower.id != growthTower.id {
             let healingTileCount = tower.floors.reduce(0) { total, floor in
@@ -4479,7 +4522,11 @@ final class DungeonModeTests: XCTestCase {
 
             XCTAssertEqual(resolvedFloors[0].spawnPoint, tower.floors[0].spawnPoint)
             XCTAssertEqual(resolvedFloors[10].spawnPoint, tower.floors[10].spawnPoint)
-            for floorIndex in resolvedFloors.indices.dropLast() where floorIndex + 1 != 10 {
+            XCTAssertEqual(resolvedFloors[20].spawnPoint, tower.floors[20].spawnPoint)
+            XCTAssertEqual(resolvedFloors[30].spawnPoint, tower.floors[30].spawnPoint)
+            XCTAssertEqual(resolvedFloors[40].spawnPoint, tower.floors[40].spawnPoint)
+            let sectionStartIndexes: Set<Int> = [10, 20, 30, 40]
+            for floorIndex in resolvedFloors.indices.dropLast() where !sectionStartIndexes.contains(floorIndex + 1) {
                 XCTAssertEqual(
                     resolvedFloors[floorIndex].exitPoint,
                     resolvedFloors[floorIndex + 1].spawnPoint,

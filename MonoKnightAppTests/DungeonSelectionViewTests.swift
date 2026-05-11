@@ -99,13 +99,22 @@ final class DungeonSelectionViewTests: XCTestCase {
 
         let growthStatuses = DungeonGrowthRewardStatusPresentation.make(dungeon: growthTower, growthStore: growthStore)
 
-        XCTAssertEqual(growthStatuses.map(\.text), ["5F 獲得済", "10F 未獲得", "15F 未獲得", "20F 未獲得"])
-        XCTAssertEqual(growthStatuses.map(\.isRewarded), [true, false, false, false])
+        XCTAssertEqual(growthStatuses.map(\.text), [
+            "5F 獲得済", "10F 未獲得", "15F 未獲得", "20F 未獲得", "25F 未獲得",
+            "30F 未獲得", "35F 未獲得", "40F 未獲得", "45F 未獲得", "50F 未獲得"
+        ])
+        XCTAssertEqual(growthStatuses.map(\.isRewarded), [true, false, false, false, false, false, false, false, false, false])
         XCTAssertEqual(growthStatuses.map(\.accessibilityIdentifier), [
             "dungeon_growth_reward_status_growth-tower-5f",
             "dungeon_growth_reward_status_growth-tower-10f",
             "dungeon_growth_reward_status_growth-tower-15f",
-            "dungeon_growth_reward_status_growth-tower-20f"
+            "dungeon_growth_reward_status_growth-tower-20f",
+            "dungeon_growth_reward_status_growth-tower-25f",
+            "dungeon_growth_reward_status_growth-tower-30f",
+            "dungeon_growth_reward_status_growth-tower-35f",
+            "dungeon_growth_reward_status_growth-tower-40f",
+            "dungeon_growth_reward_status_growth-tower-45f",
+            "dungeon_growth_reward_status_growth-tower-50f"
         ])
         XCTAssertTrue(DungeonGrowthRewardStatusPresentation.make(dungeon: rogueTower, growthStore: growthStore).isEmpty)
     }

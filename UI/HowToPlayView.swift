@@ -89,71 +89,71 @@ struct HowToPlayView: View {
 
 // MARK: - ページ本文
 private extension HowToPlayView {
-    /// 初心者向けの遊び方本文
+    /// 成長塔を中心に、プレイ中に読み返しやすい実戦向けの遊び方本文
     var guideContent: some View {
         VStack(alignment: .leading, spacing: 24) {
             // MARK: - 導入文
-            Text("MonoKnight は、カードで騎士を動かして塔の出口を目指すダンジョンです。HP、敵の危険範囲、床ギミックを読みながら、残り手数に少し余裕を残して階段までの道を作ります。")
+            Text("成長塔は MonoKnight の本編です。HP、残り手数、敵の危険範囲、床ギミックを見比べながら階段へ向かい、報酬と成長で次の挑戦を少しずつ登りやすくします。")
                 .font(.body)
                 .padding(.bottom, 8)
 
-            // MARK: - 基本移動の説明
+            // MARK: - 成長塔の目的
             HowToPlaySectionView(
-                title: "1. 塔を選んで階段を目指す",
-                description: "塔選択から基礎塔、成長塔、試練塔を選び、各フロアの出口や階段へ到達すると次の階へ進みます。",
+                title: "1. 成長塔を登る",
+                description: "各フロアの階段へ到達すると次の階へ進みます。成長塔は区間ごとに挑み、区切り階を越えるほど次回の準備が整っていきます。",
                 card: .kingUpRight,
                 tips: [
-                    "基礎塔は基本を学ぶ短い塔です。",
-                    "成長塔は周回成長と報酬カードで少しずつ登りやすくなる本編塔です。",
-                    "試練塔は永続成長を持ち込まず、その場のカードで突破する高難度塔です。"
+                    "まずは階段までの安全な道を探します。",
+                    "遠回りしてカードや宝箱を拾うか、短い道でHPと手数を守るかを選びます。",
+                    "10Fを越えると、11Fから始められる区間が開きます。"
                 ]
             )
 
-            // MARK: - ナイト移動の例
+            // MARK: - 1手ごとの判断
             HowToPlaySectionView(
-                title: "2. 基本移動とカードを使い分ける",
-                description: "基本移動が使える塔では、上下左右 1 マスへカードを消費せずに歩けます。移動カードは危険な場所を避けたり、階段までの手数を短くしたいときに使います。",
+                title: "2. 1手ごとに見るもの",
+                description: "動く前に、今いる場所、移動先、HP、残り手数、敵の赤い危険範囲を確認します。基本移動で刻むか、カードで危険を越えるかを選びます。",
                 card: .knightUp2Right1,
                 tips: [
-                    "基本移動も 1 手として数えられ、敵や床ギミックが反応します。",
-                    "ナイト型カードは途中のマスを通らず、敵の危険範囲や罠を飛び越えやすいカードです。",
-                    stackingTip
+                    "基本移動は上下左右1マスへ歩けます。カードは使いませんが、1手として数えます。",
+                    "カード移動は危険範囲、罠、ひび割れ床を避けたいときや、階段まで短縮したいときに使います。",
+                    "危険範囲や着弾予告で止まるとHPを失うため、移動後の位置まで見て選びます。"
                 ]
             )
 
-            // MARK: - 遠距離カードの例
+            // MARK: - カードと報酬
             HowToPlaySectionView(
-                title: "3. 床カードと報酬を持ち越す",
-                description: "床に落ちているカードは、踏むだけで拾えます。拾ったカードもフロア報酬も同じ手札として扱い、残り使用回数を同じ区間の次の階へ持ち越せます。",
+                title: "3. カードと報酬を育てる",
+                description: "床カードは踏むだけで拾えます。クリア後は新しいカード、補助カード、遺物、手持ちカードの強化から選び、同じ区間の次の階へ持ち越します。",
                 card: .straightUp2,
                 tips: [
-                    "カードは通常 9 種類まで持てます。同じカードは種類枠を増やさず、残り回数としてまとまります。",
-                    "報酬では新しいカードの追加や、持っているカードの使用回数強化を選べます。",
-                    "補給カードは空いた枠を一時カードで埋める強力な報酬です。"
+                    "通常カードは9種類まで持てます。同じカードは種類枠を増やさず、残り回数としてまとまります。",
+                    stackingTip,
+                    "補給は空いた枠を一時カードで埋める強力な補助カードです。使いどころを残しておくと立て直しやすくなります。"
                 ]
             )
 
-            // MARK: - 勝利条件の説明
+            // MARK: - 成長塔の読みどころ
             HowToPlaySectionView(
-                title: "4. 敵と床ギミックを読む",
-                description: "塔では敵の危険範囲、見えている罠、鍵、ワープ床、ひび割れ床などを読みながらルートを選びます。",
+                title: "4. 成長塔の読みどころ",
+                description: "成長塔では、鍵、罠、ワープ、巡回兵、見張り、追跡兵、メテオ、暗闇、宝箱が段階的に重なります。個別の見た目と効果は辞典で確認できます。",
                 card: nil,
                 tips: [
-                    "危険範囲へ入ると HP を失います。敵によって動き方や警告の出方が違います。",
-                    "敵の形で種類を見分け、詳しい読み方は敵辞典で確認できます。",
-                    "鍵がある階では、鍵マスを踏むまで階段が施錠されています。",
-                    "ひび割れ床はもう一度踏むと崩れ、HP を失って下の階へ落ちることがあります。"
+                    "鍵がある階では、鍵を取るまで階段を使えません。",
+                    "敵は形で種類を見分けます。赤い範囲、レール、小矢印、着弾予告を読んで止まる場所を決めます。",
+                    "宝箱と遺物はカード枠を使いません。怪しい宝箱は強い結果と危険な結果の両方があります。",
+                    "迷った要素は、発見後にカード、敵、マス、レリック、イベント辞典で読み返せます。"
                 ]
             )
 
-            // MARK: - ペナルティの説明
+            // MARK: - 失敗と成長
             HowToPlaySectionView(
-                title: "5. 失敗しても成長塔で伸ばす",
-                description: "HP が 0 になると失敗です。残り手数 0 の後も続行できますが、超過1手目と以後3手ごとに疲労でHPを失います。成長塔では区切り階の初回クリアで成長ポイントを得て、次の挑戦を少し有利にできます。",
+                title: "5. 失敗しても次へつなげる",
+                description: "HPが0になると失敗です。残り手数0の後も続行できますが、超過1手目と以後3手ごとに疲労でHPを失います。成長塔では5Fごとの初回クリアで成長ポイントを得ます。",
                 card: nil,
                 tips: [
                     "失敗したときは現在の区間開始階から再挑戦します。",
-                    "成長塔は 5F、10F、15F、20F の初回クリアで成長ポイントを得ます。",
+                    "成長ポイントは成長塔カード内の成長で使い、準備や報酬などを強化できます。",
                     "成長は成長塔だけに反映され、基礎塔と試練塔には持ち込みません。"
                 ]
             )
@@ -163,7 +163,7 @@ private extension HowToPlayView {
     /// カード辞典本文
     var cardDictionaryContent: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text("塔攻略で使うカードの動きと、階段までのルート作りでの役割を確認できます。")
+            Text("成長塔で見つけたカードの動きと、階段までのルート作りでの役割を発見後に確認できます。")
                 .font(.body)
             EncyclopediaProgressView(
                 discoveredCount: discoveredCount(for: cardDiscoveryIDs),
@@ -199,7 +199,7 @@ private extension HowToPlayView {
     /// 敵辞典本文
     var enemyDictionaryContent: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text("塔に出る敵の見た目と、危険範囲の読み方を確認できます。")
+            Text("成長塔で遭遇した敵の見た目、動き方、危険範囲の読み方を発見後に確認できます。")
                 .font(.body)
             EncyclopediaProgressView(
                 discoveredCount: discoveredCount(for: enemyDiscoveryIDs),
@@ -221,7 +221,7 @@ private extension HowToPlayView {
     /// マス辞典本文
     var tileDictionaryContent: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text("塔攻略中に盤面へ出るマスやマーカーの効果を確認できます。")
+            Text("成長塔の盤面で見たマスやマーカーの効果を発見後に確認できます。")
                 .font(.body)
             EncyclopediaProgressView(
                 discoveredCount: discoveredCount(for: tileDiscoveryIDs),
@@ -248,7 +248,7 @@ private extension HowToPlayView {
     /// レリック辞典本文
     var relicDictionaryContent: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text("塔攻略中に見つけた遺物と呪いの効果を確認できます。未発見の効果名は隠されます。")
+            Text("成長塔で見つけた遺物と呪いの効果を発見後に確認できます。未発見の効果名は隠されます。")
                 .font(.body)
             EncyclopediaProgressView(
                 discoveredCount: discoveredCount(for: relicDiscoveryIDs),
@@ -279,7 +279,7 @@ private extension HowToPlayView {
     /// イベント辞典本文
     var eventDictionaryContent: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text("宝箱や崩落など、塔の途中で起きるイベントを確認できます。")
+            Text("成長塔で見た宝箱や崩落など、塔の途中で起きるイベントを発見後に確認できます。")
                 .font(.body)
             EncyclopediaProgressView(
                 discoveredCount: discoveredCount(for: eventDiscoveryIDs),
