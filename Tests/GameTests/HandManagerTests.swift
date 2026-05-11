@@ -98,4 +98,36 @@ final class HandManagerTests: XCTestCase {
         XCTAssertEqual(kingStacks.count, 1, "同じ移動カードは従来通り同一スタックへまとまる想定です")
         XCTAssertEqual(kingStacks.first?.count, 1)
     }
+
+    /// 方向ソートではカード種別を最上位にし、補助カードが移動カードの間へ入らないことを確認する
+    func testDirectionSortedOrderingKeepsSupportCardsAfterMoveCards() {
+        var deck = Deck.makeTestDeck(playableCards: [
+            .move(.straightRight2),
+            .support(.refillEmptySlots),
+            .move(.straightUp2)
+        ], configuration: Deck.Configuration(
+            allowedMoves: [.straightRight2, .straightUp2],
+            allowedSupportCards: [.refillEmptySlots],
+            weightProfile: Deck.WeightProfile(defaultWeight: 1),
+            deckSummaryText: "方向ソート補助カードテスト用構成"
+        ))
+
+        let handManager = HandManager(
+            handSize: 5,
+            nextPreviewCount: 0,
+            allowsCardStacking: true,
+            initialOrderingStrategy: .directionSorted
+        )
+        handManager.refillHandStacks(using: &deck)
+        handManager.reorderHandIfNeeded()
+
+        XCTAssertEqual(
+            handManager.handStacks.compactMap(\.representativePlayable),
+            [
+                .move(.straightUp2),
+                .move(.straightRight2),
+                .support(.refillEmptySlots)
+            ]
+        )
+    }
 }

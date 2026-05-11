@@ -3,6 +3,44 @@ import XCTest
 
 /// GameCore のうち、塔攻略モードでも直接使う薄い結合点を検証するテスト。
 final class GameCoreTests: XCTestCase {
+    func testDungeonInventoryDirectionSortKeepsSupportCardsAfterMoveCards() throws {
+        let mode = makeInventoryDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4)
+        )
+        let core = GameCore(mode: mode)
+
+        XCTAssertTrue(core.addDungeonInventoryCardForTesting(.straightRight2, pickupUses: 1))
+        XCTAssertTrue(core.addDungeonInventorySupportCardForTesting(.refillEmptySlots, rewardUses: 1))
+        XCTAssertTrue(core.addDungeonInventoryCardForTesting(.straightUp2, pickupUses: 1))
+        let supportStackID = try XCTUnwrap(
+            core.handStacks.first { $0.representativeSupport == .refillEmptySlots }?.id
+        )
+
+        core.updateHandOrderingStrategy(.directionSorted)
+
+        XCTAssertEqual(
+            core.handStacks.compactMap(\.representativePlayable),
+            [
+                .move(.straightUp2),
+                .move(.straightRight2),
+                .support(.refillEmptySlots)
+            ]
+        )
+        XCTAssertEqual(
+            core.dungeonInventoryEntries.map(\.playable),
+            [
+                .move(.straightUp2),
+                .move(.straightRight2),
+                .support(.refillEmptySlots)
+            ]
+        )
+        XCTAssertEqual(
+            core.handStacks.first { $0.representativeSupport == .refillEmptySlots }?.id,
+            supportStackID
+        )
+    }
+
     func testAvailableMovesSkipsImpassableDestinationsInDungeonInventoryMode() {
         let impassablePoint = GridPoint(x: 3, y: 2)
         let mode = makeInventoryDungeonMode(
@@ -101,6 +139,98 @@ final class GameCoreTests: XCTestCase {
             GridPoint(x: 3, y: 0),
             GridPoint(x: 4, y: 0),
         ])
+    }
+
+    func testDungeonTurnLimitAppliesFatigueInsteadOfImmediateFailure() {
+        let mode = makeInventoryDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            allowsBasicOrthogonalMove: true,
+            turnLimit: 2
+        )
+        let core = GameCore(mode: mode)
+
+        playBasicMove(to: GridPoint(x: 1, y: 0), in: core)
+        playBasicMove(to: GridPoint(x: 2, y: 0), in: core)
+
+        XCTAssertEqual(core.progress, .playing)
+        XCTAssertEqual(core.dungeonHP, 3)
+        XCTAssertEqual(core.remainingDungeonTurns, 0)
+
+        playBasicMove(to: GridPoint(x: 3, y: 0), in: core)
+
+        XCTAssertEqual(core.progress, .playing)
+        XCTAssertEqual(core.dungeonHP, 2, "上限超過1手目は即失敗ではなく疲労でHPを1減らします")
+
+        playBasicMove(to: GridPoint(x: 4, y: 0), in: core)
+        playBasicMove(to: GridPoint(x: 4, y: 1), in: core)
+
+        XCTAssertEqual(core.progress, .playing)
+        XCTAssertEqual(core.dungeonHP, 2, "超過2手目と3手目は追加疲労ダメージなしです")
+
+        playBasicMove(to: GridPoint(x: 3, y: 1), in: core)
+
+        XCTAssertEqual(core.progress, .playing)
+        XCTAssertEqual(core.dungeonHP, 1, "超過4手目で次の疲労ダメージが入ります")
+    }
+
+    func testDungeonFatigueFailsOnlyWhenHPReachesZero() {
+        let mode = makeInventoryDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            allowsBasicOrthogonalMove: true,
+            turnLimit: 1,
+            carriedHP: 1
+        )
+        let core = GameCore(mode: mode)
+
+        playBasicMove(to: GridPoint(x: 1, y: 0), in: core)
+        XCTAssertEqual(core.progress, .playing)
+        XCTAssertEqual(core.dungeonHP, 1)
+
+        playBasicMove(to: GridPoint(x: 2, y: 0), in: core)
+
+        XCTAssertEqual(core.progress, .failed)
+        XCTAssertEqual(core.dungeonHP, 0)
+    }
+
+    func testDungeonFatigueBypassesDamageBarrier() throws {
+        let mode = makeInventoryDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            allowsBasicOrthogonalMove: true,
+            turnLimit: 1
+        )
+        let core = GameCore(mode: mode)
+        XCTAssertTrue(core.addDungeonInventorySupportCardForTesting(.barrierSpell, rewardUses: 1))
+        let supportIndex = try XCTUnwrap(core.handStacks.firstIndex { $0.topCard?.supportCard == .barrierSpell })
+
+        core.playSupportCard(at: supportIndex)
+        XCTAssertEqual(core.moveCount, 1)
+        XCTAssertEqual(core.damageBarrierTurnsRemaining, 2)
+
+        playBasicMove(to: GridPoint(x: 1, y: 0), in: core)
+
+        XCTAssertEqual(core.progress, .playing)
+        XCTAssertEqual(core.dungeonHP, 2, "疲労ダメージは障壁では防げません")
+        XCTAssertGreaterThan(core.damageBarrierTurnsRemaining, 0)
+    }
+
+    func testDungeonExitTakesPriorityOverOvertimeFatigue() {
+        let mode = makeInventoryDungeonMode(
+            spawn: GridPoint(x: 2, y: 4),
+            exit: GridPoint(x: 4, y: 4),
+            allowsBasicOrthogonalMove: true,
+            turnLimit: 1,
+            carriedHP: 1
+        )
+        let core = GameCore(mode: mode)
+
+        playBasicMove(to: GridPoint(x: 3, y: 4), in: core)
+        playBasicMove(to: GridPoint(x: 4, y: 4), in: core)
+
+        XCTAssertEqual(core.progress, .cleared)
+        XCTAssertEqual(core.dungeonHP, 1)
     }
 
     func testBlastPathDefeatsEnemiesAndCollectsPickupsAlongTheWay() throws {
@@ -463,6 +593,209 @@ final class GameCoreTests: XCTestCase {
         XCTAssertEqual(core.dungeonHP, 3)
         XCTAssertEqual(core.markerDamageMitigationsRemaining, 1)
         XCTAssertEqual(core.damageBarrierTurnsRemaining, 1)
+    }
+
+    func testDarknessSpellSuppressesWatcherLasersForFloorOnly() throws {
+        let watcher = EnemyDefinition(
+            id: "watcher",
+            name: "見張り",
+            position: GridPoint(x: 2, y: 1),
+            behavior: .watcher(direction: MoveVector(dx: 0, dy: -1), range: 3)
+        )
+        let rotatingWatcher = EnemyDefinition(
+            id: "rotating-watcher",
+            name: "回転見張り",
+            position: GridPoint(x: 1, y: 1),
+            behavior: .rotatingWatcher(
+                initialDirection: MoveVector(dx: 0, dy: 1),
+                rotationDirection: .clockwise,
+                range: 3
+            )
+        )
+        let guardPost = EnemyDefinition(
+            id: "guard",
+            name: "番兵",
+            position: GridPoint(x: 4, y: 1),
+            behavior: .guardPost
+        )
+        let marker = EnemyDefinition(
+            id: "marker",
+            name: "メテオ兵",
+            position: GridPoint(x: 4, y: 4),
+            behavior: .marker(directions: [], range: 2)
+        )
+        let watcherDanger = GridPoint(x: 2, y: 0)
+        let guardDanger = GridPoint(x: 4, y: 0)
+        let mode = makeInventoryDungeonMode(
+            spawn: watcherDanger,
+            exit: GridPoint(x: 0, y: 4),
+            allowsBasicOrthogonalMove: true,
+            enemies: [watcher, rotatingWatcher, guardPost, marker]
+        )
+        let core = GameCore(mode: mode)
+        XCTAssertTrue(core.addDungeonInventorySupportCardForTesting(.darknessSpell, rewardUses: 1))
+        let supportIndex = try XCTUnwrap(core.handStacks.firstIndex { $0.topCard?.supportCard == .darknessSpell })
+
+        XCTAssertTrue(core.isSupportCardUsable(in: core.handStacks[supportIndex]))
+        XCTAssertTrue(core.enemyDangerPoints.contains(watcherDanger))
+        XCTAssertFalse(core.enemyWarningPoints.isEmpty)
+
+        core.playSupportCard(at: supportIndex)
+
+        XCTAssertTrue(core.isWatcherLaserSuppressed)
+        XCTAssertEqual(core.dungeonHP, 3)
+        XCTAssertEqual(core.moveCount, 1)
+        XCTAssertFalse(core.dungeonInventoryEntries.contains { $0.supportCard == .darknessSpell })
+        XCTAssertFalse(core.enemyDangerPoints.contains(watcherDanger))
+        XCTAssertFalse(core.enemyDangerDisplayPoints.contains(watcherDanger))
+        XCTAssertTrue(core.enemyDangerPoints.contains(guardDanger))
+        XCTAssertFalse(core.enemyWarningPoints.isEmpty)
+        XCTAssertEqual(core.enemyStates.first { $0.id == "rotating-watcher" }?.rotationIndex, 1)
+        XCTAssertTrue(core.addDungeonInventorySupportCardForTesting(.darknessSpell, rewardUses: 1))
+        let repeatedSupportIndex = try XCTUnwrap(core.handStacks.firstIndex { $0.topCard?.supportCard == .darknessSpell })
+        XCTAssertFalse(core.isSupportCardUsable(in: core.handStacks[repeatedSupportIndex]))
+    }
+
+    func testDarknessSpellRequiresWatcherLaserEnemyAndPersistsThroughResume() throws {
+        let patrol = EnemyDefinition(
+            id: "patrol",
+            name: "巡回兵",
+            position: GridPoint(x: 3, y: 1),
+            behavior: .patrol(path: [
+                GridPoint(x: 3, y: 1),
+                GridPoint(x: 3, y: 2)
+            ])
+        )
+        let watcher = EnemyDefinition(
+            id: "watcher",
+            name: "見張り",
+            position: GridPoint(x: 2, y: 1),
+            behavior: .watcher(direction: MoveVector(dx: 0, dy: -1), range: 3)
+        )
+        let noWatcherMode = makeInventoryDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            enemies: [patrol]
+        )
+        let noWatcherCore = GameCore(mode: noWatcherMode)
+        XCTAssertTrue(noWatcherCore.addDungeonInventorySupportCardForTesting(.darknessSpell, rewardUses: 1))
+        let unusableIndex = try XCTUnwrap(noWatcherCore.handStacks.firstIndex { $0.topCard?.supportCard == .darknessSpell })
+        XCTAssertFalse(noWatcherCore.isSupportCardUsable(in: noWatcherCore.handStacks[unusableIndex]))
+
+        let watcherMode = makeInventoryDungeonMode(
+            spawn: GridPoint(x: 2, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            enemies: [watcher]
+        )
+        let core = GameCore(mode: watcherMode)
+        XCTAssertTrue(core.addDungeonInventorySupportCardForTesting(.darknessSpell, rewardUses: 1))
+        let supportIndex = try XCTUnwrap(core.handStacks.firstIndex { $0.topCard?.supportCard == .darknessSpell })
+        core.playSupportCard(at: supportIndex)
+
+        let snapshot = try XCTUnwrap(core.makeDungeonResumeSnapshot())
+        let data = try JSONEncoder().encode(snapshot)
+        let decodedSnapshot = try JSONDecoder().decode(DungeonRunResumeSnapshot.self, from: data)
+        let restoredCore = GameCore(mode: watcherMode)
+
+        XCTAssertTrue(restoredCore.restoreDungeonResumeSnapshot(decodedSnapshot))
+        XCTAssertTrue(restoredCore.isWatcherLaserSuppressed)
+        XCTAssertTrue(restoredCore.enemyDangerPoints.isEmpty)
+    }
+
+    func testRailBreakSpellStopsPatrolMovementOnlyForFloor() throws {
+        let patrol = EnemyDefinition(
+            id: "patrol",
+            name: "巡回兵",
+            position: GridPoint(x: 3, y: 3),
+            behavior: .patrol(path: [
+                GridPoint(x: 3, y: 3),
+                GridPoint(x: 3, y: 4)
+            ])
+        )
+        let chaser = EnemyDefinition(
+            id: "chaser",
+            name: "追跡兵",
+            position: GridPoint(x: 4, y: 0),
+            behavior: .chaser
+        )
+        let patrolDanger = GridPoint(x: 3, y: 2)
+        let mode = makeInventoryDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 0, y: 4),
+            enemies: [patrol, chaser]
+        )
+        let core = GameCore(mode: mode)
+        XCTAssertTrue(core.addDungeonInventorySupportCardForTesting(.railBreakSpell, rewardUses: 1))
+        let supportIndex = try XCTUnwrap(core.handStacks.firstIndex { $0.topCard?.supportCard == .railBreakSpell })
+
+        XCTAssertTrue(core.isSupportCardUsable(in: core.handStacks[supportIndex]))
+        XCTAssertFalse(core.enemyPatrolRailPreviews.isEmpty)
+        XCTAssertFalse(core.enemyPatrolMovementPreviews.isEmpty)
+        XCTAssertTrue(core.enemyDangerPoints.contains(patrolDanger))
+
+        core.playSupportCard(at: supportIndex)
+
+        XCTAssertTrue(core.isPatrolRailDestroyed)
+        XCTAssertEqual(core.moveCount, 1)
+        XCTAssertEqual(core.dungeonHP, 3)
+        XCTAssertEqual(core.enemyStates.first { $0.id == "patrol" }?.position, GridPoint(x: 3, y: 3))
+        XCTAssertEqual(core.enemyStates.first { $0.id == "chaser" }?.position, GridPoint(x: 3, y: 0))
+        XCTAssertTrue(core.enemyPatrolRailPreviews.isEmpty)
+        XCTAssertTrue(core.enemyPatrolMovementPreviews.isEmpty)
+        XCTAssertFalse(core.enemyChaserMovementPreviews.isEmpty)
+        XCTAssertTrue(core.enemyDangerPoints.contains(patrolDanger))
+        XCTAssertFalse(core.dungeonInventoryEntries.contains { $0.supportCard == .railBreakSpell })
+
+        XCTAssertTrue(core.addDungeonInventorySupportCardForTesting(.railBreakSpell, rewardUses: 1))
+        let repeatedSupportIndex = try XCTUnwrap(core.handStacks.firstIndex { $0.topCard?.supportCard == .railBreakSpell })
+        XCTAssertFalse(core.isSupportCardUsable(in: core.handStacks[repeatedSupportIndex]))
+    }
+
+    func testRailBreakSpellRequiresPatrolEnemyAndPersistsThroughResume() throws {
+        let watcher = EnemyDefinition(
+            id: "watcher",
+            name: "見張り",
+            position: GridPoint(x: 2, y: 1),
+            behavior: .watcher(direction: MoveVector(dx: 0, dy: -1), range: 3)
+        )
+        let patrol = EnemyDefinition(
+            id: "patrol",
+            name: "巡回兵",
+            position: GridPoint(x: 3, y: 1),
+            behavior: .patrol(path: [
+                GridPoint(x: 3, y: 1),
+                GridPoint(x: 3, y: 2)
+            ])
+        )
+        let noPatrolMode = makeInventoryDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            enemies: [watcher]
+        )
+        let noPatrolCore = GameCore(mode: noPatrolMode)
+        XCTAssertTrue(noPatrolCore.addDungeonInventorySupportCardForTesting(.railBreakSpell, rewardUses: 1))
+        let unusableIndex = try XCTUnwrap(noPatrolCore.handStacks.firstIndex { $0.topCard?.supportCard == .railBreakSpell })
+        XCTAssertFalse(noPatrolCore.isSupportCardUsable(in: noPatrolCore.handStacks[unusableIndex]))
+
+        let patrolMode = makeInventoryDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            enemies: [patrol]
+        )
+        let core = GameCore(mode: patrolMode)
+        XCTAssertTrue(core.addDungeonInventorySupportCardForTesting(.railBreakSpell, rewardUses: 1))
+        let supportIndex = try XCTUnwrap(core.handStacks.firstIndex { $0.topCard?.supportCard == .railBreakSpell })
+        core.playSupportCard(at: supportIndex)
+
+        let snapshot = try XCTUnwrap(core.makeDungeonResumeSnapshot())
+        let data = try JSONEncoder().encode(snapshot)
+        let decodedSnapshot = try JSONDecoder().decode(DungeonRunResumeSnapshot.self, from: data)
+        let restoredCore = GameCore(mode: patrolMode)
+
+        XCTAssertTrue(restoredCore.restoreDungeonResumeSnapshot(decodedSnapshot))
+        XCTAssertTrue(restoredCore.isPatrolRailDestroyed)
+        XCTAssertTrue(restoredCore.enemyPatrolRailPreviews.isEmpty)
+        XCTAssertTrue(restoredCore.enemyPatrolMovementPreviews.isEmpty)
     }
 
     func testAntidoteClearsPoisonAndConsumesOneTurn() throws {
@@ -896,9 +1229,11 @@ final class GameCoreTests: XCTestCase {
         cardPickups: [DungeonCardPickupDefinition] = [],
         enemies: [EnemyDefinition] = [],
         hazards: [HazardDefinition] = [],
-        runState: DungeonRunState? = nil
+        runState: DungeonRunState? = nil,
+        turnLimit: Int? = nil,
+        carriedHP: Int = 3
     ) -> GameMode {
-        let resolvedRunState = runState ?? DungeonRunState(dungeonID: "test-dungeon", carriedHP: 3)
+        let resolvedRunState = runState ?? DungeonRunState(dungeonID: "test-dungeon", carriedHP: carriedHP)
         return GameMode(
             identifier: .dungeonFloor,
             displayName: "塔攻略テスト",
@@ -921,7 +1256,7 @@ final class GameCoreTests: XCTestCase {
                 completionRule: .dungeonExit(exitPoint: exit),
                 dungeonRules: DungeonRules(
                     difficulty: .growth,
-                    failureRule: DungeonFailureRule(initialHP: 3, turnLimit: nil),
+                    failureRule: DungeonFailureRule(initialHP: carriedHP, turnLimit: turnLimit),
                     enemies: enemies,
                     hazards: hazards,
                     allowsBasicOrthogonalMove: allowsBasicOrthogonalMove,

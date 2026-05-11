@@ -202,6 +202,13 @@ public struct TileEncyclopediaEntry: Identifiable, Equatable {
             previewKind: .effect(.poisonTrap)
         ),
         TileEncyclopediaEntry(
+            id: "illusionTrap",
+            displayName: "幻惑罠",
+            category: "危険",
+            description: "踏むとその階にいる間、移動カードの正体が？になります。基本移動と補助カードは通常どおり使え、万能薬で解除できます。",
+            previewKind: .effect(.illusionTrap)
+        ),
+        TileEncyclopediaEntry(
             id: "swamp",
             displayName: "沼",
             category: "特殊効果",

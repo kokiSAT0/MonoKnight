@@ -242,6 +242,8 @@ public struct ResolvedCardMove: Hashable {
                 hasher.combine("shackleTrap")
             case .poisonTrap:
                 hasher.combine("poisonTrap")
+            case .illusionTrap:
+                hasher.combine("illusionTrap")
             case .swamp:
                 hasher.combine("swamp")
             case .preserveCard:

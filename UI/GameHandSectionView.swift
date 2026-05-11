@@ -405,6 +405,9 @@ private extension GameHandSectionView {
         if let support = stack.topCard?.supportCard {
             return "補助カード、\(support.displayName)、残り \(stack.count) 枚"
         }
+        if core.isIlluded, stack.topCard?.moveCard != nil {
+            return "幻惑中の移動カード、内容不明、残り \(stack.count) 枚"
+        }
         guard let move = stack.topCard?.move else {
             return "カードなしのスロット"
         }
@@ -433,11 +436,19 @@ private extension GameHandSectionView {
                 return "ダブルタップで 1 手使い、3回分の敵ターンを止めます。"
             case .barrierSpell:
                 return "ダブルタップで 1 手使い、3回分のHPダメージを無効化します。"
+            case .darknessSpell:
+                return "ダブルタップで 1 手使い、この階の見張りと回転見張りのレーザー攻撃を封じます。"
+            case .railBreakSpell:
+                return "ダブルタップで 1 手使い、この階の巡回兵のレール移動を封じます。"
             case .antidote:
                 return "ダブルタップで 1 手使い、毒状態を解除します。"
             case .panacea:
-                return "ダブルタップで 1 手使い、毒と足枷状態を解除します。"
+                return "ダブルタップで 1 手使い、毒、足枷、幻惑状態を解除します。"
             }
+        }
+
+        if core.isIlluded, stack.topCard?.moveCard != nil {
+            return "ダブルタップで現在使える移動カードからランダムに1枚を消費し、合法な移動先へ進みます。基本移動と補助カードは通常どおり使えます。"
         }
 
         // 通常操作時に読み上げる基本説明文を状況ごとに作成する
@@ -484,10 +495,15 @@ private extension GameHandSectionView {
         if let support = card.supportCard {
             SupportCardIllustrationView(card: support, mode: mode)
         } else if let move = card.moveCard {
-            MoveCardIllustrationView(
-                card: move,
-                mode: mode
-            )
+            switch mode {
+            case .hand where core.isIlluded:
+                IllusionMoveCardIllustrationView(mode: mode)
+            case .hand, .next:
+                MoveCardIllustrationView(
+                    card: move,
+                    mode: mode
+                )
+            }
         }
     }
 
@@ -648,11 +664,22 @@ extension GameHandSectionView {
     }
 
     static func dungeonCurseAccessibilityLabel(for curse: DungeonCurseEntry) -> String {
-        "呪い遺物、\(curse.displayName)"
+        "\(curse.displayKind.displayName)遺物、\(curse.displayName)"
     }
 
     static func dungeonCurseAccessibilityHint(for curse: DungeonCurseEntry) -> String {
-        "ダブルタップで効果を確認します。利点: \(curse.upsideDescription) 代償: \(curse.downsideDescription) \(curse.releaseDescription)"
+        "ダブルタップで効果を確認します。\(curse.displayKind.displayName)。利点: \(curse.upsideDescription) 代償: \(curse.downsideDescription) \(curse.releaseDescription)"
+    }
+}
+
+private extension DungeonCurseDisplayKind {
+    var tintColor: Color {
+        switch self {
+        case .temporary:
+            return Color(red: 0.82, green: 0.16, blue: 0.22)
+        case .persistent:
+            return Color(red: 0.50, green: 0.22, blue: 0.78)
+        }
     }
 }
 
@@ -739,6 +766,7 @@ private struct DungeonRelicDetailView: View {
 private struct DungeonCurseIconView: View {
     let theme: AppTheme
     let curse: DungeonCurseEntry
+    private var tint: Color { curse.displayKind.tintColor }
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
@@ -746,19 +774,19 @@ private struct DungeonCurseIconView: View {
                 .fill(theme.cardBackgroundHand)
                 .overlay(
                     RoundedRectangle(cornerRadius: 8)
-                        .stroke(Color.red.opacity(0.75), lineWidth: 1.5)
+                        .stroke(tint.opacity(0.75), lineWidth: 1.5)
                 )
 
             Image(systemName: curse.symbolName)
                 .font(.system(size: 18, weight: .semibold))
-                .foregroundColor(.red)
+                .foregroundColor(tint)
                 .accessibilityHidden(true)
 
-            Text("呪")
+            Text(curse.displayKind.badgeText)
                 .font(.system(size: 10, weight: .bold, design: .rounded))
                 .foregroundColor(.white)
                 .frame(width: 16, height: 16)
-                .background(Circle().fill(Color.red))
+                .background(Circle().fill(tint))
                 .offset(x: 4, y: 4)
                 .accessibilityHidden(true)
         }
@@ -770,6 +798,7 @@ private struct DungeonCurseDetailView: View {
     let theme: AppTheme
     let curse: DungeonCurseEntry
     @Environment(\.dismiss) private var dismiss
+    private var tint: Color { curse.displayKind.tintColor }
 
     var body: some View {
         NavigationStack {
@@ -777,13 +806,13 @@ private struct DungeonCurseDetailView: View {
                 HStack(spacing: 12) {
                     Image(systemName: curse.symbolName)
                         .font(.system(size: 24, weight: .semibold))
-                        .foregroundColor(.red)
+                        .foregroundColor(tint)
                         .frame(width: 44, height: 44)
-                        .background(Circle().fill(Color.red.opacity(0.14)))
+                        .background(Circle().fill(tint.opacity(0.14)))
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("呪い")
+                        Text(curse.displayKind.displayName)
                             .font(.system(size: 12, weight: .bold, design: .rounded))
-                            .foregroundColor(.red)
+                            .foregroundColor(tint)
                         Text(curse.displayName)
                             .font(.system(size: 22, weight: .bold, design: .rounded))
                             .foregroundColor(theme.textPrimary)
@@ -873,10 +902,56 @@ private struct SupportCardIllustrationView: View {
             return "snowflake"
         case .barrierSpell:
             return "shield.fill"
+        case .darknessSpell:
+            return "moon.fill"
+        case .railBreakSpell:
+            return "point.topleft.down.to.point.bottomright.curvepath"
         case .antidote:
             return "cross.case.fill"
         case .panacea:
             return "pills.fill"
         }
+    }
+}
+
+private struct IllusionMoveCardIllustrationView: View {
+    var mode: MoveCardIllustrationView.Mode = .hand
+    private let theme = AppTheme()
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Text("?")
+                .font(.system(size: 34, weight: .heavy, design: .rounded))
+                .foregroundColor(theme.cardContentPrimary)
+                .frame(width: 42, height: 42)
+                .background(
+                    Circle()
+                        .fill(theme.boardTileEffectSlow.opacity(0.18))
+                        .overlay(Circle().stroke(theme.boardTileEffectSlow.opacity(0.75), lineWidth: 1.5))
+                )
+                .accessibilityHidden(true)
+
+            Text("？")
+                .font(.system(size: 17, weight: .bold, design: .rounded))
+                .foregroundColor(theme.textPrimary)
+                .lineLimit(1)
+
+            Text("幻惑")
+                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                .foregroundColor(theme.textSecondary)
+        }
+        .padding(8)
+        .frame(width: MoveCardIllustrationView.defaultWidth, height: MoveCardIllustrationView.defaultHeight)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(mode.backgroundColor(using: theme))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(theme.boardTileEffectSlow.opacity(0.75), lineWidth: mode.borderLineWidth)
+                )
+        )
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text("幻惑中の移動カード、内容不明"))
+        .accessibilityHint(Text("使うと現在合法な移動カードと移動先がランダムに決まります。"))
     }
 }

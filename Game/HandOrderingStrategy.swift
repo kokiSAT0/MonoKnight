@@ -27,7 +27,7 @@ public enum HandOrderingStrategy: String, CaseIterable {
         case .insertionOrder:
             return "山札から引いた順番で手札スロットへ補充します。消費した位置へ新しいカードが入ります。"
         case .directionSorted:
-            return "左への移動量が大きいカードほど左側に、同じ左右移動量なら上方向へ進むカードを優先して並べます。"
+            return "移動カードを先、補助カードを後ろにまとめ、移動カードは左への移動量が大きい順、同じ左右移動量なら上方向を優先して並べます。"
         }
     }
 }

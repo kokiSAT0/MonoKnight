@@ -45,6 +45,10 @@ final class MoveCardPresentationTests: XCTestCase {
         XCTAssertTrue(entries.first { $0.card == .annihilationSpell }?.description.contains("敵をすべて消滅") == true)
         XCTAssertEqual(entries.first { $0.card == .barrierSpell }?.category, "呪文系カード")
         XCTAssertTrue(entries.first { $0.card == .barrierSpell }?.description.contains("HP ダメージを無効化") == true)
+        XCTAssertEqual(entries.first { $0.card == .darknessSpell }?.category, "呪文系カード")
+        XCTAssertTrue(entries.first { $0.card == .darknessSpell }?.description.contains("レーザー攻撃を封じ") == true)
+        XCTAssertEqual(entries.first { $0.card == .railBreakSpell }?.category, "呪文系カード")
+        XCTAssertTrue(entries.first { $0.card == .railBreakSpell }?.description.contains("レール移動を封じ") == true)
     }
 
     func testEnemyEncyclopediaEntriesCoverAllEnemyPresentationKinds() {
@@ -122,6 +126,7 @@ final class MoveCardPresentationTests: XCTestCase {
         XCTAssertEqual(entries.first { $0.id == "collapsedFloor" }?.previewKind, .collapsedFloor)
         XCTAssertEqual(entries.first { $0.id == "shackleTrap" }?.previewKind, .effect(.shackleTrap))
         XCTAssertEqual(entries.first { $0.id == "poisonTrap" }?.previewKind, .effect(.poisonTrap))
+        XCTAssertEqual(entries.first { $0.id == "illusionTrap" }?.previewKind, .effect(.illusionTrap))
         XCTAssertEqual(entries.first { $0.id == "enemyDanger" }?.previewKind, .enemyDanger)
         XCTAssertEqual(entries.first { $0.id == "enemyWarning" }?.previewKind, .enemyWarning)
         XCTAssertFalse(entries.contains { ["目的地", "踏破"].contains($0.category) })
@@ -151,6 +156,7 @@ final class MoveCardPresentationTests: XCTestCase {
             "preserveCard",
             "paralysisTrap",
             "shackleTrap",
+            "illusionTrap",
             "poisonTrap",
             "swamp",
             "discardRandomHandTrap",
@@ -172,6 +178,7 @@ final class MoveCardPresentationTests: XCTestCase {
             "discardAllSupportCardsTrap",
             "discardRandomHandTrap",
             "paralysisTrap",
+            "illusionTrap",
             "poisonTrap",
             "preserveCard",
             "shackleTrap",
@@ -196,6 +203,12 @@ final class MoveCardPresentationTests: XCTestCase {
         XCTAssertTrue(curseEntries.allSatisfy { !$0.upsideDescription.isEmpty })
         XCTAssertTrue(curseEntries.allSatisfy { !$0.downsideDescription.isEmpty })
         XCTAssertTrue(curseEntries.allSatisfy { !$0.releaseDescription.isEmpty })
+        XCTAssertTrue(curseEntries.allSatisfy { !$0.displayKind.displayName.isEmpty })
+        XCTAssertTrue(curseEntries.allSatisfy { !$0.displayKind.badgeText.isEmpty })
+        XCTAssertEqual(curseEntries.first { $0.curseID == .thornMark }?.displayKind, .temporary)
+        XCTAssertEqual(curseEntries.first { $0.curseID == .bloodPact }?.displayKind, .temporary)
+        XCTAssertEqual(curseEntries.first { $0.curseID == .rustyChain }?.displayKind, .persistent)
+        XCTAssertEqual(curseEntries.first { $0.curseID == .redChalice }?.displayKind, .persistent)
 
         XCTAssertEqual(eventEntries.map(\.kind), DungeonEventEncyclopediaKind.allCases)
         XCTAssertTrue(eventEntries.allSatisfy { !$0.displayName.isEmpty })

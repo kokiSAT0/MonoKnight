@@ -516,6 +516,10 @@ private struct SupportPickupChoiceIllustrationView: View {
             return "snowflake"
         case .barrierSpell:
             return "shield.fill"
+        case .darknessSpell:
+            return "moon.fill"
+        case .railBreakSpell:
+            return "point.topleft.down.to.point.bottomright.curvepath"
         case .antidote:
             return "cross.case.fill"
         case .panacea:

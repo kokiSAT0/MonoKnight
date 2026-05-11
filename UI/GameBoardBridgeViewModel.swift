@@ -371,9 +371,12 @@ final class GameBoardBridgeViewModel: ObservableObject {
         isEnemyTurnAnimationActive = true
         pushHighlightsToScene()
 
+        let enemyTurnDangerPoints = mode.dungeonRules?.isDarknessEnabled == true
+            ? core.watcherLaserDangerDisplayPoints(forDisplayedEnemyStates: core.enemyStates)
+            : core.enemyDangerPoints
         let duration = scene.playDungeonEnemyTurn(
             event,
-            dangerPoints: core.enemyDangerPoints,
+            dangerPoints: enemyTurnDangerPoints,
             warningPoints: core.enemyWarningPoints
         )
         let shouldPlayDamage = event.attackedPlayer && event.hpAfter < event.hpBefore
@@ -418,8 +421,19 @@ final class GameBoardBridgeViewModel: ObservableObject {
         let displayedEnemyStates = activeEnemyTurnEvent.map { _ in activeEnemyTurnDisplayStates } ?? stepEnemyStates
         let displayedEnemyPoints = Set(displayedEnemyStates.map(\.position))
         let shouldDeferEnemyThreatHighlights = activeEnemyTurnEvent != nil
-        let displayedEnemyDangerPoints = core.enemyDangerPoints(forDisplayedEnemyStates: displayedEnemyStates)
+        let isDarknessEnabled = mode.dungeonRules?.isDarknessEnabled == true
+        let displayedEnemyDangerPoints = isDarknessEnabled
+            ? core.watcherLaserDangerDisplayPoints(forDisplayedEnemyStates: displayedEnemyStates)
+            : core.enemyDangerDisplayPoints(forDisplayedEnemyStates: displayedEnemyStates)
         let displayedEnemyWarningPoints = core.enemyWarningPoints(forDisplayedEnemyStates: displayedEnemyStates)
+        let dungeonVisiblePoints = isDarknessEnabled
+            ? makeDarknessVisiblePoints(
+                current: core.current,
+                exitPoint: mode.dungeonExitPoint,
+                dangerPoints: shouldDeferEnemyThreatHighlights ? [] : displayedEnemyDangerPoints,
+                warningPoints: shouldDeferEnemyThreatHighlights ? [] : displayedEnemyWarningPoints
+            )
+            : nil
         let patrolFacingVectors = patrolFacingVectorsForDisplayedEnemies(displayedEnemyStates)
         let collectedPickupIDs = presentationCollectedDungeonCardPickupIDs ?? core.collectedDungeonCardPickupIDs
         let collectedRelicPickupIDs = presentationCollectedDungeonRelicPickupIDs ?? core.collectedDungeonRelicPickupIDs
@@ -452,30 +466,91 @@ final class GameBoardBridgeViewModel: ObservableObject {
             .forcedSelection: forcedSelectionHighlightPoints,
             .dungeonExit: core.isDungeonExitUnlocked ? (mode.dungeonExitPoint.map { Set([$0]) } ?? []) : [],
             .dungeonExitLocked: core.isDungeonExitUnlocked ? [] : (mode.dungeonExitPoint.map { Set([$0]) } ?? []),
-            .dungeonKey: core.dungeonKeyPoints,
-            .dungeonEnemy: displayedEnemyPoints,
+            .dungeonKey: visible(displayed: core.dungeonKeyPoints, in: dungeonVisiblePoints),
+            .dungeonEnemy: visible(displayed: displayedEnemyPoints, in: dungeonVisiblePoints),
             .dungeonDanger: shouldDeferEnemyThreatHighlights ? [] : displayedEnemyDangerPoints,
             .dungeonEnemyWarning: shouldDeferEnemyThreatHighlights ? [] : displayedEnemyWarningPoints,
-            .dungeonCardPickup: displayedCardPickupPoints,
-            .dungeonRelicPickup: displayedRelicPickupPoints,
-            .dungeonSuspiciousRelicPickup: displayedSuspiciousRelicPickupPoints,
-            .dungeonDamageTrap: core.damageTrapPoints,
-            .dungeonLavaTile: core.lavaTilePoints,
-            .dungeonHealingTile: core.healingTilePoints,
-            .dungeonCrackedFloor: displayedCrackedFloorPoints,
-            .dungeonCollapsedFloor: displayedCollapsedFloorPoints
+            .dungeonCardPickup: visible(displayed: displayedCardPickupPoints, in: dungeonVisiblePoints),
+            .dungeonRelicPickup: visible(displayed: displayedRelicPickupPoints, in: dungeonVisiblePoints),
+            .dungeonSuspiciousRelicPickup: visible(displayed: displayedSuspiciousRelicPickupPoints, in: dungeonVisiblePoints),
+            .dungeonDamageTrap: visible(displayed: core.damageTrapPoints, in: dungeonVisiblePoints),
+            .dungeonLavaTile: visible(displayed: core.lavaTilePoints, in: dungeonVisiblePoints),
+            .dungeonHealingTile: visible(displayed: core.healingTilePoints, in: dungeonVisiblePoints),
+            .dungeonCrackedFloor: visible(displayed: displayedCrackedFloorPoints, in: dungeonVisiblePoints),
+            .dungeonCollapsedFloor: visible(displayed: displayedCollapsedFloorPoints, in: dungeonVisiblePoints)
         ]
+        scene.updateDungeonVisiblePoints(dungeonVisiblePoints)
         scene.updateHighlights(highlights)
-        scene.updateDungeonEnemyMarkers(displayedEnemyStates.map { enemy in
+        let visibleEnemyStates = visible(displayed: displayedEnemyStates, in: dungeonVisiblePoints)
+        scene.updateDungeonEnemyMarkers(visibleEnemyStates.map { enemy in
             SceneDungeonEnemyMarker(enemy, facingVector: patrolFacingVectors[enemy.id])
         })
         scene.updatePatrolRailPreviews(
-            core.enemyPatrolRailPreviews(forDisplayedEnemyStates: displayedEnemyStates).map(ScenePatrolRailPreview.init)
+            visiblePatrolRailPreviews(
+                core.enemyPatrolRailPreviews(forDisplayedEnemyStates: displayedEnemyStates).map(ScenePatrolRailPreview.init),
+                in: dungeonVisiblePoints
+            )
         )
         let enemyDirectionPreviews = shouldDeferEnemyThreatHighlights ? [] : (
-            core.enemyChaserMovementPreviews(forDisplayedEnemyStates: displayedEnemyStates).map(ScenePatrolMovementPreview.init)
+            visibleMovementPreviews(
+                core.enemyChaserMovementPreviews(forDisplayedEnemyStates: displayedEnemyStates).map(ScenePatrolMovementPreview.init),
+                in: dungeonVisiblePoints
+            )
         )
         scene.updatePatrolMovementPreviews(enemyDirectionPreviews)
+    }
+
+    private func makeDarknessVisiblePoints(
+        current: GridPoint?,
+        exitPoint: GridPoint?,
+        dangerPoints: Set<GridPoint>,
+        warningPoints: Set<GridPoint>
+    ) -> Set<GridPoint> {
+        var visiblePoints = dangerPoints.union(warningPoints)
+        if let current {
+            for dy in -1...1 {
+                for dx in -1...1 {
+                    let point = current.offset(dx: dx, dy: dy)
+                    if point.isInside(boardSize: boardSize) {
+                        visiblePoints.insert(point)
+                    }
+                }
+            }
+        }
+        if let exitPoint {
+            visiblePoints.insert(exitPoint)
+        }
+        return visiblePoints
+    }
+
+    private func visible(displayed points: Set<GridPoint>, in visiblePoints: Set<GridPoint>?) -> Set<GridPoint> {
+        guard let visiblePoints else { return points }
+        return points.intersection(visiblePoints)
+    }
+
+    private func visible(displayed enemies: [EnemyState], in visiblePoints: Set<GridPoint>?) -> [EnemyState] {
+        guard let visiblePoints else { return enemies }
+        return enemies.filter { visiblePoints.contains($0.position) }
+    }
+
+    private func visibleMovementPreviews(
+        _ previews: [ScenePatrolMovementPreview],
+        in visiblePoints: Set<GridPoint>?
+    ) -> [ScenePatrolMovementPreview] {
+        guard let visiblePoints else { return previews }
+        return previews.filter { visiblePoints.contains($0.current) && visiblePoints.contains($0.next) }
+    }
+
+    private func visiblePatrolRailPreviews(
+        _ previews: [ScenePatrolRailPreview],
+        in visiblePoints: Set<GridPoint>?
+    ) -> [ScenePatrolRailPreview] {
+        guard let visiblePoints else { return previews }
+        return previews.compactMap { preview in
+            let visiblePath = preview.path.filter(visiblePoints.contains)
+            guard visiblePath.count > 1 else { return nil }
+            return ScenePatrolRailPreview(enemyID: preview.enemyID, path: visiblePath)
+        }
     }
 
     private func patrolFacingVectorsForDisplayedEnemies(_ displayedEnemyStates: [EnemyState]) -> [String: MoveVector] {
@@ -601,7 +676,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
                 computedBuckets.singleVectorDestinations.formUnion(destinations)
             }
         }
-        computedBuckets.multiStepPathPoints.subtract(core.enemyDangerPoints)
+        computedBuckets.multiStepPathPoints.subtract(core.enemyDangerDisplayPoints)
 
         guard guideModeEnabled else {
             guideHighlightBuckets = .empty

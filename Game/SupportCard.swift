@@ -12,9 +12,13 @@ public enum SupportCard: String, CaseIterable, Codable, Hashable {
     case freezeSpell
     /// 一定ターン HP ダメージを無効化する
     case barrierSpell
+    /// その階の見張り系レーザーを封じる
+    case darknessSpell
+    /// その階の巡回兵レールを破壊する
+    case railBreakSpell
     /// 毒状態を解除する
     case antidote
-    /// 毒と足枷状態を解除する
+    /// 毒・足枷・幻惑状態を解除する
     case panacea
 
     public var displayName: String {
@@ -29,6 +33,10 @@ public enum SupportCard: String, CaseIterable, Codable, Hashable {
             return "凍結の呪文"
         case .barrierSpell:
             return "障壁の呪文"
+        case .darknessSpell:
+            return "ダークネスの呪文"
+        case .railBreakSpell:
+            return "レール破壊の呪文"
         case .antidote:
             return "解毒薬"
         case .panacea:
@@ -40,7 +48,7 @@ public enum SupportCard: String, CaseIterable, Codable, Hashable {
         switch self {
         case .refillEmptySlots, .antidote, .panacea:
             return "補助カード"
-        case .singleAnnihilationSpell, .annihilationSpell, .freezeSpell, .barrierSpell:
+        case .singleAnnihilationSpell, .annihilationSpell, .freezeSpell, .barrierSpell, .darknessSpell, .railBreakSpell:
             return "呪文系カード"
         }
     }
@@ -57,10 +65,14 @@ public enum SupportCard: String, CaseIterable, Codable, Hashable {
             return "移動せず 1 手使い、3回分の敵ターンを止めます。凍結中は敵の移動、攻撃、着弾予告が発生しません。"
         case .barrierSpell:
             return "移動せず 1 手使い、3回分の行動後処理で HP ダメージを無効化します。敵や危険表示は通常どおり動きます。"
+        case .darknessSpell:
+            return "移動せず 1 手使い、この階にいる間、見張りと回転見張りのレーザー攻撃を封じます。"
+        case .railBreakSpell:
+            return "移動せず 1 手使い、この階にいる間、巡回兵のレール移動を封じます。巡回兵の攻撃は残ります。"
         case .antidote:
             return "移動せず 1 手使い、毒状態を解除します。毒でない時は使えません。"
         case .panacea:
-            return "移動せず 1 手使い、毒と足枷状態を解除します。解除する状態がない時は使えません。"
+            return "移動せず 1 手使い、毒・足枷・幻惑状態を解除します。解除する状態がない時は使えません。"
         }
     }
 
@@ -68,7 +80,7 @@ public enum SupportCard: String, CaseIterable, Codable, Hashable {
         switch self {
         case .singleAnnihilationSpell:
             return true
-        case .refillEmptySlots, .annihilationSpell, .freezeSpell, .barrierSpell, .antidote, .panacea:
+        case .refillEmptySlots, .annihilationSpell, .freezeSpell, .barrierSpell, .darknessSpell, .railBreakSpell, .antidote, .panacea:
             return false
         }
     }

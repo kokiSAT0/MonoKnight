@@ -349,7 +349,7 @@ public extension TileEffect {
         switch self {
         case .slow, .shackleTrap, .swamp:
             return true
-        case .warp, .shuffleHand, .blast, .poisonTrap, .preserveCard, .discardRandomHand, .discardAllMoveCards, .discardAllSupportCards, .discardAllHands:
+        case .warp, .shuffleHand, .blast, .poisonTrap, .illusionTrap, .preserveCard, .discardRandomHand, .discardAllMoveCards, .discardAllSupportCards, .discardAllHands:
             return false
         }
     }

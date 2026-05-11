@@ -758,10 +758,10 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.isGameCenterAuthenticated, "同値更新で認証状態が崩れてはいけません")
     }
 
-    func testDungeonFailedProgressShowsResultWithFailureReason() throws {
+    func testDungeonFatigueFailureShowsResultWithFailureReason() throws {
         let mode = GameMode(
             identifier: .dungeonFloor,
-            displayName: "手数切れテスト",
+            displayName: "疲労失敗テスト",
             regulation: GameMode.Regulation(
                 boardSize: 5,
                 handSize: 5,
@@ -778,22 +778,26 @@ final class GameViewModelTests: XCTestCase {
                 completionRule: .dungeonExit(exitPoint: GridPoint(x: 4, y: 4)),
                 dungeonRules: DungeonRules(
                     difficulty: .growth,
-                    failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 1)
+                    failureRule: DungeonFailureRule(initialHP: 1, turnLimit: 1)
                 )
             ),
             leaderboardEligible: false,
             dungeonMetadata: .init(dungeonID: "test-tower", floorID: "turn-limit")
         )
         let (viewModel, core) = makeViewModel(mode: mode)
-        let move = try XCTUnwrap(core.availableMoves().first { $0.destination != mode.dungeonExitPoint })
+        let firstMove = try XCTUnwrap(core.availableMoves().first { $0.destination != mode.dungeonExitPoint })
 
-        core.playCard(using: move)
+        core.playCard(using: firstMove)
+        XCTAssertEqual(core.progress, .playing)
+
+        let fatigueMove = try XCTUnwrap(core.availableMoves().first { $0.destination != mode.dungeonExitPoint })
+        core.playCard(using: fatigueMove)
         viewModel.handleProgressChangeForTesting(core.progress)
 
         XCTAssertEqual(core.progress, .failed)
         XCTAssertTrue(viewModel.showingResult)
         XCTAssertTrue(viewModel.isResultFailed)
-        XCTAssertEqual(viewModel.failureReasonText, "残り手数が0になりました")
+        XCTAssertEqual(viewModel.failureReasonText, "疲労でHPが0になりました")
 
         let failedPosition = core.current
         viewModel.finalizeResultDismissal()

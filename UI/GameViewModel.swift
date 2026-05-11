@@ -123,6 +123,8 @@ final class GameViewModel: ObservableObject {
     var damageBarrierTurnsRemaining: Int { core.damageBarrierTurnsRemaining }
     /// 足枷罠で現在フロア中の全行動が重くなっているかどうか
     var isShackled: Bool { core.isShackled }
+    /// 幻惑罠で現在フロア中の移動カードが伏せられているかどうか
+    var isIlluded: Bool { core.isIlluded }
     /// 毒状態の残りダメージ回数
     var poisonDamageTicksRemaining: Int { core.poisonDamageTicksRemaining }
     /// 次の毒ダメージまでの成功行動数
@@ -293,10 +295,10 @@ final class GameViewModel: ObservableObject {
         guard core.progress == .failed else { return nil }
         if mode.usesDungeonExit {
             if core.dungeonHP <= 0 {
+                if let turnLimit = core.effectiveDungeonTurnLimit, core.moveCount > turnLimit {
+                    return "疲労でHPが0になりました"
+                }
                 return "HPが0になりました"
-            }
-            if core.remainingDungeonTurns == 0 {
-                return "残り手数が0になりました"
             }
         }
         return "攻略に失敗しました"

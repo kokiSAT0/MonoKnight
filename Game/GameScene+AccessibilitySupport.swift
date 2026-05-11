@@ -45,6 +45,7 @@
                 for y in 0..<board.size {
                     for x in 0..<board.size {
                         let point = GridPoint(x: x, y: y)
+                        let isVisible = owner.dungeonVisiblePointsForAccessibility()?.contains(point) ?? true
                         let element = TileAccessibilityElement(point: point, owner: owner)
                         element.accessibilityFrameInContainerSpace = CGRect(
                             x: layout.gridOrigin.x + CGFloat(x) * layout.tileSize,
@@ -54,7 +55,9 @@
                         )
 
                         let statusText: String
-                        if let state = board.state(at: point) {
+                        if !isVisible {
+                            statusText = "暗闇"
+                        } else if let state = board.state(at: point) {
                             if state.isImpassable {
                                 statusText = "移動不可"
                             } else if state.isVisited {
@@ -70,7 +73,7 @@
                         if let knightPosition, point == knightPosition {
                             labelParts.append("駒あり")
                         }
-                        if let effect = board.effect(at: point) {
+                        if isVisible, let effect = board.effect(at: point) {
                             labelParts.append(effect.accessibilityLabel)
                         }
                         if owner.latestHighlightPoints(for: .dungeonRelicPickup).contains(point) {
@@ -104,6 +107,8 @@
                     return "足枷罠"
                 case .poisonTrap:
                     return "毒罠"
+                case .illusionTrap:
+                    return "幻惑罠"
                 case .swamp:
                     return "沼"
                 case .preserveCard:

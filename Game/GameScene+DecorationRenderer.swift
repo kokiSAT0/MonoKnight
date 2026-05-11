@@ -52,7 +52,8 @@
             board: Board,
             palette: GameScenePalette,
             layout: GameSceneLayoutSupport,
-            showsVisitedTileFill: Bool
+            showsVisitedTileFill: Bool,
+            visiblePoints: Set<GridPoint>?
         ) {
             guard layout.tileSize > 0 else { return }
 
@@ -72,7 +73,8 @@
                         board: board,
                         palette: palette,
                         layout: layout,
-                        showsVisitedTileFill: showsVisitedTileFill
+                        showsVisitedTileFill: showsVisitedTileFill,
+                        visiblePoints: visiblePoints
                     )
                 }
             }
@@ -86,7 +88,8 @@
             board: Board,
             palette: GameScenePalette,
             layout: GameSceneLayoutSupport,
-            showsVisitedTileFill: Bool
+            showsVisitedTileFill: Bool,
+            visiblePoints: Set<GridPoint>?
         ) {
             guard layout.tileSize > 0 else { return }
 
@@ -105,7 +108,8 @@
                     board: board,
                     palette: palette,
                     layout: layout,
-                    showsVisitedTileFill: showsVisitedTileFill
+                    showsVisitedTileFill: showsVisitedTileFill,
+                    visiblePoints: visiblePoints
                 )
             }
         }
@@ -126,7 +130,8 @@
             board: Board,
             palette: GameScenePalette,
             layout: GameSceneLayoutSupport,
-            showsVisitedTileFill: Bool
+            showsVisitedTileFill: Bool,
+            visiblePoints: Set<GridPoint>?
         ) {
             guard layout.tileSize > 0 else { return }
 
@@ -137,7 +142,8 @@
                     board: board,
                     palette: palette,
                     layout: layout,
-                    showsVisitedTileFill: showsVisitedTileFill
+                    showsVisitedTileFill: showsVisitedTileFill,
+                    visiblePoints: visiblePoints
                 )
             }
         }
@@ -188,8 +194,17 @@
             board: Board,
             palette: GameScenePalette,
             layout: GameSceneLayoutSupport,
-            showsVisitedTileFill: Bool
+            showsVisitedTileFill: Bool,
+            visiblePoints: Set<GridPoint>?
         ) {
+            guard visiblePoints?.contains(point) ?? true else {
+                node.fillColor = palette.boardBackground
+                applyHiddenDarknessStyle(to: node, palette: palette)
+                removeImpassableDecoration(from: node)
+                removeEffectDecoration(for: point)
+                return
+            }
+
             node.fillColor = tileFillColor(
                 for: point,
                 board: board,
@@ -259,6 +274,12 @@
         private func applySingleVisitStyle(to node: SKShapeNode, palette: GameScenePalette) {
             node.strokeColor = palette.boardGridLine
             node.lineWidth = 1
+        }
+
+        private func applyHiddenDarknessStyle(to node: SKShapeNode, palette: GameScenePalette) {
+            node.strokeColor = palette.boardGridLine.withAlphaComponent(0.18)
+            node.lineWidth = 1
+            node.glowWidth = 0
         }
 
         private func applyImpassableStyle(
@@ -498,6 +519,30 @@
                     effect: effect,
                     strokeNodes: [trapPlate],
                     fillNodes: [needle, droplet]
+                )
+            case .illusionTrap:
+                let trapPlate = SKShapeNode()
+                trapPlate.name = "tileEffectIllusionTrapPlate"
+                trapPlate.strokeColor = .clear
+                trapPlate.fillColor = .clear
+                trapPlate.lineWidth = 1
+                trapPlate.isAntialiased = true
+                trapPlate.blendMode = .alpha
+
+                let question = SKLabelNode(text: "?")
+                question.name = "tileEffectIllusionQuestion"
+                question.fontName = "AvenirNext-Heavy"
+                question.verticalAlignmentMode = .center
+                question.horizontalAlignmentMode = .center
+                question.blendMode = .alpha
+
+                container.addChild(trapPlate)
+                container.addChild(question)
+                return TileEffectDecorationCache(
+                    container: container,
+                    effect: effect,
+                    strokeNodes: [trapPlate],
+                    fillNodes: []
                 )
             case .shackleTrap:
                 let leftCuff = SKShapeNode()
@@ -860,6 +905,15 @@
                     transform: nil
                 )
                 droplet.position = CGPoint(x: layout.tileSize * 0.12, y: -layout.tileSize * 0.04)
+            case .illusionTrap:
+                guard let trapPlate = decoration.strokeNodes.first else { return }
+                trapPlate.path = paralysisTrapPlatePath(tileSize: layout.tileSize)
+                trapPlate.position = .zero
+                trapPlate.lineWidth = max(layout.tileSize * 0.035, 1.4)
+                if let question = decoration.container.childNode(withName: "tileEffectIllusionQuestion") as? SKLabelNode {
+                    question.fontSize = max(14, layout.tileSize * 0.58)
+                    question.position = CGPoint(x: 0, y: -layout.tileSize * 0.02)
+                }
             case .shackleTrap:
                 guard decoration.strokeNodes.count >= 4 else { return }
                 let cuffRadius = layout.tileSize * 0.13
@@ -1096,6 +1150,17 @@
                     node.fillColor = accent.withAlphaComponent(index == 0 ? 0.88 : 0.72)
                     node.strokeColor = index == 1 ? accent.withAlphaComponent(0.92) : .clear
                     node.alpha = 1.0
+                }
+            case .illusionTrap:
+                let accent = palette.boardTileEffectSlow
+                for node in decoration.strokeNodes {
+                    node.strokeColor = accent.withAlphaComponent(0.86)
+                    node.fillColor = accent.withAlphaComponent(0.12)
+                    node.alpha = 1.0
+                }
+                if let question = decoration.container.childNode(withName: "tileEffectIllusionQuestion") as? SKLabelNode {
+                    question.fontColor = accent.withAlphaComponent(0.96)
+                    question.alpha = 1.0
                 }
             case .shackleTrap:
                 let accent = palette.boardTileEffectSlow

@@ -296,8 +296,8 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
         let dangerPathPoint = GridPoint(x: 2, y: 0)
         let dangerDestinationPoint = GridPoint(x: 4, y: 0)
 
-        XCTAssertTrue(core.enemyDangerPoints.contains(dangerPathPoint))
-        XCTAssertTrue(core.enemyDangerPoints.contains(dangerDestinationPoint))
+        XCTAssertTrue(core.enemyDangerDisplayPoints.contains(dangerPathPoint))
+        XCTAssertTrue(core.enemyDangerDisplayPoints.contains(dangerDestinationPoint))
 
         viewModel.refreshGuideHighlights(
             handOverride: [rayStack],
@@ -315,7 +315,7 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
         )
         XCTAssertEqual(
             viewModel.scene.latestHighlightPoints(for: .dungeonDanger),
-            core.enemyDangerPoints,
+            core.enemyDangerDisplayPoints,
             "敵の危険範囲は赤塗りとして残します"
         )
         XCTAssertTrue(
@@ -421,7 +421,7 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
         )
         let viewModel = GameBoardBridgeViewModel(core: core, mode: mode)
         let initialEnemyStates = core.enemyStates
-        let initialDangerPoints = core.enemyDangerPoints(forDisplayedEnemyStates: initialEnemyStates)
+        let initialDangerPoints = core.enemyDangerDisplayPoints(forDisplayedEnemyStates: initialEnemyStates)
         let initialEnemyPoints = Set(initialEnemyStates.map(\.position))
         var replayStartEnemyPoints: Set<GridPoint> = []
         var replayStartDangerPoints: Set<GridPoint> = []
@@ -441,7 +441,7 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
         RunLoop.main.run(until: Date().addingTimeInterval(1.0))
 
         XCTAssertNotEqual(
-            core.enemyDangerPoints,
+            core.enemyDangerDisplayPoints,
             initialDangerPoints,
             "このテストでは Core の最終敵位置とリプレイ開始時の敵位置で危険範囲が変わる必要があります"
         )
@@ -623,8 +623,8 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
         )
         XCTAssertEqual(
             viewModel.scene.latestHighlightPoints(for: .dungeonDanger),
-            core.enemyDangerPoints,
-            "危険範囲表示は GameCore の判定集合と一致させます"
+            core.enemyDangerDisplayPoints,
+            "危険範囲表示は GameCore の表示用集合と一致させます"
         )
         XCTAssertEqual(
             viewModel.scene.latestHighlightPoints(for: .dungeonEnemyWarning),
@@ -863,6 +863,52 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
         )
     }
 
+    func testDarknessFloorLimitsBoardMarkersButKeepsStairsAndWatcherLaserVisible() throws {
+        let mode = makeDarknessVisibilityMode()
+        let core = GameCore(mode: mode)
+        let viewModel = GameBoardBridgeViewModel(core: core, mode: mode)
+
+        XCTAssertEqual(viewModel.scene.latestHighlightPoints(for: .dungeonExitLocked), [GridPoint(x: 4, y: 4)])
+        XCTAssertTrue(viewModel.scene.latestHighlightPoints(for: .dungeonKey).isEmpty)
+        XCTAssertEqual(viewModel.scene.latestHighlightPoints(for: .dungeonCardPickup), [GridPoint(x: 0, y: 1)])
+        XCTAssertEqual(viewModel.scene.latestHighlightPoints(for: .dungeonDamageTrap), [GridPoint(x: 1, y: 1)])
+        XCTAssertTrue(viewModel.scene.latestHighlightPoints(for: .dungeonEnemy).isEmpty)
+        XCTAssertEqual(
+            viewModel.scene.latestHighlightPoints(for: .dungeonDanger),
+            core.watcherLaserDangerDisplayPoints(forDisplayedEnemyStates: core.enemyStates)
+        )
+        XCTAssertTrue(viewModel.scene.latestHighlightPoints(for: .dungeonDanger).contains(GridPoint(x: 3, y: 2)))
+        XCTAssertTrue(viewModel.scene.latestDungeonVisiblePointsForTesting()?.contains(GridPoint(x: 4, y: 4)) == true)
+        XCTAssertTrue(viewModel.scene.latestDungeonVisiblePointsForTesting()?.contains(GridPoint(x: 3, y: 2)) == true)
+        XCTAssertFalse(viewModel.scene.latestDungeonVisiblePointsForTesting()?.contains(GridPoint(x: 4, y: 0)) == true)
+    }
+
+    func testDarknessFloorKeepsMeteorWarningsVisibleOutsideLocalVision() throws {
+        let mode = makeDarknessMeteorMode()
+        let core = GameCore(mode: mode)
+        let viewModel = GameBoardBridgeViewModel(core: core, mode: mode)
+        let warningPoints = core.enemyWarningPoints
+
+        XCTAssertFalse(warningPoints.isEmpty)
+        XCTAssertEqual(viewModel.scene.latestHighlightPoints(for: .dungeonEnemyWarning), warningPoints)
+        XCTAssertTrue(warningPoints.isSubset(of: viewModel.scene.latestDungeonVisiblePointsForTesting() ?? []))
+    }
+
+    func testRotatingWatcherDangerHighlightUsesNextTurnLine() {
+        let mode = makeRotatingWatcherDangerMode()
+        let core = GameCore(mode: mode)
+        let viewModel = GameBoardBridgeViewModel(core: core, mode: mode)
+
+        XCTAssertTrue(core.enemyDangerPoints.contains(GridPoint(x: 2, y: 2)))
+        XCTAssertFalse(core.enemyDangerPoints.contains(GridPoint(x: 3, y: 1)))
+        XCTAssertEqual(
+            viewModel.scene.latestHighlightPoints(for: .dungeonDanger),
+            core.enemyDangerDisplayPoints
+        )
+        XCTAssertTrue(viewModel.scene.latestHighlightPoints(for: .dungeonDanger).contains(GridPoint(x: 3, y: 1)))
+        XCTAssertFalse(viewModel.scene.latestHighlightPoints(for: .dungeonDanger).contains(GridPoint(x: 2, y: 2)))
+    }
+
     func testEnemyFreezeHidesThreatsButKeepsEnemyMarkers() throws {
         let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
         let floor = try XCTUnwrap(tower.floors.first { $0.id == "growth-17" })
@@ -889,11 +935,11 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
         core.overrideDamageBarrierTurnsRemainingForTesting(2)
         let viewModel = GameBoardBridgeViewModel(core: core, mode: mode)
 
-        XCTAssertFalse(core.enemyDangerPoints.isEmpty)
+        XCTAssertFalse(core.enemyDangerDisplayPoints.isEmpty)
         XCTAssertFalse(core.enemyWarningPoints.isEmpty)
         XCTAssertEqual(
             viewModel.scene.latestHighlightPoints(for: .dungeonDanger),
-            core.enemyDangerPoints
+            core.enemyDangerDisplayPoints
         )
         XCTAssertEqual(
             viewModel.scene.latestHighlightPoints(for: .dungeonEnemyWarning),
@@ -919,7 +965,7 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
             hpAfter: core.dungeonHP
         )
 
-        XCTAssertFalse(core.enemyDangerPoints.isEmpty, "成長塔17Fには敵の危険範囲が必要です")
+        XCTAssertFalse(core.enemyDangerDisplayPoints.isEmpty, "成長塔17Fには敵の危険範囲が必要です")
         XCTAssertFalse(core.enemyWarningPoints.isEmpty, "成長塔17Fにはメテオ兵の着弾予告マスが必要です")
 
         viewModel.playDungeonEnemyTurn(event)
@@ -1211,6 +1257,129 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
                     difficulty: .growth,
                     failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 8),
                     enemies: [patrol]
+                )
+            ),
+            leaderboardEligible: false
+        )
+    }
+
+    private func makeRotatingWatcherDangerMode() -> GameMode {
+        let rotatingWatcher = EnemyDefinition(
+            id: "display-rotating-watcher",
+            name: "回転見張り",
+            position: GridPoint(x: 2, y: 1),
+            behavior: .rotatingWatcher(
+                initialDirection: MoveVector(dx: 0, dy: 1),
+                rotationDirection: .clockwise,
+                range: 1
+            )
+        )
+
+        return GameMode(
+            identifier: .dungeonFloor,
+            displayName: "回転見張り危険表示テスト",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 0,
+                allowsStacking: true,
+                deckPreset: .standardLight,
+                spawnRule: .fixed(GridPoint(x: 0, y: 0)),
+                penalties: .init(
+                    deadlockPenaltyCost: 0,
+                    manualRedrawPenaltyCost: 0,
+                    manualDiscardPenaltyCost: 0,
+                    revisitPenaltyCost: 0
+                ),
+                completionRule: .dungeonExit(exitPoint: GridPoint(x: 4, y: 4)),
+                dungeonRules: DungeonRules(
+                    difficulty: .growth,
+                    failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 8),
+                    enemies: [rotatingWatcher]
+                )
+            ),
+            leaderboardEligible: false
+        )
+    }
+
+    private func makeDarknessVisibilityMode() -> GameMode {
+        GameMode(
+            identifier: .dungeonFloor,
+            displayName: "暗闇表示テスト",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 0,
+                allowsStacking: true,
+                deckPreset: .standardLight,
+                spawnRule: .fixed(GridPoint(x: 0, y: 0)),
+                penalties: .init(
+                    deadlockPenaltyCost: 0,
+                    manualRedrawPenaltyCost: 0,
+                    manualDiscardPenaltyCost: 0,
+                    revisitPenaltyCost: 0
+                ),
+                completionRule: .dungeonExit(exitPoint: GridPoint(x: 4, y: 4)),
+                dungeonRules: DungeonRules(
+                    difficulty: .growth,
+                    failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 8),
+                    enemies: [
+                        EnemyDefinition(
+                            id: "dark-watcher",
+                            name: "見張り",
+                            position: GridPoint(x: 4, y: 2),
+                            behavior: .watcher(direction: MoveVector(dx: -1, dy: 0), range: 4)
+                        )
+                    ],
+                    hazards: [
+                        .damageTrap(points: [GridPoint(x: 1, y: 1), GridPoint(x: 4, y: 0)], damage: 1)
+                    ],
+                    exitLock: DungeonExitLock(unlockPoint: GridPoint(x: 3, y: 3)),
+                    allowsBasicOrthogonalMove: true,
+                    cardAcquisitionMode: .inventoryOnly,
+                    cardPickups: [
+                        DungeonCardPickupDefinition(id: "visible-card", point: GridPoint(x: 0, y: 1), card: .straightRight2),
+                        DungeonCardPickupDefinition(id: "hidden-card", point: GridPoint(x: 4, y: 1), card: .straightUp2)
+                    ],
+                    isDarknessEnabled: true
+                )
+            ),
+            leaderboardEligible: false
+        )
+    }
+
+    private func makeDarknessMeteorMode() -> GameMode {
+        GameMode(
+            identifier: .dungeonFloor,
+            displayName: "暗闇メテオ表示テスト",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 0,
+                allowsStacking: true,
+                deckPreset: .standardLight,
+                spawnRule: .fixed(GridPoint(x: 0, y: 0)),
+                penalties: .init(
+                    deadlockPenaltyCost: 0,
+                    manualRedrawPenaltyCost: 0,
+                    manualDiscardPenaltyCost: 0,
+                    revisitPenaltyCost: 0
+                ),
+                completionRule: .dungeonExit(exitPoint: GridPoint(x: 4, y: 4)),
+                dungeonRules: DungeonRules(
+                    difficulty: .growth,
+                    failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 8),
+                    enemies: [
+                        EnemyDefinition(
+                            id: "dark-marker",
+                            name: "メテオ兵",
+                            position: GridPoint(x: 4, y: 0),
+                            behavior: .marker(directions: [], range: 2)
+                        )
+                    ],
+                    allowsBasicOrthogonalMove: true,
+                    cardAcquisitionMode: .inventoryOnly,
+                    isDarknessEnabled: true
                 )
             ),
             leaderboardEligible: false

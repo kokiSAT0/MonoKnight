@@ -19,7 +19,10 @@ public struct DungeonRunResumeSnapshot: Codable, Equatable {
     public let markerDamageMitigationsRemaining: Int
     public let enemyFreezeTurnsRemaining: Int
     public let damageBarrierTurnsRemaining: Int
+    public let isWatcherLaserSuppressed: Bool
+    public let isPatrolRailDestroyed: Bool
     public let isShackled: Bool
+    public let isIlluded: Bool
     public let poisonDamageTicksRemaining: Int
     public let poisonActionsUntilNextDamage: Int
     public let enemyStates: [EnemyState]
@@ -49,7 +52,10 @@ public struct DungeonRunResumeSnapshot: Codable, Equatable {
         markerDamageMitigationsRemaining: Int = 0,
         enemyFreezeTurnsRemaining: Int = 0,
         damageBarrierTurnsRemaining: Int = 0,
+        isWatcherLaserSuppressed: Bool = false,
+        isPatrolRailDestroyed: Bool = false,
         isShackled: Bool = false,
+        isIlluded: Bool = false,
         poisonDamageTicksRemaining: Int = 0,
         poisonActionsUntilNextDamage: Int = 0,
         enemyStates: [EnemyState],
@@ -78,7 +84,10 @@ public struct DungeonRunResumeSnapshot: Codable, Equatable {
         self.markerDamageMitigationsRemaining = max(markerDamageMitigationsRemaining, 0)
         self.enemyFreezeTurnsRemaining = max(enemyFreezeTurnsRemaining, 0)
         self.damageBarrierTurnsRemaining = max(damageBarrierTurnsRemaining, 0)
+        self.isWatcherLaserSuppressed = isWatcherLaserSuppressed
+        self.isPatrolRailDestroyed = isPatrolRailDestroyed
         self.isShackled = isShackled
+        self.isIlluded = isIlluded
         self.poisonDamageTicksRemaining = max(poisonDamageTicksRemaining, 0)
         self.poisonActionsUntilNextDamage = max(poisonActionsUntilNextDamage, 0)
         self.enemyStates = enemyStates
@@ -109,7 +118,10 @@ public struct DungeonRunResumeSnapshot: Codable, Equatable {
         case markerDamageMitigationsRemaining
         case enemyFreezeTurnsRemaining
         case damageBarrierTurnsRemaining
+        case isWatcherLaserSuppressed
+        case isPatrolRailDestroyed
         case isShackled
+        case isIlluded
         case poisonDamageTicksRemaining
         case poisonActionsUntilNextDamage
         case enemyStates
@@ -142,7 +154,10 @@ public struct DungeonRunResumeSnapshot: Codable, Equatable {
             markerDamageMitigationsRemaining: try container.decodeIfPresent(Int.self, forKey: .markerDamageMitigationsRemaining) ?? 0,
             enemyFreezeTurnsRemaining: try container.decodeIfPresent(Int.self, forKey: .enemyFreezeTurnsRemaining) ?? 0,
             damageBarrierTurnsRemaining: try container.decodeIfPresent(Int.self, forKey: .damageBarrierTurnsRemaining) ?? 0,
+            isWatcherLaserSuppressed: try container.decodeIfPresent(Bool.self, forKey: .isWatcherLaserSuppressed) ?? false,
+            isPatrolRailDestroyed: try container.decodeIfPresent(Bool.self, forKey: .isPatrolRailDestroyed) ?? false,
             isShackled: try container.decodeIfPresent(Bool.self, forKey: .isShackled) ?? false,
+            isIlluded: try container.decodeIfPresent(Bool.self, forKey: .isIlluded) ?? false,
             poisonDamageTicksRemaining: try container.decodeIfPresent(Int.self, forKey: .poisonDamageTicksRemaining) ?? 0,
             poisonActionsUntilNextDamage: try container.decodeIfPresent(Int.self, forKey: .poisonActionsUntilNextDamage) ?? 0,
             enemyStates: try container.decodeIfPresent([EnemyState].self, forKey: .enemyStates) ?? [],
@@ -175,7 +190,10 @@ public struct DungeonRunResumeSnapshot: Codable, Equatable {
         try container.encode(markerDamageMitigationsRemaining, forKey: .markerDamageMitigationsRemaining)
         try container.encode(enemyFreezeTurnsRemaining, forKey: .enemyFreezeTurnsRemaining)
         try container.encode(damageBarrierTurnsRemaining, forKey: .damageBarrierTurnsRemaining)
+        try container.encode(isWatcherLaserSuppressed, forKey: .isWatcherLaserSuppressed)
+        try container.encode(isPatrolRailDestroyed, forKey: .isPatrolRailDestroyed)
         try container.encode(isShackled, forKey: .isShackled)
+        try container.encode(isIlluded, forKey: .isIlluded)
         try container.encode(poisonDamageTicksRemaining, forKey: .poisonDamageTicksRemaining)
         try container.encode(poisonActionsUntilNextDamage, forKey: .poisonActionsUntilNextDamage)
         try container.encode(enemyStates, forKey: .enemyStates)

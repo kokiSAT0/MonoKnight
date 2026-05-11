@@ -982,10 +982,10 @@ private struct DungeonRelicAcquisitionItemRow: View {
         HStack(alignment: .top, spacing: 12) {
             ZStack {
                 Circle()
-                    .fill(theme.accentPrimary.opacity(0.14))
+                    .fill(itemTint.opacity(0.14))
                     .frame(width: 52, height: 52)
                 Circle()
-                    .stroke(theme.accentPrimary.opacity(isEmphasized ? 0.42 : 0.1), lineWidth: 2)
+                    .stroke(itemTint.opacity(isEmphasized ? 0.42 : 0.1), lineWidth: 2)
                     .frame(width: isEmphasized ? 58 : 48, height: isEmphasized ? 58 : 48)
                 Image(systemName: item.symbolName)
                     .font(.system(size: 24, weight: .semibold))
@@ -996,11 +996,25 @@ private struct DungeonRelicAcquisitionItemRow: View {
             .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 6) {
-                Text(item.displayName)
-                    .font(.system(size: 17, weight: .bold, design: .rounded))
-                    .foregroundColor(theme.textPrimary)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 8) {
+                    Text(item.displayName)
+                        .font(.system(size: 17, weight: .bold, design: .rounded))
+                        .foregroundColor(theme.textPrimary)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    if let badgeText {
+                        Text(badgeText)
+                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .foregroundColor(itemTint)
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 3)
+                            .background(
+                                Capsule()
+                                    .fill(itemTint.opacity(0.14))
+                            )
+                    }
+                }
 
                 Text(item.primaryDescription)
                     .font(.system(size: 14, weight: .medium, design: .rounded))
@@ -1030,17 +1044,43 @@ private struct DungeonRelicAcquisitionItemRow: View {
     }
 
     private var iconColor: Color {
+        itemTint
+    }
+
+    private var itemTint: Color {
         switch item {
-        case .curse, .mimicDamage:
+        case .curse(let curse):
+            return curse.displayKind.tintColor
+        case .mimicDamage:
             return Color(red: 0.82, green: 0.16, blue: 0.22)
         case .relic, .hpCompensation:
             return theme.accentPrimary
         }
     }
 
+    private var badgeText: String? {
+        switch item {
+        case .curse(let curse):
+            return curse.displayKind.displayName
+        case .relic, .mimicDamage, .hpCompensation:
+            return nil
+        }
+    }
+
     private var accessibilityLabel: Text {
         let detail = ([item.primaryDescription] + item.secondaryDescriptions).joined(separator: "。")
         return Text("\(item.displayName)。\(detail)")
+    }
+}
+
+private extension DungeonCurseDisplayKind {
+    var tintColor: Color {
+        switch self {
+        case .temporary:
+            return Color(red: 0.82, green: 0.16, blue: 0.22)
+        case .persistent:
+            return Color(red: 0.50, green: 0.22, blue: 0.78)
+        }
     }
 }
 
@@ -1233,6 +1273,10 @@ private struct SupportRewardCardIllustrationView: View {
             return "snowflake"
         case .barrierSpell:
             return "shield.fill"
+        case .darknessSpell:
+            return "moon.fill"
+        case .railBreakSpell:
+            return "point.topleft.down.to.point.bottomright.curvepath"
         case .antidote:
             return "cross.case.fill"
         case .panacea:

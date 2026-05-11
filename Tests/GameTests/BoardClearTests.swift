@@ -13,6 +13,7 @@ final class BoardClearTests: XCTestCase {
         let slowPoint = GridPoint(x: 1, y: 2)
         let shacklePoint = GridPoint(x: 2, y: 3)
         let poisonPoint = GridPoint(x: 3, y: 3)
+        let illusionPoint = GridPoint(x: 0, y: 1)
         let preserveCardPoint = GridPoint(x: 2, y: 1)
         let discardRandomPoint = GridPoint(x: 3, y: 1)
         let discardAllPoint = GridPoint(x: 3, y: 2)
@@ -28,6 +29,7 @@ final class BoardClearTests: XCTestCase {
                 slowPoint: .slow,
                 shacklePoint: .shackleTrap,
                 poisonPoint: .poisonTrap,
+                illusionPoint: .illusionTrap,
                 preserveCardPoint: .preserveCard,
                 discardRandomPoint: .discardRandomHand,
                 discardMovePoint: .discardAllMoveCards,
@@ -49,6 +51,8 @@ final class BoardClearTests: XCTestCase {
         XCTAssertEqual(board.state(at: shacklePoint)?.effect, .shackleTrap)
         XCTAssertEqual(board.effect(at: poisonPoint), .poisonTrap)
         XCTAssertEqual(board.state(at: poisonPoint)?.effect, .poisonTrap)
+        XCTAssertEqual(board.effect(at: illusionPoint), .illusionTrap)
+        XCTAssertEqual(board.state(at: illusionPoint)?.effect, .illusionTrap)
         XCTAssertEqual(board.effect(at: preserveCardPoint), .preserveCard)
         XCTAssertEqual(board.state(at: preserveCardPoint)?.effect, .preserveCard)
         XCTAssertEqual(board.effect(at: discardRandomPoint), .discardRandomHand)

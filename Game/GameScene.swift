@@ -146,6 +146,7 @@
         private var latestDungeonEnemyMarkers: [SceneDungeonEnemyMarker] = []
         private var latestPatrolRailPreviews: [ScenePatrolRailPreview] = []
         private var latestPatrolMovementPreviews: [ScenePatrolMovementPreview] = []
+        private var dungeonVisiblePoints: Set<GridPoint>?
         private var showsVisitedTileFill = true
         public private(set) var latestMovementPathForTesting: [GridPoint] = []
         public private(set) var latestMovementStepDurationForTesting: TimeInterval = 0
@@ -183,6 +184,7 @@
             latestDungeonEnemyMarkers = []
             latestPatrolRailPreviews = []
             latestPatrolMovementPreviews = []
+            dungeonVisiblePoints = nil
             showsVisitedTileFill = true
             latestMovementPathForTesting = []
             latestMovementStepDurationForTesting = 0
@@ -265,7 +267,8 @@
                 board: board,
                 palette: palette,
                 layout: layoutSupport,
-                showsVisitedTileFill: showsVisitedTileFill
+                showsVisitedTileFill: showsVisitedTileFill,
+                visiblePoints: dungeonVisiblePoints
             )
             knightAnimator.relayoutKnight(layout: layoutSupport)
             highlightRenderer.refreshAppearance(layout: layoutSupport, palette: palette)
@@ -300,6 +303,12 @@
         public func updateShowsVisitedTileFill(_ isEnabled: Bool) {
             guard showsVisitedTileFill != isEnabled else { return }
             showsVisitedTileFill = isEnabled
+            applyCurrentBoardStateToNodes(shouldLog: false)
+        }
+
+        public func updateDungeonVisiblePoints(_ visiblePoints: Set<GridPoint>?) {
+            guard dungeonVisiblePoints != visiblePoints else { return }
+            dungeonVisiblePoints = visiblePoints
             applyCurrentBoardStateToNodes(shouldLog: false)
         }
 
@@ -377,6 +386,14 @@
 
         public func latestDungeonEnemyMarkersForTesting() -> [SceneDungeonEnemyMarker] {
             latestDungeonEnemyMarkers
+        }
+
+        public func latestDungeonVisiblePointsForTesting() -> Set<GridPoint>? {
+            dungeonVisiblePoints
+        }
+
+        public func dungeonVisiblePointsForAccessibility() -> Set<GridPoint>? {
+            dungeonVisiblePoints
         }
 
         func patrolRailCountForTesting() -> Int {
@@ -476,7 +493,8 @@
                 board: board,
                 palette: palette,
                 layout: layoutSupport,
-                showsVisitedTileFill: showsVisitedTileFill
+                showsVisitedTileFill: showsVisitedTileFill,
+                visiblePoints: dungeonVisiblePoints
             )
             highlightRenderer.refreshAppearance(layout: layoutSupport, palette: palette)
         }
@@ -869,7 +887,8 @@
                     board: board,
                     palette: palette,
                     layout: layoutSupport,
-                    showsVisitedTileFill: showsVisitedTileFill
+                    showsVisitedTileFill: showsVisitedTileFill,
+                    visiblePoints: dungeonVisiblePoints
                 )
                 knightAnimator.setupKnight(
                     in: self,
@@ -949,7 +968,8 @@
                 board: board,
                 palette: palette,
                 layout: layoutSupport,
-                showsVisitedTileFill: showsVisitedTileFill
+                showsVisitedTileFill: showsVisitedTileFill,
+                visiblePoints: dungeonVisiblePoints
             )
             highlightRenderer.refreshAppearance(layout: layoutSupport, palette: palette)
             updateAccessibilityElements()

@@ -542,6 +542,33 @@ public enum DungeonCurseID: String, Codable, CaseIterable, Equatable, Identifiab
             return 0
         }
     }
+
+    public var displayKind: DungeonCurseDisplayKind {
+        startingUses > 0 ? .temporary : .persistent
+    }
+}
+
+public enum DungeonCurseDisplayKind: Equatable {
+    case temporary
+    case persistent
+
+    public var displayName: String {
+        switch self {
+        case .temporary:
+            return "一時呪い"
+        case .persistent:
+            return "永続呪い"
+        }
+    }
+
+    public var badgeText: String {
+        switch self {
+        case .temporary:
+            return "一"
+        case .persistent:
+            return "永"
+        }
+    }
 }
 
 /// ヘルプ内の呪い辞典で表示する 1 件分の情報
@@ -555,6 +582,7 @@ public struct DungeonCurseEncyclopediaEntry: Identifiable, Equatable {
     public var downsideDescription: String { curseID.downsideDescription }
     public var releaseDescription: String { curseID.releaseDescription }
     public var symbolName: String { curseID.symbolName }
+    public var displayKind: DungeonCurseDisplayKind { curseID.displayKind }
     public var encyclopediaDiscoveryID: EncyclopediaDiscoveryID { curseID.encyclopediaDiscoveryID }
 
     public init(curseID: DungeonCurseID) {
@@ -597,6 +625,7 @@ public struct DungeonCurseEntry: Codable, Equatable, Identifiable {
     public var releaseDescription: String { curseID.releaseDescription }
     public var symbolName: String { curseID.symbolName }
     public var hasLimitedUses: Bool { curseID.startingUses > 0 }
+    public var displayKind: DungeonCurseDisplayKind { curseID.displayKind }
 
     public init(curseID: DungeonCurseID, remainingUses: Int? = nil) {
         self.curseID = curseID
@@ -669,7 +698,7 @@ public struct DungeonRelicAcquisitionPresentation: Equatable, Identifiable {
             case .relic(let relic):
                 return relic.effectDescription
             case .curse(let curse):
-                return "利点: \(curse.upsideDescription)"
+                return "\(curse.displayKind.displayName) / 利点: \(curse.upsideDescription)"
             case .mimicDamage(let damage):
                 return "宝箱がミミック化し、HPを \(damage) 失いました。"
             case .hpCompensation(let amount):
@@ -1048,21 +1077,45 @@ public enum DungeonWeightedRewardPools {
                 (.rayRight, 6), (.rayUp, 6), (.rayLeft, 6), (.rayDown, 6),
                 (.rayUpRight, 3), (.rayUpLeft, 3), (.rayDownRight, 3), (.rayDownLeft, 3),
                 (.knightRightwardChoice, 4), (.knightUpwardChoice, 4), (.knightLeftwardChoice, 4), (.knightDownwardChoice, 3)
-            ]) + weightedSupports([(.refillEmptySlots, 3), (.singleAnnihilationSpell, 2), (.annihilationSpell, 1), (.antidote, 1), (.panacea, 1)])
+            ]) + weightedSupports([
+                (.refillEmptySlots, 3),
+                (.singleAnnihilationSpell, 2),
+                (.annihilationSpell, 1),
+                (.darknessSpell, 1),
+                (.railBreakSpell, 1),
+                (.antidote, 1),
+                (.panacea, 1)
+            ])
         case (.floors11To15, .clearReward):
             return weightedMoves([
                 (.rayRight, 7), (.rayUp, 7), (.rayLeft, 7), (.rayDown, 7),
                 (.rayUpRight, 4), (.rayUpLeft, 4), (.rayDownRight, 3), (.rayDownLeft, 3),
                 (.diagonalUpRight2, 5), (.diagonalUpLeft2, 5), (.diagonalDownLeft2, 4),
                 (.knightRightwardChoice, 5), (.knightUpwardChoice, 5), (.knightLeftwardChoice, 4)
-            ]) + weightedSupports([(.refillEmptySlots, 3), (.singleAnnihilationSpell, 2), (.annihilationSpell, 1), (.antidote, 1), (.panacea, 1)]) + weightedRelics()
+            ]) + weightedSupports([
+                (.refillEmptySlots, 3),
+                (.singleAnnihilationSpell, 2),
+                (.annihilationSpell, 1),
+                (.darknessSpell, 1),
+                (.railBreakSpell, 1),
+                (.antidote, 1),
+                (.panacea, 1)
+            ]) + weightedRelics()
         case (.floors16To20, .floorPickup):
             return weightedMoves([
                 (.rayRight, 8), (.rayUp, 8), (.rayLeft, 8), (.rayDown, 8),
                 (.rayUpRight, 5), (.rayUpLeft, 5), (.rayDownRight, 5), (.rayDownLeft, 5),
                 (.knightRightwardChoice, 6), (.knightUpwardChoice, 6), (.knightLeftwardChoice, 5), (.knightDownwardChoice, 5),
                 (.straightRight2, 5), (.straightUp2, 5), (.diagonalUpRight2, 5), (.diagonalDownLeft2, 5)
-            ]) + weightedSupports([(.refillEmptySlots, 2), (.singleAnnihilationSpell, 3), (.annihilationSpell, 2), (.antidote, 1), (.panacea, 1)])
+            ]) + weightedSupports([
+                (.refillEmptySlots, 2),
+                (.singleAnnihilationSpell, 3),
+                (.annihilationSpell, 2),
+                (.darknessSpell, 2),
+                (.railBreakSpell, 2),
+                (.antidote, 1),
+                (.panacea, 1)
+            ])
         case (.floors16To20, .clearReward):
             return weightedMoves([
                 (.rayRight, 9), (.rayUp, 9), (.rayLeft, 9), (.rayDown, 8),
@@ -1073,6 +1126,8 @@ public enum DungeonWeightedRewardPools {
                 (.refillEmptySlots, 2),
                 (.singleAnnihilationSpell, 3),
                 (.annihilationSpell, 2),
+                (.darknessSpell, 2),
+                (.railBreakSpell, 2),
                 (.freezeSpell, 2),
                 (.barrierSpell, 2),
                 (.antidote, 1),
@@ -1630,7 +1685,7 @@ public struct DungeonRunState: Codable, Equatable {
 
     public static func rewardUses(for support: SupportCard) -> Int {
         switch support {
-        case .refillEmptySlots, .singleAnnihilationSpell, .annihilationSpell, .freezeSpell, .barrierSpell, .antidote, .panacea:
+        case .refillEmptySlots, .singleAnnihilationSpell, .annihilationSpell, .freezeSpell, .barrierSpell, .darknessSpell, .railBreakSpell, .antidote, .panacea:
             return 1
         }
     }
@@ -1640,7 +1695,7 @@ public struct DungeonRunState: Codable, Equatable {
 public struct DungeonFailureRule: Codable, Equatable {
     /// 初期 HP。0 以下は 1 として扱う
     public var initialHP: Int
-    /// フロア内の最大移動手数。nil の場合は手数失敗なし
+    /// フロア内の疲労開始手数。nil の場合は疲労ダメージなし
     public var turnLimit: Int?
 
     public init(initialHP: Int, turnLimit: Int? = nil) {
@@ -2067,6 +2122,7 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
     public let relicPickups: [DungeonRelicPickupDefinition]
     public let rewardMoveCardsAfterClear: [MoveCard]
     public let rewardSupportCardsAfterClear: [SupportCard]
+    public let isDarknessEnabled: Bool
 
     public init(
         id: String,
@@ -2085,7 +2141,8 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
         cardPickups: [DungeonCardPickupDefinition] = [],
         relicPickups: [DungeonRelicPickupDefinition] = [],
         rewardMoveCardsAfterClear: [MoveCard] = [],
-        rewardSupportCardsAfterClear: [SupportCard] = []
+        rewardSupportCardsAfterClear: [SupportCard] = [],
+        isDarknessEnabled: Bool = false
     ) {
         self.id = id
         self.title = title
@@ -2102,6 +2159,7 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
         self.exitLock = exitLock
         self.cardPickups = cardPickups
         self.relicPickups = relicPickups
+        self.isDarknessEnabled = isDarknessEnabled
         var uniqueRewardMoveCards: [MoveCard] = []
         for card in rewardMoveCardsAfterClear where !uniqueRewardMoveCards.contains(card) {
             uniqueRewardMoveCards.append(card)
@@ -2132,6 +2190,7 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
         case relicPickups
         case rewardMoveCardsAfterClear
         case rewardSupportCardsAfterClear
+        case isDarknessEnabled
     }
 
     public init(from decoder: Decoder) throws {
@@ -2153,7 +2212,8 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
             cardPickups: try container.decodeIfPresent([DungeonCardPickupDefinition].self, forKey: .cardPickups) ?? [],
             relicPickups: try container.decodeIfPresent([DungeonRelicPickupDefinition].self, forKey: .relicPickups) ?? [],
             rewardMoveCardsAfterClear: try container.decodeIfPresent([MoveCard].self, forKey: .rewardMoveCardsAfterClear) ?? [],
-            rewardSupportCardsAfterClear: try container.decodeIfPresent([SupportCard].self, forKey: .rewardSupportCardsAfterClear) ?? []
+            rewardSupportCardsAfterClear: try container.decodeIfPresent([SupportCard].self, forKey: .rewardSupportCardsAfterClear) ?? [],
+            isDarknessEnabled: try container.decodeIfPresent(Bool.self, forKey: .isDarknessEnabled) ?? false
         )
     }
 
@@ -2176,6 +2236,7 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
         try container.encode(relicPickups, forKey: .relicPickups)
         try container.encode(rewardMoveCardsAfterClear, forKey: .rewardMoveCardsAfterClear)
         try container.encode(rewardSupportCardsAfterClear, forKey: .rewardSupportCardsAfterClear)
+        try container.encode(isDarknessEnabled, forKey: .isDarknessEnabled)
     }
 
     public func makeGameMode(
@@ -2219,7 +2280,8 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
                     allowsBasicOrthogonalMove: true,
                     cardAcquisitionMode: .inventoryOnly,
                     cardPickups: cardPickups,
-                    relicPickups: relicPickups
+                    relicPickups: relicPickups,
+                    isDarknessEnabled: isDarknessEnabled
                 )
             ),
             leaderboardEligible: false,
@@ -2249,7 +2311,8 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
             cardPickups: cardPickups,
             relicPickups: relicPickups,
             rewardMoveCardsAfterClear: rewardMoveCardsAfterClear,
-            rewardSupportCardsAfterClear: rewardSupportCardsAfterClear
+            rewardSupportCardsAfterClear: rewardSupportCardsAfterClear,
+            isDarknessEnabled: isDarknessEnabled
         )
     }
 
@@ -2271,7 +2334,8 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
             cardPickups: cardPickups + additionalCardPickups,
             relicPickups: relicPickups,
             rewardMoveCardsAfterClear: rewardMoveCardsAfterClear,
-            rewardSupportCardsAfterClear: rewardSupportCardsAfterClear
+            rewardSupportCardsAfterClear: rewardSupportCardsAfterClear,
+            isDarknessEnabled: isDarknessEnabled
         )
     }
 
@@ -2293,7 +2357,8 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
             cardPickups: cardPickups,
             relicPickups: relicPickups + additionalRelicPickups,
             rewardMoveCardsAfterClear: rewardMoveCardsAfterClear,
-            rewardSupportCardsAfterClear: rewardSupportCardsAfterClear
+            rewardSupportCardsAfterClear: rewardSupportCardsAfterClear,
+            isDarknessEnabled: isDarknessEnabled
         )
     }
 
@@ -2315,7 +2380,8 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
             cardPickups: cardPickups,
             relicPickups: relicPickups,
             rewardMoveCardsAfterClear: rewardMoveCardsAfterClear,
-            rewardSupportCardsAfterClear: rewardSupportCardsAfterClear
+            rewardSupportCardsAfterClear: rewardSupportCardsAfterClear,
+            isDarknessEnabled: isDarknessEnabled
         )
     }
 
@@ -2337,7 +2403,8 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
             cardPickups: cardPickups,
             relicPickups: relicPickups,
             rewardMoveCardsAfterClear: rewardMoveCardsAfterClear,
-            rewardSupportCardsAfterClear: rewardSupportCardsAfterClear
+            rewardSupportCardsAfterClear: rewardSupportCardsAfterClear,
+            isDarknessEnabled: isDarknessEnabled
         )
     }
 
@@ -2359,7 +2426,8 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
             cardPickups: cardPickups,
             relicPickups: relicPickups,
             rewardMoveCardsAfterClear: rewardMoveCardsAfterClear,
-            rewardSupportCardsAfterClear: rewardSupportCardsAfterClear
+            rewardSupportCardsAfterClear: rewardSupportCardsAfterClear,
+            isDarknessEnabled: isDarknessEnabled
         )
     }
 
@@ -2388,7 +2456,8 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
             cardPickups: cardPickups,
             relicPickups: relicPickups,
             rewardMoveCardsAfterClear: rewardMoveCardsAfterClear,
-            rewardSupportCardsAfterClear: rewardSupportCardsAfterClear
+            rewardSupportCardsAfterClear: rewardSupportCardsAfterClear,
+            isDarknessEnabled: isDarknessEnabled
         )
     }
 }
@@ -2509,7 +2578,8 @@ private enum DungeonCardVariationResolver {
             cardPickups: cardPickups,
             relicPickups: relicPickups,
             rewardMoveCardsAfterClear: rewardCards.compactMap(\.move),
-            rewardSupportCardsAfterClear: rewardCards.compactMap(\.support)
+            rewardSupportCardsAfterClear: rewardCards.compactMap(\.support),
+            isDarknessEnabled: floor.isDarknessEnabled
         )
     }
 
@@ -2541,7 +2611,8 @@ private enum DungeonCardVariationResolver {
             cardPickups: floor.cardPickups,
             relicPickups: floor.relicPickups,
             rewardMoveCardsAfterClear: floor.rewardMoveCardsAfterClear,
-            rewardSupportCardsAfterClear: floor.rewardSupportCardsAfterClear
+            rewardSupportCardsAfterClear: floor.rewardSupportCardsAfterClear,
+            isDarknessEnabled: floor.isDarknessEnabled
         )
     }
 
@@ -3197,6 +3268,8 @@ public struct DungeonRules: Codable, Equatable {
     public var cardPickups: [DungeonCardPickupDefinition]
     /// この GameMode で解決済みの宝箱配置
     public var relicPickups: [DungeonRelicPickupDefinition]
+    /// 暗闇フロアとして、盤面情報の表示を現在地周辺と常時可視要素へ制限するか
+    public var isDarknessEnabled: Bool
 
     public init(
         difficulty: DungeonDifficulty,
@@ -3207,7 +3280,8 @@ public struct DungeonRules: Codable, Equatable {
         allowsBasicOrthogonalMove: Bool = false,
         cardAcquisitionMode: DungeonCardAcquisitionMode = .deck,
         cardPickups: [DungeonCardPickupDefinition] = [],
-        relicPickups: [DungeonRelicPickupDefinition] = []
+        relicPickups: [DungeonRelicPickupDefinition] = [],
+        isDarknessEnabled: Bool = false
     ) {
         self.difficulty = difficulty
         self.failureRule = failureRule
@@ -3218,6 +3292,7 @@ public struct DungeonRules: Codable, Equatable {
         self.cardAcquisitionMode = cardAcquisitionMode
         self.cardPickups = cardPickups
         self.relicPickups = relicPickups
+        self.isDarknessEnabled = isDarknessEnabled
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -3230,6 +3305,7 @@ public struct DungeonRules: Codable, Equatable {
         case cardAcquisitionMode
         case cardPickups
         case relicPickups
+        case isDarknessEnabled
     }
 
     public init(from decoder: Decoder) throws {
@@ -3243,6 +3319,7 @@ public struct DungeonRules: Codable, Equatable {
         cardAcquisitionMode = try container.decodeIfPresent(DungeonCardAcquisitionMode.self, forKey: .cardAcquisitionMode) ?? .deck
         cardPickups = try container.decodeIfPresent([DungeonCardPickupDefinition].self, forKey: .cardPickups) ?? []
         relicPickups = try container.decodeIfPresent([DungeonRelicPickupDefinition].self, forKey: .relicPickups) ?? []
+        isDarknessEnabled = try container.decodeIfPresent(Bool.self, forKey: .isDarknessEnabled) ?? false
     }
 }
 
@@ -3707,7 +3784,8 @@ public struct DungeonLibrary {
             cardPickups: floor.cardPickups,
             relicPickups: floor.relicPickups,
             rewardMoveCardsAfterClear: rewardMoveCardsAfterClear ?? floor.rewardMoveCardsAfterClear,
-            rewardSupportCardsAfterClear: floor.rewardSupportCardsAfterClear
+            rewardSupportCardsAfterClear: floor.rewardSupportCardsAfterClear,
+            isDarknessEnabled: floor.isDarknessEnabled
         )
     }
 
@@ -3735,7 +3813,8 @@ public struct DungeonLibrary {
             cardPickups: cardPickups,
             relicPickups: floor.relicPickups,
             rewardMoveCardsAfterClear: rewardMoveCardsAfterClear ?? floor.rewardMoveCardsAfterClear,
-            rewardSupportCardsAfterClear: floor.rewardSupportCardsAfterClear
+            rewardSupportCardsAfterClear: floor.rewardSupportCardsAfterClear,
+            isDarknessEnabled: floor.isDarknessEnabled
         )
     }
 
@@ -4187,7 +4266,7 @@ public struct DungeonLibrary {
     private static func buildGrowthTowerSeventeenthFloor() -> DungeonFloorDefinition {
         DungeonFloorDefinition(
             id: "growth-17",
-            title: "鍵の遠回り",
+            title: "暗闇の遠回り",
             boardSize: standardTowerBoardSize,
             spawnPoint: GridPoint(x: 0, y: 0),
             exitPoint: GridPoint(x: 8, y: 8),
@@ -4218,14 +4297,15 @@ public struct DungeonLibrary {
                 DungeonCardPickupDefinition(id: "growth-17-diagonal", point: GridPoint(x: 6, y: 6), card: .diagonalUpRight2)
             ],
             rewardMoveCardsAfterClear: [.straightRight2, .knightRightwardChoice],
-            rewardSupportCardsAfterClear: [.annihilationSpell]
+            rewardSupportCardsAfterClear: [.annihilationSpell],
+            isDarknessEnabled: true
         )
     }
 
     private static func buildGrowthTowerEighteenthFloor() -> DungeonFloorDefinition {
         DungeonFloorDefinition(
             id: "growth-18",
-            title: "罠と転移の選択",
+            title: "暗闇の射線",
             boardSize: standardTowerBoardSize,
             spawnPoint: GridPoint(x: 0, y: 0),
             exitPoint: GridPoint(x: 8, y: 8),
@@ -4274,14 +4354,15 @@ public struct DungeonLibrary {
                 DungeonCardPickupDefinition(id: "growth-18-up2", point: GridPoint(x: 8, y: 6), card: .straightUp2)
             ],
             rewardMoveCardsAfterClear: [.diagonalDownLeft2, .rayLeft],
-            rewardSupportCardsAfterClear: [.freezeSpell]
+            rewardSupportCardsAfterClear: [.freezeSpell],
+            isDarknessEnabled: true
         )
     }
 
     private static func buildGrowthTowerNineteenthFloor() -> DungeonFloorDefinition {
         DungeonFloorDefinition(
             id: "growth-19",
-            title: "最終前哨",
+            title: "暗闇の前哨",
             boardSize: standardTowerBoardSize,
             spawnPoint: GridPoint(x: 0, y: 2),
             exitPoint: GridPoint(x: 8, y: 8),
@@ -4305,6 +4386,7 @@ public struct DungeonLibrary {
             ],
             tileEffectOverrides: [
                 GridPoint(x: 3, y: 3): .poisonTrap,
+                GridPoint(x: 6, y: 2): .illusionTrap,
                 GridPoint(x: 8, y: 4): .shackleTrap
             ],
             cardPickups: [
@@ -4316,7 +4398,8 @@ public struct DungeonLibrary {
                 DungeonRelicPickupDefinition(id: "growth-19-relic", point: GridPoint(x: 6, y: 1), kind: .suspiciousDeep)
             ],
             rewardMoveCardsAfterClear: [.straightRight2, .diagonalUpRight2],
-            rewardSupportCardsAfterClear: [.barrierSpell]
+            rewardSupportCardsAfterClear: [.barrierSpell],
+            isDarknessEnabled: true
         )
     }
 

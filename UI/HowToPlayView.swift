@@ -149,7 +149,7 @@ private extension HowToPlayView {
             // MARK: - ペナルティの説明
             HowToPlaySectionView(
                 title: "5. 失敗しても成長塔で伸ばす",
-                description: "HP が 0 になると失敗です。残り手数 0 も失敗ですが、通常ルートには余裕があります。成長塔では区切り階の初回クリアで成長ポイントを得て、次の挑戦を少し有利にできます。",
+                description: "HP が 0 になると失敗です。残り手数 0 の後も続行できますが、超過1手目と以後3手ごとに疲労でHPを失います。成長塔では区切り階の初回クリアで成長ポイントを得て、次の挑戦を少し有利にできます。",
                 card: nil,
                 tips: [
                     "失敗したときは現在の区間開始階から再挑戦します。",
@@ -514,6 +514,10 @@ private struct SupportCardEncyclopediaRow: View {
             return "snowflake"
         case .barrierSpell:
             return "shield.fill"
+        case .darknessSpell:
+            return "moon.fill"
+        case .railBreakSpell:
+            return "point.topleft.down.to.point.bottomright.curvepath"
         case .antidote:
             return "cross.case.fill"
         case .panacea:
@@ -563,6 +567,7 @@ private struct EnemyEncyclopediaRow: View {
 }
 
 // MARK: - 敵辞典用プレビュー
+// 盤面アイコンを正本として、辞典では同じ意味の縮小プレビューを表示する。
 private struct EnemyMarkerPreviewView: View {
     let kind: EnemyPresentationKind
 
@@ -596,14 +601,14 @@ private struct EnemyMarkerPreviewView: View {
                 .fill(fill)
                 .overlay(ShieldMarkerShape().stroke(stroke, lineWidth: 2))
         case .patrol:
-            DiamondShape()
-                .fill(fill)
-                .overlay(DiamondShape().stroke(stroke, lineWidth: 2))
-                .overlay(
-                    Image(systemName: "arrow.right")
-                        .font(.system(size: 12, weight: .black))
-                        .foregroundColor(stroke)
-                )
+            ZStack {
+                DiamondShape()
+                    .fill(fill)
+                    .overlay(DiamondShape().stroke(stroke, lineWidth: markerStrokeWidth))
+                PatrolFacingGlyphShape(vector: MoveVector(dx: 1, dy: 0))
+                    .stroke(stroke, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+                    .frame(width: 23, height: 23)
+            }
         case .watcher:
             EyeMarkerShape()
                 .fill(fill)
@@ -614,23 +619,18 @@ private struct EnemyMarkerPreviewView: View {
                 .fill(fill)
                 .overlay(EyeMarkerShape().stroke(stroke, lineWidth: markerStrokeWidth))
                 .overlay(
-                    Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(stroke)
+                    RotatingWatcherPupilArrowShape(direction: .clockwise)
+                        .stroke(stroke, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+                        .frame(width: 22, height: 22)
                 )
         case .chaser:
             ChaserMarkerShape()
                 .fill(fill)
-                .overlay(ChaserMarkerShape().stroke(stroke, lineWidth: 2))
+                .overlay(ChaserMarkerShape().stroke(stroke, lineWidth: markerStrokeWidth))
         case .marker:
-            TriangleShape()
+            MeteorEnemyMarkerShape()
                 .fill(fill)
-                .overlay(TriangleShape().stroke(stroke, lineWidth: 2))
-                .overlay(
-                    Image(systemName: "exclamationmark")
-                        .font(.system(size: 15, weight: .black))
-                        .foregroundColor(stroke)
-                )
+                .overlay(MeteorEnemyMarkerShape().stroke(stroke, lineWidth: markerStrokeWidth))
         }
     }
 
@@ -638,6 +638,8 @@ private struct EnemyMarkerPreviewView: View {
         switch kind {
         case .rotatingWatcher:
             return CGSize(width: 40, height: 38)
+        case .marker:
+            return CGSize(width: 38, height: 34)
         default:
             return CGSize(width: 31, height: 31)
         }
@@ -650,34 +652,34 @@ private struct EnemyMarkerPreviewView: View {
     private var fill: Color {
         switch kind {
         case .guardPost:
-            return Color.red.opacity(0.24)
+            return Color(red: 0.82, green: 0.16, blue: 0.16).opacity(0.36)
         case .patrol:
-            return Color.orange.opacity(0.24)
+            return Color(red: 0.95, green: 0.45, blue: 0.12).opacity(0.34)
         case .watcher:
-            return Color.pink.opacity(0.22)
+            return Color(red: 0.72, green: 0.20, blue: 0.58).opacity(0.34)
         case .rotatingWatcher:
             return .clear
         case .chaser:
-            return Color.teal.opacity(0.24)
+            return Color(red: 0.10, green: 0.53, blue: 0.52).opacity(0.34)
         case .marker:
-            return Color.yellow.opacity(0.28)
+            return Color(red: 0.96, green: 0.30, blue: 0.12).opacity(0.34)
         }
     }
 
     private var stroke: Color {
         switch kind {
         case .guardPost:
-            return .red
+            return Color(red: 0.92, green: 0.20, blue: 0.18).opacity(0.96)
         case .patrol:
-            return .orange
+            return Color(red: 1.00, green: 0.56, blue: 0.18).opacity(0.96)
         case .watcher:
-            return .pink
+            return Color(red: 0.90, green: 0.28, blue: 0.74).opacity(0.96)
         case .rotatingWatcher:
-            return .indigo
+            return Color(red: 0.62, green: 0.50, blue: 1.00).opacity(0.96)
         case .chaser:
-            return .teal
+            return Color(red: 0.13, green: 0.74, blue: 0.70).opacity(0.96)
         case .marker:
-            return .yellow
+            return Color(red: 1.00, green: 0.46, blue: 0.16).opacity(0.96)
         }
     }
 }
@@ -741,11 +743,22 @@ private struct CurseEncyclopediaRow: View {
         IconEncyclopediaRow(
             symbolName: entry.symbolName,
             title: entry.displayName,
-            primaryDescription: "利点: \(entry.upsideDescription)",
+            primaryDescription: "\(entry.displayKind.displayName) / 利点: \(entry.upsideDescription)",
             secondaryDescription: "代償: \(entry.downsideDescription) / \(entry.releaseDescription)",
             isUnlocked: isUnlocked,
-            tint: .red
+            tint: entry.displayKind.tintColor
         )
+    }
+}
+
+private extension DungeonCurseDisplayKind {
+    var tintColor: Color {
+        switch self {
+        case .temporary:
+            return Color(red: 0.82, green: 0.16, blue: 0.22)
+        case .persistent:
+            return Color(red: 0.50, green: 0.22, blue: 0.78)
+        }
     }
 }
 
@@ -958,15 +971,9 @@ private struct TileMarkerPreviewView: View {
                 .font(.system(size: 22, weight: .semibold))
                 .foregroundColor(theme.boardTileEffectPreserveCard)
         case .damageTrap:
-            ZStack {
-                TriangleShape()
-                    .fill(theme.boardTileEffectSlow.opacity(0.22))
-                    .frame(width: 32, height: 28)
-                    .rotationEffect(.degrees(180))
-                Image(systemName: "exclamationmark")
-                    .font(.system(size: 19, weight: .black))
-                    .foregroundColor(theme.boardTileEffectSlow)
-            }
+            SpikeTrapMarkerShape()
+                .fill(Color(red: 0.82, green: 0.10, blue: 0.08).opacity(0.70))
+                .frame(width: 34, height: 32)
         case .lavaTile:
             ZStack {
                 FlameShape()
@@ -1010,28 +1017,17 @@ private struct TileMarkerPreviewView: View {
                 .font(.system(size: 20, weight: .bold))
                 .foregroundColor(.white.opacity(0.78))
         case .enemyDanger:
-            Circle()
-                .fill(theme.boardTileEffectSlow.opacity(0.18))
-                .overlay(Circle().stroke(theme.boardTileEffectSlow, lineWidth: 2))
-                .frame(width: 31, height: 31)
-                .overlay(
-                    Image(systemName: "eye.fill")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(theme.boardTileEffectSlow)
-                )
+            RoundedRectangle(cornerRadius: 3, style: .continuous)
+                .fill(Color(red: 0.90, green: 0.16, blue: 0.12).opacity(0.16))
+                .frame(width: 38, height: 38)
         case .enemyWarning:
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .fill(theme.boardTileEffectPreserveCard.opacity(0.16))
+            MeteorWarningMarkerShape()
+                .fill(Color(red: 1.0, green: 0.34, blue: 0.10).opacity(0.16))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 7, style: .continuous)
-                        .stroke(theme.boardTileEffectPreserveCard, style: StrokeStyle(lineWidth: 2, dash: [4, 3]))
+                    MeteorWarningMarkerShape()
+                        .stroke(Color(red: 1.0, green: 0.34, blue: 0.10).opacity(0.86), lineWidth: 2)
                 )
                 .frame(width: 32, height: 32)
-                .overlay(
-                    Image(systemName: "arrow.right")
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundColor(theme.boardTileEffectPreserveCard)
-                )
         case .impassable:
             Image(systemName: "xmark")
                 .font(.system(size: 20, weight: .bold))
@@ -1146,6 +1142,18 @@ private struct TileEffectMarkerView: View {
                     .rotationEffect(.degrees(45))
                     .offset(x: -8, y: -5)
             }
+        case .illusionTrap:
+            ZStack {
+                DiamondShape()
+                    .fill(accent.opacity(0.14))
+                    .frame(width: 31, height: 31)
+                DiamondShape()
+                    .stroke(accent.opacity(0.86), lineWidth: 2)
+                    .frame(width: 31, height: 31)
+                Text("?")
+                    .font(.system(size: 23, weight: .heavy, design: .rounded))
+                    .foregroundStyle(accent)
+            }
         case .swamp:
             ZStack {
                 Capsule()
@@ -1228,6 +1236,8 @@ private struct TileEffectMarkerView: View {
             return theme.boardTileEffectSlow
         case .poisonTrap:
             return theme.boardTileEffectSlow
+        case .illusionTrap:
+            return theme.boardTileEffectSlow
         case .swamp:
             return theme.boardTileEffectSwamp
         case .preserveCard:
@@ -1245,6 +1255,150 @@ private struct DiamondShape: Shape {
         path.addLine(to: CGPoint(x: rect.maxX, y: rect.midY))
         path.addLine(to: CGPoint(x: rect.midX, y: rect.maxY))
         path.addLine(to: CGPoint(x: rect.minX, y: rect.midY))
+        path.closeSubpath()
+        return path
+    }
+}
+
+private struct PatrolFacingGlyphShape: Shape {
+    let vector: MoveVector
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let dx = CGFloat(vector.dx)
+        let dy = -CGFloat(vector.dy)
+        let length = max(sqrt(dx * dx + dy * dy), 1.0)
+        let unitX = dx / length
+        let unitY = dy / length
+        let perpendicularX = -unitY
+        let perpendicularY = unitX
+        let radius = min(rect.width, rect.height) / 2
+        let center = CGPoint(x: rect.midX, y: rect.midY)
+
+        let tailDistance = radius * 0.54
+        let tipDistance = radius * 0.54
+        let headBackDistance = radius * 0.32
+        let headSpread = radius * 0.26
+        let tail = CGPoint(x: center.x - unitX * tailDistance, y: center.y - unitY * tailDistance)
+        let tip = CGPoint(x: center.x + unitX * tipDistance, y: center.y + unitY * tipDistance)
+        let headBase = CGPoint(
+            x: tip.x - unitX * headBackDistance,
+            y: tip.y - unitY * headBackDistance
+        )
+        let leftHead = CGPoint(
+            x: headBase.x + perpendicularX * headSpread,
+            y: headBase.y + perpendicularY * headSpread
+        )
+        let rightHead = CGPoint(
+            x: headBase.x - perpendicularX * headSpread,
+            y: headBase.y - perpendicularY * headSpread
+        )
+
+        path.move(to: tail)
+        path.addLine(to: tip)
+        path.move(to: leftHead)
+        path.addLine(to: tip)
+        path.addLine(to: rightHead)
+        return path
+    }
+}
+
+private struct RotatingWatcherPupilArrowShape: Shape {
+    let direction: RotatingWatcherDirection
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let center = CGPoint(x: rect.midX, y: rect.midY)
+        let radius = min(rect.width, rect.height) / 2
+        let arcRadius = radius * 0.64
+
+        switch direction {
+        case .clockwise:
+            path.addArc(
+                center: center,
+                radius: arcRadius,
+                startAngle: .degrees(22),
+                endAngle: .degrees(295),
+                clockwise: false
+            )
+            path.move(to: CGPoint(x: center.x + radius * 0.54, y: center.y - radius * 0.34))
+            path.addLine(to: CGPoint(x: center.x + radius * 0.82, y: center.y - radius * 0.04))
+            path.addLine(to: CGPoint(x: center.x + radius * 0.42, y: center.y + radius * 0.10))
+        case .counterclockwise:
+            path.addArc(
+                center: center,
+                radius: arcRadius,
+                startAngle: .degrees(158),
+                endAngle: .degrees(-115),
+                clockwise: true
+            )
+            path.move(to: CGPoint(x: center.x - radius * 0.54, y: center.y - radius * 0.34))
+            path.addLine(to: CGPoint(x: center.x - radius * 0.82, y: center.y - radius * 0.04))
+            path.addLine(to: CGPoint(x: center.x - radius * 0.42, y: center.y + radius * 0.10))
+        }
+        return path
+    }
+}
+
+private struct MeteorEnemyMarkerShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let radius = min(rect.width, rect.height) * 0.27
+        let center = CGPoint(x: rect.midX + rect.width * 0.10, y: rect.midY + rect.height * 0.09)
+
+        path.move(to: CGPoint(x: center.x - radius * 0.88, y: center.y - radius * 0.74))
+        path.addLine(to: CGPoint(x: center.x - radius * 0.28, y: center.y - radius * 0.34))
+        path.move(to: CGPoint(x: center.x - radius * 0.98, y: center.y - radius * 0.24))
+        path.addLine(to: CGPoint(x: center.x - radius * 0.36, y: center.y + radius * 0.02))
+        path.addEllipse(in: CGRect(
+            x: center.x - radius * 0.24,
+            y: center.y - radius * 0.52,
+            width: radius * 1.04,
+            height: radius * 1.04
+        ))
+        path.move(to: CGPoint(x: center.x + radius * 0.10, y: center.y + radius * 0.16))
+        path.addLine(to: CGPoint(x: center.x + radius * 0.62, y: center.y + radius * 0.48))
+        path.move(to: CGPoint(x: center.x + radius * 0.10, y: center.y + radius * 0.16))
+        path.addLine(to: CGPoint(x: center.x + radius * 0.38, y: center.y - radius * 0.40))
+        return path
+    }
+}
+
+private struct MeteorWarningMarkerShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let center = CGPoint(x: rect.midX, y: rect.midY)
+        let radius = min(rect.width, rect.height) * 0.34
+        path.addEllipse(in: CGRect(
+            x: center.x - radius,
+            y: center.y - radius,
+            width: radius * 2,
+            height: radius * 2
+        ))
+        path.move(to: CGPoint(x: center.x - radius * 0.38, y: center.y))
+        path.addLine(to: CGPoint(x: center.x + radius * 0.38, y: center.y))
+        path.move(to: CGPoint(x: center.x, y: center.y - radius * 0.38))
+        path.addLine(to: CGPoint(x: center.x, y: center.y + radius * 0.38))
+        return path
+    }
+}
+
+private struct SpikeTrapMarkerShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let baseTopY = rect.midY + rect.height * 0.14
+        let baseBottomY = rect.midY + rect.height * 0.29
+        let leftX = rect.midX - rect.width * 0.46
+        let rightX = rect.midX + rect.width * 0.46
+        path.move(to: CGPoint(x: leftX, y: baseBottomY))
+        path.addLine(to: CGPoint(x: leftX, y: baseTopY))
+        path.addLine(to: CGPoint(x: rect.midX - rect.width * 0.32, y: rect.midY - rect.height * 0.18))
+        path.addLine(to: CGPoint(x: rect.midX - rect.width * 0.16, y: baseTopY - rect.height * 0.02))
+        path.addLine(to: CGPoint(x: rect.midX, y: rect.midY - rect.height * 0.28))
+        path.addLine(to: CGPoint(x: rect.midX + rect.width * 0.16, y: baseTopY - rect.height * 0.02))
+        path.addLine(to: CGPoint(x: rect.midX + rect.width * 0.32, y: rect.midY - rect.height * 0.18))
+        path.addLine(to: CGPoint(x: rightX, y: baseTopY))
+        path.addLine(to: CGPoint(x: rightX, y: baseBottomY))
         path.closeSubpath()
         return path
     }

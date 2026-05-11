@@ -160,12 +160,25 @@ final class GameHandSectionViewAccessibilityTests: XCTestCase {
         )
         XCTAssertEqual(
             GameHandSectionView.dungeonCurseAccessibilityLabel(for: curse),
-            "呪い遺物、棘の印"
+            "一時呪い遺物、棘の印"
         )
+        XCTAssertTrue(GameHandSectionView.dungeonCurseAccessibilityHint(for: curse).contains("一時呪い"))
         XCTAssertTrue(GameHandSectionView.dungeonCurseAccessibilityHint(for: curse).contains("利点"))
         XCTAssertTrue(GameHandSectionView.dungeonCurseAccessibilityHint(for: curse).contains("取得時にHPが1増える"))
         XCTAssertTrue(GameHandSectionView.dungeonCurseAccessibilityHint(for: curse).contains("次に受けるダメージ"))
         XCTAssertTrue(GameHandSectionView.dungeonCurseAccessibilityHint(for: curse).contains("1回発動すると消える"))
+    }
+
+    func testPersistentDungeonCurseAccessibilityTextUsesPersistentKind() {
+        let curse = DungeonCurseEntry(curseID: .redChalice)
+
+        XCTAssertEqual(
+            GameHandSectionView.dungeonCurseAccessibilityLabel(for: curse),
+            "永続呪い遺物、赤い杯"
+        )
+        XCTAssertTrue(GameHandSectionView.dungeonCurseAccessibilityHint(for: curse).contains("永続呪い"))
+        XCTAssertTrue(GameHandSectionView.dungeonCurseAccessibilityHint(for: curse).contains("以後、受けるダメージ"))
+        XCTAssertTrue(GameHandSectionView.dungeonCurseAccessibilityHint(for: curse).contains("この挑戦中ずっと残る"))
     }
 }
 

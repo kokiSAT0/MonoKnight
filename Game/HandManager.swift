@@ -22,46 +22,6 @@ public final class HandManager: ObservableObject {
     /// 並び替え設定
     private var handOrderingStrategy: HandOrderingStrategy
 
-    /// カード種別ごとのデフォルト順序をキャッシュし、安定ソートに利用する
-    private static let playableOrderingIndex: [PlayableCard: Int] = {
-        var mapping: [PlayableCard: Int] = [:]
-        mapping.reserveCapacity(MoveCard.allCases.count)
-        for (index, card) in MoveCard.allCases.enumerated() {
-            let playable = PlayableCard.move(card)
-            if mapping[playable] == nil {
-                mapping[playable] = index
-            }
-        }
-        for (offset, support) in SupportCard.allCases.enumerated() {
-            mapping[.support(support)] = MoveCard.allCases.count + offset
-        }
-        return mapping
-    }()
-
-    /// 並び替えカテゴリを判定する（0: 通常移動、1: 補助）
-    private static func orderingCategory(for card: DealtCard) -> Int {
-        card.moveCard == nil ? 1 : 0
-    }
-
-    /// 並び替えに利用する代表ベクトルを取得する（左方向優先で安定ソートを実現）
-    private static func orderingVector(for card: DealtCard) -> MoveVector {
-        guard let move = card.moveCard else { return MoveVector(dx: 0, dy: 0) }
-        let vectors = move.movementVectors
-        // (0,0) ベクトルのみでは方向性が分からないため除外し、必要に応じてフォールバックを利用する
-        let filtered = vectors.filter { $0.dx != 0 || $0.dy != 0 }
-        let candidates = filtered.isEmpty ? vectors : filtered
-        guard !candidates.isEmpty else {
-            return MoveVector(dx: 0, dy: 0)
-        }
-        let sorted = candidates.sorted { lhs, rhs in
-            if lhs.dx != rhs.dx {
-                return lhs.dx < rhs.dx
-            }
-            return lhs.dy > rhs.dy
-        }
-        return sorted.first ?? MoveVector(dx: 0, dy: 0)
-    }
-
     /// 初期化
     /// - Parameters:
     ///   - handSize: 手札スロット数
@@ -237,36 +197,10 @@ public final class HandManager: ObservableObject {
     /// 並び替え設定に応じて手札全体を再構成する
     @available(iOS 13.0, macOS 10.15, tvOS 13.0, watchOS 6.0, *)
     public func reorderHandIfNeeded() {
-        guard handOrderingStrategy == .directionSorted else { return }
-        handStacks.sort { lhs, rhs in
-            guard let leftCard = lhs.topCard, let rightCard = rhs.topCard else {
-                return lhs.topCard != nil
-            }
-
-            let leftCategory = HandManager.orderingCategory(for: leftCard)
-            let rightCategory = HandManager.orderingCategory(for: rightCard)
-            if leftCategory != rightCategory {
-                return leftCategory < rightCategory
-            }
-
-            // 代表ベクトルを経由することで、将来的に複数候補を持つカードでも共通ロジックを流用できる
-            let leftVector = HandManager.orderingVector(for: leftCard)
-            let rightVector = HandManager.orderingVector(for: rightCard)
-            let leftDX = leftVector.dx
-            let rightDX = rightVector.dx
-            if leftDX != rightDX {
-                return leftDX < rightDX
-            }
-            let leftDY = leftVector.dy
-            let rightDY = rightVector.dy
-            if leftDY != rightDY {
-                return leftDY > rightDY
-            }
-
-            let leftIndex = HandManager.playableOrderingIndex[leftCard.playable] ?? 0
-            let rightIndex = HandManager.playableOrderingIndex[rightCard.playable] ?? 0
-            return leftIndex < rightIndex
-        }
+        handStacks = HandDisplayOrdering.orderedHandStacks(
+            handStacks,
+            strategy: handOrderingStrategy
+        )
     }
 
     /// 手札補充・並び替え・先読み補充を一括で実施する

@@ -81,6 +81,8 @@ public enum TileEffect: Equatable, Codable {
     case shackleTrap
     /// 踏むと毒状態になり、以後の行動回数に応じて HP を失う罠
     case poisonTrap
+    /// 踏むとその階の間だけ移動カードの正体が分からなくなる罠
+    case illusionTrap
     /// 移動系カードを止め、上にいる間は移動系カードを使えなくする沼
     case swamp
     /// 使用したカードを消費せずに温存する効果
@@ -219,7 +221,7 @@ public struct Board: Equatable {
                 let isOrthogonalOneStep = abs(direction.dx) + abs(direction.dy) == 1
                 guard isOrthogonalOneStep else { continue }
                 sanitizedEffects[point] = effect
-            case .shuffleHand, .slow, .shackleTrap, .poisonTrap, .swamp, .preserveCard, .discardRandomHand, .discardAllMoveCards, .discardAllSupportCards, .discardAllHands:
+            case .shuffleHand, .slow, .shackleTrap, .poisonTrap, .illusionTrap, .swamp, .preserveCard, .discardRandomHand, .discardAllMoveCards, .discardAllSupportCards, .discardAllHands:
                 sanitizedEffects[point] = effect
             }
         }
@@ -381,7 +383,7 @@ public enum GameProgress {
     case playing
     /// フロアクリア
     case cleared
-    /// HP 0 や手数切れなどで失敗
+    /// HP 0 やダンジョン固有条件などで失敗
     case failed
     /// 手詰まりなどで一時停止（ペナルティ対象）
     case deadlock

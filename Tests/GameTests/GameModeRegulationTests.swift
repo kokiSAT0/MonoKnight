@@ -42,6 +42,7 @@ final class GameModeRegulationTests: XCTestCase {
         let discardSupportPoint = GridPoint(x: 4, y: 1)
         let discardAllPoint = GridPoint(x: 3, y: 3)
         let poisonPoint = GridPoint(x: 4, y: 3)
+        let illusionPoint = GridPoint(x: 0, y: 1)
         let regulation = GameMode.Regulation(
             boardSize: 5,
             handSize: 5,
@@ -66,6 +67,7 @@ final class GameModeRegulationTests: XCTestCase {
                 discardSupportPoint: .discardAllSupportCards,
                 discardAllPoint: .discardAllHands,
                 poisonPoint: .poisonTrap,
+                illusionPoint: .illusionTrap,
             ],
             completionRule: .dungeonExit(exitPoint: GridPoint(x: 4, y: 4))
         )
@@ -93,6 +95,8 @@ final class GameModeRegulationTests: XCTestCase {
         XCTAssertEqual(decoded.resolvedTileEffects[discardAllPoint], TileEffect.discardAllHands)
         XCTAssertEqual(decoded.tileEffectOverrides[poisonPoint], TileEffect.poisonTrap)
         XCTAssertEqual(decoded.resolvedTileEffects[poisonPoint], TileEffect.poisonTrap)
+        XCTAssertEqual(decoded.tileEffectOverrides[illusionPoint], TileEffect.illusionTrap)
+        XCTAssertEqual(decoded.resolvedTileEffects[illusionPoint], TileEffect.illusionTrap)
     }
 
     func testPresentationStringsRemainStableAfterExtraction() {

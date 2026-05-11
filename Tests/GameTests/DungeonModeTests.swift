@@ -19,7 +19,7 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertEqual(core.progress, .cleared)
     }
 
-    func testDungeonTurnLimitFailsRunAfterNonExitMove() throws {
+    func testDungeonTurnLimitStartsFatigueAfterNonExitMove() throws {
         let mode = makeDungeonMode(
             spawn: GridPoint(x: 0, y: 0),
             exit: GridPoint(x: 4, y: 4),
@@ -32,8 +32,13 @@ final class DungeonModeTests: XCTestCase {
 
         playMove(to: GridPoint(x: 1, y: 0), in: core)
 
-        XCTAssertEqual(core.progress, .failed)
+        XCTAssertEqual(core.progress, .playing)
         XCTAssertEqual(core.remainingDungeonTurns, 0)
+
+        playMove(to: GridPoint(x: 2, y: 0), in: core)
+
+        XCTAssertEqual(core.progress, .playing)
+        XCTAssertEqual(core.dungeonHP, 2)
     }
 
     func testDungeonRelicPickupGrantsRunRelicAndDoesNotUseCardSlot() throws {
@@ -680,6 +685,59 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertTrue(core.enemyDangerPoints.contains(GridPoint(x: 3, y: 1)))
         XCTAssertTrue(core.enemyDangerPoints.contains(GridPoint(x: 4, y: 1)))
         XCTAssertFalse(core.enemyDangerPoints.contains(GridPoint(x: 2, y: 2)))
+    }
+
+    func testRotatingWatcherDisplayDangerShowsNextTurnLine() throws {
+        let rotatingWatcher = EnemyDefinition(
+            id: "rotating-watcher",
+            name: "回転見張り",
+            position: GridPoint(x: 2, y: 1),
+            behavior: .rotatingWatcher(
+                initialDirection: MoveVector(dx: 0, dy: 1),
+                rotationDirection: .clockwise,
+                range: 1
+            )
+        )
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 3,
+            turnLimit: 4,
+            enemies: [rotatingWatcher],
+            impassableTilePoints: [GridPoint(x: 4, y: 1)]
+        )
+        let core = makeCore(mode: mode)
+
+        XCTAssertTrue(core.enemyDangerPoints.contains(GridPoint(x: 2, y: 2)))
+        XCTAssertFalse(core.enemyDangerPoints.contains(GridPoint(x: 3, y: 1)))
+        XCTAssertFalse(core.enemyDangerDisplayPoints.contains(rotatingWatcher.position))
+        XCTAssertTrue(core.enemyDangerDisplayPoints.contains(GridPoint(x: 3, y: 1)))
+        XCTAssertFalse(core.enemyDangerDisplayPoints.contains(GridPoint(x: 4, y: 1)))
+        XCTAssertFalse(core.enemyDangerDisplayPoints.contains(GridPoint(x: 2, y: 2)))
+    }
+
+    func testEnemyFreezeHidesRotatingWatcherDisplayDanger() throws {
+        let rotatingWatcher = EnemyDefinition(
+            id: "rotating-watcher",
+            name: "回転見張り",
+            position: GridPoint(x: 2, y: 1),
+            behavior: .rotatingWatcher(
+                initialDirection: MoveVector(dx: 0, dy: 1),
+                rotationDirection: .clockwise,
+                range: 1
+            )
+        )
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 3,
+            turnLimit: 4,
+            enemies: [rotatingWatcher]
+        )
+        let core = makeCore(mode: mode)
+        core.overrideEnemyFreezeTurnsRemainingForTesting(2)
+
+        XCTAssertTrue(core.enemyDangerDisplayPoints.isEmpty)
     }
 
     func testCounterclockwiseRotatingWatcherTurnsThroughFourFixedDirections() throws {
@@ -2853,6 +2911,110 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertEqual(core.dungeonEnemyTurnEvent?.phases.count, 1)
     }
 
+    func testIllusionTrapPersistsOnSameFloorResumeAndClearsOnNextFloor() throws {
+        let illusionTrap = GridPoint(x: 1, y: 0)
+        let runState = DungeonRunState(dungeonID: "growth-tower", currentFloorIndex: 0, carriedHP: 3)
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 3,
+            turnLimit: 8,
+            tileEffectOverrides: [illusionTrap: .illusionTrap],
+            runState: runState
+        )
+        let core = makeCore(mode: mode)
+        playBasicMove(to: illusionTrap, in: core)
+        let snapshot = try XCTUnwrap(core.makeDungeonResumeSnapshot())
+        let data = try JSONEncoder().encode(snapshot)
+        let decoded = try JSONDecoder().decode(DungeonRunResumeSnapshot.self, from: data)
+
+        let restoredCore = makeCore(mode: mode)
+        XCTAssertTrue(restoredCore.restoreDungeonResumeSnapshot(decoded))
+        XCTAssertTrue(restoredCore.isIlluded)
+
+        let nextFloorMode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 3,
+            turnLimit: 8,
+            runState: DungeonRunState(dungeonID: "growth-tower", currentFloorIndex: 1, carriedHP: 3)
+        )
+        XCTAssertFalse(makeCore(mode: nextFloorMode).isIlluded)
+    }
+
+    func testIllusionRandomMoveUsesOnlyCurrentlyLegalMoveCandidates() throws {
+        let illusionTrap = GridPoint(x: 1, y: 0)
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 3,
+            turnLimit: 8,
+            impassableTilePoints: [GridPoint(x: 3, y: 0)],
+            tileEffectOverrides: [illusionTrap: .illusionTrap]
+        )
+        let core = makeCore(mode: mode, cards: [.straightRight2, .straightLeft2, .straightUp2])
+        playBasicMove(to: illusionTrap, in: core)
+
+        let randomMove = try XCTUnwrap(core.randomIllusionMove())
+
+        XCTAssertTrue(core.isIlluded)
+        XCTAssertTrue(core.availableMoves().contains(randomMove))
+        XCTAssertNotEqual(randomMove.destination, GridPoint(x: 3, y: 0))
+        XCTAssertNotEqual(randomMove.moveCard, .straightLeft2)
+    }
+
+    func testIllusionAllowsBasicMoveAndSupportButBlocksMoveCardsOnSwamp() throws {
+        let illusionTrap = GridPoint(x: 1, y: 0)
+        let swamp = GridPoint(x: 1, y: 1)
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 3,
+            turnLimit: 8,
+            enemies: [
+                EnemyDefinition(id: "guard", name: "番兵", position: GridPoint(x: 4, y: 0), behavior: .guardPost)
+            ],
+            tileEffectOverrides: [
+                illusionTrap: .illusionTrap,
+                swamp: .swamp
+            ],
+            cardAcquisitionMode: .inventoryOnly
+        )
+        let core = makeCore(mode: mode)
+        XCTAssertTrue(core.addDungeonInventoryCardForTesting(.straightRight2, pickupUses: 1))
+        XCTAssertTrue(core.addDungeonInventorySupportCardForTesting(.singleAnnihilationSpell, rewardUses: 1))
+        playBasicMove(to: illusionTrap, in: core)
+        playBasicMove(to: swamp, in: core)
+        let supportIndex = try XCTUnwrap(core.handStacks.firstIndex { $0.topCard?.supportCard == .singleAnnihilationSpell })
+
+        XCTAssertTrue(core.isIlluded)
+        XCTAssertFalse(core.availableBasicOrthogonalMoves().isEmpty)
+        XCTAssertTrue(core.isSupportCardUsable(in: core.handStacks[supportIndex]))
+        XCTAssertNil(core.randomIllusionMove())
+    }
+
+    func testPanaceaClearsIllusionState() throws {
+        let illusionTrap = GridPoint(x: 1, y: 0)
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 3,
+            turnLimit: 8,
+            tileEffectOverrides: [illusionTrap: .illusionTrap],
+            cardAcquisitionMode: .inventoryOnly
+        )
+        let core = makeCore(mode: mode)
+        XCTAssertTrue(core.addDungeonInventorySupportCardForTesting(.panacea, rewardUses: 1))
+        playBasicMove(to: illusionTrap, in: core)
+        let supportIndex = try XCTUnwrap(core.handStacks.firstIndex { $0.topCard?.supportCard == .panacea })
+
+        XCTAssertTrue(core.isSupportCardUsable(in: core.handStacks[supportIndex]))
+        core.playSupportCard(at: supportIndex)
+
+        XCTAssertFalse(core.isIlluded)
+        XCTAssertFalse(core.dungeonInventoryEntries.contains { $0.supportCard == .panacea })
+    }
+
     func testShackleStopsSecondEnemyTurnWhenFirstTurnDefeatsPlayer() throws {
         let shackleTrap = GridPoint(x: 1, y: 0)
         let guardEnemy = EnemyDefinition(
@@ -3347,9 +3509,9 @@ final class DungeonModeTests: XCTestCase {
             "ひび割れの迂回路",
             "中間演習",
             "挟み撃ちの廊下",
-            "鍵の遠回り",
-            "罠と転移の選択",
-            "最終前哨",
+            "暗闇の遠回り",
+            "暗闇の射線",
+            "暗闇の前哨",
             "第二関門"
         ])
         for floorIndex in 0..<10 {
@@ -3443,6 +3605,31 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertEqual(tower.floors[19].rewardMoveCardsAfterClear, [])
         XCTAssertTrue(tower.canAdvanceWithinRun(afterFloorIndex: 9))
         XCTAssertTrue(tower.canAdvanceWithinRun(afterFloorIndex: 10))
+    }
+
+    func testGrowthTowerAddsDarknessOnlyToLateFloors() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let darknessFloorIDs = Set(tower.floors.filter(\.isDarknessEnabled).map(\.id))
+
+        XCTAssertEqual(darknessFloorIDs, ["growth-17", "growth-18", "growth-19"])
+        for floor in tower.floors where floor.isDarknessEnabled {
+            let mode = floor.makeGameMode(dungeonID: tower.id, difficulty: tower.difficulty)
+            XCTAssertEqual(mode.dungeonRules?.isDarknessEnabled, true)
+            XCTAssertTrue(
+                hasOrthogonalPath(from: floor.spawnPoint, to: floor.exitPoint, in: floor),
+                "\(floor.title) は暗闇でも開始地点から階段までの代表導線を残します"
+            )
+            if let unlockPoint = floor.exitLock?.unlockPoint {
+                XCTAssertTrue(
+                    hasOrthogonalPath(from: floor.spawnPoint, to: unlockPoint, in: floor),
+                    "\(floor.title) は暗闇でも開始地点から鍵までの代表導線を残します"
+                )
+                XCTAssertTrue(
+                    hasOrthogonalPath(from: unlockPoint, to: floor.exitPoint, in: floor),
+                    "\(floor.title) は暗闇でも鍵から階段までの代表導線を残します"
+                )
+            }
+        }
     }
 
     func testGrowthTowerEarlyFloorsUseDensePickupCardsForLowDifficulty() throws {
@@ -4495,9 +4682,13 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertEqual(Set(pickupSupports), [.refillEmptySlots, .singleAnnihilationSpell])
         XCTAssertEqual(Set(rewardSupports), [.refillEmptySlots, .singleAnnihilationSpell])
         XCTAssertFalse(pickupSupports.contains(.annihilationSpell))
+        XCTAssertFalse(pickupSupports.contains(.darknessSpell))
+        XCTAssertFalse(pickupSupports.contains(.railBreakSpell))
         XCTAssertFalse(pickupSupports.contains(.freezeSpell))
         XCTAssertFalse(pickupSupports.contains(.barrierSpell))
         XCTAssertFalse(rewardSupports.contains(.annihilationSpell))
+        XCTAssertFalse(rewardSupports.contains(.darknessSpell))
+        XCTAssertFalse(rewardSupports.contains(.railBreakSpell))
         XCTAssertFalse(rewardSupports.contains(.freezeSpell))
         XCTAssertFalse(rewardSupports.contains(.barrierSpell))
     }
@@ -4514,8 +4705,12 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertFalse(middleRewardSupports.contains(.panacea))
         XCTAssertTrue(laterPickupSupports.contains(.antidote))
         XCTAssertTrue(laterPickupSupports.contains(.panacea))
+        XCTAssertTrue(laterPickupSupports.contains(.darknessSpell))
+        XCTAssertTrue(laterPickupSupports.contains(.railBreakSpell))
         XCTAssertTrue(laterRewardSupports.contains(.antidote))
         XCTAssertTrue(laterRewardSupports.contains(.panacea))
+        XCTAssertTrue(laterRewardSupports.contains(.darknessSpell))
+        XCTAssertTrue(laterRewardSupports.contains(.railBreakSpell))
     }
 
     func testGrowthTowerResolvedCardsUseCurrentMoveCardsAndExcludeFixedWarp() throws {
@@ -5247,7 +5442,7 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertEqual(core.nextCards, nextBefore)
     }
 
-    func testBasicOrthogonalMoveCanClearExitAndTriggerDungeonFailureRules() {
+    func testBasicOrthogonalMoveCanClearExitAndTriggerFatigueRules() {
         let clearMode = makeDungeonMode(
             spawn: GridPoint(x: 0, y: 0),
             exit: GridPoint(x: 0, y: 1),
@@ -5258,15 +5453,20 @@ final class DungeonModeTests: XCTestCase {
         playBasicMove(to: GridPoint(x: 0, y: 1), in: clearCore)
         XCTAssertEqual(clearCore.progress, .cleared)
 
-        let failMode = makeDungeonMode(
+        let fatigueMode = makeDungeonMode(
             spawn: GridPoint(x: 0, y: 0),
             exit: GridPoint(x: 4, y: 4),
             turnLimit: 1,
             allowsBasicOrthogonalMove: true
         )
-        let failCore = makeCore(mode: failMode, cards: [.straightRight2, .straightLeft2, .rayRight])
-        playBasicMove(to: GridPoint(x: 0, y: 1), in: failCore)
-        XCTAssertEqual(failCore.progress, .failed)
+        let fatigueCore = makeCore(mode: fatigueMode, cards: [.straightRight2, .straightLeft2, .rayRight])
+        playBasicMove(to: GridPoint(x: 0, y: 1), in: fatigueCore)
+        XCTAssertEqual(fatigueCore.progress, .playing)
+        XCTAssertEqual(fatigueCore.remainingDungeonTurns, 0)
+
+        playBasicMove(to: GridPoint(x: 0, y: 2), in: fatigueCore)
+        XCTAssertEqual(fatigueCore.progress, .playing)
+        XCTAssertEqual(fatigueCore.dungeonHP, 2)
     }
 
     func testBasicOrthogonalMoveTriggersEnemyDamageAndBrittleFloor() {

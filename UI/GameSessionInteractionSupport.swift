@@ -286,6 +286,23 @@ struct GameInputFlowCoordinator {
             return
         }
 
+        if core.isIlluded {
+            core.cancelTargetedSupportCardSelection()
+            clearSelectedCardSelection(
+                sessionState: &sessionState,
+                boardBridge: boardBridge,
+                selectedHandStackID: &selectedHandStackID
+            )
+            guard let randomMove = core.randomIllusionMove() else {
+                if hapticsEnabled {
+                    UINotificationFeedbackGenerator().notificationOccurred(.warning)
+                }
+                return
+            }
+            _ = boardBridge.animateCardPlay(using: randomMove)
+            return
+        }
+
         core.cancelTargetedSupportCardSelection()
         guard boardBridge.isCardUsable(latestStack) else {
             clearSelectedCardSelection(
@@ -408,6 +425,17 @@ struct GameInputFlowCoordinator {
 
         guard sessionState.hasSelection else {
             guard guideModeEnabled else { return }
+            if core.isIlluded {
+                presentBoardTapSelectionWarning(
+                    "幻惑中は移動カードを手札から選ぶと、使われるカードと移動先がランダムに決まります。",
+                    request.destination
+                )
+
+                if hapticsEnabled {
+                    UINotificationFeedbackGenerator().notificationOccurred(.warning)
+                }
+                return
+            }
             let availableMoves = core.availableMoves()
             let destinationCandidates = availableMoves.filter { $0.destination == request.destination }
             let conflictingStackIDs = Set(destinationCandidates.map(\.stackID))

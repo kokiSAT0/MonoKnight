@@ -199,6 +199,15 @@ private extension GameBoardControlRowView {
                 )
             }
 
+            if viewModel.isIlluded {
+                statisticBadge(
+                    title: "幻惑",
+                    value: "階内",
+                    accessibilityLabel: "幻惑状態",
+                    accessibilityValue: "この階にいる間、移動カードの正体が分からずランダムに使用されます"
+                )
+            }
+
             if viewModel.poisonDamageTicksRemaining > 0 {
                 statisticBadge(
                     title: "毒",

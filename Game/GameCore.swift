@@ -151,6 +151,8 @@ public struct PendingTargetedSupportCard: Equatable {
 
 @available(iOS 13.0, macOS 10.15, tvOS 13.0, watchOS 6.0, *)
 public final class GameCore: ObservableObject {
+    private static let overtimeFatigueInterval = 3
+
     /// 現在適用中のゲームモード
     public let mode: GameMode
     /// 盤面情報
@@ -164,6 +166,8 @@ public final class GameCore: ObservableObject {
     /// 手札と先読みカードの管理を委譲するハンドマネージャ
     /// - Note: 外部モジュールから直接操作させず、公開用プロパティ経由で状態を把握できるようにする
     let handManager: HandManager
+    /// 塔インベントリ同期時にも適用する現在の手札並び順
+    private var handOrderingStrategy: HandOrderingStrategy = .insertionOrder
 
     /// 外部レイヤーへ公開する手札スロット
     /// - Important: `@Published` を介して ViewModel が変更通知を受け取れるようにする
@@ -211,8 +215,14 @@ public final class GameCore: ObservableObject {
     @Published public private(set) var enemyFreezeTurnsRemaining: Int = 0
     /// 障壁の呪文で HP ダメージを無効化できる残り回数
     @Published public private(set) var damageBarrierTurnsRemaining: Int = 0
+    /// ダークネスの呪文で見張り系レーザーを封じているかどうか
+    @Published public private(set) var isWatcherLaserSuppressed: Bool = false
+    /// レール破壊の呪文で巡回兵のレール移動を封じているかどうか
+    @Published public private(set) var isPatrolRailDestroyed: Bool = false
     /// 足枷罠を踏み、その階の間だけ全行動が重くなっているかどうか
     @Published public private(set) var isShackled: Bool = false
+    /// 幻惑罠を踏み、その階の間だけ移動カードの正体が分からなくなっているかどうか
+    @Published public private(set) var isIlluded: Bool = false
     /// 毒状態で残っているダメージ回数
     @Published public private(set) var poisonDamageTicksRemaining: Int = 0
     /// 次の毒ダメージまでに必要な成功行動数
@@ -296,9 +306,13 @@ public final class GameCore: ObservableObject {
         }
         return max(baseTurnLimit + adjustment, 1)
     }
-    /// 敵本体を除く、盤面へ表示する攻撃範囲マス
+    /// 敵本体を除く、現在の敵状態を基準にした攻撃範囲マス
     public var enemyDangerPoints: Set<GridPoint> {
         enemyDangerPoints(forDisplayedEnemyStates: enemyStates)
+    }
+    /// 敵本体を除く、次の敵ターンで実際に被弾する表示用の攻撃範囲マス
+    public var enemyDangerDisplayPoints: Set<GridPoint> {
+        enemyDangerDisplayPoints(forDisplayedEnemyStates: enemyStates)
     }
     /// メテオ兵が次の敵ターンに攻撃する着弾予告マス
     public var enemyWarningPoints: Set<GridPoint> {
@@ -308,6 +322,24 @@ public final class GameCore: ObservableObject {
     public func enemyDangerPoints(forDisplayedEnemyStates enemyStates: [EnemyState]) -> Set<GridPoint> {
         guard !isEnemyFreezeActive else { return [] }
         return dangerPoints(for: enemyStates)
+    }
+    /// 表示中の敵状態を基準に、次の敵ターンで実際に被弾する攻撃範囲マス
+    public func enemyDangerDisplayPoints(forDisplayedEnemyStates enemyStates: [EnemyState]) -> Set<GridPoint> {
+        guard !isEnemyFreezeActive else { return [] }
+        return dangerPoints(for: enemyStates, rotatingWatcherOffset: 1)
+    }
+    /// 表示中の敵状態を基準にした見張り系レーザーのみの危険範囲
+    public func watcherLaserDangerDisplayPoints(forDisplayedEnemyStates enemyStates: [EnemyState]) -> Set<GridPoint> {
+        guard !isEnemyFreezeActive else { return [] }
+        let watcherStates = enemyStates.filter { enemy in
+            switch enemy.behavior {
+            case .watcher, .rotatingWatcher:
+                return true
+            case .guardPost, .patrol, .chaser, .marker:
+                return false
+            }
+        }
+        return dangerPoints(for: watcherStates, rotatingWatcherOffset: 1)
     }
     /// 表示中の敵状態を基準にしたメテオ兵の着弾予告マス
     public func enemyWarningPoints(forDisplayedEnemyStates enemyStates: [EnemyState]) -> Set<GridPoint> {
@@ -321,6 +353,7 @@ public final class GameCore: ObservableObject {
     /// 表示中の敵状態を基準にした巡回兵ごとの次移動方向
     public func enemyPatrolMovementPreviews(forDisplayedEnemyStates enemyStates: [EnemyState]) -> [EnemyPatrolMovementPreview] {
         guard !isEnemyFreezeActive else { return [] }
+        guard !isPatrolRailDestroyed else { return [] }
         return orderedEnemyMovementPreviews(in: enemyStates) { enemy in
             if case .patrol = enemy.behavior { return true }
             return false
@@ -332,7 +365,8 @@ public final class GameCore: ObservableObject {
     }
     /// 表示中の敵状態を基準にした巡回兵ごとの巡回範囲レール
     public func enemyPatrolRailPreviews(forDisplayedEnemyStates enemyStates: [EnemyState]) -> [EnemyPatrolRailPreview] {
-        enemyStates.compactMap { patrolRailPreview(for: $0) }
+        guard !isPatrolRailDestroyed else { return [] }
+        return enemyStates.compactMap { patrolRailPreview(for: $0) }
     }
     /// 追跡兵ごとの次移動方向
     public var enemyChaserMovementPreviews: [EnemyPatrolMovementPreview] {
@@ -353,6 +387,14 @@ public final class GameCore: ObservableObject {
     /// 障壁の呪文で HP ダメージを受けない状態かどうか
     public var isDamageBarrierActive: Bool {
         damageBarrierTurnsRemaining > 0
+    }
+    /// ダークネスの呪文で見張り/回転見張りの射線が消えているかどうか
+    public var isDarknessSpellActive: Bool {
+        isWatcherLaserSuppressed
+    }
+    /// レール破壊の呪文で巡回兵のレール移動が止まっているかどうか
+    public var isRailBreakSpellActive: Bool {
+        isPatrolRailDestroyed
     }
     /// 現在の行動で消費する手数。足枷状態では全行動が 2 手分になる
     private var currentActionMoveCost: Int {
@@ -448,7 +490,10 @@ public final class GameCore: ObservableObject {
             markerDamageMitigationsRemaining: markerDamageMitigationsRemaining,
             enemyFreezeTurnsRemaining: enemyFreezeTurnsRemaining,
             damageBarrierTurnsRemaining: damageBarrierTurnsRemaining,
+            isWatcherLaserSuppressed: isWatcherLaserSuppressed,
+            isPatrolRailDestroyed: isPatrolRailDestroyed,
             isShackled: isShackled,
+            isIlluded: isIlluded,
             poisonDamageTicksRemaining: poisonDamageTicksRemaining,
             poisonActionsUntilNextDamage: poisonActionsUntilNextDamage,
             enemyStates: enemyStates,
@@ -504,7 +549,10 @@ public final class GameCore: ObservableObject {
         markerDamageMitigationsRemaining = snapshot.markerDamageMitigationsRemaining
         enemyFreezeTurnsRemaining = snapshot.enemyFreezeTurnsRemaining
         damageBarrierTurnsRemaining = snapshot.damageBarrierTurnsRemaining
+        isWatcherLaserSuppressed = snapshot.isWatcherLaserSuppressed
+        isPatrolRailDestroyed = snapshot.isPatrolRailDestroyed
         isShackled = snapshot.isShackled
+        isIlluded = snapshot.isIlluded
         poisonDamageTicksRemaining = snapshot.poisonDamageTicksRemaining
         poisonActionsUntilNextDamage = snapshot.poisonActionsUntilNextDamage
         enemyStates = snapshot.enemyStates
@@ -544,6 +592,7 @@ public final class GameCore: ObservableObject {
     /// 手札の並び順設定を更新し、必要であれば再ソートする
     /// - Parameter newStrategy: ユーザーが選択した並び替え方式
     public func updateHandOrderingStrategy(_ newStrategy: HandOrderingStrategy) {
+        handOrderingStrategy = newStrategy
         handManager.updateHandOrderingStrategy(newStrategy)
         if usesDungeonInventoryCards {
             syncDungeonInventoryHandStacks()
@@ -601,10 +650,14 @@ public final class GameCore: ObservableObject {
             return !enemyStates.isEmpty
         case .barrierSpell:
             return true
+        case .darknessSpell:
+            return hasWatcherLaserEnemy && !isWatcherLaserSuppressed
+        case .railBreakSpell:
+            return hasPatrolRailEnemy && !isPatrolRailDestroyed
         case .antidote:
             return poisonDamageTicksRemaining > 0
         case .panacea:
-            return poisonDamageTicksRemaining > 0 || isShackled
+            return poisonDamageTicksRemaining > 0 || isShackled || isIlluded
         }
     }
 
@@ -649,9 +702,12 @@ public final class GameCore: ObservableObject {
         guard isSupportCardUsable(in: handStacks[stackIndex]) else { return false }
 
         let pendingMarkerDamagePoints = enemyWarningPoints
-        consumeSupportCard(at: stackIndex)
+        let previousMoveCount = consumeSupportCard(at: stackIndex)
         enemyStates.remove(at: enemyIndex)
-        finishSupportCardTurn(initialMarkerDamagePoints: pendingMarkerDamagePoints)
+        finishSupportCardTurn(
+            initialMarkerDamagePoints: pendingMarkerDamagePoints,
+            previousMoveCount: previousMoveCount
+        )
         checkDeadlockAndApplyPenaltyIfNeeded()
         debugLog("補助カード 消滅の呪文: \(point) の敵を消滅")
         return true
@@ -670,11 +726,14 @@ public final class GameCore: ObservableObject {
             let pendingMarkerDamagePoints = enemyWarningPoints
             let wasDungeonInventoryFull = usesDungeonInventoryCards &&
                 dungeonInventoryEntries.filter(\.hasUsesRemaining).count >= 9
-            consumeSupportCard(at: index)
+            let previousMoveCount = consumeSupportCard(at: index)
             if !wasDungeonInventoryFull {
                 refillDungeonEmptySlotsWithRandomMoveCards()
             }
-            finishSupportCardTurn(initialMarkerDamagePoints: pendingMarkerDamagePoints)
+            finishSupportCardTurn(
+                initialMarkerDamagePoints: pendingMarkerDamagePoints,
+                previousMoveCount: previousMoveCount
+            )
             checkDeadlockAndApplyPenaltyIfNeeded()
             debugLog("補助カード 補給: 空き手札枠へ移動カードを補給")
         case .singleAnnihilationSpell:
@@ -682,42 +741,111 @@ public final class GameCore: ObservableObject {
         case .annihilationSpell:
             guard !enemyStates.isEmpty else { return }
             let pendingMarkerDamagePoints = enemyWarningPoints
-            consumeSupportCard(at: index)
+            let previousMoveCount = consumeSupportCard(at: index)
             enemyStates.removeAll()
-            finishSupportCardTurn(initialMarkerDamagePoints: pendingMarkerDamagePoints)
+            finishSupportCardTurn(
+                initialMarkerDamagePoints: pendingMarkerDamagePoints,
+                previousMoveCount: previousMoveCount
+            )
             checkDeadlockAndApplyPenaltyIfNeeded()
             debugLog("補助カード 全滅の呪文: 現在フロアの敵をすべて消滅")
         case .freezeSpell:
             guard !enemyStates.isEmpty else { return }
             let pendingMarkerDamagePoints = enemyWarningPoints
-            consumeSupportCard(at: index)
+            let previousMoveCount = consumeSupportCard(at: index)
             enemyFreezeTurnsRemaining = max(enemyFreezeTurnsRemaining, 3)
-            finishSupportCardTurn(initialMarkerDamagePoints: pendingMarkerDamagePoints)
+            finishSupportCardTurn(
+                initialMarkerDamagePoints: pendingMarkerDamagePoints,
+                previousMoveCount: previousMoveCount
+            )
             checkDeadlockAndApplyPenaltyIfNeeded()
             debugLog("補助カード 凍結の呪文: 敵ターンを3回停止")
         case .barrierSpell:
             let pendingMarkerDamagePoints = enemyWarningPoints
-            consumeSupportCard(at: index)
+            let previousMoveCount = consumeSupportCard(at: index)
             damageBarrierTurnsRemaining = max(damageBarrierTurnsRemaining, 3)
-            finishSupportCardTurn(initialMarkerDamagePoints: pendingMarkerDamagePoints)
+            finishSupportCardTurn(
+                initialMarkerDamagePoints: pendingMarkerDamagePoints,
+                previousMoveCount: previousMoveCount
+            )
             checkDeadlockAndApplyPenaltyIfNeeded()
             debugLog("補助カード 障壁の呪文: HPダメージを3回無効化")
+        case .darknessSpell:
+            guard hasWatcherLaserEnemy, !isWatcherLaserSuppressed else { return }
+            let pendingMarkerDamagePoints = enemyWarningPoints
+            let previousMoveCount = consumeSupportCard(at: index)
+            isWatcherLaserSuppressed = true
+            finishSupportCardTurn(
+                initialMarkerDamagePoints: pendingMarkerDamagePoints,
+                previousMoveCount: previousMoveCount
+            )
+            checkDeadlockAndApplyPenaltyIfNeeded()
+            debugLog("補助カード ダークネスの呪文: 見張り系レーザーをこの階で無効化")
+        case .railBreakSpell:
+            guard hasPatrolRailEnemy, !isPatrolRailDestroyed else { return }
+            let pendingMarkerDamagePoints = enemyWarningPoints
+            let previousMoveCount = consumeSupportCard(at: index)
+            isPatrolRailDestroyed = true
+            finishSupportCardTurn(
+                initialMarkerDamagePoints: pendingMarkerDamagePoints,
+                previousMoveCount: previousMoveCount
+            )
+            checkDeadlockAndApplyPenaltyIfNeeded()
+            debugLog("補助カード レール破壊の呪文: 巡回兵のレール移動をこの階で無効化")
         case .antidote:
             let pendingMarkerDamagePoints = enemyWarningPoints
-            consumeSupportCard(at: index)
+            let previousMoveCount = consumeSupportCard(at: index)
             clearPoisonStatus()
-            finishSupportCardTurn(initialMarkerDamagePoints: pendingMarkerDamagePoints)
+            finishSupportCardTurn(
+                initialMarkerDamagePoints: pendingMarkerDamagePoints,
+                previousMoveCount: previousMoveCount
+            )
             checkDeadlockAndApplyPenaltyIfNeeded()
             debugLog("補助カード 解毒薬: 毒状態を解除")
         case .panacea:
             let pendingMarkerDamagePoints = enemyWarningPoints
-            consumeSupportCard(at: index)
+            let previousMoveCount = consumeSupportCard(at: index)
             clearPoisonStatus()
             isShackled = false
-            finishSupportCardTurn(initialMarkerDamagePoints: pendingMarkerDamagePoints)
+            isIlluded = false
+            finishSupportCardTurn(
+                initialMarkerDamagePoints: pendingMarkerDamagePoints,
+                previousMoveCount: previousMoveCount
+            )
             checkDeadlockAndApplyPenaltyIfNeeded()
             debugLog("補助カード 万能薬: 状態異常を解除")
         }
+    }
+
+    /// 幻惑中に `？` として押された移動カードを、現在合法な候補だけからランダムに解決する
+    public func randomIllusionMove() -> ResolvedCardMove? {
+        guard isIlluded, progress == .playing, current != nil else { return nil }
+        let moveCandidates = availableMoves()
+        guard !moveCandidates.isEmpty else { return nil }
+
+        let groupedByCard = Dictionary(grouping: moveCandidates, by: { $0.card.id })
+        let cardGroups = groupedByCard.values
+            .compactMap { moves -> [ResolvedCardMove]? in
+                guard moves.first?.card.moveCard != nil else { return nil }
+                return moves
+            }
+            .sorted { lhs, rhs in
+                guard let left = lhs.first, let right = rhs.first else { return lhs.count < rhs.count }
+                if left.stackIndex != right.stackIndex { return left.stackIndex < right.stackIndex }
+                return left.card.id.uuidString < right.card.id.uuidString
+            }
+        guard !cardGroups.isEmpty else { return nil }
+
+        var generator = DungeonRefillRandomGenerator(seed: illusionMoveSeed())
+        let groupIndex = Int(generator.next() % UInt64(cardGroups.count))
+        let moves = cardGroups[groupIndex].sorted { lhs, rhs in
+            if lhs.destination.y != rhs.destination.y { return lhs.destination.y < rhs.destination.y }
+            if lhs.destination.x != rhs.destination.x { return lhs.destination.x < rhs.destination.x }
+            if lhs.moveVector.dy != rhs.moveVector.dy { return lhs.moveVector.dy < rhs.moveVector.dy }
+            return lhs.moveVector.dx < rhs.moveVector.dx
+        }
+        let moveIndex = Int(generator.next() % UInt64(moves.count))
+        return moves[moveIndex]
     }
 
     private func clearPoisonStatus() {
@@ -725,7 +853,10 @@ public final class GameCore: ObservableObject {
         poisonActionsUntilNextDamage = 0
     }
 
-    private func finishSupportCardTurn(initialMarkerDamagePoints: Set<GridPoint>) {
+    private func finishSupportCardTurn(
+        initialMarkerDamagePoints: Set<GridPoint>,
+        previousMoveCount: Int
+    ) {
         dungeonEnemyTurnEvent = nil
         guard progress == .playing else { return }
         if applyLavaWaitDamageIfNeeded() { return }
@@ -733,11 +864,12 @@ public final class GameCore: ObservableObject {
             along: [],
             initialMarkerDamagePoints: initialMarkerDamagePoints,
             paralysisTrapPoint: nil,
-            skipsPoisonTick: false
+            skipsPoisonTick: false,
+            previousMoveCount: previousMoveCount
         )
     }
 
-    private func consumeSupportCard(at index: Int) {
+    private func consumeSupportCard(at index: Int) -> Int {
         cancelTargetedSupportCardSelection()
         cancelManualDiscardSelection()
         resetBoardTapPlayRequestForPenalty()
@@ -749,10 +881,12 @@ public final class GameCore: ObservableObject {
         } else {
             removedIndex = handManager.consumeTopCard(at: index)
         }
+        let previousMoveCount = moveCount
         moveCount += currentActionMoveCost
         if !usesDungeonInventoryCards {
             rebuildHandAndNext(preferredInsertionIndices: removedIndex.map { [$0] } ?? [])
         }
+        return previousMoveCount
     }
 
     /// ResolvedCardMove が現在の手札情報と一致しているかを検証し、必要ならインデックスを補正する
@@ -876,6 +1010,7 @@ public final class GameCore: ObservableObject {
         )
         // current を更新するのは最後に行い、Combine の通知順序で UI が解決情報を先に受け取れるように配慮する
         current = finalPosition
+        let previousMoveCount = moveCount
         moveCount += currentActionMoveCost
 
         if encounteredRevisit {
@@ -920,7 +1055,8 @@ public final class GameCore: ObservableObject {
             along: actualTraversedPath,
             initialMarkerDamagePoints: pendingMarkerDamagePoints,
             paralysisTrapPoint: paralysisTrapPoint,
-            skipsPoisonTick: movementResult.triggeredPoisonTrap
+            skipsPoisonTick: movementResult.triggeredPoisonTrap,
+            previousMoveCount: previousMoveCount
         ) { return }
 
         // 手詰まりチェック（全カード盤外ならペナルティ）
@@ -988,6 +1124,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             presentationSteps: presentationSteps
         )
         current = finalPosition
+        let previousMoveCount = moveCount
         moveCount += currentActionMoveCost
 
         if encounteredRevisit {
@@ -1006,7 +1143,8 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             along: actualTraversedPath,
             initialMarkerDamagePoints: pendingMarkerDamagePoints,
             paralysisTrapPoint: paralysisTrapPoint,
-            skipsPoisonTick: movementResult.triggeredPoisonTrap
+            skipsPoisonTick: movementResult.triggeredPoisonTrap,
+            previousMoveCount: previousMoveCount
         )
     }
 
@@ -1168,6 +1306,9 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                 case .poisonTrap:
                     applyPoisonTrap()
                     triggeredPoisonTrap = true
+                case .illusionTrap:
+                    isIlluded = true
+                    debugLog("幻惑罠を踏みました: この階の移動カードが？表示になります")
                 case .shackleTrap:
                     isShackled = true
                     stopReason = .shackleTrap
@@ -1288,7 +1429,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             postMoveTileEffect = .discardAllHands
         case .preserveCard:
             preservesPlayedCard = true
-        case .warp, .blast, .slow, .shackleTrap, .poisonTrap, .swamp:
+        case .warp, .blast, .slow, .shackleTrap, .poisonTrap, .illusionTrap, .swamp:
             break
         }
     }
@@ -1430,6 +1571,24 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         if let current {
             seed ^= UInt64(current.x + 31) &* 1099511628211
             seed ^= UInt64(current.y + 37) &* 1469598103934665603
+        }
+        return seed == 0 ? 1 : seed
+    }
+
+    private func illusionMoveSeed() -> UInt64 {
+        var seed = mode.dungeonMetadataSnapshot?.runState?.cardVariationSeed ?? mode.deckSeed ?? 1
+        seed ^= UInt64(board.size + 41) &* 0xD6E8_FD9A_57A1_4C15
+        seed ^= UInt64(max(moveCount, 0) + 1) &* 0xA24B_AED4_963E_E407
+        seed ^= UInt64(handStacks.count + 29) &* 0x9FB2_1C65_1E98_DF25
+        if let current {
+            seed ^= UInt64(current.x + 53) &* 1099511628211
+            seed ^= UInt64(current.y + 59) &* 1469598103934665603
+        }
+        for stack in handStacks {
+            seed = seed &* 1099511628211 &+ UInt64(stack.count + 7)
+            if let scalar = stack.topCard?.playable.identityText.unicodeScalars.first {
+                seed = seed &* 1469598103934665603 &+ UInt64(scalar.value)
+            }
         }
         return seed == 0 ? 1 : seed
     }
@@ -1623,7 +1782,10 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         markerDamageMitigationsRemaining = mode.dungeonMetadataSnapshot?.runState?.markerDamageMitigationsRemaining ?? 0
         enemyFreezeTurnsRemaining = 0
         damageBarrierTurnsRemaining = 0
+        isWatcherLaserSuppressed = false
+        isPatrolRailDestroyed = false
         isShackled = false
+        isIlluded = false
         poisonDamageTicksRemaining = 0
         poisonActionsUntilNextDamage = 0
         enemyStates = mode.dungeonRules?.enemies.map(EnemyState.init(definition:)) ?? []
@@ -1691,7 +1853,10 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             }
         )
         let inventoryKindLimit = 9
-        let liveEntries = Array(dungeonInventoryEntries.filter(\.hasUsesRemaining).prefix(inventoryKindLimit))
+        let liveEntries = HandDisplayOrdering.orderedDungeonInventoryEntries(
+            Array(dungeonInventoryEntries.filter(\.hasUsesRemaining).prefix(inventoryKindLimit)),
+            strategy: handOrderingStrategy
+        )
         dungeonInventoryEntries = liveEntries
         handStacks = liveEntries.map { entry in
             let existingStack = existingStacksByPlayable[entry.playable]
@@ -2409,7 +2574,8 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         along traversedPoints: [GridPoint],
         initialMarkerDamagePoints: Set<GridPoint>? = nil,
         paralysisTrapPoint: GridPoint? = nil,
-        skipsPoisonTick: Bool
+        skipsPoisonTick: Bool,
+        previousMoveCount: Int
     ) -> Bool {
         guard mode.usesDungeonExit else { return false }
         guard progress == .playing, dungeonFallEvent == nil else { return true }
@@ -2460,6 +2626,11 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             paralysisTrapPoint: paralysisTrapPoint
         )
         consumeDamageBarrierTurnIfNeeded()
+        if applyDungeonFatigueDamageIfNeeded(previousMoveCount: previousMoveCount) {
+            finalizeElapsedTimeIfNeeded()
+            progress = .failed
+            return true
+        }
         return false
     }
 
@@ -2577,6 +2748,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             case .guardPost, .watcher:
                 break
             case .patrol(let path):
+                guard !isPatrolRailDestroyed else { continue }
                 guard !shouldMovingEnemyAttackBeforeMoving(enemyStates[index]) else { continue }
                 let validPath = path.filter { isEnemyTraversable($0) }
                 guard !validPath.isEmpty else { continue }
@@ -2863,10 +3035,27 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
     private func shouldFailDungeonRun() -> Bool {
         guard mode.usesDungeonExit else { return false }
         if dungeonHP <= 0 { return true }
-        if let remainingDungeonTurns, remainingDungeonTurns <= 0 {
-            return true
-        }
         return false
+    }
+
+    private func applyDungeonFatigueDamageIfNeeded(previousMoveCount: Int) -> Bool {
+        guard mode.usesDungeonExit, progress == .playing else { return false }
+        guard let turnLimit = effectiveDungeonTurnLimit else { return false }
+        let previousOvertime = max(previousMoveCount - turnLimit, 0)
+        let currentOvertime = max(moveCount - turnLimit, 0)
+        guard currentOvertime > previousOvertime else { return false }
+
+        let damage = (previousOvertime + 1...currentOvertime).reduce(0) { partialResult, overtimeTurn in
+            guard overtimeTurn == 1 || (overtimeTurn - 1).isMultiple(of: Self.overtimeFatigueInterval) else {
+                return partialResult
+            }
+            return partialResult + 1
+        }
+        guard damage > 0 else { return false }
+
+        dungeonHP = max(dungeonHP - damage, 0)
+        debugLog("手数超過の疲労ダメージ: 超過=\(currentOvertime), -\(damage), HP=\(dungeonHP)")
+        return dungeonHP <= 0
     }
 
     private func consumeEnemyFreezeTurnIfNeeded() -> Bool {
@@ -2893,7 +3082,25 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         return dangerPoints(for: [enemy])
     }
 
-    private func dangerPoints(for enemies: [EnemyState]) -> Set<GridPoint> {
+    private var hasWatcherLaserEnemy: Bool {
+        enemyStates.contains { enemy in
+            switch enemy.behavior {
+            case .watcher, .rotatingWatcher:
+                return true
+            case .guardPost, .patrol, .chaser, .marker:
+                return false
+            }
+        }
+    }
+
+    private var hasPatrolRailEnemy: Bool {
+        enemyStates.contains { enemy in
+            if case .patrol = enemy.behavior { return true }
+            return false
+        }
+    }
+
+    private func dangerPoints(for enemies: [EnemyState], rotatingWatcherOffset: Int = 0) -> Set<GridPoint> {
         var danger: Set<GridPoint> = []
         for enemy in enemies {
             switch enemy.behavior {
@@ -2911,13 +3118,15 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                     }
                 }
             case .watcher(let direction, _):
+                guard !isWatcherLaserSuppressed else { break }
                 insertLineOfSightDanger(
                     from: enemy.position,
                     direction: direction,
                     into: &danger
                 )
             case .rotatingWatcher:
-                guard let direction = rotatingWatcherDirection(for: enemy) else { break }
+                guard !isWatcherLaserSuppressed else { break }
+                guard let direction = rotatingWatcherDirection(for: enemy, offset: rotatingWatcherOffset) else { break }
                 insertLineOfSightDanger(
                     from: enemy.position,
                     direction: direction,
@@ -3347,6 +3556,9 @@ extension GameCore {
         core.markerDamageMitigationsRemaining = mode.dungeonMetadataSnapshot?.runState?.markerDamageMitigationsRemaining ?? 0
         core.enemyFreezeTurnsRemaining = 0
         core.damageBarrierTurnsRemaining = 0
+        core.isWatcherLaserSuppressed = false
+        core.isPatrolRailDestroyed = false
+        core.isIlluded = false
         core.enemyStates = mode.dungeonRules?.enemies.map(EnemyState.init(definition:)) ?? []
         let currentFloorIndex = mode.dungeonMetadataSnapshot?.runState?.currentFloorIndex ?? 0
         core.crackedFloorPoints = mode.dungeonMetadataSnapshot?.runState?.crackedFloorPoints(for: currentFloorIndex) ?? []
