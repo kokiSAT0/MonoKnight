@@ -24,6 +24,7 @@
         private var latestDungeonRelicPickupPoints: Set<GridPoint> = []
         private var latestDungeonSuspiciousRelicPickupPoints: Set<GridPoint> = []
         private var latestDungeonDamageTrapPoints: Set<GridPoint> = []
+        private var latestDungeonLavaTilePoints: Set<GridPoint> = []
         private var latestDungeonHealingTilePoints: Set<GridPoint> = []
         private var latestDungeonCrackedFloorPoints: Set<GridPoint> = []
         private var latestDungeonCollapsedFloorPoints: Set<GridPoint> = []
@@ -81,6 +82,7 @@
             latestDungeonRelicPickupPoints = []
             latestDungeonSuspiciousRelicPickupPoints = []
             latestDungeonDamageTrapPoints = []
+            latestDungeonLavaTilePoints = []
             latestDungeonHealingTilePoints = []
             latestDungeonCrackedFloorPoints = []
             latestDungeonCollapsedFloorPoints = []
@@ -304,6 +306,7 @@
                     .dungeonRelicPickup: latestDungeonRelicPickupPoints,
                     .dungeonSuspiciousRelicPickup: latestDungeonSuspiciousRelicPickupPoints,
                     .dungeonDamageTrap: latestDungeonDamageTrapPoints,
+                    .dungeonLavaTile: latestDungeonLavaTilePoints,
                     .dungeonHealingTile: latestDungeonHealingTilePoints,
                     .dungeonCrackedFloor: latestDungeonCrackedFloorPoints,
                     .dungeonCollapsedFloor: latestDungeonCollapsedFloorPoints,
@@ -399,6 +402,7 @@
             latestDungeonRelicPickupPoints = highlights[.dungeonRelicPickup] ?? []
             latestDungeonSuspiciousRelicPickupPoints = highlights[.dungeonSuspiciousRelicPickup] ?? []
             latestDungeonDamageTrapPoints = highlights[.dungeonDamageTrap] ?? []
+            latestDungeonLavaTilePoints = highlights[.dungeonLavaTile] ?? []
             latestDungeonHealingTilePoints = highlights[.dungeonHealingTile] ?? []
             latestDungeonCrackedFloorPoints = highlights[.dungeonCrackedFloor] ?? []
             latestDungeonCollapsedFloorPoints = highlights[.dungeonCollapsedFloor] ?? []
@@ -1018,6 +1022,12 @@
                 strokeWidth = 0
                 fillColor = baseColor.withAlphaComponent(0.70)
                 zPosition = 1.13
+            case .dungeonLavaTile:
+                baseColor = SKColor(red: 1.0, green: 0.30, blue: 0.02, alpha: 1.0)
+                strokeAlpha = 0.82
+                strokeWidth = max(layout.tileSize * 0.035, 1.2)
+                fillColor = baseColor.withAlphaComponent(0.74)
+                zPosition = 1.135
             case .dungeonHealingTile:
                 baseColor = SKColor(red: 0.10, green: 0.62, blue: 0.34, alpha: 1.0)
                 strokeAlpha = 0
@@ -1065,6 +1075,7 @@
                 || kind == .dungeonRelicPickup
                 || kind == .dungeonSuspiciousRelicPickup
                 || kind == .dungeonDamageTrap
+                || kind == .dungeonLavaTile
                 || kind == .dungeonHealingTile
                 || kind == .dungeonCrackedFloor
                 || kind == .dungeonCollapsedFloor
@@ -1117,6 +1128,8 @@
                 return suspiciousRelicPickupMarkerPath(center: CGPoint(x: rect.midX, y: rect.midY), tileSize: tileSize)
             case .dungeonDamageTrap:
                 return damageTrapMarkerPath(center: CGPoint(x: rect.midX, y: rect.midY), tileSize: tileSize)
+            case .dungeonLavaTile:
+                return lavaTileMarkerPath(center: CGPoint(x: rect.midX, y: rect.midY), tileSize: tileSize)
             case .dungeonHealingTile:
                 return healingTileMarkerPath(center: CGPoint(x: rect.midX, y: rect.midY), tileSize: tileSize)
             case .dungeonCrackedFloor:
@@ -1317,6 +1330,36 @@
             path.addLine(to: CGPoint(x: center.x + tileSize * 0.22, y: center.y + tileSize * 0.18))
             path.addLine(to: CGPoint(x: rightX, y: baseTopY))
             path.addLine(to: CGPoint(x: rightX, y: baseBottomY))
+            path.closeSubpath()
+            return path
+        }
+
+        private func lavaTileMarkerPath(center: CGPoint, tileSize: CGFloat) -> CGPath {
+            let path = CGMutablePath()
+            let baseY = center.y - tileSize * 0.25
+            let topY = center.y + tileSize * 0.26
+            let halfWidth = tileSize * 0.34
+            path.move(to: CGPoint(x: center.x - halfWidth, y: baseY))
+            path.addCurve(
+                to: CGPoint(x: center.x - tileSize * 0.13, y: topY),
+                control1: CGPoint(x: center.x - tileSize * 0.34, y: center.y - tileSize * 0.04),
+                control2: CGPoint(x: center.x - tileSize * 0.18, y: center.y + tileSize * 0.06)
+            )
+            path.addCurve(
+                to: CGPoint(x: center.x + tileSize * 0.04, y: center.y + tileSize * 0.05),
+                control1: CGPoint(x: center.x - tileSize * 0.06, y: center.y + tileSize * 0.18),
+                control2: CGPoint(x: center.x - tileSize * 0.03, y: center.y + tileSize * 0.12)
+            )
+            path.addCurve(
+                to: CGPoint(x: center.x + tileSize * 0.18, y: topY),
+                control1: CGPoint(x: center.x + tileSize * 0.18, y: center.y + tileSize * 0.13),
+                control2: CGPoint(x: center.x + tileSize * 0.23, y: center.y + tileSize * 0.18)
+            )
+            path.addCurve(
+                to: CGPoint(x: center.x + halfWidth, y: baseY),
+                control1: CGPoint(x: center.x + tileSize * 0.36, y: center.y + tileSize * 0.02),
+                control2: CGPoint(x: center.x + tileSize * 0.34, y: center.y - tileSize * 0.12)
+            )
             path.closeSubpath()
             return path
         }

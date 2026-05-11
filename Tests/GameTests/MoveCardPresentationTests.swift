@@ -43,6 +43,8 @@ final class MoveCardPresentationTests: XCTestCase {
         XCTAssertTrue(entries.first { $0.card == .singleAnnihilationSpell }?.description.contains("敵1体を消滅") == true)
         XCTAssertEqual(entries.first { $0.card == .annihilationSpell }?.category, "呪文系カード")
         XCTAssertTrue(entries.first { $0.card == .annihilationSpell }?.description.contains("敵をすべて消滅") == true)
+        XCTAssertEqual(entries.first { $0.card == .barrierSpell }?.category, "呪文系カード")
+        XCTAssertTrue(entries.first { $0.card == .barrierSpell }?.description.contains("HP ダメージを無効化") == true)
     }
 
     func testEnemyEncyclopediaEntriesCoverAllEnemyPresentationKinds() {
@@ -114,9 +116,12 @@ final class MoveCardPresentationTests: XCTestCase {
         XCTAssertEqual(entries.first { $0.id == "dungeonRelicPickup" }?.previewKind, .dungeonRelicPickup)
         XCTAssertEqual(entries.first { $0.id == "impassable" }?.previewKind, .impassable)
         XCTAssertEqual(entries.first { $0.id == "damageTrap" }?.previewKind, .damageTrap)
+        XCTAssertEqual(entries.first { $0.id == "lavaTile" }?.previewKind, .lavaTile)
         XCTAssertEqual(entries.first { $0.id == "healingTile" }?.previewKind, .healingTile)
         XCTAssertEqual(entries.first { $0.id == "brittleFloor" }?.previewKind, .brittleFloor)
         XCTAssertEqual(entries.first { $0.id == "collapsedFloor" }?.previewKind, .collapsedFloor)
+        XCTAssertEqual(entries.first { $0.id == "shackleTrap" }?.previewKind, .effect(.shackleTrap))
+        XCTAssertEqual(entries.first { $0.id == "poisonTrap" }?.previewKind, .effect(.poisonTrap))
         XCTAssertEqual(entries.first { $0.id == "enemyDanger" }?.previewKind, .enemyDanger)
         XCTAssertEqual(entries.first { $0.id == "enemyWarning" }?.previewKind, .enemyWarning)
         XCTAssertFalse(entries.contains { ["目的地", "踏破"].contains($0.category) })
@@ -134,6 +139,7 @@ final class MoveCardPresentationTests: XCTestCase {
             "dungeonRelicPickup",
             "impassable",
             "damageTrap",
+            "lavaTile",
             "healingTile",
             "brittleFloor",
             "collapsedFloor",
@@ -144,8 +150,12 @@ final class MoveCardPresentationTests: XCTestCase {
             "shuffleHand",
             "preserveCard",
             "paralysisTrap",
+            "shackleTrap",
+            "poisonTrap",
             "swamp",
             "discardRandomHandTrap",
+            "discardAllMoveCardsTrap",
+            "discardAllSupportCardsTrap",
             "discardAllHandsTrap",
         ]))
 
@@ -158,9 +168,13 @@ final class MoveCardPresentationTests: XCTestCase {
         XCTAssertEqual(specialPreviewIDs, [
             "blast",
             "discardAllHandsTrap",
+            "discardAllMoveCardsTrap",
+            "discardAllSupportCardsTrap",
             "discardRandomHandTrap",
             "paralysisTrap",
+            "poisonTrap",
             "preserveCard",
+            "shackleTrap",
             "shuffleHand",
             "swamp",
             "warp"
@@ -175,11 +189,12 @@ final class MoveCardPresentationTests: XCTestCase {
         XCTAssertEqual(relicEntries.map(\.relicID), DungeonRelicID.allCases)
         XCTAssertTrue(relicEntries.allSatisfy { !$0.displayName.isEmpty })
         XCTAssertTrue(relicEntries.allSatisfy { !$0.effectDescription.isEmpty })
-        XCTAssertTrue(relicEntries.allSatisfy { !$0.drawbackDescription.isEmpty })
 
         XCTAssertEqual(curseEntries.map(\.curseID), DungeonCurseID.allCases)
         XCTAssertTrue(curseEntries.allSatisfy { !$0.displayName.isEmpty })
         XCTAssertTrue(curseEntries.allSatisfy { !$0.effectDescription.isEmpty })
+        XCTAssertTrue(curseEntries.allSatisfy { !$0.upsideDescription.isEmpty })
+        XCTAssertTrue(curseEntries.allSatisfy { !$0.downsideDescription.isEmpty })
         XCTAssertTrue(curseEntries.allSatisfy { !$0.releaseDescription.isEmpty })
 
         XCTAssertEqual(eventEntries.map(\.kind), DungeonEventEncyclopediaKind.allCases)
@@ -215,8 +230,10 @@ final class MoveCardPresentationTests: XCTestCase {
         let supportTexts = SupportCard.encyclopediaEntries.flatMap { [$0.displayName, $0.category, $0.description] }
         let enemyTexts = EnemyEncyclopediaEntry.allEntries.flatMap { [$0.displayName, $0.behaviorSummary, $0.dangerSummary] }
         let tileTexts = TileEncyclopediaEntry.allEntries.flatMap { [$0.displayName, $0.category, $0.description] }
-        let relicTexts = DungeonRelicEncyclopediaEntry.allEntries.flatMap { [$0.displayName, $0.effectDescription, $0.drawbackDescription] }
-        let curseTexts = DungeonCurseEncyclopediaEntry.allEntries.flatMap { [$0.displayName, $0.effectDescription, $0.releaseDescription] }
+        let relicTexts = DungeonRelicEncyclopediaEntry.allEntries.flatMap { [$0.displayName, $0.effectDescription, $0.noteDescription ?? ""] }
+        let curseTexts = DungeonCurseEncyclopediaEntry.allEntries.flatMap {
+            [$0.displayName, $0.effectDescription, $0.upsideDescription, $0.downsideDescription, $0.releaseDescription]
+        }
         let eventTexts = DungeonEventEncyclopediaEntry.allEntries.flatMap { [$0.displayName, $0.description] }
         let allTexts = cardTexts + supportTexts + enemyTexts + tileTexts + relicTexts + curseTexts + eventTexts
         let removedTerms = ["目的地", "全踏破", "フォーカス", "Game Center", "ランキング", "踏破対象"]

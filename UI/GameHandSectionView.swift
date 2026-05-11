@@ -429,6 +429,10 @@ private extension GameHandSectionView {
                 return "ダブルタップで呪文を選び、消滅させる敵を盤面から選びます。"
             case .annihilationSpell:
                 return "ダブルタップで 1 手使い、このフロアの敵をすべて消滅させます。"
+            case .freezeSpell:
+                return "ダブルタップで 1 手使い、3回分の敵ターンを止めます。"
+            case .barrierSpell:
+                return "ダブルタップで 1 手使い、3回分のHPダメージを無効化します。"
             }
         }
 
@@ -629,7 +633,10 @@ extension GameHandSectionView {
     }
 
     static func dungeonRelicAccessibilityHint(for relic: DungeonRelicEntry) -> String {
-        "ダブルタップで効果を確認します。\(relic.effectDescription)\(relic.drawbackDescription)"
+        if let note = relic.noteDescription {
+            return "ダブルタップで効果を確認します。\(relic.effectDescription)\(note)"
+        }
+        return "ダブルタップで効果を確認します。\(relic.effectDescription)"
     }
 
     static func dungeonCurseAccessibilityIdentifier(for curse: DungeonCurseEntry) -> String {
@@ -641,7 +648,7 @@ extension GameHandSectionView {
     }
 
     static func dungeonCurseAccessibilityHint(for curse: DungeonCurseEntry) -> String {
-        "ダブルタップで効果を確認します。\(curse.effectDescription)\(curse.releaseDescription)"
+        "ダブルタップで効果を確認します。利点: \(curse.upsideDescription) 代償: \(curse.downsideDescription) \(curse.releaseDescription)"
     }
 }
 
@@ -698,7 +705,9 @@ private struct DungeonRelicDetailView: View {
 
                 VStack(alignment: .leading, spacing: 10) {
                     Label(relic.effectDescription, systemImage: "sparkles")
-                    Label(relic.drawbackDescription, systemImage: "exclamationmark.triangle")
+                    if let note = relic.noteDescription {
+                        Label(note, systemImage: "info.circle")
+                    }
                     if relic.hasLimitedUses {
                         Label("残り \(relic.remainingUses) 回", systemImage: "number.circle")
                     }
@@ -778,7 +787,8 @@ private struct DungeonCurseDetailView: View {
                 }
 
                 VStack(alignment: .leading, spacing: 10) {
-                    Label(curse.effectDescription, systemImage: "exclamationmark.triangle")
+                    Label(curse.upsideDescription, systemImage: "sparkles")
+                    Label(curse.downsideDescription, systemImage: "exclamationmark.triangle")
                     Label(curse.releaseDescription, systemImage: "checkmark.circle")
                     if curse.hasLimitedUses {
                         Label("残り \(curse.remainingUses) 回", systemImage: "number.circle")
@@ -855,6 +865,10 @@ private struct SupportCardIllustrationView: View {
             return "sparkle.magnifyingglass"
         case .annihilationSpell:
             return "sparkles"
+        case .freezeSpell:
+            return "snowflake"
+        case .barrierSpell:
+            return "shield.fill"
         }
     }
 }

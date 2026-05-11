@@ -77,12 +77,20 @@ public enum TileEffect: Equatable, Codable {
     case blast(direction: MoveVector)
     /// このマスで残りの移動を止める効果
     case slow
+    /// 踏むと次の階まで足枷状態になり、全行動が重くなる罠
+    case shackleTrap
+    /// 踏むと毒状態になり、以後の行動回数に応じて HP を失う罠
+    case poisonTrap
     /// 移動系カードを止め、上にいる間は移動系カードを使えなくする沼
     case swamp
     /// 使用したカードを消費せずに温存する効果
     case preserveCard
     /// 手札スロットをランダムに 1 つ失う効果
     case discardRandomHand
+    /// 移動カードの手札スロットをすべて失う効果
+    case discardAllMoveCards
+    /// 補助カードの手札スロットをすべて失う効果
+    case discardAllSupportCards
     /// 手札スロットをすべて失う効果
     case discardAllHands
 }
@@ -211,7 +219,7 @@ public struct Board: Equatable {
                 let isOrthogonalOneStep = abs(direction.dx) + abs(direction.dy) == 1
                 guard isOrthogonalOneStep else { continue }
                 sanitizedEffects[point] = effect
-            case .shuffleHand, .slow, .swamp, .preserveCard, .discardRandomHand, .discardAllHands:
+            case .shuffleHand, .slow, .shackleTrap, .poisonTrap, .swamp, .preserveCard, .discardRandomHand, .discardAllMoveCards, .discardAllSupportCards, .discardAllHands:
                 sanitizedEffects[point] = effect
             }
         }

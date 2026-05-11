@@ -113,6 +113,16 @@ final class GameViewModel: ObservableObject {
     var remainingDungeonTurns: Int? { core.remainingDungeonTurns }
     /// ダンジョン手数上限
     var dungeonTurnLimit: Int? { core.effectiveDungeonTurnLimit }
+    /// 凍結の呪文で停止している敵ターンの残り回数
+    var enemyFreezeTurnsRemaining: Int { core.enemyFreezeTurnsRemaining }
+    /// 障壁の呪文で HP ダメージを無効化できる残り回数
+    var damageBarrierTurnsRemaining: Int { core.damageBarrierTurnsRemaining }
+    /// 足枷罠で現在フロア中の全行動が重くなっているかどうか
+    var isShackled: Bool { core.isShackled }
+    /// 毒状態の残りダメージ回数
+    var poisonDamageTicksRemaining: Int { core.poisonDamageTicksRemaining }
+    /// 次の毒ダメージまでの成功行動数
+    var poisonActionsUntilNextDamage: Int { core.poisonActionsUntilNextDamage }
     /// ダンジョン出口座標
     var dungeonExitPoint: GridPoint? { mode.dungeonExitPoint }
     /// ダンジョン出口が解錠済みかどうか
@@ -173,8 +183,12 @@ final class GameViewModel: ObservableObject {
             at: runState.currentFloorIndex,
             runState: runState
         )
-        let rewardCount = (floor?.rewardMoveCardsAfterClear.count ?? 0)
+        let baseRewardCount = (floor?.rewardMoveCardsAfterClear.count ?? 0)
             + (floor?.rewardSupportCardsAfterClear.count ?? 0)
+        let rewardChoiceBonus =
+            (core.dungeonRelicEntries.contains { $0.relicID == .victoryBanner } ? 1 : 0) +
+            (core.dungeonCurseEntries.contains { $0.curseID == .crackedCompass } ? 1 : 0)
+        let rewardCount = min(baseRewardCount + rewardChoiceBonus, 4)
         guard rewardCount > 0 else { return [] }
 
         let tuning = DungeonRewardDrawTuning(
@@ -208,7 +222,8 @@ final class GameViewModel: ObservableObject {
             floorIndex: runState.currentFloorIndex,
             seed: runState.cardVariationSeed,
             tuning: tuning,
-            ownedRelics: ownedRelics
+            ownedRelics: ownedRelics,
+            minimumChoiceCount: rewardCount
         )
     }
     /// 現在フロアのクリア後に選べる報酬カードを、移動/補助を同じ3択枠として返す
@@ -236,9 +251,12 @@ final class GameViewModel: ObservableObject {
         guard let metadata = mode.dungeonMetadataSnapshot,
               let dungeon = DungeonLibrary.shared.dungeon(with: metadata.dungeonID)
         else { return 2 }
-        let relicBonus = core.dungeonRelicEntries.contains { $0.relicID == .heavyCrown } ? 1 : 0
+        let heavyCrownBonus = core.dungeonRelicEntries.contains { $0.relicID == .heavyCrown } ? 1 : 0
+        let cursedCrownBonus = core.dungeonCurseEntries.contains { $0.curseID == .cursedCrown } ? 2 : 0
         let cursePenalty = core.dungeonCurseEntries.contains { $0.curseID == .bloodPact && $0.remainingUses > 0 } ? 1 : 0
-        return max(dungeonGrowthStore.rewardAddUses(for: dungeon) + relicBonus - cursePenalty, 1)
+        let warpedHourglassPenalty = core.dungeonCurseEntries.contains { $0.curseID == .warpedHourglass } ? 1 : 0
+        let greedyBagPenalty = core.dungeonCurseEntries.contains { $0.curseID == .greedyBag } ? 2 : 0
+        return max(dungeonGrowthStore.rewardAddUses(for: dungeon) + heavyCrownBonus + cursedCrownBonus - cursePenalty - warpedHourglassPenalty - greedyBagPenalty, 1)
     }
     /// クリア後に強化/整理できる手札の報酬カード
     var adjustableDungeonRewardEntries: [DungeonInventoryEntry] {

@@ -10,6 +10,7 @@ public enum TileMarkerPreviewKind: Equatable {
     case cardPickup
     case dungeonRelicPickup
     case damageTrap
+    case lavaTile
     case healingTile
     case brittleFloor
     case collapsedFloor
@@ -110,6 +111,13 @@ public struct TileEncyclopediaEntry: Identifiable, Equatable {
             previewKind: .damageTrap
         ),
         TileEncyclopediaEntry(
+            id: "lavaTile",
+            displayName: "溶岩",
+            category: "危険",
+            description: "踏むと HP を失います。その上にいるまま1手使うと、さらに HP を失います。",
+            previewKind: .lavaTile
+        ),
+        TileEncyclopediaEntry(
             id: "healingTile",
             displayName: "回復マス",
             category: "攻略",
@@ -180,6 +188,20 @@ public struct TileEncyclopediaEntry: Identifiable, Equatable {
             previewKind: .effect(.slow)
         ),
         TileEncyclopediaEntry(
+            id: "shackleTrap",
+            displayName: "足枷罠",
+            category: "危険",
+            description: "踏むと次の階まで足枷状態になります。全行動の手数が2になり、敵ターンも2回進みます。",
+            previewKind: .effect(.shackleTrap)
+        ),
+        TileEncyclopediaEntry(
+            id: "poisonTrap",
+            displayName: "毒罠",
+            category: "危険",
+            description: "踏むと毒状態になります。次の行動から数え始め、3行動ごとに HP を失います。",
+            previewKind: .effect(.poisonTrap)
+        ),
+        TileEncyclopediaEntry(
             id: "swamp",
             displayName: "沼",
             category: "特殊効果",
@@ -192,6 +214,20 @@ public struct TileEncyclopediaEntry: Identifiable, Equatable {
             category: "危険",
             description: "踏むと手札スロットをランダムに1つ失います。失った枠はすぐには補充されません。",
             previewKind: .effect(.discardRandomHand)
+        ),
+        TileEncyclopediaEntry(
+            id: "discardAllMoveCardsTrap",
+            displayName: "移動カード喪失罠",
+            category: "危険",
+            description: "踏むと移動カードの手札スロットをすべて失います。割れたカードと矢印が目印です。",
+            previewKind: .effect(.discardAllMoveCards)
+        ),
+        TileEncyclopediaEntry(
+            id: "discardAllSupportCardsTrap",
+            displayName: "補助カード喪失罠",
+            category: "危険",
+            description: "踏むと補助カードの手札スロットをすべて失います。割れたカードと補助記号が目印です。",
+            previewKind: .effect(.discardAllSupportCards)
         ),
         TileEncyclopediaEntry(
             id: "discardAllHandsTrap",

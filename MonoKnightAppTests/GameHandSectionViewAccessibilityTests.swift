@@ -148,7 +148,7 @@ final class GameHandSectionViewAccessibilityTests: XCTestCase {
             "遺物、割れた盾"
         )
         XCTAssertTrue(GameHandSectionView.dungeonRelicAccessibilityHint(for: relic).contains("次に受けるダメージ"))
-        XCTAssertTrue(GameHandSectionView.dungeonRelicAccessibilityHint(for: relic).contains("取得時にHPが1減る"))
+        XCTAssertFalse(GameHandSectionView.dungeonRelicAccessibilityHint(for: relic).contains("取得時にHPが1減る"))
     }
 
     func testDungeonCurseAccessibilityTextUsesCurseDetails() {
@@ -162,6 +162,8 @@ final class GameHandSectionViewAccessibilityTests: XCTestCase {
             GameHandSectionView.dungeonCurseAccessibilityLabel(for: curse),
             "呪い遺物、棘の印"
         )
+        XCTAssertTrue(GameHandSectionView.dungeonCurseAccessibilityHint(for: curse).contains("利点"))
+        XCTAssertTrue(GameHandSectionView.dungeonCurseAccessibilityHint(for: curse).contains("取得時にHPが1増える"))
         XCTAssertTrue(GameHandSectionView.dungeonCurseAccessibilityHint(for: curse).contains("次に受けるダメージ"))
         XCTAssertTrue(GameHandSectionView.dungeonCurseAccessibilityHint(for: curse).contains("1回発動すると消える"))
     }

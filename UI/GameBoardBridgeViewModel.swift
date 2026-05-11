@@ -460,6 +460,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
             .dungeonRelicPickup: displayedRelicPickupPoints,
             .dungeonSuspiciousRelicPickup: displayedSuspiciousRelicPickupPoints,
             .dungeonDamageTrap: core.damageTrapPoints,
+            .dungeonLavaTile: core.lavaTilePoints,
             .dungeonHealingTile: core.healingTilePoints,
             .dungeonCrackedFloor: displayedCrackedFloorPoints,
             .dungeonCollapsedFloor: displayedCollapsedFloorPoints

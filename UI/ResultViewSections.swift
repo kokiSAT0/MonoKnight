@@ -760,7 +760,10 @@ struct DungeonRewardCardChoicePresentation: Equatable {
         case .playable(.support(let support)):
             return support.encyclopediaDescription
         case .relic(let relic):
-            return "\(relic.effectDescription) \(relic.drawbackDescription)"
+            if let note = relic.noteDescription {
+                return "\(relic.effectDescription) \(note)"
+            }
+            return relic.effectDescription
         }
     }
 }
@@ -1072,6 +1075,10 @@ private struct SupportRewardCardIllustrationView: View {
             return "sparkle.magnifyingglass"
         case .annihilationSpell:
             return "sparkles"
+        case .freezeSpell:
+            return "snowflake"
+        case .barrierSpell:
+            return "shield.fill"
         }
     }
 }

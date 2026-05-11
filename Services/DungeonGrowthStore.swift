@@ -342,9 +342,10 @@ final class DungeonGrowthStore: ObservableObject {
         floorIndex: Int,
         seed: UInt64?,
         tuning: DungeonRewardDrawTuning = DungeonRewardDrawTuning(),
-        ownedRelics: Set<DungeonRelicID> = []
+        ownedRelics: Set<DungeonRelicID> = [],
+        minimumChoiceCount: Int? = nil
     ) -> [DungeonRewardOffer] {
-        let choiceCount = maxRewardChoiceCount(for: dungeon)
+        let choiceCount = min(max(maxRewardChoiceCount(for: dungeon), minimumChoiceCount ?? 0), 4)
         guard dungeon.difficulty == .growth else {
             return Array(baseOffers.prefix(choiceCount))
         }

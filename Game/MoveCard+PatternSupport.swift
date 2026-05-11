@@ -347,9 +347,9 @@ public extension MoveCard {
 public extension TileEffect {
     var stopsMovementCard: Bool {
         switch self {
-        case .slow, .swamp:
+        case .slow, .shackleTrap, .swamp:
             return true
-        case .warp, .shuffleHand, .blast, .preserveCard, .discardRandomHand, .discardAllHands:
+        case .warp, .shuffleHand, .blast, .poisonTrap, .preserveCard, .discardRandomHand, .discardAllMoveCards, .discardAllSupportCards, .discardAllHands:
             return false
         }
     }

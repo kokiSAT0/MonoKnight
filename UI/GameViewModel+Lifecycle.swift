@@ -255,6 +255,8 @@ extension GameViewModel {
             ]
         case .damageTrap(let points, _):
             return points.isEmpty ? [] : [tileDiscoveryID("damageTrap")]
+        case .lavaTile(let points, _):
+            return points.isEmpty ? [] : [tileDiscoveryID("lavaTile")]
         case .healingTile(let points, _):
             return points.isEmpty ? [] : [tileDiscoveryID("healingTile")]
         }
@@ -270,12 +272,20 @@ extension GameViewModel {
             return tileDiscoveryID("blast")
         case .slow:
             return tileDiscoveryID("paralysisTrap")
+        case .shackleTrap:
+            return tileDiscoveryID("shackleTrap")
+        case .poisonTrap:
+            return tileDiscoveryID("poisonTrap")
         case .swamp:
             return tileDiscoveryID("swamp")
         case .preserveCard:
             return tileDiscoveryID("preserveCard")
         case .discardRandomHand:
             return tileDiscoveryID("discardRandomHandTrap")
+        case .discardAllMoveCards:
+            return tileDiscoveryID("discardAllMoveCardsTrap")
+        case .discardAllSupportCards:
+            return tileDiscoveryID("discardAllSupportCardsTrap")
         case .discardAllHands:
             return tileDiscoveryID("discardAllHandsTrap")
         }

@@ -863,6 +863,49 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
         )
     }
 
+    func testEnemyFreezeHidesThreatsButKeepsEnemyMarkers() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let floor = try XCTUnwrap(tower.floors.first { $0.id == "growth-17" })
+        let mode = floor.makeGameMode(dungeonID: tower.id)
+        let core = GameCore(mode: mode)
+        core.overrideEnemyFreezeTurnsRemainingForTesting(2)
+        let viewModel = GameBoardBridgeViewModel(core: core, mode: mode)
+
+        XCTAssertEqual(viewModel.scene.latestHighlightPoints(for: .dungeonDanger), [])
+        XCTAssertEqual(viewModel.scene.latestHighlightPoints(for: .dungeonEnemyWarning), [])
+        XCTAssertEqual(
+            viewModel.scene.latestHighlightPoints(for: .dungeonEnemy),
+            Set(core.enemyStates.map(\.position))
+        )
+        XCTAssertTrue(core.enemyPatrolMovementPreviews.isEmpty)
+        XCTAssertTrue(core.enemyChaserMovementPreviews.isEmpty)
+    }
+
+    func testDamageBarrierKeepsThreatHighlightsAndEnemyMarkers() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let floor = try XCTUnwrap(tower.floors.first { $0.id == "growth-17" })
+        let mode = floor.makeGameMode(dungeonID: tower.id)
+        let core = GameCore(mode: mode)
+        core.overrideDamageBarrierTurnsRemainingForTesting(2)
+        let viewModel = GameBoardBridgeViewModel(core: core, mode: mode)
+
+        XCTAssertFalse(core.enemyDangerPoints.isEmpty)
+        XCTAssertFalse(core.enemyWarningPoints.isEmpty)
+        XCTAssertEqual(
+            viewModel.scene.latestHighlightPoints(for: .dungeonDanger),
+            core.enemyDangerPoints
+        )
+        XCTAssertEqual(
+            viewModel.scene.latestHighlightPoints(for: .dungeonEnemyWarning),
+            core.enemyWarningPoints
+        )
+        XCTAssertEqual(
+            viewModel.scene.latestHighlightPoints(for: .dungeonEnemy),
+            Set(core.enemyStates.map(\.position))
+        )
+        XCTAssertFalse(core.enemyPatrolMovementPreviews.isEmpty)
+    }
+
     func testDungeonEnemyTurnAnimationSkipsRedDangerPulseButKeepsWarningPulse() throws {
         let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
         let floor = try XCTUnwrap(tower.floors.first { $0.id == "growth-17" })

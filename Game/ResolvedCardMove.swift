@@ -12,6 +12,7 @@ public struct MovementResolution: Equatable {
             case failed
             case fall
             case slow
+            case shackleTrap
             case warp
         }
 
@@ -237,12 +238,20 @@ public struct ResolvedCardMove: Hashable {
                 hasher.combine(direction.dy)
             case .slow:
                 hasher.combine("slow")
+            case .shackleTrap:
+                hasher.combine("shackleTrap")
+            case .poisonTrap:
+                hasher.combine("poisonTrap")
             case .swamp:
                 hasher.combine("swamp")
             case .preserveCard:
                 hasher.combine("preserveCard")
             case .discardRandomHand:
                 hasher.combine("discardRandomHand")
+            case .discardAllMoveCards:
+                hasher.combine("discardAllMoveCards")
+            case .discardAllSupportCards:
+                hasher.combine("discardAllSupportCards")
             case .discardAllHands:
                 hasher.combine("discardAllHands")
             }
@@ -277,6 +286,8 @@ public struct ResolvedCardMove: Hashable {
                 hasher.combine("fall")
             case .slow:
                 hasher.combine("slow")
+            case .shackleTrap:
+                hasher.combine("shackleTrap")
             case .warp:
                 hasher.combine("warp")
             case nil:

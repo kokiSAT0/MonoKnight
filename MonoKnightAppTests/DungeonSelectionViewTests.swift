@@ -186,6 +186,72 @@ final class DungeonSelectionViewTests: XCTestCase {
         XCTAssertTrue(growthStore.canUnlock(.climbingKit))
     }
 
+    func testDungeonGrowthTreePresentationBuildsTowerLanes() throws {
+        let suiteName = "DungeonSelectionViewTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName) ?? .standard
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let growthStore = DungeonGrowthStore(userDefaults: defaults)
+
+        let presentation = DungeonGrowthTreePresentation.make(growthStore: growthStore)
+
+        XCTAssertEqual(presentation.lanes.map(\.branch), [.preparation, .reward, .hazard])
+        XCTAssertEqual(presentation.lanes.map(\.branchTitle), ["準備", "報酬", "危険回避"])
+        XCTAssertEqual(presentation.tierCount, 4)
+        XCTAssertEqual((0..<presentation.tierCount).map { presentation.gateText(forTier: $0) }, ["5F", "10F", "15F", "20F"])
+        XCTAssertEqual(presentation.lanes[0].nodes.map(\.upgrade), [.toolPouch, .climbingKit, .shortcutKit, .refillCharm])
+        XCTAssertEqual(presentation.lanes[1].nodes.map(\.upgrade), [.rewardScout, .cardPreservation, .widerRewardRead, .supportScout])
+        XCTAssertEqual(presentation.lanes[2].nodes.map(\.upgrade), [.footingRead, .secondStep, .enemyRead, .meteorRead])
+    }
+
+    func testDungeonGrowthTreePresentationDerivesNodeStates() throws {
+        let suiteName = "DungeonSelectionViewTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName) ?? .standard
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let growthStore = DungeonGrowthStore(userDefaults: defaults)
+        let growthTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let fifthFloor = DungeonRunState(dungeonID: growthTower.id, currentFloorIndex: 4, carriedHP: 3, clearedFloorCount: 4)
+
+        var presentation = DungeonGrowthTreePresentation.make(growthStore: growthStore)
+        XCTAssertEqual(presentation.node(for: .toolPouch)?.state, .locked)
+        XCTAssertEqual(presentation.node(for: .toolPouch)?.lockReason, "ポイント不足")
+
+        _ = growthStore.registerDungeonClear(dungeon: growthTower, runState: fifthFloor, hasNextFloor: true)
+        presentation = DungeonGrowthTreePresentation.make(growthStore: growthStore)
+        XCTAssertEqual(presentation.node(for: .toolPouch)?.state, .unlockable)
+        XCTAssertEqual(presentation.node(for: .toolPouch)?.badgeText, "1pt")
+        XCTAssertEqual(presentation.defaultSelectedUpgrade, .toolPouch)
+
+        XCTAssertTrue(growthStore.unlock(.toolPouch))
+        presentation = DungeonGrowthTreePresentation.make(growthStore: growthStore)
+        XCTAssertEqual(presentation.node(for: .toolPouch)?.state, .active)
+        XCTAssertTrue(presentation.node(for: .toolPouch)?.isUnlocked == true)
+
+        XCTAssertTrue(growthStore.setActive(.toolPouch, isActive: false))
+        presentation = DungeonGrowthTreePresentation.make(growthStore: growthStore)
+        XCTAssertEqual(presentation.node(for: .toolPouch)?.state, .inactive)
+        XCTAssertEqual(presentation.node(for: .climbingKit)?.state, .locked)
+        XCTAssertEqual(presentation.node(for: .climbingKit)?.lockReason, "10F到達後")
+    }
+
+    func testDungeonGrowthTreePresentationKeepsStableActionIdentifiers() throws {
+        let suiteName = "DungeonSelectionViewTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName) ?? .standard
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let growthStore = DungeonGrowthStore(userDefaults: defaults)
+        let growthTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let fifthFloor = DungeonRunState(dungeonID: growthTower.id, currentFloorIndex: 4, carriedHP: 3, clearedFloorCount: 4)
+        _ = growthStore.registerDungeonClear(dungeon: growthTower, runState: fifthFloor, hasNextFloor: true)
+
+        let presentation = DungeonGrowthTreePresentation.make(growthStore: growthStore)
+        let node = try XCTUnwrap(presentation.node(for: .toolPouch))
+
+        XCTAssertEqual(node.accessibilityIdentifier, "dungeon_growth_node_toolPouch")
+        XCTAssertTrue(node.accessibilityLabel.contains("準備"))
+        XCTAssertTrue(node.accessibilityLabel.contains("道具袋"))
+        XCTAssertTrue(node.canUnlock)
+        XCTAssertFalse(node.isUnlocked)
+    }
+
     private func makeResumeSnapshot(
         dungeonID: String,
         floorIndex: Int,

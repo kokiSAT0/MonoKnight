@@ -171,6 +171,42 @@ private extension GameBoardControlRowView {
                 remaining: viewModel.remainingDungeonTurns,
                 limit: viewModel.dungeonTurnLimit
             )
+
+            if viewModel.enemyFreezeTurnsRemaining > 0 {
+                statisticBadge(
+                    title: "凍結",
+                    value: "残り\(viewModel.enemyFreezeTurnsRemaining)",
+                    accessibilityLabel: "敵凍結",
+                    accessibilityValue: "残り\(viewModel.enemyFreezeTurnsRemaining)ターン"
+                )
+            }
+
+            if viewModel.damageBarrierTurnsRemaining > 0 {
+                statisticBadge(
+                    title: "障壁",
+                    value: "残り\(viewModel.damageBarrierTurnsRemaining)",
+                    accessibilityLabel: "障壁",
+                    accessibilityValue: "残り\(viewModel.damageBarrierTurnsRemaining)ターン、HPダメージを無効化"
+                )
+            }
+
+            if viewModel.isShackled {
+                statisticBadge(
+                    title: "足枷",
+                    value: "手数2",
+                    accessibilityLabel: "足枷状態",
+                    accessibilityValue: "全行動の手数が2になり、敵ターンも2回進みます"
+                )
+            }
+
+            if viewModel.poisonDamageTicksRemaining > 0 {
+                statisticBadge(
+                    title: "毒",
+                    value: "次\(viewModel.poisonActionsUntilNextDamage)",
+                    accessibilityLabel: "毒状態",
+                    accessibilityValue: "次の毒ダメージまで\(viewModel.poisonActionsUntilNextDamage)行動、残り\(viewModel.poisonDamageTicksRemaining)回"
+                )
+            }
         }
     }
 

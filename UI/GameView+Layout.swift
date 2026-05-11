@@ -382,7 +382,7 @@ struct DungeonPickupChoiceOverlayView: View {
             DungeonPickupChoiceCardView(
                 theme: theme,
                 playable: choice.pickup.playable,
-                uses: choice.pickup.uses,
+                uses: choice.pickupUses,
                 badgeText: "拾ったカード",
                 actionText: "取得しない",
                 isPickupCandidate: true
@@ -501,6 +501,10 @@ private struct SupportPickupChoiceIllustrationView: View {
             return "sparkle.magnifyingglass"
         case .annihilationSpell:
             return "sparkles"
+        case .freezeSpell:
+            return "snowflake"
+        case .barrierSpell:
+            return "shield.fill"
         }
     }
 }

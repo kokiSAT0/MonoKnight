@@ -34,10 +34,14 @@ final class GameModeRegulationTests: XCTestCase {
     func testTileEffectsRoundTripThroughRegulationCoding() throws {
         let blastPoint = GridPoint(x: 2, y: 1)
         let slowPoint = GridPoint(x: 2, y: 3)
+        let shacklePoint = GridPoint(x: 4, y: 0)
         let swampPoint = GridPoint(x: 1, y: 3)
         let preserveCardPoint = GridPoint(x: 1, y: 1)
         let discardRandomPoint = GridPoint(x: 3, y: 1)
+        let discardMovePoint = GridPoint(x: 0, y: 3)
+        let discardSupportPoint = GridPoint(x: 4, y: 1)
         let discardAllPoint = GridPoint(x: 3, y: 3)
+        let poisonPoint = GridPoint(x: 4, y: 3)
         let regulation = GameMode.Regulation(
             boardSize: 5,
             handSize: 5,
@@ -54,10 +58,14 @@ final class GameModeRegulationTests: XCTestCase {
             tileEffectOverrides: [
                 blastPoint: .blast(direction: MoveVector(dx: 0, dy: -1)),
                 slowPoint: .slow,
+                shacklePoint: .shackleTrap,
                 swampPoint: .swamp,
                 preserveCardPoint: .preserveCard,
                 discardRandomPoint: .discardRandomHand,
+                discardMovePoint: .discardAllMoveCards,
+                discardSupportPoint: .discardAllSupportCards,
                 discardAllPoint: .discardAllHands,
+                poisonPoint: .poisonTrap,
             ],
             completionRule: .dungeonExit(exitPoint: GridPoint(x: 4, y: 4))
         )
@@ -69,14 +77,22 @@ final class GameModeRegulationTests: XCTestCase {
         XCTAssertEqual(decoded.resolvedTileEffects[blastPoint], TileEffect.blast(direction: MoveVector(dx: 0, dy: -1)))
         XCTAssertEqual(decoded.tileEffectOverrides[slowPoint], TileEffect.slow)
         XCTAssertEqual(decoded.resolvedTileEffects[slowPoint], TileEffect.slow)
+        XCTAssertEqual(decoded.tileEffectOverrides[shacklePoint], TileEffect.shackleTrap)
+        XCTAssertEqual(decoded.resolvedTileEffects[shacklePoint], TileEffect.shackleTrap)
         XCTAssertEqual(decoded.tileEffectOverrides[swampPoint], TileEffect.swamp)
         XCTAssertEqual(decoded.resolvedTileEffects[swampPoint], TileEffect.swamp)
         XCTAssertEqual(decoded.tileEffectOverrides[preserveCardPoint], TileEffect.preserveCard)
         XCTAssertEqual(decoded.resolvedTileEffects[preserveCardPoint], TileEffect.preserveCard)
         XCTAssertEqual(decoded.tileEffectOverrides[discardRandomPoint], TileEffect.discardRandomHand)
         XCTAssertEqual(decoded.resolvedTileEffects[discardRandomPoint], TileEffect.discardRandomHand)
+        XCTAssertEqual(decoded.tileEffectOverrides[discardMovePoint], TileEffect.discardAllMoveCards)
+        XCTAssertEqual(decoded.resolvedTileEffects[discardMovePoint], TileEffect.discardAllMoveCards)
+        XCTAssertEqual(decoded.tileEffectOverrides[discardSupportPoint], TileEffect.discardAllSupportCards)
+        XCTAssertEqual(decoded.resolvedTileEffects[discardSupportPoint], TileEffect.discardAllSupportCards)
         XCTAssertEqual(decoded.tileEffectOverrides[discardAllPoint], TileEffect.discardAllHands)
         XCTAssertEqual(decoded.resolvedTileEffects[discardAllPoint], TileEffect.discardAllHands)
+        XCTAssertEqual(decoded.tileEffectOverrides[poisonPoint], TileEffect.poisonTrap)
+        XCTAssertEqual(decoded.resolvedTileEffects[poisonPoint], TileEffect.poisonTrap)
     }
 
     func testPresentationStringsRemainStableAfterExtraction() {

@@ -17,6 +17,11 @@ public struct DungeonRunResumeSnapshot: Codable, Equatable {
     public let hazardDamageMitigationsRemaining: Int
     public let enemyDamageMitigationsRemaining: Int
     public let markerDamageMitigationsRemaining: Int
+    public let enemyFreezeTurnsRemaining: Int
+    public let damageBarrierTurnsRemaining: Int
+    public let isShackled: Bool
+    public let poisonDamageTicksRemaining: Int
+    public let poisonActionsUntilNextDamage: Int
     public let enemyStates: [EnemyState]
     public let crackedFloorPoints: Set<GridPoint>
     public let collapsedFloorPoints: Set<GridPoint>
@@ -42,6 +47,11 @@ public struct DungeonRunResumeSnapshot: Codable, Equatable {
         hazardDamageMitigationsRemaining: Int,
         enemyDamageMitigationsRemaining: Int = 0,
         markerDamageMitigationsRemaining: Int = 0,
+        enemyFreezeTurnsRemaining: Int = 0,
+        damageBarrierTurnsRemaining: Int = 0,
+        isShackled: Bool = false,
+        poisonDamageTicksRemaining: Int = 0,
+        poisonActionsUntilNextDamage: Int = 0,
         enemyStates: [EnemyState],
         crackedFloorPoints: Set<GridPoint>,
         collapsedFloorPoints: Set<GridPoint>,
@@ -66,6 +76,11 @@ public struct DungeonRunResumeSnapshot: Codable, Equatable {
         self.hazardDamageMitigationsRemaining = max(hazardDamageMitigationsRemaining, 0)
         self.enemyDamageMitigationsRemaining = max(enemyDamageMitigationsRemaining, 0)
         self.markerDamageMitigationsRemaining = max(markerDamageMitigationsRemaining, 0)
+        self.enemyFreezeTurnsRemaining = max(enemyFreezeTurnsRemaining, 0)
+        self.damageBarrierTurnsRemaining = max(damageBarrierTurnsRemaining, 0)
+        self.isShackled = isShackled
+        self.poisonDamageTicksRemaining = max(poisonDamageTicksRemaining, 0)
+        self.poisonActionsUntilNextDamage = max(poisonActionsUntilNextDamage, 0)
         self.enemyStates = enemyStates
         self.crackedFloorPoints = crackedFloorPoints
         self.collapsedFloorPoints = collapsedFloorPoints
@@ -92,6 +107,11 @@ public struct DungeonRunResumeSnapshot: Codable, Equatable {
         case hazardDamageMitigationsRemaining
         case enemyDamageMitigationsRemaining
         case markerDamageMitigationsRemaining
+        case enemyFreezeTurnsRemaining
+        case damageBarrierTurnsRemaining
+        case isShackled
+        case poisonDamageTicksRemaining
+        case poisonActionsUntilNextDamage
         case enemyStates
         case crackedFloorPoints
         case collapsedFloorPoints
@@ -120,6 +140,11 @@ public struct DungeonRunResumeSnapshot: Codable, Equatable {
             hazardDamageMitigationsRemaining: try container.decodeIfPresent(Int.self, forKey: .hazardDamageMitigationsRemaining) ?? 0,
             enemyDamageMitigationsRemaining: try container.decodeIfPresent(Int.self, forKey: .enemyDamageMitigationsRemaining) ?? 0,
             markerDamageMitigationsRemaining: try container.decodeIfPresent(Int.self, forKey: .markerDamageMitigationsRemaining) ?? 0,
+            enemyFreezeTurnsRemaining: try container.decodeIfPresent(Int.self, forKey: .enemyFreezeTurnsRemaining) ?? 0,
+            damageBarrierTurnsRemaining: try container.decodeIfPresent(Int.self, forKey: .damageBarrierTurnsRemaining) ?? 0,
+            isShackled: try container.decodeIfPresent(Bool.self, forKey: .isShackled) ?? false,
+            poisonDamageTicksRemaining: try container.decodeIfPresent(Int.self, forKey: .poisonDamageTicksRemaining) ?? 0,
+            poisonActionsUntilNextDamage: try container.decodeIfPresent(Int.self, forKey: .poisonActionsUntilNextDamage) ?? 0,
             enemyStates: try container.decodeIfPresent([EnemyState].self, forKey: .enemyStates) ?? [],
             crackedFloorPoints: try container.decodeIfPresent(Set<GridPoint>.self, forKey: .crackedFloorPoints) ?? [],
             collapsedFloorPoints: try container.decodeIfPresent(Set<GridPoint>.self, forKey: .collapsedFloorPoints) ?? [],
@@ -148,6 +173,11 @@ public struct DungeonRunResumeSnapshot: Codable, Equatable {
         try container.encode(hazardDamageMitigationsRemaining, forKey: .hazardDamageMitigationsRemaining)
         try container.encode(enemyDamageMitigationsRemaining, forKey: .enemyDamageMitigationsRemaining)
         try container.encode(markerDamageMitigationsRemaining, forKey: .markerDamageMitigationsRemaining)
+        try container.encode(enemyFreezeTurnsRemaining, forKey: .enemyFreezeTurnsRemaining)
+        try container.encode(damageBarrierTurnsRemaining, forKey: .damageBarrierTurnsRemaining)
+        try container.encode(isShackled, forKey: .isShackled)
+        try container.encode(poisonDamageTicksRemaining, forKey: .poisonDamageTicksRemaining)
+        try container.encode(poisonActionsUntilNextDamage, forKey: .poisonActionsUntilNextDamage)
         try container.encode(enemyStates, forKey: .enemyStates)
         try container.encode(crackedFloorPoints, forKey: .crackedFloorPoints)
         try container.encode(collapsedFloorPoints, forKey: .collapsedFloorPoints)

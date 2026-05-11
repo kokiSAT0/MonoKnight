@@ -298,7 +298,174 @@ final class GameCoreTests: XCTestCase {
         XCTAssertNil(core.dungeonEnemyTurnEvent)
     }
 
-    func testSingleAnnihilationSpellSelectsOneEnemyWithoutEnemyTurn() throws {
+    func testFreezeSpellStopsThreeEnemyTurnsAndHidesThreats() throws {
+        let enemies = [
+            EnemyDefinition(
+                id: "patrol",
+                name: "巡回兵",
+                position: GridPoint(x: 4, y: 1),
+                behavior: .patrol(path: [
+                    GridPoint(x: 4, y: 1),
+                    GridPoint(x: 4, y: 2)
+                ])
+            ),
+            EnemyDefinition(
+                id: "marker",
+                name: "メテオ兵",
+                position: GridPoint(x: 3, y: 3),
+                behavior: .marker(directions: [], range: 2)
+            )
+        ]
+        let mode = makeInventoryDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            allowsBasicOrthogonalMove: true,
+            enemies: enemies
+        )
+        let core = GameCore(mode: mode)
+        XCTAssertTrue(core.addDungeonInventorySupportCardForTesting(.freezeSpell, rewardUses: 1))
+        let supportIndex = try XCTUnwrap(core.handStacks.firstIndex { $0.topCard?.supportCard == .freezeSpell })
+
+        XCTAssertFalse(core.enemyDangerPoints.isEmpty)
+        XCTAssertFalse(core.enemyWarningPoints.isEmpty)
+        XCTAssertFalse(core.enemyPatrolMovementPreviews.isEmpty)
+
+        core.playSupportCard(at: supportIndex)
+
+        XCTAssertEqual(core.enemyFreezeTurnsRemaining, 2)
+        XCTAssertEqual(core.enemyStates.first { $0.id == "patrol" }?.position, GridPoint(x: 4, y: 1))
+        XCTAssertTrue(core.enemyDangerPoints.isEmpty)
+        XCTAssertTrue(core.enemyWarningPoints.isEmpty)
+        XCTAssertTrue(core.enemyPatrolMovementPreviews.isEmpty)
+        XCTAssertTrue(core.enemyChaserMovementPreviews.isEmpty)
+        XCTAssertNil(core.dungeonEnemyTurnEvent)
+
+        let firstBasic = try XCTUnwrap(core.availableBasicOrthogonalMoves().first { $0.destination == GridPoint(x: 1, y: 0) })
+        core.playBasicOrthogonalMove(using: firstBasic)
+
+        XCTAssertEqual(core.enemyFreezeTurnsRemaining, 1)
+        XCTAssertEqual(core.enemyStates.first { $0.id == "patrol" }?.position, GridPoint(x: 4, y: 1))
+        XCTAssertTrue(core.enemyDangerPoints.isEmpty)
+        XCTAssertTrue(core.enemyWarningPoints.isEmpty)
+
+        let secondBasic = try XCTUnwrap(core.availableBasicOrthogonalMoves().first { $0.destination == GridPoint(x: 2, y: 0) })
+        core.playBasicOrthogonalMove(using: secondBasic)
+
+        XCTAssertEqual(core.enemyFreezeTurnsRemaining, 0)
+        XCTAssertEqual(core.enemyStates.first { $0.id == "patrol" }?.position, GridPoint(x: 4, y: 1))
+        XCTAssertFalse(core.enemyDangerPoints.isEmpty)
+        XCTAssertFalse(core.enemyWarningPoints.isEmpty)
+    }
+
+    func testFreezeSpellAllowsEnemyTurnAfterThirdStoppedTurn() throws {
+        let patrol = EnemyDefinition(
+            id: "patrol",
+            name: "巡回兵",
+            position: GridPoint(x: 4, y: 1),
+            behavior: .patrol(path: [
+                GridPoint(x: 4, y: 1),
+                GridPoint(x: 4, y: 2)
+            ])
+        )
+        let mode = makeInventoryDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            allowsBasicOrthogonalMove: true,
+            enemies: [patrol]
+        )
+        let core = GameCore(mode: mode)
+        XCTAssertTrue(core.addDungeonInventorySupportCardForTesting(.freezeSpell, rewardUses: 1))
+        let supportIndex = try XCTUnwrap(core.handStacks.firstIndex { $0.topCard?.supportCard == .freezeSpell })
+
+        core.playSupportCard(at: supportIndex)
+        for destination in [GridPoint(x: 1, y: 0), GridPoint(x: 2, y: 0)] {
+            let move = try XCTUnwrap(core.availableBasicOrthogonalMoves().first { $0.destination == destination })
+            core.playBasicOrthogonalMove(using: move)
+        }
+        XCTAssertEqual(core.enemyFreezeTurnsRemaining, 0)
+        XCTAssertEqual(core.enemyStates.first?.position, GridPoint(x: 4, y: 1))
+
+        let normalTurnMove = try XCTUnwrap(core.availableBasicOrthogonalMoves().first { $0.destination == GridPoint(x: 3, y: 0) })
+        core.playBasicOrthogonalMove(using: normalTurnMove)
+
+        XCTAssertEqual(core.enemyStates.first?.position, GridPoint(x: 4, y: 2))
+        XCTAssertNotNil(core.dungeonEnemyTurnEvent)
+    }
+
+    func testBarrierSpellNegatesDamageForThreeTurnsThenDamageReturns() throws {
+        let guardEnemy = EnemyDefinition(
+            id: "guard",
+            name: "番兵",
+            position: GridPoint(x: 2, y: 2),
+            behavior: .guardPost
+        )
+        let mode = makeInventoryDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            allowsBasicOrthogonalMove: true,
+            enemies: [guardEnemy],
+            hazards: [
+                .damageTrap(points: [GridPoint(x: 1, y: 0)], damage: 1),
+                .lavaTile(points: [GridPoint(x: 2, y: 0)], damage: 1)
+            ]
+        )
+        let core = GameCore(mode: mode)
+        XCTAssertTrue(core.addDungeonInventorySupportCardForTesting(.barrierSpell, rewardUses: 1))
+        let supportIndex = try XCTUnwrap(core.handStacks.firstIndex { $0.topCard?.supportCard == .barrierSpell })
+
+        core.playSupportCard(at: supportIndex)
+        XCTAssertEqual(core.dungeonHP, 3)
+        XCTAssertEqual(core.damageBarrierTurnsRemaining, 2)
+
+        let trapMove = try XCTUnwrap(core.availableBasicOrthogonalMoves().first { $0.destination == GridPoint(x: 1, y: 0) })
+        core.playBasicOrthogonalMove(using: trapMove)
+        XCTAssertEqual(core.dungeonHP, 3)
+        XCTAssertEqual(core.damageBarrierTurnsRemaining, 1)
+
+        let lavaMove = try XCTUnwrap(core.availableBasicOrthogonalMoves().first { $0.destination == GridPoint(x: 2, y: 0) })
+        core.playBasicOrthogonalMove(using: lavaMove)
+        XCTAssertEqual(core.dungeonHP, 3)
+        XCTAssertEqual(core.damageBarrierTurnsRemaining, 0)
+
+        let dangerMove = try XCTUnwrap(core.availableBasicOrthogonalMoves().first { $0.destination == GridPoint(x: 2, y: 1) })
+        core.playBasicOrthogonalMove(using: dangerMove)
+        XCTAssertEqual(core.dungeonHP, 2)
+    }
+
+    func testBarrierSpellProtectsMarkerDamageWithoutConsumingMitigation() throws {
+        let marker = EnemyDefinition(
+            id: "marker",
+            name: "メテオ兵",
+            position: GridPoint(x: 4, y: 4),
+            behavior: .marker(directions: [], range: 80)
+        )
+        let runState = DungeonRunState(
+            dungeonID: "test-dungeon",
+            carriedHP: 3,
+            markerDamageMitigationsRemaining: 1
+        )
+        let mode = makeInventoryDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 0),
+            allowsBasicOrthogonalMove: true,
+            enemies: [marker],
+            runState: runState
+        )
+        let core = GameCore(mode: mode)
+        XCTAssertTrue(core.addDungeonInventorySupportCardForTesting(.barrierSpell, rewardUses: 1))
+        let supportIndex = try XCTUnwrap(core.handStacks.firstIndex { $0.topCard?.supportCard == .barrierSpell })
+
+        core.playSupportCard(at: supportIndex)
+        let warningPoints = core.enemyWarningPoints
+        let warningMove = try XCTUnwrap(core.availableBasicOrthogonalMoves().first { warningPoints.contains($0.destination) })
+        core.playBasicOrthogonalMove(using: warningMove)
+
+        XCTAssertEqual(core.dungeonHP, 3)
+        XCTAssertEqual(core.markerDamageMitigationsRemaining, 1)
+        XCTAssertEqual(core.damageBarrierTurnsRemaining, 1)
+    }
+
+    func testSingleAnnihilationSpellSelectsOneEnemyThenAdvancesEnemyTurn() throws {
         let enemies = [
             EnemyDefinition(
                 id: "guard",
@@ -327,9 +494,10 @@ final class GameCoreTests: XCTestCase {
         XCTAssertTrue(core.playTargetedSupportCard(at: GridPoint(x: 1, y: 0)))
 
         XCTAssertEqual(core.enemyStates.map(\.id), ["chaser"])
+        XCTAssertEqual(core.enemyStates.first?.position, GridPoint(x: 3, y: 4))
         XCTAssertFalse(core.dungeonInventoryEntries.contains { $0.supportCard == .singleAnnihilationSpell })
         XCTAssertEqual(core.moveCount, 1)
-        XCTAssertNil(core.dungeonEnemyTurnEvent)
+        XCTAssertNotNil(core.dungeonEnemyTurnEvent)
         XCTAssertNil(core.pendingTargetedSupportCard)
     }
 
@@ -430,6 +598,22 @@ final class GameCoreTests: XCTestCase {
         XCTAssertEqual(
             advanced.rewardInventoryEntries,
             [DungeonInventoryEntry(support: .singleAnnihilationSpell, rewardUses: 1)]
+        )
+    }
+
+    func testFreezeSpellRewardCarriesOnlyOneUse() {
+        let runState = DungeonRunState(dungeonID: "growth-tower", carriedHP: 3)
+
+        let advanced = runState.advancedToNextFloor(
+            carryoverHP: 3,
+            currentFloorMoveCount: 4,
+            rewardSelection: .addSupport(.freezeSpell),
+            rewardAddUses: 4
+        )
+
+        XCTAssertEqual(
+            advanced.rewardInventoryEntries,
+            [DungeonInventoryEntry(support: .freezeSpell, rewardUses: 1)]
         )
     }
 
@@ -603,9 +787,12 @@ final class GameCoreTests: XCTestCase {
         tileEffectOverrides: [GridPoint: TileEffect] = [:],
         allowsBasicOrthogonalMove: Bool = false,
         cardPickups: [DungeonCardPickupDefinition] = [],
-        enemies: [EnemyDefinition] = []
+        enemies: [EnemyDefinition] = [],
+        hazards: [HazardDefinition] = [],
+        runState: DungeonRunState? = nil
     ) -> GameMode {
-        GameMode(
+        let resolvedRunState = runState ?? DungeonRunState(dungeonID: "test-dungeon", carriedHP: 3)
+        return GameMode(
             identifier: .dungeonFloor,
             displayName: "塔攻略テスト",
             regulation: GameMode.Regulation(
@@ -629,6 +816,7 @@ final class GameCoreTests: XCTestCase {
                     difficulty: .growth,
                     failureRule: DungeonFailureRule(initialHP: 3, turnLimit: nil),
                     enemies: enemies,
+                    hazards: hazards,
                     allowsBasicOrthogonalMove: allowsBasicOrthogonalMove,
                     cardAcquisitionMode: .inventoryOnly,
                     cardPickups: cardPickups
@@ -638,7 +826,7 @@ final class GameCoreTests: XCTestCase {
             dungeonMetadata: GameMode.DungeonMetadata(
                 dungeonID: "test-dungeon",
                 floorID: "test-floor",
-                runState: DungeonRunState(dungeonID: "test-dungeon", carriedHP: 3)
+                runState: resolvedRunState
             )
         )
     }

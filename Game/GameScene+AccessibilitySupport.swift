@@ -100,12 +100,20 @@
                     return "吹き飛ばしマス"
                 case .slow:
                     return "麻痺罠"
+                case .shackleTrap:
+                    return "足枷罠"
+                case .poisonTrap:
+                    return "毒罠"
                 case .swamp:
                     return "沼"
                 case .preserveCard:
                     return "カード温存マス"
                 case .discardRandomHand:
                     return "手札喪失罠"
+                case .discardAllMoveCards:
+                    return "移動カード喪失罠"
+                case .discardAllSupportCards:
+                    return "補助カード喪失罠"
                 case .discardAllHands:
                     return "全手札喪失罠"
                 }

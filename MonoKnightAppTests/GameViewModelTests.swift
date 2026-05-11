@@ -809,6 +809,93 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertEqual(core.progress, .failed)
     }
 
+    func testDungeonRewardAddUsesReflectsRelicAndCurseModifiers() throws {
+        let mode = GameMode(
+            identifier: .dungeonFloor,
+            displayName: "報酬回数テスト",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .kingAndKnightBasic,
+                spawnRule: .fixed(GridPoint(x: 0, y: 0)),
+                penalties: GameMode.PenaltySettings(
+                    deadlockPenaltyCost: 0,
+                    manualRedrawPenaltyCost: 0,
+                    manualDiscardPenaltyCost: 0,
+                    revisitPenaltyCost: 0
+                ),
+                completionRule: .dungeonExit(exitPoint: GridPoint(x: 4, y: 4)),
+                dungeonRules: DungeonRules(
+                    difficulty: .growth,
+                    failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 8)
+                )
+            ),
+            leaderboardEligible: false,
+            dungeonMetadata: .init(
+                dungeonID: "growth-tower",
+                floorID: "growth-1",
+                runState: DungeonRunState(
+                    dungeonID: "growth-tower",
+                    carriedHP: 3,
+                    relicEntries: [DungeonRelicEntry(relicID: .heavyCrown)],
+                    curseEntries: [
+                        DungeonCurseEntry(curseID: .cursedCrown),
+                        DungeonCurseEntry(curseID: .bloodPact),
+                        DungeonCurseEntry(curseID: .warpedHourglass),
+                        DungeonCurseEntry(curseID: .greedyBag)
+                    ]
+                )
+            )
+        )
+        let (viewModel, _) = makeViewModel(mode: mode)
+
+        XCTAssertEqual(viewModel.dungeonRewardAddUses, 1)
+    }
+
+    func testDungeonRewardOffersCanExpandToFourWithRelicAndCurseModifiers() throws {
+        let mode = GameMode(
+            identifier: .dungeonFloor,
+            displayName: "報酬候補数テスト",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .kingAndKnightBasic,
+                spawnRule: .fixed(GridPoint(x: 0, y: 0)),
+                penalties: GameMode.PenaltySettings(
+                    deadlockPenaltyCost: 0,
+                    manualRedrawPenaltyCost: 0,
+                    manualDiscardPenaltyCost: 0,
+                    revisitPenaltyCost: 0
+                ),
+                completionRule: .dungeonExit(exitPoint: GridPoint(x: 4, y: 4)),
+                dungeonRules: DungeonRules(
+                    difficulty: .growth,
+                    failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 8)
+                )
+            ),
+            leaderboardEligible: false,
+            dungeonMetadata: .init(
+                dungeonID: "growth-tower",
+                floorID: "growth-1",
+                runState: DungeonRunState(
+                    dungeonID: "growth-tower",
+                    carriedHP: 3,
+                    relicEntries: [DungeonRelicEntry(relicID: .victoryBanner)],
+                    curseEntries: [DungeonCurseEntry(curseID: .crackedCompass)],
+                    cardVariationSeed: 42
+                )
+            )
+        )
+        let (viewModel, _) = makeViewModel(mode: mode)
+
+        XCTAssertEqual(viewModel.availableDungeonRewardOffers.count, 4)
+        XCTAssertFalse(viewModel.availableDungeonRewardOffers.contains(.relic(.victoryBanner)))
+    }
+
     func testPendingDungeonPickupDiscardNewCardResolvesThroughViewModel() throws {
         let pickupPoint = GridPoint(x: 1, y: 0)
         let existingCards = Array(MoveCard.allCases.prefix(9))

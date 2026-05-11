@@ -11,9 +11,13 @@ final class BoardClearTests: XCTestCase {
         let shufflePoint = GridPoint(x: 2, y: 2)
         let blastPoint = GridPoint(x: 0, y: 2)
         let slowPoint = GridPoint(x: 1, y: 2)
+        let shacklePoint = GridPoint(x: 2, y: 3)
+        let poisonPoint = GridPoint(x: 3, y: 3)
         let preserveCardPoint = GridPoint(x: 2, y: 1)
         let discardRandomPoint = GridPoint(x: 3, y: 1)
         let discardAllPoint = GridPoint(x: 3, y: 2)
+        let discardMovePoint = GridPoint(x: 0, y: 3)
+        let discardSupportPoint = GridPoint(x: 1, y: 3)
         let board = Board(
             size: 4,
             tileEffects: [
@@ -22,8 +26,12 @@ final class BoardClearTests: XCTestCase {
                 shufflePoint: .shuffleHand,
                 blastPoint: .blast(direction: MoveVector(dx: 1, dy: 0)),
                 slowPoint: .slow,
+                shacklePoint: .shackleTrap,
+                poisonPoint: .poisonTrap,
                 preserveCardPoint: .preserveCard,
                 discardRandomPoint: .discardRandomHand,
+                discardMovePoint: .discardAllMoveCards,
+                discardSupportPoint: .discardAllSupportCards,
                 discardAllPoint: .discardAllHands,
             ]
         )
@@ -37,10 +45,18 @@ final class BoardClearTests: XCTestCase {
         XCTAssertEqual(board.state(at: blastPoint)?.effect, .blast(direction: MoveVector(dx: 1, dy: 0)))
         XCTAssertEqual(board.effect(at: slowPoint), .slow)
         XCTAssertEqual(board.state(at: slowPoint)?.effect, .slow)
+        XCTAssertEqual(board.effect(at: shacklePoint), .shackleTrap)
+        XCTAssertEqual(board.state(at: shacklePoint)?.effect, .shackleTrap)
+        XCTAssertEqual(board.effect(at: poisonPoint), .poisonTrap)
+        XCTAssertEqual(board.state(at: poisonPoint)?.effect, .poisonTrap)
         XCTAssertEqual(board.effect(at: preserveCardPoint), .preserveCard)
         XCTAssertEqual(board.state(at: preserveCardPoint)?.effect, .preserveCard)
         XCTAssertEqual(board.effect(at: discardRandomPoint), .discardRandomHand)
         XCTAssertEqual(board.state(at: discardRandomPoint)?.effect, .discardRandomHand)
+        XCTAssertEqual(board.effect(at: discardMovePoint), .discardAllMoveCards)
+        XCTAssertEqual(board.state(at: discardMovePoint)?.effect, .discardAllMoveCards)
+        XCTAssertEqual(board.effect(at: discardSupportPoint), .discardAllSupportCards)
+        XCTAssertEqual(board.state(at: discardSupportPoint)?.effect, .discardAllSupportCards)
         XCTAssertEqual(board.effect(at: discardAllPoint), .discardAllHands)
         XCTAssertEqual(board.state(at: discardAllPoint)?.effect, .discardAllHands)
     }

@@ -465,6 +465,83 @@
                     strokeNodes: [trapPlate],
                     fillNodes: [bolt, leftSpark, rightSpark]
                 )
+            case .poisonTrap:
+                let trapPlate = SKShapeNode()
+                trapPlate.name = "tileEffectPoisonTrapPlate"
+                trapPlate.strokeColor = .clear
+                trapPlate.fillColor = .clear
+                trapPlate.lineWidth = 1
+                trapPlate.isAntialiased = true
+                trapPlate.blendMode = .alpha
+
+                let needle = SKShapeNode()
+                needle.name = "tileEffectPoisonNeedle"
+                needle.strokeColor = .clear
+                needle.fillColor = .clear
+                needle.lineWidth = 0
+                needle.isAntialiased = true
+                needle.blendMode = .alpha
+
+                let droplet = SKShapeNode()
+                droplet.name = "tileEffectPoisonDroplet"
+                droplet.strokeColor = .clear
+                droplet.fillColor = .clear
+                droplet.lineWidth = 1
+                droplet.isAntialiased = true
+                droplet.blendMode = .alpha
+
+                container.addChild(trapPlate)
+                container.addChild(needle)
+                container.addChild(droplet)
+                return TileEffectDecorationCache(
+                    container: container,
+                    effect: effect,
+                    strokeNodes: [trapPlate],
+                    fillNodes: [needle, droplet]
+                )
+            case .shackleTrap:
+                let leftCuff = SKShapeNode()
+                leftCuff.name = "tileEffectShackleLeftCuff"
+                leftCuff.strokeColor = .clear
+                leftCuff.fillColor = .clear
+                leftCuff.lineWidth = 1
+                leftCuff.isAntialiased = true
+                leftCuff.blendMode = .alpha
+
+                let rightCuff = SKShapeNode()
+                rightCuff.name = "tileEffectShackleRightCuff"
+                rightCuff.strokeColor = .clear
+                rightCuff.fillColor = .clear
+                rightCuff.lineWidth = 1
+                rightCuff.isAntialiased = true
+                rightCuff.blendMode = .alpha
+
+                let chain = SKShapeNode()
+                chain.name = "tileEffectShackleChain"
+                chain.strokeColor = .clear
+                chain.fillColor = .clear
+                chain.lineWidth = 1
+                chain.isAntialiased = true
+                chain.blendMode = .alpha
+
+                let weight = SKShapeNode()
+                weight.name = "tileEffectShackleWeight"
+                weight.strokeColor = .clear
+                weight.fillColor = .clear
+                weight.lineWidth = 1
+                weight.isAntialiased = true
+                weight.blendMode = .alpha
+
+                container.addChild(leftCuff)
+                container.addChild(rightCuff)
+                container.addChild(chain)
+                container.addChild(weight)
+                return TileEffectDecorationCache(
+                    container: container,
+                    effect: effect,
+                    strokeNodes: [leftCuff, rightCuff, chain, weight],
+                    fillNodes: [weight]
+                )
             case .swamp:
                 let pond = SKShapeNode()
                 pond.name = "tileEffectSwampPond"
@@ -547,6 +624,40 @@
                     container: container,
                     effect: effect,
                     strokeNodes: [card, crack],
+                    fillNodes: []
+                )
+            case .discardAllMoveCards, .discardAllSupportCards:
+                let card = SKShapeNode()
+                card.name = "tileEffectDiscardCategoryCardBody"
+                card.strokeColor = .clear
+                card.fillColor = .clear
+                card.lineWidth = 1
+                card.isAntialiased = true
+                card.blendMode = .alpha
+
+                let crack = SKShapeNode()
+                crack.name = "tileEffectDiscardCategoryCardCrack"
+                crack.strokeColor = .clear
+                crack.fillColor = .clear
+                crack.lineWidth = 1
+                crack.isAntialiased = true
+                crack.blendMode = .alpha
+
+                let icon = SKShapeNode()
+                icon.name = "tileEffectDiscardCategoryIcon"
+                icon.strokeColor = .clear
+                icon.fillColor = .clear
+                icon.lineWidth = 1
+                icon.isAntialiased = true
+                icon.blendMode = .alpha
+
+                container.addChild(card)
+                container.addChild(crack)
+                container.addChild(icon)
+                return TileEffectDecorationCache(
+                    container: container,
+                    effect: effect,
+                    strokeNodes: [card, crack, icon],
                     fillNodes: []
                 )
             case .discardAllHands:
@@ -713,6 +824,72 @@
                 rightSpark.path = paralysisSparkPath(tileSize: layout.tileSize, scale: 0.48)
                 rightSpark.position = CGPoint(x: layout.tileSize * 0.24, y: -layout.tileSize * 0.03)
                 rightSpark.zRotation = .pi
+            case .poisonTrap:
+                guard let trapPlate = decoration.strokeNodes.first,
+                      decoration.fillNodes.count >= 2
+                else { return }
+
+                trapPlate.path = paralysisTrapPlatePath(tileSize: layout.tileSize)
+                trapPlate.position = .zero
+                trapPlate.lineWidth = max(layout.tileSize * 0.035, 1.4)
+
+                let needle = decoration.fillNodes[0]
+                needle.path = CGPath(
+                    roundedRect: CGRect(
+                        x: -layout.tileSize * 0.035,
+                        y: -layout.tileSize * 0.26,
+                        width: layout.tileSize * 0.07,
+                        height: layout.tileSize * 0.52
+                    ),
+                    cornerWidth: layout.tileSize * 0.02,
+                    cornerHeight: layout.tileSize * 0.02,
+                    transform: nil
+                )
+                needle.position = CGPoint(x: -layout.tileSize * 0.14, y: layout.tileSize * 0.02)
+                needle.zRotation = .pi / 4
+
+                let dropletRadius = layout.tileSize * 0.12
+                let droplet = decoration.fillNodes[1]
+                droplet.path = CGPath(
+                    ellipseIn: CGRect(
+                        x: -dropletRadius,
+                        y: -dropletRadius,
+                        width: dropletRadius * 2,
+                        height: dropletRadius * 2
+                    ),
+                    transform: nil
+                )
+                droplet.position = CGPoint(x: layout.tileSize * 0.12, y: -layout.tileSize * 0.04)
+            case .shackleTrap:
+                guard decoration.strokeNodes.count >= 4 else { return }
+                let cuffRadius = layout.tileSize * 0.13
+                let cuffRect = CGRect(x: -cuffRadius, y: -cuffRadius, width: cuffRadius * 2, height: cuffRadius * 2)
+                let leftCuff = decoration.strokeNodes[0]
+                leftCuff.path = CGPath(ellipseIn: cuffRect, transform: nil)
+                leftCuff.position = CGPoint(x: -layout.tileSize * 0.13, y: layout.tileSize * 0.08)
+                leftCuff.lineWidth = max(1.2, layout.tileSize * 0.04)
+
+                let rightCuff = decoration.strokeNodes[1]
+                rightCuff.path = CGPath(ellipseIn: cuffRect, transform: nil)
+                rightCuff.position = CGPoint(x: layout.tileSize * 0.13, y: layout.tileSize * 0.08)
+                rightCuff.lineWidth = max(1.2, layout.tileSize * 0.04)
+
+                let chain = decoration.strokeNodes[2]
+                let chainPath = CGMutablePath()
+                chainPath.move(to: CGPoint(x: -layout.tileSize * 0.02, y: layout.tileSize * 0.02))
+                chainPath.addLine(to: CGPoint(x: layout.tileSize * 0.18, y: -layout.tileSize * 0.18))
+                chain.path = chainPath
+                chain.position = .zero
+                chain.lineWidth = max(1.3, layout.tileSize * 0.04)
+
+                let weightRadius = layout.tileSize * 0.13
+                let weight = decoration.strokeNodes[3]
+                weight.path = CGPath(
+                    ellipseIn: CGRect(x: -weightRadius, y: -weightRadius, width: weightRadius * 2, height: weightRadius * 2),
+                    transform: nil
+                )
+                weight.position = CGPoint(x: layout.tileSize * 0.22, y: -layout.tileSize * 0.23)
+                weight.lineWidth = max(1.2, layout.tileSize * 0.04)
             case .swamp:
                 guard let pond = decoration.fillNodes.first,
                       decoration.strokeNodes.count >= 2
@@ -789,6 +966,36 @@
                 crack.lineWidth = max(1.2, layout.tileSize * 0.04)
                 crack.position = .zero
                 crack.zRotation = card.zRotation
+            case .discardAllMoveCards, .discardAllSupportCards:
+                guard decoration.strokeNodes.count >= 3 else { return }
+                let card = decoration.strokeNodes[0]
+                let crack = decoration.strokeNodes[1]
+                let icon = decoration.strokeNodes[2]
+
+                card.path = brokenCardPath(tileSize: layout.tileSize, scale: 0.84)
+                card.lineWidth = max(1.2, layout.tileSize * 0.04)
+                card.position = CGPoint(x: -layout.tileSize * 0.04, y: -layout.tileSize * 0.01)
+                card.zRotation = -.pi / 20
+
+                crack.path = brokenCardCrackPath(tileSize: layout.tileSize, scale: 0.84)
+                crack.lineWidth = max(1.2, layout.tileSize * 0.035)
+                crack.position = card.position
+                crack.zRotation = card.zRotation
+
+                switch effect {
+                case .discardAllMoveCards:
+                    icon.path = blastArrowPath(tileSize: layout.tileSize, scale: 0.42)
+                    icon.position = CGPoint(x: layout.tileSize * 0.14, y: layout.tileSize * 0.10)
+                    icon.zRotation = -.pi / 2
+                    icon.lineWidth = max(1.0, layout.tileSize * 0.035)
+                case .discardAllSupportCards:
+                    icon.path = supportCrossPath(tileSize: layout.tileSize, scale: 0.38)
+                    icon.position = CGPoint(x: layout.tileSize * 0.14, y: layout.tileSize * 0.10)
+                    icon.zRotation = 0
+                    icon.lineWidth = max(1.0, layout.tileSize * 0.04)
+                default:
+                    break
+                }
             case .discardAllHands:
                 guard decoration.strokeNodes.count >= 7 else { return }
                 let frame = decoration.strokeNodes[0]
@@ -878,6 +1085,25 @@
                     node.strokeColor = .clear
                     node.alpha = 1.0
                 }
+            case .poisonTrap:
+                let accent = palette.boardTileEffectSlow
+                for node in decoration.strokeNodes {
+                    node.strokeColor = accent.withAlphaComponent(0.82)
+                    node.fillColor = accent.withAlphaComponent(0.10)
+                    node.alpha = 1.0
+                }
+                for (index, node) in decoration.fillNodes.enumerated() {
+                    node.fillColor = accent.withAlphaComponent(index == 0 ? 0.88 : 0.72)
+                    node.strokeColor = index == 1 ? accent.withAlphaComponent(0.92) : .clear
+                    node.alpha = 1.0
+                }
+            case .shackleTrap:
+                let accent = palette.boardTileEffectSlow
+                for (index, node) in decoration.strokeNodes.enumerated() {
+                    node.strokeColor = accent.withAlphaComponent(index == 2 ? 0.74 : 0.92)
+                    node.fillColor = index == 3 ? accent.withAlphaComponent(0.28) : .clear
+                    node.alpha = 1.0
+                }
             case .swamp:
                 let accent = palette.boardTileEffectSwamp
                 for (index, node) in decoration.strokeNodes.enumerated() {
@@ -906,6 +1132,13 @@
                 let accent = palette.boardTileEffectDiscardHand
                 for (index, node) in decoration.strokeNodes.enumerated() {
                     node.strokeColor = accent.withAlphaComponent(index == 0 ? 0.95 : 0.78)
+                    node.fillColor = index == 0 ? accent.withAlphaComponent(0.10) : .clear
+                    node.alpha = 1.0
+                }
+            case .discardAllMoveCards, .discardAllSupportCards:
+                let accent = palette.boardTileEffectDiscardHand
+                for (index, node) in decoration.strokeNodes.enumerated() {
+                    node.strokeColor = accent.withAlphaComponent(index == 2 ? 1.0 : 0.86)
                     node.fillColor = index == 0 ? accent.withAlphaComponent(0.10) : .clear
                     node.alpha = 1.0
                 }
@@ -1013,6 +1246,26 @@
             path.addLine(to: CGPoint(x: s * 0.02, y: s * 0.08))
             path.addLine(to: CGPoint(x: -s * 0.04, y: -s * 0.02))
             path.addLine(to: CGPoint(x: s * 0.07, y: -s * 0.24))
+            return path
+        }
+
+        private func supportCrossPath(tileSize: CGFloat, scale: CGFloat) -> CGPath {
+            let s = tileSize * scale
+            let arm = s * 0.16
+            let path = CGMutablePath()
+            path.move(to: CGPoint(x: -arm, y: s * 0.30))
+            path.addLine(to: CGPoint(x: arm, y: s * 0.30))
+            path.addLine(to: CGPoint(x: arm, y: arm))
+            path.addLine(to: CGPoint(x: s * 0.30, y: arm))
+            path.addLine(to: CGPoint(x: s * 0.30, y: -arm))
+            path.addLine(to: CGPoint(x: arm, y: -arm))
+            path.addLine(to: CGPoint(x: arm, y: -s * 0.30))
+            path.addLine(to: CGPoint(x: -arm, y: -s * 0.30))
+            path.addLine(to: CGPoint(x: -arm, y: -arm))
+            path.addLine(to: CGPoint(x: -s * 0.30, y: -arm))
+            path.addLine(to: CGPoint(x: -s * 0.30, y: arm))
+            path.addLine(to: CGPoint(x: -arm, y: arm))
+            path.closeSubpath()
             return path
         }
 

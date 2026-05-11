@@ -8,6 +8,10 @@ public enum SupportCard: String, CaseIterable, Codable, Hashable {
     case singleAnnihilationSpell
     /// 現在フロアの敵をすべて消滅させる
     case annihilationSpell
+    /// 全敵を一定ターン凍結させる
+    case freezeSpell
+    /// 一定ターン HP ダメージを無効化する
+    case barrierSpell
 
     public var displayName: String {
         switch self {
@@ -17,6 +21,10 @@ public enum SupportCard: String, CaseIterable, Codable, Hashable {
             return "消滅の呪文"
         case .annihilationSpell:
             return "全滅の呪文"
+        case .freezeSpell:
+            return "凍結の呪文"
+        case .barrierSpell:
+            return "障壁の呪文"
         }
     }
 
@@ -24,7 +32,7 @@ public enum SupportCard: String, CaseIterable, Codable, Hashable {
         switch self {
         case .refillEmptySlots:
             return "補助カード"
-        case .singleAnnihilationSpell, .annihilationSpell:
+        case .singleAnnihilationSpell, .annihilationSpell, .freezeSpell, .barrierSpell:
             return "呪文系カード"
         }
     }
@@ -37,6 +45,10 @@ public enum SupportCard: String, CaseIterable, Codable, Hashable {
             return "移動せず 1 手使い、選んだ敵1体を消滅させます。"
         case .annihilationSpell:
             return "移動せず 1 手使い、このフロアの敵をすべて消滅させます。"
+        case .freezeSpell:
+            return "移動せず 1 手使い、3回分の敵ターンを止めます。凍結中は敵の移動、攻撃、着弾予告が発生しません。"
+        case .barrierSpell:
+            return "移動せず 1 手使い、3回分の行動後処理で HP ダメージを無効化します。敵や危険表示は通常どおり動きます。"
         }
     }
 
@@ -44,7 +56,7 @@ public enum SupportCard: String, CaseIterable, Codable, Hashable {
         switch self {
         case .singleAnnihilationSpell:
             return true
-        case .refillEmptySlots, .annihilationSpell:
+        case .refillEmptySlots, .annihilationSpell, .freezeSpell, .barrierSpell:
             return false
         }
     }

@@ -510,6 +510,10 @@ private struct SupportCardEncyclopediaRow: View {
             return "sparkle.magnifyingglass"
         case .annihilationSpell:
             return "sparkles"
+        case .freezeSpell:
+            return "snowflake"
+        case .barrierSpell:
+            return "shield.fill"
         }
     }
 }
@@ -718,7 +722,7 @@ private struct RelicEncyclopediaRow: View {
             symbolName: entry.symbolName,
             title: entry.displayName,
             primaryDescription: entry.effectDescription,
-            secondaryDescription: "代償: \(entry.drawbackDescription)",
+            secondaryDescription: entry.noteDescription.map { "補足: \($0)" },
             isUnlocked: isUnlocked,
             tint: .orange
         )
@@ -733,8 +737,8 @@ private struct CurseEncyclopediaRow: View {
         IconEncyclopediaRow(
             symbolName: entry.symbolName,
             title: entry.displayName,
-            primaryDescription: entry.effectDescription,
-            secondaryDescription: "解除: \(entry.releaseDescription)",
+            primaryDescription: "利点: \(entry.upsideDescription)",
+            secondaryDescription: "代償: \(entry.downsideDescription) / \(entry.releaseDescription)",
             isUnlocked: isUnlocked,
             tint: .red
         )
@@ -883,6 +887,7 @@ private struct TileMarkerPreviewView: View {
              .cardPickup,
              .dungeonRelicPickup,
              .damageTrap,
+             .lavaTile,
              .healingTile,
              .brittleFloor,
              .enemyDanger,
@@ -957,6 +962,19 @@ private struct TileMarkerPreviewView: View {
                 Image(systemName: "exclamationmark")
                     .font(.system(size: 19, weight: .black))
                     .foregroundColor(theme.boardTileEffectSlow)
+            }
+        case .lavaTile:
+            ZStack {
+                FlameShape()
+                    .fill(Color.orange.opacity(0.30))
+                    .frame(width: 34, height: 34)
+                FlameShape()
+                    .stroke(Color.red.opacity(0.90), lineWidth: 2)
+                    .frame(width: 34, height: 34)
+                FlameShape()
+                    .fill(Color.yellow.opacity(0.75))
+                    .frame(width: 18, height: 22)
+                    .offset(y: 5)
             }
         case .healingTile:
             ZStack {
@@ -1084,6 +1102,46 @@ private struct TileEffectMarkerView: View {
                     .rotationEffect(.degrees(162))
                     .offset(x: 12, y: 1)
             }
+        case .shackleTrap:
+            ZStack {
+                Circle()
+                    .stroke(accent.opacity(0.92), lineWidth: 2.2)
+                    .frame(width: 18, height: 18)
+                    .offset(x: -7, y: 5)
+                Circle()
+                    .stroke(accent.opacity(0.92), lineWidth: 2.2)
+                    .frame(width: 18, height: 18)
+                    .offset(x: 7, y: 5)
+                Capsule()
+                    .fill(accent.opacity(0.88))
+                    .frame(width: 17, height: 4)
+                    .offset(y: 5)
+                Capsule()
+                    .stroke(accent.opacity(0.78), lineWidth: 2)
+                    .frame(width: 22, height: 7)
+                    .rotationEffect(.degrees(-35))
+                    .offset(x: 0, y: -6)
+                Circle()
+                    .fill(accent.opacity(0.30))
+                    .overlay(Circle().stroke(accent.opacity(0.90), lineWidth: 2))
+                    .frame(width: 13, height: 13)
+                    .offset(x: 12, y: -11)
+            }
+        case .poisonTrap:
+            ZStack {
+                DiamondShape()
+                    .stroke(accent.opacity(0.82), lineWidth: 2)
+                    .frame(width: 31, height: 31)
+                Image(systemName: "drop.fill")
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundStyle(accent.opacity(0.92))
+                    .offset(x: 5, y: 2)
+                Capsule()
+                    .fill(accent.opacity(0.82))
+                    .frame(width: 5, height: 23)
+                    .rotationEffect(.degrees(45))
+                    .offset(x: -8, y: -5)
+            }
         case .swamp:
             ZStack {
                 Capsule()
@@ -1114,6 +1172,26 @@ private struct TileEffectMarkerView: View {
             BrokenCardMarker(accent: accent, scale: 1.0)
                 .frame(width: 32, height: 32)
                 .rotationEffect(.degrees(-8))
+        case .discardAllMoveCards:
+            ZStack {
+                BrokenCardMarker(accent: accent, scale: 0.86)
+                    .frame(width: 32, height: 32)
+                    .rotationEffect(.degrees(-7))
+                Image(systemName: "arrow.right")
+                    .font(.system(size: 15, weight: .black))
+                    .foregroundStyle(accent)
+                    .offset(x: 9, y: -8)
+            }
+        case .discardAllSupportCards:
+            ZStack {
+                BrokenCardMarker(accent: accent, scale: 0.86)
+                    .frame(width: 32, height: 32)
+                    .rotationEffect(.degrees(-7))
+                Image(systemName: "cross.fill")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(accent)
+                    .offset(x: 9, y: -8)
+            }
         case .discardAllHands:
             ZStack {
                 RoundedRectangle(cornerRadius: 4, style: .continuous)
@@ -1142,11 +1220,15 @@ private struct TileEffectMarkerView: View {
             return theme.boardTileEffectBlast
         case .slow:
             return theme.boardTileEffectSlow
+        case .shackleTrap:
+            return theme.boardTileEffectSlow
+        case .poisonTrap:
+            return theme.boardTileEffectSlow
         case .swamp:
             return theme.boardTileEffectSwamp
         case .preserveCard:
             return theme.boardTileEffectPreserveCard
-        case .discardRandomHand, .discardAllHands:
+        case .discardRandomHand, .discardAllMoveCards, .discardAllSupportCards, .discardAllHands:
             return theme.boardTileEffectDiscardHand
         }
     }
@@ -1298,6 +1380,30 @@ private struct TriangleShape: Shape {
         path.move(to: CGPoint(x: rect.maxX, y: rect.midY))
         path.addLine(to: CGPoint(x: rect.minX, y: rect.minY))
         path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+        path.closeSubpath()
+        return path
+    }
+}
+
+private struct FlameShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.midX, y: rect.minY))
+        path.addCurve(
+            to: CGPoint(x: rect.minX + rect.width * 0.22, y: rect.maxY),
+            control1: CGPoint(x: rect.minX + rect.width * 0.18, y: rect.minY + rect.height * 0.24),
+            control2: CGPoint(x: rect.minX + rect.width * 0.08, y: rect.minY + rect.height * 0.64)
+        )
+        path.addCurve(
+            to: CGPoint(x: rect.maxX - rect.width * 0.18, y: rect.maxY),
+            control1: CGPoint(x: rect.minX + rect.width * 0.42, y: rect.maxY - rect.height * 0.12),
+            control2: CGPoint(x: rect.maxX - rect.width * 0.14, y: rect.maxY - rect.height * 0.34)
+        )
+        path.addCurve(
+            to: CGPoint(x: rect.midX, y: rect.minY),
+            control1: CGPoint(x: rect.maxX - rect.width * 0.02, y: rect.minY + rect.height * 0.52),
+            control2: CGPoint(x: rect.maxX - rect.width * 0.20, y: rect.minY + rect.height * 0.24)
+        )
         path.closeSubpath()
         return path
     }
