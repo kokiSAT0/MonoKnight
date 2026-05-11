@@ -135,6 +135,7 @@ extension GameViewModel {
         if progress == .failed || shouldClearDungeonResumeAfterClear(progress) {
             dungeonRunResumeStore.clear()
         }
+        registerRogueTowerRecordIfNeeded(progress: progress)
         if progress == .cleared {
             recordRewardOfferDiscoveries()
         }
@@ -288,8 +289,21 @@ extension GameViewModel {
               let dungeon = DungeonLibrary.shared.dungeon(with: metadata.dungeonID)
         else { return nil }
 
-        let hasNextFloor = dungeon.floors.indices.contains(runState.currentFloorIndex + 1)
+        let hasNextFloor = dungeon.canAdvanceWithinRun(afterFloorIndex: runState.currentFloorIndex)
         return dungeonGrowthStore.registerDungeonClear(dungeon: dungeon, runState: runState, hasNextFloor: hasNextFloor)
+    }
+
+    private func registerRogueTowerRecordIfNeeded(progress: GameProgress) {
+        guard progress == .cleared || progress == .failed,
+              let metadata = mode.dungeonMetadataSnapshot,
+              let runState = metadata.runState,
+              let dungeon = DungeonLibrary.shared.dungeon(with: metadata.dungeonID),
+              dungeon.supportsInfiniteFloors
+        else { return }
+        let reachedFloorNumber = progress == .cleared
+            ? runState.floorNumber + 1
+            : runState.floorNumber
+        _ = rogueTowerRecordStore.registerReachedFloor(reachedFloorNumber, for: dungeon)
     }
 
     func handleDungeonHPChange(_ newHP: Int) {

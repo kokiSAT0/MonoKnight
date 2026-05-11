@@ -198,6 +198,8 @@ final class MoveCardPresentationTests: XCTestCase {
         XCTAssertTrue(relicEntries.allSatisfy { !$0.effectDescription.isEmpty })
         XCTAssertTrue(relicEntries.allSatisfy { !$0.displayKind.displayName.isEmpty })
         XCTAssertTrue(relicEntries.allSatisfy { !$0.displayKind.badgeText.isEmpty })
+        XCTAssertTrue(relicEntries.allSatisfy { !$0.rarity.displayName.isEmpty })
+        XCTAssertTrue(relicEntries.allSatisfy { !$0.rarity.badgeText.isEmpty })
         XCTAssertFalse(DungeonRelicID.silverNeedle.symbolName.isEmpty)
         XCTAssertEqual(DungeonRelicID.silverNeedle.symbolName, "pin.fill")
         XCTAssertNotEqual(DungeonRelicID.silverNeedle.symbolName, "needle.fill")
@@ -208,7 +210,8 @@ final class MoveCardPresentationTests: XCTestCase {
             .moonMirror,
             .guardianIncense,
             .trapperGloves,
-            .oldRope
+            .oldRope,
+            .guardianAegis
         ]
         let persistentRelics: Set<DungeonRelicID> = [
             .heavyCrown,
@@ -223,11 +226,15 @@ final class MoveCardPresentationTests: XCTestCase {
             .whiteChalk,
             .spareTorch,
             .twinPouch,
-            .gamblerCoin
+            .gamblerCoin,
+            .royalCrown,
+            .immortalHeart,
+            .stargazerHourglass
         ]
         XCTAssertEqual(Set(DungeonRelicID.allCases), temporaryRelics.union(persistentRelics))
         XCTAssertTrue(temporaryRelics.allSatisfy { $0.displayKind == .temporary })
         XCTAssertTrue(persistentRelics.allSatisfy { $0.displayKind == .persistent })
+        XCTAssertEqual(DungeonRelicID.royalCrown.rarity, .legendary)
 
         XCTAssertEqual(curseEntries.map(\.curseID), DungeonCurseID.allCases)
         XCTAssertTrue(curseEntries.allSatisfy { !$0.displayName.isEmpty })

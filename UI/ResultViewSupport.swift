@@ -12,6 +12,7 @@ struct ResultSummaryPresentation {
     let dungeonHP: Int?
     let remainingDungeonTurns: Int?
     let dungeonRunFloorText: String?
+    let rogueTowerRecordText: String?
     let dungeonRunTotalMoveCount: Int?
     let dungeonRewardMoveCards: [MoveCard]
     let dungeonInventoryEntries: [DungeonInventoryEntry]

@@ -85,7 +85,8 @@ extension GameViewModel {
                 boardBridge: boardBridge,
                 sessionState: &sessionState,
                 selectedHandStackID: &selectedHandStackID,
-                guideModeEnabled: guideModeEnabled
+                guideModeEnabled: guideModeEnabled,
+                hapticsEnabled: hapticsEnabled
             )
         }
     }

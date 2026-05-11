@@ -281,6 +281,7 @@ final class GameViewModelTests: XCTestCase {
             dungeonHP: 2,
             remainingDungeonTurns: 3,
             dungeonRunFloorText: "基礎塔 2/3F",
+            rogueTowerRecordText: nil,
             dungeonRunTotalMoveCount: 10,
             dungeonRewardMoveCards: [],
             dungeonInventoryEntries: [
@@ -306,6 +307,7 @@ final class GameViewModelTests: XCTestCase {
             dungeonHP: 2,
             remainingDungeonTurns: 0,
             dungeonRunFloorText: "巡回塔 3/3F",
+            rogueTowerRecordText: nil,
             dungeonRunTotalMoveCount: 20,
             dungeonRewardMoveCards: [],
             dungeonInventoryEntries: [],
@@ -315,6 +317,115 @@ final class GameViewModelTests: XCTestCase {
         )
 
         XCTAssertEqual(presentation.resultTitle, "巡回塔クリア")
+    }
+
+    func testRogueTowerFloorTextOmitsTotalFloorCount() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "rogue-tower"))
+        let runState = DungeonRunState(
+            dungeonID: tower.id,
+            currentFloorIndex: 11,
+            carriedHP: 2,
+            totalMoveCount: 36,
+            clearedFloorCount: 11,
+            rogueTowerSeed: 12_345
+        )
+        let floor = try XCTUnwrap(tower.resolvedFloor(at: 11, runState: runState))
+        let mode = floor.makeGameMode(
+            dungeonID: tower.id,
+            difficulty: tower.difficulty,
+            carriedHP: runState.carriedHP,
+            runState: runState
+        )
+        let (viewModel, _) = makeViewModel(mode: mode)
+
+        XCTAssertEqual(viewModel.dungeonRunFloorText, "試練塔 12F")
+    }
+
+    func testRogueTowerAlwaysBuildsNextFloorModeAfterClear() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "rogue-tower"))
+        let mode = try XCTUnwrap(DungeonLibrary.shared.firstFloorMode(for: tower, cardVariationSeed: 77))
+        var requestedMode: GameMode?
+        let (viewModel, _) = makeViewModel(
+            mode: mode,
+            onRequestStartDungeonFloor: { requestedMode = $0 }
+        )
+
+        XCTAssertEqual(viewModel.nextDungeonFloorTitle, "試練 2F")
+
+        viewModel.handleNextDungeonFloorAdvance()
+
+        let nextMode = try XCTUnwrap(requestedMode)
+        XCTAssertEqual(nextMode.dungeonMetadataSnapshot?.dungeonID, tower.id)
+        XCTAssertEqual(nextMode.dungeonMetadataSnapshot?.floorID, "rogue-2")
+        XCTAssertEqual(nextMode.dungeonMetadataSnapshot?.runState?.currentFloorIndex, 1)
+        XCTAssertEqual(nextMode.dungeonMetadataSnapshot?.runState?.rogueTowerSeed, 77)
+    }
+
+    func testRogueTowerRetryRestartsFromFirstFloorWithFreshRun() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "rogue-tower"))
+        let runState = DungeonRunState(
+            dungeonID: tower.id,
+            currentFloorIndex: 18,
+            carriedHP: 1,
+            totalMoveCount: 92,
+            clearedFloorCount: 18,
+            rewardInventoryEntries: [DungeonInventoryEntry(card: .straightRight2, rewardUses: 2)],
+            rogueTowerSeed: 55
+        )
+        let floor = try XCTUnwrap(tower.resolvedFloor(at: 18, runState: runState))
+        let mode = floor.makeGameMode(
+            dungeonID: tower.id,
+            difficulty: tower.difficulty,
+            carriedHP: runState.carriedHP,
+            runState: runState
+        )
+        var requestedMode: GameMode?
+        let (viewModel, _) = makeViewModel(
+            mode: mode,
+            onRequestStartDungeonFloor: { requestedMode = $0 }
+        )
+
+        viewModel.showingResult = true
+        viewModel.handleResultRetry()
+
+        let restartState = try XCTUnwrap(requestedMode?.dungeonMetadataSnapshot?.runState)
+        XCTAssertEqual(requestedMode?.dungeonMetadataSnapshot?.floorID, "rogue-1")
+        XCTAssertEqual(restartState.currentFloorIndex, 0)
+        XCTAssertEqual(restartState.totalMoveCount, 0)
+        XCTAssertEqual(restartState.rewardInventoryEntries, [])
+        XCTAssertNotNil(restartState.rogueTowerSeed)
+        XCTAssertFalse(viewModel.showingResult)
+    }
+
+    func testRogueTowerRecordUpdatesOnClearAndFailure() throws {
+        let (defaults, suiteName) = try makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let recordStore = RogueTowerRecordStore(userDefaults: defaults)
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "rogue-tower"))
+        let runState = DungeonRunState(
+            dungeonID: tower.id,
+            currentFloorIndex: 4,
+            carriedHP: 1,
+            totalMoveCount: 21,
+            clearedFloorCount: 4,
+            rogueTowerSeed: 99
+        )
+        let floor = try XCTUnwrap(tower.resolvedFloor(at: 4, runState: runState))
+        let mode = floor.makeGameMode(
+            dungeonID: tower.id,
+            difficulty: tower.difficulty,
+            carriedHP: runState.carriedHP,
+            runState: runState
+        )
+        let (viewModel, _) = makeViewModel(mode: mode, rogueTowerRecordStore: recordStore)
+
+        viewModel.handleProgressChange(.failed)
+        XCTAssertEqual(recordStore.highestFloorNumber, 5)
+
+        viewModel.handleProgressChange(.cleared)
+        XCTAssertEqual(recordStore.highestFloorNumber, 6)
+        XCTAssertEqual(viewModel.rogueTowerRecordText, "最高到達 6F")
     }
 
     func testGrowthTowerPointIsAwardedAtFifthFloorMilestoneOnlyOnce() throws {
@@ -2080,6 +2191,7 @@ final class GameViewModelTests: XCTestCase {
         adsService: AdsServiceProtocol? = nil,
         onRequestReturnToTitle: (() -> Void)? = nil,
         dungeonGrowthStore: DungeonGrowthStore? = nil,
+        rogueTowerRecordStore: RogueTowerRecordStore? = nil,
         dungeonRunResumeStore: DungeonRunResumeStore? = nil,
         onRequestStartDungeonFloor: ((GameMode) -> Void)? = nil,
         dateProvider: MutableDateProvider? = nil,
@@ -2097,6 +2209,7 @@ final class GameViewModelTests: XCTestCase {
         let resolvedDateProvider = dateProvider ?? MutableDateProvider(now: Date())
         let resolvedAdsService = adsService ?? DummyAdsService()
         let resolvedDungeonGrowthStore = dungeonGrowthStore ?? DungeonGrowthStore()
+        let resolvedRogueTowerRecordStore = rogueTowerRecordStore ?? RogueTowerRecordStore()
         let resolvedDungeonRunResumeStore = dungeonRunResumeStore ?? makeIsolatedDungeonRunResumeStore()
         let viewModel = GameViewModel(
             mode: mode,
@@ -2105,6 +2218,7 @@ final class GameViewModelTests: XCTestCase {
             adsService: resolvedAdsService,
             dungeonGrowthStore: resolvedDungeonGrowthStore,
             dungeonRunResumeStore: resolvedDungeonRunResumeStore,
+            rogueTowerRecordStore: resolvedRogueTowerRecordStore,
             onRequestGameCenterSignIn: nil,
             onRequestReturnToTitle: onRequestReturnToTitle,
             onRequestStartDungeonFloor: onRequestStartDungeonFloor,

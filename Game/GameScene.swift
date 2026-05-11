@@ -155,6 +155,11 @@
         public private(set) var latestMovementTotalDurationForTesting: TimeInterval = 0
         public private(set) var latestEnemyTurnDangerPulsePointsForTesting: Set<GridPoint> = []
         public private(set) var latestEnemyTurnWarningPulsePointsForTesting: Set<GridPoint> = []
+        public private(set) var landingEffectPlayCountForTesting = 0
+        public private(set) var invalidSelectionFeedbackPlayCountForTesting = 0
+        public private(set) var pickupCollectionEffectPlayCountForTesting = 0
+        public private(set) var relicCollectionEffectPlayCountForTesting = 0
+        public private(set) var exitUnlockEffectPlayCountForTesting = 0
 
         #if canImport(UIKit)
             private let accessibilitySupport = GameSceneAccessibilitySupport()
@@ -193,6 +198,11 @@
             latestMovementTotalDurationForTesting = 0
             latestEnemyTurnDangerPulsePointsForTesting = []
             latestEnemyTurnWarningPulsePointsForTesting = []
+            landingEffectPlayCountForTesting = 0
+            invalidSelectionFeedbackPlayCountForTesting = 0
+            pickupCollectionEffectPlayCountForTesting = 0
+            relicCollectionEffectPlayCountForTesting = 0
+            exitUnlockEffectPlayCountForTesting = 0
             #if canImport(UIKit)
                 accessibilitySupport.reset()
             #endif
@@ -509,6 +519,52 @@
             )
         }
 
+        public func playLandingEffect(at point: GridPoint) {
+            landingEffectPlayCountForTesting += 1
+            knightAnimator.playLandingEffect(
+                at: point,
+                in: self,
+                palette: palette,
+                layout: layoutSupport,
+                isLayoutReady: isLayoutReady
+            )
+        }
+
+        public func playInvalidSelectionFeedback(at point: GridPoint?) {
+            invalidSelectionFeedbackPlayCountForTesting += 1
+            knightAnimator.playInvalidSelectionFeedback(
+                at: point,
+                in: self,
+                palette: palette,
+                layout: layoutSupport,
+                isLayoutReady: isLayoutReady
+            )
+        }
+
+        public func playPickupCollectionEffect(at point: GridPoint) {
+            pickupCollectionEffectPlayCountForTesting += 1
+            knightAnimator.playPickupCollectionEffect(
+                at: point,
+                isRelic: false,
+                in: self,
+                palette: palette,
+                layout: layoutSupport,
+                isLayoutReady: isLayoutReady
+            )
+        }
+
+        public func playRelicCollectionEffect(at point: GridPoint) {
+            relicCollectionEffectPlayCountForTesting += 1
+            knightAnimator.playPickupCollectionEffect(
+                at: point,
+                isRelic: true,
+                in: self,
+                palette: palette,
+                layout: layoutSupport,
+                isLayoutReady: isLayoutReady
+            )
+        }
+
         public func playWarpTransition(using resolution: MovementResolution) {
             latestMovementPathForTesting = resolution.path
             knightAnimator.playWarpTransition(
@@ -601,6 +657,7 @@
         }
 
         public func playDungeonExitUnlockEffect(at point: GridPoint) {
+            exitUnlockEffectPlayCountForTesting += 1
             guard isLayoutReady, board.contains(point) else { return }
 
             let ring = SKShapeNode(circleOfRadius: layoutSupport.tileSize * 0.28)

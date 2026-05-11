@@ -98,6 +98,14 @@ final class GameBoardBridgeViewModel: ObservableObject {
     private var presentationCrackedFloorPoints: Set<GridPoint>?
     /// 移動演出中だけ崩落床を段階表示するための上書き
     private var presentationCollapsedFloorPoints: Set<GridPoint>?
+    /// 移動演出中の拾得カード消失差分を検出するための直前値
+    private var presentationPreviousCollectedDungeonCardPickupIDs: Set<String>?
+    /// 移動演出中の宝箱消失差分を検出するための直前値
+    private var presentationPreviousCollectedDungeonRelicPickupIDs: Set<String>?
+    /// 通常更新で拾得カードが増えた時だけ演出するための直前値
+    private var observedCollectedDungeonCardPickupIDs: Set<String>?
+    /// 通常更新で宝箱が増えた時だけ演出するための直前値
+    private var observedCollectedDungeonRelicPickupIDs: Set<String>?
     /// 経路移動の再生中かどうか
     @Published private(set) var isMovementReplayActive = false
     /// スタックごとのトップカード ID を追跡し、レイアウト同期を最適化する
@@ -265,6 +273,14 @@ final class GameBoardBridgeViewModel: ObservableObject {
 
     private(set) var damageEffectPlayCountForTesting = 0
 
+    /// 無効な入力を短い盤面フィードバックとして伝える
+    func playInvalidSelectionFeedback(at point: GridPoint? = nil) {
+        invalidSelectionFeedbackPlayCountForTesting += 1
+        scene.playInvalidSelectionFeedback(at: point)
+    }
+
+    private(set) var invalidSelectionFeedbackPlayCountForTesting = 0
+
     private func beginMovementReplay(using resolution: MovementResolution) {
         prepareMovementReplayPresentationIfNeeded(using: resolution)
         isMovementReplayActive = true
@@ -319,6 +335,8 @@ final class GameBoardBridgeViewModel: ObservableObject {
         }
         presentationCollectedDungeonCardPickupIDs = resolution.presentationInitialCollectedDungeonCardPickupIDs
         presentationCollectedDungeonRelicPickupIDs = resolution.presentationInitialCollectedDungeonRelicPickupIDs
+        presentationPreviousCollectedDungeonCardPickupIDs = resolution.presentationInitialCollectedDungeonCardPickupIDs
+        presentationPreviousCollectedDungeonRelicPickupIDs = resolution.presentationInitialCollectedDungeonRelicPickupIDs
         presentationEnemyStates = resolution.presentationInitialEnemyStates
         presentationCrackedFloorPoints = resolution.presentationInitialCrackedFloorPoints
         presentationCollapsedFloorPoints = resolution.presentationInitialCollapsedFloorPoints
@@ -333,8 +351,16 @@ final class GameBoardBridgeViewModel: ObservableObject {
         if let boardAfter = step.boardAfter {
             scene.updateBoard(boardAfter)
         }
+        playCollectionEffectsIfNeeded(
+            previousCardIDs: presentationPreviousCollectedDungeonCardPickupIDs,
+            nextCardIDs: step.collectedDungeonCardPickupIDsAfter,
+            previousRelicIDs: presentationPreviousCollectedDungeonRelicPickupIDs,
+            nextRelicIDs: step.collectedDungeonRelicPickupIDsAfter
+        )
         presentationCollectedDungeonCardPickupIDs = step.collectedDungeonCardPickupIDsAfter
         presentationCollectedDungeonRelicPickupIDs = step.collectedDungeonRelicPickupIDsAfter
+        presentationPreviousCollectedDungeonCardPickupIDs = step.collectedDungeonCardPickupIDsAfter
+        presentationPreviousCollectedDungeonRelicPickupIDs = step.collectedDungeonRelicPickupIDsAfter
         presentationEnemyStates = step.enemyStatesAfter
         presentationCrackedFloorPoints = step.crackedFloorPointsAfter
         presentationCollapsedFloorPoints = step.collapsedFloorPointsAfter
@@ -348,13 +374,58 @@ final class GameBoardBridgeViewModel: ObservableObject {
         presentationEnemyStates = nil
         presentationCrackedFloorPoints = nil
         presentationCollapsedFloorPoints = nil
+        presentationPreviousCollectedDungeonCardPickupIDs = nil
+        presentationPreviousCollectedDungeonRelicPickupIDs = nil
         completedMovementReplayResolution = preparedMovementReplayResolution
         preparedMovementReplayResolution = nil
         isMovementReplayActive = false
         scene.updateBoard(core.board)
+        if let current = core.current {
+            scene.playLandingEffect(at: current)
+        }
+        observedCollectedDungeonCardPickupIDs = core.collectedDungeonCardPickupIDs
+        observedCollectedDungeonRelicPickupIDs = core.collectedDungeonRelicPickupIDs
         pushHighlightsToScene()
         onMovementPresentationFinished?()
         playPendingEnemyTurnAfterMovementReplayIfNeeded()
+    }
+
+    private func playCollectionEffectsIfNeeded(
+        previousCardIDs: Set<String>?,
+        nextCardIDs: Set<String>,
+        previousRelicIDs: Set<String>?,
+        nextRelicIDs: Set<String>
+    ) {
+        if let previousCardIDs {
+            let newlyCollectedCardIDs = nextCardIDs.subtracting(previousCardIDs)
+            for id in newlyCollectedCardIDs {
+                guard let point = dungeonCardPickupPoint(for: id) else { continue }
+                scene.playPickupCollectionEffect(at: point)
+            }
+        }
+
+        if let previousRelicIDs {
+            let newlyCollectedRelicIDs = nextRelicIDs.subtracting(previousRelicIDs)
+            for id in newlyCollectedRelicIDs {
+                guard let point = dungeonRelicPickupPoint(for: id) else { continue }
+                scene.playRelicCollectionEffect(at: point)
+            }
+        }
+    }
+
+    private func dungeonCardPickupPoint(for id: String) -> GridPoint? {
+        mode.dungeonRules?.cardPickups.first { $0.id == id }?.point
+    }
+
+    private func dungeonRelicPickupPoint(for id: String) -> GridPoint? {
+        mode.dungeonRules?.relicPickups.first { $0.id == id }?.point
+    }
+
+    private func scheduleLandingEffect(at point: GridPoint, after delay: TimeInterval) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            guard let self, self.core.current == point else { return }
+            self.scene.playLandingEffect(at: point)
+        }
     }
 
     var isInputAnimationActive: Bool {
@@ -950,9 +1021,13 @@ final class GameBoardBridgeViewModel: ObservableObject {
                           }) {
                     // 単純なワープだけは従来の専用演出を利用する
                     self.scene.playWarpTransition(using: resolution)
+                    self.scheduleLandingEffect(at: destination, after: 0.46)
                 } else {
                     // 条件を満たさない場合は従来の単純移動を行う
                     self.scene.moveKnight(to: newPoint)
+                    if let newPoint {
+                        self.scheduleLandingEffect(at: newPoint, after: 0.20)
+                    }
                 }
                 // 一度利用した解決情報は破棄し、次の移動に備える
                 self.latestMovementResolution = nil
@@ -1027,22 +1102,36 @@ final class GameBoardBridgeViewModel: ObservableObject {
 
         core.$collectedDungeonCardPickupIDs
             .receive(on: RunLoop.main)
-            .sink { [weak self] _ in
+            .sink { [weak self] collectedIDs in
                 guard let self else { return }
                 if self.isMovementReplayActive || self.preparePendingMovementReplayPresentationIfNeeded() {
                     return
                 }
+                self.playCollectionEffectsIfNeeded(
+                    previousCardIDs: self.observedCollectedDungeonCardPickupIDs,
+                    nextCardIDs: collectedIDs,
+                    previousRelicIDs: nil,
+                    nextRelicIDs: []
+                )
+                self.observedCollectedDungeonCardPickupIDs = collectedIDs
                 self.pushHighlightsToScene()
             }
             .store(in: &cancellables)
 
         core.$collectedDungeonRelicPickupIDs
             .receive(on: RunLoop.main)
-            .sink { [weak self] _ in
+            .sink { [weak self] collectedIDs in
                 guard let self else { return }
                 if self.isMovementReplayActive || self.preparePendingMovementReplayPresentationIfNeeded() {
                     return
                 }
+                self.playCollectionEffectsIfNeeded(
+                    previousCardIDs: nil,
+                    nextCardIDs: [],
+                    previousRelicIDs: self.observedCollectedDungeonRelicPickupIDs,
+                    nextRelicIDs: collectedIDs
+                )
+                self.observedCollectedDungeonRelicPickupIDs = collectedIDs
                 self.pushHighlightsToScene()
             }
             .store(in: &cancellables)

@@ -604,6 +604,112 @@
             impact.run(.sequence([pulse, .removeFromParent()]))
         }
 
+        func playLandingEffect(
+            at point: GridPoint,
+            in scene: SKScene,
+            palette: GameScenePalette,
+            layout: GameSceneLayoutSupport,
+            isLayoutReady: Bool
+        ) {
+            guard isLayoutReady, layout.tileSize > 0 else { return }
+            ensureTransientContainer(in: scene)
+
+            let ring = SKShapeNode(circleOfRadius: layout.tileSize * 0.28)
+            ring.name = "transientLandingPulse"
+            ring.position = layout.position(for: point)
+            ring.strokeColor = palette.boardKnight.withAlphaComponent(0.72)
+            ring.fillColor = palette.boardKnight.withAlphaComponent(0.10)
+            ring.lineWidth = max(1.2, layout.tileSize * 0.038)
+            ring.glowWidth = max(1.0, layout.tileSize * 0.035)
+            ring.zPosition = 0.10
+            ring.isAntialiased = true
+            ring.setScale(0.72)
+            transientEffectContainer.addChild(ring)
+
+            let pulse = SKAction.group([
+                SKAction.scale(to: 1.28, duration: 0.18),
+                SKAction.fadeOut(withDuration: 0.18)
+            ])
+            pulse.timingMode = .easeOut
+            ring.run(.sequence([pulse, .removeFromParent()]))
+        }
+
+        func playInvalidSelectionFeedback(
+            at point: GridPoint?,
+            in scene: SKScene,
+            palette: GameScenePalette,
+            layout: GameSceneLayoutSupport,
+            isLayoutReady: Bool
+        ) {
+            guard isLayoutReady, layout.tileSize > 0 else { return }
+            ensureTransientContainer(in: scene)
+
+            if let point {
+                let size = layout.tileSize * 0.74
+                let marker = SKShapeNode(rectOf: CGSize(width: size, height: size), cornerRadius: layout.tileSize * 0.08)
+                marker.name = "transientInvalidSelectionPulse"
+                marker.position = layout.position(for: point)
+                marker.strokeColor = SKColor.systemRed.withAlphaComponent(0.70)
+                marker.fillColor = SKColor.systemRed.withAlphaComponent(0.10)
+                marker.lineWidth = max(1.4, layout.tileSize * 0.04)
+                marker.glowWidth = max(1.0, layout.tileSize * 0.03)
+                marker.zPosition = 1.42
+                marker.isAntialiased = true
+                transientEffectContainer.addChild(marker)
+
+                let nudge = layout.tileSize * 0.045
+                let shake = SKAction.sequence([
+                    .moveBy(x: -nudge, y: 0, duration: 0.035),
+                    .moveBy(x: nudge * 2, y: 0, duration: 0.07),
+                    .moveBy(x: -nudge, y: 0, duration: 0.035)
+                ])
+                let fade = SKAction.fadeOut(withDuration: 0.18)
+                marker.run(.sequence([.group([shake, fade]), .removeFromParent()]))
+            } else if let knightNode, !knightNode.isHidden {
+                let nudge = layout.tileSize * 0.05
+                let shake = SKAction.sequence([
+                    .moveBy(x: -nudge, y: 0, duration: 0.035),
+                    .moveBy(x: nudge * 2, y: 0, duration: 0.07),
+                    .moveBy(x: -nudge, y: 0, duration: 0.035)
+                ])
+                knightNode.run(shake, withKey: "invalidSelectionShake")
+            }
+        }
+
+        func playPickupCollectionEffect(
+            at point: GridPoint,
+            isRelic: Bool,
+            in scene: SKScene,
+            palette: GameScenePalette,
+            layout: GameSceneLayoutSupport,
+            isLayoutReady: Bool
+        ) {
+            guard isLayoutReady, layout.tileSize > 0 else { return }
+            ensureTransientContainer(in: scene)
+
+            let color = isRelic ? palette.boardTileEffectPreserveCard : palette.boardGuideHighlight
+            let center = layout.position(for: point)
+            let radius = layout.tileSize * (isRelic ? 0.30 : 0.24)
+
+            let sparkle = SKShapeNode(circleOfRadius: radius)
+            sparkle.name = isRelic ? "transientRelicPickupPulse" : "transientCardPickupPulse"
+            sparkle.position = center
+            sparkle.strokeColor = color.withAlphaComponent(0.88)
+            sparkle.fillColor = color.withAlphaComponent(isRelic ? 0.20 : 0.14)
+            sparkle.lineWidth = max(1.2, layout.tileSize * 0.04)
+            sparkle.glowWidth = max(1.5, layout.tileSize * 0.05)
+            sparkle.zPosition = 1.45
+            sparkle.isAntialiased = true
+            transientEffectContainer.addChild(sparkle)
+
+            let lift = SKAction.moveBy(x: 0, y: layout.tileSize * 0.16, duration: 0.22)
+            lift.timingMode = .easeOut
+            let scale = SKAction.scale(to: isRelic ? 1.34 : 1.22, duration: 0.22)
+            scale.timingMode = .easeOut
+            let fade = SKAction.fadeOut(withDuration: 0.22)
+            sparkle.run(.sequence([.group([lift, scale, fade]), .removeFromParent()]))
+        }
+
         private func performKnightPlacement(
             to point: GridPoint,
             layout: GameSceneLayoutSupport,
@@ -627,6 +733,12 @@
 
             let positionDescription = knightPosition.map { "\($0)" } ?? "nil"
             debugLog("GameScene.moveKnight 完了: 現在位置=\(positionDescription)")
+        }
+
+        private func ensureTransientContainer(in scene: SKScene) {
+            if transientEffectContainer.parent !== scene {
+                scene.addChild(transientEffectContainer)
+            }
         }
 
         private func emitWarpRing(

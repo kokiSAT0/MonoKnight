@@ -145,6 +145,45 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertTrue(advanced.relicEntries.contains { $0.relicID == .heavyCrown })
     }
 
+    func testLegendaryRelicsAddStrongerRunShapingEffects() throws {
+        let trapPoint = GridPoint(x: 0, y: 1)
+        let runState = DungeonRunState(
+            dungeonID: "growth-tower",
+            carriedHP: 3,
+            relicEntries: [
+                DungeonRelicEntry(relicID: .guardianAegis),
+                DungeonRelicEntry(relicID: .immortalHeart),
+                DungeonRelicEntry(relicID: .stargazerHourglass)
+            ]
+        )
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 3,
+            turnLimit: 6,
+            hazards: [.damageTrap(points: [trapPoint], damage: 2)],
+            allowsBasicOrthogonalMove: true,
+            cardAcquisitionMode: .inventoryOnly,
+            runState: runState
+        )
+        let core = makeCore(mode: mode)
+
+        XCTAssertEqual(core.effectiveDungeonTurnLimit, 11)
+        playBasicMove(to: trapPoint, in: core)
+
+        XCTAssertEqual(core.dungeonHP, 2)
+        XCTAssertEqual(core.dungeonRelicEntries.first { $0.relicID == .guardianAegis }?.remainingUses, 0)
+
+        let advanced = runState.advancedToNextFloor(
+            carryoverHP: core.dungeonHP,
+            currentFloorMoveCount: core.moveCount,
+            currentInventoryEntries: core.dungeonInventoryEntries,
+            currentRelicEntries: core.dungeonRelicEntries
+        )
+        XCTAssertEqual(advanced.carriedHP, 4)
+        XCTAssertEqual(advanced.relicEntries.first { $0.relicID == .guardianAegis }?.remainingUses, 1)
+    }
+
     func testSuspiciousRelicPickupCanGrantCurse() throws {
         let pickup = DungeonRelicPickupDefinition(
             id: "test-deep-0",
@@ -3483,7 +3522,14 @@ final class DungeonModeTests: XCTestCase {
 
         XCTAssertEqual(tutorialTower.floors.map(\.boardSize), [5, 5, 5])
         XCTAssertEqual(growthTower.floors.map(\.boardSize), Array(repeating: 9, count: 50))
-        XCTAssertEqual(rogueTower.floors.map(\.boardSize), [9, 9, 9])
+        XCTAssertEqual(rogueTower.floors.map(\.boardSize), [9])
+        XCTAssertEqual(
+            rogueTower.resolvedFloor(
+                at: 25,
+                runState: DungeonRunState(dungeonID: rogueTower.id, carriedHP: 3, rogueTowerSeed: 1)
+            )?.boardSize,
+            9
+        )
     }
 
     func testGrowthTowerIntegratesFiftyProgressiveFloors() throws {
@@ -4246,124 +4292,61 @@ final class DungeonModeTests: XCTestCase {
 
 
 
-    func testRoguelikeTowerDefinitionsStayInsideBoardAndExposeMixedGimmicks() throws {
+    func testRoguelikeTowerGeneratesInfiniteDeterministicFloors() throws {
         let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "rogue-tower"))
-        var hasWarp = false
-        var hasBrittleFloor = false
-        var hasDamageTrap = false
+        let runState = DungeonRunState(dungeonID: tower.id, currentFloorIndex: 99, carriedHP: 3, rogueTowerSeed: 12345)
 
-        for floor in tower.floors {
+        let first = try XCTUnwrap(tower.resolvedFloor(at: 99, runState: runState))
+        let second = try XCTUnwrap(tower.resolvedFloor(at: 99, runState: runState))
+        let differentSeed = try XCTUnwrap(
+            tower.resolvedFloor(
+                at: 99,
+                runState: DungeonRunState(dungeonID: tower.id, currentFloorIndex: 99, carriedHP: 3, rogueTowerSeed: 67890)
+            )
+        )
+
+        XCTAssertTrue(tower.supportsInfiniteFloors)
+        XCTAssertTrue(tower.canAdvanceWithinRun(afterFloorIndex: 99))
+        XCTAssertEqual(first, second)
+        XCTAssertNotEqual(first, differentSeed)
+        XCTAssertEqual(first.title, "試練 100F")
+    }
+
+    func testRoguelikeTowerGeneratedFloorsStayInsideBoardAndKeepPhysicalRoute() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "rogue-tower"))
+        let runState = DungeonRunState(dungeonID: tower.id, carriedHP: 3, rogueTowerSeed: 2468)
+
+        for floorIndex in [0, 1, 7, 15, 30, 75] {
+            let floor = try XCTUnwrap(tower.resolvedFloor(at: floorIndex, runState: runState))
             var points: [GridPoint] = [floor.spawnPoint, floor.exitPoint]
             points.append(contentsOf: floor.cardPickups.map(\.point))
             points.append(contentsOf: floor.enemies.map(\.position))
             points.append(contentsOf: floor.impassableTilePoints)
             points.append(contentsOf: floor.tileEffectOverrides.keys)
+            points.append(contentsOf: floor.warpTilePairs.values.flatMap { $0 })
+            points.append(contentsOf: growthTowerHazardPoints(for: floor))
             for enemy in floor.enemies {
                 if case .patrol(let path) = enemy.behavior {
                     points.append(contentsOf: path)
                 }
             }
-            for hazard in floor.hazards {
-                switch hazard {
-                case .damageTrap(let trapPoints, let damage):
-                    hasDamageTrap = true
-                    XCTAssertEqual(damage, 1)
-                    points.append(contentsOf: trapPoints)
-                case .lavaTile(let lavaPoints, let damage):
-                    hasDamageTrap = true
-                    XCTAssertEqual(damage, 1)
-                    points.append(contentsOf: lavaPoints)
-                case .brittleFloor(let brittlePoints):
-                    hasBrittleFloor = true
-                    points.append(contentsOf: brittlePoints)
-                case .healingTile(let healingPoints, _):
-                    points.append(contentsOf: healingPoints)
-                }
-            }
-            for warpPoints in floor.warpTilePairs.values {
-                hasWarp = true
-                XCTAssertGreaterThanOrEqual(warpPoints.count, 2)
-                points.append(contentsOf: warpPoints)
-            }
 
-            XCTAssertTrue(
-                points.allSatisfy { $0.isInside(boardSize: floor.boardSize) },
-                "\(floor.title) の配置はすべて 9×9 盤面内に収める必要があります"
-            )
+            XCTAssertEqual(floor.boardSize, 9)
+            XCTAssertTrue(points.allSatisfy { $0.isInside(boardSize: floor.boardSize) })
+            XCTAssertTrue(hasOrthogonalPath(from: floor.spawnPoint, to: floor.exitPoint, in: floor))
         }
-
-        XCTAssertTrue(hasWarp)
-        XCTAssertTrue(hasBrittleFloor)
-        XCTAssertTrue(hasDamageTrap)
     }
 
-    func testRoguelikeTowerRepresentativeRoutesCanClearWithTemporaryCards() throws {
+    func testRoguelikeTowerDifficultyDensityIncreasesWithFloorIndex() throws {
         let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "rogue-tower"))
+        let runState = DungeonRunState(dungeonID: tower.id, carriedHP: 3, rogueTowerSeed: 1357)
+        let early = try XCTUnwrap(tower.resolvedFloor(at: 0, runState: runState))
+        let deep = try XCTUnwrap(tower.resolvedFloor(at: 30, runState: runState))
 
-        let firstCore = makeCore(mode: try XCTUnwrap(DungeonLibrary.shared.firstFloorMode(for: tower)))
-        for destination in [
-            GridPoint(x: 1, y: 0),
-            GridPoint(x: 3, y: 0),
-            GridPoint(x: 4, y: 0),
-            GridPoint(x: 5, y: 0),
-            GridPoint(x: 6, y: 0),
-            GridPoint(x: 7, y: 0),
-            GridPoint(x: 8, y: 0),
-            GridPoint(x: 8, y: 1),
-            GridPoint(x: 8, y: 3),
-            GridPoint(x: 8, y: 4),
-            GridPoint(x: 8, y: 5),
-            GridPoint(x: 8, y: 6),
-            GridPoint(x: 8, y: 7),
-            GridPoint(x: 8, y: 8)
-        ] {
-            playMoveOrBasicMove(to: destination, in: firstCore)
-        }
-        XCTAssertEqual(firstCore.progress, .cleared)
-        XCTAssertEqual(firstCore.moveCount, 14)
-
-        let secondCore = makeCore(
-            mode: tower.floors[1].makeGameMode(
-                dungeonID: tower.id,
-                difficulty: tower.difficulty
-            )
-        )
-        playBasicMove(to: GridPoint(x: 1, y: 4), in: secondCore)
-        for destination in [
-            GridPoint(x: 1, y: 5),
-            GridPoint(x: 1, y: 6),
-            GridPoint(x: 2, y: 6),
-            GridPoint(x: 3, y: 6),
-            GridPoint(x: 4, y: 6),
-            GridPoint(x: 5, y: 6),
-            GridPoint(x: 6, y: 6),
-            GridPoint(x: 7, y: 6),
-            GridPoint(x: 8, y: 6),
-            GridPoint(x: 8, y: 5),
-            GridPoint(x: 8, y: 4)
-        ] {
-            playBasicMove(to: destination, in: secondCore)
-        }
-        XCTAssertEqual(secondCore.progress, .cleared)
-        XCTAssertEqual(secondCore.dungeonHP, 3)
-
-        let thirdCore = makeCore(
-            mode: tower.floors[2].makeGameMode(
-                dungeonID: tower.id,
-                difficulty: tower.difficulty
-            )
-        )
-        playBasicMove(to: GridPoint(x: 0, y: 1), in: thirdCore)
-        playMove(to: GridPoint(x: 8, y: 1), in: thirdCore)
-        for destination in [
-            GridPoint(x: 6, y: 7),
-            GridPoint(x: 6, y: 8),
-            GridPoint(x: 7, y: 8),
-            GridPoint(x: 8, y: 8)
-        ] {
-            playBasicMove(to: destination, in: thirdCore)
-        }
-        XCTAssertEqual(thirdCore.progress, .cleared)
+        XCTAssertGreaterThan(deep.enemies.count, early.enemies.count)
+        XCTAssertGreaterThan(growthTowerHazardPoints(for: deep).count, growthTowerHazardPoints(for: early).count)
+        XCTAssertFalse(deep.tileEffectOverrides.isEmpty)
+        XCTAssertFalse(deep.warpTilePairs.isEmpty)
     }
 
 
@@ -4624,6 +4607,55 @@ final class DungeonModeTests: XCTestCase {
         let fastBonusCount = fastDraws.filter { $0?.move == nil }.count
 
         XCTAssertGreaterThan(fastBonusCount, normalBonusCount)
+    }
+
+    func testRelicRarityMetadataCoversAllRelics() {
+        XCTAssertEqual(DungeonRelicID.crackedShield.rarity, .common)
+        XCTAssertEqual(DungeonRelicID.heavyCrown.rarity, .rare)
+        XCTAssertEqual(DungeonRelicID.moonMirror.rarity, .legendary)
+        XCTAssertEqual(DungeonRelicID.royalCrown.rarity, .legendary)
+        XCTAssertEqual(DungeonRelicID.immortalHeart.rarity, .legendary)
+        XCTAssertEqual(DungeonRelicID.guardianAegis.rarity, .legendary)
+        XCTAssertEqual(DungeonRelicID.stargazerHourglass.rarity, .legendary)
+        XCTAssertTrue(DungeonRelicID.allCases.allSatisfy { !$0.rarity.displayName.isEmpty })
+        XCTAssertTrue(DungeonRelicID.allCases.allSatisfy { !$0.rarity.badgeText.isEmpty })
+    }
+
+    func testRelicRewardRarityWeightsImproveLegendaryRateOnFastClear() {
+        let entries = DungeonRelicID.allCases.map {
+            DungeonWeightedRewardPoolEntry(item: .relic($0), weight: 1)
+        }
+        func legendaryCount(tuning: DungeonRewardDrawTuning) -> Int {
+            (1...2_000).reduce(0) { count, seed in
+                let draw = DungeonWeightedRewardPools.drawUniqueOffers(
+                    from: entries,
+                    context: .clearReward,
+                    count: 1,
+                    seed: UInt64(seed),
+                    floorIndex: 20,
+                    salt: 0x1E6E,
+                    tuning: tuning
+                ).first
+                return count + ((draw?.relic?.rarity == .legendary) ? 1 : 0)
+            }
+        }
+
+        let normalLegendaryCount = legendaryCount(
+            tuning: DungeonRewardDrawTuning(clearMoveCount: 10, turnLimit: 10)
+        )
+        let fastLegendaryCount = legendaryCount(
+            tuning: DungeonRewardDrawTuning(clearMoveCount: 5, turnLimit: 10)
+        )
+        let suppressedLegendaryCount = legendaryCount(
+            tuning: DungeonRewardDrawTuning(
+                clearMoveCount: 5,
+                turnLimit: 10,
+                suppressRelicQualityBonus: true
+            )
+        )
+
+        XCTAssertGreaterThan(fastLegendaryCount, normalLegendaryCount)
+        XCTAssertLessThanOrEqual(abs(suppressedLegendaryCount - normalLegendaryCount), 60)
     }
 
     func testSupportFloorPickupCanBeCollectedAsCardUse() throws {

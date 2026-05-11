@@ -245,9 +245,7 @@ struct GameInputFlowCoordinator {
                     boardBridge: boardBridge,
                     selectedHandStackID: &selectedHandStackID
                 )
-                if hapticsEnabled {
-                    UINotificationFeedbackGenerator().notificationOccurred(.warning)
-                }
+                playInvalidInputFeedback(boardBridge: boardBridge, point: core.current, hapticsEnabled: hapticsEnabled)
                 return
             }
             if support.requiresEnemyTargetSelection {
@@ -257,9 +255,7 @@ struct GameInputFlowCoordinator {
                         boardBridge: boardBridge,
                         selectedHandStackID: &selectedHandStackID
                     )
-                    if hapticsEnabled {
-                        UINotificationFeedbackGenerator().notificationOccurred(.warning)
-                    }
+                    playInvalidInputFeedback(boardBridge: boardBridge, point: core.current, hapticsEnabled: hapticsEnabled)
                     return
                 }
                 sessionState.updateSelection(
@@ -294,9 +290,7 @@ struct GameInputFlowCoordinator {
                 selectedHandStackID: &selectedHandStackID
             )
             guard let randomMove = core.randomIllusionMove() else {
-                if hapticsEnabled {
-                    UINotificationFeedbackGenerator().notificationOccurred(.warning)
-                }
+                playInvalidInputFeedback(boardBridge: boardBridge, point: core.current, hapticsEnabled: hapticsEnabled)
                 return
             }
             _ = boardBridge.animateCardPlay(using: randomMove)
@@ -310,9 +304,7 @@ struct GameInputFlowCoordinator {
                 boardBridge: boardBridge,
                 selectedHandStackID: &selectedHandStackID
             )
-            if hapticsEnabled {
-                UINotificationFeedbackGenerator().notificationOccurred(.warning)
-            }
+            playInvalidInputFeedback(boardBridge: boardBridge, point: core.current, hapticsEnabled: hapticsEnabled)
             return
         }
 
@@ -394,9 +386,7 @@ struct GameInputFlowCoordinator {
                 boardBridge: boardBridge,
                 selectedHandStackID: &selectedHandStackID
             )
-            if hapticsEnabled {
-                UINotificationFeedbackGenerator().notificationOccurred(.warning)
-            }
+            playInvalidInputFeedback(boardBridge: boardBridge, point: core.current, hapticsEnabled: hapticsEnabled)
             return
         }
 
@@ -431,9 +421,11 @@ struct GameInputFlowCoordinator {
                     request.destination
                 )
 
-                if hapticsEnabled {
-                    UINotificationFeedbackGenerator().notificationOccurred(.warning)
-                }
+                playInvalidInputFeedback(
+                    boardBridge: boardBridge,
+                    point: request.destination,
+                    hapticsEnabled: hapticsEnabled
+                )
                 return
             }
             let availableMoves = core.availableMoves()
@@ -446,9 +438,11 @@ struct GameInputFlowCoordinator {
                     request.destination
                 )
 
-                if hapticsEnabled {
-                    UINotificationFeedbackGenerator().notificationOccurred(.warning)
-                }
+                playInvalidInputFeedback(
+                    boardBridge: boardBridge,
+                    point: request.destination,
+                    hapticsEnabled: hapticsEnabled
+                )
                 return
             }
 
@@ -490,6 +484,11 @@ struct GameInputFlowCoordinator {
                 using: matchingMoves,
                 selectedHandStackID: &selectedHandStackID
             )
+            playInvalidInputFeedback(
+                boardBridge: boardBridge,
+                point: request.destination,
+                hapticsEnabled: hapticsEnabled
+            )
             return
         }
 
@@ -516,7 +515,8 @@ struct GameInputFlowCoordinator {
         boardBridge: GameBoardBridgeViewModel,
         sessionState: inout GameSessionState,
         selectedHandStackID: inout UUID?,
-        guideModeEnabled: Bool
+        guideModeEnabled: Bool,
+        hapticsEnabled: Bool
     ) {
         defer { core.clearBoardTapBasicMoveRequest(request.id) }
         guard !boardBridge.isInputAnimationActive else { return }
@@ -529,6 +529,9 @@ struct GameInputFlowCoordinator {
                 selectedHandStackID: &selectedHandStackID
             )
             core.playBasicOrthogonalMove(using: request.move)
+            if hapticsEnabled {
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
+            }
             return
         }
 
@@ -558,6 +561,11 @@ struct GameInputFlowCoordinator {
                     using: matchingMoves,
                     selectedHandStackID: &selectedHandStackID
                 )
+                playInvalidInputFeedback(
+                    boardBridge: boardBridge,
+                    point: request.move.destination,
+                    hapticsEnabled: hapticsEnabled
+                )
             }
             return
         }
@@ -570,6 +578,20 @@ struct GameInputFlowCoordinator {
             selectedHandStackID: &selectedHandStackID
         )
         core.playBasicOrthogonalMove(using: request.move)
+        if hapticsEnabled {
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
+        }
+    }
+
+    private func playInvalidInputFeedback(
+        boardBridge: GameBoardBridgeViewModel,
+        point: GridPoint?,
+        hapticsEnabled: Bool
+    ) {
+        boardBridge.playInvalidSelectionFeedback(at: point)
+        if hapticsEnabled {
+            UINotificationFeedbackGenerator().notificationOccurred(.warning)
+        }
     }
 
     func refreshSelectionIfNeeded(

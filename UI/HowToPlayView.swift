@@ -727,10 +727,10 @@ private struct RelicEncyclopediaRow: View {
         IconEncyclopediaRow(
             symbolName: entry.symbolName,
             title: entry.displayName,
-            primaryDescription: "\(entry.displayKind.displayName) / \(entry.effectDescription)",
+            primaryDescription: "\(entry.rarity.displayName) / \(entry.displayKind.displayName) / \(entry.effectDescription)",
             secondaryDescription: entry.noteDescription.map { "補足: \($0)" },
             isUnlocked: isUnlocked,
-            tint: entry.displayKind.tintColor
+            tint: entry.rarity.tintColor
         )
     }
 }
@@ -769,6 +769,19 @@ private extension DungeonRelicDisplayKind {
             return Color(red: 0.91, green: 0.46, blue: 0.10)
         case .persistent:
             return Color(red: 0.18, green: 0.48, blue: 0.74)
+        }
+    }
+}
+
+private extension DungeonRelicRarity {
+    var tintColor: Color {
+        switch self {
+        case .common:
+            return Color(red: 0.52, green: 0.56, blue: 0.60)
+        case .rare:
+            return Color(red: 0.18, green: 0.48, blue: 0.74)
+        case .legendary:
+            return Color(red: 0.78, green: 0.54, blue: 0.10)
         }
     }
 }

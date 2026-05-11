@@ -18,6 +18,12 @@ struct ResultSummarySection: View {
                     .multilineTextAlignment(.center)
             }
 
+            if let rogueTowerRecordText = presentation.rogueTowerRecordText {
+                Text(rogueTowerRecordText)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+
         }
     }
 }
@@ -793,9 +799,9 @@ struct DungeonRewardCardChoicePresentation: Equatable {
             return support.encyclopediaDescription
         case .relic(let relic):
             if let note = relic.noteDescription {
-                return "\(relic.displayKind.displayName)。\(relic.effectDescription) \(note)"
+                return "\(relic.rarity.displayName)。\(relic.displayKind.displayName)。\(relic.effectDescription) \(note)"
             }
-            return "\(relic.displayKind.displayName)。\(relic.effectDescription)"
+            return "\(relic.rarity.displayName)。\(relic.displayKind.displayName)。\(relic.effectDescription)"
         }
     }
 }
@@ -905,9 +911,13 @@ private struct DungeonRewardRelicIllustrationView: View {
                 .lineLimit(2)
                 .minimumScaleFactor(0.7)
 
-            Text(relic.displayKind.displayName)
-                .font(.system(size: 10, weight: .semibold, design: .rounded))
-                .foregroundColor(relic.displayKind.tintColor(theme: theme))
+            HStack(spacing: 4) {
+                Text(relic.rarity.displayName)
+                    .foregroundColor(relic.rarity.tintColor(theme: theme))
+                Text(relic.displayKind.displayName)
+                    .foregroundColor(relic.displayKind.tintColor(theme: theme))
+            }
+            .font(.system(size: 10, weight: .semibold, design: .rounded))
         }
         .padding(8)
         .frame(width: MoveCardIllustrationView.defaultWidth, height: MoveCardIllustrationView.defaultHeight)
@@ -1059,7 +1069,7 @@ private struct DungeonRelicAcquisitionItemRow: View {
     private var itemTint: Color {
         switch item {
         case .relic(let relic):
-            return relic.displayKind.tintColor(theme: theme)
+            return relic.rarity.tintColor(theme: theme)
         case .curse(let curse):
             return curse.displayKind.tintColor
         case .mimicDamage:
@@ -1072,7 +1082,7 @@ private struct DungeonRelicAcquisitionItemRow: View {
     private var badgeText: String? {
         switch item {
         case .relic(let relic):
-            return relic.displayKind.displayName
+            return "\(relic.rarity.displayName) / \(relic.displayKind.displayName)"
         case .curse(let curse):
             return curse.displayKind.displayName
         case .mimicDamage, .hpCompensation:
@@ -1104,6 +1114,19 @@ private extension DungeonRelicDisplayKind {
             return Color(red: 0.91, green: 0.46, blue: 0.10)
         case .persistent:
             return theme.accentPrimary
+        }
+    }
+}
+
+private extension DungeonRelicRarity {
+    func tintColor(theme: AppTheme) -> Color {
+        switch self {
+        case .common:
+            return theme.textSecondary
+        case .rare:
+            return Color(red: 0.18, green: 0.48, blue: 0.74)
+        case .legendary:
+            return Color(red: 0.78, green: 0.54, blue: 0.10)
         }
     }
 }

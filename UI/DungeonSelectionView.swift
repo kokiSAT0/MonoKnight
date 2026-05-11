@@ -7,6 +7,7 @@ struct DungeonSelectionView: View {
     let dungeonLibrary: DungeonLibrary
     @ObservedObject var dungeonGrowthStore: DungeonGrowthStore
     @ObservedObject var dungeonRunResumeStore: DungeonRunResumeStore
+    @ObservedObject var rogueTowerRecordStore: RogueTowerRecordStore
     let onResumeDungeon: (DungeonRunResumeSnapshot) -> Void
     let onStartDungeon: (DungeonDefinition, Int) -> Void
 
@@ -17,16 +18,19 @@ struct DungeonSelectionView: View {
     @State private var selectedGrowthBranch: DungeonGrowthBranch = .preparation
     @State private var isShowingAllGrowthBranches = false
 
+    @MainActor
     init(
         dungeonLibrary: DungeonLibrary,
         dungeonGrowthStore: DungeonGrowthStore,
         dungeonRunResumeStore: DungeonRunResumeStore = DungeonRunResumeStore(),
+        rogueTowerRecordStore: RogueTowerRecordStore? = nil,
         onResumeDungeon: @escaping (DungeonRunResumeSnapshot) -> Void = { _ in },
         onStartDungeon: @escaping (DungeonDefinition, Int) -> Void
     ) {
         self.dungeonLibrary = dungeonLibrary
         self._dungeonGrowthStore = ObservedObject(wrappedValue: dungeonGrowthStore)
         self._dungeonRunResumeStore = ObservedObject(wrappedValue: dungeonRunResumeStore)
+        self._rogueTowerRecordStore = ObservedObject(wrappedValue: rogueTowerRecordStore ?? RogueTowerRecordStore())
         self.onResumeDungeon = onResumeDungeon
         self.onStartDungeon = onStartDungeon
     }
@@ -92,6 +96,18 @@ struct DungeonSelectionView: View {
 
                         ForEach(growthStatuses, id: \.accessibilityIdentifier) { growthStatus in
                             growthStatusBadge(growthStatus)
+                        }
+
+                        if let recordText = rogueTowerRecordStore.highestFloorText(for: dungeon) {
+                            Text(recordText)
+                                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                                .foregroundColor(theme.accentPrimary)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 3)
+                                .background(Capsule().fill(theme.accentPrimary.opacity(0.14)))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.82)
+                                .accessibilityIdentifier("dungeon_rogue_record_\(dungeon.id)")
                         }
                     }
                 }
@@ -694,7 +710,7 @@ struct DungeonResumePresentation: Equatable {
     static func make(dungeon: DungeonDefinition, snapshot: DungeonRunResumeSnapshot?) -> DungeonResumePresentation? {
         guard let snapshot,
               snapshot.dungeonID == dungeon.id,
-              dungeon.floors.indices.contains(snapshot.floorIndex)
+              (dungeon.supportsInfiniteFloors || dungeon.floors.indices.contains(snapshot.floorIndex))
         else { return nil }
         let floorNumber = snapshot.floorIndex + 1
         return DungeonResumePresentation(

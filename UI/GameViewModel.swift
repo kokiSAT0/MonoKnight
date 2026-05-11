@@ -20,6 +20,8 @@ final class GameViewModel: ObservableObject {
     let dungeonGrowthStore: DungeonGrowthStore
     /// 塔攻略の中断復帰ストア
     let dungeonRunResumeStore: DungeonRunResumeStore
+    /// 試練塔のローカル最高到達記録ストア
+    let rogueTowerRecordStore: RogueTowerRecordStore
     /// 遊び方辞典の発見状態ストア
     let encyclopediaDiscoveryStore: EncyclopediaDiscoveryStore
     /// Game Center サインインを再度促す要求を親へ伝えるクロージャ
@@ -141,7 +143,17 @@ final class GameViewModel: ObservableObject {
               let runState = metadata.runState,
               let dungeon = DungeonLibrary.shared.dungeon(with: metadata.dungeonID)
         else { return nil }
+        if dungeon.supportsInfiniteFloors {
+            return "\(dungeon.title) \(runState.floorNumber)F"
+        }
         return "\(dungeon.title) \(runState.floorNumber)/\(dungeon.floors.count)F"
+    }
+    /// 試練塔のローカル最高到達表示
+    var rogueTowerRecordText: String? {
+        guard let metadata = mode.dungeonMetadataSnapshot,
+              let dungeon = DungeonLibrary.shared.dungeon(with: metadata.dungeonID)
+        else { return nil }
+        return rogueTowerRecordStore.highestFloorText(for: dungeon)
     }
     /// リザルトの再挑戦ボタンに表示する開始階
     var dungeonRetryStartFloorText: String? {
@@ -182,7 +194,6 @@ final class GameViewModel: ObservableObject {
               let metadata = mode.dungeonMetadataSnapshot,
               let runState = metadata.runState,
               let dungeon = DungeonLibrary.shared.dungeon(with: metadata.dungeonID),
-              dungeon.floors.indices.contains(runState.currentFloorIndex),
               dungeon.canAdvanceWithinRun(afterFloorIndex: runState.currentFloorIndex)
         else { return [] }
         let floor = dungeon.resolvedFloor(
@@ -193,7 +204,7 @@ final class GameViewModel: ObservableObject {
             + (floor?.rewardSupportCardsAfterClear.count ?? 0)
         let isFastClearForRelic = core.moveCount * 2 <= (core.effectiveDungeonTurnLimit ?? Int.max)
         let rewardChoiceBonus =
-            (core.dungeonRelicEntries.contains { $0.relicID == .victoryBanner } ? 1 : 0) +
+            (core.dungeonRelicEntries.contains { $0.relicID == .victoryBanner || $0.relicID == .royalCrown } ? 1 : 0) +
             (core.dungeonRelicEntries.contains { $0.relicID == .trapperGloves && $0.remainingUses == 1 } ? 1 : 0) +
             (core.dungeonRelicEntries.contains { $0.relicID == .gamblerCoin } && isFastClearForRelic ? 1 : 0) +
             (core.dungeonCurseEntries.contains { $0.curseID == .crackedCompass } ? 1 : 0)
@@ -268,7 +279,7 @@ final class GameViewModel: ObservableObject {
         guard let metadata = mode.dungeonMetadataSnapshot,
               let dungeon = DungeonLibrary.shared.dungeon(with: metadata.dungeonID)
         else { return 2 }
-        let heavyCrownBonus = core.dungeonRelicEntries.contains { $0.relicID == .heavyCrown } ? 1 : 0
+        let heavyCrownBonus = core.dungeonRelicEntries.contains { $0.relicID == .heavyCrown || $0.relicID == .royalCrown } ? 1 : 0
         let cursedCrownBonus = core.dungeonCurseEntries.contains { $0.curseID == .cursedCrown } ? 2 : 0
         let cursePenalty = core.dungeonCurseEntries.contains { $0.curseID == .bloodPact && $0.remainingUses > 0 } ? 1 : 0
         let warpedHourglassPenalty = core.dungeonCurseEntries.contains { $0.curseID == .warpedHourglass } ? 1 : 0
@@ -416,6 +427,7 @@ final class GameViewModel: ObservableObject {
         adsService: AdsServiceProtocol,
         dungeonGrowthStore: @MainActor @autoclosure () -> DungeonGrowthStore = DungeonGrowthStore(),
         dungeonRunResumeStore: @MainActor @autoclosure () -> DungeonRunResumeStore = DungeonRunResumeStore(),
+        rogueTowerRecordStore: @MainActor @autoclosure () -> RogueTowerRecordStore = RogueTowerRecordStore(),
         encyclopediaDiscoveryStore: @MainActor @autoclosure () -> EncyclopediaDiscoveryStore = EncyclopediaDiscoveryStore(),
         onRequestGameCenterSignIn: ((GameCenterSignInPromptReason) -> Void)? = nil,
         onRequestReturnToTitle: (() -> Void)?,
@@ -431,6 +443,7 @@ final class GameViewModel: ObservableObject {
         self.adsService = adsService
         self.dungeonGrowthStore = dungeonGrowthStore()
         self.dungeonRunResumeStore = dungeonRunResumeStore()
+        self.rogueTowerRecordStore = rogueTowerRecordStore()
         self.encyclopediaDiscoveryStore = encyclopediaDiscoveryStore()
         self.onRequestGameCenterSignIn = onRequestGameCenterSignIn
         self.onRequestReturnToTitle = onRequestReturnToTitle

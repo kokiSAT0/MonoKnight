@@ -18,6 +18,7 @@ final class MoveCardIllustrationViewAccessibilityTests: XCTestCase {
             dungeonHP: 2,
             remainingDungeonTurns: 3,
             dungeonRunFloorText: "基礎塔 1/3F",
+            rogueTowerRecordText: nil,
             dungeonRunTotalMoveCount: 6,
             dungeonRewardMoveCards: [],
             dungeonInventoryEntries: [],

@@ -204,7 +204,7 @@ extension GameViewModel {
             enemyDamageMitigationsRemaining: core.enemyDamageMitigationsRemaining,
             markerDamageMitigationsRemaining: core.markerDamageMitigationsRemaining
         )
-        let nextFloor = dungeon.resolvedFloor(at: nextIndex, runState: nextRunState) ?? dungeon.floors[nextIndex]
+        guard let nextFloor = dungeon.resolvedFloor(at: nextIndex, runState: nextRunState) else { return nil }
         return nextFloor.makeGameMode(
             dungeonID: dungeon.id,
             difficulty: dungeon.difficulty,
@@ -219,7 +219,7 @@ extension GameViewModel {
               let runState = metadata.runState,
               runState.currentFloorIndex == event.sourceFloorIndex,
               let dungeon = DungeonLibrary.shared.dungeon(with: metadata.dungeonID),
-              dungeon.floors.indices.contains(event.destinationFloorIndex),
+              (dungeon.supportsInfiniteFloors || dungeon.floors.indices.contains(event.destinationFloorIndex)),
               event.destinationFloorIndex == runState.currentFloorIndex - 1,
               event.destinationFloorIndex < runState.currentFloorIndex
         else { return nil }
@@ -238,8 +238,9 @@ extension GameViewModel {
             enemyDamageMitigationsRemaining: core.enemyDamageMitigationsRemaining,
             markerDamageMitigationsRemaining: core.markerDamageMitigationsRemaining
         )
-        let nextFloor = dungeon.resolvedFloor(at: event.destinationFloorIndex, runState: nextRunState)
-            ?? dungeon.floors[event.destinationFloorIndex]
+        guard let nextFloor = dungeon.resolvedFloor(at: event.destinationFloorIndex, runState: nextRunState) else {
+            return nil
+        }
         return nextFloor.makeGameMode(
             dungeonID: dungeon.id,
             difficulty: dungeon.difficulty,

@@ -649,15 +649,15 @@ extension GameHandSectionView {
     }
 
     static func dungeonRelicAccessibilityLabel(for relic: DungeonRelicEntry) -> String {
-        "\(relic.displayKind.displayName)、\(relic.displayName)"
+        "\(relic.rarity.displayName)、\(relic.displayKind.displayName)、\(relic.displayName)"
     }
 
     static func dungeonRelicAccessibilityHint(for relic: DungeonRelicEntry) -> String {
         let remainingText = relic.hasLimitedUses ? "残り \(relic.remainingUses) 回。" : ""
         if let note = relic.noteDescription {
-            return "ダブルタップで効果を確認します。\(relic.displayKind.displayName)。\(relic.effectDescription)\(remainingText)\(note)"
+            return "ダブルタップで効果を確認します。\(relic.rarity.displayName)。\(relic.displayKind.displayName)。\(relic.effectDescription)\(remainingText)\(note)"
         }
-        return "ダブルタップで効果を確認します。\(relic.displayKind.displayName)。\(relic.effectDescription)\(remainingText)"
+        return "ダブルタップで効果を確認します。\(relic.rarity.displayName)。\(relic.displayKind.displayName)。\(relic.effectDescription)\(remainingText)"
     }
 
     static func dungeonCurseAccessibilityIdentifier(for curse: DungeonCurseEntry) -> String {
@@ -695,6 +695,19 @@ private extension DungeonRelicDisplayKind {
     }
 }
 
+private extension DungeonRelicRarity {
+    func tintColor(theme: AppTheme) -> Color {
+        switch self {
+        case .common:
+            return theme.textSecondary
+        case .rare:
+            return Color(red: 0.18, green: 0.48, blue: 0.74)
+        case .legendary:
+            return Color(red: 0.78, green: 0.54, blue: 0.10)
+        }
+    }
+}
+
 private struct DungeonRelicIconView: View {
     let theme: AppTheme
     let relic: DungeonRelicEntry
@@ -721,6 +734,15 @@ private struct DungeonRelicIconView: View {
                 .background(Circle().fill(tint))
                 .offset(x: 4, y: 4)
                 .accessibilityHidden(true)
+
+            Text(relic.rarity.badgeText)
+                .font(.system(size: 9, weight: .bold, design: .rounded))
+                .foregroundColor(relic.rarity.tintColor(theme: theme))
+                .frame(width: 16, height: 16)
+                .background(Circle().fill(theme.cardBackgroundHand))
+                .overlay(Circle().stroke(relic.rarity.tintColor(theme: theme).opacity(0.7), lineWidth: 1))
+                .offset(x: -28, y: 4)
+                .accessibilityHidden(true)
         }
         .frame(width: 44, height: 44)
     }
@@ -742,9 +764,14 @@ private struct DungeonRelicDetailView: View {
                         .frame(width: 44, height: 44)
                         .background(Circle().fill(tint.opacity(0.14)))
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(relic.displayKind.displayName)
-                            .font(.system(size: 12, weight: .bold, design: .rounded))
-                            .foregroundColor(tint)
+                        HStack(spacing: 6) {
+                            Text(relic.rarity.displayName)
+                                .font(.system(size: 12, weight: .bold, design: .rounded))
+                                .foregroundColor(relic.rarity.tintColor(theme: theme))
+                            Text(relic.displayKind.displayName)
+                                .font(.system(size: 12, weight: .bold, design: .rounded))
+                                .foregroundColor(tint)
+                        }
                         Text(relic.displayName)
                             .font(.system(size: 22, weight: .bold, design: .rounded))
                             .foregroundColor(theme.textPrimary)

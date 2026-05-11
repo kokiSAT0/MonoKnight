@@ -253,6 +253,37 @@ public struct PendingDungeonPickupChoice: Codable, Equatable {
     }
 }
 
+/// 遺物の希少度。強さと排出率の大枠として扱う。
+public enum DungeonRelicRarity: String, Codable, CaseIterable, Equatable, Identifiable {
+    case common
+    case rare
+    case legendary
+
+    public var id: String { rawValue }
+
+    public var displayName: String {
+        switch self {
+        case .common:
+            return "コモン"
+        case .rare:
+            return "レア"
+        case .legendary:
+            return "レジェンド"
+        }
+    }
+
+    public var badgeText: String {
+        switch self {
+        case .common:
+            return "C"
+        case .rare:
+            return "R"
+        case .legendary:
+            return "L"
+        }
+    }
+}
+
 /// 塔攻略中だけ有効な遺物の種類
 public enum DungeonRelicID: String, Codable, CaseIterable, Equatable, Identifiable {
     case crackedShield
@@ -275,6 +306,10 @@ public enum DungeonRelicID: String, Codable, CaseIterable, Equatable, Identifiab
     case oldRope
     case twinPouch
     case gamblerCoin
+    case royalCrown
+    case immortalHeart
+    case guardianAegis
+    case stargazerHourglass
 
     public var id: String { rawValue }
 
@@ -324,6 +359,14 @@ public enum DungeonRelicID: String, Codable, CaseIterable, Equatable, Identifiab
             return "双子の小袋"
         case .gamblerCoin:
             return "勝負師のコイン"
+        case .royalCrown:
+            return "王家の宝冠"
+        case .immortalHeart:
+            return "不滅の心臓"
+        case .guardianAegis:
+            return "守護者の大盾"
+        case .stargazerHourglass:
+            return "星詠みの砂時計"
         }
     }
 
@@ -369,6 +412,14 @@ public enum DungeonRelicID: String, Codable, CaseIterable, Equatable, Identifiab
             return "補助カードを新しく得る時、使用回数が+1される。"
         case .gamblerCoin:
             return "フロアを手早くクリアすると、未所持レリック候補を1つ追加しやすくする。"
+        case .royalCrown:
+            return "クリア後の報酬候補が+1され、新しく得る報酬カードの使用回数が+1される。最大4択。"
+        case .immortalHeart:
+            return "各フロア開始時にHPが2増える。"
+        case .guardianAegis:
+            return "各フロアで最初に受けるHPダメージを1回だけ1軽減する。"
+        case .stargazerHourglass:
+            return "各フロアの手数上限が+5される。"
         }
     }
 
@@ -377,10 +428,22 @@ public enum DungeonRelicID: String, Codable, CaseIterable, Equatable, Identifiab
         case .crackedShield, .heavyCrown, .glowingHeart, .oldMap, .blackFeather,
              .travelerBoots, .silverNeedle, .starCup, .explorerBag, .moonMirror, .victoryBanner,
              .windcutFeather, .guardianIncense, .trapperGloves, .whiteChalk, .spareTorch,
-             .oldRope, .twinPouch, .gamblerCoin:
+             .oldRope, .twinPouch, .gamblerCoin, .royalCrown, .immortalHeart, .guardianAegis:
             return nil
-        case .chippedHourglass:
+        case .chippedHourglass, .stargazerHourglass:
             return "報酬カード強化の増加量は通常どおり。"
+        }
+    }
+
+    public var rarity: DungeonRelicRarity {
+        switch self {
+        case .crackedShield, .glowingHeart, .oldMap, .travelerBoots, .silverNeedle, .whiteChalk, .oldRope:
+            return .common
+        case .heavyCrown, .blackFeather, .chippedHourglass, .starCup, .explorerBag,
+             .windcutFeather, .guardianIncense, .trapperGloves, .spareTorch, .twinPouch, .gamblerCoin:
+            return .rare
+        case .moonMirror, .victoryBanner, .royalCrown, .immortalHeart, .guardianAegis, .stargazerHourglass:
+            return .legendary
         }
     }
 
@@ -426,18 +489,27 @@ public enum DungeonRelicID: String, Codable, CaseIterable, Equatable, Identifiab
             return "shippingbox.fill"
         case .gamblerCoin:
             return "circle.lefthalf.filled"
+        case .royalCrown:
+            return "crown.fill"
+        case .immortalHeart:
+            return "heart.circle.fill"
+        case .guardianAegis:
+            return "shield.fill"
+        case .stargazerHourglass:
+            return "hourglass.badge.plus"
         }
     }
 
     public var startingUses: Int {
         switch self {
-        case .crackedShield, .blackFeather, .silverNeedle, .moonMirror, .guardianIncense, .oldRope:
+        case .crackedShield, .blackFeather, .silverNeedle, .moonMirror, .guardianIncense, .oldRope, .guardianAegis:
             return 1
         case .trapperGloves:
             return 2
         case .heavyCrown, .glowingHeart, .oldMap, .chippedHourglass,
              .travelerBoots, .starCup, .explorerBag, .victoryBanner,
-             .windcutFeather, .whiteChalk, .spareTorch, .twinPouch, .gamblerCoin:
+             .windcutFeather, .whiteChalk, .spareTorch, .twinPouch, .gamblerCoin,
+             .royalCrown, .immortalHeart, .stargazerHourglass:
             return 0
         }
     }
@@ -480,6 +552,7 @@ public struct DungeonRelicEncyclopediaEntry: Identifiable, Equatable {
     public var noteDescription: String? { relicID.noteDescription }
     public var symbolName: String { relicID.symbolName }
     public var displayKind: DungeonRelicDisplayKind { relicID.displayKind }
+    public var rarity: DungeonRelicRarity { relicID.rarity }
     public var encyclopediaDiscoveryID: EncyclopediaDiscoveryID { relicID.encyclopediaDiscoveryID }
 
     public init(relicID: DungeonRelicID) {
@@ -722,6 +795,7 @@ public struct DungeonRelicEntry: Codable, Equatable, Identifiable {
     public var symbolName: String { relicID.symbolName }
     public var hasLimitedUses: Bool { relicID.startingUses > 0 }
     public var displayKind: DungeonRelicDisplayKind { relicID.displayKind }
+    public var rarity: DungeonRelicRarity { relicID.rarity }
 
     public init(relicID: DungeonRelicID, remainingUses: Int? = nil) {
         self.relicID = relicID
@@ -813,7 +887,7 @@ public struct DungeonRelicAcquisitionPresentation: Equatable, Identifiable {
         public var primaryDescription: String {
             switch self {
             case .relic(let relic):
-                return "\(relic.displayKind.displayName) / \(relic.effectDescription)"
+                return "\(relic.rarity.displayName) / \(relic.displayKind.displayName) / \(relic.effectDescription)"
             case .curse(let curse):
                 return "\(curse.displayKind.displayName) / 利点: \(curse.upsideDescription)"
             case .mimicDamage(let damage):
@@ -1011,6 +1085,17 @@ public enum DungeonRelicPickupKind: String, Codable, Equatable {
             return [(.relic, 75), (.curse, 15), (.mimic, 7), (.pandora, 3)]
         case .suspiciousDeep:
             return [(.relic, 60), (.curse, 25), (.mimic, 10), (.pandora, 5)]
+        }
+    }
+
+    public var relicRarityWeights: [(DungeonRelicRarity, Int)] {
+        switch self {
+        case .safe:
+            return [(.common, 75), (.rare, 22), (.legendary, 3)]
+        case .suspiciousLight:
+            return [(.common, 55), (.rare, 35), (.legendary, 10)]
+        case .suspiciousDeep:
+            return [(.common, 40), (.rare, 42), (.legendary, 18)]
         }
     }
 }
@@ -1397,14 +1482,16 @@ public enum DungeonWeightedRewardPools {
             .filter { $0.weight > 0 }
             .compactMap { entry -> (offer: DungeonRewardOffer, category: DungeonWeightedRewardPoolCategory, weight: Int)? in
                 guard let offer = entry.item.offer else { return nil }
-                switch offer {
-                case .playable(let playable) where excludedPlayables.contains(playable):
-                    return nil
-                case .relic(let relic) where excludedRelics.contains(relic):
-                    return nil
-                default:
-                    return (offer, entry.item.category, entry.weight)
-                }
+            switch offer {
+            case .playable(let playable) where excludedPlayables.contains(playable):
+                return nil
+            case .relic(let relic) where excludedRelics.contains(relic):
+                return nil
+            case .relic(let relic):
+                return (offer, entry.item.category, entry.weight * rewardRelicWeight(for: relic.rarity, tuning: tuning))
+            default:
+                return (offer, entry.item.category, entry.weight)
+            }
             }
         var result: [DungeonRewardOffer] = []
         let categoryWeights = categoryWeights(context: context, tuning: tuning)
@@ -1468,6 +1555,46 @@ public enum DungeonWeightedRewardPools {
 
     private static func weightedRelics() -> [DungeonWeightedRewardPoolEntry] {
         DungeonRelicID.allCases.map { DungeonWeightedRewardPoolEntry(item: .relic($0), weight: 1) }
+    }
+
+    private static func rewardRelicWeight(
+        for rarity: DungeonRelicRarity,
+        tuning: DungeonRewardDrawTuning
+    ) -> Int {
+        guard let moveCount = tuning.clearMoveCount,
+              let turnLimit = tuning.turnLimit,
+              turnLimit > 0,
+              !tuning.suppressRelicQualityBonus
+        else {
+            return normalRewardRelicWeight(for: rarity)
+        }
+        if moveCount * 2 <= turnLimit {
+            return weight(for: rarity, common: 45, rare: 40, legendary: 15)
+        }
+        if moveCount * 10 <= turnLimit * 7 {
+            return weight(for: rarity, common: 60, rare: 32, legendary: 8)
+        }
+        return normalRewardRelicWeight(for: rarity)
+    }
+
+    private static func normalRewardRelicWeight(for rarity: DungeonRelicRarity) -> Int {
+        weight(for: rarity, common: 70, rare: 25, legendary: 5)
+    }
+
+    private static func weight(
+        for rarity: DungeonRelicRarity,
+        common: Int,
+        rare: Int,
+        legendary: Int
+    ) -> Int {
+        switch rarity {
+        case .common:
+            return common
+        case .rare:
+            return rare
+        case .legendary:
+            return legendary
+        }
     }
 
     private static func categoryWeights(
@@ -1536,6 +1663,8 @@ public struct DungeonRunState: Codable, Equatable {
     public let collectedDungeonRelicPickupIDs: Set<String>
     /// 成長塔の拾得/報酬カード変化に使うラン単位の seed
     public let cardVariationSeed: UInt64?
+    /// 試練塔のフロア生成に使うラン単位の seed
+    public let rogueTowerSeed: UInt64?
     /// フロアごとのひび割れ床状態
     public let crackedFloorPointsByFloor: [Int: Set<GridPoint>]
     /// フロアごとの崩落床状態
@@ -1560,6 +1689,7 @@ public struct DungeonRunState: Codable, Equatable {
         curseEntries: [DungeonCurseEntry] = [],
         collectedDungeonRelicPickupIDs: Set<String> = [],
         cardVariationSeed: UInt64? = nil,
+        rogueTowerSeed: UInt64? = nil,
         crackedFloorPointsByFloor: [Int: Set<GridPoint>] = [:],
         collapsedFloorPointsByFloor: [Int: Set<GridPoint>] = [:],
         pendingFallLandingPoint: GridPoint? = nil,
@@ -1577,6 +1707,7 @@ public struct DungeonRunState: Codable, Equatable {
         self.curseEntries = DungeonRunState.mergedCurseEntries(curseEntries)
         self.collectedDungeonRelicPickupIDs = collectedDungeonRelicPickupIDs
         self.cardVariationSeed = cardVariationSeed
+        self.rogueTowerSeed = rogueTowerSeed
         self.crackedFloorPointsByFloor = crackedFloorPointsByFloor.filter { !$0.value.isEmpty }
         self.collapsedFloorPointsByFloor = collapsedFloorPointsByFloor.filter { !$0.value.isEmpty }
         self.pendingFallLandingPoint = pendingFallLandingPoint
@@ -1633,9 +1764,9 @@ public struct DungeonRunState: Codable, Equatable {
         let adjustedCarryoverHP = carriedCurses.contains { $0.curseID == .obsidianHeart }
             ? max(rewardRelicAdjustedHP - 1, 1)
             : rewardRelicAdjustedHP
-        let floorStartHP = carriedRelics.contains { $0.relicID == .starCup }
-            ? adjustedCarryoverHP + 1
-            : adjustedCarryoverHP
+        let floorStartHP = adjustedCarryoverHP
+            + (carriedRelics.contains { $0.relicID == .starCup } ? 1 : 0)
+            + (carriedRelics.contains { $0.relicID == .immortalHeart } ? 2 : 0)
         return DungeonRunState(
             dungeonID: dungeonID,
             currentFloorIndex: currentFloorIndex + 1,
@@ -1647,6 +1778,7 @@ public struct DungeonRunState: Codable, Equatable {
             curseEntries: carriedCurses,
             collectedDungeonRelicPickupIDs: self.collectedDungeonRelicPickupIDs.union(collectedDungeonRelicPickupIDs ?? []),
             cardVariationSeed: cardVariationSeed,
+            rogueTowerSeed: rogueTowerSeed,
             crackedFloorPointsByFloor: crackedFloorPointsByFloor,
             collapsedFloorPointsByFloor: collapsedFloorPointsByFloor,
             hazardDamageMitigationsRemaining: hazardDamageMitigationsRemaining ?? self.hazardDamageMitigationsRemaining,
@@ -1685,6 +1817,7 @@ public struct DungeonRunState: Codable, Equatable {
             curseEntries: currentCurseEntries ?? curseEntries,
             collectedDungeonRelicPickupIDs: self.collectedDungeonRelicPickupIDs.union(collectedDungeonRelicPickupIDs),
             cardVariationSeed: cardVariationSeed,
+            rogueTowerSeed: rogueTowerSeed,
             crackedFloorPointsByFloor: recordedState.crackedFloorPointsByFloor,
             collapsedFloorPointsByFloor: recordedState.collapsedFloorPointsByFloor,
             pendingFallLandingPoint: landingPoint,
@@ -1734,6 +1867,7 @@ public struct DungeonRunState: Codable, Equatable {
             curseEntries: curseEntries,
             collectedDungeonRelicPickupIDs: collectedDungeonRelicPickupIDs,
             cardVariationSeed: cardVariationSeed,
+            rogueTowerSeed: rogueTowerSeed,
             crackedFloorPointsByFloor: crackedByFloor,
             collapsedFloorPointsByFloor: collapsedByFloor,
             pendingFallLandingPoint: pendingFallLandingPoint,
@@ -1754,6 +1888,7 @@ public struct DungeonRunState: Codable, Equatable {
         case curseEntries
         case collectedDungeonRelicPickupIDs
         case cardVariationSeed
+        case rogueTowerSeed
         case crackedFloorPointsByFloor
         case collapsedFloorPointsByFloor
         case pendingFallLandingPoint
@@ -1775,6 +1910,7 @@ public struct DungeonRunState: Codable, Equatable {
             curseEntries: try container.decodeIfPresent([DungeonCurseEntry].self, forKey: .curseEntries) ?? [],
             collectedDungeonRelicPickupIDs: try container.decodeIfPresent(Set<String>.self, forKey: .collectedDungeonRelicPickupIDs) ?? [],
             cardVariationSeed: try container.decodeIfPresent(UInt64.self, forKey: .cardVariationSeed),
+            rogueTowerSeed: try container.decodeIfPresent(UInt64.self, forKey: .rogueTowerSeed),
             crackedFloorPointsByFloor: try container.decodeIfPresent([Int: Set<GridPoint>].self, forKey: .crackedFloorPointsByFloor) ?? [:],
             collapsedFloorPointsByFloor: try container.decodeIfPresent([Int: Set<GridPoint>].self, forKey: .collapsedFloorPointsByFloor) ?? [:],
             pendingFallLandingPoint: try container.decodeIfPresent(GridPoint.self, forKey: .pendingFallLandingPoint),
@@ -1796,6 +1932,7 @@ public struct DungeonRunState: Codable, Equatable {
         try container.encode(curseEntries, forKey: .curseEntries)
         try container.encode(collectedDungeonRelicPickupIDs, forKey: .collectedDungeonRelicPickupIDs)
         try container.encodeIfPresent(cardVariationSeed, forKey: .cardVariationSeed)
+        try container.encodeIfPresent(rogueTowerSeed, forKey: .rogueTowerSeed)
         try container.encode(crackedFloorPointsByFloor, forKey: .crackedFloorPointsByFloor)
         try container.encode(collapsedFloorPointsByFloor, forKey: .collapsedFloorPointsByFloor)
         try container.encodeIfPresent(pendingFallLandingPoint, forKey: .pendingFallLandingPoint)
@@ -1845,8 +1982,8 @@ public struct DungeonRunState: Codable, Equatable {
     private static func relicEntriesForNextFloor(_ entries: [DungeonRelicEntry]) -> [DungeonRelicEntry] {
         entries.map { entry in
             switch entry.relicID {
-            case .guardianIncense:
-                return DungeonRelicEntry(relicID: .guardianIncense)
+            case .guardianIncense, .guardianAegis:
+                return DungeonRelicEntry(relicID: entry.relicID)
             case .trapperGloves where entry.remainingUses == 1:
                 return DungeonRelicEntry(relicID: .trapperGloves, remainingUses: 0)
             case .glowingHeart:
@@ -1968,9 +2105,10 @@ public struct DungeonRunState: Codable, Equatable {
             return hp
         case .glowingHeart:
             return hp + 2
-        case .heavyCrown, .oldMap, .blackFeather, .chippedHourglass, .travelerBoots, .silverNeedle, .starCup, .explorerBag, .moonMirror, .victoryBanner:
-            return hp
-        case .windcutFeather, .guardianIncense, .trapperGloves, .whiteChalk, .spareTorch, .oldRope, .twinPouch, .gamblerCoin:
+        case .heavyCrown, .oldMap, .blackFeather, .chippedHourglass,
+             .travelerBoots, .silverNeedle, .starCup, .explorerBag, .moonMirror, .victoryBanner,
+             .windcutFeather, .guardianIncense, .trapperGloves, .whiteChalk, .spareTorch,
+             .oldRope, .twinPouch, .gamblerCoin, .royalCrown, .immortalHeart, .guardianAegis, .stargazerHourglass:
             return hp
         }
     }
@@ -2776,11 +2914,20 @@ public struct DungeonDefinition: Codable, Equatable, Identifiable {
         self.floors = floors
     }
 
+    public var supportsInfiniteFloors: Bool {
+        id == "rogue-tower" && difficulty == .roguelike
+    }
+
     public func canAdvanceWithinRun(afterFloorIndex floorIndex: Int) -> Bool {
-        floors.indices.contains(floorIndex + 1)
+        if supportsInfiniteFloors { return true }
+        return floors.indices.contains(floorIndex + 1)
     }
 
     public func resolvedFloor(at floorIndex: Int, runState: DungeonRunState?) -> DungeonFloorDefinition? {
+        if supportsInfiniteFloors {
+            guard let seed = runState?.rogueTowerSeed else { return nil }
+            return RogueTowerFloorGenerator.resolve(floorIndex: max(floorIndex, 0), seed: seed)
+        }
         guard floors.indices.contains(floorIndex) else { return nil }
         let floor = floors[floorIndex]
         guard id == "growth-tower",
@@ -2792,6 +2939,369 @@ public struct DungeonDefinition: Codable, Equatable, Identifiable {
             floorIndex: floorIndex,
             seed: seed
         )
+    }
+}
+
+private enum RogueTowerFloorGenerator {
+    private static let boardSize = 9
+
+    static func resolve(floorIndex: Int, seed: UInt64) -> DungeonFloorDefinition {
+        let floorIndex = max(floorIndex, 0)
+        var randomizer = DungeonCardVariationRandomizer(seed: seed, floorIndex: floorIndex, salt: 0x52_6F_67_75_65)
+        let spawnPoint = randomEdgePoint(randomizer: &randomizer)
+        let exitPoint = randomEdgePoint(avoiding: spawnPoint, randomizer: &randomizer)
+        let safePath = representativePath(from: spawnPoint, to: exitPoint, randomizer: &randomizer)
+        var reserved: Set<GridPoint> = [spawnPoint, exitPoint]
+
+        let impassableTilePoints = impassableTiles(
+            floorIndex: floorIndex,
+            safePath: safePath,
+            reserved: &reserved,
+            randomizer: &randomizer
+        )
+        let warpTilePairs = warpPairs(
+            floorIndex: floorIndex,
+            reserved: &reserved,
+            randomizer: &randomizer
+        )
+        let hazards = hazards(
+            floorIndex: floorIndex,
+            reserved: &reserved,
+            randomizer: &randomizer
+        )
+        let tileEffectOverrides = tileEffects(
+            floorIndex: floorIndex,
+            reserved: &reserved,
+            randomizer: &randomizer
+        )
+        let enemies = enemies(
+            floorIndex: floorIndex,
+            safePath: safePath,
+            reserved: &reserved,
+            randomizer: &randomizer
+        )
+        let cardPickups = cardPickups(
+            floorIndex: floorIndex,
+            seed: seed,
+            reserved: &reserved,
+            randomizer: &randomizer
+        )
+        let rewardCards = rewardCards(floorIndex: floorIndex, seed: seed, randomizer: &randomizer)
+
+        return DungeonFloorDefinition(
+            id: "rogue-\(floorIndex + 1)",
+            title: "試練 \(floorIndex + 1)F",
+            boardSize: boardSize,
+            spawnPoint: spawnPoint,
+            exitPoint: exitPoint,
+            deckPreset: .standardLight,
+            failureRule: DungeonFailureRule(
+                initialHP: 3,
+                turnLimit: turnLimit(floorIndex: floorIndex, safePathLength: safePath.count)
+            ),
+            enemies: enemies,
+            hazards: hazards,
+            impassableTilePoints: impassableTilePoints,
+            tileEffectOverrides: tileEffectOverrides,
+            warpTilePairs: warpTilePairs,
+            cardPickups: cardPickups,
+            rewardMoveCardsAfterClear: rewardCards.compactMap(\.move),
+            rewardSupportCardsAfterClear: rewardCards.compactMap(\.support),
+            isDarknessEnabled: isDarknessEnabled(floorIndex: floorIndex, randomizer: &randomizer)
+        )
+    }
+
+    private static func turnLimit(floorIndex: Int, safePathLength: Int) -> Int {
+        max(9, safePathLength + 4 - min(floorIndex / 8, 5))
+    }
+
+    private static func randomEdgePoint(avoiding avoided: GridPoint? = nil, randomizer: inout DungeonCardVariationRandomizer) -> GridPoint {
+        let candidates = edgePoints.filter { point in
+            guard let avoided else { return true }
+            return point != avoided && manhattanDistance(point, avoided) >= 8
+        }
+        return candidates[randomizer.nextIndex(upperBound: candidates.count)]
+    }
+
+    private static func representativePath(
+        from start: GridPoint,
+        to goal: GridPoint,
+        randomizer: inout DungeonCardVariationRandomizer
+    ) -> [GridPoint] {
+        let bend = randomizer.nextIndex(upperBound: 2) == 0
+            ? GridPoint(x: goal.x, y: start.y)
+            : GridPoint(x: start.x, y: goal.y)
+        return linePath(from: start, to: bend) + linePath(from: bend, to: goal).dropFirst()
+    }
+
+    private static func linePath(from start: GridPoint, to goal: GridPoint) -> [GridPoint] {
+        var result = [start]
+        var current = start
+        while current.x != goal.x {
+            current = GridPoint(x: current.x + (goal.x > current.x ? 1 : -1), y: current.y)
+            result.append(current)
+        }
+        while current.y != goal.y {
+            current = GridPoint(x: current.x, y: current.y + (goal.y > current.y ? 1 : -1))
+            result.append(current)
+        }
+        return result
+    }
+
+    private static func impassableTiles(
+        floorIndex: Int,
+        safePath: [GridPoint],
+        reserved: inout Set<GridPoint>,
+        randomizer: inout DungeonCardVariationRandomizer
+    ) -> Set<GridPoint> {
+        let count = min(2 + floorIndex / 6, 7)
+        let blockedPath = Set(safePath)
+        let points = drawPoints(count: count, reserved: reserved.union(blockedPath), randomizer: &randomizer)
+        reserved.formUnion(points)
+        return Set(points)
+    }
+
+    private static func warpPairs(
+        floorIndex: Int,
+        reserved: inout Set<GridPoint>,
+        randomizer: inout DungeonCardVariationRandomizer
+    ) -> [String: [GridPoint]] {
+        guard floorIndex >= 4 else { return [:] }
+        let pairCount = floorIndex >= 18 ? 2 : 1
+        var result: [String: [GridPoint]] = [:]
+        for index in 0..<pairCount {
+            let points = drawPoints(count: 2, reserved: reserved, randomizer: &randomizer)
+            guard points.count == 2 else { continue }
+            reserved.formUnion(points)
+            result["rogue-\(floorIndex + 1)-warp-\(index + 1)"] = points
+        }
+        return result
+    }
+
+    private static func hazards(
+        floorIndex: Int,
+        reserved: inout Set<GridPoint>,
+        randomizer: inout DungeonCardVariationRandomizer
+    ) -> [HazardDefinition] {
+        var result: [HazardDefinition] = []
+        let trapCount = min(2 + floorIndex / 3, 14)
+        let trapPoints = drawPoints(count: trapCount, reserved: reserved, randomizer: &randomizer)
+        if !trapPoints.isEmpty {
+            reserved.formUnion(trapPoints)
+            result.append(.damageTrap(points: Set(trapPoints), damage: floorIndex >= 22 ? 2 : 1))
+        }
+
+        if floorIndex >= 2 {
+            let brittleCount = min(1 + floorIndex / 5, 8)
+            let brittlePoints = drawPoints(count: brittleCount, reserved: reserved, randomizer: &randomizer)
+            if !brittlePoints.isEmpty {
+                reserved.formUnion(brittlePoints)
+                result.append(.brittleFloor(points: Set(brittlePoints)))
+            }
+        }
+
+        if floorIndex >= 10 {
+            let lavaCount = min(1 + floorIndex / 12, 4)
+            let lavaPoints = drawPoints(count: lavaCount, reserved: reserved, randomizer: &randomizer)
+            if !lavaPoints.isEmpty {
+                reserved.formUnion(lavaPoints)
+                result.append(.lavaTile(points: Set(lavaPoints), damage: 1))
+            }
+        }
+
+        if floorIndex >= 8 && randomizer.nextIndex(upperBound: 3) == 0 {
+            let healPoints = drawPoints(count: 1, reserved: reserved, randomizer: &randomizer)
+            if !healPoints.isEmpty {
+                reserved.formUnion(healPoints)
+                result.append(.healingTile(points: Set(healPoints), amount: 1))
+            }
+        }
+        return result
+    }
+
+    private static func tileEffects(
+        floorIndex: Int,
+        reserved: inout Set<GridPoint>,
+        randomizer: inout DungeonCardVariationRandomizer
+    ) -> [GridPoint: TileEffect] {
+        guard floorIndex >= 5 else { return [:] }
+        let candidates: [TileEffect] = [
+            .poisonTrap,
+            .shackleTrap,
+            .illusionTrap,
+            .swamp,
+            .discardRandomHand
+        ]
+        let count = min(1 + floorIndex / 10, 4)
+        let points = drawPoints(count: count, reserved: reserved, randomizer: &randomizer)
+        reserved.formUnion(points)
+        return Dictionary(uniqueKeysWithValues: points.enumerated().map { index, point in
+            (point, candidates[(index + randomizer.nextIndex(upperBound: candidates.count)) % candidates.count])
+        })
+    }
+
+    private static func enemies(
+        floorIndex: Int,
+        safePath: [GridPoint],
+        reserved: inout Set<GridPoint>,
+        randomizer: inout DungeonCardVariationRandomizer
+    ) -> [EnemyDefinition] {
+        let enemyCount = min(1 + floorIndex / 2, 7)
+        var enemies: [EnemyDefinition] = []
+        var enemyReserved = reserved.union(Set(safePath))
+        for index in 0..<enemyCount {
+            let behaviorKind = randomizer.nextIndex(upperBound: floorIndex >= 12 ? 5 : 4)
+            let point = drawPoints(count: 1, reserved: enemyReserved, randomizer: &randomizer).first
+                ?? drawPoints(count: 1, reserved: reserved, randomizer: &randomizer).first
+            guard let point else { continue }
+            let behavior: EnemyBehavior
+            let name: String
+            switch behaviorKind {
+            case 0:
+                behavior = .guardPost
+                name = "番兵"
+            case 1:
+                behavior = .watcher(direction: randomDirection(randomizer: &randomizer), range: min(3 + floorIndex / 8, 6))
+                name = "見張り"
+            case 2:
+                behavior = .patrol(path: patrolPath(from: point, randomizer: &randomizer))
+                name = "巡回兵"
+            case 3:
+                behavior = .chaser
+                name = "追跡兵"
+            default:
+                behavior = .marker(directions: [], range: min(2 + floorIndex / 8, 5))
+                name = "メテオ兵"
+            }
+            let occupied: Set<GridPoint>
+            if case .patrol(let path) = behavior {
+                occupied = Set(path)
+            } else {
+                occupied = [point]
+            }
+            enemyReserved.formUnion(occupied)
+            reserved.formUnion(occupied)
+            enemies.append(
+                EnemyDefinition(
+                    id: "rogue-\(floorIndex + 1)-enemy-\(index + 1)",
+                    name: name,
+                    position: point,
+                    behavior: behavior
+                )
+            )
+        }
+        return enemies
+    }
+
+    private static func patrolPath(from start: GridPoint, randomizer: inout DungeonCardVariationRandomizer) -> [GridPoint] {
+        let direction = randomDirection(randomizer: &randomizer)
+        let forward = (0..<4).map { GridPoint(x: start.x + direction.dx * $0, y: start.y + direction.dy * $0) }
+            .filter { $0.isInside(boardSize: boardSize) }
+        let line = forward.count >= 2 ? forward : [start] + neighbors(of: start)
+        let bounce = line + line.dropLast().dropFirst().reversed()
+        return Array(bounce.prefix(max(4, bounce.count)))
+    }
+
+    private static func cardPickups(
+        floorIndex: Int,
+        seed: UInt64,
+        reserved: inout Set<GridPoint>,
+        randomizer: inout DungeonCardVariationRandomizer
+    ) -> [DungeonCardPickupDefinition] {
+        let count = min(3 + floorIndex / 7, 5)
+        let points = drawPoints(count: count, reserved: reserved, randomizer: &randomizer)
+        reserved.formUnion(points)
+        let cards = drawPlayableCards(floorIndex: floorIndex, seed: seed, count: points.count, salt: 0xC4D1)
+        return points.enumerated().map { index, point in
+            DungeonCardPickupDefinition(
+                id: "rogue-\(floorIndex + 1)-pickup-\(index + 1)",
+                point: point,
+                playable: cards[index],
+                uses: 1
+            )
+        }
+    }
+
+    private static func rewardCards(
+        floorIndex: Int,
+        seed: UInt64,
+        randomizer: inout DungeonCardVariationRandomizer
+    ) -> [PlayableCard] {
+        let cards = drawPlayableCards(floorIndex: floorIndex, seed: seed, count: 3, salt: 0xA11D)
+        if cards.count == 3 { return cards }
+        let fallback: [PlayableCard] = [
+            .move(.straightRight2),
+            .move(.straightUp2),
+            .move(.diagonalUpRight2),
+            .move(.rayRight),
+            .support(.refillEmptySlots),
+            .support(.barrierSpell)
+        ]
+        var result = cards
+        for card in fallback where result.count < 3 && !result.contains(card) {
+            result.append(card)
+        }
+        return result
+    }
+
+    private static func drawPlayableCards(floorIndex: Int, seed: UInt64, count: Int, salt: UInt64) -> [PlayableCard] {
+        DungeonWeightedRewardPools.drawUniqueOffers(
+            from: DungeonWeightedRewardPools.entries(floorIndex: floorIndex, context: .clearReward),
+            context: .clearReward,
+            count: count,
+            seed: seed,
+            floorIndex: floorIndex,
+            salt: salt
+        )
+        .compactMap(\.playable)
+    }
+
+    private static func isDarknessEnabled(floorIndex: Int, randomizer: inout DungeonCardVariationRandomizer) -> Bool {
+        floorIndex >= 14 && randomizer.nextIndex(upperBound: 4) == 0
+    }
+
+    private static func drawPoints(
+        count: Int,
+        reserved: Set<GridPoint>,
+        randomizer: inout DungeonCardVariationRandomizer
+    ) -> [GridPoint] {
+        var candidates = allPoints.filter { !reserved.contains($0) }
+        var result: [GridPoint] = []
+        while !candidates.isEmpty && result.count < count {
+            let index = randomizer.nextIndex(upperBound: candidates.count)
+            result.append(candidates.remove(at: index))
+        }
+        return result
+    }
+
+    private static func randomDirection(randomizer: inout DungeonCardVariationRandomizer) -> MoveVector {
+        directions[randomizer.nextIndex(upperBound: directions.count)]
+    }
+
+    private static func neighbors(of point: GridPoint) -> [GridPoint] {
+        directions.compactMap { direction in
+            let next = GridPoint(x: point.x + direction.dx, y: point.y + direction.dy)
+            return next.isInside(boardSize: boardSize) ? next : nil
+        }
+    }
+
+    private static func manhattanDistance(_ lhs: GridPoint, _ rhs: GridPoint) -> Int {
+        abs(lhs.x - rhs.x) + abs(lhs.y - rhs.y)
+    }
+
+    private static let directions = [
+        MoveVector(dx: 1, dy: 0),
+        MoveVector(dx: -1, dy: 0),
+        MoveVector(dx: 0, dy: 1),
+        MoveVector(dx: 0, dy: -1)
+    ]
+
+    private static let allPoints: [GridPoint] = (0..<boardSize).flatMap { y in
+        (0..<boardSize).map { x in GridPoint(x: x, y: y) }
+    }
+
+    private static let edgePoints: [GridPoint] = allPoints.filter { point in
+        point.x == 0 || point.y == 0 || point.x == boardSize - 1 || point.y == boardSize - 1
     }
 }
 
@@ -3670,10 +4180,13 @@ public struct DungeonLibrary {
         startingMarkerDamageMitigations: Int = 0,
         cardVariationSeed: UInt64? = nil
     ) -> GameMode? {
-        guard dungeon.floors.indices.contains(floorIndex) else { return nil }
-        let baseFloor = dungeon.floors[floorIndex]
+        guard dungeon.supportsInfiniteFloors || dungeon.floors.indices.contains(floorIndex) else { return nil }
+        let baseFloor = dungeon.floors[min(max(floorIndex, 0), dungeon.floors.count - 1)]
         let resolvedInitialHPBonus = dungeon.difficulty == .growth ? max(initialHPBonus, 0) : 0
         let resolvedCardVariationSeed = dungeon.id == "growth-tower"
+            ? cardVariationSeed ?? Self.makeCardVariationSeed()
+            : nil
+        let resolvedRogueTowerSeed = dungeon.supportsInfiniteFloors
             ? cardVariationSeed ?? Self.makeCardVariationSeed()
             : nil
         let runState = DungeonRunState(
@@ -3684,6 +4197,7 @@ public struct DungeonLibrary {
             rewardInventoryEntries: startingRewardEntries,
             relicEntries: dungeon.difficulty == .growth ? startingRelicEntries : [],
             cardVariationSeed: resolvedCardVariationSeed,
+            rogueTowerSeed: resolvedRogueTowerSeed,
             hazardDamageMitigationsRemaining: dungeon.difficulty == .growth ? startingHazardDamageMitigations : 0,
             enemyDamageMitigationsRemaining: dungeon.difficulty == .growth ? startingEnemyDamageMitigations : 0,
             markerDamageMitigationsRemaining: dungeon.difficulty == .growth ? startingMarkerDamageMitigations : 0
@@ -3700,13 +4214,13 @@ public struct DungeonLibrary {
     public func resumeMode(from snapshot: DungeonRunResumeSnapshot) -> GameMode? {
         guard snapshot.version == DungeonRunResumeSnapshot.currentVersion,
               let dungeon = dungeon(with: snapshot.dungeonID),
-              dungeon.floors.indices.contains(snapshot.floorIndex),
+              (dungeon.supportsInfiniteFloors || dungeon.floors.indices.contains(snapshot.floorIndex)),
               snapshot.runState.dungeonID == dungeon.id,
               snapshot.runState.currentFloorIndex == snapshot.floorIndex
         else { return nil }
 
         let floor = dungeon.resolvedFloor(at: snapshot.floorIndex, runState: snapshot.runState)
-            ?? dungeon.floors[snapshot.floorIndex]
+            ?? dungeon.floors[min(snapshot.floorIndex, dungeon.floors.count - 1)]
         return floor.makeGameMode(
             dungeonID: dungeon.id,
             difficulty: dungeon.difficulty,
@@ -5672,185 +6186,20 @@ public struct DungeonLibrary {
     private static func buildRoguelikeTower() -> DungeonDefinition {
         let floors = [
             DungeonFloorDefinition(
-                id: "rogue-1",
-                title: "試練の入口",
+                id: "rogue-template",
+                title: "試練",
                 boardSize: standardTowerBoardSize,
                 spawnPoint: GridPoint(x: 0, y: 0),
                 exitPoint: GridPoint(x: 8, y: 8),
                 deckPreset: .standardLight,
-                failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 14),
-                enemies: [
-                    EnemyDefinition(
-                        id: "rogue-1-watcher",
-                        name: "見張り",
-                        position: GridPoint(x: 5, y: 5),
-                        behavior: .watcher(direction: MoveVector(dx: -1, dy: 0), range: 3)
-                    )
-                ],
-                hazards: [
-                    .damageTrap(
-                        points: [
-                            GridPoint(x: 3, y: 3),
-                            GridPoint(x: 4, y: 4),
-                            GridPoint(x: 5, y: 5)
-                        ],
-                        damage: 1
-                    )
-                ],
-                cardPickups: [
-                    DungeonCardPickupDefinition(
-                        id: "rogue-1-right2",
-                        point: GridPoint(x: 1, y: 0),
-                        card: .straightRight2
-                    ),
-                    DungeonCardPickupDefinition(
-                        id: "rogue-1-diagonal-up-right",
-                        point: GridPoint(x: 4, y: 0),
-                        card: .diagonalUpRight2
-                    ),
-                    DungeonCardPickupDefinition(
-                        id: "rogue-1-up2",
-                        point: GridPoint(x: 8, y: 1),
-                        card: .straightUp2
-                    )
-                ],
-                rewardMoveCardsAfterClear: [
-                    .rayRight,
-                    .straightRight2,
-                    .diagonalUpRight2
-                ]
-            ),
-            DungeonFloorDefinition(
-                id: "rogue-2",
-                title: "罠列と短縮路",
-                boardSize: standardTowerBoardSize,
-                spawnPoint: GridPoint(x: 0, y: 4),
-                exitPoint: GridPoint(x: 8, y: 4),
-                deckPreset: .standardLight,
-                failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 12),
-                enemies: [
-                    EnemyDefinition(
-                        id: "rogue-2-patrol",
-                        name: "巡回兵",
-                        position: GridPoint(x: 4, y: 2),
-                        behavior: .patrol(path: [
-                            GridPoint(x: 4, y: 2),
-                            GridPoint(x: 4, y: 3),
-                            GridPoint(x: 4, y: 4),
-                            GridPoint(x: 4, y: 5),
-                            GridPoint(x: 4, y: 4),
-                            GridPoint(x: 4, y: 3)
-                        ])
-                    )
-                ],
-                hazards: [
-                    .damageTrap(
-                        points: [
-                            GridPoint(x: 3, y: 4),
-                            GridPoint(x: 5, y: 4)
-                        ],
-                        damage: 1
-                    ),
-                    .brittleFloor(points: [
-                        GridPoint(x: 2, y: 5),
-                        GridPoint(x: 6, y: 5)
-                    ])
-                ],
-                cardPickups: [
-                    DungeonCardPickupDefinition(
-                        id: "rogue-2-ray-right",
-                        point: GridPoint(x: 1, y: 4),
-                        card: .rayRight
-                    ),
-                    DungeonCardPickupDefinition(
-                        id: "rogue-2-right2",
-                        point: GridPoint(x: 6, y: 4),
-                        card: .straightRight2
-                    ),
-                    DungeonCardPickupDefinition(
-                        id: "rogue-2-up2",
-                        point: GridPoint(x: 7, y: 4),
-                        card: .straightUp2
-                    )
-                ],
-                rewardMoveCardsAfterClear: [
-                    .straightRight2,
-                    .rayUp,
-                    .straightRight2
-                ]
-            ),
-            DungeonFloorDefinition(
-                id: "rogue-3",
-                title: "混成試練",
-                boardSize: standardTowerBoardSize,
-                spawnPoint: GridPoint(x: 0, y: 0),
-                exitPoint: GridPoint(x: 8, y: 8),
-                deckPreset: .standardLight,
-                failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 16),
-                enemies: [
-                    EnemyDefinition(
-                        id: "rogue-3-watcher",
-                        name: "見張り",
-                        position: GridPoint(x: 7, y: 6),
-                        behavior: .watcher(direction: MoveVector(dx: -1, dy: 0), range: 3)
-                    ),
-                    EnemyDefinition(
-                        id: "rogue-3-patrol",
-                        name: "巡回兵",
-                        position: GridPoint(x: 3, y: 4),
-                        behavior: .patrol(path: [
-                            GridPoint(x: 3, y: 4),
-                            GridPoint(x: 4, y: 4),
-                            GridPoint(x: 5, y: 4),
-                            GridPoint(x: 4, y: 4)
-                        ])
-                    )
-                ],
-                hazards: [
-                    .damageTrap(
-                        points: [
-                            GridPoint(x: 2, y: 2),
-                            GridPoint(x: 4, y: 4),
-                            GridPoint(x: 6, y: 6)
-                        ],
-                        damage: 1
-                    ),
-                    .brittleFloor(points: [
-                        GridPoint(x: 1, y: 2),
-                        GridPoint(x: 2, y: 3),
-                        GridPoint(x: 3, y: 4)
-                    ])
-                ],
-                warpTilePairs: [
-                    "rogue-3-risk": [
-                        GridPoint(x: 1, y: 1),
-                        GridPoint(x: 6, y: 6)
-                    ]
-                ],
-                cardPickups: [
-                    DungeonCardPickupDefinition(
-                        id: "rogue-3-ray-right",
-                        point: GridPoint(x: 0, y: 1),
-                        card: .rayRight
-                    ),
-                    DungeonCardPickupDefinition(
-                        id: "rogue-3-diagonal-up-right",
-                        point: GridPoint(x: 2, y: 0),
-                        card: .diagonalUpRight2
-                    ),
-                    DungeonCardPickupDefinition(
-                        id: "rogue-3-up2",
-                        point: GridPoint(x: 6, y: 6),
-                        card: .straightUp2
-                    )
-                ]
+                failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 14)
             )
         ]
 
         return DungeonDefinition(
             id: "rogue-tower",
             title: "試練塔",
-            summary: "永続成長を持ち込まず、拾得カードと報酬ビルドだけで罠・敵・ワープを読む高難度プロトタイプ。",
+            summary: "永続成長を持ち込まず、毎回生成される無限階を拾得カードと報酬ビルドで登るローグライク塔。",
             difficulty: .roguelike,
             floors: floors
         )

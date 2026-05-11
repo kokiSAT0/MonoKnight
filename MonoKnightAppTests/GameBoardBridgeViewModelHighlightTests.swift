@@ -89,6 +89,63 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(scene.latestMovementTotalDurationForTesting, 0.5)
     }
 
+    func testSceneRecordsFeedbackEffectRequests() {
+        let scene = GameScene(initialBoardSize: 5, initialVisitedPoints: [GridPoint(x: 0, y: 0)])
+        let point = GridPoint(x: 1, y: 1)
+
+        scene.playLandingEffect(at: point)
+        scene.playInvalidSelectionFeedback(at: point)
+        scene.playPickupCollectionEffect(at: point)
+        scene.playRelicCollectionEffect(at: point)
+        scene.playDungeonExitUnlockEffect(at: point)
+
+        XCTAssertEqual(scene.landingEffectPlayCountForTesting, 1)
+        XCTAssertEqual(scene.invalidSelectionFeedbackPlayCountForTesting, 1)
+        XCTAssertEqual(scene.pickupCollectionEffectPlayCountForTesting, 1)
+        XCTAssertEqual(scene.relicCollectionEffectPlayCountForTesting, 1)
+        XCTAssertEqual(scene.exitUnlockEffectPlayCountForTesting, 1)
+    }
+
+    func testMovementReplayPlaysPickupCollectionEffectOnlyForNewIDs() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
+        let floor = try XCTUnwrap(tower.floors.first)
+        let mode = floor.makeGameMode(dungeonID: tower.id)
+        let core = GameCore(mode: mode)
+        let viewModel = GameBoardBridgeViewModel(core: core, mode: mode)
+        let pickup = try XCTUnwrap(mode.dungeonRules?.cardPickups.first)
+        let resolution = MovementResolution(
+            path: [pickup.point],
+            finalPosition: pickup.point,
+            presentationInitialCollectedDungeonCardPickupIDs: [],
+            presentationSteps: [
+                MovementResolution.PresentationStep(
+                    point: pickup.point,
+                    hpAfter: core.dungeonHP,
+                    handStacksAfter: core.handStacks,
+                    collectedDungeonCardPickupIDsAfter: [pickup.id],
+                    enemyStatesAfter: core.enemyStates,
+                    crackedFloorPointsAfter: core.crackedFloorPoints,
+                    collapsedFloorPointsAfter: core.collapsedFloorPoints,
+                    tookDamage: false
+                ),
+                MovementResolution.PresentationStep(
+                    point: pickup.point,
+                    hpAfter: core.dungeonHP,
+                    handStacksAfter: core.handStacks,
+                    collectedDungeonCardPickupIDsAfter: [pickup.id],
+                    enemyStatesAfter: core.enemyStates,
+                    crackedFloorPointsAfter: core.crackedFloorPoints,
+                    collapsedFloorPointsAfter: core.collapsedFloorPoints,
+                    tookDamage: false
+                )
+            ]
+        )
+
+        viewModel.beginMovementReplayForTesting(using: resolution)
+
+        XCTAssertEqual(viewModel.scene.pickupCollectionEffectPlayCountForTesting, 1)
+    }
+
     func testSceneReplaysPresentationStepsForMultiStepMovement() {
         let scene = GameScene(initialBoardSize: 5, initialVisitedPoints: [GridPoint(x: 0, y: 0)])
         let stepPoints = [

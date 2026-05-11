@@ -134,6 +134,25 @@ final class DungeonSelectionViewTests: XCTestCase {
         XCTAssertEqual(presentation.toggleAccessibilityIdentifier, "dungeon_growth_toggle")
     }
 
+    func testDungeonSelectionShowsRogueTowerHighestFloorFromStoredRecord() throws {
+        let suiteName = "DungeonSelectionViewTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName) ?? .standard
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let recordStore = RogueTowerRecordStore(userDefaults: defaults)
+        let tutorialTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
+        let growthTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let rogueTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "rogue-tower"))
+
+        XCTAssertNil(recordStore.highestFloorText(for: rogueTower))
+
+        XCTAssertTrue(recordStore.registerReachedFloor(27, for: rogueTower))
+
+        XCTAssertEqual(recordStore.highestFloorText(for: rogueTower), "最高到達 27F")
+        XCTAssertNil(recordStore.highestFloorText(for: tutorialTower))
+        XCTAssertNil(recordStore.highestFloorText(for: growthTower))
+    }
+
     func testDungeonSelectionExposesSecondSectionAfterCheckpointUnlock() throws {
         let suiteName = "DungeonSelectionViewTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName) ?? .standard

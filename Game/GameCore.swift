@@ -289,6 +289,9 @@ public final class GameCore: ObservableObject {
         if hasDungeonRelic(.chippedHourglass) {
             adjustment += 3
         }
+        if hasDungeonRelic(.stargazerHourglass) {
+            adjustment += 5
+        }
         if hasDungeonRelic(.travelerBoots) {
             adjustment += 1
         }
@@ -2092,7 +2095,12 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
     @discardableResult
     private func grantDungeonRelic(from pickup: DungeonRelicPickupDefinition, salt: String) -> DungeonRelicEntry? {
         let candidates = availableRelicCandidates(for: pickup)
-        guard let relicID = selectedRelicID(from: candidates, pickupID: pickup.id, salt: salt) else {
+        guard let relicID = selectedRelicID(
+            from: candidates,
+            rarityWeights: pickup.kind.relicRarityWeights,
+            pickupID: pickup.id,
+            salt: salt
+        ) else {
             debugLog("宝箱は空でした: \(pickup.id) @\(pickup.point)")
             return nil
         }
@@ -2194,10 +2202,30 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         }
     }
 
-    private func selectedRelicID(from candidates: [DungeonRelicID], pickupID: String, salt: String) -> DungeonRelicID? {
+    private func selectedRelicID(
+        from candidates: [DungeonRelicID],
+        rarityWeights: [(DungeonRelicRarity, Int)],
+        pickupID: String,
+        salt: String
+    ) -> DungeonRelicID? {
         guard !candidates.isEmpty else { return nil }
         var generator = DungeonRefillRandomGenerator(seed: pickupSeed(pickupID: pickupID, salt: salt))
-        return candidates[Int(generator.next() % UInt64(candidates.count))]
+        let weightedCandidates = candidates.compactMap { relic -> (DungeonRelicID, Int)? in
+            let weight = rarityWeights.first { $0.0 == relic.rarity }?.1 ?? 0
+            return weight > 0 ? (relic, weight) : nil
+        }
+        guard !weightedCandidates.isEmpty else {
+            return candidates[Int(generator.next() % UInt64(candidates.count))]
+        }
+        let totalWeight = weightedCandidates.reduce(0) { $0 + $1.1 }
+        var roll = Int(generator.next() % UInt64(totalWeight))
+        for (relic, weight) in weightedCandidates {
+            if roll < weight {
+                return relic
+            }
+            roll -= weight
+        }
+        return weightedCandidates[0].0
     }
 
     private func selectedCurseID(from candidates: [DungeonCurseID], pickupID: String, salt: String) -> DungeonCurseID? {
@@ -2227,6 +2255,8 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         case .heavyCrown, .oldMap, .blackFeather, .chippedHourglass, .travelerBoots, .silverNeedle, .starCup, .explorerBag, .moonMirror, .victoryBanner:
             break
         case .windcutFeather, .guardianIncense, .trapperGloves, .whiteChalk, .spareTorch, .oldRope, .twinPouch, .gamblerCoin:
+            break
+        case .royalCrown, .immortalHeart, .guardianAegis, .stargazerHourglass:
             break
         }
     }
@@ -2586,6 +2616,9 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         }
         if hasDungeonCurse(.redChalice) {
             adjustedDamage += 1
+        }
+        if consumeDungeonRelicUse(.guardianAegis) {
+            return max(adjustedDamage - 1, 0)
         }
         guard consumeDungeonRelicUse(.crackedShield) else { return adjustedDamage }
         return max(adjustedDamage - 1, 0)

@@ -23,6 +23,8 @@ struct ResultView: View {
     let remainingDungeonTurns: Int?
     /// ダンジョンランの階層表示
     let dungeonRunFloorText: String?
+    /// 試練塔のローカル最高到達表示
+    let rogueTowerRecordText: String?
     /// ダンジョンランの累計移動手数
     let dungeonRunTotalMoveCount: Int?
     /// 次のダンジョンフロア名
@@ -111,6 +113,7 @@ struct ResultView: View {
         dungeonHP: Int? = nil,
         remainingDungeonTurns: Int? = nil,
         dungeonRunFloorText: String? = nil,
+        rogueTowerRecordText: String? = nil,
         dungeonRunTotalMoveCount: Int? = nil,
         nextDungeonFloorTitle: String? = nil,
         retryButtonTitle: String = "リトライ",
@@ -152,6 +155,7 @@ struct ResultView: View {
             dungeonHP: dungeonHP,
             remainingDungeonTurns: remainingDungeonTurns,
             dungeonRunFloorText: dungeonRunFloorText,
+            rogueTowerRecordText: rogueTowerRecordText,
             dungeonRunTotalMoveCount: dungeonRunTotalMoveCount,
             nextDungeonFloorTitle: nextDungeonFloorTitle,
             retryButtonTitle: retryButtonTitle,
@@ -195,6 +199,7 @@ struct ResultView: View {
         dungeonHP: Int? = nil,
         remainingDungeonTurns: Int? = nil,
         dungeonRunFloorText: String? = nil,
+        rogueTowerRecordText: String? = nil,
         dungeonRunTotalMoveCount: Int? = nil,
         nextDungeonFloorTitle: String? = nil,
         retryButtonTitle: String = "リトライ",
@@ -245,6 +250,7 @@ struct ResultView: View {
         self.dungeonHP = dungeonHP
         self.remainingDungeonTurns = remainingDungeonTurns
         self.dungeonRunFloorText = dungeonRunFloorText
+        self.rogueTowerRecordText = rogueTowerRecordText
         self.dungeonRunTotalMoveCount = dungeonRunTotalMoveCount
         self.nextDungeonFloorTitle = nextDungeonFloorTitle
         self.retryButtonTitle = retryButtonTitle
@@ -386,6 +392,7 @@ struct ResultView: View {
             dungeonHP: dungeonHP,
             remainingDungeonTurns: remainingDungeonTurns,
             dungeonRunFloorText: dungeonRunFloorText,
+            rogueTowerRecordText: rogueTowerRecordText,
             dungeonRunTotalMoveCount: dungeonRunTotalMoveCount,
             dungeonRewardMoveCards: dungeonRewardMoveCards,
             dungeonInventoryEntries: dungeonInventoryEntries,

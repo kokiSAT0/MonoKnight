@@ -147,7 +147,7 @@ final class GameHandSectionViewAccessibilityTests: XCTestCase {
         )
         XCTAssertEqual(
             GameHandSectionView.dungeonRelicAccessibilityLabel(for: relic),
-            "一時レリック、割れた盾"
+            "コモン、一時レリック、割れた盾"
         )
         XCTAssertTrue(GameHandSectionView.dungeonRelicAccessibilityHint(for: relic).contains("一時レリック"))
         XCTAssertTrue(GameHandSectionView.dungeonRelicAccessibilityHint(for: relic).contains("残り 1 回"))
@@ -156,12 +156,12 @@ final class GameHandSectionViewAccessibilityTests: XCTestCase {
         XCTAssertEqual(silverNeedle.symbolName, "pin.fill")
         XCTAssertEqual(
             GameHandSectionView.dungeonRelicAccessibilityLabel(for: silverNeedle),
-            "一時レリック、銀の針"
+            "コモン、一時レリック、銀の針"
         )
         XCTAssertTrue(GameHandSectionView.dungeonRelicAccessibilityHint(for: silverNeedle).contains("罠または崩落ダメージ"))
         XCTAssertEqual(
             GameHandSectionView.dungeonRelicAccessibilityLabel(for: heavyCrown),
-            "永続レリック、重い王冠"
+            "レア、永続レリック、重い王冠"
         )
         XCTAssertTrue(GameHandSectionView.dungeonRelicAccessibilityHint(for: heavyCrown).contains("永続レリック"))
         XCTAssertFalse(GameHandSectionView.dungeonRelicAccessibilityHint(for: heavyCrown).contains("残り"))

@@ -30,6 +30,7 @@ extension RootView {
             adsService: adsService,
             dungeonGrowthStore: dungeonGrowthStore,
             dungeonRunResumeStore: dungeonRunResumeStore,
+            rogueTowerRecordStore: rogueTowerRecordStore,
             isAuthenticated: stateStore.binding(for: \.isAuthenticated),
             isShowingTitleScreen: stateStore.binding(for: \.isShowingTitleScreen),
             isPreparingGame: stateStore.binding(for: \.isPreparingGame),
@@ -96,6 +97,7 @@ extension RootView {
         let adsService: AdsServiceProtocol
         @ObservedObject var dungeonGrowthStore: DungeonGrowthStore
         @ObservedObject var dungeonRunResumeStore: DungeonRunResumeStore
+        @ObservedObject var rogueTowerRecordStore: RogueTowerRecordStore
         @Binding var isAuthenticated: Bool
         @Binding var isShowingTitleScreen: Bool
         @Binding var isPreparingGame: Bool
@@ -156,6 +158,7 @@ extension RootView {
                     adsService: adsService,
                     dungeonGrowthStore: dungeonGrowthStore,
                     dungeonRunResumeStore: dungeonRunResumeStore,
+                    rogueTowerRecordStore: rogueTowerRecordStore,
                     isPreparationOverlayVisible: $isPreparingGame,
                     isGameCenterAuthenticated: isAuthenticated,
                     onRequestReturnToTitle: {
@@ -195,6 +198,7 @@ extension RootView {
                 TitleScreenView(
                     dungeonGrowthStore: dungeonGrowthStore,
                     dungeonRunResumeStore: dungeonRunResumeStore,
+                    rogueTowerRecordStore: rogueTowerRecordStore,
                     pendingNavigationTarget: $pendingTitleNavigationTarget,
                     onStart: { mode, context in
                         onStartGame(mode, context)

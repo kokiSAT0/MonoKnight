@@ -905,3 +905,31 @@ final class DungeonRunResumeStore: ObservableObject {
         }
     }
 }
+
+@MainActor
+final class RogueTowerRecordStore: ObservableObject {
+    private static let storageKey = StorageKey.UserDefaults.rogueTowerRecord
+    private let userDefaults: UserDefaults
+
+    @Published private(set) var highestFloorNumber: Int
+
+    init(userDefaults: UserDefaults = .standard) {
+        self.userDefaults = userDefaults
+        self.highestFloorNumber = max(userDefaults.integer(forKey: Self.storageKey), 0)
+    }
+
+    @discardableResult
+    func registerReachedFloor(_ floorNumber: Int, for dungeon: DungeonDefinition) -> Bool {
+        guard dungeon.supportsInfiniteFloors else { return false }
+        let normalizedFloor = max(floorNumber, 1)
+        guard normalizedFloor > highestFloorNumber else { return false }
+        highestFloorNumber = normalizedFloor
+        userDefaults.set(normalizedFloor, forKey: Self.storageKey)
+        return true
+    }
+
+    func highestFloorText(for dungeon: DungeonDefinition) -> String? {
+        guard dungeon.supportsInfiniteFloors, highestFloorNumber > 0 else { return nil }
+        return "最高到達 \(highestFloorNumber)F"
+    }
+}
