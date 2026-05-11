@@ -74,6 +74,17 @@ extension GameView {
                 .transition(.move(edge: .bottom).combined(with: .opacity))
                 .zIndex(4)
             }
+            if let presentation = viewModel.activeDungeonRelicAcquisitionPresentation {
+                DungeonRelicAcquisitionOverlayView(
+                    presentation: presentation,
+                    confirmationTitle: nil,
+                    onConfirm: {
+                        viewModel.dismissActiveDungeonRelicAcquisitionPresentation()
+                    }
+                )
+                .transition(.opacity)
+                .zIndex(5)
+            }
         }
         // 画面全体の背景もテーマで制御し、システム設定と調和させる
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -505,6 +516,10 @@ private struct SupportPickupChoiceIllustrationView: View {
             return "snowflake"
         case .barrierSpell:
             return "shield.fill"
+        case .antidote:
+            return "cross.case.fill"
+        case .panacea:
+            return "pills.fill"
         }
     }
 }

@@ -84,6 +84,20 @@ final class MoveCardIllustrationViewAccessibilityTests: XCTestCase {
         XCTAssertFalse(choice.accessibilityLabel.contains("選ぶと次の階へ進みます"))
     }
 
+    func testDungeonRewardRelicChoicePresentationOpensDetailBeforeAdvance() {
+        let choice = DungeonRewardCardChoicePresentation(
+            offer: .relic(.glowingHeart),
+            rewardUses: 0,
+            accessibilityIdentifierPrefix: "dungeon_reward_relic",
+            accessibilityRoleText: "獲得する遺物"
+        )
+
+        XCTAssertEqual(choice.usesBadgeText, "遺物")
+        XCTAssertEqual(choice.accessibilityIdentifier, "dungeon_reward_relic_光る心臓")
+        XCTAssertTrue(choice.accessibilityHint.contains("詳細を確認します"))
+        XCTAssertTrue(choice.accessibilityLabel.contains(DungeonRelicID.glowingHeart.effectDescription))
+    }
+
     func testDungeonPickupCarryoverChoicePresentationExplainsHandAddition() {
         let choice = DungeonRewardCardChoicePresentation(
             card: .straightUp2,

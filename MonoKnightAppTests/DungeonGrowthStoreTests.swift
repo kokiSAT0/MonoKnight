@@ -146,6 +146,108 @@ final class DungeonGrowthStoreTests: XCTestCase {
         XCTAssertEqual(store.points, 4)
     }
 
+    func testDungeonGrowthMilestonesScaleWithDungeonFloorCount() throws {
+        let (defaults, suiteName) = try makeIsolatedDefaults()
+        defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+
+        let store = DungeonGrowthStore(userDefaults: defaults)
+        let twentyFloorDungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let fiftyFloorDungeon = makeGrowthDungeon(floorCount: 50)
+
+        XCTAssertEqual(
+            store.growthMilestoneIDs(for: twentyFloorDungeon).compactMap { store.growthMilestoneFloorNumber(for: $0) },
+            [5, 10, 15, 20]
+        )
+        XCTAssertEqual(
+            store.growthMilestoneIDs(for: fiftyFloorDungeon).compactMap { store.growthMilestoneFloorNumber(for: $0) },
+            [5, 10, 15, 20, 25, 30, 35, 40, 45, 50]
+        )
+    }
+
+    func testDungeonGrowthRepeatAwardsComeFromSectionEnds() throws {
+        let (defaults, suiteName) = try makeIsolatedDefaults()
+        defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+
+        let store = DungeonGrowthStore(userDefaults: defaults)
+        let dungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let fifthFloor = DungeonRunState(dungeonID: dungeon.id, currentFloorIndex: 4, carriedHP: 3, clearedFloorCount: 4)
+        let tenthFloor = DungeonRunState(dungeonID: dungeon.id, currentFloorIndex: 9, carriedHP: 3, clearedFloorCount: 9)
+        let twentiethFloor = DungeonRunState(dungeonID: dungeon.id, currentFloorIndex: 19, carriedHP: 3, clearedFloorCount: 19)
+
+        XCTAssertNotNil(store.registerDungeonClear(dungeon: dungeon, runState: fifthFloor, hasNextFloor: true))
+        XCTAssertNil(store.registerDungeonClear(dungeon: dungeon, runState: fifthFloor, hasNextFloor: true))
+        XCTAssertEqual(store.points, 1)
+
+        XCTAssertNotNil(store.registerDungeonClear(dungeon: dungeon, runState: tenthFloor, hasNextFloor: true))
+        XCTAssertNotNil(store.registerDungeonClear(dungeon: dungeon, runState: tenthFloor, hasNextFloor: true))
+        XCTAssertEqual(store.points, 3)
+
+        XCTAssertNotNil(store.registerDungeonClear(dungeon: dungeon, runState: twentiethFloor, hasNextFloor: false))
+        XCTAssertNotNil(store.registerDungeonClear(dungeon: dungeon, runState: twentiethFloor, hasNextFloor: false))
+        XCTAssertEqual(store.points, 5)
+    }
+
+    func testDungeonGrowthRepeatAwardsCanEventuallyUnlockAllSkills() throws {
+        let (defaults, suiteName) = try makeIsolatedDefaults()
+        defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+
+        let store = DungeonGrowthStore(userDefaults: defaults)
+        let dungeon = makeGrowthDungeon(floorCount: 50)
+
+        for floorIndex in stride(from: 4, through: 49, by: 5) {
+            let runState = DungeonRunState(dungeonID: dungeon.id, currentFloorIndex: floorIndex, carriedHP: 3, clearedFloorCount: floorIndex)
+            _ = store.registerDungeonClear(dungeon: dungeon, runState: runState, hasNextFloor: floorIndex < 49)
+        }
+        let repeatFloors = [9, 19, 29, 39, 49]
+        var repeatIndex = 0
+        while store.points < DungeonGrowthUpgrade.allCases.count {
+            let floorIndex = repeatFloors[repeatIndex % repeatFloors.count]
+            repeatIndex += 1
+            let runState = DungeonRunState(dungeonID: dungeon.id, currentFloorIndex: floorIndex, carriedHP: 3, clearedFloorCount: floorIndex)
+            _ = store.registerDungeonClear(dungeon: dungeon, runState: runState, hasNextFloor: floorIndex < 49)
+        }
+
+        var passCount = 0
+        while store.unlockedUpgrades.count < DungeonGrowthUpgrade.allCases.count && passCount < DungeonGrowthUpgrade.allCases.count {
+            passCount += 1
+            for upgrade in DungeonGrowthUpgrade.allCases {
+                _ = store.unlock(upgrade)
+            }
+        }
+
+        XCTAssertEqual(store.unlockedUpgrades, Set(DungeonGrowthUpgrade.allCases))
+        XCTAssertEqual(store.activeUpgrades, Set(DungeonGrowthUpgrade.allCases))
+    }
+
+    func testDungeonGrowthCrossPrerequisitesUseUnlockedNotActiveParents() throws {
+        let (defaults, suiteName) = try makeIsolatedDefaults()
+        defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+
+        let store = DungeonGrowthStore(userDefaults: defaults)
+        let dungeon = makeGrowthDungeon(floorCount: 50)
+        for floorIndex in stride(from: 4, through: 49, by: 5) {
+            let runState = DungeonRunState(dungeonID: dungeon.id, currentFloorIndex: floorIndex, carriedHP: 3, clearedFloorCount: floorIndex)
+            _ = store.registerDungeonClear(dungeon: dungeon, runState: runState, hasNextFloor: floorIndex < 49)
+        }
+        while store.points < 20 {
+            let runState = DungeonRunState(dungeonID: dungeon.id, currentFloorIndex: 49, carriedHP: 3, clearedFloorCount: 49)
+            _ = store.registerDungeonClear(dungeon: dungeon, runState: runState, hasNextFloor: false)
+        }
+
+        for upgrade in [
+            .rewardScout, .cardPreservation, .widerRewardRead, .supportScout, .relicScout,
+            .toolPouch, .climbingKit, .shortcutKit, .refillCharm, .deepStartKit
+        ] {
+            XCTAssertTrue(store.unlock(upgrade), "\(upgrade.rawValue) should unlock")
+        }
+        XCTAssertTrue(store.canUnlock(.deepSupplyCraft))
+        XCTAssertTrue(store.unlock(.deepSupplyCraft))
+
+        XCTAssertTrue(store.setActive(.deepStartKit, isActive: false))
+        XCTAssertTrue(store.setActive(.relicScout, isActive: false))
+        XCTAssertTrue(store.isActive(.deepSupplyCraft))
+    }
+
     func testDungeonGrowthAwardExposesMilestoneFloorNumber() {
         let award = DungeonGrowthAward(
             dungeonID: "growth-tower",
@@ -409,5 +511,37 @@ final class DungeonGrowthStoreTests: XCTestCase {
         }
         defaults.removePersistentDomain(forName: suiteName)
         return (defaults, suiteName)
+    }
+
+    private func makeGrowthDungeon(floorCount: Int) -> DungeonDefinition {
+        let baseFloor = DungeonLibrary.shared.dungeon(with: "growth-tower")!.floors[0]
+        let floors = (0..<floorCount).map { index in
+            DungeonFloorDefinition(
+                id: "growth-test-\(index + 1)",
+                title: "\(index + 1)F",
+                boardSize: baseFloor.boardSize,
+                spawnPoint: baseFloor.spawnPoint,
+                exitPoint: baseFloor.exitPoint,
+                deckPreset: baseFloor.deckPreset,
+                failureRule: baseFloor.failureRule,
+                enemies: baseFloor.enemies,
+                hazards: baseFloor.hazards,
+                impassableTilePoints: baseFloor.impassableTilePoints,
+                tileEffectOverrides: baseFloor.tileEffectOverrides,
+                warpTilePairs: baseFloor.warpTilePairs,
+                exitLock: baseFloor.exitLock,
+                cardPickups: baseFloor.cardPickups,
+                relicPickups: baseFloor.relicPickups,
+                rewardMoveCardsAfterClear: baseFloor.rewardMoveCardsAfterClear,
+                rewardSupportCardsAfterClear: baseFloor.rewardSupportCardsAfterClear
+            )
+        }
+        return DungeonDefinition(
+            id: "growth-test-\(floorCount)",
+            title: "成長塔テスト",
+            summary: "テスト用",
+            difficulty: .growth,
+            floors: floors
+        )
     }
 }

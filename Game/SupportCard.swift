@@ -12,6 +12,10 @@ public enum SupportCard: String, CaseIterable, Codable, Hashable {
     case freezeSpell
     /// 一定ターン HP ダメージを無効化する
     case barrierSpell
+    /// 毒状態を解除する
+    case antidote
+    /// 毒と足枷状態を解除する
+    case panacea
 
     public var displayName: String {
         switch self {
@@ -25,12 +29,16 @@ public enum SupportCard: String, CaseIterable, Codable, Hashable {
             return "凍結の呪文"
         case .barrierSpell:
             return "障壁の呪文"
+        case .antidote:
+            return "解毒薬"
+        case .panacea:
+            return "万能薬"
         }
     }
 
     public var encyclopediaCategory: String {
         switch self {
-        case .refillEmptySlots:
+        case .refillEmptySlots, .antidote, .panacea:
             return "補助カード"
         case .singleAnnihilationSpell, .annihilationSpell, .freezeSpell, .barrierSpell:
             return "呪文系カード"
@@ -49,6 +57,10 @@ public enum SupportCard: String, CaseIterable, Codable, Hashable {
             return "移動せず 1 手使い、3回分の敵ターンを止めます。凍結中は敵の移動、攻撃、着弾予告が発生しません。"
         case .barrierSpell:
             return "移動せず 1 手使い、3回分の行動後処理で HP ダメージを無効化します。敵や危険表示は通常どおり動きます。"
+        case .antidote:
+            return "移動せず 1 手使い、毒状態を解除します。毒でない時は使えません。"
+        case .panacea:
+            return "移動せず 1 手使い、毒と足枷状態を解除します。解除する状態がない時は使えません。"
         }
     }
 
@@ -56,7 +68,7 @@ public enum SupportCard: String, CaseIterable, Codable, Hashable {
         switch self {
         case .singleAnnihilationSpell:
             return true
-        case .refillEmptySlots, .annihilationSpell, .freezeSpell, .barrierSpell:
+        case .refillEmptySlots, .annihilationSpell, .freezeSpell, .barrierSpell, .antidote, .panacea:
             return false
         }
     }

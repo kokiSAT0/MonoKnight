@@ -72,6 +72,10 @@ final class GameViewModel: ObservableObject {
             sessionUIState.pendingMenuAction = pendingMenuAction
         }
     }
+    /// 取得直後に詳細表示する遺物/宝箱結果
+    @Published var activeDungeonRelicAcquisitionPresentation: DungeonRelicAcquisitionPresentation?
+    var pendingDungeonRelicAcquisitionPresentations: [DungeonRelicAcquisitionPresentation] = []
+    var observedDungeonRelicAcquisitionPresentationIDs: Set<UUID> = []
     /// ポーズメニューの表示状態
     @Published var isPauseMenuPresented = false {
         didSet {

@@ -225,6 +225,8 @@ struct ResultActionSection: View {
     let onReturnToTitle: (() -> Void)?
     let gameCenterService: GameCenterServiceProtocol
     let hapticsEnabled: Bool
+    @State private var pendingRelicRewardPresentation: DungeonRelicAcquisitionPresentation?
+    @State private var pendingRelicRewardSelection: DungeonRelicID?
 
     var body: some View {
         VStack(spacing: 16) {
@@ -367,6 +369,16 @@ struct ResultActionSection: View {
                 .buttonStyle(.bordered)
             }
         }
+        .overlay {
+            if let pendingRelicRewardPresentation {
+                DungeonRelicAcquisitionOverlayView(
+                    presentation: pendingRelicRewardPresentation,
+                    confirmationTitle: "次の階へ",
+                    onConfirm: confirmPendingRelicReward
+                )
+                .transition(.opacity)
+            }
+        }
     }
 
     private var hasDungeonRewardChoices: Bool {
@@ -442,8 +454,19 @@ struct ResultActionSection: View {
         case .playable(.support(let support)):
             onSelectDungeonReward?(.addSupport(support))
         case .relic(let relic):
-            onSelectDungeonReward?(.addRelic(relic))
+            pendingRelicRewardSelection = relic
+            pendingRelicRewardPresentation = .rewardRelic(relic)
         }
+    }
+
+    private func confirmPendingRelicReward() {
+        guard let relic = pendingRelicRewardSelection else {
+            pendingRelicRewardPresentation = nil
+            return
+        }
+        pendingRelicRewardSelection = nil
+        pendingRelicRewardPresentation = nil
+        onSelectDungeonReward?(.addRelic(relic))
     }
 
     private var adjustableDungeonRewardInventoryEntries: [DungeonInventoryEntry] {
@@ -748,7 +771,7 @@ struct DungeonRewardCardChoicePresentation: Equatable {
             return "手札がいっぱいです。手札から外して空きを作ってください"
         }
         if offer.relic != nil {
-            return "ダブルタップでこの遺物を獲得し、次の階へ進みます"
+            return "ダブルタップでこの遺物の詳細を確認します"
         }
         return "ダブルタップでこのカードを手札に追加し、次の階へ進みます"
     }
@@ -887,6 +910,137 @@ private struct DungeonRewardRelicIllustrationView: View {
                         .stroke(theme.cardBorderHand, lineWidth: 1.5)
                 )
         )
+    }
+}
+
+struct DungeonRelicAcquisitionOverlayView: View {
+    let presentation: DungeonRelicAcquisitionPresentation
+    let confirmationTitle: String?
+    let onConfirm: () -> Void
+    private let theme = AppTheme()
+    @State private var hasAppeared = false
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.38)
+                .ignoresSafeArea()
+
+            VStack(spacing: 16) {
+                Text(presentation.title)
+                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                    .foregroundColor(theme.textPrimary)
+                    .multilineTextAlignment(.center)
+                    .minimumScaleFactor(0.8)
+
+                VStack(spacing: 10) {
+                    ForEach(presentation.items) { item in
+                        DungeonRelicAcquisitionItemRow(item: item, isEmphasized: hasAppeared)
+                    }
+                }
+
+                Button {
+                    onConfirm()
+                } label: {
+                    Label(confirmationTitle ?? presentation.confirmationTitle, systemImage: "checkmark.circle.fill")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .accessibilityIdentifier("dungeon_relic_acquisition_confirm_button")
+            }
+            .padding(18)
+            .frame(maxWidth: 420)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(theme.backgroundElevated)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(theme.accentPrimary.opacity(0.45), lineWidth: 1.5)
+            )
+            .shadow(color: .black.opacity(0.24), radius: 24, x: 0, y: 12)
+            .padding(.horizontal, 18)
+            .scaleEffect(hasAppeared ? 1 : 0.94)
+            .opacity(hasAppeared ? 1 : 0)
+        }
+        .onAppear {
+            withAnimation(.spring(response: 0.32, dampingFraction: 0.78)) {
+                hasAppeared = true
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("dungeon_relic_acquisition_overlay")
+    }
+}
+
+private struct DungeonRelicAcquisitionItemRow: View {
+    let item: DungeonRelicAcquisitionPresentation.Item
+    let isEmphasized: Bool
+    private let theme = AppTheme()
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(theme.accentPrimary.opacity(0.14))
+                    .frame(width: 52, height: 52)
+                Circle()
+                    .stroke(theme.accentPrimary.opacity(isEmphasized ? 0.42 : 0.1), lineWidth: 2)
+                    .frame(width: isEmphasized ? 58 : 48, height: isEmphasized ? 58 : 48)
+                Image(systemName: item.symbolName)
+                    .font(.system(size: 24, weight: .semibold))
+                    .foregroundColor(iconColor)
+                    .scaleEffect(isEmphasized ? 1 : 0.88)
+            }
+            .animation(.spring(response: 0.38, dampingFraction: 0.7), value: isEmphasized)
+            .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(item.displayName)
+                    .font(.system(size: 17, weight: .bold, design: .rounded))
+                    .foregroundColor(theme.textPrimary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text(item.primaryDescription)
+                    .font(.system(size: 14, weight: .medium, design: .rounded))
+                    .foregroundColor(theme.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                ForEach(item.secondaryDescriptions, id: \.self) { description in
+                    Label(description, systemImage: "sparkles")
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundColor(theme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(theme.cardBackgroundHand)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(theme.cardBorderHand.opacity(0.35), lineWidth: 1)
+        )
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+    private var iconColor: Color {
+        switch item {
+        case .curse, .mimicDamage:
+            return Color(red: 0.82, green: 0.16, blue: 0.22)
+        case .relic, .hpCompensation:
+            return theme.accentPrimary
+        }
+    }
+
+    private var accessibilityLabel: Text {
+        let detail = ([item.primaryDescription] + item.secondaryDescriptions).joined(separator: "。")
+        return Text("\(item.displayName)。\(detail)")
     }
 }
 
@@ -1079,6 +1233,10 @@ private struct SupportRewardCardIllustrationView: View {
             return "snowflake"
         case .barrierSpell:
             return "shield.fill"
+        case .antidote:
+            return "cross.case.fill"
+        case .panacea:
+            return "pills.fill"
         }
     }
 }

@@ -186,51 +186,57 @@ struct DungeonSelectionView: View {
         _ presentation: DungeonGrowthTreePresentation,
         selectedUpgrade: DungeonGrowthUpgrade?
     ) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .center, spacing: 8) {
-                Text("階")
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
-                    .foregroundColor(theme.textSecondary)
-                    .frame(width: 34, alignment: .leading)
-
-                ForEach(presentation.lanes) { lane in
-                    Label(lane.branchTitle, systemImage: lane.iconSystemName)
-                        .font(.system(size: 11, weight: .bold, design: .rounded))
-                        .foregroundColor(lane.tint)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.75)
-                        .frame(maxWidth: .infinity)
-                }
-            }
-
-            ForEach(0..<presentation.tierCount, id: \.self) { tier in
+        ScrollView(.horizontal, showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .center, spacing: 8) {
-                    Text(presentation.gateText(forTier: tier))
-                        .font(.system(size: 11, weight: .heavy, design: .rounded))
+                    Text("階")
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
                         .foregroundColor(theme.textSecondary)
                         .frame(width: 34, alignment: .leading)
 
                     ForEach(presentation.lanes) { lane in
-                        VStack(spacing: 6) {
-                            if let node = lane.node(atTier: tier) {
-                                growthNodeButton(node, isSelected: node.upgrade == selectedUpgrade)
-                            } else {
-                                Color.clear
-                                    .frame(height: 58)
-                            }
+                        Label(lane.branchTitle, systemImage: lane.iconSystemName)
+                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .foregroundColor(lane.tint)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.75)
+                            .frame(width: 72)
+                    }
+                }
 
-                            if lane.hasConnector(afterTier: tier) {
-                                RoundedRectangle(cornerRadius: 2, style: .continuous)
-                                    .fill(lane.connectorColor(afterTier: tier))
-                                    .frame(width: 4, height: 16)
+                ForEach(presentation.tierFloors, id: \.self) { tierFloor in
+                    HStack(alignment: .center, spacing: 8) {
+                        Text(presentation.gateText(forTierFloor: tierFloor))
+                            .font(.system(size: 11, weight: .heavy, design: .rounded))
+                            .foregroundColor(theme.textSecondary)
+                            .frame(width: 34, alignment: .leading)
+
+                        ForEach(presentation.lanes) { lane in
+                            VStack(spacing: 6) {
+                                let nodes = lane.nodes(atTierFloor: tierFloor)
+                                if nodes.isEmpty {
+                                    Color.clear
+                                        .frame(height: 58)
+                                } else {
+                                    ForEach(nodes) { node in
+                                        growthNodeButton(node, isSelected: node.upgrade == selectedUpgrade)
+                                    }
+                                }
+
+                                if lane.hasConnector(afterTierFloor: tierFloor) {
+                                    RoundedRectangle(cornerRadius: 2, style: .continuous)
+                                        .fill(lane.connectorColor(afterTierFloor: tierFloor))
+                                        .frame(width: 4, height: 16)
+                                }
                             }
+                            .frame(width: 72)
                         }
-                        .frame(maxWidth: .infinity)
                     }
                 }
             }
+            .padding(10)
+            .frame(minWidth: CGFloat(presentation.lanes.count) * 80 + 42, alignment: .leading)
         }
-        .padding(10)
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(theme.backgroundPrimary.opacity(0.42))
@@ -239,6 +245,7 @@ struct DungeonSelectionView: View {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(theme.statisticBadgeBorder.opacity(0.7), lineWidth: 1)
         )
+        .scrollClipDisabled()
     }
 
     private func growthNodeButton(
@@ -557,9 +564,10 @@ enum DungeonGrowthTreeNodeState: String, Equatable {
 
 struct DungeonGrowthTreePresentation {
     let lanes: [DungeonGrowthTreeLanePresentation]
+    let tierFloors: [Int]
 
     var tierCount: Int {
-        lanes.map { $0.nodes.count }.max() ?? 0
+        tierFloors.count
     }
 
     var defaultSelectedUpgrade: DungeonGrowthUpgrade? {
@@ -572,20 +580,29 @@ struct DungeonGrowthTreePresentation {
 
     @MainActor
     static func make(growthStore: DungeonGrowthStore) -> DungeonGrowthTreePresentation {
-        DungeonGrowthTreePresentation(
-            lanes: DungeonGrowthBranch.allCases.map { branch in
-                let nodes = DungeonGrowthUpgrade.allCases
-                    .filter { $0.branch == branch }
-                    .enumerated()
-                    .map { tier, upgrade in
-                        DungeonGrowthTreeNodePresentation.make(
-                            upgrade: upgrade,
-                            tier: tier,
-                            growthStore: growthStore
-                        )
+        let lanes = DungeonGrowthBranch.allCases.map { branch in
+            let nodes = DungeonGrowthUpgrade.allCases
+                .filter { $0.branch == branch }
+                .sorted { lhs, rhs in
+                    if lhs.displayTierFloor != rhs.displayTierFloor {
+                        return lhs.displayTierFloor < rhs.displayTierFloor
                     }
-                return DungeonGrowthTreeLanePresentation(branch: branch, nodes: nodes)
-            }
+                    return lhs.rawValue < rhs.rawValue
+                }
+                .enumerated()
+                .map { tier, upgrade in
+                    DungeonGrowthTreeNodePresentation.make(
+                        upgrade: upgrade,
+                        tier: tier,
+                        growthStore: growthStore
+                    )
+                }
+            return DungeonGrowthTreeLanePresentation(branch: branch, nodes: nodes)
+        }
+        let tierFloors = Array(Set(lanes.flatMap { $0.nodes.map(\.tierFloor) })).sorted()
+        return DungeonGrowthTreePresentation(
+            lanes: lanes,
+            tierFloors: tierFloors
         )
     }
 
@@ -594,19 +611,8 @@ struct DungeonGrowthTreePresentation {
         return lanes.flatMap(\.nodes).first { $0.upgrade == upgrade }
     }
 
-    func gateText(forTier tier: Int) -> String {
-        switch tier {
-        case 0:
-            return "5F"
-        case 1:
-            return "10F"
-        case 2:
-            return "15F"
-        case 3:
-            return "20F"
-        default:
-            return ""
-        }
+    func gateText(forTierFloor tierFloor: Int) -> String {
+        "\(tierFloor)F"
     }
 }
 
@@ -619,24 +625,26 @@ struct DungeonGrowthTreeLanePresentation: Identifiable {
     var iconSystemName: String { branch.iconSystemName }
     var tint: Color { branch.tintColor }
 
-    func node(atTier tier: Int) -> DungeonGrowthTreeNodePresentation? {
-        guard nodes.indices.contains(tier) else { return nil }
-        return nodes[tier]
+    func nodes(atTierFloor tierFloor: Int) -> [DungeonGrowthTreeNodePresentation] {
+        nodes.filter { $0.tierFloor == tierFloor }
     }
 
-    func hasConnector(afterTier tier: Int) -> Bool {
-        nodes.indices.contains(tier) && nodes.indices.contains(tier + 1)
+    func hasConnector(afterTierFloor tierFloor: Int) -> Bool {
+        guard let lastIndexAtTier = nodes.lastIndex(where: { $0.tierFloor == tierFloor }) else { return false }
+        return nodes.indices.contains(lastIndexAtTier + 1)
     }
 
-    func connectorColor(afterTier tier: Int) -> Color {
-        guard let current = node(atTier: tier),
-              let next = node(atTier: tier + 1)
+    func connectorColor(afterTierFloor tierFloor: Int) -> Color {
+        guard let lastIndexAtTier = nodes.lastIndex(where: { $0.tierFloor == tierFloor }),
+              nodes.indices.contains(lastIndexAtTier + 1)
         else { return Color.clear }
+        let nodesAtTier = nodes.filter { $0.tierFloor == tierFloor }
+        let next = nodes[lastIndexAtTier + 1]
 
-        if current.state.isUnlocked && next.state.isUnlocked {
+        if nodesAtTier.allSatisfy(\.state.isUnlocked) && next.state.isUnlocked {
             return branch.tintColor.opacity(0.85)
         }
-        if current.state.isUnlocked || next.state == .unlockable {
+        if nodesAtTier.contains(where: { $0.state.isUnlocked }) || next.state == .unlockable {
             return branch.tintColor.opacity(0.42)
         }
         return Color.secondary.opacity(0.22)
@@ -646,6 +654,7 @@ struct DungeonGrowthTreeLanePresentation: Identifiable {
 struct DungeonGrowthTreeNodePresentation: Identifiable {
     let upgrade: DungeonGrowthUpgrade
     let tier: Int
+    let tierFloor: Int
     let state: DungeonGrowthTreeNodeState
     let lockReason: String?
 
@@ -797,6 +806,7 @@ struct DungeonGrowthTreeNodePresentation: Identifiable {
         return DungeonGrowthTreeNodePresentation(
             upgrade: upgrade,
             tier: tier,
+            tierFloor: upgrade.displayTierFloor,
             state: state,
             lockReason: growthStore.lockReason(for: upgrade)
         )
@@ -812,6 +822,10 @@ private extension DungeonGrowthBranch {
             return "sparkles"
         case .hazard:
             return "shield.lefthalf.filled"
+        case .scouting:
+            return "eye.fill"
+        case .recovery:
+            return "arrow.clockwise.circle.fill"
         }
     }
 
@@ -823,13 +837,29 @@ private extension DungeonGrowthBranch {
             return Color(red: 0.90, green: 0.54, blue: 0.06)
         case .hazard:
             return Color(red: 0.36, green: 0.56, blue: 0.98)
+        case .scouting:
+            return Color(red: 0.50, green: 0.36, blue: 0.82)
+        case .recovery:
+            return Color(red: 0.70, green: 0.18, blue: 0.42)
         }
     }
 }
 
 private extension DungeonGrowthUpgrade {
+    var displayTierFloor: Int {
+        tierFloor ?? 5
+    }
+
     var shortTitle: String {
         switch self {
+        case .deepStartKit:
+            return "深層"
+        case .routeKit:
+            return "経路"
+        case .deepSupplyCraft:
+            return "補給術"
+        case .finalPreparation:
+            return "踏破"
         case .rewardScout:
             return "目利き"
         case .cardPreservation:
@@ -846,6 +876,40 @@ private extension DungeonGrowthUpgrade {
             return "警戒"
         case .meteorRead:
             return "着弾"
+        case .lastStand:
+            return "保険"
+        case .enemyReadPlus:
+            return "警戒+"
+        case .fallInsurance:
+            return "落下"
+        case .dangerForecast:
+            return "予報"
+        case .finalGuard:
+            return "防衛"
+        case .floorSense:
+            return "床"
+        case .rewardSense:
+            return "報酬"
+        case .enemySense:
+            return "敵影"
+        case .pathPreview:
+            return "経路"
+        case .deepForecast:
+            return "深層"
+        case .routeForecast:
+            return "踏破"
+        case .retryPreparation:
+            return "再挑戦"
+        case .sectionRecovery:
+            return "立て直し"
+        case .deepCheckpointRead:
+            return "旗印"
+        case .checkpointExpansion:
+            return "拡張"
+        case .comebackRoute:
+            return "復帰路"
+        case .finalRecovery:
+            return "復帰"
         default:
             return title
         }
@@ -857,6 +921,14 @@ private extension DungeonGrowthUpgrade {
             return "bag.fill"
         case .climbingKit:
             return "figure.stairs"
+        case .deepStartKit:
+            return "shield.fill"
+        case .routeKit:
+            return "point.topleft.down.curvedto.point.bottomright.up"
+        case .deepSupplyCraft:
+            return "cross.case.fill"
+        case .finalPreparation:
+            return "flag.checkered"
         case .shortcutKit:
             return "arrow.up.right"
         case .refillCharm:
@@ -869,6 +941,16 @@ private extension DungeonGrowthUpgrade {
             return "square.grid.2x2.fill"
         case .supportScout:
             return "cross.case.fill"
+        case .relicScout:
+            return "sparkle.magnifyingglass"
+        case .rewardUpgradeScout:
+            return "arrow.up.square.fill"
+        case .rewardRerollRead:
+            return "arrow.triangle.2.circlepath"
+        case .supportMastery:
+            return "wand.and.stars"
+        case .rewardCompletion:
+            return "rosette"
         case .footingRead:
             return "shoeprints.fill"
         case .secondStep:
@@ -877,6 +959,40 @@ private extension DungeonGrowthUpgrade {
             return "exclamationmark.shield.fill"
         case .meteorRead:
             return "flame.fill"
+        case .lastStand:
+            return "heart.text.square.fill"
+        case .enemyReadPlus:
+            return "shield.righthalf.filled"
+        case .fallInsurance:
+            return "arrow.down.to.line.compact"
+        case .dangerForecast:
+            return "cloud.bolt.fill"
+        case .finalGuard:
+            return "shield.checkered"
+        case .floorSense:
+            return "square.grid.3x3.fill"
+        case .rewardSense:
+            return "gift.fill"
+        case .enemySense:
+            return "eye.trianglebadge.exclamationmark.fill"
+        case .pathPreview:
+            return "point.forward.to.point.capsulepath.fill"
+        case .deepForecast:
+            return "binoculars.fill"
+        case .routeForecast:
+            return "map.fill"
+        case .retryPreparation:
+            return "arrow.counterclockwise.circle.fill"
+        case .sectionRecovery:
+            return "bandage.fill"
+        case .deepCheckpointRead:
+            return "flag.fill"
+        case .checkpointExpansion:
+            return "flag.2.crossed.fill"
+        case .comebackRoute:
+            return "arrow.uturn.backward.circle.fill"
+        case .finalRecovery:
+            return "goforward.plus"
         }
     }
 }

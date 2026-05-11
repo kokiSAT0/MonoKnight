@@ -99,6 +99,13 @@ extension GameViewModel {
             }
             .store(in: &cancellables)
 
+        core.$dungeonRelicAcquisitionPresentations
+            .receive(on: RunLoop.main)
+            .sink { [weak self] presentations in
+                self?.enqueueDungeonRelicAcquisitionPresentations(presentations)
+            }
+            .store(in: &cancellables)
+
     }
 
     func handleHandStacksChange(_ newHandStacks: [HandStack]) {
@@ -113,6 +120,10 @@ extension GameViewModel {
     }
 
     func handleProgressChange(_ progress: GameProgress) {
+        guard !hasPendingDungeonRelicAcquisitionPresentation else {
+            deferredProgressDuringMovementPresentation = progress
+            return
+        }
         guard !isWaitingForEnemyTurnPresentationAfterMovement else {
             deferredProgressDuringMovementPresentation = progress
             return
@@ -218,6 +229,8 @@ extension GameViewModel {
     }
 
     private func flushDeferredMovementPresentationOutcomes() {
+        presentNextDungeonRelicAcquisitionIfPossible()
+        guard !hasPendingDungeonRelicAcquisitionPresentation else { return }
         if let deferredFall = deferredDungeonFallEventDuringMovementPresentation {
             deferredDungeonFallEventDuringMovementPresentation = nil
             handleDungeonFallEvent(deferredFall)
@@ -226,6 +239,39 @@ extension GameViewModel {
             deferredProgressDuringMovementPresentation = nil
             handleProgressChange(deferredProgress)
         }
+    }
+
+    private var hasPendingDungeonRelicAcquisitionPresentation: Bool {
+        activeDungeonRelicAcquisitionPresentation != nil
+            || !pendingDungeonRelicAcquisitionPresentations.isEmpty
+    }
+
+    func enqueueDungeonRelicAcquisitionPresentations(_ presentations: [DungeonRelicAcquisitionPresentation]) {
+        let newPresentations = presentations.filter { presentation in
+            !observedDungeonRelicAcquisitionPresentationIDs.contains(presentation.id)
+        }
+        guard !newPresentations.isEmpty else { return }
+        observedDungeonRelicAcquisitionPresentationIDs.formUnion(newPresentations.map(\.id))
+        pendingDungeonRelicAcquisitionPresentations.append(contentsOf: newPresentations)
+        presentNextDungeonRelicAcquisitionIfPossible()
+    }
+
+    func dismissActiveDungeonRelicAcquisitionPresentation() {
+        activeDungeonRelicAcquisitionPresentation = nil
+        presentNextDungeonRelicAcquisitionIfPossible()
+        if !hasPendingDungeonRelicAcquisitionPresentation {
+            flushDeferredMovementPresentationOutcomes()
+            handleDungeonHPChange(core.dungeonHP)
+        }
+    }
+
+    func presentNextDungeonRelicAcquisitionIfPossible() {
+        guard activeDungeonRelicAcquisitionPresentation == nil,
+              !isMovementPresentationActive,
+              !isWaitingForEnemyTurnPresentationAfterMovement,
+              !pendingDungeonRelicAcquisitionPresentations.isEmpty
+        else { return }
+        activeDungeonRelicAcquisitionPresentation = pendingDungeonRelicAcquisitionPresentations.removeFirst()
     }
 
     private func shouldClearDungeonResumeAfterClear(_ progress: GameProgress) -> Bool {

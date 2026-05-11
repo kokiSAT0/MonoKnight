@@ -514,6 +514,10 @@ private struct SupportCardEncyclopediaRow: View {
             return "snowflake"
         case .barrierSpell:
             return "shield.fill"
+        case .antidote:
+            return "cross.case.fill"
+        case .panacea:
+            return "pills.fill"
         }
     }
 }

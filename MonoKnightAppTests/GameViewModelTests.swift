@@ -1143,6 +1143,26 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.showingResult)
     }
 
+    func testDungeonRelicAcquisitionPresentationQueueWaitsForConfirmation() {
+        let (viewModel, _) = makeViewModel(mode: controlTestDungeonMode)
+        let firstPresentation = DungeonRelicAcquisitionPresentation.rewardRelic(.glowingHeart)
+        let secondPresentation = DungeonRelicAcquisitionPresentation.rewardRelic(.heavyCrown)
+
+        viewModel.enqueueDungeonRelicAcquisitionPresentations([firstPresentation, secondPresentation])
+
+        XCTAssertEqual(viewModel.activeDungeonRelicAcquisitionPresentation, firstPresentation)
+        XCTAssertEqual(viewModel.pendingDungeonRelicAcquisitionPresentations, [secondPresentation])
+
+        viewModel.dismissActiveDungeonRelicAcquisitionPresentation()
+
+        XCTAssertEqual(viewModel.activeDungeonRelicAcquisitionPresentation, secondPresentation)
+        XCTAssertTrue(viewModel.pendingDungeonRelicAcquisitionPresentations.isEmpty)
+
+        viewModel.dismissActiveDungeonRelicAcquisitionPresentation()
+
+        XCTAssertNil(viewModel.activeDungeonRelicAcquisitionPresentation)
+    }
+
     func testDungeonRewardSelectionDoesNotAdvanceWhenNewCardWouldExceedFullHand() throws {
         let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
         let mode = try XCTUnwrap(DungeonLibrary.shared.firstFloorMode(for: tower))

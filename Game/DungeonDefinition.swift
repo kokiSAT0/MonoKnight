@@ -612,6 +612,147 @@ public enum DungeonRelicPickupOutcome: Codable, Equatable {
     case pandora
 }
 
+/// UI へ渡す遺物取得結果の表示用イベント
+public struct DungeonRelicAcquisitionPresentation: Equatable, Identifiable {
+    public enum Source: Equatable {
+        case pickup
+        case reward
+    }
+
+    public enum Item: Equatable, Identifiable {
+        case relic(DungeonRelicEntry)
+        case curse(DungeonCurseEntry)
+        case mimicDamage(Int)
+        case hpCompensation(Int)
+
+        public var id: String {
+            switch self {
+            case .relic(let relic):
+                return "relic-\(relic.relicID.rawValue)"
+            case .curse(let curse):
+                return "curse-\(curse.curseID.rawValue)"
+            case .mimicDamage(let damage):
+                return "mimic-\(damage)"
+            case .hpCompensation(let amount):
+                return "hp-\(amount)"
+            }
+        }
+
+        public var displayName: String {
+            switch self {
+            case .relic(let relic):
+                return relic.displayName
+            case .curse(let curse):
+                return curse.displayName
+            case .mimicDamage:
+                return "ミミック"
+            case .hpCompensation:
+                return "小さな補填"
+            }
+        }
+
+        public var symbolName: String {
+            switch self {
+            case .relic(let relic):
+                return relic.symbolName
+            case .curse(let curse):
+                return curse.symbolName
+            case .mimicDamage:
+                return "exclamationmark.triangle.fill"
+            case .hpCompensation:
+                return "heart.fill"
+            }
+        }
+
+        public var primaryDescription: String {
+            switch self {
+            case .relic(let relic):
+                return relic.effectDescription
+            case .curse(let curse):
+                return "利点: \(curse.upsideDescription)"
+            case .mimicDamage(let damage):
+                return "宝箱がミミック化し、HPを \(damage) 失いました。"
+            case .hpCompensation(let amount):
+                return "未所持の遺物候補がなかったため、HPが \(amount) 回復しました。"
+            }
+        }
+
+        public var secondaryDescriptions: [String] {
+            switch self {
+            case .relic(let relic):
+                var descriptions: [String] = []
+                if let note = relic.noteDescription {
+                    descriptions.append(note)
+                }
+                if relic.hasLimitedUses {
+                    descriptions.append("残り \(relic.remainingUses) 回")
+                }
+                return descriptions
+            case .curse(let curse):
+                var descriptions = [
+                    "代償: \(curse.downsideDescription)",
+                    "解除: \(curse.releaseDescription)"
+                ]
+                if curse.hasLimitedUses {
+                    descriptions.append("残り \(curse.remainingUses) 回")
+                }
+                return descriptions
+            case .mimicDamage, .hpCompensation:
+                return []
+            }
+        }
+    }
+
+    public let id: UUID
+    public let source: Source
+    public let outcome: DungeonRelicPickupOutcome?
+    public let items: [Item]
+
+    public init(
+        id: UUID = UUID(),
+        source: Source,
+        outcome: DungeonRelicPickupOutcome?,
+        items: [Item]
+    ) {
+        self.id = id
+        self.source = source
+        self.outcome = outcome
+        self.items = items
+    }
+
+    public static func rewardRelic(_ relic: DungeonRelicID) -> DungeonRelicAcquisitionPresentation {
+        DungeonRelicAcquisitionPresentation(
+            source: .reward,
+            outcome: .relic,
+            items: [.relic(DungeonRelicEntry(relicID: relic))]
+        )
+    }
+
+    public var title: String {
+        switch source {
+        case .reward:
+            return "遺物を獲得"
+        case .pickup:
+            switch outcome {
+            case .relic:
+                return "宝箱から遺物"
+            case .curse:
+                return "呪い遺物を受けた"
+            case .mimic:
+                return "ミミックが出現"
+            case .pandora:
+                return "パンドラ箱が開いた"
+            case .none:
+                return "宝箱の結果"
+            }
+        }
+    }
+
+    public var confirmationTitle: String {
+        source == .reward ? "次の階へ" : "冒険を続ける"
+    }
+}
+
 /// 遊び方辞典で扱う塔イベントの分類
 public enum DungeonEventEncyclopediaKind: String, CaseIterable, Equatable, Identifiable {
     case safeChest
@@ -881,25 +1022,25 @@ public enum DungeonWeightedRewardPools {
                 (.straightRight2, 8), (.straightUp2, 8), (.straightLeft2, 5), (.straightDown2, 5),
                 (.diagonalUpRight2, 6), (.diagonalUpLeft2, 5), (.diagonalDownRight2, 4), (.diagonalDownLeft2, 4),
                 (.rayRight, 3), (.rayUp, 3)
-            ]) + weightedSupports([(.refillEmptySlots, 1)])
+            ]) + weightedSupports([(.refillEmptySlots, 1), (.singleAnnihilationSpell, 1)])
         case (.floors1To5, .clearReward):
             return weightedMoves([
                 (.straightRight2, 9), (.straightUp2, 9), (.diagonalUpRight2, 7),
                 (.rayRight, 5), (.rayUp, 4), (.knightRightwardChoice, 3), (.knightUpwardChoice, 3)
-            ]) + weightedSupports([(.refillEmptySlots, 1)]) + weightedRelics()
+            ]) + weightedSupports([(.refillEmptySlots, 1), (.singleAnnihilationSpell, 1)]) + weightedRelics()
         case (.floors6To10, .floorPickup):
             return weightedMoves([
                 (.straightRight2, 8), (.straightUp2, 8), (.straightLeft2, 7), (.straightDown2, 7),
                 (.diagonalUpRight2, 7), (.diagonalUpLeft2, 6), (.diagonalDownRight2, 6), (.diagonalDownLeft2, 6),
                 (.rayRight, 5), (.rayUp, 5), (.rayLeft, 4), (.rayDown, 4),
                 (.knightRightwardChoice, 3), (.knightUpwardChoice, 3), (.knightLeftwardChoice, 2), (.knightDownwardChoice, 2)
-            ]) + weightedSupports([(.refillEmptySlots, 2), (.singleAnnihilationSpell, 1)])
+            ]) + weightedSupports([(.refillEmptySlots, 2), (.singleAnnihilationSpell, 1), (.antidote, 1)])
         case (.floors6To10, .clearReward):
             return weightedMoves([
                 (.rayRight, 7), (.rayUp, 7), (.rayLeft, 5), (.rayDown, 5),
                 (.straightRight2, 6), (.straightUp2, 6), (.diagonalUpRight2, 6), (.diagonalDownRight2, 4),
                 (.knightRightwardChoice, 5), (.knightUpwardChoice, 4), (.knightLeftwardChoice, 3)
-            ]) + weightedSupports([(.refillEmptySlots, 2), (.singleAnnihilationSpell, 1)]) + weightedRelics()
+            ]) + weightedSupports([(.refillEmptySlots, 2), (.singleAnnihilationSpell, 1), (.antidote, 1)]) + weightedRelics()
         case (.floors11To15, .floorPickup):
             return weightedMoves([
                 (.straightRight2, 7), (.straightUp2, 7), (.straightLeft2, 7), (.straightDown2, 7),
@@ -907,21 +1048,21 @@ public enum DungeonWeightedRewardPools {
                 (.rayRight, 6), (.rayUp, 6), (.rayLeft, 6), (.rayDown, 6),
                 (.rayUpRight, 3), (.rayUpLeft, 3), (.rayDownRight, 3), (.rayDownLeft, 3),
                 (.knightRightwardChoice, 4), (.knightUpwardChoice, 4), (.knightLeftwardChoice, 4), (.knightDownwardChoice, 3)
-            ]) + weightedSupports([(.refillEmptySlots, 3), (.singleAnnihilationSpell, 2), (.annihilationSpell, 1)])
+            ]) + weightedSupports([(.refillEmptySlots, 3), (.singleAnnihilationSpell, 2), (.annihilationSpell, 1), (.antidote, 1), (.panacea, 1)])
         case (.floors11To15, .clearReward):
             return weightedMoves([
                 (.rayRight, 7), (.rayUp, 7), (.rayLeft, 7), (.rayDown, 7),
                 (.rayUpRight, 4), (.rayUpLeft, 4), (.rayDownRight, 3), (.rayDownLeft, 3),
                 (.diagonalUpRight2, 5), (.diagonalUpLeft2, 5), (.diagonalDownLeft2, 4),
                 (.knightRightwardChoice, 5), (.knightUpwardChoice, 5), (.knightLeftwardChoice, 4)
-            ]) + weightedSupports([(.refillEmptySlots, 3), (.singleAnnihilationSpell, 2), (.annihilationSpell, 1)]) + weightedRelics()
+            ]) + weightedSupports([(.refillEmptySlots, 3), (.singleAnnihilationSpell, 2), (.annihilationSpell, 1), (.antidote, 1), (.panacea, 1)]) + weightedRelics()
         case (.floors16To20, .floorPickup):
             return weightedMoves([
                 (.rayRight, 8), (.rayUp, 8), (.rayLeft, 8), (.rayDown, 8),
                 (.rayUpRight, 5), (.rayUpLeft, 5), (.rayDownRight, 5), (.rayDownLeft, 5),
                 (.knightRightwardChoice, 6), (.knightUpwardChoice, 6), (.knightLeftwardChoice, 5), (.knightDownwardChoice, 5),
                 (.straightRight2, 5), (.straightUp2, 5), (.diagonalUpRight2, 5), (.diagonalDownLeft2, 5)
-            ]) + weightedSupports([(.refillEmptySlots, 2), (.singleAnnihilationSpell, 3), (.annihilationSpell, 2)])
+            ]) + weightedSupports([(.refillEmptySlots, 2), (.singleAnnihilationSpell, 3), (.annihilationSpell, 2), (.antidote, 1), (.panacea, 1)])
         case (.floors16To20, .clearReward):
             return weightedMoves([
                 (.rayRight, 9), (.rayUp, 9), (.rayLeft, 9), (.rayDown, 8),
@@ -933,7 +1074,9 @@ public enum DungeonWeightedRewardPools {
                 (.singleAnnihilationSpell, 3),
                 (.annihilationSpell, 2),
                 (.freezeSpell, 2),
-                (.barrierSpell, 2)
+                (.barrierSpell, 2),
+                (.antidote, 1),
+                (.panacea, 1)
             ]) + weightedRelics()
         }
     }
@@ -1487,7 +1630,7 @@ public struct DungeonRunState: Codable, Equatable {
 
     public static func rewardUses(for support: SupportCard) -> Int {
         switch support {
-        case .refillEmptySlots, .singleAnnihilationSpell, .annihilationSpell, .freezeSpell, .barrierSpell:
+        case .refillEmptySlots, .singleAnnihilationSpell, .annihilationSpell, .freezeSpell, .barrierSpell, .antidote, .panacea:
             return 1
         }
     }
@@ -2297,26 +2440,47 @@ private enum DungeonCardVariationResolver {
         floorIndex: Int,
         seed: UInt64
     ) -> DungeonFloorDefinition {
+        let spawnPoint = resolvedSpawnPoint(for: floor, floorIndex: floorIndex, seed: seed)
+        let exitPoint = resolvedExitPoint(for: floor, floorIndex: floorIndex, seed: seed, avoiding: spawnPoint)
+        let endpointFloor = floorVariant(floor, spawnPoint: spawnPoint, exitPoint: exitPoint)
+        let enemies = resolvedEnemies(
+            for: endpointFloor,
+            floorIndex: floorIndex,
+            seed: seed
+        )
+        let enemyFloor = floorVariant(endpointFloor, enemies: enemies)
+        let exitLock = resolvedExitLock(
+            for: enemyFloor,
+            floorIndex: floorIndex,
+            seed: seed
+        )
+        let lockedFloor = floorVariant(enemyFloor, exitLock: exitLock)
+        let warpTilePairs = resolvedWarpTilePairs(
+            for: lockedFloor,
+            floorIndex: floorIndex,
+            seed: seed
+        )
+        let warpFloor = floorVariant(lockedFloor, warpTilePairs: warpTilePairs)
         let hazards = resolvedHazards(
-            for: floor,
+            for: warpFloor,
             floorIndex: floorIndex,
             seed: seed
         )
         let impassableTilePoints = resolvedImpassableTilePoints(
-            for: floor,
+            for: warpFloor,
             floorIndex: floorIndex,
             seed: seed,
             hazards: hazards
         )
         let relicPickups = resolvedRelicPickups(
-            for: floor,
+            for: warpFloor,
             floorIndex: floorIndex,
             seed: seed,
             hazards: hazards,
             impassableTilePoints: impassableTilePoints
         )
         let cardPickups = resolvedPickups(
-            for: floor,
+            for: warpFloor,
             floorIndex: floorIndex,
             seed: seed,
             hazards: hazards,
@@ -2332,21 +2496,236 @@ private enum DungeonCardVariationResolver {
             id: floor.id,
             title: floor.title,
             boardSize: floor.boardSize,
-            spawnPoint: floor.spawnPoint,
-            exitPoint: floor.exitPoint,
+            spawnPoint: spawnPoint,
+            exitPoint: exitPoint,
             deckPreset: floor.deckPreset,
             failureRule: floor.failureRule,
-            enemies: floor.enemies,
+            enemies: enemies,
             hazards: hazards,
             impassableTilePoints: impassableTilePoints,
             tileEffectOverrides: floor.tileEffectOverrides,
-            warpTilePairs: floor.warpTilePairs,
-            exitLock: floor.exitLock,
+            warpTilePairs: warpTilePairs,
+            exitLock: exitLock,
             cardPickups: cardPickups,
             relicPickups: relicPickups,
             rewardMoveCardsAfterClear: rewardCards.compactMap(\.move),
             rewardSupportCardsAfterClear: rewardCards.compactMap(\.support)
         )
+    }
+
+    private static func floorVariant(
+        _ floor: DungeonFloorDefinition,
+        spawnPoint: GridPoint? = nil,
+        exitPoint: GridPoint? = nil,
+        enemies: [EnemyDefinition]? = nil,
+        hazards: [HazardDefinition]? = nil,
+        impassableTilePoints: Set<GridPoint>? = nil,
+        warpTilePairs: [String: [GridPoint]]? = nil,
+        exitLock: DungeonExitLock? = nil,
+        preservesExitLock: Bool = true
+    ) -> DungeonFloorDefinition {
+        DungeonFloorDefinition(
+            id: floor.id,
+            title: floor.title,
+            boardSize: floor.boardSize,
+            spawnPoint: spawnPoint ?? floor.spawnPoint,
+            exitPoint: exitPoint ?? floor.exitPoint,
+            deckPreset: floor.deckPreset,
+            failureRule: floor.failureRule,
+            enemies: enemies ?? floor.enemies,
+            hazards: hazards ?? floor.hazards,
+            impassableTilePoints: impassableTilePoints ?? floor.impassableTilePoints,
+            tileEffectOverrides: floor.tileEffectOverrides,
+            warpTilePairs: warpTilePairs ?? floor.warpTilePairs,
+            exitLock: preservesExitLock ? (exitLock ?? floor.exitLock) : exitLock,
+            cardPickups: floor.cardPickups,
+            relicPickups: floor.relicPickups,
+            rewardMoveCardsAfterClear: floor.rewardMoveCardsAfterClear,
+            rewardSupportCardsAfterClear: floor.rewardSupportCardsAfterClear
+        )
+    }
+
+    private static func resolvedSpawnPoint(
+        for floor: DungeonFloorDefinition,
+        floorIndex: Int,
+        seed: UInt64
+    ) -> GridPoint {
+        let sectionStartIndexes: Set<Int> = [0, 10]
+        guard !sectionStartIndexes.contains(floorIndex) else { return floor.spawnPoint }
+        return variedEndpoint(
+            around: floor.spawnPoint,
+            floorIndex: floorIndex - 1,
+            seed: seed,
+            boardSize: floor.boardSize,
+            avoiding: floor.exitPoint
+        )
+    }
+
+    private static func resolvedExitPoint(
+        for floor: DungeonFloorDefinition,
+        floorIndex: Int,
+        seed: UInt64,
+        avoiding pointToAvoid: GridPoint
+    ) -> GridPoint {
+        variedEndpoint(
+            around: floor.exitPoint,
+            floorIndex: floorIndex,
+            seed: seed,
+            boardSize: floor.boardSize,
+            avoiding: pointToAvoid
+        )
+    }
+
+    private static func variedEndpoint(
+        around basePoint: GridPoint,
+        floorIndex: Int,
+        seed: UInt64,
+        boardSize: Int,
+        avoiding pointToAvoid: GridPoint
+    ) -> GridPoint {
+        var randomizer = DungeonCardVariationRandomizer(seed: seed, floorIndex: max(floorIndex, 0), salt: 0xE117)
+        let candidates = ([basePoint] + orthogonalNeighbors(of: basePoint, boardSize: boardSize))
+            .filter { $0 != pointToAvoid }
+        guard !candidates.isEmpty else { return basePoint }
+        return candidates[randomizer.nextIndex(upperBound: candidates.count)]
+    }
+
+    private static func resolvedEnemies(
+        for floor: DungeonFloorDefinition,
+        floorIndex: Int,
+        seed: UInt64
+    ) -> [EnemyDefinition] {
+        var reserved = coreReservedPoints(
+            for: floor,
+            includesEnemies: false,
+            includesExitLock: false,
+            includesWarpTiles: false
+        )
+        return floor.enemies.enumerated().map { index, enemy in
+            var randomizer = DungeonCardVariationRandomizer(
+                seed: seed,
+                floorIndex: floorIndex,
+                salt: 0xE000 + UInt64(index)
+            )
+            let behavior = resolvedEnemyBehavior(
+                enemy.behavior,
+                floor: floor,
+                enemyIndex: index,
+                reserved: reserved,
+                randomizer: &randomizer
+            )
+            let position: GridPoint
+            if case .patrol(let path) = behavior, let first = path.first {
+                position = first
+                reserved.formUnion(path)
+            } else {
+                position = drawPoints(
+                    for: floor,
+                    count: 1,
+                    reserved: reserved,
+                    randomizer: &randomizer
+                ).first ?? enemy.position
+                reserved.insert(position)
+            }
+            return EnemyDefinition(
+                id: enemy.id,
+                name: enemy.name,
+                position: position,
+                behavior: behavior,
+                damage: enemy.damage
+            )
+        }
+    }
+
+    private static func resolvedEnemyBehavior(
+        _ behavior: EnemyBehavior,
+        floor: DungeonFloorDefinition,
+        enemyIndex: Int,
+        reserved: Set<GridPoint>,
+        randomizer: inout DungeonCardVariationRandomizer
+    ) -> EnemyBehavior {
+        switch behavior {
+        case .guardPost, .chaser:
+            return behavior
+        case .marker(_, let range):
+            return .marker(directions: [], range: range)
+        case .watcher(_, let range):
+            return .watcher(
+                direction: randomOrthogonalDirection(randomizer: &randomizer),
+                range: range
+            )
+        case .rotatingWatcher(_, _, let range):
+            return .rotatingWatcher(
+                initialDirection: randomOrthogonalDirection(randomizer: &randomizer),
+                rotationDirection: randomizer.nextIndex(upperBound: 2) == 0 ? .clockwise : .counterclockwise,
+                range: range
+            )
+        case .patrol(let path):
+            let uniqueCount = max(2, min(Set(path).count, 5))
+            let candidates = candidatePatrolPaths(
+                boardSize: floor.boardSize,
+                uniqueCount: uniqueCount,
+                pathLength: max(path.count, uniqueCount),
+                reserved: reserved
+            )
+            guard !candidates.isEmpty else { return behavior }
+            return .patrol(path: candidates[randomizer.nextIndex(upperBound: candidates.count)])
+        }
+    }
+
+    private static func resolvedExitLock(
+        for floor: DungeonFloorDefinition,
+        floorIndex: Int,
+        seed: UInt64
+    ) -> DungeonExitLock? {
+        guard floor.exitLock != nil else { return nil }
+        var randomizer = DungeonCardVariationRandomizer(seed: seed, floorIndex: floorIndex, salt: 0x10CC)
+        let reserved = coreReservedPoints(
+            for: floor,
+            includesExitLock: false,
+            includesWarpTiles: false
+        )
+        let candidates = candidatePoints(for: floor, excluding: reserved).filter { point in
+            hasOrthogonalPath(from: floor.spawnPoint, to: point, boardSize: floor.boardSize, blocked: Set<GridPoint>())
+                && hasOrthogonalPath(from: point, to: floor.exitPoint, boardSize: floor.boardSize, blocked: Set<GridPoint>())
+        }
+        guard !candidates.isEmpty else { return floor.exitLock }
+        return DungeonExitLock(unlockPoint: candidates[randomizer.nextIndex(upperBound: candidates.count)])
+    }
+
+    private static func resolvedWarpTilePairs(
+        for floor: DungeonFloorDefinition,
+        floorIndex: Int,
+        seed: UInt64
+    ) -> [String: [GridPoint]] {
+        guard !floor.warpTilePairs.isEmpty else { return [:] }
+        var reserved = coreReservedPoints(
+            for: floor,
+            includesWarpTiles: false
+        )
+        var resolved: [String: [GridPoint]] = [:]
+        for key in floor.warpTilePairs.keys.sorted() {
+            guard let basePoints = floor.warpTilePairs[key], basePoints.count >= 2 else { continue }
+            var randomizer = DungeonCardVariationRandomizer(
+                seed: seed,
+                floorIndex: floorIndex,
+                salt: 0xA9A0 + UInt64(resolved.count)
+            )
+            let points = drawPoints(
+                for: floor,
+                count: basePoints.count,
+                reserved: reserved,
+                randomizer: &randomizer
+            )
+            if points.count == basePoints.count {
+                resolved[key] = points
+                reserved.formUnion(points)
+            } else {
+                resolved[key] = basePoints
+                reserved.formUnion(basePoints)
+            }
+        }
+        return resolved
     }
 
     private static func resolvedPickups(
@@ -2456,7 +2835,7 @@ private enum DungeonCardVariationResolver {
             let index = randomizer.nextIndex(upperBound: candidates.count)
             let point = candidates.remove(at: index)
             let nextResult = result.union([point])
-            if hasOrthogonalPath(from: floor.spawnPoint, to: floor.exitPoint, boardSize: floor.boardSize, blocked: nextResult) {
+            if preservesRepresentativeRoutes(in: floor, blocked: nextResult) {
                 result.insert(point)
             }
         }
@@ -2610,22 +2989,103 @@ private enum DungeonCardVariationResolver {
         return points
     }
 
-    private static func coreReservedPoints(for floor: DungeonFloorDefinition) -> Set<GridPoint> {
+    private static func randomOrthogonalDirection(
+        randomizer: inout DungeonCardVariationRandomizer
+    ) -> MoveVector {
+        orthogonalDirections[randomizer.nextIndex(upperBound: orthogonalDirections.count)]
+    }
+
+    private static func orthogonalNeighbors(of point: GridPoint, boardSize: Int) -> [GridPoint] {
+        orthogonalDirections.compactMap { direction in
+            let next = GridPoint(x: point.x + direction.dx, y: point.y + direction.dy)
+            return next.isInside(boardSize: boardSize) ? next : nil
+        }
+    }
+
+    private static func candidatePatrolPaths(
+        boardSize: Int,
+        uniqueCount: Int,
+        pathLength: Int,
+        reserved: Set<GridPoint>
+    ) -> [[GridPoint]] {
+        var candidates: [[GridPoint]] = []
+        for y in 0..<boardSize {
+            for x in 0..<boardSize {
+                let start = GridPoint(x: x, y: y)
+                for direction in orthogonalDirections {
+                    let line = (0..<uniqueCount).map {
+                        GridPoint(x: start.x + direction.dx * $0, y: start.y + direction.dy * $0)
+                    }
+                    if line.allSatisfy({ $0.isInside(boardSize: boardSize) && !reserved.contains($0) }) {
+                        candidates.append(expandedPatrolPath(from: line, pathLength: pathLength))
+                    }
+                }
+                if uniqueCount >= 4 {
+                    for firstDirection in orthogonalDirections {
+                        for secondDirection in orthogonalDirections where secondDirection != firstDirection {
+                            let firstLegCount = max(2, uniqueCount / 2)
+                            let firstLeg = (0..<firstLegCount).map {
+                                GridPoint(x: start.x + firstDirection.dx * $0, y: start.y + firstDirection.dy * $0)
+                            }
+                            guard let turn = firstLeg.last else { continue }
+                            let secondLeg = (1...(uniqueCount - firstLegCount)).map {
+                                GridPoint(x: turn.x + secondDirection.dx * $0, y: turn.y + secondDirection.dy * $0)
+                            }
+                            let points = firstLeg + secondLeg
+                            if Set(points).count == uniqueCount,
+                               points.allSatisfy({ $0.isInside(boardSize: boardSize) && !reserved.contains($0) }) {
+                                candidates.append(expandedPatrolPath(from: points, pathLength: pathLength))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return candidates
+    }
+
+    private static func expandedPatrolPath(from points: [GridPoint], pathLength: Int) -> [GridPoint] {
+        guard points.count > 1 else { return points }
+        let bounce = points + points.dropLast().dropFirst().reversed()
+        var path: [GridPoint] = []
+        while path.count < pathLength {
+            path.append(contentsOf: bounce)
+        }
+        return Array(path.prefix(pathLength))
+    }
+
+    private static let orthogonalDirections = [
+        MoveVector(dx: 1, dy: 0),
+        MoveVector(dx: -1, dy: 0),
+        MoveVector(dx: 0, dy: 1),
+        MoveVector(dx: 0, dy: -1)
+    ]
+
+    private static func coreReservedPoints(
+        for floor: DungeonFloorDefinition,
+        includesEnemies: Bool = true,
+        includesExitLock: Bool = true,
+        includesWarpTiles: Bool = true
+    ) -> Set<GridPoint> {
         var blocked: Set<GridPoint> = [
             floor.spawnPoint,
             floor.exitPoint
         ]
-        for enemy in floor.enemies {
-            switch enemy.behavior {
-            case .patrol(let path):
-                blocked.formUnion(path)
-            case .guardPost, .watcher, .rotatingWatcher, .chaser, .marker:
-                blocked.insert(enemy.position)
+        if includesEnemies {
+            for enemy in floor.enemies {
+                switch enemy.behavior {
+                case .patrol(let path):
+                    blocked.formUnion(path)
+                case .guardPost, .watcher, .rotatingWatcher, .chaser, .marker:
+                    blocked.insert(enemy.position)
+                }
             }
         }
         blocked.formUnion(floor.tileEffectOverrides.keys)
-        blocked.formUnion(floor.warpTilePairs.values.flatMap { $0 })
-        if let unlockPoint = floor.exitLock?.unlockPoint {
+        if includesWarpTiles {
+            blocked.formUnion(floor.warpTilePairs.values.flatMap { $0 })
+        }
+        if includesExitLock, let unlockPoint = floor.exitLock?.unlockPoint {
             blocked.insert(unlockPoint)
         }
         return blocked
@@ -2664,6 +3124,17 @@ private enum DungeonCardVariationResolver {
             }
         }
         return false
+    }
+
+    private static func preservesRepresentativeRoutes(
+        in floor: DungeonFloorDefinition,
+        blocked: Set<GridPoint>
+    ) -> Bool {
+        if let unlockPoint = floor.exitLock?.unlockPoint {
+            return hasOrthogonalPath(from: floor.spawnPoint, to: unlockPoint, boardSize: floor.boardSize, blocked: blocked)
+                && hasOrthogonalPath(from: unlockPoint, to: floor.exitPoint, boardSize: floor.boardSize, blocked: blocked)
+        }
+        return hasOrthogonalPath(from: floor.spawnPoint, to: floor.exitPoint, boardSize: floor.boardSize, blocked: blocked)
     }
 }
 

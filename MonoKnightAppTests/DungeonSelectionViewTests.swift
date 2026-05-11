@@ -194,13 +194,18 @@ final class DungeonSelectionViewTests: XCTestCase {
 
         let presentation = DungeonGrowthTreePresentation.make(growthStore: growthStore)
 
-        XCTAssertEqual(presentation.lanes.map(\.branch), [.preparation, .reward, .hazard])
-        XCTAssertEqual(presentation.lanes.map(\.branchTitle), ["準備", "報酬", "危険回避"])
-        XCTAssertEqual(presentation.tierCount, 4)
-        XCTAssertEqual((0..<presentation.tierCount).map { presentation.gateText(forTier: $0) }, ["5F", "10F", "15F", "20F"])
-        XCTAssertEqual(presentation.lanes[0].nodes.map(\.upgrade), [.toolPouch, .climbingKit, .shortcutKit, .refillCharm])
-        XCTAssertEqual(presentation.lanes[1].nodes.map(\.upgrade), [.rewardScout, .cardPreservation, .widerRewardRead, .supportScout])
-        XCTAssertEqual(presentation.lanes[2].nodes.map(\.upgrade), [.footingRead, .secondStep, .enemyRead, .meteorRead])
+        XCTAssertEqual(presentation.lanes.map(\.branch), [.preparation, .reward, .hazard, .scouting, .recovery])
+        XCTAssertEqual(presentation.lanes.map(\.branchTitle), ["準備", "報酬", "危険回避", "索敵", "復帰"])
+        XCTAssertEqual(presentation.tierFloors, [5, 10, 15, 20, 25, 30, 35, 40, 45, 50])
+        XCTAssertEqual(presentation.tierCount, 10)
+        XCTAssertEqual(presentation.tierFloors.map { presentation.gateText(forTierFloor: $0) }, ["5F", "10F", "15F", "20F", "25F", "30F", "35F", "40F", "45F", "50F"])
+        XCTAssertEqual(presentation.lanes[0].nodes.map(\.upgrade), [.toolPouch, .climbingKit, .shortcutKit, .refillCharm, .deepStartKit, .routeKit, .deepSupplyCraft, .finalPreparation])
+        XCTAssertEqual(presentation.lanes[1].nodes.map(\.upgrade), [.rewardScout, .cardPreservation, .widerRewardRead, .supportScout, .relicScout, .rewardUpgradeScout, .rewardRerollRead, .supportMastery, .rewardCompletion])
+        XCTAssertEqual(presentation.lanes[2].nodes.map(\.upgrade), [.footingRead, .enemyRead, .secondStep, .meteorRead, .lastStand, .enemyReadPlus, .fallInsurance, .dangerForecast, .finalGuard])
+        XCTAssertEqual(presentation.lanes[3].nodes.map(\.upgrade), [.floorSense, .rewardSense, .enemySense, .pathPreview, .deepForecast, .routeForecast])
+        XCTAssertEqual(presentation.lanes[4].nodes.map(\.upgrade), [.retryPreparation, .sectionRecovery, .deepCheckpointRead, .checkpointExpansion, .comebackRoute, .finalRecovery])
+        XCTAssertEqual(presentation.node(for: .deepSupplyCraft)?.tierFloor, 45)
+        XCTAssertEqual(presentation.node(for: .dangerForecast)?.tierFloor, 45)
     }
 
     func testDungeonGrowthTreePresentationDerivesNodeStates() throws {

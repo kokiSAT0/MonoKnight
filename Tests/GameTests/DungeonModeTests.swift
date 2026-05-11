@@ -62,6 +62,9 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertTrue(core.collectedDungeonRelicPickupIDs.contains(pickup.id))
         XCTAssertTrue(core.dungeonInventoryEntries.isEmpty)
         XCTAssertTrue(core.activeDungeonRelicPickups.isEmpty)
+        XCTAssertEqual(core.dungeonRelicAcquisitionPresentations.count, 1)
+        XCTAssertEqual(core.dungeonRelicAcquisitionPresentations.first?.outcome, .relic)
+        XCTAssertEqual(core.dungeonRelicAcquisitionPresentations.first?.items, [.relic(DungeonRelicEntry(relicID: .glowingHeart))])
     }
 
     func testSafeRelicPickupDoesNotDuplicateAndCompensatesWhenCandidatesAreExhausted() throws {
@@ -92,6 +95,7 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertEqual(core.dungeonRelicEntries.map(\.relicID), [.glowingHeart])
         XCTAssertEqual(core.dungeonHP, 4)
         XCTAssertTrue(core.collectedDungeonRelicPickupIDs.contains(pickup.id))
+        XCTAssertEqual(core.dungeonRelicAcquisitionPresentations.first?.items, [.hpCompensation(1)])
     }
 
     func testDungeonRelicEffectsAdjustDamageRewardsAndTurns() throws {
@@ -162,6 +166,8 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertEqual(core.dungeonHP, 4)
         XCTAssertEqual(core.effectiveDungeonTurnLimit, 6)
         XCTAssertTrue(core.collectedDungeonRelicPickupIDs.contains(pickup.id))
+        XCTAssertEqual(core.dungeonRelicAcquisitionPresentations.first?.outcome, .curse)
+        XCTAssertEqual(core.dungeonRelicAcquisitionPresentations.first?.items, [.curse(DungeonCurseEntry(curseID: .rustyChain))])
     }
 
     func testSuspiciousRelicPickupMimicCanFailRun() throws {
@@ -188,6 +194,8 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertEqual(core.dungeonHP, 0)
         XCTAssertEqual(core.progress, .failed)
         XCTAssertTrue(core.collectedDungeonRelicPickupIDs.contains(pickup.id))
+        XCTAssertEqual(core.dungeonRelicAcquisitionPresentations.first?.outcome, .mimic)
+        XCTAssertEqual(core.dungeonRelicAcquisitionPresentations.first?.items, [.mimicDamage(2)])
     }
 
     func testSuspiciousRelicPickupPandoraGrantsRelicAndCurse() throws {
@@ -215,6 +223,11 @@ final class DungeonModeTests: XCTestCase {
 
         XCTAssertEqual(core.dungeonRelicEntries.map(\.relicID), [.blackFeather])
         XCTAssertEqual(core.dungeonCurseEntries.map(\.curseID), [.bloodPact])
+        XCTAssertEqual(core.dungeonRelicAcquisitionPresentations.first?.outcome, .pandora)
+        XCTAssertEqual(
+            core.dungeonRelicAcquisitionPresentations.first?.items,
+            [.relic(DungeonRelicEntry(relicID: .blackFeather)), .curse(DungeonCurseEntry(curseID: .bloodPact))]
+        )
     }
 
     func testPandoraAndSuspiciousPickupsExcludeOwnedRelicsAndCurses() throws {
@@ -2781,6 +2794,65 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertEqual(core.dungeonEnemyTurnEvent?.phases.count, 2)
     }
 
+    func testAntidoteClearsPoisonBeforeSupportActionCanDealPoisonDamage() throws {
+        let poisonTrap = GridPoint(x: 1, y: 0)
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 3,
+            turnLimit: 12,
+            tileEffectOverrides: [poisonTrap: .poisonTrap],
+            cardAcquisitionMode: .inventoryOnly
+        )
+        let core = makeCore(mode: mode)
+        XCTAssertTrue(core.addDungeonInventorySupportCardForTesting(.antidote, rewardUses: 1))
+        playBasicMove(to: poisonTrap, in: core)
+        playBasicMove(to: GridPoint(x: 1, y: 1), in: core)
+        playBasicMove(to: GridPoint(x: 0, y: 1), in: core)
+        XCTAssertEqual(core.poisonActionsUntilNextDamage, 1)
+        let supportIndex = try XCTUnwrap(core.handStacks.firstIndex { $0.topCard?.supportCard == .antidote })
+
+        core.playSupportCard(at: supportIndex)
+
+        XCTAssertEqual(core.dungeonHP, 3)
+        XCTAssertEqual(core.poisonDamageTicksRemaining, 0)
+        XCTAssertEqual(core.poisonActionsUntilNextDamage, 0)
+        XCTAssertEqual(core.moveCount, 4)
+    }
+
+    func testPanaceaOnShackleUsesShackleCostThenResolvesOneEnemyTurn() throws {
+        let shackleTrap = GridPoint(x: 1, y: 0)
+        let patrol = EnemyDefinition(
+            id: "patrol",
+            name: "巡回兵",
+            position: GridPoint(x: 4, y: 1),
+            behavior: .patrol(path: [
+                GridPoint(x: 4, y: 1),
+                GridPoint(x: 4, y: 2),
+                GridPoint(x: 4, y: 3)
+            ])
+        )
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 3,
+            turnLimit: 10,
+            enemies: [patrol],
+            tileEffectOverrides: [shackleTrap: .shackleTrap],
+            cardAcquisitionMode: .inventoryOnly
+        )
+        let core = makeCore(mode: mode)
+        XCTAssertTrue(core.addDungeonInventorySupportCardForTesting(.panacea, rewardUses: 1))
+        playBasicMove(to: shackleTrap, in: core)
+        let supportIndex = try XCTUnwrap(core.handStacks.firstIndex { $0.topCard?.supportCard == .panacea })
+
+        core.playSupportCard(at: supportIndex)
+
+        XCTAssertFalse(core.isShackled)
+        XCTAssertEqual(core.moveCount, 4)
+        XCTAssertEqual(core.dungeonEnemyTurnEvent?.phases.count, 1)
+    }
+
     func testShackleStopsSecondEnemyTurnWhenFirstTurnDefeatsPlayer() throws {
         let shackleTrap = GridPoint(x: 1, y: 0)
         let guardEnemy = EnemyDefinition(
@@ -4102,9 +4174,16 @@ final class DungeonModeTests: XCTestCase {
 
         let firstFloor = try XCTUnwrap(tower.resolvedFloor(at: 0, runState: firstRunState))
         let secondFloor = try XCTUnwrap(tower.resolvedFloor(at: 0, runState: secondRunState))
+        let firstFloors = try tower.floors.indices.map { floorIndex in
+            try XCTUnwrap(tower.resolvedFloor(at: floorIndex, runState: firstRunState))
+        }
+        let secondFloors = try tower.floors.indices.map { floorIndex in
+            try XCTUnwrap(tower.resolvedFloor(at: floorIndex, runState: secondRunState))
+        }
 
         XCTAssertEqual(firstRunState.cardVariationSeed, 42)
         XCTAssertEqual(secondRunState.cardVariationSeed, 42)
+        XCTAssertEqual(firstFloors, secondFloors)
         XCTAssertEqual(firstFloor.cardPickups, secondFloor.cardPickups)
         XCTAssertEqual(firstFloor.rewardMoveCardsAfterClear, secondFloor.rewardMoveCardsAfterClear)
         XCTAssertEqual(firstMode.dungeonRules?.cardPickups, firstFloor.cardPickups)
@@ -4151,6 +4230,75 @@ final class DungeonModeTests: XCTestCase {
             let blocked = blockedGrowthTowerPickupPoints(for: floor)
             XCTAssertTrue(floor.cardPickups.allSatisfy { !blocked.contains($0.point) })
             XCTAssertTrue(floor.relicPickups.allSatisfy { !blocked.contains($0.point) })
+        }
+    }
+
+    func testGrowthTowerControlledVariationMovesEnemiesKeysWarpsAndStairs() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let firstRunState = DungeonRunState(dungeonID: tower.id, carriedHP: 3, cardVariationSeed: 111)
+        let secondRunState = DungeonRunState(dungeonID: tower.id, carriedHP: 3, cardVariationSeed: 222)
+
+        let firstFloors = try tower.floors.indices.map {
+            try XCTUnwrap(tower.resolvedFloor(at: $0, runState: firstRunState))
+        }
+        let secondFloors = try tower.floors.indices.map {
+            try XCTUnwrap(tower.resolvedFloor(at: $0, runState: secondRunState))
+        }
+
+        XCTAssertNotEqual(firstFloors.map(\.exitPoint), secondFloors.map(\.exitPoint))
+        XCTAssertNotEqual(firstFloors.flatMap(\.enemies), secondFloors.flatMap(\.enemies))
+        XCTAssertNotEqual(
+            firstFloors.compactMap(\.exitLock?.unlockPoint),
+            secondFloors.compactMap(\.exitLock?.unlockPoint)
+        )
+        XCTAssertNotEqual(
+            firstFloors.flatMap { $0.warpTilePairs.values.flatMap { $0 } },
+            secondFloors.flatMap { $0.warpTilePairs.values.flatMap { $0 } }
+        )
+
+        for seed in [1, 42, 111, 222, 999, 12_345] as [UInt64] {
+            let runState = DungeonRunState(dungeonID: tower.id, carriedHP: 3, cardVariationSeed: seed)
+            let resolvedFloors = try tower.floors.indices.map {
+                try XCTUnwrap(tower.resolvedFloor(at: $0, runState: runState))
+            }
+
+            for (floorIndex, resolvedFloor) in resolvedFloors.enumerated() {
+                let baseFloor = tower.floors[floorIndex]
+                XCTAssertEqual(resolvedFloor.enemies.count, baseFloor.enemies.count)
+                XCTAssertEqual(
+                    resolvedFloor.enemies.map { enemyBehaviorKind($0.behavior) },
+                    baseFloor.enemies.map { enemyBehaviorKind($0.behavior) },
+                    "\(resolvedFloor.title) は敵種/敵数を維持したまま配置だけ揺らします"
+                )
+                XCTAssertEqual(resolvedFloor.exitLock != nil, baseFloor.exitLock != nil)
+                XCTAssertEqual(resolvedFloor.warpTilePairs.mapValues(\.count), baseFloor.warpTilePairs.mapValues(\.count))
+
+                for enemy in resolvedFloor.enemies {
+                    if case .patrol(let path) = enemy.behavior {
+                        XCTAssertTrue(isOrthogonalStepPath(path), "\(resolvedFloor.title) の巡回路は上下左右1マス連続にします")
+                    }
+                }
+                if let unlockPoint = resolvedFloor.exitLock?.unlockPoint {
+                    XCTAssertTrue(
+                        hasOrthogonalPath(from: resolvedFloor.spawnPoint, to: unlockPoint, in: resolvedFloor),
+                        "\(resolvedFloor.title) は開始地点から鍵までの代表導線を残します"
+                    )
+                    XCTAssertTrue(
+                        hasOrthogonalPath(from: unlockPoint, to: resolvedFloor.exitPoint, in: resolvedFloor),
+                        "\(resolvedFloor.title) は鍵から階段までの代表導線を残します"
+                    )
+                }
+            }
+
+            XCTAssertEqual(resolvedFloors[0].spawnPoint, tower.floors[0].spawnPoint)
+            XCTAssertEqual(resolvedFloors[10].spawnPoint, tower.floors[10].spawnPoint)
+            for floorIndex in resolvedFloors.indices.dropLast() where floorIndex + 1 != 10 {
+                XCTAssertEqual(
+                    resolvedFloors[floorIndex].exitPoint,
+                    resolvedFloors[floorIndex + 1].spawnPoint,
+                    "\(floorIndex + 1)F の階段位置を次階の開始地点へ接続します"
+                )
+            }
         }
     }
 
@@ -4328,6 +4476,46 @@ final class DungeonModeTests: XCTestCase {
             },
             "レリックはクリア報酬プールへ低確率枠として含める"
         )
+    }
+
+    func testGrowthTowerEarlyFloorPoolsIncludeSingleAnnihilationSpellOnly() {
+        let pickupSupports = DungeonWeightedRewardPools
+            .entries(floorIndex: 0, context: .floorPickup)
+            .compactMap { entry -> SupportCard? in
+                guard entry.weight > 0, case .support(let support) = entry.item else { return nil }
+                return support
+            }
+        let rewardSupports = DungeonWeightedRewardPools
+            .entries(floorIndex: 0, context: .clearReward)
+            .compactMap { entry -> SupportCard? in
+                guard entry.weight > 0, case .support(let support) = entry.item else { return nil }
+                return support
+            }
+
+        XCTAssertEqual(Set(pickupSupports), [.refillEmptySlots, .singleAnnihilationSpell])
+        XCTAssertEqual(Set(rewardSupports), [.refillEmptySlots, .singleAnnihilationSpell])
+        XCTAssertFalse(pickupSupports.contains(.annihilationSpell))
+        XCTAssertFalse(pickupSupports.contains(.freezeSpell))
+        XCTAssertFalse(pickupSupports.contains(.barrierSpell))
+        XCTAssertFalse(rewardSupports.contains(.annihilationSpell))
+        XCTAssertFalse(rewardSupports.contains(.freezeSpell))
+        XCTAssertFalse(rewardSupports.contains(.barrierSpell))
+    }
+
+    func testGrowthTowerRemedySupportPoolsStartInMiddleFloors() {
+        let middlePickupSupports = supportPoolCards(floorIndex: 5, context: .floorPickup)
+        let middleRewardSupports = supportPoolCards(floorIndex: 5, context: .clearReward)
+        let laterPickupSupports = supportPoolCards(floorIndex: 10, context: .floorPickup)
+        let laterRewardSupports = supportPoolCards(floorIndex: 10, context: .clearReward)
+
+        XCTAssertTrue(middlePickupSupports.contains(.antidote))
+        XCTAssertTrue(middleRewardSupports.contains(.antidote))
+        XCTAssertFalse(middlePickupSupports.contains(.panacea))
+        XCTAssertFalse(middleRewardSupports.contains(.panacea))
+        XCTAssertTrue(laterPickupSupports.contains(.antidote))
+        XCTAssertTrue(laterPickupSupports.contains(.panacea))
+        XCTAssertTrue(laterRewardSupports.contains(.antidote))
+        XCTAssertTrue(laterRewardSupports.contains(.panacea))
     }
 
     func testGrowthTowerResolvedCardsUseCurrentMoveCardsAndExcludeFixedWarp() throws {
@@ -5106,6 +5294,20 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertEqual(core.dungeonHP, 2)
     }
 
+    private func supportPoolCards(
+        floorIndex: Int,
+        context: DungeonWeightedRewardPoolContext
+    ) -> Set<SupportCard> {
+        Set(
+            DungeonWeightedRewardPools
+                .entries(floorIndex: floorIndex, context: context)
+                .compactMap { entry -> SupportCard? in
+                    guard entry.weight > 0, case .support(let support) = entry.item else { return nil }
+                    return support
+                }
+        )
+    }
+
     private func makeDungeonMode(
         spawn: GridPoint,
         exit: GridPoint,
@@ -5228,6 +5430,30 @@ final class DungeonModeTests: XCTestCase {
             }
         }
         return points
+    }
+
+    private func enemyBehaviorKind(_ behavior: EnemyBehavior) -> String {
+        switch behavior {
+        case .guardPost:
+            return "guardPost"
+        case .patrol:
+            return "patrol"
+        case .watcher:
+            return "watcher"
+        case .rotatingWatcher:
+            return "rotatingWatcher"
+        case .chaser:
+            return "chaser"
+        case .marker:
+            return "marker"
+        }
+    }
+
+    private func isOrthogonalStepPath(_ path: [GridPoint]) -> Bool {
+        guard path.count > 1 else { return true }
+        return zip(path, path.dropFirst()).allSatisfy { before, after in
+            manhattanDistance(from: before, to: after) == 1
+        }
     }
 
     private func majorGrowthTowerGimmickOverlaps(for floor: DungeonFloorDefinition) -> [String] {

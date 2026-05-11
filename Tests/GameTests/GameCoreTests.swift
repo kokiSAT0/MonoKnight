@@ -465,6 +465,100 @@ final class GameCoreTests: XCTestCase {
         XCTAssertEqual(core.damageBarrierTurnsRemaining, 1)
     }
 
+    func testAntidoteClearsPoisonAndConsumesOneTurn() throws {
+        let poisonTrap = GridPoint(x: 1, y: 0)
+        let mode = makeInventoryDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            tileEffectOverrides: [poisonTrap: .poisonTrap],
+            allowsBasicOrthogonalMove: true
+        )
+        let core = GameCore(mode: mode)
+        XCTAssertTrue(core.addDungeonInventorySupportCardForTesting(.antidote, rewardUses: 1))
+        let move = try XCTUnwrap(core.availableBasicOrthogonalMoves().first { $0.destination == poisonTrap })
+        core.playBasicOrthogonalMove(using: move)
+        let supportIndex = try XCTUnwrap(core.handStacks.firstIndex { $0.topCard?.supportCard == .antidote })
+
+        XCTAssertTrue(core.isSupportCardUsable(in: core.handStacks[supportIndex]))
+        core.playSupportCard(at: supportIndex)
+
+        XCTAssertEqual(core.poisonDamageTicksRemaining, 0)
+        XCTAssertEqual(core.poisonActionsUntilNextDamage, 0)
+        XCTAssertFalse(core.dungeonInventoryEntries.contains { $0.supportCard == .antidote })
+        XCTAssertEqual(core.moveCount, 2)
+    }
+
+    func testPanaceaClearsPoisonAndShackleThenNextActionUsesNormalCost() throws {
+        let poisonTrap = GridPoint(x: 1, y: 0)
+        let shackleTrap = GridPoint(x: 1, y: 1)
+        let mode = makeInventoryDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            tileEffectOverrides: [
+                poisonTrap: .poisonTrap,
+                shackleTrap: .shackleTrap
+            ],
+            allowsBasicOrthogonalMove: true
+        )
+        let core = GameCore(mode: mode)
+        playBasicMove(to: poisonTrap, in: core)
+        playBasicMove(to: shackleTrap, in: core)
+        XCTAssertTrue(core.addDungeonInventorySupportCardForTesting(.panacea, rewardUses: 1))
+        let supportIndex = try XCTUnwrap(core.handStacks.firstIndex { $0.topCard?.supportCard == .panacea })
+
+        XCTAssertTrue(core.isShackled)
+        XCTAssertTrue(core.isSupportCardUsable(in: core.handStacks[supportIndex]))
+        core.playSupportCard(at: supportIndex)
+
+        XCTAssertFalse(core.isShackled)
+        XCTAssertEqual(core.poisonDamageTicksRemaining, 0)
+        XCTAssertEqual(core.poisonActionsUntilNextDamage, 0)
+        XCTAssertEqual(core.moveCount, 5)
+
+        playBasicMove(to: GridPoint(x: 2, y: 1), in: core)
+        XCTAssertEqual(core.moveCount, 6)
+    }
+
+    func testAntidoteRequiresPoisonButPanaceaCanCureShackleOnly() throws {
+        let shackleTrap = GridPoint(x: 1, y: 0)
+        let mode = makeInventoryDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            tileEffectOverrides: [shackleTrap: .shackleTrap],
+            allowsBasicOrthogonalMove: true
+        )
+        let core = GameCore(mode: mode)
+        playBasicMove(to: shackleTrap, in: core)
+        XCTAssertTrue(core.addDungeonInventorySupportCardForTesting(.antidote, rewardUses: 1))
+        XCTAssertTrue(core.addDungeonInventorySupportCardForTesting(.panacea, rewardUses: 1))
+        let antidoteIndex = try XCTUnwrap(core.handStacks.firstIndex { $0.topCard?.supportCard == .antidote })
+        let panaceaIndex = try XCTUnwrap(core.handStacks.firstIndex { $0.topCard?.supportCard == .panacea })
+
+        XCTAssertFalse(core.isSupportCardUsable(in: core.handStacks[antidoteIndex]))
+        XCTAssertTrue(core.isSupportCardUsable(in: core.handStacks[panaceaIndex]))
+    }
+
+    func testRemediesCannotBeSpentWithoutStatusAilments() throws {
+        let mode = makeInventoryDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4)
+        )
+        let core = GameCore(mode: mode)
+        XCTAssertTrue(core.addDungeonInventorySupportCardForTesting(.antidote, rewardUses: 1))
+        XCTAssertTrue(core.addDungeonInventorySupportCardForTesting(.panacea, rewardUses: 1))
+        let antidoteIndex = try XCTUnwrap(core.handStacks.firstIndex { $0.topCard?.supportCard == .antidote })
+        let panaceaIndex = try XCTUnwrap(core.handStacks.firstIndex { $0.topCard?.supportCard == .panacea })
+
+        XCTAssertFalse(core.isSupportCardUsable(in: core.handStacks[antidoteIndex]))
+        XCTAssertFalse(core.isSupportCardUsable(in: core.handStacks[panaceaIndex]))
+        core.playSupportCard(at: antidoteIndex)
+        core.playSupportCard(at: panaceaIndex)
+
+        XCTAssertTrue(core.dungeonInventoryEntries.contains { $0.supportCard == .antidote })
+        XCTAssertTrue(core.dungeonInventoryEntries.contains { $0.supportCard == .panacea })
+        XCTAssertEqual(core.moveCount, 0)
+    }
+
     func testSingleAnnihilationSpellSelectsOneEnemyThenAdvancesEnemyTurn() throws {
         let enemies = [
             EnemyDefinition(
@@ -777,6 +871,19 @@ final class GameCoreTests: XCTestCase {
         XCTAssertTrue(core.availableMoves(handStacks: [moveStack], current: spawn).isEmpty)
         XCTAssertFalse(core.availableBasicOrthogonalMoves(current: spawn).isEmpty)
         XCTAssertTrue(core.isSupportCardUsable(in: supportStack))
+    }
+
+    private func playBasicMove(
+        to destination: GridPoint,
+        in core: GameCore,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        guard let move = core.availableBasicOrthogonalMoves().first(where: { $0.destination == destination }) else {
+            XCTFail("基本移動候補が見つかりません: \(destination)", file: file, line: line)
+            return
+        }
+        core.playBasicOrthogonalMove(using: move)
     }
 
     private func makeInventoryDungeonMode(

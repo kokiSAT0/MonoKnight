@@ -433,6 +433,10 @@ private extension GameHandSectionView {
                 return "ダブルタップで 1 手使い、3回分の敵ターンを止めます。"
             case .barrierSpell:
                 return "ダブルタップで 1 手使い、3回分のHPダメージを無効化します。"
+            case .antidote:
+                return "ダブルタップで 1 手使い、毒状態を解除します。"
+            case .panacea:
+                return "ダブルタップで 1 手使い、毒と足枷状態を解除します。"
             }
         }
 
@@ -869,6 +873,10 @@ private struct SupportCardIllustrationView: View {
             return "snowflake"
         case .barrierSpell:
             return "shield.fill"
+        case .antidote:
+            return "cross.case.fill"
+        case .panacea:
+            return "pills.fill"
         }
     }
 }

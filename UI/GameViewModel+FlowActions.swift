@@ -129,6 +129,7 @@ extension GameViewModel {
     }
 
     func prepareForDungeonFloorAdvance() {
+        clearDungeonRelicAcquisitionPresentationQueue()
         dungeonFallAdvanceTask?.cancel()
         dungeonFallAdvanceTask = nil
         sessionResetCoordinator.prepareForDungeonAdvance(
@@ -305,6 +306,7 @@ extension GameViewModel {
     }
 
     func prepareForReturnToTitle() {
+        clearDungeonRelicAcquisitionPresentationQueue()
         sessionResetCoordinator.prepareForReturnToTitle(
             clearSelectedCardSelection: { [self] in clearSelectedCardSelection() },
             cancelPenaltyBannerDisplay: { [self] in cancelPenaltyBannerDisplay() },
@@ -328,6 +330,12 @@ extension GameViewModel {
                 pauseController.reset()
             }
         )
+    }
+
+    private func clearDungeonRelicAcquisitionPresentationQueue() {
+        activeDungeonRelicAcquisitionPresentation = nil
+        pendingDungeonRelicAcquisitionPresentations.removeAll()
+        deferredProgressDuringMovementPresentation = nil
     }
 
     func resetSessionForNewPlay() {
