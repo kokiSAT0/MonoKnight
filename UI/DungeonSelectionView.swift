@@ -14,6 +14,8 @@ struct DungeonSelectionView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var isGrowthSectionExpanded = false
     @State private var selectedGrowthUpgrade: DungeonGrowthUpgrade?
+    @State private var selectedGrowthBranch: DungeonGrowthBranch = .preparation
+    @State private var isShowingAllGrowthBranches = false
 
     init(
         dungeonLibrary: DungeonLibrary,
@@ -163,7 +165,13 @@ struct DungeonSelectionView: View {
         let selectedNode = presentation.node(for: selectedUpgrade)
 
         return VStack(alignment: .leading, spacing: 14) {
-            growthTreeGrid(presentation, selectedUpgrade: selectedUpgrade)
+            growthBranchSelector(presentation)
+
+            if isShowingAllGrowthBranches {
+                growthTreeGrid(presentation, selectedUpgrade: selectedUpgrade)
+            } else if let lane = presentation.lane(for: selectedGrowthBranch) {
+                growthBranchTimeline(lane, selectedUpgrade: selectedUpgrade)
+            }
 
             if let selectedNode {
                 growthNodeDetail(selectedNode)
@@ -179,7 +187,188 @@ struct DungeonSelectionView: View {
                 selectedGrowthUpgrade = defaultUpgrade
             }
         }
+        .onChange(of: selectedGrowthBranch) { _, branch in
+            guard !isShowingAllGrowthBranches,
+                  let lane = presentation.lane(for: branch),
+                  !lane.nodes.contains(where: { $0.upgrade == selectedGrowthUpgrade })
+            else { return }
+            selectedGrowthUpgrade = lane.defaultSelectedUpgrade
+        }
         .accessibilityIdentifier("dungeon_growth_tree")
+    }
+
+    private func growthBranchSelector(_ presentation: DungeonGrowthTreePresentation) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("系統を選ぶ")
+                        .font(.system(size: 14, weight: .heavy, design: .rounded))
+                        .foregroundColor(theme.textPrimary)
+                    Text("まず伸ばしたい役割を選び、50Fまでの流れを縦に確認します。")
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundColor(theme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer()
+                Button {
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        isShowingAllGrowthBranches.toggle()
+                    }
+                } label: {
+                    Label(isShowingAllGrowthBranches ? "系統別" : "全体", systemImage: isShowingAllGrowthBranches ? "rectangle.split.1x2.fill" : "square.grid.3x3.fill")
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .accessibilityIdentifier("dungeon_growth_view_mode_toggle")
+            }
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(presentation.branchRoles) { role in
+                        growthBranchRoleButton(role)
+                    }
+                }
+                .padding(.vertical, 1)
+            }
+            .scrollClipDisabled()
+        }
+    }
+
+    private func growthBranchRoleButton(_ role: DungeonGrowthBranchRolePresentation) -> some View {
+        let isSelected = !isShowingAllGrowthBranches && role.branch == selectedGrowthBranch
+        return Button {
+            withAnimation(.easeInOut(duration: 0.15)) {
+                selectedGrowthBranch = role.branch
+                isShowingAllGrowthBranches = false
+            }
+        } label: {
+            VStack(alignment: .leading, spacing: 7) {
+                HStack(spacing: 6) {
+                    Image(systemName: role.iconSystemName)
+                        .font(.system(size: 13, weight: .bold))
+                    Text(role.title)
+                        .font(.system(size: 13, weight: .heavy, design: .rounded))
+                }
+                .foregroundColor(role.tint)
+
+                Text(role.summary)
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundColor(theme.textSecondary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(10)
+            .frame(width: 142, alignment: .topLeading)
+            .frame(minHeight: 86, alignment: .topLeading)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(role.tint.opacity(isSelected ? 0.16 : 0.07))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(isSelected ? role.tint : theme.statisticBadgeBorder.opacity(0.7), lineWidth: isSelected ? 2 : 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(role.accessibilityIdentifier)
+    }
+
+    private func growthBranchTimeline(
+        _ lane: DungeonGrowthTreeLanePresentation,
+        selectedUpgrade: DungeonGrowthUpgrade?
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 7) {
+                Image(systemName: lane.iconSystemName)
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundColor(lane.tint)
+                Text(lane.branchTitle)
+                    .font(.system(size: 14, weight: .heavy, design: .rounded))
+                    .foregroundColor(theme.textPrimary)
+                Text(lane.branchSummary)
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundColor(theme.textSecondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.78)
+            }
+
+            VStack(spacing: 7) {
+                ForEach(lane.nodes) { node in
+                    growthTimelineNodeRow(node, isSelected: node.upgrade == selectedUpgrade)
+                }
+            }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(theme.backgroundPrimary.opacity(0.42))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(lane.tint.opacity(0.34), lineWidth: 1)
+        )
+        .accessibilityIdentifier("dungeon_growth_branch_timeline_\(lane.branch.rawValue)")
+    }
+
+    private func growthTimelineNodeRow(
+        _ node: DungeonGrowthTreeNodePresentation,
+        isSelected: Bool
+    ) -> some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.15)) {
+                selectedGrowthUpgrade = node.upgrade
+            }
+        } label: {
+            HStack(alignment: .center, spacing: 10) {
+                Text("\(node.tierFloor)F")
+                    .font(.system(size: 11, weight: .heavy, design: .rounded))
+                    .foregroundColor(theme.textSecondary)
+                    .frame(width: 34, alignment: .leading)
+
+                Image(systemName: node.iconSystemName)
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundColor(node.iconColor)
+                    .frame(width: 30, height: 30)
+                    .background(Circle().fill(node.fillColor))
+                    .overlay(Circle().stroke(isSelected ? theme.textPrimary : node.strokeColor, lineWidth: isSelected ? 2.5 : 1))
+
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 6) {
+                        Text(node.title)
+                            .font(.system(size: 13, weight: .heavy, design: .rounded))
+                            .foregroundColor(node.titleColor)
+                            .lineLimit(1)
+                        Text(node.statusText)
+                            .font(.system(size: 10, weight: .bold, design: .rounded))
+                            .foregroundColor(node.statusForegroundColor)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Capsule().fill(node.statusBackgroundColor))
+                    }
+                    Text(node.summary)
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundColor(theme.textSecondary)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 0)
+            }
+            .padding(8)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(isSelected ? node.fillColor.opacity(0.72) : theme.backgroundElevated.opacity(0.46))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(isSelected ? theme.textPrimary.opacity(0.55) : node.strokeColor.opacity(0.34), lineWidth: isSelected ? 1.5 : 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(node.accessibilityLabel)
+        .accessibilityIdentifier("dungeon_growth_timeline_node_\(node.upgrade.rawValue)")
     }
 
     private func growthTreeGrid(
@@ -328,15 +517,20 @@ struct DungeonSelectionView: View {
                             .background(Capsule().fill(node.statusBackgroundColor))
                     }
 
-                    Text(node.summary)
+                    Text(node.branchFocusText)
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .foregroundColor(node.strokeColor)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Text("取得すると: \(node.summary)")
                         .font(.system(size: 13, weight: .medium, design: .rounded))
                         .foregroundColor(theme.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
 
-            if let lockReason = node.lockReason {
-                Label(lockReason, systemImage: "lock.fill")
+            ForEach(node.lockDetailTexts, id: \.self) { lockDetailText in
+                Label(lockDetailText, systemImage: "lock.fill")
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
                     .foregroundColor(theme.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -566,6 +760,12 @@ struct DungeonGrowthTreePresentation {
     let lanes: [DungeonGrowthTreeLanePresentation]
     let tierFloors: [Int]
 
+    var branchRoles: [DungeonGrowthBranchRolePresentation] {
+        lanes.map { lane in
+            DungeonGrowthBranchRolePresentation(branch: lane.branch)
+        }
+    }
+
     var tierCount: Int {
         tierFloors.count
     }
@@ -611,8 +811,25 @@ struct DungeonGrowthTreePresentation {
         return lanes.flatMap(\.nodes).first { $0.upgrade == upgrade }
     }
 
+    func lane(for branch: DungeonGrowthBranch) -> DungeonGrowthTreeLanePresentation? {
+        lanes.first { $0.branch == branch }
+    }
+
     func gateText(forTierFloor tierFloor: Int) -> String {
         "\(tierFloor)F"
+    }
+}
+
+struct DungeonGrowthBranchRolePresentation: Identifiable, Equatable {
+    let branch: DungeonGrowthBranch
+
+    var id: DungeonGrowthBranch { branch }
+    var title: String { branch.title }
+    var summary: String { branch.roleSummary }
+    var iconSystemName: String { branch.iconSystemName }
+    var tint: Color { branch.tintColor }
+    var accessibilityIdentifier: String {
+        "dungeon_growth_branch_role_\(branch.rawValue)"
     }
 }
 
@@ -622,8 +839,12 @@ struct DungeonGrowthTreeLanePresentation: Identifiable {
 
     var id: DungeonGrowthBranch { branch }
     var branchTitle: String { branch.title }
+    var branchSummary: String { branch.roleSummary }
     var iconSystemName: String { branch.iconSystemName }
     var tint: Color { branch.tintColor }
+    var defaultSelectedUpgrade: DungeonGrowthUpgrade? {
+        nodes.first { !$0.state.isUnlocked }?.upgrade ?? nodes.first?.upgrade
+    }
 
     func nodes(atTierFloor tierFloor: Int) -> [DungeonGrowthTreeNodePresentation] {
         nodes.filter { $0.tierFloor == tierFloor }
@@ -657,6 +878,9 @@ struct DungeonGrowthTreeNodePresentation: Identifiable {
     let tierFloor: Int
     let state: DungeonGrowthTreeNodeState
     let lockReason: String?
+    let missingPrerequisiteTitles: [String]
+    let missingMilestoneFloor: Int?
+    let isPointShortage: Bool
 
     var id: DungeonGrowthUpgrade { upgrade }
     var title: String { upgrade.title }
@@ -667,6 +891,23 @@ struct DungeonGrowthTreeNodePresentation: Identifiable {
     var isActive: Bool { state == .active }
     var canUnlock: Bool { state == .unlockable }
     var iconSystemName: String { upgrade.iconSystemName }
+    var branchFocusText: String { upgrade.branch.detailFocus }
+    var lockDetailTexts: [String] {
+        var details: [String] = []
+        if !missingPrerequisiteTitles.isEmpty {
+            details.append("前提スキル: \(missingPrerequisiteTitles.joined(separator: "、"))")
+        }
+        if let missingMilestoneFloor {
+            details.append("到達条件: \(missingMilestoneFloor)F到達後")
+        }
+        if isPointShortage {
+            details.append("必要ポイント: \(cost)pt")
+        }
+        if details.isEmpty, let lockReason {
+            details.append(lockReason)
+        }
+        return details
+    }
 
     var statusText: String {
         switch state {
@@ -808,12 +1049,50 @@ struct DungeonGrowthTreeNodePresentation: Identifiable {
             tier: tier,
             tierFloor: upgrade.displayTierFloor,
             state: state,
-            lockReason: growthStore.lockReason(for: upgrade)
+            lockReason: growthStore.lockReason(for: upgrade),
+            missingPrerequisiteTitles: upgrade.requiredUpgrades
+                .filter { !growthStore.isUnlocked($0) }
+                .map(\.title)
+                .sorted(),
+            missingMilestoneFloor: upgrade.requiredMilestoneFloor.flatMap { floor in
+                growthStore.hasRewardedGrowthMilestoneFloorForPresentation(floor) ? nil : floor
+            },
+            isPointShortage: !growthStore.isUnlocked(upgrade) && growthStore.points < upgrade.cost
         )
     }
 }
 
 private extension DungeonGrowthBranch {
+    var roleSummary: String {
+        switch self {
+        case .preparation:
+            return "区間開始時の持ち込み"
+        case .reward:
+            return "クリア後候補とカード運用"
+        case .hazard:
+            return "罠・敵・落下ダメージの保険"
+        case .scouting:
+            return "次階層帯の見通し"
+        case .recovery:
+            return "深層チェックポイントと再挑戦支援"
+        }
+    }
+
+    var detailFocus: String {
+        switch self {
+        case .preparation:
+            return "この系統: 区間開始時の手札を厚くします"
+        case .reward:
+            return "この系統: クリア後の選択肢とカード運用を伸ばします"
+        case .hazard:
+            return "この系統: 罠・敵・落下の失敗を受け止めます"
+        case .scouting:
+            return "この系統: 次の階層帯を読む材料を増やします"
+        case .recovery:
+            return "この系統: 深層の再挑戦と復帰を助けます"
+        }
+    }
+
     var iconSystemName: String {
         switch self {
         case .preparation:
@@ -841,6 +1120,14 @@ private extension DungeonGrowthBranch {
             return Color(red: 0.50, green: 0.36, blue: 0.82)
         case .recovery:
             return Color(red: 0.70, green: 0.18, blue: 0.42)
+        }
+    }
+}
+
+private extension DungeonGrowthStore {
+    func hasRewardedGrowthMilestoneFloorForPresentation(_ floorNumber: Int) -> Bool {
+        snapshot.rewardedGrowthMilestoneIDs.contains { milestoneID in
+            growthMilestoneFloorNumber(for: milestoneID) == floorNumber
         }
     }
 }

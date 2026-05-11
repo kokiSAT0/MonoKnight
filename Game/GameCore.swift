@@ -396,9 +396,24 @@ public final class GameCore: ObservableObject {
     public var isRailBreakSpellActive: Bool {
         isPatrolRailDestroyed
     }
+    /// 暗闇フロアの視界制限が現在有効かどうか
+    public var isDungeonDarknessActive: Bool {
+        mode.dungeonRules?.isDarknessEnabled == true
+    }
+    /// 予備のたいまつを持っている暗闇フロアでは視界を少し広げる
+    public var dungeonDarknessVisionRadius: Int {
+        hasDungeonRelic(.spareTorch) ? 2 : 1
+    }
+    /// 白いチョークで暗闇内でも見つけやすくする未取得拾得カード
+    public var chalkRevealedDungeonCardPickupPoints: Set<GridPoint> {
+        guard hasDungeonRelic(.whiteChalk),
+              let pickup = activeDungeonCardPickups.sorted(by: { $0.id < $1.id }).first
+        else { return [] }
+        return [pickup.point]
+    }
     /// 現在の行動で消費する手数。足枷状態では全行動が 2 手分になる
     private var currentActionMoveCost: Int {
-        isShackled ? 2 : 1
+        max(isShackled ? 2 : 1, hasDungeonCurse(.heavyBell) && moveCount == 0 ? 2 : 1)
     }
     /// まだ盤面上に残っている拾得カード
     public var activeDungeonCardPickups: [DungeonCardPickupDefinition] {
@@ -1305,12 +1320,15 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                     break
                 case .poisonTrap:
                     applyPoisonTrap()
+                    triggerTrapperGlovesIfNeeded(reason: "毒罠")
                     triggeredPoisonTrap = true
                 case .illusionTrap:
                     isIlluded = true
+                    triggerTrapperGlovesIfNeeded(reason: "幻惑罠")
                     debugLog("幻惑罠を踏みました: この階の移動カードが？表示になります")
                 case .shackleTrap:
                     isShackled = true
+                    triggerTrapperGlovesIfNeeded(reason: "足枷罠")
                     stopReason = .shackleTrap
                     presentationSteps.append(
                         movementPresentationStep(
@@ -1322,6 +1340,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                     stepIndex = pendingPath.count
                 case .slow:
                     paralysisTrapPoint = stepPoint
+                    triggerTrapperGlovesIfNeeded(reason: "麻痺罠")
                     stopReason = .slow
                     presentationSteps.append(
                         movementPresentationStep(
@@ -2207,6 +2226,8 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             dungeonHP += 2
         case .heavyCrown, .oldMap, .blackFeather, .chippedHourglass, .travelerBoots, .silverNeedle, .starCup, .explorerBag, .moonMirror, .victoryBanner:
             break
+        case .windcutFeather, .guardianIncense, .trapperGloves, .whiteChalk, .spareTorch, .oldRope, .twinPouch, .gamblerCoin:
+            break
         }
     }
 
@@ -2220,7 +2241,13 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             dungeonHP += 4
         case .redChalice:
             dungeonHP += 6
+        case .heavyBell:
+            dungeonHP += 2
+        case .crackedShoes:
+            dungeonHP += 3
         case .cursedCrown, .warpedHourglass, .greedyBag, .crackedCompass:
+            break
+        case .cloudedMirror:
             break
         }
     }
@@ -2463,6 +2490,9 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         } else {
             let finalDamage = applyRelicDamageReductionIfNeeded(to: max(damage, 1))
             dungeonHP = max(dungeonHP - finalDamage, 0)
+            if logLabel == "罠", finalDamage > 0 {
+                triggerTrapperGlovesIfNeeded(reason: "ダメージ罠")
+            }
             debugLog("\(logLabel)ダメージ: \(point), -\(finalDamage), HP=\(dungeonHP)")
         }
     }
@@ -2530,6 +2560,14 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         }
         dungeonRelicEntries[index].remainingUses -= 1
         return true
+    }
+
+    private func triggerTrapperGlovesIfNeeded(reason: String) {
+        guard let index = dungeonRelicEntries.firstIndex(where: { $0.relicID == .trapperGloves && $0.remainingUses == 2 }) else {
+            return
+        }
+        dungeonRelicEntries[index].remainingUses = 1
+        debugLog("罠師の手袋が反応: \(reason), 次の報酬候補+1")
     }
 
     private func consumeDungeonCurseUse(_ curseID: DungeonCurseID) -> Bool {
@@ -2644,6 +2682,8 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             debugLog("床崩落ダメージを障壁で無効化: \(point), HP=\(dungeonHP), 残り=\(damageBarrierTurnsRemaining)")
         } else if consumeDungeonHazardDamageMitigation() {
             debugLog("床崩落ダメージを成長効果で無効化: \(point), HP=\(dungeonHP), 残り=\(hazardDamageMitigationsRemaining)")
+        } else if consumeDungeonRelicUse(.oldRope) {
+            debugLog("古びたロープで床崩落ダメージを無効化: \(point), HP=\(dungeonHP)")
         } else if consumeDungeonRelicUse(.silverNeedle) {
             debugLog("銀の針で床崩落ダメージを無効化: \(point), HP=\(dungeonHP)")
         } else {
@@ -2928,6 +2968,10 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             totalDamage -= damage.marker
             debugLog("メテオ着弾ダメージを成長効果で無効化: -\(damage.marker), 残り=\(markerDamageMitigationsRemaining)")
         }
+        if damage.enemy > 0, totalDamage > 0, consumeDungeonRelicUse(.guardianIncense) {
+            totalDamage = max(totalDamage - 1, 0)
+            debugLog("守りの香炉で敵ダメージを1軽減: 残り=\(totalDamage)")
+        }
 
         let finalDamage = applyRelicDamageReductionIfNeeded(to: totalDamage)
         guard finalDamage > 0 else { return 0 }
@@ -2955,6 +2999,10 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         if damage.enemy > 0, consumeDungeonEnemyDamageMitigation() {
             totalDamage -= damage.enemy
             debugLog("敵の攻撃範囲通過ダメージを成長効果で無効化: \(point), 残り=\(enemyDamageMitigationsRemaining)")
+        }
+        if damage.enemy > 0, totalDamage > 0, consumeDungeonRelicUse(.guardianIncense) {
+            totalDamage = max(totalDamage - 1, 0)
+            debugLog("守りの香炉で敵の攻撃範囲通過ダメージを1軽減: \(point), 残り=\(totalDamage)")
         }
         let finalDamage = applyRelicDamageReductionIfNeeded(to: totalDamage)
         guard finalDamage > 0 else { return false }

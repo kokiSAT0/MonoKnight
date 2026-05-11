@@ -371,7 +371,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
         isEnemyTurnAnimationActive = true
         pushHighlightsToScene()
 
-        let enemyTurnDangerPoints = mode.dungeonRules?.isDarknessEnabled == true
+        let enemyTurnDangerPoints = core.isDungeonDarknessActive
             ? core.watcherLaserDangerDisplayPoints(forDisplayedEnemyStates: core.enemyStates)
             : core.enemyDangerPoints
         let duration = scene.playDungeonEnemyTurn(
@@ -421,7 +421,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
         let displayedEnemyStates = activeEnemyTurnEvent.map { _ in activeEnemyTurnDisplayStates } ?? stepEnemyStates
         let displayedEnemyPoints = Set(displayedEnemyStates.map(\.position))
         let shouldDeferEnemyThreatHighlights = activeEnemyTurnEvent != nil
-        let isDarknessEnabled = mode.dungeonRules?.isDarknessEnabled == true
+        let isDarknessEnabled = core.isDungeonDarknessActive
         let displayedEnemyDangerPoints = isDarknessEnabled
             ? core.watcherLaserDangerDisplayPoints(forDisplayedEnemyStates: displayedEnemyStates)
             : core.enemyDangerDisplayPoints(forDisplayedEnemyStates: displayedEnemyStates)
@@ -431,7 +431,9 @@ final class GameBoardBridgeViewModel: ObservableObject {
                 current: core.current,
                 exitPoint: mode.dungeonExitPoint,
                 dangerPoints: shouldDeferEnemyThreatHighlights ? [] : displayedEnemyDangerPoints,
-                warningPoints: shouldDeferEnemyThreatHighlights ? [] : displayedEnemyWarningPoints
+                warningPoints: shouldDeferEnemyThreatHighlights ? [] : displayedEnemyWarningPoints,
+                revealedPickupPoints: core.chalkRevealedDungeonCardPickupPoints,
+                visionRadius: core.dungeonDarknessVisionRadius
             )
             : nil
         let patrolFacingVectors = patrolFacingVectorsForDisplayedEnemies(displayedEnemyStates)
@@ -504,12 +506,15 @@ final class GameBoardBridgeViewModel: ObservableObject {
         current: GridPoint?,
         exitPoint: GridPoint?,
         dangerPoints: Set<GridPoint>,
-        warningPoints: Set<GridPoint>
+        warningPoints: Set<GridPoint>,
+        revealedPickupPoints: Set<GridPoint>,
+        visionRadius: Int
     ) -> Set<GridPoint> {
-        var visiblePoints = dangerPoints.union(warningPoints)
+        var visiblePoints = dangerPoints.union(warningPoints).union(revealedPickupPoints)
         if let current {
-            for dy in -1...1 {
-                for dx in -1...1 {
+            let radius = max(visionRadius, 1)
+            for dy in (-radius)...radius {
+                for dx in (-radius)...radius {
                     let point = current.offset(dx: dx, dy: dy)
                     if point.isInside(boardSize: boardSize) {
                         visiblePoints.insert(point)

@@ -1231,7 +1231,8 @@ final class GameCoreTests: XCTestCase {
         hazards: [HazardDefinition] = [],
         runState: DungeonRunState? = nil,
         turnLimit: Int? = nil,
-        carriedHP: Int = 3
+        carriedHP: Int = 3,
+        isDarknessEnabled: Bool = false
     ) -> GameMode {
         let resolvedRunState = runState ?? DungeonRunState(dungeonID: "test-dungeon", carriedHP: carriedHP)
         return GameMode(
@@ -1261,7 +1262,8 @@ final class GameCoreTests: XCTestCase {
                     hazards: hazards,
                     allowsBasicOrthogonalMove: allowsBasicOrthogonalMove,
                     cardAcquisitionMode: .inventoryOnly,
-                    cardPickups: cardPickups
+                    cardPickups: cardPickups,
+                    isDarknessEnabled: isDarknessEnabled
                 )
             ),
             leaderboardEligible: false,

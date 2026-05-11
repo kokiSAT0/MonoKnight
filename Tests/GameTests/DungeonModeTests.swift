@@ -5494,6 +5494,108 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertEqual(core.dungeonHP, 2)
     }
 
+    func testExpandedRelicsAdjustRewardUsesAndTrapRewardWindow() throws {
+        let trapPoint = GridPoint(x: 0, y: 1)
+        let runState = DungeonRunState(
+            dungeonID: "growth-tower",
+            carriedHP: 3,
+            relicEntries: [
+                DungeonRelicEntry(relicID: .windcutFeather),
+                DungeonRelicEntry(relicID: .trapperGloves)
+            ],
+            curseEntries: [DungeonCurseEntry(curseID: .crackedShoes)]
+        )
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 3,
+            turnLimit: 8,
+            hazards: [.damageTrap(points: [trapPoint], damage: 1)],
+            allowsBasicOrthogonalMove: true,
+            cardAcquisitionMode: .inventoryOnly,
+            runState: runState
+        )
+        let core = makeCore(mode: mode)
+
+        playBasicMove(to: trapPoint, in: core)
+
+        XCTAssertEqual(core.dungeonRelicEntries.first { $0.relicID == .trapperGloves }?.remainingUses, 1)
+
+        let advancedWithRay = runState.advancedToNextFloor(
+            carryoverHP: core.dungeonHP,
+            currentFloorMoveCount: core.moveCount,
+            rewardSelection: .add(.rayRight),
+            currentInventoryEntries: core.dungeonInventoryEntries,
+            currentRelicEntries: core.dungeonRelicEntries,
+            currentCurseEntries: core.dungeonCurseEntries,
+            rewardAddUses: 2
+        )
+
+        XCTAssertEqual(advancedWithRay.rewardInventoryEntries.first?.rewardUses, 2)
+        XCTAssertEqual(advancedWithRay.relicEntries.first { $0.relicID == .trapperGloves }?.remainingUses, 0)
+
+        let advancedWithSupport = runState.advancedToNextFloor(
+            carryoverHP: 3,
+            currentFloorMoveCount: 1,
+            rewardSelection: .addSupport(.barrierSpell),
+            currentInventoryEntries: [],
+            currentRelicEntries: [DungeonRelicEntry(relicID: .twinPouch)],
+            currentCurseEntries: [],
+            rewardAddUses: 2,
+            supportRewardAddUses: 2
+        )
+
+        XCTAssertEqual(advancedWithSupport.rewardInventoryEntries.first?.rewardUses, 2)
+    }
+
+    func testExpandedRelicsAndCursesAdjustEnemyFallAndFirstAction() {
+        let watcher = EnemyDefinition(
+            id: "watcher",
+            name: "見張り",
+            position: GridPoint(x: 1, y: 1),
+            behavior: .watcher(direction: MoveVector(dx: -1, dy: 0), range: 2)
+        )
+        let enemyRunState = DungeonRunState(
+            dungeonID: "growth-tower",
+            carriedHP: 3,
+            relicEntries: [DungeonRelicEntry(relicID: .guardianIncense)]
+        )
+        let enemyMode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 3,
+            turnLimit: 8,
+            enemies: [watcher],
+            allowsBasicOrthogonalMove: true,
+            runState: enemyRunState
+        )
+        let enemyCore = makeCore(mode: enemyMode)
+
+        playBasicMove(to: GridPoint(x: 0, y: 1), in: enemyCore)
+
+        XCTAssertEqual(enemyCore.dungeonHP, 3)
+        XCTAssertEqual(enemyCore.dungeonRelicEntries.first { $0.relicID == .guardianIncense }?.remainingUses, 0)
+
+        let bellRunState = DungeonRunState(
+            dungeonID: "growth-tower",
+            carriedHP: 3,
+            curseEntries: [DungeonCurseEntry(curseID: .heavyBell)]
+        )
+        let bellMode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 3,
+            turnLimit: 8,
+            allowsBasicOrthogonalMove: true,
+            runState: bellRunState
+        )
+        let bellCore = makeCore(mode: bellMode)
+
+        playBasicMove(to: GridPoint(x: 0, y: 1), in: bellCore)
+
+        XCTAssertEqual(bellCore.moveCount, 2)
+    }
+
     private func supportPoolCards(
         floorIndex: Int,
         context: DungeonWeightedRewardPoolContext

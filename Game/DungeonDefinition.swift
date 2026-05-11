@@ -267,6 +267,14 @@ public enum DungeonRelicID: String, Codable, CaseIterable, Equatable, Identifiab
     case explorerBag
     case moonMirror
     case victoryBanner
+    case windcutFeather
+    case guardianIncense
+    case trapperGloves
+    case whiteChalk
+    case spareTorch
+    case oldRope
+    case twinPouch
+    case gamblerCoin
 
     public var id: String { rawValue }
 
@@ -300,6 +308,22 @@ public enum DungeonRelicID: String, Codable, CaseIterable, Equatable, Identifiab
             return "月の鏡"
         case .victoryBanner:
             return "勝利の旗"
+        case .windcutFeather:
+            return "風切りの羽根"
+        case .guardianIncense:
+            return "守りの香炉"
+        case .trapperGloves:
+            return "罠師の手袋"
+        case .whiteChalk:
+            return "白いチョーク"
+        case .spareTorch:
+            return "予備のたいまつ"
+        case .oldRope:
+            return "古びたロープ"
+        case .twinPouch:
+            return "双子の小袋"
+        case .gamblerCoin:
+            return "勝負師のコイン"
         }
     }
 
@@ -329,13 +353,31 @@ public enum DungeonRelicID: String, Codable, CaseIterable, Equatable, Identifiab
             return "次に呪い遺物を得る時、1回だけ無効化して通常遺物に変える。"
         case .victoryBanner:
             return "クリア後の報酬候補が+1される。最大4択。"
+        case .windcutFeather:
+            return "レイ型移動カードを新しく得る時、使用回数が+1される。"
+        case .guardianIncense:
+            return "各フロアで最初に受ける敵ダメージを1回だけ1軽減する。"
+        case .trapperGloves:
+            return "罠でダメージまたは状態異常を受けた時、次の報酬候補が+1される。最大4択。"
+        case .whiteChalk:
+            return "暗闇フロアで、未取得の拾得カードを1枚だけ見つけやすくする。"
+        case .spareTorch:
+            return "暗闇フロアで見える範囲が周囲2マスに広がる。"
+        case .oldRope:
+            return "落下で前の階へ戻る時、HP減少を1回だけ無効化する。"
+        case .twinPouch:
+            return "補助カードを新しく得る時、使用回数が+1される。"
+        case .gamblerCoin:
+            return "フロアを手早くクリアすると、未所持レリック候補を1つ追加しやすくする。"
         }
     }
 
     public var noteDescription: String? {
         switch self {
         case .crackedShield, .heavyCrown, .glowingHeart, .oldMap, .blackFeather,
-             .travelerBoots, .silverNeedle, .starCup, .explorerBag, .moonMirror, .victoryBanner:
+             .travelerBoots, .silverNeedle, .starCup, .explorerBag, .moonMirror, .victoryBanner,
+             .windcutFeather, .guardianIncense, .trapperGloves, .whiteChalk, .spareTorch,
+             .oldRope, .twinPouch, .gamblerCoin:
             return nil
         case .chippedHourglass:
             return "報酬カード強化の増加量は通常どおり。"
@@ -368,15 +410,34 @@ public enum DungeonRelicID: String, Codable, CaseIterable, Equatable, Identifiab
             return "moon.fill"
         case .victoryBanner:
             return "flag.fill"
+        case .windcutFeather:
+            return "wind"
+        case .guardianIncense:
+            return "smoke.fill"
+        case .trapperGloves:
+            return "hand.raised.fill"
+        case .whiteChalk:
+            return "pencil.and.scribble"
+        case .spareTorch:
+            return "flame.fill"
+        case .oldRope:
+            return "point.3.connected.trianglepath.dotted"
+        case .twinPouch:
+            return "shippingbox.fill"
+        case .gamblerCoin:
+            return "circle.lefthalf.filled"
         }
     }
 
     public var startingUses: Int {
         switch self {
-        case .crackedShield, .blackFeather, .silverNeedle, .moonMirror:
+        case .crackedShield, .blackFeather, .silverNeedle, .moonMirror, .guardianIncense, .oldRope:
             return 1
+        case .trapperGloves:
+            return 2
         case .heavyCrown, .glowingHeart, .oldMap, .chippedHourglass,
-             .travelerBoots, .starCup, .explorerBag, .victoryBanner:
+             .travelerBoots, .starCup, .explorerBag, .victoryBanner,
+             .windcutFeather, .whiteChalk, .spareTorch, .twinPouch, .gamblerCoin:
             return 0
         }
     }
@@ -413,6 +474,9 @@ public enum DungeonCurseID: String, Codable, CaseIterable, Equatable, Identifiab
     case redChalice
     case greedyBag
     case crackedCompass
+    case heavyBell
+    case cloudedMirror
+    case crackedShoes
 
     public var id: String { rawValue }
 
@@ -440,6 +504,12 @@ public enum DungeonCurseID: String, Codable, CaseIterable, Equatable, Identifiab
             return "欲深い袋"
         case .crackedCompass:
             return "割れた羅針盤"
+        case .heavyBell:
+            return "重い鐘"
+        case .cloudedMirror:
+            return "曇った鏡"
+        case .crackedShoes:
+            return "割れた靴"
         }
     }
 
@@ -463,6 +533,12 @@ public enum DungeonCurseID: String, Codable, CaseIterable, Equatable, Identifiab
             return "拾得カードの取得時使用回数が+2される。"
         case .crackedCompass:
             return "クリア後の報酬候補が+1される。最大4択。"
+        case .heavyBell:
+            return "取得時にHPが2増える。"
+        case .cloudedMirror:
+            return "クリア後の報酬候補が+1される。最大4択。"
+        case .crackedShoes:
+            return "取得時にHPが3増える。"
         }
     }
 
@@ -486,6 +562,12 @@ public enum DungeonCurseID: String, Codable, CaseIterable, Equatable, Identifiab
             return "新しく得る報酬カードの使用回数が2減る。最低1回は残る。"
         case .crackedCompass:
             return "各フロアの手数上限が-3される。"
+        case .heavyBell:
+            return "各フロア最初の行動が2手分になる。"
+        case .cloudedMirror:
+            return "レリック報酬候補に手早いクリアによる品質補正がかからない。"
+        case .crackedShoes:
+            return "レイ型移動カードを新しく得る時、使用回数が1減る。最低1回は残る。"
         }
     }
 
@@ -505,7 +587,7 @@ public enum DungeonCurseID: String, Codable, CaseIterable, Equatable, Identifiab
             return "この挑戦中ずっと残る。"
         case .obsidianHeart:
             return "この挑戦中ずっと残る。"
-        case .warpedHourglass, .redChalice, .greedyBag, .crackedCompass:
+        case .warpedHourglass, .redChalice, .greedyBag, .crackedCompass, .heavyBell, .cloudedMirror, .crackedShoes:
             return "この挑戦中ずっと残る。"
         }
     }
@@ -530,6 +612,12 @@ public enum DungeonCurseID: String, Codable, CaseIterable, Equatable, Identifiab
             return "bag.fill"
         case .crackedCompass:
             return "safari.fill"
+        case .heavyBell:
+            return "bell.fill"
+        case .cloudedMirror:
+            return "mirror.side.left"
+        case .crackedShoes:
+            return "shoeprints.fill"
         }
     }
 
@@ -538,7 +626,7 @@ public enum DungeonCurseID: String, Codable, CaseIterable, Equatable, Identifiab
         case .thornMark, .bloodPact:
             return 1
         case .rustyChain, .cursedCrown, .obsidianHeart, .warpedHourglass,
-             .redChalice, .greedyBag, .crackedCompass:
+             .redChalice, .greedyBag, .crackedCompass, .heavyBell, .cloudedMirror, .crackedShoes:
             return 0
         }
     }
@@ -1015,10 +1103,16 @@ private enum DungeonWeightedRewardPoolCategory: CaseIterable {
 public struct DungeonRewardDrawTuning: Equatable {
     public let clearMoveCount: Int?
     public let turnLimit: Int?
+    public let suppressRelicQualityBonus: Bool
 
-    public init(clearMoveCount: Int? = nil, turnLimit: Int? = nil) {
+    public init(
+        clearMoveCount: Int? = nil,
+        turnLimit: Int? = nil,
+        suppressRelicQualityBonus: Bool = false
+    ) {
         self.clearMoveCount = clearMoveCount
         self.turnLimit = turnLimit
+        self.suppressRelicQualityBonus = suppressRelicQualityBonus
     }
 }
 
@@ -1251,9 +1345,15 @@ public enum DungeonWeightedRewardPools {
                 return DungeonWeightedRewardCategoryWeights(move: 89, support: 10, relic: 1)
             }
             if moveCount * 2 <= turnLimit {
+                if tuning.suppressRelicQualityBonus {
+                    return DungeonWeightedRewardCategoryWeights(move: 69, support: 30, relic: 1)
+                }
                 return DungeonWeightedRewardCategoryWeights(move: 65, support: 30, relic: 5)
             }
             if moveCount * 10 <= turnLimit * 7 {
+                if tuning.suppressRelicQualityBonus {
+                    return DungeonWeightedRewardCategoryWeights(move: 79, support: 20, relic: 1)
+                }
                 return DungeonWeightedRewardCategoryWeights(move: 77, support: 20, relic: 3)
             }
             return DungeonWeightedRewardCategoryWeights(move: 89, support: 10, relic: 1)
@@ -1359,6 +1459,7 @@ public struct DungeonRunState: Codable, Equatable {
         currentCurseEntries: [DungeonCurseEntry]? = nil,
         collectedDungeonRelicPickupIDs: Set<String>? = nil,
         rewardAddUses: Int = 2,
+        supportRewardAddUses: Int = 1,
         hazardDamageMitigationsRemaining: Int? = nil,
         enemyDamageMitigationsRemaining: Int? = nil,
         markerDamageMitigationsRemaining: Int? = nil
@@ -1370,7 +1471,10 @@ public struct DungeonRunState: Codable, Equatable {
             selection,
             to: carriedEntries,
             sourceEntries: sourceEntries,
-            rewardAddUses: rewardAddUses
+            relicEntries: currentRelicEntries ?? relicEntries,
+            curseEntries: currentCurseEntries ?? curseEntries,
+            rewardAddUses: rewardAddUses,
+            supportRewardAddUses: supportRewardAddUses
         )
         let selectedRelicEntries = DungeonRunState.applyingRelicReward(
             selection,
@@ -1600,8 +1704,16 @@ public struct DungeonRunState: Codable, Equatable {
 
     private static func relicEntriesForNextFloor(_ entries: [DungeonRelicEntry]) -> [DungeonRelicEntry] {
         entries.map { entry in
-            guard entry.relicID == .glowingHeart else { return entry }
-            return entry
+            switch entry.relicID {
+            case .guardianIncense:
+                return DungeonRelicEntry(relicID: .guardianIncense)
+            case .trapperGloves where entry.remainingUses == 1:
+                return DungeonRelicEntry(relicID: .trapperGloves, remainingUses: 0)
+            case .glowingHeart:
+                return entry
+            default:
+                return entry
+            }
         }
     }
 
@@ -1616,14 +1728,34 @@ public struct DungeonRunState: Codable, Equatable {
         _ selection: DungeonRewardSelection?,
         to entries: [DungeonInventoryEntry],
         sourceEntries: [DungeonInventoryEntry],
-        rewardAddUses: Int = 2
+        relicEntries: [DungeonRelicEntry],
+        curseEntries: [DungeonCurseEntry],
+        rewardAddUses: Int = 2,
+        supportRewardAddUses: Int = 1
     ) -> [DungeonInventoryEntry] {
         var result = entries
         switch selection {
         case .add(let card):
-            result.append(DungeonInventoryEntry(card: card, rewardUses: max(rewardAddUses, 1), pickupUses: 0))
+            result.append(
+                DungeonInventoryEntry(
+                    card: card,
+                    rewardUses: adjustedRewardAddUses(
+                        rewardAddUses,
+                        for: card,
+                        relicEntries: relicEntries,
+                        curseEntries: curseEntries
+                    ),
+                    pickupUses: 0
+                )
+            )
         case .addSupport(let support):
-            result.append(DungeonInventoryEntry(support: support, rewardUses: DungeonRunState.rewardUses(for: support), pickupUses: 0))
+            result.append(
+                DungeonInventoryEntry(
+                    support: support,
+                    rewardUses: max(supportRewardAddUses, 1),
+                    pickupUses: 0
+                )
+            )
         case .addRelic:
             break
         case .carryOverPickup(let card):
@@ -1643,6 +1775,24 @@ public struct DungeonRunState: Codable, Equatable {
             break
         }
         return result
+    }
+
+    public static func adjustedRewardAddUses(
+        _ baseUses: Int,
+        for card: MoveCard,
+        relicEntries: [DungeonRelicEntry],
+        curseEntries: [DungeonCurseEntry]
+    ) -> Int {
+        var adjustment = 0
+        if MoveCard.directionalRayCards.contains(card),
+           relicEntries.contains(where: { $0.relicID == .windcutFeather }) {
+            adjustment += 1
+        }
+        if MoveCard.directionalRayCards.contains(card),
+           curseEntries.contains(where: { $0.curseID == .crackedShoes }) {
+            adjustment -= 1
+        }
+        return max(baseUses + adjustment, 1)
     }
 
     private static func applyingRelicReward(
@@ -1679,6 +1829,8 @@ public struct DungeonRunState: Codable, Equatable {
         case .glowingHeart:
             return hp + 2
         case .heavyCrown, .oldMap, .blackFeather, .chippedHourglass, .travelerBoots, .silverNeedle, .starCup, .explorerBag, .moonMirror, .victoryBanner:
+            return hp
+        case .windcutFeather, .guardianIncense, .trapperGloves, .whiteChalk, .spareTorch, .oldRope, .twinPouch, .gamblerCoin:
             return hp
         }
     }

@@ -43,6 +43,10 @@ struct ResultView: View {
     let dungeonPickupCarryoverEntries: [DungeonInventoryEntry]
     /// 新しく手札へ追加したカードの使用回数
     let dungeonRewardAddUses: Int
+    /// 報酬移動カードごとの実際の使用回数
+    let dungeonRewardMoveUsesByCard: [MoveCard: Int]
+    /// 新しく手札へ追加した補助カードの使用回数
+    let dungeonSupportRewardAddUses: Int
     /// 塔クリアで得た永続成長ポイント
     let dungeonGrowthAward: DungeonGrowthAward?
 
@@ -117,6 +121,8 @@ struct ResultView: View {
         dungeonInventoryEntries: [DungeonInventoryEntry] = [],
         dungeonPickupCarryoverEntries: [DungeonInventoryEntry] = [],
         dungeonRewardAddUses: Int = 2,
+        dungeonRewardMoveUsesByCard: [MoveCard: Int] = [:],
+        dungeonSupportRewardAddUses: Int = 1,
         dungeonGrowthAward: DungeonGrowthAward? = nil,
         elapsedSeconds: Int,
         modeIdentifier: GameMode.Identifier,
@@ -156,6 +162,8 @@ struct ResultView: View {
             dungeonInventoryEntries: dungeonInventoryEntries,
             dungeonPickupCarryoverEntries: dungeonPickupCarryoverEntries,
             dungeonRewardAddUses: dungeonRewardAddUses,
+            dungeonRewardMoveUsesByCard: dungeonRewardMoveUsesByCard,
+            dungeonSupportRewardAddUses: dungeonSupportRewardAddUses,
             dungeonGrowthAward: dungeonGrowthAward,
             elapsedSeconds: elapsedSeconds,
             modeIdentifier: modeIdentifier,
@@ -197,6 +205,8 @@ struct ResultView: View {
         dungeonInventoryEntries: [DungeonInventoryEntry] = [],
         dungeonPickupCarryoverEntries: [DungeonInventoryEntry] = [],
         dungeonRewardAddUses: Int = 2,
+        dungeonRewardMoveUsesByCard: [MoveCard: Int] = [:],
+        dungeonSupportRewardAddUses: Int = 1,
         dungeonGrowthAward: DungeonGrowthAward? = nil,
         elapsedSeconds: Int,
         modeIdentifier: GameMode.Identifier,
@@ -254,6 +264,8 @@ struct ResultView: View {
         self.dungeonInventoryEntries = dungeonInventoryEntries
         self.dungeonPickupCarryoverEntries = dungeonPickupCarryoverEntries
         self.dungeonRewardAddUses = max(dungeonRewardAddUses, 1)
+        self.dungeonRewardMoveUsesByCard = dungeonRewardMoveUsesByCard
+        self.dungeonSupportRewardAddUses = max(dungeonSupportRewardAddUses, 1)
         self.dungeonGrowthAward = dungeonGrowthAward
         self.elapsedSeconds = elapsedSeconds
         self.modeIdentifier = modeIdentifier
@@ -297,6 +309,8 @@ struct ResultView: View {
                     dungeonRewardInventoryEntries: dungeonInventoryEntries,
                     dungeonPickupCarryoverEntries: dungeonPickupCarryoverEntries,
                     dungeonRewardAddUses: dungeonRewardAddUses,
+                    dungeonRewardMoveUsesByCard: dungeonRewardMoveUsesByCard,
+                    dungeonSupportRewardAddUses: dungeonSupportRewardAddUses,
                     disabledDungeonRewardMoveCards: disabledDungeonRewardMoveCards,
                     disabledDungeonRewardSupportCards: disabledDungeonRewardSupportCards,
                     showsLeaderboardButton: showsLeaderboardButton,

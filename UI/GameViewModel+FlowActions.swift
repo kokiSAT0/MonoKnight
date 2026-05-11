@@ -199,6 +199,7 @@ extension GameViewModel {
             currentCurseEntries: core.dungeonCurseEntries,
             collectedDungeonRelicPickupIDs: core.collectedDungeonRelicPickupIDs,
             rewardAddUses: dungeonRewardAddUses,
+            supportRewardAddUses: dungeonSupportRewardAddUses,
             hazardDamageMitigationsRemaining: core.hazardDamageMitigationsRemaining,
             enemyDamageMitigationsRemaining: core.enemyDamageMitigationsRemaining,
             markerDamageMitigationsRemaining: core.markerDamageMitigationsRemaining

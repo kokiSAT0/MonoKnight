@@ -35,7 +35,7 @@ final class DungeonGrowthStoreTests: XCTestCase {
         let oldData = try JSONEncoder().encode(
             LegacyGrowthSnapshot(
                 points: 0,
-                unlockedUpgrades: [.toolPouch, .rewardScout],
+                unlockedUpgrades: Set<DungeonGrowthUpgrade>([.toolPouch, .rewardScout]),
                 rewardedGrowthMilestoneIDs: ["growth-tower-5f"],
                 unlockedGrowthCheckpointFloorNumbers: []
             )
@@ -62,7 +62,7 @@ final class DungeonGrowthStoreTests: XCTestCase {
         let oldData = try JSONEncoder().encode(
             DungeonGrowthSnapshot(
                 points: 4,
-                unlockedUpgrades: [.toolPouch],
+                unlockedUpgrades: Set<DungeonGrowthUpgrade>([.toolPouch]),
                 rewardedGrowthMilestoneIDs: ["growth-tower-5f"],
                 unlockedGrowthCheckpointFloorNumbers: [11]
             )
@@ -237,7 +237,7 @@ final class DungeonGrowthStoreTests: XCTestCase {
         for upgrade in [
             .rewardScout, .cardPreservation, .widerRewardRead, .supportScout, .relicScout,
             .toolPouch, .climbingKit, .shortcutKit, .refillCharm, .deepStartKit
-        ] {
+        ] as [DungeonGrowthUpgrade] {
             XCTAssertTrue(store.unlock(upgrade), "\(upgrade.rawValue) should unlock")
         }
         XCTAssertTrue(store.canUnlock(.deepSupplyCraft))

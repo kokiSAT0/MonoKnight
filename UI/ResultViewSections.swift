@@ -210,6 +210,8 @@ struct ResultActionSection: View {
     let dungeonRewardInventoryEntries: [DungeonInventoryEntry]
     let dungeonPickupCarryoverEntries: [DungeonInventoryEntry]
     let dungeonRewardAddUses: Int
+    let dungeonRewardMoveUsesByCard: [MoveCard: Int]
+    let dungeonSupportRewardAddUses: Int
     let disabledDungeonRewardMoveCards: Set<MoveCard>
     let disabledDungeonRewardSupportCards: Set<SupportCard>
     let showsLeaderboardButton: Bool
@@ -412,10 +414,10 @@ struct ResultActionSection: View {
 
     private func dungeonRewardUses(for offer: DungeonRewardOffer) -> Int {
         switch offer {
-        case .playable(.move):
-            return dungeonRewardAddUses
-        case .playable(.support(let support)):
-            return DungeonRunState.rewardUses(for: support)
+        case .playable(.move(let card)):
+            return dungeonRewardMoveUsesByCard[card] ?? dungeonRewardAddUses
+        case .playable(.support):
+            return dungeonSupportRewardAddUses
         case .relic:
             return 0
         }
@@ -560,6 +562,8 @@ struct ResultActionSection: View {
         dungeonRewardInventoryEntries: [DungeonInventoryEntry] = [],
         dungeonPickupCarryoverEntries: [DungeonInventoryEntry] = [],
         dungeonRewardAddUses: Int = 2,
+        dungeonRewardMoveUsesByCard: [MoveCard: Int] = [:],
+        dungeonSupportRewardAddUses: Int = 1,
         disabledDungeonRewardMoveCards: Set<MoveCard> = [],
         disabledDungeonRewardSupportCards: Set<SupportCard> = [],
         showsLeaderboardButton: Bool,
@@ -597,6 +601,8 @@ struct ResultActionSection: View {
         self.dungeonRewardInventoryEntries = dungeonRewardInventoryEntries.filter(\.hasUsesRemaining)
         self.dungeonPickupCarryoverEntries = dungeonPickupCarryoverEntries.filter(\.hasUsesRemaining)
         self.dungeonRewardAddUses = max(dungeonRewardAddUses, 1)
+        self.dungeonRewardMoveUsesByCard = dungeonRewardMoveUsesByCard
+        self.dungeonSupportRewardAddUses = max(dungeonSupportRewardAddUses, 1)
         self.disabledDungeonRewardMoveCards = disabledDungeonRewardMoveCards
         self.disabledDungeonRewardSupportCards = disabledDungeonRewardSupportCards
         self.showsLeaderboardButton = showsLeaderboardButton

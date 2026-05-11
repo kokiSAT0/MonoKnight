@@ -191,15 +191,20 @@ final class GameViewModel: ObservableObject {
         )
         let baseRewardCount = (floor?.rewardMoveCardsAfterClear.count ?? 0)
             + (floor?.rewardSupportCardsAfterClear.count ?? 0)
+        let isFastClearForRelic = core.moveCount * 2 <= (core.effectiveDungeonTurnLimit ?? Int.max)
         let rewardChoiceBonus =
             (core.dungeonRelicEntries.contains { $0.relicID == .victoryBanner } ? 1 : 0) +
+            (core.dungeonRelicEntries.contains { $0.relicID == .trapperGloves && $0.remainingUses == 1 } ? 1 : 0) +
+            (core.dungeonRelicEntries.contains { $0.relicID == .gamblerCoin } && isFastClearForRelic ? 1 : 0) +
             (core.dungeonCurseEntries.contains { $0.curseID == .crackedCompass } ? 1 : 0)
+            + (core.dungeonCurseEntries.contains { $0.curseID == .cloudedMirror } ? 1 : 0)
         let rewardCount = min(baseRewardCount + rewardChoiceBonus, 4)
         guard rewardCount > 0 else { return [] }
 
         let tuning = DungeonRewardDrawTuning(
             clearMoveCount: core.moveCount,
-            turnLimit: core.effectiveDungeonTurnLimit
+            turnLimit: core.effectiveDungeonTurnLimit,
+            suppressRelicQualityBonus: core.dungeonCurseEntries.contains { $0.curseID == .cloudedMirror }
         )
         let ownedRelics = Set(core.dungeonRelicEntries.map(\.relicID))
         let baseOffers: [DungeonRewardOffer]
@@ -222,7 +227,7 @@ final class GameViewModel: ObservableObject {
             baseOffers = ((floor?.rewardMoveCardsAfterClear ?? []).map { DungeonRewardOffer.playable(.move($0)) })
                 + ((floor?.rewardSupportCardsAfterClear ?? []).map { DungeonRewardOffer.playable(.support($0)) })
         }
-        return dungeonGrowthStore.rewardOffers(
+        var offers = dungeonGrowthStore.rewardOffers(
             for: baseOffers,
             dungeon: dungeon,
             floorIndex: runState.currentFloorIndex,
@@ -231,6 +236,12 @@ final class GameViewModel: ObservableObject {
             ownedRelics: ownedRelics,
             minimumChoiceCount: rewardCount
         )
+        if core.dungeonRelicEntries.contains(where: { $0.relicID == .gamblerCoin }),
+           isFastClearForRelic,
+           let relicCandidate = DungeonRelicID.allCases.first(where: { !ownedRelics.contains($0) && !offers.contains(.relic($0)) }) {
+            appendDungeonRewardOffer(.relic(relicCandidate), to: &offers, choiceCount: rewardCount)
+        }
+        return Array(offers.prefix(rewardCount))
     }
     /// 現在フロアのクリア後に選べる報酬カードを、移動/補助を同じ3択枠として返す
     var availableDungeonRewardCards: [PlayableCard] {
@@ -263,6 +274,25 @@ final class GameViewModel: ObservableObject {
         let warpedHourglassPenalty = core.dungeonCurseEntries.contains { $0.curseID == .warpedHourglass } ? 1 : 0
         let greedyBagPenalty = core.dungeonCurseEntries.contains { $0.curseID == .greedyBag } ? 2 : 0
         return max(dungeonGrowthStore.rewardAddUses(for: dungeon) + heavyCrownBonus + cursedCrownBonus - cursePenalty - warpedHourglassPenalty - greedyBagPenalty, 1)
+    }
+
+    var dungeonRewardMoveUsesByCard: [MoveCard: Int] {
+        Dictionary(uniqueKeysWithValues: availableDungeonRewardMoveCards.map { card in
+            (
+                card,
+                DungeonRunState.adjustedRewardAddUses(
+                    dungeonRewardAddUses,
+                    for: card,
+                    relicEntries: core.dungeonRelicEntries,
+                    curseEntries: core.dungeonCurseEntries
+                )
+            )
+        })
+    }
+
+    var dungeonSupportRewardAddUses: Int {
+        let twinPouchBonus = core.dungeonRelicEntries.contains { $0.relicID == .twinPouch } ? 1 : 0
+        return DungeonRunState.rewardUses(for: .refillEmptySlots) + twinPouchBonus
     }
     /// クリア後に強化/整理できる手札の報酬カード
     var adjustableDungeonRewardEntries: [DungeonInventoryEntry] {
@@ -535,6 +565,18 @@ extension GameViewModel {
     /// - Parameter isPresented: 新しい表示状態
     func setPauseMenuPresentedForTesting(_ isPresented: Bool) {
         isPauseMenuPresented = isPresented
+    }
+
+    private func appendDungeonRewardOffer(
+        _ offer: DungeonRewardOffer,
+        to offers: inout [DungeonRewardOffer],
+        choiceCount: Int
+    ) {
+        guard !offers.contains(offer), choiceCount > 0 else { return }
+        if offers.count >= choiceCount {
+            offers.removeLast()
+        }
+        offers.append(offer)
     }
 }
 #endif
