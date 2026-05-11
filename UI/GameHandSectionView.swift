@@ -188,10 +188,10 @@ private extension GameHandSectionView {
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("捨て札するカードを選択中")
+                Text("捨て札を選ぶ")
                     .font(.system(size: 14, weight: .semibold, design: .rounded))
                     .foregroundColor(theme.textPrimary)
-                Text("タップした手札 1 種類を捨て札にして \(penaltyDescription)")
+                Text(penaltyDescription)
                     .font(.system(size: 12, weight: .medium, design: .rounded))
                     .foregroundColor(theme.textSecondary)
             }
@@ -222,10 +222,10 @@ private extension GameHandSectionView {
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("入れ替える手札を選択中")
+                Text("入れ替え先を選ぶ")
                     .font(.system(size: 14, weight: .semibold, design: .rounded))
                     .foregroundColor(theme.textPrimary)
-                Text("手札をタップすると、その種類を捨てて \(choice.pickup.playable.displayName) を取得します")
+                Text("\(choice.pickup.playable.displayName) を取得")
                     .font(.system(size: 12, weight: .medium, design: .rounded))
                     .foregroundColor(theme.textSecondary)
                     .lineLimit(2)
@@ -379,7 +379,7 @@ private extension GameHandSectionView {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text("基本移動、上下左右1マス、消費なし"))
-        .accessibilityHint(Text(isSelectingDungeonPickup ? "拾得カードの取捨選択中は基本移動を選べません。" : (isUsable ? "ダブルタップで基本移動を選択し、盤面で移動先を決めてください。" : "現在使える基本移動候補がありません。")))
+        .accessibilityHint(Text(isSelectingDungeonPickup ? "拾得カードの取捨選択中は基本移動を選べません。" : (isUsable ? "ダブルタップで基本移動を選択し、盤面で移動先を決めてください。" : "\(viewModel.unusableBasicMoveReason() ?? "現在使える基本移動候補がありません")。")))
         .accessibilityValue(Text(isSelected ? "選択中" : ""))
         .accessibilityAddTraits(.isButton)
     }
@@ -423,6 +423,9 @@ private extension GameHandSectionView {
         }
         if isDungeonPickupChoiceMode {
             return Self.dungeonPickupReplacementAccessibilityHint(for: stack)
+        }
+        if !isUsable, let reason = viewModel.unusableReason(for: stack) {
+            return "\(reason)。スタックの \(stack.count) 枚はそのまま保持されます。"
         }
         if let support = stack.topCard?.supportCard {
             switch support {
@@ -649,15 +652,17 @@ extension GameHandSectionView {
     }
 
     static func dungeonRelicAccessibilityLabel(for relic: DungeonRelicEntry) -> String {
-        "\(relic.rarity.displayName)、\(relic.displayKind.displayName)、\(relic.displayName)"
+        let usedText = relic.isUsedUpLimitedRelic ? "、使用済み" : ""
+        return "\(relic.rarity.displayName)、\(relic.displayKind.displayName)\(usedText)、\(relic.displayName)"
     }
 
     static func dungeonRelicAccessibilityHint(for relic: DungeonRelicEntry) -> String {
         let remainingText = relic.hasLimitedUses ? "残り \(relic.remainingUses) 回。" : ""
+        let usedText = relic.isUsedUpLimitedRelic ? "使用済み。" : ""
         if let note = relic.noteDescription {
-            return "ダブルタップで効果を確認します。\(relic.rarity.displayName)。\(relic.displayKind.displayName)。\(relic.effectDescription)\(remainingText)\(note)"
+            return "ダブルタップで効果を確認します。\(relic.rarity.displayName)。\(relic.displayKind.displayName)。\(usedText)\(relic.effectDescription)\(remainingText)\(note)"
         }
-        return "ダブルタップで効果を確認します。\(relic.rarity.displayName)。\(relic.displayKind.displayName)。\(relic.effectDescription)\(remainingText)"
+        return "ダブルタップで効果を確認します。\(relic.rarity.displayName)。\(relic.displayKind.displayName)。\(usedText)\(relic.effectDescription)\(remainingText)"
     }
 
     static func dungeonCurseAccessibilityIdentifier(for curse: DungeonCurseEntry) -> String {
@@ -708,23 +713,36 @@ private extension DungeonRelicRarity {
     }
 }
 
+private extension DungeonRelicEntry {
+    var isUsedUpLimitedRelic: Bool {
+        hasLimitedUses && remainingUses == 0
+    }
+}
+
 private struct DungeonRelicIconView: View {
     let theme: AppTheme
     let relic: DungeonRelicEntry
-    private var tint: Color { relic.displayKind.tintColor(theme: theme) }
+    private var isUsedUp: Bool { relic.isUsedUpLimitedRelic }
+    private var tint: Color {
+        isUsedUp ? theme.textSecondary : relic.displayKind.tintColor(theme: theme)
+    }
+    private var rarityTint: Color {
+        isUsedUp ? theme.textSecondary : relic.rarity.tintColor(theme: theme)
+    }
 
     var body: some View {
-        ZStack(alignment: .bottomTrailing) {
+        ZStack {
             RoundedRectangle(cornerRadius: 8)
                 .fill(theme.cardBackgroundHand)
                 .overlay(
                     RoundedRectangle(cornerRadius: 8)
-                        .stroke(tint.opacity(0.72), lineWidth: 1.5)
+                        .stroke(tint.opacity(isUsedUp ? 0.42 : 0.72), lineWidth: 1.5)
                 )
 
             Image(systemName: relic.symbolName)
                 .font(.system(size: 19, weight: .semibold))
                 .foregroundColor(tint)
+                .opacity(isUsedUp ? 0.58 : 1.0)
                 .accessibilityHidden(true)
 
             Text(relic.displayKind.badgeText)
@@ -732,19 +750,35 @@ private struct DungeonRelicIconView: View {
                 .foregroundColor(theme.accentOnPrimary)
                 .frame(width: 16, height: 16)
                 .background(Circle().fill(tint))
+                .opacity(isUsedUp ? 0.72 : 1.0)
                 .offset(x: 4, y: 4)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
                 .accessibilityHidden(true)
 
             Text(relic.rarity.badgeText)
                 .font(.system(size: 9, weight: .bold, design: .rounded))
-                .foregroundColor(relic.rarity.tintColor(theme: theme))
+                .foregroundColor(rarityTint)
                 .frame(width: 16, height: 16)
                 .background(Circle().fill(theme.cardBackgroundHand))
-                .overlay(Circle().stroke(relic.rarity.tintColor(theme: theme).opacity(0.7), lineWidth: 1))
+                .overlay(Circle().stroke(rarityTint.opacity(isUsedUp ? 0.45 : 0.7), lineWidth: 1))
                 .offset(x: -28, y: 4)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
                 .accessibilityHidden(true)
+
+            if isUsedUp {
+                Text("0")
+                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .foregroundColor(theme.textSecondary)
+                    .frame(width: 17, height: 17)
+                    .background(Circle().fill(theme.cardBackgroundHand))
+                    .overlay(Circle().stroke(theme.textSecondary.opacity(0.55), lineWidth: 1))
+                    .offset(x: 4, y: -4)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                    .accessibilityHidden(true)
+            }
         }
         .frame(width: 44, height: 44)
+        .opacity(isUsedUp ? 0.78 : 1.0)
     }
 }
 
@@ -752,7 +786,13 @@ private struct DungeonRelicDetailView: View {
     let theme: AppTheme
     let relic: DungeonRelicEntry
     @Environment(\.dismiss) private var dismiss
-    private var tint: Color { relic.displayKind.tintColor(theme: theme) }
+    private var isUsedUp: Bool { relic.isUsedUpLimitedRelic }
+    private var tint: Color {
+        isUsedUp ? theme.textSecondary : relic.displayKind.tintColor(theme: theme)
+    }
+    private var rarityTint: Color {
+        isUsedUp ? theme.textSecondary : relic.rarity.tintColor(theme: theme)
+    }
 
     var body: some View {
         NavigationStack {
@@ -767,10 +807,15 @@ private struct DungeonRelicDetailView: View {
                         HStack(spacing: 6) {
                             Text(relic.rarity.displayName)
                                 .font(.system(size: 12, weight: .bold, design: .rounded))
-                                .foregroundColor(relic.rarity.tintColor(theme: theme))
+                                .foregroundColor(rarityTint)
                             Text(relic.displayKind.displayName)
                                 .font(.system(size: 12, weight: .bold, design: .rounded))
                                 .foregroundColor(tint)
+                            if isUsedUp {
+                                Text("使用済み")
+                                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                                    .foregroundColor(theme.textSecondary)
+                            }
                         }
                         Text(relic.displayName)
                             .font(.system(size: 22, weight: .bold, design: .rounded))
@@ -785,6 +830,9 @@ private struct DungeonRelicDetailView: View {
                     }
                     if relic.hasLimitedUses {
                         Label("残り \(relic.remainingUses) 回", systemImage: "number.circle")
+                        if isUsedUp {
+                            Label("使用済み", systemImage: "checkmark.circle")
+                        }
                     }
                 }
                 .font(.system(size: 15, weight: .medium, design: .rounded))

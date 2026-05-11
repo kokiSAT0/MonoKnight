@@ -41,6 +41,18 @@ final class GameViewModelTests: XCTestCase {
         )
     }
 
+    func testDungeonFatigueIndicatorStateIsExposedFromCore() throws {
+        let (viewModel, core) = makeViewModel(mode: .dungeonPlaceholder)
+        let limit = try XCTUnwrap(core.effectiveDungeonTurnLimit)
+
+        core.overrideMetricsForTesting(moveCount: limit + 2, penaltyCount: 0, elapsedSeconds: 0)
+
+        XCTAssertEqual(
+            viewModel.dungeonFatigueIndicatorState,
+            DungeonFatigueIndicatorState(filledCount: 1, totalCount: 3, isDamageStep: false)
+        )
+    }
+
     /// 捨て札ボタンを押すとモードが開始されることを確認
     func testToggleManualDiscardSelectionActivatesWhenPlayable() {
         let (viewModel, core) = makeViewModel(mode: controlTestDungeonMode)
@@ -280,7 +292,7 @@ final class GameViewModelTests: XCTestCase {
             failureReason: nil,
             dungeonHP: 2,
             remainingDungeonTurns: 3,
-            dungeonRunFloorText: "基礎塔 2/3F",
+            dungeonRunFloorText: "基礎塔 2/6F",
             rogueTowerRecordText: nil,
             dungeonRunTotalMoveCount: 10,
             dungeonRewardMoveCards: [],
@@ -1848,8 +1860,8 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.displayedHandStacks, core.handStacks)
         XCTAssertTrue(viewModel.displayedHandStacks.contains { $0.representativeMove == .rayRight })
         XCTAssertTrue(viewModel.isCardUsable(rewardStack))
-        XCTAssertTrue(core.availableMoves().contains { $0.stackID == rewardStack.id && $0.destination == GridPoint(x: 4, y: 2) })
-        XCTAssertTrue(viewModel.boardBridge.scene.latestHighlightPoints(for: .guideMultiStepCandidate).contains(GridPoint(x: 4, y: 2)))
+        XCTAssertTrue(core.availableMoves().contains { $0.stackID == rewardStack.id && $0.destination == GridPoint(x: 8, y: 4) })
+        XCTAssertTrue(viewModel.boardBridge.scene.latestHighlightPoints(for: .guideMultiStepCandidate).contains(GridPoint(x: 8, y: 4)))
     }
 
     func testGrowthTowerLateFloorInventoryCardsSurviveInitialHandOrderingRestore() throws {
@@ -1915,13 +1927,13 @@ final class GameViewModelTests: XCTestCase {
         let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
         let runState = DungeonRunState(
             dungeonID: tower.id,
-            currentFloorIndex: 2,
+            currentFloorIndex: 5,
             carriedHP: 2,
             totalMoveCount: 10,
-            clearedFloorCount: 2,
+            clearedFloorCount: 5,
             rewardInventoryEntries: [DungeonInventoryEntry(card: .kingRightDiagonalChoice, rewardUses: 2)]
         )
-        let mode = tower.floors[2].makeGameMode(
+        let mode = tower.floors[5].makeGameMode(
             dungeonID: tower.id,
             carriedHP: runState.carriedHP,
             runState: runState
@@ -1931,6 +1943,35 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.availableDungeonRewardMoveCards.isEmpty)
         XCTAssertTrue(viewModel.carryoverCandidateDungeonPickupEntries.isEmpty)
         XCTAssertNil(viewModel.nextDungeonFloorTitle)
+    }
+
+    func testTutorialTowerFinalClearRegistersTutorialCompletion() throws {
+        let (defaults, suiteName) = try makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let progressStore = TutorialTowerProgressStore(userDefaults: defaults)
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
+        let runState = DungeonRunState(
+            dungeonID: tower.id,
+            currentFloorIndex: 5,
+            carriedHP: 3,
+            clearedFloorCount: 5
+        )
+        let mode = tower.floors[5].makeGameMode(
+            dungeonID: tower.id,
+            carriedHP: runState.carriedHP,
+            runState: runState
+        )
+        let (viewModel, _) = makeViewModel(
+            mode: mode,
+            tutorialTowerProgressStore: progressStore
+        )
+
+        XCTAssertFalse(progressStore.hasCompletedTutorialTower)
+
+        viewModel.handleProgressChangeForTesting(.cleared)
+
+        XCTAssertTrue(progressStore.hasCompletedTutorialTower)
     }
 
     func testDungeonRunRetryRestartsFromFirstFloor() throws {
@@ -2076,6 +2117,83 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.showingResult, "reset 操作後は結果画面表示フラグが閉じている必要があります")
     }
 
+    func testUnusableEnemySupportCardTapShowsReasonToast() {
+        let (viewModel, core) = makeViewModel(mode: makeUnusableCardReasonMode())
+        viewModel.hapticsEnabled = false
+        XCTAssertTrue(core.addDungeonInventorySupportCardForTesting(.annihilationSpell, pickupUses: 1))
+
+        viewModel.handleHandSlotTap(at: 0)
+
+        XCTAssertEqual(viewModel.boardTapSelectionWarning?.message, "このフロアに対象の敵がいません")
+        XCTAssertEqual(viewModel.boardTapSelectionWarning?.destination, core.current)
+    }
+
+    func testUnusableAntidoteTapShowsReasonToast() {
+        let (viewModel, core) = makeViewModel(mode: makeUnusableCardReasonMode())
+        viewModel.hapticsEnabled = false
+        XCTAssertTrue(core.addDungeonInventorySupportCardForTesting(.antidote, pickupUses: 1))
+
+        viewModel.handleHandSlotTap(at: 0)
+
+        XCTAssertEqual(viewModel.boardTapSelectionWarning?.message, "毒状態ではないため使えません")
+        XCTAssertEqual(viewModel.boardTapSelectionWarning?.destination, core.current)
+    }
+
+    func testUnusableMoveCardTapShowsReasonToast() {
+        let (viewModel, core) = makeViewModel(
+            mode: makeUnusableCardReasonMode(spawn: GridPoint(x: 0, y: 0))
+        )
+        viewModel.hapticsEnabled = false
+        XCTAssertTrue(core.addDungeonInventoryCardForTesting(.straightLeft2, pickupUses: 1))
+
+        viewModel.handleHandSlotTap(at: 0)
+
+        XCTAssertEqual(viewModel.boardTapSelectionWarning?.message, "このカードで移動できるマスがありません")
+        XCTAssertEqual(viewModel.boardTapSelectionWarning?.destination, core.current)
+    }
+
+    func testUnusableBasicMoveTapShowsReasonToast() {
+        let spawn = GridPoint(x: 2, y: 2)
+        let blockedNeighbors: Set<GridPoint> = [
+            GridPoint(x: 1, y: 2),
+            GridPoint(x: 3, y: 2),
+            GridPoint(x: 2, y: 1),
+            GridPoint(x: 2, y: 3)
+        ]
+        let (viewModel, core) = makeViewModel(
+            mode: makeUnusableCardReasonMode(
+                spawn: spawn,
+                allowsBasicOrthogonalMove: true,
+                impassableTilePoints: blockedNeighbors
+            )
+        )
+        viewModel.hapticsEnabled = false
+
+        viewModel.handleHandSlotTap(at: GameViewModel.dungeonBasicMoveSlotIndex)
+
+        XCTAssertEqual(viewModel.boardTapSelectionWarning?.message, "上下左右に移動できるマスがありません")
+        XCTAssertEqual(viewModel.boardTapSelectionWarning?.destination, core.current)
+    }
+
+    func testSelectedCardInvalidDestinationShowsReasonToast() {
+        let (viewModel, core) = makeViewModel(
+            mode: makeUnusableCardReasonMode(allowsBasicOrthogonalMove: true)
+        )
+        viewModel.hapticsEnabled = false
+        viewModel.guideModeEnabled = false
+        XCTAssertTrue(core.addDungeonInventoryCardForTesting(.straightRight2, pickupUses: 1))
+
+        viewModel.handleHandSlotTap(at: 0)
+        let invalidDestination = GridPoint(x: 2, y: 3)
+        let basicMove = try! XCTUnwrap(
+            core.availableBasicOrthogonalMoves().first { $0.destination == invalidDestination }
+        )
+        viewModel.handleBoardTapBasicMoveRequest(BoardTapBasicMoveRequest(move: basicMove))
+
+        XCTAssertEqual(viewModel.boardTapSelectionWarning?.message, "このカードではそのマスへ移動できません")
+        XCTAssertEqual(viewModel.boardTapSelectionWarning?.destination, invalidDestination)
+    }
+
     func testParalysisTrapEnemyTurnShowsRestToast() {
         let paralysisTrap = GridPoint(x: 1, y: 0)
         let mode = GameMode(
@@ -2119,6 +2237,40 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertEqual(
             viewModel.boardTapSelectionWarning?.message,
             "麻痺罠で1回休み。敵が続けて動きます。"
+        )
+    }
+
+    private func makeUnusableCardReasonMode(
+        spawn: GridPoint = GridPoint(x: 2, y: 2),
+        allowsBasicOrthogonalMove: Bool = false,
+        impassableTilePoints: Set<GridPoint> = []
+    ) -> GameMode {
+        GameMode(
+            identifier: .dungeonFloor,
+            displayName: "使用不可理由テスト",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 10,
+                nextPreviewCount: 0,
+                allowsStacking: true,
+                deckPreset: .standardLight,
+                spawnRule: .fixed(spawn),
+                penalties: GameMode.PenaltySettings(
+                    deadlockPenaltyCost: 0,
+                    manualRedrawPenaltyCost: 0,
+                    manualDiscardPenaltyCost: 0,
+                    revisitPenaltyCost: 0
+                ),
+                impassableTilePoints: impassableTilePoints,
+                completionRule: .dungeonExit(exitPoint: GridPoint(x: 4, y: 4)),
+                dungeonRules: DungeonRules(
+                    difficulty: .growth,
+                    failureRule: DungeonFailureRule(initialHP: 3, turnLimit: nil),
+                    allowsBasicOrthogonalMove: allowsBasicOrthogonalMove,
+                    cardAcquisitionMode: .inventoryOnly
+                )
+            ),
+            leaderboardEligible: false
         )
     }
 
@@ -2193,6 +2345,7 @@ final class GameViewModelTests: XCTestCase {
         dungeonGrowthStore: DungeonGrowthStore? = nil,
         rogueTowerRecordStore: RogueTowerRecordStore? = nil,
         dungeonRunResumeStore: DungeonRunResumeStore? = nil,
+        tutorialTowerProgressStore: TutorialTowerProgressStore? = nil,
         onRequestStartDungeonFloor: ((GameMode) -> Void)? = nil,
         dateProvider: MutableDateProvider? = nil,
         initialHandOrderingRawValue: String? = nil,
@@ -2211,6 +2364,7 @@ final class GameViewModelTests: XCTestCase {
         let resolvedDungeonGrowthStore = dungeonGrowthStore ?? DungeonGrowthStore()
         let resolvedRogueTowerRecordStore = rogueTowerRecordStore ?? RogueTowerRecordStore()
         let resolvedDungeonRunResumeStore = dungeonRunResumeStore ?? makeIsolatedDungeonRunResumeStore()
+        let resolvedTutorialTowerProgressStore = tutorialTowerProgressStore ?? TutorialTowerProgressStore()
         let viewModel = GameViewModel(
             mode: mode,
             gameInterfaces: interfaces,
@@ -2219,6 +2373,7 @@ final class GameViewModelTests: XCTestCase {
             dungeonGrowthStore: resolvedDungeonGrowthStore,
             dungeonRunResumeStore: resolvedDungeonRunResumeStore,
             rogueTowerRecordStore: resolvedRogueTowerRecordStore,
+            tutorialTowerProgressStore: resolvedTutorialTowerProgressStore,
             onRequestGameCenterSignIn: nil,
             onRequestReturnToTitle: onRequestReturnToTitle,
             onRequestStartDungeonFloor: onRequestStartDungeonFloor,
@@ -2237,6 +2392,7 @@ final class GameViewModelTests: XCTestCase {
             adsService: DummyAdsService(),
             dungeonGrowthStore: DungeonGrowthStore(),
             dungeonRunResumeStore: makeIsolatedDungeonRunResumeStore(),
+            tutorialTowerProgressStore: TutorialTowerProgressStore(),
             onRequestGameCenterSignIn: nil,
             onRequestReturnToTitle: nil,
             onRequestStartDungeonFloor: nil

@@ -22,6 +22,8 @@ final class GameViewModel: ObservableObject {
     let dungeonRunResumeStore: DungeonRunResumeStore
     /// 試練塔のローカル最高到達記録ストア
     let rogueTowerRecordStore: RogueTowerRecordStore
+    /// 基礎塔の完了状態と成長塔への初回誘導状態を管理するストア
+    let tutorialTowerProgressStore: TutorialTowerProgressStore
     /// 遊び方辞典の発見状態ストア
     let encyclopediaDiscoveryStore: EncyclopediaDiscoveryStore
     /// Game Center サインインを再度促す要求を親へ伝えるクロージャ
@@ -119,6 +121,8 @@ final class GameViewModel: ObservableObject {
     var remainingDungeonTurns: Int? { core.remainingDungeonTurns }
     /// ダンジョン手数上限
     var dungeonTurnLimit: Int? { core.effectiveDungeonTurnLimit }
+    /// ダンジョン疲労インジケーター状態
+    var dungeonFatigueIndicatorState: DungeonFatigueIndicatorState? { core.dungeonFatigueIndicatorState }
     /// 凍結の呪文で停止している敵ターンの残り回数
     var enemyFreezeTurnsRemaining: Int { core.enemyFreezeTurnsRemaining }
     /// 障壁の呪文で HP ダメージを無効化できる残り回数
@@ -202,13 +206,21 @@ final class GameViewModel: ObservableObject {
         )
         let baseRewardCount = (floor?.rewardMoveCardsAfterClear.count ?? 0)
             + (floor?.rewardSupportCardsAfterClear.count ?? 0)
-        let isFastClearForRelic = core.moveCount * 2 <= (core.effectiveDungeonTurnLimit ?? Int.max)
+        let turnLimit = core.effectiveDungeonTurnLimit ?? Int.max
+        let isFastClearForRelic = core.moveCount * 2 <= turnLimit
+        let isSeventyPercentClear = core.moveCount * 10 <= turnLimit * 7
         let rewardChoiceBonus =
             (core.dungeonRelicEntries.contains { $0.relicID == .victoryBanner || $0.relicID == .royalCrown } ? 1 : 0) +
+            (core.dungeonRelicEntries.contains { $0.relicID == .scoutCompass } && isSeventyPercentClear ? 1 : 0) +
             (core.dungeonRelicEntries.contains { $0.relicID == .trapperGloves && $0.remainingUses == 1 } ? 1 : 0) +
             (core.dungeonRelicEntries.contains { $0.relicID == .gamblerCoin } && isFastClearForRelic ? 1 : 0) +
             (core.dungeonCurseEntries.contains { $0.curseID == .crackedCompass } ? 1 : 0)
             + (core.dungeonCurseEntries.contains { $0.curseID == .cloudedMirror } ? 1 : 0)
+            + (core.dungeonCurseEntries.contains { $0.curseID == .patrolBell } ? 1 : 0)
+            + (core.dungeonCurseEntries.contains { $0.curseID == .foolsMask } ? 1 : 0)
+            + (core.dungeonCurseEntries.contains { $0.curseID == .laughingDoor } ? 1 : 0)
+            + (core.dungeonCurseEntries.contains { $0.curseID == .upsideDownKey } && core.isDungeonExitUnlocked ? 1 : 0)
+            + (core.dungeonCurseEntries.contains { $0.curseID == .taxCollector } ? 1 : 0)
         let rewardCount = min(baseRewardCount + rewardChoiceBonus, 4)
         guard rewardCount > 0 else { return [] }
 
@@ -280,11 +292,13 @@ final class GameViewModel: ObservableObject {
               let dungeon = DungeonLibrary.shared.dungeon(with: metadata.dungeonID)
         else { return 2 }
         let heavyCrownBonus = core.dungeonRelicEntries.contains { $0.relicID == .heavyCrown || $0.relicID == .royalCrown } ? 1 : 0
+        let sageCodexBonus = core.dungeonRelicEntries.contains { $0.relicID == .sageCodex } ? 1 : 0
         let cursedCrownBonus = core.dungeonCurseEntries.contains { $0.curseID == .cursedCrown } ? 2 : 0
+        let trapMagnetBonus = core.dungeonCurseEntries.contains { $0.curseID == .trapMagnet } ? 1 : 0
         let cursePenalty = core.dungeonCurseEntries.contains { $0.curseID == .bloodPact && $0.remainingUses > 0 } ? 1 : 0
         let warpedHourglassPenalty = core.dungeonCurseEntries.contains { $0.curseID == .warpedHourglass } ? 1 : 0
         let greedyBagPenalty = core.dungeonCurseEntries.contains { $0.curseID == .greedyBag } ? 2 : 0
-        return max(dungeonGrowthStore.rewardAddUses(for: dungeon) + heavyCrownBonus + cursedCrownBonus - cursePenalty - warpedHourglassPenalty - greedyBagPenalty, 1)
+        return max(dungeonGrowthStore.rewardAddUses(for: dungeon) + heavyCrownBonus + sageCodexBonus + cursedCrownBonus + trapMagnetBonus - cursePenalty - warpedHourglassPenalty - greedyBagPenalty, 1)
     }
 
     var dungeonRewardMoveUsesByCard: [MoveCard: Int] {
@@ -303,7 +317,9 @@ final class GameViewModel: ObservableObject {
 
     var dungeonSupportRewardAddUses: Int {
         let twinPouchBonus = core.dungeonRelicEntries.contains { $0.relicID == .twinPouch } ? 1 : 0
-        return DungeonRunState.rewardUses(for: .refillEmptySlots) + twinPouchBonus
+        let sageCodexBonus = core.dungeonRelicEntries.contains { $0.relicID == .sageCodex } ? 1 : 0
+        let frayedMemoryBonus = core.dungeonCurseEntries.contains { $0.curseID == .frayedMemory } ? 1 : 0
+        return DungeonRunState.rewardUses(for: .refillEmptySlots) + twinPouchBonus + sageCodexBonus + frayedMemoryBonus
     }
     /// クリア後に強化/整理できる手札の報酬カード
     var adjustableDungeonRewardEntries: [DungeonInventoryEntry] {
@@ -428,6 +444,7 @@ final class GameViewModel: ObservableObject {
         dungeonGrowthStore: @MainActor @autoclosure () -> DungeonGrowthStore = DungeonGrowthStore(),
         dungeonRunResumeStore: @MainActor @autoclosure () -> DungeonRunResumeStore = DungeonRunResumeStore(),
         rogueTowerRecordStore: @MainActor @autoclosure () -> RogueTowerRecordStore = RogueTowerRecordStore(),
+        tutorialTowerProgressStore: @MainActor @autoclosure () -> TutorialTowerProgressStore = TutorialTowerProgressStore(),
         encyclopediaDiscoveryStore: @MainActor @autoclosure () -> EncyclopediaDiscoveryStore = EncyclopediaDiscoveryStore(),
         onRequestGameCenterSignIn: ((GameCenterSignInPromptReason) -> Void)? = nil,
         onRequestReturnToTitle: (() -> Void)?,
@@ -444,6 +461,7 @@ final class GameViewModel: ObservableObject {
         self.dungeonGrowthStore = dungeonGrowthStore()
         self.dungeonRunResumeStore = dungeonRunResumeStore()
         self.rogueTowerRecordStore = rogueTowerRecordStore()
+        self.tutorialTowerProgressStore = tutorialTowerProgressStore()
         self.encyclopediaDiscoveryStore = encyclopediaDiscoveryStore()
         self.onRequestGameCenterSignIn = onRequestGameCenterSignIn
         self.onRequestReturnToTitle = onRequestReturnToTitle

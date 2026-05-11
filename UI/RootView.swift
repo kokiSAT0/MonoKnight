@@ -32,6 +32,8 @@ struct RootView: View {
     @StateObject var dungeonRunResumeStore: DungeonRunResumeStore
     /// 試練塔のローカル最高到達記録を管理するストア
     @StateObject var rogueTowerRecordStore: RogueTowerRecordStore
+    /// 基礎塔の完了状態と成長塔への初回誘導状態を管理するストア
+    @StateObject var tutorialTowerProgressStore: TutorialTowerProgressStore
     /// タイトル画面まわりの遷移要求をまとめる coordinator
     let titleFlowCoordinator = RootViewTitleFlowCoordinator()
     /// Game Center の認証要求と再サインイン促しをまとめる補助
@@ -63,6 +65,7 @@ struct RootView: View {
         _dungeonGrowthStore = StateObject(wrappedValue: DungeonGrowthStore())
         _dungeonRunResumeStore = StateObject(wrappedValue: DungeonRunResumeStore())
         _rogueTowerRecordStore = StateObject(wrappedValue: RogueTowerRecordStore())
+        _tutorialTowerProgressStore = StateObject(wrappedValue: TutorialTowerProgressStore())
     }
 
     var body: some View {

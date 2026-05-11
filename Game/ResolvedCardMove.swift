@@ -230,6 +230,10 @@ public struct ResolvedCardMove: Hashable {
                 hasher.combine(pairID)
                 hasher.combine(destination.x)
                 hasher.combine(destination.y)
+            case .returnWarp(let destination):
+                hasher.combine("returnWarp")
+                hasher.combine(destination.x)
+                hasher.combine(destination.y)
             case .shuffleHand:
                 hasher.combine("shuffle")
             case .blast(let direction):

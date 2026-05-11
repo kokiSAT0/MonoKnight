@@ -40,16 +40,9 @@ struct PenaltyBannerView: View {
                 )
                 .accessibilityHidden(true)  // アイコンは視覚的アクセントのみ
 
-            // MARK: - メッセージ本文
-            VStack(alignment: .leading, spacing: 2) {
-                Text(primaryMessage)
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
-                    // メインテキストはテーマに合わせた明度で表示
-                    .foregroundColor(theme.penaltyTextPrimary)
-                Text(secondaryMessage)
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundColor(theme.penaltyTextSecondary)
-            }
+            Text(primaryMessage)
+                .font(.system(size: 14, weight: .semibold, design: .rounded))
+                .foregroundColor(theme.penaltyTextPrimary)
 
             Spacer(minLength: 0)
         }
@@ -76,14 +69,11 @@ private extension PenaltyBannerView {
     var primaryMessage: String {
         switch event.trigger {
         case .automaticDeadlock:
-            // 自動検出時は加算手数を必ず表示し、0 の場合でも状態確認しやすくする
-            return "手詰まり → 手札スロットを引き直し (+\(event.penaltyAmount))"
+            return "手詰まり +\(event.penaltyAmount)"
         case .manualRedraw:
-            // 手動ペナルティも同様に加算量を明示して、視認性を揃える
-            return "手動ペナルティ → 手札を再抽選 (+\(event.penaltyAmount))"
+            return "再抽選 +\(event.penaltyAmount)"
         case .automaticFreeRedraw:
-            // 連続手詰まりでは直前のペナルティ手数を強調し、無料表現を避ける
-            return "連続手詰まり → 直前のペナルティ +\(event.penaltyAmount)"
+            return "連続手詰まり +\(event.penaltyAmount)"
         }
     }
 

@@ -39,6 +39,7 @@ struct TitleScreenView: View {
     @ObservedObject var dungeonGrowthStore: DungeonGrowthStore
     @ObservedObject var dungeonRunResumeStore: DungeonRunResumeStore
     @ObservedObject var rogueTowerRecordStore: RogueTowerRecordStore
+    @ObservedObject var tutorialTowerProgressStore: TutorialTowerProgressStore
     @Binding private var pendingNavigationTarget: TitleNavigationTarget?
     let onStart: (GameMode, GamePreparationContext) -> Void
     let onOpenSettings: () -> Void
@@ -74,12 +75,14 @@ struct TitleScreenView: View {
     init(dungeonGrowthStore: DungeonGrowthStore,
          dungeonRunResumeStore: DungeonRunResumeStore,
          rogueTowerRecordStore: RogueTowerRecordStore? = nil,
+         tutorialTowerProgressStore: TutorialTowerProgressStore? = nil,
          pendingNavigationTarget: Binding<TitleNavigationTarget?>,
          onStart: @escaping (GameMode, GamePreparationContext) -> Void,
         onOpenSettings: @escaping () -> Void) {
         self._dungeonGrowthStore = ObservedObject(wrappedValue: dungeonGrowthStore)
         self._dungeonRunResumeStore = ObservedObject(wrappedValue: dungeonRunResumeStore)
         self._rogueTowerRecordStore = ObservedObject(wrappedValue: rogueTowerRecordStore ?? RogueTowerRecordStore())
+        self._tutorialTowerProgressStore = ObservedObject(wrappedValue: tutorialTowerProgressStore ?? TutorialTowerProgressStore())
         self._pendingNavigationTarget = pendingNavigationTarget
         self.onStart = onStart
         self.onOpenSettings = onOpenSettings
@@ -298,6 +301,7 @@ struct TitleScreenView: View {
                     dungeonGrowthStore: dungeonGrowthStore,
                     dungeonRunResumeStore: dungeonRunResumeStore,
                     rogueTowerRecordStore: rogueTowerRecordStore,
+                    tutorialTowerProgressStore: tutorialTowerProgressStore,
                     onResumeDungeon: { snapshot in
                         guard let mode = dungeonLibrary.resumeMode(from: snapshot) else {
                             dungeonRunResumeStore.clear()

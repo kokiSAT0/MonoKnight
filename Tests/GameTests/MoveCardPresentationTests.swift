@@ -151,6 +151,7 @@ final class MoveCardPresentationTests: XCTestCase {
             "enemyDanger",
             "enemyWarning",
             "warp",
+            "returnWarp",
             "blast",
             "shuffleHand",
             "preserveCard",
@@ -181,6 +182,7 @@ final class MoveCardPresentationTests: XCTestCase {
             "illusionTrap",
             "poisonTrap",
             "preserveCard",
+            "returnWarp",
             "shackleTrap",
             "shuffleHand",
             "swamp",
@@ -211,7 +213,11 @@ final class MoveCardPresentationTests: XCTestCase {
             .guardianIncense,
             .trapperGloves,
             .oldRope,
-            .guardianAegis
+            .guardianAegis,
+            .dullNeedle,
+            .patchedRope,
+            .purifyingCharm,
+            .phoenixFeather
         ]
         let persistentRelics: Set<DungeonRelicID> = [
             .heavyCrown,
@@ -229,7 +235,27 @@ final class MoveCardPresentationTests: XCTestCase {
             .gamblerCoin,
             .royalCrown,
             .immortalHeart,
-            .stargazerHourglass
+            .stargazerHourglass,
+            .woodenAmulet,
+            .copperHourglass,
+            .travelerRation,
+            .smallLantern,
+            .fieldMedkit,
+            .scoutCompass,
+            .quickSheath,
+            .sageCodex,
+            .trapSole,
+            .emberCloak,
+            .watcherMonocle,
+            .railCharm,
+            .chaserDecoy,
+            .antidoteStone,
+            .starUmbrella,
+            .fallAnchor,
+            .foldingMap,
+            .phantomTicket,
+            .campfireCoal,
+            .merchantsScale
         ]
         XCTAssertEqual(Set(DungeonRelicID.allCases), temporaryRelics.union(persistentRelics))
         XCTAssertTrue(temporaryRelics.allSatisfy { $0.displayKind == .temporary })

@@ -161,7 +161,8 @@ struct GameInputFlowCoordinator {
         hapticsEnabled: Bool,
         guideModeEnabled: Bool,
         basicMoveSlotIndex: Int?,
-        presentsBasicMoveCard: Bool
+        presentsBasicMoveCard: Bool,
+        presentInputWarning: (String, GridPoint) -> Void
     ) {
         guard !boardBridge.isInputAnimationActive else { return }
         if presentsBasicMoveCard, let basicMoveSlotIndex, index == basicMoveSlotIndex {
@@ -171,7 +172,8 @@ struct GameInputFlowCoordinator {
                 boardBridge: boardBridge,
                 sessionState: &sessionState,
                 selectedHandStackID: &selectedHandStackID,
-                hapticsEnabled: hapticsEnabled
+                hapticsEnabled: hapticsEnabled,
+                presentInputWarning: presentInputWarning
             )
             return
         }
@@ -245,6 +247,10 @@ struct GameInputFlowCoordinator {
                     boardBridge: boardBridge,
                     selectedHandStackID: &selectedHandStackID
                 )
+                presentInputWarning(
+                    inputWarningMessage(for: latestStack, in: core),
+                    core.current ?? GridPoint(x: 0, y: 0)
+                )
                 playInvalidInputFeedback(boardBridge: boardBridge, point: core.current, hapticsEnabled: hapticsEnabled)
                 return
             }
@@ -254,6 +260,10 @@ struct GameInputFlowCoordinator {
                         sessionState: &sessionState,
                         boardBridge: boardBridge,
                         selectedHandStackID: &selectedHandStackID
+                    )
+                    presentInputWarning(
+                        inputWarningMessage(for: latestStack, in: core),
+                        core.current ?? GridPoint(x: 0, y: 0)
                     )
                     playInvalidInputFeedback(boardBridge: boardBridge, point: core.current, hapticsEnabled: hapticsEnabled)
                     return
@@ -304,6 +314,10 @@ struct GameInputFlowCoordinator {
                 boardBridge: boardBridge,
                 selectedHandStackID: &selectedHandStackID
             )
+            presentInputWarning(
+                inputWarningMessage(for: latestStack, in: core),
+                core.current ?? GridPoint(x: 0, y: 0)
+            )
             playInvalidInputFeedback(boardBridge: boardBridge, point: core.current, hapticsEnabled: hapticsEnabled)
             return
         }
@@ -349,7 +363,8 @@ struct GameInputFlowCoordinator {
         boardBridge: GameBoardBridgeViewModel,
         sessionState: inout GameSessionState,
         selectedHandStackID: inout UUID?,
-        hapticsEnabled: Bool
+        hapticsEnabled: Bool,
+        presentInputWarning: (String, GridPoint) -> Void
     ) {
         if core.isAwaitingManualDiscardSelection {
             clearSelectedCardSelection(
@@ -385,6 +400,10 @@ struct GameInputFlowCoordinator {
                 sessionState: &sessionState,
                 boardBridge: boardBridge,
                 selectedHandStackID: &selectedHandStackID
+            )
+            presentInputWarning(
+                basicMoveWarningMessage(in: core),
+                core.current ?? GridPoint(x: 0, y: 0)
             )
             playInvalidInputFeedback(boardBridge: boardBridge, point: core.current, hapticsEnabled: hapticsEnabled)
             return
@@ -484,6 +503,10 @@ struct GameInputFlowCoordinator {
                 using: matchingMoves,
                 selectedHandStackID: &selectedHandStackID
             )
+            presentBoardTapSelectionWarning(
+                "このカードではそのマスへ移動できません",
+                request.destination
+            )
             playInvalidInputFeedback(
                 boardBridge: boardBridge,
                 point: request.destination,
@@ -516,7 +539,8 @@ struct GameInputFlowCoordinator {
         sessionState: inout GameSessionState,
         selectedHandStackID: inout UUID?,
         guideModeEnabled: Bool,
-        hapticsEnabled: Bool
+        hapticsEnabled: Bool,
+        presentInputWarning: (String, GridPoint) -> Void
     ) {
         defer { core.clearBoardTapBasicMoveRequest(request.id) }
         guard !boardBridge.isInputAnimationActive else { return }
@@ -561,6 +585,10 @@ struct GameInputFlowCoordinator {
                     using: matchingMoves,
                     selectedHandStackID: &selectedHandStackID
                 )
+                presentInputWarning(
+                    "このカードではそのマスへ移動できません",
+                    request.move.destination
+                )
                 playInvalidInputFeedback(
                     boardBridge: boardBridge,
                     point: request.move.destination,
@@ -591,6 +619,65 @@ struct GameInputFlowCoordinator {
         boardBridge.playInvalidSelectionFeedback(at: point)
         if hapticsEnabled {
             UINotificationFeedbackGenerator().notificationOccurred(.warning)
+        }
+    }
+
+    private func inputWarningMessage(for stack: HandStack, in core: GameCore) -> String {
+        guard let topCard = stack.topCard else {
+            return "今はカードを使えません"
+        }
+        guard core.progress == .playing else {
+            return "今はカードを使えません"
+        }
+
+        if let support = topCard.supportCard {
+            return supportWarningMessage(for: support, in: core) ?? "今はカードを使えません"
+        }
+
+        if let current = core.current,
+           core.board.effect(at: current) == .swamp {
+            return "沼の上では移動カードを使えません"
+        }
+        return "このカードで移動できるマスがありません"
+    }
+
+    private func basicMoveWarningMessage(in core: GameCore) -> String {
+        core.progress == .playing ? "上下左右に移動できるマスがありません" : "今はカードを使えません"
+    }
+
+    private func supportWarningMessage(for support: SupportCard, in core: GameCore) -> String? {
+        switch support {
+        case .refillEmptySlots, .barrierSpell:
+            return nil
+        case .singleAnnihilationSpell, .annihilationSpell, .freezeSpell:
+            return core.enemyStates.isEmpty ? "このフロアに対象の敵がいません" : nil
+        case .darknessSpell:
+            let hasWatcherLaser = core.enemyStates.contains { enemy in
+                switch enemy.behavior {
+                case .watcher, .rotatingWatcher:
+                    return true
+                case .guardPost, .patrol, .chaser, .marker:
+                    return false
+                }
+            }
+            if !hasWatcherLaser {
+                return "見張りレーザーがないため使えません"
+            }
+            return core.isWatcherLaserSuppressed ? "見張りレーザーはすでに封じています" : nil
+        case .railBreakSpell:
+            let hasPatrolRail = core.enemyStates.contains { enemy in
+                if case .patrol = enemy.behavior { return true }
+                return false
+            }
+            if !hasPatrolRail {
+                return "巡回レールがないため使えません"
+            }
+            return core.isPatrolRailDestroyed ? "巡回レールはすでに破壊済みです" : nil
+        case .antidote:
+            return core.poisonDamageTicksRemaining > 0 ? nil : "毒状態ではないため使えません"
+        case .panacea:
+            let hasRecoverableState = core.poisonDamageTicksRemaining > 0 || core.isShackled || core.isIlluded
+            return hasRecoverableState ? nil : "解除する状態異常がありません"
         }
     }
 

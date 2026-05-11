@@ -615,11 +615,21 @@
 
         private func movementReplayTotalDuration(for resolution: MovementResolution) -> TimeInterval {
             if let warpEvent = resolution.appliedEffects.first(where: { applied in
-                if case .warp = applied.effect { return true }
-                return false
+                switch applied.effect {
+                case .warp, .returnWarp:
+                    return true
+                default:
+                    return false
+                }
             }),
-               case .warp(_, let destination) = warpEvent.effect,
                let sourceIndex = resolution.path.firstIndex(of: warpEvent.point) {
+                let destination: GridPoint
+                switch warpEvent.effect {
+                case .warp(_, let point), .returnWarp(let point):
+                    destination = point
+                default:
+                    return 0
+                }
                 let approachDuration =
                     Double(sourceIndex + 1) * GameSceneKnightAnimator.movementReplayStepDuration
                     + (0...sourceIndex).reduce(TimeInterval(0)) { total, index in

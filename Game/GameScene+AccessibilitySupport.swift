@@ -97,6 +97,8 @@
                 switch self {
                 case .warp:
                     return "ワープマス"
+                case .returnWarp:
+                    return "帰還ワープ"
                 case .shuffleHand:
                     return "シャッフルマス"
                 case .blast:

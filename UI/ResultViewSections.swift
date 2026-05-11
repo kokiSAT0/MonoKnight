@@ -33,7 +33,7 @@ struct ResultDetailsSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("リザルト詳細")
+            Text("内訳")
                 .font(.headline)
                 .padding(.top, 8)
 
@@ -164,6 +164,29 @@ struct ResultDetailsSection: View {
     }
 }
 
+struct ResultDetailsDisclosureSection: View {
+    let presentation: ResultSummaryPresentation
+    @State private var isExpanded = false
+
+    var body: some View {
+        DisclosureGroup(isExpanded: $isExpanded) {
+            ResultDetailsSection(presentation: presentation)
+                .padding(.top, 8)
+        } label: {
+            Text("詳細")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color(uiColor: .secondarySystemBackground).opacity(0.7))
+        )
+        .accessibilityIdentifier("result_details_disclosure")
+    }
+}
+
 struct DungeonGrowthAwardSection: View {
     let award: DungeonGrowthAward
     private var theme = AppTheme()
@@ -258,9 +281,9 @@ struct ResultActionSection: View {
                !presentation.isFailed {
                 VStack(alignment: .leading, spacing: 12) {
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("報酬を1つ選ぶ")
+                        Text("報酬")
                             .font(.headline)
-                        Text("選ぶと次の階へ進みます")
+                        Text("1つ選ぶ")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -268,7 +291,7 @@ struct ResultActionSection: View {
                     if !presentedDungeonRewardOffers.isEmpty
                         || (onSelectDungeonReward != nil && !dungeonPickupCarryoverEntries.isEmpty) {
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("報酬を獲得")
+                            Text("新規")
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundStyle(.secondary)
 

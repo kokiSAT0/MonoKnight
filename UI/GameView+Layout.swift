@@ -222,14 +222,9 @@ extension GameView {
 
     /// スポーン位置選択中に盤面へ重ねて表示する案内バナー
     var spawnSelectionBanner: some View {
-        HStack(alignment: .top, spacing: 12) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("開始マスを選択")
-                    .font(.system(size: 17, weight: .semibold, design: .rounded))
-                Text("手札と盤面を確認してから、開始マスをタップしてください。")
-                    .font(.system(size: 14, weight: .medium, design: .rounded))
-                    .multilineTextAlignment(.leading)
-            }
+        HStack(alignment: .center, spacing: 12) {
+            Text("開始位置を選ぶ")
+                .font(.system(size: 16, weight: .semibold, design: .rounded))
             Spacer(minLength: 8)
             Button {
                 isSpawnSelectionHintVisible = false
@@ -359,10 +354,10 @@ struct DungeonPickupChoiceOverlayView: View {
 
             VStack(spacing: 10) {
                 VStack(spacing: 4) {
-                    Text("手札がいっぱいです")
+                    Text("手札満杯")
                         .font(.system(size: 19, weight: .bold, design: .rounded))
                         .foregroundColor(theme.textPrimary)
-                    Text("下の手札を選ぶと入れ替えます")
+                    Text("入れ替え先を選ぶ")
                         .font(.system(size: 13, weight: .medium, design: .rounded))
                         .foregroundColor(theme.textSecondary)
                         .multilineTextAlignment(.center)

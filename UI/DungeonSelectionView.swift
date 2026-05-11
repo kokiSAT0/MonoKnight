@@ -8,6 +8,7 @@ struct DungeonSelectionView: View {
     @ObservedObject var dungeonGrowthStore: DungeonGrowthStore
     @ObservedObject var dungeonRunResumeStore: DungeonRunResumeStore
     @ObservedObject var rogueTowerRecordStore: RogueTowerRecordStore
+    @ObservedObject var tutorialTowerProgressStore: TutorialTowerProgressStore
     let onResumeDungeon: (DungeonRunResumeSnapshot) -> Void
     let onStartDungeon: (DungeonDefinition, Int) -> Void
 
@@ -17,6 +18,7 @@ struct DungeonSelectionView: View {
     @State private var selectedGrowthUpgrade: DungeonGrowthUpgrade?
     @State private var selectedGrowthBranch: DungeonGrowthBranch = .preparation
     @State private var isShowingAllGrowthBranches = false
+    @State private var pendingGrowthTowerIntroStart: PendingDungeonStart?
 
     @MainActor
     init(
@@ -24,6 +26,7 @@ struct DungeonSelectionView: View {
         dungeonGrowthStore: DungeonGrowthStore,
         dungeonRunResumeStore: DungeonRunResumeStore = DungeonRunResumeStore(),
         rogueTowerRecordStore: RogueTowerRecordStore? = nil,
+        tutorialTowerProgressStore: TutorialTowerProgressStore? = nil,
         onResumeDungeon: @escaping (DungeonRunResumeSnapshot) -> Void = { _ in },
         onStartDungeon: @escaping (DungeonDefinition, Int) -> Void
     ) {
@@ -31,6 +34,7 @@ struct DungeonSelectionView: View {
         self._dungeonGrowthStore = ObservedObject(wrappedValue: dungeonGrowthStore)
         self._dungeonRunResumeStore = ObservedObject(wrappedValue: dungeonRunResumeStore)
         self._rogueTowerRecordStore = ObservedObject(wrappedValue: rogueTowerRecordStore ?? RogueTowerRecordStore())
+        self._tutorialTowerProgressStore = ObservedObject(wrappedValue: tutorialTowerProgressStore ?? TutorialTowerProgressStore())
         self.onResumeDungeon = onResumeDungeon
         self.onStartDungeon = onStartDungeon
     }
@@ -53,6 +57,24 @@ struct DungeonSelectionView: View {
         .background(theme.backgroundPrimary.ignoresSafeArea())
         .navigationTitle("塔ダンジョン")
         .navigationBarTitleDisplayMode(.inline)
+        .alert(item: $pendingGrowthTowerIntroStart) { pendingStart in
+            Alert(
+                title: Text("基礎塔から始めますか？"),
+                message: Text("基礎塔では成長塔の入口で使う読みを順に確認できます。"),
+                primaryButton: .default(Text("基礎塔から始める")) {
+                    tutorialTowerProgressStore.markGrowthTowerIntroPromptSeen()
+                    if let tutorialTower = dungeonLibrary.dungeon(with: "tutorial-tower") {
+                        onStartDungeon(tutorialTower, 0)
+                    } else {
+                        onStartDungeon(pendingStart.dungeon, pendingStart.floorIndex)
+                    }
+                },
+                secondaryButton: .default(Text("成長塔へ進む")) {
+                    tutorialTowerProgressStore.markGrowthTowerIntroPromptSeen()
+                    onStartDungeon(pendingStart.dungeon, pendingStart.floorIndex)
+                }
+            )
+        }
         .accessibilityIdentifier("dungeon_selection_view")
     }
 
@@ -62,11 +84,11 @@ struct DungeonSelectionView: View {
                 .font(.system(size: 14, weight: .semibold, design: .rounded))
                 .foregroundColor(theme.textSecondary)
 
-            Text("出口を目指して塔を登る")
+            Text("塔を登る")
                 .font(.system(size: 25, weight: .heavy, design: .rounded))
                 .foregroundColor(theme.textPrimary)
 
-            Text("カード移動で敵の警戒範囲や床ギミックをかわし、フロアごとの出口へ向かいます。")
+            Text("敵と床を読み、出口へ。")
                 .font(.system(size: 15, weight: .regular, design: .rounded))
                 .foregroundColor(theme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -93,6 +115,13 @@ struct DungeonSelectionView: View {
                             .padding(.horizontal, 8)
                             .padding(.vertical, 3)
                             .background(Capsule().fill(theme.textSecondary.opacity(0.14)))
+
+                        if let tutorialStatus = TutorialTowerStatusPresentation.make(
+                            dungeon: dungeon,
+                            progressStore: tutorialTowerProgressStore
+                        ) {
+                            tutorialStatusBadge(tutorialStatus)
+                        }
 
                         ForEach(growthStatuses, id: \.accessibilityIdentifier) { growthStatus in
                             growthStatusBadge(growthStatus)
@@ -126,11 +155,11 @@ struct DungeonSelectionView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(theme.backgroundElevated.opacity(0.86))
+                .fill(dungeonCardBackgroundOpacity(for: dungeon))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(theme.statisticBadgeBorder, lineWidth: 1)
+                .stroke(dungeonCardBorderColor(for: dungeon), lineWidth: dungeonCardBorderWidth(for: dungeon))
         )
         .accessibilityIdentifier("dungeon_card_\(dungeon.id)")
     }
@@ -220,7 +249,7 @@ struct DungeonSelectionView: View {
                     Text("系統を選ぶ")
                         .font(.system(size: 14, weight: .heavy, design: .rounded))
                         .foregroundColor(theme.textPrimary)
-                    Text("まず伸ばしたい役割を選び、50Fまでの流れを縦に確認します。")
+                    Text("役割ごとに成長を確認。")
                         .font(.system(size: 12, weight: .medium, design: .rounded))
                         .foregroundColor(theme.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -635,7 +664,7 @@ struct DungeonSelectionView: View {
         isCompact: Bool
     ) -> some View {
         Button {
-            onStartDungeon(dungeon, floorNumber - 1)
+            handleStartDungeon(dungeon, floorIndex: floorNumber - 1)
         } label: {
             Label(
                 isCompact ? "\(floorNumber)Fから" : "開始",
@@ -650,6 +679,34 @@ struct DungeonSelectionView: View {
         .controlSize(isCompact ? .regular : .large)
         .accessibilityIdentifier("dungeon_start_button_\(dungeon.id)_\(floorNumber)f")
         .accessibilityHint("この塔を\(floorNumber)階から連続で開始します")
+    }
+
+    private func handleStartDungeon(_ dungeon: DungeonDefinition, floorIndex: Int) {
+        guard tutorialTowerProgressStore.shouldPresentGrowthTowerIntroPrompt(for: dungeon) else {
+            onStartDungeon(dungeon, floorIndex)
+            return
+        }
+        pendingGrowthTowerIntroStart = PendingDungeonStart(dungeon: dungeon, floorIndex: floorIndex)
+    }
+
+    private func dungeonCardBackgroundOpacity(for dungeon: DungeonDefinition) -> Color {
+        if dungeon.id == "tutorial-tower",
+           !tutorialTowerProgressStore.hasCompletedTutorialTower {
+            return theme.backgroundElevated.opacity(0.94)
+        }
+        return theme.backgroundElevated.opacity(0.86)
+    }
+
+    private func dungeonCardBorderColor(for dungeon: DungeonDefinition) -> Color {
+        if dungeon.id == "tutorial-tower",
+           !tutorialTowerProgressStore.hasCompletedTutorialTower {
+            return theme.accentPrimary.opacity(0.62)
+        }
+        return theme.statisticBadgeBorder
+    }
+
+    private func dungeonCardBorderWidth(for dungeon: DungeonDefinition) -> CGFloat {
+        dungeon.id == "tutorial-tower" && !tutorialTowerProgressStore.hasCompletedTutorialTower ? 1.5 : 1
     }
 
     private func growthStatusBadge(_ growthStatus: DungeonGrowthRewardStatusPresentation) -> some View {
@@ -672,6 +729,24 @@ struct DungeonSelectionView: View {
             .lineLimit(1)
             .minimumScaleFactor(0.82)
             .accessibilityIdentifier(growthStatus.accessibilityIdentifier)
+    }
+
+    private func tutorialStatusBadge(_ tutorialStatus: TutorialTowerStatusPresentation) -> some View {
+        Text(tutorialStatus.text)
+            .font(.system(size: 12, weight: .semibold, design: .rounded))
+            .foregroundColor(tutorialStatus.isCompleted ? theme.textSecondary : theme.accentPrimary)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(
+                Capsule().fill(
+                    tutorialStatus.isCompleted
+                        ? theme.textSecondary.opacity(0.12)
+                        : theme.accentPrimary.opacity(0.14)
+                )
+            )
+            .lineLimit(1)
+            .minimumScaleFactor(0.82)
+            .accessibilityIdentifier(tutorialStatus.accessibilityIdentifier)
     }
 
     private func difficultyText(_ difficulty: DungeonDifficulty) -> String {
@@ -718,6 +793,33 @@ struct DungeonResumePresentation: Equatable {
             buttonTitle: "続きから \(floorNumber)F",
             accessibilityIdentifier: "dungeon_resume_button_\(dungeon.id)",
             accessibilityHint: "\(dungeon.title) \(floorNumber)階の続きから再開します"
+        )
+    }
+}
+
+struct PendingDungeonStart: Identifiable {
+    let dungeon: DungeonDefinition
+    let floorIndex: Int
+
+    var id: String { "\(dungeon.id)-\(floorIndex)" }
+}
+
+struct TutorialTowerStatusPresentation: Equatable {
+    let text: String
+    let accessibilityIdentifier: String
+    let isCompleted: Bool
+
+    @MainActor
+    static func make(
+        dungeon: DungeonDefinition,
+        progressStore: TutorialTowerProgressStore
+    ) -> TutorialTowerStatusPresentation? {
+        guard dungeon.id == "tutorial-tower" else { return nil }
+        let isCompleted = progressStore.hasCompletedTutorialTower
+        return TutorialTowerStatusPresentation(
+            text: isCompleted ? "完了済" : "おすすめ",
+            accessibilityIdentifier: "dungeon_tutorial_status_\(dungeon.id)",
+            isCompleted: isCompleted
         )
     }
 }

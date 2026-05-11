@@ -907,6 +907,73 @@ final class DungeonRunResumeStore: ObservableObject {
 }
 
 @MainActor
+final class TutorialTowerProgressStore: ObservableObject {
+    private static let storageKey = StorageKey.UserDefaults.tutorialTowerProgress
+    private let userDefaults: UserDefaults
+
+    @Published private(set) var hasCompletedTutorialTower: Bool {
+        didSet { save() }
+    }
+    @Published private(set) var hasSeenGrowthTowerIntroPrompt: Bool {
+        didSet { save() }
+    }
+
+    init(userDefaults: UserDefaults = .standard) {
+        self.userDefaults = userDefaults
+        let snapshot = Self.loadSnapshot(from: userDefaults)
+        hasCompletedTutorialTower = snapshot.hasCompletedTutorialTower
+        hasSeenGrowthTowerIntroPrompt = snapshot.hasSeenGrowthTowerIntroPrompt
+    }
+
+    func registerTutorialTowerClear(dungeon: DungeonDefinition, runState: DungeonRunState) {
+        guard dungeon.id == "tutorial-tower",
+              runState.currentFloorIndex == dungeon.floors.count - 1
+        else { return }
+        hasCompletedTutorialTower = true
+    }
+
+    func markGrowthTowerIntroPromptSeen() {
+        hasSeenGrowthTowerIntroPrompt = true
+    }
+
+    func shouldPresentGrowthTowerIntroPrompt(for dungeon: DungeonDefinition) -> Bool {
+        dungeon.id == "growth-tower"
+            && !hasCompletedTutorialTower
+            && !hasSeenGrowthTowerIntroPrompt
+    }
+
+    private func save() {
+        let snapshot = TutorialTowerProgressSnapshot(
+            hasCompletedTutorialTower: hasCompletedTutorialTower,
+            hasSeenGrowthTowerIntroPrompt: hasSeenGrowthTowerIntroPrompt
+        )
+        do {
+            let data = try JSONEncoder().encode(snapshot)
+            userDefaults.set(data, forKey: Self.storageKey)
+        } catch {
+            debugError(error, message: "TutorialTowerProgressStore: 保存に失敗しました")
+        }
+    }
+
+    private static func loadSnapshot(from userDefaults: UserDefaults) -> TutorialTowerProgressSnapshot {
+        guard let data = userDefaults.data(forKey: storageKey) else {
+            return TutorialTowerProgressSnapshot()
+        }
+        do {
+            return try JSONDecoder().decode(TutorialTowerProgressSnapshot.self, from: data)
+        } catch {
+            debugError(error, message: "TutorialTowerProgressStore: 読み込みに失敗しました")
+            return TutorialTowerProgressSnapshot()
+        }
+    }
+}
+
+private struct TutorialTowerProgressSnapshot: Codable {
+    var hasCompletedTutorialTower = false
+    var hasSeenGrowthTowerIntroPrompt = false
+}
+
+@MainActor
 final class RogueTowerRecordStore: ObservableObject {
     private static let storageKey = StorageKey.UserDefaults.rogueTowerRecord
     private let userDefaults: UserDefaults

@@ -1016,8 +1016,12 @@ final class GameBoardBridgeViewModel: ObservableObject {
                           resolution.finalPosition == destination,
                           resolution != self.completedMovementReplayResolution,
                           resolution.appliedEffects.contains(where: { appliedEffect in
-                              if case .warp = appliedEffect.effect { return true }
-                              return false
+                              switch appliedEffect.effect {
+                              case .warp, .returnWarp:
+                                  return true
+                              default:
+                                  return false
+                              }
                           }) {
                     // 単純なワープだけは従来の専用演出を利用する
                     self.scene.playWarpTransition(using: resolution)

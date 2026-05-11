@@ -266,6 +266,8 @@ extension GameViewModel {
         switch effect {
         case .warp:
             return tileDiscoveryID("warp")
+        case .returnWarp:
+            return tileDiscoveryID("returnWarp")
         case .shuffleHand:
             return tileDiscoveryID("shuffleHand")
         case .blast:

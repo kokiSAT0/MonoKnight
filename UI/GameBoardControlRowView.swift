@@ -1,3 +1,4 @@
+import Game
 import SwiftUI
 
 /// 盤面上部に統計バッジと操作ボタンを並べる補助ビュー
@@ -9,6 +10,7 @@ struct GameBoardControlRowView: View {
     @ObservedObject var viewModel: GameViewModel
     /// iPad などレギュラー幅では統計と操作を中央のプレイ領域へまとめる
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @State private var selectedDungeonStatusEffect: DungeonStatusEffectPresentation?
 
     var body: some View {
         ViewThatFits(in: .horizontal) {
@@ -21,6 +23,9 @@ struct GameBoardControlRowView: View {
         // PreferenceKey へ高さを伝搬し、GeometryReader 側のレイアウト計算へ反映する
         .overlay(alignment: .topLeading) {
             HeightPreferenceReporter<StatisticsHeightPreferenceKey>()
+        }
+        .sheet(item: $selectedDungeonStatusEffect) { effect in
+            DungeonStatusEffectDetailSheet(theme: theme, effect: effect)
         }
     }
 }
@@ -45,13 +50,206 @@ extension GameBoardControlRowView {
     }
 
     static func dungeonTurnValueText(remaining: Int?, limit: Int?) -> String {
-        guard let limit, let remaining else { return "制限なし" }
-        return "残り \(max(remaining, 0)) / \(limit)"
+        guard let limit, let remaining else { return "∞" }
+        return "\(max(remaining, 0))/\(limit)"
     }
 
-    static func dungeonTurnAccessibilityValue(remaining: Int?, limit: Int?) -> String {
+    static func compactDungeonFloorText(_ floorText: String) -> String {
+        floorText
+            .split(separator: " ")
+            .last
+            .map(String.init) ?? floorText
+    }
+
+    static func dungeonTurnAccessibilityValue(
+        remaining: Int?,
+        limit: Int?,
+        fatigue: DungeonFatigueIndicatorState? = nil
+    ) -> String {
         guard let limit, let remaining else { return "制限なし" }
+        if let fatigue, remaining <= 0 {
+            if fatigue.isDamageStep {
+                return "残り手数0。疲労ダメージが発生しました"
+            }
+            return "残り手数0。疲労状態。\(fatigue.totalCount)段階中\(fatigue.filledCount)段階。次の段階でHPを1失います"
+        }
         return "\(limit)手中\(max(remaining, 0))手残り"
+    }
+
+    static func dungeonStatusEffects(
+        enemyFreezeTurnsRemaining: Int,
+        damageBarrierTurnsRemaining: Int,
+        isShackled: Bool,
+        isIlluded: Bool,
+        poisonDamageTicksRemaining: Int,
+        poisonActionsUntilNextDamage: Int
+    ) -> [DungeonStatusEffectPresentation] {
+        var effects: [DungeonStatusEffectPresentation] = []
+
+        if enemyFreezeTurnsRemaining > 0 {
+            effects.append(.enemyFreeze(turnsRemaining: enemyFreezeTurnsRemaining))
+        }
+        if damageBarrierTurnsRemaining > 0 {
+            effects.append(.damageBarrier(turnsRemaining: damageBarrierTurnsRemaining))
+        }
+        if isShackled {
+            effects.append(.shackle)
+        }
+        if isIlluded {
+            effects.append(.illusion)
+        }
+        if poisonDamageTicksRemaining > 0 {
+            effects.append(.poison(
+                actionsUntilNextDamage: poisonActionsUntilNextDamage,
+                ticksRemaining: poisonDamageTicksRemaining
+            ))
+        }
+
+        return effects
+    }
+}
+
+struct DungeonStatusEffectPresentation: Identifiable, Equatable {
+    enum Kind: String {
+        case enemyFreeze
+        case damageBarrier
+        case shackle
+        case illusion
+        case poison
+    }
+
+    let kind: Kind
+    let title: String
+    let symbolName: String
+    let badgeText: String
+    let currentValueText: String
+    let detailText: String
+    let accessibilityLabel: String
+    let accessibilityValue: String
+
+    var id: Kind { kind }
+    var accessibilityIdentifier: String { "dungeon_status_effect_\(kind.rawValue)" }
+
+    static func enemyFreeze(turnsRemaining: Int) -> Self {
+        Self(
+            kind: .enemyFreeze,
+            title: "凍結",
+            symbolName: "snowflake",
+            badgeText: "\(turnsRemaining)",
+            currentValueText: "残り \(turnsRemaining) ターン",
+            detailText: "有効な間は敵ターンの移動、回転、攻撃、メテオ着弾を止めます。",
+            accessibilityLabel: "敵凍結状態",
+            accessibilityValue: "残り\(turnsRemaining)ターン"
+        )
+    }
+
+    static func damageBarrier(turnsRemaining: Int) -> Self {
+        Self(
+            kind: .damageBarrier,
+            title: "障壁",
+            symbolName: "shield",
+            badgeText: "\(turnsRemaining)",
+            currentValueText: "残り \(turnsRemaining) ターン",
+            detailText: "有効な間は敵、罠、溶岩、毒などによるHPダメージを無効化します。",
+            accessibilityLabel: "障壁状態",
+            accessibilityValue: "残り\(turnsRemaining)ターン、HPダメージを無効化"
+        )
+    }
+
+    static var shackle: Self {
+        Self(
+            kind: .shackle,
+            title: "足枷",
+            symbolName: "link",
+            badgeText: "2",
+            currentValueText: "全行動 手数2",
+            detailText: "この階にいる間、全行動の手数が2になり、敵ターンも2回進みます。万能薬で解除できます。",
+            accessibilityLabel: "足枷状態",
+            accessibilityValue: "全行動の手数が2になり、敵ターンも2回進みます"
+        )
+    }
+
+    static var illusion: Self {
+        Self(
+            kind: .illusion,
+            title: "幻惑",
+            symbolName: "questionmark.circle",
+            badgeText: "?",
+            currentValueText: "この階の間",
+            detailText: "この階にいる間、移動カードの正体が分からず、使うと合法な移動カードと移動先からランダムに解決されます。",
+            accessibilityLabel: "幻惑状態",
+            accessibilityValue: "この階にいる間、移動カードの正体が分からずランダムに使用されます"
+        )
+    }
+
+    static func poison(actionsUntilNextDamage: Int, ticksRemaining: Int) -> Self {
+        Self(
+            kind: .poison,
+            title: "毒",
+            symbolName: "drop",
+            badgeText: "\(actionsUntilNextDamage)",
+            currentValueText: "次の毒ダメージまで \(actionsUntilNextDamage) 行動、残り \(ticksRemaining) 回",
+            detailText: "成功行動の後にカウントが進み、一定間隔でHPを1失います。解毒薬または万能薬で解除できます。",
+            accessibilityLabel: "毒状態",
+            accessibilityValue: "次の毒ダメージまで\(actionsUntilNextDamage)行動、残り\(ticksRemaining)回"
+        )
+    }
+}
+
+private struct DungeonStatusEffectDetailSheet: View {
+    let theme: AppTheme
+    let effect: DungeonStatusEffectPresentation
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            HStack(spacing: 12) {
+                Image(systemName: effect.symbolName)
+                    .font(.system(size: 24, weight: .semibold))
+                    .foregroundColor(theme.statisticValueText)
+                    .frame(width: 46, height: 46)
+                    .background(
+                        Circle()
+                            .fill(theme.menuIconBackground)
+                    )
+                    .overlay(
+                        Circle()
+                            .stroke(theme.statisticBadgeBorder, lineWidth: 1)
+                    )
+                    .accessibilityHidden(true)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(effect.title)
+                        .font(.title3.weight(.semibold))
+                        .foregroundColor(theme.textPrimary)
+                    Text(effect.currentValueText)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundColor(theme.textSecondary)
+                }
+            }
+
+            Text(effect.detailText)
+                .font(.body)
+                .foregroundColor(theme.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Button {
+                dismiss()
+            } label: {
+                Text("閉じる")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(theme.accentPrimary)
+            .accessibilityIdentifier("dungeon_status_effect_detail_close_button")
+        }
+        .padding(24)
+        .frame(maxWidth: 420, alignment: .leading)
+        .presentationDetents([.medium])
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("dungeon_status_effect_detail_sheet")
     }
 }
 
@@ -151,8 +349,8 @@ private extension GameBoardControlRowView {
         statisticsBadgeGroup {
             if let floorText = viewModel.dungeonRunFloorText {
                 statisticBadge(
-                    title: "階層",
-                    value: floorText,
+                    title: "F",
+                    value: Self.compactDungeonFloorText(floorText),
                     accessibilityLabel: "現在の階層",
                     accessibilityValue: floorText
                 )
@@ -169,52 +367,20 @@ private extension GameBoardControlRowView {
 
             dungeonTurnStatisticBadge(
                 remaining: viewModel.remainingDungeonTurns,
-                limit: viewModel.dungeonTurnLimit
+                limit: viewModel.dungeonTurnLimit,
+                fatigue: viewModel.dungeonFatigueIndicatorState
             )
 
-            if viewModel.enemyFreezeTurnsRemaining > 0 {
-                statisticBadge(
-                    title: "凍結",
-                    value: "残り\(viewModel.enemyFreezeTurnsRemaining)",
-                    accessibilityLabel: "敵凍結",
-                    accessibilityValue: "残り\(viewModel.enemyFreezeTurnsRemaining)ターン"
-                )
-            }
-
-            if viewModel.damageBarrierTurnsRemaining > 0 {
-                statisticBadge(
-                    title: "障壁",
-                    value: "残り\(viewModel.damageBarrierTurnsRemaining)",
-                    accessibilityLabel: "障壁",
-                    accessibilityValue: "残り\(viewModel.damageBarrierTurnsRemaining)ターン、HPダメージを無効化"
-                )
-            }
-
-            if viewModel.isShackled {
-                statisticBadge(
-                    title: "足枷",
-                    value: "手数2",
-                    accessibilityLabel: "足枷状態",
-                    accessibilityValue: "全行動の手数が2になり、敵ターンも2回進みます"
-                )
-            }
-
-            if viewModel.isIlluded {
-                statisticBadge(
-                    title: "幻惑",
-                    value: "階内",
-                    accessibilityLabel: "幻惑状態",
-                    accessibilityValue: "この階にいる間、移動カードの正体が分からずランダムに使用されます"
-                )
-            }
-
-            if viewModel.poisonDamageTicksRemaining > 0 {
-                statisticBadge(
-                    title: "毒",
-                    value: "次\(viewModel.poisonActionsUntilNextDamage)",
-                    accessibilityLabel: "毒状態",
-                    accessibilityValue: "次の毒ダメージまで\(viewModel.poisonActionsUntilNextDamage)行動、残り\(viewModel.poisonDamageTicksRemaining)回"
-                )
+            let statusEffects = Self.dungeonStatusEffects(
+                enemyFreezeTurnsRemaining: viewModel.enemyFreezeTurnsRemaining,
+                damageBarrierTurnsRemaining: viewModel.damageBarrierTurnsRemaining,
+                isShackled: viewModel.isShackled,
+                isIlluded: viewModel.isIlluded,
+                poisonDamageTicksRemaining: viewModel.poisonDamageTicksRemaining,
+                poisonActionsUntilNextDamage: viewModel.poisonActionsUntilNextDamage
+            )
+            if !statusEffects.isEmpty {
+                dungeonStatusEffectGroup(statusEffects)
             }
         }
     }
@@ -245,13 +411,18 @@ private extension GameBoardControlRowView {
         .accessibilityElement(children: .contain)
     }
 
-    func dungeonTurnStatisticBadge(remaining: Int?, limit: Int?) -> some View {
+    func dungeonTurnStatisticBadge(
+        remaining: Int?,
+        limit: Int?,
+        fatigue: DungeonFatigueIndicatorState?
+    ) -> some View {
         let progress = Self.dungeonTurnProgress(remaining: remaining, limit: limit)
-        let isCritical = Self.isCriticalDungeonTurns(remaining: remaining, limit: limit)
+        let isFatigue = fatigue != nil && (remaining ?? 1) <= 0
+        let isCritical = isFatigue || Self.isCriticalDungeonTurns(remaining: remaining, limit: limit)
         let valueColor: Color = isCritical ? .red : theme.statisticValueText
 
         return VStack(alignment: .leading, spacing: 5) {
-            Text("残り手数")
+            Text("手数")
                 .font(.caption2)
                 .fontWeight(.medium)
                 .foregroundColor(theme.statisticTitleText)
@@ -260,7 +431,9 @@ private extension GameBoardControlRowView {
                 .font(.headline)
                 .foregroundColor(valueColor)
 
-            if let progress {
+            if isFatigue, let fatigue {
+                fatiguePipIndicator(fatigue)
+            } else if let progress {
                 GeometryReader { geometry in
                     ZStack(alignment: .leading) {
                         Capsule(style: .continuous)
@@ -290,7 +463,81 @@ private extension GameBoardControlRowView {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("残り手数")
-        .accessibilityValue(Self.dungeonTurnAccessibilityValue(remaining: remaining, limit: limit))
+        .accessibilityValue(Self.dungeonTurnAccessibilityValue(remaining: remaining, limit: limit, fatigue: fatigue))
+    }
+
+    func fatiguePipIndicator(_ fatigue: DungeonFatigueIndicatorState) -> some View {
+        HStack(spacing: 7) {
+            ForEach(0..<fatigue.totalCount, id: \.self) { index in
+                let isFilled = index < fatigue.filledCount
+                Circle()
+                    .fill(isFilled ? Color.red : Color.clear)
+                    .overlay(
+                        Circle()
+                            .stroke(Color.red.opacity(isFilled ? 0.9 : 0.64), lineWidth: 1.4)
+                    )
+                    .scaleEffect(fatigue.isDamageStep && isFilled ? 1.14 : 1.0)
+                    .animation(.easeInOut(duration: 0.18), value: fatigue.filledCount)
+                    .animation(.easeInOut(duration: 0.18), value: fatigue.isDamageStep)
+            }
+        }
+        .frame(width: 118, height: 10, alignment: .center)
+        .accessibilityHidden(true)
+    }
+
+    func dungeonStatusEffectGroup(_ effects: [DungeonStatusEffectPresentation]) -> some View {
+        HStack(spacing: 7) {
+            ForEach(effects) { effect in
+                dungeonStatusEffectButton(effect)
+            }
+        }
+        .accessibilityElement(children: .contain)
+    }
+
+    func dungeonStatusEffectButton(_ effect: DungeonStatusEffectPresentation) -> some View {
+        Button {
+            selectedDungeonStatusEffect = effect
+        } label: {
+            ZStack(alignment: .bottomTrailing) {
+                Image(systemName: effect.symbolName)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(theme.statisticValueText)
+                    .frame(width: 30, height: 30)
+                    .background(
+                        Circle()
+                            .fill(theme.menuIconBackground)
+                    )
+                    .overlay(
+                        Circle()
+                            .stroke(theme.statisticBadgeBorder.opacity(0.9), lineWidth: 1)
+                    )
+
+                Text(effect.badgeText)
+                    .font(.system(size: 10, weight: .bold))
+                    .monospacedDigit()
+                    .foregroundColor(theme.accentOnPrimary)
+                    .minimumScaleFactor(0.7)
+                    .lineLimit(1)
+                    .frame(minWidth: 14, minHeight: 14)
+                    .padding(.horizontal, effect.badgeText.count > 1 ? 3 : 0)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(theme.accentPrimary)
+                    )
+                    .overlay(
+                        Capsule(style: .continuous)
+                            .stroke(theme.statisticBadgeBackground, lineWidth: 1)
+                    )
+                    .offset(x: 4, y: 4)
+            }
+            .frame(width: 36, height: 36)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(effect.accessibilityIdentifier)
+        .accessibilityLabel(Text(effect.accessibilityLabel))
+        .accessibilityValue(Text(effect.accessibilityValue))
+        .accessibilityHint(Text("ダブルタップで詳細を表示します"))
     }
 
     func starGaugeTick(at fraction: Double) -> some View {

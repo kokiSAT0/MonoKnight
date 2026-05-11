@@ -31,6 +31,7 @@ extension RootView {
             dungeonGrowthStore: dungeonGrowthStore,
             dungeonRunResumeStore: dungeonRunResumeStore,
             rogueTowerRecordStore: rogueTowerRecordStore,
+            tutorialTowerProgressStore: tutorialTowerProgressStore,
             isAuthenticated: stateStore.binding(for: \.isAuthenticated),
             isShowingTitleScreen: stateStore.binding(for: \.isShowingTitleScreen),
             isPreparingGame: stateStore.binding(for: \.isPreparingGame),
@@ -98,6 +99,7 @@ extension RootView {
         @ObservedObject var dungeonGrowthStore: DungeonGrowthStore
         @ObservedObject var dungeonRunResumeStore: DungeonRunResumeStore
         @ObservedObject var rogueTowerRecordStore: RogueTowerRecordStore
+        @ObservedObject var tutorialTowerProgressStore: TutorialTowerProgressStore
         @Binding var isAuthenticated: Bool
         @Binding var isShowingTitleScreen: Bool
         @Binding var isPreparingGame: Bool
@@ -159,6 +161,7 @@ extension RootView {
                     dungeonGrowthStore: dungeonGrowthStore,
                     dungeonRunResumeStore: dungeonRunResumeStore,
                     rogueTowerRecordStore: rogueTowerRecordStore,
+                    tutorialTowerProgressStore: tutorialTowerProgressStore,
                     isPreparationOverlayVisible: $isPreparingGame,
                     isGameCenterAuthenticated: isAuthenticated,
                     onRequestReturnToTitle: {
@@ -199,6 +202,7 @@ extension RootView {
                     dungeonGrowthStore: dungeonGrowthStore,
                     dungeonRunResumeStore: dungeonRunResumeStore,
                     rogueTowerRecordStore: rogueTowerRecordStore,
+                    tutorialTowerProgressStore: tutorialTowerProgressStore,
                     pendingNavigationTarget: $pendingTitleNavigationTarget,
                     onStart: { mode, context in
                         onStartGame(mode, context)

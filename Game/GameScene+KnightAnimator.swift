@@ -156,8 +156,12 @@
             }
 
             guard let warpEvent = resolution.appliedEffects.first(where: { applied in
-                if case .warp = applied.effect { return true }
-                return false
+                switch applied.effect {
+                case .warp, .returnWarp:
+                    return true
+                default:
+                    return false
+                }
             }) else {
                 moveKnight(
                     to: resolution.finalPosition,
@@ -169,7 +173,11 @@
                 return
             }
 
-            guard case .warp(_, let destination) = warpEvent.effect else {
+            let destination: GridPoint
+            switch warpEvent.effect {
+            case .warp(_, let point), .returnWarp(let point):
+                destination = point
+            default:
                 moveKnight(
                     to: resolution.finalPosition,
                     in: scene,
@@ -428,12 +436,22 @@
 
         private func warpReplayContext(for resolution: MovementResolution) -> WarpReplayContext? {
             guard let warpEvent = resolution.appliedEffects.first(where: { applied in
-                if case .warp = applied.effect { return true }
-                return false
+                switch applied.effect {
+                case .warp, .returnWarp:
+                    return true
+                default:
+                    return false
+                }
             }),
-                  case .warp(_, let destination) = warpEvent.effect,
                   let sourceIndex = resolution.path.firstIndex(of: warpEvent.point)
             else {
+                return nil
+            }
+            let destination: GridPoint
+            switch warpEvent.effect {
+            case .warp(_, let point), .returnWarp(let point):
+                destination = point
+            default:
                 return nil
             }
 

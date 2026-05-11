@@ -160,6 +160,13 @@ public struct TileEncyclopediaEntry: Identifiable, Equatable {
             previewKind: .effect(.warp(pairID: "dictionary", destination: GridPoint(x: 0, y: 0)))
         ),
         TileEncyclopediaEntry(
+            id: "returnWarp",
+            displayName: "帰還ワープ",
+            category: "特殊効果",
+            description: "落下で入る小部屋から通常エリアへ戻る一方通行のワープです。宝箱を取った後の脱出口になります。",
+            previewKind: .effect(.returnWarp(destination: GridPoint(x: 0, y: 0)))
+        ),
+        TileEncyclopediaEntry(
             id: "blast",
             displayName: "吹き飛ばしマス",
             category: "特殊効果",

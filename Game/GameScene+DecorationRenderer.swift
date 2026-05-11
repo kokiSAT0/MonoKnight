@@ -384,6 +384,31 @@
                     strokeNodes: [],
                     fillNodes: []
                 )
+            case .returnWarp:
+                let ring = SKShapeNode()
+                ring.name = "tileEffectReturnWarpRing"
+                ring.strokeColor = .clear
+                ring.fillColor = .clear
+                ring.lineWidth = 1
+                ring.isAntialiased = true
+                ring.blendMode = .alpha
+
+                let arrow = SKShapeNode()
+                arrow.name = "tileEffectReturnWarpArrow"
+                arrow.strokeColor = .clear
+                arrow.fillColor = .clear
+                arrow.lineWidth = 0
+                arrow.isAntialiased = true
+                arrow.blendMode = .alpha
+
+                container.addChild(ring)
+                container.addChild(arrow)
+                return TileEffectDecorationCache(
+                    container: container,
+                    effect: effect,
+                    strokeNodes: [ring],
+                    fillNodes: [arrow]
+                )
             case .shuffleHand:
                 let diamond = SKShapeNode()
                 diamond.name = "tileEffectShuffleDiamond"
@@ -796,6 +821,24 @@
                     circle.lineWidth = max(1.0, layout.tileSize * 0.035)
                     circle.position = .zero
                 }
+            case .returnWarp:
+                guard let ring = decoration.strokeNodes.first,
+                      let arrow = decoration.fillNodes.first
+                else { return }
+                let radius = layout.tileSize * 0.31
+                ring.path = CGPath(ellipseIn: CGRect(x: -radius, y: -radius, width: radius * 2, height: radius * 2), transform: nil)
+                ring.lineWidth = max(1.0, layout.tileSize * 0.035)
+                ring.position = .zero
+
+                let arrowSize = layout.tileSize * 0.34
+                let path = CGMutablePath()
+                path.move(to: CGPoint(x: -arrowSize * 0.34, y: -arrowSize * 0.42))
+                path.addLine(to: CGPoint(x: arrowSize * 0.42, y: 0))
+                path.addLine(to: CGPoint(x: -arrowSize * 0.34, y: arrowSize * 0.42))
+                path.addLine(to: CGPoint(x: -arrowSize * 0.12, y: 0))
+                path.closeSubpath()
+                arrow.path = path
+                arrow.position = .zero
             case .shuffleHand:
                 guard let diamond = decoration.strokeNodes.first,
                       decoration.fillNodes.count >= 2
@@ -1102,6 +1145,18 @@
                     let attenuation = max(0.5, 1.0 - CGFloat(index) * 0.15)
                     node.strokeColor = style.color.withAlphaComponent(attenuation)
                     node.fillColor = .clear
+                    node.alpha = 1.0
+                }
+            case .returnWarp:
+                let color = palette.boardTileEffectWarp
+                for node in decoration.strokeNodes {
+                    node.strokeColor = color.withAlphaComponent(0.86)
+                    node.fillColor = .clear
+                    node.alpha = 1.0
+                }
+                for node in decoration.fillNodes {
+                    node.fillColor = color.withAlphaComponent(0.82)
+                    node.strokeColor = .clear
                     node.alpha = 1.0
                 }
             case .shuffleHand:

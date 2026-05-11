@@ -1077,6 +1077,15 @@ private struct TileEffectMarkerView: View {
                     .stroke(accent.opacity(0.75), lineWidth: 1.8)
                     .frame(width: 21, height: 21)
             }
+        case .returnWarp:
+            ZStack {
+                Circle()
+                    .stroke(accent, lineWidth: 2.0)
+                    .frame(width: 30, height: 30)
+                Image(systemName: "arrowshape.right.fill")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundColor(accent.opacity(0.9))
+            }
         case .shuffleHand:
             ZStack {
                 DiamondShape()
@@ -1248,7 +1257,7 @@ private struct TileEffectMarkerView: View {
 
     private var accent: Color {
         switch effect {
-        case .warp:
+        case .warp, .returnWarp:
             return theme.boardTileEffectWarp
         case .shuffleHand:
             return theme.boardTileEffectShuffle

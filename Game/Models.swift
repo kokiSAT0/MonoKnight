@@ -71,6 +71,8 @@ public enum TileEffect: Equatable, Codable {
     ///   - pairID: ワープ経路を識別するための文字列（同一 ID のマス同士でリンクする）
     ///   - destination: 実際に移動させる座標（盤面サイズ外や障害物は `Board` 側で除外する）
     case warp(pairID: String, destination: GridPoint)
+    /// 踏むと指定座標へ戻る一方通行の帰還ワープ
+    case returnWarp(destination: GridPoint)
     /// 手札をランダムに並び替える効果
     case shuffleHand
     /// 指定方向へ障害物または盤端に当たる直前まで吹き飛ばす効果
@@ -217,6 +219,9 @@ public struct Board: Equatable {
                 guard isWithinBoard(destination), !impassablePoints.contains(destination) else { continue }
                 sanitizedEffects[point] = effect
                 warpGroups[pairID, default: []].insert(point)
+            case .returnWarp(let destination):
+                guard isWithinBoard(destination), !impassablePoints.contains(destination) else { continue }
+                sanitizedEffects[point] = effect
             case .blast(let direction):
                 let isOrthogonalOneStep = abs(direction.dx) + abs(direction.dy) == 1
                 guard isOrthogonalOneStep else { continue }

@@ -138,6 +138,7 @@ final class GameHandSectionViewAccessibilityTests: XCTestCase {
 
     func testDungeonRelicAccessibilityTextUsesRelicDetails() {
         let relic = DungeonRelicEntry(relicID: .crackedShield)
+        let usedRelic = DungeonRelicEntry(relicID: .crackedShield, remainingUses: 0)
         let silverNeedle = DungeonRelicEntry(relicID: .silverNeedle)
         let heavyCrown = DungeonRelicEntry(relicID: .heavyCrown)
 
@@ -153,6 +154,12 @@ final class GameHandSectionViewAccessibilityTests: XCTestCase {
         XCTAssertTrue(GameHandSectionView.dungeonRelicAccessibilityHint(for: relic).contains("残り 1 回"))
         XCTAssertTrue(GameHandSectionView.dungeonRelicAccessibilityHint(for: relic).contains("次に受けるダメージ"))
         XCTAssertFalse(GameHandSectionView.dungeonRelicAccessibilityHint(for: relic).contains("取得時にHPが1減る"))
+        XCTAssertEqual(
+            GameHandSectionView.dungeonRelicAccessibilityLabel(for: usedRelic),
+            "コモン、一時レリック、使用済み、割れた盾"
+        )
+        XCTAssertTrue(GameHandSectionView.dungeonRelicAccessibilityHint(for: usedRelic).contains("使用済み"))
+        XCTAssertTrue(GameHandSectionView.dungeonRelicAccessibilityHint(for: usedRelic).contains("残り 0 回"))
         XCTAssertEqual(silverNeedle.symbolName, "pin.fill")
         XCTAssertEqual(
             GameHandSectionView.dungeonRelicAccessibilityLabel(for: silverNeedle),

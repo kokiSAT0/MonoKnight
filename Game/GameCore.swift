@@ -146,6 +146,18 @@ public struct PendingTargetedSupportCard: Equatable {
     }
 }
 
+public struct DungeonFatigueIndicatorState: Equatable {
+    public let filledCount: Int
+    public let totalCount: Int
+    public let isDamageStep: Bool
+
+    public init(filledCount: Int, totalCount: Int, isDamageStep: Bool) {
+        self.totalCount = max(totalCount, 1)
+        self.filledCount = min(max(filledCount, 0), self.totalCount)
+        self.isDamageStep = isDamageStep
+    }
+}
+
 /// ゲーム進行を統括するクラス
 /// - 盤面操作・手札管理・ペナルティ処理・スコア計算を担当する
 
@@ -282,6 +294,29 @@ public final class GameCore: ObservableObject {
         guard let turnLimit = effectiveDungeonTurnLimit else { return nil }
         return max(turnLimit - moveCount, 0)
     }
+    /// 塔ダンジョンの疲労インジケーター表示状態
+    public var dungeonFatigueIndicatorState: DungeonFatigueIndicatorState? {
+        guard mode.usesDungeonExit else { return nil }
+        guard let turnLimit = effectiveDungeonTurnLimit else { return nil }
+        guard moveCount >= turnLimit else { return nil }
+
+        let overtime = max(moveCount - turnLimit, 0)
+        guard overtime > 0 else {
+            return DungeonFatigueIndicatorState(
+                filledCount: 0,
+                totalCount: Self.overtimeFatigueInterval,
+                isDamageStep: false
+            )
+        }
+
+        let isDamageStep = overtime == 1 || (overtime - 1).isMultiple(of: Self.overtimeFatigueInterval)
+        let filledCount = isDamageStep ? Self.overtimeFatigueInterval : (overtime - 1) % Self.overtimeFatigueInterval
+        return DungeonFatigueIndicatorState(
+            filledCount: filledCount,
+            totalCount: Self.overtimeFatigueInterval,
+            isDamageStep: isDamageStep
+        )
+    }
     /// 遺物補正を反映した現在フロアの手数上限
     public var effectiveDungeonTurnLimit: Int? {
         guard let baseTurnLimit = mode.dungeonRules?.failureRule.turnLimit else { return nil }
@@ -289,8 +324,16 @@ public final class GameCore: ObservableObject {
         if hasDungeonRelic(.chippedHourglass) {
             adjustment += 3
         }
+        if hasDungeonRelic(.copperHourglass) {
+            adjustment += 2
+        }
         if hasDungeonRelic(.stargazerHourglass) {
             adjustment += 5
+        }
+        if mode.dungeonRules?.exitLock != nil,
+           isDungeonExitUnlocked,
+           hasDungeonRelic(.foldingMap) {
+            adjustment += 2
         }
         if hasDungeonRelic(.travelerBoots) {
             adjustment += 1
@@ -306,6 +349,17 @@ public final class GameCore: ObservableObject {
         }
         if hasDungeonCurse(.crackedCompass) {
             adjustment -= 3
+        }
+        if hasDungeonCurse(.chaserScent) {
+            adjustment += 3
+        }
+        if hasDungeonCurse(.oilSoakedBoots) {
+            adjustment += 2
+        }
+        if mode.dungeonRules?.exitLock != nil,
+           isDungeonExitUnlocked,
+           hasDungeonCurse(.upsideDownKey) {
+            adjustment -= 2
         }
         return max(baseTurnLimit + adjustment, 1)
     }
@@ -405,7 +459,11 @@ public final class GameCore: ObservableObject {
     }
     /// 予備のたいまつを持っている暗闇フロアでは視界を少し広げる
     public var dungeonDarknessVisionRadius: Int {
-        hasDungeonRelic(.spareTorch) ? 2 : 1
+        let relicBonus =
+            (hasDungeonRelic(.spareTorch) ? 1 : 0) +
+            (hasDungeonRelic(.smallLantern) ? 1 : 0)
+        let cursePenalty = hasDungeonCurse(.wetTinder) ? 1 : 0
+        return max(min(1 + relicBonus, 3) - cursePenalty, 1)
     }
     /// 白いチョークで暗闇内でも見つけやすくする未取得拾得カード
     public var chalkRevealedDungeonCardPickupPoints: Set<GridPoint> {
@@ -416,7 +474,8 @@ public final class GameCore: ObservableObject {
     }
     /// 現在の行動で消費する手数。足枷状態では全行動が 2 手分になる
     private var currentActionMoveCost: Int {
-        max(isShackled ? 2 : 1, hasDungeonCurse(.heavyBell) && moveCount == 0 ? 2 : 1)
+        let shackleCost = isShackled ? (hasDungeonCurse(.ironShackle) ? 3 : 2) : 1
+        return max(shackleCost, hasDungeonCurse(.heavyBell) && moveCount == 0 ? 2 : 1)
     }
     /// まだ盤面上に残っている拾得カード
     public var activeDungeonCardPickups: [DungeonCardPickupDefinition] {
@@ -1257,8 +1316,18 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             if let effect = board.effect(at: stepPoint) {
                 detectedEffects.append(.init(point: stepPoint, effect: effect))
                 switch effect {
-                case .warp(_, let destination):
+                case .warp(_, let destination), .returnWarp(let destination):
                     if board.contains(destination), board.isTraversable(destination) {
+                        if hasDungeonRelic(.phantomTicket) {
+                            preservesPlayedCard = true
+                        }
+                        if hasDungeonCurse(.laughingDoor) {
+                            registerPostMoveTileEffect(
+                                .discardRandomHand,
+                                postMoveTileEffect: &postMoveTileEffect,
+                                preservesPlayedCard: &preservesPlayedCard
+                            )
+                        }
                         presentationSteps.append(
                             movementPresentationStep(
                                 at: stepPoint,
@@ -1323,13 +1392,30 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                     break
                 case .poisonTrap:
                     applyPoisonTrap()
-                    triggerTrapperGlovesIfNeeded(reason: "毒罠")
-                    triggeredPoisonTrap = true
+                    if poisonDamageTicksRemaining > 0 {
+                        triggerTrapperGlovesIfNeeded(reason: "毒罠")
+                        triggeredPoisonTrap = true
+                    }
                 case .illusionTrap:
+                    if consumeDungeonRelicUse(.purifyingCharm) {
+                        debugLog("清めの護符で幻惑罠を無効化")
+                        break
+                    }
                     isIlluded = true
+                    if hasDungeonCurse(.foolsMask) {
+                        registerPostMoveTileEffect(
+                            .discardRandomHand,
+                            postMoveTileEffect: &postMoveTileEffect,
+                            preservesPlayedCard: &preservesPlayedCard
+                        )
+                    }
                     triggerTrapperGlovesIfNeeded(reason: "幻惑罠")
                     debugLog("幻惑罠を踏みました: この階の移動カードが？表示になります")
                 case .shackleTrap:
+                    if consumeDungeonRelicUse(.purifyingCharm) {
+                        debugLog("清めの護符で足枷罠を無効化")
+                        break
+                    }
                     isShackled = true
                     triggerTrapperGlovesIfNeeded(reason: "足枷罠")
                     stopReason = .shackleTrap
@@ -1342,6 +1428,10 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                     )
                     stepIndex = pendingPath.count
                 case .slow:
+                    if consumeDungeonRelicUse(.purifyingCharm) {
+                        debugLog("清めの護符で麻痺罠を無効化")
+                        break
+                    }
                     paralysisTrapPoint = stepPoint
                     triggerTrapperGlovesIfNeeded(reason: "麻痺罠")
                     stopReason = .slow
@@ -1451,13 +1541,17 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             postMoveTileEffect = .discardAllHands
         case .preserveCard:
             preservesPlayedCard = true
-        case .warp, .blast, .slow, .shackleTrap, .poisonTrap, .illusionTrap, .swamp:
+        case .warp, .returnWarp, .blast, .slow, .shackleTrap, .poisonTrap, .illusionTrap, .swamp:
             break
         }
     }
 
     private func applyPostMoveTileEffect(_ effect: PostMoveTileEffect?, preserving preservedCard: DealtCard?) {
         guard let effect else { return }
+        if consumeDungeonRelicUse(.purifyingCharm) {
+            debugLog("清めの護符で手札喪失罠を無効化")
+            return
+        }
 
         switch effect {
         case .shuffleHand:
@@ -1470,6 +1564,13 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             applyTileEffectHandDiscardAllowsNextPreservation(.supportCards)
         case .discardAllHands:
             applyTileEffectHandDiscardAllowsNextPreservation(.all)
+        }
+        guard hasDungeonCurse(.frayedMemory) else { return }
+        switch effect {
+        case .discardRandomHand, .discardAllMoveCards, .discardAllSupportCards, .discardAllHands:
+            applyTileEffectHandDiscardAllowsNextPreservation(.random)
+        case .shuffleHand:
+            break
         }
     }
 
@@ -2049,8 +2150,14 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         if hasDungeonRelic(.explorerBag) {
             adjustment += 1
         }
+        if hasDungeonRelic(.sageCodex) {
+            adjustment += 1
+        }
         if hasDungeonCurse(.greedyBag) {
             adjustment += 2
+        }
+        if hasDungeonCurse(.poisonVial) {
+            adjustment += 1
         }
         if hasDungeonCurse(.warpedHourglass) {
             adjustment -= 1
@@ -2135,7 +2242,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
     @discardableResult
     private func applyDungeonMimicTrap(from pickup: DungeonRelicPickupDefinition) -> Int {
         let damage = hasDungeonCurse(.redChalice) ? 3 : 2
-        dungeonHP = max(dungeonHP - damage, 0)
+        applyDungeonHPDamage(damage)
         debugLog("ミミックが出現: \(pickup.id) @\(pickup.point), HP=\(dungeonHP)")
         if dungeonHP <= 0 {
             finalizeElapsedTimeIfNeeded()
@@ -2252,11 +2359,18 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             break
         case .glowingHeart:
             dungeonHP += 2
+        case .woodenAmulet:
+            dungeonHP += 1
         case .heavyCrown, .oldMap, .blackFeather, .chippedHourglass, .travelerBoots, .silverNeedle, .starCup, .explorerBag, .moonMirror, .victoryBanner:
             break
         case .windcutFeather, .guardianIncense, .trapperGloves, .whiteChalk, .spareTorch, .oldRope, .twinPouch, .gamblerCoin:
             break
         case .royalCrown, .immortalHeart, .guardianAegis, .stargazerHourglass:
+            break
+        case .copperHourglass, .travelerRation, .smallLantern, .dullNeedle, .patchedRope,
+             .fieldMedkit, .scoutCompass, .quickSheath, .purifyingCharm, .phoenixFeather, .sageCodex,
+             .trapSole, .emberCloak, .watcherMonocle, .railCharm, .chaserDecoy, .antidoteStone,
+             .starUmbrella, .fallAnchor, .foldingMap, .phantomTicket, .campfireCoal, .merchantsScale:
             break
         }
     }
@@ -2275,9 +2389,15 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             dungeonHP += 2
         case .crackedShoes:
             dungeonHP += 3
+        case .watchersBrand, .glassAnklet, .wetTinder:
+            dungeonHP += 2
+        case .meteorRod, .ironShackle:
+            dungeonHP += 3
         case .cursedCrown, .warpedHourglass, .greedyBag, .crackedCompass:
             break
-        case .cloudedMirror:
+        case .cloudedMirror, .patrolBell, .chaserScent, .trapMagnet, .oilSoakedBoots, .poisonVial, .foolsMask, .frayedMemory:
+            break
+        case .laughingDoor, .upsideDownKey, .taxCollector, .flickeringCampfire:
             break
         }
     }
@@ -2500,8 +2620,19 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             case .healingTile(let healingPoints, let amount) where healingPoints.contains(point):
                 guard !consumedHealingTilePoints.contains(point) else { break }
                 let appliedHealing = max(amount, 1)
+                    + (hasDungeonRelic(.fieldMedkit) ? 1 : 0)
+                    + (hasDungeonCurse(.flickeringCampfire) ? 2 : 0)
                 dungeonHP += appliedHealing
                 consumedHealingTilePoints.insert(point)
+                if hasDungeonRelic(.campfireCoal) {
+                    poisonDamageTicksRemaining = 0
+                    poisonActionsUntilNextDamage = 0
+                    isShackled = false
+                    isIlluded = false
+                }
+                if hasDungeonCurse(.flickeringCampfire) {
+                    isIlluded = true
+                }
                 debugLog("回復マスを踏みました: \(point), +\(appliedHealing), HP=\(dungeonHP)")
             case .brittleFloor, .damageTrap, .lavaTile, .healingTile:
                 break
@@ -2518,8 +2649,23 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         } else if logLabel == "罠", consumeDungeonRelicUse(.silverNeedle) {
             debugLog("銀の針で罠ダメージを無効化: \(point), HP=\(dungeonHP)")
         } else {
-            let finalDamage = applyRelicDamageReductionIfNeeded(to: max(damage, 1))
-            dungeonHP = max(dungeonHP - finalDamage, 0)
+            var adjustedDamage = max(damage, 1)
+            if logLabel == "罠", hasDungeonCurse(.trapMagnet) {
+                adjustedDamage += 1
+            }
+            if logLabel.hasPrefix("溶岩"), hasDungeonCurse(.oilSoakedBoots) {
+                adjustedDamage += 1
+            }
+            if logLabel == "罠", hasDungeonRelic(.trapSole) {
+                adjustedDamage = max(adjustedDamage - 1, 0)
+            }
+            if logLabel.hasPrefix("溶岩"), hasDungeonRelic(.emberCloak) {
+                adjustedDamage = max(adjustedDamage - 1, 0)
+            }
+            let finalDamage = logLabel == "罠"
+                ? applyTrapDamageReductionIfNeeded(to: adjustedDamage)
+                : applyRelicDamageReductionIfNeeded(to: adjustedDamage)
+            applyDungeonHPDamage(finalDamage)
             if logLabel == "罠", finalDamage > 0 {
                 triggerTrapperGlovesIfNeeded(reason: "ダメージ罠")
             }
@@ -2543,7 +2689,15 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
     }
 
     private func applyPoisonTrap() {
-        poisonDamageTicksRemaining = poisonTrapDamageTicks
+        if consumeDungeonRelicUse(.purifyingCharm) {
+            debugLog("清めの護符で毒罠を無効化")
+            return
+        }
+        var poisonTicks = poisonTrapDamageTicks + (hasDungeonCurse(.poisonVial) ? 1 : 0)
+        if hasDungeonRelic(.antidoteStone) {
+            poisonTicks -= 1
+        }
+        poisonDamageTicksRemaining = max(poisonTicks, 1)
         poisonActionsUntilNextDamage = poisonTrapActionsPerDamage
         debugLog("毒罠を踏みました: 残り\(poisonDamageTicksRemaining)回, 次ダメージまで\(poisonActionsUntilNextDamage)行動")
     }
@@ -2622,6 +2776,25 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         }
         guard consumeDungeonRelicUse(.crackedShield) else { return adjustedDamage }
         return max(adjustedDamage - 1, 0)
+    }
+
+    private func applyTrapDamageReductionIfNeeded(to damage: Int) -> Int {
+        guard damage > 0 else { return 0 }
+        let adjustedDamage = applyRelicDamageReductionIfNeeded(to: damage)
+        guard adjustedDamage > 0, consumeDungeonRelicUse(.dullNeedle) else {
+            return adjustedDamage
+        }
+        return max(adjustedDamage - 1, 0)
+    }
+
+    private func applyDungeonHPDamage(_ damage: Int) {
+        guard damage > 0 else { return }
+        let nextHP = dungeonHP - damage
+        if nextHP <= 0, consumeDungeonRelicUse(.phoenixFeather) {
+            dungeonHP = 1
+        } else {
+            dungeonHP = max(nextHP, 0)
+        }
     }
 
     private func consumeDungeonEnemyDamageMitigation() -> Bool {
@@ -2720,8 +2893,13 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         } else if consumeDungeonRelicUse(.silverNeedle) {
             debugLog("銀の針で床崩落ダメージを無効化: \(point), HP=\(dungeonHP)")
         } else {
-            let finalDamage = applyRelicDamageReductionIfNeeded(to: 1)
-            dungeonHP = max(dungeonHP - finalDamage, 0)
+            var baseFallDamage = 1 + (hasDungeonCurse(.glassAnklet) ? 1 : 0)
+            if hasDungeonRelic(.fallAnchor) {
+                baseFallDamage = max(baseFallDamage - 1, 0)
+            }
+            let finalDamage = applyRelicDamageReductionIfNeeded(to: baseFallDamage)
+            let fallDamage = consumeDungeonRelicUse(.patchedRope) ? max(finalDamage - 1, 0) : finalDamage
+            applyDungeonHPDamage(fallDamage)
             debugLog("床崩落で下階へ落下: \(point), HP=\(dungeonHP)")
         }
         if dungeonHP <= 0 {
@@ -3008,7 +3186,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
 
         let finalDamage = applyRelicDamageReductionIfNeeded(to: totalDamage)
         guard finalDamage > 0 else { return 0 }
-        dungeonHP = max(dungeonHP - finalDamage, 0)
+        applyDungeonHPDamage(finalDamage)
         debugLog("敵の攻撃を受けました: -\(finalDamage), HP=\(dungeonHP)")
         return finalDamage
     }
@@ -3039,7 +3217,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         }
         let finalDamage = applyRelicDamageReductionIfNeeded(to: totalDamage)
         guard finalDamage > 0 else { return false }
-        dungeonHP = max(dungeonHP - finalDamage, 0)
+        applyDungeonHPDamage(finalDamage)
         debugLog("敵の攻撃範囲を通過しました: \(point), -\(finalDamage), HP=\(dungeonHP)")
         if shouldFailDungeonRun() {
             finalizeElapsedTimeIfNeeded()
@@ -3061,14 +3239,51 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
 
         for enemy in enemyStates {
             if enemyDangerPoints(for: enemy).contains(point) {
-                enemyDamage += enemy.damage
+                enemyDamage += adjustedEnemySourceDamage(for: enemy, isMarkerWarning: false)
             } else if includesContact, enemy.position == point {
-                enemyDamage += enemy.damage
+                enemyDamage += adjustedEnemySourceDamage(for: enemy, isMarkerWarning: false)
             } else if includesMarkerWarning, case .marker = enemy.behavior, markerDamagePoints.contains(point) {
-                markerDamage += enemy.damage
+                markerDamage += adjustedEnemySourceDamage(for: enemy, isMarkerWarning: true)
             }
         }
         return (enemyDamage, markerDamage)
+    }
+
+    private func adjustedEnemySourceDamage(for enemy: EnemyState, isMarkerWarning: Bool) -> Int {
+        let damage = enemy.damage
+            + curseDamageBonus(for: enemy.behavior, isMarkerWarning: isMarkerWarning)
+            - relicDamageReductionBonus(for: enemy.behavior, isMarkerWarning: isMarkerWarning)
+        return max(damage, 0)
+    }
+
+    private func curseDamageBonus(for behavior: EnemyBehavior, isMarkerWarning: Bool) -> Int {
+        switch behavior {
+        case .watcher, .rotatingWatcher:
+            return hasDungeonCurse(.watchersBrand) ? 1 : 0
+        case .patrol:
+            return hasDungeonCurse(.patrolBell) ? 1 : 0
+        case .chaser:
+            return hasDungeonCurse(.chaserScent) ? 1 : 0
+        case .marker:
+            return isMarkerWarning && hasDungeonCurse(.meteorRod) ? 1 : 0
+        case .guardPost:
+            return 0
+        }
+    }
+
+    private func relicDamageReductionBonus(for behavior: EnemyBehavior, isMarkerWarning: Bool) -> Int {
+        switch behavior {
+        case .watcher, .rotatingWatcher:
+            return hasDungeonRelic(.watcherMonocle) ? 1 : 0
+        case .patrol:
+            return hasDungeonRelic(.railCharm) ? 1 : 0
+        case .chaser:
+            return hasDungeonRelic(.chaserDecoy) ? 1 : 0
+        case .marker:
+            return isMarkerWarning && hasDungeonRelic(.starUmbrella) ? 1 : 0
+        case .guardPost:
+            return 0
+        }
     }
 
     private func dungeonEnemyTurnPhase(
@@ -3134,7 +3349,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         }
         guard damage > 0 else { return false }
 
-        dungeonHP = max(dungeonHP - damage, 0)
+        applyDungeonHPDamage(damage)
         debugLog("手数超過の疲労ダメージ: 超過=\(currentOvertime), -\(damage), HP=\(dungeonHP)")
         return dungeonHP <= 0
     }

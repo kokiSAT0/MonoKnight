@@ -137,6 +137,7 @@ extension GameViewModel {
         }
         registerRogueTowerRecordIfNeeded(progress: progress)
         if progress == .cleared {
+            registerTutorialTowerClearIfNeeded()
             recordRewardOfferDiscoveries()
         }
         coreBindingCoordinator.handleProgressChange(
@@ -291,6 +292,14 @@ extension GameViewModel {
 
         let hasNextFloor = dungeon.canAdvanceWithinRun(afterFloorIndex: runState.currentFloorIndex)
         return dungeonGrowthStore.registerDungeonClear(dungeon: dungeon, runState: runState, hasNextFloor: hasNextFloor)
+    }
+
+    private func registerTutorialTowerClearIfNeeded() {
+        guard let metadata = mode.dungeonMetadataSnapshot,
+              let runState = metadata.runState,
+              let dungeon = DungeonLibrary.shared.dungeon(with: metadata.dungeonID)
+        else { return }
+        tutorialTowerProgressStore.registerTutorialTowerClear(dungeon: dungeon, runState: runState)
     }
 
     private func registerRogueTowerRecordIfNeeded(progress: GameProgress) {

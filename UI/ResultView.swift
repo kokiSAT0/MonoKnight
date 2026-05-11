@@ -333,6 +333,8 @@ struct ResultView: View {
                     gameCenterService: gameCenterService,
                     hapticsEnabled: gameSettingsStore.hapticsEnabled
                 )
+
+                ResultDetailsDisclosureSection(presentation: summaryPresentation)
             }
             .padding(.horizontal, horizontalPadding)
             .padding(.vertical, 32)

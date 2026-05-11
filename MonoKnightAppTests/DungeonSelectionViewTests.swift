@@ -16,6 +16,7 @@ final class DungeonSelectionViewTests: XCTestCase {
             DungeonSelectionView(
                 dungeonLibrary: .shared,
                 dungeonGrowthStore: DungeonGrowthStore(userDefaults: defaults),
+                tutorialTowerProgressStore: TutorialTowerProgressStore(userDefaults: defaults),
                 onStartDungeon: {
                     startedDungeon = $0
                     startedFloorIndex = $1
@@ -132,6 +133,54 @@ final class DungeonSelectionViewTests: XCTestCase {
         XCTAssertEqual(presentation.pointsText, "ポイント 2")
         XCTAssertEqual(presentation.sectionAccessibilityIdentifier, "dungeon_growth_section")
         XCTAssertEqual(presentation.toggleAccessibilityIdentifier, "dungeon_growth_toggle")
+    }
+
+    func testTutorialTowerProgressPresentationChangesAfterCompletion() throws {
+        let suiteName = "DungeonSelectionViewTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName) ?? .standard
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let progressStore = TutorialTowerProgressStore(userDefaults: defaults)
+        let tutorialTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
+        let growthTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+
+        let initialPresentation = try XCTUnwrap(
+            TutorialTowerStatusPresentation.make(dungeon: tutorialTower, progressStore: progressStore)
+        )
+        XCTAssertEqual(initialPresentation.text, "おすすめ")
+        XCTAssertEqual(initialPresentation.accessibilityIdentifier, "dungeon_tutorial_status_tutorial-tower")
+        XCTAssertFalse(initialPresentation.isCompleted)
+        XCTAssertNil(TutorialTowerStatusPresentation.make(dungeon: growthTower, progressStore: progressStore))
+        XCTAssertTrue(progressStore.shouldPresentGrowthTowerIntroPrompt(for: growthTower))
+
+        let finalRunState = DungeonRunState(
+            dungeonID: tutorialTower.id,
+            currentFloorIndex: tutorialTower.floors.count - 1,
+            carriedHP: 3
+        )
+        progressStore.registerTutorialTowerClear(dungeon: tutorialTower, runState: finalRunState)
+
+        let completedPresentation = try XCTUnwrap(
+            TutorialTowerStatusPresentation.make(dungeon: tutorialTower, progressStore: progressStore)
+        )
+        XCTAssertEqual(completedPresentation.text, "完了済")
+        XCTAssertTrue(completedPresentation.isCompleted)
+        XCTAssertFalse(progressStore.shouldPresentGrowthTowerIntroPrompt(for: growthTower))
+    }
+
+    func testGrowthTowerIntroPromptIsSeenOnlyOnceAndDoesNotLockGrowthTower() throws {
+        let suiteName = "DungeonSelectionViewTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName) ?? .standard
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let progressStore = TutorialTowerProgressStore(userDefaults: defaults)
+        let growthTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+
+        XCTAssertTrue(progressStore.shouldPresentGrowthTowerIntroPrompt(for: growthTower))
+        XCTAssertNotNil(DungeonLibrary.shared.firstFloorMode(for: growthTower))
+
+        progressStore.markGrowthTowerIntroPromptSeen()
+
+        XCTAssertFalse(progressStore.shouldPresentGrowthTowerIntroPrompt(for: growthTower))
+        XCTAssertNotNil(DungeonLibrary.shared.firstFloorMode(for: growthTower))
     }
 
     func testDungeonSelectionShowsRogueTowerHighestFloorFromStoredRecord() throws {
