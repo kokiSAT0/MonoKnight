@@ -2128,10 +2128,31 @@ private enum DungeonCardVariationResolver {
         floorIndex: Int,
         seed: UInt64
     ) -> DungeonFloorDefinition {
-        let cardPickups = resolvedPickups(
+        let hazards = resolvedHazards(
             for: floor,
             floorIndex: floorIndex,
             seed: seed
+        )
+        let impassableTilePoints = resolvedImpassableTilePoints(
+            for: floor,
+            floorIndex: floorIndex,
+            seed: seed,
+            hazards: hazards
+        )
+        let relicPickups = resolvedRelicPickups(
+            for: floor,
+            floorIndex: floorIndex,
+            seed: seed,
+            hazards: hazards,
+            impassableTilePoints: impassableTilePoints
+        )
+        let cardPickups = resolvedPickups(
+            for: floor,
+            floorIndex: floorIndex,
+            seed: seed,
+            hazards: hazards,
+            impassableTilePoints: impassableTilePoints,
+            relicPickups: relicPickups
         )
         let rewardCards = resolvedRewardCards(
             for: floor,
@@ -2147,13 +2168,13 @@ private enum DungeonCardVariationResolver {
             deckPreset: floor.deckPreset,
             failureRule: floor.failureRule,
             enemies: floor.enemies,
-            hazards: floor.hazards,
-            impassableTilePoints: floor.impassableTilePoints,
+            hazards: hazards,
+            impassableTilePoints: impassableTilePoints,
             tileEffectOverrides: floor.tileEffectOverrides,
             warpTilePairs: floor.warpTilePairs,
             exitLock: floor.exitLock,
             cardPickups: cardPickups,
-            relicPickups: floor.relicPickups,
+            relicPickups: relicPickups,
             rewardMoveCardsAfterClear: rewardCards.compactMap(\.move),
             rewardSupportCardsAfterClear: rewardCards.compactMap(\.support)
         )
@@ -2162,36 +2183,141 @@ private enum DungeonCardVariationResolver {
     private static func resolvedPickups(
         for floor: DungeonFloorDefinition,
         floorIndex: Int,
-        seed: UInt64
+        seed: UInt64,
+        hazards: [HazardDefinition],
+        impassableTilePoints: Set<GridPoint>,
+        relicPickups: [DungeonRelicPickupDefinition]
     ) -> [DungeonCardPickupDefinition] {
         guard !floor.cardPickups.isEmpty else { return [] }
+        let pickupCount = resolvedPickupCount(for: floor, floorIndex: floorIndex, seed: seed)
         var cards = drawPlayableCards(
             floorIndex: floorIndex,
             context: .floorPickup,
-            count: floor.cardPickups.count,
+            count: pickupCount,
             seed: seed,
             salt: 0xC4D1
         )
-        if cards.count < floor.cardPickups.count {
+        if cards.count < pickupCount {
             cards += floor.cardPickups.dropFirst(cards.count).map(\.playable)
         }
 
         var randomizer = DungeonCardVariationRandomizer(seed: seed, floorIndex: floorIndex, salt: 0xC4D1)
         var positions = pickupPositions(
             for: floor,
-            count: floor.cardPickups.count,
+            count: pickupCount,
+            hazards: hazards,
+            impassableTilePoints: impassableTilePoints,
+            relicPickups: relicPickups,
             randomizer: &randomizer
         )
-        if positions.count < floor.cardPickups.count {
+        if positions.count < pickupCount {
             positions += floor.cardPickups.dropFirst(positions.count).map(\.point)
         }
 
-        return floor.cardPickups.enumerated().map { index, basePickup in
-            DungeonCardPickupDefinition(
-                id: basePickup.id,
+        return (0..<min(pickupCount, cards.count, positions.count)).map { index in
+            let basePickup = floor.cardPickups[index % floor.cardPickups.count]
+            return DungeonCardPickupDefinition(
+                id: index < floor.cardPickups.count ? basePickup.id : "\(floor.id)-variant-pickup-\(index + 1)",
                 point: positions[index],
                 playable: cards[index],
                 uses: basePickup.uses
+            )
+        }
+    }
+
+    private static func resolvedHazards(
+        for floor: DungeonFloorDefinition,
+        floorIndex: Int,
+        seed: UInt64
+    ) -> [HazardDefinition] {
+        var reserved = coreReservedPoints(for: floor)
+        return floor.hazards.enumerated().compactMap { index, hazard in
+            var randomizer = DungeonCardVariationRandomizer(
+                seed: seed,
+                floorIndex: floorIndex,
+                salt: 0xD00D + UInt64(index)
+            )
+            let count = variedCount(
+                base: hazard.points.count,
+                minimum: hazard.points.isEmpty ? 0 : 1,
+                maximum: max(hazard.points.count + 1, 1),
+                randomizer: &randomizer
+            )
+            let points = drawPoints(
+                for: floor,
+                count: count,
+                reserved: reserved,
+                randomizer: &randomizer
+            )
+            guard !points.isEmpty else { return nil }
+            reserved.formUnion(points)
+            switch hazard {
+            case .brittleFloor:
+                return .brittleFloor(points: Set(points))
+            case .damageTrap(_, let damage):
+                return .damageTrap(points: Set(points), damage: damage)
+            case .healingTile(_, let amount):
+                return .healingTile(points: Set(points), amount: amount)
+            }
+        }
+    }
+
+    private static func resolvedImpassableTilePoints(
+        for floor: DungeonFloorDefinition,
+        floorIndex: Int,
+        seed: UInt64,
+        hazards: [HazardDefinition]
+    ) -> Set<GridPoint> {
+        guard !floor.impassableTilePoints.isEmpty else { return [] }
+        var randomizer = DungeonCardVariationRandomizer(seed: seed, floorIndex: floorIndex, salt: 0xB10C)
+        let maximum = floorIndex >= 10 ? 5 : 4
+        let count = variedCount(
+            base: floor.impassableTilePoints.count,
+            minimum: 2,
+            maximum: maximum,
+            randomizer: &randomizer
+        )
+        var reserved = coreReservedPoints(for: floor)
+        reserved.formUnion(hazards.flatMap(\.points))
+        var candidates = candidatePoints(for: floor, excluding: reserved)
+        var result: Set<GridPoint> = []
+        while !candidates.isEmpty && result.count < count {
+            let index = randomizer.nextIndex(upperBound: candidates.count)
+            let point = candidates.remove(at: index)
+            let nextResult = result.union([point])
+            if hasOrthogonalPath(from: floor.spawnPoint, to: floor.exitPoint, boardSize: floor.boardSize, blocked: nextResult) {
+                result.insert(point)
+            }
+        }
+        return result
+    }
+
+    private static func resolvedRelicPickups(
+        for floor: DungeonFloorDefinition,
+        floorIndex: Int,
+        seed: UInt64,
+        hazards: [HazardDefinition],
+        impassableTilePoints: Set<GridPoint>
+    ) -> [DungeonRelicPickupDefinition] {
+        guard !floor.relicPickups.isEmpty else { return [] }
+        var reserved = coreReservedPoints(for: floor)
+        reserved.formUnion(hazards.flatMap(\.points))
+        reserved.formUnion(impassableTilePoints)
+        var randomizer = DungeonCardVariationRandomizer(seed: seed, floorIndex: floorIndex, salt: 0x7E11C)
+        let positions = drawPoints(
+            for: floor,
+            count: floor.relicPickups.count,
+            reserved: reserved,
+            randomizer: &randomizer
+        )
+        guard positions.count == floor.relicPickups.count else { return floor.relicPickups }
+        return floor.relicPickups.enumerated().map { index, pickup in
+            DungeonRelicPickupDefinition(
+                id: pickup.id,
+                point: positions[index],
+                kind: pickup.kind,
+                candidateRelics: pickup.candidateRelics,
+                candidateCurses: pickup.candidateCurses
             )
         }
     }
@@ -2239,9 +2365,56 @@ private enum DungeonCardVariationResolver {
     private static func pickupPositions(
         for floor: DungeonFloorDefinition,
         count: Int,
+        hazards: [HazardDefinition],
+        impassableTilePoints: Set<GridPoint>,
+        relicPickups: [DungeonRelicPickupDefinition],
         randomizer: inout DungeonCardVariationRandomizer
     ) -> [GridPoint] {
-        var candidates = safePickupPoints(for: floor)
+        var reserved = coreReservedPoints(for: floor)
+        reserved.formUnion(hazards.flatMap(\.points))
+        reserved.formUnion(impassableTilePoints)
+        reserved.formUnion(relicPickups.map(\.point))
+        return drawPoints(
+            for: floor,
+            count: count,
+            reserved: reserved,
+            randomizer: &randomizer
+        )
+    }
+
+    private static func resolvedPickupCount(
+        for floor: DungeonFloorDefinition,
+        floorIndex: Int,
+        seed: UInt64
+    ) -> Int {
+        var randomizer = DungeonCardVariationRandomizer(seed: seed, floorIndex: floorIndex, salt: 0xC0A7)
+        let minimum = floorIndex < 8 ? 4 : 3
+        return variedCount(
+            base: floor.cardPickups.count,
+            minimum: minimum,
+            maximum: floor.cardPickups.count + 1,
+            randomizer: &randomizer
+        )
+    }
+
+    private static func variedCount(
+        base: Int,
+        minimum: Int,
+        maximum: Int,
+        randomizer: inout DungeonCardVariationRandomizer
+    ) -> Int {
+        guard base > 0 else { return 0 }
+        let delta = randomizer.nextIndex(upperBound: 3) - 1
+        return min(max(base + delta, minimum), max(minimum, maximum))
+    }
+
+    private static func drawPoints(
+        for floor: DungeonFloorDefinition,
+        count: Int,
+        reserved: Set<GridPoint>,
+        randomizer: inout DungeonCardVariationRandomizer
+    ) -> [GridPoint] {
+        var candidates = candidatePoints(for: floor, excluding: reserved)
         var result: [GridPoint] = []
         while !candidates.isEmpty && result.count < count {
             let index = randomizer.nextIndex(upperBound: candidates.count)
@@ -2250,30 +2423,76 @@ private enum DungeonCardVariationResolver {
         return result
     }
 
-    private static func safePickupPoints(for floor: DungeonFloorDefinition) -> [GridPoint] {
-        var blocked: Set<GridPoint> = [
-            floor.spawnPoint,
-            floor.exitPoint
-        ]
-        blocked.formUnion(floor.impassableTilePoints)
-        blocked.formUnion(floor.enemies.map(\.position))
-        blocked.formUnion(floor.hazards.flatMap(\.points))
-        blocked.formUnion(floor.warpTilePairs.values.flatMap { $0 })
-        blocked.formUnion(floor.relicPickups.map(\.point))
-        if let unlockPoint = floor.exitLock?.unlockPoint {
-            blocked.insert(unlockPoint)
-        }
-
+    private static func candidatePoints(
+        for floor: DungeonFloorDefinition,
+        excluding reserved: Set<GridPoint>
+    ) -> [GridPoint] {
         var points: [GridPoint] = []
         for y in 0..<floor.boardSize {
             for x in 0..<floor.boardSize {
                 let point = GridPoint(x: x, y: y)
-                if !blocked.contains(point) {
+                if !reserved.contains(point) {
                     points.append(point)
                 }
             }
         }
         return points
+    }
+
+    private static func coreReservedPoints(for floor: DungeonFloorDefinition) -> Set<GridPoint> {
+        var blocked: Set<GridPoint> = [
+            floor.spawnPoint,
+            floor.exitPoint
+        ]
+        for enemy in floor.enemies {
+            switch enemy.behavior {
+            case .patrol(let path):
+                blocked.formUnion(path)
+            case .guardPost, .watcher, .rotatingWatcher, .chaser, .marker:
+                blocked.insert(enemy.position)
+            }
+        }
+        blocked.formUnion(floor.tileEffectOverrides.keys)
+        blocked.formUnion(floor.warpTilePairs.values.flatMap { $0 })
+        if let unlockPoint = floor.exitLock?.unlockPoint {
+            blocked.insert(unlockPoint)
+        }
+        return blocked
+    }
+
+    private static func hasOrthogonalPath(
+        from start: GridPoint,
+        to goal: GridPoint,
+        boardSize: Int,
+        blocked: Set<GridPoint>
+    ) -> Bool {
+        guard start.isInside(boardSize: boardSize), goal.isInside(boardSize: boardSize) else {
+            return false
+        }
+        var queue: [GridPoint] = [start]
+        var visited: Set<GridPoint> = [start]
+        let directions = [
+            MoveVector(dx: 1, dy: 0),
+            MoveVector(dx: -1, dy: 0),
+            MoveVector(dx: 0, dy: 1),
+            MoveVector(dx: 0, dy: -1)
+        ]
+        while !queue.isEmpty {
+            let point = queue.removeFirst()
+            if point == goal { return true }
+            for direction in directions {
+                let next = GridPoint(x: point.x + direction.dx, y: point.y + direction.dy)
+                guard next.isInside(boardSize: boardSize),
+                      !blocked.contains(next),
+                      !visited.contains(next)
+                else {
+                    continue
+                }
+                visited.insert(next)
+                queue.append(next)
+            }
+        }
+        return false
     }
 }
 

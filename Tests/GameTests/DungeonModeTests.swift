@@ -2466,10 +2466,9 @@ final class DungeonModeTests: XCTestCase {
                 5,
                 "\(floorIndex + 1)F はギミック追加より拾得カード密度で易しくする想定です"
             )
-            XCTAssertEqual(
-                resolvedFloor.cardPickups.count,
-                5,
-                "\(floorIndex + 1)F は seed 解決後も拾得カード数を保つ想定です"
+            XCTAssertTrue(
+                (4...6).contains(resolvedFloor.cardPickups.count),
+                "\(floorIndex + 1)F は seed 解決後も拾得カード数を4〜6枚の範囲で軽く揺らす想定です"
             )
             XCTAssertTrue(
                 resolvedFloor.cardPickups.allSatisfy { $0.point.isInside(boardSize: resolvedFloor.boardSize) },
@@ -2770,6 +2769,10 @@ final class DungeonModeTests: XCTestCase {
 
     func testGrowthTowerMajorGimmicksDoNotOverlap() throws {
         let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let runStates = [
+            DungeonRunState(dungeonID: tower.id, carriedHP: 3, cardVariationSeed: 101),
+            DungeonRunState(dungeonID: tower.id, carriedHP: 3, cardVariationSeed: 202)
+        ]
 
         for floor in tower.floors {
             let overlaps = majorGrowthTowerGimmickOverlaps(for: floor)
@@ -2778,15 +2781,33 @@ final class DungeonModeTests: XCTestCase {
                 "\(floor.title) の主要ギミックは開始/階段/鍵/拾得カード/宝箱/敵/巡回/障害物/罠/ひび割れ/ワープで重ねません: \(overlaps)"
             )
         }
+        for runState in runStates {
+            for floorIndex in tower.floors.indices {
+                let floor = try XCTUnwrap(tower.resolvedFloor(at: floorIndex, runState: runState))
+                let overlaps = majorGrowthTowerGimmickOverlaps(for: floor)
+                XCTAssertTrue(
+                    overlaps.isEmpty,
+                    "\(floor.title) の seed 解決後も主要ギミックを重ねません: \(overlaps)"
+                )
+            }
+        }
     }
 
     func testGrowthTowerFixedRocksLeaveRepresentativeRoutesOpen() throws {
         let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let runState = DungeonRunState(dungeonID: tower.id, carriedHP: 3, cardVariationSeed: 303)
 
         for floor in tower.floors {
             XCTAssertTrue(
                 hasOrthogonalPath(from: floor.spawnPoint, to: floor.exitPoint, in: floor),
                 "\(floor.title) は固定障害物を足しても開始地点から階段までの代表導線を残します"
+            )
+        }
+        for floorIndex in tower.floors.indices {
+            let floor = try XCTUnwrap(tower.resolvedFloor(at: floorIndex, runState: runState))
+            XCTAssertTrue(
+                hasOrthogonalPath(from: floor.spawnPoint, to: floor.exitPoint, in: floor),
+                "\(floor.title) は seed 解決後の岩柱でも開始地点から階段までの代表導線を残します"
             )
         }
     }
@@ -3160,7 +3181,7 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertEqual(core.activeDungeonCardPickups, firstFloor.cardPickups)
     }
 
-    func testGrowthTowerCardVariationChangesAcrossSeedsAndKeepsSafeCells() throws {
+    func testGrowthTowerVariationChangesAcrossSeedsAndKeepsSafeCells() throws {
         let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
         let firstRunState = DungeonRunState(
             dungeonID: tower.id,
@@ -3173,10 +3194,10 @@ final class DungeonModeTests: XCTestCase {
             cardVariationSeed: 200
         )
 
-        let firstFloors = try (0..<8).map { floorIndex in
+        let firstFloors = try tower.floors.indices.map { floorIndex in
             try XCTUnwrap(tower.resolvedFloor(at: floorIndex, runState: firstRunState))
         }
-        let secondFloors = try (0..<8).map { floorIndex in
+        let secondFloors = try tower.floors.indices.map { floorIndex in
             try XCTUnwrap(tower.resolvedFloor(at: floorIndex, runState: secondRunState))
         }
 
@@ -3187,6 +3208,11 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertNotEqual(
             firstFloors.flatMap(\.rewardMoveCardsAfterClear),
             secondFloors.flatMap(\.rewardMoveCardsAfterClear)
+        )
+        XCTAssertNotEqual(
+            firstFloors.map(\.impassableTilePoints) + firstFloors.map(growthTowerHazardPoints),
+            secondFloors.map(\.impassableTilePoints) + secondFloors.map(growthTowerHazardPoints),
+            "seed が違うランでは、カード以外の岩柱/床ギミック配置や個数も変わる想定です"
         )
 
         for floor in firstFloors {
@@ -4219,6 +4245,21 @@ final class DungeonModeTests: XCTestCase {
             }
         }
         return blocked
+    }
+
+    private func growthTowerHazardPoints(for floor: DungeonFloorDefinition) -> Set<GridPoint> {
+        var points: Set<GridPoint> = []
+        for hazard in floor.hazards {
+            switch hazard {
+            case .brittleFloor(let hazardPoints):
+                points.formUnion(hazardPoints)
+            case .damageTrap(let hazardPoints, _):
+                points.formUnion(hazardPoints)
+            case .healingTile(let hazardPoints, _):
+                points.formUnion(hazardPoints)
+            }
+        }
+        return points
     }
 
     private func majorGrowthTowerGimmickOverlaps(for floor: DungeonFloorDefinition) -> [String] {
