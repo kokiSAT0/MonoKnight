@@ -401,7 +401,7 @@ public enum DungeonRelicID: String, Codable, CaseIterable, Equatable, Identifiab
         case .travelerBoots:
             return "shoeprints.fill"
         case .silverNeedle:
-            return "needle.fill"
+            return "pin.fill"
         case .starCup:
             return "star.fill"
         case .explorerBag:

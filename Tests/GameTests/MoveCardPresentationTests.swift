@@ -196,6 +196,9 @@ final class MoveCardPresentationTests: XCTestCase {
         XCTAssertEqual(relicEntries.map(\.relicID), DungeonRelicID.allCases)
         XCTAssertTrue(relicEntries.allSatisfy { !$0.displayName.isEmpty })
         XCTAssertTrue(relicEntries.allSatisfy { !$0.effectDescription.isEmpty })
+        XCTAssertFalse(DungeonRelicID.silverNeedle.symbolName.isEmpty)
+        XCTAssertEqual(DungeonRelicID.silverNeedle.symbolName, "pin.fill")
+        XCTAssertNotEqual(DungeonRelicID.silverNeedle.symbolName, "needle.fill")
 
         XCTAssertEqual(curseEntries.map(\.curseID), DungeonCurseID.allCases)
         XCTAssertTrue(curseEntries.allSatisfy { !$0.displayName.isEmpty })

@@ -86,16 +86,17 @@ final class MoveCardIllustrationViewAccessibilityTests: XCTestCase {
 
     func testDungeonRewardRelicChoicePresentationOpensDetailBeforeAdvance() {
         let choice = DungeonRewardCardChoicePresentation(
-            offer: .relic(.glowingHeart),
+            offer: .relic(.silverNeedle),
             rewardUses: 0,
             accessibilityIdentifierPrefix: "dungeon_reward_relic",
             accessibilityRoleText: "獲得する遺物"
         )
 
         XCTAssertEqual(choice.usesBadgeText, "遺物")
-        XCTAssertEqual(choice.accessibilityIdentifier, "dungeon_reward_relic_光る心臓")
+        XCTAssertEqual(DungeonRelicID.silverNeedle.symbolName, "pin.fill")
+        XCTAssertEqual(choice.accessibilityIdentifier, "dungeon_reward_relic_銀の針")
         XCTAssertTrue(choice.accessibilityHint.contains("詳細を確認します"))
-        XCTAssertTrue(choice.accessibilityLabel.contains(DungeonRelicID.glowingHeart.effectDescription))
+        XCTAssertTrue(choice.accessibilityLabel.contains(DungeonRelicID.silverNeedle.effectDescription))
     }
 
     func testDungeonPickupCarryoverChoicePresentationExplainsHandAddition() {
