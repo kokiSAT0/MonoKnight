@@ -194,8 +194,12 @@ extension GameViewModel {
             currentFloorMoveCount: core.moveCount,
             rewardSelection: rewardSelection,
             currentInventoryEntries: core.dungeonInventoryEntries,
-            rewardAddUses: dungeonGrowthStore.rewardAddUses(for: dungeon),
-            hazardDamageMitigationsRemaining: core.hazardDamageMitigationsRemaining
+            currentRelicEntries: core.dungeonRelicEntries,
+            collectedDungeonRelicPickupIDs: core.collectedDungeonRelicPickupIDs,
+            rewardAddUses: dungeonRewardAddUses,
+            hazardDamageMitigationsRemaining: core.hazardDamageMitigationsRemaining,
+            enemyDamageMitigationsRemaining: core.enemyDamageMitigationsRemaining,
+            markerDamageMitigationsRemaining: core.markerDamageMitigationsRemaining
         )
         let nextFloor = dungeon.resolvedFloor(at: nextIndex, runState: nextRunState) ?? dungeon.floors[nextIndex]
         return nextFloor.makeGameMode(
@@ -221,10 +225,14 @@ extension GameViewModel {
             carryoverHP: core.dungeonHP,
             currentFloorMoveCount: core.moveCount,
             currentInventoryEntries: core.dungeonInventoryEntries,
+            currentRelicEntries: core.dungeonRelicEntries,
+            collectedDungeonRelicPickupIDs: core.collectedDungeonRelicPickupIDs,
             landingPoint: event.point,
             currentFloorCrackedPoints: core.crackedFloorPoints,
             currentFloorCollapsedPoints: core.collapsedFloorPoints,
-            hazardDamageMitigationsRemaining: core.hazardDamageMitigationsRemaining
+            hazardDamageMitigationsRemaining: core.hazardDamageMitigationsRemaining,
+            enemyDamageMitigationsRemaining: core.enemyDamageMitigationsRemaining,
+            markerDamageMitigationsRemaining: core.markerDamageMitigationsRemaining
         )
         let nextFloor = dungeon.resolvedFloor(at: event.destinationFloorIndex, runState: nextRunState)
             ?? dungeon.floors[event.destinationFloorIndex]
@@ -258,6 +266,12 @@ extension GameViewModel {
             ),
             startingHazardDamageMitigations: dungeonGrowthStore.startingHazardDamageMitigations(
                 for: dungeon
+            ),
+            startingEnemyDamageMitigations: dungeonGrowthStore.startingEnemyDamageMitigations(
+                for: dungeon
+            ),
+            startingMarkerDamageMitigations: dungeonGrowthStore.startingMarkerDamageMitigations(
+                for: dungeon
             )
         )
     }
@@ -268,6 +282,9 @@ extension GameViewModel {
             return availableDungeonRewardMoveCards.contains(card) && canAddDungeonRewardMoveCard(card)
         case .addSupport(let support):
             return availableDungeonRewardSupportCards.contains(support) && canAddDungeonRewardSupportCard(support)
+        case .addRelic(let relic):
+            return availableDungeonRewardOffers.contains(.relic(relic))
+                && !core.dungeonRelicEntries.contains(where: { $0.relicID == relic })
         case .carryOverPickup(let card):
             return carryoverCandidateDungeonPickupEntries.contains { $0.card == card && $0.hasUsesRemaining }
         case .upgrade(let card), .remove(let card):

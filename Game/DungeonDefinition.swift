@@ -111,6 +111,8 @@ public enum DungeonRewardSelection: Equatable {
     case add(MoveCard)
     /// 新しい補助報酬カードを追加する
     case addSupport(SupportCard)
+    /// 新しい遺物を追加する
+    case addRelic(DungeonRelicID)
     /// 旧互換用: フロア内で拾って未使用分が残っているカードを報酬カードとして持ち越す
     case carryOverPickup(MoveCard)
     /// 既存の持ち越し報酬カードの使用回数を1増やす
@@ -127,14 +129,90 @@ public enum DungeonRewardSelection: Equatable {
 public struct DungeonCardPickupDefinition: Codable, Equatable, Identifiable {
     public let id: String
     public let point: GridPoint
-    public let card: MoveCard
+    public let playable: PlayableCard
     public let uses: Int
 
     public init(id: String, point: GridPoint, card: MoveCard, uses: Int = 1) {
+        self.init(id: id, point: point, playable: .move(card), uses: uses)
+    }
+
+    public init(id: String, point: GridPoint, support: SupportCard, uses: Int = 1) {
+        self.init(id: id, point: point, playable: .support(support), uses: uses)
+    }
+
+    public init(id: String, point: GridPoint, playable: PlayableCard, uses: Int = 1) {
         self.id = id
         self.point = point
-        self.card = card
+        self.playable = playable
         self.uses = max(uses, 1)
+    }
+
+    public var card: MoveCard {
+        guard let move = playable.move else {
+            preconditionFailure("補助カードには MoveCard がありません")
+        }
+        return move
+    }
+
+    public var moveCard: MoveCard? { playable.move }
+    public var supportCard: SupportCard? { playable.support }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case point
+        case playable
+        case card
+        case uses
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        point = try container.decode(GridPoint.self, forKey: .point)
+        if let playable = try container.decodeIfPresent(PlayableCard.self, forKey: .playable) {
+            self.playable = playable
+        } else {
+            self.playable = .move(try container.decode(MoveCard.self, forKey: .card))
+        }
+        uses = max(try container.decodeIfPresent(Int.self, forKey: .uses) ?? 1, 1)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(point, forKey: .point)
+        try container.encode(playable, forKey: .playable)
+        if let move = playable.move {
+            try container.encode(move, forKey: .card)
+        }
+        try container.encode(uses, forKey: .uses)
+    }
+}
+
+/// クリア後に同じ候補枠へ提示する報酬
+public enum DungeonRewardOffer: Equatable, Hashable {
+    case playable(PlayableCard)
+    case relic(DungeonRelicID)
+
+    public var playable: PlayableCard? {
+        if case .playable(let playable) = self { return playable }
+        return nil
+    }
+
+    public var move: MoveCard? { playable?.move }
+    public var support: SupportCard? { playable?.support }
+    public var relic: DungeonRelicID? {
+        if case .relic(let relic) = self { return relic }
+        return nil
+    }
+
+    public var displayName: String {
+        switch self {
+        case .playable(let playable):
+            return playable.displayName
+        case .relic(let relic):
+            return relic.displayName
+        }
     }
 }
 
@@ -151,6 +229,422 @@ public struct PendingDungeonPickupChoice: Codable, Equatable {
     }
 }
 
+/// 塔攻略中だけ有効な遺物の種類
+public enum DungeonRelicID: String, Codable, CaseIterable, Equatable, Identifiable {
+    case crackedShield
+    case heavyCrown
+    case glowingHeart
+    case oldMap
+    case blackFeather
+    case chippedHourglass
+
+    public var id: String { rawValue }
+
+    public var displayName: String {
+        switch self {
+        case .crackedShield:
+            return "割れた盾"
+        case .heavyCrown:
+            return "重い王冠"
+        case .glowingHeart:
+            return "灯る心臓"
+        case .oldMap:
+            return "古い地図"
+        case .blackFeather:
+            return "黒い羽根"
+        case .chippedHourglass:
+            return "欠けた砂時計"
+        }
+    }
+
+    public var effectDescription: String {
+        switch self {
+        case .crackedShield:
+            return "次に受けるダメージを1回だけ1軽減する。"
+        case .heavyCrown:
+            return "新しく得る報酬カードの使用回数が+1される。"
+        case .glowingHeart:
+            return "取得時にHPが2増える。"
+        case .oldMap:
+            return "未取得の拾得カードを盤面で見つけやすくする。"
+        case .blackFeather:
+            return "崩落穴による落下を1回だけ無効化する。"
+        case .chippedHourglass:
+            return "各フロアの手数上限が+3される。"
+        }
+    }
+
+    public var drawbackDescription: String {
+        switch self {
+        case .crackedShield:
+            return "取得時にHPが1減る。HPは1未満にならない。"
+        case .heavyCrown:
+            return "各フロアの手数上限が-2される。"
+        case .glowingHeart:
+            return "次フロア開始時にHPが1減る。HPは1未満にならない。"
+        case .oldMap:
+            return "次フロア開始時の手数上限が-1される。"
+        case .blackFeather:
+            return "落下を無効化した時にHPが1減る。HPは1未満にならない。"
+        case .chippedHourglass:
+            return "報酬カード強化の増加量は変わらない。"
+        }
+    }
+
+    public var symbolName: String {
+        switch self {
+        case .crackedShield:
+            return "shield.lefthalf.filled"
+        case .heavyCrown:
+            return "crown.fill"
+        case .glowingHeart:
+            return "heart.fill"
+        case .oldMap:
+            return "map.fill"
+        case .blackFeather:
+            return "leaf.fill"
+        case .chippedHourglass:
+            return "hourglass"
+        }
+    }
+
+    public var startingUses: Int {
+        switch self {
+        case .crackedShield, .blackFeather:
+            return 1
+        case .heavyCrown, .glowingHeart, .oldMap, .chippedHourglass:
+            return 0
+        }
+    }
+}
+
+/// 塔ラン中に所持している遺物
+public struct DungeonRelicEntry: Codable, Equatable, Identifiable {
+    public let relicID: DungeonRelicID
+    public var remainingUses: Int
+
+    public var id: DungeonRelicID { relicID }
+    public var displayName: String { relicID.displayName }
+    public var effectDescription: String { relicID.effectDescription }
+    public var drawbackDescription: String { relicID.drawbackDescription }
+    public var symbolName: String { relicID.symbolName }
+    public var hasLimitedUses: Bool { relicID.startingUses > 0 }
+
+    public init(relicID: DungeonRelicID, remainingUses: Int? = nil) {
+        self.relicID = relicID
+        self.remainingUses = max(remainingUses ?? relicID.startingUses, 0)
+    }
+}
+
+/// フロア内に配置する宝箱。踏むとランダムな遺物を取得する。
+public struct DungeonRelicPickupDefinition: Codable, Equatable, Identifiable {
+    public let id: String
+    public let point: GridPoint
+    public let candidateRelics: [DungeonRelicID]
+
+    public init(
+        id: String,
+        point: GridPoint,
+        candidateRelics: [DungeonRelicID] = DungeonRelicID.allCases
+    ) {
+        self.id = id
+        self.point = point
+        self.candidateRelics = candidateRelics.isEmpty ? DungeonRelicID.allCases : candidateRelics
+    }
+}
+
+/// 成長塔の階層別排出テーブルに載せる候補種別
+public enum DungeonWeightedRewardPoolItem: Equatable {
+    case move(MoveCard)
+    case support(SupportCard)
+    case relic(DungeonRelicID)
+
+    public var playable: PlayableCard? {
+        switch self {
+        case .move(let card):
+            return .move(card)
+        case .support(let support):
+            return .support(support)
+        case .relic:
+            return nil
+        }
+    }
+
+    public var offer: DungeonRewardOffer? {
+        switch self {
+        case .move(let card):
+            return .playable(.move(card))
+        case .support(let support):
+            return .playable(.support(support))
+        case .relic(let relic):
+            return .relic(relic)
+        }
+    }
+
+    fileprivate var category: DungeonWeightedRewardPoolCategory {
+        switch self {
+        case .move:
+            return .move
+        case .support:
+            return .support
+        case .relic:
+            return .relic
+        }
+    }
+}
+
+/// 成長塔の重み付き排出候補。weight 0 はテーブル上の予約枠として扱い、抽選には出ない。
+public struct DungeonWeightedRewardPoolEntry: Equatable {
+    public let item: DungeonWeightedRewardPoolItem
+    public let weight: Int
+
+    public init(item: DungeonWeightedRewardPoolItem, weight: Int) {
+        self.item = item
+        self.weight = max(weight, 0)
+    }
+}
+
+/// 成長塔の排出テーブル種別
+public enum DungeonWeightedRewardPoolContext: Equatable {
+    case floorPickup
+    case clearReward
+}
+
+private enum DungeonWeightedRewardPoolCategory: CaseIterable {
+    case move
+    case support
+    case relic
+}
+
+public struct DungeonRewardDrawTuning: Equatable {
+    public let clearMoveCount: Int?
+    public let turnLimit: Int?
+
+    public init(clearMoveCount: Int? = nil, turnLimit: Int? = nil) {
+        self.clearMoveCount = clearMoveCount
+        self.turnLimit = turnLimit
+    }
+}
+
+private struct DungeonWeightedRewardCategoryWeights {
+    let move: Int
+    let support: Int
+    let relic: Int
+
+    func weight(for category: DungeonWeightedRewardPoolCategory) -> Int {
+        switch category {
+        case .move:
+            return move
+        case .support:
+            return support
+        case .relic:
+            return relic
+        }
+    }
+}
+
+/// 成長塔の階層別・重み付き排出テーブル
+public enum DungeonWeightedRewardPools {
+    public static func entries(
+        floorIndex: Int,
+        context: DungeonWeightedRewardPoolContext
+    ) -> [DungeonWeightedRewardPoolEntry] {
+        switch (band(for: floorIndex), context) {
+        case (.floors1To5, .floorPickup):
+            return weightedMoves([
+                (.straightRight2, 8), (.straightUp2, 8), (.straightLeft2, 5), (.straightDown2, 5),
+                (.diagonalUpRight2, 6), (.diagonalUpLeft2, 5), (.diagonalDownRight2, 4), (.diagonalDownLeft2, 4),
+                (.rayRight, 3), (.rayUp, 3)
+            ]) + weightedSupports([(.refillEmptySlots, 1)])
+        case (.floors1To5, .clearReward):
+            return weightedMoves([
+                (.straightRight2, 9), (.straightUp2, 9), (.diagonalUpRight2, 7),
+                (.rayRight, 5), (.rayUp, 4), (.knightRightwardChoice, 3), (.knightUpwardChoice, 3)
+            ]) + weightedSupports([(.refillEmptySlots, 1)]) + weightedRelics()
+        case (.floors6To10, .floorPickup):
+            return weightedMoves([
+                (.straightRight2, 8), (.straightUp2, 8), (.straightLeft2, 7), (.straightDown2, 7),
+                (.diagonalUpRight2, 7), (.diagonalUpLeft2, 6), (.diagonalDownRight2, 6), (.diagonalDownLeft2, 6),
+                (.rayRight, 5), (.rayUp, 5), (.rayLeft, 4), (.rayDown, 4),
+                (.knightRightwardChoice, 3), (.knightUpwardChoice, 3), (.knightLeftwardChoice, 2), (.knightDownwardChoice, 2)
+            ]) + weightedSupports([(.refillEmptySlots, 2), (.singleAnnihilationSpell, 1)])
+        case (.floors6To10, .clearReward):
+            return weightedMoves([
+                (.rayRight, 7), (.rayUp, 7), (.rayLeft, 5), (.rayDown, 5),
+                (.straightRight2, 6), (.straightUp2, 6), (.diagonalUpRight2, 6), (.diagonalDownRight2, 4),
+                (.knightRightwardChoice, 5), (.knightUpwardChoice, 4), (.knightLeftwardChoice, 3)
+            ]) + weightedSupports([(.refillEmptySlots, 2), (.singleAnnihilationSpell, 1)]) + weightedRelics()
+        case (.floors11To15, .floorPickup):
+            return weightedMoves([
+                (.straightRight2, 7), (.straightUp2, 7), (.straightLeft2, 7), (.straightDown2, 7),
+                (.diagonalUpRight2, 7), (.diagonalUpLeft2, 7), (.diagonalDownRight2, 6), (.diagonalDownLeft2, 6),
+                (.rayRight, 6), (.rayUp, 6), (.rayLeft, 6), (.rayDown, 6),
+                (.rayUpRight, 3), (.rayUpLeft, 3), (.rayDownRight, 3), (.rayDownLeft, 3),
+                (.knightRightwardChoice, 4), (.knightUpwardChoice, 4), (.knightLeftwardChoice, 4), (.knightDownwardChoice, 3)
+            ]) + weightedSupports([(.refillEmptySlots, 3), (.singleAnnihilationSpell, 2), (.annihilationSpell, 1)])
+        case (.floors11To15, .clearReward):
+            return weightedMoves([
+                (.rayRight, 7), (.rayUp, 7), (.rayLeft, 7), (.rayDown, 7),
+                (.rayUpRight, 4), (.rayUpLeft, 4), (.rayDownRight, 3), (.rayDownLeft, 3),
+                (.diagonalUpRight2, 5), (.diagonalUpLeft2, 5), (.diagonalDownLeft2, 4),
+                (.knightRightwardChoice, 5), (.knightUpwardChoice, 5), (.knightLeftwardChoice, 4)
+            ]) + weightedSupports([(.refillEmptySlots, 3), (.singleAnnihilationSpell, 2), (.annihilationSpell, 1)]) + weightedRelics()
+        case (.floors16To20, .floorPickup):
+            return weightedMoves([
+                (.rayRight, 8), (.rayUp, 8), (.rayLeft, 8), (.rayDown, 8),
+                (.rayUpRight, 5), (.rayUpLeft, 5), (.rayDownRight, 5), (.rayDownLeft, 5),
+                (.knightRightwardChoice, 6), (.knightUpwardChoice, 6), (.knightLeftwardChoice, 5), (.knightDownwardChoice, 5),
+                (.straightRight2, 5), (.straightUp2, 5), (.diagonalUpRight2, 5), (.diagonalDownLeft2, 5)
+            ]) + weightedSupports([(.refillEmptySlots, 2), (.singleAnnihilationSpell, 3), (.annihilationSpell, 2)])
+        case (.floors16To20, .clearReward):
+            return weightedMoves([
+                (.rayRight, 9), (.rayUp, 9), (.rayLeft, 9), (.rayDown, 8),
+                (.rayUpRight, 6), (.rayUpLeft, 6), (.rayDownRight, 5), (.rayDownLeft, 5),
+                (.knightRightwardChoice, 7), (.knightUpwardChoice, 7), (.knightLeftwardChoice, 6), (.knightDownwardChoice, 6),
+                (.diagonalUpRight2, 4), (.diagonalUpLeft2, 4), (.diagonalDownLeft2, 4)
+            ]) + weightedSupports([(.refillEmptySlots, 2), (.singleAnnihilationSpell, 3), (.annihilationSpell, 2)]) + weightedRelics()
+        }
+    }
+
+    public static func drawUniquePlayables(
+        from entries: [DungeonWeightedRewardPoolEntry],
+        count: Int,
+        seed: UInt64,
+        floorIndex: Int,
+        salt: UInt64,
+        excluding excluded: Set<PlayableCard> = []
+    ) -> [PlayableCard] {
+        drawUniqueOffers(
+            from: entries,
+            context: .clearReward,
+            count: count,
+            seed: seed,
+            floorIndex: floorIndex,
+            salt: salt,
+            excludingPlayables: excluded
+        )
+        .compactMap(\.playable)
+    }
+
+    public static func drawUniqueOffers(
+        from entries: [DungeonWeightedRewardPoolEntry],
+        context: DungeonWeightedRewardPoolContext,
+        count: Int,
+        seed: UInt64,
+        floorIndex: Int,
+        salt: UInt64,
+        tuning: DungeonRewardDrawTuning = DungeonRewardDrawTuning(),
+        excludingPlayables excludedPlayables: Set<PlayableCard> = [],
+        excludingRelics excludedRelics: Set<DungeonRelicID> = []
+    ) -> [DungeonRewardOffer] {
+        var randomizer = DungeonCardVariationRandomizer(seed: seed, floorIndex: floorIndex, salt: salt)
+        var candidates = entries
+            .filter { $0.weight > 0 }
+            .compactMap { entry -> (offer: DungeonRewardOffer, category: DungeonWeightedRewardPoolCategory, weight: Int)? in
+                guard let offer = entry.item.offer else { return nil }
+                switch offer {
+                case .playable(let playable) where excludedPlayables.contains(playable):
+                    return nil
+                case .relic(let relic) where excludedRelics.contains(relic):
+                    return nil
+                default:
+                    return (offer, entry.item.category, entry.weight)
+                }
+            }
+        var result: [DungeonRewardOffer] = []
+        let categoryWeights = categoryWeights(context: context, tuning: tuning)
+        while result.count < count, !candidates.isEmpty {
+            let availableCategories = DungeonWeightedRewardPoolCategory.allCases.compactMap { category -> (DungeonWeightedRewardPoolCategory, Int)? in
+                guard candidates.contains(where: { $0.category == category }) else { return nil }
+                let weight = categoryWeights.weight(for: category)
+                return weight > 0 ? (category, weight) : nil
+            }
+            guard let selectedCategory = drawCategory(availableCategories, randomizer: &randomizer) else { break }
+            let categoryCandidateIndices = candidates.indices.filter { candidates[$0].category == selectedCategory }
+            let totalWeight = categoryCandidateIndices.reduce(0) { $0 + candidates[$1].weight }
+            guard totalWeight > 0 else { break }
+            var roll = randomizer.nextIndex(upperBound: totalWeight)
+            let selectedIndex = categoryCandidateIndices.first { index in
+                if roll < candidates[index].weight { return true }
+                roll -= candidates[index].weight
+                return false
+            } ?? categoryCandidateIndices[0]
+            result.append(candidates.remove(at: selectedIndex).offer)
+        }
+        return result
+    }
+
+    private enum FloorBand {
+        case floors1To5
+        case floors6To10
+        case floors11To15
+        case floors16To20
+    }
+
+    private static func band(for floorIndex: Int) -> FloorBand {
+        switch floorIndex {
+        case 0..<5:
+            return .floors1To5
+        case 5..<10:
+            return .floors6To10
+        case 10..<15:
+            return .floors11To15
+        default:
+            return .floors16To20
+        }
+    }
+
+    private static func weightedMoves(_ cards: [(MoveCard, Int)]) -> [DungeonWeightedRewardPoolEntry] {
+        cards.map { DungeonWeightedRewardPoolEntry(item: .move($0.0), weight: $0.1) }
+    }
+
+    private static func weightedSupports(_ cards: [(SupportCard, Int)]) -> [DungeonWeightedRewardPoolEntry] {
+        cards.map { DungeonWeightedRewardPoolEntry(item: .support($0.0), weight: $0.1) }
+    }
+
+    private static func weightedRelics() -> [DungeonWeightedRewardPoolEntry] {
+        DungeonRelicID.allCases.map { DungeonWeightedRewardPoolEntry(item: .relic($0), weight: 1) }
+    }
+
+    private static func categoryWeights(
+        context: DungeonWeightedRewardPoolContext,
+        tuning: DungeonRewardDrawTuning
+    ) -> DungeonWeightedRewardCategoryWeights {
+        switch context {
+        case .floorPickup:
+            return DungeonWeightedRewardCategoryWeights(move: 90, support: 10, relic: 0)
+        case .clearReward:
+            guard let moveCount = tuning.clearMoveCount,
+                  let turnLimit = tuning.turnLimit,
+                  turnLimit > 0
+            else {
+                return DungeonWeightedRewardCategoryWeights(move: 89, support: 10, relic: 1)
+            }
+            if moveCount * 2 <= turnLimit {
+                return DungeonWeightedRewardCategoryWeights(move: 65, support: 30, relic: 5)
+            }
+            if moveCount * 10 <= turnLimit * 7 {
+                return DungeonWeightedRewardCategoryWeights(move: 77, support: 20, relic: 3)
+            }
+            return DungeonWeightedRewardCategoryWeights(move: 89, support: 10, relic: 1)
+        }
+    }
+
+    private static func drawCategory(
+        _ categories: [(DungeonWeightedRewardPoolCategory, Int)],
+        randomizer: inout DungeonCardVariationRandomizer
+    ) -> DungeonWeightedRewardPoolCategory? {
+        let totalWeight = categories.reduce(0) { $0 + $1.1 }
+        guard totalWeight > 0 else { return nil }
+        var roll = randomizer.nextIndex(upperBound: totalWeight)
+        return categories.first { category in
+            if roll < category.1 { return true }
+            roll -= category.1
+            return false
+        }?.0
+    }
+}
+
 /// 1 回の塔挑戦でフロア間に引き継ぐ最小状態
 public struct DungeonRunState: Codable, Equatable {
     public let dungeonID: String
@@ -164,6 +658,10 @@ public struct DungeonRunState: Codable, Equatable {
     public let clearedFloorCount: Int
     /// フロアをまたいで持ち越す所持カードと残り使用回数
     public let rewardInventoryEntries: [DungeonInventoryEntry]
+    /// ラン中だけ有効な遺物
+    public let relicEntries: [DungeonRelicEntry]
+    /// ラン中に取得済みの宝箱 ID
+    public let collectedDungeonRelicPickupIDs: Set<String>
     /// 成長塔の拾得/報酬カード変化に使うラン単位の seed
     public let cardVariationSeed: UInt64?
     /// フロアごとのひび割れ床状態
@@ -174,6 +672,10 @@ public struct DungeonRunState: Codable, Equatable {
     public let pendingFallLandingPoint: GridPoint?
     /// 成長塔の区間内で罠/床崩落ダメージを無効化できる残り回数
     public let hazardDamageMitigationsRemaining: Int
+    /// 成長塔の区間内で敵ダメージを無効化できる残り回数
+    public let enemyDamageMitigationsRemaining: Int
+    /// 成長塔の区間内でメテオ着弾ダメージを無効化できる残り回数
+    public let markerDamageMitigationsRemaining: Int
 
     public init(
         dungeonID: String,
@@ -182,11 +684,15 @@ public struct DungeonRunState: Codable, Equatable {
         totalMoveCount: Int = 0,
         clearedFloorCount: Int = 0,
         rewardInventoryEntries: [DungeonInventoryEntry] = [],
+        relicEntries: [DungeonRelicEntry] = [],
+        collectedDungeonRelicPickupIDs: Set<String> = [],
         cardVariationSeed: UInt64? = nil,
         crackedFloorPointsByFloor: [Int: Set<GridPoint>] = [:],
         collapsedFloorPointsByFloor: [Int: Set<GridPoint>] = [:],
         pendingFallLandingPoint: GridPoint? = nil,
-        hazardDamageMitigationsRemaining: Int = 0
+        hazardDamageMitigationsRemaining: Int = 0,
+        enemyDamageMitigationsRemaining: Int = 0,
+        markerDamageMitigationsRemaining: Int = 0
     ) {
         self.dungeonID = dungeonID
         self.currentFloorIndex = max(currentFloorIndex, 0)
@@ -194,11 +700,15 @@ public struct DungeonRunState: Codable, Equatable {
         self.totalMoveCount = max(totalMoveCount, 0)
         self.clearedFloorCount = max(clearedFloorCount, 0)
         self.rewardInventoryEntries = DungeonRunState.mergedRewardEntries(rewardInventoryEntries)
+        self.relicEntries = DungeonRunState.mergedRelicEntries(relicEntries)
+        self.collectedDungeonRelicPickupIDs = collectedDungeonRelicPickupIDs
         self.cardVariationSeed = cardVariationSeed
         self.crackedFloorPointsByFloor = crackedFloorPointsByFloor.filter { !$0.value.isEmpty }
         self.collapsedFloorPointsByFloor = collapsedFloorPointsByFloor.filter { !$0.value.isEmpty }
         self.pendingFallLandingPoint = pendingFallLandingPoint
         self.hazardDamageMitigationsRemaining = max(hazardDamageMitigationsRemaining, 0)
+        self.enemyDamageMitigationsRemaining = max(enemyDamageMitigationsRemaining, 0)
+        self.markerDamageMitigationsRemaining = max(markerDamageMitigationsRemaining, 0)
     }
 
     public var floorNumber: Int {
@@ -211,8 +721,12 @@ public struct DungeonRunState: Codable, Equatable {
         rewardMoveCard: MoveCard? = nil,
         rewardSelection: DungeonRewardSelection? = nil,
         currentInventoryEntries: [DungeonInventoryEntry]? = nil,
+        currentRelicEntries: [DungeonRelicEntry]? = nil,
+        collectedDungeonRelicPickupIDs: Set<String>? = nil,
         rewardAddUses: Int = 2,
-        hazardDamageMitigationsRemaining: Int? = nil
+        hazardDamageMitigationsRemaining: Int? = nil,
+        enemyDamageMitigationsRemaining: Int? = nil,
+        markerDamageMitigationsRemaining: Int? = nil
     ) -> DungeonRunState {
         let sourceEntries = currentInventoryEntries ?? rewardInventoryEntries
         let carriedEntries = sourceEntries.compactMap { $0.carryingAllUsesAsReward() }
@@ -223,17 +737,33 @@ public struct DungeonRunState: Codable, Equatable {
             sourceEntries: sourceEntries,
             rewardAddUses: rewardAddUses
         )
+        let selectedRelicEntries = DungeonRunState.applyingRelicReward(
+            selection,
+            to: currentRelicEntries ?? relicEntries
+        )
+        let carriedRelics = DungeonRunState.relicEntriesForNextFloor(selectedRelicEntries)
+        let rewardRelicAdjustedHP = DungeonRunState.carryoverHP(
+            carryoverHP,
+            afterSelectingRelicReward: selection
+        )
+        let adjustedCarryoverHP = carriedRelics.contains { $0.relicID == .glowingHeart }
+            ? max(rewardRelicAdjustedHP - 1, 1)
+            : rewardRelicAdjustedHP
         return DungeonRunState(
             dungeonID: dungeonID,
             currentFloorIndex: currentFloorIndex + 1,
-            carriedHP: carryoverHP,
+            carriedHP: adjustedCarryoverHP,
             totalMoveCount: totalMoveCount + max(currentFloorMoveCount, 0),
             clearedFloorCount: clearedFloorCount + 1,
             rewardInventoryEntries: updatedRewardInventoryEntries.compactMap { $0.carryingRewardUsesOnly() },
+            relicEntries: carriedRelics,
+            collectedDungeonRelicPickupIDs: self.collectedDungeonRelicPickupIDs.union(collectedDungeonRelicPickupIDs ?? []),
             cardVariationSeed: cardVariationSeed,
             crackedFloorPointsByFloor: crackedFloorPointsByFloor,
             collapsedFloorPointsByFloor: collapsedFloorPointsByFloor,
-            hazardDamageMitigationsRemaining: hazardDamageMitigationsRemaining ?? self.hazardDamageMitigationsRemaining
+            hazardDamageMitigationsRemaining: hazardDamageMitigationsRemaining ?? self.hazardDamageMitigationsRemaining,
+            enemyDamageMitigationsRemaining: enemyDamageMitigationsRemaining ?? self.enemyDamageMitigationsRemaining,
+            markerDamageMitigationsRemaining: markerDamageMitigationsRemaining ?? self.markerDamageMitigationsRemaining
         )
     }
 
@@ -241,10 +771,14 @@ public struct DungeonRunState: Codable, Equatable {
         carryoverHP: Int,
         currentFloorMoveCount: Int,
         currentInventoryEntries: [DungeonInventoryEntry],
+        currentRelicEntries: [DungeonRelicEntry]? = nil,
+        collectedDungeonRelicPickupIDs: Set<String> = [],
         landingPoint: GridPoint,
         currentFloorCrackedPoints: Set<GridPoint>,
         currentFloorCollapsedPoints: Set<GridPoint>,
-        hazardDamageMitigationsRemaining: Int? = nil
+        hazardDamageMitigationsRemaining: Int? = nil,
+        enemyDamageMitigationsRemaining: Int? = nil,
+        markerDamageMitigationsRemaining: Int? = nil
     ) -> DungeonRunState {
         let recordedState = recordingFloorState(
             floorIndex: currentFloorIndex,
@@ -258,11 +792,15 @@ public struct DungeonRunState: Codable, Equatable {
             totalMoveCount: totalMoveCount + max(currentFloorMoveCount, 0),
             clearedFloorCount: clearedFloorCount,
             rewardInventoryEntries: currentInventoryEntries.compactMap { $0.carryingRewardUsesOnly() },
+            relicEntries: currentRelicEntries ?? relicEntries,
+            collectedDungeonRelicPickupIDs: self.collectedDungeonRelicPickupIDs.union(collectedDungeonRelicPickupIDs),
             cardVariationSeed: cardVariationSeed,
             crackedFloorPointsByFloor: recordedState.crackedFloorPointsByFloor,
             collapsedFloorPointsByFloor: recordedState.collapsedFloorPointsByFloor,
             pendingFallLandingPoint: landingPoint,
-            hazardDamageMitigationsRemaining: hazardDamageMitigationsRemaining ?? self.hazardDamageMitigationsRemaining
+            hazardDamageMitigationsRemaining: hazardDamageMitigationsRemaining ?? self.hazardDamageMitigationsRemaining,
+            enemyDamageMitigationsRemaining: enemyDamageMitigationsRemaining ?? self.enemyDamageMitigationsRemaining,
+            markerDamageMitigationsRemaining: markerDamageMitigationsRemaining ?? self.markerDamageMitigationsRemaining
         )
     }
 
@@ -302,12 +840,74 @@ public struct DungeonRunState: Codable, Equatable {
             totalMoveCount: totalMoveCount,
             clearedFloorCount: clearedFloorCount,
             rewardInventoryEntries: rewardInventoryEntries,
+            relicEntries: relicEntries,
+            collectedDungeonRelicPickupIDs: collectedDungeonRelicPickupIDs,
             cardVariationSeed: cardVariationSeed,
             crackedFloorPointsByFloor: crackedByFloor,
             collapsedFloorPointsByFloor: collapsedByFloor,
             pendingFallLandingPoint: pendingFallLandingPoint,
-            hazardDamageMitigationsRemaining: hazardDamageMitigationsRemaining
+            hazardDamageMitigationsRemaining: hazardDamageMitigationsRemaining,
+            enemyDamageMitigationsRemaining: enemyDamageMitigationsRemaining,
+            markerDamageMitigationsRemaining: markerDamageMitigationsRemaining
         )
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case dungeonID
+        case currentFloorIndex
+        case carriedHP
+        case totalMoveCount
+        case clearedFloorCount
+        case rewardInventoryEntries
+        case relicEntries
+        case collectedDungeonRelicPickupIDs
+        case cardVariationSeed
+        case crackedFloorPointsByFloor
+        case collapsedFloorPointsByFloor
+        case pendingFallLandingPoint
+        case hazardDamageMitigationsRemaining
+        case enemyDamageMitigationsRemaining
+        case markerDamageMitigationsRemaining
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            dungeonID: try container.decode(String.self, forKey: .dungeonID),
+            currentFloorIndex: try container.decodeIfPresent(Int.self, forKey: .currentFloorIndex) ?? 0,
+            carriedHP: try container.decode(Int.self, forKey: .carriedHP),
+            totalMoveCount: try container.decodeIfPresent(Int.self, forKey: .totalMoveCount) ?? 0,
+            clearedFloorCount: try container.decodeIfPresent(Int.self, forKey: .clearedFloorCount) ?? 0,
+            rewardInventoryEntries: try container.decodeIfPresent([DungeonInventoryEntry].self, forKey: .rewardInventoryEntries) ?? [],
+            relicEntries: try container.decodeIfPresent([DungeonRelicEntry].self, forKey: .relicEntries) ?? [],
+            collectedDungeonRelicPickupIDs: try container.decodeIfPresent(Set<String>.self, forKey: .collectedDungeonRelicPickupIDs) ?? [],
+            cardVariationSeed: try container.decodeIfPresent(UInt64.self, forKey: .cardVariationSeed),
+            crackedFloorPointsByFloor: try container.decodeIfPresent([Int: Set<GridPoint>].self, forKey: .crackedFloorPointsByFloor) ?? [:],
+            collapsedFloorPointsByFloor: try container.decodeIfPresent([Int: Set<GridPoint>].self, forKey: .collapsedFloorPointsByFloor) ?? [:],
+            pendingFallLandingPoint: try container.decodeIfPresent(GridPoint.self, forKey: .pendingFallLandingPoint),
+            hazardDamageMitigationsRemaining: try container.decodeIfPresent(Int.self, forKey: .hazardDamageMitigationsRemaining) ?? 0,
+            enemyDamageMitigationsRemaining: try container.decodeIfPresent(Int.self, forKey: .enemyDamageMitigationsRemaining) ?? 0,
+            markerDamageMitigationsRemaining: try container.decodeIfPresent(Int.self, forKey: .markerDamageMitigationsRemaining) ?? 0
+        )
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(dungeonID, forKey: .dungeonID)
+        try container.encode(currentFloorIndex, forKey: .currentFloorIndex)
+        try container.encode(carriedHP, forKey: .carriedHP)
+        try container.encode(totalMoveCount, forKey: .totalMoveCount)
+        try container.encode(clearedFloorCount, forKey: .clearedFloorCount)
+        try container.encode(rewardInventoryEntries, forKey: .rewardInventoryEntries)
+        try container.encode(relicEntries, forKey: .relicEntries)
+        try container.encode(collectedDungeonRelicPickupIDs, forKey: .collectedDungeonRelicPickupIDs)
+        try container.encodeIfPresent(cardVariationSeed, forKey: .cardVariationSeed)
+        try container.encode(crackedFloorPointsByFloor, forKey: .crackedFloorPointsByFloor)
+        try container.encode(collapsedFloorPointsByFloor, forKey: .collapsedFloorPointsByFloor)
+        try container.encodeIfPresent(pendingFallLandingPoint, forKey: .pendingFallLandingPoint)
+        try container.encode(hazardDamageMitigationsRemaining, forKey: .hazardDamageMitigationsRemaining)
+        try container.encode(enemyDamageMitigationsRemaining, forKey: .enemyDamageMitigationsRemaining)
+        try container.encode(markerDamageMitigationsRemaining, forKey: .markerDamageMitigationsRemaining)
     }
 
     private static func mergedRewardEntries(_ entries: [DungeonInventoryEntry]) -> [DungeonInventoryEntry] {
@@ -324,6 +924,25 @@ public struct DungeonRunState: Codable, Equatable {
         return result
     }
 
+    private static func mergedRelicEntries(_ entries: [DungeonRelicEntry]) -> [DungeonRelicEntry] {
+        var result: [DungeonRelicEntry] = []
+        for entry in entries {
+            if let index = result.firstIndex(where: { $0.relicID == entry.relicID }) {
+                result[index].remainingUses = max(result[index].remainingUses, entry.remainingUses)
+            } else {
+                result.append(entry)
+            }
+        }
+        return result
+    }
+
+    private static func relicEntriesForNextFloor(_ entries: [DungeonRelicEntry]) -> [DungeonRelicEntry] {
+        entries.map { entry in
+            guard entry.relicID == .glowingHeart else { return entry }
+            return entry
+        }
+    }
+
     private static func applying(
         _ selection: DungeonRewardSelection?,
         to entries: [DungeonInventoryEntry],
@@ -336,6 +955,8 @@ public struct DungeonRunState: Codable, Equatable {
             result.append(DungeonInventoryEntry(card: card, rewardUses: max(rewardAddUses, 1), pickupUses: 0))
         case .addSupport(let support):
             result.append(DungeonInventoryEntry(support: support, rewardUses: DungeonRunState.rewardUses(for: support), pickupUses: 0))
+        case .addRelic:
+            break
         case .carryOverPickup(let card):
             guard sourceEntries.contains(where: { $0.moveCard == card && $0.hasUsesRemaining }) else { break }
             break
@@ -355,9 +976,34 @@ public struct DungeonRunState: Codable, Equatable {
         return result
     }
 
+    private static func applyingRelicReward(
+        _ selection: DungeonRewardSelection?,
+        to entries: [DungeonRelicEntry]
+    ) -> [DungeonRelicEntry] {
+        guard case .addRelic(let relicID) = selection,
+              !entries.contains(where: { $0.relicID == relicID })
+        else { return entries }
+        return entries + [DungeonRelicEntry(relicID: relicID)]
+    }
+
+    private static func carryoverHP(
+        _ hp: Int,
+        afterSelectingRelicReward selection: DungeonRewardSelection?
+    ) -> Int {
+        guard case .addRelic(let relicID) = selection else { return hp }
+        switch relicID {
+        case .crackedShield:
+            return max(hp - 1, 1)
+        case .glowingHeart:
+            return hp + 2
+        case .heavyCrown, .oldMap, .blackFeather, .chippedHourglass:
+            return hp
+        }
+    }
+
     public static func rewardUses(for support: SupportCard) -> Int {
         switch support {
-        case .refillEmptySlots:
+        case .refillEmptySlots, .singleAnnihilationSpell, .annihilationSpell:
             return 1
         }
     }
@@ -779,6 +1425,7 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
     public let warpTilePairs: [String: [GridPoint]]
     public let exitLock: DungeonExitLock?
     public let cardPickups: [DungeonCardPickupDefinition]
+    public let relicPickups: [DungeonRelicPickupDefinition]
     public let rewardMoveCardsAfterClear: [MoveCard]
     public let rewardSupportCardsAfterClear: [SupportCard]
 
@@ -797,6 +1444,7 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
         warpTilePairs: [String: [GridPoint]] = [:],
         exitLock: DungeonExitLock? = nil,
         cardPickups: [DungeonCardPickupDefinition] = [],
+        relicPickups: [DungeonRelicPickupDefinition] = [],
         rewardMoveCardsAfterClear: [MoveCard] = [],
         rewardSupportCardsAfterClear: [SupportCard] = []
     ) {
@@ -814,6 +1462,7 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
         self.warpTilePairs = warpTilePairs
         self.exitLock = exitLock
         self.cardPickups = cardPickups
+        self.relicPickups = relicPickups
         var uniqueRewardMoveCards: [MoveCard] = []
         for card in rewardMoveCardsAfterClear where !uniqueRewardMoveCards.contains(card) {
             uniqueRewardMoveCards.append(card)
@@ -841,6 +1490,7 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
         case warpTilePairs
         case exitLock
         case cardPickups
+        case relicPickups
         case rewardMoveCardsAfterClear
         case rewardSupportCardsAfterClear
     }
@@ -862,6 +1512,7 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
             warpTilePairs: try container.decodeIfPresent([String: [GridPoint]].self, forKey: .warpTilePairs) ?? [:],
             exitLock: try container.decodeIfPresent(DungeonExitLock.self, forKey: .exitLock),
             cardPickups: try container.decodeIfPresent([DungeonCardPickupDefinition].self, forKey: .cardPickups) ?? [],
+            relicPickups: try container.decodeIfPresent([DungeonRelicPickupDefinition].self, forKey: .relicPickups) ?? [],
             rewardMoveCardsAfterClear: try container.decodeIfPresent([MoveCard].self, forKey: .rewardMoveCardsAfterClear) ?? [],
             rewardSupportCardsAfterClear: try container.decodeIfPresent([SupportCard].self, forKey: .rewardSupportCardsAfterClear) ?? []
         )
@@ -883,6 +1534,7 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
         try container.encode(warpTilePairs, forKey: .warpTilePairs)
         try container.encodeIfPresent(exitLock, forKey: .exitLock)
         try container.encode(cardPickups, forKey: .cardPickups)
+        try container.encode(relicPickups, forKey: .relicPickups)
         try container.encode(rewardMoveCardsAfterClear, forKey: .rewardMoveCardsAfterClear)
         try container.encode(rewardSupportCardsAfterClear, forKey: .rewardSupportCardsAfterClear)
     }
@@ -927,7 +1579,8 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
                     exitLock: exitLock,
                     allowsBasicOrthogonalMove: true,
                     cardAcquisitionMode: .inventoryOnly,
-                    cardPickups: cardPickups
+                    cardPickups: cardPickups,
+                    relicPickups: relicPickups
                 )
             ),
             leaderboardEligible: false,
@@ -955,6 +1608,7 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
             warpTilePairs: warpTilePairs,
             exitLock: exitLock,
             cardPickups: cardPickups,
+            relicPickups: relicPickups,
             rewardMoveCardsAfterClear: rewardMoveCardsAfterClear,
             rewardSupportCardsAfterClear: rewardSupportCardsAfterClear
         )
@@ -976,6 +1630,29 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
             warpTilePairs: warpTilePairs,
             exitLock: exitLock,
             cardPickups: cardPickups + additionalCardPickups,
+            relicPickups: relicPickups,
+            rewardMoveCardsAfterClear: rewardMoveCardsAfterClear,
+            rewardSupportCardsAfterClear: rewardSupportCardsAfterClear
+        )
+    }
+
+    public func withAdditionalRelicPickups(_ additionalRelicPickups: [DungeonRelicPickupDefinition]) -> DungeonFloorDefinition {
+        DungeonFloorDefinition(
+            id: id,
+            title: title,
+            boardSize: boardSize,
+            spawnPoint: spawnPoint,
+            exitPoint: exitPoint,
+            deckPreset: deckPreset,
+            failureRule: failureRule,
+            enemies: enemies,
+            hazards: hazards,
+            impassableTilePoints: impassableTilePoints,
+            tileEffectOverrides: tileEffectOverrides,
+            warpTilePairs: warpTilePairs,
+            exitLock: exitLock,
+            cardPickups: cardPickups,
+            relicPickups: relicPickups + additionalRelicPickups,
             rewardMoveCardsAfterClear: rewardMoveCardsAfterClear,
             rewardSupportCardsAfterClear: rewardSupportCardsAfterClear
         )
@@ -997,6 +1674,7 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
             warpTilePairs: warpTilePairs,
             exitLock: exitLock,
             cardPickups: cardPickups,
+            relicPickups: relicPickups,
             rewardMoveCardsAfterClear: rewardMoveCardsAfterClear,
             rewardSupportCardsAfterClear: rewardSupportCardsAfterClear
         )
@@ -1018,6 +1696,7 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
             warpTilePairs: warpTilePairs,
             exitLock: exitLock,
             cardPickups: cardPickups,
+            relicPickups: relicPickups,
             rewardMoveCardsAfterClear: rewardMoveCardsAfterClear,
             rewardSupportCardsAfterClear: rewardSupportCardsAfterClear
         )
@@ -1039,6 +1718,7 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
             warpTilePairs: warpTilePairs,
             exitLock: exitLock,
             cardPickups: cardPickups,
+            relicPickups: relicPickups,
             rewardMoveCardsAfterClear: rewardMoveCardsAfterClear,
             rewardSupportCardsAfterClear: rewardSupportCardsAfterClear
         )
@@ -1067,6 +1747,7 @@ public struct DungeonFloorDefinition: Codable, Equatable, Identifiable {
             warpTilePairs: warpTilePairs,
             exitLock: exitLock,
             cardPickups: cardPickups,
+            relicPickups: relicPickups,
             rewardMoveCardsAfterClear: rewardMoveCardsAfterClear,
             rewardSupportCardsAfterClear: rewardSupportCardsAfterClear
         )
@@ -1125,7 +1806,7 @@ private enum DungeonCardVariationResolver {
             floorIndex: floorIndex,
             seed: seed
         )
-        let rewardMoveCards = resolvedRewardCards(
+        let rewardCards = resolvedRewardCards(
             for: floor,
             floorIndex: floorIndex,
             seed: seed
@@ -1145,8 +1826,9 @@ private enum DungeonCardVariationResolver {
             warpTilePairs: floor.warpTilePairs,
             exitLock: floor.exitLock,
             cardPickups: cardPickups,
-            rewardMoveCardsAfterClear: rewardMoveCards,
-            rewardSupportCardsAfterClear: floor.rewardSupportCardsAfterClear
+            relicPickups: floor.relicPickups,
+            rewardMoveCardsAfterClear: rewardCards.compactMap(\.move),
+            rewardSupportCardsAfterClear: rewardCards.compactMap(\.support)
         )
     }
 
@@ -1156,15 +1838,18 @@ private enum DungeonCardVariationResolver {
         seed: UInt64
     ) -> [DungeonCardPickupDefinition] {
         guard !floor.cardPickups.isEmpty else { return [] }
-        var randomizer = DungeonCardVariationRandomizer(seed: seed, floorIndex: floorIndex, salt: 0xC4D1)
-        var cards = variedCards(
-            from: floor.cardPickups.map(\.card),
-            randomizer: &randomizer
+        var cards = drawPlayableCards(
+            floorIndex: floorIndex,
+            context: .floorPickup,
+            count: floor.cardPickups.count,
+            seed: seed,
+            salt: 0xC4D1
         )
         if cards.count < floor.cardPickups.count {
-            cards += floor.cardPickups.dropFirst(cards.count).map(\.card)
+            cards += floor.cardPickups.dropFirst(cards.count).map(\.playable)
         }
 
+        var randomizer = DungeonCardVariationRandomizer(seed: seed, floorIndex: floorIndex, salt: 0xC4D1)
         var positions = pickupPositions(
             for: floor,
             count: floor.cardPickups.count,
@@ -1178,7 +1863,7 @@ private enum DungeonCardVariationResolver {
             DungeonCardPickupDefinition(
                 id: basePickup.id,
                 point: positions[index],
-                card: cards[index],
+                playable: cards[index],
                 uses: basePickup.uses
             )
         }
@@ -1188,74 +1873,40 @@ private enum DungeonCardVariationResolver {
         for floor: DungeonFloorDefinition,
         floorIndex: Int,
         seed: UInt64
-    ) -> [MoveCard] {
-        guard !floor.rewardMoveCardsAfterClear.isEmpty else { return [] }
-        var randomizer = DungeonCardVariationRandomizer(seed: seed, floorIndex: floorIndex, salt: 0xA11D)
-        return variedCards(from: floor.rewardMoveCardsAfterClear, randomizer: &randomizer)
+    ) -> [PlayableCard] {
+        let rewardCount = floor.rewardMoveCardsAfterClear.count + floor.rewardSupportCardsAfterClear.count
+        guard rewardCount > 0 else { return [] }
+        let cards = DungeonWeightedRewardPools.drawUniquePlayables(
+            from: DungeonWeightedRewardPools.entries(floorIndex: floorIndex, context: .clearReward),
+            count: rewardCount,
+            seed: seed,
+            floorIndex: floorIndex,
+            salt: 0xA11D
+        )
+        if cards.count >= rewardCount {
+            return cards
+        }
+        let fallback = floor.rewardMoveCardsAfterClear.map(PlayableCard.move)
+            + floor.rewardSupportCardsAfterClear.map(PlayableCard.support)
+        return cards + fallback.filter { !cards.contains($0) }.prefix(rewardCount - cards.count)
     }
 
-    private static func variedCards(
-        from baseCards: [MoveCard],
-        randomizer: inout DungeonCardVariationRandomizer
-    ) -> [MoveCard] {
-        var result: [MoveCard] = []
-        for baseCard in baseCards {
-            let alternatives = cardAlternatives(for: baseCard)
-            let startIndex = randomizer.nextIndex(upperBound: alternatives.count)
-            let selected = (0..<alternatives.count)
-                .map { alternatives[(startIndex + $0) % alternatives.count] }
-                .first { !result.contains($0) }
-                ?? baseCard
-            result.append(selected)
-        }
-        return result
-    }
-
-    private static func cardAlternatives(for card: MoveCard) -> [MoveCard] {
-        switch card {
-        case .straightRight2:
-            return [.straightRight2, .rayRight, .knightRightwardChoice]
-        case .straightLeft2:
-            return [.straightLeft2, .rayLeft, .knightLeftwardChoice]
-        case .straightUp2:
-            return [.straightUp2, .rayUp, .knightUpwardChoice]
-        case .straightDown2:
-            return [.straightDown2, .rayDown, .knightDownwardChoice]
-        case .diagonalUpRight2:
-            return [.diagonalUpRight2, .rayUpRight, .knightRightwardChoice]
-        case .diagonalUpLeft2:
-            return [.diagonalUpLeft2, .rayUpLeft, .knightLeftwardChoice]
-        case .diagonalDownRight2:
-            return [.diagonalDownRight2, .rayDownRight, .knightRightwardChoice]
-        case .diagonalDownLeft2:
-            return [.diagonalDownLeft2, .rayDownLeft, .knightLeftwardChoice]
-        case .rayRight:
-            return [.rayRight, .straightRight2, .knightRightwardChoice]
-        case .rayLeft:
-            return [.rayLeft, .straightLeft2, .knightLeftwardChoice]
-        case .rayUp:
-            return [.rayUp, .straightUp2, .knightUpwardChoice]
-        case .rayDown:
-            return [.rayDown, .straightDown2, .knightDownwardChoice]
-        case .rayUpRight:
-            return [.rayUpRight, .diagonalUpRight2, .knightUpwardChoice]
-        case .rayUpLeft:
-            return [.rayUpLeft, .diagonalUpLeft2, .knightUpwardChoice]
-        case .rayDownRight:
-            return [.rayDownRight, .diagonalDownRight2, .knightDownwardChoice]
-        case .rayDownLeft:
-            return [.rayDownLeft, .diagonalDownLeft2, .knightDownwardChoice]
-        case .knightRightwardChoice:
-            return [.knightRightwardChoice, .straightRight2, .diagonalUpRight2]
-        case .knightLeftwardChoice:
-            return [.knightLeftwardChoice, .straightLeft2, .diagonalUpLeft2]
-        case .knightUpwardChoice:
-            return [.knightUpwardChoice, .straightUp2, .diagonalUpRight2]
-        case .knightDownwardChoice:
-            return [.knightDownwardChoice, .straightDown2, .diagonalDownRight2]
-        default:
-            return [card]
-        }
+    private static func drawPlayableCards(
+        floorIndex: Int,
+        context: DungeonWeightedRewardPoolContext,
+        count: Int,
+        seed: UInt64,
+        salt: UInt64
+    ) -> [PlayableCard] {
+        DungeonWeightedRewardPools.drawUniqueOffers(
+            from: DungeonWeightedRewardPools.entries(floorIndex: floorIndex, context: context),
+            context: context,
+            count: count,
+            seed: seed,
+            floorIndex: floorIndex,
+            salt: salt
+        )
+        .compactMap(\.playable)
     }
 
     private static func pickupPositions(
@@ -1281,6 +1932,7 @@ private enum DungeonCardVariationResolver {
         blocked.formUnion(floor.enemies.map(\.position))
         blocked.formUnion(floor.hazards.flatMap(\.points))
         blocked.formUnion(floor.warpTilePairs.values.flatMap { $0 })
+        blocked.formUnion(floor.relicPickups.map(\.point))
         if let unlockPoint = floor.exitLock?.unlockPoint {
             blocked.insert(unlockPoint)
         }
@@ -1353,6 +2005,8 @@ public struct DungeonRules: Codable, Equatable {
     public var cardAcquisitionMode: DungeonCardAcquisitionMode
     /// この GameMode で解決済みの拾得カード配置
     public var cardPickups: [DungeonCardPickupDefinition]
+    /// この GameMode で解決済みの宝箱配置
+    public var relicPickups: [DungeonRelicPickupDefinition]
 
     public init(
         difficulty: DungeonDifficulty,
@@ -1362,7 +2016,8 @@ public struct DungeonRules: Codable, Equatable {
         exitLock: DungeonExitLock? = nil,
         allowsBasicOrthogonalMove: Bool = false,
         cardAcquisitionMode: DungeonCardAcquisitionMode = .deck,
-        cardPickups: [DungeonCardPickupDefinition] = []
+        cardPickups: [DungeonCardPickupDefinition] = [],
+        relicPickups: [DungeonRelicPickupDefinition] = []
     ) {
         self.difficulty = difficulty
         self.failureRule = failureRule
@@ -1372,6 +2027,7 @@ public struct DungeonRules: Codable, Equatable {
         self.allowsBasicOrthogonalMove = allowsBasicOrthogonalMove
         self.cardAcquisitionMode = cardAcquisitionMode
         self.cardPickups = cardPickups
+        self.relicPickups = relicPickups
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -1383,6 +2039,7 @@ public struct DungeonRules: Codable, Equatable {
         case allowsBasicOrthogonalMove
         case cardAcquisitionMode
         case cardPickups
+        case relicPickups
     }
 
     public init(from decoder: Decoder) throws {
@@ -1395,6 +2052,7 @@ public struct DungeonRules: Codable, Equatable {
         allowsBasicOrthogonalMove = try container.decodeIfPresent(Bool.self, forKey: .allowsBasicOrthogonalMove) ?? false
         cardAcquisitionMode = try container.decodeIfPresent(DungeonCardAcquisitionMode.self, forKey: .cardAcquisitionMode) ?? .deck
         cardPickups = try container.decodeIfPresent([DungeonCardPickupDefinition].self, forKey: .cardPickups) ?? []
+        relicPickups = try container.decodeIfPresent([DungeonRelicPickupDefinition].self, forKey: .relicPickups) ?? []
     }
 }
 
@@ -1427,6 +2085,8 @@ public struct DungeonLibrary {
         for dungeon: DungeonDefinition,
         initialHPBonus: Int = 0,
         startingHazardDamageMitigations: Int = 0,
+        startingEnemyDamageMitigations: Int = 0,
+        startingMarkerDamageMitigations: Int = 0,
         cardVariationSeed: UInt64? = nil
     ) -> GameMode? {
         floorMode(
@@ -1434,6 +2094,8 @@ public struct DungeonLibrary {
             floorIndex: 0,
             initialHPBonus: initialHPBonus,
             startingHazardDamageMitigations: startingHazardDamageMitigations,
+            startingEnemyDamageMitigations: startingEnemyDamageMitigations,
+            startingMarkerDamageMitigations: startingMarkerDamageMitigations,
             cardVariationSeed: cardVariationSeed
         )
     }
@@ -1443,7 +2105,10 @@ public struct DungeonLibrary {
         floorIndex: Int,
         initialHPBonus: Int = 0,
         startingRewardEntries: [DungeonInventoryEntry] = [],
+        startingRelicEntries: [DungeonRelicEntry] = [],
         startingHazardDamageMitigations: Int = 0,
+        startingEnemyDamageMitigations: Int = 0,
+        startingMarkerDamageMitigations: Int = 0,
         cardVariationSeed: UInt64? = nil
     ) -> GameMode? {
         guard dungeon.floors.indices.contains(floorIndex) else { return nil }
@@ -1458,8 +2123,11 @@ public struct DungeonLibrary {
             carriedHP: baseFloor.failureRule.initialHP + resolvedInitialHPBonus,
             clearedFloorCount: floorIndex,
             rewardInventoryEntries: startingRewardEntries,
+            relicEntries: dungeon.difficulty == .growth ? startingRelicEntries : [],
             cardVariationSeed: resolvedCardVariationSeed,
-            hazardDamageMitigationsRemaining: dungeon.difficulty == .growth ? startingHazardDamageMitigations : 0
+            hazardDamageMitigationsRemaining: dungeon.difficulty == .growth ? startingHazardDamageMitigations : 0,
+            enemyDamageMitigationsRemaining: dungeon.difficulty == .growth ? startingEnemyDamageMitigations : 0,
+            markerDamageMitigationsRemaining: dungeon.difficulty == .growth ? startingMarkerDamageMitigations : 0
         )
         let floor = dungeon.resolvedFloor(at: floorIndex, runState: runState) ?? baseFloor
         return floor.makeGameMode(
@@ -1670,6 +2338,9 @@ public struct DungeonLibrary {
                 .withAdditionalImpassableTilePoints([
                     GridPoint(x: 3, y: 3),
                     GridPoint(x: 6, y: 2)
+                ])
+                .withAdditionalRelicPickups([
+                    DungeonRelicPickupDefinition(id: "growth-4-relic", point: GridPoint(x: 2, y: 6))
                 ]),
                 rewardMoveCardsAfterClear: [
                     .rayRight,
@@ -1753,6 +2424,9 @@ public struct DungeonLibrary {
                     GridPoint(x: 1, y: 5),
                     GridPoint(x: 4, y: 1),
                     GridPoint(x: 7, y: 3)
+                ])
+                .withAdditionalRelicPickups([
+                    DungeonRelicPickupDefinition(id: "growth-8-relic", point: GridPoint(x: 5, y: 7))
                 ])
                 .withRewardMoveCardsAfterClear([
                     .straightRight2,
@@ -1841,6 +2515,7 @@ public struct DungeonLibrary {
             warpTilePairs: floor.warpTilePairs,
             exitLock: floor.exitLock,
             cardPickups: floor.cardPickups,
+            relicPickups: floor.relicPickups,
             rewardMoveCardsAfterClear: rewardMoveCardsAfterClear ?? floor.rewardMoveCardsAfterClear,
             rewardSupportCardsAfterClear: floor.rewardSupportCardsAfterClear
         )
@@ -1868,6 +2543,7 @@ public struct DungeonLibrary {
             warpTilePairs: floor.warpTilePairs,
             exitLock: floor.exitLock,
             cardPickups: cardPickups,
+            relicPickups: floor.relicPickups,
             rewardMoveCardsAfterClear: rewardMoveCardsAfterClear ?? floor.rewardMoveCardsAfterClear,
             rewardSupportCardsAfterClear: floor.rewardSupportCardsAfterClear
         )
@@ -2112,11 +2788,19 @@ public struct DungeonLibrary {
                 GridPoint(x: 5, y: 2),
                 GridPoint(x: 7, y: 6)
             ],
+            tileEffectOverrides: [
+                GridPoint(x: 5, y: 7): .swamp,
+                GridPoint(x: 6, y: 6): .swamp,
+                GridPoint(x: 6, y: 7): .swamp
+            ],
             exitLock: DungeonExitLock(unlockPoint: GridPoint(x: 2, y: 2)),
             cardPickups: [
                 DungeonCardPickupDefinition(id: "growth-12-key-up2", point: GridPoint(x: 1, y: 2), card: .straightUp2),
                 DungeonCardPickupDefinition(id: "growth-12-right2", point: GridPoint(x: 0, y: 1), card: .straightRight2),
                 DungeonCardPickupDefinition(id: "growth-12-ray-right", point: GridPoint(x: 4, y: 5), card: .rayRight)
+            ],
+            relicPickups: [
+                DungeonRelicPickupDefinition(id: "growth-12-relic", point: GridPoint(x: 3, y: 6))
             ],
             rewardMoveCardsAfterClear: [.rayLeft, .diagonalUpLeft2, .straightUp2]
         )
@@ -2240,6 +2924,12 @@ public struct DungeonLibrary {
                 GridPoint(x: 5, y: 1),
                 GridPoint(x: 7, y: 2)
             ],
+            tileEffectOverrides: [
+                GridPoint(x: 4, y: 6): .swamp,
+                GridPoint(x: 4, y: 7): .swamp,
+                GridPoint(x: 5, y: 6): .swamp,
+                GridPoint(x: 5, y: 7): .swamp
+            ],
             warpTilePairs: ["growth-15-warp": [GridPoint(x: 1, y: 2), GridPoint(x: 6, y: 6)]],
             exitLock: DungeonExitLock(unlockPoint: GridPoint(x: 2, y: 1)),
             cardPickups: [
@@ -2295,7 +2985,11 @@ public struct DungeonLibrary {
                 DungeonCardPickupDefinition(id: "growth-16-diagonal", point: GridPoint(x: 3, y: 2), card: .diagonalUpRight2),
                 DungeonCardPickupDefinition(id: "growth-16-up2", point: GridPoint(x: 6, y: 5), card: .straightUp2)
             ],
-            rewardMoveCardsAfterClear: [.diagonalUpLeft2, .rayLeft, .straightUp2]
+            relicPickups: [
+                DungeonRelicPickupDefinition(id: "growth-16-relic", point: GridPoint(x: 5, y: 1))
+            ],
+            rewardMoveCardsAfterClear: [.diagonalUpLeft2, .rayLeft],
+            rewardSupportCardsAfterClear: [.singleAnnihilationSpell]
         )
     }
 
@@ -2332,7 +3026,8 @@ public struct DungeonLibrary {
                 DungeonCardPickupDefinition(id: "growth-17-ray-right", point: GridPoint(x: 2, y: 0), card: .rayRight),
                 DungeonCardPickupDefinition(id: "growth-17-diagonal", point: GridPoint(x: 6, y: 6), card: .diagonalUpRight2)
             ],
-            rewardMoveCardsAfterClear: [.straightRight2, .knightRightwardChoice, .diagonalDownRight2]
+            rewardMoveCardsAfterClear: [.straightRight2, .knightRightwardChoice],
+            rewardSupportCardsAfterClear: [.annihilationSpell]
         )
     }
 
@@ -2369,6 +3064,12 @@ public struct DungeonLibrary {
                 GridPoint(x: 4, y: 2),
                 GridPoint(x: 5, y: 5),
                 GridPoint(x: 7, y: 3)
+            ],
+            tileEffectOverrides: [
+                GridPoint(x: 4, y: 4): .swamp,
+                GridPoint(x: 4, y: 5): .swamp,
+                GridPoint(x: 5, y: 4): .swamp,
+                GridPoint(x: 6, y: 4): .swamp
             ],
             warpTilePairs: ["growth-18-choice": [GridPoint(x: 1, y: 0), GridPoint(x: 6, y: 6)]],
             cardPickups: [
@@ -2408,6 +3109,9 @@ public struct DungeonLibrary {
                 DungeonCardPickupDefinition(id: "growth-19-ray-right", point: GridPoint(x: 0, y: 1), card: .rayRight),
                 DungeonCardPickupDefinition(id: "growth-19-diagonal", point: GridPoint(x: 4, y: 3), card: .diagonalUpRight2),
                 DungeonCardPickupDefinition(id: "growth-19-up2", point: GridPoint(x: 8, y: 6), card: .straightUp2)
+            ],
+            relicPickups: [
+                DungeonRelicPickupDefinition(id: "growth-19-relic", point: GridPoint(x: 6, y: 1))
             ],
             rewardMoveCardsAfterClear: [.straightRight2, .diagonalUpRight2, .rayRight]
         )

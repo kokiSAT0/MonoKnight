@@ -110,7 +110,7 @@ final class GameViewModel: ObservableObject {
     /// ダンジョン残り手数
     var remainingDungeonTurns: Int? { core.remainingDungeonTurns }
     /// ダンジョン手数上限
-    var dungeonTurnLimit: Int? { mode.dungeonRules?.failureRule.turnLimit }
+    var dungeonTurnLimit: Int? { core.effectiveDungeonTurnLimit }
     /// ダンジョン出口座標
     var dungeonExitPoint: GridPoint? { mode.dungeonExitPoint }
     /// ダンジョン出口が解錠済みかどうか
@@ -156,6 +156,10 @@ final class GameViewModel: ObservableObject {
     }
     /// 現在フロアのクリア後に選べる報酬カード
     var availableDungeonRewardMoveCards: [MoveCard] {
+        availableDungeonRewardOffers.compactMap(\.move)
+    }
+    /// 現在フロアのクリア後に選べる報酬カードを、移動/補助/遺物を同じ枠として返す
+    var availableDungeonRewardOffers: [DungeonRewardOffer] {
         guard !isResultFailed,
               let metadata = mode.dungeonMetadataSnapshot,
               let runState = metadata.runState,
@@ -163,21 +167,51 @@ final class GameViewModel: ObservableObject {
               dungeon.floors.indices.contains(runState.currentFloorIndex),
               dungeon.canAdvanceWithinRun(afterFloorIndex: runState.currentFloorIndex)
         else { return [] }
-        let baseCards = dungeon.resolvedFloor(
+        let floor = dungeon.resolvedFloor(
             at: runState.currentFloorIndex,
             runState: runState
-        )?.rewardMoveCardsAfterClear ?? []
-        return dungeonGrowthStore.rewardMoveCards(for: baseCards, dungeon: dungeon)
+        )
+        let rewardCount = (floor?.rewardMoveCardsAfterClear.count ?? 0)
+            + (floor?.rewardSupportCardsAfterClear.count ?? 0)
+        guard rewardCount > 0 else { return [] }
+
+        let tuning = DungeonRewardDrawTuning(
+            clearMoveCount: core.moveCount,
+            turnLimit: core.effectiveDungeonTurnLimit
+        )
+        let ownedRelics = Set(core.dungeonRelicEntries.map(\.relicID))
+        let baseOffers: [DungeonRewardOffer]
+        if dungeon.difficulty == .growth,
+           let seed = runState.cardVariationSeed {
+            let drawnOffers = DungeonWeightedRewardPools.drawUniqueOffers(
+                from: DungeonWeightedRewardPools.entries(floorIndex: runState.currentFloorIndex, context: .clearReward),
+                context: .clearReward,
+                count: rewardCount,
+                seed: seed,
+                floorIndex: runState.currentFloorIndex,
+                salt: 0xA11D,
+                tuning: tuning,
+                excludingRelics: ownedRelics
+            )
+            let fallbackOffers = ((floor?.rewardMoveCardsAfterClear ?? []).map { DungeonRewardOffer.playable(.move($0)) })
+                + ((floor?.rewardSupportCardsAfterClear ?? []).map { DungeonRewardOffer.playable(.support($0)) })
+            baseOffers = drawnOffers + fallbackOffers.filter { !drawnOffers.contains($0) }.prefix(max(rewardCount - drawnOffers.count, 0))
+        } else {
+            baseOffers = ((floor?.rewardMoveCardsAfterClear ?? []).map { DungeonRewardOffer.playable(.move($0)) })
+                + ((floor?.rewardSupportCardsAfterClear ?? []).map { DungeonRewardOffer.playable(.support($0)) })
+        }
+        return dungeonGrowthStore.rewardOffers(
+            for: baseOffers,
+            dungeon: dungeon,
+            floorIndex: runState.currentFloorIndex,
+            seed: runState.cardVariationSeed,
+            tuning: tuning,
+            ownedRelics: ownedRelics
+        )
     }
     /// 現在フロアのクリア後に選べる報酬カードを、移動/補助を同じ3択枠として返す
     var availableDungeonRewardCards: [PlayableCard] {
-        Array(
-            (
-                availableDungeonRewardMoveCards.map(PlayableCard.move)
-                    + availableDungeonRewardSupportCards.map(PlayableCard.support)
-            )
-            .prefix(3)
-        )
+        availableDungeonRewardOffers.compactMap(\.playable)
     }
     /// 満杯時でも既存カードの重ね取りは許可し、新規種類だけを止める
     func canAddDungeonRewardMoveCard(_ card: MoveCard) -> Bool {
@@ -185,17 +219,7 @@ final class GameViewModel: ObservableObject {
     }
     /// 現在フロアのクリア後に選べる補助報酬カード
     var availableDungeonRewardSupportCards: [SupportCard] {
-        guard !isResultFailed,
-              let metadata = mode.dungeonMetadataSnapshot,
-              let runState = metadata.runState,
-              let dungeon = DungeonLibrary.shared.dungeon(with: metadata.dungeonID),
-              dungeon.floors.indices.contains(runState.currentFloorIndex),
-              dungeon.canAdvanceWithinRun(afterFloorIndex: runState.currentFloorIndex)
-        else { return [] }
-        return dungeon.resolvedFloor(
-            at: runState.currentFloorIndex,
-            runState: runState
-        )?.rewardSupportCardsAfterClear ?? []
+        availableDungeonRewardOffers.compactMap(\.support)
     }
     /// 満杯時でも既存補助カードの重ね取りは許可し、新規種類だけを止める
     func canAddDungeonRewardSupportCard(_ support: SupportCard) -> Bool {
@@ -210,7 +234,8 @@ final class GameViewModel: ObservableObject {
         guard let metadata = mode.dungeonMetadataSnapshot,
               let dungeon = DungeonLibrary.shared.dungeon(with: metadata.dungeonID)
         else { return 2 }
-        return dungeonGrowthStore.rewardAddUses(for: dungeon)
+        let relicBonus = core.dungeonRelicEntries.contains { $0.relicID == .heavyCrown } ? 1 : 0
+        return dungeonGrowthStore.rewardAddUses(for: dungeon) + relicBonus
     }
     /// クリア後に強化/整理できる手札の報酬カード
     var adjustableDungeonRewardEntries: [DungeonInventoryEntry] {

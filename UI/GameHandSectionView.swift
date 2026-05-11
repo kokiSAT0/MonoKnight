@@ -18,6 +18,8 @@ struct GameHandSectionView: View {
     let bottomInset: CGFloat
     /// GeometryReader 側で算出した推奨下パディング
     let bottomPadding: CGFloat
+    /// 詳細表示中の遺物
+    @State private var inspectedRelic: DungeonRelicEntry?
 
     /// 横幅のサイズクラス（iPhone / iPad での余白計算に利用）
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -48,6 +50,10 @@ struct GameHandSectionView: View {
 
             handSlotsSection
 
+            if !core.dungeonRelicEntries.isEmpty {
+                relicStrip
+            }
+
             // NEXT 表示が存在する場合にのみ案内を表示
             if !core.nextCards.isEmpty {
                 nextCardsSection
@@ -63,6 +69,10 @@ struct GameHandSectionView: View {
         .padding(.horizontal, horizontalSizeClass == .regular ? 24 : 0)
         .frame(maxWidth: horizontalSizeClass == .regular ? 760 : nil)
         .frame(maxWidth: .infinity)
+        .sheet(item: $inspectedRelic) { relic in
+            DungeonRelicDetailView(theme: theme, relic: relic)
+                .presentationDetents([.medium])
+        }
     }
 }
 
@@ -117,6 +127,26 @@ private extension GameHandSectionView {
                 handSlotView(for: index)
             }
         }
+    }
+
+    private var relicStrip: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(core.dungeonRelicEntries) { relic in
+                    Button {
+                        inspectedRelic = relic
+                    } label: {
+                        DungeonRelicIconView(theme: theme, relic: relic)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier(Self.dungeonRelicAccessibilityIdentifier(for: relic))
+                    .accessibilityLabel(Text(Self.dungeonRelicAccessibilityLabel(for: relic)))
+                    .accessibilityHint(Text(Self.dungeonRelicAccessibilityHint(for: relic)))
+                }
+            }
+            .padding(.horizontal, 2)
+        }
+        .frame(minHeight: 46)
     }
 
     /// 捨て札モード時に表示する案内バナー
@@ -178,7 +208,7 @@ private extension GameHandSectionView {
                 Text("入れ替える手札を選択中")
                     .font(.system(size: 14, weight: .semibold, design: .rounded))
                     .foregroundColor(theme.textPrimary)
-                Text("手札をタップすると、その種類を捨てて \(choice.pickup.card.displayName) を取得します")
+                Text("手札をタップすると、その種類を捨てて \(choice.pickup.playable.displayName) を取得します")
                     .font(.system(size: 12, weight: .medium, design: .rounded))
                     .foregroundColor(theme.textSecondary)
                     .lineLimit(2)
@@ -198,7 +228,7 @@ private extension GameHandSectionView {
                 )
         )
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(Text("手札がいっぱいです。捨てる手札を選ぶと \(choice.pickup.card.displayName) を取得します。"))
+        .accessibilityLabel(Text("手札がいっぱいです。捨てる手札を選ぶと \(choice.pickup.playable.displayName) を取得します。"))
     }
 
     /// 指定スロットに対応する `HandStack` を取得
@@ -378,6 +408,10 @@ private extension GameHandSectionView {
             switch support {
             case .refillEmptySlots:
                 return "ダブルタップで 1 手使い、空いている手札枠を移動カードで補給します。"
+            case .singleAnnihilationSpell:
+                return "ダブルタップで呪文を選び、消滅させる敵を盤面から選びます。"
+            case .annihilationSpell:
+                return "ダブルタップで 1 手使い、このフロアの敵をすべて消滅させます。"
             }
         }
 
@@ -568,6 +602,96 @@ extension GameHandSectionView {
         }
         return "ダブルタップで \(playable.displayName) をすべて捨て、拾ったカードを取得します。"
     }
+
+    static func dungeonRelicAccessibilityIdentifier(for relic: DungeonRelicEntry) -> String {
+        "dungeon_relic_\(relic.relicID.rawValue)"
+    }
+
+    static func dungeonRelicAccessibilityLabel(for relic: DungeonRelicEntry) -> String {
+        "遺物、\(relic.displayName)"
+    }
+
+    static func dungeonRelicAccessibilityHint(for relic: DungeonRelicEntry) -> String {
+        "ダブルタップで効果を確認します。\(relic.effectDescription)\(relic.drawbackDescription)"
+    }
+}
+
+private struct DungeonRelicIconView: View {
+    let theme: AppTheme
+    let relic: DungeonRelicEntry
+
+    var body: some View {
+        ZStack(alignment: .bottomTrailing) {
+            RoundedRectangle(cornerRadius: 8)
+                .fill(theme.cardBackgroundHand)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(theme.accentPrimary.opacity(0.55), lineWidth: 1)
+                )
+
+            Image(systemName: relic.symbolName)
+                .font(.system(size: 19, weight: .semibold))
+                .foregroundColor(theme.accentPrimary)
+                .accessibilityHidden(true)
+
+            if relic.hasLimitedUses {
+                Text("\(relic.remainingUses)")
+                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .foregroundColor(theme.accentOnPrimary)
+                    .frame(width: 16, height: 16)
+                    .background(Circle().fill(theme.accentPrimary))
+                    .offset(x: 4, y: 4)
+                    .accessibilityHidden(true)
+            }
+        }
+        .frame(width: 44, height: 44)
+    }
+}
+
+private struct DungeonRelicDetailView: View {
+    let theme: AppTheme
+    let relic: DungeonRelicEntry
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 18) {
+                HStack(spacing: 12) {
+                    Image(systemName: relic.symbolName)
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundColor(theme.accentPrimary)
+                        .frame(width: 44, height: 44)
+                        .background(Circle().fill(theme.accentPrimary.opacity(0.14)))
+                    Text(relic.displayName)
+                        .font(.system(size: 22, weight: .bold, design: .rounded))
+                        .foregroundColor(theme.textPrimary)
+                }
+
+                VStack(alignment: .leading, spacing: 10) {
+                    Label(relic.effectDescription, systemImage: "sparkles")
+                    Label(relic.drawbackDescription, systemImage: "exclamationmark.triangle")
+                    if relic.hasLimitedUses {
+                        Label("残り \(relic.remainingUses) 回", systemImage: "number.circle")
+                    }
+                }
+                .font(.system(size: 15, weight: .medium, design: .rounded))
+                .foregroundColor(theme.textPrimary)
+
+                Spacer(minLength: 0)
+            }
+            .padding(22)
+            .background(theme.backgroundPrimary)
+            .navigationTitle("遺物")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("閉じる") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
 }
 
 private struct SupportCardIllustrationView: View {
@@ -617,6 +741,10 @@ private struct SupportCardIllustrationView: View {
         switch card {
         case .refillEmptySlots:
             return "square.grid.3x3.fill"
+        case .singleAnnihilationSpell:
+            return "sparkle.magnifyingglass"
+        case .annihilationSpell:
+            return "sparkles"
         }
     }
 }

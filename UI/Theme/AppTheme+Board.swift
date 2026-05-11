@@ -49,6 +49,9 @@ extension AppTheme {
     /// 麻痺罠を描画する際のアクセントカラー
     var boardTileEffectSlow: Color { schemeColor(light: Self.lightBoardTileEffectSlow, dark: Self.darkBoardTileEffectSlow) }
 
+    /// 沼マスを描画する際のアクセントカラー
+    var boardTileEffectSwamp: Color { schemeColor(light: Self.lightBoardTileEffectSwamp, dark: Self.darkBoardTileEffectSwamp) }
+
     /// カード温存効果を描画する際のアクセントカラー
     var boardTileEffectPreserveCard: Color { schemeColor(light: Self.lightBoardTileEffectPreserveCard, dark: Self.darkBoardTileEffectPreserveCard) }
 
@@ -71,6 +74,8 @@ private extension AppTheme {
     static let darkBoardTileEffectBlast = Color(red: 0.35, green: 0.85, blue: 0.95).opacity(0.95)
     static let lightBoardTileEffectSlow = Color(red: 0.62, green: 0.20, blue: 0.78).opacity(0.95)
     static let darkBoardTileEffectSlow = Color(red: 0.94, green: 0.56, blue: 1.0).opacity(0.95)
+    static let lightBoardTileEffectSwamp = Color(red: 0.04, green: 0.58, blue: 0.50).opacity(0.92)
+    static let darkBoardTileEffectSwamp = Color(red: 0.30, green: 0.86, blue: 0.78).opacity(0.94)
     static let lightBoardTileEffectPreserveCard = Color(red: 0.90, green: 0.54, blue: 0.06).opacity(0.95)
     static let darkBoardTileEffectPreserveCard = Color(red: 1.0, green: 0.72, blue: 0.24).opacity(0.95)
     static let lightBoardTileEffectDiscardHand = Color(red: 0.72, green: 0.08, blue: 0.18).opacity(0.95)

@@ -34,6 +34,7 @@ final class GameModeRegulationTests: XCTestCase {
     func testTileEffectsRoundTripThroughRegulationCoding() throws {
         let blastPoint = GridPoint(x: 2, y: 1)
         let slowPoint = GridPoint(x: 2, y: 3)
+        let swampPoint = GridPoint(x: 1, y: 3)
         let preserveCardPoint = GridPoint(x: 1, y: 1)
         let discardRandomPoint = GridPoint(x: 3, y: 1)
         let discardAllPoint = GridPoint(x: 3, y: 3)
@@ -53,6 +54,7 @@ final class GameModeRegulationTests: XCTestCase {
             tileEffectOverrides: [
                 blastPoint: .blast(direction: MoveVector(dx: 0, dy: -1)),
                 slowPoint: .slow,
+                swampPoint: .swamp,
                 preserveCardPoint: .preserveCard,
                 discardRandomPoint: .discardRandomHand,
                 discardAllPoint: .discardAllHands,
@@ -67,6 +69,8 @@ final class GameModeRegulationTests: XCTestCase {
         XCTAssertEqual(decoded.resolvedTileEffects[blastPoint], TileEffect.blast(direction: MoveVector(dx: 0, dy: -1)))
         XCTAssertEqual(decoded.tileEffectOverrides[slowPoint], TileEffect.slow)
         XCTAssertEqual(decoded.resolvedTileEffects[slowPoint], TileEffect.slow)
+        XCTAssertEqual(decoded.tileEffectOverrides[swampPoint], TileEffect.swamp)
+        XCTAssertEqual(decoded.resolvedTileEffects[swampPoint], TileEffect.swamp)
         XCTAssertEqual(decoded.tileEffectOverrides[preserveCardPoint], TileEffect.preserveCard)
         XCTAssertEqual(decoded.resolvedTileEffects[preserveCardPoint], TileEffect.preserveCard)
         XCTAssertEqual(decoded.tileEffectOverrides[discardRandomPoint], TileEffect.discardRandomHand)

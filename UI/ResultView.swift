@@ -29,7 +29,9 @@ struct ResultView: View {
     let nextDungeonFloorTitle: String?
     /// 再挑戦ボタンの表示名
     let retryButtonTitle: String
-    /// 次階へ進む前に選べる報酬カード。移動/補助を合わせた表示上の3択。
+    /// 次階へ進む前に選べる報酬。移動/補助/遺物を合わせた表示上の候補。
+    let dungeonRewardOffers: [DungeonRewardOffer]
+    /// 次階へ進む前に選べる報酬カード。旧呼び出し互換用。
     let dungeonRewardCards: [PlayableCard]
     /// 次階へ進む前に選べる報酬カード
     let dungeonRewardMoveCards: [MoveCard]
@@ -108,6 +110,7 @@ struct ResultView: View {
         dungeonRunTotalMoveCount: Int? = nil,
         nextDungeonFloorTitle: String? = nil,
         retryButtonTitle: String = "リトライ",
+        dungeonRewardOffers: [DungeonRewardOffer] = [],
         dungeonRewardCards: [PlayableCard] = [],
         dungeonRewardMoveCards: [MoveCard] = [],
         dungeonRewardSupportCards: [SupportCard] = [],
@@ -146,6 +149,7 @@ struct ResultView: View {
             dungeonRunTotalMoveCount: dungeonRunTotalMoveCount,
             nextDungeonFloorTitle: nextDungeonFloorTitle,
             retryButtonTitle: retryButtonTitle,
+            dungeonRewardOffers: dungeonRewardOffers,
             dungeonRewardCards: dungeonRewardCards,
             dungeonRewardMoveCards: dungeonRewardMoveCards,
             dungeonRewardSupportCards: dungeonRewardSupportCards,
@@ -186,6 +190,7 @@ struct ResultView: View {
         dungeonRunTotalMoveCount: Int? = nil,
         nextDungeonFloorTitle: String? = nil,
         retryButtonTitle: String = "リトライ",
+        dungeonRewardOffers: [DungeonRewardOffer] = [],
         dungeonRewardCards: [PlayableCard] = [],
         dungeonRewardMoveCards: [MoveCard] = [],
         dungeonRewardSupportCards: [SupportCard] = [],
@@ -233,6 +238,12 @@ struct ResultView: View {
         self.dungeonRunTotalMoveCount = dungeonRunTotalMoveCount
         self.nextDungeonFloorTitle = nextDungeonFloorTitle
         self.retryButtonTitle = retryButtonTitle
+        self.dungeonRewardOffers = Self.resolvedDungeonRewardOffers(
+            dungeonRewardOffers,
+            cards: dungeonRewardCards,
+            moveCards: dungeonRewardMoveCards,
+            supportCards: dungeonRewardSupportCards
+        )
         self.dungeonRewardCards = Self.resolvedDungeonRewardCards(
             dungeonRewardCards,
             moveCards: dungeonRewardMoveCards,
@@ -279,6 +290,7 @@ struct ResultView: View {
                     modeDisplayName: modeDisplayName,
                     nextDungeonFloorTitle: nextDungeonFloorTitle,
                     retryButtonTitle: retryButtonTitle,
+                    dungeonRewardOffers: dungeonRewardOffers,
                     dungeonRewardCards: dungeonRewardCards,
                     dungeonRewardMoveCards: dungeonRewardMoveCards,
                     dungeonRewardSupportCards: dungeonRewardSupportCards,
@@ -335,8 +347,19 @@ struct ResultView: View {
         moveCards: [MoveCard],
         supportCards: [SupportCard]
     ) -> [PlayableCard] {
-        guard cards.isEmpty else { return Array(cards.prefix(3)) }
+        guard cards.isEmpty else { return cards }
         return Array((moveCards.map(PlayableCard.move) + supportCards.map(PlayableCard.support)).prefix(3))
+    }
+
+    private static func resolvedDungeonRewardOffers(
+        _ offers: [DungeonRewardOffer],
+        cards: [PlayableCard],
+        moveCards: [MoveCard],
+        supportCards: [SupportCard]
+    ) -> [DungeonRewardOffer] {
+        guard offers.isEmpty else { return offers }
+        return resolvedDungeonRewardCards(cards, moveCards: moveCards, supportCards: supportCards)
+            .map(DungeonRewardOffer.playable)
     }
 
     private var summaryPresentation: ResultSummaryPresentation {

@@ -151,6 +151,23 @@ public extension MoveCard {
                 vectors.compactMap { vector in
                     let destination = origin.offset(dx: vector.dx, dy: vector.dy)
                     guard context.contains(destination), context.isTraversable(destination) else { return nil }
+                    if let stoppingPath = stoppingTilePath(
+                        from: origin,
+                        vector: vector,
+                        destination: destination,
+                        context: context
+                    ) {
+                        let stoppedDestination = stoppingPath[stoppingPath.count - 1]
+                        let stoppedVector = MoveVector(
+                            dx: stoppedDestination.x - origin.x,
+                            dy: stoppedDestination.y - origin.y
+                        )
+                        return Path(
+                            vector: stoppedVector,
+                            destination: stoppedDestination,
+                            traversedPoints: stoppingPath
+                        )
+                    }
                     return Path(vector: vector, destination: destination, traversedPoints: [destination])
                 }
             }
@@ -176,6 +193,9 @@ public extension MoveCard {
 
                     let accumulatedVector = MoveVector(dx: direction.dx * step, dy: direction.dy * step)
                     results.append(Path(vector: accumulatedVector, destination: current, traversedPoints: traversed))
+                    if context.effect(at: current)?.stopsMovementCard == true {
+                        break
+                    }
                 }
 
                 return results
@@ -198,7 +218,7 @@ public extension MoveCard {
 
                     traversed.append(nextPoint)
                     current = nextPoint
-                    if context.effect(at: nextPoint) == .slow {
+                    if context.effect(at: nextPoint)?.stopsMovementCard == true {
                         break
                     }
                 }
@@ -287,12 +307,50 @@ public extension MoveCard {
             }
         }
 
+        private static func stoppingTilePath(
+            from origin: GridPoint,
+            vector: MoveVector,
+            destination: GridPoint,
+            context: ResolutionContext
+        ) -> [GridPoint]? {
+            let stepCount = max(abs(vector.dx), abs(vector.dy))
+            guard stepCount > 1 else { return nil }
+            let isStraightOrDiagonal = vector.dx == 0 || vector.dy == 0 || abs(vector.dx) == abs(vector.dy)
+            guard isStraightOrDiagonal else { return nil }
+            guard vector.dx % stepCount == 0, vector.dy % stepCount == 0 else { return nil }
+
+            let stepX = vector.dx / stepCount
+            let stepY = vector.dy / stepCount
+            var path: [GridPoint] = []
+            path.reserveCapacity(stepCount)
+            for step in 1...stepCount {
+                let point = origin.offset(dx: stepX * step, dy: stepY * step)
+                guard context.contains(point), context.isTraversable(point) else { return nil }
+                path.append(point)
+                if context.effect(at: point)?.stopsMovementCard == true {
+                    return path
+                }
+            }
+            return path.last == destination ? nil : path
+        }
+
         /// movementVectors 互換の代表ベクトル配列を返す
         public func fallbackVectors() -> [MoveVector] { baseVectors }
 
         /// 指定した原点から到達可能な経路を列挙する
         public func resolvePaths(from origin: GridPoint, context: ResolutionContext) -> [Path] {
             resolver(origin, context)
+        }
+    }
+}
+
+public extension TileEffect {
+    var stopsMovementCard: Bool {
+        switch self {
+        case .slow, .swamp:
+            return true
+        case .warp, .shuffleHand, .blast, .preserveCard, .discardRandomHand, .discardAllHands:
+            return false
         }
     }
 }

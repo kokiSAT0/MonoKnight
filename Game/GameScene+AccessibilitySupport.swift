@@ -94,6 +94,8 @@
                     return "吹き飛ばしマス"
                 case .slow:
                     return "麻痺罠"
+                case .swamp:
+                    return "沼"
                 case .preserveCard:
                     return "カード温存マス"
                 case .discardRandomHand:

@@ -15,12 +15,16 @@ public struct DungeonRunResumeSnapshot: Codable, Equatable {
     public let elapsedSeconds: Int
     public let dungeonHP: Int
     public let hazardDamageMitigationsRemaining: Int
+    public let enemyDamageMitigationsRemaining: Int
+    public let markerDamageMitigationsRemaining: Int
     public let enemyStates: [EnemyState]
     public let crackedFloorPoints: Set<GridPoint>
     public let collapsedFloorPoints: Set<GridPoint>
     public let consumedHealingTilePoints: Set<GridPoint>
     public let dungeonInventoryEntries: [DungeonInventoryEntry]
     public let collectedDungeonCardPickupIDs: Set<String>
+    public let dungeonRelicEntries: [DungeonRelicEntry]
+    public let collectedDungeonRelicPickupIDs: Set<String>
     public let isDungeonExitUnlocked: Bool
     public let pendingDungeonPickupChoice: PendingDungeonPickupChoice?
 
@@ -35,12 +39,16 @@ public struct DungeonRunResumeSnapshot: Codable, Equatable {
         elapsedSeconds: Int,
         dungeonHP: Int,
         hazardDamageMitigationsRemaining: Int,
+        enemyDamageMitigationsRemaining: Int = 0,
+        markerDamageMitigationsRemaining: Int = 0,
         enemyStates: [EnemyState],
         crackedFloorPoints: Set<GridPoint>,
         collapsedFloorPoints: Set<GridPoint>,
         consumedHealingTilePoints: Set<GridPoint> = [],
         dungeonInventoryEntries: [DungeonInventoryEntry],
         collectedDungeonCardPickupIDs: Set<String>,
+        dungeonRelicEntries: [DungeonRelicEntry] = [],
+        collectedDungeonRelicPickupIDs: Set<String> = [],
         isDungeonExitUnlocked: Bool,
         pendingDungeonPickupChoice: PendingDungeonPickupChoice? = nil
     ) {
@@ -54,12 +62,16 @@ public struct DungeonRunResumeSnapshot: Codable, Equatable {
         self.elapsedSeconds = max(elapsedSeconds, 0)
         self.dungeonHP = max(dungeonHP, 0)
         self.hazardDamageMitigationsRemaining = max(hazardDamageMitigationsRemaining, 0)
+        self.enemyDamageMitigationsRemaining = max(enemyDamageMitigationsRemaining, 0)
+        self.markerDamageMitigationsRemaining = max(markerDamageMitigationsRemaining, 0)
         self.enemyStates = enemyStates
         self.crackedFloorPoints = crackedFloorPoints
         self.collapsedFloorPoints = collapsedFloorPoints
         self.consumedHealingTilePoints = consumedHealingTilePoints
         self.dungeonInventoryEntries = dungeonInventoryEntries.filter(\.hasUsesRemaining)
         self.collectedDungeonCardPickupIDs = collectedDungeonCardPickupIDs
+        self.dungeonRelicEntries = dungeonRelicEntries
+        self.collectedDungeonRelicPickupIDs = collectedDungeonRelicPickupIDs
         self.isDungeonExitUnlocked = isDungeonExitUnlocked
         self.pendingDungeonPickupChoice = pendingDungeonPickupChoice
     }
@@ -75,12 +87,16 @@ public struct DungeonRunResumeSnapshot: Codable, Equatable {
         case elapsedSeconds
         case dungeonHP
         case hazardDamageMitigationsRemaining
+        case enemyDamageMitigationsRemaining
+        case markerDamageMitigationsRemaining
         case enemyStates
         case crackedFloorPoints
         case collapsedFloorPoints
         case consumedHealingTilePoints
         case dungeonInventoryEntries
         case collectedDungeonCardPickupIDs
+        case dungeonRelicEntries
+        case collectedDungeonRelicPickupIDs
         case isDungeonExitUnlocked
         case pendingDungeonPickupChoice
     }
@@ -98,12 +114,16 @@ public struct DungeonRunResumeSnapshot: Codable, Equatable {
             elapsedSeconds: try container.decode(Int.self, forKey: .elapsedSeconds),
             dungeonHP: try container.decode(Int.self, forKey: .dungeonHP),
             hazardDamageMitigationsRemaining: try container.decodeIfPresent(Int.self, forKey: .hazardDamageMitigationsRemaining) ?? 0,
+            enemyDamageMitigationsRemaining: try container.decodeIfPresent(Int.self, forKey: .enemyDamageMitigationsRemaining) ?? 0,
+            markerDamageMitigationsRemaining: try container.decodeIfPresent(Int.self, forKey: .markerDamageMitigationsRemaining) ?? 0,
             enemyStates: try container.decodeIfPresent([EnemyState].self, forKey: .enemyStates) ?? [],
             crackedFloorPoints: try container.decodeIfPresent(Set<GridPoint>.self, forKey: .crackedFloorPoints) ?? [],
             collapsedFloorPoints: try container.decodeIfPresent(Set<GridPoint>.self, forKey: .collapsedFloorPoints) ?? [],
             consumedHealingTilePoints: try container.decodeIfPresent(Set<GridPoint>.self, forKey: .consumedHealingTilePoints) ?? [],
             dungeonInventoryEntries: try container.decodeIfPresent([DungeonInventoryEntry].self, forKey: .dungeonInventoryEntries) ?? [],
             collectedDungeonCardPickupIDs: try container.decodeIfPresent(Set<String>.self, forKey: .collectedDungeonCardPickupIDs) ?? [],
+            dungeonRelicEntries: try container.decodeIfPresent([DungeonRelicEntry].self, forKey: .dungeonRelicEntries) ?? [],
+            collectedDungeonRelicPickupIDs: try container.decodeIfPresent(Set<String>.self, forKey: .collectedDungeonRelicPickupIDs) ?? [],
             isDungeonExitUnlocked: try container.decodeIfPresent(Bool.self, forKey: .isDungeonExitUnlocked) ?? true,
             pendingDungeonPickupChoice: try container.decodeIfPresent(PendingDungeonPickupChoice.self, forKey: .pendingDungeonPickupChoice)
         )
@@ -121,12 +141,16 @@ public struct DungeonRunResumeSnapshot: Codable, Equatable {
         try container.encode(elapsedSeconds, forKey: .elapsedSeconds)
         try container.encode(dungeonHP, forKey: .dungeonHP)
         try container.encode(hazardDamageMitigationsRemaining, forKey: .hazardDamageMitigationsRemaining)
+        try container.encode(enemyDamageMitigationsRemaining, forKey: .enemyDamageMitigationsRemaining)
+        try container.encode(markerDamageMitigationsRemaining, forKey: .markerDamageMitigationsRemaining)
         try container.encode(enemyStates, forKey: .enemyStates)
         try container.encode(crackedFloorPoints, forKey: .crackedFloorPoints)
         try container.encode(collapsedFloorPoints, forKey: .collapsedFloorPoints)
         try container.encode(consumedHealingTilePoints, forKey: .consumedHealingTilePoints)
         try container.encode(dungeonInventoryEntries, forKey: .dungeonInventoryEntries)
         try container.encode(collectedDungeonCardPickupIDs, forKey: .collectedDungeonCardPickupIDs)
+        try container.encode(dungeonRelicEntries, forKey: .dungeonRelicEntries)
+        try container.encode(collectedDungeonRelicPickupIDs, forKey: .collectedDungeonRelicPickupIDs)
         try container.encode(isDungeonExitUnlocked, forKey: .isDungeonExitUnlocked)
         try container.encodeIfPresent(pendingDungeonPickupChoice, forKey: .pendingDungeonPickupChoice)
     }

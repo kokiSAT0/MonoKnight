@@ -465,6 +465,40 @@
                     strokeNodes: [trapPlate],
                     fillNodes: [bolt, leftSpark, rightSpark]
                 )
+            case .swamp:
+                let pond = SKShapeNode()
+                pond.name = "tileEffectSwampPond"
+                pond.strokeColor = .clear
+                pond.fillColor = .clear
+                pond.lineWidth = 1
+                pond.isAntialiased = true
+                pond.blendMode = .alpha
+
+                let rippleA = SKShapeNode()
+                rippleA.name = "tileEffectSwampRippleA"
+                rippleA.strokeColor = .clear
+                rippleA.fillColor = .clear
+                rippleA.lineWidth = 1
+                rippleA.isAntialiased = true
+                rippleA.blendMode = .alpha
+
+                let rippleB = SKShapeNode()
+                rippleB.name = "tileEffectSwampRippleB"
+                rippleB.strokeColor = .clear
+                rippleB.fillColor = .clear
+                rippleB.lineWidth = 1
+                rippleB.isAntialiased = true
+                rippleB.blendMode = .alpha
+
+                container.addChild(pond)
+                container.addChild(rippleA)
+                container.addChild(rippleB)
+                return TileEffectDecorationCache(
+                    container: container,
+                    effect: effect,
+                    strokeNodes: [rippleA, rippleB],
+                    fillNodes: [pond]
+                )
             case .preserveCard:
                 let card = SKShapeNode()
                 card.name = "tileEffectPreserveCardBody"
@@ -679,6 +713,45 @@
                 rightSpark.path = paralysisSparkPath(tileSize: layout.tileSize, scale: 0.48)
                 rightSpark.position = CGPoint(x: layout.tileSize * 0.24, y: -layout.tileSize * 0.03)
                 rightSpark.zRotation = .pi
+            case .swamp:
+                guard let pond = decoration.fillNodes.first,
+                      decoration.strokeNodes.count >= 2
+                else { return }
+
+                let pondRect = CGRect(
+                    x: -layout.tileSize * 0.33,
+                    y: -layout.tileSize * 0.20,
+                    width: layout.tileSize * 0.66,
+                    height: layout.tileSize * 0.40
+                )
+                pond.path = CGPath(ellipseIn: pondRect, transform: nil)
+                pond.position = CGPoint(x: -layout.tileSize * 0.01, y: -layout.tileSize * 0.02)
+
+                let rippleA = decoration.strokeNodes[0]
+                rippleA.path = CGPath(
+                    ellipseIn: CGRect(
+                        x: -layout.tileSize * 0.23,
+                        y: -layout.tileSize * 0.06,
+                        width: layout.tileSize * 0.32,
+                        height: layout.tileSize * 0.12
+                    ),
+                    transform: nil
+                )
+                rippleA.position = CGPoint(x: -layout.tileSize * 0.08, y: layout.tileSize * 0.02)
+                rippleA.lineWidth = max(layout.tileSize * 0.025, 1.0)
+
+                let rippleB = decoration.strokeNodes[1]
+                rippleB.path = CGPath(
+                    ellipseIn: CGRect(
+                        x: -layout.tileSize * 0.13,
+                        y: -layout.tileSize * 0.04,
+                        width: layout.tileSize * 0.26,
+                        height: layout.tileSize * 0.09
+                    ),
+                    transform: nil
+                )
+                rippleB.position = CGPoint(x: layout.tileSize * 0.16, y: -layout.tileSize * 0.05)
+                rippleB.lineWidth = max(layout.tileSize * 0.02, 1.0)
             case .preserveCard:
                 guard let card = decoration.strokeNodes.first,
                       let notch = decoration.fillNodes.first
@@ -803,6 +876,18 @@
                 for (index, node) in decoration.fillNodes.enumerated() {
                     node.fillColor = fillColor.withAlphaComponent(index == 0 ? 0.94 : 0.68)
                     node.strokeColor = .clear
+                    node.alpha = 1.0
+                }
+            case .swamp:
+                let accent = palette.boardTileEffectSwamp
+                for (index, node) in decoration.strokeNodes.enumerated() {
+                    node.strokeColor = accent.withAlphaComponent(index == 0 ? 0.72 : 0.56)
+                    node.fillColor = .clear
+                    node.alpha = 1.0
+                }
+                for node in decoration.fillNodes {
+                    node.fillColor = accent.withAlphaComponent(0.34)
+                    node.strokeColor = accent.withAlphaComponent(0.86)
                     node.alpha = 1.0
                 }
             case .preserveCard:

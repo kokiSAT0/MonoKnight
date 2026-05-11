@@ -43,6 +43,8 @@ public struct GameScenePalette {
     public let boardTileEffectBlast: SKColor
     /// 麻痺罠のアクセントカラー
     public let boardTileEffectSlow: SKColor
+    /// 沼マスのアクセントカラー
+    public let boardTileEffectSwamp: SKColor
     /// カード温存効果のアクセントカラー
     public let boardTileEffectPreserveCard: SKColor
     /// 手札喪失罠のアクセントカラー
@@ -78,6 +80,7 @@ public struct GameScenePalette {
         boardTileEffectShuffle: SKColor,
         boardTileEffectBlast: SKColor,
         boardTileEffectSlow: SKColor,
+        boardTileEffectSwamp: SKColor,
         boardTileEffectPreserveCard: SKColor,
         boardTileEffectDiscardHand: SKColor,
         warpPairAccentColors: [SKColor]
@@ -98,6 +101,7 @@ public struct GameScenePalette {
         self.boardTileEffectShuffle = boardTileEffectShuffle
         self.boardTileEffectBlast = boardTileEffectBlast
         self.boardTileEffectSlow = boardTileEffectSlow
+        self.boardTileEffectSwamp = boardTileEffectSwamp
         self.boardTileEffectPreserveCard = boardTileEffectPreserveCard
         self.boardTileEffectDiscardHand = boardTileEffectDiscardHand
         self.warpPairAccentColors = warpPairAccentColors
@@ -139,6 +143,7 @@ public extension GameScenePalette {
         boardTileEffectBlast: SKColor(red: 0.0, green: 0.68, blue: 0.86, alpha: 0.95),
         // NOTE: 麻痺罠はしびれと危険を同時に読めるよう、吹き飛ばしのシアンと離れた紫寄りの警戒色を使う
         boardTileEffectSlow: SKColor(red: 0.62, green: 0.20, blue: 0.78, alpha: 0.95),
+        boardTileEffectSwamp: SKColor(red: 0.04, green: 0.58, blue: 0.50, alpha: 0.92),
         boardTileEffectPreserveCard: SKColor(red: 0.90, green: 0.54, blue: 0.06, alpha: 0.95),
         boardTileEffectDiscardHand: SKColor(red: 0.72, green: 0.08, blue: 0.18, alpha: 0.95),
         // NOTE: ワープペアの識別用に 6 色を用意し、同心円の層数と組み合わせて視認性を確保する
@@ -182,6 +187,7 @@ public extension GameScenePalette {
         boardTileEffectBlast: SKColor(red: 0.35, green: 0.85, blue: 0.95, alpha: 0.95),
         // NOTE: ダークテーマでは麻痺罠の紫を明るめにし、黒背景上でもしびれ線が沈まないようにする
         boardTileEffectSlow: SKColor(red: 0.94, green: 0.56, blue: 1.0, alpha: 0.95),
+        boardTileEffectSwamp: SKColor(red: 0.30, green: 0.86, blue: 0.78, alpha: 0.94),
         boardTileEffectPreserveCard: SKColor(red: 1.0, green: 0.72, blue: 0.24, alpha: 0.95),
         boardTileEffectDiscardHand: SKColor(red: 1.0, green: 0.42, blue: 0.48, alpha: 0.95),
         // NOTE: ダークテーマ用にも発光感を残した 6 色を揃え、背景が暗くても埋もれないようにする

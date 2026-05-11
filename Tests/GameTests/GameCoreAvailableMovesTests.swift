@@ -170,4 +170,72 @@ final class GameCoreAvailableMovesTests: XCTestCase {
         XCTAssertEqual(moves.first?.path, [GridPoint(x: 2, y: 2), paralysisTrap])
     }
 
+    func testDirectionalRayStopsAtSwampCandidate() {
+        let swamp = GridPoint(x: 3, y: 2)
+        let regulation = GameMode.Regulation(
+            boardSize: BoardGeometry.standardSize,
+            handSize: 1,
+            nextPreviewCount: 0,
+            allowsStacking: true,
+            deckPreset: .standardLight,
+            spawnRule: .fixed(GridPoint(x: 1, y: 2)),
+            penalties: GameMode.PenaltySettings(
+                deadlockPenaltyCost: 0,
+                manualRedrawPenaltyCost: 0,
+                manualDiscardPenaltyCost: 0,
+                revisitPenaltyCost: 0
+            ),
+            tileEffectOverrides: [swamp: .swamp]
+        )
+        let mode = GameMode(
+            identifier: .dungeonFloor,
+            displayName: "沼レイ停止テスト",
+            regulation: regulation,
+            leaderboardEligible: false
+        )
+        let deck = Deck.makeTestDeck(cards: [.rayRight], configuration: regulation.deckPreset.configuration)
+        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 1, y: 2), mode: mode)
+        let stack = HandStack(cards: [DealtCard(move: .rayRight)])
+
+        let moves = core.availableMoves(handStacks: [stack], current: GridPoint(x: 1, y: 2))
+
+        XCTAssertEqual(moves.count, 1, "沼で止まるレイ型カードも候補は 1 件のままです")
+        XCTAssertEqual(moves.first?.destination, swamp)
+        XCTAssertEqual(moves.first?.path, [GridPoint(x: 2, y: 2), swamp])
+    }
+
+    func testTwoStepMoveStopsAtIntermediateSwampCandidate() {
+        let swamp = GridPoint(x: 1, y: 0)
+        let regulation = GameMode.Regulation(
+            boardSize: BoardGeometry.standardSize,
+            handSize: 1,
+            nextPreviewCount: 0,
+            allowsStacking: true,
+            deckPreset: .standardLight,
+            spawnRule: .fixed(GridPoint(x: 0, y: 0)),
+            penalties: GameMode.PenaltySettings(
+                deadlockPenaltyCost: 0,
+                manualRedrawPenaltyCost: 0,
+                manualDiscardPenaltyCost: 0,
+                revisitPenaltyCost: 0
+            ),
+            tileEffectOverrides: [swamp: .swamp]
+        )
+        let mode = GameMode(
+            identifier: .dungeonFloor,
+            displayName: "沼2マス停止テスト",
+            regulation: regulation,
+            leaderboardEligible: false
+        )
+        let deck = Deck.makeTestDeck(cards: [.straightRight2], configuration: regulation.deckPreset.configuration)
+        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 0, y: 0), mode: mode)
+        let stack = HandStack(cards: [DealtCard(move: .straightRight2)])
+
+        let moves = core.availableMoves(handStacks: [stack], current: GridPoint(x: 0, y: 0))
+
+        XCTAssertEqual(moves.count, 1)
+        XCTAssertEqual(moves.first?.destination, swamp)
+        XCTAssertEqual(moves.first?.path, [swamp])
+    }
+
 }

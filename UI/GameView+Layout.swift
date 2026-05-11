@@ -381,7 +381,7 @@ struct DungeonPickupChoiceOverlayView: View {
         Button(action: onDiscardPickup) {
             DungeonPickupChoiceCardView(
                 theme: theme,
-                playable: .move(choice.pickup.card),
+                playable: choice.pickup.playable,
                 uses: choice.pickup.uses,
                 badgeText: "拾ったカード",
                 actionText: "取得しない",
@@ -390,7 +390,7 @@ struct DungeonPickupChoiceOverlayView: View {
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("dungeon_pickup_choice_discard_new")
-        .accessibilityLabel(Text("拾ったカード、\(choice.pickup.card.displayName)、取得しない"))
+        .accessibilityLabel(Text("拾ったカード、\(choice.pickup.playable.displayName)、取得しない"))
         .accessibilityHint(Text("取得せずに消します。手札は変わりません。"))
     }
 }
@@ -497,6 +497,10 @@ private struct SupportPickupChoiceIllustrationView: View {
         switch card {
         case .refillEmptySlots:
             return "square.grid.3x3.fill"
+        case .singleAnnihilationSpell:
+            return "sparkle.magnifyingglass"
+        case .annihilationSpell:
+            return "sparkles"
         }
     }
 }

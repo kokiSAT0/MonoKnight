@@ -90,6 +90,8 @@ final class GameBoardBridgeViewModel: ObservableObject {
     var onEnemyTurnAnimationFinished: ((DungeonEnemyTurnEvent) -> Void)?
     /// 移動演出中だけ拾得カード消失を段階表示するための上書き
     private var presentationCollectedDungeonCardPickupIDs: Set<String>?
+    /// 移動演出中だけ宝箱消失を段階表示するための上書き
+    private var presentationCollectedDungeonRelicPickupIDs: Set<String>?
     /// 移動演出中だけ敵表示を段階表示するための上書き
     private var presentationEnemyStates: [EnemyState]?
     /// 移動演出中だけひび割れ床を段階表示するための上書き
@@ -213,6 +215,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
             boardTileEffectShuffle: appTheme.skBoardTileEffectShuffle,
             boardTileEffectBlast: appTheme.skBoardTileEffectBlast,
             boardTileEffectSlow: appTheme.skBoardTileEffectSlow,
+            boardTileEffectSwamp: appTheme.skBoardTileEffectSwamp,
             boardTileEffectPreserveCard: appTheme.skBoardTileEffectPreserveCard,
             boardTileEffectDiscardHand: appTheme.skBoardTileEffectDiscardHand,
             // NOTE: ワープペアの配色セットを SpriteKit へ渡し、色と形の両面で組み合わせを識別させる
@@ -315,6 +318,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
             scene.updateBoard(initialBoard)
         }
         presentationCollectedDungeonCardPickupIDs = resolution.presentationInitialCollectedDungeonCardPickupIDs
+        presentationCollectedDungeonRelicPickupIDs = resolution.presentationInitialCollectedDungeonRelicPickupIDs
         presentationEnemyStates = resolution.presentationInitialEnemyStates
         presentationCrackedFloorPoints = resolution.presentationInitialCrackedFloorPoints
         presentationCollapsedFloorPoints = resolution.presentationInitialCollapsedFloorPoints
@@ -330,6 +334,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
             scene.updateBoard(boardAfter)
         }
         presentationCollectedDungeonCardPickupIDs = step.collectedDungeonCardPickupIDsAfter
+        presentationCollectedDungeonRelicPickupIDs = step.collectedDungeonRelicPickupIDsAfter
         presentationEnemyStates = step.enemyStatesAfter
         presentationCrackedFloorPoints = step.crackedFloorPointsAfter
         presentationCollapsedFloorPoints = step.collapsedFloorPointsAfter
@@ -339,6 +344,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
 
     private func finishMovementReplay() {
         presentationCollectedDungeonCardPickupIDs = nil
+        presentationCollectedDungeonRelicPickupIDs = nil
         presentationEnemyStates = nil
         presentationCrackedFloorPoints = nil
         presentationCollapsedFloorPoints = nil
@@ -416,9 +422,15 @@ final class GameBoardBridgeViewModel: ObservableObject {
         let displayedEnemyWarningPoints = core.enemyWarningPoints(forDisplayedEnemyStates: displayedEnemyStates)
         let patrolFacingVectors = patrolFacingVectorsForDisplayedEnemies(displayedEnemyStates)
         let collectedPickupIDs = presentationCollectedDungeonCardPickupIDs ?? core.collectedDungeonCardPickupIDs
+        let collectedRelicPickupIDs = presentationCollectedDungeonRelicPickupIDs ?? core.collectedDungeonRelicPickupIDs
         let displayedCardPickupPoints = Set(
             mode.dungeonRules?.cardPickups
                 .filter { !collectedPickupIDs.contains($0.id) }
+                .map(\.point) ?? []
+        )
+        let displayedRelicPickupPoints = Set(
+            mode.dungeonRules?.relicPickups
+                .filter { !collectedRelicPickupIDs.contains($0.id) }
                 .map(\.point) ?? []
         )
         let displayedCrackedFloorPoints = presentationCrackedFloorPoints ?? core.crackedFloorPoints
@@ -438,6 +450,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
             .dungeonDanger: shouldDeferEnemyThreatHighlights ? [] : displayedEnemyDangerPoints,
             .dungeonEnemyWarning: shouldDeferEnemyThreatHighlights ? [] : displayedEnemyWarningPoints,
             .dungeonCardPickup: displayedCardPickupPoints,
+            .dungeonRelicPickup: displayedRelicPickupPoints,
             .dungeonDamageTrap: core.damageTrapPoints,
             .dungeonHealingTile: core.healingTilePoints,
             .dungeonCrackedFloor: displayedCrackedFloorPoints,
@@ -924,6 +937,17 @@ final class GameBoardBridgeViewModel: ObservableObject {
             .store(in: &cancellables)
 
         core.$collectedDungeonCardPickupIDs
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                guard let self else { return }
+                if self.isMovementReplayActive || self.preparePendingMovementReplayPresentationIfNeeded() {
+                    return
+                }
+                self.pushHighlightsToScene()
+            }
+            .store(in: &cancellables)
+
+        core.$collectedDungeonRelicPickupIDs
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
                 guard let self else { return }

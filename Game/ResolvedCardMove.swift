@@ -23,6 +23,8 @@ public struct MovementResolution: Equatable {
         public let handStacksAfter: [HandStack]
         /// このマスの処理後に非表示にする拾得カード ID
         public let collectedDungeonCardPickupIDsAfter: Set<String>
+        /// このマスの処理後に非表示にする宝箱 ID
+        public let collectedDungeonRelicPickupIDsAfter: Set<String>
         /// このマスの処理後に表示したい敵状態
         public let enemyStatesAfter: [EnemyState]
         /// このマスの処理後に表示したいひび割れ床
@@ -41,6 +43,7 @@ public struct MovementResolution: Equatable {
             hpAfter: Int,
             handStacksAfter: [HandStack],
             collectedDungeonCardPickupIDsAfter: Set<String>,
+            collectedDungeonRelicPickupIDsAfter: Set<String> = [],
             enemyStatesAfter: [EnemyState],
             crackedFloorPointsAfter: Set<GridPoint>,
             collapsedFloorPointsAfter: Set<GridPoint>,
@@ -52,6 +55,7 @@ public struct MovementResolution: Equatable {
             self.hpAfter = hpAfter
             self.handStacksAfter = handStacksAfter
             self.collectedDungeonCardPickupIDsAfter = collectedDungeonCardPickupIDsAfter
+            self.collectedDungeonRelicPickupIDsAfter = collectedDungeonRelicPickupIDsAfter
             self.enemyStatesAfter = enemyStatesAfter
             self.crackedFloorPointsAfter = crackedFloorPointsAfter
             self.collapsedFloorPointsAfter = collapsedFloorPointsAfter
@@ -91,6 +95,8 @@ public struct MovementResolution: Equatable {
     public private(set) var presentationInitialHandStacks: [HandStack]?
     /// 移動演出開始時に表示へ固定したい拾得カード状態
     public private(set) var presentationInitialCollectedDungeonCardPickupIDs: Set<String>?
+    /// 移動演出開始時に表示へ固定したい宝箱状態
+    public private(set) var presentationInitialCollectedDungeonRelicPickupIDs: Set<String>?
     /// 移動演出開始時に表示へ固定したい敵状態
     public private(set) var presentationInitialEnemyStates: [EnemyState]?
     /// 移動演出開始時に表示へ固定したいひび割れ床
@@ -114,6 +120,7 @@ public struct MovementResolution: Equatable {
         presentationInitialHP: Int? = nil,
         presentationInitialHandStacks: [HandStack]? = nil,
         presentationInitialCollectedDungeonCardPickupIDs: Set<String>? = nil,
+        presentationInitialCollectedDungeonRelicPickupIDs: Set<String>? = nil,
         presentationInitialEnemyStates: [EnemyState]? = nil,
         presentationInitialCrackedFloorPoints: Set<GridPoint>? = nil,
         presentationInitialCollapsedFloorPoints: Set<GridPoint>? = nil,
@@ -126,6 +133,7 @@ public struct MovementResolution: Equatable {
         self.presentationInitialHP = presentationInitialHP
         self.presentationInitialHandStacks = presentationInitialHandStacks
         self.presentationInitialCollectedDungeonCardPickupIDs = presentationInitialCollectedDungeonCardPickupIDs
+        self.presentationInitialCollectedDungeonRelicPickupIDs = presentationInitialCollectedDungeonRelicPickupIDs
         self.presentationInitialEnemyStates = presentationInitialEnemyStates
         self.presentationInitialCrackedFloorPoints = presentationInitialCrackedFloorPoints
         self.presentationInitialCollapsedFloorPoints = presentationInitialCollapsedFloorPoints
@@ -229,6 +237,8 @@ public struct ResolvedCardMove: Hashable {
                 hasher.combine(direction.dy)
             case .slow:
                 hasher.combine("slow")
+            case .swamp:
+                hasher.combine("swamp")
             case .preserveCard:
                 hasher.combine("preserveCard")
             case .discardRandomHand:
@@ -240,6 +250,7 @@ public struct ResolvedCardMove: Hashable {
         hasher.combine(resolution.presentationInitialHP)
         hasher.combine(resolution.presentationInitialHandStacks?.count ?? -1)
         hasher.combine(resolution.presentationInitialCollectedDungeonCardPickupIDs?.count ?? -1)
+        hasher.combine(resolution.presentationInitialCollectedDungeonRelicPickupIDs?.count ?? -1)
         hasher.combine(resolution.presentationInitialEnemyStates?.count ?? -1)
         hasher.combine(resolution.presentationInitialCrackedFloorPoints?.count ?? -1)
         hasher.combine(resolution.presentationInitialCollapsedFloorPoints?.count ?? -1)
@@ -251,6 +262,7 @@ public struct ResolvedCardMove: Hashable {
             hasher.combine(step.hpAfter)
             hasher.combine(step.handStacksAfter.count)
             hasher.combine(step.collectedDungeonCardPickupIDsAfter.count)
+            hasher.combine(step.collectedDungeonRelicPickupIDsAfter.count)
             hasher.combine(step.enemyStatesAfter.count)
             hasher.combine(step.crackedFloorPointsAfter.count)
             hasher.combine(step.collapsedFloorPointsAfter.count)

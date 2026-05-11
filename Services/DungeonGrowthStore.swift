@@ -7,18 +7,24 @@ enum DungeonGrowthUpgrade: String, Codable, CaseIterable, Identifiable {
     case climbingKit
     case rewardScout
     case cardPreservation
+    case widerRewardRead
+    case supportScout
     case footingRead
     case secondStep
+    case enemyRead
+    case meteorRead
+    case shortcutKit
+    case refillCharm
 
     var id: String { rawValue }
 
     var branch: DungeonGrowthBranch {
         switch self {
-        case .toolPouch, .climbingKit:
+        case .toolPouch, .climbingKit, .shortcutKit, .refillCharm:
             return .preparation
-        case .rewardScout, .cardPreservation:
+        case .rewardScout, .cardPreservation, .widerRewardRead, .supportScout:
             return .reward
-        case .footingRead, .secondStep:
+        case .footingRead, .secondStep, .enemyRead, .meteorRead:
             return .hazard
         }
     }
@@ -33,10 +39,22 @@ enum DungeonGrowthUpgrade: String, Codable, CaseIterable, Identifiable {
             return "報酬の目利き"
         case .cardPreservation:
             return "カード温存"
+        case .widerRewardRead:
+            return "広い見立て"
+        case .supportScout:
+            return "補助の目利き"
         case .footingRead:
             return "足場読み"
         case .secondStep:
             return "踏み直し"
+        case .enemyRead:
+            return "警戒読み"
+        case .meteorRead:
+            return "着弾読み"
+        case .shortcutKit:
+            return "抜け道支度"
+        case .refillCharm:
+            return "補給札"
         }
     }
 
@@ -50,10 +68,22 @@ enum DungeonGrowthUpgrade: String, Codable, CaseIterable, Identifiable {
             return "報酬候補に既存候補を補完するカードを混ぜます"
         case .cardPreservation:
             return "追加した移動報酬カードを3回使えるようにします"
+        case .widerRewardRead:
+            return "移動報酬候補を最大4択に増やします"
+        case .supportScout:
+            return "11F以降の報酬候補に補助カードを1枚混ぜます"
         case .footingRead:
             return "区間ごとに最初の罠か床崩落ダメージを無効化します"
         case .secondStep:
             return "区間ごとに2回目まで罠か床崩落ダメージを無効化します"
+        case .enemyRead:
+            return "区間ごとに最初の敵ダメージを無効化します"
+        case .meteorRead:
+            return "区間ごとに最初のメテオ着弾ダメージを無効化します"
+        case .shortcutKit:
+            return "区間開始時に右上2を1回分持って始めます"
+        case .refillCharm:
+            return "区間開始時に補給を1回分持って始めます"
         }
     }
 
@@ -67,8 +97,20 @@ enum DungeonGrowthUpgrade: String, Codable, CaseIterable, Identifiable {
             return [.toolPouch]
         case .cardPreservation:
             return [.rewardScout]
+        case .widerRewardRead:
+            return [.cardPreservation]
+        case .supportScout:
+            return [.widerRewardRead]
         case .secondStep:
             return [.footingRead]
+        case .enemyRead:
+            return [.footingRead]
+        case .meteorRead:
+            return [.enemyRead]
+        case .shortcutKit:
+            return [.climbingKit]
+        case .refillCharm:
+            return [.shortcutKit]
         }
     }
 
@@ -78,8 +120,10 @@ enum DungeonGrowthUpgrade: String, Codable, CaseIterable, Identifiable {
             return nil
         case .climbingKit, .cardPreservation:
             return 10
-        case .secondStep:
+        case .secondStep, .enemyRead, .widerRewardRead, .shortcutKit:
             return 15
+        case .meteorRead, .supportScout, .refillCharm:
+            return 20
         }
     }
 }
@@ -119,17 +163,20 @@ struct DungeonGrowthAward: Equatable {
 struct DungeonGrowthSnapshot: Codable, Equatable {
     var points: Int
     var unlockedUpgrades: Set<DungeonGrowthUpgrade>
+    var activeUpgrades: Set<DungeonGrowthUpgrade>
     var rewardedGrowthMilestoneIDs: Set<String>
     var unlockedGrowthCheckpointFloorNumbers: Set<Int>
 
     init(
         points: Int = 0,
         unlockedUpgrades: Set<DungeonGrowthUpgrade> = [],
+        activeUpgrades: Set<DungeonGrowthUpgrade>? = nil,
         rewardedGrowthMilestoneIDs: Set<String> = [],
         unlockedGrowthCheckpointFloorNumbers: Set<Int> = []
     ) {
         self.points = max(points, 0)
         self.unlockedUpgrades = unlockedUpgrades
+        self.activeUpgrades = activeUpgrades.map { $0.intersection(unlockedUpgrades) } ?? unlockedUpgrades
         self.rewardedGrowthMilestoneIDs = rewardedGrowthMilestoneIDs
         self.unlockedGrowthCheckpointFloorNumbers = unlockedGrowthCheckpointFloorNumbers
     }
@@ -137,6 +184,7 @@ struct DungeonGrowthSnapshot: Codable, Equatable {
     private enum CodingKeys: String, CodingKey {
         case points
         case unlockedUpgrades
+        case activeUpgrades
         case rewardedGrowthMilestoneIDs
         case unlockedGrowthCheckpointFloorNumbers
     }
@@ -145,6 +193,8 @@ struct DungeonGrowthSnapshot: Codable, Equatable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         points = max(try container.decodeIfPresent(Int.self, forKey: .points) ?? 0, 0)
         unlockedUpgrades = try container.decodeIfPresent(Set<DungeonGrowthUpgrade>.self, forKey: .unlockedUpgrades) ?? []
+        activeUpgrades = try container.decodeIfPresent(Set<DungeonGrowthUpgrade>.self, forKey: .activeUpgrades) ?? unlockedUpgrades
+        activeUpgrades = activeUpgrades.intersection(unlockedUpgrades)
         rewardedGrowthMilestoneIDs = try container.decodeIfPresent(Set<String>.self, forKey: .rewardedGrowthMilestoneIDs) ?? []
         unlockedGrowthCheckpointFloorNumbers = try container.decodeIfPresent(Set<Int>.self, forKey: .unlockedGrowthCheckpointFloorNumbers) ?? []
     }
@@ -159,6 +209,7 @@ final class DungeonGrowthStore: ObservableObject {
 
     var points: Int { snapshot.points }
     var unlockedUpgrades: Set<DungeonGrowthUpgrade> { snapshot.unlockedUpgrades }
+    var activeUpgrades: Set<DungeonGrowthUpgrade> { snapshot.activeUpgrades }
     var unlockedGrowthCheckpointFloorNumbers: Set<Int> { snapshot.unlockedGrowthCheckpointFloorNumbers }
 
     init(userDefaults: UserDefaults = .standard) {
@@ -168,6 +219,10 @@ final class DungeonGrowthStore: ObservableObject {
 
     func isUnlocked(_ upgrade: DungeonGrowthUpgrade) -> Bool {
         snapshot.unlockedUpgrades.contains(upgrade)
+    }
+
+    func isActive(_ upgrade: DungeonGrowthUpgrade) -> Bool {
+        isUnlocked(upgrade) && snapshot.activeUpgrades.contains(upgrade)
     }
 
     func canUnlock(_ upgrade: DungeonGrowthUpgrade) -> Bool {
@@ -211,8 +266,26 @@ final class DungeonGrowthStore: ObservableObject {
 
         snapshot.points -= upgrade.cost
         snapshot.unlockedUpgrades.insert(upgrade)
+        snapshot.activeUpgrades.insert(upgrade)
         persist()
         return true
+    }
+
+    @discardableResult
+    func setActive(_ upgrade: DungeonGrowthUpgrade, isActive: Bool) -> Bool {
+        guard isUnlocked(upgrade) else { return false }
+        if isActive {
+            snapshot.activeUpgrades.insert(upgrade)
+        } else {
+            snapshot.activeUpgrades.remove(upgrade)
+        }
+        persist()
+        return true
+    }
+
+    @discardableResult
+    func toggleActive(_ upgrade: DungeonGrowthUpgrade) -> Bool {
+        setActive(upgrade, isActive: !isActive(upgrade))
     }
 
     @discardableResult
@@ -243,39 +316,138 @@ final class DungeonGrowthStore: ObservableObject {
 
     func startingRewardEntries(for dungeon: DungeonDefinition, startingFloorIndex: Int) -> [DungeonInventoryEntry] {
         guard dungeon.difficulty == .growth else { return [] }
-        if isUnlocked(.climbingKit) {
-            return [
-                DungeonInventoryEntry(card: .straightRight2, rewardUses: 1),
-                DungeonInventoryEntry(card: .straightUp2, rewardUses: 1)
-            ]
+        var entries: [DungeonInventoryEntry] = []
+        if isActive(.climbingKit) {
+            entries.append(DungeonInventoryEntry(card: .straightRight2, rewardUses: 1))
+            entries.append(DungeonInventoryEntry(card: .straightUp2, rewardUses: 1))
+        } else if isActive(.toolPouch) {
+            entries.append(DungeonInventoryEntry(card: .straightRight2, rewardUses: 1))
         }
-        if isUnlocked(.toolPouch) {
-            return [DungeonInventoryEntry(card: .straightRight2, rewardUses: 1)]
+        if isActive(.shortcutKit) {
+            entries.append(DungeonInventoryEntry(card: .diagonalUpRight2, rewardUses: 1))
         }
-        return []
+        if isActive(.refillCharm) {
+            entries.append(DungeonInventoryEntry(support: .refillEmptySlots, rewardUses: 1))
+        }
+        return entries
     }
 
     func rewardAddUses(for dungeon: DungeonDefinition) -> Int {
-        dungeon.difficulty == .growth && isUnlocked(.cardPreservation) ? 3 : 2
+        dungeon.difficulty == .growth && isActive(.cardPreservation) ? 3 : 2
+    }
+
+    func rewardOffers(
+        for baseOffers: [DungeonRewardOffer],
+        dungeon: DungeonDefinition,
+        floorIndex: Int,
+        seed: UInt64?,
+        tuning: DungeonRewardDrawTuning = DungeonRewardDrawTuning(),
+        ownedRelics: Set<DungeonRelicID> = []
+    ) -> [DungeonRewardOffer] {
+        let choiceCount = maxRewardChoiceCount(for: dungeon)
+        guard dungeon.difficulty == .growth else {
+            return Array(baseOffers.prefix(choiceCount))
+        }
+
+        var result = Array(baseOffers.prefix(choiceCount))
+        if isActive(.rewardScout) {
+            let keptCount = result.count >= choiceCount ? max(choiceCount - 1, 0) : result.count
+            result = Array(result.prefix(keptCount))
+            let excludedPlayables = Set(baseOffers.compactMap(\.playable))
+            let excludedRelics = ownedRelics.union(baseOffers.compactMap(\.relic))
+            let supplemental = DungeonWeightedRewardPools.drawUniqueOffers(
+                from: DungeonWeightedRewardPools.entries(floorIndex: floorIndex, context: .clearReward),
+                context: .clearReward,
+                count: max(choiceCount - result.count, 1),
+                seed: seed ?? UInt64(floorIndex + 1),
+                floorIndex: floorIndex,
+                salt: 0x5C07,
+                tuning: tuning,
+                excludingPlayables: excludedPlayables,
+                excludingRelics: excludedRelics
+            )
+            result.append(contentsOf: supplemental)
+        }
+
+        if floorIndex >= 10, isActive(.supportScout) {
+            let weightedSupportCandidate = DungeonWeightedRewardPools.drawUniqueOffers(
+                from: DungeonWeightedRewardPools.entries(floorIndex: floorIndex, context: .clearReward),
+                context: .clearReward,
+                count: choiceCount,
+                seed: seed ?? UInt64(floorIndex + 1),
+                floorIndex: floorIndex,
+                salt: 0x5119,
+                tuning: tuning,
+                excludingPlayables: Set(result.compactMap(\.playable)),
+                excludingRelics: ownedRelics.union(result.compactMap(\.relic))
+            )
+            .first { $0.support != nil }
+            let fallbackSupportCandidate = [
+                DungeonRewardOffer.playable(.support(.refillEmptySlots)),
+                .playable(.support(.singleAnnihilationSpell)),
+                .playable(.support(.annihilationSpell))
+            ].first { !result.contains($0) }
+            let supportCandidate = weightedSupportCandidate ?? fallbackSupportCandidate
+            if let supportCandidate {
+                if result.count >= choiceCount {
+                    if let replaceIndex = result.lastIndex(where: { $0.relic == nil }) {
+                        result.remove(at: replaceIndex)
+                    } else {
+                        result.removeLast()
+                    }
+                }
+                result.append(supportCandidate)
+            }
+        }
+
+        return Array(result.prefix(choiceCount))
+    }
+
+    func rewardCards(
+        for baseCards: [PlayableCard],
+        dungeon: DungeonDefinition,
+        floorIndex: Int,
+        seed: UInt64?
+    ) -> [PlayableCard] {
+        rewardOffers(
+            for: baseCards.map(DungeonRewardOffer.playable),
+            dungeon: dungeon,
+            floorIndex: floorIndex,
+            seed: seed
+        )
+        .compactMap(\.playable)
     }
 
     func rewardMoveCards(for baseCards: [MoveCard], dungeon: DungeonDefinition) -> [MoveCard] {
-        guard dungeon.difficulty == .growth, isUnlocked(.rewardScout) else {
-            return Array(baseCards.prefix(3))
+        let choiceCount = maxRewardChoiceCount(for: dungeon)
+        guard dungeon.difficulty == .growth, isActive(.rewardScout) else {
+            return Array(baseCards.prefix(choiceCount))
         }
 
-        let boostedCandidate = boostedRewardCandidate(for: baseCards)
-
-        guard let boostedCandidate else {
-            return Array(baseCards.prefix(3))
+        var result = Array(baseCards.prefix(max(choiceCount - 1, 0)))
+        for candidate in boostedRewardCandidates(for: baseCards) where result.count < choiceCount && !result.contains(candidate) {
+            result.append(candidate)
         }
-
-        var result = Array(baseCards.prefix(2))
-        result.append(boostedCandidate)
         return result
     }
 
-    private func boostedRewardCandidate(for baseCards: [MoveCard]) -> MoveCard? {
+    func rewardSupportCards(for baseCards: [SupportCard], dungeon: DungeonDefinition, floorIndex: Int) -> [SupportCard] {
+        guard dungeon.difficulty == .growth,
+              floorIndex >= 10,
+              isActive(.supportScout)
+        else { return baseCards }
+        var result = baseCards
+        if let supplemental = [SupportCard.refillEmptySlots, .annihilationSpell].first(where: { !result.contains($0) }) {
+            result.append(supplemental)
+        }
+        return result
+    }
+
+    func maxRewardChoiceCount(for dungeon: DungeonDefinition) -> Int {
+        dungeon.difficulty == .growth && isActive(.widerRewardRead) ? 4 : 3
+    }
+
+    private func boostedRewardCandidates(for baseCards: [MoveCard]) -> [MoveCard] {
         let candidates: [MoveCard]
         if baseCards.contains(.rayRight) {
             candidates = [.diagonalUpRight2, .rayUp, .knightRightwardChoice]
@@ -287,15 +459,23 @@ final class DungeonGrowthStore: ObservableObject {
             candidates = [.rayRight, .diagonalUpRight2, .rayUp, .knightRightwardChoice]
         }
 
-        return candidates.first { !baseCards.contains($0) }
+        return candidates.filter { !baseCards.contains($0) }
     }
 
     func startingHazardDamageMitigations(for dungeon: DungeonDefinition) -> Int {
         guard dungeon.difficulty == .growth else { return 0 }
-        if isUnlocked(.secondStep) {
+        if isActive(.secondStep) {
             return 2
         }
-        return isUnlocked(.footingRead) ? 1 : 0
+        return isActive(.footingRead) ? 1 : 0
+    }
+
+    func startingEnemyDamageMitigations(for dungeon: DungeonDefinition) -> Int {
+        dungeon.difficulty == .growth && isActive(.enemyRead) ? 1 : 0
+    }
+
+    func startingMarkerDamageMitigations(for dungeon: DungeonDefinition) -> Int {
+        dungeon.difficulty == .growth && isActive(.meteorRead) ? 1 : 0
     }
 
     func hasRewardedGrowthMilestone(_ milestoneID: String) -> Bool {

@@ -21,6 +21,40 @@ final class DungeonGrowthStoreTests: XCTestCase {
         XCTAssertTrue(reloadedStore.hasRewardedGrowthMilestone("growth-tower-5f"))
     }
 
+    func testDungeonGrowthStorePersistsActiveTreeTogglesAndDefaultsOldSnapshotsToActive() throws {
+        let (defaults, suiteName) = try makeIsolatedDefaults()
+        defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+
+        struct LegacyGrowthSnapshot: Codable {
+            let points: Int
+            let unlockedUpgrades: Set<DungeonGrowthUpgrade>
+            let rewardedGrowthMilestoneIDs: Set<String>
+            let unlockedGrowthCheckpointFloorNumbers: Set<Int>
+        }
+
+        let oldData = try JSONEncoder().encode(
+            LegacyGrowthSnapshot(
+                points: 0,
+                unlockedUpgrades: [.toolPouch, .rewardScout],
+                rewardedGrowthMilestoneIDs: ["growth-tower-5f"],
+                unlockedGrowthCheckpointFloorNumbers: []
+            )
+        )
+        defaults.set(oldData, forKey: StorageKey.UserDefaults.dungeonGrowth)
+
+        let migratedStore = DungeonGrowthStore(userDefaults: defaults)
+        XCTAssertTrue(migratedStore.isActive(.toolPouch))
+        XCTAssertTrue(migratedStore.isActive(.rewardScout))
+
+        XCTAssertTrue(migratedStore.setActive(.toolPouch, isActive: false))
+        XCTAssertFalse(migratedStore.isActive(.toolPouch))
+        XCTAssertFalse(migratedStore.setActive(.climbingKit, isActive: true))
+
+        let reloadedStore = DungeonGrowthStore(userDefaults: defaults)
+        XCTAssertFalse(reloadedStore.isActive(.toolPouch))
+        XCTAssertTrue(reloadedStore.isActive(.rewardScout))
+    }
+
     func testDungeonGrowthStoreStartsFreshFromV3StorageKey() throws {
         let (defaults, suiteName) = try makeIsolatedDefaults()
         defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
@@ -144,6 +178,105 @@ final class DungeonGrowthStoreTests: XCTestCase {
         XCTAssertEqual(boostedCards.count, 3)
         XCTAssertEqual(boostedCards.prefix(2), baseCards.prefix(2))
         XCTAssertNotEqual(boostedCards, baseCards)
+    }
+
+    func testExpandedGrowthTreeUnlocksBranchDepthAndUsesActiveEffectsOnly() throws {
+        let (defaults, suiteName) = try makeIsolatedDefaults()
+        defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+
+        let store = DungeonGrowthStore(userDefaults: defaults)
+        let dungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        for floorIndex in [4, 9, 14, 19] {
+            let runState = DungeonRunState(
+                dungeonID: dungeon.id,
+                currentFloorIndex: floorIndex,
+                carriedHP: 3,
+                clearedFloorCount: floorIndex
+            )
+            _ = store.registerDungeonClear(dungeon: dungeon, runState: runState, hasNextFloor: floorIndex < 19)
+        }
+
+        XCTAssertTrue(store.unlock(.rewardScout))
+        XCTAssertTrue(store.unlock(.cardPreservation))
+        XCTAssertTrue(store.unlock(.widerRewardRead))
+        XCTAssertTrue(store.unlock(.supportScout))
+        XCTAssertTrue(store.isActive(.supportScout))
+
+        let baseMoveCards = Array(dungeon.floors[10].rewardMoveCardsAfterClear.prefix(4))
+        XCTAssertEqual(store.maxRewardChoiceCount(for: dungeon), 4)
+        XCTAssertEqual(store.rewardMoveCards(for: baseMoveCards, dungeon: dungeon).count, 4)
+        XCTAssertEqual(
+            store.rewardSupportCards(for: [], dungeon: dungeon, floorIndex: 10),
+            [.refillEmptySlots]
+        )
+
+        XCTAssertTrue(store.setActive(.widerRewardRead, isActive: false))
+        XCTAssertTrue(store.setActive(.supportScout, isActive: false))
+        XCTAssertEqual(store.maxRewardChoiceCount(for: dungeon), 3)
+        XCTAssertEqual(store.rewardSupportCards(for: [], dungeon: dungeon, floorIndex: 10), [])
+    }
+
+    func testPreparationAndDangerBranchNewEffectsApplyOnlyWhenActive() throws {
+        let (defaults, suiteName) = try makeIsolatedDefaults()
+        defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+
+        let store = DungeonGrowthStore(userDefaults: defaults)
+        let dungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        for floorIndex in [4, 9, 14, 19] {
+            let runState = DungeonRunState(
+                dungeonID: dungeon.id,
+                currentFloorIndex: floorIndex,
+                carriedHP: 3,
+                clearedFloorCount: floorIndex
+            )
+            _ = store.registerDungeonClear(dungeon: dungeon, runState: runState, hasNextFloor: floorIndex < 19)
+        }
+
+        XCTAssertTrue(store.unlock(.toolPouch))
+        XCTAssertTrue(store.unlock(.climbingKit))
+        XCTAssertTrue(store.unlock(.shortcutKit))
+        XCTAssertTrue(store.unlock(.refillCharm))
+
+        XCTAssertEqual(
+            store.startingRewardEntries(for: dungeon, startingFloorIndex: 10),
+            [
+                DungeonInventoryEntry(card: .straightRight2, rewardUses: 1),
+                DungeonInventoryEntry(card: .straightUp2, rewardUses: 1),
+                DungeonInventoryEntry(card: .diagonalUpRight2, rewardUses: 1),
+                DungeonInventoryEntry(support: .refillEmptySlots, rewardUses: 1)
+            ]
+        )
+
+        XCTAssertTrue(store.setActive(.climbingKit, isActive: false))
+        XCTAssertEqual(
+            store.startingRewardEntries(for: dungeon, startingFloorIndex: 10),
+            [
+                DungeonInventoryEntry(card: .straightRight2, rewardUses: 1),
+                DungeonInventoryEntry(card: .diagonalUpRight2, rewardUses: 1),
+                DungeonInventoryEntry(support: .refillEmptySlots, rewardUses: 1)
+            ]
+        )
+
+        let (dangerDefaults, dangerSuiteName) = try makeIsolatedDefaults()
+        defer { UserDefaults.standard.removePersistentDomain(forName: dangerSuiteName) }
+        let dangerStore = DungeonGrowthStore(userDefaults: dangerDefaults)
+        for floorIndex in [4, 9, 14, 19] {
+            let runState = DungeonRunState(
+                dungeonID: dungeon.id,
+                currentFloorIndex: floorIndex,
+                carriedHP: 3,
+                clearedFloorCount: floorIndex
+            )
+            _ = dangerStore.registerDungeonClear(dungeon: dungeon, runState: runState, hasNextFloor: floorIndex < 19)
+        }
+        XCTAssertTrue(dangerStore.unlock(.footingRead))
+        XCTAssertTrue(dangerStore.unlock(.enemyRead))
+        XCTAssertTrue(dangerStore.unlock(.meteorRead))
+        XCTAssertEqual(dangerStore.startingEnemyDamageMitigations(for: dungeon), 1)
+        XCTAssertEqual(dangerStore.startingMarkerDamageMitigations(for: dungeon), 1)
+        XCTAssertTrue(dangerStore.setActive(.enemyRead, isActive: false))
+        XCTAssertEqual(dangerStore.startingEnemyDamageMitigations(for: dungeon), 0)
+        XCTAssertEqual(dangerStore.startingMarkerDamageMitigations(for: dungeon), 1)
     }
 
     func testRewardCandidateBoostVariesByExistingRewardShape() throws {

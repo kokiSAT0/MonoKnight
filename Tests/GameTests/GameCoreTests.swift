@@ -131,7 +131,7 @@ final class GameCoreTests: XCTestCase {
 
         XCTAssertFalse(core.enemyStates.contains { $0.id == enemy.id })
         XCTAssertFalse(core.activeDungeonCardPickups.contains { $0.id == pickup.id })
-        XCTAssertTrue(core.dungeonInventoryEntries.contains { $0.card == pickup.card })
+        XCTAssertTrue(core.dungeonInventoryEntries.contains { $0.playable == pickup.playable })
     }
 
     func testDungeonInventoryStacksDuplicateCardsAndRejectsNewCardAtNineKindsWhenBasicMoveUsesTenthSlot() {
@@ -245,6 +245,191 @@ final class GameCoreTests: XCTestCase {
         XCTAssertEqual(
             advanced.rewardInventoryEntries,
             [DungeonInventoryEntry(support: .refillEmptySlots, rewardUses: 1)]
+        )
+    }
+
+    func testAnnihilationSpellClearsAllEnemiesWithoutEnemyTurn() throws {
+        let enemies = [
+            EnemyDefinition(
+                id: "guard",
+                name: "番兵",
+                position: GridPoint(x: 2, y: 1),
+                behavior: .guardPost
+            ),
+            EnemyDefinition(
+                id: "patrol",
+                name: "巡回兵",
+                position: GridPoint(x: 3, y: 3),
+                behavior: .patrol(path: [
+                    GridPoint(x: 3, y: 3),
+                    GridPoint(x: 3, y: 4)
+                ])
+            ),
+            EnemyDefinition(
+                id: "marker",
+                name: "メテオ兵",
+                position: GridPoint(x: 4, y: 3),
+                behavior: .marker(directions: [], range: 2)
+            )
+        ]
+        let mode = makeInventoryDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            enemies: enemies
+        )
+        let core = GameCore(mode: mode)
+        XCTAssertTrue(core.addDungeonInventorySupportCardForTesting(.annihilationSpell, rewardUses: 1))
+        let supportIndex = try XCTUnwrap(core.handStacks.firstIndex { $0.topCard?.supportCard == .annihilationSpell })
+
+        XCTAssertTrue(core.isSupportCardUsable(in: core.handStacks[supportIndex]))
+        XCTAssertFalse(core.enemyDangerPoints.isEmpty)
+        XCTAssertFalse(core.enemyWarningPoints.isEmpty)
+        XCTAssertFalse(core.enemyPatrolMovementPreviews.isEmpty)
+
+        core.playSupportCard(at: supportIndex)
+
+        XCTAssertTrue(core.enemyStates.isEmpty)
+        XCTAssertTrue(core.enemyDangerPoints.isEmpty)
+        XCTAssertTrue(core.enemyWarningPoints.isEmpty)
+        XCTAssertTrue(core.enemyPatrolMovementPreviews.isEmpty)
+        XCTAssertTrue(core.enemyChaserMovementPreviews.isEmpty)
+        XCTAssertFalse(core.dungeonInventoryEntries.contains { $0.supportCard == .annihilationSpell })
+        XCTAssertEqual(core.moveCount, 1)
+        XCTAssertNil(core.dungeonEnemyTurnEvent)
+    }
+
+    func testSingleAnnihilationSpellSelectsOneEnemyWithoutEnemyTurn() throws {
+        let enemies = [
+            EnemyDefinition(
+                id: "guard",
+                name: "番兵",
+                position: GridPoint(x: 1, y: 0),
+                behavior: .guardPost
+            ),
+            EnemyDefinition(
+                id: "chaser",
+                name: "追跡兵",
+                position: GridPoint(x: 4, y: 4),
+                behavior: .chaser
+            )
+        ]
+        let mode = makeInventoryDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            enemies: enemies
+        )
+        let core = GameCore(mode: mode)
+        XCTAssertTrue(core.addDungeonInventorySupportCardForTesting(.singleAnnihilationSpell, rewardUses: 1))
+        let supportIndex = try XCTUnwrap(core.handStacks.firstIndex { $0.topCard?.supportCard == .singleAnnihilationSpell })
+
+        XCTAssertTrue(core.beginTargetedSupportCardSelection(at: supportIndex))
+        XCTAssertEqual(core.targetedSupportCardTargetPoints, Set(enemies.map(\.position)))
+        XCTAssertTrue(core.playTargetedSupportCard(at: GridPoint(x: 1, y: 0)))
+
+        XCTAssertEqual(core.enemyStates.map(\.id), ["chaser"])
+        XCTAssertFalse(core.dungeonInventoryEntries.contains { $0.supportCard == .singleAnnihilationSpell })
+        XCTAssertEqual(core.moveCount, 1)
+        XCTAssertNil(core.dungeonEnemyTurnEvent)
+        XCTAssertNil(core.pendingTargetedSupportCard)
+    }
+
+    func testSingleAnnihilationSpellDoesNotSpendOnNonEnemyTarget() throws {
+        let enemy = EnemyDefinition(
+            id: "guard",
+            name: "番兵",
+            position: GridPoint(x: 2, y: 0),
+            behavior: .guardPost
+        )
+        let mode = makeInventoryDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            enemies: [enemy]
+        )
+        let core = GameCore(mode: mode)
+        XCTAssertTrue(core.addDungeonInventorySupportCardForTesting(.singleAnnihilationSpell, rewardUses: 1))
+        let supportIndex = try XCTUnwrap(core.handStacks.firstIndex { $0.topCard?.supportCard == .singleAnnihilationSpell })
+
+        XCTAssertTrue(core.beginTargetedSupportCardSelection(at: supportIndex))
+        XCTAssertFalse(core.playTargetedSupportCard(at: GridPoint(x: 1, y: 0)))
+
+        XCTAssertEqual(core.enemyStates.map(\.id), ["guard"])
+        XCTAssertTrue(core.dungeonInventoryEntries.contains { $0.supportCard == .singleAnnihilationSpell })
+        XCTAssertEqual(core.moveCount, 0)
+        XCTAssertNotNil(core.pendingTargetedSupportCard)
+    }
+
+    func testSingleAnnihilationSpellTargetTapTakesPriorityOverBasicMove() throws {
+        let enemyPoint = GridPoint(x: 1, y: 0)
+        let enemy = EnemyDefinition(
+            id: "guard",
+            name: "番兵",
+            position: enemyPoint,
+            behavior: .guardPost
+        )
+        let mode = makeInventoryDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            allowsBasicOrthogonalMove: true,
+            enemies: [enemy]
+        )
+        let core = GameCore(mode: mode)
+        XCTAssertTrue(core.addDungeonInventorySupportCardForTesting(.singleAnnihilationSpell, rewardUses: 1))
+        let supportIndex = try XCTUnwrap(core.handStacks.firstIndex { $0.topCard?.supportCard == .singleAnnihilationSpell })
+
+        XCTAssertTrue(core.beginTargetedSupportCardSelection(at: supportIndex))
+        core.handleTap(at: enemyPoint)
+
+        XCTAssertEqual(core.current, GridPoint(x: 0, y: 0))
+        XCTAssertTrue(core.enemyStates.isEmpty)
+        XCTAssertNil(core.boardTapBasicMoveRequest)
+        XCTAssertEqual(core.moveCount, 1)
+    }
+
+    func testAnnihilationSpellCannotBeSpentWhenNoEnemiesRemain() throws {
+        let mode = makeInventoryDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4)
+        )
+        let core = GameCore(mode: mode)
+        XCTAssertTrue(core.addDungeonInventorySupportCardForTesting(.annihilationSpell, rewardUses: 1))
+        let supportIndex = try XCTUnwrap(core.handStacks.firstIndex { $0.topCard?.supportCard == .annihilationSpell })
+
+        XCTAssertFalse(core.isSupportCardUsable(in: core.handStacks[supportIndex]))
+        core.playSupportCard(at: supportIndex)
+
+        XCTAssertTrue(core.dungeonInventoryEntries.contains { $0.supportCard == .annihilationSpell })
+        XCTAssertEqual(core.moveCount, 0)
+    }
+
+    func testAnnihilationSpellRewardCarriesOnlyOneUse() {
+        let runState = DungeonRunState(dungeonID: "growth-tower", carriedHP: 3)
+
+        let advanced = runState.advancedToNextFloor(
+            carryoverHP: 3,
+            currentFloorMoveCount: 4,
+            rewardSelection: .addSupport(.annihilationSpell),
+            rewardAddUses: 4
+        )
+
+        XCTAssertEqual(
+            advanced.rewardInventoryEntries,
+            [DungeonInventoryEntry(support: .annihilationSpell, rewardUses: 1)]
+        )
+    }
+
+    func testSingleAnnihilationSpellRewardCarriesOnlyOneUse() {
+        let runState = DungeonRunState(dungeonID: "growth-tower", carriedHP: 3)
+
+        let advanced = runState.advancedToNextFloor(
+            carryoverHP: 3,
+            currentFloorMoveCount: 4,
+            rewardSelection: .addSupport(.singleAnnihilationSpell),
+            rewardAddUses: 4
+        )
+
+        XCTAssertEqual(
+            advanced.rewardInventoryEntries,
+            [DungeonInventoryEntry(support: .singleAnnihilationSpell, rewardUses: 1)]
         )
     }
 
@@ -390,6 +575,24 @@ final class GameCoreTests: XCTestCase {
         XCTAssertTrue(restoredCore.restoreDungeonResumeSnapshot(decodedSnapshot))
         XCTAssertEqual(restoredCore.pendingDungeonPickupChoice, core.pendingDungeonPickupChoice)
         XCTAssertEqual(restoredCore.current, currentAfterPickup)
+    }
+
+    func testSwampBlocksMoveCardsButAllowsBasicMoveAndSupportCards() {
+        let spawn = GridPoint(x: 1, y: 1)
+        let mode = makeInventoryDungeonMode(
+            spawn: spawn,
+            exit: GridPoint(x: 4, y: 4),
+            tileEffectOverrides: [spawn: .swamp],
+            allowsBasicOrthogonalMove: true
+        )
+        let deck = Deck.makeTestDeck(cards: [.straightRight2], configuration: mode.regulationSnapshot.deckPreset.configuration)
+        let core = GameCore.makeTestInstance(deck: deck, current: spawn, mode: mode)
+        let moveStack = HandStack(cards: [DealtCard(move: .straightRight2)])
+        let supportStack = HandStack(cards: [DealtCard(support: .refillEmptySlots)])
+
+        XCTAssertTrue(core.availableMoves(handStacks: [moveStack], current: spawn).isEmpty)
+        XCTAssertFalse(core.availableBasicOrthogonalMoves(current: spawn).isEmpty)
+        XCTAssertTrue(core.isSupportCardUsable(in: supportStack))
     }
 
     private func makeInventoryDungeonMode(

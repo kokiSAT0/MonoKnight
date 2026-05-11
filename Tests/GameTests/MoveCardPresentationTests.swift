@@ -35,10 +35,14 @@ final class MoveCardPresentationTests: XCTestCase {
         let entries = SupportCard.encyclopediaEntries
 
         XCTAssertEqual(entries.map(\.card), SupportCard.allCases)
-        XCTAssertTrue(entries.allSatisfy { $0.category == "補助カード" })
+        XCTAssertTrue(entries.allSatisfy { !$0.category.isEmpty })
         XCTAssertTrue(entries.allSatisfy { !$0.displayName.isEmpty })
         XCTAssertTrue(entries.allSatisfy { !$0.description.isEmpty })
         XCTAssertTrue(entries.first { $0.card == .refillEmptySlots }?.description.contains("塔用移動カード全体") == true)
+        XCTAssertEqual(entries.first { $0.card == .singleAnnihilationSpell }?.category, "呪文系カード")
+        XCTAssertTrue(entries.first { $0.card == .singleAnnihilationSpell }?.description.contains("敵1体を消滅") == true)
+        XCTAssertEqual(entries.first { $0.card == .annihilationSpell }?.category, "呪文系カード")
+        XCTAssertTrue(entries.first { $0.card == .annihilationSpell }?.description.contains("敵をすべて消滅") == true)
     }
 
     func testEnemyEncyclopediaEntriesCoverAllEnemyPresentationKinds() {
@@ -136,6 +140,7 @@ final class MoveCardPresentationTests: XCTestCase {
             "warp",
             "blast",
             "paralysisTrap",
+            "swamp",
             "discardRandomHandTrap",
             "discardAllHandsTrap",
         ]))
@@ -151,6 +156,7 @@ final class MoveCardPresentationTests: XCTestCase {
             "discardAllHandsTrap",
             "discardRandomHandTrap",
             "paralysisTrap",
+            "swamp",
             "warp"
         ])
     }

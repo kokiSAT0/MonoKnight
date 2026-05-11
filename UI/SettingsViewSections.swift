@@ -1,4 +1,5 @@
 import SwiftUI
+import Game
 
 struct SettingsThemeSection: View {
     @ObservedObject var gameSettingsStore: GameSettingsStore

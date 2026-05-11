@@ -77,6 +77,8 @@ public enum TileEffect: Equatable, Codable {
     case blast(direction: MoveVector)
     /// このマスで残りの移動を止める効果
     case slow
+    /// 移動系カードを止め、上にいる間は移動系カードを使えなくする沼
+    case swamp
     /// 使用したカードを消費せずに温存する効果
     case preserveCard
     /// 手札スロットをランダムに 1 つ失う効果
@@ -209,7 +211,7 @@ public struct Board: Equatable {
                 let isOrthogonalOneStep = abs(direction.dx) + abs(direction.dy) == 1
                 guard isOrthogonalOneStep else { continue }
                 sanitizedEffects[point] = effect
-            case .shuffleHand, .slow, .preserveCard, .discardRandomHand, .discardAllHands:
+            case .shuffleHand, .slow, .swamp, .preserveCard, .discardRandomHand, .discardAllHands:
                 sanitizedEffects[point] = effect
             }
         }

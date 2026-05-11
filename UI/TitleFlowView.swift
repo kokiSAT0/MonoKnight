@@ -319,6 +319,12 @@ struct TitleScreenView: View {
                             ),
                             startingHazardDamageMitigations: dungeonGrowthStore.startingHazardDamageMitigations(
                                 for: dungeon
+                            ),
+                            startingEnemyDamageMitigations: dungeonGrowthStore.startingEnemyDamageMitigations(
+                                for: dungeon
+                            ),
+                            startingMarkerDamageMitigations: dungeonGrowthStore.startingMarkerDamageMitigations(
+                                for: dungeon
                             )
                         ) else { return }
                         let context: StartTriggerContext = .dungeonSelection

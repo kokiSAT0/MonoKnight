@@ -122,6 +122,19 @@ struct GameSessionState {
             return
         }
 
+        if let stack = core.handStacks.first(where: { $0.id == selectedCardSelection.stackID }),
+           let topCard = stack.topCard,
+           topCard.id == selectedCardSelection.cardID,
+           topCard.supportCard?.requiresEnemyTargetSelection == true {
+            let targets = core.targetedSupportCardTargetPoints
+            guard !targets.isEmpty else {
+                clearSelection(boardBridge: boardBridge, selectedHandStackID: &selectedHandStackID)
+                return
+            }
+            boardBridge.updateForcedSelectionHighlights(targets)
+            return
+        }
+
         let moves = resolvedMoves ?? core.availableMoves().filter { candidate in
             candidate.stackID == selectedCardSelection.stackID && candidate.card.id == selectedCardSelection.cardID
         }
@@ -207,6 +220,7 @@ struct GameInputFlowCoordinator {
         }
 
         if sessionState.isSelected(stackID: latestStack.id) {
+            core.cancelTargetedSupportCardSelection()
             clearSelectedCardSelection(
                 sessionState: &sessionState,
                 boardBridge: boardBridge,
@@ -224,7 +238,7 @@ struct GameInputFlowCoordinator {
             return
         }
 
-        if topCard.supportCard != nil {
+        if let support = topCard.supportCard {
             guard core.isSupportCardUsable(in: latestStack) else {
                 clearSelectedCardSelection(
                     sessionState: &sessionState,
@@ -234,6 +248,30 @@ struct GameInputFlowCoordinator {
                 if hapticsEnabled {
                     UINotificationFeedbackGenerator().notificationOccurred(.warning)
                 }
+                return
+            }
+            if support.requiresEnemyTargetSelection {
+                guard core.beginTargetedSupportCardSelection(at: index) else {
+                    clearSelectedCardSelection(
+                        sessionState: &sessionState,
+                        boardBridge: boardBridge,
+                        selectedHandStackID: &selectedHandStackID
+                    )
+                    if hapticsEnabled {
+                        UINotificationFeedbackGenerator().notificationOccurred(.warning)
+                    }
+                    return
+                }
+                sessionState.updateSelection(
+                    stackID: latestStack.id,
+                    cardID: topCard.id,
+                    selectedHandStackID: &selectedHandStackID
+                )
+                sessionState.applyHighlights(
+                    core: core,
+                    boardBridge: boardBridge,
+                    selectedHandStackID: &selectedHandStackID
+                )
                 return
             }
             clearSelectedCardSelection(
@@ -248,6 +286,7 @@ struct GameInputFlowCoordinator {
             return
         }
 
+        core.cancelTargetedSupportCardSelection()
         guard boardBridge.isCardUsable(latestStack) else {
             clearSelectedCardSelection(
                 sessionState: &sessionState,
@@ -322,6 +361,7 @@ struct GameInputFlowCoordinator {
         }
 
         if sessionState.isBasicOrthogonalSelected {
+            core.cancelTargetedSupportCardSelection()
             clearSelectedCardSelection(
                 sessionState: &sessionState,
                 boardBridge: boardBridge,
@@ -330,6 +370,7 @@ struct GameInputFlowCoordinator {
             return
         }
 
+        core.cancelTargetedSupportCardSelection()
         guard !core.availableBasicOrthogonalMoves().isEmpty else {
             clearSelectedCardSelection(
                 sessionState: &sessionState,
@@ -516,6 +557,9 @@ struct GameInputFlowCoordinator {
             boardBridge: boardBridge,
             selectedHandStackID: &selectedHandStackID
         )
+        if !sessionState.hasSelection {
+            core.cancelTargetedSupportCardSelection()
+        }
     }
 
     func clearSelectedCardSelection(

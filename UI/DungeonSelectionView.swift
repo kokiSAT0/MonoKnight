@@ -86,16 +86,30 @@ struct DungeonSelectionView: View {
 
             Spacer(minLength: 8)
 
-            Button {
-                _ = dungeonGrowthStore.unlock(upgrade)
-            } label: {
-                Text(isUnlocked ? "取得済" : canUnlock ? "\(upgrade.cost)pt" : "ロック")
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
-                    .frame(minWidth: 58)
+            if isUnlocked {
+                Toggle(
+                    "有効",
+                    isOn: Binding(
+                        get: { dungeonGrowthStore.isActive(upgrade) },
+                        set: { _ = dungeonGrowthStore.setActive(upgrade, isActive: $0) }
+                    )
+                )
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .accessibilityLabel("\(upgrade.title)を有効化")
+                .accessibilityIdentifier("dungeon_growth_active_\(upgrade.rawValue)")
+            } else {
+                Button {
+                    _ = dungeonGrowthStore.unlock(upgrade)
+                } label: {
+                    Text(canUnlock ? "\(upgrade.cost)pt" : "ロック")
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .frame(minWidth: 58)
+                }
+                .buttonStyle(.bordered)
+                .disabled(!canUnlock)
+                .accessibilityIdentifier("dungeon_growth_unlock_\(upgrade.rawValue)")
             }
-            .buttonStyle(.bordered)
-            .disabled(!canUnlock)
-            .accessibilityIdentifier("dungeon_growth_unlock_\(upgrade.rawValue)")
         }
         .padding(.vertical, 4)
     }

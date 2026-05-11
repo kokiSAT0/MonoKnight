@@ -91,6 +91,7 @@ extension GameViewModel {
     }
 
     func clearSelectedCardSelection() {
+        core.cancelTargetedSupportCardSelection()
         mutateSelectionState { sessionState, selectedHandStackID in
             inputFlowCoordinator.clearSelectedCardSelection(
                 sessionState: &sessionState,

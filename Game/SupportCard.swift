@@ -1,14 +1,31 @@
 import Foundation
 
-/// 移動せずに手札を整える補助専用カード
+/// 移動せずに効果を発動する補助専用カード
 public enum SupportCard: String, CaseIterable, Codable, Hashable {
     /// 空き手札枠を移動カードで補給する
     case refillEmptySlots
+    /// 選んだ敵 1 体を消滅させる
+    case singleAnnihilationSpell
+    /// 現在フロアの敵をすべて消滅させる
+    case annihilationSpell
 
     public var displayName: String {
         switch self {
         case .refillEmptySlots:
             return "補給"
+        case .singleAnnihilationSpell:
+            return "消滅の呪文"
+        case .annihilationSpell:
+            return "全滅の呪文"
+        }
+    }
+
+    public var encyclopediaCategory: String {
+        switch self {
+        case .refillEmptySlots:
+            return "補助カード"
+        case .singleAnnihilationSpell, .annihilationSpell:
+            return "呪文系カード"
         }
     }
 
@@ -16,6 +33,19 @@ public enum SupportCard: String, CaseIterable, Codable, Hashable {
         switch self {
         case .refillEmptySlots:
             return "移動せず 1 手使い、空いている所持枠を塔用移動カード全体から未所持の移動カードで補給します。"
+        case .singleAnnihilationSpell:
+            return "移動せず 1 手使い、選んだ敵1体を消滅させます。"
+        case .annihilationSpell:
+            return "移動せず 1 手使い、このフロアの敵をすべて消滅させます。"
+        }
+    }
+
+    public var requiresEnemyTargetSelection: Bool {
+        switch self {
+        case .singleAnnihilationSpell:
+            return true
+        case .refillEmptySlots, .annihilationSpell:
+            return false
         }
     }
 }
@@ -119,7 +149,7 @@ public extension SupportCard {
                 id: index,
                 card: card,
                 displayName: card.displayName,
-                category: "補助カード",
+                category: card.encyclopediaCategory,
                 description: card.encyclopediaDescription
             )
         }

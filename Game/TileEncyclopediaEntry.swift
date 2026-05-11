@@ -155,6 +155,13 @@ public struct TileEncyclopediaEntry: Identifiable, Equatable {
             previewKind: .effect(.slow)
         ),
         TileEncyclopediaEntry(
+            id: "swamp",
+            displayName: "沼",
+            category: "特殊効果",
+            description: "移動系カードで入るとそこで止まり、沼の上では移動系カードを使えません。基本移動と補給は使えます。",
+            previewKind: .effect(.swamp)
+        ),
+        TileEncyclopediaEntry(
             id: "discardRandomHandTrap",
             displayName: "手札喪失罠",
             category: "危険",

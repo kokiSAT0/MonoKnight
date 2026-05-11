@@ -21,6 +21,7 @@
         private var latestDungeonDangerPoints: Set<GridPoint> = []
         private var latestDungeonEnemyWarningPoints: Set<GridPoint> = []
         private var latestDungeonCardPickupPoints: Set<GridPoint> = []
+        private var latestDungeonRelicPickupPoints: Set<GridPoint> = []
         private var latestDungeonDamageTrapPoints: Set<GridPoint> = []
         private var latestDungeonHealingTilePoints: Set<GridPoint> = []
         private var latestDungeonCrackedFloorPoints: Set<GridPoint> = []
@@ -76,6 +77,7 @@
             latestDungeonDangerPoints = []
             latestDungeonEnemyWarningPoints = []
             latestDungeonCardPickupPoints = []
+            latestDungeonRelicPickupPoints = []
             latestDungeonDamageTrapPoints = []
             latestDungeonHealingTilePoints = []
             latestDungeonCrackedFloorPoints = []
@@ -297,6 +299,7 @@
                     .dungeonDanger: latestDungeonDangerPoints,
                     .dungeonEnemyWarning: latestDungeonEnemyWarningPoints,
                     .dungeonCardPickup: latestDungeonCardPickupPoints,
+                    .dungeonRelicPickup: latestDungeonRelicPickupPoints,
                     .dungeonDamageTrap: latestDungeonDamageTrapPoints,
                     .dungeonHealingTile: latestDungeonHealingTilePoints,
                     .dungeonCrackedFloor: latestDungeonCrackedFloorPoints,
@@ -390,6 +393,7 @@
             latestDungeonDangerPoints = highlights[.dungeonDanger] ?? []
             latestDungeonEnemyWarningPoints = highlights[.dungeonEnemyWarning] ?? []
             latestDungeonCardPickupPoints = highlights[.dungeonCardPickup] ?? []
+            latestDungeonRelicPickupPoints = highlights[.dungeonRelicPickup] ?? []
             latestDungeonDamageTrapPoints = highlights[.dungeonDamageTrap] ?? []
             latestDungeonHealingTilePoints = highlights[.dungeonHealingTile] ?? []
             latestDungeonCrackedFloorPoints = highlights[.dungeonCrackedFloor] ?? []
@@ -992,6 +996,12 @@
                 strokeWidth = 0
                 fillColor = baseColor.withAlphaComponent(0.78)
                 zPosition = 1.14
+            case .dungeonRelicPickup:
+                baseColor = SKColor(red: 0.96, green: 0.68, blue: 0.16, alpha: 1.0)
+                strokeAlpha = 0.92
+                strokeWidth = max(layout.tileSize * 0.035, 1.2)
+                fillColor = baseColor.withAlphaComponent(0.82)
+                zPosition = 1.15
             case .dungeonDamageTrap:
                 baseColor = SKColor(red: 0.82, green: 0.10, blue: 0.08, alpha: 1.0)
                 strokeAlpha = 0
@@ -1042,6 +1052,7 @@
                 || kind == .dungeonEnemy
                 || kind == .dungeonEnemyWarning
                 || kind == .dungeonCardPickup
+                || kind == .dungeonRelicPickup
                 || kind == .dungeonDamageTrap
                 || kind == .dungeonHealingTile
                 || kind == .dungeonCrackedFloor
@@ -1089,6 +1100,8 @@
                 return meteorWarningMarkerPath(in: rect)
             case .dungeonCardPickup:
                 return cardPickupMarkerPath(center: CGPoint(x: rect.midX, y: rect.midY), tileSize: tileSize)
+            case .dungeonRelicPickup:
+                return relicPickupMarkerPath(center: CGPoint(x: rect.midX, y: rect.midY), tileSize: tileSize)
             case .dungeonDamageTrap:
                 return damageTrapMarkerPath(center: CGPoint(x: rect.midX, y: rect.midY), tileSize: tileSize)
             case .dungeonHealingTile:
@@ -1236,6 +1249,31 @@
             let radius = max(tileSize * 0.025, 1.0)
             let path = CGMutablePath()
             path.addRoundedRect(in: rect, cornerWidth: radius, cornerHeight: radius)
+            return path
+        }
+
+        private func relicPickupMarkerPath(center: CGPoint, tileSize: CGFloat) -> CGPath {
+            let width = tileSize * 0.52
+            let height = tileSize * 0.36
+            let body = CGRect(
+                x: center.x - width / 2,
+                y: center.y - height * 0.32,
+                width: width,
+                height: height
+            )
+            let lid = CGRect(
+                x: center.x - width * 0.44,
+                y: body.maxY - height * 0.10,
+                width: width * 0.88,
+                height: height * 0.28
+            )
+            let path = CGMutablePath()
+            path.addRoundedRect(in: body, cornerWidth: tileSize * 0.04, cornerHeight: tileSize * 0.04)
+            path.addRoundedRect(in: lid, cornerWidth: tileSize * 0.05, cornerHeight: tileSize * 0.05)
+            path.move(to: CGPoint(x: center.x - width * 0.10, y: body.minY))
+            path.addLine(to: CGPoint(x: center.x - width * 0.10, y: lid.maxY))
+            path.move(to: CGPoint(x: center.x + width * 0.10, y: body.minY))
+            path.addLine(to: CGPoint(x: center.x + width * 0.10, y: lid.maxY))
             return path
         }
 

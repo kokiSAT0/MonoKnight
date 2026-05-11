@@ -120,6 +120,13 @@ extension AppTheme {
         )
     }
 
+    var uiBoardTileEffectSwamp: UIColor {
+        dynamicUIColor(
+            light: color(for: .light, keyPath: \.boardTileEffectSwamp),
+            dark: color(for: .dark, keyPath: \.boardTileEffectSwamp)
+        )
+    }
+
     var uiBoardTileEffectPreserveCard: UIColor {
         dynamicUIColor(
             light: color(for: .light, keyPath: \.boardTileEffectPreserveCard),
@@ -152,6 +159,7 @@ extension AppTheme {
     var skBoardTileEffectShuffle: SKColor { SKColor(cgColor: uiBoardTileEffectShuffle.cgColor) }
     var skBoardTileEffectBlast: SKColor { SKColor(cgColor: uiBoardTileEffectBlast.cgColor) }
     var skBoardTileEffectSlow: SKColor { SKColor(cgColor: uiBoardTileEffectSlow.cgColor) }
+    var skBoardTileEffectSwamp: SKColor { SKColor(cgColor: uiBoardTileEffectSwamp.cgColor) }
     var skBoardTileEffectPreserveCard: SKColor { SKColor(cgColor: uiBoardTileEffectPreserveCard.cgColor) }
     var skBoardTileEffectDiscardHand: SKColor { SKColor(cgColor: uiBoardTileEffectDiscardHand.cgColor) }
     #endif

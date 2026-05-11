@@ -117,6 +117,7 @@ private struct MovementProcessingResult {
     var presentationInitialHP: Int
     var presentationInitialHandStacks: [HandStack]
     var presentationInitialCollectedDungeonCardPickupIDs: Set<String>
+    var presentationInitialCollectedDungeonRelicPickupIDs: Set<String>
     var presentationInitialEnemyStates: [EnemyState]
     var presentationInitialCrackedFloorPoints: Set<GridPoint>
     var presentationInitialCollapsedFloorPoints: Set<GridPoint>
@@ -125,6 +126,18 @@ private struct MovementProcessingResult {
     var postMoveTileEffect: PostMoveTileEffect?
     var preservesPlayedCard: Bool
     var paralysisTrapPoint: GridPoint?
+}
+
+public struct PendingTargetedSupportCard: Equatable {
+    public let stackID: UUID
+    public let cardID: UUID
+    public let support: SupportCard
+
+    public init(stackID: UUID, cardID: UUID, support: SupportCard) {
+        self.stackID = stackID
+        self.cardID = cardID
+        self.support = support
+    }
 }
 
 /// ゲーム進行を統括するクラス
@@ -184,6 +197,10 @@ public final class GameCore: ObservableObject {
     @Published public private(set) var dungeonHP: Int = 0
     /// 成長塔の区間内で罠/床崩落ダメージを無効化できる残り回数
     @Published public private(set) var hazardDamageMitigationsRemaining: Int = 0
+    /// 成長塔の区間内で敵ダメージを無効化できる残り回数
+    @Published public private(set) var enemyDamageMitigationsRemaining: Int = 0
+    /// 成長塔の区間内でメテオ着弾ダメージを無効化できる残り回数
+    @Published public private(set) var markerDamageMitigationsRemaining: Int = 0
     /// 塔ダンジョンで利用する敵状態
     @Published public private(set) var enemyStates: [EnemyState] = []
     /// ひび割れ状態の床
@@ -196,6 +213,10 @@ public final class GameCore: ObservableObject {
     @Published public private(set) var dungeonInventoryEntries: [DungeonInventoryEntry] = []
     /// 取得済みのフロア内カード ID
     @Published public private(set) var collectedDungeonCardPickupIDs: Set<String> = []
+    /// 塔ラン中だけ有効な遺物一覧
+    @Published public private(set) var dungeonRelicEntries: [DungeonRelicEntry] = []
+    /// 取得済みの宝箱 ID
+    @Published public private(set) var collectedDungeonRelicPickupIDs: Set<String> = []
     /// 所持枠が満杯で床落ちカードの取捨選択を待っている状態
     @Published public private(set) var pendingDungeonPickupChoice: PendingDungeonPickupChoice?
     /// 塔ダンジョン出口が現在有効かどうか
@@ -206,6 +227,8 @@ public final class GameCore: ObservableObject {
     @Published public private(set) var dungeonFallEvent: DungeonFallEvent?
     /// プレイヤー行動後に発生した敵ターンの可視化用イベント
     @Published public private(set) var dungeonEnemyTurnEvent: DungeonEnemyTurnEvent?
+    /// 対象選択型の補助カードが敵選択待ちかどうか
+    @Published public private(set) var pendingTargetedSupportCard: PendingTargetedSupportCard?
     /// 合計手数（移動 + ペナルティ）の計算プロパティ
     /// - Note: 将来的に別レギュレーションで利用する可能性があるため個別に保持
     public var totalMoveCount: Int { moveCount + penaltyCount }
@@ -226,8 +249,23 @@ public final class GameCore: ObservableObject {
     }
     /// 塔ダンジョンの残り手数
     public var remainingDungeonTurns: Int? {
-        guard let turnLimit = mode.dungeonRules?.failureRule.turnLimit else { return nil }
+        guard let turnLimit = effectiveDungeonTurnLimit else { return nil }
         return max(turnLimit - moveCount, 0)
+    }
+    /// 遺物補正を反映した現在フロアの手数上限
+    public var effectiveDungeonTurnLimit: Int? {
+        guard let baseTurnLimit = mode.dungeonRules?.failureRule.turnLimit else { return nil }
+        var adjustment = 0
+        if hasDungeonRelic(.heavyCrown) {
+            adjustment -= 2
+        }
+        if hasDungeonRelic(.oldMap) {
+            adjustment -= 1
+        }
+        if hasDungeonRelic(.chippedHourglass) {
+            adjustment += 3
+        }
+        return max(baseTurnLimit + adjustment, 1)
     }
     /// 敵本体を除く、盤面へ表示する攻撃範囲マス
     public var enemyDangerPoints: Set<GridPoint> {
@@ -282,8 +320,19 @@ public final class GameCore: ObservableObject {
         else { return [] }
         return cardPickups.filter { !collectedDungeonCardPickupIDs.contains($0.id) }
     }
+    /// まだ盤面上に残っている宝箱
+    public var activeDungeonRelicPickups: [DungeonRelicPickupDefinition] {
+        guard mode.dungeonRules?.difficulty == .growth,
+              let relicPickups = mode.dungeonRules?.relicPickups
+        else { return [] }
+        return relicPickups.filter { !collectedDungeonRelicPickupIDs.contains($0.id) }
+    }
     public var isAwaitingDungeonPickupChoice: Bool {
         pendingDungeonPickupChoice != nil
+    }
+    public var targetedSupportCardTargetPoints: Set<GridPoint> {
+        guard pendingTargetedSupportCard?.support == .singleAnnihilationSpell else { return [] }
+        return Set(enemyStates.map(\.position))
     }
     /// 未取得の塔鍵マス。階段が解錠されたら盤面表示から消える。
     public var dungeonKeyPoints: Set<GridPoint> {
@@ -350,12 +399,16 @@ public final class GameCore: ObservableObject {
             elapsedSeconds: liveElapsedSeconds,
             dungeonHP: dungeonHP,
             hazardDamageMitigationsRemaining: hazardDamageMitigationsRemaining,
+            enemyDamageMitigationsRemaining: enemyDamageMitigationsRemaining,
+            markerDamageMitigationsRemaining: markerDamageMitigationsRemaining,
             enemyStates: enemyStates,
             crackedFloorPoints: crackedFloorPoints,
             collapsedFloorPoints: collapsedFloorPoints,
             consumedHealingTilePoints: consumedHealingTilePoints,
             dungeonInventoryEntries: dungeonInventoryEntries,
             collectedDungeonCardPickupIDs: collectedDungeonCardPickupIDs,
+            dungeonRelicEntries: dungeonRelicEntries,
+            collectedDungeonRelicPickupIDs: collectedDungeonRelicPickupIDs,
             isDungeonExitUnlocked: isDungeonExitUnlocked,
             pendingDungeonPickupChoice: pendingDungeonPickupChoice
         )
@@ -396,12 +449,16 @@ public final class GameCore: ObservableObject {
         hasRevisitedTile = false
         dungeonHP = snapshot.dungeonHP
         hazardDamageMitigationsRemaining = snapshot.hazardDamageMitigationsRemaining
+        enemyDamageMitigationsRemaining = snapshot.enemyDamageMitigationsRemaining
+        markerDamageMitigationsRemaining = snapshot.markerDamageMitigationsRemaining
         enemyStates = snapshot.enemyStates
         crackedFloorPoints = snapshot.crackedFloorPoints
         collapsedFloorPoints = validCollapsedPoints
         consumedHealingTilePoints = validConsumedHealingPoints
         dungeonInventoryEntries = snapshot.dungeonInventoryEntries
         collectedDungeonCardPickupIDs = snapshot.collectedDungeonCardPickupIDs
+        dungeonRelicEntries = snapshot.dungeonRelicEntries
+        collectedDungeonRelicPickupIDs = snapshot.collectedDungeonRelicPickupIDs
         pendingDungeonPickupChoice = snapshot.pendingDungeonPickupChoice
         isDungeonExitUnlocked = snapshot.isDungeonExitUnlocked
         dungeonExitUnlockEvent = nil
@@ -410,6 +467,7 @@ public final class GameCore: ObservableObject {
         boardTapPlayRequest = nil
         boardTapBasicMoveRequest = nil
         isAwaitingManualDiscardSelection = false
+        pendingTargetedSupportCard = nil
         lastMovementResolution = nil
         progress = .playing
         sessionTimer.resumeFromElapsedSeconds(snapshot.elapsedSeconds)
@@ -477,7 +535,60 @@ public final class GameCore: ObservableObject {
 
     /// 補助カードが現在使用できるかを返す
     public func isSupportCardUsable(in stack: HandStack) -> Bool {
-        guard progress == .playing, stack.topCard?.supportCard != nil else { return false }
+        guard progress == .playing, let support = stack.topCard?.supportCard else { return false }
+        switch support {
+        case .refillEmptySlots:
+            return true
+        case .singleAnnihilationSpell, .annihilationSpell:
+            return !enemyStates.isEmpty
+        }
+    }
+
+    public func beginTargetedSupportCardSelection(at index: Int) -> Bool {
+        guard progress == .playing, handStacks.indices.contains(index), current != nil else { return false }
+        guard pendingDungeonPickupChoice == nil else { return false }
+        guard !isAwaitingManualDiscardSelection else { return false }
+        guard let card = handStacks[index].topCard,
+              let support = card.supportCard,
+              support.requiresEnemyTargetSelection
+        else { return false }
+        guard isSupportCardUsable(in: handStacks[index]) else { return false }
+
+        pendingTargetedSupportCard = PendingTargetedSupportCard(
+            stackID: handStacks[index].id,
+            cardID: card.id,
+            support: support
+        )
+        boardTapPlayRequest = nil
+        boardTapBasicMoveRequest = nil
+        return true
+    }
+
+    public func cancelTargetedSupportCardSelection() {
+        pendingTargetedSupportCard = nil
+    }
+
+    @discardableResult
+    public func playTargetedSupportCard(at point: GridPoint) -> Bool {
+        guard progress == .playing,
+              pendingDungeonPickupChoice == nil,
+              !isAwaitingManualDiscardSelection,
+              let pending = pendingTargetedSupportCard,
+              pending.support == .singleAnnihilationSpell,
+              let stackIndex = handStacks.firstIndex(where: { $0.id == pending.stackID }),
+              handStacks.indices.contains(stackIndex),
+              let topCard = handStacks[stackIndex].topCard,
+              topCard.id == pending.cardID,
+              topCard.supportCard == pending.support,
+              let enemyIndex = enemyStates.firstIndex(where: { $0.position == point })
+        else { return false }
+        guard isSupportCardUsable(in: handStacks[stackIndex]) else { return false }
+
+        consumeSupportCard(at: stackIndex)
+        enemyStates.remove(at: enemyIndex)
+        dungeonEnemyTurnEvent = nil
+        checkDeadlockAndApplyPenaltyIfNeeded()
+        debugLog("補助カード 消滅の呪文: \(point) の敵を消滅")
         return true
     }
 
@@ -499,10 +610,20 @@ public final class GameCore: ObservableObject {
             }
             checkDeadlockAndApplyPenaltyIfNeeded()
             debugLog("補助カード 補給: 空き手札枠へ移動カードを補給")
+        case .singleAnnihilationSpell:
+            _ = beginTargetedSupportCardSelection(at: index)
+        case .annihilationSpell:
+            guard !enemyStates.isEmpty else { return }
+            consumeSupportCard(at: index)
+            enemyStates.removeAll()
+            dungeonEnemyTurnEvent = nil
+            checkDeadlockAndApplyPenaltyIfNeeded()
+            debugLog("補助カード 全滅の呪文: 現在フロアの敵をすべて消滅")
         }
     }
 
     private func consumeSupportCard(at index: Int) {
+        cancelTargetedSupportCardSelection()
         cancelManualDiscardSelection()
         resetBoardTapPlayRequestForPenalty()
         let support = handStacks.indices.contains(index) ? handStacks[index].topCard?.supportCard : nil
@@ -631,6 +752,7 @@ public final class GameCore: ObservableObject {
             presentationInitialHP: movementResult.presentationInitialHP,
             presentationInitialHandStacks: movementResult.presentationInitialHandStacks,
             presentationInitialCollectedDungeonCardPickupIDs: movementResult.presentationInitialCollectedDungeonCardPickupIDs,
+            presentationInitialCollectedDungeonRelicPickupIDs: movementResult.presentationInitialCollectedDungeonRelicPickupIDs,
             presentationInitialEnemyStates: movementResult.presentationInitialEnemyStates,
             presentationInitialCrackedFloorPoints: movementResult.presentationInitialCrackedFloorPoints,
             presentationInitialCollapsedFloorPoints: movementResult.presentationInitialCollapsedFloorPoints,
@@ -742,6 +864,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             presentationInitialHP: movementResult.presentationInitialHP,
             presentationInitialHandStacks: movementResult.presentationInitialHandStacks,
             presentationInitialCollectedDungeonCardPickupIDs: movementResult.presentationInitialCollectedDungeonCardPickupIDs,
+            presentationInitialCollectedDungeonRelicPickupIDs: movementResult.presentationInitialCollectedDungeonRelicPickupIDs,
             presentationInitialEnemyStates: movementResult.presentationInitialEnemyStates,
             presentationInitialCrackedFloorPoints: movementResult.presentationInitialCrackedFloorPoints,
             presentationInitialCollapsedFloorPoints: movementResult.presentationInitialCollapsedFloorPoints,
@@ -783,6 +906,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         let presentationInitialHP = dungeonHP
         let presentationInitialHandStacks = handStacks
         let presentationInitialCollectedDungeonCardPickupIDs = collectedDungeonCardPickupIDs
+        let presentationInitialCollectedDungeonRelicPickupIDs = collectedDungeonRelicPickupIDs
         let presentationInitialEnemyStates = enemyStates
         let presentationInitialCrackedFloorPoints = crackedFloorPoints
         let presentationInitialCollapsedFloorPoints = collapsedFloorPoints
@@ -820,6 +944,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             }
             if applyDungeonHazard(at: stepPoint) {
                 collectDungeonCardPickup(at: stepPoint)
+                collectDungeonRelicPickup(at: stepPoint)
                 presentationSteps.append(
                     movementPresentationStep(
                         at: stepPoint,
@@ -830,6 +955,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                 break
             }
             collectDungeonCardPickup(at: stepPoint)
+            collectDungeonRelicPickup(at: stepPoint)
 
             updateDungeonExitLockIfNeeded(at: stepPoint)
             if shouldStopDungeonMovementAtExit(at: stepPoint) {
@@ -865,6 +991,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                         defeatDungeonEnemy(at: destination)
                         if applyDungeonHazard(at: destination) {
                             collectDungeonCardPickup(at: destination)
+                            collectDungeonRelicPickup(at: destination)
                             presentationSteps.append(
                                 movementPresentationStep(
                                     at: destination,
@@ -876,6 +1003,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                             break
                         }
                         collectDungeonCardPickup(at: destination)
+                        collectDungeonRelicPickup(at: destination)
                         updateDungeonExitLockIfNeeded(at: destination)
                         presentationSteps.append(
                             movementPresentationStep(
@@ -895,6 +1023,9 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                         postMoveTileEffect: &postMoveTileEffect,
                         preservesPlayedCard: &preservesPlayedCard
                     )
+                case .swamp:
+                    stepIndex = pendingPath.count
+                    break
                 case .slow:
                     paralysisTrapPoint = stepPoint
                     stopReason = .slow
@@ -948,6 +1079,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             presentationInitialHP: presentationInitialHP,
             presentationInitialHandStacks: presentationInitialHandStacks,
             presentationInitialCollectedDungeonCardPickupIDs: presentationInitialCollectedDungeonCardPickupIDs,
+            presentationInitialCollectedDungeonRelicPickupIDs: presentationInitialCollectedDungeonRelicPickupIDs,
             presentationInitialEnemyStates: presentationInitialEnemyStates,
             presentationInitialCrackedFloorPoints: presentationInitialCrackedFloorPoints,
             presentationInitialCollapsedFloorPoints: presentationInitialCollapsedFloorPoints,
@@ -984,7 +1116,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             postMoveTileEffect = .discardAllHands
         case .preserveCard:
             preservesPlayedCard = true
-        case .warp, .blast, .slow:
+        case .warp, .blast, .slow, .swamp:
             break
         }
     }
@@ -1141,6 +1273,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         // 引数が未指定の場合は現在の GameCore 状態を採用する
         let referenceHandStacks = handStacksOverride ?? handStacks
         guard let origin = currentOverride ?? current else { return [] }
+        guard board.effect(at: origin) != .swamp else { return [] }
 
         // 盤面境界を参照するためローカル変数として保持しておく
         let activeBoard = board
@@ -1280,6 +1413,8 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         elapsedSeconds = 0
         dungeonHP = mode.dungeonRules?.failureRule.initialHP ?? 0
         hazardDamageMitigationsRemaining = mode.dungeonMetadataSnapshot?.runState?.hazardDamageMitigationsRemaining ?? 0
+        enemyDamageMitigationsRemaining = mode.dungeonMetadataSnapshot?.runState?.enemyDamageMitigationsRemaining ?? 0
+        markerDamageMitigationsRemaining = mode.dungeonMetadataSnapshot?.runState?.markerDamageMitigationsRemaining ?? 0
         enemyStates = mode.dungeonRules?.enemies.map(EnemyState.init(definition:)) ?? []
         let currentFloorIndex = mode.dungeonMetadataSnapshot?.runState?.currentFloorIndex ?? 0
         crackedFloorPoints = mode.dungeonMetadataSnapshot?.runState?.crackedFloorPoints(for: currentFloorIndex) ?? []
@@ -1287,6 +1422,8 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         consumedHealingTilePoints = []
         dungeonInventoryEntries = mode.dungeonMetadataSnapshot?.runState?.rewardInventoryEntries ?? []
         collectedDungeonCardPickupIDs = []
+        dungeonRelicEntries = mode.dungeonMetadataSnapshot?.runState?.relicEntries ?? []
+        collectedDungeonRelicPickupIDs = mode.dungeonMetadataSnapshot?.runState?.collectedDungeonRelicPickupIDs ?? []
         pendingDungeonPickupChoice = nil
         isDungeonExitUnlocked = mode.dungeonRules?.exitLock == nil
         dungeonExitUnlockEvent = nil
@@ -1296,6 +1433,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         boardTapPlayRequest = nil
         boardTapBasicMoveRequest = nil
         isAwaitingManualDiscardSelection = false
+        pendingTargetedSupportCard = nil
         lastMovementResolution = nil
         progress = mode.requiresSpawnSelection ? .awaitingSpawn : .playing
 
@@ -1443,7 +1581,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         collectedDungeonCardPickupIDs.insert(choice.pickup.id)
         pendingDungeonPickupChoice = nil
         syncDungeonInventoryHandStacks()
-        debugLog("満杯拾得カードを取得せず破棄: \(choice.pickup.card.displayName) @\(choice.pickup.point)")
+        debugLog("満杯拾得カードを取得せず破棄: \(choice.pickup.playable.displayName) @\(choice.pickup.point)")
         return true
     }
 
@@ -1457,14 +1595,14 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
 
         dungeonInventoryEntries.removeAll { $0.playable == playable }
         pendingDungeonPickupChoice = nil
-        let didAdd = addDungeonInventoryCard(choice.pickup.card, pickupUses: choice.pickup.uses)
+        let didAdd = addDungeonInventoryPlayable(choice.pickup.playable, pickupUses: choice.pickup.uses)
         guard didAdd else {
             syncDungeonInventoryHandStacks()
             return false
         }
 
         collectedDungeonCardPickupIDs.insert(choice.pickup.id)
-        debugLog("満杯拾得カードを取得: \(choice.pickup.card.displayName), 破棄=\(playable.displayName)")
+        debugLog("満杯拾得カードを取得: \(choice.pickup.playable.displayName), 破棄=\(playable.displayName)")
         return true
     }
 
@@ -1486,17 +1624,64 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
     }
 
     @discardableResult
+    private func collectDungeonRelicPickup(at point: GridPoint) -> Bool {
+        guard let pickup = activeDungeonRelicPickups.first(where: { $0.point == point }) else { return false }
+        return collectDungeonRelicPickupDefinition(pickup)
+    }
+
+    @discardableResult
     private func collectDungeonCardPickupDefinition(_ pickup: DungeonCardPickupDefinition) -> Bool {
         guard usesDungeonInventoryCards else { return false }
         guard pendingDungeonPickupChoice == nil else { return false }
-        if addDungeonInventoryCard(pickup.card, pickupUses: pickup.uses) {
+        if addDungeonInventoryPlayable(pickup.playable, pickupUses: pickup.uses) {
             collectedDungeonCardPickupIDs.insert(pickup.id)
-            debugLog("拾得カードを取得: \(pickup.card.displayName) 残り+\(pickup.uses) @\(pickup.point)")
+            debugLog("拾得カードを取得: \(pickup.playable.displayName) 残り+\(pickup.uses) @\(pickup.point)")
         } else if beginPendingDungeonPickupChoiceIfNeeded(for: pickup) {
             return false
         }
         syncDungeonInventoryHandStacks()
         return true
+    }
+
+    @discardableResult
+    private func collectDungeonRelicPickupDefinition(_ pickup: DungeonRelicPickupDefinition) -> Bool {
+        guard mode.dungeonRules?.difficulty == .growth else { return false }
+        guard !collectedDungeonRelicPickupIDs.contains(pickup.id) else { return false }
+        collectedDungeonRelicPickupIDs.insert(pickup.id)
+
+        let ownedRelics = Set(dungeonRelicEntries.map(\.relicID))
+        let candidates = pickup.candidateRelics.filter { !ownedRelics.contains($0) }
+        guard let relicID = selectedRelicID(from: candidates, pickupID: pickup.id) else {
+            debugLog("宝箱は空でした: \(pickup.id) @\(pickup.point)")
+            return true
+        }
+
+        dungeonRelicEntries.append(DungeonRelicEntry(relicID: relicID))
+        applyImmediateDungeonRelicEffect(relicID)
+        debugLog("遺物を取得: \(relicID.displayName) @\(pickup.point)")
+        return true
+    }
+
+    private func selectedRelicID(from candidates: [DungeonRelicID], pickupID: String) -> DungeonRelicID? {
+        guard !candidates.isEmpty else { return nil }
+        var seed = mode.dungeonMetadataSnapshot?.runState?.cardVariationSeed ?? mode.deckSeed ?? 1
+        seed ^= UInt64(max(moveCount, 0) + 1) &* 0x9E37_79B9_7F4A_7C15
+        for scalar in pickupID.unicodeScalars {
+            seed = seed &* 1099511628211 &+ UInt64(scalar.value)
+        }
+        var generator = DungeonRefillRandomGenerator(seed: seed)
+        return candidates[Int(generator.next() % UInt64(candidates.count))]
+    }
+
+    private func applyImmediateDungeonRelicEffect(_ relicID: DungeonRelicID) {
+        switch relicID {
+        case .crackedShield:
+            dungeonHP = max(dungeonHP - 1, 1)
+        case .glowingHeart:
+            dungeonHP += 2
+        case .heavyCrown, .oldMap, .blackFeather, .chippedHourglass:
+            break
+        }
     }
 
     private func movementPresentationStep(
@@ -1509,6 +1694,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             hpAfter: dungeonHP,
             handStacksAfter: handStacks,
             collectedDungeonCardPickupIDsAfter: collectedDungeonCardPickupIDs,
+            collectedDungeonRelicPickupIDsAfter: collectedDungeonRelicPickupIDs,
             enemyStatesAfter: enemyStates,
             crackedFloorPointsAfter: crackedFloorPoints,
             collapsedFloorPointsAfter: collapsedFloorPoints,
@@ -1538,7 +1724,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
     private func beginPendingDungeonPickupChoiceIfNeeded(for pickup: DungeonCardPickupDefinition) -> Bool {
         let liveEntries = Array(dungeonInventoryEntries.filter(\.hasUsesRemaining).prefix(9))
         guard liveEntries.count >= 9,
-              !liveEntries.contains(where: { $0.moveCard == pickup.card })
+              !liveEntries.contains(where: { $0.playable == pickup.playable })
         else { return false }
 
         pendingDungeonPickupChoice = PendingDungeonPickupChoice(
@@ -1548,7 +1734,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         isAwaitingManualDiscardSelection = false
         boardTapPlayRequest = nil
         boardTapBasicMoveRequest = nil
-        debugLog("満杯のため拾得カード選択待ち: \(pickup.card.displayName) @\(pickup.point)")
+        debugLog("満杯のため拾得カード選択待ち: \(pickup.playable.displayName) @\(pickup.point)")
         return true
     }
 
@@ -1690,8 +1876,9 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                 if consumeDungeonHazardDamageMitigation() {
                     debugLog("罠ダメージを成長効果で無効化: \(point), 残り=\(hazardDamageMitigationsRemaining)")
                 } else {
-                    dungeonHP = max(dungeonHP - appliedDamage, 0)
-                    debugLog("罠を踏みました: \(point), -\(appliedDamage), HP=\(dungeonHP)")
+                    let finalDamage = applyRelicDamageReductionIfNeeded(to: appliedDamage)
+                    dungeonHP = max(dungeonHP - finalDamage, 0)
+                    debugLog("罠を踏みました: \(point), -\(finalDamage), HP=\(dungeonHP)")
                 }
                 if shouldFailDungeonRun() {
                     finalizeElapsedTimeIfNeeded()
@@ -1716,6 +1903,40 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
               hazardDamageMitigationsRemaining > 0
         else { return false }
         hazardDamageMitigationsRemaining -= 1
+        return true
+    }
+
+    private func hasDungeonRelic(_ relicID: DungeonRelicID) -> Bool {
+        dungeonRelicEntries.contains { $0.relicID == relicID }
+    }
+
+    private func consumeDungeonRelicUse(_ relicID: DungeonRelicID) -> Bool {
+        guard let index = dungeonRelicEntries.firstIndex(where: { $0.relicID == relicID && $0.remainingUses > 0 }) else {
+            return false
+        }
+        dungeonRelicEntries[index].remainingUses -= 1
+        return true
+    }
+
+    private func applyRelicDamageReductionIfNeeded(to damage: Int) -> Int {
+        guard damage > 0 else { return 0 }
+        guard consumeDungeonRelicUse(.crackedShield) else { return damage }
+        return max(damage - 1, 0)
+    }
+
+    private func consumeDungeonEnemyDamageMitigation() -> Bool {
+        guard mode.dungeonRules?.difficulty == .growth,
+              enemyDamageMitigationsRemaining > 0
+        else { return false }
+        enemyDamageMitigationsRemaining -= 1
+        return true
+    }
+
+    private func consumeDungeonMarkerDamageMitigation() -> Bool {
+        guard mode.dungeonRules?.difficulty == .growth,
+              markerDamageMitigationsRemaining > 0
+        else { return false }
+        markerDamageMitigationsRemaining -= 1
         return true
     }
 
@@ -1772,10 +1993,16 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
 
     @discardableResult
     private func triggerDungeonFall(at point: GridPoint) -> Bool {
+        if consumeDungeonRelicUse(.blackFeather) {
+            dungeonHP = max(dungeonHP - 1, 1)
+            debugLog("黒い羽根で落下を無効化: \(point), HP=\(dungeonHP)")
+            return false
+        }
         if consumeDungeonHazardDamageMitigation() {
             debugLog("床崩落ダメージを成長効果で無効化: \(point), HP=\(dungeonHP), 残り=\(hazardDamageMitigationsRemaining)")
         } else {
-            dungeonHP = max(dungeonHP - 1, 0)
+            let finalDamage = applyRelicDamageReductionIfNeeded(to: 1)
+            dungeonHP = max(dungeonHP - finalDamage, 0)
             debugLog("床崩落で下階へ落下: \(point), HP=\(dungeonHP)")
         }
         if dungeonHP <= 0 {
@@ -2031,32 +2258,51 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
     @discardableResult
     private func applyDungeonEnemyDamageIfNeeded(markerDamagePoints: Set<GridPoint>) -> Int {
         guard mode.usesDungeonExit, let current else { return 0 }
-        let totalDamage = dungeonEnemyDamage(
+        let damage = dungeonEnemyDamage(
             at: current,
             markerDamagePoints: markerDamagePoints,
             includesContact: true,
             includesMarkerWarning: true
         )
-
+        var totalDamage = damage.enemy + damage.marker
         guard totalDamage > 0 else { return 0 }
-        dungeonHP = max(dungeonHP - totalDamage, 0)
-        debugLog("敵の攻撃を受けました: -\(totalDamage), HP=\(dungeonHP)")
-        return totalDamage
+
+        if damage.enemy > 0, consumeDungeonEnemyDamageMitigation() {
+            totalDamage -= damage.enemy
+            debugLog("敵ダメージを成長効果で無効化: -\(damage.enemy), 残り=\(enemyDamageMitigationsRemaining)")
+        }
+        if damage.marker > 0, consumeDungeonMarkerDamageMitigation() {
+            totalDamage -= damage.marker
+            debugLog("メテオ着弾ダメージを成長効果で無効化: -\(damage.marker), 残り=\(markerDamageMitigationsRemaining)")
+        }
+
+        let finalDamage = applyRelicDamageReductionIfNeeded(to: totalDamage)
+        guard finalDamage > 0 else { return 0 }
+        dungeonHP = max(dungeonHP - finalDamage, 0)
+        debugLog("敵の攻撃を受けました: -\(finalDamage), HP=\(dungeonHP)")
+        return finalDamage
     }
 
     @discardableResult
     private func applyDungeonEnemyDangerDamageIfNeeded(at point: GridPoint) -> Bool {
         guard mode.usesDungeonExit else { return false }
-        let totalDamage = dungeonEnemyDamage(
+        let damage = dungeonEnemyDamage(
             at: point,
             markerDamagePoints: [],
             includesContact: false,
             includesMarkerWarning: false
         )
+        var totalDamage = damage.enemy + damage.marker
 
         guard totalDamage > 0 else { return false }
-        dungeonHP = max(dungeonHP - totalDamage, 0)
-        debugLog("敵の攻撃範囲を通過しました: \(point), -\(totalDamage), HP=\(dungeonHP)")
+        if damage.enemy > 0, consumeDungeonEnemyDamageMitigation() {
+            totalDamage -= damage.enemy
+            debugLog("敵の攻撃範囲通過ダメージを成長効果で無効化: \(point), 残り=\(enemyDamageMitigationsRemaining)")
+        }
+        let finalDamage = applyRelicDamageReductionIfNeeded(to: totalDamage)
+        guard finalDamage > 0 else { return false }
+        dungeonHP = max(dungeonHP - finalDamage, 0)
+        debugLog("敵の攻撃範囲を通過しました: \(point), -\(finalDamage), HP=\(dungeonHP)")
         if shouldFailDungeonRun() {
             finalizeElapsedTimeIfNeeded()
             progress = .failed
@@ -2070,19 +2316,20 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         markerDamagePoints: Set<GridPoint>,
         includesContact: Bool,
         includesMarkerWarning: Bool
-    ) -> Int {
-        var totalDamage = 0
+    ) -> (enemy: Int, marker: Int) {
+        var enemyDamage = 0
+        var markerDamage = 0
 
         for enemy in enemyStates {
             if enemyDangerPoints(for: enemy).contains(point) {
-                totalDamage += enemy.damage
+                enemyDamage += enemy.damage
             } else if includesContact, enemy.position == point {
-                totalDamage += enemy.damage
+                enemyDamage += enemy.damage
             } else if includesMarkerWarning, case .marker = enemy.behavior, markerDamagePoints.contains(point) {
-                totalDamage += enemy.damage
+                markerDamage += enemy.damage
             }
         }
-        return totalDamage
+        return (enemyDamage, markerDamage)
     }
 
     private func dungeonEnemyTurnPhase(
@@ -2398,7 +2645,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         let rawPath = move.path
         guard rawPath.count == 1,
               let moveCard = move.card.moveCard,
-              shouldExpandForSlowTileResolution(moveCard),
+              shouldExpandForMovementStoppingTileResolution(moveCard),
               let destination = rawPath.first
         else { return rawPath }
 
@@ -2412,13 +2659,13 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             expanded.append(current)
         }
 
-        let hasIntermediateSlowTile = expanded.dropLast().contains { point in
-            board.effect(at: point) == .slow
+        let hasIntermediateStoppingTile = expanded.dropLast().contains { point in
+            board.effect(at: point)?.stopsMovementCard == true
         }
-        return hasIntermediateSlowTile ? expanded : rawPath
+        return hasIntermediateStoppingTile ? expanded : rawPath
     }
 
-    private func shouldExpandForSlowTileResolution(_ move: MoveCard) -> Bool {
+    private func shouldExpandForMovementStoppingTileResolution(_ move: MoveCard) -> Bool {
         switch move {
         case .straightUp2,
              .straightDown2,
@@ -2454,6 +2701,11 @@ extension GameCore: GameCoreProtocol {
 
         // デバッグログ: タップされたマスを表示
         debugLog("マス \(point) をタップ")
+
+        if pendingTargetedSupportCard != nil {
+            _ = playTargetedSupportCard(at: point)
+            return
+        }
 
         // 基本移動で届くマスはカードより先に扱い、カード消費なしの移動を優先する
         if let basicMove = availableBasicOrthogonalMoves().first(where: { $0.destination == point }) {
@@ -2525,6 +2777,7 @@ extension GameCore {
     func resetBoardTapPlayRequestForPenalty() {
         boardTapPlayRequest = nil
         boardTapBasicMoveRequest = nil
+        pendingTargetedSupportCard = nil
     }
 
     /// ペナルティ手数を加算する処理を共通化する
@@ -2590,6 +2843,8 @@ extension GameCore {
         core.hasRevisitedTile = false
         core.dungeonHP = mode.dungeonRules?.failureRule.initialHP ?? 0
         core.hazardDamageMitigationsRemaining = mode.dungeonMetadataSnapshot?.runState?.hazardDamageMitigationsRemaining ?? 0
+        core.enemyDamageMitigationsRemaining = mode.dungeonMetadataSnapshot?.runState?.enemyDamageMitigationsRemaining ?? 0
+        core.markerDamageMitigationsRemaining = mode.dungeonMetadataSnapshot?.runState?.markerDamageMitigationsRemaining ?? 0
         core.enemyStates = mode.dungeonRules?.enemies.map(EnemyState.init(definition:)) ?? []
         let currentFloorIndex = mode.dungeonMetadataSnapshot?.runState?.currentFloorIndex ?? 0
         core.crackedFloorPoints = mode.dungeonMetadataSnapshot?.runState?.crackedFloorPoints(for: currentFloorIndex) ?? []
@@ -2599,6 +2854,7 @@ extension GameCore {
         core.dungeonExitUnlockEvent = nil
         core.dungeonFallEvent = nil
         core.dungeonEnemyTurnEvent = nil
+        core.pendingTargetedSupportCard = nil
         core.progress = (resolvedCurrent == nil && mode.requiresSpawnSelection) ? .awaitingSpawn : .playing
 
         if core.usesDungeonInventoryCards {
@@ -2650,6 +2906,15 @@ extension GameCore {
         rewardUses: Int = 0
     ) -> Bool {
         addDungeonInventoryCard(card, pickupUses: pickupUses, rewardUses: rewardUses)
+    }
+
+    @discardableResult
+    func addDungeonInventorySupportCardForTesting(
+        _ support: SupportCard,
+        pickupUses: Int = 0,
+        rewardUses: Int = 0
+    ) -> Bool {
+        addDungeonInventorySupportCard(support, pickupUses: pickupUses, rewardUses: rewardUses)
     }
 
     /// テスト用にダンジョン HP を直接差し替える

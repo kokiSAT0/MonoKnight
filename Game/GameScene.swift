@@ -20,6 +20,7 @@
         case dungeonDanger
         case dungeonEnemyWarning
         case dungeonCardPickup
+        case dungeonRelicPickup
         case dungeonDamageTrap
         case dungeonHealingTile
         case dungeonCrackedFloor

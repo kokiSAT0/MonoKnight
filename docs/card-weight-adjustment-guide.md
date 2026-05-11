@@ -1,36 +1,46 @@
 # 塔カード候補調整ガイド
 
 MonoKnight の現行メインコンテンツは塔ダンジョンのみである。
-カードの出現調整は、旧山札の重み付き抽選ではなく、塔フロアごとの拾得カードとクリア報酬カードの候補を調整して行う。
+カードの出現調整は、旧山札ではなく、成長塔の階層帯ごとの重み付き排出プールで行う。
 
 ## 1. 正本
 
 - 塔の定義は `Game/DungeonDefinition.swift` を正本とする。
 - 通常プレイで選べる塔は `tutorial-tower`、`growth-tower`、`rogue-tower` の3本のみとする。
-- フロア内の拾得カードは `DungeonFloorDefinition.cardPickups` で定義する。
-- フロアクリア後の移動カード報酬は `rewardMoveCardsAfterClear` で定義する。
-- フロアクリア後の補助カード報酬は `rewardSupportCardsAfterClear` で定義する。
+- フロア内の拾得カード数は `DungeonFloorDefinition.cardPickups` で定義し、実際のカード種別は `DungeonWeightedRewardPools` の床拾得プールから解決する。床拾得は移動約90% / 補助約10% / 遺物0% とし、遺物は絶対に混ぜない。
+- フロアクリア後の報酬候補数は `rewardMoveCardsAfterClear` と `rewardSupportCardsAfterClear` の合計で定義し、実際の移動/補助/遺物候補は `DungeonWeightedRewardPools` のクリア報酬プールから解決する。クリア報酬は通常時に移動約89% / 補助約10% / 遺物約1% とする。
+- 低手数クリア時はカテゴリ比率を変える。クリア手数が有効手数上限の70%以下なら移動77% / 補助20% / 遺物3%、50%以下なら移動65% / 補助30% / 遺物5% を使う。
+- 遺物は `DungeonWeightedRewardPoolItem.relic` として同じテーブルへ登録する。床拾得ではカテゴリ比率が0なので出ず、クリア報酬では既に所持している遺物を除外する。
 
 ## 2. 候補変化の仕組み
 
-塔の拾得/報酬カードは、同じフロア構成を保ちながらカード候補だけを軽く変化させられる。
+成長塔の拾得/報酬カードは、同じフロア構成を保ちながら、階層帯、排出種別、カテゴリ比率、カテゴリ内の個別重みから抽選する。
 
 - `DungeonDefinition.resolvedPickups` はフロア内の拾得カード候補を解決する。
-- `DungeonDefinition.resolvedRewardCards` はクリア報酬カード候補を解決する。
-- `variedCards` と `cardAlternatives` は、基準カードから置き換え候補を選ぶ。
-- `DungeonRunState.cardVariationSeed` により、同じラン内では候補変化が安定する。
+- `DungeonDefinition.resolvedRewardCards` は互換用のクリア報酬カード候補を解決する。実際のリザルト候補は `GameViewModel.availableDungeonRewardOffers` が移動/補助/遺物を同じ枠として返す。
+- `DungeonWeightedRewardPools.entries(floorIndex:context:)` は、1-5F、6-10F、11-15F、16-20F ごとの候補と weight を返す。
+- `DungeonWeightedRewardPools.drawUniqueOffers` は category weight と個別 weight の両方を見て抽選し、weight 0 を除外し、同一抽選内で同じ候補を重複させない。
+- `DungeonRunState.cardVariationSeed` により、同じラン内では候補変化が安定する。クリア報酬は seed に加えてクリア手数と手数上限から低手数ボーナス状態を決めるため、同じ seed と同じ手数なら同じ候補になる。
 
-この仕組みは「排出率」そのものではなく、塔フロアに置くカード候補の揺らぎを作るためのものと考える。
+category weight は移動/補助/遺物の大枠比率、個別 weight はカテゴリ内の比率として扱う。補助カードや遺物を追加するときは、原則としてカテゴリ比率は変えず、カテゴリ内の個別 weight だけを調整する。0 は将来用の予約枠や一時停止枠であり、抽選には出ない。
 
-## 3. 配置調整
+## 3. 補助カードと遺物の調整
+
+- 床拾得の補助カードはカードとして拾い、通常カード枠を使い、基本は1回で消費する。
+- 床拾得に遺物を入れたい場合は現行仕様変更になるため、宝箱/クリア報酬側で調整する。
+- クリア報酬の遺物はカード枠を使わず、選択時にラン中の所持遺物へ追加して次フロアへ進む。
+- `報酬の目利き` は同じ階層帯と同じ低手数ボーナス状態の報酬プールから、未提示候補を追加抽選する。
+- `補助の目利き` は11F以降で補助候補を最低1枚混ぜる補正として維持する。候補枠が満杯なら、可能な限り遺物ではなくカード候補を差し替える。
+
+## 4. 配置調整
 
 拾得カードの置き場所は `pickupPositions` と `safePickupPoints` を使う。
 
-- 出口、開始地点、障害物、敵、罠、回復マスなどと競合しない位置を選ぶ。
+- 出口、開始地点、障害物、敵、罠、回復マス、ワープ、宝箱などと競合しない位置を選ぶ。
 - フロアの主要ギミックを壊す位置には置かない。
 - 序盤は基本移動を補うカードを近めに置き、中盤以降はリスクを取る導線に報酬カードを置く。
 
-## 4. `Deck.Configuration` の扱い
+## 5. `Deck.Configuration` の扱い
 
 `Deck.Configuration` は塔本編のカード排出率の正本ではない。
 現在残す用途は次の最小範囲に限る。
@@ -41,10 +51,13 @@ MonoKnight の現行メインコンテンツは塔ダンジョンのみである
 
 新しい塔カードの出現調整は、まず `DungeonDefinition.swift` のフロア定義側へ入れる。
 
-## 5. テスト観点
+## 6. テスト観点
 
 - `swift test` を実行し、Game パッケージ全体が成功すること。
 - `DungeonModeTests` で通常ライブラリが3塔のみを返すことを確認する。
 - `patrol-tower`、`key-door-tower`、`warp-tower`、`trap-tower` が取得できないことを確認する。
 - フロア内の拾得カード、報酬カード、所持カードの使用回数が塔の進行で破綻しないことを確認する。
+- 床拾得に補助カードが出て、遺物が出ないことを確認する。
+- クリア報酬に移動/補助/遺物が同じ候補枠として出て、遺物選択時にカード枠を消費しないことを確認する。
+- 同じ seed と同じ手数では候補が一致し、同じ seed でも低手数クリア時は補助/遺物比率ボーナスが候補抽選へ反映されることを確認する。
 - 旧モード名、旧目的地制、旧デッキプリセットの文言が通常 UI と docs に戻っていないことを検索で確認する。

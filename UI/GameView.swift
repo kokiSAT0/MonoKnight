@@ -215,6 +215,7 @@ struct GameView: View {
                 dungeonRunTotalMoveCount: viewModel.dungeonRunTotalMoveCount,
                 nextDungeonFloorTitle: viewModel.nextDungeonFloorTitle,
                 retryButtonTitle: viewModel.resultRetryButtonTitle,
+                dungeonRewardOffers: viewModel.availableDungeonRewardOffers,
                 dungeonRewardCards: viewModel.availableDungeonRewardCards,
                 dungeonRewardMoveCards: viewModel.availableDungeonRewardMoveCards,
                 dungeonRewardSupportCards: viewModel.availableDungeonRewardSupportCards,

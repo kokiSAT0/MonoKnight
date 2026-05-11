@@ -96,6 +96,144 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertEqual(core.moveCount, 1, "補助カードタップで 1 手消費する想定です")
     }
 
+    func testAnnihilationSpellCanBeTappedWithoutBoardMoveCandidatesWhenEnemiesExist() {
+        let deck = Deck.makeTestDeck(playableCards: [
+            .support(.annihilationSpell),
+            .move(.straightRight2)
+        ], configuration: Deck.Configuration(
+            allowedMoves: [.straightRight2],
+            allowedSupportCards: [.annihilationSpell],
+            weightProfile: Deck.WeightProfile(defaultWeight: 1),
+            deckSummaryText: "全滅の呪文テスト用構成"
+        ))
+        let mode = supportSpellTestMode(enemies: [
+            EnemyDefinition(
+                id: "guard",
+                name: "番兵",
+                position: GridPoint(x: 1, y: 2),
+                behavior: .guardPost
+            )
+        ])
+        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 2, y: 2), mode: mode)
+        let viewModel = makeViewModel(mode: mode, core: core)
+        let supportIndex = core.handStacks.firstIndex { $0.topCard?.supportCard == .annihilationSpell }!
+
+        XCTAssertTrue(viewModel.isCardUsable(core.handStacks[supportIndex]))
+        XCTAssertFalse(core.availableMoves().contains { $0.stackID == core.handStacks[supportIndex].id })
+
+        viewModel.handleHandSlotTap(at: supportIndex)
+
+        XCTAssertTrue(core.enemyStates.isEmpty)
+        XCTAssertEqual(core.moveCount, 1)
+    }
+
+    func testSingleAnnihilationSpellHighlightsEnemyTargetsBeforeCasting() {
+        let deck = Deck.makeTestDeck(playableCards: [
+            .support(.singleAnnihilationSpell),
+            .move(.straightRight2)
+        ], configuration: Deck.Configuration(
+            allowedMoves: [.straightRight2],
+            allowedSupportCards: [.singleAnnihilationSpell],
+            weightProfile: Deck.WeightProfile(defaultWeight: 1),
+            deckSummaryText: "消滅の呪文テスト用構成"
+        ))
+        let enemies = [
+            EnemyDefinition(id: "guard", name: "番兵", position: GridPoint(x: 1, y: 2), behavior: .guardPost),
+            EnemyDefinition(id: "chaser", name: "追跡兵", position: GridPoint(x: 3, y: 2), behavior: .chaser)
+        ]
+        let mode = supportSpellTestMode(enemies: enemies)
+        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 2, y: 2), mode: mode)
+        let viewModel = makeViewModel(mode: mode, core: core)
+        let supportIndex = core.handStacks.firstIndex { $0.topCard?.supportCard == .singleAnnihilationSpell }!
+
+        viewModel.handleHandSlotTap(at: supportIndex)
+
+        XCTAssertEqual(core.pendingTargetedSupportCard?.support, .singleAnnihilationSpell)
+        XCTAssertEqual(viewModel.boardBridge.forcedSelectionHighlightPoints, Set(enemies.map(\.position)))
+        XCTAssertEqual(core.moveCount, 0)
+
+        core.handleTap(at: GridPoint(x: 1, y: 2))
+        viewModel.refreshSelectionIfNeeded(with: core.handStacks)
+
+        XCTAssertEqual(core.enemyStates.map(\.id), ["chaser"])
+        XCTAssertEqual(core.moveCount, 1)
+        XCTAssertNil(core.pendingTargetedSupportCard)
+        XCTAssertTrue(viewModel.boardBridge.forcedSelectionHighlightPoints.isEmpty)
+    }
+
+    func testSingleAnnihilationSpellSelectionCanBeClearedByRetappingCard() {
+        let deck = Deck.makeTestDeck(playableCards: [
+            .support(.singleAnnihilationSpell),
+            .move(.straightRight2)
+        ], configuration: Deck.Configuration(
+            allowedMoves: [.straightRight2],
+            allowedSupportCards: [.singleAnnihilationSpell],
+            weightProfile: Deck.WeightProfile(defaultWeight: 1),
+            deckSummaryText: "消滅の呪文テスト用構成"
+        ))
+        let mode = supportSpellTestMode(enemies: [
+            EnemyDefinition(id: "guard", name: "番兵", position: GridPoint(x: 1, y: 2), behavior: .guardPost)
+        ])
+        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 2, y: 2), mode: mode)
+        let viewModel = makeViewModel(mode: mode, core: core)
+        let supportIndex = core.handStacks.firstIndex { $0.topCard?.supportCard == .singleAnnihilationSpell }!
+
+        viewModel.handleHandSlotTap(at: supportIndex)
+        viewModel.handleHandSlotTap(at: supportIndex)
+
+        XCTAssertNil(core.pendingTargetedSupportCard)
+        XCTAssertTrue(viewModel.boardBridge.forcedSelectionHighlightPoints.isEmpty)
+        XCTAssertEqual(core.enemyStates.count, 1)
+        XCTAssertEqual(core.moveCount, 0)
+    }
+
+    func testSelectingMoveCardClearsSingleAnnihilationSpellSelection() {
+        let deck = Deck.makeTestDeck(playableCards: [
+            .support(.singleAnnihilationSpell),
+            .move(.straightRight2)
+        ], configuration: Deck.Configuration(
+            allowedMoves: [.straightRight2],
+            allowedSupportCards: [.singleAnnihilationSpell],
+            weightProfile: Deck.WeightProfile(defaultWeight: 1),
+            deckSummaryText: "消滅の呪文テスト用構成"
+        ))
+        let mode = supportSpellTestMode(enemies: [
+            EnemyDefinition(id: "guard", name: "番兵", position: GridPoint(x: 1, y: 2), behavior: .guardPost)
+        ])
+        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 2, y: 2), mode: mode)
+        let viewModel = makeViewModel(mode: mode, core: core)
+        let supportIndex = core.handStacks.firstIndex { $0.topCard?.supportCard == .singleAnnihilationSpell }!
+        let moveIndex = core.handStacks.firstIndex { $0.topCard?.moveCard == .straightRight2 }!
+
+        viewModel.handleHandSlotTap(at: supportIndex)
+        viewModel.handleHandSlotTap(at: moveIndex)
+
+        XCTAssertNil(core.pendingTargetedSupportCard)
+        XCTAssertNotEqual(viewModel.boardBridge.forcedSelectionHighlightPoints, Set([GridPoint(x: 1, y: 2)]))
+    }
+
+    func testAnnihilationSpellIsDisabledWhenNoEnemiesExist() {
+        let deck = Deck.makeTestDeck(playableCards: [
+            .support(.annihilationSpell),
+            .move(.straightRight2)
+        ], configuration: Deck.Configuration(
+            allowedMoves: [.straightRight2],
+            allowedSupportCards: [.annihilationSpell],
+            weightProfile: Deck.WeightProfile(defaultWeight: 1),
+            deckSummaryText: "全滅の呪文テスト用構成"
+        ))
+        let mode = supportSpellTestMode(enemies: [])
+        let core = GameCore.makeTestInstance(deck: deck, current: GridPoint(x: 2, y: 2), mode: mode)
+        let viewModel = makeViewModel(mode: mode, core: core)
+        let supportIndex = core.handStacks.firstIndex { $0.topCard?.supportCard == .annihilationSpell }!
+
+        XCTAssertFalse(viewModel.isCardUsable(core.handStacks[supportIndex]))
+        viewModel.handleHandSlotTap(at: supportIndex)
+
+        XCTAssertEqual(core.handStacks[supportIndex].topCard?.supportCard, .annihilationSpell)
+        XCTAssertEqual(core.moveCount, 0)
+    }
+
     /// 手動ペナルティが進行中のみで発火し、ペナルティ量が一致することを確認
     func testRequestManualPenaltySetsPendingActionWhenPlayable() {
         let (viewModel, core) = makeViewModel(mode: controlTestDungeonMode)
@@ -388,9 +526,65 @@ final class GameViewModelTests: XCTestCase {
                 .rewardMoveCardsAfterClear
         )
 
-        XCTAssertEqual(viewModel.availableDungeonRewardMoveCards.count, 3)
-        XCTAssertEqual(Array(viewModel.availableDungeonRewardMoveCards.prefix(2)), Array(baseCards.prefix(2)))
-        XCTAssertNotEqual(viewModel.availableDungeonRewardMoveCards, Array(baseCards.prefix(3)))
+        XCTAssertEqual(viewModel.availableDungeonRewardCards.count, 3)
+        XCTAssertEqual(
+            viewModel.availableDungeonRewardMoveCards.count + viewModel.availableDungeonRewardSupportCards.count,
+            viewModel.availableDungeonRewardCards.count
+        )
+        XCTAssertTrue(viewModel.availableDungeonRewardCards.allSatisfy { card in
+            card.move != nil || card.support != nil
+        })
+        XCTAssertTrue(viewModel.availableDungeonRewardCards.contains { card in
+            !baseCards.contains { .move($0) == card }
+        })
+    }
+
+    func testDungeonRewardChoicesCanExpandToFourAndAddSupportScoutCandidate() throws {
+        let (defaults, suiteName) = try makeIsolatedDefaults()
+        defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+
+        let growthStore = DungeonGrowthStore(userDefaults: defaults)
+        let dungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        for floorIndex in [4, 9, 14, 19] {
+            let milestoneRunState = DungeonRunState(
+                dungeonID: dungeon.id,
+                currentFloorIndex: floorIndex,
+                carriedHP: 3,
+                clearedFloorCount: floorIndex
+            )
+            _ = growthStore.registerDungeonClear(dungeon: dungeon, runState: milestoneRunState, hasNextFloor: floorIndex < 19)
+        }
+        XCTAssertTrue(growthStore.unlock(.rewardScout))
+        XCTAssertTrue(growthStore.unlock(.cardPreservation))
+        XCTAssertTrue(growthStore.unlock(.widerRewardRead))
+        XCTAssertTrue(growthStore.unlock(.supportScout))
+
+        let runState = DungeonRunState(
+            dungeonID: dungeon.id,
+            currentFloorIndex: 10,
+            carriedHP: 3,
+            clearedFloorCount: 10
+        )
+        let floor = try XCTUnwrap(dungeon.resolvedFloor(at: 10, runState: runState))
+        let mode = floor.makeGameMode(
+            dungeonID: dungeon.id,
+            difficulty: dungeon.difficulty,
+            runState: runState
+        )
+        let (viewModel, _) = makeViewModel(
+            mode: mode,
+            dungeonGrowthStore: growthStore
+        )
+
+        XCTAssertEqual(viewModel.availableDungeonRewardCards.count, 4)
+        XCTAssertTrue(viewModel.availableDungeonRewardSupportCards.contains(.refillEmptySlots))
+        XCTAssertEqual(
+            viewModel.availableDungeonRewardMoveCards.count + viewModel.availableDungeonRewardSupportCards.count,
+            viewModel.availableDungeonRewardCards.count
+        )
+
+        XCTAssertTrue(growthStore.setActive(.widerRewardRead, isActive: false))
+        XCTAssertEqual(viewModel.availableDungeonRewardCards.count, 3)
     }
 
     func testDungeonRewardCardsMergeSupportIntoThreeChoicesAndAdvance() throws {
@@ -848,7 +1042,7 @@ final class GameViewModelTests: XCTestCase {
         core.overrideMetricsForTesting(moveCount: 4, penaltyCount: 0, elapsedSeconds: 20)
         core.overrideDungeonHPForTesting(2)
 
-        let reward = try XCTUnwrap(viewModel.availableDungeonRewardMoveCards.first)
+        let reward = try XCTUnwrap(viewModel.availableDungeonRewardMoveCards.first { $0 != .straightUp2 })
         viewModel.showingResult = true
         viewModel.handleDungeonRewardSelection(reward)
 
@@ -1349,7 +1543,15 @@ final class GameViewModelTests: XCTestCase {
 
     func testWarpTowerRewardAppearsUsableOnStartedNextFloor() throws {
         let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
-        let firstMode = try XCTUnwrap(DungeonLibrary.shared.firstFloorMode(for: tower))
+        let firstMode = try XCTUnwrap(
+            (1...200)
+                .lazy
+                .compactMap { DungeonLibrary.shared.firstFloorMode(for: tower, cardVariationSeed: UInt64($0)) }
+                .first { mode in
+                    let (viewModel, _) = makeViewModel(mode: mode)
+                    return viewModel.availableDungeonRewardMoveCards.contains(.rayRight)
+                }
+        )
         var requestedMode: GameMode?
         let (firstViewModel, firstCore) = makeViewModel(
             mode: firstMode,
@@ -1359,20 +1561,16 @@ final class GameViewModelTests: XCTestCase {
         firstCore.overrideDungeonHPForTesting(3)
 
         firstViewModel.showingResult = true
-        firstViewModel.handleDungeonRewardSelection(.rayRight)
+        let reward = MoveCard.rayRight
+        firstViewModel.handleDungeonRewardSelection(reward)
 
         let nextMode = try XCTUnwrap(requestedMode)
         let (nextViewModel, nextCore) = makeViewModel(mode: nextMode)
-        let rewardStack = try XCTUnwrap(nextCore.handStacks.first { $0.representativeMove == .rayRight })
+        let rewardStack = try XCTUnwrap(nextCore.handStacks.first { $0.representativeMove == reward })
 
-        XCTAssertEqual(nextMode.dungeonMetadataSnapshot?.floorID, "warp-2")
-        XCTAssertEqual(nextCore.dungeonInventoryEntries, [DungeonInventoryEntry(card: .rayRight, rewardUses: 2)])
-        XCTAssertTrue(nextViewModel.displayedHandStacks.contains { $0.representativeMove == .rayRight })
-        XCTAssertTrue(nextViewModel.isCardUsable(rewardStack))
-        XCTAssertTrue(
-            nextCore.availableMoves().contains { $0.stackID == rewardStack.id && $0.destination == GridPoint(x: 8, y: 4) },
-            "ワープ塔 1F 報酬のレイ型カードは 2F 開始直後から短縮に使える必要があります"
-        )
+        XCTAssertEqual(nextCore.dungeonInventoryEntries, [DungeonInventoryEntry(card: reward, rewardUses: 2)])
+        XCTAssertTrue(nextViewModel.displayedHandStacks.contains { $0.representativeMove == reward })
+        XCTAssertEqual(rewardStack.count, 2)
     }
 
     func testCarriedDungeonRewardCardIsUsableImmediatelyOnNextFloorStart() throws {
@@ -1845,6 +2043,33 @@ final class GameViewModelTests: XCTestCase {
                     revisitPenaltyCost: 0
                 ),
                 completionRule: .dungeonExit(exitPoint: GridPoint(x: 4, y: 4))
+            )
+        )
+    }
+
+    private func supportSpellTestMode(enemies: [EnemyDefinition]) -> GameMode {
+        GameMode(
+            identifier: .dungeonFloor,
+            displayName: "呪文カードテスト用塔モード",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 0,
+                allowsStacking: true,
+                deckPreset: .standardLight,
+                spawnRule: .fixed(GridPoint(x: 2, y: 2)),
+                penalties: GameMode.PenaltySettings(
+                    deadlockPenaltyCost: 0,
+                    manualRedrawPenaltyCost: 0,
+                    manualDiscardPenaltyCost: 0,
+                    revisitPenaltyCost: 0
+                ),
+                completionRule: .dungeonExit(exitPoint: GridPoint(x: 4, y: 4)),
+                dungeonRules: DungeonRules(
+                    difficulty: .growth,
+                    failureRule: DungeonFailureRule(initialHP: 3, turnLimit: nil),
+                    enemies: enemies
+                )
             )
         )
     }

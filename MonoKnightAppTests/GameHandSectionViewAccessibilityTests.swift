@@ -11,7 +11,26 @@ final class GameHandSectionViewAccessibilityTests: XCTestCase {
 
     /// 複数候補カードの手札ヒントに方向選択の案内が含まれることを確認する
     func testHandSlotHintAnnouncesMultipleDirectionChoice() {
-        let core = GameCore(mode: .dungeonPlaceholder)
+        let mode = GameMode(
+            identifier: .dungeonFloor,
+            displayName: "手札表示テスト用モード",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 0,
+                allowsStacking: true,
+                deckPreset: .standardLight,
+                spawnRule: .fixed(GridPoint(x: 2, y: 2)),
+                penalties: GameMode.PenaltySettings(
+                    deadlockPenaltyCost: 5,
+                    manualRedrawPenaltyCost: 3,
+                    manualDiscardPenaltyCost: 1,
+                    revisitPenaltyCost: 0
+                ),
+                completionRule: .dungeonExit(exitPoint: GridPoint(x: 4, y: 4))
+            )
+        )
+        let core = GameCore(mode: mode)
         guard let stack = core.handStacks.first, let topCard = stack.topCard else {
             XCTFail("初期手札の取得に失敗しました")
             return
@@ -26,7 +45,7 @@ final class GameHandSectionViewAccessibilityTests: XCTestCase {
 
         let interfaces = GameModuleInterfaces { _ in core }
         let viewModel = GameViewModel(
-            mode: .dungeonPlaceholder,
+            mode: mode,
             gameInterfaces: interfaces,
             gameCenterService: NoopGameCenterService(),
             adsService: NoopAdsService(),
@@ -115,6 +134,21 @@ final class GameHandSectionViewAccessibilityTests: XCTestCase {
             "ダブルタップで 右2 をすべて捨て、拾ったカードを取得します。"
         )
         XCTAssertEqual(GameHandSectionView.handSlotAccessibilityIdentifier(for: 0), "hand_slot_0")
+    }
+
+    func testDungeonRelicAccessibilityTextUsesRelicDetails() {
+        let relic = DungeonRelicEntry(relicID: .crackedShield)
+
+        XCTAssertEqual(
+            GameHandSectionView.dungeonRelicAccessibilityIdentifier(for: relic),
+            "dungeon_relic_crackedShield"
+        )
+        XCTAssertEqual(
+            GameHandSectionView.dungeonRelicAccessibilityLabel(for: relic),
+            "遺物、割れた盾"
+        )
+        XCTAssertTrue(GameHandSectionView.dungeonRelicAccessibilityHint(for: relic).contains("次に受けるダメージ"))
+        XCTAssertTrue(GameHandSectionView.dungeonRelicAccessibilityHint(for: relic).contains("取得時にHPが1減る"))
     }
 }
 

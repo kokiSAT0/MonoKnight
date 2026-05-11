@@ -333,6 +333,10 @@ private struct SupportCardEncyclopediaRow: View {
         switch entry.card {
         case .refillEmptySlots:
             return "square.grid.3x3.fill"
+        case .singleAnnihilationSpell:
+            return "sparkle.magnifyingglass"
+        case .annihilationSpell:
+            return "sparkles"
         }
     }
 }
@@ -748,6 +752,22 @@ private struct TileEffectMarkerView: View {
                     .rotationEffect(.degrees(162))
                     .offset(x: 12, y: 1)
             }
+        case .swamp:
+            ZStack {
+                Capsule()
+                    .fill(accent.opacity(0.28))
+                    .overlay(Capsule().stroke(accent.opacity(0.86), lineWidth: 2))
+                    .frame(width: 34, height: 21)
+                    .rotationEffect(.degrees(-5))
+                Capsule()
+                    .stroke(accent.opacity(0.72), lineWidth: 1.8)
+                    .frame(width: 17, height: 7)
+                    .offset(x: -5, y: -1)
+                Capsule()
+                    .stroke(accent.opacity(0.58), lineWidth: 1.5)
+                    .frame(width: 14, height: 5)
+                    .offset(x: 9, y: 4)
+            }
         case .preserveCard:
             ZStack {
                 RoundedRectangle(cornerRadius: 2, style: .continuous)
@@ -790,6 +810,8 @@ private struct TileEffectMarkerView: View {
             return theme.boardTileEffectBlast
         case .slow:
             return theme.boardTileEffectSlow
+        case .swamp:
+            return theme.boardTileEffectSwamp
         case .preserveCard:
             return theme.boardTileEffectPreserveCard
         case .discardRandomHand, .discardAllHands:
