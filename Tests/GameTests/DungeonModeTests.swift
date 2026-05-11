@@ -106,6 +106,126 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertTrue(advanced.relicEntries.contains { $0.relicID == .heavyCrown })
     }
 
+    func testSuspiciousRelicPickupCanGrantCurse() throws {
+        let pickup = DungeonRelicPickupDefinition(
+            id: "test-deep-0",
+            point: GridPoint(x: 0, y: 1),
+            kind: .suspiciousDeep,
+            candidateCurses: [.rustyChain]
+        )
+        let runState = DungeonRunState(dungeonID: "growth-tower", carriedHP: 3)
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 3,
+            turnLimit: 8,
+            allowsBasicOrthogonalMove: true,
+            cardAcquisitionMode: .inventoryOnly,
+            relicPickups: [pickup],
+            runState: runState
+        )
+        let core = makeCore(mode: mode)
+
+        playBasicMove(to: pickup.point, in: core)
+
+        XCTAssertEqual(core.dungeonCurseEntries.map(\.curseID), [.rustyChain])
+        XCTAssertEqual(core.effectiveDungeonTurnLimit, 6)
+        XCTAssertTrue(core.collectedDungeonRelicPickupIDs.contains(pickup.id))
+    }
+
+    func testSuspiciousRelicPickupMimicCanFailRun() throws {
+        let pickup = DungeonRelicPickupDefinition(
+            id: "test-deep-33",
+            point: GridPoint(x: 0, y: 1),
+            kind: .suspiciousDeep
+        )
+        let runState = DungeonRunState(dungeonID: "growth-tower", carriedHP: 2)
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 2,
+            turnLimit: 8,
+            allowsBasicOrthogonalMove: true,
+            cardAcquisitionMode: .inventoryOnly,
+            relicPickups: [pickup],
+            runState: runState
+        )
+        let core = makeCore(mode: mode)
+
+        playBasicMove(to: pickup.point, in: core)
+
+        XCTAssertEqual(core.dungeonHP, 0)
+        XCTAssertEqual(core.progress, .failed)
+        XCTAssertTrue(core.collectedDungeonRelicPickupIDs.contains(pickup.id))
+    }
+
+    func testSuspiciousRelicPickupPandoraGrantsRelicAndCurse() throws {
+        let pickup = DungeonRelicPickupDefinition(
+            id: "test-deep-2",
+            point: GridPoint(x: 0, y: 1),
+            kind: .suspiciousDeep,
+            candidateRelics: [.blackFeather],
+            candidateCurses: [.bloodPact]
+        )
+        let runState = DungeonRunState(dungeonID: "growth-tower", carriedHP: 3)
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 3,
+            turnLimit: 8,
+            allowsBasicOrthogonalMove: true,
+            cardAcquisitionMode: .inventoryOnly,
+            relicPickups: [pickup],
+            runState: runState
+        )
+        let core = makeCore(mode: mode)
+
+        playBasicMove(to: pickup.point, in: core)
+
+        XCTAssertEqual(core.dungeonRelicEntries.map(\.relicID), [.blackFeather])
+        XCTAssertEqual(core.dungeonCurseEntries.map(\.curseID), [.bloodPact])
+    }
+
+    func testDungeonCurseEffectsAdjustDamageAndRewardUses() throws {
+        let trapPoint = GridPoint(x: 0, y: 1)
+        let runState = DungeonRunState(
+            dungeonID: "growth-tower",
+            carriedHP: 4,
+            curseEntries: [
+                DungeonCurseEntry(curseID: .thornMark),
+                DungeonCurseEntry(curseID: .bloodPact)
+            ]
+        )
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 4,
+            turnLimit: 8,
+            hazards: [.damageTrap(points: [trapPoint], damage: 1)],
+            allowsBasicOrthogonalMove: true,
+            cardAcquisitionMode: .inventoryOnly,
+            runState: runState
+        )
+        let core = makeCore(mode: mode)
+
+        playBasicMove(to: trapPoint, in: core)
+
+        XCTAssertEqual(core.dungeonHP, 2)
+        XCTAssertEqual(core.dungeonCurseEntries.first { $0.curseID == .thornMark }?.remainingUses, 0)
+
+        let advanced = runState.advancedToNextFloor(
+            carryoverHP: core.dungeonHP,
+            currentFloorMoveCount: core.moveCount,
+            rewardSelection: .add(.straightRight2),
+            currentInventoryEntries: core.dungeonInventoryEntries,
+            currentRelicEntries: core.dungeonRelicEntries,
+            currentCurseEntries: core.dungeonCurseEntries,
+            rewardAddUses: 1
+        )
+        XCTAssertEqual(advanced.rewardInventoryEntries.first?.rewardUses, 1)
+        XCTAssertEqual(advanced.curseEntries.first { $0.curseID == .bloodPact }?.remainingUses, 0)
+    }
+
     func testBlackFeatherPreventsFirstBrittleFloorFall() throws {
         let brittlePoint = GridPoint(x: 0, y: 1)
         let runState = DungeonRunState(

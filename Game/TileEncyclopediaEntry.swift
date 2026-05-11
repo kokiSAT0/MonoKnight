@@ -8,6 +8,7 @@ public enum TileMarkerPreviewKind: Equatable {
     case lockedDungeonExit
     case dungeonKey
     case cardPickup
+    case dungeonRelicPickup
     case damageTrap
     case healingTile
     case brittleFloor
@@ -25,6 +26,9 @@ public struct TileEncyclopediaEntry: Identifiable, Equatable {
     public let category: String
     public let description: String
     public let previewKind: TileMarkerPreviewKind
+    public var encyclopediaDiscoveryID: EncyclopediaDiscoveryID {
+        EncyclopediaDiscoveryID(category: .tile, itemID: id)
+    }
 
     public init(
         id: String,
@@ -83,6 +87,13 @@ public struct TileEncyclopediaEntry: Identifiable, Equatable {
             category: "攻略",
             description: "踏むと追加手数なしで拾えます。未使用分は同じ区間の次の階へ持ち越せます。",
             previewKind: .cardPickup
+        ),
+        TileEncyclopediaEntry(
+            id: "dungeonRelicPickup",
+            displayName: "宝箱",
+            category: "攻略",
+            description: "踏むと遺物やイベントが発生するマスです。カード所持枠は使いません。",
+            previewKind: .dungeonRelicPickup
         ),
         TileEncyclopediaEntry(
             id: "impassable",
@@ -146,6 +157,20 @@ public struct TileEncyclopediaEntry: Identifiable, Equatable {
             category: "特殊効果",
             description: "矢印の方向へ、壁や障害物に当たる直前まで移動します。通ったマスも踏んだ扱いになります。",
             previewKind: .effect(.blast(direction: MoveVector(dx: 1, dy: 0)))
+        ),
+        TileEncyclopediaEntry(
+            id: "shuffleHand",
+            displayName: "手札混乱マス",
+            category: "特殊効果",
+            description: "踏むと手札の並びが入れ替わります。移動先の候補をもう一度確認します。",
+            previewKind: .effect(.shuffleHand)
+        ),
+        TileEncyclopediaEntry(
+            id: "preserveCard",
+            displayName: "カード温存マス",
+            category: "特殊効果",
+            description: "踏むと使ったカードを消費せずに温存します。危険地帯の突破前に使うと手札を保ちやすくなります。",
+            previewKind: .effect(.preserveCard)
         ),
         TileEncyclopediaEntry(
             id: "paralysisTrap",

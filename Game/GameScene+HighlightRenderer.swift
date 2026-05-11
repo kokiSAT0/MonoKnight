@@ -22,6 +22,7 @@
         private var latestDungeonEnemyWarningPoints: Set<GridPoint> = []
         private var latestDungeonCardPickupPoints: Set<GridPoint> = []
         private var latestDungeonRelicPickupPoints: Set<GridPoint> = []
+        private var latestDungeonSuspiciousRelicPickupPoints: Set<GridPoint> = []
         private var latestDungeonDamageTrapPoints: Set<GridPoint> = []
         private var latestDungeonHealingTilePoints: Set<GridPoint> = []
         private var latestDungeonCrackedFloorPoints: Set<GridPoint> = []
@@ -78,6 +79,7 @@
             latestDungeonEnemyWarningPoints = []
             latestDungeonCardPickupPoints = []
             latestDungeonRelicPickupPoints = []
+            latestDungeonSuspiciousRelicPickupPoints = []
             latestDungeonDamageTrapPoints = []
             latestDungeonHealingTilePoints = []
             latestDungeonCrackedFloorPoints = []
@@ -300,6 +302,7 @@
                     .dungeonEnemyWarning: latestDungeonEnemyWarningPoints,
                     .dungeonCardPickup: latestDungeonCardPickupPoints,
                     .dungeonRelicPickup: latestDungeonRelicPickupPoints,
+                    .dungeonSuspiciousRelicPickup: latestDungeonSuspiciousRelicPickupPoints,
                     .dungeonDamageTrap: latestDungeonDamageTrapPoints,
                     .dungeonHealingTile: latestDungeonHealingTilePoints,
                     .dungeonCrackedFloor: latestDungeonCrackedFloorPoints,
@@ -394,6 +397,7 @@
             latestDungeonEnemyWarningPoints = highlights[.dungeonEnemyWarning] ?? []
             latestDungeonCardPickupPoints = highlights[.dungeonCardPickup] ?? []
             latestDungeonRelicPickupPoints = highlights[.dungeonRelicPickup] ?? []
+            latestDungeonSuspiciousRelicPickupPoints = highlights[.dungeonSuspiciousRelicPickup] ?? []
             latestDungeonDamageTrapPoints = highlights[.dungeonDamageTrap] ?? []
             latestDungeonHealingTilePoints = highlights[.dungeonHealingTile] ?? []
             latestDungeonCrackedFloorPoints = highlights[.dungeonCrackedFloor] ?? []
@@ -1002,6 +1006,12 @@
                 strokeWidth = max(layout.tileSize * 0.035, 1.2)
                 fillColor = baseColor.withAlphaComponent(0.82)
                 zPosition = 1.15
+            case .dungeonSuspiciousRelicPickup:
+                baseColor = SKColor(red: 0.82, green: 0.12, blue: 0.12, alpha: 1.0)
+                strokeAlpha = 0.96
+                strokeWidth = max(layout.tileSize * 0.045, 1.4)
+                fillColor = baseColor.withAlphaComponent(0.78)
+                zPosition = 1.155
             case .dungeonDamageTrap:
                 baseColor = SKColor(red: 0.82, green: 0.10, blue: 0.08, alpha: 1.0)
                 strokeAlpha = 0
@@ -1053,6 +1063,7 @@
                 || kind == .dungeonEnemyWarning
                 || kind == .dungeonCardPickup
                 || kind == .dungeonRelicPickup
+                || kind == .dungeonSuspiciousRelicPickup
                 || kind == .dungeonDamageTrap
                 || kind == .dungeonHealingTile
                 || kind == .dungeonCrackedFloor
@@ -1102,6 +1113,8 @@
                 return cardPickupMarkerPath(center: CGPoint(x: rect.midX, y: rect.midY), tileSize: tileSize)
             case .dungeonRelicPickup:
                 return relicPickupMarkerPath(center: CGPoint(x: rect.midX, y: rect.midY), tileSize: tileSize)
+            case .dungeonSuspiciousRelicPickup:
+                return suspiciousRelicPickupMarkerPath(center: CGPoint(x: rect.midX, y: rect.midY), tileSize: tileSize)
             case .dungeonDamageTrap:
                 return damageTrapMarkerPath(center: CGPoint(x: rect.midX, y: rect.midY), tileSize: tileSize)
             case .dungeonHealingTile:
@@ -1274,6 +1287,17 @@
             path.addLine(to: CGPoint(x: center.x - width * 0.10, y: lid.maxY))
             path.move(to: CGPoint(x: center.x + width * 0.10, y: body.minY))
             path.addLine(to: CGPoint(x: center.x + width * 0.10, y: lid.maxY))
+            return path
+        }
+
+        private func suspiciousRelicPickupMarkerPath(center: CGPoint, tileSize: CGFloat) -> CGPath {
+            let path = CGMutablePath()
+            path.addPath(relicPickupMarkerPath(center: center, tileSize: tileSize))
+            let markHeight = tileSize * 0.25
+            path.move(to: CGPoint(x: center.x, y: center.y + markHeight * 0.45))
+            path.addLine(to: CGPoint(x: center.x, y: center.y - markHeight * 0.15))
+            path.move(to: CGPoint(x: center.x, y: center.y - markHeight * 0.34))
+            path.addLine(to: CGPoint(x: center.x, y: center.y - markHeight * 0.36))
             return path
         }
 

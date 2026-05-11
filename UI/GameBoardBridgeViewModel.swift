@@ -428,10 +428,17 @@ final class GameBoardBridgeViewModel: ObservableObject {
                 .filter { !collectedPickupIDs.contains($0.id) }
                 .map(\.point) ?? []
         )
+        let displayedRelicPickups = mode.dungeonRules?.relicPickups
+            .filter { !collectedRelicPickupIDs.contains($0.id) } ?? []
         let displayedRelicPickupPoints = Set(
-            mode.dungeonRules?.relicPickups
-                .filter { !collectedRelicPickupIDs.contains($0.id) }
-                .map(\.point) ?? []
+            displayedRelicPickups
+                .filter { !$0.kind.isSuspicious }
+                .map(\.point)
+        )
+        let displayedSuspiciousRelicPickupPoints = Set(
+            displayedRelicPickups
+                .filter(\.kind.isSuspicious)
+                .map(\.point)
         )
         let displayedCrackedFloorPoints = presentationCrackedFloorPoints ?? core.crackedFloorPoints
         let displayedCollapsedFloorPoints = presentationCollapsedFloorPoints ?? core.collapsedFloorPoints
@@ -451,6 +458,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
             .dungeonEnemyWarning: shouldDeferEnemyThreatHighlights ? [] : displayedEnemyWarningPoints,
             .dungeonCardPickup: displayedCardPickupPoints,
             .dungeonRelicPickup: displayedRelicPickupPoints,
+            .dungeonSuspiciousRelicPickup: displayedSuspiciousRelicPickupPoints,
             .dungeonDamageTrap: core.damageTrapPoints,
             .dungeonHealingTile: core.healingTilePoints,
             .dungeonCrackedFloor: displayedCrackedFloorPoints,

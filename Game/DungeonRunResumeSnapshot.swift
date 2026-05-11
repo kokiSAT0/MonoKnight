@@ -24,6 +24,7 @@ public struct DungeonRunResumeSnapshot: Codable, Equatable {
     public let dungeonInventoryEntries: [DungeonInventoryEntry]
     public let collectedDungeonCardPickupIDs: Set<String>
     public let dungeonRelicEntries: [DungeonRelicEntry]
+    public let dungeonCurseEntries: [DungeonCurseEntry]
     public let collectedDungeonRelicPickupIDs: Set<String>
     public let isDungeonExitUnlocked: Bool
     public let pendingDungeonPickupChoice: PendingDungeonPickupChoice?
@@ -48,6 +49,7 @@ public struct DungeonRunResumeSnapshot: Codable, Equatable {
         dungeonInventoryEntries: [DungeonInventoryEntry],
         collectedDungeonCardPickupIDs: Set<String>,
         dungeonRelicEntries: [DungeonRelicEntry] = [],
+        dungeonCurseEntries: [DungeonCurseEntry] = [],
         collectedDungeonRelicPickupIDs: Set<String> = [],
         isDungeonExitUnlocked: Bool,
         pendingDungeonPickupChoice: PendingDungeonPickupChoice? = nil
@@ -71,6 +73,7 @@ public struct DungeonRunResumeSnapshot: Codable, Equatable {
         self.dungeonInventoryEntries = dungeonInventoryEntries.filter(\.hasUsesRemaining)
         self.collectedDungeonCardPickupIDs = collectedDungeonCardPickupIDs
         self.dungeonRelicEntries = dungeonRelicEntries
+        self.dungeonCurseEntries = dungeonCurseEntries
         self.collectedDungeonRelicPickupIDs = collectedDungeonRelicPickupIDs
         self.isDungeonExitUnlocked = isDungeonExitUnlocked
         self.pendingDungeonPickupChoice = pendingDungeonPickupChoice
@@ -96,6 +99,7 @@ public struct DungeonRunResumeSnapshot: Codable, Equatable {
         case dungeonInventoryEntries
         case collectedDungeonCardPickupIDs
         case dungeonRelicEntries
+        case dungeonCurseEntries
         case collectedDungeonRelicPickupIDs
         case isDungeonExitUnlocked
         case pendingDungeonPickupChoice
@@ -123,6 +127,7 @@ public struct DungeonRunResumeSnapshot: Codable, Equatable {
             dungeonInventoryEntries: try container.decodeIfPresent([DungeonInventoryEntry].self, forKey: .dungeonInventoryEntries) ?? [],
             collectedDungeonCardPickupIDs: try container.decodeIfPresent(Set<String>.self, forKey: .collectedDungeonCardPickupIDs) ?? [],
             dungeonRelicEntries: try container.decodeIfPresent([DungeonRelicEntry].self, forKey: .dungeonRelicEntries) ?? [],
+            dungeonCurseEntries: try container.decodeIfPresent([DungeonCurseEntry].self, forKey: .dungeonCurseEntries) ?? [],
             collectedDungeonRelicPickupIDs: try container.decodeIfPresent(Set<String>.self, forKey: .collectedDungeonRelicPickupIDs) ?? [],
             isDungeonExitUnlocked: try container.decodeIfPresent(Bool.self, forKey: .isDungeonExitUnlocked) ?? true,
             pendingDungeonPickupChoice: try container.decodeIfPresent(PendingDungeonPickupChoice.self, forKey: .pendingDungeonPickupChoice)
@@ -150,6 +155,7 @@ public struct DungeonRunResumeSnapshot: Codable, Equatable {
         try container.encode(dungeonInventoryEntries, forKey: .dungeonInventoryEntries)
         try container.encode(collectedDungeonCardPickupIDs, forKey: .collectedDungeonCardPickupIDs)
         try container.encode(dungeonRelicEntries, forKey: .dungeonRelicEntries)
+        try container.encode(dungeonCurseEntries, forKey: .dungeonCurseEntries)
         try container.encode(collectedDungeonRelicPickupIDs, forKey: .collectedDungeonRelicPickupIDs)
         try container.encode(isDungeonExitUnlocked, forKey: .isDungeonExitUnlocked)
         try container.encodeIfPresent(pendingDungeonPickupChoice, forKey: .pendingDungeonPickupChoice)

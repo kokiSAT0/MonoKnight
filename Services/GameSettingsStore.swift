@@ -36,6 +36,17 @@ final class GameSettingsStore: ObservableObject {
         }
     }
 
+    /// 開発者向けに遊び方辞典の未発見項目もすべて表示する設定
+    @Published var showsAllEncyclopediaEntriesForDeveloper: Bool {
+        didSet {
+            guard oldValue != showsAllEncyclopediaEntriesForDeveloper else { return }
+            userDefaults.set(
+                showsAllEncyclopediaEntriesForDeveloper,
+                forKey: StorageKey.AppStorage.showsAllEncyclopediaEntriesForDeveloper
+            )
+        }
+    }
+
     /// 手札並び順設定
     @Published var handOrderingStrategy: HandOrderingStrategy {
         didSet {
@@ -55,6 +66,8 @@ final class GameSettingsStore: ObservableObject {
             userDefaults.object(forKey: StorageKey.AppStorage.hapticsEnabled) as? Bool ?? true
         self.guideModeEnabled =
             userDefaults.object(forKey: StorageKey.AppStorage.guideModeEnabled) as? Bool ?? true
+        self.showsAllEncyclopediaEntriesForDeveloper =
+            userDefaults.object(forKey: StorageKey.AppStorage.showsAllEncyclopediaEntriesForDeveloper) as? Bool ?? false
         self.handOrderingStrategy =
             HandOrderingStrategy(
                 rawValue: userDefaults.string(forKey: HandOrderingStrategy.storageKey)
@@ -62,4 +75,58 @@ final class GameSettingsStore: ObservableObject {
             ) ?? .insertionOrder
     }
 
+}
+
+/// 遊び方辞典の発見済み項目を保存するストア
+@MainActor
+final class EncyclopediaDiscoveryStore: ObservableObject {
+    private let userDefaults: UserDefaults
+    private let storageKey: String
+
+    @Published private(set) var discoveredRawIDs: Set<String>
+
+    init(
+        userDefaults: UserDefaults = .standard,
+        storageKey: String = StorageKey.UserDefaults.encyclopediaDiscovery
+    ) {
+        self.userDefaults = userDefaults
+        self.storageKey = storageKey
+        self.discoveredRawIDs = Set(userDefaults.stringArray(forKey: storageKey) ?? [])
+    }
+
+    var discoveredIDs: Set<EncyclopediaDiscoveryID> {
+        Set(discoveredRawIDs.compactMap(EncyclopediaDiscoveryID.init(rawValue:)))
+    }
+
+    func isDiscovered(_ id: EncyclopediaDiscoveryID) -> Bool {
+        discoveredRawIDs.contains(id.rawValue)
+    }
+
+    func discover(_ id: EncyclopediaDiscoveryID) {
+        discover([id])
+    }
+
+    func discover(_ ids: some Sequence<EncyclopediaDiscoveryID>) {
+        var updatedIDs = discoveredRawIDs
+        for id in ids {
+            updatedIDs.insert(id.rawValue)
+        }
+        saveIfChanged(updatedIDs)
+    }
+
+    func reset() {
+        saveIfChanged([])
+    }
+
+    func discoveredCount(in ids: some Sequence<EncyclopediaDiscoveryID>) -> Int {
+        ids.reduce(0) { count, id in
+            count + (isDiscovered(id) ? 1 : 0)
+        }
+    }
+
+    private func saveIfChanged(_ updatedIDs: Set<String>) {
+        guard updatedIDs != discoveredRawIDs else { return }
+        discoveredRawIDs = updatedIDs
+        userDefaults.set(Array(updatedIDs).sorted(), forKey: storageKey)
+    }
 }

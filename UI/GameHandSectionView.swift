@@ -20,6 +20,8 @@ struct GameHandSectionView: View {
     let bottomPadding: CGFloat
     /// 詳細表示中の遺物
     @State private var inspectedRelic: DungeonRelicEntry?
+    /// 詳細表示中の呪い遺物
+    @State private var inspectedCurse: DungeonCurseEntry?
 
     /// 横幅のサイズクラス（iPhone / iPad での余白計算に利用）
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -50,7 +52,7 @@ struct GameHandSectionView: View {
 
             handSlotsSection
 
-            if !core.dungeonRelicEntries.isEmpty {
+            if !core.dungeonRelicEntries.isEmpty || !core.dungeonCurseEntries.isEmpty {
                 relicStrip
             }
 
@@ -71,6 +73,10 @@ struct GameHandSectionView: View {
         .frame(maxWidth: .infinity)
         .sheet(item: $inspectedRelic) { relic in
             DungeonRelicDetailView(theme: theme, relic: relic)
+                .presentationDetents([.medium])
+        }
+        .sheet(item: $inspectedCurse) { curse in
+            DungeonCurseDetailView(theme: theme, curse: curse)
                 .presentationDetents([.medium])
         }
     }
@@ -142,6 +148,17 @@ private extension GameHandSectionView {
                     .accessibilityIdentifier(Self.dungeonRelicAccessibilityIdentifier(for: relic))
                     .accessibilityLabel(Text(Self.dungeonRelicAccessibilityLabel(for: relic)))
                     .accessibilityHint(Text(Self.dungeonRelicAccessibilityHint(for: relic)))
+                }
+                ForEach(core.dungeonCurseEntries) { curse in
+                    Button {
+                        inspectedCurse = curse
+                    } label: {
+                        DungeonCurseIconView(theme: theme, curse: curse)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier(Self.dungeonCurseAccessibilityIdentifier(for: curse))
+                    .accessibilityLabel(Text(Self.dungeonCurseAccessibilityLabel(for: curse)))
+                    .accessibilityHint(Text(Self.dungeonCurseAccessibilityHint(for: curse)))
                 }
             }
             .padding(.horizontal, 2)
@@ -614,6 +631,18 @@ extension GameHandSectionView {
     static func dungeonRelicAccessibilityHint(for relic: DungeonRelicEntry) -> String {
         "ダブルタップで効果を確認します。\(relic.effectDescription)\(relic.drawbackDescription)"
     }
+
+    static func dungeonCurseAccessibilityIdentifier(for curse: DungeonCurseEntry) -> String {
+        "dungeon_curse_\(curse.curseID.rawValue)"
+    }
+
+    static func dungeonCurseAccessibilityLabel(for curse: DungeonCurseEntry) -> String {
+        "呪い遺物、\(curse.displayName)"
+    }
+
+    static func dungeonCurseAccessibilityHint(for curse: DungeonCurseEntry) -> String {
+        "ダブルタップで効果を確認します。\(curse.effectDescription)\(curse.releaseDescription)"
+    }
 }
 
 private struct DungeonRelicIconView: View {
@@ -682,6 +711,87 @@ private struct DungeonRelicDetailView: View {
             .padding(22)
             .background(theme.backgroundPrimary)
             .navigationTitle("遺物")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("閉じる") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct DungeonCurseIconView: View {
+    let theme: AppTheme
+    let curse: DungeonCurseEntry
+
+    var body: some View {
+        ZStack(alignment: .bottomTrailing) {
+            RoundedRectangle(cornerRadius: 8)
+                .fill(theme.cardBackgroundHand)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color.red.opacity(0.75), lineWidth: 1.5)
+                )
+
+            Image(systemName: curse.symbolName)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundColor(.red)
+                .accessibilityHidden(true)
+
+            Text("呪")
+                .font(.system(size: 10, weight: .bold, design: .rounded))
+                .foregroundColor(.white)
+                .frame(width: 16, height: 16)
+                .background(Circle().fill(Color.red))
+                .offset(x: 4, y: 4)
+                .accessibilityHidden(true)
+        }
+        .frame(width: 44, height: 44)
+    }
+}
+
+private struct DungeonCurseDetailView: View {
+    let theme: AppTheme
+    let curse: DungeonCurseEntry
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 18) {
+                HStack(spacing: 12) {
+                    Image(systemName: curse.symbolName)
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundColor(.red)
+                        .frame(width: 44, height: 44)
+                        .background(Circle().fill(Color.red.opacity(0.14)))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("呪い")
+                            .font(.system(size: 12, weight: .bold, design: .rounded))
+                            .foregroundColor(.red)
+                        Text(curse.displayName)
+                            .font(.system(size: 22, weight: .bold, design: .rounded))
+                            .foregroundColor(theme.textPrimary)
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 10) {
+                    Label(curse.effectDescription, systemImage: "exclamationmark.triangle")
+                    Label(curse.releaseDescription, systemImage: "checkmark.circle")
+                    if curse.hasLimitedUses {
+                        Label("残り \(curse.remainingUses) 回", systemImage: "number.circle")
+                    }
+                }
+                .font(.system(size: 15, weight: .medium, design: .rounded))
+                .foregroundColor(theme.textPrimary)
+
+                Spacer(minLength: 0)
+            }
+            .padding(22)
+            .background(theme.backgroundPrimary)
+            .navigationTitle("呪い遺物")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {

@@ -143,6 +143,10 @@ public struct SupportCardEncyclopediaEntry: Identifiable, Equatable {
 }
 
 public extension SupportCard {
+    var encyclopediaDiscoveryID: EncyclopediaDiscoveryID {
+        EncyclopediaDiscoveryID(category: .supportCard, itemID: rawValue)
+    }
+
     static var encyclopediaEntries: [SupportCardEncyclopediaEntry] {
         allCases.enumerated().map { index, card in
             SupportCardEncyclopediaEntry(

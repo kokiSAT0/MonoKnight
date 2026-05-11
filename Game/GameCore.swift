@@ -215,6 +215,8 @@ public final class GameCore: ObservableObject {
     @Published public private(set) var collectedDungeonCardPickupIDs: Set<String> = []
     /// 塔ラン中だけ有効な遺物一覧
     @Published public private(set) var dungeonRelicEntries: [DungeonRelicEntry] = []
+    /// 塔ラン中だけ有効な呪い遺物一覧
+    @Published public private(set) var dungeonCurseEntries: [DungeonCurseEntry] = []
     /// 取得済みの宝箱 ID
     @Published public private(set) var collectedDungeonRelicPickupIDs: Set<String> = []
     /// 所持枠が満杯で床落ちカードの取捨選択を待っている状態
@@ -264,6 +266,9 @@ public final class GameCore: ObservableObject {
         }
         if hasDungeonRelic(.chippedHourglass) {
             adjustment += 3
+        }
+        if hasDungeonCurse(.rustyChain) {
+            adjustment -= 2
         }
         return max(baseTurnLimit + adjustment, 1)
     }
@@ -408,6 +413,7 @@ public final class GameCore: ObservableObject {
             dungeonInventoryEntries: dungeonInventoryEntries,
             collectedDungeonCardPickupIDs: collectedDungeonCardPickupIDs,
             dungeonRelicEntries: dungeonRelicEntries,
+            dungeonCurseEntries: dungeonCurseEntries,
             collectedDungeonRelicPickupIDs: collectedDungeonRelicPickupIDs,
             isDungeonExitUnlocked: isDungeonExitUnlocked,
             pendingDungeonPickupChoice: pendingDungeonPickupChoice
@@ -458,6 +464,7 @@ public final class GameCore: ObservableObject {
         dungeonInventoryEntries = snapshot.dungeonInventoryEntries
         collectedDungeonCardPickupIDs = snapshot.collectedDungeonCardPickupIDs
         dungeonRelicEntries = snapshot.dungeonRelicEntries
+        dungeonCurseEntries = snapshot.dungeonCurseEntries
         collectedDungeonRelicPickupIDs = snapshot.collectedDungeonRelicPickupIDs
         pendingDungeonPickupChoice = snapshot.pendingDungeonPickupChoice
         isDungeonExitUnlocked = snapshot.isDungeonExitUnlocked
@@ -956,6 +963,16 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             }
             collectDungeonCardPickup(at: stepPoint)
             collectDungeonRelicPickup(at: stepPoint)
+            if progress == .failed {
+                presentationSteps.append(
+                    movementPresentationStep(
+                        at: stepPoint,
+                        hpBeforeStep: hpBeforeStep,
+                        stopReason: .failed
+                    )
+                )
+                break
+            }
 
             updateDungeonExitLockIfNeeded(at: stepPoint)
             if shouldStopDungeonMovementAtExit(at: stepPoint) {
@@ -1004,6 +1021,17 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                         }
                         collectDungeonCardPickup(at: destination)
                         collectDungeonRelicPickup(at: destination)
+                        if progress == .failed {
+                            presentationSteps.append(
+                                movementPresentationStep(
+                                    at: destination,
+                                    hpBeforeStep: hpBeforeWarpDestination,
+                                    stopReason: .failed
+                                )
+                            )
+                            stepIndex = pendingPath.count
+                            break
+                        }
                         updateDungeonExitLockIfNeeded(at: destination)
                         presentationSteps.append(
                             movementPresentationStep(
@@ -1423,6 +1451,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         dungeonInventoryEntries = mode.dungeonMetadataSnapshot?.runState?.rewardInventoryEntries ?? []
         collectedDungeonCardPickupIDs = []
         dungeonRelicEntries = mode.dungeonMetadataSnapshot?.runState?.relicEntries ?? []
+        dungeonCurseEntries = mode.dungeonMetadataSnapshot?.runState?.curseEntries ?? []
         collectedDungeonRelicPickupIDs = mode.dungeonMetadataSnapshot?.runState?.collectedDungeonRelicPickupIDs ?? []
         pendingDungeonPickupChoice = nil
         isDungeonExitUnlocked = mode.dungeonRules?.exitLock == nil
@@ -1649,28 +1678,89 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         guard !collectedDungeonRelicPickupIDs.contains(pickup.id) else { return false }
         collectedDungeonRelicPickupIDs.insert(pickup.id)
 
+        switch selectedRelicPickupOutcome(for: pickup) {
+        case .relic:
+            grantDungeonRelic(from: pickup, salt: "relic")
+        case .curse:
+            grantDungeonCurse(from: pickup, salt: "curse")
+        case .mimic:
+            applyDungeonMimicTrap(from: pickup)
+        case .pandora:
+            grantDungeonRelic(from: pickup, salt: "pandora-relic")
+            grantDungeonCurse(from: pickup, salt: "pandora-curse")
+            debugLog("パンドラの箱が開いた: \(pickup.id) @\(pickup.point)")
+        }
+        return true
+    }
+
+    private func grantDungeonRelic(from pickup: DungeonRelicPickupDefinition, salt: String) {
         let ownedRelics = Set(dungeonRelicEntries.map(\.relicID))
         let candidates = pickup.candidateRelics.filter { !ownedRelics.contains($0) }
-        guard let relicID = selectedRelicID(from: candidates, pickupID: pickup.id) else {
+        guard let relicID = selectedRelicID(from: candidates, pickupID: pickup.id, salt: salt) else {
             debugLog("宝箱は空でした: \(pickup.id) @\(pickup.point)")
-            return true
+            return
         }
 
         dungeonRelicEntries.append(DungeonRelicEntry(relicID: relicID))
         applyImmediateDungeonRelicEffect(relicID)
         debugLog("遺物を取得: \(relicID.displayName) @\(pickup.point)")
-        return true
     }
 
-    private func selectedRelicID(from candidates: [DungeonRelicID], pickupID: String) -> DungeonRelicID? {
+    private func grantDungeonCurse(from pickup: DungeonRelicPickupDefinition, salt: String) {
+        let candidates = pickup.candidateCurses
+        guard let curseID = selectedCurseID(from: candidates, pickupID: pickup.id, salt: salt) else { return }
+        if !dungeonCurseEntries.contains(where: { $0.curseID == curseID }) {
+            dungeonCurseEntries.append(DungeonCurseEntry(curseID: curseID))
+        }
+        debugLog("呪い遺物を取得: \(curseID.displayName) @\(pickup.point)")
+    }
+
+    private func applyDungeonMimicTrap(from pickup: DungeonRelicPickupDefinition) {
+        dungeonHP = max(dungeonHP - 2, 0)
+        debugLog("ミミックが出現: \(pickup.id) @\(pickup.point), HP=\(dungeonHP)")
+        if dungeonHP <= 0 {
+            finalizeElapsedTimeIfNeeded()
+            progress = .failed
+        }
+    }
+
+    private func selectedRelicPickupOutcome(for pickup: DungeonRelicPickupDefinition) -> DungeonRelicPickupOutcome {
+        let totalWeight = pickup.kind.outcomeWeights.reduce(0) { $0 + max($1.1, 0) }
+        guard totalWeight > 0 else { return .relic }
+        var generator = DungeonRefillRandomGenerator(seed: pickupSeed(pickupID: pickup.id, salt: "outcome"))
+        var roll = Int(generator.next() % UInt64(totalWeight))
+        for (outcome, weight) in pickup.kind.outcomeWeights {
+            let normalizedWeight = max(weight, 0)
+            if roll < normalizedWeight {
+                return outcome
+            }
+            roll -= normalizedWeight
+        }
+        return .relic
+    }
+
+    private func selectedRelicID(from candidates: [DungeonRelicID], pickupID: String, salt: String) -> DungeonRelicID? {
         guard !candidates.isEmpty else { return nil }
+        var generator = DungeonRefillRandomGenerator(seed: pickupSeed(pickupID: pickupID, salt: salt))
+        return candidates[Int(generator.next() % UInt64(candidates.count))]
+    }
+
+    private func selectedCurseID(from candidates: [DungeonCurseID], pickupID: String, salt: String) -> DungeonCurseID? {
+        guard !candidates.isEmpty else { return nil }
+        var generator = DungeonRefillRandomGenerator(seed: pickupSeed(pickupID: pickupID, salt: salt))
+        return candidates[Int(generator.next() % UInt64(candidates.count))]
+    }
+
+    private func pickupSeed(pickupID: String, salt: String) -> UInt64 {
         var seed = mode.dungeonMetadataSnapshot?.runState?.cardVariationSeed ?? mode.deckSeed ?? 1
         seed ^= UInt64(max(moveCount, 0) + 1) &* 0x9E37_79B9_7F4A_7C15
         for scalar in pickupID.unicodeScalars {
             seed = seed &* 1099511628211 &+ UInt64(scalar.value)
         }
-        var generator = DungeonRefillRandomGenerator(seed: seed)
-        return candidates[Int(generator.next() % UInt64(candidates.count))]
+        for scalar in salt.unicodeScalars {
+            seed = seed &* 1469598103934665603 &+ UInt64(scalar.value)
+        }
+        return seed
     }
 
     private func applyImmediateDungeonRelicEffect(_ relicID: DungeonRelicID) {
@@ -1910,6 +2000,10 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         dungeonRelicEntries.contains { $0.relicID == relicID }
     }
 
+    private func hasDungeonCurse(_ curseID: DungeonCurseID) -> Bool {
+        dungeonCurseEntries.contains { $0.curseID == curseID }
+    }
+
     private func consumeDungeonRelicUse(_ relicID: DungeonRelicID) -> Bool {
         guard let index = dungeonRelicEntries.firstIndex(where: { $0.relicID == relicID && $0.remainingUses > 0 }) else {
             return false
@@ -1918,10 +2012,22 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         return true
     }
 
+    private func consumeDungeonCurseUse(_ curseID: DungeonCurseID) -> Bool {
+        guard let index = dungeonCurseEntries.firstIndex(where: { $0.curseID == curseID && $0.remainingUses > 0 }) else {
+            return false
+        }
+        dungeonCurseEntries[index].remainingUses -= 1
+        return true
+    }
+
     private func applyRelicDamageReductionIfNeeded(to damage: Int) -> Int {
         guard damage > 0 else { return 0 }
-        guard consumeDungeonRelicUse(.crackedShield) else { return damage }
-        return max(damage - 1, 0)
+        var adjustedDamage = damage
+        if consumeDungeonCurseUse(.thornMark) {
+            adjustedDamage += 1
+        }
+        guard consumeDungeonRelicUse(.crackedShield) else { return adjustedDamage }
+        return max(adjustedDamage - 1, 0)
     }
 
     private func consumeDungeonEnemyDamageMitigation() -> Bool {
@@ -2858,10 +2964,13 @@ extension GameCore {
         core.progress = (resolvedCurrent == nil && mode.requiresSpawnSelection) ? .awaitingSpawn : .playing
 
         if core.usesDungeonInventoryCards {
-            core.dungeonInventoryEntries = mode.dungeonMetadataSnapshot?.runState?.rewardInventoryEntries ?? []
-            core.collectedDungeonCardPickupIDs = []
-            core.pendingDungeonPickupChoice = nil
-            core.syncDungeonInventoryHandStacks()
+        core.dungeonInventoryEntries = mode.dungeonMetadataSnapshot?.runState?.rewardInventoryEntries ?? []
+        core.collectedDungeonCardPickupIDs = []
+        core.pendingDungeonPickupChoice = nil
+        core.dungeonRelicEntries = mode.dungeonMetadataSnapshot?.runState?.relicEntries ?? []
+        core.dungeonCurseEntries = mode.dungeonMetadataSnapshot?.runState?.curseEntries ?? []
+        core.collectedDungeonRelicPickupIDs = mode.dungeonMetadataSnapshot?.runState?.collectedDungeonRelicPickupIDs ?? []
+        core.syncDungeonInventoryHandStacks()
         } else {
             core.handManager.resetAll(using: &core.deck)
             core.refreshHandStateFromManager()

@@ -73,6 +73,12 @@
                         if let effect = board.effect(at: point) {
                             labelParts.append(effect.accessibilityLabel)
                         }
+                        if owner.latestHighlightPoints(for: .dungeonRelicPickup).contains(point) {
+                            labelParts.append("宝箱")
+                        }
+                        if owner.latestHighlightPoints(for: .dungeonSuspiciousRelicPickup).contains(point) {
+                            labelParts.append("怪しい宝箱")
+                        }
                         labelParts.append(statusText)
                         element.accessibilityLabel = labelParts.joined(separator: "・")
                         element.accessibilityTraits = [.button]

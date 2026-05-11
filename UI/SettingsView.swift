@@ -43,7 +43,7 @@ struct SettingsView: View {
                 )
                 SettingsHelpSection()
                 if isDiagnosticsMenuAvailable {
-                    SettingsDiagnosticsSection()
+                    SettingsDiagnosticsSection(gameSettingsStore: gameSettingsStore)
                 }
             }
             .navigationTitle("設定")

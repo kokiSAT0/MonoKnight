@@ -163,8 +163,14 @@ struct SettingsHelpSection: View {
 }
 
 struct SettingsDiagnosticsSection: View {
+    @ObservedObject var gameSettingsStore: GameSettingsStore
+
     var body: some View {
         Section {
+            Toggle(
+                "辞典を全表示（開発者用）",
+                isOn: $gameSettingsStore.showsAllEncyclopediaEntriesForDeveloper
+            )
             NavigationLink {
                 DiagnosticsCenterView()
             } label: {
@@ -173,7 +179,7 @@ struct SettingsDiagnosticsSection: View {
         } header: {
             Text("開発者向け診断")
         } footer: {
-            Text("TestFlight など開発用ビルドでのみ有効化されるログビューアです。公開版では環境変数やビルド設定で無効化できます。")
+            Text("TestFlight など開発用ビルドでのみ有効化される開発者メニューです。辞典全表示は未発見項目の確認用で、公開版では診断メニューごと非表示にできます。")
         }
     }
 }

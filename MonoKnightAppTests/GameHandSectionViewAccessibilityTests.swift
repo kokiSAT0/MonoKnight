@@ -150,6 +150,21 @@ final class GameHandSectionViewAccessibilityTests: XCTestCase {
         XCTAssertTrue(GameHandSectionView.dungeonRelicAccessibilityHint(for: relic).contains("次に受けるダメージ"))
         XCTAssertTrue(GameHandSectionView.dungeonRelicAccessibilityHint(for: relic).contains("取得時にHPが1減る"))
     }
+
+    func testDungeonCurseAccessibilityTextUsesCurseDetails() {
+        let curse = DungeonCurseEntry(curseID: .thornMark)
+
+        XCTAssertEqual(
+            GameHandSectionView.dungeonCurseAccessibilityIdentifier(for: curse),
+            "dungeon_curse_thornMark"
+        )
+        XCTAssertEqual(
+            GameHandSectionView.dungeonCurseAccessibilityLabel(for: curse),
+            "呪い遺物、棘の印"
+        )
+        XCTAssertTrue(GameHandSectionView.dungeonCurseAccessibilityHint(for: curse).contains("次に受けるダメージ"))
+        XCTAssertTrue(GameHandSectionView.dungeonCurseAccessibilityHint(for: curse).contains("1回発動すると消える"))
+    }
 }
 
 // MARK: - テスト用ホストビュー

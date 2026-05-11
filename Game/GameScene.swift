@@ -21,6 +21,7 @@
         case dungeonEnemyWarning
         case dungeonCardPickup
         case dungeonRelicPickup
+        case dungeonSuspiciousRelicPickup
         case dungeonDamageTrap
         case dungeonHealingTile
         case dungeonCrackedFloor

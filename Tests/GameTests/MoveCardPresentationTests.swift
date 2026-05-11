@@ -111,6 +111,7 @@ final class MoveCardPresentationTests: XCTestCase {
         XCTAssertEqual(entries.first { $0.id == "lockedDungeonExit" }?.previewKind, .lockedDungeonExit)
         XCTAssertEqual(entries.first { $0.id == "dungeonKey" }?.previewKind, .dungeonKey)
         XCTAssertEqual(entries.first { $0.id == "cardPickup" }?.previewKind, .cardPickup)
+        XCTAssertEqual(entries.first { $0.id == "dungeonRelicPickup" }?.previewKind, .dungeonRelicPickup)
         XCTAssertEqual(entries.first { $0.id == "impassable" }?.previewKind, .impassable)
         XCTAssertEqual(entries.first { $0.id == "damageTrap" }?.previewKind, .damageTrap)
         XCTAssertEqual(entries.first { $0.id == "healingTile" }?.previewKind, .healingTile)
@@ -130,6 +131,7 @@ final class MoveCardPresentationTests: XCTestCase {
             "lockedDungeonExit",
             "dungeonKey",
             "cardPickup",
+            "dungeonRelicPickup",
             "impassable",
             "damageTrap",
             "healingTile",
@@ -139,6 +141,8 @@ final class MoveCardPresentationTests: XCTestCase {
             "enemyWarning",
             "warp",
             "blast",
+            "shuffleHand",
+            "preserveCard",
             "paralysisTrap",
             "swamp",
             "discardRandomHandTrap",
@@ -156,9 +160,54 @@ final class MoveCardPresentationTests: XCTestCase {
             "discardAllHandsTrap",
             "discardRandomHandTrap",
             "paralysisTrap",
+            "preserveCard",
+            "shuffleHand",
             "swamp",
             "warp"
         ])
+    }
+
+    func testRelicCurseAndEventEncyclopediaEntriesCoverDefinitions() {
+        let relicEntries = DungeonRelicEncyclopediaEntry.allEntries
+        let curseEntries = DungeonCurseEncyclopediaEntry.allEntries
+        let eventEntries = DungeonEventEncyclopediaEntry.allEntries
+
+        XCTAssertEqual(relicEntries.map(\.relicID), DungeonRelicID.allCases)
+        XCTAssertTrue(relicEntries.allSatisfy { !$0.displayName.isEmpty })
+        XCTAssertTrue(relicEntries.allSatisfy { !$0.effectDescription.isEmpty })
+        XCTAssertTrue(relicEntries.allSatisfy { !$0.drawbackDescription.isEmpty })
+
+        XCTAssertEqual(curseEntries.map(\.curseID), DungeonCurseID.allCases)
+        XCTAssertTrue(curseEntries.allSatisfy { !$0.displayName.isEmpty })
+        XCTAssertTrue(curseEntries.allSatisfy { !$0.effectDescription.isEmpty })
+        XCTAssertTrue(curseEntries.allSatisfy { !$0.releaseDescription.isEmpty })
+
+        XCTAssertEqual(eventEntries.map(\.kind), DungeonEventEncyclopediaKind.allCases)
+        XCTAssertTrue(eventEntries.allSatisfy { !$0.displayName.isEmpty })
+        XCTAssertTrue(eventEntries.allSatisfy { !$0.description.isEmpty })
+        XCTAssertEqual(DungeonRelicPickupKind.safe.encyclopediaEventKind, .safeChest)
+        XCTAssertEqual(DungeonRelicPickupKind.suspiciousLight.encyclopediaEventKind, .suspiciousLightChest)
+        XCTAssertEqual(DungeonRelicPickupKind.suspiciousDeep.encyclopediaEventKind, .suspiciousDeepChest)
+    }
+
+    func testEncyclopediaDiscoveryIDsAreStableAndParseUnknownsSafely() {
+        let cardID = MoveCard.straightRight2.encyclopediaDiscoveryID
+        let supportID = SupportCard.refillEmptySlots.encyclopediaDiscoveryID
+        let enemyID = EnemyPresentationKind.chaser.encyclopediaDiscoveryID
+        let tileID = TileEncyclopediaEntry.allEntries.first { $0.id == "warp" }!.encyclopediaDiscoveryID
+        let relicID = DungeonRelicID.glowingHeart.encyclopediaDiscoveryID
+        let curseID = DungeonCurseID.bloodPact.encyclopediaDiscoveryID
+        let eventID = DungeonEventEncyclopediaKind.pandoraOutcome.encyclopediaDiscoveryID
+
+        XCTAssertEqual(EncyclopediaDiscoveryID(rawValue: cardID.rawValue), cardID)
+        XCTAssertEqual(EncyclopediaDiscoveryID(rawValue: supportID.rawValue), supportID)
+        XCTAssertEqual(EncyclopediaDiscoveryID(rawValue: enemyID.rawValue), enemyID)
+        XCTAssertEqual(EncyclopediaDiscoveryID(rawValue: tileID.rawValue), tileID)
+        XCTAssertEqual(EncyclopediaDiscoveryID(rawValue: relicID.rawValue), relicID)
+        XCTAssertEqual(EncyclopediaDiscoveryID(rawValue: curseID.rawValue), curseID)
+        XCTAssertEqual(EncyclopediaDiscoveryID(rawValue: eventID.rawValue), eventID)
+        XCTAssertNil(EncyclopediaDiscoveryID(rawValue: "futureCategory:futureItem"))
+        XCTAssertNil(EncyclopediaDiscoveryID(rawValue: "card"))
     }
 
     func testHelpEncyclopediaTextAvoidsRemovedLegacyModeTerms() {
@@ -166,7 +215,10 @@ final class MoveCardPresentationTests: XCTestCase {
         let supportTexts = SupportCard.encyclopediaEntries.flatMap { [$0.displayName, $0.category, $0.description] }
         let enemyTexts = EnemyEncyclopediaEntry.allEntries.flatMap { [$0.displayName, $0.behaviorSummary, $0.dangerSummary] }
         let tileTexts = TileEncyclopediaEntry.allEntries.flatMap { [$0.displayName, $0.category, $0.description] }
-        let allTexts = cardTexts + supportTexts + enemyTexts + tileTexts
+        let relicTexts = DungeonRelicEncyclopediaEntry.allEntries.flatMap { [$0.displayName, $0.effectDescription, $0.drawbackDescription] }
+        let curseTexts = DungeonCurseEncyclopediaEntry.allEntries.flatMap { [$0.displayName, $0.effectDescription, $0.releaseDescription] }
+        let eventTexts = DungeonEventEncyclopediaEntry.allEntries.flatMap { [$0.displayName, $0.description] }
+        let allTexts = cardTexts + supportTexts + enemyTexts + tileTexts + relicTexts + curseTexts + eventTexts
         let removedTerms = ["目的地", "全踏破", "フォーカス", "Game Center", "ランキング", "踏破対象"]
 
         for term in removedTerms {

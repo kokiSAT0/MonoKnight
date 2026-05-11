@@ -7,9 +7,11 @@ struct HowToPlayView: View {
     /// ヘルプ内で表示するページ
     private enum HelpPage: String, CaseIterable, Identifiable {
         case guide = "遊び方"
-        case cardDictionary = "カード辞典"
-        case enemyDictionary = "敵辞典"
-        case tileDictionary = "マス辞典"
+        case cardDictionary = "カード"
+        case enemyDictionary = "敵"
+        case tileDictionary = "マス"
+        case relicDictionary = "レリック"
+        case eventDictionary = "イベント"
 
         var id: HelpPage { self }
     }
@@ -25,6 +27,11 @@ struct HowToPlayView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     /// ヘルプ内の表示ページ
     @State private var selectedPage: HelpPage = .guide
+    /// 辞典の発見状態
+    @StateObject private var discoveryStore = EncyclopediaDiscoveryStore()
+    /// 開発者向けに未発見項目も表示する設定
+    @AppStorage(StorageKey.AppStorage.showsAllEncyclopediaEntriesForDeveloper)
+    private var showsAllEntriesForDeveloper = false
 
     /// デフォルト引数付きのイニシャライザ
     /// - Parameter showsCloseButton: ナビゲーションバーに「閉じる」ボタンを表示するか
@@ -51,6 +58,10 @@ struct HowToPlayView: View {
                     enemyDictionaryContent
                 case .tileDictionary:
                     tileDictionaryContent
+                case .relicDictionary:
+                    relicDictionaryContent
+                case .eventDictionary:
+                    eventDictionaryContent
                 }
             }
             // MARK: - サイズクラスに応じた余白調整
@@ -154,13 +165,21 @@ private extension HowToPlayView {
         VStack(alignment: .leading, spacing: 18) {
             Text("塔攻略で使うカードの動きと、階段までのルート作りでの役割を確認できます。")
                 .font(.body)
+            EncyclopediaProgressView(
+                discoveredCount: discoveredCount(for: cardDiscoveryIDs),
+                totalCount: cardDiscoveryIDs.count,
+                showsAllEntriesForDeveloper: showsAllEntriesForDeveloper
+            )
 
             ForEach(cardCategoryOrder, id: \.self) { category in
                 let entries = cardEntries(for: category)
                 if !entries.isEmpty {
                     EncyclopediaGroupView(title: category) {
                         ForEach(entries) { entry in
-                            CardEncyclopediaRow(entry: entry)
+                            CardEncyclopediaRow(
+                                entry: entry,
+                                isUnlocked: isCardEntryUnlocked(entry)
+                            )
                         }
                     }
                 }
@@ -168,7 +187,10 @@ private extension HowToPlayView {
 
             EncyclopediaGroupView(title: "補助カード") {
                 ForEach(SupportCard.encyclopediaEntries) { entry in
-                    SupportCardEncyclopediaRow(entry: entry)
+                    SupportCardEncyclopediaRow(
+                        entry: entry,
+                        isUnlocked: isDiscovered(entry.card.encyclopediaDiscoveryID)
+                    )
                 }
             }
         }
@@ -179,10 +201,18 @@ private extension HowToPlayView {
         VStack(alignment: .leading, spacing: 18) {
             Text("塔に出る敵の見た目と、危険範囲の読み方を確認できます。")
                 .font(.body)
+            EncyclopediaProgressView(
+                discoveredCount: discoveredCount(for: enemyDiscoveryIDs),
+                totalCount: enemyDiscoveryIDs.count,
+                showsAllEntriesForDeveloper: showsAllEntriesForDeveloper
+            )
 
             EncyclopediaGroupView(title: "敵") {
                 ForEach(EnemyEncyclopediaEntry.allEntries) { entry in
-                    EnemyEncyclopediaRow(entry: entry)
+                    EnemyEncyclopediaRow(
+                        entry: entry,
+                        isUnlocked: isDiscovered(entry.kind.encyclopediaDiscoveryID)
+                    )
                 }
             }
         }
@@ -193,15 +223,76 @@ private extension HowToPlayView {
         VStack(alignment: .leading, spacing: 18) {
             Text("塔攻略中に盤面へ出るマスやマーカーの効果を確認できます。")
                 .font(.body)
+            EncyclopediaProgressView(
+                discoveredCount: discoveredCount(for: tileDiscoveryIDs),
+                totalCount: tileDiscoveryIDs.count,
+                showsAllEntriesForDeveloper: showsAllEntriesForDeveloper
+            )
 
             ForEach(tileCategoryOrder, id: \.self) { category in
                 let entries = tileEntries(for: category)
                 if !entries.isEmpty {
                     EncyclopediaGroupView(title: category) {
                         ForEach(entries) { entry in
-                            TileEncyclopediaRow(entry: entry)
+                            TileEncyclopediaRow(
+                                entry: entry,
+                                isUnlocked: isDiscovered(entry.encyclopediaDiscoveryID)
+                            )
                         }
                     }
+                }
+            }
+        }
+    }
+
+    /// レリック辞典本文
+    var relicDictionaryContent: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Text("塔攻略中に見つけた遺物と呪いの効果を確認できます。未発見の効果名は隠されます。")
+                .font(.body)
+            EncyclopediaProgressView(
+                discoveredCount: discoveredCount(for: relicDiscoveryIDs),
+                totalCount: relicDiscoveryIDs.count,
+                showsAllEntriesForDeveloper: showsAllEntriesForDeveloper
+            )
+
+            EncyclopediaGroupView(title: "遺物") {
+                ForEach(DungeonRelicEncyclopediaEntry.allEntries) { entry in
+                    RelicEncyclopediaRow(
+                        entry: entry,
+                        isUnlocked: isDiscovered(entry.encyclopediaDiscoveryID)
+                    )
+                }
+            }
+
+            EncyclopediaGroupView(title: "呪い") {
+                ForEach(DungeonCurseEncyclopediaEntry.allEntries) { entry in
+                    CurseEncyclopediaRow(
+                        entry: entry,
+                        isUnlocked: isDiscovered(entry.encyclopediaDiscoveryID)
+                    )
+                }
+            }
+        }
+    }
+
+    /// イベント辞典本文
+    var eventDictionaryContent: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Text("宝箱や崩落など、塔の途中で起きるイベントを確認できます。")
+                .font(.body)
+            EncyclopediaProgressView(
+                discoveredCount: discoveredCount(for: eventDiscoveryIDs),
+                totalCount: eventDiscoveryIDs.count,
+                showsAllEntriesForDeveloper: showsAllEntriesForDeveloper
+            )
+
+            EncyclopediaGroupView(title: "イベント") {
+                ForEach(DungeonEventEncyclopediaEntry.allEntries) { entry in
+                    EventEncyclopediaRow(
+                        entry: entry,
+                        isUnlocked: isDiscovered(entry.encyclopediaDiscoveryID)
+                    )
                 }
             }
         }
@@ -224,6 +315,38 @@ private extension HowToPlayView {
 
     func tileEntries(for category: String) -> [TileEncyclopediaEntry] {
         TileEncyclopediaEntry.allEntries.filter { $0.category == category }
+    }
+
+    var cardDiscoveryIDs: [EncyclopediaDiscoveryID] {
+        MoveCard.allCases.map(\.encyclopediaDiscoveryID) + SupportCard.allCases.map(\.encyclopediaDiscoveryID)
+    }
+
+    var enemyDiscoveryIDs: [EncyclopediaDiscoveryID] {
+        EnemyPresentationKind.allCases.map(\.encyclopediaDiscoveryID)
+    }
+
+    var tileDiscoveryIDs: [EncyclopediaDiscoveryID] {
+        TileEncyclopediaEntry.allEntries.map(\.encyclopediaDiscoveryID)
+    }
+
+    var relicDiscoveryIDs: [EncyclopediaDiscoveryID] {
+        DungeonRelicID.allCases.map(\.encyclopediaDiscoveryID) + DungeonCurseID.allCases.map(\.encyclopediaDiscoveryID)
+    }
+
+    var eventDiscoveryIDs: [EncyclopediaDiscoveryID] {
+        DungeonEventEncyclopediaKind.allCases.map(\.encyclopediaDiscoveryID)
+    }
+
+    func isDiscovered(_ id: EncyclopediaDiscoveryID) -> Bool {
+        showsAllEntriesForDeveloper || discoveryStore.isDiscovered(id)
+    }
+
+    func isCardEntryUnlocked(_ entry: MoveCardEncyclopediaEntry) -> Bool {
+        showsAllEntriesForDeveloper || entry.includedCards.contains { discoveryStore.isDiscovered($0.encyclopediaDiscoveryID) }
+    }
+
+    func discoveredCount(for ids: [EncyclopediaDiscoveryID]) -> Int {
+        discoveryStore.discoveredCount(in: ids)
     }
 
     /// スタック仕様を説明する文言。塔の所持カード枠と整合が取れるようにする
@@ -264,19 +387,63 @@ private struct EncyclopediaGroupView<Content: View>: View {
     }
 }
 
+struct EncyclopediaLockedPresentation {
+    static let lockedTitle = "？？？"
+    static let lockedDescription = "まだ発見していません"
+
+    static func title(_ title: String, isUnlocked: Bool) -> String {
+        isUnlocked ? title : lockedTitle
+    }
+
+    static func description(_ description: String, isUnlocked: Bool) -> String {
+        isUnlocked ? description : lockedDescription
+    }
+}
+
+private struct EncyclopediaProgressView: View {
+    let discoveredCount: Int
+    let totalCount: Int
+    let showsAllEntriesForDeveloper: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("発見 \(discoveredCount) / \(totalCount)")
+                .font(.subheadline)
+                .fontWeight(.semibold)
+            if showsAllEntriesForDeveloper {
+                Text("開発者表示中: 未発見項目も詳細表示しています。")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color(UIColor.secondarySystemBackground))
+        )
+    }
+}
+
 // MARK: - カード辞典行
 private struct CardEncyclopediaRow: View {
     let entry: MoveCardEncyclopediaEntry
+    let isUnlocked: Bool
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            MoveCardIllustrationView(card: entry.card, mode: .next)
-                .accessibilityHidden(true)
+            if isUnlocked {
+                MoveCardIllustrationView(card: entry.card, mode: .next)
+                    .accessibilityHidden(true)
+            } else {
+                LockedPreviewBadge()
+                    .frame(width: 66, height: 90)
+            }
 
             VStack(alignment: .leading, spacing: 5) {
-                Text(entry.displayName)
+                Text(EncyclopediaLockedPresentation.title(entry.displayName, isUnlocked: isUnlocked))
                     .font(.headline)
-                Text(entry.description)
+                Text(EncyclopediaLockedPresentation.description(entry.description, isUnlocked: isUnlocked))
                     .font(.callout)
                     .foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -294,27 +461,33 @@ private struct CardEncyclopediaRow: View {
 
 private struct SupportCardEncyclopediaRow: View {
     let entry: SupportCardEncyclopediaEntry
+    let isUnlocked: Bool
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            Image(systemName: symbolName)
-                .font(.system(size: 24, weight: .semibold))
-                .foregroundColor(.accentColor)
-                .frame(width: 66, height: 90)
-                .background(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(Color(UIColor.tertiarySystemBackground))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .stroke(Color.accentColor.opacity(0.45), lineWidth: 1)
-                        )
-                )
-                .accessibilityHidden(true)
+            if isUnlocked {
+                Image(systemName: symbolName)
+                    .font(.system(size: 24, weight: .semibold))
+                    .foregroundColor(.accentColor)
+                    .frame(width: 66, height: 90)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(Color(UIColor.tertiarySystemBackground))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .stroke(Color.accentColor.opacity(0.45), lineWidth: 1)
+                            )
+                    )
+                    .accessibilityHidden(true)
+            } else {
+                LockedPreviewBadge()
+                    .frame(width: 66, height: 90)
+            }
 
             VStack(alignment: .leading, spacing: 5) {
-                Text(entry.displayName)
+                Text(EncyclopediaLockedPresentation.title(entry.displayName, isUnlocked: isUnlocked))
                     .font(.headline)
-                Text(entry.description)
+                Text(EncyclopediaLockedPresentation.description(entry.description, isUnlocked: isUnlocked))
                     .font(.callout)
                     .foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -344,23 +517,31 @@ private struct SupportCardEncyclopediaRow: View {
 // MARK: - 敵辞典行
 private struct EnemyEncyclopediaRow: View {
     let entry: EnemyEncyclopediaEntry
+    let isUnlocked: Bool
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            EnemyMarkerPreviewView(kind: entry.kind)
-                .accessibilityHidden(true)
+            if isUnlocked {
+                EnemyMarkerPreviewView(kind: entry.kind)
+                    .accessibilityHidden(true)
+            } else {
+                LockedPreviewBadge()
+                    .frame(width: 48, height: 48)
+            }
 
             VStack(alignment: .leading, spacing: 6) {
-                Text(entry.displayName)
+                Text(EncyclopediaLockedPresentation.title(entry.displayName, isUnlocked: isUnlocked))
                     .font(.headline)
-                Text(entry.behaviorSummary)
+                Text(EncyclopediaLockedPresentation.description(entry.behaviorSummary, isUnlocked: isUnlocked))
                     .font(.callout)
                     .foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                Text(entry.dangerSummary)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                if isUnlocked {
+                    Text(entry.dangerSummary)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -496,16 +677,22 @@ private struct EnemyMarkerPreviewView: View {
 // MARK: - マス辞典行
 private struct TileEncyclopediaRow: View {
     let entry: TileEncyclopediaEntry
+    let isUnlocked: Bool
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            TileMarkerPreviewView(kind: entry.previewKind)
-                .accessibilityHidden(true)
+            if isUnlocked {
+                TileMarkerPreviewView(kind: entry.previewKind)
+                    .accessibilityHidden(true)
+            } else {
+                LockedPreviewBadge()
+                    .frame(width: 48, height: 48)
+            }
 
             VStack(alignment: .leading, spacing: 6) {
-                Text(entry.displayName)
+                Text(EncyclopediaLockedPresentation.title(entry.displayName, isUnlocked: isUnlocked))
                     .font(.headline)
-                Text(entry.description)
+                Text(EncyclopediaLockedPresentation.description(entry.description, isUnlocked: isUnlocked))
                     .font(.callout)
                     .foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -518,6 +705,146 @@ private struct TileEncyclopediaRow: View {
                 .fill(Color(UIColor.secondarySystemBackground))
         )
         .accessibilityElement(children: .combine)
+    }
+}
+
+// MARK: - レリック辞典行
+private struct RelicEncyclopediaRow: View {
+    let entry: DungeonRelicEncyclopediaEntry
+    let isUnlocked: Bool
+
+    var body: some View {
+        IconEncyclopediaRow(
+            symbolName: entry.symbolName,
+            title: entry.displayName,
+            primaryDescription: entry.effectDescription,
+            secondaryDescription: "代償: \(entry.drawbackDescription)",
+            isUnlocked: isUnlocked,
+            tint: .orange
+        )
+    }
+}
+
+private struct CurseEncyclopediaRow: View {
+    let entry: DungeonCurseEncyclopediaEntry
+    let isUnlocked: Bool
+
+    var body: some View {
+        IconEncyclopediaRow(
+            symbolName: entry.symbolName,
+            title: entry.displayName,
+            primaryDescription: entry.effectDescription,
+            secondaryDescription: "解除: \(entry.releaseDescription)",
+            isUnlocked: isUnlocked,
+            tint: .red
+        )
+    }
+}
+
+private struct EventEncyclopediaRow: View {
+    let entry: DungeonEventEncyclopediaEntry
+    let isUnlocked: Bool
+
+    var body: some View {
+        IconEncyclopediaRow(
+            symbolName: symbolName,
+            title: entry.displayName,
+            primaryDescription: entry.description,
+            secondaryDescription: nil,
+            isUnlocked: isUnlocked,
+            tint: .blue
+        )
+    }
+
+    private var symbolName: String {
+        switch entry.kind {
+        case .safeChest:
+            return "shippingbox.fill"
+        case .suspiciousLightChest, .suspiciousDeepChest:
+            return "shippingbox.and.arrow.backward.fill"
+        case .relicReward:
+            return "sparkles"
+        case .curseOutcome:
+            return "exclamationmark.triangle.fill"
+        case .mimicOutcome:
+            return "bolt.fill"
+        case .pandoraOutcome:
+            return "dice.fill"
+        case .floorFall:
+            return "arrow.down.to.line"
+        }
+    }
+}
+
+private struct IconEncyclopediaRow: View {
+    let symbolName: String
+    let title: String
+    let primaryDescription: String
+    let secondaryDescription: String?
+    let isUnlocked: Bool
+    let tint: Color
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            if isUnlocked {
+                Image(systemName: symbolName)
+                    .font(.system(size: 24, weight: .semibold))
+                    .foregroundColor(tint)
+                    .frame(width: 48, height: 48)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(tint.opacity(0.12))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .stroke(tint.opacity(0.45), lineWidth: 1)
+                            )
+                    )
+                    .accessibilityHidden(true)
+            } else {
+                LockedPreviewBadge()
+                    .frame(width: 48, height: 48)
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(EncyclopediaLockedPresentation.title(title, isUnlocked: isUnlocked))
+                    .font(.headline)
+                Text(EncyclopediaLockedPresentation.description(primaryDescription, isUnlocked: isUnlocked))
+                    .font(.callout)
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                if isUnlocked, let secondaryDescription {
+                    Text(secondaryDescription)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color(UIColor.secondarySystemBackground))
+        )
+        .accessibilityElement(children: .combine)
+    }
+}
+
+private struct LockedPreviewBadge: View {
+    var body: some View {
+        RoundedRectangle(cornerRadius: 8, style: .continuous)
+            .fill(Color(UIColor.tertiarySystemBackground))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(Color.secondary.opacity(0.35), lineWidth: 1)
+            )
+            .overlay(
+                Text("?")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                    .foregroundColor(.secondary)
+            )
+            .accessibilityHidden(true)
     }
 }
 
@@ -554,6 +881,7 @@ private struct TileMarkerPreviewView: View {
              .lockedDungeonExit,
              .dungeonKey,
              .cardPickup,
+             .dungeonRelicPickup,
              .damageTrap,
              .healingTile,
              .brittleFloor,
@@ -616,6 +944,10 @@ private struct TileMarkerPreviewView: View {
                         .font(.system(size: 12, weight: .bold))
                         .foregroundColor(theme.cardContentPrimary)
                 )
+        case .dungeonRelicPickup:
+            Image(systemName: "shippingbox.fill")
+                .font(.system(size: 22, weight: .semibold))
+                .foregroundColor(theme.boardTileEffectPreserveCard)
         case .damageTrap:
             ZStack {
                 TriangleShape()

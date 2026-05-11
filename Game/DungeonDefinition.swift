@@ -240,6 +240,10 @@ public enum DungeonRelicID: String, Codable, CaseIterable, Equatable, Identifiab
 
     public var id: String { rawValue }
 
+    public var encyclopediaDiscoveryID: EncyclopediaDiscoveryID {
+        EncyclopediaDiscoveryID(category: .relic, itemID: rawValue)
+    }
+
     public var displayName: String {
         switch self {
         case .crackedShield:
@@ -318,6 +322,112 @@ public enum DungeonRelicID: String, Codable, CaseIterable, Equatable, Identifiab
     }
 }
 
+/// ヘルプ内の遺物辞典で表示する 1 件分の情報
+public struct DungeonRelicEncyclopediaEntry: Identifiable, Equatable {
+    public let relicID: DungeonRelicID
+
+    public var id: String { relicID.id }
+    public var displayName: String { relicID.displayName }
+    public var effectDescription: String { relicID.effectDescription }
+    public var drawbackDescription: String { relicID.drawbackDescription }
+    public var symbolName: String { relicID.symbolName }
+    public var encyclopediaDiscoveryID: EncyclopediaDiscoveryID { relicID.encyclopediaDiscoveryID }
+
+    public init(relicID: DungeonRelicID) {
+        self.relicID = relicID
+    }
+
+    public static let allEntries: [DungeonRelicEncyclopediaEntry] = DungeonRelicID.allCases.map {
+        DungeonRelicEncyclopediaEntry(relicID: $0)
+    }
+}
+
+/// 塔攻略中だけ有効な呪い遺物の種類
+public enum DungeonCurseID: String, Codable, CaseIterable, Equatable, Identifiable {
+    case rustyChain
+    case thornMark
+    case bloodPact
+
+    public var id: String { rawValue }
+
+    public var encyclopediaDiscoveryID: EncyclopediaDiscoveryID {
+        EncyclopediaDiscoveryID(category: .curse, itemID: rawValue)
+    }
+
+    public var displayName: String {
+        switch self {
+        case .rustyChain:
+            return "錆びた鎖"
+        case .thornMark:
+            return "棘の印"
+        case .bloodPact:
+            return "血の契約"
+        }
+    }
+
+    public var effectDescription: String {
+        switch self {
+        case .rustyChain:
+            return "各フロアの手数上限が-2される。"
+        case .thornMark:
+            return "次に受けるダメージが1増える。"
+        case .bloodPact:
+            return "次に新しく得る報酬カードの使用回数が1減る。"
+        }
+    }
+
+    public var releaseDescription: String {
+        switch self {
+        case .rustyChain:
+            return "この挑戦中ずっと残る。"
+        case .thornMark:
+            return "1回発動すると消える。"
+        case .bloodPact:
+            return "次の報酬カード取得で消える。最低1回は残る。"
+        }
+    }
+
+    public var symbolName: String {
+        switch self {
+        case .rustyChain:
+            return "link"
+        case .thornMark:
+            return "exclamationmark.triangle.fill"
+        case .bloodPact:
+            return "drop.fill"
+        }
+    }
+
+    public var startingUses: Int {
+        switch self {
+        case .thornMark, .bloodPact:
+            return 1
+        case .rustyChain:
+            return 0
+        }
+    }
+}
+
+/// ヘルプ内の呪い辞典で表示する 1 件分の情報
+public struct DungeonCurseEncyclopediaEntry: Identifiable, Equatable {
+    public let curseID: DungeonCurseID
+
+    public var id: String { curseID.id }
+    public var displayName: String { curseID.displayName }
+    public var effectDescription: String { curseID.effectDescription }
+    public var releaseDescription: String { curseID.releaseDescription }
+    public var symbolName: String { curseID.symbolName }
+    public var encyclopediaDiscoveryID: EncyclopediaDiscoveryID { curseID.encyclopediaDiscoveryID }
+
+    public init(curseID: DungeonCurseID) {
+        self.curseID = curseID
+    }
+
+    public static let allEntries: [DungeonCurseEncyclopediaEntry] = DungeonCurseID.allCases.map {
+        DungeonCurseEncyclopediaEntry(curseID: $0)
+    }
+}
+
 /// 塔ラン中に所持している遺物
 public struct DungeonRelicEntry: Codable, Equatable, Identifiable {
     public let relicID: DungeonRelicID
@@ -336,20 +446,196 @@ public struct DungeonRelicEntry: Codable, Equatable, Identifiable {
     }
 }
 
+/// 塔ラン中に所持している呪い遺物
+public struct DungeonCurseEntry: Codable, Equatable, Identifiable {
+    public let curseID: DungeonCurseID
+    public var remainingUses: Int
+
+    public var id: DungeonCurseID { curseID }
+    public var displayName: String { curseID.displayName }
+    public var effectDescription: String { curseID.effectDescription }
+    public var releaseDescription: String { curseID.releaseDescription }
+    public var symbolName: String { curseID.symbolName }
+    public var hasLimitedUses: Bool { curseID.startingUses > 0 }
+
+    public init(curseID: DungeonCurseID, remainingUses: Int? = nil) {
+        self.curseID = curseID
+        self.remainingUses = max(remainingUses ?? curseID.startingUses, 0)
+    }
+}
+
+/// 宝箱から発生する結果
+public enum DungeonRelicPickupOutcome: Codable, Equatable {
+    case relic
+    case curse
+    case mimic
+    case pandora
+}
+
+/// 遊び方辞典で扱う塔イベントの分類
+public enum DungeonEventEncyclopediaKind: String, CaseIterable, Equatable, Identifiable {
+    case safeChest
+    case suspiciousLightChest
+    case suspiciousDeepChest
+    case relicReward
+    case curseOutcome
+    case mimicOutcome
+    case pandoraOutcome
+    case floorFall
+
+    public var id: String { rawValue }
+
+    public var encyclopediaDiscoveryID: EncyclopediaDiscoveryID {
+        EncyclopediaDiscoveryID(category: .event, itemID: rawValue)
+    }
+
+    public var displayName: String {
+        switch self {
+        case .safeChest:
+            return "宝箱"
+        case .suspiciousLightChest:
+            return "怪しい宝箱"
+        case .suspiciousDeepChest:
+            return "深く怪しい宝箱"
+        case .relicReward:
+            return "遺物報酬"
+        case .curseOutcome:
+            return "呪い"
+        case .mimicOutcome:
+            return "ミミック"
+        case .pandoraOutcome:
+            return "パンドラ箱"
+        case .floorFall:
+            return "床崩落"
+        }
+    }
+
+    public var description: String {
+        switch self {
+        case .safeChest:
+            return "踏むと遺物を取得する安全な宝箱です。カード所持枠は使いません。"
+        case .suspiciousLightChest:
+            return "遺物以外の結果も起きることがある、少し怪しい宝箱です。"
+        case .suspiciousDeepChest:
+            return "強い遺物も狙えますが、危険な結果の割合も高い宝箱です。"
+        case .relicReward:
+            return "フロアクリア後の報酬候補に遺物が並ぶことがあります。既に持つ遺物は候補から外れます。"
+        case .curseOutcome:
+            return "怪しい宝箱から不利な効果を持つ呪いを受けることがあります。"
+        case .mimicOutcome:
+            return "宝箱がミミック化し、開けた瞬間にダメージを受けます。"
+        case .pandoraOutcome:
+            return "遺物と呪いを同時に受け取る大きな賭けです。"
+        case .floorFall:
+            return "崩落穴に落ちると HP を失い、条件を満たす場合は前の階へ落下します。"
+        }
+    }
+}
+
+/// ヘルプ内のイベント辞典で表示する 1 件分の情報
+public struct DungeonEventEncyclopediaEntry: Identifiable, Equatable {
+    public let kind: DungeonEventEncyclopediaKind
+
+    public var id: String { kind.id }
+    public var displayName: String { kind.displayName }
+    public var description: String { kind.description }
+    public var encyclopediaDiscoveryID: EncyclopediaDiscoveryID { kind.encyclopediaDiscoveryID }
+
+    public init(kind: DungeonEventEncyclopediaKind) {
+        self.kind = kind
+    }
+
+    public static let allEntries: [DungeonEventEncyclopediaEntry] = DungeonEventEncyclopediaKind.allCases.map {
+        DungeonEventEncyclopediaEntry(kind: $0)
+    }
+}
+
+/// 宝箱の危険度
+public enum DungeonRelicPickupKind: String, Codable, Equatable {
+    case safe
+    case suspiciousLight
+    case suspiciousDeep
+
+    public var isSuspicious: Bool {
+        switch self {
+        case .safe:
+            return false
+        case .suspiciousLight, .suspiciousDeep:
+            return true
+        }
+    }
+
+    public var encyclopediaEventKind: DungeonEventEncyclopediaKind {
+        switch self {
+        case .safe:
+            return .safeChest
+        case .suspiciousLight:
+            return .suspiciousLightChest
+        case .suspiciousDeep:
+            return .suspiciousDeepChest
+        }
+    }
+
+    public var outcomeWeights: [(DungeonRelicPickupOutcome, Int)] {
+        switch self {
+        case .safe:
+            return [(.relic, 100)]
+        case .suspiciousLight:
+            return [(.relic, 75), (.curse, 15), (.mimic, 7), (.pandora, 3)]
+        case .suspiciousDeep:
+            return [(.relic, 60), (.curse, 25), (.mimic, 10), (.pandora, 5)]
+        }
+    }
+}
+
 /// フロア内に配置する宝箱。踏むとランダムな遺物を取得する。
 public struct DungeonRelicPickupDefinition: Codable, Equatable, Identifiable {
     public let id: String
     public let point: GridPoint
+    public let kind: DungeonRelicPickupKind
     public let candidateRelics: [DungeonRelicID]
+    public let candidateCurses: [DungeonCurseID]
 
     public init(
         id: String,
         point: GridPoint,
-        candidateRelics: [DungeonRelicID] = DungeonRelicID.allCases
+        kind: DungeonRelicPickupKind = .safe,
+        candidateRelics: [DungeonRelicID] = DungeonRelicID.allCases,
+        candidateCurses: [DungeonCurseID] = DungeonCurseID.allCases
     ) {
         self.id = id
         self.point = point
+        self.kind = kind
         self.candidateRelics = candidateRelics.isEmpty ? DungeonRelicID.allCases : candidateRelics
+        self.candidateCurses = candidateCurses.isEmpty ? DungeonCurseID.allCases : candidateCurses
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case point
+        case kind
+        case candidateRelics
+        case candidateCurses
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            id: try container.decode(String.self, forKey: .id),
+            point: try container.decode(GridPoint.self, forKey: .point),
+            kind: try container.decodeIfPresent(DungeonRelicPickupKind.self, forKey: .kind) ?? .safe,
+            candidateRelics: try container.decodeIfPresent([DungeonRelicID].self, forKey: .candidateRelics) ?? DungeonRelicID.allCases,
+            candidateCurses: try container.decodeIfPresent([DungeonCurseID].self, forKey: .candidateCurses) ?? DungeonCurseID.allCases
+        )
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(point, forKey: .point)
+        try container.encode(kind, forKey: .kind)
+        try container.encode(candidateRelics, forKey: .candidateRelics)
+        try container.encode(candidateCurses, forKey: .candidateCurses)
     }
 }
 
@@ -660,6 +946,8 @@ public struct DungeonRunState: Codable, Equatable {
     public let rewardInventoryEntries: [DungeonInventoryEntry]
     /// ラン中だけ有効な遺物
     public let relicEntries: [DungeonRelicEntry]
+    /// ラン中だけ有効な呪い遺物
+    public let curseEntries: [DungeonCurseEntry]
     /// ラン中に取得済みの宝箱 ID
     public let collectedDungeonRelicPickupIDs: Set<String>
     /// 成長塔の拾得/報酬カード変化に使うラン単位の seed
@@ -685,6 +973,7 @@ public struct DungeonRunState: Codable, Equatable {
         clearedFloorCount: Int = 0,
         rewardInventoryEntries: [DungeonInventoryEntry] = [],
         relicEntries: [DungeonRelicEntry] = [],
+        curseEntries: [DungeonCurseEntry] = [],
         collectedDungeonRelicPickupIDs: Set<String> = [],
         cardVariationSeed: UInt64? = nil,
         crackedFloorPointsByFloor: [Int: Set<GridPoint>] = [:],
@@ -701,6 +990,7 @@ public struct DungeonRunState: Codable, Equatable {
         self.clearedFloorCount = max(clearedFloorCount, 0)
         self.rewardInventoryEntries = DungeonRunState.mergedRewardEntries(rewardInventoryEntries)
         self.relicEntries = DungeonRunState.mergedRelicEntries(relicEntries)
+        self.curseEntries = DungeonRunState.mergedCurseEntries(curseEntries)
         self.collectedDungeonRelicPickupIDs = collectedDungeonRelicPickupIDs
         self.cardVariationSeed = cardVariationSeed
         self.crackedFloorPointsByFloor = crackedFloorPointsByFloor.filter { !$0.value.isEmpty }
@@ -722,6 +1012,7 @@ public struct DungeonRunState: Codable, Equatable {
         rewardSelection: DungeonRewardSelection? = nil,
         currentInventoryEntries: [DungeonInventoryEntry]? = nil,
         currentRelicEntries: [DungeonRelicEntry]? = nil,
+        currentCurseEntries: [DungeonCurseEntry]? = nil,
         collectedDungeonRelicPickupIDs: Set<String>? = nil,
         rewardAddUses: Int = 2,
         hazardDamageMitigationsRemaining: Int? = nil,
@@ -741,6 +1032,10 @@ public struct DungeonRunState: Codable, Equatable {
             selection,
             to: currentRelicEntries ?? relicEntries
         )
+        let selectedCurseEntries = DungeonRunState.curseEntriesAfterRewardSelection(
+            selection,
+            entries: currentCurseEntries ?? curseEntries
+        )
         let carriedRelics = DungeonRunState.relicEntriesForNextFloor(selectedRelicEntries)
         let rewardRelicAdjustedHP = DungeonRunState.carryoverHP(
             carryoverHP,
@@ -757,6 +1052,7 @@ public struct DungeonRunState: Codable, Equatable {
             clearedFloorCount: clearedFloorCount + 1,
             rewardInventoryEntries: updatedRewardInventoryEntries.compactMap { $0.carryingRewardUsesOnly() },
             relicEntries: carriedRelics,
+            curseEntries: selectedCurseEntries,
             collectedDungeonRelicPickupIDs: self.collectedDungeonRelicPickupIDs.union(collectedDungeonRelicPickupIDs ?? []),
             cardVariationSeed: cardVariationSeed,
             crackedFloorPointsByFloor: crackedFloorPointsByFloor,
@@ -772,6 +1068,7 @@ public struct DungeonRunState: Codable, Equatable {
         currentFloorMoveCount: Int,
         currentInventoryEntries: [DungeonInventoryEntry],
         currentRelicEntries: [DungeonRelicEntry]? = nil,
+        currentCurseEntries: [DungeonCurseEntry]? = nil,
         collectedDungeonRelicPickupIDs: Set<String> = [],
         landingPoint: GridPoint,
         currentFloorCrackedPoints: Set<GridPoint>,
@@ -793,6 +1090,7 @@ public struct DungeonRunState: Codable, Equatable {
             clearedFloorCount: clearedFloorCount,
             rewardInventoryEntries: currentInventoryEntries.compactMap { $0.carryingRewardUsesOnly() },
             relicEntries: currentRelicEntries ?? relicEntries,
+            curseEntries: currentCurseEntries ?? curseEntries,
             collectedDungeonRelicPickupIDs: self.collectedDungeonRelicPickupIDs.union(collectedDungeonRelicPickupIDs),
             cardVariationSeed: cardVariationSeed,
             crackedFloorPointsByFloor: recordedState.crackedFloorPointsByFloor,
@@ -841,6 +1139,7 @@ public struct DungeonRunState: Codable, Equatable {
             clearedFloorCount: clearedFloorCount,
             rewardInventoryEntries: rewardInventoryEntries,
             relicEntries: relicEntries,
+            curseEntries: curseEntries,
             collectedDungeonRelicPickupIDs: collectedDungeonRelicPickupIDs,
             cardVariationSeed: cardVariationSeed,
             crackedFloorPointsByFloor: crackedByFloor,
@@ -860,6 +1159,7 @@ public struct DungeonRunState: Codable, Equatable {
         case clearedFloorCount
         case rewardInventoryEntries
         case relicEntries
+        case curseEntries
         case collectedDungeonRelicPickupIDs
         case cardVariationSeed
         case crackedFloorPointsByFloor
@@ -880,6 +1180,7 @@ public struct DungeonRunState: Codable, Equatable {
             clearedFloorCount: try container.decodeIfPresent(Int.self, forKey: .clearedFloorCount) ?? 0,
             rewardInventoryEntries: try container.decodeIfPresent([DungeonInventoryEntry].self, forKey: .rewardInventoryEntries) ?? [],
             relicEntries: try container.decodeIfPresent([DungeonRelicEntry].self, forKey: .relicEntries) ?? [],
+            curseEntries: try container.decodeIfPresent([DungeonCurseEntry].self, forKey: .curseEntries) ?? [],
             collectedDungeonRelicPickupIDs: try container.decodeIfPresent(Set<String>.self, forKey: .collectedDungeonRelicPickupIDs) ?? [],
             cardVariationSeed: try container.decodeIfPresent(UInt64.self, forKey: .cardVariationSeed),
             crackedFloorPointsByFloor: try container.decodeIfPresent([Int: Set<GridPoint>].self, forKey: .crackedFloorPointsByFloor) ?? [:],
@@ -900,6 +1201,7 @@ public struct DungeonRunState: Codable, Equatable {
         try container.encode(clearedFloorCount, forKey: .clearedFloorCount)
         try container.encode(rewardInventoryEntries, forKey: .rewardInventoryEntries)
         try container.encode(relicEntries, forKey: .relicEntries)
+        try container.encode(curseEntries, forKey: .curseEntries)
         try container.encode(collectedDungeonRelicPickupIDs, forKey: .collectedDungeonRelicPickupIDs)
         try container.encodeIfPresent(cardVariationSeed, forKey: .cardVariationSeed)
         try container.encode(crackedFloorPointsByFloor, forKey: .crackedFloorPointsByFloor)
@@ -928,6 +1230,18 @@ public struct DungeonRunState: Codable, Equatable {
         var result: [DungeonRelicEntry] = []
         for entry in entries {
             if let index = result.firstIndex(where: { $0.relicID == entry.relicID }) {
+                result[index].remainingUses = max(result[index].remainingUses, entry.remainingUses)
+            } else {
+                result.append(entry)
+            }
+        }
+        return result
+    }
+
+    private static func mergedCurseEntries(_ entries: [DungeonCurseEntry]) -> [DungeonCurseEntry] {
+        var result: [DungeonCurseEntry] = []
+        for entry in entries {
+            if let index = result.firstIndex(where: { $0.curseID == entry.curseID }) {
                 result[index].remainingUses = max(result[index].remainingUses, entry.remainingUses)
             } else {
                 result.append(entry)
@@ -984,6 +1298,19 @@ public struct DungeonRunState: Codable, Equatable {
               !entries.contains(where: { $0.relicID == relicID })
         else { return entries }
         return entries + [DungeonRelicEntry(relicID: relicID)]
+    }
+
+    private static func curseEntriesAfterRewardSelection(
+        _ selection: DungeonRewardSelection?,
+        entries: [DungeonCurseEntry]
+    ) -> [DungeonCurseEntry] {
+        guard case .add = selection else { return entries }
+        var result = entries
+        guard let index = result.firstIndex(where: { $0.curseID == .bloodPact && $0.remainingUses > 0 }) else {
+            return result
+        }
+        result[index].remainingUses -= 1
+        return result
     }
 
     private static func carryoverHP(
@@ -2800,7 +3127,7 @@ public struct DungeonLibrary {
                 DungeonCardPickupDefinition(id: "growth-12-ray-right", point: GridPoint(x: 4, y: 5), card: .rayRight)
             ],
             relicPickups: [
-                DungeonRelicPickupDefinition(id: "growth-12-relic", point: GridPoint(x: 3, y: 6))
+                DungeonRelicPickupDefinition(id: "growth-12-relic", point: GridPoint(x: 3, y: 6), kind: .suspiciousLight)
             ],
             rewardMoveCardsAfterClear: [.rayLeft, .diagonalUpLeft2, .straightUp2]
         )
@@ -2986,7 +3313,7 @@ public struct DungeonLibrary {
                 DungeonCardPickupDefinition(id: "growth-16-up2", point: GridPoint(x: 6, y: 5), card: .straightUp2)
             ],
             relicPickups: [
-                DungeonRelicPickupDefinition(id: "growth-16-relic", point: GridPoint(x: 5, y: 1))
+                DungeonRelicPickupDefinition(id: "growth-16-relic", point: GridPoint(x: 5, y: 1), kind: .suspiciousDeep)
             ],
             rewardMoveCardsAfterClear: [.diagonalUpLeft2, .rayLeft],
             rewardSupportCardsAfterClear: [.singleAnnihilationSpell]
@@ -3111,7 +3438,7 @@ public struct DungeonLibrary {
                 DungeonCardPickupDefinition(id: "growth-19-up2", point: GridPoint(x: 8, y: 6), card: .straightUp2)
             ],
             relicPickups: [
-                DungeonRelicPickupDefinition(id: "growth-19-relic", point: GridPoint(x: 6, y: 1))
+                DungeonRelicPickupDefinition(id: "growth-19-relic", point: GridPoint(x: 6, y: 1), kind: .suspiciousDeep)
             ],
             rewardMoveCardsAfterClear: [.straightRight2, .diagonalUpRight2, .rayRight]
         )

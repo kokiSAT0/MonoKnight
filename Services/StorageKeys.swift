@@ -8,6 +8,7 @@ enum StorageKey {
         static let preferredColorScheme = "preferred_color_scheme"
         static let hapticsEnabled = "haptics_enabled"
         static let guideModeEnabled = "guide_mode_enabled"
+        static let showsAllEncyclopediaEntriesForDeveloper = "shows_all_encyclopedia_entries_for_developer"
         static let removeAdsPurchased = "remove_ads_mk"
         static let adsShouldUseNPA = "ads_should_use_npa"
         static let interstitialClearCounter = "interstitial_clear_counter"
@@ -18,5 +19,6 @@ enum StorageKey {
         static let gameCenterLastScoreByLeaderboard = "gc_last_score_by_leaderboard"
         static let dungeonGrowth = "dungeon_growth_v3"
         static let dungeonRunResume = "dungeon_run_resume_v1"
+        static let encyclopediaDiscovery = "encyclopedia_discovery_v1"
     }
 }

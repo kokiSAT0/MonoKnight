@@ -11,6 +11,10 @@ public enum EnemyPresentationKind: String, CaseIterable, Equatable, Identifiable
 
     public var id: String { rawValue }
 
+    public var encyclopediaDiscoveryID: EncyclopediaDiscoveryID {
+        EncyclopediaDiscoveryID(category: .enemy, itemID: rawValue)
+    }
+
     public var displayName: String {
         switch self {
         case .guardPost:

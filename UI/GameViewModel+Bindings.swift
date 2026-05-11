@@ -25,6 +25,7 @@ extension GameViewModel {
                 self?.handlePenaltyEvent(event)
             },
             onHandStacksChange: { [weak self] newHandStacks in
+                self?.recordDisplayedHandDiscoveries(newHandStacks)
                 self?.handleHandStacksChange(newHandStacks)
             },
             onBoardTapPlayRequest: { [weak self] request in
@@ -82,6 +83,22 @@ extension GameViewModel {
             }
             .store(in: &cancellables)
 
+        core.$dungeonRelicEntries
+            .removeDuplicates()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] entries in
+                self?.recordRelicDiscoveries(entries)
+            }
+            .store(in: &cancellables)
+
+        core.$dungeonCurseEntries
+            .removeDuplicates()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] entries in
+                self?.recordCurseDiscoveries(entries)
+            }
+            .store(in: &cancellables)
+
     }
 
     func handleHandStacksChange(_ newHandStacks: [HandStack]) {
@@ -106,6 +123,9 @@ extension GameViewModel {
         }
         if progress == .failed || shouldClearDungeonResumeAfterClear(progress) {
             dungeonRunResumeStore.clear()
+        }
+        if progress == .cleared {
+            recordRewardOfferDiscoveries()
         }
         coreBindingCoordinator.handleProgressChange(
             progress,

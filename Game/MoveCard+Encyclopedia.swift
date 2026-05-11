@@ -1,5 +1,41 @@
 import Foundation
 
+/// 遊び方辞典の発見状態を分類するカテゴリ
+public enum EncyclopediaDiscoveryCategory: String, Codable, CaseIterable {
+    case card
+    case supportCard
+    case enemy
+    case tile
+    case relic
+    case curse
+    case event
+}
+
+/// 遊び方辞典の発見状態を保存するための安定 ID
+public struct EncyclopediaDiscoveryID: Hashable, Codable, RawRepresentable {
+    public let category: EncyclopediaDiscoveryCategory
+    public let itemID: String
+
+    public var rawValue: String {
+        "\(category.rawValue):\(itemID)"
+    }
+
+    public init(category: EncyclopediaDiscoveryCategory, itemID: String) {
+        self.category = category
+        self.itemID = itemID
+    }
+
+    public init?(rawValue: String) {
+        let parts = rawValue.split(separator: ":", maxSplits: 1).map(String.init)
+        guard parts.count == 2,
+              let category = EncyclopediaDiscoveryCategory(rawValue: parts[0]),
+              !parts[1].isEmpty
+        else { return nil }
+        self.category = category
+        self.itemID = parts[1]
+    }
+}
+
 /// ヘルプ内のカード辞典で表示する 1 件分の情報
 public struct MoveCardEncyclopediaEntry: Identifiable, Equatable {
     public let id: Int
@@ -27,6 +63,10 @@ public struct MoveCardEncyclopediaEntry: Identifiable, Equatable {
 }
 
 public extension MoveCard {
+    var encyclopediaDiscoveryID: EncyclopediaDiscoveryID {
+        EncyclopediaDiscoveryID(category: .card, itemID: String(describing: self))
+    }
+
     /// カード辞典で使う分類名
     var encyclopediaCategory: String {
         switch kind {

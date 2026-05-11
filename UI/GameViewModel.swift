@@ -20,6 +20,8 @@ final class GameViewModel: ObservableObject {
     let dungeonGrowthStore: DungeonGrowthStore
     /// 塔攻略の中断復帰ストア
     let dungeonRunResumeStore: DungeonRunResumeStore
+    /// 遊び方辞典の発見状態ストア
+    let encyclopediaDiscoveryStore: EncyclopediaDiscoveryStore
     /// Game Center サインインを再度促す要求を親へ伝えるクロージャ
     let onRequestGameCenterSignIn: ((GameCenterSignInPromptReason) -> Void)?
     /// タイトル復帰時に親へ伝えるためのクロージャ
@@ -235,7 +237,8 @@ final class GameViewModel: ObservableObject {
               let dungeon = DungeonLibrary.shared.dungeon(with: metadata.dungeonID)
         else { return 2 }
         let relicBonus = core.dungeonRelicEntries.contains { $0.relicID == .heavyCrown } ? 1 : 0
-        return dungeonGrowthStore.rewardAddUses(for: dungeon) + relicBonus
+        let cursePenalty = core.dungeonCurseEntries.contains { $0.curseID == .bloodPact && $0.remainingUses > 0 } ? 1 : 0
+        return max(dungeonGrowthStore.rewardAddUses(for: dungeon) + relicBonus - cursePenalty, 1)
     }
     /// クリア後に強化/整理できる手札の報酬カード
     var adjustableDungeonRewardEntries: [DungeonInventoryEntry] {
@@ -359,6 +362,7 @@ final class GameViewModel: ObservableObject {
         adsService: AdsServiceProtocol,
         dungeonGrowthStore: @MainActor @autoclosure () -> DungeonGrowthStore = DungeonGrowthStore(),
         dungeonRunResumeStore: @MainActor @autoclosure () -> DungeonRunResumeStore = DungeonRunResumeStore(),
+        encyclopediaDiscoveryStore: @MainActor @autoclosure () -> EncyclopediaDiscoveryStore = EncyclopediaDiscoveryStore(),
         onRequestGameCenterSignIn: ((GameCenterSignInPromptReason) -> Void)? = nil,
         onRequestReturnToTitle: (() -> Void)?,
         onRequestStartDungeonFloor: ((GameMode) -> Void)? = nil,
@@ -373,6 +377,7 @@ final class GameViewModel: ObservableObject {
         self.adsService = adsService
         self.dungeonGrowthStore = dungeonGrowthStore()
         self.dungeonRunResumeStore = dungeonRunResumeStore()
+        self.encyclopediaDiscoveryStore = encyclopediaDiscoveryStore()
         self.onRequestGameCenterSignIn = onRequestGameCenterSignIn
         self.onRequestReturnToTitle = onRequestReturnToTitle
         self.onRequestStartDungeonFloor = onRequestStartDungeonFloor
@@ -435,6 +440,7 @@ final class GameViewModel: ObservableObject {
 
         // GameCore が公開する各種状態を監視し、SwiftUI 側の責務を軽量化する
         bindGameCore()
+        recordInitialEncyclopediaDiscoveries()
         generatedCore.resolvePendingDungeonFallLandingIfNeeded()
 
         // ユーザー設定から手札並び順を復元する
