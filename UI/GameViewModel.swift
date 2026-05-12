@@ -188,6 +188,14 @@ final class GameViewModel: ObservableObject {
     var dungeonInventoryEntries: [DungeonInventoryEntry] {
         core.dungeonInventoryEntries
     }
+    /// 塔で現在所持している通常遺物
+    var dungeonRelicEntries: [DungeonRelicEntry] {
+        core.dungeonRelicEntries
+    }
+    /// 塔で現在所持している呪い遺物
+    var dungeonCurseEntries: [DungeonCurseEntry] {
+        core.dungeonCurseEntries
+    }
     /// 現在フロアのクリア後に選べる報酬カード
     var availableDungeonRewardMoveCards: [MoveCard] {
         availableDungeonRewardOffers.compactMap(\.move)
@@ -321,7 +329,7 @@ final class GameViewModel: ObservableObject {
         let frayedMemoryBonus = core.dungeonCurseEntries.contains { $0.curseID == .frayedMemory } ? 1 : 0
         return DungeonRunState.rewardUses(for: .refillEmptySlots) + twinPouchBonus + sageCodexBonus + frayedMemoryBonus
     }
-    /// クリア後に強化/整理できる手札の報酬カード
+    /// クリア後に整理できる手札の報酬カード
     var adjustableDungeonRewardEntries: [DungeonInventoryEntry] {
         guard !isResultFailed,
               let metadata = mode.dungeonMetadataSnapshot,

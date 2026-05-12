@@ -115,10 +115,6 @@ public enum DungeonRewardSelection: Equatable, Sendable {
     case addRelic(DungeonRelicID)
     /// 旧互換用: フロア内で拾って未使用分が残っているカードを報酬カードとして持ち越す
     case carryOverPickup(MoveCard)
-    /// 既存の持ち越し報酬カードの使用回数を1増やす
-    case upgrade(MoveCard)
-    /// 既存の持ち越し補助報酬カードの使用回数を1増やす
-    case upgradeSupport(SupportCard)
     /// 既存の持ち越し報酬カードをランから外す
     case remove(MoveCard)
     /// 既存の持ち越し補助報酬カードをランから外す
@@ -555,7 +551,7 @@ public enum DungeonRelicID: String, Codable, CaseIterable, Equatable, Identifiab
              .antidoteStone, .starUmbrella, .fallAnchor, .campfireCoal, .merchantsScale:
             return nil
         case .chippedHourglass, .stargazerHourglass, .copperHourglass:
-            return "報酬カード強化の増加量は通常どおり。"
+            return "新規報酬カードの使用回数補正は通常どおり。"
         case .purifyingCharm:
             return "毒、麻痺、足枷、幻惑、手札喪失系の罠に反応する。"
         case .foldingMap:
@@ -711,24 +707,6 @@ public enum DungeonRelicID: String, Codable, CaseIterable, Equatable, Identifiab
 public enum DungeonRelicDisplayKind: Equatable, Sendable {
     case temporary
     case persistent
-
-    public var displayName: String {
-        switch self {
-        case .temporary:
-            return "一時レリック"
-        case .persistent:
-            return "永続レリック"
-        }
-    }
-
-    public var badgeText: String {
-        switch self {
-        case .temporary:
-            return "一"
-        case .persistent:
-            return "永"
-        }
-    }
 }
 
 /// ヘルプ内の遺物辞典で表示する 1 件分の情報
@@ -1228,7 +1206,7 @@ public struct DungeonRelicAcquisitionPresentation: Equatable, Identifiable, Send
         public var primaryDescription: String {
             switch self {
             case .relic(let relic):
-                return "\(relic.rarity.displayName) / \(relic.displayKind.displayName) / \(relic.effectDescription)"
+                return relic.effectDescription
             case .curse(let curse):
                 return "\(curse.displayKind.displayName) / 利点: \(curse.upsideDescription)"
             case .mimicDamage(let damage):
@@ -2384,12 +2362,6 @@ public struct DungeonRunState: Codable, Equatable, Sendable {
         case .carryOverPickup(let card):
             guard sourceEntries.contains(where: { $0.moveCard == card && $0.hasUsesRemaining }) else { break }
             break
-        case .upgrade(let card):
-            guard let index = result.firstIndex(where: { $0.moveCard == card && $0.hasUsesRemaining }) else { break }
-            result[index].rewardUses += 1
-        case .upgradeSupport(let support):
-            guard let index = result.firstIndex(where: { $0.supportCard == support && $0.hasUsesRemaining }) else { break }
-            result[index].rewardUses += 1
         case .remove(let card):
             result.removeAll { $0.moveCard == card }
         case .removeSupport(let support):
@@ -3357,10 +3329,16 @@ public struct DungeonDefinition: Codable, Equatable, Identifiable {
               difficulty == .growth,
               let seed = runState?.cardVariationSeed
         else { return floor }
+        let spawnPoint = DungeonCardVariationResolver.resolvedStitchedSpawnPoint(
+            floors: floors,
+            floorIndex: floorIndex,
+            seed: seed
+        )
         return DungeonCardVariationResolver.resolve(
             floor: floor,
             floorIndex: floorIndex,
-            seed: seed
+            seed: seed,
+            forcedSpawnPoint: spawnPoint
         )
     }
 }
@@ -3371,7 +3349,7 @@ private enum RogueTowerFloorGenerator {
     static func resolve(floorIndex: Int, seed: UInt64) -> DungeonFloorDefinition {
         let floorIndex = max(floorIndex, 0)
         var randomizer = DungeonCardVariationRandomizer(seed: seed, floorIndex: floorIndex, salt: 0x52_6F_67_75_65)
-        let spawnPoint = randomEdgePoint(randomizer: &randomizer)
+        let spawnPoint = resolvedSpawnPoint(floorIndex: floorIndex, seed: seed)
         let exitPoint = randomEdgePoint(avoiding: spawnPoint, randomizer: &randomizer)
         let safePath = representativePath(from: spawnPoint, to: exitPoint, randomizer: &randomizer)
         var reserved: Set<GridPoint> = [spawnPoint, exitPoint]
@@ -3406,6 +3384,7 @@ private enum RogueTowerFloorGenerator {
         let enemies = enemies(
             floorIndex: floorIndex,
             safePath: safePath,
+            impassableTilePoints: impassableTilePoints,
             reserved: &reserved,
             randomizer: &randomizer
         )
@@ -3438,6 +3417,21 @@ private enum RogueTowerFloorGenerator {
             rewardSupportCardsAfterClear: rewardCards.compactMap(\.support),
             isDarknessEnabled: isDarknessEnabled(floorIndex: floorIndex, randomizer: &randomizer)
         )
+    }
+
+    private static func resolvedSpawnPoint(floorIndex: Int, seed: UInt64) -> GridPoint {
+        guard floorIndex > 0 else {
+            var randomizer = DungeonCardVariationRandomizer(seed: seed, floorIndex: 0, salt: 0x52_6F_67_75_65)
+            return randomEdgePoint(randomizer: &randomizer)
+        }
+        return resolvedExitPoint(floorIndex: floorIndex - 1, seed: seed)
+    }
+
+    private static func resolvedExitPoint(floorIndex: Int, seed: UInt64) -> GridPoint {
+        let floorIndex = max(floorIndex, 0)
+        var randomizer = DungeonCardVariationRandomizer(seed: seed, floorIndex: floorIndex, salt: 0x52_6F_67_75_65)
+        let spawnPoint = resolvedSpawnPoint(floorIndex: floorIndex, seed: seed)
+        return randomEdgePoint(avoiding: spawnPoint, randomizer: &randomizer)
     }
 
     private static func turnLimit(floorIndex: Int, safePathLength: Int) -> Int {
@@ -3630,6 +3624,7 @@ private enum RogueTowerFloorGenerator {
     private static func enemies(
         floorIndex: Int,
         safePath: [GridPoint],
+        impassableTilePoints: Set<GridPoint>,
         reserved: inout Set<GridPoint>,
         randomizer: inout DungeonCardVariationRandomizer
     ) -> [EnemyDefinition] {
@@ -3648,7 +3643,15 @@ private enum RogueTowerFloorGenerator {
                 behavior = .guardPost
                 name = "番兵"
             case 1:
-                behavior = .watcher(direction: randomDirection(randomizer: &randomizer), range: min(3 + floorIndex / 8, 6))
+                behavior = .watcher(
+                    direction: DungeonWatcherDirectionSelector.bestDirection(
+                        from: point,
+                        boardSize: boardSize,
+                        impassableTilePoints: impassableTilePoints,
+                        randomizer: &randomizer
+                    ),
+                    range: min(3 + floorIndex / 8, 6)
+                )
                 name = "見張り"
             case 2:
                 behavior = .patrol(path: patrolPath(from: point, avoiding: enemyReserved, randomizer: &randomizer))
@@ -3835,13 +3838,93 @@ private enum RogueTowerFloorGenerator {
     }
 }
 
+private enum DungeonWatcherDirectionSelector {
+    static func bestDirection(
+        from origin: GridPoint,
+        boardSize: Int,
+        impassableTilePoints: Set<GridPoint>,
+        randomizer: inout DungeonCardVariationRandomizer
+    ) -> MoveVector {
+        let orderedDirections = randomOrderedDirections(randomizer: &randomizer)
+        let scoredDirections = orderedDirections.map { direction in
+            (direction: direction, length: lineOfSightLength(
+                from: origin,
+                direction: direction,
+                boardSize: boardSize,
+                impassableTilePoints: impassableTilePoints
+            ))
+        }
+        guard let best = scoredDirections.max(by: { lhs, rhs in lhs.length < rhs.length }),
+              best.length > 0
+        else {
+            return orderedDirections[0]
+        }
+        return best.direction
+    }
+
+    private static func lineOfSightLength(
+        from origin: GridPoint,
+        direction: MoveVector,
+        boardSize: Int,
+        impassableTilePoints: Set<GridPoint>
+    ) -> Int {
+        var length = 0
+        var point = origin.offset(dx: direction.dx, dy: direction.dy)
+        while point.isInside(boardSize: boardSize), !impassableTilePoints.contains(point) {
+            length += 1
+            point = point.offset(dx: direction.dx, dy: direction.dy)
+        }
+        return length
+    }
+
+    private static func randomOrderedDirections(
+        randomizer: inout DungeonCardVariationRandomizer
+    ) -> [MoveVector] {
+        let offset = randomizer.nextIndex(upperBound: orthogonalDirections.count)
+        return orthogonalDirections.indices.map { index in
+            orthogonalDirections[(index + offset) % orthogonalDirections.count]
+        }
+    }
+
+    private static let orthogonalDirections = [
+        MoveVector(dx: 1, dy: 0),
+        MoveVector(dx: -1, dy: 0),
+        MoveVector(dx: 0, dy: 1),
+        MoveVector(dx: 0, dy: -1)
+    ]
+}
+
 private enum DungeonCardVariationResolver {
+    static func resolvedStitchedSpawnPoint(
+        floors: [DungeonFloorDefinition],
+        floorIndex: Int,
+        seed: UInt64
+    ) -> GridPoint? {
+        guard floors.indices.contains(floorIndex) else { return nil }
+        var previousExitPoint: GridPoint?
+        for index in 0...floorIndex {
+            let floor = floors[index]
+            let spawnPoint = previousExitPoint ?? resolvedSpawnPoint(for: floor, floorIndex: index, seed: seed)
+            if index == floorIndex {
+                return spawnPoint
+            }
+            previousExitPoint = resolvedExitPoint(
+                for: floor,
+                floorIndex: index,
+                seed: seed,
+                avoiding: spawnPoint
+            )
+        }
+        return nil
+    }
+
     static func resolve(
         floor: DungeonFloorDefinition,
         floorIndex: Int,
-        seed: UInt64
+        seed: UInt64,
+        forcedSpawnPoint: GridPoint? = nil
     ) -> DungeonFloorDefinition {
-        let spawnPoint = resolvedSpawnPoint(for: floor, floorIndex: floorIndex, seed: seed)
+        let spawnPoint = forcedSpawnPoint ?? resolvedSpawnPoint(for: floor, floorIndex: floorIndex, seed: seed)
         let exitPoint = resolvedExitPoint(for: floor, floorIndex: floorIndex, seed: seed, avoiding: spawnPoint)
         let endpointFloor = floorVariant(floor, spawnPoint: spawnPoint, exitPoint: exitPoint)
         let enemies = resolvedEnemies(
@@ -3893,6 +3976,13 @@ private enum DungeonCardVariationResolver {
             floorIndex: floorIndex,
             seed: seed
         )
+        let finalEnemies = resolvedWatcherDirections(
+            for: enemies,
+            floorIndex: floorIndex,
+            seed: seed,
+            boardSize: floor.boardSize,
+            impassableTilePoints: impassableTilePoints
+        )
         return DungeonFloorDefinition(
             id: floor.id,
             title: floor.title,
@@ -3901,7 +3991,7 @@ private enum DungeonCardVariationResolver {
             exitPoint: exitPoint,
             deckPreset: floor.deckPreset,
             failureRule: floor.failureRule,
-            enemies: enemies,
+            enemies: finalEnemies,
             hazards: hazards,
             impassableTilePoints: impassableTilePoints,
             tileEffectOverrides: floor.tileEffectOverrides,
@@ -3955,8 +4045,7 @@ private enum DungeonCardVariationResolver {
         floorIndex: Int,
         seed: UInt64
     ) -> GridPoint {
-        let sectionStartIndexes: Set<Int> = [0, 10, 20, 30, 40]
-        guard !sectionStartIndexes.contains(floorIndex) else { return floor.spawnPoint }
+        guard floorIndex > 0 else { return floor.spawnPoint }
         return variedEndpoint(
             around: floor.spawnPoint,
             floorIndex: floorIndex - 1,
@@ -4075,6 +4164,60 @@ private enum DungeonCardVariationResolver {
             )
             guard !candidates.isEmpty else { return behavior }
             return .patrol(path: candidates[randomizer.nextIndex(upperBound: candidates.count)])
+        }
+    }
+
+    private static func resolvedWatcherDirections(
+        for enemies: [EnemyDefinition],
+        floorIndex: Int,
+        seed: UInt64,
+        boardSize: Int,
+        impassableTilePoints: Set<GridPoint>
+    ) -> [EnemyDefinition] {
+        enemies.enumerated().map { index, enemy in
+            let behavior: EnemyBehavior
+            switch enemy.behavior {
+            case .watcher(_, let range):
+                var randomizer = DungeonCardVariationRandomizer(
+                    seed: seed,
+                    floorIndex: floorIndex,
+                    salt: 0xF4C1 + UInt64(index)
+                )
+                behavior = .watcher(
+                    direction: DungeonWatcherDirectionSelector.bestDirection(
+                        from: enemy.position,
+                        boardSize: boardSize,
+                        impassableTilePoints: impassableTilePoints,
+                        randomizer: &randomizer
+                    ),
+                    range: range
+                )
+            case .rotatingWatcher(_, let rotationDirection, let range):
+                var randomizer = DungeonCardVariationRandomizer(
+                    seed: seed,
+                    floorIndex: floorIndex,
+                    salt: 0xF4C1 + UInt64(index)
+                )
+                behavior = .rotatingWatcher(
+                    initialDirection: DungeonWatcherDirectionSelector.bestDirection(
+                        from: enemy.position,
+                        boardSize: boardSize,
+                        impassableTilePoints: impassableTilePoints,
+                        randomizer: &randomizer
+                    ),
+                    rotationDirection: rotationDirection,
+                    range: range
+                )
+            case .guardPost, .patrol, .chaser, .marker:
+                behavior = enemy.behavior
+            }
+            return EnemyDefinition(
+                id: enemy.id,
+                name: enemy.name,
+                position: enemy.position,
+                behavior: behavior,
+                damage: enemy.damage
+            )
         }
     }
 
@@ -4824,7 +4967,7 @@ public struct DungeonLibrary {
     }
 
     private static func buildTutorialTower() -> DungeonDefinition {
-        let floors = [
+        let floors = stitchDungeonFloors([
             DungeonFloorDefinition(
                 id: "tutorial-1",
                 title: "塔の入口",
@@ -4885,7 +5028,7 @@ public struct DungeonLibrary {
                     )
                 ],
                 rewardMoveCardsAfterClear: [
-                    .rayRight,
+                    .rayLeft,
                     .straightRight2,
                     .knightRightwardChoice,
                 ]
@@ -4895,7 +5038,7 @@ public struct DungeonLibrary {
                 title: "ひび割れ床",
                 boardSize: tutorialTowerBoardSize,
                 spawnPoint: GridPoint(x: 0, y: 4),
-                exitPoint: GridPoint(x: 8, y: 4),
+                exitPoint: GridPoint(x: 0, y: 4),
                 deckPreset: .standardLight,
                 failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 15),
                 enemies: [
@@ -4977,7 +5120,7 @@ public struct DungeonLibrary {
                 title: "見える罠",
                 boardSize: tutorialTowerBoardSize,
                 spawnPoint: GridPoint(x: 0, y: 4),
-                exitPoint: GridPoint(x: 8, y: 4),
+                exitPoint: GridPoint(x: 0, y: 4),
                 deckPreset: .standardLight,
                 failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 16),
                 hazards: [
@@ -5057,7 +5200,7 @@ public struct DungeonLibrary {
                     )
                 ]
             )
-        ]
+        ])
 
         return DungeonDefinition(
             id: "tutorial-tower",
@@ -5268,7 +5411,7 @@ public struct DungeonLibrary {
             17: GridPoint(x: 8, y: 8),
             18: GridPoint(x: 0, y: 2),
             19: GridPoint(x: 8, y: 8),
-            20: GridPoint(x: 8, y: 8),
+            20: GridPoint(x: 8, y: 4),
             21: GridPoint(x: 0, y: 6),
             22: GridPoint(x: 8, y: 2),
             23: GridPoint(x: 0, y: 0),
@@ -5278,7 +5421,7 @@ public struct DungeonLibrary {
             27: GridPoint(x: 8, y: 6),
             28: GridPoint(x: 2, y: 8),
             29: GridPoint(x: 8, y: 8),
-            30: GridPoint(x: 8, y: 8),
+            30: GridPoint(x: 8, y: 4),
             31: GridPoint(x: 0, y: 6),
             32: GridPoint(x: 8, y: 2),
             33: GridPoint(x: 0, y: 0),
@@ -5288,7 +5431,7 @@ public struct DungeonLibrary {
             37: GridPoint(x: 8, y: 6),
             38: GridPoint(x: 2, y: 8),
             39: GridPoint(x: 8, y: 8),
-            40: GridPoint(x: 8, y: 8),
+            40: GridPoint(x: 8, y: 4),
             41: GridPoint(x: 0, y: 6),
             42: GridPoint(x: 8, y: 2),
             43: GridPoint(x: 0, y: 0),
@@ -5299,17 +5442,25 @@ public struct DungeonLibrary {
             48: GridPoint(x: 2, y: 8),
             49: GridPoint(x: 8, y: 8)
         ]
-        let sectionStartIndexes: Set<Int> = [0, 10, 20, 30, 40]
         var previousExitPoint: GridPoint?
 
         return floors.enumerated().map { index, floor in
-            let spawnPoint = sectionStartIndexes.contains(index) ? floor.spawnPoint : previousExitPoint
+            let spawnPoint = previousExitPoint ?? floor.spawnPoint
             let exitPoint = exitPointsByFloorIndex[index] ?? floor.exitPoint
             previousExitPoint = exitPoint
             return floor.withEndpoints(
                 spawnPoint: spawnPoint,
                 exitPoint: exitPoint
             )
+        }
+    }
+
+    private static func stitchDungeonFloors(_ floors: [DungeonFloorDefinition]) -> [DungeonFloorDefinition] {
+        var previousExitPoint: GridPoint?
+        return floors.map { floor in
+            let stitchedFloor = floor.withEndpoints(spawnPoint: previousExitPoint)
+            previousExitPoint = stitchedFloor.exitPoint
+            return stitchedFloor
         }
     }
 
@@ -6032,6 +6183,7 @@ public struct DungeonLibrary {
                 exitLock: DungeonExitLock(unlockPoint: GridPoint(x: 2, y: 1)),
                 cardPickups: growthCards(21, [((1, 1), .straightRight2), ((3, 1), .diagonalUpRight2), ((6, 7), .rayLeft)]),
                 relicPickups: [growthRelic(21, at: (5, 5), kind: .safe)],
+                exitPoint: GridPoint(x: 8, y: 4),
                 rewardMoveCardsAfterClear: [.rayUpRight, .straightLeft2, .knightRightwardChoice],
                 rewardSupportCardsAfterClear: [.refillEmptySlots]
             ),
@@ -6227,7 +6379,7 @@ public struct DungeonLibrary {
             chamberWalls: [(6, 0), (7, 1), (8, 2)]
         )
         return [
-            makeGrowthTowerDeepFloor(number: 31, title: "毒の見取り図", turnLimit: 16, enemies: [growthWatcher("growth-31-watcher", position: (6, 5), direction: (-1, 0), range: 4), growthChaser("growth-31-chaser", position: (5, 2))], hazards: [.damageTrap(points: gridSet([(3, 3)]), damage: 1), .healingTile(points: gridSet([(2, 5)]), amount: 1)], impassableTilePoints: gridSet([(2, 2), (4, 6), (7, 3)]), tileEffectOverrides: gridEffects([((4, 4), .poisonTrap)]), cardPickups: growthCards(31, [((1, 1), .straightRight2), ((3, 1), .rayRight), ((6, 4), .diagonalUpLeft2)]), rewardMoveCardsAfterClear: [.rayDownRight, .diagonalDownRight2, .knightDownwardChoice], rewardSupportCardsAfterClear: [.antidote, .barrierSpell]),
+            makeGrowthTowerDeepFloor(number: 31, title: "毒の見取り図", turnLimit: 16, enemies: [growthWatcher("growth-31-watcher", position: (6, 5), direction: (-1, 0), range: 4), growthChaser("growth-31-chaser", position: (5, 2))], hazards: [.damageTrap(points: gridSet([(3, 3)]), damage: 1), .healingTile(points: gridSet([(2, 5)]), amount: 1)], impassableTilePoints: gridSet([(2, 2), (4, 6), (7, 3)]), tileEffectOverrides: gridEffects([((4, 4), .poisonTrap)]), cardPickups: growthCards(31, [((1, 1), .straightRight2), ((3, 1), .rayRight), ((6, 4), .diagonalUpLeft2)]), exitPoint: GridPoint(x: 8, y: 4), rewardMoveCardsAfterClear: [.rayDownRight, .diagonalDownRight2, .knightDownwardChoice], rewardSupportCardsAfterClear: [.antidote, .barrierSpell]),
             makeGrowthTowerDeepFloor(number: 32, title: "足枷の迂回", turnLimit: 17, enemies: [growthPatrol("growth-32-patrol", [(3, 5), (4, 5), (5, 5), (6, 5), (5, 5), (4, 5)]), growthRotatingWatcher("growth-32-rotating", position: (6, 2), direction: (0, 1), rotation: .clockwise, range: 4)], hazards: [.damageTrap(points: gridSet([(2, 3), (5, 3)]), damage: 1)], impassableTilePoints: gridSet([(2, 6), (4, 2), (7, 5)]), tileEffectOverrides: gridEffects([((3, 4), .shackleTrap)]), exitLock: DungeonExitLock(unlockPoint: GridPoint(x: 1, y: 5)), cardPickups: growthCards(32, [((1, 4), .straightUp2), ((3, 6), .diagonalDownRight2), ((6, 4), .rayLeft)]), relicPickups: [growthRelic(32, at: (5, 6), kind: .suspiciousLight)], rewardMoveCardsAfterClear: [.rayUp, .rayLeft, .knightUpwardChoice], rewardSupportCardsAfterClear: [.panacea]),
             makeGrowthTowerDeepFloor(number: 33, title: "幻惑の小部屋", turnLimit: 15, enemies: [growthChaser("growth-33-chaser", position: (6, 6)), growthWatcher("growth-33-watcher", position: (5, 2), direction: (0, 1), range: 4)], hazards: [.healingTile(points: gridSet([(2, 4)]), amount: 1)], impassableTilePoints: gridSet([(3, 3), (5, 5), (7, 2)]), tileEffectOverrides: gridEffects([((4, 4), .illusionTrap), ((6, 4), .swamp)]), warpTilePairs: ["growth-33-safe": gridPoints([(1, 2), (6, 7)])], cardPickups: growthCards(33, [((2, 1), .straightRight2), ((4, 1), .rayUp), ((6, 5), .diagonalDownLeft2)]), rewardMoveCardsAfterClear: [.rayUpLeft, .straightLeft2, .knightLeftwardChoice], rewardSupportCardsAfterClear: [.panacea]),
             makeGrowthTowerDeepFloor(number: 34, title: "暗闇の薬棚", turnLimit: 16, enemies: [growthRotatingWatcher("growth-34-rotating", position: (6, 3), direction: (-1, 0), rotation: .counterclockwise, range: 4), growthChaser("growth-34-chaser", position: (5, 6))], hazards: [.damageTrap(points: gridSet([(2, 2), (6, 5)]), damage: 1), .healingTile(points: gridSet([(3, 5)]), amount: 1)], impassableTilePoints: gridSet([(2, 6), (4, 2), (7, 4)]), tileEffectOverrides: gridEffects([((5, 4), .poisonTrap)]), cardPickups: growthCards(34, [((1, 5), .straightUp2), ((3, 6), .diagonalDownRight2), ((6, 2), .rayLeft)]), rewardMoveCardsAfterClear: [.rayRight, .diagonalUpRight2, .knightRightwardChoice], rewardSupportCardsAfterClear: [.darknessSpell, .antidote], isDarknessEnabled: true),
@@ -6242,7 +6394,7 @@ public struct DungeonLibrary {
 
     private static func buildGrowthTowerFinalFloors() -> [DungeonFloorDefinition] {
         [
-            makeGrowthTowerDeepFloor(number: 41, title: "踏破への入口", turnLimit: 16, enemies: [growthPatrol("growth-41-patrol", [(2, 3), (3, 3), (4, 3), (5, 3), (6, 3), (7, 3), (6, 3), (5, 3)]), growthRotatingWatcher("growth-41-rotating", position: (6, 6), direction: (-1, 0), rotation: .clockwise, range: 5)], hazards: [.damageTrap(points: gridSet([(3, 5), (6, 5)]), damage: 1), .healingTile(points: gridSet([(2, 5)]), amount: 1)], impassableTilePoints: gridSet([(2, 2), (4, 6), (7, 4)]), warpTilePairs: ["growth-41-build": gridPoints([(1, 2), (6, 7)])], cardPickups: growthCards(41, [((1, 1), .straightRight2), ((3, 1), .rayRight), ((6, 4), .diagonalUpLeft2)]), relicPickups: [growthRelic(41, at: (5, 5), kind: .suspiciousLight)], rewardMoveCardsAfterClear: [.rayUpRight, .rayDownLeft, .knightRightwardChoice], rewardSupportCardsAfterClear: [.barrierSpell]),
+            makeGrowthTowerDeepFloor(number: 41, title: "踏破への入口", turnLimit: 16, enemies: [growthPatrol("growth-41-patrol", [(2, 3), (3, 3), (4, 3), (5, 3), (6, 3), (7, 3), (6, 3), (5, 3)]), growthRotatingWatcher("growth-41-rotating", position: (6, 6), direction: (-1, 0), rotation: .clockwise, range: 5)], hazards: [.damageTrap(points: gridSet([(3, 5), (6, 5)]), damage: 1), .healingTile(points: gridSet([(2, 5)]), amount: 1)], impassableTilePoints: gridSet([(2, 2), (4, 6), (7, 4)]), warpTilePairs: ["growth-41-build": gridPoints([(1, 2), (6, 7)])], cardPickups: growthCards(41, [((1, 1), .straightRight2), ((3, 1), .rayRight), ((6, 4), .diagonalUpLeft2)]), relicPickups: [growthRelic(41, at: (5, 5), kind: .suspiciousLight)], exitPoint: GridPoint(x: 8, y: 4), rewardMoveCardsAfterClear: [.rayUpRight, .rayDownLeft, .knightRightwardChoice], rewardSupportCardsAfterClear: [.barrierSpell]),
             makeGrowthTowerDeepFloor(number: 42, title: "呪い箱の岐路", turnLimit: 15, enemies: [growthChaser("growth-42-chaser", position: (7, 5)), growthWatcher("growth-42-watcher", position: (5, 2), direction: (0, 1), range: 5), growthMarker("growth-42-marker", position: (6, 6), range: 3)], hazards: [.lavaTile(points: gridSet([(4, 4)]), damage: 1)], impassableTilePoints: gridSet([(2, 6), (4, 2), (7, 3)]), tileEffectOverrides: gridEffects([((3, 5), .poisonTrap), ((6, 4), .swamp)]), cardPickups: growthCards(42, [((1, 5), .straightUp2), ((3, 6), .diagonalDownRight2), ((6, 2), .rayLeft)]), relicPickups: [growthRelic(42, at: (5, 6), kind: .suspiciousDeep)], rewardMoveCardsAfterClear: [.rayLeft, .rayDownRight, .knightLeftwardChoice], rewardSupportCardsAfterClear: [.panacea, .darknessSpell], isDarknessEnabled: true),
             makeGrowthTowerDeepFloor(number: 43, title: "落下を読む橋", turnLimit: 16, enemies: [growthPatrol("growth-43-patrol", [(2, 5), (3, 5), (4, 5), (5, 5), (6, 5), (5, 5), (4, 5), (3, 5)]), growthRotatingWatcher("growth-43-rotating", position: (6, 2), direction: (0, 1), rotation: .counterclockwise, range: 5)], hazards: [.brittleFloor(points: gridSet([(3, 3), (4, 3), (5, 3)])), .damageTrap(points: gridSet([(6, 6)]), damage: 1)], impassableTilePoints: gridSet([(2, 2), (4, 6), (7, 5)]), warpTilePairs: ["growth-43-fall": gridPoints([(1, 4), (6, 7)])], cardPickups: growthCards(43, [((2, 1), .straightRight2), ((4, 1), .rayUp), ((6, 4), .diagonalUpLeft2)]), rewardMoveCardsAfterClear: [.rayUp, .rayUpLeft, .knightUpwardChoice], rewardSupportCardsAfterClear: [.barrierSpell]),
             makeGrowthTowerDeepFloor(number: 44, title: "追跡の薬路", turnLimit: 15, enemies: [growthChaser("growth-44-chaser-a", position: (5, 6)), growthChaser("growth-44-chaser-b", position: (7, 3)), growthMarker("growth-44-marker", position: (6, 5), range: 3)], hazards: [.damageTrap(points: gridSet([(3, 2), (5, 5)]), damage: 1), .healingTile(points: gridSet([(2, 4)]), amount: 1)], impassableTilePoints: gridSet([(3, 3), (5, 2), (7, 6)]), tileEffectOverrides: gridEffects([((4, 5), .shackleTrap), ((6, 4), .discardRandomHand)]), exitLock: DungeonExitLock(unlockPoint: GridPoint(x: 2, y: 6)), cardPickups: growthCards(44, [((1, 5), .straightUp2), ((3, 6), .diagonalDownRight2), ((6, 2), .rayLeft)]), rewardMoveCardsAfterClear: [.rayDown, .rayDownLeft, .knightDownwardChoice], rewardSupportCardsAfterClear: [.panacea, .singleAnnihilationSpell]),
@@ -6268,6 +6420,7 @@ public struct DungeonLibrary {
         cardPickups: [DungeonCardPickupDefinition],
         relicPickups: [DungeonRelicPickupDefinition] = [],
         fallSecrets: [DungeonFallSecretDefinition] = [],
+        exitPoint: GridPoint = GridPoint(x: 8, y: 8),
         rewardMoveCardsAfterClear: [MoveCard],
         rewardSupportCardsAfterClear: [SupportCard] = [],
         isDarknessEnabled: Bool = false
@@ -6277,7 +6430,7 @@ public struct DungeonLibrary {
             title: title,
             boardSize: standardTowerBoardSize,
             spawnPoint: GridPoint(x: 0, y: 0),
-            exitPoint: GridPoint(x: 8, y: 8),
+            exitPoint: exitPoint,
             deckPreset: .standardLight,
             failureRule: DungeonFailureRule(initialHP: 3, turnLimit: turnLimit),
             enemies: enemies,

@@ -31,6 +31,8 @@ struct GameBoardControlRowView: View {
 }
 
 extension GameBoardControlRowView {
+    static let dungeonFloorBadgeTitle = "階層"
+
     static func isCriticalDungeonHP(_ hp: Int) -> Bool {
         hp <= 1
     }
@@ -349,7 +351,7 @@ private extension GameBoardControlRowView {
         statisticsBadgeGroup {
             if let floorText = viewModel.dungeonRunFloorText {
                 statisticBadge(
-                    title: "F",
+                    title: Self.dungeonFloorBadgeTitle,
                     value: Self.compactDungeonFloorText(floorText),
                     accessibilityLabel: "現在の階層",
                     accessibilityValue: floorText
@@ -395,7 +397,7 @@ private extension GameBoardControlRowView {
 
     /// 共通の装飾を適用した統計バッジコンテナ
     func statisticsBadgeGroup<Content: View>(@ViewBuilder content: () -> Content) -> some View {
-        HStack(spacing: 12) {
+        HStack(alignment: .top, spacing: 12) {
             content()
         }
         .padding(.horizontal, 12)
@@ -447,18 +449,20 @@ private extension GameBoardControlRowView {
                 .accessibilityHidden(true)
             }
         }
-        .padding(.horizontal, isCritical ? 8 : 0)
-        .padding(.vertical, isCritical ? 4 : 0)
         .background {
             if isCritical {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .fill(Color.red.opacity(0.12))
+                    .padding(.horizontal, -8)
+                    .padding(.vertical, -4)
             }
         }
         .overlay {
             if isCritical {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .stroke(Color.red.opacity(0.56), lineWidth: 1)
+                    .padding(.horizontal, -8)
+                    .padding(.vertical, -4)
             }
         }
         .accessibilityElement(children: .ignore)
@@ -691,18 +695,20 @@ private extension GameBoardControlRowView {
                 .font(.headline)
                 .foregroundColor(valueColor ?? theme.statisticValueText)
         }
-        .padding(.horizontal, isHighlighted ? 8 : 0)
-        .padding(.vertical, isHighlighted ? 4 : 0)
         .background {
             if isHighlighted {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .fill(Color.red.opacity(0.12))
+                    .padding(.horizontal, -8)
+                    .padding(.vertical, -4)
             }
         }
         .overlay {
             if isHighlighted {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .stroke(Color.red.opacity(0.56), lineWidth: 1)
+                    .padding(.horizontal, -8)
+                    .padding(.vertical, -4)
             }
         }
         .accessibilityElement(children: .ignore)

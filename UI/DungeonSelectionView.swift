@@ -98,11 +98,6 @@ struct DungeonSelectionView: View {
     private func dungeonSection(_ dungeon: DungeonDefinition) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             VStack(alignment: .leading, spacing: 6) {
-                let growthStatuses = DungeonGrowthRewardStatusPresentation.make(
-                    dungeon: dungeon,
-                    growthStore: dungeonGrowthStore
-                )
-
                 VStack(alignment: .leading, spacing: 6) {
                     Text(dungeon.title)
                         .font(.system(size: 21, weight: .semibold, design: .rounded))
@@ -121,10 +116,6 @@ struct DungeonSelectionView: View {
                             progressStore: tutorialTowerProgressStore
                         ) {
                             tutorialStatusBadge(tutorialStatus)
-                        }
-
-                        ForEach(growthStatuses, id: \.accessibilityIdentifier) { growthStatus in
-                            growthStatusBadge(growthStatus)
                         }
 
                         if let recordText = rogueTowerRecordStore.highestFloorText(for: dungeon) {
@@ -168,7 +159,7 @@ struct DungeonSelectionView: View {
     private func growthSection(for dungeon: DungeonDefinition) -> some View {
         if let presentation = DungeonGrowthTreeCardPresentation.make(
             dungeon: dungeon,
-            points: dungeonGrowthStore.points
+            growthStore: dungeonGrowthStore
         ) {
             VStack(alignment: .leading, spacing: 12) {
                 Divider()
@@ -187,9 +178,11 @@ struct DungeonSelectionView: View {
                         .font(.system(size: 17, weight: .semibold, design: .rounded))
                         .foregroundColor(theme.textPrimary)
                         Spacer()
-                        Text(presentation.pointsText)
+                        Text(presentation.summaryText)
                             .font(.system(size: 13, weight: .bold, design: .rounded))
                             .foregroundColor(theme.accentPrimary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.78)
                     }
                 }
                 .buttonStyle(.plain)
@@ -709,28 +702,6 @@ struct DungeonSelectionView: View {
         dungeon.id == "tutorial-tower" && !tutorialTowerProgressStore.hasCompletedTutorialTower ? 1.5 : 1
     }
 
-    private func growthStatusBadge(_ growthStatus: DungeonGrowthRewardStatusPresentation) -> some View {
-        Text(growthStatus.text)
-            .font(.system(size: 12, weight: .semibold, design: .rounded))
-            .foregroundColor(
-                growthStatus.isRewarded
-                    ? theme.textSecondary
-                    : theme.accentPrimary
-            )
-            .padding(.horizontal, 8)
-            .padding(.vertical, 3)
-            .background(
-                Capsule().fill(
-                    growthStatus.isRewarded
-                        ? theme.textSecondary.opacity(0.12)
-                        : theme.accentPrimary.opacity(0.14)
-                )
-            )
-            .lineLimit(1)
-            .minimumScaleFactor(0.82)
-            .accessibilityIdentifier(growthStatus.accessibilityIdentifier)
-    }
-
     private func tutorialStatusBadge(_ tutorialStatus: TutorialTowerStatusPresentation) -> some View {
         Text(tutorialStatus.text)
             .font(.system(size: 12, weight: .semibold, design: .rounded))
@@ -824,39 +795,26 @@ struct TutorialTowerStatusPresentation: Equatable {
     }
 }
 
-struct DungeonGrowthRewardStatusPresentation: Equatable {
-    let text: String
-    let accessibilityIdentifier: String
-    let isRewarded: Bool
-
-    @MainActor
-    static func make(
-        dungeon: DungeonDefinition,
-        growthStore: DungeonGrowthStore
-    ) -> [DungeonGrowthRewardStatusPresentation] {
-        growthStore.growthMilestoneIDs(for: dungeon).map { milestoneID in
-            let floorNumber = growthStore.growthMilestoneFloorNumber(for: milestoneID) ?? 0
-            let isRewarded = growthStore.hasRewardedGrowthMilestone(milestoneID)
-            return DungeonGrowthRewardStatusPresentation(
-                text: "\(floorNumber)F \(isRewarded ? "獲得済" : "未獲得")",
-                accessibilityIdentifier: "dungeon_growth_reward_status_\(milestoneID)",
-                isRewarded: isRewarded
-            )
-        }
-    }
-}
-
 struct DungeonGrowthTreeCardPresentation: Equatable {
     let title: String
+    let progressText: String
     let pointsText: String
+    let summaryText: String
     let sectionAccessibilityIdentifier: String
     let toggleAccessibilityIdentifier: String
 
-    static func make(dungeon: DungeonDefinition, points: Int) -> DungeonGrowthTreeCardPresentation? {
+    @MainActor
+    static func make(dungeon: DungeonDefinition, growthStore: DungeonGrowthStore) -> DungeonGrowthTreeCardPresentation? {
         guard dungeon.difficulty == .growth else { return nil }
+        let milestoneIDs = growthStore.growthMilestoneIDs(for: dungeon)
+        let rewardedCount = milestoneIDs.filter { growthStore.hasRewardedGrowthMilestone($0) }.count
+        let progressText = "\(rewardedCount)/\(milestoneIDs.count)獲得"
+        let pointsText = "ポイント \(max(growthStore.points, 0))"
         return DungeonGrowthTreeCardPresentation(
             title: "成長",
-            pointsText: "ポイント \(max(points, 0))",
+            progressText: progressText,
+            pointsText: pointsText,
+            summaryText: "\(progressText) · \(pointsText)",
             sectionAccessibilityIdentifier: "dungeon_growth_section",
             toggleAccessibilityIdentifier: "dungeon_growth_toggle"
         )

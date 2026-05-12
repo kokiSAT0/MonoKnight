@@ -3498,6 +3498,18 @@ final class DungeonModeTests: XCTestCase {
         }
     }
 
+    func testTutorialTowerStairsBecomeNextFloorStart() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
+
+        for floorIndex in tower.floors.indices.dropLast() {
+            XCTAssertEqual(
+                tower.floors[floorIndex + 1].spawnPoint,
+                tower.floors[floorIndex].exitPoint,
+                "\(floorIndex + 1)F の階段位置から \(floorIndex + 2)F が始まる必要があります"
+            )
+        }
+    }
+
     func testDungeonLibraryProvidesThreeVisibleTowers() throws {
         let library = DungeonLibrary.shared
 
@@ -3520,7 +3532,7 @@ final class DungeonModeTests: XCTestCase {
         let growthTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
         let rogueTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "rogue-tower"))
 
-        XCTAssertEqual(tutorialTower.floors.map(\.boardSize), [5, 5, 5])
+        XCTAssertEqual(tutorialTower.floors.map(\.boardSize), Array(repeating: 9, count: tutorialTower.floors.count))
         XCTAssertEqual(growthTower.floors.map(\.boardSize), Array(repeating: 9, count: 50))
         XCTAssertEqual(rogueTower.floors.map(\.boardSize), [9])
         XCTAssertEqual(
@@ -3594,7 +3606,7 @@ final class DungeonModeTests: XCTestCase {
             XCTAssertFalse(
                 tower.floors[floorIndex].rewardMoveCardsAfterClear.isEmpty
                     && tower.floors[floorIndex].rewardSupportCardsAfterClear.isEmpty,
-                "\(tower.floors[floorIndex].title) は区間内の次階へ向けた報酬候補を出す必要があります"
+                "\(tower.floors[floorIndex].title) は次階へ向けた報酬候補を出す必要があります"
             )
         }
         XCTAssertEqual(tower.floors[6].rewardMoveCardsAfterClear, [
@@ -3773,30 +3785,16 @@ final class DungeonModeTests: XCTestCase {
         )
     }
 
-    func testGrowthTowerStairsBecomeNextFloorStartWithinRunSections() throws {
+    func testGrowthTowerStairsBecomeNextFloorStartAcrossAllFloors() throws {
         let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
-        let firstSectionIndexes = 0..<9
-        let secondSectionIndexes = 10..<19
 
-        for index in firstSectionIndexes {
+        for floorIndex in tower.floors.indices.dropLast() {
             XCTAssertEqual(
-                tower.floors[index + 1].spawnPoint,
-                tower.floors[index].exitPoint,
-                "\(index + 1)F の階段位置から \(index + 2)F が始まる必要があります"
+                tower.floors[floorIndex + 1].spawnPoint,
+                tower.floors[floorIndex].exitPoint,
+                "\(floorIndex + 1)F の階段位置から \(floorIndex + 2)F が始まる必要があります"
             )
         }
-        for index in secondSectionIndexes {
-            XCTAssertEqual(
-                tower.floors[index + 1].spawnPoint,
-                tower.floors[index].exitPoint,
-                "\(index + 1)F の階段位置から \(index + 2)F が始まる必要があります"
-            )
-        }
-        XCTAssertNotEqual(
-            tower.floors[10].spawnPoint,
-            tower.floors[9].exitPoint,
-            "11F はチェックポイント開始なので 10F 階段からの連続開始にはしません"
-        )
     }
 
     func testGrowthTowerUsesVariedStairPositions() throws {
@@ -4354,6 +4352,83 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertEqual(first.title, "試練 100F")
     }
 
+    func testRoguelikeTowerStairsBecomeNextFloorStart() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "rogue-tower"))
+
+        for seed in [1, 42, 999, 12_345] as [UInt64] {
+            let runState = DungeonRunState(dungeonID: tower.id, carriedHP: 3, rogueTowerSeed: seed)
+            for floorIndex in [0, 1, 2, 7, 15, 30, 75] {
+                let floor = try XCTUnwrap(tower.resolvedFloor(at: floorIndex, runState: runState))
+                let nextFloor = try XCTUnwrap(tower.resolvedFloor(at: floorIndex + 1, runState: runState))
+
+                XCTAssertEqual(
+                    nextFloor.spawnPoint,
+                    floor.exitPoint,
+                    "seed \(seed) / \(floorIndex + 1)F の階段位置から \(floorIndex + 2)F が始まる必要があります"
+                )
+                XCTAssertTrue(hasOrthogonalPath(from: nextFloor.spawnPoint, to: nextFloor.exitPoint, in: nextFloor))
+            }
+        }
+    }
+
+    func testGrowthTowerResolvedWatchersFaceWidestOpenSightLine() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let seeds: [UInt64] = [101, 202, 303, 404, 505]
+        var checkedWatcherCount = 0
+        var checkedEdgeWatcherCount = 0
+
+        for seed in seeds {
+            let runState = DungeonRunState(dungeonID: tower.id, carriedHP: 3, cardVariationSeed: seed)
+            for floorIndex in tower.floors.indices {
+                let floor = try XCTUnwrap(tower.resolvedFloor(at: floorIndex, runState: runState))
+                let result = assertWatchersFaceWidestOpenSightLine(
+                    in: floor,
+                    context: "seed \(seed) / 成長塔 \(floorIndex + 1)F"
+                )
+                checkedWatcherCount += result.watcherCount
+                checkedEdgeWatcherCount += result.edgeWatcherCount
+            }
+        }
+
+        XCTAssertGreaterThan(checkedWatcherCount, 0)
+        XCTAssertGreaterThan(
+            checkedEdgeWatcherCount,
+            0,
+            "壁際の見張りも、盤外方向ではなく有効な射線が広い方向を向く必要があります"
+        )
+    }
+
+    func testRoguelikeTowerGeneratedWatchersFaceWidestOpenSightLineDeterministically() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "rogue-tower"))
+        let seeds: [UInt64] = [1, 42, 999, 12_345]
+        let floorIndexes = [0, 1, 5, 12, 30, 75]
+        var checkedWatcherCount = 0
+        var checkedEdgeWatcherCount = 0
+
+        for seed in seeds {
+            let runState = DungeonRunState(dungeonID: tower.id, carriedHP: 3, rogueTowerSeed: seed)
+            for floorIndex in floorIndexes {
+                let first = try XCTUnwrap(tower.resolvedFloor(at: floorIndex, runState: runState))
+                let second = try XCTUnwrap(tower.resolvedFloor(at: floorIndex, runState: runState))
+                XCTAssertEqual(first.enemies, second.enemies)
+
+                let result = assertWatchersFaceWidestOpenSightLine(
+                    in: first,
+                    context: "seed \(seed) / 試練塔 \(floorIndex + 1)F"
+                )
+                checkedWatcherCount += result.watcherCount
+                checkedEdgeWatcherCount += result.edgeWatcherCount
+            }
+        }
+
+        XCTAssertGreaterThan(checkedWatcherCount, 0)
+        XCTAssertGreaterThan(
+            checkedEdgeWatcherCount,
+            0,
+            "試練塔の壁際見張りも、生成時に広い射線方向を選ぶ必要があります"
+        )
+    }
+
     func testRoguelikeTowerGeneratedFloorsStayInsideBoardAndKeepPhysicalRoute() throws {
         let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "rogue-tower"))
         let runState = DungeonRunState(dungeonID: tower.id, carriedHP: 3, rogueTowerSeed: 2468)
@@ -4572,12 +4647,7 @@ final class DungeonModeTests: XCTestCase {
             }
 
             XCTAssertEqual(resolvedFloors[0].spawnPoint, tower.floors[0].spawnPoint)
-            XCTAssertEqual(resolvedFloors[10].spawnPoint, tower.floors[10].spawnPoint)
-            XCTAssertEqual(resolvedFloors[20].spawnPoint, tower.floors[20].spawnPoint)
-            XCTAssertEqual(resolvedFloors[30].spawnPoint, tower.floors[30].spawnPoint)
-            XCTAssertEqual(resolvedFloors[40].spawnPoint, tower.floors[40].spawnPoint)
-            let sectionStartIndexes: Set<Int> = [10, 20, 30, 40]
-            for floorIndex in resolvedFloors.indices.dropLast() where !sectionStartIndexes.contains(floorIndex + 1) {
+            for floorIndex in resolvedFloors.indices.dropLast() {
                 XCTAssertEqual(
                     resolvedFloors[floorIndex].exitPoint,
                     resolvedFloors[floorIndex + 1].spawnPoint,
@@ -5220,16 +5290,18 @@ final class DungeonModeTests: XCTestCase {
         let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
         let mode = try XCTUnwrap(DungeonLibrary.shared.firstFloorMode(for: tower))
         let core = makeCore(mode: mode)
+        let upPickup = try XCTUnwrap(mode.dungeonRules?.cardPickups.first { $0.id == "tutorial-1-up2" })
+        let rightPickup = try XCTUnwrap(mode.dungeonRules?.cardPickups.first { $0.id == "tutorial-1-right2" })
 
-        playBasicMove(to: GridPoint(x: 1, y: 1), in: core)
+        playBasicMove(to: upPickup.point, in: core)
 
         XCTAssertEqual(
             core.dungeonInventoryEntries,
             [DungeonInventoryEntry(card: .straightUp2, rewardUses: 1)]
         )
-        XCTAssertFalse(core.activeDungeonCardPickups.contains { $0.point == GridPoint(x: 1, y: 1) })
+        XCTAssertFalse(core.activeDungeonCardPickups.contains { $0.id == upPickup.id })
 
-        playMove(to: GridPoint(x: 1, y: 3), in: core)
+        playMove(to: rightPickup.point, in: core)
 
         XCTAssertFalse(core.dungeonInventoryEntries.contains { $0.card == .straightUp2 })
         XCTAssertTrue(core.dungeonInventoryEntries.contains { $0.card == .straightRight2 && $0.rewardUses == 1 && $0.pickupUses == 0 })
@@ -5239,8 +5311,9 @@ final class DungeonModeTests: XCTestCase {
         let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
         let mode = try XCTUnwrap(DungeonLibrary.shared.firstFloorMode(for: tower))
         let core = makeCore(mode: mode)
+        let upPickup = try XCTUnwrap(mode.dungeonRules?.cardPickups.first { $0.id == "tutorial-1-up2" })
 
-        playBasicMove(to: GridPoint(x: 1, y: 1), in: core)
+        playBasicMove(to: upPickup.point, in: core)
         core.overrideEnemyFreezeTurnsRemainingForTesting(2)
         core.overrideDamageBarrierTurnsRemainingForTesting(2)
 
@@ -5315,7 +5388,7 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertEqual(entry.totalUses, 3)
     }
 
-    func testDungeonRewardSelectionCanAddUpgradeAndRemoveCarriedRewardCards() {
+    func testDungeonRewardSelectionCanAddDuplicateRewardAndRemoveCarriedRewardCards() {
         let runState = DungeonRunState(
             dungeonID: "tutorial-tower",
             currentFloorIndex: 0,
@@ -5333,10 +5406,10 @@ final class DungeonModeTests: XCTestCase {
             currentFloorMoveCount: 5,
             rewardSelection: .add(.rayRight)
         )
-        let upgraded = runState.advancedToNextFloor(
+        let duplicated = runState.advancedToNextFloor(
             carryoverHP: 2,
             currentFloorMoveCount: 5,
-            rewardSelection: .upgrade(.straightRight2)
+            rewardSelection: .add(.straightRight2)
         )
         let removed = runState.advancedToNextFloor(
             carryoverHP: 2,
@@ -5353,9 +5426,9 @@ final class DungeonModeTests: XCTestCase {
             ]
         )
         XCTAssertEqual(
-            upgraded.rewardInventoryEntries,
+            duplicated.rewardInventoryEntries,
             [
-                DungeonInventoryEntry(card: .straightRight2, rewardUses: 3),
+                DungeonInventoryEntry(card: .straightRight2, rewardUses: 4),
                 DungeonInventoryEntry(card: .straightUp2, rewardUses: 1)
             ]
         )
@@ -5537,87 +5610,17 @@ final class DungeonModeTests: XCTestCase {
 
     func testTutorialTowerBasicMoveRoutesFitAdjustedTurnLimits() throws {
         let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
-        let basicRoutes: [[GridPoint]] = [
-            [
-                GridPoint(x: 0, y: 1),
-                GridPoint(x: 0, y: 2),
-                GridPoint(x: 0, y: 3),
-                GridPoint(x: 0, y: 4),
-                GridPoint(x: 1, y: 4),
-                GridPoint(x: 2, y: 4),
-                GridPoint(x: 3, y: 4),
-                GridPoint(x: 4, y: 4)
-            ],
-            [
-                GridPoint(x: 1, y: 0),
-                GridPoint(x: 2, y: 0),
-                GridPoint(x: 3, y: 0),
-                GridPoint(x: 4, y: 0),
-                GridPoint(x: 5, y: 0),
-                GridPoint(x: 6, y: 0),
-                GridPoint(x: 7, y: 0),
-                GridPoint(x: 8, y: 0),
-                GridPoint(x: 8, y: 1),
-                GridPoint(x: 8, y: 2),
-                GridPoint(x: 8, y: 3),
-                GridPoint(x: 8, y: 4)
-            ],
-            [
-                GridPoint(x: 0, y: 3),
-                GridPoint(x: 0, y: 2),
-                GridPoint(x: 1, y: 2),
-                GridPoint(x: 2, y: 2),
-                GridPoint(x: 3, y: 2),
-                GridPoint(x: 4, y: 2),
-                GridPoint(x: 5, y: 2),
-                GridPoint(x: 6, y: 2),
-                GridPoint(x: 7, y: 2),
-                GridPoint(x: 8, y: 2),
-                GridPoint(x: 8, y: 3),
-                GridPoint(x: 8, y: 4)
-            ],
-            [
-                GridPoint(x: 0, y: 5),
-                GridPoint(x: 0, y: 6),
-                GridPoint(x: 1, y: 6),
-                GridPoint(x: 2, y: 6),
-                GridPoint(x: 3, y: 6),
-                GridPoint(x: 4, y: 6),
-                GridPoint(x: 5, y: 6),
-                GridPoint(x: 6, y: 6),
-                GridPoint(x: 7, y: 6),
-                GridPoint(x: 8, y: 6),
-                GridPoint(x: 8, y: 5),
-                GridPoint(x: 8, y: 4)
-            ],
-            [
-                GridPoint(x: 0, y: 3),
-                GridPoint(x: 0, y: 2),
-                GridPoint(x: 1, y: 2),
-                GridPoint(x: 2, y: 2),
-                GridPoint(x: 3, y: 2),
-                GridPoint(x: 4, y: 2),
-                GridPoint(x: 5, y: 2),
-                GridPoint(x: 6, y: 2),
-                GridPoint(x: 7, y: 2),
-                GridPoint(x: 8, y: 2),
-                GridPoint(x: 8, y: 3),
-                GridPoint(x: 8, y: 4)
-            ],
-            [
-                GridPoint(x: 1, y: 0),
-                GridPoint(x: 2, y: 0),
-                GridPoint(x: 2, y: 1),
-                GridPoint(x: 6, y: 7),
-                GridPoint(x: 6, y: 8),
-                GridPoint(x: 7, y: 8),
-                GridPoint(x: 8, y: 8)
-            ]
-        ]
 
-        for (floor, route) in zip(tower.floors, basicRoutes) {
+        for floor in tower.floors {
             let mode = floor.makeGameMode(dungeonID: tower.id)
             let core = makeCore(mode: mode, cards: [.kingUpRight, .straightRight2, .straightDown2, .straightLeft2, .straightRight2])
+            var route: [GridPoint] = []
+            if let unlockPoint = floor.exitLock?.unlockPoint {
+                route.append(contentsOf: try orthogonalRoute(from: floor.spawnPoint, to: unlockPoint, in: floor))
+                route.append(contentsOf: try orthogonalRoute(from: unlockPoint, to: floor.exitPoint, in: floor))
+            } else {
+                route = try orthogonalRoute(from: floor.spawnPoint, to: floor.exitPoint, in: floor)
+            }
 
             for destination in route {
                 playBasicMove(to: destination, in: core)
@@ -5657,18 +5660,8 @@ final class DungeonModeTests: XCTestCase {
             runState: secondRunState
         )
         let secondCore = makeCore(mode: secondFloorMode)
-        playMove(to: GridPoint(x: 2, y: 0), in: secondCore)
-        playMove(to: GridPoint(x: 4, y: 0), in: secondCore)
-        for destination in [
-            GridPoint(x: 5, y: 0),
-            GridPoint(x: 6, y: 0),
-            GridPoint(x: 7, y: 0),
-            GridPoint(x: 8, y: 0),
-            GridPoint(x: 8, y: 1),
-            GridPoint(x: 8, y: 2),
-            GridPoint(x: 8, y: 3),
-            GridPoint(x: 8, y: 4)
-        ] {
+        playMove(to: GridPoint(x: 6, y: 4), in: secondCore)
+        for destination in try orthogonalRoute(from: GridPoint(x: 6, y: 4), to: tower.floors[1].exitPoint, in: tower.floors[1]) {
             playBasicMove(to: destination, in: secondCore)
         }
         XCTAssertEqual(secondCore.progress, .cleared)
@@ -5679,7 +5672,7 @@ final class DungeonModeTests: XCTestCase {
             currentFloorIndex: 2,
             carriedHP: 3,
             clearedFloorCount: 2,
-            rewardInventoryEntries: [DungeonInventoryEntry(card: .rayRight, rewardUses: 3)]
+            rewardInventoryEntries: [DungeonInventoryEntry(card: .rayLeft, rewardUses: 3)]
         )
         let thirdFloorMode = tower.floors[2].makeGameMode(
             dungeonID: tower.id,
@@ -5687,7 +5680,7 @@ final class DungeonModeTests: XCTestCase {
             runState: thirdRunState
         )
         let thirdCore = makeCore(mode: thirdFloorMode)
-        playMove(to: GridPoint(x: 8, y: 4), in: thirdCore)
+        playMove(to: GridPoint(x: 0, y: 4), in: thirdCore)
         XCTAssertEqual(thirdCore.progress, .cleared)
         assertTurnLimitSlack(for: tower.floors[2], after: thirdCore)
     }
@@ -5701,7 +5694,7 @@ final class DungeonModeTests: XCTestCase {
             .knightRightwardChoice
         ])
         XCTAssertEqual(tower.floors[1].rewardMoveCardsAfterClear, [
-            .rayRight,
+            .rayLeft,
             .straightRight2,
             .knightRightwardChoice
         ])
@@ -5716,7 +5709,7 @@ final class DungeonModeTests: XCTestCase {
         let secondMode = tower.floors[1].makeGameMode(dungeonID: tower.id, runState: secondRunState)
         let secondCore = makeCore(mode: secondMode)
         XCTAssertTrue(
-            secondCore.availableMoves().contains { $0.moveCard == .straightRight2 && $0.destination == GridPoint(x: 2, y: 0) },
+            secondCore.availableMoves().contains { $0.moveCard == .straightRight2 && $0.destination == GridPoint(x: 6, y: 4) },
             "1F 報酬の右2は 2F の見張り射線下を抜ける短縮手になる想定です"
         )
 
@@ -5725,13 +5718,13 @@ final class DungeonModeTests: XCTestCase {
             currentFloorIndex: 2,
             carriedHP: 3,
             clearedFloorCount: 2,
-            rewardInventoryEntries: [DungeonInventoryEntry(card: .rayRight, rewardUses: 3)]
+            rewardInventoryEntries: [DungeonInventoryEntry(card: .rayLeft, rewardUses: 3)]
         )
         let thirdMode = tower.floors[2].makeGameMode(dungeonID: tower.id, runState: thirdRunState)
         let thirdCore = makeCore(mode: thirdMode)
         XCTAssertTrue(
-            thirdCore.availableMoves().contains { $0.moveCard == .rayRight && $0.destination == GridPoint(x: 8, y: 4) },
-            "2F 報酬の右連続は 3F のひび割れ床列を一気に抜ける手になる想定です"
+            thirdCore.availableMoves().contains { $0.moveCard == .rayLeft && $0.destination == GridPoint(x: 0, y: 4) },
+            "2F 報酬の左連続は 3F のひび割れ床列を一気に抜ける手になる想定です"
         )
     }
 
@@ -5759,14 +5752,14 @@ final class DungeonModeTests: XCTestCase {
         let core = makeCore(mode: thirdFloorMode)
 
         for destination in [
-            GridPoint(x: 1, y: 4),
-            GridPoint(x: 2, y: 4),
-            GridPoint(x: 3, y: 4),
-            GridPoint(x: 4, y: 4),
-            GridPoint(x: 5, y: 4),
-            GridPoint(x: 6, y: 4),
             GridPoint(x: 7, y: 4),
-            GridPoint(x: 8, y: 4)
+            GridPoint(x: 6, y: 4),
+            GridPoint(x: 5, y: 4),
+            GridPoint(x: 4, y: 4),
+            GridPoint(x: 3, y: 4),
+            GridPoint(x: 2, y: 4),
+            GridPoint(x: 1, y: 4),
+            GridPoint(x: 0, y: 4)
         ] {
             playBasicMove(to: destination, in: core)
         }
@@ -5828,14 +5821,14 @@ final class DungeonModeTests: XCTestCase {
         let trapCore = makeCore(mode: fifthFloorMode)
 
         for destination in [
-            GridPoint(x: 1, y: 4),
-            GridPoint(x: 2, y: 4),
-            GridPoint(x: 3, y: 4),
-            GridPoint(x: 4, y: 4),
-            GridPoint(x: 5, y: 4),
-            GridPoint(x: 6, y: 4),
             GridPoint(x: 7, y: 4),
-            GridPoint(x: 8, y: 4)
+            GridPoint(x: 6, y: 4),
+            GridPoint(x: 5, y: 4),
+            GridPoint(x: 4, y: 4),
+            GridPoint(x: 3, y: 4),
+            GridPoint(x: 2, y: 4),
+            GridPoint(x: 1, y: 4),
+            GridPoint(x: 0, y: 4)
         ] {
             playBasicMove(to: destination, in: trapCore)
         }
@@ -5844,18 +5837,18 @@ final class DungeonModeTests: XCTestCase {
 
         let detourCore = makeCore(mode: fifthFloorMode)
         for destination in [
-            GridPoint(x: 0, y: 3),
-            GridPoint(x: 0, y: 2),
-            GridPoint(x: 1, y: 2),
-            GridPoint(x: 2, y: 2),
-            GridPoint(x: 3, y: 2),
-            GridPoint(x: 4, y: 2),
-            GridPoint(x: 5, y: 2),
-            GridPoint(x: 6, y: 2),
-            GridPoint(x: 7, y: 2),
-            GridPoint(x: 8, y: 2),
             GridPoint(x: 8, y: 3),
-            GridPoint(x: 8, y: 4)
+            GridPoint(x: 8, y: 2),
+            GridPoint(x: 7, y: 2),
+            GridPoint(x: 6, y: 2),
+            GridPoint(x: 5, y: 2),
+            GridPoint(x: 4, y: 2),
+            GridPoint(x: 3, y: 2),
+            GridPoint(x: 2, y: 2),
+            GridPoint(x: 1, y: 2),
+            GridPoint(x: 0, y: 2),
+            GridPoint(x: 0, y: 3),
+            GridPoint(x: 0, y: 4)
         ] {
             playBasicMove(to: destination, in: detourCore)
         }
@@ -5876,8 +5869,10 @@ final class DungeonModeTests: XCTestCase {
         })
 
         for destination in [
-            GridPoint(x: 1, y: 0),
-            GridPoint(x: 2, y: 0),
+            GridPoint(x: 0, y: 3),
+            GridPoint(x: 0, y: 2),
+            GridPoint(x: 1, y: 2),
+            GridPoint(x: 2, y: 2),
             GridPoint(x: 2, y: 1),
             GridPoint(x: 6, y: 7),
             GridPoint(x: 6, y: 8),
@@ -6018,7 +6013,11 @@ final class DungeonModeTests: XCTestCase {
         let core = makeCore(mode: mode)
         XCTAssertTrue(core.nextCards.isEmpty)
         XCTAssertEqual(core.dungeonInventoryEntries, runState.rewardInventoryEntries)
-        XCTAssertTrue(core.availableMoves().contains { $0.moveCard == .straightRight2 && $0.destination == GridPoint(x: 2, y: 0) })
+        let expectedDestination = GridPoint(
+            x: tower.floors[1].spawnPoint.x + 2,
+            y: tower.floors[1].spawnPoint.y
+        )
+        XCTAssertTrue(core.availableMoves().contains { $0.moveCard == .straightRight2 && $0.destination == expectedDestination })
         XCTAssertEqual(core.handStacks.first { $0.representativeMove == .straightRight2 }?.count, 3)
     }
 
@@ -6708,6 +6707,77 @@ final class DungeonModeTests: XCTestCase {
         }
     }
 
+    @discardableResult
+    private func assertWatchersFaceWidestOpenSightLine(
+        in floor: DungeonFloorDefinition,
+        context: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) -> (watcherCount: Int, edgeWatcherCount: Int) {
+        var watcherCount = 0
+        var edgeWatcherCount = 0
+        for enemy in floor.enemies {
+            guard let direction = watcherInitialDirection(for: enemy.behavior) else { continue }
+            watcherCount += 1
+            if enemy.position.x == 0
+                || enemy.position.y == 0
+                || enemy.position.x == floor.boardSize - 1
+                || enemy.position.y == floor.boardSize - 1 {
+                edgeWatcherCount += 1
+            }
+
+            let actualLength = watcherSightLineLength(
+                from: enemy.position,
+                direction: direction,
+                in: floor
+            )
+            let directions = [
+                MoveVector(dx: 1, dy: 0),
+                MoveVector(dx: -1, dy: 0),
+                MoveVector(dx: 0, dy: 1),
+                MoveVector(dx: 0, dy: -1)
+            ]
+            let widestLength = directions
+                .map { watcherSightLineLength(from: enemy.position, direction: $0, in: floor) }
+                .max() ?? 0
+            guard widestLength > 0 else { continue }
+
+            XCTAssertEqual(
+                actualLength,
+                widestLength,
+                "\(context) / \(enemy.id) は壁や岩柱ですぐ止まる方向ではなく、最も広い射線方向を向く必要があります",
+                file: file,
+                line: line
+            )
+        }
+        return (watcherCount, edgeWatcherCount)
+    }
+
+    private func watcherInitialDirection(for behavior: EnemyBehavior) -> MoveVector? {
+        switch behavior {
+        case .watcher(let direction, _):
+            return direction
+        case .rotatingWatcher(let initialDirection, _, _):
+            return initialDirection
+        case .guardPost, .patrol, .chaser, .marker:
+            return nil
+        }
+    }
+
+    private func watcherSightLineLength(
+        from origin: GridPoint,
+        direction: MoveVector,
+        in floor: DungeonFloorDefinition
+    ) -> Int {
+        var length = 0
+        var point = origin.offset(dx: direction.dx, dy: direction.dy)
+        while point.isInside(boardSize: floor.boardSize), !floor.impassableTilePoints.contains(point) {
+            length += 1
+            point = point.offset(dx: direction.dx, dy: direction.dy)
+        }
+        return length
+    }
+
     private func isOrthogonalStepPath(_ path: [GridPoint]) -> Bool {
         guard path.count > 1 else { return true }
         return zip(path, path.dropFirst()).allSatisfy { before, after in
@@ -6891,6 +6961,61 @@ final class DungeonModeTests: XCTestCase {
         }
 
         return false
+    }
+
+    private func orthogonalRoute(
+        from start: GridPoint,
+        to goal: GridPoint,
+        in floor: DungeonFloorDefinition,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws -> [GridPoint] {
+        guard start.isInside(boardSize: floor.boardSize), goal.isInside(boardSize: floor.boardSize) else {
+            XCTFail("経路の始点または終点が盤面外です: \(start) -> \(goal)", file: file, line: line)
+            return []
+        }
+        if start == goal { return [] }
+
+        let directions = [
+            MoveVector(dx: 1, dy: 0),
+            MoveVector(dx: -1, dy: 0),
+            MoveVector(dx: 0, dy: 1),
+            MoveVector(dx: 0, dy: -1)
+        ]
+        var queue: [GridPoint] = [start]
+        var visited: Set<GridPoint> = [start]
+        var previousByPoint: [GridPoint: GridPoint] = [:]
+
+        while !queue.isEmpty {
+            let point = queue.removeFirst()
+            if point == goal { break }
+
+            for direction in directions {
+                let next = GridPoint(x: point.x + direction.dx, y: point.y + direction.dy)
+                guard next.isInside(boardSize: floor.boardSize),
+                      !floor.impassableTilePoints.contains(next),
+                      !visited.contains(next)
+                else {
+                    continue
+                }
+                visited.insert(next)
+                previousByPoint[next] = point
+                queue.append(next)
+            }
+        }
+
+        guard visited.contains(goal) else {
+            XCTFail("基本移動経路が見つかりません: \(start) -> \(goal)", file: file, line: line)
+            return []
+        }
+
+        var reversed: [GridPoint] = [goal]
+        var current = goal
+        while let previous = previousByPoint[current], previous != start {
+            reversed.append(previous)
+            current = previous
+        }
+        return reversed.reversed()
     }
 
     private func makeCore(

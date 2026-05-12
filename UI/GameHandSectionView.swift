@@ -162,8 +162,9 @@ private extension GameHandSectionView {
                 }
             }
             .padding(.horizontal, 2)
+            .padding(.vertical, 4)
         }
-        .frame(minHeight: 46)
+        .frame(minHeight: 54)
     }
 
     /// 捨て札モード時に表示する案内バナー
@@ -653,16 +654,16 @@ extension GameHandSectionView {
 
     static func dungeonRelicAccessibilityLabel(for relic: DungeonRelicEntry) -> String {
         let usedText = relic.isUsedUpLimitedRelic ? "、使用済み" : ""
-        return "\(relic.rarity.displayName)、\(relic.displayKind.displayName)\(usedText)、\(relic.displayName)"
+        return "\(relic.rarity.displayName)\(usedText)、\(relic.displayName)"
     }
 
     static func dungeonRelicAccessibilityHint(for relic: DungeonRelicEntry) -> String {
         let remainingText = relic.hasLimitedUses ? "残り \(relic.remainingUses) 回。" : ""
         let usedText = relic.isUsedUpLimitedRelic ? "使用済み。" : ""
         if let note = relic.noteDescription {
-            return "ダブルタップで効果を確認します。\(relic.rarity.displayName)。\(relic.displayKind.displayName)。\(usedText)\(relic.effectDescription)\(remainingText)\(note)"
+            return "ダブルタップで効果を確認します。\(relic.rarity.displayName)。\(usedText)\(relic.effectDescription)\(remainingText)\(note)"
         }
-        return "ダブルタップで効果を確認します。\(relic.rarity.displayName)。\(relic.displayKind.displayName)。\(usedText)\(relic.effectDescription)\(remainingText)"
+        return "ダブルタップで効果を確認します。\(relic.rarity.displayName)。\(usedText)\(relic.effectDescription)\(remainingText)"
     }
 
     static func dungeonCurseAccessibilityIdentifier(for curse: DungeonCurseEntry) -> String {
@@ -745,16 +746,6 @@ private struct DungeonRelicIconView: View {
                 .opacity(isUsedUp ? 0.58 : 1.0)
                 .accessibilityHidden(true)
 
-            Text(relic.displayKind.badgeText)
-                .font(.system(size: 10, weight: .bold, design: .rounded))
-                .foregroundColor(theme.accentOnPrimary)
-                .frame(width: 16, height: 16)
-                .background(Circle().fill(tint))
-                .opacity(isUsedUp ? 0.72 : 1.0)
-                .offset(x: 4, y: 4)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-                .accessibilityHidden(true)
-
             Text(relic.rarity.badgeText)
                 .font(.system(size: 9, weight: .bold, design: .rounded))
                 .foregroundColor(rarityTint)
@@ -808,9 +799,6 @@ private struct DungeonRelicDetailView: View {
                             Text(relic.rarity.displayName)
                                 .font(.system(size: 12, weight: .bold, design: .rounded))
                                 .foregroundColor(rarityTint)
-                            Text(relic.displayKind.displayName)
-                                .font(.system(size: 12, weight: .bold, design: .rounded))
-                                .foregroundColor(tint)
                             if isUsedUp {
                                 Text("使用済み")
                                     .font(.system(size: 12, weight: .bold, design: .rounded))

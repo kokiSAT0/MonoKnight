@@ -93,11 +93,13 @@ final class MoveCardIllustrationViewAccessibilityTests: XCTestCase {
             accessibilityRoleText: "獲得する遺物"
         )
 
-        XCTAssertEqual(choice.usesBadgeText, "一時レリック")
+        XCTAssertEqual(choice.usesBadgeText, "コモン")
         XCTAssertEqual(DungeonRelicID.silverNeedle.symbolName, "pin.fill")
         XCTAssertEqual(choice.accessibilityIdentifier, "dungeon_reward_relic_銀の針")
         XCTAssertTrue(choice.accessibilityHint.contains("詳細を確認します"))
-        XCTAssertTrue(choice.accessibilityLabel.contains("一時レリック"))
+        XCTAssertFalse(choice.accessibilityLabel.contains("一時レリック"))
+        XCTAssertFalse(choice.accessibilityLabel.contains("永続レリック"))
+        XCTAssertTrue(choice.accessibilityLabel.contains("コモン"))
         XCTAssertTrue(choice.accessibilityLabel.contains(DungeonRelicID.silverNeedle.effectDescription))
     }
 
@@ -134,13 +136,10 @@ final class MoveCardIllustrationViewAccessibilityTests: XCTestCase {
         XCTAssertEqual(choice.title, "右2")
         XCTAssertEqual(choice.usesBadgeText, "現在2回")
         XCTAssertTrue(choice.isAdjustable)
-        XCTAssertEqual(choice.upgradeAccessibilityIdentifier, "dungeon_reward_upgrade_右2")
         XCTAssertEqual(choice.removeAccessibilityIdentifier, "dungeon_reward_remove_右2")
-        XCTAssertTrue(choice.upgradeAccessibilityLabel.contains("右2"))
-        XCTAssertTrue(choice.upgradeAccessibilityLabel.contains("手札"))
-        XCTAssertTrue(choice.upgradeAccessibilityLabel.contains("現在2回"))
-        XCTAssertTrue(choice.upgradeAccessibilityLabel.contains("使用回数+1"))
-        XCTAssertTrue(choice.upgradeAccessibilityLabel.contains("選ぶと次の階へ進みます"))
+        XCTAssertTrue(choice.removeAccessibilityLabel.contains("右2"))
+        XCTAssertTrue(choice.removeAccessibilityLabel.contains("手札"))
+        XCTAssertTrue(choice.removeAccessibilityLabel.contains("現在2回"))
         XCTAssertTrue(choice.removeAccessibilityLabel.contains("手札から外す"))
         XCTAssertTrue(choice.removeAccessibilityLabel.contains("報酬は消費しません"))
         XCTAssertFalse(choice.removeAccessibilityLabel.contains("選ぶと次の階へ進みます"))
@@ -154,7 +153,6 @@ final class MoveCardIllustrationViewAccessibilityTests: XCTestCase {
         XCTAssertEqual(choice.title, "上2")
         XCTAssertEqual(choice.usesBadgeText, "現在1回")
         XCTAssertTrue(choice.isAdjustable)
-        XCTAssertTrue(choice.upgradeAccessibilityLabel.contains("現在1回"))
         XCTAssertTrue(choice.removeAccessibilityLabel.contains("現在1回"))
     }
 
@@ -165,7 +163,6 @@ final class MoveCardIllustrationViewAccessibilityTests: XCTestCase {
 
         XCTAssertEqual(choice.usesBadgeText, "現在3回")
         XCTAssertTrue(choice.isAdjustable)
-        XCTAssertTrue(choice.upgradeAccessibilityLabel.contains("現在3回"))
         XCTAssertTrue(choice.removeAccessibilityLabel.contains("現在3回"))
     }
 

@@ -187,6 +187,146 @@ struct ResultDetailsDisclosureSection: View {
     }
 }
 
+struct FinalDungeonClearSummarySection: View {
+    let presentation: ResultSummaryPresentation
+    private let theme = AppTheme()
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            finalStatsSection
+
+            if presentation.showsFinalDungeonRelicsSection {
+                relicSection
+            }
+
+            if presentation.showsFinalDungeonCursesSection {
+                curseSection
+            }
+
+            if presentation.showsFinalDungeonInventorySection {
+                inventorySection
+            }
+        }
+        .accessibilityIdentifier("final_dungeon_clear_summary_section")
+    }
+
+    private var finalStatsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("登頂まとめ", systemImage: "flag.checkered")
+                .font(.headline)
+                .foregroundColor(theme.textPrimary)
+
+            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 8) {
+                if let dungeonRunFloorText = presentation.dungeonRunFloorText {
+                    finalStatRow(title: "到達階", value: dungeonRunFloorText)
+                }
+
+                finalStatRow(
+                    title: "塔累計手数",
+                    value: "\(presentation.dungeonRunTotalMoveCount ?? presentation.totalMoves) 手"
+                )
+
+                finalStatRow(title: "残HP", value: "\(presentation.dungeonHP ?? 0)")
+
+                finalStatRow(title: "所要時間", value: presentation.formattedElapsedTime)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(theme.backgroundElevated.opacity(0.9))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(theme.statisticBadgeBorder, lineWidth: 1)
+        )
+        .accessibilityIdentifier("final_dungeon_clear_stats")
+    }
+
+    private var relicSection: some View {
+        finalItemSection(
+            title: "獲得レリック",
+            symbolName: "sparkles",
+            accessibilityIdentifier: "final_dungeon_relics"
+        ) {
+            ForEach(presentation.dungeonRelicEntries) { relic in
+                DungeonRelicAcquisitionItemRow(
+                    item: .relic(relic),
+                    isEmphasized: true
+                )
+                .accessibilityIdentifier("final_dungeon_relic_\(relic.relicID.rawValue)")
+            }
+        }
+    }
+
+    private var curseSection: some View {
+        finalItemSection(
+            title: "背負った呪い",
+            symbolName: "exclamationmark.triangle.fill",
+            accessibilityIdentifier: "final_dungeon_curses"
+        ) {
+            ForEach(presentation.dungeonCurseEntries) { curse in
+                DungeonRelicAcquisitionItemRow(
+                    item: .curse(curse),
+                    isEmphasized: true
+                )
+                .accessibilityIdentifier("final_dungeon_curse_\(curse.curseID.rawValue)")
+            }
+        }
+    }
+
+    private var inventorySection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("最終手札", systemImage: "rectangle.stack.fill")
+                .font(.headline)
+                .foregroundColor(theme.textPrimary)
+
+            LazyVGrid(columns: ResultActionSection.fixedThreeColumnGridItems(spacing: 8), alignment: .leading, spacing: 8) {
+                ForEach(presentation.dungeonRewardInventoryEntries) { entry in
+                    DungeonCarriedRewardCardView(
+                        choice: DungeonCarriedRewardChoicePresentation(entry: entry),
+                        onRemove: nil
+                    )
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("\(entry.playable.displayName)、最終手札、残り\(entry.totalUses)回")
+                    .accessibilityIdentifier("final_dungeon_inventory_\(entry.playable.displayName)")
+                }
+            }
+        }
+        .accessibilityIdentifier("final_dungeon_inventory")
+    }
+
+    private func finalStatRow(title: String, value: String) -> some View {
+        GridRow {
+            Text(title)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            Text(value)
+                .font(.body)
+                .monospacedDigit()
+        }
+    }
+
+    private func finalItemSection<Content: View>(
+        title: String,
+        symbolName: String,
+        accessibilityIdentifier: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label(title, systemImage: symbolName)
+                .font(.headline)
+                .foregroundColor(theme.textPrimary)
+
+            VStack(spacing: 8) {
+                content()
+            }
+        }
+        .accessibilityIdentifier(accessibilityIdentifier)
+    }
+}
+
 struct DungeonGrowthAwardSection: View {
     let award: DungeonGrowthAward
     private var theme = AppTheme()
@@ -353,7 +493,8 @@ struct ResultActionSection: View {
 
             if !hasDungeonRewardChoices,
                presentation.usesDungeonExit,
-               !presentation.isFailed {
+               !presentation.isFailed,
+               !presentation.isFinalDungeonClear {
                 dungeonInventoryHandSection
             }
 
@@ -517,23 +658,10 @@ struct ResultActionSection: View {
                         let carriedChoice = DungeonCarriedRewardChoicePresentation(entry: entry)
                         DungeonCarriedRewardCardView(
                             choice: carriedChoice,
-                            onUpgrade: upgradeAction(for: entry),
                             onRemove: removeAction(for: entry)
                         )
                     }
                 }
-            }
-        }
-    }
-
-    private func upgradeAction(for entry: DungeonInventoryEntry) -> (() -> Void)? {
-        guard entry.hasUsesRemaining, let onSelectDungeonReward else { return nil }
-        return {
-            triggerSuccessHapticIfNeeded()
-            if let move = entry.moveCard {
-                onSelectDungeonReward(.upgrade(move))
-            } else if let support = entry.supportCard {
-                onSelectDungeonReward(.upgradeSupport(support))
             }
         }
     }
@@ -792,7 +920,7 @@ struct DungeonRewardCardChoicePresentation: Equatable {
     }
     var usesBadgeText: String {
         if let relic = offer.relic {
-            return relic.displayKind.displayName
+            return relic.rarity.displayName
         }
         return "\(rewardUses)回"
     }
@@ -822,9 +950,9 @@ struct DungeonRewardCardChoicePresentation: Equatable {
             return support.encyclopediaDescription
         case .relic(let relic):
             if let note = relic.noteDescription {
-                return "\(relic.rarity.displayName)。\(relic.displayKind.displayName)。\(relic.effectDescription) \(note)"
+                return "\(relic.effectDescription) \(note)"
             }
-            return "\(relic.rarity.displayName)。\(relic.displayKind.displayName)。\(relic.effectDescription)"
+            return relic.effectDescription
         }
     }
 }
@@ -937,8 +1065,6 @@ private struct DungeonRewardRelicIllustrationView: View {
             HStack(spacing: 4) {
                 Text(relic.rarity.displayName)
                     .foregroundColor(relic.rarity.tintColor(theme: theme))
-                Text(relic.displayKind.displayName)
-                    .foregroundColor(relic.displayKind.tintColor(theme: theme))
             }
             .font(.system(size: 10, weight: .semibold, design: .rounded))
         }
@@ -1105,7 +1231,7 @@ private struct DungeonRelicAcquisitionItemRow: View {
     private var badgeText: String? {
         switch item {
         case .relic(let relic):
-            return "\(relic.rarity.displayName) / \(relic.displayKind.displayName)"
+            return relic.rarity.displayName
         case .curse(let curse):
             return curse.displayKind.displayName
         case .mimicDamage, .hpCompensation:
@@ -1167,29 +1293,22 @@ struct DungeonCarriedRewardChoicePresentation: Equatable {
 
     var title: String { playable.displayName }
     var usesBadgeText: String { "現在\(totalUses)回" }
-    var upgradeAccessibilityLabel: String {
-        "\(playable.displayName)、手札、現在\(totalUses)回。使用回数+1。選ぶと次の階へ進みます。"
-    }
     var removeAccessibilityLabel: String {
         "\(playable.displayName)、手札、現在\(totalUses)回。手札から外す。報酬は消費しません。"
     }
-    var upgradeAccessibilityIdentifier: String { "dungeon_reward_upgrade_\(playable.displayName)" }
     var removeAccessibilityIdentifier: String { "dungeon_reward_remove_\(playable.displayName)" }
 }
 
 private struct DungeonCarriedRewardCardView: View {
     let choice: DungeonCarriedRewardChoicePresentation
-    let onUpgrade: (() -> Void)?
     let onRemove: (() -> Void)?
     private var theme = AppTheme()
 
     init(
         choice: DungeonCarriedRewardChoicePresentation,
-        onUpgrade: (() -> Void)?,
         onRemove: (() -> Void)?
     ) {
         self.choice = choice
-        self.onUpgrade = onUpgrade
         self.onRemove = onRemove
     }
 
@@ -1214,26 +1333,6 @@ private struct DungeonCarriedRewardCardView: View {
 
             if choice.isAdjustable {
                 HStack(spacing: 10) {
-                    if let onUpgrade {
-                        Button {
-                            onUpgrade()
-                        } label: {
-                            Image(systemName: "plus.circle.fill")
-                                .font(.title3.weight(.semibold))
-                                .frame(width: 34, height: 34)
-                                .foregroundStyle(theme.accentPrimary)
-                                .background(
-                                    Circle()
-                                        .fill(theme.accentPrimary.opacity(0.12))
-                                )
-                        }
-                        .buttonStyle(.plain)
-                        .controlSize(.small)
-                        .accessibilityLabel(choice.upgradeAccessibilityLabel)
-                        .accessibilityHint("ダブルタップでこのカードの使用回数を増やし、次の階へ進みます")
-                        .accessibilityIdentifier(choice.upgradeAccessibilityIdentifier)
-                    }
-
                     if let onRemove {
                         Button {
                             onRemove()

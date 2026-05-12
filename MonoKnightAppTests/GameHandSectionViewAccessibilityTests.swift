@@ -148,29 +148,30 @@ final class GameHandSectionViewAccessibilityTests: XCTestCase {
         )
         XCTAssertEqual(
             GameHandSectionView.dungeonRelicAccessibilityLabel(for: relic),
-            "コモン、一時レリック、割れた盾"
+            "コモン、割れた盾"
         )
-        XCTAssertTrue(GameHandSectionView.dungeonRelicAccessibilityHint(for: relic).contains("一時レリック"))
+        XCTAssertFalse(GameHandSectionView.dungeonRelicAccessibilityHint(for: relic).contains("一時レリック"))
+        XCTAssertFalse(GameHandSectionView.dungeonRelicAccessibilityHint(for: relic).contains("永続レリック"))
         XCTAssertTrue(GameHandSectionView.dungeonRelicAccessibilityHint(for: relic).contains("残り 1 回"))
         XCTAssertTrue(GameHandSectionView.dungeonRelicAccessibilityHint(for: relic).contains("次に受けるダメージ"))
         XCTAssertFalse(GameHandSectionView.dungeonRelicAccessibilityHint(for: relic).contains("取得時にHPが1減る"))
         XCTAssertEqual(
             GameHandSectionView.dungeonRelicAccessibilityLabel(for: usedRelic),
-            "コモン、一時レリック、使用済み、割れた盾"
+            "コモン、使用済み、割れた盾"
         )
         XCTAssertTrue(GameHandSectionView.dungeonRelicAccessibilityHint(for: usedRelic).contains("使用済み"))
         XCTAssertTrue(GameHandSectionView.dungeonRelicAccessibilityHint(for: usedRelic).contains("残り 0 回"))
         XCTAssertEqual(silverNeedle.symbolName, "pin.fill")
         XCTAssertEqual(
             GameHandSectionView.dungeonRelicAccessibilityLabel(for: silverNeedle),
-            "コモン、一時レリック、銀の針"
+            "コモン、銀の針"
         )
         XCTAssertTrue(GameHandSectionView.dungeonRelicAccessibilityHint(for: silverNeedle).contains("罠または崩落ダメージ"))
         XCTAssertEqual(
             GameHandSectionView.dungeonRelicAccessibilityLabel(for: heavyCrown),
-            "レア、永続レリック、重い王冠"
+            "レア、重い王冠"
         )
-        XCTAssertTrue(GameHandSectionView.dungeonRelicAccessibilityHint(for: heavyCrown).contains("永続レリック"))
+        XCTAssertFalse(GameHandSectionView.dungeonRelicAccessibilityHint(for: heavyCrown).contains("永続レリック"))
         XCTAssertFalse(GameHandSectionView.dungeonRelicAccessibilityHint(for: heavyCrown).contains("残り"))
     }
 

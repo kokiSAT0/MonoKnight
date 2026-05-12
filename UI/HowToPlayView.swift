@@ -123,8 +123,8 @@ private extension HowToPlayView {
 
             // MARK: - カードと報酬
             HowToPlaySectionView(
-                title: "3. カードと報酬を育てる",
-                description: "床カードは踏むだけで拾えます。クリア後は新しいカード、補助カード、遺物、手持ちカードの強化から選び、同じ区間の次の階へ持ち越します。",
+                title: "3. カードと報酬を選ぶ",
+                description: "床カードは踏むだけで拾えます。クリア後は新しいカード、補助カード、遺物から選び、同じ区間の次の階へ持ち越します。",
                 card: .straightUp2,
                 tips: [
                     "通常カードは9種類まで持てます。同じカードは種類枠を増やさず、残り回数としてまとまります。",
@@ -727,7 +727,7 @@ private struct RelicEncyclopediaRow: View {
         IconEncyclopediaRow(
             symbolName: entry.symbolName,
             title: entry.displayName,
-            primaryDescription: "\(entry.rarity.displayName) / \(entry.displayKind.displayName) / \(entry.effectDescription)",
+            primaryDescription: entry.effectDescription,
             secondaryDescription: entry.noteDescription.map { "補足: \($0)" },
             isUnlocked: isUnlocked,
             tint: entry.rarity.tintColor

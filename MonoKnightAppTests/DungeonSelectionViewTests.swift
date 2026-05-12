@@ -88,7 +88,7 @@ final class DungeonSelectionViewTests: XCTestCase {
         XCTAssertEqual(mode.dungeonRules?.failureRule.initialHP, snapshot.dungeonHP)
     }
 
-    func testDungeonSelectionShowsGrowthRewardStatusForGrowthTowers() throws {
+    func testDungeonSelectionShowsCompactGrowthSummaryForGrowthTowers() throws {
         let suiteName = "DungeonSelectionViewTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName) ?? .standard
         defer { defaults.removePersistentDomain(forName: suiteName) }
@@ -98,26 +98,43 @@ final class DungeonSelectionViewTests: XCTestCase {
         let fifthFloor = DungeonRunState(dungeonID: growthTower.id, currentFloorIndex: 4, carriedHP: 3, clearedFloorCount: 4)
         _ = growthStore.registerDungeonClear(dungeon: growthTower, runState: fifthFloor, hasNextFloor: true)
 
-        let growthStatuses = DungeonGrowthRewardStatusPresentation.make(dungeon: growthTower, growthStore: growthStore)
+        let presentation = try XCTUnwrap(DungeonGrowthTreeCardPresentation.make(dungeon: growthTower, growthStore: growthStore))
 
-        XCTAssertEqual(growthStatuses.map(\.text), [
-            "5F 獲得済", "10F 未獲得", "15F 未獲得", "20F 未獲得", "25F 未獲得",
-            "30F 未獲得", "35F 未獲得", "40F 未獲得", "45F 未獲得", "50F 未獲得"
-        ])
-        XCTAssertEqual(growthStatuses.map(\.isRewarded), [true, false, false, false, false, false, false, false, false, false])
-        XCTAssertEqual(growthStatuses.map(\.accessibilityIdentifier), [
-            "dungeon_growth_reward_status_growth-tower-5f",
-            "dungeon_growth_reward_status_growth-tower-10f",
-            "dungeon_growth_reward_status_growth-tower-15f",
-            "dungeon_growth_reward_status_growth-tower-20f",
-            "dungeon_growth_reward_status_growth-tower-25f",
-            "dungeon_growth_reward_status_growth-tower-30f",
-            "dungeon_growth_reward_status_growth-tower-35f",
-            "dungeon_growth_reward_status_growth-tower-40f",
-            "dungeon_growth_reward_status_growth-tower-45f",
-            "dungeon_growth_reward_status_growth-tower-50f"
-        ])
-        XCTAssertTrue(DungeonGrowthRewardStatusPresentation.make(dungeon: rogueTower, growthStore: growthStore).isEmpty)
+        XCTAssertEqual(presentation.title, "成長")
+        XCTAssertEqual(presentation.progressText, "1/10獲得")
+        XCTAssertEqual(presentation.pointsText, "ポイント 1")
+        XCTAssertEqual(presentation.summaryText, "1/10獲得 · ポイント 1")
+        XCTAssertNil(DungeonGrowthTreeCardPresentation.make(dungeon: rogueTower, growthStore: growthStore))
+    }
+
+    func testDungeonSelectionDoesNotRenderMilestoneBadgesAtPhoneWidth() throws {
+        let suiteName = "DungeonSelectionViewTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName) ?? .standard
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let growthStore = DungeonGrowthStore(userDefaults: defaults)
+        let growthTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let fifthFloor = DungeonRunState(dungeonID: growthTower.id, currentFloorIndex: 4, carriedHP: 3, clearedFloorCount: 4)
+        _ = growthStore.registerDungeonClear(dungeon: growthTower, runState: fifthFloor, hasNextFloor: true)
+
+        let view = NavigationStack {
+            DungeonSelectionView(
+                dungeonLibrary: .shared,
+                dungeonGrowthStore: growthStore,
+                tutorialTowerProgressStore: TutorialTowerProgressStore(userDefaults: defaults),
+                onStartDungeon: { _, _ in }
+            )
+        }
+        let controller = UIHostingController(rootView: view)
+        controller.view.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
+        let window = UIWindow(frame: controller.view.frame)
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+
+        controller.view.setNeedsLayout()
+        controller.view.layoutIfNeeded()
+
+        let identifiers = accessibilityIdentifiers(in: controller.view)
+        XCTAssertFalse(identifiers.contains { $0.hasPrefix("dungeon_growth_reward_status_") })
     }
 
     func testDungeonSelectionPlacesGrowthTreeOnlyInsideGrowthTowerCard() throws {
@@ -125,12 +142,19 @@ final class DungeonSelectionViewTests: XCTestCase {
         let growthTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
         let rogueTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "rogue-tower"))
 
-        XCTAssertNil(DungeonGrowthTreeCardPresentation.make(dungeon: tutorialTower, points: 2))
-        XCTAssertNil(DungeonGrowthTreeCardPresentation.make(dungeon: rogueTower, points: 2))
+        let suiteName = "DungeonSelectionViewTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName) ?? .standard
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let growthStore = DungeonGrowthStore(userDefaults: defaults)
 
-        let presentation = try XCTUnwrap(DungeonGrowthTreeCardPresentation.make(dungeon: growthTower, points: 2))
+        XCTAssertNil(DungeonGrowthTreeCardPresentation.make(dungeon: tutorialTower, growthStore: growthStore))
+        XCTAssertNil(DungeonGrowthTreeCardPresentation.make(dungeon: rogueTower, growthStore: growthStore))
+
+        let presentation = try XCTUnwrap(DungeonGrowthTreeCardPresentation.make(dungeon: growthTower, growthStore: growthStore))
         XCTAssertEqual(presentation.title, "成長")
-        XCTAssertEqual(presentation.pointsText, "ポイント 2")
+        XCTAssertEqual(presentation.progressText, "0/10獲得")
+        XCTAssertEqual(presentation.pointsText, "ポイント 0")
+        XCTAssertEqual(presentation.summaryText, "0/10獲得 · ポイント 0")
         XCTAssertEqual(presentation.sectionAccessibilityIdentifier, "dungeon_growth_section")
         XCTAssertEqual(presentation.toggleAccessibilityIdentifier, "dungeon_growth_toggle")
     }
@@ -406,5 +430,10 @@ final class DungeonSelectionViewTests: XCTestCase {
             collectedDungeonCardPickupIDs: [],
             isDungeonExitUnlocked: true
         )
+    }
+
+    private func accessibilityIdentifiers(in view: UIView) -> [String] {
+        let ownIdentifier = view.accessibilityIdentifier.map { [$0] } ?? []
+        return ownIdentifier + view.subviews.flatMap { accessibilityIdentifiers(in: $0) }
     }
 }

@@ -331,6 +331,122 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertEqual(presentation.resultTitle, "巡回塔クリア")
     }
 
+    func testDungeonResultPresentationDetectsFinalDungeonClear() {
+        let presentation = ResultSummaryPresentation(
+            moveCount: 8,
+            penaltyCount: 0,
+            usesDungeonExit: true,
+            isFailed: false,
+            failureReason: nil,
+            dungeonHP: 2,
+            remainingDungeonTurns: 0,
+            dungeonRunFloorText: "成長塔 50/50F",
+            rogueTowerRecordText: nil,
+            dungeonRunTotalMoveCount: 120,
+            dungeonRewardMoveCards: [],
+            dungeonInventoryEntries: [],
+            dungeonGrowthAward: nil,
+            hasNextDungeonFloor: false,
+            elapsedSeconds: 35
+        )
+
+        XCTAssertTrue(presentation.isFinalDungeonClear)
+        XCTAssertEqual(
+            presentation.shareMessage(modeDisplayName: "成長塔"),
+            "MonoKnight 成長塔 登頂クリア！（塔累計 120 手 / 残HP 2 / 所要 35秒）"
+        )
+    }
+
+    func testDungeonResultPresentationDoesNotTreatIntermediateClearAsFinal() {
+        let presentation = ResultSummaryPresentation(
+            moveCount: 8,
+            penaltyCount: 0,
+            usesDungeonExit: true,
+            isFailed: false,
+            failureReason: nil,
+            dungeonHP: 2,
+            remainingDungeonTurns: 0,
+            dungeonRunFloorText: "成長塔 10/50F",
+            rogueTowerRecordText: nil,
+            dungeonRunTotalMoveCount: 20,
+            dungeonRewardMoveCards: [],
+            dungeonInventoryEntries: [],
+            dungeonGrowthAward: nil,
+            hasNextDungeonFloor: true,
+            elapsedSeconds: 35
+        )
+
+        XCTAssertFalse(presentation.isFinalDungeonClear)
+    }
+
+    func testDungeonResultPresentationDoesNotTreatFailureAsFinalClear() {
+        let presentation = ResultSummaryPresentation(
+            moveCount: 8,
+            penaltyCount: 0,
+            usesDungeonExit: true,
+            isFailed: true,
+            failureReason: "HPが尽きました",
+            dungeonHP: 0,
+            remainingDungeonTurns: 0,
+            dungeonRunFloorText: "成長塔 50/50F",
+            rogueTowerRecordText: nil,
+            dungeonRunTotalMoveCount: 120,
+            dungeonRewardMoveCards: [],
+            dungeonInventoryEntries: [],
+            dungeonGrowthAward: nil,
+            hasNextDungeonFloor: false,
+            elapsedSeconds: 35
+        )
+
+        XCTAssertFalse(presentation.isFinalDungeonClear)
+    }
+
+    func testFinalDungeonSummarySectionsOnlyAppearWhenContentExists() {
+        let emptyPresentation = ResultSummaryPresentation(
+            moveCount: 8,
+            penaltyCount: 0,
+            usesDungeonExit: true,
+            isFailed: false,
+            failureReason: nil,
+            dungeonHP: 2,
+            remainingDungeonTurns: 0,
+            dungeonRunFloorText: "基礎塔 6/6F",
+            rogueTowerRecordText: nil,
+            dungeonRunTotalMoveCount: 20,
+            dungeonRewardMoveCards: [],
+            dungeonInventoryEntries: [],
+            dungeonGrowthAward: nil,
+            hasNextDungeonFloor: false,
+            elapsedSeconds: 35
+        )
+        let fullPresentation = ResultSummaryPresentation(
+            moveCount: 8,
+            penaltyCount: 0,
+            usesDungeonExit: true,
+            isFailed: false,
+            failureReason: nil,
+            dungeonHP: 2,
+            remainingDungeonTurns: 0,
+            dungeonRunFloorText: "成長塔 50/50F",
+            rogueTowerRecordText: nil,
+            dungeonRunTotalMoveCount: 120,
+            dungeonRewardMoveCards: [],
+            dungeonInventoryEntries: [DungeonInventoryEntry(card: .straightRight2, rewardUses: 2)],
+            dungeonRelicEntries: [DungeonRelicEntry(relicID: .silverNeedle, remainingUses: 0)],
+            dungeonCurseEntries: [DungeonCurseEntry(curseID: .rustyChain)],
+            dungeonGrowthAward: nil,
+            hasNextDungeonFloor: false,
+            elapsedSeconds: 35
+        )
+
+        XCTAssertFalse(emptyPresentation.showsFinalDungeonRelicsSection)
+        XCTAssertFalse(emptyPresentation.showsFinalDungeonCursesSection)
+        XCTAssertFalse(emptyPresentation.showsFinalDungeonInventorySection)
+        XCTAssertTrue(fullPresentation.showsFinalDungeonRelicsSection)
+        XCTAssertTrue(fullPresentation.showsFinalDungeonCursesSection)
+        XCTAssertTrue(fullPresentation.showsFinalDungeonInventorySection)
+    }
+
     func testRogueTowerFloorTextOmitsTotalFloorCount() throws {
         let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "rogue-tower"))
         let runState = DungeonRunState(
@@ -1446,41 +1562,6 @@ final class GameViewModelTests: XCTestCase {
             requestedMode?.dungeonMetadataSnapshot?.runState?.rewardInventoryEntries,
             [DungeonInventoryEntry(card: reward, rewardUses: 3)]
         )
-    }
-
-    func testDungeonRewardUpgradeIncreasesCarriedRewardUsesAndStartsNextFloor() throws {
-        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
-        let runState = DungeonRunState(
-            dungeonID: tower.id,
-            currentFloorIndex: 1,
-            carriedHP: 2,
-            totalMoveCount: 4,
-            clearedFloorCount: 1,
-            rewardInventoryEntries: [DungeonInventoryEntry(card: .straightRight2, rewardUses: 2)]
-        )
-        let mode = tower.floors[1].makeGameMode(
-            dungeonID: tower.id,
-            carriedHP: runState.carriedHP,
-            runState: runState
-        )
-        var requestedMode: GameMode?
-        let (viewModel, core) = makeViewModel(
-            mode: mode,
-            onRequestStartDungeonFloor: { requestedMode = $0 }
-        )
-        core.overrideMetricsForTesting(moveCount: 3, penaltyCount: 0, elapsedSeconds: 12)
-        core.overrideDungeonHPForTesting(2)
-
-        viewModel.showingResult = true
-        viewModel.handleDungeonRewardSelection(.upgrade(.straightRight2))
-
-        let nextRunState = try XCTUnwrap(requestedMode?.dungeonMetadataSnapshot?.runState)
-        XCTAssertEqual(nextRunState.currentFloorIndex, 2)
-        XCTAssertEqual(
-            nextRunState.rewardInventoryEntries,
-            [DungeonInventoryEntry(card: .straightRight2, rewardUses: 3)]
-        )
-        XCTAssertFalse(viewModel.showingResult)
     }
 
     func testDungeonRewardRemoveDropsCarriedRewardAndStartsNextFloor() throws {

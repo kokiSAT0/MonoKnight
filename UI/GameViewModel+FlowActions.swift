@@ -292,9 +292,9 @@ extension GameViewModel {
                 && !core.dungeonRelicEntries.contains(where: { $0.relicID == relic })
         case .carryOverPickup(let card):
             return carryoverCandidateDungeonPickupEntries.contains { $0.card == card && $0.hasUsesRemaining }
-        case .upgrade(let card), .remove(let card):
+        case .remove(let card):
             return adjustableDungeonRewardEntries.contains { $0.moveCard == card && $0.hasUsesRemaining }
-        case .upgradeSupport(let support), .removeSupport(let support):
+        case .removeSupport(let support):
             return adjustableDungeonRewardEntries.contains { $0.supportCard == support && $0.hasUsesRemaining }
         }
     }

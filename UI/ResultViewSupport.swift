@@ -16,9 +16,49 @@ struct ResultSummaryPresentation {
     let dungeonRunTotalMoveCount: Int?
     let dungeonRewardMoveCards: [MoveCard]
     let dungeonInventoryEntries: [DungeonInventoryEntry]
+    let dungeonRelicEntries: [DungeonRelicEntry]
+    let dungeonCurseEntries: [DungeonCurseEntry]
     let dungeonGrowthAward: DungeonGrowthAward?
     let hasNextDungeonFloor: Bool
     let elapsedSeconds: Int
+
+    init(
+        moveCount: Int,
+        penaltyCount: Int,
+        usesDungeonExit: Bool,
+        isFailed: Bool,
+        failureReason: String?,
+        dungeonHP: Int?,
+        remainingDungeonTurns: Int?,
+        dungeonRunFloorText: String?,
+        rogueTowerRecordText: String?,
+        dungeonRunTotalMoveCount: Int?,
+        dungeonRewardMoveCards: [MoveCard],
+        dungeonInventoryEntries: [DungeonInventoryEntry],
+        dungeonRelicEntries: [DungeonRelicEntry] = [],
+        dungeonCurseEntries: [DungeonCurseEntry] = [],
+        dungeonGrowthAward: DungeonGrowthAward?,
+        hasNextDungeonFloor: Bool,
+        elapsedSeconds: Int
+    ) {
+        self.moveCount = moveCount
+        self.penaltyCount = penaltyCount
+        self.usesDungeonExit = usesDungeonExit
+        self.isFailed = isFailed
+        self.failureReason = failureReason
+        self.dungeonHP = dungeonHP
+        self.remainingDungeonTurns = remainingDungeonTurns
+        self.dungeonRunFloorText = dungeonRunFloorText
+        self.rogueTowerRecordText = rogueTowerRecordText
+        self.dungeonRunTotalMoveCount = dungeonRunTotalMoveCount
+        self.dungeonRewardMoveCards = dungeonRewardMoveCards
+        self.dungeonInventoryEntries = dungeonInventoryEntries
+        self.dungeonRelicEntries = dungeonRelicEntries
+        self.dungeonCurseEntries = dungeonCurseEntries
+        self.dungeonGrowthAward = dungeonGrowthAward
+        self.hasNextDungeonFloor = hasNextDungeonFloor
+        self.elapsedSeconds = elapsedSeconds
+    }
 
     var totalMoves: Int {
         return moveCount + penaltyCount
@@ -48,6 +88,22 @@ struct ResultSummaryPresentation {
 
     var penaltySummaryText: String {
         return penaltyCount == 0 ? "ペナルティなし" : "ペナルティ合計 \(penaltyCount)"
+    }
+
+    var isFinalDungeonClear: Bool {
+        usesDungeonExit && !isFailed && !hasNextDungeonFloor
+    }
+
+    var showsFinalDungeonRelicsSection: Bool {
+        isFinalDungeonClear && !dungeonRelicEntries.isEmpty
+    }
+
+    var showsFinalDungeonCursesSection: Bool {
+        isFinalDungeonClear && !dungeonCurseEntries.isEmpty
+    }
+
+    var showsFinalDungeonInventorySection: Bool {
+        isFinalDungeonClear && !dungeonRewardInventoryEntries.isEmpty
     }
 
     var resultTitle: String {
@@ -109,6 +165,9 @@ struct ResultSummaryPresentation {
             return "MonoKnight \(modeDisplayName) 挑戦失敗（移動 \(moveCount) 手 / \(penaltySummaryText) / 所要 \(formattedElapsedTime)）"
         }
         if usesDungeonExit {
+            if isFinalDungeonClear {
+                return "MonoKnight \(modeDisplayName) 登頂クリア！（塔累計 \(dungeonRunTotalMoveCount ?? totalMoves) 手 / 残HP \(dungeonHP ?? 0) / 所要 \(formattedElapsedTime)）"
+            }
             return "MonoKnight \(modeDisplayName) フロアクリア！（移動 \(moveCount) 手 / 残HP \(dungeonHP ?? 0) / 所要 \(formattedElapsedTime)）"
         }
         return "MonoKnight \(modeDisplayName) クリア！ポイント \(points)（移動 \(moveCount) 手 / \(penaltySummaryText) / 所要 \(formattedElapsedTime)）"

@@ -41,6 +41,10 @@ struct ResultView: View {
     let dungeonRewardSupportCards: [SupportCard]
     /// リザルト時点で残っている塔所持カード
     let dungeonInventoryEntries: [DungeonInventoryEntry]
+    /// リザルト時点で所持している通常遺物
+    let dungeonRelicEntries: [DungeonRelicEntry]
+    /// リザルト時点で所持している呪い遺物
+    let dungeonCurseEntries: [DungeonCurseEntry]
     /// 拾得カード持ち越し候補。通常 UI では自動持ち越しのため空配列を渡す。
     let dungeonPickupCarryoverEntries: [DungeonInventoryEntry]
     /// 新しく手札へ追加したカードの使用回数
@@ -74,7 +78,7 @@ struct ResultView: View {
     let disabledDungeonRewardMoveCards: Set<MoveCard>
     /// 手札満杯などで追加できないダンジョン補助報酬カード
     let disabledDungeonRewardSupportCards: Set<SupportCard>
-    /// ダンジョン報酬を追加/強化などから選んで次階へ進むためのクロージャ
+    /// ダンジョン報酬を追加/削除などから選んで次階へ進むためのクロージャ
     let onSelectDungeonReward: ((DungeonRewardSelection) -> Void)?
     /// 手札のカードを報酬消費なしで整理するためのクロージャ
     let onRemoveDungeonRewardCard: ((MoveCard) -> Void)?
@@ -122,6 +126,8 @@ struct ResultView: View {
         dungeonRewardMoveCards: [MoveCard] = [],
         dungeonRewardSupportCards: [SupportCard] = [],
         dungeonInventoryEntries: [DungeonInventoryEntry] = [],
+        dungeonRelicEntries: [DungeonRelicEntry] = [],
+        dungeonCurseEntries: [DungeonCurseEntry] = [],
         dungeonPickupCarryoverEntries: [DungeonInventoryEntry] = [],
         dungeonRewardAddUses: Int = 2,
         dungeonRewardMoveUsesByCard: [MoveCard: Int] = [:],
@@ -164,6 +170,8 @@ struct ResultView: View {
             dungeonRewardMoveCards: dungeonRewardMoveCards,
             dungeonRewardSupportCards: dungeonRewardSupportCards,
             dungeonInventoryEntries: dungeonInventoryEntries,
+            dungeonRelicEntries: dungeonRelicEntries,
+            dungeonCurseEntries: dungeonCurseEntries,
             dungeonPickupCarryoverEntries: dungeonPickupCarryoverEntries,
             dungeonRewardAddUses: dungeonRewardAddUses,
             dungeonRewardMoveUsesByCard: dungeonRewardMoveUsesByCard,
@@ -208,6 +216,8 @@ struct ResultView: View {
         dungeonRewardMoveCards: [MoveCard] = [],
         dungeonRewardSupportCards: [SupportCard] = [],
         dungeonInventoryEntries: [DungeonInventoryEntry] = [],
+        dungeonRelicEntries: [DungeonRelicEntry] = [],
+        dungeonCurseEntries: [DungeonCurseEntry] = [],
         dungeonPickupCarryoverEntries: [DungeonInventoryEntry] = [],
         dungeonRewardAddUses: Int = 2,
         dungeonRewardMoveUsesByCard: [MoveCard: Int] = [:],
@@ -268,6 +278,8 @@ struct ResultView: View {
         self.dungeonRewardMoveCards = dungeonRewardMoveCards
         self.dungeonRewardSupportCards = dungeonRewardSupportCards
         self.dungeonInventoryEntries = dungeonInventoryEntries
+        self.dungeonRelicEntries = dungeonRelicEntries
+        self.dungeonCurseEntries = dungeonCurseEntries
         self.dungeonPickupCarryoverEntries = dungeonPickupCarryoverEntries
         self.dungeonRewardAddUses = max(dungeonRewardAddUses, 1)
         self.dungeonRewardMoveUsesByCard = dungeonRewardMoveUsesByCard
@@ -300,6 +312,10 @@ struct ResultView: View {
 
                 if let dungeonGrowthAward {
                     DungeonGrowthAwardSection(award: dungeonGrowthAward)
+                }
+
+                if summaryPresentation.isFinalDungeonClear {
+                    FinalDungeonClearSummarySection(presentation: summaryPresentation)
                 }
 
                 ResultActionSection(
@@ -398,6 +414,8 @@ struct ResultView: View {
             dungeonRunTotalMoveCount: dungeonRunTotalMoveCount,
             dungeonRewardMoveCards: dungeonRewardMoveCards,
             dungeonInventoryEntries: dungeonInventoryEntries,
+            dungeonRelicEntries: dungeonRelicEntries,
+            dungeonCurseEntries: dungeonCurseEntries,
             dungeonGrowthAward: dungeonGrowthAward,
             hasNextDungeonFloor: nextDungeonFloorTitle != nil,
             elapsedSeconds: elapsedSeconds

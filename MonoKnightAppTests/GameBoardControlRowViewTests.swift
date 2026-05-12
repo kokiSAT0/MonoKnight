@@ -3,6 +3,10 @@ import XCTest
 @testable import MonoKnightApp
 
 final class GameBoardControlRowViewTests: XCTestCase {
+    func testDungeonFloorBadgeTitleUsesJapaneseLabel() {
+        XCTAssertEqual(GameBoardControlRowView.dungeonFloorBadgeTitle, "階層")
+    }
+
     func testDungeonHPAccessibilityIncludesCriticalStateAtOneHP() {
         XCTAssertTrue(GameBoardControlRowView.isCriticalDungeonHP(1))
         XCTAssertEqual(GameBoardControlRowView.dungeonHPAccessibilityValue(for: 1), "1、瀕死")
