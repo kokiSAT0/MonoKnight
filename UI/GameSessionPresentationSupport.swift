@@ -37,6 +37,13 @@ struct GameBoardTapSelectionWarning: Identifiable, Equatable {
     let id = UUID()
     let message: String
     let destination: GridPoint
+    let highlightedStackIDs: Set<UUID>
+
+    init(message: String, destination: GridPoint, highlightedStackIDs: Set<UUID> = []) {
+        self.message = message
+        self.destination = destination
+        self.highlightedStackIDs = highlightedStackIDs
+    }
 }
 
 enum GameMenuAction: Hashable, Identifiable {

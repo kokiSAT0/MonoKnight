@@ -270,6 +270,9 @@ final class GamePauseController {
             pauseTimer()
             isTimerPausedForScenePhase = true
             shouldPresentPauseMenuAfterScenePhaseResume = true
+            guard !isTimerPausedForMenu, !isTimerPausedForPreparationOverlay else { return }
+            shouldPresentPauseMenuAfterScenePhaseResume = false
+            presentPauseMenu()
 
         case .active:
             guard isTimerPausedForScenePhase else {

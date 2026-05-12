@@ -227,7 +227,6 @@ final class GameViewModel: ObservableObject {
             (core.dungeonRelicEntries.contains { $0.relicID == .victoryBanner || $0.relicID == .royalCrown } ? 1 : 0) +
             (core.dungeonRelicEntries.contains { $0.relicID == .scoutCompass } && isSeventyPercentClear ? 1 : 0) +
             (core.dungeonRelicEntries.contains { $0.relicID == .trapperGloves && $0.remainingUses == 1 } ? 1 : 0) +
-            (core.dungeonRelicEntries.contains { $0.relicID == .gamblerCoin } && isFastClearForRelic ? 1 : 0) +
             (core.dungeonCurseEntries.contains { $0.curseID == .crackedCompass } ? 1 : 0)
             + (core.dungeonCurseEntries.contains { $0.curseID == .cloudedMirror } ? 1 : 0)
             + (core.dungeonCurseEntries.contains { $0.curseID == .patrolBell } ? 1 : 0)
@@ -305,14 +304,11 @@ final class GameViewModel: ObservableObject {
         guard let metadata = mode.dungeonMetadataSnapshot,
               let dungeon = DungeonLibrary.shared.dungeon(with: metadata.dungeonID)
         else { return 2 }
-        let heavyCrownBonus = core.dungeonRelicEntries.contains { $0.relicID == .heavyCrown || $0.relicID == .royalCrown } ? 1 : 0
-        let sageCodexBonus = core.dungeonRelicEntries.contains { $0.relicID == .sageCodex } ? 1 : 0
-        let cursedCrownBonus = core.dungeonCurseEntries.contains { $0.curseID == .cursedCrown } ? 2 : 0
-        let trapMagnetBonus = core.dungeonCurseEntries.contains { $0.curseID == .trapMagnet } ? 1 : 0
-        let cursePenalty = core.dungeonCurseEntries.contains { $0.curseID == .bloodPact && $0.remainingUses > 0 } ? 1 : 0
-        let warpedHourglassPenalty = core.dungeonCurseEntries.contains { $0.curseID == .warpedHourglass } ? 1 : 0
-        let greedyBagPenalty = core.dungeonCurseEntries.contains { $0.curseID == .greedyBag } ? 2 : 0
-        return max(dungeonGrowthStore.rewardAddUses(for: dungeon) + heavyCrownBonus + sageCodexBonus + cursedCrownBonus + trapMagnetBonus - cursePenalty - warpedHourglassPenalty - greedyBagPenalty, 1)
+        return DungeonRunState.adjustedMoveRewardBaseUses(
+            dungeonGrowthStore.rewardAddUses(for: dungeon),
+            relicEntries: core.dungeonRelicEntries,
+            curseEntries: core.dungeonCurseEntries
+        )
     }
 
     var dungeonRewardMoveUsesByCard: [MoveCard: Int] {
@@ -330,10 +326,11 @@ final class GameViewModel: ObservableObject {
     }
 
     var dungeonSupportRewardAddUses: Int {
-        let twinPouchBonus = core.dungeonRelicEntries.contains { $0.relicID == .twinPouch } ? 1 : 0
-        let sageCodexBonus = core.dungeonRelicEntries.contains { $0.relicID == .sageCodex } ? 1 : 0
-        let frayedMemoryBonus = core.dungeonCurseEntries.contains { $0.curseID == .frayedMemory } ? 1 : 0
-        return DungeonRunState.rewardUses(for: .refillEmptySlots) + twinPouchBonus + sageCodexBonus + frayedMemoryBonus
+        DungeonRunState.adjustedSupportRewardUses(
+            DungeonRunState.rewardUses(for: .refillEmptySlots),
+            relicEntries: core.dungeonRelicEntries,
+            curseEntries: core.dungeonCurseEntries
+        )
     }
     /// クリア後に整理できる手札の報酬カード
     var adjustableDungeonRewardEntries: [DungeonInventoryEntry] {

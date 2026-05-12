@@ -1263,7 +1263,6 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             board.markVisited(stepPoint)
             finalPosition = stepPoint
 
-            defeatDungeonEnemy(at: stepPoint)
             if shouldApplyEnemyDangerDamageDuringMovement(stepIndex: stepIndex, path: pendingPath),
                applyDungeonEnemyDangerDamageIfNeeded(at: stepPoint) {
                 presentationSteps.append(
@@ -1275,6 +1274,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                 )
                 break
             }
+            defeatDungeonEnemy(at: stepPoint)
             if applyDungeonHazard(at: stepPoint) {
                 collectDungeonCardPickup(at: stepPoint)
                 collectDungeonRelicPickup(at: stepPoint)

@@ -984,6 +984,52 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertEqual(core.liveElapsedSecondsForTesting(asOf: dateProvider.now), 45, "準備オーバーレイ表示中にもタイマーが進行しています")
     }
 
+    /// プレイ中にアプリを離れた時点でポーズメニューを表示し、復帰直後に盤面だけが見えないようにする
+    func testScenePhaseInactivePresentsPauseMenuImmediately() {
+        let dateProvider = MutableDateProvider(now: Date(timeIntervalSince1970: 120_000))
+        let (viewModel, core) = makeViewModel(
+            mode: .dungeonPlaceholder,
+            dateProvider: dateProvider
+        )
+        core.setStartDateForTesting(dateProvider.now.addingTimeInterval(-20))
+
+        viewModel.handleScenePhaseChange(.inactive)
+
+        XCTAssertTrue(viewModel.isPauseMenuPresented, "アプリを離れた時点でポーズメニューが表示済みになる必要があります")
+
+        dateProvider.now = dateProvider.now.addingTimeInterval(30)
+        XCTAssertEqual(core.liveElapsedSecondsForTesting(asOf: dateProvider.now), 20, "ポーズメニュー表示中にタイマーが進んではいけません")
+
+        viewModel.handleScenePhaseChange(.active)
+        XCTAssertTrue(viewModel.isPauseMenuPresented, "復帰時にポーズメニューが閉じたり二重処理で崩れてはいけません")
+
+        viewModel.setPauseMenuPresentedForTesting(false)
+        dateProvider.now = dateProvider.now.addingTimeInterval(10)
+        XCTAssertEqual(core.liveElapsedSecondsForTesting(asOf: dateProvider.now), 30, "ポーズ解除後はタイマーが再開する必要があります")
+    }
+
+    /// 準備オーバーレイ中は復帰後表示の予約だけを残し、ロード中のポーズ UI 競合を避ける
+    func testScenePhaseInactiveDefersPauseMenuWhilePreparationOverlayIsVisible() {
+        let dateProvider = MutableDateProvider(now: Date(timeIntervalSince1970: 130_000))
+        let (viewModel, core) = makeViewModel(
+            mode: .dungeonPlaceholder,
+            dateProvider: dateProvider
+        )
+        core.setStartDateForTesting(dateProvider.now.addingTimeInterval(-15))
+
+        viewModel.handlePreparationOverlayChange(isVisible: true)
+        viewModel.handleScenePhaseChange(.inactive)
+
+        XCTAssertFalse(viewModel.isPauseMenuPresented, "準備オーバーレイ中は即時ポーズ表示せず、既存の遅延表示を維持します")
+
+        viewModel.handlePreparationOverlayChange(isVisible: false)
+
+        XCTAssertTrue(viewModel.isPauseMenuPresented, "準備オーバーレイが閉じたら予約済みのポーズメニューを表示する必要があります")
+
+        dateProvider.now = dateProvider.now.addingTimeInterval(30)
+        XCTAssertEqual(core.liveElapsedSecondsForTesting(asOf: dateProvider.now), 15, "遅延表示中もタイマーが進んではいけません")
+    }
+
     /// Game Center 認証状態の同期が冪等で、変化時のみ反映されることを確認
     func testUpdateGameCenterAuthenticationStatusIsIdempotent() {
         let (viewModel, _) = makeViewModel(mode: .dungeonPlaceholder)
@@ -1137,6 +1183,44 @@ final class GameViewModelTests: XCTestCase {
 
         XCTAssertEqual(viewModel.availableDungeonRewardOffers.count, 4)
         XCTAssertFalse(viewModel.availableDungeonRewardOffers.contains(.relic(.victoryBanner)))
+    }
+
+    func testGamblerCoinAddsRelicOfferWithoutExpandingChoiceCount() throws {
+        let dungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let runState = DungeonRunState(
+            dungeonID: dungeon.id,
+            currentFloorIndex: 0,
+            carriedHP: 3,
+            cardVariationSeed: 42
+        )
+        let floor = try XCTUnwrap(dungeon.resolvedFloor(at: 0, runState: runState))
+        let baseMode = floor.makeGameMode(
+            dungeonID: dungeon.id,
+            difficulty: dungeon.difficulty,
+            runState: runState
+        )
+        let gamblerRunState = DungeonRunState(
+            dungeonID: dungeon.id,
+            currentFloorIndex: 0,
+            carriedHP: 3,
+            relicEntries: [DungeonRelicEntry(relicID: .gamblerCoin)],
+            cardVariationSeed: 42
+        )
+        let gamblerMode = floor.makeGameMode(
+            dungeonID: dungeon.id,
+            difficulty: dungeon.difficulty,
+            runState: gamblerRunState
+        )
+        let (baseViewModel, baseCore) = makeViewModel(mode: baseMode)
+        let (gamblerViewModel, gamblerCore) = makeViewModel(mode: gamblerMode)
+        baseCore.overrideMetricsForTesting(moveCount: 0, penaltyCount: 0, elapsedSeconds: 10)
+        gamblerCore.overrideMetricsForTesting(moveCount: 0, penaltyCount: 0, elapsedSeconds: 10)
+
+        let baseOffers = baseViewModel.availableDungeonRewardOffers
+        let gamblerOffers = gamblerViewModel.availableDungeonRewardOffers
+
+        XCTAssertEqual(gamblerOffers.count, baseOffers.count)
+        XCTAssertTrue(gamblerOffers.contains { $0.relic != nil })
     }
 
     func testPendingDungeonPickupDiscardNewCardResolvesThroughViewModel() throws {

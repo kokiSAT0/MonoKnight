@@ -443,7 +443,7 @@ public enum DungeonRelicID: String, Codable, CaseIterable, Equatable, Identifiab
         case .crackedShield:
             return "次に受けるダメージを1回だけ1軽減する。"
         case .heavyCrown:
-            return "新しく得る報酬カードの使用回数が+1される。"
+            return "移動報酬カードを新しく得る時、使用回数が+1される。"
         case .glowingHeart:
             return "取得時にHPが2増える。"
         case .oldMap:
@@ -477,13 +477,13 @@ public enum DungeonRelicID: String, Codable, CaseIterable, Equatable, Identifiab
         case .oldRope:
             return "落下で前の階へ戻る時、HP減少を1回だけ無効化する。"
         case .twinPouch:
-            return "補助カードを新しく得る時、使用回数が+1される。"
+            return "補助報酬カードを新しく得る時、使用回数が+1される。"
         case .gamblerCoin:
             return "フロアを手早くクリアすると、未所持レリック候補を1つ追加しやすくする。"
         case .royalCrown:
             return "クリア後の報酬候補が+1され、新しく得る報酬カードの使用回数が+1される。最大4択。"
         case .immortalHeart:
-            return "各フロア開始時にHPが2増える。"
+            return "各フロア開始時にHPが1増える。"
         case .guardianAegis:
             return "各フロアで最初に受けるHPダメージを1回だけ1軽減する。"
         case .stargazerHourglass:
@@ -511,7 +511,7 @@ public enum DungeonRelicID: String, Codable, CaseIterable, Equatable, Identifiab
         case .phoenixFeather:
             return "HPが0になるダメージを1回だけHP1で耐える。"
         case .sageCodex:
-            return "新しく得る拾得カード、報酬カード、補助カードの使用回数が+1される。"
+            return "新しく得る拾得カード、移動報酬カード、補助報酬カードの使用回数が+1される。"
         case .trapSole:
             return "ダメージ罠から受けるHPダメージを常に1軽減する。"
         case .emberCloak:
@@ -563,11 +563,11 @@ public enum DungeonRelicID: String, Codable, CaseIterable, Equatable, Identifiab
 
     public var rarity: DungeonRelicRarity {
         switch self {
-        case .crackedShield, .glowingHeart, .oldMap, .travelerBoots, .silverNeedle, .whiteChalk, .oldRope,
+        case .crackedShield, .heavyCrown, .glowingHeart, .oldMap, .travelerBoots, .silverNeedle, .whiteChalk, .oldRope,
              .woodenAmulet, .copperHourglass, .travelerRation, .smallLantern, .dullNeedle, .patchedRope,
              .trapSole, .emberCloak, .campfireCoal:
             return .common
-        case .heavyCrown, .blackFeather, .chippedHourglass, .starCup, .explorerBag,
+        case .blackFeather, .chippedHourglass, .starCup, .explorerBag,
              .windcutFeather, .guardianIncense, .trapperGloves, .spareTorch, .twinPouch, .gamblerCoin,
              .fieldMedkit, .scoutCompass, .quickSheath, .purifyingCharm,
              .watcherMonocle, .railCharm, .chaserDecoy, .antidoteStone, .foldingMap, .phantomTicket:
@@ -2087,7 +2087,7 @@ public struct DungeonRunState: Codable, Equatable, Sendable {
             : rewardRelicAdjustedHP
         var floorStartHP = adjustedCarryoverHP
             + (carriedRelics.contains { $0.relicID == .starCup } ? 1 : 0)
-            + (carriedRelics.contains { $0.relicID == .immortalHeart } ? 2 : 0)
+            + (carriedRelics.contains { $0.relicID == .immortalHeart } ? 1 : 0)
         if floorStartHP <= 2, carriedRelics.contains(where: { $0.relicID == .travelerRation }) {
             floorStartHP += 1
         }
@@ -2392,6 +2392,38 @@ public struct DungeonRunState: Codable, Equatable, Sendable {
             adjustment -= 1
         }
         return max(baseUses + adjustment, 1)
+    }
+
+    public static func adjustedMoveRewardBaseUses(
+        _ baseUses: Int,
+        relicEntries: [DungeonRelicEntry],
+        curseEntries: [DungeonCurseEntry]
+    ) -> Int {
+        let heavyCrownBonus = relicEntries.contains { $0.relicID == .heavyCrown } ? 1 : 0
+        let royalCrownBonus = relicEntries.contains { $0.relicID == .royalCrown } ? 1 : 0
+        let sageCodexBonus = relicEntries.contains { $0.relicID == .sageCodex } ? 1 : 0
+        let cursedCrownBonus = curseEntries.contains { $0.curseID == .cursedCrown } ? 2 : 0
+        let trapMagnetBonus = curseEntries.contains { $0.curseID == .trapMagnet } ? 1 : 0
+        let cursePenalty = curseEntries.contains { $0.curseID == .bloodPact && $0.remainingUses > 0 } ? 1 : 0
+        let warpedHourglassPenalty = curseEntries.contains { $0.curseID == .warpedHourglass } ? 1 : 0
+        let greedyBagPenalty = curseEntries.contains { $0.curseID == .greedyBag } ? 2 : 0
+        return max(
+            baseUses + heavyCrownBonus + royalCrownBonus + sageCodexBonus + cursedCrownBonus + trapMagnetBonus
+                - cursePenalty - warpedHourglassPenalty - greedyBagPenalty,
+            1
+        )
+    }
+
+    public static func adjustedSupportRewardUses(
+        _ baseUses: Int,
+        relicEntries: [DungeonRelicEntry],
+        curseEntries: [DungeonCurseEntry]
+    ) -> Int {
+        let twinPouchBonus = relicEntries.contains { $0.relicID == .twinPouch } ? 1 : 0
+        let royalCrownBonus = relicEntries.contains { $0.relicID == .royalCrown } ? 1 : 0
+        let sageCodexBonus = relicEntries.contains { $0.relicID == .sageCodex } ? 1 : 0
+        let frayedMemoryBonus = curseEntries.contains { $0.curseID == .frayedMemory } ? 1 : 0
+        return max(baseUses + twinPouchBonus + royalCrownBonus + sageCodexBonus + frayedMemoryBonus, 1)
     }
 
     private static func applyingRelicReward(

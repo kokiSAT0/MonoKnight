@@ -262,7 +262,11 @@ final class MoveCardPresentationTests: XCTestCase {
         XCTAssertEqual(Set(DungeonRelicID.allCases), temporaryRelics.union(persistentRelics))
         XCTAssertTrue(temporaryRelics.allSatisfy { $0.displayKind == .temporary })
         XCTAssertTrue(persistentRelics.allSatisfy { $0.displayKind == .persistent })
+        XCTAssertEqual(DungeonRelicID.heavyCrown.rarity, .common)
+        XCTAssertEqual(DungeonRelicID.heavyCrown.effectDescription, "移動報酬カードを新しく得る時、使用回数が+1される。")
+        XCTAssertEqual(DungeonRelicID.twinPouch.effectDescription, "補助報酬カードを新しく得る時、使用回数が+1される。")
         XCTAssertEqual(DungeonRelicID.royalCrown.rarity, .legendary)
+        XCTAssertEqual(DungeonRelicID.sageCodex.effectDescription, "新しく得る拾得カード、移動報酬カード、補助報酬カードの使用回数が+1される。")
 
         XCTAssertEqual(curseEntries.map(\.curseID), DungeonCurseID.allCases)
         XCTAssertTrue(curseEntries.allSatisfy { !$0.displayName.isEmpty })

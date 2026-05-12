@@ -425,7 +425,7 @@ struct GameInputFlowCoordinator {
         selectedHandStackID: inout UUID?,
         guideModeEnabled: Bool,
         hapticsEnabled: Bool,
-        presentBoardTapSelectionWarning: (String, GridPoint) -> Void
+        presentBoardTapSelectionWarning: (String, GridPoint, Set<UUID>) -> Void
     ) {
         defer { core.clearBoardTapPlayRequest(request.id) }
 
@@ -437,7 +437,8 @@ struct GameInputFlowCoordinator {
             if core.isIlluded {
                 presentBoardTapSelectionWarning(
                     "幻惑中は移動カードを手札から選ぶと、使われるカードと移動先がランダムに決まります。",
-                    request.destination
+                    request.destination,
+                    []
                 )
 
                 playInvalidInputFeedback(
@@ -454,7 +455,8 @@ struct GameInputFlowCoordinator {
             if conflictingStackIDs.count >= 2 {
                 presentBoardTapSelectionWarning(
                     "複数のカードが同じマスを指定しています。手札から使いたいカードを選んでからマスをタップしてください。",
-                    request.destination
+                    request.destination,
+                    conflictingStackIDs
                 )
 
                 playInvalidInputFeedback(
@@ -505,7 +507,8 @@ struct GameInputFlowCoordinator {
             )
             presentBoardTapSelectionWarning(
                 "このカードではそのマスへ移動できません",
-                request.destination
+                request.destination,
+                []
             )
             playInvalidInputFeedback(
                 boardBridge: boardBridge,

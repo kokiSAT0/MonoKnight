@@ -110,6 +110,7 @@ extension GameViewModel {
     }
 
     func handleHandSlotTap(at index: Int) {
+        clearBoardTapSelectionWarning()
         mutateSelectionState { sessionState, selectedHandStackID in
             inputFlowCoordinator.handleHandSlotTap(
                 at: index,
@@ -131,6 +132,7 @@ extension GameViewModel {
     }
 
     func handleBoardTapPlayRequest(_ request: BoardTapPlayRequest) {
+        clearBoardTapSelectionWarning()
         mutateSelectionState { sessionState, selectedHandStackID in
             inputFlowCoordinator.handleBoardTapPlayRequest(
                 request,
@@ -140,16 +142,18 @@ extension GameViewModel {
                 selectedHandStackID: &selectedHandStackID,
                 guideModeEnabled: guideModeEnabled,
                 hapticsEnabled: hapticsEnabled
-            ) { [weak self] message, destination in
+            ) { [weak self] message, destination, highlightedStackIDs in
                 self?.boardTapSelectionWarning = BoardTapSelectionWarning(
                     message: message,
-                    destination: destination
+                    destination: destination,
+                    highlightedStackIDs: highlightedStackIDs
                 )
             }
         }
     }
 
     func handleBoardTapBasicMoveRequest(_ request: BoardTapBasicMoveRequest) {
+        clearBoardTapSelectionWarning()
         mutateSelectionState { sessionState, selectedHandStackID in
             inputFlowCoordinator.handleBoardTapBasicMoveRequest(
                 request,
@@ -199,5 +203,9 @@ extension GameViewModel {
             sessionState: &sessionState,
             selectedHandStackID: &selectedHandStackID
         )
+    }
+
+    func isBoardTapSelectionWarningHighlighting(_ stack: HandStack) -> Bool {
+        boardTapSelectionWarning?.highlightedStackIDs.contains(stack.id) == true
     }
 }

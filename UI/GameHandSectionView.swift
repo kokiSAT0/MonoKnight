@@ -41,10 +41,6 @@ struct GameHandSectionView: View {
         let finalBottomPadding = max(bottomPadding, expectedPadding)
 
         return VStack(spacing: 8) {
-            if let pendingChoice = core.pendingDungeonPickupChoice {
-                dungeonPickupChoiceNotice(for: pendingChoice)
-                    .transition(.opacity)
-            }
             if core.isAwaitingManualDiscardSelection {
                 discardSelectionNotice
                     .transition(.opacity)
@@ -213,42 +209,6 @@ private extension GameHandSectionView {
         .accessibilityLabel(Text("捨て札モードです。手札をタップして \(penaltyDescription)。"))
     }
 
-    private func dungeonPickupChoiceNotice(for choice: PendingDungeonPickupChoice) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: "rectangle.stack.badge.plus")
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundColor(theme.accentOnPrimary)
-                .padding(10)
-                .background(Circle().fill(theme.accentPrimary))
-                .accessibilityHidden(true)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text("入れ替え先を選ぶ")
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
-                    .foregroundColor(theme.textPrimary)
-                Text("\(choice.pickup.playable.displayName) を取得")
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundColor(theme.textSecondary)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.8)
-            }
-
-            Spacer(minLength: 0)
-        }
-        .padding(.vertical, 10)
-        .padding(.horizontal, 14)
-        .background(
-            RoundedRectangle(cornerRadius: 14)
-                .fill(theme.cardBackgroundNext)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14)
-                        .stroke(theme.cardBorderHand.opacity(0.35), lineWidth: 1)
-                )
-        )
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(Text("手札がいっぱいです。捨てる手札を選ぶと \(choice.pickup.playable.displayName) を取得します。"))
-    }
-
     /// 指定スロットに対応する `HandStack` を取得
     private func handCard(at index: Int) -> HandStack? {
         guard viewModel.displayedHandStacks.indices.contains(index) else {
@@ -271,24 +231,33 @@ private extension GameHandSectionView {
                 let isSelected = viewModel.selectedHandStackID == stack.id
                 let shouldShowSelectionHighlight = isSelected && !isHidden && !isSelectingDiscard && !isSelectingDungeonPickup
                 let isChoosingReplacement = isSelectingDiscard || isSelectingDungeonPickup
+                let shouldShowConflictHighlight = viewModel.isBoardTapSelectionWarningHighlighting(stack)
+                    && !isHidden
+                    && !isChoosingReplacement
+                    && !shouldShowSelectionHighlight
                 let shouldShowAdditionEffect = viewModel.recentlyAddedHandStackIDs.contains(stack.id)
                     && !isHidden
                     && !isChoosingReplacement
                     && !shouldShowSelectionHighlight
+                    && !shouldShowConflictHighlight
 
                 HandStackCardView(stackCount: stack.count) {
                     cardIllustration(for: card, mode: .hand)
                         .matchedGeometryEffect(id: card.id, in: cardAnimationNamespace)
                         .anchorPreference(key: CardPositionPreferenceKey.self, value: .bounds) { [card.id: $0] }
                 }
-                .scaleEffect(shouldShowAdditionEffect ? 1.04 : 1.0)
+                .scaleEffect((shouldShowAdditionEffect || shouldShowConflictHighlight) ? 1.04 : 1.0)
                 .opacity(
                     isHidden ? 0.0 : (isChoosingReplacement ? 1.0 : (isUsable ? 1.0 : 0.4))
                 )
                 .allowsHitTesting(!isHidden)
                 // 選択中のカードは背景に淡いオレンジ色を敷き、捨て札モードとの視覚差を確保する
                 .background {
-                    if shouldShowSelectionHighlight {
+                    if shouldShowConflictHighlight {
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(theme.accentPrimary.opacity(0.18))
+                            .accessibilityHidden(true)
+                    } else if shouldShowSelectionHighlight {
                         RoundedRectangle(cornerRadius: 10)
                             .fill(theme.accentPrimary.opacity(0.12))
                             .accessibilityHidden(true)
@@ -306,6 +275,11 @@ private extension GameHandSectionView {
                             .stroke(theme.accentPrimary, lineWidth: 2)
                             .shadow(color: theme.accentPrimary.opacity(0.25), radius: 5, x: 0, y: 2)
                             .accessibilityHidden(true)
+                    } else if shouldShowConflictHighlight {
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(theme.accentPrimary, lineWidth: 3)
+                            .shadow(color: theme.accentPrimary.opacity(0.45), radius: 7, x: 0, y: 0)
+                            .accessibilityHidden(true)
                     } else if shouldShowAdditionEffect {
                         RoundedRectangle(cornerRadius: 10)
                             .stroke(theme.accentPrimary.opacity(0.85), lineWidth: 3)
@@ -319,7 +293,7 @@ private extension GameHandSectionView {
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(Text(accessibilityLabel(for: stack)))
                 .accessibilityHint(Text(accessibilityHint(for: stack, isUsable: isUsable, isDiscardMode: isSelectingDiscard, isDungeonPickupChoiceMode: isSelectingDungeonPickup, isSelected: isSelected)))
-                .accessibilityValue(Text(isSelected ? "選択中" : ""))
+                .accessibilityValue(Text(shouldShowConflictHighlight ? "選択候補" : (isSelected ? "選択中" : "")))
                 .accessibilityAddTraits(.isButton)
             } else {
                 placeholderCardView()

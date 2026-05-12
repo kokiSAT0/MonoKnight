@@ -44,6 +44,8 @@
   - 既存設定を維持し、必要に応じて `UISceneConfigurations` を更新。
 - `UILaunchStoryboardName`
   - `LaunchScreen` ストーリーボードを指定。
+  - Launch Screen は静的なブランド表示に留め、起動直後のタイトル画面と背景・トーンを近づける。
+  - 強制待機、ローディング文言、バージョン表記、ゲーム説明、アニメーションは Launch Screen に入れない。必要な導入演出はアプリ起動後のオンボーディング側で扱う。
 
 ## 運用メモ
 

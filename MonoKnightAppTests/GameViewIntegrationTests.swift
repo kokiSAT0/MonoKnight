@@ -553,6 +553,20 @@ final class GameViewIntegrationTests: XCTestCase {
             "複数のカードが同じマスを指定しています。手札から使いたいカードを選んでからマスをタップしてください。",
             "警告メッセージが仕様と一致していません"
         )
+        XCTAssertEqual(
+            viewModel.boardTapSelectionWarning?.highlightedStackIDs,
+            destinationStackIDs,
+            "警告中に光らせる手札が、同じマスへ到達できる候補と一致していません"
+        )
+        XCTAssertTrue(viewModel.isBoardTapSelectionWarningHighlighting(firstStack), "競合対象の先頭スタックがハイライト対象になっていません")
+        XCTAssertTrue(viewModel.isBoardTapSelectionWarningHighlighting(secondStack), "競合対象の2枚目スタックがハイライト対象になっていません")
+
+        if let firstIndex = core.handStacks.firstIndex(where: { $0.id == firstStack.id }) {
+            viewModel.handleHandSlotTap(at: firstIndex)
+            XCTAssertNil(viewModel.boardTapSelectionWarning, "手札を選んだ後も競合ハイライト警告が残っています")
+        } else {
+            XCTFail("競合対象スタックの手札位置を取得できませんでした")
+        }
     }
 
     /// 単一ベクトルカードが競合に含まれる場合でも、警告を表示して消費カードを選ばせる
@@ -635,6 +649,13 @@ final class GameViewIntegrationTests: XCTestCase {
             "複数のカードが同じマスを指定しています。手札から使いたいカードを選んでからマスをタップしてください。",
             "警告メッセージが仕様と一致していません"
         )
+        XCTAssertEqual(
+            viewModel.boardTapSelectionWarning?.highlightedStackIDs,
+            Set(destinationCandidates.map(\.stackID)),
+            "単一方向カードを含む競合でも、対象手札だけをハイライトする想定です"
+        )
+        XCTAssertTrue(viewModel.isBoardTapSelectionWarningHighlighting(multiStack), "複数候補カードがハイライト対象になっていません")
+        XCTAssertTrue(viewModel.isBoardTapSelectionWarningHighlighting(singleStack), "単一方向カードがハイライト対象になっていません")
     }
 
     /// 斜め選択カード同士が同一点を指す場合も警告表示が行われることを確認する（キャンペーン 3-2 相当）

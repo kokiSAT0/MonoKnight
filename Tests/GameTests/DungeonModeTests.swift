@@ -180,7 +180,7 @@ final class DungeonModeTests: XCTestCase {
             currentInventoryEntries: core.dungeonInventoryEntries,
             currentRelicEntries: core.dungeonRelicEntries
         )
-        XCTAssertEqual(advanced.carriedHP, 4)
+        XCTAssertEqual(advanced.carriedHP, 3)
         XCTAssertEqual(advanced.relicEntries.first { $0.relicID == .guardianAegis }?.remainingUses, 1)
     }
 
@@ -1357,6 +1357,60 @@ final class DungeonModeTests: XCTestCase {
             GridPoint(x: 4, y: 0)
         ])
         XCTAssertNil(core.dungeonEnemyTurnEvent)
+    }
+
+    func testRayMoveTakesChaserDangerDamageBeforeStompingChaser() throws {
+        let chaser = EnemyDefinition(
+            id: "chaser",
+            name: "追跡兵",
+            position: GridPoint(x: 2, y: 0),
+            behavior: .chaser
+        )
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 3,
+            turnLimit: 8,
+            enemies: [chaser]
+        )
+        let core = makeCore(mode: mode, cards: [.rayRight])
+
+        playMove(to: GridPoint(x: 4, y: 0), in: core)
+
+        XCTAssertTrue(core.enemyStates.isEmpty, "追跡兵本体を踏んだら倒れる想定です")
+        XCTAssertEqual(core.dungeonHP, 2, "追跡兵の攻撃範囲に入った時点で先にダメージを受ける想定です")
+        XCTAssertEqual(core.progress, .playing)
+        XCTAssertEqual(core.lastMovementResolution?.presentationSteps.map(\.hpAfter), [2, 2, 2, 2])
+        XCTAssertNil(core.dungeonEnemyTurnEvent)
+    }
+
+    func testRayMoveChaserDangerDamageUsesEnemyDamageMitigationBeforeStomping() throws {
+        let chaser = EnemyDefinition(
+            id: "chaser",
+            name: "追跡兵",
+            position: GridPoint(x: 2, y: 0),
+            behavior: .chaser
+        )
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 3,
+            turnLimit: 8,
+            enemies: [chaser],
+            runState: DungeonRunState(
+                dungeonID: "growth-tower",
+                carriedHP: 3,
+                enemyDamageMitigationsRemaining: 1
+            )
+        )
+        let core = makeCore(mode: mode, cards: [.rayRight])
+
+        playMove(to: GridPoint(x: 4, y: 0), in: core)
+
+        XCTAssertTrue(core.enemyStates.isEmpty)
+        XCTAssertEqual(core.dungeonHP, 3)
+        XCTAssertEqual(core.enemyDamageMitigationsRemaining, 0)
+        XCTAssertEqual(core.lastMovementResolution?.presentationSteps.map(\.hpAfter), [3, 3, 3, 3])
     }
 
     func testPatrolEnemyAdvancesAfterPlayerMove() throws {
@@ -4750,7 +4804,7 @@ final class DungeonModeTests: XCTestCase {
     func testRelicRarityMetadataCoversAllRelics() {
         XCTAssertEqual(DungeonRelicID.allCases.count, 48)
         XCTAssertEqual(DungeonRelicID.crackedShield.rarity, .common)
-        XCTAssertEqual(DungeonRelicID.heavyCrown.rarity, .rare)
+        XCTAssertEqual(DungeonRelicID.heavyCrown.rarity, .common)
         XCTAssertEqual(DungeonRelicID.moonMirror.rarity, .legendary)
         XCTAssertEqual(DungeonRelicID.royalCrown.rarity, .legendary)
         XCTAssertEqual(DungeonRelicID.immortalHeart.rarity, .legendary)
@@ -4825,6 +4879,22 @@ final class DungeonModeTests: XCTestCase {
             relicEntries: [DungeonRelicEntry(relicID: .travelerRation)]
         ).advancedToNextFloor(carryoverHP: 2, currentFloorMoveCount: 1)
         XCTAssertEqual(advanced.carriedHP, 3)
+        XCTAssertEqual(
+            DungeonRunState.adjustedMoveRewardBaseUses(
+                2,
+                relicEntries: [DungeonRelicEntry(relicID: .heavyCrown)],
+                curseEntries: []
+            ),
+            3
+        )
+        XCTAssertEqual(
+            DungeonRunState.adjustedSupportRewardUses(
+                1,
+                relicEntries: [DungeonRelicEntry(relicID: .heavyCrown)],
+                curseEntries: []
+            ),
+            1
+        )
     }
 
     func testV11RareRelicsAdjustHealingRewardUsesAndStatusProtection() {
@@ -4868,6 +4938,22 @@ final class DungeonModeTests: XCTestCase {
             rewardAddUses: 2
         )
         XCTAssertEqual(advanced.rewardInventoryEntries.first?.rewardUses, 3)
+        XCTAssertEqual(
+            DungeonRunState.adjustedMoveRewardBaseUses(
+                2,
+                relicEntries: [DungeonRelicEntry(relicID: .twinPouch)],
+                curseEntries: []
+            ),
+            2
+        )
+        XCTAssertEqual(
+            DungeonRunState.adjustedSupportRewardUses(
+                1,
+                relicEntries: [DungeonRelicEntry(relicID: .twinPouch)],
+                curseEntries: []
+            ),
+            2
+        )
     }
 
     func testV11LegendaryRelicsPreventFatalDamageAndBoostAllNewCardUses() {
@@ -4911,6 +4997,22 @@ final class DungeonModeTests: XCTestCase {
             supportRewardAddUses: 2
         )
         XCTAssertEqual(advanced.rewardInventoryEntries.first?.rewardUses, 2)
+        XCTAssertEqual(
+            DungeonRunState.adjustedMoveRewardBaseUses(
+                2,
+                relicEntries: [DungeonRelicEntry(relicID: .royalCrown)],
+                curseEntries: []
+            ),
+            3
+        )
+        XCTAssertEqual(
+            DungeonRunState.adjustedSupportRewardUses(
+                1,
+                relicEntries: [DungeonRelicEntry(relicID: .royalCrown)],
+                curseEntries: []
+            ),
+            2
+        )
     }
 
     func testTargetedBuffRelicsReduceSpecificEnemyDamageAndOffsetCurses() {
