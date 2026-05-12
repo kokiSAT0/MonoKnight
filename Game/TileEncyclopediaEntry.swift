@@ -1,7 +1,7 @@
 import Foundation
 
 /// マス辞典で盤面上の見た目を例示するための分類
-public enum TileMarkerPreviewKind: Equatable {
+public enum TileMarkerPreviewKind: Equatable, Sendable {
     case normal
     case spawn
     case dungeonExit
@@ -21,7 +21,7 @@ public enum TileMarkerPreviewKind: Equatable {
 }
 
 /// ヘルプ内のマス辞典で表示する 1 件分の情報
-public struct TileEncyclopediaEntry: Identifiable, Equatable {
+public struct TileEncyclopediaEntry: Identifiable, Equatable, Sendable {
     public let id: String
     public let displayName: String
     public let category: String

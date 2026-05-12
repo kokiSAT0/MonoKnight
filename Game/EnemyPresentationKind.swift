@@ -1,7 +1,7 @@
 import Foundation
 
 /// 盤面とヘルプ辞典で共有する敵の表示分類
-public enum EnemyPresentationKind: String, CaseIterable, Equatable, Identifiable {
+public enum EnemyPresentationKind: String, CaseIterable, Equatable, Identifiable, Sendable {
     case guardPost
     case patrol
     case watcher
@@ -92,7 +92,7 @@ public extension EnemyBehavior {
 }
 
 /// ヘルプ内の敵辞典で表示する1件分の情報
-public struct EnemyEncyclopediaEntry: Identifiable, Equatable {
+public struct EnemyEncyclopediaEntry: Identifiable, Equatable, Sendable {
     public let kind: EnemyPresentationKind
 
     public var id: String { kind.id }

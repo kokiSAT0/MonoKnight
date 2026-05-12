@@ -1,7 +1,7 @@
 import Foundation
 
 /// 塔ダンジョンの難度と成長持ち込み方針
-public enum DungeonDifficulty: String, Codable, Equatable {
+public enum DungeonDifficulty: String, Codable, Equatable, Sendable {
     /// 操作と基本ルールを学ぶチュートリアル塔
     case tutorial
     /// 永続強化を持ち込める低難度ダンジョン
@@ -13,7 +13,7 @@ public enum DungeonDifficulty: String, Codable, Equatable {
 }
 
 /// 塔ダンジョンでカードを獲得・補充する方式
-public enum DungeonCardAcquisitionMode: String, Codable, Equatable {
+public enum DungeonCardAcquisitionMode: String, Codable, Equatable, Sendable {
     /// 既存の山札/NEXT/手札補充を使う
     case deck
     /// フロア拾得と報酬だけでカードを所持する
@@ -21,7 +21,7 @@ public enum DungeonCardAcquisitionMode: String, Codable, Equatable {
 }
 
 /// 塔ラン中に所持しているカードと残り使用回数
-public struct DungeonInventoryEntry: Codable, Equatable, Identifiable {
+public struct DungeonInventoryEntry: Codable, Equatable, Identifiable, Sendable {
     public let playable: PlayableCard
     /// 残り使用回数。旧保存データの拾得回数もここへ畳み込む。
     public var rewardUses: Int
@@ -106,7 +106,7 @@ public struct DungeonInventoryEntry: Codable, Equatable, Identifiable {
 }
 
 /// フロアクリア後に選ぶ塔報酬
-public enum DungeonRewardSelection: Equatable {
+public enum DungeonRewardSelection: Equatable, Sendable {
     /// 新しい移動報酬カードを追加する
     case add(MoveCard)
     /// 新しい補助報酬カードを追加する
@@ -126,7 +126,7 @@ public enum DungeonRewardSelection: Equatable {
 }
 
 /// フロア内に配置する拾得カード
-public struct DungeonCardPickupDefinition: Codable, Equatable, Identifiable {
+public struct DungeonCardPickupDefinition: Codable, Equatable, Identifiable, Sendable {
     public let id: String
     public let point: GridPoint
     public let playable: PlayableCard
@@ -190,7 +190,7 @@ public struct DungeonCardPickupDefinition: Codable, Equatable, Identifiable {
 }
 
 /// クリア後に同じ候補枠へ提示する報酬
-public enum DungeonRewardOffer: Equatable, Hashable {
+public enum DungeonRewardOffer: Equatable, Hashable, Sendable {
     case playable(PlayableCard)
     case relic(DungeonRelicID)
 
@@ -217,7 +217,7 @@ public enum DungeonRewardOffer: Equatable, Hashable {
 }
 
 /// 所持枠が満杯のときに床落ちカード取得の解決を待つ状態
-public struct PendingDungeonPickupChoice: Codable, Equatable {
+public struct PendingDungeonPickupChoice: Codable, Equatable, Sendable {
     /// 拾おうとしている床落ちカード
     public let pickup: DungeonCardPickupDefinition
     /// 実際に追加される使用回数
@@ -254,7 +254,7 @@ public struct PendingDungeonPickupChoice: Codable, Equatable {
 }
 
 /// 遺物の希少度。強さと排出率の大枠として扱う。
-public enum DungeonRelicRarity: String, Codable, CaseIterable, Equatable, Identifiable {
+public enum DungeonRelicRarity: String, Codable, CaseIterable, Equatable, Identifiable, Sendable {
     case common
     case rare
     case legendary
@@ -285,7 +285,7 @@ public enum DungeonRelicRarity: String, Codable, CaseIterable, Equatable, Identi
 }
 
 /// 塔攻略中だけ有効な遺物の種類
-public enum DungeonRelicID: String, Codable, CaseIterable, Equatable, Identifiable {
+public enum DungeonRelicID: String, Codable, CaseIterable, Equatable, Identifiable, Sendable {
     case crackedShield
     case heavyCrown
     case glowingHeart
@@ -708,7 +708,7 @@ public enum DungeonRelicID: String, Codable, CaseIterable, Equatable, Identifiab
     }
 }
 
-public enum DungeonRelicDisplayKind: Equatable {
+public enum DungeonRelicDisplayKind: Equatable, Sendable {
     case temporary
     case persistent
 
@@ -732,7 +732,7 @@ public enum DungeonRelicDisplayKind: Equatable {
 }
 
 /// ヘルプ内の遺物辞典で表示する 1 件分の情報
-public struct DungeonRelicEncyclopediaEntry: Identifiable, Equatable {
+public struct DungeonRelicEncyclopediaEntry: Identifiable, Equatable, Sendable {
     public let relicID: DungeonRelicID
 
     public var id: String { relicID.id }
@@ -754,7 +754,7 @@ public struct DungeonRelicEncyclopediaEntry: Identifiable, Equatable {
 }
 
 /// 塔攻略中だけ有効な呪い遺物の種類
-public enum DungeonCurseID: String, Codable, CaseIterable, Equatable, Identifiable {
+public enum DungeonCurseID: String, Codable, CaseIterable, Equatable, Identifiable, Sendable {
     case rustyChain
     case thornMark
     case bloodPact
@@ -1078,7 +1078,7 @@ public enum DungeonCurseID: String, Codable, CaseIterable, Equatable, Identifiab
     }
 }
 
-public enum DungeonCurseDisplayKind: Equatable {
+public enum DungeonCurseDisplayKind: Equatable, Sendable {
     case temporary
     case persistent
 
@@ -1102,7 +1102,7 @@ public enum DungeonCurseDisplayKind: Equatable {
 }
 
 /// ヘルプ内の呪い辞典で表示する 1 件分の情報
-public struct DungeonCurseEncyclopediaEntry: Identifiable, Equatable {
+public struct DungeonCurseEncyclopediaEntry: Identifiable, Equatable, Sendable {
     public let curseID: DungeonCurseID
 
     public var id: String { curseID.id }
@@ -1125,7 +1125,7 @@ public struct DungeonCurseEncyclopediaEntry: Identifiable, Equatable {
 }
 
 /// 塔ラン中に所持している遺物
-public struct DungeonRelicEntry: Codable, Equatable, Identifiable {
+public struct DungeonRelicEntry: Codable, Equatable, Identifiable, Sendable {
     public let relicID: DungeonRelicID
     public var remainingUses: Int
 
@@ -1145,7 +1145,7 @@ public struct DungeonRelicEntry: Codable, Equatable, Identifiable {
 }
 
 /// 塔ラン中に所持している呪い遺物
-public struct DungeonCurseEntry: Codable, Equatable, Identifiable {
+public struct DungeonCurseEntry: Codable, Equatable, Identifiable, Sendable {
     public let curseID: DungeonCurseID
     public var remainingUses: Int
 
@@ -1166,7 +1166,7 @@ public struct DungeonCurseEntry: Codable, Equatable, Identifiable {
 }
 
 /// 宝箱から発生する結果
-public enum DungeonRelicPickupOutcome: Codable, Equatable {
+public enum DungeonRelicPickupOutcome: Codable, Equatable, Sendable {
     case relic
     case curse
     case mimic
@@ -1174,13 +1174,13 @@ public enum DungeonRelicPickupOutcome: Codable, Equatable {
 }
 
 /// UI へ渡す遺物取得結果の表示用イベント
-public struct DungeonRelicAcquisitionPresentation: Equatable, Identifiable {
-    public enum Source: Equatable {
+public struct DungeonRelicAcquisitionPresentation: Equatable, Identifiable, Sendable {
+    public enum Source: Equatable, Sendable {
         case pickup
         case reward
     }
 
-    public enum Item: Equatable, Identifiable {
+    public enum Item: Equatable, Identifiable, Sendable {
         case relic(DungeonRelicEntry)
         case curse(DungeonCurseEntry)
         case mimicDamage(Int)
@@ -1315,7 +1315,7 @@ public struct DungeonRelicAcquisitionPresentation: Equatable, Identifiable {
 }
 
 /// 遊び方辞典で扱う塔イベントの分類
-public enum DungeonEventEncyclopediaKind: String, CaseIterable, Equatable, Identifiable {
+public enum DungeonEventEncyclopediaKind: String, CaseIterable, Equatable, Identifiable, Sendable {
     case safeChest
     case suspiciousLightChest
     case suspiciousDeepChest
@@ -1375,7 +1375,7 @@ public enum DungeonEventEncyclopediaKind: String, CaseIterable, Equatable, Ident
 }
 
 /// ヘルプ内のイベント辞典で表示する 1 件分の情報
-public struct DungeonEventEncyclopediaEntry: Identifiable, Equatable {
+public struct DungeonEventEncyclopediaEntry: Identifiable, Equatable, Sendable {
     public let kind: DungeonEventEncyclopediaKind
 
     public var id: String { kind.id }
@@ -1393,7 +1393,7 @@ public struct DungeonEventEncyclopediaEntry: Identifiable, Equatable {
 }
 
 /// 宝箱の危険度
-public enum DungeonRelicPickupKind: String, Codable, Equatable {
+public enum DungeonRelicPickupKind: String, Codable, Equatable, Sendable {
     case safe
     case suspiciousLight
     case suspiciousDeep
@@ -1442,7 +1442,7 @@ public enum DungeonRelicPickupKind: String, Codable, Equatable {
 }
 
 /// フロア内に配置する宝箱。踏むとランダムな遺物を取得する。
-public struct DungeonRelicPickupDefinition: Codable, Equatable, Identifiable {
+public struct DungeonRelicPickupDefinition: Codable, Equatable, Identifiable, Sendable {
     public let id: String
     public let point: GridPoint
     public let kind: DungeonRelicPickupKind
@@ -1493,7 +1493,7 @@ public struct DungeonRelicPickupDefinition: Codable, Equatable, Identifiable {
 }
 
 /// 成長塔の階層別排出テーブルに載せる候補種別
-public enum DungeonWeightedRewardPoolItem: Equatable {
+public enum DungeonWeightedRewardPoolItem: Equatable, Sendable {
     case move(MoveCard)
     case support(SupportCard)
     case relic(DungeonRelicID)
@@ -1533,7 +1533,7 @@ public enum DungeonWeightedRewardPoolItem: Equatable {
 }
 
 /// 成長塔の重み付き排出候補。weight 0 はテーブル上の予約枠として扱い、抽選には出ない。
-public struct DungeonWeightedRewardPoolEntry: Equatable {
+public struct DungeonWeightedRewardPoolEntry: Equatable, Sendable {
     public let item: DungeonWeightedRewardPoolItem
     public let weight: Int
 
@@ -1544,7 +1544,7 @@ public struct DungeonWeightedRewardPoolEntry: Equatable {
 }
 
 /// 成長塔の排出テーブル種別
-public enum DungeonWeightedRewardPoolContext: Equatable {
+public enum DungeonWeightedRewardPoolContext: Equatable, Sendable {
     case floorPickup
     case clearReward
 }
@@ -1555,7 +1555,7 @@ private enum DungeonWeightedRewardPoolCategory: CaseIterable {
     case relic
 }
 
-public struct DungeonRewardDrawTuning: Equatable {
+public struct DungeonRewardDrawTuning: Equatable, Sendable {
     public let clearMoveCount: Int?
     public let turnLimit: Int?
     public let suppressRelicQualityBonus: Bool
@@ -1984,7 +1984,7 @@ public enum DungeonWeightedRewardPools {
 }
 
 /// 1 回の塔挑戦でフロア間に引き継ぐ最小状態
-public struct DungeonRunState: Codable, Equatable {
+public struct DungeonRunState: Codable, Equatable, Sendable {
     public let dungeonID: String
     /// 0 始まりの現在フロア番号
     public let currentFloorIndex: Int
@@ -2489,7 +2489,7 @@ public struct DungeonRunState: Codable, Equatable {
 }
 
 /// ダンジョン失敗条件
-public struct DungeonFailureRule: Codable, Equatable {
+public struct DungeonFailureRule: Codable, Equatable, Sendable {
     /// 初期 HP。0 以下は 1 として扱う
     public var initialHP: Int
     /// フロア内の疲労開始手数。nil の場合は疲労ダメージなし
@@ -2502,7 +2502,7 @@ public struct DungeonFailureRule: Codable, Equatable {
 }
 
 /// ダンジョン出口を開けるために踏む必要がある鍵マス
-public struct DungeonExitLock: Codable, Equatable {
+public struct DungeonExitLock: Codable, Equatable, Sendable {
     public let unlockPoint: GridPoint
 
     public init(unlockPoint: GridPoint) {
@@ -2511,7 +2511,7 @@ public struct DungeonExitLock: Codable, Equatable {
 }
 
 /// 上階の崩落穴からだけ入れる宝箱小部屋の定義
-public struct DungeonFallSecretDefinition: Codable, Equatable, Identifiable {
+public struct DungeonFallSecretDefinition: Codable, Equatable, Identifiable, Sendable {
     public let id: String
     public let sourceFloorIndex: Int
     public let entrancePoint: GridPoint
@@ -2554,13 +2554,13 @@ public struct DungeonFallSecretDefinition: Codable, Equatable, Identifiable {
 }
 
 /// 回転見張りの回転方向
-public enum RotatingWatcherDirection: String, Codable, Equatable {
+public enum RotatingWatcherDirection: String, Codable, Equatable, Sendable {
     case clockwise
     case counterclockwise
 }
 
 /// 敵の行動パターン
-public enum EnemyBehavior: Codable, Equatable {
+public enum EnemyBehavior: Codable, Equatable, Sendable {
     /// その場から動かず、隣接マスを警戒する
     case guardPost
     /// 指定経路を順に巡回する
@@ -2585,7 +2585,7 @@ public enum EnemyBehavior: Codable, Equatable {
         case range
     }
 
-    private enum Kind: String, Codable {
+    private enum Kind: String, Codable, Sendable {
         case guardPost
         case patrol
         case watcher
@@ -2696,7 +2696,7 @@ public enum EnemyBehavior: Codable, Equatable {
 }
 
 /// フロア開始時に配置する敵
-public struct EnemyDefinition: Codable, Equatable, Identifiable {
+public struct EnemyDefinition: Codable, Equatable, Identifiable, Sendable {
     public let id: String
     public let name: String
     public let position: GridPoint
@@ -2719,7 +2719,7 @@ public struct EnemyDefinition: Codable, Equatable, Identifiable {
 }
 
 /// 進行中の敵状態
-public struct EnemyState: Codable, Equatable, Identifiable {
+public struct EnemyState: Codable, Equatable, Identifiable, Sendable {
     public let id: String
     public let name: String
     public var position: GridPoint
@@ -2772,7 +2772,7 @@ public struct EnemyState: Codable, Equatable, Identifiable {
 }
 
 /// 敵ターン中に各敵がどの状態からどの状態へ進んだかを UI へ伝える差分
-public struct DungeonEnemyTurnTransition: Equatable, Identifiable {
+public struct DungeonEnemyTurnTransition: Equatable, Identifiable, Sendable {
     public let enemyID: String
     public let name: String
     public let before: EnemyState
@@ -2791,7 +2791,7 @@ public struct DungeonEnemyTurnTransition: Equatable, Identifiable {
 }
 
 /// プレイヤー行動後に発生した敵ターンの可視化用イベント
-public struct DungeonEnemyTurnPhase: Equatable, Identifiable {
+public struct DungeonEnemyTurnPhase: Equatable, Identifiable, Sendable {
     public let id: UUID
     public let transitions: [DungeonEnemyTurnTransition]
     public let attackedPlayer: Bool
@@ -2813,7 +2813,7 @@ public struct DungeonEnemyTurnPhase: Equatable, Identifiable {
     }
 }
 
-public struct DungeonEnemyTurnEvent: Equatable, Identifiable {
+public struct DungeonEnemyTurnEvent: Equatable, Identifiable, Sendable {
     public let id: UUID
     public let phases: [DungeonEnemyTurnPhase]
     public let isParalysisRest: Bool
@@ -2873,7 +2873,7 @@ public struct DungeonEnemyTurnEvent: Equatable, Identifiable {
 }
 
 /// 床や罠など、敵以外のフロアギミック
-public enum HazardDefinition: Codable, Equatable {
+public enum HazardDefinition: Codable, Equatable, Sendable {
     /// 1 回踏むとひび割れ、2 回目以降は崩落穴として落下する床
     case brittleFloor(points: Set<GridPoint>)
     /// 見えている罠床。踏むたびに指定ダメージを受ける
@@ -2890,7 +2890,7 @@ public enum HazardDefinition: Codable, Equatable {
         case amount
     }
 
-    private enum Kind: String, Codable {
+    private enum Kind: String, Codable, Sendable {
         case brittleFloor
         case damageTrap
         case lavaTile
@@ -4643,7 +4643,7 @@ private extension HazardDefinition {
 }
 
 /// `GameMode.Regulation` に埋め込むダンジョン追加ルール
-public struct DungeonRules: Codable, Equatable {
+public struct DungeonRules: Codable, Equatable, Sendable {
     public var difficulty: DungeonDifficulty
     public var failureRule: DungeonFailureRule
     public var enemies: [EnemyDefinition]

@@ -1,7 +1,7 @@
 import Foundation
 
 /// 移動せずに効果を発動する補助専用カード
-public enum SupportCard: String, CaseIterable, Codable, Hashable {
+public enum SupportCard: String, CaseIterable, Codable, Hashable, Sendable {
     /// 空き手札枠を移動カードで補給する
     case refillEmptySlots
     /// 選んだ敵 1 体を消滅させる
@@ -87,7 +87,7 @@ public enum SupportCard: String, CaseIterable, Codable, Hashable {
 }
 
 /// 手札や山札で扱うカード本体
-public enum PlayableCard: Codable, Hashable {
+public enum PlayableCard: Codable, Hashable, Sendable {
     /// 盤面上で駒を移動させるカード
     case move(MoveCard)
     /// 移動せずに手札を整える補助カード
@@ -132,7 +132,7 @@ public enum PlayableCard: Codable, Hashable {
         case support
     }
 
-    private enum Kind: String, Codable {
+    private enum Kind: String, Codable, Sendable {
         case move
         case support
     }
@@ -162,7 +162,7 @@ public enum PlayableCard: Codable, Hashable {
 }
 
 /// ヘルプ内の補助カード辞典で表示する 1 件分の情報
-public struct SupportCardEncyclopediaEntry: Identifiable, Equatable {
+public struct SupportCardEncyclopediaEntry: Identifiable, Equatable, Sendable {
     public let id: Int
     public let card: SupportCard
     public let displayName: String

@@ -3,7 +3,7 @@ import SharedSupport // ログユーティリティを利用するため追加
 
 /// カードが持つ移動量を一括管理するためのベクトル構造体
 /// - Note: `dx` / `dy` の組み合わせを 1 単位として扱い、今後の複数候補カードでも再利用しやすいよう共通モデル層へ配置する
-public struct MoveVector: Hashable, Codable {
+public struct MoveVector: Hashable, Codable, Sendable {
     /// x 方向への移動量
     public let dx: Int
     /// y 方向への移動量
@@ -21,7 +21,7 @@ public struct MoveVector: Hashable, Codable {
 
 /// 座標を表す構造体
 /// - 備考: 原点は左下、x は右方向、y は上方向に増加する
-public struct GridPoint: Hashable, Codable {
+public struct GridPoint: Hashable, Codable, Sendable {
     /// x 座標
     public let x: Int
     /// y 座標
@@ -65,7 +65,7 @@ public struct GridPoint: Hashable, Codable {
 
 /// 盤面タイルが持つ特殊効果を列挙するための型
 /// - Important: 盤面と UI の双方で同じ効果種別を参照できるようモデル層で一元管理する
-public enum TileEffect: Equatable, Codable {
+public enum TileEffect: Equatable, Codable, Sendable {
     /// 対応するペア ID を共有するタイルへワープさせる
     /// - Parameters:
     ///   - pairID: ワープ経路を識別するための文字列（同一 ID のマス同士でリンクする）
@@ -100,8 +100,8 @@ public enum TileEffect: Equatable, Codable {
 }
 
 /// 1 マスごとの踏破状態と必要踏破回数・挙動を保持する構造体
-public struct TileState: Equatable {
-    public enum VisitBehavior: Equatable {
+public struct TileState: Equatable, Sendable {
+    public enum VisitBehavior: Equatable, Sendable {
         case single
         case impassable
     }
@@ -171,7 +171,7 @@ public struct TileState: Equatable {
 
 /// 任意サイズの盤面を管理する構造体
 /// SwiftUI の `onChange` で盤面の変化を検知できるよう Equatable に準拠
-public struct Board: Equatable {
+public struct Board: Equatable, Sendable {
     /// 盤面のサイズ（NxN）
     public let size: Int
 
@@ -381,7 +381,7 @@ public struct Board: Equatable {
 
 /// ゲーム全体の進行状態
 
-public enum GameProgress {
+public enum GameProgress: Sendable {
     /// スポーン位置選択待ち
     case awaitingSpawn
     /// プレイ続行中
@@ -398,7 +398,7 @@ public enum GameProgress {
 
 /// 盤面タップでカード再生アニメーションを要求するときに利用する構造体
 /// - Note: SwiftUI 側でアニメーションを実行 → 完了後に `GameCore.clearBoardTapPlayRequest` を呼ぶ想定
-public struct BoardTapPlayRequest: Identifiable, Equatable {
+public struct BoardTapPlayRequest: Identifiable, Equatable, Sendable {
     /// 各リクエストを一意に識別するための ID
     public let id: UUID
     /// 盤面タップ時に対応する手札スタックの識別子
@@ -459,7 +459,7 @@ public struct BoardTapPlayRequest: Identifiable, Equatable {
 }
 
 /// 盤面タップでカードを使わない基本移動を要求するときに利用する構造体
-public struct BoardTapBasicMoveRequest: Identifiable, Equatable {
+public struct BoardTapBasicMoveRequest: Identifiable, Equatable, Sendable {
     public let id: UUID
     public let move: BasicOrthogonalMove
 
@@ -470,7 +470,7 @@ public struct BoardTapBasicMoveRequest: Identifiable, Equatable {
 }
 
 /// 塔ダンジョンで使えるカードなしの上下左右 1 マス移動候補
-public struct BasicOrthogonalMove: Equatable {
+public struct BasicOrthogonalMove: Equatable, Sendable {
     public let moveVector: MoveVector
     public let resolution: MovementResolution
 

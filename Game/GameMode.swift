@@ -1,14 +1,14 @@
 import Foundation
 
-public struct GameMode: Equatable, Identifiable {
+public struct GameMode: Equatable, Identifiable, Sendable {
     /// 識別子。UI や永続化でも使用しやすいよう文字列 RawValue を採用する
-    public enum Identifier: String, CaseIterable {
+    public enum Identifier: String, CaseIterable, Sendable {
         case dungeonFloor
     }
 
     /// 塔ダンジョン関連の補助情報
     /// - Note: UI が選択元のダンジョンとフロアを参照するための軽量なメタデータ。
-    public struct DungeonMetadata: Equatable {
+    public struct DungeonMetadata: Equatable, Sendable {
         public let dungeonID: String
         public let floorID: String
         public let runState: DungeonRunState?
@@ -26,7 +26,7 @@ public struct GameMode: Equatable, Identifiable {
 
     /// UI で利用する難易度ランク定義
     /// - Note: 文字列を個別に管理すると重複や表記揺れが発生しやすいため、列挙体で統一しておく
-    public enum DifficultyRank: String, Codable {
+    public enum DifficultyRank: String, Codable, Sendable {
         /// ルールが標準的で初学者にも勧めやすいモード
         case balanced
         /// 明確に難度が高く、熟練者向けのモード
@@ -38,7 +38,7 @@ public struct GameMode: Equatable, Identifiable {
     }
 
     /// 初期スポーンの扱い
-    public enum SpawnRule: Equatable, Codable {
+    public enum SpawnRule: Equatable, Codable, Sendable {
         /// 固定座標へスポーン
         case fixed(GridPoint)
         /// プレイヤーが任意のマスを選択してスポーン
@@ -51,7 +51,7 @@ public struct GameMode: Equatable, Identifiable {
         }
 
         /// ケース識別子
-        private enum Kind: String, Codable {
+        private enum Kind: String, Codable, Sendable {
             case fixed
             case chooseAnyAfterPreview
         }
@@ -99,7 +99,7 @@ public struct GameMode: Equatable, Identifiable {
     }
 
     /// ペナルティ関連のルールをまとめた設定構造体
-    public struct PenaltySettings: Equatable, Codable {
+    public struct PenaltySettings: Equatable, Codable, Sendable {
         /// 手詰まり自動検出による引き直し時の加算手数
         public var deadlockPenaltyCost: Int
         /// プレイヤーが任意に引き直しを行った際の加算手数
@@ -129,7 +129,7 @@ public struct GameMode: Equatable, Identifiable {
     }
 
     /// ゲームの完了条件を表す設定
-    public enum CompletionRule: Equatable, Codable {
+    public enum CompletionRule: Equatable, Codable, Sendable {
         /// 指定出口マスへ到達するとクリア
         case dungeonExit(exitPoint: GridPoint)
 
@@ -138,7 +138,7 @@ public struct GameMode: Equatable, Identifiable {
             case exitPoint
         }
 
-        private enum Kind: String, Codable {
+        private enum Kind: String, Codable, Sendable {
             case dungeonExit
         }
 
@@ -164,7 +164,7 @@ public struct GameMode: Equatable, Identifiable {
 
     /// ゲームモードの根幹となるレギュレーション設定
     /// - Note: 盤面サイズや山札構成、手札スロット数などを一括で扱い、新しいモードを追加しやすくする。
-    public struct Regulation: Equatable, Codable {
+    public struct Regulation: Equatable, Codable, Sendable {
         /// 盤面サイズ（N×N）
         public var boardSize: Int
         /// 初期手札スロット数（保持できるカード種類の上限を明示する）

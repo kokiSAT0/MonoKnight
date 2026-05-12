@@ -2,7 +2,7 @@ import Foundation
 
 /// 手札の 1 スロットをスタック形式で管理するための構造体
 /// - Note: 同じ種類のカードを重ねて保持し、UI では常に最上段の `DealtCard` を表示する。
-public struct HandStack: Identifiable, Equatable {
+public struct HandStack: Identifiable, Equatable, Sendable {
     /// スタック自体を識別するための UUID
     public let id: UUID
     /// スタックに積まれているカード列（末尾が最新＝表向きのカード）

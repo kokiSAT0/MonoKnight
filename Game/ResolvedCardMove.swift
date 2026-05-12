@@ -3,11 +3,11 @@ import Foundation
 /// 盤面上の移動結果を経路付きで保持する構造体
 /// - Important: 移動アニメーションやタイル効果適用後の最終座標を UI へ正確に伝えるため、開始地点を除外した経路情報と
 ///              効果発動履歴をひとまとめに管理する。
-public struct MovementResolution: Equatable {
+public struct MovementResolution: Equatable, Sendable {
     /// 移動演出で 1 マスごとに反映したい表示状態
-    public struct PresentationStep: Equatable {
+    public struct PresentationStep: Equatable, Sendable {
         /// そのマスで移動を止める理由
-        public enum StopReason: Equatable {
+        public enum StopReason: Equatable, Sendable {
             case exit
             case failed
             case fall
@@ -68,7 +68,7 @@ public struct MovementResolution: Equatable {
 
     /// タイル効果の適用履歴を表現するためのサブ構造体
     /// - Note: 効果が発動した座標と内容を記録し、UI 側で演出を切り替える際に利用することを想定している。
-    public struct AppliedEffect: Equatable {
+    public struct AppliedEffect: Equatable, Sendable {
         /// 効果が発動した座標
         public let point: GridPoint
         /// 適用されたタイル効果
@@ -160,7 +160,7 @@ public struct MovementResolution: Equatable {
 
 /// 手札スタックから盤面へ移動可能なカード情報を解決した結果を保持する構造体
 /// - Note: スタック識別子・インデックス・カード種別・移動後座標など、UI とロジック双方で共有したい情報を 1 箇所へ集約する。
-public struct ResolvedCardMove: Hashable {
+public struct ResolvedCardMove: Hashable, Sendable {
     /// 対象スタックの一意な識別子
     public let stackID: UUID
     /// `handStacks` 内でのインデックス

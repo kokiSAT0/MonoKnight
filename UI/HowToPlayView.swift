@@ -1531,36 +1531,47 @@ private struct ChaserMarkerShape: Shape {
         var path = Path()
         addFootprint(
             to: &path,
-            center: CGPoint(x: rect.minX + rect.width * 0.34, y: rect.minY + rect.height * 0.38),
-            size: rect.size
+            center: CGPoint(x: rect.minX + rect.width * 0.34, y: rect.minY + rect.height * 0.36),
+            size: rect.size,
+            angle: -.pi * 0.15
         )
         addFootprint(
             to: &path,
-            center: CGPoint(x: rect.minX + rect.width * 0.66, y: rect.minY + rect.height * 0.62),
-            size: rect.size
+            center: CGPoint(x: rect.minX + rect.width * 0.66, y: rect.minY + rect.height * 0.64),
+            size: rect.size,
+            angle: .pi * 0.15
         )
         return path
     }
 
-    private func addFootprint(to path: inout Path, center: CGPoint, size: CGSize) {
-        let baseWidth = size.width * 0.18
-        let baseHeight = size.height * 0.25
-        path.addEllipse(in: CGRect(
-            x: center.x - baseWidth / 2,
-            y: center.y - baseHeight / 2,
-            width: baseWidth,
-            height: baseHeight
-        ))
+    private func addFootprint(to path: inout Path, center: CGPoint, size: CGSize, angle: CGFloat) {
+        let transform = CGAffineTransform(translationX: center.x, y: center.y).rotated(by: angle)
+        path.addPath(
+            Path(ellipseIn: CGRect(
+                x: -size.width * 0.10,
+                y: -size.height * 0.18,
+                width: size.width * 0.20,
+                height: size.height * 0.31
+            )),
+            transform: transform
+        )
 
-        let toeY = center.y - size.height * 0.18
-        for offset in [-size.width * 0.08, 0, size.width * 0.08] {
-            let toeSize = size.width * 0.06
-            path.addEllipse(in: CGRect(
-                x: center.x + offset - toeSize / 2,
-                y: toeY - toeSize / 2,
-                width: toeSize,
-                height: toeSize
-            ))
+        let toes: [(x: CGFloat, y: CGFloat, size: CGFloat)] = [
+            (-size.width * 0.10, -size.height * 0.155, size.width * 0.060),
+            (-size.width * 0.035, -size.height * 0.185, size.width * 0.070),
+            (size.width * 0.035, -size.height * 0.185, size.width * 0.065),
+            (size.width * 0.095, -size.height * 0.155, size.width * 0.052)
+        ]
+        for toe in toes {
+            path.addPath(
+                Path(ellipseIn: CGRect(
+                    x: toe.x - toe.size / 2,
+                    y: toe.y - toe.size / 2,
+                    width: toe.size,
+                    height: toe.size
+                )),
+                transform: transform
+            )
         }
     }
 }

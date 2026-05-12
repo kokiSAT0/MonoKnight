@@ -1,7 +1,7 @@
 import Foundation
 
 /// 遊び方辞典の発見状態を分類するカテゴリ
-public enum EncyclopediaDiscoveryCategory: String, Codable, CaseIterable {
+public enum EncyclopediaDiscoveryCategory: String, Codable, CaseIterable, Sendable {
     case card
     case supportCard
     case enemy
@@ -12,7 +12,7 @@ public enum EncyclopediaDiscoveryCategory: String, Codable, CaseIterable {
 }
 
 /// 遊び方辞典の発見状態を保存するための安定 ID
-public struct EncyclopediaDiscoveryID: Hashable, Codable, RawRepresentable {
+public struct EncyclopediaDiscoveryID: Hashable, Codable, RawRepresentable, Sendable {
     public let category: EncyclopediaDiscoveryCategory
     public let itemID: String
 
@@ -37,7 +37,7 @@ public struct EncyclopediaDiscoveryID: Hashable, Codable, RawRepresentable {
 }
 
 /// ヘルプ内のカード辞典で表示する 1 件分の情報
-public struct MoveCardEncyclopediaEntry: Identifiable, Equatable {
+public struct MoveCardEncyclopediaEntry: Identifiable, Equatable, Sendable {
     public let id: Int
     public let card: MoveCard
     public let includedCards: [MoveCard]

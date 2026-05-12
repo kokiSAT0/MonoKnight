@@ -664,6 +664,10 @@
             let arcRadius = radius * 0.32
             switch direction {
             case .clockwise:
+                path.move(to: CGPoint(
+                    x: cos(.pi * 0.12) * arcRadius,
+                    y: sin(.pi * 0.12) * arcRadius
+                ))
                 path.addArc(
                     center: .zero,
                     radius: arcRadius,
@@ -675,6 +679,10 @@
                 path.addLine(to: CGPoint(x: radius * 0.41, y: radius * 0.02))
                 path.addLine(to: CGPoint(x: radius * 0.21, y: -radius * 0.05))
             case .counterclockwise:
+                path.move(to: CGPoint(
+                    x: cos(.pi * 0.88) * arcRadius,
+                    y: sin(.pi * 0.88) * arcRadius
+                ))
                 path.addArc(
                     center: .zero,
                     radius: arcRadius,
@@ -690,8 +698,8 @@
 
         private func addChaserFootprintGlyph(to path: CGMutablePath, radius: CGFloat) {
             let footprints: [(center: CGPoint, angle: CGFloat)] = [
-                (CGPoint(x: -radius * 0.34, y: radius * 0.28), -.pi * 0.10),
-                (CGPoint(x: radius * 0.34, y: -radius * 0.22), .pi * 0.10)
+                (CGPoint(x: -radius * 0.32, y: radius * 0.26), -.pi * 0.15),
+                (CGPoint(x: radius * 0.32, y: -radius * 0.26), .pi * 0.15)
             ]
 
             for footprint in footprints {
@@ -699,25 +707,29 @@
                     .rotated(by: footprint.angle)
                 path.addEllipse(
                     in: CGRect(
-                        x: -radius * 0.22,
-                        y: -radius * 0.38,
-                        width: radius * 0.44,
-                        height: radius * 0.56
+                        x: -radius * 0.20,
+                        y: -radius * 0.36,
+                        width: radius * 0.40,
+                        height: radius * 0.62
                     ),
                     transform: transform
                 )
 
-                let toeY = radius * 0.30
-                let toeOffsets: [CGFloat] = [-radius * 0.18, 0, radius * 0.18]
-                for offset in toeOffsets {
+                let toes: [(x: CGFloat, y: CGFloat, size: CGFloat)] = [
+                    (-radius * 0.20, radius * 0.31, radius * 0.12),
+                    (-radius * 0.07, radius * 0.37, radius * 0.14),
+                    (radius * 0.07, radius * 0.37, radius * 0.13),
+                    (radius * 0.19, radius * 0.31, radius * 0.105)
+                ]
+                for toe in toes {
                     transform = CGAffineTransform(translationX: footprint.center.x, y: footprint.center.y)
                         .rotated(by: footprint.angle)
                     path.addEllipse(
                         in: CGRect(
-                            x: offset - radius * 0.07,
-                            y: toeY - radius * 0.07,
-                            width: radius * 0.14,
-                            height: radius * 0.14
+                            x: toe.x - toe.size / 2,
+                            y: toe.y - toe.size / 2,
+                            width: toe.size,
+                            height: toe.size
                         ),
                         transform: transform
                     )

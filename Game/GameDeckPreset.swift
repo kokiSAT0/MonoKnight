@@ -2,7 +2,7 @@ import Foundation
 
 /// 塔フロアで参照するカードプール。
 /// - Note: 通常プレイは塔専用のため、旧練習モードや実験モード向けプリセットは公開しない。
-public enum GameDeckPreset: String, CaseIterable, Codable, Identifiable {
+public enum GameDeckPreset: String, CaseIterable, Codable, Identifiable, Sendable {
     /// 長距離カードの出現頻度を抑えた塔向け標準プール
     case standardLight
     /// キングと桂馬の基本 16 種を収録した序盤塔向けプール

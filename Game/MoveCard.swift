@@ -2,7 +2,7 @@ import Foundation
 
 /// カードの識別カテゴリを表す列挙体
 /// - Important: UI 側での描画分岐やアクセシビリティ文言の差し替えに利用するため、`public` で公開しておく
-public enum MoveCardKind {
+public enum MoveCardKind: Sendable {
     /// 単一の移動先を持つ標準カード
     case normal
     /// 盤面上で複数候補から方向を選ぶカード
@@ -15,7 +15,7 @@ public enum MoveCardKind {
 /// - Note: 斜め 1 マスのキング型 4 種、ナイト型 8 種、距離 2 の直線/斜め 8 種に加え、
 ///         塔攻略向けの複数方向カードをサポートする。上下左右 1 マスは基本移動専用。
 /// - Note: SwiftUI モジュールからも扱うため `public` とし、全ケース配列も公開する
-public enum MoveCard: CaseIterable, Codable {
+public enum MoveCard: CaseIterable, Codable, Sendable {
     // MARK: - ケース定義
     /// キング型: 右上に 1
     case kingUpRight

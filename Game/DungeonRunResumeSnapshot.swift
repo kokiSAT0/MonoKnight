@@ -2,7 +2,7 @@ import Foundation
 
 /// 塔攻略をアプリ再起動後に再開するための保存用スナップショット。
 /// - Note: `DungeonRunState` はフロア間状態、こちらは現在フロア内の生きた状態を保持する。
-public struct DungeonRunResumeSnapshot: Codable, Equatable {
+public struct DungeonRunResumeSnapshot: Codable, Equatable, Sendable {
     public static let currentVersion = 1
 
     public let version: Int
