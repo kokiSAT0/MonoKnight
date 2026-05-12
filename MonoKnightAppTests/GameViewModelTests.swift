@@ -1227,6 +1227,59 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertTrue(core.activeDungeonCardPickups.contains { $0.id == pickup.id })
     }
 
+    func testNewlyAddedHandStackIDsDetectsNewStack() {
+        let existingID = UUID()
+        let addedID = UUID()
+        let previous = [
+            HandStack(id: existingID, cards: [DealtCard(move: .straightRight2)])
+        ]
+        let current = previous + [
+            HandStack(id: addedID, cards: [DealtCard(move: .straightUp2)])
+        ]
+
+        XCTAssertEqual(
+            GameViewModel.newlyAddedHandStackIDs(previous: previous, current: current),
+            [addedID]
+        )
+    }
+
+    func testNewlyAddedHandStackIDsDetectsIncreasedStackCount() {
+        let stackID = UUID()
+        let previous = [
+            HandStack(id: stackID, cards: [DealtCard(move: .straightRight2)])
+        ]
+        let current = [
+            HandStack(id: stackID, cards: [
+                DealtCard(move: .straightRight2),
+                DealtCard(move: .straightRight2)
+            ])
+        ]
+
+        XCTAssertEqual(
+            GameViewModel.newlyAddedHandStackIDs(previous: previous, current: current),
+            [stackID]
+        )
+    }
+
+    func testNewlyAddedHandStackIDsIgnoresConsumptionAndRemoval() {
+        let consumedID = UUID()
+        let removedID = UUID()
+        let previous = [
+            HandStack(id: consumedID, cards: [
+                DealtCard(move: .straightRight2),
+                DealtCard(move: .straightRight2)
+            ]),
+            HandStack(id: removedID, cards: [DealtCard(move: .straightUp2)])
+        ]
+        let current = [
+            HandStack(id: consumedID, cards: [DealtCard(move: .straightRight2)])
+        ]
+
+        XCTAssertTrue(
+            GameViewModel.newlyAddedHandStackIDs(previous: previous, current: current).isEmpty
+        )
+    }
+
     func testDungeonRunNextFloorCarriesHPAndResetsFloorState() throws {
         let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
         let mode = try XCTUnwrap(DungeonLibrary.shared.firstFloorMode(for: tower))

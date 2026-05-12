@@ -271,12 +271,17 @@ private extension GameHandSectionView {
                 let isSelected = viewModel.selectedHandStackID == stack.id
                 let shouldShowSelectionHighlight = isSelected && !isHidden && !isSelectingDiscard && !isSelectingDungeonPickup
                 let isChoosingReplacement = isSelectingDiscard || isSelectingDungeonPickup
+                let shouldShowAdditionEffect = viewModel.recentlyAddedHandStackIDs.contains(stack.id)
+                    && !isHidden
+                    && !isChoosingReplacement
+                    && !shouldShowSelectionHighlight
 
                 HandStackCardView(stackCount: stack.count) {
                     cardIllustration(for: card, mode: .hand)
                         .matchedGeometryEffect(id: card.id, in: cardAnimationNamespace)
                         .anchorPreference(key: CardPositionPreferenceKey.self, value: .bounds) { [card.id: $0] }
                 }
+                .scaleEffect(shouldShowAdditionEffect ? 1.04 : 1.0)
                 .opacity(
                     isHidden ? 0.0 : (isChoosingReplacement ? 1.0 : (isUsable ? 1.0 : 0.4))
                 )
@@ -300,6 +305,11 @@ private extension GameHandSectionView {
                         RoundedRectangle(cornerRadius: 10)
                             .stroke(theme.accentPrimary, lineWidth: 2)
                             .shadow(color: theme.accentPrimary.opacity(0.25), radius: 5, x: 0, y: 2)
+                            .accessibilityHidden(true)
+                    } else if shouldShowAdditionEffect {
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(theme.accentPrimary.opacity(0.85), lineWidth: 3)
+                            .shadow(color: theme.accentPrimary.opacity(0.55), radius: 8, x: 0, y: 0)
                             .accessibilityHidden(true)
                     }
                 }

@@ -110,13 +110,52 @@ extension GameViewModel {
 
     func handleHandStacksChange(_ newHandStacks: [HandStack]) {
         guard !isMovementPresentationActive else { return }
-        displayedHandStacks = Self.visibleHandStacks(from: newHandStacks, mode: mode)
+        updateDisplayedHandStacks(Self.visibleHandStacks(from: newHandStacks, mode: mode))
         refreshSelectionIfNeeded(with: displayedHandStacks)
     }
 
     static func visibleHandStacks(from handStacks: [HandStack], mode: GameMode) -> [HandStack] {
         guard mode.usesDungeonExit else { return handStacks }
         return Array(handStacks.prefix(dungeonInventoryVisibleSlotCount))
+    }
+
+    static func newlyAddedHandStackIDs(previous: [HandStack], current: [HandStack]) -> Set<UUID> {
+        let previousCounts = Dictionary(uniqueKeysWithValues: previous.map { ($0.id, $0.count) })
+        return Set(current.compactMap { stack in
+            guard let previousCount = previousCounts[stack.id] else { return stack.id }
+            return stack.count > previousCount ? stack.id : nil
+        })
+    }
+
+    func updateDisplayedHandStacks(
+        _ newDisplayedHandStacks: [HandStack],
+        animatingAdditions: Bool = true
+    ) {
+        let addedIDs = animatingAdditions && mode.usesDungeonExit
+            ? Self.newlyAddedHandStackIDs(
+                previous: previousDisplayedHandStacksForAdditionEffect,
+                current: newDisplayedHandStacks
+            )
+            : []
+        displayedHandStacks = newDisplayedHandStacks
+        previousDisplayedHandStacksForAdditionEffect = newDisplayedHandStacks
+        guard !addedIDs.isEmpty else { return }
+        presentHandAdditionEffect(for: addedIDs)
+    }
+
+    private func presentHandAdditionEffect(for stackIDs: Set<UUID>) {
+        handAdditionEffectGeneration += 1
+        let generation = handAdditionEffectGeneration
+        withAnimation(.spring(response: 0.24, dampingFraction: 0.72)) {
+            recentlyAddedHandStackIDs = stackIDs
+        }
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 700_000_000)
+            guard let self, self.handAdditionEffectGeneration == generation else { return }
+            withAnimation(.easeOut(duration: 0.2)) {
+                self.recentlyAddedHandStackIDs.removeAll()
+            }
+        }
     }
 
     func handleProgressChange(_ progress: GameProgress) {
@@ -177,7 +216,10 @@ extension GameViewModel {
         deferredDungeonFallEventDuringMovementPresentation = nil
         movementPresentationDungeonHP = resolution.presentationInitialHP ?? core.dungeonHP
         if let initialHandStacks = resolution.presentationInitialHandStacks {
-            displayedHandStacks = Self.visibleHandStacks(from: initialHandStacks, mode: mode)
+            updateDisplayedHandStacks(
+                Self.visibleHandStacks(from: initialHandStacks, mode: mode),
+                animatingAdditions: false
+            )
             refreshSelectionIfNeeded(with: displayedHandStacks)
         }
     }
@@ -186,7 +228,7 @@ extension GameViewModel {
         guard mode.usesDungeonExit else { return }
         isMovementPresentationActive = true
         movementPresentationDungeonHP = step.hpAfter
-        displayedHandStacks = Self.visibleHandStacks(from: step.handStacksAfter, mode: mode)
+        updateDisplayedHandStacks(Self.visibleHandStacks(from: step.handStacksAfter, mode: mode))
         refreshSelectionIfNeeded(with: displayedHandStacks)
         if step.tookDamage {
             boardBridge.playDamageEffect()
@@ -205,7 +247,7 @@ extension GameViewModel {
         } else {
             movementPresentationDungeonHP = nil
         }
-        displayedHandStacks = Self.visibleHandStacks(from: core.handStacks, mode: mode)
+        updateDisplayedHandStacks(Self.visibleHandStacks(from: core.handStacks, mode: mode))
         refreshSelectionIfNeeded(with: displayedHandStacks)
 
         guard !isWaitingForEnemyTurnPresentationAfterMovement else { return }

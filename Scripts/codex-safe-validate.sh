@@ -12,8 +12,9 @@ fi
 JOBS="${CODEX_SAFE_JOBS:-2}"
 MIN_FREE_GB="${CODEX_SAFE_MIN_FREE_GB:-3}"
 DERIVED_DATA_PATH="${CODEX_SAFE_DERIVED_DATA_PATH:-DerivedData/CodexSafe}"
-DESTINATION="${CODEX_SAFE_DESTINATION:-platform=iOS Simulator,name=iPhone 16,OS=18.6}"
-DEFAULT_APP_TEST="${CODEX_SAFE_DEFAULT_APP_TEST:-MonoKnightAppTests/GameViewModelTests}"
+DEFAULT_DESTINATION="platform=iOS Simulator,name=iPhone 16,OS=18.6"
+DESTINATION="${CODEX_SAFE_DESTINATION:-$DEFAULT_DESTINATION}"
+DEFAULT_APP_TEST="${CODEX_SAFE_DEFAULT_APP_TEST:-MonoKnightAppTests/PauseMenuViewTests}"
 
 usage() {
   cat <<'USAGE'
@@ -27,7 +28,13 @@ Environment overrides:
   CODEX_SAFE_MIN_FREE_GB=3
   CODEX_SAFE_DESTINATION="platform=iOS Simulator,name=iPhone 16,OS=18.6"
   CODEX_SAFE_DERIVED_DATA_PATH="DerivedData/CodexSafe"
-  CODEX_SAFE_DEFAULT_APP_TEST="MonoKnightAppTests/GameViewModelTests"
+  CODEX_SAFE_DEFAULT_APP_TEST="MonoKnightAppTests/PauseMenuViewTests"
+
+Default simulator:
+  platform=iOS Simulator,name=iPhone 16,OS=18.6
+
+Note:
+  Do not use OS=latest on this Mac. The latest runtime may not include iPhone 16.
 USAGE
 }
 

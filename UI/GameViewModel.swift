@@ -38,6 +38,12 @@ final class GameViewModel: ObservableObject {
     /// 初回描画から使う手札表示用スナップショット
     /// - Note: `core.$handStacks` の初回通知を待たず、塔の持ち越し報酬カードを開始直後から表示する。
     @Published var displayedHandStacks: [HandStack] = []
+    /// 拾得などで直近に増えた手札スタック ID
+    @Published var recentlyAddedHandStackIDs: Set<UUID> = []
+    /// 手札増加エフェクトの差分検出に使う直前スナップショット
+    var previousDisplayedHandStacksForAdditionEffect: [HandStack] = []
+    /// 短命エフェクトを消すための世代番号
+    var handAdditionEffectGeneration: Int = 0
     /// 移動演出中だけ利用する HP 表示上書き
     @Published var movementPresentationDungeonHP: Int?
     /// 移動演出中は手札/HP の通常同期を一時停止する
@@ -495,7 +501,9 @@ final class GameViewModel: ObservableObject {
             }
         }
         self.core = generatedCore
-        self.displayedHandStacks = Self.visibleHandStacks(from: generatedCore.handStacks, mode: mode)
+        let initialDisplayedHandStacks = Self.visibleHandStacks(from: generatedCore.handStacks, mode: mode)
+        self.displayedHandStacks = initialDisplayedHandStacks
+        self.previousDisplayedHandStacksForAdditionEffect = initialDisplayedHandStacks
         self.boardBridge = GameBoardBridgeViewModel(core: generatedCore, mode: mode)
         self.boardBridge.onMovementPresentationStarted = { [weak self] resolution in
             self?.beginMovementPresentation(using: resolution)

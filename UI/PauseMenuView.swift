@@ -32,6 +32,8 @@ struct PauseMenuView: View {
     @State private var pendingAction: PauseConfirmationAction?
     /// 設定項目の開閉状態。ポーズ時の主操作を先に見せるため初期状態は閉じる
     @State private var isSettingsExpanded = false
+    /// ポーズ中に遊び方・辞典を確認するためのヘルプ表示状態
+    @State private var isHelpPresented = false
 
     var body: some View {
         ZStack {
@@ -63,6 +65,11 @@ struct PauseMenuView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .accessibilityIdentifier(PauseMenuAccessibilityIdentifier.panel)
+        .fullScreenCover(isPresented: $isHelpPresented) {
+            NavigationStack {
+                HowToPlayView(showsCloseButton: true)
+            }
+        }
         // 破壊的操作の確認ダイアログ
         .confirmationDialog(
             "操作の確認",
@@ -145,6 +152,17 @@ private extension PauseMenuView {
             .accessibilityIdentifier(PauseMenuAccessibilityIdentifier.resumeButton)
 
             Button {
+                isHelpPresented = true
+            } label: {
+                Label("ヘルプを見る", systemImage: "questionmark.circle")
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .frame(maxWidth: .infinity, minHeight: 44)
+            }
+            .buttonStyle(.bordered)
+            .foregroundColor(theme.textPrimary)
+            .accessibilityIdentifier(PauseMenuAccessibilityIdentifier.helpButton)
+
+            Button {
                 pendingAction = .returnToTitle
             } label: {
                 Label("タイトルへ戻る", systemImage: "house")
@@ -218,6 +236,7 @@ private extension PauseMenuView {
     func settingsToggle(title: String, subtitle: String, isOn: Binding<Bool>) -> some View {
         Toggle(isOn: isOn) {
             settingText(title: title, subtitle: subtitle)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
         .font(.system(size: 14, weight: .semibold, design: .rounded))
         .tint(theme.accentPrimary)
@@ -229,19 +248,23 @@ private extension PauseMenuView {
         options: [Value],
         displayName: KeyPath<Value, String>
     ) -> some View {
-        HStack(alignment: .center, spacing: 12) {
+        VStack(alignment: .leading, spacing: 6) {
             settingText(title: title, subtitle: nil)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
-            Spacer(minLength: 8)
+            HStack {
+                Spacer(minLength: 0)
 
-            Picker(title, selection: selection) {
-                ForEach(options, id: \.self) { option in
-                    Text(option[keyPath: displayName])
-                        .tag(option)
+                Picker(title, selection: selection) {
+                    ForEach(options, id: \.self) { option in
+                        Text(option[keyPath: displayName])
+                            .tag(option)
+                    }
                 }
+                .pickerStyle(.menu)
+                .tint(theme.accentPrimary)
+                .fixedSize(horizontal: false, vertical: true)
             }
-            .pickerStyle(.menu)
-            .tint(theme.accentPrimary)
         }
     }
 
@@ -250,6 +273,7 @@ private extension PauseMenuView {
             Text(title)
                 .font(.system(size: 14, weight: .semibold, design: .rounded))
                 .foregroundColor(theme.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
 
             if let subtitle {
                 Text(subtitle)
@@ -288,6 +312,7 @@ private extension PauseMenuView {
 enum PauseMenuAccessibilityIdentifier {
     static let panel = "pause_menu_panel"
     static let resumeButton = "pause_resume_button"
+    static let helpButton = "pause_help_button"
     static let returnToTitleButton = "pause_return_to_title_button"
     static let settingsDisclosure = "pause_settings_disclosure"
 }

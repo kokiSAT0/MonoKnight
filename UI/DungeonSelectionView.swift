@@ -261,16 +261,28 @@ struct DungeonSelectionView: View {
                 .accessibilityIdentifier("dungeon_growth_view_mode_toggle")
             }
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(presentation.branchRoles) { role in
-                        growthBranchRoleButton(role)
-                    }
+            LazyVGrid(
+                columns: growthBranchColumns,
+                alignment: .leading,
+                spacing: 8
+            ) {
+                ForEach(presentation.branchRoles) { role in
+                    growthBranchRoleButton(role)
                 }
-                .padding(.vertical, 1)
             }
-            .scrollClipDisabled()
+            .padding(.vertical, 1)
+            .accessibilityIdentifier("dungeon_growth_branch_grid")
         }
+    }
+
+    private var growthBranchColumns: [GridItem] {
+        [
+            GridItem(
+                .adaptive(minimum: 132, maximum: 190),
+                spacing: 8,
+                alignment: .top
+            )
+        ]
     }
 
     private func growthBranchRoleButton(_ role: DungeonGrowthBranchRolePresentation) -> some View {
@@ -297,7 +309,7 @@ struct DungeonSelectionView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             .padding(10)
-            .frame(width: 142, alignment: .topLeading)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
             .frame(minHeight: 86, alignment: .topLeading)
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
