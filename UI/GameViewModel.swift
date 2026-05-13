@@ -3,6 +3,7 @@ import Foundation
 import Game
 import SharedSupport
 import SwiftUI
+import UIKit
 
 /// GameView のロジックとサービス連携を担う ViewModel
 /// 描画に直接関係しない処理を SwiftUI View から切り離し、責務を明確化する
@@ -61,6 +62,9 @@ final class GameViewModel: ObservableObject {
     /// 現在選択中の手札スタック ID
     /// - Important: 手札スロットの選択状態を SwiftUI から装飾できるよう公開し、候補マス確定後にリセットする。
     @Published var selectedHandStackID: UUID?
+    /// 基本移動カードの表示用選択状態
+    /// - Note: 入力処理中の `GameSessionState` へ SwiftUI が直接アクセスしないよう、表示用の値を分離する。
+    var isBasicMoveCardSelectionVisible = false
 
     /// 結果画面表示フラグ
     @Published var showingResult = false {
@@ -201,6 +205,31 @@ final class GameViewModel: ObservableObject {
     /// 塔で現在所持している呪い遺物
     var dungeonCurseEntries: [DungeonCurseEntry] {
         core.dungeonCurseEntries
+    }
+    var isDiagnosticShareAvailable: Bool {
+        DebugLogHistory.shared.isFrontEndViewerEnabled
+    }
+    func makeTesterIssueReport() -> String {
+        DebugLogShareReportFormatter.makeReport(
+            context: DebugLogShareReportContext(
+                title: dungeonRunFloorText ?? mode.displayName,
+                details: [
+                    ("モード", mode.displayName),
+                    ("階層", dungeonRunFloorText ?? "なし"),
+                    ("HP", String(dungeonHP)),
+                    ("手数", String(core.moveCount)),
+                    ("残り手数", remainingDungeonTurns.map(String.init) ?? "なし"),
+                    ("位置", DebugLogShareSupport.pointDescription(core.current)),
+                    ("進行状態", String(describing: core.progress)),
+                    ("所持カード", DebugLogShareSupport.inventoryDescription(core.dungeonInventoryEntries)),
+                    ("遺物", DebugLogShareSupport.relicDescription(core.dungeonRelicEntries)),
+                    ("呪い", DebugLogShareSupport.curseDescription(core.dungeonCurseEntries))
+                ]
+            ),
+            entries: DebugLogHistory.shared.snapshot().filter { $0.message.contains("[PLAY]") },
+            appVersion: DebugLogShareSupport.appVersionDescription,
+            deviceDescription: DebugLogShareSupport.deviceDescription
+        )
     }
     /// 現在フロアのクリア後に選べる報酬カード
     var availableDungeonRewardMoveCards: [MoveCard] {
@@ -382,7 +411,7 @@ final class GameViewModel: ObservableObject {
         mode.usesDungeonExit && mode.dungeonRules?.allowsBasicOrthogonalMove == true
     }
     var isBasicMoveCardSelected: Bool {
-        sessionState.isBasicOrthogonalSelected
+        isBasicMoveCardSelectionVisible
     }
     /// 現在の駒位置
     /// - Note: カード移動演出でフォールバック座標として参照する
@@ -402,6 +431,10 @@ final class GameViewModel: ObservableObject {
     /// 盤面タップ時にカード選択が必要なケースを利用者へ知らせるための警告状態
     /// - Important: `Identifiable` なペイロードを保持し、SwiftUI 側で `.alert(item:)` を使って監視できるようにする
     @Published var boardTapSelectionWarning: GameBoardTapSelectionWarning?
+    /// 長押しで表示するカード/マスの一時説明
+    @Published var activeInlineInspection: GameInlineInspection?
+    /// 施錠階段の案内を同じ階で繰り返さないために記録する表示済みキー
+    var displayedLockedExitReachNoticeKeys: Set<String> = []
     /// HP 低下演出の誤発火を避けるため、直近に観測したダンジョン HP を保持する
     var lastObservedDungeonHPForDamageEffect: Int?
     /// 敵ターン演出へ委譲した HP 低下イベントを重複再生しないために保持する
@@ -623,4 +656,49 @@ extension GameViewModel {
         offers.append(offer)
     }
 }
+
 #endif
+
+enum DebugLogShareSupport {
+    static var appVersionDescription: String {
+        let bundle = Bundle.main
+        let version = bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+        let build = bundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String
+        switch (version, build) {
+        case let (version?, build?):
+            return "\(version) (\(build))"
+        case let (version?, nil):
+            return version
+        case let (nil, build?):
+            return "build \(build)"
+        case (nil, nil):
+            return "unknown"
+        }
+    }
+
+    static var deviceDescription: String {
+        let device = UIDevice.current
+        return "\(device.model) / iOS \(device.systemVersion)"
+    }
+
+    static func pointDescription(_ point: GridPoint?) -> String {
+        guard let point else { return "nil" }
+        return "(\(point.x),\(point.y))"
+    }
+
+    static func inventoryDescription(_ entries: [DungeonInventoryEntry]) -> String {
+        let liveEntries = entries.filter(\.hasUsesRemaining)
+        guard !liveEntries.isEmpty else { return "なし" }
+        return liveEntries.map { "\($0.playable.displayName):\($0.totalUses)" }.joined(separator: ", ")
+    }
+
+    static func relicDescription(_ entries: [DungeonRelicEntry]) -> String {
+        guard !entries.isEmpty else { return "なし" }
+        return entries.map { "\($0.displayName):\($0.remainingUses)" }.joined(separator: ", ")
+    }
+
+    static func curseDescription(_ entries: [DungeonCurseEntry]) -> String {
+        guard !entries.isEmpty else { return "なし" }
+        return entries.map { "\($0.displayName):\($0.remainingUses)" }.joined(separator: ", ")
+    }
+}

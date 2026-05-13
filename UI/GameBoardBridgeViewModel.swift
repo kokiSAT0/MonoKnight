@@ -98,6 +98,8 @@ final class GameBoardBridgeViewModel: ObservableObject {
     private var presentationCrackedFloorPoints: Set<GridPoint>?
     /// 移動演出中だけ崩落床を段階表示するための上書き
     private var presentationCollapsedFloorPoints: Set<GridPoint>?
+    /// 移動演出中だけ暗闇視界の中心に使う表示上の現在地
+    private var presentationCurrentPoint: GridPoint?
     /// 移動演出中の拾得カード消失差分を検出するための直前値
     private var presentationPreviousCollectedDungeonCardPickupIDs: Set<String>?
     /// 移動演出中の宝箱消失差分を検出するための直前値
@@ -208,6 +210,8 @@ final class GameBoardBridgeViewModel: ObservableObject {
             boardGridLine: appTheme.skBoardGridLine,
             boardTileVisited: appTheme.skBoardTileVisited,
             boardTileUnvisited: appTheme.skBoardTileUnvisited,
+            boardDarknessHiddenTile: appTheme.skBoardDarknessHiddenTile,
+            boardDarknessBoundary: appTheme.skBoardDarknessBoundary,
             // NOTE: 特殊マスが視覚的に分かるよう、SwiftUI 側で決めた配色をそのまま転写する
             boardTileMultiBase: appTheme.skBoardTileMultiBase,
             // NOTE: マルチ踏破マスの枠線もテーマ側で厳選したハイコントラスト色を適用する
@@ -330,6 +334,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
             return
         }
         preparedMovementReplayResolution = resolution
+        presentationCurrentPoint = movementReplayStartPoint(for: resolution)
         if let initialBoard = resolution.presentationInitialBoard {
             scene.updateBoard(initialBoard)
         }
@@ -364,6 +369,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
         presentationEnemyStates = step.enemyStatesAfter
         presentationCrackedFloorPoints = step.crackedFloorPointsAfter
         presentationCollapsedFloorPoints = step.collapsedFloorPointsAfter
+        presentationCurrentPoint = step.point
         pushHighlightsToScene()
         onMovementPresentationStep?(step)
     }
@@ -374,6 +380,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
         presentationEnemyStates = nil
         presentationCrackedFloorPoints = nil
         presentationCollapsedFloorPoints = nil
+        presentationCurrentPoint = nil
         presentationPreviousCollectedDungeonCardPickupIDs = nil
         presentationPreviousCollectedDungeonRelicPickupIDs = nil
         completedMovementReplayResolution = preparedMovementReplayResolution
@@ -388,6 +395,18 @@ final class GameBoardBridgeViewModel: ObservableObject {
         pushHighlightsToScene()
         onMovementPresentationFinished?()
         playPendingEnemyTurnAfterMovementReplayIfNeeded()
+    }
+
+    private func movementReplayStartPoint(for resolution: MovementResolution) -> GridPoint? {
+        if let currentScenePoint = scene.currentKnightPointForPresentation() {
+            return currentScenePoint
+        }
+        guard resolution.path.count >= 2 else {
+            return core.current
+        }
+        let first = resolution.path[0]
+        let second = resolution.path[1]
+        return first.offset(dx: first.x - second.x, dy: first.y - second.y)
     }
 
     private func playCollectionEffectsIfNeeded(
@@ -497,9 +516,10 @@ final class GameBoardBridgeViewModel: ObservableObject {
             ? core.watcherLaserDangerDisplayPoints(forDisplayedEnemyStates: displayedEnemyStates)
             : core.enemyDangerDisplayPoints(forDisplayedEnemyStates: displayedEnemyStates)
         let displayedEnemyWarningPoints = core.enemyWarningPoints(forDisplayedEnemyStates: displayedEnemyStates)
+        let darknessCurrentPoint = presentationCurrentPoint ?? core.current
         let dungeonVisiblePoints = isDarknessEnabled
             ? makeDarknessVisiblePoints(
-                current: core.current,
+                current: darknessCurrentPoint,
                 exitPoint: mode.dungeonExitPoint,
                 dangerPoints: shouldDeferEnemyThreatHighlights ? [] : displayedEnemyDangerPoints,
                 warningPoints: shouldDeferEnemyThreatHighlights ? [] : displayedEnemyWarningPoints,

@@ -268,6 +268,9 @@ extension GameViewModel {
             startingRewardEntries: dungeonGrowthStore.startingRewardEntries(
                 for: dungeon,
                 startingFloorIndex: sectionStartFloorIndex
+            ) + dungeonGrowthStore.retryRewardEntries(
+                for: dungeon,
+                startingFloorIndex: sectionStartFloorIndex
             ),
             startingHazardDamageMitigations: dungeonGrowthStore.startingHazardDamageMitigations(
                 for: dungeon

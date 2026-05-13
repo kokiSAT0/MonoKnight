@@ -194,4 +194,8 @@ public extension SupportCard {
             )
         }
     }
+
+    var encyclopediaEntry: SupportCardEncyclopediaEntry? {
+        Self.encyclopediaEntries.first { $0.card == self }
+    }
 }

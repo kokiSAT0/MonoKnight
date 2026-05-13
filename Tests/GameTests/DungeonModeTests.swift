@@ -1,7 +1,13 @@
 import XCTest
 @testable import Game
+@testable import SharedSupport
 
 final class DungeonModeTests: XCTestCase {
+    override func tearDownWithError() throws {
+        DebugLogHistory.shared.setFrontEndViewerEnabled(true)
+        DebugLogHistory.shared.clear()
+    }
+
     func testDungeonExitClearsWithoutTargetCollection() throws {
         let mode = makeDungeonMode(
             spawn: GridPoint(x: 0, y: 0),
@@ -17,6 +23,71 @@ final class DungeonModeTests: XCTestCase {
         playMove(to: GridPoint(x: 1, y: 0), in: core)
 
         XCTAssertEqual(core.progress, .cleared)
+    }
+
+    func testDungeonPlayDiagnosticsCaptureBasicTrapAndEnemyEvents() throws {
+        DebugLogHistory.shared.setFrontEndViewerEnabled(true)
+        DebugLogHistory.shared.clear()
+        let trapPoint = GridPoint(x: 0, y: 1)
+        let patrol = EnemyDefinition(
+            id: "diagnostic-patrol",
+            name: "巡回兵",
+            position: GridPoint(x: 3, y: 3),
+            behavior: .patrol(path: [
+                GridPoint(x: 3, y: 3),
+                GridPoint(x: 4, y: 3)
+            ])
+        )
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            turnLimit: 6,
+            enemies: [patrol],
+            hazards: [.damageTrap(points: [trapPoint], damage: 1)],
+            allowsBasicOrthogonalMove: true,
+            cardAcquisitionMode: .inventoryOnly,
+            runState: DungeonRunState(dungeonID: "growth-tower", carriedHP: 3)
+        )
+        let core = makeCore(mode: mode)
+
+        DebugLogHistory.shared.clear()
+        playBasicMove(to: trapPoint, in: core)
+        let messages = playDiagnosticMessages()
+
+        XCTAssertTrue(messages.contains { $0.contains("event=move_start") && $0.contains("input=basic") })
+        XCTAssertTrue(messages.contains { $0.contains("event=move_resolved") && $0.contains("input=basic") })
+        XCTAssertTrue(messages.contains { $0.contains("event=damage_applied") && $0.contains("source=罠") })
+        XCTAssertTrue(messages.contains { $0.contains("event=enemy_turn") && $0.contains("diagnostic-patrol") })
+    }
+
+    func testDungeonPlayDiagnosticsCaptureCardMoveAndRewardDrawEvents() throws {
+        DebugLogHistory.shared.setFrontEndViewerEnabled(true)
+        DebugLogHistory.shared.clear()
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            turnLimit: 6,
+            allowsBasicOrthogonalMove: true,
+            runState: DungeonRunState(dungeonID: "growth-tower", carriedHP: 3)
+        )
+        let core = makeCore(mode: mode, cards: [.straightRight2, .straightUp2, .rayRight])
+
+        DebugLogHistory.shared.clear()
+        let cardMove = try XCTUnwrap(core.availableMoves().first { $0.destination == GridPoint(x: 2, y: 0) })
+        core.playCard(using: cardMove)
+        _ = DungeonWeightedRewardPools.drawUniqueOffers(
+            from: DungeonWeightedRewardPools.entries(floorIndex: 0, context: .clearReward),
+            context: .clearReward,
+            count: 2,
+            seed: 123,
+            floorIndex: 0,
+            salt: 456
+        )
+        let messages = playDiagnosticMessages()
+
+        XCTAssertTrue(messages.contains { $0.contains("event=move_start") && $0.contains("input=card") })
+        XCTAssertTrue(messages.contains { $0.contains("event=move_resolved") && $0.contains("input=card") })
+        XCTAssertTrue(messages.contains { $0.contains("event=reward_draw") && $0.contains("seed=123") })
     }
 
     func testDungeonTurnLimitStartsFatigueAfterNonExitMove() throws {
@@ -2572,6 +2643,76 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertNil(steps[1].stopReason)
     }
 
+    func testRayMoveDoesNotTakeDamageFromRotatingWatcherCurrentLineOutsideDisplayedDanger() throws {
+        let rotatingWatcher = EnemyDefinition(
+            id: "rotating-watcher",
+            name: "回転見張り",
+            position: GridPoint(x: 2, y: 1),
+            behavior: .rotatingWatcher(
+                initialDirection: MoveVector(dx: 0, dy: 1),
+                rotationDirection: .clockwise,
+                range: 3
+            )
+        )
+        let currentDangerPoint = GridPoint(x: 2, y: 2)
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 2),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 3,
+            turnLimit: 8,
+            enemies: [rotatingWatcher]
+        )
+        let core = makeCore(mode: mode, cards: [.rayRight, .kingUpRight, .straightRight2, .straightLeft2, .straightDown2])
+
+        XCTAssertTrue(core.enemyDangerPoints.contains(currentDangerPoint))
+        XCTAssertFalse(core.enemyDangerDisplayPoints.contains(currentDangerPoint))
+
+        playMove(to: GridPoint(x: 4, y: 2), in: core)
+
+        let steps = try XCTUnwrap(core.lastMovementResolution?.presentationSteps)
+        XCTAssertEqual(core.dungeonHP, 3)
+        XCTAssertFalse(steps.contains(where: \.tookDamage))
+    }
+
+    func testRayMoveTakesDamageFromRotatingWatcherDisplayedDangerPoint() throws {
+        let rotatingWatcher = EnemyDefinition(
+            id: "rotating-watcher",
+            name: "回転見張り",
+            position: GridPoint(x: 2, y: 1),
+            behavior: .rotatingWatcher(
+                initialDirection: MoveVector(dx: 0, dy: 1),
+                rotationDirection: .clockwise,
+                range: 3
+            )
+        )
+        let displayedDangerPoint = GridPoint(x: 3, y: 1)
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 3, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 3,
+            turnLimit: 8,
+            enemies: [rotatingWatcher]
+        )
+        let core = makeCore(mode: mode, cards: [.rayUp, .kingUpRight, .straightRight2, .straightLeft2, .straightDown2])
+
+        XCTAssertFalse(core.enemyDangerPoints.contains(displayedDangerPoint))
+        XCTAssertTrue(core.enemyDangerDisplayPoints.contains(displayedDangerPoint))
+
+        playMove(to: GridPoint(x: 3, y: 4), in: core)
+
+        let steps = try XCTUnwrap(core.lastMovementResolution?.presentationSteps)
+        XCTAssertEqual(core.dungeonHP, 2)
+        XCTAssertEqual(steps.map(\.point), [
+            displayedDangerPoint,
+            GridPoint(x: 3, y: 2),
+            GridPoint(x: 3, y: 3),
+            GridPoint(x: 3, y: 4)
+        ])
+        XCTAssertEqual(steps[0].hpAfter, 2)
+        XCTAssertTrue(steps[0].tookDamage)
+        XCTAssertNil(steps[0].stopReason)
+    }
+
     func testRayMoveStopsAtEnemyDangerWhenHPReachesZero() throws {
         let watcher = EnemyDefinition(
             id: "watcher",
@@ -3484,6 +3625,26 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertFalse(core.isDungeonExitUnlocked)
         XCTAssertEqual(core.current, GridPoint(x: 4, y: 0))
         XCTAssertEqual(core.lastMovementResolution?.finalPosition, GridPoint(x: 4, y: 0))
+        XCTAssertNil(core.dungeonLockedExitReachEvent)
+    }
+
+    func testLockedExitReachPublishesNoticeEventWithoutClearing() throws {
+        let exit = GridPoint(x: 2, y: 0)
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: exit,
+            hp: 3,
+            turnLimit: 8,
+            exitLock: DungeonExitLock(unlockPoint: GridPoint(x: 4, y: 4))
+        )
+        let core = makeCore(mode: mode, cards: [.straightRight2, .kingUpRight, .straightLeft2, .straightDown2, .rayRight])
+
+        playMove(to: exit, in: core)
+
+        XCTAssertEqual(core.progress, .playing)
+        XCTAssertFalse(core.isDungeonExitUnlocked)
+        XCTAssertEqual(core.current, exit)
+        XCTAssertEqual(core.dungeonLockedExitReachEvent?.exitPoint, exit)
     }
 
     func testDirectionalRayUnlocksKeyThenClearsExitInSameMove() throws {
@@ -3506,6 +3667,7 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertTrue(core.isDungeonExitUnlocked)
         XCTAssertTrue(core.dungeonKeyPoints.isEmpty)
         XCTAssertEqual(core.dungeonExitUnlockEvent?.unlockPoint, unlockPoint)
+        XCTAssertNil(core.dungeonLockedExitReachEvent)
         XCTAssertEqual(core.current, exit)
         XCTAssertEqual(
             core.lastMovementResolution?.path,
@@ -7157,5 +7319,11 @@ final class DungeonModeTests: XCTestCase {
             return
         }
         core.playBasicOrthogonalMove(using: move)
+    }
+
+    private func playDiagnosticMessages() -> [String] {
+        DebugLogHistory.shared.snapshot()
+            .map(\.message)
+            .filter { $0.contains("[PLAY]") }
     }
 }

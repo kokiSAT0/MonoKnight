@@ -13,6 +13,12 @@ extension AppTheme {
     /// 未踏破マスの塗り色
     var boardTileUnvisited: Color { schemeColor(light: Color.black.opacity(0.025), dark: Color.white.opacity(0.05)) }
 
+    /// 暗闇フロアで視界外になっているマスの塗り色
+    var boardDarknessHiddenTile: Color { schemeColor(light: Color.black.opacity(0.56), dark: Color.black.opacity(0.88)) }
+
+    /// 暗闇フロアで視界境界を示す線色
+    var boardDarknessBoundary: Color { schemeColor(light: Color.white.opacity(0.72), dark: Color.white.opacity(0.42)) }
+
     /// 複数回踏破マスの基準色
     var boardTileMultiBase: Color { boardTileUnvisited }
 

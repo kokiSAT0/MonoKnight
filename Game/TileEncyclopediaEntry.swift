@@ -252,3 +252,42 @@ public struct TileEncyclopediaEntry: Identifiable, Equatable, Sendable {
         )
     ]
 }
+
+public extension TileEncyclopediaEntry {
+    static func entry(id: String) -> TileEncyclopediaEntry? {
+        allEntries.first { $0.id == id }
+    }
+
+    static func entry(for effect: TileEffect) -> TileEncyclopediaEntry? {
+        switch effect {
+        case .warp:
+            return entry(id: "warp")
+        case .returnWarp:
+            return entry(id: "returnWarp")
+        case .shuffleHand:
+            return entry(id: "shuffleHand")
+        case .blast:
+            return entry(id: "blast")
+        case .slow:
+            return entry(id: "paralysisTrap")
+        case .shackleTrap:
+            return entry(id: "shackleTrap")
+        case .poisonTrap:
+            return entry(id: "poisonTrap")
+        case .illusionTrap:
+            return entry(id: "illusionTrap")
+        case .swamp:
+            return entry(id: "swamp")
+        case .preserveCard:
+            return entry(id: "preserveCard")
+        case .discardRandomHand:
+            return entry(id: "discardRandomHandTrap")
+        case .discardAllMoveCards:
+            return entry(id: "discardAllMoveCardsTrap")
+        case .discardAllSupportCards:
+            return entry(id: "discardAllSupportCardsTrap")
+        case .discardAllHands:
+            return entry(id: "discardAllHandsTrap")
+        }
+    }
+}

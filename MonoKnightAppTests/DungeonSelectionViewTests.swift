@@ -107,6 +107,107 @@ final class DungeonSelectionViewTests: XCTestCase {
         XCTAssertNil(DungeonGrowthTreeCardPresentation.make(dungeon: rogueTower, growthStore: growthStore))
     }
 
+    func testDungeonGrowthForecastAppearsOnlyForActiveScoutingSkills() throws {
+        let growthTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let emptyStore = makeGrowthStore(unlocked: [])
+
+        XCTAssertNil(
+            DungeonGrowthForecastPresentation.make(
+                dungeon: growthTower,
+                startFloorNumber: 1,
+                growthStore: emptyStore
+            )
+        )
+
+        let inactiveStore = makeGrowthStore(unlocked: [.floorSense], active: [])
+        XCTAssertNil(
+            DungeonGrowthForecastPresentation.make(
+                dungeon: growthTower,
+                startFloorNumber: 1,
+                growthStore: inactiveStore
+            )
+        )
+
+        let activeStore = makeGrowthStore(unlocked: [.floorSense])
+        let presentation = try XCTUnwrap(
+            DungeonGrowthForecastPresentation.make(
+                dungeon: growthTower,
+                startFloorNumber: 1,
+                growthStore: activeStore
+            )
+        )
+
+        XCTAssertEqual(presentation.title, "次区間の見通し")
+        XCTAssertEqual(presentation.floorRangeText, "1F-10F")
+        XCTAssertEqual(presentation.rows.map(\.category), [.floor])
+        XCTAssertTrue(presentation.rows[0].text.contains("床"))
+    }
+
+    func testDungeonGrowthForecastSeparatesRewardAndEnemyCategories() throws {
+        let growthTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let growthStore = makeGrowthStore(unlocked: [.rewardSense, .enemySense])
+
+        let presentation = try XCTUnwrap(
+            DungeonGrowthForecastPresentation.make(
+                dungeon: growthTower,
+                startFloorNumber: 11,
+                growthStore: growthStore
+            )
+        )
+
+        XCTAssertEqual(presentation.floorRangeText, "11F-20F")
+        XCTAssertEqual(presentation.rows.map(\.category), [.reward, .enemy])
+        XCTAssertTrue(presentation.rows[0].text.contains("報酬"))
+        XCTAssertTrue(presentation.rows[0].text.contains("拾得カード"))
+        XCTAssertTrue(presentation.rows[1].text.contains("敵"))
+    }
+
+    func testDungeonGrowthForecastStaysOutOfNonGrowthTowers() throws {
+        let tutorialTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
+        let rogueTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "rogue-tower"))
+        let growthStore = makeGrowthStore(unlocked: [.floorSense, .rewardSense, .enemySense])
+
+        XCTAssertNil(
+            DungeonGrowthForecastPresentation.make(
+                dungeon: tutorialTower,
+                startFloorNumber: 1,
+                growthStore: growthStore
+            )
+        )
+        XCTAssertNil(
+            DungeonGrowthForecastPresentation.make(
+                dungeon: rogueTower,
+                startFloorNumber: 1,
+                growthStore: growthStore
+            )
+        )
+    }
+
+    func testDungeonGrowthForecastAddsDeepAndFinalRowsForLaterSections() throws {
+        let growthTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let growthStore = makeGrowthStore(unlocked: [.deepForecast, .routeForecast])
+
+        let deepPresentation = try XCTUnwrap(
+            DungeonGrowthForecastPresentation.make(
+                dungeon: growthTower,
+                startFloorNumber: 31,
+                growthStore: growthStore
+            )
+        )
+        XCTAssertEqual(deepPresentation.floorRangeText, "31F-40F")
+        XCTAssertEqual(deepPresentation.rows.map(\.category), [.deep])
+
+        let finalPresentation = try XCTUnwrap(
+            DungeonGrowthForecastPresentation.make(
+                dungeon: growthTower,
+                startFloorNumber: 41,
+                growthStore: growthStore
+            )
+        )
+        XCTAssertEqual(finalPresentation.floorRangeText, "41F-50F")
+        XCTAssertEqual(finalPresentation.rows.map(\.category), [.deep, .final])
+    }
+
     func testDungeonSelectionDoesNotRenderMilestoneBadgesAtPhoneWidth() throws {
         let suiteName = "DungeonSelectionViewTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName) ?? .standard
@@ -266,24 +367,12 @@ final class DungeonSelectionViewTests: XCTestCase {
         )
     }
 
-    func testDungeonSelectionGrowthTreeLockStateChangesAfterMilestones() throws {
-        let suiteName = "DungeonSelectionViewTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName) ?? .standard
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-        let growthStore = DungeonGrowthStore(userDefaults: defaults)
-        let growthTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
-        let fifthFloor = DungeonRunState(dungeonID: growthTower.id, currentFloorIndex: 4, carriedHP: 3, clearedFloorCount: 4)
-        let tenthFloor = DungeonRunState(dungeonID: growthTower.id, currentFloorIndex: 9, carriedHP: 3, clearedFloorCount: 9)
-
-        _ = growthStore.registerDungeonClear(dungeon: growthTower, runState: fifthFloor, hasNextFloor: true)
+    func testDungeonSelectionGrowthTreeLockStateFollowsPrerequisites() throws {
+        let growthStore = makeGrowthStore(unlocked: [], active: [], points: 2)
 
         XCTAssertTrue(growthStore.canUnlock(.toolPouch))
         XCTAssertEqual(growthStore.lockReason(for: .climbingKit), "前提: 道具袋")
         XCTAssertTrue(growthStore.unlock(.toolPouch))
-        XCTAssertEqual(growthStore.lockReason(for: .climbingKit), "10F到達後")
-
-        _ = growthStore.registerDungeonClear(dungeon: growthTower, runState: tenthFloor, hasNextFloor: true)
-
         XCTAssertTrue(growthStore.canUnlock(.climbingKit))
     }
 
@@ -317,9 +406,8 @@ final class DungeonSelectionViewTests: XCTestCase {
                 "dungeon_growth_branch_role_recovery"
             ]
         )
-        XCTAssertEqual(presentation.tierFloors, [5, 10, 15, 20, 25, 30, 35, 40, 45, 50])
-        XCTAssertEqual(presentation.tierCount, 10)
-        XCTAssertEqual(presentation.tierFloors.map { presentation.gateText(forTierFloor: $0) }, ["5F", "10F", "15F", "20F", "25F", "30F", "35F", "40F", "45F", "50F"])
+        XCTAssertEqual(presentation.stageIndices, Array(0..<9))
+        XCTAssertEqual(presentation.tierCount, 9)
         XCTAssertEqual(presentation.lanes[0].nodes.map(\.upgrade), [.toolPouch, .climbingKit, .shortcutKit, .refillCharm, .deepStartKit, .routeKit, .deepSupplyCraft, .finalPreparation])
         XCTAssertEqual(presentation.lanes[1].nodes.map(\.upgrade), [.rewardScout, .cardPreservation, .widerRewardRead, .supportScout, .relicScout, .rewardUpgradeScout, .rewardRerollRead, .supportMastery, .rewardCompletion])
         XCTAssertEqual(presentation.lanes[2].nodes.map(\.upgrade), [.footingRead, .enemyRead, .secondStep, .meteorRead, .lastStand, .enemyReadPlus, .fallInsurance, .dangerForecast, .finalGuard])
@@ -330,6 +418,11 @@ final class DungeonSelectionViewTests: XCTestCase {
         XCTAssertEqual(presentation.lane(for: .reward)?.branchSummary, "クリア後候補とカード運用")
         XCTAssertEqual(presentation.lane(for: .reward)?.defaultSelectedUpgrade, .rewardScout)
         XCTAssertEqual(presentation.node(for: .rewardCompletion)?.tierFloor, 50)
+        XCTAssertEqual(presentation.node(for: .retryPreparation)?.summary, "21F以降の再挑戦時に補給を1回分持ちます")
+        XCTAssertEqual(presentation.node(for: .deepCheckpointRead)?.summary, "21F以降の再挑戦時に障壁の呪文を1回分持ちます")
+        XCTAssertEqual(presentation.node(for: .checkpointExpansion)?.summary, "31F以降の再挑戦時に万能薬を1回分持ちます")
+        XCTAssertEqual(presentation.node(for: .comebackRoute)?.summary, "41F以降の再挑戦時に経路用カードを1回分持ちます")
+        XCTAssertEqual(presentation.node(for: .finalRecovery)?.summary, "41F以降の再挑戦時に凍結の呪文を1回分持ちます")
     }
 
     func testDungeonGrowthTreePresentationDerivesNodeStates() throws {
@@ -360,11 +453,11 @@ final class DungeonSelectionViewTests: XCTestCase {
         presentation = DungeonGrowthTreePresentation.make(growthStore: growthStore)
         XCTAssertEqual(presentation.node(for: .toolPouch)?.state, .inactive)
         XCTAssertEqual(presentation.node(for: .climbingKit)?.state, .locked)
-        XCTAssertEqual(presentation.node(for: .climbingKit)?.lockReason, "10F到達後")
-        XCTAssertEqual(presentation.node(for: .climbingKit)?.lockDetailTexts, ["到達条件: 10F到達後", "必要ポイント: 1pt"])
+        XCTAssertEqual(presentation.node(for: .climbingKit)?.lockReason, "ポイント不足")
+        XCTAssertEqual(presentation.node(for: .climbingKit)?.lockDetailTexts, ["必要ポイント: 1pt"])
     }
 
-    func testDungeonGrowthTreePresentationSeparatesPrerequisiteAndMilestoneLocks() throws {
+    func testDungeonGrowthTreePresentationSeparatesPrerequisiteAndPointLocks() throws {
         let suiteName = "DungeonSelectionViewTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName) ?? .standard
         defer { defaults.removePersistentDomain(forName: suiteName) }
@@ -376,7 +469,6 @@ final class DungeonSelectionViewTests: XCTestCase {
         XCTAssertEqual(node.lockReason, "前提: 道具袋")
         XCTAssertEqual(node.lockDetailTexts, [
             "前提スキル: 道具袋",
-            "到達条件: 10F到達後",
             "必要ポイント: 1pt"
         ])
         XCTAssertEqual(node.branchFocusText, "この系統: 区間開始時の手札を厚くします")
@@ -430,6 +522,23 @@ final class DungeonSelectionViewTests: XCTestCase {
             collectedDungeonCardPickupIDs: [],
             isDungeonExitUnlocked: true
         )
+    }
+
+    private func makeGrowthStore(
+        unlocked: Set<DungeonGrowthUpgrade>,
+        active: Set<DungeonGrowthUpgrade>? = nil,
+        points: Int = 0
+    ) -> DungeonGrowthStore {
+        let suiteName = "DungeonSelectionViewTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName) ?? .standard
+        let snapshot = DungeonGrowthSnapshot(
+            points: points,
+            unlockedUpgrades: unlocked,
+            activeUpgrades: active ?? unlocked
+        )
+        let data = try? JSONEncoder().encode(snapshot)
+        defaults.set(data, forKey: StorageKey.UserDefaults.dungeonGrowth)
+        return DungeonGrowthStore(userDefaults: defaults)
     }
 
     private func accessibilityIdentifiers(in view: UIView) -> [String] {

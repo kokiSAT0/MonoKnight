@@ -10,6 +10,8 @@ struct PauseMenuView: View {
     let onResume: () -> Void
     /// タイトルへ戻る確定時の処理
     let onConfirmReturnToTitle: () -> Void
+    /// 内部テスター向け共有レポートを生成するクロージャ
+    let diagnosticReportText: (() -> String)?
 
     /// GameView 側から利用できるようアクセスレベルを明示したカスタムイニシャライザ
     /// - Parameters:
@@ -17,10 +19,12 @@ struct PauseMenuView: View {
     ///   - onConfirmReturnToTitle: タイトル復帰確定時に実行するクロージャ
     init(
         onResume: @escaping () -> Void,
-        onConfirmReturnToTitle: @escaping () -> Void
+        onConfirmReturnToTitle: @escaping () -> Void,
+        diagnosticReportText: (() -> String)? = nil
     ) {
         self.onResume = onResume
         self.onConfirmReturnToTitle = onConfirmReturnToTitle
+        self.diagnosticReportText = diagnosticReportText
     }
 
     /// シートを閉じるための環境ディスミス
@@ -161,6 +165,17 @@ private extension PauseMenuView {
             .buttonStyle(.bordered)
             .foregroundColor(theme.textPrimary)
             .accessibilityIdentifier(PauseMenuAccessibilityIdentifier.helpButton)
+
+            if let diagnosticReportText {
+                ShareLink(item: diagnosticReportText()) {
+                    Label("問題を報告", systemImage: "square.and.arrow.up")
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                }
+                .buttonStyle(.bordered)
+                .foregroundColor(theme.textPrimary)
+                .accessibilityIdentifier(PauseMenuAccessibilityIdentifier.reportIssueButton)
+            }
 
             Button {
                 pendingAction = .returnToTitle
@@ -313,6 +328,7 @@ enum PauseMenuAccessibilityIdentifier {
     static let panel = "pause_menu_panel"
     static let resumeButton = "pause_resume_button"
     static let helpButton = "pause_help_button"
+    static let reportIssueButton = "pause_report_issue_button"
     static let returnToTitleButton = "pause_return_to_title_button"
     static let settingsDisclosure = "pause_settings_disclosure"
 }

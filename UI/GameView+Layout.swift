@@ -74,6 +74,11 @@ extension GameView {
                 .transition(.move(edge: .bottom).combined(with: .opacity))
                 .zIndex(4)
             }
+            if let inspection = viewModel.activeInlineInspection {
+                inlineInspectionOverlay(inspection, using: layoutContext)
+                    .transition(.opacity.combined(with: .scale(scale: 0.96)))
+                    .zIndex(4)
+            }
             if let presentation = viewModel.activeDungeonRelicAcquisitionPresentation {
                 DungeonRelicAcquisitionOverlayView(
                     presentation: presentation,
@@ -91,6 +96,9 @@ extension GameView {
         .background(theme.backgroundPrimary)
         // 盤面が表示されない不具合を切り分けるため、レイアウト関連の値をウォッチする不可視ビューを重ねる
         .background(diagnosticsOverlay)
+        .onDisappear {
+            viewModel.dismissInlineInspection()
+        }
     }
 
     /// 盤面の統計と SpriteKit ボードをまとめて描画する
@@ -120,6 +128,11 @@ extension GameView {
             .anchorPreference(key: BoardAnchorPreferenceKey.self, value: .bounds) { $0 }
             .onAppear {
                 // BoardBridge 側で SpriteKit シーンと GameCore の同期をまとめて実施
+                scene.onLongPressGridPoint = { [weak viewModel] point in
+                    Task { @MainActor in
+                        viewModel?.handleBoardLongPress(at: point)
+                    }
+                }
                 boardBridge.configureSceneOnAppear(width: width)
             }
             // ジオメトリの変化に追従できるよう、SpriteKit シーンのサイズも都度更新する
@@ -146,6 +159,48 @@ extension GameView {
         .shadow(color: theme.spawnOverlayShadow.opacity(0.8), radius: 18, x: 0, y: 8)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("failed_board_inspection_bar")
+    }
+
+    func inlineInspectionOverlay(
+        _ inspection: GameInlineInspection,
+        using layoutContext: GameViewLayoutContext
+    ) -> some View {
+        VStack {
+            Spacer(minLength: 0)
+            InlineInspectionCardView(
+                theme: theme,
+                inspection: inspection,
+                onClose: {
+                    viewModel.dismissInlineInspection()
+                }
+            )
+            .padding(.horizontal, 18)
+            .padding(.bottom, inlineInspectionBottomPadding(for: inspection, using: layoutContext))
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(
+            Color.clear
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    viewModel.dismissInlineInspection()
+                }
+        )
+        .accessibilityIdentifier("inline_inspection_overlay")
+    }
+
+    func inlineInspectionBottomPadding(
+        for inspection: GameInlineInspection,
+        using layoutContext: GameViewLayoutContext
+    ) -> CGFloat {
+        switch inspection {
+        case .support:
+            return max(layoutContext.bottomInset + 10, layoutContext.handSectionBottomPadding + 8)
+        case .tile:
+            return max(
+                layoutContext.bottomInset + layoutContext.resolvedHandSectionHeight + 18,
+                layoutContext.handSectionBottomPadding + layoutContext.resolvedHandSectionHeight + 12
+            )
+        }
     }
 
     func failedBoardInspectionBarContent(isStacked: Bool) -> some View {
@@ -520,5 +575,65 @@ private struct SupportPickupChoiceIllustrationView: View {
         case .panacea:
             return "pills.fill"
         }
+    }
+}
+
+private struct InlineInspectionCardView: View {
+    let theme: AppTheme
+    let inspection: GameInlineInspection
+    let onClose: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: inspection.systemImageName)
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundColor(theme.accentPrimary)
+                .frame(width: 38, height: 38)
+                .background(Circle().fill(theme.accentPrimary.opacity(0.14)))
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(inspection.category)
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .foregroundColor(theme.accentPrimary)
+                    .lineLimit(1)
+                Text(inspection.displayName)
+                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                    .foregroundColor(theme.textPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.78)
+                Text(inspection.description)
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .foregroundColor(theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .lineLimit(4)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            Button(action: onClose) {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundColor(theme.textSecondary)
+                    .frame(width: 32, height: 32)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Text("説明を閉じる"))
+        }
+        .padding(.vertical, 12)
+        .padding(.leading, 14)
+        .padding(.trailing, 10)
+        .frame(maxWidth: 520)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(theme.spawnOverlayBackground)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(theme.spawnOverlayBorder, lineWidth: 1)
+                )
+        )
+        .shadow(color: theme.spawnOverlayShadow.opacity(0.8), radius: 16, x: 0, y: 8)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(Text("\(inspection.displayName)。\(inspection.description)"))
+        .accessibilityIdentifier("inline_inspection_card")
     }
 }

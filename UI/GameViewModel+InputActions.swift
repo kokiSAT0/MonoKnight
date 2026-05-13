@@ -105,11 +105,14 @@ extension GameViewModel {
         var nextSessionState = sessionState
         var nextSelectedHandStackID = selectedHandStackID
         mutation(&nextSessionState, &nextSelectedHandStackID)
+        let nextIsBasicMoveCardSelected = nextSessionState.isBasicOrthogonalSelected
         sessionState = nextSessionState
+        isBasicMoveCardSelectionVisible = nextIsBasicMoveCardSelected
         selectedHandStackID = nextSelectedHandStackID
     }
 
     func handleHandSlotTap(at index: Int) {
+        dismissInlineInspection()
         clearBoardTapSelectionWarning()
         mutateSelectionState { sessionState, selectedHandStackID in
             inputFlowCoordinator.handleHandSlotTap(
@@ -132,6 +135,7 @@ extension GameViewModel {
     }
 
     func handleBoardTapPlayRequest(_ request: BoardTapPlayRequest) {
+        dismissInlineInspection()
         clearBoardTapSelectionWarning()
         mutateSelectionState { sessionState, selectedHandStackID in
             inputFlowCoordinator.handleBoardTapPlayRequest(
@@ -153,6 +157,7 @@ extension GameViewModel {
     }
 
     func handleBoardTapBasicMoveRequest(_ request: BoardTapBasicMoveRequest) {
+        dismissInlineInspection()
         clearBoardTapSelectionWarning()
         mutateSelectionState { sessionState, selectedHandStackID in
             inputFlowCoordinator.handleBoardTapBasicMoveRequest(
@@ -173,6 +178,7 @@ extension GameViewModel {
     }
 
     func clearSelectedCardSelection() {
+        dismissInlineInspection()
         core.cancelTargetedSupportCardSelection()
         mutateSelectionState { sessionState, selectedHandStackID in
             inputFlowCoordinator.clearSelectedCardSelection(
@@ -207,5 +213,97 @@ extension GameViewModel {
 
     func isBoardTapSelectionWarningHighlighting(_ stack: HandStack) -> Bool {
         boardTapSelectionWarning?.highlightedStackIDs.contains(stack.id) == true
+    }
+
+    func dismissInlineInspection() {
+        activeInlineInspection = nil
+    }
+
+    func showSupportCardInspection(for stack: HandStack) {
+        guard let support = stack.topCard?.supportCard,
+              let entry = support.encyclopediaEntry
+        else { return }
+        boardTapSelectionWarning = nil
+        activeInlineInspection = .support(entry, stackID: stack.id)
+    }
+
+    func handleBoardLongPress(at point: GridPoint) {
+        guard let entry = tileInspectionEntry(at: point) else { return }
+        boardTapSelectionWarning = nil
+        activeInlineInspection = .tile(entry, point: point)
+    }
+
+    func tileInspectionEntry(at point: GridPoint) -> TileEncyclopediaEntry? {
+        guard mode.usesDungeonExit, core.board.contains(point) else { return nil }
+        if let visiblePoints = boardBridge.scene.latestDungeonVisiblePointsForTesting(),
+           !visiblePoints.contains(point) {
+            return nil
+        }
+
+        if core.activeDungeonRelicPickups.contains(where: { $0.point == point }) {
+            return TileEncyclopediaEntry.entry(id: "dungeonRelicPickup")
+        }
+        if core.activeDungeonCardPickups.contains(where: { $0.point == point }) {
+            return TileEncyclopediaEntry.entry(id: "cardPickup")
+        }
+        if core.dungeonKeyPoints.contains(point) {
+            return TileEncyclopediaEntry.entry(id: "dungeonKey")
+        }
+        if point == mode.dungeonExitPoint {
+            return TileEncyclopediaEntry.entry(id: core.isDungeonExitUnlocked ? "dungeonExit" : "lockedDungeonExit")
+        }
+        if core.collapsedFloorPoints.contains(point) {
+            return TileEncyclopediaEntry.entry(id: "collapsedFloor")
+        }
+        if core.crackedFloorPoints.contains(point) || brittleFloorPoints.contains(point) {
+            return TileEncyclopediaEntry.entry(id: "brittleFloor")
+        }
+        if core.damageTrapPoints.contains(point) {
+            return TileEncyclopediaEntry.entry(id: "damageTrap")
+        }
+        if core.lavaTilePoints.contains(point) {
+            return TileEncyclopediaEntry.entry(id: "lavaTile")
+        }
+        if core.healingTilePoints.contains(point) {
+            return TileEncyclopediaEntry.entry(id: "healingTile")
+        }
+        if let effect = core.board.effect(at: point), !effect.isWarpInspectionEffect {
+            return TileEncyclopediaEntry.entry(for: effect)
+        }
+        if core.enemyDangerDisplayPoints.contains(point) {
+            return TileEncyclopediaEntry.entry(id: "enemyDanger")
+        }
+        if core.enemyWarningPoints.contains(point) {
+            return TileEncyclopediaEntry.entry(id: "enemyWarning")
+        }
+        if mode.impassableTilePoints.contains(point) || core.board.state(at: point)?.isImpassable == true {
+            return TileEncyclopediaEntry.entry(id: "impassable")
+        }
+        if let effect = core.board.effect(at: point), effect.isWarpInspectionEffect {
+            return TileEncyclopediaEntry.entry(for: effect)
+        }
+
+        return nil
+    }
+
+    private var brittleFloorPoints: Set<GridPoint> {
+        var points: Set<GridPoint> = []
+        for hazard in mode.dungeonRules?.hazards ?? [] {
+            if case .brittleFloor(let floorPoints) = hazard {
+                points.formUnion(floorPoints)
+            }
+        }
+        return points
+    }
+}
+
+private extension TileEffect {
+    var isWarpInspectionEffect: Bool {
+        switch self {
+        case .warp, .returnWarp:
+            return true
+        case .shuffleHand, .blast, .slow, .shackleTrap, .poisonTrap, .illusionTrap, .swamp, .preserveCard, .discardRandomHand, .discardAllMoveCards, .discardAllSupportCards, .discardAllHands:
+            return false
+        }
     }
 }

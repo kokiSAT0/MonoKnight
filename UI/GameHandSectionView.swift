@@ -290,9 +290,15 @@ private extension GameHandSectionView {
                 .onTapGesture {
                     viewModel.handleHandSlotTap(at: index)
                 }
+                .onLongPressGesture {
+                    viewModel.showSupportCardInspection(for: stack)
+                }
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(Text(accessibilityLabel(for: stack)))
                 .accessibilityHint(Text(accessibilityHint(for: stack, isUsable: isUsable, isDiscardMode: isSelectingDiscard, isDungeonPickupChoiceMode: isSelectingDungeonPickup, isSelected: isSelected)))
+                .accessibilityAction(named: Text("効果を確認")) {
+                    viewModel.showSupportCardInspection(for: stack)
+                }
                 .accessibilityValue(Text(shouldShowConflictHighlight ? "選択候補" : (isSelected ? "選択中" : "")))
                 .accessibilityAddTraits(.isButton)
             } else {

@@ -18,6 +18,7 @@ struct DungeonSelectionView: View {
     @State private var selectedGrowthUpgrade: DungeonGrowthUpgrade?
     @State private var selectedGrowthBranch: DungeonGrowthBranch = .preparation
     @State private var isShowingAllGrowthBranches = false
+    @State private var selectedGrowthForecastStartFloorNumber: Int?
     @State private var pendingGrowthTowerIntroStart: PendingDungeonStart?
 
     @MainActor
@@ -140,6 +141,7 @@ struct DungeonSelectionView: View {
 
             growthSection(for: dungeon)
             resumeButtonIfNeeded(for: dungeon)
+            growthForecastSection(for: dungeon)
             startButtons(for: dungeon)
         }
         .padding(14)
@@ -372,11 +374,6 @@ struct DungeonSelectionView: View {
             }
         } label: {
             HStack(alignment: .center, spacing: 10) {
-                Text("\(node.tierFloor)F")
-                    .font(.system(size: 11, weight: .heavy, design: .rounded))
-                    .foregroundColor(theme.textSecondary)
-                    .frame(width: 34, alignment: .leading)
-
                 Image(systemName: node.iconSystemName)
                     .font(.system(size: 15, weight: .bold))
                     .foregroundColor(node.iconColor)
@@ -428,11 +425,6 @@ struct DungeonSelectionView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .center, spacing: 8) {
-                    Text("階")
-                        .font(.system(size: 11, weight: .bold, design: .rounded))
-                        .foregroundColor(theme.textSecondary)
-                        .frame(width: 34, alignment: .leading)
-
                     ForEach(presentation.lanes) { lane in
                         Label(lane.branchTitle, systemImage: lane.iconSystemName)
                             .font(.system(size: 11, weight: .bold, design: .rounded))
@@ -443,28 +435,20 @@ struct DungeonSelectionView: View {
                     }
                 }
 
-                ForEach(presentation.tierFloors, id: \.self) { tierFloor in
+                ForEach(presentation.stageIndices, id: \.self) { stageIndex in
                     HStack(alignment: .center, spacing: 8) {
-                        Text(presentation.gateText(forTierFloor: tierFloor))
-                            .font(.system(size: 11, weight: .heavy, design: .rounded))
-                            .foregroundColor(theme.textSecondary)
-                            .frame(width: 34, alignment: .leading)
-
                         ForEach(presentation.lanes) { lane in
                             VStack(spacing: 6) {
-                                let nodes = lane.nodes(atTierFloor: tierFloor)
-                                if nodes.isEmpty {
+                                if let node = lane.node(atStageIndex: stageIndex) {
+                                    growthNodeButton(node, isSelected: node.upgrade == selectedUpgrade)
+                                } else {
                                     Color.clear
                                         .frame(height: 58)
-                                } else {
-                                    ForEach(nodes) { node in
-                                        growthNodeButton(node, isSelected: node.upgrade == selectedUpgrade)
-                                    }
                                 }
 
-                                if lane.hasConnector(afterTierFloor: tierFloor) {
+                                if lane.hasConnector(afterStageIndex: stageIndex) {
                                     RoundedRectangle(cornerRadius: 2, style: .continuous)
-                                        .fill(lane.connectorColor(afterTierFloor: tierFloor))
+                                        .fill(lane.connectorColor(afterStageIndex: stageIndex))
                                         .frame(width: 4, height: 16)
                                 }
                             }
@@ -474,7 +458,7 @@ struct DungeonSelectionView: View {
                 }
             }
             .padding(10)
-            .frame(minWidth: CGFloat(presentation.lanes.count) * 80 + 42, alignment: .leading)
+            .frame(minWidth: CGFloat(presentation.lanes.count) * 80, alignment: .leading)
         }
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -625,6 +609,78 @@ struct DungeonSelectionView: View {
                 .stroke(node.strokeColor.opacity(0.7), lineWidth: 1)
         )
         .accessibilityIdentifier("dungeon_growth_detail_\(node.upgrade.rawValue)")
+    }
+
+    @ViewBuilder
+    private func growthForecastSection(for dungeon: DungeonDefinition) -> some View {
+        let floorNumbers = startFloorNumbers(for: dungeon)
+        let fallbackFloorNumber = floorNumbers.last ?? 1
+        let forecastFloorNumber = floorNumbers.contains(selectedGrowthForecastStartFloorNumber ?? -1)
+            ? (selectedGrowthForecastStartFloorNumber ?? fallbackFloorNumber)
+            : fallbackFloorNumber
+        if let presentation = DungeonGrowthForecastPresentation.make(
+            dungeon: dungeon,
+            startFloorNumber: forecastFloorNumber,
+            growthStore: dungeonGrowthStore
+        ) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Label(presentation.title, systemImage: "binoculars.fill")
+                        .font(.system(size: 14, weight: .heavy, design: .rounded))
+                        .foregroundColor(theme.textPrimary)
+                    Spacer()
+                    Text(presentation.floorRangeText)
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .foregroundColor(theme.accentPrimary)
+                }
+
+                if floorNumbers.count > 1 {
+                    HStack(spacing: 6) {
+                        ForEach(floorNumbers, id: \.self) { floorNumber in
+                            Button {
+                                selectedGrowthForecastStartFloorNumber = floorNumber
+                            } label: {
+                                Text("\(floorNumber)F")
+                                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                                    .frame(minWidth: 38)
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.mini)
+                            .tint(floorNumber == forecastFloorNumber ? theme.accentPrimary : theme.textSecondary)
+                            .accessibilityIdentifier("dungeon_growth_forecast_floor_\(floorNumber)f")
+                        }
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 7) {
+                    ForEach(presentation.rows) { row in
+                        Label {
+                            Text(row.text)
+                                .font(.system(size: 12, weight: .medium, design: .rounded))
+                                .foregroundColor(theme.textSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        } icon: {
+                            Image(systemName: row.iconSystemName)
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(theme.accentPrimary)
+                                .frame(width: 16)
+                        }
+                        .accessibilityIdentifier(row.accessibilityIdentifier)
+                    }
+                }
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(theme.backgroundPrimary.opacity(0.46))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(theme.accentPrimary.opacity(0.28), lineWidth: 1)
+            )
+            .accessibilityIdentifier("dungeon_growth_forecast")
+        }
     }
 
     @ViewBuilder
@@ -807,6 +863,267 @@ struct TutorialTowerStatusPresentation: Equatable {
     }
 }
 
+struct DungeonGrowthForecastPresentation: Equatable {
+    struct Row: Identifiable, Equatable {
+        let category: DungeonGrowthForecastCategory
+        let text: String
+        let iconSystemName: String
+
+        var id: DungeonGrowthForecastCategory { category }
+        var accessibilityIdentifier: String {
+            "dungeon_growth_forecast_\(category.rawValue)"
+        }
+    }
+
+    let title: String
+    let floorRangeText: String
+    let rows: [Row]
+
+    @MainActor
+    static func make(
+        dungeon: DungeonDefinition,
+        startFloorNumber: Int,
+        growthStore: DungeonGrowthStore
+    ) -> DungeonGrowthForecastPresentation? {
+        guard dungeon.difficulty == .growth else { return nil }
+        let activeScoutingUpgrades = DungeonGrowthUpgrade.scoutingForecastUpgrades
+            .filter { growthStore.isActive($0) }
+        guard !activeScoutingUpgrades.isEmpty else { return nil }
+
+        let safeStartFloorNumber = min(max(startFloorNumber, 1), max(dungeon.floors.count, 1))
+        let sectionEndFloorNumber = min(((safeStartFloorNumber - 1) / 10 + 1) * 10, dungeon.floors.count)
+        let floorRange = safeStartFloorNumber...sectionEndFloorNumber
+        let floors = floorRange.compactMap { floorNumber in
+            dungeon.floors.indices.contains(floorNumber - 1) ? dungeon.floors[floorNumber - 1] : nil
+        }
+        guard !floors.isEmpty else { return nil }
+
+        let facts = DungeonGrowthForecastFacts(floors: floors)
+        var rows: [Row] = []
+        for upgrade in activeScoutingUpgrades {
+            guard let row = facts.row(for: upgrade, floorRange: floorRange) else { continue }
+            if !rows.contains(where: { $0.category == row.category }) {
+                rows.append(row)
+            }
+        }
+        guard !rows.isEmpty else { return nil }
+
+        return DungeonGrowthForecastPresentation(
+            title: "次区間の見通し",
+            floorRangeText: "\(floorRange.lowerBound)F-\(floorRange.upperBound)F",
+            rows: rows
+        )
+    }
+}
+
+enum DungeonGrowthForecastCategory: String, Equatable {
+    case floor
+    case reward
+    case enemy
+    case path
+    case deep
+    case final
+}
+
+private struct DungeonGrowthForecastFacts {
+    let floorLabels: [String]
+    let rewardLabels: [String]
+    let enemyLabels: [String]
+    let pathLabels: [String]
+    let hasDeepComplexity: Bool
+    let hasFinalComplexity: Bool
+
+    init(floors: [DungeonFloorDefinition]) {
+        floorLabels = Self.collectFloorLabels(from: floors)
+        rewardLabels = Self.collectRewardLabels(from: floors)
+        enemyLabels = Self.collectEnemyLabels(from: floors)
+        pathLabels = Self.collectPathLabels(from: floors)
+        hasDeepComplexity = floors.contains { floor in
+            floor.isDarknessEnabled
+                || !floor.fallSecrets.isEmpty
+                || floor.tileEffectOverrides.values.contains(where: \.isDeepStatusEffect)
+                || floor.relicPickups.contains { $0.kind != .safe }
+        }
+        hasFinalComplexity = floors.contains { floor in
+            floor.enemies.count >= 3
+                || !floor.fallSecrets.isEmpty
+                || floor.tileEffectOverrides.values.contains(where: \.isHandLossEffect)
+                || floor.relicPickups.contains { $0.kind == .suspiciousDeep }
+        }
+    }
+
+    func row(
+        for upgrade: DungeonGrowthUpgrade,
+        floorRange: ClosedRange<Int>
+    ) -> DungeonGrowthForecastPresentation.Row? {
+        switch upgrade {
+        case .floorSense:
+            return makeRow(
+                category: .floor,
+                icon: "square.grid.3x3.fill",
+                prefix: "床",
+                labels: floorLabels
+            )
+        case .rewardSense:
+            return makeRow(
+                category: .reward,
+                icon: "gift.fill",
+                prefix: "報酬",
+                labels: rewardLabels
+            )
+        case .enemySense:
+            return makeRow(
+                category: .enemy,
+                icon: "eye.trianglebadge.exclamationmark.fill",
+                prefix: "敵",
+                labels: enemyLabels
+            )
+        case .pathPreview:
+            return makeRow(
+                category: .path,
+                icon: "point.forward.to.point.capsulepath.fill",
+                prefix: "経路",
+                labels: pathLabels
+            )
+        case .deepForecast:
+            guard floorRange.upperBound >= 31 else { return nil }
+            let text = hasDeepComplexity
+                ? "深層: 状態異常、暗闇、宝箱リスクが重なります"
+                : "深層: 複合ギミックが増える区間です"
+            return DungeonGrowthForecastPresentation.Row(
+                category: .deep,
+                text: text,
+                iconSystemName: "binoculars.fill"
+            )
+        case .routeForecast:
+            guard floorRange.upperBound >= 41 else { return nil }
+            let text = hasFinalComplexity
+                ? "踏破: 危険・報酬・寄り道をまとめて見て進みます"
+                : "踏破: 最終区間の危険と報酬をまとめて確認できます"
+            return DungeonGrowthForecastPresentation.Row(
+                category: .final,
+                text: text,
+                iconSystemName: "map.fill"
+            )
+        default:
+            return nil
+        }
+    }
+
+    private func makeRow(
+        category: DungeonGrowthForecastCategory,
+        icon: String,
+        prefix: String,
+        labels: [String]
+    ) -> DungeonGrowthForecastPresentation.Row? {
+        guard !labels.isEmpty else { return nil }
+        return DungeonGrowthForecastPresentation.Row(
+            category: category,
+            text: "\(prefix): \(labels.prefix(4).joined(separator: "、"))",
+            iconSystemName: icon
+        )
+    }
+
+    private static func collectFloorLabels(from floors: [DungeonFloorDefinition]) -> [String] {
+        var labels: [String] = []
+        for floor in floors {
+            for hazard in floor.hazards {
+                switch hazard {
+                case .brittleFloor:
+                    labels.appendUnique("床割れ")
+                case .damageTrap:
+                    labels.appendUnique("罠")
+                case .lavaTile:
+                    labels.appendUnique("溶岩")
+                case .healingTile:
+                    labels.appendUnique("回復マス")
+                }
+            }
+            if !floor.warpTilePairs.isEmpty {
+                labels.appendUnique("ワープ")
+            }
+            if floor.isDarknessEnabled {
+                labels.appendUnique("暗闇")
+            }
+            for effect in floor.tileEffectOverrides.values {
+                if let label = effect.forecastFloorLabel {
+                    labels.appendUnique(label)
+                }
+            }
+        }
+        return labels
+    }
+
+    private static func collectRewardLabels(from floors: [DungeonFloorDefinition]) -> [String] {
+        var labels: [String] = []
+        if floors.contains(where: { !$0.cardPickups.isEmpty }) {
+            labels.appendUnique("拾得カード")
+        }
+        if floors.contains(where: { !$0.rewardMoveCardsAfterClear.isEmpty }) {
+            labels.appendUnique("移動報酬")
+        }
+        if floors.contains(where: { !$0.rewardSupportCardsAfterClear.isEmpty }) {
+            labels.appendUnique("補助報酬")
+        }
+        if floors.contains(where: { !$0.relicPickups.isEmpty }) {
+            labels.appendUnique("宝箱")
+        }
+        if floors.contains(where: { $0.relicPickups.contains { $0.kind != .safe } }) {
+            labels.appendUnique("呪い宝箱")
+        }
+        return labels
+    }
+
+    private static func collectEnemyLabels(from floors: [DungeonFloorDefinition]) -> [String] {
+        var labels: [String] = []
+        var patrolCount = 0
+        for floor in floors {
+            for enemy in floor.enemies {
+                switch enemy.behavior {
+                case .guardPost:
+                    labels.appendUnique("番兵")
+                case .patrol:
+                    patrolCount += 1
+                    labels.appendUnique("巡回兵")
+                case .watcher:
+                    labels.appendUnique("見張り")
+                case .rotatingWatcher:
+                    labels.appendUnique("回転見張り")
+                case .chaser:
+                    labels.appendUnique("追跡圧")
+                case .marker:
+                    labels.appendUnique("メテオ")
+                }
+            }
+        }
+        if patrolCount >= 3 {
+            labels.removeAll { $0 == "巡回兵" }
+            labels.insert("巡回多め", at: 0)
+        }
+        return labels
+    }
+
+    private static func collectPathLabels(from floors: [DungeonFloorDefinition]) -> [String] {
+        var labels: [String] = []
+        if floors.contains(where: { $0.exitLock != nil }) {
+            labels.appendUnique("鍵ルート")
+        }
+        if floors.contains(where: { !$0.warpTilePairs.isEmpty }) {
+            labels.appendUnique("ワープ分岐")
+        }
+        if floors.contains(where: { !$0.fallSecrets.isEmpty }) {
+            labels.appendUnique("落下宝箱")
+        }
+        if floors.contains(where: { !$0.relicPickups.isEmpty }) {
+            labels.appendUnique("寄り道宝箱")
+        }
+        if floors.contains(where: { !$0.impassableTilePoints.isEmpty }) {
+            labels.appendUnique("岩柱で迂回")
+        }
+        return labels
+    }
+}
+
 struct DungeonGrowthTreeCardPresentation: Equatable {
     let title: String
     let progressText: String
@@ -846,7 +1163,7 @@ enum DungeonGrowthTreeNodeState: String, Equatable {
 
 struct DungeonGrowthTreePresentation {
     let lanes: [DungeonGrowthTreeLanePresentation]
-    let tierFloors: [Int]
+    let stageIndices: [Int]
 
     var branchRoles: [DungeonGrowthBranchRolePresentation] {
         lanes.map { lane in
@@ -855,7 +1172,7 @@ struct DungeonGrowthTreePresentation {
     }
 
     var tierCount: Int {
-        tierFloors.count
+        stageIndices.count
     }
 
     var defaultSelectedUpgrade: DungeonGrowthUpgrade? {
@@ -887,10 +1204,10 @@ struct DungeonGrowthTreePresentation {
                 }
             return DungeonGrowthTreeLanePresentation(branch: branch, nodes: nodes)
         }
-        let tierFloors = Array(Set(lanes.flatMap { $0.nodes.map(\.tierFloor) })).sorted()
+        let stageCount = lanes.map(\.nodes.count).max() ?? 0
         return DungeonGrowthTreePresentation(
             lanes: lanes,
-            tierFloors: tierFloors
+            stageIndices: Array(0..<stageCount)
         )
     }
 
@@ -903,9 +1220,6 @@ struct DungeonGrowthTreePresentation {
         lanes.first { $0.branch == branch }
     }
 
-    func gateText(forTierFloor tierFloor: Int) -> String {
-        "\(tierFloor)F"
-    }
 }
 
 struct DungeonGrowthBranchRolePresentation: Identifiable, Equatable {
@@ -934,26 +1248,26 @@ struct DungeonGrowthTreeLanePresentation: Identifiable {
         nodes.first { !$0.state.isUnlocked }?.upgrade ?? nodes.first?.upgrade
     }
 
-    func nodes(atTierFloor tierFloor: Int) -> [DungeonGrowthTreeNodePresentation] {
-        nodes.filter { $0.tierFloor == tierFloor }
+    func node(atStageIndex stageIndex: Int) -> DungeonGrowthTreeNodePresentation? {
+        guard nodes.indices.contains(stageIndex) else { return nil }
+        return nodes[stageIndex]
     }
 
-    func hasConnector(afterTierFloor tierFloor: Int) -> Bool {
-        guard let lastIndexAtTier = nodes.lastIndex(where: { $0.tierFloor == tierFloor }) else { return false }
-        return nodes.indices.contains(lastIndexAtTier + 1)
+    func hasConnector(afterStageIndex stageIndex: Int) -> Bool {
+        nodes.indices.contains(stageIndex) && nodes.indices.contains(stageIndex + 1)
     }
 
-    func connectorColor(afterTierFloor tierFloor: Int) -> Color {
-        guard let lastIndexAtTier = nodes.lastIndex(where: { $0.tierFloor == tierFloor }),
-              nodes.indices.contains(lastIndexAtTier + 1)
+    func connectorColor(afterStageIndex stageIndex: Int) -> Color {
+        guard nodes.indices.contains(stageIndex),
+              nodes.indices.contains(stageIndex + 1)
         else { return Color.clear }
-        let nodesAtTier = nodes.filter { $0.tierFloor == tierFloor }
-        let next = nodes[lastIndexAtTier + 1]
+        let current = nodes[stageIndex]
+        let next = nodes[stageIndex + 1]
 
-        if nodesAtTier.allSatisfy(\.state.isUnlocked) && next.state.isUnlocked {
+        if current.state.isUnlocked && next.state.isUnlocked {
             return branch.tintColor.opacity(0.85)
         }
-        if nodesAtTier.contains(where: { $0.state.isUnlocked }) || next.state == .unlockable {
+        if current.state.isUnlocked || next.state == .unlockable {
             return branch.tintColor.opacity(0.42)
         }
         return Color.secondary.opacity(0.22)
@@ -967,7 +1281,6 @@ struct DungeonGrowthTreeNodePresentation: Identifiable {
     let state: DungeonGrowthTreeNodeState
     let lockReason: String?
     let missingPrerequisiteTitles: [String]
-    let missingMilestoneFloor: Int?
     let isPointShortage: Bool
 
     var id: DungeonGrowthUpgrade { upgrade }
@@ -984,9 +1297,6 @@ struct DungeonGrowthTreeNodePresentation: Identifiable {
         var details: [String] = []
         if !missingPrerequisiteTitles.isEmpty {
             details.append("前提スキル: \(missingPrerequisiteTitles.joined(separator: "、"))")
-        }
-        if let missingMilestoneFloor {
-            details.append("到達条件: \(missingMilestoneFloor)F到達後")
         }
         if isPointShortage {
             details.append("必要ポイント: \(cost)pt")
@@ -1142,9 +1452,6 @@ struct DungeonGrowthTreeNodePresentation: Identifiable {
                 .filter { !growthStore.isUnlocked($0) }
                 .map(\.title)
                 .sorted(),
-            missingMilestoneFloor: upgrade.requiredMilestoneFloor.flatMap { floor in
-                growthStore.hasRewardedGrowthMilestoneFloorForPresentation(floor) ? nil : floor
-            },
             isPointShortage: !growthStore.isUnlocked(upgrade) && growthStore.points < upgrade.cost
         )
     }
@@ -1212,15 +1519,66 @@ private extension DungeonGrowthBranch {
     }
 }
 
-private extension DungeonGrowthStore {
-    func hasRewardedGrowthMilestoneFloorForPresentation(_ floorNumber: Int) -> Bool {
-        snapshot.rewardedGrowthMilestoneIDs.contains { milestoneID in
-            growthMilestoneFloorNumber(for: milestoneID) == floorNumber
+private extension Array where Element: Equatable {
+    mutating func appendUnique(_ element: Element) {
+        guard !contains(element) else { return }
+        append(element)
+    }
+}
+
+private extension TileEffect {
+    var forecastFloorLabel: String? {
+        switch self {
+        case .warp, .returnWarp:
+            return "ワープ"
+        case .slow:
+            return "鈍足床"
+        case .shackleTrap:
+            return "足枷"
+        case .poisonTrap:
+            return "毒"
+        case .illusionTrap:
+            return "幻惑"
+        case .swamp:
+            return "沼"
+        case .discardRandomHand, .discardAllMoveCards, .discardAllSupportCards, .discardAllHands:
+            return "手札喪失"
+        case .shuffleHand, .blast, .preserveCard:
+            return nil
+        }
+    }
+
+    var isDeepStatusEffect: Bool {
+        switch self {
+        case .poisonTrap, .illusionTrap, .shackleTrap, .swamp:
+            return true
+        case .warp, .returnWarp, .shuffleHand, .blast, .slow, .preserveCard, .discardRandomHand, .discardAllMoveCards, .discardAllSupportCards, .discardAllHands:
+            return false
+        }
+    }
+
+    var isHandLossEffect: Bool {
+        switch self {
+        case .discardRandomHand, .discardAllMoveCards, .discardAllSupportCards, .discardAllHands:
+            return true
+        case .warp, .returnWarp, .shuffleHand, .blast, .slow, .shackleTrap, .poisonTrap, .illusionTrap, .swamp, .preserveCard:
+            return false
         }
     }
 }
 
 private extension DungeonGrowthUpgrade {
+    static var scoutingForecastUpgrades: [DungeonGrowthUpgrade] {
+        [
+            .floorSense,
+            .rewardSense,
+            .enemySense,
+            .pathPreview,
+            .deepForecast,
+            .routeForecast
+        ]
+    }
+
     var displayTierFloor: Int {
         tierFloor ?? 5
     }

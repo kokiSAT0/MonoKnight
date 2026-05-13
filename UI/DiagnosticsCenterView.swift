@@ -110,6 +110,14 @@ struct DiagnosticsCenterView: View {
         .navigationTitle("診断ログ")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
+                ShareLink(item: makeDiagnosticsShareReport()) {
+                    Label("共有", systemImage: "square.and.arrow.up")
+                }
+                .accessibilityLabel(Text("診断ログを共有"))
+                .accessibilityIdentifier(DiagnosticsCenterAccessibilityIdentifier.shareButton)
+                .disabled(logEntries.isEmpty)
+            }
+            ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     refreshAll()
                 } label: {
@@ -173,6 +181,20 @@ struct DiagnosticsCenterView: View {
         refreshCrashEvents()
     }
 
+    private func makeDiagnosticsShareReport() -> String {
+        DebugLogShareReportFormatter.makeReport(
+            context: DebugLogShareReportContext(
+                title: "診断ログ",
+                details: [
+                    ("クラッシュ/フィードバック件数", String(crashEvents.count))
+                ]
+            ),
+            entries: logEntries,
+            appVersion: DebugLogShareSupport.appVersionDescription,
+            deviceDescription: DebugLogShareSupport.deviceDescription
+        )
+    }
+
     /// 通知購読を登録し、リアルタイムで UI を更新できるようにする
     private func setupObserversIfNeeded() {
         if logObserver == nil {
@@ -215,4 +237,8 @@ struct DiagnosticsCenterView: View {
             self.crashObserver = nil
         }
     }
+}
+
+enum DiagnosticsCenterAccessibilityIdentifier {
+    static let shareButton = "diagnostics_share_button"
 }

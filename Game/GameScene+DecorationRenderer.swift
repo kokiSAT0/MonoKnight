@@ -198,8 +198,14 @@
             visiblePoints: Set<GridPoint>?
         ) {
             guard visiblePoints?.contains(point) ?? true else {
-                node.fillColor = palette.boardBackground
-                applyHiddenDarknessStyle(to: node, palette: palette)
+                node.fillColor = palette.boardDarknessHiddenTile
+                applyHiddenDarknessStyle(
+                    to: node,
+                    at: point,
+                    palette: palette,
+                    layout: layout,
+                    visiblePoints: visiblePoints
+                )
                 removeImpassableDecoration(from: node)
                 removeEffectDecoration(for: point)
                 return
@@ -276,10 +282,31 @@
             node.lineWidth = 1
         }
 
-        private func applyHiddenDarknessStyle(to node: SKShapeNode, palette: GameScenePalette) {
-            node.strokeColor = palette.boardGridLine.withAlphaComponent(0.18)
-            node.lineWidth = 1
+        private func applyHiddenDarknessStyle(
+            to node: SKShapeNode,
+            at point: GridPoint,
+            palette: GameScenePalette,
+            layout: GameSceneLayoutSupport,
+            visiblePoints: Set<GridPoint>?
+        ) {
+            let isBoundary = isAdjacentToVisiblePoint(point, visiblePoints: visiblePoints)
+            node.strokeColor = palette.boardDarknessBoundary.withAlphaComponent(isBoundary ? 0.9 : 0.28)
+            node.lineWidth = isBoundary ? max(1.5, layout.tileSize * 0.045) : 1
             node.glowWidth = 0
+        }
+
+        private func isAdjacentToVisiblePoint(
+            _ point: GridPoint,
+            visiblePoints: Set<GridPoint>?
+        ) -> Bool {
+            guard let visiblePoints else { return false }
+            let neighbors = [
+                point.offset(dx: 0, dy: -1),
+                point.offset(dx: 1, dy: 0),
+                point.offset(dx: 0, dy: 1),
+                point.offset(dx: -1, dy: 0)
+            ]
+            return neighbors.contains { visiblePoints.contains($0) }
         }
 
         private func applyImpassableStyle(

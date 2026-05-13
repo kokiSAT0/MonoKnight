@@ -12,6 +12,10 @@ public struct GameScenePalette {
     public let boardTileVisited: SKColor
     /// 未踏破タイルの塗り色
     public let boardTileUnvisited: SKColor
+    /// 暗闇フロアで視界外になっているタイルの塗り色
+    public let boardDarknessHiddenTile: SKColor
+    /// 暗闇フロアで視界境界を示す線色
+    public let boardDarknessBoundary: SKColor
     /// 複数回踏破マスの基準色
     /// - NOTE: 未踏破色とは別に持つことで、進捗に応じた補間でも濁りが生じないようにする
     public let boardTileMultiBase: SKColor
@@ -68,6 +72,8 @@ public struct GameScenePalette {
         boardGridLine: SKColor,
         boardTileVisited: SKColor,
         boardTileUnvisited: SKColor,
+        boardDarknessHiddenTile: SKColor,
+        boardDarknessBoundary: SKColor,
         boardTileMultiBase: SKColor,
         boardTileMultiStroke: SKColor,
         boardTileToggle: SKColor,
@@ -89,6 +95,8 @@ public struct GameScenePalette {
         self.boardGridLine = boardGridLine
         self.boardTileVisited = boardTileVisited
         self.boardTileUnvisited = boardTileUnvisited
+        self.boardDarknessHiddenTile = boardDarknessHiddenTile
+        self.boardDarknessBoundary = boardDarknessBoundary
         self.boardTileMultiBase = boardTileMultiBase
         self.boardTileMultiStroke = boardTileMultiStroke
         self.boardTileToggle = boardTileToggle
@@ -120,6 +128,8 @@ public extension GameScenePalette {
         // NOTE: SwiftUI のライトテーマと同じく黒成分 30% (≈70% ホワイト) へ合わせ、未踏破との差分 (約27.5%) を明示的に確保する
         boardTileVisited: SKColor(white: 0.70, alpha: 1.0),
         boardTileUnvisited: SKColor(white: 0.975, alpha: 1.0),
+        boardDarknessHiddenTile: SKColor(white: 0.0, alpha: 0.56),
+        boardDarknessBoundary: SKColor(white: 1.0, alpha: 0.72),
         // NOTE: マルチ踏破のベースも未踏破と同じ 97.5% ホワイトに揃え、進捗演出をオーバーレイ側へ集約する
         boardTileMultiBase: SKColor(white: 0.975, alpha: 1.0),
         // NOTE: 枠線はアクセント用のチャコールグレーを採用し、背景や塗りに埋もれない視認性を優先する
@@ -164,6 +174,8 @@ public extension GameScenePalette {
         // NOTE: ダークテーマは白成分 38% を基準にし、未踏破との差分 (約33%) を確実に保って踏破完了のコントラストを向上させる
         boardTileVisited: SKColor(white: 0.38, alpha: 1.0),
         boardTileUnvisited: SKColor(white: 0.05, alpha: 1.0),
+        boardDarknessHiddenTile: SKColor(white: 0.0, alpha: 0.88),
+        boardDarknessBoundary: SKColor(white: 1.0, alpha: 0.42),
         // NOTE: マルチ踏破のベースも未踏破と同じ 5% ホワイトへ寄せ、進行オーバーレイによる変化を明確化する
         boardTileMultiBase: SKColor(white: 0.05, alpha: 1.0),
         // NOTE: ダークテーマでは淡いライトグレーを用い、背景が暗くても輪郭がぼやけないようハイコントラストを維持する

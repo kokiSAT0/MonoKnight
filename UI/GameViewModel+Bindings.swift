@@ -66,10 +66,23 @@ extension GameViewModel {
             }
             .store(in: &cancellables)
 
+        core.$dungeonLockedExitReachEvent
+            .compactMap { $0 }
+            .receive(on: RunLoop.main)
+            .sink { [weak self] event in
+                guard let self else { return }
+                defer { self.core.clearDungeonLockedExitReachEvent(event.id) }
+                self.presentLockedExitReachNoticeIfNeeded(for: event)
+            }
+            .store(in: &cancellables)
+
         core.$moveCount
             .removeDuplicates()
             .receive(on: RunLoop.main)
-            .sink { [weak self] _ in
+            .sink { [weak self] moveCount in
+                if moveCount == 0 {
+                    self?.displayedLockedExitReachNoticeKeys.removeAll()
+                }
                 self?.saveCurrentDungeonResumeIfPossible()
             }
             .store(in: &cancellables)
@@ -106,6 +119,23 @@ extension GameViewModel {
             }
             .store(in: &cancellables)
 
+    }
+
+    private func presentLockedExitReachNoticeIfNeeded(for event: DungeonLockedExitReachEvent) {
+        let key = lockedExitReachNoticeKey(for: event)
+        guard !displayedLockedExitReachNoticeKeys.contains(key) else { return }
+        displayedLockedExitReachNoticeKeys.insert(key)
+        boardTapSelectionWarning = BoardTapSelectionWarning(
+            message: "鍵を取るまで階段は使えません",
+            destination: event.exitPoint
+        )
+    }
+
+    private func lockedExitReachNoticeKey(for event: DungeonLockedExitReachEvent) -> String {
+        if let metadata = mode.dungeonMetadataSnapshot {
+            return "\(metadata.dungeonID):\(metadata.floorID):\(event.exitPoint.x),\(event.exitPoint.y)"
+        }
+        return "\(mode.identifier.rawValue):\(event.exitPoint.x),\(event.exitPoint.y)"
     }
 
     func handleHandStacksChange(_ newHandStacks: [HandStack]) {

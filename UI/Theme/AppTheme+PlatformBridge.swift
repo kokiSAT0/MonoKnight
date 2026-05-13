@@ -36,6 +36,20 @@ extension AppTheme {
         )
     }
 
+    var uiBoardDarknessHiddenTile: UIColor {
+        dynamicUIColor(
+            light: color(for: .light, keyPath: \.boardDarknessHiddenTile),
+            dark: color(for: .dark, keyPath: \.boardDarknessHiddenTile)
+        )
+    }
+
+    var uiBoardDarknessBoundary: UIColor {
+        dynamicUIColor(
+            light: color(for: .light, keyPath: \.boardDarknessBoundary),
+            dark: color(for: .dark, keyPath: \.boardDarknessBoundary)
+        )
+    }
+
     var uiBoardTileMultiBase: UIColor {
         dynamicUIColor(
             light: color(for: .light, keyPath: \.boardTileMultiBase),
@@ -147,6 +161,8 @@ extension AppTheme {
     var skBoardGridLine: SKColor { SKColor(cgColor: uiBoardGridLine.cgColor) }
     var skBoardTileVisited: SKColor { SKColor(cgColor: uiBoardTileVisited.cgColor) }
     var skBoardTileUnvisited: SKColor { SKColor(cgColor: uiBoardTileUnvisited.cgColor) }
+    var skBoardDarknessHiddenTile: SKColor { SKColor(cgColor: uiBoardDarknessHiddenTile.cgColor) }
+    var skBoardDarknessBoundary: SKColor { SKColor(cgColor: uiBoardDarknessBoundary.cgColor) }
     var skBoardTileMultiBase: SKColor { SKColor(cgColor: uiBoardTileMultiBase.cgColor) }
     var skBoardTileMultiStroke: SKColor { SKColor(cgColor: uiBoardTileMultiStroke.cgColor) }
     var skBoardTileToggle: SKColor { SKColor(cgColor: uiBoardTileToggle.cgColor) }

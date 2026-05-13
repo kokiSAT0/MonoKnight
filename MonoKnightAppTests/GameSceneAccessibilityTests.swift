@@ -96,6 +96,47 @@ final class GameSceneAccessibilityTests: XCTestCase {
         )
     }
 
+    /// 暗闇フロアでは視界外マスを専用の暗い塗りと境界線で示すことを確認する
+    func testDarknessHiddenTilesUseDedicatedFillAndBoundaryStroke() {
+        let visiblePoint = GridPoint(x: 1, y: 1)
+        let boundaryHiddenPoint = GridPoint(x: 1, y: 0)
+        let deepHiddenPoint = GridPoint(x: 4, y: 4)
+        let (scene, view, _) = makeScene()
+        defer { view.presentScene(nil) }
+
+        scene.updateDungeonVisiblePoints([visiblePoint])
+
+        guard let visibleStyle = scene.tileStyleForTesting(at: visiblePoint),
+              let boundaryStyle = scene.tileStyleForTesting(at: boundaryHiddenPoint),
+              let deepHiddenStyle = scene.tileStyleForTesting(at: deepHiddenPoint) else {
+            XCTFail("暗闇タイルの描画スタイルを取得できません")
+            return
+        }
+
+        XCTAssertTrue(
+            visibleStyle.fillColor.matchesComponents(of: GameScenePalette.fallback.boardTileUnvisited),
+            "視界内の通常マスは暗闇色へ変えず、通常の未踏破塗りを維持します"
+        )
+        XCTAssertTrue(
+            boundaryStyle.fillColor.matchesComponents(of: GameScenePalette.fallback.boardDarknessHiddenTile),
+            "視界外マスは背景色ではなく暗闇専用の塗りで示します"
+        )
+        XCTAssertFalse(
+            boundaryStyle.fillColor.isEqual(GameScenePalette.fallback.boardBackground),
+            "視界外マスを盤面背景に溶かさないようにします"
+        )
+        XCTAssertGreaterThan(
+            boundaryStyle.lineWidth,
+            deepHiddenStyle.lineWidth,
+            "視界に接する暗闇マスは境界線を太くして境目を読ませます"
+        )
+        XCTAssertGreaterThan(
+            boundaryStyle.strokeColor.alphaComponentForTesting,
+            deepHiddenStyle.strokeColor.alphaComponentForTesting,
+            "視界に接する暗闇マスは奥の暗闇より濃い境界線にします"
+        )
+    }
+
     /// 塔ダンジョンの出口は、階段形状で示すことを確認する
     func testDungeonExitHighlightUsesStaircaseShape() {
         let exitPoint = GridPoint(x: 3, y: 3)
@@ -418,6 +459,27 @@ private extension SKColor {
         var alpha: CGFloat = 0
         guard getRed(&red, green: &green, blue: &blue, alpha: &alpha) else { return false }
         return red >= 0.85 && green >= 0.65 && blue <= 0.35 && alpha >= 0.75
+    }
+
+    var alphaComponentForTesting: CGFloat {
+        cgColor.alpha
+    }
+
+    func matchesComponents(of expected: SKColor, accuracy: CGFloat = 0.001) -> Bool {
+        let actualComponents = rgbaComponentsForTesting
+        let expectedComponents = expected.rgbaComponentsForTesting
+        return zip(actualComponents, expectedComponents).allSatisfy { actual, expected in
+            abs(actual - expected) <= accuracy
+        }
+    }
+
+    private var rgbaComponentsForTesting: [CGFloat] {
+        var red: CGFloat = 0
+        var green: CGFloat = 0
+        var blue: CGFloat = 0
+        var alpha: CGFloat = 0
+        getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+        return [red, green, blue, alpha]
     }
 }
 #endif

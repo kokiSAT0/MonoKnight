@@ -8,6 +8,22 @@ import SwiftUI
 @MainActor
 final class GameViewModelTests: XCTestCase {
 
+    func testTesterIssueReportIncludesGameStateAndPlayLogs() {
+        DebugLogHistory.shared.setFrontEndViewerEnabled(true)
+        DebugLogHistory.shared.clear()
+        debugLog("[PLAY] event=report_test floor=1 turn=0 hp=3")
+        let (viewModel, _) = makeViewModel(mode: controlTestDungeonMode)
+
+        let report = viewModel.makeTesterIssueReport()
+
+        XCTAssertTrue(report.contains("何が変だったか一言追記してください"))
+        XCTAssertTrue(report.contains("モード: テスト用塔モード"))
+        XCTAssertTrue(report.contains("HP:"))
+        XCTAssertTrue(report.contains("位置:"))
+        XCTAssertTrue(report.contains("[PLAY] event=report_test"))
+        DebugLogHistory.shared.clear()
+    }
+
     /// プレイ中は GameCore.liveElapsedSeconds を参照して経過時間が増加することを確認
     func testUpdateDisplayedElapsedTimeUsesLiveElapsedSecondsWhilePlaying() {
         // 120 秒前にゲームが開始された状況を再現し、リアルタイム計測の挙動を確認する。
@@ -2273,6 +2289,51 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertEqual(requestedMode?.dungeonMetadataSnapshot?.runState?.currentFloorIndex, 10)
     }
 
+    func testGrowthTowerRetryAddsRecoveryEntriesOnlyOnRestart() throws {
+        let (defaults, suiteName) = try makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let growthStore = makeGrowthStore(
+            defaults: defaults,
+            unlocked: [.retryPreparation, .deepCheckpointRead],
+            active: [.retryPreparation, .deepCheckpointRead]
+        )
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let runState = DungeonRunState(
+            dungeonID: tower.id,
+            currentFloorIndex: 23,
+            carriedHP: 1,
+            totalMoveCount: 42,
+            clearedFloorCount: 23
+        )
+        let mode = tower.floors[23].makeGameMode(
+            dungeonID: tower.id,
+            carriedHP: runState.carriedHP,
+            runState: runState
+        )
+        var requestedMode: GameMode?
+        let (viewModel, _) = makeViewModel(
+            mode: mode,
+            dungeonGrowthStore: growthStore,
+            onRequestStartDungeonFloor: { requestedMode = $0 }
+        )
+
+        XCTAssertEqual(growthStore.startingRewardEntries(for: tower, startingFloorIndex: 20), [])
+
+        viewModel.showingResult = true
+        viewModel.handleResultRetry()
+
+        let restartState = try XCTUnwrap(requestedMode?.dungeonMetadataSnapshot?.runState)
+        XCTAssertEqual(restartState.currentFloorIndex, 20)
+        XCTAssertEqual(
+            restartState.rewardInventoryEntries,
+            [
+                DungeonInventoryEntry(support: .refillEmptySlots, rewardUses: 1),
+                DungeonInventoryEntry(support: .barrierSpell, rewardUses: 1)
+            ]
+        )
+        XCTAssertFalse(viewModel.showingResult)
+    }
+
     /// メニュー経由でタイトルへ戻る際に GameCore.reset() を呼び出さず、広告フラグのみ初期化されることを確認
     func testPerformMenuActionReturnToTitleSkipsCoreResetButResetsAdsFlag() {
         // タイトル遷移コールバックの呼び出し回数と広告リセットを検証するため、専用のスパイを注入する
@@ -2458,6 +2519,203 @@ final class GameViewModelTests: XCTestCase {
         )
     }
 
+    func testLockedExitReachShowsToastOnlyOncePerFloorAndResetsWithRun() throws {
+        let exit = GridPoint(x: 1, y: 0)
+        let mode = makeLockedExitNoticeMode(exit: exit)
+        let (viewModel, core) = makeViewModel(mode: mode)
+        viewModel.hapticsEnabled = false
+
+        playBasicMove(to: exit, in: core)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+
+        XCTAssertEqual(viewModel.boardTapSelectionWarning?.message, "鍵を取るまで階段は使えません")
+        XCTAssertEqual(viewModel.boardTapSelectionWarning?.destination, exit)
+
+        viewModel.clearBoardTapSelectionWarning()
+        playBasicMove(to: GridPoint(x: 0, y: 0), in: core)
+        playBasicMove(to: exit, in: core)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+
+        XCTAssertNil(viewModel.boardTapSelectionWarning)
+
+        core.reset(startNewGame: false)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        playBasicMove(to: exit, in: core)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+
+        XCTAssertEqual(viewModel.boardTapSelectionWarning?.message, "鍵を取るまで階段は使えません")
+        XCTAssertEqual(viewModel.boardTapSelectionWarning?.destination, exit)
+    }
+
+    func testSupportCardLongPressShowsInlineInspectionWithoutSelectingCard() {
+        let mode = supportSpellTestMode(enemies: [])
+        let deck = Deck.makeTestDeck(playableCards: [
+            .support(.refillEmptySlots),
+            .move(.straightRight2),
+            .move(.straightDown2),
+            .move(.straightLeft2),
+            .move(.straightUp2)
+        ], configuration: Deck.Configuration(
+            allowedMoves: [.straightRight2, .straightDown2, .straightLeft2, .straightUp2],
+            allowedSupportCards: [.refillEmptySlots],
+            weightProfile: Deck.WeightProfile(defaultWeight: 1),
+            deckSummaryText: "長押し説明テスト用構成"
+        ))
+        let core = GameCore.makeTestInstance(
+            deck: deck,
+            current: GridPoint(x: 2, y: 2),
+            mode: mode
+        )
+        let viewModel = makeViewModel(mode: mode, core: core)
+        let stack = core.handStacks[0]
+
+        viewModel.showSupportCardInspection(for: stack)
+
+        XCTAssertEqual(viewModel.activeInlineInspection?.displayName, "補給")
+        XCTAssertNil(viewModel.selectedHandStackID)
+        XCTAssertEqual(core.handStacks[0].topCard?.supportCard, .refillEmptySlots)
+    }
+
+    func testHandSlotTapDismissesInlineInspectionAndKeepsTapBehavior() {
+        let mode = supportSpellTestMode(enemies: [])
+        let deck = Deck.makeTestDeck(playableCards: [
+            .support(.refillEmptySlots),
+            .move(.straightRight2),
+            .move(.straightDown2),
+            .move(.straightLeft2),
+            .move(.straightUp2)
+        ], configuration: Deck.Configuration(
+            allowedMoves: [.straightRight2, .straightDown2, .straightLeft2, .straightUp2],
+            allowedSupportCards: [.refillEmptySlots],
+            weightProfile: Deck.WeightProfile(defaultWeight: 1),
+            deckSummaryText: "長押し説明テスト用構成"
+        ))
+        let core = GameCore.makeTestInstance(
+            deck: deck,
+            current: GridPoint(x: 2, y: 2),
+            mode: mode
+        )
+        let viewModel = makeViewModel(mode: mode, core: core)
+        let stack = core.handStacks[0]
+
+        viewModel.showSupportCardInspection(for: stack)
+        viewModel.handleHandSlotTap(at: 0)
+
+        XCTAssertNil(viewModel.activeInlineInspection)
+        XCTAssertNil(viewModel.selectedHandStackID, "補給は即時使用なので選択状態を残さない")
+        XCTAssertFalse(core.handStacks.contains { $0.id == stack.id && $0.topCard?.supportCard == .refillEmptySlots })
+    }
+
+    func testBoardLongPressShowsSpecialTileInspectionOnly() {
+        let trapPoint = GridPoint(x: 1, y: 0)
+        let normalPoint = GridPoint(x: 0, y: 1)
+        let mode = GameMode(
+            identifier: .dungeonFloor,
+            displayName: "長押し説明テスト",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 0,
+                allowsStacking: true,
+                deckPreset: .standardLight,
+                spawnRule: .fixed(GridPoint(x: 0, y: 0)),
+                penalties: GameMode.PenaltySettings(
+                    deadlockPenaltyCost: 0,
+                    manualRedrawPenaltyCost: 0,
+                    manualDiscardPenaltyCost: 0,
+                    revisitPenaltyCost: 0
+                ),
+                completionRule: .dungeonExit(exitPoint: GridPoint(x: 4, y: 4)),
+                dungeonRules: DungeonRules(
+                    difficulty: .growth,
+                    failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 8),
+                    hazards: [.damageTrap(points: [trapPoint], damage: 1)]
+                )
+            ),
+            leaderboardEligible: false
+        )
+        let (viewModel, _) = makeViewModel(mode: mode)
+
+        viewModel.handleBoardLongPress(at: trapPoint)
+        XCTAssertEqual(viewModel.activeInlineInspection?.displayName, "罠")
+
+        viewModel.dismissInlineInspection()
+        viewModel.handleBoardLongPress(at: normalPoint)
+        XCTAssertNil(viewModel.activeInlineInspection)
+    }
+
+    func testBoardLongPressIgnoresConsumedPickupsAndUnlockedKey() {
+        let pickup = DungeonCardPickupDefinition(
+            id: "inline-inspection-pickup",
+            point: GridPoint(x: 1, y: 0),
+            card: .straightRight2
+        )
+        let exit = GridPoint(x: 3, y: 0)
+        let key = GridPoint(x: 2, y: 0)
+        let mode = GameMode(
+            identifier: .dungeonFloor,
+            displayName: "消費済み長押し説明テスト",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 10,
+                nextPreviewCount: 0,
+                allowsStacking: true,
+                deckPreset: .standardLight,
+                spawnRule: .fixed(GridPoint(x: 0, y: 0)),
+                penalties: GameMode.PenaltySettings(
+                    deadlockPenaltyCost: 0,
+                    manualRedrawPenaltyCost: 0,
+                    manualDiscardPenaltyCost: 0,
+                    revisitPenaltyCost: 0
+                ),
+                completionRule: .dungeonExit(exitPoint: exit),
+                dungeonRules: DungeonRules(
+                    difficulty: .growth,
+                    failureRule: DungeonFailureRule(initialHP: 3, turnLimit: nil),
+                    exitLock: DungeonExitLock(unlockPoint: key),
+                    allowsBasicOrthogonalMove: true,
+                    cardAcquisitionMode: .inventoryOnly,
+                    cardPickups: [pickup]
+                )
+            ),
+            leaderboardEligible: false,
+            dungeonMetadata: GameMode.DungeonMetadata(
+                dungeonID: "inline-inspection-consumed",
+                floorID: "inline-inspection-consumed-floor",
+                runState: DungeonRunState(dungeonID: "inline-inspection-consumed", carriedHP: 3)
+            )
+        )
+        let core = GameCore.makeTestInstance(
+            deck: Deck.makeTestDeck(cards: [.straightRight2], configuration: mode.deckConfiguration),
+            current: GridPoint(x: 0, y: 0),
+            mode: mode
+        )
+        let viewModel = makeViewModel(mode: mode, core: core)
+
+        viewModel.handleBoardLongPress(at: pickup.point)
+        XCTAssertEqual(viewModel.activeInlineInspection?.displayName, "床落ちカード")
+
+        playBasicMove(to: pickup.point, in: core)
+        viewModel.dismissInlineInspection()
+        viewModel.handleBoardLongPress(at: pickup.point)
+        XCTAssertNil(viewModel.activeInlineInspection)
+
+        playBasicMove(to: key, in: core)
+        viewModel.handleBoardLongPress(at: key)
+        XCTAssertNil(viewModel.activeInlineInspection)
+
+        viewModel.handleBoardLongPress(at: exit)
+        XCTAssertEqual(viewModel.activeInlineInspection?.displayName, "出口 / 階段")
+    }
+
+    private func playBasicMove(to destination: GridPoint, in core: GameCore, file: StaticString = #filePath, line: UInt = #line) {
+        guard let move = core.availableBasicOrthogonalMoves().first(where: { $0.destination == destination }) else {
+            XCTFail("基本移動候補が見つかりません: \(destination)", file: file, line: line)
+            return
+        }
+        core.playBasicOrthogonalMove(using: move)
+    }
+
     private func makeUnusableCardReasonMode(
         spawn: GridPoint = GridPoint(x: 2, y: 2),
         allowsBasicOrthogonalMove: Bool = false,
@@ -2489,6 +2747,41 @@ final class GameViewModelTests: XCTestCase {
                 )
             ),
             leaderboardEligible: false
+        )
+    }
+
+    private func makeLockedExitNoticeMode(exit: GridPoint) -> GameMode {
+        GameMode(
+            identifier: .dungeonFloor,
+            displayName: "施錠階段通知テスト",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 10,
+                nextPreviewCount: 0,
+                allowsStacking: true,
+                deckPreset: .standardLight,
+                spawnRule: .fixed(GridPoint(x: 0, y: 0)),
+                penalties: GameMode.PenaltySettings(
+                    deadlockPenaltyCost: 0,
+                    manualRedrawPenaltyCost: 0,
+                    manualDiscardPenaltyCost: 0,
+                    revisitPenaltyCost: 0
+                ),
+                completionRule: .dungeonExit(exitPoint: exit),
+                dungeonRules: DungeonRules(
+                    difficulty: .growth,
+                    failureRule: DungeonFailureRule(initialHP: 3, turnLimit: nil),
+                    exitLock: DungeonExitLock(unlockPoint: GridPoint(x: 4, y: 4)),
+                    allowsBasicOrthogonalMove: true,
+                    cardAcquisitionMode: .inventoryOnly
+                )
+            ),
+            leaderboardEligible: false,
+            dungeonMetadata: GameMode.DungeonMetadata(
+                dungeonID: "locked-exit-notice-test",
+                floorID: "locked-exit-notice-floor",
+                runState: DungeonRunState(dungeonID: "locked-exit-notice-test", carriedHP: 3)
+            )
         )
     }
 
@@ -2692,6 +2985,20 @@ final class GameViewModelTests: XCTestCase {
         }
         defaults.removePersistentDomain(forName: suiteName)
         return (defaults, suiteName)
+    }
+
+    private func makeGrowthStore(
+        defaults: UserDefaults,
+        unlocked: Set<DungeonGrowthUpgrade>,
+        active: Set<DungeonGrowthUpgrade>
+    ) -> DungeonGrowthStore {
+        let snapshot = DungeonGrowthSnapshot(
+            unlockedUpgrades: unlocked,
+            activeUpgrades: active
+        )
+        let data = try? JSONEncoder().encode(snapshot)
+        defaults.set(data, forKey: StorageKey.UserDefaults.dungeonGrowth)
+        return DungeonGrowthStore(userDefaults: defaults)
     }
 }
 

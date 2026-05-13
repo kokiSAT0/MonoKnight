@@ -125,10 +125,12 @@
 
     public protocol GameCoreProtocol: AnyObject {
         func handleTap(at point: GridPoint)
+        func handleLongPress(at point: GridPoint)
     }
 
     public final class GameScene: SKScene {
         public weak var gameCore: GameCoreProtocol?
+        public var onLongPressGridPoint: ((GridPoint) -> Void)?
 
         private let initialBoardSize: Int
         private let initialVisitedPoints: [GridPoint]
@@ -141,6 +143,13 @@
         private let decorationRenderer = GameSceneDecorationRenderer()
         private let highlightRenderer = GameSceneHighlightRenderer()
         private let knightAnimator = GameSceneKnightAnimator()
+        #if canImport(UIKit)
+            private var trackedTouchStartTime: TimeInterval?
+            private var trackedTouchStartPoint: GridPoint?
+            private var trackedTouchStartLocation: CGPoint?
+            private let longPressMinimumDuration: TimeInterval = 0.45
+            private let longPressMovementTolerance: CGFloat = 12
+        #endif
         private var pendingBoard: Board?
         private var latestHighlightPoints: [BoardHighlightKind: Set<GridPoint>] = [:]
         private var latestDungeonEnemyMarkers: [SceneDungeonEnemyMarker] = []
@@ -402,6 +411,10 @@
             dungeonVisiblePoints
         }
 
+        public func currentKnightPointForPresentation() -> GridPoint? {
+            knightAnimator.knightPosition
+        }
+
         public func dungeonVisiblePointsForAccessibility() -> Set<GridPoint>? {
             dungeonVisiblePoints
         }
@@ -469,6 +482,11 @@
 
         func tileFillColorForTesting(at point: GridPoint) -> SKColor? {
             decorationRenderer.tileNodes[point]?.fillColor
+        }
+
+        func tileStyleForTesting(at point: GridPoint) -> (fillColor: SKColor, strokeColor: SKColor, lineWidth: CGFloat)? {
+            guard let node = decorationRenderer.tileNodes[point] else { return nil }
+            return (node.fillColor, node.strokeColor, node.lineWidth)
         }
 
         func boardIsImpassableForTesting(at point: GridPoint) -> Bool {
@@ -1050,10 +1068,37 @@
         }
 
         #if canImport(UIKit)
+            public override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+                guard let touch = touches.first else { return }
+                let location = touch.location(in: self)
+                trackedTouchStartTime = touch.timestamp
+                trackedTouchStartPoint = gridPoint(from: location)
+                trackedTouchStartLocation = location
+            }
+
+            public override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+                clearTrackedTouch()
+            }
+
             public override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
                 guard let touch = touches.first else { return }
                 let location = touch.location(in: self)
                 guard let point = gridPoint(from: location) else { return }
+                defer { clearTrackedTouch() }
+
+                if trackedTouchStartPoint == point,
+                   let startTime = trackedTouchStartTime,
+                   let startLocation = trackedTouchStartLocation,
+                   touch.timestamp - startTime >= longPressMinimumDuration,
+                   hypot(location.x - startLocation.x, location.y - startLocation.y) <= longPressMovementTolerance {
+                    if let onLongPressGridPoint {
+                        onLongPressGridPoint(point)
+                    } else {
+                        gameCore?.handleLongPress(at: point)
+                    }
+                    return
+                }
+
                 gameCore?.handleTap(at: point)
             }
         #endif
@@ -1063,6 +1108,12 @@
         }
 
         #if canImport(UIKit)
+            private func clearTrackedTouch() {
+                trackedTouchStartTime = nil
+                trackedTouchStartPoint = nil
+                trackedTouchStartLocation = nil
+            }
+
             private func updateAccessibilityElements() {
                 accessibilitySupport.update(
                     board: board,

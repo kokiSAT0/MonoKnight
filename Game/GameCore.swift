@@ -79,6 +79,17 @@ public struct DungeonExitUnlockEvent: Identifiable, Equatable {
     }
 }
 
+/// 鍵を持たずに施錠中の階段へ到達したことを UI へ知らせるイベント
+public struct DungeonLockedExitReachEvent: Identifiable, Equatable {
+    public let id: UUID
+    public let exitPoint: GridPoint
+
+    public init(id: UUID = UUID(), exitPoint: GridPoint) {
+        self.id = id
+        self.exitPoint = exitPoint
+    }
+}
+
 /// ひび割れ床が崩落し、下階へ落下することを UI へ知らせるイベント
 public struct DungeonFallEvent: Identifiable, Equatable {
     public let id: UUID
@@ -265,6 +276,8 @@ public final class GameCore: ObservableObject {
     @Published public private(set) var isDungeonExitUnlocked: Bool = true
     /// 出口解錠演出用の単発イベント
     @Published public private(set) var dungeonExitUnlockEvent: DungeonExitUnlockEvent?
+    /// 施錠中の出口へ到達したことを知らせる単発イベント
+    @Published public private(set) var dungeonLockedExitReachEvent: DungeonLockedExitReachEvent?
     /// ひび割れ床崩落による下階落下イベント
     @Published public private(set) var dungeonFallEvent: DungeonFallEvent?
     /// プレイヤー行動後に発生した敵ターンの可視化用イベント
@@ -645,6 +658,7 @@ public final class GameCore: ObservableObject {
         pendingDungeonPickupChoice = snapshot.pendingDungeonPickupChoice
         isDungeonExitUnlocked = snapshot.isDungeonExitUnlocked
         dungeonExitUnlockEvent = nil
+        dungeonLockedExitReachEvent = nil
         dungeonFallEvent = nil
         penaltyEvent = nil
         boardTapPlayRequest = nil
@@ -663,6 +677,15 @@ public final class GameCore: ObservableObject {
             refreshHandStateFromManager()
         }
         announceRemainingTiles()
+        logDungeonPlayEvent(
+            "session_restore",
+            [
+                ("snapshotFloor", String(snapshot.floorIndex + 1)),
+                ("visited", String(validVisitedPoints.count)),
+                ("inventory", diagnosticInventoryDescription),
+                ("pendingPickup", pendingDungeonPickupChoice?.pickup.playable.displayName ?? "nil")
+            ]
+        )
         return true
     }
 
@@ -1056,6 +1079,18 @@ public final class GameCore: ObservableObject {
         debugLog(
             "カード \(cardMove) を使用し \(currentPosition) -> \(validatedMove.destination) へ移動予定 (vector=\(validatedMove.moveVector))"
         )
+        logDungeonPlayEvent(
+            "move_start",
+            [
+                ("input", "card"),
+                ("card", cardMove.displayName),
+                ("stack", String(validatedMove.stackIndex)),
+                ("from", PlayDiagnosticLog.describe(currentPosition)),
+                ("path", PlayDiagnosticLog.describe(validatedMove.path)),
+                ("to", PlayDiagnosticLog.describe(validatedMove.destination)),
+                ("vector", diagnosticVectorDescription(validatedMove.moveVector))
+            ]
+        )
 
         let pendingMarkerDamagePoints = enemyWarningPoints
         // 経路ごとの踏破判定と効果適用を順番に処理する
@@ -1123,6 +1158,19 @@ public final class GameCore: ObservableObject {
                 rebuildHandAndNext(preferredInsertionIndices: removedIndex.map { [$0] } ?? [])
             }
         }
+        logDungeonPlayEvent(
+            "move_resolved",
+            [
+                ("input", "card"),
+                ("card", cardMove.displayName),
+                ("from", PlayDiagnosticLog.describe(currentPosition)),
+                ("path", PlayDiagnosticLog.describe(actualTraversedPath)),
+                ("to", PlayDiagnosticLog.describe(finalPosition)),
+                ("effects", diagnosticEffectDescription(detectedEffects)),
+                ("preserved", String(shouldPreservePlayedCard)),
+                ("revisit", String(encounteredRevisit))
+            ]
+        )
 
         if progress == .playing, dungeonFallEvent == nil {
             applyPostMoveTileEffect(postMoveTileEffect, preserving: preservedCard)
@@ -1144,6 +1192,92 @@ public final class GameCore: ObservableObject {
         // デバッグ目的でのみ盤面を出力する
         board.debugDump(current: current)
 #endif
+    }
+
+    private func logDungeonPlayEvent(
+        _ event: String,
+        _ fields: [(String, String)] = [],
+        file: String = #file,
+        line: Int = #line,
+        function: String = #function
+    ) {
+        guard mode.usesDungeonExit else { return }
+        PlayDiagnosticLog.emit(
+            event: event,
+            fields: diagnosticBaseFields + fields,
+            file: file,
+            line: line,
+            function: function
+        )
+    }
+
+    private var diagnosticBaseFields: [(String, String)] {
+        [
+            ("dungeon", mode.dungeonMetadataSnapshot?.dungeonID ?? mode.identifier.rawValue),
+            ("floor", diagnosticFloorDescription),
+            ("turn", String(moveCount)),
+            ("hp", String(dungeonHP)),
+            ("pos", PlayDiagnosticLog.describe(current)),
+            ("progress", String(describing: progress)),
+            ("hand", handStacks.debugSummaryJoined(emptyPlaceholder: "none")),
+            ("relics", diagnosticRelicDescription),
+            ("curses", diagnosticCurseDescription)
+        ]
+    }
+
+    private var diagnosticFloorDescription: String {
+        guard let floorIndex = mode.dungeonMetadataSnapshot?.runState?.currentFloorIndex else { return "nil" }
+        return String(floorIndex + 1)
+    }
+
+    private var diagnosticSeedDescription: String {
+        if let seed = mode.dungeonMetadataSnapshot?.runState?.cardVariationSeed {
+            return String(seed)
+        }
+        if let seed = mode.deckSeed {
+            return String(seed)
+        }
+        return "nil"
+    }
+
+    private var diagnosticInventoryDescription: String {
+        let entries = dungeonInventoryEntries.filter(\.hasUsesRemaining)
+        guard !entries.isEmpty else { return "none" }
+        return entries.map { entry in
+            "\(entry.playable.displayName):\(entry.totalUses)"
+        }.joined(separator: ",")
+    }
+
+    private var diagnosticRelicDescription: String {
+        guard !dungeonRelicEntries.isEmpty else { return "none" }
+        return dungeonRelicEntries.map { entry in
+            "\(entry.relicID.rawValue):\(entry.remainingUses)"
+        }.joined(separator: ",")
+    }
+
+    private var diagnosticCurseDescription: String {
+        guard !dungeonCurseEntries.isEmpty else { return "none" }
+        return dungeonCurseEntries.map { entry in
+            "\(entry.curseID.rawValue):\(entry.remainingUses)"
+        }.joined(separator: ",")
+    }
+
+    private func diagnosticEffectDescription(_ effects: [MovementResolution.AppliedEffect]) -> String {
+        guard !effects.isEmpty else { return "none" }
+        return effects.map { effect in
+            "\(String(describing: effect.effect))@\(PlayDiagnosticLog.describe(effect.point))"
+        }.joined(separator: ",")
+    }
+
+    private func diagnosticEnemyDescription(_ enemies: [EnemyState]) -> String {
+        guard !enemies.isEmpty else { return "none" }
+        return enemies.map { enemy in
+            "\(enemy.id)@\(PlayDiagnosticLog.describe(enemy.position))"
+        }.joined(separator: ",")
+    }
+
+    private func diagnosticVectorDescription(_ vector: MoveVector) -> String {
+        "(\(vector.dx),\(vector.dy))"
     }
 
 private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
@@ -1174,6 +1308,16 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         boardTapBasicMoveRequest = nil
         debugLog(
             "基本移動 \(currentPosition) -> \(basicMove.destination) (vector=\(basicMove.moveVector))"
+        )
+        logDungeonPlayEvent(
+            "move_start",
+            [
+                ("input", "basic"),
+                ("from", PlayDiagnosticLog.describe(currentPosition)),
+                ("path", PlayDiagnosticLog.describe(basicMove.path)),
+                ("to", PlayDiagnosticLog.describe(basicMove.destination)),
+                ("vector", diagnosticVectorDescription(basicMove.moveVector))
+            ]
         )
 
         let pendingMarkerDamagePoints = enemyWarningPoints
@@ -1215,6 +1359,18 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         if progress == .playing, dungeonFallEvent == nil {
             applyPostMoveTileEffect(postMoveTileEffect, preserving: nil)
         }
+        logDungeonPlayEvent(
+            "move_resolved",
+            [
+                ("input", "basic"),
+                ("from", PlayDiagnosticLog.describe(currentPosition)),
+                ("path", PlayDiagnosticLog.describe(actualTraversedPath)),
+                ("to", PlayDiagnosticLog.describe(finalPosition)),
+                ("effects", diagnosticEffectDescription(detectedEffects)),
+                ("preserved", "false"),
+                ("revisit", String(encounteredRevisit))
+            ]
+        )
 
         _ = applyDungeonPostMoveChecks(
             along: actualTraversedPath,
@@ -1550,9 +1706,24 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         guard let effect else { return }
         if consumeDungeonRelicUse(.purifyingCharm) {
             debugLog("清めの護符で手札喪失罠を無効化")
+            logDungeonPlayEvent(
+                "tile_effect_blocked",
+                [
+                    ("effect", String(describing: effect)),
+                    ("reason", "purifyingCharm"),
+                    ("preservedCard", preservedCard?.playable.displayName ?? "nil")
+                ]
+            )
             return
         }
 
+        logDungeonPlayEvent(
+            "tile_effect_apply",
+            [
+                ("effect", String(describing: effect)),
+                ("preservedCard", preservedCard?.playable.displayName ?? "nil")
+            ]
+        )
         switch effect {
         case .shuffleHand:
             applyTileEffectHandRedraw(preserving: preservedCard)
@@ -1925,6 +2096,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         pendingDungeonPickupChoice = nil
         isDungeonExitUnlocked = mode.dungeonRules?.exitLock == nil
         dungeonExitUnlockEvent = nil
+        dungeonLockedExitReachEvent = nil
         dungeonFallEvent = nil
         dungeonEnemyTurnEvent = nil
         penaltyEvent = nil
@@ -1954,6 +2126,16 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         let nextText = nextCards.isEmpty ? "なし" : nextCards.map { "\($0.displayName)" }.joined(separator: ", ")
         let handMoves = handStacks.debugSummaryJoined(emptyPlaceholder: "なし")
         debugLog("ゲームをリセット: 手札 [\(handMoves)], 次カード \(nextText)")
+        logDungeonPlayEvent(
+            "session_start",
+            [
+                ("seed", diagnosticSeedDescription),
+                ("exit", PlayDiagnosticLog.describe(mode.dungeonExitPoint)),
+                ("turnLimit", effectiveDungeonTurnLimit.map(String.init) ?? "nil"),
+                ("inventory", diagnosticInventoryDescription),
+                ("next", nextCards.map(\.displayName).joined(separator: ","))
+            ]
+        )
 #if DEBUG
         board.debugDump(current: current)
 #endif
@@ -2138,6 +2320,16 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         if addDungeonInventoryPlayable(pickup.playable, pickupUses: pickupUses) {
             collectedDungeonCardPickupIDs.insert(pickup.id)
             debugLog("拾得カードを取得: \(pickup.playable.displayName) 残り+\(pickupUses) @\(pickup.point)")
+            logDungeonPlayEvent(
+                "pickup_card",
+                [
+                    ("pickup", pickup.id),
+                    ("point", PlayDiagnosticLog.describe(pickup.point)),
+                    ("card", pickup.playable.displayName),
+                    ("uses", String(pickupUses)),
+                    ("inventory", diagnosticInventoryDescription)
+                ]
+            )
         } else if beginPendingDungeonPickupChoiceIfNeeded(for: pickup) {
             return false
         }
@@ -2195,6 +2387,17 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             presentationItems.append(contentsOf: grantDungeonCurse(from: pickup, salt: "pandora-curse"))
             debugLog("パンドラの箱が開いた: \(pickup.id) @\(pickup.point)")
         }
+        logDungeonPlayEvent(
+            "pickup_relic",
+            [
+                ("pickup", pickup.id),
+                ("point", PlayDiagnosticLog.describe(pickup.point)),
+                ("outcome", String(describing: outcome)),
+                ("items", presentationItems.map(\.diagnosticDescription).joined(separator: ",")),
+                ("relics", diagnosticRelicDescription),
+                ("curses", diagnosticCurseDescription)
+            ]
+        )
         publishDungeonRelicAcquisitionPresentationIfNeeded(outcome: outcome, items: presentationItems)
         return true
     }
@@ -2454,6 +2657,15 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         boardTapPlayRequest = nil
         boardTapBasicMoveRequest = nil
         debugLog("満杯のため拾得カード選択待ち: \(pickup.playable.displayName) @\(pickup.point)")
+        logDungeonPlayEvent(
+            "pickup_card_pending_choice",
+            [
+                ("pickup", pickup.id),
+                ("point", PlayDiagnosticLog.describe(pickup.point)),
+                ("card", pickup.playable.displayName),
+                ("candidates", liveEntries.map { $0.playable.displayName }.joined(separator: ","))
+            ]
+        )
         return true
     }
 
@@ -2644,10 +2856,39 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
     private func applyDungeonHazardDamage(_ damage: Int, at point: GridPoint, logLabel: String) {
         if isDamageBarrierActive {
             debugLog("\(logLabel)ダメージを障壁で無効化: \(point), 残り=\(damageBarrierTurnsRemaining)")
+            logDungeonPlayEvent(
+                "damage_blocked",
+                [
+                    ("source", logLabel),
+                    ("point", PlayDiagnosticLog.describe(point)),
+                    ("reason", "barrier"),
+                    ("incoming", String(damage)),
+                    ("barrier", String(damageBarrierTurnsRemaining))
+                ]
+            )
         } else if consumeDungeonHazardDamageMitigation() {
             debugLog("\(logLabel)ダメージを成長効果で無効化: \(point), 残り=\(hazardDamageMitigationsRemaining)")
+            logDungeonPlayEvent(
+                "damage_blocked",
+                [
+                    ("source", logLabel),
+                    ("point", PlayDiagnosticLog.describe(point)),
+                    ("reason", "growth"),
+                    ("incoming", String(damage)),
+                    ("mitigations", String(hazardDamageMitigationsRemaining))
+                ]
+            )
         } else if logLabel == "罠", consumeDungeonRelicUse(.silverNeedle) {
             debugLog("銀の針で罠ダメージを無効化: \(point), HP=\(dungeonHP)")
+            logDungeonPlayEvent(
+                "damage_blocked",
+                [
+                    ("source", logLabel),
+                    ("point", PlayDiagnosticLog.describe(point)),
+                    ("reason", "silverNeedle"),
+                    ("incoming", String(damage))
+                ]
+            )
         } else {
             var adjustedDamage = max(damage, 1)
             if logLabel == "罠", hasDungeonCurse(.trapMagnet) {
@@ -2670,6 +2911,16 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                 triggerTrapperGlovesIfNeeded(reason: "ダメージ罠")
             }
             debugLog("\(logLabel)ダメージ: \(point), -\(finalDamage), HP=\(dungeonHP)")
+            logDungeonPlayEvent(
+                "damage_applied",
+                [
+                    ("source", logLabel),
+                    ("point", PlayDiagnosticLog.describe(point)),
+                    ("base", String(damage)),
+                    ("adjusted", String(adjustedDamage)),
+                    ("final", String(finalDamage))
+                ]
+            )
         }
     }
 
@@ -2700,14 +2951,35 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         poisonDamageTicksRemaining = max(poisonTicks, 1)
         poisonActionsUntilNextDamage = poisonTrapActionsPerDamage
         debugLog("毒罠を踏みました: 残り\(poisonDamageTicksRemaining)回, 次ダメージまで\(poisonActionsUntilNextDamage)行動")
+        logDungeonPlayEvent(
+            "poison_start",
+            [
+                ("ticks", String(poisonDamageTicksRemaining)),
+                ("actionsUntilDamage", String(poisonActionsUntilNextDamage))
+            ]
+        )
     }
 
     private func applyPoisonTickAfterAction(skipsPoisonTick: Bool) -> Bool {
         guard poisonDamageTicksRemaining > 0 else { return false }
         if skipsPoisonTick {
+            logDungeonPlayEvent(
+                "poison_tick_skipped",
+                [
+                    ("ticks", String(poisonDamageTicksRemaining)),
+                    ("actionsUntilDamage", String(poisonActionsUntilNextDamage))
+                ]
+            )
             return false
         }
         poisonActionsUntilNextDamage = max(poisonActionsUntilNextDamage - 1, 0)
+        logDungeonPlayEvent(
+            "poison_tick",
+            [
+                ("ticks", String(poisonDamageTicksRemaining)),
+                ("actionsUntilDamage", String(poisonActionsUntilNextDamage))
+            ]
+        )
         guard poisonActionsUntilNextDamage == 0 else { return false }
 
         let damagePoint = current ?? GridPoint(x: 0, y: 0)
@@ -2823,11 +3095,25 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
     ) -> Bool {
         guard mode.usesDungeonExit else { return false }
         guard progress == .playing, dungeonFallEvent == nil else { return true }
+        logDungeonPlayEvent(
+            "post_action_start",
+            [
+                ("traversed", PlayDiagnosticLog.describe(traversedPoints)),
+                ("markerWarnings", PlayDiagnosticLog.describe(initialMarkerDamagePoints ?? enemyWarningPoints)),
+                ("paralysis", PlayDiagnosticLog.describe(paralysisTrapPoint)),
+                ("enemyTurns", String(max(isShackled ? 2 : 1, paralysisTrapPoint == nil ? 1 : 2))),
+                ("skipPoison", String(skipsPoisonTick))
+            ]
+        )
         updateDungeonExitLockIfNeeded()
         if current == mode.dungeonExitPoint, isDungeonExitUnlocked {
             finalizeElapsedTimeIfNeeded()
             progress = .cleared
+            logDungeonPlayEvent("run_end", [("reason", "exit")])
             return true
+        }
+        if traversedPoints.last == mode.dungeonExitPoint {
+            publishLockedDungeonExitReachEventIfNeeded()
         }
         if applyPoisonTickAfterAction(skipsPoisonTick: skipsPoisonTick) {
             return true
@@ -2862,6 +3148,13 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                 )
                 finalizeElapsedTimeIfNeeded()
                 progress = .failed
+                logDungeonPlayEvent(
+                    "run_end",
+                    [
+                        ("reason", "enemyDamage"),
+                        ("phases", String(phases.count))
+                    ]
+                )
                 return true
             }
         }
@@ -2873,6 +3166,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         if applyDungeonFatigueDamageIfNeeded(previousMoveCount: previousMoveCount) {
             finalizeElapsedTimeIfNeeded()
             progress = .failed
+            logDungeonPlayEvent("run_end", [("reason", "fatigue")])
             return true
         }
         return false
@@ -2905,6 +3199,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         if dungeonHP <= 0 {
             finalizeElapsedTimeIfNeeded()
             progress = .failed
+            logDungeonPlayEvent("run_end", [("reason", "fallDamage"), ("point", PlayDiagnosticLog.describe(point))])
             return true
         }
 
@@ -2913,6 +3208,14 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             finalizeElapsedTimeIfNeeded()
             progress = .failed
             debugLog("床崩落の落下先がないため失敗: \(point), sourceFloorIndex=\(sourceFloorIndex)")
+            logDungeonPlayEvent(
+                "run_end",
+                [
+                    ("reason", "fallNoDestination"),
+                    ("point", PlayDiagnosticLog.describe(point)),
+                    ("sourceFloor", String(sourceFloorIndex + 1))
+                ]
+            )
             return true
         }
         dungeonFallEvent = DungeonFallEvent(
@@ -2921,6 +3224,14 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             destinationFloorIndex: sourceFloorIndex - 1,
             hpAfterDamage: dungeonHP
         )
+        logDungeonPlayEvent(
+            "fall",
+            [
+                ("point", PlayDiagnosticLog.describe(point)),
+                ("sourceFloor", String(sourceFloorIndex + 1)),
+                ("destinationFloor", String(sourceFloorIndex))
+            ]
+        )
         consumeDamageBarrierTurnIfNeeded()
         return true
     }
@@ -2928,6 +3239,11 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
     public func clearDungeonFallEvent(_ id: UUID) {
         guard dungeonFallEvent?.id == id else { return }
         dungeonFallEvent = nil
+    }
+
+    public func clearDungeonLockedExitReachEvent(_ id: UUID) {
+        guard dungeonLockedExitReachEvent?.id == id else { return }
+        dungeonLockedExitReachEvent = nil
     }
 
     public func resolvePendingDungeonFallLandingIfNeeded() {
@@ -2977,6 +3293,18 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         debugLog("ダンジョン出口を解錠: key=\(exitLock.unlockPoint)")
     }
 
+    private func publishLockedDungeonExitReachEventIfNeeded() {
+        guard mode.usesDungeonExit,
+              progress == .playing,
+              !isDungeonExitUnlocked,
+              let exitPoint = mode.dungeonExitPoint,
+              current == exitPoint
+        else { return }
+
+        dungeonLockedExitReachEvent = DungeonLockedExitReachEvent(exitPoint: exitPoint)
+        debugLog("施錠中の階段へ到達: \(exitPoint)")
+    }
+
     private func shouldStopDungeonMovementAtExit(at point: GridPoint) -> Bool {
         guard mode.usesDungeonExit,
               isDungeonExitUnlocked,
@@ -2993,6 +3321,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
     private func advanceEnemiesForDungeonTurn() {
         guard mode.usesDungeonExit, !enemyStates.isEmpty else { return }
 
+        let before = enemyStates
         var occupiedPoints = Set(enemyStates.map(\.position))
         for index in enemyStates.indices {
             switch enemyStates[index].behavior {
@@ -3035,10 +3364,20 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                 if enemyStates[index].rotationIndex == Int.max {
                     enemyStates[index].rotationIndex = 0
                 } else {
-                    enemyStates[index].rotationIndex += 1
-                }
+                enemyStates[index].rotationIndex += 1
             }
         }
+        logDungeonPlayEvent(
+            "enemy_turn",
+            [
+                ("before", diagnosticEnemyDescription(before)),
+                ("after", diagnosticEnemyDescription(enemyStates)),
+                ("warnings", PlayDiagnosticLog.describe(enemyWarningPoints)),
+                ("freeze", String(enemyFreezeTurnsRemaining)),
+                ("shackled", String(isShackled))
+            ]
+        )
+    }
     }
 
     private func reserveEnemyDestination(
@@ -3188,6 +3527,15 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         guard finalDamage > 0 else { return 0 }
         applyDungeonHPDamage(finalDamage)
         debugLog("敵の攻撃を受けました: -\(finalDamage), HP=\(dungeonHP)")
+        logDungeonPlayEvent(
+            "enemy_damage",
+            [
+                ("enemy", String(damage.enemy)),
+                ("marker", String(damage.marker)),
+                ("final", String(finalDamage)),
+                ("markerWarnings", PlayDiagnosticLog.describe(markerDamagePoints))
+            ]
+        )
         return finalDamage
     }
 
@@ -3198,7 +3546,8 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             at: point,
             markerDamagePoints: [],
             includesContact: false,
-            includesMarkerWarning: false
+            includesMarkerWarning: false,
+            rotatingWatcherOffset: 1
         )
         var totalDamage = damage.enemy + damage.marker
 
@@ -3219,9 +3568,19 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         guard finalDamage > 0 else { return false }
         applyDungeonHPDamage(finalDamage)
         debugLog("敵の攻撃範囲を通過しました: \(point), -\(finalDamage), HP=\(dungeonHP)")
+        logDungeonPlayEvent(
+            "enemy_danger_crossed",
+            [
+                ("point", PlayDiagnosticLog.describe(point)),
+                ("enemy", String(damage.enemy)),
+                ("marker", String(damage.marker)),
+                ("final", String(finalDamage))
+            ]
+        )
         if shouldFailDungeonRun() {
             finalizeElapsedTimeIfNeeded()
             progress = .failed
+            logDungeonPlayEvent("run_end", [("reason", "dangerCrossing")])
             return true
         }
         return false
@@ -3231,14 +3590,15 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         at point: GridPoint,
         markerDamagePoints: Set<GridPoint>,
         includesContact: Bool,
-        includesMarkerWarning: Bool
+        includesMarkerWarning: Bool,
+        rotatingWatcherOffset: Int = 0
     ) -> (enemy: Int, marker: Int) {
         guard !isEnemyFreezeActive else { return (0, 0) }
         var enemyDamage = 0
         var markerDamage = 0
 
         for enemy in enemyStates {
-            if enemyDangerPoints(for: enemy).contains(point) {
+            if enemyDangerPoints(for: enemy, rotatingWatcherOffset: rotatingWatcherOffset).contains(point) {
                 enemyDamage += adjustedEnemySourceDamage(for: enemy, isMarkerWarning: false)
             } else if includesContact, enemy.position == point {
                 enemyDamage += adjustedEnemySourceDamage(for: enemy, isMarkerWarning: false)
@@ -3351,6 +3711,15 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
 
         applyDungeonHPDamage(damage)
         debugLog("手数超過の疲労ダメージ: 超過=\(currentOvertime), -\(damage), HP=\(dungeonHP)")
+        logDungeonPlayEvent(
+            "fatigue_damage",
+            [
+                ("turnLimit", String(turnLimit)),
+                ("previousOvertime", String(previousOvertime)),
+                ("currentOvertime", String(currentOvertime)),
+                ("damage", String(damage))
+            ]
+        )
         return dungeonHP <= 0
     }
 
@@ -3358,6 +3727,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         guard enemyFreezeTurnsRemaining > 0 else { return false }
         enemyFreezeTurnsRemaining -= 1
         debugLog("凍結中のため敵ターンを停止: 残り=\(enemyFreezeTurnsRemaining)")
+        logDungeonPlayEvent("enemy_turn_skipped", [("reason", "freeze"), ("freeze", String(enemyFreezeTurnsRemaining))])
         return true
     }
 
@@ -3365,6 +3735,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         guard damageBarrierTurnsRemaining > 0 else { return }
         damageBarrierTurnsRemaining -= 1
         debugLog("障壁の残り回数を消費: 残り=\(damageBarrierTurnsRemaining)")
+        logDungeonPlayEvent("barrier_tick", [("barrier", String(damageBarrierTurnsRemaining))])
     }
 
     private func attackOrContactPoints(for enemy: EnemyState) -> Set<GridPoint> {
@@ -3373,9 +3744,9 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         return points
     }
 
-    private func enemyDangerPoints(for enemy: EnemyState) -> Set<GridPoint> {
+    private func enemyDangerPoints(for enemy: EnemyState, rotatingWatcherOffset: Int = 0) -> Set<GridPoint> {
         guard !isEnemyFreezeActive else { return [] }
-        return dangerPoints(for: [enemy])
+        return dangerPoints(for: [enemy], rotatingWatcherOffset: rotatingWatcherOffset)
     }
 
     private var hasWatcherLaserEnemy: Bool {
@@ -3730,6 +4101,9 @@ extension GameCore: GameCoreProtocol {
             return
         }
     }
+
+    /// GameCore 単体では長押し説明を扱わない。UI 側の ViewModel が辞典表示へ解決する。
+    public func handleLongPress(at point: GridPoint) {}
 }
 
 #endif
@@ -3862,6 +4236,7 @@ extension GameCore {
         core.consumedHealingTilePoints = []
         core.isDungeonExitUnlocked = mode.dungeonRules?.exitLock == nil
         core.dungeonExitUnlockEvent = nil
+        core.dungeonLockedExitReachEvent = nil
         core.dungeonFallEvent = nil
         core.dungeonEnemyTurnEvent = nil
         core.pendingTargetedSupportCard = nil

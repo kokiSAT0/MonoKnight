@@ -951,6 +951,64 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
         XCTAssertTrue(warningPoints.isSubset(of: viewModel.scene.latestDungeonVisiblePointsForTesting() ?? []))
     }
 
+    func testDarknessRayMovementReplayUpdatesVisionAroundEachStep() throws {
+        let mode = makeDarknessVisibilityMode()
+        let core = GameCore.makeTestInstance(
+            deck: Deck.makeTestDeck(
+                cards: [.rayRight, .kingUpRight, .straightRight2, .straightLeft2, .straightDown2],
+                configuration: mode.deckConfiguration
+            ),
+            current: GridPoint(x: 0, y: 0),
+            mode: mode
+        )
+        let viewModel = GameBoardBridgeViewModel(core: core, mode: mode)
+        XCTAssertTrue(core.addDungeonInventoryCardForTesting(.rayRight, pickupUses: 1))
+        var replayStartVisiblePoints: Set<GridPoint> = []
+        var stepSnapshots: [(point: GridPoint, visiblePoints: Set<GridPoint>, cardPickups: Set<GridPoint>, traps: Set<GridPoint>)] = []
+
+        viewModel.onMovementPresentationStarted = { [weak viewModel] _ in
+            replayStartVisiblePoints = viewModel?.scene.latestDungeonVisiblePointsForTesting() ?? []
+        }
+        viewModel.onMovementPresentationStep = { [weak viewModel] step in
+            guard let viewModel else { return }
+            stepSnapshots.append((
+                point: step.point,
+                visiblePoints: viewModel.scene.latestDungeonVisiblePointsForTesting() ?? [],
+                cardPickups: viewModel.scene.latestHighlightPoints(for: .dungeonCardPickup),
+                traps: viewModel.scene.latestHighlightPoints(for: .dungeonDamageTrap)
+            ))
+        }
+
+        let move = try XCTUnwrap(core.availableMoves().first { $0.destination == GridPoint(x: 4, y: 0) })
+        core.playCard(using: move)
+        RunLoop.main.run(until: Date().addingTimeInterval(1.0))
+
+        XCTAssertTrue(replayStartVisiblePoints.contains(GridPoint(x: 0, y: 1)))
+        XCTAssertFalse(
+            replayStartVisiblePoints.contains(GridPoint(x: 2, y: 1)),
+            "レイ移動開始時に Core の最終位置ではなく、移動前の現在地周辺を表示します"
+        )
+        XCTAssertEqual(stepSnapshots.map(\.point), [
+            GridPoint(x: 1, y: 0),
+            GridPoint(x: 2, y: 0),
+            GridPoint(x: 3, y: 0),
+            GridPoint(x: 4, y: 0)
+        ])
+        XCTAssertTrue(stepSnapshots[0].visiblePoints.contains(GridPoint(x: 2, y: 1)))
+        XCTAssertFalse(stepSnapshots[0].visiblePoints.contains(GridPoint(x: 3, y: 1)))
+        XCTAssertTrue(stepSnapshots[1].visiblePoints.contains(GridPoint(x: 3, y: 1)))
+        XCTAssertFalse(stepSnapshots[1].visiblePoints.contains(GridPoint(x: 4, y: 1)))
+        XCTAssertTrue(stepSnapshots[2].visiblePoints.contains(GridPoint(x: 4, y: 1)))
+        XCTAssertTrue(stepSnapshots[3].visiblePoints.contains(GridPoint(x: 4, y: 1)))
+        XCTAssertEqual(stepSnapshots[0].cardPickups, [GridPoint(x: 0, y: 1)])
+        XCTAssertFalse(stepSnapshots[1].cardPickups.contains(GridPoint(x: 4, y: 1)))
+        XCTAssertTrue(stepSnapshots[2].cardPickups.contains(GridPoint(x: 4, y: 1)))
+        XCTAssertFalse(stepSnapshots[1].traps.contains(GridPoint(x: 4, y: 0)))
+        XCTAssertTrue(stepSnapshots[2].traps.contains(GridPoint(x: 4, y: 0)))
+        XCTAssertTrue(viewModel.scene.latestDungeonVisiblePointsForTesting()?.contains(GridPoint(x: 4, y: 1)) == true)
+        XCTAssertTrue(viewModel.scene.latestHighlightPoints(for: .dungeonDanger).contains(GridPoint(x: 3, y: 2)))
+    }
+
     func testRotatingWatcherDangerHighlightUsesNextTurnLine() {
         let mode = makeRotatingWatcherDangerMode()
         let core = GameCore(mode: mode)

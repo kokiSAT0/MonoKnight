@@ -81,22 +81,22 @@ final class DungeonGrowthStoreTests: XCTestCase {
         let (defaults, suiteName) = try makeIsolatedDefaults()
         defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
 
-        let store = DungeonGrowthStore(userDefaults: defaults)
-        XCTAssertFalse(store.unlock(.toolPouch))
-
-        let dungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
-        let fifthFloor = DungeonRunState(dungeonID: dungeon.id, currentFloorIndex: 4, carriedHP: 3, clearedFloorCount: 4)
-        _ = store.registerDungeonClear(dungeon: dungeon, runState: fifthFloor, hasNextFloor: true)
+        let store = makeStore(
+            defaults: defaults,
+            points: 2,
+            unlocked: [],
+            active: []
+        )
 
         XCTAssertFalse(store.canUnlock(.climbingKit))
         XCTAssertEqual(store.lockReason(for: .climbingKit), "前提: 道具袋")
         XCTAssertTrue(store.unlock(.toolPouch))
         XCTAssertFalse(store.unlock(.toolPouch))
-        XCTAssertFalse(store.canUnlock(.climbingKit))
-        XCTAssertEqual(store.lockReason(for: .climbingKit), "10F到達後")
+        XCTAssertTrue(store.canUnlock(.climbingKit))
+        XCTAssertNil(store.lockReason(for: .climbingKit))
     }
 
-    func testDungeonGrowthStoreLocksStrongNodesBehindMilestones() throws {
+    func testDungeonGrowthStoreLocksStrongNodesBehindPrerequisites() throws {
         let (defaults, suiteName) = try makeIsolatedDefaults()
         defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
 
@@ -453,7 +453,7 @@ final class DungeonGrowthStoreTests: XCTestCase {
         XCTAssertEqual(store.startingHazardDamageMitigations(for: dungeon), 0)
     }
 
-    func testHazardGrowthBranchCanReachSecondStepWithFifteenthFloorMilestone() throws {
+    func testHazardGrowthBranchCanReachSecondStepWithoutMilestoneGate() throws {
         let (defaults, suiteName) = try makeIsolatedDefaults()
         defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
 
@@ -473,6 +473,72 @@ final class DungeonGrowthStoreTests: XCTestCase {
         XCTAssertTrue(store.unlock(.secondStep))
 
         XCTAssertEqual(store.startingHazardDamageMitigations(for: dungeon), 2)
+    }
+
+    func testRetryRecoveryEntriesApplyOnlyWhenActiveAndDeepEnough() throws {
+        let (defaults, suiteName) = try makeIsolatedDefaults()
+        defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+        let dungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let store = makeStore(
+            defaults: defaults,
+            unlocked: [.retryPreparation, .deepCheckpointRead, .checkpointExpansion, .comebackRoute, .finalRecovery],
+            active: [.retryPreparation, .deepCheckpointRead, .checkpointExpansion, .comebackRoute, .finalRecovery]
+        )
+
+        XCTAssertEqual(store.retryRewardEntries(for: dungeon, startingFloorIndex: 10), [])
+        XCTAssertEqual(
+            store.retryRewardEntries(for: dungeon, startingFloorIndex: 20),
+            [
+                DungeonInventoryEntry(support: .refillEmptySlots, rewardUses: 1),
+                DungeonInventoryEntry(support: .barrierSpell, rewardUses: 1)
+            ]
+        )
+        XCTAssertEqual(
+            store.retryRewardEntries(for: dungeon, startingFloorIndex: 30),
+            [
+                DungeonInventoryEntry(support: .refillEmptySlots, rewardUses: 1),
+                DungeonInventoryEntry(support: .barrierSpell, rewardUses: 1),
+                DungeonInventoryEntry(support: .panacea, rewardUses: 1)
+            ]
+        )
+        XCTAssertEqual(
+            store.retryRewardEntries(for: dungeon, startingFloorIndex: 40),
+            [
+                DungeonInventoryEntry(support: .refillEmptySlots, rewardUses: 1),
+                DungeonInventoryEntry(support: .barrierSpell, rewardUses: 1),
+                DungeonInventoryEntry(support: .panacea, rewardUses: 1),
+                DungeonInventoryEntry(card: .rayUpRight, rewardUses: 1),
+                DungeonInventoryEntry(support: .freezeSpell, rewardUses: 1)
+            ]
+        )
+
+        XCTAssertTrue(store.setActive(.deepCheckpointRead, isActive: false))
+        XCTAssertFalse(
+            store.retryRewardEntries(for: dungeon, startingFloorIndex: 40)
+                .contains(DungeonInventoryEntry(support: .barrierSpell, rewardUses: 1))
+        )
+    }
+
+    func testRetryRecoveryEntriesDoNotApplyToNonGrowthTowersOrNormalStarts() throws {
+        let (defaults, suiteName) = try makeIsolatedDefaults()
+        defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+        let growthDungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let rogueDungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "rogue-tower"))
+        let store = makeStore(
+            defaults: defaults,
+            unlocked: [.retryPreparation, .deepCheckpointRead],
+            active: [.retryPreparation, .deepCheckpointRead]
+        )
+
+        XCTAssertEqual(store.retryRewardEntries(for: rogueDungeon, startingFloorIndex: 20), [])
+        XCTAssertEqual(store.startingRewardEntries(for: growthDungeon, startingFloorIndex: 20), [])
+        XCTAssertEqual(
+            store.retryRewardEntries(for: growthDungeon, startingFloorIndex: 20),
+            [
+                DungeonInventoryEntry(support: .refillEmptySlots, rewardUses: 1),
+                DungeonInventoryEntry(support: .barrierSpell, rewardUses: 1)
+            ]
+        )
     }
 
     func testGrowthEffectsDoNotApplyToRoguelikeTower() throws {
@@ -511,6 +577,22 @@ final class DungeonGrowthStoreTests: XCTestCase {
         }
         defaults.removePersistentDomain(forName: suiteName)
         return (defaults, suiteName)
+    }
+
+    private func makeStore(
+        defaults: UserDefaults,
+        points: Int = 0,
+        unlocked: Set<DungeonGrowthUpgrade>,
+        active: Set<DungeonGrowthUpgrade>
+    ) -> DungeonGrowthStore {
+        let snapshot = DungeonGrowthSnapshot(
+            points: points,
+            unlockedUpgrades: unlocked,
+            activeUpgrades: active
+        )
+        let data = try? JSONEncoder().encode(snapshot)
+        defaults.set(data, forKey: StorageKey.UserDefaults.dungeonGrowth)
+        return DungeonGrowthStore(userDefaults: defaults)
     }
 
     private func makeGrowthDungeon(floorCount: Int) -> DungeonDefinition {

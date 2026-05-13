@@ -46,6 +46,92 @@ struct GameBoardTapSelectionWarning: Identifiable, Equatable {
     }
 }
 
+enum GameInlineInspection: Identifiable, Equatable {
+    case tile(TileEncyclopediaEntry, point: GridPoint)
+    case support(SupportCardEncyclopediaEntry, stackID: UUID)
+
+    var id: String {
+        switch self {
+        case .tile(let entry, let point):
+            return "tile-\(entry.id)-\(point.x)-\(point.y)"
+        case .support(let entry, let stackID):
+            return "support-\(entry.card.rawValue)-\(stackID.uuidString)"
+        }
+    }
+
+    var displayName: String {
+        switch self {
+        case .tile(let entry, _):
+            return entry.displayName
+        case .support(let entry, _):
+            return entry.displayName
+        }
+    }
+
+    var category: String {
+        switch self {
+        case .tile(let entry, _):
+            return entry.category
+        case .support(let entry, _):
+            return entry.category
+        }
+    }
+
+    var description: String {
+        switch self {
+        case .tile(let entry, _):
+            return entry.description
+        case .support(let entry, _):
+            return entry.description
+        }
+    }
+
+    var systemImageName: String {
+        switch self {
+        case .tile(let entry, _):
+            switch entry.previewKind {
+            case .dungeonExit, .lockedDungeonExit:
+                return "stairs"
+            case .dungeonKey:
+                return "key.fill"
+            case .cardPickup:
+                return "rectangle.stack.fill"
+            case .dungeonRelicPickup:
+                return "shippingbox.fill"
+            case .damageTrap, .lavaTile, .brittleFloor, .collapsedFloor, .enemyDanger, .enemyWarning, .effect:
+                return "exclamationmark.triangle.fill"
+            case .healingTile:
+                return "cross.case.fill"
+            case .impassable:
+                return "mountain.2.fill"
+            case .normal, .spawn:
+                return "square.fill"
+            }
+        case .support(let entry, _):
+            switch entry.card {
+            case .refillEmptySlots:
+                return "square.grid.3x3.fill"
+            case .singleAnnihilationSpell:
+                return "sparkle.magnifyingglass"
+            case .annihilationSpell:
+                return "sparkles"
+            case .freezeSpell:
+                return "snowflake"
+            case .barrierSpell:
+                return "shield.fill"
+            case .darknessSpell:
+                return "moon.fill"
+            case .railBreakSpell:
+                return "point.topleft.down.to.point.bottomright.curvepath"
+            case .antidote:
+                return "cross.case.fill"
+            case .panacea:
+                return "pills.fill"
+            }
+        }
+    }
+}
+
 enum GameMenuAction: Hashable, Identifiable {
     case manualPenalty(penaltyCost: Int)
     case reset

@@ -13,7 +13,8 @@ final class PauseMenuViewTests: XCTestCase {
         let controller = UIHostingController(
             rootView: PauseMenuView(
                 onResume: {},
-                onConfirmReturnToTitle: {}
+                onConfirmReturnToTitle: {},
+                diagnosticReportText: { "report" }
             )
             .environmentObject(settingsStore)
         )
@@ -28,6 +29,7 @@ final class PauseMenuViewTests: XCTestCase {
         XCTAssertEqual(PauseMenuAccessibilityIdentifier.panel, "pause_menu_panel")
         XCTAssertEqual(PauseMenuAccessibilityIdentifier.resumeButton, "pause_resume_button")
         XCTAssertEqual(PauseMenuAccessibilityIdentifier.helpButton, "pause_help_button")
+        XCTAssertEqual(PauseMenuAccessibilityIdentifier.reportIssueButton, "pause_report_issue_button")
         XCTAssertEqual(PauseMenuAccessibilityIdentifier.returnToTitleButton, "pause_return_to_title_button")
         XCTAssertEqual(PauseMenuAccessibilityIdentifier.settingsDisclosure, "pause_settings_disclosure")
     }
@@ -53,5 +55,28 @@ final class PauseMenuViewTests: XCTestCase {
 
         XCTAssertFalse(controller.view.bounds.isEmpty, "小幅画面でポーズ画面のレイアウト生成に失敗しました")
         XCTAssertEqual(PauseMenuAccessibilityIdentifier.helpButton, "pause_help_button")
+    }
+
+    func testPauseMenuCanHideDiagnosticReportAction() {
+        let defaults = UserDefaults(suiteName: "PauseMenuViewTestsNoReport")!
+        defaults.removePersistentDomain(forName: "PauseMenuViewTestsNoReport")
+        let settingsStore = GameSettingsStore(userDefaults: defaults)
+
+        let controller = UIHostingController(
+            rootView: PauseMenuView(
+                onResume: {},
+                onConfirmReturnToTitle: {}
+            )
+            .environmentObject(settingsStore)
+        )
+
+        controller.loadViewIfNeeded()
+        controller.view.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
+        controller.view.setNeedsLayout()
+        controller.view.layoutIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+
+        XCTAssertNotNil(controller.view, "診断共有なしのポーズ画面生成に失敗しました")
+        XCTAssertEqual(PauseMenuAccessibilityIdentifier.reportIssueButton, "pause_report_issue_button")
     }
 }

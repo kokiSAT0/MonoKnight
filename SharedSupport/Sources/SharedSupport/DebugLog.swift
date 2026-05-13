@@ -179,6 +179,65 @@ public final class DebugLogHistory {
     }
 }
 
+// MARK: - 共有用診断レポート
+
+public struct DebugLogShareReportContext {
+    public var title: String
+    public var details: [(String, String)]
+
+    public init(title: String, details: [(String, String)] = []) {
+        self.title = title
+        self.details = details
+    }
+}
+
+public enum DebugLogShareReportFormatter {
+    public static let defaultLogLimit = 60
+
+    public static func makeReport(
+        context: DebugLogShareReportContext,
+        entries: [DebugLogEntry],
+        appVersion: String,
+        deviceDescription: String,
+        generatedAt: Date = Date(),
+        logLimit: Int = defaultLogLimit
+    ) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ja_JP_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss ZZZZZ"
+
+        var lines: [String] = [
+            "MonoKnight テスト報告",
+            "何が変だったか一言追記してください:",
+            "",
+            "状況: \(context.title)",
+            "日時: \(formatter.string(from: generatedAt))",
+            "アプリ: \(appVersion)",
+            "端末: \(deviceDescription)"
+        ]
+
+        for (key, value) in context.details where !value.isEmpty {
+            lines.append("\(key): \(value)")
+        }
+
+        let recentEntries = entries
+            .suffix(max(logLimit, 0))
+            .map { entry in
+                "[\(entry.level.rawValue)] \(entry.message)"
+            }
+
+        lines.append("")
+        lines.append("直近ログ: \(recentEntries.count)件")
+        if recentEntries.isEmpty {
+            lines.append("ログはありません")
+        } else {
+            lines.append(contentsOf: recentEntries)
+        }
+
+        return lines.joined(separator: "\n")
+    }
+}
+
 /// OSLog へ出力する際に利用する共通サブシステム名
 /// - Note: Bundle ID が取得できなかった場合も識別しやすいようフォールバック文字列を用意する
 private let debugLogSubsystem: String = {

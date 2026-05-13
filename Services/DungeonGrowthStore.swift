@@ -191,29 +191,29 @@ enum DungeonGrowthUpgrade: String, Codable, CaseIterable, Identifiable {
         case .finalGuard:
             return "50F帯の踏破向けに各種ダメージ保険を完成させます"
         case .floorSense:
-            return "次の階層帯の床ギミック傾向を読みやすくします"
+            return "次区間の床ギミック傾向を挑戦前に表示します"
         case .rewardSense:
-            return "次の階層帯の報酬傾向を読みやすくします"
+            return "次区間の拾得カード・報酬・宝箱傾向を表示します"
         case .enemySense:
-            return "次の階層帯の敵傾向を読みやすくします"
+            return "次区間の敵種と危険の方向性を表示します"
         case .pathPreview:
-            return "35F以降で安全経路を組み立てるための予見を得ます"
+            return "鍵・ワープ・寄り道など経路判断の見通しを表示します"
         case .deepForecast:
-            return "40F以降の深層傾向をまとめて読みやすくします"
+            return "31F以降の複合ギミック注意点を追加表示します"
         case .routeForecast:
-            return "50F帯の危険と報酬の見通しを完成させます"
+            return "41F以降の危険・報酬・経路をまとめて表示します"
         case .retryPreparation:
-            return "21F以降の区間再挑戦に向けた支度を整えます"
+            return "21F以降の再挑戦時に補給を1回分持ちます"
         case .sectionRecovery:
             return "31F以降の区間開始時に立て直し用補助を持ちます"
         case .deepCheckpointRead:
-            return "深層チェックポイント解放に備える復帰系スキルです"
+            return "21F以降の再挑戦時に障壁の呪文を1回分持ちます"
         case .checkpointExpansion:
-            return "将来の21F/31F/41F開始解放を扱う土台になります"
+            return "31F以降の再挑戦時に万能薬を1回分持ちます"
         case .comebackRoute:
-            return "45F帯の復帰時に経路を作り直しやすくします"
+            return "41F以降の再挑戦時に経路用カードを1回分持ちます"
         case .finalRecovery:
-            return "50F帯の踏破失敗後に再挑戦しやすくします"
+            return "41F以降の再挑戦時に凍結の呪文を1回分持ちます"
         case .shortcutKit:
             return "区間開始時に右上2を1回分持って始めます"
         case .refillCharm:
@@ -294,10 +294,6 @@ enum DungeonGrowthUpgrade: String, Codable, CaseIterable, Identifiable {
         case .refillCharm:
             return [.shortcutKit]
         }
-    }
-
-    var requiredMilestoneFloor: Int? {
-        tierFloor
     }
 
     var tierFloor: Int? {
@@ -433,13 +429,7 @@ final class DungeonGrowthStore: ObservableObject {
         guard !isUnlocked(upgrade), snapshot.points >= upgrade.cost else {
             return false
         }
-        guard upgrade.requiredUpgrades.isSubset(of: snapshot.unlockedUpgrades) else {
-            return false
-        }
-        guard let requiredMilestoneFloor = upgrade.requiredMilestoneFloor else {
-            return true
-        }
-        return hasRewardedGrowthMilestoneFloor(requiredMilestoneFloor)
+        return upgrade.requiredUpgrades.isSubset(of: snapshot.unlockedUpgrades)
     }
 
     func lockReason(for upgrade: DungeonGrowthUpgrade) -> String? {
@@ -451,10 +441,6 @@ final class DungeonGrowthStore: ObservableObject {
             .map(\.title)
         if !missingPrerequisites.isEmpty {
             return "前提: \(missingPrerequisites.joined(separator: "、"))"
-        }
-        if let requiredMilestoneFloor = upgrade.requiredMilestoneFloor,
-           !hasRewardedGrowthMilestoneFloor(requiredMilestoneFloor) {
-            return "\(requiredMilestoneFloor)F到達後"
         }
         if snapshot.points < upgrade.cost {
             return "ポイント不足"
@@ -556,6 +542,27 @@ final class DungeonGrowthStore: ObservableObject {
         }
         if startingFloorIndex >= 30, isActive(.sectionRecovery) {
             entries.append(DungeonInventoryEntry(support: .barrierSpell, rewardUses: 1))
+        }
+        return entries
+    }
+
+    func retryRewardEntries(for dungeon: DungeonDefinition, startingFloorIndex: Int) -> [DungeonInventoryEntry] {
+        guard dungeon.difficulty == .growth else { return [] }
+        var entries: [DungeonInventoryEntry] = []
+        if startingFloorIndex >= 20, isActive(.retryPreparation) {
+            entries.append(DungeonInventoryEntry(support: .refillEmptySlots, rewardUses: 1))
+        }
+        if startingFloorIndex >= 20, isActive(.deepCheckpointRead) {
+            entries.append(DungeonInventoryEntry(support: .barrierSpell, rewardUses: 1))
+        }
+        if startingFloorIndex >= 30, isActive(.checkpointExpansion) {
+            entries.append(DungeonInventoryEntry(support: .panacea, rewardUses: 1))
+        }
+        if startingFloorIndex >= 40, isActive(.comebackRoute) {
+            entries.append(DungeonInventoryEntry(card: .rayUpRight, rewardUses: 1))
+        }
+        if startingFloorIndex >= 40, isActive(.finalRecovery) {
+            entries.append(DungeonInventoryEntry(support: .freezeSpell, rewardUses: 1))
         }
         return entries
     }

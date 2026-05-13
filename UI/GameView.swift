@@ -202,7 +202,10 @@ struct GameView: View {
                     // タイトル復帰時もポーズメニューを閉じてから処理を実行する
                     viewModel.isPauseMenuPresented = false
                     performMenuAction(.returnToTitle)
-                }
+                },
+                diagnosticReportText: viewModel.isDiagnosticShareAvailable ? {
+                    viewModel.makeTesterIssueReport()
+                } : nil
             )
             .environmentObject(gameSettingsStore)
         }

@@ -1832,6 +1832,27 @@ public enum DungeonWeightedRewardPools {
             } ?? categoryCandidateIndices[0]
             result.append(candidates.remove(at: selectedIndex).offer)
         }
+        PlayDiagnosticLog.emit(
+            event: "reward_draw",
+            fields: [
+                ("dungeon", "growth-tower"),
+                ("floor", String(floorIndex + 1)),
+                ("turn", "nil"),
+                ("hp", "nil"),
+                ("pos", "nil"),
+                ("progress", "reward"),
+                ("hand", "nil"),
+                ("relics", excludedRelics.map(\.rawValue).sorted().joined(separator: ",")),
+                ("curses", "nil"),
+                ("context", String(describing: context)),
+                ("requested", String(count)),
+                ("seed", String(seed)),
+                ("salt", String(salt)),
+                ("baseCount", String(entries.count)),
+                ("excludedPlayables", excludedPlayables.map(\.displayName).sorted().joined(separator: ",")),
+                ("result", result.map(\.displayName).joined(separator: ","))
+            ]
+        )
         return result
     }
 
