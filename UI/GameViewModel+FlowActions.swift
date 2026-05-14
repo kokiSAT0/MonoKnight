@@ -200,6 +200,9 @@ extension GameViewModel {
             collectedDungeonRelicPickupIDs: core.collectedDungeonRelicPickupIDs,
             rewardAddUses: dungeonRewardAddUses,
             supportRewardAddUses: dungeonSupportRewardAddUses,
+            completedWithinHalfTurnLimit: core.effectiveDungeonTurnLimit.map {
+                core.moveCount <= $0 / 2
+            } ?? false,
             hazardDamageMitigationsRemaining: core.hazardDamageMitigationsRemaining,
             enemyDamageMitigationsRemaining: core.enemyDamageMitigationsRemaining,
             markerDamageMitigationsRemaining: core.markerDamageMitigationsRemaining
@@ -255,6 +258,7 @@ extension GameViewModel {
         else { return nil }
 
         let restartFloorIndex = metadata.runState?.currentFloorIndex ?? 0
+        let restartMovementStyle = metadata.runState?.movementStyle ?? .orthogonal
         let sectionStartFloorIndex = dungeon.difficulty == .growth
             ? (restartFloorIndex / 10) * 10
             : 0
@@ -267,7 +271,8 @@ extension GameViewModel {
             ),
             startingRewardEntries: dungeonGrowthStore.startingRewardEntries(
                 for: dungeon,
-                startingFloorIndex: sectionStartFloorIndex
+                startingFloorIndex: sectionStartFloorIndex,
+                movementStyle: restartMovementStyle
             ) + dungeonGrowthStore.retryRewardEntries(
                 for: dungeon,
                 startingFloorIndex: sectionStartFloorIndex
@@ -280,7 +285,8 @@ extension GameViewModel {
             ),
             startingMarkerDamageMitigations: dungeonGrowthStore.startingMarkerDamageMitigations(
                 for: dungeon
-            )
+            ),
+            movementStyle: restartMovementStyle
         )
     }
 

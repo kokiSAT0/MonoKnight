@@ -246,6 +246,8 @@ public final class GameCore: ObservableObject {
     @Published public private(set) var isShackled: Bool = false
     /// 幻惑罠を踏み、その階の間だけ移動カードの正体が分からなくなっているかどうか
     @Published public private(set) var isIlluded: Bool = false
+    /// このフロアで溶岩マスへ実際に踏み込んだかどうか
+    @Published public private(set) var didStepOnLavaThisFloor: Bool = false
     /// 毒状態で残っているダメージ回数
     @Published public private(set) var poisonDamageTicksRemaining: Int = 0
     /// 次の毒ダメージまでに必要な成功行動数
@@ -365,6 +367,9 @@ public final class GameCore: ObservableObject {
         }
         if hasDungeonCurse(.contractCodex) {
             adjustment -= 4
+        }
+        if hasDungeonCurse(.lastStandShield) {
+            adjustment -= 3
         }
         if hasDungeonCurse(.chaserScent) {
             adjustment += 3
@@ -591,6 +596,7 @@ public final class GameCore: ObservableObject {
             isPatrolRailDestroyed: isPatrolRailDestroyed,
             isShackled: isShackled,
             isIlluded: isIlluded,
+            didStepOnLavaThisFloor: didStepOnLavaThisFloor,
             poisonDamageTicksRemaining: poisonDamageTicksRemaining,
             poisonActionsUntilNextDamage: poisonActionsUntilNextDamage,
             enemyStates: enemyStates,
@@ -650,6 +656,7 @@ public final class GameCore: ObservableObject {
         isPatrolRailDestroyed = snapshot.isPatrolRailDestroyed
         isShackled = snapshot.isShackled
         isIlluded = snapshot.isIlluded
+        didStepOnLavaThisFloor = snapshot.didStepOnLavaThisFloor
         poisonDamageTicksRemaining = snapshot.poisonDamageTicksRemaining
         poisonActionsUntilNextDamage = snapshot.poisonActionsUntilNextDamage
         enemyStates = snapshot.enemyStates
@@ -2015,12 +2022,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         guard mode.dungeonRules?.allowsBasicOrthogonalMove == true else { return [] }
         guard let origin = currentOverride ?? current else { return [] }
 
-        let vectors = [
-            MoveVector(dx: 0, dy: 1),
-            MoveVector(dx: 1, dy: 0),
-            MoveVector(dx: 0, dy: -1),
-            MoveVector(dx: -1, dy: 0)
-        ]
+        let vectors = mode.dungeonRules?.movementStyle.basicMoveVectors ?? DungeonMovementStyle.orthogonal.basicMoveVectors
 
         var moves: [BasicOrthogonalMove] = []
         for vector in vectors {
@@ -2114,6 +2116,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         isPatrolRailDestroyed = false
         isShackled = false
         isIlluded = false
+        didStepOnLavaThisFloor = false
         poisonDamageTicksRemaining = 0
         poisonActionsUntilNextDamage = 0
         enemyStates = mode.dungeonRules?.enemies.map(EnemyState.init(definition:)) ?? []
@@ -2653,7 +2656,9 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             break
         case .laughingDoor, .upsideDownKey, .taxCollector, .flickeringCampfire:
             break
-        case .contractCodex, .royalIou, .bottomlessPack, .relicHunterBrand, .supportOath, .ashHeart:
+        case .contractCodex, .royalIou, .bottomlessPack, .relicHunterBrand, .supportOath, .ashHeart,
+             .hasteArmor, .scorchedCloak, .lastStandShield, .firewalkingTalisman, .tinkersToolbox,
+             .expressTicket:
             break
         }
     }
@@ -2745,7 +2750,15 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
     }
 
     private func dungeonRefillMoveCardPool() -> [MoveCard] {
-        MoveCard.allCases
+        let cards: [MoveCard]
+        if mode.dungeonRules?.movementStyle == .knight {
+            cards = MoveCard.allCases.map(\.cardForKnightMovementStyle)
+        } else {
+            cards = MoveCard.allCases.filter { !$0.isOrthogonalStepType }
+        }
+
+        var seen: Set<MoveCard> = []
+        return cards.filter { seen.insert($0).inserted }
     }
 
     private func dungeonRefillSeed() -> UInt64 {
@@ -2906,6 +2919,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                     return true
                 }
             case .lavaTile(let lavaPoints, let damage) where lavaPoints.contains(point):
+                didStepOnLavaThisFloor = true
                 applyDungeonHazardDamage(max(damage, 1), at: point, logLabel: "溶岩")
                 if shouldFailDungeonRun() {
                     finalizeElapsedTimeIfNeeded()
@@ -2979,6 +2993,13 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             }
             if logLabel.hasPrefix("溶岩"), hasDungeonCurse(.oilSoakedBoots) {
                 adjustedDamage += 1
+            }
+            if logLabel == "溶岩滞在", hasDungeonCurse(.firewalkingTalisman) {
+                adjustedDamage += 1
+            }
+            if hasDungeonCurse(.scorchedCloak),
+               logLabel == "罠" || logLabel.hasPrefix("溶岩") {
+                adjustedDamage = max(adjustedDamage - 1, 0)
             }
             if logLabel == "罠", hasDungeonRelic(.trapSole) {
                 adjustedDamage = max(adjustedDamage - 1, 0)
@@ -3126,6 +3147,9 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         if hasDungeonCurse(.redChalice) {
             adjustedDamage += 1
         }
+        if consumeDungeonCurseUse(.lastStandShield) {
+            adjustedDamage = max(adjustedDamage - 2, 0)
+        }
         if consumeDungeonRelicUse(.guardianAegis) {
             return max(adjustedDamage - 1, 0)
         }
@@ -3272,6 +3296,9 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         } else {
             var baseFallDamage = 1 + (hasDungeonCurse(.glassAnklet) ? 1 : 0)
             if hasDungeonRelic(.fallAnchor) {
+                baseFallDamage = max(baseFallDamage - 1, 0)
+            }
+            if hasDungeonCurse(.scorchedCloak) {
                 baseFallDamage = max(baseFallDamage - 1, 0)
             }
             let finalDamage = applyRelicDamageReductionIfNeeded(to: baseFallDamage)
@@ -3736,6 +3763,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
     private func adjustedEnemySourceDamage(for enemy: EnemyState, isMarkerWarning: Bool) -> Int {
         let damage = enemy.damage
             + curseDamageBonus(for: enemy.behavior, isMarkerWarning: isMarkerWarning)
+            - curseDamageReductionBonus(for: enemy.behavior, isMarkerWarning: isMarkerWarning)
             - relicDamageReductionBonus(for: enemy.behavior, isMarkerWarning: isMarkerWarning)
         return max(damage, 0)
     }
@@ -3750,6 +3778,18 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             return hasDungeonCurse(.chaserScent) ? 1 : 0
         case .marker:
             return isMarkerWarning && hasDungeonCurse(.meteorRod) ? 1 : 0
+        case .guardPost:
+            return 0
+        }
+    }
+
+    private func curseDamageReductionBonus(for behavior: EnemyBehavior, isMarkerWarning: Bool) -> Int {
+        guard hasDungeonCurse(.hasteArmor) else { return 0 }
+        switch behavior {
+        case .watcher, .rotatingWatcher, .patrol, .chaser:
+            return 1
+        case .marker:
+            return isMarkerWarning ? 1 : 0
         case .guardPost:
             return 0
         }
@@ -3825,11 +3865,12 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         let currentOvertime = max(moveCount - turnLimit, 0)
         guard currentOvertime > previousOvertime else { return false }
 
+        let fatigueDamagePerStep = 1 + dungeonFatigueDamageBonus()
         let damage = (previousOvertime + 1...currentOvertime).reduce(0) { partialResult, overtimeTurn in
             guard overtimeTurn == 1 || (overtimeTurn - 1).isMultiple(of: Self.overtimeFatigueInterval) else {
                 return partialResult
             }
-            return partialResult + 1
+            return partialResult + fatigueDamagePerStep
         }
         guard damage > 0 else { return false }
 
@@ -3845,6 +3886,20 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             ]
         )
         return dungeonHP <= 0
+    }
+
+    private func dungeonFatigueDamageBonus() -> Int {
+        var bonus = 0
+        if hasDungeonCurse(.hasteArmor) {
+            bonus += 1
+        }
+        if hasDungeonCurse(.scorchedCloak) {
+            bonus += 1
+        }
+        if hasDungeonCurse(.expressTicket) {
+            bonus += 1
+        }
+        return bonus
     }
 
     private func consumeEnemyFreezeTurnIfNeeded() -> Bool {

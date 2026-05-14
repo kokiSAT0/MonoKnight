@@ -36,6 +36,10 @@ public extension MoveCard {
         case .straightDown2: return "下2"
         case .straightRight2: return "右2"
         case .straightLeft2: return "左2"
+        case .straightUp1: return "上1"
+        case .straightDown1: return "下1"
+        case .straightRight1: return "右1"
+        case .straightLeft1: return "左1"
         case .diagonalUpRight2: return "右上2"
         case .diagonalDownRight2: return "右下2"
         case .diagonalDownLeft2: return "左下2"
@@ -129,6 +133,11 @@ public extension MoveCard {
         default:
             return false
         }
+    }
+
+    /// 上下左右 1 マスカードかどうかを判定する
+    var isOrthogonalStepType: Bool {
+        MoveCard.orthogonalStepCards.contains(self)
     }
 
     /// 斜め 2 マス（マンハッタン距離 4）の長距離斜めカードかどうかを判定する

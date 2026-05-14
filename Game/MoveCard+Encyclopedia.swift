@@ -79,6 +79,8 @@ public extension MoveCard {
                 return "キング"
             } else if isKnightType {
                 return "ナイト"
+            } else if isOrthogonalStepType {
+                return "直線1マス"
             } else if isDiagonalDistanceFour {
                 return "斜め2マス"
             } else {
@@ -113,6 +115,8 @@ public extension MoveCard {
             return "上1左2か下1左2のどちらかを盤面上で選んで跳びます。"
         case .straightUp2, .straightDown2, .straightRight2, .straightLeft2:
             return "\(displayName)へ 2 マス進みます。階段へ急ぐ、または危険な隣接マスを避けるときに有効です。"
+        case .straightUp1, .straightDown1, .straightRight1, .straightLeft1:
+            return "\(displayName)へ 1 マス進みます。跳躍騎士で細かく位置を整えたい時に使います。"
         case .diagonalUpRight2, .diagonalDownRight2, .diagonalDownLeft2, .diagonalUpLeft2:
             return "\(displayName)へ斜めに 2 マス進みます。大きく位置を変えたい場面で役立ちます。"
         case .rayUp, .rayUpRight, .rayRight, .rayDownRight, .rayDown, .rayDownLeft, .rayLeft, .rayUpLeft:
@@ -168,6 +172,14 @@ public extension MoveCard {
             ),
             MoveCardEncyclopediaEntry(
                 id: 3,
+                card: .straightUp1,
+                includedCards: orthogonalStepCards,
+                displayName: "直線1マス",
+                category: "直線1マス",
+                description: "上下左右のいずれかへ 1 マス進みます。跳躍騎士の位置調整に使うカードです。"
+            ),
+            MoveCardEncyclopediaEntry(
+                id: 4,
                 card: .diagonalUpRight2,
                 includedCards: [
                     .diagonalUpRight2,
@@ -180,7 +192,7 @@ public extension MoveCard {
                 description: "斜め4方向のいずれかへ 2 マス進みます。大きく位置を変えたい場面で役立ちます。"
             ),
             MoveCardEncyclopediaEntry(
-                id: 4,
+                id: 5,
                 card: .rayUp,
                 includedCards: directionalRayCards,
                 displayName: "レイ",
@@ -188,7 +200,7 @@ public extension MoveCard {
                 description: "8方向のいずれかへ、盤端や障害物の手前まで連続で進みます。通過した鍵、床カード、階段も途中で処理されます。"
             ),
             MoveCardEncyclopediaEntry(
-                id: 5,
+                id: 6,
                 card: .kingUpwardDiagonalChoice,
                 includedCards: [
                     .kingUpwardDiagonalChoice,
@@ -201,7 +213,7 @@ public extension MoveCard {
                 description: "斜めペアの候補から、盤面上で進む 1 マスを選びます。"
             ),
             MoveCardEncyclopediaEntry(
-                id: 6,
+                id: 7,
                 card: .knightUpwardChoice,
                 includedCards: [
                     .knightUpwardChoice,

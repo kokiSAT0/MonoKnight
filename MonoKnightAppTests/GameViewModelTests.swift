@@ -1201,6 +1201,55 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.availableDungeonRewardOffers.contains(.relic(.victoryBanner)))
     }
 
+    func testFirewalkingTalismanExpandsRewardChoicesOnlyAfterSteppingOnLava() throws {
+        let lavaPoint = GridPoint(x: 1, y: 0)
+        let mode = GameMode(
+            identifier: .dungeonFloor,
+            displayName: "火渡り報酬テスト",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 3,
+                allowsStacking: true,
+                deckPreset: .kingAndKnightBasic,
+                spawnRule: .fixed(GridPoint(x: 0, y: 0)),
+                penalties: GameMode.PenaltySettings(
+                    deadlockPenaltyCost: 0,
+                    manualRedrawPenaltyCost: 0,
+                    manualDiscardPenaltyCost: 0,
+                    revisitPenaltyCost: 0
+                ),
+                completionRule: .dungeonExit(exitPoint: GridPoint(x: 4, y: 4)),
+                dungeonRules: DungeonRules(
+                    difficulty: .growth,
+                    failureRule: DungeonFailureRule(initialHP: 5, turnLimit: 8),
+                    hazards: [.lavaTile(points: [lavaPoint], damage: 1)],
+                    allowsBasicOrthogonalMove: true
+                )
+            ),
+            leaderboardEligible: false,
+            dungeonMetadata: .init(
+                dungeonID: "growth-tower",
+                floorID: "growth-1",
+                runState: DungeonRunState(
+                    dungeonID: "growth-tower",
+                    carriedHP: 5,
+                    curseEntries: [DungeonCurseEntry(curseID: .firewalkingTalisman)],
+                    cardVariationSeed: 42
+                )
+            )
+        )
+        let (viewModel, core) = makeViewModel(mode: mode)
+
+        XCTAssertEqual(viewModel.availableDungeonRewardOffers.count, 3)
+
+        let lavaMove = try XCTUnwrap(core.availableBasicOrthogonalMoves().first { $0.destination == lavaPoint })
+        core.playBasicOrthogonalMove(using: lavaMove)
+
+        XCTAssertTrue(core.didStepOnLavaThisFloor)
+        XCTAssertEqual(viewModel.availableDungeonRewardOffers.count, 4)
+    }
+
     func testGamblerCoinAddsRelicOfferWithoutExpandingChoiceCount() throws {
         let dungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
         let runState = DungeonRunState(

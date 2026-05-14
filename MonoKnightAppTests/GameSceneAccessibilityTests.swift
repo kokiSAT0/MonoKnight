@@ -195,6 +195,52 @@ final class GameSceneAccessibilityTests: XCTestCase {
         XCTAssertTrue(destinationStyle.fillColor.isClearForTesting, "終点枠自体は塗りを持たず、通過塗りと重ねます")
     }
 
+    func testDarknessMoveCandidatesUseHighContrastFrames() {
+        let visibleBasicMovePoint = GridPoint(x: 1, y: 1)
+        let hiddenBasicMovePoint = GridPoint(x: 2, y: 2)
+        let visibleCardMovePoint = GridPoint(x: 1, y: 2)
+        let hiddenCardMovePoint = GridPoint(x: 3, y: 2)
+        let hiddenPathPoint = GridPoint(x: 2, y: 3)
+        let (scene, view, _) = makeScene()
+        defer { view.presentScene(nil) }
+
+        scene.updateDungeonVisiblePoints([visibleBasicMovePoint, visibleCardMovePoint])
+        scene.updateHighlights([
+            .dungeonBasicMove: [visibleBasicMovePoint, hiddenBasicMovePoint],
+            .guideSingleCandidate: [visibleCardMovePoint, hiddenCardMovePoint],
+            .guideMultiStepPath: [hiddenPathPoint],
+        ])
+
+        guard let visibleBasicStyle = scene.highlightStyleForTesting(
+            kind: .dungeonBasicMove,
+            at: visibleBasicMovePoint
+        ), let hiddenBasicStyle = scene.highlightStyleForTesting(
+            kind: .dungeonBasicMove,
+            at: hiddenBasicMovePoint
+        ), let visibleCardStyle = scene.highlightStyleForTesting(
+            kind: .guideSingleCandidate,
+            at: visibleCardMovePoint
+        ), let hiddenCardStyle = scene.highlightStyleForTesting(
+            kind: .guideSingleCandidate,
+            at: hiddenCardMovePoint
+        ), let hiddenPathStyle = scene.highlightStyleForTesting(
+            kind: .guideMultiStepPath,
+            at: hiddenPathPoint
+        ) else {
+            XCTFail("暗闇上の移動候補スタイルを取得できません")
+            return
+        }
+
+        XCTAssertTrue(visibleBasicStyle.strokeColor.isBlackForTesting, "視界内の基本移動は従来どおり黒枠を維持します")
+        XCTAssertFalse(hiddenBasicStyle.strokeColor.isBlackForTesting, "暗闇上の基本移動は黒枠のままにしません")
+        XCTAssertFalse(hiddenBasicStyle.fillColor.isClearForTesting, "暗闇上の基本移動は薄い塗りで暗い床から浮かせます")
+        XCTAssertGreaterThan(hiddenBasicStyle.lineWidth, visibleBasicStyle.lineWidth, "暗闇上の基本移動は通常より少し太い枠にします")
+        XCTAssertGreaterThan(hiddenBasicStyle.glowWidth, 0, "暗闇上の基本移動は薄い発光で視認性を上げます")
+        XCTAssertGreaterThan(hiddenCardStyle.lineWidth, visibleCardStyle.lineWidth, "暗闇上のカード移動候補も枠を少し強めます")
+        XCTAssertGreaterThan(hiddenCardStyle.glowWidth, 0, "暗闇上のカード移動候補にも薄い発光を足します")
+        XCTAssertEqual(hiddenPathStyle.lineWidth, 0, "連続移動の途中マスは暗闇上でもタップ可能枠に見せません")
+    }
+
     func testDungeonBasicMoveUsesFrameAndDungeonMarkersAvoidTileFrames() {
         let basicMovePoint = GridPoint(x: 1, y: 1)
         let cardMovePoint = GridPoint(x: 1, y: 2)

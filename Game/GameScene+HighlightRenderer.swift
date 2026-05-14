@@ -106,6 +106,7 @@
             scene: SKScene,
             layout: GameSceneLayoutSupport,
             palette: GameScenePalette,
+            visiblePoints: Set<GridPoint>?,
             isLayoutReady: Bool
         ) {
             var sanitized: [BoardHighlightKind: Set<GridPoint>] = [:]
@@ -138,7 +139,8 @@
                 sanitized,
                 scene: scene,
                 layout: layout,
-                palette: palette
+                palette: palette,
+                visiblePoints: visiblePoints
             )
             clearPending()
         }
@@ -205,7 +207,8 @@
 
         func refreshAppearance(
             layout: GameSceneLayoutSupport,
-            palette: GameScenePalette
+            palette: GameScenePalette,
+            visiblePoints: Set<GridPoint>?
         ) {
             guard layout.tileSize > 0 else { return }
 
@@ -216,7 +219,8 @@
                         for: point,
                         kind: kind,
                         layout: layout,
-                        palette: palette
+                        palette: palette,
+                        visiblePoints: visiblePoints
                     )
                 }
             }
@@ -258,6 +262,7 @@
             scene: SKScene,
             layout: GameSceneLayoutSupport,
             palette: GameScenePalette,
+            visiblePoints: Set<GridPoint>?,
             isLayoutReady: Bool
         ) {
             guard isLayoutReady else { return }
@@ -286,7 +291,13 @@
             else { return }
 
             if hasPendingValues {
-                applyHighlightsImmediately(snapshot, scene: scene, layout: layout, palette: palette)
+                applyHighlightsImmediately(
+                    snapshot,
+                    scene: scene,
+                    layout: layout,
+                    palette: palette,
+                    visiblePoints: visiblePoints
+                )
             } else if hasRenderedHighlights {
                 let latestSnapshot: [BoardHighlightKind: Set<GridPoint>] = [
                     .guideSingleCandidate: latestSingleGuidePoints,
@@ -317,10 +328,17 @@
                         latestSnapshot,
                         scene: scene,
                         layout: layout,
-                        palette: palette
+                        palette: palette,
+                        visiblePoints: visiblePoints
                     )
                 } else {
-                    applyHighlightsImmediately(snapshot, scene: scene, layout: layout, palette: palette)
+                    applyHighlightsImmediately(
+                        snapshot,
+                        scene: scene,
+                        layout: layout,
+                        palette: palette,
+                        visiblePoints: visiblePoints
+                    )
                 }
             }
 
@@ -412,7 +430,8 @@
             _ highlights: [BoardHighlightKind: Set<GridPoint>],
             scene: SKScene,
             layout: GameSceneLayoutSupport,
-            palette: GameScenePalette
+            palette: GameScenePalette,
+            visiblePoints: Set<GridPoint>?
         ) {
             updateLatestPoints(using: highlights)
 
@@ -423,7 +442,8 @@
                     using: points,
                     scene: scene,
                     layout: layout,
-                    palette: palette
+                    palette: palette,
+                    visiblePoints: visiblePoints
                 )
             }
         }
@@ -433,7 +453,8 @@
             using points: Set<GridPoint>,
             scene: SKScene,
             layout: GameSceneLayoutSupport,
-            palette: GameScenePalette
+            palette: GameScenePalette,
+            visiblePoints: Set<GridPoint>?
         ) {
             if kind == .dungeonEnemy {
                 if let existingNodes = highlightNodes[kind]?.values {
@@ -462,7 +483,8 @@
                         for: point,
                         kind: kind,
                         layout: layout,
-                        palette: palette
+                        palette: palette,
+                        visiblePoints: visiblePoints
                     )
                 } else {
                     let node = SKShapeNode()
@@ -471,7 +493,8 @@
                         for: point,
                         kind: kind,
                         layout: layout,
-                        palette: palette
+                        palette: palette,
+                        visiblePoints: visiblePoints
                     )
                     scene.addChild(node)
                     nodesForKind[point] = node
@@ -892,7 +915,8 @@
             for point: GridPoint,
             kind: BoardHighlightKind,
             layout: GameSceneLayoutSupport,
-            palette: GameScenePalette
+            palette: GameScenePalette,
+            visiblePoints: Set<GridPoint>?
         ) {
             let baseRect = CGRect(
                 x: -layout.tileSize / 2,
@@ -907,6 +931,8 @@
             var strokeWidth: CGFloat = sharedGuideStrokeWidth
             var fillColor = SKColor.clear
             var overlapInset: CGFloat = 0
+            var glowWidth: CGFloat = 0
+            var usesDarknessCandidateStyle = false
 
             switch kind {
             case .guideSingleCandidate:
@@ -1060,6 +1086,28 @@
                 zPosition = 1.09
             }
 
+            if isHiddenDarknessCandidate(kind: kind, point: point, visiblePoints: visiblePoints) {
+                usesDarknessCandidateStyle = true
+                switch kind {
+                case .dungeonBasicMove:
+                    baseColor = SKColor(red: 1.0, green: 0.78, blue: 0.34, alpha: 1.0)
+                    fillColor = baseColor.withAlphaComponent(0.11)
+                case .guideSingleCandidate,
+                     .guideMultipleCandidate,
+                     .guideMultiStepCandidate,
+                     .guideWarpCandidate:
+                    if fillColor.isClearForHighlightRendering {
+                        fillColor = baseColor.withAlphaComponent(0.08)
+                    }
+                default:
+                    break
+                }
+                strokeAlpha = max(strokeAlpha, 0.96)
+                strokeWidth = max(strokeWidth * 1.18, sharedGuideStrokeWidth + 0.7)
+                glowWidth = max(layout.tileSize * 0.045, 1.6)
+                zPosition += 0.03
+            }
+
             let adjustedRect = baseRect.insetBy(
                 dx: strokeWidth / 2 + overlapInset,
                 dy: strokeWidth / 2 + overlapInset
@@ -1072,13 +1120,16 @@
             node.fillColor = fillColor
             node.strokeColor = baseColor.withAlphaComponent(strokeAlpha)
             node.lineWidth = strokeWidth
-            node.glowWidth = 0
-            node.lineJoin = .miter
+            node.glowWidth = glowWidth
+            node.lineJoin = usesDarknessCandidateStyle ? .round : .miter
             node.miterLimit = 2.5
-            node.lineCap = kind == .dungeonCrackedFloor || kind == .dungeonEnemyWarning ? .round : .square
+            node.lineCap = usesDarknessCandidateStyle
+                || kind == .dungeonCrackedFloor
+                || kind == .dungeonEnemyWarning ? .round : .square
             node.position = layout.position(for: point)
             node.zPosition = zPosition
-            node.isAntialiased = kind == .dungeonExit
+            node.isAntialiased = usesDarknessCandidateStyle
+                || kind == .dungeonExit
                 || kind == .dungeonExitLocked
                 || kind == .dungeonKey
                 || kind == .dungeonEnemy
@@ -1092,6 +1143,24 @@
                 || kind == .dungeonCrackedFloor
                 || kind == .dungeonCollapsedFloor
             node.blendMode = .alpha
+        }
+
+        private func isHiddenDarknessCandidate(
+            kind: BoardHighlightKind,
+            point: GridPoint,
+            visiblePoints: Set<GridPoint>?
+        ) -> Bool {
+            guard let visiblePoints, !visiblePoints.contains(point) else { return false }
+            switch kind {
+            case .guideSingleCandidate,
+                 .guideMultipleCandidate,
+                 .guideMultiStepCandidate,
+                 .guideWarpCandidate,
+                 .dungeonBasicMove:
+                return true
+            default:
+                return false
+            }
         }
 
         private func highlightPath(
@@ -1496,6 +1565,12 @@
 
         private func patrolRailLineWidth(tileSize: CGFloat) -> CGFloat {
             return min(max(tileSize * 0.024, 2.0), 2.2)
+        }
+    }
+
+    private extension SKColor {
+        var isClearForHighlightRendering: Bool {
+            cgColor.alpha <= 0.01
         }
     }
 #endif

@@ -23,6 +23,7 @@ public struct DungeonRunResumeSnapshot: Codable, Equatable, Sendable {
     public let isPatrolRailDestroyed: Bool
     public let isShackled: Bool
     public let isIlluded: Bool
+    public let didStepOnLavaThisFloor: Bool
     public let poisonDamageTicksRemaining: Int
     public let poisonActionsUntilNextDamage: Int
     public let enemyStates: [EnemyState]
@@ -56,6 +57,7 @@ public struct DungeonRunResumeSnapshot: Codable, Equatable, Sendable {
         isPatrolRailDestroyed: Bool = false,
         isShackled: Bool = false,
         isIlluded: Bool = false,
+        didStepOnLavaThisFloor: Bool = false,
         poisonDamageTicksRemaining: Int = 0,
         poisonActionsUntilNextDamage: Int = 0,
         enemyStates: [EnemyState],
@@ -88,6 +90,7 @@ public struct DungeonRunResumeSnapshot: Codable, Equatable, Sendable {
         self.isPatrolRailDestroyed = isPatrolRailDestroyed
         self.isShackled = isShackled
         self.isIlluded = isIlluded
+        self.didStepOnLavaThisFloor = didStepOnLavaThisFloor
         self.poisonDamageTicksRemaining = max(poisonDamageTicksRemaining, 0)
         self.poisonActionsUntilNextDamage = max(poisonActionsUntilNextDamage, 0)
         self.enemyStates = enemyStates
@@ -122,6 +125,7 @@ public struct DungeonRunResumeSnapshot: Codable, Equatable, Sendable {
         case isPatrolRailDestroyed
         case isShackled
         case isIlluded
+        case didStepOnLavaThisFloor
         case poisonDamageTicksRemaining
         case poisonActionsUntilNextDamage
         case enemyStates
@@ -158,6 +162,7 @@ public struct DungeonRunResumeSnapshot: Codable, Equatable, Sendable {
             isPatrolRailDestroyed: try container.decodeIfPresent(Bool.self, forKey: .isPatrolRailDestroyed) ?? false,
             isShackled: try container.decodeIfPresent(Bool.self, forKey: .isShackled) ?? false,
             isIlluded: try container.decodeIfPresent(Bool.self, forKey: .isIlluded) ?? false,
+            didStepOnLavaThisFloor: try container.decodeIfPresent(Bool.self, forKey: .didStepOnLavaThisFloor) ?? false,
             poisonDamageTicksRemaining: try container.decodeIfPresent(Int.self, forKey: .poisonDamageTicksRemaining) ?? 0,
             poisonActionsUntilNextDamage: try container.decodeIfPresent(Int.self, forKey: .poisonActionsUntilNextDamage) ?? 0,
             enemyStates: try container.decodeIfPresent([EnemyState].self, forKey: .enemyStates) ?? [],
@@ -194,6 +199,7 @@ public struct DungeonRunResumeSnapshot: Codable, Equatable, Sendable {
         try container.encode(isPatrolRailDestroyed, forKey: .isPatrolRailDestroyed)
         try container.encode(isShackled, forKey: .isShackled)
         try container.encode(isIlluded, forKey: .isIlluded)
+        try container.encode(didStepOnLavaThisFloor, forKey: .didStepOnLavaThisFloor)
         try container.encode(poisonDamageTicksRemaining, forKey: .poisonDamageTicksRemaining)
         try container.encode(poisonActionsUntilNextDamage, forKey: .poisonActionsUntilNextDamage)
         try container.encode(enemyStates, forKey: .enemyStates)

@@ -143,19 +143,19 @@ enum DungeonGrowthUpgrade: String, Codable, CaseIterable, Identifiable {
     var summary: String {
         switch self {
         case .toolPouch:
-            return "区間開始時に右2を1回分持って始めます"
+            return "区間開始前の基本支度に短い移動カードを出します"
         case .climbingKit:
-            return "区間開始時に右2と上2を各1回分持って始めます"
+            return "基本支度で縦横どちらの抜け道も選びやすくします"
         case .deepStartKit:
-            return "21F以降の区間開始時に防御補助を1回分持って始めます"
+            return "21F以降の支度候補に防御補助を混ぜます"
         case .routeKit:
-            return "31F以降の区間開始時に経路を広げる移動カードを1回分追加します"
+            return "31F以降の経路支度に長い移動カードを混ぜます"
         case .deepSupplyCraft:
-            return "深層の開始支度に補給と報酬補正を組み合わせます"
+            return "深層の支度候補に補給と報酬補助をまとめます"
         case .finalPreparation:
-            return "41F以降の区間開始時に踏破向けカードをまとめて持ちます"
+            return "41F以降の支度候補に踏破向けの強い対策を出します"
         case .rewardScout:
-            return "報酬候補に既存候補を補完するカードを混ぜます"
+            return "報酬傾向に合う補完カードを候補へ混ぜます"
         case .cardPreservation:
             return "追加した移動報酬カードを3回使えるようにします"
         case .widerRewardRead:
@@ -173,23 +173,23 @@ enum DungeonGrowthUpgrade: String, Codable, CaseIterable, Identifiable {
         case .rewardCompletion:
             return "50F帯の報酬候補を4択の完成形に近づけます"
         case .footingRead:
-            return "区間ごとに最初の罠か床崩落ダメージを無効化します"
+            return "床・罠が多い区間で防御支度を選びやすくします"
         case .secondStep:
-            return "区間ごとに2回目まで罠か床崩落ダメージを無効化します"
+            return "床・罠対策の支度を厚くし、踏み直しやすくします"
         case .enemyRead:
-            return "区間ごとに最初の敵ダメージを無効化します"
+            return "敵が濃い区間で障壁支度を選びやすくします"
         case .meteorRead:
-            return "区間ごとに最初のメテオ着弾ダメージを無効化します"
+            return "メテオが出る区間で凍結支度を選びやすくします"
         case .lastStand:
-            return "21F以降の区間で危険回避の保険を1回分増やします"
+            return "21F以降の危険区間で対策支度を増やします"
         case .enemyReadPlus:
-            return "31F以降の区間で敵ダメージ無効化回数を増やします"
+            return "31F以降の敵対策支度をさらに強めます"
         case .fallInsurance:
-            return "35F以降の区間で床崩落・落下への保険を増やします"
+            return "35F以降の落下・床割れ区間で復帰支度を出します"
         case .dangerForecast:
-            return "索敵と危険回避を組み合わせ、危険保険をさらに増やします"
+            return "索敵した危険に合わせた対策支度を優先します"
         case .finalGuard:
-            return "50F帯の踏破向けに各種ダメージ保険を完成させます"
+            return "50F帯の支度候補を踏破向けの完成形に近づけます"
         case .floorSense:
             return "次区間の床ギミック傾向を挑戦前に表示します"
         case .rewardSense:
@@ -203,21 +203,21 @@ enum DungeonGrowthUpgrade: String, Codable, CaseIterable, Identifiable {
         case .routeForecast:
             return "41F以降の危険・報酬・経路をまとめて表示します"
         case .retryPreparation:
-            return "21F以降の再挑戦時に補給を1回分持ちます"
+            return "21F以降の再挑戦時に補給支度を優先します"
         case .sectionRecovery:
-            return "31F以降の区間開始時に立て直し用補助を持ちます"
+            return "31F以降の再挑戦で立て直し支度を選びやすくします"
         case .deepCheckpointRead:
-            return "21F以降の再挑戦時に障壁の呪文を1回分持ちます"
+            return "21F以降の再挑戦時に障壁支度を出します"
         case .checkpointExpansion:
-            return "31F以降の再挑戦時に万能薬を1回分持ちます"
+            return "31F以降の再挑戦時に万能薬支度を出します"
         case .comebackRoute:
-            return "41F以降の再挑戦時に経路用カードを1回分持ちます"
+            return "41F以降の再挑戦時に経路支度を出します"
         case .finalRecovery:
-            return "41F以降の再挑戦時に凍結の呪文を1回分持ちます"
+            return "41F以降の再挑戦時に凍結支度を出します"
         case .shortcutKit:
-            return "区間開始時に右上2を1回分持って始めます"
+            return "基本支度に斜めの抜け道を加えます"
         case .refillCharm:
-            return "区間開始時に補給を1回分持って始めます"
+            return "基本支度に補給を加えます"
         }
     }
 
@@ -360,25 +360,48 @@ struct DungeonGrowthAward: Equatable {
     }
 }
 
+enum DungeonGrowthPreparationChoiceCategory: String, Equatable, Identifiable {
+    case basic
+    case floor
+    case reward
+    case enemy
+    case path
+    case recovery
+
+    var id: String { rawValue }
+}
+
+struct DungeonGrowthPreparationChoice: Equatable, Identifiable {
+    let id: String
+    let title: String
+    let summary: String
+    let iconSystemName: String
+    let category: DungeonGrowthPreparationChoiceCategory
+    let entries: [DungeonInventoryEntry]
+}
+
 struct DungeonGrowthSnapshot: Codable, Equatable {
     var points: Int
     var unlockedUpgrades: Set<DungeonGrowthUpgrade>
     var activeUpgrades: Set<DungeonGrowthUpgrade>
     var rewardedGrowthMilestoneIDs: Set<String>
     var unlockedGrowthCheckpointFloorNumbers: Set<Int>
+    var isKnightMovementStyleUnlocked: Bool
 
     init(
         points: Int = 0,
         unlockedUpgrades: Set<DungeonGrowthUpgrade> = [],
         activeUpgrades: Set<DungeonGrowthUpgrade>? = nil,
         rewardedGrowthMilestoneIDs: Set<String> = [],
-        unlockedGrowthCheckpointFloorNumbers: Set<Int> = []
+        unlockedGrowthCheckpointFloorNumbers: Set<Int> = [],
+        isKnightMovementStyleUnlocked: Bool = false
     ) {
         self.points = max(points, 0)
         self.unlockedUpgrades = unlockedUpgrades
         self.activeUpgrades = activeUpgrades.map { $0.intersection(unlockedUpgrades) } ?? unlockedUpgrades
         self.rewardedGrowthMilestoneIDs = rewardedGrowthMilestoneIDs
         self.unlockedGrowthCheckpointFloorNumbers = unlockedGrowthCheckpointFloorNumbers
+        self.isKnightMovementStyleUnlocked = isKnightMovementStyleUnlocked
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -387,6 +410,7 @@ struct DungeonGrowthSnapshot: Codable, Equatable {
         case activeUpgrades
         case rewardedGrowthMilestoneIDs
         case unlockedGrowthCheckpointFloorNumbers
+        case isKnightMovementStyleUnlocked
     }
 
     init(from decoder: Decoder) throws {
@@ -397,6 +421,7 @@ struct DungeonGrowthSnapshot: Codable, Equatable {
         activeUpgrades = activeUpgrades.intersection(unlockedUpgrades)
         rewardedGrowthMilestoneIDs = try container.decodeIfPresent(Set<String>.self, forKey: .rewardedGrowthMilestoneIDs) ?? []
         unlockedGrowthCheckpointFloorNumbers = try container.decodeIfPresent(Set<Int>.self, forKey: .unlockedGrowthCheckpointFloorNumbers) ?? []
+        isKnightMovementStyleUnlocked = try container.decodeIfPresent(Bool.self, forKey: .isKnightMovementStyleUnlocked) ?? false
     }
 }
 
@@ -411,6 +436,7 @@ final class DungeonGrowthStore: ObservableObject {
     var unlockedUpgrades: Set<DungeonGrowthUpgrade> { snapshot.unlockedUpgrades }
     var activeUpgrades: Set<DungeonGrowthUpgrade> { snapshot.activeUpgrades }
     var unlockedGrowthCheckpointFloorNumbers: Set<Int> { snapshot.unlockedGrowthCheckpointFloorNumbers }
+    var isKnightMovementStyleUnlocked: Bool { snapshot.isKnightMovementStyleUnlocked }
 
     init(userDefaults: UserDefaults = .standard) {
         self.userDefaults = userDefaults
@@ -485,16 +511,28 @@ final class DungeonGrowthStore: ObservableObject {
         else { return nil }
 
         let floorNumber = runState.currentFloorIndex + 1
+        let didUnlockKnightMovementStyle = floorNumber == dungeon.floors.count && !snapshot.isKnightMovementStyleUnlocked
         if snapshot.rewardedGrowthMilestoneIDs.contains(milestoneID) {
-            guard isRepeatGrowthAwardFloor(floorNumber) else { return nil }
-            snapshot.points += 1
+            guard isRepeatGrowthAwardFloor(floorNumber) || didUnlockKnightMovementStyle else { return nil }
+            if didUnlockKnightMovementStyle {
+                snapshot.isKnightMovementStyleUnlocked = true
+            }
+            let points = isRepeatGrowthAwardFloor(floorNumber) ? 1 : 0
+            snapshot.points += points
             persist()
+            if didUnlockKnightMovementStyle {
+                debugLog("DungeonGrowthStore: 跳躍騎士を解放")
+            }
+            guard points > 0 else { return nil }
             debugLog("DungeonGrowthStore: \(milestoneID) 周回報酬として成長ポイント +1")
             return DungeonGrowthAward(dungeonID: dungeon.id, milestoneID: milestoneID, points: 1)
         }
 
         snapshot.points += 1
         snapshot.rewardedGrowthMilestoneIDs.insert(milestoneID)
+        if didUnlockKnightMovementStyle {
+            snapshot.isKnightMovementStyleUnlocked = true
+        }
         if isRepeatGrowthAwardFloor(floorNumber),
            dungeon.floors.indices.contains(floorNumber) {
             snapshot.unlockedGrowthCheckpointFloorNumbers.insert(floorNumber + 1)
@@ -512,10 +550,17 @@ final class DungeonGrowthStore: ObservableObject {
         0
     }
 
-    func startingRewardEntries(for dungeon: DungeonDefinition, startingFloorIndex: Int) -> [DungeonInventoryEntry] {
+    func startingRewardEntries(
+        for dungeon: DungeonDefinition,
+        startingFloorIndex: Int,
+        preparationChoice: DungeonGrowthPreparationChoice? = nil,
+        movementStyle: DungeonMovementStyle = .orthogonal
+    ) -> [DungeonInventoryEntry] {
         guard dungeon.difficulty == .growth else { return [] }
         var entries: [DungeonInventoryEntry] = []
-        if isActive(.climbingKit) {
+        if let preparationChoice {
+            entries.append(contentsOf: adjustedEntries(preparationChoice.entries, movementStyle: movementStyle))
+        } else if isActive(.climbingKit) {
             entries.append(DungeonInventoryEntry(card: .straightRight2, rewardUses: 1))
             entries.append(DungeonInventoryEntry(card: .straightUp2, rewardUses: 1))
         } else if isActive(.toolPouch) {
@@ -544,6 +589,46 @@ final class DungeonGrowthStore: ObservableObject {
             entries.append(DungeonInventoryEntry(support: .barrierSpell, rewardUses: 1))
         }
         return entries
+    }
+
+    func preparationChoices(
+        for dungeon: DungeonDefinition,
+        startingFloorIndex: Int,
+        isRetry: Bool = false,
+        movementStyle: DungeonMovementStyle = .orthogonal
+    ) -> [DungeonGrowthPreparationChoice] {
+        guard dungeon.difficulty == .growth else { return [] }
+
+        let sectionEndFloorIndex = min(((startingFloorIndex / 10) + 1) * 10, dungeon.floors.count) - 1
+        let floors = (startingFloorIndex...max(startingFloorIndex, sectionEndFloorIndex)).compactMap { index in
+            dungeon.floors.indices.contains(index) ? dungeon.floors[index] : nil
+        }
+        let facts = DungeonGrowthPreparationFacts(floors: floors)
+        var choices: [DungeonGrowthPreparationChoice] = []
+
+        if let basic = basicPreparationChoice(startingFloorIndex: startingFloorIndex) {
+            choices.append(basic)
+        }
+        if isActive(.floorSense), let floorChoice = floorPreparationChoice(from: facts, startingFloorIndex: startingFloorIndex) {
+            choices.append(floorChoice)
+        }
+        if (isActive(.enemySense) || isActive(.enemyRead) || isActive(.meteorRead)),
+           let enemyChoice = enemyPreparationChoice(from: facts, startingFloorIndex: startingFloorIndex) {
+            choices.append(enemyChoice)
+        }
+        if isActive(.pathPreview), let pathChoice = pathPreparationChoice(from: facts, startingFloorIndex: startingFloorIndex) {
+            choices.append(pathChoice)
+        }
+        if isActive(.rewardSense), let rewardChoice = rewardPreparationChoice(from: facts, startingFloorIndex: startingFloorIndex) {
+            choices.append(rewardChoice)
+        }
+        if isRetry, let recoveryChoice = recoveryPreparationChoice(startingFloorIndex: startingFloorIndex) {
+            choices.insert(recoveryChoice, at: 0)
+        }
+
+        return Array(uniquePreparationChoices(choices).prefix(3)).map {
+            adjustedPreparationChoice($0, movementStyle: movementStyle)
+        }
     }
 
     func retryRewardEntries(for dungeon: DungeonDefinition, startingFloorIndex: Int) -> [DungeonInventoryEntry] {
@@ -578,7 +663,8 @@ final class DungeonGrowthStore: ObservableObject {
         seed: UInt64?,
         tuning: DungeonRewardDrawTuning = DungeonRewardDrawTuning(),
         ownedRelics: Set<DungeonRelicID> = [],
-        minimumChoiceCount: Int? = nil
+        minimumChoiceCount: Int? = nil,
+        movementStyle: DungeonMovementStyle = .orthogonal
     ) -> [DungeonRewardOffer] {
         let choiceCount = min(max(maxRewardChoiceCount(for: dungeon), minimumChoiceCount ?? 0), 4)
         guard dungeon.difficulty == .growth else {
@@ -592,7 +678,11 @@ final class DungeonGrowthStore: ObservableObject {
             let excludedPlayables = Set(baseOffers.compactMap(\.playable))
             let excludedRelics = ownedRelics.union(baseOffers.compactMap(\.relic))
             let supplemental = DungeonWeightedRewardPools.drawUniqueOffers(
-                from: DungeonWeightedRewardPools.entries(floorIndex: floorIndex, context: .clearReward),
+                from: DungeonWeightedRewardPools.entries(
+                    floorIndex: floorIndex,
+                    context: .clearReward,
+                    movementStyle: movementStyle
+                ),
                 context: .clearReward,
                 count: max(choiceCount - result.count, 1),
                 seed: seed ?? UInt64(floorIndex + 1),
@@ -607,7 +697,11 @@ final class DungeonGrowthStore: ObservableObject {
 
         if floorIndex >= 10, isActive(.supportScout) {
             let weightedSupportCandidate = DungeonWeightedRewardPools.drawUniqueOffers(
-                from: DungeonWeightedRewardPools.entries(floorIndex: floorIndex, context: .clearReward),
+                from: DungeonWeightedRewardPools.entries(
+                    floorIndex: floorIndex,
+                    context: .clearReward,
+                    movementStyle: movementStyle
+                ),
                 context: .clearReward,
                 count: choiceCount,
                 seed: seed ?? UInt64(floorIndex + 1),
@@ -643,7 +737,10 @@ final class DungeonGrowthStore: ObservableObject {
         }
 
         if floorIndex >= 30, isActive(.rewardUpgradeScout) {
-            appendRewardCandidate(.playable(.move(.knightRightwardChoice)), to: &result, choiceCount: choiceCount)
+            let candidate = movementStyle == .knight
+                ? MoveCard.knightRightwardChoice.cardForKnightMovementStyle
+                : .knightRightwardChoice
+            appendRewardCandidate(.playable(.move(candidate)), to: &result, choiceCount: choiceCount)
         }
 
         if floorIndex >= 35, isActive(.rewardRerollRead) {
@@ -847,6 +944,176 @@ final class DungeonGrowthStore: ObservableObject {
         return result
     }
 
+    private func basicPreparationChoice(startingFloorIndex: Int) -> DungeonGrowthPreparationChoice? {
+        var entries: [DungeonInventoryEntry] = []
+        if isActive(.climbingKit) {
+            entries.append(DungeonInventoryEntry(card: .straightRight2, rewardUses: 1))
+            entries.append(DungeonInventoryEntry(card: .straightUp2, rewardUses: 1))
+        } else if isActive(.toolPouch) {
+            entries.append(DungeonInventoryEntry(card: .straightRight2, rewardUses: 1))
+        }
+        if isActive(.shortcutKit) {
+            entries.append(DungeonInventoryEntry(card: .diagonalUpRight2, rewardUses: 1))
+        }
+        if isActive(.refillCharm) {
+            entries.append(DungeonInventoryEntry(support: .refillEmptySlots, rewardUses: 1))
+        }
+        if startingFloorIndex >= 20, isActive(.deepStartKit) {
+            entries.append(DungeonInventoryEntry(support: .barrierSpell, rewardUses: 1))
+        }
+        if entries.isEmpty { return nil }
+        return DungeonGrowthPreparationChoice(
+            id: "basic-\(startingFloorIndex)",
+            title: "登り支度",
+            summary: "短い移動と補給で区間の初動を安定させる",
+            iconSystemName: "bag.fill",
+            category: .basic,
+            entries: entries
+        )
+    }
+
+    private func floorPreparationChoice(
+        from facts: DungeonGrowthPreparationFacts,
+        startingFloorIndex: Int
+    ) -> DungeonGrowthPreparationChoice? {
+        if facts.hasStatusFloor || facts.hasDarkness {
+            return DungeonGrowthPreparationChoice(
+                id: "floor-status-\(startingFloorIndex)",
+                title: "状態対策",
+                summary: "毒・足枷・暗闇を見て万能薬を持ち込む",
+                iconSystemName: "cross.case.fill",
+                category: .floor,
+                entries: [DungeonInventoryEntry(support: .panacea, rewardUses: 1)]
+            )
+        }
+        if facts.hasBrittleOrTrap {
+            return DungeonGrowthPreparationChoice(
+                id: "floor-guard-\(startingFloorIndex)",
+                title: "足場対策",
+                summary: "罠や床割れを見て障壁を持ち込む",
+                iconSystemName: "shield.lefthalf.filled",
+                category: .floor,
+                entries: [DungeonInventoryEntry(support: .barrierSpell, rewardUses: 1)]
+            )
+        }
+        return nil
+    }
+
+    private func enemyPreparationChoice(
+        from facts: DungeonGrowthPreparationFacts,
+        startingFloorIndex: Int
+    ) -> DungeonGrowthPreparationChoice? {
+        guard facts.hasEnemyPressure else { return nil }
+        if facts.hasMeteor || facts.hasManyEnemies {
+            return DungeonGrowthPreparationChoice(
+                id: "enemy-freeze-\(startingFloorIndex)",
+                title: "敵影対策",
+                summary: "敵やメテオが濃い区間に凍結を持ち込む",
+                iconSystemName: "snowflake",
+                category: .enemy,
+                entries: [DungeonInventoryEntry(support: .freezeSpell, rewardUses: 1)]
+            )
+        }
+        return DungeonGrowthPreparationChoice(
+            id: "enemy-barrier-\(startingFloorIndex)",
+            title: "警戒対策",
+            summary: "見張りや追跡の圧に障壁で備える",
+            iconSystemName: "exclamationmark.shield.fill",
+            category: .enemy,
+            entries: [DungeonInventoryEntry(support: .barrierSpell, rewardUses: 1)]
+        )
+    }
+
+    private func pathPreparationChoice(
+        from facts: DungeonGrowthPreparationFacts,
+        startingFloorIndex: Int
+    ) -> DungeonGrowthPreparationChoice? {
+        guard facts.hasPathBranch else { return nil }
+        let card: MoveCard = startingFloorIndex >= 30 ? .rayRight : .diagonalUpRight2
+        return DungeonGrowthPreparationChoice(
+            id: "path-\(startingFloorIndex)",
+            title: "経路支度",
+            summary: "鍵・ワープ・寄り道に備えて抜け道を持つ",
+            iconSystemName: "point.forward.to.point.capsulepath.fill",
+            category: .path,
+            entries: [DungeonInventoryEntry(card: card, rewardUses: 1)]
+        )
+    }
+
+    private func rewardPreparationChoice(
+        from facts: DungeonGrowthPreparationFacts,
+        startingFloorIndex: Int
+    ) -> DungeonGrowthPreparationChoice? {
+        guard facts.hasRewardOpportunity else { return nil }
+        return DungeonGrowthPreparationChoice(
+            id: "reward-\(startingFloorIndex)",
+            title: "報酬支度",
+            summary: "宝箱や拾得カードに寄るため補給を持ち込む",
+            iconSystemName: "gift.fill",
+            category: .reward,
+            entries: [DungeonInventoryEntry(support: .refillEmptySlots, rewardUses: 1)]
+        )
+    }
+
+    private func recoveryPreparationChoice(startingFloorIndex: Int) -> DungeonGrowthPreparationChoice? {
+        var entries: [DungeonInventoryEntry] = []
+        if startingFloorIndex >= 40, isActive(.finalRecovery) {
+            entries.append(DungeonInventoryEntry(support: .freezeSpell, rewardUses: 1))
+        } else if startingFloorIndex >= 30, isActive(.checkpointExpansion) {
+            entries.append(DungeonInventoryEntry(support: .panacea, rewardUses: 1))
+        } else if startingFloorIndex >= 20, isActive(.deepCheckpointRead) {
+            entries.append(DungeonInventoryEntry(support: .barrierSpell, rewardUses: 1))
+        } else if startingFloorIndex >= 20, isActive(.retryPreparation) {
+            entries.append(DungeonInventoryEntry(support: .refillEmptySlots, rewardUses: 1))
+        }
+        guard !entries.isEmpty else { return nil }
+        return DungeonGrowthPreparationChoice(
+            id: "recovery-\(startingFloorIndex)",
+            title: "再挑戦支度",
+            summary: "失敗した区間を立て直す補助を優先する",
+            iconSystemName: "arrow.clockwise.circle.fill",
+            category: .recovery,
+            entries: entries
+        )
+    }
+
+    private func uniquePreparationChoices(_ choices: [DungeonGrowthPreparationChoice]) -> [DungeonGrowthPreparationChoice] {
+        var result: [DungeonGrowthPreparationChoice] = []
+        for choice in choices where !result.contains(where: { $0.id == choice.id || $0.entries == choice.entries }) {
+            result.append(choice)
+        }
+        return result
+    }
+
+    private func adjustedPreparationChoice(
+        _ choice: DungeonGrowthPreparationChoice,
+        movementStyle: DungeonMovementStyle
+    ) -> DungeonGrowthPreparationChoice {
+        DungeonGrowthPreparationChoice(
+            id: choice.id,
+            title: choice.title,
+            summary: choice.summary,
+            iconSystemName: choice.iconSystemName,
+            category: choice.category,
+            entries: adjustedEntries(choice.entries, movementStyle: movementStyle)
+        )
+    }
+
+    private func adjustedEntries(
+        _ entries: [DungeonInventoryEntry],
+        movementStyle: DungeonMovementStyle
+    ) -> [DungeonInventoryEntry] {
+        guard movementStyle == .knight else { return entries }
+        return entries.map { entry in
+            guard let card = entry.moveCard else { return entry }
+            return DungeonInventoryEntry(
+                card: card.cardForKnightMovementStyle,
+                rewardUses: entry.rewardUses,
+                pickupUses: entry.pickupUses
+            )
+        }
+    }
+
     private func persist() {
         do {
             let data = try JSONEncoder().encode(snapshot)
@@ -866,6 +1133,64 @@ final class DungeonGrowthStore: ObservableObject {
         } catch {
             debugError(error, message: "DungeonGrowthStore: 読み込みに失敗しました")
             return DungeonGrowthSnapshot()
+        }
+    }
+}
+
+private struct DungeonGrowthPreparationFacts {
+    let hasStatusFloor: Bool
+    let hasDarkness: Bool
+    let hasBrittleOrTrap: Bool
+    let hasEnemyPressure: Bool
+    let hasMeteor: Bool
+    let hasManyEnemies: Bool
+    let hasPathBranch: Bool
+    let hasRewardOpportunity: Bool
+
+    init(floors: [DungeonFloorDefinition]) {
+        hasStatusFloor = floors.contains { floor in
+            floor.tileEffectOverrides.values.contains { effect in
+                switch effect {
+                case .poisonTrap, .illusionTrap, .shackleTrap, .swamp:
+                    return true
+                case .warp, .returnWarp, .shuffleHand, .blast, .slow, .preserveCard,
+                     .discardRandomHand, .discardAllMoveCards, .discardAllSupportCards, .discardAllHands:
+                    return false
+                }
+            }
+        }
+        hasDarkness = floors.contains(where: \.isDarknessEnabled)
+        hasBrittleOrTrap = floors.contains { floor in
+            floor.hazards.contains { hazard in
+                switch hazard {
+                case .brittleFloor, .damageTrap, .lavaTile:
+                    return true
+                case .healingTile:
+                    return false
+                }
+            }
+        }
+        hasEnemyPressure = floors.contains { !$0.enemies.isEmpty }
+        hasMeteor = floors.contains { floor in
+            floor.enemies.contains { enemy in
+                if case .marker = enemy.behavior {
+                    return true
+                }
+                return false
+            }
+        }
+        hasManyEnemies = floors.contains { $0.enemies.count >= 3 }
+        hasPathBranch = floors.contains { floor in
+            floor.exitLock != nil
+                || !floor.warpTilePairs.isEmpty
+                || !floor.relicPickups.isEmpty
+                || !floor.fallSecrets.isEmpty
+        }
+        hasRewardOpportunity = floors.contains { floor in
+            !floor.cardPickups.isEmpty
+                || !floor.rewardMoveCardsAfterClear.isEmpty
+                || !floor.rewardSupportCardsAfterClear.isEmpty
+                || !floor.relicPickups.isEmpty
         }
     }
 }

@@ -9,6 +9,7 @@ enum StorageKey {
         static let hapticsEnabled = "haptics_enabled"
         static let guideModeEnabled = "guide_mode_enabled"
         static let showsAllEncyclopediaEntriesForDeveloper = "shows_all_encyclopedia_entries_for_developer"
+        static let unlocksKnightMovementStyleForDeveloper = "unlocks_knight_movement_style_for_developer"
         static let removeAdsPurchased = "remove_ads_mk"
         static let adsShouldUseNPA = "ads_should_use_npa"
         static let interstitialClearCounter = "interstitial_clear_counter"

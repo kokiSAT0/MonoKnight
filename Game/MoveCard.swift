@@ -67,6 +67,14 @@ public enum MoveCard: CaseIterable, Codable, Sendable {
     case straightRight2
     /// 直線: 左に 2
     case straightLeft2
+    /// 直線: 上に 1
+    case straightUp1
+    /// 直線: 下に 1
+    case straightDown1
+    /// 直線: 右に 1
+    case straightRight1
+    /// 直線: 左に 1
+    case straightLeft1
 
     /// 斜め: 右上に 2
     case diagonalUpRight2

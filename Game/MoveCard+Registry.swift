@@ -14,6 +14,14 @@ public extension MoveCard {
         .rayUpLeft
     ]
 
+    /// 跳躍騎士の位置調整用に使う上下左右 1 マスカード
+    static let orthogonalStepCards: [MoveCard] = [
+        .straightUp1,
+        .straightRight1,
+        .straightDown1,
+        .straightLeft1
+    ]
+
     /// 標準デッキで採用しているカード集合
     /// - Important: 選択式カードは含めず、単方向カードと連続レイ型カードのみで構成する
     static let standardSet: [MoveCard] = [
@@ -46,9 +54,29 @@ public extension MoveCard {
         .kingRightDiagonalChoice,
         .kingDownwardDiagonalChoice,
         .kingLeftDiagonalChoice,
+        .straightUp1,
+        .straightRight1,
+        .straightDown1,
+        .straightLeft1,
         .knightUpwardChoice,
         .knightRightwardChoice,
         .knightDownwardChoice,
         .knightLeftwardChoice
     ]
+
+    /// 跳躍騎士用プールではナイト系カードを上下左右 1 マスカードへ置き換える
+    var cardForKnightMovementStyle: MoveCard {
+        switch self {
+        case .knightUp2Right1, .knightUp1Right2, .knightRightwardChoice:
+            return .straightRight1
+        case .knightDown2Right1, .knightDown1Right2, .knightDownwardChoice:
+            return .straightDown1
+        case .knightUp2Left1, .knightUp1Left2, .knightUpwardChoice:
+            return .straightUp1
+        case .knightDown2Left1, .knightDown1Left2, .knightLeftwardChoice:
+            return .straightLeft1
+        default:
+            return self
+        }
+    }
 }

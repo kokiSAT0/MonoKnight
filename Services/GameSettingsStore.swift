@@ -47,6 +47,17 @@ final class GameSettingsStore: ObservableObject {
         }
     }
 
+    /// 開発者向けに跳躍騎士を未解放でも選べるようにする設定
+    @Published var unlocksKnightMovementStyleForDeveloper: Bool {
+        didSet {
+            guard oldValue != unlocksKnightMovementStyleForDeveloper else { return }
+            userDefaults.set(
+                unlocksKnightMovementStyleForDeveloper,
+                forKey: StorageKey.AppStorage.unlocksKnightMovementStyleForDeveloper
+            )
+        }
+    }
+
     /// 手札並び順設定
     @Published var handOrderingStrategy: HandOrderingStrategy {
         didSet {
@@ -68,6 +79,8 @@ final class GameSettingsStore: ObservableObject {
             userDefaults.object(forKey: StorageKey.AppStorage.guideModeEnabled) as? Bool ?? true
         self.showsAllEncyclopediaEntriesForDeveloper =
             userDefaults.object(forKey: StorageKey.AppStorage.showsAllEncyclopediaEntriesForDeveloper) as? Bool ?? false
+        self.unlocksKnightMovementStyleForDeveloper =
+            userDefaults.object(forKey: StorageKey.AppStorage.unlocksKnightMovementStyleForDeveloper) as? Bool ?? false
         self.handOrderingStrategy =
             HandOrderingStrategy(
                 rawValue: userDefaults.string(forKey: HandOrderingStrategy.storageKey)

@@ -299,6 +299,7 @@ struct TitleScreenView: View {
                 DungeonSelectionView(
                     dungeonLibrary: dungeonLibrary,
                     dungeonGrowthStore: dungeonGrowthStore,
+                    gameSettingsStore: gameSettingsStore,
                     dungeonRunResumeStore: dungeonRunResumeStore,
                     rogueTowerRecordStore: rogueTowerRecordStore,
                     tutorialTowerProgressStore: tutorialTowerProgressStore,
@@ -313,7 +314,7 @@ struct TitleScreenView: View {
                             triggerImmediateStart(for: mode, context: context)
                         }
                     },
-                    onStartDungeon: { dungeon, floorIndex in
+                    onStartDungeon: { dungeon, floorIndex, preparationChoice, movementStyle in
                         dungeonRunResumeStore.clear()
                         guard let mode = dungeonLibrary.floorMode(
                             for: dungeon,
@@ -324,7 +325,9 @@ struct TitleScreenView: View {
                             ),
                             startingRewardEntries: dungeonGrowthStore.startingRewardEntries(
                                 for: dungeon,
-                                startingFloorIndex: floorIndex
+                                startingFloorIndex: floorIndex,
+                                preparationChoice: preparationChoice,
+                                movementStyle: movementStyle
                             ),
                             startingHazardDamageMitigations: dungeonGrowthStore.startingHazardDamageMitigations(
                                 for: dungeon
@@ -334,7 +337,8 @@ struct TitleScreenView: View {
                             ),
                             startingMarkerDamageMitigations: dungeonGrowthStore.startingMarkerDamageMitigations(
                                 for: dungeon
-                            )
+                            ),
+                            movementStyle: movementStyle
                         ) else { return }
                         let context: StartTriggerContext = .dungeonSelection
                         debugLog(

@@ -12,14 +12,17 @@ final class DungeonSelectionViewTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suiteName) }
         var startedDungeon: DungeonDefinition?
         var startedFloorIndex: Int?
+        var startedMovementStyle: DungeonMovementStyle?
         let view = NavigationStack {
             DungeonSelectionView(
                 dungeonLibrary: .shared,
                 dungeonGrowthStore: DungeonGrowthStore(userDefaults: defaults),
+                gameSettingsStore: GameSettingsStore(userDefaults: defaults),
                 tutorialTowerProgressStore: TutorialTowerProgressStore(userDefaults: defaults),
-                onStartDungeon: {
-                    startedDungeon = $0
-                    startedFloorIndex = $1
+                onStartDungeon: { dungeon, floorIndex, _, movementStyle in
+                    startedDungeon = dungeon
+                    startedFloorIndex = floorIndex
+                    startedMovementStyle = movementStyle
                 }
             )
         }
@@ -45,6 +48,7 @@ final class DungeonSelectionViewTests: XCTestCase {
         XCTAssertEqual(firstMode.boardSize, 9)
         XCTAssertNil(startedDungeon)
         XCTAssertNil(startedFloorIndex)
+        XCTAssertNil(startedMovementStyle)
     }
 
     func testDungeonSelectionShowsOnlyTowerCardsWithoutFloorInfoRows() throws {
@@ -221,8 +225,9 @@ final class DungeonSelectionViewTests: XCTestCase {
             DungeonSelectionView(
                 dungeonLibrary: .shared,
                 dungeonGrowthStore: growthStore,
+                gameSettingsStore: GameSettingsStore(userDefaults: defaults),
                 tutorialTowerProgressStore: TutorialTowerProgressStore(userDefaults: defaults),
-                onStartDungeon: { _, _ in }
+                onStartDungeon: { _, _, _, _ in }
             )
         }
         let controller = UIHostingController(rootView: view)
@@ -389,9 +394,9 @@ final class DungeonSelectionViewTests: XCTestCase {
         XCTAssertEqual(
             presentation.branchRoles.map(\.summary),
             [
-                "区間開始時の持ち込み",
+                "区間開始前の支度候補",
                 "クリア後候補とカード運用",
-                "罠・敵・落下ダメージの保険",
+                "危険に合わせた対策支度",
                 "次階層帯の見通し",
                 "深層チェックポイントと再挑戦支援"
             ]
@@ -418,11 +423,34 @@ final class DungeonSelectionViewTests: XCTestCase {
         XCTAssertEqual(presentation.lane(for: .reward)?.branchSummary, "クリア後候補とカード運用")
         XCTAssertEqual(presentation.lane(for: .reward)?.defaultSelectedUpgrade, .rewardScout)
         XCTAssertEqual(presentation.node(for: .rewardCompletion)?.tierFloor, 50)
-        XCTAssertEqual(presentation.node(for: .retryPreparation)?.summary, "21F以降の再挑戦時に補給を1回分持ちます")
-        XCTAssertEqual(presentation.node(for: .deepCheckpointRead)?.summary, "21F以降の再挑戦時に障壁の呪文を1回分持ちます")
-        XCTAssertEqual(presentation.node(for: .checkpointExpansion)?.summary, "31F以降の再挑戦時に万能薬を1回分持ちます")
-        XCTAssertEqual(presentation.node(for: .comebackRoute)?.summary, "41F以降の再挑戦時に経路用カードを1回分持ちます")
-        XCTAssertEqual(presentation.node(for: .finalRecovery)?.summary, "41F以降の再挑戦時に凍結の呪文を1回分持ちます")
+        XCTAssertEqual(presentation.node(for: .retryPreparation)?.summary, "21F以降の再挑戦時に補給支度を優先します")
+        XCTAssertEqual(presentation.node(for: .deepCheckpointRead)?.summary, "21F以降の再挑戦時に障壁支度を出します")
+        XCTAssertEqual(presentation.node(for: .checkpointExpansion)?.summary, "31F以降の再挑戦時に万能薬支度を出します")
+        XCTAssertEqual(presentation.node(for: .comebackRoute)?.summary, "41F以降の再挑戦時に経路支度を出します")
+        XCTAssertEqual(presentation.node(for: .finalRecovery)?.summary, "41F以降の再挑戦時に凍結支度を出します")
+    }
+
+    func testGrowthForecastAndPreparationChoicesUseMatchingScoutingSurface() throws {
+        let growthStore = makeGrowthStore(
+            unlocked: [.floorSense, .enemySense, .pathPreview],
+            points: 0
+        )
+        let growthTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+
+        let forecast = try XCTUnwrap(
+            DungeonGrowthForecastPresentation.make(
+                dungeon: growthTower,
+                startFloorNumber: 41,
+                growthStore: growthStore
+            )
+        )
+        let choices = growthStore.preparationChoices(for: growthTower, startingFloorIndex: 40)
+
+        XCTAssertTrue(forecast.rows.contains { $0.category == .floor })
+        XCTAssertTrue(forecast.rows.contains { $0.category == .enemy })
+        XCTAssertTrue(forecast.rows.contains { $0.category == .path })
+        XCTAssertEqual(choices.map(\.category), [.floor, .enemy, .path])
+        XCTAssertEqual(choices.count, 3)
     }
 
     func testDungeonGrowthTreePresentationDerivesNodeStates() throws {
@@ -471,7 +499,7 @@ final class DungeonSelectionViewTests: XCTestCase {
             "前提スキル: 道具袋",
             "必要ポイント: 1pt"
         ])
-        XCTAssertEqual(node.branchFocusText, "この系統: 区間開始時の手札を厚くします")
+        XCTAssertEqual(node.branchFocusText, "この系統: 区間開始前の支度候補を増やします")
     }
 
     func testDungeonGrowthTreePresentationKeepsStableActionIdentifiers() throws {

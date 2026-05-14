@@ -6,11 +6,12 @@ import SwiftUI
 struct DungeonSelectionView: View {
     let dungeonLibrary: DungeonLibrary
     @ObservedObject var dungeonGrowthStore: DungeonGrowthStore
+    @ObservedObject var gameSettingsStore: GameSettingsStore
     @ObservedObject var dungeonRunResumeStore: DungeonRunResumeStore
     @ObservedObject var rogueTowerRecordStore: RogueTowerRecordStore
     @ObservedObject var tutorialTowerProgressStore: TutorialTowerProgressStore
     let onResumeDungeon: (DungeonRunResumeSnapshot) -> Void
-    let onStartDungeon: (DungeonDefinition, Int) -> Void
+    let onStartDungeon: (DungeonDefinition, Int, DungeonGrowthPreparationChoice?, DungeonMovementStyle) -> Void
 
     private let theme = AppTheme()
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -19,20 +20,24 @@ struct DungeonSelectionView: View {
     @State private var selectedGrowthBranch: DungeonGrowthBranch = .preparation
     @State private var isShowingAllGrowthBranches = false
     @State private var selectedGrowthForecastStartFloorNumber: Int?
+    @State private var selectedGrowthMovementStyle: DungeonMovementStyle = .orthogonal
+    @State private var selectedGrowthPreparationChoiceIDs: [String: String] = [:]
     @State private var pendingGrowthTowerIntroStart: PendingDungeonStart?
 
     @MainActor
     init(
         dungeonLibrary: DungeonLibrary,
         dungeonGrowthStore: DungeonGrowthStore,
+        gameSettingsStore: GameSettingsStore,
         dungeonRunResumeStore: DungeonRunResumeStore = DungeonRunResumeStore(),
         rogueTowerRecordStore: RogueTowerRecordStore? = nil,
         tutorialTowerProgressStore: TutorialTowerProgressStore? = nil,
         onResumeDungeon: @escaping (DungeonRunResumeSnapshot) -> Void = { _ in },
-        onStartDungeon: @escaping (DungeonDefinition, Int) -> Void
+        onStartDungeon: @escaping (DungeonDefinition, Int, DungeonGrowthPreparationChoice?, DungeonMovementStyle) -> Void
     ) {
         self.dungeonLibrary = dungeonLibrary
         self._dungeonGrowthStore = ObservedObject(wrappedValue: dungeonGrowthStore)
+        self._gameSettingsStore = ObservedObject(wrappedValue: gameSettingsStore)
         self._dungeonRunResumeStore = ObservedObject(wrappedValue: dungeonRunResumeStore)
         self._rogueTowerRecordStore = ObservedObject(wrappedValue: rogueTowerRecordStore ?? RogueTowerRecordStore())
         self._tutorialTowerProgressStore = ObservedObject(wrappedValue: tutorialTowerProgressStore ?? TutorialTowerProgressStore())
@@ -65,14 +70,24 @@ struct DungeonSelectionView: View {
                 primaryButton: .default(Text("基礎塔から始める")) {
                     tutorialTowerProgressStore.markGrowthTowerIntroPromptSeen()
                     if let tutorialTower = dungeonLibrary.dungeon(with: "tutorial-tower") {
-                        onStartDungeon(tutorialTower, 0)
+                        onStartDungeon(tutorialTower, 0, nil, .orthogonal)
                     } else {
-                        onStartDungeon(pendingStart.dungeon, pendingStart.floorIndex)
+                        onStartDungeon(
+                            pendingStart.dungeon,
+                            pendingStart.floorIndex,
+                            pendingStart.preparationChoice,
+                            pendingStart.movementStyle
+                        )
                     }
                 },
                 secondaryButton: .default(Text("成長塔へ進む")) {
                     tutorialTowerProgressStore.markGrowthTowerIntroPromptSeen()
-                    onStartDungeon(pendingStart.dungeon, pendingStart.floorIndex)
+                    onStartDungeon(
+                        pendingStart.dungeon,
+                        pendingStart.floorIndex,
+                        pendingStart.preparationChoice,
+                        pendingStart.movementStyle
+                    )
                 }
             )
         }
@@ -141,7 +156,9 @@ struct DungeonSelectionView: View {
 
             growthSection(for: dungeon)
             resumeButtonIfNeeded(for: dungeon)
+            growthMovementStyleSection(for: dungeon)
             growthForecastSection(for: dungeon)
+            growthPreparationChoiceSection(for: dungeon)
             startButtons(for: dungeon)
         }
         .padding(14)
@@ -614,10 +631,7 @@ struct DungeonSelectionView: View {
     @ViewBuilder
     private func growthForecastSection(for dungeon: DungeonDefinition) -> some View {
         let floorNumbers = startFloorNumbers(for: dungeon)
-        let fallbackFloorNumber = floorNumbers.last ?? 1
-        let forecastFloorNumber = floorNumbers.contains(selectedGrowthForecastStartFloorNumber ?? -1)
-            ? (selectedGrowthForecastStartFloorNumber ?? fallbackFloorNumber)
-            : fallbackFloorNumber
+        let forecastFloorNumber = selectedGrowthStartFloorNumber(from: floorNumbers)
         if let presentation = DungeonGrowthForecastPresentation.make(
             dungeon: dungeon,
             startFloorNumber: forecastFloorNumber,
@@ -684,6 +698,162 @@ struct DungeonSelectionView: View {
     }
 
     @ViewBuilder
+    private func growthPreparationChoiceSection(for dungeon: DungeonDefinition) -> some View {
+        let floorNumbers = startFloorNumbers(for: dungeon)
+        let floorNumber = selectedGrowthStartFloorNumber(from: floorNumbers)
+        let choices = dungeonGrowthStore.preparationChoices(
+            for: dungeon,
+            startingFloorIndex: floorNumber - 1,
+            movementStyle: selectedMovementStyle(for: dungeon)
+        )
+        if !choices.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Label("開始支度", systemImage: "slider.horizontal.3")
+                        .font(.system(size: 14, weight: .heavy, design: .rounded))
+                        .foregroundColor(theme.textPrimary)
+                    Spacer()
+                    Text("\(floorNumber)F")
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .foregroundColor(theme.accentPrimary)
+                }
+
+                let selectedID = selectedPreparationChoiceID(for: dungeon, floorNumber: floorNumber, choices: choices)
+                VStack(spacing: 8) {
+                    ForEach(choices) { choice in
+                        Button {
+                            selectedGrowthPreparationChoiceIDs[preparationChoiceSelectionKey(dungeon: dungeon, floorNumber: floorNumber)] = choice.id
+                        } label: {
+                            HStack(alignment: .top, spacing: 10) {
+                                Image(systemName: choice.iconSystemName)
+                                    .font(.system(size: 13, weight: .bold))
+                                    .foregroundColor(choice.id == selectedID ? theme.accentOnPrimary : theme.accentPrimary)
+                                    .frame(width: 18, height: 18)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(choice.title)
+                                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                                    Text(choice.summary)
+                                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                                Spacer(minLength: 0)
+                                if choice.id == selectedID {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .font(.system(size: 14, weight: .bold))
+                                }
+                            }
+                            .foregroundColor(choice.id == selectedID ? theme.accentOnPrimary : theme.textPrimary)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 9)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .buttonStyle(.plain)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(choice.id == selectedID ? theme.accentPrimary : theme.backgroundPrimary.opacity(0.5))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .stroke(choice.id == selectedID ? theme.accentPrimary.opacity(0.9) : theme.statisticBadgeBorder, lineWidth: 1)
+                        )
+                        .accessibilityIdentifier("dungeon_growth_preparation_choice_\(choice.id)")
+                    }
+                }
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(theme.backgroundPrimary.opacity(0.46))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(theme.accentPrimary.opacity(0.28), lineWidth: 1)
+            )
+            .accessibilityIdentifier("dungeon_growth_preparation_choices")
+        }
+    }
+
+    @ViewBuilder
+    private func growthMovementStyleSection(for dungeon: DungeonDefinition) -> some View {
+        if dungeon.difficulty == .growth {
+            let isKnightUnlocked = isKnightMovementStyleSelectable
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Label("騎士を選ぶ", systemImage: "person.crop.square.filled.and.at.rectangle")
+                        .font(.system(size: 14, weight: .heavy, design: .rounded))
+                        .foregroundColor(theme.textPrimary)
+                    Spacer()
+                    if !isKnightUnlocked {
+                        Text("成長塔50F踏破で解放")
+                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .foregroundColor(theme.textSecondary)
+                    }
+                }
+
+                HStack(spacing: 8) {
+                    movementStyleButton(.orthogonal, isUnlocked: true)
+                    movementStyleButton(.knight, isUnlocked: isKnightUnlocked)
+                }
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(theme.backgroundPrimary.opacity(0.46))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(theme.statisticBadgeBorder.opacity(0.7), lineWidth: 1)
+            )
+            .onChange(of: isKnightUnlocked) { _, unlocked in
+                if !unlocked, selectedGrowthMovementStyle == .knight {
+                    selectedGrowthMovementStyle = .orthogonal
+                }
+            }
+            .accessibilityIdentifier("dungeon_growth_movement_style_section")
+        }
+    }
+
+    private func movementStyleButton(_ movementStyle: DungeonMovementStyle, isUnlocked: Bool) -> some View {
+        let isSelected = selectedGrowthMovementStyle == movementStyle
+        return Button {
+            guard isUnlocked else { return }
+            selectedGrowthMovementStyle = movementStyle
+        } label: {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Image(systemName: movementStyle == .knight ? "figure.run" : "figure.walk")
+                        .font(.system(size: 13, weight: .bold))
+                    Text(movementStyle.displayName)
+                        .font(.system(size: 13, weight: .heavy, design: .rounded))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.82)
+                }
+                Text(isUnlocked ? movementStyle.summary : "成長塔50F踏破で解放")
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundColor(isSelected ? theme.accentOnPrimary.opacity(0.9) : theme.textSecondary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .foregroundColor(isSelected ? theme.accentOnPrimary : (isUnlocked ? theme.textPrimary : theme.textSecondary))
+            .padding(10)
+            .frame(maxWidth: .infinity, minHeight: 74, alignment: .topLeading)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(isSelected ? theme.accentPrimary : theme.backgroundElevated.opacity(isUnlocked ? 0.58 : 0.32))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(isSelected ? theme.accentPrimary : theme.statisticBadgeBorder.opacity(0.7), lineWidth: isSelected ? 2 : 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(!isUnlocked)
+        .accessibilityIdentifier("dungeon_growth_movement_style_\(movementStyle.rawValue)")
+    }
+
+    @ViewBuilder
     private func resumeButtonIfNeeded(for dungeon: DungeonDefinition) -> some View {
         if let presentation = DungeonResumePresentation.make(
             dungeon: dungeon,
@@ -743,11 +913,18 @@ struct DungeonSelectionView: View {
     }
 
     private func handleStartDungeon(_ dungeon: DungeonDefinition, floorIndex: Int) {
+        let movementStyle = selectedMovementStyle(for: dungeon)
+        let preparationChoice = selectedPreparationChoice(for: dungeon, floorNumber: floorIndex + 1)
         guard tutorialTowerProgressStore.shouldPresentGrowthTowerIntroPrompt(for: dungeon) else {
-            onStartDungeon(dungeon, floorIndex)
+            onStartDungeon(dungeon, floorIndex, preparationChoice, movementStyle)
             return
         }
-        pendingGrowthTowerIntroStart = PendingDungeonStart(dungeon: dungeon, floorIndex: floorIndex)
+        pendingGrowthTowerIntroStart = PendingDungeonStart(
+            dungeon: dungeon,
+            floorIndex: floorIndex,
+            preparationChoice: preparationChoice,
+            movementStyle: movementStyle
+        )
     }
 
     private func dungeonCardBackgroundOpacity(for dungeon: DungeonDefinition) -> Color {
@@ -806,6 +983,55 @@ struct DungeonSelectionView: View {
         dungeonGrowthStore.availableGrowthStartFloorNumbers(for: dungeon)
     }
 
+    private func selectedGrowthStartFloorNumber(from floorNumbers: [Int]) -> Int {
+        let fallbackFloorNumber = floorNumbers.last ?? 1
+        return floorNumbers.contains(selectedGrowthForecastStartFloorNumber ?? -1)
+            ? (selectedGrowthForecastStartFloorNumber ?? fallbackFloorNumber)
+            : fallbackFloorNumber
+    }
+
+    private func preparationChoiceSelectionKey(dungeon: DungeonDefinition, floorNumber: Int) -> String {
+        "\(dungeon.id)-\(floorNumber)f"
+    }
+
+    private func selectedPreparationChoiceID(
+        for dungeon: DungeonDefinition,
+        floorNumber: Int,
+        choices: [DungeonGrowthPreparationChoice]
+    ) -> String? {
+        let key = preparationChoiceSelectionKey(dungeon: dungeon, floorNumber: floorNumber)
+        if let selectedID = selectedGrowthPreparationChoiceIDs[key],
+           choices.contains(where: { $0.id == selectedID }) {
+            return selectedID
+        }
+        return choices.first?.id
+    }
+
+    private func selectedPreparationChoice(
+        for dungeon: DungeonDefinition,
+        floorNumber: Int
+    ) -> DungeonGrowthPreparationChoice? {
+        let choices = dungeonGrowthStore.preparationChoices(
+            for: dungeon,
+            startingFloorIndex: floorNumber - 1,
+            movementStyle: selectedMovementStyle(for: dungeon)
+        )
+        guard !choices.isEmpty else { return nil }
+        let selectedID = selectedPreparationChoiceID(for: dungeon, floorNumber: floorNumber, choices: choices)
+        return choices.first { $0.id == selectedID } ?? choices.first
+    }
+
+    private var isKnightMovementStyleSelectable: Bool {
+        dungeonGrowthStore.isKnightMovementStyleUnlocked
+            || gameSettingsStore.unlocksKnightMovementStyleForDeveloper
+    }
+
+    private func selectedMovementStyle(for dungeon: DungeonDefinition) -> DungeonMovementStyle {
+        guard dungeon.difficulty == .growth else { return .orthogonal }
+        guard selectedGrowthMovementStyle == .knight else { return .orthogonal }
+        return isKnightMovementStyleSelectable ? .knight : .orthogonal
+    }
+
     private var contentMaxWidth: CGFloat? {
         horizontalSizeClass == .regular ? 720 : nil
     }
@@ -839,8 +1065,10 @@ struct DungeonResumePresentation: Equatable {
 struct PendingDungeonStart: Identifiable {
     let dungeon: DungeonDefinition
     let floorIndex: Int
+    let preparationChoice: DungeonGrowthPreparationChoice?
+    let movementStyle: DungeonMovementStyle
 
-    var id: String { "\(dungeon.id)-\(floorIndex)" }
+    var id: String { "\(dungeon.id)-\(floorIndex)-\(movementStyle.rawValue)" }
 }
 
 struct TutorialTowerStatusPresentation: Equatable {
@@ -1461,11 +1689,11 @@ private extension DungeonGrowthBranch {
     var roleSummary: String {
         switch self {
         case .preparation:
-            return "区間開始時の持ち込み"
+            return "区間開始前の支度候補"
         case .reward:
             return "クリア後候補とカード運用"
         case .hazard:
-            return "罠・敵・落下ダメージの保険"
+            return "危険に合わせた対策支度"
         case .scouting:
             return "次階層帯の見通し"
         case .recovery:
@@ -1476,11 +1704,11 @@ private extension DungeonGrowthBranch {
     var detailFocus: String {
         switch self {
         case .preparation:
-            return "この系統: 区間開始時の手札を厚くします"
+            return "この系統: 区間開始前の支度候補を増やします"
         case .reward:
             return "この系統: クリア後の選択肢とカード運用を伸ばします"
         case .hazard:
-            return "この系統: 罠・敵・落下の失敗を受け止めます"
+            return "この系統: 見えた危険に合う対策を増やします"
         case .scouting:
             return "この系統: 次の階層帯を読む材料を増やします"
         case .recovery:

@@ -171,6 +171,10 @@ struct SettingsDiagnosticsSection: View {
                 "辞典を全表示（開発者用）",
                 isOn: $gameSettingsStore.showsAllEncyclopediaEntriesForDeveloper
             )
+            Toggle(
+                "跳躍騎士を最初から使う",
+                isOn: $gameSettingsStore.unlocksKnightMovementStyleForDeveloper
+            )
             NavigationLink {
                 DiagnosticsCenterView()
             } label: {

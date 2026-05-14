@@ -23,7 +23,7 @@ final class MoveCardPresentationTests: XCTestCase {
         let entries = MoveCard.encyclopediaEntries
         let includedCards = entries.flatMap(\.includedCards)
 
-        XCTAssertEqual(entries.count, 7)
+        XCTAssertEqual(entries.count, 8)
         XCTAssertEqual(Set(includedCards), Set(MoveCard.allCases))
         XCTAssertEqual(includedCards.count, MoveCard.allCases.count)
         XCTAssertTrue(entries.allSatisfy { !$0.displayName.isEmpty })

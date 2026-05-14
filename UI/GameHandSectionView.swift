@@ -489,10 +489,9 @@ private extension GameHandSectionView {
         if let support = card.supportCard {
             SupportCardIllustrationView(card: support, mode: mode)
         } else if let move = card.moveCard {
-            switch mode {
-            case .hand where core.isIlluded:
+            if mode == .hand, core.isIlluded {
                 IllusionMoveCardIllustrationView(mode: mode)
-            case .hand, .next:
+            } else {
                 MoveCardIllustrationView(
                     card: move,
                     mode: mode
@@ -554,6 +553,14 @@ private extension GameHandSectionView {
             return "右へ 2"
         case .straightLeft2:
             return "左へ 2"
+        case .straightUp1:
+            return "上へ 1"
+        case .straightDown1:
+            return "下へ 1"
+        case .straightRight1:
+            return "右へ 1"
+        case .straightLeft1:
+            return "左へ 1"
         case .diagonalUpRight2:
             return "右上へ 2"
         case .diagonalUpLeft2:

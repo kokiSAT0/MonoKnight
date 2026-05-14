@@ -290,7 +290,11 @@
                 visiblePoints: dungeonVisiblePoints
             )
             knightAnimator.relayoutKnight(layout: layoutSupport)
-            highlightRenderer.refreshAppearance(layout: layoutSupport, palette: palette)
+            highlightRenderer.refreshAppearance(
+                layout: layoutSupport,
+                palette: palette,
+                visiblePoints: dungeonVisiblePoints
+            )
             updateAccessibilityElements()
             prepareLayoutIfNeeded()
         }
@@ -339,6 +343,7 @@
                 scene: self,
                 layout: layoutSupport,
                 palette: palette,
+                visiblePoints: dungeonVisiblePoints,
                 isLayoutReady: isLayoutReady
             )
             updateAccessibilityElements()
@@ -452,11 +457,11 @@
         func highlightStyleForTesting(
             kind: BoardHighlightKind,
             at point: GridPoint
-        ) -> (fillColor: SKColor, strokeColor: SKColor, lineWidth: CGFloat)? {
+        ) -> (fillColor: SKColor, strokeColor: SKColor, lineWidth: CGFloat, glowWidth: CGFloat)? {
             guard let node = highlightRenderer.highlightNodes[kind]?[point] else {
                 return nil
             }
-            return (node.fillColor, node.strokeColor, node.lineWidth)
+            return (node.fillColor, node.strokeColor, node.lineWidth, node.glowWidth)
         }
 
         func highlightPathBoundsForTesting(
@@ -524,7 +529,11 @@
                 showsVisitedTileFill: showsVisitedTileFill,
                 visiblePoints: dungeonVisiblePoints
             )
-            highlightRenderer.refreshAppearance(layout: layoutSupport, palette: palette)
+            highlightRenderer.refreshAppearance(
+                layout: layoutSupport,
+                palette: palette,
+                visiblePoints: dungeonVisiblePoints
+            )
         }
 
         public func moveKnight(to point: GridPoint?) {
@@ -1042,6 +1051,7 @@
                 scene: self,
                 layout: layoutSupport,
                 palette: palette,
+                visiblePoints: dungeonVisiblePoints,
                 isLayoutReady: isLayoutReady
             )
         }
@@ -1056,7 +1066,11 @@
                 showsVisitedTileFill: showsVisitedTileFill,
                 visiblePoints: dungeonVisiblePoints
             )
-            highlightRenderer.refreshAppearance(layout: layoutSupport, palette: palette)
+            highlightRenderer.refreshAppearance(
+                layout: layoutSupport,
+                palette: palette,
+                visiblePoints: dungeonVisiblePoints
+            )
             updateAccessibilityElements()
 
             if shouldLog {

@@ -264,7 +264,8 @@ final class GameViewModel: ObservableObject {
             (core.dungeonCurseEntries.contains { $0.curseID == .laughingDoor } ? 1 : 0) +
             (core.dungeonCurseEntries.contains { $0.curseID == .upsideDownKey } && core.isDungeonExitUnlocked ? 1 : 0) +
             (core.dungeonCurseEntries.contains { $0.curseID == .taxCollector } ? 1 : 0) +
-            (core.dungeonCurseEntries.contains { $0.curseID == .royalIou } ? 1 : 0)
+            (core.dungeonCurseEntries.contains { $0.curseID == .royalIou } ? 1 : 0) +
+            (core.dungeonCurseEntries.contains { $0.curseID == .firewalkingTalisman } && core.didStepOnLavaThisFloor ? 1 : 0)
         let curseRewardChoicePenalty =
             (core.dungeonCurseEntries.contains { $0.curseID == .bottomlessPack } ? 1 : 0) +
             (core.dungeonCurseEntries.contains { $0.curseID == .ashHeart } ? 1 : 0)
@@ -289,7 +290,11 @@ final class GameViewModel: ObservableObject {
         if dungeon.difficulty == .growth,
            let seed = runState.cardVariationSeed {
             let drawnOffers = DungeonWeightedRewardPools.drawUniqueOffers(
-                from: DungeonWeightedRewardPools.entries(floorIndex: runState.currentFloorIndex, context: .clearReward),
+                from: DungeonWeightedRewardPools.entries(
+                    floorIndex: runState.currentFloorIndex,
+                    context: .clearReward,
+                    movementStyle: runState.movementStyle
+                ),
                 context: .clearReward,
                 count: rewardCount,
                 seed: seed,
@@ -298,7 +303,10 @@ final class GameViewModel: ObservableObject {
                 tuning: tuning,
                 excludingRelics: ownedRelics
             )
-            let fallbackOffers = ((floor?.rewardMoveCardsAfterClear ?? []).map { DungeonRewardOffer.playable(.move($0)) })
+            let fallbackMoveCards = runState.movementStyle == .knight
+                ? (floor?.rewardMoveCardsAfterClear ?? []).map(\.cardForKnightMovementStyle)
+                : (floor?.rewardMoveCardsAfterClear ?? [])
+            let fallbackOffers = fallbackMoveCards.map { DungeonRewardOffer.playable(.move($0)) }
                 + ((floor?.rewardSupportCardsAfterClear ?? []).map { DungeonRewardOffer.playable(.support($0)) })
             baseOffers = drawnOffers + fallbackOffers.filter { !drawnOffers.contains($0) }.prefix(max(rewardCount - drawnOffers.count, 0))
         } else {
@@ -312,7 +320,8 @@ final class GameViewModel: ObservableObject {
             seed: runState.cardVariationSeed,
             tuning: tuning,
             ownedRelics: ownedRelics,
-            minimumChoiceCount: rewardCount
+            minimumChoiceCount: rewardCount,
+            movementStyle: runState.movementStyle
         )
         let shouldAddFastRelicOffer =
             core.dungeonRelicEntries.contains { $0.relicID == .gamblerCoin }
@@ -366,7 +375,10 @@ final class GameViewModel: ObservableObject {
                     dungeonRewardAddUses,
                     for: card,
                     relicEntries: core.dungeonRelicEntries,
-                    curseEntries: core.dungeonCurseEntries
+                    curseEntries: core.dungeonCurseEntries,
+                    isExistingRewardCard: core.dungeonInventoryEntries.contains {
+                        $0.moveCard == card && $0.hasUsesRemaining
+                    }
                 )
             )
         })
