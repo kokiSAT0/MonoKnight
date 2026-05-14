@@ -255,7 +255,7 @@ extension GameViewModel {
         if core.collapsedFloorPoints.contains(point) {
             return TileEncyclopediaEntry.entry(id: "collapsedFloor")
         }
-        if core.crackedFloorPoints.contains(point) || brittleFloorPoints.contains(point) {
+        if core.crackedFloorPoints.contains(point) || visibleBrittleFloorPoints.contains(point) {
             return TileEncyclopediaEntry.entry(id: "brittleFloor")
         }
         if core.damageTrapPoints.contains(point) {
@@ -286,10 +286,10 @@ extension GameViewModel {
         return nil
     }
 
-    private var brittleFloorPoints: Set<GridPoint> {
+    private var visibleBrittleFloorPoints: Set<GridPoint> {
         var points: Set<GridPoint> = []
         for hazard in mode.dungeonRules?.hazards ?? [] {
-            if case .brittleFloor(let floorPoints) = hazard {
+            if case .brittleFloor(let floorPoints, .cracked) = hazard {
                 points.formUnion(floorPoints)
             }
         }

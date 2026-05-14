@@ -931,6 +931,7 @@ private struct TileMarkerPreviewView: View {
              .lavaTile,
              .healingTile,
              .brittleFloor,
+             .hiddenWeakFloor,
              .enemyDanger,
              .enemyWarning,
              .effect:
@@ -944,7 +945,8 @@ private struct TileMarkerPreviewView: View {
     @ViewBuilder
     private var marker: some View {
         switch kind {
-        case .normal:
+        case .normal,
+             .hiddenWeakFloor:
             EmptyView()
         case .spawn:
             Circle()

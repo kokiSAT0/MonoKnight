@@ -146,6 +146,60 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
         XCTAssertEqual(viewModel.scene.pickupCollectionEffectPlayCountForTesting, 1)
     }
 
+    func testMovementReplayPlaysExitUnlockEffectAtPresentationStep() throws {
+        let exit = GridPoint(x: 4, y: 0)
+        let key = GridPoint(x: 1, y: 0)
+        let mode = GameMode(
+            identifier: .dungeonFloor,
+            displayName: "解錠ステップテスト",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 0,
+                allowsStacking: true,
+                deckPreset: .standardLight,
+                spawnRule: .fixed(GridPoint(x: 0, y: 0)),
+                penalties: .init(
+                    deadlockPenaltyCost: 0,
+                    manualRedrawPenaltyCost: 0,
+                    manualDiscardPenaltyCost: 0,
+                    revisitPenaltyCost: 0
+                ),
+                completionRule: .dungeonExit(exitPoint: exit),
+                dungeonRules: DungeonRules(
+                    difficulty: .growth,
+                    failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 8),
+                    exitLock: DungeonExitLock(unlockPoint: key)
+                )
+            ),
+            leaderboardEligible: false
+        )
+        let core = GameCore(mode: mode)
+        let viewModel = GameBoardBridgeViewModel(core: core, mode: mode)
+        let event = DungeonExitUnlockEvent(exitPoint: exit, unlockPoint: key)
+        let resolution = MovementResolution(
+            path: [key, GridPoint(x: 2, y: 0), exit],
+            finalPosition: exit,
+            presentationSteps: [
+                MovementResolution.PresentationStep(
+                    point: key,
+                    hpAfter: core.dungeonHP,
+                    handStacksAfter: core.handStacks,
+                    collectedDungeonCardPickupIDsAfter: [],
+                    enemyStatesAfter: core.enemyStates,
+                    crackedFloorPointsAfter: core.crackedFloorPoints,
+                    collapsedFloorPointsAfter: core.collapsedFloorPoints,
+                    tookDamage: false,
+                    dungeonExitUnlockEvent: event
+                )
+            ]
+        )
+
+        viewModel.beginMovementReplayForTesting(using: resolution)
+
+        XCTAssertEqual(viewModel.scene.exitUnlockEffectPlayCountForTesting, 1)
+    }
+
     func testSceneReplaysPresentationStepsForMultiStepMovement() {
         let scene = GameScene(initialBoardSize: 5, initialVisitedPoints: [GridPoint(x: 0, y: 0)])
         let stepPoints = [
@@ -925,8 +979,9 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
         let core = GameCore(mode: mode)
         let viewModel = GameBoardBridgeViewModel(core: core, mode: mode)
 
+        let keyPoint = GridPoint(x: 3, y: 3)
         XCTAssertEqual(viewModel.scene.latestHighlightPoints(for: .dungeonExitLocked), [GridPoint(x: 4, y: 4)])
-        XCTAssertTrue(viewModel.scene.latestHighlightPoints(for: .dungeonKey).isEmpty)
+        XCTAssertEqual(viewModel.scene.latestHighlightPoints(for: .dungeonKey), [keyPoint])
         XCTAssertEqual(viewModel.scene.latestHighlightPoints(for: .dungeonCardPickup), [GridPoint(x: 0, y: 1)])
         XCTAssertEqual(viewModel.scene.latestHighlightPoints(for: .dungeonDamageTrap), [GridPoint(x: 1, y: 1)])
         XCTAssertTrue(viewModel.scene.latestHighlightPoints(for: .dungeonEnemy).isEmpty)
@@ -936,6 +991,7 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
         )
         XCTAssertTrue(viewModel.scene.latestHighlightPoints(for: .dungeonDanger).contains(GridPoint(x: 3, y: 2)))
         XCTAssertTrue(viewModel.scene.latestDungeonVisiblePointsForTesting()?.contains(GridPoint(x: 4, y: 4)) == true)
+        XCTAssertTrue(viewModel.scene.latestDungeonVisiblePointsForTesting()?.contains(keyPoint) == true)
         XCTAssertTrue(viewModel.scene.latestDungeonVisiblePointsForTesting()?.contains(GridPoint(x: 3, y: 2)) == true)
         XCTAssertFalse(viewModel.scene.latestDungeonVisiblePointsForTesting()?.contains(GridPoint(x: 4, y: 0)) == true)
     }

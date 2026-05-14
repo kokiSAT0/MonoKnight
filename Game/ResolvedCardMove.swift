@@ -38,6 +38,10 @@ public struct MovementResolution: Equatable, Sendable {
         public let tookDamage: Bool
         /// このマスで移動を止める場合の理由
         public let stopReason: StopReason?
+        /// このマスで出口解錠演出を表示する場合のイベント
+        public let dungeonExitUnlockEvent: DungeonExitUnlockEvent?
+        /// このマスで施錠中出口到達の警告を表示する場合のイベント
+        public let dungeonLockedExitReachEvent: DungeonLockedExitReachEvent?
 
         public init(
             point: GridPoint,
@@ -50,7 +54,9 @@ public struct MovementResolution: Equatable, Sendable {
             collapsedFloorPointsAfter: Set<GridPoint>,
             boardAfter: Board? = nil,
             tookDamage: Bool,
-            stopReason: StopReason? = nil
+            stopReason: StopReason? = nil,
+            dungeonExitUnlockEvent: DungeonExitUnlockEvent? = nil,
+            dungeonLockedExitReachEvent: DungeonLockedExitReachEvent? = nil
         ) {
             self.point = point
             self.hpAfter = hpAfter
@@ -63,6 +69,8 @@ public struct MovementResolution: Equatable, Sendable {
             self.boardAfter = boardAfter
             self.tookDamage = tookDamage
             self.stopReason = stopReason
+            self.dungeonExitUnlockEvent = dungeonExitUnlockEvent
+            self.dungeonLockedExitReachEvent = dungeonLockedExitReachEvent
         }
     }
 
@@ -283,6 +291,14 @@ public struct ResolvedCardMove: Hashable, Sendable {
             hasher.combine(step.collapsedFloorPointsAfter.count)
             hasher.combine(step.boardAfter?.visitedPoints.count ?? -1)
             hasher.combine(step.tookDamage)
+            hasher.combine(step.dungeonExitUnlockEvent?.id)
+            hasher.combine(step.dungeonExitUnlockEvent?.exitPoint.x)
+            hasher.combine(step.dungeonExitUnlockEvent?.exitPoint.y)
+            hasher.combine(step.dungeonExitUnlockEvent?.unlockPoint.x)
+            hasher.combine(step.dungeonExitUnlockEvent?.unlockPoint.y)
+            hasher.combine(step.dungeonLockedExitReachEvent?.id)
+            hasher.combine(step.dungeonLockedExitReachEvent?.exitPoint.x)
+            hasher.combine(step.dungeonLockedExitReachEvent?.exitPoint.y)
             switch step.stopReason {
             case .exit:
                 hasher.combine("exit")

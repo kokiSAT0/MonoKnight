@@ -79,7 +79,7 @@ public enum TileEffect: Equatable, Codable, Sendable {
     case blast(direction: MoveVector)
     /// このマスで残りの移動を止める効果
     case slow
-    /// 踏むと次の階まで足枷状態になり、全行動が重くなる罠
+    /// 踏むと次の階まで足枷状態になり、敵ターンが重くなる罠
     case shackleTrap
     /// 踏むと毒状態になり、以後の行動回数に応じて HP を失う罠
     case poisonTrap

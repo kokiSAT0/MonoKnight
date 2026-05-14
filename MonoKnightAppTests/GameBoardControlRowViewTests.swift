@@ -113,7 +113,7 @@ final class GameBoardControlRowViewTests: XCTestCase {
         XCTAssertEqual(effects.map(\.kind), [.shackle, .illusion])
         XCTAssertEqual(effects.map(\.badgeText), ["2", "?"])
         XCTAssertEqual(effects[0].accessibilityLabel, "足枷状態")
-        XCTAssertTrue(effects[0].accessibilityValue.contains("手数が2"))
+        XCTAssertTrue(effects[0].accessibilityValue.contains("敵ターンが2回"))
         XCTAssertEqual(effects[1].accessibilityLabel, "幻惑状態")
         XCTAssertTrue(effects[1].accessibilityValue.contains("移動カードの正体が分からず"))
     }

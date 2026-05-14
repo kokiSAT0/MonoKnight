@@ -13,6 +13,7 @@ public enum TileMarkerPreviewKind: Equatable, Sendable {
     case lavaTile
     case healingTile
     case brittleFloor
+    case hiddenWeakFloor
     case collapsedFloor
     case enemyDanger
     case enemyWarning
@@ -128,14 +129,21 @@ public struct TileEncyclopediaEntry: Identifiable, Equatable, Sendable {
             id: "brittleFloor",
             displayName: "ひび割れ床",
             category: "危険",
-            description: "1 回踏むとひび割れ、もう一度踏むと崩れて HP を失い、下の階へ落ちることがあります。",
+            description: "見えているヒビ床です。踏むと崩落床になりますが、その踏みでは落ちません。",
             previewKind: .brittleFloor
+        ),
+        TileEncyclopediaEntry(
+            id: "hiddenWeakFloor",
+            displayName: "隠し脆い床",
+            category: "危険",
+            description: "見た目では分からない高難易度の床です。踏むと崩落床になり、次に入ると落下します。",
+            previewKind: .hiddenWeakFloor
         ),
         TileEncyclopediaEntry(
             id: "collapsedFloor",
             displayName: "崩落床",
             category: "危険",
-            description: "崩れたあとの穴です。入るともう一度落下し、敵の経路からは外れます。",
+            description: "崩れた穴です。入ると HP を失い、下の階へ落ちます。敵の経路からは外れます。",
             previewKind: .collapsedFloor
         ),
         TileEncyclopediaEntry(
@@ -198,7 +206,7 @@ public struct TileEncyclopediaEntry: Identifiable, Equatable, Sendable {
             id: "shackleTrap",
             displayName: "足枷罠",
             category: "危険",
-            description: "踏むと次の階まで足枷状態になります。全行動の手数が2になり、敵ターンも2回進みます。",
+            description: "踏むと次の階まで足枷状態になります。手数は通常どおりですが、敵ターンが2回進みます。",
             previewKind: .effect(.shackleTrap)
         ),
         TileEncyclopediaEntry(

@@ -137,7 +137,7 @@ final class GameViewModel: ObservableObject {
     var enemyFreezeTurnsRemaining: Int { core.enemyFreezeTurnsRemaining }
     /// 障壁の呪文で HP ダメージを無効化できる残り回数
     var damageBarrierTurnsRemaining: Int { core.damageBarrierTurnsRemaining }
-    /// 足枷罠で現在フロア中の全行動が重くなっているかどうか
+    /// 足枷罠で現在フロア中の敵ターンが重くなっているかどうか
     var isShackled: Bool { core.isShackled }
     /// 幻惑罠で現在フロア中の移動カードが伏せられているかどうか
     var isIlluded: Bool { core.isIlluded }
@@ -252,18 +252,31 @@ final class GameViewModel: ObservableObject {
         let turnLimit = core.effectiveDungeonTurnLimit ?? Int.max
         let isFastClearForRelic = core.moveCount * 2 <= turnLimit
         let isSeventyPercentClear = core.moveCount * 10 <= turnLimit * 7
-        let rewardChoiceBonus =
+        let relicRewardChoiceBonus =
             (core.dungeonRelicEntries.contains { $0.relicID == .victoryBanner || $0.relicID == .royalCrown } ? 1 : 0) +
             (core.dungeonRelicEntries.contains { $0.relicID == .scoutCompass } && isSeventyPercentClear ? 1 : 0) +
-            (core.dungeonRelicEntries.contains { $0.relicID == .trapperGloves && $0.remainingUses == 1 } ? 1 : 0) +
-            (core.dungeonCurseEntries.contains { $0.curseID == .crackedCompass } ? 1 : 0)
-            + (core.dungeonCurseEntries.contains { $0.curseID == .cloudedMirror } ? 1 : 0)
-            + (core.dungeonCurseEntries.contains { $0.curseID == .patrolBell } ? 1 : 0)
-            + (core.dungeonCurseEntries.contains { $0.curseID == .foolsMask } ? 1 : 0)
-            + (core.dungeonCurseEntries.contains { $0.curseID == .laughingDoor } ? 1 : 0)
-            + (core.dungeonCurseEntries.contains { $0.curseID == .upsideDownKey } && core.isDungeonExitUnlocked ? 1 : 0)
-            + (core.dungeonCurseEntries.contains { $0.curseID == .taxCollector } ? 1 : 0)
-        let rewardCount = min(baseRewardCount + rewardChoiceBonus, 4)
+            (core.dungeonRelicEntries.contains { $0.relicID == .trapperGloves && $0.remainingUses == 1 } ? 1 : 0)
+        let curseRewardChoiceBonus =
+            (core.dungeonCurseEntries.contains { $0.curseID == .crackedCompass } ? 1 : 0) +
+            (core.dungeonCurseEntries.contains { $0.curseID == .cloudedMirror } ? 1 : 0) +
+            (core.dungeonCurseEntries.contains { $0.curseID == .patrolBell } ? 1 : 0) +
+            (core.dungeonCurseEntries.contains { $0.curseID == .foolsMask } ? 1 : 0) +
+            (core.dungeonCurseEntries.contains { $0.curseID == .laughingDoor } ? 1 : 0) +
+            (core.dungeonCurseEntries.contains { $0.curseID == .upsideDownKey } && core.isDungeonExitUnlocked ? 1 : 0) +
+            (core.dungeonCurseEntries.contains { $0.curseID == .taxCollector } ? 1 : 0) +
+            (core.dungeonCurseEntries.contains { $0.curseID == .royalIou } ? 1 : 0)
+        let curseRewardChoicePenalty =
+            (core.dungeonCurseEntries.contains { $0.curseID == .bottomlessPack } ? 1 : 0) +
+            (core.dungeonCurseEntries.contains { $0.curseID == .ashHeart } ? 1 : 0)
+        let rewardChoiceBonus = relicRewardChoiceBonus + curseRewardChoiceBonus - curseRewardChoicePenalty
+        let hasReducedRewardChoices = core.dungeonCurseEntries.contains {
+            $0.curseID == .bottomlessPack || $0.curseID == .ashHeart
+        }
+        let minimumRewardCount = hasReducedRewardChoices ? 2 : 1
+        let adjustedRewardCount = baseRewardCount + rewardChoiceBonus
+        let rewardCount = baseRewardCount > 0
+            ? min(max(adjustedRewardCount, minimumRewardCount), 4)
+            : 0
         guard rewardCount > 0 else { return [] }
 
         let tuning = DungeonRewardDrawTuning(
@@ -301,10 +314,15 @@ final class GameViewModel: ObservableObject {
             ownedRelics: ownedRelics,
             minimumChoiceCount: rewardCount
         )
-        if core.dungeonRelicEntries.contains(where: { $0.relicID == .gamblerCoin }),
+        let shouldAddFastRelicOffer =
+            core.dungeonRelicEntries.contains { $0.relicID == .gamblerCoin }
+            || core.dungeonCurseEntries.contains { $0.curseID == .relicHunterBrand }
+        if shouldAddFastRelicOffer,
            isFastClearForRelic,
-           let relicCandidate = DungeonRelicID.allCases.first(where: { !ownedRelics.contains($0) && !offers.contains(.relic($0)) }) {
-            appendDungeonRewardOffer(.relic(relicCandidate), to: &offers, choiceCount: rewardCount)
+           let relicCandidate = DungeonRelicID.allCases.first(where: {
+               !ownedRelics.contains($0) && !offers.contains(DungeonRewardOffer.relic($0))
+           }) {
+            appendDungeonRewardOffer(DungeonRewardOffer.relic(relicCandidate), to: &offers, choiceCount: rewardCount)
         }
         return Array(offers.prefix(rewardCount))
     }

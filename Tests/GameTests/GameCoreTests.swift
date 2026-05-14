@@ -846,10 +846,10 @@ final class GameCoreTests: XCTestCase {
         XCTAssertFalse(core.isShackled)
         XCTAssertEqual(core.poisonDamageTicksRemaining, 0)
         XCTAssertEqual(core.poisonActionsUntilNextDamage, 0)
-        XCTAssertEqual(core.moveCount, 5)
+        XCTAssertEqual(core.moveCount, 3)
 
         playBasicMove(to: GridPoint(x: 2, y: 1), in: core)
-        XCTAssertEqual(core.moveCount, 6)
+        XCTAssertEqual(core.moveCount, 4)
     }
 
     func testAntidoteRequiresPoisonButPanaceaCanCureShackleOnly() throws {

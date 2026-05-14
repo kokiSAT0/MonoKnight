@@ -123,6 +123,7 @@ final class MoveCardPresentationTests: XCTestCase {
         XCTAssertEqual(entries.first { $0.id == "lavaTile" }?.previewKind, .lavaTile)
         XCTAssertEqual(entries.first { $0.id == "healingTile" }?.previewKind, .healingTile)
         XCTAssertEqual(entries.first { $0.id == "brittleFloor" }?.previewKind, .brittleFloor)
+        XCTAssertEqual(entries.first { $0.id == "hiddenWeakFloor" }?.previewKind, .hiddenWeakFloor)
         XCTAssertEqual(entries.first { $0.id == "collapsedFloor" }?.previewKind, .collapsedFloor)
         XCTAssertEqual(entries.first { $0.id == "shackleTrap" }?.previewKind, .effect(.shackleTrap))
         XCTAssertEqual(entries.first { $0.id == "poisonTrap" }?.previewKind, .effect(.poisonTrap))
@@ -147,6 +148,7 @@ final class MoveCardPresentationTests: XCTestCase {
             "lavaTile",
             "healingTile",
             "brittleFloor",
+            "hiddenWeakFloor",
             "collapsedFloor",
             "enemyDanger",
             "enemyWarning",

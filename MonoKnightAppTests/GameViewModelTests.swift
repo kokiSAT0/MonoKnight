@@ -1239,6 +1239,68 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertTrue(gamblerOffers.contains { $0.relic != nil })
     }
 
+    func testBuildChangingCursesReduceRewardChoicesWithTwoChoiceFloor() throws {
+        let dungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let runState = DungeonRunState(
+            dungeonID: dungeon.id,
+            currentFloorIndex: 0,
+            carriedHP: 3,
+            curseEntries: [
+                DungeonCurseEntry(curseID: .bottomlessPack),
+                DungeonCurseEntry(curseID: .ashHeart)
+            ],
+            cardVariationSeed: 42
+        )
+        let floor = try XCTUnwrap(dungeon.resolvedFloor(at: 0, runState: runState))
+        let mode = floor.makeGameMode(
+            dungeonID: dungeon.id,
+            difficulty: dungeon.difficulty,
+            runState: runState
+        )
+        let (viewModel, _) = makeViewModel(mode: mode)
+
+        XCTAssertEqual(viewModel.availableDungeonRewardOffers.count, 2)
+    }
+
+    func testRelicHunterBrandAddsRelicOfferWithoutExpandingChoiceCount() throws {
+        let dungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let baseRunState = DungeonRunState(
+            dungeonID: dungeon.id,
+            currentFloorIndex: 0,
+            carriedHP: 3,
+            cardVariationSeed: 42
+        )
+        let curseRunState = DungeonRunState(
+            dungeonID: dungeon.id,
+            currentFloorIndex: 0,
+            carriedHP: 3,
+            curseEntries: [DungeonCurseEntry(curseID: .relicHunterBrand)],
+            cardVariationSeed: 42
+        )
+        let baseFloor = try XCTUnwrap(dungeon.resolvedFloor(at: 0, runState: baseRunState))
+        let curseFloor = try XCTUnwrap(dungeon.resolvedFloor(at: 0, runState: curseRunState))
+        let baseMode = baseFloor.makeGameMode(
+            dungeonID: dungeon.id,
+            difficulty: dungeon.difficulty,
+            runState: baseRunState
+        )
+        let curseMode = curseFloor.makeGameMode(
+            dungeonID: dungeon.id,
+            difficulty: dungeon.difficulty,
+            runState: curseRunState
+        )
+        let (baseViewModel, baseCore) = makeViewModel(mode: baseMode)
+        let (curseViewModel, curseCore) = makeViewModel(mode: curseMode)
+        baseCore.overrideMetricsForTesting(moveCount: 0, penaltyCount: 0, elapsedSeconds: 10)
+        curseCore.overrideMetricsForTesting(moveCount: 0, penaltyCount: 0, elapsedSeconds: 10)
+
+        let baseOffers = baseViewModel.availableDungeonRewardOffers
+        let curseOffers = curseViewModel.availableDungeonRewardOffers
+
+        XCTAssertEqual(curseOffers.count, baseOffers.count)
+        XCTAssertTrue(curseOffers.contains { $0.relic != nil })
+    }
+
     func testPendingDungeonPickupDiscardNewCardResolvesThroughViewModel() throws {
         let pickupPoint = GridPoint(x: 1, y: 0)
         let existingCards = Array(MoveCard.allCases.prefix(9))
@@ -2542,6 +2604,49 @@ final class GameViewModelTests: XCTestCase {
         RunLoop.main.run(until: Date().addingTimeInterval(0.05))
         playBasicMove(to: exit, in: core)
         RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+
+        XCTAssertEqual(viewModel.boardTapSelectionWarning?.message, "鍵を取るまで階段は使えません")
+        XCTAssertEqual(viewModel.boardTapSelectionWarning?.destination, exit)
+    }
+
+    func testRayLockedExitNoticeWaitsForMovementPresentationStep() throws {
+        let exit = GridPoint(x: 4, y: 0)
+        let mode = makeLockedExitNoticeMode(exit: exit)
+        let core = GameCore(mode: mode)
+        let viewModel = makeViewModel(mode: mode, core: core)
+        let steps = [
+            GridPoint(x: 1, y: 0),
+            GridPoint(x: 2, y: 0),
+            GridPoint(x: 3, y: 0),
+            exit
+        ].map { point in
+            MovementResolution.PresentationStep(
+                point: point,
+                hpAfter: core.dungeonHP,
+                handStacksAfter: core.handStacks,
+                collectedDungeonCardPickupIDsAfter: [],
+                enemyStatesAfter: core.enemyStates,
+                crackedFloorPointsAfter: core.crackedFloorPoints,
+                collapsedFloorPointsAfter: core.collapsedFloorPoints,
+                tookDamage: false,
+                dungeonLockedExitReachEvent: point == exit
+                    ? DungeonLockedExitReachEvent(exitPoint: exit)
+                    : nil
+            )
+        }
+        let resolution = MovementResolution(
+            path: steps.map(\.point),
+            finalPosition: exit,
+            presentationSteps: steps
+        )
+        XCTAssertNil(viewModel.boardTapSelectionWarning)
+
+        viewModel.beginMovementPresentation(using: resolution)
+        for step in resolution.presentationSteps.dropLast() {
+            viewModel.applyMovementPresentationStep(step)
+            XCTAssertNil(viewModel.boardTapSelectionWarning)
+        }
+        viewModel.applyMovementPresentationStep(try XCTUnwrap(resolution.presentationSteps.last))
 
         XCTAssertEqual(viewModel.boardTapSelectionWarning?.message, "鍵を取るまで階段は使えません")
         XCTAssertEqual(viewModel.boardTapSelectionWarning?.destination, exit)

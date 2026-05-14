@@ -248,9 +248,10 @@ extension GameViewModel {
 
     private func discoveryIDs(for hazard: HazardDefinition) -> Set<EncyclopediaDiscoveryID> {
         switch hazard {
-        case .brittleFloor(let points):
+        case .brittleFloor(let points, let initialState):
+            let tileID = initialState == .hiddenWeak ? "hiddenWeakFloor" : "brittleFloor"
             return points.isEmpty ? [] : [
-                tileDiscoveryID("brittleFloor"),
+                tileDiscoveryID(tileID),
                 DungeonEventEncyclopediaKind.floorFall.encyclopediaDiscoveryID
             ]
         case .damageTrap(let points, _):

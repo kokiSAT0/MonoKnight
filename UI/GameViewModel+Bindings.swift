@@ -72,6 +72,9 @@ extension GameViewModel {
             .sink { [weak self] event in
                 guard let self else { return }
                 defer { self.core.clearDungeonLockedExitReachEvent(event.id) }
+                if self.shouldDeferLockedExitReachNoticeDuringMovementPresentation(event) {
+                    return
+                }
                 self.presentLockedExitReachNoticeIfNeeded(for: event)
             }
             .store(in: &cancellables)
@@ -136,6 +139,18 @@ extension GameViewModel {
             return "\(metadata.dungeonID):\(metadata.floorID):\(event.exitPoint.x),\(event.exitPoint.y)"
         }
         return "\(mode.identifier.rawValue):\(event.exitPoint.x),\(event.exitPoint.y)"
+    }
+
+    private func shouldDeferLockedExitReachNoticeDuringMovementPresentation(
+        _ event: DungeonLockedExitReachEvent
+    ) -> Bool {
+        guard isMovementPresentationActive,
+              let resolution = core.lastMovementResolution,
+              resolution.path.count > 1
+        else { return false }
+        return resolution.presentationSteps.contains { step in
+            step.dungeonLockedExitReachEvent?.id == event.id
+        }
     }
 
     func handleHandStacksChange(_ newHandStacks: [HandStack]) {
@@ -263,6 +278,9 @@ extension GameViewModel {
         if step.tookDamage {
             boardBridge.playDamageEffect()
             lastObservedDungeonHPForDamageEffect = step.hpAfter
+        }
+        if let lockedExitReachEvent = step.dungeonLockedExitReachEvent {
+            presentLockedExitReachNoticeIfNeeded(for: lockedExitReachEvent)
         }
     }
 

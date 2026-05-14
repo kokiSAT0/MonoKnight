@@ -164,10 +164,10 @@ struct DungeonStatusEffectPresentation: Identifiable, Equatable {
             title: "足枷",
             symbolName: "link",
             badgeText: "2",
-            currentValueText: "全行動 手数2",
-            detailText: "この階にいる間、全行動の手数が2になり、敵ターンも2回進みます。万能薬で解除できます。",
+            currentValueText: "敵ターン2回",
+            detailText: "この階にいる間、手数は通常どおりですが、敵ターンが2回進みます。万能薬で解除できます。",
             accessibilityLabel: "足枷状態",
-            accessibilityValue: "全行動の手数が2になり、敵ターンも2回進みます"
+            accessibilityValue: "手数は通常どおり、敵ターンが2回進みます"
         )
     }
 

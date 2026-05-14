@@ -98,7 +98,7 @@ enum GameInlineInspection: Identifiable, Equatable {
                 return "rectangle.stack.fill"
             case .dungeonRelicPickup:
                 return "shippingbox.fill"
-            case .damageTrap, .lavaTile, .brittleFloor, .collapsedFloor, .enemyDanger, .enemyWarning, .effect:
+            case .damageTrap, .lavaTile, .brittleFloor, .hiddenWeakFloor, .collapsedFloor, .enemyDanger, .enemyWarning, .effect:
                 return "exclamationmark.triangle.fill"
             case .healingTile:
                 return "cross.case.fill"

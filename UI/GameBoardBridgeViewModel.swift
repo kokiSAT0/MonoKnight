@@ -371,6 +371,9 @@ final class GameBoardBridgeViewModel: ObservableObject {
         presentationCollapsedFloorPoints = step.collapsedFloorPointsAfter
         presentationCurrentPoint = step.point
         pushHighlightsToScene()
+        if let exitUnlockEvent = step.dungeonExitUnlockEvent {
+            scene.playDungeonExitUnlockEffect(at: exitUnlockEvent.exitPoint)
+        }
         onMovementPresentationStep?(step)
     }
 
@@ -523,6 +526,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
                 exitPoint: mode.dungeonExitPoint,
                 dangerPoints: shouldDeferEnemyThreatHighlights ? [] : displayedEnemyDangerPoints,
                 warningPoints: shouldDeferEnemyThreatHighlights ? [] : displayedEnemyWarningPoints,
+                keyPoints: core.dungeonKeyPoints,
                 revealedPickupPoints: core.chalkRevealedDungeonCardPickupPoints,
                 visionRadius: core.dungeonDarknessVisionRadius
             )
@@ -598,10 +602,14 @@ final class GameBoardBridgeViewModel: ObservableObject {
         exitPoint: GridPoint?,
         dangerPoints: Set<GridPoint>,
         warningPoints: Set<GridPoint>,
+        keyPoints: Set<GridPoint>,
         revealedPickupPoints: Set<GridPoint>,
         visionRadius: Int
     ) -> Set<GridPoint> {
-        var visiblePoints = dangerPoints.union(warningPoints).union(revealedPickupPoints)
+        var visiblePoints = dangerPoints
+            .union(warningPoints)
+            .union(keyPoints)
+            .union(revealedPickupPoints)
         if let current {
             let radius = max(visionRadius, 1)
             for dy in (-radius)...radius {
@@ -1175,9 +1183,24 @@ final class GameBoardBridgeViewModel: ObservableObject {
             .receive(on: RunLoop.main)
             .sink { [weak self] event in
                 guard let self, let event else { return }
+                if self.shouldDeferDungeonExitUnlockEffectDuringMovementReplay(event) {
+                    return
+                }
                 self.scene.playDungeonExitUnlockEffect(at: event.exitPoint)
             }
             .store(in: &cancellables)
+    }
+
+    private func shouldDeferDungeonExitUnlockEffectDuringMovementReplay(
+        _ event: DungeonExitUnlockEvent
+    ) -> Bool {
+        guard let resolution = latestMovementResolution ?? core.lastMovementResolution,
+              resolution.path.count > 1,
+              resolution.presentationSteps.contains(where: { step in
+                  step.dungeonExitUnlockEvent?.id == event.id
+              })
+        else { return false }
+        return isMovementReplayActive || preparePendingMovementReplayPresentationIfNeeded()
     }
 
     /// 手札の更新を受け取り、アニメーションとガイド情報を整理する

@@ -67,7 +67,7 @@ public struct EnemyPatrolRailPreview: Identifiable, Equatable {
 }
 
 /// 鍵取得によってダンジョン出口が解錠されたことを UI へ知らせるイベント
-public struct DungeonExitUnlockEvent: Identifiable, Equatable {
+public struct DungeonExitUnlockEvent: Identifiable, Equatable, Sendable {
     public let id: UUID
     public let exitPoint: GridPoint
     public let unlockPoint: GridPoint
@@ -80,7 +80,7 @@ public struct DungeonExitUnlockEvent: Identifiable, Equatable {
 }
 
 /// 鍵を持たずに施錠中の階段へ到達したことを UI へ知らせるイベント
-public struct DungeonLockedExitReachEvent: Identifiable, Equatable {
+public struct DungeonLockedExitReachEvent: Identifiable, Equatable, Sendable {
     public let id: UUID
     public let exitPoint: GridPoint
 
@@ -242,7 +242,7 @@ public final class GameCore: ObservableObject {
     @Published public private(set) var isWatcherLaserSuppressed: Bool = false
     /// レール破壊の呪文で巡回兵のレール移動を封じているかどうか
     @Published public private(set) var isPatrolRailDestroyed: Bool = false
-    /// 足枷罠を踏み、その階の間だけ全行動が重くなっているかどうか
+    /// 足枷罠を踏み、その階の間だけ敵ターンが重くなっているかどうか
     @Published public private(set) var isShackled: Bool = false
     /// 幻惑罠を踏み、その階の間だけ移動カードの正体が分からなくなっているかどうか
     @Published public private(set) var isIlluded: Bool = false
@@ -362,6 +362,9 @@ public final class GameCore: ObservableObject {
         }
         if hasDungeonCurse(.crackedCompass) {
             adjustment -= 3
+        }
+        if hasDungeonCurse(.contractCodex) {
+            adjustment -= 4
         }
         if hasDungeonCurse(.chaserScent) {
             adjustment += 3
@@ -485,10 +488,14 @@ public final class GameCore: ObservableObject {
         else { return [] }
         return [pickup.point]
     }
-    /// 現在の行動で消費する手数。足枷状態では全行動が 2 手分になる
+    /// 現在の行動で消費する手数
     private var currentActionMoveCost: Int {
-        let shackleCost = isShackled ? (hasDungeonCurse(.ironShackle) ? 3 : 2) : 1
-        return max(shackleCost, hasDungeonCurse(.heavyBell) && moveCount == 0 ? 2 : 1)
+        hasDungeonCurse(.heavyBell) && moveCount == 0 ? 2 : 1
+    }
+    /// 足枷状態で進む敵ターン数
+    private var currentShackleEnemyTurnCount: Int {
+        guard isShackled else { return 1 }
+        return hasDungeonCurse(.ironShackle) ? 3 : 2
     }
     /// まだ盤面上に残っている拾得カード
     public var activeDungeonCardPickups: [DungeonCardPickupDefinition] {
@@ -646,8 +653,11 @@ public final class GameCore: ObservableObject {
         poisonDamageTicksRemaining = snapshot.poisonDamageTicksRemaining
         poisonActionsUntilNextDamage = snapshot.poisonActionsUntilNextDamage
         enemyStates = snapshot.enemyStates
-        crackedFloorPoints = snapshot.crackedFloorPoints
-        collapsedFloorPoints = validCollapsedPoints
+        let restoredCollapsedFloorPoints = initialCollapsedBrittleFloorPoints.union(validCollapsedPoints)
+        crackedFloorPoints = initialCrackedBrittleFloorPoints
+            .union(snapshot.crackedFloorPoints)
+            .subtracting(restoredCollapsedFloorPoints)
+        collapsedFloorPoints = restoredCollapsedFloorPoints
         consumedHealingTilePoints = validConsumedHealingPoints
         dungeonInventoryEntries = snapshot.dungeonInventoryEntries
         collectedDungeonCardPickupIDs = snapshot.collectedDungeonCardPickupIDs
@@ -1122,6 +1132,10 @@ public final class GameCore: ObservableObject {
         )
         // current を更新するのは最後に行い、Combine の通知順序で UI が解決情報を先に受け取れるように配慮する
         current = finalPosition
+        publishImmediateMovementPresentationEventsIfNeeded(
+            from: presentationSteps,
+            actualTraversedPath: actualTraversedPath
+        )
         let previousMoveCount = moveCount
         moveCount += currentActionMoveCost
 
@@ -1345,6 +1359,10 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             presentationSteps: presentationSteps
         )
         current = finalPosition
+        publishImmediateMovementPresentationEventsIfNeeded(
+            from: presentationSteps,
+            actualTraversedPath: actualTraversedPath
+        )
         let previousMoveCount = moveCount
         moveCount += currentActionMoveCost
 
@@ -1456,13 +1474,19 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                 break
             }
 
-            updateDungeonExitLockIfNeeded(at: stepPoint)
+            let exitUnlockEvent = updateDungeonExitLockIfNeeded(at: stepPoint, publishesEvent: false)
+            let lockedExitReachEvent = pendingLockedDungeonExitReachEvent(
+                at: stepPoint,
+                isFinalPathStep: stepIndex == pendingPath.count - 1
+            )
             if shouldStopDungeonMovementAtExit(at: stepPoint) {
                 presentationSteps.append(
                     movementPresentationStep(
                         at: stepPoint,
                         hpBeforeStep: hpBeforeStep,
-                        stopReason: .exit
+                        stopReason: .exit,
+                        dungeonExitUnlockEvent: exitUnlockEvent,
+                        dungeonLockedExitReachEvent: lockedExitReachEvent
                     )
                 )
                 break
@@ -1524,12 +1548,20 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                             stepIndex = pendingPath.count
                             break
                         }
-                        updateDungeonExitLockIfNeeded(at: destination)
+                        let destinationExitUnlockEvent = updateDungeonExitLockIfNeeded(
+                            at: destination,
+                            publishesEvent: false
+                        )
                         presentationSteps.append(
                             movementPresentationStep(
                                 at: destination,
                                 hpBeforeStep: hpBeforeWarpDestination,
-                                stopReason: .warp
+                                stopReason: .warp,
+                                dungeonExitUnlockEvent: destinationExitUnlockEvent,
+                                dungeonLockedExitReachEvent: pendingLockedDungeonExitReachEvent(
+                                    at: destination,
+                                    isFinalPathStep: true
+                                )
                             )
                         )
                         stepIndex = pendingPath.count
@@ -1622,7 +1654,9 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                 presentationSteps.append(
                     movementPresentationStep(
                         at: stepPoint,
-                        hpBeforeStep: hpBeforeStep
+                        hpBeforeStep: hpBeforeStep,
+                        dungeonExitUnlockEvent: exitUnlockEvent,
+                        dungeonLockedExitReachEvent: lockedExitReachEvent
                     )
                 )
             }
@@ -2084,8 +2118,13 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         poisonActionsUntilNextDamage = 0
         enemyStates = mode.dungeonRules?.enemies.map(EnemyState.init(definition:)) ?? []
         let currentFloorIndex = mode.dungeonMetadataSnapshot?.runState?.currentFloorIndex ?? 0
-        crackedFloorPoints = mode.dungeonMetadataSnapshot?.runState?.crackedFloorPoints(for: currentFloorIndex) ?? []
-        collapsedFloorPoints = mode.dungeonMetadataSnapshot?.runState?.collapsedFloorPoints(for: currentFloorIndex) ?? []
+        let savedCrackedFloorPoints = mode.dungeonMetadataSnapshot?.runState?.crackedFloorPoints(for: currentFloorIndex) ?? []
+        let savedCollapsedFloorPoints = mode.dungeonMetadataSnapshot?.runState?.collapsedFloorPoints(for: currentFloorIndex) ?? []
+        let initialAndSavedCollapsedFloorPoints = initialCollapsedBrittleFloorPoints.union(savedCollapsedFloorPoints)
+        crackedFloorPoints = initialCrackedBrittleFloorPoints
+            .union(savedCrackedFloorPoints)
+            .subtracting(initialAndSavedCollapsedFloorPoints)
+        collapsedFloorPoints = initialAndSavedCollapsedFloorPoints
         consumedHealingTilePoints = []
         dungeonInventoryEntries = mode.dungeonMetadataSnapshot?.runState?.rewardInventoryEntries ?? []
         collectedDungeonCardPickupIDs = []
@@ -2354,6 +2393,18 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         if hasDungeonCurse(.warpedHourglass) {
             adjustment -= 1
         }
+        if hasDungeonCurse(.contractCodex) {
+            adjustment += 2
+        }
+        if hasDungeonCurse(.bottomlessPack) {
+            adjustment += 3
+        }
+        if hasDungeonCurse(.relicHunterBrand) {
+            adjustment -= 1
+        }
+        if hasDungeonCurse(.supportOath) {
+            adjustment -= 1
+        }
         return max(uses + adjustment, 1)
     }
 
@@ -2444,7 +2495,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
 
     @discardableResult
     private func applyDungeonMimicTrap(from pickup: DungeonRelicPickupDefinition) -> Int {
-        let damage = hasDungeonCurse(.redChalice) ? 3 : 2
+        let damage = hasDungeonCurse(.redChalice) ? 2 : 1
         applyDungeonHPDamage(damage)
         debugLog("ミミックが出現: \(pickup.id) @\(pickup.point), HP=\(dungeonHP)")
         if dungeonHP <= 0 {
@@ -2602,13 +2653,17 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             break
         case .laughingDoor, .upsideDownKey, .taxCollector, .flickeringCampfire:
             break
+        case .contractCodex, .royalIou, .bottomlessPack, .relicHunterBrand, .supportOath, .ashHeart:
+            break
         }
     }
 
     private func movementPresentationStep(
         at point: GridPoint,
         hpBeforeStep: Int,
-        stopReason: MovementResolution.PresentationStep.StopReason? = nil
+        stopReason: MovementResolution.PresentationStep.StopReason? = nil,
+        dungeonExitUnlockEvent: DungeonExitUnlockEvent? = nil,
+        dungeonLockedExitReachEvent: DungeonLockedExitReachEvent? = nil
     ) -> MovementResolution.PresentationStep {
         MovementResolution.PresentationStep(
             point: point,
@@ -2621,7 +2676,9 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             collapsedFloorPointsAfter: collapsedFloorPoints,
             boardAfter: board,
             tookDamage: dungeonHP < hpBeforeStep,
-            stopReason: stopReason
+            stopReason: stopReason,
+            dungeonExitUnlockEvent: dungeonExitUnlockEvent,
+            dungeonLockedExitReachEvent: dungeonLockedExitReachEvent
         )
     }
 
@@ -2733,13 +2790,38 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         debugLog("クリア所要時間: \(elapsedSeconds) 秒")
     }
 
+    public var hiddenWeakBrittleFloorPoints: Set<GridPoint> {
+        brittleFloorPoints(initialState: .hiddenWeak)
+    }
+
+    public var initialCrackedBrittleFloorPoints: Set<GridPoint> {
+        brittleFloorPoints(initialState: .cracked)
+    }
+
+    public var initialCollapsedBrittleFloorPoints: Set<GridPoint> {
+        brittleFloorPoints(initialState: .collapsed)
+    }
+
     private var brittleFloorPoints: Set<GridPoint> {
         var points: Set<GridPoint> = []
         for hazard in mode.dungeonRules?.hazards ?? [] {
             switch hazard {
-            case .brittleFloor(let floorPoints):
+            case .brittleFloor(let floorPoints, _):
                 points.formUnion(floorPoints)
             case .damageTrap, .lavaTile, .healingTile:
+                break
+            }
+        }
+        return points
+    }
+
+    private func brittleFloorPoints(initialState: BrittleFloorInitialState) -> Set<GridPoint> {
+        var points: Set<GridPoint> = []
+        for hazard in mode.dungeonRules?.hazards ?? [] {
+            switch hazard {
+            case .brittleFloor(let floorPoints, let state) where state == initialState:
+                points.formUnion(floorPoints)
+            case .brittleFloor, .damageTrap, .lavaTile, .healingTile:
                 break
             }
         }
@@ -2802,14 +2884,15 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             if collapsedFloorPoints.contains(point) {
                 debugLog("崩落済みの床へ落下: \(point)")
                 return triggerDungeonFall(at: point)
-            } else if crackedFloorPoints.contains(point) {
+            } else if crackedFloorPoints.contains(point)
+                        || initialCrackedBrittleFloorPoints.contains(point)
+                        || hiddenWeakBrittleFloorPoints.contains(point) {
                 crackedFloorPoints.remove(point)
                 collapsedFloorPoints.insert(point)
-                debugLog("ひび割れ床が崩落: \(point)")
-                return triggerDungeonFall(at: point)
+                debugLog("脆い床が崩落穴化: \(point)")
             } else {
-                crackedFloorPoints.insert(point)
-                debugLog("床にひび割れ: \(point)")
+                collapsedFloorPoints.insert(point)
+                debugLog("脆い床が崩落穴化: \(point)")
             }
         }
 
@@ -3101,7 +3184,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                 ("traversed", PlayDiagnosticLog.describe(traversedPoints)),
                 ("markerWarnings", PlayDiagnosticLog.describe(initialMarkerDamagePoints ?? enemyWarningPoints)),
                 ("paralysis", PlayDiagnosticLog.describe(paralysisTrapPoint)),
-                ("enemyTurns", String(max(isShackled ? 2 : 1, paralysisTrapPoint == nil ? 1 : 2))),
+                ("enemyTurns", String(max(currentShackleEnemyTurnCount, paralysisTrapPoint == nil ? 1 : 2))),
                 ("skipPoison", String(skipsPoisonTick))
             ]
         )
@@ -3112,7 +3195,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             logDungeonPlayEvent("run_end", [("reason", "exit")])
             return true
         }
-        if traversedPoints.last == mode.dungeonExitPoint {
+        if traversedPoints.count <= 1, traversedPoints.last == mode.dungeonExitPoint {
             publishLockedDungeonExitReachEventIfNeeded()
         }
         if applyPoisonTickAfterAction(skipsPoisonTick: skipsPoisonTick) {
@@ -3120,7 +3203,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         }
 
         var phases: [DungeonEnemyTurnPhase] = []
-        let enemyTurnCount = max(isShackled ? 2 : 1, paralysisTrapPoint == nil ? 1 : 2)
+        let enemyTurnCount = max(currentShackleEnemyTurnCount, paralysisTrapPoint == nil ? 1 : 2)
         for turnIndex in 0..<enemyTurnCount {
             let pendingMarkerDamagePoints = turnIndex == 0
                 ? initialMarkerDamagePoints ?? enemyWarningPoints
@@ -3264,33 +3347,44 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         if collapsedFloorPoints.contains(point) {
             debugLog("崩落済みの落下先から連鎖落下: \(point)")
             return triggerDungeonFall(at: point)
-        } else if crackedFloorPoints.contains(point) {
+        } else if crackedFloorPoints.contains(point)
+                    || initialCrackedBrittleFloorPoints.contains(point)
+                    || hiddenWeakBrittleFloorPoints.contains(point) {
             crackedFloorPoints.remove(point)
             collapsedFloorPoints.insert(point)
-            debugLog("ひび割れ済みの落下先が崩落: \(point)")
-            return triggerDungeonFall(at: point)
+            debugLog("落下先の脆い床が崩落穴化: \(point)")
+            return false
         } else {
-            crackedFloorPoints.insert(point)
-            debugLog("落下先の床にひび割れ: \(point)")
+            collapsedFloorPoints.insert(point)
+            debugLog("落下先の脆い床が崩落穴化: \(point)")
             return false
         }
     }
 
-    private func updateDungeonExitLockIfNeeded(at point: GridPoint? = nil) {
+    @discardableResult
+    private func updateDungeonExitLockIfNeeded(
+        at point: GridPoint? = nil,
+        publishesEvent: Bool = true
+    ) -> DungeonExitUnlockEvent? {
         guard mode.usesDungeonExit,
               !isDungeonExitUnlocked,
               let exitLock = mode.dungeonRules?.exitLock,
               (point ?? current) == exitLock.unlockPoint
-        else { return }
+        else { return nil }
 
         isDungeonExitUnlocked = true
+        var event: DungeonExitUnlockEvent?
         if let exitPoint = mode.dungeonExitPoint {
-            dungeonExitUnlockEvent = DungeonExitUnlockEvent(
+            event = DungeonExitUnlockEvent(
                 exitPoint: exitPoint,
                 unlockPoint: exitLock.unlockPoint
             )
+            if publishesEvent {
+                dungeonExitUnlockEvent = event
+            }
         }
         debugLog("ダンジョン出口を解錠: key=\(exitLock.unlockPoint)")
+        return event
     }
 
     private func publishLockedDungeonExitReachEventIfNeeded() {
@@ -3301,8 +3395,38 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
               current == exitPoint
         else { return }
 
-        dungeonLockedExitReachEvent = DungeonLockedExitReachEvent(exitPoint: exitPoint)
+        if dungeonLockedExitReachEvent == nil {
+            dungeonLockedExitReachEvent = DungeonLockedExitReachEvent(exitPoint: exitPoint)
+        }
         debugLog("施錠中の階段へ到達: \(exitPoint)")
+    }
+
+    private func pendingLockedDungeonExitReachEvent(
+        at point: GridPoint,
+        isFinalPathStep: Bool
+    ) -> DungeonLockedExitReachEvent? {
+        guard isFinalPathStep,
+              mode.usesDungeonExit,
+              progress == .playing,
+              !isDungeonExitUnlocked,
+              point == mode.dungeonExitPoint
+        else { return nil }
+        return DungeonLockedExitReachEvent(exitPoint: point)
+    }
+
+    private func publishImmediateMovementPresentationEventsIfNeeded(
+        from steps: [MovementResolution.PresentationStep],
+        actualTraversedPath: [GridPoint]
+    ) {
+        guard actualTraversedPath.count <= 1 else { return }
+        for step in steps {
+            if let event = step.dungeonExitUnlockEvent {
+                dungeonExitUnlockEvent = event
+            }
+            if let event = step.dungeonLockedExitReachEvent, dungeonLockedExitReachEvent == nil {
+                dungeonLockedExitReachEvent = event
+            }
+        }
     }
 
     private func shouldStopDungeonMovementAtExit(at point: GridPoint) -> Bool {
@@ -4231,8 +4355,13 @@ extension GameCore {
         core.isIlluded = false
         core.enemyStates = mode.dungeonRules?.enemies.map(EnemyState.init(definition:)) ?? []
         let currentFloorIndex = mode.dungeonMetadataSnapshot?.runState?.currentFloorIndex ?? 0
-        core.crackedFloorPoints = mode.dungeonMetadataSnapshot?.runState?.crackedFloorPoints(for: currentFloorIndex) ?? []
-        core.collapsedFloorPoints = mode.dungeonMetadataSnapshot?.runState?.collapsedFloorPoints(for: currentFloorIndex) ?? []
+        let savedCrackedFloorPoints = mode.dungeonMetadataSnapshot?.runState?.crackedFloorPoints(for: currentFloorIndex) ?? []
+        let savedCollapsedFloorPoints = mode.dungeonMetadataSnapshot?.runState?.collapsedFloorPoints(for: currentFloorIndex) ?? []
+        let initialAndSavedCollapsedFloorPoints = core.initialCollapsedBrittleFloorPoints.union(savedCollapsedFloorPoints)
+        core.crackedFloorPoints = core.initialCrackedBrittleFloorPoints
+            .union(savedCrackedFloorPoints)
+            .subtracting(initialAndSavedCollapsedFloorPoints)
+        core.collapsedFloorPoints = initialAndSavedCollapsedFloorPoints
         core.consumedHealingTilePoints = []
         core.isDungeonExitUnlocked = mode.dungeonRules?.exitLock == nil
         core.dungeonExitUnlockEvent = nil
