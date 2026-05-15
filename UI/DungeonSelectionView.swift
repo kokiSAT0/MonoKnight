@@ -580,6 +580,15 @@ struct DungeonSelectionView: View {
                 }
             }
 
+            VStack(alignment: .leading, spacing: 5) {
+                ForEach(node.effectDetailTexts, id: \.self) { effectDetailText in
+                    Label(effectDetailText, systemImage: "checkmark.circle.fill")
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .foregroundColor(theme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
             ForEach(node.lockDetailTexts, id: \.self) { lockDetailText in
                 Label(lockDetailText, systemImage: "lock.fill")
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
@@ -1213,16 +1222,6 @@ private struct DungeonGrowthForecastFacts {
                 prefix: "経路",
                 labels: pathLabels
             )
-        case .deepForecast:
-            guard floorRange.upperBound >= 31 else { return nil }
-            let text = hasDeepComplexity
-                ? "深層: 状態異常、暗闇、宝箱リスクが重なります"
-                : "深層: 複合ギミックが増える区間です"
-            return DungeonGrowthForecastPresentation.Row(
-                category: .deep,
-                text: text,
-                iconSystemName: "binoculars.fill"
-            )
         case .routeForecast:
             guard floorRange.upperBound >= 41 else { return nil }
             let text = hasFinalComplexity
@@ -1515,6 +1514,7 @@ struct DungeonGrowthTreeNodePresentation: Identifiable {
     var title: String { upgrade.title }
     var shortTitle: String { upgrade.shortTitle }
     var summary: String { upgrade.summary }
+    var effectDetailTexts: [String] { upgrade.effectDetailTexts }
     var cost: Int { upgrade.cost }
     var isUnlocked: Bool { state.isUnlocked }
     var isActive: Bool { state == .active }
@@ -1802,7 +1802,6 @@ private extension DungeonGrowthUpgrade {
             .rewardSense,
             .enemySense,
             .pathPreview,
-            .deepForecast,
             .routeForecast
         ]
     }
@@ -1815,10 +1814,6 @@ private extension DungeonGrowthUpgrade {
         switch self {
         case .deepStartKit:
             return "深層"
-        case .routeKit:
-            return "経路"
-        case .deepSupplyCraft:
-            return "補給術"
         case .finalPreparation:
             return "踏破"
         case .rewardScout:
@@ -1826,25 +1821,17 @@ private extension DungeonGrowthUpgrade {
         case .cardPreservation:
             return "温存"
         case .widerRewardRead:
-            return "見立て"
-        case .supportScout:
-            return "補助"
+            return "4択"
+        case .relicScout:
+            return "宝箱"
         case .footingRead:
             return "足場"
-        case .secondStep:
-            return "踏み直し"
         case .enemyRead:
             return "警戒"
         case .meteorRead:
             return "着弾"
         case .lastStand:
             return "保険"
-        case .enemyReadPlus:
-            return "警戒+"
-        case .fallInsurance:
-            return "落下"
-        case .dangerForecast:
-            return "予報"
         case .finalGuard:
             return "防衛"
         case .floorSense:
@@ -1855,20 +1842,14 @@ private extension DungeonGrowthUpgrade {
             return "敵影"
         case .pathPreview:
             return "経路"
-        case .deepForecast:
-            return "深層"
         case .routeForecast:
             return "踏破"
         case .retryPreparation:
             return "再挑戦"
-        case .sectionRecovery:
-            return "立て直し"
         case .deepCheckpointRead:
             return "旗印"
         case .checkpointExpansion:
             return "拡張"
-        case .comebackRoute:
-            return "復帰路"
         case .finalRecovery:
             return "復帰"
         default:
@@ -1884,14 +1865,8 @@ private extension DungeonGrowthUpgrade {
             return "figure.stairs"
         case .deepStartKit:
             return "shield.fill"
-        case .routeKit:
-            return "point.topleft.down.curvedto.point.bottomright.up"
-        case .deepSupplyCraft:
-            return "cross.case.fill"
         case .finalPreparation:
             return "flag.checkered"
-        case .shortcutKit:
-            return "arrow.up.right"
         case .refillCharm:
             return "plus.rectangle.on.rectangle"
         case .rewardScout:
@@ -1900,34 +1875,18 @@ private extension DungeonGrowthUpgrade {
             return "rectangle.stack.fill"
         case .widerRewardRead:
             return "square.grid.2x2.fill"
-        case .supportScout:
-            return "cross.case.fill"
         case .relicScout:
             return "sparkle.magnifyingglass"
-        case .rewardUpgradeScout:
-            return "arrow.up.square.fill"
-        case .rewardRerollRead:
-            return "arrow.triangle.2.circlepath"
-        case .supportMastery:
-            return "wand.and.stars"
         case .rewardCompletion:
             return "rosette"
         case .footingRead:
             return "shoeprints.fill"
-        case .secondStep:
-            return "2.circle.fill"
         case .enemyRead:
             return "exclamationmark.shield.fill"
         case .meteorRead:
             return "flame.fill"
         case .lastStand:
             return "heart.text.square.fill"
-        case .enemyReadPlus:
-            return "shield.righthalf.filled"
-        case .fallInsurance:
-            return "arrow.down.to.line.compact"
-        case .dangerForecast:
-            return "cloud.bolt.fill"
         case .finalGuard:
             return "shield.checkered"
         case .floorSense:
@@ -1938,22 +1897,69 @@ private extension DungeonGrowthUpgrade {
             return "eye.trianglebadge.exclamationmark.fill"
         case .pathPreview:
             return "point.forward.to.point.capsulepath.fill"
-        case .deepForecast:
-            return "binoculars.fill"
         case .routeForecast:
             return "map.fill"
         case .retryPreparation:
             return "arrow.counterclockwise.circle.fill"
-        case .sectionRecovery:
-            return "bandage.fill"
         case .deepCheckpointRead:
             return "flag.fill"
         case .checkpointExpansion:
             return "flag.2.crossed.fill"
-        case .comebackRoute:
-            return "arrow.uturn.backward.circle.fill"
         case .finalRecovery:
             return "goforward.plus"
+        }
+    }
+
+    var effectDetailTexts: [String] {
+        switch self {
+        case .toolPouch:
+            return ["対象: 成長塔のみ", "追加: 横2マス移動カード 1回"]
+        case .climbingKit:
+            return ["対象: 成長塔のみ", "追加: 縦2マス移動カード 1回", "追加: 斜め2マス移動カード 1回"]
+        case .refillCharm:
+            return ["対象: 成長塔のみ", "追加: 補給 1回"]
+        case .deepStartKit:
+            return ["対象: 成長塔のみ", "発動: 21F以降は障壁 1回", "発動: 31F以降は長距離移動 1回"]
+        case .finalPreparation:
+            return ["対象: 成長塔のみ", "発動: 41F以降", "追加: 補給 1回、長距離移動 1回、凍結 1回"]
+        case .rewardScout:
+            return ["対象: 成長塔クリア報酬", "変更: 3択のうち1枠を補完候補に差し替え"]
+        case .cardPreservation:
+            return ["対象: 移動カード報酬", "変更: 追加時の使用回数 2回 -> 3回"]
+        case .widerRewardRead:
+            return ["対象: 成長塔クリア報酬", "変更: 候補数 3択 -> 最大4択"]
+        case .relicScout:
+            return ["対象: 成長塔クリア報酬", "発動: 11F以降は補助カード候補を追加", "発動: 21F以降は未所持遺物候補を追加"]
+        case .rewardCompletion:
+            return ["対象: 成長塔クリア報酬", "発動: 31F以降は強化向きカード候補を追加", "発動: 35F以降は重複候補を整理", "発動: 40F以降は障壁、50F帯は凍結を候補に追加"]
+        case .footingRead:
+            return ["対象: 成長塔のみ", "防御: 罠・床割れダメージを1回無効化"]
+        case .enemyRead:
+            return ["対象: 成長塔のみ", "防御: 敵ダメージを1回無効化"]
+        case .meteorRead:
+            return ["対象: 成長塔のみ", "防御: メテオなど予告マーカーダメージを1回無効化"]
+        case .lastStand:
+            return ["対象: 成長塔のみ", "防御: 罠・床割れダメージをさらに1回無効化"]
+        case .finalGuard:
+            return ["対象: 成長塔のみ", "防御: 罠・床割れをさらに1回無効化", "防御: 敵と予告マーカーもそれぞれさらに1回無効化"]
+        case .floorSense:
+            return ["対象: 成長塔カード", "表示: 次区間の床・罠・状態異常傾向"]
+        case .rewardSense:
+            return ["対象: 成長塔カード", "表示: 次区間の拾得カード・報酬・宝箱傾向"]
+        case .enemySense:
+            return ["対象: 成長塔カード", "表示: 次区間の敵種と圧の方向性"]
+        case .pathPreview:
+            return ["対象: 成長塔カード", "表示: 次区間の鍵・ワープ・寄り道傾向"]
+        case .routeForecast:
+            return ["対象: 成長塔カード", "発動: 41F以降", "表示: 危険・報酬・経路の総合見通し"]
+        case .retryPreparation:
+            return ["対象: 成長塔の再挑戦", "発動: 21F以降", "追加: 補給 1回"]
+        case .deepCheckpointRead:
+            return ["対象: 成長塔の再挑戦", "発動: 21F以降", "追加: 障壁 1回"]
+        case .checkpointExpansion:
+            return ["対象: 成長塔の再挑戦", "発動: 31F以降", "追加: 万能薬 1回"]
+        case .finalRecovery:
+            return ["対象: 成長塔の再挑戦", "発動: 41F以降", "追加: 凍結 1回、長距離移動 1回"]
         }
     }
 }

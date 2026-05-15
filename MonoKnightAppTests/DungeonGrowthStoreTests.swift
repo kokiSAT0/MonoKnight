@@ -88,7 +88,7 @@ final class DungeonGrowthStoreTests: XCTestCase {
                 unlockedGrowthCheckpointFloorNumbers: [11]
             )
         )
-        defaults.set(oldData, forKey: "dungeon_growth_v2")
+        defaults.set(oldData, forKey: "dungeon_growth_v3")
 
         let store = DungeonGrowthStore(userDefaults: defaults)
 
@@ -133,9 +133,9 @@ final class DungeonGrowthStoreTests: XCTestCase {
             _ = store.registerDungeonClear(dungeon: dungeon, runState: runState, hasNextFloor: true)
         }
 
-        XCTAssertEqual(store.lockReason(for: .secondStep), "前提: 足場読み")
+        XCTAssertEqual(store.lockReason(for: .finalGuard), "前提: 深層保険、踏破復帰")
         XCTAssertTrue(store.unlock(.footingRead))
-        XCTAssertTrue(store.canUnlock(.secondStep))
+        XCTAssertTrue(store.canUnlock(.enemyRead))
         XCTAssertTrue(store.unlock(.toolPouch))
         XCTAssertTrue(store.canUnlock(.climbingKit))
     }
@@ -256,17 +256,17 @@ final class DungeonGrowthStoreTests: XCTestCase {
         }
 
         for upgrade in [
-            .rewardScout, .cardPreservation, .widerRewardRead, .supportScout, .relicScout,
-            .toolPouch, .climbingKit, .shortcutKit, .refillCharm, .deepStartKit
+            .rewardScout, .cardPreservation, .widerRewardRead, .relicScout,
+            .toolPouch, .climbingKit, .refillCharm, .deepStartKit
         ] as [DungeonGrowthUpgrade] {
             XCTAssertTrue(store.unlock(upgrade), "\(upgrade.rawValue) should unlock")
         }
-        XCTAssertTrue(store.canUnlock(.deepSupplyCraft))
-        XCTAssertTrue(store.unlock(.deepSupplyCraft))
+        XCTAssertTrue(store.canUnlock(.rewardCompletion))
+        XCTAssertTrue(store.unlock(.rewardCompletion))
 
         XCTAssertTrue(store.setActive(.deepStartKit, isActive: false))
         XCTAssertTrue(store.setActive(.relicScout, isActive: false))
-        XCTAssertTrue(store.isActive(.deepSupplyCraft))
+        XCTAssertTrue(store.isActive(.rewardCompletion))
     }
 
     func testDungeonGrowthAwardExposesMilestoneFloorNumber() {
@@ -322,8 +322,8 @@ final class DungeonGrowthStoreTests: XCTestCase {
         XCTAssertTrue(store.unlock(.rewardScout))
         XCTAssertTrue(store.unlock(.cardPreservation))
         XCTAssertTrue(store.unlock(.widerRewardRead))
-        XCTAssertTrue(store.unlock(.supportScout))
-        XCTAssertTrue(store.isActive(.supportScout))
+        XCTAssertTrue(store.unlock(.relicScout))
+        XCTAssertTrue(store.isActive(.relicScout))
 
         let baseMoveCards = Array(dungeon.floors[10].rewardMoveCardsAfterClear.prefix(4))
         XCTAssertEqual(store.maxRewardChoiceCount(for: dungeon), 4)
@@ -334,7 +334,7 @@ final class DungeonGrowthStoreTests: XCTestCase {
         )
 
         XCTAssertTrue(store.setActive(.widerRewardRead, isActive: false))
-        XCTAssertTrue(store.setActive(.supportScout, isActive: false))
+        XCTAssertTrue(store.setActive(.relicScout, isActive: false))
         XCTAssertEqual(store.maxRewardChoiceCount(for: dungeon), 3)
         XCTAssertEqual(store.rewardSupportCards(for: [], dungeon: dungeon, floorIndex: 10), [])
     }
@@ -357,7 +357,6 @@ final class DungeonGrowthStoreTests: XCTestCase {
 
         XCTAssertTrue(store.unlock(.toolPouch))
         XCTAssertTrue(store.unlock(.climbingKit))
-        XCTAssertTrue(store.unlock(.shortcutKit))
         XCTAssertTrue(store.unlock(.refillCharm))
 
         XCTAssertEqual(
@@ -375,7 +374,6 @@ final class DungeonGrowthStoreTests: XCTestCase {
             store.startingRewardEntries(for: dungeon, startingFloorIndex: 10),
             [
                 DungeonInventoryEntry(card: .straightRight2, rewardUses: 1),
-                DungeonInventoryEntry(card: .diagonalUpRight2, rewardUses: 1),
                 DungeonInventoryEntry(support: .refillEmptySlots, rewardUses: 1)
             ]
         )
@@ -467,20 +465,21 @@ final class DungeonGrowthStoreTests: XCTestCase {
             store.startingRewardEntries(for: dungeon, startingFloorIndex: 10),
             [
                 DungeonInventoryEntry(card: .straightRight2, rewardUses: 1),
-                DungeonInventoryEntry(card: .straightUp2, rewardUses: 1)
+                DungeonInventoryEntry(card: .straightUp2, rewardUses: 1),
+                DungeonInventoryEntry(card: .diagonalUpRight2, rewardUses: 1)
             ]
         )
         XCTAssertEqual(store.rewardAddUses(for: dungeon), 3)
         XCTAssertEqual(store.startingHazardDamageMitigations(for: dungeon), 0)
     }
 
-    func testHazardGrowthBranchCanReachSecondStepWithoutMilestoneGate() throws {
+    func testHazardGrowthBranchCanReachDeepInsuranceWithoutMilestoneGate() throws {
         let (defaults, suiteName) = try makeIsolatedDefaults()
         defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
 
         let store = DungeonGrowthStore(userDefaults: defaults)
         let dungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
-        for floorIndex in [4, 9, 14] {
+        for floorIndex in [4, 9, 14, 19] {
             let runState = DungeonRunState(
                 dungeonID: dungeon.id,
                 currentFloorIndex: floorIndex,
@@ -491,7 +490,9 @@ final class DungeonGrowthStoreTests: XCTestCase {
         }
 
         XCTAssertTrue(store.unlock(.footingRead))
-        XCTAssertTrue(store.unlock(.secondStep))
+        XCTAssertTrue(store.unlock(.enemyRead))
+        XCTAssertTrue(store.unlock(.meteorRead))
+        XCTAssertTrue(store.unlock(.lastStand))
 
         XCTAssertEqual(store.startingHazardDamageMitigations(for: dungeon), 2)
     }
@@ -502,8 +503,8 @@ final class DungeonGrowthStoreTests: XCTestCase {
         let dungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
         let store = makeStore(
             defaults: defaults,
-            unlocked: [.retryPreparation, .deepCheckpointRead, .checkpointExpansion, .comebackRoute, .finalRecovery],
-            active: [.retryPreparation, .deepCheckpointRead, .checkpointExpansion, .comebackRoute, .finalRecovery]
+            unlocked: [.retryPreparation, .deepCheckpointRead, .checkpointExpansion, .finalRecovery],
+            active: [.retryPreparation, .deepCheckpointRead, .checkpointExpansion, .finalRecovery]
         )
 
         XCTAssertEqual(store.retryRewardEntries(for: dungeon, startingFloorIndex: 10), [])
@@ -528,8 +529,8 @@ final class DungeonGrowthStoreTests: XCTestCase {
                 DungeonInventoryEntry(support: .refillEmptySlots, rewardUses: 1),
                 DungeonInventoryEntry(support: .barrierSpell, rewardUses: 1),
                 DungeonInventoryEntry(support: .panacea, rewardUses: 1),
-                DungeonInventoryEntry(card: .rayUpRight, rewardUses: 1),
-                DungeonInventoryEntry(support: .freezeSpell, rewardUses: 1)
+                DungeonInventoryEntry(support: .freezeSpell, rewardUses: 1),
+                DungeonInventoryEntry(card: .rayUpRight, rewardUses: 1)
             ]
         )
 

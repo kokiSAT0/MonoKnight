@@ -812,7 +812,7 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertTrue(growthStore.unlock(.rewardScout))
         XCTAssertTrue(growthStore.unlock(.cardPreservation))
         XCTAssertTrue(growthStore.unlock(.widerRewardRead))
-        XCTAssertTrue(growthStore.unlock(.supportScout))
+        XCTAssertTrue(growthStore.unlock(.relicScout))
 
         let runState = DungeonRunState(
             dungeonID: dungeon.id,

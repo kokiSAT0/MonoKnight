@@ -18,7 +18,7 @@ enum StorageKey {
     enum UserDefaults {
         static let gameCenterHasSubmittedByLeaderboard = "gc_has_submitted_by_leaderboard"
         static let gameCenterLastScoreByLeaderboard = "gc_last_score_by_leaderboard"
-        static let dungeonGrowth = "dungeon_growth_v3"
+        static let dungeonGrowth = "dungeon_growth_v4"
         static let dungeonRunResume = "dungeon_run_resume_v1"
         static let tutorialTowerProgress = "tutorial_tower_progress_v1"
         static let rogueTowerRecord = "rogue_tower_record_v1"

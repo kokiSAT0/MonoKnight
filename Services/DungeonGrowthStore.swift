@@ -5,56 +5,42 @@ import SharedSupport
 enum DungeonGrowthUpgrade: String, Codable, CaseIterable, Identifiable {
     case toolPouch
     case climbingKit
+    case refillCharm
     case deepStartKit
-    case routeKit
-    case deepSupplyCraft
     case finalPreparation
     case rewardScout
     case cardPreservation
     case widerRewardRead
-    case supportScout
     case relicScout
-    case rewardUpgradeScout
-    case rewardRerollRead
-    case supportMastery
     case rewardCompletion
     case footingRead
-    case secondStep
     case enemyRead
     case meteorRead
     case lastStand
-    case enemyReadPlus
-    case fallInsurance
-    case dangerForecast
     case finalGuard
     case floorSense
     case rewardSense
     case enemySense
     case pathPreview
-    case deepForecast
     case routeForecast
     case retryPreparation
-    case sectionRecovery
     case deepCheckpointRead
     case checkpointExpansion
-    case comebackRoute
     case finalRecovery
-    case shortcutKit
-    case refillCharm
 
     var id: String { rawValue }
 
     var branch: DungeonGrowthBranch {
         switch self {
-        case .toolPouch, .climbingKit, .shortcutKit, .refillCharm, .deepStartKit, .routeKit, .deepSupplyCraft, .finalPreparation:
+        case .toolPouch, .climbingKit, .refillCharm, .deepStartKit, .finalPreparation:
             return .preparation
-        case .rewardScout, .cardPreservation, .widerRewardRead, .supportScout, .relicScout, .rewardUpgradeScout, .rewardRerollRead, .supportMastery, .rewardCompletion:
+        case .rewardScout, .cardPreservation, .widerRewardRead, .relicScout, .rewardCompletion:
             return .reward
-        case .footingRead, .secondStep, .enemyRead, .meteorRead, .lastStand, .enemyReadPlus, .fallInsurance, .dangerForecast, .finalGuard:
+        case .footingRead, .enemyRead, .meteorRead, .lastStand, .finalGuard:
             return .hazard
-        case .floorSense, .rewardSense, .enemySense, .pathPreview, .deepForecast, .routeForecast:
+        case .floorSense, .rewardSense, .enemySense, .pathPreview, .routeForecast:
             return .scouting
-        case .retryPreparation, .sectionRecovery, .deepCheckpointRead, .checkpointExpansion, .comebackRoute, .finalRecovery:
+        case .retryPreparation, .deepCheckpointRead, .checkpointExpansion, .finalRecovery:
             return .recovery
         }
     }
@@ -65,12 +51,10 @@ enum DungeonGrowthUpgrade: String, Codable, CaseIterable, Identifiable {
             return "道具袋"
         case .climbingKit:
             return "登り支度"
+        case .refillCharm:
+            return "補給札"
         case .deepStartKit:
             return "深層支度"
-        case .routeKit:
-            return "経路支度"
-        case .deepSupplyCraft:
-            return "深層補給術"
         case .finalPreparation:
             return "踏破支度"
         case .rewardScout:
@@ -79,34 +63,18 @@ enum DungeonGrowthUpgrade: String, Codable, CaseIterable, Identifiable {
             return "カード温存"
         case .widerRewardRead:
             return "広い見立て"
-        case .supportScout:
-            return "補助の目利き"
         case .relicScout:
-            return "遺物の嗅覚"
-        case .rewardUpgradeScout:
-            return "強化の目利き"
-        case .rewardRerollRead:
-            return "不要札読み"
-        case .supportMastery:
-            return "補助熟達"
+            return "宝箱の嗅覚"
         case .rewardCompletion:
             return "報酬完成"
         case .footingRead:
             return "足場読み"
-        case .secondStep:
-            return "踏み直し"
         case .enemyRead:
             return "警戒読み"
         case .meteorRead:
             return "着弾読み"
         case .lastStand:
-            return "踏破の保険"
-        case .enemyReadPlus:
-            return "警戒重ね"
-        case .fallInsurance:
-            return "落下受け"
-        case .dangerForecast:
-            return "危険予報"
+            return "深層保険"
         case .finalGuard:
             return "踏破防衛"
         case .floorSense:
@@ -117,79 +85,51 @@ enum DungeonGrowthUpgrade: String, Codable, CaseIterable, Identifiable {
             return "敵影読み"
         case .pathPreview:
             return "経路予見"
-        case .deepForecast:
-            return "深層予報"
         case .routeForecast:
             return "踏破予報"
         case .retryPreparation:
             return "再挑戦支度"
-        case .sectionRecovery:
-            return "区間立て直し"
         case .deepCheckpointRead:
-            return "深層の旗印"
+            return "旗印"
         case .checkpointExpansion:
             return "旗印拡張"
-        case .comebackRoute:
-            return "復帰経路"
         case .finalRecovery:
             return "踏破復帰"
-        case .shortcutKit:
-            return "抜け道支度"
-        case .refillCharm:
-            return "補給札"
         }
     }
 
     var summary: String {
         switch self {
         case .toolPouch:
-            return "区間開始前の基本支度に短い移動カードを出します"
+            return "開始支度に横2マス移動を1回追加します"
         case .climbingKit:
-            return "基本支度で縦横どちらの抜け道も選びやすくします"
+            return "開始支度に縦2マス移動と斜め移動を各1回追加します"
+        case .refillCharm:
+            return "開始支度に補給を1回追加します"
         case .deepStartKit:
-            return "21F以降の支度候補に防御補助を混ぜます"
-        case .routeKit:
-            return "31F以降の経路支度に長い移動カードを混ぜます"
-        case .deepSupplyCraft:
-            return "深層の支度候補に補給と報酬補助をまとめます"
+            return "21F以降は障壁、31F以降は長距離移動を開始支度に追加します"
         case .finalPreparation:
-            return "41F以降の支度候補に踏破向けの強い対策を出します"
+            return "41F以降の開始支度に補給・長距離移動・凍結を追加します"
         case .rewardScout:
-            return "報酬傾向に合う補完カードを候補へ混ぜます"
+            return "報酬3択の1枠を補完候補に差し替えます"
         case .cardPreservation:
-            return "追加した移動報酬カードを3回使えるようにします"
+            return "追加した移動報酬カードの使用回数を2回から3回にします"
         case .widerRewardRead:
-            return "移動報酬候補を最大4択に増やします"
-        case .supportScout:
-            return "11F以降の報酬候補に補助カードを1枚混ぜます"
+            return "クリア報酬候補を最大3択から4択に増やします"
         case .relicScout:
-            return "21F以降の報酬候補に未所持遺物を混ぜやすくします"
-        case .rewardUpgradeScout:
-            return "31F以降の報酬候補に強化向きカードを混ぜます"
-        case .rewardRerollRead:
-            return "35F以降の報酬候補で重複しにくい候補を優先します"
-        case .supportMastery:
-            return "40F以降の報酬候補に強い補助カードを混ぜます"
+            return "11F以降は補助、21F以降は未所持遺物を報酬候補に追加します"
         case .rewardCompletion:
-            return "50F帯の報酬候補を4択の完成形に近づけます"
+            return "31F以降の報酬候補を強化向き・重複しにくい形へ整えます"
         case .footingRead:
-            return "床・罠が多い区間で防御支度を選びやすくします"
-        case .secondStep:
-            return "床・罠対策の支度を厚くし、踏み直しやすくします"
+            return "罠・床割れダメージを1回防ぎます"
         case .enemyRead:
-            return "敵が濃い区間で障壁支度を選びやすくします"
+            return "敵からのダメージを1回防ぎます"
         case .meteorRead:
-            return "メテオが出る区間で凍結支度を選びやすくします"
+            return "メテオなど予告マーカーのダメージを1回防ぎます"
         case .lastStand:
-            return "21F以降の危険区間で対策支度を増やします"
-        case .enemyReadPlus:
-            return "31F以降の敵対策支度をさらに強めます"
-        case .fallInsurance:
-            return "35F以降の落下・床割れ区間で復帰支度を出します"
-        case .dangerForecast:
-            return "索敵した危険に合わせた対策支度を優先します"
+            return "罠・床割れダメージをさらに1回防ぎます"
         case .finalGuard:
-            return "50F帯の支度候補を踏破向けの完成形に近づけます"
+            return "罠・敵・メテオ系ダメージをそれぞれさらに1回防ぎます"
         case .floorSense:
             return "次区間の床ギミック傾向を挑戦前に表示します"
         case .rewardSense:
@@ -198,26 +138,16 @@ enum DungeonGrowthUpgrade: String, Codable, CaseIterable, Identifiable {
             return "次区間の敵種と危険の方向性を表示します"
         case .pathPreview:
             return "鍵・ワープ・寄り道など経路判断の見通しを表示します"
-        case .deepForecast:
-            return "31F以降の複合ギミック注意点を追加表示します"
         case .routeForecast:
-            return "41F以降の危険・報酬・経路をまとめて表示します"
+            return "41F以降の危険・報酬・経路の見通しをまとめて表示します"
         case .retryPreparation:
             return "21F以降の再挑戦時に補給支度を優先します"
-        case .sectionRecovery:
-            return "31F以降の再挑戦で立て直し支度を選びやすくします"
         case .deepCheckpointRead:
             return "21F以降の再挑戦時に障壁支度を出します"
         case .checkpointExpansion:
             return "31F以降の再挑戦時に万能薬支度を出します"
-        case .comebackRoute:
-            return "41F以降の再挑戦時に経路支度を出します"
         case .finalRecovery:
-            return "41F以降の再挑戦時に凍結支度を出します"
-        case .shortcutKit:
-            return "基本支度に斜めの抜け道を加えます"
-        case .refillCharm:
-            return "基本支度に補給を加えます"
+            return "41F以降の再挑戦時に長距離移動と凍結を出します"
         }
     }
 
@@ -229,70 +159,42 @@ enum DungeonGrowthUpgrade: String, Codable, CaseIterable, Identifiable {
             return []
         case .climbingKit:
             return [.toolPouch]
+        case .refillCharm:
+            return [.climbingKit]
         case .deepStartKit:
             return [.refillCharm]
-        case .routeKit:
-            return [.deepStartKit, .pathPreview]
-        case .deepSupplyCraft:
-            return [.deepStartKit, .relicScout]
         case .finalPreparation:
-            return [.routeKit, .deepSupplyCraft]
+            return [.deepStartKit]
         case .cardPreservation:
             return [.rewardScout]
         case .widerRewardRead:
             return [.cardPreservation]
-        case .supportScout:
-            return [.widerRewardRead]
         case .relicScout:
-            return [.supportScout]
-        case .rewardUpgradeScout:
-            return [.relicScout]
-        case .rewardRerollRead:
-            return [.rewardUpgradeScout]
-        case .supportMastery:
-            return [.supportScout, .sectionRecovery]
+            return [.widerRewardRead]
         case .rewardCompletion:
-            return [.rewardRerollRead, .supportMastery]
-        case .secondStep:
-            return [.footingRead]
+            return [.relicScout]
         case .enemyRead:
             return [.footingRead]
         case .meteorRead:
             return [.enemyRead]
         case .lastStand:
             return [.meteorRead]
-        case .enemyReadPlus:
-            return [.lastStand]
-        case .fallInsurance:
-            return [.secondStep, .lastStand]
-        case .dangerForecast:
-            return [.enemySense, .fallInsurance]
         case .finalGuard:
-            return [.dangerForecast, .finalRecovery]
+            return [.lastStand, .finalRecovery]
         case .rewardSense:
             return [.floorSense]
         case .enemySense:
             return [.floorSense]
         case .pathPreview:
             return [.rewardSense, .enemySense]
-        case .deepForecast:
-            return [.pathPreview]
         case .routeForecast:
-            return [.deepForecast, .dangerForecast]
-        case .sectionRecovery:
-            return [.retryPreparation]
+            return [.pathPreview]
         case .deepCheckpointRead:
-            return [.sectionRecovery]
+            return [.retryPreparation]
         case .checkpointExpansion:
             return [.deepCheckpointRead]
-        case .comebackRoute:
-            return [.checkpointExpansion, .routeKit]
         case .finalRecovery:
-            return [.comebackRoute]
-        case .shortcutKit:
-            return [.climbingKit]
-        case .refillCharm:
-            return [.shortcutKit]
+            return [.checkpointExpansion]
         }
     }
 
@@ -302,21 +204,17 @@ enum DungeonGrowthUpgrade: String, Codable, CaseIterable, Identifiable {
             return nil
         case .climbingKit, .cardPreservation, .rewardSense:
             return 10
-        case .secondStep, .enemyRead, .widerRewardRead, .shortcutKit, .enemySense, .deepCheckpointRead:
+        case .enemyRead, .widerRewardRead, .enemySense, .deepCheckpointRead:
             return 15
-        case .meteorRead, .supportScout, .refillCharm, .pathPreview:
+        case .meteorRead, .refillCharm, .pathPreview:
             return 20
         case .deepStartKit, .relicScout, .lastStand:
             return 25
-        case .rewardUpgradeScout, .enemyReadPlus, .sectionRecovery:
-            return 30
-        case .routeKit, .rewardRerollRead, .fallInsurance, .deepForecast:
+        case .rewardCompletion, .checkpointExpansion:
             return 35
-        case .supportMastery, .checkpointExpansion:
+        case .routeForecast:
             return 40
-        case .deepSupplyCraft, .dangerForecast, .comebackRoute:
-            return 45
-        case .finalPreparation, .rewardCompletion, .finalGuard, .routeForecast, .finalRecovery:
+        case .finalPreparation, .finalGuard, .finalRecovery:
             return 50
         }
     }
@@ -465,6 +363,7 @@ final class DungeonGrowthStore: ObservableObject {
         let missingPrerequisites = upgrade.requiredUpgrades
             .filter { !isUnlocked($0) }
             .map(\.title)
+            .sorted()
         if !missingPrerequisites.isEmpty {
             return "前提: \(missingPrerequisites.joined(separator: "、"))"
         }
@@ -563,11 +462,9 @@ final class DungeonGrowthStore: ObservableObject {
         } else if isActive(.climbingKit) {
             entries.append(DungeonInventoryEntry(card: .straightRight2, rewardUses: 1))
             entries.append(DungeonInventoryEntry(card: .straightUp2, rewardUses: 1))
+            entries.append(DungeonInventoryEntry(card: .diagonalUpRight2, rewardUses: 1))
         } else if isActive(.toolPouch) {
             entries.append(DungeonInventoryEntry(card: .straightRight2, rewardUses: 1))
-        }
-        if isActive(.shortcutKit) {
-            entries.append(DungeonInventoryEntry(card: .diagonalUpRight2, rewardUses: 1))
         }
         if isActive(.refillCharm) {
             entries.append(DungeonInventoryEntry(support: .refillEmptySlots, rewardUses: 1))
@@ -575,18 +472,13 @@ final class DungeonGrowthStore: ObservableObject {
         if startingFloorIndex >= 20, isActive(.deepStartKit) {
             entries.append(DungeonInventoryEntry(support: .barrierSpell, rewardUses: 1))
         }
-        if startingFloorIndex >= 30, isActive(.routeKit) {
+        if startingFloorIndex >= 30, isActive(.deepStartKit) {
             entries.append(DungeonInventoryEntry(card: .rayRight, rewardUses: 1))
         }
-        if startingFloorIndex >= 40, isActive(.deepSupplyCraft) {
-            entries.append(DungeonInventoryEntry(support: .refillEmptySlots, rewardUses: 1))
-        }
         if startingFloorIndex >= 40, isActive(.finalPreparation) {
+            entries.append(DungeonInventoryEntry(support: .refillEmptySlots, rewardUses: 1))
             entries.append(DungeonInventoryEntry(card: .rayUp, rewardUses: 1))
             entries.append(DungeonInventoryEntry(support: .freezeSpell, rewardUses: 1))
-        }
-        if startingFloorIndex >= 30, isActive(.sectionRecovery) {
-            entries.append(DungeonInventoryEntry(support: .barrierSpell, rewardUses: 1))
         }
         return entries
     }
@@ -643,11 +535,9 @@ final class DungeonGrowthStore: ObservableObject {
         if startingFloorIndex >= 30, isActive(.checkpointExpansion) {
             entries.append(DungeonInventoryEntry(support: .panacea, rewardUses: 1))
         }
-        if startingFloorIndex >= 40, isActive(.comebackRoute) {
-            entries.append(DungeonInventoryEntry(card: .rayUpRight, rewardUses: 1))
-        }
         if startingFloorIndex >= 40, isActive(.finalRecovery) {
             entries.append(DungeonInventoryEntry(support: .freezeSpell, rewardUses: 1))
+            entries.append(DungeonInventoryEntry(card: .rayUpRight, rewardUses: 1))
         }
         return entries
     }
@@ -695,7 +585,7 @@ final class DungeonGrowthStore: ObservableObject {
             result.append(contentsOf: supplemental)
         }
 
-        if floorIndex >= 10, isActive(.supportScout) {
+        if floorIndex >= 10, isActive(.relicScout) {
             let weightedSupportCandidate = DungeonWeightedRewardPools.drawUniqueOffers(
                 from: DungeonWeightedRewardPools.entries(
                     floorIndex: floorIndex,
@@ -736,18 +626,18 @@ final class DungeonGrowthStore: ObservableObject {
             appendRewardCandidate(.relic(relicCandidate), to: &result, choiceCount: choiceCount)
         }
 
-        if floorIndex >= 30, isActive(.rewardUpgradeScout) {
+        if floorIndex >= 30, isActive(.rewardCompletion) {
             let candidate = movementStyle == .knight
                 ? MoveCard.knightRightwardChoice.cardForKnightMovementStyle
                 : .knightRightwardChoice
             appendRewardCandidate(.playable(.move(candidate)), to: &result, choiceCount: choiceCount)
         }
 
-        if floorIndex >= 35, isActive(.rewardRerollRead) {
+        if floorIndex >= 35, isActive(.rewardCompletion) {
             result = uniqueRewardOffers(result)
         }
 
-        if floorIndex >= 40, isActive(.supportMastery) {
+        if floorIndex >= 40, isActive(.rewardCompletion) {
             appendRewardCandidate(.playable(.support(.barrierSpell)), to: &result, choiceCount: choiceCount)
         }
 
@@ -789,7 +679,7 @@ final class DungeonGrowthStore: ObservableObject {
     func rewardSupportCards(for baseCards: [SupportCard], dungeon: DungeonDefinition, floorIndex: Int) -> [SupportCard] {
         guard dungeon.difficulty == .growth,
               floorIndex >= 10,
-              isActive(.supportScout)
+              isActive(.relicScout)
         else { return baseCards }
         var result = baseCards
         if let supplemental = [SupportCard.refillEmptySlots, .annihilationSpell].first(where: { !result.contains($0) }) {
@@ -819,19 +709,8 @@ final class DungeonGrowthStore: ObservableObject {
 
     func startingHazardDamageMitigations(for dungeon: DungeonDefinition) -> Int {
         guard dungeon.difficulty == .growth else { return 0 }
-        var mitigations = 0
-        if isActive(.secondStep) {
-            mitigations = 2
-        } else if isActive(.footingRead) {
-            mitigations = 1
-        }
+        var mitigations = isActive(.footingRead) ? 1 : 0
         if isActive(.lastStand) {
-            mitigations += 1
-        }
-        if isActive(.fallInsurance) {
-            mitigations += 1
-        }
-        if isActive(.dangerForecast) {
             mitigations += 1
         }
         if isActive(.finalGuard) {
@@ -843,9 +722,6 @@ final class DungeonGrowthStore: ObservableObject {
     func startingEnemyDamageMitigations(for dungeon: DungeonDefinition) -> Int {
         guard dungeon.difficulty == .growth else { return 0 }
         var mitigations = isActive(.enemyRead) ? 1 : 0
-        if isActive(.enemyReadPlus) {
-            mitigations += 1
-        }
         if isActive(.finalGuard) {
             mitigations += 1
         }
@@ -855,9 +731,6 @@ final class DungeonGrowthStore: ObservableObject {
     func startingMarkerDamageMitigations(for dungeon: DungeonDefinition) -> Int {
         guard dungeon.difficulty == .growth else { return 0 }
         var mitigations = isActive(.meteorRead) ? 1 : 0
-        if isActive(.dangerForecast) {
-            mitigations += 1
-        }
         if isActive(.finalGuard) {
             mitigations += 1
         }
@@ -949,11 +822,9 @@ final class DungeonGrowthStore: ObservableObject {
         if isActive(.climbingKit) {
             entries.append(DungeonInventoryEntry(card: .straightRight2, rewardUses: 1))
             entries.append(DungeonInventoryEntry(card: .straightUp2, rewardUses: 1))
+            entries.append(DungeonInventoryEntry(card: .diagonalUpRight2, rewardUses: 1))
         } else if isActive(.toolPouch) {
             entries.append(DungeonInventoryEntry(card: .straightRight2, rewardUses: 1))
-        }
-        if isActive(.shortcutKit) {
-            entries.append(DungeonInventoryEntry(card: .diagonalUpRight2, rewardUses: 1))
         }
         if isActive(.refillCharm) {
             entries.append(DungeonInventoryEntry(support: .refillEmptySlots, rewardUses: 1))
@@ -1059,6 +930,7 @@ final class DungeonGrowthStore: ObservableObject {
         var entries: [DungeonInventoryEntry] = []
         if startingFloorIndex >= 40, isActive(.finalRecovery) {
             entries.append(DungeonInventoryEntry(support: .freezeSpell, rewardUses: 1))
+            entries.append(DungeonInventoryEntry(card: .rayUpRight, rewardUses: 1))
         } else if startingFloorIndex >= 30, isActive(.checkpointExpansion) {
             entries.append(DungeonInventoryEntry(support: .panacea, rewardUses: 1))
         } else if startingFloorIndex >= 20, isActive(.deepCheckpointRead) {

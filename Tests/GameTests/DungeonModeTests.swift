@@ -4371,11 +4371,13 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertTrue(hasImpassable)
     }
 
-    func testHealingTilesAppearOnlyInGrowthTowerAtSparseFixedFloors() throws {
+    func testHealingTilesAppearOnlyInGrowthTowerAtSparseResolvedFloors() throws {
         let growthTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let runState = DungeonRunState(dungeonID: growthTower.id, carriedHP: 3, cardVariationSeed: 12_345)
         let allTowers = DungeonLibrary.shared.dungeons
 
-        let healingFloors = growthTower.floors.enumerated().compactMap { index, floor -> (Int, Set<GridPoint>)? in
+        let healingFloors = try growthTower.floors.indices.compactMap { index -> (Int, Set<GridPoint>)? in
+            let floor = try XCTUnwrap(growthTower.resolvedFloor(at: index, runState: runState))
             let points = floor.hazards.reduce(into: Set<GridPoint>()) { result, hazard in
                 if case .healingTile(let healingPoints, let amount) = hazard {
                     XCTAssertEqual(amount, 1)
@@ -4387,9 +4389,9 @@ final class DungeonModeTests: XCTestCase {
 
         XCTAssertEqual(
             healingFloors.map(\.0),
-            [6, 12, 16, 19, 22, 24, 26, 28, 31, 33, 34, 36, 38, 40, 41, 44, 46, 48, 50]
+            [6, 12, 16, 19, 40, 50]
         )
-        XCTAssertEqual(healingFloors.reduce(0) { $0 + $1.1.count }, 19)
+        XCTAssertEqual(healingFloors.reduce(0) { $0 + $1.1.count }, 6)
 
         for tower in allTowers where tower.id != growthTower.id {
             let healingTileCount = tower.floors.reduce(0) { total, floor in
@@ -4401,6 +4403,69 @@ final class DungeonModeTests: XCTestCase {
                 }
             }
             XCTAssertEqual(healingTileCount, 0, "\(tower.title) には回復マスを置かない想定です")
+        }
+    }
+
+    func testGrowthTowerResolvedHazardPressureCreatesNoUpgradeWallFrom21F() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let seeds: [UInt64] = [1, 42, 999, 12_345]
+
+        for seed in seeds {
+            let runState = DungeonRunState(dungeonID: tower.id, carriedHP: 3, cardVariationSeed: seed)
+            let resolvedFloors = try tower.floors.indices.map { floorIndex in
+                try XCTUnwrap(tower.resolvedFloor(at: floorIndex, runState: runState))
+            }
+            let warningBand = resolvedFloors[10..<20]
+            let wallBand = resolvedFloors[20..<30]
+            let complexBand = resolvedFloors[30..<40]
+            let finalBand = resolvedFloors[40..<50]
+
+            XCTAssertTrue(warningBand.allSatisfy { growthTowerDamagePressurePointCount(for: $0) >= 3 })
+            XCTAssertTrue(wallBand.allSatisfy { growthTowerDamagePressurePointCount(for: $0) >= 6 })
+            XCTAssertTrue(complexBand.allSatisfy { growthTowerDamagePressurePointCount(for: $0) >= 8 })
+            XCTAssertTrue(finalBand.allSatisfy { growthTowerDamagePressurePointCount(for: $0) >= 10 })
+
+            XCTAssertTrue(wallBand.allSatisfy { growthTowerStatusTrapPointCount(for: $0) >= 1 })
+            XCTAssertTrue(complexBand.allSatisfy { growthTowerStatusTrapPointCount(for: $0) >= 2 })
+            XCTAssertTrue(finalBand.allSatisfy { growthTowerStatusTrapPointCount(for: $0) >= 3 })
+
+            let earlyAverage = averageDamagePressure(in: resolvedFloors[0..<10])
+            let warningAverage = averageDamagePressure(in: warningBand)
+            let wallAverage = averageDamagePressure(in: wallBand)
+            XCTAssertGreaterThan(warningAverage, earlyAverage)
+            XCTAssertGreaterThan(wallAverage, warningAverage)
+        }
+    }
+
+    func testGrowthTowerResolvedHazardPressureAvoidsPickupsAndRouteBlockers() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let seeds: [UInt64] = [1, 42, 111, 222, 999, 12_345]
+
+        for seed in seeds {
+            let runState = DungeonRunState(dungeonID: tower.id, carriedHP: 3, cardVariationSeed: seed)
+            for floorIndex in 20..<tower.floors.count {
+                let floor = try XCTUnwrap(tower.resolvedFloor(at: floorIndex, runState: runState))
+                let blocked = blockedGrowthTowerPickupPoints(for: floor)
+                let statusTrapPoints = growthTowerStatusTrapPoints(for: floor)
+
+                XCTAssertTrue(
+                    floor.cardPickups.allSatisfy { !blocked.contains($0.point) && !statusTrapPoints.contains($0.point) },
+                    "seed \(seed) / \(floorIndex + 1)F の拾得カードが危険マスと重なっています"
+                )
+                XCTAssertTrue(
+                    floor.relicPickups.allSatisfy { !blocked.contains($0.point) && !statusTrapPoints.contains($0.point) },
+                    "seed \(seed) / \(floorIndex + 1)F の宝箱が危険マスと重なっています"
+                )
+                XCTAssertTrue(
+                    statusTrapPoints.isDisjoint(with: growthTowerHazardPoints(for: floor)),
+                    "seed \(seed) / \(floorIndex + 1)F の状態罠が床罠と重なっています"
+                )
+                XCTAssertTrue(
+                    statusTrapPoints.isDisjoint(with: floor.impassableTilePoints),
+                    "seed \(seed) / \(floorIndex + 1)F の状態罠が岩柱と重なっています"
+                )
+                XCTAssertTrue(hasOrthogonalPath(from: floor.spawnPoint, to: floor.exitPoint, in: floor))
+            }
         }
     }
 
@@ -7551,6 +7616,41 @@ final class DungeonModeTests: XCTestCase {
             }
         }
         return points
+    }
+
+    private func growthTowerDamagePressurePointCount(for floor: DungeonFloorDefinition) -> Int {
+        floor.hazards.reduce(0) { total, hazard in
+            switch hazard {
+            case .brittleFloor(let points, _),
+                 .damageTrap(let points, _),
+                 .lavaTile(let points, _):
+                return total + points.count
+            case .healingTile:
+                return total
+            }
+        }
+    }
+
+    private func growthTowerStatusTrapPointCount(for floor: DungeonFloorDefinition) -> Int {
+        growthTowerStatusTrapPoints(for: floor).count
+    }
+
+    private func growthTowerStatusTrapPoints(for floor: DungeonFloorDefinition) -> Set<GridPoint> {
+        Set(floor.tileEffectOverrides.compactMap { point, effect in
+            switch effect {
+            case .poisonTrap, .shackleTrap, .illusionTrap,
+                 .discardRandomHand, .discardAllMoveCards, .discardAllSupportCards, .discardAllHands:
+                return point
+            case .warp, .returnWarp, .shuffleHand, .blast, .slow, .swamp, .preserveCard:
+                return nil
+            }
+        })
+    }
+
+    private func averageDamagePressure(in floors: ArraySlice<DungeonFloorDefinition>) -> Double {
+        guard !floors.isEmpty else { return 0 }
+        let total = floors.reduce(0) { $0 + growthTowerDamagePressurePointCount(for: $1) }
+        return Double(total) / Double(floors.count)
     }
 
     private func enemyBehaviorKind(_ behavior: EnemyBehavior) -> String {

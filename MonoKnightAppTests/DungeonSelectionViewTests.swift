@@ -187,19 +187,17 @@ final class DungeonSelectionViewTests: XCTestCase {
         )
     }
 
-    func testDungeonGrowthForecastAddsDeepAndFinalRowsForLaterSections() throws {
+    func testDungeonGrowthForecastAddsFinalRowForFinalSection() throws {
         let growthTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
-        let growthStore = makeGrowthStore(unlocked: [.deepForecast, .routeForecast])
+        let growthStore = makeGrowthStore(unlocked: [.routeForecast])
 
-        let deepPresentation = try XCTUnwrap(
+        XCTAssertNil(
             DungeonGrowthForecastPresentation.make(
                 dungeon: growthTower,
                 startFloorNumber: 31,
                 growthStore: growthStore
             )
         )
-        XCTAssertEqual(deepPresentation.floorRangeText, "31F-40F")
-        XCTAssertEqual(deepPresentation.rows.map(\.category), [.deep])
 
         let finalPresentation = try XCTUnwrap(
             DungeonGrowthForecastPresentation.make(
@@ -209,7 +207,7 @@ final class DungeonSelectionViewTests: XCTestCase {
             )
         )
         XCTAssertEqual(finalPresentation.floorRangeText, "41F-50F")
-        XCTAssertEqual(finalPresentation.rows.map(\.category), [.deep, .final])
+        XCTAssertEqual(finalPresentation.rows.map(\.category), [.final])
     }
 
     func testDungeonSelectionDoesNotRenderMilestoneBadgesAtPhoneWidth() throws {
@@ -411,23 +409,41 @@ final class DungeonSelectionViewTests: XCTestCase {
                 "dungeon_growth_branch_role_recovery"
             ]
         )
-        XCTAssertEqual(presentation.stageIndices, Array(0..<9))
-        XCTAssertEqual(presentation.tierCount, 9)
-        XCTAssertEqual(presentation.lanes[0].nodes.map(\.upgrade), [.toolPouch, .climbingKit, .shortcutKit, .refillCharm, .deepStartKit, .routeKit, .deepSupplyCraft, .finalPreparation])
-        XCTAssertEqual(presentation.lanes[1].nodes.map(\.upgrade), [.rewardScout, .cardPreservation, .widerRewardRead, .supportScout, .relicScout, .rewardUpgradeScout, .rewardRerollRead, .supportMastery, .rewardCompletion])
-        XCTAssertEqual(presentation.lanes[2].nodes.map(\.upgrade), [.footingRead, .enemyRead, .secondStep, .meteorRead, .lastStand, .enemyReadPlus, .fallInsurance, .dangerForecast, .finalGuard])
-        XCTAssertEqual(presentation.lanes[3].nodes.map(\.upgrade), [.floorSense, .rewardSense, .enemySense, .pathPreview, .deepForecast, .routeForecast])
-        XCTAssertEqual(presentation.lanes[4].nodes.map(\.upgrade), [.retryPreparation, .deepCheckpointRead, .sectionRecovery, .checkpointExpansion, .comebackRoute, .finalRecovery])
-        XCTAssertEqual(presentation.node(for: .deepSupplyCraft)?.tierFloor, 45)
-        XCTAssertEqual(presentation.node(for: .dangerForecast)?.tierFloor, 45)
+        XCTAssertEqual(presentation.stageIndices, Array(0..<5))
+        XCTAssertEqual(presentation.tierCount, 5)
+        XCTAssertEqual(presentation.lanes[0].nodes.map(\.upgrade), [.toolPouch, .climbingKit, .refillCharm, .deepStartKit, .finalPreparation])
+        XCTAssertEqual(presentation.lanes[1].nodes.map(\.upgrade), [.rewardScout, .cardPreservation, .widerRewardRead, .relicScout, .rewardCompletion])
+        XCTAssertEqual(presentation.lanes[2].nodes.map(\.upgrade), [.footingRead, .enemyRead, .meteorRead, .lastStand, .finalGuard])
+        XCTAssertEqual(presentation.lanes[3].nodes.map(\.upgrade), [.floorSense, .rewardSense, .enemySense, .pathPreview, .routeForecast])
+        XCTAssertEqual(presentation.lanes[4].nodes.map(\.upgrade), [.retryPreparation, .deepCheckpointRead, .checkpointExpansion, .finalRecovery])
+        XCTAssertEqual(presentation.node(for: .deepStartKit)?.tierFloor, 25)
+        XCTAssertEqual(presentation.node(for: .finalGuard)?.tierFloor, 50)
         XCTAssertEqual(presentation.lane(for: .reward)?.branchSummary, "クリア後候補とカード運用")
         XCTAssertEqual(presentation.lane(for: .reward)?.defaultSelectedUpgrade, .rewardScout)
-        XCTAssertEqual(presentation.node(for: .rewardCompletion)?.tierFloor, 50)
+        XCTAssertEqual(presentation.node(for: .rewardCompletion)?.tierFloor, 35)
         XCTAssertEqual(presentation.node(for: .retryPreparation)?.summary, "21F以降の再挑戦時に補給支度を優先します")
         XCTAssertEqual(presentation.node(for: .deepCheckpointRead)?.summary, "21F以降の再挑戦時に障壁支度を出します")
         XCTAssertEqual(presentation.node(for: .checkpointExpansion)?.summary, "31F以降の再挑戦時に万能薬支度を出します")
-        XCTAssertEqual(presentation.node(for: .comebackRoute)?.summary, "41F以降の再挑戦時に経路支度を出します")
-        XCTAssertEqual(presentation.node(for: .finalRecovery)?.summary, "41F以降の再挑戦時に凍結支度を出します")
+        XCTAssertEqual(presentation.node(for: .finalRecovery)?.summary, "41F以降の再挑戦時に長距離移動と凍結を出します")
+        XCTAssertEqual(presentation.node(for: .cardPreservation)?.effectDetailTexts, [
+            "対象: 移動カード報酬",
+            "変更: 追加時の使用回数 2回 -> 3回"
+        ])
+        XCTAssertEqual(presentation.node(for: .deepStartKit)?.effectDetailTexts, [
+            "対象: 成長塔のみ",
+            "発動: 21F以降は障壁 1回",
+            "発動: 31F以降は長距離移動 1回"
+        ])
+        XCTAssertEqual(presentation.node(for: .finalGuard)?.effectDetailTexts, [
+            "対象: 成長塔のみ",
+            "防御: 罠・床割れをさらに1回無効化",
+            "防御: 敵と予告マーカーもそれぞれさらに1回無効化"
+        ])
+        XCTAssertEqual(presentation.node(for: .finalRecovery)?.effectDetailTexts, [
+            "対象: 成長塔の再挑戦",
+            "発動: 41F以降",
+            "追加: 凍結 1回、長距離移動 1回"
+        ])
     }
 
     func testGrowthForecastAndPreparationChoicesUseMatchingScoutingSurface() throws {

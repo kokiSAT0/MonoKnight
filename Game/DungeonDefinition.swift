@@ -4278,15 +4278,26 @@ private enum DungeonCardVariationResolver {
             seed: seed,
             hazards: hazards
         )
-        let relicPickups = resolvedRelicPickups(
+        let tileEffectOverrides = resolvedTileEffectOverrides(
             for: warpFloor,
             floorIndex: floorIndex,
             seed: seed,
             hazards: hazards,
             impassableTilePoints: impassableTilePoints
         )
+        let tileEffectFloor = floorVariant(
+            warpFloor,
+            tileEffectOverrides: tileEffectOverrides
+        )
+        let relicPickups = resolvedRelicPickups(
+            for: tileEffectFloor,
+            floorIndex: floorIndex,
+            seed: seed,
+            hazards: hazards,
+            impassableTilePoints: impassableTilePoints
+        )
         let cardPickups = resolvedPickups(
-            for: warpFloor,
+            for: tileEffectFloor,
             floorIndex: floorIndex,
             seed: seed,
             movementStyle: movementStyle,
@@ -4318,7 +4329,7 @@ private enum DungeonCardVariationResolver {
             enemies: finalEnemies,
             hazards: hazards,
             impassableTilePoints: impassableTilePoints,
-            tileEffectOverrides: floor.tileEffectOverrides,
+            tileEffectOverrides: tileEffectOverrides,
             warpTilePairs: warpTilePairs,
             exitLock: exitLock,
             cardPickups: cardPickups,
@@ -4337,6 +4348,7 @@ private enum DungeonCardVariationResolver {
         enemies: [EnemyDefinition]? = nil,
         hazards: [HazardDefinition]? = nil,
         impassableTilePoints: Set<GridPoint>? = nil,
+        tileEffectOverrides: [GridPoint: TileEffect]? = nil,
         warpTilePairs: [String: [GridPoint]]? = nil,
         exitLock: DungeonExitLock? = nil,
         preservesExitLock: Bool = true
@@ -4352,7 +4364,7 @@ private enum DungeonCardVariationResolver {
             enemies: enemies ?? floor.enemies,
             hazards: hazards ?? floor.hazards,
             impassableTilePoints: impassableTilePoints ?? floor.impassableTilePoints,
-            tileEffectOverrides: floor.tileEffectOverrides,
+            tileEffectOverrides: tileEffectOverrides ?? floor.tileEffectOverrides,
             warpTilePairs: warpTilePairs ?? floor.warpTilePairs,
             exitLock: preservesExitLock ? (exitLock ?? floor.exitLock) : exitLock,
             cardPickups: floor.cardPickups,
@@ -4653,19 +4665,29 @@ private enum DungeonCardVariationResolver {
         seed: UInt64
     ) -> [HazardDefinition] {
         var reserved = coreReservedPoints(for: floor)
-        return floor.hazards.enumerated().compactMap { index, hazard in
+        let resolved: [HazardDefinition] = floor.hazards.enumerated().compactMap { index, hazard in
+            if case .healingTile = hazard,
+               floorIndex >= 20,
+               !keepsDeepGrowthHealingTile(floorIndex: floorIndex) {
+                return nil
+            }
             let fixedBrittlePoints = secretEntrancePoints(for: floor, floorIndex: floorIndex)
             var randomizer = DungeonCardVariationRandomizer(
                 seed: seed,
                 floorIndex: floorIndex,
                 salt: 0xD00D + UInt64(index)
             )
-            let count = variedCount(
-                base: hazard.points.count,
-                minimum: hazard.points.isEmpty ? 0 : 1,
-                maximum: max(hazard.points.count + 1, 1),
-                randomizer: &randomizer
-            )
+            let count: Int
+            if case .healingTile = hazard {
+                count = hazard.points.count
+            } else {
+                count = variedCount(
+                    base: hazard.points.count,
+                    minimum: hazard.points.isEmpty ? 0 : 1,
+                    maximum: max(hazard.points.count + 1, 1),
+                    randomizer: &randomizer
+                )
+            }
             let randomCount: Int
             if case .brittleFloor = hazard {
                 randomCount = max(count - fixedBrittlePoints.count, 0)
@@ -4698,6 +4720,185 @@ private enum DungeonCardVariationResolver {
                 return .healingTile(points: Set(points), amount: amount)
             }
         }
+        return resolved + additionalGrowthHazards(
+            for: floor,
+            floorIndex: floorIndex,
+            seed: seed,
+            existingHazards: resolved
+        )
+    }
+
+    private static func additionalGrowthHazards(
+        for floor: DungeonFloorDefinition,
+        floorIndex: Int,
+        seed: UInt64,
+        existingHazards: [HazardDefinition]
+    ) -> [HazardDefinition] {
+        guard let targetCount = targetGrowthDamageHazardPointCount(floorIndex: floorIndex) else { return [] }
+        let existingCount = damagePressurePointCount(in: existingHazards)
+        let missingCount = max(targetCount - existingCount, 0)
+        guard missingCount > 0 else { return [] }
+
+        var reserved = coreReservedPoints(for: floor)
+        reserved.formUnion(existingHazards.flatMap(\.points))
+        var randomizer = DungeonCardVariationRandomizer(seed: seed, floorIndex: floorIndex, salt: 0xDA94)
+        let points = drawPoints(
+            for: floor,
+            count: missingCount,
+            reserved: reserved,
+            randomizer: &randomizer
+        )
+        guard !points.isEmpty else { return [] }
+
+        if floorIndex >= 40 {
+            let lavaCount = min(max(points.count / 4, 1), 2)
+            let brittleCount = min(max(points.count / 4, 1), 2)
+            let lavaPoints = Set(points.prefix(lavaCount))
+            let brittlePoints = Set(points.dropFirst(lavaCount).prefix(brittleCount))
+            let trapPoints = Set(points.dropFirst(lavaCount + brittleCount))
+            var hazards: [HazardDefinition] = []
+            if !trapPoints.isEmpty {
+                hazards.append(.damageTrap(points: trapPoints, damage: 1))
+            }
+            if !lavaPoints.isEmpty {
+                hazards.append(.lavaTile(points: lavaPoints, damage: 1))
+            }
+            if !brittlePoints.isEmpty {
+                hazards.append(.brittleFloor(points: brittlePoints, initialState: .hiddenWeak))
+            }
+            return hazards
+        }
+
+        if floorIndex >= 30, points.count >= 3 {
+            let lavaPoints = Set(points.prefix(1))
+            let trapPoints = Set(points.dropFirst())
+            return [
+                .damageTrap(points: trapPoints, damage: 1),
+                .lavaTile(points: lavaPoints, damage: 1)
+            ]
+        }
+
+        return [.damageTrap(points: Set(points), damage: 1)]
+    }
+
+    private static func resolvedTileEffectOverrides(
+        for floor: DungeonFloorDefinition,
+        floorIndex: Int,
+        seed: UInt64,
+        hazards: [HazardDefinition],
+        impassableTilePoints: Set<GridPoint>
+    ) -> [GridPoint: TileEffect] {
+        guard let targetCount = targetGrowthStatusTrapPointCount(floorIndex: floorIndex) else {
+            return floor.tileEffectOverrides
+        }
+        let existingCount = statusTrapPointCount(in: floor.tileEffectOverrides)
+        let missingCount = max(targetCount - existingCount, 0)
+        guard missingCount > 0 else { return floor.tileEffectOverrides }
+
+        var reserved = coreReservedPoints(for: floor)
+        reserved.formUnion(hazards.flatMap(\.points))
+        reserved.formUnion(impassableTilePoints)
+        var randomizer = DungeonCardVariationRandomizer(seed: seed, floorIndex: floorIndex, salt: 0x575A)
+        let points = drawPoints(
+            for: floor,
+            count: missingCount,
+            reserved: reserved,
+            randomizer: &randomizer
+        )
+        guard !points.isEmpty else { return floor.tileEffectOverrides }
+
+        var result = floor.tileEffectOverrides
+        for (offset, point) in points.enumerated() {
+            result[point] = growthStatusTrapEffect(
+                floorIndex: floorIndex,
+                offset: offset,
+                randomizer: &randomizer
+            )
+        }
+        return result
+    }
+
+    private static func targetGrowthDamageHazardPointCount(floorIndex: Int) -> Int? {
+        switch floorIndex {
+        case 0..<10:
+            return nil
+        case 10..<15:
+            return 3
+        case 15..<20:
+            return 4
+        case 20..<30:
+            return 6
+        case 30..<40:
+            return 8
+        case 40...:
+            return 10
+        default:
+            return nil
+        }
+    }
+
+    private static func targetGrowthStatusTrapPointCount(floorIndex: Int) -> Int? {
+        switch floorIndex {
+        case 20..<25:
+            return 1
+        case 25..<30:
+            return 2
+        case 30..<35:
+            return 2
+        case 35..<40:
+            return 3
+        case 40...:
+            return 3
+        default:
+            return nil
+        }
+    }
+
+    private static func damagePressurePointCount(in hazards: [HazardDefinition]) -> Int {
+        hazards.reduce(0) { total, hazard in
+            switch hazard {
+            case .damageTrap(let points, _), .lavaTile(let points, _), .brittleFloor(let points, _):
+                return total + points.count
+            case .healingTile:
+                return total
+            }
+        }
+    }
+
+    private static func statusTrapPointCount(in tileEffects: [GridPoint: TileEffect]) -> Int {
+        tileEffects.values.reduce(0) { total, effect in
+            isGrowthStatusTrap(effect) ? total + 1 : total
+        }
+    }
+
+    private static func isGrowthStatusTrap(_ effect: TileEffect) -> Bool {
+        switch effect {
+        case .poisonTrap, .shackleTrap, .illusionTrap,
+             .discardRandomHand, .discardAllMoveCards, .discardAllSupportCards, .discardAllHands:
+            return true
+        case .warp, .returnWarp, .shuffleHand, .blast, .slow, .swamp, .preserveCard:
+            return false
+        }
+    }
+
+    private static func growthStatusTrapEffect(
+        floorIndex: Int,
+        offset: Int,
+        randomizer: inout DungeonCardVariationRandomizer
+    ) -> TileEffect {
+        let candidates: [TileEffect]
+        if floorIndex >= 40 {
+            candidates = [.poisonTrap, .shackleTrap, .illusionTrap, .discardRandomHand, .discardAllMoveCards, .discardAllHands]
+        } else if floorIndex >= 30 {
+            candidates = [.poisonTrap, .shackleTrap, .illusionTrap, .discardRandomHand, .discardAllMoveCards]
+        } else {
+            candidates = [.poisonTrap, .shackleTrap, .illusionTrap, .discardRandomHand]
+        }
+        return candidates[(offset + randomizer.nextIndex(upperBound: candidates.count)) % candidates.count]
+    }
+
+    private static func keepsDeepGrowthHealingTile(floorIndex: Int) -> Bool {
+        [29, 39, 49].contains(floorIndex)
     }
 
     private static func resolvedImpassableTilePoints(
