@@ -611,11 +611,18 @@ final class DungeonGrowthStore: ObservableObject {
             result = Array(result.prefix(keptCount))
             let excludedPlayables = Set(baseOffers.compactMap(\.playable))
             let excludedRelics = ownedRelics.union(baseOffers.compactMap(\.relic))
+            let nextFloor = counterPreviewFloor(
+                in: dungeon,
+                after: floorIndex,
+                seed: seed,
+                movementStyle: movementStyle
+            )
             let supplemental = DungeonWeightedRewardPools.drawUniqueOffers(
                 from: DungeonWeightedRewardPools.entries(
                     floorIndex: floorIndex,
                     context: .clearReward,
-                    movementStyle: movementStyle
+                    movementStyle: movementStyle,
+                    countering: nextFloor
                 ),
                 context: .clearReward,
                 count: max(choiceCount - result.count, 1),
@@ -630,11 +637,18 @@ final class DungeonGrowthStore: ObservableObject {
         }
 
         if floorIndex >= 10, isActive(.relicScout) {
+            let nextFloor = counterPreviewFloor(
+                in: dungeon,
+                after: floorIndex,
+                seed: seed,
+                movementStyle: movementStyle
+            )
             let weightedSupportCandidate = DungeonWeightedRewardPools.drawUniqueOffers(
                 from: DungeonWeightedRewardPools.entries(
                     floorIndex: floorIndex,
                     context: .clearReward,
-                    movementStyle: movementStyle
+                    movementStyle: movementStyle,
+                    countering: nextFloor
                 ),
                 context: .clearReward,
                 count: choiceCount,
@@ -690,6 +704,24 @@ final class DungeonGrowthStore: ObservableObject {
         }
 
         return Array(result.prefix(choiceCount))
+    }
+
+    private func counterPreviewFloor(
+        in dungeon: DungeonDefinition,
+        after floorIndex: Int,
+        seed: UInt64?,
+        movementStyle: DungeonMovementStyle
+    ) -> DungeonFloorDefinition? {
+        dungeon.resolvedFloor(
+            at: floorIndex + 1,
+            runState: DungeonRunState(
+                dungeonID: dungeon.id,
+                currentFloorIndex: floorIndex + 1,
+                carriedHP: 1,
+                cardVariationSeed: seed,
+                movementStyle: movementStyle
+            )
+        )
     }
 
     func rewardCards(

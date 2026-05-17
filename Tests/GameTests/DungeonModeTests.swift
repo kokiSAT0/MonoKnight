@@ -4212,7 +4212,7 @@ final class DungeonModeTests: XCTestCase {
             "鍵と罠列",
             "転移と見張り",
             "ひび割れの迂回路",
-            "中間演習",
+            "第二関門・宝箱警戒",
             "挟み撃ちの廊下",
             "暗闇の遠回り",
             "暗闇の射線",
@@ -4222,7 +4222,7 @@ final class DungeonModeTests: XCTestCase {
             "宝箱の門番",
             "転移待ち",
             "鍵の遠回り",
-            "第三関門",
+            "第三関門・鍵と追跡",
             "回復を挟む廊下",
             "巡回の鍵束",
             "追跡と抜け道",
@@ -4232,7 +4232,7 @@ final class DungeonModeTests: XCTestCase {
             "足枷の迂回",
             "幻惑の小部屋",
             "暗闇の薬棚",
-            "第四関門",
+            "第四関門・暗闇巡回",
             "解毒の遠回り",
             "見えない巡回路",
             "幻惑と転移",
@@ -4242,7 +4242,7 @@ final class DungeonModeTests: XCTestCase {
             "呪い箱の岐路",
             "落下を読む橋",
             "追跡の薬路",
-            "第五関門",
+            "第五関門・呪いと崩落",
             "暗闇の総力戦",
             "巡回の包囲網",
             "幻惑の最短路",
@@ -4947,7 +4947,8 @@ final class DungeonModeTests: XCTestCase {
         let sourceRunState = DungeonRunState(dungeonID: tower.id, carriedHP: 3, cardVariationSeed: 404)
         let secretPairs = [
             (source: 23, destination: 22, secretID: "growth-fall-secret-24-to-23"),
-            (source: 35, destination: 34, secretID: "growth-fall-secret-36-to-35")
+            (source: 35, destination: 34, secretID: "growth-fall-secret-36-to-35"),
+            (source: 45, destination: 44, secretID: "growth-fall-secret-46-to-45")
         ]
 
         for pair in secretPairs {
@@ -4980,6 +4981,27 @@ final class DungeonModeTests: XCTestCase {
             XCTAssertTrue(
                 hasOrthogonalPath(from: secret.returnDestination, to: destinationFloor.exitPoint, in: destinationFloor),
                 "\(destinationFloor.title) の帰還先から通常ルートへ戻れる必要があります"
+            )
+        }
+    }
+
+    func testGrowthTowerMilestoneFloorsExposeOptionalTreasureDecisions() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let milestoneExpectations: [(index: Int, title: String, relicKinds: Set<DungeonRelicPickupKind>)] = [
+            (14, "第二関門・宝箱警戒", [.suspiciousLight]),
+            (24, "第三関門・鍵と追跡", [.suspiciousDeep]),
+            (34, "第四関門・暗闇巡回", [.suspiciousDeep, .suspiciousLight]),
+            (44, "第五関門・呪いと崩落", [.suspiciousDeep])
+        ]
+
+        for expectation in milestoneExpectations {
+            let floor = tower.floors[expectation.index]
+            XCTAssertEqual(floor.title, expectation.title)
+            XCTAssertEqual(Set(floor.relicPickups.map(\.kind)), expectation.relicKinds)
+            XCTAssertTrue(hasOrthogonalPath(from: floor.spawnPoint, to: floor.exitPoint, in: floor))
+            XCTAssertTrue(
+                floor.relicPickups.allSatisfy { !blockedGrowthTowerPickupPoints(for: floor).contains($0.point) },
+                "\(floor.title) の宝箱は通常ルートを塞がない任意目標として配置します"
             )
         }
     }
@@ -5962,6 +5984,38 @@ final class DungeonModeTests: XCTestCase {
                 return false
             },
             "レリックはクリア報酬プールへ低確率枠として含める"
+        )
+    }
+
+    func testGrowthTowerRewardPoolBiasesSupportCardsForNextFloorThreats() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let nextFloor = tower.floors[34]
+        let baseEntries = DungeonWeightedRewardPools.entries(floorIndex: 33, context: .clearReward)
+        let counteredEntries = DungeonWeightedRewardPools.entries(
+            floorIndex: 33,
+            context: .clearReward,
+            countering: nextFloor
+        )
+
+        XCTAssertGreaterThan(
+            supportWeight(.darknessSpell, in: counteredEntries),
+            supportWeight(.darknessSpell, in: baseEntries)
+        )
+        XCTAssertGreaterThan(
+            supportWeight(.railBreakSpell, in: counteredEntries),
+            supportWeight(.railBreakSpell, in: baseEntries)
+        )
+        XCTAssertGreaterThan(
+            supportWeight(.panacea, in: counteredEntries),
+            supportWeight(.panacea, in: baseEntries)
+        )
+        XCTAssertGreaterThan(
+            supportWeight(.barrierSpell, in: counteredEntries),
+            supportWeight(.barrierSpell, in: baseEntries)
+        )
+        XCTAssertGreaterThan(
+            supportWeight(.freezeSpell, in: counteredEntries),
+            supportWeight(.freezeSpell, in: baseEntries)
         )
     }
 
@@ -7962,6 +8016,18 @@ final class DungeonModeTests: XCTestCase {
                 return nil
             }
         })
+    }
+
+    private func supportWeight(
+        _ support: SupportCard,
+        in entries: [DungeonWeightedRewardPoolEntry]
+    ) -> Int {
+        entries.reduce(0) { total, entry in
+            guard case .support(let entrySupport) = entry.item,
+                  entrySupport == support
+            else { return total }
+            return total + entry.weight
+        }
     }
 
     private func averageDamagePressure(in floors: ArraySlice<DungeonFloorDefinition>) -> Double {

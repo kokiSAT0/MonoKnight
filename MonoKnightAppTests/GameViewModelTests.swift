@@ -1776,6 +1776,119 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.showingResult)
     }
 
+    func testGrowthTowerRewardSelectionDoesNotAdvanceWhenNewCardWouldExceedCurrentHandLimit() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let runState = DungeonRunState(
+            dungeonID: tower.id,
+            currentFloorIndex: 0,
+            carriedHP: 3,
+            dungeonInventoryKindLimit: 5
+        )
+        let mode = tower.floors[0].makeGameMode(
+            dungeonID: tower.id,
+            difficulty: tower.difficulty,
+            carriedHP: runState.carriedHP,
+            runState: runState
+        )
+        var requestedMode: GameMode?
+        let (viewModel, core) = makeViewModel(
+            mode: mode,
+            onRequestStartDungeonFloor: { requestedMode = $0 }
+        )
+        let reward = try XCTUnwrap(viewModel.availableDungeonRewardMoveCards.first)
+        let existingCards = Array(MoveCard.allCases.filter { $0 != reward }.prefix(5))
+        XCTAssertEqual(existingCards.count, 5)
+        for card in existingCards {
+            XCTAssertTrue(core.addDungeonInventoryCardForTesting(card, rewardUses: 1))
+        }
+
+        viewModel.showingResult = true
+        XCTAssertEqual(core.dungeonInventoryKindLimit, 5)
+        XCTAssertEqual(core.handStacks.count, 5)
+        XCTAssertFalse(viewModel.canAddDungeonRewardMoveCard(reward))
+        viewModel.handleDungeonRewardSelection(reward)
+
+        XCTAssertNil(requestedMode)
+        XCTAssertTrue(viewModel.showingResult)
+        XCTAssertFalse(core.dungeonInventoryEntries.contains { $0.moveCard == reward })
+    }
+
+    func testGrowthTowerRewardSelectionAllowsExistingCardWhenCurrentHandLimitIsFull() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let runState = DungeonRunState(
+            dungeonID: tower.id,
+            currentFloorIndex: 0,
+            carriedHP: 3,
+            dungeonInventoryKindLimit: 5
+        )
+        let mode = tower.floors[0].makeGameMode(
+            dungeonID: tower.id,
+            difficulty: tower.difficulty,
+            carriedHP: runState.carriedHP,
+            runState: runState
+        )
+        var requestedMode: GameMode?
+        let (viewModel, core) = makeViewModel(
+            mode: mode,
+            onRequestStartDungeonFloor: { requestedMode = $0 }
+        )
+        let reward = try XCTUnwrap(viewModel.availableDungeonRewardMoveCards.first)
+        let fillerCards = Array(MoveCard.allCases.filter { $0 != reward }.prefix(4))
+        XCTAssertEqual(fillerCards.count, 4)
+        XCTAssertTrue(core.addDungeonInventoryCardForTesting(reward, rewardUses: 1))
+        for card in fillerCards {
+            XCTAssertTrue(core.addDungeonInventoryCardForTesting(card, rewardUses: 1))
+        }
+
+        viewModel.showingResult = true
+        XCTAssertEqual(core.handStacks.count, 5)
+        XCTAssertTrue(viewModel.canAddDungeonRewardMoveCard(reward))
+        viewModel.handleDungeonRewardSelection(reward)
+
+        let nextRunState = try XCTUnwrap(requestedMode?.dungeonMetadataSnapshot?.runState)
+        XCTAssertTrue(nextRunState.rewardInventoryEntries.contains { $0.moveCard == reward && $0.rewardUses == 3 })
+        XCTAssertFalse(viewModel.showingResult)
+    }
+
+    func testGrowthTowerRewardSelectionCanAddNewCardAfterRemovingCardAtCurrentHandLimit() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let runState = DungeonRunState(
+            dungeonID: tower.id,
+            currentFloorIndex: 0,
+            carriedHP: 3,
+            dungeonInventoryKindLimit: 5
+        )
+        let mode = tower.floors[0].makeGameMode(
+            dungeonID: tower.id,
+            difficulty: tower.difficulty,
+            carriedHP: runState.carriedHP,
+            runState: runState
+        )
+        var requestedMode: GameMode?
+        let (viewModel, core) = makeViewModel(
+            mode: mode,
+            onRequestStartDungeonFloor: { requestedMode = $0 }
+        )
+        let reward = try XCTUnwrap(viewModel.availableDungeonRewardMoveCards.first)
+        let existingCards = Array(MoveCard.allCases.filter { $0 != reward }.prefix(5))
+        XCTAssertEqual(existingCards.count, 5)
+        for card in existingCards {
+            XCTAssertTrue(core.addDungeonInventoryCardForTesting(card, rewardUses: 1))
+        }
+
+        viewModel.showingResult = true
+        XCTAssertFalse(viewModel.canAddDungeonRewardMoveCard(reward))
+        viewModel.handleDungeonRewardCardRemoval(existingCards[0])
+        XCTAssertTrue(viewModel.showingResult)
+        XCTAssertTrue(viewModel.canAddDungeonRewardMoveCard(reward))
+        viewModel.handleDungeonRewardSelection(reward)
+
+        let nextRunState = try XCTUnwrap(requestedMode?.dungeonMetadataSnapshot?.runState)
+        XCTAssertFalse(nextRunState.rewardInventoryEntries.contains { $0.moveCard == existingCards[0] })
+        XCTAssertTrue(nextRunState.rewardInventoryEntries.contains(DungeonInventoryEntry(card: reward, rewardUses: 2)))
+        XCTAssertFalse(viewModel.showingResult)
+    }
+
     func testGrowthTowerTenthFloorOffersRewardAndStartsEleventhFloor() throws {
         let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
         let runState = DungeonRunState(

@@ -256,6 +256,10 @@ final class GameViewModel: ObservableObject {
             at: runState.currentFloorIndex,
             runState: runState
         )
+        let nextFloor = dungeon.resolvedFloor(
+            at: runState.currentFloorIndex + 1,
+            runState: runState
+        )
         let baseRewardCount = (floor?.rewardMoveCardsAfterClear.count ?? 0)
             + (floor?.rewardSupportCardsAfterClear.count ?? 0)
         let turnLimit = core.effectiveDungeonTurnLimit ?? Int.max
@@ -302,7 +306,8 @@ final class GameViewModel: ObservableObject {
                 from: DungeonWeightedRewardPools.entries(
                     floorIndex: runState.currentFloorIndex,
                     context: .clearReward,
-                    movementStyle: runState.movementStyle
+                    movementStyle: runState.movementStyle,
+                    countering: nextFloor
                 ),
                 context: .clearReward,
                 count: rewardCount,
@@ -415,7 +420,7 @@ final class GameViewModel: ObservableObject {
         if liveEntries.contains(where: { $0.playable == playable }) {
             return true
         }
-        return liveEntries.count < 9
+        return liveEntries.count < core.dungeonInventoryKindLimit
     }
     /// 次のダンジョンフロア名
     var nextDungeonFloorTitle: String? {

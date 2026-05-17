@@ -503,10 +503,9 @@ struct ResultActionSection: View {
                             triggerSuccessHapticIfNeeded()
                             onSelectNextDungeonFloor()
                         } label: {
-                            Label("報酬を取らずに次の階へ: \(nextDungeonFloorTitle)", systemImage: "arrow.up.forward")
-                                .frame(maxWidth: .infinity)
+                            DungeonRewardSkipActionLabel(nextFloorTitle: nextDungeonFloorTitle)
                         }
-                        .buttonStyle(.bordered)
+                        .buttonStyle(.plain)
                         .accessibilityIdentifier("dungeon_reward_skip_button")
                     }
                 }
@@ -1211,6 +1210,49 @@ private struct DungeonRewardChoiceControl: View {
             }
             .accessibilityAddTraits(.isButton)
             .accessibilityIdentifier(choice.accessibilityIdentifier)
+    }
+}
+
+private struct DungeonRewardSkipActionLabel: View {
+    let nextFloorTitle: String
+    private var theme = AppTheme()
+
+    init(nextFloorTitle: String) {
+        self.nextFloorTitle = nextFloorTitle
+    }
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "arrow.up.forward")
+                .font(.headline.weight(.semibold))
+                .foregroundStyle(theme.accentPrimary)
+                .frame(width: 32, height: 32)
+                .background(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(theme.accentPrimary.opacity(0.12))
+                )
+
+            Text("報酬を取らずに次の階へ: \(nextFloorTitle)")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(theme.textPrimary)
+                .lineLimit(2)
+                .minimumScaleFactor(0.82)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(theme.backgroundElevated)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(theme.accentPrimary.opacity(0.36), lineWidth: 1)
+        )
+        .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 }
 
