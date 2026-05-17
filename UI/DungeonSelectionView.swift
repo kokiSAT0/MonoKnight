@@ -1690,6 +1690,8 @@ private extension DungeonGrowthBranch {
         switch self {
         case .preparation:
             return "区間開始前の支度候補"
+        case .hand:
+            return "通常カード枠の拡張"
         case .reward:
             return "クリア後候補とカード運用"
         case .hazard:
@@ -1705,6 +1707,8 @@ private extension DungeonGrowthBranch {
         switch self {
         case .preparation:
             return "この系統: 区間開始前の支度候補を増やします"
+        case .hand:
+            return "この系統: 成長塔で持てる通常カード枠を増やします"
         case .reward:
             return "この系統: クリア後の選択肢とカード運用を伸ばします"
         case .hazard:
@@ -1720,6 +1724,8 @@ private extension DungeonGrowthBranch {
         switch self {
         case .preparation:
             return "bag.fill"
+        case .hand:
+            return "rectangle.stack.badge.plus"
         case .reward:
             return "sparkles"
         case .hazard:
@@ -1735,6 +1741,8 @@ private extension DungeonGrowthBranch {
         switch self {
         case .preparation:
             return Color(red: 0.04, green: 0.58, blue: 0.50)
+        case .hand:
+            return Color(red: 0.18, green: 0.50, blue: 0.72)
         case .reward:
             return Color(red: 0.90, green: 0.54, blue: 0.06)
         case .hazard:
@@ -1869,6 +1877,14 @@ private extension DungeonGrowthUpgrade {
             return "flag.checkered"
         case .refillCharm:
             return "plus.rectangle.on.rectangle"
+        case .handSlotExpansion1:
+            return "rectangle.stack.badge.plus"
+        case .handSlotExpansion2:
+            return "rectangle.stack.badge.plus"
+        case .handSlotExpansion3:
+            return "rectangle.stack.badge.plus"
+        case .handSlotExpansion4:
+            return "rectangle.stack.badge.plus"
         case .rewardScout:
             return "eye.fill"
         case .cardPreservation:
@@ -1918,6 +1934,14 @@ private extension DungeonGrowthUpgrade {
             return ["対象: 成長塔のみ", "追加: 縦2マス移動カード 1回", "追加: 斜め2マス移動カード 1回"]
         case .refillCharm:
             return ["対象: 成長塔のみ", "追加: 補給 1回"]
+        case .handSlotExpansion1:
+            return ["対象: 成長塔のみ", "通常カード枠: 6種類まで"]
+        case .handSlotExpansion2:
+            return ["対象: 成長塔のみ", "通常カード枠: 7種類まで"]
+        case .handSlotExpansion3:
+            return ["対象: 成長塔のみ", "通常カード枠: 8種類まで"]
+        case .handSlotExpansion4:
+            return ["対象: 成長塔のみ", "通常カード枠: 9種類まで"]
         case .deepStartKit:
             return ["対象: 成長塔のみ", "発動: 21F以降は障壁 1回", "発動: 31F以降は長距離移動 1回"]
         case .finalPreparation:

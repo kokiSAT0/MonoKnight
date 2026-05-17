@@ -55,8 +55,15 @@ final class GameViewModel: ObservableObject {
     var deferredDungeonFallEventDuringMovementPresentation: DungeonFallEvent?
     /// 移動後に保留された敵ターンが終わるまで結果表示を待つかどうか
     var isWaitingForEnemyTurnPresentationAfterMovement = false
-    static let dungeonInventoryVisibleSlotCount = 9
-    static let dungeonBasicMoveSlotIndex = 9
+    static let maximumDungeonInventoryVisibleSlotCount = 9
+    var dungeonInventoryVisibleSlotCount: Int {
+        guard mode.usesDungeonExit else { return mode.handSize }
+        let limit = core.dungeonInventoryKindLimit
+        return limit > 0 ? limit : mode.handSize
+    }
+    var dungeonBasicMoveSlotIndex: Int {
+        dungeonInventoryVisibleSlotCount
+    }
     /// SpriteKit と SwiftUI を仲介するための ViewModel
     let boardBridge: GameBoardBridgeViewModel
     /// 現在選択中の手札スタック ID

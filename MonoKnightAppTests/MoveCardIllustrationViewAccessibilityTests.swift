@@ -69,6 +69,7 @@ final class MoveCardIllustrationViewAccessibilityTests: XCTestCase {
                 choice.accessibilityLabel.contains(choice.card.encyclopediaDescription),
                 "画面上の説明文を省略しても、読み上げにはカード説明を残します"
             )
+            XCTAssertTrue(choice.accessibilityHint.contains("効果を確認"))
         }
     }
 
@@ -80,8 +81,10 @@ final class MoveCardIllustrationViewAccessibilityTests: XCTestCase {
 
         XCTAssertFalse(choice.isEnabled)
         XCTAssertTrue(choice.accessibilityLabel.contains("手札がいっぱいです"))
-        XCTAssertTrue(choice.accessibilityLabel.contains("手札から外して空きを作ってください"))
-        XCTAssertTrue(choice.accessibilityHint.contains("手札がいっぱいです"))
+        XCTAssertTrue(choice.accessibilityLabel.contains("手札から外すか"))
+        XCTAssertTrue(choice.accessibilityLabel.contains("報酬を取らずに進めます"))
+        XCTAssertTrue(choice.accessibilityHint.contains("報酬を取らずに進める"))
+        XCTAssertTrue(choice.accessibilityHint.contains("効果を確認"))
         XCTAssertFalse(choice.accessibilityLabel.contains("選ぶと次の階へ進みます"))
     }
 
@@ -97,10 +100,67 @@ final class MoveCardIllustrationViewAccessibilityTests: XCTestCase {
         XCTAssertEqual(DungeonRelicID.silverNeedle.symbolName, "pin.fill")
         XCTAssertEqual(choice.accessibilityIdentifier, "dungeon_reward_relic_銀の針")
         XCTAssertTrue(choice.accessibilityHint.contains("詳細を確認します"))
+        XCTAssertTrue(choice.accessibilityHint.contains("効果を確認"))
         XCTAssertFalse(choice.accessibilityLabel.contains("一時レリック"))
         XCTAssertFalse(choice.accessibilityLabel.contains("永続レリック"))
         XCTAssertTrue(choice.accessibilityLabel.contains("コモン"))
         XCTAssertTrue(choice.accessibilityLabel.contains(DungeonRelicID.silverNeedle.effectDescription))
+    }
+
+    func testDungeonRewardDetailPresentationUsesExistingDescriptions() {
+        let moveChoice = DungeonRewardCardChoicePresentation(card: .straightRight2)
+        let moveDetail = moveChoice.detailPresentation
+
+        XCTAssertEqual(moveDetail.title, MoveCard.straightRight2.displayName)
+        XCTAssertEqual(moveDetail.badgeText, "2回")
+        XCTAssertEqual(moveDetail.primaryDescription, MoveCard.straightRight2.encyclopediaDescription)
+        XCTAssertEqual(moveDetail.visualTone, .standard)
+        XCTAssertTrue(moveDetail.secondaryDescriptions.contains("手札に追加するカード"))
+
+        let supportChoice = DungeonRewardCardChoicePresentation(
+            offer: .playable(.support(.barrierSpell)),
+            rewardUses: 1,
+            accessibilityIdentifierPrefix: "dungeon_reward_support_card",
+            accessibilityRoleText: "手札に追加する補助カード"
+        )
+        let supportDetail = supportChoice.detailPresentation
+
+        XCTAssertEqual(supportDetail.title, SupportCard.barrierSpell.displayName)
+        XCTAssertEqual(supportDetail.badgeText, "1回")
+        XCTAssertEqual(supportDetail.primaryDescription, SupportCard.barrierSpell.encyclopediaDescription)
+        XCTAssertEqual(supportDetail.visualTone, .standard)
+        XCTAssertTrue(supportDetail.secondaryDescriptions.contains(SupportCard.barrierSpell.encyclopediaCategory))
+
+        let relicChoice = DungeonRewardCardChoicePresentation(
+            offer: .relic(.fieldMedkit),
+            rewardUses: 0,
+            accessibilityIdentifierPrefix: "dungeon_reward_relic",
+            accessibilityRoleText: "獲得する遺物"
+        )
+        let relicDetail = relicChoice.detailPresentation
+
+        XCTAssertEqual(relicDetail.title, DungeonRelicID.fieldMedkit.displayName)
+        XCTAssertEqual(relicDetail.badgeText, DungeonRelicID.fieldMedkit.rarity.displayName)
+        XCTAssertEqual(relicDetail.primaryDescription, DungeonRelicID.fieldMedkit.effectDescription)
+        XCTAssertEqual(relicDetail.visualTone, .rare)
+    }
+
+    func testDungeonRewardRelicChoicePresentationExposesRarityVisualTone() {
+        let common = DungeonRewardCardChoicePresentation(offer: .relic(.silverNeedle), rewardUses: 0)
+        let rare = DungeonRewardCardChoicePresentation(offer: .relic(.fieldMedkit), rewardUses: 0)
+        let legendary = DungeonRewardCardChoicePresentation(offer: .relic(.royalCrown), rewardUses: 0)
+
+        XCTAssertEqual(common.usesBadgeText, DungeonRelicRarity.common.displayName)
+        XCTAssertEqual(common.visualTone, .common)
+        XCTAssertEqual(common.detailPresentation.visualTone, .common)
+
+        XCTAssertEqual(rare.usesBadgeText, DungeonRelicRarity.rare.displayName)
+        XCTAssertEqual(rare.visualTone, .rare)
+        XCTAssertEqual(rare.detailPresentation.visualTone, .rare)
+
+        XCTAssertEqual(legendary.usesBadgeText, DungeonRelicRarity.legendary.displayName)
+        XCTAssertEqual(legendary.visualTone, .legendary)
+        XCTAssertEqual(legendary.detailPresentation.visualTone, .legendary)
     }
 
     func testDungeonPickupCarryoverChoicePresentationExplainsHandAddition() {
@@ -186,6 +246,28 @@ final class MoveCardIllustrationViewAccessibilityTests: XCTestCase {
         )
 
         XCTAssertEqual(section.dungeonRewardInventoryEntries, [pickupOnly])
+    }
+
+    func testResultActionSectionShowsSkipRewardActionWhenChoicesExist() {
+        let section = ResultActionSection(
+            presentation: dungeonResultPresentation,
+            modeIdentifier: .dungeonFloor,
+            modeDisplayName: "塔ダンジョン",
+            nextDungeonFloorTitle: "2F",
+            retryButtonTitle: "1Fから再挑戦",
+            dungeonRewardMoveCards: [.straightRight2],
+            showsLeaderboardButton: false,
+            isGameCenterAuthenticated: false,
+            onRequestGameCenterSignIn: nil,
+            onSelectNextDungeonFloor: {},
+            onSelectDungeonRewardMoveCard: { _ in },
+            onRetry: {},
+            onReturnToTitle: nil,
+            gameCenterService: GameCenterService.shared,
+            hapticsEnabled: false
+        )
+
+        XCTAssertTrue(section.showsSkipDungeonRewardAction)
     }
 
     func testResultActionSectionUsesThreeColumnsForHandInventory() {

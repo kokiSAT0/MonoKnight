@@ -2189,6 +2189,8 @@ public struct DungeonRunState: Codable, Equatable, Sendable {
     public let cardVariationSeed: UInt64?
     /// ラン中に固定される基本移動スタイル
     public let movementStyle: DungeonMovementStyle
+    /// 基本移動固定枠を除いた、塔ラン中の通常カード所持上限
+    public let dungeonInventoryKindLimit: Int
     /// 試練塔のフロア生成に使うラン単位の seed
     public let rogueTowerSeed: UInt64?
     /// フロアごとのひび割れ床状態
@@ -2216,6 +2218,7 @@ public struct DungeonRunState: Codable, Equatable, Sendable {
         collectedDungeonRelicPickupIDs: Set<String> = [],
         cardVariationSeed: UInt64? = nil,
         movementStyle: DungeonMovementStyle = .orthogonal,
+        dungeonInventoryKindLimit: Int = 9,
         rogueTowerSeed: UInt64? = nil,
         crackedFloorPointsByFloor: [Int: Set<GridPoint>] = [:],
         collapsedFloorPointsByFloor: [Int: Set<GridPoint>] = [:],
@@ -2235,6 +2238,7 @@ public struct DungeonRunState: Codable, Equatable, Sendable {
         self.collectedDungeonRelicPickupIDs = collectedDungeonRelicPickupIDs
         self.cardVariationSeed = cardVariationSeed
         self.movementStyle = movementStyle
+        self.dungeonInventoryKindLimit = min(max(dungeonInventoryKindLimit, 1), 9)
         self.rogueTowerSeed = rogueTowerSeed
         self.crackedFloorPointsByFloor = crackedFloorPointsByFloor.filter { !$0.value.isEmpty }
         self.collapsedFloorPointsByFloor = collapsedFloorPointsByFloor.filter { !$0.value.isEmpty }
@@ -2315,6 +2319,7 @@ public struct DungeonRunState: Codable, Equatable, Sendable {
             collectedDungeonRelicPickupIDs: self.collectedDungeonRelicPickupIDs.union(collectedDungeonRelicPickupIDs ?? []),
             cardVariationSeed: cardVariationSeed,
             movementStyle: movementStyle,
+            dungeonInventoryKindLimit: dungeonInventoryKindLimit,
             rogueTowerSeed: rogueTowerSeed,
             crackedFloorPointsByFloor: crackedFloorPointsByFloor,
             collapsedFloorPointsByFloor: collapsedFloorPointsByFloor,
@@ -2355,6 +2360,7 @@ public struct DungeonRunState: Codable, Equatable, Sendable {
             collectedDungeonRelicPickupIDs: self.collectedDungeonRelicPickupIDs.union(collectedDungeonRelicPickupIDs),
             cardVariationSeed: cardVariationSeed,
             movementStyle: movementStyle,
+            dungeonInventoryKindLimit: dungeonInventoryKindLimit,
             rogueTowerSeed: rogueTowerSeed,
             crackedFloorPointsByFloor: recordedState.crackedFloorPointsByFloor,
             collapsedFloorPointsByFloor: recordedState.collapsedFloorPointsByFloor,
@@ -2406,6 +2412,7 @@ public struct DungeonRunState: Codable, Equatable, Sendable {
             collectedDungeonRelicPickupIDs: collectedDungeonRelicPickupIDs,
             cardVariationSeed: cardVariationSeed,
             movementStyle: movementStyle,
+            dungeonInventoryKindLimit: dungeonInventoryKindLimit,
             rogueTowerSeed: rogueTowerSeed,
             crackedFloorPointsByFloor: crackedByFloor,
             collapsedFloorPointsByFloor: collapsedByFloor,
@@ -2428,6 +2435,7 @@ public struct DungeonRunState: Codable, Equatable, Sendable {
         case collectedDungeonRelicPickupIDs
         case cardVariationSeed
         case movementStyle
+        case dungeonInventoryKindLimit
         case rogueTowerSeed
         case crackedFloorPointsByFloor
         case collapsedFloorPointsByFloor
@@ -2451,6 +2459,7 @@ public struct DungeonRunState: Codable, Equatable, Sendable {
             collectedDungeonRelicPickupIDs: try container.decodeIfPresent(Set<String>.self, forKey: .collectedDungeonRelicPickupIDs) ?? [],
             cardVariationSeed: try container.decodeIfPresent(UInt64.self, forKey: .cardVariationSeed),
             movementStyle: try container.decodeIfPresent(DungeonMovementStyle.self, forKey: .movementStyle) ?? .orthogonal,
+            dungeonInventoryKindLimit: try container.decodeIfPresent(Int.self, forKey: .dungeonInventoryKindLimit) ?? 9,
             rogueTowerSeed: try container.decodeIfPresent(UInt64.self, forKey: .rogueTowerSeed),
             crackedFloorPointsByFloor: try container.decodeIfPresent([Int: Set<GridPoint>].self, forKey: .crackedFloorPointsByFloor) ?? [:],
             collapsedFloorPointsByFloor: try container.decodeIfPresent([Int: Set<GridPoint>].self, forKey: .collapsedFloorPointsByFloor) ?? [:],
@@ -2474,6 +2483,7 @@ public struct DungeonRunState: Codable, Equatable, Sendable {
         try container.encode(collectedDungeonRelicPickupIDs, forKey: .collectedDungeonRelicPickupIDs)
         try container.encodeIfPresent(cardVariationSeed, forKey: .cardVariationSeed)
         try container.encode(movementStyle, forKey: .movementStyle)
+        try container.encode(dungeonInventoryKindLimit, forKey: .dungeonInventoryKindLimit)
         try container.encodeIfPresent(rogueTowerSeed, forKey: .rogueTowerSeed)
         try container.encode(crackedFloorPointsByFloor, forKey: .crackedFloorPointsByFloor)
         try container.encode(collapsedFloorPointsByFloor, forKey: .collapsedFloorPointsByFloor)
@@ -5437,6 +5447,7 @@ public struct DungeonLibrary {
         startingEnemyDamageMitigations: Int = 0,
         startingMarkerDamageMitigations: Int = 0,
         movementStyle: DungeonMovementStyle = .orthogonal,
+        dungeonInventoryKindLimit: Int = 9,
         cardVariationSeed: UInt64? = nil
     ) -> GameMode? {
         floorMode(
@@ -5447,6 +5458,7 @@ public struct DungeonLibrary {
             startingEnemyDamageMitigations: startingEnemyDamageMitigations,
             startingMarkerDamageMitigations: startingMarkerDamageMitigations,
             movementStyle: movementStyle,
+            dungeonInventoryKindLimit: dungeonInventoryKindLimit,
             cardVariationSeed: cardVariationSeed
         )
     }
@@ -5461,6 +5473,7 @@ public struct DungeonLibrary {
         startingEnemyDamageMitigations: Int = 0,
         startingMarkerDamageMitigations: Int = 0,
         movementStyle: DungeonMovementStyle = .orthogonal,
+        dungeonInventoryKindLimit: Int = 9,
         cardVariationSeed: UInt64? = nil
     ) -> GameMode? {
         guard dungeon.supportsInfiniteFloors || dungeon.floors.indices.contains(floorIndex) else { return nil }
@@ -5482,6 +5495,7 @@ public struct DungeonLibrary {
             relicEntries: dungeon.difficulty == .growth ? startingRelicEntries : [],
             cardVariationSeed: resolvedCardVariationSeed,
             movementStyle: resolvedMovementStyle,
+            dungeonInventoryKindLimit: dungeon.difficulty == .growth ? dungeonInventoryKindLimit : 9,
             rogueTowerSeed: resolvedRogueTowerSeed,
             hazardDamageMitigationsRemaining: dungeon.difficulty == .growth ? startingHazardDamageMitigations : 0,
             enemyDamageMitigationsRemaining: dungeon.difficulty == .growth ? startingEnemyDamageMitigations : 0,

@@ -220,7 +220,7 @@ private extension GameHandSectionView {
     /// 手札スロット 1 枠を描画するビュー
     private func handSlotView(for index: Int) -> some View {
         ZStack {
-            if viewModel.presentsBasicMoveCard, index == GameViewModel.dungeonBasicMoveSlotIndex {
+            if viewModel.presentsBasicMoveCard, index == viewModel.dungeonBasicMoveSlotIndex {
                 basicMoveCardView()
             } else if let stack = handCard(at: index), let card = stack.topCard {
                 let isHidden = boardBridge.hiddenCardIDs.contains(card.id)
@@ -366,7 +366,7 @@ private extension GameHandSectionView {
             }
         }
         .onTapGesture {
-            viewModel.handleHandSlotTap(at: GameViewModel.dungeonBasicMoveSlotIndex)
+            viewModel.handleHandSlotTap(at: viewModel.dungeonBasicMoveSlotIndex)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text("基本移動、上下左右1マス、消費なし"))

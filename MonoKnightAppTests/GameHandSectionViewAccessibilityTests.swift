@@ -119,6 +119,10 @@ final class GameHandSectionViewAccessibilityTests: XCTestCase {
         XCTAssertEqual(GameHandSectionView.handSlotRowRanges(for: 5), [0..<5])
     }
 
+    func testInitialGrowthTowerSlotsShowFiveInventorySlotsAndBasicMoveSlot() {
+        XCTAssertEqual(GameHandSectionView.handSlotRowRanges(for: 6), [0..<5, 5..<6])
+    }
+
     func testTenHandSlotRowsPreserveSlotAccessibilityIdentifiers() {
         let identifiers = GameHandSectionView.handSlotRowRanges(for: 10)
             .flatMap { range in range.map(GameHandSectionView.handSlotAccessibilityIdentifier(for:)) }

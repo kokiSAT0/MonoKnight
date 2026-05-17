@@ -652,8 +652,10 @@ struct GameInputFlowCoordinator {
         switch support {
         case .refillEmptySlots, .barrierSpell:
             return nil
-        case .singleAnnihilationSpell, .annihilationSpell, .freezeSpell:
+        case .singleAnnihilationSpell, .freezeSpell:
             return core.enemyStates.isEmpty ? "このフロアに対象の敵がいません" : nil
+        case .annihilationSpell:
+            return nil
         case .darknessSpell:
             let hasWatcherLaser = core.enemyStates.contains { enemy in
                 switch enemy.behavior {

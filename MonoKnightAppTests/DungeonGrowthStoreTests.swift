@@ -473,6 +473,30 @@ final class DungeonGrowthStoreTests: XCTestCase {
         XCTAssertEqual(store.startingHazardDamageMitigations(for: dungeon), 0)
     }
 
+    func testHandSlotGrowthRaisesGrowthTowerInventoryLimitOnly() throws {
+        let (defaults, suiteName) = try makeIsolatedDefaults()
+        defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+
+        let store = makeStore(defaults: defaults, points: 4, unlocked: [], active: [])
+        let growthDungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let rogueDungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "rogue-tower"))
+
+        XCTAssertEqual(store.dungeonInventoryKindLimit(for: growthDungeon), 5)
+        XCTAssertEqual(store.dungeonInventoryKindLimit(for: rogueDungeon), 9)
+
+        XCTAssertTrue(store.unlock(.handSlotExpansion1))
+        XCTAssertEqual(store.dungeonInventoryKindLimit(for: growthDungeon), 6)
+        XCTAssertTrue(store.unlock(.handSlotExpansion2))
+        XCTAssertEqual(store.dungeonInventoryKindLimit(for: growthDungeon), 7)
+        XCTAssertTrue(store.unlock(.handSlotExpansion3))
+        XCTAssertEqual(store.dungeonInventoryKindLimit(for: growthDungeon), 8)
+        XCTAssertTrue(store.unlock(.handSlotExpansion4))
+        XCTAssertEqual(store.dungeonInventoryKindLimit(for: growthDungeon), 9)
+
+        XCTAssertTrue(store.setActive(.handSlotExpansion4, isActive: false))
+        XCTAssertEqual(store.dungeonInventoryKindLimit(for: growthDungeon), 8)
+    }
+
     func testHazardGrowthBranchCanReachDeepInsuranceWithoutMilestoneGate() throws {
         let (defaults, suiteName) = try makeIsolatedDefaults()
         defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }

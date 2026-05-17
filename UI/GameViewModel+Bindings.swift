@@ -161,7 +161,8 @@ extension GameViewModel {
 
     static func visibleHandStacks(from handStacks: [HandStack], mode: GameMode) -> [HandStack] {
         guard mode.usesDungeonExit else { return handStacks }
-        return Array(handStacks.prefix(dungeonInventoryVisibleSlotCount))
+        let limit = min(max(mode.dungeonMetadataSnapshot?.runState?.dungeonInventoryKindLimit ?? maximumDungeonInventoryVisibleSlotCount, 1), maximumDungeonInventoryVisibleSlotCount)
+        return Array(handStacks.prefix(limit))
     }
 
     static func newlyAddedHandStackIDs(previous: [HandStack], current: [HandStack]) -> Set<UUID> {

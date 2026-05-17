@@ -286,7 +286,8 @@ extension GameViewModel {
             startingMarkerDamageMitigations: dungeonGrowthStore.startingMarkerDamageMitigations(
                 for: dungeon
             ),
-            movementStyle: restartMovementStyle
+            movementStyle: restartMovementStyle,
+            dungeonInventoryKindLimit: dungeonGrowthStore.dungeonInventoryKindLimit(for: dungeon)
         )
     }
 

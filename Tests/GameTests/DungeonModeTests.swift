@@ -829,7 +829,7 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertFalse(core.enemyDangerPoints.contains(GridPoint(x: 2, y: 2)))
     }
 
-    func testRotatingWatcherDisplayDangerShowsNextTurnLine() throws {
+    func testRotatingWatcherDisplayDangerShowsCurrentLine() throws {
         let rotatingWatcher = EnemyDefinition(
             id: "rotating-watcher",
             name: "回転見張り",
@@ -853,9 +853,9 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertTrue(core.enemyDangerPoints.contains(GridPoint(x: 2, y: 2)))
         XCTAssertFalse(core.enemyDangerPoints.contains(GridPoint(x: 3, y: 1)))
         XCTAssertFalse(core.enemyDangerDisplayPoints.contains(rotatingWatcher.position))
-        XCTAssertTrue(core.enemyDangerDisplayPoints.contains(GridPoint(x: 3, y: 1)))
+        XCTAssertFalse(core.enemyDangerDisplayPoints.contains(GridPoint(x: 3, y: 1)))
         XCTAssertFalse(core.enemyDangerDisplayPoints.contains(GridPoint(x: 4, y: 1)))
-        XCTAssertFalse(core.enemyDangerDisplayPoints.contains(GridPoint(x: 2, y: 2)))
+        XCTAssertTrue(core.enemyDangerDisplayPoints.contains(GridPoint(x: 2, y: 2)))
     }
 
     func testEnemyFreezeHidesRotatingWatcherDisplayDanger() throws {
@@ -940,6 +940,39 @@ final class DungeonModeTests: XCTestCase {
 
         XCTAssertEqual(core.dungeonHP, 2)
         XCTAssertEqual(core.progress, .playing)
+        XCTAssertEqual(core.enemyStates.first?.rotationIndex, 1)
+        XCTAssertTrue(core.dungeonEnemyTurnEvent?.transitions.first?.didRotate == true)
+    }
+
+    func testRotatingWatcherAttacksCurrentLineWithoutTurning() throws {
+        let rotatingWatcher = EnemyDefinition(
+            id: "rotating-watcher",
+            name: "回転見張り",
+            position: GridPoint(x: 2, y: 1),
+            behavior: .rotatingWatcher(
+                initialDirection: MoveVector(dx: -1, dy: 0),
+                rotationDirection: .clockwise,
+                range: 2
+            )
+        )
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 1),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 3,
+            turnLimit: 4,
+            enemies: [rotatingWatcher],
+            cardAcquisitionMode: .inventoryOnly
+        )
+        let core = makeCore(mode: mode)
+        XCTAssertTrue(core.addDungeonInventorySupportCardForTesting(.refillEmptySlots, rewardUses: 1))
+        let supportIndex = try XCTUnwrap(core.handStacks.firstIndex { $0.topCard?.supportCard == .refillEmptySlots })
+
+        core.playSupportCard(at: supportIndex)
+
+        XCTAssertEqual(core.dungeonHP, 2)
+        XCTAssertEqual(core.enemyStates.first?.rotationIndex, 0)
+        XCTAssertTrue(core.dungeonEnemyTurnEvent?.attackedPlayer == true)
+        XCTAssertTrue(core.dungeonEnemyTurnEvent?.transitions.first?.didRotate == false)
     }
 
     func testDungeonEnemyTurnEventCapturesEnemyStateTransitions() throws {
@@ -1642,7 +1675,7 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertEqual(core.dungeonEnemyTurnEvent?.attackedPlayer, true)
     }
 
-    func testLaterEnemyStaysWhenEarlierEnemyReservesSameDestination() throws {
+    func testLaterChaserRoutesAroundEarlierEnemyReservedDestination() throws {
         let patrol = EnemyDefinition(
             id: "patrol",
             name: "巡回兵",
@@ -1671,7 +1704,17 @@ final class DungeonModeTests: XCTestCase {
         )
 
         XCTAssertEqual(core.enemyPatrolMovementPreviews.map(\.enemyID), ["patrol"])
-        XCTAssertTrue(core.enemyChaserMovementPreviews.isEmpty)
+        XCTAssertEqual(
+            core.enemyChaserMovementPreviews,
+            [
+                EnemyPatrolMovementPreview(
+                    enemyID: "chaser",
+                    current: GridPoint(x: 3, y: 1),
+                    next: GridPoint(x: 3, y: 0),
+                    vector: MoveVector(dx: 0, dy: -1)
+                )
+            ]
+        )
 
         playMove(to: GridPoint(x: 2, y: 0), in: core)
 
@@ -1679,11 +1722,97 @@ final class DungeonModeTests: XCTestCase {
         let chaserState = try XCTUnwrap(core.enemyStates.first { $0.id == "chaser" })
         XCTAssertEqual(patrolState.position, GridPoint(x: 2, y: 1))
         XCTAssertEqual(patrolState.patrolIndex, 1)
-        XCTAssertEqual(chaserState.position, GridPoint(x: 3, y: 1))
+        XCTAssertEqual(chaserState.position, GridPoint(x: 3, y: 0))
         XCTAssertEqual(
             Set(core.enemyStates.map(\.position)),
-            [GridPoint(x: 2, y: 1), GridPoint(x: 3, y: 1)]
+            [GridPoint(x: 2, y: 1), GridPoint(x: 3, y: 0)]
         )
+    }
+
+    func testChaserRoutesAroundOccupiedEnemyDestination() throws {
+        let guardPost = EnemyDefinition(
+            id: "guard",
+            name: "番兵",
+            position: GridPoint(x: 2, y: 1),
+            behavior: .guardPost
+        )
+        let chaser = EnemyDefinition(
+            id: "chaser",
+            name: "追跡兵",
+            position: GridPoint(x: 3, y: 1),
+            behavior: .chaser
+        )
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 3,
+            turnLimit: 4,
+            enemies: [guardPost, chaser]
+        )
+        let core = makeCore(
+            mode: mode,
+            cards: [.kingUpRight, .straightRight2, .straightLeft2, .straightDown2, .straightRight2]
+        )
+
+        XCTAssertEqual(
+            core.enemyChaserMovementPreviews,
+            [
+                EnemyPatrolMovementPreview(
+                    enemyID: "chaser",
+                    current: GridPoint(x: 3, y: 1),
+                    next: GridPoint(x: 3, y: 0),
+                    vector: MoveVector(dx: 0, dy: -1)
+                )
+            ]
+        )
+
+        playMove(to: GridPoint(x: 2, y: 0), in: core)
+
+        let guardState = try XCTUnwrap(core.enemyStates.first { $0.id == "guard" })
+        let chaserState = try XCTUnwrap(core.enemyStates.first { $0.id == "chaser" })
+        XCTAssertEqual(guardState.position, GridPoint(x: 2, y: 1))
+        XCTAssertEqual(chaserState.position, GridPoint(x: 3, y: 0))
+        XCTAssertEqual(
+            Set(core.enemyStates.map(\.position)),
+            [GridPoint(x: 2, y: 1), GridPoint(x: 3, y: 0)]
+        )
+    }
+
+    func testChaserStaysWhenEnemiesAndObstaclesLeaveNoReachableRoute() throws {
+        let guardPost = EnemyDefinition(
+            id: "guard",
+            name: "番兵",
+            position: GridPoint(x: 2, y: 1),
+            behavior: .guardPost
+        )
+        let chaser = EnemyDefinition(
+            id: "chaser",
+            name: "追跡兵",
+            position: GridPoint(x: 3, y: 1),
+            behavior: .chaser
+        )
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 3,
+            turnLimit: 4,
+            enemies: [guardPost, chaser],
+            impassableTilePoints: [
+                GridPoint(x: 3, y: 0),
+                GridPoint(x: 3, y: 2),
+                GridPoint(x: 4, y: 1)
+            ]
+        )
+        let core = makeCore(
+            mode: mode,
+            cards: [.kingUpRight, .straightRight2, .straightLeft2, .straightDown2, .straightRight2]
+        )
+
+        XCTAssertTrue(core.enemyChaserMovementPreviews.isEmpty)
+
+        playMove(to: GridPoint(x: 2, y: 0), in: core)
+
+        XCTAssertEqual(core.enemyStates.first { $0.id == "chaser" }?.position, GridPoint(x: 3, y: 1))
     }
 
     func testPatrolMovementPreviewFollowsNextPatrolStep() throws {
@@ -2736,7 +2865,7 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertNil(steps[1].stopReason)
     }
 
-    func testRayMoveDoesNotTakeDamageFromRotatingWatcherCurrentLineOutsideDisplayedDanger() throws {
+    func testRayMoveTakesDamageFromRotatingWatcherDisplayedCurrentLine() throws {
         let rotatingWatcher = EnemyDefinition(
             id: "rotating-watcher",
             name: "回転見張り",
@@ -2758,16 +2887,18 @@ final class DungeonModeTests: XCTestCase {
         let core = makeCore(mode: mode, cards: [.rayRight, .kingUpRight, .straightRight2, .straightLeft2, .straightDown2])
 
         XCTAssertTrue(core.enemyDangerPoints.contains(currentDangerPoint))
-        XCTAssertFalse(core.enemyDangerDisplayPoints.contains(currentDangerPoint))
+        XCTAssertTrue(core.enemyDangerDisplayPoints.contains(currentDangerPoint))
 
         playMove(to: GridPoint(x: 4, y: 2), in: core)
 
         let steps = try XCTUnwrap(core.lastMovementResolution?.presentationSteps)
-        XCTAssertEqual(core.dungeonHP, 3)
-        XCTAssertFalse(steps.contains(where: \.tookDamage))
+        XCTAssertEqual(core.dungeonHP, 2)
+        XCTAssertTrue(steps.contains(where: \.tookDamage))
+        XCTAssertEqual(steps[1].point, currentDangerPoint)
+        XCTAssertEqual(steps[1].hpAfter, 2)
     }
 
-    func testRayMoveTakesDamageFromRotatingWatcherDisplayedDangerPoint() throws {
+    func testRayMoveDoesNotTakeImmediateDamageFromRotatingWatcherNextLineOutsideDisplayedDanger() throws {
         let rotatingWatcher = EnemyDefinition(
             id: "rotating-watcher",
             name: "回転見張り",
@@ -2789,20 +2920,20 @@ final class DungeonModeTests: XCTestCase {
         let core = makeCore(mode: mode, cards: [.rayUp, .kingUpRight, .straightRight2, .straightLeft2, .straightDown2])
 
         XCTAssertFalse(core.enemyDangerPoints.contains(displayedDangerPoint))
-        XCTAssertTrue(core.enemyDangerDisplayPoints.contains(displayedDangerPoint))
+        XCTAssertFalse(core.enemyDangerDisplayPoints.contains(displayedDangerPoint))
 
         playMove(to: GridPoint(x: 3, y: 4), in: core)
 
         let steps = try XCTUnwrap(core.lastMovementResolution?.presentationSteps)
-        XCTAssertEqual(core.dungeonHP, 2)
+        XCTAssertEqual(core.dungeonHP, 3)
         XCTAssertEqual(steps.map(\.point), [
             displayedDangerPoint,
             GridPoint(x: 3, y: 2),
             GridPoint(x: 3, y: 3),
             GridPoint(x: 3, y: 4)
         ])
-        XCTAssertEqual(steps[0].hpAfter, 2)
-        XCTAssertTrue(steps[0].tookDamage)
+        XCTAssertEqual(steps[0].hpAfter, 3)
+        XCTAssertFalse(steps[0].tookDamage)
         XCTAssertNil(steps[0].stopReason)
     }
 
@@ -6075,6 +6206,33 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertTrue(core.addDungeonInventoryCardForTesting(nineCards[0], pickupUses: 1))
         XCTAssertEqual(core.dungeonInventoryEntries.count, 9)
         XCTAssertEqual(core.dungeonInventoryEntries.first { $0.card == nineCards[0] }?.rewardUses, 2)
+    }
+
+    func testDungeonInventoryKindLimitCarriesAcrossNextFloorAndFallReturn() throws {
+        let runState = DungeonRunState(
+            dungeonID: "growth-tower",
+            currentFloorIndex: 1,
+            carriedHP: 3,
+            rewardInventoryEntries: [DungeonInventoryEntry(card: .straightRight2, rewardUses: 1)],
+            dungeonInventoryKindLimit: 6
+        )
+
+        let advanced = runState.advancedToNextFloor(
+            carryoverHP: 3,
+            currentFloorMoveCount: 2,
+            currentInventoryEntries: [DungeonInventoryEntry(card: .straightRight2, rewardUses: 1)]
+        )
+        XCTAssertEqual(advanced.dungeonInventoryKindLimit, 6)
+
+        let fallen = advanced.fallenToPreviousFloor(
+            carryoverHP: 2,
+            currentFloorMoveCount: 1,
+            currentInventoryEntries: [DungeonInventoryEntry(card: .straightRight2, rewardUses: 1)],
+            landingPoint: GridPoint(x: 1, y: 1),
+            currentFloorCrackedPoints: [],
+            currentFloorCollapsedPoints: []
+        )
+        XCTAssertEqual(fallen.dungeonInventoryKindLimit, 6)
     }
 
     func testDungeonInventorySyncPreservesStackIDForSameCard() throws {

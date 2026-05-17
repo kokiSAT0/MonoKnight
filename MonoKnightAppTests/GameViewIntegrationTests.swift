@@ -934,7 +934,7 @@ final class GameViewIntegrationTests: XCTestCase {
         viewModel.updateGuideMode(enabled: false)
 
         let destination = GridPoint(x: 3, y: 2)
-        viewModel.handleHandSlotTap(at: GameViewModel.dungeonBasicMoveSlotIndex)
+        viewModel.handleHandSlotTap(at: viewModel.dungeonBasicMoveSlotIndex)
 
         XCTAssertTrue(viewModel.isBasicMoveCardSelected, "10枠目の基本移動カードが選択状態になる想定です")
         XCTAssertEqual(

@@ -512,7 +512,6 @@ final class GameBoardBridgeViewModel: ObservableObject {
         let activeEnemyTurnDisplayStates = enemyTurnBeforeStates.isEmpty ? core.enemyStates : enemyTurnBeforeStates
         let stepEnemyStates = presentationEnemyStates ?? core.enemyStates
         let displayedEnemyStates = activeEnemyTurnEvent.map { _ in activeEnemyTurnDisplayStates } ?? stepEnemyStates
-        let displayedEnemyPoints = Set(displayedEnemyStates.map(\.position))
         let shouldDeferEnemyThreatHighlights = activeEnemyTurnEvent != nil
         let isDarknessEnabled = core.isDungeonDarknessActive
         let displayedEnemyDangerPoints = isDarknessEnabled
@@ -551,8 +550,11 @@ final class GameBoardBridgeViewModel: ObservableObject {
                 .filter(\.kind.isSuspicious)
                 .map(\.point)
         )
-        let displayedCrackedFloorPoints = presentationCrackedFloorPoints ?? core.crackedFloorPoints
         let displayedCollapsedFloorPoints = presentationCollapsedFloorPoints ?? core.collapsedFloorPoints
+        let displayedCrackedFloorPoints = (presentationCrackedFloorPoints ?? core.crackedFloorPoints)
+            .subtracting(displayedCollapsedFloorPoints)
+        let visibleEnemyStates = visibleEnemyStates(displayed: displayedEnemyStates, in: dungeonVisiblePoints)
+        let visibleEnemyPoints = Set(visibleEnemyStates.map(\.position))
         let highlights: [BoardHighlightKind: Set<GridPoint>] = [
             .guideSingleCandidate: shouldHideGuideCandidates ? [] : guideHighlightBuckets.singleVectorDestinations,
             .guideMultipleCandidate: shouldHideGuideCandidates ? [] : guideHighlightBuckets.multipleVectorDestinations,
@@ -564,7 +566,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
             .dungeonExit: core.isDungeonExitUnlocked ? (mode.dungeonExitPoint.map { Set([$0]) } ?? []) : [],
             .dungeonExitLocked: core.isDungeonExitUnlocked ? [] : (mode.dungeonExitPoint.map { Set([$0]) } ?? []),
             .dungeonKey: visible(displayed: core.dungeonKeyPoints, in: dungeonVisiblePoints),
-            .dungeonEnemy: visible(displayed: displayedEnemyPoints, in: dungeonVisiblePoints),
+            .dungeonEnemy: visibleEnemyPoints,
             .dungeonDanger: shouldDeferEnemyThreatHighlights ? [] : displayedEnemyDangerPoints,
             .dungeonEnemyWarning: shouldDeferEnemyThreatHighlights ? [] : displayedEnemyWarningPoints,
             .dungeonCardPickup: visible(displayed: displayedCardPickupPoints, in: dungeonVisiblePoints),
@@ -578,7 +580,6 @@ final class GameBoardBridgeViewModel: ObservableObject {
         ]
         scene.updateDungeonVisiblePoints(dungeonVisiblePoints)
         scene.updateHighlights(highlights)
-        let visibleEnemyStates = visible(displayed: displayedEnemyStates, in: dungeonVisiblePoints)
         scene.updateDungeonEnemyMarkers(visibleEnemyStates.map { enemy in
             SceneDungeonEnemyMarker(enemy, facingVector: patrolFacingVectors[enemy.id])
         })
@@ -632,9 +633,11 @@ final class GameBoardBridgeViewModel: ObservableObject {
         return points.intersection(visiblePoints)
     }
 
-    private func visible(displayed enemies: [EnemyState], in visiblePoints: Set<GridPoint>?) -> [EnemyState] {
+    private func visibleEnemyStates(displayed enemies: [EnemyState], in visiblePoints: Set<GridPoint>?) -> [EnemyState] {
         guard let visiblePoints else { return enemies }
-        return enemies.filter { visiblePoints.contains($0.position) }
+        return enemies.filter { enemy in
+            visiblePoints.contains(enemy.position) || enemy.behavior.isWatcherFamily
+        }
     }
 
     private func visibleMovementPreviews(
@@ -1241,5 +1244,16 @@ final class GameBoardBridgeViewModel: ObservableObject {
         }
 
         refreshGuideHighlights(handOverride: newHandStacks)
+    }
+}
+
+private extension EnemyBehavior {
+    var isWatcherFamily: Bool {
+        switch self {
+        case .watcher, .rotatingWatcher:
+            return true
+        default:
+            return false
+        }
     }
 }

@@ -285,6 +285,34 @@ final class GameCoreTests: XCTestCase {
         XCTAssertEqual(core.dungeonInventoryEntries.first { $0.card == nineCards[0] }?.rewardUses, 2)
     }
 
+    func testGrowthTowerInventoryLimitCanStartAtFiveKindsWhenBasicMoveUsesSeparateSlot() {
+        let runState = DungeonRunState(
+            dungeonID: "test-dungeon",
+            carriedHP: 3,
+            dungeonInventoryKindLimit: 5
+        )
+        let mode = makeInventoryDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            allowsBasicOrthogonalMove: true,
+            runState: runState
+        )
+        let core = GameCore(mode: mode)
+        let fiveCards = Array(MoveCard.allCases.prefix(5))
+        let sixth = MoveCard.allCases[5]
+
+        for card in fiveCards {
+            XCTAssertTrue(core.addDungeonInventoryCardForTesting(card, pickupUses: 1))
+        }
+
+        XCTAssertEqual(core.dungeonInventoryKindLimit, 5)
+        XCTAssertEqual(core.dungeonInventoryEntries.count, 5)
+        XCTAssertFalse(core.addDungeonInventoryCardForTesting(sixth, pickupUses: 1))
+        XCTAssertTrue(core.addDungeonInventoryCardForTesting(fiveCards[0], pickupUses: 1))
+        XCTAssertEqual(core.dungeonInventoryEntries.count, 5)
+        XCTAssertEqual(core.dungeonInventoryEntries.first { $0.card == fiveCards[0] }?.rewardUses, 2)
+    }
+
     func testHandleTapPrefersBasicOrthogonalMoveOverMatchingCardMove() {
         let origin = GridPoint(x: 0, y: 0)
         let destination = GridPoint(x: 1, y: 0)
@@ -980,7 +1008,7 @@ final class GameCoreTests: XCTestCase {
         XCTAssertEqual(core.moveCount, 1)
     }
 
-    func testAnnihilationSpellCannotBeSpentWhenNoEnemiesRemain() throws {
+    func testAnnihilationSpellCanBeSpentWhenNoEnemiesRemain() throws {
         let mode = makeInventoryDungeonMode(
             spawn: GridPoint(x: 0, y: 0),
             exit: GridPoint(x: 4, y: 4)
@@ -989,10 +1017,126 @@ final class GameCoreTests: XCTestCase {
         XCTAssertTrue(core.addDungeonInventorySupportCardForTesting(.annihilationSpell, rewardUses: 1))
         let supportIndex = try XCTUnwrap(core.handStacks.firstIndex { $0.topCard?.supportCard == .annihilationSpell })
 
-        XCTAssertFalse(core.isSupportCardUsable(in: core.handStacks[supportIndex]))
+        XCTAssertTrue(core.isSupportCardUsable(in: core.handStacks[supportIndex]))
         core.playSupportCard(at: supportIndex)
 
-        XCTAssertTrue(core.dungeonInventoryEntries.contains { $0.supportCard == .annihilationSpell })
+        XCTAssertFalse(core.dungeonInventoryEntries.contains { $0.supportCard == .annihilationSpell })
+        XCTAssertEqual(core.moveCount, 1)
+    }
+
+    func testAnnihilationSpellClearsEnemiesAndMimicRelicPickupsWithoutOpeningChest() throws {
+        let enemy = EnemyDefinition(
+            id: "guard",
+            name: "番兵",
+            position: GridPoint(x: 1, y: 0),
+            behavior: .guardPost
+        )
+        let mimicPickup = DungeonRelicPickupDefinition(
+            id: "mimic-18",
+            point: GridPoint(x: 2, y: 0),
+            kind: .suspiciousDeep
+        )
+        let safePickup = DungeonRelicPickupDefinition(
+            id: "safe-relic",
+            point: GridPoint(x: 3, y: 0),
+            candidateRelics: [.glowingHeart]
+        )
+        let mode = makeInventoryDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            relicPickups: [mimicPickup, safePickup],
+            enemies: [enemy]
+        )
+        let core = GameCore(mode: mode)
+        XCTAssertTrue(core.addDungeonInventorySupportCardForTesting(.annihilationSpell, rewardUses: 1))
+        let supportIndex = try XCTUnwrap(core.handStacks.firstIndex { $0.topCard?.supportCard == .annihilationSpell })
+
+        core.playSupportCard(at: supportIndex)
+
+        XCTAssertTrue(core.enemyStates.isEmpty)
+        XCTAssertTrue(core.collectedDungeonRelicPickupIDs.contains(mimicPickup.id))
+        XCTAssertFalse(core.collectedDungeonRelicPickupIDs.contains(safePickup.id))
+        XCTAssertEqual(core.activeDungeonRelicPickups.map(\.id), [safePickup.id])
+        XCTAssertEqual(core.dungeonHP, 3)
+        XCTAssertTrue(core.dungeonRelicEntries.isEmpty)
+        XCTAssertTrue(core.dungeonCurseEntries.isEmpty)
+        XCTAssertTrue(core.dungeonRelicAcquisitionPresentations.isEmpty)
+        XCTAssertFalse(core.dungeonInventoryEntries.contains { $0.supportCard == .annihilationSpell })
+        XCTAssertEqual(core.moveCount, 1)
+    }
+
+    func testAnnihilationSpellCanClearMimicRelicPickupWithoutEnemies() throws {
+        let mimicPickup = DungeonRelicPickupDefinition(
+            id: "mimic-18",
+            point: GridPoint(x: 2, y: 0),
+            kind: .suspiciousDeep
+        )
+        let mode = makeInventoryDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            relicPickups: [mimicPickup]
+        )
+        let core = GameCore(mode: mode)
+        XCTAssertTrue(core.addDungeonInventorySupportCardForTesting(.annihilationSpell, rewardUses: 1))
+        let supportIndex = try XCTUnwrap(core.handStacks.firstIndex { $0.topCard?.supportCard == .annihilationSpell })
+
+        XCTAssertTrue(core.isSupportCardUsable(in: core.handStacks[supportIndex]))
+        core.playSupportCard(at: supportIndex)
+
+        XCTAssertTrue(core.collectedDungeonRelicPickupIDs.contains(mimicPickup.id))
+        XCTAssertTrue(core.activeDungeonRelicPickups.isEmpty)
+        XCTAssertEqual(core.dungeonHP, 3)
+        XCTAssertTrue(core.dungeonRelicAcquisitionPresentations.isEmpty)
+        XCTAssertEqual(core.moveCount, 1)
+    }
+
+    func testAnnihilationSpellCanBeSpentWithNoEnemiesOrMimics() throws {
+        let mode = makeInventoryDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4)
+        )
+        let core = GameCore(mode: mode)
+        XCTAssertTrue(core.addDungeonInventorySupportCardForTesting(.annihilationSpell, rewardUses: 1))
+        let supportIndex = try XCTUnwrap(core.handStacks.firstIndex { $0.topCard?.supportCard == .annihilationSpell })
+
+        XCTAssertTrue(core.isSupportCardUsable(in: core.handStacks[supportIndex]))
+        core.playSupportCard(at: supportIndex)
+
+        XCTAssertTrue(core.enemyStates.isEmpty)
+        XCTAssertTrue(core.collectedDungeonRelicPickupIDs.isEmpty)
+        XCTAssertFalse(core.dungeonInventoryEntries.contains { $0.supportCard == .annihilationSpell })
+        XCTAssertEqual(core.moveCount, 1)
+    }
+
+    func testSingleAnnihilationSpellDoesNotTargetMimicRelicPickups() throws {
+        let enemy = EnemyDefinition(
+            id: "guard",
+            name: "番兵",
+            position: GridPoint(x: 1, y: 0),
+            behavior: .guardPost
+        )
+        let mimicPickup = DungeonRelicPickupDefinition(
+            id: "mimic-18",
+            point: GridPoint(x: 2, y: 0),
+            kind: .suspiciousDeep
+        )
+        let mode = makeInventoryDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            relicPickups: [mimicPickup],
+            enemies: [enemy]
+        )
+        let core = GameCore(mode: mode)
+        XCTAssertTrue(core.addDungeonInventorySupportCardForTesting(.singleAnnihilationSpell, rewardUses: 1))
+        let supportIndex = try XCTUnwrap(core.handStacks.firstIndex { $0.topCard?.supportCard == .singleAnnihilationSpell })
+
+        XCTAssertTrue(core.beginTargetedSupportCardSelection(at: supportIndex))
+
+        XCTAssertEqual(core.targetedSupportCardTargetPoints, Set([enemy.position]))
+        XCTAssertFalse(core.targetedSupportCardTargetPoints.contains(mimicPickup.point))
+        XCTAssertFalse(core.playTargetedSupportCard(at: mimicPickup.point))
+        XCTAssertTrue(core.collectedDungeonRelicPickupIDs.isEmpty)
+        XCTAssertTrue(core.dungeonInventoryEntries.contains { $0.supportCard == .singleAnnihilationSpell })
         XCTAssertEqual(core.moveCount, 0)
     }
 
@@ -1097,6 +1241,36 @@ final class GameCoreTests: XCTestCase {
         XCTAssertEqual(core.pendingDungeonPickupChoice?.discardCandidates.count, 9)
         XCTAssertTrue(core.activeDungeonCardPickups.contains { $0.id == pickup.id })
         XCTAssertEqual(core.dungeonInventoryEntries.count, 9)
+    }
+
+    func testGrowthTowerFiveSlotLimitStartsDiscardChoiceForSixthPickup() throws {
+        let pickupPoint = GridPoint(x: 1, y: 0)
+        let fiveCards = Array(MoveCard.allCases.prefix(5))
+        let newCard = try XCTUnwrap(MoveCard.allCases.dropFirst(5).first)
+        let pickup = DungeonCardPickupDefinition(id: "sixth_pickup", point: pickupPoint, card: newCard)
+        let runState = DungeonRunState(
+            dungeonID: "test-dungeon",
+            carriedHP: 3,
+            dungeonInventoryKindLimit: 5
+        )
+        let mode = makeInventoryDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            allowsBasicOrthogonalMove: true,
+            cardPickups: [pickup],
+            runState: runState
+        )
+        let core = GameCore(mode: mode)
+        for card in fiveCards {
+            XCTAssertTrue(core.addDungeonInventoryCardForTesting(card, pickupUses: 1))
+        }
+
+        let move = try XCTUnwrap(core.availableBasicOrthogonalMoves().first { $0.destination == pickupPoint })
+        core.playBasicOrthogonalMove(using: move)
+
+        XCTAssertEqual(core.pendingDungeonPickupChoice?.pickup, pickup)
+        XCTAssertEqual(core.pendingDungeonPickupChoice?.discardCandidates.count, 5)
+        XCTAssertEqual(core.dungeonInventoryEntries.count, 5)
     }
 
     func testFullDungeonPickupStacksExistingCardWithoutChoice() throws {
@@ -1227,6 +1401,7 @@ final class GameCoreTests: XCTestCase {
         tileEffectOverrides: [GridPoint: TileEffect] = [:],
         allowsBasicOrthogonalMove: Bool = false,
         cardPickups: [DungeonCardPickupDefinition] = [],
+        relicPickups: [DungeonRelicPickupDefinition] = [],
         enemies: [EnemyDefinition] = [],
         hazards: [HazardDefinition] = [],
         runState: DungeonRunState? = nil,
@@ -1263,6 +1438,7 @@ final class GameCoreTests: XCTestCase {
                     allowsBasicOrthogonalMove: allowsBasicOrthogonalMove,
                     cardAcquisitionMode: .inventoryOnly,
                     cardPickups: cardPickups,
+                    relicPickups: relicPickups,
                     isDarknessEnabled: isDarknessEnabled
                 )
             ),

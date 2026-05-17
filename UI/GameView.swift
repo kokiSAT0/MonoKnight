@@ -40,8 +40,8 @@ struct GameView: View {
     @Environment(\.baseTopSafeAreaInset) var baseTopSafeAreaInset: CGFloat
     /// 共通設定ストア
     @EnvironmentObject var gameSettingsStore: GameSettingsStore
-    /// 手札スロットの数。塔ダンジョンでは拾得カードを多く保持できるよう 10 種類まで表示する。
-    var handSlotCount: Int { viewModel.usesDungeonExit ? 10 : 5 }
+    /// 手札スロットの数。塔ダンジョンでは通常カード枠に基本移動固定枠を足して表示する。
+    var handSlotCount: Int { viewModel.usesDungeonExit ? viewModel.dungeonInventoryVisibleSlotCount + 1 : 5 }
     /// ゲーム準備オーバーレイの表示状態を親ビューから受け取り、タイマー制御と同期する
     /// - Note: RootView 側のローディング表示と GameViewModel 内の pause/resume 呼び出しを結び付けるため、
     ///         `@Binding` を用いて双方向に状態を監視できるようにしている。

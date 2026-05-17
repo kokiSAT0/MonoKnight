@@ -1079,10 +1079,10 @@
                 fillColor = SKColor.clear
                 zPosition = 1.07
             case .dungeonCollapsedFloor:
-                baseColor = SKColor(red: 0.08, green: 0.09, blue: 0.10, alpha: 1.0)
-                strokeAlpha = 0
-                strokeWidth = 0
-                fillColor = baseColor.withAlphaComponent(0.72)
+                baseColor = SKColor(red: 0.94, green: 0.88, blue: 0.72, alpha: 1.0)
+                strokeAlpha = 0.92
+                strokeWidth = max(layout.tileSize * 0.045, 1.4)
+                fillColor = SKColor(red: 0.03, green: 0.035, blue: 0.045, alpha: 0.86)
                 zPosition = 1.09
             }
 

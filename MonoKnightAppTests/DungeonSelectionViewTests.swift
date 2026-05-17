@@ -387,12 +387,13 @@ final class DungeonSelectionViewTests: XCTestCase {
 
         let presentation = DungeonGrowthTreePresentation.make(growthStore: growthStore)
 
-        XCTAssertEqual(presentation.lanes.map(\.branch), [.preparation, .reward, .hazard, .scouting, .recovery])
-        XCTAssertEqual(presentation.lanes.map(\.branchTitle), ["準備", "報酬", "危険回避", "索敵", "復帰"])
+        XCTAssertEqual(presentation.lanes.map(\.branch), [.preparation, .hand, .reward, .hazard, .scouting, .recovery])
+        XCTAssertEqual(presentation.lanes.map(\.branchTitle), ["準備", "手札", "報酬", "危険回避", "索敵", "復帰"])
         XCTAssertEqual(
             presentation.branchRoles.map(\.summary),
             [
                 "区間開始前の支度候補",
+                "通常カード枠の拡張",
                 "クリア後候補とカード運用",
                 "危険に合わせた対策支度",
                 "次階層帯の見通し",
@@ -403,6 +404,7 @@ final class DungeonSelectionViewTests: XCTestCase {
             presentation.branchRoles.map(\.accessibilityIdentifier),
             [
                 "dungeon_growth_branch_role_preparation",
+                "dungeon_growth_branch_role_hand",
                 "dungeon_growth_branch_role_reward",
                 "dungeon_growth_branch_role_hazard",
                 "dungeon_growth_branch_role_scouting",
@@ -412,15 +414,20 @@ final class DungeonSelectionViewTests: XCTestCase {
         XCTAssertEqual(presentation.stageIndices, Array(0..<5))
         XCTAssertEqual(presentation.tierCount, 5)
         XCTAssertEqual(presentation.lanes[0].nodes.map(\.upgrade), [.toolPouch, .climbingKit, .refillCharm, .deepStartKit, .finalPreparation])
-        XCTAssertEqual(presentation.lanes[1].nodes.map(\.upgrade), [.rewardScout, .cardPreservation, .widerRewardRead, .relicScout, .rewardCompletion])
-        XCTAssertEqual(presentation.lanes[2].nodes.map(\.upgrade), [.footingRead, .enemyRead, .meteorRead, .lastStand, .finalGuard])
-        XCTAssertEqual(presentation.lanes[3].nodes.map(\.upgrade), [.floorSense, .rewardSense, .enemySense, .pathPreview, .routeForecast])
-        XCTAssertEqual(presentation.lanes[4].nodes.map(\.upgrade), [.retryPreparation, .deepCheckpointRead, .checkpointExpansion, .finalRecovery])
+        XCTAssertEqual(presentation.lanes[1].nodes.map(\.upgrade), [.handSlotExpansion1, .handSlotExpansion2, .handSlotExpansion3, .handSlotExpansion4])
+        XCTAssertEqual(presentation.lanes[2].nodes.map(\.upgrade), [.rewardScout, .cardPreservation, .widerRewardRead, .relicScout, .rewardCompletion])
+        XCTAssertEqual(presentation.lanes[3].nodes.map(\.upgrade), [.footingRead, .enemyRead, .meteorRead, .lastStand, .finalGuard])
+        XCTAssertEqual(presentation.lanes[4].nodes.map(\.upgrade), [.floorSense, .rewardSense, .enemySense, .pathPreview, .routeForecast])
+        XCTAssertEqual(presentation.lanes[5].nodes.map(\.upgrade), [.retryPreparation, .deepCheckpointRead, .checkpointExpansion, .finalRecovery])
         XCTAssertEqual(presentation.node(for: .deepStartKit)?.tierFloor, 25)
         XCTAssertEqual(presentation.node(for: .finalGuard)?.tierFloor, 50)
         XCTAssertEqual(presentation.lane(for: .reward)?.branchSummary, "クリア後候補とカード運用")
         XCTAssertEqual(presentation.lane(for: .reward)?.defaultSelectedUpgrade, .rewardScout)
         XCTAssertEqual(presentation.node(for: .rewardCompletion)?.tierFloor, 35)
+        XCTAssertEqual(presentation.node(for: .handSlotExpansion4)?.effectDetailTexts, [
+            "対象: 成長塔のみ",
+            "通常カード枠: 9種類まで"
+        ])
         XCTAssertEqual(presentation.node(for: .retryPreparation)?.summary, "21F以降の再挑戦時に補給支度を優先します")
         XCTAssertEqual(presentation.node(for: .deepCheckpointRead)?.summary, "21F以降の再挑戦時に障壁支度を出します")
         XCTAssertEqual(presentation.node(for: .checkpointExpansion)?.summary, "31F以降の再挑戦時に万能薬支度を出します")

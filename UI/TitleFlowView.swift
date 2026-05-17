@@ -338,7 +338,8 @@ struct TitleScreenView: View {
                             startingMarkerDamageMitigations: dungeonGrowthStore.startingMarkerDamageMitigations(
                                 for: dungeon
                             ),
-                            movementStyle: movementStyle
+                            movementStyle: movementStyle,
+                            dungeonInventoryKindLimit: dungeonGrowthStore.dungeonInventoryKindLimit(for: dungeon)
                         ) else { return }
                         let context: StartTriggerContext = .dungeonSelection
                         debugLog(

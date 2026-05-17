@@ -62,8 +62,10 @@ extension GameViewModel {
         switch support {
         case .refillEmptySlots, .barrierSpell:
             return nil
-        case .singleAnnihilationSpell, .annihilationSpell, .freezeSpell:
+        case .singleAnnihilationSpell, .freezeSpell:
             return core.enemyStates.isEmpty ? "このフロアに対象の敵がいません" : nil
+        case .annihilationSpell:
+            return nil
         case .darknessSpell:
             let hasWatcherLaser = core.enemyStates.contains { enemy in
                 switch enemy.behavior {
@@ -123,7 +125,7 @@ extension GameViewModel {
                 selectedHandStackID: &selectedHandStackID,
                 hapticsEnabled: hapticsEnabled,
                 guideModeEnabled: guideModeEnabled,
-                basicMoveSlotIndex: presentsBasicMoveCard ? Self.dungeonBasicMoveSlotIndex : nil,
+                basicMoveSlotIndex: presentsBasicMoveCard ? dungeonBasicMoveSlotIndex : nil,
                 presentsBasicMoveCard: presentsBasicMoveCard
             ) { [weak self] message, destination in
                 self?.boardTapSelectionWarning = BoardTapSelectionWarning(
@@ -267,7 +269,7 @@ extension GameViewModel {
         if core.healingTilePoints.contains(point) {
             return TileEncyclopediaEntry.entry(id: "healingTile")
         }
-        if let effect = core.board.effect(at: point), !effect.isWarpInspectionEffect {
+        if let effect = tileEffectForInspection(at: point), !effect.isWarpInspectionEffect {
             return TileEncyclopediaEntry.entry(for: effect)
         }
         if core.enemyDangerDisplayPoints.contains(point) {
@@ -279,11 +281,15 @@ extension GameViewModel {
         if mode.impassableTilePoints.contains(point) || core.board.state(at: point)?.isImpassable == true {
             return TileEncyclopediaEntry.entry(id: "impassable")
         }
-        if let effect = core.board.effect(at: point), effect.isWarpInspectionEffect {
+        if let effect = tileEffectForInspection(at: point), effect.isWarpInspectionEffect {
             return TileEncyclopediaEntry.entry(for: effect)
         }
 
         return nil
+    }
+
+    private func tileEffectForInspection(at point: GridPoint) -> TileEffect? {
+        core.board.effect(at: point) ?? mode.tileEffects[point]
     }
 
     private var visibleBrittleFloorPoints: Set<GridPoint> {

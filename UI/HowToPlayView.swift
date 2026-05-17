@@ -127,7 +127,7 @@ private extension HowToPlayView {
                 description: "床カードは踏むだけで拾えます。クリア後は新しいカード、補助カード、遺物から選び、同じ区間の次の階へ持ち越します。",
                 card: .straightUp2,
                 tips: [
-                    "通常カードは9種類まで持てます。同じカードは種類枠を増やさず、残り回数としてまとまります。",
+                    "成長塔の通常カード枠は5種類から始まり、スキルで最大9種類まで増えます。同じカードは種類枠を増やさず、残り回数としてまとまります。",
                     stackingTip,
                     "補給は空いた枠を一時カードで埋める強力な補助カードです。使いどころを残しておくと立て直しやすくなります。"
                 ]
@@ -1039,9 +1039,13 @@ private struct TileMarkerPreviewView: View {
                 .stroke(theme.boardTileMultiStroke.opacity(0.72), lineWidth: 1.6)
             }
         case .collapsedFloor:
-            Image(systemName: "xmark")
-                .font(.system(size: 20, weight: .bold))
-                .foregroundColor(.white.opacity(0.78))
+            CollapsedFloorHoleShape()
+                .fill(Color.black.opacity(0.86))
+                .overlay(
+                    CollapsedFloorHoleShape()
+                        .stroke(Color(red: 0.94, green: 0.88, blue: 0.72).opacity(0.92), lineWidth: 2)
+                )
+                .frame(width: 34, height: 34)
         case .enemyDanger:
             RoundedRectangle(cornerRadius: 3, style: .continuous)
                 .fill(Color(red: 0.90, green: 0.16, blue: 0.12).opacity(0.16))
@@ -1466,6 +1470,22 @@ private struct CrackShape: Shape {
         path.addLine(to: CGPoint(x: rect.midX + rect.width * 0.10, y: rect.midY - rect.height * 0.16))
         path.addLine(to: CGPoint(x: rect.midX - rect.width * 0.10, y: rect.midY + rect.height * 0.04))
         path.addLine(to: CGPoint(x: rect.midX + rect.width * 0.22, y: rect.maxY))
+        return path
+    }
+}
+
+private struct CollapsedFloorHoleShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.midX, y: rect.minY + rect.height * 0.12))
+        path.addLine(to: CGPoint(x: rect.maxX - rect.width * 0.18, y: rect.minY + rect.height * 0.26))
+        path.addLine(to: CGPoint(x: rect.maxX - rect.width * 0.12, y: rect.midY))
+        path.addLine(to: CGPoint(x: rect.maxX - rect.width * 0.28, y: rect.maxY - rect.height * 0.16))
+        path.addLine(to: CGPoint(x: rect.midX - rect.width * 0.08, y: rect.maxY - rect.height * 0.10))
+        path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.16, y: rect.maxY - rect.height * 0.30))
+        path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.12, y: rect.midY - rect.height * 0.08))
+        path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.28, y: rect.minY + rect.height * 0.18))
+        path.closeSubpath()
         return path
     }
 }

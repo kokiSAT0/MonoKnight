@@ -838,6 +838,39 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
         XCTAssertTrue(viewModel.scene.latestHighlightPoints(for: .dungeonExitLocked).isEmpty)
     }
 
+    func testCrackedFloorBecomesCollapsedHighlightAfterSteppingAway() {
+        let brittlePoint = GridPoint(x: 1, y: 0)
+        let mode = makeBrittleFloorDisplayMode(brittlePoint: brittlePoint)
+        let core = GameCore(mode: mode)
+        let viewModel = GameBoardBridgeViewModel(core: core, mode: mode)
+
+        XCTAssertEqual(viewModel.scene.latestHighlightPoints(for: .dungeonCrackedFloor), [brittlePoint])
+        XCTAssertTrue(viewModel.scene.latestHighlightPoints(for: .dungeonCollapsedFloor).isEmpty)
+
+        playBasicMove(to: brittlePoint, in: core)
+        viewModel.refreshGuideHighlights()
+
+        XCTAssertTrue(
+            viewModel.scene.latestHighlightPoints(for: .dungeonCrackedFloor).isEmpty,
+            "踏んで穴化したひび割れ床は、次の表示更新でひび割れ表示から外します"
+        )
+        XCTAssertEqual(
+            viewModel.scene.latestHighlightPoints(for: .dungeonCollapsedFloor),
+            [brittlePoint],
+            "踏んだ後の床は、騎士がまだ上にいても崩落床表示へ切り替えます"
+        )
+
+        playBasicMove(to: GridPoint(x: 0, y: 0), in: core)
+        viewModel.refreshGuideHighlights()
+
+        XCTAssertTrue(viewModel.scene.latestHighlightPoints(for: .dungeonCrackedFloor).isEmpty)
+        XCTAssertEqual(
+            viewModel.scene.latestHighlightPoints(for: .dungeonCollapsedFloor),
+            [brittlePoint],
+            "騎士が離れた後も、穴化した床は即落ち穴として残します"
+        )
+    }
+
     func testDungeonPatrolMovementPreviewsArePassedToScene() throws {
         let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
         let floor = tower.floors[0]
@@ -984,7 +1017,8 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
         XCTAssertEqual(viewModel.scene.latestHighlightPoints(for: .dungeonKey), [keyPoint])
         XCTAssertEqual(viewModel.scene.latestHighlightPoints(for: .dungeonCardPickup), [GridPoint(x: 0, y: 1)])
         XCTAssertEqual(viewModel.scene.latestHighlightPoints(for: .dungeonDamageTrap), [GridPoint(x: 1, y: 1)])
-        XCTAssertTrue(viewModel.scene.latestHighlightPoints(for: .dungeonEnemy).isEmpty)
+        XCTAssertEqual(viewModel.scene.latestHighlightPoints(for: .dungeonEnemy), [GridPoint(x: 4, y: 2)])
+        XCTAssertEqual(viewModel.scene.latestDungeonEnemyMarkersForTesting().map(\.point), [GridPoint(x: 4, y: 2)])
         XCTAssertEqual(
             viewModel.scene.latestHighlightPoints(for: .dungeonDanger),
             core.watcherLaserDangerDisplayPoints(forDisplayedEnemyStates: core.enemyStates)
@@ -1020,10 +1054,20 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
         let viewModel = GameBoardBridgeViewModel(core: core, mode: mode)
         XCTAssertTrue(core.addDungeonInventoryCardForTesting(.rayRight, pickupUses: 1))
         var replayStartVisiblePoints: Set<GridPoint> = []
-        var stepSnapshots: [(point: GridPoint, visiblePoints: Set<GridPoint>, cardPickups: Set<GridPoint>, traps: Set<GridPoint>)] = []
+        var replayStartEnemyMarkerPoints: [GridPoint] = []
+        var stepSnapshots: [
+            (
+                point: GridPoint,
+                visiblePoints: Set<GridPoint>,
+                cardPickups: Set<GridPoint>,
+                traps: Set<GridPoint>,
+                enemyMarkerPoints: [GridPoint]
+            )
+        ] = []
 
         viewModel.onMovementPresentationStarted = { [weak viewModel] _ in
             replayStartVisiblePoints = viewModel?.scene.latestDungeonVisiblePointsForTesting() ?? []
+            replayStartEnemyMarkerPoints = viewModel?.scene.latestDungeonEnemyMarkersForTesting().map(\.point) ?? []
         }
         viewModel.onMovementPresentationStep = { [weak viewModel] step in
             guard let viewModel else { return }
@@ -1031,7 +1075,8 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
                 point: step.point,
                 visiblePoints: viewModel.scene.latestDungeonVisiblePointsForTesting() ?? [],
                 cardPickups: viewModel.scene.latestHighlightPoints(for: .dungeonCardPickup),
-                traps: viewModel.scene.latestHighlightPoints(for: .dungeonDamageTrap)
+                traps: viewModel.scene.latestHighlightPoints(for: .dungeonDamageTrap),
+                enemyMarkerPoints: viewModel.scene.latestDungeonEnemyMarkersForTesting().map(\.point)
             ))
         }
 
@@ -1044,6 +1089,7 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
             replayStartVisiblePoints.contains(GridPoint(x: 2, y: 1)),
             "レイ移動開始時に Core の最終位置ではなく、移動前の現在地周辺を表示します"
         )
+        XCTAssertEqual(replayStartEnemyMarkerPoints, [GridPoint(x: 4, y: 2)])
         XCTAssertEqual(stepSnapshots.map(\.point), [
             GridPoint(x: 1, y: 0),
             GridPoint(x: 2, y: 0),
@@ -1061,11 +1107,12 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
         XCTAssertTrue(stepSnapshots[2].cardPickups.contains(GridPoint(x: 4, y: 1)))
         XCTAssertFalse(stepSnapshots[1].traps.contains(GridPoint(x: 4, y: 0)))
         XCTAssertTrue(stepSnapshots[2].traps.contains(GridPoint(x: 4, y: 0)))
+        XCTAssertEqual(stepSnapshots.map(\.enemyMarkerPoints), Array(repeating: [GridPoint(x: 4, y: 2)], count: 4))
         XCTAssertTrue(viewModel.scene.latestDungeonVisiblePointsForTesting()?.contains(GridPoint(x: 4, y: 1)) == true)
         XCTAssertTrue(viewModel.scene.latestHighlightPoints(for: .dungeonDanger).contains(GridPoint(x: 3, y: 2)))
     }
 
-    func testRotatingWatcherDangerHighlightUsesNextTurnLine() {
+    func testRotatingWatcherDangerHighlightUsesCurrentLine() {
         let mode = makeRotatingWatcherDangerMode()
         let core = GameCore(mode: mode)
         let viewModel = GameBoardBridgeViewModel(core: core, mode: mode)
@@ -1076,8 +1123,8 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
             viewModel.scene.latestHighlightPoints(for: .dungeonDanger),
             core.enemyDangerDisplayPoints
         )
-        XCTAssertTrue(viewModel.scene.latestHighlightPoints(for: .dungeonDanger).contains(GridPoint(x: 3, y: 1)))
-        XCTAssertFalse(viewModel.scene.latestHighlightPoints(for: .dungeonDanger).contains(GridPoint(x: 2, y: 2)))
+        XCTAssertFalse(viewModel.scene.latestHighlightPoints(for: .dungeonDanger).contains(GridPoint(x: 3, y: 1)))
+        XCTAssertTrue(viewModel.scene.latestHighlightPoints(for: .dungeonDanger).contains(GridPoint(x: 2, y: 2)))
     }
 
     func testEnemyFreezeHidesThreatsButKeepsEnemyMarkers() throws {
@@ -1292,6 +1339,14 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
         return GameBoardBridgeViewModel(core: core, mode: mode)
     }
 
+    private func playBasicMove(to destination: GridPoint, in core: GameCore) {
+        guard let move = core.availableBasicOrthogonalMoves().first(where: { $0.destination == destination }) else {
+            XCTFail("基本移動候補が見つかりません: \(destination)")
+            return
+        }
+        core.playBasicOrthogonalMove(using: move)
+    }
+
     private func makeRayDangerMode() -> GameMode {
         let pathWatcher = EnemyDefinition(
             id: "ray-danger-path",
@@ -1473,6 +1528,35 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
         )
     }
 
+    private func makeBrittleFloorDisplayMode(brittlePoint: GridPoint) -> GameMode {
+        GameMode(
+            identifier: .dungeonFloor,
+            displayName: "ひび割れ床表示テスト",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 0,
+                allowsStacking: true,
+                deckPreset: .standardLight,
+                spawnRule: .fixed(GridPoint(x: 0, y: 0)),
+                penalties: .init(
+                    deadlockPenaltyCost: 0,
+                    manualRedrawPenaltyCost: 0,
+                    manualDiscardPenaltyCost: 0,
+                    revisitPenaltyCost: 0
+                ),
+                completionRule: .dungeonExit(exitPoint: GridPoint(x: 4, y: 4)),
+                dungeonRules: DungeonRules(
+                    difficulty: .growth,
+                    failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 8),
+                    hazards: [.brittleFloor(points: [brittlePoint])],
+                    allowsBasicOrthogonalMove: true
+                )
+            ),
+            leaderboardEligible: false
+        )
+    }
+
     private func makeDarknessVisibilityMode() -> GameMode {
         GameMode(
             identifier: .dungeonFloor,
@@ -1500,6 +1584,12 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
                             name: "見張り",
                             position: GridPoint(x: 4, y: 2),
                             behavior: .watcher(direction: MoveVector(dx: -1, dy: 0), range: 4)
+                        ),
+                        EnemyDefinition(
+                            id: "hidden-guard",
+                            name: "番兵",
+                            position: GridPoint(x: 0, y: 4),
+                            behavior: .guardPost
                         )
                     ],
                     hazards: [

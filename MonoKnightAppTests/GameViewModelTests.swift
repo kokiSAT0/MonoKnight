@@ -240,7 +240,7 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertNotEqual(viewModel.boardBridge.forcedSelectionHighlightPoints, Set([GridPoint(x: 1, y: 2)]))
     }
 
-    func testAnnihilationSpellIsDisabledWhenNoEnemiesExist() {
+    func testAnnihilationSpellCanBeTappedWhenNoEnemiesExist() {
         let deck = Deck.makeTestDeck(playableCards: [
             .support(.annihilationSpell),
             .move(.straightRight2)
@@ -255,11 +255,11 @@ final class GameViewModelTests: XCTestCase {
         let viewModel = makeViewModel(mode: mode, core: core)
         let supportIndex = core.handStacks.firstIndex { $0.topCard?.supportCard == .annihilationSpell }!
 
-        XCTAssertFalse(viewModel.isCardUsable(core.handStacks[supportIndex]))
+        XCTAssertTrue(viewModel.isCardUsable(core.handStacks[supportIndex]))
         viewModel.handleHandSlotTap(at: supportIndex)
 
-        XCTAssertEqual(core.handStacks[supportIndex].topCard?.supportCard, .annihilationSpell)
-        XCTAssertEqual(core.moveCount, 0)
+        XCTAssertFalse(core.dungeonInventoryEntries.contains { $0.supportCard == .annihilationSpell })
+        XCTAssertEqual(core.moveCount, 1)
     }
 
     /// 手動ペナルティが進行中のみで発火し、ペナルティ量が一致することを確認
@@ -1431,7 +1431,7 @@ final class GameViewModelTests: XCTestCase {
         core.playBasicOrthogonalMove(using: move)
         XCTAssertNotNil(viewModel.pendingDungeonPickupChoice)
 
-        viewModel.handleHandSlotTap(at: GameViewModel.dungeonBasicMoveSlotIndex)
+        viewModel.handleHandSlotTap(at: viewModel.dungeonBasicMoveSlotIndex)
 
         XCTAssertNotNil(viewModel.pendingDungeonPickupChoice)
         XCTAssertEqual(core.dungeonInventoryEntries, inventoryBefore)
@@ -1647,6 +1647,35 @@ final class GameViewModelTests: XCTestCase {
             [DungeonInventoryEntry(card: reward, rewardUses: 2)]
         )
         XCTAssertTrue(nextMode.bonusMoveCards.isEmpty)
+        XCTAssertFalse(viewModel.showingResult)
+    }
+
+    func testDungeonRewardSkipStartsNextFloorWithoutAddingReward() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
+        let mode = try XCTUnwrap(DungeonLibrary.shared.firstFloorMode(for: tower))
+        var requestedMode: GameMode?
+        let (viewModel, core) = makeViewModel(
+            mode: mode,
+            onRequestStartDungeonFloor: { requestedMode = $0 }
+        )
+        core.overrideMetricsForTesting(moveCount: 4, penaltyCount: 0, elapsedSeconds: 20)
+        core.overrideDungeonHPForTesting(2)
+        let reward = try XCTUnwrap(viewModel.availableDungeonRewardMoveCards.first)
+        let carriedCards = Array(MoveCard.allCases.filter { $0 != reward }.prefix(2))
+        for card in carriedCards {
+            XCTAssertTrue(core.addDungeonInventoryCardForTesting(card, rewardUses: 1))
+        }
+
+        viewModel.showingResult = true
+        viewModel.handleNextDungeonFloorAdvance()
+
+        let nextRunState = try XCTUnwrap(requestedMode?.dungeonMetadataSnapshot?.runState)
+        XCTAssertEqual(nextRunState.currentFloorIndex, 1)
+        XCTAssertEqual(
+            nextRunState.rewardInventoryEntries,
+            carriedCards.map { DungeonInventoryEntry(card: $0, rewardUses: 1) }
+        )
+        XCTAssertFalse(nextRunState.rewardInventoryEntries.contains { $0.moveCard == reward })
         XCTAssertFalse(viewModel.showingResult)
     }
 
@@ -2510,7 +2539,7 @@ final class GameViewModelTests: XCTestCase {
     func testUnusableEnemySupportCardTapShowsReasonToast() {
         let (viewModel, core) = makeViewModel(mode: makeUnusableCardReasonMode())
         viewModel.hapticsEnabled = false
-        XCTAssertTrue(core.addDungeonInventorySupportCardForTesting(.annihilationSpell, pickupUses: 1))
+        XCTAssertTrue(core.addDungeonInventorySupportCardForTesting(.singleAnnihilationSpell, pickupUses: 1))
 
         viewModel.handleHandSlotTap(at: 0)
 
@@ -2559,7 +2588,7 @@ final class GameViewModelTests: XCTestCase {
         )
         viewModel.hapticsEnabled = false
 
-        viewModel.handleHandSlotTap(at: GameViewModel.dungeonBasicMoveSlotIndex)
+        viewModel.handleHandSlotTap(at: viewModel.dungeonBasicMoveSlotIndex)
 
         XCTAssertEqual(viewModel.boardTapSelectionWarning?.message, "上下左右に移動できるマスがありません")
         XCTAssertEqual(viewModel.boardTapSelectionWarning?.destination, core.current)
@@ -2795,6 +2824,49 @@ final class GameViewModelTests: XCTestCase {
 
         viewModel.dismissInlineInspection()
         viewModel.handleBoardLongPress(at: normalPoint)
+        XCTAssertNil(viewModel.activeInlineInspection)
+    }
+
+    func testBoardLongPressShowsVisibleDarknessQuestionTileInspection() {
+        let illusionTrap = GridPoint(x: 1, y: 0)
+        let hiddenIllusionTrap = GridPoint(x: 4, y: 0)
+        let mode = GameMode(
+            identifier: .dungeonFloor,
+            displayName: "暗闇長押し説明テスト",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 0,
+                allowsStacking: true,
+                deckPreset: .standardLight,
+                spawnRule: .fixed(GridPoint(x: 0, y: 0)),
+                penalties: GameMode.PenaltySettings(
+                    deadlockPenaltyCost: 0,
+                    manualRedrawPenaltyCost: 0,
+                    manualDiscardPenaltyCost: 0,
+                    revisitPenaltyCost: 0
+                ),
+                tileEffectOverrides: [
+                    illusionTrap: .illusionTrap,
+                    hiddenIllusionTrap: .illusionTrap
+                ],
+                completionRule: .dungeonExit(exitPoint: GridPoint(x: 4, y: 4)),
+                dungeonRules: DungeonRules(
+                    difficulty: .growth,
+                    failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 8),
+                    isDarknessEnabled: true
+                )
+            ),
+            leaderboardEligible: false
+        )
+        let (viewModel, _) = makeViewModel(mode: mode)
+        viewModel.boardBridge.scene.updateDungeonVisiblePoints([GridPoint(x: 0, y: 0), illusionTrap])
+
+        viewModel.handleBoardLongPress(at: illusionTrap)
+        XCTAssertEqual(viewModel.activeInlineInspection?.displayName, "幻惑罠")
+
+        viewModel.dismissInlineInspection()
+        viewModel.handleBoardLongPress(at: hiddenIllusionTrap)
         XCTAssertNil(viewModel.activeInlineInspection)
     }
 

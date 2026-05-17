@@ -41,7 +41,7 @@ public enum EnemyPresentationKind: String, CaseIterable, Equatable, Identifiable
         case .watcher:
             return "向いている直線方向を見張ります。"
         case .rotatingWatcher:
-            return "1手ごとに視線方向を右回りまたは左回りに変えます。"
+            return "現在の射線に獲物がいなければ、1手ごとに視線方向を右回りまたは左回りに変えます。"
         case .chaser:
             return "足跡の敵です。プレイヤーへ最短経路で1マス近づきます。"
         case .marker:
@@ -58,7 +58,7 @@ public enum EnemyPresentationKind: String, CaseIterable, Equatable, Identifiable
         case .watcher:
             return "視線の直線上が危険です。岩、柱、壁の手前で視線は止まります。"
         case .rotatingWatcher:
-            return "赤い射線が次の敵ターンに危険です。敵アイコンの回転矢印で向きの変化を読みます。"
+            return "赤い射線が現在の危険範囲です。射線外では、敵アイコンの回転矢印から次の向きを読みます。"
         case .chaser:
             return "移動先は盤面の小矢印で読みます。近づいた後の隣接範囲まで危険です。"
         case .marker:

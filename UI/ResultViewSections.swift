@@ -398,6 +398,8 @@ struct ResultActionSection: View {
     let hapticsEnabled: Bool
     @State private var pendingRelicRewardPresentation: DungeonRelicAcquisitionPresentation?
     @State private var pendingRelicRewardSelection: DungeonRelicID?
+    @State private var dungeonRewardSelectionNotice: String?
+    @State private var inspectedDungeonReward: DungeonRewardDetailPresentation?
 
     var body: some View {
         VStack(spacing: 16) {
@@ -445,19 +447,16 @@ struct ResultActionSection: View {
                                         accessibilityRoleText: dungeonRewardAccessibilityRoleText(for: offer),
                                         isEnabled: isEnabled
                                     )
-                                    Button {
-                                        triggerSuccessHapticIfNeeded()
-                                        selectDungeonRewardOffer(offer)
-                                    } label: {
-                                        DungeonRewardCardChoiceView(choice: choice)
-                                    }
-                                    .buttonStyle(.plain)
-                                    .disabled(!isEnabled)
-                                    .accessibilityElement(children: .ignore)
-                                    .accessibilityLabel(choice.accessibilityLabel)
-                                    .accessibilityHint(choice.accessibilityHint)
-                                    .accessibilityAddTraits(.isButton)
-                                    .accessibilityIdentifier(choice.accessibilityIdentifier)
+                                    DungeonRewardChoiceControl(
+                                        choice: choice,
+                                        accessibilityHint: choice.accessibilityHint,
+                                        onSelect: {
+                                            handleDungeonRewardOfferTap(offer, isEnabled: isEnabled)
+                                        },
+                                        onInspect: {
+                                            showDungeonRewardDetail(for: choice)
+                                        }
+                                    )
                                 }
 
                                 if let onSelectDungeonReward {
@@ -469,25 +468,47 @@ struct ResultActionSection: View {
                                             accessibilityIdentifierPrefix: "dungeon_pickup_carryover_card",
                                             accessibilityRoleText: "手札に追加するカード"
                                         )
-                                        Button {
-                                            triggerSuccessHapticIfNeeded()
-                                            onSelectDungeonReward(.carryOverPickup(entry.card))
-                                        } label: {
-                                            DungeonRewardCardChoiceView(choice: choice)
-                                        }
-                                        .buttonStyle(.plain)
-                                        .accessibilityElement(children: .ignore)
-                                        .accessibilityLabel(choice.accessibilityLabel)
-                                        .accessibilityHint("ダブルタップでこのカードを手札に追加し、次の階へ進みます")
-                                        .accessibilityAddTraits(.isButton)
-                                        .accessibilityIdentifier(choice.accessibilityIdentifier)
+                                        DungeonRewardChoiceControl(
+                                            choice: choice,
+                                            accessibilityHint: choice.accessibilityHint,
+                                            onSelect: {
+                                                triggerSuccessHapticIfNeeded()
+                                                onSelectDungeonReward(.carryOverPickup(entry.card))
+                                            },
+                                            onInspect: {
+                                                showDungeonRewardDetail(for: choice)
+                                            }
+                                        )
                                     }
                                 }
                             }
                         }
                     }
 
+                    if let dungeonRewardSelectionNotice {
+                        Label(dungeonRewardSelectionNotice, systemImage: "info.circle")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityIdentifier("dungeon_reward_selection_notice")
+                    }
+
                     dungeonInventoryHandSection
+
+                    if showsSkipDungeonRewardAction,
+                       let nextDungeonFloorTitle,
+                       let onSelectNextDungeonFloor {
+                        Button {
+                            dungeonRewardSelectionNotice = nil
+                            triggerSuccessHapticIfNeeded()
+                            onSelectNextDungeonFloor()
+                        } label: {
+                            Label("報酬を取らずに次の階へ: \(nextDungeonFloorTitle)", systemImage: "arrow.up.forward")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+                        .accessibilityIdentifier("dungeon_reward_skip_button")
+                    }
                 }
             }
 
@@ -542,13 +563,25 @@ struct ResultActionSection: View {
             }
         }
         .overlay {
-            if let pendingRelicRewardPresentation {
-                DungeonRelicAcquisitionOverlayView(
-                    presentation: pendingRelicRewardPresentation,
-                    confirmationTitle: "次の階へ",
-                    onConfirm: confirmPendingRelicReward
-                )
-                .transition(.opacity)
+            ZStack {
+                if let inspectedDungeonReward {
+                    DungeonRewardDetailOverlayView(
+                        presentation: inspectedDungeonReward,
+                        onDismiss: {
+                            self.inspectedDungeonReward = nil
+                        }
+                    )
+                    .transition(.opacity)
+                }
+
+                if let pendingRelicRewardPresentation {
+                    DungeonRelicAcquisitionOverlayView(
+                        presentation: pendingRelicRewardPresentation,
+                        confirmationTitle: "次の階へ",
+                        onConfirm: confirmPendingRelicReward
+                    )
+                    .transition(.opacity)
+                }
             }
         }
     }
@@ -557,6 +590,14 @@ struct ResultActionSection: View {
         !presentedDungeonRewardOffers.isEmpty
             || (onSelectDungeonReward != nil && !dungeonPickupCarryoverEntries.isEmpty)
             || (onSelectDungeonReward != nil && !adjustableDungeonRewardInventoryEntries.isEmpty)
+    }
+
+    var showsSkipDungeonRewardAction: Bool {
+        hasDungeonRewardChoices
+            && presentation.usesDungeonExit
+            && !presentation.isFailed
+            && nextDungeonFloorTitle != nil
+            && onSelectNextDungeonFloor != nil
     }
 
     private var presentedDungeonRewardOffers: [DungeonRewardOffer] {
@@ -613,6 +654,20 @@ struct ResultActionSection: View {
         case .relic:
             return "獲得する遺物"
         }
+    }
+
+    private func handleDungeonRewardOfferTap(_ offer: DungeonRewardOffer, isEnabled: Bool) {
+        guard isEnabled else {
+            dungeonRewardSelectionNotice = "手札がいっぱいです。手札から外すか、報酬を取らずに進めます。"
+            return
+        }
+        dungeonRewardSelectionNotice = nil
+        triggerSuccessHapticIfNeeded()
+        selectDungeonRewardOffer(offer)
+    }
+
+    private func showDungeonRewardDetail(for choice: DungeonRewardCardChoicePresentation) {
+        inspectedDungeonReward = choice.detailPresentation
     }
 
     private func selectDungeonRewardOffer(_ offer: DungeonRewardOffer) {
@@ -846,6 +901,70 @@ struct ResultActionDisplayPolicy: Equatable {
     }
 }
 
+enum DungeonRewardVisualTone: Equatable {
+    case standard
+    case common
+    case rare
+    case legendary
+
+    init(rarity: DungeonRelicRarity) {
+        switch rarity {
+        case .common:
+            self = .common
+        case .rare:
+            self = .rare
+        case .legendary:
+            self = .legendary
+        }
+    }
+
+    func tintColor(theme: AppTheme) -> Color {
+        switch self {
+        case .standard:
+            return theme.accentPrimary
+        case .common:
+            return theme.textSecondary
+        case .rare:
+            return Color(red: 0.18, green: 0.48, blue: 0.74)
+        case .legendary:
+            return Color(red: 0.78, green: 0.54, blue: 0.10)
+        }
+    }
+}
+
+struct DungeonRewardDetailPresentation: Equatable, Identifiable {
+    let id: String
+    let title: String
+    let badgeText: String
+    let primaryDescription: String
+    let secondaryDescriptions: [String]
+    let symbolName: String
+    let visualTone: DungeonRewardVisualTone
+
+    init(choice: DungeonRewardCardChoicePresentation) {
+        id = choice.accessibilityIdentifier
+        title = choice.title
+        badgeText = choice.usesBadgeText
+        visualTone = choice.visualTone
+
+        switch choice.offer {
+        case .playable(.move(let card)):
+            symbolName = "arrow.up.right.square.fill"
+            primaryDescription = card.encyclopediaDescription
+            secondaryDescriptions = [choice.accessibilityRoleText, choice.actionText]
+        case .playable(.support(let support)):
+            symbolName = "sparkles"
+            primaryDescription = support.encyclopediaDescription
+            secondaryDescriptions = [support.encyclopediaCategory, choice.actionText]
+        case .relic(let relic):
+            let item = DungeonRelicAcquisitionPresentation.Item.relic(DungeonRelicEntry(relicID: relic))
+            symbolName = item.symbolName
+            primaryDescription = item.primaryDescription
+            secondaryDescriptions = item.secondaryDescriptions
+        }
+    }
+}
+
 struct DungeonRewardCardChoicePresentation: Equatable {
     let offer: DungeonRewardOffer
     let rewardUses: Int
@@ -924,22 +1043,31 @@ struct DungeonRewardCardChoicePresentation: Equatable {
         }
         return "\(rewardUses)回"
     }
+    var visualTone: DungeonRewardVisualTone {
+        if let relic = offer.relic {
+            return DungeonRewardVisualTone(rarity: relic.rarity)
+        }
+        return .standard
+    }
+    var detailPresentation: DungeonRewardDetailPresentation {
+        DungeonRewardDetailPresentation(choice: self)
+    }
     var accessibilityIdentifier: String { "\(accessibilityIdentifierPrefix)_\(offer.displayName)" }
     var accessibilityLabel: String {
         let sourceDescription = sourceText.map { "、\($0)" } ?? ""
         guard isEnabled else {
-            return "\(offer.displayName)、\(accessibilityRoleText)\(sourceDescription)、\(usesBadgeText)。手札がいっぱいです。手札から外して空きを作ってください。\(descriptionText)"
+            return "\(offer.displayName)、\(accessibilityRoleText)\(sourceDescription)、\(usesBadgeText)。手札がいっぱいです。手札から外すか、報酬を取らずに進めます。\(descriptionText)"
         }
         return "\(offer.displayName)、\(accessibilityRoleText)\(sourceDescription)、\(actionText)、\(usesBadgeText)。選ぶと次の階へ進みます。\(descriptionText)"
     }
     var accessibilityHint: String {
         guard isEnabled else {
-            return "手札がいっぱいです。手札から外して空きを作ってください"
+            return "ダブルタップで、手札から外すか報酬を取らずに進めることを表示します。アクションの「効果を確認」で説明を表示します"
         }
         if offer.relic != nil {
-            return "ダブルタップでこの遺物の詳細を確認します"
+            return "ダブルタップでこの遺物の詳細を確認します。長押し、またはアクションの「効果を確認」で説明を表示します"
         }
-        return "ダブルタップでこのカードを手札に追加し、次の階へ進みます"
+        return "ダブルタップでこのカードを手札に追加し、次の階へ進みます。長押し、またはアクションの「効果を確認」で説明を表示します"
     }
 
     private var descriptionText: String {
@@ -960,6 +1088,7 @@ struct DungeonRewardCardChoicePresentation: Equatable {
 private struct DungeonRewardCardChoiceView: View {
     let choice: DungeonRewardCardChoicePresentation
     private var theme = AppTheme()
+    private var visualTint: Color { choice.visualTone.tintColor(theme: theme) }
 
     init(choice: DungeonRewardCardChoicePresentation) {
         self.choice = choice
@@ -977,10 +1106,13 @@ private struct DungeonRewardCardChoiceView: View {
 
             Text(choice.usesBadgeText)
                 .font(.caption2.weight(.bold))
-                .foregroundColor(theme.accentOnPrimary)
+                .foregroundColor(choice.visualTone == .standard ? theme.accentOnPrimary : visualTint)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 3)
-                .background(Capsule(style: .continuous).fill(theme.accentPrimary))
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(choice.visualTone == .standard ? theme.accentPrimary : visualTint.opacity(0.16))
+                )
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
 
@@ -1001,11 +1133,20 @@ private struct DungeonRewardCardChoiceView: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(theme.cardBorderHand.opacity(0.24), lineWidth: 1)
+                .stroke(cardBorderColor, lineWidth: choice.visualTone == .standard ? 1 : 1.5)
         )
         .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .opacity(choice.isEnabled ? 1 : 0.42)
         .grayscale(choice.isEnabled ? 0 : 0.35)
+    }
+
+    private var cardBorderColor: Color {
+        switch choice.visualTone {
+        case .standard:
+            return theme.cardBorderHand.opacity(0.24)
+        case .common, .rare, .legendary:
+            return visualTint.opacity(0.72)
+        }
     }
 
     @ViewBuilder
@@ -1039,9 +1180,46 @@ private struct DungeonRewardCardChoiceView: View {
     }
 }
 
+private struct DungeonRewardChoiceControl: View {
+    let choice: DungeonRewardCardChoicePresentation
+    let accessibilityHint: String
+    let onSelect: () -> Void
+    let onInspect: () -> Void
+
+    var body: some View {
+        DungeonRewardCardChoiceView(choice: choice)
+            .gesture(
+                LongPressGesture(minimumDuration: 0.45)
+                    .exclusively(before: TapGesture())
+                    .onEnded { value in
+                        switch value {
+                        case .first:
+                            onInspect()
+                        case .second:
+                            onSelect()
+                        }
+                    }
+            )
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(choice.accessibilityLabel)
+            .accessibilityHint(accessibilityHint)
+            .accessibilityAction {
+                onSelect()
+            }
+            .accessibilityAction(named: Text("効果を確認")) {
+                onInspect()
+            }
+            .accessibilityAddTraits(.isButton)
+            .accessibilityIdentifier(choice.accessibilityIdentifier)
+    }
+}
+
 private struct DungeonRewardRelicIllustrationView: View {
     let relic: DungeonRelicID
     private var theme = AppTheme()
+    private var rarityTint: Color {
+        DungeonRewardVisualTone(rarity: relic.rarity).tintColor(theme: theme)
+    }
 
     init(relic: DungeonRelicID) {
         self.relic = relic
@@ -1051,9 +1229,9 @@ private struct DungeonRewardRelicIllustrationView: View {
         VStack(spacing: 8) {
             Image(systemName: relic.symbolName)
                 .font(.system(size: 26, weight: .semibold))
-                .foregroundColor(theme.accentPrimary)
+                .foregroundColor(rarityTint)
                 .frame(width: 42, height: 42)
-                .background(Circle().fill(theme.accentPrimary.opacity(0.14)))
+                .background(Circle().fill(rarityTint.opacity(0.14)))
 
             Text(relic.displayName)
                 .font(.system(size: 12, weight: .bold, design: .rounded))
@@ -1064,7 +1242,7 @@ private struct DungeonRewardRelicIllustrationView: View {
 
             HStack(spacing: 4) {
                 Text(relic.rarity.displayName)
-                    .foregroundColor(relic.rarity.tintColor(theme: theme))
+                    .foregroundColor(rarityTint)
             }
             .font(.system(size: 10, weight: .semibold, design: .rounded))
         }
@@ -1075,9 +1253,109 @@ private struct DungeonRewardRelicIllustrationView: View {
                 .fill(theme.cardBackgroundHand)
                 .overlay(
                     RoundedRectangle(cornerRadius: 8)
-                        .stroke(theme.cardBorderHand, lineWidth: 1.5)
+                        .stroke(rarityTint.opacity(0.78), lineWidth: 1.5)
                 )
         )
+    }
+}
+
+private struct DungeonRewardDetailOverlayView: View {
+    let presentation: DungeonRewardDetailPresentation
+    let onDismiss: () -> Void
+    private let theme = AppTheme()
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.18)
+                .ignoresSafeArea()
+                .onTapGesture {
+                    onDismiss()
+                }
+
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .top, spacing: 12) {
+                    ZStack {
+                        Circle()
+                            .fill(tint.opacity(0.14))
+                            .frame(width: 46, height: 46)
+                        Image(systemName: presentation.symbolName)
+                            .font(.system(size: 21, weight: .semibold))
+                            .foregroundColor(tint)
+                    }
+                    .accessibilityHidden(true)
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 8) {
+                            Text(presentation.title)
+                                .font(.system(size: 17, weight: .bold, design: .rounded))
+                                .foregroundColor(theme.textPrimary)
+                                .lineLimit(2)
+                                .fixedSize(horizontal: false, vertical: true)
+
+                            Text(presentation.badgeText)
+                                .font(.system(size: 11, weight: .bold, design: .rounded))
+                                .foregroundColor(badgeForegroundColor)
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 3)
+                                .background(
+                                    Capsule(style: .continuous)
+                                        .fill(badgeBackgroundColor)
+                                )
+                        }
+
+                        Text(presentation.primaryDescription)
+                            .font(.system(size: 14, weight: .medium, design: .rounded))
+                            .foregroundColor(theme.textPrimary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    Spacer(minLength: 0)
+
+                    Button {
+                        onDismiss()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 21, weight: .semibold))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundColor(theme.textSecondary)
+                    .accessibilityLabel("閉じる")
+                }
+
+                ForEach(presentation.secondaryDescriptions, id: \.self) { description in
+                    Label(description, systemImage: "info.circle")
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundColor(theme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .padding(14)
+            .frame(maxWidth: 380, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(theme.backgroundElevated)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(tint.opacity(0.46), lineWidth: 1.5)
+            )
+            .shadow(color: .black.opacity(0.18), radius: 16, x: 0, y: 8)
+            .padding(.horizontal, 18)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("dungeon_reward_detail_overlay")
+    }
+
+    private var tint: Color {
+        presentation.visualTone.tintColor(theme: theme)
+    }
+
+    private var badgeForegroundColor: Color {
+        presentation.visualTone == .standard ? theme.accentOnPrimary : tint
+    }
+
+    private var badgeBackgroundColor: Color {
+        presentation.visualTone == .standard ? theme.accentPrimary : tint.opacity(0.16)
     }
 }
 

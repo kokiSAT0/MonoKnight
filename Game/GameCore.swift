@@ -388,7 +388,7 @@ public final class GameCore: ObservableObject {
     public var enemyDangerPoints: Set<GridPoint> {
         enemyDangerPoints(forDisplayedEnemyStates: enemyStates)
     }
-    /// 敵本体を除く、次の敵ターンで実際に被弾する表示用の攻撃範囲マス
+    /// 敵本体を除く、現在表示する攻撃範囲マス
     public var enemyDangerDisplayPoints: Set<GridPoint> {
         enemyDangerDisplayPoints(forDisplayedEnemyStates: enemyStates)
     }
@@ -401,10 +401,10 @@ public final class GameCore: ObservableObject {
         guard !isEnemyFreezeActive else { return [] }
         return dangerPoints(for: enemyStates)
     }
-    /// 表示中の敵状態を基準に、次の敵ターンで実際に被弾する攻撃範囲マス
+    /// 表示中の敵状態を基準にした現在の攻撃範囲マス
     public func enemyDangerDisplayPoints(forDisplayedEnemyStates enemyStates: [EnemyState]) -> Set<GridPoint> {
         guard !isEnemyFreezeActive else { return [] }
-        return dangerPoints(for: enemyStates, rotatingWatcherOffset: 1)
+        return dangerPoints(for: enemyStates)
     }
     /// 表示中の敵状態を基準にした見張り系レーザーのみの危険範囲
     public func watcherLaserDangerDisplayPoints(forDisplayedEnemyStates enemyStates: [EnemyState]) -> Set<GridPoint> {
@@ -417,7 +417,7 @@ public final class GameCore: ObservableObject {
                 return false
             }
         }
-        return dangerPoints(for: watcherStates, rotatingWatcherOffset: 1)
+        return dangerPoints(for: watcherStates)
     }
     /// 表示中の敵状態を基準にしたメテオ兵の着弾予告マス
     public func enemyWarningPoints(forDisplayedEnemyStates enemyStates: [EnemyState]) -> Set<GridPoint> {
@@ -534,6 +534,11 @@ public final class GameCore: ObservableObject {
     /// 塔専用の拾得/報酬インベントリを使うかどうか
     var usesDungeonInventoryCards: Bool {
         mode.dungeonRules?.cardAcquisitionMode == .inventoryOnly
+    }
+    /// 基本移動固定枠を除いた、塔ラン中の通常カード所持上限
+    public var dungeonInventoryKindLimit: Int {
+        guard usesDungeonInventoryCards else { return 0 }
+        return min(max(mode.dungeonMetadataSnapshot?.runState?.dungeonInventoryKindLimit ?? 9, 1), 9)
     }
 
     /// 山札管理（`Deck.swift` に定義された重み付き無限山札を使用）
@@ -763,8 +768,10 @@ public final class GameCore: ObservableObject {
         switch support {
         case .refillEmptySlots:
             return true
-        case .singleAnnihilationSpell, .annihilationSpell, .freezeSpell:
+        case .singleAnnihilationSpell, .freezeSpell:
             return !enemyStates.isEmpty
+        case .annihilationSpell:
+            return true
         case .barrierSpell:
             return true
         case .darknessSpell:
@@ -856,10 +863,10 @@ public final class GameCore: ObservableObject {
         case .singleAnnihilationSpell:
             _ = beginTargetedSupportCardSelection(at: index)
         case .annihilationSpell:
-            guard !enemyStates.isEmpty else { return }
             let pendingMarkerDamagePoints = enemyWarningPoints
             let previousMoveCount = consumeSupportCard(at: index)
             enemyStates.removeAll()
+            removeMimicRelicPickupsForAnnihilationSpell()
             finishSupportCardTurn(
                 initialMarkerDamagePoints: pendingMarkerDamagePoints,
                 previousMoveCount: previousMoveCount
@@ -2199,9 +2206,8 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                 return (playable, stack)
             }
         )
-        let inventoryKindLimit = 9
         let liveEntries = HandDisplayOrdering.orderedDungeonInventoryEntries(
-            Array(dungeonInventoryEntries.filter(\.hasUsesRemaining).prefix(inventoryKindLimit)),
+            Array(dungeonInventoryEntries.filter(\.hasUsesRemaining).prefix(dungeonInventoryKindLimit)),
             strategy: handOrderingStrategy
         )
         dungeonInventoryEntries = liveEntries
@@ -2230,8 +2236,6 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         let normalizedPickupUses = max(pickupUses, 0)
         let normalizedRewardUses = max(rewardUses, 0)
         guard normalizedPickupUses + normalizedRewardUses > 0 else { return false }
-        let inventoryKindLimit = 9
-
         if let index = dungeonInventoryEntries.firstIndex(where: { $0.playable == playable }) {
             dungeonInventoryEntries[index].rewardUses += normalizedPickupUses + normalizedRewardUses
             dungeonInventoryEntries[index].pickupUses = 0
@@ -2239,7 +2243,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             return true
         }
 
-        guard dungeonInventoryEntries.filter(\.hasUsesRemaining).count < inventoryKindLimit else { return false }
+        guard dungeonInventoryEntries.filter(\.hasUsesRemaining).count < dungeonInventoryKindLimit else { return false }
         dungeonInventoryEntries.append(
             DungeonInventoryEntry(
                 playable: playable,
@@ -2454,6 +2458,16 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         )
         publishDungeonRelicAcquisitionPresentationIfNeeded(outcome: outcome, items: presentationItems)
         return true
+    }
+
+    private func removeMimicRelicPickupsForAnnihilationSpell() {
+        guard mode.dungeonRules?.difficulty == .growth else { return }
+        let mimicPickupIDs = activeDungeonRelicPickups
+            .filter { selectedRelicPickupOutcome(for: $0) == .mimic }
+            .map(\.id)
+        guard !mimicPickupIDs.isEmpty else { return }
+        collectedDungeonRelicPickupIDs.formUnion(mimicPickupIDs)
+        debugLog("補助カード 全滅の呪文: ミミック宝箱 \(mimicPickupIDs.joined(separator: ",")) を消滅")
     }
 
     @discardableResult
@@ -2705,8 +2719,8 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
     }
 
     private func beginPendingDungeonPickupChoiceIfNeeded(for pickup: DungeonCardPickupDefinition) -> Bool {
-        let liveEntries = Array(dungeonInventoryEntries.filter(\.hasUsesRemaining).prefix(9))
-        guard liveEntries.count >= 9,
+        let liveEntries = Array(dungeonInventoryEntries.filter(\.hasUsesRemaining).prefix(dungeonInventoryKindLimit))
+        guard liveEntries.count >= dungeonInventoryKindLimit,
               !liveEntries.contains(where: { $0.playable == pickup.playable })
         else { return false }
 
@@ -2733,9 +2747,8 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
 
     private func refillDungeonEmptySlotsWithRandomMoveCards() {
         guard usesDungeonInventoryCards else { return }
-        let inventoryKindLimit = 9
         let occupiedCount = dungeonInventoryEntries.filter(\.hasUsesRemaining).count
-        let emptySlotCount = max(0, inventoryKindLimit - occupiedCount)
+        let emptySlotCount = max(0, dungeonInventoryKindLimit - occupiedCount)
         guard emptySlotCount > 0 else { return }
 
         let ownedMoves = Set(dungeonInventoryEntries.compactMap(\.moveCard))
@@ -3495,11 +3508,16 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                 enemyStates[index].patrolIndex = nextIndex
                 enemyStates[index].position = nextPoint
             case .rotatingWatcher:
+                guard !shouldMovingEnemyAttackBeforeMoving(enemyStates[index]) else { continue }
                 enemyStates[index].rotationIndex = (enemyStates[index].rotationIndex + 1) % 4
             case .chaser:
                 guard !shouldMovingEnemyAttackBeforeMoving(enemyStates[index]) else { continue }
                 guard let current,
-                      let nextPoint = chaserNextStep(from: enemyStates[index].position, toward: current)
+                      let nextPoint = chaserNextStep(
+                        from: enemyStates[index].position,
+                        toward: current,
+                        avoiding: occupiedPoints
+                      )
                 else {
                     continue
                 }
@@ -3619,7 +3637,11 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
     ) -> EnemyPatrolMovementPreview? {
         guard case .chaser = enemy.behavior,
               let current,
-              let nextPoint = chaserNextStep(from: enemy.position, toward: current),
+              let nextPoint = chaserNextStep(
+                from: enemy.position,
+                toward: current,
+                avoiding: occupiedPoints
+              ),
               nextPoint != enemy.position
         else {
             return nil
@@ -3697,8 +3719,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             at: point,
             markerDamagePoints: [],
             includesContact: false,
-            includesMarkerWarning: false,
-            rotatingWatcherOffset: 1
+            includesMarkerWarning: false
         )
         var totalDamage = damage.enemy + damage.marker
 
@@ -4071,13 +4092,22 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         return seed == 0 ? 1 : seed
     }
 
-    private func chaserNextStep(from origin: GridPoint, toward target: GridPoint) -> GridPoint? {
+    private func chaserNextStep(
+        from origin: GridPoint,
+        toward target: GridPoint,
+        avoiding blockedPoints: Set<GridPoint> = []
+    ) -> GridPoint? {
         guard origin != target,
               board.contains(origin),
               board.contains(target),
               isEnemyTraversable(target)
         else {
             return nil
+        }
+
+        func canChaserEnter(_ point: GridPoint) -> Bool {
+            isEnemyTraversable(point)
+                && (!blockedPoints.contains(point) || point == origin || point == target)
         }
 
         var distances: [GridPoint: Int] = [target: 0]
@@ -4097,7 +4127,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
 
             for direction in directions {
                 let next = point.offset(dx: direction.dx, dy: direction.dy)
-                guard isEnemyTraversable(next),
+                guard canChaserEnter(next),
                       distances[next] == nil
                 else {
                     continue

@@ -348,7 +348,8 @@ final class GameSceneAccessibilityTests: XCTestCase {
         XCTAssertEqual(keyStyle.lineWidth, 0, "塔鍵は移動可能枠ではなく、枠なしの小マーカーで示します")
         XCTAssertFalse(keyStyle.fillColor.isEqual(SKColor.clear), "塔鍵は取得前に見える塗りを持ちます")
         XCTAssertGreaterThan(crackedFloorStyle.lineWidth, 0, "ひび割れ床はタイル枠ではなく亀裂線で示します")
-        XCTAssertEqual(collapsedFloorStyle.lineWidth, 0, "崩落床は移動可能枠ではないためタイル枠を持ちません")
+        XCTAssertGreaterThan(collapsedFloorStyle.lineWidth, 0, "崩落床は黒い穴に明るい縁取りを付け、ひび割れ床と形でも線でも区別します")
+        XCTAssertFalse(collapsedFloorStyle.fillColor.isEqual(SKColor.clear), "崩落床は即落ち穴として読める塗りを持ちます")
     }
 
     func testDungeonFallEffectAddsTransientNodes() {

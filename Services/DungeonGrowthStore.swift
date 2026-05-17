@@ -6,6 +6,10 @@ enum DungeonGrowthUpgrade: String, Codable, CaseIterable, Identifiable {
     case toolPouch
     case climbingKit
     case refillCharm
+    case handSlotExpansion1
+    case handSlotExpansion2
+    case handSlotExpansion3
+    case handSlotExpansion4
     case deepStartKit
     case finalPreparation
     case rewardScout
@@ -34,6 +38,8 @@ enum DungeonGrowthUpgrade: String, Codable, CaseIterable, Identifiable {
         switch self {
         case .toolPouch, .climbingKit, .refillCharm, .deepStartKit, .finalPreparation:
             return .preparation
+        case .handSlotExpansion1, .handSlotExpansion2, .handSlotExpansion3, .handSlotExpansion4:
+            return .hand
         case .rewardScout, .cardPreservation, .widerRewardRead, .relicScout, .rewardCompletion:
             return .reward
         case .footingRead, .enemyRead, .meteorRead, .lastStand, .finalGuard:
@@ -53,6 +59,14 @@ enum DungeonGrowthUpgrade: String, Codable, CaseIterable, Identifiable {
             return "登り支度"
         case .refillCharm:
             return "補給札"
+        case .handSlotExpansion1:
+            return "携行枠 +1"
+        case .handSlotExpansion2:
+            return "携行枠 +2"
+        case .handSlotExpansion3:
+            return "携行枠 +3"
+        case .handSlotExpansion4:
+            return "携行枠 +4"
         case .deepStartKit:
             return "深層支度"
         case .finalPreparation:
@@ -106,6 +120,14 @@ enum DungeonGrowthUpgrade: String, Codable, CaseIterable, Identifiable {
             return "開始支度に縦2マス移動と斜め移動を各1回追加します"
         case .refillCharm:
             return "開始支度に補給を1回追加します"
+        case .handSlotExpansion1:
+            return "成長塔の通常カード枠を6種類にします"
+        case .handSlotExpansion2:
+            return "成長塔の通常カード枠を7種類にします"
+        case .handSlotExpansion3:
+            return "成長塔の通常カード枠を8種類にします"
+        case .handSlotExpansion4:
+            return "成長塔の通常カード枠を9種類にします"
         case .deepStartKit:
             return "21F以降は障壁、31F以降は長距離移動を開始支度に追加します"
         case .finalPreparation:
@@ -161,6 +183,14 @@ enum DungeonGrowthUpgrade: String, Codable, CaseIterable, Identifiable {
             return [.toolPouch]
         case .refillCharm:
             return [.climbingKit]
+        case .handSlotExpansion1:
+            return []
+        case .handSlotExpansion2:
+            return [.handSlotExpansion1]
+        case .handSlotExpansion3:
+            return [.handSlotExpansion2]
+        case .handSlotExpansion4:
+            return [.handSlotExpansion3]
         case .deepStartKit:
             return [.refillCharm]
         case .finalPreparation:
@@ -200,13 +230,13 @@ enum DungeonGrowthUpgrade: String, Codable, CaseIterable, Identifiable {
 
     var tierFloor: Int? {
         switch self {
-        case .toolPouch, .rewardScout, .footingRead, .floorSense, .retryPreparation:
+        case .toolPouch, .rewardScout, .footingRead, .floorSense, .retryPreparation, .handSlotExpansion1:
             return nil
-        case .climbingKit, .cardPreservation, .rewardSense:
+        case .climbingKit, .cardPreservation, .rewardSense, .handSlotExpansion2:
             return 10
-        case .enemyRead, .widerRewardRead, .enemySense, .deepCheckpointRead:
+        case .enemyRead, .widerRewardRead, .enemySense, .deepCheckpointRead, .handSlotExpansion3:
             return 15
-        case .meteorRead, .refillCharm, .pathPreview:
+        case .meteorRead, .refillCharm, .pathPreview, .handSlotExpansion4:
             return 20
         case .deepStartKit, .relicScout, .lastStand:
             return 25
@@ -222,6 +252,7 @@ enum DungeonGrowthUpgrade: String, Codable, CaseIterable, Identifiable {
 
 enum DungeonGrowthBranch: String, CaseIterable, Identifiable {
     case preparation
+    case hand
     case reward
     case hazard
     case scouting
@@ -233,6 +264,8 @@ enum DungeonGrowthBranch: String, CaseIterable, Identifiable {
         switch self {
         case .preparation:
             return "準備"
+        case .hand:
+            return "手札"
         case .reward:
             return "報酬"
         case .hazard:
@@ -447,6 +480,17 @@ final class DungeonGrowthStore: ObservableObject {
 
     func initialHPBonus(for dungeon: DungeonDefinition, startingFloorIndex: Int) -> Int {
         0
+    }
+
+    func dungeonInventoryKindLimit(for dungeon: DungeonDefinition) -> Int {
+        guard dungeon.difficulty == .growth else { return 9 }
+        let unlockedExpansionCount = [
+            DungeonGrowthUpgrade.handSlotExpansion1,
+            .handSlotExpansion2,
+            .handSlotExpansion3,
+            .handSlotExpansion4
+        ].filter(isActive).count
+        return min(5 + unlockedExpansionCount, 9)
     }
 
     func startingRewardEntries(
