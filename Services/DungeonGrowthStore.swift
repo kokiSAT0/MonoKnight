@@ -1079,7 +1079,7 @@ private struct DungeonGrowthPreparationFacts {
         hasBrittleOrTrap = floors.contains { floor in
             floor.hazards.contains { hazard in
                 switch hazard {
-                case .brittleFloor, .damageTrap, .lavaTile:
+                case .brittleFloor, .damageTrap, .hpHalvingTrap(_), .lavaTile:
                     return true
                 case .healingTile:
                     return false

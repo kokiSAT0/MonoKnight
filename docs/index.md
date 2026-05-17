@@ -21,6 +21,7 @@
 | Codex の作業手順、変更粒度、検証、コミット方針 | [`dev-workflow.md`](dev-workflow.md) |
 | Game Center / AdMob / IAP / ATT / UMP | [`integrations.md`](integrations.md) |
 | Info.plist とビルド設定由来の値 | [`info-plist-guidelines.md`](info-plist-guidelines.md) |
+| TestFlight 内部テスター配布手順 | [`testflight-internal-distribution.md`](testflight-internal-distribution.md) |
 | TestFlight / App Store 提出前チェック | [`release-checklist.md`](release-checklist.md) |
 
 ## 3. 補助ドキュメント

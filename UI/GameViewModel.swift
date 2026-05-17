@@ -95,6 +95,8 @@ final class GameViewModel: ObservableObject {
     }
     /// 取得直後に詳細表示する遺物/宝箱結果
     @Published var activeDungeonRelicAcquisitionPresentation: DungeonRelicAcquisitionPresentation?
+    /// 怪しい宝箱で選択待ちの候補
+    @Published var pendingDungeonRelicPickupChoice: PendingDungeonRelicPickupChoice?
     var pendingDungeonRelicAcquisitionPresentations: [DungeonRelicAcquisitionPresentation] = []
     var observedDungeonRelicAcquisitionPresentationIDs: Set<UUID> = []
     /// ポーズメニューの表示状態
@@ -666,6 +668,18 @@ final class GameViewModel: ObservableObject {
         )
     }
 
+    private func appendDungeonRewardOffer(
+        _ offer: DungeonRewardOffer,
+        to offers: inout [DungeonRewardOffer],
+        choiceCount: Int
+    ) {
+        guard !offers.contains(offer), choiceCount > 0 else { return }
+        if offers.count >= choiceCount {
+            offers.removeLast()
+        }
+        offers.append(offer)
+    }
+
 }
 
 #if DEBUG || canImport(XCTest)
@@ -679,18 +693,6 @@ extension GameViewModel {
     /// - Parameter isPresented: 新しい表示状態
     func setPauseMenuPresentedForTesting(_ isPresented: Bool) {
         isPauseMenuPresented = isPresented
-    }
-
-    private func appendDungeonRewardOffer(
-        _ offer: DungeonRewardOffer,
-        to offers: inout [DungeonRewardOffer],
-        choiceCount: Int
-    ) {
-        guard !offers.contains(offer), choiceCount > 0 else { return }
-        if offers.count >= choiceCount {
-            offers.removeLast()
-        }
-        offers.append(offer)
     }
 }
 

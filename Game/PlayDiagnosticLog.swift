@@ -53,6 +53,8 @@ extension DungeonRelicAcquisitionPresentation.Item {
             return "mimicDamage:\(damage)"
         case .hpCompensation(let amount):
             return "hpCompensation:\(amount)"
+        case .hpPenalty(let amount):
+            return "hpPenalty:\(amount)"
         }
     }
 }

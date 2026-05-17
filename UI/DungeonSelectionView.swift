@@ -1260,6 +1260,8 @@ private struct DungeonGrowthForecastFacts {
                     labels.appendUnique("床割れ")
                 case .damageTrap:
                     labels.appendUnique("罠")
+                case .hpHalvingTrap:
+                    labels.appendUnique("衰弱罠")
                 case .lavaTile:
                     labels.appendUnique("溶岩")
                 case .healingTile:

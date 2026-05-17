@@ -23,6 +23,7 @@
         case dungeonRelicPickup
         case dungeonSuspiciousRelicPickup
         case dungeonDamageTrap
+        case dungeonHpHalvingTrap
         case dungeonLavaTile
         case dungeonHealingTile
         case dungeonCrackedFloor

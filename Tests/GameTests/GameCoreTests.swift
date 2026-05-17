@@ -1024,7 +1024,7 @@ final class GameCoreTests: XCTestCase {
         XCTAssertEqual(core.moveCount, 1)
     }
 
-    func testAnnihilationSpellClearsEnemiesAndMimicRelicPickupsWithoutOpeningChest() throws {
+    func testAnnihilationSpellClearsEnemiesWithoutOpeningRelicPickups() throws {
         let enemy = EnemyDefinition(
             id: "guard",
             name: "番兵",
@@ -1054,9 +1054,9 @@ final class GameCoreTests: XCTestCase {
         core.playSupportCard(at: supportIndex)
 
         XCTAssertTrue(core.enemyStates.isEmpty)
-        XCTAssertTrue(core.collectedDungeonRelicPickupIDs.contains(mimicPickup.id))
+        XCTAssertFalse(core.collectedDungeonRelicPickupIDs.contains(mimicPickup.id))
         XCTAssertFalse(core.collectedDungeonRelicPickupIDs.contains(safePickup.id))
-        XCTAssertEqual(core.activeDungeonRelicPickups.map(\.id), [safePickup.id])
+        XCTAssertEqual(core.activeDungeonRelicPickups.map(\.id), [mimicPickup.id, safePickup.id])
         XCTAssertEqual(core.dungeonHP, 3)
         XCTAssertTrue(core.dungeonRelicEntries.isEmpty)
         XCTAssertTrue(core.dungeonCurseEntries.isEmpty)
@@ -1065,7 +1065,7 @@ final class GameCoreTests: XCTestCase {
         XCTAssertEqual(core.moveCount, 1)
     }
 
-    func testAnnihilationSpellCanClearMimicRelicPickupWithoutEnemies() throws {
+    func testAnnihilationSpellDoesNotClearRelicPickupsWithoutEnemies() throws {
         let mimicPickup = DungeonRelicPickupDefinition(
             id: "mimic-18",
             point: GridPoint(x: 2, y: 0),
@@ -1083,8 +1083,8 @@ final class GameCoreTests: XCTestCase {
         XCTAssertTrue(core.isSupportCardUsable(in: core.handStacks[supportIndex]))
         core.playSupportCard(at: supportIndex)
 
-        XCTAssertTrue(core.collectedDungeonRelicPickupIDs.contains(mimicPickup.id))
-        XCTAssertTrue(core.activeDungeonRelicPickups.isEmpty)
+        XCTAssertFalse(core.collectedDungeonRelicPickupIDs.contains(mimicPickup.id))
+        XCTAssertEqual(core.activeDungeonRelicPickups.map(\.id), [mimicPickup.id])
         XCTAssertEqual(core.dungeonHP, 3)
         XCTAssertTrue(core.dungeonRelicAcquisitionPresentations.isEmpty)
         XCTAssertEqual(core.moveCount, 1)
@@ -1359,6 +1359,43 @@ final class GameCoreTests: XCTestCase {
 
         XCTAssertTrue(restoredCore.restoreDungeonResumeSnapshot(decodedSnapshot))
         XCTAssertEqual(restoredCore.pendingDungeonPickupChoice, core.pendingDungeonPickupChoice)
+        XCTAssertEqual(restoredCore.current, currentAfterPickup)
+    }
+
+    func testPendingDungeonRelicPickupChoiceBlocksMovementAndRestoresFromSnapshot() throws {
+        let pickupPoint = GridPoint(x: 1, y: 0)
+        let pickup = DungeonRelicPickupDefinition(
+            id: "choice_relic",
+            point: pickupPoint,
+            kind: .suspiciousLight,
+            candidateRelics: [.glowingHeart],
+            candidateCurses: [.bloodPact]
+        )
+        let mode = makeInventoryDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            allowsBasicOrthogonalMove: true,
+            relicPickups: [pickup]
+        )
+        let core = GameCore(mode: mode)
+
+        playBasicMove(to: pickupPoint, in: core)
+        let currentAfterPickup = core.current
+        let moveCountAfterPickup = core.moveCount
+
+        if let blockedMove = core.availableBasicOrthogonalMoves().first {
+            core.playBasicOrthogonalMove(using: blockedMove)
+        }
+        XCTAssertEqual(core.current, currentAfterPickup)
+        XCTAssertEqual(core.moveCount, moveCountAfterPickup)
+
+        let snapshot = try XCTUnwrap(core.makeDungeonResumeSnapshot())
+        let data = try JSONEncoder().encode(snapshot)
+        let decodedSnapshot = try JSONDecoder().decode(DungeonRunResumeSnapshot.self, from: data)
+        let restoredCore = GameCore(mode: mode)
+
+        XCTAssertTrue(restoredCore.restoreDungeonResumeSnapshot(decodedSnapshot))
+        XCTAssertEqual(restoredCore.pendingDungeonRelicPickupChoice, core.pendingDungeonRelicPickupChoice)
         XCTAssertEqual(restoredCore.current, currentAfterPickup)
     }
 

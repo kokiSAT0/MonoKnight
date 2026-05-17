@@ -298,6 +298,62 @@ public struct PendingDungeonPickupChoice: Codable, Equatable, Sendable {
     }
 }
 
+/// 怪しい宝箱で提示する選択肢
+public struct PendingDungeonRelicPickupChoice: Codable, Equatable, Sendable {
+    public enum OptionKind: String, Codable, Equatable, Sendable {
+        case stableRelic
+        case curseRelic
+        case riskyRelicWithDamage
+    }
+
+    public struct Option: Codable, Equatable, Identifiable, Sendable {
+        public let id: String
+        public let title: String
+        public let kind: OptionKind
+        public let relicID: DungeonRelicID?
+        public let curseID: DungeonCurseID?
+        public let hpPenalty: Int
+
+        public init(
+            id: String,
+            title: String,
+            kind: OptionKind,
+            relicID: DungeonRelicID? = nil,
+            curseID: DungeonCurseID? = nil,
+            hpPenalty: Int = 0
+        ) {
+            self.id = id
+            self.title = title
+            self.kind = kind
+            self.relicID = relicID
+            self.curseID = curseID
+            self.hpPenalty = max(hpPenalty, 0)
+        }
+
+        public var previewItems: [DungeonRelicAcquisitionPresentation.Item] {
+            var items: [DungeonRelicAcquisitionPresentation.Item] = []
+            if let relicID {
+                items.append(.relic(DungeonRelicEntry(relicID: relicID)))
+            }
+            if let curseID {
+                items.append(.curse(DungeonCurseEntry(curseID: curseID)))
+            }
+            if hpPenalty > 0 {
+                items.append(.hpPenalty(hpPenalty))
+            }
+            return items
+        }
+    }
+
+    public let pickup: DungeonRelicPickupDefinition
+    public let options: [Option]
+
+    public init(pickup: DungeonRelicPickupDefinition, options: [Option]) {
+        self.pickup = pickup
+        self.options = options
+    }
+}
+
 /// 遺物の希少度。強さと排出率の大枠として扱う。
 public enum DungeonRelicRarity: String, Codable, CaseIterable, Equatable, Identifiable, Sendable {
     case common
@@ -983,7 +1039,7 @@ public enum DungeonCurseID: String, Codable, CaseIterable, Equatable, Identifiab
         case .supportOath:
             return "補助報酬カードを新しく得る時、使用回数が+2される。"
         case .ashHeart:
-            return "各フロア開始時にHPが2増える。"
+            return "各フロア開始時にHPが1増える。"
         case .hasteArmor:
             return "敵とメテオから受けるHPダメージが1減る。"
         case .scorchedCloak:
@@ -1330,6 +1386,7 @@ public struct DungeonRelicAcquisitionPresentation: Equatable, Identifiable, Send
         case curse(DungeonCurseEntry)
         case mimicDamage(Int)
         case hpCompensation(Int)
+        case hpPenalty(Int)
 
         public var id: String {
             switch self {
@@ -1341,6 +1398,8 @@ public struct DungeonRelicAcquisitionPresentation: Equatable, Identifiable, Send
                 return "mimic-\(damage)"
             case .hpCompensation(let amount):
                 return "hp-\(amount)"
+            case .hpPenalty(let amount):
+                return "hp-penalty-\(amount)"
             }
         }
 
@@ -1354,6 +1413,8 @@ public struct DungeonRelicAcquisitionPresentation: Equatable, Identifiable, Send
                 return "ミミック"
             case .hpCompensation:
                 return "小さな補填"
+            case .hpPenalty:
+                return "代償"
             }
         }
 
@@ -1367,6 +1428,8 @@ public struct DungeonRelicAcquisitionPresentation: Equatable, Identifiable, Send
                 return "exclamationmark.triangle.fill"
             case .hpCompensation:
                 return "heart.fill"
+            case .hpPenalty:
+                return "heart.slash.fill"
             }
         }
 
@@ -1380,6 +1443,8 @@ public struct DungeonRelicAcquisitionPresentation: Equatable, Identifiable, Send
                 return "宝箱がミミック化し、HPを \(damage) 失いました。"
             case .hpCompensation(let amount):
                 return "未所持の遺物候補がなかったため、HPが \(amount) 回復しました。"
+            case .hpPenalty(let amount):
+                return "代償として HP を \(amount) 失います。"
             }
         }
 
@@ -1403,7 +1468,7 @@ public struct DungeonRelicAcquisitionPresentation: Equatable, Identifiable, Send
                     descriptions.append("残り \(curse.remainingUses) 回")
                 }
                 return descriptions
-            case .mimicDamage, .hpCompensation:
+            case .mimicDamage, .hpCompensation, .hpPenalty:
                 return []
             }
         }
@@ -1502,17 +1567,17 @@ public enum DungeonEventEncyclopediaKind: String, CaseIterable, Equatable, Ident
         case .safeChest:
             return "踏むと遺物を取得する安全な宝箱です。カード所持枠は使いません。"
         case .suspiciousLightChest:
-            return "遺物以外の結果も起きることがある、少し怪しい宝箱です。"
+            return "安全な遺物と呪い遺物から選ぶ、少し怪しい宝箱です。"
         case .suspiciousDeepChest:
-            return "強い遺物も狙えますが、危険な結果の割合も高い宝箱です。"
+            return "安全な遺物とHPを失う強行択から選ぶ、深層の怪しい宝箱です。"
         case .relicReward:
             return "フロアクリア後の報酬候補に遺物が並ぶことがあります。既に持つ遺物は候補から外れます。"
         case .curseOutcome:
             return "怪しい宝箱から不利な効果を持つ呪いを受けることがあります。"
         case .mimicOutcome:
-            return "宝箱がミミック化し、開けた瞬間にダメージを受けます。"
+            return "旧仕様の怪しい宝箱で使われていた危険結果です。現行の怪しい宝箱は選択式です。"
         case .pandoraOutcome:
-            return "遺物と呪いを同時に受け取る大きな賭けです。"
+            return "旧仕様の怪しい宝箱で使われていた複合結果です。現行の怪しい宝箱は選択式です。"
         case .floorFall:
             return "崩落穴に落ちると HP を失い、条件を満たす場合は前の階へ落下します。"
         }
@@ -2302,7 +2367,7 @@ public struct DungeonRunState: Codable, Equatable, Sendable {
         var floorStartHP = adjustedCarryoverHP
             + (carriedRelics.contains { $0.relicID == .starCup } ? 1 : 0)
             + (carriedRelics.contains { $0.relicID == .immortalHeart } ? 1 : 0)
-            + (carriedCurses.contains { $0.curseID == .ashHeart } ? 2 : 0)
+            + (carriedCurses.contains { $0.curseID == .ashHeart } ? 1 : 0)
             + (completedWithinHalfTurnLimit && carriedCurses.contains { $0.curseID == .expressTicket } ? 2 : 0)
         if floorStartHP <= 2, carriedRelics.contains(where: { $0.relicID == .travelerRation }) {
             floorStartHP += 1
@@ -3164,6 +3229,8 @@ public enum HazardDefinition: Codable, Equatable, Sendable {
     case brittleFloor(points: Set<GridPoint>, initialState: BrittleFloorInitialState = .cracked)
     /// 見えている罠床。踏むたびに指定ダメージを受ける
     case damageTrap(points: Set<GridPoint>, damage: Int)
+    /// 見えている衰弱罠。踏むと現在 HP に応じた罠ダメージを受ける
+    case hpHalvingTrap(points: Set<GridPoint>)
     /// 見えている溶岩床。踏むたびに指定ダメージを受け、その上でターン経過してもダメージを受ける
     case lavaTile(points: Set<GridPoint>, damage: Int)
     /// 見えている回復床。1 回踏むと指定量だけ HP が増え、そのフロア中は消費済みになる
@@ -3180,6 +3247,7 @@ public enum HazardDefinition: Codable, Equatable, Sendable {
     private enum Kind: String, Codable, Sendable {
         case brittleFloor
         case damageTrap
+        case hpHalvingTrap
         case lavaTile
         case healingTile
     }
@@ -3197,6 +3265,10 @@ public enum HazardDefinition: Codable, Equatable, Sendable {
             self = .damageTrap(
                 points: try container.decode(Set<GridPoint>.self, forKey: .points),
                 damage: try container.decodeIfPresent(Int.self, forKey: .damage) ?? 1
+            )
+        case .hpHalvingTrap:
+            self = .hpHalvingTrap(
+                points: try container.decode(Set<GridPoint>.self, forKey: .points)
             )
         case .lavaTile:
             self = .lavaTile(
@@ -3224,6 +3296,9 @@ public enum HazardDefinition: Codable, Equatable, Sendable {
             try container.encode(Kind.damageTrap, forKey: .type)
             try container.encode(points, forKey: .points)
             try container.encode(max(damage, 1), forKey: .damage)
+        case .hpHalvingTrap(let points):
+            try container.encode(Kind.hpHalvingTrap, forKey: .type)
+            try container.encode(points, forKey: .points)
         case .lavaTile(let points, let damage):
             try container.encode(Kind.lavaTile, forKey: .type)
             try container.encode(points, forKey: .points)
@@ -4724,6 +4799,8 @@ private enum DungeonCardVariationResolver {
                 )
             case .damageTrap(_, let damage):
                 return .damageTrap(points: Set(points), damage: damage)
+            case .hpHalvingTrap:
+                return .hpHalvingTrap(points: Set(points))
             case .lavaTile(_, let damage):
                 return .lavaTile(points: Set(points), damage: damage)
             case .healingTile(_, let amount):
@@ -4867,7 +4944,7 @@ private enum DungeonCardVariationResolver {
     private static func damagePressurePointCount(in hazards: [HazardDefinition]) -> Int {
         hazards.reduce(0) { total, hazard in
             switch hazard {
-            case .damageTrap(let points, _), .lavaTile(let points, _), .brittleFloor(let points, _):
+            case .damageTrap(let points, _), .hpHalvingTrap(let points), .lavaTile(let points, _), .brittleFloor(let points, _):
                 return total + points.count
             case .healingTile:
                 return total
@@ -5329,6 +5406,8 @@ private extension HazardDefinition {
         case .brittleFloor(let points, _):
             return points
         case .damageTrap(let points, _):
+            return points
+        case .hpHalvingTrap(let points):
             return points
         case .lavaTile(let points, _):
             return points
@@ -6963,10 +7042,10 @@ public struct DungeonLibrary {
     private static func buildGrowthTowerFinalFloors() -> [DungeonFloorDefinition] {
         [
             makeGrowthTowerDeepFloor(number: 41, title: "踏破への入口", turnLimit: 16, enemies: [growthPatrol("growth-41-patrol", [(2, 3), (3, 3), (4, 3), (5, 3), (6, 3), (7, 3), (6, 3), (5, 3)]), growthRotatingWatcher("growth-41-rotating", position: (6, 6), direction: (-1, 0), rotation: .clockwise, range: 5)], hazards: [.damageTrap(points: gridSet([(3, 5), (6, 5)]), damage: 1), .healingTile(points: gridSet([(2, 5)]), amount: 1)], impassableTilePoints: gridSet([(2, 2), (4, 6), (7, 4)]), warpTilePairs: ["growth-41-build": gridPoints([(1, 2), (6, 7)])], cardPickups: growthCards(41, [((1, 1), .straightRight2), ((3, 1), .rayRight), ((6, 4), .diagonalUpLeft2)]), relicPickups: [growthRelic(41, at: (5, 5), kind: .suspiciousLight)], exitPoint: GridPoint(x: 8, y: 4), rewardMoveCardsAfterClear: [.rayUpRight, .rayDownLeft, .knightRightwardChoice], rewardSupportCardsAfterClear: [.barrierSpell]),
-            makeGrowthTowerDeepFloor(number: 42, title: "呪い箱の岐路", turnLimit: 15, enemies: [growthChaser("growth-42-chaser", position: (7, 5)), growthWatcher("growth-42-watcher", position: (5, 2), direction: (0, 1), range: 5), growthMarker("growth-42-marker", position: (6, 6), range: 3)], hazards: [.lavaTile(points: gridSet([(4, 4)]), damage: 1)], impassableTilePoints: gridSet([(2, 6), (4, 2), (7, 3)]), tileEffectOverrides: gridEffects([((3, 5), .poisonTrap), ((6, 4), .swamp)]), cardPickups: growthCards(42, [((1, 5), .straightUp2), ((3, 6), .diagonalDownRight2), ((6, 2), .rayLeft)]), relicPickups: [growthRelic(42, at: (5, 6), kind: .suspiciousDeep)], rewardMoveCardsAfterClear: [.rayLeft, .rayDownRight, .knightLeftwardChoice], rewardSupportCardsAfterClear: [.panacea, .darknessSpell], isDarknessEnabled: true),
-            makeGrowthTowerDeepFloor(number: 43, title: "落下を読む橋", turnLimit: 16, enemies: [growthPatrol("growth-43-patrol", [(2, 5), (3, 5), (4, 5), (5, 5), (6, 5), (5, 5), (4, 5), (3, 5)]), growthRotatingWatcher("growth-43-rotating", position: (6, 2), direction: (0, 1), rotation: .counterclockwise, range: 5)], hazards: [.brittleFloor(points: gridSet([(3, 3), (4, 3), (5, 3)]), initialState: .hiddenWeak), .damageTrap(points: gridSet([(6, 6)]), damage: 1)], impassableTilePoints: gridSet([(2, 2), (4, 6), (7, 5)]), warpTilePairs: ["growth-43-fall": gridPoints([(1, 4), (6, 7)])], cardPickups: growthCards(43, [((2, 1), .straightRight2), ((4, 1), .rayUp), ((6, 4), .diagonalUpLeft2)]), rewardMoveCardsAfterClear: [.rayUp, .rayUpLeft, .knightUpwardChoice], rewardSupportCardsAfterClear: [.barrierSpell]),
+            makeGrowthTowerDeepFloor(number: 42, title: "呪い箱の岐路", turnLimit: 15, enemies: [growthChaser("growth-42-chaser", position: (7, 5)), growthWatcher("growth-42-watcher", position: (5, 2), direction: (0, 1), range: 5), growthMarker("growth-42-marker", position: (6, 6), range: 3)], hazards: [.lavaTile(points: gridSet([(4, 4)]), damage: 1), .hpHalvingTrap(points: gridSet([(2, 3)]))], impassableTilePoints: gridSet([(2, 6), (4, 2), (7, 3)]), tileEffectOverrides: gridEffects([((3, 5), .poisonTrap), ((6, 4), .swamp)]), cardPickups: growthCards(42, [((1, 5), .straightUp2), ((3, 6), .diagonalDownRight2), ((6, 2), .rayLeft)]), relicPickups: [growthRelic(42, at: (5, 6), kind: .suspiciousDeep)], rewardMoveCardsAfterClear: [.rayLeft, .rayDownRight, .knightLeftwardChoice], rewardSupportCardsAfterClear: [.panacea, .darknessSpell], isDarknessEnabled: true),
+            makeGrowthTowerDeepFloor(number: 43, title: "落下を読む橋", turnLimit: 16, enemies: [growthPatrol("growth-43-patrol", [(2, 5), (3, 5), (4, 5), (5, 5), (6, 5), (5, 5), (4, 5), (3, 5)]), growthRotatingWatcher("growth-43-rotating", position: (6, 2), direction: (0, 1), rotation: .counterclockwise, range: 5)], hazards: [.brittleFloor(points: gridSet([(3, 3), (4, 3), (5, 3)]), initialState: .hiddenWeak), .damageTrap(points: gridSet([(6, 6)]), damage: 1), .hpHalvingTrap(points: gridSet([(5, 6)]))], impassableTilePoints: gridSet([(2, 2), (4, 6), (7, 5)]), warpTilePairs: ["growth-43-fall": gridPoints([(1, 4), (6, 7)])], cardPickups: growthCards(43, [((2, 1), .straightRight2), ((4, 1), .rayUp), ((6, 4), .diagonalUpLeft2)]), rewardMoveCardsAfterClear: [.rayUp, .rayUpLeft, .knightUpwardChoice], rewardSupportCardsAfterClear: [.barrierSpell]),
             makeGrowthTowerDeepFloor(number: 44, title: "追跡の薬路", turnLimit: 15, enemies: [growthChaser("growth-44-chaser-a", position: (5, 6)), growthChaser("growth-44-chaser-b", position: (7, 3)), growthMarker("growth-44-marker", position: (6, 5), range: 3)], hazards: [.damageTrap(points: gridSet([(3, 2), (5, 5)]), damage: 1), .healingTile(points: gridSet([(2, 4)]), amount: 1)], impassableTilePoints: gridSet([(3, 3), (5, 2), (7, 6)]), tileEffectOverrides: gridEffects([((4, 5), .shackleTrap), ((6, 4), .discardRandomHand)]), exitLock: DungeonExitLock(unlockPoint: GridPoint(x: 2, y: 6)), cardPickups: growthCards(44, [((1, 5), .straightUp2), ((3, 6), .diagonalDownRight2), ((6, 2), .rayLeft)]), rewardMoveCardsAfterClear: [.rayDown, .rayDownLeft, .knightDownwardChoice], rewardSupportCardsAfterClear: [.panacea, .singleAnnihilationSpell]),
-            makeGrowthTowerDeepFloor(number: 45, title: "第五関門", turnLimit: 16, enemies: [growthPatrol("growth-45-patrol", [(3, 4), (4, 4), (5, 4), (6, 4), (7, 4), (6, 4), (5, 4), (4, 4)]), growthRotatingWatcher("growth-45-rotating", position: (6, 6), direction: (-1, 0), rotation: .clockwise, range: 5), growthMarker("growth-45-marker", position: (2, 6), range: 4)], hazards: [.damageTrap(points: gridSet([(2, 2), (5, 6)]), damage: 1), .brittleFloor(points: gridSet([(4, 2), (5, 2)]), initialState: .collapsed)], impassableTilePoints: gridSet([(2, 5), (4, 7), (7, 2), (7, 6)]), tileEffectOverrides: gridEffects([((5, 5), .illusionTrap), ((6, 3), .discardAllSupportCards)]), warpTilePairs: ["growth-45-risk": gridPoints([(1, 2), (6, 7)])], exitLock: DungeonExitLock(unlockPoint: GridPoint(x: 2, y: 1)), cardPickups: growthCards(45, [((1, 1), .straightRight2), ((3, 1), .diagonalUpRight2), ((7, 5), .rayLeft)]), relicPickups: [growthRelic(45, at: (4, 6), kind: .suspiciousDeep)], rewardMoveCardsAfterClear: [.rayUpRight, .rayDownRight, .knightRightwardChoice], rewardSupportCardsAfterClear: [.freezeSpell, .railBreakSpell], isDarknessEnabled: true),
+            makeGrowthTowerDeepFloor(number: 45, title: "第五関門", turnLimit: 16, enemies: [growthPatrol("growth-45-patrol", [(3, 4), (4, 4), (5, 4), (6, 4), (7, 4), (6, 4), (5, 4), (4, 4)]), growthRotatingWatcher("growth-45-rotating", position: (6, 6), direction: (-1, 0), rotation: .clockwise, range: 5), growthMarker("growth-45-marker", position: (2, 6), range: 4)], hazards: [.damageTrap(points: gridSet([(2, 2), (5, 6)]), damage: 1), .hpHalvingTrap(points: gridSet([(6, 1)])), .brittleFloor(points: gridSet([(4, 2), (5, 2)]), initialState: .collapsed)], impassableTilePoints: gridSet([(2, 5), (4, 7), (7, 2), (7, 6)]), tileEffectOverrides: gridEffects([((5, 5), .illusionTrap), ((6, 3), .discardAllSupportCards)]), warpTilePairs: ["growth-45-risk": gridPoints([(1, 2), (6, 7)])], exitLock: DungeonExitLock(unlockPoint: GridPoint(x: 2, y: 1)), cardPickups: growthCards(45, [((1, 1), .straightRight2), ((3, 1), .diagonalUpRight2), ((7, 5), .rayLeft)]), relicPickups: [growthRelic(45, at: (4, 6), kind: .suspiciousDeep)], rewardMoveCardsAfterClear: [.rayUpRight, .rayDownRight, .knightRightwardChoice], rewardSupportCardsAfterClear: [.freezeSpell, .railBreakSpell], isDarknessEnabled: true),
             makeGrowthTowerDeepFloor(number: 46, title: "暗闇の総力戦", turnLimit: 15, enemies: [growthWatcher("growth-46-watcher", position: (7, 5), direction: (-1, 0), range: 5), growthMarker("growth-46-marker", position: (6, 6), range: 4), growthChaser("growth-46-chaser", position: (3, 6))], hazards: [.lavaTile(points: gridSet([(5, 4)]), damage: 1), .healingTile(points: gridSet([(2, 5)]), amount: 1)], impassableTilePoints: gridSet([(2, 2), (4, 6), (7, 3)]), tileEffectOverrides: gridEffects([((3, 5), .poisonTrap), ((6, 4), .swamp)]), cardPickups: growthCards(46, [((2, 1), .straightRight2), ((4, 1), .rayUp), ((6, 5), .diagonalDownLeft2)]), rewardMoveCardsAfterClear: [.rayLeft, .rayUpLeft, .knightLeftwardChoice], rewardSupportCardsAfterClear: [.darknessSpell, .antidote], isDarknessEnabled: true),
             makeGrowthTowerDeepFloor(number: 47, title: "巡回の包囲網", turnLimit: 16, enemies: [growthPatrol("growth-47-patrol-a", [(2, 3), (3, 3), (4, 3), (5, 3), (6, 3), (7, 3), (6, 3), (5, 3)]), growthPatrol("growth-47-patrol-b", [(6, 5), (6, 6), (6, 7), (5, 7), (4, 7), (5, 7), (6, 7), (6, 6)]), growthRotatingWatcher("growth-47-rotating", position: (5, 5), direction: (0, -1), rotation: .counterclockwise, range: 4)], hazards: [.damageTrap(points: gridSet([(2, 5), (5, 6)]), damage: 1)], impassableTilePoints: gridSet([(2, 7), (4, 5), (7, 1)]), exitLock: DungeonExitLock(unlockPoint: GridPoint(x: 1, y: 4)), cardPickups: growthCards(47, [((1, 3), .straightUp2), ((3, 4), .diagonalUpRight2), ((7, 4), .rayLeft)]), relicPickups: [growthRelic(47, at: (3, 6), kind: .suspiciousLight)], rewardMoveCardsAfterClear: [.rayRight, .rayDownRight, .knightUpwardChoice], rewardSupportCardsAfterClear: [.railBreakSpell, .barrierSpell]),
             makeGrowthTowerDeepFloor(number: 48, title: "幻惑の最短路", turnLimit: 14, enemies: [growthChaser("growth-48-chaser", position: (7, 5)), growthMarker("growth-48-marker", position: (6, 6), range: 4), growthRotatingWatcher("growth-48-rotating", position: (5, 2), direction: (0, 1), rotation: .clockwise, range: 5)], hazards: [.damageTrap(points: gridSet([(3, 3), (6, 5)]), damage: 1), .healingTile(points: gridSet([(2, 6)]), amount: 1)], impassableTilePoints: gridSet([(2, 4), (4, 6), (7, 2)]), tileEffectOverrides: gridEffects([((4, 4), .illusionTrap), ((5, 5), .shackleTrap), ((6, 3), .discardAllMoveCards)]), warpTilePairs: ["growth-48-risk": gridPoints([(1, 1), (6, 7)])], cardPickups: growthCards(48, [((2, 1), .rayRight), ((4, 1), .straightUp2), ((6, 4), .diagonalUpLeft2)]), rewardMoveCardsAfterClear: [.rayUpLeft, .rayDownLeft, .knightDownwardChoice], rewardSupportCardsAfterClear: [.panacea, .freezeSpell], isDarknessEnabled: true),

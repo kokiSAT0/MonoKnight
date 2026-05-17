@@ -274,6 +274,8 @@ public final class GameCore: ObservableObject {
     @Published public private(set) var dungeonRelicAcquisitionPresentations: [DungeonRelicAcquisitionPresentation] = []
     /// 所持枠が満杯で床落ちカードの取捨選択を待っている状態
     @Published public private(set) var pendingDungeonPickupChoice: PendingDungeonPickupChoice?
+    /// 怪しい宝箱の選択を待っている状態
+    @Published public private(set) var pendingDungeonRelicPickupChoice: PendingDungeonRelicPickupChoice?
     /// 塔ダンジョン出口が現在有効かどうか
     @Published public private(set) var isDungeonExitUnlocked: Bool = true
     /// 出口解錠演出用の単発イベント
@@ -517,7 +519,7 @@ public final class GameCore: ObservableObject {
         return relicPickups.filter { !collectedDungeonRelicPickupIDs.contains($0.id) }
     }
     public var isAwaitingDungeonPickupChoice: Bool {
-        pendingDungeonPickupChoice != nil
+        pendingDungeonPickupChoice != nil || pendingDungeonRelicPickupChoice != nil
     }
     public var targetedSupportCardTargetPoints: Set<GridPoint> {
         guard pendingTargetedSupportCard?.support == .singleAnnihilationSpell else { return [] }
@@ -614,7 +616,8 @@ public final class GameCore: ObservableObject {
             dungeonCurseEntries: dungeonCurseEntries,
             collectedDungeonRelicPickupIDs: collectedDungeonRelicPickupIDs,
             isDungeonExitUnlocked: isDungeonExitUnlocked,
-            pendingDungeonPickupChoice: pendingDungeonPickupChoice
+            pendingDungeonPickupChoice: pendingDungeonPickupChoice,
+            pendingDungeonRelicPickupChoice: pendingDungeonRelicPickupChoice
         )
     }
 
@@ -678,6 +681,7 @@ public final class GameCore: ObservableObject {
         collectedDungeonRelicPickupIDs = snapshot.collectedDungeonRelicPickupIDs
         dungeonRelicAcquisitionPresentations = []
         pendingDungeonPickupChoice = snapshot.pendingDungeonPickupChoice
+        pendingDungeonRelicPickupChoice = snapshot.pendingDungeonRelicPickupChoice
         isDungeonExitUnlocked = snapshot.isDungeonExitUnlocked
         dungeonExitUnlockEvent = nil
         dungeonLockedExitReachEvent = nil
@@ -788,6 +792,7 @@ public final class GameCore: ObservableObject {
     public func beginTargetedSupportCardSelection(at index: Int) -> Bool {
         guard progress == .playing, handStacks.indices.contains(index), current != nil else { return false }
         guard pendingDungeonPickupChoice == nil else { return false }
+        guard pendingDungeonRelicPickupChoice == nil else { return false }
         guard !isAwaitingManualDiscardSelection else { return false }
         guard let card = handStacks[index].topCard,
               let support = card.supportCard,
@@ -813,6 +818,7 @@ public final class GameCore: ObservableObject {
     public func playTargetedSupportCard(at point: GridPoint) -> Bool {
         guard progress == .playing,
               pendingDungeonPickupChoice == nil,
+              pendingDungeonRelicPickupChoice == nil,
               !isAwaitingManualDiscardSelection,
               let pending = pendingTargetedSupportCard,
               pending.support == .singleAnnihilationSpell,
@@ -841,6 +847,7 @@ public final class GameCore: ObservableObject {
     public func playSupportCard(at index: Int) {
         guard progress == .playing, handStacks.indices.contains(index), current != nil else { return }
         guard pendingDungeonPickupChoice == nil else { return }
+        guard pendingDungeonRelicPickupChoice == nil else { return }
         guard !isAwaitingManualDiscardSelection else { return }
         guard let card = handStacks[index].topCard, let support = card.supportCard else { return }
         guard isSupportCardUsable(in: handStacks[index]) else { return }
@@ -1078,6 +1085,7 @@ public final class GameCore: ObservableObject {
         // スポーン待ちやクリア済み・ペナルティ中は操作不可
         guard progress == .playing, let currentPosition = current else { return }
         guard pendingDungeonPickupChoice == nil else { return }
+        guard pendingDungeonRelicPickupChoice == nil else { return }
         // 捨て札モード中は移動を開始せず安全に抜ける
         guard !isAwaitingManualDiscardSelection else { return }
         // UI 側で保持していた情報が古くなっていないかを安全確認
@@ -1325,6 +1333,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
     public func playBasicOrthogonalMove(using basicMove: BasicOrthogonalMove) {
         guard progress == .playing, let currentPosition = current else { return }
         guard pendingDungeonPickupChoice == nil else { return }
+        guard pendingDungeonRelicPickupChoice == nil else { return }
         guard !isAwaitingManualDiscardSelection else { return }
         guard mode.dungeonRules?.allowsBasicOrthogonalMove == true else { return }
         guard availableBasicOrthogonalMoves().contains(where: { candidate in
@@ -2143,6 +2152,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         collectedDungeonRelicPickupIDs = mode.dungeonMetadataSnapshot?.runState?.collectedDungeonRelicPickupIDs ?? []
         dungeonRelicAcquisitionPresentations = []
         pendingDungeonPickupChoice = nil
+        pendingDungeonRelicPickupChoice = nil
         isDungeonExitUnlocked = mode.dungeonRules?.exitLock == nil
         dungeonExitUnlockEvent = nil
         dungeonLockedExitReachEvent = nil
@@ -2335,6 +2345,51 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         return true
     }
 
+    @discardableResult
+    public func selectPendingDungeonRelicPickupOption(id optionID: String) -> Bool {
+        guard let choice = pendingDungeonRelicPickupChoice,
+              let option = choice.options.first(where: { $0.id == optionID }),
+              !collectedDungeonRelicPickupIDs.contains(choice.pickup.id)
+        else { return false }
+
+        pendingDungeonRelicPickupChoice = nil
+        collectedDungeonRelicPickupIDs.insert(choice.pickup.id)
+        var presentationItems: [DungeonRelicAcquisitionPresentation.Item] = []
+        var outcome: DungeonRelicPickupOutcome = .relic
+
+        if let relicID = option.relicID,
+           let relic = grantDungeonRelic(relicID) {
+            presentationItems.append(.relic(relic))
+        }
+        if let curseID = option.curseID {
+            outcome = .curse
+            presentationItems.append(contentsOf: grantDungeonCurse(curseID, from: choice.pickup, salt: option.id))
+        }
+        if option.hpPenalty > 0 {
+            applyDungeonHPDamage(option.hpPenalty)
+            presentationItems.append(.hpPenalty(option.hpPenalty))
+            if dungeonHP <= 0 {
+                finalizeElapsedTimeIfNeeded()
+                progress = .failed
+            }
+        }
+
+        logDungeonPlayEvent(
+            "pickup_relic_choice",
+            [
+                ("pickup", choice.pickup.id),
+                ("point", PlayDiagnosticLog.describe(choice.pickup.point)),
+                ("option", option.title),
+                ("items", presentationItems.map(\.diagnosticDescription).joined(separator: ",")),
+                ("relics", diagnosticRelicDescription),
+                ("curses", diagnosticCurseDescription)
+            ]
+        )
+        publishDungeonRelicAcquisitionPresentationIfNeeded(outcome: outcome, items: presentationItems)
+        debugLog("怪しい宝箱の選択を確定: \(choice.pickup.id) \(option.title)")
+        return true
+    }
+
     private func collectDungeonCardPickups(along traversedPath: [GridPoint]) {
         guard usesDungeonInventoryCards else { return }
         let visitedPoints = Set(traversedPath)
@@ -2362,6 +2417,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
     private func collectDungeonCardPickupDefinition(_ pickup: DungeonCardPickupDefinition) -> Bool {
         guard usesDungeonInventoryCards else { return false }
         guard pendingDungeonPickupChoice == nil else { return false }
+        guard pendingDungeonRelicPickupChoice == nil else { return false }
         let pickupUses = adjustedDungeonPickupUses(pickup.uses)
         if addDungeonInventoryPlayable(pickup.playable, pickupUses: pickupUses) {
             collectedDungeonCardPickupIDs.insert(pickup.id)
@@ -2418,7 +2474,42 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
     @discardableResult
     private func collectDungeonRelicPickupDefinition(_ pickup: DungeonRelicPickupDefinition) -> Bool {
         guard mode.dungeonRules?.difficulty == .growth else { return false }
+        guard pendingDungeonRelicPickupChoice == nil else { return false }
         guard !collectedDungeonRelicPickupIDs.contains(pickup.id) else { return false }
+
+        if pickup.kind.isSuspicious {
+            if let choice = makePendingDungeonRelicPickupChoice(for: pickup), choice.options.count >= 2 {
+                pendingDungeonRelicPickupChoice = choice
+                debugLog("怪しい宝箱の選択を開始: \(pickup.id) @\(pickup.point)")
+                logDungeonPlayEvent(
+                    "pickup_relic_choice_start",
+                    [
+                        ("pickup", pickup.id),
+                        ("point", PlayDiagnosticLog.describe(pickup.point)),
+                        ("options", choice.options.map(\.title).joined(separator: ","))
+                    ]
+                )
+                return false
+            }
+            collectedDungeonRelicPickupIDs.insert(pickup.id)
+            dungeonHP += 1
+            let presentationItems: [DungeonRelicAcquisitionPresentation.Item] = [.hpCompensation(1)]
+            logDungeonPlayEvent(
+                "pickup_relic",
+                [
+                    ("pickup", pickup.id),
+                    ("point", PlayDiagnosticLog.describe(pickup.point)),
+                    ("outcome", "compensation"),
+                    ("items", presentationItems.map(\.diagnosticDescription).joined(separator: ",")),
+                    ("relics", diagnosticRelicDescription),
+                    ("curses", diagnosticCurseDescription)
+                ]
+            )
+            publishDungeonRelicAcquisitionPresentationIfNeeded(outcome: .relic, items: presentationItems)
+            debugLog("怪しい宝箱の選択候補が不足したためHP補填: \(pickup.id) @\(pickup.point), HP=\(dungeonHP)")
+            return true
+        }
+
         collectedDungeonRelicPickupIDs.insert(pickup.id)
 
         let outcome = selectedRelicPickupOutcome(for: pickup)
@@ -2461,13 +2552,62 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
     }
 
     private func removeMimicRelicPickupsForAnnihilationSpell() {
-        guard mode.dungeonRules?.difficulty == .growth else { return }
-        let mimicPickupIDs = activeDungeonRelicPickups
-            .filter { selectedRelicPickupOutcome(for: $0) == .mimic }
-            .map(\.id)
-        guard !mimicPickupIDs.isEmpty else { return }
-        collectedDungeonRelicPickupIDs.formUnion(mimicPickupIDs)
-        debugLog("補助カード 全滅の呪文: ミミック宝箱 \(mimicPickupIDs.joined(separator: ",")) を消滅")
+        // 怪しい宝箱は選択式になったため、未開封ミミックの事前消滅は発生しない。
+    }
+
+    private func makePendingDungeonRelicPickupChoice(for pickup: DungeonRelicPickupDefinition) -> PendingDungeonRelicPickupChoice? {
+        let stableRelicID = selectedRelicID(
+            from: availableRelicCandidates(for: pickup),
+            rarityWeights: pickup.kind.relicRarityWeights,
+            pickupID: pickup.id,
+            salt: "choice-stable"
+        )
+        let stableOption = stableRelicID.map {
+            PendingDungeonRelicPickupChoice.Option(
+                id: "stable",
+                title: "安定択",
+                kind: .stableRelic,
+                relicID: $0
+            )
+        }
+
+        let riskOption: PendingDungeonRelicPickupChoice.Option?
+        switch pickup.kind {
+        case .safe:
+            riskOption = nil
+        case .suspiciousLight:
+            riskOption = selectedCurseID(
+                from: availableCurseCandidates(for: pickup),
+                pickupID: pickup.id,
+                salt: "choice-curse"
+            ).map {
+                PendingDungeonRelicPickupChoice.Option(
+                    id: "curse",
+                    title: "ピーキー択",
+                    kind: .curseRelic,
+                    curseID: $0
+                )
+            }
+        case .suspiciousDeep:
+            riskOption = selectedRelicID(
+                from: availableRelicCandidates(for: pickup).filter { $0 != stableRelicID },
+                rarityWeights: [(.common, 20), (.rare, 55), (.legendary, 25)],
+                pickupID: pickup.id,
+                salt: "choice-risky"
+            ).map {
+                PendingDungeonRelicPickupChoice.Option(
+                    id: "risky",
+                    title: "強行択",
+                    kind: .riskyRelicWithDamage,
+                    relicID: $0,
+                    hpPenalty: 1
+                )
+            }
+        }
+
+        let options = [stableOption, riskOption].compactMap { $0 }
+        guard options.count >= 2 else { return nil }
+        return PendingDungeonRelicPickupChoice(pickup: pickup, options: options)
     }
 
     @discardableResult
@@ -2491,9 +2631,29 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
     }
 
     @discardableResult
+    private func grantDungeonRelic(_ relicID: DungeonRelicID) -> DungeonRelicEntry? {
+        guard !dungeonRelicEntries.contains(where: { $0.relicID == relicID }) else { return nil }
+        let entry = DungeonRelicEntry(relicID: relicID)
+        dungeonRelicEntries.append(entry)
+        applyImmediateDungeonRelicEffect(relicID)
+        debugLog("遺物を取得: \(relicID.displayName)")
+        return entry
+    }
+
+    @discardableResult
     private func grantDungeonCurse(from pickup: DungeonRelicPickupDefinition, salt: String) -> [DungeonRelicAcquisitionPresentation.Item] {
         let candidates = availableCurseCandidates(for: pickup)
         guard let curseID = selectedCurseID(from: candidates, pickupID: pickup.id, salt: salt) else { return [] }
+        return grantDungeonCurse(curseID, from: pickup, salt: salt)
+    }
+
+    @discardableResult
+    private func grantDungeonCurse(
+        _ curseID: DungeonCurseID,
+        from pickup: DungeonRelicPickupDefinition,
+        salt: String
+    ) -> [DungeonRelicAcquisitionPresentation.Item] {
+        guard !dungeonCurseEntries.contains(where: { $0.curseID == curseID }) else { return [] }
         if consumeDungeonRelicUse(.moonMirror) {
             if let relic = grantDungeonRelic(from: pickup, salt: "moon-mirror-\(salt)") {
                 debugLog("月の鏡で呪い遺物を通常遺物へ変換: \(curseID.displayName) @\(pickup.point)")
@@ -2834,7 +2994,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             switch hazard {
             case .brittleFloor(let floorPoints, _):
                 points.formUnion(floorPoints)
-            case .damageTrap, .lavaTile, .healingTile:
+            case .damageTrap, .hpHalvingTrap(_), .lavaTile, .healingTile:
                 break
             }
         }
@@ -2847,7 +3007,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             switch hazard {
             case .brittleFloor(let floorPoints, let state) where state == initialState:
                 points.formUnion(floorPoints)
-            case .brittleFloor, .damageTrap, .lavaTile, .healingTile:
+            case .brittleFloor, .damageTrap, .hpHalvingTrap(_), .lavaTile, .healingTile:
                 break
             }
         }
@@ -2860,7 +3020,20 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             switch hazard {
             case .damageTrap(let trapPoints, _):
                 points.formUnion(trapPoints)
-            case .brittleFloor, .lavaTile, .healingTile:
+            case .brittleFloor, .hpHalvingTrap(_), .lavaTile, .healingTile:
+                break
+            }
+        }
+        return points
+    }
+
+    public var hpHalvingTrapPoints: Set<GridPoint> {
+        var points: Set<GridPoint> = []
+        for hazard in mode.dungeonRules?.hazards ?? [] {
+            switch hazard {
+            case .hpHalvingTrap(let trapPoints):
+                points.formUnion(trapPoints)
+            case .brittleFloor, .damageTrap, .lavaTile, .healingTile:
                 break
             }
         }
@@ -2873,7 +3046,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             switch hazard {
             case .lavaTile(let lavaPoints, _):
                 points.formUnion(lavaPoints)
-            case .brittleFloor, .damageTrap, .healingTile:
+            case .brittleFloor, .damageTrap, .hpHalvingTrap(_), .healingTile:
                 break
             }
         }
@@ -2886,7 +3059,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             switch hazard {
             case .healingTile(let healingPoints, _):
                 points.formUnion(healingPoints)
-            case .brittleFloor, .damageTrap, .lavaTile:
+            case .brittleFloor, .damageTrap, .hpHalvingTrap(_), .lavaTile:
                 break
             }
         }
@@ -2931,6 +3104,17 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                     progress = .failed
                     return true
                 }
+            case .hpHalvingTrap(let trapPoints) where trapPoints.contains(point):
+                let targetHP = max((dungeonHP + 1) / 2, 1)
+                let damage = max(dungeonHP - targetHP, 0)
+                if damage > 0 {
+                    applyDungeonHazardDamage(damage, at: point, logLabel: "罠")
+                    if shouldFailDungeonRun() {
+                        finalizeElapsedTimeIfNeeded()
+                        progress = .failed
+                        return true
+                    }
+                }
             case .lavaTile(let lavaPoints, let damage) where lavaPoints.contains(point):
                 didStepOnLavaThisFloor = true
                 applyDungeonHazardDamage(max(damage, 1), at: point, logLabel: "溶岩")
@@ -2956,7 +3140,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                     isIlluded = true
                 }
                 debugLog("回復マスを踏みました: \(point), +\(appliedHealing), HP=\(dungeonHP)")
-            case .brittleFloor, .damageTrap, .lavaTile, .healingTile:
+            case .brittleFloor, .damageTrap, .hpHalvingTrap(_), .lavaTile, .healingTile:
                 break
             }
         }
@@ -4283,6 +4467,7 @@ extension GameCore: GameCoreProtocol {
         // ゲーム進行中でなければ入力を無視
         guard progress == .playing else { return }
         guard pendingDungeonPickupChoice == nil else { return }
+        guard pendingDungeonRelicPickupChoice == nil else { return }
 
         // デバッグログ: タップされたマスを表示
         debugLog("マス \(point) をタップ")
@@ -4460,6 +4645,7 @@ extension GameCore {
         core.dungeonInventoryEntries = mode.dungeonMetadataSnapshot?.runState?.rewardInventoryEntries ?? []
         core.collectedDungeonCardPickupIDs = []
         core.pendingDungeonPickupChoice = nil
+        core.pendingDungeonRelicPickupChoice = nil
         core.dungeonRelicEntries = mode.dungeonMetadataSnapshot?.runState?.relicEntries ?? []
         core.dungeonCurseEntries = mode.dungeonMetadataSnapshot?.runState?.curseEntries ?? []
         core.collectedDungeonRelicPickupIDs = mode.dungeonMetadataSnapshot?.runState?.collectedDungeonRelicPickupIDs ?? []

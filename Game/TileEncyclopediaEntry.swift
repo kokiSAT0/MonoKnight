@@ -10,6 +10,7 @@ public enum TileMarkerPreviewKind: Equatable, Sendable {
     case cardPickup
     case dungeonRelicPickup
     case damageTrap
+    case hpHalvingTrap
     case lavaTile
     case healingTile
     case brittleFloor
@@ -110,6 +111,13 @@ public struct TileEncyclopediaEntry: Identifiable, Equatable, Sendable {
             category: "危険",
             description: "見えているダメージ床です。踏むと HP を失いますが、近道として使える場面もあります。",
             previewKind: .damageTrap
+        ),
+        TileEncyclopediaEntry(
+            id: "hpHalvingTrap",
+            displayName: "衰弱罠",
+            category: "危険",
+            description: "見えている終盤向けの罠です。踏むと現在HPに応じて大きく弱りますが、この罠だけでHP0にはなりません。",
+            previewKind: .hpHalvingTrap
         ),
         TileEncyclopediaEntry(
             id: "lavaTile",

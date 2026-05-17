@@ -120,6 +120,7 @@ final class MoveCardPresentationTests: XCTestCase {
         XCTAssertEqual(entries.first { $0.id == "dungeonRelicPickup" }?.previewKind, .dungeonRelicPickup)
         XCTAssertEqual(entries.first { $0.id == "impassable" }?.previewKind, .impassable)
         XCTAssertEqual(entries.first { $0.id == "damageTrap" }?.previewKind, .damageTrap)
+        XCTAssertEqual(entries.first { $0.id == "hpHalvingTrap" }?.previewKind, .hpHalvingTrap)
         XCTAssertEqual(entries.first { $0.id == "lavaTile" }?.previewKind, .lavaTile)
         XCTAssertEqual(entries.first { $0.id == "healingTile" }?.previewKind, .healingTile)
         XCTAssertEqual(entries.first { $0.id == "brittleFloor" }?.previewKind, .brittleFloor)
@@ -145,6 +146,7 @@ final class MoveCardPresentationTests: XCTestCase {
             "dungeonRelicPickup",
             "impassable",
             "damageTrap",
+            "hpHalvingTrap",
             "lavaTile",
             "healingTile",
             "brittleFloor",

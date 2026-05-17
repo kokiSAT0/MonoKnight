@@ -8,6 +8,15 @@
 - 正式リリース前に TestFlight で通し QA を行う
 - シミュレーター確認だけで終えず、必要な項目は実機で確認する
 - 仕様や同意フローを変更した場合は関連 docs も同じタイミングで更新する
+- 内部テスター向けの初回配布手順は [`testflight-internal-distribution.md`](testflight-internal-distribution.md) を参照する
+
+## 1.1 内部 TestFlight 配布準備
+
+- [ ] App Store Connect の Bundle ID が `com.kokisato.MonoKnightApp` と一致している
+- [ ] `MonoKnight` scheme の Archive を作成できる
+- [ ] TestFlight の Beta App Description / What to Test / Feedback Email を入力した
+- [ ] 内部テスターグループを作成し、対象ビルドを追加した
+- [ ] 内部テスターの端末で TestFlight からインストールできる
 
 ## 2. ゲーム仕様
 

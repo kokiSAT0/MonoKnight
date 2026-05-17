@@ -256,6 +256,8 @@ extension GameViewModel {
             ]
         case .damageTrap(let points, _):
             return points.isEmpty ? [] : [tileDiscoveryID("damageTrap")]
+        case .hpHalvingTrap(let points):
+            return points.isEmpty ? [] : [tileDiscoveryID("hpHalvingTrap")]
         case .lavaTile(let points, _):
             return points.isEmpty ? [] : [tileDiscoveryID("lavaTile")]
         case .healingTile(let points, _):

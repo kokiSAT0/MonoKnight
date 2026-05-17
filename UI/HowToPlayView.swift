@@ -928,6 +928,7 @@ private struct TileMarkerPreviewView: View {
              .cardPickup,
              .dungeonRelicPickup,
              .damageTrap,
+             .hpHalvingTrap,
              .lavaTile,
              .healingTile,
              .brittleFloor,
@@ -1000,6 +1001,19 @@ private struct TileMarkerPreviewView: View {
             SpikeTrapMarkerShape()
                 .fill(Color(red: 0.82, green: 0.10, blue: 0.08).opacity(0.70))
                 .frame(width: 34, height: 32)
+        case .hpHalvingTrap:
+            ZStack {
+                DiamondShape()
+                    .fill(Color(red: 0.55, green: 0.12, blue: 0.68).opacity(0.66))
+                    .frame(width: 32, height: 32)
+                DiamondShape()
+                    .stroke(Color(red: 0.82, green: 0.58, blue: 0.95).opacity(0.90), lineWidth: 2)
+                    .frame(width: 32, height: 32)
+                Rectangle()
+                    .fill(Color.white.opacity(0.82))
+                    .frame(width: 4, height: 26)
+                    .rotationEffect(.degrees(36))
+            }
         case .lavaTile:
             ZStack {
                 FlameShape()

@@ -122,6 +122,11 @@ extension GameViewModel {
             }
             .store(in: &cancellables)
 
+        core.$pendingDungeonRelicPickupChoice
+            .removeDuplicates()
+            .receive(on: RunLoop.main)
+            .assign(to: &$pendingDungeonRelicPickupChoice)
+
     }
 
     private func presentLockedExitReachNoticeIfNeeded(for event: DungeonLockedExitReachEvent) {
@@ -205,6 +210,10 @@ extension GameViewModel {
     }
 
     func handleProgressChange(_ progress: GameProgress) {
+        guard pendingDungeonRelicPickupChoice == nil else {
+            deferredProgressDuringMovementPresentation = progress
+            return
+        }
         guard !hasPendingDungeonRelicAcquisitionPresentation else {
             deferredProgressDuringMovementPresentation = progress
             return
@@ -323,6 +332,7 @@ extension GameViewModel {
 
     private func flushDeferredMovementPresentationOutcomes() {
         presentNextDungeonRelicAcquisitionIfPossible()
+        guard pendingDungeonRelicPickupChoice == nil else { return }
         guard !hasPendingDungeonRelicAcquisitionPresentation else { return }
         if let deferredFall = deferredDungeonFallEventDuringMovementPresentation {
             deferredDungeonFallEventDuringMovementPresentation = nil
@@ -337,6 +347,21 @@ extension GameViewModel {
     private var hasPendingDungeonRelicAcquisitionPresentation: Bool {
         activeDungeonRelicAcquisitionPresentation != nil
             || !pendingDungeonRelicAcquisitionPresentations.isEmpty
+    }
+
+    var canPresentDungeonRelicPickupChoice: Bool {
+        pendingDungeonRelicPickupChoice != nil
+            && !isMovementPresentationActive
+            && !isWaitingForEnemyTurnPresentationAfterMovement
+            && activeDungeonRelicAcquisitionPresentation == nil
+    }
+
+    func selectPendingDungeonRelicPickupOption(_ option: PendingDungeonRelicPickupChoice.Option) {
+        guard core.selectPendingDungeonRelicPickupOption(id: option.id) else { return }
+        pendingDungeonRelicPickupChoice = core.pendingDungeonRelicPickupChoice
+        enqueueDungeonRelicAcquisitionPresentations(core.dungeonRelicAcquisitionPresentations)
+        presentNextDungeonRelicAcquisitionIfPossible()
+        flushDeferredMovementPresentationOutcomes()
     }
 
     func enqueueDungeonRelicAcquisitionPresentations(_ presentations: [DungeonRelicAcquisitionPresentation]) {

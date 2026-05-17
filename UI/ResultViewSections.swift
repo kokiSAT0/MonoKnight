@@ -1419,6 +1419,126 @@ struct DungeonRelicAcquisitionOverlayView: View {
     }
 }
 
+struct DungeonRelicPickupChoiceOverlayView: View {
+    let choice: PendingDungeonRelicPickupChoice
+    let onSelect: (PendingDungeonRelicPickupChoice.Option) -> Void
+    private let theme = AppTheme()
+    @State private var hasAppeared = false
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.38)
+                .ignoresSafeArea()
+
+            VStack(spacing: 14) {
+                Text("怪しい宝箱")
+                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                    .foregroundColor(theme.textPrimary)
+                    .multilineTextAlignment(.center)
+                    .minimumScaleFactor(0.8)
+
+                VStack(spacing: 10) {
+                    ForEach(choice.options) { option in
+                        Button {
+                            onSelect(option)
+                        } label: {
+                            DungeonRelicPickupChoiceOptionView(option: option, isEmphasized: hasAppeared)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("dungeon_relic_pickup_choice_\(option.id)")
+                    }
+                }
+            }
+            .padding(18)
+            .frame(maxWidth: 440)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(theme.backgroundElevated)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(theme.accentPrimary.opacity(0.45), lineWidth: 1.5)
+            )
+            .shadow(color: .black.opacity(0.24), radius: 24, x: 0, y: 12)
+            .padding(.horizontal, 18)
+            .scaleEffect(hasAppeared ? 1 : 0.94)
+            .opacity(hasAppeared ? 1 : 0)
+        }
+        .onAppear {
+            withAnimation(.spring(response: 0.32, dampingFraction: 0.78)) {
+                hasAppeared = true
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("dungeon_relic_pickup_choice_overlay")
+    }
+}
+
+private struct DungeonRelicPickupChoiceOptionView: View {
+    let option: PendingDungeonRelicPickupChoice.Option
+    let isEmphasized: Bool
+    private let theme = AppTheme()
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Label(option.title, systemImage: symbolName)
+                    .font(.system(size: 17, weight: .bold, design: .rounded))
+                    .foregroundColor(tintColor)
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right.circle.fill")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(tintColor)
+            }
+
+            ForEach(option.previewItems) { item in
+                DungeonRelicAcquisitionItemRow(item: item, isEmphasized: isEmphasized)
+            }
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(theme.cardBackgroundHand)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(tintColor.opacity(0.35), lineWidth: 1.2)
+        )
+        .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+    private var symbolName: String {
+        switch option.kind {
+        case .stableRelic:
+            return "shield.fill"
+        case .curseRelic:
+            return "exclamationmark.triangle.fill"
+        case .riskyRelicWithDamage:
+            return "bolt.heart.fill"
+        }
+    }
+
+    private var tintColor: Color {
+        switch option.kind {
+        case .stableRelic:
+            return theme.accentPrimary
+        case .curseRelic:
+            return Color(red: 0.82, green: 0.16, blue: 0.22)
+        case .riskyRelicWithDamage:
+            return Color(red: 0.91, green: 0.46, blue: 0.10)
+        }
+    }
+
+    private var accessibilityLabel: Text {
+        let itemDescriptions = option.previewItems.map { item in
+            ([item.displayName, item.primaryDescription] + item.secondaryDescriptions).joined(separator: "。")
+        }
+        return Text(([option.title] + itemDescriptions).joined(separator: "。"))
+    }
+}
+
 private struct DungeonRelicAcquisitionItemRow: View {
     let item: DungeonRelicAcquisitionPresentation.Item
     let isEmphasized: Bool
@@ -1503,6 +1623,8 @@ private struct DungeonRelicAcquisitionItemRow: View {
             return Color(red: 0.82, green: 0.16, blue: 0.22)
         case .hpCompensation:
             return theme.accentPrimary
+        case .hpPenalty:
+            return Color(red: 0.82, green: 0.16, blue: 0.22)
         }
     }
 
@@ -1512,7 +1634,7 @@ private struct DungeonRelicAcquisitionItemRow: View {
             return relic.rarity.displayName
         case .curse(let curse):
             return curse.displayKind.displayName
-        case .mimicDamage, .hpCompensation:
+        case .mimicDamage, .hpCompensation, .hpPenalty:
             return nil
         }
     }

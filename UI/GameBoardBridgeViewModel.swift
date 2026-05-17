@@ -573,6 +573,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
             .dungeonRelicPickup: visible(displayed: displayedRelicPickupPoints, in: dungeonVisiblePoints),
             .dungeonSuspiciousRelicPickup: visible(displayed: displayedSuspiciousRelicPickupPoints, in: dungeonVisiblePoints),
             .dungeonDamageTrap: visible(displayed: core.damageTrapPoints, in: dungeonVisiblePoints),
+            .dungeonHpHalvingTrap: visible(displayed: core.hpHalvingTrapPoints, in: dungeonVisiblePoints),
             .dungeonLavaTile: visible(displayed: core.lavaTilePoints, in: dungeonVisiblePoints),
             .dungeonHealingTile: visible(displayed: core.healingTilePoints, in: dungeonVisiblePoints),
             .dungeonCrackedFloor: visible(displayed: displayedCrackedFloorPoints, in: dungeonVisiblePoints),

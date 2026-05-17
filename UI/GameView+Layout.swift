@@ -90,6 +90,17 @@ extension GameView {
                 .transition(.opacity)
                 .zIndex(5)
             }
+            if let choice = viewModel.pendingDungeonRelicPickupChoice,
+               viewModel.canPresentDungeonRelicPickupChoice {
+                DungeonRelicPickupChoiceOverlayView(
+                    choice: choice,
+                    onSelect: { option in
+                        viewModel.selectPendingDungeonRelicPickupOption(option)
+                    }
+                )
+                .transition(.opacity)
+                .zIndex(6)
+            }
         }
         // 画面全体の背景もテーマで制御し、システム設定と調和させる
         .frame(maxWidth: .infinity, maxHeight: .infinity)
