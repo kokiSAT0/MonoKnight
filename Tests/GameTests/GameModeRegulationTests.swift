@@ -43,6 +43,7 @@ final class GameModeRegulationTests: XCTestCase {
         let discardAllPoint = GridPoint(x: 3, y: 3)
         let poisonPoint = GridPoint(x: 4, y: 3)
         let illusionPoint = GridPoint(x: 0, y: 1)
+        let relicBreakPoint = GridPoint(x: 2, y: 0)
         let returnWarpPoint = GridPoint(x: 0, y: 4)
         let returnWarpDestination = GridPoint(x: 2, y: 4)
         let regulation = GameMode.Regulation(
@@ -70,6 +71,7 @@ final class GameModeRegulationTests: XCTestCase {
                 discardAllPoint: .discardAllHands,
                 poisonPoint: .poisonTrap,
                 illusionPoint: .illusionTrap,
+                relicBreakPoint: .relicBreakTrap,
                 returnWarpPoint: .returnWarp(destination: returnWarpDestination),
             ],
             completionRule: .dungeonExit(exitPoint: GridPoint(x: 4, y: 4))
@@ -100,6 +102,8 @@ final class GameModeRegulationTests: XCTestCase {
         XCTAssertEqual(decoded.resolvedTileEffects[poisonPoint], TileEffect.poisonTrap)
         XCTAssertEqual(decoded.tileEffectOverrides[illusionPoint], TileEffect.illusionTrap)
         XCTAssertEqual(decoded.resolvedTileEffects[illusionPoint], TileEffect.illusionTrap)
+        XCTAssertEqual(decoded.tileEffectOverrides[relicBreakPoint], TileEffect.relicBreakTrap)
+        XCTAssertEqual(decoded.resolvedTileEffects[relicBreakPoint], TileEffect.relicBreakTrap)
         XCTAssertEqual(decoded.tileEffectOverrides[returnWarpPoint], TileEffect.returnWarp(destination: returnWarpDestination))
         XCTAssertEqual(decoded.resolvedTileEffects[returnWarpPoint], TileEffect.returnWarp(destination: returnWarpDestination))
     }

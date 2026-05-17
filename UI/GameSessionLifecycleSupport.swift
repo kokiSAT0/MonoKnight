@@ -188,6 +188,8 @@ struct GameAppearanceSettingsCoordinator {
         core: GameCore,
         updateGuideMode: (Bool) -> Void,
         updateHapticsSetting: (Bool) -> Void,
+        updateDungeonRelicAndCurseEffects: (Bool) -> Void,
+        areDungeonRelicAndCurseEffectsEnabled: Bool,
         updateDisplayedElapsedTime: () -> Void,
         handlePreparationOverlayChange: (Bool) -> Void
     ) {
@@ -199,6 +201,7 @@ struct GameAppearanceSettingsCoordinator {
         )
         updateHapticsSetting(hapticsEnabled)
         updateGuideMode(guideModeEnabled)
+        updateDungeonRelicAndCurseEffects(areDungeonRelicAndCurseEffectsEnabled)
         updateDisplayedElapsedTime()
         core.updateHandOrderingStrategy(handOrderingStrategy)
         handlePreparationOverlayChange(isPreparationOverlayVisible)

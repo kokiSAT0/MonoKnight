@@ -109,7 +109,7 @@ public struct TileEncyclopediaEntry: Identifiable, Equatable, Sendable {
             id: "damageTrap",
             displayName: "罠",
             category: "危険",
-            description: "見えているダメージ床です。踏むと HP を失いますが、近道として使える場面もあります。",
+            description: "見えているダメージ床です。踏むと HP を失いますが、近道として使える場面もあります。後半の濃い罠はダメージ2です。",
             previewKind: .damageTrap
         ),
         TileEncyclopediaEntry(
@@ -123,7 +123,7 @@ public struct TileEncyclopediaEntry: Identifiable, Equatable, Sendable {
             id: "lavaTile",
             displayName: "溶岩",
             category: "危険",
-            description: "踏むと HP を失います。その上にいるまま1手使うと、さらに HP を失います。",
+            description: "踏むと HP を失います。その上にいるまま1手使うと、さらに HP を失います。最終盤の濃い溶岩はダメージ2です。",
             previewKind: .lavaTile
         ),
         TileEncyclopediaEntry(
@@ -232,6 +232,13 @@ public struct TileEncyclopediaEntry: Identifiable, Equatable, Sendable {
             previewKind: .effect(.illusionTrap)
         ),
         TileEncyclopediaEntry(
+            id: "relicBreakTrap",
+            displayName: "レリック破壊罠",
+            category: "危険",
+            description: "踏むと通常レリックまたは呪いをランダムに1つ失います。清めの護符を持っている場合は、護符だけが身代わりに壊れます。",
+            previewKind: .effect(.relicBreakTrap)
+        ),
+        TileEncyclopediaEntry(
             id: "swamp",
             displayName: "沼",
             category: "特殊効果",
@@ -292,6 +299,8 @@ public extension TileEncyclopediaEntry {
             return entry(id: "poisonTrap")
         case .illusionTrap:
             return entry(id: "illusionTrap")
+        case .relicBreakTrap:
+            return entry(id: "relicBreakTrap")
         case .swamp:
             return entry(id: "swamp")
         case .preserveCard:

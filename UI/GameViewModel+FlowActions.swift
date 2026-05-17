@@ -175,6 +175,26 @@ extension GameViewModel {
         }
     }
 
+    func handleDungeonRewindReviveEvent(_ event: DungeonRewindReviveEvent) {
+        guard let nextMode = makeRewindReviveDungeonFloorMode(event: event) else {
+            core.clearDungeonRewindReviveEvent(event.id)
+            return
+        }
+
+        core.clearDungeonRewindReviveEvent(event.id)
+        dungeonFallAdvanceTask?.cancel()
+        dungeonFallAdvanceTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 180_000_000)
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                guard let self else { return }
+                self.saveInitialDungeonResume(for: nextMode)
+                self.prepareForDungeonFloorAdvance()
+                self.onRequestStartDungeonFloor?(nextMode)
+            }
+        }
+    }
+
     func makeNextDungeonFloorMode(rewardMoveCard: MoveCard? = nil) -> GameMode? {
         let selection = rewardMoveCard.map { DungeonRewardSelection.add($0) }
         return makeNextDungeonFloorMode(rewardSelection: selection)
@@ -200,6 +220,7 @@ extension GameViewModel {
             collectedDungeonRelicPickupIDs: core.collectedDungeonRelicPickupIDs,
             rewardAddUses: dungeonRewardAddUses,
             supportRewardAddUses: dungeonSupportRewardAddUses,
+            areDungeonRelicAndCurseEffectsEnabled: core.areDungeonRelicAndCurseEffectsEnabled,
             completedWithinHalfTurnLimit: core.effectiveDungeonTurnLimit.map {
                 core.moveCount <= $0 / 2
             } ?? false,
@@ -250,6 +271,39 @@ extension GameViewModel {
             dungeonID: dungeon.id,
             difficulty: dungeon.difficulty,
             carriedHP: nextRunState.carriedHP,
+            runState: nextRunState
+        )
+    }
+
+    func makeRewindReviveDungeonFloorMode(event: DungeonRewindReviveEvent) -> GameMode? {
+        guard core.dungeonHP > 0,
+              let metadata = mode.dungeonMetadataSnapshot,
+              let runState = metadata.runState,
+              runState.currentFloorIndex == event.sourceFloorIndex,
+              let dungeon = DungeonLibrary.shared.dungeon(with: metadata.dungeonID),
+              (dungeon.supportsInfiniteFloors || dungeon.floors.indices.contains(event.destinationFloorIndex)),
+              event.destinationFloorIndex <= runState.currentFloorIndex
+        else { return nil }
+
+        let nextRunState = runState.revivedAtPreviousFloor(
+            floorIndex: event.destinationFloorIndex,
+            currentFloorMoveCount: core.moveCount,
+            currentInventoryEntries: core.dungeonInventoryEntries,
+            currentRelicEntries: core.dungeonRelicEntries,
+            currentCurseEntries: core.dungeonCurseEntries,
+            collectedDungeonRelicPickupIDs: core.collectedDungeonRelicPickupIDs,
+            hazardDamageMitigationsRemaining: core.hazardDamageMitigationsRemaining,
+            enemyDamageMitigationsRemaining: core.enemyDamageMitigationsRemaining,
+            markerDamageMitigationsRemaining: core.markerDamageMitigationsRemaining,
+            currentRunLogEntries: core.dungeonRunLogEntries
+        )
+        guard let nextFloor = dungeon.resolvedFloor(at: event.destinationFloorIndex, runState: nextRunState) else {
+            return nil
+        }
+        return nextFloor.makeGameMode(
+            dungeonID: dungeon.id,
+            difficulty: dungeon.difficulty,
+            carriedHP: event.hpAfterRevive,
             runState: nextRunState
         )
     }
@@ -350,6 +404,7 @@ extension GameViewModel {
         activeDungeonRelicAcquisitionPresentation = nil
         pendingDungeonRelicAcquisitionPresentations.removeAll()
         deferredProgressDuringMovementPresentation = nil
+        deferredDungeonRewindReviveEventDuringMovementPresentation = nil
     }
 
     func resetSessionForNewPlay() {

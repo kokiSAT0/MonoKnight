@@ -27,16 +27,13 @@ extension AppTheme {
         }
     }
 
-    /// ネオングリッドテーマで床に薄く重ねるARパネル角の色
+    /// ネオングリッドテーマでは通常マスのARパネル角を使わない
     var boardStarChartLine: Color {
         switch visualStyle {
         case .classic:
             return Color.clear
         case .starChartSurveyTower:
-            return schemeColor(
-                light: Color(red: 0.0, green: 0.64, blue: 0.86).opacity(0.22),
-                dark: Color(red: 0.0, green: 0.68, blue: 0.88).opacity(0.24)
-            )
+            return Color.clear
         }
     }
 
@@ -157,16 +154,13 @@ extension AppTheme {
         }
     }
 
-    /// ネオングリッドテーマでタイルに薄いAR面差を足す色
+    /// ネオングリッドテーマでは通常マスの光沢オーバーレイを使わない
     var boardGlassHighlight: Color {
         switch visualStyle {
         case .classic:
             return Color.clear
         case .starChartSurveyTower:
-            return schemeColor(
-                light: Color(red: 0.0, green: 0.78, blue: 1.0).opacity(0.10),
-                dark: Color(red: 0.20, green: 0.90, blue: 1.0).opacity(0.12)
-            )
+            return Color.clear
         }
     }
 

@@ -445,6 +445,8 @@ public enum DungeonRelicID: String, Codable, CaseIterable, Equatable, Identifiab
     case travelerBoots
     case silverNeedle
     case starCup
+    case distantStarCup
+    case crackedStarCup
     case explorerBag
     case moonMirror
     case victoryBanner
@@ -463,6 +465,8 @@ public enum DungeonRelicID: String, Codable, CaseIterable, Equatable, Identifiab
     case woodenAmulet
     case copperHourglass
     case travelerRation
+    case travelerCanteen
+    case moonDewCanteen
     case smallLantern
     case dullNeedle
     case patchedRope
@@ -470,22 +474,87 @@ public enum DungeonRelicID: String, Codable, CaseIterable, Equatable, Identifiab
     case scoutCompass
     case quickSheath
     case purifyingCharm
+    case greatPurifyingCharm
     case phoenixFeather
     case sageCodex
+    case lavaCharm
+    case lavaLantern
+    case watcherMask
+    case railWedge
+    case railSign
+    case smokeDecoy
+    case chaserWhistle
+    case starVeil
     case trapSole
     case emberCloak
     case watcherMonocle
     case railCharm
     case chaserDecoy
     case antidoteStone
+    case greaterAntidoteStone
     case starUmbrella
+    case guardianCloak
     case fallAnchor
     case foldingMap
     case phantomTicket
     case campfireCoal
     case merchantsScale
+    case barrierCharm
+    case barrierTalisman
+    case frostBell
+    case rewindingHourglass
+    case slayerPouch
+    case hunterBanner
+    case intimidationHorn
+    case slayerMedal
+    case nightCardLens
+    case thornScoutLens
+    case magmaScoutLens
+    case trapScoutLens
+    case enemyScoutLens
 
     public var id: String { rawValue }
+
+    public static let allCases: [DungeonRelicID] = [
+        .crackedShield, .heavyCrown, .glowingHeart,
+        .blackFeather, .chippedHourglass, .travelerBoots, .silverNeedle,
+        .starCup, .distantStarCup, .crackedStarCup, .explorerBag, .moonMirror, .victoryBanner,
+        .windcutFeather, .guardianIncense, .trapperGloves, .spareTorch, .oldRope,
+        .twinPouch, .gamblerCoin, .royalCrown, .immortalHeart, .guardianAegis,
+        .stargazerHourglass, .woodenAmulet, .copperHourglass, .travelerRation,
+        .travelerCanteen, .moonDewCanteen, .smallLantern, .dullNeedle, .patchedRope,
+        .fieldMedkit, .scoutCompass, .quickSheath, .purifyingCharm, .greatPurifyingCharm, .phoenixFeather,
+        .sageCodex, .lavaCharm, .lavaLantern, .watcherMask, .railWedge, .railSign,
+        .smokeDecoy, .chaserWhistle, .starVeil, .trapSole, .emberCloak,
+        .watcherMonocle, .railCharm, .chaserDecoy, .antidoteStone, .greaterAntidoteStone, .starUmbrella,
+        .guardianCloak,
+        .fallAnchor, .campfireCoal, .merchantsScale,
+        .barrierCharm, .barrierTalisman, .frostBell, .rewindingHourglass,
+        .slayerPouch, .hunterBanner, .intimidationHorn, .slayerMedal,
+        .nightCardLens, .thornScoutLens, .magmaScoutLens, .trapScoutLens, .enemyScoutLens
+    ]
+
+    public static var newAcquisitionCases: [DungeonRelicID] {
+        allCases.filter(\.isAvailableForNewAcquisition)
+    }
+
+    public var isAvailableForNewAcquisition: Bool {
+        switch self {
+        case .oldMap, .whiteChalk, .windcutFeather, .quickSheath:
+            return false
+        default:
+            return true
+        }
+    }
+
+    var isRemovedFromCurrentRules: Bool {
+        switch self {
+        case .foldingMap, .phantomTicket:
+            return true
+        default:
+            return false
+        }
+    }
 
     public var encyclopediaDiscoveryID: EncyclopediaDiscoveryID {
         EncyclopediaDiscoveryID(category: .relic, itemID: rawValue)
@@ -511,6 +580,10 @@ public enum DungeonRelicID: String, Codable, CaseIterable, Equatable, Identifiab
             return "銀の針"
         case .starCup:
             return "星の杯"
+        case .distantStarCup:
+            return "遠星の杯"
+        case .crackedStarCup:
+            return "欠け星の杯"
         case .explorerBag:
             return "探索者の袋"
         case .moonMirror:
@@ -547,6 +620,10 @@ public enum DungeonRelicID: String, Codable, CaseIterable, Equatable, Identifiab
             return "銅の砂時計"
         case .travelerRation:
             return "旅の保存食"
+        case .travelerCanteen:
+            return "旅の水筒"
+        case .moonDewCanteen:
+            return "月露の水筒"
         case .smallLantern:
             return "小さなランタン"
         case .dullNeedle:
@@ -561,10 +638,28 @@ public enum DungeonRelicID: String, Codable, CaseIterable, Equatable, Identifiab
             return "早業の鞘"
         case .purifyingCharm:
             return "清めの護符"
+        case .greatPurifyingCharm:
+            return "清めの大護符"
         case .phoenixFeather:
             return "不死鳥の羽根"
         case .sageCodex:
             return "賢者の写本"
+        case .lavaCharm:
+            return "火消しの札"
+        case .lavaLantern:
+            return "耐火ランタン"
+        case .watcherMask:
+            return "見張り除けの面"
+        case .railWedge:
+            return "レール止めの楔"
+        case .railSign:
+            return "レール守りの標識"
+        case .smokeDecoy:
+            return "追跡避けの煙玉"
+        case .chaserWhistle:
+            return "追跡封じの笛"
+        case .starVeil:
+            return "星隠しの布"
         case .trapSole:
             return "罠踏みの靴底"
         case .emberCloak:
@@ -577,18 +672,46 @@ public enum DungeonRelicID: String, Codable, CaseIterable, Equatable, Identifiab
             return "追跡避けの囮"
         case .antidoteStone:
             return "解毒石"
+        case .greaterAntidoteStone:
+            return "解毒の霊石"
         case .starUmbrella:
             return "星除けの傘"
+        case .guardianCloak:
+            return "守護者の外套"
         case .fallAnchor:
             return "落下止めの錨"
-        case .foldingMap:
-            return "折りたたみ地図"
-        case .phantomTicket:
-            return "幻の切符"
+        case .foldingMap, .phantomTicket:
+            return "削除済みレリック"
         case .campfireCoal:
             return "焚き火の熾火"
         case .merchantsScale:
             return "商人の天秤"
+        case .barrierCharm:
+            return "護りの小札"
+        case .barrierTalisman:
+            return "護りの札"
+        case .frostBell:
+            return "霜の鈴"
+        case .rewindingHourglass:
+            return "逆巻きの砂時計"
+        case .slayerPouch:
+            return "討伐の小袋"
+        case .hunterBanner:
+            return "狩人の旗"
+        case .intimidationHorn:
+            return "威圧の角笛"
+        case .slayerMedal:
+            return "討伐者の勲章"
+        case .nightCardLens:
+            return "拾い火のレンズ"
+        case .thornScoutLens:
+            return "棘読みのレンズ"
+        case .magmaScoutLens:
+            return "溶岩読みのレンズ"
+        case .trapScoutLens:
+            return "罠読みのレンズ"
+        case .enemyScoutLens:
+            return "影読みのレンズ"
         }
     }
 
@@ -603,27 +726,31 @@ public enum DungeonRelicID: String, Codable, CaseIterable, Equatable, Identifiab
         case .oldMap:
             return "未取得の拾得カードを盤面で見つけやすくする。"
         case .blackFeather:
-            return "崩落穴による落下を1回だけ無効化する。"
+            return "次に受ける落下HP減少を1回だけ無効化する。"
         case .chippedHourglass:
             return "各フロアの手数上限が+3される。"
         case .travelerBoots:
             return "各フロアの手数上限が+1される。"
         case .silverNeedle:
-            return "次に受ける罠または崩落ダメージを1回だけ無効化する。"
+            return "次に受ける罠ダメージを1回だけ無効化する。"
         case .starCup:
-            return "各フロア開始時にHPが1増える。"
+            return "取得後から2フロアごとのフロア開始時にHPが1増える。"
+        case .distantStarCup:
+            return "取得後から3フロアごとのフロア開始時にHPが1増える。"
+        case .crackedStarCup:
+            return "取得後から5フロアごとのフロア開始時にHPが1増える。"
         case .explorerBag:
             return "拾得カードの取得時使用回数が+1される。"
         case .moonMirror:
             return "次に呪い遺物を得る時、1回だけ無効化して通常遺物に変える。"
         case .victoryBanner:
-            return "クリア後の報酬候補が+1される。最大4択。"
+            return "クリア報酬のレリック出現率が2pt上がる。"
         case .windcutFeather:
-            return "レイ型移動カードを新しく得る時、使用回数が+1される。"
+            return "旧効果のレリック。現在は新しく出現せず、使用回数補正も発生しない。"
         case .guardianIncense:
-            return "各フロアで最初に受ける敵ダメージを1回だけ1軽減する。"
+            return "各フロアで最初に受ける見張り・回転見張りダメージを1回だけ無効化する。"
         case .trapperGloves:
-            return "罠でダメージまたは状態異常を受けた時、次の報酬候補が+1される。最大4択。"
+            return "罠でダメージまたは状態異常を受けた時、次のクリア報酬の補助カード出現率が5pt上がる。"
         case .whiteChalk:
             return "暗闇フロアで、未取得の拾得カードを1枚だけ見つけやすくする。"
         case .spareTorch:
@@ -633,13 +760,13 @@ public enum DungeonRelicID: String, Codable, CaseIterable, Equatable, Identifiab
         case .twinPouch:
             return "補助報酬カードを新しく得る時、使用回数が+1される。"
         case .gamblerCoin:
-            return "フロアを手早くクリアすると、未所持レリック候補を1つ追加しやすくする。"
+            return "手数上限の半分以内にクリアすると、クリア報酬のレリック出現率が2pt上がる。"
         case .royalCrown:
-            return "クリア後の報酬候補が+1され、新しく得る報酬カードの使用回数が+1される。最大4択。"
+            return "クリア報酬のレリック出現率が2pt上がり、新しく得る報酬カードの使用回数が+1される。"
         case .immortalHeart:
             return "各フロア開始時にHPが1増える。"
         case .guardianAegis:
-            return "各フロアで最初に受けるHPダメージを1回だけ1軽減する。"
+            return "各フロアで最初に受けるメテオ兵ダメージを1回だけ無効化する。"
         case .stargazerHourglass:
             return "各フロアの手数上限が+5される。"
         case .woodenAmulet:
@@ -648,24 +775,46 @@ public enum DungeonRelicID: String, Codable, CaseIterable, Equatable, Identifiab
             return "各フロアの手数上限が+2される。"
         case .travelerRation:
             return "各フロア開始時、HPが2以下ならHPが1増える。"
+        case .travelerCanteen:
+            return "次の3フロア開始時にHPが1増える。"
+        case .moonDewCanteen:
+            return "次の5フロア開始時にHPが1増える。"
         case .smallLantern:
             return "暗闇フロアで見える範囲が少し広がる。"
         case .dullNeedle:
-            return "次に受ける罠ダメージを1回だけ1軽減する。"
+            return "各フロアで最初に受ける罠ダメージを1回だけ無効化する。"
         case .patchedRope:
-            return "次に崩落穴で受ける落下HP減少を1回だけ1軽減する。"
+            return "各フロアで最初に受ける落下HP減少を1回だけ無効化する。"
         case .fieldMedkit:
             return "回復マスの回復量が+1される。"
         case .scoutCompass:
-            return "70%以内にクリアすると、報酬候補が+1される。最大4択。"
+            return "70%以内にクリアすると、クリア報酬の補助カード出現率が5pt上がる。"
         case .quickSheath:
-            return "レイ型以外の移動カードを新しく得る時、使用回数が+1される。"
+            return "旧効果のレリック。現在は新しく出現せず、使用回数補正も発生しない。"
         case .purifyingCharm:
             return "次に受ける状態異常を1回だけ無効化する。"
+        case .greatPurifyingCharm:
+            return "次に受ける状態異常を2回まで無効化する。"
         case .phoenixFeather:
             return "HPが0になるダメージを1回だけHP1で耐える。"
         case .sageCodex:
             return "新しく得る拾得カード、移動報酬カード、補助報酬カードの使用回数が+1される。"
+        case .lavaCharm:
+            return "次に受ける溶岩ダメージを1回だけ無効化する。"
+        case .lavaLantern:
+            return "各フロアで最初に受ける溶岩ダメージを1回だけ無効化する。"
+        case .watcherMask:
+            return "次に受ける見張り・回転見張りダメージを1回だけ無効化する。"
+        case .railWedge:
+            return "次に受ける巡回兵ダメージを1回だけ無効化する。"
+        case .railSign:
+            return "各フロアで最初に受ける巡回兵ダメージを1回だけ無効化する。"
+        case .smokeDecoy:
+            return "次に受ける追跡兵ダメージを1回だけ無効化する。"
+        case .chaserWhistle:
+            return "各フロアで最初に受ける追跡兵ダメージを1回だけ無効化する。"
+        case .starVeil:
+            return "次に受けるメテオ兵ダメージを1回だけ無効化する。"
         case .trapSole:
             return "ダメージ罠から受けるHPダメージを常に1軽減する。"
         case .emberCloak:
@@ -678,57 +827,99 @@ public enum DungeonRelicID: String, Codable, CaseIterable, Equatable, Identifiab
             return "追跡兵から受けるHPダメージを1軽減する。"
         case .antidoteStone:
             return "毒罠の毒ダメージ回数を1減らす。最低1回。"
+        case .greaterAntidoteStone:
+            return "毒罠の毒ダメージ回数を2減らす。最低1回。"
         case .starUmbrella:
             return "メテオと標的警告から受けるHPダメージを1軽減する。"
+        case .guardianCloak:
+            return "敵とメテオから受けるHPダメージを1軽減する。同じダメージ源では他の軽減レリックと重複しない。"
         case .fallAnchor:
             return "崩落穴で受ける落下HP減少を常に1軽減する。"
-        case .foldingMap:
-            return "鍵を拾って出口を開けた階では、その階の手数上限が+2される。"
-        case .phantomTicket:
-            return "ワープマスで移動した時、使用した移動カードを消費しない。"
+        case .foldingMap, .phantomTicket:
+            return "現在は削除済みのレリックです。"
         case .campfireCoal:
             return "回復マスを踏んだ時、毒、足枷、幻惑を解除する。"
         case .merchantsScale:
             return "クリア報酬でレリックを選んだ時、次階開始HPが1増える。"
+        case .barrierCharm:
+            return "各フロア開始時、次の1行動後処理までHPダメージを無効化する。"
+        case .barrierTalisman:
+            return "各フロア開始時、次の2行動後処理までHPダメージを無効化する。"
+        case .frostBell:
+            return "各フロア開始時、最初の敵ターンを1回停止する。"
+        case .rewindingHourglass:
+            return "HPが0になる時、1回だけ過去のランダムな階層でHP1から復活する。"
+        case .slayerPouch:
+            return "その階で敵を1体倒すたび、クリア報酬の補助カード出現率が3pt上がる。"
+        case .hunterBanner:
+            return "その階で敵を1体倒すたび、クリア報酬のレリック出現率が1pt上がる。"
+        case .intimidationHorn:
+            return "敵を倒した行動後、敵が残っていれば敵ターンを1回停止する。"
+        case .slayerMedal:
+            return "取得後、敵を10体倒すごとに未所持のコモンレリックを1つ得る。"
+        case .nightCardLens:
+            return "暗闇フロアで未取得の拾得カードが常に見える。"
+        case .thornScoutLens:
+            return "暗闇フロアでトゲ床が常に見える。"
+        case .magmaScoutLens:
+            return "暗闇フロアで溶岩が常に見える。"
+        case .trapScoutLens:
+            return "暗闇フロアで隠し罠が常に見える。"
+        case .enemyScoutLens:
+            return "暗闇フロアで全ての敵が常に見える。"
         }
     }
 
     public var noteDescription: String? {
         switch self {
         case .crackedShield, .heavyCrown, .glowingHeart, .oldMap, .blackFeather,
-             .travelerBoots, .silverNeedle, .starCup, .explorerBag, .moonMirror, .victoryBanner,
+             .travelerBoots, .silverNeedle, .starCup, .distantStarCup, .crackedStarCup,
+             .explorerBag, .moonMirror, .victoryBanner,
              .windcutFeather, .guardianIncense, .trapperGloves, .whiteChalk, .spareTorch,
              .oldRope, .twinPouch, .gamblerCoin, .royalCrown, .immortalHeart, .guardianAegis,
-             .woodenAmulet, .travelerRation, .smallLantern, .dullNeedle, .patchedRope,
+             .woodenAmulet, .travelerRation, .travelerCanteen, .moonDewCanteen,
+             .smallLantern, .dullNeedle, .patchedRope,
              .fieldMedkit, .scoutCompass, .quickSheath, .phoenixFeather, .sageCodex,
+             .lavaCharm, .lavaLantern, .watcherMask, .railWedge, .railSign, .smokeDecoy,
+             .chaserWhistle, .starVeil,
              .trapSole, .emberCloak, .watcherMonocle, .railCharm, .chaserDecoy,
-             .antidoteStone, .starUmbrella, .fallAnchor, .campfireCoal, .merchantsScale:
+             .antidoteStone, .greaterAntidoteStone, .starUmbrella, .guardianCloak, .fallAnchor, .foldingMap, .phantomTicket,
+             .campfireCoal, .merchantsScale,
+             .barrierCharm, .barrierTalisman, .frostBell, .rewindingHourglass,
+             .slayerPouch, .hunterBanner, .intimidationHorn, .slayerMedal,
+             .nightCardLens, .thornScoutLens, .magmaScoutLens, .trapScoutLens, .enemyScoutLens:
             return nil
         case .chippedHourglass, .stargazerHourglass, .copperHourglass:
             return "新規報酬カードの使用回数補正は通常どおり。"
-        case .purifyingCharm:
+        case .purifyingCharm, .greatPurifyingCharm:
             return "毒、麻痺、足枷、幻惑、手札喪失系の罠に反応する。"
-        case .foldingMap:
-            return "鍵のない階では効果がない。"
-        case .phantomTicket:
-            return "基本移動では温存するカードがないため効果がない。"
         }
     }
 
     public var rarity: DungeonRelicRarity {
         switch self {
         case .crackedShield, .heavyCrown, .glowingHeart, .oldMap, .travelerBoots, .silverNeedle, .whiteChalk, .oldRope,
-             .woodenAmulet, .copperHourglass, .travelerRation, .smallLantern, .dullNeedle, .patchedRope,
-             .trapSole, .emberCloak, .campfireCoal:
+             .woodenAmulet, .copperHourglass, .travelerRation, .travelerCanteen,
+             .crackedStarCup, .smallLantern, .dullNeedle, .patchedRope,
+             .lavaCharm, .lavaLantern, .trapSole, .emberCloak, .campfireCoal,
+             .slayerPouch, .nightCardLens, .thornScoutLens, .magmaScoutLens,
+             .purifyingCharm, .antidoteStone:
             return .common
-        case .blackFeather, .chippedHourglass, .starCup, .explorerBag,
-             .windcutFeather, .guardianIncense, .trapperGloves, .spareTorch, .twinPouch, .gamblerCoin,
-             .fieldMedkit, .scoutCompass, .quickSheath, .purifyingCharm,
-             .watcherMonocle, .railCharm, .chaserDecoy, .antidoteStone, .foldingMap, .phantomTicket:
+        case .blackFeather, .chippedHourglass, .starCup, .distantStarCup, .explorerBag,
+             .windcutFeather, .guardianIncense, .trapperGloves, .spareTorch,
+             .fieldMedkit, .scoutCompass, .quickSheath, .greatPurifyingCharm, .moonDewCanteen,
+             .watcherMask, .railWedge, .railSign, .smokeDecoy, .chaserWhistle,
+             .watcherMonocle, .railCharm, .chaserDecoy, .greaterAntidoteStone, .starUmbrella,
+             .foldingMap, .phantomTicket, .barrierTalisman, .frostBell, .hunterBanner, .intimidationHorn, .slayerMedal,
+             .trapScoutLens, .enemyScoutLens:
             return .rare
         case .moonMirror, .victoryBanner, .royalCrown, .immortalHeart, .guardianAegis, .stargazerHourglass,
-             .phoenixFeather, .sageCodex, .starUmbrella, .fallAnchor, .merchantsScale:
+             .twinPouch, .gamblerCoin, .phoenixFeather, .sageCodex, .starVeil, .guardianCloak, .fallAnchor, .merchantsScale:
             return .legendary
+        case .rewindingHourglass:
+            return .legendary
+        case .barrierCharm:
+            return .common
         }
     }
 
@@ -752,6 +943,10 @@ public enum DungeonRelicID: String, Codable, CaseIterable, Equatable, Identifiab
             return "pin.fill"
         case .starCup:
             return "star.fill"
+        case .distantStarCup:
+            return "sparkles"
+        case .crackedStarCup:
+            return "star"
         case .explorerBag:
             return "bag.fill"
         case .moonMirror:
@@ -788,6 +983,10 @@ public enum DungeonRelicID: String, Codable, CaseIterable, Equatable, Identifiab
             return "hourglass"
         case .travelerRation:
             return "takeoutbag.and.cup.and.straw.fill"
+        case .travelerCanteen:
+            return "drop.fill"
+        case .moonDewCanteen:
+            return "drop.circle.fill"
         case .smallLantern:
             return "lightbulb.fill"
         case .dullNeedle:
@@ -802,10 +1001,28 @@ public enum DungeonRelicID: String, Codable, CaseIterable, Equatable, Identifiab
             return "bolt.fill"
         case .purifyingCharm:
             return "sparkles"
+        case .greatPurifyingCharm:
+            return "sparkles"
         case .phoenixFeather:
             return "flame.circle.fill"
         case .sageCodex:
             return "book.closed.fill"
+        case .lavaCharm:
+            return "flame.slash.fill"
+        case .lavaLantern:
+            return "lamp.desk.fill"
+        case .watcherMask:
+            return "theatermasks.fill"
+        case .railWedge:
+            return "wrench.adjustable.fill"
+        case .railSign:
+            return "signpost.right.fill"
+        case .smokeDecoy:
+            return "smoke.fill"
+        case .chaserWhistle:
+            return "speaker.wave.2.fill"
+        case .starVeil:
+            return "sparkle.magnifyingglass"
         case .trapSole:
             return "shoeprints.fill"
         case .emberCloak:
@@ -818,38 +1035,125 @@ public enum DungeonRelicID: String, Codable, CaseIterable, Equatable, Identifiab
             return "figure.walk.motion"
         case .antidoteStone:
             return "pills.fill"
+        case .greaterAntidoteStone:
+            return "pills.fill"
         case .starUmbrella:
             return "umbrella.fill"
+        case .guardianCloak:
+            return "shield.checkered"
         case .fallAnchor:
             return "anchor"
-        case .foldingMap:
-            return "map"
-        case .phantomTicket:
-            return "ticket.fill"
+        case .foldingMap, .phantomTicket:
+            return "xmark.circle"
         case .campfireCoal:
             return "flame.circle"
         case .merchantsScale:
             return "scale.3d"
+        case .barrierCharm:
+            return "shield"
+        case .barrierTalisman:
+            return "shield.righthalf.filled"
+        case .frostBell:
+            return "bell.fill"
+        case .rewindingHourglass:
+            return "hourglass.circle.fill"
+        case .slayerPouch:
+            return "bag.fill"
+        case .hunterBanner:
+            return "flag.checkered"
+        case .intimidationHorn:
+            return "megaphone.fill"
+        case .slayerMedal:
+            return "medal.fill"
+        case .nightCardLens:
+            return "doc.text.magnifyingglass"
+        case .thornScoutLens:
+            return "exclamationmark.triangle.fill"
+        case .magmaScoutLens:
+            return "flame.fill"
+        case .trapScoutLens:
+            return "scope"
+        case .enemyScoutLens:
+            return "eye.fill"
         }
     }
 
     public var startingUses: Int {
         switch self {
         case .crackedShield, .blackFeather, .silverNeedle, .moonMirror, .guardianIncense, .oldRope, .guardianAegis,
-             .dullNeedle, .patchedRope, .purifyingCharm, .phoenixFeather:
+             .dullNeedle, .patchedRope, .purifyingCharm, .phoenixFeather,
+             .lavaCharm, .lavaLantern, .watcherMask, .railWedge, .railSign, .smokeDecoy, .chaserWhistle, .starVeil,
+             .rewindingHourglass:
             return 1
-        case .trapperGloves:
+        case .trapperGloves, .greatPurifyingCharm:
             return 2
+        case .travelerCanteen:
+            return 3
+        case .moonDewCanteen:
+            return 5
         case .heavyCrown, .glowingHeart, .oldMap, .chippedHourglass,
-             .travelerBoots, .starCup, .explorerBag, .victoryBanner,
+             .travelerBoots, .starCup, .distantStarCup, .crackedStarCup, .explorerBag, .victoryBanner,
              .windcutFeather, .whiteChalk, .spareTorch, .twinPouch, .gamblerCoin,
              .royalCrown, .immortalHeart, .stargazerHourglass,
              .woodenAmulet, .copperHourglass, .travelerRation, .smallLantern,
              .fieldMedkit, .scoutCompass, .quickSheath, .sageCodex,
              .trapSole, .emberCloak, .watcherMonocle, .railCharm, .chaserDecoy,
-             .antidoteStone, .starUmbrella, .fallAnchor, .foldingMap, .phantomTicket,
-             .campfireCoal, .merchantsScale:
+             .antidoteStone, .greaterAntidoteStone, .starUmbrella, .guardianCloak, .fallAnchor, .foldingMap, .phantomTicket,
+             .campfireCoal, .merchantsScale, .barrierCharm, .barrierTalisman, .frostBell,
+             .slayerPouch, .hunterBanner, .intimidationHorn, .slayerMedal,
+             .nightCardLens, .thornScoutLens, .magmaScoutLens, .trapScoutLens, .enemyScoutLens:
             return 0
+        }
+    }
+
+    public var floorStartDamageBarrierTurns: Int {
+        switch self {
+        case .barrierCharm:
+            return 1
+        case .barrierTalisman:
+            return 2
+        default:
+            return 0
+        }
+    }
+
+    public var floorStartEnemyFreezeTurns: Int {
+        switch self {
+        case .frostBell:
+            return 1
+        default:
+            return 0
+        }
+    }
+
+    public var floorStartHealingInterval: Int? {
+        switch self {
+        case .starCup:
+            return 2
+        case .distantStarCup:
+            return 3
+        case .crackedStarCup:
+            return 5
+        default:
+            return nil
+        }
+    }
+
+    public var healsAtFloorStartForLimitedUses: Bool {
+        switch self {
+        case .travelerCanteen, .moonDewCanteen:
+            return true
+        default:
+            return false
+        }
+    }
+
+    public var refillsUseAtFloorStart: Bool {
+        switch self {
+        case .dullNeedle, .lavaLantern, .patchedRope, .guardianIncense, .railSign, .chaserWhistle, .guardianAegis:
+            return true
+        default:
+            return false
         }
     }
 
@@ -929,6 +1233,13 @@ public enum DungeonCurseID: String, Codable, CaseIterable, Equatable, Identifiab
     case expressTicket
 
     public var id: String { rawValue }
+
+    public static let newAcquisitionCases: [DungeonCurseID] = [
+        .trapMagnet, .poisonVial, .chaserScent, .oilSoakedBoots, .firewalkingTalisman,
+        .flickeringCampfire, .ashHeart, .supportOath, .tinkersToolbox, .expressTicket,
+        .redChalice, .obsidianHeart, .cursedCrown, .warpedHourglass, .greedyBag,
+        .contractCodex, .royalIou, .bottomlessPack, .relicHunterBrand, .lastStandShield
+    ]
 
     public var encyclopediaDiscoveryID: EncyclopediaDiscoveryID {
         EncyclopediaDiscoveryID(category: .curse, itemID: rawValue)
@@ -1028,79 +1339,79 @@ public enum DungeonCurseID: String, Codable, CaseIterable, Equatable, Identifiab
         case .bloodPact:
             return "取得時にHPが2増える。"
         case .cursedCrown:
-            return "新しく得る報酬カードの使用回数が+2される。"
+            return "新しく得る報酬カードの使用回数が+3される。"
         case .obsidianHeart:
-            return "取得時にHPが4増える。"
-        case .warpedHourglass:
-            return "各フロアの手数上限が+6される。"
-        case .redChalice:
             return "取得時にHPが6増える。"
+        case .warpedHourglass:
+            return "各フロアの手数上限が+8される。"
+        case .redChalice:
+            return "取得時にHPが8増える。"
         case .greedyBag:
-            return "拾得カードの取得時使用回数が+2される。"
+            return "拾得カードの取得時使用回数が+4される。"
         case .crackedCompass:
-            return "クリア後の報酬候補が+1される。最大4択。"
+            return "クリア報酬の補助カード出現率が5pt上がる。"
         case .heavyBell:
             return "取得時にHPが2増える。"
         case .cloudedMirror:
-            return "クリア後の報酬候補が+1される。最大4択。"
+            return "クリア報酬の補助カード出現率が5pt上がる。"
         case .crackedShoes:
             return "取得時にHPが3増える。"
         case .watchersBrand:
             return "取得時にHPが2増える。"
         case .patrolBell:
-            return "クリア後の報酬候補が+1される。最大4択。"
+            return "クリア報酬の補助カード出現率が5pt上がる。"
         case .chaserScent:
-            return "各フロアの手数上限が+3される。"
+            return "各フロアの手数上限が+4される。"
         case .meteorRod:
             return "取得時にHPが3増える。"
         case .trapMagnet:
-            return "新しく得る報酬カードの使用回数が+1される。"
+            return "新しく得る報酬カードの使用回数が+2される。"
         case .oilSoakedBoots:
-            return "各フロアの手数上限が+2される。"
+            return "各フロアの手数上限が+3される。"
         case .glassAnklet:
             return "取得時にHPが2増える。"
         case .poisonVial:
-            return "拾得カードの取得時使用回数が+1される。"
+            return "拾得カードの取得時使用回数が+2される。"
         case .ironShackle:
             return "取得時にHPが3増える。"
         case .foolsMask:
-            return "クリア後の報酬候補が+1される。最大4択。"
+            return "クリア報酬の補助カード出現率が5pt上がる。"
         case .frayedMemory:
             return "補助報酬カードの使用回数が+1される。"
         case .wetTinder:
             return "取得時にHPが2増える。"
         case .laughingDoor:
-            return "クリア後の報酬候補が+1される。最大4択。"
+            return "クリア報酬の補助カード出現率が5pt上がる。"
         case .upsideDownKey:
-            return "鍵を拾って出口を開けると、クリア後の報酬候補が+1される。最大4択。"
+            return "鍵を拾って出口を開けると、クリア報酬の補助カード出現率が5pt上がる。"
         case .taxCollector:
-            return "クリア後の報酬候補が+1される。最大4択。"
+            return "クリア報酬の補助カード出現率が5pt上がる。"
         case .flickeringCampfire:
-            return "回復マスの回復量が+2される。"
+            return "回復マスの回復量が+3される。"
         case .contractCodex:
-            return "新しく得る拾得カード、移動報酬カード、補助報酬カードの使用回数が+2される。"
+            return "新しく得る拾得カード、移動報酬カード、補助報酬カードの使用回数が+3される。"
         case .royalIou:
-            return "クリア後の報酬候補が+1され、新しく得る報酬カードの使用回数が+1される。最大4択。"
+            return "クリア報酬の補助カード出現率が10pt上がり、新しく得る報酬カードの使用回数が+2される。"
         case .bottomlessPack:
-            return "拾得カードの取得時使用回数が+3される。"
+            return "拾得カードの取得時使用回数が+5される。"
         case .relicHunterBrand:
-            return "フロアを手早くクリアすると、未所持レリック候補を1つ追加しやすくする。"
+            return "手数上限の半分以内にクリアすると、クリア報酬のレリック出現率が5pt上がる。"
         case .supportOath:
-            return "補助報酬カードを新しく得る時、使用回数が+2される。"
+            return "補助報酬カードを新しく得る時、使用回数が+3される。"
         case .ashHeart:
-            return "各フロア開始時にHPが1増える。"
+            return "各フロア開始時にHPが2増える。"
         case .hasteArmor:
             return "敵とメテオから受けるHPダメージが1減る。"
         case .scorchedCloak:
             return "罠、溶岩、崩落穴から受けるHPダメージが1減る。"
         case .lastStandShield:
-            return "各フロア最初に受けるHPダメージが2減る。"
+            return "各フロア最初に受けるHPダメージが3減る。"
         case .firewalkingTalisman:
-            return "その階で溶岩を踏んでクリアすると、クリア後の報酬候補が+1される。最大4択。"
+            return "その階で溶岩を踏んでクリアすると、クリア報酬の補助カード出現率が10pt上がる。"
         case .tinkersToolbox:
-            return "既に所持している移動カードと同種の報酬を選ぶ時、使用回数が+1される。"
+            return "既に所持している移動カードと同種の報酬を選ぶ時、使用回数が+2される。"
         case .expressTicket:
-            return "手数上限の半分以内でクリアすると、次階開始時にHPが2増える。"
+            return "手数上限の半分以内でクリアすると、次階開始時にHPが3増える。"
         }
     }
 
@@ -1113,7 +1424,7 @@ public enum DungeonCurseID: String, Codable, CaseIterable, Equatable, Identifiab
         case .bloodPact:
             return "次に新しく得る報酬カードの使用回数が1減る。"
         case .cursedCrown:
-            return "各フロアの手数上限が-4される。"
+            return "各フロアの手数上限が-5される。"
         case .obsidianHeart:
             return "各フロア開始時にHPが1減る。HPは1未満にならない。"
         case .warpedHourglass:
@@ -1163,7 +1474,7 @@ public enum DungeonCurseID: String, Codable, CaseIterable, Equatable, Identifiab
         case .flickeringCampfire:
             return "回復マスを踏むと幻惑を受ける。"
         case .contractCodex:
-            return "各フロアの手数上限が-4される。"
+            return "各フロアの手数上限が-5される。"
         case .royalIou:
             return "クリア報酬を選ぶと、次階開始HPが2減る。最低1。"
         case .bottomlessPack:
@@ -1179,7 +1490,7 @@ public enum DungeonCurseID: String, Codable, CaseIterable, Equatable, Identifiab
         case .scorchedCloak:
             return "疲労ダメージが1増える。"
         case .lastStandShield:
-            return "各フロアの手数上限が-3される。"
+            return "各フロアの手数上限が-4される。"
         case .firewalkingTalisman:
             return "溶岩上で移動しない行動をすると、溶岩滞在ダメージが1増える。"
         case .tinkersToolbox:
@@ -1378,6 +1689,8 @@ public struct DungeonCurseEncyclopediaEntry: Identifiable, Equatable, Sendable {
 public struct DungeonRelicEntry: Codable, Equatable, Identifiable, Sendable {
     public let relicID: DungeonRelicID
     public var remainingUses: Int
+    public var floorStartCharge: Int?
+    public var enemyDefeatProgress: Int
 
     public var id: DungeonRelicID { relicID }
     public var displayName: String { relicID.displayName }
@@ -1388,9 +1701,57 @@ public struct DungeonRelicEntry: Codable, Equatable, Identifiable, Sendable {
     public var displayKind: DungeonRelicDisplayKind { relicID.displayKind }
     public var rarity: DungeonRelicRarity { relicID.rarity }
 
-    public init(relicID: DungeonRelicID, remainingUses: Int? = nil) {
+    public init(
+        relicID: DungeonRelicID,
+        remainingUses: Int? = nil,
+        floorStartCharge: Int? = nil,
+        enemyDefeatProgress: Int = 0
+    ) {
         self.relicID = relicID
         self.remainingUses = max(remainingUses ?? relicID.startingUses, 0)
+        self.floorStartCharge = floorStartCharge.map { max($0, 0) }
+        self.enemyDefeatProgress = max(enemyDefeatProgress, 0)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case relicID
+        case remainingUses
+        case floorStartCharge
+        case enemyDefeatProgress
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let relicID = try container.decode(DungeonRelicID.self, forKey: .relicID)
+        guard !relicID.isRemovedFromCurrentRules else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .relicID,
+                in: container,
+                debugDescription: "Removed dungeon relic is ignored."
+            )
+        }
+        self.init(
+            relicID: relicID,
+            remainingUses: try container.decodeIfPresent(Int.self, forKey: .remainingUses),
+            floorStartCharge: try container.decodeIfPresent(Int.self, forKey: .floorStartCharge),
+            enemyDefeatProgress: try container.decodeIfPresent(Int.self, forKey: .enemyDefeatProgress) ?? 0
+        )
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(relicID, forKey: .relicID)
+        try container.encode(remainingUses, forKey: .remainingUses)
+        try container.encodeIfPresent(floorStartCharge, forKey: .floorStartCharge)
+        try container.encode(enemyDefeatProgress, forKey: .enemyDefeatProgress)
+    }
+}
+
+struct LossyDungeonRelicEntry: Decodable {
+    let value: DungeonRelicEntry?
+
+    init(from decoder: Decoder) throws {
+        value = try? DungeonRelicEntry(from: decoder)
     }
 }
 
@@ -1712,14 +2073,14 @@ public struct DungeonRelicPickupDefinition: Codable, Equatable, Identifiable, Se
         id: String,
         point: GridPoint,
         kind: DungeonRelicPickupKind = .safe,
-        candidateRelics: [DungeonRelicID] = DungeonRelicID.allCases,
-        candidateCurses: [DungeonCurseID] = DungeonCurseID.allCases
+        candidateRelics: [DungeonRelicID] = DungeonRelicID.newAcquisitionCases,
+        candidateCurses: [DungeonCurseID] = DungeonCurseID.newAcquisitionCases
     ) {
         self.id = id
         self.point = point
         self.kind = kind
-        self.candidateRelics = candidateRelics.isEmpty ? DungeonRelicID.allCases : candidateRelics
-        self.candidateCurses = candidateCurses.isEmpty ? DungeonCurseID.allCases : candidateCurses
+        self.candidateRelics = candidateRelics.isEmpty ? DungeonRelicID.newAcquisitionCases : candidateRelics
+        self.candidateCurses = candidateCurses.isEmpty ? DungeonCurseID.newAcquisitionCases : candidateCurses
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -1736,8 +2097,8 @@ public struct DungeonRelicPickupDefinition: Codable, Equatable, Identifiable, Se
             id: try container.decode(String.self, forKey: .id),
             point: try container.decode(GridPoint.self, forKey: .point),
             kind: try container.decodeIfPresent(DungeonRelicPickupKind.self, forKey: .kind) ?? .safe,
-            candidateRelics: try container.decodeIfPresent([DungeonRelicID].self, forKey: .candidateRelics) ?? DungeonRelicID.allCases,
-            candidateCurses: try container.decodeIfPresent([DungeonCurseID].self, forKey: .candidateCurses) ?? DungeonCurseID.allCases
+            candidateRelics: try container.decodeIfPresent([DungeonRelicID].self, forKey: .candidateRelics) ?? DungeonRelicID.newAcquisitionCases,
+            candidateCurses: try container.decodeIfPresent([DungeonCurseID].self, forKey: .candidateCurses) ?? DungeonCurseID.newAcquisitionCases
         )
     }
 
@@ -1818,15 +2179,21 @@ public struct DungeonRewardDrawTuning: Equatable, Sendable {
     public let clearMoveCount: Int?
     public let turnLimit: Int?
     public let suppressRelicQualityBonus: Bool
+    public let supportCategoryBonusPoints: Int
+    public let relicCategoryBonusPoints: Int
 
     public init(
         clearMoveCount: Int? = nil,
         turnLimit: Int? = nil,
-        suppressRelicQualityBonus: Bool = false
+        suppressRelicQualityBonus: Bool = false,
+        supportCategoryBonusPoints: Int = 0,
+        relicCategoryBonusPoints: Int = 0
     ) {
         self.clearMoveCount = clearMoveCount
         self.turnLimit = turnLimit
         self.suppressRelicQualityBonus = suppressRelicQualityBonus
+        self.supportCategoryBonusPoints = max(supportCategoryBonusPoints, 0)
+        self.relicCategoryBonusPoints = max(relicCategoryBonusPoints, 0)
     }
 }
 
@@ -1958,6 +2325,7 @@ public enum DungeonWeightedRewardPools {
                 (.darknessSpell, 1),
                 (.railBreakSpell, 1),
                 (.antidote, 2),
+                (.flySpell, 1),
                 (.panacea, 1)
             ])
         case (.floors21To30, .clearReward):
@@ -1975,6 +2343,7 @@ public enum DungeonWeightedRewardPools {
                 (.freezeSpell, 2),
                 (.barrierSpell, 2),
                 (.antidote, 2),
+                (.flySpell, 1),
                 (.panacea, 1)
             ]) + weightedRelics()
         case (.floors31To40, .floorPickup):
@@ -1993,6 +2362,7 @@ public enum DungeonWeightedRewardPools {
                 (.freezeSpell, 1),
                 (.barrierSpell, 2),
                 (.antidote, 2),
+                (.flySpell, 2),
                 (.panacea, 3)
             ])
         case (.floors31To40, .clearReward):
@@ -2010,6 +2380,7 @@ public enum DungeonWeightedRewardPools {
                 (.freezeSpell, 3),
                 (.barrierSpell, 3),
                 (.antidote, 2),
+                (.flySpell, 2),
                 (.panacea, 3)
             ]) + weightedRelics()
         case (.floors41To50, .floorPickup):
@@ -2027,6 +2398,7 @@ public enum DungeonWeightedRewardPools {
                 (.freezeSpell, 2),
                 (.barrierSpell, 3),
                 (.antidote, 1),
+                (.flySpell, 2),
                 (.panacea, 3)
             ])
         case (.floors41To50, .clearReward):
@@ -2044,6 +2416,7 @@ public enum DungeonWeightedRewardPools {
                 (.freezeSpell, 4),
                 (.barrierSpell, 4),
                 (.antidote, 1),
+                (.flySpell, 3),
                 (.panacea, 4)
             ]) + weightedRelics()
         }
@@ -2186,7 +2559,7 @@ public enum DungeonWeightedRewardPools {
     }
 
     private static func weightedRelics() -> [DungeonWeightedRewardPoolEntry] {
-        DungeonRelicID.allCases.map { DungeonWeightedRewardPoolEntry(item: .relic($0), weight: 1) }
+        DungeonRelicID.newAcquisitionCases.map { DungeonWeightedRewardPoolEntry(item: .relic($0), weight: 1) }
     }
 
     private static func adjustedEntries(
@@ -2238,7 +2611,7 @@ public enum DungeonWeightedRewardPools {
             switch enemy.behavior {
             case .patrol:
                 add(.railBreakSpell, 7)
-            case .chaser, .marker:
+            case .chaser, .marker, .targetedMarker:
                 add(.freezeSpell, 4)
             case .guardPost, .watcher, .rotatingWatcher:
                 break
@@ -2253,7 +2626,7 @@ public enum DungeonWeightedRewardPools {
             case .poisonTrap:
                 hasStatusTrap = true
                 hasPoisonTrap = true
-            case .shackleTrap, .illusionTrap:
+            case .shackleTrap, .illusionTrap, .relicBreakTrap:
                 hasStatusTrap = true
             case .discardRandomHand, .discardAllMoveCards, .discardAllSupportCards, .discardAllHands:
                 hasStatusTrap = true
@@ -2282,6 +2655,7 @@ public enum DungeonWeightedRewardPools {
         }
         if hasDangerFloor {
             add(.barrierSpell, 5)
+            add(.flySpell, 4)
         }
 
         let order: [SupportCard] = [
@@ -2289,6 +2663,7 @@ public enum DungeonWeightedRewardPools {
             .railBreakSpell,
             .panacea,
             .antidote,
+            .flySpell,
             .barrierSpell,
             .freezeSpell,
             .refillEmptySlots
@@ -2347,25 +2722,34 @@ public enum DungeonWeightedRewardPools {
         case .floorPickup:
             return DungeonWeightedRewardCategoryWeights(move: 90, support: 10, relic: 0)
         case .clearReward:
+            func adjusted(move: Int, support: Int, relic: Int) -> DungeonWeightedRewardCategoryWeights {
+                let adjustedSupport = support + tuning.supportCategoryBonusPoints
+                let adjustedRelic = relic + tuning.relicCategoryBonusPoints
+                return DungeonWeightedRewardCategoryWeights(
+                    move: max(move - tuning.supportCategoryBonusPoints - tuning.relicCategoryBonusPoints, 0),
+                    support: adjustedSupport,
+                    relic: adjustedRelic
+                )
+            }
             guard let moveCount = tuning.clearMoveCount,
                   let turnLimit = tuning.turnLimit,
                   turnLimit > 0
             else {
-                return DungeonWeightedRewardCategoryWeights(move: 89, support: 10, relic: 1)
+                return adjusted(move: 89, support: 10, relic: 1)
             }
             if moveCount * 2 <= turnLimit {
                 if tuning.suppressRelicQualityBonus {
-                    return DungeonWeightedRewardCategoryWeights(move: 69, support: 30, relic: 1)
+                    return adjusted(move: 69, support: 30, relic: 1)
                 }
-                return DungeonWeightedRewardCategoryWeights(move: 65, support: 30, relic: 5)
+                return adjusted(move: 65, support: 30, relic: 5)
             }
             if moveCount * 10 <= turnLimit * 7 {
                 if tuning.suppressRelicQualityBonus {
-                    return DungeonWeightedRewardCategoryWeights(move: 79, support: 20, relic: 1)
+                    return adjusted(move: 79, support: 20, relic: 1)
                 }
-                return DungeonWeightedRewardCategoryWeights(move: 77, support: 20, relic: 3)
+                return adjusted(move: 77, support: 20, relic: 3)
             }
-            return DungeonWeightedRewardCategoryWeights(move: 89, support: 10, relic: 1)
+            return adjusted(move: 89, support: 10, relic: 1)
         }
     }
 
@@ -2485,6 +2869,7 @@ public struct DungeonRunState: Codable, Equatable, Sendable {
         collectedDungeonRelicPickupIDs: Set<String>? = nil,
         rewardAddUses: Int = 2,
         supportRewardAddUses: Int = 1,
+        areDungeonRelicAndCurseEffectsEnabled: Bool = true,
         completedWithinHalfTurnLimit: Bool = false,
         hazardDamageMitigationsRemaining: Int? = nil,
         enemyDamageMitigationsRemaining: Int? = nil,
@@ -2494,12 +2879,14 @@ public struct DungeonRunState: Codable, Equatable, Sendable {
         let sourceEntries = currentInventoryEntries ?? rewardInventoryEntries
         let carriedEntries = sourceEntries.compactMap { $0.carryingAllUsesAsReward() }
         let selection = rewardSelection ?? rewardMoveCard.map { DungeonRewardSelection.add($0) }
+        let currentEffectRelicEntries = areDungeonRelicAndCurseEffectsEnabled ? (currentRelicEntries ?? relicEntries) : []
+        let currentEffectCurseEntries = areDungeonRelicAndCurseEffectsEnabled ? (currentCurseEntries ?? curseEntries) : []
         let updatedRewardInventoryEntries = DungeonRunState.applying(
             selection,
             to: carriedEntries,
             sourceEntries: sourceEntries,
-            relicEntries: currentRelicEntries ?? relicEntries,
-            curseEntries: currentCurseEntries ?? curseEntries,
+            relicEntries: currentEffectRelicEntries,
+            curseEntries: currentEffectCurseEntries,
             rewardAddUses: rewardAddUses,
             supportRewardAddUses: supportRewardAddUses
         )
@@ -2508,26 +2895,31 @@ public struct DungeonRunState: Codable, Equatable, Sendable {
             to: currentRelicEntries ?? relicEntries
         )
         let selectedCurseEntries = DungeonRunState.curseEntriesAfterRewardSelection(
-            selection,
+            areDungeonRelicAndCurseEffectsEnabled ? selection : nil,
             entries: currentCurseEntries ?? curseEntries
         )
-        let carriedRelics = DungeonRunState.relicEntriesForNextFloor(selectedRelicEntries)
+        let floorStartRelicResult = areDungeonRelicAndCurseEffectsEnabled
+            ? DungeonRunState.applyingFloorStartRelicHealing(to: selectedRelicEntries)
+            : (entries: selectedRelicEntries, hpBonus: 0)
+        let carriedRelics = DungeonRunState.relicEntriesForNextFloor(floorStartRelicResult.entries)
         let carriedCurses = DungeonRunState.curseEntriesForNextFloor(selectedCurseEntries)
+        let effectRelicEntries = areDungeonRelicAndCurseEffectsEnabled ? floorStartRelicResult.entries : []
+        let effectCurseEntries = areDungeonRelicAndCurseEffectsEnabled ? selectedCurseEntries : []
+        let effectSelection = areDungeonRelicAndCurseEffectsEnabled ? selection : nil
         let rewardRelicAdjustedHP = DungeonRunState.carryoverHP(
             carryoverHP,
-            afterSelectingRelicReward: selection,
-            relicEntries: selectedRelicEntries,
-            curseEntries: selectedCurseEntries
+            afterSelectingRelicReward: effectSelection,
+            relicEntries: effectRelicEntries,
+            curseEntries: effectCurseEntries
         )
-        let adjustedCarryoverHP = carriedCurses.contains { $0.curseID == .obsidianHeart }
-            ? max(rewardRelicAdjustedHP - 1, 1)
-            : rewardRelicAdjustedHP
+        let obsidianHeartPenalty = effectCurseEntries.contains { $0.curseID == .obsidianHeart } ? 1 : 0
+        let adjustedCarryoverHP = max(rewardRelicAdjustedHP - obsidianHeartPenalty, 1)
         var floorStartHP = adjustedCarryoverHP
-            + (carriedRelics.contains { $0.relicID == .starCup } ? 1 : 0)
-            + (carriedRelics.contains { $0.relicID == .immortalHeart } ? 1 : 0)
-            + (carriedCurses.contains { $0.curseID == .ashHeart } ? 1 : 0)
-            + (completedWithinHalfTurnLimit && carriedCurses.contains { $0.curseID == .expressTicket } ? 2 : 0)
-        if floorStartHP <= 2, carriedRelics.contains(where: { $0.relicID == .travelerRation }) {
+            + floorStartRelicResult.hpBonus
+            + (effectRelicEntries.contains { $0.relicID == .immortalHeart } ? 1 : 0)
+            + (effectCurseEntries.contains { $0.curseID == .ashHeart } ? 2 : 0)
+            + (completedWithinHalfTurnLimit && effectCurseEntries.contains { $0.curseID == .expressTicket } ? 3 : 0)
+        if floorStartHP <= 2, effectRelicEntries.contains(where: { $0.relicID == .travelerRation }) {
             floorStartHP += 1
         }
         var updatedRunLogEntries = currentRunLogEntries ?? runLogEntries
@@ -2627,6 +3019,47 @@ public struct DungeonRunState: Codable, Equatable, Sendable {
         )
     }
 
+    public func revivedAtPreviousFloor(
+        floorIndex destinationFloorIndex: Int,
+        currentFloorMoveCount: Int,
+        currentInventoryEntries: [DungeonInventoryEntry],
+        currentRelicEntries: [DungeonRelicEntry],
+        currentCurseEntries: [DungeonCurseEntry],
+        collectedDungeonRelicPickupIDs: Set<String>,
+        hazardDamageMitigationsRemaining: Int,
+        enemyDamageMitigationsRemaining: Int,
+        markerDamageMitigationsRemaining: Int,
+        currentRunLogEntries: [DungeonRunLogEntry]
+    ) -> DungeonRunState {
+        let normalizedDestination = max(destinationFloorIndex, 0)
+        var crackedByFloor = crackedFloorPointsByFloor
+        var collapsedByFloor = collapsedFloorPointsByFloor
+        crackedByFloor.removeValue(forKey: normalizedDestination)
+        collapsedByFloor.removeValue(forKey: normalizedDestination)
+
+        return DungeonRunState(
+            dungeonID: dungeonID,
+            currentFloorIndex: normalizedDestination,
+            carriedHP: 1,
+            totalMoveCount: totalMoveCount + max(currentFloorMoveCount, 0),
+            clearedFloorCount: clearedFloorCount,
+            rewardInventoryEntries: currentInventoryEntries.compactMap { $0.carryingRewardUsesOnly() },
+            relicEntries: currentRelicEntries,
+            curseEntries: currentCurseEntries,
+            collectedDungeonRelicPickupIDs: self.collectedDungeonRelicPickupIDs.union(collectedDungeonRelicPickupIDs),
+            cardVariationSeed: cardVariationSeed,
+            movementStyle: movementStyle,
+            dungeonInventoryKindLimit: dungeonInventoryKindLimit,
+            rogueTowerSeed: rogueTowerSeed,
+            crackedFloorPointsByFloor: crackedByFloor,
+            collapsedFloorPointsByFloor: collapsedByFloor,
+            hazardDamageMitigationsRemaining: hazardDamageMitigationsRemaining,
+            enemyDamageMitigationsRemaining: enemyDamageMitigationsRemaining,
+            markerDamageMitigationsRemaining: markerDamageMitigationsRemaining,
+            runLogEntries: currentRunLogEntries
+        )
+    }
+
     public func totalMoveCountIncludingCurrentFloor(_ currentFloorMoveCount: Int) -> Int {
         totalMoveCount + max(currentFloorMoveCount, 0)
     }
@@ -2712,7 +3145,8 @@ public struct DungeonRunState: Codable, Equatable, Sendable {
             totalMoveCount: try container.decodeIfPresent(Int.self, forKey: .totalMoveCount) ?? 0,
             clearedFloorCount: try container.decodeIfPresent(Int.self, forKey: .clearedFloorCount) ?? 0,
             rewardInventoryEntries: try container.decodeIfPresent([DungeonInventoryEntry].self, forKey: .rewardInventoryEntries) ?? [],
-            relicEntries: try container.decodeIfPresent([DungeonRelicEntry].self, forKey: .relicEntries) ?? [],
+            relicEntries: try container.decodeIfPresent([LossyDungeonRelicEntry].self, forKey: .relicEntries)?
+                .compactMap(\.value) ?? [],
             curseEntries: try container.decodeIfPresent([DungeonCurseEntry].self, forKey: .curseEntries) ?? [],
             collectedDungeonRelicPickupIDs: try container.decodeIfPresent(Set<String>.self, forKey: .collectedDungeonRelicPickupIDs) ?? [],
             cardVariationSeed: try container.decodeIfPresent(UInt64.self, forKey: .cardVariationSeed),
@@ -2772,6 +3206,8 @@ public struct DungeonRunState: Codable, Equatable, Sendable {
         for entry in entries {
             if let index = result.firstIndex(where: { $0.relicID == entry.relicID }) {
                 result[index].remainingUses = max(result[index].remainingUses, entry.remainingUses)
+                result[index].floorStartCharge = max(result[index].floorStartCharge ?? 0, entry.floorStartCharge ?? 0)
+                result[index].enemyDefeatProgress = max(result[index].enemyDefeatProgress, entry.enemyDefeatProgress)
             } else {
                 result.append(entry)
             }
@@ -2792,18 +3228,49 @@ public struct DungeonRunState: Codable, Equatable, Sendable {
     }
 
     private static func relicEntriesForNextFloor(_ entries: [DungeonRelicEntry]) -> [DungeonRelicEntry] {
-        entries.map { entry in
+        entries.compactMap { entry in
             switch entry.relicID {
-            case .guardianIncense, .guardianAegis:
+            case _ where entry.relicID.refillsUseAtFloorStart:
                 return DungeonRelicEntry(relicID: entry.relicID)
             case .trapperGloves where entry.remainingUses == 1:
                 return DungeonRelicEntry(relicID: .trapperGloves, remainingUses: 0)
+            case .travelerCanteen where entry.remainingUses <= 0,
+                 .moonDewCanteen where entry.remainingUses <= 0:
+                return nil
             case .glowingHeart:
                 return entry
             default:
                 return entry
             }
         }
+    }
+
+    private static func applyingFloorStartRelicHealing(
+        to entries: [DungeonRelicEntry]
+    ) -> (entries: [DungeonRelicEntry], hpBonus: Int) {
+        var updatedEntries: [DungeonRelicEntry] = []
+        var hpBonus = 0
+
+        for var entry in entries {
+            if let interval = entry.relicID.floorStartHealingInterval {
+                let nextCharge = (entry.floorStartCharge ?? 0) + 1
+                if nextCharge >= interval {
+                    hpBonus += 1
+                    entry.floorStartCharge = 0
+                } else {
+                    entry.floorStartCharge = nextCharge
+                }
+            }
+
+            if entry.relicID.healsAtFloorStartForLimitedUses, entry.remainingUses > 0 {
+                hpBonus += 1
+                entry.remainingUses -= 1
+            }
+
+            updatedEntries.append(entry)
+        }
+
+        return (updatedEntries, hpBonus)
     }
 
     private static func curseEntriesForNextFloor(_ entries: [DungeonCurseEntry]) -> [DungeonCurseEntry] {
@@ -2892,14 +3359,6 @@ public struct DungeonRunState: Codable, Equatable, Sendable {
     ) -> Int {
         var adjustment = 0
         if MoveCard.directionalRayCards.contains(card),
-           relicEntries.contains(where: { $0.relicID == .windcutFeather }) {
-            adjustment += 1
-        }
-        if !MoveCard.directionalRayCards.contains(card),
-           relicEntries.contains(where: { $0.relicID == .quickSheath }) {
-            adjustment += 1
-        }
-        if MoveCard.directionalRayCards.contains(card),
            curseEntries.contains(where: { $0.curseID == .crackedShoes }) {
             adjustment -= 1
         }
@@ -2907,7 +3366,7 @@ public struct DungeonRunState: Codable, Equatable, Sendable {
             adjustment -= 1
         }
         if curseEntries.contains(where: { $0.curseID == .tinkersToolbox }) {
-            adjustment += isExistingRewardCard ? 1 : -1
+            adjustment += isExistingRewardCard ? 2 : -1
         }
         return max(baseUses + adjustment, 1)
     }
@@ -2920,10 +3379,10 @@ public struct DungeonRunState: Codable, Equatable, Sendable {
         let heavyCrownBonus = relicEntries.contains { $0.relicID == .heavyCrown } ? 1 : 0
         let royalCrownBonus = relicEntries.contains { $0.relicID == .royalCrown } ? 1 : 0
         let sageCodexBonus = relicEntries.contains { $0.relicID == .sageCodex } ? 1 : 0
-        let cursedCrownBonus = curseEntries.contains { $0.curseID == .cursedCrown } ? 2 : 0
-        let trapMagnetBonus = curseEntries.contains { $0.curseID == .trapMagnet } ? 1 : 0
-        let contractCodexBonus = curseEntries.contains { $0.curseID == .contractCodex } ? 2 : 0
-        let royalIouBonus = curseEntries.contains { $0.curseID == .royalIou } ? 1 : 0
+        let cursedCrownBonus = curseEntries.contains { $0.curseID == .cursedCrown } ? 3 : 0
+        let trapMagnetBonus = curseEntries.contains { $0.curseID == .trapMagnet } ? 2 : 0
+        let contractCodexBonus = curseEntries.contains { $0.curseID == .contractCodex } ? 3 : 0
+        let royalIouBonus = curseEntries.contains { $0.curseID == .royalIou } ? 2 : 0
         let cursePenalty = curseEntries.contains { $0.curseID == .bloodPact && $0.remainingUses > 0 } ? 1 : 0
         let warpedHourglassPenalty = curseEntries.contains { $0.curseID == .warpedHourglass } ? 1 : 0
         let greedyBagPenalty = curseEntries.contains { $0.curseID == .greedyBag } ? 2 : 0
@@ -2946,12 +3405,13 @@ public struct DungeonRunState: Codable, Equatable, Sendable {
         let royalCrownBonus = relicEntries.contains { $0.relicID == .royalCrown } ? 1 : 0
         let sageCodexBonus = relicEntries.contains { $0.relicID == .sageCodex } ? 1 : 0
         let frayedMemoryBonus = curseEntries.contains { $0.curseID == .frayedMemory } ? 1 : 0
-        let contractCodexBonus = curseEntries.contains { $0.curseID == .contractCodex } ? 2 : 0
-        let royalIouBonus = curseEntries.contains { $0.curseID == .royalIou } ? 1 : 0
-        let supportOathBonus = curseEntries.contains { $0.curseID == .supportOath } ? 2 : 0
+        let trapMagnetBonus = curseEntries.contains { $0.curseID == .trapMagnet } ? 2 : 0
+        let contractCodexBonus = curseEntries.contains { $0.curseID == .contractCodex } ? 3 : 0
+        let royalIouBonus = curseEntries.contains { $0.curseID == .royalIou } ? 2 : 0
+        let supportOathBonus = curseEntries.contains { $0.curseID == .supportOath } ? 3 : 0
         let relicHunterPenalty = curseEntries.contains { $0.curseID == .relicHunterBrand } ? 1 : 0
         return max(
-            baseUses + twinPouchBonus + royalCrownBonus + sageCodexBonus + frayedMemoryBonus
+            baseUses + twinPouchBonus + royalCrownBonus + sageCodexBonus + trapMagnetBonus + frayedMemoryBonus
                 + contractCodexBonus + royalIouBonus + supportOathBonus - relicHunterPenalty,
             1
         )
@@ -3004,21 +3464,28 @@ public struct DungeonRunState: Codable, Equatable, Sendable {
         case .woodenAmulet:
             return baseHP + 1
         case .heavyCrown, .oldMap, .blackFeather, .chippedHourglass,
-             .travelerBoots, .silverNeedle, .starCup, .explorerBag, .moonMirror, .victoryBanner,
+             .travelerBoots, .silverNeedle, .starCup, .distantStarCup, .crackedStarCup,
+             .explorerBag, .moonMirror, .victoryBanner,
              .windcutFeather, .guardianIncense, .trapperGloves, .whiteChalk, .spareTorch,
              .oldRope, .twinPouch, .gamblerCoin, .royalCrown, .immortalHeart, .guardianAegis,
-             .stargazerHourglass, .copperHourglass, .travelerRation, .smallLantern, .dullNeedle,
-             .patchedRope, .fieldMedkit, .scoutCompass, .quickSheath, .purifyingCharm,
-             .phoenixFeather, .sageCodex, .trapSole, .emberCloak, .watcherMonocle, .railCharm,
-             .chaserDecoy, .antidoteStone, .starUmbrella, .fallAnchor, .foldingMap, .phantomTicket,
-             .campfireCoal, .merchantsScale:
+             .stargazerHourglass, .copperHourglass, .travelerRation, .travelerCanteen, .moonDewCanteen,
+             .smallLantern, .dullNeedle,
+             .patchedRope, .fieldMedkit, .scoutCompass, .quickSheath, .purifyingCharm, .greatPurifyingCharm,
+             .phoenixFeather, .sageCodex, .lavaCharm, .lavaLantern, .watcherMask, .railWedge,
+             .railSign, .smokeDecoy, .chaserWhistle, .starVeil,
+             .trapSole, .emberCloak, .watcherMonocle, .railCharm,
+             .chaserDecoy, .antidoteStone, .greaterAntidoteStone, .starUmbrella, .guardianCloak,
+             .fallAnchor, .foldingMap, .phantomTicket,
+             .campfireCoal, .merchantsScale, .barrierCharm, .barrierTalisman, .frostBell, .rewindingHourglass,
+             .slayerPouch, .hunterBanner, .intimidationHorn, .slayerMedal,
+             .nightCardLens, .thornScoutLens, .magmaScoutLens, .trapScoutLens, .enemyScoutLens:
             return baseHP
         }
     }
 
     public static func rewardUses(for support: SupportCard) -> Int {
         switch support {
-        case .refillEmptySlots, .singleAnnihilationSpell, .annihilationSpell, .freezeSpell, .barrierSpell, .darknessSpell, .railBreakSpell, .antidote, .panacea:
+        case .refillEmptySlots, .singleAnnihilationSpell, .annihilationSpell, .freezeSpell, .barrierSpell, .darknessSpell, .railBreakSpell, .flySpell, .antidote, .panacea:
             return 1
         }
     }
@@ -3110,6 +3577,9 @@ public enum EnemyBehavior: Codable, Equatable, Sendable {
     /// 次ターンにメテオが着弾するマスを予告する
     /// - Note: 旧保存データとの互換のため `directions` を保持するが、現行ルールでは `range` を予告数として扱う。
     case marker(directions: [MoveVector], range: Int)
+    /// ランダムな着弾予告に加えて、現在のプレイヤー位置も予告する上級メテオ兵
+    /// - Note: `directions` は通常メテオ兵と同じ保存互換用で、現行ルールでは `range` をランダム予告数として扱う。
+    case targetedMarker(directions: [MoveVector], range: Int)
 
     private enum CodingKeys: String, CodingKey {
         case type
@@ -3128,6 +3598,7 @@ public enum EnemyBehavior: Codable, Equatable, Sendable {
         case rotatingWatcher
         case chaser
         case marker
+        case targetedMarker
     }
 
     public init(from decoder: Decoder) throws {
@@ -3165,6 +3636,11 @@ public enum EnemyBehavior: Codable, Equatable, Sendable {
                 directions: try container.decodeIfPresent([MoveVector].self, forKey: .directions) ?? [],
                 range: try container.decodeIfPresent(Int.self, forKey: .range) ?? 1
             )
+        case .targetedMarker:
+            self = .targetedMarker(
+                directions: try container.decodeIfPresent([MoveVector].self, forKey: .directions) ?? [],
+                range: try container.decodeIfPresent(Int.self, forKey: .range) ?? 1
+            )
         }
     }
 
@@ -3189,6 +3665,10 @@ public enum EnemyBehavior: Codable, Equatable, Sendable {
             try container.encode(Kind.chaser, forKey: .type)
         case .marker(let directions, let range):
             try container.encode(Kind.marker, forKey: .type)
+            try container.encode(directions, forKey: .directions)
+            try container.encode(range, forKey: .range)
+        case .targetedMarker(let directions, let range):
+            try container.encode(Kind.targetedMarker, forKey: .type)
             try container.encode(directions, forKey: .directions)
             try container.encode(range, forKey: .range)
         }
@@ -4180,7 +4660,10 @@ private enum RogueTowerFloorGenerator {
         let trapPoints = drawPoints(count: trapCount, reserved: reserved, randomizer: &randomizer)
         if !trapPoints.isEmpty {
             reserved.formUnion(trapPoints)
-            result.append(.damageTrap(points: Set(trapPoints), damage: floorIndex >= 22 ? 2 : 1))
+            result.append(.damageTrap(
+                points: Set(trapPoints),
+                damage: damageTrapDamage(forFloorNumber: floorIndex + 1)
+            ))
         }
 
         if floorIndex >= 2 {
@@ -4205,7 +4688,10 @@ private enum RogueTowerFloorGenerator {
             let lavaPoints = drawPoints(count: lavaCount, reserved: reserved, randomizer: &randomizer)
             if !lavaPoints.isEmpty {
                 reserved.formUnion(lavaPoints)
-                result.append(.lavaTile(points: Set(lavaPoints), damage: 1))
+                result.append(.lavaTile(
+                    points: Set(lavaPoints),
+                    damage: lavaTileDamage(forFloorNumber: floorIndex + 1)
+                ))
             }
         }
 
@@ -4232,11 +4718,12 @@ private enum RogueTowerFloorGenerator {
             .swamp,
             .discardRandomHand
         ]
+        let effectCandidates = floorIndex >= 12 ? candidates + [.relicBreakTrap] : candidates
         let count = min(1 + floorIndex / 10, 4)
         let points = drawPoints(count: count, reserved: reserved, randomizer: &randomizer)
         reserved.formUnion(points)
         return Dictionary(uniqueKeysWithValues: points.enumerated().map { index, point in
-            (point, candidates[(index + randomizer.nextIndex(upperBound: candidates.count)) % candidates.count])
+            (point, effectCandidates[(index + randomizer.nextIndex(upperBound: effectCandidates.count)) % effectCandidates.count])
         })
     }
 
@@ -4295,11 +4782,26 @@ private enum RogueTowerFloorGenerator {
                     id: "rogue-\(floorIndex + 1)-enemy-\(index + 1)",
                     name: name,
                     position: point,
-                    behavior: behavior
+                    behavior: behavior,
+                    damage: enemyDamage(forFloorNumber: floorIndex + 1)
                 )
             )
         }
         return enemies
+    }
+
+    private static func enemyDamage(forFloorNumber floorNumber: Int) -> Int {
+        if floorNumber >= 41 { return 3 }
+        if floorNumber >= 21 { return 2 }
+        return 1
+    }
+
+    private static func damageTrapDamage(forFloorNumber floorNumber: Int) -> Int {
+        floorNumber >= 21 ? 2 : 1
+    }
+
+    private static func lavaTileDamage(forFloorNumber floorNumber: Int) -> Int {
+        floorNumber >= 41 ? 2 : 1
     }
 
     private static func patrolPath(
@@ -4781,6 +5283,8 @@ private enum DungeonCardVariationResolver {
             return behavior
         case .marker(_, let range):
             return .marker(directions: [], range: range)
+        case .targetedMarker(_, let range):
+            return .targetedMarker(directions: [], range: range)
         case .watcher(_, let range):
             return .watcher(
                 direction: randomOrthogonalDirection(randomizer: &randomizer),
@@ -4846,7 +5350,7 @@ private enum DungeonCardVariationResolver {
                     rotationDirection: rotationDirection,
                     range: range
                 )
-            case .guardPost, .patrol, .chaser, .marker:
+            case .guardPost, .patrol, .chaser, .marker, .targetedMarker:
                 behavior = enemy.behavior
             }
             return EnemyDefinition(
@@ -4986,7 +5490,7 @@ private enum DungeonCardVariationResolver {
         seed: UInt64
     ) -> [HazardDefinition] {
         var reserved = coreReservedPoints(for: floor)
-        let resolved: [HazardDefinition] = floor.hazards.enumerated().compactMap { index, hazard in
+        let resolved: [HazardDefinition] = floor.hazards.enumerated().compactMap { index, hazard -> HazardDefinition? in
             if case .healingTile = hazard,
                floorIndex >= 20,
                !keepsDeepGrowthHealingTile(floorIndex: floorIndex) {
@@ -5033,12 +5537,18 @@ private enum DungeonCardVariationResolver {
                     points: Set(points).union(fixedBrittlePoints),
                     initialState: initialState
                 )
-            case .damageTrap(_, let damage):
-                return .damageTrap(points: Set(points), damage: damage)
+            case .damageTrap:
+                return .damageTrap(
+                    points: Set(points),
+                    damage: damageTrapDamage(forFloorNumber: floorIndex + 1)
+                )
             case .hpHalvingTrap:
                 return .hpHalvingTrap(points: Set(points))
-            case .lavaTile(_, let damage):
-                return .lavaTile(points: Set(points), damage: damage)
+            case .lavaTile:
+                return .lavaTile(
+                    points: Set(points),
+                    damage: lavaTileDamage(forFloorNumber: floorIndex + 1)
+                )
             case .healingTile(_, let amount):
                 return .healingTile(points: Set(points), amount: amount)
             }
@@ -5059,7 +5569,12 @@ private enum DungeonCardVariationResolver {
     ) -> [HazardDefinition] {
         guard let targetCount = targetGrowthDamageHazardPointCount(floorIndex: floorIndex) else { return [] }
         let existingCount = damagePressurePointCount(in: existingHazards)
-        let missingCount = max(targetCount - existingCount, 0)
+        let requiredVisibleBrittleCount = targetGrowthVisibleBrittlePointCount(floorIndex: floorIndex)
+        let existingVisibleBrittleCount = visibleBrittlePointCount(in: existingHazards)
+        let missingCount = max(
+            targetCount - existingCount,
+            requiredVisibleBrittleCount - existingVisibleBrittleCount
+        )
         guard missingCount > 0 else { return [] }
 
         var reserved = coreReservedPoints(for: floor)
@@ -5073,35 +5588,113 @@ private enum DungeonCardVariationResolver {
         )
         guard !points.isEmpty else { return [] }
 
-        if floorIndex >= 40 {
+        if floorIndex == 49 {
             let lavaCount = min(max(points.count / 4, 1), 2)
-            let brittleCount = min(max(points.count / 4, 1), 2)
             let lavaPoints = Set(points.prefix(lavaCount))
-            let brittlePoints = Set(points.dropFirst(lavaCount).prefix(brittleCount))
-            let trapPoints = Set(points.dropFirst(lavaCount + brittleCount))
+            let trapPoints = Set(points.dropFirst(lavaCount))
             var hazards: [HazardDefinition] = []
             if !trapPoints.isEmpty {
-                hazards.append(.damageTrap(points: trapPoints, damage: 1))
+                hazards.append(.damageTrap(
+                    points: trapPoints,
+                    damage: damageTrapDamage(forFloorNumber: floorIndex + 1)
+                ))
             }
             if !lavaPoints.isEmpty {
-                hazards.append(.lavaTile(points: lavaPoints, damage: 1))
+                hazards.append(.lavaTile(
+                    points: lavaPoints,
+                    damage: lavaTileDamage(forFloorNumber: floorIndex + 1)
+                ))
             }
-            if !brittlePoints.isEmpty {
-                hazards.append(.brittleFloor(points: brittlePoints, initialState: .hiddenWeak))
+            return hazards
+        }
+
+        if floorIndex >= 40 {
+            let lavaCount = min(max(points.count / 4, 1), 2)
+            let visibleBrittleCount = min(
+                max(requiredVisibleBrittleCount - existingVisibleBrittleCount, max(points.count / 4, 1)),
+                max(points.count - lavaCount, 0)
+            )
+            let hiddenBrittleCount = points.count >= 6 && points.count > lavaCount + visibleBrittleCount ? 1 : 0
+            let lavaPoints = Set(points.prefix(lavaCount))
+            let visibleBrittlePoints = Set(points.dropFirst(lavaCount).prefix(visibleBrittleCount))
+            let hiddenBrittlePoints = Set(points.dropFirst(lavaCount + visibleBrittleCount).prefix(hiddenBrittleCount))
+            let trapPoints = Set(points.dropFirst(lavaCount + visibleBrittleCount + hiddenBrittleCount))
+            var hazards: [HazardDefinition] = []
+            if !trapPoints.isEmpty {
+                hazards.append(.damageTrap(
+                    points: trapPoints,
+                    damage: damageTrapDamage(forFloorNumber: floorIndex + 1)
+                ))
+            }
+            if !lavaPoints.isEmpty {
+                hazards.append(.lavaTile(
+                    points: lavaPoints,
+                    damage: lavaTileDamage(forFloorNumber: floorIndex + 1)
+                ))
+            }
+            if !visibleBrittlePoints.isEmpty {
+                hazards.append(.brittleFloor(points: visibleBrittlePoints))
+            }
+            if !hiddenBrittlePoints.isEmpty {
+                hazards.append(.brittleFloor(points: hiddenBrittlePoints, initialState: .hiddenWeak))
             }
             return hazards
         }
 
         if floorIndex >= 30, points.count >= 3 {
             let lavaPoints = Set(points.prefix(1))
-            let trapPoints = Set(points.dropFirst())
+            let brittleCount = min(
+                max(requiredVisibleBrittleCount - existingVisibleBrittleCount, points.count >= 5 ? 2 : 1),
+                points.count - 1
+            )
+            let brittlePoints = Set(points.dropFirst(1).prefix(brittleCount))
+            let trapPoints = Set(points.dropFirst(1 + brittleCount))
             return [
-                .damageTrap(points: trapPoints, damage: 1),
-                .lavaTile(points: lavaPoints, damage: 1)
-            ]
+                .damageTrap(
+                    points: trapPoints,
+                    damage: damageTrapDamage(forFloorNumber: floorIndex + 1)
+                ),
+                .lavaTile(
+                    points: lavaPoints,
+                    damage: lavaTileDamage(forFloorNumber: floorIndex + 1)
+                ),
+                .brittleFloor(points: brittlePoints)
+            ].filter { !$0.points.isEmpty }
         }
 
-        return [.damageTrap(points: Set(points), damage: 1)]
+        if floorIndex >= 20, points.count >= 3 {
+            let brittleCount = min(
+                max(requiredVisibleBrittleCount - existingVisibleBrittleCount, points.count >= 5 ? 2 : 1),
+                points.count
+            )
+            let brittlePoints = Set(points.prefix(brittleCount))
+            let trapPoints = Set(points.dropFirst(brittleCount))
+            return [
+                .damageTrap(
+                    points: trapPoints,
+                    damage: damageTrapDamage(forFloorNumber: floorIndex + 1)
+                ),
+                .brittleFloor(points: brittlePoints)
+            ].filter { !$0.points.isEmpty }
+        }
+
+        if floorIndex >= 10 {
+            let brittleCount = min(max(requiredVisibleBrittleCount - existingVisibleBrittleCount, 1), points.count)
+            let brittlePoints = Set(points.prefix(brittleCount))
+            let trapPoints = Set(points.dropFirst(brittleCount))
+            return [
+                .damageTrap(
+                    points: trapPoints,
+                    damage: damageTrapDamage(forFloorNumber: floorIndex + 1)
+                ),
+                .brittleFloor(points: brittlePoints)
+            ].filter { !$0.points.isEmpty }
+        }
+
+        return [.damageTrap(
+            points: Set(points),
+            damage: damageTrapDamage(forFloorNumber: floorIndex + 1)
+        )]
     }
 
     private static func resolvedTileEffectOverrides(
@@ -5146,18 +5739,26 @@ private enum DungeonCardVariationResolver {
         case 0..<10:
             return nil
         case 10..<15:
-            return 3
-        case 15..<20:
             return 4
+        case 15..<20:
+            return 5
         case 20..<30:
-            return 6
+            return 7
         case 30..<40:
-            return 8
+            return 9
         case 40...:
-            return 10
+            return 11
         default:
             return nil
         }
+    }
+
+    private static func damageTrapDamage(forFloorNumber floorNumber: Int) -> Int {
+        floorNumber >= 21 ? 2 : 1
+    }
+
+    private static func lavaTileDamage(forFloorNumber floorNumber: Int) -> Int {
+        floorNumber >= 41 ? 2 : 1
     }
 
     private static func targetGrowthStatusTrapPointCount(floorIndex: Int) -> Int? {
@@ -5188,6 +5789,24 @@ private enum DungeonCardVariationResolver {
         }
     }
 
+    private static func visibleBrittlePointCount(in hazards: [HazardDefinition]) -> Int {
+        hazards.reduce(0) { total, hazard in
+            guard case .brittleFloor(let points, .cracked) = hazard else { return total }
+            return total + points.count
+        }
+    }
+
+    private static func targetGrowthVisibleBrittlePointCount(floorIndex: Int) -> Int {
+        switch floorIndex {
+        case 10..<30:
+            return 1
+        case 30..<49:
+            return 2
+        default:
+            return 0
+        }
+    }
+
     private static func statusTrapPointCount(in tileEffects: [GridPoint: TileEffect]) -> Int {
         tileEffects.values.reduce(0) { total, effect in
             isGrowthStatusTrap(effect) ? total + 1 : total
@@ -5196,7 +5815,7 @@ private enum DungeonCardVariationResolver {
 
     private static func isGrowthStatusTrap(_ effect: TileEffect) -> Bool {
         switch effect {
-        case .poisonTrap, .shackleTrap, .illusionTrap,
+        case .poisonTrap, .shackleTrap, .illusionTrap, .relicBreakTrap,
              .discardRandomHand, .discardAllMoveCards, .discardAllSupportCards, .discardAllHands:
             return true
         case .warp, .returnWarp, .shuffleHand, .blast, .slow, .swamp, .preserveCard:
@@ -5549,7 +6168,7 @@ private enum DungeonCardVariationResolver {
                 switch enemy.behavior {
                 case .patrol(let path):
                     blocked.formUnion(path)
-                case .guardPost, .watcher, .rotatingWatcher, .chaser, .marker:
+                case .guardPost, .watcher, .rotatingWatcher, .chaser, .marker, .targetedMarker:
                     blocked.insert(enemy.position)
                 }
             }
@@ -7297,15 +7916,15 @@ public struct DungeonLibrary {
         )
         return [
             makeGrowthTowerDeepFloor(number: 41, title: "踏破への入口", turnLimit: 16, enemies: [growthPatrol("growth-41-patrol", [(2, 3), (3, 3), (4, 3), (5, 3), (6, 3), (7, 3), (6, 3), (5, 3)]), growthRotatingWatcher("growth-41-rotating", position: (6, 6), direction: (-1, 0), rotation: .clockwise, range: 5)], hazards: [.damageTrap(points: gridSet([(3, 5), (6, 5)]), damage: 1), .healingTile(points: gridSet([(2, 5)]), amount: 1)], impassableTilePoints: gridSet([(2, 2), (4, 6), (7, 4)]), warpTilePairs: ["growth-41-build": gridPoints([(1, 2), (6, 7)])], cardPickups: growthCards(41, [((1, 1), .straightRight2), ((3, 1), .rayRight), ((6, 4), .diagonalUpLeft2)]), relicPickups: [growthRelic(41, at: (5, 5), kind: .suspiciousLight)], exitPoint: GridPoint(x: 8, y: 4), rewardMoveCardsAfterClear: [.rayUpRight, .rayDownLeft, .knightRightwardChoice], rewardSupportCardsAfterClear: [.barrierSpell]),
-            makeGrowthTowerDeepFloor(number: 42, title: "呪い箱の岐路", turnLimit: 15, enemies: [growthChaser("growth-42-chaser", position: (7, 5)), growthWatcher("growth-42-watcher", position: (5, 2), direction: (0, 1), range: 5), growthMarker("growth-42-marker", position: (6, 6), range: 3)], hazards: [.lavaTile(points: gridSet([(4, 4)]), damage: 1), .hpHalvingTrap(points: gridSet([(2, 3)]))], impassableTilePoints: gridSet([(2, 6), (4, 2), (7, 3)]), tileEffectOverrides: gridEffects([((3, 5), .poisonTrap), ((6, 4), .swamp)]), cardPickups: growthCards(42, [((1, 5), .straightUp2), ((3, 6), .diagonalDownRight2), ((6, 2), .rayLeft)]), relicPickups: [growthRelic(42, at: (5, 6), kind: .suspiciousDeep)], rewardMoveCardsAfterClear: [.rayLeft, .rayDownRight, .knightLeftwardChoice], rewardSupportCardsAfterClear: [.panacea, .darknessSpell], isDarknessEnabled: true),
-            makeGrowthTowerDeepFloor(number: 43, title: "落下を読む橋", turnLimit: 16, enemies: [growthPatrol("growth-43-patrol", [(2, 5), (3, 5), (4, 5), (5, 5), (6, 5), (5, 5), (4, 5), (3, 5)]), growthRotatingWatcher("growth-43-rotating", position: (6, 2), direction: (0, 1), rotation: .counterclockwise, range: 5)], hazards: [.brittleFloor(points: gridSet([(3, 3), (4, 3), (5, 3)]), initialState: .hiddenWeak), .damageTrap(points: gridSet([(6, 6)]), damage: 1), .hpHalvingTrap(points: gridSet([(5, 6)]))], impassableTilePoints: gridSet([(2, 2), (4, 6), (7, 5)]), warpTilePairs: ["growth-43-fall": gridPoints([(1, 4), (6, 7)])], cardPickups: growthCards(43, [((2, 1), .straightRight2), ((4, 1), .rayUp), ((6, 4), .diagonalUpLeft2)]), rewardMoveCardsAfterClear: [.rayUp, .rayUpLeft, .knightUpwardChoice], rewardSupportCardsAfterClear: [.barrierSpell]),
+            makeGrowthTowerDeepFloor(number: 42, title: "呪い箱の岐路", turnLimit: 15, enemies: [growthChaser("growth-42-chaser", position: (7, 5)), growthWatcher("growth-42-watcher", position: (5, 2), direction: (0, 1), range: 5), growthStarReader("growth-42-star-reader", position: (6, 6), range: 3)], hazards: [.lavaTile(points: gridSet([(4, 4)]), damage: 1), .hpHalvingTrap(points: gridSet([(2, 3)]))], impassableTilePoints: gridSet([(2, 6), (4, 2), (7, 3)]), tileEffectOverrides: gridEffects([((3, 5), .poisonTrap), ((6, 4), .swamp), ((4, 6), .relicBreakTrap)]), cardPickups: growthCards(42, [((1, 5), .straightUp2), ((3, 6), .diagonalDownRight2), ((6, 2), .rayLeft)]), relicPickups: [growthRelic(42, at: (5, 6), kind: .suspiciousDeep)], rewardMoveCardsAfterClear: [.rayLeft, .rayDownRight, .knightLeftwardChoice], rewardSupportCardsAfterClear: [.panacea, .darknessSpell], isDarknessEnabled: true),
+            makeGrowthTowerDeepFloor(number: 43, title: "落下を読む橋", turnLimit: 16, enemies: [growthPatrol("growth-43-patrol", [(2, 5), (3, 5), (4, 5), (5, 5), (6, 5), (5, 5), (4, 5), (3, 5)]), growthRotatingWatcher("growth-43-rotating", position: (6, 2), direction: (0, 1), rotation: .counterclockwise, range: 5)], hazards: [.brittleFloor(points: gridSet([(3, 3), (4, 3), (5, 3)]), initialState: .hiddenWeak), .damageTrap(points: gridSet([(6, 6)]), damage: 1), .hpHalvingTrap(points: gridSet([(5, 6)]))], impassableTilePoints: gridSet([(2, 2), (4, 6), (7, 5)]), warpTilePairs: ["growth-43-fall": gridPoints([(1, 4), (6, 7)])], cardPickups: growthCards(43, [((2, 1), .straightRight2), ((4, 1), .rayUp), ((6, 4), .diagonalUpLeft2)]), rewardMoveCardsAfterClear: [.rayUp, .rayUpLeft, .knightUpwardChoice], rewardSupportCardsAfterClear: [.flySpell]),
             makeGrowthTowerDeepFloor(number: 44, title: "追跡の薬路", turnLimit: 15, enemies: [growthChaser("growth-44-chaser-a", position: (5, 6)), growthChaser("growth-44-chaser-b", position: (7, 3)), growthMarker("growth-44-marker", position: (6, 5), range: 3)], hazards: [.damageTrap(points: gridSet([(3, 2), (5, 5)]), damage: 1), .healingTile(points: gridSet([(2, 4)]), amount: 1)], impassableTilePoints: gridSet([(3, 3), (5, 2), (7, 6)]), tileEffectOverrides: gridEffects([((4, 5), .shackleTrap), ((6, 4), .discardRandomHand)]), exitLock: DungeonExitLock(unlockPoint: GridPoint(x: 2, y: 6)), cardPickups: growthCards(44, [((1, 5), .straightUp2), ((3, 6), .diagonalDownRight2), ((6, 2), .rayLeft)]), rewardMoveCardsAfterClear: [.rayDown, .rayDownLeft, .knightDownwardChoice], rewardSupportCardsAfterClear: [.panacea, .singleAnnihilationSpell]),
             makeGrowthTowerDeepFloor(number: 45, title: "第五関門・呪いと崩落", turnLimit: 16, enemies: [growthPatrol("growth-45-patrol", [(3, 4), (4, 4), (5, 4), (6, 4), (7, 4), (6, 4), (5, 4), (4, 4)]), growthRotatingWatcher("growth-45-rotating", position: (6, 6), direction: (-1, 0), rotation: .clockwise, range: 5), growthMarker("growth-45-marker", position: (3, 5), range: 4)], hazards: [.damageTrap(points: gridSet([(2, 2), (5, 6)]), damage: 1), .hpHalvingTrap(points: gridSet([(6, 1)])), .brittleFloor(points: gridSet([(4, 2), (5, 2)]), initialState: .collapsed)], impassableTilePoints: fallSecret46.chamberWallPoints, tileEffectOverrides: gridEffects([((0, 7), .returnWarp(destination: GridPoint(x: 3, y: 3))), ((5, 5), .illusionTrap), ((6, 3), .discardAllSupportCards)]), warpTilePairs: ["growth-45-risk": gridPoints([(1, 2), (6, 7)])], exitLock: DungeonExitLock(unlockPoint: GridPoint(x: 2, y: 1)), cardPickups: growthCards(45, [((1, 1), .straightRight2), ((3, 1), .diagonalUpRight2), ((7, 5), .rayLeft)]), relicPickups: [growthRelic(45, at: (4, 6), kind: .suspiciousDeep), fallSecret46.treasurePickup], fallSecrets: [fallSecret46], rewardMoveCardsAfterClear: [.rayUpRight, .rayDownRight, .knightRightwardChoice], rewardSupportCardsAfterClear: [.freezeSpell, .railBreakSpell], isDarknessEnabled: true),
-            makeGrowthTowerDeepFloor(number: 46, title: "暗闇の総力戦", turnLimit: 15, enemies: [growthWatcher("growth-46-watcher", position: (7, 5), direction: (-1, 0), range: 5), growthMarker("growth-46-marker", position: (6, 6), range: 4), growthChaser("growth-46-chaser", position: (3, 6))], hazards: [.lavaTile(points: gridSet([(5, 4)]), damage: 1), .healingTile(points: gridSet([(2, 5)]), amount: 1), .brittleFloor(points: gridSet([(0, 8)]), initialState: .collapsed)], impassableTilePoints: gridSet([(2, 2), (4, 6), (7, 3)]), tileEffectOverrides: gridEffects([((3, 5), .poisonTrap), ((6, 4), .swamp)]), cardPickups: growthCards(46, [((2, 1), .straightRight2), ((4, 1), .rayUp), ((6, 5), .diagonalDownLeft2)]), fallSecrets: [fallSecret46], rewardMoveCardsAfterClear: [.rayLeft, .rayUpLeft, .knightLeftwardChoice], rewardSupportCardsAfterClear: [.darknessSpell, .antidote], isDarknessEnabled: true),
+            makeGrowthTowerDeepFloor(number: 46, title: "暗闇の総力戦", turnLimit: 15, enemies: [growthWatcher("growth-46-watcher", position: (7, 5), direction: (-1, 0), range: 5), growthStarReader("growth-46-star-reader", position: (6, 6), range: 4), growthChaser("growth-46-chaser", position: (3, 6))], hazards: [.lavaTile(points: gridSet([(5, 4)]), damage: 1), .healingTile(points: gridSet([(2, 5)]), amount: 1), .brittleFloor(points: gridSet([(0, 8)]), initialState: .collapsed)], impassableTilePoints: gridSet([(2, 2), (4, 6), (7, 3)]), tileEffectOverrides: gridEffects([((3, 5), .poisonTrap), ((6, 4), .swamp)]), cardPickups: growthCards(46, [((2, 1), .straightRight2), ((4, 1), .rayUp), ((6, 5), .diagonalDownLeft2)]), fallSecrets: [fallSecret46], rewardMoveCardsAfterClear: [.rayLeft, .rayUpLeft, .knightLeftwardChoice], rewardSupportCardsAfterClear: [.darknessSpell, .antidote], isDarknessEnabled: true),
             makeGrowthTowerDeepFloor(number: 47, title: "巡回の包囲網", turnLimit: 16, enemies: [growthPatrol("growth-47-patrol-a", [(2, 3), (3, 3), (4, 3), (5, 3), (6, 3), (7, 3), (6, 3), (5, 3)]), growthPatrol("growth-47-patrol-b", [(6, 5), (6, 6), (6, 7), (5, 7), (4, 7), (5, 7), (6, 7), (6, 6)]), growthRotatingWatcher("growth-47-rotating", position: (5, 5), direction: (0, -1), rotation: .counterclockwise, range: 4)], hazards: [.damageTrap(points: gridSet([(2, 5), (5, 6)]), damage: 1)], impassableTilePoints: gridSet([(2, 7), (4, 5), (7, 1)]), exitLock: DungeonExitLock(unlockPoint: GridPoint(x: 1, y: 4)), cardPickups: growthCards(47, [((1, 3), .straightUp2), ((3, 4), .diagonalUpRight2), ((7, 4), .rayLeft)]), relicPickups: [growthRelic(47, at: (3, 6), kind: .suspiciousLight)], rewardMoveCardsAfterClear: [.rayRight, .rayDownRight, .knightUpwardChoice], rewardSupportCardsAfterClear: [.railBreakSpell, .barrierSpell]),
-            makeGrowthTowerDeepFloor(number: 48, title: "幻惑の最短路", turnLimit: 14, enemies: [growthChaser("growth-48-chaser", position: (7, 5)), growthMarker("growth-48-marker", position: (6, 6), range: 4), growthRotatingWatcher("growth-48-rotating", position: (5, 2), direction: (0, 1), rotation: .clockwise, range: 5)], hazards: [.damageTrap(points: gridSet([(3, 3), (6, 5)]), damage: 1), .healingTile(points: gridSet([(2, 6)]), amount: 1)], impassableTilePoints: gridSet([(2, 4), (4, 6), (7, 2)]), tileEffectOverrides: gridEffects([((4, 4), .illusionTrap), ((5, 5), .shackleTrap), ((6, 3), .discardAllMoveCards)]), warpTilePairs: ["growth-48-risk": gridPoints([(1, 1), (6, 7)])], cardPickups: growthCards(48, [((2, 1), .rayRight), ((4, 1), .straightUp2), ((6, 4), .diagonalUpLeft2)]), rewardMoveCardsAfterClear: [.rayUpLeft, .rayDownLeft, .knightDownwardChoice], rewardSupportCardsAfterClear: [.panacea, .freezeSpell], isDarknessEnabled: true),
-            makeGrowthTowerDeepFloor(number: 49, title: "踏破前夜", turnLimit: 15, enemies: [growthPatrol("growth-49-patrol", [(2, 5), (3, 5), (4, 5), (5, 5), (6, 5), (7, 5), (6, 5), (5, 5)]), growthWatcher("growth-49-watcher", position: (7, 3), direction: (-1, 0), range: 5), growthMarker("growth-49-marker", position: (6, 6), range: 4)], hazards: [.brittleFloor(points: gridSet([(3, 2), (4, 2), (5, 2)]), initialState: .hiddenWeak), .lavaTile(points: gridSet([(5, 6)]), damage: 1)], impassableTilePoints: gridSet([(2, 4), (4, 6), (7, 1)]), tileEffectOverrides: gridEffects([((6, 4), .discardAllHands)]), cardPickups: growthCards(49, [((1, 4), .straightRight2), ((3, 4), .diagonalDownRight2), ((7, 6), .rayLeft)]), relicPickups: [growthRelic(49, at: (6, 2), kind: .suspiciousDeep)], rewardMoveCardsAfterClear: [.rayRight, .rayUpRight, .knightRightwardChoice], rewardSupportCardsAfterClear: [.refillEmptySlots, .barrierSpell], isDarknessEnabled: true),
-            makeGrowthTowerDeepFloor(number: 50, title: "最上階", turnLimit: 16, enemies: [growthPatrol("growth-50-patrol", [(3, 4), (4, 4), (5, 4), (6, 4), (7, 4), (6, 4), (5, 4), (4, 4)]), growthRotatingWatcher("growth-50-rotating", position: (6, 6), direction: (-1, 0), rotation: .counterclockwise, range: 5), growthMarker("growth-50-marker", position: (2, 6), range: 4), growthChaser("growth-50-chaser", position: (7, 2))], hazards: [.damageTrap(points: gridSet([(2, 2), (3, 5), (6, 5)]), damage: 1), .lavaTile(points: gridSet([(5, 2)]), damage: 1), .healingTile(points: gridSet([(2, 5)]), amount: 1)], impassableTilePoints: gridSet([(2, 4), (4, 7), (7, 3), (7, 6)]), tileEffectOverrides: gridEffects([((5, 5), .illusionTrap), ((6, 3), .discardAllHands)]), warpTilePairs: ["growth-50-risk": gridPoints([(1, 2), (6, 7)])], exitLock: DungeonExitLock(unlockPoint: GridPoint(x: 2, y: 1)), cardPickups: growthCards(50, [((1, 1), .straightRight2), ((3, 1), .diagonalUpRight2), ((7, 5), .rayLeft)]), relicPickups: [growthRelic(50, at: (4, 6), kind: .suspiciousDeep)], rewardMoveCardsAfterClear: [], rewardSupportCardsAfterClear: [], isDarknessEnabled: true)
+            makeGrowthTowerDeepFloor(number: 48, title: "幻惑の最短路", turnLimit: 14, enemies: [growthChaser("growth-48-chaser", position: (7, 5)), growthMarker("growth-48-marker", position: (6, 6), range: 4), growthRotatingWatcher("growth-48-rotating", position: (5, 2), direction: (0, 1), rotation: .clockwise, range: 5)], hazards: [.damageTrap(points: gridSet([(3, 3), (6, 5)]), damage: 1), .healingTile(points: gridSet([(2, 6)]), amount: 1)], impassableTilePoints: gridSet([(2, 4), (4, 6), (7, 2)]), tileEffectOverrides: gridEffects([((4, 4), .illusionTrap), ((5, 5), .shackleTrap), ((6, 3), .discardAllMoveCards), ((2, 5), .relicBreakTrap)]), warpTilePairs: ["growth-48-risk": gridPoints([(1, 1), (6, 7)])], cardPickups: growthCards(48, [((2, 1), .rayRight), ((4, 1), .straightUp2), ((6, 4), .diagonalUpLeft2)]), rewardMoveCardsAfterClear: [.rayUpLeft, .rayDownLeft, .knightDownwardChoice], rewardSupportCardsAfterClear: [.panacea, .freezeSpell], isDarknessEnabled: true),
+            makeGrowthTowerDeepFloor(number: 49, title: "踏破前夜", turnLimit: 15, enemies: [growthPatrol("growth-49-patrol", [(2, 5), (3, 5), (4, 5), (5, 5), (6, 5), (7, 5), (6, 5), (5, 5)]), growthWatcher("growth-49-watcher", position: (7, 3), direction: (-1, 0), range: 5), growthStarReader("growth-49-star-reader", position: (6, 6), range: 4)], hazards: [.brittleFloor(points: gridSet([(3, 2), (4, 2), (5, 2)]), initialState: .hiddenWeak), .lavaTile(points: gridSet([(5, 6)]), damage: 1)], impassableTilePoints: gridSet([(2, 4), (4, 6), (7, 1)]), tileEffectOverrides: gridEffects([((6, 4), .discardAllHands)]), cardPickups: growthCards(49, [((1, 4), .straightRight2), ((3, 4), .diagonalDownRight2), ((7, 6), .rayLeft)]), relicPickups: [growthRelic(49, at: (6, 2), kind: .suspiciousDeep)], rewardMoveCardsAfterClear: [.rayRight, .rayUpRight, .knightRightwardChoice], rewardSupportCardsAfterClear: [.refillEmptySlots, .flySpell], isDarknessEnabled: true),
+            makeGrowthTowerDeepFloor(number: 50, title: "最上階", turnLimit: 16, enemies: [growthPatrol("growth-50-patrol", [(3, 4), (4, 4), (5, 4), (6, 4), (7, 4), (6, 4), (5, 4), (4, 4)]), growthRotatingWatcher("growth-50-rotating", position: (6, 6), direction: (-1, 0), rotation: .counterclockwise, range: 5), growthMarker("growth-50-marker", position: (2, 6), range: 4), growthChaser("growth-50-chaser", position: (7, 2))], hazards: [.damageTrap(points: gridSet([(2, 2), (3, 5), (6, 5)]), damage: 1), .lavaTile(points: gridSet([(5, 2)]), damage: 1), .healingTile(points: gridSet([(2, 5)]), amount: 1)], impassableTilePoints: gridSet([(2, 4), (4, 7), (7, 3), (7, 6)]), tileEffectOverrides: gridEffects([((5, 5), .illusionTrap), ((6, 3), .discardAllHands), ((3, 3), .relicBreakTrap)]), warpTilePairs: ["growth-50-risk": gridPoints([(1, 2), (6, 7)])], exitLock: DungeonExitLock(unlockPoint: GridPoint(x: 2, y: 1)), cardPickups: growthCards(50, [((1, 1), .straightRight2), ((3, 1), .diagonalUpRight2), ((7, 5), .rayLeft)]), relicPickups: [growthRelic(50, at: (4, 6), kind: .suspiciousDeep)], rewardMoveCardsAfterClear: [], rewardSupportCardsAfterClear: [], isDarknessEnabled: true)
         ]
     }
 
@@ -7335,8 +7954,16 @@ public struct DungeonLibrary {
             exitPoint: exitPoint,
             deckPreset: .standardLight,
             failureRule: DungeonFailureRule(initialHP: 3, turnLimit: turnLimit),
-            enemies: enemies,
-            hazards: hazards,
+            enemies: enemies.map { enemy in
+                EnemyDefinition(
+                    id: enemy.id,
+                    name: enemy.name,
+                    position: enemy.position,
+                    behavior: enemy.behavior,
+                    damage: enemyDamage(forFloorNumber: number)
+                )
+            },
+            hazards: hazards.map { hazardWithFloorDamage($0, floorNumber: number) },
             impassableTilePoints: impassableTilePoints,
             tileEffectOverrides: tileEffectOverrides,
             warpTilePairs: warpTilePairs,
@@ -7364,6 +7991,34 @@ public struct DungeonLibrary {
 
     private static func gridEffects(_ effects: [((Int, Int), TileEffect)]) -> [GridPoint: TileEffect] {
         Dictionary(uniqueKeysWithValues: effects.map { (gridPoint($0.0), $0.1) })
+    }
+
+    private static func enemyDamage(forFloorNumber floorNumber: Int) -> Int {
+        if floorNumber >= 41 { return 3 }
+        if floorNumber >= 21 { return 2 }
+        return 1
+    }
+
+    private static func hazardWithFloorDamage(
+        _ hazard: HazardDefinition,
+        floorNumber: Int
+    ) -> HazardDefinition {
+        switch hazard {
+        case .damageTrap(let points, _):
+            return .damageTrap(points: points, damage: damageTrapDamage(forFloorNumber: floorNumber))
+        case .lavaTile(let points, _):
+            return .lavaTile(points: points, damage: lavaTileDamage(forFloorNumber: floorNumber))
+        case .brittleFloor, .hpHalvingTrap, .healingTile:
+            return hazard
+        }
+    }
+
+    private static func damageTrapDamage(forFloorNumber floorNumber: Int) -> Int {
+        floorNumber >= 21 ? 2 : 1
+    }
+
+    private static func lavaTileDamage(forFloorNumber floorNumber: Int) -> Int {
+        floorNumber >= 41 ? 2 : 1
     }
 
     private static func growthCards(_ floorNumber: Int, _ cards: [((Int, Int), MoveCard)]) -> [DungeonCardPickupDefinition] {
@@ -7502,6 +8157,15 @@ public struct DungeonLibrary {
             name: "メテオ兵",
             position: gridPoint(position),
             behavior: .marker(directions: [], range: range)
+        )
+    }
+
+    private static func growthStarReader(_ id: String, position: (Int, Int), range: Int) -> EnemyDefinition {
+        EnemyDefinition(
+            id: id,
+            name: "星詠み兵",
+            position: gridPoint(position),
+            behavior: .targetedMarker(directions: [], range: range)
         )
     }
 

@@ -1322,6 +1322,8 @@ private struct DungeonGrowthForecastFacts {
                     labels.appendUnique("追跡圧")
                 case .marker:
                     labels.appendUnique("メテオ")
+                case .targetedMarker:
+                    labels.appendUnique("星詠み")
                 }
             }
         }
@@ -1777,6 +1779,8 @@ private extension TileEffect {
             return "毒"
         case .illusionTrap:
             return "幻惑"
+        case .relicBreakTrap:
+            return "レリック破壊"
         case .swamp:
             return "沼"
         case .discardRandomHand, .discardAllMoveCards, .discardAllSupportCards, .discardAllHands:
@@ -1788,7 +1792,7 @@ private extension TileEffect {
 
     var isDeepStatusEffect: Bool {
         switch self {
-        case .poisonTrap, .illusionTrap, .shackleTrap, .swamp:
+        case .poisonTrap, .illusionTrap, .relicBreakTrap, .shackleTrap, .swamp:
             return true
         case .warp, .returnWarp, .shuffleHand, .blast, .slow, .preserveCard, .discardRandomHand, .discardAllMoveCards, .discardAllSupportCards, .discardAllHands:
             return false
@@ -1799,7 +1803,7 @@ private extension TileEffect {
         switch self {
         case .discardRandomHand, .discardAllMoveCards, .discardAllSupportCards, .discardAllHands:
             return true
-        case .warp, .returnWarp, .shuffleHand, .blast, .slow, .shackleTrap, .poisonTrap, .illusionTrap, .swamp, .preserveCard:
+        case .warp, .returnWarp, .shuffleHand, .blast, .slow, .shackleTrap, .poisonTrap, .illusionTrap, .relicBreakTrap, .swamp, .preserveCard:
             return false
         }
     }

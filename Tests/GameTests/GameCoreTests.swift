@@ -623,6 +623,111 @@ final class GameCoreTests: XCTestCase {
         XCTAssertEqual(core.damageBarrierTurnsRemaining, 1)
     }
 
+    func testStarReaderDamagesWhenPlayerSpendsTurnWithoutMoving() throws {
+        let watcher = EnemyDefinition(
+            id: "watcher",
+            name: "見張り",
+            position: GridPoint(x: 4, y: 4),
+            behavior: .watcher(direction: MoveVector(dx: 0, dy: 1), range: 3)
+        )
+        let starReader = EnemyDefinition(
+            id: "star-reader",
+            name: "星詠み兵",
+            position: GridPoint(x: 4, y: 3),
+            behavior: .targetedMarker(directions: [], range: 1)
+        )
+        let mode = makeInventoryDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 0),
+            allowsBasicOrthogonalMove: true,
+            enemies: [watcher, starReader]
+        )
+        let core = GameCore(mode: mode)
+        XCTAssertTrue(core.enemyWarningPoints.contains(GridPoint(x: 0, y: 0)))
+        XCTAssertTrue(core.addDungeonInventorySupportCardForTesting(.darknessSpell, rewardUses: 1))
+        let supportIndex = try XCTUnwrap(core.handStacks.firstIndex { $0.topCard?.supportCard == .darknessSpell })
+
+        core.playSupportCard(at: supportIndex)
+
+        XCTAssertEqual(core.dungeonHP, 2)
+    }
+
+    func testStarReaderTargetWarningCanBeDodgedByMovingAway() throws {
+        let starReader = EnemyDefinition(
+            id: "star-reader",
+            name: "星詠み兵",
+            position: GridPoint(x: 4, y: 4),
+            behavior: .targetedMarker(directions: [], range: 1)
+        )
+        let mode = makeInventoryDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 0),
+            allowsBasicOrthogonalMove: true,
+            enemies: [starReader]
+        )
+        let core = GameCore(mode: mode)
+        let initialWarningPoints = core.enemyWarningPoints
+        XCTAssertTrue(initialWarningPoints.contains(GridPoint(x: 0, y: 0)))
+        let safeMove = try XCTUnwrap(core.availableBasicOrthogonalMoves().first {
+            !initialWarningPoints.contains($0.destination)
+        })
+
+        core.playBasicOrthogonalMove(using: safeMove)
+
+        XCTAssertEqual(core.dungeonHP, 3)
+        XCTAssertEqual(core.current, safeMove.destination)
+    }
+
+    func testFreezeSpellHidesAndStopsStarReaderWarningDamage() throws {
+        let starReader = EnemyDefinition(
+            id: "star-reader",
+            name: "星詠み兵",
+            position: GridPoint(x: 4, y: 4),
+            behavior: .targetedMarker(directions: [], range: 1)
+        )
+        let mode = makeInventoryDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 0),
+            allowsBasicOrthogonalMove: true,
+            enemies: [starReader]
+        )
+        let core = GameCore(mode: mode)
+        XCTAssertTrue(core.enemyWarningPoints.contains(GridPoint(x: 0, y: 0)))
+        XCTAssertTrue(core.addDungeonInventorySupportCardForTesting(.freezeSpell, rewardUses: 1))
+        let supportIndex = try XCTUnwrap(core.handStacks.firstIndex { $0.topCard?.supportCard == .freezeSpell })
+
+        core.playSupportCard(at: supportIndex)
+
+        XCTAssertEqual(core.dungeonHP, 3)
+        XCTAssertEqual(core.enemyFreezeTurnsRemaining, 2)
+        XCTAssertTrue(core.enemyWarningPoints.isEmpty)
+    }
+
+    func testBarrierSpellProtectsStarReaderWarningDamage() throws {
+        let starReader = EnemyDefinition(
+            id: "star-reader",
+            name: "星詠み兵",
+            position: GridPoint(x: 4, y: 4),
+            behavior: .targetedMarker(directions: [], range: 1)
+        )
+        let mode = makeInventoryDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 0),
+            allowsBasicOrthogonalMove: true,
+            enemies: [starReader]
+        )
+        let core = GameCore(mode: mode)
+        XCTAssertTrue(core.enemyWarningPoints.contains(GridPoint(x: 0, y: 0)))
+        XCTAssertTrue(core.addDungeonInventorySupportCardForTesting(.barrierSpell, rewardUses: 1))
+        let supportIndex = try XCTUnwrap(core.handStacks.firstIndex { $0.topCard?.supportCard == .barrierSpell })
+
+        core.playSupportCard(at: supportIndex)
+
+        XCTAssertEqual(core.dungeonHP, 3)
+        XCTAssertEqual(core.damageBarrierTurnsRemaining, 2)
+        XCTAssertFalse(core.enemyWarningPoints.isEmpty)
+    }
+
     func testDarknessSpellSuppressesWatcherLasersForFloorOnly() throws {
         let watcher = EnemyDefinition(
             id: "watcher",

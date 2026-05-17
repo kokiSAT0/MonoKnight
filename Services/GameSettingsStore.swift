@@ -58,6 +58,17 @@ final class GameSettingsStore: ObservableObject {
         }
     }
 
+    /// 開発者向けに通常遺物と呪い遺物の効果だけを無効化する設定
+    @Published var disablesDungeonRelicEffectsForDeveloper: Bool {
+        didSet {
+            guard oldValue != disablesDungeonRelicEffectsForDeveloper else { return }
+            userDefaults.set(
+                disablesDungeonRelicEffectsForDeveloper,
+                forKey: StorageKey.AppStorage.disablesDungeonRelicEffectsForDeveloper
+            )
+        }
+    }
+
     /// 開発者向けに検証中の星図測量塔テーマを有効化する設定
     @Published var usesStarChartSurveyTowerTheme: Bool {
         didSet {
@@ -96,6 +107,8 @@ final class GameSettingsStore: ObservableObject {
             userDefaults.object(forKey: StorageKey.AppStorage.showsAllEncyclopediaEntriesForDeveloper) as? Bool ?? false
         self.unlocksKnightMovementStyleForDeveloper =
             userDefaults.object(forKey: StorageKey.AppStorage.unlocksKnightMovementStyleForDeveloper) as? Bool ?? false
+        self.disablesDungeonRelicEffectsForDeveloper =
+            userDefaults.object(forKey: StorageKey.AppStorage.disablesDungeonRelicEffectsForDeveloper) as? Bool ?? false
         self.usesStarChartSurveyTowerTheme =
             userDefaults.object(forKey: StorageKey.AppStorage.usesStarChartSurveyTowerTheme) as? Bool ?? false
         self.handOrderingStrategy =

@@ -434,6 +434,8 @@ private extension GameHandSectionView {
                 return "ダブルタップで 1 手使い、この階の見張りと回転見張りのレーザー攻撃を封じます。"
             case .railBreakSpell:
                 return "ダブルタップで 1 手使い、この階の巡回兵のレール移動を封じます。"
+            case .flySpell:
+                return "ダブルタップで 1 手使い、この階の危険床系ギミックを無効化します。"
             case .antidote:
                 return "ダブルタップで 1 手使い、毒状態を解除します。"
             case .panacea:
@@ -984,6 +986,8 @@ private struct SupportCardIllustrationView: View {
             return "moon.fill"
         case .railBreakSpell:
             return "point.topleft.down.to.point.bottomright.curvepath"
+        case .flySpell:
+            return "wind"
         case .antidote:
             return "cross.case.fill"
         case .panacea:

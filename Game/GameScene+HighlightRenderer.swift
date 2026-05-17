@@ -26,8 +26,10 @@
         private var latestDungeonRelicPickupPoints: Set<GridPoint> = []
         private var latestDungeonSuspiciousRelicPickupPoints: Set<GridPoint> = []
         private var latestDungeonDamageTrapPoints: Set<GridPoint> = []
+        private var latestDungeonStrongDamageTrapPoints: Set<GridPoint> = []
         private var latestDungeonHpHalvingTrapPoints: Set<GridPoint> = []
         private var latestDungeonLavaTilePoints: Set<GridPoint> = []
+        private var latestDungeonStrongLavaTilePoints: Set<GridPoint> = []
         private var latestDungeonHealingTilePoints: Set<GridPoint> = []
         private var latestDungeonCrackedFloorPoints: Set<GridPoint> = []
         private var latestDungeonCollapsedFloorPoints: Set<GridPoint> = []
@@ -44,6 +46,7 @@
         private var pendingPatrolMovementPreviews: [ScenePatrolMovementPreview] = []
         private var hasPendingPatrolMovementPreviewUpdate = false
         private var pendingHighlightPoints: [BoardHighlightKind: Set<GridPoint>] = [:]
+        private var areFlySuppressedDungeonHazardsMuted = false
 
         var patrolRailCount: Int { patrolRailNodes.count }
         var patrolMovementArrowCount: Int { patrolMovementArrowNodes.count }
@@ -111,6 +114,7 @@
             latestPatrolMovementPreviews = []
             pendingPatrolMovementPreviews = []
             hasPendingPatrolMovementPreviewUpdate = false
+            areFlySuppressedDungeonHazardsMuted = false
             pendingHighlightPoints = Dictionary(
                 uniqueKeysWithValues: BoardHighlightKind.allCases.map { ($0, []) }
             )
@@ -302,6 +306,17 @@
             }
         }
 
+        func updateFlySuppressedDungeonHazardsMuted(
+            _ isMuted: Bool,
+            layout: GameSceneLayoutSupport,
+            palette: GameScenePalette,
+            visiblePoints: Set<GridPoint>?
+        ) {
+            guard areFlySuppressedDungeonHazardsMuted != isMuted else { return }
+            areFlySuppressedDungeonHazardsMuted = isMuted
+            refreshAppearance(layout: layout, palette: palette, visiblePoints: visiblePoints)
+        }
+
         func removeAllNodes() {
             reset()
         }
@@ -370,8 +385,10 @@
                     .dungeonRelicPickup: latestDungeonRelicPickupPoints,
                     .dungeonSuspiciousRelicPickup: latestDungeonSuspiciousRelicPickupPoints,
                     .dungeonDamageTrap: latestDungeonDamageTrapPoints,
+                    .dungeonStrongDamageTrap: latestDungeonStrongDamageTrapPoints,
                     .dungeonHpHalvingTrap: latestDungeonHpHalvingTrapPoints,
                     .dungeonLavaTile: latestDungeonLavaTilePoints,
+                    .dungeonStrongLavaTile: latestDungeonStrongLavaTilePoints,
                     .dungeonHealingTile: latestDungeonHealingTilePoints,
                     .dungeonCrackedFloor: latestDungeonCrackedFloorPoints,
                     .dungeonCollapsedFloor: latestDungeonCollapsedFloorPoints,
@@ -492,8 +509,10 @@
             latestDungeonRelicPickupPoints = highlights[.dungeonRelicPickup] ?? []
             latestDungeonSuspiciousRelicPickupPoints = highlights[.dungeonSuspiciousRelicPickup] ?? []
             latestDungeonDamageTrapPoints = highlights[.dungeonDamageTrap] ?? []
+            latestDungeonStrongDamageTrapPoints = highlights[.dungeonStrongDamageTrap] ?? []
             latestDungeonHpHalvingTrapPoints = highlights[.dungeonHpHalvingTrap] ?? []
             latestDungeonLavaTilePoints = highlights[.dungeonLavaTile] ?? []
+            latestDungeonStrongLavaTilePoints = highlights[.dungeonStrongLavaTile] ?? []
             latestDungeonHealingTilePoints = highlights[.dungeonHealingTile] ?? []
             latestDungeonCrackedFloorPoints = highlights[.dungeonCrackedFloor] ?? []
             latestDungeonCollapsedFloorPoints = highlights[.dungeonCollapsedFloor] ?? []
@@ -624,7 +643,11 @@
             layout: GameSceneLayoutSupport,
             palette: GameScenePalette
         ) {
-            let style = dungeonEnemyMarkerStyle(for: marker.kind, palette: palette)
+            let style = dungeonEnemyMarkerStyle(
+                for: marker.kind,
+                damage: marker.damage,
+                palette: palette
+            )
             node.path = dungeonEnemyMarkerPath(marker: marker, tileSize: layout.tileSize)
             node.fillColor = style.fill
             node.strokeColor = style.stroke
@@ -642,8 +665,22 @@
 
         private func dungeonEnemyMarkerStyle(
             for kind: EnemyPresentationKind,
+            damage: Int,
             palette: GameScenePalette
         ) -> (fill: SKColor, stroke: SKColor) {
+            if damage >= 3 {
+                return (
+                    SKColor(red: 0.60, green: 0.04, blue: 0.18, alpha: 0.40),
+                    SKColor(red: 0.96, green: 0.08, blue: 0.28, alpha: 0.98)
+                )
+            }
+            if damage >= 2 {
+                return (
+                    SKColor(red: 0.92, green: 0.24, blue: 0.08, alpha: 0.36),
+                    SKColor(red: 1.00, green: 0.34, blue: 0.12, alpha: 0.98)
+                )
+            }
+
             if usesNeonGridTheme(palette) {
                 switch kind {
                 case .guardPost:
@@ -671,7 +708,7 @@
                         palette.boardDungeonCardPickup.withAlphaComponent(0.16),
                         palette.boardDungeonCardPickup.withAlphaComponent(0.98)
                     )
-                case .marker:
+                case .marker, .starReader:
                     return (
                         palette.boardDungeonWarning.withAlphaComponent(0.18),
                         palette.boardDungeonWarning.withAlphaComponent(0.98)
@@ -705,7 +742,7 @@
                     SKColor(red: 0.10, green: 0.53, blue: 0.52, alpha: 0.34),
                     SKColor(red: 0.13, green: 0.74, blue: 0.70, alpha: 0.96)
                 )
-            case .marker:
+            case .marker, .starReader:
                 return (
                     SKColor(red: 0.96, green: 0.30, blue: 0.12, alpha: 0.34),
                     SKColor(red: 1.00, green: 0.46, blue: 0.16, alpha: 0.96)
@@ -755,7 +792,7 @@
                 )
             case .chaser:
                 addChaserFootprintGlyph(to: path, radius: radius)
-            case .marker:
+            case .marker, .starReader:
                 path.move(to: CGPoint(x: -radius * 0.88, y: radius * 0.74))
                 path.addLine(to: CGPoint(x: -radius * 0.28, y: radius * 0.34))
                 path.move(to: CGPoint(x: -radius * 0.98, y: radius * 0.24))
@@ -770,6 +807,12 @@
                 path.addLine(to: CGPoint(x: radius * 0.62, y: -radius * 0.48))
                 path.move(to: CGPoint(x: radius * 0.10, y: -radius * 0.16))
                 path.addLine(to: CGPoint(x: radius * 0.38, y: radius * 0.40))
+                if marker.kind == .starReader {
+                    path.move(to: CGPoint(x: radius * 0.70, y: radius * 0.60))
+                    path.addLine(to: CGPoint(x: radius * 0.70, y: radius * 0.98))
+                    path.move(to: CGPoint(x: radius * 0.51, y: radius * 0.79))
+                    path.addLine(to: CGPoint(x: radius * 0.89, y: radius * 0.79))
+                }
             }
             return path
         }
@@ -1311,12 +1354,15 @@
                 fillColor = baseColor.withAlphaComponent(0.78)
                 glowWidth = max(layout.tileSize * 0.016, 0.7)
                 zPosition = 1.155
-            case .dungeonDamageTrap:
+            case .dungeonDamageTrap, .dungeonStrongDamageTrap:
                 baseColor = palette.boardDungeonDamageTrap
+                if kind == .dungeonStrongDamageTrap {
+                    baseColor = SKColor(red: 0.98, green: 0.05, blue: 0.03, alpha: 1.0)
+                }
                 strokeAlpha = 0
                 strokeWidth = 0
-                fillColor = baseColor.withAlphaComponent(0.76)
-                glowWidth = max(layout.tileSize * 0.010, 0.5)
+                fillColor = baseColor.withAlphaComponent(kind == .dungeonStrongDamageTrap ? 0.90 : 0.76)
+                glowWidth = max(layout.tileSize * (kind == .dungeonStrongDamageTrap ? 0.018 : 0.010), 0.5)
                 zPosition = 1.13
             case .dungeonHpHalvingTrap:
                 baseColor = palette.boardDungeonHpHalvingTrap
@@ -1325,12 +1371,15 @@
                 fillColor = baseColor.withAlphaComponent(0.66)
                 glowWidth = max(layout.tileSize * 0.012, 0.5)
                 zPosition = 1.132
-            case .dungeonLavaTile:
+            case .dungeonLavaTile, .dungeonStrongLavaTile:
                 baseColor = palette.boardDungeonLavaTile
-                strokeAlpha = 0.82
-                strokeWidth = max(layout.tileSize * 0.035, 1.2)
-                fillColor = baseColor.withAlphaComponent(0.80)
-                glowWidth = max(layout.tileSize * 0.014, 0.6)
+                if kind == .dungeonStrongLavaTile {
+                    baseColor = SKColor(red: 1.0, green: 0.10, blue: 0.00, alpha: 1.0)
+                }
+                strokeAlpha = kind == .dungeonStrongLavaTile ? 0.94 : 0.82
+                strokeWidth = max(layout.tileSize * (kind == .dungeonStrongLavaTile ? 0.045 : 0.035), 1.2)
+                fillColor = baseColor.withAlphaComponent(kind == .dungeonStrongLavaTile ? 0.92 : 0.80)
+                glowWidth = max(layout.tileSize * (kind == .dungeonStrongLavaTile ? 0.022 : 0.014), 0.6)
                 zPosition = 1.135
             case .dungeonHealingTile:
                 baseColor = palette.boardDungeonHealingTile
@@ -1394,6 +1443,13 @@
                 zPosition += 0.03
             }
 
+            if areFlySuppressedDungeonHazardsMuted && isFlySuppressedDungeonHazard(kind) {
+                fillColor = fillColor.withAlphaComponent(0.22)
+                strokeAlpha = min(strokeAlpha, 0.35)
+                glowWidth = 0
+                zPosition -= 0.02
+            }
+
             let adjustedRect = baseRect.insetBy(
                 dx: strokeWidth / 2 + overlapInset,
                 dy: strokeWidth / 2 + overlapInset
@@ -1424,12 +1480,29 @@
                 || kind == .dungeonRelicPickup
                 || kind == .dungeonSuspiciousRelicPickup
                 || kind == .dungeonDamageTrap
+                || kind == .dungeonStrongDamageTrap
                 || kind == .dungeonHpHalvingTrap
                 || kind == .dungeonLavaTile
+                || kind == .dungeonStrongLavaTile
                 || kind == .dungeonHealingTile
                 || kind == .dungeonCrackedFloor
                 || kind == .dungeonCollapsedFloor
             node.blendMode = .alpha
+        }
+
+        private func isFlySuppressedDungeonHazard(_ kind: BoardHighlightKind) -> Bool {
+            switch kind {
+            case .dungeonDamageTrap,
+                 .dungeonStrongDamageTrap,
+                 .dungeonHpHalvingTrap,
+                 .dungeonLavaTile,
+                 .dungeonStrongLavaTile,
+                 .dungeonCrackedFloor,
+                 .dungeonCollapsedFloor:
+                return true
+            default:
+                return false
+            }
         }
 
         private func isHiddenDarknessCandidate(
@@ -1496,11 +1569,11 @@
                 return relicPickupMarkerPath(center: CGPoint(x: rect.midX, y: rect.midY), tileSize: tileSize)
             case .dungeonSuspiciousRelicPickup:
                 return suspiciousRelicPickupMarkerPath(center: CGPoint(x: rect.midX, y: rect.midY), tileSize: tileSize)
-            case .dungeonDamageTrap:
+            case .dungeonDamageTrap, .dungeonStrongDamageTrap:
                 return damageTrapMarkerPath(center: CGPoint(x: rect.midX, y: rect.midY), tileSize: tileSize)
             case .dungeonHpHalvingTrap:
                 return hpHalvingTrapMarkerPath(center: CGPoint(x: rect.midX, y: rect.midY), tileSize: tileSize)
-            case .dungeonLavaTile:
+            case .dungeonLavaTile, .dungeonStrongLavaTile:
                 return lavaTileMarkerPath(center: CGPoint(x: rect.midX, y: rect.midY), tileSize: tileSize)
             case .dungeonHealingTile:
                 return healingTileMarkerPath(center: CGPoint(x: rect.midX, y: rect.midY), tileSize: tileSize)
@@ -1638,71 +1711,74 @@
         private func cardPickupMarkerPath(center: CGPoint, tileSize: CGFloat) -> CGPath {
             let width = tileSize * 0.28
             let height = tileSize * 0.36
-            let rect = CGRect(
-                x: center.x - width / 2,
-                y: center.y - height / 2,
-                width: width,
-                height: height
+            return neonDataPanelPath(
+                center: center,
+                size: CGSize(width: width, height: height),
+                cornerCut: tileSize * 0.055
             )
-            let radius = max(tileSize * 0.025, 1.0)
-            let path = CGMutablePath()
-            path.addRoundedRect(in: rect, cornerWidth: radius, cornerHeight: radius)
-            return path
         }
 
         private func relicPickupMarkerPath(center: CGPoint, tileSize: CGFloat) -> CGPath {
-            let width = tileSize * 0.52
-            let height = tileSize * 0.36
-            let body = CGRect(
-                x: center.x - width / 2,
-                y: center.y - height * 0.32,
-                width: width,
-                height: height
-            )
-            let lid = CGRect(
-                x: center.x - width * 0.44,
-                y: body.maxY - height * 0.10,
-                width: width * 0.88,
-                height: height * 0.28
-            )
+            let width = tileSize * 0.56
+            let height = tileSize * 0.34
+            let bodyHeight = height * 0.70
+            let lidHeight = height * 0.28
+            let body = CGRect(x: center.x - width / 2, y: center.y - height * 0.34, width: width, height: bodyHeight)
+            let lid = CGRect(x: center.x - width * 0.44, y: body.maxY - height * 0.05, width: width * 0.88, height: lidHeight)
             let path = CGMutablePath()
-            path.addRoundedRect(in: body, cornerWidth: tileSize * 0.04, cornerHeight: tileSize * 0.04)
-            path.addRoundedRect(in: lid, cornerWidth: tileSize * 0.05, cornerHeight: tileSize * 0.05)
-            path.move(to: CGPoint(x: center.x - width * 0.10, y: body.minY))
-            path.addLine(to: CGPoint(x: center.x - width * 0.10, y: lid.maxY))
-            path.move(to: CGPoint(x: center.x + width * 0.10, y: body.minY))
-            path.addLine(to: CGPoint(x: center.x + width * 0.10, y: lid.maxY))
+            path.addPath(neonDataPanelPath(
+                center: CGPoint(x: body.midX, y: body.midY),
+                size: body.size,
+                cornerCut: tileSize * 0.045
+            ))
+            path.addRoundedRect(
+                in: lid,
+                cornerWidth: max(tileSize * 0.035, 1.0),
+                cornerHeight: max(tileSize * 0.035, 1.0)
+            )
+            path.addRect(CGRect(x: center.x - width * 0.06, y: body.minY, width: width * 0.12, height: body.height * 0.88))
+            path.move(to: CGPoint(x: center.x - width * 0.30, y: lid.midY))
+            path.addLine(to: CGPoint(x: center.x + width * 0.30, y: lid.midY))
+            path.move(to: CGPoint(x: center.x - width * 0.37, y: body.minY + body.height * 0.28))
+            path.addLine(to: CGPoint(x: center.x - width * 0.22, y: body.minY + body.height * 0.28))
+            path.move(to: CGPoint(x: center.x + width * 0.22, y: body.minY + body.height * 0.28))
+            path.addLine(to: CGPoint(x: center.x + width * 0.37, y: body.minY + body.height * 0.28))
             return path
         }
 
         private func suspiciousRelicPickupMarkerPath(center: CGPoint, tileSize: CGFloat) -> CGPath {
             let path = CGMutablePath()
             path.addPath(relicPickupMarkerPath(center: center, tileSize: tileSize))
-            let markHeight = tileSize * 0.25
-            path.move(to: CGPoint(x: center.x, y: center.y + markHeight * 0.45))
-            path.addLine(to: CGPoint(x: center.x, y: center.y - markHeight * 0.15))
-            path.move(to: CGPoint(x: center.x, y: center.y - markHeight * 0.34))
-            path.addLine(to: CGPoint(x: center.x, y: center.y - markHeight * 0.36))
+            let warning = neonWarningChevronPath(center: CGPoint(x: center.x, y: center.y + tileSize * 0.02), tileSize: tileSize)
+            path.addPath(warning)
+            path.move(to: CGPoint(x: center.x, y: center.y + tileSize * 0.11))
+            path.addLine(to: CGPoint(x: center.x, y: center.y - tileSize * 0.04))
+            path.move(to: CGPoint(x: center.x, y: center.y - tileSize * 0.09))
+            path.addLine(to: CGPoint(x: center.x, y: center.y - tileSize * 0.105))
             return path
         }
 
         private func damageTrapMarkerPath(center: CGPoint, tileSize: CGFloat) -> CGPath {
-            let halfWidth = tileSize * 0.31
-            let baseTopY = center.y - tileSize * 0.18
-            let baseBottomY = center.y - tileSize * 0.29
-            let leftX = center.x - halfWidth
-            let rightX = center.x + halfWidth
+            let halfWidth = tileSize * 0.34
+            let topY = center.y + tileSize * 0.24
+            let midY = center.y - tileSize * 0.02
+            let bottomY = center.y - tileSize * 0.26
             let path = CGMutablePath()
-            path.move(to: CGPoint(x: leftX, y: baseBottomY))
-            path.addLine(to: CGPoint(x: leftX, y: baseTopY))
-            path.addLine(to: CGPoint(x: center.x - tileSize * 0.22, y: center.y + tileSize * 0.18))
-            path.addLine(to: CGPoint(x: center.x - tileSize * 0.11, y: baseTopY + tileSize * 0.02))
-            path.addLine(to: CGPoint(x: center.x, y: center.y + tileSize * 0.28))
-            path.addLine(to: CGPoint(x: center.x + tileSize * 0.11, y: baseTopY + tileSize * 0.02))
-            path.addLine(to: CGPoint(x: center.x + tileSize * 0.22, y: center.y + tileSize * 0.18))
-            path.addLine(to: CGPoint(x: rightX, y: baseTopY))
-            path.addLine(to: CGPoint(x: rightX, y: baseBottomY))
+            path.move(to: CGPoint(x: center.x - halfWidth, y: bottomY))
+            path.addLine(to: CGPoint(x: center.x - halfWidth * 0.78, y: topY))
+            path.addLine(to: CGPoint(x: center.x - halfWidth * 0.28, y: midY))
+            path.addLine(to: CGPoint(x: center.x, y: topY))
+            path.addLine(to: CGPoint(x: center.x + halfWidth * 0.28, y: midY))
+            path.addLine(to: CGPoint(x: center.x + halfWidth * 0.78, y: topY))
+            path.addLine(to: CGPoint(x: center.x + halfWidth, y: bottomY))
+            path.addLine(to: CGPoint(x: center.x + halfWidth * 0.42, y: bottomY + tileSize * 0.07))
+            path.addLine(to: CGPoint(x: center.x, y: bottomY - tileSize * 0.02))
+            path.addLine(to: CGPoint(x: center.x - halfWidth * 0.42, y: bottomY + tileSize * 0.07))
             path.closeSubpath()
+            path.move(to: CGPoint(x: center.x - halfWidth * 0.72, y: center.y + tileSize * 0.06))
+            path.addLine(to: CGPoint(x: center.x - halfWidth * 0.44, y: center.y - tileSize * 0.04))
+            path.move(to: CGPoint(x: center.x + halfWidth * 0.72, y: center.y + tileSize * 0.06))
+            path.addLine(to: CGPoint(x: center.x + halfWidth * 0.44, y: center.y - tileSize * 0.04))
             return path
         }
 
@@ -1718,6 +1794,36 @@
             path.addLine(to: CGPoint(x: center.x + radius * 0.42, y: center.y - radius * 0.52))
             path.move(to: CGPoint(x: center.x - radius * 0.16, y: center.y + radius * 0.18))
             path.addLine(to: CGPoint(x: center.x + radius * 0.16, y: center.y - radius * 0.18))
+            return path
+        }
+
+        private func neonDataPanelPath(center: CGPoint, size: CGSize, cornerCut: CGFloat) -> CGPath {
+            let rect = CGRect(
+                x: center.x - size.width / 2,
+                y: center.y - size.height / 2,
+                width: size.width,
+                height: size.height
+            )
+            let cut = min(cornerCut, min(rect.width, rect.height) * 0.32)
+            let path = CGMutablePath()
+            path.move(to: CGPoint(x: rect.minX + cut, y: rect.minY))
+            path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
+            path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - cut))
+            path.addLine(to: CGPoint(x: rect.maxX - cut, y: rect.maxY))
+            path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+            path.addLine(to: CGPoint(x: rect.minX, y: rect.minY + cut))
+            path.closeSubpath()
+            return path
+        }
+
+        private func neonWarningChevronPath(center: CGPoint, tileSize: CGFloat) -> CGPath {
+            let width = tileSize * 0.30
+            let height = tileSize * 0.28
+            let path = CGMutablePath()
+            path.move(to: CGPoint(x: center.x, y: center.y + height / 2))
+            path.addLine(to: CGPoint(x: center.x + width / 2, y: center.y - height / 2))
+            path.addLine(to: CGPoint(x: center.x - width / 2, y: center.y - height / 2))
+            path.closeSubpath()
             return path
         }
 
@@ -1886,16 +1992,18 @@
                 strokeAlpha = 1.0
                 fillColor = baseColor.withAlphaComponent(0.18)
                 glowWidth = max(glowWidth, strongGlow)
-            case .dungeonKey, .dungeonCardPickup, .dungeonDamageTrap, .dungeonHealingTile:
+            case .dungeonKey, .dungeonCardPickup, .dungeonDamageTrap, .dungeonStrongDamageTrap, .dungeonHealingTile:
                 strokeAlpha = 0
                 strokeWidth = 0
-                fillColor = baseColor.withAlphaComponent(kind == .dungeonDamageTrap ? 0.84 : 0.78)
+                fillColor = baseColor.withAlphaComponent(
+                    kind == .dungeonDamageTrap || kind == .dungeonStrongDamageTrap ? 0.84 : 0.78
+                )
                 glowWidth = max(glowWidth, softGlow)
             case .dungeonRelicPickup, .dungeonSuspiciousRelicPickup:
                 strokeAlpha = 0.96
                 fillColor = baseColor.withAlphaComponent(0.66)
                 glowWidth = max(glowWidth, softGlow)
-            case .dungeonHpHalvingTrap, .dungeonLavaTile, .dungeonEnemyWarning:
+            case .dungeonHpHalvingTrap, .dungeonLavaTile, .dungeonStrongLavaTile, .dungeonEnemyWarning:
                 strokeAlpha = 0.96
                 fillColor = baseColor.withAlphaComponent(0.34)
                 glowWidth = max(glowWidth, softGlow)
@@ -1945,8 +2053,6 @@
     }
 
     private func usesNeonGridTheme(_ palette: GameScenePalette) -> Bool {
-        palette.boardStarChartLine.cgColor.alpha > 0.01
-            && palette.boardConstellationLine.cgColor.alpha <= 0.01
-            && palette.boardNebulaDepth.cgColor.alpha <= 0.01
+        palette.isNeonGridTheme
     }
 #endif

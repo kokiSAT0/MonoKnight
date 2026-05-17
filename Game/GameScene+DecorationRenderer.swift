@@ -17,6 +17,7 @@
 
         private(set) var tileNodes: [GridPoint: SKShapeNode] = [:]
         private var tileEffectDecorations: [GridPoint: TileEffectDecorationCache] = [:]
+        private var areFlySuppressedTileEffectsMuted = false
         private var warpVisualStyles: [String: WarpVisualStyle] = [:]
         private var cosmicBackgroundLayer: SKNode?
         private var constellationLayer: SKNode?
@@ -47,6 +48,7 @@
 
         func reset() {
             removeAllNodes()
+            areFlySuppressedTileEffectsMuted = false
             warpVisualStyles = [:]
         }
 
@@ -220,6 +222,25 @@
                 board: board,
                 palette: palette,
                 layout: layout,
+                visiblePoints: visiblePoints
+            )
+        }
+
+        func updateFlySuppressedTileEffectsMuted(
+            _ isMuted: Bool,
+            board: Board,
+            palette: GameScenePalette,
+            layout: GameSceneLayoutSupport,
+            showsVisitedTileFill: Bool,
+            visiblePoints: Set<GridPoint>?
+        ) {
+            guard areFlySuppressedTileEffectsMuted != isMuted else { return }
+            areFlySuppressedTileEffectsMuted = isMuted
+            updateBoardAppearance(
+                board: board,
+                palette: palette,
+                layout: layout,
+                showsVisitedTileFill: showsVisitedTileFill,
                 visiblePoints: visiblePoints
             )
         }
@@ -1733,6 +1754,40 @@
                     strokeNodes: [card, crack],
                     fillNodes: []
                 )
+            case .relicBreakTrap:
+                let relic = SKShapeNode()
+                relic.name = "tileEffectRelicBreakGem"
+                relic.strokeColor = .clear
+                relic.fillColor = .clear
+                relic.lineWidth = 1
+                relic.isAntialiased = true
+                relic.blendMode = .alpha
+
+                let crack = SKShapeNode()
+                crack.name = "tileEffectRelicBreakCrack"
+                crack.strokeColor = .clear
+                crack.fillColor = .clear
+                crack.lineWidth = 1
+                crack.isAntialiased = true
+                crack.blendMode = .alpha
+
+                let sparkle = SKShapeNode()
+                sparkle.name = "tileEffectRelicBreakSparkle"
+                sparkle.strokeColor = .clear
+                sparkle.fillColor = .clear
+                sparkle.lineWidth = 1
+                sparkle.isAntialiased = true
+                sparkle.blendMode = .alpha
+
+                container.addChild(relic)
+                container.addChild(crack)
+                container.addChild(sparkle)
+                return TileEffectDecorationCache(
+                    container: container,
+                    effect: effect,
+                    strokeNodes: [relic, crack, sparkle],
+                    fillNodes: [relic, sparkle]
+                )
             case .discardAllMoveCards, .discardAllSupportCards:
                 let card = SKShapeNode()
                 card.name = "tileEffectDiscardCategoryCardBody"
@@ -2070,22 +2125,28 @@
 
                 let cardWidth = layout.tileSize * 0.42
                 let cardHeight = layout.tileSize * 0.54
-                let rect = CGRect(x: -cardWidth / 2, y: -cardHeight / 2, width: cardWidth, height: cardHeight)
-                card.path = CGPath(roundedRect: rect, cornerWidth: layout.tileSize * 0.04, cornerHeight: layout.tileSize * 0.04, transform: nil)
+                card.path = techCardPanelPath(tileSize: layout.tileSize, width: cardWidth, height: cardHeight)
                 card.lineWidth = max(1.0, layout.tileSize * 0.045)
                 card.position = .zero
 
-                notch.path = CGPath(
-                    roundedRect: CGRect(
+                let stripe = CGMutablePath()
+                stripe.addRoundedRect(
+                    in: CGRect(
                         x: -layout.tileSize * 0.15,
                         y: -layout.tileSize * 0.035,
                         width: layout.tileSize * 0.30,
-                        height: layout.tileSize * 0.07
+                        height: layout.tileSize * 0.055
                     ),
-                    cornerWidth: layout.tileSize * 0.02,
-                    cornerHeight: layout.tileSize * 0.02,
-                    transform: nil
+                    cornerWidth: layout.tileSize * 0.018,
+                    cornerHeight: layout.tileSize * 0.018
                 )
+                stripe.addRect(CGRect(
+                    x: -layout.tileSize * 0.10,
+                    y: -layout.tileSize * 0.14,
+                    width: layout.tileSize * 0.20,
+                    height: layout.tileSize * 0.035
+                ))
+                notch.path = stripe
                 notch.position = CGPoint(x: 0, y: layout.tileSize * 0.12)
             case .discardRandomHand:
                 guard decoration.strokeNodes.count >= 2 else { return }
@@ -2100,6 +2161,24 @@
                 crack.lineWidth = max(1.2, layout.tileSize * 0.04)
                 crack.position = .zero
                 crack.zRotation = card.zRotation
+            case .relicBreakTrap:
+                guard decoration.strokeNodes.count >= 3 else { return }
+                let relic = decoration.strokeNodes[0]
+                let crack = decoration.strokeNodes[1]
+                let sparkle = decoration.strokeNodes[2]
+
+                relic.path = brokenRelicGemPath(tileSize: layout.tileSize, scale: 0.82)
+                relic.lineWidth = max(1.3, layout.tileSize * 0.05)
+                relic.position = CGPoint(x: -layout.tileSize * 0.02, y: 0)
+
+                crack.path = brokenCardCrackPath(tileSize: layout.tileSize, scale: 0.74)
+                crack.lineWidth = max(1.2, layout.tileSize * 0.04)
+                crack.position = relic.position
+
+                sparkle.path = paralysisSparkPath(tileSize: layout.tileSize, scale: 0.52)
+                sparkle.lineWidth = max(1.0, layout.tileSize * 0.035)
+                sparkle.position = CGPoint(x: layout.tileSize * 0.22, y: layout.tileSize * 0.22)
+                sparkle.zRotation = .pi / 7
             case .discardAllMoveCards, .discardAllSupportCards:
                 guard decoration.strokeNodes.count >= 3 else { return }
                 let card = decoration.strokeNodes[0]
@@ -2293,6 +2372,13 @@
                     node.fillColor = index == 0 ? accent.withAlphaComponent(0.10) : .clear
                     node.alpha = 1.0
                 }
+            case .relicBreakTrap:
+                let accent = palette.boardTileEffectDiscardHand
+                for (index, node) in decoration.strokeNodes.enumerated() {
+                    node.strokeColor = accent.withAlphaComponent(index == 1 ? 0.82 : 0.96)
+                    node.fillColor = index == 0 ? accent.withAlphaComponent(0.13) : accent.withAlphaComponent(index == 2 ? 0.78 : 0.0)
+                    node.alpha = 1.0
+                }
             case .discardAllMoveCards, .discardAllSupportCards:
                 let accent = palette.boardTileEffectDiscardHand
                 for (index, node) in decoration.strokeNodes.enumerated() {
@@ -2312,6 +2398,10 @@
             if usesNeonGridTheme(palette) {
                 applyNeonTileEffectPictogramTuning(&decoration)
             }
+
+            decoration.container.alpha = areFlySuppressedTileEffectsMuted && effect.isBlockedByFlySpell
+                ? 0.32
+                : 1.0
         }
 
         private func applyNeonTileEffectPictogramTuning(_ decoration: inout TileEffectDecorationCache) {
@@ -2411,22 +2501,47 @@
         private func brokenCardPath(tileSize: CGFloat, scale: CGFloat) -> CGPath {
             let cardWidth = tileSize * 0.42 * scale
             let cardHeight = tileSize * 0.56 * scale
-            let rect = CGRect(x: -cardWidth / 2, y: -cardHeight / 2, width: cardWidth, height: cardHeight)
-            return CGPath(
-                roundedRect: rect,
-                cornerWidth: tileSize * 0.04 * scale,
-                cornerHeight: tileSize * 0.04 * scale,
-                transform: nil
-            )
+            return techCardPanelPath(tileSize: tileSize, width: cardWidth, height: cardHeight)
         }
 
         private func brokenCardCrackPath(tileSize: CGFloat, scale: CGFloat) -> CGPath {
             let s = tileSize * scale
             let path = CGMutablePath()
-            path.move(to: CGPoint(x: -s * 0.06, y: s * 0.25))
-            path.addLine(to: CGPoint(x: s * 0.02, y: s * 0.08))
-            path.addLine(to: CGPoint(x: -s * 0.04, y: -s * 0.02))
-            path.addLine(to: CGPoint(x: s * 0.07, y: -s * 0.24))
+            path.move(to: CGPoint(x: -s * 0.14, y: s * 0.24))
+            path.addLine(to: CGPoint(x: s * 0.08, y: s * 0.05))
+            path.addLine(to: CGPoint(x: -s * 0.02, y: -s * 0.02))
+            path.addLine(to: CGPoint(x: s * 0.14, y: -s * 0.24))
+            path.move(to: CGPoint(x: -s * 0.15, y: -s * 0.16))
+            path.addLine(to: CGPoint(x: -s * 0.02, y: -s * 0.16))
+            path.move(to: CGPoint(x: s * 0.03, y: s * 0.18))
+            path.addLine(to: CGPoint(x: s * 0.17, y: s * 0.18))
+            return path
+        }
+
+        private func brokenRelicGemPath(tileSize: CGFloat, scale: CGFloat) -> CGPath {
+            let width = tileSize * 0.52 * scale
+            let height = tileSize * 0.56 * scale
+            let path = CGMutablePath()
+            path.move(to: CGPoint(x: 0, y: height / 2))
+            path.addLine(to: CGPoint(x: width / 2, y: height * 0.10))
+            path.addLine(to: CGPoint(x: width * 0.30, y: -height / 2))
+            path.addLine(to: CGPoint(x: -width * 0.30, y: -height / 2))
+            path.addLine(to: CGPoint(x: -width / 2, y: height * 0.10))
+            path.closeSubpath()
+            return path
+        }
+
+        private func techCardPanelPath(tileSize: CGFloat, width: CGFloat, height: CGFloat) -> CGPath {
+            let cut = min(tileSize * 0.055, min(width, height) * 0.32)
+            let rect = CGRect(x: -width / 2, y: -height / 2, width: width, height: height)
+            let path = CGMutablePath()
+            path.move(to: CGPoint(x: rect.minX + cut, y: rect.minY))
+            path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
+            path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - cut))
+            path.addLine(to: CGPoint(x: rect.maxX - cut, y: rect.maxY))
+            path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+            path.addLine(to: CGPoint(x: rect.minX, y: rect.minY + cut))
+            path.closeSubpath()
             return path
         }
 
@@ -2466,8 +2581,6 @@
     }
 
     private func usesNeonGridTheme(_ palette: GameScenePalette) -> Bool {
-        palette.boardStarChartLine.cgColor.alpha > 0.01
-            && palette.boardConstellationLine.cgColor.alpha <= 0.01
-            && palette.boardNebulaDepth.cgColor.alpha <= 0.01
+        palette.isNeonGridTheme
     }
 #endif

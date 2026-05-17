@@ -52,6 +52,17 @@ final class EncyclopediaDiscoveryStoreTests: XCTestCase {
         XCTAssertEqual(restored.appThemeVisualStyle, .starChartSurveyTower)
     }
 
+    func testGameSettingsStorePersistsDeveloperRelicEffectToggle() {
+        let defaults = makeDefaults()
+        let store = GameSettingsStore(userDefaults: defaults)
+
+        XCTAssertFalse(store.disablesDungeonRelicEffectsForDeveloper)
+        store.disablesDungeonRelicEffectsForDeveloper = true
+
+        let restored = GameSettingsStore(userDefaults: defaults)
+        XCTAssertTrue(restored.disablesDungeonRelicEffectsForDeveloper)
+    }
+
     func testLockedPresentationHidesUndiscoveredText() {
         XCTAssertEqual(
             EncyclopediaLockedPresentation.title("割れた盾", isUnlocked: false),

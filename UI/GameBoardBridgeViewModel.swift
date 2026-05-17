@@ -215,6 +215,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
         let palette = GameScenePalette(
             boardBackground: appTheme.skBoardBackground,
             boardGridLine: appTheme.skBoardGridLine,
+            isNeonGridTheme: visualStyle == .starChartSurveyTower,
             boardStarChartLine: appTheme.skBoardStarChartLine,
             boardStarChartNode: appTheme.skBoardStarChartNode,
             boardConstellationLine: appTheme.skBoardConstellationLine,
@@ -556,6 +557,11 @@ final class GameBoardBridgeViewModel: ObservableObject {
             : core.watcherLaserDisplays(forDisplayedEnemyStates: displayedEnemyStates)
         let displayedWatcherLaserDangerPoints = Set(displayedWatcherLasers.flatMap(\.dangerPoints))
         let displayedEnemyWarningPoints = core.enemyWarningPoints(forDisplayedEnemyStates: displayedEnemyStates)
+        let darknessScoutVisiblePoints = core.darknessRevealedDungeonCardPickupPoints
+            .union(core.darknessRevealedThornTrapPoints)
+            .union(core.darknessRevealedLavaTilePoints)
+            .union(core.darknessRevealedHiddenTrapPoints)
+            .union(core.darknessRevealedEnemyPoints)
         let darknessCurrentPoint = presentationCurrentPoint ?? core.current
         let dungeonVisiblePoints = isDarknessEnabled
             ? makeDarknessVisiblePoints(
@@ -566,7 +572,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
                     : displayedWatcherLaserDangerPoints,
                 warningPoints: shouldDeferEnemyThreatHighlights ? [] : displayedEnemyWarningPoints,
                 keyPoints: core.dungeonKeyPoints,
-                revealedPickupPoints: core.chalkRevealedDungeonCardPickupPoints,
+                revealedScoutPoints: darknessScoutVisiblePoints,
                 visionRadius: core.dungeonDarknessVisionRadius
             )
             : nil
@@ -615,14 +621,17 @@ final class GameBoardBridgeViewModel: ObservableObject {
             .dungeonCardPickup: visible(displayed: displayedCardPickupPoints, in: dungeonVisiblePoints),
             .dungeonRelicPickup: visible(displayed: displayedRelicPickupPoints, in: dungeonVisiblePoints),
             .dungeonSuspiciousRelicPickup: visible(displayed: displayedSuspiciousRelicPickupPoints, in: dungeonVisiblePoints),
-            .dungeonDamageTrap: visible(displayed: core.damageTrapPoints, in: dungeonVisiblePoints),
+            .dungeonDamageTrap: visible(displayed: core.damageTrapPoints.subtracting(core.strongDamageTrapPoints), in: dungeonVisiblePoints),
+            .dungeonStrongDamageTrap: visible(displayed: core.strongDamageTrapPoints, in: dungeonVisiblePoints),
             .dungeonHpHalvingTrap: visible(displayed: core.hpHalvingTrapPoints, in: dungeonVisiblePoints),
-            .dungeonLavaTile: visible(displayed: core.lavaTilePoints, in: dungeonVisiblePoints),
+            .dungeonLavaTile: visible(displayed: core.lavaTilePoints.subtracting(core.strongLavaTilePoints), in: dungeonVisiblePoints),
+            .dungeonStrongLavaTile: visible(displayed: core.strongLavaTilePoints, in: dungeonVisiblePoints),
             .dungeonHealingTile: visible(displayed: core.healingTilePoints, in: dungeonVisiblePoints),
             .dungeonCrackedFloor: visible(displayed: displayedCrackedFloorPoints, in: dungeonVisiblePoints),
             .dungeonCollapsedFloor: visible(displayed: displayedCollapsedFloorPoints, in: dungeonVisiblePoints)
         ]
         scene.updateDungeonVisiblePoints(dungeonVisiblePoints)
+        scene.updateFlySuppressedDungeonHazardsMuted(core.isFlySpellActive)
         scene.updateHighlights(highlights)
         scene.updateDungeonEnemyMarkers(visibleEnemyStates.map { enemy in
             SceneDungeonEnemyMarker(enemy, facingVector: patrolFacingVectors[enemy.id])
@@ -654,13 +663,13 @@ final class GameBoardBridgeViewModel: ObservableObject {
         dangerPoints: Set<GridPoint>,
         warningPoints: Set<GridPoint>,
         keyPoints: Set<GridPoint>,
-        revealedPickupPoints: Set<GridPoint>,
+        revealedScoutPoints: Set<GridPoint>,
         visionRadius: Int
     ) -> Set<GridPoint> {
         var visiblePoints = dangerPoints
             .union(warningPoints)
             .union(keyPoints)
-            .union(revealedPickupPoints)
+            .union(revealedScoutPoints)
         if let current {
             let radius = max(visionRadius, 1)
             for dy in (-radius)...radius {

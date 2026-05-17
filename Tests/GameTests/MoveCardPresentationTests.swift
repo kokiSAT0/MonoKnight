@@ -55,11 +55,13 @@ final class MoveCardPresentationTests: XCTestCase {
         let entries = EnemyEncyclopediaEntry.allEntries
 
         XCTAssertEqual(entries.map(\.kind), EnemyPresentationKind.allCases)
-        XCTAssertEqual(entries.count, 6)
+        XCTAssertEqual(entries.count, 7)
         XCTAssertTrue(entries.allSatisfy { !$0.displayName.isEmpty })
         XCTAssertTrue(entries.allSatisfy { !$0.behaviorSummary.isEmpty })
         XCTAssertTrue(entries.allSatisfy { !$0.dangerSummary.isEmpty })
+        XCTAssertTrue(entries.allSatisfy { $0.damageSummary.contains("攻撃力") })
         XCTAssertEqual(entries.first { $0.kind == .marker }?.displayName, "メテオ兵")
+        XCTAssertEqual(entries.first { $0.kind == .starReader }?.displayName, "星詠み兵")
     }
 
     func testEnemyBehaviorPresentationKindsRemainStable() {
@@ -76,6 +78,7 @@ final class MoveCardPresentationTests: XCTestCase {
         )
         XCTAssertEqual(EnemyBehavior.chaser.presentationKind, .chaser)
         XCTAssertEqual(EnemyBehavior.marker(directions: [], range: 2).presentationKind, .marker)
+        XCTAssertEqual(EnemyBehavior.targetedMarker(directions: [], range: 2).presentationKind, .starReader)
     }
 
     func testCardEncyclopediaCompressesDirectionVariants() {
@@ -129,6 +132,7 @@ final class MoveCardPresentationTests: XCTestCase {
         XCTAssertEqual(entries.first { $0.id == "shackleTrap" }?.previewKind, .effect(.shackleTrap))
         XCTAssertEqual(entries.first { $0.id == "poisonTrap" }?.previewKind, .effect(.poisonTrap))
         XCTAssertEqual(entries.first { $0.id == "illusionTrap" }?.previewKind, .effect(.illusionTrap))
+        XCTAssertEqual(entries.first { $0.id == "relicBreakTrap" }?.previewKind, .effect(.relicBreakTrap))
         XCTAssertEqual(entries.first { $0.id == "enemyDanger" }?.previewKind, .enemyDanger)
         XCTAssertEqual(entries.first { $0.id == "enemyWarning" }?.previewKind, .enemyWarning)
         XCTAssertFalse(entries.contains { ["目的地", "踏破"].contains($0.category) })
@@ -163,6 +167,7 @@ final class MoveCardPresentationTests: XCTestCase {
             "shackleTrap",
             "illusionTrap",
             "poisonTrap",
+            "relicBreakTrap",
             "swamp",
             "discardRandomHandTrap",
             "discardAllMoveCardsTrap",
@@ -186,6 +191,7 @@ final class MoveCardPresentationTests: XCTestCase {
             "illusionTrap",
             "poisonTrap",
             "preserveCard",
+            "relicBreakTrap",
             "returnWarp",
             "shackleTrap",
             "shuffleHand",
@@ -223,19 +229,31 @@ final class MoveCardPresentationTests: XCTestCase {
             .dullNeedle,
             .patchedRope,
             .purifyingCharm,
-            .phoenixFeather
+            .greatPurifyingCharm,
+            .phoenixFeather,
+            .lavaCharm,
+            .lavaLantern,
+            .watcherMask,
+            .railWedge,
+            .railSign,
+            .smokeDecoy,
+            .chaserWhistle,
+            .starVeil,
+            .rewindingHourglass,
+            .travelerCanteen,
+            .moonDewCanteen
         ]
         let persistentRelics: Set<DungeonRelicID> = [
             .heavyCrown,
             .glowingHeart,
-            .oldMap,
             .chippedHourglass,
             .travelerBoots,
             .starCup,
+            .distantStarCup,
+            .crackedStarCup,
             .explorerBag,
             .victoryBanner,
             .windcutFeather,
-            .whiteChalk,
             .spareTorch,
             .twinPouch,
             .gamblerCoin,
@@ -256,18 +274,33 @@ final class MoveCardPresentationTests: XCTestCase {
             .railCharm,
             .chaserDecoy,
             .antidoteStone,
+            .greaterAntidoteStone,
             .starUmbrella,
+            .guardianCloak,
             .fallAnchor,
-            .foldingMap,
-            .phantomTicket,
             .campfireCoal,
-            .merchantsScale
+            .merchantsScale,
+            .barrierCharm,
+            .barrierTalisman,
+            .frostBell,
+            .slayerPouch,
+            .hunterBanner,
+            .intimidationHorn,
+            .slayerMedal,
+            .nightCardLens,
+            .thornScoutLens,
+            .magmaScoutLens,
+            .trapScoutLens,
+            .enemyScoutLens
         ]
         XCTAssertEqual(Set(DungeonRelicID.allCases), temporaryRelics.union(persistentRelics))
         XCTAssertTrue(temporaryRelics.allSatisfy { $0.displayKind == .temporary })
         XCTAssertTrue(persistentRelics.allSatisfy { $0.displayKind == .persistent })
         XCTAssertEqual(DungeonRelicID.heavyCrown.rarity, .common)
         XCTAssertEqual(DungeonRelicID.heavyCrown.effectDescription, "移動報酬カードを新しく得る時、使用回数が+1される。")
+        XCTAssertEqual(DungeonRelicID.windcutFeather.effectDescription, "旧効果のレリック。現在は新しく出現せず、使用回数補正も発生しない。")
+        XCTAssertEqual(DungeonRelicID.quickSheath.effectDescription, "旧効果のレリック。現在は新しく出現せず、使用回数補正も発生しない。")
+        XCTAssertEqual(DungeonRelicID.twinPouch.rarity, .legendary)
         XCTAssertEqual(DungeonRelicID.twinPouch.effectDescription, "補助報酬カードを新しく得る時、使用回数が+1される。")
         XCTAssertEqual(DungeonRelicID.royalCrown.rarity, .legendary)
         XCTAssertEqual(DungeonRelicID.sageCodex.effectDescription, "新しく得る拾得カード、移動報酬カード、補助報酬カードの使用回数が+1される。")
@@ -316,7 +349,9 @@ final class MoveCardPresentationTests: XCTestCase {
     func testHelpEncyclopediaTextAvoidsRemovedLegacyModeTerms() {
         let cardTexts = MoveCard.encyclopediaEntries.flatMap { [$0.displayName, $0.category, $0.description] }
         let supportTexts = SupportCard.encyclopediaEntries.flatMap { [$0.displayName, $0.category, $0.description] }
-        let enemyTexts = EnemyEncyclopediaEntry.allEntries.flatMap { [$0.displayName, $0.behaviorSummary, $0.dangerSummary] }
+        let enemyTexts = EnemyEncyclopediaEntry.allEntries.flatMap {
+            [$0.displayName, $0.behaviorSummary, $0.dangerSummary, $0.damageSummary]
+        }
         let tileTexts = TileEncyclopediaEntry.allEntries.flatMap { [$0.displayName, $0.category, $0.description] }
         let relicTexts = DungeonRelicEncyclopediaEntry.allEntries.flatMap { [$0.displayName, $0.effectDescription, $0.noteDescription ?? ""] }
         let curseTexts = DungeonCurseEncyclopediaEntry.allEntries.flatMap {

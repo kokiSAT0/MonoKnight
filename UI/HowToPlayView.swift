@@ -518,6 +518,8 @@ private struct SupportCardEncyclopediaRow: View {
             return "moon.fill"
         case .railBreakSpell:
             return "point.topleft.down.to.point.bottomright.curvepath"
+        case .flySpell:
+            return "wind"
         case .antidote:
             return "cross.case.fill"
         case .panacea:
@@ -550,6 +552,10 @@ private struct EnemyEncyclopediaRow: View {
                     .fixedSize(horizontal: false, vertical: true)
                 if isUnlocked {
                     Text(entry.dangerSummary)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(entry.damageSummary)
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -631,6 +637,16 @@ private struct EnemyMarkerPreviewView: View {
             MeteorEnemyMarkerShape()
                 .fill(fill)
                 .overlay(MeteorEnemyMarkerShape().stroke(stroke, lineWidth: markerStrokeWidth))
+        case .starReader:
+            MeteorEnemyMarkerShape()
+                .fill(fill)
+                .overlay(MeteorEnemyMarkerShape().stroke(stroke, lineWidth: markerStrokeWidth))
+                .overlay(
+                    Image(systemName: "plus")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(stroke)
+                        .offset(x: 11, y: -10)
+                )
         }
     }
 
@@ -638,7 +654,7 @@ private struct EnemyMarkerPreviewView: View {
         switch kind {
         case .rotatingWatcher:
             return CGSize(width: 40, height: 38)
-        case .marker:
+        case .marker, .starReader:
             return CGSize(width: 38, height: 34)
         default:
             return CGSize(width: 31, height: 31)
@@ -661,7 +677,7 @@ private struct EnemyMarkerPreviewView: View {
             return .clear
         case .chaser:
             return Color(red: 0.10, green: 0.53, blue: 0.52).opacity(0.34)
-        case .marker:
+        case .marker, .starReader:
             return Color(red: 0.96, green: 0.30, blue: 0.12).opacity(0.34)
         }
     }
@@ -678,7 +694,7 @@ private struct EnemyMarkerPreviewView: View {
             return Color(red: 0.62, green: 0.50, blue: 1.00).opacity(0.96)
         case .chaser:
             return Color(red: 0.13, green: 0.74, blue: 0.70).opacity(0.96)
-        case .marker:
+        case .marker, .starReader:
             return Color(red: 1.00, green: 0.46, blue: 0.16).opacity(0.96)
         }
     }
@@ -981,39 +997,17 @@ private struct TileMarkerPreviewView: View {
                 .font(.system(size: 22, weight: .semibold))
                 .foregroundColor(theme.boardTileEffectPreserveCard)
         case .cardPickup:
-            RoundedRectangle(cornerRadius: 3, style: .continuous)
-                .fill(theme.cardBackgroundHand)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 3, style: .continuous)
-                        .stroke(theme.cardBorderHand.opacity(0.8), lineWidth: 1.5)
-                )
-                .frame(width: 22, height: 30)
-                .overlay(
-                    Image(systemName: "arrow.up")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundColor(theme.cardContentPrimary)
-                )
+            NeonDataCardMarker(accent: theme.boardDungeonCardPickup, scale: 1.0)
+                .frame(width: 28, height: 34)
         case .dungeonRelicPickup:
-            Image(systemName: "shippingbox.fill")
-                .font(.system(size: 22, weight: .semibold))
-                .foregroundColor(theme.boardTileEffectPreserveCard)
+            NeonChestMarker(accent: theme.boardDungeonRelicPickup, isSuspicious: false)
+                .frame(width: 38, height: 30)
         case .damageTrap:
-            SpikeTrapMarkerShape()
-                .fill(Color(red: 0.82, green: 0.10, blue: 0.08).opacity(0.70))
-                .frame(width: 34, height: 32)
+            NeonTrapMarker(accent: theme.boardDungeonDamageTrap)
+                .frame(width: 36, height: 32)
         case .hpHalvingTrap:
-            ZStack {
-                DiamondShape()
-                    .fill(Color(red: 0.55, green: 0.12, blue: 0.68).opacity(0.66))
-                    .frame(width: 32, height: 32)
-                DiamondShape()
-                    .stroke(Color(red: 0.82, green: 0.58, blue: 0.95).opacity(0.90), lineWidth: 2)
-                    .frame(width: 32, height: 32)
-                Rectangle()
-                    .fill(Color.white.opacity(0.82))
-                    .frame(width: 4, height: 26)
-                    .rotationEffect(.degrees(36))
-            }
+            NeonHpHalvingTrapMarker(accent: theme.boardDungeonHpHalvingTrap)
+                .frame(width: 34, height: 34)
         case .lavaTile:
             ZStack {
                 FlameShape()
@@ -1224,19 +1218,15 @@ private struct TileEffectMarkerView: View {
                     .offset(x: 9, y: 4)
             }
         case .preserveCard:
-            ZStack {
-                RoundedRectangle(cornerRadius: 2, style: .continuous)
-                    .stroke(accent, lineWidth: 2)
-                    .frame(width: 20, height: 26)
-                Capsule()
-                    .fill(accent.opacity(0.88))
-                    .frame(width: 14, height: 4)
-                    .offset(y: -5)
-            }
+            NeonDataCardMarker(accent: accent, scale: 0.92, showsPreserveStripe: true)
+                .frame(width: 30, height: 34)
         case .discardRandomHand:
             BrokenCardMarker(accent: accent, scale: 1.0)
                 .frame(width: 32, height: 32)
                 .rotationEffect(.degrees(-8))
+        case .relicBreakTrap:
+            BrokenRelicMarker(accent: accent)
+                .frame(width: 34, height: 34)
         case .discardAllMoveCards:
             ZStack {
                 BrokenCardMarker(accent: accent, scale: 0.86)
@@ -1295,7 +1285,7 @@ private struct TileEffectMarkerView: View {
             return theme.boardTileEffectSwamp
         case .preserveCard:
             return theme.boardTileEffectPreserveCard
-        case .discardRandomHand, .discardAllMoveCards, .discardAllSupportCards, .discardAllHands:
+        case .discardRandomHand, .discardAllMoveCards, .discardAllSupportCards, .discardAllHands, .relicBreakTrap:
             return theme.boardTileEffectDiscardHand
         }
     }
@@ -1308,6 +1298,148 @@ private struct DiamondShape: Shape {
         path.addLine(to: CGPoint(x: rect.maxX, y: rect.midY))
         path.addLine(to: CGPoint(x: rect.midX, y: rect.maxY))
         path.addLine(to: CGPoint(x: rect.minX, y: rect.midY))
+        path.closeSubpath()
+        return path
+    }
+}
+
+private struct NeonDataCardMarker: View {
+    let accent: Color
+    let scale: CGFloat
+    var showsPreserveStripe = false
+
+    var body: some View {
+        ZStack {
+            NeonPanelShape()
+                .fill(accent.opacity(0.18))
+            NeonPanelShape()
+                .stroke(accent.opacity(0.94), style: StrokeStyle(lineWidth: max(1.2, 2.0 * scale), lineJoin: .round))
+            Capsule()
+                .fill(accent.opacity(0.82))
+                .frame(width: 13 * scale, height: 3.5 * scale)
+                .offset(y: -7 * scale)
+            if showsPreserveStripe {
+                Capsule()
+                    .fill(accent.opacity(0.74))
+                    .frame(width: 16 * scale, height: 3.5 * scale)
+                    .offset(y: 7 * scale)
+            } else {
+                Rectangle()
+                    .fill(accent.opacity(0.62))
+                    .frame(width: 10 * scale, height: 2.5 * scale)
+                    .offset(y: 6 * scale)
+            }
+        }
+    }
+}
+
+private struct NeonChestMarker: View {
+    let accent: Color
+    let isSuspicious: Bool
+
+    var body: some View {
+        ZStack {
+            NeonPanelShape()
+                .fill(accent.opacity(0.16))
+                .frame(width: 34, height: 20)
+                .offset(y: 4)
+            NeonPanelShape()
+                .stroke(accent.opacity(0.92), style: StrokeStyle(lineWidth: 2, lineJoin: .round))
+                .frame(width: 34, height: 20)
+                .offset(y: 4)
+            Capsule()
+                .fill(accent.opacity(0.30))
+                .overlay(Capsule().stroke(accent.opacity(0.92), lineWidth: 1.6))
+                .frame(width: 30, height: 9)
+                .offset(y: -7)
+            Rectangle()
+                .fill(accent.opacity(0.70))
+                .frame(width: 5, height: 17)
+                .offset(y: 4)
+            if isSuspicious {
+                TriangleShape()
+                    .stroke(accent.opacity(0.94), style: StrokeStyle(lineWidth: 1.8, lineJoin: .round))
+                    .frame(width: 15, height: 13)
+                    .offset(y: 1)
+                Rectangle()
+                    .fill(accent.opacity(0.90))
+                    .frame(width: 2, height: 7)
+                    .offset(y: 0)
+            }
+        }
+    }
+}
+
+private struct NeonTrapMarker: View {
+    let accent: Color
+
+    var body: some View {
+        ZStack {
+            SensorTrapShape()
+                .fill(accent.opacity(0.22))
+            SensorTrapShape()
+                .stroke(accent.opacity(0.94), style: StrokeStyle(lineWidth: 2.1, lineCap: .round, lineJoin: .round))
+            Path { path in
+                path.move(to: CGPoint(x: 8, y: 15))
+                path.addLine(to: CGPoint(x: 13, y: 20))
+                path.move(to: CGPoint(x: 28, y: 15))
+                path.addLine(to: CGPoint(x: 23, y: 20))
+            }
+            .stroke(accent.opacity(0.72), style: StrokeStyle(lineWidth: 1.8, lineCap: .round))
+        }
+    }
+}
+
+private struct NeonHpHalvingTrapMarker: View {
+    let accent: Color
+
+    var body: some View {
+        ZStack {
+            DiamondShape()
+                .fill(accent.opacity(0.18))
+            DiamondShape()
+                .stroke(accent.opacity(0.92), style: StrokeStyle(lineWidth: 2.1, lineJoin: .round))
+            Rectangle()
+                .fill(accent.opacity(0.92))
+                .frame(width: 4, height: 24)
+                .rotationEffect(.degrees(36))
+            Rectangle()
+                .fill(accent.opacity(0.62))
+                .frame(width: 2.5, height: 13)
+                .rotationEffect(.degrees(36))
+                .offset(x: -7, y: 5)
+        }
+    }
+}
+
+private struct NeonPanelShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let cut = min(rect.width, rect.height) * 0.18
+        path.move(to: CGPoint(x: rect.minX + cut, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - cut))
+        path.addLine(to: CGPoint(x: rect.maxX - cut, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.minY + cut))
+        path.closeSubpath()
+        return path
+    }
+}
+
+private struct SensorTrapShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX + rect.width * 0.05, y: rect.maxY - rect.height * 0.10))
+        path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.20, y: rect.minY + rect.height * 0.14))
+        path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.36, y: rect.midY))
+        path.addLine(to: CGPoint(x: rect.midX, y: rect.minY + rect.height * 0.08))
+        path.addLine(to: CGPoint(x: rect.maxX - rect.width * 0.36, y: rect.midY))
+        path.addLine(to: CGPoint(x: rect.maxX - rect.width * 0.20, y: rect.minY + rect.height * 0.14))
+        path.addLine(to: CGPoint(x: rect.maxX - rect.width * 0.05, y: rect.maxY - rect.height * 0.10))
+        path.addLine(to: CGPoint(x: rect.maxX - rect.width * 0.36, y: rect.maxY - rect.height * 0.04))
+        path.addLine(to: CGPoint(x: rect.midX, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.36, y: rect.maxY - rect.height * 0.04))
         path.closeSubpath()
         return path
     }
@@ -1463,16 +1595,38 @@ private struct BrokenCardMarker: View {
 
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 2, style: .continuous)
+            NeonPanelShape()
                 .fill(accent.opacity(0.10))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 2, style: .continuous)
-                        .stroke(accent, lineWidth: max(1.0, 2.0 * scale))
-                )
+                .frame(width: 20 * scale, height: 27 * scale)
+            NeonPanelShape()
+                .stroke(accent, style: StrokeStyle(lineWidth: max(1.0, 2.0 * scale), lineJoin: .round))
                 .frame(width: 20 * scale, height: 27 * scale)
             CrackShape()
                 .stroke(accent.opacity(0.82), style: StrokeStyle(lineWidth: max(1.0, 1.7 * scale), lineCap: .round, lineJoin: .round))
                 .frame(width: 14 * scale, height: 24 * scale)
+        }
+    }
+}
+
+private struct BrokenRelicMarker: View {
+    let accent: Color
+
+    var body: some View {
+        ZStack {
+            DiamondShape()
+                .fill(accent.opacity(0.12))
+                .overlay(
+                    DiamondShape()
+                        .stroke(accent.opacity(0.94), style: StrokeStyle(lineWidth: 2.2, lineJoin: .round))
+                )
+                .frame(width: 28, height: 28)
+            CrackShape()
+                .stroke(accent.opacity(0.88), style: StrokeStyle(lineWidth: 2.0, lineCap: .round, lineJoin: .round))
+                .frame(width: 16, height: 26)
+            Image(systemName: "sparkles")
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(accent.opacity(0.82))
+                .offset(x: 8, y: -8)
         }
     }
 }

@@ -111,6 +111,8 @@
                     return "毒罠"
                 case .illusionTrap:
                     return "幻惑罠"
+                case .relicBreakTrap:
+                    return "レリック破壊罠"
                 case .swamp:
                     return "沼"
                 case .preserveCard:

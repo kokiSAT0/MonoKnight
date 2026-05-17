@@ -53,6 +53,8 @@ final class GameViewModel: ObservableObject {
     var deferredProgressDuringMovementPresentation: GameProgress?
     /// 移動演出が終わってから反映する落下イベント
     var deferredDungeonFallEventDuringMovementPresentation: DungeonFallEvent?
+    /// 移動演出が終わってから反映する逆巻き復活イベント
+    var deferredDungeonRewindReviveEventDuringMovementPresentation: DungeonRewindReviveEvent?
     /// 移動後に保留された敵ターンが終わるまで結果表示を待つかどうか
     var isWaitingForEnemyTurnPresentationAfterMovement = false
     static let maximumDungeonInventoryVisibleSlotCount = 9
@@ -215,6 +217,14 @@ final class GameViewModel: ObservableObject {
     var dungeonCurseEntries: [DungeonCurseEntry] {
         core.dungeonCurseEntries
     }
+    /// レリック/呪い効果の計算だけに使う通常遺物一覧
+    var effectEnabledDungeonRelicEntries: [DungeonRelicEntry] {
+        core.areDungeonRelicAndCurseEffectsEnabled ? core.dungeonRelicEntries : []
+    }
+    /// レリック/呪い効果の計算だけに使う呪い遺物一覧
+    var effectEnabledDungeonCurseEntries: [DungeonCurseEntry] {
+        core.areDungeonRelicAndCurseEffectsEnabled ? core.dungeonCurseEntries : []
+    }
     var isDiagnosticShareAvailable: Bool {
         DebugLogHistory.shared.isFrontEndViewerEnabled
     }
@@ -262,28 +272,15 @@ final class GameViewModel: ObservableObject {
         )
         let baseRewardCount = (floor?.rewardMoveCardsAfterClear.count ?? 0)
             + (floor?.rewardSupportCardsAfterClear.count ?? 0)
-        let turnLimit = core.effectiveDungeonTurnLimit ?? Int.max
-        let isFastClearForRelic = core.moveCount * 2 <= turnLimit
-        let isSeventyPercentClear = core.moveCount * 10 <= turnLimit * 7
-        let relicRewardChoiceBonus =
-            (core.dungeonRelicEntries.contains { $0.relicID == .victoryBanner || $0.relicID == .royalCrown } ? 1 : 0) +
-            (core.dungeonRelicEntries.contains { $0.relicID == .scoutCompass } && isSeventyPercentClear ? 1 : 0) +
-            (core.dungeonRelicEntries.contains { $0.relicID == .trapperGloves && $0.remainingUses == 1 } ? 1 : 0)
-        let curseRewardChoiceBonus =
-            (core.dungeonCurseEntries.contains { $0.curseID == .crackedCompass } ? 1 : 0) +
-            (core.dungeonCurseEntries.contains { $0.curseID == .cloudedMirror } ? 1 : 0) +
-            (core.dungeonCurseEntries.contains { $0.curseID == .patrolBell } ? 1 : 0) +
-            (core.dungeonCurseEntries.contains { $0.curseID == .foolsMask } ? 1 : 0) +
-            (core.dungeonCurseEntries.contains { $0.curseID == .laughingDoor } ? 1 : 0) +
-            (core.dungeonCurseEntries.contains { $0.curseID == .upsideDownKey } && core.isDungeonExitUnlocked ? 1 : 0) +
-            (core.dungeonCurseEntries.contains { $0.curseID == .taxCollector } ? 1 : 0) +
-            (core.dungeonCurseEntries.contains { $0.curseID == .royalIou } ? 1 : 0) +
-            (core.dungeonCurseEntries.contains { $0.curseID == .firewalkingTalisman } && core.didStepOnLavaThisFloor ? 1 : 0)
+        let turnLimit = core.effectiveDungeonTurnLimit
+        let isFastClearForRelic = turnLimit.map { $0 > 0 && core.moveCount * 2 <= $0 } ?? false
+        let isSeventyPercentClear = turnLimit.map { $0 > 0 && core.moveCount * 10 <= $0 * 7 } ?? false
+        let defeatedEnemyCount = core.currentFloorDefeatedEnemyCount
         let curseRewardChoicePenalty =
-            (core.dungeonCurseEntries.contains { $0.curseID == .bottomlessPack } ? 1 : 0) +
-            (core.dungeonCurseEntries.contains { $0.curseID == .ashHeart } ? 1 : 0)
-        let rewardChoiceBonus = relicRewardChoiceBonus + curseRewardChoiceBonus - curseRewardChoicePenalty
-        let hasReducedRewardChoices = core.dungeonCurseEntries.contains {
+            (effectEnabledDungeonCurseEntries.contains { $0.curseID == .bottomlessPack } ? 1 : 0) +
+            (effectEnabledDungeonCurseEntries.contains { $0.curseID == .ashHeart } ? 1 : 0)
+        let rewardChoiceBonus = -curseRewardChoicePenalty
+        let hasReducedRewardChoices = effectEnabledDungeonCurseEntries.contains {
             $0.curseID == .bottomlessPack || $0.curseID == .ashHeart
         }
         let minimumRewardCount = hasReducedRewardChoices ? 2 : 1
@@ -293,10 +290,31 @@ final class GameViewModel: ObservableObject {
             : 0
         guard rewardCount > 0 else { return [] }
 
+        let supportCategoryBonusPoints =
+            (effectEnabledDungeonRelicEntries.contains { $0.relicID == .scoutCompass } && isSeventyPercentClear ? 5 : 0) +
+            (effectEnabledDungeonRelicEntries.contains { $0.relicID == .slayerPouch } ? defeatedEnemyCount * 3 : 0) +
+            (effectEnabledDungeonRelicEntries.contains { $0.relicID == .trapperGloves && $0.remainingUses == 1 } ? 5 : 0) +
+            (effectEnabledDungeonCurseEntries.contains { $0.curseID == .crackedCompass } ? 5 : 0) +
+            (effectEnabledDungeonCurseEntries.contains { $0.curseID == .cloudedMirror } ? 5 : 0) +
+            (effectEnabledDungeonCurseEntries.contains { $0.curseID == .patrolBell } ? 5 : 0) +
+            (effectEnabledDungeonCurseEntries.contains { $0.curseID == .foolsMask } ? 5 : 0) +
+            (effectEnabledDungeonCurseEntries.contains { $0.curseID == .laughingDoor } ? 5 : 0) +
+            (effectEnabledDungeonCurseEntries.contains { $0.curseID == .upsideDownKey } && core.isDungeonExitUnlocked ? 5 : 0) +
+            (effectEnabledDungeonCurseEntries.contains { $0.curseID == .taxCollector } ? 5 : 0) +
+            (effectEnabledDungeonCurseEntries.contains { $0.curseID == .royalIou } ? 10 : 0) +
+            (effectEnabledDungeonCurseEntries.contains { $0.curseID == .firewalkingTalisman } && core.didStepOnLavaThisFloor ? 10 : 0)
+        let relicCategoryBonusPoints =
+            (effectEnabledDungeonRelicEntries.contains { $0.relicID == .victoryBanner } ? 2 : 0) +
+            (effectEnabledDungeonRelicEntries.contains { $0.relicID == .royalCrown } ? 2 : 0) +
+            (effectEnabledDungeonRelicEntries.contains { $0.relicID == .hunterBanner } ? defeatedEnemyCount : 0) +
+            (effectEnabledDungeonRelicEntries.contains { $0.relicID == .gamblerCoin } && isFastClearForRelic ? 2 : 0) +
+            (effectEnabledDungeonCurseEntries.contains { $0.curseID == .relicHunterBrand } && isFastClearForRelic ? 5 : 0)
         let tuning = DungeonRewardDrawTuning(
             clearMoveCount: core.moveCount,
-            turnLimit: core.effectiveDungeonTurnLimit,
-            suppressRelicQualityBonus: core.dungeonCurseEntries.contains { $0.curseID == .cloudedMirror }
+            turnLimit: turnLimit,
+            suppressRelicQualityBonus: effectEnabledDungeonCurseEntries.contains { $0.curseID == .cloudedMirror },
+            supportCategoryBonusPoints: supportCategoryBonusPoints,
+            relicCategoryBonusPoints: relicCategoryBonusPoints
         )
         let ownedRelics = Set(core.dungeonRelicEntries.map(\.relicID))
         let baseOffers: [DungeonRewardOffer]
@@ -327,7 +345,7 @@ final class GameViewModel: ObservableObject {
             baseOffers = ((floor?.rewardMoveCardsAfterClear ?? []).map { DungeonRewardOffer.playable(.move($0)) })
                 + ((floor?.rewardSupportCardsAfterClear ?? []).map { DungeonRewardOffer.playable(.support($0)) })
         }
-        var offers = dungeonGrowthStore.rewardOffers(
+        let offers = dungeonGrowthStore.rewardOffers(
             for: baseOffers,
             dungeon: dungeon,
             floorIndex: runState.currentFloorIndex,
@@ -337,16 +355,6 @@ final class GameViewModel: ObservableObject {
             minimumChoiceCount: rewardCount,
             movementStyle: runState.movementStyle
         )
-        let shouldAddFastRelicOffer =
-            core.dungeonRelicEntries.contains { $0.relicID == .gamblerCoin }
-            || core.dungeonCurseEntries.contains { $0.curseID == .relicHunterBrand }
-        if shouldAddFastRelicOffer,
-           isFastClearForRelic,
-           let relicCandidate = DungeonRelicID.allCases.first(where: {
-               !ownedRelics.contains($0) && !offers.contains(DungeonRewardOffer.relic($0))
-           }) {
-            appendDungeonRewardOffer(DungeonRewardOffer.relic(relicCandidate), to: &offers, choiceCount: rewardCount)
-        }
         return Array(offers.prefix(rewardCount))
     }
     /// 現在フロアのクリア後に選べる報酬カードを、移動/補助を同じ3択枠として返す
@@ -377,8 +385,8 @@ final class GameViewModel: ObservableObject {
         else { return 2 }
         return DungeonRunState.adjustedMoveRewardBaseUses(
             dungeonGrowthStore.rewardAddUses(for: dungeon),
-            relicEntries: core.dungeonRelicEntries,
-            curseEntries: core.dungeonCurseEntries
+            relicEntries: effectEnabledDungeonRelicEntries,
+            curseEntries: effectEnabledDungeonCurseEntries
         )
     }
 
@@ -389,8 +397,8 @@ final class GameViewModel: ObservableObject {
                 DungeonRunState.adjustedRewardAddUses(
                     dungeonRewardAddUses,
                     for: card,
-                    relicEntries: core.dungeonRelicEntries,
-                    curseEntries: core.dungeonCurseEntries,
+                    relicEntries: effectEnabledDungeonRelicEntries,
+                    curseEntries: effectEnabledDungeonCurseEntries,
                     isExistingRewardCard: core.dungeonInventoryEntries.contains {
                         $0.moveCard == card && $0.hasUsesRemaining
                     }
@@ -402,8 +410,8 @@ final class GameViewModel: ObservableObject {
     var dungeonSupportRewardAddUses: Int {
         DungeonRunState.adjustedSupportRewardUses(
             DungeonRunState.rewardUses(for: .refillEmptySlots),
-            relicEntries: core.dungeonRelicEntries,
-            curseEntries: core.dungeonCurseEntries
+            relicEntries: effectEnabledDungeonRelicEntries,
+            curseEntries: effectEnabledDungeonCurseEntries
         )
     }
     /// クリア後に整理できる手札の報酬カード
@@ -677,18 +685,6 @@ final class GameViewModel: ObservableObject {
             handSize: core.mode.handSize,
             stackingRuleDetailText: core.mode.stackingRuleDetailText
         )
-    }
-
-    private func appendDungeonRewardOffer(
-        _ offer: DungeonRewardOffer,
-        to offers: inout [DungeonRewardOffer],
-        choiceCount: Int
-    ) {
-        guard !offers.contains(offer), choiceCount > 0 else { return }
-        if offers.count >= choiceCount {
-            offers.removeLast()
-        }
-        offers.append(offer)
     }
 
 }

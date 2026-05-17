@@ -8,6 +8,8 @@ public struct GameScenePalette {
     public let boardBackground: SKColor
     /// グリッド線の色
     public let boardGridLine: SKColor
+    /// ネオングリッドテーマとしてハイライトや特殊マスの発光調整を行うか
+    public let isNeonGridTheme: Bool
     /// ネオングリッドテーマで床に薄く重ねるARパネル角の色
     public let boardStarChartLine: SKColor
     /// ネオングリッドテーマでは通常使わない盤面鋲の色
@@ -113,6 +115,7 @@ public struct GameScenePalette {
     public init(
         boardBackground: SKColor,
         boardGridLine: SKColor,
+        isNeonGridTheme: Bool = false,
         boardStarChartLine: SKColor = .clear,
         boardStarChartNode: SKColor = .clear,
         boardConstellationLine: SKColor = .clear,
@@ -163,6 +166,7 @@ public struct GameScenePalette {
     ) {
         self.boardBackground = boardBackground
         self.boardGridLine = boardGridLine
+        self.isNeonGridTheme = isNeonGridTheme
         self.boardStarChartLine = boardStarChartLine
         self.boardStarChartNode = boardStarChartNode
         self.boardConstellationLine = boardConstellationLine

@@ -53,6 +53,10 @@ extension GameViewModel {
         }
     }
 
+    func updateDungeonRelicAndCurseEffects(enabled: Bool) {
+        core.updateDungeonRelicAndCurseEffects(enabled: enabled)
+    }
+
     func applyScenePalette(
         for scheme: ColorScheme,
         visualStyle: AppThemeVisualStyle = .classic
@@ -122,6 +126,7 @@ extension GameViewModel {
         hapticsEnabled: Bool,
         visualStyle: AppThemeVisualStyle = .classic,
         handOrderingStrategy: HandOrderingStrategy,
+        areDungeonRelicAndCurseEffectsEnabled: Bool = true,
         isPreparationOverlayVisible: Bool
     ) {
         appearanceSettingsCoordinator.prepareForAppear(
@@ -139,6 +144,10 @@ extension GameViewModel {
             updateHapticsSetting: { [weak self] isEnabled in
                 self?.updateHapticsSetting(isEnabled: isEnabled)
             },
+            updateDungeonRelicAndCurseEffects: { [weak self] isEnabled in
+                self?.updateDungeonRelicAndCurseEffects(enabled: isEnabled)
+            },
+            areDungeonRelicAndCurseEffectsEnabled: areDungeonRelicAndCurseEffectsEnabled,
             updateDisplayedElapsedTime: { [weak self] in
                 self?.updateDisplayedElapsedTime()
             },
@@ -189,7 +198,7 @@ extension GameViewModel {
             }
             for enemy in rules.enemies {
                 ids.insert(enemy.behavior.presentationKind.encyclopediaDiscoveryID)
-                if enemy.behavior.presentationKind == .marker {
+                if enemy.behavior.presentationKind == .marker || enemy.behavior.presentationKind == .starReader {
                     ids.insert(tileDiscoveryID("enemyWarning"))
                 }
                 ids.insert(tileDiscoveryID("enemyDanger"))
@@ -288,6 +297,8 @@ extension GameViewModel {
             return tileDiscoveryID("poisonTrap")
         case .illusionTrap:
             return tileDiscoveryID("illusionTrap")
+        case .relicBreakTrap:
+            return tileDiscoveryID("relicBreakTrap")
         case .swamp:
             return tileDiscoveryID("swamp")
         case .preserveCard:

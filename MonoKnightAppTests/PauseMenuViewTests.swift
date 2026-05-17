@@ -32,6 +32,7 @@ final class PauseMenuViewTests: XCTestCase {
         XCTAssertEqual(PauseMenuAccessibilityIdentifier.reportIssueButton, "pause_report_issue_button")
         XCTAssertEqual(PauseMenuAccessibilityIdentifier.returnToTitleButton, "pause_return_to_title_button")
         XCTAssertEqual(PauseMenuAccessibilityIdentifier.settingsDisclosure, "pause_settings_disclosure")
+        XCTAssertEqual(PauseMenuAccessibilityIdentifier.relicEffectsToggle, "pause_relic_effects_toggle")
     }
 
     func testPauseMenuLaysOutOnNarrowWidth() {

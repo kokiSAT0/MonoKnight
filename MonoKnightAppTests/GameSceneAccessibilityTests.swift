@@ -37,6 +37,7 @@ final class GameSceneAccessibilityTests: XCTestCase {
         GameScenePalette(
             boardBackground: theme.skBoardBackground,
             boardGridLine: theme.skBoardGridLine,
+            isNeonGridTheme: theme.visualStyle == .starChartSurveyTower,
             boardStarChartLine: theme.skBoardStarChartLine,
             boardStarChartNode: theme.skBoardStarChartNode,
             boardConstellationLine: theme.skBoardConstellationLine,
@@ -124,9 +125,9 @@ final class GameSceneAccessibilityTests: XCTestCase {
         XCTAssertEqual(scene.stoneFloorTextureCountForTesting(), boardSize * boardSize)
     }
 
-    /// ネオングリッドテーマでは通常床のARパネルだけを重ね、意味ありそうな盤面全体装飾を出さないことを確認する
+    /// ネオングリッドテーマでは通常床を塗りとグリッド中心に留め、意味ありそうな盤面全体装飾を出さないことを確認する
     func testStarChartSurveyTowerThemeAddsSurveyTexture() {
-        let (scene, view, boardSize) = makeScene()
+        let (scene, view, _) = makeScene()
         defer { view.presentScene(nil) }
 
         XCTAssertEqual(scene.starChartTextureCountForTesting(), 0)
@@ -140,8 +141,8 @@ final class GameSceneAccessibilityTests: XCTestCase {
         XCTAssertEqual(scene.astralCoreNodeCountForTesting(), 0)
         XCTAssertEqual(scene.surveyCompassRingCountForTesting(), 0)
         scene.applyTheme(Self.gameScenePalette(for: AppTheme(colorScheme: .dark, visualStyle: .starChartSurveyTower)))
-        XCTAssertEqual(scene.starChartTextureCountForTesting(), boardSize * boardSize, "ネオングリッドテーマでは通常床にARパネル角を重ねます")
-        XCTAssertEqual(scene.glassTileHighlightCountForTesting(), boardSize * boardSize, "ネオングリッドテーマでは通常床に薄いAR面差を重ねます")
+        XCTAssertEqual(scene.starChartTextureCountForTesting(), 0, "ネオングリッドテーマでは通常床に移動ガイド枠と競合するARパネル角を重ねません")
+        XCTAssertEqual(scene.glassTileHighlightCountForTesting(), 0, "ネオングリッドテーマでは通常床に左上光沢のようなAR面差を重ねません")
         XCTAssertEqual(scene.tileInnerGlowCountForTesting(), 0, "ネオングリッドテーマでは通常床に移動ガイド枠と競合する内側四角枠を出しません")
         XCTAssertEqual(scene.cosmicBackgroundNodeCountForTesting(), 0, "ネオングリッドテーマでは宇宙背景レイヤーを生成しません")
         XCTAssertEqual(scene.distantStarNodeCountForTesting(), 0, "ネオングリッドテーマでは遠景星粒を生成しません")
@@ -347,6 +348,8 @@ final class GameSceneAccessibilityTests: XCTestCase {
         let keyPoint = GridPoint(x: 3, y: 2)
         let crackedFloorPoint = GridPoint(x: 3, y: 1)
         let collapsedFloorPoint = GridPoint(x: 4, y: 1)
+        let relicPoint = GridPoint(x: 4, y: 2)
+        let suspiciousRelicPoint = GridPoint(x: 0, y: 2)
         let (scene, view, _) = makeScene()
         defer { view.presentScene(nil) }
 
@@ -358,6 +361,8 @@ final class GameSceneAccessibilityTests: XCTestCase {
             .dungeonKey: [keyPoint],
             .dungeonCrackedFloor: [crackedFloorPoint],
             .dungeonCollapsedFloor: [collapsedFloorPoint],
+            .dungeonRelicPickup: [relicPoint],
+            .dungeonSuspiciousRelicPickup: [suspiciousRelicPoint],
         ])
 
         guard let basicMoveStyle = scene.highlightStyleForTesting(
@@ -395,6 +400,16 @@ final class GameSceneAccessibilityTests: XCTestCase {
             XCTFail("ダメージ罠のマーカーノードを取得できません")
             return
         }
+        guard let relicStyle = scene.highlightStyleForTesting(
+            kind: .dungeonRelicPickup,
+            at: relicPoint
+        ), let suspiciousRelicStyle = scene.highlightStyleForTesting(
+            kind: .dungeonSuspiciousRelicPickup,
+            at: suspiciousRelicPoint
+        ) else {
+            XCTFail("宝箱マーカーのノードを取得できません")
+            return
+        }
         guard let keyStyle = scene.highlightStyleForTesting(
             kind: .dungeonKey,
             at: keyPoint
@@ -418,15 +433,27 @@ final class GameSceneAccessibilityTests: XCTestCase {
         ), let damageTrapBounds = scene.highlightPathBoundsForTesting(
             kind: .dungeonDamageTrap,
             at: damageTrapPoint
+        ), let relicBounds = scene.highlightPathBoundsForTesting(
+            kind: .dungeonRelicPickup,
+            at: relicPoint
+        ), let suspiciousRelicBounds = scene.highlightPathBoundsForTesting(
+            kind: .dungeonSuspiciousRelicPickup,
+            at: suspiciousRelicPoint
         ) else {
-            XCTFail("基本移動、カード移動、ダメージ罠のマーカーサイズを取得できません")
+            XCTFail("基本移動、カード移動、拾得物、ダメージ罠のマーカーサイズを取得できません")
             return
         }
         guard let damageTrapElementCount = scene.highlightPathElementCountForTesting(
             kind: .dungeonDamageTrap,
             at: damageTrapPoint
+        ), let relicElementCount = scene.highlightPathElementCountForTesting(
+            kind: .dungeonRelicPickup,
+            at: relicPoint
+        ), let suspiciousRelicElementCount = scene.highlightPathElementCountForTesting(
+            kind: .dungeonSuspiciousRelicPickup,
+            at: suspiciousRelicPoint
         ) else {
-            XCTFail("ダメージ罠のマーカーパスを取得できません")
+            XCTFail("宝箱/ダメージ罠のマーカーパスを取得できません")
             return
         }
 
@@ -438,6 +465,12 @@ final class GameSceneAccessibilityTests: XCTestCase {
         XCTAssertTrue(basicMoveStyle.fillColor.isClearForTesting, "基本移動枠自体は塗りを持たない想定です")
         XCTAssertEqual(cardPickupStyle.lineWidth, 0, "床落ちカードは移動可能枠ではなく、枠なしの小マーカーで示します")
         XCTAssertFalse(cardPickupStyle.fillColor.isEqual(SKColor.clear), "床落ちカードは枠なしでも視認できる塗りを持ちます")
+        XCTAssertGreaterThan(relicStyle.lineWidth, 0, "宝箱は発光アウトラインを持つ補給コンテナとして示します")
+        XCTAssertFalse(relicStyle.fillColor.isEqual(SKColor.clear), "宝箱は取得前に見える塗りを持ちます")
+        XCTAssertGreaterThan(relicBounds.width, cardMoveBounds.width * 0.45, "宝箱は小さな点ではなく横長の補給コンテナとして示します")
+        XCTAssertGreaterThan(suspiciousRelicStyle.lineWidth, relicStyle.lineWidth, "怪しい宝箱は通常宝箱より強い警告アウトラインを持ちます")
+        XCTAssertGreaterThan(suspiciousRelicElementCount, relicElementCount, "怪しい宝箱は通常宝箱に警告差分を追加した別形状にします")
+        XCTAssertEqual(suspiciousRelicBounds.width, relicBounds.width, accuracy: cardMoveBounds.width * 0.15, "怪しい宝箱は通常宝箱と同系統の大きさを保ちます")
         XCTAssertEqual(damageTrapStyle.lineWidth, 0, "ダメージ罠は移動可能枠ではないためタイル枠を持ちません")
         XCTAssertFalse(damageTrapStyle.fillColor.isEqual(SKColor.clear), "ダメージ罠は踏む前に見える塗りを持ちます")
         XCTAssertGreaterThan(damageTrapBounds.width, cardMoveBounds.width * 0.45, "ダメージ罠は小さな点ではなく横幅のある棘マーカーで示します")
@@ -652,6 +685,81 @@ final class GameSceneAccessibilityTests: XCTestCase {
         )
         XCTAssertEqual(scene.patrolMovementArrowCountForTesting(), 0, "回転見張りの回転方向は敵アイコン内に持たせ、黄色い別矢印は作りません")
     }
+
+    func testDungeonEnemyMarkerColorUsesDamageWhileKeepingShapeKind() {
+        let (scene, view, _) = makeScene()
+        defer { view.presentScene(nil) }
+
+        scene.updateDungeonEnemyMarkers([
+            SceneDungeonEnemyMarker(
+                enemyID: "damage-one",
+                point: GridPoint(x: 1, y: 1),
+                kind: .patrol,
+                damage: 1
+            ),
+            SceneDungeonEnemyMarker(
+                enemyID: "damage-two",
+                point: GridPoint(x: 2, y: 1),
+                kind: .patrol,
+                damage: 2
+            ),
+            SceneDungeonEnemyMarker(
+                enemyID: "damage-three",
+                point: GridPoint(x: 3, y: 1),
+                kind: .patrol,
+                damage: 3
+            )
+        ])
+
+        let markers = scene.latestDungeonEnemyMarkersForTesting()
+        XCTAssertEqual(markers.map(\.kind), [.patrol, .patrol, .patrol])
+        XCTAssertEqual(markers.map(\.damage), [1, 2, 3])
+
+        let damageOneStyle = scene.dungeonEnemyMarkerStyleForTesting(enemyID: "damage-one")
+        let damageTwoStyle = scene.dungeonEnemyMarkerStyleForTesting(enemyID: "damage-two")
+        let damageThreeStyle = scene.dungeonEnemyMarkerStyleForTesting(enemyID: "damage-three")
+
+        XCTAssertNotNil(damageOneStyle)
+        XCTAssertNotNil(damageTwoStyle)
+        XCTAssertNotNil(damageThreeStyle)
+        XCTAssertFalse(damageTwoStyle?.strokeColor.matchesComponents(of: damageOneStyle?.strokeColor ?? .clear) ?? true)
+        XCTAssertFalse(damageThreeStyle?.strokeColor.matchesComponents(of: damageTwoStyle?.strokeColor ?? .clear) ?? true)
+        XCTAssertTrue(damageThreeStyle?.strokeColor.isStrongerEnemyRedForTesting == true)
+    }
+
+    func testStrongerHazardMarkersUseColorOnlyAndKeepShape() throws {
+        let trapPoint = GridPoint(x: 1, y: 1)
+        let strongTrapPoint = GridPoint(x: 2, y: 1)
+        let lavaPoint = GridPoint(x: 1, y: 2)
+        let strongLavaPoint = GridPoint(x: 2, y: 2)
+        let (scene, view, _) = makeScene()
+        defer { view.presentScene(nil) }
+
+        scene.updateHighlights([
+            .dungeonDamageTrap: [trapPoint],
+            .dungeonStrongDamageTrap: [strongTrapPoint],
+            .dungeonLavaTile: [lavaPoint],
+            .dungeonStrongLavaTile: [strongLavaPoint],
+        ])
+
+        let trapStyle = try XCTUnwrap(scene.highlightStyleForTesting(kind: .dungeonDamageTrap, at: trapPoint))
+        let strongTrapStyle = try XCTUnwrap(scene.highlightStyleForTesting(kind: .dungeonStrongDamageTrap, at: strongTrapPoint))
+        let lavaStyle = try XCTUnwrap(scene.highlightStyleForTesting(kind: .dungeonLavaTile, at: lavaPoint))
+        let strongLavaStyle = try XCTUnwrap(scene.highlightStyleForTesting(kind: .dungeonStrongLavaTile, at: strongLavaPoint))
+
+        XCTAssertGreaterThan(strongTrapStyle.glowWidth, trapStyle.glowWidth)
+        XCTAssertGreaterThan(strongLavaStyle.lineWidth, lavaStyle.lineWidth)
+        XCTAssertGreaterThan(strongLavaStyle.glowWidth, lavaStyle.glowWidth)
+
+        XCTAssertEqual(
+            scene.highlightPathElementCountForTesting(kind: .dungeonDamageTrap, at: trapPoint),
+            scene.highlightPathElementCountForTesting(kind: .dungeonStrongDamageTrap, at: strongTrapPoint)
+        )
+        XCTAssertEqual(
+            scene.highlightPathElementCountForTesting(kind: .dungeonLavaTile, at: lavaPoint),
+            scene.highlightPathElementCountForTesting(kind: .dungeonStrongLavaTile, at: strongLavaPoint)
+        )
+    }
 }
 
 private extension SKColor {
@@ -688,6 +796,15 @@ private extension SKColor {
         var alpha: CGFloat = 0
         guard getRed(&red, green: &green, blue: &blue, alpha: &alpha) else { return false }
         return red >= 0.85 && green >= 0.65 && blue <= 0.35 && alpha >= 0.75
+    }
+
+    var isStrongerEnemyRedForTesting: Bool {
+        var red: CGFloat = 0
+        var green: CGFloat = 0
+        var blue: CGFloat = 0
+        var alpha: CGFloat = 0
+        guard getRed(&red, green: &green, blue: &blue, alpha: &alpha) else { return false }
+        return red >= 0.85 && green <= 0.20 && blue <= 0.35 && alpha >= 0.90
     }
 
     var alphaComponentForTesting: CGFloat {

@@ -54,6 +54,18 @@ extension GameViewModel {
             }
             .store(in: &cancellables)
 
+        core.$dungeonRewindReviveEvent
+            .receive(on: RunLoop.main)
+            .sink { [weak self] event in
+                guard let event else { return }
+                guard self?.isMovementPresentationActive != true else {
+                    self?.deferredDungeonRewindReviveEventDuringMovementPresentation = event
+                    return
+                }
+                self?.handleDungeonRewindReviveEvent(event)
+            }
+            .store(in: &cancellables)
+
         core.$dungeonEnemyTurnEvent
             .compactMap { $0 }
             .receive(on: RunLoop.main)
@@ -277,6 +289,7 @@ extension GameViewModel {
         isMovementPresentationActive = true
         deferredProgressDuringMovementPresentation = nil
         deferredDungeonFallEventDuringMovementPresentation = nil
+        deferredDungeonRewindReviveEventDuringMovementPresentation = nil
         movementPresentationDungeonHP = resolution.presentationInitialHP ?? core.dungeonHP
         if let initialHandStacks = resolution.presentationInitialHandStacks {
             updateDisplayedHandStacks(
@@ -345,6 +358,10 @@ extension GameViewModel {
         if let deferredFall = deferredDungeonFallEventDuringMovementPresentation {
             deferredDungeonFallEventDuringMovementPresentation = nil
             handleDungeonFallEvent(deferredFall)
+        }
+        if let deferredRevive = deferredDungeonRewindReviveEventDuringMovementPresentation {
+            deferredDungeonRewindReviveEventDuringMovementPresentation = nil
+            handleDungeonRewindReviveEvent(deferredRevive)
         }
         if let deferredProgress = deferredProgressDuringMovementPresentation {
             deferredProgressDuringMovementPresentation = nil

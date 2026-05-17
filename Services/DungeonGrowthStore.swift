@@ -679,7 +679,7 @@ final class DungeonGrowthStore: ObservableObject {
         }
 
         if floorIndex >= 20, isActive(.relicScout),
-           let relicCandidate = DungeonRelicID.allCases
+           let relicCandidate = DungeonRelicID.newAcquisitionCases
             .first(where: { !ownedRelics.contains($0) && !result.contains(.relic($0)) }) {
             appendRewardCandidate(.relic(relicCandidate), to: &result, choiceCount: choiceCount)
         }
@@ -1099,7 +1099,7 @@ private struct DungeonGrowthPreparationFacts {
         hasStatusFloor = floors.contains { floor in
             floor.tileEffectOverrides.values.contains { effect in
                 switch effect {
-                case .poisonTrap, .illusionTrap, .shackleTrap, .swamp:
+                case .poisonTrap, .illusionTrap, .shackleTrap, .swamp, .relicBreakTrap:
                     return true
                 case .warp, .returnWarp, .shuffleHand, .blast, .slow, .preserveCard,
                      .discardRandomHand, .discardAllMoveCards, .discardAllSupportCards, .discardAllHands:

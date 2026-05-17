@@ -345,11 +345,21 @@ public extension MoveCard {
 }
 
 public extension TileEffect {
+    var isBlockedByFlySpell: Bool {
+        switch self {
+        case .blast, .slow, .shackleTrap, .poisonTrap, .illusionTrap, .relicBreakTrap,
+             .discardRandomHand, .discardAllMoveCards, .discardAllSupportCards, .discardAllHands, .swamp:
+            return true
+        case .warp, .returnWarp, .shuffleHand, .preserveCard:
+            return false
+        }
+    }
+
     var stopsMovementCard: Bool {
         switch self {
         case .slow, .shackleTrap, .swamp:
             return true
-        case .warp, .returnWarp, .shuffleHand, .blast, .poisonTrap, .illusionTrap, .preserveCard, .discardRandomHand, .discardAllMoveCards, .discardAllSupportCards, .discardAllHands:
+        case .warp, .returnWarp, .shuffleHand, .blast, .poisonTrap, .illusionTrap, .relicBreakTrap, .preserveCard, .discardRandomHand, .discardAllMoveCards, .discardAllSupportCards, .discardAllHands:
             return false
         }
     }

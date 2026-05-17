@@ -170,6 +170,129 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertEqual(core.moveCount, 1)
     }
 
+    func testFlySpellSuppressesDangerFloorHazardsForCurrentFloor() {
+        let damageTrap = GridPoint(x: 1, y: 0)
+        let lava = GridPoint(x: 2, y: 0)
+        let brittle = GridPoint(x: 3, y: 0)
+        let poison = GridPoint(x: 3, y: 1)
+        let discard = GridPoint(x: 3, y: 2)
+        let swamp = GridPoint(x: 3, y: 3)
+        let mode = flySpellTestMode(
+            initialHP: 4,
+            hazards: [
+                .damageTrap(points: [damageTrap], damage: 1),
+                .lavaTile(points: [lava], damage: 1),
+                .brittleFloor(points: [brittle], initialState: .hiddenWeak)
+            ],
+            tileEffectOverrides: [
+                poison: .poisonTrap,
+                discard: .discardAllHands,
+                swamp: .swamp
+            ]
+        )
+        let core = GameCore.makeTestInstance(
+            deck: flySpellTestDeck(),
+            current: GridPoint(x: 0, y: 0),
+            mode: mode
+        )
+        let supportIndex = core.handStacks.firstIndex { $0.topCard?.supportCard == .flySpell }!
+
+        XCTAssertTrue(core.isSupportCardUsable(in: core.handStacks[supportIndex]))
+        core.playSupportCard(at: supportIndex)
+
+        XCTAssertTrue(core.isFlySpellActive)
+        XCTAssertEqual(core.moveCount, 1)
+
+        playBasicMove(to: damageTrap, in: core)
+        playBasicMove(to: lava, in: core)
+        playBasicMove(to: brittle, in: core)
+        playBasicMove(to: poison, in: core)
+        let handCountBeforeDiscard = core.handStacks.count
+        playBasicMove(to: discard, in: core)
+        playBasicMove(to: swamp, in: core)
+
+        XCTAssertEqual(core.dungeonHP, 4)
+        XCTAssertFalse(core.didStepOnLavaThisFloor)
+        XCTAssertTrue(core.crackedFloorPoints.contains(brittle))
+        XCTAssertFalse(core.collapsedFloorPoints.contains(brittle))
+        XCTAssertEqual(core.poisonDamageTicksRemaining, 0)
+        XCTAssertEqual(core.handStacks.count, handCountBeforeDiscard)
+        XCTAssertFalse(core.availableBasicOrthogonalMoves().isEmpty, "フライ中の沼は移動を止めない想定です")
+        XCTAssertNil(core.dungeonFallEvent)
+    }
+
+    func testFlySpellKeepsHelpfulAndRoutingTilesActive() {
+        let healingAndKey = GridPoint(x: 1, y: 0)
+        let pickupPoint = GridPoint(x: 2, y: 0)
+        let warpPoint = GridPoint(x: 3, y: 0)
+        let warpDestination = GridPoint(x: 4, y: 1)
+        let pickup = DungeonCardPickupDefinition(
+            id: "fly-spell-pickup",
+            point: pickupPoint,
+            card: .straightRight2
+        )
+        let mode = flySpellTestMode(
+            initialHP: 2,
+            hazards: [
+                .damageTrap(points: [GridPoint(x: 4, y: 0)], damage: 1),
+                .healingTile(points: [healingAndKey], amount: 1)
+            ],
+            tileEffectOverrides: [
+                warpPoint: .returnWarp(destination: warpDestination)
+            ],
+            exitLock: DungeonExitLock(unlockPoint: healingAndKey),
+            cardPickups: [pickup]
+        )
+        let core = GameCore.makeTestInstance(
+            deck: flySpellTestDeck(),
+            current: GridPoint(x: 0, y: 0),
+            mode: mode
+        )
+        let supportIndex = core.handStacks.firstIndex { $0.topCard?.supportCard == .flySpell }!
+
+        core.playSupportCard(at: supportIndex)
+        playBasicMove(to: healingAndKey, in: core)
+        playBasicMove(to: pickupPoint, in: core)
+        playBasicMove(to: warpPoint, in: core)
+
+        XCTAssertEqual(core.dungeonHP, 3)
+        XCTAssertTrue(core.isDungeonExitUnlocked)
+        XCTAssertTrue(core.collectedDungeonCardPickupIDs.contains(pickup.id))
+        XCTAssertEqual(core.current, warpDestination)
+    }
+
+    func testFlySpellPersistsInResumeSnapshotAndClearsOnReset() throws {
+        let mode = flySpellTestMode(
+            hazards: [.damageTrap(points: [GridPoint(x: 1, y: 0)], damage: 1)],
+            dungeonMetadata: GameMode.DungeonMetadata(
+                dungeonID: "fly-spell-resume",
+                floorID: "fly-spell-resume-floor",
+                runState: DungeonRunState(dungeonID: "fly-spell-resume", carriedHP: 3)
+            )
+        )
+        let core = GameCore.makeTestInstance(
+            deck: flySpellTestDeck(),
+            current: GridPoint(x: 0, y: 0),
+            mode: mode
+        )
+        let supportIndex = core.handStacks.firstIndex { $0.topCard?.supportCard == .flySpell }!
+        core.playSupportCard(at: supportIndex)
+
+        let snapshot = try XCTUnwrap(core.makeDungeonResumeSnapshot())
+        let restoredCore = GameCore.makeTestInstance(
+            deck: flySpellTestDeck(),
+            current: GridPoint(x: 0, y: 0),
+            mode: mode
+        )
+
+        XCTAssertTrue(restoredCore.restoreDungeonResumeSnapshot(snapshot))
+        XCTAssertTrue(restoredCore.isFlySpellActive)
+
+        restoredCore.reset(startNewGame: false)
+
+        XCTAssertFalse(restoredCore.isFlySpellActive)
+    }
+
     func testSingleAnnihilationSpellHighlightsEnemyTargetsBeforeCasting() {
         let deck = Deck.makeTestDeck(playableCards: [
             .support(.singleAnnihilationSpell),
@@ -1171,10 +1294,10 @@ final class GameViewModelTests: XCTestCase {
         )
         let (viewModel, _) = makeViewModel(mode: mode)
 
-        XCTAssertEqual(viewModel.dungeonRewardAddUses, 1)
+        XCTAssertEqual(viewModel.dungeonRewardAddUses, 2)
     }
 
-    func testDungeonRewardOffersCanExpandToFourWithRelicAndCurseModifiers() throws {
+    func testRewardQualityRelicsAndCursesDoNotExpandRewardChoices() throws {
         let mode = GameMode(
             identifier: .dungeonFloor,
             displayName: "報酬候補数テスト",
@@ -1212,11 +1335,11 @@ final class GameViewModelTests: XCTestCase {
         )
         let (viewModel, _) = makeViewModel(mode: mode)
 
-        XCTAssertEqual(viewModel.availableDungeonRewardOffers.count, 4)
+        XCTAssertEqual(viewModel.availableDungeonRewardOffers.count, 3)
         XCTAssertFalse(viewModel.availableDungeonRewardOffers.contains(.relic(.victoryBanner)))
     }
 
-    func testFirewalkingTalismanExpandsRewardChoicesOnlyAfterSteppingOnLava() throws {
+    func testFirewalkingTalismanDoesNotExpandRewardChoicesAfterSteppingOnLava() throws {
         let lavaPoint = GridPoint(x: 1, y: 0)
         let mode = GameMode(
             identifier: .dungeonFloor,
@@ -1262,10 +1385,10 @@ final class GameViewModelTests: XCTestCase {
         core.playBasicOrthogonalMove(using: lavaMove)
 
         XCTAssertTrue(core.didStepOnLavaThisFloor)
-        XCTAssertEqual(viewModel.availableDungeonRewardOffers.count, 4)
+        XCTAssertEqual(viewModel.availableDungeonRewardOffers.count, 3)
     }
 
-    func testGamblerCoinAddsRelicOfferWithoutExpandingChoiceCount() throws {
+    func testGamblerCoinDoesNotForceAdditionalRelicOffer() throws {
         let dungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
         let runState = DungeonRunState(
             dungeonID: dungeon.id,
@@ -1300,7 +1423,6 @@ final class GameViewModelTests: XCTestCase {
         let gamblerOffers = gamblerViewModel.availableDungeonRewardOffers
 
         XCTAssertEqual(gamblerOffers.count, baseOffers.count)
-        XCTAssertTrue(gamblerOffers.contains { $0.relic != nil })
     }
 
     func testBuildChangingCursesReduceRewardChoicesWithTwoChoiceFloor() throws {
@@ -1326,7 +1448,7 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.availableDungeonRewardOffers.count, 2)
     }
 
-    func testRelicHunterBrandAddsRelicOfferWithoutExpandingChoiceCount() throws {
+    func testRelicHunterBrandDoesNotForceAdditionalRelicOffer() throws {
         let dungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
         let baseRunState = DungeonRunState(
             dungeonID: dungeon.id,
@@ -1362,7 +1484,6 @@ final class GameViewModelTests: XCTestCase {
         let curseOffers = curseViewModel.availableDungeonRewardOffers
 
         XCTAssertEqual(curseOffers.count, baseOffers.count)
-        XCTAssertTrue(curseOffers.contains { $0.relic != nil })
     }
 
     func testPendingDungeonPickupDiscardNewCardResolvesThroughViewModel() throws {
@@ -3386,6 +3507,59 @@ final class GameViewModelTests: XCTestCase {
                     enemies: enemies
                 )
             )
+        )
+    }
+
+    private func flySpellTestDeck() -> Deck {
+        Deck.makeTestDeck(playableCards: [
+            .support(.flySpell),
+            .move(.straightRight2),
+            .move(.straightDown2)
+        ], configuration: Deck.Configuration(
+            allowedMoves: [.straightRight2, .straightDown2],
+            allowedSupportCards: [.flySpell],
+            weightProfile: Deck.WeightProfile(defaultWeight: 1),
+            deckSummaryText: "フライの呪文テスト用構成"
+        ))
+    }
+
+    private func flySpellTestMode(
+        initialHP: Int = 3,
+        hazards: [HazardDefinition],
+        tileEffectOverrides: [GridPoint: TileEffect] = [:],
+        exitLock: DungeonExitLock? = nil,
+        cardPickups: [DungeonCardPickupDefinition] = [],
+        dungeonMetadata: GameMode.DungeonMetadata? = nil
+    ) -> GameMode {
+        GameMode(
+            identifier: .dungeonFloor,
+            displayName: "フライの呪文テスト用塔モード",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 0,
+                allowsStacking: true,
+                deckPreset: .standardLight,
+                spawnRule: .fixed(GridPoint(x: 0, y: 0)),
+                penalties: GameMode.PenaltySettings(
+                    deadlockPenaltyCost: 0,
+                    manualRedrawPenaltyCost: 0,
+                    manualDiscardPenaltyCost: 0,
+                    revisitPenaltyCost: 0
+                ),
+                tileEffectOverrides: tileEffectOverrides,
+                completionRule: .dungeonExit(exitPoint: GridPoint(x: 4, y: 4)),
+                dungeonRules: DungeonRules(
+                    difficulty: .growth,
+                    failureRule: DungeonFailureRule(initialHP: initialHP, turnLimit: nil),
+                    hazards: hazards,
+                    exitLock: exitLock,
+                    allowsBasicOrthogonalMove: true,
+                    cardAcquisitionMode: .inventoryOnly,
+                    cardPickups: cardPickups
+                )
+            ),
+            dungeonMetadata: dungeonMetadata
         )
     }
 

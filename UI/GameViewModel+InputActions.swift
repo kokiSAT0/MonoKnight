@@ -71,7 +71,7 @@ extension GameViewModel {
                 switch enemy.behavior {
                 case .watcher, .rotatingWatcher:
                     return true
-                case .guardPost, .patrol, .chaser, .marker:
+                case .guardPost, .patrol, .chaser, .marker, .targetedMarker:
                     return false
                 }
             }
@@ -88,6 +88,11 @@ extension GameViewModel {
                 return "巡回レールがないため使えません"
             }
             return core.isPatrolRailDestroyed ? "巡回レールはすでに破壊済みです" : nil
+        case .flySpell:
+            if !core.hasFlySpellTargetTiles {
+                return "危険床系ギミックがないため使えません"
+            }
+            return core.isFlySpellActive ? "フライの呪文はすでに有効です" : nil
         case .antidote:
             return core.poisonDamageTicksRemaining > 0 ? nil : "毒状態ではないため使えません"
         case .panacea:
@@ -308,7 +313,7 @@ private extension TileEffect {
         switch self {
         case .warp, .returnWarp:
             return true
-        case .shuffleHand, .blast, .slow, .shackleTrap, .poisonTrap, .illusionTrap, .swamp, .preserveCard, .discardRandomHand, .discardAllMoveCards, .discardAllSupportCards, .discardAllHands:
+        case .shuffleHand, .blast, .slow, .shackleTrap, .poisonTrap, .illusionTrap, .relicBreakTrap, .swamp, .preserveCard, .discardRandomHand, .discardAllMoveCards, .discardAllSupportCards, .discardAllHands:
             return false
         }
     }

@@ -245,6 +245,13 @@ private extension PauseMenuView {
                 options: HandOrderingStrategy.allCases,
                 displayName: \.displayName
             )
+
+            settingsToggle(
+                title: "レリック効果を無効化",
+                subtitle: "所持は残し、通常/呪い遺物の効果だけ止める",
+                isOn: $gameSettingsStore.disablesDungeonRelicEffectsForDeveloper
+            )
+            .accessibilityIdentifier(PauseMenuAccessibilityIdentifier.relicEffectsToggle)
         }
     }
 
@@ -331,4 +338,5 @@ enum PauseMenuAccessibilityIdentifier {
     static let reportIssueButton = "pause_report_issue_button"
     static let returnToTitleButton = "pause_return_to_title_button"
     static let settingsDisclosure = "pause_settings_disclosure"
+    static let relicEffectsToggle = "pause_relic_effects_toggle"
 }

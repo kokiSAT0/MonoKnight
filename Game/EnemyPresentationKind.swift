@@ -8,6 +8,7 @@ public enum EnemyPresentationKind: String, CaseIterable, Equatable, Identifiable
     case rotatingWatcher
     case chaser
     case marker
+    case starReader
 
     public var id: String { rawValue }
 
@@ -29,6 +30,8 @@ public enum EnemyPresentationKind: String, CaseIterable, Equatable, Identifiable
             return "追跡兵"
         case .marker:
             return "メテオ兵"
+        case .starReader:
+            return "星詠み兵"
         }
     }
 
@@ -46,6 +49,8 @@ public enum EnemyPresentationKind: String, CaseIterable, Equatable, Identifiable
             return "足跡の敵です。プレイヤーへ最短経路で1マス近づきます。"
         case .marker:
             return "ランダムな床へメテオの落下予告を出します。"
+        case .starReader:
+            return "ランダムな床に加えて、今いるマスにも落下予告を出します。"
         }
     }
 
@@ -63,6 +68,8 @@ public enum EnemyPresentationKind: String, CaseIterable, Equatable, Identifiable
             return "移動先は盤面の小矢印で読みます。近づいた後の隣接範囲まで危険です。"
         case .marker:
             return "着弾予告マスは次の敵ターンだけ危険です。予告を見て、止まる場所をずらします。"
+        case .starReader:
+            return "補助カードなどでその場に留まると被弾します。予告を見て、次の手で現在地から離れます。"
         }
     }
 }
@@ -82,6 +89,8 @@ public extension EnemyBehavior {
             return .chaser
         case .marker:
             return .marker
+        case .targetedMarker:
+            return .starReader
         }
     }
 
@@ -99,6 +108,9 @@ public struct EnemyEncyclopediaEntry: Identifiable, Equatable, Sendable {
     public var displayName: String { kind.displayName }
     public var behaviorSummary: String { kind.behaviorSummary }
     public var dangerSummary: String { kind.dangerSummary }
+    public var damageSummary: String {
+        "敵の形は挙動を、色は攻撃力を表します。後半ほど攻撃力2や3の敵が出ます。"
+    }
 
     public init(kind: EnemyPresentationKind) {
         self.kind = kind

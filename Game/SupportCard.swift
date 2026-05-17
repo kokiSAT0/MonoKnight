@@ -16,6 +16,8 @@ public enum SupportCard: String, CaseIterable, Codable, Hashable, Sendable {
     case darknessSpell
     /// その階の巡回兵レールを破壊する
     case railBreakSpell
+    /// その階の危険床系ギミックを無効化する
+    case flySpell
     /// 毒状態を解除する
     case antidote
     /// 毒・足枷・幻惑状態を解除する
@@ -37,6 +39,8 @@ public enum SupportCard: String, CaseIterable, Codable, Hashable, Sendable {
             return "ダークネスの呪文"
         case .railBreakSpell:
             return "レール破壊の呪文"
+        case .flySpell:
+            return "フライの呪文"
         case .antidote:
             return "解毒薬"
         case .panacea:
@@ -48,7 +52,7 @@ public enum SupportCard: String, CaseIterable, Codable, Hashable, Sendable {
         switch self {
         case .refillEmptySlots, .antidote, .panacea:
             return "補助カード"
-        case .singleAnnihilationSpell, .annihilationSpell, .freezeSpell, .barrierSpell, .darknessSpell, .railBreakSpell:
+        case .singleAnnihilationSpell, .annihilationSpell, .freezeSpell, .barrierSpell, .darknessSpell, .railBreakSpell, .flySpell:
             return "呪文系カード"
         }
     }
@@ -69,6 +73,8 @@ public enum SupportCard: String, CaseIterable, Codable, Hashable, Sendable {
             return "移動せず 1 手使い、この階にいる間、見張りと回転見張りのレーザー攻撃を封じます。"
         case .railBreakSpell:
             return "移動せず 1 手使い、この階にいる間、巡回兵のレール移動を封じます。巡回兵の攻撃は残ります。"
+        case .flySpell:
+            return "移動せず 1 手使い、この階にいる間、罠、溶岩、崩落床、状態罠、手札喪失罠、沼、吹き飛ばしを無効化します。ワープ、回復、拾得、敵の攻撃は通常どおり残ります。"
         case .antidote:
             return "移動せず 1 手使い、毒状態を解除します。毒でない時は使えません。"
         case .panacea:
@@ -80,7 +86,7 @@ public enum SupportCard: String, CaseIterable, Codable, Hashable, Sendable {
         switch self {
         case .singleAnnihilationSpell:
             return true
-        case .refillEmptySlots, .annihilationSpell, .freezeSpell, .barrierSpell, .darknessSpell, .railBreakSpell, .antidote, .panacea:
+        case .refillEmptySlots, .annihilationSpell, .freezeSpell, .barrierSpell, .darknessSpell, .railBreakSpell, .flySpell, .antidote, .panacea:
             return false
         }
     }

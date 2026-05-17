@@ -90,6 +90,111 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertTrue(messages.contains { $0.contains("event=reward_draw") && $0.contains("seed=123") })
     }
 
+    func testDeveloperRelicEffectToggleDisablesRelicAndCurseTurnLimitEffects() throws {
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            turnLimit: 8,
+            runState: DungeonRunState(
+                dungeonID: "growth-tower",
+                carriedHP: 3,
+                relicEntries: [DungeonRelicEntry(relicID: .copperHourglass)],
+                curseEntries: [DungeonCurseEntry(curseID: .crackedCompass)]
+            )
+        )
+        let core = makeCore(mode: mode)
+
+        XCTAssertEqual(core.effectiveDungeonTurnLimit, 7)
+
+        core.updateDungeonRelicAndCurseEffects(enabled: false)
+
+        XCTAssertEqual(core.effectiveDungeonTurnLimit, 8)
+        XCTAssertEqual(core.dungeonRelicEntries.map(\.relicID), [.copperHourglass])
+        XCTAssertEqual(core.dungeonCurseEntries.map(\.curseID), [.crackedCompass])
+    }
+
+    func testDeveloperRelicEffectToggleDoesNotConsumeLimitedRelicOrCurseUses() throws {
+        let trapPoint = GridPoint(x: 1, y: 0)
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 5,
+            turnLimit: 8,
+            hazards: [.damageTrap(points: [trapPoint], damage: 2)],
+            allowsBasicOrthogonalMove: true,
+            runState: DungeonRunState(
+                dungeonID: "growth-tower",
+                carriedHP: 5,
+                relicEntries: [DungeonRelicEntry(relicID: .silverNeedle)],
+                curseEntries: [DungeonCurseEntry(curseID: .thornMark)]
+            )
+        )
+        let core = makeCore(mode: mode)
+        core.updateDungeonRelicAndCurseEffects(enabled: false)
+
+        playBasicMove(to: trapPoint, in: core)
+
+        XCTAssertEqual(core.dungeonHP, 3)
+        XCTAssertEqual(core.dungeonRelicEntries.first { $0.relicID == .silverNeedle }?.remainingUses, 1)
+        XCTAssertEqual(core.dungeonCurseEntries.first { $0.curseID == .thornMark }?.remainingUses, 1)
+    }
+
+    func testDeveloperRelicEffectToggleKeepsPickupOwnershipWithoutImmediateEffects() throws {
+        let pickupPoint = GridPoint(x: 1, y: 0)
+        let pickup = DungeonRelicPickupDefinition(
+            id: "developer-toggle-relic",
+            point: pickupPoint,
+            kind: .safe,
+            candidateRelics: [.glowingHeart]
+        )
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 3,
+            turnLimit: 8,
+            allowsBasicOrthogonalMove: true,
+            relicPickups: [pickup],
+            runState: DungeonRunState(dungeonID: "growth-tower", carriedHP: 3)
+        )
+        let core = makeCore(mode: mode)
+        core.updateDungeonRelicAndCurseEffects(enabled: false)
+
+        playBasicMove(to: pickupPoint, in: core)
+
+        XCTAssertEqual(core.dungeonHP, 3)
+        XCTAssertEqual(core.dungeonRelicEntries.map(\.relicID), [.glowingHeart])
+        XCTAssertEqual(core.collectedDungeonRelicPickupIDs, ["developer-toggle-relic"])
+    }
+
+    func testDeveloperRelicEffectToggleKeepsCarryoverOwnershipButDisablesNextFloorEffects() throws {
+        let runState = DungeonRunState(
+            dungeonID: "growth-tower",
+            carriedHP: 2,
+            relicEntries: [
+                DungeonRelicEntry(relicID: .starCup),
+                DungeonRelicEntry(relicID: .heavyCrown)
+            ],
+            curseEntries: [
+                DungeonCurseEntry(curseID: .obsidianHeart),
+                DungeonCurseEntry(curseID: .bloodPact)
+            ]
+        )
+
+        let nextState = runState.advancedToNextFloor(
+            carryoverHP: 2,
+            currentFloorMoveCount: 1,
+            rewardSelection: .add(.straightRight2),
+            rewardAddUses: 2,
+            areDungeonRelicAndCurseEffectsEnabled: false
+        )
+
+        XCTAssertEqual(nextState.carriedHP, 2)
+        XCTAssertEqual(nextState.relicEntries.map(\.relicID), [.starCup, .heavyCrown])
+        XCTAssertEqual(nextState.curseEntries.map(\.curseID), [.obsidianHeart, .bloodPact])
+        XCTAssertEqual(nextState.curseEntries.first { $0.curseID == .bloodPact }?.remainingUses, 1)
+        XCTAssertEqual(nextState.rewardInventoryEntries.first?.rewardUses, 2)
+    }
+
     func testDungeonTurnLimitStartsFatigueAfterNonExitMove() throws {
         let mode = makeDungeonMode(
             spawn: GridPoint(x: 0, y: 0),
@@ -255,6 +360,167 @@ final class DungeonModeTests: XCTestCase {
         )
         XCTAssertEqual(advanced.carriedHP, 3)
         XCTAssertEqual(advanced.relicEntries.first { $0.relicID == .guardianAegis }?.remainingUses, 1)
+    }
+
+    func testFloorStartBarrierCharmBlocksOneActionPostDamageOnly() throws {
+        let trapPoint = GridPoint(x: 1, y: 0)
+        let lavaPoint = GridPoint(x: 2, y: 0)
+        let patrol = EnemyDefinition(
+            id: "patrol",
+            name: "巡回兵",
+            position: GridPoint(x: 4, y: 1),
+            behavior: .patrol(path: [
+                GridPoint(x: 4, y: 1),
+                GridPoint(x: 4, y: 2)
+            ])
+        )
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 3,
+            turnLimit: 8,
+            enemies: [patrol],
+            hazards: [
+                .damageTrap(points: [trapPoint], damage: 1),
+                .lavaTile(points: [lavaPoint], damage: 1)
+            ],
+            runState: DungeonRunState(
+                dungeonID: "growth-tower",
+                carriedHP: 3,
+                relicEntries: [DungeonRelicEntry(relicID: .barrierCharm)]
+            )
+        )
+        let core = makeCore(mode: mode)
+
+        XCTAssertEqual(core.damageBarrierTurnsRemaining, 1)
+
+        playBasicMove(to: trapPoint, in: core)
+
+        XCTAssertEqual(core.dungeonHP, 3)
+        XCTAssertEqual(core.damageBarrierTurnsRemaining, 0)
+        XCTAssertEqual(core.enemyStates.first?.position, GridPoint(x: 4, y: 2))
+
+        playBasicMove(to: lavaPoint, in: core)
+
+        XCTAssertEqual(core.dungeonHP, 2)
+    }
+
+    func testFloorStartBarrierTalismanUsesMaximumBarrierTurns() throws {
+        let firstTrapPoint = GridPoint(x: 1, y: 0)
+        let secondTrapPoint = GridPoint(x: 2, y: 0)
+        let thirdTrapPoint = GridPoint(x: 3, y: 0)
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 4,
+            turnLimit: 8,
+            hazards: [.damageTrap(points: [firstTrapPoint, secondTrapPoint, thirdTrapPoint], damage: 1)],
+            runState: DungeonRunState(
+                dungeonID: "growth-tower",
+                carriedHP: 4,
+                relicEntries: [
+                    DungeonRelicEntry(relicID: .barrierCharm),
+                    DungeonRelicEntry(relicID: .barrierTalisman)
+                ]
+            )
+        )
+        let core = makeCore(mode: mode)
+
+        XCTAssertEqual(core.damageBarrierTurnsRemaining, 2)
+
+        playBasicMove(to: firstTrapPoint, in: core)
+        XCTAssertEqual(core.dungeonHP, 4)
+        XCTAssertEqual(core.damageBarrierTurnsRemaining, 1)
+
+        playBasicMove(to: secondTrapPoint, in: core)
+        XCTAssertEqual(core.dungeonHP, 4)
+        XCTAssertEqual(core.damageBarrierTurnsRemaining, 0)
+
+        playBasicMove(to: thirdTrapPoint, in: core)
+        XCTAssertEqual(core.dungeonHP, 3)
+    }
+
+    func testFloorStartFrostBellSkipsOnlyFirstEnemyTurn() throws {
+        let patrol = EnemyDefinition(
+            id: "patrol",
+            name: "巡回兵",
+            position: GridPoint(x: 4, y: 1),
+            behavior: .patrol(path: [
+                GridPoint(x: 4, y: 1),
+                GridPoint(x: 4, y: 2)
+            ])
+        )
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 3,
+            turnLimit: 8,
+            enemies: [patrol],
+            runState: DungeonRunState(
+                dungeonID: "growth-tower",
+                carriedHP: 3,
+                relicEntries: [DungeonRelicEntry(relicID: .frostBell)]
+            )
+        )
+        let core = makeCore(mode: mode)
+
+        XCTAssertEqual(core.enemyFreezeTurnsRemaining, 1)
+        XCTAssertTrue(core.enemyDangerPoints.isEmpty)
+
+        playBasicMove(to: GridPoint(x: 1, y: 0), in: core)
+
+        XCTAssertEqual(core.enemyFreezeTurnsRemaining, 0)
+        XCTAssertEqual(core.enemyStates.first?.position, GridPoint(x: 4, y: 1))
+        XCTAssertFalse(core.enemyDangerPoints.isEmpty)
+
+        playBasicMove(to: GridPoint(x: 2, y: 0), in: core)
+
+        XCTAssertEqual(core.enemyStates.first?.position, GridPoint(x: 4, y: 2))
+    }
+
+    func testDeveloperRelicEffectToggleDisablesFloorStartBarrierAndFreeze() throws {
+        let trapPoint = GridPoint(x: 1, y: 0)
+        let patrol = EnemyDefinition(
+            id: "patrol",
+            name: "巡回兵",
+            position: GridPoint(x: 4, y: 1),
+            behavior: .patrol(path: [
+                GridPoint(x: 4, y: 1),
+                GridPoint(x: 4, y: 2)
+            ])
+        )
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 3,
+            turnLimit: 8,
+            enemies: [patrol],
+            hazards: [.damageTrap(points: [trapPoint], damage: 1)],
+            runState: DungeonRunState(
+                dungeonID: "growth-tower",
+                carriedHP: 3,
+                relicEntries: [
+                    DungeonRelicEntry(relicID: .barrierCharm),
+                    DungeonRelicEntry(relicID: .barrierTalisman),
+                    DungeonRelicEntry(relicID: .frostBell)
+                ]
+            )
+        )
+        let core = makeCore(mode: mode)
+
+        XCTAssertEqual(core.damageBarrierTurnsRemaining, 2)
+        XCTAssertEqual(core.enemyFreezeTurnsRemaining, 1)
+
+        core.updateDungeonRelicAndCurseEffects(enabled: false)
+
+        XCTAssertEqual(core.damageBarrierTurnsRemaining, 0)
+        XCTAssertEqual(core.enemyFreezeTurnsRemaining, 0)
+
+        playBasicMove(to: trapPoint, in: core)
+
+        XCTAssertEqual(core.dungeonHP, 2)
+        XCTAssertEqual(core.enemyStates.first?.position, GridPoint(x: 4, y: 2))
+        XCTAssertEqual(core.dungeonRelicEntries.map(\.relicID), [.barrierCharm, .barrierTalisman, .frostBell])
     }
 
     func testSuspiciousLightRelicPickupWaitsForChoiceAndCanGrantCurse() throws {
@@ -551,7 +817,7 @@ final class DungeonModeTests: XCTestCase {
         )
         let core = makeCore(mode: mode)
 
-        XCTAssertEqual(core.effectiveDungeonTurnLimit, 12)
+        XCTAssertEqual(core.effectiveDungeonTurnLimit, 13)
 
         let advanced = runState.advancedToNextFloor(
             carryoverHP: 5,
@@ -579,7 +845,7 @@ final class DungeonModeTests: XCTestCase {
                 DungeonRelicEntry(relicID: .travelerBoots),
                 DungeonRelicEntry(relicID: .explorerBag),
                 DungeonRelicEntry(relicID: .moonMirror),
-                DungeonRelicEntry(relicID: .starCup)
+                DungeonRelicEntry(relicID: .starCup, floorStartCharge: 1)
             ]
         )
         let mode = makeDungeonMode(
@@ -682,7 +948,7 @@ final class DungeonModeTests: XCTestCase {
 
         XCTAssertEqual(core.effectiveDungeonTurnLimit, 5)
         playBasicMove(to: GridPoint(x: 1, y: 0), in: core)
-        XCTAssertEqual(core.dungeonInventoryEntries.first?.rewardUses, 3)
+        XCTAssertEqual(core.dungeonInventoryEntries.first?.rewardUses, 5)
 
         playBasicMove(to: trapPoint, in: core)
         XCTAssertEqual(core.dungeonHP, 7)
@@ -721,7 +987,7 @@ final class DungeonModeTests: XCTestCase {
         playBasicMove(to: GridPoint(x: 0, y: 0), in: core)
         playBasicMove(to: brittlePoint, in: core)
 
-        XCTAssertNil(core.dungeonFallEvent)
+        XCTAssertNotNil(core.dungeonFallEvent)
         XCTAssertEqual(core.dungeonHP, 2)
         XCTAssertEqual(core.dungeonRelicEntries.first { $0.relicID == .blackFeather }?.remainingUses, 0)
     }
@@ -2771,6 +3037,137 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertEqual(core.progress, .playing)
     }
 
+    func testRelicBreakTrapRemovesOneRelicAndDoesNotCarryItToNextFloor() throws {
+        let trapPoint = GridPoint(x: 1, y: 0)
+        let runState = DungeonRunState(
+            dungeonID: "relic-break-test",
+            carriedHP: 3,
+            relicEntries: [
+                DungeonRelicEntry(relicID: .heavyCrown),
+                DungeonRelicEntry(relicID: .starCup)
+            ],
+            cardVariationSeed: 101
+        )
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 3,
+            turnLimit: 8,
+            tileEffectOverrides: [trapPoint: .relicBreakTrap],
+            runState: runState
+        )
+        let core = makeCore(mode: mode)
+
+        playBasicMove(to: trapPoint, in: core)
+
+        XCTAssertEqual(core.dungeonRelicEntries.count, 1)
+        let removedRelics = Set(runState.relicEntries.map(\.relicID)).subtracting(core.dungeonRelicEntries.map(\.relicID))
+        XCTAssertEqual(removedRelics.count, 1)
+
+        let nextState = runState.advancedToNextFloor(
+            carryoverHP: core.dungeonHP,
+            currentFloorMoveCount: core.moveCount,
+            currentRelicEntries: core.dungeonRelicEntries,
+            currentCurseEntries: core.dungeonCurseEntries
+        )
+        XCTAssertTrue(nextState.relicEntries.map(\.relicID).allSatisfy { !removedRelics.contains($0) })
+    }
+
+    func testRelicBreakTrapCanRemoveCurseWhenOnlyCurseIsOwned() throws {
+        let trapPoint = GridPoint(x: 1, y: 0)
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 3,
+            turnLimit: 8,
+            tileEffectOverrides: [trapPoint: .relicBreakTrap],
+            runState: DungeonRunState(
+                dungeonID: "relic-break-curse-test",
+                carriedHP: 3,
+                curseEntries: [DungeonCurseEntry(curseID: .bloodPact)],
+                cardVariationSeed: 102
+            )
+        )
+        let core = makeCore(mode: mode)
+
+        playBasicMove(to: trapPoint, in: core)
+
+        XCTAssertTrue(core.dungeonCurseEntries.isEmpty)
+        XCTAssertEqual(core.progress, .playing)
+        XCTAssertTrue(core.dungeonRunLogEntries.contains { $0.message.contains("呪い「血の契約」") })
+    }
+
+    func testRelicBreakTrapDestroysPurifyingCharmFirstAsDecoy() throws {
+        let trapPoint = GridPoint(x: 1, y: 0)
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 3,
+            turnLimit: 8,
+            tileEffectOverrides: [trapPoint: .relicBreakTrap],
+            runState: DungeonRunState(
+                dungeonID: "relic-break-charm-test",
+                carriedHP: 3,
+                relicEntries: [
+                    DungeonRelicEntry(relicID: .heavyCrown),
+                    DungeonRelicEntry(relicID: .purifyingCharm)
+                ],
+                curseEntries: [DungeonCurseEntry(curseID: .bloodPact)],
+                cardVariationSeed: 103
+            )
+        )
+        let core = makeCore(mode: mode)
+
+        playBasicMove(to: trapPoint, in: core)
+
+        XCTAssertEqual(core.dungeonRelicEntries.map(\.relicID), [.heavyCrown])
+        XCTAssertEqual(core.dungeonCurseEntries.map(\.curseID), [.bloodPact])
+        XCTAssertTrue(core.dungeonRunLogEntries.contains { $0.message.contains("清めの護符が身代わり") })
+    }
+
+    func testRelicBreakTrapWithoutTargetsKeepsRunPlaying() throws {
+        let trapPoint = GridPoint(x: 1, y: 0)
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 3,
+            turnLimit: 8,
+            tileEffectOverrides: [trapPoint: .relicBreakTrap]
+        )
+        let core = makeCore(mode: mode)
+
+        playBasicMove(to: trapPoint, in: core)
+
+        XCTAssertTrue(core.dungeonRelicEntries.isEmpty)
+        XCTAssertTrue(core.dungeonCurseEntries.isEmpty)
+        XCTAssertEqual(core.progress, .playing)
+        XCTAssertTrue(core.dungeonRunLogEntries.contains { $0.message.contains("壊れるレリック/呪いなし") })
+    }
+
+    func testRayMoveTriggersRelicBreakTrapWithoutStopping() throws {
+        let trapPoint = GridPoint(x: 1, y: 0)
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 3,
+            turnLimit: 8,
+            tileEffectOverrides: [trapPoint: .relicBreakTrap],
+            runState: DungeonRunState(
+                dungeonID: "relic-break-ray-test",
+                carriedHP: 3,
+                relicEntries: [DungeonRelicEntry(relicID: .heavyCrown)],
+                cardVariationSeed: 104
+            )
+        )
+        let core = makeCore(mode: mode, cards: [.rayRight, .kingUpRight, .straightRight2, .straightLeft2, .straightDown2])
+
+        playMove(to: GridPoint(x: 4, y: 0), in: core)
+
+        XCTAssertEqual(core.current, GridPoint(x: 4, y: 0))
+        XCTAssertTrue(core.dungeonRelicEntries.isEmpty)
+        XCTAssertTrue(core.lastMovementResolution?.appliedEffects.contains { $0.point == trapPoint && $0.effect == .relicBreakTrap } == true)
+    }
+
     func testDamageTrapDamagesCardMoveIntermediatePoints() throws {
         let mode = makeDungeonMode(
             spawn: GridPoint(x: 0, y: 0),
@@ -4685,7 +5082,7 @@ final class DungeonModeTests: XCTestCase {
                     points.append(contentsOf: path)
                 case .chaser:
                     hasChaser = true
-                case .marker:
+                case .marker, .targetedMarker:
                     hasMarker = true
                 case .guardPost, .watcher, .rotatingWatcher:
                     break
@@ -4786,10 +5183,10 @@ final class DungeonModeTests: XCTestCase {
             let complexBand = resolvedFloors[30..<40]
             let finalBand = resolvedFloors[40..<50]
 
-            XCTAssertTrue(warningBand.allSatisfy { growthTowerDamagePressurePointCount(for: $0) >= 3 })
-            XCTAssertTrue(wallBand.allSatisfy { growthTowerDamagePressurePointCount(for: $0) >= 6 })
-            XCTAssertTrue(complexBand.allSatisfy { growthTowerDamagePressurePointCount(for: $0) >= 8 })
-            XCTAssertTrue(finalBand.allSatisfy { growthTowerDamagePressurePointCount(for: $0) >= 10 })
+            XCTAssertTrue(warningBand.allSatisfy { growthTowerDamagePressurePointCount(for: $0) >= 4 })
+            XCTAssertTrue(wallBand.allSatisfy { growthTowerDamagePressurePointCount(for: $0) >= 7 })
+            XCTAssertTrue(complexBand.allSatisfy { growthTowerDamagePressurePointCount(for: $0) >= 9 })
+            XCTAssertTrue(finalBand.allSatisfy { growthTowerDamagePressurePointCount(for: $0) >= 11 })
 
             XCTAssertTrue(wallBand.allSatisfy { growthTowerStatusTrapPointCount(for: $0) >= 1 })
             XCTAssertTrue(complexBand.allSatisfy { growthTowerStatusTrapPointCount(for: $0) >= 2 })
@@ -4800,6 +5197,36 @@ final class DungeonModeTests: XCTestCase {
             let wallAverage = averageDamagePressure(in: wallBand)
             XCTAssertGreaterThan(warningAverage, earlyAverage)
             XCTAssertGreaterThan(wallAverage, warningAverage)
+        }
+    }
+
+    func testGrowthTowerResolvedHazardPressureAddsVisibleBrittleFloorsFrom11F() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let seeds: [UInt64] = [1, 42, 999, 12_345]
+
+        for seed in seeds {
+            let runState = DungeonRunState(dungeonID: tower.id, carriedHP: 3, cardVariationSeed: seed)
+            let resolvedFloors = try tower.floors.indices.map { floorIndex in
+                try XCTUnwrap(tower.resolvedFloor(at: floorIndex, runState: runState))
+            }
+
+            XCTAssertTrue(
+                resolvedFloors[10..<20].allSatisfy { growthTowerBrittleFloorPointCount(for: $0, initialState: .cracked) >= 1 },
+                "seed \(seed) の11-20Fには見えるヒビ床を混ぜます"
+            )
+            XCTAssertTrue(
+                resolvedFloors[20..<40].allSatisfy { growthTowerBrittleFloorPointCount(for: $0, initialState: .cracked) >= 1 },
+                "seed \(seed) の21-40Fには見えるヒビ床を混ぜます"
+            )
+            XCTAssertTrue(
+                resolvedFloors[40..<49].allSatisfy { growthTowerBrittleFloorPointCount(for: $0, initialState: .cracked) >= 1 },
+                "seed \(seed) の41-49Fには見えるヒビ床を混ぜます"
+            )
+            XCTAssertEqual(
+                growthTowerBrittleFloorPointCount(for: resolvedFloors[49], initialState: nil),
+                0,
+                "seed \(seed) の50Fには落下先がないため床割れを追加しません"
+            )
         }
     }
 
@@ -5361,6 +5788,34 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertFalse(deep.warpTilePairs.isEmpty)
     }
 
+    func testRoguelikeTowerCanGenerateRelicBreakTrapsWithoutOverlaps() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "rogue-tower"))
+        let seeds: [UInt64] = [1, 42, 999, 12_345, 67_890]
+        let floorIndexes = [12, 18, 30, 75]
+        var foundRelicBreakTrap = false
+
+        for seed in seeds {
+            let runState = DungeonRunState(dungeonID: tower.id, carriedHP: 3, rogueTowerSeed: seed)
+            for floorIndex in floorIndexes {
+                let floor = try XCTUnwrap(tower.resolvedFloor(at: floorIndex, runState: runState))
+                let relicBreakPoints = Set(floor.tileEffectOverrides.compactMap { point, effect in
+                    effect == .relicBreakTrap ? point : nil
+                })
+                guard !relicBreakPoints.isEmpty else { continue }
+
+                foundRelicBreakTrap = true
+                let disallowedPoints = disallowedGrowthTowerImpassablePoints(for: floor)
+                XCTAssertTrue(
+                    relicBreakPoints.isDisjoint(with: disallowedPoints.subtracting(relicBreakPoints)),
+                    "seed \(seed) / \(floorIndex + 1)F のレリック破壊罠が他要素と重なっています"
+                )
+                XCTAssertTrue(hasOrthogonalPath(from: floor.spawnPoint, to: floor.exitPoint, in: floor))
+            }
+        }
+
+        XCTAssertTrue(foundRelicBreakTrap)
+    }
+
 
     func testTutorialTowerInitialRunStartsAtFirstFloor() throws {
         let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
@@ -5623,11 +6078,356 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertGreaterThan(fastBonusCount, normalBonusCount)
     }
 
+    func testRewardCategoryBonusPointsRaiseSupportAndRelicDraws() {
+        let entries = [
+            DungeonWeightedRewardPoolEntry(item: .move(.straightRight2), weight: 1),
+            DungeonWeightedRewardPoolEntry(item: .support(.refillEmptySlots), weight: 1),
+            DungeonWeightedRewardPoolEntry(item: .relic(.glowingHeart), weight: 1)
+        ]
+        func draws(tuning: DungeonRewardDrawTuning) -> [DungeonRewardOffer?] {
+            (1...2_000).map { seed in
+                DungeonWeightedRewardPools.drawUniqueOffers(
+                    from: entries,
+                    context: .clearReward,
+                    count: 1,
+                    seed: UInt64(seed),
+                    floorIndex: 10,
+                    salt: 0xC47E,
+                    tuning: tuning
+                ).first
+            }
+        }
+
+        let normalDraws = draws(tuning: DungeonRewardDrawTuning(clearMoveCount: 12, turnLimit: 12))
+        let supportBonusDraws = draws(
+            tuning: DungeonRewardDrawTuning(
+                clearMoveCount: 12,
+                turnLimit: 12,
+                supportCategoryBonusPoints: 5
+            )
+        )
+        let relicBonusDraws = draws(
+            tuning: DungeonRewardDrawTuning(
+                clearMoveCount: 12,
+                turnLimit: 12,
+                relicCategoryBonusPoints: 2
+            )
+        )
+
+        XCTAssertGreaterThan(
+            supportBonusDraws.filter { $0?.support != nil }.count,
+            normalDraws.filter { $0?.support != nil }.count
+        )
+        XCTAssertGreaterThan(
+            relicBonusDraws.filter { $0?.relic != nil }.count,
+            normalDraws.filter { $0?.relic != nil }.count
+        )
+    }
+
+    func testDefeatingEnemiesTracksFloorRewardBonusCountAcrossMovementAndSpells() throws {
+        let stompedEnemy = EnemyDefinition(
+            id: "stomped",
+            name: "番兵",
+            position: GridPoint(x: 1, y: 0),
+            behavior: .guardPost
+        )
+        let spellEnemy = EnemyDefinition(
+            id: "spell",
+            name: "追跡兵",
+            position: GridPoint(x: 3, y: 3),
+            behavior: .chaser
+        )
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            turnLimit: 8,
+            enemies: [stompedEnemy, spellEnemy],
+            allowsBasicOrthogonalMove: true,
+            cardAcquisitionMode: .inventoryOnly,
+            runState: DungeonRunState(
+                dungeonID: "growth-tower",
+                carriedHP: 3,
+                relicEntries: [
+                    DungeonRelicEntry(relicID: .slayerPouch),
+                    DungeonRelicEntry(relicID: .hunterBanner)
+                ]
+            )
+        )
+        let core = makeCore(mode: mode)
+
+        playBasicMove(to: stompedEnemy.position, in: core)
+
+        XCTAssertEqual(core.currentFloorDefeatedEnemyCount, 1)
+        XCTAssertEqual(core.enemyStates.map(\.id), [spellEnemy.id])
+
+        XCTAssertTrue(core.addDungeonInventorySupportCardForTesting(.singleAnnihilationSpell, rewardUses: 1))
+        let supportIndex = try XCTUnwrap(core.handStacks.firstIndex { $0.topCard?.supportCard == .singleAnnihilationSpell })
+        XCTAssertTrue(core.beginTargetedSupportCardSelection(at: supportIndex))
+        XCTAssertTrue(core.playTargetedSupportCard(at: core.enemyStates[0].position))
+
+        XCTAssertEqual(core.currentFloorDefeatedEnemyCount, 2)
+        XCTAssertTrue(core.enemyStates.isEmpty)
+    }
+
+    func testAnnihilationSpellCountsEveryDefeatedEnemyForFloorRewardBonus() throws {
+        let enemies = [
+            EnemyDefinition(id: "a", name: "番兵", position: GridPoint(x: 2, y: 2), behavior: .guardPost),
+            EnemyDefinition(id: "b", name: "番兵", position: GridPoint(x: 3, y: 3), behavior: .guardPost)
+        ]
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            turnLimit: 8,
+            enemies: enemies,
+            allowsBasicOrthogonalMove: true,
+            cardAcquisitionMode: .inventoryOnly,
+            runState: DungeonRunState(dungeonID: "growth-tower", carriedHP: 3)
+        )
+        let core = makeCore(mode: mode)
+
+        XCTAssertTrue(core.addDungeonInventorySupportCardForTesting(.annihilationSpell, rewardUses: 1))
+        let supportIndex = try XCTUnwrap(core.handStacks.firstIndex { $0.topCard?.supportCard == .annihilationSpell })
+        core.playSupportCard(at: supportIndex)
+
+        XCTAssertEqual(core.currentFloorDefeatedEnemyCount, 2)
+        XCTAssertTrue(core.enemyStates.isEmpty)
+    }
+
+    func testIntimidationHornSkipsOnlyOneEnemyTurnAfterDefeatWithRemainingEnemy() throws {
+        let stompedEnemy = EnemyDefinition(
+            id: "stomped",
+            name: "番兵",
+            position: GridPoint(x: 1, y: 0),
+            behavior: .guardPost
+        )
+        let patrol = EnemyDefinition(
+            id: "patrol",
+            name: "巡回兵",
+            position: GridPoint(x: 3, y: 3),
+            behavior: .patrol(path: [
+                GridPoint(x: 3, y: 3),
+                GridPoint(x: 4, y: 3)
+            ])
+        )
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            turnLimit: 8,
+            enemies: [stompedEnemy, patrol],
+            allowsBasicOrthogonalMove: true,
+            cardAcquisitionMode: .inventoryOnly,
+            runState: DungeonRunState(
+                dungeonID: "growth-tower",
+                carriedHP: 3,
+                relicEntries: [DungeonRelicEntry(relicID: .intimidationHorn)]
+            )
+        )
+        let core = makeCore(mode: mode)
+
+        playBasicMove(to: stompedEnemy.position, in: core)
+
+        let remainingPatrol = try XCTUnwrap(core.enemyStates.first { $0.id == patrol.id })
+        XCTAssertEqual(remainingPatrol.position, GridPoint(x: 3, y: 3))
+        XCTAssertEqual(core.currentFloorDefeatedEnemyCount, 1)
+
+        playBasicMove(to: GridPoint(x: 1, y: 1), in: core)
+
+        let movedPatrol = try XCTUnwrap(core.enemyStates.first { $0.id == patrol.id })
+        XCTAssertEqual(movedPatrol.position, GridPoint(x: 4, y: 3))
+    }
+
+    func testSlayerMedalDoesNotGrantCommonRelicBeforeTenDefeats() throws {
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            turnLimit: 8,
+            enemies: makeGuardEnemies(count: 9),
+            allowsBasicOrthogonalMove: true,
+            cardAcquisitionMode: .inventoryOnly,
+            runState: DungeonRunState(
+                dungeonID: "growth-tower",
+                carriedHP: 3,
+                relicEntries: [DungeonRelicEntry(relicID: .slayerMedal)]
+            )
+        )
+        let core = makeCore(mode: mode)
+
+        annihilateAllEnemies(in: core)
+
+        XCTAssertEqual(core.currentFloorDefeatedEnemyCount, 9)
+        XCTAssertEqual(core.dungeonRelicEntries.map(\.relicID), [.slayerMedal])
+        XCTAssertEqual(core.dungeonRelicEntries.first?.enemyDefeatProgress, 9)
+        XCTAssertTrue(core.dungeonRelicAcquisitionPresentations.isEmpty)
+    }
+
+    func testSlayerMedalGrantsCommonRelicOnTenthDefeat() throws {
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            turnLimit: 8,
+            enemies: makeGuardEnemies(count: 10),
+            allowsBasicOrthogonalMove: true,
+            cardAcquisitionMode: .inventoryOnly,
+            runState: DungeonRunState(
+                dungeonID: "growth-tower",
+                carriedHP: 3,
+                relicEntries: [DungeonRelicEntry(relicID: .slayerMedal)]
+            )
+        )
+        let core = makeCore(mode: mode)
+
+        annihilateAllEnemies(in: core)
+
+        XCTAssertEqual(core.currentFloorDefeatedEnemyCount, 10)
+        XCTAssertEqual(core.dungeonRelicEntries.count, 2)
+        let grantedRelic = try XCTUnwrap(core.dungeonRelicEntries.map(\.relicID).first { $0 != .slayerMedal })
+        XCTAssertEqual(grantedRelic.rarity, .common)
+        XCTAssertEqual(core.dungeonRelicEntries.first { $0.relicID == .slayerMedal }?.enemyDefeatProgress, 0)
+        XCTAssertEqual(core.dungeonRelicAcquisitionPresentations.count, 1)
+        XCTAssertEqual(core.dungeonRelicAcquisitionPresentations.first?.source, .reward)
+        XCTAssertEqual(
+            core.dungeonRelicAcquisitionPresentations.first?.items,
+            [.relic(DungeonRelicEntry(relicID: grantedRelic))]
+        )
+    }
+
+    func testSlayerMedalIgnoresDefeatsBeforeAcquisition() throws {
+        let firstFloorState = DungeonRunState(dungeonID: "growth-tower", carriedHP: 3)
+        let nextRunState = firstFloorState.advancedToNextFloor(
+            carryoverHP: 3,
+            currentFloorMoveCount: 1,
+            rewardSelection: .addRelic(.slayerMedal),
+            currentInventoryEntries: [],
+            currentRelicEntries: [],
+            currentCurseEntries: []
+        )
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            turnLimit: 8,
+            enemies: makeGuardEnemies(count: 1),
+            allowsBasicOrthogonalMove: true,
+            cardAcquisitionMode: .inventoryOnly,
+            runState: nextRunState
+        )
+        let core = makeCore(mode: mode)
+
+        annihilateAllEnemies(in: core)
+
+        XCTAssertEqual(core.currentFloorDefeatedEnemyCount, 1)
+        XCTAssertEqual(core.dungeonRelicEntries.map(\.relicID), [.slayerMedal])
+        XCTAssertEqual(core.dungeonRelicEntries.first?.enemyDefeatProgress, 1)
+        XCTAssertTrue(core.dungeonRelicAcquisitionPresentations.isEmpty)
+    }
+
+    func testSlayerMedalCanGrantMultipleCommonRelicsFromOneMassDefeat() throws {
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            turnLimit: 8,
+            enemies: makeGuardEnemies(count: 21),
+            allowsBasicOrthogonalMove: true,
+            cardAcquisitionMode: .inventoryOnly,
+            runState: DungeonRunState(
+                dungeonID: "growth-tower",
+                carriedHP: 3,
+                relicEntries: [DungeonRelicEntry(relicID: .slayerMedal, enemyDefeatProgress: 9)]
+            )
+        )
+        let core = makeCore(mode: mode)
+
+        annihilateAllEnemies(in: core)
+
+        let grantedRelics = core.dungeonRelicEntries.map(\.relicID).filter { $0 != .slayerMedal }
+        XCTAssertEqual(grantedRelics.count, 3)
+        XCTAssertTrue(grantedRelics.allSatisfy { $0.rarity == .common })
+        XCTAssertEqual(Set(grantedRelics).count, grantedRelics.count)
+        XCTAssertEqual(core.dungeonRelicEntries.first { $0.relicID == .slayerMedal }?.enemyDefeatProgress, 0)
+        XCTAssertEqual(core.dungeonRelicAcquisitionPresentations.first?.items.count, 3)
+    }
+
+    func testSlayerMedalExcludesOwnedCommonRelics() throws {
+        let remainingRelic = DungeonRelicID.woodenAmulet
+        let ownedCommonRelics = DungeonRelicID.newAcquisitionCases.filter {
+            $0.rarity == .common && $0 != remainingRelic
+        }
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            turnLimit: 8,
+            enemies: makeGuardEnemies(count: 10),
+            allowsBasicOrthogonalMove: true,
+            cardAcquisitionMode: .inventoryOnly,
+            runState: DungeonRunState(
+                dungeonID: "growth-tower",
+                carriedHP: 3,
+                relicEntries: [DungeonRelicEntry(relicID: .slayerMedal)]
+                    + ownedCommonRelics.map { DungeonRelicEntry(relicID: $0) }
+            )
+        )
+        let core = makeCore(mode: mode)
+
+        annihilateAllEnemies(in: core)
+
+        XCTAssertTrue(core.dungeonRelicEntries.contains { $0.relicID == remainingRelic })
+        XCTAssertEqual(core.dungeonRelicEntries.filter { $0.relicID == remainingRelic }.count, 1)
+    }
+
+    func testSlayerMedalConsumesProgressWithoutDuplicateWhenNoCommonRelicCandidatesRemain() throws {
+        let allCommonRelics = DungeonRelicID.newAcquisitionCases.filter { $0.rarity == .common }
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            turnLimit: 8,
+            enemies: makeGuardEnemies(count: 10),
+            allowsBasicOrthogonalMove: true,
+            cardAcquisitionMode: .inventoryOnly,
+            runState: DungeonRunState(
+                dungeonID: "growth-tower",
+                carriedHP: 3,
+                relicEntries: [DungeonRelicEntry(relicID: .slayerMedal)]
+                    + allCommonRelics.map { DungeonRelicEntry(relicID: $0) }
+            )
+        )
+        let core = makeCore(mode: mode)
+
+        annihilateAllEnemies(in: core)
+
+        XCTAssertEqual(core.dungeonRelicEntries.count, allCommonRelics.count + 1)
+        XCTAssertEqual(core.dungeonRelicEntries.first { $0.relicID == .slayerMedal }?.enemyDefeatProgress, 0)
+        XCTAssertTrue(core.dungeonRelicAcquisitionPresentations.isEmpty)
+        XCTAssertTrue(core.dungeonRunLogEntries.contains { $0.message.contains("未所持のコモンレリック候補なし") })
+    }
+
+    func testSlayerMedalProgressPersistsAcrossFloorAdvance() throws {
+        let runState = DungeonRunState(
+            dungeonID: "growth-tower",
+            carriedHP: 3,
+            relicEntries: [DungeonRelicEntry(relicID: .slayerMedal, enemyDefeatProgress: 7)]
+        )
+
+        let advanced = runState.advancedToNextFloor(
+            carryoverHP: 3,
+            currentFloorMoveCount: 1,
+            currentInventoryEntries: [],
+            currentRelicEntries: runState.relicEntries,
+            currentCurseEntries: []
+        )
+
+        XCTAssertEqual(advanced.relicEntries.first { $0.relicID == .slayerMedal }?.enemyDefeatProgress, 7)
+    }
+
     func testRelicRarityMetadataCoversAllRelics() {
-        XCTAssertEqual(DungeonRelicID.allCases.count, 48)
+        XCTAssertEqual(DungeonRelicID.allCases.count, 72)
         XCTAssertEqual(DungeonRelicID.crackedShield.rarity, .common)
         XCTAssertEqual(DungeonRelicID.heavyCrown.rarity, .common)
+        XCTAssertEqual(DungeonRelicID.starCup.rarity, .rare)
+        XCTAssertEqual(DungeonRelicID.distantStarCup.rarity, .rare)
+        XCTAssertEqual(DungeonRelicID.crackedStarCup.rarity, .common)
+        XCTAssertEqual(DungeonRelicID.travelerCanteen.rarity, .common)
+        XCTAssertEqual(DungeonRelicID.moonDewCanteen.rarity, .rare)
         XCTAssertEqual(DungeonRelicID.moonMirror.rarity, .legendary)
+        XCTAssertEqual(DungeonRelicID.gamblerCoin.rarity, .legendary)
         XCTAssertEqual(DungeonRelicID.royalCrown.rarity, .legendary)
         XCTAssertEqual(DungeonRelicID.immortalHeart.rarity, .legendary)
         XCTAssertEqual(DungeonRelicID.guardianAegis.rarity, .legendary)
@@ -5635,23 +6435,178 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertEqual(DungeonRelicID.woodenAmulet.rarity, .common)
         XCTAssertEqual(DungeonRelicID.copperHourglass.rarity, .common)
         XCTAssertEqual(DungeonRelicID.fieldMedkit.rarity, .rare)
-        XCTAssertEqual(DungeonRelicID.purifyingCharm.rarity, .rare)
+        XCTAssertEqual(DungeonRelicID.purifyingCharm.rarity, .common)
+        XCTAssertEqual(DungeonRelicID.purifyingCharm.startingUses, 1)
+        XCTAssertEqual(DungeonRelicID.greatPurifyingCharm.rarity, .rare)
+        XCTAssertEqual(DungeonRelicID.greatPurifyingCharm.startingUses, 2)
+        XCTAssertEqual(DungeonRelicID.greatPurifyingCharm.effectDescription, "次に受ける状態異常を2回まで無効化する。")
         XCTAssertEqual(DungeonRelicID.phoenixFeather.rarity, .legendary)
         XCTAssertEqual(DungeonRelicID.sageCodex.rarity, .legendary)
+        XCTAssertEqual(DungeonRelicID.twinPouch.rarity, .legendary)
+        XCTAssertEqual(DungeonRelicID.lavaCharm.rarity, .common)
+        XCTAssertEqual(DungeonRelicID.lavaLantern.rarity, .common)
+        XCTAssertEqual(DungeonRelicID.watcherMask.rarity, .rare)
+        XCTAssertEqual(DungeonRelicID.railWedge.rarity, .rare)
+        XCTAssertEqual(DungeonRelicID.railSign.rarity, .rare)
+        XCTAssertEqual(DungeonRelicID.smokeDecoy.rarity, .rare)
+        XCTAssertEqual(DungeonRelicID.chaserWhistle.rarity, .rare)
+        XCTAssertEqual(DungeonRelicID.starVeil.rarity, .legendary)
         XCTAssertEqual(DungeonRelicID.trapSole.rarity, .common)
         XCTAssertEqual(DungeonRelicID.emberCloak.rarity, .common)
         XCTAssertEqual(DungeonRelicID.watcherMonocle.rarity, .rare)
         XCTAssertEqual(DungeonRelicID.railCharm.rarity, .rare)
         XCTAssertEqual(DungeonRelicID.chaserDecoy.rarity, .rare)
-        XCTAssertEqual(DungeonRelicID.antidoteStone.rarity, .rare)
-        XCTAssertEqual(DungeonRelicID.starUmbrella.rarity, .legendary)
+        XCTAssertEqual(DungeonRelicID.antidoteStone.rarity, .common)
+        XCTAssertEqual(DungeonRelicID.greaterAntidoteStone.rarity, .rare)
+        XCTAssertEqual(DungeonRelicID.greaterAntidoteStone.effectDescription, "毒罠の毒ダメージ回数を2減らす。最低1回。")
+        XCTAssertEqual(DungeonRelicID.starUmbrella.rarity, .rare)
+        XCTAssertEqual(DungeonRelicID.guardianCloak.rarity, .legendary)
+        XCTAssertEqual(
+            DungeonRelicID.guardianCloak.effectDescription,
+            "敵とメテオから受けるHPダメージを1軽減する。同じダメージ源では他の軽減レリックと重複しない。"
+        )
         XCTAssertEqual(DungeonRelicID.fallAnchor.rarity, .legendary)
         XCTAssertEqual(DungeonRelicID.campfireCoal.rarity, .common)
-        XCTAssertEqual(DungeonRelicID.foldingMap.rarity, .rare)
-        XCTAssertEqual(DungeonRelicID.phantomTicket.rarity, .rare)
         XCTAssertEqual(DungeonRelicID.merchantsScale.rarity, .legendary)
+        XCTAssertEqual(DungeonRelicID.barrierCharm.rarity, .common)
+        XCTAssertEqual(DungeonRelicID.barrierTalisman.rarity, .rare)
+        XCTAssertEqual(DungeonRelicID.frostBell.rarity, .rare)
+        XCTAssertEqual(DungeonRelicID.rewindingHourglass.rarity, .legendary)
+        XCTAssertEqual(DungeonRelicID.slayerPouch.rarity, .common)
+        XCTAssertEqual(DungeonRelicID.hunterBanner.rarity, .rare)
+        XCTAssertEqual(DungeonRelicID.intimidationHorn.rarity, .rare)
+        XCTAssertEqual(DungeonRelicID.slayerMedal.rarity, .rare)
+        XCTAssertEqual(DungeonRelicID.nightCardLens.rarity, .common)
+        XCTAssertEqual(DungeonRelicID.thornScoutLens.rarity, .common)
+        XCTAssertEqual(DungeonRelicID.magmaScoutLens.rarity, .common)
+        XCTAssertEqual(DungeonRelicID.trapScoutLens.rarity, .rare)
+        XCTAssertEqual(DungeonRelicID.enemyScoutLens.rarity, .rare)
+        XCTAssertEqual(DungeonRelicID.slayerPouch.effectDescription, "その階で敵を1体倒すたび、クリア報酬の補助カード出現率が3pt上がる。")
+        XCTAssertEqual(DungeonRelicID.hunterBanner.effectDescription, "その階で敵を1体倒すたび、クリア報酬のレリック出現率が1pt上がる。")
+        XCTAssertEqual(DungeonRelicID.slayerMedal.effectDescription, "取得後、敵を10体倒すごとに未所持のコモンレリックを1つ得る。")
+        XCTAssertEqual(DungeonRelicID.nightCardLens.effectDescription, "暗闇フロアで未取得の拾得カードが常に見える。")
+        XCTAssertEqual(DungeonRelicID.trapScoutLens.effectDescription, "暗闇フロアで隠し罠が常に見える。")
+        XCTAssertFalse(DungeonRelicID.oldMap.isAvailableForNewAcquisition)
+        XCTAssertFalse(DungeonRelicID.whiteChalk.isAvailableForNewAcquisition)
+        XCTAssertFalse(DungeonRelicID.windcutFeather.isAvailableForNewAcquisition)
+        XCTAssertFalse(DungeonRelicID.quickSheath.isAvailableForNewAcquisition)
+        XCTAssertFalse(DungeonRelicID.allCases.contains(.oldMap))
+        XCTAssertFalse(DungeonRelicID.allCases.contains(.whiteChalk))
+        XCTAssertFalse(DungeonRelicID.newAcquisitionCases.contains(.oldMap))
+        XCTAssertFalse(DungeonRelicID.newAcquisitionCases.contains(.whiteChalk))
+        XCTAssertFalse(DungeonRelicID.newAcquisitionCases.contains(.windcutFeather))
+        XCTAssertFalse(DungeonRelicID.newAcquisitionCases.contains(.quickSheath))
         XCTAssertTrue(DungeonRelicID.allCases.allSatisfy { !$0.rarity.displayName.isEmpty })
         XCTAssertTrue(DungeonRelicID.allCases.allSatisfy { !$0.rarity.badgeText.isEmpty })
+    }
+
+    func testRemovedRelicsAreSkippedWhenDecodingLegacyRunStateAndResumeSnapshot() throws {
+        let runStateJSON = """
+        {
+          "dungeonID": "growth-tower",
+          "carriedHP": 3,
+          "relicEntries": [
+            { "relicID": "foldingMap", "remainingUses": 0 },
+            { "relicID": "glowingHeart", "remainingUses": 0 },
+            { "relicID": "phantomTicket", "remainingUses": 0 }
+          ]
+        }
+        """
+        let decodedRunState = try JSONDecoder().decode(DungeonRunState.self, from: Data(runStateJSON.utf8))
+
+        XCTAssertEqual(decodedRunState.relicEntries.map(\.relicID), [.glowingHeart])
+
+        let snapshotJSON = """
+        {
+          "version": 1,
+          "dungeonID": "growth-tower",
+          "floorIndex": 0,
+          "runState": {
+            "dungeonID": "growth-tower",
+            "carriedHP": 3,
+            "relicEntries": [
+              { "relicID": "foldingMap", "remainingUses": 0 },
+              { "relicID": "campfireCoal", "remainingUses": 0 }
+            ]
+          },
+          "currentPoint": { "x": 0, "y": 0 },
+          "visitedPoints": [{ "x": 0, "y": 0 }],
+          "moveCount": 0,
+          "elapsedSeconds": 0,
+          "dungeonHP": 3,
+          "dungeonInventoryEntries": [],
+          "collectedDungeonCardPickupIDs": [],
+          "dungeonRelicEntries": [
+            { "relicID": "phantomTicket", "remainingUses": 0 },
+            { "relicID": "merchantsScale", "remainingUses": 0 }
+          ],
+          "isDungeonExitUnlocked": true
+        }
+        """
+        let decodedSnapshot = try JSONDecoder().decode(DungeonRunResumeSnapshot.self, from: Data(snapshotJSON.utf8))
+
+        XCTAssertEqual(decodedSnapshot.runState.relicEntries.map(\.relicID), [.campfireCoal])
+        XCTAssertEqual(decodedSnapshot.dungeonRelicEntries.map(\.relicID), [.merchantsScale])
+    }
+
+    func testDarknessScoutRelicsRevealOnlyTheirCategories() throws {
+        let cardPickup = DungeonCardPickupDefinition(
+            id: "dark-card",
+            point: GridPoint(x: 4, y: 4),
+            card: .straightRight2
+        )
+        let thornPoint = GridPoint(x: 3, y: 0)
+        let strongThornPoint = GridPoint(x: 4, y: 0)
+        let lavaPoint = GridPoint(x: 0, y: 3)
+        let strongLavaPoint = GridPoint(x: 0, y: 4)
+        let hpHalvingPoint = GridPoint(x: 2, y: 3)
+        let poisonPoint = GridPoint(x: 3, y: 3)
+        let swampPoint = GridPoint(x: 4, y: 3)
+        let enemy = EnemyDefinition(
+            id: "dark-enemy",
+            name: "追跡兵",
+            position: GridPoint(x: 4, y: 2),
+            behavior: .chaser
+        )
+        let runState = DungeonRunState(
+            dungeonID: "growth-tower",
+            carriedHP: 3,
+            relicEntries: [
+                DungeonRelicEntry(relicID: .nightCardLens),
+                DungeonRelicEntry(relicID: .thornScoutLens),
+                DungeonRelicEntry(relicID: .magmaScoutLens),
+                DungeonRelicEntry(relicID: .trapScoutLens),
+                DungeonRelicEntry(relicID: .enemyScoutLens)
+            ]
+        )
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 1),
+            turnLimit: 8,
+            enemies: [enemy],
+            hazards: [
+                .damageTrap(points: [thornPoint], damage: 1),
+                .damageTrap(points: [strongThornPoint], damage: 2),
+                .lavaTile(points: [lavaPoint], damage: 1),
+                .lavaTile(points: [strongLavaPoint], damage: 2),
+                .hpHalvingTrap(points: [hpHalvingPoint])
+            ],
+            tileEffectOverrides: [
+                poisonPoint: .poisonTrap,
+                swampPoint: .swamp
+            ],
+            cardAcquisitionMode: .inventoryOnly,
+            cardPickups: [cardPickup],
+            runState: runState
+        )
+        let core = makeCore(mode: mode)
+
+        XCTAssertEqual(core.darknessRevealedDungeonCardPickupPoints, [cardPickup.point])
+        XCTAssertEqual(core.darknessRevealedThornTrapPoints, [thornPoint, strongThornPoint])
+        XCTAssertEqual(core.darknessRevealedLavaTilePoints, [lavaPoint, strongLavaPoint])
+        XCTAssertEqual(core.darknessRevealedHiddenTrapPoints, [hpHalvingPoint, poisonPoint])
+        XCTAssertFalse(core.darknessRevealedHiddenTrapPoints.contains(swampPoint))
+        XCTAssertEqual(core.darknessRevealedEnemyPoints, [enemy.position])
     }
 
     func testV11CommonRelicsAdjustHPTurnsDarknessTrapAndFall() {
@@ -5686,13 +6641,13 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertEqual(core.dungeonDarknessVisionRadius, 3)
 
         playBasicMove(to: trapPoint, in: core)
-        XCTAssertEqual(core.dungeonHP, 2)
+        XCTAssertEqual(core.dungeonHP, 3)
         XCTAssertEqual(core.dungeonRelicEntries.first { $0.relicID == .dullNeedle }?.remainingUses, 0)
 
         playBasicMove(to: brittlePoint, in: core)
         playBasicMove(to: GridPoint(x: 2, y: 1), in: core)
         playBasicMove(to: brittlePoint, in: core)
-        XCTAssertEqual(core.dungeonHP, 2)
+        XCTAssertEqual(core.dungeonHP, 3)
         XCTAssertEqual(core.dungeonRelicEntries.first { $0.relicID == .patchedRope }?.remainingUses, 0)
 
         let advanced = DungeonRunState(
@@ -5717,6 +6672,78 @@ final class DungeonModeTests: XCTestCase {
             ),
             1
         )
+    }
+
+    func testStarCupHealsEverySecondFloorAfterPickup() {
+        let runState = DungeonRunState(
+            dungeonID: "growth-tower",
+            carriedHP: 3,
+            relicEntries: [DungeonRelicEntry(relicID: .starCup)]
+        )
+
+        let first = runState.advancedToNextFloor(carryoverHP: 3, currentFloorMoveCount: 1)
+        let second = first.advancedToNextFloor(carryoverHP: first.carriedHP, currentFloorMoveCount: 1)
+        let third = second.advancedToNextFloor(carryoverHP: second.carriedHP, currentFloorMoveCount: 1)
+
+        XCTAssertEqual(first.carriedHP, 3)
+        XCTAssertEqual(first.relicEntries.first { $0.relicID == .starCup }?.floorStartCharge, 1)
+        XCTAssertEqual(second.carriedHP, 4)
+        XCTAssertEqual(second.relicEntries.first { $0.relicID == .starCup }?.floorStartCharge, 0)
+        XCTAssertEqual(third.carriedHP, 4)
+        XCTAssertEqual(third.relicEntries.first { $0.relicID == .starCup }?.floorStartCharge, 1)
+    }
+
+    func testDistantAndCrackedStarCupsUseTheirOwnHealingCadence() {
+        let runState = DungeonRunState(
+            dungeonID: "growth-tower",
+            carriedHP: 3,
+            relicEntries: [
+                DungeonRelicEntry(relicID: .distantStarCup),
+                DungeonRelicEntry(relicID: .crackedStarCup)
+            ]
+        )
+
+        let first = runState.advancedToNextFloor(carryoverHP: 3, currentFloorMoveCount: 1)
+        let second = first.advancedToNextFloor(carryoverHP: first.carriedHP, currentFloorMoveCount: 1)
+        let third = second.advancedToNextFloor(carryoverHP: second.carriedHP, currentFloorMoveCount: 1)
+        let fourth = third.advancedToNextFloor(carryoverHP: third.carriedHP, currentFloorMoveCount: 1)
+        let fifth = fourth.advancedToNextFloor(carryoverHP: fourth.carriedHP, currentFloorMoveCount: 1)
+
+        XCTAssertEqual(first.carriedHP, 3)
+        XCTAssertEqual(second.carriedHP, 3)
+        XCTAssertEqual(third.carriedHP, 4)
+        XCTAssertEqual(fourth.carriedHP, 4)
+        XCTAssertEqual(fifth.carriedHP, 5)
+        XCTAssertEqual(fifth.relicEntries.first { $0.relicID == .distantStarCup }?.floorStartCharge, 2)
+        XCTAssertEqual(fifth.relicEntries.first { $0.relicID == .crackedStarCup }?.floorStartCharge, 0)
+    }
+
+    func testLimitedCanteenRelicsHealAtFloorStartAndExpire() {
+        let runState = DungeonRunState(
+            dungeonID: "growth-tower",
+            carriedHP: 3,
+            relicEntries: [
+                DungeonRelicEntry(relicID: .travelerCanteen),
+                DungeonRelicEntry(relicID: .moonDewCanteen)
+            ]
+        )
+
+        let first = runState.advancedToNextFloor(carryoverHP: 3, currentFloorMoveCount: 1)
+        let second = first.advancedToNextFloor(carryoverHP: first.carriedHP, currentFloorMoveCount: 1)
+        let third = second.advancedToNextFloor(carryoverHP: second.carriedHP, currentFloorMoveCount: 1)
+        let fourth = third.advancedToNextFloor(carryoverHP: third.carriedHP, currentFloorMoveCount: 1)
+        let fifth = fourth.advancedToNextFloor(carryoverHP: fourth.carriedHP, currentFloorMoveCount: 1)
+
+        XCTAssertEqual(first.carriedHP, 5)
+        XCTAssertEqual(first.relicEntries.first { $0.relicID == .travelerCanteen }?.remainingUses, 2)
+        XCTAssertEqual(first.relicEntries.first { $0.relicID == .moonDewCanteen }?.remainingUses, 4)
+        XCTAssertEqual(second.carriedHP, 7)
+        XCTAssertEqual(third.carriedHP, 9)
+        XCTAssertNil(third.relicEntries.first { $0.relicID == .travelerCanteen })
+        XCTAssertEqual(third.relicEntries.first { $0.relicID == .moonDewCanteen }?.remainingUses, 2)
+        XCTAssertEqual(fourth.carriedHP, 10)
+        XCTAssertEqual(fifth.carriedHP, 11)
+        XCTAssertNil(fifth.relicEntries.first { $0.relicID == .moonDewCanteen })
     }
 
     func testV11RareRelicsAdjustHealingRewardUsesAndStatusProtection() {
@@ -5759,7 +6786,25 @@ final class DungeonModeTests: XCTestCase {
             rewardSelection: .add(.straightRight2),
             rewardAddUses: 2
         )
-        XCTAssertEqual(advanced.rewardInventoryEntries.first?.rewardUses, 3)
+        XCTAssertEqual(advanced.rewardInventoryEntries.first?.rewardUses, 2)
+        XCTAssertEqual(
+            DungeonRunState.adjustedRewardAddUses(
+                2,
+                for: .rayRight,
+                relicEntries: [DungeonRelicEntry(relicID: .windcutFeather)],
+                curseEntries: []
+            ),
+            2
+        )
+        XCTAssertEqual(
+            DungeonRunState.adjustedRewardAddUses(
+                2,
+                for: .straightRight2,
+                relicEntries: [DungeonRelicEntry(relicID: .quickSheath)],
+                curseEntries: []
+            ),
+            2
+        )
         XCTAssertEqual(
             DungeonRunState.adjustedMoveRewardBaseUses(
                 2,
@@ -5775,6 +6820,70 @@ final class DungeonModeTests: XCTestCase {
                 curseEntries: []
             ),
             2
+        )
+    }
+
+    func testGreaterPurifyingCharmBlocksTwoStatusTraps() {
+        let poisonPoint = GridPoint(x: 1, y: 0)
+        let shacklePoint = GridPoint(x: 2, y: 0)
+        let runState = DungeonRunState(
+            dungeonID: "growth-tower",
+            carriedHP: 3,
+            relicEntries: [DungeonRelicEntry(relicID: .greatPurifyingCharm)]
+        )
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 3,
+            turnLimit: 8,
+            tileEffectOverrides: [
+                poisonPoint: .poisonTrap,
+                shacklePoint: .shackleTrap
+            ],
+            allowsBasicOrthogonalMove: true,
+            runState: runState
+        )
+        let core = makeCore(mode: mode, cards: [.straightRight2, .straightLeft2, .rayRight])
+
+        playBasicMove(to: poisonPoint, in: core)
+        XCTAssertEqual(core.poisonDamageTicksRemaining, 0)
+        XCTAssertEqual(core.dungeonRelicEntries.first { $0.relicID == .greatPurifyingCharm }?.remainingUses, 1)
+
+        playBasicMove(to: shacklePoint, in: core)
+        XCTAssertFalse(core.isShackled)
+        XCTAssertEqual(core.dungeonRelicEntries.first { $0.relicID == .greatPurifyingCharm }?.remainingUses, 0)
+    }
+
+    func testAntidoteRelicsReducePoisonTicksByStrength() {
+        func poisonTicks(relics: [DungeonRelicEntry]) -> Int {
+            let poisonPoint = GridPoint(x: 1, y: 0)
+            let core = makeCore(
+                mode: makeDungeonMode(
+                    spawn: GridPoint(x: 0, y: 0),
+                    exit: GridPoint(x: 4, y: 4),
+                    hp: 3,
+                    turnLimit: 8,
+                    tileEffectOverrides: [poisonPoint: .poisonTrap],
+                    allowsBasicOrthogonalMove: true,
+                    runState: DungeonRunState(
+                        dungeonID: "growth-tower",
+                        carriedHP: 3,
+                        relicEntries: relics
+                    )
+                )
+            )
+            playBasicMove(to: poisonPoint, in: core)
+            return core.poisonDamageTicksRemaining
+        }
+
+        XCTAssertEqual(poisonTicks(relics: [DungeonRelicEntry(relicID: .antidoteStone)]), 2)
+        XCTAssertEqual(poisonTicks(relics: [DungeonRelicEntry(relicID: .greaterAntidoteStone)]), 1)
+        XCTAssertEqual(
+            poisonTicks(relics: [
+                DungeonRelicEntry(relicID: .antidoteStone),
+                DungeonRelicEntry(relicID: .greaterAntidoteStone)
+            ]),
+            1
         )
     }
 
@@ -5835,6 +6944,142 @@ final class DungeonModeTests: XCTestCase {
             ),
             2
         )
+    }
+
+    func testRewindingHourglassRevivesOnEarlierRandomFloorWithRunStateCarriedForward() throws {
+        let trapPoint = GridPoint(x: 1, y: 0)
+        let runState = DungeonRunState(
+            dungeonID: "growth-tower",
+            currentFloorIndex: 4,
+            carriedHP: 1,
+            totalMoveCount: 12,
+            clearedFloorCount: 4,
+            rewardInventoryEntries: [DungeonInventoryEntry(card: .straightRight2, rewardUses: 2)],
+            relicEntries: [
+                DungeonRelicEntry(relicID: .rewindingHourglass),
+                DungeonRelicEntry(relicID: .sageCodex)
+            ],
+            curseEntries: [DungeonCurseEntry(curseID: .rustyChain)],
+            collectedDungeonRelicPickupIDs: ["chest-1"],
+            cardVariationSeed: 4242,
+            movementStyle: .orthogonal,
+            dungeonInventoryKindLimit: 7,
+            crackedFloorPointsByFloor: [2: [GridPoint(x: 2, y: 2)]],
+            collapsedFloorPointsByFloor: [2: [GridPoint(x: 3, y: 3)]],
+            hazardDamageMitigationsRemaining: 0,
+            enemyDamageMitigationsRemaining: 2,
+            markerDamageMitigationsRemaining: 3
+        )
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 1,
+            turnLimit: 8,
+            hazards: [.damageTrap(points: [trapPoint], damage: 2)],
+            allowsBasicOrthogonalMove: true,
+            cardAcquisitionMode: .inventoryOnly,
+            runState: runState
+        )
+        let core = makeCore(mode: mode, cards: [.straightRight2, .straightLeft2, .rayRight])
+
+        playBasicMove(to: trapPoint, in: core)
+
+        let event = try XCTUnwrap(core.dungeonRewindReviveEvent)
+        XCTAssertEqual(core.progress, .playing)
+        XCTAssertEqual(core.dungeonHP, 1)
+        XCTAssertEqual(event.sourceFloorIndex, 4)
+        XCTAssertLessThan(event.destinationFloorIndex, 4)
+        XCTAssertEqual(event.hpAfterRevive, 1)
+        XCTAssertEqual(core.dungeonRelicEntries.first { $0.relicID == .rewindingHourglass }?.remainingUses, 0)
+        XCTAssertTrue(core.dungeonRunLogEntries.contains { $0.message.contains("逆巻きの砂時計で\(event.destinationFloorIndex + 1)Fへ復活") })
+
+        let revived = runState.revivedAtPreviousFloor(
+            floorIndex: event.destinationFloorIndex,
+            currentFloorMoveCount: core.moveCount,
+            currentInventoryEntries: core.dungeonInventoryEntries,
+            currentRelicEntries: core.dungeonRelicEntries,
+            currentCurseEntries: core.dungeonCurseEntries,
+            collectedDungeonRelicPickupIDs: core.collectedDungeonRelicPickupIDs,
+            hazardDamageMitigationsRemaining: core.hazardDamageMitigationsRemaining,
+            enemyDamageMitigationsRemaining: core.enemyDamageMitigationsRemaining,
+            markerDamageMitigationsRemaining: core.markerDamageMitigationsRemaining,
+            currentRunLogEntries: core.dungeonRunLogEntries
+        )
+        XCTAssertEqual(revived.currentFloorIndex, event.destinationFloorIndex)
+        XCTAssertEqual(revived.carriedHP, 1)
+        XCTAssertEqual(revived.rewardInventoryEntries.first?.rewardUses, 2)
+        XCTAssertEqual(revived.relicEntries.first { $0.relicID == .rewindingHourglass }?.remainingUses, 0)
+        XCTAssertEqual(revived.curseEntries.map(\.curseID), [.rustyChain])
+        XCTAssertEqual(revived.collectedDungeonRelicPickupIDs, Set(["chest-1"]))
+        XCTAssertEqual(revived.cardVariationSeed, 4242)
+        XCTAssertEqual(revived.movementStyle, .orthogonal)
+        XCTAssertEqual(revived.dungeonInventoryKindLimit, 7)
+        XCTAssertEqual(revived.hazardDamageMitigationsRemaining, 0)
+        XCTAssertEqual(revived.enemyDamageMitigationsRemaining, 2)
+        XCTAssertEqual(revived.markerDamageMitigationsRemaining, 3)
+        XCTAssertEqual(revived.crackedFloorPoints(for: event.destinationFloorIndex), [])
+        XCTAssertEqual(revived.collapsedFloorPoints(for: event.destinationFloorIndex), [])
+    }
+
+    func testPhoenixFeatherTakesPrecedenceOverRewindingHourglass() {
+        let trapPoint = GridPoint(x: 1, y: 0)
+        let runState = DungeonRunState(
+            dungeonID: "growth-tower",
+            currentFloorIndex: 3,
+            carriedHP: 1,
+            relicEntries: [
+                DungeonRelicEntry(relicID: .phoenixFeather),
+                DungeonRelicEntry(relicID: .rewindingHourglass)
+            ],
+            cardVariationSeed: 99
+        )
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 1,
+            turnLimit: 8,
+            hazards: [.damageTrap(points: [trapPoint], damage: 2)],
+            allowsBasicOrthogonalMove: true,
+            runState: runState
+        )
+        let core = makeCore(mode: mode, cards: [.straightRight2, .straightLeft2, .rayRight])
+
+        playBasicMove(to: trapPoint, in: core)
+
+        XCTAssertNil(core.dungeonRewindReviveEvent)
+        XCTAssertEqual(core.dungeonHP, 1)
+        XCTAssertEqual(core.dungeonRelicEntries.first { $0.relicID == .phoenixFeather }?.remainingUses, 0)
+        XCTAssertEqual(core.dungeonRelicEntries.first { $0.relicID == .rewindingHourglass }?.remainingUses, 1)
+    }
+
+    func testRewindingHourglassRevivesOnFirstFloorWhenThereIsNoEarlierFloor() throws {
+        let trapPoint = GridPoint(x: 1, y: 0)
+        let runState = DungeonRunState(
+            dungeonID: "growth-tower",
+            currentFloorIndex: 0,
+            carriedHP: 1,
+            relicEntries: [DungeonRelicEntry(relicID: .rewindingHourglass)],
+            cardVariationSeed: 7
+        )
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 1,
+            turnLimit: 8,
+            hazards: [.damageTrap(points: [trapPoint], damage: 2)],
+            allowsBasicOrthogonalMove: true,
+            runState: runState
+        )
+        let core = makeCore(mode: mode, cards: [.straightRight2, .straightLeft2, .rayRight])
+
+        playBasicMove(to: trapPoint, in: core)
+
+        let event = try XCTUnwrap(core.dungeonRewindReviveEvent)
+        XCTAssertEqual(event.sourceFloorIndex, 0)
+        XCTAssertEqual(event.destinationFloorIndex, 0)
+        XCTAssertEqual(core.dungeonHP, 1)
+        XCTAssertEqual(core.progress, .playing)
+        XCTAssertEqual(core.dungeonRelicEntries.first { $0.relicID == .rewindingHourglass }?.remainingUses, 0)
     }
 
     func testTargetedBuffRelicsReduceSpecificEnemyDamageAndOffsetCurses() {
@@ -5910,6 +7155,565 @@ final class DungeonModeTests: XCTestCase {
             playBasicMove(to: dangerPoint, in: offsetCore)
             XCTAssertEqual(offsetCore.dungeonHP, 3, "\(relic.displayName) should offset \(curse.displayName) back to base damage")
         }
+    }
+
+    func testTargetedOneTimeNullifyRelicsCoverHazardAndEnemyCategories() throws {
+        let trapPoint = GridPoint(x: 1, y: 0)
+        let trapCore = makeCore(
+            mode: makeDungeonMode(
+                spawn: GridPoint(x: 0, y: 0),
+                exit: GridPoint(x: 4, y: 4),
+                hp: 4,
+                turnLimit: 8,
+                hazards: [.damageTrap(points: [trapPoint], damage: 2)],
+                runState: DungeonRunState(
+                    dungeonID: "growth-tower",
+                    carriedHP: 4,
+                    relicEntries: [DungeonRelicEntry(relicID: .silverNeedle)]
+                )
+            )
+        )
+        playBasicMove(to: trapPoint, in: trapCore)
+        XCTAssertEqual(trapCore.dungeonHP, 4)
+        XCTAssertEqual(trapCore.dungeonRelicEntries.first { $0.relicID == .silverNeedle }?.remainingUses, 0)
+
+        let lavaPoint = GridPoint(x: 1, y: 0)
+        let lavaCore = makeCore(
+            mode: makeDungeonMode(
+                spawn: GridPoint(x: 0, y: 0),
+                exit: GridPoint(x: 4, y: 4),
+                hp: 4,
+                turnLimit: 8,
+                hazards: [.lavaTile(points: [lavaPoint], damage: 2)],
+                runState: DungeonRunState(
+                    dungeonID: "growth-tower",
+                    carriedHP: 4,
+                    relicEntries: [DungeonRelicEntry(relicID: .lavaCharm)]
+                )
+            )
+        )
+        playBasicMove(to: lavaPoint, in: lavaCore)
+        XCTAssertEqual(lavaCore.dungeonHP, 4)
+        XCTAssertEqual(lavaCore.dungeonRelicEntries.first { $0.relicID == .lavaCharm }?.remainingUses, 0)
+
+        let enemyCases: [(DungeonRelicID, EnemyDefinition, GridPoint)] = [
+            (
+                .watcherMask,
+                EnemyDefinition(
+                    id: "watcher",
+                    name: "見張り",
+                    position: GridPoint(x: 1, y: 1),
+                    behavior: .watcher(direction: MoveVector(dx: -1, dy: 0), range: 2),
+                    damage: 2
+                ),
+                GridPoint(x: 0, y: 1)
+            ),
+            (
+                .railWedge,
+                EnemyDefinition(
+                    id: "patrol",
+                    name: "巡回兵",
+                    position: GridPoint(x: 1, y: 1),
+                    behavior: .patrol(path: [GridPoint(x: 1, y: 1), GridPoint(x: 2, y: 1)]),
+                    damage: 2
+                ),
+                GridPoint(x: 0, y: 1)
+            ),
+            (
+                .smokeDecoy,
+                EnemyDefinition(
+                    id: "chaser",
+                    name: "追跡兵",
+                    position: GridPoint(x: 1, y: 1),
+                    behavior: .chaser,
+                    damage: 2
+                ),
+                GridPoint(x: 0, y: 1)
+            )
+        ]
+
+        for (relic, enemy, dangerPoint) in enemyCases {
+            let core = makeCore(
+                mode: makeDungeonMode(
+                    spawn: GridPoint(x: 0, y: 0),
+                    exit: GridPoint(x: 4, y: 4),
+                    hp: 4,
+                    turnLimit: 8,
+                    enemies: [enemy],
+                    runState: DungeonRunState(
+                        dungeonID: "growth-tower",
+                        carriedHP: 4,
+                        relicEntries: [DungeonRelicEntry(relicID: relic)]
+                    )
+                )
+            )
+            playBasicMove(to: dangerPoint, in: core)
+            XCTAssertEqual(core.dungeonHP, 4, "\(relic.displayName) should nullify \(enemy.name) damage")
+            XCTAssertEqual(core.dungeonRelicEntries.first { $0.relicID == relic }?.remainingUses, 0)
+        }
+
+        let marker = EnemyDefinition(
+            id: "marker",
+            name: "メテオ兵",
+            position: GridPoint(x: 3, y: 1),
+            behavior: .marker(directions: [], range: 2),
+            damage: 2
+        )
+        var selectedCore: GameCore?
+        var selectedMove: BasicOrthogonalMove?
+        for seed in 0..<200 {
+            let core = makeCore(
+                mode: makeDungeonMode(
+                    spawn: GridPoint(x: 0, y: 0),
+                    exit: GridPoint(x: 4, y: 4),
+                    hp: 4,
+                    turnLimit: 8,
+                    enemies: [marker],
+                    runState: DungeonRunState(
+                        dungeonID: "growth-tower",
+                        carriedHP: 4,
+                        relicEntries: [DungeonRelicEntry(relicID: .starVeil)],
+                        cardVariationSeed: UInt64(seed)
+                    )
+                )
+            )
+            if let warningMove = core.availableBasicOrthogonalMoves().first(where: {
+                core.enemyWarningPoints.contains($0.destination)
+            }) {
+                selectedCore = core
+                selectedMove = warningMove
+                break
+            }
+        }
+        let markerCore = try XCTUnwrap(selectedCore)
+        let markerMove = try XCTUnwrap(selectedMove)
+        playBasicMove(to: markerMove.destination, in: markerCore)
+        XCTAssertEqual(markerCore.dungeonHP, 4)
+        XCTAssertEqual(markerCore.dungeonRelicEntries.first { $0.relicID == .starVeil }?.remainingUses, 0)
+    }
+
+    func testPerFloorNullifyRelicsResetOnNextFloor() {
+        let relics: [DungeonRelicID] = [
+            .dullNeedle,
+            .lavaLantern,
+            .patchedRope,
+            .guardianIncense,
+            .railSign,
+            .chaserWhistle,
+            .guardianAegis
+        ]
+        let runState = DungeonRunState(
+            dungeonID: "growth-tower",
+            carriedHP: 3,
+            relicEntries: relics.map { DungeonRelicEntry(relicID: $0, remainingUses: 0) }
+        )
+        let advanced = runState.advancedToNextFloor(
+            carryoverHP: 3,
+            currentFloorMoveCount: 1,
+            currentRelicEntries: runState.relicEntries
+        )
+        for relic in relics {
+            XCTAssertEqual(advanced.relicEntries.first { $0.relicID == relic }?.remainingUses, 1, "\(relic.displayName) should refill")
+        }
+    }
+
+    func testStrongerEnemyDamageStillUsesRelicReductionAfterBaseDamage() {
+        let damageTwoWatcher = EnemyDefinition(
+            id: "damage-two-watcher",
+            name: "見張り",
+            position: GridPoint(x: 1, y: 1),
+            behavior: .watcher(direction: MoveVector(dx: -1, dy: 0), range: 2),
+            damage: 2
+        )
+        let damageThreeWatcher = EnemyDefinition(
+            id: "damage-three-watcher",
+            name: "見張り",
+            position: GridPoint(x: 1, y: 1),
+            behavior: .watcher(direction: MoveVector(dx: -1, dy: 0), range: 2),
+            damage: 3
+        )
+
+        for (enemy, expectedHP) in [(damageTwoWatcher, 4), (damageThreeWatcher, 3)] {
+            let core = makeCore(
+                mode: makeDungeonMode(
+                    spawn: GridPoint(x: 0, y: 0),
+                    exit: GridPoint(x: 4, y: 4),
+                    hp: 5,
+                    turnLimit: 8,
+                    enemies: [enemy],
+                    runState: DungeonRunState(
+                        dungeonID: "growth-tower",
+                        carriedHP: 5,
+                        relicEntries: [DungeonRelicEntry(relicID: .watcherMonocle)]
+                    )
+                )
+            )
+
+            playBasicMove(to: GridPoint(x: 0, y: 1), in: core)
+
+            XCTAssertEqual(core.dungeonHP, expectedHP)
+        }
+    }
+
+    func testStrongerMeteorDamageUsesMarkerRelicReductionAfterBaseDamage() throws {
+        let marker = EnemyDefinition(
+            id: "damage-three-marker",
+            name: "メテオ兵",
+            position: GridPoint(x: 3, y: 1),
+            behavior: .marker(directions: [], range: 2),
+            damage: 3
+        )
+        var selectedCore: GameCore?
+        var selectedMove: BasicOrthogonalMove?
+        for seed in 0..<200 {
+            let core = makeCore(
+                mode: makeDungeonMode(
+                    spawn: GridPoint(x: 0, y: 0),
+                    exit: GridPoint(x: 4, y: 4),
+                    hp: 6,
+                    turnLimit: 8,
+                    enemies: [marker],
+                    runState: DungeonRunState(
+                        dungeonID: "growth-tower",
+                        carriedHP: 6,
+                        relicEntries: [DungeonRelicEntry(relicID: .starUmbrella)],
+                        cardVariationSeed: UInt64(seed)
+                    )
+                )
+            )
+            if let warningMove = core.availableBasicOrthogonalMoves().first(where: {
+                core.enemyWarningPoints.contains($0.destination)
+            }) {
+                selectedCore = core
+                selectedMove = warningMove
+                break
+            }
+        }
+
+        let core = try XCTUnwrap(selectedCore)
+        let warningMove = try XCTUnwrap(selectedMove)
+        playBasicMove(to: warningMove.destination, in: core)
+
+        XCTAssertEqual(core.dungeonHP, 4)
+    }
+
+    func testGuardianCloakReducesAllEnemyDamageWithoutStackingWithTargetedRelics() throws {
+        let enemyCases: [(EnemyDefinition, GridPoint)] = [
+            (
+                EnemyDefinition(
+                    id: "watcher",
+                    name: "見張り",
+                    position: GridPoint(x: 1, y: 1),
+                    behavior: .watcher(direction: MoveVector(dx: -1, dy: 0), range: 2),
+                    damage: 2
+                ),
+                GridPoint(x: 0, y: 1)
+            ),
+            (
+                EnemyDefinition(
+                    id: "rotating-watcher",
+                    name: "回転見張り",
+                    position: GridPoint(x: 1, y: 1),
+                    behavior: .rotatingWatcher(
+                        initialDirection: MoveVector(dx: -1, dy: 0),
+                        rotationDirection: .clockwise,
+                        range: 2
+                    ),
+                    damage: 2
+                ),
+                GridPoint(x: 0, y: 1)
+            ),
+            (
+                EnemyDefinition(
+                    id: "patrol",
+                    name: "巡回兵",
+                    position: GridPoint(x: 1, y: 1),
+                    behavior: .patrol(path: [GridPoint(x: 1, y: 1), GridPoint(x: 2, y: 1)]),
+                    damage: 2
+                ),
+                GridPoint(x: 0, y: 1)
+            ),
+            (
+                EnemyDefinition(
+                    id: "chaser",
+                    name: "追跡兵",
+                    position: GridPoint(x: 1, y: 1),
+                    behavior: .chaser,
+                    damage: 2
+                ),
+                GridPoint(x: 0, y: 1)
+            )
+        ]
+
+        for (enemy, dangerPoint) in enemyCases {
+            let core = makeCore(
+                mode: makeDungeonMode(
+                    spawn: GridPoint(x: 0, y: 0),
+                    exit: GridPoint(x: 4, y: 4),
+                    hp: 5,
+                    turnLimit: 8,
+                    enemies: [enemy],
+                    runState: DungeonRunState(
+                        dungeonID: "growth-tower",
+                        carriedHP: 5,
+                        relicEntries: [DungeonRelicEntry(relicID: .guardianCloak)]
+                    )
+                )
+            )
+
+            playBasicMove(to: dangerPoint, in: core)
+
+            XCTAssertEqual(core.dungeonHP, 4, "\(enemy.name) should be reduced by 1")
+        }
+
+        let weakWatcher = EnemyDefinition(
+            id: "weak-watcher",
+            name: "見張り",
+            position: GridPoint(x: 1, y: 1),
+            behavior: .watcher(direction: MoveVector(dx: -1, dy: 0), range: 2),
+            damage: 1
+        )
+        let weakCore = makeCore(
+            mode: makeDungeonMode(
+                spawn: GridPoint(x: 0, y: 0),
+                exit: GridPoint(x: 4, y: 4),
+                hp: 5,
+                turnLimit: 8,
+                enemies: [weakWatcher],
+                runState: DungeonRunState(
+                    dungeonID: "growth-tower",
+                    carriedHP: 5,
+                    relicEntries: [DungeonRelicEntry(relicID: .guardianCloak)]
+                )
+            )
+        )
+        playBasicMove(to: GridPoint(x: 0, y: 1), in: weakCore)
+        XCTAssertEqual(weakCore.dungeonHP, 5)
+
+        let stackedCore = makeCore(
+            mode: makeDungeonMode(
+                spawn: GridPoint(x: 0, y: 0),
+                exit: GridPoint(x: 4, y: 4),
+                hp: 5,
+                turnLimit: 8,
+                enemies: [weakWatcher],
+                runState: DungeonRunState(
+                    dungeonID: "growth-tower",
+                    carriedHP: 5,
+                    relicEntries: [
+                        DungeonRelicEntry(relicID: .watcherMonocle),
+                        DungeonRelicEntry(relicID: .guardianCloak)
+                    ]
+                )
+            )
+        )
+        playBasicMove(to: GridPoint(x: 0, y: 1), in: stackedCore)
+        XCTAssertEqual(stackedCore.dungeonHP, 5)
+
+        let strongStackedCore = makeCore(
+            mode: makeDungeonMode(
+                spawn: GridPoint(x: 0, y: 0),
+                exit: GridPoint(x: 4, y: 4),
+                hp: 5,
+                turnLimit: 8,
+                enemies: [
+                    EnemyDefinition(
+                        id: "strong-watcher",
+                        name: "見張り",
+                        position: GridPoint(x: 1, y: 1),
+                        behavior: .watcher(direction: MoveVector(dx: -1, dy: 0), range: 2),
+                        damage: 2
+                    )
+                ],
+                runState: DungeonRunState(
+                    dungeonID: "growth-tower",
+                    carriedHP: 5,
+                    relicEntries: [
+                        DungeonRelicEntry(relicID: .watcherMonocle),
+                        DungeonRelicEntry(relicID: .guardianCloak)
+                    ]
+                )
+            )
+        )
+        playBasicMove(to: GridPoint(x: 0, y: 1), in: strongStackedCore)
+        XCTAssertEqual(strongStackedCore.dungeonHP, 4)
+
+        let marker = EnemyDefinition(
+            id: "guardian-marker",
+            name: "メテオ兵",
+            position: GridPoint(x: 3, y: 1),
+            behavior: .marker(directions: [], range: 2),
+            damage: 2
+        )
+        var selectedCore: GameCore?
+        var selectedMove: BasicOrthogonalMove?
+        for seed in 0..<200 {
+            let core = makeCore(
+                mode: makeDungeonMode(
+                    spawn: GridPoint(x: 0, y: 0),
+                    exit: GridPoint(x: 4, y: 4),
+                    hp: 5,
+                    turnLimit: 8,
+                    enemies: [marker],
+                    runState: DungeonRunState(
+                        dungeonID: "growth-tower",
+                        carriedHP: 5,
+                        relicEntries: [DungeonRelicEntry(relicID: .guardianCloak)],
+                        cardVariationSeed: UInt64(seed)
+                    )
+                )
+            )
+            if let warningMove = core.availableBasicOrthogonalMoves().first(where: {
+                core.enemyWarningPoints.contains($0.destination)
+            }) {
+                selectedCore = core
+                selectedMove = warningMove
+                break
+            }
+        }
+
+        let markerCore = try XCTUnwrap(selectedCore)
+        let warningMove = try XCTUnwrap(selectedMove)
+        playBasicMove(to: warningMove.destination, in: markerCore)
+        XCTAssertEqual(markerCore.dungeonHP, 4)
+    }
+
+    func testGrowthAndRogueTowerEnemyDamageScalesInLateFloors() throws {
+        let growthTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let growthRunState = DungeonRunState(dungeonID: growthTower.id, carriedHP: 3, cardVariationSeed: 555)
+        let growthFloorOne = try XCTUnwrap(growthTower.resolvedFloor(at: 0, runState: growthRunState))
+        let growthFloorTwentyOne = try XCTUnwrap(growthTower.resolvedFloor(at: 20, runState: growthRunState))
+        let growthFloorFortyOne = try XCTUnwrap(growthTower.resolvedFloor(at: 40, runState: growthRunState))
+
+        XCTAssertTrue(growthFloorOne.enemies.allSatisfy { $0.damage == 1 })
+        XCTAssertTrue(growthFloorTwentyOne.enemies.allSatisfy { $0.damage == 2 })
+        XCTAssertTrue(growthFloorFortyOne.enemies.allSatisfy { $0.damage == 3 })
+
+        let rogueTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "rogue-tower"))
+        let rogueRunState = DungeonRunState(dungeonID: rogueTower.id, carriedHP: 3, rogueTowerSeed: 2468)
+        let rogueFloorOne = try XCTUnwrap(rogueTower.resolvedFloor(at: 0, runState: rogueRunState))
+        let rogueFloorTwentyOne = try XCTUnwrap(rogueTower.resolvedFloor(at: 20, runState: rogueRunState))
+        let rogueFloorFortyOne = try XCTUnwrap(rogueTower.resolvedFloor(at: 40, runState: rogueRunState))
+
+        XCTAssertTrue(rogueFloorOne.enemies.allSatisfy { $0.damage == 1 })
+        XCTAssertTrue(rogueFloorTwentyOne.enemies.allSatisfy { $0.damage == 2 })
+        XCTAssertTrue(rogueFloorFortyOne.enemies.allSatisfy { $0.damage == 3 })
+    }
+
+    func testStrongerTrapAndLavaDamageUseTargetedRelicReduction() throws {
+        let trapPoint = GridPoint(x: 1, y: 0)
+        let trapCore = makeCore(
+            mode: makeDungeonMode(
+                spawn: GridPoint(x: 0, y: 0),
+                exit: GridPoint(x: 4, y: 4),
+                hp: 5,
+                turnLimit: 8,
+                hazards: [.damageTrap(points: [trapPoint], damage: 2)]
+            )
+        )
+        playBasicMove(to: trapPoint, in: trapCore)
+        XCTAssertEqual(trapCore.dungeonHP, 3)
+
+        let trapRelicCore = makeCore(
+            mode: makeDungeonMode(
+                spawn: GridPoint(x: 0, y: 0),
+                exit: GridPoint(x: 4, y: 4),
+                hp: 5,
+                turnLimit: 8,
+                hazards: [.damageTrap(points: [trapPoint], damage: 2)],
+                runState: DungeonRunState(
+                    dungeonID: "growth-tower",
+                    carriedHP: 5,
+                    relicEntries: [DungeonRelicEntry(relicID: .trapSole)]
+                )
+            )
+        )
+        playBasicMove(to: trapPoint, in: trapRelicCore)
+        XCTAssertEqual(trapRelicCore.dungeonHP, 4)
+
+        let trapCurseCore = makeCore(
+            mode: makeDungeonMode(
+                spawn: GridPoint(x: 0, y: 0),
+                exit: GridPoint(x: 4, y: 4),
+                hp: 5,
+                turnLimit: 8,
+                hazards: [.damageTrap(points: [trapPoint], damage: 2)],
+                runState: DungeonRunState(
+                    dungeonID: "growth-tower",
+                    carriedHP: 5,
+                    relicEntries: [DungeonRelicEntry(relicID: .trapSole)],
+                    curseEntries: [DungeonCurseEntry(curseID: .trapMagnet)]
+                )
+            )
+        )
+        playBasicMove(to: trapPoint, in: trapCurseCore)
+        XCTAssertEqual(trapCurseCore.dungeonHP, 3)
+
+        let lavaPoint = GridPoint(x: 1, y: 0)
+        let lavaCore = makeCore(
+            mode: makeDungeonMode(
+                spawn: GridPoint(x: 0, y: 0),
+                exit: GridPoint(x: 4, y: 4),
+                hp: 5,
+                turnLimit: 8,
+                hazards: [.lavaTile(points: [lavaPoint], damage: 2)],
+                runState: DungeonRunState(
+                    dungeonID: "growth-tower",
+                    carriedHP: 5,
+                    relicEntries: [DungeonRelicEntry(relicID: .emberCloak)]
+                )
+            )
+        )
+        playBasicMove(to: lavaPoint, in: lavaCore)
+        XCTAssertEqual(lavaCore.dungeonHP, 4)
+
+        let waitCore = makeCore(
+            mode: makeDungeonMode(
+                spawn: GridPoint(x: 0, y: 0),
+                exit: GridPoint(x: 4, y: 4),
+                hp: 5,
+                turnLimit: 8,
+                hazards: [.lavaTile(points: [GridPoint(x: 0, y: 0)], damage: 2)],
+                cardAcquisitionMode: .inventoryOnly,
+                runState: DungeonRunState(
+                    dungeonID: "growth-tower",
+                    carriedHP: 5,
+                    rewardInventoryEntries: [DungeonInventoryEntry(support: .refillEmptySlots, rewardUses: 1)],
+                    relicEntries: [DungeonRelicEntry(relicID: .emberCloak)]
+                )
+            )
+        )
+        let supportIndex = try XCTUnwrap(waitCore.handStacks.firstIndex { $0.topCard?.supportCard == .refillEmptySlots })
+        waitCore.playSupportCard(at: supportIndex)
+        XCTAssertEqual(waitCore.dungeonHP, 4)
+    }
+
+    func testGrowthAndRogueTowerHazardDamageScalesConservativelyInLateFloors() throws {
+        let growthTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let growthRunState = DungeonRunState(dungeonID: growthTower.id, carriedHP: 3, cardVariationSeed: 777)
+        let growthFloorTwenty = try XCTUnwrap(growthTower.resolvedFloor(at: 19, runState: growthRunState))
+        let growthFloorTwentyOne = try XCTUnwrap(growthTower.resolvedFloor(at: 20, runState: growthRunState))
+        let growthFloorForty = try XCTUnwrap(growthTower.resolvedFloor(at: 39, runState: growthRunState))
+        let growthFloorFortyOne = try XCTUnwrap(growthTower.resolvedFloor(at: 40, runState: growthRunState))
+
+        XCTAssertEqual(damageTrapDamages(in: growthFloorTwenty), [1])
+        XCTAssertEqual(damageTrapDamages(in: growthFloorTwentyOne), [2])
+        XCTAssertEqual(damageTrapDamages(in: growthFloorForty), [2])
+        XCTAssertEqual(damageTrapDamages(in: growthFloorFortyOne), [2])
+        XCTAssertEqual(lavaTileDamages(in: growthFloorForty), [1])
+        XCTAssertEqual(lavaTileDamages(in: growthFloorFortyOne), [2])
+
+        let rogueTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "rogue-tower"))
+        let rogueRunState = DungeonRunState(dungeonID: rogueTower.id, carriedHP: 3, rogueTowerSeed: 2468)
+        let rogueFloorTwenty = try XCTUnwrap(rogueTower.resolvedFloor(at: 19, runState: rogueRunState))
+        let rogueFloorTwentyOne = try XCTUnwrap(rogueTower.resolvedFloor(at: 20, runState: rogueRunState))
+        let rogueFloorForty = try XCTUnwrap(rogueTower.resolvedFloor(at: 39, runState: rogueRunState))
+        let rogueFloorFortyOne = try XCTUnwrap(rogueTower.resolvedFloor(at: 40, runState: rogueRunState))
+
+        XCTAssertEqual(damageTrapDamages(in: rogueFloorTwenty), [1])
+        XCTAssertEqual(damageTrapDamages(in: rogueFloorTwentyOne), [2])
+        XCTAssertEqual(lavaTileDamages(in: rogueFloorForty), [1])
+        XCTAssertEqual(lavaTileDamages(in: rogueFloorFortyOne), [2])
     }
 
     func testTargetedBuffRelicsReduceMeteorTrapLavaPoisonAndFallDamage() {
@@ -7254,7 +9058,7 @@ final class DungeonModeTests: XCTestCase {
             rewardAddUses: 2
         )
 
-        XCTAssertEqual(advancedWithRay.rewardInventoryEntries.first?.rewardUses, 2)
+        XCTAssertEqual(advancedWithRay.rewardInventoryEntries.first?.rewardUses, 1)
         XCTAssertEqual(advancedWithRay.relicEntries.first { $0.relicID == .trapperGloves }?.remainingUses, 0)
 
         let advancedWithSupport = runState.advancedToNextFloor(
@@ -7321,6 +9125,14 @@ final class DungeonModeTests: XCTestCase {
 
     func testCurseDefinitionsCoverExpandedRunCurses() {
         XCTAssertEqual(DungeonCurseID.allCases.count, 40)
+        XCTAssertEqual(DungeonCurseID.newAcquisitionCases.count, 20)
+        XCTAssertEqual(Set(DungeonCurseID.newAcquisitionCases).count, 20)
+        XCTAssertTrue(DungeonCurseID.newAcquisitionCases.allSatisfy { DungeonCurseID.allCases.contains($0) })
+        XCTAssertFalse(DungeonCurseID.newAcquisitionCases.contains(.rustyChain))
+        XCTAssertEqual(
+            DungeonRelicPickupDefinition(id: "default", point: GridPoint(x: 0, y: 0)).candidateCurses,
+            DungeonCurseID.newAcquisitionCases
+        )
         XCTAssertTrue(DungeonCurseID.allCases.allSatisfy { !$0.displayName.isEmpty })
         XCTAssertTrue(DungeonCurseID.allCases.allSatisfy { !$0.upsideDescription.isEmpty })
         XCTAssertTrue(DungeonCurseID.allCases.allSatisfy { !$0.downsideDescription.isEmpty })
@@ -7360,9 +9172,9 @@ final class DungeonModeTests: XCTestCase {
         )
         let core = makeCore(mode: mode)
 
-        XCTAssertEqual(core.effectiveDungeonTurnLimit, 6)
+        XCTAssertEqual(core.effectiveDungeonTurnLimit, 5)
         playBasicMove(to: pickupPoint, in: core)
-        XCTAssertEqual(core.dungeonInventoryEntries.first { $0.moveCard == .straightRight2 }?.totalUses, 4)
+        XCTAssertEqual(core.dungeonInventoryEntries.first { $0.moveCard == .straightRight2 }?.totalUses, 7)
 
         let curseEntries = [
             DungeonCurseEntry(curseID: .contractCodex),
@@ -7372,7 +9184,7 @@ final class DungeonModeTests: XCTestCase {
         ]
         XCTAssertEqual(
             DungeonRunState.adjustedMoveRewardBaseUses(2, relicEntries: [], curseEntries: curseEntries),
-            3
+            5
         )
         XCTAssertEqual(
             DungeonRunState.adjustedRewardAddUses(
@@ -7385,7 +9197,7 @@ final class DungeonModeTests: XCTestCase {
         )
         XCTAssertEqual(
             DungeonRunState.adjustedSupportRewardUses(1, relicEntries: [], curseEntries: curseEntries),
-            5
+            8
         )
     }
 
@@ -7409,16 +9221,16 @@ final class DungeonModeTests: XCTestCase {
             currentFloorMoveCount: 1
         )
 
-        XCTAssertEqual(selectedReward.carriedHP, 2)
-        XCTAssertEqual(noReward.carriedHP, 3)
+        XCTAssertEqual(selectedReward.carriedHP, 3)
+        XCTAssertEqual(noReward.carriedHP, 4)
     }
 
-    func testFloorStartHeartRelicsAndAshHeartEachAddOneHP() {
+    func testFloorStartHeartRelicsAndAshHeartStackFloorStartHealing() {
         let runState = DungeonRunState(
             dungeonID: "growth-tower",
             carriedHP: 3,
             relicEntries: [
-                DungeonRelicEntry(relicID: .starCup),
+                DungeonRelicEntry(relicID: .starCup, floorStartCharge: 1),
                 DungeonRelicEntry(relicID: .immortalHeart)
             ],
             curseEntries: [
@@ -7431,7 +9243,33 @@ final class DungeonModeTests: XCTestCase {
             currentFloorMoveCount: 1
         )
 
-        XCTAssertEqual(nextFloorState.carriedHP, 6)
+        XCTAssertEqual(nextFloorState.carriedHP, 7)
+    }
+
+    func testFloorStartRecoveryRelicsCursesAndRationStackWithExistingOrder() {
+        let runState = DungeonRunState(
+            dungeonID: "growth-tower",
+            carriedHP: 2,
+            relicEntries: [
+                DungeonRelicEntry(relicID: .starCup, floorStartCharge: 1),
+                DungeonRelicEntry(relicID: .travelerCanteen, remainingUses: 1),
+                DungeonRelicEntry(relicID: .travelerRation)
+            ],
+            curseEntries: [
+                DungeonCurseEntry(curseID: .obsidianHeart),
+                DungeonCurseEntry(curseID: .ashHeart)
+            ]
+        )
+
+        let nextFloorState = runState.advancedToNextFloor(
+            carryoverHP: 2,
+            currentFloorMoveCount: 1
+        )
+
+        XCTAssertEqual(nextFloorState.carriedHP, 5)
+        XCTAssertEqual(nextFloorState.relicEntries.first { $0.relicID == .starCup }?.floorStartCharge, 0)
+        XCTAssertNil(nextFloorState.relicEntries.first { $0.relicID == .travelerCanteen })
+        XCTAssertTrue(nextFloorState.relicEntries.contains { $0.relicID == .travelerRation })
     }
 
     func testSurvivalRiskCursesReduceEnemyDamageAndIncreaseFatigueDamage() {
@@ -7559,13 +9397,13 @@ final class DungeonModeTests: XCTestCase {
             )
         )
 
-        XCTAssertEqual(core.effectiveDungeonTurnLimit, 7)
+        XCTAssertEqual(core.effectiveDungeonTurnLimit, 6)
         playBasicMove(to: trapPoint, in: core)
-        XCTAssertEqual(core.dungeonHP, 9)
+        XCTAssertEqual(core.dungeonHP, 10)
         XCTAssertEqual(core.dungeonCurseEntries.first { $0.curseID == .lastStandShield }?.remainingUses, 0)
 
         playBasicMove(to: lavaPoint, in: core)
-        XCTAssertEqual(core.dungeonHP, 6)
+        XCTAssertEqual(core.dungeonHP, 7)
 
         let nextFloorState = runState.advancedToNextFloor(
             carryoverHP: core.dungeonHP,
@@ -7640,7 +9478,7 @@ final class DungeonModeTests: XCTestCase {
             currentFloorMoveCount: 1,
             rewardSelection: .add(.rayRight)
         )
-        XCTAssertEqual(duplicated.rewardInventoryEntries.first { $0.moveCard == .straightRight2 }?.totalUses, 5)
+        XCTAssertEqual(duplicated.rewardInventoryEntries.first { $0.moveCard == .straightRight2 }?.totalUses, 6)
         XCTAssertEqual(added.rewardInventoryEntries.first { $0.moveCard == .rayRight }?.totalUses, 1)
 
         let expressState = DungeonRunState(
@@ -7654,7 +9492,7 @@ final class DungeonModeTests: XCTestCase {
                 currentFloorMoveCount: 4,
                 completedWithinHalfTurnLimit: true
             ).carriedHP,
-            5
+            6
         )
         XCTAssertEqual(
             expressState.advancedToNextFloor(
@@ -7700,7 +9538,6 @@ final class DungeonModeTests: XCTestCase {
             runState: DungeonRunState(
                 dungeonID: "flavor-key-test",
                 carriedHP: 3,
-                relicEntries: [DungeonRelicEntry(relicID: .foldingMap)],
                 curseEntries: [DungeonCurseEntry(curseID: .upsideDownKey)]
             )
         )
@@ -7709,33 +9546,10 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertEqual(keyCore.effectiveDungeonTurnLimit, 8)
         playBasicMove(to: keyPoint, in: keyCore)
         XCTAssertTrue(keyCore.isDungeonExitUnlocked)
-        XCTAssertEqual(keyCore.effectiveDungeonTurnLimit, 8)
+        XCTAssertEqual(keyCore.effectiveDungeonTurnLimit, 6)
 
         let warpSource = GridPoint(x: 2, y: 0)
         let warpDestination = GridPoint(x: 4, y: 4)
-        let warpMode = makeDungeonMode(
-            spawn: GridPoint(x: 0, y: 0),
-            exit: GridPoint(x: 0, y: 4),
-            hp: 3,
-            turnLimit: 8,
-            warpTilePairs: ["flavor-warp": [warpSource, warpDestination]],
-            cardAcquisitionMode: .inventoryOnly,
-            runState: DungeonRunState(
-                dungeonID: "flavor-warp-test",
-                carriedHP: 3,
-                rewardInventoryEntries: [DungeonInventoryEntry(card: .straightRight2, rewardUses: 1)],
-                relicEntries: [DungeonRelicEntry(relicID: .phantomTicket)]
-            )
-        )
-        let warpCore = makeCore(mode: warpMode)
-
-        playMove(to: warpSource, in: warpCore)
-
-        XCTAssertEqual(warpCore.current, warpDestination)
-        XCTAssertEqual(warpCore.dungeonInventoryEntries.first { $0.moveCard == .straightRight2 }?.rewardUses, 1)
-        XCTAssertEqual(warpCore.handStacks.first { $0.representativeMove == .straightRight2 }?.count, 1)
-        XCTAssertFalse(warpCore.handStacks.isEmpty)
-
         let cursedWarpMode = makeDungeonMode(
             spawn: GridPoint(x: 0, y: 0),
             exit: GridPoint(x: 0, y: 4),
@@ -7750,7 +9564,6 @@ final class DungeonModeTests: XCTestCase {
                     DungeonInventoryEntry(card: .straightRight2, rewardUses: 1),
                     DungeonInventoryEntry(card: .straightUp2, rewardUses: 1)
                 ],
-                relicEntries: [DungeonRelicEntry(relicID: .phantomTicket)],
                 curseEntries: [DungeonCurseEntry(curseID: .laughingDoor)],
                 cardVariationSeed: 7
             )
@@ -7760,7 +9573,7 @@ final class DungeonModeTests: XCTestCase {
         playMove(to: warpSource, in: cursedWarpCore)
 
         XCTAssertEqual(cursedWarpCore.current, warpDestination)
-        XCTAssertEqual(cursedWarpCore.dungeonInventoryEntries.filter(\.hasUsesRemaining).count, 1)
+        XCTAssertEqual(cursedWarpCore.dungeonInventoryEntries.filter(\.hasUsesRemaining).count, 0)
         XCTAssertEqual(
             Set(cursedWarpCore.handStacks.compactMap(\.representativePlayable)),
             Set(cursedWarpCore.dungeonInventoryEntries.filter(\.hasUsesRemaining).map(\.playable))
@@ -7797,7 +9610,7 @@ final class DungeonModeTests: XCTestCase {
 
         playBasicMove(to: healPoint, in: healingCore)
 
-        XCTAssertEqual(healingCore.dungeonHP, 6)
+        XCTAssertEqual(healingCore.dungeonHP, 7)
         XCTAssertEqual(healingCore.poisonDamageTicksRemaining, 0)
         XCTAssertFalse(healingCore.isShackled)
         XCTAssertTrue(healingCore.isIlluded)
@@ -7975,7 +9788,7 @@ final class DungeonModeTests: XCTestCase {
         )
         let core = makeCore(mode: mode)
 
-        XCTAssertEqual(core.effectiveDungeonTurnLimit, 14)
+        XCTAssertEqual(core.effectiveDungeonTurnLimit, 15)
         XCTAssertEqual(core.dungeonDarknessVisionRadius, 2)
 
         playBasicMove(to: trapPoint, in: core)
@@ -8185,6 +9998,31 @@ final class DungeonModeTests: XCTestCase {
         }
     }
 
+    private func growthTowerBrittleFloorPointCount(
+        for floor: DungeonFloorDefinition,
+        initialState: BrittleFloorInitialState?
+    ) -> Int {
+        floor.hazards.reduce(0) { total, hazard in
+            guard case .brittleFloor(let points, let state) = hazard else { return total }
+            guard initialState == nil || state == initialState else { return total }
+            return total + points.count
+        }
+    }
+
+    private func damageTrapDamages(in floor: DungeonFloorDefinition) -> [Int] {
+        Set(floor.hazards.compactMap { hazard -> Int? in
+            guard case .damageTrap(_, let damage) = hazard else { return nil }
+            return damage
+        }).sorted()
+    }
+
+    private func lavaTileDamages(in floor: DungeonFloorDefinition) -> [Int] {
+        Set(floor.hazards.compactMap { hazard -> Int? in
+            guard case .lavaTile(_, let damage) = hazard else { return nil }
+            return damage
+        }).sorted()
+    }
+
     private func growthTowerStatusTrapPointCount(for floor: DungeonFloorDefinition) -> Int {
         growthTowerStatusTrapPoints(for: floor).count
     }
@@ -8192,7 +10030,7 @@ final class DungeonModeTests: XCTestCase {
     private func growthTowerStatusTrapPoints(for floor: DungeonFloorDefinition) -> Set<GridPoint> {
         Set(floor.tileEffectOverrides.compactMap { point, effect in
             switch effect {
-            case .poisonTrap, .shackleTrap, .illusionTrap,
+            case .poisonTrap, .shackleTrap, .illusionTrap, .relicBreakTrap,
                  .discardRandomHand, .discardAllMoveCards, .discardAllSupportCards, .discardAllHands:
                 return point
             case .warp, .returnWarp, .shuffleHand, .blast, .slow, .swamp, .preserveCard:
@@ -8233,6 +10071,8 @@ final class DungeonModeTests: XCTestCase {
             return "chaser"
         case .marker:
             return "marker"
+        case .targetedMarker:
+            return "targetedMarker"
         }
     }
 
@@ -8288,7 +10128,7 @@ final class DungeonModeTests: XCTestCase {
             return direction
         case .rotatingWatcher(let initialDirection, _, _):
             return initialDirection
-        case .guardPost, .patrol, .chaser, .marker:
+        case .guardPost, .patrol, .chaser, .marker, .targetedMarker:
             return nil
         }
     }
@@ -8456,7 +10296,7 @@ final class DungeonModeTests: XCTestCase {
                 for point in Set(path) {
                     add("巡回:\(enemy.id)", at: point)
                 }
-            case .chaser, .guardPost, .marker, .watcher, .rotatingWatcher:
+            case .chaser, .guardPost, .marker, .targetedMarker, .watcher, .rotatingWatcher:
                 add("敵:\(enemy.id)", at: enemy.position)
             }
         }
@@ -8709,6 +10549,31 @@ final class DungeonModeTests: XCTestCase {
             return
         }
         core.playBasicOrthogonalMove(using: move)
+    }
+
+    private func annihilateAllEnemies(in core: GameCore, file: StaticString = #filePath, line: UInt = #line) {
+        XCTAssertTrue(core.addDungeonInventorySupportCardForTesting(.annihilationSpell, rewardUses: 1), file: file, line: line)
+        guard let supportIndex = core.handStacks.firstIndex(where: { $0.topCard?.supportCard == .annihilationSpell }) else {
+            XCTFail("全滅の呪文が手札にありません", file: file, line: line)
+            return
+        }
+        core.playSupportCard(at: supportIndex)
+    }
+
+    private func makeGuardEnemies(count: Int) -> [EnemyDefinition] {
+        let points = (0..<5).flatMap { y in
+            (0..<5).map { x in GridPoint(x: x, y: y) }
+        }.filter {
+            $0 != GridPoint(x: 0, y: 0) && $0 != GridPoint(x: 4, y: 4)
+        }
+        return Array(points.prefix(count)).enumerated().map { index, point in
+            EnemyDefinition(
+                id: "guard-\(index)",
+                name: "番兵",
+                position: point,
+                behavior: .guardPost
+            )
+        }
     }
 
     private func playDiagnosticMessages() -> [String] {

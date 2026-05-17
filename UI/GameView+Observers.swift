@@ -38,6 +38,7 @@ extension GameView {
                     hapticsEnabled: gameSettingsStore.hapticsEnabled,
                     visualStyle: gameSettingsStore.appThemeVisualStyle,
                     handOrderingStrategy: resolveHandOrderingStrategy(),
+                    areDungeonRelicAndCurseEffectsEnabled: !gameSettingsStore.disablesDungeonRelicEffectsForDeveloper,
                     isPreparationOverlayVisible: isPreparationOverlayVisible
                 )
             }
@@ -67,6 +68,9 @@ extension GameView {
             .onChange(of: gameSettingsStore.hapticsEnabled, initial: false) { _, isEnabled in
                 // 旧設定との差分を検知したタイミングでハプティクス制御ロジックを更新し、無効化時の誤振動を防ぐ
                 viewModel.updateHapticsSetting(isEnabled: isEnabled)
+            }
+            .onChange(of: gameSettingsStore.disablesDungeonRelicEffectsForDeveloper, initial: false) { _, isDisabled in
+                viewModel.updateDungeonRelicAndCurseEffects(enabled: !isDisabled)
             }
             // scenePhase の変化を監視し、キャンペーン時のみタイマーの一時停止/再開を委譲する
             .onChange(of: scenePhase, initial: false) { _, newPhase in

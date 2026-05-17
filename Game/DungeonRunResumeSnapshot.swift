@@ -21,6 +21,7 @@ public struct DungeonRunResumeSnapshot: Codable, Equatable, Sendable {
     public let damageBarrierTurnsRemaining: Int
     public let isWatcherLaserSuppressed: Bool
     public let isPatrolRailDestroyed: Bool
+    public let isFlySpellActive: Bool
     public let isShackled: Bool
     public let isIlluded: Bool
     public let didStepOnLavaThisFloor: Bool
@@ -58,6 +59,7 @@ public struct DungeonRunResumeSnapshot: Codable, Equatable, Sendable {
         damageBarrierTurnsRemaining: Int = 0,
         isWatcherLaserSuppressed: Bool = false,
         isPatrolRailDestroyed: Bool = false,
+        isFlySpellActive: Bool = false,
         isShackled: Bool = false,
         isIlluded: Bool = false,
         didStepOnLavaThisFloor: Bool = false,
@@ -94,6 +96,7 @@ public struct DungeonRunResumeSnapshot: Codable, Equatable, Sendable {
         self.damageBarrierTurnsRemaining = max(damageBarrierTurnsRemaining, 0)
         self.isWatcherLaserSuppressed = isWatcherLaserSuppressed
         self.isPatrolRailDestroyed = isPatrolRailDestroyed
+        self.isFlySpellActive = isFlySpellActive
         self.isShackled = isShackled
         self.isIlluded = isIlluded
         self.didStepOnLavaThisFloor = didStepOnLavaThisFloor
@@ -132,6 +135,7 @@ public struct DungeonRunResumeSnapshot: Codable, Equatable, Sendable {
         case damageBarrierTurnsRemaining
         case isWatcherLaserSuppressed
         case isPatrolRailDestroyed
+        case isFlySpellActive
         case isShackled
         case isIlluded
         case didStepOnLavaThisFloor
@@ -172,6 +176,7 @@ public struct DungeonRunResumeSnapshot: Codable, Equatable, Sendable {
             damageBarrierTurnsRemaining: try container.decodeIfPresent(Int.self, forKey: .damageBarrierTurnsRemaining) ?? 0,
             isWatcherLaserSuppressed: try container.decodeIfPresent(Bool.self, forKey: .isWatcherLaserSuppressed) ?? false,
             isPatrolRailDestroyed: try container.decodeIfPresent(Bool.self, forKey: .isPatrolRailDestroyed) ?? false,
+            isFlySpellActive: try container.decodeIfPresent(Bool.self, forKey: .isFlySpellActive) ?? false,
             isShackled: try container.decodeIfPresent(Bool.self, forKey: .isShackled) ?? false,
             isIlluded: try container.decodeIfPresent(Bool.self, forKey: .isIlluded) ?? false,
             didStepOnLavaThisFloor: try container.decodeIfPresent(Bool.self, forKey: .didStepOnLavaThisFloor) ?? false,
@@ -183,7 +188,8 @@ public struct DungeonRunResumeSnapshot: Codable, Equatable, Sendable {
             consumedHealingTilePoints: try container.decodeIfPresent(Set<GridPoint>.self, forKey: .consumedHealingTilePoints) ?? [],
             dungeonInventoryEntries: try container.decodeIfPresent([DungeonInventoryEntry].self, forKey: .dungeonInventoryEntries) ?? [],
             collectedDungeonCardPickupIDs: try container.decodeIfPresent(Set<String>.self, forKey: .collectedDungeonCardPickupIDs) ?? [],
-            dungeonRelicEntries: try container.decodeIfPresent([DungeonRelicEntry].self, forKey: .dungeonRelicEntries) ?? [],
+            dungeonRelicEntries: try container.decodeIfPresent([LossyDungeonRelicEntry].self, forKey: .dungeonRelicEntries)?
+                .compactMap(\.value) ?? [],
             dungeonCurseEntries: try container.decodeIfPresent([DungeonCurseEntry].self, forKey: .dungeonCurseEntries) ?? [],
             collectedDungeonRelicPickupIDs: try container.decodeIfPresent(Set<String>.self, forKey: .collectedDungeonRelicPickupIDs) ?? [],
             dungeonRunLogEntries: try container.decodeIfPresent([DungeonRunLogEntry].self, forKey: .dungeonRunLogEntries) ?? [],
@@ -212,6 +218,7 @@ public struct DungeonRunResumeSnapshot: Codable, Equatable, Sendable {
         try container.encode(damageBarrierTurnsRemaining, forKey: .damageBarrierTurnsRemaining)
         try container.encode(isWatcherLaserSuppressed, forKey: .isWatcherLaserSuppressed)
         try container.encode(isPatrolRailDestroyed, forKey: .isPatrolRailDestroyed)
+        try container.encode(isFlySpellActive, forKey: .isFlySpellActive)
         try container.encode(isShackled, forKey: .isShackled)
         try container.encode(isIlluded, forKey: .isIlluded)
         try container.encode(didStepOnLavaThisFloor, forKey: .didStepOnLavaThisFloor)

@@ -24,8 +24,10 @@
         case dungeonRelicPickup
         case dungeonSuspiciousRelicPickup
         case dungeonDamageTrap
+        case dungeonStrongDamageTrap
         case dungeonHpHalvingTrap
         case dungeonLavaTile
+        case dungeonStrongLavaTile
         case dungeonHealingTile
         case dungeonCrackedFloor
         case dungeonCollapsedFloor
@@ -102,6 +104,7 @@
         public let enemyID: String
         public let point: GridPoint
         public let kind: EnemyPresentationKind
+        public let damage: Int
         public let facingVector: MoveVector?
         public let rotationDirection: RotatingWatcherDirection?
 
@@ -111,12 +114,14 @@
             enemyID: String,
             point: GridPoint,
             kind: EnemyPresentationKind,
+            damage: Int = 1,
             facingVector: MoveVector? = nil,
             rotationDirection: RotatingWatcherDirection? = nil
         ) {
             self.enemyID = enemyID
             self.point = point
             self.kind = kind
+            self.damage = max(damage, 1)
             self.facingVector = facingVector
             self.rotationDirection = rotationDirection
         }
@@ -130,6 +135,7 @@
                 enemyID: enemy.id,
                 point: enemy.position,
                 kind: enemy.behavior.presentationKind,
+                damage: enemy.damage,
                 facingVector: facingVector,
                 rotationDirection: rotationDirection ?? enemy.behavior.rotatingWatcherDirection
             )
@@ -144,6 +150,7 @@
                 enemyID: enemy.id,
                 point: enemy.position,
                 kind: enemy.behavior.presentationKind,
+                damage: enemy.damage,
                 facingVector: facingVector,
                 rotationDirection: rotationDirection ?? enemy.behavior.rotatingWatcherDirection
             )
@@ -184,6 +191,7 @@
         private var latestPatrolRailPreviews: [ScenePatrolRailPreview] = []
         private var latestPatrolMovementPreviews: [ScenePatrolMovementPreview] = []
         private var dungeonVisiblePoints: Set<GridPoint>?
+        private var areFlySuppressedDungeonHazardsMuted = false
         private var showsVisitedTileFill = true
         public private(set) var latestMovementPathForTesting: [GridPoint] = []
         public private(set) var latestMovementStepDurationForTesting: TimeInterval = 0
@@ -228,6 +236,7 @@
             latestPatrolRailPreviews = []
             latestPatrolMovementPreviews = []
             dungeonVisiblePoints = nil
+            areFlySuppressedDungeonHazardsMuted = false
             showsVisitedTileFill = true
             latestMovementPathForTesting = []
             latestMovementStepDurationForTesting = 0
@@ -362,6 +371,26 @@
             guard dungeonVisiblePoints != visiblePoints else { return }
             dungeonVisiblePoints = visiblePoints
             applyCurrentBoardStateToNodes(shouldLog: false)
+        }
+
+        public func updateFlySuppressedDungeonHazardsMuted(_ isMuted: Bool) {
+            guard areFlySuppressedDungeonHazardsMuted != isMuted else { return }
+            areFlySuppressedDungeonHazardsMuted = isMuted
+            decorationRenderer.updateFlySuppressedTileEffectsMuted(
+                isMuted,
+                board: board,
+                palette: palette,
+                layout: layoutSupport,
+                showsVisitedTileFill: showsVisitedTileFill,
+                visiblePoints: dungeonVisiblePoints
+            )
+            highlightRenderer.updateFlySuppressedDungeonHazardsMuted(
+                isMuted,
+                layout: layoutSupport,
+                palette: palette,
+                visiblePoints: dungeonVisiblePoints
+            )
+            updateAccessibilityElements()
         }
 
         public func updateHighlights(_ highlights: [BoardHighlightKind: Set<GridPoint>]) {
@@ -522,6 +551,15 @@
                 return nil
             }
             return (node.strokeColor, node.lineWidth)
+        }
+
+        func dungeonEnemyMarkerStyleForTesting(
+            enemyID: String
+        ) -> (fillColor: SKColor, strokeColor: SKColor, lineWidth: CGFloat)? {
+            guard let node = highlightRenderer.dungeonEnemyMarkerNodes[enemyID] else {
+                return nil
+            }
+            return (node.fillColor, node.strokeColor, node.lineWidth)
         }
 
         public func latestHighlightPoints(for kind: BoardHighlightKind) -> Set<GridPoint> {

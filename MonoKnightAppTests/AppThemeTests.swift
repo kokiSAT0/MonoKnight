@@ -86,8 +86,8 @@ final class AppThemeTests: XCTestCase {
         XCTAssertNotEqual(UIColor(classic.boardTileUnvisited).rgbaComponents, UIColor(starChart.boardTileUnvisited).rgbaComponents)
         XCTAssertNotEqual(UIColor(classic.boardGuideHighlight).rgbaComponents, UIColor(starChart.boardGuideHighlight).rgbaComponents)
         XCTAssertNotEqual(UIColor(classic.boardDungeonDamageTrap).rgbaComponents, UIColor(starChart.boardDungeonDamageTrap).rgbaComponents)
-        XCTAssertNotEqual(UIColor(classic.boardStarChartLine).rgbaComponents, UIColor(starChart.boardStarChartLine).rgbaComponents)
-        XCTAssertNotEqual(UIColor(classic.boardGlassHighlight).rgbaComponents, UIColor(starChart.boardGlassHighlight).rgbaComponents)
+        XCTAssertEqual(UIColor(starChart.boardStarChartLine).rgbaComponents, UIColor.clear.rgbaComponents)
+        XCTAssertEqual(UIColor(starChart.boardGlassHighlight).rgbaComponents, UIColor.clear.rgbaComponents)
         XCTAssertEqual(UIColor(starChart.boardTileInnerGlow).rgbaComponents, UIColor.clear.rgbaComponents)
         XCTAssertEqual(UIColor(starChart.boardConstellationLine).rgbaComponents, UIColor.clear.rgbaComponents)
         XCTAssertEqual(UIColor(starChart.boardAstralCore).rgbaComponents, UIColor.clear.rgbaComponents)
@@ -133,7 +133,7 @@ final class AppThemeTests: XCTestCase {
         )
         assertUIColor(
             starChart.uiBoardStarChartLine,
-            equals: UIColor(red: 0.0, green: 0.68, blue: 0.88, alpha: 0.24),
+            equals: UIColor.clear,
             userInterfaceStyle: .dark
         )
         assertUIColor(
@@ -148,7 +148,7 @@ final class AppThemeTests: XCTestCase {
         )
         assertUIColor(
             starChart.uiBoardGlassHighlight,
-            equals: UIColor(red: 0.20, green: 0.90, blue: 1.0, alpha: 0.12),
+            equals: UIColor.clear,
             userInterfaceStyle: .dark
         )
         assertUIColor(
