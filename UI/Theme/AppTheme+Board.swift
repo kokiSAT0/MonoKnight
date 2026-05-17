@@ -21,8 +21,8 @@ extension AppTheme {
             return schemeColor(light: Color.black.opacity(0.65), dark: Color.white.opacity(0.75))
         case .starChartSurveyTower:
             return schemeColor(
-                light: Color(red: 0.0, green: 0.56, blue: 0.78).opacity(0.38),
-                dark: Color(red: 0.0, green: 0.58, blue: 0.82).opacity(0.42)
+                light: Color(red: 0.0, green: 0.56, blue: 0.78).opacity(0.30),
+                dark: Color(red: 0.0, green: 0.58, blue: 0.82).opacity(0.34)
             )
         }
     }
@@ -170,16 +170,13 @@ extension AppTheme {
         }
     }
 
-    /// ネオングリッドテーマでタイル内側に薄く回す発光枠色
+    /// ネオングリッドテーマでは通常マスの内側発光枠を使わない
     var boardTileInnerGlow: Color {
         switch visualStyle {
         case .classic:
             return Color.clear
         case .starChartSurveyTower:
-            return schemeColor(
-                light: Color(red: 0.0, green: 0.68, blue: 0.95).opacity(0.24),
-                dark: Color(red: 0.0, green: 0.72, blue: 1.0).opacity(0.28)
-            )
+            return Color.clear
         }
     }
 

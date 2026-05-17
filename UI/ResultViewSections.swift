@@ -529,6 +529,7 @@ struct ResultActionSection: View {
     let onRemoveDungeonRewardCard: ((MoveCard) -> Void)?
     let onRemoveDungeonRewardSupportCard: ((SupportCard) -> Void)?
     let onInspectFailedBoard: (() -> Void)?
+    let onInspectDungeonRewardDetail: ((DungeonRewardDetailPresentation) -> Void)?
     let onRetry: () -> Void
     let onReturnToTitle: (() -> Void)?
     let gameCenterService: GameCenterServiceProtocol
@@ -536,7 +537,6 @@ struct ResultActionSection: View {
     @State private var pendingRelicRewardPresentation: DungeonRelicAcquisitionPresentation?
     @State private var pendingRelicRewardSelection: DungeonRelicID?
     @State private var dungeonRewardSelectionNotice: String?
-    @State private var inspectedDungeonReward: DungeonRewardDetailPresentation?
 
     var body: some View {
         VStack(spacing: 16) {
@@ -700,16 +700,6 @@ struct ResultActionSection: View {
         }
         .overlay {
             ZStack {
-                if let inspectedDungeonReward {
-                    DungeonRewardDetailOverlayView(
-                        presentation: inspectedDungeonReward,
-                        onDismiss: {
-                            self.inspectedDungeonReward = nil
-                        }
-                    )
-                    .transition(.opacity)
-                }
-
                 if let pendingRelicRewardPresentation {
                     DungeonRelicAcquisitionOverlayView(
                         presentation: pendingRelicRewardPresentation,
@@ -803,7 +793,7 @@ struct ResultActionSection: View {
     }
 
     private func showDungeonRewardDetail(for choice: DungeonRewardCardChoicePresentation) {
-        inspectedDungeonReward = choice.detailPresentation
+        onInspectDungeonRewardDetail?(choice.detailPresentation)
     }
 
     private func selectDungeonRewardOffer(_ offer: DungeonRewardOffer) {
@@ -923,6 +913,7 @@ struct ResultActionSection: View {
         onRemoveDungeonRewardCard: ((MoveCard) -> Void)? = nil,
         onRemoveDungeonRewardSupportCard: ((SupportCard) -> Void)? = nil,
         onInspectFailedBoard: (() -> Void)? = nil,
+        onInspectDungeonRewardDetail: ((DungeonRewardDetailPresentation) -> Void)? = nil,
         onRetry: @escaping () -> Void,
         onReturnToTitle: (() -> Void)?,
         gameCenterService: GameCenterServiceProtocol,
@@ -962,6 +953,7 @@ struct ResultActionSection: View {
         self.onRemoveDungeonRewardCard = onRemoveDungeonRewardCard
         self.onRemoveDungeonRewardSupportCard = onRemoveDungeonRewardSupportCard
         self.onInspectFailedBoard = onInspectFailedBoard
+        self.onInspectDungeonRewardDetail = onInspectDungeonRewardDetail
         self.onRetry = onRetry
         self.onReturnToTitle = onReturnToTitle
         self.gameCenterService = gameCenterService
@@ -1439,7 +1431,7 @@ private struct DungeonRewardRelicIllustrationView: View {
     }
 }
 
-private struct DungeonRewardDetailOverlayView: View {
+struct DungeonRewardDetailOverlayView: View {
     let presentation: DungeonRewardDetailPresentation
     let onDismiss: () -> Void
     private let theme = AppTheme()

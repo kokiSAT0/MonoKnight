@@ -108,6 +108,7 @@ struct ResultView: View {
     /// リザルト表示に関する一時状態
     @State private var viewState = ResultViewState()
     @State private var isDungeonRunLogSheetPresented = false
+    @State private var inspectedDungeonReward: DungeonRewardDetailPresentation?
 
     /// デフォルト実装のサービスを安全に取得するためのコンビニエンスイニシャライザ
     /// - NOTE: Swift 6 で厳格化されたコンカレンシーモデルに対応するため、`@MainActor` 上でシングルトンへアクセスする
@@ -362,6 +363,9 @@ struct ResultView: View {
                     onRemoveDungeonRewardCard: onRemoveDungeonRewardCard,
                     onRemoveDungeonRewardSupportCard: onRemoveDungeonRewardSupportCard,
                     onInspectFailedBoard: onInspectFailedBoard,
+                    onInspectDungeonRewardDetail: { detail in
+                        inspectedDungeonReward = detail
+                    },
                     onRetry: onRetry,
                     onReturnToTitle: onReturnToTitle,
                     gameCenterService: gameCenterService,
@@ -379,6 +383,17 @@ struct ResultView: View {
         .background {
             Color(UIColor.systemBackground)
                 .ignoresSafeArea()
+        }
+        .overlay {
+            if let inspectedDungeonReward {
+                DungeonRewardDetailOverlayView(
+                    presentation: inspectedDungeonReward,
+                    onDismiss: {
+                        self.inspectedDungeonReward = nil
+                    }
+                )
+                .transition(.opacity)
+            }
         }
         .onAppear {
             adsService.showInterstitialAfterGameClearIfNeeded()

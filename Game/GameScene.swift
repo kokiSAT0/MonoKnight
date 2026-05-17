@@ -7,6 +7,7 @@
 
     public enum BoardHighlightKind: CaseIterable, Hashable {
         case guideSingleCandidate
+        case guideDirectTwoStepCandidate
         case guideMultipleCandidate
         case guideMultiStepPath
         case guideMultiStepCandidate
@@ -69,6 +70,31 @@
 
         public init(_ preview: EnemyPatrolRailPreview) {
             self.init(enemyID: preview.enemyID, path: preview.path)
+        }
+    }
+
+    public struct SceneWatcherLaserPreview: Identifiable, Equatable {
+        public let enemyID: String
+        public let origin: GridPoint
+        public let direction: MoveVector
+        public let dangerPoints: [GridPoint]
+
+        public var id: String { enemyID }
+
+        public init(enemyID: String, origin: GridPoint, direction: MoveVector, dangerPoints: [GridPoint]) {
+            self.enemyID = enemyID
+            self.origin = origin
+            self.direction = direction
+            self.dangerPoints = dangerPoints
+        }
+
+        public init(_ display: WatcherLaserDisplay) {
+            self.init(
+                enemyID: display.enemyID,
+                origin: display.origin,
+                direction: display.direction,
+                dangerPoints: display.dangerPoints
+            )
         }
     }
 
@@ -154,6 +180,7 @@
         private var pendingBoard: Board?
         private var latestHighlightPoints: [BoardHighlightKind: Set<GridPoint>] = [:]
         private var latestDungeonEnemyMarkers: [SceneDungeonEnemyMarker] = []
+        private var latestWatcherLaserPreviews: [SceneWatcherLaserPreview] = []
         private var latestPatrolRailPreviews: [ScenePatrolRailPreview] = []
         private var latestPatrolMovementPreviews: [ScenePatrolMovementPreview] = []
         private var dungeonVisiblePoints: Set<GridPoint>?
@@ -197,6 +224,7 @@
             pendingBoard = nil
             latestHighlightPoints = [:]
             latestDungeonEnemyMarkers = []
+            latestWatcherLaserPreviews = []
             latestPatrolRailPreviews = []
             latestPatrolMovementPreviews = []
             dungeonVisiblePoints = nil
@@ -365,6 +393,30 @@
             updateAccessibilityElements()
         }
 
+        public func updateWatcherLaserPreviews(_ previews: [SceneWatcherLaserPreview]) {
+            let visiblePreviews = previews.compactMap { preview -> SceneWatcherLaserPreview? in
+                guard board.contains(preview.origin), board.isTraversable(preview.origin) else { return nil }
+                let visibleDangerPoints = preview.dangerPoints.filter { point in
+                    board.contains(point) && board.isTraversable(point)
+                }
+                guard !visibleDangerPoints.isEmpty else { return nil }
+                return SceneWatcherLaserPreview(
+                    enemyID: preview.enemyID,
+                    origin: preview.origin,
+                    direction: preview.direction,
+                    dangerPoints: visibleDangerPoints
+                )
+            }
+            latestWatcherLaserPreviews = visiblePreviews
+            highlightRenderer.updateWatcherLaserPreviews(
+                visiblePreviews,
+                scene: self,
+                layout: layoutSupport,
+                palette: palette,
+                isLayoutReady: isLayoutReady
+            )
+        }
+
         public func updatePatrolMovementPreviews(_ previews: [ScenePatrolMovementPreview]) {
             let visiblePreviews = previews.filter { preview in
                 board.contains(preview.current)
@@ -413,6 +465,10 @@
             latestDungeonEnemyMarkers
         }
 
+        public func latestWatcherLaserPreviewsForTesting() -> [SceneWatcherLaserPreview] {
+            latestWatcherLaserPreviews
+        }
+
         public func latestDungeonVisiblePointsForTesting() -> Set<GridPoint>? {
             dungeonVisiblePoints
         }
@@ -431,6 +487,23 @@
 
         func patrolMovementArrowCountForTesting() -> Int {
             highlightRenderer.patrolMovementArrowCount
+        }
+
+        func watcherLaserCountForTesting() -> Int {
+            highlightRenderer.watcherLaserCount
+        }
+
+        func watcherLaserStyleForTesting(
+            enemyID: String
+        ) -> (strokeColor: SKColor, lineWidth: CGFloat, glowWidth: CGFloat, bounds: CGRect)? {
+            guard let node = highlightRenderer.watcherLaserNodes[enemyID] else {
+                return nil
+            }
+            return (node.strokeColor, node.lineWidth, node.glowWidth, node.path?.boundingBox ?? .null)
+        }
+
+        func tileSizeForTesting() -> CGFloat {
+            layoutSupport.tileSize
         }
 
         func patrolRailStyleForTesting(
@@ -524,6 +597,10 @@
             decorationRenderer.glassTileHighlightCountForTesting()
         }
 
+        func tileInnerGlowCountForTesting() -> Int {
+            decorationRenderer.tileInnerGlowCountForTesting()
+        }
+
         func cosmicBackgroundNodeCountForTesting() -> Int {
             decorationRenderer.cosmicBackgroundNodeCountForTesting()
         }
@@ -556,6 +633,7 @@
         public func updateGuideHighlights(_ points: Set<GridPoint>) {
             updateHighlights([
                 .guideSingleCandidate: [],
+                .guideDirectTwoStepCandidate: [],
                 .guideMultipleCandidate: points,
                 .guideMultiStepPath: [],
                 .guideMultiStepCandidate: [],

@@ -131,6 +131,7 @@ final class GameSceneAccessibilityTests: XCTestCase {
 
         XCTAssertEqual(scene.starChartTextureCountForTesting(), 0)
         XCTAssertEqual(scene.glassTileHighlightCountForTesting(), 0)
+        XCTAssertEqual(scene.tileInnerGlowCountForTesting(), 0)
         XCTAssertEqual(scene.cosmicBackgroundNodeCountForTesting(), 0)
         XCTAssertEqual(scene.distantStarNodeCountForTesting(), 0)
         XCTAssertEqual(scene.twinklingDistantStarNodeCountForTesting(), 0)
@@ -141,6 +142,7 @@ final class GameSceneAccessibilityTests: XCTestCase {
         scene.applyTheme(Self.gameScenePalette(for: AppTheme(colorScheme: .dark, visualStyle: .starChartSurveyTower)))
         XCTAssertEqual(scene.starChartTextureCountForTesting(), boardSize * boardSize, "ネオングリッドテーマでは通常床にARパネル角を重ねます")
         XCTAssertEqual(scene.glassTileHighlightCountForTesting(), boardSize * boardSize, "ネオングリッドテーマでは通常床に薄いAR面差を重ねます")
+        XCTAssertEqual(scene.tileInnerGlowCountForTesting(), 0, "ネオングリッドテーマでは通常床に移動ガイド枠と競合する内側四角枠を出しません")
         XCTAssertEqual(scene.cosmicBackgroundNodeCountForTesting(), 0, "ネオングリッドテーマでは宇宙背景レイヤーを生成しません")
         XCTAssertEqual(scene.distantStarNodeCountForTesting(), 0, "ネオングリッドテーマでは遠景星粒を生成しません")
         XCTAssertEqual(scene.twinklingDistantStarNodeCountForTesting(), 0, "ネオングリッドテーマでは星粒の微アニメを生成しません")
@@ -450,26 +452,53 @@ final class GameSceneAccessibilityTests: XCTestCase {
 
     func testStarChartSurveyTowerThemeKeepsDungeonMarkerSemantics() {
         let basicMovePoint = GridPoint(x: 1, y: 1)
+        let singleMovePoint = GridPoint(x: 1, y: 2)
+        let directTwoStepPoint = GridPoint(x: 1, y: 3)
         let damageTrapPoint = GridPoint(x: 2, y: 2)
+        let keyPoint = GridPoint(x: 3, y: 2)
+        let cardPoint = GridPoint(x: 4, y: 2)
+        let healingPoint = GridPoint(x: 2, y: 3)
+        let warningPoint = GridPoint(x: 3, y: 3)
         let (scene, view, _) = makeScene()
         defer { view.presentScene(nil) }
 
         scene.applyTheme(Self.gameScenePalette(for: AppTheme(colorScheme: .dark, visualStyle: .starChartSurveyTower)))
         scene.updateHighlights([
             .dungeonBasicMove: [basicMovePoint],
+            .guideSingleCandidate: [singleMovePoint],
+            .guideDirectTwoStepCandidate: [directTwoStepPoint],
             .dungeonDamageTrap: [damageTrapPoint],
+            .dungeonKey: [keyPoint],
+            .dungeonCardPickup: [cardPoint],
+            .dungeonHealingTile: [healingPoint],
+            .dungeonEnemyWarning: [warningPoint],
         ])
 
         guard let basicMoveStyle = scene.highlightStyleForTesting(kind: .dungeonBasicMove, at: basicMovePoint),
-              let damageTrapStyle = scene.highlightStyleForTesting(kind: .dungeonDamageTrap, at: damageTrapPoint)
+              let singleMoveStyle = scene.highlightStyleForTesting(kind: .guideSingleCandidate, at: singleMovePoint),
+              let directTwoStepStyle = scene.highlightStyleForTesting(kind: .guideDirectTwoStepCandidate, at: directTwoStepPoint),
+              let damageTrapStyle = scene.highlightStyleForTesting(kind: .dungeonDamageTrap, at: damageTrapPoint),
+              let keyStyle = scene.highlightStyleForTesting(kind: .dungeonKey, at: keyPoint),
+              let cardStyle = scene.highlightStyleForTesting(kind: .dungeonCardPickup, at: cardPoint),
+              let healingStyle = scene.highlightStyleForTesting(kind: .dungeonHealingTile, at: healingPoint),
+              let warningStyle = scene.highlightStyleForTesting(kind: .dungeonEnemyWarning, at: warningPoint)
         else {
             XCTFail("ネオングリッドテーマの主要ハイライトを取得できません")
             return
         }
 
         XCTAssertGreaterThan(basicMoveStyle.lineWidth, 0, "新テーマでも移動可能マスは枠で示します")
+        XCTAssertGreaterThan(basicMoveStyle.glowWidth, 0, "新テーマの移動枠は淡いネオン輪郭を持ちます")
+        XCTAssertGreaterThan(directTwoStepStyle.lineWidth, singleMoveStyle.lineWidth, "新テーマの2マス直接移動は通常単方向より強い枠で示します")
+        XCTAssertGreaterThan(directTwoStepStyle.glowWidth, singleMoveStyle.glowWidth, "新テーマの2マス直接移動は通常単方向より強い発光を持ちます")
+        XCTAssertTrue(directTwoStepStyle.fillColor.isClearForTesting, "2マス直接移動はレイ通過塗りではなく到達先枠として示します")
         XCTAssertEqual(damageTrapStyle.lineWidth, 0, "新テーマでも罠はタップ可能枠に見せません")
         XCTAssertFalse(damageTrapStyle.fillColor.isEqual(SKColor.clear), "新テーマでも罠は踏む前に見える塗りを持ちます")
+        XCTAssertEqual(keyStyle.lineWidth, 0, "鍵は枠ではなくピクト中心で示します")
+        XCTAssertEqual(cardStyle.lineWidth, 0, "カード拾得物は枠ではなくピクト中心で示します")
+        XCTAssertEqual(healingStyle.lineWidth, 0, "回復マスは枠ではなくピクト中心で示します")
+        XCTAssertGreaterThan(warningStyle.lineWidth, 0, "敵警告は警告ピクトとして線を持ちます")
+        XCTAssertGreaterThan(warningStyle.glowWidth, 0, "敵警告は明るい盤面上で読める発光輪郭を持ちます")
     }
 
     func testDungeonFallEffectAddsTransientNodes() {
@@ -552,6 +581,39 @@ final class GameSceneAccessibilityTests: XCTestCase {
 
         XCTAssertEqual(scene.patrolRailCountForTesting(), 0, "巡回レールが空になったら古いレールを消す必要があります")
         XCTAssertEqual(scene.patrolMovementArrowCountForTesting(), 0, "巡回レールを消しても黄色い別矢印は作られません")
+    }
+
+    func testWatcherLaserNodesUpdateClearAndStartFromEnemyTile() {
+        let (scene, view, _) = makeScene()
+        defer { view.presentScene(nil) }
+
+        scene.applyTheme(Self.gameScenePalette(for: AppTheme(colorScheme: .dark, visualStyle: .starChartSurveyTower)))
+        scene.updateWatcherLaserPreviews([
+            SceneWatcherLaserPreview(
+                enemyID: "watcher",
+                origin: GridPoint(x: 1, y: 1),
+                direction: MoveVector(dx: 1, dy: 0),
+                dangerPoints: [GridPoint(x: 2, y: 1), GridPoint(x: 3, y: 1)]
+            )
+        ])
+
+        XCTAssertEqual(scene.watcherLaserCountForTesting(), 1, "見張り1体につきレーザーを1本表示します")
+        XCTAssertEqual(scene.latestWatcherLaserPreviewsForTesting().first?.origin, GridPoint(x: 1, y: 1))
+        guard let laserStyle = scene.watcherLaserStyleForTesting(enemyID: "watcher") else {
+            XCTFail("見張りレーザーの描画スタイルを取得できません")
+            return
+        }
+        XCTAssertGreaterThan(laserStyle.lineWidth, 2.8, "レーザーは細すぎない発光線で表示します")
+        XCTAssertGreaterThan(laserStyle.glowWidth, 1.8, "ネオン調の読みやすい発光を持たせます")
+        XCTAssertGreaterThan(
+            laserStyle.bounds.width,
+            scene.tileSizeForTesting() * 1.8,
+            "レーザーのパスは最初の危険マスだけでなく敵マス側から伸ばします"
+        )
+
+        scene.updateWatcherLaserPreviews([])
+
+        XCTAssertEqual(scene.watcherLaserCountForTesting(), 0, "レーザーが空になったら古い線を消す必要があります")
     }
 
     func testPatrolEnemyMarkerFacingDoesNotCreateYellowArrowNode() {

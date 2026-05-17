@@ -48,7 +48,8 @@ extension GameView {
                     .transition(.opacity.combined(with: .move(edge: .top)))
                     .zIndex(1)
             }
-            if let pendingChoice = viewModel.pendingDungeonPickupChoice {
+            if let pendingChoice = viewModel.pendingDungeonPickupChoice,
+               viewModel.canPresentDungeonPickupChoice {
                 DungeonPickupChoiceOverlayView(
                     theme: theme,
                     choice: pendingChoice,

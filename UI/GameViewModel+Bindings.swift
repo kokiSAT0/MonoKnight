@@ -364,6 +364,13 @@ extension GameViewModel {
             && activeDungeonRelicAcquisitionPresentation == nil
     }
 
+    var canPresentDungeonPickupChoice: Bool {
+        core.pendingDungeonPickupChoice != nil
+            && !isMovementPresentationActive
+            && !isWaitingForEnemyTurnPresentationAfterMovement
+            && activeDungeonRelicAcquisitionPresentation == nil
+    }
+
     func selectPendingDungeonRelicPickupOption(_ option: PendingDungeonRelicPickupChoice.Option) {
         guard core.selectPendingDungeonRelicPickupOption(id: option.id) else { return }
         pendingDungeonRelicPickupChoice = core.pendingDungeonRelicPickupChoice

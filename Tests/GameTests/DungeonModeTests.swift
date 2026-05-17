@@ -1401,6 +1401,71 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertEqual(unreachableCore.enemyStates.first?.position, GridPoint(x: 4, y: 4))
     }
 
+    func testChaserRoutesAroundDamageTrapWhenSafeRouteExists() throws {
+        let chaser = EnemyDefinition(
+            id: "chaser",
+            name: "追跡兵",
+            position: GridPoint(x: 4, y: 0),
+            behavior: .chaser
+        )
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 1, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 3,
+            turnLimit: 8,
+            enemies: [chaser],
+            hazards: [.damageTrap(points: [GridPoint(x: 3, y: 0)], damage: 1)]
+        )
+        let core = makeCore(mode: mode)
+
+        XCTAssertEqual(
+            core.enemyChaserMovementPreviews,
+            [
+                EnemyPatrolMovementPreview(
+                    enemyID: "chaser",
+                    current: GridPoint(x: 4, y: 0),
+                    next: GridPoint(x: 4, y: 1),
+                    vector: MoveVector(dx: 0, dy: 1)
+                )
+            ]
+        )
+
+        playBasicMove(to: GridPoint(x: 1, y: 1), in: core)
+
+        XCTAssertEqual(core.enemyStates.first?.position, GridPoint(x: 4, y: 1))
+    }
+
+    func testChaserStepsOntoLavaAndDefeatsItselfWhenNoSafeRouteExists() throws {
+        let lavaPoint = GridPoint(x: 1, y: 0)
+        let chaser = EnemyDefinition(
+            id: "chaser",
+            name: "追跡兵",
+            position: GridPoint(x: 2, y: 0),
+            behavior: .chaser
+        )
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 3,
+            turnLimit: 8,
+            enemies: [chaser],
+            hazards: [.lavaTile(points: [lavaPoint], damage: 1)],
+            impassableTilePoints: [
+                GridPoint(x: 1, y: 1),
+                GridPoint(x: 2, y: 1),
+                GridPoint(x: 3, y: 0)
+            ]
+        )
+        let core = makeCore(mode: mode)
+
+        XCTAssertEqual(core.enemyChaserMovementPreviews.first?.next, lavaPoint)
+
+        playBasicMove(to: GridPoint(x: 0, y: 1), in: core)
+
+        XCTAssertTrue(core.enemyStates.isEmpty)
+        XCTAssertTrue(core.enemyChaserMovementPreviews.isEmpty)
+    }
+
     func testChaserDangerAndDamageUseAdjacentPressureAfterMoving() throws {
         let chaser = EnemyDefinition(
             id: "chaser",
@@ -4765,7 +4830,10 @@ final class DungeonModeTests: XCTestCase {
                     statusTrapPoints.isDisjoint(with: floor.impassableTilePoints),
                     "seed \(seed) / \(floorIndex + 1)F の状態罠が岩柱と重なっています"
                 )
-                XCTAssertTrue(hasOrthogonalPath(from: floor.spawnPoint, to: floor.exitPoint, in: floor))
+                XCTAssertTrue(
+                    hasOrthogonalPath(from: floor.spawnPoint, to: floor.exitPoint, in: floor),
+                    "seed \(seed) / \(floorIndex + 1)F は開始地点から階段までの代表導線を残します"
+                )
             }
         }
     }
@@ -4773,11 +4841,32 @@ final class DungeonModeTests: XCTestCase {
     func testGrowthTowerFixedRocksStaySparseAndDoNotOverlapGimmicks() throws {
         let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
 
-        for floor in tower.floors {
-            XCTAssertTrue(
-                (2...4).contains(floor.impassableTilePoints.count),
-                "\(floor.title) の固定障害物は 1 フロア 2〜4 個の少量に留めます"
-            )
+        for (index, floor) in tower.floors.enumerated() {
+            let expectedSecretChamberWalls = floor.fallSecrets
+                .filter { $0.destinationFloorIndex == index }
+                .reduce(into: Set<GridPoint>()) { result, secret in
+                result.formUnion(secret.chamberWallPoints)
+            }
+            let secretChamberWalls = floor.impassableTilePoints.intersection(expectedSecretChamberWalls)
+            let regularImpassablePoints = floor.impassableTilePoints.subtracting(secretChamberWalls)
+            if secretChamberWalls.isEmpty {
+                XCTAssertTrue(
+                    (2...4).contains(regularImpassablePoints.count),
+                    "\(floor.title) の固定障害物は 1 フロア 2〜4 個の少量に留めます"
+                )
+            } else {
+                XCTAssertLessThanOrEqual(
+                    regularImpassablePoints.count,
+                    4,
+                    "\(floor.title) の落下専用小部屋以外の固定障害物は少量に留めます"
+                )
+            }
+            if !secretChamberWalls.isEmpty {
+                XCTAssertTrue(
+                    expectedSecretChamberWalls.isSubset(of: floor.impassableTilePoints),
+                    "\(floor.title) の落下専用小部屋の外周壁は固定障害物として配置します"
+                )
+            }
 
             let disallowedPoints = disallowedGrowthTowerImpassablePoints(for: floor)
             XCTAssertTrue(
@@ -5008,6 +5097,18 @@ final class DungeonModeTests: XCTestCase {
             XCTAssertFalse(
                 hasOrthogonalPath(from: destinationFloor.spawnPoint, to: secret.landingPoint, in: destinationFloor),
                 "\(destinationFloor.title) の落下専用小部屋は通常移動だけでは入れない想定です"
+            )
+            assertFallSecretChamberCannotBeEnteredByNormalMovement(
+                secret,
+                in: destinationFloor,
+                dungeonID: tower.id,
+                floorIndex: pair.destination
+            )
+            assertFallSecretChamberRemainsUsableAfterFalling(
+                secret,
+                in: destinationFloor,
+                dungeonID: tower.id,
+                floorIndex: pair.destination
             )
             XCTAssertTrue(
                 hasOrthogonalPath(from: secret.returnDestination, to: destinationFloor.exitPoint, in: destinationFloor),
@@ -5240,6 +5341,10 @@ final class DungeonModeTests: XCTestCase {
                     floor.impassableTilePoints.isDisjoint(with: disallowedImpassablePoints),
                     "seed \(seed) / \(floorIndex + 1)F の移動不能マスが他要素と重なっています"
                 )
+                assertWarpPairsAvoidOrthogonalAdjacency(
+                    in: floor,
+                    context: "seed \(seed) / \(floorIndex + 1)F"
+                )
             }
         }
     }
@@ -5395,6 +5500,10 @@ final class DungeonModeTests: XCTestCase {
                 )
                 XCTAssertEqual(resolvedFloor.exitLock != nil, baseFloor.exitLock != nil)
                 XCTAssertEqual(resolvedFloor.warpTilePairs.mapValues(\.count), baseFloor.warpTilePairs.mapValues(\.count))
+                assertWarpPairsAvoidOrthogonalAdjacency(
+                    in: resolvedFloor,
+                    context: "seed \(seed) / \(resolvedFloor.title)"
+                )
 
                 for enemy in resolvedFloor.enemies {
                     if case .patrol(let path) = enemy.behavior {
@@ -8205,6 +8314,117 @@ final class DungeonModeTests: XCTestCase {
         }
     }
 
+    private func assertWarpPairsAvoidOrthogonalAdjacency(
+        in floor: DungeonFloorDefinition,
+        context: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        for (pairID, points) in floor.warpTilePairs {
+            for firstIndex in points.indices {
+                for secondIndex in points.indices.dropFirst(firstIndex + 1) {
+                    XCTAssertNotEqual(
+                        manhattanDistance(from: points[firstIndex], to: points[secondIndex]),
+                        1,
+                        "\(context) / \(pairID) の同一ワープペアは上下左右に直接隣接させません",
+                        file: file,
+                        line: line
+                    )
+                }
+            }
+        }
+    }
+
+    private func assertFallSecretChamberCannotBeEnteredByNormalMovement(
+        _ secret: DungeonFallSecretDefinition,
+        in floor: DungeonFloorDefinition,
+        dungeonID: String,
+        floorIndex: Int,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let chamberPoints: Set<GridPoint> = [
+            secret.landingPoint,
+            secret.treasurePickup.point,
+            secret.returnWarpPoint
+        ]
+        let allMoveCardStacks = MoveCard.allCases.map { card in
+            HandStack(cards: [DealtCard(move: card)])
+        }
+
+        for movementStyle in DungeonMovementStyle.allCases {
+            let mode = floor.makeGameMode(
+                dungeonID: dungeonID,
+                runState: DungeonRunState(
+                    dungeonID: dungeonID,
+                    currentFloorIndex: floorIndex,
+                    carriedHP: 3,
+                    movementStyle: movementStyle
+                )
+            )
+            let core = makeCore(mode: mode)
+
+            for point in allBoardPoints(boardSize: floor.boardSize)
+                where !chamberPoints.contains(point) && core.board.isTraversable(point) {
+                let cardDestinations = Set(
+                    core.availableMoves(handStacks: allMoveCardStacks, current: point)
+                        .map(\.destination)
+                )
+                XCTAssertTrue(
+                    cardDestinations.isDisjoint(with: chamberPoints),
+                    "\(floor.title) の落下専用小部屋へ \(movementStyle.displayName) / \(point) からカード移動で入れない必要があります",
+                    file: file,
+                    line: line
+                )
+
+                let basicDestinations = Set(
+                    core.availableBasicOrthogonalMoves(current: point)
+                        .map(\.destination)
+                )
+                XCTAssertTrue(
+                    basicDestinations.isDisjoint(with: chamberPoints),
+                    "\(floor.title) の落下専用小部屋へ \(movementStyle.displayName) / \(point) から基本移動で入れない必要があります",
+                    file: file,
+                    line: line
+                )
+            }
+        }
+    }
+
+    private func assertFallSecretChamberRemainsUsableAfterFalling(
+        _ secret: DungeonFallSecretDefinition,
+        in floor: DungeonFloorDefinition,
+        dungeonID: String,
+        floorIndex: Int,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let mode = floor.makeGameMode(
+            dungeonID: dungeonID,
+            runState: DungeonRunState(
+                dungeonID: dungeonID,
+                currentFloorIndex: floorIndex,
+                carriedHP: 3,
+                pendingFallLandingPoint: secret.landingPoint
+            )
+        )
+        let core = makeCore(mode: mode)
+        let landingDestinations = Set(core.availableBasicOrthogonalMoves().map(\.destination))
+
+        XCTAssertTrue(
+            landingDestinations.contains(secret.treasurePickup.point),
+            "\(floor.title) の落下後は小部屋の宝箱へ歩ける必要があります",
+            file: file,
+            line: line
+        )
+        XCTAssertTrue(
+            landingDestinations.contains(secret.returnWarpPoint),
+            "\(floor.title) の落下後は帰還ワープへ歩ける必要があります",
+            file: file,
+            line: line
+        )
+    }
+
     private func majorGrowthTowerGimmickOverlaps(for floor: DungeonFloorDefinition) -> [String] {
         var occupantsByPoint: [GridPoint: [String]] = [:]
 
@@ -8348,6 +8568,12 @@ final class DungeonModeTests: XCTestCase {
             }
         }
         return blocked
+    }
+
+    private func allBoardPoints(boardSize: Int) -> [GridPoint] {
+        (0..<boardSize).flatMap { y in
+            (0..<boardSize).map { x in GridPoint(x: x, y: y) }
+        }
     }
 
     private func manhattanDistance(from a: GridPoint, to b: GridPoint) -> Int {

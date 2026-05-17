@@ -5,9 +5,11 @@
     final class GameSceneHighlightRenderer {
         private(set) var highlightNodes: [BoardHighlightKind: [GridPoint: SKShapeNode]] = [:]
         private(set) var dungeonEnemyMarkerNodes: [String: SKShapeNode] = [:]
+        private(set) var watcherLaserNodes: [String: SKShapeNode] = [:]
         private(set) var patrolRailNodes: [String: SKShapeNode] = [:]
         private(set) var patrolMovementArrowNodes: [String: SKShapeNode] = [:]
         private var latestSingleGuidePoints: Set<GridPoint> = []
+        private var latestDirectTwoStepGuidePoints: Set<GridPoint> = []
         private var latestMultipleGuidePoints: Set<GridPoint> = []
         private var latestMultiStepPathPoints: Set<GridPoint> = []
         private var latestMultiStepGuidePoints: Set<GridPoint> = []
@@ -32,6 +34,9 @@
         private var latestDungeonEnemyMarkers: [SceneDungeonEnemyMarker] = []
         private var pendingDungeonEnemyMarkers: [SceneDungeonEnemyMarker] = []
         private var hasPendingDungeonEnemyMarkerUpdate = false
+        private var latestWatcherLaserPreviews: [SceneWatcherLaserPreview] = []
+        private var pendingWatcherLaserPreviews: [SceneWatcherLaserPreview] = []
+        private var hasPendingWatcherLaserUpdate = false
         private var latestPatrolRailPreviews: [ScenePatrolRailPreview] = []
         private var pendingPatrolRailPreviews: [ScenePatrolRailPreview] = []
         private var hasPendingPatrolRailUpdate = false
@@ -42,6 +47,7 @@
 
         var patrolRailCount: Int { patrolRailNodes.count }
         var patrolMovementArrowCount: Int { patrolMovementArrowNodes.count }
+        var watcherLaserCount: Int { watcherLaserNodes.count }
 
         init() {
             reset()
@@ -56,6 +62,9 @@
             for node in dungeonEnemyMarkerNodes.values {
                 node.removeFromParent()
             }
+            for node in watcherLaserNodes.values {
+                node.removeFromParent()
+            }
             for node in patrolMovementArrowNodes.values {
                 node.removeFromParent()
             }
@@ -64,9 +73,11 @@
             }
             highlightNodes = [:]
             dungeonEnemyMarkerNodes = [:]
+            watcherLaserNodes = [:]
             patrolRailNodes = [:]
             patrolMovementArrowNodes = [:]
             latestSingleGuidePoints = []
+            latestDirectTwoStepGuidePoints = []
             latestMultipleGuidePoints = []
             latestMultiStepPathPoints = []
             latestMultiStepGuidePoints = []
@@ -91,6 +102,9 @@
             latestDungeonEnemyMarkers = []
             pendingDungeonEnemyMarkers = []
             hasPendingDungeonEnemyMarkerUpdate = false
+            latestWatcherLaserPreviews = []
+            pendingWatcherLaserPreviews = []
+            hasPendingWatcherLaserUpdate = false
             latestPatrolRailPreviews = []
             pendingPatrolRailPreviews = []
             hasPendingPatrolRailUpdate = false
@@ -167,6 +181,26 @@
             hasPendingDungeonEnemyMarkerUpdate = false
         }
 
+        func updateWatcherLaserPreviews(
+            _ previews: [SceneWatcherLaserPreview],
+            scene: SKScene,
+            layout: GameSceneLayoutSupport,
+            palette: GameScenePalette,
+            isLayoutReady: Bool
+        ) {
+            latestWatcherLaserPreviews = previews
+            pendingWatcherLaserPreviews = previews
+            hasPendingWatcherLaserUpdate = true
+
+            debugLog(
+                "GameScene 見張りレーザー更新要求: count=\(previews.count), レイアウト確定=\(isLayoutReady)"
+            )
+
+            guard isLayoutReady else { return }
+            applyWatcherLaserPreviews(previews, scene: scene, layout: layout, palette: palette)
+            hasPendingWatcherLaserUpdate = false
+        }
+
         func updatePatrolMovementPreviews(
             _ previews: [ScenePatrolMovementPreview],
             scene: SKScene,
@@ -237,12 +271,23 @@
                 )
             }
 
+            for preview in latestWatcherLaserPreviews {
+                guard let node = watcherLaserNodes[preview.enemyID] else { continue }
+                configureWatcherLaserNode(
+                    node,
+                    preview: preview,
+                    layout: layout,
+                    palette: palette
+                )
+            }
+
             for preview in latestPatrolRailPreviews {
                 guard let node = patrolRailNodes[preview.enemyID] else { continue }
                 configurePatrolRailNode(
                     node,
                     preview: preview,
-                    layout: layout
+                    layout: layout,
+                    palette: palette
                 )
             }
 
@@ -251,7 +296,8 @@
                 configurePatrolMovementArrowNode(
                     node,
                     preview: preview,
-                    layout: layout
+                    layout: layout,
+                    palette: palette
                 )
             }
         }
@@ -277,6 +323,7 @@
             let hasPendingValues = snapshot.values.contains { !$0.isEmpty }
             let hasRenderedHighlights = highlightNodes.values.contains { !$0.isEmpty }
             let hasRenderedEnemyMarkers = !dungeonEnemyMarkerNodes.isEmpty
+            let hasRenderedWatcherLasers = !watcherLaserNodes.isEmpty
             let hasRenderedPatrolRails = !patrolRailNodes.isEmpty
             let hasRenderedPatrolPreviews = !patrolMovementArrowNodes.isEmpty
             guard hasPendingValues
@@ -284,6 +331,9 @@
                     || hasPendingDungeonEnemyMarkerUpdate
                     || hasRenderedEnemyMarkers
                     || !latestDungeonEnemyMarkers.isEmpty
+                    || hasPendingWatcherLaserUpdate
+                    || hasRenderedWatcherLasers
+                    || !latestWatcherLaserPreviews.isEmpty
                     || hasPendingPatrolRailUpdate
                     || hasRenderedPatrolRails
                     || !latestPatrolRailPreviews.isEmpty
@@ -303,6 +353,7 @@
             } else if hasRenderedHighlights {
                 let latestSnapshot: [BoardHighlightKind: Set<GridPoint>] = [
                     .guideSingleCandidate: latestSingleGuidePoints,
+                    .guideDirectTwoStepCandidate: latestDirectTwoStepGuidePoints,
                     .guideMultipleCandidate: latestMultipleGuidePoints,
                     .guideMultiStepPath: latestMultiStepPathPoints,
                     .guideMultiStepCandidate: latestMultiStepGuidePoints,
@@ -362,6 +413,23 @@
                 )
             }
 
+            if hasPendingWatcherLaserUpdate {
+                applyWatcherLaserPreviews(
+                    pendingWatcherLaserPreviews,
+                    scene: scene,
+                    layout: layout,
+                    palette: palette
+                )
+                hasPendingWatcherLaserUpdate = false
+            } else if hasRenderedWatcherLasers || !latestWatcherLaserPreviews.isEmpty {
+                applyWatcherLaserPreviews(
+                    latestWatcherLaserPreviews,
+                    scene: scene,
+                    layout: layout,
+                    palette: palette
+                )
+            }
+
             if hasPendingPatrolRailUpdate {
                 applyPatrolRailPreviews(
                     pendingPatrolRailPreviews,
@@ -407,6 +475,7 @@
 
         private func updateLatestPoints(using highlights: [BoardHighlightKind: Set<GridPoint>]) {
             latestSingleGuidePoints = highlights[.guideSingleCandidate] ?? []
+            latestDirectTwoStepGuidePoints = highlights[.guideDirectTwoStepCandidate] ?? []
             latestMultipleGuidePoints = highlights[.guideMultipleCandidate] ?? []
             latestMultiStepPathPoints = highlights[.guideMultiStepPath] ?? []
             latestMultiStepGuidePoints = highlights[.guideMultiStepCandidate] ?? []
@@ -555,12 +624,14 @@
             layout: GameSceneLayoutSupport,
             palette: GameScenePalette
         ) {
-            let style = dungeonEnemyMarkerStyle(for: marker.kind)
+            let style = dungeonEnemyMarkerStyle(for: marker.kind, palette: palette)
             node.path = dungeonEnemyMarkerPath(marker: marker, tileSize: layout.tileSize)
             node.fillColor = style.fill
             node.strokeColor = style.stroke
             node.lineWidth = dungeonEnemyMarkerLineWidth(for: marker.kind, tileSize: layout.tileSize)
-            node.glowWidth = max(layout.tileSize * 0.012, 0.5)
+            node.glowWidth = usesNeonGridTheme(palette)
+                ? max(layout.tileSize * 0.026, 0.9)
+                : max(layout.tileSize * 0.012, 0.5)
             node.lineJoin = .round
             node.lineCap = .round
             node.position = layout.position(for: marker.point)
@@ -569,7 +640,45 @@
             node.blendMode = .alpha
         }
 
-        private func dungeonEnemyMarkerStyle(for kind: EnemyPresentationKind) -> (fill: SKColor, stroke: SKColor) {
+        private func dungeonEnemyMarkerStyle(
+            for kind: EnemyPresentationKind,
+            palette: GameScenePalette
+        ) -> (fill: SKColor, stroke: SKColor) {
+            if usesNeonGridTheme(palette) {
+                switch kind {
+                case .guardPost:
+                    return (
+                        palette.boardDungeonEnemy.withAlphaComponent(0.18),
+                        palette.boardDungeonEnemy.withAlphaComponent(0.96)
+                    )
+                case .patrol:
+                    return (
+                        palette.boardDungeonWarning.withAlphaComponent(0.16),
+                        palette.boardDungeonWarning.withAlphaComponent(0.98)
+                    )
+                case .watcher:
+                    return (
+                        palette.boardDungeonDamageTrap.withAlphaComponent(0.15),
+                        palette.boardDungeonDamageTrap.withAlphaComponent(0.96)
+                    )
+                case .rotatingWatcher:
+                    return (
+                        SKColor.clear,
+                        palette.boardDungeonHpHalvingTrap.withAlphaComponent(0.98)
+                    )
+                case .chaser:
+                    return (
+                        palette.boardDungeonCardPickup.withAlphaComponent(0.16),
+                        palette.boardDungeonCardPickup.withAlphaComponent(0.98)
+                    )
+                case .marker:
+                    return (
+                        palette.boardDungeonWarning.withAlphaComponent(0.18),
+                        palette.boardDungeonWarning.withAlphaComponent(0.98)
+                    )
+                }
+            }
+
             switch kind {
             case .guardPost:
                 return (
@@ -799,6 +908,116 @@
             path.addLine(to: rightHead)
         }
 
+        private func applyWatcherLaserPreviews(
+            _ previews: [SceneWatcherLaserPreview],
+            scene: SKScene,
+            layout: GameSceneLayoutSupport,
+            palette: GameScenePalette
+        ) {
+            latestWatcherLaserPreviews = previews
+
+            let previewIDs = Set(previews.map(\.enemyID))
+            let staleEnemyIDs = watcherLaserNodes.keys.filter { !previewIDs.contains($0) }
+            for enemyID in staleEnemyIDs {
+                guard let node = watcherLaserNodes[enemyID] else { continue }
+                node.removeFromParent()
+                watcherLaserNodes.removeValue(forKey: enemyID)
+            }
+
+            for preview in previews {
+                if let node = watcherLaserNodes[preview.enemyID] {
+                    if node.parent !== scene {
+                        scene.addChild(node)
+                    }
+                    configureWatcherLaserNode(
+                        node,
+                        preview: preview,
+                        layout: layout,
+                        palette: palette
+                    )
+                } else {
+                    let node = SKShapeNode()
+                    configureWatcherLaserNode(
+                        node,
+                        preview: preview,
+                        layout: layout,
+                        palette: palette
+                    )
+                    scene.addChild(node)
+                    watcherLaserNodes[preview.enemyID] = node
+                }
+            }
+        }
+
+        private func configureWatcherLaserNode(
+            _ node: SKShapeNode,
+            preview: SceneWatcherLaserPreview,
+            layout: GameSceneLayoutSupport,
+            palette: GameScenePalette
+        ) {
+            let baseColor = watcherLaserColor(palette: palette)
+            node.path = watcherLaserPath(preview: preview, layout: layout)
+            node.fillColor = SKColor.clear
+            node.strokeColor = baseColor.withAlphaComponent(0.94)
+            node.lineWidth = max(layout.tileSize * 0.070, 3.0)
+            node.glowWidth = max(layout.tileSize * 0.060, 2.2)
+            node.lineJoin = .round
+            node.lineCap = .round
+            node.position = .zero
+            node.zPosition = 1.115
+            node.isAntialiased = true
+            node.blendMode = .alpha
+        }
+
+        private func watcherLaserPath(
+            preview: SceneWatcherLaserPreview,
+            layout: GameSceneLayoutSupport
+        ) -> CGPath {
+            let path = CGMutablePath()
+            guard let lastPoint = preview.dangerPoints.max(by: {
+                laserProjection($0, origin: preview.origin, direction: preview.direction)
+                    < laserProjection($1, origin: preview.origin, direction: preview.direction)
+            }) else {
+                return path
+            }
+
+            let unit = normalizedLaserUnit(preview.direction)
+            let originCenter = layout.position(for: preview.origin)
+            let lastCenter = layout.position(for: lastPoint)
+            let start = CGPoint(
+                x: originCenter.x + unit.x * layout.tileSize * 0.18,
+                y: originCenter.y + unit.y * layout.tileSize * 0.18
+            )
+            let end = CGPoint(
+                x: lastCenter.x + unit.x * layout.tileSize * 0.38,
+                y: lastCenter.y + unit.y * layout.tileSize * 0.38
+            )
+            path.move(to: start)
+            path.addLine(to: end)
+            return path
+        }
+
+        private func laserProjection(
+            _ point: GridPoint,
+            origin: GridPoint,
+            direction: MoveVector
+        ) -> Int {
+            (point.x - origin.x) * direction.dx + (point.y - origin.y) * direction.dy
+        }
+
+        private func normalizedLaserUnit(_ direction: MoveVector) -> CGPoint {
+            let dx = CGFloat(direction.dx == 0 ? 0 : (direction.dx > 0 ? 1 : -1))
+            let dy = CGFloat(direction.dy == 0 ? 0 : (direction.dy > 0 ? 1 : -1))
+            let length = max(sqrt(dx * dx + dy * dy), 1)
+            return CGPoint(x: dx / length, y: dy / length)
+        }
+
+        private func watcherLaserColor(palette: GameScenePalette) -> SKColor {
+            usesNeonGridTheme(palette)
+                ? palette.boardDungeonDamageTrap
+                : SKColor(red: 1.00, green: 0.14, blue: 0.34, alpha: 1.0)
+        }
+
         private func applyPatrolRailPreviews(
             _ previews: [ScenePatrolRailPreview],
             scene: SKScene,
@@ -823,14 +1042,16 @@
                     configurePatrolRailNode(
                         node,
                         preview: preview,
-                        layout: layout
+                        layout: layout,
+                        palette: palette
                     )
                 } else {
                     let node = SKShapeNode()
                     configurePatrolRailNode(
                         node,
                         preview: preview,
-                        layout: layout
+                        layout: layout,
+                        palette: palette
                     )
                     scene.addChild(node)
                     patrolRailNodes[preview.enemyID] = node
@@ -841,15 +1062,16 @@
         private func configurePatrolRailNode(
             _ node: SKShapeNode,
             preview: ScenePatrolRailPreview,
-            layout: GameSceneLayoutSupport
+            layout: GameSceneLayoutSupport,
+            palette: GameScenePalette
         ) {
             node.path = patrolRailPath(points: preview.path, layout: layout)
             node.fillColor = SKColor.clear
-            node.strokeColor = patrolRailColor()
+            node.strokeColor = patrolRailColor(palette: palette)
             node.lineWidth = patrolRailLineWidth(tileSize: layout.tileSize)
-            node.glowWidth = 0
-            node.lineJoin = .miter
-            node.lineCap = .square
+            node.glowWidth = usesNeonGridTheme(palette) ? max(layout.tileSize * 0.012, 0.5) : 0
+            node.lineJoin = usesNeonGridTheme(palette) ? .round : .miter
+            node.lineCap = usesNeonGridTheme(palette) ? .round : .square
             node.position = .zero
             node.zPosition = 1.04
             node.isAntialiased = true
@@ -880,14 +1102,16 @@
                     configurePatrolMovementArrowNode(
                         node,
                         preview: preview,
-                        layout: layout
+                        layout: layout,
+                        palette: palette
                     )
                 } else {
                     let node = SKShapeNode()
                     configurePatrolMovementArrowNode(
                         node,
                         preview: preview,
-                        layout: layout
+                        layout: layout,
+                        palette: palette
                     )
                     scene.addChild(node)
                     patrolMovementArrowNodes[preview.enemyID] = node
@@ -898,9 +1122,10 @@
         private func configurePatrolMovementArrowNode(
             _ node: SKShapeNode,
             preview: ScenePatrolMovementPreview,
-            layout: GameSceneLayoutSupport
+            layout: GameSceneLayoutSupport,
+            palette: GameScenePalette
         ) {
-            let baseColor = patrolMovementArrowColor()
+            let baseColor = patrolMovementArrowColor(palette: palette)
             node.path = patrolMovementArrowPath(vector: preview.vector, tileSize: layout.tileSize)
             node.fillColor = SKColor.clear
             node.strokeColor = baseColor
@@ -944,6 +1169,23 @@
                 strokeAlpha = 0.9
                 strokeWidth = sharedGuideStrokeWidth
                 zPosition = 0.95
+            case .guideDirectTwoStepCandidate:
+                baseColor = palette.boardMultiStepHighlight
+                strokeAlpha = 0.9
+                strokeWidth = sharedGuideStrokeWidth
+                if latestSingleGuidePoints.contains(point) {
+                    overlapInset = max(overlapInset, strokeWidth * 1.5)
+                }
+                if latestMultipleGuidePoints.contains(point) {
+                    overlapInset = max(overlapInset, strokeWidth * 1.2)
+                }
+                if latestMultiStepGuidePoints.contains(point) {
+                    overlapInset = max(overlapInset, strokeWidth * 0.9)
+                }
+                if latestWarpGuidePoints.contains(point) {
+                    overlapInset = max(overlapInset, strokeWidth * 1.1)
+                }
+                zPosition = 1.025
             case .guideMultipleCandidate:
                 baseColor = palette.boardGuideHighlight
                 strokeAlpha = 0.88
@@ -993,10 +1235,13 @@
                 }
                 zPosition = 1.06
             case .dungeonBasicMove:
-                baseColor = SKColor.black
+                baseColor = usesNeonGridTheme(palette)
+                    ? SKColor(red: 0.0, green: 0.38, blue: 0.56, alpha: 1.0)
+                    : SKColor.black
                 strokeAlpha = 1.0
                 strokeWidth = sharedGuideStrokeWidth
                 fillColor = SKColor.clear
+                glowWidth = usesNeonGridTheme(palette) ? max(layout.tileSize * 0.010, 0.5) : 0
                 zPosition = 1.01
             case .forcedSelection:
                 baseColor = palette.boardWarpHighlight
@@ -1012,7 +1257,9 @@
                 glowWidth = max(layout.tileSize * 0.018, 0.8)
                 zPosition = 1.18
             case .dungeonExitLocked:
-                baseColor = SKColor(red: 0.45, green: 0.47, blue: 0.50, alpha: 1.0)
+                baseColor = usesNeonGridTheme(palette)
+                    ? SKColor(red: 0.18, green: 0.23, blue: 0.28, alpha: 1.0)
+                    : SKColor(red: 0.45, green: 0.47, blue: 0.50, alpha: 1.0)
                 strokeAlpha = 0.98
                 strokeWidth = max(layout.tileSize * 0.06, 2.2)
                 fillColor = baseColor.withAlphaComponent(0.28)
@@ -1093,17 +1340,35 @@
                 glowWidth = max(layout.tileSize * 0.010, 0.5)
                 zPosition = 1.13
             case .dungeonCrackedFloor:
-                baseColor = SKColor(red: 0.95, green: 0.60, blue: 0.12, alpha: 1.0)
+                baseColor = usesNeonGridTheme(palette)
+                    ? palette.boardDungeonWarning
+                    : SKColor(red: 0.95, green: 0.60, blue: 0.12, alpha: 1.0)
                 strokeAlpha = 0.92
                 strokeWidth = max(layout.tileSize * 0.045, 1.4)
                 fillColor = SKColor.clear
                 zPosition = 1.07
             case .dungeonCollapsedFloor:
-                baseColor = SKColor(red: 0.94, green: 0.88, blue: 0.72, alpha: 1.0)
+                baseColor = usesNeonGridTheme(palette)
+                    ? SKColor(red: 0.08, green: 0.16, blue: 0.22, alpha: 1.0)
+                    : SKColor(red: 0.94, green: 0.88, blue: 0.72, alpha: 1.0)
                 strokeAlpha = 0.92
                 strokeWidth = max(layout.tileSize * 0.045, 1.4)
-                fillColor = SKColor(red: 0.03, green: 0.035, blue: 0.045, alpha: 0.86)
+                fillColor = usesNeonGridTheme(palette)
+                    ? SKColor(red: 0.02, green: 0.05, blue: 0.07, alpha: 0.70)
+                    : SKColor(red: 0.03, green: 0.035, blue: 0.045, alpha: 0.86)
                 zPosition = 1.09
+            }
+
+            if usesNeonGridTheme(palette) {
+                applyNeonPictogramTuning(
+                    kind: kind,
+                    tileSize: layout.tileSize,
+                    baseColor: &baseColor,
+                    strokeAlpha: &strokeAlpha,
+                    strokeWidth: &strokeWidth,
+                    fillColor: &fillColor,
+                    glowWidth: &glowWidth
+                )
             }
 
             if isHiddenDarknessCandidate(kind: kind, point: point, visiblePoints: visiblePoints) {
@@ -1113,6 +1378,7 @@
                     baseColor = SKColor(red: 1.0, green: 0.78, blue: 0.34, alpha: 1.0)
                     fillColor = baseColor.withAlphaComponent(0.11)
                 case .guideSingleCandidate,
+                     .guideDirectTwoStepCandidate,
                      .guideMultipleCandidate,
                      .guideMultiStepCandidate,
                      .guideWarpCandidate:
@@ -1174,6 +1440,7 @@
             guard let visiblePoints, !visiblePoints.contains(point) else { return false }
             switch kind {
             case .guideSingleCandidate,
+                 .guideDirectTwoStepCandidate,
                  .guideMultipleCandidate,
                  .guideMultiStepCandidate,
                  .guideWarpCandidate,
@@ -1212,6 +1479,7 @@
                     scale: 1.0
                 )
             case .guideSingleCandidate,
+                 .guideDirectTwoStepCandidate,
                  .guideMultipleCandidate,
                  .guideMultiStepPath,
                  .guideMultiStepCandidate,
@@ -1593,11 +1861,75 @@
             return path
         }
 
-        private func patrolMovementArrowColor() -> SKColor {
+        private func applyNeonPictogramTuning(
+            kind: BoardHighlightKind,
+            tileSize: CGFloat,
+            baseColor: inout SKColor,
+            strokeAlpha: inout CGFloat,
+            strokeWidth: inout CGFloat,
+            fillColor: inout SKColor,
+            glowWidth: inout CGFloat
+        ) {
+            let softGlow = max(tileSize * 0.020, 0.7)
+            let strongGlow = max(tileSize * 0.030, 1.0)
+            switch kind {
+            case .dungeonBasicMove:
+                strokeAlpha = 0.98
+                glowWidth = max(glowWidth, softGlow)
+            case .guideMultiStepPath:
+                fillColor = baseColor.withAlphaComponent(0.10)
+            case .guideDirectTwoStepCandidate:
+                strokeAlpha = 1.0
+                strokeWidth = max(strokeWidth * 1.15, tileSize * 0.064)
+                glowWidth = max(glowWidth, strongGlow)
+            case .dungeonExit, .dungeonExitLocked:
+                strokeAlpha = 1.0
+                fillColor = baseColor.withAlphaComponent(0.18)
+                glowWidth = max(glowWidth, strongGlow)
+            case .dungeonKey, .dungeonCardPickup, .dungeonDamageTrap, .dungeonHealingTile:
+                strokeAlpha = 0
+                strokeWidth = 0
+                fillColor = baseColor.withAlphaComponent(kind == .dungeonDamageTrap ? 0.84 : 0.78)
+                glowWidth = max(glowWidth, softGlow)
+            case .dungeonRelicPickup, .dungeonSuspiciousRelicPickup:
+                strokeAlpha = 0.96
+                fillColor = baseColor.withAlphaComponent(0.66)
+                glowWidth = max(glowWidth, softGlow)
+            case .dungeonHpHalvingTrap, .dungeonLavaTile, .dungeonEnemyWarning:
+                strokeAlpha = 0.96
+                fillColor = baseColor.withAlphaComponent(0.34)
+                glowWidth = max(glowWidth, softGlow)
+            case .dungeonDanger:
+                fillColor = baseColor.withAlphaComponent(0.13)
+            case .dungeonEnemy:
+                strokeAlpha = 0.96
+                fillColor = baseColor.withAlphaComponent(0.20)
+                glowWidth = max(glowWidth, softGlow)
+            case .dungeonCrackedFloor:
+                strokeAlpha = 0.96
+                glowWidth = max(glowWidth, max(tileSize * 0.012, 0.5))
+            case .dungeonCollapsedFloor:
+                glowWidth = max(glowWidth, max(tileSize * 0.010, 0.5))
+            case .guideSingleCandidate,
+                 .guideMultipleCandidate,
+                 .guideMultiStepCandidate,
+                 .guideWarpCandidate,
+                 .forcedSelection:
+                glowWidth = max(glowWidth, max(tileSize * 0.014, 0.6))
+            }
+        }
+
+        private func patrolMovementArrowColor(palette: GameScenePalette) -> SKColor {
+            if usesNeonGridTheme(palette) {
+                return palette.boardDungeonWarning.withAlphaComponent(0.96)
+            }
             return SKColor(red: 1.0, green: 0.82, blue: 0.24, alpha: 0.96)
         }
 
-        private func patrolRailColor() -> SKColor {
+        private func patrolRailColor(palette: GameScenePalette) -> SKColor {
+            if usesNeonGridTheme(palette) {
+                return palette.boardDungeonWarning.withAlphaComponent(0.58)
+            }
             return SKColor(white: 0.48, alpha: 0.86)
         }
 
@@ -1610,5 +1942,11 @@
         var isClearForHighlightRendering: Bool {
             cgColor.alpha <= 0.01
         }
+    }
+
+    private func usesNeonGridTheme(_ palette: GameScenePalette) -> Bool {
+        palette.boardStarChartLine.cgColor.alpha > 0.01
+            && palette.boardConstellationLine.cgColor.alpha <= 0.01
+            && palette.boardNebulaDepth.cgColor.alpha <= 0.01
     }
 #endif

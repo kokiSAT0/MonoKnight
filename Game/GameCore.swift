@@ -139,10 +139,28 @@ private struct MovementProcessingResult {
     var presentationInitialCollapsedFloorPoints: Set<GridPoint>
     var presentationInitialBoard: Board
     var presentationSteps: [MovementResolution.PresentationStep]
+    var remainingPathAfterPickupChoice: [GridPoint]?
     var postMoveTileEffect: PostMoveTileEffect?
     var preservesPlayedCard: Bool
     var paralysisTrapPoint: GridPoint?
     var triggeredPoisonTrap: Bool
+}
+
+/// 盤面表示用に切り出した見張り系レーザーの現在状態
+public struct WatcherLaserDisplay: Equatable, Identifiable, Sendable {
+    public let enemyID: String
+    public let origin: GridPoint
+    public let direction: MoveVector
+    public let dangerPoints: [GridPoint]
+
+    public var id: String { enemyID }
+
+    public init(enemyID: String, origin: GridPoint, direction: MoveVector, dangerPoints: [GridPoint]) {
+        self.enemyID = enemyID
+        self.origin = origin
+        self.direction = direction
+        self.dangerPoints = dangerPoints
+    }
 }
 
 public struct PendingTargetedSupportCard: Equatable {
@@ -276,6 +294,7 @@ public final class GameCore: ObservableObject {
     @Published public private(set) var dungeonRunLogEntries: [DungeonRunLogEntry] = []
     /// 所持枠が満杯で床落ちカードの取捨選択を待っている状態
     @Published public private(set) var pendingDungeonPickupChoice: PendingDungeonPickupChoice?
+    private var pendingDungeonMovementContinuation: PendingDungeonMovementContinuation?
     /// 怪しい宝箱の選択を待っている状態
     @Published public private(set) var pendingDungeonRelicPickupChoice: PendingDungeonRelicPickupChoice?
     /// 塔ダンジョン出口が現在有効かどうか
@@ -422,6 +441,43 @@ public final class GameCore: ObservableObject {
             }
         }
         return dangerPoints(for: watcherStates)
+    }
+    /// 表示中の敵状態を基準にした見張り系以外の現在の攻撃範囲マス
+    public func nonWatcherEnemyDangerDisplayPoints(forDisplayedEnemyStates enemyStates: [EnemyState]) -> Set<GridPoint> {
+        guard !isEnemyFreezeActive else { return [] }
+        let nonWatcherStates = enemyStates.filter { enemy in
+            switch enemy.behavior {
+            case .watcher, .rotatingWatcher:
+                return false
+            case .guardPost, .patrol, .chaser, .marker:
+                return true
+            }
+        }
+        return dangerPoints(for: nonWatcherStates)
+    }
+    /// 表示中の敵状態を基準にした見張り系レーザーの描画情報
+    public func watcherLaserDisplays(forDisplayedEnemyStates enemyStates: [EnemyState]) -> [WatcherLaserDisplay] {
+        guard !isEnemyFreezeActive, !isWatcherLaserSuppressed else { return [] }
+        return enemyStates.compactMap { enemy in
+            let direction: MoveVector
+            switch enemy.behavior {
+            case .watcher(let watcherDirection, _):
+                direction = watcherDirection
+            case .rotatingWatcher:
+                guard let rotatingDirection = rotatingWatcherDirection(for: enemy) else { return nil }
+                direction = rotatingDirection
+            case .guardPost, .patrol, .chaser, .marker:
+                return nil
+            }
+            let dangerPoints = lineOfSightDangerPoints(from: enemy.position, direction: direction)
+            guard !dangerPoints.isEmpty else { return nil }
+            return WatcherLaserDisplay(
+                enemyID: enemy.id,
+                origin: enemy.position,
+                direction: normalizedLaserDirection(direction),
+                dangerPoints: dangerPoints
+            )
+        }
     }
     /// 表示中の敵状態を基準にしたメテオ兵の着弾予告マス
     public func enemyWarningPoints(forDisplayedEnemyStates enemyStates: [EnemyState]) -> Set<GridPoint> {
@@ -620,6 +676,7 @@ public final class GameCore: ObservableObject {
             dungeonRunLogEntries: dungeonRunLogEntries,
             isDungeonExitUnlocked: isDungeonExitUnlocked,
             pendingDungeonPickupChoice: pendingDungeonPickupChoice,
+            pendingDungeonMovementContinuation: pendingDungeonMovementContinuation,
             pendingDungeonRelicPickupChoice: pendingDungeonRelicPickupChoice
         )
     }
@@ -685,6 +742,7 @@ public final class GameCore: ObservableObject {
         dungeonRelicAcquisitionPresentations = []
         dungeonRunLogEntries = snapshot.dungeonRunLogEntries
         pendingDungeonPickupChoice = snapshot.pendingDungeonPickupChoice
+        pendingDungeonMovementContinuation = snapshot.pendingDungeonMovementContinuation
         pendingDungeonRelicPickupChoice = snapshot.pendingDungeonRelicPickupChoice
         isDungeonExitUnlocked = snapshot.isDungeonExitUnlocked
         dungeonExitUnlockEvent = nil
@@ -1164,6 +1222,23 @@ public final class GameCore: ObservableObject {
         )
         let previousMoveCount = moveCount
         moveCount += currentActionMoveCost
+        if let remainingPath = movementResult.remainingPathAfterPickupChoice {
+            pendingDungeonMovementContinuation = PendingDungeonMovementContinuation(
+                inputKind: .card,
+                playedMoveCard: cardMove,
+                remainingPath: remainingPath,
+                traversedPath: actualTraversedPath,
+                encounteredRevisit: encounteredRevisit,
+                detectedEffects: detectedEffects,
+                postMoveTileEffect: tileEffect(from: postMoveTileEffect),
+                preservesPlayedCard: preservesPlayedCard,
+                initialMarkerDamagePoints: pendingMarkerDamagePoints,
+                paralysisTrapPoint: paralysisTrapPoint,
+                triggeredPoisonTrap: movementResult.triggeredPoisonTrap,
+                previousMoveCount: previousMoveCount
+            )
+            return
+        }
 
         if encounteredRevisit {
             hasRevisitedTile = true
@@ -1441,6 +1516,22 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         )
         let previousMoveCount = moveCount
         moveCount += currentActionMoveCost
+        if let remainingPath = movementResult.remainingPathAfterPickupChoice {
+            pendingDungeonMovementContinuation = PendingDungeonMovementContinuation(
+                inputKind: .basic,
+                remainingPath: remainingPath,
+                traversedPath: actualTraversedPath,
+                encounteredRevisit: encounteredRevisit,
+                detectedEffects: detectedEffects,
+                postMoveTileEffect: tileEffect(from: postMoveTileEffect),
+                preservesPlayedCard: false,
+                initialMarkerDamagePoints: pendingMarkerDamagePoints,
+                paralysisTrapPoint: paralysisTrapPoint,
+                triggeredPoisonTrap: movementResult.triggeredPoisonTrap,
+                previousMoveCount: previousMoveCount
+            )
+            return
+        }
 
         if encounteredRevisit {
             hasRevisitedTile = true
@@ -1475,6 +1566,141 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         )
     }
 
+    private func continuePendingDungeonMovementIfNeeded() {
+        guard let continuation = pendingDungeonMovementContinuation,
+              pendingDungeonPickupChoice == nil,
+              pendingDungeonRelicPickupChoice == nil,
+              progress == .playing,
+              let currentPosition = current
+        else { return }
+
+        pendingDungeonMovementContinuation = nil
+        var combinedTraversedPath = continuation.traversedPath
+        var combinedEncounteredRevisit = continuation.encounteredRevisit
+        var combinedDetectedEffects = continuation.detectedEffects
+        var combinedPostMoveTileEffect = postMoveTileEffect(from: continuation.postMoveTileEffect)
+        var combinedPreservesPlayedCard = continuation.preservesPlayedCard
+        var combinedParalysisTrapPoint = continuation.paralysisTrapPoint
+        var combinedTriggeredPoisonTrap = continuation.triggeredPoisonTrap
+
+        if !continuation.remainingPath.isEmpty {
+            guard let movementResult = processMovementPath(continuation.remainingPath, startingAt: currentPosition) else { return }
+            let actualTraversedPath = movementResult.actualTraversedPath
+            let finalPosition = movementResult.finalPosition
+            let presentationSteps = movementResult.presentationSteps
+            lastMovementResolution = MovementResolution(
+                path: actualTraversedPath,
+                finalPosition: finalPosition,
+                appliedEffects: movementResult.detectedEffects,
+                presentationInitialHP: movementResult.presentationInitialHP,
+                presentationInitialHandStacks: movementResult.presentationInitialHandStacks,
+                presentationInitialCollectedDungeonCardPickupIDs: movementResult.presentationInitialCollectedDungeonCardPickupIDs,
+                presentationInitialCollectedDungeonRelicPickupIDs: movementResult.presentationInitialCollectedDungeonRelicPickupIDs,
+                presentationInitialEnemyStates: movementResult.presentationInitialEnemyStates,
+                presentationInitialCrackedFloorPoints: movementResult.presentationInitialCrackedFloorPoints,
+                presentationInitialCollapsedFloorPoints: movementResult.presentationInitialCollapsedFloorPoints,
+                presentationInitialBoard: movementResult.presentationInitialBoard,
+                presentationSteps: presentationSteps
+            )
+            current = finalPosition
+            publishImmediateMovementPresentationEventsIfNeeded(
+                from: presentationSteps,
+                actualTraversedPath: actualTraversedPath
+            )
+
+            combinedTraversedPath += actualTraversedPath
+            combinedEncounteredRevisit = combinedEncounteredRevisit || movementResult.encounteredRevisit
+            combinedDetectedEffects += movementResult.detectedEffects
+            combinedPostMoveTileEffect = mergedPostMoveTileEffect(
+                combinedPostMoveTileEffect,
+                movementResult.postMoveTileEffect
+            )
+            combinedPreservesPlayedCard = combinedPreservesPlayedCard || movementResult.preservesPlayedCard
+            combinedParalysisTrapPoint = movementResult.paralysisTrapPoint ?? combinedParalysisTrapPoint
+            combinedTriggeredPoisonTrap = combinedTriggeredPoisonTrap || movementResult.triggeredPoisonTrap
+
+            if let remainingPath = movementResult.remainingPathAfterPickupChoice {
+                pendingDungeonMovementContinuation = PendingDungeonMovementContinuation(
+                    inputKind: continuation.inputKind,
+                    playedMoveCard: continuation.playedMoveCard,
+                    remainingPath: remainingPath,
+                    traversedPath: combinedTraversedPath,
+                    encounteredRevisit: combinedEncounteredRevisit,
+                    detectedEffects: combinedDetectedEffects,
+                    postMoveTileEffect: tileEffect(from: combinedPostMoveTileEffect),
+                    preservesPlayedCard: combinedPreservesPlayedCard,
+                    initialMarkerDamagePoints: continuation.initialMarkerDamagePoints,
+                    paralysisTrapPoint: combinedParalysisTrapPoint,
+                    triggeredPoisonTrap: combinedTriggeredPoisonTrap,
+                    previousMoveCount: continuation.previousMoveCount
+                )
+                return
+            }
+        }
+
+        if combinedEncounteredRevisit {
+            hasRevisitedTile = true
+            if mode.revisitPenaltyCost > 0 {
+                penaltyCount += mode.revisitPenaltyCost
+            }
+        }
+
+        announceRemainingTiles()
+        if continuation.inputKind == .card,
+           let playedMoveCard = continuation.playedMoveCard,
+           !combinedPreservesPlayedCard {
+            consumeDungeonInventoryCard(playedMoveCard)
+        } else if continuation.inputKind == .card, combinedPreservesPlayedCard {
+            syncDungeonInventoryHandStacks()
+        }
+
+        let preservedCard = combinedPreservesPlayedCard
+            ? continuation.playedMoveCard.map { DealtCard(move: $0) }
+            : nil
+        if progress == .playing, dungeonFallEvent == nil {
+            applyPostMoveTileEffect(combinedPostMoveTileEffect, preserving: preservedCard)
+        }
+
+        logResolvedDungeonMovementContinuation(
+            continuation,
+            traversedPath: combinedTraversedPath,
+            detectedEffects: combinedDetectedEffects,
+            preservesPlayedCard: combinedPreservesPlayedCard,
+            encounteredRevisit: combinedEncounteredRevisit
+        )
+
+        if applyDungeonPostMoveChecks(
+            along: combinedTraversedPath,
+            initialMarkerDamagePoints: continuation.initialMarkerDamagePoints,
+            paralysisTrapPoint: combinedParalysisTrapPoint,
+            skipsPoisonTick: combinedTriggeredPoisonTrap,
+            previousMoveCount: continuation.previousMoveCount
+        ) { return }
+
+        checkDeadlockAndApplyPenaltyIfNeeded()
+    }
+
+    private func logResolvedDungeonMovementContinuation(
+        _ continuation: PendingDungeonMovementContinuation,
+        traversedPath: [GridPoint],
+        detectedEffects: [MovementResolution.AppliedEffect],
+        preservesPlayedCard: Bool,
+        encounteredRevisit: Bool
+    ) {
+        var fields: [(String, String)] = [
+            ("input", continuation.inputKind.rawValue),
+            ("path", PlayDiagnosticLog.describe(traversedPath)),
+            ("to", PlayDiagnosticLog.describe(current)),
+            ("effects", diagnosticEffectDescription(detectedEffects)),
+            ("preserved", String(preservesPlayedCard)),
+            ("revisit", String(encounteredRevisit))
+        ]
+        if let playedMoveCard = continuation.playedMoveCard {
+            fields.insert(("card", playedMoveCard.displayName), at: 1)
+        }
+        logDungeonPlayEvent("move_resolved", fields)
+    }
+
     private func processMovementPath(
         _ pathPoints: [GridPoint],
         startingAt start: GridPoint
@@ -1485,6 +1711,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         var encounteredRevisit = false
         var detectedEffects: [MovementResolution.AppliedEffect] = []
         var presentationSteps: [MovementResolution.PresentationStep] = []
+        var remainingPathAfterPickupChoice: [GridPoint]?
         let presentationInitialHP = dungeonHP
         let presentationInitialHandStacks = handStacks
         let presentationInitialCollectedDungeonCardPickupIDs = collectedDungeonCardPickupIDs
@@ -1527,6 +1754,17 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             defeatDungeonEnemy(at: stepPoint)
             if applyDungeonHazard(at: stepPoint) {
                 collectDungeonCardPickup(at: stepPoint)
+                if pendingDungeonPickupChoice != nil {
+                    presentationSteps.append(
+                        movementPresentationStep(
+                            at: stepPoint,
+                            hpBeforeStep: hpBeforeStep,
+                            stopReason: .pickupChoice
+                        )
+                    )
+                    remainingPathAfterPickupChoice = Array(pendingPath.dropFirst(stepIndex + 1))
+                    break
+                }
                 collectDungeonRelicPickup(at: stepPoint)
                 presentationSteps.append(
                     movementPresentationStep(
@@ -1538,6 +1776,17 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                 break
             }
             collectDungeonCardPickup(at: stepPoint)
+            if pendingDungeonPickupChoice != nil {
+                presentationSteps.append(
+                    movementPresentationStep(
+                        at: stepPoint,
+                        hpBeforeStep: hpBeforeStep,
+                        stopReason: .pickupChoice
+                    )
+                )
+                remainingPathAfterPickupChoice = Array(pendingPath.dropFirst(stepIndex + 1))
+                break
+            }
             collectDungeonRelicPickup(at: stepPoint)
             if progress == .failed {
                 presentationSteps.append(
@@ -1600,6 +1849,18 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                         defeatDungeonEnemy(at: destination)
                         if applyDungeonHazard(at: destination) {
                             collectDungeonCardPickup(at: destination)
+                            if pendingDungeonPickupChoice != nil {
+                                presentationSteps.append(
+                                    movementPresentationStep(
+                                        at: destination,
+                                        hpBeforeStep: hpBeforeWarpDestination,
+                                        stopReason: .pickupChoice
+                                    )
+                                )
+                                remainingPathAfterPickupChoice = []
+                                stepIndex = pendingPath.count
+                                break
+                            }
                             collectDungeonRelicPickup(at: destination)
                             presentationSteps.append(
                                 movementPresentationStep(
@@ -1612,6 +1873,18 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                             break
                         }
                         collectDungeonCardPickup(at: destination)
+                        if pendingDungeonPickupChoice != nil {
+                            presentationSteps.append(
+                                movementPresentationStep(
+                                    at: destination,
+                                    hpBeforeStep: hpBeforeWarpDestination,
+                                    stopReason: .pickupChoice
+                                )
+                            )
+                            remainingPathAfterPickupChoice = []
+                            stepIndex = pendingPath.count
+                            break
+                        }
                         collectDungeonRelicPickup(at: destination)
                         if progress == .failed {
                             presentationSteps.append(
@@ -1726,6 +1999,9 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                     }
                 }
             }
+            if remainingPathAfterPickupChoice != nil {
+                break
+            }
             if stopReason == nil {
                 presentationSteps.append(
                     movementPresentationStep(
@@ -1757,6 +2033,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             presentationInitialCollapsedFloorPoints: presentationInitialCollapsedFloorPoints,
             presentationInitialBoard: presentationInitialBoard,
             presentationSteps: presentationSteps,
+            remainingPathAfterPickupChoice: remainingPathAfterPickupChoice,
             postMoveTileEffect: postMoveTileEffect,
             preservesPlayedCard: preservesPlayedCard,
             paralysisTrapPoint: paralysisTrapPoint,
@@ -1810,6 +2087,56 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         case .warp, .returnWarp, .blast, .slow, .shackleTrap, .poisonTrap, .illusionTrap, .swamp:
             break
         }
+    }
+
+    private func postMoveTileEffect(from effect: TileEffect?) -> PostMoveTileEffect? {
+        guard let effect else { return nil }
+        switch effect {
+        case .shuffleHand:
+            return .shuffleHand
+        case .discardRandomHand:
+            return .discardRandomHand
+        case .discardAllMoveCards:
+            return .discardAllMoveCards
+        case .discardAllSupportCards:
+            return .discardAllSupportCards
+        case .discardAllHands:
+            return .discardAllHands
+        case .warp, .returnWarp, .blast, .slow, .shackleTrap, .poisonTrap, .illusionTrap, .swamp, .preserveCard:
+            return nil
+        }
+    }
+
+    private func tileEffect(from effect: PostMoveTileEffect?) -> TileEffect? {
+        guard let effect else { return nil }
+        switch effect {
+        case .shuffleHand:
+            return .shuffleHand
+        case .discardRandomHand:
+            return .discardRandomHand
+        case .discardAllMoveCards:
+            return .discardAllMoveCards
+        case .discardAllSupportCards:
+            return .discardAllSupportCards
+        case .discardAllHands:
+            return .discardAllHands
+        }
+    }
+
+    private func mergedPostMoveTileEffect(
+        _ first: PostMoveTileEffect?,
+        _ second: PostMoveTileEffect?
+    ) -> PostMoveTileEffect? {
+        var merged = first
+        var preservesPlayedCard = false
+        if let second, let tileEffect = tileEffect(from: second) {
+            registerPostMoveTileEffect(
+                tileEffect,
+                postMoveTileEffect: &merged,
+                preservesPlayedCard: &preservesPlayedCard
+            )
+        }
+        return merged
     }
 
     private func applyPostMoveTileEffect(_ effect: PostMoveTileEffect?, preserving preservedCard: DealtCard?) {
@@ -2206,6 +2533,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         dungeonRelicAcquisitionPresentations = []
         dungeonRunLogEntries = mode.dungeonMetadataSnapshot?.runState?.runLogEntries ?? []
         pendingDungeonPickupChoice = nil
+        pendingDungeonMovementContinuation = nil
         pendingDungeonRelicPickupChoice = nil
         isDungeonExitUnlocked = mode.dungeonRules?.exitLock == nil
         dungeonExitUnlockEvent = nil
@@ -2375,6 +2703,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         pendingDungeonPickupChoice = nil
         syncDungeonInventoryHandStacks()
         debugLog("満杯拾得カードを取得せず破棄: \(choice.pickup.playable.displayName) @\(choice.pickup.point)")
+        continuePendingDungeonMovementIfNeeded()
         return true
     }
 
@@ -2396,6 +2725,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
 
         collectedDungeonCardPickupIDs.insert(choice.pickup.id)
         debugLog("満杯拾得カードを取得: \(choice.pickup.playable.displayName), 破棄=\(playable.displayName)")
+        continuePendingDungeonMovementIfNeeded()
         return true
     }
 
@@ -3823,7 +4153,9 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
 
         let before = enemyStates
         var occupiedPoints = Set(enemyStates.map(\.position))
+        var defeatedEnemyIDs: Set<String> = []
         for index in enemyStates.indices {
+            guard !defeatedEnemyIDs.contains(enemyStates[index].id) else { continue }
             switch enemyStates[index].behavior {
             case .guardPost, .watcher:
                 break
@@ -3865,12 +4197,20 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                     continue
                 }
                 enemyStates[index].position = nextPoint
+                if isEnemyLethalHazardPoint(nextPoint) {
+                    defeatedEnemyIDs.insert(enemyStates[index].id)
+                    occupiedPoints.remove(nextPoint)
+                }
             case .marker:
                 if enemyStates[index].rotationIndex == Int.max {
                     enemyStates[index].rotationIndex = 0
                 } else {
-                enemyStates[index].rotationIndex += 1
+                    enemyStates[index].rotationIndex += 1
+                }
             }
+        }
+        if !defeatedEnemyIDs.isEmpty {
+            enemyStates.removeAll { defeatedEnemyIDs.contains($0.id) }
         }
         logDungeonPlayEvent(
             "enemy_turn",
@@ -3882,7 +4222,6 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                 ("shackled", String(isShackled))
             ]
         )
-    }
     }
 
     private func reserveEnemyDestination(
@@ -4530,6 +4869,26 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         toward target: GridPoint,
         avoiding blockedPoints: Set<GridPoint> = []
     ) -> GridPoint? {
+        let lethalHazardPoints = enemyLethalHazardPoints
+        return chaserNextStep(
+            from: origin,
+            toward: target,
+            avoiding: blockedPoints,
+            avoidingHazards: lethalHazardPoints
+        ) ?? chaserNextStep(
+            from: origin,
+            toward: target,
+            avoiding: blockedPoints,
+            avoidingHazards: []
+        )
+    }
+
+    private func chaserNextStep(
+        from origin: GridPoint,
+        toward target: GridPoint,
+        avoiding blockedPoints: Set<GridPoint>,
+        avoidingHazards hazardPoints: Set<GridPoint>
+    ) -> GridPoint? {
         guard origin != target,
               board.contains(origin),
               board.contains(target),
@@ -4541,6 +4900,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         func canChaserEnter(_ point: GridPoint) -> Bool {
             isEnemyTraversable(point)
                 && (!blockedPoints.contains(point) || point == origin || point == target)
+                && (!hazardPoints.contains(point) || point == origin || point == target)
         }
 
         var distances: [GridPoint: Int] = [target: 0]
@@ -4582,6 +4942,14 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         }
 
         return nil
+    }
+
+    private var enemyLethalHazardPoints: Set<GridPoint> {
+        damageTrapPoints.union(lavaTilePoints)
+    }
+
+    private func isEnemyLethalHazardPoint(_ point: GridPoint) -> Bool {
+        enemyLethalHazardPoints.contains(point)
     }
 
     private func chaserStepDirections(from origin: GridPoint, toward target: GridPoint) -> [MoveVector] {
@@ -4631,17 +4999,30 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         direction: MoveVector,
         into danger: inout Set<GridPoint>
     ) {
+        danger.formUnion(lineOfSightDangerPoints(from: origin, direction: direction))
+    }
+
+    private func lineOfSightDangerPoints(from origin: GridPoint, direction: MoveVector) -> [GridPoint] {
         let dx = direction.dx == 0 ? 0 : (direction.dx > 0 ? 1 : -1)
         let dy = direction.dy == 0 ? 0 : (direction.dy > 0 ? 1 : -1)
-        guard dx != 0 || dy != 0 else { return }
+        guard dx != 0 || dy != 0 else { return [] }
 
+        var points: [GridPoint] = []
         var step = 1
         while true {
             let point = origin.offset(dx: dx * step, dy: dy * step)
             guard isEnemyTraversable(point) else { break }
-            danger.insert(point)
+            points.append(point)
             step += 1
         }
+        return points
+    }
+
+    private func normalizedLaserDirection(_ direction: MoveVector) -> MoveVector {
+        MoveVector(
+            dx: direction.dx == 0 ? 0 : (direction.dx > 0 ? 1 : -1),
+            dy: direction.dy == 0 ? 0 : (direction.dy > 0 ? 1 : -1)
+        )
     }
 
     private func isEnemyTraversable(_ point: GridPoint) -> Bool {

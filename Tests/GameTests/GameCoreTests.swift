@@ -684,6 +684,90 @@ final class GameCoreTests: XCTestCase {
         XCTAssertFalse(core.isSupportCardUsable(in: core.handStacks[repeatedSupportIndex]))
     }
 
+    func testWatcherLaserDisplaysMatchDangerAndCurrentRotation() throws {
+        let watcher = EnemyDefinition(
+            id: "watcher",
+            name: "見張り",
+            position: GridPoint(x: 2, y: 1),
+            behavior: .watcher(direction: MoveVector(dx: 0, dy: -1), range: 3)
+        )
+        let rotatingWatcher = EnemyDefinition(
+            id: "rotating-watcher",
+            name: "回転見張り",
+            position: GridPoint(x: 1, y: 1),
+            behavior: .rotatingWatcher(
+                initialDirection: MoveVector(dx: 0, dy: 1),
+                rotationDirection: .clockwise,
+                range: 3
+            )
+        )
+        let guardPost = EnemyDefinition(
+            id: "guard",
+            name: "番兵",
+            position: GridPoint(x: 4, y: 1),
+            behavior: .guardPost
+        )
+        let mode = makeInventoryDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            allowsBasicOrthogonalMove: true,
+            enemies: [watcher, rotatingWatcher, guardPost]
+        )
+        let core = GameCore(mode: mode)
+
+        let initialDisplays = core.watcherLaserDisplays(forDisplayedEnemyStates: core.enemyStates)
+        XCTAssertEqual(Set(initialDisplays.map(\.enemyID)), ["watcher", "rotating-watcher"])
+        XCTAssertEqual(
+            Set(initialDisplays.flatMap(\.dangerPoints)),
+            core.watcherLaserDangerDisplayPoints(forDisplayedEnemyStates: core.enemyStates)
+        )
+        XCTAssertEqual(initialDisplays.first { $0.enemyID == "watcher" }?.origin, GridPoint(x: 2, y: 1))
+        XCTAssertEqual(initialDisplays.first { $0.enemyID == "watcher" }?.direction, MoveVector(dx: 0, dy: -1))
+        XCTAssertEqual(initialDisplays.first { $0.enemyID == "watcher" }?.dangerPoints, [GridPoint(x: 2, y: 0)])
+        XCTAssertEqual(initialDisplays.first { $0.enemyID == "rotating-watcher" }?.direction, MoveVector(dx: 0, dy: 1))
+
+        let move = try XCTUnwrap(core.availableBasicOrthogonalMoves().first { $0.destination == GridPoint(x: 0, y: 1) })
+        core.playBasicOrthogonalMove(using: move)
+
+        let rotatedDisplays = core.watcherLaserDisplays(forDisplayedEnemyStates: core.enemyStates)
+        XCTAssertEqual(
+            rotatedDisplays.first { $0.enemyID == "rotating-watcher" }?.direction,
+            MoveVector(dx: 1, dy: 0)
+        )
+        XCTAssertEqual(
+            core.nonWatcherEnemyDangerDisplayPoints(forDisplayedEnemyStates: core.enemyStates),
+            Set([GridPoint(x: 4, y: 0), GridPoint(x: 4, y: 2), GridPoint(x: 3, y: 1), GridPoint(x: 5, y: 1)]
+                .filter { core.board.contains($0) && core.board.isTraversable($0) }
+            )
+        )
+    }
+
+    func testWatcherLaserDisplaysHideWhenFrozenOrDarknessSuppressed() throws {
+        let watcher = EnemyDefinition(
+            id: "watcher",
+            name: "見張り",
+            position: GridPoint(x: 2, y: 1),
+            behavior: .watcher(direction: MoveVector(dx: 0, dy: -1), range: 3)
+        )
+        let mode = makeInventoryDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            allowsBasicOrthogonalMove: true,
+            enemies: [watcher]
+        )
+        let frozenCore = GameCore(mode: mode)
+        XCTAssertTrue(frozenCore.addDungeonInventorySupportCardForTesting(.freezeSpell, rewardUses: 1))
+        let freezeIndex = try XCTUnwrap(frozenCore.handStacks.firstIndex { $0.topCard?.supportCard == .freezeSpell })
+        frozenCore.playSupportCard(at: freezeIndex)
+        XCTAssertTrue(frozenCore.watcherLaserDisplays(forDisplayedEnemyStates: frozenCore.enemyStates).isEmpty)
+
+        let darknessCore = GameCore(mode: mode)
+        XCTAssertTrue(darknessCore.addDungeonInventorySupportCardForTesting(.darknessSpell, rewardUses: 1))
+        let darknessIndex = try XCTUnwrap(darknessCore.handStacks.firstIndex { $0.topCard?.supportCard == .darknessSpell })
+        darknessCore.playSupportCard(at: darknessIndex)
+        XCTAssertTrue(darknessCore.watcherLaserDisplays(forDisplayedEnemyStates: darknessCore.enemyStates).isEmpty)
+    }
+
     func testDarknessSpellRequiresWatcherLaserEnemyAndPersistsThroughResume() throws {
         let patrol = EnemyDefinition(
             id: "patrol",
@@ -1362,6 +1446,126 @@ final class GameCoreTests: XCTestCase {
         XCTAssertEqual(restoredCore.current, currentAfterPickup)
     }
 
+    func testRayMovePausesFullPickupChoicesOneAtATime() throws {
+        let existingCards = fullInventoryCards(including: .rayRight)
+        let newCards = MoveCard.allCases.filter { !existingCards.contains($0) }
+        let firstPickup = DungeonCardPickupDefinition(
+            id: "ray_first_full_pickup",
+            point: GridPoint(x: 1, y: 0),
+            card: try XCTUnwrap(newCards.first)
+        )
+        let secondPickup = DungeonCardPickupDefinition(
+            id: "ray_second_full_pickup",
+            point: GridPoint(x: 2, y: 0),
+            card: try XCTUnwrap(newCards.dropFirst().first)
+        )
+        let mode = makeInventoryDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            cardPickups: [firstPickup, secondPickup]
+        )
+        let core = GameCore(mode: mode)
+        for card in existingCards {
+            XCTAssertTrue(core.addDungeonInventoryCardForTesting(card, pickupUses: 1))
+        }
+        let move = try XCTUnwrap(core.availableMoves().first { $0.card.moveCard == .rayRight })
+
+        core.playCard(using: move)
+
+        XCTAssertEqual(core.current, firstPickup.point)
+        XCTAssertEqual(core.pendingDungeonPickupChoice?.pickup, firstPickup)
+        XCTAssertEqual(core.lastMovementResolution?.presentationSteps.last?.stopReason, .pickupChoice)
+        XCTAssertTrue(core.activeDungeonCardPickups.contains { $0.id == secondPickup.id })
+
+        XCTAssertTrue(core.discardPendingDungeonPickupCard())
+
+        XCTAssertEqual(core.current, secondPickup.point)
+        XCTAssertEqual(core.pendingDungeonPickupChoice?.pickup, secondPickup)
+        XCTAssertEqual(core.moveCount, 1)
+
+        XCTAssertTrue(core.discardPendingDungeonPickupCard())
+
+        XCTAssertNil(core.pendingDungeonPickupChoice)
+        XCTAssertEqual(core.current, GridPoint(x: 4, y: 0))
+        XCTAssertFalse(core.activeDungeonCardPickups.contains { $0.id == firstPickup.id })
+        XCTAssertFalse(core.activeDungeonCardPickups.contains { $0.id == secondPickup.id })
+        XCTAssertEqual(core.moveCount, 1)
+    }
+
+    func testRayMovePendingPickupContinuationRestoresFromSnapshot() throws {
+        let existingCards = fullInventoryCards(including: .rayRight)
+        let newCards = MoveCard.allCases.filter { !existingCards.contains($0) }
+        let firstPickup = DungeonCardPickupDefinition(
+            id: "resume_ray_first_pickup",
+            point: GridPoint(x: 1, y: 0),
+            card: try XCTUnwrap(newCards.first)
+        )
+        let secondPickup = DungeonCardPickupDefinition(
+            id: "resume_ray_second_pickup",
+            point: GridPoint(x: 2, y: 0),
+            card: try XCTUnwrap(newCards.dropFirst().first)
+        )
+        let mode = makeInventoryDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            cardPickups: [firstPickup, secondPickup]
+        )
+        let core = GameCore(mode: mode)
+        for card in existingCards {
+            XCTAssertTrue(core.addDungeonInventoryCardForTesting(card, pickupUses: 1))
+        }
+        let move = try XCTUnwrap(core.availableMoves().first { $0.card.moveCard == .rayRight })
+        core.playCard(using: move)
+        XCTAssertEqual(core.pendingDungeonPickupChoice?.pickup, firstPickup)
+
+        let snapshot = try XCTUnwrap(core.makeDungeonResumeSnapshot())
+        let data = try JSONEncoder().encode(snapshot)
+        let decodedSnapshot = try JSONDecoder().decode(DungeonRunResumeSnapshot.self, from: data)
+        let restoredCore = GameCore(mode: mode)
+
+        XCTAssertTrue(restoredCore.restoreDungeonResumeSnapshot(decodedSnapshot))
+        XCTAssertEqual(restoredCore.pendingDungeonPickupChoice?.pickup, firstPickup)
+
+        XCTAssertTrue(restoredCore.discardPendingDungeonPickupCard())
+
+        XCTAssertEqual(restoredCore.current, secondPickup.point)
+        XCTAssertEqual(restoredCore.pendingDungeonPickupChoice?.pickup, secondPickup)
+        XCTAssertEqual(restoredCore.moveCount, 1)
+    }
+
+    func testRayMoveStacksSamePickupBeforeNextFullPickupChoice() throws {
+        let existingCards = fullInventoryCards(including: .rayRight)
+        let stackedCard = try XCTUnwrap(existingCards.first { $0 != .rayRight })
+        let newCard = try XCTUnwrap(MoveCard.allCases.first { !existingCards.contains($0) })
+        let stackedPickup = DungeonCardPickupDefinition(
+            id: "ray_stacked_pickup",
+            point: GridPoint(x: 1, y: 0),
+            card: stackedCard
+        )
+        let fullPickup = DungeonCardPickupDefinition(
+            id: "ray_full_after_stack_pickup",
+            point: GridPoint(x: 2, y: 0),
+            card: newCard
+        )
+        let mode = makeInventoryDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            cardPickups: [stackedPickup, fullPickup]
+        )
+        let core = GameCore(mode: mode)
+        for card in existingCards {
+            XCTAssertTrue(core.addDungeonInventoryCardForTesting(card, pickupUses: 1))
+        }
+        let move = try XCTUnwrap(core.availableMoves().first { $0.card.moveCard == .rayRight })
+
+        core.playCard(using: move)
+
+        XCTAssertEqual(core.current, fullPickup.point)
+        XCTAssertEqual(core.pendingDungeonPickupChoice?.pickup, fullPickup)
+        XCTAssertFalse(core.activeDungeonCardPickups.contains { $0.id == stackedPickup.id })
+        XCTAssertEqual(core.dungeonInventoryEntries.first { $0.card == stackedCard }?.rewardUses, 2)
+    }
+
     func testPendingDungeonRelicPickupChoiceBlocksMovementAndRestoresFromSnapshot() throws {
         let pickupPoint = GridPoint(x: 1, y: 0)
         let pickup = DungeonRelicPickupDefinition(
@@ -1506,5 +1710,13 @@ final class GameCoreTests: XCTestCase {
         core.playBasicOrthogonalMove(using: move)
         XCTAssertNotNil(core.pendingDungeonPickupChoice)
         return core
+    }
+
+    private func fullInventoryCards(including requiredCard: MoveCard) -> [MoveCard] {
+        var cards = [requiredCard]
+        for card in MoveCard.allCases where card != requiredCard && cards.count < 9 {
+            cards.append(card)
+        }
+        return cards
     }
 }

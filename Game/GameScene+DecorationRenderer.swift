@@ -270,6 +270,12 @@
             }
         }
 
+        func tileInnerGlowCountForTesting() -> Int {
+            tileNodes.values.reduce(0) { count, node in
+                count + (node.childNode(withName: tileInnerGlowNodeName) == nil ? 0 : 1)
+            }
+        }
+
         func cosmicBackgroundNodeCountForTesting() -> Int {
             cosmicBackgroundLayer?.children.count ?? 0
         }
@@ -2197,15 +2203,16 @@
                     node.fillColor = .clear
                     node.alpha = 1.0
                 }
-                guard decoration.fillNodes.count >= 2 else { return }
-                let primaryFill = strokeColor.withAlphaComponent(0.88)
-                let secondaryFill = strokeColor.withAlphaComponent(0.6)
-                decoration.fillNodes[0].fillColor = primaryFill
-                decoration.fillNodes[0].strokeColor = .clear
-                decoration.fillNodes[0].alpha = 1.0
-                decoration.fillNodes[1].fillColor = secondaryFill
-                decoration.fillNodes[1].strokeColor = .clear
-                decoration.fillNodes[1].alpha = 1.0
+                if decoration.fillNodes.count >= 2 {
+                    let primaryFill = strokeColor.withAlphaComponent(0.88)
+                    let secondaryFill = strokeColor.withAlphaComponent(0.6)
+                    decoration.fillNodes[0].fillColor = primaryFill
+                    decoration.fillNodes[0].strokeColor = .clear
+                    decoration.fillNodes[0].alpha = 1.0
+                    decoration.fillNodes[1].fillColor = secondaryFill
+                    decoration.fillNodes[1].strokeColor = .clear
+                    decoration.fillNodes[1].alpha = 1.0
+                }
             case .blast:
                 let fillColor = palette.boardTileEffectBlast
                 for (index, node) in decoration.fillNodes.enumerated() {
@@ -2300,6 +2307,29 @@
                     node.fillColor = index == 0 ? accent.withAlphaComponent(0.10) : accent.withAlphaComponent(0.08)
                     node.alpha = 1.0
                 }
+            }
+
+            if usesNeonGridTheme(palette) {
+                applyNeonTileEffectPictogramTuning(&decoration)
+            }
+        }
+
+        private func applyNeonTileEffectPictogramTuning(_ decoration: inout TileEffectDecorationCache) {
+            for node in decoration.strokeNodes {
+                node.glowWidth = max(node.glowWidth, max(node.lineWidth * 0.72, 0.55))
+                node.lineJoin = .round
+                node.lineCap = .round
+                node.isAntialiased = true
+                node.blendMode = .alpha
+            }
+            for node in decoration.fillNodes {
+                if !node.fillColor.isClearForDecorationRendering {
+                    node.glowWidth = max(node.glowWidth, 0.55)
+                }
+                node.lineJoin = .round
+                node.lineCap = .round
+                node.isAntialiased = true
+                node.blendMode = .alpha
             }
         }
 
@@ -2427,5 +2457,17 @@
             return 0
         }
 
+    }
+
+    private extension SKColor {
+        var isClearForDecorationRendering: Bool {
+            cgColor.alpha <= 0.01
+        }
+    }
+
+    private func usesNeonGridTheme(_ palette: GameScenePalette) -> Bool {
+        palette.boardStarChartLine.cgColor.alpha > 0.01
+            && palette.boardConstellationLine.cgColor.alpha <= 0.01
+            && palette.boardNebulaDepth.cgColor.alpha <= 0.01
     }
 #endif

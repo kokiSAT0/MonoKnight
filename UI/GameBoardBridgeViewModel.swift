@@ -42,6 +42,8 @@ final class GameBoardBridgeViewModel: ObservableObject {
     struct GuideHighlightBuckets: Equatable {
         /// 単一ベクトルカードが到達できる座標集合
         var singleVectorDestinations: Set<GridPoint>
+        /// レイではない直線/斜め 2 マスカードが到達できる座標集合
+        var directTwoStepDestinations: Set<GridPoint>
         /// 複数ベクトルカードが到達できる座標集合
         var multipleVectorDestinations: Set<GridPoint>
         /// 複数マス移動カード（レイ型）が移動中に踏む座標集合
@@ -56,6 +58,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
         /// すべて空集合の初期値を返すヘルパー
         static let empty = GuideHighlightBuckets(
             singleVectorDestinations: [],
+            directTwoStepDestinations: [],
             multipleVectorDestinations: [],
             multiStepPathPoints: [],
             multiStepDestinations: [],
@@ -545,16 +548,22 @@ final class GameBoardBridgeViewModel: ObservableObject {
         let displayedEnemyStates = activeEnemyTurnEvent.map { _ in activeEnemyTurnDisplayStates } ?? stepEnemyStates
         let shouldDeferEnemyThreatHighlights = activeEnemyTurnEvent != nil
         let isDarknessEnabled = core.isDungeonDarknessActive
-        let displayedEnemyDangerPoints = isDarknessEnabled
-            ? core.watcherLaserDangerDisplayPoints(forDisplayedEnemyStates: displayedEnemyStates)
-            : core.enemyDangerDisplayPoints(forDisplayedEnemyStates: displayedEnemyStates)
+        let displayedEnemyDangerPoints = core.nonWatcherEnemyDangerDisplayPoints(
+            forDisplayedEnemyStates: displayedEnemyStates
+        )
+        let displayedWatcherLasers = shouldDeferEnemyThreatHighlights
+            ? []
+            : core.watcherLaserDisplays(forDisplayedEnemyStates: displayedEnemyStates)
+        let displayedWatcherLaserDangerPoints = Set(displayedWatcherLasers.flatMap(\.dangerPoints))
         let displayedEnemyWarningPoints = core.enemyWarningPoints(forDisplayedEnemyStates: displayedEnemyStates)
         let darknessCurrentPoint = presentationCurrentPoint ?? core.current
         let dungeonVisiblePoints = isDarknessEnabled
             ? makeDarknessVisiblePoints(
                 current: darknessCurrentPoint,
                 exitPoint: mode.dungeonExitPoint,
-                dangerPoints: shouldDeferEnemyThreatHighlights ? [] : displayedEnemyDangerPoints,
+                dangerPoints: shouldDeferEnemyThreatHighlights
+                    ? []
+                    : displayedWatcherLaserDangerPoints,
                 warningPoints: shouldDeferEnemyThreatHighlights ? [] : displayedEnemyWarningPoints,
                 keyPoints: core.dungeonKeyPoints,
                 revealedPickupPoints: core.chalkRevealedDungeonCardPickupPoints,
@@ -588,6 +597,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
         let visibleEnemyPoints = Set(visibleEnemyStates.map(\.position))
         let highlights: [BoardHighlightKind: Set<GridPoint>] = [
             .guideSingleCandidate: shouldHideGuideCandidates ? [] : guideHighlightBuckets.singleVectorDestinations,
+            .guideDirectTwoStepCandidate: shouldHideGuideCandidates ? [] : guideHighlightBuckets.directTwoStepDestinations,
             .guideMultipleCandidate: shouldHideGuideCandidates ? [] : guideHighlightBuckets.multipleVectorDestinations,
             .guideMultiStepPath: shouldHideGuideCandidates ? [] : guideHighlightBuckets.multiStepPathPoints,
             .guideMultiStepCandidate: shouldHideGuideCandidates ? [] : guideHighlightBuckets.multiStepDestinations,
@@ -598,7 +608,9 @@ final class GameBoardBridgeViewModel: ObservableObject {
             .dungeonExitLocked: core.isDungeonExitUnlocked ? [] : (mode.dungeonExitPoint.map { Set([$0]) } ?? []),
             .dungeonKey: visible(displayed: core.dungeonKeyPoints, in: dungeonVisiblePoints),
             .dungeonEnemy: visibleEnemyPoints,
-            .dungeonDanger: shouldDeferEnemyThreatHighlights ? [] : displayedEnemyDangerPoints,
+            .dungeonDanger: shouldDeferEnemyThreatHighlights
+                ? []
+                : visible(displayed: displayedEnemyDangerPoints, in: dungeonVisiblePoints),
             .dungeonEnemyWarning: shouldDeferEnemyThreatHighlights ? [] : displayedEnemyWarningPoints,
             .dungeonCardPickup: visible(displayed: displayedCardPickupPoints, in: dungeonVisiblePoints),
             .dungeonRelicPickup: visible(displayed: displayedRelicPickupPoints, in: dungeonVisiblePoints),
@@ -615,6 +627,12 @@ final class GameBoardBridgeViewModel: ObservableObject {
         scene.updateDungeonEnemyMarkers(visibleEnemyStates.map { enemy in
             SceneDungeonEnemyMarker(enemy, facingVector: patrolFacingVectors[enemy.id])
         })
+        scene.updateWatcherLaserPreviews(
+            visibleWatcherLaserPreviews(
+                displayedWatcherLasers.map(SceneWatcherLaserPreview.init),
+                in: dungeonVisiblePoints
+            )
+        )
         scene.updatePatrolRailPreviews(
             visiblePatrolRailPreviews(
                 core.enemyPatrolRailPreviews(forDisplayedEnemyStates: displayedEnemyStates).map(ScenePatrolRailPreview.init),
@@ -680,6 +698,23 @@ final class GameBoardBridgeViewModel: ObservableObject {
         return previews.filter { visiblePoints.contains($0.current) && visiblePoints.contains($0.next) }
     }
 
+    private func visibleWatcherLaserPreviews(
+        _ previews: [SceneWatcherLaserPreview],
+        in visiblePoints: Set<GridPoint>?
+    ) -> [SceneWatcherLaserPreview] {
+        guard let visiblePoints else { return previews }
+        return previews.compactMap { preview in
+            let visibleDangerPoints = preview.dangerPoints.filter(visiblePoints.contains)
+            guard visiblePoints.contains(preview.origin), !visibleDangerPoints.isEmpty else { return nil }
+            return SceneWatcherLaserPreview(
+                enemyID: preview.enemyID,
+                origin: preview.origin,
+                direction: preview.direction,
+                dangerPoints: visibleDangerPoints
+            )
+        }
+    }
+
     private func visiblePatrolRailPreviews(
         _ previews: [ScenePatrolRailPreview],
         in visiblePoints: Set<GridPoint>?
@@ -733,6 +768,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
         logPrefix: String
     ) -> (
         singleCount: Int,
+        directTwoStepCount: Int,
         multipleCount: Int,
         multiStepCount: Int,
         warpCount: Int,
@@ -741,22 +777,24 @@ final class GameBoardBridgeViewModel: ObservableObject {
     ) {
         // --- 集計対象それぞれの件数を求める ---
         let singleCount = buckets.singleVectorDestinations.count
+        let directTwoStepCount = buckets.directTwoStepDestinations.count
         let multipleCount = buckets.multipleVectorDestinations.count
         let multiStepPathCount = buckets.multiStepPathPoints.count
         let multiStepCount = buckets.multiStepDestinations.count
         let warpCount = buckets.warpDestinations.count
         let basicCount = buckets.basicMoveDestinations.count
-        let totalCount = singleCount + multipleCount + multiStepPathCount + multiStepCount + warpCount + basicCount
+        let totalCount = singleCount + directTwoStepCount + multipleCount + multiStepPathCount + multiStepCount + warpCount + basicCount
 
         // --- 呼び出し側で使うログ文面を一括生成する ---
         let logMessage = (
-            "\(logPrefix) 単一=\(singleCount) 複数=\(multipleCount) " +
+            "\(logPrefix) 単一=\(singleCount) 直接2=\(directTwoStepCount) 複数=\(multipleCount) " +
             "連続経路=\(multiStepPathCount) 連続終点=\(multiStepCount) " +
             "ワープ=\(warpCount) 基本移動=\(basicCount) 合計=\(totalCount)"
         )
 
         return (
             singleCount,
+            directTwoStepCount,
             multipleCount,
             multiStepCount,
             warpCount,
@@ -810,6 +848,9 @@ final class GameBoardBridgeViewModel: ObservableObject {
             } else if move.movementVectors.count > 1 {
                 // 複数方向カードは従来どおりオレンジ枠で強調する
                 computedBuckets.multipleVectorDestinations.formUnion(destinations)
+            } else if isDirectTwoStepMove(move) {
+                // レイではない 2 マス直接移動は、ネオン盤面で通常単方向より見えやすい専用枠に分ける
+                computedBuckets.directTwoStepDestinations.formUnion(destinations)
             } else {
                 // 単方向カードは落ち着いたグレー枠へ分類する
                 computedBuckets.singleVectorDestinations.formUnion(destinations)
@@ -855,6 +896,22 @@ final class GameBoardBridgeViewModel: ObservableObject {
             logPrefix: "ガイド描画"
         )
         debugLog(summary.logMessage)
+    }
+
+    private func isDirectTwoStepMove(_ move: MoveCard) -> Bool {
+        switch move {
+        case .straightUp2,
+             .straightDown2,
+             .straightRight2,
+             .straightLeft2,
+             .diagonalUpRight2,
+             .diagonalDownRight2,
+             .diagonalDownLeft2,
+             .diagonalUpLeft2:
+            return true
+        default:
+            return false
+        }
     }
 
     /// 強制的に表示したいハイライト集合を更新する

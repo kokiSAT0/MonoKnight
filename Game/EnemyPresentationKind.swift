@@ -56,9 +56,9 @@ public enum EnemyPresentationKind: String, CaseIterable, Equatable, Identifiable
         case .patrol:
             return "隣接マスが危険です。レールと矢印を見て、待つか越えるかを選びます。"
         case .watcher:
-            return "視線の直線上が危険です。岩、柱、壁の手前で視線は止まります。"
+            return "目元から伸びるレーザー上が危険です。岩、柱、壁の手前でレーザーは止まります。"
         case .rotatingWatcher:
-            return "赤い射線が現在の危険範囲です。射線外では、敵アイコンの回転矢印から次の向きを読みます。"
+            return "目元から伸びるレーザーが現在の危険範囲です。レーザー外では、敵アイコンの回転矢印から次の向きを読みます。"
         case .chaser:
             return "移動先は盤面の小矢印で読みます。近づいた後の隣接範囲まで危険です。"
         case .marker:

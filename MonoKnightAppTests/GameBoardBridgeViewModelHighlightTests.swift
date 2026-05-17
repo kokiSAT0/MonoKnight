@@ -359,13 +359,9 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
             progressOverride: .playing
         )
 
-        let expectedTraversedPoints: Set<GridPoint> = [
-            GridPoint(x: 2, y: 2),
-            GridPoint(x: 3, y: 3),
-            GridPoint(x: 4, y: 4)
-        ]
+        let expectedTraversedPoints = Set((2..<viewModel.boardSize).map { GridPoint(x: $0, y: $0) })
         let expectedDestination: Set<GridPoint> = [
-            GridPoint(x: 4, y: 4)
+            GridPoint(x: viewModel.boardSize - 1, y: viewModel.boardSize - 1)
         ]
 
         XCTAssertEqual(
@@ -398,6 +394,48 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
         )
     }
 
+    func testRefreshGuideHighlightsSeparatesDirectTwoStepFromRayGuides() {
+        let viewModel = makeViewModel()
+        let origin = GridPoint(x: 1, y: 1)
+        let directStack = HandStack(cards: [DealtCard(move: .straightRight2)])
+        let rayStack = HandStack(cards: [DealtCard(move: .rayRight)])
+
+        viewModel.refreshGuideHighlights(
+            handOverride: [directStack, rayStack],
+            currentOverride: origin,
+            progressOverride: .playing
+        )
+
+        let directDestination = GridPoint(x: 3, y: 1)
+        let rayPath = Set((2..<viewModel.boardSize).map { GridPoint(x: $0, y: 1) })
+        let rayDestination: Set<GridPoint> = [GridPoint(x: viewModel.boardSize - 1, y: 1)]
+
+        XCTAssertEqual(
+            viewModel.guideHighlightBuckets.directTwoStepDestinations,
+            [directDestination],
+            "2マス直接移動はレイ用の通過塗りではなく専用の到達先枠へ分類します"
+        )
+        XCTAssertEqual(
+            viewModel.scene.latestHighlightPoints(for: .guideDirectTwoStepCandidate),
+            [directDestination],
+            "Scene 側にも2マス直接移動の専用枠として渡します"
+        )
+        XCTAssertEqual(
+            viewModel.guideHighlightBuckets.multiStepPathPoints,
+            rayPath,
+            "レイ型カードは従来どおり通過マス全体を塗りとして保持します"
+        )
+        XCTAssertEqual(
+            viewModel.guideHighlightBuckets.multiStepDestinations,
+            rayDestination,
+            "レイ型カードの終点枠は従来の連続終点集合へ残します"
+        )
+        XCTAssertFalse(
+            viewModel.guideHighlightBuckets.singleVectorDestinations.contains(directDestination),
+            "2マス直接移動は通常単方向枠へ混ぜません"
+        )
+    }
+
     func testRefreshGuideHighlightsPrioritizesDungeonDangerOverMultiStepPathFill() {
         let mode = makeRayDangerMode()
         let core = GameCore(mode: mode)
@@ -426,8 +464,13 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
         )
         XCTAssertEqual(
             viewModel.scene.latestHighlightPoints(for: .dungeonDanger),
-            core.enemyDangerDisplayPoints,
-            "敵の危険範囲は赤塗りとして残します"
+            core.nonWatcherEnemyDangerDisplayPoints(forDisplayedEnemyStates: core.enemyStates),
+            "見張り以外の敵の危険範囲は赤塗りとして残します"
+        )
+        XCTAssertEqual(
+            Set(viewModel.scene.latestWatcherLaserPreviewsForTesting().flatMap(\.dangerPoints)),
+            core.watcherLaserDangerDisplayPoints(forDisplayedEnemyStates: core.enemyStates),
+            "見張り系の危険範囲はレーザー表示として残します"
         )
         XCTAssertTrue(
             viewModel.guideHighlightBuckets.multiStepDestinations.contains(dangerDestinationPoint),
@@ -734,8 +777,13 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
         )
         XCTAssertEqual(
             viewModel.scene.latestHighlightPoints(for: .dungeonDanger),
-            core.enemyDangerDisplayPoints,
-            "危険範囲表示は GameCore の表示用集合と一致させます"
+            core.nonWatcherEnemyDangerDisplayPoints(forDisplayedEnemyStates: core.enemyStates),
+            "見張り以外の危険範囲表示は GameCore の表示用集合と一致させます"
+        )
+        XCTAssertEqual(
+            Set(viewModel.scene.latestWatcherLaserPreviewsForTesting().flatMap(\.dangerPoints)),
+            core.watcherLaserDangerDisplayPoints(forDisplayedEnemyStates: core.enemyStates),
+            "見張り系の危険範囲はレーザー表示として Scene へ渡します"
         )
         XCTAssertEqual(
             viewModel.scene.latestHighlightPoints(for: .dungeonEnemyWarning),
@@ -1019,11 +1067,16 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
         XCTAssertEqual(viewModel.scene.latestHighlightPoints(for: .dungeonDamageTrap), [GridPoint(x: 1, y: 1)])
         XCTAssertEqual(viewModel.scene.latestHighlightPoints(for: .dungeonEnemy), [GridPoint(x: 4, y: 2)])
         XCTAssertEqual(viewModel.scene.latestDungeonEnemyMarkersForTesting().map(\.point), [GridPoint(x: 4, y: 2)])
+        XCTAssertEqual(viewModel.scene.latestHighlightPoints(for: .dungeonDanger), [])
         XCTAssertEqual(
-            viewModel.scene.latestHighlightPoints(for: .dungeonDanger),
+            Set(viewModel.scene.latestWatcherLaserPreviewsForTesting().flatMap(\.dangerPoints)),
             core.watcherLaserDangerDisplayPoints(forDisplayedEnemyStates: core.enemyStates)
         )
-        XCTAssertTrue(viewModel.scene.latestHighlightPoints(for: .dungeonDanger).contains(GridPoint(x: 3, y: 2)))
+        XCTAssertTrue(viewModel.scene.latestWatcherLaserPreviewsForTesting().contains { preview in
+            preview.origin == GridPoint(x: 4, y: 2)
+                && preview.direction == MoveVector(dx: -1, dy: 0)
+                && preview.dangerPoints.contains(GridPoint(x: 3, y: 2))
+        })
         XCTAssertTrue(viewModel.scene.latestDungeonVisiblePointsForTesting()?.contains(GridPoint(x: 4, y: 4)) == true)
         XCTAssertTrue(viewModel.scene.latestDungeonVisiblePointsForTesting()?.contains(keyPoint) == true)
         XCTAssertTrue(viewModel.scene.latestDungeonVisiblePointsForTesting()?.contains(GridPoint(x: 3, y: 2)) == true)
@@ -1109,7 +1162,9 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
         XCTAssertTrue(stepSnapshots[2].traps.contains(GridPoint(x: 4, y: 0)))
         XCTAssertEqual(stepSnapshots.map(\.enemyMarkerPoints), Array(repeating: [GridPoint(x: 4, y: 2)], count: 4))
         XCTAssertTrue(viewModel.scene.latestDungeonVisiblePointsForTesting()?.contains(GridPoint(x: 4, y: 1)) == true)
-        XCTAssertTrue(viewModel.scene.latestHighlightPoints(for: .dungeonDanger).contains(GridPoint(x: 3, y: 2)))
+        XCTAssertTrue(viewModel.scene.latestWatcherLaserPreviewsForTesting().contains { preview in
+            preview.dangerPoints.contains(GridPoint(x: 3, y: 2))
+        })
     }
 
     func testRotatingWatcherDangerHighlightUsesCurrentLine() {
@@ -1119,12 +1174,17 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
 
         XCTAssertTrue(core.enemyDangerPoints.contains(GridPoint(x: 2, y: 2)))
         XCTAssertFalse(core.enemyDangerPoints.contains(GridPoint(x: 3, y: 1)))
+        XCTAssertEqual(viewModel.scene.latestHighlightPoints(for: .dungeonDanger), [])
         XCTAssertEqual(
-            viewModel.scene.latestHighlightPoints(for: .dungeonDanger),
+            Set(viewModel.scene.latestWatcherLaserPreviewsForTesting().flatMap(\.dangerPoints)),
             core.enemyDangerDisplayPoints
         )
         XCTAssertFalse(viewModel.scene.latestHighlightPoints(for: .dungeonDanger).contains(GridPoint(x: 3, y: 1)))
-        XCTAssertTrue(viewModel.scene.latestHighlightPoints(for: .dungeonDanger).contains(GridPoint(x: 2, y: 2)))
+        XCTAssertTrue(viewModel.scene.latestWatcherLaserPreviewsForTesting().contains { preview in
+            preview.enemyID == "display-rotating-watcher"
+                && preview.direction == MoveVector(dx: 0, dy: 1)
+                && preview.dangerPoints.contains(GridPoint(x: 2, y: 2))
+        })
     }
 
     func testEnemyFreezeHidesThreatsButKeepsEnemyMarkers() throws {
@@ -1137,6 +1197,7 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
 
         XCTAssertEqual(viewModel.scene.latestHighlightPoints(for: .dungeonDanger), [])
         XCTAssertEqual(viewModel.scene.latestHighlightPoints(for: .dungeonEnemyWarning), [])
+        XCTAssertEqual(viewModel.scene.latestWatcherLaserPreviewsForTesting(), [])
         XCTAssertEqual(
             viewModel.scene.latestHighlightPoints(for: .dungeonEnemy),
             Set(core.enemyStates.map(\.position))
@@ -1157,7 +1218,11 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
         XCTAssertFalse(core.enemyWarningPoints.isEmpty)
         XCTAssertEqual(
             viewModel.scene.latestHighlightPoints(for: .dungeonDanger),
-            core.enemyDangerDisplayPoints
+            core.nonWatcherEnemyDangerDisplayPoints(forDisplayedEnemyStates: core.enemyStates)
+        )
+        XCTAssertEqual(
+            Set(viewModel.scene.latestWatcherLaserPreviewsForTesting().flatMap(\.dangerPoints)),
+            core.watcherLaserDangerDisplayPoints(forDisplayedEnemyStates: core.enemyStates)
         )
         XCTAssertEqual(
             viewModel.scene.latestHighlightPoints(for: .dungeonEnemyWarning),
@@ -1272,7 +1337,7 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
 
         XCTAssertTrue(core.availableMoves().contains { $0.moveCard == .straightRight2 && $0.destination == GridPoint(x: 2, y: 0) })
         XCTAssertTrue(
-            viewModel.scene.latestHighlightPoints(for: .guideSingleCandidate).contains(GridPoint(x: 2, y: 0)),
+            viewModel.scene.latestHighlightPoints(for: .guideDirectTwoStepCandidate).contains(GridPoint(x: 2, y: 0)),
             "初期化直後から報酬カードの候補を盤面へ渡す必要があります"
         )
     }

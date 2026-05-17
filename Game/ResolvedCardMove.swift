@@ -11,6 +11,7 @@ public struct MovementResolution: Equatable, Sendable {
             case exit
             case failed
             case fall
+            case pickupChoice
             case slow
             case shackleTrap
             case warp
@@ -76,7 +77,7 @@ public struct MovementResolution: Equatable, Sendable {
 
     /// タイル効果の適用履歴を表現するためのサブ構造体
     /// - Note: 効果が発動した座標と内容を記録し、UI 側で演出を切り替える際に利用することを想定している。
-    public struct AppliedEffect: Equatable, Sendable {
+    public struct AppliedEffect: Codable, Equatable, Sendable {
         /// 効果が発動した座標
         public let point: GridPoint
         /// 適用されたタイル効果
@@ -306,6 +307,8 @@ public struct ResolvedCardMove: Hashable, Sendable {
                 hasher.combine("failed")
             case .fall:
                 hasher.combine("fall")
+            case .pickupChoice:
+                hasher.combine("pickupChoice")
             case .slow:
                 hasher.combine("slow")
             case .shackleTrap:

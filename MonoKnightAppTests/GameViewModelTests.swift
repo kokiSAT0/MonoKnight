@@ -1432,6 +1432,35 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertEqual(core.dungeonInventoryEntries.count, 9)
     }
 
+    func testPendingDungeonPickupHandTapResumesRayMoveToNextChoice() throws {
+        let existingCards = fullInventoryCards(including: .rayRight)
+        let newCards = MoveCard.allCases.filter { !existingCards.contains($0) }
+        let firstPickup = DungeonCardPickupDefinition(
+            id: "view_model_ray_first_pickup",
+            point: GridPoint(x: 1, y: 0),
+            card: try XCTUnwrap(newCards.first)
+        )
+        let secondPickup = DungeonCardPickupDefinition(
+            id: "view_model_ray_second_pickup",
+            point: GridPoint(x: 2, y: 0),
+            card: try XCTUnwrap(newCards.dropFirst().first)
+        )
+        let (viewModel, core) = makeViewModel(mode: makePickupChoiceMode(pickups: [firstPickup, secondPickup]))
+        for card in existingCards {
+            XCTAssertTrue(core.addDungeonInventoryCardForTesting(card, pickupUses: 1))
+        }
+        let move = try XCTUnwrap(core.availableMoves().first { $0.card.moveCard == .rayRight })
+
+        core.playCard(using: move)
+        XCTAssertEqual(viewModel.pendingDungeonPickupChoice?.pickup, firstPickup)
+
+        viewModel.handleHandSlotTap(at: 0)
+
+        XCTAssertEqual(viewModel.pendingDungeonPickupChoice?.pickup, secondPickup)
+        XCTAssertEqual(core.current, secondPickup.point)
+        XCTAssertTrue(core.activeDungeonCardPickups.contains { $0.id == secondPickup.id })
+    }
+
     func testPendingDungeonPickupIgnoresBasicMoveSlotTap() throws {
         let pickupPoint = GridPoint(x: 1, y: 0)
         let existingCards = Array(MoveCard.allCases.prefix(9))
@@ -3140,6 +3169,10 @@ final class GameViewModelTests: XCTestCase {
     }
 
     private func makePickupChoiceMode(pickup: DungeonCardPickupDefinition) -> GameMode {
+        makePickupChoiceMode(pickups: [pickup])
+    }
+
+    private func makePickupChoiceMode(pickups: [DungeonCardPickupDefinition]) -> GameMode {
         GameMode(
             identifier: .dungeonFloor,
             displayName: "満杯拾得テスト",
@@ -3162,7 +3195,7 @@ final class GameViewModelTests: XCTestCase {
                     failureRule: DungeonFailureRule(initialHP: 3, turnLimit: nil),
                     allowsBasicOrthogonalMove: true,
                     cardAcquisitionMode: .inventoryOnly,
-                    cardPickups: [pickup]
+                    cardPickups: pickups
                 )
             ),
             leaderboardEligible: false,
@@ -3172,6 +3205,14 @@ final class GameViewModelTests: XCTestCase {
                 runState: DungeonRunState(dungeonID: "view-model-pickup-test", carriedHP: 3)
             )
         )
+    }
+
+    private func fullInventoryCards(including requiredCard: MoveCard) -> [MoveCard] {
+        var cards = [requiredCard]
+        for card in MoveCard.allCases where card != requiredCard && cards.count < 9 {
+            cards.append(card)
+        }
+        return cards
     }
 
     private func makeRayTrapPresentationMode() -> GameMode {
