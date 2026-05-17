@@ -88,6 +88,21 @@ final class MoveCardIllustrationViewAccessibilityTests: XCTestCase {
         XCTAssertFalse(choice.accessibilityLabel.contains("選ぶと次の階へ進みます"))
     }
 
+    func testDungeonRewardCardChoicePresentationDoesNotExposeTacticalHint() {
+        let choice = DungeonRewardCardChoicePresentation(
+            offer: .playable(.support(.darknessSpell)),
+            rewardUses: 1,
+            accessibilityIdentifierPrefix: "dungeon_reward_support_card",
+            accessibilityRoleText: "手札に追加する補助カード"
+        )
+
+        XCTAssertFalse(choice.accessibilityLabel.contains("暗闇に強い"))
+        XCTAssertFalse(choice.detailPresentation.secondaryDescriptions.contains("暗闇に強い"))
+        XCTAssertFalse(choice.accessibilityLabel.contains("おすすめ"))
+        XCTAssertFalse(choice.accessibilityLabel.contains("正解"))
+        XCTAssertFalse(choice.accessibilityLabel.contains("最適"))
+    }
+
     func testDungeonRewardRelicChoicePresentationOpensDetailBeforeAdvance() {
         let choice = DungeonRewardCardChoicePresentation(
             offer: .relic(.silverNeedle),

@@ -30,11 +30,21 @@ extension AppTheme {
 
     /// カラースキームごとに AppTheme を生成して Color を取り出すヘルパー
     func color(for scheme: ColorScheme, keyPath: KeyPath<AppTheme, Color>) -> Color {
-        AppTheme(colorScheme: scheme)[keyPath: keyPath]
+        AppTheme(colorScheme: scheme, visualStyle: visualStyle)[keyPath: keyPath]
     }
 
     /// ワープペア識別用アクセントカラー群（UIColor 配列）
     var uiWarpPairAccentColors: [UIColor] {
+        if visualStyle == .starChartSurveyTower {
+            return [
+                UIColor(red: 0.78, green: 0.58, blue: 1.0, alpha: 1.0),
+                UIColor(red: 0.30, green: 0.86, blue: 0.68, alpha: 1.0),
+                UIColor(red: 1.0, green: 0.78, blue: 0.34, alpha: 1.0),
+                UIColor(red: 0.34, green: 0.88, blue: 1.0, alpha: 1.0),
+                UIColor(red: 1.0, green: 0.28, blue: 0.38, alpha: 1.0),
+                UIColor(red: 0.72, green: 0.82, blue: 0.92, alpha: 1.0),
+            ]
+        }
         switch resolvedColorScheme {
         case .dark:
             return [

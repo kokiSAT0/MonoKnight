@@ -1565,11 +1565,11 @@ public enum DungeonEventEncyclopediaKind: String, CaseIterable, Equatable, Ident
     public var description: String {
         switch self {
         case .safeChest:
-            return "踏むと遺物を取得する安全な宝箱です。カード所持枠は使いません。"
+            return "踏むと通常遺物を取得する宝箱です。カード所持枠は使いません。"
         case .suspiciousLightChest:
-            return "安全な遺物と呪い遺物から選ぶ、少し怪しい宝箱です。"
+            return "通常遺物と呪い遺物から選ぶ、少し怪しい宝箱です。"
         case .suspiciousDeepChest:
-            return "安全な遺物とHPを失う強行択から選ぶ、深層の怪しい宝箱です。"
+            return "通常遺物とHP -1の遺物から選ぶ、深層の怪しい宝箱です。"
         case .relicReward:
             return "フロアクリア後の報酬候補に遺物が並ぶことがあります。既に持つ遺物は候補から外れます。"
         case .curseOutcome:
@@ -2374,6 +2374,8 @@ public struct DungeonRunState: Codable, Equatable, Sendable {
     public let enemyDamageMitigationsRemaining: Int
     /// 成長塔の区間内でメテオ着弾ダメージを無効化できる残り回数
     public let markerDamageMitigationsRemaining: Int
+    /// プレイヤーがラン中に振り返るための時系列履歴
+    public let runLogEntries: [DungeonRunLogEntry]
 
     public init(
         dungeonID: String,
@@ -2394,7 +2396,8 @@ public struct DungeonRunState: Codable, Equatable, Sendable {
         pendingFallLandingPoint: GridPoint? = nil,
         hazardDamageMitigationsRemaining: Int = 0,
         enemyDamageMitigationsRemaining: Int = 0,
-        markerDamageMitigationsRemaining: Int = 0
+        markerDamageMitigationsRemaining: Int = 0,
+        runLogEntries: [DungeonRunLogEntry] = []
     ) {
         self.dungeonID = dungeonID
         self.currentFloorIndex = max(currentFloorIndex, 0)
@@ -2415,6 +2418,7 @@ public struct DungeonRunState: Codable, Equatable, Sendable {
         self.hazardDamageMitigationsRemaining = max(hazardDamageMitigationsRemaining, 0)
         self.enemyDamageMitigationsRemaining = max(enemyDamageMitigationsRemaining, 0)
         self.markerDamageMitigationsRemaining = max(markerDamageMitigationsRemaining, 0)
+        self.runLogEntries = DungeonRunLogEntry.trimmed(runLogEntries)
     }
 
     public var floorNumber: Int {
@@ -2435,7 +2439,8 @@ public struct DungeonRunState: Codable, Equatable, Sendable {
         completedWithinHalfTurnLimit: Bool = false,
         hazardDamageMitigationsRemaining: Int? = nil,
         enemyDamageMitigationsRemaining: Int? = nil,
-        markerDamageMitigationsRemaining: Int? = nil
+        markerDamageMitigationsRemaining: Int? = nil,
+        currentRunLogEntries: [DungeonRunLogEntry]? = nil
     ) -> DungeonRunState {
         let sourceEntries = currentInventoryEntries ?? rewardInventoryEntries
         let carriedEntries = sourceEntries.compactMap { $0.carryingAllUsesAsReward() }
@@ -2476,6 +2481,36 @@ public struct DungeonRunState: Codable, Equatable, Sendable {
         if floorStartHP <= 2, carriedRelics.contains(where: { $0.relicID == .travelerRation }) {
             floorStartHP += 1
         }
+        var updatedRunLogEntries = currentRunLogEntries ?? runLogEntries
+        if case .addRelic(let relicID) = selection {
+            let nextSequence = (updatedRunLogEntries.last?.sequence ?? -1) + 1
+            updatedRunLogEntries.append(
+                DungeonRunLogEntry(
+                    sequence: nextSequence,
+                    floorNumber: floorNumber,
+                    turn: currentFloorMoveCount,
+                    point: nil,
+                    kind: .acquisition,
+                    message: "報酬レリック「\(relicID.displayName)」を取得"
+                )
+            )
+            if rewardRelicAdjustedHP != carryoverHP {
+                let delta = rewardRelicAdjustedHP - carryoverHP
+                let sign = delta > 0 ? "+" : ""
+                updatedRunLogEntries.append(
+                    DungeonRunLogEntry(
+                        sequence: nextSequence + 1,
+                        floorNumber: floorNumber,
+                        turn: currentFloorMoveCount,
+                        point: nil,
+                        kind: delta > 0 ? .healing : .damage,
+                        hpBefore: carryoverHP,
+                        hpAfter: rewardRelicAdjustedHP,
+                        message: "\(relicID.displayName)でHP \(sign)\(delta)（HP \(carryoverHP)→\(rewardRelicAdjustedHP)）"
+                    )
+                )
+            }
+        }
         return DungeonRunState(
             dungeonID: dungeonID,
             currentFloorIndex: currentFloorIndex + 1,
@@ -2494,7 +2529,8 @@ public struct DungeonRunState: Codable, Equatable, Sendable {
             collapsedFloorPointsByFloor: collapsedFloorPointsByFloor,
             hazardDamageMitigationsRemaining: hazardDamageMitigationsRemaining ?? self.hazardDamageMitigationsRemaining,
             enemyDamageMitigationsRemaining: enemyDamageMitigationsRemaining ?? self.enemyDamageMitigationsRemaining,
-            markerDamageMitigationsRemaining: markerDamageMitigationsRemaining ?? self.markerDamageMitigationsRemaining
+            markerDamageMitigationsRemaining: markerDamageMitigationsRemaining ?? self.markerDamageMitigationsRemaining,
+            runLogEntries: updatedRunLogEntries
         )
     }
 
@@ -2510,7 +2546,8 @@ public struct DungeonRunState: Codable, Equatable, Sendable {
         currentFloorCollapsedPoints: Set<GridPoint>,
         hazardDamageMitigationsRemaining: Int? = nil,
         enemyDamageMitigationsRemaining: Int? = nil,
-        markerDamageMitigationsRemaining: Int? = nil
+        markerDamageMitigationsRemaining: Int? = nil,
+        currentRunLogEntries: [DungeonRunLogEntry]? = nil
     ) -> DungeonRunState {
         let recordedState = recordingFloorState(
             floorIndex: currentFloorIndex,
@@ -2536,7 +2573,8 @@ public struct DungeonRunState: Codable, Equatable, Sendable {
             pendingFallLandingPoint: landingPoint,
             hazardDamageMitigationsRemaining: hazardDamageMitigationsRemaining ?? self.hazardDamageMitigationsRemaining,
             enemyDamageMitigationsRemaining: enemyDamageMitigationsRemaining ?? self.enemyDamageMitigationsRemaining,
-            markerDamageMitigationsRemaining: markerDamageMitigationsRemaining ?? self.markerDamageMitigationsRemaining
+            markerDamageMitigationsRemaining: markerDamageMitigationsRemaining ?? self.markerDamageMitigationsRemaining,
+            runLogEntries: currentRunLogEntries ?? runLogEntries
         )
     }
 
@@ -2588,7 +2626,8 @@ public struct DungeonRunState: Codable, Equatable, Sendable {
             pendingFallLandingPoint: pendingFallLandingPoint,
             hazardDamageMitigationsRemaining: hazardDamageMitigationsRemaining,
             enemyDamageMitigationsRemaining: enemyDamageMitigationsRemaining,
-            markerDamageMitigationsRemaining: markerDamageMitigationsRemaining
+            markerDamageMitigationsRemaining: markerDamageMitigationsRemaining,
+            runLogEntries: runLogEntries
         )
     }
 
@@ -2612,6 +2651,7 @@ public struct DungeonRunState: Codable, Equatable, Sendable {
         case hazardDamageMitigationsRemaining
         case enemyDamageMitigationsRemaining
         case markerDamageMitigationsRemaining
+        case runLogEntries
     }
 
     public init(from decoder: Decoder) throws {
@@ -2635,7 +2675,8 @@ public struct DungeonRunState: Codable, Equatable, Sendable {
             pendingFallLandingPoint: try container.decodeIfPresent(GridPoint.self, forKey: .pendingFallLandingPoint),
             hazardDamageMitigationsRemaining: try container.decodeIfPresent(Int.self, forKey: .hazardDamageMitigationsRemaining) ?? 0,
             enemyDamageMitigationsRemaining: try container.decodeIfPresent(Int.self, forKey: .enemyDamageMitigationsRemaining) ?? 0,
-            markerDamageMitigationsRemaining: try container.decodeIfPresent(Int.self, forKey: .markerDamageMitigationsRemaining) ?? 0
+            markerDamageMitigationsRemaining: try container.decodeIfPresent(Int.self, forKey: .markerDamageMitigationsRemaining) ?? 0,
+            runLogEntries: try container.decodeIfPresent([DungeonRunLogEntry].self, forKey: .runLogEntries) ?? []
         )
     }
 
@@ -2660,6 +2701,7 @@ public struct DungeonRunState: Codable, Equatable, Sendable {
         try container.encode(hazardDamageMitigationsRemaining, forKey: .hazardDamageMitigationsRemaining)
         try container.encode(enemyDamageMitigationsRemaining, forKey: .enemyDamageMitigationsRemaining)
         try container.encode(markerDamageMitigationsRemaining, forKey: .markerDamageMitigationsRemaining)
+        try container.encode(runLogEntries, forKey: .runLogEntries)
     }
 
     private static func mergedRewardEntries(_ entries: [DungeonInventoryEntry]) -> [DungeonInventoryEntry] {

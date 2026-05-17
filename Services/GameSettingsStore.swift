@@ -58,6 +58,21 @@ final class GameSettingsStore: ObservableObject {
         }
     }
 
+    /// 開発者向けに検証中の星図測量塔テーマを有効化する設定
+    @Published var usesStarChartSurveyTowerTheme: Bool {
+        didSet {
+            guard oldValue != usesStarChartSurveyTowerTheme else { return }
+            userDefaults.set(
+                usesStarChartSurveyTowerTheme,
+                forKey: StorageKey.AppStorage.usesStarChartSurveyTowerTheme
+            )
+        }
+    }
+
+    var appThemeVisualStyle: AppThemeVisualStyle {
+        usesStarChartSurveyTowerTheme ? .starChartSurveyTower : .classic
+    }
+
     /// 手札並び順設定
     @Published var handOrderingStrategy: HandOrderingStrategy {
         didSet {
@@ -81,6 +96,8 @@ final class GameSettingsStore: ObservableObject {
             userDefaults.object(forKey: StorageKey.AppStorage.showsAllEncyclopediaEntriesForDeveloper) as? Bool ?? false
         self.unlocksKnightMovementStyleForDeveloper =
             userDefaults.object(forKey: StorageKey.AppStorage.unlocksKnightMovementStyleForDeveloper) as? Bool ?? false
+        self.usesStarChartSurveyTowerTheme =
+            userDefaults.object(forKey: StorageKey.AppStorage.usesStarChartSurveyTowerTheme) as? Bool ?? false
         self.handOrderingStrategy =
             HandOrderingStrategy(
                 rawValue: userDefaults.string(forKey: HandOrderingStrategy.storageKey)

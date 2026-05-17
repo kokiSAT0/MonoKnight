@@ -181,6 +181,7 @@ struct GameAppearanceSettingsCoordinator {
         colorScheme: ColorScheme,
         guideModeEnabled: Bool,
         hapticsEnabled: Bool,
+        visualStyle: AppThemeVisualStyle = .classic,
         handOrderingStrategy: HandOrderingStrategy,
         isPreparationOverlayVisible: Bool,
         boardBridge: GameBoardBridgeViewModel,
@@ -193,7 +194,8 @@ struct GameAppearanceSettingsCoordinator {
         boardBridge.prepareForAppear(
             colorScheme: colorScheme,
             guideModeEnabled: guideModeEnabled,
-            hapticsEnabled: hapticsEnabled
+            hapticsEnabled: hapticsEnabled,
+            visualStyle: visualStyle
         )
         updateHapticsSetting(hapticsEnabled)
         updateGuideMode(guideModeEnabled)

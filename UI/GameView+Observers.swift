@@ -36,6 +36,7 @@ extension GameView {
                     colorScheme: colorScheme,
                     guideModeEnabled: gameSettingsStore.guideModeEnabled,
                     hapticsEnabled: gameSettingsStore.hapticsEnabled,
+                    visualStyle: gameSettingsStore.appThemeVisualStyle,
                     handOrderingStrategy: resolveHandOrderingStrategy(),
                     isPreparationOverlayVisible: isPreparationOverlayVisible
                 )
@@ -44,8 +45,12 @@ extension GameView {
             .onChange(of: colorScheme, initial: false) { previousScheme, newScheme in
                 // 直前のカラースキームと異なる場合のみ SpriteKit 側の配色を更新して無駄な再描画を防ぐ
                 guard previousScheme != newScheme else { return }
-                viewModel.applyScenePalette(for: newScheme)
+                viewModel.applyScenePalette(for: newScheme, visualStyle: gameSettingsStore.appThemeVisualStyle)
                 // カラースキーム変更時はガイドの色味も再描画して視認性を確保
+                viewModel.refreshGuideHighlights()
+            }
+            .onChange(of: gameSettingsStore.usesStarChartSurveyTowerTheme, initial: false) { _, _ in
+                viewModel.applyScenePalette(for: colorScheme, visualStyle: gameSettingsStore.appThemeVisualStyle)
                 viewModel.refreshGuideHighlights()
             }
             // 手札の並び設定が変わったら即座にゲームロジックへ伝え、UI の並びも更新する
@@ -86,7 +91,8 @@ extension GameView {
                     anchors: anchors,
                     boardBridge: boardBridge,
                     fallbackCurrentPosition: viewModel.currentPosition,
-                    cardAnimationNamespace: cardAnimationNamespace
+                    cardAnimationNamespace: cardAnimationNamespace,
+                    theme: theme
                 )
             }
     }

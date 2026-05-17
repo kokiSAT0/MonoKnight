@@ -69,6 +69,21 @@ final class GameViewModelTests: XCTestCase {
         )
     }
 
+    func testDungeonRunLogPresentationStateAndEntriesAreExposedFromCore() throws {
+        let trapPoint = GridPoint(x: 1, y: 0)
+        let (viewModel, core) = makeViewModel(mode: runLogTestDungeonMode(trapPoint: trapPoint))
+
+        XCTAssertFalse(viewModel.isDungeonRunLogPresented)
+        viewModel.isDungeonRunLogPresented = true
+        XCTAssertTrue(viewModel.isDungeonRunLogPresented)
+
+        let move = try XCTUnwrap(core.availableBasicOrthogonalMoves().first { $0.destination == trapPoint })
+        core.playBasicOrthogonalMove(using: move)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+
+        XCTAssertTrue(viewModel.dungeonRunLogEntries.contains { $0.message.contains("罠でHP -1") })
+    }
+
     /// 捨て札ボタンを押すとモードが開始されることを確認
     func testToggleManualDiscardSelectionActivatesWhenPlayable() {
         let (viewModel, core) = makeViewModel(mode: controlTestDungeonMode)
@@ -3274,6 +3289,34 @@ final class GameViewModelTests: XCTestCase {
                     revisitPenaltyCost: 0
                 ),
                 completionRule: .dungeonExit(exitPoint: GridPoint(x: 4, y: 4))
+            )
+        )
+    }
+
+    private func runLogTestDungeonMode(trapPoint: GridPoint) -> GameMode {
+        GameMode(
+            identifier: .dungeonFloor,
+            displayName: "ラン履歴テスト",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 0,
+                allowsStacking: true,
+                deckPreset: .standardLight,
+                spawnRule: .fixed(GridPoint(x: 0, y: 0)),
+                penalties: GameMode.PenaltySettings(
+                    deadlockPenaltyCost: 0,
+                    manualRedrawPenaltyCost: 0,
+                    manualDiscardPenaltyCost: 0,
+                    revisitPenaltyCost: 0
+                ),
+                completionRule: .dungeonExit(exitPoint: GridPoint(x: 4, y: 4)),
+                dungeonRules: DungeonRules(
+                    difficulty: .growth,
+                    failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 8),
+                    hazards: [.damageTrap(points: [trapPoint], damage: 1)],
+                    allowsBasicOrthogonalMove: true
+                )
             )
         )
     }

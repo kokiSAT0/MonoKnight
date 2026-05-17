@@ -523,7 +523,7 @@ private struct DungeonPickupChoiceCardView: View {
     @ViewBuilder
     private var cardArtwork: some View {
         if let move = playable.move {
-            MoveCardIllustrationView(card: move, mode: .hand)
+            MoveCardIllustrationView(card: move, mode: .hand, theme: theme)
         } else if let support = playable.support {
             SupportPickupChoiceIllustrationView(card: support, theme: theme)
         }

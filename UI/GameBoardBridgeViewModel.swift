@@ -168,12 +168,13 @@ final class GameBoardBridgeViewModel: ObservableObject {
     func prepareForAppear(
         colorScheme: ColorScheme,
         guideModeEnabled: Bool,
-        hapticsEnabled: Bool
+        hapticsEnabled: Bool,
+        visualStyle: AppThemeVisualStyle = .classic
     ) {
         scene.gameCore = core
         updateHapticsSetting(isEnabled: hapticsEnabled)
         updateGuideMode(enabled: guideModeEnabled)
-        applyScenePalette(for: colorScheme)
+        applyScenePalette(for: colorScheme, visualStyle: visualStyle)
         updateForcedSelectionHighlights()
         refreshGuideHighlights()
     }
@@ -203,11 +204,30 @@ final class GameBoardBridgeViewModel: ObservableObject {
 
     /// シーンの配色をアプリテーマに合わせて更新する
     /// - Parameter scheme: 現在のカラースキーム
-    func applyScenePalette(for scheme: ColorScheme) {
-        let appTheme = AppTheme(colorScheme: scheme)
+    func applyScenePalette(
+        for scheme: ColorScheme,
+        visualStyle: AppThemeVisualStyle = .classic
+    ) {
+        let appTheme = AppTheme(colorScheme: scheme, visualStyle: visualStyle)
         let palette = GameScenePalette(
             boardBackground: appTheme.skBoardBackground,
             boardGridLine: appTheme.skBoardGridLine,
+            boardStarChartLine: appTheme.skBoardStarChartLine,
+            boardStarChartNode: appTheme.skBoardStarChartNode,
+            boardConstellationLine: appTheme.skBoardConstellationLine,
+            boardConstellationGlowLine: appTheme.skBoardConstellationGlowLine,
+            boardConstellationStar: appTheme.skBoardConstellationStar,
+            boardConstellationStarGlow: appTheme.skBoardConstellationStarGlow,
+            boardStarParticle: appTheme.skBoardStarParticle,
+            boardNebulaDepth: appTheme.skBoardNebulaDepth,
+            boardDistantStar: appTheme.skBoardDistantStar,
+            boardDistantStarTwinkle: appTheme.skBoardDistantStarTwinkle,
+            boardGlassHighlight: appTheme.skBoardGlassHighlight,
+            boardTileInnerGlow: appTheme.skBoardTileInnerGlow,
+            boardAstralCore: appTheme.skBoardAstralCore,
+            boardAstralCoreRing: appTheme.skBoardAstralCoreRing,
+            boardAstralCoreGlow: appTheme.skBoardAstralCoreGlow,
+            boardAstralCorePulse: appTheme.skBoardAstralCorePulse,
             boardTileVisited: appTheme.skBoardTileVisited,
             boardTileUnvisited: appTheme.skBoardTileUnvisited,
             boardDarknessHiddenTile: appTheme.skBoardDarknessHiddenTile,
@@ -230,6 +250,17 @@ final class GameBoardBridgeViewModel: ObservableObject {
             boardTileEffectSwamp: appTheme.skBoardTileEffectSwamp,
             boardTileEffectPreserveCard: appTheme.skBoardTileEffectPreserveCard,
             boardTileEffectDiscardHand: appTheme.skBoardTileEffectDiscardHand,
+            boardDungeonEnemy: appTheme.skBoardDungeonEnemy,
+            boardDungeonDanger: appTheme.skBoardDungeonDanger,
+            boardDungeonWarning: appTheme.skBoardDungeonWarning,
+            boardDungeonCardPickup: appTheme.skBoardDungeonCardPickup,
+            boardDungeonRelicPickup: appTheme.skBoardDungeonRelicPickup,
+            boardDungeonSuspiciousRelicPickup: appTheme.skBoardDungeonSuspiciousRelicPickup,
+            boardDungeonDamageTrap: appTheme.skBoardDungeonDamageTrap,
+            boardDungeonHpHalvingTrap: appTheme.skBoardDungeonHpHalvingTrap,
+            boardDungeonLavaTile: appTheme.skBoardDungeonLavaTile,
+            boardDungeonHealingTile: appTheme.skBoardDungeonHealingTile,
+            boardDungeonKey: appTheme.skBoardDungeonKey,
             // NOTE: ワープペアの配色セットを SpriteKit へ渡し、色と形の両面で組み合わせを識別させる
             warpPairAccentColors: appTheme.skWarpPairAccentColors
         )

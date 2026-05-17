@@ -8,6 +8,38 @@ public struct GameScenePalette {
     public let boardBackground: SKColor
     /// グリッド線の色
     public let boardGridLine: SKColor
+    /// ネオングリッドテーマで床に薄く重ねるARパネル角の色
+    public let boardStarChartLine: SKColor
+    /// ネオングリッドテーマでは通常使わない盤面鋲の色
+    public let boardStarChartNode: SKColor
+    /// ネオングリッドテーマでは通常使わない盤面全体線の色
+    public let boardConstellationLine: SKColor
+    /// ネオングリッドテーマでは通常使わない盤面全体線のにじみ色
+    public let boardConstellationGlowLine: SKColor
+    /// ネオングリッドテーマでは通常使わない盤面全体鋲の色
+    public let boardConstellationStar: SKColor
+    /// ネオングリッドテーマでは通常使わない盤面全体鋲の金属光
+    public let boardConstellationStarGlow: SKColor
+    /// ネオングリッドテーマでは通常使わない遠景点の色
+    public let boardStarParticle: SKColor
+    /// ネオングリッドテーマでは通常使わない宇宙背景の深み色
+    public let boardNebulaDepth: SKColor
+    /// ネオングリッドテーマでは通常使わない遠景星粒の基準色
+    public let boardDistantStar: SKColor
+    /// ネオングリッドテーマでは通常使わない瞬き星粒の強調色
+    public let boardDistantStarTwinkle: SKColor
+    /// ネオングリッドテーマでタイルに薄いAR面差を足す色
+    public let boardGlassHighlight: SKColor
+    /// ネオングリッドテーマでタイル内側に薄く回す発光枠色
+    public let boardTileInnerGlow: SKColor
+    /// ネオングリッドテーマでは通常使わない盤面中央鋲の中心色
+    public let boardAstralCore: SKColor
+    /// ネオングリッドテーマでは通常使わない方位環の古金色
+    public let boardAstralCoreRing: SKColor
+    /// ネオングリッドテーマでは通常使わない方位環の暗い金属影
+    public let boardAstralCoreGlow: SKColor
+    /// ネオングリッドテーマでは通常使わない星核パルス色
+    public let boardAstralCorePulse: SKColor
     /// 踏破済みタイルの塗り色
     public let boardTileVisited: SKColor
     /// 未踏破タイルの塗り色
@@ -53,6 +85,17 @@ public struct GameScenePalette {
     public let boardTileEffectPreserveCard: SKColor
     /// 手札喪失罠のアクセントカラー
     public let boardTileEffectDiscardHand: SKColor
+    public let boardDungeonEnemy: SKColor
+    public let boardDungeonDanger: SKColor
+    public let boardDungeonWarning: SKColor
+    public let boardDungeonCardPickup: SKColor
+    public let boardDungeonRelicPickup: SKColor
+    public let boardDungeonSuspiciousRelicPickup: SKColor
+    public let boardDungeonDamageTrap: SKColor
+    public let boardDungeonHpHalvingTrap: SKColor
+    public let boardDungeonLavaTile: SKColor
+    public let boardDungeonHealingTile: SKColor
+    public let boardDungeonKey: SKColor
 
     /// 主要な色をまとめて指定できるイニシャライザ
     /// - Parameters:
@@ -70,6 +113,22 @@ public struct GameScenePalette {
     public init(
         boardBackground: SKColor,
         boardGridLine: SKColor,
+        boardStarChartLine: SKColor = .clear,
+        boardStarChartNode: SKColor = .clear,
+        boardConstellationLine: SKColor = .clear,
+        boardConstellationGlowLine: SKColor = .clear,
+        boardConstellationStar: SKColor = .clear,
+        boardConstellationStarGlow: SKColor = .clear,
+        boardStarParticle: SKColor = .clear,
+        boardNebulaDepth: SKColor = .clear,
+        boardDistantStar: SKColor = .clear,
+        boardDistantStarTwinkle: SKColor = .clear,
+        boardGlassHighlight: SKColor = .clear,
+        boardTileInnerGlow: SKColor = .clear,
+        boardAstralCore: SKColor = .clear,
+        boardAstralCoreRing: SKColor = .clear,
+        boardAstralCoreGlow: SKColor = .clear,
+        boardAstralCorePulse: SKColor = .clear,
         boardTileVisited: SKColor,
         boardTileUnvisited: SKColor,
         boardDarknessHiddenTile: SKColor,
@@ -89,10 +148,37 @@ public struct GameScenePalette {
         boardTileEffectSwamp: SKColor,
         boardTileEffectPreserveCard: SKColor,
         boardTileEffectDiscardHand: SKColor,
+        boardDungeonEnemy: SKColor,
+        boardDungeonDanger: SKColor,
+        boardDungeonWarning: SKColor,
+        boardDungeonCardPickup: SKColor,
+        boardDungeonRelicPickup: SKColor,
+        boardDungeonSuspiciousRelicPickup: SKColor,
+        boardDungeonDamageTrap: SKColor,
+        boardDungeonHpHalvingTrap: SKColor,
+        boardDungeonLavaTile: SKColor,
+        boardDungeonHealingTile: SKColor,
+        boardDungeonKey: SKColor,
         warpPairAccentColors: [SKColor]
     ) {
         self.boardBackground = boardBackground
         self.boardGridLine = boardGridLine
+        self.boardStarChartLine = boardStarChartLine
+        self.boardStarChartNode = boardStarChartNode
+        self.boardConstellationLine = boardConstellationLine
+        self.boardConstellationGlowLine = boardConstellationGlowLine
+        self.boardConstellationStar = boardConstellationStar
+        self.boardConstellationStarGlow = boardConstellationStarGlow
+        self.boardStarParticle = boardStarParticle
+        self.boardNebulaDepth = boardNebulaDepth
+        self.boardDistantStar = boardDistantStar
+        self.boardDistantStarTwinkle = boardDistantStarTwinkle
+        self.boardGlassHighlight = boardGlassHighlight
+        self.boardTileInnerGlow = boardTileInnerGlow
+        self.boardAstralCore = boardAstralCore
+        self.boardAstralCoreRing = boardAstralCoreRing
+        self.boardAstralCoreGlow = boardAstralCoreGlow
+        self.boardAstralCorePulse = boardAstralCorePulse
         self.boardTileVisited = boardTileVisited
         self.boardTileUnvisited = boardTileUnvisited
         self.boardDarknessHiddenTile = boardDarknessHiddenTile
@@ -112,6 +198,17 @@ public struct GameScenePalette {
         self.boardTileEffectSwamp = boardTileEffectSwamp
         self.boardTileEffectPreserveCard = boardTileEffectPreserveCard
         self.boardTileEffectDiscardHand = boardTileEffectDiscardHand
+        self.boardDungeonEnemy = boardDungeonEnemy
+        self.boardDungeonDanger = boardDungeonDanger
+        self.boardDungeonWarning = boardDungeonWarning
+        self.boardDungeonCardPickup = boardDungeonCardPickup
+        self.boardDungeonRelicPickup = boardDungeonRelicPickup
+        self.boardDungeonSuspiciousRelicPickup = boardDungeonSuspiciousRelicPickup
+        self.boardDungeonDamageTrap = boardDungeonDamageTrap
+        self.boardDungeonHpHalvingTrap = boardDungeonHpHalvingTrap
+        self.boardDungeonLavaTile = boardDungeonLavaTile
+        self.boardDungeonHealingTile = boardDungeonHealingTile
+        self.boardDungeonKey = boardDungeonKey
         self.warpPairAccentColors = warpPairAccentColors
     }
 }
@@ -156,6 +253,17 @@ public extension GameScenePalette {
         boardTileEffectSwamp: SKColor(red: 0.04, green: 0.58, blue: 0.50, alpha: 0.92),
         boardTileEffectPreserveCard: SKColor(red: 0.90, green: 0.54, blue: 0.06, alpha: 0.95),
         boardTileEffectDiscardHand: SKColor(red: 0.72, green: 0.08, blue: 0.18, alpha: 0.95),
+        boardDungeonEnemy: SKColor(red: 0.86, green: 0.18, blue: 0.16, alpha: 1.0),
+        boardDungeonDanger: SKColor(red: 0.90, green: 0.16, blue: 0.12, alpha: 1.0),
+        boardDungeonWarning: SKColor(red: 1.0, green: 0.34, blue: 0.10, alpha: 1.0),
+        boardDungeonCardPickup: SKColor(red: 0.08, green: 0.58, blue: 0.50, alpha: 1.0),
+        boardDungeonRelicPickup: SKColor(red: 0.96, green: 0.68, blue: 0.16, alpha: 1.0),
+        boardDungeonSuspiciousRelicPickup: SKColor(red: 0.82, green: 0.12, blue: 0.12, alpha: 1.0),
+        boardDungeonDamageTrap: SKColor(red: 0.76, green: 0.08, blue: 0.06, alpha: 1.0),
+        boardDungeonHpHalvingTrap: SKColor(red: 0.55, green: 0.12, blue: 0.68, alpha: 1.0),
+        boardDungeonLavaTile: SKColor(red: 0.94, green: 0.24, blue: 0.02, alpha: 1.0),
+        boardDungeonHealingTile: SKColor(red: 0.10, green: 0.62, blue: 0.34, alpha: 1.0),
+        boardDungeonKey: SKColor(red: 0.96, green: 0.73, blue: 0.18, alpha: 1.0),
         // NOTE: ワープペアの識別用に 6 色を用意し、同心円の層数と組み合わせて視認性を確保する
         warpPairAccentColors: [
             SKColor(red: 0.38, green: 0.68, blue: 1.0, alpha: 1.0),
@@ -202,6 +310,17 @@ public extension GameScenePalette {
         boardTileEffectSwamp: SKColor(red: 0.30, green: 0.86, blue: 0.78, alpha: 0.94),
         boardTileEffectPreserveCard: SKColor(red: 1.0, green: 0.72, blue: 0.24, alpha: 0.95),
         boardTileEffectDiscardHand: SKColor(red: 1.0, green: 0.42, blue: 0.48, alpha: 0.95),
+        boardDungeonEnemy: SKColor(red: 0.86, green: 0.18, blue: 0.16, alpha: 1.0),
+        boardDungeonDanger: SKColor(red: 0.90, green: 0.16, blue: 0.12, alpha: 1.0),
+        boardDungeonWarning: SKColor(red: 1.0, green: 0.34, blue: 0.10, alpha: 1.0),
+        boardDungeonCardPickup: SKColor(red: 0.08, green: 0.58, blue: 0.50, alpha: 1.0),
+        boardDungeonRelicPickup: SKColor(red: 0.96, green: 0.68, blue: 0.16, alpha: 1.0),
+        boardDungeonSuspiciousRelicPickup: SKColor(red: 0.82, green: 0.12, blue: 0.12, alpha: 1.0),
+        boardDungeonDamageTrap: SKColor(red: 0.76, green: 0.08, blue: 0.06, alpha: 1.0),
+        boardDungeonHpHalvingTrap: SKColor(red: 0.55, green: 0.12, blue: 0.68, alpha: 1.0),
+        boardDungeonLavaTile: SKColor(red: 0.94, green: 0.24, blue: 0.02, alpha: 1.0),
+        boardDungeonHealingTile: SKColor(red: 0.10, green: 0.62, blue: 0.34, alpha: 1.0),
+        boardDungeonKey: SKColor(red: 0.96, green: 0.73, blue: 0.18, alpha: 1.0),
         // NOTE: ダークテーマ用にも発光感を残した 6 色を揃え、背景が暗くても埋もれないようにする
         warpPairAccentColors: [
             SKColor(red: 0.56, green: 0.78, blue: 1.0, alpha: 1.0),

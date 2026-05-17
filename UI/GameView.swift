@@ -15,7 +15,9 @@ struct GameView: View {
     /// カラーテーマを生成し、ビュー全体で共通の配色を利用できるようにする
     /// - Note: レイアウト補助の拡張（`GameView+Layout`）でもテーマカラーを共有する必要があるため、
     ///         同一型の別ファイル拡張からも参照できるようアクセスレベルはデフォルト（internal）にしている。
-    let theme = AppTheme()
+    var theme: AppTheme {
+        AppTheme(visualStyle: gameSettingsStore.appThemeVisualStyle)
+    }
     /// 複数候補カードの警告トーストを保持する秒数
     /// - Note: 高速で盤面を連続タップした場合でも読み切れるよう、3 秒を基準としている。
     private let boardTapWarningDisplayDuration: Double = 3.0
@@ -231,6 +233,7 @@ struct GameView: View {
                 dungeonInventoryEntries: viewModel.dungeonInventoryEntries,
                 dungeonRelicEntries: viewModel.dungeonRelicEntries,
                 dungeonCurseEntries: viewModel.dungeonCurseEntries,
+                dungeonRunLogEntries: viewModel.dungeonRunLogEntries,
                 dungeonPickupCarryoverEntries: viewModel.carryoverCandidateDungeonPickupEntries,
                 dungeonRewardAddUses: viewModel.dungeonRewardAddUses,
                 dungeonRewardMoveUsesByCard: viewModel.dungeonRewardMoveUsesByCard,

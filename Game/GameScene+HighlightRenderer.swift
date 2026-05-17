@@ -1009,78 +1009,88 @@
                 strokeAlpha = 0.98
                 strokeWidth = max(layout.tileSize * 0.065, 2.4)
                 fillColor = baseColor.withAlphaComponent(0.20)
+                glowWidth = max(layout.tileSize * 0.018, 0.8)
                 zPosition = 1.18
             case .dungeonExitLocked:
                 baseColor = SKColor(red: 0.45, green: 0.47, blue: 0.50, alpha: 1.0)
                 strokeAlpha = 0.98
                 strokeWidth = max(layout.tileSize * 0.06, 2.2)
                 fillColor = baseColor.withAlphaComponent(0.28)
+                glowWidth = max(layout.tileSize * 0.012, 0.6)
                 zPosition = 1.18
             case .dungeonKey:
-                baseColor = SKColor(red: 0.96, green: 0.73, blue: 0.18, alpha: 1.0)
+                baseColor = palette.boardDungeonKey
                 strokeAlpha = 0
                 strokeWidth = 0
                 fillColor = baseColor.withAlphaComponent(0.88)
+                glowWidth = max(layout.tileSize * 0.012, 0.5)
                 zPosition = 1.16
             case .dungeonEnemy:
-                baseColor = SKColor(red: 0.86, green: 0.18, blue: 0.16, alpha: 1.0)
+                baseColor = palette.boardDungeonEnemy
                 strokeAlpha = 0.95
                 strokeWidth = max(layout.tileSize * 0.055, 2.2)
                 fillColor = baseColor.withAlphaComponent(0.32)
                 zPosition = 1.17
             case .dungeonDanger:
-                baseColor = SKColor(red: 0.90, green: 0.16, blue: 0.12, alpha: 1.0)
+                baseColor = palette.boardDungeonDanger
                 strokeAlpha = 0
                 strokeWidth = 0
                 fillColor = baseColor.withAlphaComponent(0.16)
                 zPosition = 1.05
             case .dungeonEnemyWarning:
-                baseColor = SKColor(red: 1.0, green: 0.34, blue: 0.10, alpha: 1.0)
+                baseColor = palette.boardDungeonWarning
                 strokeAlpha = 0.86
                 strokeWidth = max(layout.tileSize * 0.045, 1.4)
                 fillColor = baseColor.withAlphaComponent(0.16)
                 zPosition = 1.06
             case .dungeonCardPickup:
-                baseColor = SKColor(red: 0.10, green: 0.62, blue: 0.52, alpha: 1.0)
+                baseColor = palette.boardDungeonCardPickup
                 strokeAlpha = 0
                 strokeWidth = 0
-                fillColor = baseColor.withAlphaComponent(0.78)
+                fillColor = baseColor.withAlphaComponent(0.82)
+                glowWidth = max(layout.tileSize * 0.010, 0.5)
                 zPosition = 1.14
             case .dungeonRelicPickup:
-                baseColor = SKColor(red: 0.96, green: 0.68, blue: 0.16, alpha: 1.0)
+                baseColor = palette.boardDungeonRelicPickup
                 strokeAlpha = 0.92
                 strokeWidth = max(layout.tileSize * 0.035, 1.2)
                 fillColor = baseColor.withAlphaComponent(0.82)
+                glowWidth = max(layout.tileSize * 0.014, 0.6)
                 zPosition = 1.15
             case .dungeonSuspiciousRelicPickup:
-                baseColor = SKColor(red: 0.82, green: 0.12, blue: 0.12, alpha: 1.0)
+                baseColor = palette.boardDungeonSuspiciousRelicPickup
                 strokeAlpha = 0.96
                 strokeWidth = max(layout.tileSize * 0.045, 1.4)
                 fillColor = baseColor.withAlphaComponent(0.78)
+                glowWidth = max(layout.tileSize * 0.016, 0.7)
                 zPosition = 1.155
             case .dungeonDamageTrap:
-                baseColor = SKColor(red: 0.82, green: 0.10, blue: 0.08, alpha: 1.0)
+                baseColor = palette.boardDungeonDamageTrap
                 strokeAlpha = 0
                 strokeWidth = 0
-                fillColor = baseColor.withAlphaComponent(0.70)
+                fillColor = baseColor.withAlphaComponent(0.76)
+                glowWidth = max(layout.tileSize * 0.010, 0.5)
                 zPosition = 1.13
             case .dungeonHpHalvingTrap:
-                baseColor = SKColor(red: 0.55, green: 0.12, blue: 0.68, alpha: 1.0)
+                baseColor = palette.boardDungeonHpHalvingTrap
                 strokeAlpha = 0.88
                 strokeWidth = max(layout.tileSize * 0.035, 1.2)
                 fillColor = baseColor.withAlphaComponent(0.66)
+                glowWidth = max(layout.tileSize * 0.012, 0.5)
                 zPosition = 1.132
             case .dungeonLavaTile:
-                baseColor = SKColor(red: 1.0, green: 0.30, blue: 0.02, alpha: 1.0)
+                baseColor = palette.boardDungeonLavaTile
                 strokeAlpha = 0.82
                 strokeWidth = max(layout.tileSize * 0.035, 1.2)
-                fillColor = baseColor.withAlphaComponent(0.74)
+                fillColor = baseColor.withAlphaComponent(0.80)
+                glowWidth = max(layout.tileSize * 0.014, 0.6)
                 zPosition = 1.135
             case .dungeonHealingTile:
-                baseColor = SKColor(red: 0.10, green: 0.62, blue: 0.34, alpha: 1.0)
+                baseColor = palette.boardDungeonHealingTile
                 strokeAlpha = 0
                 strokeWidth = 0
                 fillColor = baseColor.withAlphaComponent(0.72)
+                glowWidth = max(layout.tileSize * 0.010, 0.5)
                 zPosition = 1.13
             case .dungeonCrackedFloor:
                 baseColor = SKColor(red: 0.95, green: 0.60, blue: 0.12, alpha: 1.0)

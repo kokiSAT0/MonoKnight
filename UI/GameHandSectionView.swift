@@ -487,14 +487,15 @@ private extension GameHandSectionView {
     @ViewBuilder
     private func cardIllustration(for card: DealtCard, mode: MoveCardIllustrationView.Mode) -> some View {
         if let support = card.supportCard {
-            SupportCardIllustrationView(card: support, mode: mode)
+            SupportCardIllustrationView(card: support, mode: mode, theme: theme)
         } else if let move = card.moveCard {
             if mode == .hand, core.isIlluded {
                 IllusionMoveCardIllustrationView(mode: mode)
             } else {
                 MoveCardIllustrationView(
                     card: move,
-                    mode: mode
+                    mode: mode,
+                    theme: theme
                 )
             }
         }
@@ -927,7 +928,7 @@ private struct DungeonCurseDetailView: View {
 private struct SupportCardIllustrationView: View {
     let card: SupportCard
     var mode: MoveCardIllustrationView.Mode = .hand
-    private let theme = AppTheme()
+    let theme: AppTheme
 
     var body: some View {
         VStack(spacing: 8) {

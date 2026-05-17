@@ -10,6 +10,8 @@ enum StorageKey {
         static let guideModeEnabled = "guide_mode_enabled"
         static let showsAllEncyclopediaEntriesForDeveloper = "shows_all_encyclopedia_entries_for_developer"
         static let unlocksKnightMovementStyleForDeveloper = "unlocks_knight_movement_style_for_developer"
+        // 旧「魔法石塔テーマ」検証時の保存キーを継続利用し、既存の比較設定を失わないようにする。
+        static let usesStarChartSurveyTowerTheme = "uses_magic_stone_tower_theme"
         static let removeAdsPurchased = "remove_ads_mk"
         static let adsShouldUseNPA = "ads_should_use_npa"
         static let interstitialClearCounter = "interstitial_clear_counter"

@@ -1,5 +1,12 @@
 import SwiftUI
 
+enum AppThemeVisualStyle: String, CaseIterable, Identifiable {
+    case classic
+    case starChartSurveyTower
+
+    var id: String { rawValue }
+}
+
 /// アプリ全体で共通利用する配色をまとめたテーマコンポーネント
 /// DynamicProperty を採用することで、ダークモード切り替え時にも自動的に再評価される
 struct AppTheme: DynamicProperty {
@@ -8,16 +15,20 @@ struct AppTheme: DynamicProperty {
 
     /// SpriteKit など SwiftUI 環境外で利用する際に上書きするカラースキーム
     let overrideColorScheme: ColorScheme?
+    /// 実験中の見た目を切り替えるためのビジュアルスタイル
+    let visualStyle: AppThemeVisualStyle
 
     /// 標準イニシャライザでは SwiftUI の環境値を利用する
-    init() {
+    init(visualStyle: AppThemeVisualStyle = .classic) {
         overrideColorScheme = nil
+        self.visualStyle = visualStyle
     }
 
     /// SpriteKit 側から明示的にカラースキームを指定して利用するためのイニシャライザ
     /// - Parameter colorScheme: ライト/ダークのいずれか
-    init(colorScheme: ColorScheme) {
+    init(colorScheme: ColorScheme, visualStyle: AppThemeVisualStyle = .classic) {
         overrideColorScheme = colorScheme
+        self.visualStyle = visualStyle
     }
 
     /// 実際に参照するカラースキーム。SpriteKit から利用する場合は override を優先する
@@ -28,22 +39,82 @@ struct AppTheme: DynamicProperty {
     // MARK: - ベースカラー（Assets.xcassets から取得）
 
     /// 画面全体の背景色。ライトでは淡いグレー、ダークでは限りなく黒に近いトーンを採用
-    var backgroundPrimary: Color { Color("backgroundPrimary") }
+    var backgroundPrimary: Color {
+        switch visualStyle {
+        case .classic:
+            return Color("backgroundPrimary")
+        case .starChartSurveyTower:
+            return schemeColor(
+                light: Color(red: 0.78, green: 0.82, blue: 0.92),
+                dark: Color(red: 0.006, green: 0.010, blue: 0.030)
+            )
+        }
+    }
 
     /// カードやモーダルなど一段高いレイヤー用の背景色
-    var backgroundElevated: Color { Color("backgroundElevated") }
+    var backgroundElevated: Color {
+        switch visualStyle {
+        case .classic:
+            return Color("backgroundElevated")
+        case .starChartSurveyTower:
+            return schemeColor(
+                light: Color(red: 0.86, green: 0.89, blue: 0.98),
+                dark: Color(red: 0.030, green: 0.042, blue: 0.085)
+            )
+        }
+    }
 
     /// 標準の文字色。本文や主要なラベルで利用する
-    var textPrimary: Color { Color("textPrimary") }
+    var textPrimary: Color {
+        switch visualStyle {
+        case .classic:
+            return Color("textPrimary")
+        case .starChartSurveyTower:
+            return schemeColor(
+                light: Color(red: 0.05, green: 0.07, blue: 0.14),
+                dark: Color(red: 0.92, green: 0.96, blue: 1.0)
+            )
+        }
+    }
 
     /// サブ情報用の文字色。キャプションや補足テキスト向け
-    var textSecondary: Color { Color("textSecondary") }
+    var textSecondary: Color {
+        switch visualStyle {
+        case .classic:
+            return Color("textSecondary")
+        case .starChartSurveyTower:
+            return schemeColor(
+                light: Color(red: 0.20, green: 0.28, blue: 0.48).opacity(0.84),
+                dark: Color(red: 0.70, green: 0.78, blue: 0.94).opacity(0.88)
+            )
+        }
+    }
 
     /// ボタンなど強調表示する要素の背景色
-    var accentPrimary: Color { Color("accentPrimary") }
+    var accentPrimary: Color {
+        switch visualStyle {
+        case .classic:
+            return Color("accentPrimary")
+        case .starChartSurveyTower:
+            return schemeColor(
+                light: Color(red: 0.18, green: 0.48, blue: 0.78),
+                dark: Color(red: 0.42, green: 0.90, blue: 1.0)
+            )
+        }
+    }
 
     /// アクセント背景上で使用する文字色
-    var accentOnPrimary: Color { Color("accentOnPrimary") }
+    var accentOnPrimary: Color {
+        switch visualStyle {
+        case .classic:
+            return Color("accentOnPrimary")
+        case .starChartSurveyTower:
+            return schemeColor(
+                light: Color(red: 0.98, green: 0.94, blue: 0.82),
+                dark: Color(red: 0.07, green: 0.045, blue: 0.020)
+            )
+        }
+    }
 }
 
 extension AppTheme {

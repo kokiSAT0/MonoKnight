@@ -141,6 +141,8 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertEqual(core.dungeonRelicAcquisitionPresentations.count, 1)
         XCTAssertEqual(core.dungeonRelicAcquisitionPresentations.first?.outcome, .relic)
         XCTAssertEqual(core.dungeonRelicAcquisitionPresentations.first?.items, [.relic(DungeonRelicEntry(relicID: .glowingHeart))])
+        XCTAssertTrue(core.dungeonRunLogEntries.contains { $0.kind == .acquisition && $0.message.contains("レリック「\(DungeonRelicID.glowingHeart.displayName)」") })
+        XCTAssertTrue(core.dungeonRunLogEntries.contains { $0.kind == .healing && $0.message.contains("\(DungeonRelicID.glowingHeart.displayName)でHP +2") })
     }
 
     func testSafeRelicPickupDoesNotDuplicateAndCompensatesWhenCandidatesAreExhausted() throws {
@@ -281,6 +283,7 @@ final class DungeonModeTests: XCTestCase {
         let choice = try XCTUnwrap(core.pendingDungeonRelicPickupChoice)
         XCTAssertFalse(core.collectedDungeonRelicPickupIDs.contains(pickup.id))
         XCTAssertEqual(choice.options.map(\.kind), [.stableRelic, .curseRelic])
+        XCTAssertEqual(choice.options.map(\.title), ["通常遺物", "呪い遺物"])
         let curseOption = try XCTUnwrap(choice.options.first { $0.kind == .curseRelic })
         XCTAssertTrue(core.selectPendingDungeonRelicPickupOption(id: curseOption.id))
 
@@ -290,6 +293,7 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertTrue(core.collectedDungeonRelicPickupIDs.contains(pickup.id))
         XCTAssertEqual(core.dungeonRelicAcquisitionPresentations.first?.outcome, .curse)
         XCTAssertEqual(core.dungeonRelicAcquisitionPresentations.first?.items, [.curse(DungeonCurseEntry(curseID: .rustyChain))])
+        XCTAssertTrue(core.dungeonRunLogEntries.contains { $0.kind == .acquisition && $0.message.contains("呪い「\(DungeonCurseID.rustyChain.displayName)」") })
     }
 
     func testSuspiciousDeepRelicPickupOffersRiskyRelicWithHpPenalty() throws {
@@ -316,6 +320,7 @@ final class DungeonModeTests: XCTestCase {
 
         let choice = try XCTUnwrap(core.pendingDungeonRelicPickupChoice)
         XCTAssertEqual(choice.options.map(\.kind), [.stableRelic, .riskyRelicWithDamage])
+        XCTAssertEqual(choice.options.map(\.title), ["通常遺物", "HP -1"])
         let riskyOption = try XCTUnwrap(choice.options.first { $0.kind == .riskyRelicWithDamage })
         XCTAssertEqual(riskyOption.hpPenalty, 1)
         XCTAssertTrue(core.selectPendingDungeonRelicPickupOption(id: riskyOption.id))
@@ -743,6 +748,30 @@ final class DungeonModeTests: XCTestCase {
 
         XCTAssertEqual(core.dungeonHP, 1)
         XCTAssertEqual(core.progress, .playing)
+        XCTAssertTrue(core.dungeonRunLogEntries.contains { $0.kind == .damage && $0.message.contains("見張りの攻撃でHP -1") })
+    }
+
+    func testDungeonRunLogRecordsTrapDamageHealingAndFatigueDamage() throws {
+        let trapPoint = GridPoint(x: 1, y: 0)
+        let healingPoint = GridPoint(x: 2, y: 0)
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 3,
+            turnLimit: 1,
+            hazards: [
+                .damageTrap(points: [trapPoint], damage: 1),
+                .healingTile(points: [healingPoint], amount: 1)
+            ]
+        )
+        let core = makeCore(mode: mode)
+
+        playBasicMove(to: trapPoint, in: core)
+        playBasicMove(to: healingPoint, in: core)
+
+        XCTAssertTrue(core.dungeonRunLogEntries.contains { $0.kind == .damage && $0.message.contains("罠でHP -1") })
+        XCTAssertTrue(core.dungeonRunLogEntries.contains { $0.kind == .healing && $0.message.contains("回復マスでHP +1") })
+        XCTAssertTrue(core.dungeonRunLogEntries.contains { $0.kind == .damage && $0.message.contains("疲労でHP -1") })
     }
 
     func testGrowthEnemyDamageMitigationNegatesFirstEnemyDamage() throws {
@@ -1092,6 +1121,7 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertEqual(event.hpAfter, 2)
         XCTAssertEqual(event.transitions.first?.enemyID, "rotating-watcher")
         XCTAssertTrue(event.transitions.first?.didRotate == true)
+        XCTAssertTrue(core.dungeonRunLogEntries.contains { $0.kind == .damage && $0.message.contains("回転見張りの攻撃でHP -1") })
     }
 
     func testRotatingWatcherDangerStopsAtImpassableTile() throws {
@@ -1170,6 +1200,7 @@ final class DungeonModeTests: XCTestCase {
 
         XCTAssertEqual(core.dungeonHP, 2)
         XCTAssertEqual(core.progress, .playing)
+        XCTAssertTrue(core.dungeonRunLogEntries.contains { $0.kind == .damage && $0.message.contains("メテオ兵のメテオでHP -1") })
     }
 
     func testGrowthMarkerDamageMitigationNegatesFirstMeteorDamage() throws {
@@ -6147,6 +6178,43 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertEqual(restoredCore.dungeonInventoryEntries, core.dungeonInventoryEntries)
         XCTAssertEqual(restoredCore.collectedDungeonCardPickupIDs, core.collectedDungeonCardPickupIDs)
         XCTAssertEqual(Set(restoredCore.activeDungeonCardPickups.map(\.id)), Set(core.activeDungeonCardPickups.map(\.id)))
+        XCTAssertEqual(restoredCore.dungeonRunLogEntries, core.dungeonRunLogEntries)
+    }
+
+    func testDungeonRunLogCarriesThroughFloorTransitionsAndFalls() throws {
+        let entry = DungeonRunLogEntry(
+            sequence: 0,
+            floorNumber: 1,
+            turn: 1,
+            point: GridPoint(x: 1, y: 0),
+            kind: .damage,
+            hpBefore: 3,
+            hpAfter: 2,
+            message: "罠でHP -1（HP 3→2）"
+        )
+        let runState = DungeonRunState(
+            dungeonID: "growth-tower",
+            carriedHP: 2,
+            runLogEntries: [entry]
+        )
+
+        let advanced = runState.advancedToNextFloor(
+            carryoverHP: 2,
+            currentFloorMoveCount: 3,
+            currentRunLogEntries: [entry]
+        )
+        let fallen = advanced.fallenToPreviousFloor(
+            carryoverHP: 1,
+            currentFloorMoveCount: 2,
+            currentInventoryEntries: [],
+            landingPoint: GridPoint(x: 0, y: 0),
+            currentFloorCrackedPoints: [],
+            currentFloorCollapsedPoints: [],
+            currentRunLogEntries: advanced.runLogEntries
+        )
+
+        XCTAssertEqual(advanced.runLogEntries, [entry])
+        XCTAssertEqual(fallen.runLogEntries, [entry])
     }
 
 
@@ -7556,6 +7624,8 @@ final class DungeonModeTests: XCTestCase {
 
         XCTAssertEqual(warpCore.current, warpDestination)
         XCTAssertEqual(warpCore.dungeonInventoryEntries.first { $0.moveCard == .straightRight2 }?.rewardUses, 1)
+        XCTAssertEqual(warpCore.handStacks.first { $0.representativeMove == .straightRight2 }?.count, 1)
+        XCTAssertFalse(warpCore.handStacks.isEmpty)
 
         let cursedWarpMode = makeDungeonMode(
             spawn: GridPoint(x: 0, y: 0),
@@ -7582,6 +7652,10 @@ final class DungeonModeTests: XCTestCase {
 
         XCTAssertEqual(cursedWarpCore.current, warpDestination)
         XCTAssertEqual(cursedWarpCore.dungeonInventoryEntries.filter(\.hasUsesRemaining).count, 1)
+        XCTAssertEqual(
+            Set(cursedWarpCore.handStacks.compactMap(\.representativePlayable)),
+            Set(cursedWarpCore.dungeonInventoryEntries.filter(\.hasUsesRemaining).map(\.playable))
+        )
 
         let poisonPoint = GridPoint(x: 1, y: 0)
         let shacklePoint = GridPoint(x: 2, y: 0)

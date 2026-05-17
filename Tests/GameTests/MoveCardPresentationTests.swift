@@ -324,7 +324,23 @@ final class MoveCardPresentationTests: XCTestCase {
         }
         let eventTexts = DungeonEventEncyclopediaEntry.allEntries.flatMap { [$0.displayName, $0.description] }
         let allTexts = cardTexts + supportTexts + enemyTexts + tileTexts + relicTexts + curseTexts + eventTexts
-        let removedTerms = ["目的地", "全踏破", "フォーカス", "Game Center", "ランキング", "踏破対象"]
+        let removedTerms = [
+            "目的地",
+            "全踏破",
+            "フォーカス",
+            "Game Center",
+            "ランキング",
+            "踏破対象",
+            "暗闇に強い",
+            "危険床に強い",
+            "寄り道向き",
+            "安定択",
+            "ピーキー択",
+            "強行択",
+            "おすすめ",
+            "正解",
+            "最適"
+        ]
 
         for term in removedTerms {
             XCTAssertFalse(

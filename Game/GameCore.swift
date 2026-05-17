@@ -272,6 +272,8 @@ public final class GameCore: ObservableObject {
     @Published public private(set) var collectedDungeonRelicPickupIDs: Set<String> = []
     /// UI へ提示するレリック/呪い遺物/宝箱結果の取得イベント
     @Published public private(set) var dungeonRelicAcquisitionPresentations: [DungeonRelicAcquisitionPresentation] = []
+    /// プレイヤーが死因や回復、遺物取得を振り返るためのラン履歴
+    @Published public private(set) var dungeonRunLogEntries: [DungeonRunLogEntry] = []
     /// 所持枠が満杯で床落ちカードの取捨選択を待っている状態
     @Published public private(set) var pendingDungeonPickupChoice: PendingDungeonPickupChoice?
     /// 怪しい宝箱の選択を待っている状態
@@ -615,6 +617,7 @@ public final class GameCore: ObservableObject {
             dungeonRelicEntries: dungeonRelicEntries,
             dungeonCurseEntries: dungeonCurseEntries,
             collectedDungeonRelicPickupIDs: collectedDungeonRelicPickupIDs,
+            dungeonRunLogEntries: dungeonRunLogEntries,
             isDungeonExitUnlocked: isDungeonExitUnlocked,
             pendingDungeonPickupChoice: pendingDungeonPickupChoice,
             pendingDungeonRelicPickupChoice: pendingDungeonRelicPickupChoice
@@ -680,6 +683,7 @@ public final class GameCore: ObservableObject {
         dungeonCurseEntries = snapshot.dungeonCurseEntries
         collectedDungeonRelicPickupIDs = snapshot.collectedDungeonRelicPickupIDs
         dungeonRelicAcquisitionPresentations = []
+        dungeonRunLogEntries = snapshot.dungeonRunLogEntries
         pendingDungeonPickupChoice = snapshot.pendingDungeonPickupChoice
         pendingDungeonRelicPickupChoice = snapshot.pendingDungeonRelicPickupChoice
         isDungeonExitUnlocked = snapshot.isDungeonExitUnlocked
@@ -1182,7 +1186,11 @@ public final class GameCore: ObservableObject {
         let preservedCard = shouldPreservePlayedCard ? validatedMove.card : nil
         if shouldPreservePlayedCard {
             debugLog("カード温存マス効果で使用カードを消費しませんでした")
-            refreshHandStateFromManager()
+            if usesDungeonInventoryCards {
+                syncDungeonInventoryHandStacks()
+            } else {
+                refreshHandStateFromManager()
+            }
         } else {
             if usesDungeonInventoryCards {
                 consumeDungeonInventoryCard(cardMove)
@@ -1264,6 +1272,51 @@ public final class GameCore: ObservableObject {
     private var diagnosticFloorDescription: String {
         guard let floorIndex = mode.dungeonMetadataSnapshot?.runState?.currentFloorIndex else { return "nil" }
         return String(floorIndex + 1)
+    }
+
+    private var dungeonRunLogFloorNumber: Int {
+        (mode.dungeonMetadataSnapshot?.runState?.currentFloorIndex ?? 0) + 1
+    }
+
+    private func appendDungeonRunLog(
+        kind: DungeonRunLogEntry.Kind,
+        point: GridPoint? = nil,
+        hpBefore: Int? = nil,
+        hpAfter: Int? = nil,
+        message: String
+    ) {
+        guard mode.usesDungeonExit else { return }
+        let nextSequence = (dungeonRunLogEntries.last?.sequence ?? -1) + 1
+        let entry = DungeonRunLogEntry(
+            sequence: nextSequence,
+            floorNumber: dungeonRunLogFloorNumber,
+            turn: moveCount,
+            point: point ?? current,
+            kind: kind,
+            hpBefore: hpBefore,
+            hpAfter: hpAfter,
+            message: message
+        )
+        dungeonRunLogEntries = DungeonRunLogEntry.trimmed(dungeonRunLogEntries + [entry])
+    }
+
+    private func appendDungeonHPChangeLog(
+        kind: DungeonRunLogEntry.Kind,
+        source: String,
+        point: GridPoint? = nil,
+        hpBefore: Int,
+        hpAfter: Int
+    ) {
+        let delta = hpAfter - hpBefore
+        guard delta != 0 else { return }
+        let sign = delta > 0 ? "+" : ""
+        appendDungeonRunLog(
+            kind: kind,
+            point: point,
+            hpBefore: hpBefore,
+            hpAfter: hpAfter,
+            message: "\(source)でHP \(sign)\(delta)（HP \(hpBefore)→\(hpAfter)）"
+        )
     }
 
     private var diagnosticSeedDescription: String {
@@ -2151,6 +2204,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         dungeonCurseEntries = mode.dungeonMetadataSnapshot?.runState?.curseEntries ?? []
         collectedDungeonRelicPickupIDs = mode.dungeonMetadataSnapshot?.runState?.collectedDungeonRelicPickupIDs ?? []
         dungeonRelicAcquisitionPresentations = []
+        dungeonRunLogEntries = mode.dungeonMetadataSnapshot?.runState?.runLogEntries ?? []
         pendingDungeonPickupChoice = nil
         pendingDungeonRelicPickupChoice = nil
         isDungeonExitUnlocked = mode.dungeonRules?.exitLock == nil
@@ -2366,8 +2420,16 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             presentationItems.append(contentsOf: grantDungeonCurse(curseID, from: choice.pickup, salt: option.id))
         }
         if option.hpPenalty > 0 {
+            let hpBefore = dungeonHP
             applyDungeonHPDamage(option.hpPenalty)
             presentationItems.append(.hpPenalty(option.hpPenalty))
+            appendDungeonHPChangeLog(
+                kind: .damage,
+                source: "怪しい宝箱",
+                point: choice.pickup.point,
+                hpBefore: hpBefore,
+                hpAfter: dungeonHP
+            )
             if dungeonHP <= 0 {
                 finalizeElapsedTimeIfNeeded()
                 progress = .failed
@@ -2492,8 +2554,16 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                 return false
             }
             collectedDungeonRelicPickupIDs.insert(pickup.id)
+            let hpBefore = dungeonHP
             dungeonHP += 1
             let presentationItems: [DungeonRelicAcquisitionPresentation.Item] = [.hpCompensation(1)]
+            appendDungeonHPChangeLog(
+                kind: .healing,
+                source: "宝箱補填",
+                point: pickup.point,
+                hpBefore: hpBefore,
+                hpAfter: dungeonHP
+            )
             logDungeonPlayEvent(
                 "pickup_relic",
                 [
@@ -2520,8 +2590,16 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             if let relic = grantDungeonRelic(from: pickup, salt: "relic") {
                 presentationItems.append(.relic(relic))
             } else if pickup.kind == .safe {
+                let hpBefore = dungeonHP
                 dungeonHP += 1
                 presentationItems.append(.hpCompensation(1))
+                appendDungeonHPChangeLog(
+                    kind: .healing,
+                    source: "宝箱補填",
+                    point: pickup.point,
+                    hpBefore: hpBefore,
+                    hpAfter: dungeonHP
+                )
                 debugLog("宝箱の遺物候補が尽きたためHP補填: \(pickup.id) @\(pickup.point), HP=\(dungeonHP)")
             }
         case .curse:
@@ -2565,7 +2643,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         let stableOption = stableRelicID.map {
             PendingDungeonRelicPickupChoice.Option(
                 id: "stable",
-                title: "安定択",
+                title: "通常遺物",
                 kind: .stableRelic,
                 relicID: $0
             )
@@ -2583,7 +2661,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             ).map {
                 PendingDungeonRelicPickupChoice.Option(
                     id: "curse",
-                    title: "ピーキー択",
+                    title: "呪い遺物",
                     kind: .curseRelic,
                     curseID: $0
                 )
@@ -2597,7 +2675,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             ).map {
                 PendingDungeonRelicPickupChoice.Option(
                     id: "risky",
-                    title: "強行択",
+                    title: "HP -1",
                     kind: .riskyRelicWithDamage,
                     relicID: $0,
                     hpPenalty: 1
@@ -2625,7 +2703,16 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
 
         let entry = DungeonRelicEntry(relicID: relicID)
         dungeonRelicEntries.append(entry)
+        let hpBefore = dungeonHP
         applyImmediateDungeonRelicEffect(relicID)
+        appendDungeonRunLog(kind: .acquisition, point: pickup.point, message: "レリック「\(relicID.displayName)」を取得")
+        appendDungeonHPChangeLog(
+            kind: .healing,
+            source: relicID.displayName,
+            point: pickup.point,
+            hpBefore: hpBefore,
+            hpAfter: dungeonHP
+        )
         debugLog("遺物を取得: \(relicID.displayName) @\(pickup.point)")
         return entry
     }
@@ -2635,7 +2722,15 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         guard !dungeonRelicEntries.contains(where: { $0.relicID == relicID }) else { return nil }
         let entry = DungeonRelicEntry(relicID: relicID)
         dungeonRelicEntries.append(entry)
+        let hpBefore = dungeonHP
         applyImmediateDungeonRelicEffect(relicID)
+        appendDungeonRunLog(kind: .acquisition, message: "レリック「\(relicID.displayName)」を取得")
+        appendDungeonHPChangeLog(
+            kind: .healing,
+            source: relicID.displayName,
+            hpBefore: hpBefore,
+            hpAfter: dungeonHP
+        )
         debugLog("遺物を取得: \(relicID.displayName)")
         return entry
     }
@@ -2665,7 +2760,16 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         }
         let entry = DungeonCurseEntry(curseID: curseID)
         dungeonCurseEntries.append(entry)
+        let hpBefore = dungeonHP
         applyImmediateDungeonCurseEffect(curseID)
+        appendDungeonRunLog(kind: .acquisition, point: pickup.point, message: "呪い「\(curseID.displayName)」を取得")
+        appendDungeonHPChangeLog(
+            kind: .healing,
+            source: curseID.displayName,
+            point: pickup.point,
+            hpBefore: hpBefore,
+            hpAfter: dungeonHP
+        )
         debugLog("呪い遺物を取得: \(curseID.displayName) @\(pickup.point)")
         return [.curse(entry)]
     }
@@ -2673,8 +2777,16 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
     @discardableResult
     private func applyDungeonMimicTrap(from pickup: DungeonRelicPickupDefinition) -> Int {
         let damage = hasDungeonCurse(.redChalice) ? 2 : 1
+        let hpBefore = dungeonHP
         applyDungeonHPDamage(damage)
         debugLog("ミミックが出現: \(pickup.id) @\(pickup.point), HP=\(dungeonHP)")
+        appendDungeonHPChangeLog(
+            kind: .damage,
+            source: "ミミック",
+            point: pickup.point,
+            hpBefore: hpBefore,
+            hpAfter: dungeonHP
+        )
         if dungeonHP <= 0 {
             finalizeElapsedTimeIfNeeded()
             progress = .failed
@@ -3128,6 +3240,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                 let appliedHealing = max(amount, 1)
                     + (hasDungeonRelic(.fieldMedkit) ? 1 : 0)
                     + (hasDungeonCurse(.flickeringCampfire) ? 2 : 0)
+                let hpBefore = dungeonHP
                 dungeonHP += appliedHealing
                 consumedHealingTilePoints.insert(point)
                 if hasDungeonRelic(.campfireCoal) {
@@ -3140,6 +3253,13 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                     isIlluded = true
                 }
                 debugLog("回復マスを踏みました: \(point), +\(appliedHealing), HP=\(dungeonHP)")
+                appendDungeonHPChangeLog(
+                    kind: .healing,
+                    source: "回復マス",
+                    point: point,
+                    hpBefore: hpBefore,
+                    hpAfter: dungeonHP
+                )
             case .brittleFloor, .damageTrap, .hpHalvingTrap(_), .lavaTile, .healingTile:
                 break
             }
@@ -3150,6 +3270,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
     private func applyDungeonHazardDamage(_ damage: Int, at point: GridPoint, logLabel: String) {
         if isDamageBarrierActive {
             debugLog("\(logLabel)ダメージを障壁で無効化: \(point), 残り=\(damageBarrierTurnsRemaining)")
+            appendDungeonRunLog(kind: .blocked, point: point, message: "\(logLabel)ダメージを障壁で無効化")
             logDungeonPlayEvent(
                 "damage_blocked",
                 [
@@ -3162,6 +3283,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             )
         } else if consumeDungeonHazardDamageMitigation() {
             debugLog("\(logLabel)ダメージを成長効果で無効化: \(point), 残り=\(hazardDamageMitigationsRemaining)")
+            appendDungeonRunLog(kind: .blocked, point: point, message: "\(logLabel)ダメージを成長効果で無効化")
             logDungeonPlayEvent(
                 "damage_blocked",
                 [
@@ -3174,6 +3296,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             )
         } else if logLabel == "罠", consumeDungeonRelicUse(.silverNeedle) {
             debugLog("銀の針で罠ダメージを無効化: \(point), HP=\(dungeonHP)")
+            appendDungeonRunLog(kind: .blocked, point: point, message: "銀の針で罠ダメージを無効化")
             logDungeonPlayEvent(
                 "damage_blocked",
                 [
@@ -3207,11 +3330,23 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             let finalDamage = logLabel == "罠"
                 ? applyTrapDamageReductionIfNeeded(to: adjustedDamage)
                 : applyRelicDamageReductionIfNeeded(to: adjustedDamage)
+            let hpBefore = dungeonHP
             applyDungeonHPDamage(finalDamage)
             if logLabel == "罠", finalDamage > 0 {
                 triggerTrapperGlovesIfNeeded(reason: "ダメージ罠")
             }
             debugLog("\(logLabel)ダメージ: \(point), -\(finalDamage), HP=\(dungeonHP)")
+            if finalDamage > 0 {
+                appendDungeonHPChangeLog(
+                    kind: .damage,
+                    source: logLabel,
+                    point: point,
+                    hpBefore: hpBefore,
+                    hpAfter: dungeonHP
+                )
+            } else {
+                appendDungeonRunLog(kind: .blocked, point: point, message: "\(logLabel)ダメージを無効化")
+            }
             logDungeonPlayEvent(
                 "damage_applied",
                 [
@@ -3480,16 +3615,21 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
     private func triggerDungeonFall(at point: GridPoint) -> Bool {
         if consumeDungeonRelicUse(.blackFeather) {
             debugLog("黒い羽根で落下を無効化: \(point), HP=\(dungeonHP)")
+            appendDungeonRunLog(kind: .blocked, point: point, message: "黒い羽根で床崩落を無効化")
             return false
         }
         if isDamageBarrierActive {
             debugLog("床崩落ダメージを障壁で無効化: \(point), HP=\(dungeonHP), 残り=\(damageBarrierTurnsRemaining)")
+            appendDungeonRunLog(kind: .blocked, point: point, message: "床崩落ダメージを障壁で無効化")
         } else if consumeDungeonHazardDamageMitigation() {
             debugLog("床崩落ダメージを成長効果で無効化: \(point), HP=\(dungeonHP), 残り=\(hazardDamageMitigationsRemaining)")
+            appendDungeonRunLog(kind: .blocked, point: point, message: "床崩落ダメージを成長効果で無効化")
         } else if consumeDungeonRelicUse(.oldRope) {
             debugLog("古びたロープで床崩落ダメージを無効化: \(point), HP=\(dungeonHP)")
+            appendDungeonRunLog(kind: .blocked, point: point, message: "古びたロープで床崩落ダメージを無効化")
         } else if consumeDungeonRelicUse(.silverNeedle) {
             debugLog("銀の針で床崩落ダメージを無効化: \(point), HP=\(dungeonHP)")
+            appendDungeonRunLog(kind: .blocked, point: point, message: "銀の針で床崩落ダメージを無効化")
         } else {
             var baseFallDamage = 1 + (hasDungeonCurse(.glassAnklet) ? 1 : 0)
             if hasDungeonRelic(.fallAnchor) {
@@ -3500,8 +3640,20 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             }
             let finalDamage = applyRelicDamageReductionIfNeeded(to: baseFallDamage)
             let fallDamage = consumeDungeonRelicUse(.patchedRope) ? max(finalDamage - 1, 0) : finalDamage
+            let hpBefore = dungeonHP
             applyDungeonHPDamage(fallDamage)
             debugLog("床崩落で下階へ落下: \(point), HP=\(dungeonHP)")
+            if fallDamage > 0 {
+                appendDungeonHPChangeLog(
+                    kind: .damage,
+                    source: "床崩落",
+                    point: point,
+                    hpBefore: hpBefore,
+                    hpAfter: dungeonHP
+                )
+            } else {
+                appendDungeonRunLog(kind: .blocked, point: point, message: "床崩落ダメージを無効化")
+            }
         }
         if dungeonHP <= 0 {
             finalizeElapsedTimeIfNeeded()
@@ -3862,18 +4014,23 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         var totalDamage = damage.enemy + damage.marker
         guard totalDamage > 0 else { return 0 }
 
+        let source = dungeonEnemyDamageSourceText(damage)
+
         if isDamageBarrierActive {
             debugLog("敵/メテオダメージを障壁で無効化: 敵=\(damage.enemy), メテオ=\(damage.marker), 残り=\(damageBarrierTurnsRemaining)")
+            appendDungeonRunLog(kind: .blocked, message: "\(source)ダメージを障壁で無効化")
             return 0
         }
 
         if damage.enemy > 0, consumeDungeonEnemyDamageMitigation() {
             totalDamage -= damage.enemy
             debugLog("敵ダメージを成長効果で無効化: -\(damage.enemy), 残り=\(enemyDamageMitigationsRemaining)")
+            appendDungeonRunLog(kind: .blocked, message: "\(dungeonEnemySourceListText(damage.enemySources))ダメージを成長効果で無効化")
         }
         if damage.marker > 0, consumeDungeonMarkerDamageMitigation() {
             totalDamage -= damage.marker
             debugLog("メテオ着弾ダメージを成長効果で無効化: -\(damage.marker), 残り=\(markerDamageMitigationsRemaining)")
+            appendDungeonRunLog(kind: .blocked, message: "\(dungeonMarkerSourceListText(damage.markerSources))を成長効果で無効化")
         }
         if damage.enemy > 0, totalDamage > 0, consumeDungeonRelicUse(.guardianIncense) {
             totalDamage = max(totalDamage - 1, 0)
@@ -3881,9 +4038,19 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         }
 
         let finalDamage = applyRelicDamageReductionIfNeeded(to: totalDamage)
-        guard finalDamage > 0 else { return 0 }
+        guard finalDamage > 0 else {
+            appendDungeonRunLog(kind: .blocked, message: "\(source)ダメージを無効化")
+            return 0
+        }
+        let hpBefore = dungeonHP
         applyDungeonHPDamage(finalDamage)
         debugLog("敵の攻撃を受けました: -\(finalDamage), HP=\(dungeonHP)")
+        appendDungeonHPChangeLog(
+            kind: .damage,
+            source: source,
+            hpBefore: hpBefore,
+            hpAfter: dungeonHP
+        )
         logDungeonPlayEvent(
             "enemy_damage",
             [
@@ -3908,22 +4075,36 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         var totalDamage = damage.enemy + damage.marker
 
         guard totalDamage > 0 else { return false }
+        let source = dungeonEnemyDamageActorText(damage)
         if isDamageBarrierActive {
             debugLog("敵の攻撃範囲通過ダメージを障壁で無効化: \(point), 残り=\(damageBarrierTurnsRemaining)")
+            appendDungeonRunLog(kind: .blocked, point: point, message: "\(source)の攻撃範囲通過を障壁で無効化")
             return false
         }
         if damage.enemy > 0, consumeDungeonEnemyDamageMitigation() {
             totalDamage -= damage.enemy
             debugLog("敵の攻撃範囲通過ダメージを成長効果で無効化: \(point), 残り=\(enemyDamageMitigationsRemaining)")
+            appendDungeonRunLog(kind: .blocked, point: point, message: "\(source)の攻撃範囲通過を成長効果で無効化")
         }
         if damage.enemy > 0, totalDamage > 0, consumeDungeonRelicUse(.guardianIncense) {
             totalDamage = max(totalDamage - 1, 0)
             debugLog("守りの香炉で敵の攻撃範囲通過ダメージを1軽減: \(point), 残り=\(totalDamage)")
         }
         let finalDamage = applyRelicDamageReductionIfNeeded(to: totalDamage)
-        guard finalDamage > 0 else { return false }
+        guard finalDamage > 0 else {
+            appendDungeonRunLog(kind: .blocked, point: point, message: "\(source)の攻撃範囲通過を無効化")
+            return false
+        }
+        let hpBefore = dungeonHP
         applyDungeonHPDamage(finalDamage)
         debugLog("敵の攻撃範囲を通過しました: \(point), -\(finalDamage), HP=\(dungeonHP)")
+        appendDungeonHPChangeLog(
+            kind: .damage,
+            source: "\(source)の攻撃範囲通過",
+            point: point,
+            hpBefore: hpBefore,
+            hpAfter: dungeonHP
+        )
         logDungeonPlayEvent(
             "enemy_danger_crossed",
             [
@@ -3948,21 +4129,82 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         includesContact: Bool,
         includesMarkerWarning: Bool,
         rotatingWatcherOffset: Int = 0
-    ) -> (enemy: Int, marker: Int) {
-        guard !isEnemyFreezeActive else { return (0, 0) }
+    ) -> (enemy: Int, marker: Int, enemySources: [String], markerSources: [String]) {
+        guard !isEnemyFreezeActive else { return (0, 0, [], []) }
         var enemyDamage = 0
         var markerDamage = 0
+        var enemySources: [String] = []
+        var markerSources: [String] = []
 
         for enemy in enemyStates {
             if enemyDangerPoints(for: enemy, rotatingWatcherOffset: rotatingWatcherOffset).contains(point) {
-                enemyDamage += adjustedEnemySourceDamage(for: enemy, isMarkerWarning: false)
+                let sourceDamage = adjustedEnemySourceDamage(for: enemy, isMarkerWarning: false)
+                enemyDamage += sourceDamage
+                if sourceDamage > 0 {
+                    enemySources.append(enemy.behavior.presentationKind.displayName)
+                }
             } else if includesContact, enemy.position == point {
-                enemyDamage += adjustedEnemySourceDamage(for: enemy, isMarkerWarning: false)
+                let sourceDamage = adjustedEnemySourceDamage(for: enemy, isMarkerWarning: false)
+                enemyDamage += sourceDamage
+                if sourceDamage > 0 {
+                    enemySources.append(enemy.behavior.presentationKind.displayName)
+                }
             } else if includesMarkerWarning, case .marker = enemy.behavior, markerDamagePoints.contains(point) {
-                markerDamage += adjustedEnemySourceDamage(for: enemy, isMarkerWarning: true)
+                let sourceDamage = adjustedEnemySourceDamage(for: enemy, isMarkerWarning: true)
+                markerDamage += sourceDamage
+                if sourceDamage > 0 {
+                    markerSources.append(enemy.behavior.presentationKind.displayName)
+                }
             }
         }
-        return (enemyDamage, markerDamage)
+        return (enemyDamage, markerDamage, enemySources, markerSources)
+    }
+
+    private func dungeonEnemyDamageActorText(
+        _ damage: (enemy: Int, marker: Int, enemySources: [String], markerSources: [String])
+    ) -> String {
+        if damage.enemy > 0 {
+            let uniqueSources = uniqueDungeonDamageSources(damage.enemySources)
+            return uniqueSources.isEmpty ? "敵" : uniqueSources.joined(separator: "・")
+        }
+        if damage.marker > 0 {
+            return dungeonMarkerSourceListText(damage.markerSources)
+        }
+        return "敵"
+    }
+
+    private func dungeonEnemyDamageSourceText(
+        _ damage: (enemy: Int, marker: Int, enemySources: [String], markerSources: [String])
+    ) -> String {
+        if damage.enemy > 0, damage.marker > 0 {
+            return "\(dungeonEnemySourceListText(damage.enemySources)) + \(dungeonMarkerSourceListText(damage.markerSources))"
+        }
+        if damage.marker > 0 {
+            return dungeonMarkerSourceListText(damage.markerSources)
+        }
+        return dungeonEnemySourceListText(damage.enemySources)
+    }
+
+    private func dungeonEnemySourceListText(_ sources: [String]) -> String {
+        let uniqueSources = uniqueDungeonDamageSources(sources)
+        guard !uniqueSources.isEmpty else { return "敵攻撃" }
+        return uniqueSources.joined(separator: "・") + "の攻撃"
+    }
+
+    private func dungeonMarkerSourceListText(_ sources: [String]) -> String {
+        let uniqueSources = uniqueDungeonDamageSources(sources)
+        guard !uniqueSources.isEmpty else { return "メテオ" }
+        return uniqueSources.joined(separator: "・") + "のメテオ"
+    }
+
+    private func uniqueDungeonDamageSources(_ sources: [String]) -> [String] {
+        var seen: Set<String> = []
+        var uniqueSources: [String] = []
+        for source in sources where !seen.contains(source) {
+            seen.insert(source)
+            uniqueSources.append(source)
+        }
+        return uniqueSources
     }
 
     private func adjustedEnemySourceDamage(for enemy: EnemyState, isMarkerWarning: Bool) -> Int {
@@ -4079,8 +4321,15 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         }
         guard damage > 0 else { return false }
 
+        let hpBefore = dungeonHP
         applyDungeonHPDamage(damage)
         debugLog("手数超過の疲労ダメージ: 超過=\(currentOvertime), -\(damage), HP=\(dungeonHP)")
+        appendDungeonHPChangeLog(
+            kind: .damage,
+            source: "疲労",
+            hpBefore: hpBefore,
+            hpAfter: dungeonHP
+        )
         logDungeonPlayEvent(
             "fatigue_damage",
             [
@@ -4650,6 +4899,7 @@ extension GameCore {
         core.dungeonCurseEntries = mode.dungeonMetadataSnapshot?.runState?.curseEntries ?? []
         core.collectedDungeonRelicPickupIDs = mode.dungeonMetadataSnapshot?.runState?.collectedDungeonRelicPickupIDs ?? []
         core.dungeonRelicAcquisitionPresentations = []
+        core.dungeonRunLogEntries = mode.dungeonMetadataSnapshot?.runState?.runLogEntries ?? []
         core.syncDungeonInventoryHandStacks()
         } else {
             core.handManager.resetAll(using: &core.deck)

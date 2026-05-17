@@ -205,7 +205,8 @@ extension GameViewModel {
             } ?? false,
             hazardDamageMitigationsRemaining: core.hazardDamageMitigationsRemaining,
             enemyDamageMitigationsRemaining: core.enemyDamageMitigationsRemaining,
-            markerDamageMitigationsRemaining: core.markerDamageMitigationsRemaining
+            markerDamageMitigationsRemaining: core.markerDamageMitigationsRemaining,
+            currentRunLogEntries: core.dungeonRunLogEntries
         )
         guard let nextFloor = dungeon.resolvedFloor(at: nextIndex, runState: nextRunState) else { return nil }
         return nextFloor.makeGameMode(
@@ -239,7 +240,8 @@ extension GameViewModel {
             currentFloorCollapsedPoints: core.collapsedFloorPoints,
             hazardDamageMitigationsRemaining: core.hazardDamageMitigationsRemaining,
             enemyDamageMitigationsRemaining: core.enemyDamageMitigationsRemaining,
-            markerDamageMitigationsRemaining: core.markerDamageMitigationsRemaining
+            markerDamageMitigationsRemaining: core.markerDamageMitigationsRemaining,
+            currentRunLogEntries: core.dungeonRunLogEntries
         )
         guard let nextFloor = dungeon.resolvedFloor(at: event.destinationFloorIndex, runState: nextRunState) else {
             return nil

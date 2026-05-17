@@ -175,6 +175,10 @@ struct SettingsDiagnosticsSection: View {
                 "跳躍騎士を最初から使う",
                 isOn: $gameSettingsStore.unlocksKnightMovementStyleForDeveloper
             )
+            Toggle(
+                "ネオングリッドテーマを試す",
+                isOn: $gameSettingsStore.usesStarChartSurveyTowerTheme
+            )
             NavigationLink {
                 DiagnosticsCenterView()
             } label: {
@@ -183,7 +187,7 @@ struct SettingsDiagnosticsSection: View {
         } header: {
             Text("開発者向け診断")
         } footer: {
-            Text("TestFlight など開発用ビルドでのみ有効化される開発者メニューです。辞典全表示は未発見項目の確認用で、公開版では診断メニューごと非表示にできます。")
+            Text("TestFlight など開発用ビルドでのみ有効化される開発者メニューです。ネオングリッドテーマは見た目の比較用で、公開版では診断メニューごと非表示にできます。")
         }
     }
 }

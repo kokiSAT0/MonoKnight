@@ -22,6 +22,25 @@ final class GameBoardControlRowViewTests: XCTestCase {
         XCTAssertEqual(GameBoardControlRowView.dungeonHPAccessibilityValue(for: 2), "2")
     }
 
+    func testDungeonRunLogButtonOnlyShowsInDungeonRuns() {
+        XCTAssertTrue(GameBoardControlRowView.showsDungeonRunLogButton(usesDungeonExit: true))
+        XCTAssertFalse(GameBoardControlRowView.showsDungeonRunLogButton(usesDungeonExit: false))
+    }
+
+    func testDungeonControlButtonsExcludeReturnToTitleButton() {
+        let identifiers = GameBoardControlRowView.controlButtonAccessibilityIdentifiers(usesDungeonExit: true)
+
+        XCTAssertEqual(identifiers, ["dungeon_run_log_button", "pause_menu_button"])
+        XCTAssertFalse(identifiers.contains("return_to_title_button"))
+    }
+
+    func testClassicControlButtonsExcludeReturnToTitleButton() {
+        let identifiers = GameBoardControlRowView.controlButtonAccessibilityIdentifiers(usesDungeonExit: false)
+
+        XCTAssertEqual(identifiers, ["manual_discard_button", "manual_penalty_button", "pause_menu_button"])
+        XCTAssertFalse(identifiers.contains("return_to_title_button"))
+    }
+
     func testDungeonTurnProgressUsesRemainingOverLimit() {
         XCTAssertEqual(GameBoardControlRowView.dungeonTurnProgress(remaining: 12, limit: 18), 12.0 / 18.0)
     }

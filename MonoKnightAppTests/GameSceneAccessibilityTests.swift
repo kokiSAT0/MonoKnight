@@ -4,6 +4,7 @@ import SpriteKit
 import UIKit
 import XCTest
 @testable import Game
+@testable import MonoKnightApp
 
 /// - Note: SpriteKit のアクセシビリティ出力が想定文言になっているか検証する
 @MainActor
@@ -32,6 +33,60 @@ final class GameSceneAccessibilityTests: XCTestCase {
         return (scene, view, size)
     }
 
+    private static func gameScenePalette(for theme: AppTheme) -> GameScenePalette {
+        GameScenePalette(
+            boardBackground: theme.skBoardBackground,
+            boardGridLine: theme.skBoardGridLine,
+            boardStarChartLine: theme.skBoardStarChartLine,
+            boardStarChartNode: theme.skBoardStarChartNode,
+            boardConstellationLine: theme.skBoardConstellationLine,
+            boardConstellationGlowLine: theme.skBoardConstellationGlowLine,
+            boardConstellationStar: theme.skBoardConstellationStar,
+            boardConstellationStarGlow: theme.skBoardConstellationStarGlow,
+            boardStarParticle: theme.skBoardStarParticle,
+            boardNebulaDepth: theme.skBoardNebulaDepth,
+            boardDistantStar: theme.skBoardDistantStar,
+            boardDistantStarTwinkle: theme.skBoardDistantStarTwinkle,
+            boardGlassHighlight: theme.skBoardGlassHighlight,
+            boardTileInnerGlow: theme.skBoardTileInnerGlow,
+            boardAstralCore: theme.skBoardAstralCore,
+            boardAstralCoreRing: theme.skBoardAstralCoreRing,
+            boardAstralCoreGlow: theme.skBoardAstralCoreGlow,
+            boardAstralCorePulse: theme.skBoardAstralCorePulse,
+            boardTileVisited: theme.skBoardTileVisited,
+            boardTileUnvisited: theme.skBoardTileUnvisited,
+            boardDarknessHiddenTile: theme.skBoardDarknessHiddenTile,
+            boardDarknessBoundary: theme.skBoardDarknessBoundary,
+            boardTileMultiBase: theme.skBoardTileMultiBase,
+            boardTileMultiStroke: theme.skBoardTileMultiStroke,
+            boardTileToggle: theme.skBoardTileToggle,
+            boardTileImpassable: theme.skBoardTileImpassable,
+            boardKnight: theme.skBoardKnight,
+            boardGuideHighlight: theme.skBoardGuideHighlight,
+            boardMultiStepHighlight: theme.skBoardMultiStepHighlight,
+            boardWarpHighlight: theme.skBoardWarpHighlight,
+            boardTileEffectWarp: theme.skBoardTileEffectWarp,
+            boardTileEffectShuffle: theme.skBoardTileEffectShuffle,
+            boardTileEffectBlast: theme.skBoardTileEffectBlast,
+            boardTileEffectSlow: theme.skBoardTileEffectSlow,
+            boardTileEffectSwamp: theme.skBoardTileEffectSwamp,
+            boardTileEffectPreserveCard: theme.skBoardTileEffectPreserveCard,
+            boardTileEffectDiscardHand: theme.skBoardTileEffectDiscardHand,
+            boardDungeonEnemy: theme.skBoardDungeonEnemy,
+            boardDungeonDanger: theme.skBoardDungeonDanger,
+            boardDungeonWarning: theme.skBoardDungeonWarning,
+            boardDungeonCardPickup: theme.skBoardDungeonCardPickup,
+            boardDungeonRelicPickup: theme.skBoardDungeonRelicPickup,
+            boardDungeonSuspiciousRelicPickup: theme.skBoardDungeonSuspiciousRelicPickup,
+            boardDungeonDamageTrap: theme.skBoardDungeonDamageTrap,
+            boardDungeonHpHalvingTrap: theme.skBoardDungeonHpHalvingTrap,
+            boardDungeonLavaTile: theme.skBoardDungeonLavaTile,
+            boardDungeonHealingTile: theme.skBoardDungeonHealingTile,
+            boardDungeonKey: theme.skBoardDungeonKey,
+            warpPairAccentColors: theme.skWarpPairAccentColors
+        )
+    }
+
     /// 移動不可マスが VoiceOver で「移動不可」と読み上げられることを確認する
     func testAccessibilityLabelForImpassableTile() {
         let impassablePoint = GridPoint(x: 0, y: 0)
@@ -53,10 +108,51 @@ final class GameSceneAccessibilityTests: XCTestCase {
             GridPoint(x: 0, y: 0),
             GridPoint(x: 2, y: 2)
         ]
-        let (scene, view, _) = makeScene(impassablePoints: impassablePoints)
+        let (scene, view, boardSize) = makeScene(impassablePoints: impassablePoints)
         defer { view.presentScene(nil) }
 
         XCTAssertEqual(scene.impassableMarkerCountForTesting(), impassablePoints.count)
+        XCTAssertEqual(scene.impassableVeinMarkerCountForTesting(), impassablePoints.count, "障害物は岩/柱として読める内部線を持ちます")
+        XCTAssertEqual(scene.stoneFloorTextureCountForTesting(), boardSize * boardSize - impassablePoints.count, "通常床だけに薄い石床ディテールを重ねます")
+    }
+
+    /// 通常床に薄い石床ディテールを重ね、平坦な盤面になりすぎないことを確認する
+    func testVisibleFloorTilesShowStoneTexture() {
+        let (scene, view, boardSize) = makeScene()
+        defer { view.presentScene(nil) }
+
+        XCTAssertEqual(scene.stoneFloorTextureCountForTesting(), boardSize * boardSize)
+    }
+
+    /// ネオングリッドテーマでは通常床のARパネルだけを重ね、意味ありそうな盤面全体装飾を出さないことを確認する
+    func testStarChartSurveyTowerThemeAddsSurveyTexture() {
+        let (scene, view, boardSize) = makeScene()
+        defer { view.presentScene(nil) }
+
+        XCTAssertEqual(scene.starChartTextureCountForTesting(), 0)
+        XCTAssertEqual(scene.glassTileHighlightCountForTesting(), 0)
+        XCTAssertEqual(scene.cosmicBackgroundNodeCountForTesting(), 0)
+        XCTAssertEqual(scene.distantStarNodeCountForTesting(), 0)
+        XCTAssertEqual(scene.twinklingDistantStarNodeCountForTesting(), 0)
+        XCTAssertEqual(scene.constellationLayerNodeCountForTesting(), 0)
+        XCTAssertEqual(scene.constellationGlowNodeCountForTesting(), 0)
+        XCTAssertEqual(scene.astralCoreNodeCountForTesting(), 0)
+        XCTAssertEqual(scene.surveyCompassRingCountForTesting(), 0)
+        scene.applyTheme(Self.gameScenePalette(for: AppTheme(colorScheme: .dark, visualStyle: .starChartSurveyTower)))
+        XCTAssertEqual(scene.starChartTextureCountForTesting(), boardSize * boardSize, "ネオングリッドテーマでは通常床にARパネル角を重ねます")
+        XCTAssertEqual(scene.glassTileHighlightCountForTesting(), boardSize * boardSize, "ネオングリッドテーマでは通常床に薄いAR面差を重ねます")
+        XCTAssertEqual(scene.cosmicBackgroundNodeCountForTesting(), 0, "ネオングリッドテーマでは宇宙背景レイヤーを生成しません")
+        XCTAssertEqual(scene.distantStarNodeCountForTesting(), 0, "ネオングリッドテーマでは遠景星粒を生成しません")
+        XCTAssertEqual(scene.twinklingDistantStarNodeCountForTesting(), 0, "ネオングリッドテーマでは星粒の微アニメを生成しません")
+        XCTAssertEqual(scene.constellationLayerNodeCountForTesting(), 0, "ネオングリッドテーマでは盤面全体の測量線レイヤーを生成しません")
+        XCTAssertEqual(scene.constellationGlowNodeCountForTesting(), 0, "ネオングリッドテーマでは星座線や鋲の金属影を生成しません")
+        XCTAssertEqual(scene.surveyCompassRingCountForTesting(), 0, "ネオングリッドテーマでは盤面全体に方位環を生成しません")
+        XCTAssertEqual(scene.astralCoreNodeCountForTesting(), 0, "ネオングリッドテーマでは盤面中央に方位鋲を生成しません")
+
+        scene.updateDungeonVisiblePoints([GridPoint(x: 0, y: 0)])
+        XCTAssertEqual(scene.constellationLayerNodeCountForTesting(), 0, "暗闇フロアでは盤面全体の測量線レイヤーより暗闇表示を優先します")
+        XCTAssertEqual(scene.surveyCompassRingCountForTesting(), 0, "暗闇フロアでは方位環より暗闇表示を優先します")
+        XCTAssertEqual(scene.astralCoreNodeCountForTesting(), 0, "暗闇フロアでは方位鋲より暗闇表示を優先します")
     }
 
     /// 駒が乗っている場合は「駒あり・状態」の書式で読み上げることを確認する
@@ -350,6 +446,30 @@ final class GameSceneAccessibilityTests: XCTestCase {
         XCTAssertGreaterThan(crackedFloorStyle.lineWidth, 0, "ひび割れ床はタイル枠ではなく亀裂線で示します")
         XCTAssertGreaterThan(collapsedFloorStyle.lineWidth, 0, "崩落床は黒い穴に明るい縁取りを付け、ひび割れ床と形でも線でも区別します")
         XCTAssertFalse(collapsedFloorStyle.fillColor.isEqual(SKColor.clear), "崩落床は即落ち穴として読める塗りを持ちます")
+    }
+
+    func testStarChartSurveyTowerThemeKeepsDungeonMarkerSemantics() {
+        let basicMovePoint = GridPoint(x: 1, y: 1)
+        let damageTrapPoint = GridPoint(x: 2, y: 2)
+        let (scene, view, _) = makeScene()
+        defer { view.presentScene(nil) }
+
+        scene.applyTheme(Self.gameScenePalette(for: AppTheme(colorScheme: .dark, visualStyle: .starChartSurveyTower)))
+        scene.updateHighlights([
+            .dungeonBasicMove: [basicMovePoint],
+            .dungeonDamageTrap: [damageTrapPoint],
+        ])
+
+        guard let basicMoveStyle = scene.highlightStyleForTesting(kind: .dungeonBasicMove, at: basicMovePoint),
+              let damageTrapStyle = scene.highlightStyleForTesting(kind: .dungeonDamageTrap, at: damageTrapPoint)
+        else {
+            XCTFail("ネオングリッドテーマの主要ハイライトを取得できません")
+            return
+        }
+
+        XCTAssertGreaterThan(basicMoveStyle.lineWidth, 0, "新テーマでも移動可能マスは枠で示します")
+        XCTAssertEqual(damageTrapStyle.lineWidth, 0, "新テーマでも罠はタップ可能枠に見せません")
+        XCTAssertFalse(damageTrapStyle.fillColor.isEqual(SKColor.clear), "新テーマでも罠は踏む前に見える塗りを持ちます")
     }
 
     func testDungeonFallEffectAddsTransientNodes() {

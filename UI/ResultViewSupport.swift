@@ -18,6 +18,7 @@ struct ResultSummaryPresentation {
     let dungeonInventoryEntries: [DungeonInventoryEntry]
     let dungeonRelicEntries: [DungeonRelicEntry]
     let dungeonCurseEntries: [DungeonCurseEntry]
+    let dungeonRunLogEntries: [DungeonRunLogEntry]
     let dungeonGrowthAward: DungeonGrowthAward?
     let hasNextDungeonFloor: Bool
     let elapsedSeconds: Int
@@ -37,6 +38,7 @@ struct ResultSummaryPresentation {
         dungeonInventoryEntries: [DungeonInventoryEntry],
         dungeonRelicEntries: [DungeonRelicEntry] = [],
         dungeonCurseEntries: [DungeonCurseEntry] = [],
+        dungeonRunLogEntries: [DungeonRunLogEntry] = [],
         dungeonGrowthAward: DungeonGrowthAward?,
         hasNextDungeonFloor: Bool,
         elapsedSeconds: Int
@@ -55,6 +57,7 @@ struct ResultSummaryPresentation {
         self.dungeonInventoryEntries = dungeonInventoryEntries
         self.dungeonRelicEntries = dungeonRelicEntries
         self.dungeonCurseEntries = dungeonCurseEntries
+        self.dungeonRunLogEntries = dungeonRunLogEntries
         self.dungeonGrowthAward = dungeonGrowthAward
         self.hasNextDungeonFloor = hasNextDungeonFloor
         self.elapsedSeconds = elapsedSeconds

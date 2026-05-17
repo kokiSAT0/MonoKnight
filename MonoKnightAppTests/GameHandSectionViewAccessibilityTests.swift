@@ -173,7 +173,7 @@ final class GameHandSectionViewAccessibilityTests: XCTestCase {
         XCTAssertTrue(GameHandSectionView.dungeonRelicAccessibilityHint(for: silverNeedle).contains("罠または崩落ダメージ"))
         XCTAssertEqual(
             GameHandSectionView.dungeonRelicAccessibilityLabel(for: heavyCrown),
-            "レア、重い王冠"
+            "\(heavyCrown.relicID.rarity.displayName)、重い王冠"
         )
         XCTAssertFalse(GameHandSectionView.dungeonRelicAccessibilityHint(for: heavyCrown).contains("永続レリック"))
         XCTAssertFalse(GameHandSectionView.dungeonRelicAccessibilityHint(for: heavyCrown).contains("残り"))

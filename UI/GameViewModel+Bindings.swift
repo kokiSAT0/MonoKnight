@@ -99,6 +99,14 @@ extension GameViewModel {
             }
             .store(in: &cancellables)
 
+        core.$dungeonRunLogEntries
+            .receive(on: RunLoop.main)
+            .sink { [weak self] entries in
+                self?.dungeonRunLogEntries = entries
+                self?.saveCurrentDungeonResumeIfPossible()
+            }
+            .store(in: &cancellables)
+
         core.$dungeonRelicEntries
             .removeDuplicates()
             .receive(on: RunLoop.main)

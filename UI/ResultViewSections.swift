@@ -2,6 +2,103 @@ import Game
 import SwiftUI
 import UIKit
 
+struct DungeonRunLogSheetView: View {
+    let entries: [DungeonRunLogEntry]
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            DungeonRunLogListView(entries: entries, emptyMessage: "まだ履歴はありません。")
+                .navigationTitle("ラン履歴")
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("閉じる") {
+                            dismiss()
+                        }
+                    }
+                }
+        }
+        .accessibilityIdentifier("dungeon_run_log_sheet")
+    }
+}
+
+struct DungeonRunLogListView: View {
+    let entries: [DungeonRunLogEntry]
+    let emptyMessage: String
+
+    var body: some View {
+        if entries.isEmpty {
+            Text(emptyMessage)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 8)
+                .accessibilityIdentifier("dungeon_run_log_empty")
+        } else {
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(entries) { entry in
+                    DungeonRunLogEntryRow(entry: entry)
+                }
+            }
+            .accessibilityIdentifier("dungeon_run_log_list")
+        }
+    }
+}
+
+struct DungeonRunLogEntryRow: View {
+    let entry: DungeonRunLogEntry
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: entry.symbolName)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(iconColor)
+                .frame(width: 26, height: 26)
+                .background(
+                    Circle()
+                        .fill(iconColor.opacity(0.12))
+                )
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(entry.headerText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+
+                Text(entry.message)
+                    .font(.subheadline)
+                    .foregroundStyle(.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 8)
+        .padding(.horizontal, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color(uiColor: .secondarySystemBackground).opacity(0.65))
+        )
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(entry.headerText)、\(entry.message)")
+        .accessibilityIdentifier("dungeon_run_log_entry_\(entry.sequence)")
+    }
+
+    private var iconColor: Color {
+        switch entry.kind {
+        case .damage:
+            return .red
+        case .healing:
+            return .green
+        case .acquisition:
+            return .orange
+        case .blocked:
+            return .blue
+        }
+    }
+}
+
 struct ResultSummarySection: View {
     let presentation: ResultSummaryPresentation
 
@@ -364,6 +461,46 @@ struct DungeonGrowthAwardSection: View {
             return "\(floorNumber)Fの区切りに到達しました。成長塔カードの成長から、初期HPや報酬候補を強化できます。"
         }
         return "成長塔カードの成長から、初期HPや報酬候補を強化できます。"
+    }
+}
+
+struct ResultDungeonRunLogSection: View {
+    let entries: [DungeonRunLogEntry]
+    let onShowAll: () -> Void
+    private var theme = AppTheme()
+
+    init(entries: [DungeonRunLogEntry], onShowAll: @escaping () -> Void) {
+        self.entries = entries
+        self.onShowAll = onShowAll
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Label("直近の履歴", systemImage: "clock.arrow.circlepath")
+                    .font(.headline)
+                    .foregroundColor(theme.textPrimary)
+
+                Spacer()
+
+                Button("すべて見る", action: onShowAll)
+                    .font(.subheadline.weight(.semibold))
+                    .accessibilityIdentifier("result_dungeon_run_log_show_all")
+            }
+
+            DungeonRunLogListView(entries: entries, emptyMessage: "履歴はありません。")
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(theme.backgroundElevated.opacity(0.9))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(theme.statisticBadgeBorder, lineWidth: 1)
+        )
+        .accessibilityIdentifier("result_dungeon_run_log_section")
     }
 }
 
@@ -1122,6 +1259,7 @@ private struct DungeonRewardCardChoiceView: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
             }
+
         }
         .frame(maxWidth: .infinity, minHeight: 134, alignment: .top)
         .padding(.horizontal, 6)

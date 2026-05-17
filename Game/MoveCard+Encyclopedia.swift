@@ -104,7 +104,7 @@ public extension MoveCard {
             return "左上か左下のどちらか 1 マスを盤面上で選んで進みます。"
         case .knightUp2Right1, .knightUp2Left1, .knightUp1Right2, .knightUp1Left2,
              .knightDown2Right1, .knightDown2Left1, .knightDown1Right2, .knightDown1Left2:
-            return "\(displayName)へ L 字に跳びます。途中のマスは通らず、危険範囲や罠を飛び越えやすいカードです。"
+            return "\(displayName)へ L 字に跳びます。途中のマスは通らず、着地点だけを処理します。"
         case .knightUpwardChoice:
             return "上2右1か上2左1のどちらかを盤面上で選んで跳びます。"
         case .knightRightwardChoice:
@@ -114,11 +114,11 @@ public extension MoveCard {
         case .knightLeftwardChoice:
             return "上1左2か下1左2のどちらかを盤面上で選んで跳びます。"
         case .straightUp2, .straightDown2, .straightRight2, .straightLeft2:
-            return "\(displayName)へ 2 マス進みます。階段へ急ぐ、または危険な隣接マスを避けるときに有効です。"
+            return "\(displayName)へ 2 マス進みます。途中の 1 マスと着地点を順に処理します。"
         case .straightUp1, .straightDown1, .straightRight1, .straightLeft1:
             return "\(displayName)へ 1 マス進みます。跳躍騎士で細かく位置を整えたい時に使います。"
         case .diagonalUpRight2, .diagonalDownRight2, .diagonalDownLeft2, .diagonalUpLeft2:
-            return "\(displayName)へ斜めに 2 マス進みます。大きく位置を変えたい場面で役立ちます。"
+            return "\(displayName)へ斜めに 2 マス進みます。途中の 1 マスと着地点を順に処理します。"
         case .rayUp, .rayUpRight, .rayRight, .rayDownRight, .rayDown, .rayDownLeft, .rayLeft, .rayUpLeft:
             return "\(displayName)方向へ、盤端や障害物の手前まで連続で進みます。通過した鍵、床カード、階段も途中で処理されます。"
         }
@@ -155,7 +155,7 @@ public extension MoveCard {
                 ],
                 displayName: "ナイト",
                 category: "ナイト",
-                description: "縦横どちらかへ 2 マス、もう片方へ 1 マスの L 字に跳びます。途中のマスは通らず、危険範囲や罠を飛び越えやすいカードです。"
+                description: "縦横どちらかへ 2 マス、もう片方へ 1 マスの L 字に跳びます。途中のマスは通らず、着地点だけを処理します。"
             ),
             MoveCardEncyclopediaEntry(
                 id: 2,
@@ -168,7 +168,7 @@ public extension MoveCard {
                 ],
                 displayName: "直線2マス",
                 category: "直線2マス",
-                description: "上下左右のいずれかへ 2 マス進みます。階段へ急ぐ、または危険な隣接マスを避けるときに有効です。"
+                description: "上下左右のいずれかへ 2 マス進みます。途中の 1 マスと着地点を順に処理します。"
             ),
             MoveCardEncyclopediaEntry(
                 id: 3,
@@ -189,7 +189,7 @@ public extension MoveCard {
                 ],
                 displayName: "斜め2マス",
                 category: "斜め2マス",
-                description: "斜め4方向のいずれかへ 2 マス進みます。大きく位置を変えたい場面で役立ちます。"
+                description: "斜め4方向のいずれかへ 2 マス進みます。途中の 1 マスと着地点を順に処理します。"
             ),
             MoveCardEncyclopediaEntry(
                 id: 5,

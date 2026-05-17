@@ -12,6 +12,8 @@ struct GameCardAnimationOverlay: View {
     let fallbackCurrentPosition: GridPoint?
     /// MatchedGeometryEffect の名前空間
     let cardAnimationNamespace: Namespace.ID
+    /// ゲーム画面で使っている現在のテーマ
+    let theme: AppTheme
 
     var body: some View {
         GeometryReader { proxy in
@@ -43,7 +45,7 @@ private extension GameCardAnimationOverlay {
                 in: boardFrame
             )
 
-            MoveCardIllustrationView(card: animatingCard.move)
+            MoveCardIllustrationView(card: animatingCard.move, theme: theme)
                 // 盤面オーバーレイ側は matchedGeometryEffect のターゲット役に固定し、
                 // 手札側のビューと同時に isSource: true になる事態を避けて警告を抑止する
                 .matchedGeometryEffect(

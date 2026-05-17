@@ -45,6 +45,8 @@ struct ResultView: View {
     let dungeonRelicEntries: [DungeonRelicEntry]
     /// リザルト時点で所持している呪い遺物
     let dungeonCurseEntries: [DungeonCurseEntry]
+    /// 死亡時や振り返りに表示するラン履歴
+    let dungeonRunLogEntries: [DungeonRunLogEntry]
     /// 拾得カード持ち越し候補。通常 UI では自動持ち越しのため空配列を渡す。
     let dungeonPickupCarryoverEntries: [DungeonInventoryEntry]
     /// 新しく手札へ追加したカードの使用回数
@@ -105,6 +107,7 @@ struct ResultView: View {
 
     /// リザルト表示に関する一時状態
     @State private var viewState = ResultViewState()
+    @State private var isDungeonRunLogSheetPresented = false
 
     /// デフォルト実装のサービスを安全に取得するためのコンビニエンスイニシャライザ
     /// - NOTE: Swift 6 で厳格化されたコンカレンシーモデルに対応するため、`@MainActor` 上でシングルトンへアクセスする
@@ -128,6 +131,7 @@ struct ResultView: View {
         dungeonInventoryEntries: [DungeonInventoryEntry] = [],
         dungeonRelicEntries: [DungeonRelicEntry] = [],
         dungeonCurseEntries: [DungeonCurseEntry] = [],
+        dungeonRunLogEntries: [DungeonRunLogEntry] = [],
         dungeonPickupCarryoverEntries: [DungeonInventoryEntry] = [],
         dungeonRewardAddUses: Int = 2,
         dungeonRewardMoveUsesByCard: [MoveCard: Int] = [:],
@@ -172,6 +176,7 @@ struct ResultView: View {
             dungeonInventoryEntries: dungeonInventoryEntries,
             dungeonRelicEntries: dungeonRelicEntries,
             dungeonCurseEntries: dungeonCurseEntries,
+            dungeonRunLogEntries: dungeonRunLogEntries,
             dungeonPickupCarryoverEntries: dungeonPickupCarryoverEntries,
             dungeonRewardAddUses: dungeonRewardAddUses,
             dungeonRewardMoveUsesByCard: dungeonRewardMoveUsesByCard,
@@ -218,6 +223,7 @@ struct ResultView: View {
         dungeonInventoryEntries: [DungeonInventoryEntry] = [],
         dungeonRelicEntries: [DungeonRelicEntry] = [],
         dungeonCurseEntries: [DungeonCurseEntry] = [],
+        dungeonRunLogEntries: [DungeonRunLogEntry] = [],
         dungeonPickupCarryoverEntries: [DungeonInventoryEntry] = [],
         dungeonRewardAddUses: Int = 2,
         dungeonRewardMoveUsesByCard: [MoveCard: Int] = [:],
@@ -280,6 +286,7 @@ struct ResultView: View {
         self.dungeonInventoryEntries = dungeonInventoryEntries
         self.dungeonRelicEntries = dungeonRelicEntries
         self.dungeonCurseEntries = dungeonCurseEntries
+        self.dungeonRunLogEntries = dungeonRunLogEntries
         self.dungeonPickupCarryoverEntries = dungeonPickupCarryoverEntries
         self.dungeonRewardAddUses = max(dungeonRewardAddUses, 1)
         self.dungeonRewardMoveUsesByCard = dungeonRewardMoveUsesByCard
@@ -316,6 +323,17 @@ struct ResultView: View {
 
                 if summaryPresentation.isFinalDungeonClear {
                     FinalDungeonClearSummarySection(presentation: summaryPresentation)
+                }
+
+                if summaryPresentation.isFailed,
+                   summaryPresentation.usesDungeonExit,
+                   !summaryPresentation.dungeonRunLogEntries.isEmpty {
+                    ResultDungeonRunLogSection(
+                        entries: Array(summaryPresentation.dungeonRunLogEntries.suffix(10)),
+                        onShowAll: {
+                            isDungeonRunLogSheetPresented = true
+                        }
+                    )
                 }
 
                 ResultActionSection(
@@ -368,6 +386,9 @@ struct ResultView: View {
                 updateBest()
             }
         }
+        .sheet(isPresented: $isDungeonRunLogSheetPresented) {
+            DungeonRunLogSheetView(entries: dungeonRunLogEntries)
+        }
     }
 
     /// iPad 表示時の最大コンテンツ幅を制御し、中央寄せの見た目を整える
@@ -416,6 +437,7 @@ struct ResultView: View {
             dungeonInventoryEntries: dungeonInventoryEntries,
             dungeonRelicEntries: dungeonRelicEntries,
             dungeonCurseEntries: dungeonCurseEntries,
+            dungeonRunLogEntries: dungeonRunLogEntries,
             dungeonGrowthAward: dungeonGrowthAward,
             hasNextDungeonFloor: nextDungeonFloorTitle != nil,
             elapsedSeconds: elapsedSeconds

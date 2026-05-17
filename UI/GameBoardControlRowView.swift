@@ -24,6 +24,9 @@ struct GameBoardControlRowView: View {
         .overlay(alignment: .topLeading) {
             HeightPreferenceReporter<StatisticsHeightPreferenceKey>()
         }
+        .sheet(isPresented: $viewModel.isDungeonRunLogPresented) {
+            DungeonRunLogSheetView(entries: viewModel.dungeonRunLogEntries)
+        }
         .sheet(item: $selectedDungeonStatusEffect) { effect in
             DungeonStatusEffectDetailSheet(theme: theme, effect: effect)
         }
@@ -39,6 +42,23 @@ extension GameBoardControlRowView {
 
     static func dungeonHPAccessibilityValue(for hp: Int) -> String {
         isCriticalDungeonHP(hp) ? "\(hp)、瀕死" : "\(hp)"
+    }
+
+    static func showsDungeonRunLogButton(usesDungeonExit: Bool) -> Bool {
+        usesDungeonExit
+    }
+
+    static func controlButtonAccessibilityIdentifiers(usesDungeonExit: Bool) -> [String] {
+        var identifiers: [String] = []
+        if !usesDungeonExit {
+            identifiers.append("manual_discard_button")
+            identifiers.append("manual_penalty_button")
+        }
+        if showsDungeonRunLogButton(usesDungeonExit: usesDungeonExit) {
+            identifiers.append("dungeon_run_log_button")
+        }
+        identifiers.append("pause_menu_button")
+        return identifiers
     }
 
     static func dungeonTurnProgress(remaining: Int?, limit: Int?) -> Double? {
@@ -561,9 +581,34 @@ private extension GameBoardControlRowView {
                 manualDiscardButton
                 manualPenaltyButton
             }
+            if Self.showsDungeonRunLogButton(usesDungeonExit: viewModel.usesDungeonExit) {
+                dungeonRunLogButton
+            }
             pauseButton
-            returnToTitleButton
         }
+    }
+
+    var dungeonRunLogButton: some View {
+        Button {
+            viewModel.isDungeonRunLogPresented = true
+        } label: {
+            Image(systemName: "clock.arrow.circlepath")
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundColor(theme.menuIconForeground)
+                .frame(width: 44, height: 44)
+                .background(
+                    Circle()
+                        .fill(theme.menuIconBackground)
+                )
+                .overlay(
+                    Circle()
+                        .stroke(theme.menuIconBorder, lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("dungeon_run_log_button")
+        .accessibilityLabel(Text("ラン履歴"))
+        .accessibilityHint(Text("ダメージ、回復、レリック取得の履歴を表示します"))
     }
 
     /// 捨て札モード切替ボタン
@@ -648,32 +693,6 @@ private extension GameBoardControlRowView {
         .accessibilityIdentifier("pause_menu_button")
         .accessibilityLabel(Text("ポーズメニュー"))
         .accessibilityHint(Text("プレイを一時停止して設定やリセットを確認します"))
-    }
-
-    /// タイトルへ戻るボタン
-    /// - Note: リセットと同等の破壊的操作になるため、必ず確認ダイアログを経由させる
-    var returnToTitleButton: some View {
-        Button {
-            // 直接終了せず確認ダイアログを表示して誤操作を防ぐ
-            viewModel.requestReturnToTitle()
-        } label: {
-            Image(systemName: "house")
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundColor(theme.menuIconForeground)
-                .frame(width: 44, height: 44)
-                .background(
-                    Circle()
-                        .fill(theme.menuIconBackground)
-                )
-                .overlay(
-                    Circle()
-                        .stroke(theme.menuIconBorder, lineWidth: 1)
-                )
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("return_to_title_button")
-        .accessibilityLabel(Text("ホームへ戻る"))
-        .accessibilityHint(Text("プレイを終了してタイトル画面へ戻ります"))
     }
 
     /// 統計バッジ 1 枚分の共通レイアウト

@@ -38,6 +38,20 @@ final class EncyclopediaDiscoveryStoreTests: XCTestCase {
         XCTAssertTrue(restored.showsAllEncyclopediaEntriesForDeveloper)
     }
 
+    func testGameSettingsStorePersistsStarChartSurveyTowerThemeToggle() {
+        let defaults = makeDefaults()
+        let store = GameSettingsStore(userDefaults: defaults)
+
+        XCTAssertFalse(store.usesStarChartSurveyTowerTheme)
+        XCTAssertEqual(store.appThemeVisualStyle, .classic)
+
+        store.usesStarChartSurveyTowerTheme = true
+
+        let restored = GameSettingsStore(userDefaults: defaults)
+        XCTAssertTrue(restored.usesStarChartSurveyTowerTheme)
+        XCTAssertEqual(restored.appThemeVisualStyle, .starChartSurveyTower)
+    }
+
     func testLockedPresentationHidesUndiscoveredText() {
         XCTAssertEqual(
             EncyclopediaLockedPresentation.title("割れた盾", isUnlocked: false),

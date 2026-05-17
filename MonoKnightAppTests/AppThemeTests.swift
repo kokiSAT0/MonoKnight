@@ -77,6 +77,89 @@ final class AppThemeTests: XCTestCase {
         #endif
     }
 
+    func testStarChartSurveyTowerThemeChangesGameSurfaceTokens() {
+        let classic = AppTheme(colorScheme: .dark, visualStyle: .classic)
+        let starChart = AppTheme(colorScheme: .dark, visualStyle: .starChartSurveyTower)
+
+        XCTAssertNotEqual(UIColor(classic.backgroundPrimary).rgbaComponents, UIColor(starChart.backgroundPrimary).rgbaComponents)
+        XCTAssertNotEqual(UIColor(classic.cardBackgroundHand).rgbaComponents, UIColor(starChart.cardBackgroundHand).rgbaComponents)
+        XCTAssertNotEqual(UIColor(classic.boardTileUnvisited).rgbaComponents, UIColor(starChart.boardTileUnvisited).rgbaComponents)
+        XCTAssertNotEqual(UIColor(classic.boardGuideHighlight).rgbaComponents, UIColor(starChart.boardGuideHighlight).rgbaComponents)
+        XCTAssertNotEqual(UIColor(classic.boardDungeonDamageTrap).rgbaComponents, UIColor(starChart.boardDungeonDamageTrap).rgbaComponents)
+        XCTAssertNotEqual(UIColor(classic.boardStarChartLine).rgbaComponents, UIColor(starChart.boardStarChartLine).rgbaComponents)
+        XCTAssertNotEqual(UIColor(classic.boardGlassHighlight).rgbaComponents, UIColor(starChart.boardGlassHighlight).rgbaComponents)
+        XCTAssertNotEqual(UIColor(classic.boardTileInnerGlow).rgbaComponents, UIColor(starChart.boardTileInnerGlow).rgbaComponents)
+        XCTAssertEqual(UIColor(starChart.boardConstellationLine).rgbaComponents, UIColor.clear.rgbaComponents)
+        XCTAssertEqual(UIColor(starChart.boardAstralCore).rgbaComponents, UIColor.clear.rgbaComponents)
+    }
+
+    func testStarChartSurveyTowerBridgePaletteUsesThemeVariant() {
+        let starChart = AppTheme(colorScheme: .dark, visualStyle: .starChartSurveyTower)
+
+        assertUIColor(
+            starChart.uiBoardBackground,
+            equals: UIColor(red: 0.92, green: 0.97, blue: 1.0, alpha: 1.0),
+            userInterfaceStyle: .dark
+        )
+        assertUIColor(
+            starChart.uiBoardDungeonKey,
+            equals: UIColor(red: 0.72, green: 0.90, blue: 0.10, alpha: 0.96),
+            userInterfaceStyle: .dark
+        )
+        assertUIColor(
+            starChart.uiBoardStarChartLine,
+            equals: UIColor(red: 0.0, green: 0.68, blue: 0.88, alpha: 0.24),
+            userInterfaceStyle: .dark
+        )
+        assertUIColor(
+            starChart.uiBoardConstellationLine,
+            equals: UIColor.clear,
+            userInterfaceStyle: .dark
+        )
+        assertUIColor(
+            starChart.uiBoardConstellationGlowLine,
+            equals: UIColor.clear,
+            userInterfaceStyle: .dark
+        )
+        assertUIColor(
+            starChart.uiBoardGlassHighlight,
+            equals: UIColor(red: 0.20, green: 0.90, blue: 1.0, alpha: 0.12),
+            userInterfaceStyle: .dark
+        )
+        assertUIColor(
+            starChart.uiBoardNebulaDepth,
+            equals: UIColor.clear,
+            userInterfaceStyle: .dark
+        )
+        assertUIColor(
+            starChart.uiBoardDistantStarTwinkle,
+            equals: UIColor.clear,
+            userInterfaceStyle: .dark
+        )
+        assertUIColor(
+            starChart.uiBoardAstralCore,
+            equals: UIColor.clear,
+            userInterfaceStyle: .dark
+        )
+        assertUIColor(
+            starChart.uiBoardAstralCoreRing,
+            equals: UIColor.clear,
+            userInterfaceStyle: .dark
+        )
+        XCTAssertEqual(starChart.uiWarpPairAccentColors.count, 6)
+
+        #if canImport(SpriteKit)
+        assertSKColor(starChart.skBoardDungeonKey, equals: UIColor(red: 0.72, green: 0.90, blue: 0.10, alpha: 0.96))
+        assertSKColor(starChart.skBoardDungeonHealingTile, equals: UIColor(red: 0.0, green: 0.76, blue: 0.54, alpha: 0.95))
+        assertSKColor(starChart.skBoardStarChartNode, equals: UIColor.clear)
+        assertSKColor(starChart.skBoardConstellationStar, equals: UIColor.clear)
+        assertSKColor(starChart.skBoardConstellationStarGlow, equals: UIColor.clear)
+        assertSKColor(starChart.skBoardTileInnerGlow, equals: UIColor(red: 0.0, green: 0.72, blue: 1.0, alpha: 0.28))
+        assertSKColor(starChart.skBoardAstralCoreGlow, equals: UIColor.clear)
+        assertSKColor(starChart.skBoardAstralCorePulse, equals: UIColor.clear)
+        #endif
+    }
+
     private func assertColor(
         _ color: Color,
         equals expected: UIColor,

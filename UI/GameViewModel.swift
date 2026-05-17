@@ -361,6 +361,7 @@ final class GameViewModel: ObservableObject {
     var availableDungeonRewardSupportCards: [SupportCard] {
         availableDungeonRewardOffers.compactMap(\.support)
     }
+
     /// 満杯時でも既存補助カードの重ね取りは許可し、新規種類だけを止める
     func canAddDungeonRewardSupportCard(_ support: SupportCard) -> Bool {
         canAddDungeonRewardPlayable(.support(support))
@@ -479,6 +480,10 @@ final class GameViewModel: ObservableObject {
     @Published var activeInlineInspection: GameInlineInspection?
     /// 施錠階段の案内を同じ階で繰り返さないために記録する表示済みキー
     var displayedLockedExitReachNoticeKeys: Set<String> = []
+    /// プレイヤーが確認できるラン履歴シートを表示しているかどうか
+    @Published var isDungeonRunLogPresented = false
+    /// GameCore から受け取ったラン履歴の表示用スナップショット
+    @Published var dungeonRunLogEntries: [DungeonRunLogEntry] = []
     /// HP 低下演出の誤発火を避けるため、直近に観測したダンジョン HP を保持する
     var lastObservedDungeonHPForDamageEffect: Int?
     /// 敵ターン演出へ委譲した HP 低下イベントを重複再生しないために保持する
@@ -575,6 +580,7 @@ final class GameViewModel: ObservableObject {
             }
         }
         self.core = generatedCore
+        self.dungeonRunLogEntries = generatedCore.dungeonRunLogEntries
         let initialDisplayedHandStacks = Self.visibleHandStacks(from: generatedCore.handStacks, mode: mode)
         self.displayedHandStacks = initialDisplayedHandStacks
         self.previousDisplayedHandStacksForAdditionEffect = initialDisplayedHandStacks

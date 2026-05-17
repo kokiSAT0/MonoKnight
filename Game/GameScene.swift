@@ -507,6 +507,50 @@
         func impassableMarkerCountForTesting() -> Int {
             decorationRenderer.impassableMarkerCountForTesting()
         }
+
+        func impassableVeinMarkerCountForTesting() -> Int {
+            decorationRenderer.impassableVeinMarkerCountForTesting()
+        }
+
+        func stoneFloorTextureCountForTesting() -> Int {
+            decorationRenderer.stoneFloorTextureCountForTesting()
+        }
+
+        func starChartTextureCountForTesting() -> Int {
+            decorationRenderer.starChartTextureCountForTesting()
+        }
+
+        func glassTileHighlightCountForTesting() -> Int {
+            decorationRenderer.glassTileHighlightCountForTesting()
+        }
+
+        func cosmicBackgroundNodeCountForTesting() -> Int {
+            decorationRenderer.cosmicBackgroundNodeCountForTesting()
+        }
+
+        func distantStarNodeCountForTesting() -> Int {
+            decorationRenderer.distantStarNodeCountForTesting()
+        }
+
+        func twinklingDistantStarNodeCountForTesting() -> Int {
+            decorationRenderer.twinklingDistantStarNodeCountForTesting()
+        }
+
+        func constellationLayerNodeCountForTesting() -> Int {
+            decorationRenderer.constellationLayerNodeCountForTesting()
+        }
+
+        func constellationGlowNodeCountForTesting() -> Int {
+            decorationRenderer.constellationGlowNodeCountForTesting()
+        }
+
+        func astralCoreNodeCountForTesting() -> Int {
+            decorationRenderer.astralCoreNodeCountForTesting()
+        }
+
+        func surveyCompassRingCountForTesting() -> Int {
+            decorationRenderer.surveyCompassRingCountForTesting()
+        }
 #endif
 
         public func updateGuideHighlights(_ points: Set<GridPoint>) {

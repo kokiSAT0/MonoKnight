@@ -53,8 +53,11 @@ extension GameViewModel {
         }
     }
 
-    func applyScenePalette(for scheme: ColorScheme) {
-        boardBridge.applyScenePalette(for: scheme)
+    func applyScenePalette(
+        for scheme: ColorScheme,
+        visualStyle: AppThemeVisualStyle = .classic
+    ) {
+        boardBridge.applyScenePalette(for: scheme, visualStyle: visualStyle)
     }
 
     func refreshGuideHighlights(
@@ -117,6 +120,7 @@ extension GameViewModel {
         colorScheme: ColorScheme,
         guideModeEnabled: Bool,
         hapticsEnabled: Bool,
+        visualStyle: AppThemeVisualStyle = .classic,
         handOrderingStrategy: HandOrderingStrategy,
         isPreparationOverlayVisible: Bool
     ) {
@@ -124,6 +128,7 @@ extension GameViewModel {
             colorScheme: colorScheme,
             guideModeEnabled: guideModeEnabled,
             hapticsEnabled: hapticsEnabled,
+            visualStyle: visualStyle,
             handOrderingStrategy: handOrderingStrategy,
             isPreparationOverlayVisible: isPreparationOverlayVisible,
             boardBridge: boardBridge,
