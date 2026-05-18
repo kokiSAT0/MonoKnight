@@ -529,6 +529,7 @@ struct ResultActionSection: View {
     let onRemoveDungeonRewardCard: ((MoveCard) -> Void)?
     let onRemoveDungeonRewardSupportCard: ((SupportCard) -> Void)?
     let onInspectFailedBoard: (() -> Void)?
+    let onRestartCurrentFloor: (() -> Void)?
     let onInspectDungeonRewardDetail: ((DungeonRewardDetailPresentation) -> Void)?
     let onRetry: () -> Void
     let onReturnToTitle: (() -> Void)?
@@ -665,6 +666,19 @@ struct ResultActionSection: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
+            }
+
+            if displayPolicy.showsRestartCurrentFloorButton,
+               let onRestartCurrentFloor {
+                Button {
+                    triggerSuccessHapticIfNeeded()
+                    onRestartCurrentFloor()
+                } label: {
+                    Label("この階の初めから", systemImage: "arrow.counterclockwise")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .accessibilityIdentifier("result_restart_current_floor_button")
             }
 
             if displayPolicy.showsReturnToTitleButton,
@@ -913,6 +927,7 @@ struct ResultActionSection: View {
         onRemoveDungeonRewardCard: ((MoveCard) -> Void)? = nil,
         onRemoveDungeonRewardSupportCard: ((SupportCard) -> Void)? = nil,
         onInspectFailedBoard: (() -> Void)? = nil,
+        onRestartCurrentFloor: (() -> Void)? = nil,
         onInspectDungeonRewardDetail: ((DungeonRewardDetailPresentation) -> Void)? = nil,
         onRetry: @escaping () -> Void,
         onReturnToTitle: (() -> Void)?,
@@ -953,6 +968,7 @@ struct ResultActionSection: View {
         self.onRemoveDungeonRewardCard = onRemoveDungeonRewardCard
         self.onRemoveDungeonRewardSupportCard = onRemoveDungeonRewardSupportCard
         self.onInspectFailedBoard = onInspectFailedBoard
+        self.onRestartCurrentFloor = onRestartCurrentFloor
         self.onInspectDungeonRewardDetail = onInspectDungeonRewardDetail
         self.onRetry = onRetry
         self.onReturnToTitle = onReturnToTitle
@@ -1013,6 +1029,10 @@ struct ResultActionDisplayPolicy: Equatable {
     }
 
     var showsInspectFailedBoardButton: Bool {
+        usesDungeonExit && isFailed
+    }
+
+    var showsRestartCurrentFloorButton: Bool {
         usesDungeonExit && isFailed
     }
 
@@ -1594,6 +1614,7 @@ struct DungeonRelicAcquisitionOverlayView: View {
 struct DungeonRelicPickupChoiceOverlayView: View {
     let choice: PendingDungeonRelicPickupChoice
     let onSelect: (PendingDungeonRelicPickupChoice.Option) -> Void
+    let onReviewBoard: () -> Void
     private let theme = AppTheme()
     @State private var hasAppeared = false
 
@@ -1620,6 +1641,14 @@ struct DungeonRelicPickupChoiceOverlayView: View {
                         .accessibilityIdentifier("dungeon_relic_pickup_choice_\(option.id)")
                     }
                 }
+
+                Button(action: onReviewBoard) {
+                    Label("盤面を見る", systemImage: "square.grid.3x3.fill")
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                }
+                .buttonStyle(.bordered)
+                .tint(theme.accentPrimary)
+                .accessibilityIdentifier("dungeon_relic_pickup_choice_review_board")
             }
             .padding(18)
             .frame(maxWidth: 440)

@@ -30,6 +30,7 @@ final class PauseMenuViewTests: XCTestCase {
         XCTAssertEqual(PauseMenuAccessibilityIdentifier.resumeButton, "pause_resume_button")
         XCTAssertEqual(PauseMenuAccessibilityIdentifier.helpButton, "pause_help_button")
         XCTAssertEqual(PauseMenuAccessibilityIdentifier.reportIssueButton, "pause_report_issue_button")
+        XCTAssertEqual(PauseMenuAccessibilityIdentifier.restartCurrentFloorButton, "pause_restart_current_floor_button")
         XCTAssertEqual(PauseMenuAccessibilityIdentifier.returnToTitleButton, "pause_return_to_title_button")
         XCTAssertEqual(PauseMenuAccessibilityIdentifier.settingsDisclosure, "pause_settings_disclosure")
         XCTAssertEqual(PauseMenuAccessibilityIdentifier.relicEffectsToggle, "pause_relic_effects_toggle")
@@ -79,5 +80,29 @@ final class PauseMenuViewTests: XCTestCase {
 
         XCTAssertNotNil(controller.view, "診断共有なしのポーズ画面生成に失敗しました")
         XCTAssertEqual(PauseMenuAccessibilityIdentifier.reportIssueButton, "pause_report_issue_button")
+    }
+
+    func testPauseMenuCanShowCurrentFloorRestartAction() {
+        let defaults = UserDefaults(suiteName: "PauseMenuViewTestsRestartFloor")!
+        defaults.removePersistentDomain(forName: "PauseMenuViewTestsRestartFloor")
+        let settingsStore = GameSettingsStore(userDefaults: defaults)
+
+        let controller = UIHostingController(
+            rootView: PauseMenuView(
+                onResume: {},
+                onRestartCurrentFloor: {},
+                onConfirmReturnToTitle: {}
+            )
+            .environmentObject(settingsStore)
+        )
+
+        controller.loadViewIfNeeded()
+        controller.view.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
+        controller.view.setNeedsLayout()
+        controller.view.layoutIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+
+        XCTAssertNotNil(controller.view, "現在階リセットありのポーズ画面生成に失敗しました")
+        XCTAssertEqual(PauseMenuAccessibilityIdentifier.restartCurrentFloorButton, "pause_restart_current_floor_button")
     }
 }

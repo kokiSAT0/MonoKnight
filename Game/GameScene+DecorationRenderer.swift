@@ -1627,6 +1627,30 @@
                     strokeNodes: [trapPlate],
                     fillNodes: []
                 )
+            case .staggerTrap:
+                let trapPlate = SKShapeNode()
+                trapPlate.name = "tileEffectStaggerTrapPlate"
+                trapPlate.strokeColor = .clear
+                trapPlate.fillColor = .clear
+                trapPlate.lineWidth = 1
+                trapPlate.isAntialiased = true
+                trapPlate.blendMode = .alpha
+
+                let branch = SKLabelNode(text: "~")
+                branch.name = "tileEffectStaggerMark"
+                branch.fontName = "AvenirNext-Heavy"
+                branch.verticalAlignmentMode = .center
+                branch.horizontalAlignmentMode = .center
+                branch.blendMode = .alpha
+
+                container.addChild(trapPlate)
+                container.addChild(branch)
+                return TileEffectDecorationCache(
+                    container: container,
+                    effect: effect,
+                    strokeNodes: [trapPlate],
+                    fillNodes: []
+                )
             case .shackleTrap:
                 let leftCuff = SKShapeNode()
                 leftCuff.name = "tileEffectShackleLeftCuff"
@@ -2049,6 +2073,16 @@
                     question.fontSize = max(14, layout.tileSize * 0.58)
                     question.position = CGPoint(x: 0, y: -layout.tileSize * 0.02)
                 }
+            case .staggerTrap:
+                guard let trapPlate = decoration.strokeNodes.first else { return }
+                trapPlate.path = paralysisTrapPlatePath(tileSize: layout.tileSize)
+                trapPlate.position = .zero
+                trapPlate.lineWidth = max(layout.tileSize * 0.035, 1.4)
+                if let mark = decoration.container.childNode(withName: "tileEffectStaggerMark") as? SKLabelNode {
+                    mark.fontSize = max(14, layout.tileSize * 0.62)
+                    mark.position = CGPoint(x: 0, y: -layout.tileSize * 0.03)
+                    mark.zRotation = -.pi / 10
+                }
             case .shackleTrap:
                 guard decoration.strokeNodes.count >= 4 else { return }
                 let cuffRadius = layout.tileSize * 0.13
@@ -2333,6 +2367,17 @@
                 if let question = decoration.container.childNode(withName: "tileEffectIllusionQuestion") as? SKLabelNode {
                     question.fontColor = accent.withAlphaComponent(0.96)
                     question.alpha = 1.0
+                }
+            case .staggerTrap:
+                let accent = palette.boardTileEffectSlow
+                for node in decoration.strokeNodes {
+                    node.strokeColor = accent.withAlphaComponent(0.86)
+                    node.fillColor = accent.withAlphaComponent(0.12)
+                    node.alpha = 1.0
+                }
+                if let mark = decoration.container.childNode(withName: "tileEffectStaggerMark") as? SKLabelNode {
+                    mark.fontColor = accent.withAlphaComponent(0.96)
+                    mark.alpha = 1.0
                 }
             case .shackleTrap:
                 let accent = palette.boardTileEffectSlow

@@ -33,6 +33,8 @@ final class GameViewModel: ObservableObject {
     let onRequestReturnToTitle: (() -> Void)?
     /// ダンジョンランで次のフロアへ遷移したい場合のリクエストクロージャ
     let onRequestStartDungeonFloor: ((GameMode) -> Void)?
+    /// テスター向けに現在階の開始直後へ戻すための一時スナップショット
+    let floorStartDungeonResumeSnapshot: DungeonRunResumeSnapshot?
 
     /// SwiftUI から観測するゲームロジック本体
     @Published private(set) var core: GameCore
@@ -99,6 +101,8 @@ final class GameViewModel: ObservableObject {
     @Published var activeDungeonRelicAcquisitionPresentation: DungeonRelicAcquisitionPresentation?
     /// 怪しい宝箱で選択待ちの候補
     @Published var pendingDungeonRelicPickupChoice: PendingDungeonRelicPickupChoice?
+    /// 拾得/宝箱選択を保留したまま盤面確認中かどうか
+    @Published var isDungeonChoiceOverlayCollapsed = false
     var pendingDungeonRelicAcquisitionPresentations: [DungeonRelicAcquisitionPresentation] = []
     var observedDungeonRelicAcquisitionPresentationIDs: Set<UUID> = []
     /// ポーズメニューの表示状態
@@ -152,6 +156,10 @@ final class GameViewModel: ObservableObject {
     var isShackled: Bool { core.isShackled }
     /// 幻惑罠で現在フロア中の移動カードが伏せられているかどうか
     var isIlluded: Bool { core.isIlluded }
+    var staggerForcedMovesRemaining: Int { core.staggerForcedMovesRemaining }
+    var isEmptyHandStaggerActive: Bool {
+        core.isEmptyHandStaggerAutoActive
+    }
     /// 毒状態の残りダメージ回数
     var poisonDamageTicksRemaining: Int { core.poisonDamageTicksRemaining }
     /// 次の毒ダメージまでの成功行動数
@@ -390,12 +398,31 @@ final class GameViewModel: ObservableObject {
         )
     }
 
+    var hasChaserOnCurrentDungeonFloor: Bool {
+        mode.dungeonRules?.enemies.contains { enemy in
+            if case .chaser = enemy.behavior { return true }
+            return false
+        } ?? false
+    }
+
+    var isCurrentDungeonClearWithinHalfTurnLimit: Bool {
+        core.effectiveDungeonTurnLimit.map { $0 > 0 && core.moveCount <= $0 / 2 } ?? false
+    }
+
+    var contextualDungeonRewardUseBonus: Int {
+        DungeonRunState.contextualRewardUseBonus(
+            curseEntries: effectEnabledDungeonCurseEntries,
+            completedWithinHalfTurnLimit: isCurrentDungeonClearWithinHalfTurnLimit,
+            completedWithChaserOnFloor: hasChaserOnCurrentDungeonFloor
+        )
+    }
+
     var dungeonRewardMoveUsesByCard: [MoveCard: Int] {
         Dictionary(uniqueKeysWithValues: availableDungeonRewardMoveCards.map { card in
             (
                 card,
                 DungeonRunState.adjustedRewardAddUses(
-                    dungeonRewardAddUses,
+                    dungeonRewardAddUses + contextualDungeonRewardUseBonus,
                     for: card,
                     relicEntries: effectEnabledDungeonRelicEntries,
                     curseEntries: effectEnabledDungeonCurseEntries,
@@ -407,12 +434,16 @@ final class GameViewModel: ObservableObject {
         })
     }
 
-    var dungeonSupportRewardAddUses: Int {
+    var baseDungeonSupportRewardAddUses: Int {
         DungeonRunState.adjustedSupportRewardUses(
             DungeonRunState.rewardUses(for: .refillEmptySlots),
             relicEntries: effectEnabledDungeonRelicEntries,
             curseEntries: effectEnabledDungeonCurseEntries
         )
+    }
+
+    var dungeonSupportRewardAddUses: Int {
+        baseDungeonSupportRewardAddUses + contextualDungeonRewardUseBonus
     }
     /// クリア後に整理できる手札の報酬カード
     var adjustableDungeonRewardEntries: [DungeonInventoryEntry] {
@@ -461,7 +492,7 @@ final class GameViewModel: ObservableObject {
     var isAwaitingManualDiscardSelection: Bool { core.isAwaitingManualDiscardSelection }
     var pendingDungeonPickupChoice: PendingDungeonPickupChoice? { core.pendingDungeonPickupChoice }
     var presentsBasicMoveCard: Bool {
-        mode.usesDungeonExit && mode.dungeonRules?.allowsBasicOrthogonalMove == true
+        mode.usesDungeonExit && core.allowsCurrentBasicMove
     }
     var isBasicMoveCardSelected: Bool {
         isBasicMoveCardSelectionVisible
@@ -580,6 +611,9 @@ final class GameViewModel: ObservableObject {
 
         // GameCore を生成し、ViewModel 経由で観測できるようにする
         let generatedCore = gameInterfaces.makeGameCore(mode)
+        self.floorStartDungeonResumeSnapshot = mode.usesDungeonExit
+            ? generatedCore.makeDungeonResumeSnapshot()
+            : nil
         if let snapshot = self.dungeonRunResumeStore.snapshot,
            snapshot.dungeonID == mode.dungeonMetadataSnapshot?.dungeonID {
             let restored = generatedCore.restoreDungeonResumeSnapshot(snapshot)

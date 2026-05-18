@@ -1099,7 +1099,7 @@ private struct DungeonGrowthPreparationFacts {
         hasStatusFloor = floors.contains { floor in
             floor.tileEffectOverrides.values.contains { effect in
                 switch effect {
-                case .poisonTrap, .illusionTrap, .shackleTrap, .swamp, .relicBreakTrap:
+                case .poisonTrap, .illusionTrap, .shackleTrap, .staggerTrap, .swamp, .relicBreakTrap:
                     return true
                 case .warp, .returnWarp, .shuffleHand, .blast, .slow, .preserveCard,
                      .discardRandomHand, .discardAllMoveCards, .discardAllSupportCards, .discardAllHands:

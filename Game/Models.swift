@@ -85,6 +85,8 @@ public enum TileEffect: Equatable, Codable, Sendable {
     case poisonTrap
     /// 踏むとその階の間だけ移動カードの正体が分からなくなる罠
     case illusionTrap
+    /// 踏むと敵ターン後に周囲 8 マスからランダムに強制移動する罠
+    case staggerTrap
     /// 踏むと通常遺物または呪い遺物をランダムに 1 つ破壊する罠
     case relicBreakTrap
     /// 移動系カードを止め、上にいる間は移動系カードを使えなくする沼
@@ -228,7 +230,7 @@ public struct Board: Equatable, Sendable {
                 let isOrthogonalOneStep = abs(direction.dx) + abs(direction.dy) == 1
                 guard isOrthogonalOneStep else { continue }
                 sanitizedEffects[point] = effect
-            case .shuffleHand, .slow, .shackleTrap, .poisonTrap, .illusionTrap, .relicBreakTrap, .swamp, .preserveCard, .discardRandomHand, .discardAllMoveCards, .discardAllSupportCards, .discardAllHands:
+            case .shuffleHand, .slow, .shackleTrap, .poisonTrap, .illusionTrap, .staggerTrap, .relicBreakTrap, .swamp, .preserveCard, .discardRandomHand, .discardAllMoveCards, .discardAllSupportCards, .discardAllHands:
                 sanitizedEffects[point] = effect
             }
         }

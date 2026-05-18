@@ -388,8 +388,23 @@ extension GameViewModel {
             && activeDungeonRelicAcquisitionPresentation == nil
     }
 
+    var canPresentDungeonChoiceReviewBar: Bool {
+        isDungeonChoiceOverlayCollapsed
+            && (canPresentDungeonPickupChoice || canPresentDungeonRelicPickupChoice)
+    }
+
+    func collapseDungeonChoiceOverlayForBoardReview() {
+        guard canPresentDungeonPickupChoice || canPresentDungeonRelicPickupChoice else { return }
+        isDungeonChoiceOverlayCollapsed = true
+    }
+
+    func restoreDungeonChoiceOverlay() {
+        isDungeonChoiceOverlayCollapsed = false
+    }
+
     func selectPendingDungeonRelicPickupOption(_ option: PendingDungeonRelicPickupChoice.Option) {
         guard core.selectPendingDungeonRelicPickupOption(id: option.id) else { return }
+        restoreDungeonChoiceOverlay()
         pendingDungeonRelicPickupChoice = core.pendingDungeonRelicPickupChoice
         enqueueDungeonRelicAcquisitionPresentations(core.dungeonRelicAcquisitionPresentations)
         presentNextDungeonRelicAcquisitionIfPossible()

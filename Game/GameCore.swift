@@ -167,6 +167,8 @@ private struct DungeonEnemyDamageComponent {
 
 private let poisonTrapDamageTicks = 3
 private let poisonTrapActionsPerDamage = 3
+private let staggerTrapForcedMoveCount = 2
+private let staggerAutoMoveLimitPerAction = 32
 
 private extension EnemyBehavior {
     var isMeteorWarningBehavior: Bool {
@@ -182,7 +184,7 @@ private extension EnemyBehavior {
 private extension TileEffect {
     var isDarknessScoutHiddenTrap: Bool {
         switch self {
-        case .slow, .shackleTrap, .poisonTrap, .illusionTrap, .relicBreakTrap,
+        case .slow, .shackleTrap, .poisonTrap, .illusionTrap, .staggerTrap, .relicBreakTrap,
              .discardRandomHand, .discardAllMoveCards, .discardAllSupportCards, .discardAllHands:
             return true
         case .warp, .returnWarp, .shuffleHand, .blast, .swamp, .preserveCard:
@@ -332,6 +334,8 @@ public final class GameCore: ObservableObject {
     @Published public private(set) var isShackled: Bool = false
     /// 幻惑罠を踏み、その階の間だけ移動カードの正体が分からなくなっているかどうか
     @Published public private(set) var isIlluded: Bool = false
+    /// 千鳥足罠により、敵ターン後に強制ランダム移動する残り回数
+    @Published public private(set) var staggerForcedMovesRemaining: Int = 0
     /// このフロアで溶岩マスへ実際に踏み込んだかどうか
     @Published public private(set) var didStepOnLavaThisFloor: Bool = false
     /// このフロアでプレイヤー行動によって倒した敵数
@@ -463,9 +467,6 @@ public final class GameCore: ObservableObject {
         if hasDungeonCurse(.cursedCrown) {
             adjustment -= 5
         }
-        if hasDungeonCurse(.warpedHourglass) {
-            adjustment += 8
-        }
         if hasDungeonCurse(.crackedCompass) {
             adjustment -= 3
         }
@@ -474,9 +475,6 @@ public final class GameCore: ObservableObject {
         }
         if hasDungeonCurse(.lastStandShield) {
             adjustment -= 4
-        }
-        if hasDungeonCurse(.chaserScent) {
-            adjustment += 4
         }
         if hasDungeonCurse(.oilSoakedBoots) {
             adjustment += 3
@@ -718,8 +716,25 @@ public final class GameCore: ObservableObject {
     }
     /// 基本移動固定枠を除いた、塔ラン中の通常カード所持上限
     public var dungeonInventoryKindLimit: Int {
+        effectiveDungeonInventoryKindLimit
+    }
+    /// 呪い遺物などの一時効果を反映した通常カード所持上限
+    public var effectiveDungeonInventoryKindLimit: Int {
         guard usesDungeonInventoryCards else { return 0 }
-        return min(max(mode.dungeonMetadataSnapshot?.runState?.dungeonInventoryKindLimit ?? 9, 1), 9)
+        let baseLimit = min(max(mode.dungeonMetadataSnapshot?.runState?.dungeonInventoryKindLimit ?? 9, 1), 9)
+        let curseBonus = hasDungeonCurse(.ploverContract) ? 1 : 0
+        return min(baseLimit + curseBonus, 10)
+    }
+    /// 基本移動を現在のランで使えるかどうか
+    public var allowsCurrentBasicMove: Bool {
+        mode.dungeonRules?.allowsBasicOrthogonalMove == true && !hasDungeonCurse(.ploverContract)
+    }
+    /// 千鳥の契約により手札0枚の自動千鳥足が発動する状態かどうか
+    public var isEmptyHandStaggerAutoActive: Bool {
+        guard mode.usesDungeonExit, hasDungeonCurse(.ploverContract) else { return false }
+        return usesDungeonInventoryCards
+            ? dungeonInventoryEntries.filter(\.hasUsesRemaining).isEmpty
+            : handStacks.isEmpty
     }
 
     /// 山札管理（`Deck.swift` に定義された重み付き無限山札を使用）
@@ -783,6 +798,7 @@ public final class GameCore: ObservableObject {
             isFlySpellActive: isFlySpellActive,
             isShackled: isShackled,
             isIlluded: isIlluded,
+            staggerForcedMovesRemaining: staggerForcedMovesRemaining,
             didStepOnLavaThisFloor: didStepOnLavaThisFloor,
             poisonDamageTicksRemaining: poisonDamageTicksRemaining,
             poisonActionsUntilNextDamage: poisonActionsUntilNextDamage,
@@ -847,6 +863,7 @@ public final class GameCore: ObservableObject {
         isFlySpellActive = snapshot.isFlySpellActive
         isShackled = snapshot.isShackled
         isIlluded = snapshot.isIlluded
+        staggerForcedMovesRemaining = snapshot.staggerForcedMovesRemaining
         didStepOnLavaThisFloor = snapshot.didStepOnLavaThisFloor
         poisonDamageTicksRemaining = snapshot.poisonDamageTicksRemaining
         poisonActionsUntilNextDamage = snapshot.poisonActionsUntilNextDamage
@@ -973,7 +990,7 @@ public final class GameCore: ObservableObject {
         case .antidote:
             return poisonDamageTicksRemaining > 0
         case .panacea:
-            return poisonDamageTicksRemaining > 0 || isShackled || isIlluded
+            return poisonDamageTicksRemaining > 0 || isShackled || isIlluded || staggerForcedMovesRemaining > 0
         }
     }
 
@@ -1141,6 +1158,7 @@ public final class GameCore: ObservableObject {
             clearPoisonStatus()
             isShackled = false
             isIlluded = false
+            staggerForcedMovesRemaining = 0
             finishSupportCardTurn(
                 initialMarkerDamagePoints: pendingMarkerDamagePoints,
                 previousMoveCount: previousMoveCount
@@ -1442,6 +1460,7 @@ public final class GameCore: ObservableObject {
             skipsPoisonTick: movementResult.triggeredPoisonTrap,
             previousMoveCount: previousMoveCount
         ) { return }
+        if resolveAutomaticStaggerMoveIfNeeded() { return }
 
         // 手詰まりチェック（全カード盤外ならペナルティ）
         checkDeadlockAndApplyPenaltyIfNeeded()
@@ -1603,7 +1622,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         guard pendingDungeonPickupChoice == nil else { return }
         guard pendingDungeonRelicPickupChoice == nil else { return }
         guard !isAwaitingManualDiscardSelection else { return }
-        guard mode.dungeonRules?.allowsBasicOrthogonalMove == true else { return }
+        guard allowsCurrentBasicMove else { return }
         guard availableBasicOrthogonalMoves().contains(where: { candidate in
             candidate.moveVector == basicMove.moveVector &&
                 candidate.path == basicMove.path &&
@@ -1697,13 +1716,168 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             ]
         )
 
-        _ = applyDungeonPostMoveChecks(
+        if applyDungeonPostMoveChecks(
             along: actualTraversedPath,
             initialMarkerDamagePoints: pendingMarkerDamagePoints,
             paralysisTrapPoint: paralysisTrapPoint,
             skipsPoisonTick: movementResult.triggeredPoisonTrap,
             previousMoveCount: previousMoveCount
+        ) { return }
+        _ = resolveAutomaticStaggerMoveIfNeeded()
+    }
+
+    @discardableResult
+    private func resolveAutomaticStaggerMoveIfNeeded(depth: Int = 0) -> Bool {
+        guard mode.usesDungeonExit,
+              progress == .playing,
+              pendingDungeonPickupChoice == nil,
+              pendingDungeonRelicPickupChoice == nil,
+              dungeonFallEvent == nil,
+              current != nil
+        else { return false }
+        guard depth < staggerAutoMoveLimitPerAction else {
+            finalizeElapsedTimeIfNeeded()
+            progress = .failed
+            appendDungeonRunLog(kind: .blocked, message: "千鳥足が止まらず攻略に失敗")
+            return true
+        }
+
+        let hasForcedMove = staggerForcedMovesRemaining > 0
+        let hasNoPlayableCards = isEmptyHandStaggerAutoActive
+        guard hasForcedMove || hasNoPlayableCards else { return false }
+
+        if hasForcedMove {
+            staggerForcedMovesRemaining = max(staggerForcedMovesRemaining - 1, 0)
+        }
+        playAutomaticStaggerMove(reason: hasForcedMove ? "trap" : "emptyHand", depth: depth)
+        return true
+    }
+
+    private func playAutomaticStaggerMove(reason: String, depth: Int) {
+        guard progress == .playing, let currentPosition = current else { return }
+        let moves = availableStaggerMoves()
+        guard !moves.isEmpty else {
+            finalizeElapsedTimeIfNeeded()
+            progress = .failed
+            appendDungeonRunLog(kind: .blocked, point: currentPosition, message: "千鳥足で動けるマスがなく攻略に失敗")
+            logDungeonPlayEvent(
+                "run_end",
+                [
+                    ("reason", "staggerNoDestination"),
+                    ("point", PlayDiagnosticLog.describe(currentPosition))
+                ]
+            )
+            return
+        }
+
+        var generator = DungeonRefillRandomGenerator(seed: staggerMoveSeed(reason: reason, depth: depth))
+        let move = moves[Int(generator.next() % UInt64(moves.count))]
+        let pendingMarkerDamagePoints = enemyWarningPoints
+        guard let movementResult = processMovementPath(move.path, startingAt: currentPosition) else { return }
+        let finalPosition = movementResult.finalPosition
+        let actualTraversedPath = movementResult.actualTraversedPath
+        let detectedEffects = movementResult.detectedEffects
+        let presentationSteps = movementResult.presentationSteps
+        let postMoveTileEffect = movementResult.postMoveTileEffect
+        let paralysisTrapPoint = movementResult.paralysisTrapPoint
+        lastMovementResolution = MovementResolution(
+            path: actualTraversedPath,
+            finalPosition: finalPosition,
+            appliedEffects: detectedEffects,
+            presentationInitialHP: movementResult.presentationInitialHP,
+            presentationInitialHandStacks: movementResult.presentationInitialHandStacks,
+            presentationInitialCollectedDungeonCardPickupIDs: movementResult.presentationInitialCollectedDungeonCardPickupIDs,
+            presentationInitialCollectedDungeonRelicPickupIDs: movementResult.presentationInitialCollectedDungeonRelicPickupIDs,
+            presentationInitialEnemyStates: movementResult.presentationInitialEnemyStates,
+            presentationInitialCrackedFloorPoints: movementResult.presentationInitialCrackedFloorPoints,
+            presentationInitialCollapsedFloorPoints: movementResult.presentationInitialCollapsedFloorPoints,
+            presentationInitialBoard: movementResult.presentationInitialBoard,
+            presentationSteps: presentationSteps
         )
+        current = finalPosition
+        publishImmediateMovementPresentationEventsIfNeeded(
+            from: presentationSteps,
+            actualTraversedPath: actualTraversedPath
+        )
+
+        let previousMoveCount = moveCount
+        moveCount += currentActionMoveCost
+        if let remainingPath = movementResult.remainingPathAfterPickupChoice {
+            pendingDungeonMovementContinuation = PendingDungeonMovementContinuation(
+                inputKind: .basic,
+                remainingPath: remainingPath,
+                traversedPath: actualTraversedPath,
+                encounteredRevisit: movementResult.encounteredRevisit,
+                detectedEffects: detectedEffects,
+                postMoveTileEffect: tileEffect(from: postMoveTileEffect),
+                preservesPlayedCard: false,
+                initialMarkerDamagePoints: pendingMarkerDamagePoints,
+                paralysisTrapPoint: paralysisTrapPoint,
+                triggeredPoisonTrap: movementResult.triggeredPoisonTrap,
+                previousMoveCount: previousMoveCount
+            )
+            return
+        }
+        if movementResult.encounteredRevisit {
+            hasRevisitedTile = true
+            if mode.revisitPenaltyCost > 0 {
+                penaltyCount += mode.revisitPenaltyCost
+            }
+        }
+        announceRemainingTiles()
+        if progress == .playing, dungeonFallEvent == nil {
+            applyPostMoveTileEffect(postMoveTileEffect, preserving: nil)
+        }
+        logDungeonPlayEvent(
+            "move_resolved",
+            [
+                ("input", "stagger"),
+                ("reason", reason),
+                ("from", PlayDiagnosticLog.describe(currentPosition)),
+                ("path", PlayDiagnosticLog.describe(actualTraversedPath)),
+                ("to", PlayDiagnosticLog.describe(finalPosition)),
+                ("effects", diagnosticEffectDescription(detectedEffects)),
+                ("revisit", String(movementResult.encounteredRevisit))
+            ]
+        )
+        if applyDungeonPostMoveChecks(
+            along: actualTraversedPath,
+            initialMarkerDamagePoints: pendingMarkerDamagePoints,
+            paralysisTrapPoint: paralysisTrapPoint,
+            skipsPoisonTick: movementResult.triggeredPoisonTrap,
+            previousMoveCount: previousMoveCount
+        ) { return }
+        if !resolveAutomaticStaggerMoveIfNeeded(depth: depth + 1) {
+            checkDeadlockAndApplyPenaltyIfNeeded()
+        }
+    }
+
+    public func availableStaggerMoves(current currentOverride: GridPoint? = nil) -> [BasicOrthogonalMove] {
+        guard let origin = currentOverride ?? current else { return [] }
+        let vectors = [
+            MoveVector(dx: -1, dy: 1),
+            MoveVector(dx: 0, dy: 1),
+            MoveVector(dx: 1, dy: 1),
+            MoveVector(dx: -1, dy: 0),
+            MoveVector(dx: 1, dy: 0),
+            MoveVector(dx: -1, dy: -1),
+            MoveVector(dx: 0, dy: -1),
+            MoveVector(dx: 1, dy: -1)
+        ]
+        return vectors.compactMap { vector in
+            let destination = origin.offset(dx: vector.dx, dy: vector.dy)
+            guard board.contains(destination), board.isTraversable(destination) else { return nil }
+            return BasicOrthogonalMove(
+                moveVector: vector,
+                resolution: MovementResolution(path: [destination], finalPosition: destination)
+            )
+        }
+        .sorted { lhs, rhs in
+            if lhs.destination.y != rhs.destination.y {
+                return lhs.destination.y < rhs.destination.y
+            }
+            return lhs.destination.x < rhs.destination.x
+        }
     }
 
     private func continuePendingDungeonMovementIfNeeded() {
@@ -1816,6 +1990,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             skipsPoisonTick: combinedTriggeredPoisonTrap,
             previousMoveCount: continuation.previousMoveCount
         ) { return }
+        if resolveAutomaticStaggerMoveIfNeeded() { return }
 
         checkDeadlockAndApplyPenaltyIfNeeded()
     }
@@ -2063,6 +2238,14 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                         postMoveTileEffect: &postMoveTileEffect,
                         preservesPlayedCard: &preservesPlayedCard
                     )
+                case .staggerTrap:
+                    if consumePurifyingRelicUse() != nil {
+                        debugLog("清めの護符で千鳥足罠を無効化")
+                        break
+                    }
+                    staggerForcedMovesRemaining = max(staggerForcedMovesRemaining, staggerTrapForcedMoveCount)
+                    triggerTrapperGlovesIfNeeded(reason: "千鳥足罠")
+                    debugLog("千鳥足罠を踏みました: 強制移動残り\(staggerForcedMovesRemaining)回")
                 case .swamp:
                     stepIndex = pendingPath.count
                     break
@@ -2225,7 +2408,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             postMoveTileEffect = .discardAllHands
         case .preserveCard:
             preservesPlayedCard = true
-        case .warp, .returnWarp, .blast, .slow, .shackleTrap, .poisonTrap, .illusionTrap, .relicBreakTrap, .swamp:
+        case .warp, .returnWarp, .blast, .slow, .shackleTrap, .poisonTrap, .illusionTrap, .staggerTrap, .relicBreakTrap, .swamp:
             break
         }
     }
@@ -2243,7 +2426,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             return .discardAllSupportCards
         case .discardAllHands:
             return .discardAllHands
-        case .warp, .returnWarp, .blast, .slow, .shackleTrap, .poisonTrap, .illusionTrap, .relicBreakTrap, .swamp, .preserveCard:
+        case .warp, .returnWarp, .blast, .slow, .shackleTrap, .poisonTrap, .illusionTrap, .staggerTrap, .relicBreakTrap, .swamp, .preserveCard:
             return nil
         }
     }
@@ -2552,6 +2735,21 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         return seed == 0 ? 1 : seed
     }
 
+    private func staggerMoveSeed(reason: String, depth: Int) -> UInt64 {
+        var seed = mode.dungeonMetadataSnapshot?.runState?.cardVariationSeed ?? mode.deckSeed ?? 1
+        seed ^= UInt64(board.size + 89) &* 0xD6E8_FD9A_57A1_4C15
+        seed ^= UInt64(max(moveCount, 0) + depth + 1) &* 0xA24B_AED4_963E_E407
+        seed ^= UInt64(staggerForcedMovesRemaining + 43) &* 0x9FB2_1C65_1E98_DF25
+        if let current {
+            seed ^= UInt64(current.x + 83) &* 1099511628211
+            seed ^= UInt64(current.y + 97) &* 1469598103934665603
+        }
+        for scalar in reason.unicodeScalars {
+            seed = seed &* 1099511628211 &+ UInt64(scalar.value)
+        }
+        return seed == 0 ? 1 : seed
+    }
+
     func resetHandAndNextForTileRedraw(preserving preservedCard: DealtCard?) {
         guard !usesDungeonInventoryCards else { return }
         if let preservedCard {
@@ -2647,7 +2845,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
 
     /// 塔ダンジョンで使えるカードなしの上下左右 1 マス移動候補を列挙する
     public func availableBasicOrthogonalMoves(current currentOverride: GridPoint? = nil) -> [BasicOrthogonalMove] {
-        guard mode.dungeonRules?.allowsBasicOrthogonalMove == true else { return [] }
+        guard allowsCurrentBasicMove else { return [] }
         guard let origin = currentOverride ?? current else { return [] }
 
         let vectors = mode.dungeonRules?.movementStyle.basicMoveVectors ?? DungeonMovementStyle.orthogonal.basicMoveVectors
@@ -2745,6 +2943,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         isFlySpellActive = false
         isShackled = false
         isIlluded = false
+        staggerForcedMovesRemaining = 0
         didStepOnLavaThisFloor = false
         currentFloorDefeatedEnemyCount = 0
         pendingDefeatEnemyTurnSkip = false
@@ -3081,9 +3280,6 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         }
         if hasDungeonCurse(.poisonVial) {
             adjustment += 2
-        }
-        if hasDungeonCurse(.warpedHourglass) {
-            adjustment -= 1
         }
         if hasDungeonCurse(.contractCodex) {
             adjustment += 3
@@ -3533,7 +3729,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             break
         case .contractCodex, .royalIou, .bottomlessPack, .relicHunterBrand, .supportOath, .ashHeart,
              .hasteArmor, .scorchedCloak, .lastStandShield, .firewalkingTalisman, .tinkersToolbox,
-             .expressTicket:
+             .expressTicket, .ploverContract:
             break
         }
     }
@@ -3939,6 +4135,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                     poisonActionsUntilNextDamage = 0
                     isShackled = false
                     isIlluded = false
+                    staggerForcedMovesRemaining = 0
                 }
                 if hasDungeonCurse(.flickeringCampfire) {
                     isIlluded = true
@@ -5887,6 +6084,7 @@ extension GameCore {
         core.isPatrolRailDestroyed = false
         core.isFlySpellActive = false
         core.isIlluded = false
+        core.staggerForcedMovesRemaining = 0
         core.enemyStates = mode.dungeonRules?.enemies.map(EnemyState.init(definition:)) ?? []
         let currentFloorIndex = mode.dungeonMetadataSnapshot?.runState?.currentFloorIndex ?? 0
         let savedCrackedFloorPoints = mode.dungeonMetadataSnapshot?.runState?.crackedFloorPoints(for: currentFloorIndex) ?? []

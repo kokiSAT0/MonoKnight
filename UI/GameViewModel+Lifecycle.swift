@@ -297,6 +297,8 @@ extension GameViewModel {
             return tileDiscoveryID("poisonTrap")
         case .illusionTrap:
             return tileDiscoveryID("illusionTrap")
+        case .staggerTrap:
+            return tileDiscoveryID("staggerTrap")
         case .relicBreakTrap:
             return tileDiscoveryID("relicBreakTrap")
         case .swamp:

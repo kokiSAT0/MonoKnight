@@ -347,7 +347,7 @@ public extension MoveCard {
 public extension TileEffect {
     var isBlockedByFlySpell: Bool {
         switch self {
-        case .blast, .slow, .shackleTrap, .poisonTrap, .illusionTrap, .relicBreakTrap,
+        case .blast, .slow, .shackleTrap, .poisonTrap, .illusionTrap, .staggerTrap, .relicBreakTrap,
              .discardRandomHand, .discardAllMoveCards, .discardAllSupportCards, .discardAllHands, .swamp:
             return true
         case .warp, .returnWarp, .shuffleHand, .preserveCard:
@@ -359,7 +359,7 @@ public extension TileEffect {
         switch self {
         case .slow, .shackleTrap, .swamp:
             return true
-        case .warp, .returnWarp, .shuffleHand, .blast, .poisonTrap, .illusionTrap, .relicBreakTrap, .preserveCard, .discardRandomHand, .discardAllMoveCards, .discardAllSupportCards, .discardAllHands:
+        case .warp, .returnWarp, .shuffleHand, .blast, .poisonTrap, .illusionTrap, .staggerTrap, .relicBreakTrap, .preserveCard, .discardRandomHand, .discardAllMoveCards, .discardAllSupportCards, .discardAllHands:
             return false
         }
     }

@@ -73,6 +73,56 @@ extension GameViewModel {
         resetSessionForNewPlay()
     }
 
+    var canRestartCurrentDungeonFloorForTesting: Bool {
+        mode.usesDungeonExit
+            && DebugLogHistory.shared.isFrontEndViewerEnabled
+            && floorStartDungeonResumeSnapshot != nil
+    }
+
+    func handleRestartCurrentDungeonFloorForTesting() {
+        guard canRestartCurrentDungeonFloorForTesting,
+              let snapshot = floorStartDungeonResumeSnapshot
+        else { return }
+
+        clearSelectedCardSelection()
+        clearBoardTapSelectionWarning()
+        cancelPenaltyBannerDisplay()
+        dungeonFallAdvanceTask?.cancel()
+        dungeonFallAdvanceTask = nil
+        clearDungeonRelicAcquisitionPresentationQueue()
+        pendingDungeonRelicPickupChoice = nil
+        isMovementPresentationActive = false
+        isWaitingForEnemyTurnPresentationAfterMovement = false
+        movementPresentationDungeonHP = nil
+        deferredProgressDuringMovementPresentation = nil
+        deferredDungeonFallEventDuringMovementPresentation = nil
+        deferredDungeonRewindReviveEventDuringMovementPresentation = nil
+        deferredEnemyDamageEventID = nil
+        recentlyAddedHandStackIDs.removeAll()
+        displayedLockedExitReachNoticeKeys.removeAll()
+        latestDungeonGrowthAward = nil
+        applySessionUIMutation { state in
+            state.resetTransientUIForTitleReturn()
+        }
+        applyResultPresentationMutation { state in
+            state.hideResult()
+        }
+        pauseController.reset()
+
+        guard core.restoreDungeonResumeSnapshot(snapshot) else { return }
+        dungeonRunResumeStore.save(snapshot)
+        dungeonRunLogEntries = core.dungeonRunLogEntries
+        lastObservedDungeonHPForDamageEffect = core.dungeonHP
+        updateDisplayedHandStacks(
+            Self.visibleHandStacks(from: core.handStacks, mode: mode),
+            animatingAdditions: false
+        )
+        refreshSelectionIfNeeded(with: displayedHandStacks)
+        refreshGuideHighlights()
+        updateDisplayedElapsedTime()
+        debugLog("[PLAY] event=current_floor_restart floor=\(snapshot.floorIndex + 1) hp=\(snapshot.dungeonHP)")
+    }
+
     func handleNextDungeonFloorAdvance() {
         guard let nextMode = makeNextDungeonFloorMode() else { return }
         saveInitialDungeonResume(for: nextMode)
@@ -219,11 +269,10 @@ extension GameViewModel {
             currentCurseEntries: core.dungeonCurseEntries,
             collectedDungeonRelicPickupIDs: core.collectedDungeonRelicPickupIDs,
             rewardAddUses: dungeonRewardAddUses,
-            supportRewardAddUses: dungeonSupportRewardAddUses,
+            supportRewardAddUses: baseDungeonSupportRewardAddUses,
             areDungeonRelicAndCurseEffectsEnabled: core.areDungeonRelicAndCurseEffectsEnabled,
-            completedWithinHalfTurnLimit: core.effectiveDungeonTurnLimit.map {
-                core.moveCount <= $0 / 2
-            } ?? false,
+            completedWithinHalfTurnLimit: isCurrentDungeonClearWithinHalfTurnLimit,
+            completedWithChaserOnFloor: hasChaserOnCurrentDungeonFloor,
             hazardDamageMitigationsRemaining: core.hazardDamageMitigationsRemaining,
             enemyDamageMitigationsRemaining: core.enemyDamageMitigationsRemaining,
             markerDamageMitigationsRemaining: core.markerDamageMitigationsRemaining,
@@ -401,6 +450,7 @@ extension GameViewModel {
     }
 
     private func clearDungeonRelicAcquisitionPresentationQueue() {
+        restoreDungeonChoiceOverlay()
         activeDungeonRelicAcquisitionPresentation = nil
         pendingDungeonRelicAcquisitionPresentations.removeAll()
         deferredProgressDuringMovementPresentation = nil

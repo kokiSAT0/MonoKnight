@@ -121,6 +121,10 @@ extension GameViewModel {
     func handleHandSlotTap(at index: Int) {
         dismissInlineInspection()
         clearBoardTapSelectionWarning()
+        if isDungeonChoiceOverlayCollapsed, core.isAwaitingDungeonPickupChoice {
+            restoreDungeonChoiceOverlay()
+            return
+        }
         mutateSelectionState { sessionState, selectedHandStackID in
             inputFlowCoordinator.handleHandSlotTap(
                 at: index,
@@ -199,12 +203,14 @@ extension GameViewModel {
     func discardPendingDungeonPickupCard() {
         clearSelectedCardSelection()
         _ = core.discardPendingDungeonPickupCard()
+        restoreDungeonChoiceOverlay()
         saveCurrentDungeonResumeIfPossible()
     }
 
     func replaceDungeonInventoryEntryForPendingPickup(discarding playable: PlayableCard) {
         clearSelectedCardSelection()
         _ = core.replaceDungeonInventoryEntryForPendingPickup(discarding: playable)
+        restoreDungeonChoiceOverlay()
         saveCurrentDungeonResumeIfPossible()
     }
 
@@ -313,7 +319,7 @@ private extension TileEffect {
         switch self {
         case .warp, .returnWarp:
             return true
-        case .shuffleHand, .blast, .slow, .shackleTrap, .poisonTrap, .illusionTrap, .relicBreakTrap, .swamp, .preserveCard, .discardRandomHand, .discardAllMoveCards, .discardAllSupportCards, .discardAllHands:
+        case .shuffleHand, .blast, .slow, .shackleTrap, .poisonTrap, .illusionTrap, .staggerTrap, .relicBreakTrap, .swamp, .preserveCard, .discardRandomHand, .discardAllMoveCards, .discardAllSupportCards, .discardAllHands:
             return false
         }
     }

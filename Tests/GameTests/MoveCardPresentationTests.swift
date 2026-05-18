@@ -132,6 +132,7 @@ final class MoveCardPresentationTests: XCTestCase {
         XCTAssertEqual(entries.first { $0.id == "shackleTrap" }?.previewKind, .effect(.shackleTrap))
         XCTAssertEqual(entries.first { $0.id == "poisonTrap" }?.previewKind, .effect(.poisonTrap))
         XCTAssertEqual(entries.first { $0.id == "illusionTrap" }?.previewKind, .effect(.illusionTrap))
+        XCTAssertEqual(entries.first { $0.id == "staggerTrap" }?.previewKind, .effect(.staggerTrap))
         XCTAssertEqual(entries.first { $0.id == "relicBreakTrap" }?.previewKind, .effect(.relicBreakTrap))
         XCTAssertEqual(entries.first { $0.id == "enemyDanger" }?.previewKind, .enemyDanger)
         XCTAssertEqual(entries.first { $0.id == "enemyWarning" }?.previewKind, .enemyWarning)
@@ -165,6 +166,7 @@ final class MoveCardPresentationTests: XCTestCase {
             "preserveCard",
             "paralysisTrap",
             "shackleTrap",
+            "staggerTrap",
             "illusionTrap",
             "poisonTrap",
             "relicBreakTrap",
@@ -194,6 +196,7 @@ final class MoveCardPresentationTests: XCTestCase {
             "relicBreakTrap",
             "returnWarp",
             "shackleTrap",
+            "staggerTrap",
             "shuffleHand",
             "swamp",
             "warp"

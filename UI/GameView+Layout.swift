@@ -49,7 +49,8 @@ extension GameView {
                     .zIndex(1)
             }
             if let pendingChoice = viewModel.pendingDungeonPickupChoice,
-               viewModel.canPresentDungeonPickupChoice {
+               viewModel.canPresentDungeonPickupChoice,
+               !viewModel.isDungeonChoiceOverlayCollapsed {
                 DungeonPickupChoiceOverlayView(
                     theme: theme,
                     choice: pendingChoice,
@@ -60,6 +61,9 @@ extension GameView {
                         + GameViewLayoutMetrics.spacingBetweenBoardAndHand,
                     onDiscardPickup: {
                         viewModel.discardPendingDungeonPickupCard()
+                    },
+                    onReviewBoard: {
+                        viewModel.collapseDungeonChoiceOverlayForBoardReview()
                     }
                 )
                 .transition(.opacity)
@@ -92,15 +96,24 @@ extension GameView {
                 .zIndex(5)
             }
             if let choice = viewModel.pendingDungeonRelicPickupChoice,
-               viewModel.canPresentDungeonRelicPickupChoice {
+               viewModel.canPresentDungeonRelicPickupChoice,
+               !viewModel.isDungeonChoiceOverlayCollapsed {
                 DungeonRelicPickupChoiceOverlayView(
                     choice: choice,
                     onSelect: { option in
                         viewModel.selectPendingDungeonRelicPickupOption(option)
+                    },
+                    onReviewBoard: {
+                        viewModel.collapseDungeonChoiceOverlayForBoardReview()
                     }
                 )
                 .transition(.opacity)
                 .zIndex(6)
+            }
+            if viewModel.canPresentDungeonChoiceReviewBar {
+                dungeonChoiceReviewBar(using: layoutContext)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .zIndex(6)
             }
         }
         // 画面全体の背景もテーマで制御し、システム設定と調和させる
@@ -213,6 +226,58 @@ extension GameView {
                 layoutContext.handSectionBottomPadding + layoutContext.resolvedHandSectionHeight + 12
             )
         }
+    }
+
+    func dungeonChoiceReviewBar(using layoutContext: GameViewLayoutContext) -> some View {
+        VStack {
+            Spacer(minLength: 0)
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("選択保留中")
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .foregroundColor(theme.textSecondary)
+                    Text("盤面を確認したら選択に戻れます")
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .foregroundColor(theme.textPrimary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+                }
+                Spacer(minLength: 8)
+                Button {
+                    viewModel.restoreDungeonChoiceOverlay()
+                } label: {
+                    Label("選択に戻る", systemImage: "arrow.uturn.left.circle.fill")
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .labelStyle(.titleAndIcon)
+                        .lineLimit(1)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(theme.accentPrimary)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .frame(maxWidth: 430)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(theme.spawnOverlayBackground)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(theme.spawnOverlayBorder, lineWidth: 1)
+                    )
+            )
+            .shadow(color: theme.spawnOverlayShadow.opacity(0.8), radius: 18, x: 0, y: 8)
+            .padding(.horizontal, 16)
+            .padding(
+                .bottom,
+                max(
+                    layoutContext.bottomInset + layoutContext.resolvedHandSectionHeight + 12,
+                    layoutContext.handSectionBottomPadding + layoutContext.resolvedHandSectionHeight + 8
+                )
+            )
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("dungeon_choice_review_bar")
     }
 
     func failedBoardInspectionBarContent(isStacked: Bool) -> some View {
@@ -406,6 +471,7 @@ struct DungeonPickupChoiceOverlayView: View {
     let choice: PendingDungeonPickupChoice
     let dimmedHeight: CGFloat
     let onDiscardPickup: () -> Void
+    let onReviewBoard: () -> Void
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -431,6 +497,13 @@ struct DungeonPickupChoiceOverlayView: View {
                 }
 
                 pickupChoiceButton
+                Button(action: onReviewBoard) {
+                    Label("盤面を見る", systemImage: "square.grid.3x3.fill")
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                }
+                .buttonStyle(.bordered)
+                .tint(theme.accentPrimary)
+                .accessibilityIdentifier("dungeon_pickup_choice_review_board")
             }
             .padding(12)
             .frame(maxWidth: 220)

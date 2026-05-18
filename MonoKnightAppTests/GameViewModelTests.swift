@@ -1553,6 +1553,31 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertEqual(core.dungeonInventoryEntries.count, 9)
     }
 
+    func testCollapsedDungeonPickupChoiceRestoresBeforeHandReplacement() throws {
+        let pickupPoint = GridPoint(x: 1, y: 0)
+        let existingCards = Array(MoveCard.allCases.prefix(9))
+        let newCard = try XCTUnwrap(MoveCard.allCases.dropFirst(9).first)
+        let pickup = DungeonCardPickupDefinition(id: "view_model_collapsed_hand_tap", point: pickupPoint, card: newCard)
+        let (viewModel, core) = makeViewModel(mode: makePickupChoiceMode(pickup: pickup))
+        for card in existingCards {
+            XCTAssertTrue(core.addDungeonInventoryCardForTesting(card, pickupUses: 1))
+        }
+        let inventoryBefore = core.dungeonInventoryEntries
+        let move = try XCTUnwrap(core.availableBasicOrthogonalMoves().first { $0.destination == pickupPoint })
+        core.playBasicOrthogonalMove(using: move)
+
+        viewModel.collapseDungeonChoiceOverlayForBoardReview()
+        XCTAssertTrue(viewModel.isDungeonChoiceOverlayCollapsed)
+        XCTAssertTrue(viewModel.canPresentDungeonChoiceReviewBar)
+
+        viewModel.handleHandSlotTap(at: 0)
+
+        XCTAssertFalse(viewModel.isDungeonChoiceOverlayCollapsed)
+        XCTAssertNotNil(viewModel.pendingDungeonPickupChoice)
+        XCTAssertEqual(core.dungeonInventoryEntries, inventoryBefore)
+        XCTAssertTrue(core.activeDungeonCardPickups.contains { $0.id == pickup.id })
+    }
+
     func testPendingDungeonPickupHandTapResumesRayMoveToNextChoice() throws {
         let existingCards = fullInventoryCards(including: .rayRight)
         let newCards = MoveCard.allCases.filter { !existingCards.contains($0) }
@@ -1601,6 +1626,31 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertNotNil(viewModel.pendingDungeonPickupChoice)
         XCTAssertEqual(core.dungeonInventoryEntries, inventoryBefore)
         XCTAssertTrue(core.activeDungeonCardPickups.contains { $0.id == pickup.id })
+    }
+
+    func testCollapsedDungeonRelicPickupChoiceRestoresBeforeSelection() throws {
+        let pickupPoint = GridPoint(x: 1, y: 0)
+        let pickup = DungeonRelicPickupDefinition(
+            id: "view_model_collapsed_relic_choice",
+            point: pickupPoint,
+            kind: .suspiciousLight,
+            candidateRelics: [.glowingHeart],
+            candidateCurses: [.rustyChain]
+        )
+        let (viewModel, core) = makeViewModel(mode: makeRelicPickupChoiceMode(pickup: pickup))
+        let move = try XCTUnwrap(core.availableBasicOrthogonalMoves().first { $0.destination == pickupPoint })
+        core.playBasicOrthogonalMove(using: move)
+        viewModel.pendingDungeonRelicPickupChoice = core.pendingDungeonRelicPickupChoice
+
+        viewModel.collapseDungeonChoiceOverlayForBoardReview()
+        XCTAssertTrue(viewModel.isDungeonChoiceOverlayCollapsed)
+        XCTAssertTrue(viewModel.canPresentDungeonChoiceReviewBar)
+
+        viewModel.restoreDungeonChoiceOverlay()
+
+        XCTAssertFalse(viewModel.isDungeonChoiceOverlayCollapsed)
+        XCTAssertNotNil(viewModel.pendingDungeonRelicPickupChoice)
+        XCTAssertFalse(core.collectedDungeonRelicPickupIDs.contains(pickup.id))
     }
 
     func testNewlyAddedHandStackIDsDetectsNewStack() {
@@ -2425,6 +2475,122 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertEqual(nextMode.dungeonMetadataSnapshot?.runState?.currentFloorIndex, 1)
         XCTAssertEqual(snapshot.floorIndex, 1)
         XCTAssertEqual(snapshot.runState.rewardInventoryEntries, [DungeonInventoryEntry(card: reward, rewardUses: 2)])
+    }
+
+    func testRestartCurrentDungeonFloorRestoresFloorStartState() throws {
+        DebugLogHistory.shared.setFrontEndViewerEnabled(true)
+        let pickup = DungeonCardPickupDefinition(
+            id: "restart_current_floor_pickup",
+            point: GridPoint(x: 2, y: 0),
+            card: .straightUp2
+        )
+        let mode = makeCurrentFloorRestartMode(
+            initialHP: 3,
+            damageTrap: GridPoint(x: 1, y: 0),
+            key: GridPoint(x: 1, y: 1),
+            pickup: pickup
+        )
+        let (viewModel, core) = makeViewModel(mode: mode)
+
+        playBasicMove(to: GridPoint(x: 1, y: 0), in: core)
+        playBasicMove(to: GridPoint(x: 1, y: 1), in: core)
+        playBasicMove(to: GridPoint(x: 2, y: 1), in: core)
+        playBasicMove(to: GridPoint(x: 2, y: 0), in: core)
+        core.overrideMetricsForTesting(moveCount: core.moveCount, penaltyCount: 0, elapsedSeconds: 33)
+        viewModel.showingResult = true
+        viewModel.isPauseMenuPresented = true
+        viewModel.boardTapSelectionWarning = GameViewModel.BoardTapSelectionWarning(
+            message: "test",
+            destination: GridPoint(x: 2, y: 0)
+        )
+
+        XCTAssertEqual(core.dungeonHP, 2)
+        XCTAssertTrue(core.isDungeonExitUnlocked)
+        XCTAssertTrue(core.collectedDungeonCardPickupIDs.contains(pickup.id))
+        XCTAssertTrue(core.dungeonInventoryEntries.contains { $0.moveCard == pickup.card })
+
+        viewModel.handleRestartCurrentDungeonFloorForTesting()
+
+        XCTAssertEqual(core.progress, .playing)
+        XCTAssertEqual(core.current, GridPoint(x: 0, y: 0))
+        XCTAssertEqual(core.moveCount, 0)
+        XCTAssertEqual(viewModel.displayedElapsedSeconds, 0)
+        XCTAssertEqual(core.dungeonHP, 3)
+        XCTAssertFalse(core.isDungeonExitUnlocked)
+        XCTAssertFalse(core.collectedDungeonCardPickupIDs.contains(pickup.id))
+        XCTAssertEqual(core.dungeonInventoryEntries, [])
+        XCTAssertFalse(viewModel.showingResult)
+        XCTAssertFalse(viewModel.isPauseMenuPresented)
+        XCTAssertNil(viewModel.boardTapSelectionWarning)
+    }
+
+    func testRestartCurrentDungeonFloorFromResumeUsesFloorStartNotResumePoint() throws {
+        DebugLogHistory.shared.setFrontEndViewerEnabled(true)
+        let (defaults, suiteName) = try makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let resumeStore = DungeonRunResumeStore(userDefaults: defaults)
+        let mode = makeCurrentFloorRestartMode(
+            initialHP: 3,
+            damageTrap: GridPoint(x: 1, y: 0),
+            key: GridPoint(x: 4, y: 4),
+            pickup: nil
+        )
+        let startedCore = GameCore(mode: mode)
+        playBasicMove(to: GridPoint(x: 1, y: 0), in: startedCore)
+        let resumeSnapshot = try XCTUnwrap(startedCore.makeDungeonResumeSnapshot())
+        resumeStore.save(resumeSnapshot)
+
+        let (viewModel, core) = makeViewModel(mode: mode, dungeonRunResumeStore: resumeStore)
+        XCTAssertEqual(core.current, GridPoint(x: 1, y: 0))
+        XCTAssertEqual(core.dungeonHP, 2)
+
+        viewModel.handleRestartCurrentDungeonFloorForTesting()
+
+        XCTAssertEqual(core.current, GridPoint(x: 0, y: 0))
+        XCTAssertEqual(core.moveCount, 0)
+        XCTAssertEqual(core.dungeonHP, 3)
+    }
+
+    func testRestartCurrentDungeonFloorWorksAfterFailure() throws {
+        DebugLogHistory.shared.setFrontEndViewerEnabled(true)
+        let mode = makeCurrentFloorRestartMode(
+            initialHP: 1,
+            damageTrap: GridPoint(x: 1, y: 0),
+            key: GridPoint(x: 4, y: 4),
+            pickup: nil
+        )
+        let (viewModel, core) = makeViewModel(mode: mode)
+
+        playBasicMove(to: GridPoint(x: 1, y: 0), in: core)
+        viewModel.handleProgressChangeForTesting(core.progress)
+        XCTAssertEqual(core.progress, .failed)
+        XCTAssertTrue(viewModel.showingResult)
+
+        viewModel.handleRestartCurrentDungeonFloorForTesting()
+
+        XCTAssertEqual(core.progress, .playing)
+        XCTAssertEqual(core.current, GridPoint(x: 0, y: 0))
+        XCTAssertEqual(core.dungeonHP, 1)
+        XCTAssertFalse(viewModel.showingResult)
+    }
+
+    func testRestartCurrentDungeonFloorIsGatedByDiagnostics() throws {
+        DebugLogHistory.shared.setFrontEndViewerEnabled(false)
+        defer { DebugLogHistory.shared.setFrontEndViewerEnabled(true) }
+        let mode = makeCurrentFloorRestartMode(
+            initialHP: 3,
+            damageTrap: GridPoint(x: 1, y: 0),
+            key: GridPoint(x: 4, y: 4),
+            pickup: nil
+        )
+        let (viewModel, core) = makeViewModel(mode: mode)
+        playBasicMove(to: GridPoint(x: 1, y: 0), in: core)
+
+        XCTAssertFalse(viewModel.canRestartCurrentDungeonFloorForTesting)
+        viewModel.handleRestartCurrentDungeonFloorForTesting()
+
+        XCTAssertEqual(core.current, GridPoint(x: 1, y: 0))
+        XCTAssertEqual(core.dungeonHP, 2)
     }
 
     func testWarpTowerRewardAppearsUsableOnStartedNextFloor() throws {
@@ -3289,6 +3455,48 @@ final class GameViewModelTests: XCTestCase {
         )
     }
 
+    private func makeCurrentFloorRestartMode(
+        initialHP: Int,
+        damageTrap: GridPoint,
+        key: GridPoint,
+        pickup: DungeonCardPickupDefinition?
+    ) -> GameMode {
+        GameMode(
+            identifier: .dungeonFloor,
+            displayName: "現在階リセットテスト",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 10,
+                nextPreviewCount: 0,
+                allowsStacking: true,
+                deckPreset: .standardLight,
+                spawnRule: .fixed(GridPoint(x: 0, y: 0)),
+                penalties: GameMode.PenaltySettings(
+                    deadlockPenaltyCost: 0,
+                    manualRedrawPenaltyCost: 0,
+                    manualDiscardPenaltyCost: 0,
+                    revisitPenaltyCost: 0
+                ),
+                completionRule: .dungeonExit(exitPoint: GridPoint(x: 4, y: 0)),
+                dungeonRules: DungeonRules(
+                    difficulty: .growth,
+                    failureRule: DungeonFailureRule(initialHP: initialHP, turnLimit: nil),
+                    hazards: [.damageTrap(points: [damageTrap], damage: 1)],
+                    exitLock: DungeonExitLock(unlockPoint: key),
+                    allowsBasicOrthogonalMove: true,
+                    cardAcquisitionMode: .inventoryOnly,
+                    cardPickups: pickup.map { [$0] } ?? []
+                )
+            ),
+            leaderboardEligible: false,
+            dungeonMetadata: GameMode.DungeonMetadata(
+                dungeonID: "current-floor-restart-test",
+                floorID: "current-floor-restart-floor",
+                runState: DungeonRunState(dungeonID: "current-floor-restart-test", carriedHP: initialHP)
+            )
+        )
+    }
+
     private func makePickupChoiceMode(pickup: DungeonCardPickupDefinition) -> GameMode {
         makePickupChoiceMode(pickups: [pickup])
     }
@@ -3324,6 +3532,41 @@ final class GameViewModelTests: XCTestCase {
                 dungeonID: "view-model-pickup-test",
                 floorID: "pickup-choice",
                 runState: DungeonRunState(dungeonID: "view-model-pickup-test", carriedHP: 3)
+            )
+        )
+    }
+
+    private func makeRelicPickupChoiceMode(pickup: DungeonRelicPickupDefinition) -> GameMode {
+        GameMode(
+            identifier: .dungeonFloor,
+            displayName: "宝箱選択テスト",
+            regulation: GameMode.Regulation(
+                boardSize: BoardGeometry.standardSize,
+                handSize: 10,
+                nextPreviewCount: 0,
+                allowsStacking: true,
+                deckPreset: .standardLight,
+                spawnRule: .fixed(GridPoint(x: 0, y: 0)),
+                penalties: GameMode.PenaltySettings(
+                    deadlockPenaltyCost: 0,
+                    manualRedrawPenaltyCost: 0,
+                    manualDiscardPenaltyCost: 0,
+                    revisitPenaltyCost: 0
+                ),
+                completionRule: .dungeonExit(exitPoint: GridPoint(x: 4, y: 4)),
+                dungeonRules: DungeonRules(
+                    difficulty: .growth,
+                    failureRule: DungeonFailureRule(initialHP: 3, turnLimit: nil),
+                    allowsBasicOrthogonalMove: true,
+                    cardAcquisitionMode: .inventoryOnly,
+                    relicPickups: [pickup]
+                )
+            ),
+            leaderboardEligible: false,
+            dungeonMetadata: GameMode.DungeonMetadata(
+                dungeonID: "view-model-relic-pickup-test",
+                floorID: "relic-pickup-choice",
+                runState: DungeonRunState(dungeonID: "view-model-relic-pickup-test", carriedHP: 3)
             )
         )
     }

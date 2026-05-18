@@ -60,9 +60,6 @@ struct SettingsView: View {
             .onChange(of: storeService.isRemoveAdsPurchased) { oldValue, newValue in
                 handleRemoveAdsPurchaseChange(oldValue: oldValue, newValue: newValue)
             }
-            .preferredColorScheme(
-                gameSettingsStore.preferredColorScheme.preferredColorScheme
-            )
         }
         .alert(item: $presentationState.storeAlert) { alert in
             Alert(

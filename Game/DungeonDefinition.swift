@@ -1231,14 +1231,14 @@ public enum DungeonCurseID: String, Codable, CaseIterable, Equatable, Identifiab
     case firewalkingTalisman
     case tinkersToolbox
     case expressTicket
+    case ploverContract
 
     public var id: String { rawValue }
 
     public static let newAcquisitionCases: [DungeonCurseID] = [
-        .trapMagnet, .poisonVial, .chaserScent, .oilSoakedBoots, .firewalkingTalisman,
-        .flickeringCampfire, .ashHeart, .supportOath, .tinkersToolbox, .expressTicket,
-        .redChalice, .obsidianHeart, .cursedCrown, .warpedHourglass, .greedyBag,
-        .contractCodex, .royalIou, .bottomlessPack, .relicHunterBrand, .lastStandShield
+        .trapMagnet, .poisonVial, .chaserScent, .firewalkingTalisman, .flickeringCampfire,
+        .supportOath, .tinkersToolbox, .expressTicket, .ploverContract, .redChalice,
+        .cursedCrown, .warpedHourglass, .contractCodex, .royalIou, .lastStandShield
     ]
 
     public var encyclopediaDiscoveryID: EncyclopediaDiscoveryID {
@@ -1327,6 +1327,8 @@ public enum DungeonCurseID: String, Codable, CaseIterable, Equatable, Identifiab
             return "細工師の工具箱"
         case .expressTicket:
             return "急行切符"
+        case .ploverContract:
+            return "千鳥の契約"
         }
     }
 
@@ -1343,7 +1345,7 @@ public enum DungeonCurseID: String, Codable, CaseIterable, Equatable, Identifiab
         case .obsidianHeart:
             return "取得時にHPが6増える。"
         case .warpedHourglass:
-            return "各フロアの手数上限が+8される。"
+            return "手数上限の半分以内でクリアすると、選んだ報酬カードの使用回数が+2される。"
         case .redChalice:
             return "取得時にHPが8増える。"
         case .greedyBag:
@@ -1361,7 +1363,7 @@ public enum DungeonCurseID: String, Codable, CaseIterable, Equatable, Identifiab
         case .patrolBell:
             return "クリア報酬の補助カード出現率が5pt上がる。"
         case .chaserScent:
-            return "各フロアの手数上限が+4される。"
+            return "追跡兵がいる階では、クリア報酬カードの使用回数が+1される。"
         case .meteorRod:
             return "取得時にHPが3増える。"
         case .trapMagnet:
@@ -1412,6 +1414,8 @@ public enum DungeonCurseID: String, Codable, CaseIterable, Equatable, Identifiab
             return "既に所持している移動カードと同種の報酬を選ぶ時、使用回数が+2される。"
         case .expressTicket:
             return "手数上限の半分以内でクリアすると、次階開始時にHPが3増える。"
+        case .ploverContract:
+            return "手札スロットが1つ増える。最大10枠。"
         }
     }
 
@@ -1428,7 +1432,7 @@ public enum DungeonCurseID: String, Codable, CaseIterable, Equatable, Identifiab
         case .obsidianHeart:
             return "各フロア開始時にHPが1減る。HPは1未満にならない。"
         case .warpedHourglass:
-            return "拾得カードと報酬カードの使用回数が増える時、増加量が1減る。最低1回は残る。"
+            return "手数上限の半分を超えてクリアすると、次階開始HPが1減る。最低1。"
         case .redChalice:
             return "以後、受けるダメージが1増える。"
         case .greedyBag:
@@ -1497,6 +1501,8 @@ public enum DungeonCurseID: String, Codable, CaseIterable, Equatable, Identifiab
             return "未所持の移動カードを報酬で新しく得る時、使用回数が1減る。最低1回は残る。"
         case .expressTicket:
             return "疲労ダメージが1増える。"
+        case .ploverContract:
+            return "基本移動が使えなくなる。"
         }
     }
 
@@ -1523,7 +1529,7 @@ public enum DungeonCurseID: String, Codable, CaseIterable, Equatable, Identifiab
              .laughingDoor, .upsideDownKey, .taxCollector, .flickeringCampfire,
              .contractCodex, .royalIou, .bottomlessPack, .relicHunterBrand, .supportOath, .ashHeart,
              .hasteArmor, .scorchedCloak, .lastStandShield, .firewalkingTalisman, .tinkersToolbox,
-             .expressTicket:
+             .expressTicket, .ploverContract:
             return "この挑戦中ずっと残る。"
         }
     }
@@ -1610,6 +1616,8 @@ public enum DungeonCurseID: String, Codable, CaseIterable, Equatable, Identifiab
             return "wrench.and.screwdriver.fill"
         case .expressTicket:
             return "ticket.fill"
+        case .ploverContract:
+            return "arrow.triangle.branch"
         }
     }
 
@@ -1624,7 +1632,8 @@ public enum DungeonCurseID: String, Codable, CaseIterable, Equatable, Identifiab
              .glassAnklet, .poisonVial, .ironShackle, .foolsMask, .frayedMemory, .wetTinder,
              .laughingDoor, .upsideDownKey, .taxCollector, .flickeringCampfire,
              .contractCodex, .royalIou, .bottomlessPack, .relicHunterBrand, .supportOath, .ashHeart,
-             .hasteArmor, .scorchedCloak, .firewalkingTalisman, .tinkersToolbox, .expressTicket:
+             .hasteArmor, .scorchedCloak, .firewalkingTalisman, .tinkersToolbox, .expressTicket,
+             .ploverContract:
             return 0
         case .lastStandShield:
             return 1
@@ -2626,7 +2635,7 @@ public enum DungeonWeightedRewardPools {
             case .poisonTrap:
                 hasStatusTrap = true
                 hasPoisonTrap = true
-            case .shackleTrap, .illusionTrap, .relicBreakTrap:
+            case .shackleTrap, .illusionTrap, .staggerTrap, .relicBreakTrap:
                 hasStatusTrap = true
             case .discardRandomHand, .discardAllMoveCards, .discardAllSupportCards, .discardAllHands:
                 hasStatusTrap = true
@@ -2871,6 +2880,7 @@ public struct DungeonRunState: Codable, Equatable, Sendable {
         supportRewardAddUses: Int = 1,
         areDungeonRelicAndCurseEffectsEnabled: Bool = true,
         completedWithinHalfTurnLimit: Bool = false,
+        completedWithChaserOnFloor: Bool = false,
         hazardDamageMitigationsRemaining: Int? = nil,
         enemyDamageMitigationsRemaining: Int? = nil,
         markerDamageMitigationsRemaining: Int? = nil,
@@ -2881,14 +2891,19 @@ public struct DungeonRunState: Codable, Equatable, Sendable {
         let selection = rewardSelection ?? rewardMoveCard.map { DungeonRewardSelection.add($0) }
         let currentEffectRelicEntries = areDungeonRelicAndCurseEffectsEnabled ? (currentRelicEntries ?? relicEntries) : []
         let currentEffectCurseEntries = areDungeonRelicAndCurseEffectsEnabled ? (currentCurseEntries ?? curseEntries) : []
+        let contextualRewardUseBonus = DungeonRunState.contextualRewardUseBonus(
+            curseEntries: currentEffectCurseEntries,
+            completedWithinHalfTurnLimit: completedWithinHalfTurnLimit,
+            completedWithChaserOnFloor: completedWithChaserOnFloor
+        )
         let updatedRewardInventoryEntries = DungeonRunState.applying(
             selection,
             to: carriedEntries,
             sourceEntries: sourceEntries,
             relicEntries: currentEffectRelicEntries,
             curseEntries: currentEffectCurseEntries,
-            rewardAddUses: rewardAddUses,
-            supportRewardAddUses: supportRewardAddUses
+            rewardAddUses: rewardAddUses + contextualRewardUseBonus,
+            supportRewardAddUses: supportRewardAddUses + contextualRewardUseBonus
         )
         let selectedRelicEntries = DungeonRunState.applyingRelicReward(
             selection,
@@ -2913,7 +2928,11 @@ public struct DungeonRunState: Codable, Equatable, Sendable {
             curseEntries: effectCurseEntries
         )
         let obsidianHeartPenalty = effectCurseEntries.contains { $0.curseID == .obsidianHeart } ? 1 : 0
-        let adjustedCarryoverHP = max(rewardRelicAdjustedHP - obsidianHeartPenalty, 1)
+        let hasSlowWarpedHourglassClear = !completedWithinHalfTurnLimit && effectCurseEntries.contains {
+            $0.curseID == .warpedHourglass
+        }
+        let warpedHourglassPenalty = hasSlowWarpedHourglassClear ? 1 : 0
+        let adjustedCarryoverHP = max(rewardRelicAdjustedHP - obsidianHeartPenalty - warpedHourglassPenalty, 1)
         var floorStartHP = adjustedCarryoverHP
             + floorStartRelicResult.hpBonus
             + (effectRelicEntries.contains { $0.relicID == .immortalHeart } ? 1 : 0)
@@ -3371,6 +3390,20 @@ public struct DungeonRunState: Codable, Equatable, Sendable {
         return max(baseUses + adjustment, 1)
     }
 
+    public static func contextualRewardUseBonus(
+        curseEntries: [DungeonCurseEntry],
+        completedWithinHalfTurnLimit: Bool,
+        completedWithChaserOnFloor: Bool
+    ) -> Int {
+        let chaserScentBonus = completedWithChaserOnFloor && curseEntries.contains {
+            $0.curseID == .chaserScent
+        } ? 1 : 0
+        let warpedHourglassBonus = completedWithinHalfTurnLimit && curseEntries.contains {
+            $0.curseID == .warpedHourglass
+        } ? 2 : 0
+        return chaserScentBonus + warpedHourglassBonus
+    }
+
     public static func adjustedMoveRewardBaseUses(
         _ baseUses: Int,
         relicEntries: [DungeonRelicEntry],
@@ -3384,14 +3417,13 @@ public struct DungeonRunState: Codable, Equatable, Sendable {
         let contractCodexBonus = curseEntries.contains { $0.curseID == .contractCodex } ? 3 : 0
         let royalIouBonus = curseEntries.contains { $0.curseID == .royalIou } ? 2 : 0
         let cursePenalty = curseEntries.contains { $0.curseID == .bloodPact && $0.remainingUses > 0 } ? 1 : 0
-        let warpedHourglassPenalty = curseEntries.contains { $0.curseID == .warpedHourglass } ? 1 : 0
         let greedyBagPenalty = curseEntries.contains { $0.curseID == .greedyBag } ? 2 : 0
         let relicHunterPenalty = curseEntries.contains { $0.curseID == .relicHunterBrand } ? 1 : 0
         let supportOathPenalty = curseEntries.contains { $0.curseID == .supportOath } ? 1 : 0
         return max(
             baseUses + heavyCrownBonus + royalCrownBonus + sageCodexBonus + cursedCrownBonus + trapMagnetBonus
                 + contractCodexBonus + royalIouBonus
-                - cursePenalty - warpedHourglassPenalty - greedyBagPenalty - relicHunterPenalty - supportOathPenalty,
+                - cursePenalty - greedyBagPenalty - relicHunterPenalty - supportOathPenalty,
             1
         )
     }
@@ -5815,7 +5847,7 @@ private enum DungeonCardVariationResolver {
 
     private static func isGrowthStatusTrap(_ effect: TileEffect) -> Bool {
         switch effect {
-        case .poisonTrap, .shackleTrap, .illusionTrap, .relicBreakTrap,
+        case .poisonTrap, .shackleTrap, .illusionTrap, .staggerTrap, .relicBreakTrap,
              .discardRandomHand, .discardAllMoveCards, .discardAllSupportCards, .discardAllHands:
             return true
         case .warp, .returnWarp, .shuffleHand, .blast, .slow, .swamp, .preserveCard:

@@ -103,6 +103,8 @@ extension GameBoardControlRowView {
         damageBarrierTurnsRemaining: Int,
         isShackled: Bool,
         isIlluded: Bool,
+        staggerForcedMovesRemaining: Int = 0,
+        isEmptyHandStaggerActive: Bool = false,
         poisonDamageTicksRemaining: Int,
         poisonActionsUntilNextDamage: Int
     ) -> [DungeonStatusEffectPresentation] {
@@ -119,6 +121,11 @@ extension GameBoardControlRowView {
         }
         if isIlluded {
             effects.append(.illusion)
+        }
+        if staggerForcedMovesRemaining > 0 {
+            effects.append(.stagger(forcedMovesRemaining: staggerForcedMovesRemaining))
+        } else if isEmptyHandStaggerActive {
+            effects.append(.emptyHandStagger)
         }
         if poisonDamageTicksRemaining > 0 {
             effects.append(.poison(
@@ -137,6 +144,7 @@ struct DungeonStatusEffectPresentation: Identifiable, Equatable {
         case damageBarrier
         case shackle
         case illusion
+        case stagger
         case poison
     }
 
@@ -201,6 +209,32 @@ struct DungeonStatusEffectPresentation: Identifiable, Equatable {
             detailText: "この階にいる間、移動カードの正体が分からず、使うと合法な移動カードと移動先からランダムに解決されます。",
             accessibilityLabel: "幻惑状態",
             accessibilityValue: "この階にいる間、移動カードの正体が分からずランダムに使用されます"
+        )
+    }
+
+    static func stagger(forcedMovesRemaining: Int) -> Self {
+        Self(
+            kind: .stagger,
+            title: "千鳥足",
+            symbolName: "arrow.triangle.branch",
+            badgeText: "\(forcedMovesRemaining)",
+            currentValueText: "強制移動 残り \(forcedMovesRemaining) 回",
+            detailText: "敵ターン後、周囲8マスの移動可能な方向からランダムに移動します。",
+            accessibilityLabel: "千鳥足状態",
+            accessibilityValue: "強制移動残り\(forcedMovesRemaining)回"
+        )
+    }
+
+    static var emptyHandStagger: Self {
+        Self(
+            kind: .stagger,
+            title: "千鳥足",
+            symbolName: "arrow.triangle.branch",
+            badgeText: "0",
+            currentValueText: "手札0枚",
+            detailText: "手札が0枚のため、周囲8マスの移動可能な方向からランダムに移動します。",
+            accessibilityLabel: "千鳥足状態",
+            accessibilityValue: "手札0枚のためランダムに移動します"
         )
     }
 
@@ -398,6 +432,8 @@ private extension GameBoardControlRowView {
                 damageBarrierTurnsRemaining: viewModel.damageBarrierTurnsRemaining,
                 isShackled: viewModel.isShackled,
                 isIlluded: viewModel.isIlluded,
+                staggerForcedMovesRemaining: viewModel.staggerForcedMovesRemaining,
+                isEmptyHandStaggerActive: viewModel.isEmptyHandStaggerActive,
                 poisonDamageTicksRemaining: viewModel.poisonDamageTicksRemaining,
                 poisonActionsUntilNextDamage: viewModel.poisonActionsUntilNextDamage
             )

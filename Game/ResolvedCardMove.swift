@@ -257,6 +257,8 @@ public struct ResolvedCardMove: Hashable, Sendable {
                 hasher.combine("poisonTrap")
             case .illusionTrap:
                 hasher.combine("illusionTrap")
+            case .staggerTrap:
+                hasher.combine("staggerTrap")
             case .relicBreakTrap:
                 hasher.combine("relicBreakTrap")
             case .swamp:

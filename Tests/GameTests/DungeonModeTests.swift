@@ -817,13 +817,14 @@ final class DungeonModeTests: XCTestCase {
         )
         let core = makeCore(mode: mode)
 
-        XCTAssertEqual(core.effectiveDungeonTurnLimit, 13)
+        XCTAssertEqual(core.effectiveDungeonTurnLimit, 5)
 
         let advanced = runState.advancedToNextFloor(
             carryoverHP: 5,
             currentFloorMoveCount: 0,
             currentInventoryEntries: core.dungeonInventoryEntries,
-            currentCurseEntries: core.dungeonCurseEntries
+            currentCurseEntries: core.dungeonCurseEntries,
+            completedWithinHalfTurnLimit: true
         )
 
         XCTAssertEqual(advanced.carriedHP, 4)
@@ -6147,6 +6148,7 @@ final class DungeonModeTests: XCTestCase {
             runState: DungeonRunState(
                 dungeonID: "growth-tower",
                 carriedHP: 3,
+                rewardInventoryEntries: [DungeonInventoryEntry(card: .straightRight2, rewardUses: 1)],
                 relicEntries: [
                     DungeonRelicEntry(relicID: .slayerPouch),
                     DungeonRelicEntry(relicID: .hunterBanner)
@@ -7866,7 +7868,7 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertTrue(core.dungeonInventoryEntries.contains(DungeonInventoryEntry(support: .refillEmptySlots, rewardUses: 1)))
     }
 
-    func testWarpedHourglassReducesFloorPickupUsesToMinimumOne() throws {
+    func testWarpedHourglassDoesNotChangeFloorPickupUses() throws {
         let pickup = DungeonCardPickupDefinition(
             id: "warped-pickup",
             point: GridPoint(x: 1, y: 0),
@@ -7891,7 +7893,7 @@ final class DungeonModeTests: XCTestCase {
         playBasicMove(to: pickup.point, in: core)
 
         XCTAssertTrue(core.collectedDungeonCardPickupIDs.contains(pickup.id))
-        XCTAssertTrue(core.dungeonInventoryEntries.contains(DungeonInventoryEntry(card: .straightRight2, rewardUses: 2)))
+        XCTAssertTrue(core.dungeonInventoryEntries.contains(DungeonInventoryEntry(card: .straightRight2, rewardUses: 3)))
     }
 
     func testRelicRewardSelectionCarriesRelicWithoutUsingCardSlot() {
@@ -9124,11 +9126,17 @@ final class DungeonModeTests: XCTestCase {
     }
 
     func testCurseDefinitionsCoverExpandedRunCurses() {
-        XCTAssertEqual(DungeonCurseID.allCases.count, 40)
-        XCTAssertEqual(DungeonCurseID.newAcquisitionCases.count, 20)
-        XCTAssertEqual(Set(DungeonCurseID.newAcquisitionCases).count, 20)
+        XCTAssertEqual(DungeonCurseID.allCases.count, 41)
+        XCTAssertEqual(DungeonCurseID.newAcquisitionCases.count, 15)
+        XCTAssertEqual(Set(DungeonCurseID.newAcquisitionCases).count, 15)
         XCTAssertTrue(DungeonCurseID.newAcquisitionCases.allSatisfy { DungeonCurseID.allCases.contains($0) })
         XCTAssertFalse(DungeonCurseID.newAcquisitionCases.contains(.rustyChain))
+        XCTAssertFalse(DungeonCurseID.newAcquisitionCases.contains(.oilSoakedBoots))
+        XCTAssertFalse(DungeonCurseID.newAcquisitionCases.contains(.obsidianHeart))
+        XCTAssertFalse(DungeonCurseID.newAcquisitionCases.contains(.greedyBag))
+        XCTAssertFalse(DungeonCurseID.newAcquisitionCases.contains(.bottomlessPack))
+        XCTAssertFalse(DungeonCurseID.newAcquisitionCases.contains(.relicHunterBrand))
+        XCTAssertFalse(DungeonCurseID.newAcquisitionCases.contains(.ashHeart))
         XCTAssertEqual(
             DungeonRelicPickupDefinition(id: "default", point: GridPoint(x: 0, y: 0)).candidateCurses,
             DungeonCurseID.newAcquisitionCases
@@ -9139,6 +9147,84 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertTrue(DungeonCurseID.allCases.allSatisfy { !$0.releaseDescription.isEmpty })
         XCTAssertTrue(DungeonCurseID.allCases.allSatisfy { !$0.symbolName.isEmpty })
         XCTAssertTrue(DungeonCurseID.allCases.allSatisfy { $0.displayKind == .persistent || $0.displayKind == .temporary })
+    }
+
+    func testPloverContractRemovesBasicMoveAndExpandsHandLimitToTen() {
+        let cards = Array(MoveCard.allCases.prefix(9)).map {
+            DungeonInventoryEntry(card: $0, rewardUses: 1)
+        }
+        let runState = DungeonRunState(
+            dungeonID: "growth-tower",
+            carriedHP: 3,
+            rewardInventoryEntries: cards,
+            curseEntries: [DungeonCurseEntry(curseID: .ploverContract)],
+            dungeonInventoryKindLimit: 9
+        )
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 2, y: 2),
+            exit: GridPoint(x: 4, y: 4),
+            turnLimit: 20,
+            allowsBasicOrthogonalMove: true,
+            cardAcquisitionMode: .inventoryOnly,
+            runState: runState
+        )
+        let core = makeCore(mode: mode)
+
+        XCTAssertTrue(core.availableBasicOrthogonalMoves().isEmpty)
+        XCTAssertEqual(core.dungeonInventoryKindLimit, 10)
+    }
+
+    func testEmptyHandTriggersAutomaticStaggerMove() {
+        let trapPoint = GridPoint(x: 2, y: 0)
+        let runState = DungeonRunState(
+            dungeonID: "growth-tower",
+            carriedHP: 3,
+            rewardInventoryEntries: [DungeonInventoryEntry(card: .straightRight2, rewardUses: 1)],
+            curseEntries: [DungeonCurseEntry(curseID: .ploverContract)],
+            dungeonInventoryKindLimit: 5
+        )
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            turnLimit: 20,
+            tileEffectOverrides: [trapPoint: .discardAllHands],
+            allowsBasicOrthogonalMove: true,
+            cardAcquisitionMode: .inventoryOnly,
+            runState: runState
+        )
+        let core = makeCore(mode: mode)
+
+        playMove(to: trapPoint, in: core)
+
+        XCTAssertEqual(core.dungeonInventoryEntries.filter(\.hasUsesRemaining).count, 0)
+        XCTAssertGreaterThan(core.moveCount, 1)
+        XCTAssertNotEqual(core.current, trapPoint)
+    }
+
+    func testStaggerTrapForcesTwoMovesAfterEnemyTurns() {
+        let trapPoint = GridPoint(x: 2, y: 3)
+        let runState = DungeonRunState(
+            dungeonID: "growth-tower",
+            carriedHP: 3,
+            rewardInventoryEntries: [DungeonInventoryEntry(card: .straightRight2, rewardUses: 1)],
+            dungeonInventoryKindLimit: 5
+        )
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 2, y: 2),
+            exit: GridPoint(x: 4, y: 4),
+            turnLimit: 20,
+            tileEffectOverrides: [trapPoint: .staggerTrap],
+            allowsBasicOrthogonalMove: true,
+            cardAcquisitionMode: .inventoryOnly,
+            runState: runState
+        )
+        let core = makeCore(mode: mode)
+
+        playBasicMove(to: trapPoint, in: core)
+
+        XCTAssertEqual(core.staggerForcedMovesRemaining, 0)
+        XCTAssertEqual(core.moveCount, 3)
+        XCTAssertNotEqual(core.current, trapPoint)
     }
 
     func testBuildChangingCursesAdjustPickupRewardUsesAndTurnLimit() {
@@ -9199,6 +9285,67 @@ final class DungeonModeTests: XCTestCase {
             DungeonRunState.adjustedSupportRewardUses(1, relicEntries: [], curseEntries: curseEntries),
             8
         )
+    }
+
+    func testChaserScentAddsRewardUsesOnlyOnChaserFloors() {
+        let curseEntries = [DungeonCurseEntry(curseID: .chaserScent)]
+
+        XCTAssertEqual(
+            DungeonRunState.contextualRewardUseBonus(
+                curseEntries: curseEntries,
+                completedWithinHalfTurnLimit: false,
+                completedWithChaserOnFloor: true
+            ),
+            1
+        )
+        XCTAssertEqual(
+            DungeonRunState.contextualRewardUseBonus(
+                curseEntries: curseEntries,
+                completedWithinHalfTurnLimit: false,
+                completedWithChaserOnFloor: false
+            ),
+            0
+        )
+
+        let runState = DungeonRunState(
+            dungeonID: "growth-tower",
+            carriedHP: 3,
+            curseEntries: curseEntries
+        )
+        let advanced = runState.advancedToNextFloor(
+            carryoverHP: 3,
+            currentFloorMoveCount: 4,
+            rewardSelection: .add(.straightRight2),
+            completedWithChaserOnFloor: true
+        )
+
+        XCTAssertEqual(advanced.rewardInventoryEntries.first { $0.moveCard == .straightRight2 }?.totalUses, 3)
+    }
+
+    func testWarpedHourglassRewardsFastClearAndPenalizesSlowClearHP() {
+        let runState = DungeonRunState(
+            dungeonID: "growth-tower",
+            carriedHP: 4,
+            curseEntries: [DungeonCurseEntry(curseID: .warpedHourglass)]
+        )
+
+        let fastClear = runState.advancedToNextFloor(
+            carryoverHP: 4,
+            currentFloorMoveCount: 4,
+            rewardSelection: .add(.straightRight2),
+            completedWithinHalfTurnLimit: true
+        )
+        let slowClear = runState.advancedToNextFloor(
+            carryoverHP: 4,
+            currentFloorMoveCount: 7,
+            rewardSelection: .add(.straightRight2),
+            completedWithinHalfTurnLimit: false
+        )
+
+        XCTAssertEqual(fastClear.rewardInventoryEntries.first { $0.moveCard == .straightRight2 }?.totalUses, 4)
+        XCTAssertEqual(fastClear.carriedHP, 4)
+        XCTAssertEqual(slowClear.rewardInventoryEntries.first { $0.moveCard == .straightRight2 }?.totalUses, 2)
+        XCTAssertEqual(slowClear.carriedHP, 3)
     }
 
     func testBuildChangingCursesAdjustNextFloorHP() {
@@ -10030,7 +10177,7 @@ final class DungeonModeTests: XCTestCase {
     private func growthTowerStatusTrapPoints(for floor: DungeonFloorDefinition) -> Set<GridPoint> {
         Set(floor.tileEffectOverrides.compactMap { point, effect in
             switch effect {
-            case .poisonTrap, .shackleTrap, .illusionTrap, .relicBreakTrap,
+            case .poisonTrap, .shackleTrap, .illusionTrap, .staggerTrap, .relicBreakTrap,
                  .discardRandomHand, .discardAllMoveCards, .discardAllSupportCards, .discardAllHands:
                 return point
             case .warp, .returnWarp, .shuffleHand, .blast, .slow, .swamp, .preserveCard:

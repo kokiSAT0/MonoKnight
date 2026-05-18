@@ -1201,6 +1201,19 @@ private struct TileEffectMarkerView: View {
                     .font(.system(size: 23, weight: .heavy, design: .rounded))
                     .foregroundStyle(accent)
             }
+        case .staggerTrap:
+            ZStack {
+                DiamondShape()
+                    .fill(accent.opacity(0.14))
+                    .frame(width: 31, height: 31)
+                DiamondShape()
+                    .stroke(accent.opacity(0.86), lineWidth: 2)
+                    .frame(width: 31, height: 31)
+                Text("~")
+                    .font(.system(size: 24, weight: .heavy, design: .rounded))
+                    .rotationEffect(.degrees(-10))
+                    .foregroundStyle(accent)
+            }
         case .swamp:
             ZStack {
                 Capsule()
@@ -1280,6 +1293,8 @@ private struct TileEffectMarkerView: View {
         case .poisonTrap:
             return theme.boardTileEffectSlow
         case .illusionTrap:
+            return theme.boardTileEffectSlow
+        case .staggerTrap:
             return theme.boardTileEffectSlow
         case .swamp:
             return theme.boardTileEffectSwamp

@@ -111,6 +111,8 @@
                     return "毒罠"
                 case .illusionTrap:
                     return "幻惑罠"
+                case .staggerTrap:
+                    return "千鳥足罠"
                 case .relicBreakTrap:
                     return "レリック破壊罠"
                 case .swamp:

@@ -1779,6 +1779,8 @@ private extension TileEffect {
             return "毒"
         case .illusionTrap:
             return "幻惑"
+        case .staggerTrap:
+            return "千鳥足"
         case .relicBreakTrap:
             return "レリック破壊"
         case .swamp:
@@ -1792,7 +1794,7 @@ private extension TileEffect {
 
     var isDeepStatusEffect: Bool {
         switch self {
-        case .poisonTrap, .illusionTrap, .relicBreakTrap, .shackleTrap, .swamp:
+        case .poisonTrap, .illusionTrap, .staggerTrap, .relicBreakTrap, .shackleTrap, .swamp:
             return true
         case .warp, .returnWarp, .shuffleHand, .blast, .slow, .preserveCard, .discardRandomHand, .discardAllMoveCards, .discardAllSupportCards, .discardAllHands:
             return false
@@ -1803,7 +1805,7 @@ private extension TileEffect {
         switch self {
         case .discardRandomHand, .discardAllMoveCards, .discardAllSupportCards, .discardAllHands:
             return true
-        case .warp, .returnWarp, .shuffleHand, .blast, .slow, .shackleTrap, .poisonTrap, .illusionTrap, .relicBreakTrap, .swamp, .preserveCard:
+        case .warp, .returnWarp, .shuffleHand, .blast, .slow, .shackleTrap, .poisonTrap, .illusionTrap, .staggerTrap, .relicBreakTrap, .swamp, .preserveCard:
             return false
         }
     }

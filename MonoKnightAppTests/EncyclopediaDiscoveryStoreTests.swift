@@ -63,6 +63,22 @@ final class EncyclopediaDiscoveryStoreTests: XCTestCase {
         XCTAssertTrue(restored.disablesDungeonRelicEffectsForDeveloper)
     }
 
+    func testGameSettingsStorePersistsPreferredColorScheme() {
+        let defaults = makeDefaults()
+        let store = GameSettingsStore(userDefaults: defaults)
+
+        XCTAssertEqual(store.preferredColorScheme, .system)
+        store.preferredColorScheme = .dark
+
+        let restoredDark = GameSettingsStore(userDefaults: defaults)
+        XCTAssertEqual(restoredDark.preferredColorScheme, .dark)
+
+        restoredDark.preferredColorScheme = .system
+
+        let restoredSystem = GameSettingsStore(userDefaults: defaults)
+        XCTAssertEqual(restoredSystem.preferredColorScheme, .system)
+    }
+
     func testLockedPresentationHidesUndiscoveredText() {
         XCTAssertEqual(
             EncyclopediaLockedPresentation.title("割れた盾", isUnlocked: false),

@@ -232,6 +232,13 @@ public struct TileEncyclopediaEntry: Identifiable, Equatable, Sendable {
             previewKind: .effect(.illusionTrap)
         ),
         TileEncyclopediaEntry(
+            id: "staggerTrap",
+            displayName: "千鳥足罠",
+            category: "危険",
+            description: "踏むと敵ターン後に千鳥足で強制移動します。周囲8マスの移動可能な方向からランダムに動き、2回分続きます。",
+            previewKind: .effect(.staggerTrap)
+        ),
+        TileEncyclopediaEntry(
             id: "relicBreakTrap",
             displayName: "レリック破壊罠",
             category: "危険",
@@ -299,6 +306,8 @@ public extension TileEncyclopediaEntry {
             return entry(id: "poisonTrap")
         case .illusionTrap:
             return entry(id: "illusionTrap")
+        case .staggerTrap:
+            return entry(id: "staggerTrap")
         case .relicBreakTrap:
             return entry(id: "relicBreakTrap")
         case .swamp:

@@ -8,6 +8,8 @@ struct PauseMenuView: View {
     private var theme = AppTheme()
     /// プレイ再開ボタン押下時の処理
     let onResume: () -> Void
+    /// 現在階の開始直後へ戻すテスター向け操作
+    let onRestartCurrentFloor: (() -> Void)?
     /// タイトルへ戻る確定時の処理
     let onConfirmReturnToTitle: () -> Void
     /// 内部テスター向け共有レポートを生成するクロージャ
@@ -19,10 +21,12 @@ struct PauseMenuView: View {
     ///   - onConfirmReturnToTitle: タイトル復帰確定時に実行するクロージャ
     init(
         onResume: @escaping () -> Void,
+        onRestartCurrentFloor: (() -> Void)? = nil,
         onConfirmReturnToTitle: @escaping () -> Void,
         diagnosticReportText: (() -> String)? = nil
     ) {
         self.onResume = onResume
+        self.onRestartCurrentFloor = onRestartCurrentFloor
         self.onConfirmReturnToTitle = onConfirmReturnToTitle
         self.diagnosticReportText = diagnosticReportText
     }
@@ -109,10 +113,13 @@ struct PauseMenuView: View {
     /// 確認ダイアログで選ばれたアクションを実行する
     /// - Parameter action: ユーザーが確定した操作種別
     private func handleConfirmation(_ action: PauseConfirmationAction) {
-        switch action {
-        case .returnToTitle:
-            onConfirmReturnToTitle()
-            dismiss()
+            switch action {
+            case .restartCurrentFloor:
+                onRestartCurrentFloor?()
+                dismiss()
+            case .returnToTitle:
+                onConfirmReturnToTitle()
+                dismiss()
         }
         pendingAction = nil
     }
@@ -175,6 +182,19 @@ private extension PauseMenuView {
                 .buttonStyle(.bordered)
                 .foregroundColor(theme.textPrimary)
                 .accessibilityIdentifier(PauseMenuAccessibilityIdentifier.reportIssueButton)
+            }
+
+            if onRestartCurrentFloor != nil {
+                Button {
+                    pendingAction = .restartCurrentFloor
+                } label: {
+                    Label("この階の初めから", systemImage: "arrow.counterclockwise")
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                }
+                .buttonStyle(.bordered)
+                .foregroundColor(theme.textPrimary)
+                .accessibilityIdentifier(PauseMenuAccessibilityIdentifier.restartCurrentFloorButton)
             }
 
             Button {
@@ -308,22 +328,27 @@ private extension PauseMenuView {
 
     /// ポーズメニュー内で扱う確認対象の列挙体
     enum PauseConfirmationAction: Identifiable {
+        case restartCurrentFloor
         case returnToTitle
 
         var id: Int {
             switch self {
-            case .returnToTitle: return 0
+            case .restartCurrentFloor: return 0
+            case .returnToTitle: return 1
             }
         }
 
         var confirmationButtonTitle: String {
             switch self {
+            case .restartCurrentFloor: return "この階の初めから"
             case .returnToTitle: return "タイトルへ戻る"
             }
         }
 
         var message: String {
             switch self {
+            case .restartCurrentFloor:
+                return "現在の階を開始直後の状態へ戻します。HP、手札、敵、拾得、鍵、床状態もこの階に入った時点へ戻ります。"
             case .returnToTitle:
                 return "ゲームを中断してタイトル画面へ戻ります。塔攻略中は続きから再開できます。"
             }
@@ -336,6 +361,7 @@ enum PauseMenuAccessibilityIdentifier {
     static let resumeButton = "pause_resume_button"
     static let helpButton = "pause_help_button"
     static let reportIssueButton = "pause_report_issue_button"
+    static let restartCurrentFloorButton = "pause_restart_current_floor_button"
     static let returnToTitleButton = "pause_return_to_title_button"
     static let settingsDisclosure = "pause_settings_disclosure"
     static let relicEffectsToggle = "pause_relic_effects_toggle"

@@ -200,6 +200,9 @@ struct GameView: View {
                     // フルスクリーンカバーを閉じてプレイへ戻る
                     viewModel.isPauseMenuPresented = false
                 },
+                onRestartCurrentFloor: viewModel.canRestartCurrentDungeonFloorForTesting ? {
+                    viewModel.handleRestartCurrentDungeonFloorForTesting()
+                } : nil,
                 onConfirmReturnToTitle: {
                     // タイトル復帰時もポーズメニューを閉じてから処理を実行する
                     viewModel.isPauseMenuPresented = false
@@ -269,6 +272,9 @@ struct GameView: View {
                 onInspectFailedBoard: {
                     viewModel.finalizeResultDismissal()
                 },
+                onRestartCurrentFloor: viewModel.canRestartCurrentDungeonFloorForTesting ? {
+                    viewModel.handleRestartCurrentDungeonFloorForTesting()
+                } : nil,
                 onRetry: {
                     // ViewModel 側でリセットと広告フラグの再設定をまとめて処理する
                     viewModel.handleResultRetry()

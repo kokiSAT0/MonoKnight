@@ -88,6 +88,8 @@ struct ResultView: View {
     let onRemoveDungeonRewardSupportCard: ((SupportCard) -> Void)?
     /// 失敗時にリザルトを一時的に閉じて盤面を確認するためのクロージャ
     let onInspectFailedBoard: (() -> Void)?
+    /// テスター向けに現在階の開始直後へ戻すためのクロージャ
+    let onRestartCurrentFloor: (() -> Void)?
     /// 再戦処理を外部から受け取るクロージャ
     let onRetry: () -> Void
     /// ホームへ戻る操作を外部へ依頼するクロージャ（未指定の場合はボタンを表示しない）
@@ -152,6 +154,7 @@ struct ResultView: View {
         onRemoveDungeonRewardCard: ((MoveCard) -> Void)? = nil,
         onRemoveDungeonRewardSupportCard: ((SupportCard) -> Void)? = nil,
         onInspectFailedBoard: (() -> Void)? = nil,
+        onRestartCurrentFloor: (() -> Void)? = nil,
         onRetry: @escaping () -> Void,
         onReturnToTitle: (() -> Void)? = nil
     ) {
@@ -197,6 +200,7 @@ struct ResultView: View {
             onRemoveDungeonRewardCard: onRemoveDungeonRewardCard,
             onRemoveDungeonRewardSupportCard: onRemoveDungeonRewardSupportCard,
             onInspectFailedBoard: onInspectFailedBoard,
+            onRestartCurrentFloor: onRestartCurrentFloor,
             onRetry: onRetry,
             onReturnToTitle: onReturnToTitle,
             gameCenterService: GameCenterService.shared,
@@ -244,6 +248,7 @@ struct ResultView: View {
         onRemoveDungeonRewardCard: ((MoveCard) -> Void)? = nil,
         onRemoveDungeonRewardSupportCard: ((SupportCard) -> Void)? = nil,
         onInspectFailedBoard: (() -> Void)? = nil,
+        onRestartCurrentFloor: (() -> Void)? = nil,
         onRetry: @escaping () -> Void,
         onReturnToTitle: (() -> Void)? = nil,
 
@@ -307,6 +312,7 @@ struct ResultView: View {
         self.onRemoveDungeonRewardCard = onRemoveDungeonRewardCard
         self.onRemoveDungeonRewardSupportCard = onRemoveDungeonRewardSupportCard
         self.onInspectFailedBoard = onInspectFailedBoard
+        self.onRestartCurrentFloor = onRestartCurrentFloor
         self.onRetry = onRetry
         self.onReturnToTitle = onReturnToTitle
         self.gameCenterService = resolvedGameCenterService
@@ -363,6 +369,7 @@ struct ResultView: View {
                     onRemoveDungeonRewardCard: onRemoveDungeonRewardCard,
                     onRemoveDungeonRewardSupportCard: onRemoveDungeonRewardSupportCard,
                     onInspectFailedBoard: onInspectFailedBoard,
+                    onRestartCurrentFloor: onRestartCurrentFloor,
                     onInspectDungeonRewardDetail: { detail in
                         inspectedDungeonReward = detail
                     },
