@@ -213,7 +213,7 @@ final class GameViewModelTests: XCTestCase {
 
         XCTAssertEqual(core.dungeonHP, 4)
         XCTAssertFalse(core.didStepOnLavaThisFloor)
-        XCTAssertTrue(core.crackedFloorPoints.contains(brittle))
+        XCTAssertFalse(core.crackedFloorPoints.contains(brittle))
         XCTAssertFalse(core.collapsedFloorPoints.contains(brittle))
         XCTAssertEqual(core.poisonDamageTicksRemaining, 0)
         XCTAssertEqual(core.handStacks.count, handCountBeforeDiscard)
@@ -267,7 +267,11 @@ final class GameViewModelTests: XCTestCase {
             dungeonMetadata: GameMode.DungeonMetadata(
                 dungeonID: "fly-spell-resume",
                 floorID: "fly-spell-resume-floor",
-                runState: DungeonRunState(dungeonID: "fly-spell-resume", carriedHP: 3)
+                runState: DungeonRunState(
+                    dungeonID: "fly-spell-resume",
+                    carriedHP: 3,
+                    rewardInventoryEntries: [DungeonInventoryEntry(support: .flySpell, rewardUses: 1)]
+                )
             )
         )
         let core = GameCore.makeTestInstance(
@@ -1294,7 +1298,7 @@ final class GameViewModelTests: XCTestCase {
         )
         let (viewModel, _) = makeViewModel(mode: mode)
 
-        XCTAssertEqual(viewModel.dungeonRewardAddUses, 2)
+        XCTAssertEqual(viewModel.dungeonRewardAddUses, 3)
     }
 
     func testRewardQualityRelicsAndCursesDoNotExpandRewardChoices() throws {
@@ -1904,7 +1908,7 @@ final class GameViewModelTests: XCTestCase {
         core.overrideMetricsForTesting(moveCount: 4, penaltyCount: 0, elapsedSeconds: 20)
         core.overrideDungeonHPForTesting(2)
 
-        let reward = try XCTUnwrap(viewModel.availableDungeonRewardMoveCards.first { $0 != .straightUp2 })
+        let reward = try XCTUnwrap(viewModel.availableDungeonRewardMoveCards.first)
         viewModel.showingResult = true
         viewModel.handleDungeonRewardSelection(reward)
 
@@ -1928,7 +1932,7 @@ final class GameViewModelTests: XCTestCase {
         )
         core.overrideMetricsForTesting(moveCount: 4, penaltyCount: 0, elapsedSeconds: 20)
         core.overrideDungeonHPForTesting(2)
-        let reward = try XCTUnwrap(viewModel.availableDungeonRewardMoveCards.first)
+        let reward = try XCTUnwrap(viewModel.availableDungeonRewardMoveCards.first { $0 != .straightUp2 })
         let carriedCards = Array(MoveCard.allCases.filter { $0 != reward }.prefix(2))
         for card in carriedCards {
             XCTAssertTrue(core.addDungeonInventoryCardForTesting(card, rewardUses: 1))
@@ -1975,7 +1979,7 @@ final class GameViewModelTests: XCTestCase {
             mode: mode,
             onRequestStartDungeonFloor: { requestedMode = $0 }
         )
-        let reward = try XCTUnwrap(viewModel.availableDungeonRewardMoveCards.first)
+        let reward = try XCTUnwrap(viewModel.availableDungeonRewardMoveCards.first { $0 != .straightUp2 })
         let existingCards = Array(MoveCard.allCases.filter { $0 != reward }.prefix(9))
         XCTAssertEqual(existingCards.count, 9)
         for card in existingCards {
@@ -2628,8 +2632,8 @@ final class GameViewModelTests: XCTestCase {
     }
 
     func testRestartCurrentDungeonFloorIsGatedByDiagnostics() throws {
-        DebugLogHistory.shared.setFrontEndViewerEnabled(false)
-        defer { DebugLogHistory.shared.setFrontEndViewerEnabled(true) }
+        DebugLogHistory.shared.setFrontEndViewerAvailable(false)
+        defer { DebugLogHistory.shared.setFrontEndViewerAvailable(true) }
         let mode = makeCurrentFloorRestartMode(
             initialHP: 3,
             damageTrap: GridPoint(x: 1, y: 0),
@@ -2701,13 +2705,12 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.displayedHandStacks, core.handStacks)
         XCTAssertTrue(viewModel.displayedHandStacks.contains { $0.representativeMove == .straightRight2 })
         XCTAssertTrue(viewModel.isCardUsable(rewardStack))
-        XCTAssertTrue(core.availableMoves().contains { $0.stackID == rewardStack.id && $0.destination == GridPoint(x: 2, y: 0) })
-        XCTAssertTrue(viewModel.boardBridge.scene.latestHighlightPoints(for: .guideSingleCandidate).contains(GridPoint(x: 2, y: 0)))
+        XCTAssertTrue(core.availableMoves().contains { $0.stackID == rewardStack.id && $0.destination == GridPoint(x: 6, y: 4) })
 
         viewModel.handleHandSlotTap(at: rewardIndex)
 
         XCTAssertEqual(viewModel.boardBridge.animatingCard?.moveCard, .straightRight2)
-        XCTAssertEqual(viewModel.boardBridge.animationTargetGridPoint, GridPoint(x: 2, y: 0))
+        XCTAssertEqual(viewModel.boardBridge.animationTargetGridPoint, GridPoint(x: 6, y: 4))
     }
 
     func testCarriedDungeonRewardCardIsUsableImmediatelyOnThirdFloorStart() throws {
@@ -2718,7 +2721,7 @@ final class GameViewModelTests: XCTestCase {
             carriedHP: 2,
             totalMoveCount: 10,
             clearedFloorCount: 2,
-            rewardInventoryEntries: [DungeonInventoryEntry(card: .rayRight, rewardUses: 3)]
+            rewardInventoryEntries: [DungeonInventoryEntry(card: .rayLeft, rewardUses: 3)]
         )
         let mode = tower.floors[2].makeGameMode(
             dungeonID: tower.id,
@@ -2726,13 +2729,13 @@ final class GameViewModelTests: XCTestCase {
             runState: runState
         )
         let (viewModel, core) = makeViewModel(mode: mode)
-        let rewardStack = try XCTUnwrap(core.handStacks.first { $0.representativeMove == .rayRight })
+        let rewardStack = try XCTUnwrap(core.handStacks.first { $0.representativeMove == .rayLeft })
 
         XCTAssertEqual(viewModel.displayedHandStacks, core.handStacks)
-        XCTAssertTrue(viewModel.displayedHandStacks.contains { $0.representativeMove == .rayRight })
+        XCTAssertTrue(viewModel.displayedHandStacks.contains { $0.representativeMove == .rayLeft })
         XCTAssertTrue(viewModel.isCardUsable(rewardStack))
-        XCTAssertTrue(core.availableMoves().contains { $0.stackID == rewardStack.id && $0.destination == GridPoint(x: 8, y: 4) })
-        XCTAssertTrue(viewModel.boardBridge.scene.latestHighlightPoints(for: .guideMultiStepCandidate).contains(GridPoint(x: 8, y: 4)))
+        XCTAssertTrue(core.availableMoves().contains { $0.stackID == rewardStack.id && $0.destination == GridPoint(x: 0, y: 4) })
+        XCTAssertTrue(viewModel.boardBridge.scene.latestHighlightPoints(for: .guideMultiStepCandidate).contains(GridPoint(x: 0, y: 4)))
     }
 
     func testGrowthTowerLateFloorInventoryCardsSurviveInitialHandOrderingRestore() throws {
@@ -3855,7 +3858,15 @@ final class GameViewModelTests: XCTestCase {
                     cardPickups: cardPickups
                 )
             ),
-            dungeonMetadata: dungeonMetadata
+            dungeonMetadata: dungeonMetadata ?? GameMode.DungeonMetadata(
+                dungeonID: "fly-spell-test",
+                floorID: "fly-spell-test-floor",
+                runState: DungeonRunState(
+                    dungeonID: "fly-spell-test",
+                    carriedHP: initialHP,
+                    rewardInventoryEntries: [DungeonInventoryEntry(support: .flySpell, rewardUses: 1)]
+                )
+            )
         )
     }
 

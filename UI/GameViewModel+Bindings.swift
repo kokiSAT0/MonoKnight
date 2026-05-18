@@ -453,6 +453,16 @@ extension GameViewModel {
               let dungeon = DungeonLibrary.shared.dungeon(with: metadata.dungeonID)
         else { return nil }
 
+        let awardKey = [
+            metadata.dungeonID,
+            metadata.floorID,
+            String(runState.currentFloorIndex),
+            String(runState.clearedFloorCount),
+            String(core.moveCount)
+        ].joined(separator: "#")
+        guard registeredDungeonGrowthAwardKey != awardKey else { return nil }
+        registeredDungeonGrowthAwardKey = awardKey
+
         let hasNextFloor = dungeon.canAdvanceWithinRun(afterFloorIndex: runState.currentFloorIndex)
         return dungeonGrowthStore.registerDungeonClear(dungeon: dungeon, runState: runState, hasNextFloor: hasNextFloor)
     }

@@ -141,7 +141,7 @@ private func mutate<Value>(_ binding: Binding<Value>, _ update: (inout Value) ->
 @MainActor
 extension SettingsView {
     var isDiagnosticsMenuAvailable: Bool {
-        DebugLogHistory.shared.isFrontEndViewerEnabled
+        DebugLogHistory.shared.isFrontEndViewerAvailable
     }
 
     func purchaseRemoveAds() {

@@ -85,6 +85,8 @@ final class GameViewModel: ObservableObject {
     }
     /// 直近の塔クリアで得た成長報酬
     @Published var latestDungeonGrowthAward: DungeonGrowthAward?
+    /// 同一クリア通知で成長報酬を二重登録しないためのキー
+    var registeredDungeonGrowthAwardKey: String?
     /// 手詰まりバナーに表示するイベント情報
     @Published var activePenaltyBanner: PenaltyEvent? {
         didSet {
@@ -292,7 +294,8 @@ final class GameViewModel: ObservableObject {
             $0.curseID == .bottomlessPack || $0.curseID == .ashHeart
         }
         let minimumRewardCount = hasReducedRewardChoices ? 2 : 1
-        let adjustedRewardCount = baseRewardCount + rewardChoiceBonus
+        let growthRewardChoiceCount = dungeonGrowthStore.maxRewardChoiceCount(for: dungeon)
+        let adjustedRewardCount = max(baseRewardCount, growthRewardChoiceCount) + rewardChoiceBonus
         let rewardCount = baseRewardCount > 0
             ? min(max(adjustedRewardCount, minimumRewardCount), 4)
             : 0

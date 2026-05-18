@@ -7,6 +7,7 @@ final class DebugLogConfigurationTests: XCTestCase {
     override func tearDownWithError() throws {
         // 他テストへの影響を避けるため、毎回標準出力抑制へ戻す
         DebugLogConfiguration.shared.setStandardOutputLogging(enabled: false)
+        DebugLogHistory.shared.setFrontEndViewerAvailable(true)
         DebugLogHistory.shared.setFrontEndViewerEnabled(true)
         DebugLogHistory.shared.clear()
     }
@@ -46,6 +47,20 @@ final class DebugLogConfigurationTests: XCTestCase {
                 entry.level == .info && entry.message.contains("[PLAY] event=test_capture")
             },
             "[PLAY] ログは既存の診断ログ履歴へ保存されるべき"
+        )
+    }
+
+    func testDisablingLogCaptureKeepsFrontEndViewerAvailable() {
+        DebugLogHistory.shared.setFrontEndViewerAvailable(true)
+        DebugLogHistory.shared.setFrontEndViewerEnabled(false)
+
+        XCTAssertTrue(
+            DebugLogHistory.shared.isFrontEndViewerAvailable,
+            "ログ記録を止めても、設定画面の開発者メニュー入口は維持されるべき"
+        )
+        XCTAssertFalse(
+            DebugLogHistory.shared.isFrontEndViewerEnabled,
+            "ログ履歴の記録状態だけを無効化できるべき"
         )
     }
 

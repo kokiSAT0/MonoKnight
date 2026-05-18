@@ -5,6 +5,19 @@ import XCTest
 
 @MainActor
 final class DiagnosticsCenterViewTests: XCTestCase {
+    func testSettingsDiagnosticsMenuAvailabilityDoesNotDependOnLogCapture() {
+        DebugLogHistory.shared.setFrontEndViewerAvailable(true)
+        DebugLogHistory.shared.setFrontEndViewerEnabled(false)
+        defer {
+            DebugLogHistory.shared.setFrontEndViewerEnabled(true)
+            DebugLogHistory.shared.setFrontEndViewerAvailable(true)
+        }
+
+        let view = SettingsView()
+
+        XCTAssertTrue(view.isDiagnosticsMenuAvailable)
+    }
+
     func testDiagnosticsCenterExposesShareButtonIdentifier() {
         DebugLogHistory.shared.setFrontEndViewerEnabled(true)
         DebugLogHistory.shared.clear()

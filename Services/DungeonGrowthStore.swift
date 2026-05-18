@@ -633,6 +633,8 @@ final class DungeonGrowthStore: ObservableObject {
                 excludingPlayables: excludedPlayables,
                 excludingRelics: excludedRelics
             )
+            .filter { $0.playable != nil }
+            .prefix(max(choiceCount - result.count, 1))
             result.append(contentsOf: supplemental)
         }
 

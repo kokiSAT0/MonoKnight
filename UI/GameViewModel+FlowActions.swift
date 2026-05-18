@@ -75,7 +75,7 @@ extension GameViewModel {
 
     var canRestartCurrentDungeonFloorForTesting: Bool {
         mode.usesDungeonExit
-            && DebugLogHistory.shared.isFrontEndViewerEnabled
+            && DebugLogHistory.shared.isFrontEndViewerAvailable
             && floorStartDungeonResumeSnapshot != nil
     }
 

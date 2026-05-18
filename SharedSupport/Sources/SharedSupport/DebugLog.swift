@@ -99,16 +99,39 @@ public final class DebugLogHistory {
 
     /// 実際に保持しているログ配列
     private var entries: [DebugLogEntry] = []
+    /// フロントエンド用ログコンソールや開発者メニューの入口を表示できるかどうか
+    /// - Important: ログ履歴の記録状態とは分け、記録を止めても設定画面から再度オンに戻せるようにする
+    private var isViewerAvailable: Bool = true
     /// フロントエンド向け履歴保持を有効化しているかどうか
     /// - Important: TestFlight での暫定デバッグを優先するため初期値は `true`
     private var isCaptureEnabled: Bool = true
 
     private init() {}
 
+    /// フロントエンド用ログコンソールや開発者メニューの入口を表示できるかどうか
+    /// - Returns: 表示可能であれば true
+    public var isFrontEndViewerAvailable: Bool {
+        queue.sync { isViewerAvailable }
+    }
+
     /// フロントエンド用ログコンソールが利用可能かどうか
     /// - Returns: 表示可能であれば true
     public var isFrontEndViewerEnabled: Bool {
         queue.sync { isCaptureEnabled }
+    }
+
+    /// フロントエンド用ログコンソールや開発者メニューの入口表示を切り替える
+    /// - Parameter available: `true` で入口を表示可能にし、`false` で開発者メニュー自体を隠す
+    public func setFrontEndViewerAvailable(_ available: Bool) {
+        let shouldNotify: Bool = queue.sync {
+            guard isViewerAvailable != available else { return false }
+            isViewerAvailable = available
+            return true
+        }
+
+        if shouldNotify {
+            NotificationCenter.default.post(name: Self.didAppendEntryNotification, object: self, userInfo: nil)
+        }
     }
 
     /// フロントエンド向けの履歴保持を切り替える
