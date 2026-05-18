@@ -1339,6 +1339,59 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.availableDungeonRewardOffers.contains(.relic(.victoryBanner)))
     }
 
+    func testWarpedHourglassEnsuresSupportRewardOffer() throws {
+        let dungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let seed = try XCTUnwrap((0..<200).map(UInt64.init).first { seed in
+            let runState = DungeonRunState(
+                dungeonID: dungeon.id,
+                currentFloorIndex: 0,
+                carriedHP: 3,
+                cardVariationSeed: seed
+            )
+            guard let floor = dungeon.resolvedFloor(at: 0, runState: runState) else { return false }
+            let mode = floor.makeGameMode(
+                dungeonID: dungeon.id,
+                difficulty: dungeon.difficulty,
+                runState: runState
+            )
+            let (viewModel, core) = makeViewModel(mode: mode)
+            core.overrideMetricsForTesting(moveCount: 0, penaltyCount: 0, elapsedSeconds: 10)
+            return !viewModel.availableDungeonRewardOffers.contains { $0.support != nil }
+        })
+        let runState = DungeonRunState(
+            dungeonID: dungeon.id,
+            currentFloorIndex: 0,
+            carriedHP: 3,
+            cardVariationSeed: seed
+        )
+        let curseRunState = DungeonRunState(
+            dungeonID: dungeon.id,
+            currentFloorIndex: 0,
+            carriedHP: 3,
+            curseEntries: [DungeonCurseEntry(curseID: .warpedHourglass)],
+            cardVariationSeed: seed
+        )
+        let floor = try XCTUnwrap(dungeon.resolvedFloor(at: 0, runState: runState))
+        let baseMode = floor.makeGameMode(
+            dungeonID: dungeon.id,
+            difficulty: dungeon.difficulty,
+            runState: runState
+        )
+        let curseMode = floor.makeGameMode(
+            dungeonID: dungeon.id,
+            difficulty: dungeon.difficulty,
+            runState: curseRunState
+        )
+        let (baseViewModel, baseCore) = makeViewModel(mode: baseMode)
+        let (curseViewModel, curseCore) = makeViewModel(mode: curseMode)
+        baseCore.overrideMetricsForTesting(moveCount: 0, penaltyCount: 0, elapsedSeconds: 10)
+        curseCore.overrideMetricsForTesting(moveCount: 0, penaltyCount: 0, elapsedSeconds: 10)
+
+        XCTAssertFalse(baseViewModel.availableDungeonRewardOffers.contains { $0.support != nil })
+        XCTAssertEqual(curseViewModel.availableDungeonRewardOffers.count, baseViewModel.availableDungeonRewardOffers.count)
+        XCTAssertTrue(curseViewModel.availableDungeonRewardOffers.contains { $0.support != nil })
+    }
+
     func testFirewalkingTalismanDoesNotExpandRewardChoicesAfterSteppingOnLava() throws {
         let lavaPoint = GridPoint(x: 1, y: 0)
         let mode = GameMode(

@@ -317,12 +317,17 @@ final class GameViewModel: ObservableObject {
             (effectEnabledDungeonRelicEntries.contains { $0.relicID == .hunterBanner } ? defeatedEnemyCount : 0) +
             (effectEnabledDungeonRelicEntries.contains { $0.relicID == .gamblerCoin } && isFastClearForRelic ? 2 : 0) +
             (effectEnabledDungeonCurseEntries.contains { $0.curseID == .relicHunterBrand } && isFastClearForRelic ? 5 : 0)
+        let preferredRewardPlayables: Set<PlayableCard> = effectEnabledDungeonCurseEntries.contains { $0.curseID == .tinkersToolbox }
+            ? Set(core.dungeonInventoryEntries.filter(\.hasUsesRemaining).map(\.playable))
+            : []
         let tuning = DungeonRewardDrawTuning(
             clearMoveCount: core.moveCount,
             turnLimit: turnLimit,
             suppressRelicQualityBonus: effectEnabledDungeonCurseEntries.contains { $0.curseID == .cloudedMirror },
             supportCategoryBonusPoints: supportCategoryBonusPoints,
-            relicCategoryBonusPoints: relicCategoryBonusPoints
+            relicCategoryBonusPoints: relicCategoryBonusPoints,
+            preferredPlayables: preferredRewardPlayables,
+            forcesRareOrBetterRelics: effectEnabledDungeonCurseEntries.contains { $0.curseID == .gildedSeal }
         )
         let ownedRelics = Set(core.dungeonRelicEntries.map(\.relicID))
         let baseOffers: [DungeonRewardOffer]
@@ -363,8 +368,75 @@ final class GameViewModel: ObservableObject {
             minimumChoiceCount: rewardCount,
             movementStyle: runState.movementStyle
         )
-        return Array(offers.prefix(rewardCount))
+        let adjustedOffers = offersAddingWarpedHourglassSupportIfNeeded(
+            to: offers,
+            dungeon: dungeon,
+            floorIndex: runState.currentFloorIndex,
+            seed: runState.cardVariationSeed,
+            tuning: tuning,
+            ownedRelics: ownedRelics,
+            rewardCount: rewardCount,
+            movementStyle: runState.movementStyle,
+            nextFloor: nextFloor
+        )
+        return Array(adjustedOffers.prefix(rewardCount))
     }
+
+    private func offersAddingWarpedHourglassSupportIfNeeded(
+        to offers: [DungeonRewardOffer],
+        dungeon: DungeonDefinition,
+        floorIndex: Int,
+        seed: UInt64?,
+        tuning: DungeonRewardDrawTuning,
+        ownedRelics: Set<DungeonRelicID>,
+        rewardCount: Int,
+        movementStyle: DungeonMovementStyle,
+        nextFloor: DungeonFloorDefinition?
+    ) -> [DungeonRewardOffer] {
+        guard effectEnabledDungeonCurseEntries.contains(where: { $0.curseID == .warpedHourglass }),
+              !offers.contains(where: { $0.support != nil }),
+              rewardCount > 0
+        else { return offers }
+
+        let weightedSupportCandidate = DungeonWeightedRewardPools.drawUniqueOffers(
+            from: DungeonWeightedRewardPools.entries(
+                floorIndex: floorIndex,
+                context: .clearReward,
+                movementStyle: movementStyle,
+                countering: nextFloor
+            ),
+            context: .clearReward,
+            count: rewardCount,
+            seed: seed ?? UInt64(floorIndex + 1),
+            floorIndex: floorIndex,
+            salt: 0x48A5,
+            tuning: tuning,
+            excludingPlayables: Set(offers.compactMap(\.playable)),
+            excludingRelics: ownedRelics.union(offers.compactMap(\.relic))
+        )
+        .first { $0.support != nil }
+        let fallbackSupportCandidate = [
+            DungeonRewardOffer.playable(.support(.refillEmptySlots)),
+            .playable(.support(.singleAnnihilationSpell)),
+            .playable(.support(.annihilationSpell)),
+            .playable(.support(.barrierSpell))
+        ].first { !offers.contains($0) }
+        guard let supportCandidate = weightedSupportCandidate ?? fallbackSupportCandidate else {
+            return offers
+        }
+
+        var result = Array(offers.prefix(rewardCount))
+        if result.count >= rewardCount {
+            if let replaceIndex = result.lastIndex(where: { $0.relic == nil }) {
+                result.remove(at: replaceIndex)
+            } else {
+                result.removeLast()
+            }
+        }
+        result.append(supportCandidate)
+        return result
+    }
+
     /// 現在フロアのクリア後に選べる報酬カードを、移動/補助を同じ3択枠として返す
     var availableDungeonRewardCards: [PlayableCard] {
         availableDungeonRewardOffers.compactMap(\.playable)
@@ -398,23 +470,8 @@ final class GameViewModel: ObservableObject {
         )
     }
 
-    var hasChaserOnCurrentDungeonFloor: Bool {
-        mode.dungeonRules?.enemies.contains { enemy in
-            if case .chaser = enemy.behavior { return true }
-            return false
-        } ?? false
-    }
-
     var isCurrentDungeonClearWithinHalfTurnLimit: Bool {
         core.effectiveDungeonTurnLimit.map { $0 > 0 && core.moveCount <= $0 / 2 } ?? false
-    }
-
-    var contextualDungeonRewardUseBonus: Int {
-        DungeonRunState.contextualRewardUseBonus(
-            curseEntries: effectEnabledDungeonCurseEntries,
-            completedWithinHalfTurnLimit: isCurrentDungeonClearWithinHalfTurnLimit,
-            completedWithChaserOnFloor: hasChaserOnCurrentDungeonFloor
-        )
     }
 
     var dungeonRewardMoveUsesByCard: [MoveCard: Int] {
@@ -422,7 +479,7 @@ final class GameViewModel: ObservableObject {
             (
                 card,
                 DungeonRunState.adjustedRewardAddUses(
-                    dungeonRewardAddUses + contextualDungeonRewardUseBonus,
+                    dungeonRewardAddUses,
                     for: card,
                     relicEntries: effectEnabledDungeonRelicEntries,
                     curseEntries: effectEnabledDungeonCurseEntries,
@@ -443,7 +500,7 @@ final class GameViewModel: ObservableObject {
     }
 
     var dungeonSupportRewardAddUses: Int {
-        baseDungeonSupportRewardAddUses + contextualDungeonRewardUseBonus
+        baseDungeonSupportRewardAddUses
     }
     /// クリア後に整理できる手札の報酬カード
     var adjustableDungeonRewardEntries: [DungeonInventoryEntry] {

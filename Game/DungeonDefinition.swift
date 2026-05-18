@@ -1232,13 +1232,18 @@ public enum DungeonCurseID: String, Codable, CaseIterable, Equatable, Identifiab
     case tinkersToolbox
     case expressTicket
     case ploverContract
+    case quartermasterBell
+    case sleepingWarDrum
+    case swarmcallingTalisman
+    case gildedSeal
 
     public var id: String { rawValue }
 
     public static let newAcquisitionCases: [DungeonCurseID] = [
-        .trapMagnet, .poisonVial, .chaserScent, .firewalkingTalisman, .flickeringCampfire,
-        .supportOath, .tinkersToolbox, .expressTicket, .ploverContract, .redChalice,
-        .cursedCrown, .warpedHourglass, .contractCodex, .royalIou, .lastStandShield
+        .chaserScent, .firewalkingTalisman, .flickeringCampfire, .tinkersToolbox,
+        .expressTicket, .ploverContract, .redChalice, .warpedHourglass,
+        .contractCodex, .royalIou, .lastStandShield, .quartermasterBell,
+        .sleepingWarDrum, .swarmcallingTalisman, .gildedSeal
     ]
 
     public var encyclopediaDiscoveryID: EncyclopediaDiscoveryID {
@@ -1329,6 +1334,14 @@ public enum DungeonCurseID: String, Codable, CaseIterable, Equatable, Identifiab
             return "急行切符"
         case .ploverContract:
             return "千鳥の契約"
+        case .quartermasterBell:
+            return "補給係の鈴"
+        case .sleepingWarDrum:
+            return "眠りの軍太鼓"
+        case .swarmcallingTalisman:
+            return "群れ呼びの護符"
+        case .gildedSeal:
+            return "黄金の封蝋"
         }
     }
 
@@ -1345,7 +1358,7 @@ public enum DungeonCurseID: String, Codable, CaseIterable, Equatable, Identifiab
         case .obsidianHeart:
             return "取得時にHPが6増える。"
         case .warpedHourglass:
-            return "手数上限の半分以内でクリアすると、選んだ報酬カードの使用回数が+2される。"
+            return "クリア報酬に補助カードが必ず1つ以上出現する。"
         case .redChalice:
             return "取得時にHPが8増える。"
         case .greedyBag:
@@ -1363,7 +1376,7 @@ public enum DungeonCurseID: String, Codable, CaseIterable, Equatable, Identifiab
         case .patrolBell:
             return "クリア報酬の補助カード出現率が5pt上がる。"
         case .chaserScent:
-            return "追跡兵がいる階では、クリア報酬カードの使用回数が+1される。"
+            return "追跡兵がいる階では、床に落ちているカードの配置数が3倍になる。"
         case .meteorRod:
             return "取得時にHPが3増える。"
         case .trapMagnet:
@@ -1411,11 +1424,19 @@ public enum DungeonCurseID: String, Codable, CaseIterable, Equatable, Identifiab
         case .firewalkingTalisman:
             return "その階で溶岩を踏んでクリアすると、クリア報酬の補助カード出現率が10pt上がる。"
         case .tinkersToolbox:
-            return "既に所持している移動カードと同種の報酬を選ぶ時、使用回数が+2される。"
+            return "既に所持している移動/補助カードが、クリア報酬に出やすくなる。"
         case .expressTicket:
             return "手数上限の半分以内でクリアすると、次階開始時にHPが3増える。"
         case .ploverContract:
             return "手札スロットが1つ増える。最大10枠。"
+        case .quartermasterBell:
+            return "フロア開始時、空き手札枠へ補充カードと同じ移動カード補給を行う。"
+        case .sleepingWarDrum:
+            return "敵ターンが2ターンに1回だけ進む。"
+        case .swarmcallingTalisman:
+            return "フロア開始時に5ターン分の障壁を得る。"
+        case .gildedSeal:
+            return "レリック報酬と宝箱の通常遺物候補がレア以上になる。"
         }
     }
 
@@ -1498,11 +1519,19 @@ public enum DungeonCurseID: String, Codable, CaseIterable, Equatable, Identifiab
         case .firewalkingTalisman:
             return "溶岩上で移動しない行動をすると、溶岩滞在ダメージが1増える。"
         case .tinkersToolbox:
-            return "未所持の移動カードを報酬で新しく得る時、使用回数が1減る。最低1回は残る。"
+            return "同じカードに寄りやすくなり、新しい種類を広げにくくなる。"
         case .expressTicket:
             return "疲労ダメージが1増える。"
         case .ploverContract:
             return "基本移動が使えなくなる。"
+        case .quartermasterBell:
+            return "敵がいる階で敵を1体も倒さずにクリアすると、次階開始HPが1減る。最低1。"
+        case .sleepingWarDrum:
+            return "敵由来のHPダメージが3倍になる。"
+        case .swarmcallingTalisman:
+            return "成長塔の解決済みフロアで敵数が2倍になる。置ける範囲まで。"
+        case .gildedSeal:
+            return "取得中は現在HP、回復、次階開始HPが2を超えない。"
         }
     }
 
@@ -1529,7 +1558,8 @@ public enum DungeonCurseID: String, Codable, CaseIterable, Equatable, Identifiab
              .laughingDoor, .upsideDownKey, .taxCollector, .flickeringCampfire,
              .contractCodex, .royalIou, .bottomlessPack, .relicHunterBrand, .supportOath, .ashHeart,
              .hasteArmor, .scorchedCloak, .lastStandShield, .firewalkingTalisman, .tinkersToolbox,
-             .expressTicket, .ploverContract:
+             .expressTicket, .ploverContract, .quartermasterBell, .sleepingWarDrum,
+             .swarmcallingTalisman, .gildedSeal:
             return "この挑戦中ずっと残る。"
         }
     }
@@ -1618,6 +1648,14 @@ public enum DungeonCurseID: String, Codable, CaseIterable, Equatable, Identifiab
             return "ticket.fill"
         case .ploverContract:
             return "arrow.triangle.branch"
+        case .quartermasterBell:
+            return "bell.fill"
+        case .sleepingWarDrum:
+            return "moon.zzz.fill"
+        case .swarmcallingTalisman:
+            return "person.3.fill"
+        case .gildedSeal:
+            return "seal.fill"
         }
     }
 
@@ -1633,7 +1671,7 @@ public enum DungeonCurseID: String, Codable, CaseIterable, Equatable, Identifiab
              .laughingDoor, .upsideDownKey, .taxCollector, .flickeringCampfire,
              .contractCodex, .royalIou, .bottomlessPack, .relicHunterBrand, .supportOath, .ashHeart,
              .hasteArmor, .scorchedCloak, .firewalkingTalisman, .tinkersToolbox, .expressTicket,
-             .ploverContract:
+             .ploverContract, .quartermasterBell, .sleepingWarDrum, .swarmcallingTalisman, .gildedSeal:
             return 0
         case .lastStandShield:
             return 1
@@ -2190,19 +2228,25 @@ public struct DungeonRewardDrawTuning: Equatable, Sendable {
     public let suppressRelicQualityBonus: Bool
     public let supportCategoryBonusPoints: Int
     public let relicCategoryBonusPoints: Int
+    public let preferredPlayables: Set<PlayableCard>
+    public let forcesRareOrBetterRelics: Bool
 
     public init(
         clearMoveCount: Int? = nil,
         turnLimit: Int? = nil,
         suppressRelicQualityBonus: Bool = false,
         supportCategoryBonusPoints: Int = 0,
-        relicCategoryBonusPoints: Int = 0
+        relicCategoryBonusPoints: Int = 0,
+        preferredPlayables: Set<PlayableCard> = [],
+        forcesRareOrBetterRelics: Bool = false
     ) {
         self.clearMoveCount = clearMoveCount
         self.turnLimit = turnLimit
         self.suppressRelicQualityBonus = suppressRelicQualityBonus
         self.supportCategoryBonusPoints = max(supportCategoryBonusPoints, 0)
         self.relicCategoryBonusPoints = max(relicCategoryBonusPoints, 0)
+        self.preferredPlayables = preferredPlayables
+        self.forcesRareOrBetterRelics = forcesRareOrBetterRelics
     }
 }
 
@@ -2475,16 +2519,16 @@ public enum DungeonWeightedRewardPools {
             .filter { $0.weight > 0 }
             .compactMap { entry -> (offer: DungeonRewardOffer, category: DungeonWeightedRewardPoolCategory, weight: Int)? in
                 guard let offer = entry.item.offer else { return nil }
-            switch offer {
-            case .playable(let playable) where excludedPlayables.contains(playable):
-                return nil
-            case .relic(let relic) where excludedRelics.contains(relic):
-                return nil
-            case .relic(let relic):
-                return (offer, entry.item.category, entry.weight * rewardRelicWeight(for: relic.rarity, tuning: tuning))
-            default:
-                return (offer, entry.item.category, entry.weight)
-            }
+                switch offer {
+                case .playable(let playable) where excludedPlayables.contains(playable):
+                    return nil
+                case .playable(let playable):
+                    return (offer, entry.item.category, rewardPlayableWeight(entry.weight, playable: playable, tuning: tuning))
+                case .relic(let relic) where excludedRelics.contains(relic):
+                    return nil
+                case .relic(let relic):
+                    return (offer, entry.item.category, entry.weight * rewardRelicWeight(for: relic.rarity, tuning: tuning))
+                }
             }
         var result: [DungeonRewardOffer] = []
         let categoryWeights = categoryWeights(context: context, tuning: tuning)
@@ -2528,6 +2572,15 @@ public enum DungeonWeightedRewardPools {
             ]
         )
         return result
+    }
+
+    public static func rewardPlayableWeight(
+        _ baseWeight: Int,
+        playable: PlayableCard,
+        tuning: DungeonRewardDrawTuning
+    ) -> Int {
+        guard tuning.preferredPlayables.contains(playable) else { return baseWeight }
+        return baseWeight + 12
     }
 
     private enum FloorBand {
@@ -2687,6 +2740,9 @@ public enum DungeonWeightedRewardPools {
         for rarity: DungeonRelicRarity,
         tuning: DungeonRewardDrawTuning
     ) -> Int {
+        if tuning.forcesRareOrBetterRelics, rarity == .common {
+            return 0
+        }
         guard let moveCount = tuning.clearMoveCount,
               let turnLimit = tuning.turnLimit,
               turnLimit > 0,
@@ -2880,7 +2936,8 @@ public struct DungeonRunState: Codable, Equatable, Sendable {
         supportRewardAddUses: Int = 1,
         areDungeonRelicAndCurseEffectsEnabled: Bool = true,
         completedWithinHalfTurnLimit: Bool = false,
-        completedWithChaserOnFloor: Bool = false,
+        startedFloorWithEnemies: Bool = false,
+        currentFloorDefeatedEnemyCount: Int = 0,
         hazardDamageMitigationsRemaining: Int? = nil,
         enemyDamageMitigationsRemaining: Int? = nil,
         markerDamageMitigationsRemaining: Int? = nil,
@@ -2891,19 +2948,14 @@ public struct DungeonRunState: Codable, Equatable, Sendable {
         let selection = rewardSelection ?? rewardMoveCard.map { DungeonRewardSelection.add($0) }
         let currentEffectRelicEntries = areDungeonRelicAndCurseEffectsEnabled ? (currentRelicEntries ?? relicEntries) : []
         let currentEffectCurseEntries = areDungeonRelicAndCurseEffectsEnabled ? (currentCurseEntries ?? curseEntries) : []
-        let contextualRewardUseBonus = DungeonRunState.contextualRewardUseBonus(
-            curseEntries: currentEffectCurseEntries,
-            completedWithinHalfTurnLimit: completedWithinHalfTurnLimit,
-            completedWithChaserOnFloor: completedWithChaserOnFloor
-        )
         let updatedRewardInventoryEntries = DungeonRunState.applying(
             selection,
             to: carriedEntries,
             sourceEntries: sourceEntries,
             relicEntries: currentEffectRelicEntries,
             curseEntries: currentEffectCurseEntries,
-            rewardAddUses: rewardAddUses + contextualRewardUseBonus,
-            supportRewardAddUses: supportRewardAddUses + contextualRewardUseBonus
+            rewardAddUses: rewardAddUses,
+            supportRewardAddUses: supportRewardAddUses
         )
         let selectedRelicEntries = DungeonRunState.applyingRelicReward(
             selection,
@@ -2932,7 +2984,15 @@ public struct DungeonRunState: Codable, Equatable, Sendable {
             $0.curseID == .warpedHourglass
         }
         let warpedHourglassPenalty = hasSlowWarpedHourglassClear ? 1 : 0
-        let adjustedCarryoverHP = max(rewardRelicAdjustedHP - obsidianHeartPenalty - warpedHourglassPenalty, 1)
+        let quartermasterPenalty = startedFloorWithEnemies
+            && currentFloorDefeatedEnemyCount == 0
+            && effectCurseEntries.contains { $0.curseID == .quartermasterBell }
+            ? 1
+            : 0
+        let adjustedCarryoverHP = max(
+            rewardRelicAdjustedHP - obsidianHeartPenalty - warpedHourglassPenalty - quartermasterPenalty,
+            1
+        )
         var floorStartHP = adjustedCarryoverHP
             + floorStartRelicResult.hpBonus
             + (effectRelicEntries.contains { $0.relicID == .immortalHeart } ? 1 : 0)
@@ -2940,6 +3000,9 @@ public struct DungeonRunState: Codable, Equatable, Sendable {
             + (completedWithinHalfTurnLimit && effectCurseEntries.contains { $0.curseID == .expressTicket } ? 3 : 0)
         if floorStartHP <= 2, effectRelicEntries.contains(where: { $0.relicID == .travelerRation }) {
             floorStartHP += 1
+        }
+        if effectCurseEntries.contains(where: { $0.curseID == .gildedSeal }) {
+            floorStartHP = min(floorStartHP, 2)
         }
         var updatedRunLogEntries = currentRunLogEntries ?? runLogEntries
         if case .addRelic(let relicID) = selection {
@@ -3384,24 +3447,7 @@ public struct DungeonRunState: Codable, Equatable, Sendable {
         if curseEntries.contains(where: { $0.curseID == .relicHunterBrand }) {
             adjustment -= 1
         }
-        if curseEntries.contains(where: { $0.curseID == .tinkersToolbox }) {
-            adjustment += isExistingRewardCard ? 2 : -1
-        }
         return max(baseUses + adjustment, 1)
-    }
-
-    public static func contextualRewardUseBonus(
-        curseEntries: [DungeonCurseEntry],
-        completedWithinHalfTurnLimit: Bool,
-        completedWithChaserOnFloor: Bool
-    ) -> Int {
-        let chaserScentBonus = completedWithChaserOnFloor && curseEntries.contains {
-            $0.curseID == .chaserScent
-        } ? 1 : 0
-        let warpedHourglassBonus = completedWithinHalfTurnLimit && curseEntries.contains {
-            $0.curseID == .warpedHourglass
-        } ? 2 : 0
-        return chaserScentBonus + warpedHourglassBonus
     }
 
     public static func adjustedMoveRewardBaseUses(
@@ -4443,7 +4489,8 @@ public struct DungeonDefinition: Codable, Equatable, Identifiable {
             floorIndex: floorIndex,
             seed: seed,
             forcedSpawnPoint: spawnPoint,
-            movementStyle: runState?.movementStyle ?? .orthogonal
+            movementStyle: runState?.movementStyle ?? .orthogonal,
+            curseEntries: runState?.curseEntries ?? []
         )
     }
 }
@@ -5080,7 +5127,8 @@ private enum DungeonCardVariationResolver {
         floorIndex: Int,
         seed: UInt64,
         forcedSpawnPoint: GridPoint? = nil,
-        movementStyle: DungeonMovementStyle = .orthogonal
+        movementStyle: DungeonMovementStyle = .orthogonal,
+        curseEntries: [DungeonCurseEntry] = []
     ) -> DungeonFloorDefinition {
         let spawnPoint = forcedSpawnPoint ?? resolvedSpawnPoint(for: floor, floorIndex: floorIndex, seed: seed)
         let exitPoint = resolvedExitPoint(for: floor, floorIndex: floorIndex, seed: seed, avoiding: spawnPoint)
@@ -5090,7 +5138,14 @@ private enum DungeonCardVariationResolver {
             floorIndex: floorIndex,
             seed: seed
         )
-        let enemyFloor = floorVariant(endpointFloor, enemies: enemies)
+        let curseAdjustedEnemies = adjustedEnemies(
+            enemies,
+            for: endpointFloor,
+            floorIndex: floorIndex,
+            seed: seed,
+            curseEntries: curseEntries
+        )
+        let enemyFloor = floorVariant(endpointFloor, enemies: curseAdjustedEnemies)
         let exitLock = resolvedExitLock(
             for: enemyFloor,
             floorIndex: floorIndex,
@@ -5139,7 +5194,8 @@ private enum DungeonCardVariationResolver {
             movementStyle: movementStyle,
             hazards: hazards,
             impassableTilePoints: impassableTilePoints,
-            relicPickups: relicPickups
+            relicPickups: relicPickups,
+            curseEntries: curseEntries
         )
         let rewardCards = resolvedRewardCards(
             for: floor,
@@ -5148,7 +5204,7 @@ private enum DungeonCardVariationResolver {
             movementStyle: movementStyle
         )
         let finalEnemies = resolvedWatcherDirections(
-            for: enemies,
+            for: curseAdjustedEnemies,
             floorIndex: floorIndex,
             seed: seed,
             boardSize: floor.boardSize,
@@ -5301,6 +5357,79 @@ private enum DungeonCardVariationResolver {
                 damage: enemy.damage
             )
         }
+    }
+
+    private static func adjustedEnemies(
+        _ enemies: [EnemyDefinition],
+        for floor: DungeonFloorDefinition,
+        floorIndex: Int,
+        seed: UInt64,
+        curseEntries: [DungeonCurseEntry]
+    ) -> [EnemyDefinition] {
+        guard curseEntries.contains(where: { $0.curseID == .swarmcallingTalisman }),
+              !enemies.isEmpty
+        else { return enemies }
+
+        var result = enemies
+        var reserved = coreReservedPoints(
+            for: floor,
+            includesEnemies: false,
+            includesExitLock: false,
+            includesWarpTiles: false
+        )
+        for enemy in enemies {
+            switch enemy.behavior {
+            case .patrol(let path):
+                reserved.formUnion(path)
+            case .guardPost, .watcher, .rotatingWatcher, .chaser, .marker, .targetedMarker:
+                reserved.insert(enemy.position)
+            }
+        }
+
+        for (index, enemy) in enemies.enumerated() {
+            var randomizer = DungeonCardVariationRandomizer(
+                seed: seed,
+                floorIndex: floorIndex,
+                salt: 0x5A6D + UInt64(index)
+            )
+            let behavior: EnemyBehavior
+            let position: GridPoint
+            switch enemy.behavior {
+            case .patrol(let path):
+                let uniqueCount = max(2, min(Set(path).count, 5))
+                let candidates = candidatePatrolPaths(
+                    boardSize: floor.boardSize,
+                    uniqueCount: uniqueCount,
+                    pathLength: max(path.count, uniqueCount),
+                    reserved: reserved
+                )
+                guard !candidates.isEmpty else { continue }
+                let copiedPath = candidates[randomizer.nextIndex(upperBound: candidates.count)]
+                behavior = .patrol(path: copiedPath)
+                position = copiedPath.first ?? enemy.position
+                reserved.formUnion(copiedPath)
+            case .guardPost, .watcher, .rotatingWatcher, .chaser, .marker, .targetedMarker:
+                guard let copiedPosition = drawPoints(
+                    for: floor,
+                    count: 1,
+                    reserved: reserved,
+                    randomizer: &randomizer
+                ).first else { continue }
+                behavior = enemy.behavior
+                position = copiedPosition
+                reserved.insert(copiedPosition)
+            }
+            result.append(
+                EnemyDefinition(
+                    id: "\(enemy.id)-swarm-\(index + 1)",
+                    name: enemy.name,
+                    position: position,
+                    behavior: behavior,
+                    damage: enemy.damage
+                )
+            )
+        }
+        return result
     }
 
     private static func resolvedEnemyBehavior(
@@ -5476,10 +5605,16 @@ private enum DungeonCardVariationResolver {
         movementStyle: DungeonMovementStyle,
         hazards: [HazardDefinition],
         impassableTilePoints: Set<GridPoint>,
-        relicPickups: [DungeonRelicPickupDefinition]
+        relicPickups: [DungeonRelicPickupDefinition],
+        curseEntries: [DungeonCurseEntry]
     ) -> [DungeonCardPickupDefinition] {
         guard !floor.cardPickups.isEmpty else { return [] }
-        let pickupCount = resolvedPickupCount(for: floor, floorIndex: floorIndex, seed: seed)
+        let basePickupCount = resolvedPickupCount(for: floor, floorIndex: floorIndex, seed: seed)
+        let pickupCount = adjustedPickupCount(
+            basePickupCount,
+            for: floor,
+            curseEntries: curseEntries
+        )
         var cards = drawPlayableCards(
             floorIndex: floorIndex,
             context: .floorPickup,
@@ -5490,6 +5625,10 @@ private enum DungeonCardVariationResolver {
         )
         if cards.count < pickupCount {
             cards += floor.cardPickups.dropFirst(cards.count).map(\.playable)
+        }
+        let fallbackPlayables = floor.cardPickups.map(\.playable)
+        while cards.count < pickupCount, !fallbackPlayables.isEmpty {
+            cards.append(fallbackPlayables[cards.count % fallbackPlayables.count])
         }
 
         var randomizer = DungeonCardVariationRandomizer(seed: seed, floorIndex: floorIndex, salt: 0xC4D1)
@@ -6030,6 +6169,21 @@ private enum DungeonCardVariationResolver {
             maximum: floor.cardPickups.count + 1,
             randomizer: &randomizer
         )
+    }
+
+    private static func adjustedPickupCount(
+        _ baseCount: Int,
+        for floor: DungeonFloorDefinition,
+        curseEntries: [DungeonCurseEntry]
+    ) -> Int {
+        guard baseCount > 0,
+              curseEntries.contains(where: { $0.curseID == .chaserScent }),
+              floor.enemies.contains(where: { enemy in
+                  if case .chaser = enemy.behavior { return true }
+                  return false
+              })
+        else { return baseCount }
+        return baseCount * 3
     }
 
     private static func variedCount(

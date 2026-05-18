@@ -340,6 +340,8 @@ public final class GameCore: ObservableObject {
     @Published public private(set) var didStepOnLavaThisFloor: Bool = false
     /// このフロアでプレイヤー行動によって倒した敵数
     @Published public private(set) var currentFloorDefeatedEnemyCount: Int = 0
+    /// このフロア開始時点で敵がいたかどうか
+    @Published public private(set) var didStartCurrentFloorWithEnemies: Bool = false
     /// 毒状態で残っているダメージ回数
     @Published public private(set) var poisonDamageTicksRemaining: Int = 0
     /// 次の毒ダメージまでに必要な成功行動数
@@ -1061,8 +1063,7 @@ public final class GameCore: ObservableObject {
         switch support {
         case .refillEmptySlots:
             let pendingMarkerDamagePoints = enemyWarningPoints
-            let wasDungeonInventoryFull = usesDungeonInventoryCards &&
-                dungeonInventoryEntries.filter(\.hasUsesRemaining).count >= 9
+            let wasDungeonInventoryFull = isDungeonInventoryFullForRefill
             let previousMoveCount = consumeSupportCard(at: index)
             if !wasDungeonInventoryFull {
                 refillDungeonEmptySlotsWithRandomMoveCards()
@@ -2950,6 +2951,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         poisonDamageTicksRemaining = 0
         poisonActionsUntilNextDamage = 0
         enemyStates = mode.dungeonRules?.enemies.map(EnemyState.init(definition:)) ?? []
+        didStartCurrentFloorWithEnemies = !enemyStates.isEmpty
         let currentFloorIndex = mode.dungeonMetadataSnapshot?.runState?.currentFloorIndex ?? 0
         let savedCrackedFloorPoints = mode.dungeonMetadataSnapshot?.runState?.crackedFloorPoints(for: currentFloorIndex) ?? []
         let savedCollapsedFloorPoints = mode.dungeonMetadataSnapshot?.runState?.collapsedFloorPoints(for: currentFloorIndex) ?? []
@@ -2964,6 +2966,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         dungeonRelicEntries = mode.dungeonMetadataSnapshot?.runState?.relicEntries ?? []
         dungeonCurseEntries = mode.dungeonMetadataSnapshot?.runState?.curseEntries ?? []
         applyFloorStartDungeonRelicStatusEffects()
+        applyFloorStartDungeonCurseStatusEffects()
         collectedDungeonRelicPickupIDs = mode.dungeonMetadataSnapshot?.runState?.collectedDungeonRelicPickupIDs ?? []
         dungeonRelicAcquisitionPresentations = []
         dungeonRunLogEntries = mode.dungeonMetadataSnapshot?.runState?.runLogEntries ?? []
@@ -3319,6 +3322,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             collectedDungeonRelicPickupIDs.insert(pickup.id)
             let hpBefore = dungeonHP
             dungeonHP += 1
+            clampDungeonHPForGildedSealIfNeeded()
             let presentationItems: [DungeonRelicAcquisitionPresentation.Item] = [.hpCompensation(1)]
             appendDungeonHPChangeLog(
                 kind: .healing,
@@ -3355,6 +3359,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             } else if pickup.kind == .safe {
                 let hpBefore = dungeonHP
                 dungeonHP += 1
+                clampDungeonHPForGildedSealIfNeeded()
                 presentationItems.append(.hpCompensation(1))
                 appendDungeonHPChangeLog(
                     kind: .healing,
@@ -3623,14 +3628,23 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         pickupID: String,
         salt: String
     ) -> DungeonRelicID? {
-        guard !candidates.isEmpty else { return nil }
+        let eligibleCandidates: [DungeonRelicID]
+        if hasDungeonCurse(.gildedSeal) {
+            let rareOrBetter = candidates.filter { $0.rarity != .common }
+            guard !rareOrBetter.isEmpty else { return nil }
+            eligibleCandidates = rareOrBetter
+        } else {
+            eligibleCandidates = candidates
+        }
+        guard !eligibleCandidates.isEmpty else { return nil }
         var generator = DungeonRefillRandomGenerator(seed: pickupSeed(pickupID: pickupID, salt: salt))
-        let weightedCandidates = candidates.compactMap { relic -> (DungeonRelicID, Int)? in
-            let weight = rarityWeights.first { $0.0 == relic.rarity }?.1 ?? 0
+        let weightedCandidates = eligibleCandidates.compactMap { relic -> (DungeonRelicID, Int)? in
+            let rawWeight = rarityWeights.first { $0.0 == relic.rarity }?.1 ?? 0
+            let weight = hasDungeonCurse(.gildedSeal) && relic.rarity == .common ? 0 : rawWeight
             return weight > 0 ? (relic, weight) : nil
         }
         guard !weightedCandidates.isEmpty else {
-            return candidates[Int(generator.next() % UInt64(candidates.count))]
+            return eligibleCandidates[Int(generator.next() % UInt64(eligibleCandidates.count))]
         }
         let totalWeight = weightedCandidates.reduce(0) { $0 + $1.1 }
         var roll = Int(generator.next() % UInt64(totalWeight))
@@ -3668,8 +3682,10 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             break
         case .glowingHeart:
             dungeonHP += 2
+            clampDungeonHPForGildedSealIfNeeded()
         case .woodenAmulet:
             dungeonHP += 1
+            clampDungeonHPForGildedSealIfNeeded()
         case .heavyCrown, .oldMap, .blackFeather, .chippedHourglass, .travelerBoots, .silverNeedle,
              .starCup, .distantStarCup, .crackedStarCup, .explorerBag, .moonMirror, .victoryBanner:
             break
@@ -3702,6 +3718,17 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         enemyFreezeTurnsRemaining = max(enemyFreezeTurnsRemaining, freezeTurns)
     }
 
+    private func applyFloorStartDungeonCurseStatusEffects() {
+        guard areDungeonRelicAndCurseEffectsEnabled else { return }
+        if hasDungeonCurse(.swarmcallingTalisman) {
+            damageBarrierTurnsRemaining = max(damageBarrierTurnsRemaining, 5)
+        }
+        if hasDungeonCurse(.quartermasterBell), !isDungeonInventoryFullForRefill {
+            refillDungeonEmptySlotsWithRandomMoveCards()
+        }
+        clampDungeonHPForGildedSealIfNeeded()
+    }
+
     private func applyImmediateDungeonCurseEffect(_ curseID: DungeonCurseID) {
         guard areDungeonRelicAndCurseEffectsEnabled else { return }
         switch curseID {
@@ -3729,9 +3756,12 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             break
         case .contractCodex, .royalIou, .bottomlessPack, .relicHunterBrand, .supportOath, .ashHeart,
              .hasteArmor, .scorchedCloak, .lastStandShield, .firewalkingTalisman, .tinkersToolbox,
-             .expressTicket, .ploverContract:
+             .expressTicket, .ploverContract, .quartermasterBell, .sleepingWarDrum, .swarmcallingTalisman:
             break
+        case .gildedSeal:
+            clampDungeonHPForGildedSealIfNeeded()
         }
+        clampDungeonHPForGildedSealIfNeeded()
     }
 
     private func movementPresentationStep(
@@ -3876,6 +3906,15 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         for card in candidates.prefix(emptySlotCount) {
             _ = addDungeonInventoryCard(card, pickupUses: 1)
         }
+    }
+
+    private var isDungeonInventoryFullForRefill: Bool {
+        usesDungeonInventoryCards && dungeonInventoryEntries.filter(\.hasUsesRemaining).count >= dungeonInventoryKindLimit
+    }
+
+    private func clampDungeonHPForGildedSealIfNeeded() {
+        guard hasDungeonCurse(.gildedSeal) else { return }
+        dungeonHP = min(dungeonHP, 2)
     }
 
     private func dungeonRefillMoveCardPool() -> [MoveCard] {
@@ -4129,6 +4168,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                     + (hasDungeonCurse(.flickeringCampfire) ? 3 : 0)
                 let hpBefore = dungeonHP
                 dungeonHP += appliedHealing
+                clampDungeonHPForGildedSealIfNeeded()
                 consumedHealingTilePoints.insert(point)
                 if hasDungeonRelic(.campfireCoal) {
                     poisonDamageTicksRemaining = 0
@@ -4605,7 +4645,8 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         }
 
         var phases: [DungeonEnemyTurnPhase] = []
-        let enemyTurnCount = max(currentShackleEnemyTurnCount, paralysisTrapPoint == nil ? 1 : 2)
+        let baseEnemyTurnCount = max(currentShackleEnemyTurnCount, paralysisTrapPoint == nil ? 1 : 2)
+        let enemyTurnCount = shouldSkipSleepingWarDrumEnemyTurn() ? 0 : baseEnemyTurnCount
         for turnIndex in 0..<enemyTurnCount {
             let pendingMarkerDamagePoints = turnIndex == 0
                 ? initialMarkerDamagePoints ?? enemyWarningPoints
@@ -4660,6 +4701,10 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             return true
         }
         return false
+    }
+
+    private func shouldSkipSleepingWarDrumEnemyTurn() -> Bool {
+        hasDungeonCurse(.sleepingWarDrum) && moveCount % 2 == 1
     }
 
     @discardableResult
@@ -5341,10 +5386,12 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
     }
 
     private func adjustedEnemySourceDamage(for enemy: EnemyState, isMarkerWarning: Bool) -> Int {
-        let damage = enemy.damage
-            + curseDamageBonus(for: enemy.behavior, isMarkerWarning: isMarkerWarning)
-            - curseDamageReductionBonus(for: enemy.behavior, isMarkerWarning: isMarkerWarning)
-            - persistentDamageReductionBonus(for: enemy.behavior, isMarkerWarning: isMarkerWarning)
+        var damage = enemy.damage + curseDamageBonus(for: enemy.behavior, isMarkerWarning: isMarkerWarning)
+        if hasDungeonCurse(.sleepingWarDrum) {
+            damage *= 3
+        }
+        damage -= curseDamageReductionBonus(for: enemy.behavior, isMarkerWarning: isMarkerWarning)
+        damage -= persistentDamageReductionBonus(for: enemy.behavior, isMarkerWarning: isMarkerWarning)
         return max(damage, 0)
     }
 
@@ -6086,6 +6133,7 @@ extension GameCore {
         core.isIlluded = false
         core.staggerForcedMovesRemaining = 0
         core.enemyStates = mode.dungeonRules?.enemies.map(EnemyState.init(definition:)) ?? []
+        core.didStartCurrentFloorWithEnemies = !core.enemyStates.isEmpty
         let currentFloorIndex = mode.dungeonMetadataSnapshot?.runState?.currentFloorIndex ?? 0
         let savedCrackedFloorPoints = mode.dungeonMetadataSnapshot?.runState?.crackedFloorPoints(for: currentFloorIndex) ?? []
         let savedCollapsedFloorPoints = mode.dungeonMetadataSnapshot?.runState?.collapsedFloorPoints(for: currentFloorIndex) ?? []
@@ -6106,19 +6154,21 @@ extension GameCore {
         core.dungeonRelicEntries = mode.dungeonMetadataSnapshot?.runState?.relicEntries ?? []
         core.dungeonCurseEntries = mode.dungeonMetadataSnapshot?.runState?.curseEntries ?? []
         core.applyFloorStartDungeonRelicStatusEffects()
+        core.applyFloorStartDungeonCurseStatusEffects()
 
         if core.usesDungeonInventoryCards {
-        core.dungeonInventoryEntries = mode.dungeonMetadataSnapshot?.runState?.rewardInventoryEntries ?? []
-        core.collectedDungeonCardPickupIDs = []
-        core.pendingDungeonPickupChoice = nil
-        core.pendingDungeonRelicPickupChoice = nil
-        core.dungeonRelicEntries = mode.dungeonMetadataSnapshot?.runState?.relicEntries ?? []
-        core.dungeonCurseEntries = mode.dungeonMetadataSnapshot?.runState?.curseEntries ?? []
-        core.applyFloorStartDungeonRelicStatusEffects()
-        core.collectedDungeonRelicPickupIDs = mode.dungeonMetadataSnapshot?.runState?.collectedDungeonRelicPickupIDs ?? []
-        core.dungeonRelicAcquisitionPresentations = []
-        core.dungeonRunLogEntries = mode.dungeonMetadataSnapshot?.runState?.runLogEntries ?? []
-        core.syncDungeonInventoryHandStacks()
+            core.dungeonInventoryEntries = mode.dungeonMetadataSnapshot?.runState?.rewardInventoryEntries ?? []
+            core.collectedDungeonCardPickupIDs = []
+            core.pendingDungeonPickupChoice = nil
+            core.pendingDungeonRelicPickupChoice = nil
+            core.dungeonRelicEntries = mode.dungeonMetadataSnapshot?.runState?.relicEntries ?? []
+            core.dungeonCurseEntries = mode.dungeonMetadataSnapshot?.runState?.curseEntries ?? []
+            core.applyFloorStartDungeonRelicStatusEffects()
+            core.applyFloorStartDungeonCurseStatusEffects()
+            core.collectedDungeonRelicPickupIDs = mode.dungeonMetadataSnapshot?.runState?.collectedDungeonRelicPickupIDs ?? []
+            core.dungeonRelicAcquisitionPresentations = []
+            core.dungeonRunLogEntries = mode.dungeonMetadataSnapshot?.runState?.runLogEntries ?? []
+            core.syncDungeonInventoryHandStacks()
         } else {
             core.handManager.resetAll(using: &core.deck)
             core.refreshHandStateFromManager()

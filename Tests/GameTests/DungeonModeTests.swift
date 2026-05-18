@@ -9126,17 +9126,30 @@ final class DungeonModeTests: XCTestCase {
     }
 
     func testCurseDefinitionsCoverExpandedRunCurses() {
-        XCTAssertEqual(DungeonCurseID.allCases.count, 41)
+        XCTAssertEqual(DungeonCurseID.allCases.count, 45)
         XCTAssertEqual(DungeonCurseID.newAcquisitionCases.count, 15)
         XCTAssertEqual(Set(DungeonCurseID.newAcquisitionCases).count, 15)
         XCTAssertTrue(DungeonCurseID.newAcquisitionCases.allSatisfy { DungeonCurseID.allCases.contains($0) })
         XCTAssertFalse(DungeonCurseID.newAcquisitionCases.contains(.rustyChain))
+        XCTAssertFalse(DungeonCurseID.newAcquisitionCases.contains(.trapMagnet))
+        XCTAssertFalse(DungeonCurseID.newAcquisitionCases.contains(.poisonVial))
+        XCTAssertFalse(DungeonCurseID.newAcquisitionCases.contains(.supportOath))
+        XCTAssertFalse(DungeonCurseID.newAcquisitionCases.contains(.cursedCrown))
         XCTAssertFalse(DungeonCurseID.newAcquisitionCases.contains(.oilSoakedBoots))
         XCTAssertFalse(DungeonCurseID.newAcquisitionCases.contains(.obsidianHeart))
         XCTAssertFalse(DungeonCurseID.newAcquisitionCases.contains(.greedyBag))
         XCTAssertFalse(DungeonCurseID.newAcquisitionCases.contains(.bottomlessPack))
         XCTAssertFalse(DungeonCurseID.newAcquisitionCases.contains(.relicHunterBrand))
         XCTAssertFalse(DungeonCurseID.newAcquisitionCases.contains(.ashHeart))
+        XCTAssertTrue(DungeonCurseID.newAcquisitionCases.contains(.chaserScent))
+        XCTAssertTrue(DungeonCurseID.newAcquisitionCases.contains(.warpedHourglass))
+        XCTAssertTrue(DungeonCurseID.newAcquisitionCases.contains(.tinkersToolbox))
+        XCTAssertTrue(DungeonCurseID.newAcquisitionCases.contains(.contractCodex))
+        XCTAssertTrue(DungeonCurseID.newAcquisitionCases.contains(.royalIou))
+        XCTAssertTrue(DungeonCurseID.newAcquisitionCases.contains(.quartermasterBell))
+        XCTAssertTrue(DungeonCurseID.newAcquisitionCases.contains(.sleepingWarDrum))
+        XCTAssertTrue(DungeonCurseID.newAcquisitionCases.contains(.swarmcallingTalisman))
+        XCTAssertTrue(DungeonCurseID.newAcquisitionCases.contains(.gildedSeal))
         XCTAssertEqual(
             DungeonRelicPickupDefinition(id: "default", point: GridPoint(x: 0, y: 0)).candidateCurses,
             DungeonCurseID.newAcquisitionCases
@@ -9147,6 +9160,215 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertTrue(DungeonCurseID.allCases.allSatisfy { !$0.releaseDescription.isEmpty })
         XCTAssertTrue(DungeonCurseID.allCases.allSatisfy { !$0.symbolName.isEmpty })
         XCTAssertTrue(DungeonCurseID.allCases.allSatisfy { $0.displayKind == .persistent || $0.displayKind == .temporary })
+    }
+
+    func testQuartermasterBellRefillsAtFloorStartAndPenalizesNoKillClear() {
+        let runState = DungeonRunState(
+            dungeonID: "growth-tower",
+            carriedHP: 3,
+            rewardInventoryEntries: [DungeonInventoryEntry(card: .straightRight2, rewardUses: 1)],
+            curseEntries: [DungeonCurseEntry(curseID: .quartermasterBell)],
+            dungeonInventoryKindLimit: 5
+        )
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 3,
+            turnLimit: 20,
+            cardAcquisitionMode: .inventoryOnly,
+            runState: runState
+        )
+        let core = makeCore(mode: mode)
+
+        XCTAssertEqual(core.dungeonInventoryEntries.filter(\.hasUsesRemaining).count, 5)
+        XCTAssertEqual(core.moveCount, 0)
+
+        let penalized = runState.advancedToNextFloor(
+            carryoverHP: 3,
+            currentFloorMoveCount: 1,
+            startedFloorWithEnemies: true,
+            currentFloorDefeatedEnemyCount: 0
+        )
+        let defeatedOne = runState.advancedToNextFloor(
+            carryoverHP: 3,
+            currentFloorMoveCount: 1,
+            startedFloorWithEnemies: true,
+            currentFloorDefeatedEnemyCount: 1
+        )
+        let emptyFloor = runState.advancedToNextFloor(
+            carryoverHP: 3,
+            currentFloorMoveCount: 1,
+            startedFloorWithEnemies: false,
+            currentFloorDefeatedEnemyCount: 0
+        )
+
+        XCTAssertEqual(penalized.carriedHP, 2)
+        XCTAssertEqual(defeatedOne.carriedHP, 3)
+        XCTAssertEqual(emptyFloor.carriedHP, 3)
+    }
+
+    func testSleepingWarDrumSkipsEveryOtherEnemyTurnAndTriplesEnemyDamage() {
+        let chaser = EnemyDefinition(
+            id: "chaser",
+            name: "追跡兵",
+            position: GridPoint(x: 4, y: 4),
+            behavior: .chaser
+        )
+        let runState = DungeonRunState(
+            dungeonID: "growth-tower",
+            carriedHP: 5,
+            curseEntries: [DungeonCurseEntry(curseID: .sleepingWarDrum)]
+        )
+        let core = makeCore(
+            mode: makeDungeonMode(
+                spawn: GridPoint(x: 0, y: 0),
+                exit: GridPoint(x: 4, y: 0),
+                hp: 5,
+                turnLimit: 20,
+                enemies: [chaser],
+                runState: runState
+            )
+        )
+
+        playBasicMove(to: GridPoint(x: 0, y: 1), in: core)
+        XCTAssertEqual(core.enemyStates.first?.position, GridPoint(x: 4, y: 4))
+        playBasicMove(to: GridPoint(x: 0, y: 2), in: core)
+        XCTAssertNotEqual(core.enemyStates.first?.position, GridPoint(x: 4, y: 4))
+
+        let watcher = EnemyDefinition(
+            id: "watcher",
+            name: "見張り",
+            position: GridPoint(x: 1, y: 0),
+            behavior: .watcher(direction: MoveVector(dx: 0, dy: 1), range: 3)
+        )
+        let damageCore = makeCore(
+            mode: makeDungeonMode(
+                spawn: GridPoint(x: 0, y: 0),
+                exit: GridPoint(x: 4, y: 4),
+                hp: 5,
+                turnLimit: 20,
+                enemies: [watcher],
+                runState: runState
+            )
+        )
+        playBasicMove(to: GridPoint(x: 0, y: 1), in: damageCore)
+        playBasicMove(to: GridPoint(x: 1, y: 1), in: damageCore)
+        XCTAssertEqual(damageCore.dungeonHP, 2)
+
+        let reducedCore = makeCore(
+            mode: makeDungeonMode(
+                spawn: GridPoint(x: 0, y: 0),
+                exit: GridPoint(x: 4, y: 4),
+                hp: 5,
+                turnLimit: 20,
+                enemies: [watcher],
+                runState: DungeonRunState(
+                    dungeonID: "growth-tower",
+                    carriedHP: 5,
+                    relicEntries: [DungeonRelicEntry(relicID: .guardianCloak)],
+                    curseEntries: [DungeonCurseEntry(curseID: .sleepingWarDrum)]
+                )
+            )
+        )
+        playBasicMove(to: GridPoint(x: 0, y: 1), in: reducedCore)
+        playBasicMove(to: GridPoint(x: 1, y: 1), in: reducedCore)
+        XCTAssertEqual(reducedCore.dungeonHP, 3)
+    }
+
+    func testSwarmcallingTalismanAddsBarrierAndDoublesResolvedEnemies() throws {
+        let dungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let seed: UInt64 = 8128
+        let baseRunState = DungeonRunState(dungeonID: dungeon.id, carriedHP: 3, cardVariationSeed: seed)
+        let swarmRunState = DungeonRunState(
+            dungeonID: dungeon.id,
+            carriedHP: 3,
+            curseEntries: [DungeonCurseEntry(curseID: .swarmcallingTalisman)],
+            cardVariationSeed: seed
+        )
+        let floorIndex = try XCTUnwrap((0..<dungeon.floors.count).first { index in
+            guard let floor = dungeon.resolvedFloor(at: index, runState: baseRunState) else { return false }
+            return !floor.enemies.isEmpty && floor.enemies.count <= 4
+        })
+        let baseFloor = try XCTUnwrap(dungeon.resolvedFloor(at: floorIndex, runState: baseRunState))
+        let swarmFloor = try XCTUnwrap(dungeon.resolvedFloor(at: floorIndex, runState: swarmRunState))
+
+        XCTAssertEqual(swarmFloor.enemies.count, baseFloor.enemies.count * 2)
+        XCTAssertEqual(Set(swarmFloor.enemies.map(\.position)).count, swarmFloor.enemies.count)
+        XCTAssertFalse(swarmFloor.enemies.contains { $0.position == swarmFloor.spawnPoint || $0.position == swarmFloor.exitPoint })
+
+        let core = makeCore(
+            mode: makeDungeonMode(
+                spawn: GridPoint(x: 0, y: 0),
+                exit: GridPoint(x: 4, y: 4),
+                hp: 3,
+                turnLimit: 20,
+                runState: swarmRunState
+            )
+        )
+        XCTAssertEqual(core.damageBarrierTurnsRemaining, 5)
+    }
+
+    func testGildedSealForcesRareRelicsAndClampsHP() {
+        let offers = DungeonWeightedRewardPools.drawUniqueOffers(
+            from: [
+                DungeonWeightedRewardPoolEntry(item: .relic(.crackedShield), weight: 100),
+                DungeonWeightedRewardPoolEntry(item: .relic(.starCup), weight: 1)
+            ],
+            context: .clearReward,
+            count: 1,
+            seed: 7,
+            floorIndex: 0,
+            salt: 11,
+            tuning: DungeonRewardDrawTuning(forcesRareOrBetterRelics: true)
+        )
+        XCTAssertEqual(offers.first?.relic, .starCup)
+
+        let pickupPoint = GridPoint(x: 1, y: 0)
+        let runState = DungeonRunState(
+            dungeonID: "growth-tower",
+            carriedHP: 5,
+            curseEntries: [DungeonCurseEntry(curseID: .gildedSeal)]
+        )
+        let core = makeCore(
+            mode: makeDungeonMode(
+                spawn: GridPoint(x: 0, y: 0),
+                exit: GridPoint(x: 4, y: 4),
+                hp: 5,
+                turnLimit: 20,
+                relicPickups: [
+                    DungeonRelicPickupDefinition(
+                        id: "seal-chest",
+                        point: pickupPoint,
+                        kind: .safe,
+                        candidateRelics: [.crackedShield, .starCup]
+                    )
+                ],
+                runState: runState
+            )
+        )
+
+        XCTAssertEqual(core.dungeonHP, 2)
+        playBasicMove(to: pickupPoint, in: core)
+        XCTAssertTrue(core.dungeonRelicEntries.contains { $0.relicID == .starCup })
+
+        let healingCore = makeCore(
+            mode: makeDungeonMode(
+                spawn: GridPoint(x: 0, y: 0),
+                exit: GridPoint(x: 4, y: 4),
+                hp: 1,
+                turnLimit: 20,
+                hazards: [.healingTile(points: [pickupPoint], amount: 5)],
+                runState: runState
+            )
+        )
+        playBasicMove(to: pickupPoint, in: healingCore)
+        XCTAssertEqual(healingCore.dungeonHP, 2)
+
+        let next = runState.advancedToNextFloor(
+            carryoverHP: 5,
+            currentFloorMoveCount: 1
+        )
+        XCTAssertEqual(next.carriedHP, 2)
     }
 
     func testPloverContractRemovesBasicMoveAndExpandsHandLimitToTen() {
@@ -9287,42 +9509,44 @@ final class DungeonModeTests: XCTestCase {
         )
     }
 
-    func testChaserScentAddsRewardUsesOnlyOnChaserFloors() {
-        let curseEntries = [DungeonCurseEntry(curseID: .chaserScent)]
-
-        XCTAssertEqual(
-            DungeonRunState.contextualRewardUseBonus(
-                curseEntries: curseEntries,
-                completedWithinHalfTurnLimit: false,
-                completedWithChaserOnFloor: true
-            ),
-            1
-        )
-        XCTAssertEqual(
-            DungeonRunState.contextualRewardUseBonus(
-                curseEntries: curseEntries,
-                completedWithinHalfTurnLimit: false,
-                completedWithChaserOnFloor: false
-            ),
-            0
-        )
-
-        let runState = DungeonRunState(
-            dungeonID: "growth-tower",
+    func testChaserScentTriplesFloorPickupsOnlyOnChaserFloors() throws {
+        let dungeon = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let seed: UInt64 = 7281
+        let baseRunState = DungeonRunState(
+            dungeonID: dungeon.id,
             carriedHP: 3,
-            curseEntries: curseEntries
+            cardVariationSeed: seed
         )
-        let advanced = runState.advancedToNextFloor(
-            carryoverHP: 3,
-            currentFloorMoveCount: 4,
-            rewardSelection: .add(.straightRight2),
-            completedWithChaserOnFloor: true
+        let curseRunState = DungeonRunState(
+            dungeonID: dungeon.id,
+            carriedHP: 3,
+            curseEntries: [DungeonCurseEntry(curseID: .chaserScent)],
+            cardVariationSeed: seed
         )
+        let chaserFloorIndex = try XCTUnwrap((0..<dungeon.floors.count).first { index in
+            guard let floor = dungeon.resolvedFloor(at: index, runState: baseRunState) else { return false }
+            return !floor.cardPickups.isEmpty && floor.enemies.contains { enemy in
+                if case .chaser = enemy.behavior { return true }
+                return false
+            }
+        })
+        let noChaserFloorIndex = try XCTUnwrap((0..<dungeon.floors.count).first { index in
+            guard let floor = dungeon.resolvedFloor(at: index, runState: baseRunState) else { return false }
+            return !floor.cardPickups.isEmpty && !floor.enemies.contains { enemy in
+                if case .chaser = enemy.behavior { return true }
+                return false
+            }
+        })
+        let baseChaserFloor = try XCTUnwrap(dungeon.resolvedFloor(at: chaserFloorIndex, runState: baseRunState))
+        let curseChaserFloor = try XCTUnwrap(dungeon.resolvedFloor(at: chaserFloorIndex, runState: curseRunState))
+        let baseNoChaserFloor = try XCTUnwrap(dungeon.resolvedFloor(at: noChaserFloorIndex, runState: baseRunState))
+        let curseNoChaserFloor = try XCTUnwrap(dungeon.resolvedFloor(at: noChaserFloorIndex, runState: curseRunState))
 
-        XCTAssertEqual(advanced.rewardInventoryEntries.first { $0.moveCard == .straightRight2 }?.totalUses, 3)
+        XCTAssertEqual(curseChaserFloor.cardPickups.count, baseChaserFloor.cardPickups.count * 3)
+        XCTAssertEqual(curseNoChaserFloor.cardPickups.count, baseNoChaserFloor.cardPickups.count)
     }
 
-    func testWarpedHourglassRewardsFastClearAndPenalizesSlowClearHP() {
+    func testWarpedHourglassPenalizesSlowClearHPWithoutRewardUseBonus() {
         let runState = DungeonRunState(
             dungeonID: "growth-tower",
             carriedHP: 4,
@@ -9342,7 +9566,7 @@ final class DungeonModeTests: XCTestCase {
             completedWithinHalfTurnLimit: false
         )
 
-        XCTAssertEqual(fastClear.rewardInventoryEntries.first { $0.moveCard == .straightRight2 }?.totalUses, 4)
+        XCTAssertEqual(fastClear.rewardInventoryEntries.first { $0.moveCard == .straightRight2 }?.totalUses, 2)
         XCTAssertEqual(fastClear.carriedHP, 4)
         XCTAssertEqual(slowClear.rewardInventoryEntries.first { $0.moveCard == .straightRight2 }?.totalUses, 2)
         XCTAssertEqual(slowClear.carriedHP, 3)
@@ -9625,8 +9849,20 @@ final class DungeonModeTests: XCTestCase {
             currentFloorMoveCount: 1,
             rewardSelection: .add(.rayRight)
         )
-        XCTAssertEqual(duplicated.rewardInventoryEntries.first { $0.moveCard == .straightRight2 }?.totalUses, 6)
-        XCTAssertEqual(added.rewardInventoryEntries.first { $0.moveCard == .rayRight }?.totalUses, 1)
+        XCTAssertEqual(duplicated.rewardInventoryEntries.filter { $0.moveCard == .straightRight2 }.map(\.totalUses).reduce(0, +), 4)
+        XCTAssertEqual(added.rewardInventoryEntries.first { $0.moveCard == .rayRight }?.totalUses, 2)
+        XCTAssertGreaterThan(
+            DungeonWeightedRewardPools.rewardPlayableWeight(
+                1,
+                playable: .move(.straightRight2),
+                tuning: DungeonRewardDrawTuning(preferredPlayables: [.move(.straightRight2)])
+            ),
+            DungeonWeightedRewardPools.rewardPlayableWeight(
+                1,
+                playable: .move(.rayRight),
+                tuning: DungeonRewardDrawTuning(preferredPlayables: [.move(.straightRight2)])
+            )
+        )
 
         let expressState = DungeonRunState(
             dungeonID: "growth-tower",
