@@ -584,6 +584,9 @@ final class GameBoardBridgeViewModel: ObservableObject {
                 .filter { !collectedPickupIDs.contains($0.id) }
                 .map(\.point) ?? []
         )
+        let displayedSpecialPickupPoints = Set(
+            core.activeDungeonSpecialPickups.map(\.point)
+        )
         let displayedRelicPickups = mode.dungeonRules?.relicPickups
             .filter { !collectedRelicPickupIDs.contains($0.id) } ?? []
         let displayedRelicPickupPoints = Set(
@@ -619,6 +622,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
                 : visible(displayed: displayedEnemyDangerPoints, in: dungeonVisiblePoints),
             .dungeonEnemyWarning: shouldDeferEnemyThreatHighlights ? [] : displayedEnemyWarningPoints,
             .dungeonCardPickup: visible(displayed: displayedCardPickupPoints, in: dungeonVisiblePoints),
+            .dungeonSpecialPickup: visible(displayed: displayedSpecialPickupPoints, in: dungeonVisiblePoints),
             .dungeonRelicPickup: visible(displayed: displayedRelicPickupPoints, in: dungeonVisiblePoints),
             .dungeonSuspiciousRelicPickup: visible(displayed: displayedSuspiciousRelicPickupPoints, in: dungeonVisiblePoints),
             .dungeonDamageTrap: visible(displayed: core.damageTrapPoints.subtracting(core.strongDamageTrapPoints), in: dungeonVisiblePoints),

@@ -34,6 +34,7 @@ public struct DungeonRunResumeSnapshot: Codable, Equatable, Sendable {
     public let consumedHealingTilePoints: Set<GridPoint>
     public let dungeonInventoryEntries: [DungeonInventoryEntry]
     public let collectedDungeonCardPickupIDs: Set<String>
+    public let collectedDungeonSpecialPickupIDs: Set<String>
     public let dungeonRelicEntries: [DungeonRelicEntry]
     public let dungeonCurseEntries: [DungeonCurseEntry]
     public let collectedDungeonRelicPickupIDs: Set<String>
@@ -73,6 +74,7 @@ public struct DungeonRunResumeSnapshot: Codable, Equatable, Sendable {
         consumedHealingTilePoints: Set<GridPoint> = [],
         dungeonInventoryEntries: [DungeonInventoryEntry],
         collectedDungeonCardPickupIDs: Set<String>,
+        collectedDungeonSpecialPickupIDs: Set<String> = [],
         dungeonRelicEntries: [DungeonRelicEntry] = [],
         dungeonCurseEntries: [DungeonCurseEntry] = [],
         collectedDungeonRelicPickupIDs: Set<String> = [],
@@ -111,6 +113,7 @@ public struct DungeonRunResumeSnapshot: Codable, Equatable, Sendable {
         self.consumedHealingTilePoints = consumedHealingTilePoints
         self.dungeonInventoryEntries = dungeonInventoryEntries.filter(\.hasUsesRemaining)
         self.collectedDungeonCardPickupIDs = collectedDungeonCardPickupIDs
+        self.collectedDungeonSpecialPickupIDs = collectedDungeonSpecialPickupIDs
         self.dungeonRelicEntries = dungeonRelicEntries
         self.dungeonCurseEntries = dungeonCurseEntries
         self.collectedDungeonRelicPickupIDs = collectedDungeonRelicPickupIDs
@@ -151,6 +154,7 @@ public struct DungeonRunResumeSnapshot: Codable, Equatable, Sendable {
         case consumedHealingTilePoints
         case dungeonInventoryEntries
         case collectedDungeonCardPickupIDs
+        case collectedDungeonSpecialPickupIDs
         case dungeonRelicEntries
         case dungeonCurseEntries
         case collectedDungeonRelicPickupIDs
@@ -193,6 +197,7 @@ public struct DungeonRunResumeSnapshot: Codable, Equatable, Sendable {
             consumedHealingTilePoints: try container.decodeIfPresent(Set<GridPoint>.self, forKey: .consumedHealingTilePoints) ?? [],
             dungeonInventoryEntries: try container.decodeIfPresent([DungeonInventoryEntry].self, forKey: .dungeonInventoryEntries) ?? [],
             collectedDungeonCardPickupIDs: try container.decodeIfPresent(Set<String>.self, forKey: .collectedDungeonCardPickupIDs) ?? [],
+            collectedDungeonSpecialPickupIDs: try container.decodeIfPresent(Set<String>.self, forKey: .collectedDungeonSpecialPickupIDs) ?? [],
             dungeonRelicEntries: try container.decodeIfPresent([LossyDungeonRelicEntry].self, forKey: .dungeonRelicEntries)?
                 .compactMap(\.value) ?? [],
             dungeonCurseEntries: try container.decodeIfPresent([DungeonCurseEntry].self, forKey: .dungeonCurseEntries) ?? [],
@@ -236,6 +241,7 @@ public struct DungeonRunResumeSnapshot: Codable, Equatable, Sendable {
         try container.encode(consumedHealingTilePoints, forKey: .consumedHealingTilePoints)
         try container.encode(dungeonInventoryEntries, forKey: .dungeonInventoryEntries)
         try container.encode(collectedDungeonCardPickupIDs, forKey: .collectedDungeonCardPickupIDs)
+        try container.encode(collectedDungeonSpecialPickupIDs, forKey: .collectedDungeonSpecialPickupIDs)
         try container.encode(dungeonRelicEntries, forKey: .dungeonRelicEntries)
         try container.encode(dungeonCurseEntries, forKey: .dungeonCurseEntries)
         try container.encode(collectedDungeonRelicPickupIDs, forKey: .collectedDungeonRelicPickupIDs)

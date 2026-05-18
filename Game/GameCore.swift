@@ -358,6 +358,8 @@ public final class GameCore: ObservableObject {
     @Published public private(set) var dungeonInventoryEntries: [DungeonInventoryEntry] = []
     /// 取得済みのフロア内カード ID
     @Published public private(set) var collectedDungeonCardPickupIDs: Set<String> = []
+    /// 取得済みのフロア内専用アイテム ID
+    @Published public private(set) var collectedDungeonSpecialPickupIDs: Set<String> = []
     /// 塔ラン中だけ有効な遺物一覧
     @Published public private(set) var dungeonRelicEntries: [DungeonRelicEntry] = []
     /// 塔ラン中だけ有効な呪い遺物一覧
@@ -376,6 +378,7 @@ public final class GameCore: ObservableObject {
     /// 怪しい宝箱の選択を待っている状態
     @Published public private(set) var pendingDungeonRelicPickupChoice: PendingDungeonRelicPickupChoice?
     private var pendingDefeatEnemyTurnSkip = false
+    private var currentDungeonInventoryKindLimit: Int?
     /// 塔ダンジョン出口が現在有効かどうか
     @Published public private(set) var isDungeonExitUnlocked: Bool = true
     /// 出口解錠演出用の単発イベント
@@ -692,10 +695,17 @@ public final class GameCore: ObservableObject {
     }
     /// まだ盤面上に残っている宝箱
     public var activeDungeonRelicPickups: [DungeonRelicPickupDefinition] {
-        guard mode.dungeonRules?.difficulty == .growth,
+        guard mode.dungeonRules?.difficulty == .growth || mode.dungeonRules?.difficulty == .roguelike,
               let relicPickups = mode.dungeonRules?.relicPickups
         else { return [] }
         return relicPickups.filter { !collectedDungeonRelicPickupIDs.contains($0.id) }
+    }
+    /// まだ盤面上に残っている塔専用アイテム
+    public var activeDungeonSpecialPickups: [DungeonSpecialPickupDefinition] {
+        guard mode.dungeonRules?.difficulty == .roguelike,
+              let specialPickups = mode.dungeonRules?.specialPickups
+        else { return [] }
+        return specialPickups.filter { !collectedDungeonSpecialPickupIDs.contains($0.id) }
     }
     public var isAwaitingDungeonPickupChoice: Bool {
         pendingDungeonPickupChoice != nil || pendingDungeonRelicPickupChoice != nil
@@ -723,7 +733,7 @@ public final class GameCore: ObservableObject {
     /// 呪い遺物などの一時効果を反映した通常カード所持上限
     public var effectiveDungeonInventoryKindLimit: Int {
         guard usesDungeonInventoryCards else { return 0 }
-        let baseLimit = min(max(mode.dungeonMetadataSnapshot?.runState?.dungeonInventoryKindLimit ?? 9, 1), 9)
+        let baseLimit = min(max(currentDungeonInventoryKindLimit ?? mode.dungeonMetadataSnapshot?.runState?.dungeonInventoryKindLimit ?? 9, 1), 9)
         let curseBonus = hasDungeonCurse(.ploverContract) ? 1 : 0
         return min(baseLimit + curseBonus, 10)
     }
@@ -810,6 +820,7 @@ public final class GameCore: ObservableObject {
             consumedHealingTilePoints: consumedHealingTilePoints,
             dungeonInventoryEntries: dungeonInventoryEntries,
             collectedDungeonCardPickupIDs: collectedDungeonCardPickupIDs,
+            collectedDungeonSpecialPickupIDs: collectedDungeonSpecialPickupIDs,
             dungeonRelicEntries: dungeonRelicEntries,
             dungeonCurseEntries: dungeonCurseEntries,
             collectedDungeonRelicPickupIDs: collectedDungeonRelicPickupIDs,
@@ -878,6 +889,12 @@ public final class GameCore: ObservableObject {
         consumedHealingTilePoints = validConsumedHealingPoints
         dungeonInventoryEntries = snapshot.dungeonInventoryEntries
         collectedDungeonCardPickupIDs = snapshot.collectedDungeonCardPickupIDs
+        collectedDungeonSpecialPickupIDs = snapshot.collectedDungeonSpecialPickupIDs
+        let restoredBaseInventoryLimit = mode.dungeonMetadataSnapshot?.runState?.dungeonInventoryKindLimit ?? 9
+        currentDungeonInventoryKindLimit = min(
+            restoredBaseInventoryLimit + (collectedDungeonSpecialPickupIDs.contains { $0.contains("-hand-expansion") } ? 1 : 0),
+            9
+        )
         dungeonRelicEntries = snapshot.dungeonRelicEntries
         dungeonCurseEntries = snapshot.dungeonCurseEntries
         collectedDungeonRelicPickupIDs = snapshot.collectedDungeonRelicPickupIDs
@@ -2081,6 +2098,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                     remainingPathAfterPickupChoice = Array(pendingPath.dropFirst(stepIndex + 1))
                     break
                 }
+                collectDungeonSpecialPickup(at: stepPoint)
                 collectDungeonRelicPickup(at: stepPoint)
                 presentationSteps.append(
                     movementPresentationStep(
@@ -2103,6 +2121,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                 remainingPathAfterPickupChoice = Array(pendingPath.dropFirst(stepIndex + 1))
                 break
             }
+            collectDungeonSpecialPickup(at: stepPoint)
             collectDungeonRelicPickup(at: stepPoint)
             if progress == .failed {
                 presentationSteps.append(
@@ -2174,6 +2193,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                                 stepIndex = pendingPath.count
                                 break
                             }
+                            collectDungeonSpecialPickup(at: destination)
                             collectDungeonRelicPickup(at: destination)
                             presentationSteps.append(
                                 movementPresentationStep(
@@ -2198,6 +2218,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                             stepIndex = pendingPath.count
                             break
                         }
+                        collectDungeonSpecialPickup(at: destination)
                         collectDungeonRelicPickup(at: destination)
                         if progress == .failed {
                             presentationSteps.append(
@@ -2963,6 +2984,8 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         consumedHealingTilePoints = []
         dungeonInventoryEntries = mode.dungeonMetadataSnapshot?.runState?.rewardInventoryEntries ?? []
         collectedDungeonCardPickupIDs = []
+        collectedDungeonSpecialPickupIDs = []
+        currentDungeonInventoryKindLimit = mode.dungeonMetadataSnapshot?.runState?.dungeonInventoryKindLimit
         dungeonRelicEntries = mode.dungeonMetadataSnapshot?.runState?.relicEntries ?? []
         dungeonCurseEntries = mode.dungeonMetadataSnapshot?.runState?.curseEntries ?? []
         applyFloorStartDungeonRelicStatusEffects()
@@ -3236,6 +3259,36 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         guard usesDungeonInventoryCards else { return false }
         guard let pickup = activeDungeonCardPickups.first(where: { $0.point == point }) else { return false }
         return collectDungeonCardPickupDefinition(pickup)
+    }
+
+    @discardableResult
+    private func collectDungeonSpecialPickup(at point: GridPoint) -> Bool {
+        guard let pickup = activeDungeonSpecialPickups.first(where: { $0.point == point }) else { return false }
+        switch pickup.kind {
+        case .handExpansion:
+            guard mode.dungeonRules?.difficulty == .roguelike else { return false }
+            let oldLimit = currentDungeonInventoryKindLimit
+                ?? mode.dungeonMetadataSnapshot?.runState?.dungeonInventoryKindLimit
+                ?? 5
+            let newLimit = min(max(oldLimit, 1) + 1, 9)
+            collectedDungeonSpecialPickupIDs.insert(pickup.id)
+            currentDungeonInventoryKindLimit = newLimit
+            appendDungeonRunLog(
+                kind: .acquisition,
+                point: pickup.point,
+                message: "手札拡張を取得（所持枠 \(oldLimit)→\(newLimit)）"
+            )
+            logDungeonPlayEvent(
+                "pickup_hand_expansion",
+                [
+                    ("pickup", pickup.id),
+                    ("point", PlayDiagnosticLog.describe(pickup.point)),
+                    ("limit", "\(oldLimit)->\(newLimit)")
+                ]
+            )
+            syncDungeonInventoryHandStacks()
+            return true
+        }
     }
 
     @discardableResult
@@ -6159,6 +6212,8 @@ extension GameCore {
         if core.usesDungeonInventoryCards {
             core.dungeonInventoryEntries = mode.dungeonMetadataSnapshot?.runState?.rewardInventoryEntries ?? []
             core.collectedDungeonCardPickupIDs = []
+            core.collectedDungeonSpecialPickupIDs = []
+            core.currentDungeonInventoryKindLimit = mode.dungeonMetadataSnapshot?.runState?.dungeonInventoryKindLimit
             core.pendingDungeonPickupChoice = nil
             core.pendingDungeonRelicPickupChoice = nil
             core.dungeonRelicEntries = mode.dungeonMetadataSnapshot?.runState?.relicEntries ?? []

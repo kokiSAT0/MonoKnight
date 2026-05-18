@@ -324,10 +324,36 @@ final class DungeonSelectionViewTests: XCTestCase {
         XCTAssertNil(recordStore.highestFloorText(for: rogueTower))
 
         XCTAssertTrue(recordStore.registerReachedFloor(27, for: rogueTower))
+        XCTAssertTrue(recordStore.registerReachedFloor(12, for: rogueTower, movementStyle: .knight))
 
-        XCTAssertEqual(recordStore.highestFloorText(for: rogueTower), "最高到達 27F")
+        XCTAssertEqual(recordStore.highestFloorText(for: rogueTower), "標準 27F / 跳躍 12F")
         XCTAssertNil(recordStore.highestFloorText(for: tutorialTower))
         XCTAssertNil(recordStore.highestFloorText(for: growthTower))
+    }
+
+    func testRogueTowerCanStartWithKnightStyleWhenSelectionAllowsIt() throws {
+        let suiteName = "DungeonSelectionViewTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName) ?? .standard
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let gameSettingsStore = GameSettingsStore(userDefaults: defaults)
+        let growthStore = DungeonGrowthStore(userDefaults: defaults)
+        let rogueTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "rogue-tower"))
+        let tutorialTower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
+
+        XCTAssertFalse(growthStore.isKnightMovementStyleUnlocked)
+        XCTAssertFalse(gameSettingsStore.unlocksKnightMovementStyleForDeveloper)
+
+        gameSettingsStore.unlocksKnightMovementStyleForDeveloper = true
+        let rogueKnightMode = try XCTUnwrap(
+            DungeonLibrary.shared.firstFloorMode(for: rogueTower, movementStyle: .knight)
+        )
+        let tutorialKnightMode = try XCTUnwrap(
+            DungeonLibrary.shared.firstFloorMode(for: tutorialTower, movementStyle: .knight)
+        )
+
+        XCTAssertEqual(rogueKnightMode.dungeonMetadataSnapshot?.runState?.movementStyle, .knight)
+        XCTAssertEqual(tutorialKnightMode.dungeonMetadataSnapshot?.runState?.movementStyle, .orthogonal)
+        XCTAssertEqual(rogueKnightMode.dungeonMetadataSnapshot?.runState?.dungeonInventoryKindLimit, 5)
     }
 
     func testDungeonSelectionExposesSecondSectionAfterCheckpointUnlock() throws {

@@ -1208,12 +1208,12 @@
 
             switch kind {
             case .guideSingleCandidate:
-                baseColor = palette.boardTileVisited
+                baseColor = directMoveGuideColor(palette)
                 strokeAlpha = 0.9
                 strokeWidth = sharedGuideStrokeWidth
                 zPosition = 0.95
             case .guideDirectTwoStepCandidate:
-                baseColor = palette.boardMultiStepHighlight
+                baseColor = directMoveGuideColor(palette)
                 strokeAlpha = 0.9
                 strokeWidth = sharedGuideStrokeWidth
                 if latestSingleGuidePoints.contains(point) {
@@ -1230,7 +1230,7 @@
                 }
                 zPosition = 1.025
             case .guideMultipleCandidate:
-                baseColor = palette.boardGuideHighlight
+                baseColor = directMoveGuideColor(palette)
                 strokeAlpha = 0.88
                 strokeWidth = sharedGuideStrokeWidth
                 if latestSingleGuidePoints.contains(point) {
@@ -1278,9 +1278,7 @@
                 }
                 zPosition = 1.06
             case .dungeonBasicMove:
-                baseColor = usesNeonGridTheme(palette)
-                    ? SKColor(red: 0.0, green: 0.38, blue: 0.56, alpha: 1.0)
-                    : SKColor.black
+                baseColor = directMoveGuideColor(palette)
                 strokeAlpha = 1.0
                 strokeWidth = sharedGuideStrokeWidth
                 fillColor = SKColor.clear
@@ -1340,6 +1338,13 @@
                 fillColor = baseColor.withAlphaComponent(0.82)
                 glowWidth = max(layout.tileSize * 0.010, 0.5)
                 zPosition = 1.14
+            case .dungeonSpecialPickup:
+                baseColor = palette.boardDungeonKey
+                strokeAlpha = 0.88
+                strokeWidth = max(layout.tileSize * 0.038, 1.2)
+                fillColor = baseColor.withAlphaComponent(0.72)
+                glowWidth = max(layout.tileSize * 0.014, 0.6)
+                zPosition = 1.145
             case .dungeonRelicPickup:
                 baseColor = palette.boardDungeonRelicPickup
                 strokeAlpha = 0.92
@@ -1565,6 +1570,8 @@
                 return meteorWarningMarkerPath(in: rect)
             case .dungeonCardPickup:
                 return cardPickupMarkerPath(center: CGPoint(x: rect.midX, y: rect.midY), tileSize: tileSize)
+            case .dungeonSpecialPickup:
+                return dungeonKeyMarkerPath(center: CGPoint(x: rect.midX, y: rect.midY), tileSize: tileSize)
             case .dungeonRelicPickup:
                 return relicPickupMarkerPath(center: CGPoint(x: rect.midX, y: rect.midY), tileSize: tileSize)
             case .dungeonSuspiciousRelicPickup:
@@ -1984,15 +1991,11 @@
                 glowWidth = max(glowWidth, softGlow)
             case .guideMultiStepPath:
                 fillColor = baseColor.withAlphaComponent(0.10)
-            case .guideDirectTwoStepCandidate:
-                strokeAlpha = 1.0
-                strokeWidth = max(strokeWidth * 1.15, tileSize * 0.064)
-                glowWidth = max(glowWidth, strongGlow)
             case .dungeonExit, .dungeonExitLocked:
                 strokeAlpha = 1.0
                 fillColor = baseColor.withAlphaComponent(0.18)
                 glowWidth = max(glowWidth, strongGlow)
-            case .dungeonKey, .dungeonCardPickup, .dungeonDamageTrap, .dungeonStrongDamageTrap, .dungeonHealingTile:
+            case .dungeonKey, .dungeonCardPickup, .dungeonSpecialPickup, .dungeonDamageTrap, .dungeonStrongDamageTrap, .dungeonHealingTile:
                 strokeAlpha = 0
                 strokeWidth = 0
                 fillColor = baseColor.withAlphaComponent(
@@ -2019,6 +2022,7 @@
             case .dungeonCollapsedFloor:
                 glowWidth = max(glowWidth, max(tileSize * 0.010, 0.5))
             case .guideSingleCandidate,
+                 .guideDirectTwoStepCandidate,
                  .guideMultipleCandidate,
                  .guideMultiStepCandidate,
                  .guideWarpCandidate,
@@ -2054,5 +2058,11 @@
 
     private func usesNeonGridTheme(_ palette: GameScenePalette) -> Bool {
         palette.isNeonGridTheme
+    }
+
+    private func directMoveGuideColor(_ palette: GameScenePalette) -> SKColor {
+        usesNeonGridTheme(palette)
+            ? SKColor(white: 0.74, alpha: 1.0)
+            : palette.boardTileVisited
     }
 #endif

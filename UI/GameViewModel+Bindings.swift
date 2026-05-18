@@ -485,7 +485,11 @@ extension GameViewModel {
         let reachedFloorNumber = progress == .cleared
             ? runState.floorNumber + 1
             : runState.floorNumber
-        _ = rogueTowerRecordStore.registerReachedFloor(reachedFloorNumber, for: dungeon)
+        _ = rogueTowerRecordStore.registerReachedFloor(
+            reachedFloorNumber,
+            for: dungeon,
+            movementStyle: runState.movementStyle
+        )
     }
 
     func handleDungeonHPChange(_ newHP: Int) {

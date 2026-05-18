@@ -785,7 +785,7 @@ struct DungeonSelectionView: View {
 
     @ViewBuilder
     private func growthMovementStyleSection(for dungeon: DungeonDefinition) -> some View {
-        if dungeon.difficulty == .growth {
+        if dungeon.difficulty == .growth || dungeon.supportsInfiniteFloors {
             let isKnightUnlocked = isKnightMovementStyleSelectable
             VStack(alignment: .leading, spacing: 10) {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -801,8 +801,8 @@ struct DungeonSelectionView: View {
                 }
 
                 HStack(spacing: 8) {
-                    movementStyleButton(.orthogonal, isUnlocked: true)
-                    movementStyleButton(.knight, isUnlocked: isKnightUnlocked)
+                    movementStyleButton(.orthogonal, isUnlocked: true, dungeon: dungeon)
+                    movementStyleButton(.knight, isUnlocked: isKnightUnlocked, dungeon: dungeon)
                 }
             }
             .padding(12)
@@ -820,11 +820,19 @@ struct DungeonSelectionView: View {
                     selectedGrowthMovementStyle = .orthogonal
                 }
             }
-            .accessibilityIdentifier("dungeon_growth_movement_style_section")
+            .accessibilityIdentifier(
+                dungeon.difficulty == .growth
+                    ? "dungeon_growth_movement_style_section"
+                    : "dungeon_rogue_movement_style_section"
+            )
         }
     }
 
-    private func movementStyleButton(_ movementStyle: DungeonMovementStyle, isUnlocked: Bool) -> some View {
+    private func movementStyleButton(
+        _ movementStyle: DungeonMovementStyle,
+        isUnlocked: Bool,
+        dungeon: DungeonDefinition
+    ) -> some View {
         let isSelected = selectedGrowthMovementStyle == movementStyle
         return Button {
             guard isUnlocked else { return }
@@ -859,7 +867,11 @@ struct DungeonSelectionView: View {
         }
         .buttonStyle(.plain)
         .disabled(!isUnlocked)
-        .accessibilityIdentifier("dungeon_growth_movement_style_\(movementStyle.rawValue)")
+        .accessibilityIdentifier(
+            dungeon.difficulty == .growth
+                ? "dungeon_growth_movement_style_\(movementStyle.rawValue)"
+                : "dungeon_rogue_movement_style_\(movementStyle.rawValue)"
+        )
     }
 
     @ViewBuilder
@@ -1036,7 +1048,7 @@ struct DungeonSelectionView: View {
     }
 
     private func selectedMovementStyle(for dungeon: DungeonDefinition) -> DungeonMovementStyle {
-        guard dungeon.difficulty == .growth else { return .orthogonal }
+        guard dungeon.difficulty == .growth || dungeon.supportsInfiniteFloors else { return .orthogonal }
         guard selectedGrowthMovementStyle == .knight else { return .orthogonal }
         return isKnightMovementStyleSelectable ? .knight : .orthogonal
     }

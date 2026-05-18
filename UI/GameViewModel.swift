@@ -334,8 +334,8 @@ final class GameViewModel: ObservableObject {
         )
         let ownedRelics = Set(core.dungeonRelicEntries.map(\.relicID))
         let baseOffers: [DungeonRewardOffer]
-        if dungeon.difficulty == .growth,
-           let seed = runState.cardVariationSeed {
+        if (dungeon.difficulty == .growth || dungeon.supportsInfiniteFloors),
+           let seed = dungeon.supportsInfiniteFloors ? runState.rogueTowerSeed : runState.cardVariationSeed {
             let drawnOffers = DungeonWeightedRewardPools.drawUniqueOffers(
                 from: DungeonWeightedRewardPools.entries(
                     floorIndex: runState.currentFloorIndex,

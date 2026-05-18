@@ -103,6 +103,12 @@ UI テストは実行時間と状態依存が大きいため、必要なケー�
 - `Scripts/codex-safe-validate.sh app-test MonoKnightAppTests/GameHandSectionViewAccessibilityTests`
 - `Scripts/codex-safe-validate.sh build`
 
+塔ランの想定外挙動を機械的に探す場合は、Game 層の自動プレイ探索を使う。
+通常は軽量設定（20 seeds × 100 turns）で実行し、再現調査時だけ環境変数で広げる。
+
+- `swift test --filter DungeonAutoplayExplorationTests`
+- `MONOKNIGHT_AUTOPLAY_RUNS=200 MONOKNIGHT_AUTOPLAY_SEED=12345 MONOKNIGHT_AUTOPLAY_MAX_TURNS=200 swift test --filter DungeonAutoplayExplorationTests`
+
 ## 6. コミット方針
 
 - 1 つの作業目的に対して 1 コミットを基本とする

@@ -711,7 +711,25 @@ final class GameViewModelTests: XCTestCase {
 
         viewModel.handleProgressChange(.cleared)
         XCTAssertEqual(recordStore.highestFloorNumber, 6)
-        XCTAssertEqual(viewModel.rogueTowerRecordText, "最高到達 6F")
+        XCTAssertEqual(viewModel.rogueTowerRecordText, "標準 6F")
+    }
+
+    func testRogueTowerRecordKeepsMovementStyleScoresSeparateAndMigratesLegacyRecord() throws {
+        let (defaults, suiteName) = try makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defaults.set(14, forKey: StorageKey.UserDefaults.rogueTowerRecord)
+
+        let recordStore = RogueTowerRecordStore(userDefaults: defaults)
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "rogue-tower"))
+
+        XCTAssertEqual(recordStore.highestFloorNumber(for: .orthogonal), 14)
+        XCTAssertEqual(recordStore.highestFloorNumber(for: .knight), 0)
+        XCTAssertEqual(recordStore.highestFloorText(for: tower), "標準 14F")
+
+        XCTAssertTrue(recordStore.registerReachedFloor(9, for: tower, movementStyle: .knight))
+        XCTAssertEqual(recordStore.highestFloorNumber(for: .orthogonal), 14)
+        XCTAssertEqual(recordStore.highestFloorNumber(for: .knight), 9)
+        XCTAssertEqual(recordStore.highestFloorText(for: tower), "標準 14F / 跳躍 9F")
     }
 
     func testGrowthTowerPointIsAwardedAtFifthFloorMilestoneOnlyOnce() throws {
@@ -923,7 +941,7 @@ final class GameViewModelTests: XCTestCase {
                 .rewardMoveCardsAfterClear
         )
 
-        XCTAssertEqual(viewModel.availableDungeonRewardCards.count, 3)
+        XCTAssertEqual(viewModel.availableDungeonRewardOffers.count, 3)
         XCTAssertEqual(
             viewModel.availableDungeonRewardMoveCards.count + viewModel.availableDungeonRewardSupportCards.count,
             viewModel.availableDungeonRewardCards.count
@@ -1908,7 +1926,9 @@ final class GameViewModelTests: XCTestCase {
         core.overrideMetricsForTesting(moveCount: 4, penaltyCount: 0, elapsedSeconds: 20)
         core.overrideDungeonHPForTesting(2)
 
-        let reward = try XCTUnwrap(viewModel.availableDungeonRewardMoveCards.first)
+        let reward = try XCTUnwrap(
+            viewModel.availableDungeonRewardMoveCards.first { $0 != .straightUp2 }
+        )
         viewModel.showingResult = true
         viewModel.handleDungeonRewardSelection(reward)
 

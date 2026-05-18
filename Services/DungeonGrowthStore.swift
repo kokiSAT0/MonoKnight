@@ -1257,28 +1257,58 @@ private struct TutorialTowerProgressSnapshot: Codable {
 
 @MainActor
 final class RogueTowerRecordStore: ObservableObject {
-    private static let storageKey = StorageKey.UserDefaults.rogueTowerRecord
     private let userDefaults: UserDefaults
 
-    @Published private(set) var highestFloorNumber: Int
+    @Published private(set) var highestFloorNumbersByMovementStyle: [DungeonMovementStyle: Int]
+
+    var highestFloorNumber: Int {
+        highestFloorNumber(for: .orthogonal)
+    }
 
     init(userDefaults: UserDefaults = .standard) {
         self.userDefaults = userDefaults
-        self.highestFloorNumber = max(userDefaults.integer(forKey: Self.storageKey), 0)
+        let legacyHighest = max(userDefaults.integer(forKey: StorageKey.UserDefaults.rogueTowerRecord), 0)
+        highestFloorNumbersByMovementStyle = [
+            .orthogonal: max(userDefaults.integer(forKey: Self.storageKey(for: .orthogonal)), legacyHighest),
+            .knight: max(userDefaults.integer(forKey: Self.storageKey(for: .knight)), 0)
+        ]
     }
 
     @discardableResult
-    func registerReachedFloor(_ floorNumber: Int, for dungeon: DungeonDefinition) -> Bool {
+    func registerReachedFloor(
+        _ floorNumber: Int,
+        for dungeon: DungeonDefinition,
+        movementStyle: DungeonMovementStyle = .orthogonal
+    ) -> Bool {
         guard dungeon.supportsInfiniteFloors else { return false }
         let normalizedFloor = max(floorNumber, 1)
-        guard normalizedFloor > highestFloorNumber else { return false }
-        highestFloorNumber = normalizedFloor
-        userDefaults.set(normalizedFloor, forKey: Self.storageKey)
+        guard normalizedFloor > highestFloorNumber(for: movementStyle) else { return false }
+        highestFloorNumbersByMovementStyle[movementStyle] = normalizedFloor
+        userDefaults.set(normalizedFloor, forKey: Self.storageKey(for: movementStyle))
         return true
     }
 
+    func highestFloorNumber(for movementStyle: DungeonMovementStyle) -> Int {
+        max(highestFloorNumbersByMovementStyle[movementStyle] ?? 0, 0)
+    }
+
     func highestFloorText(for dungeon: DungeonDefinition) -> String? {
-        guard dungeon.supportsInfiniteFloors, highestFloorNumber > 0 else { return nil }
-        return "最高到達 \(highestFloorNumber)F"
+        guard dungeon.supportsInfiniteFloors else { return nil }
+        let orthogonal = highestFloorNumber(for: .orthogonal)
+        let knight = highestFloorNumber(for: .knight)
+        guard orthogonal > 0 || knight > 0 else { return nil }
+        if knight > 0 {
+            return "標準 \(orthogonal)F / 跳躍 \(knight)F"
+        }
+        return "標準 \(orthogonal)F"
+    }
+
+    private static func storageKey(for movementStyle: DungeonMovementStyle) -> String {
+        switch movementStyle {
+        case .orthogonal:
+            return StorageKey.UserDefaults.rogueTowerRecordOrthogonal
+        case .knight:
+            return StorageKey.UserDefaults.rogueTowerRecordKnight
+        }
     }
 }

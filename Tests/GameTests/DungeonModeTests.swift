@@ -5648,6 +5648,95 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertEqual(first.title, "試練 100F")
     }
 
+    func testRoguelikeTowerStartsWithFiveInventorySlotsAndKeepsKnightStyle() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "rogue-tower"))
+        let mode = try XCTUnwrap(
+            DungeonLibrary.shared.firstFloorMode(
+                for: tower,
+                movementStyle: .knight,
+                dungeonInventoryKindLimit: 9,
+                cardVariationSeed: 123
+            )
+        )
+        let runState = try XCTUnwrap(mode.dungeonMetadataSnapshot?.runState)
+
+        XCTAssertEqual(runState.movementStyle, .knight)
+        XCTAssertEqual(mode.dungeonRules?.movementStyle, .knight)
+        XCTAssertEqual(runState.dungeonInventoryKindLimit, 5)
+        XCTAssertEqual(makeCore(mode: mode).dungeonInventoryKindLimit, 5)
+    }
+
+    func testRoguelikeTowerHandExpansionIncreasesInventoryLimitAndResetsChance() throws {
+        let floor = DungeonFloorDefinition(
+            id: "rogue-hand-expansion-test",
+            title: "手札拡張テスト",
+            boardSize: 5,
+            spawnPoint: GridPoint(x: 0, y: 0),
+            exitPoint: GridPoint(x: 4, y: 4),
+            deckPreset: .standardLight,
+            failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 12),
+            specialPickups: [
+                DungeonSpecialPickupDefinition(
+                    id: "rogue-1-hand-expansion",
+                    point: GridPoint(x: 1, y: 0),
+                    kind: .handExpansion
+                )
+            ]
+        )
+        let runState = DungeonRunState(
+            dungeonID: "rogue-tower",
+            carriedHP: 3,
+            dungeonInventoryKindLimit: 5,
+            rogueHandExpansionChanceStep: 4,
+            rogueTowerSeed: 1
+        )
+        let mode = floor.makeGameMode(dungeonID: "rogue-tower", difficulty: .roguelike, runState: runState)
+        let core = makeCore(mode: mode)
+
+        XCTAssertEqual(core.dungeonInventoryKindLimit, 5)
+        playBasicMove(to: GridPoint(x: 1, y: 0), in: core)
+
+        XCTAssertEqual(core.dungeonInventoryKindLimit, 6)
+        XCTAssertEqual(core.collectedDungeonSpecialPickupIDs, Set(["rogue-1-hand-expansion"]))
+
+        let advanced = runState.advancedToNextFloor(
+            carryoverHP: core.dungeonHP,
+            currentFloorMoveCount: core.moveCount,
+            currentInventoryEntries: core.dungeonInventoryEntries,
+            collectedDungeonSpecialPickupIDs: core.collectedDungeonSpecialPickupIDs
+        )
+        XCTAssertEqual(advanced.dungeonInventoryKindLimit, 6)
+        XCTAssertEqual(advanced.rogueHandExpansionChanceStep, 0)
+    }
+
+    func testRoguelikeTowerHandExpansionChanceRisesAndStopsAtNineSlots() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "rogue-tower"))
+        let runState = DungeonRunState(
+            dungeonID: tower.id,
+            carriedHP: 3,
+            dungeonInventoryKindLimit: 5,
+            rogueHandExpansionChanceStep: 0,
+            rogueTowerSeed: 222
+        )
+        let missed = runState.advancedToNextFloor(
+            carryoverHP: 3,
+            currentFloorMoveCount: 2,
+            currentInventoryEntries: [],
+            collectedDungeonSpecialPickupIDs: []
+        )
+        XCTAssertEqual(missed.rogueHandExpansionChanceStep, 1)
+
+        let cappedRunState = DungeonRunState(
+            dungeonID: tower.id,
+            carriedHP: 3,
+            dungeonInventoryKindLimit: 9,
+            rogueHandExpansionChanceStep: 99,
+            rogueTowerSeed: 222
+        )
+        let cappedFloor = try XCTUnwrap(tower.resolvedFloor(at: 8, runState: cappedRunState))
+        XCTAssertTrue(cappedFloor.specialPickups.isEmpty)
+    }
+
     func testRoguelikeTowerStairsBecomeNextFloorStart() throws {
         let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "rogue-tower"))
 
@@ -5733,6 +5822,8 @@ final class DungeonModeTests: XCTestCase {
             let floor = try XCTUnwrap(tower.resolvedFloor(at: floorIndex, runState: runState))
             var points: [GridPoint] = [floor.spawnPoint, floor.exitPoint]
             points.append(contentsOf: floor.cardPickups.map(\.point))
+            points.append(contentsOf: floor.specialPickups.map(\.point))
+            points.append(contentsOf: floor.relicPickups.map(\.point))
             points.append(contentsOf: floor.enemies.map(\.position))
             points.append(contentsOf: floor.impassableTilePoints)
             points.append(contentsOf: floor.tileEffectOverrides.keys)
@@ -5746,6 +5837,17 @@ final class DungeonModeTests: XCTestCase {
 
             XCTAssertEqual(floor.boardSize, 9)
             XCTAssertTrue(points.allSatisfy { $0.isInside(boardSize: floor.boardSize) })
+            let blockedPickupPoints = floor.impassableTilePoints
+                .union(floor.tileEffectOverrides.keys)
+                .union(floor.warpTilePairs.values.flatMap { $0 })
+                .union(growthTowerHazardPoints(for: floor))
+                .union(floor.enemies.flatMap { enemy in
+                    if case .patrol(let path) = enemy.behavior { return path }
+                    return [enemy.position]
+                })
+            XCTAssertTrue(floor.cardPickups.allSatisfy { !blockedPickupPoints.contains($0.point) })
+            XCTAssertTrue(floor.specialPickups.allSatisfy { !blockedPickupPoints.contains($0.point) })
+            XCTAssertTrue(floor.relicPickups.allSatisfy { !blockedPickupPoints.contains($0.point) })
             XCTAssertTrue(hasOrthogonalPath(from: floor.spawnPoint, to: floor.exitPoint, in: floor))
         }
     }

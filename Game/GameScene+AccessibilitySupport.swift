@@ -82,6 +82,9 @@
                         if owner.latestHighlightPoints(for: .dungeonSuspiciousRelicPickup).contains(point) {
                             labelParts.append("怪しい宝箱")
                         }
+                        if owner.latestHighlightPoints(for: .dungeonSpecialPickup).contains(point) {
+                            labelParts.append("手札拡張")
+                        }
                         labelParts.append(statusText)
                         element.accessibilityLabel = labelParts.joined(separator: "・")
                         element.accessibilityTraits = [.button]

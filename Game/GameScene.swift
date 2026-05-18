@@ -21,6 +21,7 @@
         case dungeonDanger
         case dungeonEnemyWarning
         case dungeonCardPickup
+        case dungeonSpecialPickup
         case dungeonRelicPickup
         case dungeonSuspiciousRelicPickup
         case dungeonDamageTrap
