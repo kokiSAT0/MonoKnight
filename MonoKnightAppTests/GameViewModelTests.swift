@@ -515,6 +515,102 @@ final class GameViewModelTests: XCTestCase {
         )
     }
 
+    func testDungeonRunStateAccumulatesElapsedSecondsAcrossFloorTransitions() {
+        let runState = DungeonRunState(
+            dungeonID: "growth-tower",
+            currentFloorIndex: 2,
+            carriedHP: 3,
+            totalMoveCount: 12,
+            totalElapsedSeconds: 90,
+            clearedFloorCount: 2
+        )
+
+        let advanced = runState.advancedToNextFloor(
+            carryoverHP: 2,
+            currentFloorMoveCount: 5,
+            currentFloorElapsedSeconds: 31
+        )
+        let fallen = runState.fallenToPreviousFloor(
+            carryoverHP: 2,
+            currentFloorMoveCount: 4,
+            currentFloorElapsedSeconds: 22,
+            currentInventoryEntries: [],
+            landingPoint: GridPoint(x: 1, y: 1),
+            currentFloorCrackedPoints: [],
+            currentFloorCollapsedPoints: []
+        )
+        let revived = runState.revivedAtPreviousFloor(
+            floorIndex: 1,
+            currentFloorMoveCount: 3,
+            currentFloorElapsedSeconds: 17,
+            currentInventoryEntries: [],
+            currentRelicEntries: [],
+            currentCurseEntries: [],
+            collectedDungeonRelicPickupIDs: [],
+            hazardDamageMitigationsRemaining: 0,
+            enemyDamageMitigationsRemaining: 0,
+            markerDamageMitigationsRemaining: 0,
+            currentRunLogEntries: []
+        )
+
+        XCTAssertEqual(advanced.totalElapsedSeconds, 121)
+        XCTAssertEqual(fallen.totalElapsedSeconds, 112)
+        XCTAssertEqual(revived.totalElapsedSeconds, 107)
+        XCTAssertEqual(advanced.totalElapsedSecondsIncludingCurrentFloor(9), 130)
+    }
+
+    func testFinalDungeonClearResultUsesRunTotalElapsedSeconds() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
+        let runState = DungeonRunState(
+            dungeonID: tower.id,
+            currentFloorIndex: tower.floors.count - 1,
+            carriedHP: 3,
+            totalMoveCount: 42,
+            totalElapsedSeconds: 180,
+            clearedFloorCount: tower.floors.count - 1
+        )
+        let floor = try XCTUnwrap(tower.resolvedFloor(at: runState.currentFloorIndex, runState: runState))
+        let mode = floor.makeGameMode(
+            dungeonID: tower.id,
+            difficulty: tower.difficulty,
+            carriedHP: runState.carriedHP,
+            runState: runState
+        )
+        let (viewModel, core) = makeViewModel(mode: mode)
+
+        core.overrideMetricsForTesting(moveCount: 6, penaltyCount: 0, elapsedSeconds: 45)
+
+        XCTAssertNil(viewModel.nextDungeonFloorTitle)
+        XCTAssertEqual(viewModel.dungeonRunTotalElapsedSeconds, 225)
+        XCTAssertEqual(viewModel.resultElapsedSeconds, 225)
+    }
+
+    func testIntermediateDungeonClearResultKeepsCurrentFloorElapsedSeconds() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
+        let runState = DungeonRunState(
+            dungeonID: tower.id,
+            currentFloorIndex: 1,
+            carriedHP: 3,
+            totalMoveCount: 8,
+            totalElapsedSeconds: 60,
+            clearedFloorCount: 1
+        )
+        let floor = try XCTUnwrap(tower.resolvedFloor(at: runState.currentFloorIndex, runState: runState))
+        let mode = floor.makeGameMode(
+            dungeonID: tower.id,
+            difficulty: tower.difficulty,
+            carriedHP: runState.carriedHP,
+            runState: runState
+        )
+        let (viewModel, core) = makeViewModel(mode: mode)
+
+        core.overrideMetricsForTesting(moveCount: 5, penaltyCount: 0, elapsedSeconds: 33)
+
+        XCTAssertNotNil(viewModel.nextDungeonFloorTitle)
+        XCTAssertEqual(viewModel.dungeonRunTotalElapsedSeconds, 93)
+        XCTAssertEqual(viewModel.resultElapsedSeconds, 33)
+    }
+
     func testDungeonResultPresentationDoesNotTreatIntermediateClearAsFinal() {
         let presentation = ResultSummaryPresentation(
             moveCount: 8,
@@ -602,7 +698,7 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertFalse(emptyPresentation.showsFinalDungeonInventorySection)
         XCTAssertTrue(fullPresentation.showsFinalDungeonRelicsSection)
         XCTAssertTrue(fullPresentation.showsFinalDungeonCursesSection)
-        XCTAssertTrue(fullPresentation.showsFinalDungeonInventorySection)
+        XCTAssertFalse(fullPresentation.showsFinalDungeonInventorySection)
     }
 
     func testRogueTowerFloorTextOmitsTotalFloorCount() throws {
@@ -2648,6 +2744,35 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertEqual(core.progress, .playing)
         XCTAssertEqual(core.current, GridPoint(x: 0, y: 0))
         XCTAssertEqual(core.dungeonHP, 1)
+        XCTAssertFalse(viewModel.showingResult)
+    }
+
+    func testRestartCurrentDungeonFloorWorksAfterClear() throws {
+        DebugLogHistory.shared.setFrontEndViewerEnabled(true)
+        let mode = makeCurrentFloorRestartMode(
+            initialHP: 3,
+            damageTrap: GridPoint(x: 0, y: 1),
+            key: GridPoint(x: 1, y: 0),
+            pickup: nil
+        )
+        let (viewModel, core) = makeViewModel(mode: mode)
+
+        playBasicMove(to: GridPoint(x: 1, y: 0), in: core)
+        playBasicMove(to: GridPoint(x: 2, y: 0), in: core)
+        playBasicMove(to: GridPoint(x: 3, y: 0), in: core)
+        playBasicMove(to: GridPoint(x: 4, y: 0), in: core)
+        viewModel.handleProgressChangeForTesting(core.progress)
+
+        XCTAssertEqual(core.progress, .cleared)
+        XCTAssertTrue(viewModel.showingResult)
+
+        viewModel.handleRestartCurrentDungeonFloorForTesting()
+
+        XCTAssertEqual(core.progress, .playing)
+        XCTAssertEqual(core.current, GridPoint(x: 0, y: 0))
+        XCTAssertEqual(core.moveCount, 0)
+        XCTAssertEqual(core.dungeonHP, 3)
+        XCTAssertFalse(core.isDungeonExitUnlocked)
         XCTAssertFalse(viewModel.showingResult)
     }
 

@@ -206,6 +206,8 @@
         public private(set) var pickupCollectionEffectPlayCountForTesting = 0
         public private(set) var relicCollectionEffectPlayCountForTesting = 0
         public private(set) var exitUnlockEffectPlayCountForTesting = 0
+        public private(set) var floorStartTargetPulseEffectPlayCountForTesting = 0
+        public private(set) var latestFloorStartTargetPulsePointsForTesting: Set<GridPoint> = []
 
         #if canImport(UIKit)
             private let accessibilitySupport = GameSceneAccessibilitySupport()
@@ -251,6 +253,8 @@
             pickupCollectionEffectPlayCountForTesting = 0
             relicCollectionEffectPlayCountForTesting = 0
             exitUnlockEffectPlayCountForTesting = 0
+            floorStartTargetPulseEffectPlayCountForTesting = 0
+            latestFloorStartTargetPulsePointsForTesting = []
             #if canImport(UIKit)
                 accessibilitySupport.reset()
             #endif
@@ -876,6 +880,60 @@
             ])
             expand.timingMode = .easeOut
             ring.run(.sequence([expand, .removeFromParent()]))
+        }
+
+        @discardableResult
+        public func playDungeonFloorStartTargetPulse(
+            exitPoint: GridPoint?,
+            keyPoints: Set<GridPoint>
+        ) -> Bool {
+            let targetPoints = Set(([exitPoint].compactMap { $0 } + Array(keyPoints)).filter { point in
+                board.contains(point) && board.isTraversable(point)
+            })
+            latestFloorStartTargetPulsePointsForTesting = targetPoints
+            guard isLayoutReady, !targetPoints.isEmpty else { return false }
+
+            floorStartTargetPulseEffectPlayCountForTesting += 1
+            for point in targetPoints {
+                let color = keyPoints.contains(point) ? palette.boardDungeonKey : palette.boardWarpHighlight
+                playFloorStartTargetPulse(at: point, color: color)
+            }
+            return true
+        }
+
+        private func playFloorStartTargetPulse(at point: GridPoint, color: SKColor) {
+            let center = layoutSupport.position(for: point)
+            let outerRadius = layoutSupport.tileSize * 0.46
+            let innerRadius = layoutSupport.tileSize * 0.30
+            let lineWidth = max(layoutSupport.tileSize * 0.035, 1.6)
+            let glowWidth = max(layoutSupport.tileSize * 0.070, 2.8)
+
+            for (index, radius) in [innerRadius, outerRadius].enumerated() {
+                let ring = SKShapeNode(circleOfRadius: radius)
+                ring.position = center
+                ring.strokeColor = color
+                ring.fillColor = .clear
+                ring.lineWidth = lineWidth
+                ring.glowWidth = glowWidth
+                ring.zPosition = 1.45 + CGFloat(index) * 0.01
+                ring.alpha = 0
+                ring.isAntialiased = true
+                knightAnimator.transientEffectContainer.addChild(ring)
+
+                let delay = TimeInterval(index) * 0.10
+                let appear = SKAction.fadeAlpha(to: 0.95, duration: 0.08)
+                let expand = SKAction.group([
+                    SKAction.scale(to: index == 0 ? 1.55 : 1.30, duration: 0.56),
+                    SKAction.fadeOut(withDuration: 0.56)
+                ])
+                expand.timingMode = .easeOut
+                ring.run(.sequence([
+                    .wait(forDuration: delay),
+                    appear,
+                    expand,
+                    .removeFromParent()
+                ]))
+            }
         }
 
         public func playDungeonFallEffect(at point: GridPoint) {

@@ -8,15 +8,21 @@ struct DungeonRunLogSheetView: View {
 
     var body: some View {
         NavigationStack {
-            DungeonRunLogListView(entries: entries, emptyMessage: "まだ履歴はありません。")
-                .navigationTitle("ラン履歴")
-                .toolbar {
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("閉じる") {
-                            dismiss()
-                        }
+            ScrollView {
+                DungeonRunLogListView(entries: entries, emptyMessage: "まだ履歴はありません。")
+                    .padding(.horizontal, 16)
+                    .padding(.top, 12)
+                    .padding(.bottom, 24)
+            }
+            .navigationTitle("ラン履歴")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("閉じる") {
+                        dismiss()
                     }
                 }
+            }
         }
         .accessibilityIdentifier("dungeon_run_log_sheet")
     }
@@ -1033,7 +1039,7 @@ struct ResultActionDisplayPolicy: Equatable {
     }
 
     var showsRestartCurrentFloorButton: Bool {
-        usesDungeonExit && isFailed
+        usesDungeonExit
     }
 
     var showsRetryButton: Bool {

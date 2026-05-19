@@ -263,6 +263,7 @@ extension GameViewModel {
         let nextRunState = runState.advancedToNextFloor(
             carryoverHP: core.dungeonHP,
             currentFloorMoveCount: core.moveCount,
+            currentFloorElapsedSeconds: core.elapsedSeconds,
             rewardSelection: rewardSelection,
             currentInventoryEntries: core.dungeonInventoryEntries,
             currentRelicEntries: core.dungeonRelicEntries,
@@ -303,6 +304,7 @@ extension GameViewModel {
         let nextRunState = runState.fallenToPreviousFloor(
             carryoverHP: core.dungeonHP,
             currentFloorMoveCount: core.moveCount,
+            currentFloorElapsedSeconds: core.elapsedSeconds,
             currentInventoryEntries: core.dungeonInventoryEntries,
             currentRelicEntries: core.dungeonRelicEntries,
             currentCurseEntries: core.dungeonCurseEntries,
@@ -340,6 +342,7 @@ extension GameViewModel {
         let nextRunState = runState.revivedAtPreviousFloor(
             floorIndex: event.destinationFloorIndex,
             currentFloorMoveCount: core.moveCount,
+            currentFloorElapsedSeconds: core.elapsedSeconds,
             currentInventoryEntries: core.dungeonInventoryEntries,
             currentRelicEntries: core.dungeonRelicEntries,
             currentCurseEntries: core.dungeonCurseEntries,

@@ -3354,7 +3354,9 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
 
     @discardableResult
     private func collectDungeonRelicPickupDefinition(_ pickup: DungeonRelicPickupDefinition) -> Bool {
-        guard mode.dungeonRules?.difficulty == .growth else { return false }
+        guard mode.dungeonRules?.difficulty == .growth
+            || mode.dungeonRules?.difficulty == .roguelike
+        else { return false }
         guard pendingDungeonRelicPickupChoice == nil else { return false }
         guard !collectedDungeonRelicPickupIDs.contains(pickup.id) else { return false }
 

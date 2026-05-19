@@ -250,6 +250,37 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertTrue(core.dungeonRunLogEntries.contains { $0.kind == .healing && $0.message.contains("\(DungeonRelicID.glowingHeart.displayName)でHP +2") })
     }
 
+    func testRoguelikeTowerRelicPickupGrantsRunRelic() throws {
+        let pickup = DungeonRelicPickupDefinition(
+            id: "rogue-test-relic",
+            point: GridPoint(x: 0, y: 1),
+            candidateRelics: [.glowingHeart]
+        )
+        let runState = DungeonRunState(dungeonID: "rogue-tower", carriedHP: 2)
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 2,
+            turnLimit: 6,
+            allowsBasicOrthogonalMove: true,
+            cardAcquisitionMode: .inventoryOnly,
+            relicPickups: [pickup],
+            difficulty: .roguelike,
+            runState: runState
+        )
+        let core = makeCore(mode: mode)
+
+        playBasicMove(to: pickup.point, in: core)
+
+        XCTAssertEqual(core.dungeonRelicEntries.map(\.relicID), [.glowingHeart])
+        XCTAssertEqual(core.dungeonHP, 4)
+        XCTAssertTrue(core.collectedDungeonRelicPickupIDs.contains(pickup.id))
+        XCTAssertTrue(core.activeDungeonRelicPickups.isEmpty)
+        XCTAssertEqual(core.dungeonRelicAcquisitionPresentations.count, 1)
+        XCTAssertEqual(core.dungeonRelicAcquisitionPresentations.first?.outcome, .relic)
+        XCTAssertTrue(core.dungeonRunLogEntries.contains { $0.kind == .acquisition && $0.message.contains("レリック「\(DungeonRelicID.glowingHeart.displayName)」") })
+    }
+
     func testSafeRelicPickupDoesNotDuplicateAndCompensatesWhenCandidatesAreExhausted() throws {
         let pickup = DungeonRelicPickupDefinition(
             id: "test-empty-safe",
@@ -5737,6 +5768,68 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertTrue(cappedFloor.specialPickups.isEmpty)
     }
 
+    func testRoguelikeTowerEarlyFloorsPrioritizeTrapBuildResources() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "rogue-tower"))
+        let seeds: [UInt64] = [1, 42, 999, 12_345, 67_890]
+
+        for seed in seeds {
+            let runState = DungeonRunState(dungeonID: tower.id, carriedHP: 3, rogueTowerSeed: seed)
+            for floorIndex in 0..<10 {
+                let floor = try XCTUnwrap(tower.resolvedFloor(at: floorIndex, runState: runState))
+                let floorNumber = floorIndex + 1
+
+                XCTAssertFalse(
+                    floor.enemies.contains(where: isChaser),
+                    "seed \(seed) / 試練塔 \(floorNumber)F は追跡兵を出さず、罠と拾得で序盤ビルドを作ります"
+                )
+
+                if floorIndex < 3 {
+                    XCTAssertTrue(floor.enemies.isEmpty)
+                } else if floorIndex < 5 {
+                    XCTAssertLessThanOrEqual(floor.enemies.count, 1)
+                    XCTAssertTrue(floor.enemies.allSatisfy { isGuardPost($0) || isWatcher($0) })
+                } else {
+                    XCTAssertLessThanOrEqual(floor.enemies.count, 2)
+                    XCTAssertTrue(floor.enemies.allSatisfy { isGuardPost($0) || isWatcher($0) || isPatrol($0) })
+                }
+
+                XCTAssertEqual(floor.cardPickups.count, floorIndex < 5 ? 4 : 5)
+                XCTAssertTrue(hasOrthogonalPath(from: floor.spawnPoint, to: floor.exitPoint, in: floor))
+            }
+
+            let floorThree = try XCTUnwrap(tower.resolvedFloor(at: 2, runState: runState))
+            let floorEight = try XCTUnwrap(tower.resolvedFloor(at: 7, runState: runState))
+            XCTAssertEqual(floorThree.relicPickups.map(\.kind), [.safe])
+            XCTAssertEqual(floorEight.relicPickups.map(\.kind), [.safe])
+        }
+    }
+
+    func testRoguelikeTowerChasersStartAfterTenthFloor() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "rogue-tower"))
+        let seeds: [UInt64] = [1, 2, 3, 42, 777, 999, 12_345, 67_890]
+        var foundChaserAfterTenthFloor = false
+
+        for seed in seeds {
+            let runState = DungeonRunState(dungeonID: tower.id, carriedHP: 3, rogueTowerSeed: seed)
+            for floorIndex in 10..<20 {
+                let floor = try XCTUnwrap(tower.resolvedFloor(at: floorIndex, runState: runState))
+                let chaserCount = floor.enemies.filter(isChaser).count
+                if chaserCount > 0 {
+                    foundChaserAfterTenthFloor = true
+                }
+                if floorIndex < 15 {
+                    XCTAssertLessThanOrEqual(
+                        chaserCount,
+                        1,
+                        "試練塔11-15Fの追跡兵は1フロア最大1体に抑えます"
+                    )
+                }
+            }
+        }
+
+        XCTAssertTrue(foundChaserAfterTenthFloor, "試練塔11F以降では追跡兵が出現しうる必要があります")
+    }
+
     func testRoguelikeTowerStairsBecomeNextFloorStart() throws {
         let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "rogue-tower"))
 
@@ -8067,6 +8160,73 @@ final class DungeonModeTests: XCTestCase {
         )
     }
 
+    func testGrowthTowerSupportPoolsKeepAnnihilationSpellsRareComparedWithRoleCounters() {
+        let floorIndexes = [5, 10, 15, 20, 30, 40]
+        let contexts: [DungeonWeightedRewardPoolContext] = [.floorPickup, .clearReward]
+        let roleCounters: Set<SupportCard> = [
+            .darknessSpell,
+            .railBreakSpell,
+            .freezeSpell,
+            .barrierSpell,
+            .panacea,
+            .antidote,
+            .flySpell
+        ]
+
+        for floorIndex in floorIndexes {
+            for context in contexts {
+                let entries = DungeonWeightedRewardPools.entries(floorIndex: floorIndex, context: context)
+                let presentCounterWeights = roleCounters
+                    .map { supportWeight($0, in: entries) }
+                    .filter { $0 > 0 }
+                guard let weakestCounterWeight = presentCounterWeights.min() else { continue }
+
+                XCTAssertLessThanOrEqual(
+                    supportWeight(.singleAnnihilationSpell, in: entries),
+                    weakestCounterWeight,
+                    "\(context) \(floorIndex + 1)F では消滅の呪文を個別対策より強い通常候補にしない"
+                )
+                XCTAssertLessThanOrEqual(
+                    supportWeight(.annihilationSpell, in: entries),
+                    weakestCounterWeight,
+                    "\(context) \(floorIndex + 1)F では全滅の呪文を個別対策より強い通常候補にしない"
+                )
+            }
+        }
+    }
+
+    func testGrowthTowerCounterBiasesMakeRoleCountersOutweighAnnihilationSpells() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let nextFloor = tower.floors[34]
+        let counteredEntries = DungeonWeightedRewardPools.entries(
+            floorIndex: 33,
+            context: .clearReward,
+            countering: nextFloor
+        )
+        let annihilationWeight = supportWeight(.annihilationSpell, in: counteredEntries)
+        let singleAnnihilationWeight = supportWeight(.singleAnnihilationSpell, in: counteredEntries)
+
+        for support in [
+            SupportCard.darknessSpell,
+            .railBreakSpell,
+            .panacea,
+            .barrierSpell,
+            .freezeSpell,
+            .refillEmptySlots
+        ] {
+            XCTAssertGreaterThan(
+                supportWeight(support, in: counteredEntries),
+                annihilationWeight,
+                "\(support.displayName) は次階対策として全滅の呪文より優先される必要があります"
+            )
+            XCTAssertGreaterThan(
+                supportWeight(support, in: counteredEntries),
+                singleAnnihilationWeight,
+                "\(support.displayName) は次階対策として消滅の呪文より優先される必要があります"
+            )
+        }
+    }
+
     func testGrowthTowerEarlyFloorPoolsIncludeSingleAnnihilationSpellOnly() {
         let pickupSupports = DungeonWeightedRewardPools
             .entries(floorIndex: 0, context: .floorPickup)
@@ -10331,6 +10491,7 @@ final class DungeonModeTests: XCTestCase {
         cardPickups: [DungeonCardPickupDefinition] = [],
         relicPickups: [DungeonRelicPickupDefinition] = [],
         movementStyle: DungeonMovementStyle = .orthogonal,
+        difficulty: DungeonDifficulty = .growth,
         runState: DungeonRunState? = nil
     ) -> GameMode {
         GameMode(
@@ -10354,7 +10515,7 @@ final class DungeonModeTests: XCTestCase {
                 warpTilePairs: warpTilePairs,
                 completionRule: .dungeonExit(exitPoint: exit),
                 dungeonRules: DungeonRules(
-                    difficulty: .growth,
+                    difficulty: difficulty,
                     failureRule: DungeonFailureRule(initialHP: hp, turnLimit: turnLimit),
                     enemies: enemies,
                     hazards: hazards,
@@ -11059,6 +11220,26 @@ final class DungeonModeTests: XCTestCase {
                 behavior: .guardPost
             )
         }
+    }
+
+    private func isGuardPost(_ enemy: EnemyDefinition) -> Bool {
+        if case .guardPost = enemy.behavior { return true }
+        return false
+    }
+
+    private func isWatcher(_ enemy: EnemyDefinition) -> Bool {
+        if case .watcher = enemy.behavior { return true }
+        return false
+    }
+
+    private func isPatrol(_ enemy: EnemyDefinition) -> Bool {
+        if case .patrol = enemy.behavior { return true }
+        return false
+    }
+
+    private func isChaser(_ enemy: EnemyDefinition) -> Bool {
+        if case .chaser = enemy.behavior { return true }
+        return false
     }
 
     private func playDiagnosticMessages() -> [String] {

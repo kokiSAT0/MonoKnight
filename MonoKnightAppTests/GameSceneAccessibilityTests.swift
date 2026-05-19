@@ -598,6 +598,41 @@ final class GameSceneAccessibilityTests: XCTestCase {
         )
     }
 
+    func testFloorStartTargetPulseAddsTransientNodesWithoutChangingHighlights() {
+        let exitPoint = GridPoint(x: 4, y: 4)
+        let keyPoint = GridPoint(x: 1, y: 3)
+        let (scene, view, _) = makeScene()
+        defer { view.presentScene(nil) }
+
+        scene.updateHighlights([
+            .dungeonExitLocked: [exitPoint],
+            .dungeonKey: [keyPoint]
+        ])
+        let lockedExitStyleBefore = scene.highlightStyleForTesting(kind: .dungeonExitLocked, at: exitPoint)
+        let keyStyleBefore = scene.highlightStyleForTesting(kind: .dungeonKey, at: keyPoint)
+
+        let didPlay = scene.playDungeonFloorStartTargetPulse(
+            exitPoint: exitPoint,
+            keyPoints: [keyPoint]
+        )
+
+        XCTAssertTrue(didPlay)
+        XCTAssertGreaterThan(
+            scene.transientEffectNodeCountForTesting(),
+            0,
+            "フロア開始時は階段と鍵を一時リングで視線誘導します"
+        )
+        XCTAssertEqual(scene.latestHighlightPoints(for: .dungeonExitLocked), [exitPoint])
+        XCTAssertEqual(scene.latestHighlightPoints(for: .dungeonKey), [keyPoint])
+
+        let lockedExitStyleAfter = scene.highlightStyleForTesting(kind: .dungeonExitLocked, at: exitPoint)
+        let keyStyleAfter = scene.highlightStyleForTesting(kind: .dungeonKey, at: keyPoint)
+        XCTAssertEqual(lockedExitStyleAfter?.lineWidth, lockedExitStyleBefore?.lineWidth)
+        XCTAssertEqual(lockedExitStyleAfter?.glowWidth, lockedExitStyleBefore?.glowWidth)
+        XCTAssertEqual(keyStyleAfter?.lineWidth, keyStyleBefore?.lineWidth)
+        XCTAssertEqual(keyStyleAfter?.glowWidth, keyStyleBefore?.glowWidth)
+    }
+
     func testMovementArrowNodesUpdateAndClear() {
         let (scene, view, _) = makeScene()
         defer { view.presentScene(nil) }

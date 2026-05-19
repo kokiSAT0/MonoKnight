@@ -106,7 +106,7 @@ struct ResultSummaryPresentation {
     }
 
     var showsFinalDungeonInventorySection: Bool {
-        isFinalDungeonClear && !dungeonRewardInventoryEntries.isEmpty
+        false
     }
 
     var resultTitle: String {

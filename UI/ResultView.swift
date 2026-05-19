@@ -379,7 +379,9 @@ struct ResultView: View {
                     hapticsEnabled: gameSettingsStore.hapticsEnabled
                 )
 
-                ResultDetailsDisclosureSection(presentation: summaryPresentation)
+                if !summaryPresentation.isFinalDungeonClear {
+                    ResultDetailsDisclosureSection(presentation: summaryPresentation)
+                }
             }
             .padding(.horizontal, horizontalPadding)
             .padding(.vertical, 32)

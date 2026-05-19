@@ -2335,12 +2335,12 @@ public enum DungeonWeightedRewardPools {
                 (.knightRightwardChoice, 4), (.knightUpwardChoice, 4), (.knightLeftwardChoice, 4), (.knightDownwardChoice, 3)
             ]) + weightedSupports([
                 (.refillEmptySlots, 3),
-                (.singleAnnihilationSpell, 2),
+                (.singleAnnihilationSpell, 1),
                 (.annihilationSpell, 1),
-                (.darknessSpell, 1),
-                (.railBreakSpell, 1),
-                (.antidote, 1),
-                (.panacea, 1)
+                (.darknessSpell, 2),
+                (.railBreakSpell, 2),
+                (.antidote, 2),
+                (.panacea, 2)
             ])
         case (.floors11To15, .clearReward):
             baseEntries = weightedMoves([
@@ -2350,12 +2350,12 @@ public enum DungeonWeightedRewardPools {
                 (.knightRightwardChoice, 5), (.knightUpwardChoice, 5), (.knightLeftwardChoice, 4)
             ]) + weightedSupports([
                 (.refillEmptySlots, 3),
-                (.singleAnnihilationSpell, 2),
+                (.singleAnnihilationSpell, 1),
                 (.annihilationSpell, 1),
-                (.darknessSpell, 1),
-                (.railBreakSpell, 1),
-                (.antidote, 1),
-                (.panacea, 1)
+                (.darknessSpell, 2),
+                (.railBreakSpell, 2),
+                (.antidote, 2),
+                (.panacea, 2)
             ]) + weightedRelics()
         case (.floors16To20, .floorPickup):
             baseEntries = weightedMoves([
@@ -2365,12 +2365,12 @@ public enum DungeonWeightedRewardPools {
                 (.straightRight2, 5), (.straightUp2, 5), (.diagonalUpRight2, 5), (.diagonalDownLeft2, 5)
             ]) + weightedSupports([
                 (.refillEmptySlots, 2),
-                (.singleAnnihilationSpell, 3),
-                (.annihilationSpell, 2),
-                (.darknessSpell, 2),
-                (.railBreakSpell, 2),
-                (.antidote, 1),
-                (.panacea, 1)
+                (.singleAnnihilationSpell, 1),
+                (.annihilationSpell, 1),
+                (.darknessSpell, 3),
+                (.railBreakSpell, 3),
+                (.antidote, 2),
+                (.panacea, 2)
             ])
         case (.floors16To20, .clearReward):
             baseEntries = weightedMoves([
@@ -2380,14 +2380,14 @@ public enum DungeonWeightedRewardPools {
                 (.diagonalUpRight2, 4), (.diagonalUpLeft2, 4), (.diagonalDownLeft2, 4)
             ]) + weightedSupports([
                 (.refillEmptySlots, 2),
-                (.singleAnnihilationSpell, 3),
-                (.annihilationSpell, 2),
-                (.darknessSpell, 2),
-                (.railBreakSpell, 2),
-                (.freezeSpell, 2),
-                (.barrierSpell, 2),
-                (.antidote, 1),
-                (.panacea, 1)
+                (.singleAnnihilationSpell, 1),
+                (.annihilationSpell, 1),
+                (.darknessSpell, 3),
+                (.railBreakSpell, 3),
+                (.freezeSpell, 3),
+                (.barrierSpell, 3),
+                (.antidote, 2),
+                (.panacea, 2)
             ]) + weightedRelics()
         case (.floors21To30, .floorPickup):
             baseEntries = weightedMoves([
@@ -2398,13 +2398,13 @@ public enum DungeonWeightedRewardPools {
                 (.diagonalUpRight2, 5), (.diagonalUpLeft2, 5), (.diagonalDownRight2, 5), (.diagonalDownLeft2, 5)
             ]) + weightedSupports([
                 (.refillEmptySlots, 3),
-                (.singleAnnihilationSpell, 2),
+                (.singleAnnihilationSpell, 1),
                 (.annihilationSpell, 1),
-                (.darknessSpell, 1),
-                (.railBreakSpell, 1),
-                (.antidote, 2),
-                (.flySpell, 1),
-                (.panacea, 1)
+                (.darknessSpell, 2),
+                (.railBreakSpell, 2),
+                (.antidote, 3),
+                (.flySpell, 3),
+                (.panacea, 3)
             ])
         case (.floors21To30, .clearReward):
             baseEntries = weightedMoves([
@@ -2414,15 +2414,15 @@ public enum DungeonWeightedRewardPools {
                 (.diagonalUpRight2, 5), (.diagonalUpLeft2, 5), (.diagonalDownRight2, 5), (.diagonalDownLeft2, 5)
             ]) + weightedSupports([
                 (.refillEmptySlots, 3),
-                (.singleAnnihilationSpell, 3),
-                (.annihilationSpell, 2),
-                (.darknessSpell, 2),
-                (.railBreakSpell, 2),
-                (.freezeSpell, 2),
-                (.barrierSpell, 2),
-                (.antidote, 2),
-                (.flySpell, 1),
-                (.panacea, 1)
+                (.singleAnnihilationSpell, 1),
+                (.annihilationSpell, 1),
+                (.darknessSpell, 3),
+                (.railBreakSpell, 3),
+                (.freezeSpell, 3),
+                (.barrierSpell, 3),
+                (.antidote, 3),
+                (.flySpell, 3),
+                (.panacea, 3)
             ]) + weightedRelics()
         case (.floors31To40, .floorPickup):
             baseEntries = weightedMoves([
@@ -2433,15 +2433,15 @@ public enum DungeonWeightedRewardPools {
                 (.diagonalUpRight2, 5), (.diagonalUpLeft2, 5), (.diagonalDownRight2, 5), (.diagonalDownLeft2, 5)
             ]) + weightedSupports([
                 (.refillEmptySlots, 2),
-                (.singleAnnihilationSpell, 2),
-                (.annihilationSpell, 2),
-                (.darknessSpell, 2),
-                (.railBreakSpell, 2),
-                (.freezeSpell, 1),
-                (.barrierSpell, 2),
-                (.antidote, 2),
-                (.flySpell, 2),
-                (.panacea, 3)
+                (.singleAnnihilationSpell, 1),
+                (.annihilationSpell, 1),
+                (.darknessSpell, 3),
+                (.railBreakSpell, 3),
+                (.freezeSpell, 2),
+                (.barrierSpell, 3),
+                (.antidote, 3),
+                (.flySpell, 3),
+                (.panacea, 4)
             ])
         case (.floors31To40, .clearReward):
             baseEntries = weightedMoves([
@@ -2451,15 +2451,15 @@ public enum DungeonWeightedRewardPools {
                 (.diagonalUpRight2, 5), (.diagonalUpLeft2, 5), (.diagonalDownRight2, 5), (.diagonalDownLeft2, 5)
             ]) + weightedSupports([
                 (.refillEmptySlots, 2),
-                (.singleAnnihilationSpell, 3),
-                (.annihilationSpell, 3),
-                (.darknessSpell, 3),
-                (.railBreakSpell, 3),
-                (.freezeSpell, 3),
-                (.barrierSpell, 3),
-                (.antidote, 2),
-                (.flySpell, 2),
-                (.panacea, 3)
+                (.singleAnnihilationSpell, 1),
+                (.annihilationSpell, 1),
+                (.darknessSpell, 4),
+                (.railBreakSpell, 4),
+                (.freezeSpell, 4),
+                (.barrierSpell, 4),
+                (.antidote, 3),
+                (.flySpell, 3),
+                (.panacea, 4)
             ]) + weightedRelics()
         case (.floors41To50, .floorPickup):
             baseEntries = weightedMoves([
@@ -2469,15 +2469,15 @@ public enum DungeonWeightedRewardPools {
                 (.diagonalUpRight2, 6), (.diagonalUpLeft2, 6), (.diagonalDownRight2, 6), (.diagonalDownLeft2, 6)
             ]) + weightedSupports([
                 (.refillEmptySlots, 2),
-                (.singleAnnihilationSpell, 3),
-                (.annihilationSpell, 3),
-                (.darknessSpell, 3),
-                (.railBreakSpell, 3),
-                (.freezeSpell, 2),
-                (.barrierSpell, 3),
-                (.antidote, 1),
-                (.flySpell, 2),
-                (.panacea, 3)
+                (.singleAnnihilationSpell, 1),
+                (.annihilationSpell, 1),
+                (.darknessSpell, 4),
+                (.railBreakSpell, 4),
+                (.freezeSpell, 3),
+                (.barrierSpell, 4),
+                (.antidote, 2),
+                (.flySpell, 3),
+                (.panacea, 4)
             ])
         case (.floors41To50, .clearReward):
             baseEntries = weightedMoves([
@@ -2487,15 +2487,15 @@ public enum DungeonWeightedRewardPools {
                 (.diagonalUpRight2, 6), (.diagonalUpLeft2, 6), (.diagonalDownRight2, 6), (.diagonalDownLeft2, 6)
             ]) + weightedSupports([
                 (.refillEmptySlots, 2),
-                (.singleAnnihilationSpell, 3),
-                (.annihilationSpell, 4),
-                (.darknessSpell, 4),
-                (.railBreakSpell, 4),
-                (.freezeSpell, 4),
-                (.barrierSpell, 4),
-                (.antidote, 1),
-                (.flySpell, 3),
-                (.panacea, 4)
+                (.singleAnnihilationSpell, 1),
+                (.annihilationSpell, 1),
+                (.darknessSpell, 5),
+                (.railBreakSpell, 5),
+                (.freezeSpell, 5),
+                (.barrierSpell, 5),
+                (.antidote, 2),
+                (.flySpell, 4),
+                (.panacea, 5)
             ]) + weightedRelics()
         }
         let movementAdjustedEntries = adjustedEntries(baseEntries, movementStyle: movementStyle)
@@ -2691,16 +2691,18 @@ public enum DungeonWeightedRewardPools {
         }
 
         if floor.isDarknessEnabled {
-            add(.darknessSpell, 8)
+            add(.darknessSpell, 10)
         }
 
         for enemy in floor.enemies {
             switch enemy.behavior {
             case .patrol:
-                add(.railBreakSpell, 7)
+                add(.railBreakSpell, 9)
             case .chaser, .marker, .targetedMarker:
-                add(.freezeSpell, 4)
-            case .guardPost, .watcher, .rotatingWatcher:
+                add(.freezeSpell, 6)
+            case .watcher, .rotatingWatcher:
+                add(.darknessSpell, 4)
+            case .guardPost:
                 break
             }
         }
@@ -2723,13 +2725,13 @@ public enum DungeonWeightedRewardPools {
             }
         }
         if hasStatusTrap {
-            add(.panacea, 7)
+            add(.panacea, 9)
         }
         if hasPoisonTrap {
-            add(.antidote, 5)
+            add(.antidote, 7)
         }
         if hasHandLossTrap {
-            add(.refillEmptySlots, 4)
+            add(.refillEmptySlots, 6)
         }
 
         let hasDangerFloor = floor.hazards.contains { hazard in
@@ -2741,8 +2743,8 @@ public enum DungeonWeightedRewardPools {
             }
         }
         if hasDangerFloor {
-            add(.barrierSpell, 5)
-            add(.flySpell, 4)
+            add(.barrierSpell, 7)
+            add(.flySpell, 6)
         }
 
         let order: [SupportCard] = [
@@ -2867,6 +2869,8 @@ public struct DungeonRunState: Codable, Equatable, Sendable {
     public let carriedHP: Int
     /// これまでに完了したフロアの移動手数合計
     public let totalMoveCount: Int
+    /// これまでに遷移したフロアの所要時間合計
+    public let totalElapsedSeconds: Int
     /// クリア済みフロア数
     public let clearedFloorCount: Int
     /// フロアをまたいで持ち越す所持カードと残り使用回数
@@ -2907,6 +2911,7 @@ public struct DungeonRunState: Codable, Equatable, Sendable {
         currentFloorIndex: Int = 0,
         carriedHP: Int,
         totalMoveCount: Int = 0,
+        totalElapsedSeconds: Int = 0,
         clearedFloorCount: Int = 0,
         rewardInventoryEntries: [DungeonInventoryEntry] = [],
         relicEntries: [DungeonRelicEntry] = [],
@@ -2929,6 +2934,7 @@ public struct DungeonRunState: Codable, Equatable, Sendable {
         self.currentFloorIndex = max(currentFloorIndex, 0)
         self.carriedHP = max(carriedHP, 1)
         self.totalMoveCount = max(totalMoveCount, 0)
+        self.totalElapsedSeconds = max(totalElapsedSeconds, 0)
         self.clearedFloorCount = max(clearedFloorCount, 0)
         self.rewardInventoryEntries = DungeonRunState.mergedRewardEntries(rewardInventoryEntries)
         self.relicEntries = DungeonRunState.mergedRelicEntries(relicEntries)
@@ -2955,6 +2961,7 @@ public struct DungeonRunState: Codable, Equatable, Sendable {
     public func advancedToNextFloor(
         carryoverHP: Int,
         currentFloorMoveCount: Int,
+        currentFloorElapsedSeconds: Int = 0,
         rewardMoveCard: MoveCard? = nil,
         rewardSelection: DungeonRewardSelection? = nil,
         currentInventoryEntries: [DungeonInventoryEntry]? = nil,
@@ -3075,6 +3082,7 @@ public struct DungeonRunState: Codable, Equatable, Sendable {
             currentFloorIndex: currentFloorIndex + 1,
             carriedHP: floorStartHP,
             totalMoveCount: totalMoveCount + max(currentFloorMoveCount, 0),
+            totalElapsedSeconds: totalElapsedSeconds + max(currentFloorElapsedSeconds, 0),
             clearedFloorCount: clearedFloorCount + 1,
             rewardInventoryEntries: updatedRewardInventoryEntries.compactMap { $0.carryingRewardUsesOnly() },
             relicEntries: carriedRelics,
@@ -3097,6 +3105,7 @@ public struct DungeonRunState: Codable, Equatable, Sendable {
     public func fallenToPreviousFloor(
         carryoverHP: Int,
         currentFloorMoveCount: Int,
+        currentFloorElapsedSeconds: Int = 0,
         currentInventoryEntries: [DungeonInventoryEntry],
         currentRelicEntries: [DungeonRelicEntry]? = nil,
         currentCurseEntries: [DungeonCurseEntry]? = nil,
@@ -3123,6 +3132,7 @@ public struct DungeonRunState: Codable, Equatable, Sendable {
             currentFloorIndex: max(currentFloorIndex - 1, 0),
             carriedHP: carryoverHP,
             totalMoveCount: totalMoveCount + max(currentFloorMoveCount, 0),
+            totalElapsedSeconds: totalElapsedSeconds + max(currentFloorElapsedSeconds, 0),
             clearedFloorCount: clearedFloorCount,
             rewardInventoryEntries: currentInventoryEntries.compactMap { $0.carryingRewardUsesOnly() },
             relicEntries: currentRelicEntries ?? relicEntries,
@@ -3146,6 +3156,7 @@ public struct DungeonRunState: Codable, Equatable, Sendable {
     public func revivedAtPreviousFloor(
         floorIndex destinationFloorIndex: Int,
         currentFloorMoveCount: Int,
+        currentFloorElapsedSeconds: Int = 0,
         currentInventoryEntries: [DungeonInventoryEntry],
         currentRelicEntries: [DungeonRelicEntry],
         currentCurseEntries: [DungeonCurseEntry],
@@ -3170,6 +3181,7 @@ public struct DungeonRunState: Codable, Equatable, Sendable {
             currentFloorIndex: normalizedDestination,
             carriedHP: 1,
             totalMoveCount: totalMoveCount + max(currentFloorMoveCount, 0),
+            totalElapsedSeconds: totalElapsedSeconds + max(currentFloorElapsedSeconds, 0),
             clearedFloorCount: clearedFloorCount,
             rewardInventoryEntries: currentInventoryEntries.compactMap { $0.carryingRewardUsesOnly() },
             relicEntries: currentRelicEntries,
@@ -3191,6 +3203,10 @@ public struct DungeonRunState: Codable, Equatable, Sendable {
 
     public func totalMoveCountIncludingCurrentFloor(_ currentFloorMoveCount: Int) -> Int {
         totalMoveCount + max(currentFloorMoveCount, 0)
+    }
+
+    public func totalElapsedSecondsIncludingCurrentFloor(_ currentFloorElapsedSeconds: Int) -> Int {
+        totalElapsedSeconds + max(currentFloorElapsedSeconds, 0)
     }
 
     public func crackedFloorPoints(for floorIndex: Int) -> Set<GridPoint> {
@@ -3223,6 +3239,7 @@ public struct DungeonRunState: Codable, Equatable, Sendable {
             currentFloorIndex: currentFloorIndex,
             carriedHP: carriedHP,
             totalMoveCount: totalMoveCount,
+            totalElapsedSeconds: totalElapsedSeconds,
             clearedFloorCount: clearedFloorCount,
             rewardInventoryEntries: rewardInventoryEntries,
             relicEntries: relicEntries,
@@ -3248,6 +3265,7 @@ public struct DungeonRunState: Codable, Equatable, Sendable {
         case currentFloorIndex
         case carriedHP
         case totalMoveCount
+        case totalElapsedSeconds
         case clearedFloorCount
         case rewardInventoryEntries
         case relicEntries
@@ -3274,6 +3292,7 @@ public struct DungeonRunState: Codable, Equatable, Sendable {
             currentFloorIndex: try container.decodeIfPresent(Int.self, forKey: .currentFloorIndex) ?? 0,
             carriedHP: try container.decode(Int.self, forKey: .carriedHP),
             totalMoveCount: try container.decodeIfPresent(Int.self, forKey: .totalMoveCount) ?? 0,
+            totalElapsedSeconds: try container.decodeIfPresent(Int.self, forKey: .totalElapsedSeconds) ?? 0,
             clearedFloorCount: try container.decodeIfPresent(Int.self, forKey: .clearedFloorCount) ?? 0,
             rewardInventoryEntries: try container.decodeIfPresent([DungeonInventoryEntry].self, forKey: .rewardInventoryEntries) ?? [],
             relicEntries: try container.decodeIfPresent([LossyDungeonRelicEntry].self, forKey: .relicEntries)?
@@ -3301,6 +3320,7 @@ public struct DungeonRunState: Codable, Equatable, Sendable {
         try container.encode(currentFloorIndex, forKey: .currentFloorIndex)
         try container.encode(carriedHP, forKey: .carriedHP)
         try container.encode(totalMoveCount, forKey: .totalMoveCount)
+        try container.encode(totalElapsedSeconds, forKey: .totalElapsedSeconds)
         try container.encode(clearedFloorCount, forKey: .clearedFloorCount)
         try container.encode(rewardInventoryEntries, forKey: .rewardInventoryEntries)
         try container.encode(relicEntries, forKey: .relicEntries)
@@ -4895,11 +4915,16 @@ private enum RogueTowerFloorGenerator {
         reserved: inout Set<GridPoint>,
         randomizer: inout DungeonCardVariationRandomizer
     ) -> [EnemyDefinition] {
-        let enemyCount = min(1 + floorIndex / 2, 7)
+        let enemyCount = enemyCount(for: floorIndex)
         var enemies: [EnemyDefinition] = []
+        var didPlaceChaser = false
         var enemyReserved = reserved.union(Set(safePath))
         for index in 0..<enemyCount {
-            let behaviorKind = randomizer.nextIndex(upperBound: floorIndex >= 12 ? 5 : 4)
+            let behaviorKind = enemyBehaviorKind(
+                floorIndex: floorIndex,
+                didPlaceChaser: didPlaceChaser,
+                randomizer: &randomizer
+            )
             let point = drawPoints(count: 1, reserved: enemyReserved, randomizer: &randomizer).first
                 ?? drawPoints(count: 1, reserved: reserved, randomizer: &randomizer).first
             guard let point else { continue }
@@ -4926,6 +4951,7 @@ private enum RogueTowerFloorGenerator {
             case 3:
                 behavior = .chaser
                 name = "追跡兵"
+                didPlaceChaser = true
             default:
                 behavior = .marker(directions: [], range: min(2 + floorIndex / 8, 5))
                 name = "メテオ兵"
@@ -4949,6 +4975,44 @@ private enum RogueTowerFloorGenerator {
             )
         }
         return enemies
+    }
+
+    private static func enemyCount(for floorIndex: Int) -> Int {
+        switch floorIndex {
+        case ..<3:
+            return 0
+        case 3..<5:
+            return 1
+        case 5..<10:
+            return 2
+        case 10..<15:
+            return 3
+        case 15..<29:
+            return 4
+        case 29..<39:
+            return 5
+        default:
+            return 7
+        }
+    }
+
+    private static func enemyBehaviorKind(
+        floorIndex: Int,
+        didPlaceChaser: Bool,
+        randomizer: inout DungeonCardVariationRandomizer
+    ) -> Int {
+        let candidates: [Int]
+        switch floorIndex {
+        case ..<5:
+            candidates = [0, 1]
+        case 5..<10:
+            candidates = [0, 1, 2]
+        case 10..<15:
+            candidates = didPlaceChaser ? [0, 1, 2] : [0, 1, 2, 3]
+        default:
+            candidates = [0, 1, 2, 3, 4]
+        }
+        return candidates[randomizer.nextIndex(upperBound: candidates.count)]
     }
 
     private static func enemyDamage(forFloorNumber floorNumber: Int) -> Int {
@@ -5009,7 +5073,14 @@ private enum RogueTowerFloorGenerator {
         reserved: inout Set<GridPoint>,
         randomizer: inout DungeonCardVariationRandomizer
     ) -> [DungeonCardPickupDefinition] {
-        let count = min(3 + floorIndex / 7, 5)
+        let count: Int
+        if floorIndex < 5 {
+            count = 4
+        } else if floorIndex < 10 {
+            count = 5
+        } else {
+            count = min(3 + floorIndex / 7, 5)
+        }
         let points = drawPoints(count: count, reserved: reserved, randomizer: &randomizer)
         reserved.formUnion(points)
         let cards = paddedPlayableCards(
@@ -5055,6 +5126,19 @@ private enum RogueTowerFloorGenerator {
         randomizer: inout DungeonCardVariationRandomizer
     ) -> [DungeonRelicPickupDefinition] {
         guard floorIndex >= 2 else { return [] }
+        if floorIndex == 2 || floorIndex == 7 {
+            guard let point = drawPoints(count: 1, reserved: reserved, randomizer: &randomizer).first else {
+                return []
+            }
+            reserved.insert(point)
+            return [
+                DungeonRelicPickupDefinition(
+                    id: "rogue-\(floorIndex + 1)-relic-1",
+                    point: point,
+                    kind: .safe
+                )
+            ]
+        }
         let divisor: Int
         if floorIndex >= 30 {
             divisor = 3

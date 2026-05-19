@@ -139,6 +139,8 @@ final class GameBoardBridgeViewModel: ObservableObject {
     private(set) var pendingEnemyTurnEventAfterMovementReplay: DungeonEnemyTurnEvent?
     /// 再生済みの敵ターンイベントを保持し、通常更新時に古いイベントを再利用しないようにする
     private var completedEnemyTurnEventID: UUID?
+    /// フロア開始時の目標強調を同じ盤面表示内で一度だけ再生するためのフラグ
+    private var hasPlayedFloorStartTargetPulse = false
 
     /// 初期化で GameScene を構築し、GameCore と紐付ける
     /// - Parameters:
@@ -193,6 +195,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
         scene.updateBoard(core.board)
         scene.moveKnight(to: core.current)
         refreshGuideHighlights()
+        playFloorStartTargetPulseIfNeeded()
     }
 
     /// レイアウト変更に合わせて SpriteKit シーンのサイズを更新する
@@ -319,6 +322,17 @@ final class GameBoardBridgeViewModel: ObservableObject {
     }
 
     private(set) var invalidSelectionFeedbackPlayCountForTesting = 0
+
+    private func playFloorStartTargetPulseIfNeeded() {
+        guard !hasPlayedFloorStartTargetPulse else { return }
+        let didPlay = scene.playDungeonFloorStartTargetPulse(
+            exitPoint: mode.dungeonExitPoint,
+            keyPoints: core.dungeonKeyPoints
+        )
+        if didPlay {
+            hasPlayedFloorStartTargetPulse = true
+        }
+    }
 
     private func beginMovementReplay(using resolution: MovementResolution) {
         prepareMovementReplayPresentationIfNeeded(using: resolution)

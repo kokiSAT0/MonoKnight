@@ -211,6 +211,18 @@ final class GameViewModel: ObservableObject {
     var dungeonRunTotalMoveCount: Int? {
         dungeonRunState?.totalMoveCountIncludingCurrentFloor(core.moveCount)
     }
+    /// ダンジョンランの累計所要時間
+    var dungeonRunTotalElapsedSeconds: Int? {
+        dungeonRunState?.totalElapsedSecondsIncludingCurrentFloor(core.elapsedSeconds)
+    }
+    /// リザルトに表示する所要時間
+    var resultElapsedSeconds: Int {
+        guard usesDungeonExit,
+              !isResultFailed,
+              nextDungeonFloorTitle == nil
+        else { return core.elapsedSeconds }
+        return dungeonRunTotalElapsedSeconds ?? core.elapsedSeconds
+    }
     /// ラン中に持ち越している報酬カード
     var dungeonRewardInventoryEntries: [DungeonInventoryEntry] {
         core.dungeonInventoryEntries.compactMap { $0.carryingRewardUsesOnly() }

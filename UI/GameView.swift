@@ -242,7 +242,7 @@ struct GameView: View {
                 dungeonRewardMoveUsesByCard: viewModel.dungeonRewardMoveUsesByCard,
                 dungeonSupportRewardAddUses: viewModel.dungeonSupportRewardAddUses,
                 dungeonGrowthAward: viewModel.latestDungeonGrowthAward,
-                elapsedSeconds: viewModel.elapsedSeconds,
+                elapsedSeconds: viewModel.resultElapsedSeconds,
                 modeIdentifier: viewModel.mode.identifier,
                 modeDisplayName: viewModel.mode.displayName,
                 showsLeaderboardButton: viewModel.isLeaderboardEligible,

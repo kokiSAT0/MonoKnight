@@ -1,4 +1,5 @@
 import XCTest
+import SwiftUI
 @testable import MonoKnightApp
 @testable import Game
 
@@ -104,6 +105,46 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
         XCTAssertEqual(scene.pickupCollectionEffectPlayCountForTesting, 1)
         XCTAssertEqual(scene.relicCollectionEffectPlayCountForTesting, 1)
         XCTAssertEqual(scene.exitUnlockEffectPlayCountForTesting, 1)
+    }
+
+    func testFloorStartTargetPulsePlaysOnceForExitAndKeyAfterSceneAppears() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let floor = try XCTUnwrap(tower.floors.first { $0.exitLock != nil })
+        let mode = floor.makeGameMode(dungeonID: tower.id)
+        let core = GameCore(mode: mode)
+        let viewModel = GameBoardBridgeViewModel(core: core, mode: mode)
+        let unlockPoint = try XCTUnwrap(floor.exitLock?.unlockPoint)
+
+        viewModel.configureSceneOnAppear(width: 320)
+
+        XCTAssertEqual(viewModel.scene.floorStartTargetPulseEffectPlayCountForTesting, 1)
+        XCTAssertEqual(
+            viewModel.scene.latestFloorStartTargetPulsePointsForTesting,
+            [floor.exitPoint, unlockPoint]
+        )
+
+        viewModel.refreshGuideHighlights()
+        viewModel.applyScenePalette(for: .dark)
+        viewModel.configureSceneOnAppear(width: 320)
+
+        XCTAssertEqual(
+            viewModel.scene.floorStartTargetPulseEffectPlayCountForTesting,
+            1,
+            "ガイド更新・テーマ変更・再レイアウトで同じフロア開始パルスを重複再生しません"
+        )
+    }
+
+    func testFloorStartTargetPulseUsesExitOnlyWhenThereIsNoKey() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
+        let floor = try XCTUnwrap(tower.floors.first { $0.exitLock == nil })
+        let mode = floor.makeGameMode(dungeonID: tower.id)
+        let core = GameCore(mode: mode)
+        let viewModel = GameBoardBridgeViewModel(core: core, mode: mode)
+
+        viewModel.configureSceneOnAppear(width: 320)
+
+        XCTAssertEqual(viewModel.scene.floorStartTargetPulseEffectPlayCountForTesting, 1)
+        XCTAssertEqual(viewModel.scene.latestFloorStartTargetPulsePointsForTesting, [floor.exitPoint])
     }
 
     func testMovementReplayPlaysPickupCollectionEffectOnlyForNewIDs() throws {
