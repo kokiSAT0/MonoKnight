@@ -142,6 +142,14 @@ extension GameViewModel {
             }
             .store(in: &cancellables)
 
+        core.$dungeonRelicActivationEvent
+            .compactMap { $0 }
+            .receive(on: RunLoop.main)
+            .sink { [weak self] event in
+                self?.handleDungeonRelicActivationEvent(event)
+            }
+            .store(in: &cancellables)
+
         core.$pendingDungeonRelicPickupChoice
             .removeDuplicates()
             .receive(on: RunLoop.main)
@@ -229,6 +237,23 @@ extension GameViewModel {
         }
     }
 
+    func handleDungeonRelicActivationEvent(_ event: DungeonRelicActivationEvent) {
+        let nextGeneration = (dungeonRelicActivationEffectGenerations[event.relicID] ?? 0) + 1
+        dungeonRelicActivationEffectGenerations[event.relicID] = nextGeneration
+        withAnimation(.easeOut(duration: 0.12)) {
+            activeDungeonRelicActivationIDs.insert(event.relicID)
+        }
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: Self.dungeonRelicActivationEffectDurationNanoseconds)
+            guard let self,
+                  self.dungeonRelicActivationEffectGenerations[event.relicID] == nextGeneration
+            else { return }
+            withAnimation(.easeOut(duration: 0.2)) {
+                self.activeDungeonRelicActivationIDs.remove(event.relicID)
+            }
+        }
+    }
+
     func handleProgressChange(_ progress: GameProgress) {
         guard pendingDungeonRelicPickupChoice == nil else {
             deferredProgressDuringMovementPresentation = progress
@@ -307,7 +332,7 @@ extension GameViewModel {
         updateDisplayedHandStacks(Self.visibleHandStacks(from: step.handStacksAfter, mode: mode))
         refreshSelectionIfNeeded(with: displayedHandStacks)
         if step.tookDamage {
-            boardBridge.playDamageEffect()
+            playDamageFeedback()
             lastObservedDungeonHPForDamageEffect = step.hpAfter
         }
         if let lockedExitReachEvent = step.dungeonLockedExitReachEvent {
@@ -340,6 +365,8 @@ extension GameViewModel {
         movementPresentationDungeonHP = event.hpAfter
         lastObservedDungeonHPForDamageEffect = event.hpAfter
         deferredEnemyDamageEventID = event.id
+        damageFeedbackGeneration += 1
+        playDamageHapticIfNeeded()
     }
 
     func finishEnemyTurnPresentation(_ event: DungeonEnemyTurnEvent) {
@@ -513,7 +540,18 @@ extension GameViewModel {
             return
         }
 
+        playDamageFeedback()
+    }
+
+    func playDamageFeedback() {
         boardBridge.playDamageEffect()
+        damageFeedbackGeneration += 1
+        playDamageHapticIfNeeded()
+    }
+
+    private func playDamageHapticIfNeeded() {
+        guard hapticsEnabled else { return }
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
     }
 
 }

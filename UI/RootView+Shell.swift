@@ -68,6 +68,7 @@ extension RootView {
         SettingsView(
             adsService: adsService,
             gameCenterService: gameCenterService,
+            dungeonRunResumeStore: dungeonRunResumeStore,
             isGameCenterAuthenticated: stateStore.binding(for: \.isAuthenticated)
         )
         .environmentObject(gameSettingsStore)

@@ -116,6 +116,7 @@ final class GameBoardControlRowViewTests: XCTestCase {
         XCTAssertEqual(effects.map(\.badgeText), ["3", "2", "1"])
         XCTAssertEqual(effects[0].accessibilityValue, "残り3ターン")
         XCTAssertEqual(effects[1].accessibilityValue, "残り2ターン、HPダメージを無効化")
+        XCTAssertEqual(effects[2].symbolName, "skull.fill")
         XCTAssertEqual(effects[2].accessibilityValue, "次の毒ダメージまで1行動、残り4回")
     }
 
@@ -140,6 +141,7 @@ final class GameBoardControlRowViewTests: XCTestCase {
     func testPoisonStatusEffectDetailIncludesNextCountdownAndRemainingTicks() {
         let effect = DungeonStatusEffectPresentation.poison(actionsUntilNextDamage: 2, ticksRemaining: 3)
 
+        XCTAssertEqual(effect.symbolName, "skull.fill")
         XCTAssertEqual(effect.badgeText, "2")
         XCTAssertEqual(effect.currentValueText, "次の毒ダメージまで 2 行動、残り 3 回")
         XCTAssertTrue(effect.detailText.contains("一定間隔でHPを1失います"))

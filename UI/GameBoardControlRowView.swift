@@ -242,13 +242,24 @@ struct DungeonStatusEffectPresentation: Identifiable, Equatable {
         Self(
             kind: .poison,
             title: "毒",
-            symbolName: "drop",
+            symbolName: "skull.fill",
             badgeText: "\(actionsUntilNextDamage)",
             currentValueText: "次の毒ダメージまで \(actionsUntilNextDamage) 行動、残り \(ticksRemaining) 回",
             detailText: "成功行動の後にカウントが進み、一定間隔でHPを1失います。解毒薬または万能薬で解除できます。",
             accessibilityLabel: "毒状態",
             accessibilityValue: "次の毒ダメージまで\(actionsUntilNextDamage)行動、残り\(ticksRemaining)回"
         )
+    }
+}
+
+private extension DungeonStatusEffectPresentation {
+    func accentColor(theme: AppTheme) -> Color {
+        switch kind {
+        case .poison:
+            return theme.boardTileEffectPoison
+        default:
+            return theme.statisticValueText
+        }
     }
 }
 
@@ -262,7 +273,7 @@ private struct DungeonStatusEffectDetailSheet: View {
             HStack(spacing: 12) {
                 Image(systemName: effect.symbolName)
                     .font(.system(size: 24, weight: .semibold))
-                    .foregroundColor(theme.statisticValueText)
+                    .foregroundColor(effect.accentColor(theme: theme))
                     .frame(width: 46, height: 46)
                     .background(
                         Circle()
@@ -561,7 +572,7 @@ private extension GameBoardControlRowView {
             ZStack(alignment: .bottomTrailing) {
                 Image(systemName: effect.symbolName)
                     .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(theme.statisticValueText)
+                    .foregroundColor(effect.accentColor(theme: theme))
                     .frame(width: 30, height: 30)
                     .background(
                         Circle()
@@ -582,7 +593,7 @@ private extension GameBoardControlRowView {
                     .padding(.horizontal, effect.badgeText.count > 1 ? 3 : 0)
                     .background(
                         Capsule(style: .continuous)
-                            .fill(theme.accentPrimary)
+                            .fill(effect.kind == .poison ? theme.boardTileEffectPoison : theme.accentPrimary)
                     )
                     .overlay(
                         Capsule(style: .continuous)

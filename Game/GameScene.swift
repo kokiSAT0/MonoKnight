@@ -17,6 +17,8 @@
         case dungeonExit
         case dungeonExitLocked
         case dungeonKey
+        case dungeonFloorStartExitTarget
+        case dungeonFloorStartKeyTarget
         case dungeonEnemy
         case dungeonDanger
         case dungeonEnemyWarning
@@ -179,11 +181,13 @@
         private let highlightRenderer = GameSceneHighlightRenderer()
         private let knightAnimator = GameSceneKnightAnimator()
         #if canImport(UIKit)
-            private var trackedTouchStartTime: TimeInterval?
-            private var trackedTouchStartPoint: GridPoint?
-            private var trackedTouchStartLocation: CGPoint?
-            private let longPressMinimumDuration: TimeInterval = 0.45
-            private let longPressMovementTolerance: CGFloat = 12
+            private static let longPressMinimumDuration: TimeInterval = 0.45
+            private static let longPressMovementTolerance: Double = 12
+            private var longPressTracker = BoardLongPressTracker(
+                minimumDuration: GameScene.longPressMinimumDuration,
+                movementTolerance: GameScene.longPressMovementTolerance
+            )
+            private var longPressWorkItem: DispatchWorkItem?
         #endif
         private var pendingBoard: Board?
         private var latestHighlightPoints: [BoardHighlightKind: Set<GridPoint>] = [:]
@@ -973,6 +977,7 @@
                         enemyID: transition.enemyID,
                         from: transition.before.position,
                         to: transition.after.position,
+                        via: transition.warpPoint,
                         after: phaseOffset + stepDuration * Double(index),
                         duration: stepDuration
                     )
@@ -1015,6 +1020,7 @@
             enemyID: String,
             from before: GridPoint,
             to after: GridPoint,
+            via warpPoint: GridPoint? = nil,
             after delay: TimeInterval,
             duration: TimeInterval
         ) {
@@ -1024,9 +1030,21 @@
             else { return }
 
             let wait = SKAction.wait(forDuration: delay)
-            let move = SKAction.move(to: layoutSupport.position(for: after), duration: duration)
-            move.timingMode = .easeInEaseOut
-            node.run(.sequence([wait, move]))
+            if let warpPoint, board.contains(warpPoint), warpPoint != after {
+                let approach = SKAction.move(to: layoutSupport.position(for: warpPoint), duration: duration * 0.65)
+                approach.timingMode = .easeInEaseOut
+                let blinkOut = SKAction.fadeAlpha(to: 0.2, duration: duration * 0.12)
+                let jump = SKAction.run { [weak self, weak node] in
+                    guard let self, let node else { return }
+                    node.position = self.layoutSupport.position(for: after)
+                }
+                let blinkIn = SKAction.fadeAlpha(to: 1, duration: duration * 0.23)
+                node.run(.sequence([wait, approach, blinkOut, jump, blinkIn]))
+            } else {
+                let move = SKAction.move(to: layoutSupport.position(for: after), duration: duration)
+                move.timingMode = .easeInEaseOut
+                node.run(.sequence([wait, move]))
+            }
         }
 
         private func makeEnemyTurnDangerPulse(at point: GridPoint) -> SKShapeNode {
@@ -1305,9 +1323,22 @@
             public override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
                 guard let touch = touches.first else { return }
                 let location = touch.location(in: self)
-                trackedTouchStartTime = touch.timestamp
-                trackedTouchStartPoint = gridPoint(from: location)
-                trackedTouchStartLocation = location
+                clearTrackedTouch()
+                longPressTracker.begin(
+                    at: gridPoint(from: location),
+                    location: BoardTouchLocation(location),
+                    timestamp: touch.timestamp
+                )
+                scheduleLongPressRecognition(startTimestamp: touch.timestamp)
+            }
+
+            public override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+                guard let touch = touches.first else { return }
+                let location = touch.location(in: self)
+                longPressTracker.updateLocation(
+                    to: gridPoint(from: location),
+                    location: BoardTouchLocation(location)
+                )
             }
 
             public override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
@@ -1317,23 +1348,15 @@
             public override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
                 guard let touch = touches.first else { return }
                 let location = touch.location(in: self)
-                guard let point = gridPoint(from: location) else { return }
+                let point = gridPoint(from: location)
                 defer { clearTrackedTouch() }
 
-                if trackedTouchStartPoint == point,
-                   let startTime = trackedTouchStartTime,
-                   let startLocation = trackedTouchStartLocation,
-                   touch.timestamp - startTime >= longPressMinimumDuration,
-                   hypot(location.x - startLocation.x, location.y - startLocation.y) <= longPressMovementTolerance {
-                    if let onLongPressGridPoint {
-                        onLongPressGridPoint(point)
-                    } else {
-                        gameCore?.handleLongPress(at: point)
-                    }
-                    return
+                switch longPressTracker.end(at: point, location: BoardTouchLocation(location)) {
+                case .tap(let point):
+                    gameCore?.handleTap(at: point)
+                case .none:
+                    break
                 }
-
-                gameCore?.handleTap(at: point)
             }
         #endif
 
@@ -1342,10 +1365,34 @@
         }
 
         #if canImport(UIKit)
+            private func scheduleLongPressRecognition(startTimestamp: TimeInterval) {
+                let workItem = DispatchWorkItem { [weak self] in
+                    guard let self else { return }
+                    if let point = self.longPressTracker.fireIfReady(
+                        at: startTimestamp + Self.longPressMinimumDuration
+                    ) {
+                        self.handleRecognizedLongPress(at: point)
+                    }
+                }
+                longPressWorkItem = workItem
+                DispatchQueue.main.asyncAfter(
+                    deadline: .now() + Self.longPressMinimumDuration,
+                    execute: workItem
+                )
+            }
+
+            private func handleRecognizedLongPress(at point: GridPoint) {
+                if let onLongPressGridPoint {
+                    onLongPressGridPoint(point)
+                } else {
+                    gameCore?.handleLongPress(at: point)
+                }
+            }
+
             private func clearTrackedTouch() {
-                trackedTouchStartTime = nil
-                trackedTouchStartPoint = nil
-                trackedTouchStartLocation = nil
+                longPressWorkItem?.cancel()
+                longPressWorkItem = nil
+                longPressTracker.cancel()
             }
 
             private func updateAccessibilityElements() {
@@ -1396,6 +1443,14 @@
                     converted.alphaComponent
                 )
             #endif
+        }
+    }
+#endif
+
+#if canImport(SpriteKit) && canImport(UIKit)
+    private extension BoardTouchLocation {
+        init(_ point: CGPoint) {
+            self.init(x: Double(point.x), y: Double(point.y))
         }
     }
 #endif

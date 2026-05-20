@@ -70,6 +70,7 @@ final class GameSceneAccessibilityTests: XCTestCase {
             boardTileEffectShuffle: theme.skBoardTileEffectShuffle,
             boardTileEffectBlast: theme.skBoardTileEffectBlast,
             boardTileEffectSlow: theme.skBoardTileEffectSlow,
+            boardTileEffectPoison: theme.skBoardTileEffectPoison,
             boardTileEffectSwamp: theme.skBoardTileEffectSwamp,
             boardTileEffectPreserveCard: theme.skBoardTileEffectPreserveCard,
             boardTileEffectDiscardHand: theme.skBoardTileEffectDiscardHand,
@@ -598,7 +599,7 @@ final class GameSceneAccessibilityTests: XCTestCase {
         )
     }
 
-    func testFloorStartTargetPulseAddsTransientNodesWithoutChangingHighlights() {
+    func testFloorStartTargetEmphasisAddsHighlightLayerWithoutChangingBaseMarkers() {
         let exitPoint = GridPoint(x: 4, y: 4)
         let keyPoint = GridPoint(x: 1, y: 3)
         let (scene, view, _) = makeScene()
@@ -606,24 +607,19 @@ final class GameSceneAccessibilityTests: XCTestCase {
 
         scene.updateHighlights([
             .dungeonExitLocked: [exitPoint],
-            .dungeonKey: [keyPoint]
+            .dungeonKey: [keyPoint],
+            .dungeonFloorStartExitTarget: [exitPoint],
+            .dungeonFloorStartKeyTarget: [keyPoint]
         ])
         let lockedExitStyleBefore = scene.highlightStyleForTesting(kind: .dungeonExitLocked, at: exitPoint)
         let keyStyleBefore = scene.highlightStyleForTesting(kind: .dungeonKey, at: keyPoint)
 
-        let didPlay = scene.playDungeonFloorStartTargetPulse(
-            exitPoint: exitPoint,
-            keyPoints: [keyPoint]
-        )
-
-        XCTAssertTrue(didPlay)
-        XCTAssertGreaterThan(
-            scene.transientEffectNodeCountForTesting(),
-            0,
-            "フロア開始時は階段と鍵を一時リングで視線誘導します"
-        )
         XCTAssertEqual(scene.latestHighlightPoints(for: .dungeonExitLocked), [exitPoint])
         XCTAssertEqual(scene.latestHighlightPoints(for: .dungeonKey), [keyPoint])
+        XCTAssertEqual(scene.latestHighlightPoints(for: .dungeonFloorStartExitTarget), [exitPoint])
+        XCTAssertEqual(scene.latestHighlightPoints(for: .dungeonFloorStartKeyTarget), [keyPoint])
+        XCTAssertNotNil(scene.highlightStyleForTesting(kind: .dungeonFloorStartExitTarget, at: exitPoint))
+        XCTAssertNotNil(scene.highlightStyleForTesting(kind: .dungeonFloorStartKeyTarget, at: keyPoint))
 
         let lockedExitStyleAfter = scene.highlightStyleForTesting(kind: .dungeonExitLocked, at: exitPoint)
         let keyStyleAfter = scene.highlightStyleForTesting(kind: .dungeonKey, at: keyPoint)

@@ -1,3 +1,4 @@
+import Game
 import SharedSupport  // DebugLogHistory や CrashFeedbackCollector を利用して診断ログを表示するため読み込む
 import SwiftUI
 
@@ -5,12 +6,20 @@ import SwiftUI
 /// - Important: TestFlight での運用を想定し、記録有無の切り替えや履歴の完全削除を UI から行えるようにしている。
 @MainActor
 struct DiagnosticsCenterView: View {
+    let dungeonRunResumeStore: DungeonRunResumeStore
+
     /// 表示中のデバッグログ一覧
     @State private var logEntries: [DebugLogEntry] = DebugLogHistory.shared.snapshot()
     /// 表示中のクラッシュ・フィードバック履歴
     @State private var crashEvents: [CrashFeedbackEvent] = CrashFeedbackCollector.shared.recentEvents()
     /// フロントエンド向けログ保持の有効状態
     @State private var isCaptureEnabled: Bool = DebugLogHistory.shared.isFrontEndViewerEnabled
+    /// テスター報告に含まれる再現データ貼り付け欄
+    @State private var reproductionInput: String = ""
+    /// 再現データの保存結果
+    @State private var reproductionStatusMessage: String?
+    /// 再現データの保存が成功したか
+    @State private var didImportReproductionData = false
     /// ログ全消去の確認ダイアログ表示フラグ
     @State private var showingClearLogAlert = false
     /// クラッシュ履歴削除の確認ダイアログ表示フラグ
@@ -18,6 +27,10 @@ struct DiagnosticsCenterView: View {
     /// 通知購読の解除に利用するトークン
     @State private var logObserver: NSObjectProtocol?
     @State private var crashObserver: NSObjectProtocol?
+
+    init(dungeonRunResumeStore: DungeonRunResumeStore = DungeonRunResumeStore()) {
+        self.dungeonRunResumeStore = dungeonRunResumeStore
+    }
 
     /// 日付表示用のフォーマッタ（短時間で何度も生成するとパフォーマンスに響くため共有する）
     private static let timestampFormatter: DateFormatter = {
@@ -42,6 +55,34 @@ struct DiagnosticsCenterView: View {
                     .foregroundStyle(.secondary)
             } header: {
                 Text("ログ記録")
+            }
+
+            // MARK: - テスター報告の再現
+            Section {
+                TextEditor(text: $reproductionInput)
+                    .font(.footnote.monospaced())
+                    .frame(minHeight: 96)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .accessibilityIdentifier(DiagnosticsCenterAccessibilityIdentifier.reproductionInput)
+
+                Button {
+                    importReproductionData()
+                } label: {
+                    Label("再現データを保存", systemImage: "tray.and.arrow.down")
+                }
+                .disabled(reproductionInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .accessibilityIdentifier(DiagnosticsCenterAccessibilityIdentifier.reproductionImportButton)
+
+                if let reproductionStatusMessage {
+                    Text(reproductionStatusMessage)
+                        .font(.footnote)
+                        .foregroundStyle(didImportReproductionData ? Color.secondary : Color.red)
+                }
+            } header: {
+                Text("テスター報告の再現")
+            } footer: {
+                Text("共有レポート末尾の MONOKNIGHT_REPRO_SNAPSHOT_V1 行を貼り付けると、塔選択の「続きから」で同じ現在階を開けます。")
             }
 
             // MARK: - デバッグログ一覧
@@ -195,6 +236,17 @@ struct DiagnosticsCenterView: View {
         )
     }
 
+    private func importReproductionData() {
+        switch DiagnosticsReproductionImporter.importSnapshot(from: reproductionInput, into: dungeonRunResumeStore) {
+        case .success(let snapshot):
+            didImportReproductionData = true
+            reproductionStatusMessage = "\(snapshot.dungeonID) \(snapshot.floorIndex + 1)F を「続きから」に保存しました。"
+        case .failure:
+            didImportReproductionData = false
+            reproductionStatusMessage = "再現データを読み込めませんでした。形式を確認してください。"
+        }
+    }
+
     /// 通知購読を登録し、リアルタイムで UI を更新できるようにする
     private func setupObserversIfNeeded() {
         if logObserver == nil {
@@ -241,4 +293,24 @@ struct DiagnosticsCenterView: View {
 
 enum DiagnosticsCenterAccessibilityIdentifier {
     static let shareButton = "diagnostics_share_button"
+    static let reproductionInput = "diagnostics_reproduction_input"
+    static let reproductionImportButton = "diagnostics_reproduction_import_button"
+}
+
+enum DiagnosticsReproductionImporter {
+    enum ImportError: Error, Equatable {
+        case invalidPayload
+    }
+
+    @MainActor
+    static func importSnapshot(
+        from text: String,
+        into store: DungeonRunResumeStore
+    ) -> Result<DungeonRunResumeSnapshot, ImportError> {
+        guard let payload = TesterReproductionPayload.decode(text) else {
+            return .failure(.invalidPayload)
+        }
+        store.save(payload.snapshot)
+        return .success(payload.snapshot)
+    }
 }

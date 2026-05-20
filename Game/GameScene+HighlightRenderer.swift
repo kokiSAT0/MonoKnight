@@ -19,6 +19,8 @@
         private var latestDungeonExitPoints: Set<GridPoint> = []
         private var latestDungeonExitLockedPoints: Set<GridPoint> = []
         private var latestDungeonKeyPoints: Set<GridPoint> = []
+        private var latestDungeonFloorStartExitTargetPoints: Set<GridPoint> = []
+        private var latestDungeonFloorStartKeyTargetPoints: Set<GridPoint> = []
         private var latestDungeonEnemyPoints: Set<GridPoint> = []
         private var latestDungeonDangerPoints: Set<GridPoint> = []
         private var latestDungeonEnemyWarningPoints: Set<GridPoint> = []
@@ -90,6 +92,8 @@
             latestDungeonExitPoints = []
             latestDungeonExitLockedPoints = []
             latestDungeonKeyPoints = []
+            latestDungeonFloorStartExitTargetPoints = []
+            latestDungeonFloorStartKeyTargetPoints = []
             latestDungeonEnemyPoints = []
             latestDungeonDangerPoints = []
             latestDungeonEnemyWarningPoints = []
@@ -378,6 +382,8 @@
                     .dungeonExit: latestDungeonExitPoints,
                     .dungeonExitLocked: latestDungeonExitLockedPoints,
                     .dungeonKey: latestDungeonKeyPoints,
+                    .dungeonFloorStartExitTarget: latestDungeonFloorStartExitTargetPoints,
+                    .dungeonFloorStartKeyTarget: latestDungeonFloorStartKeyTargetPoints,
                     .dungeonEnemy: latestDungeonEnemyPoints,
                     .dungeonDanger: latestDungeonDangerPoints,
                     .dungeonEnemyWarning: latestDungeonEnemyWarningPoints,
@@ -502,6 +508,8 @@
             latestDungeonExitPoints = highlights[.dungeonExit] ?? []
             latestDungeonExitLockedPoints = highlights[.dungeonExitLocked] ?? []
             latestDungeonKeyPoints = highlights[.dungeonKey] ?? []
+            latestDungeonFloorStartExitTargetPoints = highlights[.dungeonFloorStartExitTarget] ?? []
+            latestDungeonFloorStartKeyTargetPoints = highlights[.dungeonFloorStartKeyTarget] ?? []
             latestDungeonEnemyPoints = highlights[.dungeonEnemy] ?? []
             latestDungeonDangerPoints = highlights[.dungeonDanger] ?? []
             latestDungeonEnemyWarningPoints = highlights[.dungeonEnemyWarning] ?? []
@@ -1313,6 +1321,20 @@
                 fillColor = baseColor.withAlphaComponent(0.88)
                 glowWidth = max(layout.tileSize * 0.012, 0.5)
                 zPosition = 1.16
+            case .dungeonFloorStartExitTarget:
+                baseColor = palette.boardWarpHighlight
+                strokeAlpha = 0.98
+                strokeWidth = max(layout.tileSize * 0.070, 2.6)
+                fillColor = baseColor.withAlphaComponent(0.10)
+                glowWidth = max(layout.tileSize * 0.085, 3.0)
+                zPosition = 1.28
+            case .dungeonFloorStartKeyTarget:
+                baseColor = palette.boardDungeonKey
+                strokeAlpha = 0.98
+                strokeWidth = max(layout.tileSize * 0.070, 2.6)
+                fillColor = baseColor.withAlphaComponent(0.10)
+                glowWidth = max(layout.tileSize * 0.085, 3.0)
+                zPosition = 1.28
             case .dungeonEnemy:
                 baseColor = palette.boardDungeonEnemy
                 strokeAlpha = 0.95
@@ -1479,6 +1501,8 @@
                 || kind == .dungeonExit
                 || kind == .dungeonExitLocked
                 || kind == .dungeonKey
+                || kind == .dungeonFloorStartExitTarget
+                || kind == .dungeonFloorStartKeyTarget
                 || kind == .dungeonEnemy
                 || kind == .dungeonEnemyWarning
                 || kind == .dungeonCardPickup
@@ -1550,6 +1574,8 @@
                     center: CGPoint(x: rect.midX, y: rect.midY),
                     tileSize: tileSize
                 )
+            case .dungeonFloorStartExitTarget, .dungeonFloorStartKeyTarget:
+                return CGPath(ellipseIn: rect.insetBy(dx: tileSize * 0.04, dy: tileSize * 0.04), transform: nil)
             case .dungeonEnemy:
                 return targetMarkerPath(
                     center: CGPoint(x: rect.midX, y: rect.midY),
@@ -1995,6 +2021,10 @@
                 strokeAlpha = 1.0
                 fillColor = baseColor.withAlphaComponent(0.18)
                 glowWidth = max(glowWidth, strongGlow)
+            case .dungeonFloorStartExitTarget, .dungeonFloorStartKeyTarget:
+                strokeAlpha = 1.0
+                fillColor = baseColor.withAlphaComponent(0.08)
+                glowWidth = max(glowWidth, max(tileSize * 0.095, 3.2))
             case .dungeonKey, .dungeonCardPickup, .dungeonSpecialPickup, .dungeonDamageTrap, .dungeonStrongDamageTrap, .dungeonHealingTile:
                 strokeAlpha = 0
                 strokeWidth = 0

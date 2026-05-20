@@ -5,6 +5,7 @@ import SwiftUI
 struct SettingsView: View {
     let adsService: AdsServiceProtocol
     let gameCenterService: GameCenterServiceProtocol
+    let dungeonRunResumeStore: DungeonRunResumeStore
 
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var storeService: AnyStoreService
@@ -16,10 +17,12 @@ struct SettingsView: View {
     init(
         adsService: AdsServiceProtocol? = nil,
         gameCenterService: GameCenterServiceProtocol? = nil,
+        dungeonRunResumeStore: DungeonRunResumeStore = DungeonRunResumeStore(),
         isGameCenterAuthenticated: Binding<Bool> = .constant(false)
     ) {
         self.adsService = adsService ?? AdsService.shared
         self.gameCenterService = gameCenterService ?? GameCenterService.shared
+        self.dungeonRunResumeStore = dungeonRunResumeStore
         self._isGameCenterAuthenticated = isGameCenterAuthenticated
     }
 
@@ -43,7 +46,10 @@ struct SettingsView: View {
                 )
                 SettingsHelpSection()
                 if isDiagnosticsMenuAvailable {
-                    SettingsDiagnosticsSection(gameSettingsStore: gameSettingsStore)
+                    SettingsDiagnosticsSection(
+                        gameSettingsStore: gameSettingsStore,
+                        dungeonRunResumeStore: dungeonRunResumeStore
+                    )
                 }
             }
             .navigationTitle("設定")

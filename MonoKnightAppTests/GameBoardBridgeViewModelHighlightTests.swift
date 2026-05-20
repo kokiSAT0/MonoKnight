@@ -107,7 +107,7 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
         XCTAssertEqual(scene.exitUnlockEffectPlayCountForTesting, 1)
     }
 
-    func testFloorStartTargetPulsePlaysOnceForExitAndKeyAfterSceneAppears() throws {
+    func testFloorStartTargetEmphasisStaysForExitAndKeyUntilFirstAction() throws {
         let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
         let floor = try XCTUnwrap(tower.floors.first { $0.exitLock != nil })
         let mode = floor.makeGameMode(dungeonID: tower.id)
@@ -117,10 +117,13 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
 
         viewModel.configureSceneOnAppear(width: 320)
 
-        XCTAssertEqual(viewModel.scene.floorStartTargetPulseEffectPlayCountForTesting, 1)
         XCTAssertEqual(
-            viewModel.scene.latestFloorStartTargetPulsePointsForTesting,
-            [floor.exitPoint, unlockPoint]
+            viewModel.scene.latestHighlightPoints(for: .dungeonFloorStartExitTarget),
+            [floor.exitPoint]
+        )
+        XCTAssertEqual(
+            viewModel.scene.latestHighlightPoints(for: .dungeonFloorStartKeyTarget),
+            [unlockPoint]
         )
 
         viewModel.refreshGuideHighlights()
@@ -128,13 +131,18 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
         viewModel.configureSceneOnAppear(width: 320)
 
         XCTAssertEqual(
-            viewModel.scene.floorStartTargetPulseEffectPlayCountForTesting,
-            1,
-            "ガイド更新・テーマ変更・再レイアウトで同じフロア開始パルスを重複再生しません"
+            viewModel.scene.latestHighlightPoints(for: .dungeonFloorStartExitTarget),
+            [floor.exitPoint],
+            "初手前ならガイド更新・テーマ変更・再レイアウト後も階段強調を維持します"
+        )
+        XCTAssertEqual(
+            viewModel.scene.latestHighlightPoints(for: .dungeonFloorStartKeyTarget),
+            [unlockPoint],
+            "初手前ならガイド更新・テーマ変更・再レイアウト後も鍵強調を維持します"
         )
     }
 
-    func testFloorStartTargetPulseUsesExitOnlyWhenThereIsNoKey() throws {
+    func testFloorStartTargetEmphasisUsesExitOnlyWhenThereIsNoKey() throws {
         let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
         let floor = try XCTUnwrap(tower.floors.first { $0.exitLock == nil })
         let mode = floor.makeGameMode(dungeonID: tower.id)
@@ -143,8 +151,89 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
 
         viewModel.configureSceneOnAppear(width: 320)
 
-        XCTAssertEqual(viewModel.scene.floorStartTargetPulseEffectPlayCountForTesting, 1)
-        XCTAssertEqual(viewModel.scene.latestFloorStartTargetPulsePointsForTesting, [floor.exitPoint])
+        XCTAssertEqual(viewModel.scene.latestHighlightPoints(for: .dungeonFloorStartExitTarget), [floor.exitPoint])
+        XCTAssertTrue(viewModel.scene.latestHighlightPoints(for: .dungeonFloorStartKeyTarget).isEmpty)
+    }
+
+    func testFloorStartTargetEmphasisDisappearsAfterBasicMove() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
+        let floor = try XCTUnwrap(tower.floors.first { $0.exitLock == nil })
+        let mode = floor.makeGameMode(dungeonID: tower.id)
+        let core = GameCore(mode: mode)
+        let viewModel = GameBoardBridgeViewModel(core: core, mode: mode)
+
+        viewModel.configureSceneOnAppear(width: 320)
+        XCTAssertEqual(viewModel.scene.latestHighlightPoints(for: .dungeonFloorStartExitTarget), [floor.exitPoint])
+
+        let move = try XCTUnwrap(core.availableBasicOrthogonalMoves().first)
+        core.playBasicOrthogonalMove(using: move)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+
+        XCTAssertTrue(viewModel.scene.latestHighlightPoints(for: .dungeonFloorStartExitTarget).isEmpty)
+        XCTAssertTrue(viewModel.scene.latestHighlightPoints(for: .dungeonFloorStartKeyTarget).isEmpty)
+    }
+
+    func testFloorStartTargetEmphasisDisappearsAfterCardMove() throws {
+        let mode = makeRayTrapMode()
+        let core = GameCore.makeTestInstance(
+            deck: Deck.makeTestDeck(
+                cards: [.rayRight, .kingUpRight, .straightRight2, .straightLeft2, .straightDown2],
+                configuration: mode.deckConfiguration
+            ),
+            current: GridPoint(x: 0, y: 0),
+            mode: mode
+        )
+        let viewModel = GameBoardBridgeViewModel(core: core, mode: mode)
+
+        viewModel.configureSceneOnAppear(width: 320)
+        XCTAssertEqual(viewModel.scene.latestHighlightPoints(for: .dungeonFloorStartExitTarget), [GridPoint(x: 4, y: 4)])
+
+        let move = try XCTUnwrap(core.availableMoves().first { $0.destination == GridPoint(x: 4, y: 0) })
+        core.playCard(using: move)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+
+        XCTAssertTrue(viewModel.scene.latestHighlightPoints(for: .dungeonFloorStartExitTarget).isEmpty)
+    }
+
+    func testFloorStartTargetEmphasisSurvivesSelectionAndInvalidTap() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
+        let floor = try XCTUnwrap(tower.floors.first { $0.exitLock == nil })
+        let mode = floor.makeGameMode(dungeonID: tower.id)
+        let core = GameCore(mode: mode)
+        let viewModel = GameBoardBridgeViewModel(core: core, mode: mode)
+
+        viewModel.configureSceneOnAppear(width: 320)
+        viewModel.updateForcedSelectionHighlights([GridPoint(x: 1, y: 0)])
+        viewModel.playInvalidSelectionFeedback(at: GridPoint(x: 8, y: 8))
+
+        XCTAssertEqual(viewModel.scene.latestHighlightPoints(for: .dungeonFloorStartExitTarget), [floor.exitPoint])
+    }
+
+    func testFloorStartTargetEmphasisDisappearsOnlyAfterTargetedSupportResolves() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let floor = try XCTUnwrap(tower.floors.first { !$0.enemies.isEmpty })
+        let enemyPoint = try XCTUnwrap(floor.enemies.first?.position)
+        let mode = floor.makeGameMode(dungeonID: tower.id)
+        let core = GameCore(mode: mode)
+        XCTAssertTrue(core.addDungeonInventorySupportCardForTesting(.singleAnnihilationSpell, rewardUses: 1))
+        let supportIndex = try XCTUnwrap(core.handStacks.firstIndex { $0.topCard?.supportCard == .singleAnnihilationSpell })
+        let viewModel = GameBoardBridgeViewModel(core: core, mode: mode)
+
+        viewModel.configureSceneOnAppear(width: 320)
+        XCTAssertEqual(viewModel.scene.latestHighlightPoints(for: .dungeonFloorStartExitTarget), [floor.exitPoint])
+
+        XCTAssertTrue(core.beginTargetedSupportCardSelection(at: supportIndex))
+        viewModel.updateForcedSelectionHighlights(core.targetedSupportCardTargetPoints)
+        XCTAssertEqual(
+            viewModel.scene.latestHighlightPoints(for: .dungeonFloorStartExitTarget),
+            [floor.exitPoint],
+            "対象指定カードは、対象選択中には初手前強調を消しません"
+        )
+
+        XCTAssertTrue(core.playTargetedSupportCard(at: enemyPoint))
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+
+        XCTAssertTrue(viewModel.scene.latestHighlightPoints(for: .dungeonFloorStartExitTarget).isEmpty)
     }
 
     func testMovementReplayPlaysPickupCollectionEffectOnlyForNewIDs() throws {
@@ -1120,8 +1209,26 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
         })
         XCTAssertTrue(viewModel.scene.latestDungeonVisiblePointsForTesting()?.contains(GridPoint(x: 4, y: 4)) == true)
         XCTAssertTrue(viewModel.scene.latestDungeonVisiblePointsForTesting()?.contains(keyPoint) == true)
+        XCTAssertTrue(viewModel.scene.latestDungeonVisiblePointsForTesting()?.contains(GridPoint(x: 4, y: 2)) == true)
         XCTAssertTrue(viewModel.scene.latestDungeonVisiblePointsForTesting()?.contains(GridPoint(x: 3, y: 2)) == true)
         XCTAssertFalse(viewModel.scene.latestDungeonVisiblePointsForTesting()?.contains(GridPoint(x: 4, y: 0)) == true)
+    }
+
+    func testDarknessFloorKeepsRotatingWatcherLaserOriginVisibleOutsideLocalVision() {
+        let mode = makeRotatingWatcherDangerMode(isDarknessEnabled: true)
+        let core = GameCore(mode: mode)
+        let viewModel = GameBoardBridgeViewModel(core: core, mode: mode)
+        let origin = GridPoint(x: 2, y: 1)
+
+        XCTAssertEqual(viewModel.scene.latestHighlightPoints(for: .dungeonDanger), [])
+        XCTAssertEqual(viewModel.scene.latestHighlightPoints(for: .dungeonEnemy), [origin])
+        XCTAssertTrue(viewModel.scene.latestDungeonVisiblePointsForTesting()?.contains(origin) == true)
+        XCTAssertTrue(viewModel.scene.latestWatcherLaserPreviewsForTesting().contains { preview in
+            preview.enemyID == "display-rotating-watcher"
+                && preview.origin == origin
+                && preview.direction == MoveVector(dx: 0, dy: 1)
+                && preview.dangerPoints.contains(GridPoint(x: 2, y: 2))
+        })
     }
 
     func testDarknessFloorKeepsMeteorWarningsVisibleOutsideLocalVision() throws {
@@ -1595,7 +1702,7 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
         )
     }
 
-    private func makeRotatingWatcherDangerMode() -> GameMode {
+    private func makeRotatingWatcherDangerMode(isDarknessEnabled: Bool = false) -> GameMode {
         let rotatingWatcher = EnemyDefinition(
             id: "display-rotating-watcher",
             name: "回転見張り",
@@ -1627,7 +1734,8 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
                 dungeonRules: DungeonRules(
                     difficulty: .growth,
                     failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 8),
-                    enemies: [rotatingWatcher]
+                    enemies: [rotatingWatcher],
+                    isDarknessEnabled: isDarknessEnabled
                 )
             ),
             leaderboardEligible: false

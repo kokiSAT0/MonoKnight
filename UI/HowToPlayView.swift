@@ -1177,17 +1177,31 @@ private struct TileEffectMarkerView: View {
         case .poisonTrap:
             ZStack {
                 DiamondShape()
+                    .fill(accent.opacity(0.14))
+                    .frame(width: 31, height: 31)
+                DiamondShape()
                     .stroke(accent.opacity(0.82), lineWidth: 2)
                     .frame(width: 31, height: 31)
-                Image(systemName: "drop.fill")
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundStyle(accent.opacity(0.92))
-                    .offset(x: 5, y: 2)
+                PoisonDropShape()
+                    .fill(accent.opacity(0.94))
+                    .overlay(PoisonDropShape().stroke(accent.opacity(0.88), lineWidth: 1.2))
+                    .frame(width: 18, height: 25)
+                    .offset(x: -1, y: 1)
+                Circle()
+                    .fill(accent.opacity(0.52))
+                    .overlay(Circle().stroke(accent.opacity(0.92), lineWidth: 1))
+                    .frame(width: 7, height: 7)
+                    .offset(x: 10, y: -9)
+                Circle()
+                    .fill(accent.opacity(0.52))
+                    .overlay(Circle().stroke(accent.opacity(0.92), lineWidth: 1))
+                    .frame(width: 5, height: 5)
+                    .offset(x: 13, y: 1)
                 Capsule()
-                    .fill(accent.opacity(0.82))
-                    .frame(width: 5, height: 23)
-                    .rotationEffect(.degrees(45))
-                    .offset(x: -8, y: -5)
+                    .fill(accent.opacity(0.88))
+                    .frame(width: 4, height: 14)
+                    .rotationEffect(.degrees(-10))
+                    .offset(x: -11, y: -9)
             }
         case .illusionTrap:
             ZStack {
@@ -1291,7 +1305,7 @@ private struct TileEffectMarkerView: View {
         case .shackleTrap:
             return theme.boardTileEffectSlow
         case .poisonTrap:
-            return theme.boardTileEffectSlow
+            return theme.boardTileEffectPoison
         case .illusionTrap:
             return theme.boardTileEffectSlow
         case .staggerTrap:
@@ -1840,6 +1854,35 @@ private struct BoltShape: Shape {
         path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.34, y: rect.maxY))
         path.addLine(to: CGPoint(x: rect.maxX - rect.width * 0.14, y: rect.midY - rect.height * 0.05))
         path.addLine(to: CGPoint(x: rect.midX + rect.width * 0.08, y: rect.midY - rect.height * 0.05))
+        path.closeSubpath()
+        return path
+    }
+}
+
+private struct PoisonDropShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.midX, y: rect.minY))
+        path.addCurve(
+            to: CGPoint(x: rect.maxX, y: rect.midY + rect.height * 0.08),
+            control1: CGPoint(x: rect.maxX - rect.width * 0.22, y: rect.minY + rect.height * 0.30),
+            control2: CGPoint(x: rect.maxX, y: rect.minY + rect.height * 0.42)
+        )
+        path.addCurve(
+            to: CGPoint(x: rect.midX, y: rect.maxY),
+            control1: CGPoint(x: rect.maxX, y: rect.maxY - rect.height * 0.18),
+            control2: CGPoint(x: rect.maxX - rect.width * 0.25, y: rect.maxY)
+        )
+        path.addCurve(
+            to: CGPoint(x: rect.minX, y: rect.midY + rect.height * 0.08),
+            control1: CGPoint(x: rect.minX + rect.width * 0.25, y: rect.maxY),
+            control2: CGPoint(x: rect.minX, y: rect.maxY - rect.height * 0.18)
+        )
+        path.addCurve(
+            to: CGPoint(x: rect.midX, y: rect.minY),
+            control1: CGPoint(x: rect.minX, y: rect.minY + rect.height * 0.42),
+            control2: CGPoint(x: rect.minX + rect.width * 0.22, y: rect.minY + rect.height * 0.30)
+        )
         path.closeSubpath()
         return path
     }

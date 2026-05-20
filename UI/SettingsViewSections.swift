@@ -164,6 +164,7 @@ struct SettingsHelpSection: View {
 
 struct SettingsDiagnosticsSection: View {
     @ObservedObject var gameSettingsStore: GameSettingsStore
+    @ObservedObject var dungeonRunResumeStore: DungeonRunResumeStore
 
     var body: some View {
         Section {
@@ -180,7 +181,7 @@ struct SettingsDiagnosticsSection: View {
                 isOn: $gameSettingsStore.usesStarChartSurveyTowerTheme
             )
             NavigationLink {
-                DiagnosticsCenterView()
+                DiagnosticsCenterView(dungeonRunResumeStore: dungeonRunResumeStore)
             } label: {
                 Label("診断ログを確認", systemImage: "wrench.and.screwdriver")
             }

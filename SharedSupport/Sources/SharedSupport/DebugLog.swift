@@ -205,12 +205,31 @@ public final class DebugLogHistory {
 // MARK: - 共有用診断レポート
 
 public struct DebugLogShareReportContext {
+    public struct Section {
+        public var title: String
+        public var lines: [String]
+
+        public init(title: String, lines: [String]) {
+            self.title = title
+            self.lines = lines
+        }
+    }
+
     public var title: String
     public var details: [(String, String)]
+    public var sections: [Section]
+    public var footerBlocks: [String]
 
-    public init(title: String, details: [(String, String)] = []) {
+    public init(
+        title: String,
+        details: [(String, String)] = [],
+        sections: [Section] = [],
+        footerBlocks: [String] = []
+    ) {
         self.title = title
         self.details = details
+        self.sections = sections
+        self.footerBlocks = footerBlocks
     }
 }
 
@@ -243,6 +262,12 @@ public enum DebugLogShareReportFormatter {
             lines.append("\(key): \(value)")
         }
 
+        for section in context.sections where !section.lines.isEmpty {
+            lines.append("")
+            lines.append("\(section.title):")
+            lines.append(contentsOf: section.lines)
+        }
+
         let recentEntries = entries
             .suffix(max(logLimit, 0))
             .map { entry in
@@ -255,6 +280,11 @@ public enum DebugLogShareReportFormatter {
             lines.append("ログはありません")
         } else {
             lines.append(contentsOf: recentEntries)
+        }
+
+        for footerBlock in context.footerBlocks where !footerBlock.isEmpty {
+            lines.append("")
+            lines.append(footerBlock)
         }
 
         return lines.joined(separator: "\n")

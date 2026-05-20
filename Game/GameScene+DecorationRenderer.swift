@@ -1578,14 +1578,6 @@
                 trapPlate.isAntialiased = true
                 trapPlate.blendMode = .alpha
 
-                let needle = SKShapeNode()
-                needle.name = "tileEffectPoisonNeedle"
-                needle.strokeColor = .clear
-                needle.fillColor = .clear
-                needle.lineWidth = 0
-                needle.isAntialiased = true
-                needle.blendMode = .alpha
-
                 let droplet = SKShapeNode()
                 droplet.name = "tileEffectPoisonDroplet"
                 droplet.strokeColor = .clear
@@ -1594,14 +1586,40 @@
                 droplet.isAntialiased = true
                 droplet.blendMode = .alpha
 
+                let largeBubble = SKShapeNode()
+                largeBubble.name = "tileEffectPoisonLargeBubble"
+                largeBubble.strokeColor = .clear
+                largeBubble.fillColor = .clear
+                largeBubble.lineWidth = 1
+                largeBubble.isAntialiased = true
+                largeBubble.blendMode = .alpha
+
+                let smallBubble = SKShapeNode()
+                smallBubble.name = "tileEffectPoisonSmallBubble"
+                smallBubble.strokeColor = .clear
+                smallBubble.fillColor = .clear
+                smallBubble.lineWidth = 1
+                smallBubble.isAntialiased = true
+                smallBubble.blendMode = .alpha
+
+                let slash = SKShapeNode()
+                slash.name = "tileEffectPoisonWarningSlash"
+                slash.strokeColor = .clear
+                slash.fillColor = .clear
+                slash.lineWidth = 0
+                slash.isAntialiased = true
+                slash.blendMode = .alpha
+
                 container.addChild(trapPlate)
-                container.addChild(needle)
                 container.addChild(droplet)
+                container.addChild(largeBubble)
+                container.addChild(smallBubble)
+                container.addChild(slash)
                 return TileEffectDecorationCache(
                     container: container,
                     effect: effect,
                     strokeNodes: [trapPlate],
-                    fillNodes: [needle, droplet]
+                    fillNodes: [droplet, largeBubble, smallBubble, slash]
                 )
             case .illusionTrap:
                 let trapPlate = SKShapeNode()
@@ -2030,40 +2048,49 @@
                 rightSpark.zRotation = .pi
             case .poisonTrap:
                 guard let trapPlate = decoration.strokeNodes.first,
-                      decoration.fillNodes.count >= 2
+                      decoration.fillNodes.count >= 4
                 else { return }
 
                 trapPlate.path = paralysisTrapPlatePath(tileSize: layout.tileSize)
                 trapPlate.position = .zero
                 trapPlate.lineWidth = max(layout.tileSize * 0.035, 1.4)
 
-                let needle = decoration.fillNodes[0]
-                needle.path = CGPath(
-                    roundedRect: CGRect(
-                        x: -layout.tileSize * 0.035,
-                        y: -layout.tileSize * 0.26,
-                        width: layout.tileSize * 0.07,
-                        height: layout.tileSize * 0.52
-                    ),
-                    cornerWidth: layout.tileSize * 0.02,
-                    cornerHeight: layout.tileSize * 0.02,
-                    transform: nil
-                )
-                needle.position = CGPoint(x: -layout.tileSize * 0.14, y: layout.tileSize * 0.02)
-                needle.zRotation = .pi / 4
+                let droplet = decoration.fillNodes[0]
+                droplet.path = poisonDropletPath(tileSize: layout.tileSize, scale: 1.0)
+                droplet.position = CGPoint(x: -layout.tileSize * 0.03, y: -layout.tileSize * 0.01)
 
-                let dropletRadius = layout.tileSize * 0.12
-                let droplet = decoration.fillNodes[1]
-                droplet.path = CGPath(
+                let largeBubble = decoration.fillNodes[1]
+                let largeBubbleRadius = layout.tileSize * 0.075
+                largeBubble.path = CGPath(
                     ellipseIn: CGRect(
-                        x: -dropletRadius,
-                        y: -dropletRadius,
-                        width: dropletRadius * 2,
-                        height: dropletRadius * 2
+                        x: -largeBubbleRadius,
+                        y: -largeBubbleRadius,
+                        width: largeBubbleRadius * 2,
+                        height: largeBubbleRadius * 2
                     ),
                     transform: nil
                 )
-                droplet.position = CGPoint(x: layout.tileSize * 0.12, y: -layout.tileSize * 0.04)
+                largeBubble.position = CGPoint(x: layout.tileSize * 0.18, y: layout.tileSize * 0.17)
+                largeBubble.lineWidth = max(layout.tileSize * 0.025, 1.0)
+
+                let smallBubble = decoration.fillNodes[2]
+                let smallBubbleRadius = layout.tileSize * 0.048
+                smallBubble.path = CGPath(
+                    ellipseIn: CGRect(
+                        x: -smallBubbleRadius,
+                        y: -smallBubbleRadius,
+                        width: smallBubbleRadius * 2,
+                        height: smallBubbleRadius * 2
+                    ),
+                    transform: nil
+                )
+                smallBubble.position = CGPoint(x: layout.tileSize * 0.23, y: layout.tileSize * 0.02)
+                smallBubble.lineWidth = max(layout.tileSize * 0.022, 1.0)
+
+                let slash = decoration.fillNodes[3]
+                slash.path = poisonWarningSlashPath(tileSize: layout.tileSize)
+                slash.position = CGPoint(x: -layout.tileSize * 0.20, y: layout.tileSize * 0.18)
+                slash.zRotation = -.pi / 8
             case .illusionTrap:
                 guard let trapPlate = decoration.strokeNodes.first else { return }
                 trapPlate.path = paralysisTrapPlatePath(tileSize: layout.tileSize)
@@ -2346,15 +2373,24 @@
                     node.alpha = 1.0
                 }
             case .poisonTrap:
-                let accent = palette.boardTileEffectSlow
+                let accent = palette.boardTileEffectPoison
                 for node in decoration.strokeNodes {
                     node.strokeColor = accent.withAlphaComponent(0.82)
-                    node.fillColor = accent.withAlphaComponent(0.10)
+                    node.fillColor = accent.withAlphaComponent(0.14)
                     node.alpha = 1.0
                 }
                 for (index, node) in decoration.fillNodes.enumerated() {
-                    node.fillColor = accent.withAlphaComponent(index == 0 ? 0.88 : 0.72)
-                    node.strokeColor = index == 1 ? accent.withAlphaComponent(0.92) : .clear
+                    switch index {
+                    case 0:
+                        node.fillColor = accent.withAlphaComponent(0.94)
+                        node.strokeColor = accent.withAlphaComponent(0.88)
+                    case 1, 2:
+                        node.fillColor = accent.withAlphaComponent(0.52)
+                        node.strokeColor = accent.withAlphaComponent(0.92)
+                    default:
+                        node.fillColor = accent.withAlphaComponent(0.88)
+                        node.strokeColor = .clear
+                    }
                     node.alpha = 1.0
                 }
             case .illusionTrap:
@@ -2505,6 +2541,47 @@
             path.addLine(to: CGPoint(x: -width * 0.30, y: -height / 2))
             path.addLine(to: CGPoint(x: width * 0.42, y: -height * 0.05))
             path.addLine(to: CGPoint(x: width * 0.10, y: -height * 0.05))
+            path.closeSubpath()
+            return path
+        }
+
+        private func poisonDropletPath(tileSize: CGFloat, scale: CGFloat) -> CGPath {
+            let width = tileSize * 0.32 * scale
+            let height = tileSize * 0.48 * scale
+            let path = CGMutablePath()
+            path.move(to: CGPoint(x: 0, y: height / 2))
+            path.addCurve(
+                to: CGPoint(x: width / 2, y: -height * 0.08),
+                control1: CGPoint(x: width * 0.28, y: height * 0.18),
+                control2: CGPoint(x: width / 2, y: height * 0.07)
+            )
+            path.addCurve(
+                to: CGPoint(x: 0, y: -height / 2),
+                control1: CGPoint(x: width / 2, y: -height * 0.34),
+                control2: CGPoint(x: width * 0.26, y: -height / 2)
+            )
+            path.addCurve(
+                to: CGPoint(x: -width / 2, y: -height * 0.08),
+                control1: CGPoint(x: -width * 0.26, y: -height / 2),
+                control2: CGPoint(x: -width / 2, y: -height * 0.34)
+            )
+            path.addCurve(
+                to: CGPoint(x: 0, y: height / 2),
+                control1: CGPoint(x: -width / 2, y: height * 0.07),
+                control2: CGPoint(x: -width * 0.28, y: height * 0.18)
+            )
+            path.closeSubpath()
+            return path
+        }
+
+        private func poisonWarningSlashPath(tileSize: CGFloat) -> CGPath {
+            let width = tileSize * 0.08
+            let height = tileSize * 0.28
+            let path = CGMutablePath()
+            path.move(to: CGPoint(x: -width, y: height / 2))
+            path.addLine(to: CGPoint(x: width, y: height / 2))
+            path.addLine(to: CGPoint(x: width * 0.26, y: -height / 2))
+            path.addLine(to: CGPoint(x: -width, y: -height / 2))
             path.closeSubpath()
             return path
         }

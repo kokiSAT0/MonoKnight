@@ -58,6 +58,10 @@ struct GameView: View {
     @StateObject var viewModel: GameViewModel
     /// 警告トーストの自動消滅を制御する Task を保持し、連続表示時の競合を避ける
     @State private var boardTapWarningDismissTask: Task<Void, Never>?
+    /// 被弾を画面全体へ一瞬伝えるための赤フラッシュ濃度
+    @State var damageFlashOpacity: Double = 0
+    /// 被弾フラッシュのフェード処理を保持し、連続被弾時に古いアニメーションを残さない
+    @State private var damageFlashDismissTask: Task<Void, Never>?
     /// 開始位置選択中の案内表示。閉じても次の選択待ちでは再表示する
     @State var isSpawnSelectionHintVisible = true
     /// 手札や NEXT の位置をマッチングさせるための名前空間
@@ -183,6 +187,10 @@ struct GameView: View {
             // 新しい警告が届いたらタイマーを再スケジュールし、nil になったときは確実にキャンセルする
             scheduleBoardTapWarningAutoDismiss(for: newValue)
         }
+        .onChange(of: viewModel.damageFeedbackGeneration) { _, generation in
+            guard generation > 0 else { return }
+            playDamageScreenFlash()
+        }
         .onChange(of: viewModel.progress) { oldValue, newValue in
             if oldValue == .awaitingSpawn, newValue != .awaitingSpawn {
                 isSpawnSelectionHintVisible = true
@@ -192,6 +200,8 @@ struct GameView: View {
         .onDisappear {
             boardTapWarningDismissTask?.cancel()
             boardTapWarningDismissTask = nil
+            damageFlashDismissTask?.cancel()
+            damageFlashDismissTask = nil
         }
         // ポーズメニューをフルスクリーンで重ね、端末サイズに左右されずに全項目を視認できるようにする
         .fullScreenCover(isPresented: $viewModel.isPauseMenuPresented) {
@@ -360,6 +370,26 @@ struct GameView: View {
 
             withAnimation(.easeInOut(duration: 0.28)) {
                 viewModel.clearBoardTapSelectionWarning()
+            }
+        }
+    }
+
+    private func playDamageScreenFlash() {
+        damageFlashDismissTask?.cancel()
+        damageFlashDismissTask = nil
+
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            damageFlashOpacity = 0.16
+        }
+
+        damageFlashDismissTask = Task { @MainActor in
+            defer { damageFlashDismissTask = nil }
+            await Task.yield()
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeOut(duration: 0.22)) {
+                damageFlashOpacity = 0
             }
         }
     }

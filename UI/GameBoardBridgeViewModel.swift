@@ -139,8 +139,10 @@ final class GameBoardBridgeViewModel: ObservableObject {
     private(set) var pendingEnemyTurnEventAfterMovementReplay: DungeonEnemyTurnEvent?
     /// 再生済みの敵ターンイベントを保持し、通常更新時に古いイベントを再利用しないようにする
     private var completedEnemyTurnEventID: UUID?
-    /// フロア開始時の目標強調を同じ盤面表示内で一度だけ再生するためのフラグ
-    private var hasPlayedFloorStartTargetPulse = false
+    /// フロア開始から初手まで階段と鍵を強調して、重要地点を見失いにくくするための状態
+    private var isFloorStartTargetEmphasisActive = false
+    /// 強調開始時点の手数。これを超えたら初手が成立したものとして強調を消す。
+    private var floorStartTargetEmphasisMoveCount: Int?
 
     /// 初期化で GameScene を構築し、GameCore と紐付ける
     /// - Parameters:
@@ -195,7 +197,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
         scene.updateBoard(core.board)
         scene.moveKnight(to: core.current)
         refreshGuideHighlights()
-        playFloorStartTargetPulseIfNeeded()
+        activateFloorStartTargetEmphasisIfNeeded()
     }
 
     /// レイアウト変更に合わせて SpriteKit シーンのサイズを更新する
@@ -254,6 +256,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
             boardTileEffectShuffle: appTheme.skBoardTileEffectShuffle,
             boardTileEffectBlast: appTheme.skBoardTileEffectBlast,
             boardTileEffectSlow: appTheme.skBoardTileEffectSlow,
+            boardTileEffectPoison: appTheme.skBoardTileEffectPoison,
             boardTileEffectSwamp: appTheme.skBoardTileEffectSwamp,
             boardTileEffectPreserveCard: appTheme.skBoardTileEffectPreserveCard,
             boardTileEffectDiscardHand: appTheme.skBoardTileEffectDiscardHand,
@@ -323,15 +326,25 @@ final class GameBoardBridgeViewModel: ObservableObject {
 
     private(set) var invalidSelectionFeedbackPlayCountForTesting = 0
 
-    private func playFloorStartTargetPulseIfNeeded() {
-        guard !hasPlayedFloorStartTargetPulse else { return }
-        let didPlay = scene.playDungeonFloorStartTargetPulse(
-            exitPoint: mode.dungeonExitPoint,
-            keyPoints: core.dungeonKeyPoints
-        )
-        if didPlay {
-            hasPlayedFloorStartTargetPulse = true
-        }
+    private func activateFloorStartTargetEmphasisIfNeeded() {
+        guard mode.usesDungeonExit, core.progress == .playing, core.moveCount == 0 else { return }
+        guard mode.dungeonExitPoint != nil || !core.dungeonKeyPoints.isEmpty else { return }
+        guard !isFloorStartTargetEmphasisActive else { return }
+        isFloorStartTargetEmphasisActive = true
+        floorStartTargetEmphasisMoveCount = core.moveCount
+        pushHighlightsToScene()
+        debugLog("フロア開始ターゲット強調を点灯: exit=\(String(describing: mode.dungeonExitPoint)) keyCount=\(core.dungeonKeyPoints.count)")
+    }
+
+    private func dismissFloorStartTargetEmphasisIfNeeded(currentMoveCount: Int) {
+        guard isFloorStartTargetEmphasisActive else { return }
+        guard let initialMoveCount = floorStartTargetEmphasisMoveCount,
+              currentMoveCount > initialMoveCount
+        else { return }
+        isFloorStartTargetEmphasisActive = false
+        floorStartTargetEmphasisMoveCount = nil
+        pushHighlightsToScene()
+        debugLog("フロア開始ターゲット強調を消灯: moveCount=\(currentMoveCount)")
     }
 
     private func beginMovementReplay(using resolution: MovementResolution) {
@@ -570,6 +583,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
             ? []
             : core.watcherLaserDisplays(forDisplayedEnemyStates: displayedEnemyStates)
         let displayedWatcherLaserDangerPoints = Set(displayedWatcherLasers.flatMap(\.dangerPoints))
+        let displayedWatcherLaserOriginPoints = Set(displayedWatcherLasers.map(\.origin))
         let displayedEnemyWarningPoints = core.enemyWarningPoints(forDisplayedEnemyStates: displayedEnemyStates)
         let darknessScoutVisiblePoints = core.darknessRevealedDungeonCardPickupPoints
             .union(core.darknessRevealedThornTrapPoints)
@@ -584,6 +598,9 @@ final class GameBoardBridgeViewModel: ObservableObject {
                 dangerPoints: shouldDeferEnemyThreatHighlights
                     ? []
                     : displayedWatcherLaserDangerPoints,
+                watcherOriginPoints: shouldDeferEnemyThreatHighlights
+                    ? []
+                    : displayedWatcherLaserOriginPoints,
                 warningPoints: shouldDeferEnemyThreatHighlights ? [] : displayedEnemyWarningPoints,
                 keyPoints: core.dungeonKeyPoints,
                 revealedScoutPoints: darknessScoutVisiblePoints,
@@ -616,6 +633,12 @@ final class GameBoardBridgeViewModel: ObservableObject {
         let displayedCollapsedFloorPoints = presentationCollapsedFloorPoints ?? core.collapsedFloorPoints
         let displayedCrackedFloorPoints = (presentationCrackedFloorPoints ?? core.crackedFloorPoints)
             .subtracting(displayedCollapsedFloorPoints)
+        let floorStartExitTargetPoints = isFloorStartTargetEmphasisActive
+            ? (mode.dungeonExitPoint.map { Set([$0]) } ?? [])
+            : []
+        let floorStartKeyTargetPoints = isFloorStartTargetEmphasisActive
+            ? core.dungeonKeyPoints
+            : []
         let visibleEnemyStates = visibleEnemyStates(displayed: displayedEnemyStates, in: dungeonVisiblePoints)
         let visibleEnemyPoints = Set(visibleEnemyStates.map(\.position))
         let highlights: [BoardHighlightKind: Set<GridPoint>] = [
@@ -630,6 +653,8 @@ final class GameBoardBridgeViewModel: ObservableObject {
             .dungeonExit: core.isDungeonExitUnlocked ? (mode.dungeonExitPoint.map { Set([$0]) } ?? []) : [],
             .dungeonExitLocked: core.isDungeonExitUnlocked ? [] : (mode.dungeonExitPoint.map { Set([$0]) } ?? []),
             .dungeonKey: visible(displayed: core.dungeonKeyPoints, in: dungeonVisiblePoints),
+            .dungeonFloorStartExitTarget: visible(displayed: floorStartExitTargetPoints, in: dungeonVisiblePoints),
+            .dungeonFloorStartKeyTarget: visible(displayed: floorStartKeyTargetPoints, in: dungeonVisiblePoints),
             .dungeonEnemy: visibleEnemyPoints,
             .dungeonDanger: shouldDeferEnemyThreatHighlights
                 ? []
@@ -679,12 +704,14 @@ final class GameBoardBridgeViewModel: ObservableObject {
         current: GridPoint?,
         exitPoint: GridPoint?,
         dangerPoints: Set<GridPoint>,
+        watcherOriginPoints: Set<GridPoint>,
         warningPoints: Set<GridPoint>,
         keyPoints: Set<GridPoint>,
         revealedScoutPoints: Set<GridPoint>,
         visionRadius: Int
     ) -> Set<GridPoint> {
         var visiblePoints = dangerPoints
+            .union(watcherOriginPoints)
             .union(warningPoints)
             .union(keyPoints)
             .union(revealedScoutPoints)
@@ -1117,6 +1144,13 @@ final class GameBoardBridgeViewModel: ObservableObject {
             .sink { [weak self] newHandStacks in
                 guard let self else { return }
                 self.handleHandStacksUpdate(newHandStacks)
+            }
+            .store(in: &cancellables)
+
+        core.$moveCount
+            .receive(on: RunLoop.main)
+            .sink { [weak self] moveCount in
+                self?.dismissFloorStartTargetEmphasisIfNeeded(currentMoveCount: moveCount)
             }
             .store(in: &cancellables)
 

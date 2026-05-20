@@ -39,6 +39,13 @@ extension GameView {
             }
             // 統計バッジ＋操作ボタンを上部へ寄せ、ノッチやステータスバーと干渉しないように余白を加算
             .padding(.top, layoutContext.controlRowTopPadding)
+            if damageFlashOpacity > 0 {
+                Color.red
+                    .opacity(damageFlashOpacity)
+                    .ignoresSafeArea()
+                    .allowsHitTesting(false)
+                    .zIndex(2)
+            }
             // MARK: - 手詰まりペナルティ通知バナー
             penaltyBannerOverlay(contentTopInset: layoutContext.overlayAdjustedTopInset)
             if viewModel.progress == .awaitingSpawn, isSpawnSelectionHintVisible {

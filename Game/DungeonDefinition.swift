@@ -3942,16 +3942,24 @@ public struct DungeonEnemyTurnTransition: Equatable, Identifiable, Sendable {
     public let name: String
     public let before: EnemyState
     public let after: EnemyState
+    public let warpPoint: GridPoint?
 
     public var id: String { enemyID }
-    public var didMove: Bool { before.position != after.position }
+    public var didMove: Bool { before.position != after.position || warpPoint != nil }
     public var didRotate: Bool { before.rotationIndex != after.rotationIndex }
 
-    public init(enemyID: String, name: String, before: EnemyState, after: EnemyState) {
+    public init(
+        enemyID: String,
+        name: String,
+        before: EnemyState,
+        after: EnemyState,
+        warpPoint: GridPoint? = nil
+    ) {
         self.enemyID = enemyID
         self.name = name
         self.before = before
         self.after = after
+        self.warpPoint = warpPoint
     }
 }
 
@@ -4626,6 +4634,7 @@ private enum RogueTowerFloorGenerator {
             floorIndex: floorIndex,
             safePath: safePath,
             impassableTilePoints: impassableTilePoints,
+            hazards: hazards,
             reserved: &reserved,
             randomizer: &randomizer
         )
@@ -4912,6 +4921,7 @@ private enum RogueTowerFloorGenerator {
         floorIndex: Int,
         safePath: [GridPoint],
         impassableTilePoints: Set<GridPoint>,
+        hazards: [HazardDefinition],
         reserved: inout Set<GridPoint>,
         randomizer: inout DungeonCardVariationRandomizer
     ) -> [EnemyDefinition] {
@@ -4920,7 +4930,7 @@ private enum RogueTowerFloorGenerator {
         var didPlaceChaser = false
         var enemyReserved = reserved.union(Set(safePath))
         for index in 0..<enemyCount {
-            let behaviorKind = enemyBehaviorKind(
+            let preferredBehaviorKind = enemyBehaviorKind(
                 floorIndex: floorIndex,
                 didPlaceChaser: didPlaceChaser,
                 randomizer: &randomizer
@@ -4928,34 +4938,51 @@ private enum RogueTowerFloorGenerator {
             let point = drawPoints(count: 1, reserved: enemyReserved, randomizer: &randomizer).first
                 ?? drawPoints(count: 1, reserved: reserved, randomizer: &randomizer).first
             guard let point else { continue }
-            let behavior: EnemyBehavior
-            let name: String
-            switch behaviorKind {
-            case 0:
-                behavior = .guardPost
-                name = "番兵"
-            case 1:
-                behavior = .watcher(
-                    direction: DungeonWatcherDirectionSelector.bestDirection(
-                        from: point,
+            var behavior: EnemyBehavior?
+            var name: String?
+            for behaviorKind in enemyBehaviorKinds(
+                floorIndex: floorIndex,
+                didPlaceChaser: didPlaceChaser,
+                preferred: preferredBehaviorKind
+            ) {
+                switch behaviorKind {
+                case 0:
+                    behavior = .guardPost
+                    name = "番兵"
+                case 1:
+                    behavior = .watcher(
+                        direction: DungeonWatcherDirectionSelector.bestDirection(
+                            from: point,
+                            boardSize: boardSize,
+                            impassableTilePoints: impassableTilePoints,
+                            randomizer: &randomizer
+                        ),
+                        range: min(3 + floorIndex / 8, 6)
+                    )
+                    name = "見張り"
+                case 2:
+                    let path = patrolPath(from: point, avoiding: enemyReserved, randomizer: &randomizer)
+                    guard DungeonPatrolRouteValidator.isValidPatrolPath(
+                        path,
                         boardSize: boardSize,
                         impassableTilePoints: impassableTilePoints,
-                        randomizer: &randomizer
-                    ),
-                    range: min(3 + floorIndex / 8, 6)
-                )
-                name = "見張り"
-            case 2:
-                behavior = .patrol(path: patrolPath(from: point, avoiding: enemyReserved, randomizer: &randomizer))
-                name = "巡回兵"
-            case 3:
-                behavior = .chaser
-                name = "追跡兵"
-                didPlaceChaser = true
-            default:
-                behavior = .marker(directions: [], range: min(2 + floorIndex / 8, 5))
-                name = "メテオ兵"
+                        hazards: hazards
+                    ) else {
+                        continue
+                    }
+                    behavior = .patrol(path: path)
+                    name = "巡回兵"
+                case 3:
+                    behavior = .chaser
+                    name = "追跡兵"
+                    didPlaceChaser = true
+                default:
+                    behavior = .marker(directions: [], range: min(2 + floorIndex / 8, 5))
+                    name = "メテオ兵"
+                }
+                break
             }
+            guard let behavior, let name else { continue }
             let occupied: Set<GridPoint>
             if case .patrol(let path) = behavior {
                 occupied = Set(path)
@@ -5001,18 +5028,39 @@ private enum RogueTowerFloorGenerator {
         didPlaceChaser: Bool,
         randomizer: inout DungeonCardVariationRandomizer
     ) -> Int {
-        let candidates: [Int]
+        let candidates = enemyBehaviorKindCandidates(
+            floorIndex: floorIndex,
+            didPlaceChaser: didPlaceChaser
+        )
+        return candidates[randomizer.nextIndex(upperBound: candidates.count)]
+    }
+
+    private static func enemyBehaviorKinds(
+        floorIndex: Int,
+        didPlaceChaser: Bool,
+        preferred: Int
+    ) -> [Int] {
+        let candidates = enemyBehaviorKindCandidates(
+            floorIndex: floorIndex,
+            didPlaceChaser: didPlaceChaser
+        )
+        return [preferred] + candidates.filter { $0 != preferred }
+    }
+
+    private static func enemyBehaviorKindCandidates(
+        floorIndex: Int,
+        didPlaceChaser: Bool
+    ) -> [Int] {
         switch floorIndex {
         case ..<5:
-            candidates = [0, 1]
+            return [0, 1]
         case 5..<10:
-            candidates = [0, 1, 2]
+            return [0, 1, 2]
         case 10..<15:
-            candidates = didPlaceChaser ? [0, 1, 2] : [0, 1, 2, 3]
+            return didPlaceChaser ? [0, 1, 2] : [0, 1, 2, 3]
         default:
-            candidates = [0, 1, 2, 3, 4]
+            return [0, 1, 2, 3, 4]
         }
-        return candidates[randomizer.nextIndex(upperBound: candidates.count)]
     }
 
     private static func enemyDamage(forFloorNumber floorNumber: Int) -> Int {
@@ -5425,12 +5473,24 @@ private enum DungeonCardVariationResolver {
             seed: seed,
             movementStyle: movementStyle
         )
-        let finalEnemies = resolvedWatcherDirections(
+        let watcherResolvedEnemies = resolvedWatcherDirections(
             for: curseAdjustedEnemies,
             floorIndex: floorIndex,
             seed: seed,
             boardSize: floor.boardSize,
             impassableTilePoints: impassableTilePoints
+        )
+        let finalEnemies = resolvedValidPatrolRoutes(
+            for: watcherResolvedEnemies,
+            floor: tileEffectFloor,
+            floorIndex: floorIndex,
+            seed: seed,
+            hazards: hazards,
+            impassableTilePoints: impassableTilePoints,
+            warpTilePairs: warpTilePairs,
+            exitLock: exitLock,
+            cardPickups: cardPickups,
+            relicPickups: relicPickups
         )
         return DungeonFloorDefinition(
             id: floor.id,
@@ -5454,6 +5514,108 @@ private enum DungeonCardVariationResolver {
             rewardSupportCardsAfterClear: rewardCards.compactMap(\.support),
             isDarknessEnabled: floor.isDarknessEnabled
         )
+    }
+
+    private static func resolvedValidPatrolRoutes(
+        for enemies: [EnemyDefinition],
+        floor: DungeonFloorDefinition,
+        floorIndex: Int,
+        seed: UInt64,
+        hazards: [HazardDefinition],
+        impassableTilePoints: Set<GridPoint>,
+        warpTilePairs: [String: [GridPoint]],
+        exitLock: DungeonExitLock?,
+        cardPickups: [DungeonCardPickupDefinition],
+        relicPickups: [DungeonRelicPickupDefinition]
+    ) -> [EnemyDefinition] {
+        var reserved = patrolRouteReservedPoints(
+            floor: floor,
+            floorIndex: floorIndex,
+            hazards: hazards,
+            impassableTilePoints: impassableTilePoints,
+            warpTilePairs: warpTilePairs,
+            exitLock: exitLock,
+            cardPickups: cardPickups,
+            relicPickups: relicPickups
+        )
+        for enemy in enemies {
+            if case .patrol = enemy.behavior {
+                continue
+            }
+            reserved.insert(enemy.position)
+        }
+
+        return enemies.enumerated().compactMap { index, enemy in
+            guard case .patrol(let path) = enemy.behavior else { return enemy }
+
+            let pathPoints = Set(path)
+            if pathPoints.isDisjoint(with: reserved),
+               DungeonPatrolRouteValidator.isValidPatrolPath(
+                path,
+                boardSize: floor.boardSize,
+                impassableTilePoints: impassableTilePoints,
+                hazards: hazards
+               ) {
+                reserved.formUnion(pathPoints)
+                return enemy
+            }
+
+            let uniqueCount = max(2, min(Set(path).count, 5))
+            let candidates = candidatePatrolPaths(
+                boardSize: floor.boardSize,
+                uniqueCount: uniqueCount,
+                pathLength: max(path.count, uniqueCount),
+                reserved: reserved
+            ).filter {
+                DungeonPatrolRouteValidator.isValidPatrolPath(
+                    $0,
+                    boardSize: floor.boardSize,
+                    impassableTilePoints: impassableTilePoints,
+                    hazards: hazards
+                )
+            }
+            guard !candidates.isEmpty else { return nil }
+
+            var randomizer = DungeonCardVariationRandomizer(
+                seed: seed,
+                floorIndex: floorIndex,
+                salt: 0x7A71 + UInt64(index)
+            )
+            let resolvedPath = candidates[randomizer.nextIndex(upperBound: candidates.count)]
+            reserved.formUnion(resolvedPath)
+            return EnemyDefinition(
+                id: enemy.id,
+                name: enemy.name,
+                position: resolvedPath.first ?? enemy.position,
+                behavior: .patrol(path: resolvedPath),
+                damage: enemy.damage
+            )
+        }
+    }
+
+    private static func patrolRouteReservedPoints(
+        floor: DungeonFloorDefinition,
+        floorIndex: Int,
+        hazards: [HazardDefinition],
+        impassableTilePoints: Set<GridPoint>,
+        warpTilePairs: [String: [GridPoint]],
+        exitLock: DungeonExitLock?,
+        cardPickups: [DungeonCardPickupDefinition],
+        relicPickups: [DungeonRelicPickupDefinition]
+    ) -> Set<GridPoint> {
+        var reserved: Set<GridPoint> = [floor.spawnPoint, floor.exitPoint]
+        reserved.formUnion(floor.tileEffectOverrides.keys)
+        reserved.formUnion(warpTilePairs.values.flatMap { $0 })
+        reserved.formUnion(impassableTilePoints)
+        reserved.formUnion(DungeonPatrolRouteValidator.initialCollapsedFloorPoints(in: hazards))
+        reserved.formUnion(floor.specialPickups.map(\.point))
+        reserved.formUnion(cardPickups.map(\.point))
+        reserved.formUnion(relicPickups.map(\.point))
+        if let unlockPoint = exitLock?.unlockPoint {
+            reserved.insert(unlockPoint)
+        }
+        reserved.formUnion(secretReservedPoints(for: floor, floorIndex: floorIndex))
+        return reserved
     }
 
     private static func floorVariant(
@@ -6683,6 +6845,38 @@ private extension HazardDefinition {
         case .healingTile(let points, _):
             return points
         }
+    }
+}
+
+private enum DungeonPatrolRouteValidator {
+    static func isValidPatrolPath(
+        _ path: [GridPoint],
+        boardSize: Int,
+        impassableTilePoints: Set<GridPoint>,
+        hazards: [HazardDefinition]
+    ) -> Bool {
+        guard Set(path).count >= 2 else { return false }
+        let collapsedFloorPoints = initialCollapsedFloorPoints(in: hazards)
+        guard path.allSatisfy({
+            $0.isInside(boardSize: boardSize)
+                && !impassableTilePoints.contains($0)
+                && !collapsedFloorPoints.contains($0)
+        }) else {
+            return false
+        }
+        return zip(path, path.dropFirst()).allSatisfy { before, after in
+            abs(before.x - after.x) + abs(before.y - after.y) == 1
+        }
+    }
+
+    static func initialCollapsedFloorPoints(in hazards: [HazardDefinition]) -> Set<GridPoint> {
+        var points: Set<GridPoint> = []
+        for hazard in hazards {
+            if case .brittleFloor(let hazardPoints, .collapsed) = hazard {
+                points.formUnion(hazardPoints)
+            }
+        }
+        return points
     }
 }
 

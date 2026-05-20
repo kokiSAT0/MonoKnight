@@ -207,7 +207,7 @@ final class GameCoreTests: XCTestCase {
 
         core.playSupportCard(at: supportIndex)
         XCTAssertEqual(core.moveCount, 1)
-        XCTAssertEqual(core.damageBarrierTurnsRemaining, 2)
+        XCTAssertEqual(core.damageBarrierTurnsRemaining, 3)
 
         playBasicMove(to: GridPoint(x: 1, y: 0), in: core)
 
@@ -564,7 +564,9 @@ final class GameCoreTests: XCTestCase {
             enemies: [guardEnemy],
             hazards: [
                 .damageTrap(points: [GridPoint(x: 1, y: 0)], damage: 1),
-                .lavaTile(points: [GridPoint(x: 2, y: 0)], damage: 1)
+                .lavaTile(points: [GridPoint(x: 2, y: 0)], damage: 1),
+                .damageTrap(points: [GridPoint(x: 3, y: 0)], damage: 1),
+                .lavaTile(points: [GridPoint(x: 4, y: 0)], damage: 1)
             ]
         )
         let core = GameCore(mode: mode)
@@ -573,19 +575,24 @@ final class GameCoreTests: XCTestCase {
 
         core.playSupportCard(at: supportIndex)
         XCTAssertEqual(core.dungeonHP, 3)
-        XCTAssertEqual(core.damageBarrierTurnsRemaining, 2)
+        XCTAssertEqual(core.damageBarrierTurnsRemaining, 3)
 
         let trapMove = try XCTUnwrap(core.availableBasicOrthogonalMoves().first { $0.destination == GridPoint(x: 1, y: 0) })
         core.playBasicOrthogonalMove(using: trapMove)
         XCTAssertEqual(core.dungeonHP, 3)
-        XCTAssertEqual(core.damageBarrierTurnsRemaining, 1)
+        XCTAssertEqual(core.damageBarrierTurnsRemaining, 2)
 
         let lavaMove = try XCTUnwrap(core.availableBasicOrthogonalMoves().first { $0.destination == GridPoint(x: 2, y: 0) })
         core.playBasicOrthogonalMove(using: lavaMove)
         XCTAssertEqual(core.dungeonHP, 3)
+        XCTAssertEqual(core.damageBarrierTurnsRemaining, 1)
+
+        let secondTrapMove = try XCTUnwrap(core.availableBasicOrthogonalMoves().first { $0.destination == GridPoint(x: 3, y: 0) })
+        core.playBasicOrthogonalMove(using: secondTrapMove)
+        XCTAssertEqual(core.dungeonHP, 3)
         XCTAssertEqual(core.damageBarrierTurnsRemaining, 0)
 
-        let dangerMove = try XCTUnwrap(core.availableBasicOrthogonalMoves().first { $0.destination == GridPoint(x: 2, y: 1) })
+        let dangerMove = try XCTUnwrap(core.availableBasicOrthogonalMoves().first { $0.destination == GridPoint(x: 4, y: 0) })
         core.playBasicOrthogonalMove(using: dangerMove)
         XCTAssertEqual(core.dungeonHP, 2)
     }
@@ -620,7 +627,7 @@ final class GameCoreTests: XCTestCase {
 
         XCTAssertEqual(core.dungeonHP, 3)
         XCTAssertEqual(core.markerDamageMitigationsRemaining, 1)
-        XCTAssertEqual(core.damageBarrierTurnsRemaining, 1)
+        XCTAssertEqual(core.damageBarrierTurnsRemaining, 2)
     }
 
     func testStarReaderDamagesWhenPlayerSpendsTurnWithoutMoving() throws {
@@ -724,7 +731,7 @@ final class GameCoreTests: XCTestCase {
         core.playSupportCard(at: supportIndex)
 
         XCTAssertEqual(core.dungeonHP, 3)
-        XCTAssertEqual(core.damageBarrierTurnsRemaining, 2)
+        XCTAssertEqual(core.damageBarrierTurnsRemaining, 3)
         XCTAssertFalse(core.enemyWarningPoints.isEmpty)
     }
 

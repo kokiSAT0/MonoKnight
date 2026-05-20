@@ -138,7 +138,11 @@ private extension GameHandSectionView {
                     Button {
                         inspectedRelic = relic
                     } label: {
-                        DungeonRelicIconView(theme: theme, relic: relic)
+                        DungeonRelicIconView(
+                            theme: theme,
+                            relic: relic,
+                            isActivated: viewModel.activeDungeonRelicActivationIDs.contains(relic.relicID)
+                        )
                     }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier(Self.dungeonRelicAccessibilityIdentifier(for: relic))
@@ -723,6 +727,7 @@ private extension DungeonRelicEntry {
 private struct DungeonRelicIconView: View {
     let theme: AppTheme
     let relic: DungeonRelicEntry
+    let isActivated: Bool
     private var isUsedUp: Bool { relic.isUsedUpLimitedRelic }
     private var tint: Color {
         isUsedUp ? theme.textSecondary : relic.displayKind.tintColor(theme: theme)
@@ -734,16 +739,17 @@ private struct DungeonRelicIconView: View {
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 8)
-                .fill(theme.cardBackgroundHand)
+                .fill(isActivated ? tint.opacity(0.20) : theme.cardBackgroundHand)
                 .overlay(
                     RoundedRectangle(cornerRadius: 8)
-                        .stroke(tint.opacity(isUsedUp ? 0.42 : 0.72), lineWidth: 1.5)
+                        .stroke(tint.opacity(isActivated ? 1.0 : (isUsedUp ? 0.42 : 0.72)), lineWidth: isActivated ? 2.5 : 1.5)
                 )
+                .shadow(color: tint.opacity(isActivated ? 0.45 : 0), radius: isActivated ? 8 : 0)
 
             Image(systemName: relic.symbolName)
                 .font(.system(size: 19, weight: .semibold))
                 .foregroundColor(tint)
-                .opacity(isUsedUp ? 0.58 : 1.0)
+                .opacity(isActivated ? 1.0 : (isUsedUp ? 0.58 : 1.0))
                 .accessibilityHidden(true)
 
             Text(relic.rarity.badgeText)
@@ -770,6 +776,8 @@ private struct DungeonRelicIconView: View {
         }
         .frame(width: 44, height: 44)
         .opacity(isUsedUp ? 0.78 : 1.0)
+        .scaleEffect(isActivated ? 1.08 : 1.0)
+        .animation(.easeInOut(duration: 0.18).repeatCount(isActivated ? 3 : 1, autoreverses: true), value: isActivated)
     }
 }
 

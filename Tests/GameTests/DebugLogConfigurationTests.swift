@@ -74,6 +74,18 @@ final class DebugLogConfigurationTests: XCTestCase {
                 details: [
                     ("HP", "2"),
                     ("位置", "(1,2)")
+                ],
+                sections: [
+                    DebugLogShareReportContext.Section(
+                        title: "ラン履歴",
+                        lines: ["1F / 2手 / (1,2) [damage] 罠でHP -1"]
+                    )
+                ],
+                footerBlocks: [
+                    """
+                    再現データ:
+                    MONOKNIGHT_REPRO_SNAPSHOT_V1:abc
+                    """
                 ]
             ),
             entries: entries,
@@ -88,9 +100,13 @@ final class DebugLogConfigurationTests: XCTestCase {
         XCTAssertTrue(report.contains("アプリ: 1.2.3"))
         XCTAssertTrue(report.contains("端末: iPhone / iOS 18.6"))
         XCTAssertTrue(report.contains("HP: 2"))
+        XCTAssertTrue(report.contains("ラン履歴:"))
+        XCTAssertTrue(report.contains("1F / 2手 / (1,2) [damage] 罠でHP -1"))
         XCTAssertTrue(report.contains("[PLAY] event=test_3"))
         XCTAssertTrue(report.contains("[PLAY] event=test_4"))
         XCTAssertFalse(report.contains("[PLAY] event=test_2"))
+        XCTAssertTrue(report.contains("再現データ:"))
+        XCTAssertTrue(report.contains("MONOKNIGHT_REPRO_SNAPSHOT_V1:abc"))
     }
 
     func testDebugLogShareReportWorksWithoutLogs() {

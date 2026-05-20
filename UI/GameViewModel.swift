@@ -43,10 +43,15 @@ final class GameViewModel: ObservableObject {
     @Published var displayedHandStacks: [HandStack] = []
     /// 拾得などで直近に増えた手札スタック ID
     @Published var recentlyAddedHandStackIDs: Set<UUID> = []
+    /// 直近に効果を発動した通常遺物 ID
+    @Published var activeDungeonRelicActivationIDs: Set<DungeonRelicID> = []
     /// 手札増加エフェクトの差分検出に使う直前スナップショット
     var previousDisplayedHandStacksForAdditionEffect: [HandStack] = []
     /// 短命エフェクトを消すための世代番号
     var handAdditionEffectGeneration: Int = 0
+    /// レリック発動エフェクトを消すための世代番号
+    var dungeonRelicActivationEffectGenerations: [DungeonRelicID: Int] = [:]
+    static var dungeonRelicActivationEffectDurationNanoseconds: UInt64 = 800_000_000
     /// 移動演出中だけ利用する HP 表示上書き
     @Published var movementPresentationDungeonHP: Int?
     /// 移動演出中は手札/HP の通常同期を一時停止する
@@ -251,26 +256,53 @@ final class GameViewModel: ObservableObject {
         DebugLogHistory.shared.isFrontEndViewerEnabled
     }
     func makeTesterIssueReport() -> String {
-        DebugLogShareReportFormatter.makeReport(
+        let reproductionBlock = makeTesterReproductionBlock()
+        return DebugLogShareReportFormatter.makeReport(
             context: DebugLogShareReportContext(
                 title: dungeonRunFloorText ?? mode.displayName,
                 details: [
                     ("モード", mode.displayName),
                     ("階層", dungeonRunFloorText ?? "なし"),
+                    ("塔ID", mode.dungeonMetadataSnapshot?.dungeonID ?? "なし"),
+                    ("フロアIndex", mode.dungeonMetadataSnapshot?.runState.map { String($0.currentFloorIndex) } ?? "なし"),
+                    ("移動スタイル", mode.dungeonMetadataSnapshot?.runState?.movementStyle.displayName ?? "なし"),
+                    ("試練塔seed", mode.dungeonMetadataSnapshot?.runState?.rogueTowerSeed.map(String.init) ?? "なし"),
+                    ("カードseed", mode.dungeonMetadataSnapshot?.runState?.cardVariationSeed.map(String.init) ?? "なし"),
                     ("HP", String(dungeonHP)),
-                    ("手数", String(core.moveCount)),
+                    ("現在階の手数", String(core.moveCount)),
+                    ("累計手数", mode.dungeonMetadataSnapshot?.runState.map { String($0.totalMoveCountIncludingCurrentFloor(core.moveCount)) } ?? String(core.moveCount)),
+                    ("経過秒", mode.dungeonMetadataSnapshot?.runState.map { String($0.totalElapsedSecondsIncludingCurrentFloor(core.elapsedSeconds)) } ?? String(core.elapsedSeconds)),
                     ("残り手数", remainingDungeonTurns.map(String.init) ?? "なし"),
                     ("位置", DebugLogShareSupport.pointDescription(core.current)),
                     ("進行状態", String(describing: core.progress)),
+                    ("手札上限", String(core.dungeonInventoryKindLimit)),
+                    ("手札拡張確率段階", mode.dungeonMetadataSnapshot?.runState.map { String($0.rogueHandExpansionChanceStep) } ?? "なし"),
                     ("所持カード", DebugLogShareSupport.inventoryDescription(core.dungeonInventoryEntries)),
                     ("遺物", DebugLogShareSupport.relicDescription(core.dungeonRelicEntries)),
                     ("呪い", DebugLogShareSupport.curseDescription(core.dungeonCurseEntries))
-                ]
+                ],
+                sections: [
+                    DebugLogShareReportContext.Section(
+                        title: "ラン履歴",
+                        lines: DebugLogShareSupport.runLogDescription(core.dungeonRunLogEntries)
+                    )
+                ],
+                footerBlocks: reproductionBlock.map { [$0] } ?? []
             ),
             entries: DebugLogHistory.shared.snapshot().filter { $0.message.contains("[PLAY]") },
             appVersion: DebugLogShareSupport.appVersionDescription,
             deviceDescription: DebugLogShareSupport.deviceDescription
         )
+    }
+
+    private func makeTesterReproductionBlock() -> String? {
+        guard let snapshot = core.makeDungeonResumeSnapshot(),
+              let encoded = TesterReproductionPayload(snapshot: snapshot).encodedString
+        else { return nil }
+        return """
+        再現データ:
+        \(encoded)
+        """
     }
     /// 現在フロアのクリア後に選べる報酬カード
     var availableDungeonRewardMoveCards: [MoveCard] {
@@ -595,6 +627,8 @@ final class GameViewModel: ObservableObject {
     @Published var isDungeonRunLogPresented = false
     /// GameCore から受け取ったラン履歴の表示用スナップショット
     @Published var dungeonRunLogEntries: [DungeonRunLogEntry] = []
+    /// 被弾時の全画面フラッシュを SwiftUI 側へ伝えるための世代番号
+    @Published var damageFeedbackGeneration = 0
     /// HP 低下演出の誤発火を避けるため、直近に観測したダンジョン HP を保持する
     var lastObservedDungeonHPForDamageEffect: Int?
     /// 敵ターン演出へ委譲した HP 低下イベントを重複再生しないために保持する
@@ -852,5 +886,55 @@ enum DebugLogShareSupport {
     static func curseDescription(_ entries: [DungeonCurseEntry]) -> String {
         guard !entries.isEmpty else { return "なし" }
         return entries.map { "\($0.displayName):\($0.remainingUses)" }.joined(separator: ", ")
+    }
+
+    static func runLogDescription(_ entries: [DungeonRunLogEntry], limit: Int = 20) -> [String] {
+        let recentEntries = entries.suffix(max(limit, 0))
+        guard !recentEntries.isEmpty else { return ["ラン履歴はありません"] }
+        return recentEntries.map { entry in
+            "\(entry.headerText) [\(entry.kind.rawValue)] \(entry.message)"
+        }
+    }
+}
+
+struct TesterReproductionPayload: Codable, Equatable {
+    static let version = 1
+    static let prefix = "MONOKNIGHT_REPRO_SNAPSHOT_V1:"
+
+    let version: Int
+    let snapshot: DungeonRunResumeSnapshot
+
+    init(version: Int = Self.version, snapshot: DungeonRunResumeSnapshot) {
+        self.version = version
+        self.snapshot = snapshot
+    }
+
+    var encodedString: String? {
+        guard let data = try? JSONEncoder().encode(self) else { return nil }
+        return Self.prefix + data.base64EncodedString()
+    }
+
+    static func decode(_ text: String) -> TesterReproductionPayload? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let encoded: String
+        if trimmed.hasPrefix(prefix) {
+            encoded = String(trimmed.dropFirst(prefix.count))
+        } else if let prefixedLine = trimmed
+            .components(separatedBy: .newlines)
+            .map({ $0.trimmingCharacters(in: .whitespacesAndNewlines) })
+            .first(where: { $0.hasPrefix(prefix) }) {
+            encoded = String(prefixedLine.dropFirst(prefix.count))
+        } else {
+            return nil
+        }
+
+        guard let data = Data(base64Encoded: encoded),
+              let payload = try? JSONDecoder().decode(Self.self, from: data),
+              payload.version == version,
+              payload.snapshot.version == DungeonRunResumeSnapshot.currentVersion,
+              payload.snapshot.runState.dungeonID == payload.snapshot.dungeonID,
+              payload.snapshot.runState.currentFloorIndex == payload.snapshot.floorIndex
+        else { return nil }
+        return payload
     }
 }

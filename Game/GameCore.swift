@@ -133,6 +133,17 @@ public struct DungeonRewindReviveEvent: Identifiable, Equatable, Sendable {
     }
 }
 
+/// 通常遺物の効果が実際に発動したことを UI へ知らせるイベント
+public struct DungeonRelicActivationEvent: Identifiable, Equatable, Sendable {
+    public let id: UUID
+    public let relicID: DungeonRelicID
+
+    public init(id: UUID = UUID(), relicID: DungeonRelicID) {
+        self.id = id
+        self.relicID = relicID
+    }
+}
+
 /// 移動が完了してから手札へ適用するタイル効果
 private enum PostMoveTileEffect {
     case shuffleHand
@@ -163,6 +174,11 @@ private struct DungeonEnemyDamageComponent {
     let amount: Int
     let source: String
     let isMarker: Bool
+}
+
+private struct DungeonEnemyMovementResolution {
+    let finalPoint: GridPoint
+    let warpPoint: GridPoint?
 }
 
 private let poisonTrapDamageTicks = 3
@@ -370,6 +386,8 @@ public final class GameCore: ObservableObject {
     @Published public private(set) var areDungeonRelicAndCurseEffectsEnabled: Bool = true
     /// UI へ提示するレリック/呪い遺物/宝箱結果の取得イベント
     @Published public private(set) var dungeonRelicAcquisitionPresentations: [DungeonRelicAcquisitionPresentation] = []
+    /// 通常遺物の発動を UI で短く強調するための単発イベント
+    @Published public private(set) var dungeonRelicActivationEvent: DungeonRelicActivationEvent?
     /// プレイヤーが死因や回復、遺物取得を振り返るためのラン履歴
     @Published public private(set) var dungeonRunLogEntries: [DungeonRunLogEntry] = []
     /// 所持枠が満杯で床落ちカードの取捨選択を待っている状態
@@ -1123,7 +1141,8 @@ public final class GameCore: ObservableObject {
             damageBarrierTurnsRemaining = max(damageBarrierTurnsRemaining, 3)
             finishSupportCardTurn(
                 initialMarkerDamagePoints: pendingMarkerDamagePoints,
-                previousMoveCount: previousMoveCount
+                previousMoveCount: previousMoveCount,
+                consumesDamageBarrierTurn: false
             )
             checkDeadlockAndApplyPenaltyIfNeeded()
             debugLog("補助カード 障壁の呪文: HPダメージを3回無効化")
@@ -1224,7 +1243,8 @@ public final class GameCore: ObservableObject {
 
     private func finishSupportCardTurn(
         initialMarkerDamagePoints: Set<GridPoint>,
-        previousMoveCount: Int
+        previousMoveCount: Int,
+        consumesDamageBarrierTurn: Bool = true
     ) {
         dungeonEnemyTurnEvent = nil
         guard progress == .playing else { return }
@@ -1234,7 +1254,8 @@ public final class GameCore: ObservableObject {
             initialMarkerDamagePoints: initialMarkerDamagePoints,
             paralysisTrapPoint: nil,
             skipsPoisonTick: false,
-            previousMoveCount: previousMoveCount
+            previousMoveCount: previousMoveCount,
+            consumesDamageBarrierTurn: consumesDamageBarrierTurn
         )
     }
 
@@ -3575,10 +3596,12 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         if consumeDungeonRelicUse(.moonMirror) {
             if let relic = grantDungeonRelic(from: pickup, salt: "moon-mirror-\(salt)") {
                 debugLog("月の鏡で呪い遺物を通常遺物へ変換: \(curseID.displayName) @\(pickup.point)")
+                publishDungeonRelicActivation(.moonMirror)
                 return [.relic(relic)]
             } else {
                 debugLog("月の鏡で呪い遺物を無効化: \(curseID.displayName) @\(pickup.point)")
             }
+            publishDungeonRelicActivation(.moonMirror)
             return []
         }
         let entry = DungeonCurseEntry(curseID: curseID)
@@ -3736,11 +3759,19 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         case .crackedShield:
             break
         case .glowingHeart:
+            let hpBefore = dungeonHP
             dungeonHP += 2
             clampDungeonHPForGildedSealIfNeeded()
+            if dungeonHP != hpBefore {
+                publishDungeonRelicActivation(relicID)
+            }
         case .woodenAmulet:
+            let hpBefore = dungeonHP
             dungeonHP += 1
             clampDungeonHPForGildedSealIfNeeded()
+            if dungeonHP != hpBefore {
+                publishDungeonRelicActivation(relicID)
+            }
         case .heavyCrown, .oldMap, .blackFeather, .chippedHourglass, .travelerBoots, .silverNeedle,
              .starCup, .distantStarCup, .crackedStarCup, .explorerBag, .moonMirror, .victoryBanner:
             break
@@ -3769,8 +3800,18 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         let freezeTurns = dungeonRelicEntries
             .map { $0.relicID.floorStartEnemyFreezeTurns }
             .max() ?? 0
+        let previousBarrierTurns = damageBarrierTurnsRemaining
+        let previousFreezeTurns = enemyFreezeTurnsRemaining
         damageBarrierTurnsRemaining = max(damageBarrierTurnsRemaining, barrierTurns)
         enemyFreezeTurnsRemaining = max(enemyFreezeTurnsRemaining, freezeTurns)
+        if damageBarrierTurnsRemaining > previousBarrierTurns,
+           let relic = dungeonRelicEntries.first(where: { $0.relicID.floorStartDamageBarrierTurns == barrierTurns && barrierTurns > 0 }) {
+            publishDungeonRelicActivation(relic.relicID)
+        }
+        if enemyFreezeTurnsRemaining > previousFreezeTurns,
+           let relic = dungeonRelicEntries.first(where: { $0.relicID.floorStartEnemyFreezeTurns == freezeTurns && freezeTurns > 0 }) {
+            publishDungeonRelicActivation(relic.relicID)
+        }
     }
 
     private func applyFloorStartDungeonCurseStatusEffects() {
@@ -3866,6 +3907,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         currentFloorDefeatedEnemyCount += defeatedEnemies.count
         if hasDungeonRelic(.intimidationHorn), !enemyStates.isEmpty {
             pendingDefeatEnemyTurnSkip = true
+            publishDungeonRelicActivation(.intimidationHorn)
         }
         applySlayerMedalProgress(defeatedCount: defeatedEnemies.count)
         logDungeonPlayEvent(
@@ -3892,6 +3934,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             if let relicID = selectedSlayerMedalCommonRelic(awardIndex: awardIndex),
                let relic = grantDungeonRelic(relicID) {
                 grantedItems.append(.relic(relic))
+                publishDungeonRelicActivation(.slayerMedal)
             } else {
                 appendDungeonRunLog(kind: .acquisition, message: "討伐者の勲章: 未所持のコモンレリック候補なし")
             }
@@ -4429,12 +4472,18 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         return dungeonCurseEntries.contains { $0.curseID == curseID }
     }
 
+    private func publishDungeonRelicActivation(_ relicID: DungeonRelicID) {
+        guard areDungeonRelicAndCurseEffectsEnabled else { return }
+        dungeonRelicActivationEvent = DungeonRelicActivationEvent(relicID: relicID)
+    }
+
     private func consumeDungeonRelicUse(_ relicID: DungeonRelicID) -> Bool {
         guard areDungeonRelicAndCurseEffectsEnabled else { return false }
         guard let index = dungeonRelicEntries.firstIndex(where: { $0.relicID == relicID && $0.remainingUses > 0 }) else {
             return false
         }
         dungeonRelicEntries[index].remainingUses -= 1
+        publishDungeonRelicActivation(relicID)
         return true
     }
 
@@ -4515,6 +4564,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         guard damage > 0, let relic = persistentDamageReductionRelic(for: category), hasDungeonRelic(relic) else {
             return damage
         }
+        publishDungeonRelicActivation(relic)
         return max(damage - 1, 0)
     }
 
@@ -4545,6 +4595,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             return
         }
         dungeonRelicEntries[index].remainingUses = 1
+        publishDungeonRelicActivation(.trapperGloves)
         debugLog("罠師の手袋が反応: \(reason), 次のクリア報酬の補助カード出現率+5pt")
     }
 
@@ -4671,7 +4722,8 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         initialMarkerDamagePoints: Set<GridPoint>? = nil,
         paralysisTrapPoint: GridPoint? = nil,
         skipsPoisonTick: Bool,
-        previousMoveCount: Int
+        previousMoveCount: Int,
+        consumesDamageBarrierTurn: Bool = true
     ) -> Bool {
         guard mode.usesDungeonExit else { return false }
         guard progress == .playing, dungeonFallEvent == nil else { return true }
@@ -4713,12 +4765,13 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                 continue
             }
             let enemyStatesBeforeTurn = enemyStates
-            advanceEnemiesForDungeonTurn()
+            let enemyWarpPoints = advanceEnemiesForDungeonTurn()
             let hpBeforeEnemyDamage = dungeonHP
             let enemyDamage = applyDungeonEnemyDamageIfNeeded(markerDamagePoints: pendingMarkerDamagePoints)
             if let phase = dungeonEnemyTurnPhase(
                 before: enemyStatesBeforeTurn,
                 after: enemyStates,
+                warpPointsByEnemyID: enemyWarpPoints,
                 hpBefore: hpBeforeEnemyDamage,
                 hpAfter: dungeonHP,
                 damage: enemyDamage
@@ -4747,7 +4800,9 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             phases: phases,
             paralysisTrapPoint: paralysisTrapPoint
         )
-        consumeDamageBarrierTurnIfNeeded()
+        if consumesDamageBarrierTurn {
+            consumeDamageBarrierTurnIfNeeded()
+        }
         if applyDungeonFatigueDamageIfNeeded(previousMoveCount: previousMoveCount) {
             guard shouldFailDungeonRun() else { return true }
             finalizeElapsedTimeIfNeeded()
@@ -4967,12 +5022,13 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         return attackOrContactPoints(for: enemy).contains(current)
     }
 
-    private func advanceEnemiesForDungeonTurn() {
-        guard mode.usesDungeonExit, !enemyStates.isEmpty else { return }
+    private func advanceEnemiesForDungeonTurn() -> [String: GridPoint] {
+        guard mode.usesDungeonExit, !enemyStates.isEmpty else { return [:] }
 
         let before = enemyStates
         var occupiedPoints = Set(enemyStates.map(\.position))
         var defeatedEnemyIDs: Set<String> = []
+        var warpPointsByEnemyID: [String: GridPoint] = [:]
         for index in enemyStates.indices {
             guard !defeatedEnemyIDs.contains(enemyStates[index].id) else { continue }
             switch enemyStates[index].behavior {
@@ -4982,25 +5038,34 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                 guard !isPatrolRailDestroyed else { continue }
                 guard !shouldMovingEnemyAttackBeforeMoving(enemyStates[index]) else { continue }
                 let validPath = path.filter { isEnemyTraversable($0) }
-                guard !validPath.isEmpty else { continue }
-                let nextIndex = (enemyStates[index].patrolIndex + 1) % validPath.count
-                let nextPoint = validPath[nextIndex]
+                guard let nextIndex = patrolNextIndex(for: enemyStates[index], in: validPath) else { continue }
+                let nextStepPoint = validPath[nextIndex]
+                guard let movement = resolvedEnemyMovement(
+                    from: enemyStates[index].position,
+                    stepPoint: nextStepPoint,
+                    occupiedPoints: occupiedPoints
+                ) else {
+                    continue
+                }
                 guard reserveEnemyDestination(
-                    nextPoint,
+                    movement.finalPoint,
                     from: enemyStates[index].position,
                     occupiedPoints: &occupiedPoints
                 ) else {
                     continue
                 }
                 enemyStates[index].patrolIndex = nextIndex
-                enemyStates[index].position = nextPoint
+                enemyStates[index].position = movement.finalPoint
+                if let warpPoint = movement.warpPoint {
+                    warpPointsByEnemyID[enemyStates[index].id] = warpPoint
+                }
             case .rotatingWatcher:
                 guard !shouldMovingEnemyAttackBeforeMoving(enemyStates[index]) else { continue }
                 enemyStates[index].rotationIndex = (enemyStates[index].rotationIndex + 1) % 4
             case .chaser:
                 guard !shouldMovingEnemyAttackBeforeMoving(enemyStates[index]) else { continue }
                 guard let current,
-                      let nextPoint = chaserNextStep(
+                      let nextStepPoint = chaserNextStep(
                         from: enemyStates[index].position,
                         toward: current,
                         avoiding: occupiedPoints
@@ -5008,17 +5073,27 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                 else {
                     continue
                 }
+                guard let movement = resolvedEnemyMovement(
+                    from: enemyStates[index].position,
+                    stepPoint: nextStepPoint,
+                    occupiedPoints: occupiedPoints
+                ) else {
+                    continue
+                }
                 guard reserveEnemyDestination(
-                    nextPoint,
+                    movement.finalPoint,
                     from: enemyStates[index].position,
                     occupiedPoints: &occupiedPoints
                 ) else {
                     continue
                 }
-                enemyStates[index].position = nextPoint
-                if isEnemyLethalHazardPoint(nextPoint) {
+                enemyStates[index].position = movement.finalPoint
+                if let warpPoint = movement.warpPoint {
+                    warpPointsByEnemyID[enemyStates[index].id] = warpPoint
+                }
+                if isEnemyLethalHazardPoint(movement.finalPoint) {
                     defeatedEnemyIDs.insert(enemyStates[index].id)
-                    occupiedPoints.remove(nextPoint)
+                    occupiedPoints.remove(movement.finalPoint)
                 }
             case .marker, .targetedMarker:
                 if enemyStates[index].rotationIndex == Int.max {
@@ -5041,6 +5116,46 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                 ("shackled", String(isShackled))
             ]
         )
+        return warpPointsByEnemyID
+    }
+
+    private func resolvedEnemyMovement(
+        from origin: GridPoint,
+        stepPoint: GridPoint,
+        occupiedPoints: Set<GridPoint>
+    ) -> DungeonEnemyMovementResolution? {
+        guard isEnemyTraversable(stepPoint),
+              stepPoint == origin || !occupiedPoints.contains(stepPoint)
+        else {
+            return nil
+        }
+
+        guard let warpDestination = enemyWarpDestination(from: stepPoint) else {
+            return DungeonEnemyMovementResolution(finalPoint: stepPoint, warpPoint: nil)
+        }
+
+        guard isEnemyTraversable(warpDestination),
+              warpDestination == origin || !occupiedPoints.contains(warpDestination)
+        else {
+            return DungeonEnemyMovementResolution(finalPoint: stepPoint, warpPoint: nil)
+        }
+
+        return DungeonEnemyMovementResolution(
+            finalPoint: warpDestination,
+            warpPoint: stepPoint
+        )
+    }
+
+    private func enemyWarpDestination(from point: GridPoint) -> GridPoint? {
+        guard let effect = board.effect(at: point) else { return nil }
+        switch effect {
+        case .warp(_, let destination), .returnWarp(let destination):
+            return destination
+        case .shuffleHand, .blast, .slow, .shackleTrap, .poisonTrap, .illusionTrap, .staggerTrap,
+             .relicBreakTrap, .swamp, .preserveCard, .discardRandomHand, .discardAllMoveCards,
+             .discardAllSupportCards, .discardAllHands:
+            return nil
+        }
     }
 
     private func reserveEnemyDestination(
@@ -5055,15 +5170,28 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         return true
     }
 
+    private func patrolNextIndex(for enemy: EnemyState, in validPath: [GridPoint]) -> Int? {
+        guard !validPath.isEmpty else { return nil }
+        if validPath.indices.contains(enemy.patrolIndex),
+           validPath[enemy.patrolIndex] == enemy.position {
+            return (enemy.patrolIndex + 1) % validPath.count
+        }
+
+        return validPath.indices.min { lhs, rhs in
+            let lhsDistance = manhattanDistance(from: enemy.position, to: validPath[lhs])
+            let rhsDistance = manhattanDistance(from: enemy.position, to: validPath[rhs])
+            if lhsDistance != rhsDistance { return lhsDistance < rhsDistance }
+            return lhs < rhs
+        }
+    }
+
     private func patrolMovementPreview(
         for enemy: EnemyState,
         occupiedPoints: inout Set<GridPoint>
     ) -> EnemyPatrolMovementPreview? {
         guard case .patrol(let path) = enemy.behavior else { return nil }
         let validPath = path.filter { isEnemyTraversable($0) }
-        guard !validPath.isEmpty else { return nil }
-
-        let nextIndex = (enemy.patrolIndex + 1) % validPath.count
+        guard let nextIndex = patrolNextIndex(for: enemy, in: validPath) else { return nil }
         let nextPoint = validPath[nextIndex]
         guard nextPoint != enemy.position else { return nil }
         guard reserveEnemyDestination(
@@ -5116,11 +5244,6 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         guard case .patrol(let path) = enemy.behavior else { return nil }
         let validPath = path.filter { isEnemyTraversable($0) }
         guard validPath.count > 1 else { return nil }
-        guard validPath.indices.contains(enemy.patrolIndex),
-              validPath[enemy.patrolIndex] == enemy.position
-        else {
-            return nil
-        }
 
         return EnemyPatrolRailPreview(enemyID: enemy.id, path: validPath)
     }
@@ -5495,11 +5618,13 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
     private func persistentDamageReductionBonus(for behavior: EnemyBehavior, isMarkerWarning: Bool) -> Int {
         let category = damageCategory(for: behavior, isMarkerWarning: isMarkerWarning)
         if let relic = persistentDamageReductionRelic(for: category), hasDungeonRelic(relic) {
+            publishDungeonRelicActivation(relic)
             return 1
         }
         guard hasDungeonRelic(.guardianCloak) else { return 0 }
         switch behavior {
         case .watcher, .rotatingWatcher, .patrol, .chaser, .marker, .targetedMarker:
+            publishDungeonRelicActivation(.guardianCloak)
             return 1
         case .guardPost:
             return 0
@@ -5509,6 +5634,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
     private func dungeonEnemyTurnPhase(
         before: [EnemyState],
         after: [EnemyState],
+        warpPointsByEnemyID: [String: GridPoint],
         hpBefore: Int,
         hpAfter: Int,
         damage: Int
@@ -5522,7 +5648,8 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                 enemyID: afterEnemy.id,
                 name: afterEnemy.name,
                 before: beforeEnemy,
-                after: afterEnemy
+                after: afterEnemy,
+                warpPoint: warpPointsByEnemyID[afterEnemy.id]
             )
         }
 

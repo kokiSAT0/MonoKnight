@@ -20,8 +20,61 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertTrue(report.contains("モード: テスト用塔モード"))
         XCTAssertTrue(report.contains("HP:"))
         XCTAssertTrue(report.contains("位置:"))
+        XCTAssertTrue(report.contains("ラン履歴:"))
         XCTAssertTrue(report.contains("[PLAY] event=report_test"))
         DebugLogHistory.shared.clear()
+    }
+
+    func testTesterIssueReportIncludesRogueSeedAndCurrentFloorReproductionPayload() throws {
+        DebugLogHistory.shared.setFrontEndViewerEnabled(true)
+        DebugLogHistory.shared.clear()
+        defer { DebugLogHistory.shared.clear() }
+
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "rogue-tower"))
+        let mode = try XCTUnwrap(
+            DungeonLibrary.shared.floorMode(
+                for: tower,
+                floorIndex: 12,
+                movementStyle: .knight,
+                cardVariationSeed: 24_680
+            )
+        )
+        let (viewModel, core) = makeViewModel(mode: mode)
+
+        let report = viewModel.makeTesterIssueReport()
+        let payload = try XCTUnwrap(TesterReproductionPayload.decode(report))
+        let snapshot = try XCTUnwrap(core.makeDungeonResumeSnapshot())
+
+        XCTAssertTrue(report.contains("試練塔seed: 24680"))
+        XCTAssertTrue(report.contains("移動スタイル: 跳躍騎士"))
+        XCTAssertTrue(report.contains("累計手数:"))
+        XCTAssertTrue(report.contains("経過秒:"))
+        XCTAssertTrue(report.contains("再現データ:"))
+        XCTAssertTrue(report.contains(TesterReproductionPayload.prefix))
+        XCTAssertEqual(payload.snapshot.dungeonID, "rogue-tower")
+        XCTAssertEqual(payload.snapshot.floorIndex, 12)
+        XCTAssertEqual(payload.snapshot.runState.rogueTowerSeed, 24_680)
+        XCTAssertEqual(payload.snapshot.runState.movementStyle, .knight)
+        XCTAssertEqual(payload.snapshot.dungeonHP, snapshot.dungeonHP)
+        XCTAssertEqual(payload.snapshot.currentPoint, snapshot.currentPoint)
+        XCTAssertEqual(payload.snapshot.dungeonInventoryEntries, snapshot.dungeonInventoryEntries)
+        XCTAssertEqual(payload.snapshot.dungeonRelicEntries, snapshot.dungeonRelicEntries)
+        XCTAssertEqual(payload.snapshot.dungeonCurseEntries, snapshot.dungeonCurseEntries)
+        XCTAssertEqual(payload.snapshot.collectedDungeonRelicPickupIDs, snapshot.collectedDungeonRelicPickupIDs)
+        XCTAssertEqual(payload.snapshot.crackedFloorPoints, snapshot.crackedFloorPoints)
+        XCTAssertEqual(payload.snapshot.collapsedFloorPoints, snapshot.collapsedFloorPoints)
+
+        let resumedMode = try XCTUnwrap(DungeonLibrary.shared.resumeMode(from: payload.snapshot))
+        let restoredCore = GameCore(mode: resumedMode)
+        XCTAssertTrue(restoredCore.restoreDungeonResumeSnapshot(payload.snapshot))
+        XCTAssertEqual(restoredCore.dungeonHP, snapshot.dungeonHP)
+        XCTAssertEqual(restoredCore.current, snapshot.currentPoint)
+        XCTAssertEqual(restoredCore.dungeonInventoryEntries, snapshot.dungeonInventoryEntries)
+        XCTAssertEqual(restoredCore.dungeonRelicEntries, snapshot.dungeonRelicEntries)
+        XCTAssertEqual(restoredCore.dungeonCurseEntries, snapshot.dungeonCurseEntries)
+        XCTAssertEqual(restoredCore.collectedDungeonRelicPickupIDs, snapshot.collectedDungeonRelicPickupIDs)
+        XCTAssertEqual(restoredCore.crackedFloorPoints, snapshot.crackedFloorPoints)
+        XCTAssertEqual(restoredCore.collapsedFloorPoints, snapshot.collapsedFloorPoints)
     }
 
     /// プレイ中は GameCore.liveElapsedSeconds を参照して経過時間が増加することを確認
@@ -1912,12 +1965,15 @@ final class GameViewModelTests: XCTestCase {
 
         viewModel.handleDungeonHPChange(3)
         XCTAssertEqual(viewModel.boardBridge.damageEffectPlayCountForTesting, 0)
+        XCTAssertEqual(viewModel.damageFeedbackGeneration, 0)
 
         viewModel.handleDungeonHPChange(3)
         XCTAssertEqual(viewModel.boardBridge.damageEffectPlayCountForTesting, 0)
+        XCTAssertEqual(viewModel.damageFeedbackGeneration, 0)
 
         viewModel.handleDungeonHPChange(2)
         XCTAssertEqual(viewModel.boardBridge.damageEffectPlayCountForTesting, 1)
+        XCTAssertEqual(viewModel.damageFeedbackGeneration, 1)
     }
 
     func testRayMovementPresentationUpdatesHPAndDamageEffectPerTrapStep() throws {
@@ -1944,10 +2000,34 @@ final class GameViewModelTests: XCTestCase {
         viewModel.applyMovementPresentationStep(resolution.presentationSteps[1])
         XCTAssertEqual(viewModel.dungeonHP, 1)
         XCTAssertEqual(viewModel.boardBridge.damageEffectPlayCountForTesting, 2)
+        XCTAssertEqual(viewModel.damageFeedbackGeneration, 2)
 
         viewModel.finishMovementPresentation()
         viewModel.handleDungeonHPChange(core.dungeonHP)
         XCTAssertEqual(viewModel.boardBridge.damageEffectPlayCountForTesting, 2)
+        XCTAssertEqual(viewModel.damageFeedbackGeneration, 2)
+    }
+
+    func testEnemyTurnDamagePresentationTriggersScreenFeedbackWithoutDuplicateBoardEffect() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "tutorial-tower"))
+        let mode = try XCTUnwrap(DungeonLibrary.shared.firstFloorMode(for: tower))
+        let (viewModel, _) = makeViewModel(mode: mode)
+        let event = DungeonEnemyTurnEvent(
+            transitions: [],
+            attackedPlayer: true,
+            hpBefore: 3,
+            hpAfter: 2
+        )
+
+        viewModel.applyEnemyTurnDamagePresentation(event)
+
+        XCTAssertEqual(viewModel.dungeonHP, 2)
+        XCTAssertEqual(viewModel.damageFeedbackGeneration, 1)
+        XCTAssertEqual(
+            viewModel.boardBridge.damageEffectPlayCountForTesting,
+            0,
+            "敵ターンの盤面被弾演出は BoardBridge 側のタイミングで再生されるため、ViewModel では重複再生しません"
+        )
     }
 
     func testDungeonHPIncreaseDoesNotPlayDamageEffect() throws {
@@ -1959,6 +2039,7 @@ final class GameViewModelTests: XCTestCase {
         viewModel.handleDungeonHPChange(3)
 
         XCTAssertEqual(viewModel.boardBridge.damageEffectPlayCountForTesting, 0)
+        XCTAssertEqual(viewModel.damageFeedbackGeneration, 0)
     }
 
     func testDungeonFallRequestsNextFloorWithoutResultPresentation() async throws {
@@ -2085,6 +2166,40 @@ final class GameViewModelTests: XCTestCase {
         viewModel.dismissActiveDungeonRelicAcquisitionPresentation()
 
         XCTAssertNil(viewModel.activeDungeonRelicAcquisitionPresentation)
+    }
+
+    func testDungeonRelicActivationEventTemporarilyHighlightsRelic() async throws {
+        let originalDuration = GameViewModel.dungeonRelicActivationEffectDurationNanoseconds
+        GameViewModel.dungeonRelicActivationEffectDurationNanoseconds = 50_000_000
+        defer { GameViewModel.dungeonRelicActivationEffectDurationNanoseconds = originalDuration }
+        let trapPoint = GridPoint(x: 1, y: 0)
+        let mode = relicActivationTestMode(trapPoint: trapPoint)
+        let (viewModel, core) = makeViewModel(mode: mode)
+
+        playBasicMove(to: trapPoint, in: core)
+        try await Task.sleep(nanoseconds: 10_000_000)
+
+        XCTAssertTrue(viewModel.activeDungeonRelicActivationIDs.contains(DungeonRelicID.silverNeedle))
+
+        try await Task.sleep(nanoseconds: 80_000_000)
+        XCTAssertFalse(viewModel.activeDungeonRelicActivationIDs.contains(DungeonRelicID.silverNeedle))
+    }
+
+    func testRepeatedDungeonRelicActivationRefreshesHighlightTimer() async throws {
+        let originalDuration = GameViewModel.dungeonRelicActivationEffectDurationNanoseconds
+        GameViewModel.dungeonRelicActivationEffectDurationNanoseconds = 80_000_000
+        defer { GameViewModel.dungeonRelicActivationEffectDurationNanoseconds = originalDuration }
+        let (viewModel, _) = makeViewModel(mode: controlTestDungeonMode)
+
+        viewModel.handleDungeonRelicActivationEvent(DungeonRelicActivationEvent(relicID: .crackedShield))
+        try await Task.sleep(nanoseconds: 40_000_000)
+        viewModel.handleDungeonRelicActivationEvent(DungeonRelicActivationEvent(relicID: .crackedShield))
+        try await Task.sleep(nanoseconds: 60_000_000)
+
+        XCTAssertTrue(viewModel.activeDungeonRelicActivationIDs.contains(.crackedShield))
+
+        try await Task.sleep(nanoseconds: 50_000_000)
+        XCTAssertFalse(viewModel.activeDungeonRelicActivationIDs.contains(.crackedShield))
     }
 
     func testDungeonRewardSelectionDoesNotAdvanceWhenNewCardWouldExceedFullHand() throws {
@@ -3922,6 +4037,44 @@ final class GameViewModelTests: XCTestCase {
                     failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 8),
                     hazards: [.damageTrap(points: [trapPoint], damage: 1)],
                     allowsBasicOrthogonalMove: true
+                )
+            )
+        )
+    }
+
+    private func relicActivationTestMode(trapPoint: GridPoint) -> GameMode {
+        GameMode(
+            identifier: .dungeonFloor,
+            displayName: "レリック発動表示テスト",
+            regulation: GameMode.Regulation(
+                boardSize: 5,
+                handSize: 5,
+                nextPreviewCount: 0,
+                allowsStacking: true,
+                deckPreset: .standardLight,
+                spawnRule: .fixed(GridPoint(x: 0, y: 0)),
+                penalties: GameMode.PenaltySettings(
+                    deadlockPenaltyCost: 0,
+                    manualRedrawPenaltyCost: 0,
+                    manualDiscardPenaltyCost: 0,
+                    revisitPenaltyCost: 0
+                ),
+                completionRule: .dungeonExit(exitPoint: GridPoint(x: 4, y: 4)),
+                dungeonRules: DungeonRules(
+                    difficulty: .growth,
+                    failureRule: DungeonFailureRule(initialHP: 3, turnLimit: 8),
+                    hazards: [.damageTrap(points: [trapPoint], damage: 1)],
+                    allowsBasicOrthogonalMove: true
+                )
+            ),
+            leaderboardEligible: false,
+            dungeonMetadata: GameMode.DungeonMetadata(
+                dungeonID: "relic-activation-test",
+                floorID: "relic-activation-test-floor",
+                runState: DungeonRunState(
+                    dungeonID: "relic-activation-test",
+                    carriedHP: 3,
+                    relicEntries: [DungeonRelicEntry(relicID: .silverNeedle)]
                 )
             )
         )
