@@ -777,9 +777,12 @@ public final class GameCore: ObservableObject {
     public init(mode: GameMode = .dungeonPlaceholder) {
         self.mode = mode
         // BoardGeometry を介することで盤面サイズ拡張時も初期化処理を共通化できる
+        let runState = mode.dungeonMetadataSnapshot?.runState
+        let currentFloorIndex = runState?.currentFloorIndex ?? 0
+        let clearedFloorState = Self.restoredClearedFloorStateIfFalling(runState: runState, floorIndex: currentFloorIndex)
         board = Board(
             size: mode.boardSize,
-            initialVisitedPoints: mode.initialVisitedPoints,
+            initialVisitedPoints: Array(clearedFloorState?.visitedPoints ?? Set(mode.initialVisitedPoints)),
             impassablePoints: mode.impassableTilePoints,
             tileEffects: mode.tileEffects
         )
@@ -2199,6 +2202,18 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                         board.markVisited(destination)
                         finalPosition = destination
                         actualTraversedPath.append(destination)
+                        if applyDungeonEnemyDangerDamageIfNeeded(at: destination) {
+                            presentationSteps.append(
+                                movementPresentationStep(
+                                    at: destination,
+                                    hpBeforeStep: hpBeforeWarpDestination,
+                                    stopReason: .failed
+                                )
+                            )
+                            stopReason = .warp
+                            stepIndex = pendingPath.count
+                            break
+                        }
                         defeatDungeonEnemy(at: destination)
                         if applyDungeonHazard(at: destination) {
                             collectDungeonCardPickup(at: destination)
@@ -2950,6 +2965,14 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         configureForNewSession(regenerateDeck: startNewGame)
     }
 
+    private static func restoredClearedFloorStateIfFalling(
+        runState: DungeonRunState?,
+        floorIndex: Int
+    ) -> DungeonClearedFloorState? {
+        guard runState?.pendingFallLandingPoint != nil else { return nil }
+        return runState?.clearedFloorState(for: floorIndex)
+    }
+
     /// 指定モードに応じた初期状態を再構築する
     /// - Parameter regenerateDeck: `true` の場合は新しいシードで山札を生成する
     private func configureForNewSession(regenerateDeck: Bool) {
@@ -2964,9 +2987,12 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             deck.reset()
         }
 
+        let runState = mode.dungeonMetadataSnapshot?.runState
+        let currentFloorIndex = runState?.currentFloorIndex ?? 0
+        let clearedFloorState = Self.restoredClearedFloorStateIfFalling(runState: runState, floorIndex: currentFloorIndex)
         board = Board(
             size: mode.boardSize,
-            initialVisitedPoints: mode.initialVisitedPoints,
+            initialVisitedPoints: Array(clearedFloorState?.visitedPoints ?? Set(mode.initialVisitedPoints)),
             impassablePoints: mode.impassableTilePoints,
             tileEffects: mode.tileEffects
         )
@@ -2992,32 +3018,36 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         pendingDefeatEnemyTurnSkip = false
         poisonDamageTicksRemaining = 0
         poisonActionsUntilNextDamage = 0
-        enemyStates = mode.dungeonRules?.enemies.map(EnemyState.init(definition:)) ?? []
+        enemyStates = clearedFloorState?.enemyStates ?? mode.dungeonRules?.enemies.map(EnemyState.init(definition:)) ?? []
         didStartCurrentFloorWithEnemies = !enemyStates.isEmpty
-        let currentFloorIndex = mode.dungeonMetadataSnapshot?.runState?.currentFloorIndex ?? 0
-        let savedCrackedFloorPoints = mode.dungeonMetadataSnapshot?.runState?.crackedFloorPoints(for: currentFloorIndex) ?? []
-        let savedCollapsedFloorPoints = mode.dungeonMetadataSnapshot?.runState?.collapsedFloorPoints(for: currentFloorIndex) ?? []
+        let savedCrackedFloorPoints = clearedFloorState?.crackedFloorPoints
+            ?? mode.dungeonMetadataSnapshot?.runState?.crackedFloorPoints(for: currentFloorIndex)
+            ?? []
+        let savedCollapsedFloorPoints = clearedFloorState?.collapsedFloorPoints
+            ?? mode.dungeonMetadataSnapshot?.runState?.collapsedFloorPoints(for: currentFloorIndex)
+            ?? []
         let initialAndSavedCollapsedFloorPoints = initialCollapsedBrittleFloorPoints.union(savedCollapsedFloorPoints)
         crackedFloorPoints = initialCrackedBrittleFloorPoints
             .union(savedCrackedFloorPoints)
             .subtracting(initialAndSavedCollapsedFloorPoints)
         collapsedFloorPoints = initialAndSavedCollapsedFloorPoints
-        consumedHealingTilePoints = []
+        consumedHealingTilePoints = clearedFloorState?.consumedHealingTilePoints ?? []
         dungeonInventoryEntries = mode.dungeonMetadataSnapshot?.runState?.rewardInventoryEntries ?? []
-        collectedDungeonCardPickupIDs = []
-        collectedDungeonSpecialPickupIDs = []
+        collectedDungeonCardPickupIDs = clearedFloorState?.collectedDungeonCardPickupIDs ?? []
+        collectedDungeonSpecialPickupIDs = clearedFloorState?.collectedDungeonSpecialPickupIDs ?? []
         currentDungeonInventoryKindLimit = mode.dungeonMetadataSnapshot?.runState?.dungeonInventoryKindLimit
         dungeonRelicEntries = mode.dungeonMetadataSnapshot?.runState?.relicEntries ?? []
         dungeonCurseEntries = mode.dungeonMetadataSnapshot?.runState?.curseEntries ?? []
         applyFloorStartDungeonRelicStatusEffects()
         applyFloorStartDungeonCurseStatusEffects()
-        collectedDungeonRelicPickupIDs = mode.dungeonMetadataSnapshot?.runState?.collectedDungeonRelicPickupIDs ?? []
+        collectedDungeonRelicPickupIDs = (mode.dungeonMetadataSnapshot?.runState?.collectedDungeonRelicPickupIDs ?? [])
+            .union(clearedFloorState?.collectedDungeonRelicPickupIDs ?? [])
         dungeonRelicAcquisitionPresentations = []
         dungeonRunLogEntries = mode.dungeonMetadataSnapshot?.runState?.runLogEntries ?? []
         pendingDungeonPickupChoice = nil
         pendingDungeonMovementContinuation = nil
         pendingDungeonRelicPickupChoice = nil
-        isDungeonExitUnlocked = mode.dungeonRules?.exitLock == nil
+        isDungeonExitUnlocked = clearedFloorState?.isDungeonExitUnlocked ?? (mode.dungeonRules?.exitLock == nil)
         dungeonExitUnlockEvent = nil
         dungeonLockedExitReachEvent = nil
         dungeonFallEvent = nil
@@ -3817,7 +3847,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
     private func applyFloorStartDungeonCurseStatusEffects() {
         guard areDungeonRelicAndCurseEffectsEnabled else { return }
         if hasDungeonCurse(.swarmcallingTalisman) {
-            damageBarrierTurnsRemaining = max(damageBarrierTurnsRemaining, 5)
+            damageBarrierTurnsRemaining = max(damageBarrierTurnsRemaining, 3)
         }
         if hasDungeonCurse(.quartermasterBell), !isDungeonInventoryFullForRefill {
             refillDungeonEmptySlotsWithRandomMoveCards()
@@ -5027,7 +5057,13 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
 
         let before = enemyStates
         var occupiedPoints = Set(enemyStates.map(\.position))
-        var defeatedEnemyIDs: Set<String> = []
+        var defeatedEnemyIDs = movingEnemyIDs(
+            in: enemyStates,
+            onLaserDangerPoints: watcherLaserDangerPoints(for: enemyStates)
+        )
+        for enemy in enemyStates where defeatedEnemyIDs.contains(enemy.id) {
+            occupiedPoints.remove(enemy.position)
+        }
         var warpPointsByEnemyID: [String: GridPoint] = [:]
         for index in enemyStates.indices {
             guard !defeatedEnemyIDs.contains(enemyStates[index].id) else { continue }
@@ -5058,6 +5094,11 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                 enemyStates[index].position = movement.finalPoint
                 if let warpPoint = movement.warpPoint {
                     warpPointsByEnemyID[enemyStates[index].id] = warpPoint
+                }
+                if isMovingEnemyLaserVulnerable(enemyStates[index]),
+                   watcherLaserDangerPoints(for: enemyStates).contains(movement.finalPoint) {
+                    defeatedEnemyIDs.insert(enemyStates[index].id)
+                    occupiedPoints.remove(movement.finalPoint)
                 }
             case .rotatingWatcher:
                 guard !shouldMovingEnemyAttackBeforeMoving(enemyStates[index]) else { continue }
@@ -5091,7 +5132,8 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                 if let warpPoint = movement.warpPoint {
                     warpPointsByEnemyID[enemyStates[index].id] = warpPoint
                 }
-                if isEnemyLethalHazardPoint(movement.finalPoint) {
+                if isEnemyLethalHazardPoint(movement.finalPoint)
+                    || watcherLaserDangerPoints(for: enemyStates).contains(movement.finalPoint) {
                     defeatedEnemyIDs.insert(enemyStates[index].id)
                     occupiedPoints.remove(movement.finalPoint)
                 }
@@ -5103,6 +5145,12 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                 }
             }
         }
+        defeatedEnemyIDs.formUnion(
+            movingEnemyIDs(
+                in: enemyStates,
+                onLaserDangerPoints: watcherLaserDangerPoints(for: enemyStates)
+            )
+        )
         if !defeatedEnemyIDs.isEmpty {
             enemyStates.removeAll { defeatedEnemyIDs.contains($0.id) }
         }
@@ -5765,9 +5813,46 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         return points
     }
 
+    private func movingEnemyIDs(
+        in enemies: [EnemyState],
+        onLaserDangerPoints laserDangerPoints: Set<GridPoint>
+    ) -> Set<String> {
+        guard !laserDangerPoints.isEmpty else { return [] }
+        return Set(enemies.compactMap { enemy in
+            guard isMovingEnemyLaserVulnerable(enemy),
+                  laserDangerPoints.contains(enemy.position)
+            else {
+                return nil
+            }
+            return enemy.id
+        })
+    }
+
+    private func isMovingEnemyLaserVulnerable(_ enemy: EnemyState) -> Bool {
+        switch enemy.behavior {
+        case .patrol, .chaser:
+            return true
+        case .guardPost, .watcher, .rotatingWatcher, .marker, .targetedMarker:
+            return false
+        }
+    }
+
     private func enemyDangerPoints(for enemy: EnemyState, rotatingWatcherOffset: Int = 0) -> Set<GridPoint> {
         guard !isEnemyFreezeActive else { return [] }
         return dangerPoints(for: [enemy], rotatingWatcherOffset: rotatingWatcherOffset)
+    }
+
+    private func watcherLaserDangerPoints(for enemies: [EnemyState]) -> Set<GridPoint> {
+        guard !isEnemyFreezeActive else { return [] }
+        let watcherStates = enemies.filter { enemy in
+            switch enemy.behavior {
+            case .watcher, .rotatingWatcher:
+                return true
+            case .guardPost, .patrol, .chaser, .marker, .targetedMarker:
+                return false
+            }
+        }
+        return dangerPoints(for: watcherStates)
     }
 
     private var hasWatcherLaserEnemy: Bool {
@@ -6070,7 +6155,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         var step = 1
         while true {
             let point = origin.offset(dx: dx * step, dy: dy * step)
-            guard isEnemyTraversable(point) else { break }
+            guard isWatcherLaserTraversable(point) else { break }
             points.append(point)
             step += 1
         }
@@ -6086,6 +6171,10 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
 
     private func isEnemyTraversable(_ point: GridPoint) -> Bool {
         board.contains(point) && board.isTraversable(point) && !collapsedFloorPoints.contains(point)
+    }
+
+    private func isWatcherLaserTraversable(_ point: GridPoint) -> Bool {
+        board.contains(point) && board.isTraversable(point)
     }
 
     private func manhattanDistance(from lhs: GridPoint, to rhs: GridPoint) -> Int {
@@ -6274,10 +6363,18 @@ extension GameCore {
         core.deck = deck
         core.deck.reset()
 
+        let runState = mode.dungeonMetadataSnapshot?.runState
+        let currentFloorIndex = runState?.currentFloorIndex ?? 0
+        let clearedFloorState = Self.restoredClearedFloorStateIfFalling(
+            runState: runState,
+            floorIndex: currentFloorIndex
+        )
         let resolvedCurrent = current ?? mode.initialSpawnPoint
         let visitedPoints: [GridPoint]
         if let overrideVisited = initialVisitedPoints {
             visitedPoints = overrideVisited
+        } else if let clearedFloorState {
+            visitedPoints = Array(clearedFloorState.visitedPoints)
         } else if let resolvedCurrent {
             visitedPoints = [resolvedCurrent]
         } else {
@@ -6314,18 +6411,21 @@ extension GameCore {
         core.isFlySpellActive = false
         core.isIlluded = false
         core.staggerForcedMovesRemaining = 0
-        core.enemyStates = mode.dungeonRules?.enemies.map(EnemyState.init(definition:)) ?? []
+        core.enemyStates = clearedFloorState?.enemyStates ?? mode.dungeonRules?.enemies.map(EnemyState.init(definition:)) ?? []
         core.didStartCurrentFloorWithEnemies = !core.enemyStates.isEmpty
-        let currentFloorIndex = mode.dungeonMetadataSnapshot?.runState?.currentFloorIndex ?? 0
-        let savedCrackedFloorPoints = mode.dungeonMetadataSnapshot?.runState?.crackedFloorPoints(for: currentFloorIndex) ?? []
-        let savedCollapsedFloorPoints = mode.dungeonMetadataSnapshot?.runState?.collapsedFloorPoints(for: currentFloorIndex) ?? []
+        let savedCrackedFloorPoints = clearedFloorState?.crackedFloorPoints
+            ?? mode.dungeonMetadataSnapshot?.runState?.crackedFloorPoints(for: currentFloorIndex)
+            ?? []
+        let savedCollapsedFloorPoints = clearedFloorState?.collapsedFloorPoints
+            ?? mode.dungeonMetadataSnapshot?.runState?.collapsedFloorPoints(for: currentFloorIndex)
+            ?? []
         let initialAndSavedCollapsedFloorPoints = core.initialCollapsedBrittleFloorPoints.union(savedCollapsedFloorPoints)
         core.crackedFloorPoints = core.initialCrackedBrittleFloorPoints
             .union(savedCrackedFloorPoints)
             .subtracting(initialAndSavedCollapsedFloorPoints)
         core.collapsedFloorPoints = initialAndSavedCollapsedFloorPoints
-        core.consumedHealingTilePoints = []
-        core.isDungeonExitUnlocked = mode.dungeonRules?.exitLock == nil
+        core.consumedHealingTilePoints = clearedFloorState?.consumedHealingTilePoints ?? []
+        core.isDungeonExitUnlocked = clearedFloorState?.isDungeonExitUnlocked ?? (mode.dungeonRules?.exitLock == nil)
         core.dungeonExitUnlockEvent = nil
         core.dungeonLockedExitReachEvent = nil
         core.dungeonFallEvent = nil
@@ -6340,8 +6440,8 @@ extension GameCore {
 
         if core.usesDungeonInventoryCards {
             core.dungeonInventoryEntries = mode.dungeonMetadataSnapshot?.runState?.rewardInventoryEntries ?? []
-            core.collectedDungeonCardPickupIDs = []
-            core.collectedDungeonSpecialPickupIDs = []
+            core.collectedDungeonCardPickupIDs = clearedFloorState?.collectedDungeonCardPickupIDs ?? []
+            core.collectedDungeonSpecialPickupIDs = clearedFloorState?.collectedDungeonSpecialPickupIDs ?? []
             core.currentDungeonInventoryKindLimit = mode.dungeonMetadataSnapshot?.runState?.dungeonInventoryKindLimit
             core.pendingDungeonPickupChoice = nil
             core.pendingDungeonRelicPickupChoice = nil
@@ -6349,7 +6449,8 @@ extension GameCore {
             core.dungeonCurseEntries = mode.dungeonMetadataSnapshot?.runState?.curseEntries ?? []
             core.applyFloorStartDungeonRelicStatusEffects()
             core.applyFloorStartDungeonCurseStatusEffects()
-            core.collectedDungeonRelicPickupIDs = mode.dungeonMetadataSnapshot?.runState?.collectedDungeonRelicPickupIDs ?? []
+            core.collectedDungeonRelicPickupIDs = (mode.dungeonMetadataSnapshot?.runState?.collectedDungeonRelicPickupIDs ?? [])
+                .union(clearedFloorState?.collectedDungeonRelicPickupIDs ?? [])
             core.dungeonRelicAcquisitionPresentations = []
             core.dungeonRunLogEntries = mode.dungeonMetadataSnapshot?.runState?.runLogEntries ?? []
             core.syncDungeonInventoryHandStacks()

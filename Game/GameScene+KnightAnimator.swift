@@ -205,6 +205,7 @@
             }
 
             knightNode.removeAllActions()
+            knightNode.isPaused = false
             knightNode.isHidden = false
 
             let approachDuration: TimeInterval = 0.18
@@ -425,6 +426,14 @@
             sequence.append(SKAction.run(onCompletion))
 
             knightNode.run(SKAction.sequence(sequence))
+        }
+
+        func pauseMovementTransitionForOverlay() {
+            knightNode?.isPaused = true
+        }
+
+        func resumeMovementTransitionAfterOverlay() {
+            knightNode?.isPaused = false
         }
 
         private struct WarpReplayContext {

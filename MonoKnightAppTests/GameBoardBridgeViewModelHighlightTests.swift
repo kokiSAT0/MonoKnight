@@ -612,6 +612,60 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
         )
     }
 
+    func testMovementReplayDefersDestinationGuidesUntilReplayFinishes() throws {
+        let mode = makeRayTrapMode()
+        let core = GameCore.makeTestInstance(
+            deck: Deck.makeTestDeck(
+                cards: [.rayRight, .kingUpRight, .straightRight2, .straightLeft2, .straightDown2],
+                configuration: mode.deckConfiguration
+            ),
+            current: GridPoint(x: 0, y: 0),
+            mode: mode
+        )
+        let viewModel = GameBoardBridgeViewModel(core: core, mode: mode)
+        let destination = GridPoint(x: 4, y: 0)
+        let postReplayHand = [HandStack(cards: [DealtCard(move: .straightLeft2)])]
+
+        viewModel.setMovementReplayActiveForTesting(true)
+        viewModel.refreshGuideHighlights(
+            handOverride: postReplayHand,
+            currentOverride: destination,
+            progressOverride: .playing
+        )
+
+        XCTAssertTrue(viewModel.guideHighlightBuckets.basicMoveDestinations.isEmpty)
+        XCTAssertTrue(viewModel.guideHighlightBuckets.singleVectorDestinations.isEmpty)
+        XCTAssertTrue(viewModel.guideHighlightBuckets.directTwoStepDestinations.isEmpty)
+        XCTAssertTrue(viewModel.guideHighlightBuckets.multipleVectorDestinations.isEmpty)
+        XCTAssertTrue(viewModel.guideHighlightBuckets.multiStepPathPoints.isEmpty)
+        XCTAssertTrue(viewModel.guideHighlightBuckets.multiStepDestinations.isEmpty)
+        XCTAssertTrue(viewModel.guideHighlightBuckets.warpDestinations.isEmpty)
+        XCTAssertTrue(viewModel.scene.latestHighlightPoints(for: .dungeonBasicMove).isEmpty)
+        XCTAssertTrue(viewModel.scene.latestHighlightPoints(for: .guideSingleCandidate).isEmpty)
+        XCTAssertTrue(viewModel.scene.latestHighlightPoints(for: .guideDirectTwoStepCandidate).isEmpty)
+        XCTAssertTrue(viewModel.scene.latestHighlightPoints(for: .guideMultipleCandidate).isEmpty)
+        XCTAssertTrue(viewModel.scene.latestHighlightPoints(for: .guideMultiStepPath).isEmpty)
+        XCTAssertTrue(viewModel.scene.latestHighlightPoints(for: .guideMultiStepCandidate).isEmpty)
+        XCTAssertTrue(viewModel.scene.latestHighlightPoints(for: .guideWarpCandidate).isEmpty)
+
+        viewModel.setMovementReplayActiveForTesting(false)
+        viewModel.refreshGuideHighlights(
+            handOverride: postReplayHand,
+            currentOverride: destination,
+            progressOverride: .playing
+        )
+
+        XCTAssertEqual(
+            viewModel.scene.latestHighlightPoints(for: .guideDirectTwoStepCandidate),
+            [GridPoint(x: 2, y: 0)],
+            "移動リプレイ完了後は到着地点基準のカードガイドを表示します"
+        )
+        XCTAssertFalse(
+            viewModel.scene.latestHighlightPoints(for: .guideDirectTwoStepCandidate).isEmpty,
+            "到着後のガイドが復帰していることを確認します"
+        )
+    }
+
     func testRayMovementReplayRestoresInitialBoardAndAppliesStepBoards() {
         let mode = makeRayTrapMode()
         let core = GameCore.makeTestInstance(

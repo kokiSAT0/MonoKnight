@@ -262,6 +262,32 @@ final class GameSceneAccessibilityTests: XCTestCase {
         XCTAssertGreaterThan(exitBounds.width, exitBounds.height, "出口は横方向に段が並ぶ階段形状にします")
     }
 
+    func testDungeonSpecialPickupUsesDedicatedHandExpansionShape() {
+        let specialPoint = GridPoint(x: 2, y: 2)
+        let keyPoint = GridPoint(x: 1, y: 1)
+        let (scene, view, _) = makeScene()
+        defer { view.presentScene(nil) }
+
+        scene.updateHighlights([
+            .dungeonSpecialPickup: [specialPoint],
+            .dungeonKey: [keyPoint],
+        ])
+
+        guard let specialElementCount = scene.highlightPathElementCountForTesting(
+            kind: .dungeonSpecialPickup,
+            at: specialPoint
+        ), let keyElementCount = scene.highlightPathElementCountForTesting(
+            kind: .dungeonKey,
+            at: keyPoint
+        ) else {
+            XCTFail("手札拡張または鍵のマーカー形状を取得できません")
+            return
+        }
+
+        XCTAssertGreaterThan(specialElementCount, 4, "手札拡張はカード枠+追加記号の専用形状として描きます")
+        XCTAssertNotEqual(specialElementCount, keyElementCount, "手札拡張は鍵マーカーを流用しません")
+    }
+
     /// レイ移動カードの途中マスは枠なしの塗り、終点は水色枠として描き分けることを確認する
     func testMultiStepPathHighlightUsesFillWithoutFrame() {
         let intermediatePoint = GridPoint(x: 2, y: 2)
@@ -567,6 +593,41 @@ final class GameSceneAccessibilityTests: XCTestCase {
         XCTAssertEqual(healingStyle.lineWidth, 0, "回復マスは枠ではなくピクト中心で示します")
         XCTAssertGreaterThan(warningStyle.lineWidth, 0, "敵警告は警告ピクトとして線を持ちます")
         XCTAssertGreaterThan(warningStyle.glowWidth, 0, "敵警告は明るい盤面上で読める発光輪郭を持ちます")
+    }
+
+    func testMeteorWarningStaysReadableWhenOverlappingWarpTile() {
+        let warningPoint = GridPoint(x: 2, y: 2)
+        let pairedWarpPoint = GridPoint(x: 3, y: 2)
+        let (scene, view, boardSize) = makeScene()
+        defer { view.presentScene(nil) }
+
+        let board = Board(
+            size: boardSize,
+            initialVisitedPoints: BoardGeometry.defaultInitialVisitedPoints(for: boardSize),
+            tileEffects: [
+                warningPoint: .warp(pairID: "visibility-test", destination: pairedWarpPoint),
+                pairedWarpPoint: .warp(pairID: "visibility-test", destination: warningPoint),
+            ]
+        )
+        scene.updateBoard(board)
+        scene.updateHighlights([.dungeonEnemyWarning: [warningPoint]])
+
+        guard let warningStyle = scene.highlightStyleForTesting(kind: .dungeonEnemyWarning, at: warningPoint),
+              let warningBounds = scene.highlightPathBoundsForTesting(kind: .dungeonEnemyWarning, at: warningPoint),
+              let warningElementCount = scene.highlightPathElementCountForTesting(kind: .dungeonEnemyWarning, at: warningPoint),
+              let warpRingBounds = scene.tileEffectDecorationPathBoundsForTesting(at: warningPoint)
+                .max(by: { $0.width < $1.width })
+        else {
+            XCTFail("ワープ床上のメテオ予告表示を取得できません")
+            return
+        }
+
+        XCTAssertGreaterThan(warningStyle.lineWidth, 0, "ワープ床上でもメテオ予告は線で読める必要があります")
+        XCTAssertGreaterThan(warningStyle.glowWidth, 0, "ワープ床上でもメテオ予告は発光輪郭で埋もれないようにします")
+        XCTAssertFalse(warningStyle.fillColor.isEqual(SKColor.clear), "メテオ予告は薄い塗りを残して危険マスとして読ませます")
+        XCTAssertGreaterThan(warningElementCount, 7, "メテオ予告はワープ床の円と同形ではなく、落下マーカーとして複数要素で示します")
+        XCTAssertLessThan(warningBounds.width, warpRingBounds.width * 0.75, "メテオ予告の横幅をワープリングより小さくし、同じ円として重ならないようにします")
+        XCTAssertNotEqual(warningBounds.height, warpRingBounds.height, accuracy: 0.5, "メテオ予告はワープリングと同じサイズの円にしません")
     }
 
     func testDungeonFallEffectAddsTransientNodes() {

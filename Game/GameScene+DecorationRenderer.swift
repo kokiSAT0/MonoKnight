@@ -334,6 +334,13 @@
                 count + (node.name == surveyCompassRingNodeName ? 1 : 0)
             } ?? 0
         }
+
+        func tileEffectDecorationPathBoundsForTesting(at point: GridPoint) -> [CGRect] {
+            guard let decoration = tileEffectDecorations[point] else { return [] }
+            return (decoration.strokeNodes + decoration.fillNodes).compactMap { node in
+                node.path?.boundingBox
+            }
+        }
 #endif
 
         private func warpAccentColor(for pairIndex: Int, palette: GameScenePalette) -> SKColor {
@@ -1670,21 +1677,29 @@
                     fillNodes: []
                 )
             case .shackleTrap:
-                let leftCuff = SKShapeNode()
-                leftCuff.name = "tileEffectShackleLeftCuff"
-                leftCuff.strokeColor = .clear
-                leftCuff.fillColor = .clear
-                leftCuff.lineWidth = 1
-                leftCuff.isAntialiased = true
-                leftCuff.blendMode = .alpha
+                let trapPlate = SKShapeNode()
+                trapPlate.name = "tileEffectShackleTrapPlate"
+                trapPlate.strokeColor = .clear
+                trapPlate.fillColor = .clear
+                trapPlate.lineWidth = 1
+                trapPlate.isAntialiased = true
+                trapPlate.blendMode = .alpha
 
-                let rightCuff = SKShapeNode()
-                rightCuff.name = "tileEffectShackleRightCuff"
-                rightCuff.strokeColor = .clear
-                rightCuff.fillColor = .clear
-                rightCuff.lineWidth = 1
-                rightCuff.isAntialiased = true
-                rightCuff.blendMode = .alpha
+                let boot = SKShapeNode()
+                boot.name = "tileEffectShackleBoot"
+                boot.strokeColor = .clear
+                boot.fillColor = .clear
+                boot.lineWidth = 1
+                boot.isAntialiased = true
+                boot.blendMode = .alpha
+
+                let cuff = SKShapeNode()
+                cuff.name = "tileEffectShackleCuff"
+                cuff.strokeColor = .clear
+                cuff.fillColor = .clear
+                cuff.lineWidth = 1
+                cuff.isAntialiased = true
+                cuff.blendMode = .alpha
 
                 let chain = SKShapeNode()
                 chain.name = "tileEffectShackleChain"
@@ -1702,15 +1717,16 @@
                 weight.isAntialiased = true
                 weight.blendMode = .alpha
 
-                container.addChild(leftCuff)
-                container.addChild(rightCuff)
+                container.addChild(trapPlate)
+                container.addChild(boot)
+                container.addChild(cuff)
                 container.addChild(chain)
                 container.addChild(weight)
                 return TileEffectDecorationCache(
                     container: container,
                     effect: effect,
-                    strokeNodes: [leftCuff, rightCuff, chain, weight],
-                    fillNodes: [weight]
+                    strokeNodes: [trapPlate, boot, cuff, chain, weight],
+                    fillNodes: []
                 )
             case .swamp:
                 let pond = SKShapeNode()
@@ -2111,35 +2127,61 @@
                     mark.zRotation = -.pi / 10
                 }
             case .shackleTrap:
-                guard decoration.strokeNodes.count >= 4 else { return }
-                let cuffRadius = layout.tileSize * 0.13
-                let cuffRect = CGRect(x: -cuffRadius, y: -cuffRadius, width: cuffRadius * 2, height: cuffRadius * 2)
-                let leftCuff = decoration.strokeNodes[0]
-                leftCuff.path = CGPath(ellipseIn: cuffRect, transform: nil)
-                leftCuff.position = CGPoint(x: -layout.tileSize * 0.13, y: layout.tileSize * 0.08)
-                leftCuff.lineWidth = max(1.2, layout.tileSize * 0.04)
+                guard decoration.strokeNodes.count >= 5 else { return }
+                let trapPlate = decoration.strokeNodes[0]
+                trapPlate.path = paralysisTrapPlatePath(tileSize: layout.tileSize)
+                trapPlate.position = .zero
+                trapPlate.lineWidth = max(layout.tileSize * 0.03, 1.2)
 
-                let rightCuff = decoration.strokeNodes[1]
-                rightCuff.path = CGPath(ellipseIn: cuffRect, transform: nil)
-                rightCuff.position = CGPoint(x: layout.tileSize * 0.13, y: layout.tileSize * 0.08)
-                rightCuff.lineWidth = max(1.2, layout.tileSize * 0.04)
+                let boot = decoration.strokeNodes[1]
+                let bootPath = CGMutablePath()
+                bootPath.move(to: CGPoint(x: -layout.tileSize * 0.16, y: layout.tileSize * 0.12))
+                bootPath.addLine(to: CGPoint(x: -layout.tileSize * 0.04, y: layout.tileSize * 0.13))
+                bootPath.addLine(to: CGPoint(x: layout.tileSize * 0.02, y: -layout.tileSize * 0.03))
+                bootPath.addLine(to: CGPoint(x: layout.tileSize * 0.17, y: -layout.tileSize * 0.05))
+                bootPath.addQuadCurve(
+                    to: CGPoint(x: layout.tileSize * 0.19, y: -layout.tileSize * 0.14),
+                    control: CGPoint(x: layout.tileSize * 0.23, y: -layout.tileSize * 0.10)
+                )
+                bootPath.addLine(to: CGPoint(x: -layout.tileSize * 0.08, y: -layout.tileSize * 0.15))
+                bootPath.closeSubpath()
+                boot.path = bootPath
+                boot.position = CGPoint(x: -layout.tileSize * 0.05, y: layout.tileSize * 0.01)
+                boot.lineWidth = max(1.1, layout.tileSize * 0.028)
 
-                let chain = decoration.strokeNodes[2]
+                let cuff = decoration.strokeNodes[2]
+                cuff.path = CGPath(
+                    roundedRect: CGRect(
+                        x: -layout.tileSize * 0.14,
+                        y: -layout.tileSize * 0.055,
+                        width: layout.tileSize * 0.28,
+                        height: layout.tileSize * 0.11
+                    ),
+                    cornerWidth: layout.tileSize * 0.035,
+                    cornerHeight: layout.tileSize * 0.035,
+                    transform: nil
+                )
+                cuff.position = CGPoint(x: -layout.tileSize * 0.12, y: layout.tileSize * 0.05)
+                cuff.zRotation = .pi / 18
+                cuff.lineWidth = max(1.2, layout.tileSize * 0.035)
+
+                let chain = decoration.strokeNodes[3]
                 let chainPath = CGMutablePath()
                 chainPath.move(to: CGPoint(x: -layout.tileSize * 0.02, y: layout.tileSize * 0.02))
-                chainPath.addLine(to: CGPoint(x: layout.tileSize * 0.18, y: -layout.tileSize * 0.18))
+                chainPath.addLine(to: CGPoint(x: layout.tileSize * 0.11, y: -layout.tileSize * 0.11))
+                chainPath.addLine(to: CGPoint(x: layout.tileSize * 0.21, y: -layout.tileSize * 0.16))
                 chain.path = chainPath
                 chain.position = .zero
-                chain.lineWidth = max(1.3, layout.tileSize * 0.04)
+                chain.lineWidth = max(1.2, layout.tileSize * 0.035)
 
-                let weightRadius = layout.tileSize * 0.13
-                let weight = decoration.strokeNodes[3]
+                let weightRadius = layout.tileSize * 0.12
+                let weight = decoration.strokeNodes[4]
                 weight.path = CGPath(
                     ellipseIn: CGRect(x: -weightRadius, y: -weightRadius, width: weightRadius * 2, height: weightRadius * 2),
                     transform: nil
                 )
                 weight.position = CGPoint(x: layout.tileSize * 0.22, y: -layout.tileSize * 0.23)
-                weight.lineWidth = max(1.2, layout.tileSize * 0.04)
+                weight.lineWidth = max(1.2, layout.tileSize * 0.035)
             case .swamp:
                 guard let pond = decoration.fillNodes.first,
                       decoration.strokeNodes.count >= 2
@@ -2418,8 +2460,23 @@
             case .shackleTrap:
                 let accent = palette.boardTileEffectSlow
                 for (index, node) in decoration.strokeNodes.enumerated() {
-                    node.strokeColor = accent.withAlphaComponent(index == 2 ? 0.74 : 0.92)
-                    node.fillColor = index == 3 ? accent.withAlphaComponent(0.28) : .clear
+                    switch index {
+                    case 0:
+                        node.strokeColor = accent.withAlphaComponent(0.84)
+                        node.fillColor = accent.withAlphaComponent(0.12)
+                    case 1:
+                        node.strokeColor = accent.withAlphaComponent(0.92)
+                        node.fillColor = accent.withAlphaComponent(0.20)
+                    case 2:
+                        node.strokeColor = accent.withAlphaComponent(0.96)
+                        node.fillColor = accent.withAlphaComponent(0.32)
+                    case 3:
+                        node.strokeColor = accent.withAlphaComponent(0.72)
+                        node.fillColor = .clear
+                    default:
+                        node.strokeColor = accent.withAlphaComponent(0.90)
+                        node.fillColor = accent.withAlphaComponent(0.30)
+                    }
                     node.alpha = 1.0
                 }
             case .swamp:

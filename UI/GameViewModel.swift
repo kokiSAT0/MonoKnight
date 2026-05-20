@@ -56,6 +56,21 @@ final class GameViewModel: ObservableObject {
     @Published var movementPresentationDungeonHP: Int?
     /// 移動演出中は手札/HP の通常同期を一時停止する
     var isMovementPresentationActive = false
+    /// 移動演出中、拾得/宝箱オーバーレイ確認のためにリプレイを止めている状態
+    @Published var movementPresentationOverlayPause: MovementPresentationOverlayPause?
+    enum MovementPresentationOverlayPause: Equatable {
+        case cardPickupChoice
+        case relicPickupChoice
+        case relicAcquisition
+    }
+    /// 移動演出中に表示上到達済みになったカード拾得 ID
+    var movementPresentationReachedCardPickupIDs: Set<String> = []
+    /// 移動演出中に表示上到達済みになった宝箱 ID
+    var movementPresentationReachedRelicPickupIDs: Set<String> = []
+    /// 移動演出開始時点で既に消えていたカード拾得 ID
+    var movementPresentationSeenCardPickupIDs: Set<String> = []
+    /// 移動演出開始時点で既に消えていた宝箱 ID
+    var movementPresentationSeenRelicPickupIDs: Set<String> = []
     /// 移動演出が終わってから反映する進行状態
     var deferredProgressDuringMovementPresentation: GameProgress?
     /// 移動演出が終わってから反映する落下イベント
@@ -344,6 +359,10 @@ final class GameViewModel: ObservableObject {
             ? min(max(adjustedRewardCount, minimumRewardCount), 4)
             : 0
         guard rewardCount > 0 else { return [] }
+        if let clearedState = runState.clearedFloorState(for: runState.currentFloorIndex),
+           !clearedState.rewardOffers.isEmpty {
+            return clearedState.rewardOffers.filter { !clearedState.selectedRewardOffers.contains($0) }
+        }
 
         let supportCategoryBonusPoints =
             (effectEnabledDungeonRelicEntries.contains { $0.relicID == .scoutCompass } && isSeventyPercentClear ? 5 : 0) +
@@ -426,7 +445,38 @@ final class GameViewModel: ObservableObject {
             movementStyle: runState.movementStyle,
             nextFloor: nextFloor
         )
-        return Array(adjustedOffers.prefix(rewardCount))
+        let offersWithHandExpansion = offersAddingRogueHandExpansionIfNeeded(
+            to: adjustedOffers,
+            dungeon: dungeon,
+            runState: runState,
+            rewardCount: rewardCount
+        )
+        return Array(offersWithHandExpansion.prefix(rewardCount))
+    }
+
+    private func offersAddingRogueHandExpansionIfNeeded(
+        to offers: [DungeonRewardOffer],
+        dungeon: DungeonDefinition,
+        runState: DungeonRunState,
+        rewardCount: Int
+    ) -> [DungeonRewardOffer] {
+        guard dungeon.difficulty == .roguelike,
+              let seed = runState.rogueTowerSeed,
+              runState.rogueHandExpansionSpawnSurface(floorIndex: runState.currentFloorIndex, seed: seed) == .clearReward,
+              !offers.contains(.handExpansion),
+              rewardCount > 0
+        else { return offers }
+
+        var result = Array(offers.prefix(rewardCount))
+        if result.count >= rewardCount {
+            if let replaceIndex = result.lastIndex(where: { $0.relic == nil }) {
+                result.remove(at: replaceIndex)
+            } else {
+                result.removeLast()
+            }
+        }
+        result.append(.handExpansion)
+        return result
     }
 
     private func offersAddingWarpedHourglassSupportIfNeeded(
@@ -738,6 +788,9 @@ final class GameViewModel: ObservableObject {
         }
         self.boardBridge.onMovementPresentationStep = { [weak self] step in
             self?.applyMovementPresentationStep(step)
+        }
+        self.boardBridge.shouldPauseMovementPresentationAfterStep = { [weak self] _ in
+            self?.movementPresentationOverlayPause != nil
         }
         self.boardBridge.onMovementPresentationFinished = { [weak self] in
             self?.finishMovementPresentation()

@@ -92,6 +92,11 @@ extension GameViewModel {
         clearDungeonRelicAcquisitionPresentationQueue()
         pendingDungeonRelicPickupChoice = nil
         isMovementPresentationActive = false
+        movementPresentationOverlayPause = nil
+        movementPresentationReachedCardPickupIDs.removeAll()
+        movementPresentationReachedRelicPickupIDs.removeAll()
+        movementPresentationSeenCardPickupIDs.removeAll()
+        movementPresentationSeenRelicPickupIDs.removeAll()
         isWaitingForEnemyTurnPresentationAfterMovement = false
         movementPresentationDungeonHP = nil
         deferredProgressDuringMovementPresentation = nil
@@ -279,7 +284,16 @@ extension GameViewModel {
             hazardDamageMitigationsRemaining: core.hazardDamageMitigationsRemaining,
             enemyDamageMitigationsRemaining: core.enemyDamageMitigationsRemaining,
             markerDamageMitigationsRemaining: core.markerDamageMitigationsRemaining,
-            currentRunLogEntries: core.dungeonRunLogEntries
+            currentRunLogEntries: core.dungeonRunLogEntries,
+            currentFloorVisitedPoints: Set(core.board.visitedPoints),
+            currentFloorCrackedPoints: core.crackedFloorPoints,
+            currentFloorCollapsedPoints: core.collapsedFloorPoints,
+            currentFloorConsumedHealingTilePoints: core.consumedHealingTilePoints,
+            currentFloorCollectedDungeonCardPickupIDs: core.collectedDungeonCardPickupIDs,
+            currentFloorCollectedDungeonSpecialPickupIDs: core.collectedDungeonSpecialPickupIDs,
+            currentFloorEnemyStates: core.enemyStates,
+            isCurrentFloorDungeonExitUnlocked: core.isDungeonExitUnlocked,
+            currentRewardOffers: availableDungeonRewardOffers
         )
         guard let nextFloor = dungeon.resolvedFloor(at: nextIndex, runState: nextRunState) else { return nil }
         return nextFloor.makeGameMode(
@@ -412,6 +426,8 @@ extension GameViewModel {
         case .addRelic(let relic):
             return availableDungeonRewardOffers.contains(.relic(relic))
                 && !core.dungeonRelicEntries.contains(where: { $0.relicID == relic })
+        case .handExpansion:
+            return availableDungeonRewardOffers.contains(.handExpansion)
         case .carryOverPickup(let card):
             return carryoverCandidateDungeonPickupEntries.contains { $0.card == card && $0.hasUsesRemaining }
         case .remove(let card):

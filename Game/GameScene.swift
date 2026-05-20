@@ -203,6 +203,8 @@
         public private(set) var latestMovementHoldDurationForTesting: TimeInterval = 0
         public private(set) var latestMovementDamageHoldDurationForTesting: TimeInterval = 0
         public private(set) var latestMovementTotalDurationForTesting: TimeInterval = 0
+        public private(set) var movementTransitionPauseCountForTesting = 0
+        public private(set) var movementTransitionResumeCountForTesting = 0
         public private(set) var latestEnemyTurnDangerPulsePointsForTesting: Set<GridPoint> = []
         public private(set) var latestEnemyTurnWarningPulsePointsForTesting: Set<GridPoint> = []
         public private(set) var landingEffectPlayCountForTesting = 0
@@ -675,6 +677,10 @@
         func surveyCompassRingCountForTesting() -> Int {
             decorationRenderer.surveyCompassRingCountForTesting()
         }
+
+        func tileEffectDecorationPathBoundsForTesting(at point: GridPoint) -> [CGRect] {
+            decorationRenderer.tileEffectDecorationPathBoundsForTesting(at: point)
+        }
 #endif
 
         public func updateGuideHighlights(_ points: Set<GridPoint>) {
@@ -808,6 +814,16 @@
                 onStep: onStep,
                 onCompletion: onCompletion
             )
+        }
+
+        public func pauseMovementTransitionForOverlay() {
+            movementTransitionPauseCountForTesting += 1
+            knightAnimator.pauseMovementTransitionForOverlay()
+        }
+
+        public func resumeMovementTransitionAfterOverlay() {
+            movementTransitionResumeCountForTesting += 1
+            knightAnimator.resumeMovementTransitionAfterOverlay()
         }
 
         private func movementReplayTotalDuration(for resolution: MovementResolution) -> TimeInterval {

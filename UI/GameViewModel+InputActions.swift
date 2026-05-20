@@ -125,6 +125,8 @@ extension GameViewModel {
             restoreDungeonChoiceOverlay()
             return
         }
+        let shouldResumeMovementAfterPickupChoice = canPresentDungeonPickupChoice
+            && movementPresentationOverlayPause == .cardPickupChoice
         mutateSelectionState { sessionState, selectedHandStackID in
             inputFlowCoordinator.handleHandSlotTap(
                 at: index,
@@ -142,6 +144,9 @@ extension GameViewModel {
                     destination: destination
                 )
             }
+        }
+        if shouldResumeMovementAfterPickupChoice {
+            resumeMovementPresentationAfterOverlayIfNeeded(.cardPickupChoice)
         }
     }
 
@@ -204,6 +209,7 @@ extension GameViewModel {
         clearSelectedCardSelection()
         _ = core.discardPendingDungeonPickupCard()
         restoreDungeonChoiceOverlay()
+        resumeMovementPresentationAfterOverlayIfNeeded(.cardPickupChoice)
         saveCurrentDungeonResumeIfPossible()
     }
 
@@ -211,6 +217,7 @@ extension GameViewModel {
         clearSelectedCardSelection()
         _ = core.replaceDungeonInventoryEntryForPendingPickup(discarding: playable)
         restoreDungeonChoiceOverlay()
+        resumeMovementPresentationAfterOverlayIfNeeded(.cardPickupChoice)
         saveCurrentDungeonResumeIfPossible()
     }
 

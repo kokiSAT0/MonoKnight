@@ -214,6 +214,9 @@ extension GameViewModel {
                 ids.insert(tileDiscoveryID("dungeonRelicPickup"))
                 ids.insert(pickup.kind.encyclopediaEventKind.encyclopediaDiscoveryID)
             }
+            if !rules.specialPickups.isEmpty {
+                ids.insert(DungeonEventEncyclopediaKind.handExpansion.encyclopediaDiscoveryID)
+            }
         }
 
         recordRelicAndCurseDiscoveries(into: &ids)
@@ -235,6 +238,8 @@ extension GameViewModel {
             case .relic(let relic):
                 ids.insert(DungeonEventEncyclopediaKind.relicReward.encyclopediaDiscoveryID)
                 ids.insert(relic.encyclopediaDiscoveryID)
+            case .handExpansion:
+                ids.insert(DungeonEventEncyclopediaKind.handExpansion.encyclopediaDiscoveryID)
             }
         }
         encyclopediaDiscoveryStore.discover(ids)

@@ -85,6 +85,8 @@ final class GameBoardBridgeViewModel: ObservableObject {
     var onMovementPresentationStarted: ((MovementResolution) -> Void)?
     /// 移動演出の各ステップを GameViewModel 側へ伝える
     var onMovementPresentationStep: ((MovementResolution.PresentationStep) -> Void)?
+    /// 移動演出のステップ適用後、オーバーレイ確認のためにリプレイを一時停止するかを問い合わせる
+    var shouldPauseMovementPresentationAfterStep: ((MovementResolution.PresentationStep) -> Bool)?
     /// 移動演出の完了を GameViewModel 側へ伝える
     var onMovementPresentationFinished: (() -> Void)?
     /// 敵ターン中にプレイヤーへダメージが入った瞬間を GameViewModel 側へ伝える
@@ -437,6 +439,13 @@ final class GameBoardBridgeViewModel: ObservableObject {
             scene.playDungeonExitUnlockEffect(at: exitUnlockEvent.exitPoint)
         }
         onMovementPresentationStep?(step)
+        if shouldPauseMovementPresentationAfterStep?(step) == true {
+            scene.pauseMovementTransitionForOverlay()
+        }
+    }
+
+    func resumeMovementReplayAfterOverlay() {
+        scene.resumeMovementTransitionAfterOverlay()
     }
 
     private func finishMovementReplay() {
@@ -457,7 +466,10 @@ final class GameBoardBridgeViewModel: ObservableObject {
         }
         observedCollectedDungeonCardPickupIDs = core.collectedDungeonCardPickupIDs
         observedCollectedDungeonRelicPickupIDs = core.collectedDungeonRelicPickupIDs
-        pushHighlightsToScene()
+        refreshGuideHighlights(
+            handOverride: pendingGuideHand,
+            currentOverride: pendingGuideCurrent ?? core.current
+        )
         onMovementPresentationFinished?()
         playPendingEnemyTurnAfterMovementReplayIfNeeded()
     }
@@ -935,6 +947,20 @@ final class GameBoardBridgeViewModel: ObservableObject {
             let summary = makeGuideHighlightSummary(
                 computedBuckets,
                 logPrefix: "ガイド更新を保留: 状態=\(String(describing: progress))"
+            )
+            debugLog(summary.logMessage)
+            return
+        }
+
+        guard !isMovementReplayActive else {
+            pendingGuideHand = handStacks
+            pendingGuideCurrent = current
+            pendingGuideBuckets = computedBuckets
+            guideHighlightBuckets = .empty
+            pushHighlightsToScene()
+            let summary = makeGuideHighlightSummary(
+                computedBuckets,
+                logPrefix: "ガイド更新を保留: 移動リプレイ中"
             )
             debugLog(summary.logMessage)
             return

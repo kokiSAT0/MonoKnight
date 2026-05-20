@@ -1349,9 +1349,10 @@
                 zPosition = 1.05
             case .dungeonEnemyWarning:
                 baseColor = palette.boardDungeonWarning
-                strokeAlpha = 0.86
-                strokeWidth = max(layout.tileSize * 0.045, 1.4)
-                fillColor = baseColor.withAlphaComponent(0.16)
+                strokeAlpha = 0.94
+                strokeWidth = max(layout.tileSize * 0.052, 1.7)
+                fillColor = baseColor.withAlphaComponent(0.18)
+                glowWidth = max(layout.tileSize * 0.018, 0.8)
                 zPosition = 1.06
             case .dungeonCardPickup:
                 baseColor = palette.boardDungeonCardPickup
@@ -1361,7 +1362,7 @@
                 glowWidth = max(layout.tileSize * 0.010, 0.5)
                 zPosition = 1.14
             case .dungeonSpecialPickup:
-                baseColor = palette.boardDungeonKey
+                baseColor = palette.boardDungeonCardPickup
                 strokeAlpha = 0.88
                 strokeWidth = max(layout.tileSize * 0.038, 1.2)
                 fillColor = baseColor.withAlphaComponent(0.72)
@@ -1597,7 +1598,7 @@
             case .dungeonCardPickup:
                 return cardPickupMarkerPath(center: CGPoint(x: rect.midX, y: rect.midY), tileSize: tileSize)
             case .dungeonSpecialPickup:
-                return dungeonKeyMarkerPath(center: CGPoint(x: rect.midX, y: rect.midY), tileSize: tileSize)
+                return handExpansionPickupMarkerPath(center: CGPoint(x: rect.midX, y: rect.midY), tileSize: tileSize)
             case .dungeonRelicPickup:
                 return relicPickupMarkerPath(center: CGPoint(x: rect.midX, y: rect.midY), tileSize: tileSize)
             case .dungeonSuspiciousRelicPickup:
@@ -1620,17 +1621,26 @@
         private func meteorWarningMarkerPath(in rect: CGRect) -> CGPath {
             let path = CGMutablePath()
             let center = CGPoint(x: rect.midX, y: rect.midY)
-            let radius = min(rect.width, rect.height) * 0.34
-            path.addEllipse(in: CGRect(
-                x: center.x - radius,
-                y: center.y - radius,
-                width: radius * 2,
-                height: radius * 2
-            ))
-            path.move(to: CGPoint(x: center.x - radius * 0.38, y: center.y))
-            path.addLine(to: CGPoint(x: center.x + radius * 0.38, y: center.y))
-            path.move(to: CGPoint(x: center.x, y: center.y - radius * 0.38))
-            path.addLine(to: CGPoint(x: center.x, y: center.y + radius * 0.38))
+            let size = min(rect.width, rect.height)
+            let coreRadius = size * 0.20
+            let streakLength = size * 0.24
+            let streakOffset = size * 0.18
+
+            path.move(to: CGPoint(x: center.x, y: center.y + coreRadius))
+            path.addLine(to: CGPoint(x: center.x + coreRadius, y: center.y))
+            path.addLine(to: CGPoint(x: center.x, y: center.y - coreRadius))
+            path.addLine(to: CGPoint(x: center.x - coreRadius, y: center.y))
+            path.closeSubpath()
+
+            path.move(to: CGPoint(x: center.x - streakOffset, y: center.y + streakOffset + streakLength))
+            path.addLine(to: CGPoint(x: center.x - coreRadius * 0.36, y: center.y + coreRadius * 0.36))
+            path.move(to: CGPoint(x: center.x, y: center.y + streakOffset + streakLength * 0.82))
+            path.addLine(to: CGPoint(x: center.x, y: center.y + coreRadius * 0.52))
+            path.move(to: CGPoint(x: center.x + streakOffset, y: center.y + streakOffset + streakLength))
+            path.addLine(to: CGPoint(x: center.x + coreRadius * 0.36, y: center.y + coreRadius * 0.36))
+
+            path.move(to: CGPoint(x: center.x - coreRadius * 0.48, y: center.y - coreRadius * 0.28))
+            path.addLine(to: CGPoint(x: center.x + coreRadius * 0.48, y: center.y - coreRadius * 0.28))
             return path
         }
 
@@ -1776,6 +1786,29 @@
             path.addLine(to: CGPoint(x: center.x - width * 0.22, y: body.minY + body.height * 0.28))
             path.move(to: CGPoint(x: center.x + width * 0.22, y: body.minY + body.height * 0.28))
             path.addLine(to: CGPoint(x: center.x + width * 0.37, y: body.minY + body.height * 0.28))
+            return path
+        }
+
+        private func handExpansionPickupMarkerPath(center: CGPoint, tileSize: CGFloat) -> CGPath {
+            let path = CGMutablePath()
+            let backSize = CGSize(width: tileSize * 0.30, height: tileSize * 0.38)
+            let frontSize = CGSize(width: tileSize * 0.34, height: tileSize * 0.42)
+            let cornerCut = tileSize * 0.045
+            path.addPath(neonDataPanelPath(
+                center: CGPoint(x: center.x - tileSize * 0.07, y: center.y + tileSize * 0.03),
+                size: backSize,
+                cornerCut: cornerCut
+            ))
+            path.addPath(neonDataPanelPath(
+                center: CGPoint(x: center.x + tileSize * 0.04, y: center.y - tileSize * 0.01),
+                size: frontSize,
+                cornerCut: cornerCut
+            ))
+            let plusLength = tileSize * 0.18
+            path.move(to: CGPoint(x: center.x, y: center.y - plusLength / 2))
+            path.addLine(to: CGPoint(x: center.x, y: center.y + plusLength / 2))
+            path.move(to: CGPoint(x: center.x - plusLength / 2, y: center.y))
+            path.addLine(to: CGPoint(x: center.x + plusLength / 2, y: center.y))
             return path
         }
 

@@ -312,6 +312,13 @@ extension GameViewModel {
     func beginMovementPresentation(using resolution: MovementResolution) {
         guard mode.usesDungeonExit else { return }
         isMovementPresentationActive = true
+        movementPresentationOverlayPause = nil
+        movementPresentationReachedCardPickupIDs.removeAll()
+        movementPresentationReachedRelicPickupIDs.removeAll()
+        movementPresentationSeenCardPickupIDs = resolution.presentationInitialCollectedDungeonCardPickupIDs
+            ?? core.collectedDungeonCardPickupIDs
+        movementPresentationSeenRelicPickupIDs = resolution.presentationInitialCollectedDungeonRelicPickupIDs
+            ?? core.collectedDungeonRelicPickupIDs
         deferredProgressDuringMovementPresentation = nil
         deferredDungeonFallEventDuringMovementPresentation = nil
         deferredDungeonRewindReviveEventDuringMovementPresentation = nil
@@ -338,12 +345,18 @@ extension GameViewModel {
         if let lockedExitReachEvent = step.dungeonLockedExitReachEvent {
             presentLockedExitReachNoticeIfNeeded(for: lockedExitReachEvent)
         }
+        releasePickupOverlaysReachedByMovementStep(step)
     }
 
     func finishMovementPresentation() {
         guard isMovementPresentationActive else { return }
         let pendingEnemyTurn = boardBridge.pendingEnemyTurnEventAfterMovementReplay
         isMovementPresentationActive = false
+        movementPresentationOverlayPause = nil
+        movementPresentationReachedCardPickupIDs.removeAll()
+        movementPresentationReachedRelicPickupIDs.removeAll()
+        movementPresentationSeenCardPickupIDs.removeAll()
+        movementPresentationSeenRelicPickupIDs.removeAll()
         isWaitingForEnemyTurnPresentationAfterMovement = pendingEnemyTurn != nil
         if let pendingEnemyTurn, pendingEnemyTurn.attackedPlayer {
             movementPresentationDungeonHP = pendingEnemyTurn.hpBefore
@@ -403,14 +416,16 @@ extension GameViewModel {
 
     var canPresentDungeonRelicPickupChoice: Bool {
         pendingDungeonRelicPickupChoice != nil
-            && !isMovementPresentationActive
+            && (!isMovementPresentationActive || movementPresentationOverlayPause == .relicPickupChoice)
+            && hasReachedPendingDungeonRelicPickupChoiceDuringMovementIfNeeded
             && !isWaitingForEnemyTurnPresentationAfterMovement
             && activeDungeonRelicAcquisitionPresentation == nil
     }
 
     var canPresentDungeonPickupChoice: Bool {
         core.pendingDungeonPickupChoice != nil
-            && !isMovementPresentationActive
+            && (!isMovementPresentationActive || movementPresentationOverlayPause == .cardPickupChoice)
+            && hasReachedPendingDungeonPickupChoiceDuringMovementIfNeeded
             && !isWaitingForEnemyTurnPresentationAfterMovement
             && activeDungeonRelicAcquisitionPresentation == nil
     }
@@ -435,6 +450,12 @@ extension GameViewModel {
         pendingDungeonRelicPickupChoice = core.pendingDungeonRelicPickupChoice
         enqueueDungeonRelicAcquisitionPresentations(core.dungeonRelicAcquisitionPresentations)
         presentNextDungeonRelicAcquisitionIfPossible()
+        if hasPendingDungeonRelicAcquisitionPresentation {
+            movementPresentationOverlayPause = .relicAcquisition
+            presentNextDungeonRelicAcquisitionIfPossible()
+        } else {
+            resumeMovementPresentationAfterOverlayIfNeeded(.relicPickupChoice)
+        }
         flushDeferredMovementPresentationOutcomes()
     }
 
@@ -452,6 +473,7 @@ extension GameViewModel {
         activeDungeonRelicAcquisitionPresentation = nil
         presentNextDungeonRelicAcquisitionIfPossible()
         if !hasPendingDungeonRelicAcquisitionPresentation {
+            resumeMovementPresentationAfterOverlayIfNeeded(.relicAcquisition)
             flushDeferredMovementPresentationOutcomes()
             handleDungeonHPChange(core.dungeonHP)
         }
@@ -459,11 +481,78 @@ extension GameViewModel {
 
     func presentNextDungeonRelicAcquisitionIfPossible() {
         guard activeDungeonRelicAcquisitionPresentation == nil,
-              !isMovementPresentationActive,
+              canPresentNextDungeonRelicAcquisitionPresentation,
               !isWaitingForEnemyTurnPresentationAfterMovement,
               !pendingDungeonRelicAcquisitionPresentations.isEmpty
         else { return }
         activeDungeonRelicAcquisitionPresentation = pendingDungeonRelicAcquisitionPresentations.removeFirst()
+    }
+
+    private var canPresentNextDungeonRelicAcquisitionPresentation: Bool {
+        guard let nextPresentation = pendingDungeonRelicAcquisitionPresentations.first else { return false }
+        guard nextPresentation.source == .pickup else {
+            return !isMovementPresentationActive
+        }
+        if movementPresentationOverlayPause == .relicAcquisition {
+            return true
+        }
+        guard !isMovementPresentationActive else { return false }
+        return !shouldDelayPickupPresentationUntilMovementStep
+    }
+
+    private var hasReachedPendingDungeonPickupChoiceDuringMovementIfNeeded: Bool {
+        guard shouldDelayPickupPresentationUntilMovementStep,
+              let pendingChoice = core.pendingDungeonPickupChoice
+        else { return true }
+        return movementPresentationReachedCardPickupIDs.contains(pendingChoice.pickup.id)
+    }
+
+    private var hasReachedPendingDungeonRelicPickupChoiceDuringMovementIfNeeded: Bool {
+        guard shouldDelayPickupPresentationUntilMovementStep,
+              let pendingChoice = pendingDungeonRelicPickupChoice
+        else { return true }
+        return movementPresentationReachedRelicPickupIDs.contains(pendingChoice.pickup.id)
+    }
+
+    private var shouldDelayPickupPresentationUntilMovementStep: Bool {
+        guard let resolution = core.lastMovementResolution,
+              resolution.path.count > 1
+        else { return false }
+        return true
+    }
+
+    private func releasePickupOverlaysReachedByMovementStep(_ step: MovementResolution.PresentationStep) {
+        let newlyReachedCardPickupIDs = step.collectedDungeonCardPickupIDsAfter
+            .subtracting(movementPresentationSeenCardPickupIDs)
+        movementPresentationSeenCardPickupIDs = step.collectedDungeonCardPickupIDsAfter
+        movementPresentationReachedCardPickupIDs.formUnion(newlyReachedCardPickupIDs)
+
+        if let pendingChoice = core.pendingDungeonPickupChoice,
+           pendingChoice.pickup.point == step.point {
+            movementPresentationReachedCardPickupIDs.insert(pendingChoice.pickup.id)
+            movementPresentationOverlayPause = .cardPickupChoice
+        }
+
+        let newlyReachedRelicPickupIDs = step.collectedDungeonRelicPickupIDsAfter
+            .subtracting(movementPresentationSeenRelicPickupIDs)
+        movementPresentationSeenRelicPickupIDs = step.collectedDungeonRelicPickupIDsAfter
+        movementPresentationReachedRelicPickupIDs.formUnion(newlyReachedRelicPickupIDs)
+        if let pendingChoice = pendingDungeonRelicPickupChoice,
+           pendingChoice.pickup.point == step.point {
+            movementPresentationReachedRelicPickupIDs.insert(pendingChoice.pickup.id)
+            movementPresentationOverlayPause = .relicPickupChoice
+            return
+        }
+        guard !newlyReachedRelicPickupIDs.isEmpty else { return }
+        movementPresentationOverlayPause = .relicAcquisition
+        enqueueDungeonRelicAcquisitionPresentations(core.dungeonRelicAcquisitionPresentations)
+        presentNextDungeonRelicAcquisitionIfPossible()
+    }
+
+    func resumeMovementPresentationAfterOverlayIfNeeded(_ pause: MovementPresentationOverlayPause) {
+        guard movementPresentationOverlayPause == pause else { return }
+        movementPresentationOverlayPause = nil
+        boardBridge.resumeMovementReplayAfterOverlay()
     }
 
     private func shouldClearDungeonResumeAfterClear(_ progress: GameProgress) -> Bool {

@@ -1103,6 +1103,43 @@ final class GameViewModelTests: XCTestCase {
         })
     }
 
+    func testRoguelikeTowerHandExpansionCanAppearAsClearRewardAndAdvance() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "rogue-tower"))
+        let seed = try XCTUnwrap((1...500).map(UInt64.init).first { seed in
+            let runState = DungeonRunState(
+                dungeonID: tower.id,
+                carriedHP: 3,
+                dungeonInventoryKindLimit: 5,
+                rogueHandExpansionChanceStep: 99,
+                rogueTowerSeed: seed
+            )
+            return runState.rogueHandExpansionSpawnSurface(floorIndex: 0, seed: seed) == .clearReward
+        })
+        let runState = DungeonRunState(
+            dungeonID: tower.id,
+            carriedHP: 3,
+            dungeonInventoryKindLimit: 5,
+            rogueHandExpansionChanceStep: 99,
+            rogueTowerSeed: seed
+        )
+        let floor = try XCTUnwrap(tower.resolvedFloor(at: 0, runState: runState))
+        let mode = floor.makeGameMode(dungeonID: tower.id, difficulty: .roguelike, runState: runState)
+        var nextMode: GameMode?
+        let (viewModel, _) = makeViewModel(
+            mode: mode,
+            onRequestStartDungeonFloor: { nextMode = $0 }
+        )
+
+        XCTAssertTrue(floor.specialPickups.isEmpty)
+        XCTAssertTrue(viewModel.availableDungeonRewardOffers.contains(.handExpansion))
+
+        viewModel.handleDungeonRewardSelection(.handExpansion)
+
+        let nextRunState = try XCTUnwrap(nextMode?.dungeonMetadataSnapshot?.runState)
+        XCTAssertEqual(nextRunState.dungeonInventoryKindLimit, 6)
+        XCTAssertEqual(nextRunState.rogueHandExpansionChanceStep, 0)
+    }
+
     func testDungeonRewardChoicesCanExpandToFourAndAddSupportScoutCandidate() throws {
         let (defaults, suiteName) = try makeIsolatedDefaults()
         defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
@@ -1829,6 +1866,74 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.pendingDungeonPickupChoice?.pickup, secondPickup)
         XCTAssertEqual(core.current, secondPickup.point)
         XCTAssertTrue(core.activeDungeonCardPickups.contains { $0.id == secondPickup.id })
+    }
+
+    func testRayPickupChoiceOverlayWaitsUntilReachedStep() throws {
+        let existingCards = fullInventoryCards(including: .rayRight)
+        let newCard = try XCTUnwrap(MoveCard.allCases.first { !existingCards.contains($0) })
+        let pickup = DungeonCardPickupDefinition(
+            id: "view_model_ray_delayed_pickup_choice",
+            point: GridPoint(x: 1, y: 0),
+            card: newCard
+        )
+        let (viewModel, core) = makeViewModel(mode: makePickupChoiceMode(pickup: pickup))
+        for card in existingCards {
+            XCTAssertTrue(core.addDungeonInventoryCardForTesting(card, pickupUses: 1))
+        }
+        let move = try XCTUnwrap(core.availableMoves().first { $0.card.moveCard == .rayRight })
+
+        core.playCard(using: move)
+        let resolution = try XCTUnwrap(core.lastMovementResolution)
+        viewModel.beginMovementPresentation(using: resolution)
+
+        XCTAssertEqual(viewModel.pendingDungeonPickupChoice?.pickup, pickup)
+        XCTAssertFalse(viewModel.canPresentDungeonPickupChoice)
+
+        viewModel.applyMovementPresentationStep(try XCTUnwrap(resolution.presentationSteps.first))
+
+        XCTAssertEqual(viewModel.movementPresentationOverlayPause, .cardPickupChoice)
+        XCTAssertTrue(viewModel.canPresentDungeonPickupChoice)
+
+        viewModel.discardPendingDungeonPickupCard()
+
+        XCTAssertNil(viewModel.movementPresentationOverlayPause)
+        XCTAssertEqual(viewModel.boardBridge.scene.movementTransitionResumeCountForTesting, 1)
+    }
+
+    func testRayRelicAcquisitionOverlayWaitsUntilReachedStepAndResumesAfterConfirmation() throws {
+        let pickup = DungeonRelicPickupDefinition(
+            id: "view_model_ray_delayed_relic",
+            point: GridPoint(x: 1, y: 0),
+            kind: .safe,
+            candidateRelics: [.glowingHeart]
+        )
+        let mode = makeRelicPickupChoiceMode(pickup: pickup)
+        let core = GameCore.makeTestInstance(
+            deck: Deck.makeTestDeck(
+                cards: [.rayRight, .kingUpRight, .straightRight2, .straightLeft2, .straightDown2],
+                configuration: mode.deckConfiguration
+            ),
+            current: GridPoint(x: 0, y: 0),
+            mode: mode
+        )
+        let viewModel = makeViewModel(mode: mode, core: core)
+        let move = try XCTUnwrap(core.availableMoves().first { $0.card.moveCard == .rayRight })
+
+        core.playCard(using: move)
+        let resolution = try XCTUnwrap(core.lastMovementResolution)
+        viewModel.beginMovementPresentation(using: resolution)
+
+        XCTAssertNil(viewModel.activeDungeonRelicAcquisitionPresentation)
+
+        viewModel.applyMovementPresentationStep(try XCTUnwrap(resolution.presentationSteps.first))
+
+        XCTAssertEqual(viewModel.movementPresentationOverlayPause, .relicAcquisition)
+        XCTAssertEqual(viewModel.activeDungeonRelicAcquisitionPresentation?.source, .pickup)
+
+        viewModel.dismissActiveDungeonRelicAcquisitionPresentation()
+
+        XCTAssertNil(viewModel.movementPresentationOverlayPause)
+        XCTAssertEqual(viewModel.boardBridge.scene.movementTransitionResumeCountForTesting, 1)
     }
 
     func testPendingDungeonPickupIgnoresBasicMoveSlotTap() throws {

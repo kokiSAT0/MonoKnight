@@ -833,6 +833,8 @@ private struct EventEncyclopediaRow: View {
             return "dice.fill"
         case .floorFall:
             return "arrow.down.to.line"
+        case .handExpansion:
+            return "rectangle.stack.badge.plus"
         }
     }
 }
@@ -1151,23 +1153,47 @@ private struct TileEffectMarkerView: View {
             }
         case .shackleTrap:
             ZStack {
-                Circle()
-                    .stroke(accent.opacity(0.92), lineWidth: 2.2)
-                    .frame(width: 18, height: 18)
-                    .offset(x: -7, y: 5)
-                Circle()
-                    .stroke(accent.opacity(0.92), lineWidth: 2.2)
-                    .frame(width: 18, height: 18)
-                    .offset(x: 7, y: 5)
+                DiamondShape()
+                    .fill(accent.opacity(0.12))
+                    .frame(width: 31, height: 31)
+                DiamondShape()
+                    .stroke(accent.opacity(0.84), lineWidth: 1.8)
+                    .frame(width: 31, height: 31)
+                Path { path in
+                    path.move(to: CGPoint(x: 10, y: 12))
+                    path.addLine(to: CGPoint(x: 19, y: 12))
+                    path.addLine(to: CGPoint(x: 22, y: 23))
+                    path.addLine(to: CGPoint(x: 30, y: 24))
+                    path.addQuadCurve(to: CGPoint(x: 31, y: 31), control: CGPoint(x: 34, y: 28))
+                    path.addLine(to: CGPoint(x: 13, y: 31))
+                    path.closeSubpath()
+                }
+                .fill(accent.opacity(0.22))
+                .overlay(
+                    Path { path in
+                        path.move(to: CGPoint(x: 10, y: 12))
+                        path.addLine(to: CGPoint(x: 19, y: 12))
+                        path.addLine(to: CGPoint(x: 22, y: 23))
+                        path.addLine(to: CGPoint(x: 30, y: 24))
+                        path.addQuadCurve(to: CGPoint(x: 31, y: 31), control: CGPoint(x: 34, y: 28))
+                        path.addLine(to: CGPoint(x: 13, y: 31))
+                        path.closeSubpath()
+                    }
+                    .stroke(accent.opacity(0.92), lineWidth: 1.5)
+                )
+                .frame(width: 34, height: 34)
+                .offset(x: -5, y: 1)
                 Capsule()
-                    .fill(accent.opacity(0.88))
-                    .frame(width: 17, height: 4)
-                    .offset(y: 5)
+                    .fill(accent.opacity(0.36))
+                    .overlay(Capsule().stroke(accent.opacity(0.96), lineWidth: 1.8))
+                    .frame(width: 18, height: 7)
+                    .rotationEffect(.degrees(8))
+                    .offset(x: -9, y: -4)
                 Capsule()
-                    .stroke(accent.opacity(0.78), lineWidth: 2)
+                    .stroke(accent.opacity(0.72), lineWidth: 2)
                     .frame(width: 22, height: 7)
-                    .rotationEffect(.degrees(-35))
-                    .offset(x: 0, y: -6)
+                    .rotationEffect(.degrees(-33))
+                    .offset(x: 5, y: 3)
                 Circle()
                     .fill(accent.opacity(0.30))
                     .overlay(Circle().stroke(accent.opacity(0.90), lineWidth: 2))

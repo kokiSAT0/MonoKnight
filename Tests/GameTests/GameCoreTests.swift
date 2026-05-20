@@ -854,6 +854,46 @@ final class GameCoreTests: XCTestCase {
         )
     }
 
+    func testWatcherLaserPiercesCollapsedFloorButStillStopsAtWall() throws {
+        let holePoint = GridPoint(x: 2, y: 1)
+        let pointBeyondHole = GridPoint(x: 3, y: 1)
+        let pointBeforeWall = GridPoint(x: 4, y: 1)
+        let wallPoint = GridPoint(x: 5, y: 1)
+        let watcher = EnemyDefinition(
+            id: "watcher",
+            name: "見張り",
+            position: GridPoint(x: 1, y: 1),
+            behavior: .watcher(direction: MoveVector(dx: 1, dy: 0), range: 4)
+        )
+        let guardPost = EnemyDefinition(
+            id: "guard",
+            name: "番兵",
+            position: GridPoint(x: 2, y: 2),
+            behavior: .guardPost
+        )
+        let mode = makeInventoryDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 8, y: 8),
+            impassableTilePoints: [wallPoint],
+            allowsBasicOrthogonalMove: true,
+            enemies: [watcher, guardPost],
+            hazards: [.brittleFloor(points: [holePoint], initialState: .collapsed)]
+        )
+        let core = GameCore(mode: mode)
+        let expectedLaserPoints = [holePoint, pointBeyondHole, pointBeforeWall]
+
+        let display = try XCTUnwrap(core.watcherLaserDisplays(forDisplayedEnemyStates: core.enemyStates).first)
+        XCTAssertEqual(display.dangerPoints, expectedLaserPoints)
+        XCTAssertEqual(
+            core.watcherLaserDangerDisplayPoints(forDisplayedEnemyStates: core.enemyStates),
+            Set(expectedLaserPoints)
+        )
+        XCTAssertFalse(
+            core.nonWatcherEnemyDangerDisplayPoints(forDisplayedEnemyStates: core.enemyStates).contains(holePoint),
+            "敵移動用の通行判定は崩落穴を通行不可のままにします"
+        )
+    }
+
     func testWatcherLaserDisplaysHideWhenFrozenOrDarknessSuppressed() throws {
         let watcher = EnemyDefinition(
             id: "watcher",

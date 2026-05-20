@@ -752,7 +752,7 @@ struct ResultActionSection: View {
             switch offer {
             case .playable(.move):
                 return onSelectDungeonRewardMoveCard != nil || onSelectDungeonReward != nil
-            case .playable(.support), .relic:
+            case .playable(.support), .relic, .handExpansion:
                 return onSelectDungeonReward != nil
             }
         }
@@ -764,7 +764,7 @@ struct ResultActionSection: View {
             return !disabledDungeonRewardMoveCards.contains(card)
         case .playable(.support(let support)):
             return !disabledDungeonRewardSupportCards.contains(support)
-        case .relic:
+        case .relic, .handExpansion:
             return true
         }
     }
@@ -775,7 +775,7 @@ struct ResultActionSection: View {
             return dungeonRewardMoveUsesByCard[card] ?? dungeonRewardAddUses
         case .playable(.support):
             return dungeonSupportRewardAddUses
-        case .relic:
+        case .relic, .handExpansion:
             return 0
         }
     }
@@ -788,6 +788,8 @@ struct ResultActionSection: View {
             return "dungeon_reward_support_card"
         case .relic:
             return "dungeon_reward_relic"
+        case .handExpansion:
+            return "dungeon_reward_hand_expansion"
         }
     }
 
@@ -799,6 +801,8 @@ struct ResultActionSection: View {
             return "手札に追加する補助カード"
         case .relic:
             return "獲得する遺物"
+        case .handExpansion:
+            return "手札枠を1つ増やすアイテム"
         }
     }
 
@@ -829,6 +833,8 @@ struct ResultActionSection: View {
         case .relic(let relic):
             pendingRelicRewardSelection = relic
             pendingRelicRewardPresentation = .rewardRelic(relic)
+        case .handExpansion:
+            onSelectDungeonReward?(.handExpansion)
         }
     }
 
@@ -1115,6 +1121,10 @@ struct DungeonRewardDetailPresentation: Equatable, Identifiable {
             symbolName = item.symbolName
             primaryDescription = item.primaryDescription
             secondaryDescriptions = item.secondaryDescriptions
+        case .handExpansion:
+            symbolName = "rectangle.stack.badge.plus"
+            primaryDescription = "試練塔のこのラン中、通常カードの手札枠を1つ増やします。最大9枠まで増えます。"
+            secondaryDescriptions = [choice.accessibilityRoleText, choice.actionText]
         }
     }
 }
@@ -1195,11 +1205,17 @@ struct DungeonRewardCardChoicePresentation: Equatable {
         if let relic = offer.relic {
             return relic.rarity.displayName
         }
+        if offer.isHandExpansion {
+            return "枠+1"
+        }
         return "\(rewardUses)回"
     }
     var visualTone: DungeonRewardVisualTone {
         if let relic = offer.relic {
             return DungeonRewardVisualTone(rarity: relic.rarity)
+        }
+        if offer.isHandExpansion {
+            return .rare
         }
         return .standard
     }
@@ -1221,6 +1237,9 @@ struct DungeonRewardCardChoicePresentation: Equatable {
         if offer.relic != nil {
             return "ダブルタップでこの遺物の詳細を確認します。長押し、またはアクションの「効果を確認」で説明を表示します"
         }
+        if offer.isHandExpansion {
+            return "ダブルタップで手札枠を1つ増やし、次の階へ進みます。長押し、またはアクションの「効果を確認」で説明を表示します"
+        }
         return "ダブルタップでこのカードを手札に追加し、次の階へ進みます。長押し、またはアクションの「効果を確認」で説明を表示します"
     }
 
@@ -1235,6 +1254,8 @@ struct DungeonRewardCardChoicePresentation: Equatable {
                 return "\(relic.effectDescription) \(note)"
             }
             return relic.effectDescription
+        case .handExpansion:
+            return "試練塔のこのラン中、通常カードの手札枠を1つ増やします。最大9枠まで増えます。"
         }
     }
 }
@@ -1325,6 +1346,14 @@ private struct DungeonRewardCardChoiceView: View {
                 .accessibilityHidden(true)
         case .relic(let relic):
             DungeonRewardRelicIllustrationView(relic: relic)
+                .scaleEffect(0.82)
+                .frame(
+                    width: MoveCardIllustrationView.defaultWidth * 0.82,
+                    height: MoveCardIllustrationView.defaultHeight * 0.82
+                )
+                .accessibilityHidden(true)
+        case .handExpansion:
+            DungeonRewardHandExpansionIllustrationView()
                 .scaleEffect(0.82)
                 .frame(
                     width: MoveCardIllustrationView.defaultWidth * 0.82,
@@ -1452,6 +1481,52 @@ private struct DungeonRewardRelicIllustrationView: View {
                 .overlay(
                     RoundedRectangle(cornerRadius: 8)
                         .stroke(rarityTint.opacity(0.78), lineWidth: 1.5)
+                )
+        )
+    }
+}
+
+private struct DungeonRewardHandExpansionIllustrationView: View {
+    private var theme = AppTheme()
+    private var tint: Color {
+        DungeonRewardVisualTone.rare.tintColor(theme: theme)
+    }
+
+    var body: some View {
+        VStack(spacing: 8) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(tint.opacity(0.14))
+                    .frame(width: 46, height: 46)
+                Image(systemName: "rectangle.stack.badge.plus")
+                    .font(.system(size: 25, weight: .semibold))
+                    .foregroundColor(tint)
+            }
+
+            Text("手札枠")
+                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .foregroundColor(theme.textPrimary)
+                .lineLimit(1)
+
+            HStack(spacing: 4) {
+                Text("拡張")
+                    .foregroundColor(tint)
+            }
+            .font(.system(size: 10, weight: .bold, design: .rounded))
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(tint.opacity(0.12))
+            )
+        }
+        .frame(width: MoveCardIllustrationView.defaultWidth, height: MoveCardIllustrationView.defaultHeight)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(theme.backgroundElevated.opacity(0.86))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(tint.opacity(0.78), lineWidth: 1.5)
                 )
         )
     }
