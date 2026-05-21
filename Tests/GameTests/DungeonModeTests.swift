@@ -8839,6 +8839,28 @@ final class DungeonModeTests: XCTestCase {
         )
     }
 
+    func testGrowthTowerFortyNinthFloorRewardBiasesRefillForFinalHandLoss() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let finalFloor = tower.floors[49]
+        let baseEntries = DungeonWeightedRewardPools.entries(floorIndex: 48, context: .clearReward)
+        let counteredEntries = DungeonWeightedRewardPools.entries(
+            floorIndex: 48,
+            context: .clearReward,
+            countering: finalFloor
+        )
+
+        XCTAssertGreaterThan(
+            supportWeight(.refillEmptySlots, in: counteredEntries),
+            supportWeight(.refillEmptySlots, in: baseEntries),
+            "49Fクリア報酬は50Fの手札破壊に備えて補給を強める"
+        )
+        XCTAssertGreaterThan(
+            supportWeight(.refillEmptySlots, in: counteredEntries),
+            supportWeight(.annihilationSpell, in: counteredEntries),
+            "50F対策では補給を全滅の呪文より優先し、手札切れの詰み感を抑える"
+        )
+    }
+
     func testGrowthTowerSupportPoolsKeepAnnihilationSpellsRareComparedWithRoleCounters() {
         let floorIndexes = [5, 10, 15, 20, 30, 40]
         let contexts: [DungeonWeightedRewardPoolContext] = [.floorPickup, .clearReward]

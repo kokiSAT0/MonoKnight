@@ -2858,7 +2858,7 @@ public enum DungeonWeightedRewardPools {
             add(.antidote, 7)
         }
         if hasHandLossTrap {
-            add(.refillEmptySlots, 6)
+            add(.refillEmptySlots, 8)
         }
 
         let hasDangerFloor = floor.hazards.contains { hazard in
