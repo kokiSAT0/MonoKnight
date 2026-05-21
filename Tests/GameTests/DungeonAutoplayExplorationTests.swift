@@ -26,7 +26,9 @@ final class DungeonAutoplayExplorationTests: XCTestCase {
             var explorer = DungeonAutoplayExplorer(
                 tower: tower,
                 seed: seed,
-                maxTurnsPerFloor: configuration.maxTurnsPerFloor
+                maxTurnsPerFloor: configuration.maxTurnsPerFloor,
+                startFloorIndex: configuration.startFloorIndex,
+                floorCount: configuration.floorCount
             )
 
             do {
@@ -36,12 +38,28 @@ final class DungeonAutoplayExplorationTests: XCTestCase {
             }
         }
     }
+
+    func testAutoplayConfigurationCanTargetLateGrowthTowerFloors() {
+        let configuration = AutoplayConfiguration.fromEnvironment([
+            "MONOKNIGHT_AUTOPLAY_RUNS": "12",
+            "MONOKNIGHT_AUTOPLAY_SEED": "424242",
+            "MONOKNIGHT_AUTOPLAY_MAX_TURNS": "240",
+            "MONOKNIGHT_AUTOPLAY_START_FLOOR": "41",
+            "MONOKNIGHT_AUTOPLAY_FLOOR_COUNT": "10"
+        ])
+
+        XCTAssertEqual(configuration.runCount, 12)
+        XCTAssertEqual(configuration.baseSeed, 424_242)
+        XCTAssertEqual(configuration.maxTurnsPerFloor, 240)
+        XCTAssertEqual(configuration.startFloorIndex, 40)
+        XCTAssertEqual(configuration.floorCount, 10)
+    }
 }
 
 @available(iOS 13.0, macOS 10.15, tvOS 13.0, watchOS 6.0, *)
 private struct DungeonAutoplayExplorer {
     enum Failure: Error, CustomStringConvertible {
-        case missingFirstFloorMode
+        case missingStartFloorMode(floor: Int)
         case missingRunState(floor: Int)
         case missingNextFloorMode(floor: Int)
         case invalidCurrentPoint(floor: Int, turn: Int, point: GridPoint?)
@@ -56,8 +74,8 @@ private struct DungeonAutoplayExplorer {
 
         var description: String {
             switch self {
-            case .missingFirstFloorMode:
-                return "first floor mode could not be created"
+            case .missingStartFloorMode(let floor):
+                return "start floor mode could not be created for floor \(floor)"
             case .missingRunState(let floor):
                 return "run state missing at floor \(floor)"
             case .missingNextFloorMode(let floor):
@@ -87,26 +105,43 @@ private struct DungeonAutoplayExplorer {
     private let tower: DungeonDefinition
     private let seed: UInt64
     private let maxTurnsPerFloor: Int
+    private let startFloorIndex: Int
+    private let floorCount: Int
     private var random: AutoplayRandom
     private var trace: [String] = []
     private var latestRunLogEntries: [DungeonRunLogEntry] = []
     private var latestStatus = "not started"
 
-    init(tower: DungeonDefinition, seed: UInt64, maxTurnsPerFloor: Int) {
+    init(
+        tower: DungeonDefinition,
+        seed: UInt64,
+        maxTurnsPerFloor: Int,
+        startFloorIndex: Int,
+        floorCount: Int
+    ) {
         self.tower = tower
         self.seed = seed
         self.maxTurnsPerFloor = max(maxTurnsPerFloor, 1)
+        self.startFloorIndex = min(max(startFloorIndex, 0), max(tower.floors.count - 1, 0))
+        self.floorCount = max(floorCount, 1)
         self.random = AutoplayRandom(seed: seed)
     }
 
     mutating func run() throws {
         let firstMode = try unwrap(
-            DungeonLibrary.shared.firstFloorMode(for: tower, cardVariationSeed: seed),
-            or: Failure.missingFirstFloorMode
+            DungeonLibrary.shared.floorMode(
+                for: tower,
+                floorIndex: startFloorIndex,
+                cardVariationSeed: seed
+            ),
+            or: Failure.missingStartFloorMode(floor: startFloorIndex + 1)
         )
         var core = GameCore(mode: firstMode)
-        var runState = try unwrap(firstMode.dungeonMetadataSnapshot?.runState, or: Failure.missingRunState(floor: 1))
-        let floorLimit = min(tower.floors.count, 3)
+        var runState = try unwrap(
+            firstMode.dungeonMetadataSnapshot?.runState,
+            or: Failure.missingRunState(floor: startFloorIndex + 1)
+        )
+        let floorLimit = min(tower.floors.count, startFloorIndex + floorCount)
 
         while runState.currentFloorIndex < floorLimit {
             let floorNumber = runState.currentFloorIndex + 1
@@ -398,12 +433,17 @@ private struct AutoplayConfiguration {
     let runCount: Int
     let baseSeed: UInt64
     let maxTurnsPerFloor: Int
+    let startFloorIndex: Int
+    let floorCount: Int
 
     static func fromEnvironment(_ environment: [String: String] = ProcessInfo.processInfo.environment) -> Self {
-        AutoplayConfiguration(
+        let startFloor = environment.positiveInt(for: "MONOKNIGHT_AUTOPLAY_START_FLOOR") ?? 1
+        return AutoplayConfiguration(
             runCount: environment.positiveInt(for: "MONOKNIGHT_AUTOPLAY_RUNS") ?? 20,
             baseSeed: environment.positiveUInt64(for: "MONOKNIGHT_AUTOPLAY_SEED") ?? 0x5EED_2026,
-            maxTurnsPerFloor: environment.positiveInt(for: "MONOKNIGHT_AUTOPLAY_MAX_TURNS") ?? 100
+            maxTurnsPerFloor: environment.positiveInt(for: "MONOKNIGHT_AUTOPLAY_MAX_TURNS") ?? 100,
+            startFloorIndex: max(startFloor - 1, 0),
+            floorCount: environment.positiveInt(for: "MONOKNIGHT_AUTOPLAY_FLOOR_COUNT") ?? 3
         )
     }
 }
