@@ -1,4 +1,5 @@
 #if canImport(SpriteKit)
+    import Foundation
     import SpriteKit
     #if canImport(UIKit)
         import UIKit
@@ -187,7 +188,7 @@
                 minimumDuration: GameScene.longPressMinimumDuration,
                 movementTolerance: GameScene.longPressMovementTolerance
             )
-            private var longPressWorkItem: DispatchWorkItem?
+            private var longPressTimer: Timer?
         #endif
         private var pendingBoard: Board?
         private var latestHighlightPoints: [BoardHighlightKind: Set<GridPoint>] = [:]
@@ -520,6 +521,40 @@
         public func dungeonVisiblePointsForAccessibility() -> Set<GridPoint>? {
             dungeonVisiblePoints
         }
+
+        #if canImport(UIKit) && DEBUG
+            func beginLongPressRecognitionForTesting(
+                at point: GridPoint,
+                timestamp: TimeInterval = 0
+            ) {
+                clearTrackedTouch()
+                longPressTracker.begin(
+                    at: point,
+                    location: BoardTouchLocation(x: 0, y: 0),
+                    timestamp: timestamp
+                )
+                scheduleLongPressRecognition(startTimestamp: timestamp)
+            }
+
+            @discardableResult
+            func updateLongPressRecognitionForTesting(
+                to point: GridPoint?,
+                location: BoardTouchLocation
+            ) -> Bool {
+                let isTrackingLongPress = longPressTracker.updateLocation(
+                    to: point,
+                    location: location
+                )
+                if !isTrackingLongPress {
+                    cancelLongPressTimer()
+                }
+                return isTrackingLongPress
+            }
+
+            func isLongPressTimerScheduledForTesting() -> Bool {
+                longPressTimer?.isValid == true
+            }
+        #endif
 
         func patrolRailCountForTesting() -> Int {
             highlightRenderer.patrolRailCount
@@ -1414,10 +1449,13 @@
             public override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
                 guard let touch = touches.first else { return }
                 let location = touch.location(in: self)
-                longPressTracker.updateLocation(
+                let isTrackingLongPress = longPressTracker.updateLocation(
                     to: gridPoint(from: location),
                     location: BoardTouchLocation(location)
                 )
+                if !isTrackingLongPress {
+                    cancelLongPressTimer()
+                }
             }
 
             public override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
@@ -1430,9 +1468,15 @@
                 let point = gridPoint(from: location)
                 defer { clearTrackedTouch() }
 
-                switch longPressTracker.end(at: point, location: BoardTouchLocation(location)) {
+                switch longPressTracker.end(
+                    at: point,
+                    location: BoardTouchLocation(location),
+                    timestamp: touch.timestamp
+                ) {
                 case .tap(let point):
                     gameCore?.handleTap(at: point)
+                case .longPress(let point):
+                    handleRecognizedLongPress(at: point)
                 case .none:
                     break
                 }
@@ -1445,19 +1489,18 @@
 
         #if canImport(UIKit)
             private func scheduleLongPressRecognition(startTimestamp: TimeInterval) {
-                let workItem = DispatchWorkItem { [weak self] in
+                cancelLongPressTimer()
+                let timer = Timer(timeInterval: Self.longPressMinimumDuration, repeats: false) { [weak self] _ in
                     guard let self else { return }
+                    self.longPressTimer = nil
                     if let point = self.longPressTracker.fireIfReady(
                         at: startTimestamp + Self.longPressMinimumDuration
                     ) {
                         self.handleRecognizedLongPress(at: point)
                     }
                 }
-                longPressWorkItem = workItem
-                DispatchQueue.main.asyncAfter(
-                    deadline: .now() + Self.longPressMinimumDuration,
-                    execute: workItem
-                )
+                longPressTimer = timer
+                RunLoop.main.add(timer, forMode: .common)
             }
 
             private func handleRecognizedLongPress(at point: GridPoint) {
@@ -1468,9 +1511,13 @@
                 }
             }
 
+            private func cancelLongPressTimer() {
+                longPressTimer?.invalidate()
+                longPressTimer = nil
+            }
+
             private func clearTrackedTouch() {
-                longPressWorkItem?.cancel()
-                longPressWorkItem = nil
+                cancelLongPressTimer()
                 longPressTracker.cancel()
             }
 

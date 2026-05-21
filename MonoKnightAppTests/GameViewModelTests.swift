@@ -1947,6 +1947,40 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.boardBridge.scene.movementTransitionResumeCountForTesting, 1)
     }
 
+    func testRayPickupReplacementFromHandTapResumesMovementPresentation() async throws {
+        let existingCards = fullInventoryCards(including: .rayRight)
+        let newCard = try XCTUnwrap(MoveCard.allCases.first { !existingCards.contains($0) })
+        let pickup = DungeonCardPickupDefinition(
+            id: "view_model_ray_replace_pickup_choice",
+            point: GridPoint(x: 1, y: 0),
+            card: newCard
+        )
+        let (viewModel, core) = makeViewModel(mode: makePickupChoiceMode(pickup: pickup))
+        for card in existingCards {
+            XCTAssertTrue(core.addDungeonInventoryCardForTesting(card, pickupUses: 1))
+        }
+        let discardedCard = try XCTUnwrap(core.handStacks.first?.representativeMove)
+        let move = try XCTUnwrap(core.availableMoves().first { $0.card.moveCard == .rayRight })
+
+        core.playCard(using: move)
+        let resolution = try XCTUnwrap(core.lastMovementResolution)
+        viewModel.beginMovementPresentation(using: resolution)
+        viewModel.boardBridge.setMovementReplayActiveForTesting(true)
+        viewModel.applyMovementPresentationStep(try XCTUnwrap(resolution.presentationSteps.first))
+
+        XCTAssertEqual(viewModel.movementPresentationOverlayPause, .cardPickupChoice)
+        XCTAssertTrue(viewModel.canPresentDungeonPickupChoice)
+
+        viewModel.handleHandSlotTap(at: 0)
+
+        XCTAssertNil(viewModel.pendingDungeonPickupChoice)
+        XCTAssertFalse(viewModel.isDungeonChoiceOverlayCollapsed)
+        XCTAssertNil(viewModel.movementPresentationOverlayPause)
+        XCTAssertFalse(core.dungeonInventoryEntries.contains { $0.moveCard == discardedCard })
+        XCTAssertTrue(core.dungeonInventoryEntries.contains { $0.moveCard == newCard && $0.rewardUses == 1 && $0.pickupUses == 0 })
+        XCTAssertEqual(viewModel.boardBridge.scene.movementTransitionResumeCountForTesting, 1)
+    }
+
     func testRayRelicAcquisitionOverlayWaitsUntilReachedStepAndResumesAfterConfirmation() async throws {
         let pickup = DungeonRelicPickupDefinition(
             id: "view_model_ray_delayed_relic",
@@ -2322,10 +2356,7 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.activeDungeonRelicAcquisitionPresentation)
     }
 
-    func testDungeonRelicActivationEventTemporarilyHighlightsRelic() async throws {
-        let originalDuration = GameViewModel.dungeonRelicActivationEffectDurationNanoseconds
-        GameViewModel.dungeonRelicActivationEffectDurationNanoseconds = 50_000_000
-        defer { GameViewModel.dungeonRelicActivationEffectDurationNanoseconds = originalDuration }
+    func testDungeonRelicActivationHighlightPersistsUntilNextAction() async throws {
         let trapPoint = GridPoint(x: 1, y: 0)
         let mode = relicActivationTestMode(trapPoint: trapPoint)
         let (viewModel, core) = makeViewModel(mode: mode)
@@ -2336,23 +2367,29 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.activeDungeonRelicActivationIDs.contains(DungeonRelicID.silverNeedle))
 
         try await Task.sleep(nanoseconds: 80_000_000)
+        XCTAssertTrue(viewModel.activeDungeonRelicActivationIDs.contains(DungeonRelicID.silverNeedle))
+
+        playBasicMove(to: GridPoint(x: 0, y: 0), in: core)
+        try await Task.sleep(nanoseconds: 10_000_000)
         XCTAssertFalse(viewModel.activeDungeonRelicActivationIDs.contains(DungeonRelicID.silverNeedle))
     }
 
-    func testRepeatedDungeonRelicActivationRefreshesHighlightTimer() async throws {
-        let originalDuration = GameViewModel.dungeonRelicActivationEffectDurationNanoseconds
-        GameViewModel.dungeonRelicActivationEffectDurationNanoseconds = 80_000_000
-        defer { GameViewModel.dungeonRelicActivationEffectDurationNanoseconds = originalDuration }
-        let (viewModel, _) = makeViewModel(mode: controlTestDungeonMode)
+    func testRepeatedDungeonRelicActivationRefreshesActionBasedHighlight() async throws {
+        let trapPoint = GridPoint(x: 1, y: 0)
+        let mode = relicActivationTestMode(trapPoint: trapPoint)
+        let (viewModel, core) = makeViewModel(mode: mode)
 
         viewModel.handleDungeonRelicActivationEvent(DungeonRelicActivationEvent(relicID: .crackedShield))
-        try await Task.sleep(nanoseconds: 40_000_000)
-        viewModel.handleDungeonRelicActivationEvent(DungeonRelicActivationEvent(relicID: .crackedShield))
-        try await Task.sleep(nanoseconds: 60_000_000)
+        playBasicMove(to: trapPoint, in: core)
+        try await Task.sleep(nanoseconds: 10_000_000)
+        XCTAssertFalse(viewModel.activeDungeonRelicActivationIDs.contains(.crackedShield))
 
+        viewModel.handleDungeonRelicActivationEvent(DungeonRelicActivationEvent(relicID: .crackedShield))
+        viewModel.handleDungeonRelicActivationMoveCountChange(core.moveCount)
         XCTAssertTrue(viewModel.activeDungeonRelicActivationIDs.contains(.crackedShield))
 
-        try await Task.sleep(nanoseconds: 50_000_000)
+        playBasicMove(to: GridPoint(x: 0, y: 0), in: core)
+        try await Task.sleep(nanoseconds: 10_000_000)
         XCTAssertFalse(viewModel.activeDungeonRelicActivationIDs.contains(.crackedShield))
     }
 
@@ -3489,14 +3526,14 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.boardTapSelectionWarning?.destination, core.current)
     }
 
-    func testUnusableAntidoteTapShowsReasonToast() {
+    func testUnusableLegacyAntidoteTapShowsPanaceaReasonToast() {
         let (viewModel, core) = makeViewModel(mode: makeUnusableCardReasonMode())
         viewModel.hapticsEnabled = false
         XCTAssertTrue(core.addDungeonInventorySupportCardForTesting(.antidote, pickupUses: 1))
 
         viewModel.handleHandSlotTap(at: 0)
 
-        XCTAssertEqual(viewModel.boardTapSelectionWarning?.message, "毒状態ではないため使えません")
+        XCTAssertEqual(viewModel.boardTapSelectionWarning?.message, "解除する状態異常がありません")
         XCTAssertEqual(viewModel.boardTapSelectionWarning?.destination, core.current)
     }
 

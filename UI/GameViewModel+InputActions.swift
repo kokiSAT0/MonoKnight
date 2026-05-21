@@ -93,10 +93,11 @@ extension GameViewModel {
                 return "危険床系ギミックがないため使えません"
             }
             return core.isFlySpellActive ? "フライの呪文はすでに有効です" : nil
-        case .antidote:
-            return core.poisonDamageTicksRemaining > 0 ? nil : "毒状態ではないため使えません"
-        case .panacea:
-            let hasRecoverableState = core.poisonDamageTicksRemaining > 0 || core.isShackled || core.isIlluded
+        case .antidote, .panacea:
+            let hasRecoverableState = core.poisonDamageTicksRemaining > 0
+                || core.isShackled
+                || core.isIlluded
+                || core.staggerForcedMovesRemaining > 0
             return hasRecoverableState ? nil : "解除する状態異常がありません"
         }
     }
@@ -127,8 +128,9 @@ extension GameViewModel {
         }
         let shouldResumeMovementAfterPickupChoice = canPresentDungeonPickupChoice
             && movementPresentationOverlayPause == .cardPickupChoice
+        var didReplacePendingDungeonPickup = false
         mutateSelectionState { sessionState, selectedHandStackID in
-            inputFlowCoordinator.handleHandSlotTap(
+            didReplacePendingDungeonPickup = inputFlowCoordinator.handleHandSlotTap(
                 at: index,
                 core: core,
                 boardBridge: boardBridge,
@@ -145,7 +147,11 @@ extension GameViewModel {
                 )
             }
         }
-        if shouldResumeMovementAfterPickupChoice {
+        if didReplacePendingDungeonPickup {
+            restoreDungeonChoiceOverlay()
+            saveCurrentDungeonResumeIfPossible()
+        }
+        if shouldResumeMovementAfterPickupChoice && didReplacePendingDungeonPickup {
             resumeMovementPresentationAfterOverlayIfNeeded(.cardPickupChoice)
         }
     }

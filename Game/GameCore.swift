@@ -370,6 +370,8 @@ public final class GameCore: ObservableObject {
     @Published public private(set) var collapsedFloorPoints: Set<GridPoint> = []
     /// すでに回復効果を使い切った回復マス
     @Published public private(set) var consumedHealingTilePoints: Set<GridPoint> = []
+    /// すでに発動して安全になった撒菱
+    @Published public private(set) var consumedDamageTrapPoints: Set<GridPoint> = []
     /// 塔ダンジョンの所持カード一覧
     @Published public private(set) var dungeonInventoryEntries: [DungeonInventoryEntry] = []
     /// 取得済みのフロア内カード ID
@@ -661,7 +663,7 @@ public final class GameCore: ObservableObject {
         guard hasDungeonRelic(.nightCardLens) else { return [] }
         return Set(activeDungeonCardPickups.map(\.point))
     }
-    /// 暗闇スカウト系レリックで視界外でも見えるトゲ床
+    /// 暗闇スカウト系レリックで視界外でも見える撒菱
     public var darknessRevealedThornTrapPoints: Set<GridPoint> {
         guard hasDungeonRelic(.thornScoutLens) else { return [] }
         return damageTrapPoints
@@ -839,6 +841,7 @@ public final class GameCore: ObservableObject {
             crackedFloorPoints: crackedFloorPoints,
             collapsedFloorPoints: collapsedFloorPoints,
             consumedHealingTilePoints: consumedHealingTilePoints,
+            consumedDamageTrapPoints: consumedDamageTrapPoints,
             dungeonInventoryEntries: dungeonInventoryEntries,
             collectedDungeonCardPickupIDs: collectedDungeonCardPickupIDs,
             collectedDungeonSpecialPickupIDs: collectedDungeonSpecialPickupIDs,
@@ -869,9 +872,11 @@ public final class GameCore: ObservableObject {
         let validVisitedPoints = snapshot.visitedPoints.filter { $0.isInside(boardSize: mode.boardSize) }
         let validCollapsedPoints = snapshot.collapsedFloorPoints.filter { $0.isInside(boardSize: mode.boardSize) }
         let validConsumedHealingPoints = snapshot.consumedHealingTilePoints.filter { $0.isInside(boardSize: mode.boardSize) }
+        let validConsumedDamageTrapPoints = snapshot.consumedDamageTrapPoints.filter { $0.isInside(boardSize: mode.boardSize) }
         guard validVisitedPoints.count == snapshot.visitedPoints.count,
               validCollapsedPoints.count == snapshot.collapsedFloorPoints.count,
-              validConsumedHealingPoints.count == snapshot.consumedHealingTilePoints.count
+              validConsumedHealingPoints.count == snapshot.consumedHealingTilePoints.count,
+              validConsumedDamageTrapPoints.count == snapshot.consumedDamageTrapPoints.count
         else { return false }
 
         board = Board(
@@ -908,6 +913,7 @@ public final class GameCore: ObservableObject {
             .subtracting(restoredCollapsedFloorPoints)
         collapsedFloorPoints = restoredCollapsedFloorPoints
         consumedHealingTilePoints = validConsumedHealingPoints
+        consumedDamageTrapPoints = validConsumedDamageTrapPoints
         dungeonInventoryEntries = snapshot.dungeonInventoryEntries
         collectedDungeonCardPickupIDs = snapshot.collectedDungeonCardPickupIDs
         collectedDungeonSpecialPickupIDs = snapshot.collectedDungeonSpecialPickupIDs
@@ -1027,10 +1033,8 @@ public final class GameCore: ObservableObject {
             return hasPatrolRailEnemy && !isPatrolRailDestroyed
         case .flySpell:
             return hasFlySpellTargetTiles && !isFlySpellActive
-        case .antidote:
-            return poisonDamageTicksRemaining > 0
-        case .panacea:
-            return poisonDamageTicksRemaining > 0 || isShackled || isIlluded || staggerForcedMovesRemaining > 0
+        case .antidote, .panacea:
+            return hasRecoverableStatusAilment
         }
     }
 
@@ -1182,23 +1186,10 @@ public final class GameCore: ObservableObject {
             )
             checkDeadlockAndApplyPenaltyIfNeeded()
             debugLog("補助カード フライの呪文: 危険床系ギミックをこの階で無効化")
-        case .antidote:
+        case .antidote, .panacea:
             let pendingMarkerDamagePoints = enemyWarningPoints
             let previousMoveCount = consumeSupportCard(at: index)
-            clearPoisonStatus()
-            finishSupportCardTurn(
-                initialMarkerDamagePoints: pendingMarkerDamagePoints,
-                previousMoveCount: previousMoveCount
-            )
-            checkDeadlockAndApplyPenaltyIfNeeded()
-            debugLog("補助カード 解毒薬: 毒状態を解除")
-        case .panacea:
-            let pendingMarkerDamagePoints = enemyWarningPoints
-            let previousMoveCount = consumeSupportCard(at: index)
-            clearPoisonStatus()
-            isShackled = false
-            isIlluded = false
-            staggerForcedMovesRemaining = 0
+            clearRecoverableStatusAilments()
             finishSupportCardTurn(
                 initialMarkerDamagePoints: pendingMarkerDamagePoints,
                 previousMoveCount: previousMoveCount
@@ -1242,6 +1233,17 @@ public final class GameCore: ObservableObject {
     private func clearPoisonStatus() {
         poisonDamageTicksRemaining = 0
         poisonActionsUntilNextDamage = 0
+    }
+
+    private var hasRecoverableStatusAilment: Bool {
+        poisonDamageTicksRemaining > 0 || isShackled || isIlluded || staggerForcedMovesRemaining > 0
+    }
+
+    private func clearRecoverableStatusAilments() {
+        clearPoisonStatus()
+        isShackled = false
+        isIlluded = false
+        staggerForcedMovesRemaining = 0
     }
 
     private func finishSupportCardTurn(
@@ -1389,8 +1391,13 @@ public final class GameCore: ObservableObject {
         let pendingMarkerDamagePoints = enemyWarningPoints
         // 経路ごとの踏破判定と効果適用を順番に処理する
         // アニメーション用に経路を保持し、ワープ時は終点を追加して UI へ伝達する
+        let stopsAtMovementStoppingTiles = stopsAtMovementStoppingTiles(for: cardMove)
         let pathPoints = effectivePathPoints(for: validatedMove, from: currentPosition)
-        guard let movementResult = processMovementPath(pathPoints, startingAt: currentPosition) else { return }
+        guard let movementResult = processMovementPath(
+            pathPoints,
+            startingAt: currentPosition,
+            stopsAtMovementStoppingTiles: stopsAtMovementStoppingTiles
+        ) else { return }
         let finalPosition = movementResult.finalPosition
         let actualTraversedPath = movementResult.actualTraversedPath
         let encounteredRevisit = movementResult.encounteredRevisit
@@ -1435,7 +1442,8 @@ public final class GameCore: ObservableObject {
                 initialMarkerDamagePoints: pendingMarkerDamagePoints,
                 paralysisTrapPoint: paralysisTrapPoint,
                 triggeredPoisonTrap: movementResult.triggeredPoisonTrap,
-                previousMoveCount: previousMoveCount
+                previousMoveCount: previousMoveCount,
+                stopsAtMovementStoppingTiles: stopsAtMovementStoppingTiles
             )
             return
         }
@@ -1729,7 +1737,8 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                 initialMarkerDamagePoints: pendingMarkerDamagePoints,
                 paralysisTrapPoint: paralysisTrapPoint,
                 triggeredPoisonTrap: movementResult.triggeredPoisonTrap,
-                previousMoveCount: previousMoveCount
+                previousMoveCount: previousMoveCount,
+                stopsAtMovementStoppingTiles: true
             )
             return
         }
@@ -1856,7 +1865,8 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                 initialMarkerDamagePoints: pendingMarkerDamagePoints,
                 paralysisTrapPoint: paralysisTrapPoint,
                 triggeredPoisonTrap: movementResult.triggeredPoisonTrap,
-                previousMoveCount: previousMoveCount
+                previousMoveCount: previousMoveCount,
+                stopsAtMovementStoppingTiles: true
             )
             return
         }
@@ -1940,7 +1950,11 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         var combinedTriggeredPoisonTrap = continuation.triggeredPoisonTrap
 
         if !continuation.remainingPath.isEmpty {
-            guard let movementResult = processMovementPath(continuation.remainingPath, startingAt: currentPosition) else { return }
+            guard let movementResult = processMovementPath(
+                continuation.remainingPath,
+                startingAt: currentPosition,
+                stopsAtMovementStoppingTiles: continuation.stopsAtMovementStoppingTiles
+            ) else { return }
             let actualTraversedPath = movementResult.actualTraversedPath
             let finalPosition = movementResult.finalPosition
             let presentationSteps = movementResult.presentationSteps
@@ -1988,7 +2002,8 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                     initialMarkerDamagePoints: continuation.initialMarkerDamagePoints,
                     paralysisTrapPoint: combinedParalysisTrapPoint,
                     triggeredPoisonTrap: combinedTriggeredPoisonTrap,
-                    previousMoveCount: continuation.previousMoveCount
+                    previousMoveCount: continuation.previousMoveCount,
+                    stopsAtMovementStoppingTiles: continuation.stopsAtMovementStoppingTiles
                 )
                 return
             }
@@ -2060,7 +2075,8 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
 
     private func processMovementPath(
         _ pathPoints: [GridPoint],
-        startingAt start: GridPoint
+        startingAt start: GridPoint,
+        stopsAtMovementStoppingTiles: Bool = true
     ) -> MovementProcessingResult? {
         var pendingPath = pathPoints
         var finalPosition = start
@@ -2305,7 +2321,9 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                     triggerTrapperGlovesIfNeeded(reason: "千鳥足罠")
                     debugLog("千鳥足罠を踏みました: 強制移動残り\(staggerForcedMovesRemaining)回")
                 case .swamp:
-                    stepIndex = pendingPath.count
+                    if stopsAtMovementStoppingTiles {
+                        stepIndex = pendingPath.count
+                    }
                     break
                 case .poisonTrap:
                     applyPoisonTrap()
@@ -2337,15 +2355,17 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                     }
                     isShackled = true
                     triggerTrapperGlovesIfNeeded(reason: "足枷罠")
-                    stopReason = .shackleTrap
-                    presentationSteps.append(
-                        movementPresentationStep(
-                            at: stepPoint,
-                            hpBeforeStep: hpBeforeStep,
-                            stopReason: .shackleTrap
+                    if stopsAtMovementStoppingTiles || stepIndex == pendingPath.count - 1 {
+                        stopReason = .shackleTrap
+                        presentationSteps.append(
+                            movementPresentationStep(
+                                at: stepPoint,
+                                hpBeforeStep: hpBeforeStep,
+                                stopReason: .shackleTrap
+                            )
                         )
-                    )
-                    stepIndex = pendingPath.count
+                        stepIndex = pendingPath.count
+                    }
                 case .slow:
                     if consumePurifyingRelicUse() != nil {
                         debugLog("清めの護符で麻痺罠を無効化")
@@ -2353,15 +2373,17 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                     }
                     paralysisTrapPoint = stepPoint
                     triggerTrapperGlovesIfNeeded(reason: "麻痺罠")
-                    stopReason = .slow
-                    presentationSteps.append(
-                        movementPresentationStep(
-                            at: stepPoint,
-                            hpBeforeStep: hpBeforeStep,
-                            stopReason: .slow
+                    if stopsAtMovementStoppingTiles || stepIndex == pendingPath.count - 1 {
+                        stopReason = .slow
+                        presentationSteps.append(
+                            movementPresentationStep(
+                                at: stepPoint,
+                                hpBeforeStep: hpBeforeStep,
+                                stopReason: .slow
+                            )
                         )
-                    )
-                    stepIndex = pendingPath.count
+                        stepIndex = pendingPath.count
+                    }
                 case .blast(let direction):
                     blastEffectCount += 1
                     guard blastEffectCount <= blastEffectLimit else {
@@ -3032,6 +3054,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             .subtracting(initialAndSavedCollapsedFloorPoints)
         collapsedFloorPoints = initialAndSavedCollapsedFloorPoints
         consumedHealingTilePoints = clearedFloorState?.consumedHealingTilePoints ?? []
+        consumedDamageTrapPoints = clearedFloorState?.consumedDamageTrapPoints ?? []
         dungeonInventoryEntries = mode.dungeonMetadataSnapshot?.runState?.rewardInventoryEntries ?? []
         collectedDungeonCardPickupIDs = clearedFloorState?.collectedDungeonCardPickupIDs ?? []
         collectedDungeonSpecialPickupIDs = clearedFloorState?.collectedDungeonSpecialPickupIDs ?? []
@@ -3527,7 +3550,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         switch pickup.kind {
         case .safe:
             riskOption = nil
-        case .suspiciousLight:
+        case .suspiciousLight, .suspiciousDeep:
             riskOption = selectedCurseID(
                 from: availableCurseCandidates(for: pickup),
                 pickupID: pickup.id,
@@ -3538,21 +3561,6 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                     title: "呪い遺物",
                     kind: .curseRelic,
                     curseID: $0
-                )
-            }
-        case .suspiciousDeep:
-            riskOption = selectedRelicID(
-                from: availableRelicCandidates(for: pickup).filter { $0 != stableRelicID },
-                rarityWeights: [(.common, 20), (.rare, 55), (.legendary, 25)],
-                pickupID: pickup.id,
-                salt: "choice-risky"
-            ).map {
-                PendingDungeonRelicPickupChoice.Option(
-                    id: "risky",
-                    title: "HP -1",
-                    kind: .riskyRelicWithDamage,
-                    relicID: $0,
-                    hpPenalty: 1
                 )
             }
         }
@@ -4147,20 +4155,11 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                 break
             }
         }
-        return points
+        return points.subtracting(consumedDamageTrapPoints)
     }
 
     public var strongDamageTrapPoints: Set<GridPoint> {
-        var points: Set<GridPoint> = []
-        for hazard in mode.dungeonRules?.hazards ?? [] {
-            switch hazard {
-            case .damageTrap(let trapPoints, let damage) where damage >= 2:
-                points.formUnion(trapPoints)
-            case .brittleFloor, .damageTrap, .hpHalvingTrap(_), .lavaTile, .healingTile:
-                break
-            }
-        }
-        return points
+        []
     }
 
     public var hpHalvingTrapPoints: Set<GridPoint> {
@@ -4190,16 +4189,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
     }
 
     public var strongLavaTilePoints: Set<GridPoint> {
-        var points: Set<GridPoint> = []
-        for hazard in mode.dungeonRules?.hazards ?? [] {
-            switch hazard {
-            case .lavaTile(let lavaPoints, let damage) where damage >= 2:
-                points.formUnion(lavaPoints)
-            case .brittleFloor, .damageTrap, .hpHalvingTrap(_), .lavaTile, .healingTile:
-                break
-            }
-        }
-        return points
+        lavaTilePoints
     }
 
     public var healingTilePoints: Set<GridPoint> {
@@ -4248,12 +4238,14 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
 
         for hazard in mode.dungeonRules?.hazards ?? [] {
             switch hazard {
-            case .damageTrap(let trapPoints, let damage) where trapPoints.contains(point):
+            case .damageTrap(let trapPoints, _) where trapPoints.contains(point):
+                guard !consumedDamageTrapPoints.contains(point) else { break }
                 guard !isFlySpellActive else {
                     debugLog("フライの呪文で罠を無効化: \(point)")
                     break
                 }
-                applyDungeonHazardDamage(max(damage, 1), category: .trap, at: point, logLabel: "罠")
+                consumedDamageTrapPoints.insert(point)
+                applyDungeonHazardDamage(1, category: .trap, at: point, logLabel: "撒菱")
                 if shouldStopDungeonActionAfterDamage() {
                     guard shouldFailDungeonRun() else { return true }
                     finalizeElapsedTimeIfNeeded()
@@ -4276,13 +4268,13 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                         return true
                     }
                 }
-            case .lavaTile(let lavaPoints, let damage) where lavaPoints.contains(point):
+            case .lavaTile(let lavaPoints, _) where lavaPoints.contains(point):
                 guard !isFlySpellActive else {
                     debugLog("フライの呪文で溶岩を無効化: \(point)")
                     break
                 }
                 didStepOnLavaThisFloor = true
-                applyDungeonHazardDamage(max(damage, 1), category: .lava, at: point, logLabel: "溶岩")
+                applyDungeonHazardDamage(2, category: .lava, at: point, logLabel: "溶岩")
                 if shouldStopDungeonActionAfterDamage() {
                     guard shouldFailDungeonRun() else { return true }
                     finalizeElapsedTimeIfNeeded()
@@ -4369,9 +4361,6 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             )
         } else {
             var adjustedDamage = max(damage, 1)
-            if logLabel == "罠", hasDungeonCurse(.trapMagnet) {
-                adjustedDamage += 1
-            }
             if logLabel.hasPrefix("溶岩"), hasDungeonCurse(.oilSoakedBoots) {
                 adjustedDamage += 1
             }
@@ -4379,15 +4368,15 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                 adjustedDamage += 1
             }
             if hasDungeonCurse(.scorchedCloak),
-               logLabel == "罠" || logLabel.hasPrefix("溶岩") {
+               category == .trap || logLabel.hasPrefix("溶岩") {
                 adjustedDamage = max(adjustedDamage - 1, 0)
             }
             adjustedDamage = applyPersistentDungeonDamageReductionIfNeeded(to: adjustedDamage, category: category)
             let finalDamage = applyRelicDamageReductionIfNeeded(to: adjustedDamage)
             let hpBefore = dungeonHP
             applyDungeonHPDamage(finalDamage)
-            if logLabel == "罠", finalDamage > 0 {
-                triggerTrapperGlovesIfNeeded(reason: "ダメージ罠")
+            if category == .trap, finalDamage > 0 {
+                triggerTrapperGlovesIfNeeded(reason: logLabel)
             }
             debugLog("\(logLabel)ダメージ: \(point), -\(finalDamage), HP=\(dungeonHP)")
             if finalDamage > 0 {
@@ -4418,8 +4407,8 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         guard mode.usesDungeonExit, progress == .playing, let current else { return false }
         guard !isFlySpellActive else { return false }
         for hazard in mode.dungeonRules?.hazards ?? [] {
-            guard case .lavaTile(let lavaPoints, let damage) = hazard, lavaPoints.contains(current) else { continue }
-            applyDungeonHazardDamage(max(damage, 1), category: .lava, at: current, logLabel: "溶岩滞在")
+            guard case .lavaTile(let lavaPoints, _) = hazard, lavaPoints.contains(current) else { continue }
+            applyDungeonHazardDamage(2, category: .lava, at: current, logLabel: "溶岩滞在")
             if shouldStopDungeonActionAfterDamage() {
                 guard shouldFailDungeonRun() else { return true }
                 finalizeElapsedTimeIfNeeded()
@@ -5134,6 +5123,9 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                 }
                 if isEnemyLethalHazardPoint(movement.finalPoint)
                     || watcherLaserDangerPoints(for: enemyStates).contains(movement.finalPoint) {
+                    if damageTrapPoints.contains(movement.finalPoint) {
+                        consumedDamageTrapPoints.insert(movement.finalPoint)
+                    }
                     defeatedEnemyIDs.insert(enemyStates[index].id)
                     occupiedPoints.remove(movement.finalPoint)
                 }
@@ -6196,7 +6188,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         let rawPath = move.path
         guard rawPath.count == 1,
               let moveCard = move.card.moveCard,
-              shouldExpandForMovementStoppingTileResolution(moveCard),
+              shouldExpandFixedDistanceMovementPath(moveCard),
               let destination = rawPath.first
         else { return rawPath }
 
@@ -6210,13 +6202,10 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             expanded.append(current)
         }
 
-        let hasIntermediateStoppingTile = expanded.dropLast().contains { point in
-            board.effect(at: point)?.stopsMovementCard == true
-        }
-        return hasIntermediateStoppingTile ? expanded : rawPath
+        return expanded
     }
 
-    private func shouldExpandForMovementStoppingTileResolution(_ move: MoveCard) -> Bool {
+    private func shouldExpandFixedDistanceMovementPath(_ move: MoveCard) -> Bool {
         switch move {
         case .straightUp2,
              .straightDown2,
@@ -6230,6 +6219,10 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         default:
             return false
         }
+    }
+
+    private func stopsAtMovementStoppingTiles(for move: MoveCard) -> Bool {
+        move.kind == .multiStep
     }
 }
 
@@ -6429,6 +6422,7 @@ extension GameCore {
             .subtracting(initialAndSavedCollapsedFloorPoints)
         core.collapsedFloorPoints = initialAndSavedCollapsedFloorPoints
         core.consumedHealingTilePoints = clearedFloorState?.consumedHealingTilePoints ?? []
+        core.consumedDamageTrapPoints = clearedFloorState?.consumedDamageTrapPoints ?? []
         core.isDungeonExitUnlocked = clearedFloorState?.isDungeonExitUnlocked ?? (mode.dungeonRules?.exitLock == nil)
         core.dungeonExitUnlockEvent = nil
         core.dungeonLockedExitReachEvent = nil

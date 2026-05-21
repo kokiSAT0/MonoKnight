@@ -107,9 +107,9 @@ public struct TileEncyclopediaEntry: Identifiable, Equatable, Sendable {
         ),
         TileEncyclopediaEntry(
             id: "damageTrap",
-            displayName: "罠",
+            displayName: "撒菱",
             category: "危険",
-            description: "見えているダメージ床です。踏むと HP を失いますが、近道として使える場面もあります。後半の濃い罠はダメージ2です。",
+            description: "見えている一度きりの危険床です。踏むと HP を 1 失って消え、そのマスは安全になります。",
             previewKind: .damageTrap
         ),
         TileEncyclopediaEntry(
@@ -123,7 +123,7 @@ public struct TileEncyclopediaEntry: Identifiable, Equatable, Sendable {
             id: "lavaTile",
             displayName: "溶岩",
             category: "危険",
-            description: "踏むと HP を失います。その上にいるまま1手使うと、さらに HP を失います。最終盤の濃い溶岩はダメージ2です。",
+            description: "踏むと HP を 2 失います。その上にいるまま1手使うと、さらに HP を 2 失います。溶岩は消えません。",
             previewKind: .lavaTile
         ),
         TileEncyclopediaEntry(

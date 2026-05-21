@@ -125,9 +125,7 @@ enum GameInlineInspection: Identifiable, Equatable {
                 return "point.topleft.down.to.point.bottomright.curvepath"
             case .flySpell:
                 return "wind"
-            case .antidote:
-                return "cross.case.fill"
-            case .panacea:
+            case .antidote, .panacea:
                 return "pills.fill"
             }
         }

@@ -20,8 +20,18 @@ final class BoardLongPressTrackerTests: XCTestCase {
         tracker.begin(at: point, location: startLocation, timestamp: 1.0)
 
         XCTAssertEqual(
-            tracker.end(at: point, location: BoardTouchLocation(x: 11, y: 21)),
+            tracker.end(at: point, location: BoardTouchLocation(x: 11, y: 21), timestamp: 1.20),
             .tap(point)
+        )
+    }
+
+    func testEndingAfterMinimumDurationReturnsLongPressWhenTimerDidNotFire() {
+        var tracker = makeTracker()
+        tracker.begin(at: point, location: startLocation, timestamp: 1.0)
+
+        XCTAssertEqual(
+            tracker.end(at: point, location: BoardTouchLocation(x: 11, y: 21), timestamp: 1.45),
+            .longPress(point)
         )
     }
 
@@ -30,7 +40,7 @@ final class BoardLongPressTrackerTests: XCTestCase {
         tracker.begin(at: point, location: startLocation, timestamp: 1.0)
 
         XCTAssertEqual(tracker.fireIfReady(at: 1.45), point)
-        XCTAssertEqual(tracker.end(at: point, location: startLocation), .none)
+        XCTAssertEqual(tracker.end(at: point, location: startLocation, timestamp: 1.90), .none)
     }
 
     func testMovingBeyondToleranceCancelsLongPressAndTap() {
@@ -41,7 +51,7 @@ final class BoardLongPressTrackerTests: XCTestCase {
 
         XCTAssertNil(tracker.fireIfReady(at: 1.45))
         XCTAssertEqual(
-            tracker.end(at: point, location: BoardTouchLocation(x: 23, y: 20)),
+            tracker.end(at: point, location: BoardTouchLocation(x: 23, y: 20), timestamp: 1.45),
             .none
         )
     }
@@ -54,7 +64,7 @@ final class BoardLongPressTrackerTests: XCTestCase {
         tracker.updateLocation(to: otherPoint, location: startLocation)
 
         XCTAssertNil(tracker.fireIfReady(at: 1.45))
-        XCTAssertEqual(tracker.end(at: otherPoint, location: startLocation), .none)
+        XCTAssertEqual(tracker.end(at: otherPoint, location: startLocation, timestamp: 1.45), .none)
     }
 
     private func makeTracker() -> BoardLongPressTracker {

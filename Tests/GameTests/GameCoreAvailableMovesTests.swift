@@ -204,7 +204,7 @@ final class GameCoreAvailableMovesTests: XCTestCase {
         XCTAssertEqual(moves.first?.path, [GridPoint(x: 2, y: 2), swamp])
     }
 
-    func testTwoStepMoveStopsAtIntermediateSwampCandidate() {
+    func testTwoStepMoveKeepsDestinationThroughIntermediateSwampCandidate() {
         let swamp = GridPoint(x: 1, y: 0)
         let regulation = GameMode.Regulation(
             boardSize: BoardGeometry.standardSize,
@@ -234,8 +234,8 @@ final class GameCoreAvailableMovesTests: XCTestCase {
         let moves = core.availableMoves(handStacks: [stack], current: GridPoint(x: 0, y: 0))
 
         XCTAssertEqual(moves.count, 1)
-        XCTAssertEqual(moves.first?.destination, swamp)
-        XCTAssertEqual(moves.first?.path, [swamp])
+        XCTAssertEqual(moves.first?.destination, GridPoint(x: 2, y: 0))
+        XCTAssertEqual(moves.first?.path, [GridPoint(x: 2, y: 0)])
     }
 
 }

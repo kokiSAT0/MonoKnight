@@ -32,6 +32,7 @@ public struct DungeonRunResumeSnapshot: Codable, Equatable, Sendable {
     public let crackedFloorPoints: Set<GridPoint>
     public let collapsedFloorPoints: Set<GridPoint>
     public let consumedHealingTilePoints: Set<GridPoint>
+    public let consumedDamageTrapPoints: Set<GridPoint>
     public let dungeonInventoryEntries: [DungeonInventoryEntry]
     public let collectedDungeonCardPickupIDs: Set<String>
     public let collectedDungeonSpecialPickupIDs: Set<String>
@@ -72,6 +73,7 @@ public struct DungeonRunResumeSnapshot: Codable, Equatable, Sendable {
         crackedFloorPoints: Set<GridPoint>,
         collapsedFloorPoints: Set<GridPoint>,
         consumedHealingTilePoints: Set<GridPoint> = [],
+        consumedDamageTrapPoints: Set<GridPoint> = [],
         dungeonInventoryEntries: [DungeonInventoryEntry],
         collectedDungeonCardPickupIDs: Set<String>,
         collectedDungeonSpecialPickupIDs: Set<String> = [],
@@ -111,6 +113,7 @@ public struct DungeonRunResumeSnapshot: Codable, Equatable, Sendable {
         self.crackedFloorPoints = crackedFloorPoints
         self.collapsedFloorPoints = collapsedFloorPoints
         self.consumedHealingTilePoints = consumedHealingTilePoints
+        self.consumedDamageTrapPoints = consumedDamageTrapPoints
         self.dungeonInventoryEntries = dungeonInventoryEntries.filter(\.hasUsesRemaining)
         self.collectedDungeonCardPickupIDs = collectedDungeonCardPickupIDs
         self.collectedDungeonSpecialPickupIDs = collectedDungeonSpecialPickupIDs
@@ -152,6 +155,7 @@ public struct DungeonRunResumeSnapshot: Codable, Equatable, Sendable {
         case crackedFloorPoints
         case collapsedFloorPoints
         case consumedHealingTilePoints
+        case consumedDamageTrapPoints
         case dungeonInventoryEntries
         case collectedDungeonCardPickupIDs
         case collectedDungeonSpecialPickupIDs
@@ -195,6 +199,7 @@ public struct DungeonRunResumeSnapshot: Codable, Equatable, Sendable {
             crackedFloorPoints: try container.decodeIfPresent(Set<GridPoint>.self, forKey: .crackedFloorPoints) ?? [],
             collapsedFloorPoints: try container.decodeIfPresent(Set<GridPoint>.self, forKey: .collapsedFloorPoints) ?? [],
             consumedHealingTilePoints: try container.decodeIfPresent(Set<GridPoint>.self, forKey: .consumedHealingTilePoints) ?? [],
+            consumedDamageTrapPoints: try container.decodeIfPresent(Set<GridPoint>.self, forKey: .consumedDamageTrapPoints) ?? [],
             dungeonInventoryEntries: try container.decodeIfPresent([DungeonInventoryEntry].self, forKey: .dungeonInventoryEntries) ?? [],
             collectedDungeonCardPickupIDs: try container.decodeIfPresent(Set<String>.self, forKey: .collectedDungeonCardPickupIDs) ?? [],
             collectedDungeonSpecialPickupIDs: try container.decodeIfPresent(Set<String>.self, forKey: .collectedDungeonSpecialPickupIDs) ?? [],
@@ -239,6 +244,7 @@ public struct DungeonRunResumeSnapshot: Codable, Equatable, Sendable {
         try container.encode(crackedFloorPoints, forKey: .crackedFloorPoints)
         try container.encode(collapsedFloorPoints, forKey: .collapsedFloorPoints)
         try container.encode(consumedHealingTilePoints, forKey: .consumedHealingTilePoints)
+        try container.encode(consumedDamageTrapPoints, forKey: .consumedDamageTrapPoints)
         try container.encode(dungeonInventoryEntries, forKey: .dungeonInventoryEntries)
         try container.encode(collectedDungeonCardPickupIDs, forKey: .collectedDungeonCardPickupIDs)
         try container.encode(collectedDungeonSpecialPickupIDs, forKey: .collectedDungeonSpecialPickupIDs)

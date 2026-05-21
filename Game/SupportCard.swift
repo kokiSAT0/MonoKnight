@@ -18,10 +18,22 @@ public enum SupportCard: String, CaseIterable, Codable, Hashable, Sendable {
     case railBreakSpell
     /// その階の危険床系ギミックを無効化する
     case flySpell
-    /// 毒状態を解除する
+    /// 旧セーブ互換用。新規出現はせず、万能薬と同じ効果として扱う
     case antidote
-    /// 毒・足枷・幻惑状態を解除する
+    /// 毒・足枷・幻惑・千鳥足状態を解除する
     case panacea
+
+    public static let allCases: [SupportCard] = [
+        .refillEmptySlots,
+        .singleAnnihilationSpell,
+        .annihilationSpell,
+        .freezeSpell,
+        .barrierSpell,
+        .darknessSpell,
+        .railBreakSpell,
+        .flySpell,
+        .panacea
+    ]
 
     public var displayName: String {
         switch self {
@@ -41,9 +53,7 @@ public enum SupportCard: String, CaseIterable, Codable, Hashable, Sendable {
             return "レール破壊の呪文"
         case .flySpell:
             return "フライの呪文"
-        case .antidote:
-            return "解毒薬"
-        case .panacea:
+        case .antidote, .panacea:
             return "万能薬"
         }
     }
@@ -75,10 +85,8 @@ public enum SupportCard: String, CaseIterable, Codable, Hashable, Sendable {
             return "移動せず 1 手使い、この階にいる間、巡回兵のレール移動を封じます。巡回兵の攻撃は残ります。"
         case .flySpell:
             return "移動せず 1 手使い、この階にいる間、罠、溶岩、崩落床、状態罠、手札喪失罠、沼、吹き飛ばしを無効化します。ワープ、回復、拾得、敵の攻撃は通常どおり残ります。"
-        case .antidote:
-            return "移動せず 1 手使い、毒状態を解除します。毒でない時は使えません。"
-        case .panacea:
-            return "移動せず 1 手使い、毒・足枷・幻惑状態を解除します。解除する状態がない時は使えません。"
+        case .antidote, .panacea:
+            return "移動せず 1 手使い、毒・足枷・幻惑・千鳥足状態を解除します。解除する状態がない時は使えません。"
         }
     }
 

@@ -289,6 +289,7 @@ extension GameViewModel {
             currentFloorCrackedPoints: core.crackedFloorPoints,
             currentFloorCollapsedPoints: core.collapsedFloorPoints,
             currentFloorConsumedHealingTilePoints: core.consumedHealingTilePoints,
+            currentFloorConsumedDamageTrapPoints: core.consumedDamageTrapPoints,
             currentFloorCollectedDungeonCardPickupIDs: core.collectedDungeonCardPickupIDs,
             currentFloorCollectedDungeonSpecialPickupIDs: core.collectedDungeonSpecialPickupIDs,
             currentFloorEnemyStates: core.enemyStates,

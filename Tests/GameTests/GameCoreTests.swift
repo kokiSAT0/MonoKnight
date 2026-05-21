@@ -97,7 +97,7 @@ final class GameCoreTests: XCTestCase {
         core.playCard(using: move)
 
         XCTAssertEqual(core.current, GridPoint(x: 2, y: 2), "進入方向ではなく床に表示された方向へ吹き飛び、障害物直前で止まります")
-        XCTAssertEqual(core.lastMovementResolution?.path, [blastPoint, GridPoint(x: 2, y: 2)])
+        XCTAssertEqual(core.lastMovementResolution?.path, [GridPoint(x: 1, y: 1), blastPoint, GridPoint(x: 2, y: 2)])
     }
 
     func testBlastTileDoesNotMoveWhenNextTileIsBlocked() throws {
@@ -116,7 +116,7 @@ final class GameCoreTests: XCTestCase {
         core.playCard(using: move)
 
         XCTAssertEqual(core.current, blastPoint)
-        XCTAssertEqual(core.lastMovementResolution?.path, [blastPoint])
+        XCTAssertEqual(core.lastMovementResolution?.path, [GridPoint(x: 1, y: 1), blastPoint])
     }
 
     func testBasicOrthogonalMoveAppliesBlastTile() throws {
@@ -594,7 +594,7 @@ final class GameCoreTests: XCTestCase {
 
         let dangerMove = try XCTUnwrap(core.availableBasicOrthogonalMoves().first { $0.destination == GridPoint(x: 4, y: 0) })
         core.playBasicOrthogonalMove(using: dangerMove)
-        XCTAssertEqual(core.dungeonHP, 2)
+        XCTAssertEqual(core.dungeonHP, 1)
     }
 
     func testBarrierSpellProtectsMarkerDamageWithoutConsumingMitigation() throws {
@@ -1062,27 +1062,34 @@ final class GameCoreTests: XCTestCase {
         XCTAssertTrue(restoredCore.enemyPatrolMovementPreviews.isEmpty)
     }
 
-    func testAntidoteClearsPoisonAndConsumesOneTurn() throws {
+    func testLegacyAntidoteClearsRecoverableStatusAndConsumesOneTurn() throws {
         let poisonTrap = GridPoint(x: 1, y: 0)
+        let shackleTrap = GridPoint(x: 1, y: 1)
         let mode = makeInventoryDungeonMode(
             spawn: GridPoint(x: 0, y: 0),
             exit: GridPoint(x: 4, y: 4),
-            tileEffectOverrides: [poisonTrap: .poisonTrap],
+            tileEffectOverrides: [
+                poisonTrap: .poisonTrap,
+                shackleTrap: .shackleTrap
+            ],
             allowsBasicOrthogonalMove: true
         )
         let core = GameCore(mode: mode)
         XCTAssertTrue(core.addDungeonInventorySupportCardForTesting(.antidote, rewardUses: 1))
         let move = try XCTUnwrap(core.availableBasicOrthogonalMoves().first { $0.destination == poisonTrap })
         core.playBasicOrthogonalMove(using: move)
+        playBasicMove(to: shackleTrap, in: core)
         let supportIndex = try XCTUnwrap(core.handStacks.firstIndex { $0.topCard?.supportCard == .antidote })
 
+        XCTAssertTrue(core.isShackled)
         XCTAssertTrue(core.isSupportCardUsable(in: core.handStacks[supportIndex]))
         core.playSupportCard(at: supportIndex)
 
+        XCTAssertFalse(core.isShackled)
         XCTAssertEqual(core.poisonDamageTicksRemaining, 0)
         XCTAssertEqual(core.poisonActionsUntilNextDamage, 0)
         XCTAssertFalse(core.dungeonInventoryEntries.contains { $0.supportCard == .antidote })
-        XCTAssertEqual(core.moveCount, 2)
+        XCTAssertEqual(core.moveCount, 3)
     }
 
     func testPanaceaClearsPoisonAndShackleThenNextActionUsesNormalCost() throws {
@@ -1116,7 +1123,7 @@ final class GameCoreTests: XCTestCase {
         XCTAssertEqual(core.moveCount, 4)
     }
 
-    func testAntidoteRequiresPoisonButPanaceaCanCureShackleOnly() throws {
+    func testLegacyAntidoteAndPanaceaCanCureShackleOnly() throws {
         let shackleTrap = GridPoint(x: 1, y: 0)
         let mode = makeInventoryDungeonMode(
             spawn: GridPoint(x: 0, y: 0),
@@ -1131,8 +1138,46 @@ final class GameCoreTests: XCTestCase {
         let antidoteIndex = try XCTUnwrap(core.handStacks.firstIndex { $0.topCard?.supportCard == .antidote })
         let panaceaIndex = try XCTUnwrap(core.handStacks.firstIndex { $0.topCard?.supportCard == .panacea })
 
-        XCTAssertFalse(core.isSupportCardUsable(in: core.handStacks[antidoteIndex]))
+        XCTAssertTrue(core.isSupportCardUsable(in: core.handStacks[antidoteIndex]))
         XCTAssertTrue(core.isSupportCardUsable(in: core.handStacks[panaceaIndex]))
+    }
+
+    func testPanaceaClearsStaggerFromResumeSnapshot() throws {
+        let spawn = GridPoint(x: 0, y: 0)
+        let mode = makeInventoryDungeonMode(
+            spawn: spawn,
+            exit: GridPoint(x: 4, y: 4)
+        )
+        let core = GameCore(mode: mode)
+        let snapshot = DungeonRunResumeSnapshot(
+            dungeonID: "test-dungeon",
+            floorIndex: 0,
+            runState: DungeonRunState(dungeonID: "test-dungeon", carriedHP: 3),
+            currentPoint: spawn,
+            visitedPoints: [spawn],
+            moveCount: 0,
+            elapsedSeconds: 0,
+            dungeonHP: 3,
+            hazardDamageMitigationsRemaining: 0,
+            staggerForcedMovesRemaining: 2,
+            enemyStates: [],
+            crackedFloorPoints: [],
+            collapsedFloorPoints: [],
+            dungeonInventoryEntries: [DungeonInventoryEntry(support: .panacea, rewardUses: 1)],
+            collectedDungeonCardPickupIDs: [],
+            isDungeonExitUnlocked: true
+        )
+
+        XCTAssertTrue(core.restoreDungeonResumeSnapshot(snapshot))
+        let supportIndex = try XCTUnwrap(core.handStacks.firstIndex { $0.topCard?.supportCard == .panacea })
+        XCTAssertEqual(core.staggerForcedMovesRemaining, 2)
+        XCTAssertTrue(core.isSupportCardUsable(in: core.handStacks[supportIndex]))
+
+        core.playSupportCard(at: supportIndex)
+
+        XCTAssertEqual(core.staggerForcedMovesRemaining, 0)
+        XCTAssertFalse(core.dungeonInventoryEntries.contains { $0.supportCard == .panacea })
+        XCTAssertEqual(core.moveCount, 1)
     }
 
     func testRemediesCannotBeSpentWithoutStatusAilments() throws {

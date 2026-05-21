@@ -49,9 +49,8 @@ final class GameViewModel: ObservableObject {
     var previousDisplayedHandStacksForAdditionEffect: [HandStack] = []
     /// 短命エフェクトを消すための世代番号
     var handAdditionEffectGeneration: Int = 0
-    /// レリック発動エフェクトを消すための世代番号
-    var dungeonRelicActivationEffectGenerations: [DungeonRelicID: Int] = [:]
-    static var dungeonRelicActivationEffectDurationNanoseconds: UInt64 = 800_000_000
+    /// レリック発動エフェクトを出し続ける基準手数
+    var dungeonRelicActivationMoveCounts: [DungeonRelicID: Int] = [:]
     /// 移動演出中だけ利用する HP 表示上書き
     @Published var movementPresentationDungeonHP: Int?
     /// 移動演出中は手札/HP の通常同期を一時停止する

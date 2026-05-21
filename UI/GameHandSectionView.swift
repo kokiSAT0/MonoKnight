@@ -440,10 +440,8 @@ private extension GameHandSectionView {
                 return "ダブルタップで 1 手使い、この階の巡回兵のレール移動を封じます。"
             case .flySpell:
                 return "ダブルタップで 1 手使い、この階の危険床系ギミックを無効化します。"
-            case .antidote:
-                return "ダブルタップで 1 手使い、毒状態を解除します。"
-            case .panacea:
-                return "ダブルタップで 1 手使い、毒、足枷、幻惑状態を解除します。"
+            case .antidote, .panacea:
+                return "ダブルタップで 1 手使い、毒、足枷、幻惑、千鳥足状態を解除します。"
             }
         }
 
@@ -777,7 +775,12 @@ private struct DungeonRelicIconView: View {
         .frame(width: 44, height: 44)
         .opacity(isUsedUp ? 0.78 : 1.0)
         .scaleEffect(isActivated ? 1.08 : 1.0)
-        .animation(.easeInOut(duration: 0.18).repeatCount(isActivated ? 3 : 1, autoreverses: true), value: isActivated)
+        .animation(
+            isActivated
+                ? .easeInOut(duration: 0.45).repeatForever(autoreverses: true)
+                : .easeOut(duration: 0.18),
+            value: isActivated
+        )
     }
 }
 
@@ -996,9 +999,7 @@ private struct SupportCardIllustrationView: View {
             return "point.topleft.down.to.point.bottomright.curvepath"
         case .flySpell:
             return "wind"
-        case .antidote:
-            return "cross.case.fill"
-        case .panacea:
+        case .antidote, .panacea:
             return "pills.fill"
         }
     }

@@ -245,7 +245,7 @@ struct DungeonStatusEffectPresentation: Identifiable, Equatable {
             symbolName: "skull.fill",
             badgeText: "\(actionsUntilNextDamage)",
             currentValueText: "次の毒ダメージまで \(actionsUntilNextDamage) 行動、残り \(ticksRemaining) 回",
-            detailText: "成功行動の後にカウントが進み、一定間隔でHPを1失います。解毒薬または万能薬で解除できます。",
+            detailText: "成功行動の後にカウントが進み、一定間隔でHPを1失います。万能薬で解除できます。",
             accessibilityLabel: "毒状態",
             accessibilityValue: "次の毒ダメージまで\(actionsUntilNextDamage)行動、残り\(ticksRemaining)回"
         )

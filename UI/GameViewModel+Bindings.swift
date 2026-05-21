@@ -98,6 +98,7 @@ extension GameViewModel {
                 if moveCount == 0 {
                     self?.displayedLockedExitReachNoticeKeys.removeAll()
                 }
+                self?.handleDungeonRelicActivationMoveCountChange(moveCount)
                 self?.saveCurrentDungeonResumeIfPossible()
             }
             .store(in: &cancellables)
@@ -238,19 +239,32 @@ extension GameViewModel {
     }
 
     func handleDungeonRelicActivationEvent(_ event: DungeonRelicActivationEvent) {
-        let nextGeneration = (dungeonRelicActivationEffectGenerations[event.relicID] ?? 0) + 1
-        dungeonRelicActivationEffectGenerations[event.relicID] = nextGeneration
+        dungeonRelicActivationMoveCounts[event.relicID] = core.moveCount
         withAnimation(.easeOut(duration: 0.12)) {
             activeDungeonRelicActivationIDs.insert(event.relicID)
         }
-        Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: Self.dungeonRelicActivationEffectDurationNanoseconds)
-            guard let self,
-                  self.dungeonRelicActivationEffectGenerations[event.relicID] == nextGeneration
-            else { return }
+    }
+
+    func handleDungeonRelicActivationMoveCountChange(_ moveCount: Int) {
+        if moveCount == 0 {
+            dungeonRelicActivationMoveCounts.removeAll()
+            guard !activeDungeonRelicActivationIDs.isEmpty else { return }
             withAnimation(.easeOut(duration: 0.2)) {
-                self.activeDungeonRelicActivationIDs.remove(event.relicID)
+                activeDungeonRelicActivationIDs.removeAll()
             }
+            return
+        }
+
+        let expiredRelics = dungeonRelicActivationMoveCounts.compactMap { relicID, activationMoveCount in
+            moveCount > activationMoveCount ? relicID : nil
+        }
+        guard !expiredRelics.isEmpty else { return }
+
+        for relicID in expiredRelics {
+            dungeonRelicActivationMoveCounts[relicID] = nil
+        }
+        withAnimation(.easeOut(duration: 0.2)) {
+            activeDungeonRelicActivationIDs.subtract(expiredRelics)
         }
     }
 

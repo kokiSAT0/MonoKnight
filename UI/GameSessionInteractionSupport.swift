@@ -152,6 +152,7 @@ struct GameSessionState {
 
 @MainActor
 struct GameInputFlowCoordinator {
+    @discardableResult
     func handleHandSlotTap(
         at index: Int,
         core: GameCore,
@@ -163,10 +164,10 @@ struct GameInputFlowCoordinator {
         basicMoveSlotIndex: Int?,
         presentsBasicMoveCard: Bool,
         presentInputWarning: (String, GridPoint) -> Void
-    ) {
-        guard !boardBridge.isInputAnimationActive else { return }
+    ) -> Bool {
+        guard !boardBridge.isInputAnimationActive || core.isAwaitingDungeonPickupChoice else { return false }
         if presentsBasicMoveCard, let basicMoveSlotIndex, index == basicMoveSlotIndex {
-            guard !core.isAwaitingDungeonPickupChoice else { return }
+            guard !core.isAwaitingDungeonPickupChoice else { return false }
             handleBasicMoveSlotTap(
                 core: core,
                 boardBridge: boardBridge,
@@ -175,9 +176,9 @@ struct GameInputFlowCoordinator {
                 hapticsEnabled: hapticsEnabled,
                 presentInputWarning: presentInputWarning
             )
-            return
+            return false
         }
-        guard core.handStacks.indices.contains(index) else { return }
+        guard core.handStacks.indices.contains(index) else { return false }
 
         let latestStack = core.handStacks[index]
 
@@ -187,14 +188,16 @@ struct GameInputFlowCoordinator {
                 boardBridge: boardBridge,
                 selectedHandStackID: &selectedHandStackID
             )
-            guard let playable = latestStack.representativePlayable else { return }
+            guard let playable = latestStack.representativePlayable else { return false }
+            var didReplacePendingPickup = false
             withAnimation(.easeInOut(duration: 0.2)) {
                 let success = core.replaceDungeonInventoryEntryForPendingPickup(discarding: playable)
+                didReplacePendingPickup = success
                 if success, hapticsEnabled {
                     UINotificationFeedbackGenerator().notificationOccurred(.success)
                 }
             }
-            return
+            return didReplacePendingPickup
         }
 
         if core.isAwaitingManualDiscardSelection {
@@ -209,7 +212,7 @@ struct GameInputFlowCoordinator {
                     UINotificationFeedbackGenerator().notificationOccurred(.warning)
                 }
             }
-            return
+            return false
         }
 
         guard let topCard = latestStack.topCard else {
@@ -218,7 +221,7 @@ struct GameInputFlowCoordinator {
                 boardBridge: boardBridge,
                 selectedHandStackID: &selectedHandStackID
             )
-            return
+            return false
         }
 
         if sessionState.isSelected(stackID: latestStack.id) {
@@ -228,7 +231,7 @@ struct GameInputFlowCoordinator {
                 boardBridge: boardBridge,
                 selectedHandStackID: &selectedHandStackID
             )
-            return
+            return false
         }
 
         guard core.progress == .playing else {
@@ -237,7 +240,7 @@ struct GameInputFlowCoordinator {
                 boardBridge: boardBridge,
                 selectedHandStackID: &selectedHandStackID
             )
-            return
+            return false
         }
 
         if let support = topCard.supportCard {
@@ -252,7 +255,7 @@ struct GameInputFlowCoordinator {
                     core.current ?? GridPoint(x: 0, y: 0)
                 )
                 playInvalidInputFeedback(boardBridge: boardBridge, point: core.current, hapticsEnabled: hapticsEnabled)
-                return
+                return false
             }
             if support.requiresEnemyTargetSelection {
                 guard core.beginTargetedSupportCardSelection(at: index) else {
@@ -266,7 +269,7 @@ struct GameInputFlowCoordinator {
                         core.current ?? GridPoint(x: 0, y: 0)
                     )
                     playInvalidInputFeedback(boardBridge: boardBridge, point: core.current, hapticsEnabled: hapticsEnabled)
-                    return
+                    return false
                 }
                 sessionState.updateSelection(
                     stackID: latestStack.id,
@@ -278,7 +281,7 @@ struct GameInputFlowCoordinator {
                     boardBridge: boardBridge,
                     selectedHandStackID: &selectedHandStackID
                 )
-                return
+                return false
             }
             clearSelectedCardSelection(
                 sessionState: &sessionState,
@@ -289,7 +292,7 @@ struct GameInputFlowCoordinator {
             if hapticsEnabled {
                 UINotificationFeedbackGenerator().notificationOccurred(.success)
             }
-            return
+            return false
         }
 
         if core.isIlluded {
@@ -301,10 +304,10 @@ struct GameInputFlowCoordinator {
             )
             guard let randomMove = core.randomIllusionMove() else {
                 playInvalidInputFeedback(boardBridge: boardBridge, point: core.current, hapticsEnabled: hapticsEnabled)
-                return
+                return false
             }
             _ = boardBridge.animateCardPlay(using: randomMove)
-            return
+            return false
         }
 
         core.cancelTargetedSupportCardSelection()
@@ -319,7 +322,7 @@ struct GameInputFlowCoordinator {
                 core.current ?? GridPoint(x: 0, y: 0)
             )
             playInvalidInputFeedback(boardBridge: boardBridge, point: core.current, hapticsEnabled: hapticsEnabled)
-            return
+            return false
         }
 
         let resolvedMoves = core.availableMoves().filter { candidate in
@@ -332,7 +335,7 @@ struct GameInputFlowCoordinator {
                 boardBridge: boardBridge,
                 selectedHandStackID: &selectedHandStackID
             )
-            return
+            return false
         }
 
         if guideModeEnabled, resolvedMoves.count == 1, let singleMove = resolvedMoves.first {
@@ -342,7 +345,7 @@ struct GameInputFlowCoordinator {
                 selectedHandStackID: &selectedHandStackID
             )
             _ = boardBridge.animateCardPlay(using: singleMove)
-            return
+            return false
         }
 
         sessionState.updateSelection(
@@ -356,6 +359,7 @@ struct GameInputFlowCoordinator {
             using: resolvedMoves,
             selectedHandStackID: &selectedHandStackID
         )
+        return false
     }
 
     private func handleBasicMoveSlotTap(
@@ -683,10 +687,11 @@ struct GameInputFlowCoordinator {
                 return "危険床系ギミックがないため使えません"
             }
             return core.isFlySpellActive ? "フライの呪文はすでに有効です" : nil
-        case .antidote:
-            return core.poisonDamageTicksRemaining > 0 ? nil : "毒状態ではないため使えません"
-        case .panacea:
-            let hasRecoverableState = core.poisonDamageTicksRemaining > 0 || core.isShackled || core.isIlluded
+        case .antidote, .panacea:
+            let hasRecoverableState = core.poisonDamageTicksRemaining > 0
+                || core.isShackled
+                || core.isIlluded
+                || core.staggerForcedMovesRemaining > 0
             return hasRecoverableState ? nil : "解除する状態異常がありません"
         }
     }

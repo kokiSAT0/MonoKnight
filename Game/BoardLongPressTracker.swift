@@ -19,6 +19,7 @@ struct BoardTouchLocation: Equatable {
 struct BoardLongPressTracker {
     enum EndAction: Equatable {
         case tap(GridPoint)
+        case longPress(GridPoint)
         case none
     }
 
@@ -47,14 +48,16 @@ struct BoardLongPressTracker {
         activeTouch = ActiveTouch(point: point, location: location, timestamp: timestamp)
     }
 
-    mutating func updateLocation(to point: GridPoint?, location: BoardTouchLocation) {
-        guard let activeTouch else { return }
+    @discardableResult
+    mutating func updateLocation(to point: GridPoint?, location: BoardTouchLocation) -> Bool {
+        guard let activeTouch else { return false }
         guard point == activeTouch.point,
               activeTouch.location.distance(to: location) <= movementTolerance
         else {
             self.activeTouch = nil
-            return
+            return false
         }
+        return true
     }
 
     mutating func fireIfReady(at timestamp: TimeInterval) -> GridPoint? {
@@ -68,7 +71,7 @@ struct BoardLongPressTracker {
         return activeTouch.point
     }
 
-    mutating func end(at point: GridPoint?, location: BoardTouchLocation) -> EndAction {
+    mutating func end(at point: GridPoint?, location: BoardTouchLocation, timestamp: TimeInterval) -> EndAction {
         defer { activeTouch = nil }
         guard let activeTouch else { return .none }
         guard !activeTouch.didFireLongPress else { return .none }
@@ -76,6 +79,9 @@ struct BoardLongPressTracker {
               activeTouch.location.distance(to: location) <= movementTolerance
         else {
             return .none
+        }
+        if timestamp - activeTouch.timestamp + .ulpOfOne >= minimumDuration {
+            return .longPress(activeTouch.point)
         }
         return .tap(activeTouch.point)
     }
