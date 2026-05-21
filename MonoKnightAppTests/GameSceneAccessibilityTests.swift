@@ -720,12 +720,15 @@ final class GameSceneAccessibilityTests: XCTestCase {
                 path: [
                     GridPoint(x: 1, y: 1),
                     GridPoint(x: 2, y: 1),
-                    GridPoint(x: 3, y: 1)
+                    GridPoint(x: 3, y: 1),
+                    GridPoint(x: 3, y: 2),
+                    GridPoint(x: 2, y: 2),
+                    GridPoint(x: 1, y: 2)
                 ]
             )
         ])
 
-        XCTAssertEqual(scene.patrolRailCountForTesting(), 1, "巡回兵1体につきレールを1本表示する想定です")
+        XCTAssertEqual(scene.patrolRailCountForTesting(), 1, "閉じたループレールも巡回兵1体につき1本のレールとして表示する想定です")
         XCTAssertEqual(scene.patrolMovementArrowCountForTesting(), 0, "巡回兵の次方向は黄色い別矢印では表示しません")
         guard let railStyle = scene.patrolRailStyleForTesting(enemyID: "patrol") else {
             XCTFail("巡回レールの描画スタイルを取得できません")

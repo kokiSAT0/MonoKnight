@@ -1,5 +1,28 @@
 import Foundation
 
+private let minimumRailPatrolUniquePointCount = 4
+private let minimumRailPatrolPathLength = 6
+private let minimumLoopRailPatrolUniquePointCount = 6
+
+private func expandedRailPatrolPath(from points: [GridPoint], pathLength: Int) -> [GridPoint] {
+    guard points.count > 1 else { return points }
+    let bounce = points + points.dropLast().dropFirst().reversed()
+    var path: [GridPoint] = []
+    while path.count < pathLength {
+        path.append(contentsOf: bounce)
+    }
+    return Array(path.prefix(pathLength))
+}
+
+private func isClosedRailPatrolLoop(_ path: [GridPoint]) -> Bool {
+    guard path.count >= minimumRailPatrolUniquePointCount,
+          Set(path).count == path.count,
+          let first = path.first,
+          let last = path.last
+    else { return false }
+    return abs(first.x - last.x) + abs(first.y - last.y) == 1
+}
+
 /// 塔ダンジョンの難度と成長持ち込み方針
 public enum DungeonDifficulty: String, Codable, Equatable, Sendable {
     /// 操作と基本ルールを学ぶチュートリアル塔
@@ -4077,8 +4100,13 @@ public struct EnemyState: Codable, Equatable, Identifiable, Sendable {
         position = definition.position
         behavior = definition.behavior
         damage = definition.damage
-        patrolIndex = 0
+        patrolIndex = Self.initialPatrolIndex(position: definition.position, behavior: definition.behavior)
         rotationIndex = 0
+    }
+
+    private static func initialPatrolIndex(position: GridPoint, behavior: EnemyBehavior) -> Int {
+        guard case .patrol(let path) = behavior else { return 0 }
+        return path.firstIndex(of: position) ?? 0
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -5300,15 +5328,23 @@ private enum RogueTowerFloorGenerator {
         randomizer: inout DungeonCardVariationRandomizer
     ) -> [GridPoint] {
         let orderedDirections = rotatedDirections(randomizer: &randomizer)
+        let loopPaths = patrolLoopPaths(from: start, directions: orderedDirections, avoiding: blocked)
+        if !loopPaths.isEmpty,
+           randomizer.nextIndex(upperBound: 3) == 0 {
+            return loopPaths[randomizer.nextIndex(upperBound: loopPaths.count)]
+        }
         if let line = orderedDirections
             .map({ patrolLine(from: start, direction: $0, avoiding: blocked) })
-            .first(where: { $0.count >= 2 }) {
-            let bounce = line + line.dropLast().dropFirst().reversed()
-            return Array(bounce.prefix(max(4, bounce.count)))
+            .first(where: { $0.count >= minimumRailPatrolUniquePointCount }) {
+            return expandedRailPatrolPath(from: line, pathLength: minimumRailPatrolPathLength)
         }
-        let line = [start] + neighbors(of: start).filter { !blocked.contains($0) }
-        let bounce = line + line.dropLast().dropFirst().reversed()
-        return Array(bounce.prefix(max(4, bounce.count)))
+        if let turn = patrolTurnPath(from: start, directions: orderedDirections, avoiding: blocked) {
+            return expandedRailPatrolPath(from: turn, pathLength: minimumRailPatrolPathLength)
+        }
+        if !loopPaths.isEmpty {
+            return loopPaths[randomizer.nextIndex(upperBound: loopPaths.count)]
+        }
+        return []
     }
 
     private static func patrolLine(
@@ -5325,6 +5361,111 @@ private enum RogueTowerFloorGenerator {
             result.append(point)
         }
         return result
+    }
+
+    private static func patrolTurnPath(
+        from start: GridPoint,
+        directions: [MoveVector],
+        avoiding blocked: Set<GridPoint>
+    ) -> [GridPoint]? {
+        for firstDirection in directions {
+            let firstLeg = patrolLine(from: start, direction: firstDirection, avoiding: blocked)
+            guard firstLeg.count >= 2 else { continue }
+
+            for turnIndex in 1..<firstLeg.count {
+                let turn = firstLeg[turnIndex]
+                for secondDirection in directions where secondDirection != firstDirection {
+                    var path = Array(firstLeg.prefix(through: turnIndex))
+                    for step in 1...minimumRailPatrolUniquePointCount {
+                        let point = GridPoint(x: turn.x + secondDirection.dx * step, y: turn.y + secondDirection.dy * step)
+                        guard point.isInside(boardSize: boardSize), !blocked.contains(point), !path.contains(point) else {
+                            break
+                        }
+                        path.append(point)
+                        if path.count >= minimumRailPatrolUniquePointCount {
+                            return path
+                        }
+                    }
+                }
+            }
+        }
+        return nil
+    }
+
+    private static func patrolLoopPaths(
+        from start: GridPoint,
+        directions: [MoveVector],
+        avoiding blocked: Set<GridPoint>
+    ) -> [[GridPoint]] {
+        let loopSizes = [(width: 3, height: 2), (width: 2, height: 3), (width: 3, height: 3)]
+        var candidates: [[GridPoint]] = []
+        for horizontalDirection in directions {
+            for verticalDirection in directions where isPerpendicular(horizontalDirection, verticalDirection) {
+                for size in loopSizes {
+                    let path = rectangleLoopPath(
+                        from: start,
+                        horizontalDirection: horizontalDirection,
+                        verticalDirection: verticalDirection,
+                        width: size.width,
+                        height: size.height
+                    )
+                    guard path.count >= minimumLoopRailPatrolUniquePointCount,
+                          path.allSatisfy({ $0.isInside(boardSize: boardSize) && !blocked.contains($0) }),
+                          isClosedRailPatrolLoop(path)
+                    else { continue }
+                    candidates.append(path)
+                }
+            }
+        }
+        return candidates
+    }
+
+    private static func rectangleLoopPath(
+        from start: GridPoint,
+        horizontalDirection: MoveVector,
+        verticalDirection: MoveVector,
+        width: Int,
+        height: Int
+    ) -> [GridPoint] {
+        var path: [GridPoint] = []
+        for offset in 0..<width {
+            path.append(GridPoint(
+                x: start.x + horizontalDirection.dx * offset,
+                y: start.y + horizontalDirection.dy * offset
+            ))
+        }
+        let topRight = path[path.count - 1]
+        if height > 1 {
+            for offset in 1..<height {
+                path.append(GridPoint(
+                    x: topRight.x + verticalDirection.dx * offset,
+                    y: topRight.y + verticalDirection.dy * offset
+                ))
+            }
+        }
+        let bottomRight = path[path.count - 1]
+        if width > 1 {
+            for offset in 1..<width {
+                path.append(GridPoint(
+                    x: bottomRight.x - horizontalDirection.dx * offset,
+                    y: bottomRight.y - horizontalDirection.dy * offset
+                ))
+            }
+        }
+        let bottomLeft = path[path.count - 1]
+        if height > 2 {
+            for offset in 1..<(height - 1) {
+                path.append(GridPoint(
+                    x: bottomLeft.x - verticalDirection.dx * offset,
+                    y: bottomLeft.y - verticalDirection.dy * offset
+                ))
+            }
+        }
+        return path
+    }
+
+    private static func isPerpendicular(_ lhs: MoveVector, _ rhs: MoveVector) -> Bool {
+        lhs.dx * rhs.dx + lhs.dy * rhs.dy == 0
     }
 
     private static func rotatedDirections(randomizer: inout DungeonCardVariationRandomizer) -> [MoveVector] {
@@ -5826,7 +5967,9 @@ private enum DungeonCardVariationResolver {
             guard case .patrol(let path) = enemy.behavior else { return enemy }
 
             let pathPoints = Set(path)
-            if pathPoints.isDisjoint(with: reserved),
+            if pathPoints.count >= minimumRailPatrolUniquePointCount,
+               path.count >= minimumRailPatrolPathLength,
+               pathPoints.isDisjoint(with: reserved),
                DungeonPatrolRouteValidator.isValidPatrolPath(
                 path,
                 boardSize: floor.boardSize,
@@ -5837,11 +5980,11 @@ private enum DungeonCardVariationResolver {
                 return enemy
             }
 
-            let uniqueCount = max(2, min(Set(path).count, 5))
+            let uniqueCount = max(minimumRailPatrolUniquePointCount, min(Set(path).count, 5))
             let candidates = candidatePatrolPaths(
                 boardSize: floor.boardSize,
                 uniqueCount: uniqueCount,
-                pathLength: max(path.count, uniqueCount),
+                pathLength: max(max(path.count, uniqueCount), minimumRailPatrolPathLength),
                 reserved: reserved
             ).filter {
                 DungeonPatrolRouteValidator.isValidPatrolPath(
@@ -6061,11 +6204,11 @@ private enum DungeonCardVariationResolver {
             let position: GridPoint
             switch enemy.behavior {
             case .patrol(let path):
-                let uniqueCount = max(2, min(Set(path).count, 5))
+                let uniqueCount = max(minimumRailPatrolUniquePointCount, min(Set(path).count, 5))
                 let candidates = candidatePatrolPaths(
                     boardSize: floor.boardSize,
                     uniqueCount: uniqueCount,
-                    pathLength: max(path.count, uniqueCount),
+                    pathLength: max(max(path.count, uniqueCount), minimumRailPatrolPathLength),
                     reserved: reserved
                 )
                 guard !candidates.isEmpty else { continue }
@@ -6123,11 +6266,11 @@ private enum DungeonCardVariationResolver {
                 range: range
             )
         case .patrol(let path):
-            let uniqueCount = max(2, min(Set(path).count, 5))
+            let uniqueCount = max(minimumRailPatrolUniquePointCount, min(Set(path).count, minimumLoopRailPatrolUniquePointCount))
             let candidates = candidatePatrolPaths(
                 boardSize: floor.boardSize,
                 uniqueCount: uniqueCount,
-                pathLength: max(path.count, uniqueCount),
+                pathLength: max(max(path.count, uniqueCount), minimumRailPatrolPathLength),
                 reserved: reserved
             )
             guard !candidates.isEmpty else { return behavior }
@@ -6954,9 +7097,89 @@ private enum DungeonCardVariationResolver {
                         }
                     }
                 }
+                candidates.append(contentsOf: candidateLoopPatrolPaths(
+                    from: start,
+                    boardSize: boardSize,
+                    reserved: reserved
+                ))
             }
         }
         return candidates
+    }
+
+    private static func candidateLoopPatrolPaths(
+        from start: GridPoint,
+        boardSize: Int,
+        reserved: Set<GridPoint>
+    ) -> [[GridPoint]] {
+        let loopSizes = [(width: 3, height: 2), (width: 2, height: 3)]
+        var candidates: [[GridPoint]] = []
+        for horizontalDirection in orthogonalDirections {
+            for verticalDirection in orthogonalDirections where isPerpendicular(horizontalDirection, verticalDirection) {
+                for size in loopSizes {
+                    let path = rectangleLoopPath(
+                        from: start,
+                        horizontalDirection: horizontalDirection,
+                        verticalDirection: verticalDirection,
+                        width: size.width,
+                        height: size.height
+                    )
+                    guard path.allSatisfy({ $0.isInside(boardSize: boardSize) && !reserved.contains($0) }),
+                          isClosedRailPatrolLoop(path)
+                    else { continue }
+                    candidates.append(path)
+                }
+            }
+        }
+        return candidates
+    }
+
+    private static func rectangleLoopPath(
+        from start: GridPoint,
+        horizontalDirection: MoveVector,
+        verticalDirection: MoveVector,
+        width: Int,
+        height: Int
+    ) -> [GridPoint] {
+        var path: [GridPoint] = []
+        for offset in 0..<width {
+            path.append(GridPoint(
+                x: start.x + horizontalDirection.dx * offset,
+                y: start.y + horizontalDirection.dy * offset
+            ))
+        }
+        let topRight = path[path.count - 1]
+        if height > 1 {
+            for offset in 1..<height {
+                path.append(GridPoint(
+                    x: topRight.x + verticalDirection.dx * offset,
+                    y: topRight.y + verticalDirection.dy * offset
+                ))
+            }
+        }
+        let bottomRight = path[path.count - 1]
+        if width > 1 {
+            for offset in 1..<width {
+                path.append(GridPoint(
+                    x: bottomRight.x - horizontalDirection.dx * offset,
+                    y: bottomRight.y - horizontalDirection.dy * offset
+                ))
+            }
+        }
+        let bottomLeft = path[path.count - 1]
+        if height > 2 {
+            for offset in 1..<(height - 1) {
+                path.append(GridPoint(
+                    x: bottomLeft.x - verticalDirection.dx * offset,
+                    y: bottomLeft.y - verticalDirection.dy * offset
+                ))
+            }
+        }
+        return path
+    }
+
+    private static func isPerpendicular(_ lhs: MoveVector, _ rhs: MoveVector) -> Bool {
+        lhs.dx * rhs.dx + lhs.dy * rhs.dy == 0
     }
 
     private static func expandedPatrolPath(from points: [GridPoint], pathLength: Int) -> [GridPoint] {
@@ -7579,12 +7802,14 @@ public struct DungeonLibrary {
                     EnemyDefinition(
                         id: "tutorial-6-patrol",
                         name: "巡回兵",
-                        position: GridPoint(x: 4, y: 4),
+                        position: GridPoint(x: 3, y: 4),
                         behavior: .patrol(path: [
+                            GridPoint(x: 3, y: 4),
                             GridPoint(x: 4, y: 4),
                             GridPoint(x: 5, y: 4),
-                            GridPoint(x: 4, y: 4),
-                            GridPoint(x: 3, y: 4)
+                            GridPoint(x: 6, y: 4),
+                            GridPoint(x: 5, y: 4),
+                            GridPoint(x: 4, y: 4)
                         ])
                     )
                 ],
@@ -8803,7 +9028,7 @@ public struct DungeonLibrary {
             makeGrowthTowerDeepFloor(number: 34, title: "暗闇の薬棚", turnLimit: 16, enemies: [growthRotatingWatcher("growth-34-rotating", position: (6, 3), direction: (-1, 0), rotation: .counterclockwise, range: 4), growthChaser("growth-34-chaser", position: (5, 6))], hazards: [.damageTrap(points: gridSet([(2, 2), (6, 5)]), damage: 1), .healingTile(points: gridSet([(3, 5)]), amount: 1)], impassableTilePoints: gridSet([(2, 6), (4, 2), (7, 4)]), tileEffectOverrides: gridEffects([((5, 4), .poisonTrap)]), cardPickups: growthCards(34, [((1, 5), .straightUp2), ((3, 6), .diagonalDownRight2), ((6, 2), .rayLeft)]), rewardMoveCardsAfterClear: [.rayRight, .diagonalUpRight2, .knightRightwardChoice], rewardSupportCardsAfterClear: [.darknessSpell, .antidote], isDarknessEnabled: true),
             makeGrowthTowerDeepFloor(number: 35, title: "第四関門・暗闇巡回", turnLimit: 16, enemies: [growthPatrol("growth-35-patrol", [(2, 4), (3, 4), (4, 4), (5, 4), (6, 4), (7, 4), (6, 4), (5, 4)]), growthMarker("growth-35-marker", position: (6, 6), range: 3), growthChaser("growth-35-chaser", position: (2, 6))], hazards: [.damageTrap(points: gridSet([(3, 2), (5, 6)]), damage: 1), .brittleFloor(points: gridSet([(3, 3), (4, 3)]), initialState: .hiddenWeak)], impassableTilePoints: fallSecret36.chamberWallPoints, tileEffectOverrides: gridEffects([((4, 6), .shackleTrap), ((3, 6), .discardRandomHand), ((8, 1), .returnWarp(destination: GridPoint(x: 5, y: 3)))]), exitLock: DungeonExitLock(unlockPoint: GridPoint(x: 2, y: 1)), cardPickups: growthCards(35, [((1, 1), .straightRight2), ((3, 1), .diagonalUpRight2), ((7, 5), .rayLeft)]), relicPickups: [growthRelic(35, at: (5, 5), kind: .suspiciousDeep), fallSecret36.treasurePickup], fallSecrets: [fallSecret36], rewardMoveCardsAfterClear: [.rayDownLeft, .rayUpRight, .knightDownwardChoice], rewardSupportCardsAfterClear: [.freezeSpell], isDarknessEnabled: true),
             makeGrowthTowerDeepFloor(number: 36, title: "解毒の遠回り", turnLimit: 15, enemies: [growthPatrol("growth-36-patrol", [(3, 3), (4, 3), (5, 3), (6, 3), (5, 3), (4, 3)]), growthWatcher("growth-36-watcher", position: (6, 6), direction: (-1, 0), range: 5)], hazards: [.lavaTile(points: gridSet([(4, 5)]), damage: 1), .healingTile(points: gridSet([(2, 5)]), amount: 1), .brittleFloor(points: gridSet([(8, 0)]), initialState: .collapsed)], impassableTilePoints: gridSet([(2, 2), (4, 6), (7, 3)]), tileEffectOverrides: gridEffects([((3, 5), .poisonTrap), ((6, 4), .swamp)]), cardPickups: growthCards(36, [((2, 1), .straightRight2), ((4, 1), .rayUp), ((6, 5), .diagonalDownLeft2)]), fallSecrets: [fallSecret36], rewardMoveCardsAfterClear: [.rayLeft, .rayDownLeft, .knightLeftwardChoice], rewardSupportCardsAfterClear: [.antidote, .barrierSpell]),
-            makeGrowthTowerDeepFloor(number: 37, title: "見えない巡回路", turnLimit: 16, enemies: [growthPatrol("growth-37-patrol-a", [(2, 5), (3, 5), (4, 5), (5, 5), (6, 5), (5, 5), (4, 5), (3, 5)]), growthPatrol("growth-37-patrol-b", [(6, 2), (6, 3), (6, 4), (5, 4), (4, 4), (5, 4), (6, 4), (6, 3)])], hazards: [.damageTrap(points: gridSet([(2, 2), (5, 6)]), damage: 1)], impassableTilePoints: gridSet([(2, 7), (4, 2), (7, 5)]), warpTilePairs: ["growth-37-scout": gridPoints([(1, 3), (6, 7)])], cardPickups: growthCards(37, [((1, 2), .straightUp2), ((3, 6), .diagonalDownRight2), ((7, 4), .rayLeft)]), relicPickups: [growthRelic(37, at: (5, 7), kind: .safe)], rewardMoveCardsAfterClear: [.rayRight, .rayDownRight, .knightRightwardChoice], rewardSupportCardsAfterClear: [.railBreakSpell], isDarknessEnabled: true),
+            makeGrowthTowerDeepFloor(number: 37, title: "見えない巡回路", turnLimit: 16, enemies: [growthPatrol("growth-37-patrol-a", [(2, 4), (3, 4), (4, 4), (5, 4), (5, 5), (4, 5), (3, 5), (2, 5)]), growthPatrol("growth-37-patrol-b", [(2, 4), (3, 4), (4, 4), (5, 4), (5, 5), (4, 5), (3, 5), (2, 5)], position: (5, 5))], hazards: [.damageTrap(points: gridSet([(2, 2), (5, 6)]), damage: 1)], impassableTilePoints: gridSet([(2, 7), (4, 2), (7, 5)]), warpTilePairs: ["growth-37-scout": gridPoints([(1, 3), (6, 7)])], cardPickups: growthCards(37, [((1, 2), .straightUp2), ((3, 6), .diagonalDownRight2), ((7, 4), .rayLeft)]), relicPickups: [growthRelic(37, at: (5, 7), kind: .safe)], rewardMoveCardsAfterClear: [.rayRight, .rayDownRight, .knightRightwardChoice], rewardSupportCardsAfterClear: [.railBreakSpell], isDarknessEnabled: true),
             makeGrowthTowerDeepFloor(number: 38, title: "幻惑と転移", turnLimit: 14, enemies: [growthChaser("growth-38-chaser", position: (7, 5)), growthRotatingWatcher("growth-38-rotating", position: (5, 2), direction: (0, 1), rotation: .clockwise, range: 4)], hazards: [.damageTrap(points: gridSet([(3, 3), (6, 5)]), damage: 1), .healingTile(points: gridSet([(2, 6)]), amount: 1)], impassableTilePoints: gridSet([(2, 4), (4, 6), (7, 2)]), tileEffectOverrides: gridEffects([((4, 4), .illusionTrap), ((5, 5), .shackleTrap)]), warpTilePairs: ["growth-38-risk": gridPoints([(1, 1), (6, 6)])], cardPickups: growthCards(38, [((2, 1), .rayRight), ((4, 1), .straightUp2), ((6, 4), .diagonalUpLeft2)]), rewardMoveCardsAfterClear: [.rayUpLeft, .rayDownRight, .knightUpwardChoice], rewardSupportCardsAfterClear: [.panacea]),
             makeGrowthTowerDeepFloor(number: 39, title: "暗闇の補給線", turnLimit: 15, enemies: [growthMarker("growth-39-marker", position: (6, 6), range: 3), growthWatcher("growth-39-watcher", position: (7, 4), direction: (-1, 0), range: 5), growthChaser("growth-39-chaser", position: (3, 6))], hazards: [.brittleFloor(points: gridSet([(3, 2), (4, 2)]), initialState: .hiddenWeak), .lavaTile(points: gridSet([(5, 5)]), damage: 1)], impassableTilePoints: gridSet([(2, 5), (4, 6), (7, 2)]), tileEffectOverrides: gridEffects([((6, 3), .discardAllSupportCards)]), cardPickups: growthCards(39, [((1, 5), .straightRight2), ((3, 5), .diagonalDownRight2), ((7, 6), .rayLeft)]), relicPickups: [growthRelic(39, at: (6, 1), kind: .suspiciousDeep)], rewardMoveCardsAfterClear: [.rayDown, .rayUpRight, .knightDownwardChoice], rewardSupportCardsAfterClear: [.refillEmptySlots, .barrierSpell], isDarknessEnabled: true),
             makeGrowthTowerDeepFloor(number: 40, title: "第四関門・総合", turnLimit: 16, enemies: [growthPatrol("growth-40-patrol", [(3, 4), (4, 4), (5, 4), (6, 4), (7, 4), (6, 4), (5, 4), (4, 4)]), growthMarker("growth-40-marker", position: (6, 6), range: 4), growthRotatingWatcher("growth-40-rotating", position: (5, 2), direction: (0, 1), rotation: .counterclockwise, range: 5)], hazards: [.damageTrap(points: gridSet([(2, 2), (3, 5), (6, 5)]), damage: 1), .healingTile(points: gridSet([(2, 6)]), amount: 1)], impassableTilePoints: gridSet([(2, 4), (4, 7), (7, 2), (7, 6)]), tileEffectOverrides: gridEffects([((5, 5), .illusionTrap), ((6, 3), .discardAllMoveCards)]), warpTilePairs: ["growth-40-risk": gridPoints([(1, 2), (6, 7)])], exitLock: DungeonExitLock(unlockPoint: GridPoint(x: 2, y: 1)), cardPickups: growthCards(40, [((1, 1), .straightRight2), ((3, 1), .diagonalUpRight2), ((7, 5), .rayLeft)]), relicPickups: [growthRelic(40, at: (4, 6), kind: .suspiciousDeep)], rewardMoveCardsAfterClear: [.rayRight, .rayUpLeft, .knightRightwardChoice], rewardSupportCardsAfterClear: [.freezeSpell, .panacea], isDarknessEnabled: true)
@@ -9012,12 +9237,16 @@ public struct DungeonLibrary {
         return walls
     }
 
-    private static func growthPatrol(_ id: String, _ points: [(Int, Int)]) -> EnemyDefinition {
+    private static func growthPatrol(
+        _ id: String,
+        _ points: [(Int, Int)],
+        position: (Int, Int)? = nil
+    ) -> EnemyDefinition {
         let path = gridPoints(points)
         return EnemyDefinition(
             id: id,
             name: "巡回兵",
-            position: path.first ?? GridPoint(x: 4, y: 4),
+            position: position.map(gridPoint) ?? path.first ?? GridPoint(x: 4, y: 4),
             behavior: .patrol(path: path)
         )
     }
@@ -9096,6 +9325,8 @@ public struct DungeonLibrary {
                             GridPoint(x: 3, y: 4),
                             GridPoint(x: 4, y: 4),
                             GridPoint(x: 5, y: 4),
+                            GridPoint(x: 6, y: 4),
+                            GridPoint(x: 5, y: 4),
                             GridPoint(x: 4, y: 4)
                         ])
                     )
@@ -9155,6 +9386,8 @@ public struct DungeonLibrary {
                             GridPoint(x: 5, y: 7),
                             GridPoint(x: 6, y: 7),
                             GridPoint(x: 7, y: 7),
+                            GridPoint(x: 8, y: 7),
+                            GridPoint(x: 7, y: 7),
                             GridPoint(x: 6, y: 7)
                         ])
                     )
@@ -9194,23 +9427,27 @@ public struct DungeonLibrary {
                     EnemyDefinition(
                         id: "patrol-3-horizontal",
                         name: "巡回兵A",
-                        position: GridPoint(x: 3, y: 4),
+                        position: GridPoint(x: 1, y: 4),
                         behavior: .patrol(path: [
+                            GridPoint(x: 1, y: 4),
+                            GridPoint(x: 2, y: 4),
                             GridPoint(x: 3, y: 4),
-                            GridPoint(x: 4, y: 4),
-                            GridPoint(x: 5, y: 4),
-                            GridPoint(x: 4, y: 4)
+                            GridPoint(x: 3, y: 5),
+                            GridPoint(x: 3, y: 4),
+                            GridPoint(x: 2, y: 4)
                         ])
                     ),
                     EnemyDefinition(
                         id: "patrol-3-vertical",
                         name: "巡回兵B",
-                        position: GridPoint(x: 5, y: 3),
+                        position: GridPoint(x: 5, y: 2),
                         behavior: .patrol(path: [
+                            GridPoint(x: 5, y: 2),
                             GridPoint(x: 5, y: 3),
                             GridPoint(x: 5, y: 4),
                             GridPoint(x: 5, y: 5),
-                            GridPoint(x: 5, y: 4)
+                            GridPoint(x: 5, y: 4),
+                            GridPoint(x: 5, y: 3)
                         ])
                     )
                 ],

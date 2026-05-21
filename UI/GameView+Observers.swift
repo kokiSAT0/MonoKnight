@@ -87,8 +87,9 @@ extension GameView {
                 // RootView との間で pause/resume の呼び出し漏れが生じないようにする
                 viewModel.handlePreparationOverlayChange(isVisible: isVisible)
             }
-            // 盤面演出中は UI 全体を操作不可とし、状態の齟齬を防ぐ
-            .disabled(boardBridge.isInputAnimationActive)
+            // 盤面演出中は UI 全体を操作不可にする。ただし拾得/宝箱確認で意図的に止めている間は、
+            // 表示中のオーバーレイボタンを押せるようにする。
+            .disabled(viewModel.isGlobalGameInteractionDisabled)
             // Preference から取得したアンカー情報を用いて、カードが盤面中央へ吸い込まれる演出を重ねる
             .overlayPreferenceValue(CardPositionPreferenceKey.self) { anchors in
                 GameCardAnimationOverlay(

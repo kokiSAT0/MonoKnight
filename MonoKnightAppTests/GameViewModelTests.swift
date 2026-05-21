@@ -22,7 +22,53 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertTrue(report.contains("位置:"))
         XCTAssertTrue(report.contains("ラン履歴:"))
         XCTAssertTrue(report.contains("[PLAY] event=report_test"))
+        XCTAssertTrue(report.contains("[PLAY] event=report_issue_opened"))
+        XCTAssertTrue(report.contains("選択中の手札:"))
+        XCTAssertTrue(report.contains("通常カード移動候補数:"))
+        XCTAssertTrue(report.contains("基本移動候補数:"))
+        XCTAssertTrue(report.contains("使用可能な補助カード数:"))
+        XCTAssertTrue(report.contains("入力アニメーション:"))
+        XCTAssertTrue(report.contains("pending choice:"))
+        XCTAssertFalse(
+            DebugLogHistory.shared.snapshot().contains { $0.message.contains("event=report_issue_opened") },
+            "共有本文用の診断行は、ShareLink の再評価で実ログを増やさない想定です"
+        )
         DebugLogHistory.shared.clear()
+    }
+
+    func testTesterIssueReportIncludesUiStateAndSyntheticPlayLogWhenCaptureIsDisabled() {
+        DebugLogHistory.shared.setFrontEndViewerAvailable(true)
+        DebugLogHistory.shared.setFrontEndViewerEnabled(false)
+        defer {
+            DebugLogHistory.shared.setFrontEndViewerEnabled(true)
+            DebugLogHistory.shared.setFrontEndViewerAvailable(true)
+            DebugLogHistory.shared.clear()
+        }
+        let (viewModel, core) = makeViewModel(mode: controlTestDungeonMode)
+        let selectedStack = core.handStacks[0]
+        viewModel.selectedHandStackID = selectedStack.id
+        viewModel.isBasicMoveCardSelectionVisible = true
+        viewModel.isDungeonChoiceOverlayCollapsed = true
+        viewModel.boardTapSelectionWarning = GameViewModel.BoardTapSelectionWarning(
+            message: "候補を選んでください",
+            destination: GridPoint(x: 1, y: 0)
+        )
+
+        let report = viewModel.makeTesterIssueReport()
+
+        XCTAssertTrue(report.contains("診断ログ保持: オフ"))
+        XCTAssertTrue(report.contains("選択中の手札: \(selectedStack.topCard?.displayName ?? "")"))
+        XCTAssertTrue(report.contains("選択中の手札ID: \(selectedStack.id.uuidString)"))
+        XCTAssertTrue(report.contains("基本移動選択中: はい"))
+        XCTAssertTrue(report.contains("選択オーバーレイ折りたたみ: はい"))
+        XCTAssertTrue(report.contains("盤面タップ警告: 候補を選んでください @(1,0)"))
+        XCTAssertTrue(report.contains("直近ログ: 1件"))
+        XCTAssertTrue(report.contains("[PLAY] event=report_issue_opened"))
+        XCTAssertTrue(report.contains("moveCandidates="))
+        XCTAssertTrue(report.contains("basicCandidates="))
+        XCTAssertTrue(report.contains("usableSupports="))
+        XCTAssertTrue(report.contains("inputAnimation="))
+        XCTAssertFalse(DebugLogHistory.shared.snapshot().contains { $0.message.contains("event=report_issue_opened") })
     }
 
     func testTesterIssueReportIncludesRogueSeedAndCurrentFloorReproductionPayload() throws {
@@ -1868,7 +1914,7 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertTrue(core.activeDungeonCardPickups.contains { $0.id == secondPickup.id })
     }
 
-    func testRayPickupChoiceOverlayWaitsUntilReachedStep() throws {
+    func testRayPickupChoiceOverlayWaitsUntilReachedStep() async throws {
         let existingCards = fullInventoryCards(including: .rayRight)
         let newCard = try XCTUnwrap(MoveCard.allCases.first { !existingCards.contains($0) })
         let pickup = DungeonCardPickupDefinition(
@@ -1885,6 +1931,7 @@ final class GameViewModelTests: XCTestCase {
         core.playCard(using: move)
         let resolution = try XCTUnwrap(core.lastMovementResolution)
         viewModel.beginMovementPresentation(using: resolution)
+        viewModel.boardBridge.setMovementReplayActiveForTesting(true)
 
         XCTAssertEqual(viewModel.pendingDungeonPickupChoice?.pickup, pickup)
         XCTAssertFalse(viewModel.canPresentDungeonPickupChoice)
@@ -1900,7 +1947,7 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.boardBridge.scene.movementTransitionResumeCountForTesting, 1)
     }
 
-    func testRayRelicAcquisitionOverlayWaitsUntilReachedStepAndResumesAfterConfirmation() throws {
+    func testRayRelicAcquisitionOverlayWaitsUntilReachedStepAndResumesAfterConfirmation() async throws {
         let pickup = DungeonRelicPickupDefinition(
             id: "view_model_ray_delayed_relic",
             point: GridPoint(x: 1, y: 0),
@@ -1916,12 +1963,14 @@ final class GameViewModelTests: XCTestCase {
             current: GridPoint(x: 0, y: 0),
             mode: mode
         )
+        XCTAssertTrue(core.addDungeonInventoryCardForTesting(.rayRight, pickupUses: 1))
         let viewModel = makeViewModel(mode: mode, core: core)
         let move = try XCTUnwrap(core.availableMoves().first { $0.card.moveCard == .rayRight })
 
         core.playCard(using: move)
         let resolution = try XCTUnwrap(core.lastMovementResolution)
         viewModel.beginMovementPresentation(using: resolution)
+        viewModel.boardBridge.setMovementReplayActiveForTesting(true)
 
         XCTAssertNil(viewModel.activeDungeonRelicAcquisitionPresentation)
 
@@ -3013,6 +3062,34 @@ final class GameViewModelTests: XCTestCase {
 
         XCTAssertEqual(core.current, GridPoint(x: 1, y: 0))
         XCTAssertEqual(core.dungeonHP, 2)
+    }
+
+    func testDiagnosticShareAvailabilityDoesNotDependOnLogCapture() {
+        DebugLogHistory.shared.setFrontEndViewerAvailable(true)
+        DebugLogHistory.shared.setFrontEndViewerEnabled(false)
+        defer {
+            DebugLogHistory.shared.setFrontEndViewerEnabled(true)
+            DebugLogHistory.shared.setFrontEndViewerAvailable(true)
+        }
+        let (viewModel, _) = makeViewModel(mode: controlTestDungeonMode)
+
+        XCTAssertTrue(viewModel.isDiagnosticShareAvailable)
+    }
+
+    func testOverlayPauseKeepsRelicConfirmationInteractiveDuringMovementReplay() {
+        let (viewModel, _) = makeViewModel(mode: controlTestDungeonMode)
+
+        viewModel.boardBridge.setMovementReplayActiveForTesting(true)
+
+        XCTAssertTrue(viewModel.isGlobalGameInteractionDisabled)
+
+        viewModel.movementPresentationOverlayPause = .relicAcquisition
+
+        XCTAssertFalse(viewModel.isGlobalGameInteractionDisabled)
+
+        viewModel.movementPresentationOverlayPause = .relicPickupChoice
+
+        XCTAssertFalse(viewModel.isGlobalGameInteractionDisabled)
     }
 
     func testWarpTowerRewardAppearsUsableOnStartedNextFloor() throws {

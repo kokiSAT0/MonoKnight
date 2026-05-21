@@ -5225,6 +5225,10 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             return (enemy.patrolIndex + 1) % validPath.count
         }
 
+        if let currentIndex = validPath.firstIndex(of: enemy.position) {
+            return (currentIndex + 1) % validPath.count
+        }
+
         return validPath.indices.min { lhs, rhs in
             let lhsDistance = manhattanDistance(from: enemy.position, to: validPath[lhs])
             let rhsDistance = manhattanDistance(from: enemy.position, to: validPath[rhs])

@@ -136,6 +136,39 @@
             }
         }
 
+        func placeKnightForMovementReplayStart(
+            at point: GridPoint?,
+            layout: GameSceneLayoutSupport,
+            isLayoutReady: Bool,
+            updateAccessibility: @escaping () -> Void
+        ) {
+            guard isLayoutReady, let knightNode else {
+                if let point {
+                    pendingKnightState = .show(point)
+                    knightPosition = point
+                } else {
+                    pendingKnightState = .hide
+                    knightPosition = nil
+                }
+                return
+            }
+
+            if let point {
+                knightNode.isHidden = false
+                performKnightPlacement(
+                    to: point,
+                    layout: layout,
+                    animated: false,
+                    updateAccessibility: updateAccessibility
+                )
+            } else {
+                knightNode.removeAllActions()
+                knightNode.isHidden = true
+                knightPosition = nil
+                updateAccessibility()
+            }
+        }
+
         func playWarpTransition(
             using resolution: MovementResolution,
             in scene: SKScene,
@@ -206,6 +239,7 @@
 
             knightNode.removeAllActions()
             knightNode.isPaused = false
+            knightNode.speed = 1
             knightNode.isHidden = false
 
             let approachDuration: TimeInterval = 0.18
@@ -308,6 +342,7 @@
             }
 
             knightNode.removeAllActions()
+            knightNode.isPaused = false
             knightNode.isHidden = false
 
             let stepDuration = Self.movementReplayStepDuration
@@ -428,12 +463,121 @@
             knightNode.run(SKAction.sequence(sequence))
         }
 
+        func playMovementReplaySegment(
+            to point: GridPoint,
+            step: MovementResolution.PresentationStep?,
+            isLastStep: Bool,
+            warpSource: GridPoint?,
+            in scene: SKScene,
+            layout: GameSceneLayoutSupport,
+            isLayoutReady: Bool,
+            warpColor: @escaping (GridPoint) -> SKColor,
+            updateAccessibility: @escaping () -> Void,
+            onStep: @escaping (MovementResolution.PresentationStep) -> Void,
+            onCompletion: @escaping () -> Void
+        ) {
+            guard isLayoutReady, let knightNode else {
+                moveKnight(
+                    to: point,
+                    in: scene,
+                    layout: layout,
+                    isLayoutReady: isLayoutReady,
+                    updateAccessibility: updateAccessibility
+                )
+                if let step {
+                    onStep(step)
+                }
+                onCompletion()
+                return
+            }
+
+            if let skView = scene.view, skView.isPaused {
+                skView.isPaused = false
+            }
+            if scene.isPaused {
+                scene.isPaused = false
+            }
+
+            knightNode.removeAllActions()
+            knightNode.isPaused = false
+            knightNode.speed = 1
+            knightNode.isHidden = false
+
+            let holdDuration = Self.holdDuration(after: step, isLastStep: isLastStep)
+            var sequence: [SKAction] = []
+            if let warpSource {
+                sequence.append(SKAction.run { [weak self] in
+                    guard let self else { return }
+                    self.emitWarpRing(
+                        at: warpSource,
+                        layout: layout,
+                        color: warpColor(warpSource),
+                        expanding: true
+                    )
+                    self.animateWarpArrow(at: warpSource)
+                })
+
+                let warpOut = SKAction.group([
+                    SKAction.scale(to: 0.2, duration: Self.movementReplayWarpOutDuration),
+                    SKAction.fadeOut(withDuration: Self.movementReplayWarpOutDuration),
+                ])
+                warpOut.timingMode = .easeIn
+                sequence.append(warpOut)
+
+                sequence.append(SKAction.run { [weak self] in
+                    guard let self, let knightNode = self.knightNode else { return }
+                    knightNode.position = layout.position(for: point)
+                    knightNode.setScale(0.2)
+                    knightNode.alpha = 0.0
+                    self.emitWarpRing(
+                        at: point,
+                        layout: layout,
+                        color: warpColor(point),
+                        expanding: false
+                    )
+                })
+
+                let warpIn = SKAction.group([
+                    SKAction.fadeIn(withDuration: Self.movementReplayWarpInDuration),
+                    SKAction.scale(to: 1.0, duration: Self.movementReplayWarpInDuration),
+                ])
+                warpIn.timingMode = .easeOut
+                sequence.append(warpIn)
+            } else {
+                let move = SKAction.move(to: layout.position(for: point), duration: Self.movementReplayStepDuration)
+                move.timingMode = .easeInEaseOut
+                sequence.append(move)
+            }
+
+            sequence.append(SKAction.run { [weak self] in
+                guard let self, let knightNode = self.knightNode else { return }
+                knightNode.alpha = 1.0
+                knightNode.setScale(1.0)
+                self.knightPosition = point
+                updateAccessibility()
+                if let step {
+                    onStep(step)
+                }
+            })
+            if holdDuration > 0 {
+                sequence.append(SKAction.wait(forDuration: holdDuration))
+            }
+            sequence.append(SKAction.run(onCompletion))
+
+            knightNode.run(SKAction.sequence(sequence))
+        }
+
         func pauseMovementTransitionForOverlay() {
-            knightNode?.isPaused = true
+            knightNode?.speed = 0
         }
 
         func resumeMovementTransitionAfterOverlay() {
             knightNode?.isPaused = false
+            knightNode?.speed = 1
+        }
+
+        func movementTransitionSpeedForTesting() -> CGFloat? {
+            knightNode?.speed
         }
 
         private struct WarpReplayContext {

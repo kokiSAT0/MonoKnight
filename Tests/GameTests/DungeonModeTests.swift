@@ -90,6 +90,70 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertTrue(messages.contains { $0.contains("event=reward_draw") && $0.contains("seed=123") })
     }
 
+    func testGrowthTowerReportedFreezeSeedKeepsLegalActionsOnThirdFloor() throws {
+        let tower = try XCTUnwrap(DungeonLibrary.shared.dungeon(with: "growth-tower"))
+        let seed: UInt64 = 4_514_531_392_004_290_882
+        let inventoryEntries: [DungeonInventoryEntry] = [
+            DungeonInventoryEntry(card: .knightUpwardChoice, rewardUses: 1),
+            DungeonInventoryEntry(card: .rayUp, rewardUses: 2),
+            DungeonInventoryEntry(card: .diagonalDownRight2, rewardUses: 1),
+            DungeonInventoryEntry(support: .refillEmptySlots, rewardUses: 1),
+            DungeonInventoryEntry(support: .barrierSpell, rewardUses: 1)
+        ]
+        let runState = DungeonRunState(
+            dungeonID: tower.id,
+            currentFloorIndex: 2,
+            carriedHP: 3,
+            totalMoveCount: 29,
+            totalElapsedSeconds: 25,
+            clearedFloorCount: 2,
+            rewardInventoryEntries: inventoryEntries,
+            cardVariationSeed: seed,
+            movementStyle: .orthogonal,
+            dungeonInventoryKindLimit: 5,
+            rogueHandExpansionChanceStep: 2
+        )
+        let mode = try XCTUnwrap(
+            tower.resolvedFloor(at: 2, runState: runState)?.makeGameMode(
+                dungeonID: tower.id,
+                difficulty: tower.difficulty,
+                carriedHP: 3,
+                runState: runState
+            )
+        )
+        let core = GameCore(mode: mode)
+        let snapshot = DungeonRunResumeSnapshot(
+            dungeonID: tower.id,
+            floorIndex: 2,
+            runState: runState,
+            currentPoint: GridPoint(x: 2, y: 1),
+            visitedPoints: [
+                GridPoint(x: 1, y: 1),
+                GridPoint(x: 0, y: 4),
+                GridPoint(x: 2, y: 1),
+                GridPoint(x: 0, y: 3),
+                GridPoint(x: 0, y: 1),
+                GridPoint(x: 0, y: 2)
+            ],
+            moveCount: 5,
+            elapsedSeconds: 14,
+            dungeonHP: 3,
+            hazardDamageMitigationsRemaining: 0,
+            enemyStates: [],
+            crackedFloorPoints: [],
+            collapsedFloorPoints: [],
+            dungeonInventoryEntries: inventoryEntries,
+            collectedDungeonCardPickupIDs: ["growth-3-diagonal-up-left"],
+            isDungeonExitUnlocked: true
+        )
+
+        XCTAssertTrue(core.restoreDungeonResumeSnapshot(snapshot))
+        XCTAssertEqual(core.progress, .playing)
+        XCTAssertEqual(core.current, GridPoint(x: 2, y: 1))
+        XCTAssertFalse(core.availableMoves().isEmpty)
+        XCTAssertFalse(core.availableBasicOrthogonalMoves().isEmpty)
+    }
+
     func testDeveloperRelicEffectToggleDisablesRelicAndCurseTurnLimitEffects() throws {
         let mode = makeDungeonMode(
             spawn: GridPoint(x: 0, y: 0),
@@ -2545,6 +2609,118 @@ final class DungeonModeTests: XCTestCase {
                 )
             ]
         )
+    }
+
+    func testLoopPatrolMovesFromLastPointBackToFirstPoint() throws {
+        let loopPath = [
+            GridPoint(x: 1, y: 2),
+            GridPoint(x: 2, y: 2),
+            GridPoint(x: 3, y: 2),
+            GridPoint(x: 3, y: 3),
+            GridPoint(x: 2, y: 3),
+            GridPoint(x: 1, y: 3)
+        ]
+        let patrol = EnemyDefinition(
+            id: "patrol",
+            name: "巡回兵",
+            position: GridPoint(x: 1, y: 3),
+            behavior: .patrol(path: loopPath)
+        )
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 3,
+            turnLimit: 4,
+            enemies: [patrol]
+        )
+        let core = makeCore(
+            mode: mode,
+            cards: [.straightRight2, .kingUpRight, .straightLeft2, .straightDown2, .straightRight2]
+        )
+
+        XCTAssertEqual(core.enemyPatrolMovementPreviews.first?.next, GridPoint(x: 1, y: 2))
+
+        playMove(to: GridPoint(x: 2, y: 0), in: core)
+
+        XCTAssertEqual(core.enemyStates.first { $0.id == "patrol" }?.position, GridPoint(x: 1, y: 2))
+    }
+
+    func testPatrolStartingFromMiddleOfPathMovesImmediatelyToNextPoint() throws {
+        let loopPath = [
+            GridPoint(x: 1, y: 2),
+            GridPoint(x: 2, y: 2),
+            GridPoint(x: 3, y: 2),
+            GridPoint(x: 3, y: 3),
+            GridPoint(x: 2, y: 3),
+            GridPoint(x: 1, y: 3)
+        ]
+        let patrol = EnemyDefinition(
+            id: "patrol",
+            name: "巡回兵",
+            position: GridPoint(x: 3, y: 3),
+            behavior: .patrol(path: loopPath)
+        )
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 3,
+            turnLimit: 4,
+            enemies: [patrol]
+        )
+        let core = makeCore(
+            mode: mode,
+            cards: [.straightRight2, .kingUpRight, .straightLeft2, .straightDown2, .straightRight2]
+        )
+
+        XCTAssertEqual(core.enemyPatrolMovementPreviews.first?.next, GridPoint(x: 2, y: 3))
+
+        playMove(to: GridPoint(x: 2, y: 0), in: core)
+
+        XCTAssertEqual(core.enemyStates.first { $0.id == "patrol" }?.position, GridPoint(x: 2, y: 3))
+    }
+
+    func testTwoPatrolsCanShareLoopWhenOffset() throws {
+        let loopPath = [
+            GridPoint(x: 1, y: 2),
+            GridPoint(x: 2, y: 2),
+            GridPoint(x: 3, y: 2),
+            GridPoint(x: 3, y: 3),
+            GridPoint(x: 2, y: 3),
+            GridPoint(x: 1, y: 3)
+        ]
+        let first = EnemyDefinition(
+            id: "patrol-a",
+            name: "巡回兵",
+            position: GridPoint(x: 1, y: 2),
+            behavior: .patrol(path: loopPath)
+        )
+        let second = EnemyDefinition(
+            id: "patrol-b",
+            name: "巡回兵",
+            position: GridPoint(x: 3, y: 3),
+            behavior: .patrol(path: loopPath)
+        )
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            hp: 3,
+            turnLimit: 4,
+            enemies: [first, second]
+        )
+        let core = makeCore(
+            mode: mode,
+            cards: [.straightRight2, .kingUpRight, .straightLeft2, .straightDown2, .straightRight2]
+        )
+
+        XCTAssertEqual(core.enemyPatrolMovementPreviews.map(\.next), [
+            GridPoint(x: 2, y: 2),
+            GridPoint(x: 2, y: 3)
+        ])
+
+        playMove(to: GridPoint(x: 2, y: 0), in: core)
+
+        XCTAssertEqual(core.enemyStates.first { $0.id == "patrol-a" }?.position, GridPoint(x: 2, y: 2))
+        XCTAssertEqual(core.enemyStates.first { $0.id == "patrol-b" }?.position, GridPoint(x: 2, y: 3))
     }
 
     func testPatrolRailPreviewExposesFullValidPatrolPath() throws {
@@ -5813,10 +5989,9 @@ final class DungeonModeTests: XCTestCase {
             for enemy in floor.enemies {
                 guard case .patrol(let path) = enemy.behavior else { continue }
 
-                XCTAssertEqual(
-                    enemy.position,
-                    path.first,
-                    "\(floor.title) の巡回兵は初期位置を巡回パス先頭に揃えます"
+                XCTAssertTrue(
+                    path.contains(enemy.position),
+                    "\(floor.title) の巡回兵は初期位置を巡回パス上に置きます"
                 )
                 XCTAssertTrue(
                     path.allSatisfy { $0.isInside(boardSize: floor.boardSize) },
@@ -5831,15 +6006,27 @@ final class DungeonModeTests: XCTestCase {
                 }
                 XCTAssertTrue(
                     Set(path).isDisjoint(with: disallowedGrowthTowerPatrolPoints(for: floor, excludingEnemyID: enemy.id)),
-                    "\(floor.title) の巡回パスは開始/階段/拾得カード/ワープ/岩柱/罠/他敵と重ねません"
+                    "\(floor.title) の巡回パスは開始/階段/拾得カード/ワープ/岩柱/罠/同一ループ以外の他敵と重ねません"
                 )
+                XCTAssertGreaterThanOrEqual(
+                    Set(path).count,
+                    4,
+                    "\(floor.title) の巡回兵は4マス以上の実巡回路でレール感を持たせます"
+                )
+                XCTAssertGreaterThanOrEqual(
+                    path.count,
+                    6,
+                    "\(floor.title) の巡回兵は往復込み6マス以上の巡回圧を持たせます"
+                )
+                if isClosedPatrolLoop(path) {
+                    XCTAssertEqual(
+                        manhattanDistance(from: path[path.count - 1], to: path[0]),
+                        1,
+                        "\(floor.title) のループ巡回パスは末尾から先頭へ上下左右1マスで戻れる必要があります"
+                    )
+                }
 
                 if index >= 8 {
-                    XCTAssertGreaterThanOrEqual(
-                        path.count,
-                        6,
-                        "\(floor.title) の中盤以降の巡回兵は6マス以上の巡回圧を持たせます"
-                    )
                     expandedFloorIndices.insert(index)
                 }
             }
@@ -11458,8 +11645,15 @@ final class DungeonModeTests: XCTestCase {
     ) {
         XCTAssertGreaterThanOrEqual(
             Set(path).count,
-            2,
-            "\(context) の巡回路は2マス以上の実移動先を持つ必要があります",
+            4,
+            "\(context) の巡回路は4マス以上の実移動先を持つ必要があります",
+            file: file,
+            line: line
+        )
+        XCTAssertGreaterThanOrEqual(
+            path.count,
+            6,
+            "\(context) の巡回路は往復込み6マス以上にします",
             file: file,
             line: line
         )
@@ -11469,6 +11663,15 @@ final class DungeonModeTests: XCTestCase {
             file: file,
             line: line
         )
+        if isClosedPatrolLoop(path) {
+            XCTAssertEqual(
+                manhattanDistance(from: path[path.count - 1], to: path[0]),
+                1,
+                "\(context) のループ巡回路は末尾から先頭へ上下左右1マスで戻れる必要があります",
+                file: file,
+                line: line
+            )
+        }
         let collapsedPoints = initialCollapsedFloorPoints(in: floor)
         XCTAssertTrue(
             path.allSatisfy {
@@ -11605,6 +11808,7 @@ final class DungeonModeTests: XCTestCase {
 
     private func majorGrowthTowerGimmickOverlaps(for floor: DungeonFloorDefinition) -> [String] {
         var occupantsByPoint: [GridPoint: [String]] = [:]
+        let sharedLoopKeys = sharedPatrolLoopKeys(in: floor)
 
         func add(_ label: String, at point: GridPoint) {
             if occupantsByPoint[point]?.contains(label) == true {
@@ -11631,8 +11835,11 @@ final class DungeonModeTests: XCTestCase {
         for enemy in floor.enemies {
             switch enemy.behavior {
             case .patrol(let path):
+                let loopKey = patrolLoopKey(path)
+                let label = loopKey.map { sharedLoopKeys.contains($0) ? "共有巡回:\($0)" : "巡回:\(enemy.id)" }
+                    ?? "巡回:\(enemy.id)"
                 for point in Set(path) {
-                    add("巡回:\(enemy.id)", at: point)
+                    add(label, at: point)
                 }
             case .chaser, .guardPost, .marker, .targetedMarker, .watcher, .rotatingWatcher:
                 add("敵:\(enemy.id)", at: enemy.position)
@@ -11716,6 +11923,12 @@ final class DungeonModeTests: XCTestCase {
         for floor: DungeonFloorDefinition,
         excludingEnemyID enemyID: String
     ) -> Set<GridPoint> {
+        let sharedLoopKeys = sharedPatrolLoopKeys(in: floor)
+        let currentSharedLoopKey = floor.enemies.first { $0.id == enemyID }.flatMap { enemy -> String? in
+            guard case .patrol(let path) = enemy.behavior else { return nil }
+            let key = patrolLoopKey(path)
+            return key.map { sharedLoopKeys.contains($0) ? $0 : nil } ?? nil
+        }
         var blocked: Set<GridPoint> = [
             floor.spawnPoint,
             floor.exitPoint
@@ -11726,8 +11939,22 @@ final class DungeonModeTests: XCTestCase {
         blocked.formUnion(floor.tileEffectOverrides.keys)
         blocked.formUnion(floor.warpTilePairs.values.flatMap { $0 })
         blocked.formUnion(floor.enemies.compactMap { enemy in
-            enemy.id == enemyID ? nil : enemy.position
+            if enemy.id == enemyID { return nil }
+            if let currentSharedLoopKey,
+               case .patrol(let path) = enemy.behavior,
+               patrolLoopKey(path) == currentSharedLoopKey {
+                return nil
+            }
+            return enemy.position
         })
+        for enemy in floor.enemies where enemy.id != enemyID {
+            guard case .patrol(let path) = enemy.behavior else { continue }
+            if let currentSharedLoopKey,
+               patrolLoopKey(path) == currentSharedLoopKey {
+                continue
+            }
+            blocked.formUnion(path)
+        }
         if let unlockPoint = floor.exitLock?.unlockPoint {
             blocked.insert(unlockPoint)
         }
@@ -11746,6 +11973,30 @@ final class DungeonModeTests: XCTestCase {
             }
         }
         return blocked
+    }
+
+    private func sharedPatrolLoopKeys(in floor: DungeonFloorDefinition) -> Set<String> {
+        let loopKeys = floor.enemies.compactMap { enemy -> String? in
+            guard case .patrol(let path) = enemy.behavior else { return nil }
+            return patrolLoopKey(path)
+        }
+        let grouped = Dictionary(grouping: loopKeys, by: { $0 })
+        return Set(grouped.compactMap { key, values in values.count > 1 ? key : nil })
+    }
+
+    private func patrolLoopKey(_ path: [GridPoint]) -> String? {
+        guard isClosedPatrolLoop(path) else { return nil }
+        return path.map { "\($0.x),\($0.y)" }.joined(separator: ";")
+    }
+
+    private func isClosedPatrolLoop(_ path: [GridPoint]) -> Bool {
+        guard path.count >= 4,
+              Set(path).count == path.count,
+              let first = path.first,
+              let last = path.last
+        else { return false }
+        return isOrthogonalStepPath(path)
+            && manhattanDistance(from: first, to: last) == 1
     }
 
     private func allBoardPoints(boardSize: Int) -> [GridPoint] {

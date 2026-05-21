@@ -889,6 +889,93 @@ final class GameBoardBridgeViewModelHighlightTests: XCTestCase {
         XCTAssertTrue(enemyTurnStartedAfterMovement)
     }
 
+    func testMovementReplayFallbackClearsStaleInputLock() async throws {
+        let viewModel = makeViewModel()
+        viewModel.configureSceneOnAppear(width: 320)
+        viewModel.scene.moveKnight(to: GridPoint(x: 2, y: 2))
+        let resolution = MovementResolution(
+            path: [
+                GridPoint(x: 0, y: 0),
+                GridPoint(x: 1, y: 0)
+            ],
+            finalPosition: GridPoint(x: 1, y: 0),
+            presentationSteps: [
+                MovementResolution.PresentationStep(
+                    point: GridPoint(x: 1, y: 0),
+                    hpAfter: 3,
+                    handStacksAfter: viewModel.core.handStacks,
+                    collectedDungeonCardPickupIDsAfter: [],
+                    enemyStatesAfter: [],
+                    crackedFloorPointsAfter: [],
+                    collapsedFloorPointsAfter: [],
+                    tookDamage: false
+                )
+            ]
+        )
+        var movementFinished = false
+        viewModel.onMovementPresentationFinished = {
+            movementFinished = true
+        }
+
+        viewModel.scheduleMovementReplayFallbackForTesting(using: resolution)
+
+        XCTAssertTrue(viewModel.isMovementReplayActive)
+        XCTAssertTrue(viewModel.isInputAnimationActive)
+        try await Task.sleep(nanoseconds: 1_050_000_000)
+
+        XCTAssertFalse(viewModel.isMovementReplayActive)
+        XCTAssertFalse(viewModel.isInputAnimationActive)
+        XCTAssertEqual(viewModel.scene.currentKnightPointForPresentation(), viewModel.core.current)
+        XCTAssertTrue(movementFinished)
+    }
+
+    func testMovementReplayOverlayPauseFreezesUntilResume() {
+        let viewModel = makeViewModel()
+        viewModel.configureSceneOnAppear(width: 320)
+        viewModel.scene.moveKnight(to: GridPoint(x: 0, y: 0))
+
+        XCTAssertEqual(viewModel.scene.movementTransitionSpeedForTesting(), 1)
+
+        viewModel.scene.pauseMovementTransitionForOverlay()
+
+        XCTAssertEqual(viewModel.scene.movementTransitionSpeedForTesting(), 0)
+
+        viewModel.scene.resumeMovementTransitionAfterOverlay()
+
+        XCTAssertEqual(viewModel.scene.movementTransitionSpeedForTesting(), 1)
+    }
+
+    func testConfigureSceneOnAppearKeepsPresentationKnightDuringMovementReplay() {
+        let viewModel = makeViewModel()
+        viewModel.configureSceneOnAppear(width: 320)
+        let presentationPoint = GridPoint(x: 1, y: 0)
+        viewModel.scene.moveKnight(to: presentationPoint)
+        viewModel.setMovementReplayActiveForTesting(true)
+
+        viewModel.configureSceneOnAppear(width: 320)
+
+        XCTAssertEqual(viewModel.scene.currentKnightPointForPresentation(), presentationPoint)
+    }
+
+    func testMovementReplayRestoresStartPointWhenSceneWasAlreadyAtFinalPosition() {
+        let viewModel = makeViewModel()
+        viewModel.configureSceneOnAppear(width: 320)
+        let inferredStart = GridPoint(x: 0, y: 0)
+        let finalPoint = GridPoint(x: 2, y: 0)
+        let resolution = MovementResolution(
+            path: [
+                GridPoint(x: 1, y: 0),
+                finalPoint
+            ],
+            finalPosition: finalPoint
+        )
+        viewModel.scene.moveKnight(to: finalPoint)
+
+        viewModel.beginMovementReplayForTesting(using: resolution)
+
+        XCTAssertEqual(viewModel.scene.currentKnightPointForPresentation(), inferredStart)
+    }
+
     /// 強制ハイライトが障害物マスを除外することを検証する
     func testForcedSelectionHighlightsExcludeImpassableTiles() {
         // --- 移動不可マスを含むモードを構築し、ViewModel に適用 ---

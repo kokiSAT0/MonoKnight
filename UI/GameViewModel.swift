@@ -90,6 +90,10 @@ final class GameViewModel: ObservableObject {
     }
     /// SpriteKit と SwiftUI を仲介するための ViewModel
     let boardBridge: GameBoardBridgeViewModel
+    /// 盤面演出による全体入力ロックをかけるかどうか
+    var isGlobalGameInteractionDisabled: Bool {
+        boardBridge.isInputAnimationActive && movementPresentationOverlayPause == nil
+    }
     /// 現在選択中の手札スタック ID
     /// - Important: 手札スロットの選択状態を SwiftUI から装飾できるよう公開し、候補マス確定後にリセットする。
     @Published var selectedHandStackID: UUID?
@@ -268,10 +272,15 @@ final class GameViewModel: ObservableObject {
         core.areDungeonRelicAndCurseEffectsEnabled ? core.dungeonCurseEntries : []
     }
     var isDiagnosticShareAvailable: Bool {
-        DebugLogHistory.shared.isFrontEndViewerEnabled
+        DebugLogHistory.shared.isFrontEndViewerAvailable
     }
     func makeTesterIssueReport() -> String {
+        let reportIssueLogMessage = makeReportIssueOpenedLogMessage()
         let reproductionBlock = makeTesterReproductionBlock()
+        var playLogEntries = DebugLogHistory.shared.snapshot().filter { $0.message.contains("[PLAY]") }
+        if !playLogEntries.contains(where: { $0.message.contains(reportIssueLogMessage) }) {
+            playLogEntries.append(DebugLogEntry(level: .info, message: reportIssueLogMessage))
+        }
         return DebugLogShareReportFormatter.makeReport(
             context: DebugLogShareReportContext(
                 title: dungeonRunFloorText ?? mode.displayName,
@@ -294,7 +303,21 @@ final class GameViewModel: ObservableObject {
                     ("手札拡張確率段階", mode.dungeonMetadataSnapshot?.runState.map { String($0.rogueHandExpansionChanceStep) } ?? "なし"),
                     ("所持カード", DebugLogShareSupport.inventoryDescription(core.dungeonInventoryEntries)),
                     ("遺物", DebugLogShareSupport.relicDescription(core.dungeonRelicEntries)),
-                    ("呪い", DebugLogShareSupport.curseDescription(core.dungeonCurseEntries))
+                    ("呪い", DebugLogShareSupport.curseDescription(core.dungeonCurseEntries)),
+                    ("診断ログ保持", DebugLogHistory.shared.isFrontEndViewerEnabled ? "オン" : "オフ"),
+                    ("選択中の手札", selectedHandStackDiagnosticDescription),
+                    ("選択中の手札ID", selectedHandStackID?.uuidString ?? "なし"),
+                    ("基本移動選択中", diagnosticBool(isBasicMoveCardSelected)),
+                    ("拾得/宝箱選択待ち", pendingChoiceDiagnosticDescription),
+                    ("選択オーバーレイ折りたたみ", diagnosticBool(isDungeonChoiceOverlayCollapsed)),
+                    ("移動演出中", diagnosticBool(isMovementPresentationActive)),
+                    ("移動演出一時停止", movementPresentationOverlayPauseDiagnosticDescription),
+                    ("入力アニメーション", boardBridge.inputAnimationDiagnosticDescription),
+                    ("盤面タップ警告", boardTapSelectionWarningDiagnosticDescription),
+                    ("通常カード移動候補数", String(core.availableMoves().count)),
+                    ("基本移動候補数", String(core.availableBasicOrthogonalMoves().count)),
+                    ("使用可能な補助カード数", String(usableSupportCardCount)),
+                    ("pending choice", pendingChoiceDiagnosticDescription)
                 ],
                 sections: [
                     DebugLogShareReportContext.Section(
@@ -304,10 +327,80 @@ final class GameViewModel: ObservableObject {
                 ],
                 footerBlocks: reproductionBlock.map { [$0] } ?? []
             ),
-            entries: DebugLogHistory.shared.snapshot().filter { $0.message.contains("[PLAY]") },
+            entries: playLogEntries,
             appVersion: DebugLogShareSupport.appVersionDescription,
             deviceDescription: DebugLogShareSupport.deviceDescription
         )
+    }
+
+    private var selectedHandStackDiagnosticDescription: String {
+        guard let selectedHandStackID else { return "なし" }
+        let selectedStack = displayedHandStacks.first { $0.id == selectedHandStackID }
+            ?? core.handStacks.first { $0.id == selectedHandStackID }
+        return selectedStack?.topCard?.displayName ?? "不明"
+    }
+
+    private var pendingChoiceDiagnosticDescription: String {
+        var descriptions: [String] = []
+        if let choice = core.pendingDungeonPickupChoice {
+            descriptions.append("拾得カード: \(choice.pickup.playable.displayName)")
+        }
+        if let choice = pendingDungeonRelicPickupChoice {
+            descriptions.append("宝箱: \(choice.pickup.id)")
+        }
+        return descriptions.isEmpty ? "なし" : descriptions.joined(separator: ", ")
+    }
+
+    private var movementPresentationOverlayPauseDiagnosticDescription: String {
+        guard let movementPresentationOverlayPause else { return "なし" }
+        switch movementPresentationOverlayPause {
+        case .cardPickupChoice:
+            return "拾得カード選択"
+        case .relicPickupChoice:
+            return "宝箱選択"
+        case .relicAcquisition:
+            return "遺物取得表示"
+        }
+    }
+
+    private var boardTapSelectionWarningDiagnosticDescription: String {
+        guard let boardTapSelectionWarning else { return "なし" }
+        let destination = DebugLogShareSupport.pointDescription(boardTapSelectionWarning.destination)
+        return "\(boardTapSelectionWarning.message) @\(destination)"
+    }
+
+    private var usableSupportCardCount: Int {
+        core.handStacks.filter { stack in
+            guard stack.topCard?.supportCard != nil else { return false }
+            return core.isSupportCardUsable(in: stack)
+        }.count
+    }
+
+    private func makeReportIssueOpenedLogMessage() -> String {
+        let currentPoint = DebugLogShareSupport.pointDescription(core.current)
+        return [
+            "[PLAY] event=report_issue_opened",
+            "floor=\(mode.dungeonMetadataSnapshot?.runState?.floorNumber ?? 0)",
+            "turn=\(core.moveCount)",
+            "hp=\(dungeonHP)",
+            "pos=\(currentPoint)",
+            "progress=\(core.progress)",
+            "moveCandidates=\(core.availableMoves().count)",
+            "basicCandidates=\(core.availableBasicOrthogonalMoves().count)",
+            "usableSupports=\(usableSupportCardCount)",
+            "selected=\(selectedHandStackDiagnosticDescription)",
+            "basicSelected=\(diagnosticBool(isBasicMoveCardSelected))",
+            "pendingChoice=\(pendingChoiceDiagnosticDescription)",
+            "movementActive=\(diagnosticBool(isMovementPresentationActive))",
+            "movementPause=\(movementPresentationOverlayPauseDiagnosticDescription)",
+            "inputAnimation=\"\(boardBridge.inputAnimationDiagnosticDescription)\"",
+            "choiceCollapsed=\(diagnosticBool(isDungeonChoiceOverlayCollapsed))",
+            "warning=\(boardTapSelectionWarning == nil ? "なし" : "あり")"
+        ].joined(separator: " ")
+    }
+
+    private func diagnosticBool(_ value: Bool) -> String {
+        value ? "はい" : "いいえ"
     }
 
     private func makeTesterReproductionBlock() -> String? {

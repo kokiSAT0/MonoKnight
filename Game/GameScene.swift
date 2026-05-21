@@ -722,6 +722,15 @@
             )
         }
 
+        public func placeKnightForMovementReplayStart(at point: GridPoint?) {
+            knightAnimator.placeKnightForMovementReplayStart(
+                at: point,
+                layout: layoutSupport,
+                isLayoutReady: isLayoutReady,
+                updateAccessibility: { [weak self] in self?.updateAccessibilityElements() }
+            )
+        }
+
         public func playLandingEffect(at point: GridPoint) {
             landingEffectPlayCountForTesting += 1
             knightAnimator.playLandingEffect(
@@ -816,6 +825,45 @@
             )
         }
 
+        public func playMovementReplaySegment(
+            to point: GridPoint,
+            step: MovementResolution.PresentationStep?,
+            isLastStep: Bool,
+            warpSource: GridPoint? = nil,
+            onStep: @escaping (MovementResolution.PresentationStep) -> Void = { _ in },
+            onCompletion: @escaping () -> Void = {}
+        ) {
+            latestMovementPathForTesting = [point]
+            latestMovementStepDurationForTesting = GameSceneKnightAnimator.movementReplayStepDuration
+            latestMovementHoldDurationForTesting = GameSceneKnightAnimator.movementReplayHoldDuration
+            latestMovementDamageHoldDurationForTesting = GameSceneKnightAnimator.movementReplayDamageHoldDuration
+            latestMovementTotalDurationForTesting = movementReplaySegmentDuration(
+                step: step,
+                isLastStep: isLastStep,
+                hasWarp: warpSource != nil
+            )
+            knightAnimator.playMovementReplaySegment(
+                to: point,
+                step: step,
+                isLastStep: isLastStep,
+                warpSource: warpSource,
+                in: self,
+                layout: layoutSupport,
+                isLayoutReady: isLayoutReady,
+                warpColor: { [weak self] point in
+                    guard let self else { return GameScenePalette.fallback.boardTileEffectWarp }
+                    return self.decorationRenderer.warpAccentColor(
+                        at: point,
+                        board: self.board,
+                        palette: self.palette
+                    )
+                },
+                updateAccessibility: { [weak self] in self?.updateAccessibilityElements() },
+                onStep: onStep,
+                onCompletion: onCompletion
+            )
+        }
+
         public func pauseMovementTransitionForOverlay() {
             movementTransitionPauseCountForTesting += 1
             knightAnimator.pauseMovementTransitionForOverlay()
@@ -824,6 +872,10 @@
         public func resumeMovementTransitionAfterOverlay() {
             movementTransitionResumeCountForTesting += 1
             knightAnimator.resumeMovementTransitionAfterOverlay()
+        }
+
+        public func movementTransitionSpeedForTesting() -> CGFloat? {
+            knightAnimator.movementTransitionSpeedForTesting()
         }
 
         private func movementReplayTotalDuration(for resolution: MovementResolution) -> TimeInterval {
@@ -877,6 +929,17 @@
                         isLastStep: item.offset == resolution.path.count - 1
                     )
                 }
+        }
+
+        private func movementReplaySegmentDuration(
+            step: MovementResolution.PresentationStep?,
+            isLastStep: Bool,
+            hasWarp: Bool
+        ) -> TimeInterval {
+            let moveDuration = hasWarp
+                ? GameSceneKnightAnimator.movementReplayWarpOutDuration + GameSceneKnightAnimator.movementReplayWarpInDuration
+                : GameSceneKnightAnimator.movementReplayStepDuration
+            return moveDuration + GameSceneKnightAnimator.holdDuration(after: step, isLastStep: isLastStep)
         }
 
         public func playDungeonExitUnlockEffect(at point: GridPoint) {

@@ -115,6 +115,14 @@ final class GameBoardBridgeViewModel: ObservableObject {
     private var observedCollectedDungeonRelicPickupIDs: Set<String>?
     /// 経路移動の再生中かどうか
     @Published private(set) var isMovementReplayActive = false
+    /// 拾得/宝箱オーバーレイ確認のため、経路移動を意図的に止めているかどうか
+    private var isMovementReplayPausedForOverlay = false
+    /// 分割再生中に次に再生する経路インデックス
+    private var movementReplayNextPathIndex = 0
+    /// 区間完了コールバックの古い戻りを無視するための世代番号
+    private var movementReplaySegmentGeneration = 0
+    /// SpriteKit の完了コールバックが戻らない場合に入力ロックを解除する保険
+    private var movementReplayFallbackWorkItem: DispatchWorkItem?
     /// スタックごとのトップカード ID を追跡し、レイアウト同期を最適化する
     @Published var topCardIDsByStack: [UUID: UUID] = [:]
 
@@ -196,6 +204,10 @@ final class GameBoardBridgeViewModel: ObservableObject {
             debugLog("SpriteBoardBridge.onAppear 警告: 盤面幅がゼロ以下です")
         }
         scene.size = CGSize(width: width, height: width)
+        if isMovementReplayActive || preparedMovementReplayResolution != nil {
+            pushHighlightsToScene()
+            return
+        }
         scene.updateBoard(core.board)
         scene.moveKnight(to: core.current)
         refreshGuideHighlights()
@@ -351,17 +363,13 @@ final class GameBoardBridgeViewModel: ObservableObject {
 
     private func beginMovementReplay(using resolution: MovementResolution) {
         prepareMovementReplayPresentationIfNeeded(using: resolution)
+        movementReplayFallbackWorkItem?.cancel()
+        isMovementReplayPausedForOverlay = false
         isMovementReplayActive = true
+        movementReplayNextPathIndex = 0
+        movementReplaySegmentGeneration += 1
         onMovementPresentationStarted?(resolution)
-        scene.playMovementTransition(
-            using: resolution,
-            onStep: { [weak self] step in
-                self?.applyMovementPresentationStep(step)
-            },
-            onCompletion: { [weak self] in
-                self?.finishMovementReplay()
-            }
-        )
+        playNextMovementReplaySegment()
     }
 
     #if DEBUG
@@ -371,6 +379,13 @@ final class GameBoardBridgeViewModel: ObservableObject {
 
         func setMovementReplayActiveForTesting(_ isActive: Bool) {
             isMovementReplayActive = isActive
+        }
+
+        func scheduleMovementReplayFallbackForTesting(using resolution: MovementResolution) {
+            prepareMovementReplayPresentationIfNeeded(using: resolution)
+            isMovementReplayActive = true
+            movementReplayNextPathIndex = 1
+            scheduleMovementReplayFallbackIfNeeded(for: resolution, pathIndex: 0)
         }
 
         func playPendingEnemyTurnAfterMovementReplayForTesting() {
@@ -399,6 +414,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
         }
         preparedMovementReplayResolution = resolution
         presentationCurrentPoint = movementReplayStartPoint(for: resolution)
+        scene.placeKnightForMovementReplayStart(at: presentationCurrentPoint)
         if let initialBoard = resolution.presentationInitialBoard {
             scene.updateBoard(initialBoard)
         }
@@ -440,15 +456,74 @@ final class GameBoardBridgeViewModel: ObservableObject {
         }
         onMovementPresentationStep?(step)
         if shouldPauseMovementPresentationAfterStep?(step) == true {
+            isMovementReplayPausedForOverlay = true
             scene.pauseMovementTransitionForOverlay()
         }
     }
 
     func resumeMovementReplayAfterOverlay() {
+        isMovementReplayPausedForOverlay = false
         scene.resumeMovementTransitionAfterOverlay()
+        playNextMovementReplaySegment()
+    }
+
+    private func playNextMovementReplaySegment() {
+        guard isMovementReplayActive,
+              !isMovementReplayPausedForOverlay,
+              let resolution = preparedMovementReplayResolution
+        else { return }
+        guard movementReplayNextPathIndex < resolution.path.count else {
+            finishMovementReplay()
+            return
+        }
+
+        let pathIndex = movementReplayNextPathIndex
+        movementReplayNextPathIndex += 1
+        movementReplaySegmentGeneration += 1
+        let segmentGeneration = movementReplaySegmentGeneration
+        let destination = resolution.path[pathIndex]
+        let step = resolution.presentationSteps.indices.contains(pathIndex)
+            ? resolution.presentationSteps[pathIndex]
+            : nil
+        scene.playMovementReplaySegment(
+            to: destination,
+            step: step,
+            isLastStep: pathIndex == resolution.path.count - 1,
+            warpSource: movementReplayWarpSource(forPathIndex: pathIndex, in: resolution),
+            onStep: { [weak self] step in
+                self?.applyMovementPresentationStep(step)
+            },
+            onCompletion: { [weak self] in
+                self?.completeMovementReplaySegment(
+                    generation: segmentGeneration,
+                    resolution: resolution
+                )
+            }
+        )
+        scheduleMovementReplayFallbackIfNeeded(for: resolution, pathIndex: pathIndex)
+    }
+
+    private func completeMovementReplaySegment(
+        generation: Int,
+        resolution: MovementResolution
+    ) {
+        guard isMovementReplayActive,
+              movementReplaySegmentGeneration == generation,
+              preparedMovementReplayResolution == resolution
+        else { return }
+        movementReplayFallbackWorkItem?.cancel()
+        movementReplayFallbackWorkItem = nil
+        guard !isMovementReplayPausedForOverlay else { return }
+        playNextMovementReplaySegment()
     }
 
     private func finishMovementReplay() {
+        guard isMovementReplayActive else { return }
+        movementReplayFallbackWorkItem?.cancel()
+        movementReplayFallbackWorkItem = nil
+        isMovementReplayPausedForOverlay = false
+        movementReplayNextPathIndex = 0
+        movementReplaySegmentGeneration += 1
         presentationCollectedDungeonCardPickupIDs = nil
         presentationCollectedDungeonRelicPickupIDs = nil
         presentationEnemyStates = nil
@@ -462,6 +537,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
         isMovementReplayActive = false
         scene.updateBoard(core.board)
         if let current = core.current {
+            scene.moveKnight(to: current)
             scene.playLandingEffect(at: current)
         }
         observedCollectedDungeonCardPickupIDs = core.collectedDungeonCardPickupIDs
@@ -474,8 +550,29 @@ final class GameBoardBridgeViewModel: ObservableObject {
         playPendingEnemyTurnAfterMovementReplayIfNeeded()
     }
 
+    private func scheduleMovementReplayFallbackIfNeeded(for resolution: MovementResolution, pathIndex: Int) {
+        guard isMovementReplayActive else { return }
+        movementReplayFallbackWorkItem?.cancel()
+        let totalDuration = max(scene.latestMovementTotalDurationForTesting, 0.1)
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self,
+                  self.isMovementReplayActive,
+                  !self.isMovementReplayPausedForOverlay,
+                  self.preparedMovementReplayResolution == resolution,
+                  self.movementReplayNextPathIndex >= pathIndex + 1
+            else { return }
+            debugLog(
+                "[PLAY] event=movement_replay_watchdog floor=\(self.mode.dungeonMetadataSnapshot?.runState?.floorNumber ?? 0) turn=\(self.core.moveCount) pos=\(DebugLogShareSupport.pointDescription(self.core.current))"
+            )
+            self.finishMovementReplay()
+        }
+        movementReplayFallbackWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + totalDuration + 0.8, execute: workItem)
+    }
+
     private func movementReplayStartPoint(for resolution: MovementResolution) -> GridPoint? {
-        if let currentScenePoint = scene.currentKnightPointForPresentation() {
+        if let currentScenePoint = scene.currentKnightPointForPresentation(),
+           currentScenePoint != resolution.finalPosition {
             return currentScenePoint
         }
         guard resolution.path.count >= 2 else {
@@ -484,6 +581,24 @@ final class GameBoardBridgeViewModel: ObservableObject {
         let first = resolution.path[0]
         let second = resolution.path[1]
         return first.offset(dx: first.x - second.x, dy: first.y - second.y)
+    }
+
+    private func movementReplayWarpSource(
+        forPathIndex pathIndex: Int,
+        in resolution: MovementResolution
+    ) -> GridPoint? {
+        guard pathIndex > 0 else { return nil }
+        let previousPoint = resolution.path[pathIndex - 1]
+        let destination = resolution.path[pathIndex]
+        return resolution.appliedEffects.first { appliedEffect in
+            guard appliedEffect.point == previousPoint else { return false }
+            switch appliedEffect.effect {
+            case .warp(_, let warpDestination), .returnWarp(let warpDestination):
+                return warpDestination == destination
+            default:
+                return false
+            }
+        }?.point
     }
 
     private func playCollectionEffectsIfNeeded(
@@ -526,6 +641,18 @@ final class GameBoardBridgeViewModel: ObservableObject {
 
     var isInputAnimationActive: Bool {
         animatingCard != nil || isEnemyTurnAnimationActive || isMovementReplayActive
+    }
+
+    var inputAnimationDiagnosticDescription: String {
+        [
+            "input=\(isInputAnimationActive ? "はい" : "いいえ")",
+            "card=\(animatingCard?.displayName ?? "なし")",
+            "phase=\(String(describing: animationState))",
+            "enemy=\(isEnemyTurnAnimationActive ? "はい" : "いいえ")",
+            "replay=\(isMovementReplayActive ? "はい" : "いいえ")",
+            "replayPaused=\(isMovementReplayPausedForOverlay ? "はい" : "いいえ")",
+            "hidden=\(hiddenCardIDs.count)"
+        ].joined(separator: " ")
     }
 
     func playDungeonEnemyTurn(_ event: DungeonEnemyTurnEvent) {

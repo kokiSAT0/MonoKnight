@@ -53,13 +53,14 @@
 
 - `MonoKnightApp` の初期化で `DebugLogHistory.shared.setFrontEndViewerEnabled` を制御している。
   - DEBUG ビルドでは常に `true` にして開発時の検証を容易にする。
-  - リリースビルドでは環境変数 `ENABLE_DIAGNOSTICS_MENU=1` を指定したときのみ有効化されるため、TestFlight 用と App Store 用で挙動を切り替えられる。
+  - リリースビルドでは環境変数 `ENABLE_DIAGNOSTICS_MENU=1` を指定したときのみログ履歴保持を有効化するため、TestFlight 用と App Store 用で挙動を切り替えられる。
+  - 診断メニューやポーズ中の共有レポート導線は `isFrontEndViewerAvailable` で判定し、ログ履歴保持のオン/オフとは分ける。
 - 設定画面の「開発者向け診断」セクションから `DiagnosticsCenterView` を開くと、以下の操作が行える。
   - デバッグログの履歴閲覧・全文コピー・全削除。
   - クラッシュ／フィードバック履歴の閲覧と削除。
   - フロントエンド向けログ履歴の保持オン/オフ切り替え（無効にすると履歴もクリアされる）。
   - テスター共有レポート末尾の `MONOKNIGHT_REPRO_SNAPSHOT_V1` 行を貼り付け、現在階の中断復帰スナップショットとして保存。
-- ログ閲覧が不要なビルドでは `DebugLogHistory.shared.setFrontEndViewerEnabled(false)` を呼び出せば履歴がクリアされ、設定画面からもメニューが消える。
+- ログ閲覧が不要なビルドでは `DebugLogHistory.shared.setFrontEndViewerEnabled(false)` を呼び出せば履歴がクリアされる。診断入口自体を隠す場合は `setFrontEndViewerAvailable(false)` を使う。
 
 ## 3. 優先すべきリファクタリング領域
 
