@@ -80,7 +80,7 @@ Config/Local.xcconfig
 
 ``` xcconfig
 PRODUCT_NAME = MonoKnight
-PRODUCT_BUNDLE_IDENTIFIER = com.koki.monoknight$(BUNDLE_ID_SUFFIX)
+PRODUCT_BUNDLE_IDENTIFIER = com.kokisato.MonoKnightApp$(BUNDLE_ID_SUFFIX)
 
 DEVELOPMENT_TEAM =
 BUNDLE_ID_SUFFIX =

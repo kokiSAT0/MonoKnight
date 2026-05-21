@@ -12,8 +12,10 @@
 
 ## 1.1 内部 TestFlight 配布準備
 
+- [x] ローカルの `MonoKnight` scheme 実効値が Bundle ID `com.kokisato.MonoKnightApp` / Version `1.0` / Build `1` / Team `5TAKV37ZM4` / Automatic signing と一致している
+- [x] 署名なしの Release iPhoneOS build が成功している
 - [ ] App Store Connect の Bundle ID が `com.kokisato.MonoKnightApp` と一致している
-- [ ] `MonoKnight` scheme の Archive を作成できる
+- [ ] Xcode Organizer で `MonoKnight` scheme の Archive を作成できる
 - [ ] TestFlight の Beta App Description / What to Test / Feedback Email を入力した
 - [ ] 内部テスターグループを作成し、対象ビルドを追加した
 - [ ] 内部テスターの端末で TestFlight からインストールできる
@@ -71,9 +73,10 @@
 
 ## 8. 設定ファイル
 
-- [ ] `NSUserTrackingUsageDescription` を確認した
-- [ ] `SKAdNetworkItems` を最新 ID で確認した
-- [ ] 本番向けの `Info.plist` / `.xcconfig` 値を Xcode 上で最終確認した
+- [x] 生成済み Release app の `NSUserTrackingUsageDescription` を確認した
+- [x] 生成済み Release app の `SKAdNetworkItems` が空でないことを確認した
+- [x] 本番向けの `Info.plist` / `.xcconfig` 実効値をローカル Release build で確認した
+- [ ] App Store Connect / AdMob 側の本番 ID と一致していることを手動確認した
 
 詳細なキー管理は [`info-plist-guidelines.md`](info-plist-guidelines.md) を参照する。
 

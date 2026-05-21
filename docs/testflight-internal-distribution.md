@@ -20,6 +20,19 @@ Xcode 側の現在値は次を基準にする。
 App Store Connect 側のアプリ登録では、Bundle ID が `com.kokisato.MonoKnightApp` と一致していることを確認する。
 一致していないアプリレコードにはアップロードできないため、App Store Connect 側で正しい Bundle ID のアプリを使う。
 
+2026-05-21 のローカルプリフライトでは、`MonoKnight` scheme の Release build settings と生成済み `MonoKnightApp.app/Info.plist` で以下を確認済み。
+
+- `PRODUCT_BUNDLE_IDENTIFIER = com.kokisato.MonoKnightApp`
+- `MARKETING_VERSION = 1.0`
+- `CURRENT_PROJECT_VERSION = 1`
+- `DEVELOPMENT_TEAM = 5TAKV37ZM4`
+- `CODE_SIGN_STYLE = Automatic`
+- `CFBundleDisplayName = MonoKnight`
+- `NSUserTrackingUsageDescription` が設定済み
+- `SKAdNetworkItems` が空でない
+
+`Config/Default.xcconfig` は共有の既定値として `com.kokisato.MonoKnightApp$(BUNDLE_ID_SUFFIX)` を持つが、配布対象の `MonoKnightApp` ターゲットは project 設定で `com.kokisato.MonoKnightApp` を明示している。TestFlight へ上げる時は、必ず shared scheme `MonoKnight` が `MonoKnightApp.app` を Archive 対象にしていることを確認する。
+
 ## 2. Archive とアップロード
 
 1. Xcode で `MonoKnight.xcodeproj` を開く。
@@ -31,6 +44,14 @@ App Store Connect 側のアプリ登録では、Bundle ID が `com.kokisato.Mono
 
 CLI の Release ビルド確認は、アップロード前の補助確認として扱う。
 署名、Provisioning Profile、Apple ID セッション、App Store Connect 側の権限は Xcode / App Store Connect の状態に依存するため、最終アップロードは Organizer で確認する。
+
+ローカルの補助確認として、2026-05-21 に次の Release build は成功済み。
+
+```sh
+xcodebuild -project MonoKnight.xcodeproj -scheme MonoKnight -configuration Release -destination 'generic/platform=iOS' -derivedDataPath /tmp/MonoKnightPreflightDerivedData CODE_SIGNING_ALLOWED=NO build
+```
+
+この確認は署名を無効化しているため、Archive 作成可否、Provisioning Profile、App Store Connect へのアップロード可否は未確認のまま残す。
 
 ## 3. TestFlight の最小入力
 

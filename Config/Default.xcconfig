@@ -5,7 +5,7 @@
 PRODUCT_NAME = MonoKnight
 
 // バンドルID
-PRODUCT_BUNDLE_IDENTIFIER = com.koki.monoknight$(BUNDLE_ID_SUFFIX)
+PRODUCT_BUNDLE_IDENTIFIER = com.kokisato.MonoKnightApp$(BUNDLE_ID_SUFFIX)
 
 // チームIDやサフィックスは環境ごとに上書き
 DEVELOPMENT_TEAM =
