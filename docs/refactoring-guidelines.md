@@ -19,9 +19,10 @@
 
 ### 2.1 現在のフェーズ判断
 
-- 主要リファクタ対象の整理は一巡しており、現在は「再開発を始めながら局所的に整える」段階とする。
+- 主要リファクタ対象の構造整理は一巡しており、現在は「正式リリース前に実装地図を更新しながら局所的に整える」段階とする。
 - 包括的な再分割や再設計を次の前提にはしない。
-- 今後のリファクタリングは、新機能追加・ステージ追加・バグ修正に付随する局所改善を基本とする。
+- 今後のリファクタリングは、ゲームバランス調整・UI 改善・バグ修正に付随する局所改善を基本とする。
+- 塔定義、報酬、拾得、盤面演出、ユーザー向け説明は変更頻度が高いため、機能追加のたびに責務の逆流が起きていないか確認する。
 - 出荷準備はまだ別論点であり、TestFlight 通し QA や本番値整備は `docs/release-checklist.md` と `docs/recommended-task-list.md` で別管理する。
 
 ### 2.2 直近の改善サマリ
@@ -64,17 +65,21 @@
 
 ## 3. 優先すべきリファクタリング領域
 
-再開発フェーズでは、以下を「事前着手必須の大型リファクタ」ではなく「変更が入ったときに一緒に整理する監視対象」として扱う。
+リリース前の棚卸しフェーズでは、以下を「事前着手必須の大型リファクタ」ではなく「変更が入ったときに一緒に整理する重点監視対象」として扱う。
 
+- `Game/DungeonDefinition.swift`
 - `Game/GameCore.swift`
-- `Game/Deck.swift`
-- `UI/TitleFlowView.swift`
-- `UI/MoveCardIllustrationView.swift`
+- `UI/GameViewModel.swift`
+- `UI/GameBoardBridgeViewModel.swift`
+- `UI/ResultViewSections.swift`
+- `UI/HowToPlayView.swift`
 
 1. **ゲームコアロジック (`Game` パッケージ)**
-   - `GameModuleInterfaces` を経由した依存注入が整備されたため、今後は `HandManager` や `Deck` の再利用性を高める。
+   - `GameModuleInterfaces` を経由した依存注入が整備されたため、今後も `Game` の公開入口を増やさず、UI からの利用経路を一本化する。
+   - `DungeonDefinition.swift` は塔定義、報酬プール、階層生成、バランス値が集まりやすいため、調整時は「定義データ」「抽選/生成ルール」「表示用メタデータ」が混ざっていないか確認する。
+   - `GameCore.swift` は実行時ルール、拾得、報酬、進行状態、中断復帰が集まるため、挙動追加時は状態更新と表示イベントの境界を確認する。
 
-  - 2024-05 リファクタリング: 移動量を `MovePattern` で抽象化し、`MoveCard.movePattern` / `primaryVector` を通じて参照する。
+   - 2024-05 リファクタリング: 移動量を `MovePattern` で抽象化し、`MoveCard.movePattern` / `primaryVector` を通じて参照する。
     - 旧実装で `dx` / `dy` を直接参照している箇所は、`primaryVector.dx` / `.dy` へ置き換える。
     - 同一挙動カードの比較は `MovePattern.Identity` をキーにする。`HandStack.representativePatternIdentity` や `Deck.Configuration.allowedMoveIdentities` を活用する。
     - 複数候補カードを導入する場合は `MovePattern` による経路解決を利用し、UI は `ResolvedCardMove` の `path` を通じて候補選択ロジックを追加する。
@@ -85,8 +90,9 @@
 2. **UI レイヤー (`UI/` ディレクトリ)**
    - `GameViewModel` / `GameBoardBridgeViewModel` / `GameViewLayoutCalculator` による三層構造を維持しつつ、Combine 購読や
      `DispatchWorkItem` の破棄漏れが起こらないようユニットテスト・統合テストを整える。
-   - `BoardLayoutSnapshot` で収集したログの閲覧導線を準備し、iPad 向け余白やアクセシビリティ調整を継続的に検証する。
-   - `ResultView`・`SettingsView`・`ConsentFlowView` など周辺画面の共通スタイル化と、開発者向け診断項目の導線整理を進める。
+   - `GameViewModel` はプレイヤー入力、塔進行、報酬選択、移動継続の入口が集まりやすいため、新しい導線を足す場合は既存の `GameViewModel+InputActions` / `+FlowActions` / `+Lifecycle` / `+Bindings` へ責務別に寄せる。
+   - `GameBoardBridgeViewModel` は盤面表示、ハイライト、移動リプレイ、オーバーレイ一時停止の橋渡しに集中させ、ゲームルール判断を逆流させない。
+   - `ResultViewSections` と `HowToPlayView` は報酬・レリック・罠・塔説明のユーザー向け正面になるため、ゲーム仕様を変えた場合は同じ変更で説明とアクセシビリティ文言を同期する。
 3. **サービス層 (`Services/` ディレクトリ)**
    - StoreKit・Game Center・AdMob 各サービスはプロトコル化済みなので、`SharedSupport` のログ仕組みを活かした障害検知とリトライ戦略
      の明文化が次の焦点。
@@ -115,8 +121,11 @@
 
 ### 4.1 再開発フェーズでの進め方
 
-- 新機能やステージ追加を先に進め、必要に応じて触ったファイルだけを小さく整理する。
+- 新機能、バランス調整、UI 改善を先に進め、必要に応じて触ったファイルだけを小さく整理する。
+- 作業前に `git status` と差分を確認し、未完了変更がある場合は既存変更の意図を保護する。
+- 巨大ファイルを分割する場合も、仕様変更と同時に大きく動かさず、次に触る責務の近傍だけを抽出する。
 - 変更に UI が含まれる場合は `swift test` に加えて App ビルド確認も行う。
+- 塔定義、報酬、生成バランスを触る場合は `DungeonModeTests` と autoplay 系の確認を優先する。
 - 新フロア追加時は `DungeonModeTests` と `DungeonSelectionViewTests` 系を最低限の回帰確認とする。
 - ゲーム進行変更時は `GameCoreTests` と `DeckTests` の近傍ケースを補強する。
 - Swift Package 境界、`Game / UI / Services` の責務境界、外部サービス依存の閉じ込めは崩さない。
