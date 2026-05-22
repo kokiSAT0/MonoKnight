@@ -35,6 +35,16 @@ public enum SupportCard: String, CaseIterable, Codable, Hashable, Sendable {
         .panacea
     ]
 
+    public var normalizedForInventory: SupportCard {
+        switch self {
+        case .antidote:
+            return .panacea
+        case .refillEmptySlots, .singleAnnihilationSpell, .annihilationSpell, .freezeSpell, .barrierSpell,
+             .darknessSpell, .railBreakSpell, .flySpell, .panacea:
+            return self
+        }
+    }
+
     public var displayName: String {
         switch self {
         case .refillEmptySlots:
@@ -113,7 +123,7 @@ public enum PlayableCard: Codable, Hashable, Sendable {
     }
 
     public var support: SupportCard? {
-        if case .support(let support) = self { return support }
+        if case .support(let support) = self { return support.normalizedForInventory }
         return nil
     }
 
@@ -131,12 +141,21 @@ public enum PlayableCard: Codable, Hashable, Sendable {
         return false
     }
 
+    public var normalizedForInventory: PlayableCard {
+        switch self {
+        case .move:
+            return self
+        case .support(let support):
+            return .support(support.normalizedForInventory)
+        }
+    }
+
     public var identityText: String {
         switch self {
         case .move(let move):
             return "move:\(move.displayName)"
         case .support(let support):
-            return "support:\(support.rawValue)"
+            return "support:\(support.normalizedForInventory.rawValue)"
         }
     }
 
@@ -158,7 +177,7 @@ public enum PlayableCard: Codable, Hashable, Sendable {
         case .move:
             self = .move(try container.decode(MoveCard.self, forKey: .move))
         case .support:
-            self = .support(try container.decode(SupportCard.self, forKey: .support))
+            self = .support(try container.decode(SupportCard.self, forKey: .support).normalizedForInventory)
         }
     }
 
@@ -170,7 +189,7 @@ public enum PlayableCard: Codable, Hashable, Sendable {
             try container.encode(move, forKey: .move)
         case .support(let support):
             try container.encode(Kind.support, forKey: .type)
-            try container.encode(support, forKey: .support)
+            try container.encode(support.normalizedForInventory, forKey: .support)
         }
     }
 }

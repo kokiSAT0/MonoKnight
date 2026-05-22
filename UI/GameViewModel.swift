@@ -641,7 +641,7 @@ final class GameViewModel: ObservableObject {
 
     /// 満杯時でも既存補助カードの重ね取りは許可し、新規種類だけを止める
     func canAddDungeonRewardSupportCard(_ support: SupportCard) -> Bool {
-        canAddDungeonRewardPlayable(.support(support))
+        canAddDungeonRewardPlayable(.support(support.normalizedForInventory))
     }
     /// 拾得カードはクリア時に自動で次フロアへ持ち越すため、通常 UI では選択候補を出さない
     var carryoverCandidateDungeonPickupEntries: [DungeonInventoryEntry] {
@@ -702,8 +702,9 @@ final class GameViewModel: ObservableObject {
         return dungeonInventoryEntries.filter(\.hasUsesRemaining)
     }
     private func canAddDungeonRewardPlayable(_ playable: PlayableCard) -> Bool {
+        let normalizedPlayable = playable.normalizedForInventory
         let liveEntries = dungeonInventoryEntries.filter(\.hasUsesRemaining)
-        if liveEntries.contains(where: { $0.playable == playable }) {
+        if liveEntries.contains(where: { $0.playable.normalizedForInventory == normalizedPlayable }) {
             return true
         }
         return liveEntries.count < core.dungeonInventoryKindLimit

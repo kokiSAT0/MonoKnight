@@ -278,7 +278,7 @@ struct Deck {
         for support in configuration.allowedSupportCards {
             let weight = configuration.weightProfile.defaultWeight
             guard weight > 0 else { continue }
-            weightedCards.append((.support(support), weight))
+            weightedCards.append((.support(support.normalizedForInventory), weight))
             totalWeight += weight
         }
 

@@ -170,6 +170,7 @@ private enum DungeonDamageCategory: Equatable {
 }
 
 private struct DungeonEnemyDamageComponent {
+    let enemyID: String
     let category: DungeonDamageCategory
     let amount: Int
     let source: String
@@ -228,6 +229,7 @@ private struct MovementProcessingResult {
     var preservesPlayedCard: Bool
     var paralysisTrapPoint: GridPoint?
     var triggeredPoisonTrap: Bool
+    var resolvedEnemyDamageSourceIDs: Set<String>
 }
 
 /// 盤面表示用に切り出した見張り系レーザーの現在状態
@@ -255,7 +257,7 @@ public struct PendingTargetedSupportCard: Equatable {
     public init(stackID: UUID, cardID: UUID, support: SupportCard) {
         self.stackID = stackID
         self.cardID = cardID
-        self.support = support
+        self.support = support.normalizedForInventory
     }
 }
 
@@ -1392,9 +1394,8 @@ public final class GameCore: ObservableObject {
         // 経路ごとの踏破判定と効果適用を順番に処理する
         // アニメーション用に経路を保持し、ワープ時は終点を追加して UI へ伝達する
         let stopsAtMovementStoppingTiles = stopsAtMovementStoppingTiles(for: cardMove)
-        let pathPoints = effectivePathPoints(for: validatedMove, from: currentPosition)
         guard let movementResult = processMovementPath(
-            pathPoints,
+            validatedMove.path,
             startingAt: currentPosition,
             stopsAtMovementStoppingTiles: stopsAtMovementStoppingTiles
         ) else { return }
@@ -1443,6 +1444,7 @@ public final class GameCore: ObservableObject {
                 paralysisTrapPoint: paralysisTrapPoint,
                 triggeredPoisonTrap: movementResult.triggeredPoisonTrap,
                 previousMoveCount: previousMoveCount,
+                resolvedEnemyDamageSourceIDs: movementResult.resolvedEnemyDamageSourceIDs,
                 stopsAtMovementStoppingTiles: stopsAtMovementStoppingTiles
             )
             return
@@ -1508,7 +1510,8 @@ public final class GameCore: ObservableObject {
             initialMarkerDamagePoints: pendingMarkerDamagePoints,
             paralysisTrapPoint: paralysisTrapPoint,
             skipsPoisonTick: movementResult.triggeredPoisonTrap,
-            previousMoveCount: previousMoveCount
+            previousMoveCount: previousMoveCount,
+            resolvedEnemyDamageSourceIDs: movementResult.resolvedEnemyDamageSourceIDs
         ) { return }
         if resolveAutomaticStaggerMoveIfNeeded() { return }
 
@@ -1738,6 +1741,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                 paralysisTrapPoint: paralysisTrapPoint,
                 triggeredPoisonTrap: movementResult.triggeredPoisonTrap,
                 previousMoveCount: previousMoveCount,
+                resolvedEnemyDamageSourceIDs: movementResult.resolvedEnemyDamageSourceIDs,
                 stopsAtMovementStoppingTiles: true
             )
             return
@@ -1772,7 +1776,8 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             initialMarkerDamagePoints: pendingMarkerDamagePoints,
             paralysisTrapPoint: paralysisTrapPoint,
             skipsPoisonTick: movementResult.triggeredPoisonTrap,
-            previousMoveCount: previousMoveCount
+            previousMoveCount: previousMoveCount,
+            resolvedEnemyDamageSourceIDs: movementResult.resolvedEnemyDamageSourceIDs
         ) { return }
         _ = resolveAutomaticStaggerMoveIfNeeded()
     }
@@ -1866,6 +1871,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                 paralysisTrapPoint: paralysisTrapPoint,
                 triggeredPoisonTrap: movementResult.triggeredPoisonTrap,
                 previousMoveCount: previousMoveCount,
+                resolvedEnemyDamageSourceIDs: movementResult.resolvedEnemyDamageSourceIDs,
                 stopsAtMovementStoppingTiles: true
             )
             return
@@ -1897,7 +1903,8 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             initialMarkerDamagePoints: pendingMarkerDamagePoints,
             paralysisTrapPoint: paralysisTrapPoint,
             skipsPoisonTick: movementResult.triggeredPoisonTrap,
-            previousMoveCount: previousMoveCount
+            previousMoveCount: previousMoveCount,
+            resolvedEnemyDamageSourceIDs: movementResult.resolvedEnemyDamageSourceIDs
         ) { return }
         if !resolveAutomaticStaggerMoveIfNeeded(depth: depth + 1) {
             checkDeadlockAndApplyPenaltyIfNeeded()
@@ -1948,6 +1955,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         var combinedPreservesPlayedCard = continuation.preservesPlayedCard
         var combinedParalysisTrapPoint = continuation.paralysisTrapPoint
         var combinedTriggeredPoisonTrap = continuation.triggeredPoisonTrap
+        var combinedResolvedEnemyDamageSourceIDs = continuation.resolvedEnemyDamageSourceIDs
 
         if !continuation.remainingPath.isEmpty {
             guard let movementResult = processMovementPath(
@@ -1988,6 +1996,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             combinedPreservesPlayedCard = combinedPreservesPlayedCard || movementResult.preservesPlayedCard
             combinedParalysisTrapPoint = movementResult.paralysisTrapPoint ?? combinedParalysisTrapPoint
             combinedTriggeredPoisonTrap = combinedTriggeredPoisonTrap || movementResult.triggeredPoisonTrap
+            combinedResolvedEnemyDamageSourceIDs.formUnion(movementResult.resolvedEnemyDamageSourceIDs)
 
             if let remainingPath = movementResult.remainingPathAfterPickupChoice {
                 pendingDungeonMovementContinuation = PendingDungeonMovementContinuation(
@@ -2003,6 +2012,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                     paralysisTrapPoint: combinedParalysisTrapPoint,
                     triggeredPoisonTrap: combinedTriggeredPoisonTrap,
                     previousMoveCount: continuation.previousMoveCount,
+                    resolvedEnemyDamageSourceIDs: combinedResolvedEnemyDamageSourceIDs,
                     stopsAtMovementStoppingTiles: continuation.stopsAtMovementStoppingTiles
                 )
                 return
@@ -2045,7 +2055,8 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             initialMarkerDamagePoints: continuation.initialMarkerDamagePoints,
             paralysisTrapPoint: combinedParalysisTrapPoint,
             skipsPoisonTick: combinedTriggeredPoisonTrap,
-            previousMoveCount: continuation.previousMoveCount
+            previousMoveCount: continuation.previousMoveCount,
+            resolvedEnemyDamageSourceIDs: combinedResolvedEnemyDamageSourceIDs
         ) { return }
         if resolveAutomaticStaggerMoveIfNeeded() { return }
 
@@ -2097,6 +2108,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         var preservesPlayedCard = false
         var paralysisTrapPoint: GridPoint?
         var triggeredPoisonTrap = false
+        var resolvedEnemyDamageSourceIDs: Set<String> = []
         var blastEffectCount = 0
         let blastEffectLimit = max(1, board.size * board.size * 2)
 
@@ -2114,7 +2126,10 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             finalPosition = stepPoint
 
             if shouldApplyEnemyDangerDamageDuringMovement(stepIndex: stepIndex, path: pendingPath),
-               applyDungeonEnemyDangerDamageIfNeeded(at: stepPoint) {
+               applyDungeonEnemyDangerDamageIfNeeded(
+                at: stepPoint,
+                resolvedEnemyDamageSourceIDs: &resolvedEnemyDamageSourceIDs
+               ) {
                 presentationSteps.append(
                     movementPresentationStep(
                         at: stepPoint,
@@ -2218,7 +2233,10 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                         board.markVisited(destination)
                         finalPosition = destination
                         actualTraversedPath.append(destination)
-                        if applyDungeonEnemyDangerDamageIfNeeded(at: destination) {
+                        if applyDungeonEnemyDangerDamageIfNeeded(
+                            at: destination,
+                            resolvedEnemyDamageSourceIDs: &resolvedEnemyDamageSourceIDs
+                        ) {
                             presentationSteps.append(
                                 movementPresentationStep(
                                     at: destination,
@@ -2441,7 +2459,8 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             postMoveTileEffect: postMoveTileEffect,
             preservesPlayedCard: preservesPlayedCard,
             paralysisTrapPoint: paralysisTrapPoint,
-            triggeredPoisonTrap: triggeredPoisonTrap
+            triggeredPoisonTrap: triggeredPoisonTrap,
+            resolvedEnemyDamageSourceIDs: resolvedEnemyDamageSourceIDs
         )
     }
 
@@ -3131,11 +3150,11 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         let existingStacksByPlayable = Dictionary(
             uniqueKeysWithValues: handStacks.compactMap { stack -> (PlayableCard, HandStack)? in
                 guard let playable = stack.representativePlayable else { return nil }
-                return (playable, stack)
+                return (playable.normalizedForInventory, stack)
             }
         )
         let liveEntries = HandDisplayOrdering.orderedDungeonInventoryEntries(
-            Array(dungeonInventoryEntries.filter(\.hasUsesRemaining).prefix(dungeonInventoryKindLimit)),
+            Array(normalizedDungeonInventoryEntries(dungeonInventoryEntries).prefix(dungeonInventoryKindLimit)),
             strategy: handOrderingStrategy
         )
         dungeonInventoryEntries = liveEntries
@@ -3151,30 +3170,50 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         handManager.clearAll()
     }
 
+    private func normalizedDungeonInventoryEntries(_ entries: [DungeonInventoryEntry]) -> [DungeonInventoryEntry] {
+        var result: [DungeonInventoryEntry] = []
+        for entry in entries {
+            let normalizedEntry = DungeonInventoryEntry(
+                playable: entry.playable.normalizedForInventory,
+                rewardUses: entry.rewardUses,
+                pickupUses: entry.pickupUses
+            )
+            guard normalizedEntry.hasUsesRemaining else { continue }
+            if let index = result.firstIndex(where: { $0.playable == normalizedEntry.playable }) {
+                result[index].rewardUses += normalizedEntry.rewardUses
+                result[index].pickupUses += normalizedEntry.pickupUses
+            } else {
+                result.append(normalizedEntry)
+            }
+        }
+        return result
+    }
+
     private func addDungeonInventoryCard(_ card: MoveCard, pickupUses: Int = 0, rewardUses: Int = 0) -> Bool {
         addDungeonInventoryPlayable(.move(card), pickupUses: pickupUses, rewardUses: rewardUses)
     }
 
     private func addDungeonInventorySupportCard(_ support: SupportCard, pickupUses: Int = 0, rewardUses: Int = 0) -> Bool {
-        addDungeonInventoryPlayable(.support(support), pickupUses: pickupUses, rewardUses: rewardUses)
+        addDungeonInventoryPlayable(.support(support.normalizedForInventory), pickupUses: pickupUses, rewardUses: rewardUses)
     }
 
     private func addDungeonInventoryPlayable(_ playable: PlayableCard, pickupUses: Int = 0, rewardUses: Int = 0) -> Bool {
         guard usesDungeonInventoryCards else { return false }
+        let normalizedPlayable = playable.normalizedForInventory
         let normalizedPickupUses = max(pickupUses, 0)
         let normalizedRewardUses = max(rewardUses, 0)
         guard normalizedPickupUses + normalizedRewardUses > 0 else { return false }
-        if let index = dungeonInventoryEntries.firstIndex(where: { $0.playable == playable }) {
+        if let index = dungeonInventoryEntries.firstIndex(where: { $0.playable.normalizedForInventory == normalizedPlayable }) {
             dungeonInventoryEntries[index].rewardUses += normalizedPickupUses + normalizedRewardUses
             dungeonInventoryEntries[index].pickupUses = 0
             syncDungeonInventoryHandStacks()
             return true
         }
 
-        guard dungeonInventoryEntries.filter(\.hasUsesRemaining).count < dungeonInventoryKindLimit else { return false }
+        guard normalizedDungeonInventoryEntries(dungeonInventoryEntries).count < dungeonInventoryKindLimit else { return false }
         dungeonInventoryEntries.append(
             DungeonInventoryEntry(
-                playable: playable,
+                playable: normalizedPlayable,
                 rewardUses: normalizedRewardUses,
                 pickupUses: normalizedPickupUses
             )
@@ -3188,12 +3227,13 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
     }
 
     private func consumeDungeonInventorySupportCard(_ support: SupportCard) {
-        consumeDungeonInventoryPlayable(.support(support))
+        consumeDungeonInventoryPlayable(.support(support.normalizedForInventory))
     }
 
     private func consumeDungeonInventoryPlayable(_ playable: PlayableCard) {
+        let normalizedPlayable = playable.normalizedForInventory
         guard usesDungeonInventoryCards,
-              let index = dungeonInventoryEntries.firstIndex(where: { $0.playable == playable })
+              let index = dungeonInventoryEntries.firstIndex(where: { $0.playable.normalizedForInventory == normalizedPlayable })
         else { return }
 
         if dungeonInventoryEntries[index].rewardUses > 0 {
@@ -3219,8 +3259,9 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
 
     @discardableResult
     public func removeDungeonRewardInventorySupportCard(_ support: SupportCard) -> Bool {
+        let normalizedSupport = support.normalizedForInventory
         guard usesDungeonInventoryCards,
-              let index = dungeonInventoryEntries.firstIndex(where: { $0.supportCard == support && $0.hasUsesRemaining })
+              let index = dungeonInventoryEntries.firstIndex(where: { $0.supportCard == normalizedSupport && $0.hasUsesRemaining })
         else { return false }
 
         dungeonInventoryEntries[index].rewardUses = 0
@@ -4742,7 +4783,8 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         paralysisTrapPoint: GridPoint? = nil,
         skipsPoisonTick: Bool,
         previousMoveCount: Int,
-        consumesDamageBarrierTurn: Bool = true
+        consumesDamageBarrierTurn: Bool = true,
+        resolvedEnemyDamageSourceIDs: Set<String> = []
     ) -> Bool {
         guard mode.usesDungeonExit else { return false }
         guard progress == .playing, dungeonFallEvent == nil else { return true }
@@ -4786,7 +4828,10 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             let enemyStatesBeforeTurn = enemyStates
             let enemyWarpPoints = advanceEnemiesForDungeonTurn()
             let hpBeforeEnemyDamage = dungeonHP
-            let enemyDamage = applyDungeonEnemyDamageIfNeeded(markerDamagePoints: pendingMarkerDamagePoints)
+            let enemyDamage = applyDungeonEnemyDamageIfNeeded(
+                markerDamagePoints: pendingMarkerDamagePoints,
+                excludingEnemyIDs: resolvedEnemyDamageSourceIDs
+            )
             if let phase = dungeonEnemyTurnPhase(
                 before: enemyStatesBeforeTurn,
                 after: enemyStates,
@@ -5328,13 +5373,17 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
     }
 
     @discardableResult
-    private func applyDungeonEnemyDamageIfNeeded(markerDamagePoints: Set<GridPoint>) -> Int {
+    private func applyDungeonEnemyDamageIfNeeded(
+        markerDamagePoints: Set<GridPoint>,
+        excludingEnemyIDs: Set<String> = []
+    ) -> Int {
         guard mode.usesDungeonExit, let current else { return 0 }
         let damage = dungeonEnemyDamage(
             at: current,
             markerDamagePoints: markerDamagePoints,
             includesContact: true,
-            includesMarkerWarning: true
+            includesMarkerWarning: true,
+            excludingEnemyIDs: excludingEnemyIDs
         )
         var totalDamage = damage.enemy + damage.marker
         guard totalDamage > 0 else { return 0 }
@@ -5393,7 +5442,10 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
     }
 
     @discardableResult
-    private func applyDungeonEnemyDangerDamageIfNeeded(at point: GridPoint) -> Bool {
+    private func applyDungeonEnemyDangerDamageIfNeeded(
+        at point: GridPoint,
+        resolvedEnemyDamageSourceIDs: inout Set<String>
+    ) -> Bool {
         guard mode.usesDungeonExit else { return false }
         let damage = dungeonEnemyDamage(
             at: point,
@@ -5404,6 +5456,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         var totalDamage = damage.enemy + damage.marker
 
         guard totalDamage > 0 else { return false }
+        resolvedEnemyDamageSourceIDs.formUnion(damage.enemySourceIDs)
         let source = dungeonEnemyDamageActorText(damage)
         if isDamageBarrierActive {
             debugLog("敵の攻撃範囲通過ダメージを障壁で無効化: \(point), 残り=\(damageBarrierTurnsRemaining)")
@@ -5462,30 +5515,36 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
         markerDamagePoints: Set<GridPoint>,
         includesContact: Bool,
         includesMarkerWarning: Bool,
+        excludingEnemyIDs: Set<String> = [],
         rotatingWatcherOffset: Int = 0
     ) -> (
         enemy: Int,
         marker: Int,
         enemySources: [String],
         markerSources: [String],
+        enemySourceIDs: Set<String>,
         components: [DungeonEnemyDamageComponent]
     ) {
-        guard !isEnemyFreezeActive else { return (0, 0, [], [], []) }
+        guard !isEnemyFreezeActive else { return (0, 0, [], [], [], []) }
         var enemyDamage = 0
         var markerDamage = 0
         var enemySources: [String] = []
         var markerSources: [String] = []
+        var enemySourceIDs: Set<String> = []
         var components: [DungeonEnemyDamageComponent] = []
 
         for enemy in enemyStates {
+            guard !excludingEnemyIDs.contains(enemy.id) else { continue }
             if enemyDangerPoints(for: enemy, rotatingWatcherOffset: rotatingWatcherOffset).contains(point) {
                 let sourceDamage = adjustedEnemySourceDamage(for: enemy, isMarkerWarning: false)
                 enemyDamage += sourceDamage
                 if sourceDamage > 0 {
                     let source = enemy.behavior.presentationKind.displayName
                     enemySources.append(source)
+                    enemySourceIDs.insert(enemy.id)
                     components.append(
                         DungeonEnemyDamageComponent(
+                            enemyID: enemy.id,
                             category: damageCategory(for: enemy.behavior, isMarkerWarning: false),
                             amount: sourceDamage,
                             source: source,
@@ -5499,8 +5558,10 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                 if sourceDamage > 0 {
                     let source = enemy.behavior.presentationKind.displayName
                     enemySources.append(source)
+                    enemySourceIDs.insert(enemy.id)
                     components.append(
                         DungeonEnemyDamageComponent(
+                            enemyID: enemy.id,
                             category: damageCategory(for: enemy.behavior, isMarkerWarning: false),
                             amount: sourceDamage,
                             source: source,
@@ -5516,6 +5577,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                     markerSources.append(source)
                     components.append(
                         DungeonEnemyDamageComponent(
+                            enemyID: enemy.id,
                             category: damageCategory(for: enemy.behavior, isMarkerWarning: true),
                             amount: sourceDamage,
                             source: source,
@@ -5525,7 +5587,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
                 }
             }
         }
-        return (enemyDamage, markerDamage, enemySources, markerSources, components)
+        return (enemyDamage, markerDamage, enemySources, markerSources, enemySourceIDs, components)
     }
 
     private func dungeonEnemyDamageActorText(
@@ -5534,6 +5596,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             marker: Int,
             enemySources: [String],
             markerSources: [String],
+            enemySourceIDs: Set<String>,
             components: [DungeonEnemyDamageComponent]
         )
     ) -> String {
@@ -5553,6 +5616,7 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
             marker: Int,
             enemySources: [String],
             markerSources: [String],
+            enemySourceIDs: Set<String>,
             components: [DungeonEnemyDamageComponent]
         )
     ) -> String {
@@ -6175,50 +6239,6 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
 
     private func manhattanDistance(from lhs: GridPoint, to rhs: GridPoint) -> Int {
         abs(lhs.x - rhs.x) + abs(lhs.y - rhs.y)
-    }
-
-    private func normalizedDirection(from origin: GridPoint, to destination: GridPoint) -> MoveVector {
-        MoveVector(
-            dx: destination.x == origin.x ? 0 : (destination.x > origin.x ? 1 : -1),
-            dy: destination.y == origin.y ? 0 : (destination.y > origin.y ? 1 : -1)
-        )
-    }
-
-    private func effectivePathPoints(for move: ResolvedCardMove, from origin: GridPoint) -> [GridPoint] {
-        let rawPath = move.path
-        guard rawPath.count == 1,
-              let moveCard = move.card.moveCard,
-              shouldExpandFixedDistanceMovementPath(moveCard),
-              let destination = rawPath.first
-        else { return rawPath }
-
-        let direction = normalizedDirection(from: origin, to: destination)
-        guard direction.dx != 0 || direction.dy != 0 else { return rawPath }
-
-        var current = origin
-        var expanded: [GridPoint] = []
-        while current != destination {
-            current = current.offset(dx: direction.dx, dy: direction.dy)
-            expanded.append(current)
-        }
-
-        return expanded
-    }
-
-    private func shouldExpandFixedDistanceMovementPath(_ move: MoveCard) -> Bool {
-        switch move {
-        case .straightUp2,
-             .straightDown2,
-             .straightRight2,
-             .straightLeft2,
-             .diagonalUpRight2,
-             .diagonalDownRight2,
-             .diagonalDownLeft2,
-             .diagonalUpLeft2:
-            return true
-        default:
-            return false
-        }
     }
 
     private func stopsAtMovementStoppingTiles(for move: MoveCard) -> Bool {

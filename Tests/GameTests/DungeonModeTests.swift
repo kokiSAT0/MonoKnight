@@ -4353,6 +4353,109 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertEqual(resolution.presentationSteps.last?.stopReason, .warp)
     }
 
+    func testWarpDestinationDangerDamageSuppressesSameWatcherEnemyTurnAttack() throws {
+        let warpSource = GridPoint(x: 2, y: 0)
+        let warpDestination = GridPoint(x: 4, y: 3)
+        let watcher = EnemyDefinition(
+            id: "watcher",
+            name: "見張り",
+            position: GridPoint(x: 4, y: 1),
+            behavior: .watcher(direction: MoveVector(dx: 0, dy: 1), range: 3)
+        )
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 0, y: 4),
+            hp: 3,
+            turnLimit: 8,
+            enemies: [watcher],
+            warpTilePairs: ["test-warp": [warpSource, warpDestination]]
+        )
+        let core = makeCore(mode: mode, cards: [.rayRight, .kingUpRight, .straightRight2, .straightLeft2, .straightDown2])
+
+        playMove(to: GridPoint(x: 4, y: 0), in: core)
+
+        XCTAssertEqual(core.current, warpDestination)
+        XCTAssertEqual(core.dungeonHP, 2)
+        XCTAssertTrue(core.dungeonRunLogEntries.contains { $0.message.contains("見張りの攻撃範囲通過でHP -1") })
+        XCTAssertFalse(core.dungeonRunLogEntries.contains { $0.message.contains("見張りの攻撃でHP") })
+    }
+
+    func testWarpDestinationDangerDamageOnlySuppressesResolvedEnemy() throws {
+        let warpSource = GridPoint(x: 2, y: 0)
+        let warpDestination = GridPoint(x: 4, y: 3)
+        let watcher = EnemyDefinition(
+            id: "watcher",
+            name: "見張り",
+            position: GridPoint(x: 4, y: 1),
+            behavior: .watcher(direction: MoveVector(dx: 0, dy: 1), range: 3)
+        )
+        let chaser = EnemyDefinition(
+            id: "chaser",
+            name: "追跡兵",
+            position: GridPoint(x: 2, y: 3),
+            behavior: .chaser
+        )
+        let mode = makeDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 0, y: 4),
+            hp: 3,
+            turnLimit: 8,
+            enemies: [watcher, chaser],
+            warpTilePairs: ["test-warp": [warpSource, warpDestination]]
+        )
+        let core = makeCore(mode: mode, cards: [.rayRight, .kingUpRight, .straightRight2, .straightLeft2, .straightDown2])
+
+        playMove(to: GridPoint(x: 4, y: 0), in: core)
+
+        XCTAssertEqual(core.current, warpDestination)
+        XCTAssertEqual(core.enemyStates.first { $0.id == "chaser" }?.position, GridPoint(x: 3, y: 3))
+        XCTAssertEqual(core.dungeonHP, 1)
+        XCTAssertTrue(core.dungeonRunLogEntries.contains { $0.message.contains("見張りの攻撃範囲通過でHP -1") })
+        XCTAssertTrue(core.dungeonRunLogEntries.contains { $0.message.contains("追跡兵の攻撃でHP -1") })
+        XCTAssertFalse(core.dungeonRunLogEntries.contains { $0.message.contains("見張りの攻撃でHP") })
+    }
+
+    func testPendingPickupContinuationPreservesResolvedEnemyDamageSourceIDs() throws {
+        let continuation = PendingDungeonMovementContinuation(
+            inputKind: .card,
+            playedMoveCard: .rayRight,
+            remainingPath: [GridPoint(x: 2, y: 0)],
+            traversedPath: [GridPoint(x: 1, y: 0)],
+            encounteredRevisit: false,
+            detectedEffects: [],
+            preservesPlayedCard: false,
+            initialMarkerDamagePoints: [],
+            triggeredPoisonTrap: false,
+            previousMoveCount: 0,
+            resolvedEnemyDamageSourceIDs: ["watcher"]
+        )
+
+        let decoded = try JSONDecoder().decode(
+            PendingDungeonMovementContinuation.self,
+            from: JSONEncoder().encode(continuation)
+        )
+
+        XCTAssertEqual(decoded.resolvedEnemyDamageSourceIDs, ["watcher"])
+
+        let legacyContinuation = PendingDungeonMovementContinuation(
+            inputKind: .basic,
+            remainingPath: [GridPoint(x: 2, y: 0)],
+            traversedPath: [GridPoint(x: 1, y: 0)],
+            encounteredRevisit: false,
+            detectedEffects: [],
+            preservesPlayedCard: false,
+            initialMarkerDamagePoints: [],
+            triggeredPoisonTrap: false,
+            previousMoveCount: 0
+        )
+        let legacyDecoded = try JSONDecoder().decode(
+            PendingDungeonMovementContinuation.self,
+            from: JSONEncoder().encode(legacyContinuation)
+        )
+
+        XCTAssertTrue(legacyDecoded.resolvedEnemyDamageSourceIDs.isEmpty)
+    }
+
     func testWarpDestinationEnemyDangerDamageStopsBeforePickupWhenHPReachesZero() throws {
         let warpSource = GridPoint(x: 2, y: 0)
         let warpDestination = GridPoint(x: 4, y: 3)
@@ -4513,7 +4616,7 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertEqual(core.moveCount, 1)
     }
 
-    func testFixedTwoStepMoveContinuesThroughIntermediateShackleTrap() throws {
+    func testFixedTwoStepMoveSkipsIntermediateShackleTrap() throws {
         let shackleTrap = GridPoint(x: 3, y: 3)
         let destination = GridPoint(x: 2, y: 2)
         let mode = makeDungeonMode(
@@ -4535,16 +4638,16 @@ final class DungeonModeTests: XCTestCase {
         core.playCard(using: move)
 
         XCTAssertEqual(core.current, destination)
-        XCTAssertTrue(core.board.isVisited(shackleTrap))
+        XCTAssertFalse(core.board.isVisited(shackleTrap))
         XCTAssertTrue(core.board.isVisited(destination))
-        XCTAssertTrue(core.isShackled)
-        XCTAssertEqual(core.lastMovementResolution?.path, [shackleTrap, destination])
-        XCTAssertTrue(
+        XCTAssertFalse(core.isShackled)
+        XCTAssertEqual(core.lastMovementResolution?.path, [destination])
+        XCTAssertFalse(
             core.lastMovementResolution?.appliedEffects.contains {
                 $0.point == shackleTrap && $0.effect == .shackleTrap
             } == true
         )
-        XCTAssertEqual(core.lastMovementResolution?.presentationSteps.map(\.point), [shackleTrap, destination])
+        XCTAssertEqual(core.lastMovementResolution?.presentationSteps.map(\.point), [destination])
         XCTAssertNil(core.lastMovementResolution?.presentationSteps.first?.stopReason)
         XCTAssertEqual(core.moveCount, 1)
     }
@@ -4630,7 +4733,7 @@ final class DungeonModeTests: XCTestCase {
         playBasicMove(to: GridPoint(x: 1, y: 1), in: core)
         playBasicMove(to: GridPoint(x: 0, y: 1), in: core)
         XCTAssertEqual(core.poisonActionsUntilNextDamage, 1)
-        let supportIndex = try XCTUnwrap(core.handStacks.firstIndex { $0.topCard?.supportCard == .antidote })
+        let supportIndex = try XCTUnwrap(core.handStacks.firstIndex { $0.topCard?.supportCard == .panacea })
 
         core.playSupportCard(at: supportIndex)
 
@@ -9233,6 +9336,126 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertFalse(rewardSupports.contains(.barrierSpell))
     }
 
+    func testRogueTowerRewardPoolsBalanceDirectionsAcrossAllBands() {
+        let floorIndexes = [0, 5, 10, 15, 20, 30, 40]
+        let contexts: [DungeonWeightedRewardPoolContext] = [.floorPickup, .clearReward]
+        let straightCards: [MoveCard] = [.straightUp2, .straightRight2, .straightDown2, .straightLeft2]
+        let diagonalCards: [MoveCard] = [.diagonalUpRight2, .diagonalDownRight2, .diagonalDownLeft2, .diagonalUpLeft2]
+        let kingChoiceCards: [MoveCard] = [
+            .kingUpwardDiagonalChoice,
+            .kingRightDiagonalChoice,
+            .kingDownwardDiagonalChoice,
+            .kingLeftDiagonalChoice
+        ]
+        let knightChoiceCards: [MoveCard] = [
+            .knightUpwardChoice,
+            .knightRightwardChoice,
+            .knightDownwardChoice,
+            .knightLeftwardChoice
+        ]
+
+        for floorIndex in floorIndexes {
+            for context in contexts {
+                let entries = DungeonWeightedRewardPools.entries(
+                    floorIndex: floorIndex,
+                    context: context,
+                    profile: .rogueTower
+                )
+                assertEqualMoveWeights(straightCards, in: entries, label: "\(context) \(floorIndex + 1)F straight")
+                assertEqualMoveWeights(diagonalCards, in: entries, label: "\(context) \(floorIndex + 1)F diagonal")
+                assertEqualMoveWeights(MoveCard.directionalRayCards, in: entries, label: "\(context) \(floorIndex + 1)F ray")
+                assertEqualMoveWeights(kingChoiceCards, in: entries, label: "\(context) \(floorIndex + 1)F king choice")
+                assertEqualMoveWeights(knightChoiceCards, in: entries, label: "\(context) \(floorIndex + 1)F knight choice")
+            }
+        }
+    }
+
+    func testRogueTowerRewardPoolShiftsFromSingleDirectionToChoiceCards() {
+        let earlyEntries = DungeonWeightedRewardPools.entries(
+            floorIndex: 0,
+            context: .clearReward,
+            profile: .rogueTower
+        )
+        let deepEntries = DungeonWeightedRewardPools.entries(
+            floorIndex: 40,
+            context: .clearReward,
+            profile: .rogueTower
+        )
+        let earlySingle = singleDirectionMoveWeight(in: earlyEntries)
+        let earlyRay = rayMoveWeight(in: earlyEntries)
+        let earlyChoice = choiceMoveWeight(in: earlyEntries)
+        let deepSingle = singleDirectionMoveWeight(in: deepEntries)
+        let deepRay = rayMoveWeight(in: deepEntries)
+        let deepChoice = choiceMoveWeight(in: deepEntries)
+
+        XCTAssertGreaterThan(earlySingle, earlyRay)
+        XCTAssertGreaterThan(earlyRay, earlyChoice)
+        XCTAssertGreaterThan(deepChoice, deepSingle)
+        XCTAssertGreaterThan(deepSingle, deepRay)
+    }
+
+    func testRogueTowerKnightMovementStyleKeepsOneStepDirectionWeightsBalanced() {
+        let entries = DungeonWeightedRewardPools.entries(
+            floorIndex: 20,
+            context: .clearReward,
+            movementStyle: .knight,
+            profile: .rogueTower
+        )
+
+        assertEqualMoveWeights(
+            [.straightUp1, .straightRight1, .straightDown1, .straightLeft1],
+            in: entries,
+            label: "knight one-step replacement"
+        )
+    }
+
+    func testGrowthTowerRewardPoolsBalanceDirectionsAcrossAllBands() {
+        let floorIndexes = [0, 5, 10, 15, 20, 30, 40]
+        let contexts: [DungeonWeightedRewardPoolContext] = [.floorPickup, .clearReward]
+        let straightCards: [MoveCard] = [.straightUp2, .straightRight2, .straightDown2, .straightLeft2]
+        let diagonalCards: [MoveCard] = [.diagonalUpRight2, .diagonalDownRight2, .diagonalDownLeft2, .diagonalUpLeft2]
+        let knightChoiceCards: [MoveCard] = [
+            .knightUpwardChoice,
+            .knightRightwardChoice,
+            .knightDownwardChoice,
+            .knightLeftwardChoice
+        ]
+        let kingChoiceCards: [MoveCard] = [
+            .kingUpwardDiagonalChoice,
+            .kingRightDiagonalChoice,
+            .kingDownwardDiagonalChoice,
+            .kingLeftDiagonalChoice
+        ]
+
+        for floorIndex in floorIndexes {
+            for context in contexts {
+                let entries = DungeonWeightedRewardPools.entries(
+                    floorIndex: floorIndex,
+                    context: context
+                )
+                assertBalancedMoveWeights(straightCards, in: entries, label: "\(context) \(floorIndex + 1)F straight")
+                assertBalancedMoveWeights(diagonalCards, in: entries, label: "\(context) \(floorIndex + 1)F diagonal")
+                assertBalancedMoveWeights(MoveCard.directionalRayCards, in: entries, label: "\(context) \(floorIndex + 1)F ray")
+                assertBalancedMoveWeights(knightChoiceCards, in: entries, label: "\(context) \(floorIndex + 1)F knight choice")
+                XCTAssertEqual(
+                    kingChoiceCards.reduce(0) { $0 + moveWeight($1, in: entries) },
+                    0,
+                    "成長塔には試練塔専用のキング斜め選択カードを混ぜない"
+                )
+            }
+        }
+    }
+
+    func testGrowthTowerRewardPoolKeepsEarlySingleDirectionEmphasis() {
+        let earlyPickupEntries = DungeonWeightedRewardPools.entries(floorIndex: 0, context: .floorPickup)
+        let earlyRewardEntries = DungeonWeightedRewardPools.entries(floorIndex: 0, context: .clearReward)
+
+        XCTAssertGreaterThan(singleDirectionMoveWeight(in: earlyPickupEntries), rayMoveWeight(in: earlyPickupEntries))
+        XCTAssertGreaterThan(singleDirectionMoveWeight(in: earlyPickupEntries), knightChoiceMoveWeight(in: earlyPickupEntries))
+        XCTAssertGreaterThan(singleDirectionMoveWeight(in: earlyRewardEntries), rayMoveWeight(in: earlyRewardEntries))
+        XCTAssertGreaterThan(singleDirectionMoveWeight(in: earlyRewardEntries), knightChoiceMoveWeight(in: earlyRewardEntries))
+    }
+
     func testGrowthTowerRemedySupportPoolsStartInMiddleFloors() {
         let middlePickupSupports = supportPoolCards(floorIndex: 5, context: .floorPickup)
         let middleRewardSupports = supportPoolCards(floorIndex: 5, context: .clearReward)
@@ -11864,6 +12087,86 @@ final class DungeonModeTests: XCTestCase {
             else { return total }
             return total + entry.weight
         }
+    }
+
+    private func moveWeight(
+        _ move: MoveCard,
+        in entries: [DungeonWeightedRewardPoolEntry]
+    ) -> Int {
+        entries.reduce(0) { total, entry in
+            guard case .move(let entryMove) = entry.item,
+                  entryMove == move
+            else { return total }
+            return total + entry.weight
+        }
+    }
+
+    private func assertEqualMoveWeights(
+        _ moves: [MoveCard],
+        in entries: [DungeonWeightedRewardPoolEntry],
+        label: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let weights = moves.map { moveWeight($0, in: entries) }
+        guard let expected = weights.first else { return }
+        for (move, weight) in zip(moves, weights) {
+            XCTAssertGreaterThan(weight, 0, "\(label) \(move.displayName)", file: file, line: line)
+            XCTAssertEqual(weight, expected, "\(label) \(move.displayName)", file: file, line: line)
+        }
+    }
+
+    private func assertBalancedMoveWeights(
+        _ moves: [MoveCard],
+        in entries: [DungeonWeightedRewardPoolEntry],
+        label: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let weights = moves.map { moveWeight($0, in: entries) }
+        guard let expected = weights.first else { return }
+        for (move, weight) in zip(moves, weights) {
+            XCTAssertEqual(weight, expected, "\(label) \(move.displayName)", file: file, line: line)
+        }
+    }
+
+    private func singleDirectionMoveWeight(in entries: [DungeonWeightedRewardPoolEntry]) -> Int {
+        [
+            MoveCard.straightUp2,
+            .straightRight2,
+            .straightDown2,
+            .straightLeft2,
+            .diagonalUpRight2,
+            .diagonalDownRight2,
+            .diagonalDownLeft2,
+            .diagonalUpLeft2
+        ].reduce(0) { $0 + moveWeight($1, in: entries) }
+    }
+
+    private func rayMoveWeight(in entries: [DungeonWeightedRewardPoolEntry]) -> Int {
+        MoveCard.directionalRayCards.reduce(0) { $0 + moveWeight($1, in: entries) }
+    }
+
+    private func knightChoiceMoveWeight(in entries: [DungeonWeightedRewardPoolEntry]) -> Int {
+        [
+            MoveCard.knightUpwardChoice,
+            .knightRightwardChoice,
+            .knightDownwardChoice,
+            .knightLeftwardChoice
+        ].reduce(0) { $0 + moveWeight($1, in: entries) }
+    }
+
+    private func choiceMoveWeight(in entries: [DungeonWeightedRewardPoolEntry]) -> Int {
+        [
+            MoveCard.kingUpwardDiagonalChoice,
+            .kingRightDiagonalChoice,
+            .kingDownwardDiagonalChoice,
+            .kingLeftDiagonalChoice,
+            .knightUpwardChoice,
+            .knightRightwardChoice,
+            .knightDownwardChoice,
+            .knightLeftwardChoice
+        ].reduce(0) { $0 + moveWeight($1, in: entries) }
     }
 
     private func averageDamagePressure(in floors: ArraySlice<DungeonFloorDefinition>) -> Double {

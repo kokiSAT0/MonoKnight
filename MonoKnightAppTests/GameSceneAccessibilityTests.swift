@@ -660,6 +660,29 @@ final class GameSceneAccessibilityTests: XCTestCase {
         )
     }
 
+    func testDamageEffectRestoresKnightFillWhenInterruptedByMove() throws {
+        let hitPoint = GridPoint(x: 2, y: 2)
+        let nextPoint = GridPoint(x: 2, y: 3)
+        let (scene, view, _) = makeScene()
+        defer { view.presentScene(nil) }
+
+        scene.moveKnight(to: hitPoint)
+        let baseColor = try XCTUnwrap(scene.knightFillColorForTesting())
+
+        scene.playDamageEffect()
+        XCTAssertTrue(
+            try XCTUnwrap(scene.knightFillColorForTesting()).matchesComponents(of: SKColor.systemRed),
+            "被ダメージ直後は騎士を赤く点滅させます"
+        )
+
+        scene.moveKnight(to: nextPoint)
+
+        XCTAssertTrue(
+            try XCTUnwrap(scene.knightFillColorForTesting()).matchesComponents(of: baseColor),
+            "被ダメージ演出が移動で中断されても、騎士の塗りは通常色へ戻す必要があります"
+        )
+    }
+
     func testFloorStartTargetEmphasisAddsHighlightLayerWithoutChangingBaseMarkers() {
         let exitPoint = GridPoint(x: 4, y: 4)
         let keyPoint = GridPoint(x: 1, y: 3)

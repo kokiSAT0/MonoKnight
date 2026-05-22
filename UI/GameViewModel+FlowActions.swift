@@ -146,9 +146,10 @@ extension GameViewModel {
     }
 
     func handleDungeonRewardSupportSelection(_ supportCard: SupportCard) {
-        guard availableDungeonRewardSupportCards.contains(supportCard),
-              canAddDungeonRewardSupportCard(supportCard),
-              let nextMode = makeNextDungeonFloorMode(rewardSelection: .addSupport(supportCard))
+        let normalizedSupport = supportCard.normalizedForInventory
+        guard availableDungeonRewardSupportCards.contains(normalizedSupport),
+              canAddDungeonRewardSupportCard(normalizedSupport),
+              let nextMode = makeNextDungeonFloorMode(rewardSelection: .addSupport(normalizedSupport))
         else { return }
         saveInitialDungeonResume(for: nextMode)
         prepareForDungeonFloorAdvance()
@@ -172,10 +173,11 @@ extension GameViewModel {
     }
 
     func handleDungeonRewardSupportRemoval(_ support: SupportCard) {
-        guard adjustableDungeonRewardEntries.contains(where: { $0.supportCard == support && $0.hasUsesRemaining }) else {
+        let normalizedSupport = support.normalizedForInventory
+        guard adjustableDungeonRewardEntries.contains(where: { $0.supportCard == normalizedSupport && $0.hasUsesRemaining }) else {
             return
         }
-        _ = core.removeDungeonRewardInventorySupportCard(support)
+        _ = core.removeDungeonRewardInventorySupportCard(normalizedSupport)
     }
 
     func handleResultReturnToTitle() {
@@ -423,7 +425,8 @@ extension GameViewModel {
         case .add(let card):
             return availableDungeonRewardMoveCards.contains(card) && canAddDungeonRewardMoveCard(card)
         case .addSupport(let support):
-            return availableDungeonRewardSupportCards.contains(support) && canAddDungeonRewardSupportCard(support)
+            let normalizedSupport = support.normalizedForInventory
+            return availableDungeonRewardSupportCards.contains(normalizedSupport) && canAddDungeonRewardSupportCard(normalizedSupport)
         case .addRelic(let relic):
             return availableDungeonRewardOffers.contains(.relic(relic))
                 && !core.dungeonRelicEntries.contains(where: { $0.relicID == relic })
@@ -434,7 +437,8 @@ extension GameViewModel {
         case .remove(let card):
             return adjustableDungeonRewardEntries.contains { $0.moveCard == card && $0.hasUsesRemaining }
         case .removeSupport(let support):
-            return adjustableDungeonRewardEntries.contains { $0.supportCard == support && $0.hasUsesRemaining }
+            let normalizedSupport = support.normalizedForInventory
+            return adjustableDungeonRewardEntries.contains { $0.supportCard == normalizedSupport && $0.hasUsesRemaining }
         }
     }
 

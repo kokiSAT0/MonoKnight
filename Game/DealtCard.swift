@@ -41,12 +41,12 @@ public struct DealtCard: Identifiable, Equatable, Sendable {
     ///   - support: 実際の補助効果を担うカード
     public init(id: UUID = UUID(), support: SupportCard) {
         self.id = id
-        self.playable = .support(support)
+        self.playable = .support(support.normalizedForInventory)
     }
 
     /// 任意のカード種別から生成する
     public init(id: UUID = UUID(), playable: PlayableCard) {
         self.id = id
-        self.playable = playable
+        self.playable = playable.normalizedForInventory
     }
 }

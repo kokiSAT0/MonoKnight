@@ -81,6 +81,33 @@ final class GameCoreTests: XCTestCase {
         XCTAssertTrue(core.board.isVisited(warpDestination), "ワープ先マスも踏破扱いにします")
     }
 
+    func testDirectTwoStepMoveIgnoresIntermediateHazardsAndTileEffects() throws {
+        let intermediate = GridPoint(x: 1, y: 0)
+        let destination = GridPoint(x: 2, y: 0)
+        let mode = makeInventoryDungeonMode(
+            spawn: GridPoint(x: 0, y: 0),
+            exit: GridPoint(x: 4, y: 4),
+            tileEffectOverrides: [intermediate: .swamp],
+            hazards: [.damageTrap(points: [intermediate], damage: 1)]
+        )
+        let core = GameCore(mode: mode)
+        XCTAssertTrue(core.addDungeonInventoryCardForTesting(.straightRight2, pickupUses: 1))
+
+        let move = try XCTUnwrap(core.availableMoves().first { $0.moveCard == .straightRight2 })
+        core.playCard(using: move)
+
+        XCTAssertEqual(core.current, destination)
+        XCTAssertEqual(core.dungeonHP, 3, "右2の途中にある撒菱は踏まないためHPを減らしません")
+        XCTAssertFalse(core.consumedDamageTrapPoints.contains(intermediate), "右2の途中にある撒菱は消費しません")
+        XCTAssertFalse(core.board.isVisited(intermediate), "右2の途中マスは踏破扱いにしません")
+        XCTAssertTrue(core.board.isVisited(destination), "右2の着地点は踏破扱いにします")
+        XCTAssertEqual(core.lastMovementResolution?.path, [destination])
+        XCTAssertFalse(
+            core.lastMovementResolution?.appliedEffects.contains { $0.point == intermediate } == true,
+            "右2の途中にある沼は適用しません"
+        )
+    }
+
     func testPlayCardAppliesBlastTileFixedDirectionUntilObstacle() throws {
         let blastPoint = GridPoint(x: 2, y: 1)
         let obstacle = GridPoint(x: 2, y: 3)
@@ -97,7 +124,7 @@ final class GameCoreTests: XCTestCase {
         core.playCard(using: move)
 
         XCTAssertEqual(core.current, GridPoint(x: 2, y: 2), "進入方向ではなく床に表示された方向へ吹き飛び、障害物直前で止まります")
-        XCTAssertEqual(core.lastMovementResolution?.path, [GridPoint(x: 1, y: 1), blastPoint, GridPoint(x: 2, y: 2)])
+        XCTAssertEqual(core.lastMovementResolution?.path, [blastPoint, GridPoint(x: 2, y: 2)])
     }
 
     func testBlastTileDoesNotMoveWhenNextTileIsBlocked() throws {
@@ -116,7 +143,7 @@ final class GameCoreTests: XCTestCase {
         core.playCard(using: move)
 
         XCTAssertEqual(core.current, blastPoint)
-        XCTAssertEqual(core.lastMovementResolution?.path, [GridPoint(x: 1, y: 1), blastPoint])
+        XCTAssertEqual(core.lastMovementResolution?.path, [blastPoint])
     }
 
     func testBasicOrthogonalMoveAppliesBlastTile() throws {
@@ -1079,7 +1106,7 @@ final class GameCoreTests: XCTestCase {
         let move = try XCTUnwrap(core.availableBasicOrthogonalMoves().first { $0.destination == poisonTrap })
         core.playBasicOrthogonalMove(using: move)
         playBasicMove(to: shackleTrap, in: core)
-        let supportIndex = try XCTUnwrap(core.handStacks.firstIndex { $0.topCard?.supportCard == .antidote })
+        let supportIndex = try XCTUnwrap(core.handStacks.firstIndex { $0.topCard?.supportCard == .panacea })
 
         XCTAssertTrue(core.isShackled)
         XCTAssertTrue(core.isSupportCardUsable(in: core.handStacks[supportIndex]))
@@ -1090,6 +1117,24 @@ final class GameCoreTests: XCTestCase {
         XCTAssertEqual(core.poisonActionsUntilNextDamage, 0)
         XCTAssertFalse(core.dungeonInventoryEntries.contains { $0.supportCard == .antidote })
         XCTAssertEqual(core.moveCount, 3)
+    }
+
+    func testLegacyAntidoteInventoryEntriesNormalizeIntoPanacea() throws {
+        let data = try XCTUnwrap("""
+        {
+          "playable": {
+            "type": "support",
+            "support": "antidote"
+          },
+          "rewardUses": 1,
+          "pickupUses": 1
+        }
+        """.data(using: .utf8))
+        let entry = try JSONDecoder().decode(DungeonInventoryEntry.self, from: data)
+
+        XCTAssertEqual(entry.supportCard, .panacea)
+        XCTAssertEqual(entry.totalUses, 2)
+        XCTAssertEqual(entry.id, "support:panacea")
     }
 
     func testPanaceaClearsPoisonAndShackleThenNextActionUsesNormalCost() throws {
@@ -1135,10 +1180,10 @@ final class GameCoreTests: XCTestCase {
         playBasicMove(to: shackleTrap, in: core)
         XCTAssertTrue(core.addDungeonInventorySupportCardForTesting(.antidote, rewardUses: 1))
         XCTAssertTrue(core.addDungeonInventorySupportCardForTesting(.panacea, rewardUses: 1))
-        let antidoteIndex = try XCTUnwrap(core.handStacks.firstIndex { $0.topCard?.supportCard == .antidote })
         let panaceaIndex = try XCTUnwrap(core.handStacks.firstIndex { $0.topCard?.supportCard == .panacea })
 
-        XCTAssertTrue(core.isSupportCardUsable(in: core.handStacks[antidoteIndex]))
+        XCTAssertEqual(core.handStacks.filter { $0.topCard?.supportCard == .panacea }.count, 1)
+        XCTAssertEqual(core.handStacks[panaceaIndex].count, 2)
         XCTAssertTrue(core.isSupportCardUsable(in: core.handStacks[panaceaIndex]))
     }
 
@@ -1188,15 +1233,14 @@ final class GameCoreTests: XCTestCase {
         let core = GameCore(mode: mode)
         XCTAssertTrue(core.addDungeonInventorySupportCardForTesting(.antidote, rewardUses: 1))
         XCTAssertTrue(core.addDungeonInventorySupportCardForTesting(.panacea, rewardUses: 1))
-        let antidoteIndex = try XCTUnwrap(core.handStacks.firstIndex { $0.topCard?.supportCard == .antidote })
         let panaceaIndex = try XCTUnwrap(core.handStacks.firstIndex { $0.topCard?.supportCard == .panacea })
 
-        XCTAssertFalse(core.isSupportCardUsable(in: core.handStacks[antidoteIndex]))
+        XCTAssertEqual(core.handStacks.filter { $0.topCard?.supportCard == .panacea }.count, 1)
+        XCTAssertEqual(core.handStacks[panaceaIndex].count, 2)
         XCTAssertFalse(core.isSupportCardUsable(in: core.handStacks[panaceaIndex]))
-        core.playSupportCard(at: antidoteIndex)
         core.playSupportCard(at: panaceaIndex)
 
-        XCTAssertTrue(core.dungeonInventoryEntries.contains { $0.supportCard == .antidote })
+        XCTAssertFalse(core.dungeonInventoryEntries.contains { $0.supportCard == .antidote })
         XCTAssertTrue(core.dungeonInventoryEntries.contains { $0.supportCard == .panacea })
         XCTAssertEqual(core.moveCount, 0)
     }

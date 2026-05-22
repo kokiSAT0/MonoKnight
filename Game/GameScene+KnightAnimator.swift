@@ -17,6 +17,8 @@
         private(set) var knightNode: SKShapeNode?
         private(set) var knightPosition: GridPoint?
         private(set) var pendingKnightState: PendingKnightState?
+        private var knightBaseFillColor = SKColor.white
+        private let damageFlashActionKey = "damageFlash"
         let transientEffectContainer = SKNode()
 
         func reset(in scene: SKScene) {
@@ -46,6 +48,7 @@
         ) {
             let radius = layout.tileSize * 0.4
             let node = SKShapeNode(circleOfRadius: radius)
+            knightBaseFillColor = palette.boardKnight
             node.fillColor = palette.boardKnight
             node.strokeColor = .clear
             let initialPoint = knightPosition ?? GridPoint.center(of: boardSize)
@@ -78,11 +81,12 @@
         }
 
         func applyTheme(_ palette: GameScenePalette) {
-            knightNode?.fillColor = palette.boardKnight
+            knightBaseFillColor = palette.boardKnight
+            restoreKnightFillColor()
         }
 
         func removeKnight() {
-            knightNode?.removeAllActions()
+            stopKnightActionsRestoringFill()
             knightNode?.removeFromParent()
             knightNode = nil
             knightPosition = nil
@@ -128,7 +132,7 @@
                     updateAccessibility: updateAccessibility
                 )
             } else {
-                knightNode.removeAllActions()
+                stopKnightActionsRestoringFill()
                 knightNode.isHidden = true
                 knightPosition = nil
                 updateAccessibility()
@@ -162,7 +166,7 @@
                     updateAccessibility: updateAccessibility
                 )
             } else {
-                knightNode.removeAllActions()
+                stopKnightActionsRestoringFill()
                 knightNode.isHidden = true
                 knightPosition = nil
                 updateAccessibility()
@@ -237,7 +241,7 @@
                 return
             }
 
-            knightNode.removeAllActions()
+            stopKnightActionsRestoringFill()
             knightNode.isPaused = false
             knightNode.speed = 1
             knightNode.isHidden = false
@@ -341,7 +345,7 @@
                 scene.isPaused = false
             }
 
-            knightNode.removeAllActions()
+            stopKnightActionsRestoringFill()
             knightNode.isPaused = false
             knightNode.isHidden = false
 
@@ -498,7 +502,7 @@
                 scene.isPaused = false
             }
 
-            knightNode.removeAllActions()
+            stopKnightActionsRestoringFill()
             knightNode.isPaused = false
             knightNode.speed = 1
             knightNode.isHidden = false
@@ -580,6 +584,12 @@
             knightNode?.speed
         }
 
+#if DEBUG
+        func knightFillColorForTesting() -> SKColor? {
+            knightNode?.fillColor
+        }
+#endif
+
         private struct WarpReplayContext {
             let source: GridPoint
             let sourceIndex: Int
@@ -652,7 +662,7 @@
                     updateAccessibility: updateAccessibility
                 )
             case .hide:
-                knightNode.removeAllActions()
+                stopKnightActionsRestoringFill()
                 knightNode.isHidden = true
                 knightPosition = nil
                 updateAccessibility()
@@ -692,7 +702,7 @@
             transientEffectContainer.addChild(ring)
 
             if let knightNode {
-                knightNode.removeAllActions()
+                stopKnightActionsRestoringFill()
                 let sink = SKAction.group([
                     SKAction.scale(to: 0.52, duration: 0.12),
                     SKAction.fadeAlpha(to: 0.45, duration: 0.12)
@@ -749,8 +759,8 @@
             transientEffectContainer.addChild(impact)
 
             let flashColor = SKColor.systemRed
-            let flashKey = "damageFlash"
-            knightNode.removeAction(forKey: flashKey)
+            knightBaseFillColor = palette.boardKnight
+            knightNode.removeAction(forKey: damageFlashActionKey)
             knightNode.fillColor = flashColor
             let restore = SKAction.run { [weak knightNode] in
                 knightNode?.fillColor = palette.boardKnight
@@ -765,7 +775,7 @@
                 SKAction.wait(forDuration: 0.06),
                 restore
             ])
-            knightNode.run(flash, withKey: flashKey)
+            knightNode.run(flash, withKey: damageFlashActionKey)
 
             let pulse = SKAction.group([
                 SKAction.scale(to: 1.26, duration: 0.24),
@@ -890,7 +900,7 @@
             guard let knightNode else { return }
 
             let destination = layout.position(for: point)
-            knightNode.removeAllActions()
+            stopKnightActionsRestoringFill()
 
             if animated {
                 let move = SKAction.move(to: destination, duration: 0.2)
@@ -904,6 +914,15 @@
 
             let positionDescription = knightPosition.map { "\($0)" } ?? "nil"
             debugLog("GameScene.moveKnight 完了: 現在位置=\(positionDescription)")
+        }
+
+        private func stopKnightActionsRestoringFill() {
+            knightNode?.removeAllActions()
+            restoreKnightFillColor()
+        }
+
+        private func restoreKnightFillColor() {
+            knightNode?.fillColor = knightBaseFillColor
         }
 
         private func ensureTransientContainer(in scene: SKScene) {

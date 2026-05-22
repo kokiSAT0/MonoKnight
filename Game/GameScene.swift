@@ -1305,6 +1305,10 @@
         func transientEffectNodeCountForTesting() -> Int {
             knightAnimator.transientEffectContainer.children.count
         }
+
+        func knightFillColorForTesting() -> SKColor? {
+            knightAnimator.knightFillColorForTesting()
+        }
 #endif
 
         private func calculateLayout(trigger: LayoutTrigger) {

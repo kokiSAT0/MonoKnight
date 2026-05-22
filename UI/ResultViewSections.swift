@@ -274,18 +274,14 @@ struct ResultDetailsDisclosureSection: View {
     var body: some View {
         DisclosureGroup(isExpanded: $isExpanded) {
             ResultDetailsSection(presentation: presentation)
-                .padding(.top, 8)
+                .padding(.top, 10)
         } label: {
-            Text("詳細")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.secondary)
+            ResultInlineActionRow(
+                title: "詳細",
+                systemImage: "list.bullet.rectangle",
+                tone: .secondary
+            )
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color(uiColor: .secondarySystemBackground).opacity(0.7))
-        )
         .accessibilityIdentifier("result_details_disclosure")
     }
 }
@@ -629,6 +625,24 @@ struct ResultActionSection: View {
                         }
                     }
 
+                    if showsSkipDungeonRewardAction,
+                       let nextDungeonFloorTitle,
+                       let onSelectNextDungeonFloor {
+                        Button {
+                            dungeonRewardSelectionNotice = nil
+                            triggerSuccessHapticIfNeeded()
+                            onSelectNextDungeonFloor()
+                        } label: {
+                            ResultInlineActionRow(
+                                title: "報酬を取らずに次の階へ: \(nextDungeonFloorTitle)",
+                                systemImage: "arrow.up.forward",
+                                tone: .accent
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("dungeon_reward_skip_button")
+                    }
+
                     if let dungeonRewardSelectionNotice {
                         Label(dungeonRewardSelectionNotice, systemImage: "info.circle")
                             .font(.caption.weight(.semibold))
@@ -638,20 +652,6 @@ struct ResultActionSection: View {
                     }
 
                     dungeonInventoryHandSection
-
-                    if showsSkipDungeonRewardAction,
-                       let nextDungeonFloorTitle,
-                       let onSelectNextDungeonFloor {
-                        Button {
-                            dungeonRewardSelectionNotice = nil
-                            triggerSuccessHapticIfNeeded()
-                            onSelectNextDungeonFloor()
-                        } label: {
-                            DungeonRewardSkipActionLabel(nextFloorTitle: nextDungeonFloorTitle)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityIdentifier("dungeon_reward_skip_button")
-                    }
                 }
             }
 
@@ -680,10 +680,13 @@ struct ResultActionSection: View {
                     triggerSuccessHapticIfNeeded()
                     onRestartCurrentFloor()
                 } label: {
-                    Label("この階の初めから", systemImage: "arrow.counterclockwise")
-                        .frame(maxWidth: .infinity)
+                    ResultInlineActionRow(
+                        title: "この階の初めから",
+                        systemImage: "arrow.counterclockwise",
+                        tone: .secondary
+                    )
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.plain)
                 .accessibilityIdentifier("result_restart_current_floor_button")
             }
 
@@ -1398,26 +1401,35 @@ private struct DungeonRewardChoiceControl: View {
     }
 }
 
-private struct DungeonRewardSkipActionLabel: View {
-    let nextFloorTitle: String
+private struct ResultInlineActionRow: View {
+    enum Tone {
+        case accent
+        case secondary
+    }
+
+    let title: String
+    let systemImage: String
+    let tone: Tone
     private var theme = AppTheme()
 
-    init(nextFloorTitle: String) {
-        self.nextFloorTitle = nextFloorTitle
+    init(title: String, systemImage: String, tone: Tone) {
+        self.title = title
+        self.systemImage = systemImage
+        self.tone = tone
     }
 
     var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: "arrow.up.forward")
+            Image(systemName: systemImage)
                 .font(.headline.weight(.semibold))
-                .foregroundStyle(theme.accentPrimary)
+                .foregroundStyle(iconColor)
                 .frame(width: 32, height: 32)
                 .background(
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(theme.accentPrimary.opacity(0.12))
+                        .fill(iconBackgroundColor)
                 )
 
-            Text("報酬を取らずに次の階へ: \(nextFloorTitle)")
+            Text(title)
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(theme.textPrimary)
                 .lineLimit(2)
@@ -1435,9 +1447,36 @@ private struct DungeonRewardSkipActionLabel: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(theme.accentPrimary.opacity(0.36), lineWidth: 1)
+                .stroke(borderColor, lineWidth: 1)
         )
         .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private var iconColor: Color {
+        switch tone {
+        case .accent:
+            return theme.accentPrimary
+        case .secondary:
+            return theme.textSecondary
+        }
+    }
+
+    private var iconBackgroundColor: Color {
+        switch tone {
+        case .accent:
+            return theme.accentPrimary.opacity(0.12)
+        case .secondary:
+            return theme.statisticBadgeBorder.opacity(0.45)
+        }
+    }
+
+    private var borderColor: Color {
+        switch tone {
+        case .accent:
+            return theme.accentPrimary.opacity(0.36)
+        case .secondary:
+            return theme.statisticBadgeBorder
+        }
     }
 }
 
