@@ -125,7 +125,13 @@ extension GameView {
         }
         // 画面全体の背景もテーマで制御し、システム設定と調和させる
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(theme.backgroundPrimary)
+        .background(
+            LinearGradient(
+                colors: [theme.backgroundPrimary, theme.backgroundElevated.opacity(0.72)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        )
         // 盤面が表示されない不具合を切り分けるため、レイアウト関連の値をウォッチする不可視ビューを重ねる
         .background(diagnosticsOverlay)
         .onDisappear {

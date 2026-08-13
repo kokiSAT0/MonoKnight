@@ -42,7 +42,10 @@ struct AppTheme: DynamicProperty {
     var backgroundPrimary: Color {
         switch visualStyle {
         case .classic:
-            return Color("backgroundPrimary")
+            return schemeColor(
+                light: Color(red: 0.91, green: 0.97, blue: 0.99),
+                dark: Color(red: 0.025, green: 0.08, blue: 0.16)
+            )
         case .starChartSurveyTower:
             return schemeColor(
                 light: Color(red: 0.78, green: 0.82, blue: 0.92),
@@ -55,7 +58,10 @@ struct AppTheme: DynamicProperty {
     var backgroundElevated: Color {
         switch visualStyle {
         case .classic:
-            return Color("backgroundElevated")
+            return schemeColor(
+                light: Color.white.opacity(0.92),
+                dark: Color(red: 0.06, green: 0.18, blue: 0.29).opacity(0.96)
+            )
         case .starChartSurveyTower:
             return schemeColor(
                 light: Color(red: 0.86, green: 0.89, blue: 0.98),
@@ -68,7 +74,10 @@ struct AppTheme: DynamicProperty {
     var textPrimary: Color {
         switch visualStyle {
         case .classic:
-            return Color("textPrimary")
+            return schemeColor(
+                light: Color(red: 0.04, green: 0.16, blue: 0.25),
+                dark: Color(red: 0.91, green: 0.98, blue: 1.0)
+            )
         case .starChartSurveyTower:
             return schemeColor(
                 light: Color(red: 0.05, green: 0.07, blue: 0.14),
@@ -81,7 +90,10 @@ struct AppTheme: DynamicProperty {
     var textSecondary: Color {
         switch visualStyle {
         case .classic:
-            return Color("textSecondary")
+            return schemeColor(
+                light: Color(red: 0.24, green: 0.38, blue: 0.48),
+                dark: Color(red: 0.66, green: 0.82, blue: 0.88)
+            )
         case .starChartSurveyTower:
             return schemeColor(
                 light: Color(red: 0.20, green: 0.28, blue: 0.48).opacity(0.84),
@@ -94,7 +106,10 @@ struct AppTheme: DynamicProperty {
     var accentPrimary: Color {
         switch visualStyle {
         case .classic:
-            return Color("accentPrimary")
+            return schemeColor(
+                light: Color(red: 0.03, green: 0.49, blue: 0.58),
+                dark: Color(red: 0.32, green: 0.88, blue: 0.86)
+            )
         case .starChartSurveyTower:
             return schemeColor(
                 light: Color(red: 0.18, green: 0.48, blue: 0.78),
@@ -107,7 +122,10 @@ struct AppTheme: DynamicProperty {
     var accentOnPrimary: Color {
         switch visualStyle {
         case .classic:
-            return Color("accentOnPrimary")
+            return schemeColor(
+                light: Color.white,
+                dark: Color(red: 0.02, green: 0.10, blue: 0.15)
+            )
         case .starChartSurveyTower:
             return schemeColor(
                 light: Color(red: 0.98, green: 0.94, blue: 0.82),

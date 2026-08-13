@@ -5,7 +5,10 @@ extension AppTheme {
     var boardBackground: Color {
         switch visualStyle {
         case .classic:
-            return backgroundPrimary
+            return schemeColor(
+                light: Color(red: 0.83, green: 0.94, blue: 0.98),
+                dark: Color(red: 0.035, green: 0.12, blue: 0.21)
+            )
         case .starChartSurveyTower:
             return schemeColor(
                 light: Color(red: 0.94, green: 0.98, blue: 1.0),
@@ -18,7 +21,10 @@ extension AppTheme {
     var boardGridLine: Color {
         switch visualStyle {
         case .classic:
-            return schemeColor(light: Color.black.opacity(0.65), dark: Color.white.opacity(0.75))
+            return schemeColor(
+                light: Color(red: 0.10, green: 0.42, blue: 0.54).opacity(0.48),
+                dark: Color(red: 0.56, green: 0.88, blue: 0.94).opacity(0.62)
+            )
         case .starChartSurveyTower:
             return schemeColor(
                 light: Color(red: 0.0, green: 0.56, blue: 0.78).opacity(0.30),
@@ -230,7 +236,10 @@ extension AppTheme {
     var boardTileVisited: Color {
         switch visualStyle {
         case .classic:
-            return schemeColor(light: Color.black.opacity(0.30), dark: Color.white.opacity(0.38))
+            return schemeColor(
+                light: Color(red: 0.36, green: 0.76, blue: 0.84).opacity(0.40),
+                dark: Color(red: 0.44, green: 0.82, blue: 0.88).opacity(0.34)
+            )
         case .starChartSurveyTower:
             return schemeColor(
                 light: Color(red: 0.78, green: 0.92, blue: 1.0).opacity(0.92),
@@ -243,7 +252,10 @@ extension AppTheme {
     var boardTileUnvisited: Color {
         switch visualStyle {
         case .classic:
-            return schemeColor(light: Color.black.opacity(0.025), dark: Color.white.opacity(0.05))
+            return schemeColor(
+                light: Color.white.opacity(0.48),
+                dark: Color(red: 0.20, green: 0.42, blue: 0.52).opacity(0.20)
+            )
         case .starChartSurveyTower:
             return schemeColor(
                 light: Color(red: 0.96, green: 0.995, blue: 1.0).opacity(0.96),

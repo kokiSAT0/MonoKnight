@@ -2,6 +2,107 @@ import SwiftUI
 import Game
 import SharedSupport
 
+/// タイトルで使う、夜の氷原とオーロラを重ねた背景。
+struct PolarHeroBackground: View {
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [
+                    Color(red: 0.015, green: 0.07, blue: 0.16),
+                    Color(red: 0.04, green: 0.20, blue: 0.30),
+                    Color(red: 0.10, green: 0.17, blue: 0.36)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            Capsule()
+                .fill(Color(red: 0.24, green: 0.92, blue: 0.72).opacity(0.30))
+                .frame(width: 460, height: 90)
+                .blur(radius: 36)
+                .rotationEffect(.degrees(-14))
+                .offset(x: -90, y: -220)
+            Capsule()
+                .fill(Color(red: 0.62, green: 0.38, blue: 0.96).opacity(0.26))
+                .frame(width: 420, height: 72)
+                .blur(radius: 34)
+                .rotationEffect(.degrees(11))
+                .offset(x: 120, y: -140)
+            LinearGradient(
+                colors: [Color.white.opacity(0.02), Color(red: 0.72, green: 0.92, blue: 1).opacity(0.22)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        }
+        .accessibilityHidden(true)
+    }
+}
+
+/// 主人公モノをアセットなしで描く共通紋章。
+struct MonoPenguinEmblemView: View {
+    var size: CGFloat = 128
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(
+                    LinearGradient(
+                        colors: [Color(red: 0.30, green: 0.90, blue: 0.82), Color(red: 0.42, green: 0.42, blue: 0.90)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay(Circle().stroke(Color.white.opacity(0.80), lineWidth: size * 0.025))
+                .shadow(color: Color.cyan.opacity(0.30), radius: size * 0.12)
+
+            Capsule()
+                .fill(Color(red: 0.025, green: 0.08, blue: 0.15))
+                .frame(width: size * 0.54, height: size * 0.68)
+                .offset(y: size * 0.06)
+            Capsule()
+                .fill(Color.white.opacity(0.96))
+                .frame(width: size * 0.34, height: size * 0.45)
+                .offset(y: size * 0.12)
+            HStack(spacing: size * 0.12) {
+                Circle().fill(Color(red: 0.02, green: 0.05, blue: 0.08))
+                Circle().fill(Color(red: 0.02, green: 0.05, blue: 0.08))
+            }
+            .frame(width: size * 0.25, height: size * 0.055)
+            .offset(y: -size * 0.08)
+            Triangle()
+                .fill(Color(red: 1.0, green: 0.60, blue: 0.16))
+                .frame(width: size * 0.16, height: size * 0.10)
+                .rotationEffect(.degrees(180))
+                .offset(y: size * 0.015)
+            RoundedRectangle(cornerRadius: size * 0.04, style: .continuous)
+                .fill(Color(red: 0.64, green: 0.93, blue: 1.0))
+                .overlay(
+                    RoundedRectangle(cornerRadius: size * 0.04, style: .continuous)
+                        .stroke(Color.white.opacity(0.9), lineWidth: size * 0.015)
+                )
+                .frame(width: size * 0.40, height: size * 0.12)
+                .offset(y: -size * 0.25)
+            Capsule()
+                .fill(Color(red: 0.12, green: 0.50, blue: 0.94))
+                .frame(width: size * 0.45, height: size * 0.07)
+                .offset(y: size * 0.08)
+        }
+        .frame(width: size, height: size)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("氷塔の見習いペンギン騎士、モノ")
+    }
+}
+
+private struct Triangle: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.midX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+        path.closeSubpath()
+        return path
+    }
+}
+
 /// タイトル画面での開始導線がどこから来たかを表す文脈
 enum GamePreparationContext: Equatable {
     case dungeonSelection
@@ -144,24 +245,30 @@ struct TitleScreenView: View {
                 .frame(maxWidth: contentMaxWidth)
                 .frame(maxWidth: .infinity)
             }
-            .background(theme.backgroundPrimary)
+            .background(PolarHeroBackground().ignoresSafeArea())
 
             settingsButton
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(theme.backgroundPrimary)
+        .background(PolarHeroBackground().ignoresSafeArea())
         .accessibilityElement(children: .contain)
         .accessibilityLabel("タイトル画面。塔ダンジョンからプレイを開始できます。")
     }
 
     private var headerSection: some View {
         VStack(spacing: 12) {
+            MonoPenguinEmblemView(size: 132)
+                .padding(.bottom, 4)
             Text("MonoKnight")
                 .font(.system(size: 32, weight: .heavy, design: .rounded))
-                .foregroundColor(theme.textPrimary)
-            Text("カードで騎士を導き、塔を登ろう")
+                .foregroundColor(.white)
+            Text("氷塔の見習い騎士、モノ")
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .foregroundColor(Color(red: 0.50, green: 0.94, blue: 0.88))
+                .textCase(.uppercase)
+            Text("カードで氷を駆け、オーロラの頂へ")
                 .font(.system(size: 16, weight: .medium, design: .rounded))
-                .foregroundColor(theme.textSecondary)
+                .foregroundColor(.white.opacity(0.82))
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 320)
         }
@@ -213,13 +320,13 @@ struct TitleScreenView: View {
         VStack(alignment: .leading, spacing: 16) {
             Text("メインコンテンツ")
                 .font(.system(size: 18, weight: .semibold, design: .rounded))
-                .foregroundColor(theme.textPrimary)
+                .foregroundColor(.white.opacity(0.88))
 
             LazyVGrid(columns: featureTileColumns, alignment: .leading, spacing: 14) {
                 featureTile(
                     target: .dungeon,
-                    title: "塔ダンジョン",
-                    systemImage: "figure.stairs",
+                    title: "氷の塔へ",
+                    systemImage: "snowflake",
                     headline: dungeonTileHeadline,
                     detail: dungeonTileDetail,
                     accessibilityID: "title_tile_dungeon",
@@ -288,198 +395,4 @@ struct TitleScreenView: View {
 
     private func navigationDestinationView(for target: TitleNavigationTarget) -> some View {
         switch target {
-        case .dungeon:
-            let stackDescription = navigationPath
-                .map { $0.rawValue }
-                .joined(separator: ",")
-            let _ = debugLog(
-                "TitleScreenView: NavigationDestination.dungeon 構築開始 -> instance=\(instanceIdentifier.uuidString) targetType=\(String(describing: type(of: target))) stackCount=\(navigationPath.count) stack=[\(stackDescription)]"
-            )
-            return AnyView(
-                DungeonSelectionView(
-                    dungeonLibrary: dungeonLibrary,
-                    dungeonGrowthStore: dungeonGrowthStore,
-                    gameSettingsStore: gameSettingsStore,
-                    dungeonRunResumeStore: dungeonRunResumeStore,
-                    rogueTowerRecordStore: rogueTowerRecordStore,
-                    tutorialTowerProgressStore: tutorialTowerProgressStore,
-                    onResumeDungeon: { snapshot in
-                        guard let mode = dungeonLibrary.resumeMode(from: snapshot) else {
-                            dungeonRunResumeStore.clear()
-                            return
-                        }
-                        let context: StartTriggerContext = .dungeonSelection
-                        resetNavigationStack()
-                        DispatchQueue.main.async {
-                            triggerImmediateStart(for: mode, context: context)
-                        }
-                    },
-                    onStartDungeon: { dungeon, floorIndex, preparationChoice, movementStyle in
-                        dungeonRunResumeStore.clear()
-                        guard let mode = dungeonLibrary.floorMode(
-                            for: dungeon,
-                            floorIndex: floorIndex,
-                            initialHPBonus: dungeonGrowthStore.initialHPBonus(
-                                for: dungeon,
-                                startingFloorIndex: floorIndex
-                            ),
-                            startingRewardEntries: dungeonGrowthStore.startingRewardEntries(
-                                for: dungeon,
-                                startingFloorIndex: floorIndex,
-                                preparationChoice: preparationChoice,
-                                movementStyle: movementStyle
-                            ),
-                            startingHazardDamageMitigations: dungeonGrowthStore.startingHazardDamageMitigations(
-                                for: dungeon
-                            ),
-                            startingEnemyDamageMitigations: dungeonGrowthStore.startingEnemyDamageMitigations(
-                                for: dungeon
-                            ),
-                            startingMarkerDamageMitigations: dungeonGrowthStore.startingMarkerDamageMitigations(
-                                for: dungeon
-                            ),
-                            movementStyle: movementStyle,
-                            dungeonInventoryKindLimit: dungeonGrowthStore.dungeonInventoryKindLimit(for: dungeon)
-                        ) else { return }
-                        let context: StartTriggerContext = .dungeonSelection
-                        debugLog(
-                            "TitleScreenView: ダンジョン開始後 -> dungeon=\(dungeon.id) NavigationStack をリセットして即時開始を登録 context=\(context.rawValue)"
-                        )
-                        resetNavigationStack()
-                        DispatchQueue.main.async {
-                            triggerImmediateStart(for: mode, context: context)
-                        }
-                    }
-                )
-                .onAppear {
-                    debugLog("TitleScreenView: NavigationDestination.dungeon 表示 -> 現在のスタック数=\(navigationPath.count)")
-                }
-                .onDisappear {
-                    debugLog("TitleScreenView: NavigationDestination.dungeon 非表示 -> 現在のスタック数=\(navigationPath.count)")
-                }
-            )
-        }
-    }
-
-    private func processPendingNavigationTargetIfNeeded() {
-        guard let target = pendingNavigationTarget else { return }
-        let beforeStack = navigationPath
-            .map { $0.rawValue }
-            .joined(separator: ",")
-        debugLog(
-            "TitleScreenView: pendingNavigationTarget 検出 -> target=\(target.rawValue) beforeStack=[\(beforeStack)]"
-        )
-
-        if navigationPath != [target] {
-            navigationPath = [target]
-            let afterStack = navigationPath
-                .map { $0.rawValue }
-                .joined(separator: ",")
-            debugLog(
-                "TitleScreenView: pendingNavigationTarget 適用 -> afterStack=[\(afterStack)]"
-            )
-        } else {
-            debugLog("TitleScreenView: pendingNavigationTarget は既に反映済み -> スタック変更なし")
-        }
-
-        DispatchQueue.main.async {
-            pendingNavigationTarget = nil
-        }
-    }
-
-    @ViewBuilder
-    private var howToPlayFullScreenContent: some View {
-        NavigationStack {
-            HowToPlayView(showsCloseButton: true)
-        }
-    }
-
-    private func handleTileTapLogging(for target: TitleNavigationTarget) {
-        switch target {
-        case .dungeon:
-            logDungeonTileTap()
-        }
-    }
-
-    private func logDungeonTileTap() {
-        let dungeonCount = dungeonLibrary.dungeons.count
-        let floorCount = dungeonLibrary.allFloors.count
-        debugLog("TitleScreenView: 塔ダンジョンカードタップ -> 塔数=\(dungeonCount) フロア数=\(floorCount)")
-        logNavigationDepth(prefix: "TitleScreenView: NavigationStack 遷移直前状態")
-    }
-
-    private func logNavigationDepth(prefix: String) {
-        let currentDepth = navigationPath.count
-        debugLog("\(prefix) -> 現在のスタック数=\(currentDepth)")
-    }
-
-    private func featureIconTile(systemName: String) -> some View {
-        Image(systemName: systemName)
-            .font(.system(size: 18, weight: .semibold))
-            .foregroundColor(theme.accentPrimary)
-            .padding(10)
-            .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(theme.backgroundPrimary.opacity(0.85))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(theme.accentPrimary.opacity(0.7), lineWidth: 1)
-            )
-    }
-
-    private func popNavigationStack() {
-        guard navigationPath.count > 0 else { return }
-        let currentDepth = navigationPath.count
-        let callStackSnippet = Thread.callStackSymbols.prefix(4).joined(separator: " | ")
-        debugLog("TitleScreenView: NavigationStack pop実行 -> 現在のスタック数=\(currentDepth) 呼び出し元候補=\(callStackSnippet)")
-        navigationPath.removeLast()
-        debugLog("TitleScreenView: NavigationStack pop後 -> 変更後のスタック数=\(navigationPath.count)")
-    }
-
-    private func resetNavigationStack() {
-        guard navigationPath.count > 0 else { return }
-        let currentDepth = navigationPath.count
-        let callStackSnippet = Thread.callStackSymbols.prefix(4).joined(separator: " | ")
-        debugLog("TitleScreenView: NavigationStack reset実行 -> 現在のスタック数=\(currentDepth) 呼び出し元候補=\(callStackSnippet)")
-        navigationPath.removeAll()
-        debugLog("TitleScreenView: NavigationStack reset後 -> 変更後のスタック数=\(navigationPath.count)")
-    }
-
-    private func triggerImmediateStart(for mode: GameMode, context: StartTriggerContext) {
-        let stackDescription = navigationPath
-            .map { $0.rawValue }
-            .joined(separator: ",")
-        debugLog(
-            "TitleScreenView: triggerImmediateStart 実行 -> context=\(context.rawValue) (\(context.logDescription)) mode=\(mode.identifier.rawValue) navigationDepth=\(navigationPath.count) stack=[\(stackDescription)]"
-        )
-        onStart(mode, context.preparationContext)
-    }
-}
-
-private extension TitleScreenView {
-    var dungeonTileHeadline: String {
-        let primaryDungeon = dungeonLibrary.dungeons.first
-        let floorCount = primaryDungeon?.floors.count ?? dungeonLibrary.allFloors.count
-        return "\(primaryDungeon?.title ?? "塔") \(floorCount)フロア・出口到達"
-    }
-
-    var dungeonTileDetail: String {
-        "敵の警戒範囲や床ギミックを読みながら、HPを引き継いで登ります"
-    }
-
-    var contentMaxWidth: CGFloat? {
-        horizontalSizeClass == .regular ? 760 : nil
-    }
-
-    var horizontalPadding: CGFloat {
-        horizontalSizeClass == .regular ? 56 : 32
-    }
-
-    var featureTileColumns: [GridItem] {
-        if horizontalSizeClass == .regular {
-            return [GridItem(.adaptive(minimum: 320), spacing: 14, alignment: .top)]
-        }
-        return [GridItem(.flexible(), spacing: 14, alignment: .top)]
-    }
-}
+        case .d
