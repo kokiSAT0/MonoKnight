@@ -9,7 +9,7 @@ import wave
 from pathlib import Path
 
 
-SAMPLE_RATE = 22_050
+SAMPLE_RATE = 8_000
 OUTPUT_DIR = Path(__file__).resolve().parents[1] / "MonoKnightApp" / "Audio"
 
 
@@ -73,26 +73,26 @@ def write_wav(name: str, samples: list[float]) -> None:
     peak = max((abs(value) for value in samples), default=1.0)
     scale = min(0.94 / max(peak, 0.001), 1.0)
     pcm = b"".join(
-        struct.pack("<h", int(max(-1.0, min(1.0, value * scale)) * 32_767))
+        struct.pack("B", int((max(-1.0, min(1.0, value * scale)) + 1.0) * 127.5))
         for value in samples
     )
     with wave.open(str(OUTPUT_DIR / name), "wb") as output:
         output.setnchannels(1)
-        output.setsampwidth(2)
+        output.setsampwidth(1)
         output.setframerate(SAMPLE_RATE)
         output.writeframes(pcm)
 
 
 def make_loop(notes: list[float], bass: list[float], *, sparkle: bool) -> list[float]:
-    duration = 12.0
+    duration = 1.8
     result = silence(duration)
-    beat = 0.75
-    for index in range(16):
-        overlay(result, tone(notes[index % len(notes)], 0.64, 0.18, shimmer=sparkle), index * beat)
-        overlay(result, tone(bass[index % len(bass)], 1.35, 0.10), index * beat)
+    beat = 0.225
+    for index in range(8):
+        overlay(result, tone(notes[index % len(notes)], 0.20, 0.18, shimmer=sparkle), index * beat)
+        overlay(result, tone(bass[index % len(bass)], 0.42, 0.10), index * beat)
         if sparkle and index % 2 == 1:
-            overlay(result, tone(notes[(index + 2) % len(notes)] * 2, 0.22, 0.07, shimmer=True), index * beat + 0.42)
-    fade = int(SAMPLE_RATE * 0.5)
+            overlay(result, tone(notes[(index + 2) % len(notes)] * 2, 0.09, 0.07, shimmer=True), index * beat + 0.11)
+    fade = int(SAMPLE_RATE * 0.08)
     for index in range(fade):
         result[index] *= index / fade
         result[-index - 1] *= index / fade

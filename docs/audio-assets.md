@@ -11,6 +11,7 @@
 - クレジット表記: 不要
 - 加工: 可
 - 再生成: `python3 Scripts/generate-polar-audio.py`
+- 配布形式: 8 kHz／8-bit／モノラルPCM（軽量な氷晶チップ音）
 
 ## ファイル構成
 

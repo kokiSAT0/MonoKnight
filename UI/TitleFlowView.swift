@@ -394,4 +394,200 @@ struct TitleScreenView: View {
         .accessibilityHint(Text(accessibilityHint))
     }
 
-    private func navigationDestinationView(for target: TitleNavigationTarget) ->
+    private func navigationDestinationView(for target: TitleNavigationTarget) -> some View {
+        switch target {
+        case .dungeon:
+            let stackDescription = navigationPath
+                .map { $0.rawValue }
+                .joined(separator: ",")
+            let _ = debugLog(
+                "TitleScreenView: NavigationDestination.dungeon 構築開始 -> instance=\(instanceIdentifier.uuidString) targetType=\(String(describing: type(of: target))) stackCount=\(navigationPath.count) stack=[\(stackDescription)]"
+            )
+            return AnyView(
+                DungeonSelectionView(
+                    dungeonLibrary: dungeonLibrary,
+                    dungeonGrowthStore: dungeonGrowthStore,
+                    gameSettingsStore: gameSettingsStore,
+                    dungeonRunResumeStore: dungeonRunResumeStore,
+                    rogueTowerRecordStore: rogueTowerRecordStore,
+                    tutorialTowerProgressStore: tutorialTowerProgressStore,
+                    onResumeDungeon: { snapshot in
+                        guard let mode = dungeonLibrary.resumeMode(from: snapshot) else {
+                            dungeonRunResumeStore.clear()
+                            return
+                        }
+                        let context: StartTriggerContext = .dungeonSelection
+                        resetNavigationStack()
+                        DispatchQueue.main.async {
+                            triggerImmediateStart(for: mode, context: context)
+                        }
+                    },
+                    onStartDungeon: { dungeon, floorIndex, preparationChoice, movementStyle in
+                        dungeonRunResumeStore.clear()
+                        guard let mode = dungeonLibrary.floorMode(
+                            for: dungeon,
+                            floorIndex: floorIndex,
+                            initialHPBonus: dungeonGrowthStore.initialHPBonus(
+                                for: dungeon,
+                                startingFloorIndex: floorIndex
+                            ),
+                            startingRewardEntries: dungeonGrowthStore.startingRewardEntries(
+                                for: dungeon,
+                                startingFloorIndex: floorIndex,
+                                preparationChoice: preparationChoice,
+                                movementStyle: movementStyle
+                            ),
+                            startingHazardDamageMitigations: dungeonGrowthStore.startingHazardDamageMitigations(
+                                for: dungeon
+                            ),
+                            startingEnemyDamageMitigations: dungeonGrowthStore.startingEnemyDamageMitigations(
+                                for: dungeon
+                            ),
+                            startingMarkerDamageMitigations: dungeonGrowthStore.startingMarkerDamageMitigations(
+                                for: dungeon
+                            ),
+                            movementStyle: movementStyle,
+                            dungeonInventoryKindLimit: dungeonGrowthStore.dungeonInventoryKindLimit(for: dungeon)
+                        ) else { return }
+                        let context: StartTriggerContext = .dungeonSelection
+                        debugLog(
+                            "TitleScreenView: ダンジョン開始後 -> dungeon=\(dungeon.id) NavigationStack をリセットして即時開始を登録 context=\(context.rawValue)"
+                        )
+                        resetNavigationStack()
+                        DispatchQueue.main.async {
+                            triggerImmediateStart(for: mode, context: context)
+                        }
+                    }
+                )
+                .onAppear {
+                    debugLog("TitleScreenView: NavigationDestination.dungeon 表示 -> 現在のスタック数=\(navigationPath.count)")
+                }
+                .onDisappear {
+                    debugLog("TitleScreenView: NavigationDestination.dungeon 非表示 -> 現在のスタック数=\(navigationPath.count)")
+                }
+            )
+        }
+    }
+
+    private func processPendingNavigationTargetIfNeeded() {
+        guard let target = pendingNavigationTarget else { return }
+        let beforeStack = navigationPath
+            .map { $0.rawValue }
+            .joined(separator: ",")
+        debugLog(
+            "TitleScreenView: pendingNavigationTarget 検出 -> target=\(target.rawValue) beforeStack=[\(beforeStack)]"
+        )
+
+        if navigationPath != [target] {
+            navigationPath = [target]
+            let afterStack = navigationPath
+                .map { $0.rawValue }
+                .joined(separator: ",")
+            debugLog(
+                "TitleScreenView: pendingNavigationTarget 適用 -> afterStack=[\(afterStack)]"
+            )
+        } else {
+            debugLog("TitleScreenView: pendingNavigationTarget は既に反映済み -> スタック変更なし")
+        }
+
+        DispatchQueue.main.async {
+            pendingNavigationTarget = nil
+        }
+    }
+
+    @ViewBuilder
+    private var howToPlayFullScreenContent: some View {
+        NavigationStack {
+            HowToPlayView(showsCloseButton: true)
+        }
+    }
+
+    private func handleTileTapLogging(for target: TitleNavigationTarget) {
+        switch target {
+        case .dungeon:
+            logDungeonTileTap()
+        }
+    }
+
+    private func logDungeonTileTap() {
+        let dungeonCount = dungeonLibrary.dungeons.count
+        let floorCount = dungeonLibrary.allFloors.count
+        debugLog("TitleScreenView: 塔ダンジョンカードタップ -> 塔数=\(dungeonCount) フロア数=\(floorCount)")
+        logNavigationDepth(prefix: "TitleScreenView: NavigationStack 遷移直前状態")
+    }
+
+    private func logNavigationDepth(prefix: String) {
+        let currentDepth = navigationPath.count
+        debugLog("\(prefix) -> 現在のスタック数=\(currentDepth)")
+    }
+
+    private func featureIconTile(systemName: String) -> some View {
+        Image(systemName: systemName)
+            .font(.system(size: 18, weight: .semibold))
+            .foregroundColor(theme.accentPrimary)
+            .padding(10)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(theme.backgroundPrimary.opacity(0.85))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(theme.accentPrimary.opacity(0.7), lineWidth: 1)
+            )
+    }
+
+    private func popNavigationStack() {
+        guard navigationPath.count > 0 else { return }
+        let currentDepth = navigationPath.count
+        let callStackSnippet = Thread.callStackSymbols.prefix(4).joined(separator: " | ")
+        debugLog("TitleScreenView: NavigationStack pop実行 -> 現在のスタック数=\(currentDepth) 呼び出し元候補=\(callStackSnippet)")
+        navigationPath.removeLast()
+        debugLog("TitleScreenView: NavigationStack pop後 -> 変更後のスタック数=\(navigationPath.count)")
+    }
+
+    private func resetNavigationStack() {
+        guard navigationPath.count > 0 else { return }
+        let currentDepth = navigationPath.count
+        let callStackSnippet = Thread.callStackSymbols.prefix(4).joined(separator: " | ")
+        debugLog("TitleScreenView: NavigationStack reset実行 -> 現在のスタック数=\(currentDepth) 呼び出し元候補=\(callStackSnippet)")
+        navigationPath.removeAll()
+        debugLog("TitleScreenView: NavigationStack reset後 -> 変更後のスタック数=\(navigationPath.count)")
+    }
+
+    private func triggerImmediateStart(for mode: GameMode, context: StartTriggerContext) {
+        let stackDescription = navigationPath
+            .map { $0.rawValue }
+            .joined(separator: ",")
+        debugLog(
+            "TitleScreenView: triggerImmediateStart 実行 -> context=\(context.rawValue) (\(context.logDescription)) mode=\(mode.identifier.rawValue) navigationDepth=\(navigationPath.count) stack=[\(stackDescription)]"
+        )
+        onStart(mode, context.preparationContext)
+    }
+}
+
+private extension TitleScreenView {
+    var dungeonTileHeadline: String {
+        let primaryDungeon = dungeonLibrary.dungeons.first
+        let floorCount = primaryDungeon?.floors.count ?? dungeonLibrary.allFloors.count
+        return "\(primaryDungeon?.title ?? "塔") \(floorCount)フロア・出口到達"
+    }
+
+    var dungeonTileDetail: String {
+        "敵の警戒範囲や床ギミックを読みながら、HPを引き継いで登ります"
+    }
+
+    var contentMaxWidth: CGFloat? {
+        horizontalSizeClass == .regular ? 760 : nil
+    }
+
+    var horizontalPadding: CGFloat {
+        horizontalSizeClass == .regular ? 56 : 32
+    }
+
+    var featureTileColumns: [GridItem] {
+        if horizontalSizeClass == .regular {
+            return [GridItem(.adaptive(minimum: 320), spacing: 14, alignment: .top)]
+        }
+        return [GridItem(.flexible(), spacing: 14, alignment: .top)]
+    }
+}
