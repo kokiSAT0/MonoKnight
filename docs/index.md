@@ -19,6 +19,7 @@
 | 盤面、カード、塔フロア、報酬、敵、床ギミックなどの詳細ルール | [`game-rules-handbook.md`](game-rules-handbook.md) |
 | Swift Package 境界、UI / Game / Services の責務 | [`architecture.md`](architecture.md) |
 | Codex の作業手順、変更粒度、検証、コミット方針 | [`dev-workflow.md`](dev-workflow.md) |
+| GitHubとCodexを使った共同開発、PR、実験ブランチ | [`collaboration-workflow.md`](collaboration-workflow.md) |
 | Game Center / AdMob / IAP / ATT / UMP | [`integrations.md`](integrations.md) |
 | Info.plist とビルド設定由来の値 | [`info-plist-guidelines.md`](info-plist-guidelines.md) |
 | TestFlight 内部テスター配布手順 | [`testflight-internal-distribution.md`](testflight-internal-distribution.md) |
