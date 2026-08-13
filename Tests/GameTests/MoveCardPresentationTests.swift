@@ -69,8 +69,8 @@ final class MoveCardPresentationTests: XCTestCase {
         XCTAssertTrue(entries.allSatisfy { !$0.behaviorSummary.isEmpty })
         XCTAssertTrue(entries.allSatisfy { !$0.dangerSummary.isEmpty })
         XCTAssertTrue(entries.allSatisfy { $0.damageSummary.contains("攻撃力") })
-        XCTAssertEqual(entries.first { $0.kind == .marker }?.displayName, "メテオ兵")
-        XCTAssertEqual(entries.first { $0.kind == .starReader }?.displayName, "星詠み兵")
+        XCTAssertEqual(entries.first { $0.kind == .marker }?.displayName, "氷下のシャチ")
+        XCTAssertEqual(entries.first { $0.kind == .starReader }?.displayName, "オーロラシャチ")
     }
 
     func testEnemyBehaviorPresentationKindsRemainStable() {
