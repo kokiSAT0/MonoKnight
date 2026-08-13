@@ -223,6 +223,7 @@ struct TitleScreenView: View {
             debugLog("TitleScreenView.horizontalSizeClass 更新: \(String(describing: newValue))")
         }
         .onAppear {
+            GameAudioService.shared.playBGM(.title)
             processPendingNavigationTargetIfNeeded()
         }
         .onChange(of: pendingNavigationTarget) { _, _ in
@@ -393,6 +394,4 @@ struct TitleScreenView: View {
         .accessibilityHint(Text(accessibilityHint))
     }
 
-    private func navigationDestinationView(for target: TitleNavigationTarget) -> some View {
-        switch target {
-        case .d
+    private func navigationDestinationView(for target: TitleNavigationTarget) ->

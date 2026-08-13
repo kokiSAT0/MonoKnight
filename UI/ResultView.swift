@@ -411,6 +411,8 @@ struct ResultView: View {
             }
         }
         .onAppear {
+            GameAudioService.shared.playBGM(.title)
+            GameAudioService.shared.play(isFailed ? .damage : .decision)
             adsService.showInterstitialAfterGameClearIfNeeded()
             if showsLeaderboardButton {
                 updateBest()

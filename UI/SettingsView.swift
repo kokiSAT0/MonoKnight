@@ -31,6 +31,7 @@ struct SettingsView: View {
             List {
                 SettingsThemeSection(gameSettingsStore: gameSettingsStore)
                 SettingsHapticsSection(gameSettingsStore: gameSettingsStore)
+                SettingsAudioSection(gameSettingsStore: gameSettingsStore)
                 SettingsGuideSection(gameSettingsStore: gameSettingsStore)
                 SettingsHandOrderingSection(gameSettingsStore: gameSettingsStore)
                 SettingsAdsSection(

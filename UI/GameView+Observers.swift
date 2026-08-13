@@ -32,6 +32,7 @@ extension GameView {
             }
             // 初回表示時に SpriteKit の背景色もテーマに合わせて更新
             .onAppear {
+                GameAudioService.shared.playBGM(.tower)
                 viewModel.prepareForAppear(
                     colorScheme: colorScheme,
                     guideModeEnabled: gameSettingsStore.guideModeEnabled,
@@ -76,6 +77,11 @@ extension GameView {
             .onChange(of: scenePhase, initial: false) { _, newPhase in
                 // 旧値は利用しないため破棄しつつ、新しいライフサイクル状態に応じた挙動だけに集中させる
                 viewModel.handleScenePhaseChange(newPhase)
+                if newPhase == .active {
+                    GameAudioService.shared.resume(after: .background)
+                } else {
+                    GameAudioService.shared.pause(for: .background)
+                }
             }
             // 経過時間を 1 秒ごとに再計算し、リアルタイム表示へ反映
             .onReceive(viewModel.elapsedTimer) { _ in
