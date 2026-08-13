@@ -1,3 +1,4 @@
+import AVFoundation
 import Foundation
 import Game
 import SwiftUI
@@ -25,6 +26,44 @@ final class GameSettingsStore: ObservableObject {
         didSet {
             guard oldValue != hapticsEnabled else { return }
             userDefaults.set(hapticsEnabled, forKey: StorageKey.AppStorage.hapticsEnabled)
+        }
+    }
+
+    /// BGMの再生設定。
+    @Published var bgmEnabled: Bool {
+        didSet {
+            guard oldValue != bgmEnabled else { return }
+            userDefaults.set(bgmEnabled, forKey: StorageKey.AppStorage.bgmEnabled)
+            syncAudioSettings()
+        }
+    }
+
+    /// 効果音の再生設定。
+    @Published var soundEffectsEnabled: Bool {
+        didSet {
+            guard oldValue != soundEffectsEnabled else { return }
+            userDefaults.set(soundEffectsEnabled, forKey: StorageKey.AppStorage.soundEffectsEnabled)
+            syncAudioSettings()
+        }
+    }
+
+    /// BGM音量。0から1で保持する。
+    @Published var bgmVolume: Double {
+        didSet {
+            bgmVolume = min(max(bgmVolume, 0), 1)
+            guard oldValue != bgmVolume else { return }
+            userDefaults.set(bgmVolume, forKey: StorageKey.AppStorage.bgmVolume)
+            syncAudioSettings()
+        }
+    }
+
+    /// 効果音音量。0から1で保持する。
+    @Published var soundEffectsVolume: Double {
+        didSet {
+            soundEffectsVolume = min(max(soundEffectsVolume, 0), 1)
+            guard oldValue != soundEffectsVolume else { return }
+            userDefaults.set(soundEffectsVolume, forKey: StorageKey.AppStorage.soundEffectsVolume)
+            syncAudioSettings()
         }
     }
 
@@ -101,6 +140,16 @@ final class GameSettingsStore: ObservableObject {
             ) ?? .system
         self.hapticsEnabled =
             userDefaults.object(forKey: StorageKey.AppStorage.hapticsEnabled) as? Bool ?? true
+        self.bgmEnabled =
+            userDefaults.object(forKey: StorageKey.AppStorage.bgmEnabled) as? Bool ?? true
+        self.soundEffectsEnabled =
+            userDefaults.object(forKey: StorageKey.AppStorage.soundEffectsEnabled) as? Bool ?? true
+        self.bgmVolume = userDefaults.object(forKey: StorageKey.AppStorage.bgmVolume) == nil
+            ? 0.42
+            : userDefaults.double(forKey: StorageKey.AppStorage.bgmVolume)
+        self.soundEffectsVolume = userDefaults.object(forKey: StorageKey.AppStorage.soundEffectsVolume) == nil
+            ? 0.68
+            : userDefaults.double(forKey: StorageKey.AppStorage.soundEffectsVolume)
         self.guideModeEnabled =
             userDefaults.object(forKey: StorageKey.AppStorage.guideModeEnabled) as? Bool ?? true
         self.showsAllEncyclopediaEntriesForDeveloper =
@@ -116,8 +165,164 @@ final class GameSettingsStore: ObservableObject {
                 rawValue: userDefaults.string(forKey: HandOrderingStrategy.storageKey)
                     ?? HandOrderingStrategy.insertionOrder.rawValue
             ) ?? .insertionOrder
+        syncAudioSettings()
     }
 
+    private func syncAudioSettings() {
+        GameAudioService.shared.configure(
+            isBGMEnabled: bgmEnabled,
+            isSoundEffectsEnabled: soundEffectsEnabled,
+            bgmVolume: Float(bgmVolume),
+            soundEffectsVolume: Float(soundEffectsVolume)
+        )
+    }
+
+}
+
+/// BGMとSEを一元管理し、設定・広告・アプリライフサイクルをまたいで安全に停止復帰する。
+@MainActor
+final class GameAudioService {
+    enum BGMTrack: String {
+        case title = "bgm_title"
+        case tower = "bgm_tower"
+        case deepTower = "bgm_deep_tower"
+    }
+
+    enum SoundEffect: String {
+        case waddle = "se_waddle"
+        case bellySlide = "se_belly_slide"
+        case flutterJump = "se_flutter_jump"
+        case warp = "se_warp"
+        case fall = "se_fall"
+        case damage = "se_damage"
+        case pickup = "se_pickup"
+        case warning = "se_orca_warning"
+        case decision = "se_decision"
+        case invalid = "se_invalid"
+        case heal = "se_heal"
+    }
+
+    enum PauseReason: Hashable {
+        case background
+        case advertisement
+        case interruption
+    }
+
+    static let shared = GameAudioService()
+
+    private var bgmPlayer: AVAudioPlayer?
+    private var soundEffectPlayers: [AVAudioPlayer] = []
+    private var currentTrack: BGMTrack?
+    private var pauseReasons: Set<PauseReason> = []
+    private var isBGMEnabled = true
+    private var isSoundEffectsEnabled = true
+    private var bgmVolume: Float = 0.42
+    private var soundEffectsVolume: Float = 0.68
+
+    private init() {
+        NotificationCenter.default.addObserver(
+            forName: AVAudioSession.interruptionNotification,
+            object: nil,
+            queue: .main
+        ) { notification in
+            Task { @MainActor in
+                guard let typeValue = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
+                      let type = AVAudioSession.InterruptionType(rawValue: typeValue)
+                else { return }
+                if type == .began {
+                    GameAudioService.shared.pause(for: .interruption)
+                } else {
+                    GameAudioService.shared.resume(after: .interruption)
+                }
+            }
+        }
+    }
+
+    func configure(
+        isBGMEnabled: Bool,
+        isSoundEffectsEnabled: Bool,
+        bgmVolume: Float,
+        soundEffectsVolume: Float
+    ) {
+        self.isBGMEnabled = isBGMEnabled
+        self.isSoundEffectsEnabled = isSoundEffectsEnabled
+        self.bgmVolume = min(max(bgmVolume, 0), 1)
+        self.soundEffectsVolume = min(max(soundEffectsVolume, 0), 1)
+        bgmPlayer?.volume = self.bgmVolume
+        if !isBGMEnabled {
+            bgmPlayer?.stop()
+        } else if pauseReasons.isEmpty, let currentTrack {
+            playBGM(currentTrack)
+        }
+        if !isSoundEffectsEnabled {
+            soundEffectPlayers.forEach { $0.stop() }
+            soundEffectPlayers.removeAll()
+        }
+    }
+
+    func playBGM(_ track: BGMTrack) {
+        currentTrack = track
+        guard isBGMEnabled, pauseReasons.isEmpty else { return }
+        if bgmPlayer?.isPlaying == true,
+           bgmPlayer?.url?.deletingPathExtension().lastPathComponent == track.rawValue {
+            return
+        }
+        guard let url = Bundle.main.url(forResource: track.rawValue, withExtension: "wav", subdirectory: "Audio")
+                ?? Bundle.main.url(forResource: track.rawValue, withExtension: "wav")
+        else { return }
+        do {
+            try configureAudioSession()
+            let player = try AVAudioPlayer(contentsOf: url)
+            player.numberOfLoops = -1
+            player.volume = bgmVolume
+            player.prepareToPlay()
+            player.play()
+            bgmPlayer = player
+        } catch {
+            bgmPlayer = nil
+        }
+    }
+
+    func play(_ effect: SoundEffect) {
+        guard isSoundEffectsEnabled, pauseReasons.isEmpty else { return }
+        soundEffectPlayers.removeAll { !$0.isPlaying }
+        guard let url = Bundle.main.url(forResource: effect.rawValue, withExtension: "wav", subdirectory: "Audio")
+                ?? Bundle.main.url(forResource: effect.rawValue, withExtension: "wav")
+        else { return }
+        do {
+            try configureAudioSession()
+            let player = try AVAudioPlayer(contentsOf: url)
+            player.volume = soundEffectsVolume
+            player.prepareToPlay()
+            player.play()
+            soundEffectPlayers.append(player)
+        } catch {
+            return
+        }
+    }
+
+    func pause(for reason: PauseReason) {
+        pauseReasons.insert(reason)
+        bgmPlayer?.pause()
+        soundEffectPlayers.forEach { $0.stop() }
+        soundEffectPlayers.removeAll()
+    }
+
+    func resume(after reason: PauseReason) {
+        pauseReasons.remove(reason)
+        guard pauseReasons.isEmpty, isBGMEnabled else { return }
+        if let bgmPlayer, bgmPlayer.currentTime > 0 {
+            bgmPlayer.play()
+        } else if let currentTrack {
+            playBGM(currentTrack)
+        }
+    }
+
+    private func configureAudioSession() throws {
+        let session = AVAudioSession.sharedInstance()
+        try session.setCategory(.ambient, mode: .default, options: [.mixWithOthers])
+        try session.setActive(true)
+    }
 }
 
 /// 遊び方辞典の発見済み項目を保存するストア

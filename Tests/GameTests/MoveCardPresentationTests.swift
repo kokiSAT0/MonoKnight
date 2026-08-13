@@ -19,6 +19,15 @@ final class MoveCardPresentationTests: XCTestCase {
         XCTAssertFalse(MoveCard.allCases.map(\.displayName).contains("全域ワープ"))
     }
 
+    func testPlayerMotionStyleMatchesCardMovementShape() {
+        XCTAssertEqual(MoveCard.straightUp1.playerMotionStyle, .waddle)
+        XCTAssertEqual(MoveCard.kingUpRight.playerMotionStyle, .waddle)
+        XCTAssertEqual(MoveCard.straightRight2.playerMotionStyle, .bellySlide)
+        XCTAssertEqual(MoveCard.rayDownLeft.playerMotionStyle, .bellySlide)
+        XCTAssertEqual(MoveCard.knightUp2Right1.playerMotionStyle, .flutterJump)
+        XCTAssertEqual(MoveCard.knightLeftwardChoice.playerMotionStyle, .flutterJump)
+    }
+
     func testCardEncyclopediaEntriesCoverAllMoveCardsByRepresentativeGroups() {
         let entries = MoveCard.encyclopediaEntries
         let includedCards = entries.flatMap(\.includedCards)
@@ -60,8 +69,8 @@ final class MoveCardPresentationTests: XCTestCase {
         XCTAssertTrue(entries.allSatisfy { !$0.behaviorSummary.isEmpty })
         XCTAssertTrue(entries.allSatisfy { !$0.dangerSummary.isEmpty })
         XCTAssertTrue(entries.allSatisfy { $0.damageSummary.contains("攻撃力") })
-        XCTAssertEqual(entries.first { $0.kind == .marker }?.displayName, "メテオ兵")
-        XCTAssertEqual(entries.first { $0.kind == .starReader }?.displayName, "星詠み兵")
+        XCTAssertEqual(entries.first { $0.kind == .marker }?.displayName, "氷下のシャチ")
+        XCTAssertEqual(entries.first { $0.kind == .starReader }?.displayName, "オーロラシャチ")
     }
 
     func testEnemyBehaviorPresentationKindsRemainStable() {

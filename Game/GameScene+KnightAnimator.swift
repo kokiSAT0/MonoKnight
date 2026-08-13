@@ -18,6 +18,8 @@
         private(set) var knightPosition: GridPoint?
         private(set) var pendingKnightState: PendingKnightState?
         private var knightBaseFillColor = SKColor.white
+        private var currentPalette = GameScenePalette.fallback
+        private var currentTileSize: CGFloat = 0
         private let damageFlashActionKey = "damageFlash"
         let transientEffectContainer = SKNode()
 
@@ -46,11 +48,11 @@
             palette: GameScenePalette,
             layout: GameSceneLayoutSupport
         ) {
-            let radius = layout.tileSize * 0.4
-            let node = SKShapeNode(circleOfRadius: radius)
+            currentPalette = palette
+            currentTileSize = layout.tileSize
+            let node = SKShapeNode()
             knightBaseFillColor = palette.boardKnight
-            node.fillColor = palette.boardKnight
-            node.strokeColor = .clear
+            configurePenguinAppearance(node, tileSize: layout.tileSize, palette: palette)
             let initialPoint = knightPosition ?? GridPoint.center(of: boardSize)
             node.position = layout.position(for: initialPoint)
             node.zPosition = 2
@@ -58,9 +60,7 @@
             scene.addChild(node)
             knightNode = node
 
-            debugLog(
-                "GameScene.setupKnight: radius=\(radius), position=\(node.position), hidden=\(node.isHidden)"
-            )
+            debugLog("GameScene.setupKnight: モノを配置 position=\(node.position), hidden=\(node.isHidden)")
         }
 
         func relayoutKnight(layout: GameSceneLayoutSupport) {
@@ -70,19 +70,16 @@
                 knightNode.position = layout.position(for: knightPosition)
             }
 
-            let radius = layout.tileSize * 0.4
-            let circleRect = CGRect(
-                x: -radius,
-                y: -radius,
-                width: radius * 2,
-                height: radius * 2
-            )
-            knightNode.path = CGPath(ellipseIn: circleRect, transform: nil)
+            currentTileSize = layout.tileSize
+            configurePenguinAppearance(knightNode, tileSize: layout.tileSize, palette: currentPalette)
         }
 
         func applyTheme(_ palette: GameScenePalette) {
+            currentPalette = palette
             knightBaseFillColor = palette.boardKnight
-            restoreKnightFillColor()
+            if let knightNode {
+                configurePenguinAppearance(knightNode, tileSize: currentTileSize, palette: palette)
+            }
         }
 
         func removeKnight() {
@@ -95,6 +92,7 @@
 
         func moveKnight(
             to point: GridPoint?,
+            motionStyle: PlayerMotionStyle = .waddle,
             in scene: SKScene,
             layout: GameSceneLayoutSupport,
             isLayoutReady: Bool,
@@ -129,6 +127,7 @@
                     to: point,
                     layout: layout,
                     animated: true,
+                    motionStyle: motionStyle,
                     updateAccessibility: updateAccessibility
                 )
             } else {
@@ -163,6 +162,7 @@
                     to: point,
                     layout: layout,
                     animated: false,
+                    motionStyle: .waddle,
                     updateAccessibility: updateAccessibility
                 )
             } else {
@@ -317,6 +317,7 @@
 
         func playMovementTransition(
             using resolution: MovementResolution,
+            motionStyle: PlayerMotionStyle,
             in scene: SKScene,
             layout: GameSceneLayoutSupport,
             isLayoutReady: Bool,
@@ -355,8 +356,11 @@
             if let warpReplay = warpReplayContext(for: resolution) {
                 for index in 0...warpReplay.sourceIndex {
                     let point = resolution.path[index]
-                    let move = SKAction.move(to: layout.position(for: point), duration: stepDuration)
-                    move.timingMode = .easeInEaseOut
+                    let move = movementAction(
+                        to: layout.position(for: point),
+                        duration: stepDuration,
+                        style: motionStyle
+                    )
                     let step = resolution.presentationSteps.indices.contains(index)
                         ? resolution.presentationSteps[index]
                         : nil
@@ -439,8 +443,11 @@
             }
 
             for (index, point) in resolution.path.enumerated() {
-                let move = SKAction.move(to: layout.position(for: point), duration: stepDuration)
-                move.timingMode = .easeInEaseOut
+                let move = movementAction(
+                    to: layout.position(for: point),
+                    duration: stepDuration,
+                    style: motionStyle
+                )
                 let step = resolution.presentationSteps.indices.contains(index)
                     ? resolution.presentationSteps[index]
                     : nil
@@ -469,6 +476,7 @@
 
         func playMovementReplaySegment(
             to point: GridPoint,
+            motionStyle: PlayerMotionStyle,
             step: MovementResolution.PresentationStep?,
             isLastStep: Bool,
             warpSource: GridPoint?,
@@ -548,8 +556,14 @@
                 warpIn.timingMode = .easeOut
                 sequence.append(warpIn)
             } else {
-                let move = SKAction.move(to: layout.position(for: point), duration: Self.movementReplayStepDuration)
-                move.timingMode = .easeInEaseOut
+                if motionStyle == .bellySlide || motionStyle == .forcedSlide {
+                    emitSnowTrail(at: knightNode.position, tileSize: layout.tileSize)
+                }
+                let move = movementAction(
+                    to: layout.position(for: point),
+                    duration: Self.movementReplayStepDuration,
+                    style: motionStyle
+                )
                 sequence.append(move)
             }
 
@@ -659,6 +673,7 @@
                     to: point,
                     layout: layout,
                     animated: false,
+                    motionStyle: .waddle,
                     updateAccessibility: updateAccessibility
                 )
             case .hide:
@@ -895,6 +910,7 @@
             to point: GridPoint,
             layout: GameSceneLayoutSupport,
             animated: Bool,
+            motionStyle: PlayerMotionStyle,
             updateAccessibility: @escaping () -> Void
         ) {
             guard let knightNode else { return }
@@ -903,8 +919,10 @@
             stopKnightActionsRestoringFill()
 
             if animated {
-                let move = SKAction.move(to: destination, duration: 0.2)
-                knightNode.run(move)
+                if motionStyle == .bellySlide || motionStyle == .forcedSlide {
+                    emitSnowTrail(at: knightNode.position, tileSize: layout.tileSize)
+                }
+                knightNode.run(movementAction(to: destination, duration: 0.2, style: motionStyle))
             } else {
                 knightNode.position = destination
             }
@@ -923,6 +941,153 @@
 
         private func restoreKnightFillColor() {
             knightNode?.fillColor = knightBaseFillColor
+        }
+
+        private func movementAction(
+            to destination: CGPoint,
+            duration: TimeInterval,
+            style: PlayerMotionStyle
+        ) -> SKAction {
+            let move = SKAction.move(to: destination, duration: duration)
+            move.timingMode = style == .bellySlide ? .easeOut : .easeInEaseOut
+
+            switch style {
+            case .waddle:
+                let sway = SKAction.sequence([
+                    .rotate(toAngle: -0.10, duration: duration * 0.25, shortestUnitArc: true),
+                    .rotate(toAngle: 0.10, duration: duration * 0.50, shortestUnitArc: true),
+                    .rotate(toAngle: 0, duration: duration * 0.25, shortestUnitArc: true)
+                ])
+                return .group([move, sway])
+            case .bellySlide:
+                let posture = SKAction.sequence([
+                    .scaleY(to: 0.76, duration: duration * 0.25),
+                    .scaleY(to: 0.84, duration: duration * 0.50),
+                    .scaleY(to: 1.0, duration: duration * 0.25)
+                ])
+                return .group([move, posture])
+            case .flutterJump:
+                let jump = SKAction.sequence([
+                    .group([
+                        .scaleX(to: 1.14, duration: duration * 0.5),
+                        .scaleY(to: 1.22, duration: duration * 0.5)
+                    ]),
+                    .scale(to: 1.0, duration: duration * 0.5)
+                ])
+                return .group([move, jump])
+            case .forcedSlide:
+                let stumble = SKAction.sequence([
+                    .rotate(toAngle: 0.22, duration: duration * 0.35, shortestUnitArc: true),
+                    .rotate(toAngle: -0.12, duration: duration * 0.35, shortestUnitArc: true),
+                    .rotate(toAngle: 0, duration: duration * 0.30, shortestUnitArc: true)
+                ])
+                return .group([move, stumble])
+            case .warp, .fall:
+                return move
+            }
+        }
+
+        private func configurePenguinAppearance(
+            _ node: SKShapeNode,
+            tileSize: CGFloat,
+            palette: GameScenePalette
+        ) {
+            guard tileSize > 0 else { return }
+            node.removeAllChildren()
+            let bodyRect = CGRect(
+                x: -tileSize * 0.30,
+                y: -tileSize * 0.37,
+                width: tileSize * 0.60,
+                height: tileSize * 0.74
+            )
+            node.path = CGPath(ellipseIn: bodyRect, transform: nil)
+            node.fillColor = palette.boardKnight
+            node.strokeColor = SKColor.white.withAlphaComponent(0.88)
+            node.lineWidth = max(1.0, tileSize * 0.035)
+            node.name = "monoPenguin"
+
+            let wingSize = CGSize(width: tileSize * 0.18, height: tileSize * 0.42)
+            for side in [-1.0, 1.0] {
+                let wing = SKShapeNode(ellipseOf: wingSize)
+                wing.name = side < 0 ? "monoLeftWing" : "monoRightWing"
+                wing.fillColor = palette.boardKnight
+                wing.strokeColor = SKColor.white.withAlphaComponent(0.45)
+                wing.lineWidth = max(0.8, tileSize * 0.022)
+                wing.position = CGPoint(x: CGFloat(side) * tileSize * 0.27, y: -tileSize * 0.02)
+                wing.zRotation = CGFloat(side) * -0.24
+                wing.zPosition = 0.1
+                node.addChild(wing)
+            }
+
+            let belly = SKShapeNode(ellipseOf: CGSize(width: tileSize * 0.38, height: tileSize * 0.48))
+            belly.name = "monoBelly"
+            belly.fillColor = SKColor(white: 0.96, alpha: 1)
+            belly.strokeColor = .clear
+            belly.position = CGPoint(x: 0, y: -tileSize * 0.06)
+            belly.zPosition = 0.2
+            node.addChild(belly)
+
+            for x in [-0.10, 0.10] {
+                let eye = SKShapeNode(circleOfRadius: tileSize * 0.035)
+                eye.fillColor = SKColor(white: 0.06, alpha: 1)
+                eye.strokeColor = .clear
+                eye.position = CGPoint(x: tileSize * CGFloat(x), y: tileSize * 0.16)
+                eye.zPosition = 0.4
+                node.addChild(eye)
+            }
+
+            let beakPath = CGMutablePath()
+            beakPath.move(to: CGPoint(x: -tileSize * 0.07, y: tileSize * 0.10))
+            beakPath.addLine(to: CGPoint(x: tileSize * 0.07, y: tileSize * 0.10))
+            beakPath.addLine(to: CGPoint(x: 0, y: tileSize * 0.01))
+            beakPath.closeSubpath()
+            let beak = SKShapeNode(path: beakPath)
+            beak.name = "monoBeak"
+            beak.fillColor = SKColor(red: 1.0, green: 0.62, blue: 0.18, alpha: 1)
+            beak.strokeColor = .clear
+            beak.zPosition = 0.5
+            node.addChild(beak)
+
+            let helmet = SKShapeNode(rectOf: CGSize(width: tileSize * 0.36, height: tileSize * 0.12), cornerRadius: tileSize * 0.05)
+            helmet.name = "monoIceHelmet"
+            helmet.fillColor = SKColor(red: 0.62, green: 0.91, blue: 1.0, alpha: 0.95)
+            helmet.strokeColor = SKColor.white.withAlphaComponent(0.9)
+            helmet.lineWidth = max(0.8, tileSize * 0.02)
+            helmet.position = CGPoint(x: 0, y: tileSize * 0.30)
+            helmet.zPosition = 0.6
+            node.addChild(helmet)
+
+            let scarf = SKShapeNode(rectOf: CGSize(width: tileSize * 0.46, height: tileSize * 0.075), cornerRadius: tileSize * 0.03)
+            scarf.name = "monoScarf"
+            scarf.fillColor = SKColor(red: 0.17, green: 0.56, blue: 0.92, alpha: 1)
+            scarf.strokeColor = .clear
+            scarf.position = CGPoint(x: 0, y: tileSize * 0.01)
+            scarf.zPosition = 0.55
+            node.addChild(scarf)
+        }
+
+        private func emitSnowTrail(at position: CGPoint, tileSize: CGFloat) {
+            guard tileSize > 0 else { return }
+            for index in 0..<3 {
+                let particle = SKShapeNode(circleOfRadius: tileSize * CGFloat(0.025 + Double(index) * 0.006))
+                particle.name = "transientMonoSnowTrail"
+                particle.position = CGPoint(
+                    x: position.x - tileSize * CGFloat(0.10 + Double(index) * 0.07),
+                    y: position.y - tileSize * CGFloat(0.18 - Double(index) * 0.03)
+                )
+                particle.fillColor = SKColor.white.withAlphaComponent(0.84)
+                particle.strokeColor = .clear
+                particle.zPosition = 0.08
+                transientEffectContainer.addChild(particle)
+                particle.run(.sequence([
+                    .group([
+                        .moveBy(x: -tileSize * 0.08, y: tileSize * 0.05, duration: 0.22),
+                        .fadeOut(withDuration: 0.22),
+                        .scale(to: 1.6, duration: 0.22)
+                    ]),
+                    .removeFromParent()
+                ]))
+            }
         }
 
         private func ensureTransientContainer(in scene: SKScene) {

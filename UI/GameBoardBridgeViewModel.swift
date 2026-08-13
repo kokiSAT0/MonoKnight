@@ -77,6 +77,10 @@ final class GameBoardBridgeViewModel: ObservableObject {
     /// 直近に受信した移動解決情報
     /// - Note: Combine で current が更新される前に GameScene へ渡すため、一時的に保持するバッファとして利用する
     private var latestMovementResolution: MovementResolution?
+    /// 直近のカードまたは基本移動に対応するモノの表示上の動き。
+    private var latestPlayerMotionStyle: PlayerMotionStyle = .waddle
+    /// 分割リプレイ中に区間をまたいで維持する表示上の動き。
+    private var movementReplayMotionStyle: PlayerMotionStyle = .waddle
     /// Core の最終状態通知が先に届いても、移動リプレイ開始までは初期表示を維持するための解決情報
     private var preparedMovementReplayResolution: MovementResolution?
     /// 再生済みの解決情報を保持し、後続の敵ターンなどで古い移動を再準備しないようにする
@@ -321,12 +325,14 @@ final class GameBoardBridgeViewModel: ObservableObject {
 
     /// ひび割れ床の落下を軽く見せるための盤面演出を再生する
     func playDungeonFallEffect(at point: GridPoint) {
+        GameAudioService.shared.play(.fall)
         scene.playDungeonFallEffect(at: point)
     }
 
     /// HP 減少を軽く伝えるため、盤面上の騎士へ短い被弾演出を再生する
     func playDamageEffect() {
         damageEffectPlayCountForTesting += 1
+        GameAudioService.shared.play(.damage)
         scene.playDamageEffect()
     }
 
@@ -335,6 +341,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
     /// 無効な入力を短い盤面フィードバックとして伝える
     func playInvalidSelectionFeedback(at point: GridPoint? = nil) {
         invalidSelectionFeedbackPlayCountForTesting += 1
+        GameAudioService.shared.play(.invalid)
         scene.playInvalidSelectionFeedback(at: point)
     }
 
@@ -363,6 +370,8 @@ final class GameBoardBridgeViewModel: ObservableObject {
 
     private func beginMovementReplay(using resolution: MovementResolution) {
         prepareMovementReplayPresentationIfNeeded(using: resolution)
+        movementReplayMotionStyle = latestPlayerMotionStyle
+        playMotionSound(for: movementReplayMotionStyle)
         movementReplayFallbackWorkItem?.cancel()
         isMovementReplayPausedForOverlay = false
         isMovementReplayActive = true
@@ -487,6 +496,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
             : nil
         scene.playMovementReplaySegment(
             to: destination,
+            motionStyle: movementReplayMotionStyle,
             step: step,
             isLastStep: pathIndex == resolution.path.count - 1,
             warpSource: movementReplayWarpSource(forPathIndex: pathIndex, in: resolution),
@@ -535,6 +545,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
         completedMovementReplayResolution = preparedMovementReplayResolution
         preparedMovementReplayResolution = nil
         isMovementReplayActive = false
+        movementReplayMotionStyle = .waddle
         scene.updateBoard(core.board)
         if let current = core.current {
             scene.moveKnight(to: current)
@@ -611,6 +622,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
             let newlyCollectedCardIDs = nextCardIDs.subtracting(previousCardIDs)
             for id in newlyCollectedCardIDs {
                 guard let point = dungeonCardPickupPoint(for: id) else { continue }
+                GameAudioService.shared.play(.pickup)
                 scene.playPickupCollectionEffect(at: point)
             }
         }
@@ -619,6 +631,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
             let newlyCollectedRelicIDs = nextRelicIDs.subtracting(previousRelicIDs)
             for id in newlyCollectedRelicIDs {
                 guard let point = dungeonRelicPickupPoint(for: id) else { continue }
+                GameAudioService.shared.play(.pickup)
                 scene.playRelicCollectionEffect(at: point)
             }
         }
@@ -664,6 +677,10 @@ final class GameBoardBridgeViewModel: ObservableObject {
         activeEnemyTurnEvent = event
         isEnemyTurnAnimationActive = true
         pushHighlightsToScene()
+
+        if !core.enemyWarningPoints.isEmpty {
+            GameAudioService.shared.play(.warning)
+        }
 
         let enemyTurnDangerPoints = core.isDungeonDarknessActive
             ? core.watcherLaserDangerDisplayPoints(forDisplayedEnemyStates: core.enemyStates)
@@ -1192,6 +1209,7 @@ final class GameBoardBridgeViewModel: ObservableObject {
         // 現在位置からカードの移動量を適用し、演出で目指す盤面座標を算出する
         let destinationPoint = moveForExecution.destination
         animationTargetGridPoint = destinationPoint
+        latestPlayerMotionStyle = moveForExecution.playerMotionStyle
         hiddenCardIDs.insert(topCard.id)
         animatingCard = topCard
         animatingStackID = stack.id
@@ -1358,17 +1376,21 @@ final class GameBoardBridgeViewModel: ObservableObject {
                               }
                           }) {
                     // 単純なワープだけは従来の専用演出を利用する
+                    self.latestPlayerMotionStyle = .warp
+                    self.playMotionSound(for: .warp)
                     self.scene.playWarpTransition(using: resolution)
                     self.scheduleLandingEffect(at: destination, after: 0.46)
                 } else {
                     // 条件を満たさない場合は従来の単純移動を行う
-                    self.scene.moveKnight(to: newPoint)
+                    self.playMotionSound(for: self.latestPlayerMotionStyle)
+                    self.scene.moveKnight(to: newPoint, motionStyle: self.latestPlayerMotionStyle)
                     if let newPoint {
                         self.scheduleLandingEffect(at: newPoint, after: 0.20)
                     }
                 }
                 // 一度利用した解決情報は破棄し、次の移動に備える
                 self.latestMovementResolution = nil
+                self.latestPlayerMotionStyle = .waddle
                 self.refreshGuideHighlights(currentOverride: newPoint)
             }
             .store(in: &cancellables)
@@ -1495,6 +1517,21 @@ final class GameBoardBridgeViewModel: ObservableObject {
                 self.scene.playDungeonExitUnlockEffect(at: event.exitPoint)
             }
             .store(in: &cancellables)
+    }
+
+    private func playMotionSound(for style: PlayerMotionStyle) {
+        switch style {
+        case .waddle:
+            GameAudioService.shared.play(.waddle)
+        case .bellySlide, .forcedSlide:
+            GameAudioService.shared.play(.bellySlide)
+        case .flutterJump:
+            GameAudioService.shared.play(.flutterJump)
+        case .warp:
+            GameAudioService.shared.play(.warp)
+        case .fall:
+            GameAudioService.shared.play(.fall)
+        }
     }
 
     private func shouldDeferDungeonExitUnlockEffectDuringMovementReplay(

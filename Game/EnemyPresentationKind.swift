@@ -19,38 +19,38 @@ public enum EnemyPresentationKind: String, CaseIterable, Equatable, Identifiable
     public var displayName: String {
         switch self {
         case .guardPost:
-            return "番兵"
+            return "氷鎧のアザラシ"
         case .patrol:
-            return "巡回兵"
+            return "氷路のセイウチ"
         case .watcher:
-            return "見張り"
+            return "シロフクロウ"
         case .rotatingWatcher:
-            return "回転見張り"
+            return "オーロラフクロウ"
         case .chaser:
-            return "追跡兵"
+            return "ホッキョクギツネ"
         case .marker:
-            return "メテオ兵"
+            return "氷下のシャチ"
         case .starReader:
-            return "星詠み兵"
+            return "オーロラシャチ"
         }
     }
 
     public var behaviorSummary: String {
         switch self {
         case .guardPost:
-            return "その場から動かず、隣接マスを守ります。"
+            return "氷の盾を構えて動かず、隣接マスを守ります。"
         case .patrol:
-            return "決まった巡回路を1手ごとに進みます。"
+            return "牙の向きに沿って、決まった氷路を1手ごとに進みます。"
         case .watcher:
-            return "向いている直線方向を見張ります。"
+            return "大きな目で、向いている直線方向を見張ります。"
         case .rotatingWatcher:
             return "現在の射線に獲物がいなければ、1手ごとに視線方向を右回りまたは左回りに変えます。"
         case .chaser:
-            return "足跡の敵です。プレイヤーへ最短経路で1マス近づきます。"
+            return "雪上の足跡を残し、モノへ最短経路で1マス近づきます。"
         case .marker:
-            return "ランダムな床へメテオの落下予告を出します。"
+            return "氷下を泳ぎ、ランダムな床へ突き上げ予告を出します。"
         case .starReader:
-            return "ランダムな床に加えて、今いるマスにも落下予告を出します。"
+            return "オーロラを読み、ランダムな床に加えて今いるマスにも突き上げ予告を出します。"
         }
     }
 
@@ -67,9 +67,9 @@ public enum EnemyPresentationKind: String, CaseIterable, Equatable, Identifiable
         case .chaser:
             return "移動先は盤面の小矢印で読みます。近づいた後の隣接範囲まで危険です。"
         case .marker:
-            return "着弾予告マスは次の敵ターンだけ危険です。予告を見て、止まる場所をずらします。"
+            return "背びれと波紋が出たマスは次の敵ターンだけ危険です。予告を見て、止まる場所をずらします。"
         case .starReader:
-            return "補助カードなどでその場に留まると被弾します。予告を見て、次の手で現在地から離れます。"
+            return "二重の背びれ予告中にその場へ留まると被弾します。次の手で現在地から離れます。"
         }
     }
 }

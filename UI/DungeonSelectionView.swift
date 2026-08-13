@@ -95,19 +95,22 @@ struct DungeonSelectionView: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("キャンペーン")
-                .font(.system(size: 14, weight: .semibold, design: .rounded))
-                .foregroundColor(theme.textSecondary)
+        HStack(alignment: .center, spacing: 16) {
+            MonoPenguinEmblemView(size: 74)
+            VStack(alignment: .leading, spacing: 8) {
+                Text("氷塔遠征")
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .foregroundColor(theme.accentPrimary)
 
-            Text("塔を登る")
-                .font(.system(size: 25, weight: .heavy, design: .rounded))
-                .foregroundColor(theme.textPrimary)
+                Text("モノと塔を登る")
+                    .font(.system(size: 25, weight: .heavy, design: .rounded))
+                    .foregroundColor(theme.textPrimary)
 
-            Text("敵と床を読み、出口へ。")
-                .font(.system(size: 15, weight: .regular, design: .rounded))
-                .foregroundColor(theme.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
+                Text("氷の亀裂と極地の番人を読み、出口へ。")
+                    .font(.system(size: 15, weight: .regular, design: .rounded))
+                    .foregroundColor(theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 
@@ -164,11 +167,11 @@ struct DungeonSelectionView: View {
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .fill(dungeonCardBackgroundOpacity(for: dungeon))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .stroke(dungeonCardBorderColor(for: dungeon), lineWidth: dungeonCardBorderWidth(for: dungeon))
         )
         .accessibilityIdentifier("dungeon_card_\(dungeon.id)")

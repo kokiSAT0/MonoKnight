@@ -240,7 +240,7 @@ extension GameViewModel {
 
     func handleDungeonRelicActivationEvent(_ event: DungeonRelicActivationEvent) {
         dungeonRelicActivationMoveCounts[event.relicID] = core.moveCount
-        withAnimation(.easeOut(duration: 0.12)) {
+        _ = withAnimation(.easeOut(duration: 0.12)) {
             activeDungeonRelicActivationIDs.insert(event.relicID)
         }
     }

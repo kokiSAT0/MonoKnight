@@ -752,8 +752,8 @@
                 )
             case .marker, .starReader:
                 return (
-                    SKColor(red: 0.96, green: 0.30, blue: 0.12, alpha: 0.34),
-                    SKColor(red: 1.00, green: 0.46, blue: 0.16, alpha: 0.96)
+                    SKColor(red: 0.20, green: 0.12, blue: 0.48, alpha: 0.30),
+                    SKColor(red: 0.45, green: 0.82, blue: 0.94, alpha: 0.98)
                 )
             }
         }
@@ -763,21 +763,28 @@
             let radius = dungeonEnemyMarkerRadius(for: marker.kind, tileSize: tileSize)
             switch marker.kind {
             case .guardPost:
-                path.move(to: CGPoint(x: 0, y: radius))
-                path.addLine(to: CGPoint(x: radius * 0.78, y: radius * 0.55))
-                path.addLine(to: CGPoint(x: radius * 0.62, y: -radius * 0.48))
-                path.addLine(to: CGPoint(x: 0, y: -radius))
-                path.addLine(to: CGPoint(x: -radius * 0.62, y: -radius * 0.48))
-                path.addLine(to: CGPoint(x: -radius * 0.78, y: radius * 0.55))
-                path.closeSubpath()
+                path.addEllipse(in: CGRect(x: -radius, y: -radius * 0.55, width: radius * 2, height: radius * 1.10))
+                path.addEllipse(in: CGRect(x: -radius * 0.54, y: radius * 0.15, width: radius * 1.08, height: radius * 0.88))
+                path.move(to: CGPoint(x: -radius * 0.78, y: -radius * 0.20))
+                path.addLine(to: CGPoint(x: -radius * 1.10, y: -radius * 0.55))
+                path.move(to: CGPoint(x: radius * 0.78, y: -radius * 0.20))
+                path.addLine(to: CGPoint(x: radius * 1.10, y: -radius * 0.55))
             case .patrol:
-                path.move(to: CGPoint(x: 0, y: radius))
-                path.addLine(to: CGPoint(x: radius, y: 0))
-                path.addLine(to: CGPoint(x: 0, y: -radius))
-                path.addLine(to: CGPoint(x: -radius, y: 0))
-                path.closeSubpath()
+                path.addEllipse(in: CGRect(x: -radius, y: -radius * 0.62, width: radius * 2, height: radius * 1.24))
+                path.move(to: CGPoint(x: -radius * 0.30, y: -radius * 0.08))
+                path.addLine(to: CGPoint(x: -radius * 0.20, y: -radius * 0.78))
+                path.addLine(to: CGPoint(x: -radius * 0.05, y: -radius * 0.18))
+                path.move(to: CGPoint(x: radius * 0.30, y: -radius * 0.08))
+                path.addLine(to: CGPoint(x: radius * 0.20, y: -radius * 0.78))
+                path.addLine(to: CGPoint(x: radius * 0.05, y: -radius * 0.18))
                 addPatrolFacingGlyph(to: path, radius: radius, vector: marker.facingVector ?? MoveVector(dx: 1, dy: 0))
             case .watcher:
+                path.move(to: CGPoint(x: -radius * 0.82, y: radius * 0.42))
+                path.addLine(to: CGPoint(x: -radius * 0.46, y: radius * 1.02))
+                path.addLine(to: CGPoint(x: -radius * 0.18, y: radius * 0.50))
+                path.move(to: CGPoint(x: radius * 0.82, y: radius * 0.42))
+                path.addLine(to: CGPoint(x: radius * 0.46, y: radius * 1.02))
+                path.addLine(to: CGPoint(x: radius * 0.18, y: radius * 0.50))
                 path.move(to: CGPoint(x: -radius, y: 0))
                 path.addQuadCurve(to: CGPoint(x: radius, y: 0), control: CGPoint(x: 0, y: radius * 0.78))
                 path.addQuadCurve(to: CGPoint(x: -radius, y: 0), control: CGPoint(x: 0, y: -radius * 0.78))
@@ -789,6 +796,7 @@
                     height: radius * 0.52
                 ))
             case .rotatingWatcher:
+                path.addEllipse(in: CGRect(x: -radius * 0.90, y: -radius * 0.66, width: radius * 1.80, height: radius * 1.32))
                 path.move(to: CGPoint(x: -radius, y: 0))
                 path.addQuadCurve(to: CGPoint(x: radius, y: 0), control: CGPoint(x: 0, y: radius * 0.78))
                 path.addQuadCurve(to: CGPoint(x: -radius, y: 0), control: CGPoint(x: 0, y: -radius * 0.78))
@@ -799,27 +807,33 @@
                     direction: marker.rotationDirection ?? .clockwise
                 )
             case .chaser:
-                addChaserFootprintGlyph(to: path, radius: radius)
+                path.move(to: CGPoint(x: 0, y: -radius))
+                path.addLine(to: CGPoint(x: radius * 0.82, y: radius * 0.24))
+                path.addLine(to: CGPoint(x: radius * 0.66, y: radius))
+                path.addLine(to: CGPoint(x: radius * 0.18, y: radius * 0.56))
+                path.addLine(to: CGPoint(x: -radius * 0.18, y: radius * 0.56))
+                path.addLine(to: CGPoint(x: -radius * 0.66, y: radius))
+                path.addLine(to: CGPoint(x: -radius * 0.82, y: radius * 0.24))
+                path.closeSubpath()
+                path.addEllipse(in: CGRect(x: radius * 0.52, y: -radius * 0.54, width: radius * 0.70, height: radius * 0.36))
             case .marker, .starReader:
-                path.move(to: CGPoint(x: -radius * 0.88, y: radius * 0.74))
-                path.addLine(to: CGPoint(x: -radius * 0.28, y: radius * 0.34))
-                path.move(to: CGPoint(x: -radius * 0.98, y: radius * 0.24))
-                path.addLine(to: CGPoint(x: -radius * 0.36, y: -radius * 0.02))
                 path.addEllipse(in: CGRect(
-                    x: -radius * 0.24,
-                    y: -radius * 0.52,
-                    width: radius * 1.04,
-                    height: radius * 1.04
+                    x: -radius,
+                    y: -radius * 0.42,
+                    width: radius * 2,
+                    height: radius * 0.84
                 ))
-                path.move(to: CGPoint(x: radius * 0.10, y: -radius * 0.16))
-                path.addLine(to: CGPoint(x: radius * 0.62, y: -radius * 0.48))
-                path.move(to: CGPoint(x: radius * 0.10, y: -radius * 0.16))
-                path.addLine(to: CGPoint(x: radius * 0.38, y: radius * 0.40))
+                path.move(to: CGPoint(x: -radius * 0.16, y: radius * 0.05))
+                path.addLine(to: CGPoint(x: radius * 0.08, y: radius * 0.88))
+                path.addLine(to: CGPoint(x: radius * 0.38, y: radius * 0.05))
+                path.closeSubpath()
                 if marker.kind == .starReader {
-                    path.move(to: CGPoint(x: radius * 0.70, y: radius * 0.60))
-                    path.addLine(to: CGPoint(x: radius * 0.70, y: radius * 0.98))
-                    path.move(to: CGPoint(x: radius * 0.51, y: radius * 0.79))
-                    path.addLine(to: CGPoint(x: radius * 0.89, y: radius * 0.79))
+                    path.addEllipse(in: CGRect(
+                        x: -radius * 0.74,
+                        y: -radius * 0.25,
+                        width: radius * 1.48,
+                        height: radius * 0.50
+                    ))
                 }
             }
             return path
@@ -1622,25 +1636,17 @@
             let path = CGMutablePath()
             let center = CGPoint(x: rect.midX, y: rect.midY)
             let size = min(rect.width, rect.height)
-            let coreRadius = size * 0.20
-            let streakLength = size * 0.24
-            let streakOffset = size * 0.18
-
-            path.move(to: CGPoint(x: center.x, y: center.y + coreRadius))
-            path.addLine(to: CGPoint(x: center.x + coreRadius, y: center.y))
-            path.addLine(to: CGPoint(x: center.x, y: center.y - coreRadius))
-            path.addLine(to: CGPoint(x: center.x - coreRadius, y: center.y))
+            path.addEllipse(in: CGRect(
+                x: center.x - size * 0.33,
+                y: center.y - size * 0.14,
+                width: size * 0.66,
+                height: size * 0.28
+            ))
+            path.move(to: CGPoint(x: center.x - size * 0.06, y: center.y))
+            path.addLine(to: CGPoint(x: center.x + size * 0.04, y: center.y + size * 0.28))
+            path.addLine(to: CGPoint(x: center.x + size * 0.15, y: center.y))
             path.closeSubpath()
-
-            path.move(to: CGPoint(x: center.x - streakOffset, y: center.y + streakOffset + streakLength))
-            path.addLine(to: CGPoint(x: center.x - coreRadius * 0.36, y: center.y + coreRadius * 0.36))
-            path.move(to: CGPoint(x: center.x, y: center.y + streakOffset + streakLength * 0.82))
-            path.addLine(to: CGPoint(x: center.x, y: center.y + coreRadius * 0.52))
-            path.move(to: CGPoint(x: center.x + streakOffset, y: center.y + streakOffset + streakLength))
-            path.addLine(to: CGPoint(x: center.x + coreRadius * 0.36, y: center.y + coreRadius * 0.36))
-
-            path.move(to: CGPoint(x: center.x - coreRadius * 0.48, y: center.y - coreRadius * 0.28))
-            path.addLine(to: CGPoint(x: center.x + coreRadius * 0.48, y: center.y - coreRadius * 0.28))
+            path.addEllipse(in: rect.insetBy(dx: size * 0.08, dy: size * 0.08))
             return path
         }
 

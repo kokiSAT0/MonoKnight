@@ -1139,7 +1139,7 @@ final class DungeonModeTests: XCTestCase {
 
         XCTAssertEqual(core.dungeonHP, 1)
         XCTAssertEqual(core.progress, .playing)
-        XCTAssertTrue(core.dungeonRunLogEntries.contains { $0.kind == .damage && $0.message.contains("見張りの攻撃でHP -1") })
+        XCTAssertTrue(core.dungeonRunLogEntries.contains { $0.kind == .damage && $0.message.contains("シロフクロウの攻撃でHP -1") })
     }
 
     func testDungeonRunLogRecordsTrapDamageHealingAndFatigueDamage() throws {
@@ -1512,7 +1512,7 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertEqual(event.hpAfter, 2)
         XCTAssertEqual(event.transitions.first?.enemyID, "rotating-watcher")
         XCTAssertTrue(event.transitions.first?.didRotate == true)
-        XCTAssertTrue(core.dungeonRunLogEntries.contains { $0.kind == .damage && $0.message.contains("回転見張りの攻撃でHP -1") })
+        XCTAssertTrue(core.dungeonRunLogEntries.contains { $0.kind == .damage && $0.message.contains("オーロラフクロウの攻撃でHP -1") })
     }
 
     func testRotatingWatcherDangerStopsAtImpassableTile() throws {
@@ -1591,7 +1591,7 @@ final class DungeonModeTests: XCTestCase {
 
         XCTAssertEqual(core.dungeonHP, 2)
         XCTAssertEqual(core.progress, .playing)
-        XCTAssertTrue(core.dungeonRunLogEntries.contains { $0.kind == .damage && $0.message.contains("メテオ兵のメテオでHP -1") })
+        XCTAssertTrue(core.dungeonRunLogEntries.contains { $0.kind == .damage && $0.message.contains("氷下のシャチの急襲でHP -1") })
     }
 
     func testGrowthMarkerDamageMitigationNegatesFirstMeteorDamage() throws {
@@ -4376,8 +4376,8 @@ final class DungeonModeTests: XCTestCase {
 
         XCTAssertEqual(core.current, warpDestination)
         XCTAssertEqual(core.dungeonHP, 2)
-        XCTAssertTrue(core.dungeonRunLogEntries.contains { $0.message.contains("見張りの攻撃範囲通過でHP -1") })
-        XCTAssertFalse(core.dungeonRunLogEntries.contains { $0.message.contains("見張りの攻撃でHP") })
+        XCTAssertTrue(core.dungeonRunLogEntries.contains { $0.message.contains("シロフクロウの攻撃範囲通過でHP -1") })
+        XCTAssertFalse(core.dungeonRunLogEntries.contains { $0.message.contains("シロフクロウの攻撃でHP") })
     }
 
     func testWarpDestinationDangerDamageOnlySuppressesResolvedEnemy() throws {
@@ -4410,9 +4410,9 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertEqual(core.current, warpDestination)
         XCTAssertEqual(core.enemyStates.first { $0.id == "chaser" }?.position, GridPoint(x: 3, y: 3))
         XCTAssertEqual(core.dungeonHP, 1)
-        XCTAssertTrue(core.dungeonRunLogEntries.contains { $0.message.contains("見張りの攻撃範囲通過でHP -1") })
-        XCTAssertTrue(core.dungeonRunLogEntries.contains { $0.message.contains("追跡兵の攻撃でHP -1") })
-        XCTAssertFalse(core.dungeonRunLogEntries.contains { $0.message.contains("見張りの攻撃でHP") })
+        XCTAssertTrue(core.dungeonRunLogEntries.contains { $0.message.contains("シロフクロウの攻撃範囲通過でHP -1") })
+        XCTAssertTrue(core.dungeonRunLogEntries.contains { $0.message.contains("ホッキョクギツネの攻撃でHP -1") })
+        XCTAssertFalse(core.dungeonRunLogEntries.contains { $0.message.contains("シロフクロウの攻撃でHP") })
     }
 
     func testPendingPickupContinuationPreservesResolvedEnemyDamageSourceIDs() throws {
@@ -5316,7 +5316,7 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertEqual(core.progress, .playing)
         XCTAssertFalse(core.isDungeonExitUnlocked)
         XCTAssertEqual(core.current, exit)
-        XCTAssertNil(core.dungeonLockedExitReachEvent)
+        XCTAssertEqual(core.dungeonLockedExitReachEvent?.exitPoint, exit)
         XCTAssertEqual(core.lastMovementResolution?.presentationSteps.last?.dungeonLockedExitReachEvent?.exitPoint, exit)
     }
 

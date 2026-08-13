@@ -37,6 +37,42 @@ struct SettingsHapticsSection: View {
     }
 }
 
+struct SettingsAudioSection: View {
+    @ObservedObject var gameSettingsStore: GameSettingsStore
+
+    var body: some View {
+        Section {
+            Toggle("BGM", isOn: $gameSettingsStore.bgmEnabled)
+            Slider(value: $gameSettingsStore.bgmVolume, in: 0...1) {
+                Text("BGM音量")
+            } minimumValueLabel: {
+                Image(systemName: "speaker")
+            } maximumValueLabel: {
+                Image(systemName: "speaker.wave.3")
+            }
+            .disabled(!gameSettingsStore.bgmEnabled)
+            .accessibilityLabel("BGM音量")
+            .accessibilityValue("\(Int(gameSettingsStore.bgmVolume * 100))パーセント")
+
+            Toggle("効果音", isOn: $gameSettingsStore.soundEffectsEnabled)
+            Slider(value: $gameSettingsStore.soundEffectsVolume, in: 0...1) {
+                Text("効果音音量")
+            } minimumValueLabel: {
+                Image(systemName: "speaker")
+            } maximumValueLabel: {
+                Image(systemName: "speaker.wave.3")
+            }
+            .disabled(!gameSettingsStore.soundEffectsEnabled)
+            .accessibilityLabel("効果音音量")
+            .accessibilityValue("\(Int(gameSettingsStore.soundEffectsVolume * 100))パーセント")
+        } header: {
+            Text("サウンド")
+        } footer: {
+            Text("BGMと効果音を個別にミュートし、音量を調整できます。広告表示中やアプリがバックグラウンドにある間は自動で停止します。")
+        }
+    }
+}
+
 struct SettingsGuideSection: View {
     @ObservedObject var gameSettingsStore: GameSettingsStore
 

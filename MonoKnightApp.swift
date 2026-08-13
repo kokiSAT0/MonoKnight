@@ -51,6 +51,14 @@ struct MonoKnightApp: App {
                     newPhase,
                     gameCenterService: gameCenterService
                 )
+                switch newPhase {
+                case .active:
+                    GameAudioService.shared.resume(after: .background)
+                case .inactive, .background:
+                    GameAudioService.shared.pause(for: .background)
+                @unknown default:
+                    GameAudioService.shared.pause(for: .background)
+                }
             }
         }
     }

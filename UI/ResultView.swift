@@ -6,6 +6,7 @@ import UIKit  // ハプティクス用フレームワーク
 /// ポイントと内訳、ベスト記録、各種ボタンをまとめて配置する
 @MainActor
 struct ResultView: View {
+    private let theme = AppTheme()
     /// 今回のプレイで実際に移動した回数
     let moveCount: Int
 
@@ -322,6 +323,7 @@ struct ResultView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
+                MonoPenguinEmblemView(size: 82)
                 ResultSummarySection(presentation: summaryPresentation)
 
                 if let dungeonGrowthAward {
@@ -390,7 +392,11 @@ struct ResultView: View {
         }
         .scrollIndicators(.hidden)
         .background {
-            Color(UIColor.systemBackground)
+            LinearGradient(
+                colors: [theme.backgroundPrimary, theme.backgroundElevated],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
                 .ignoresSafeArea()
         }
         .overlay {
@@ -405,6 +411,8 @@ struct ResultView: View {
             }
         }
         .onAppear {
+            GameAudioService.shared.playBGM(.title)
+            GameAudioService.shared.play(isFailed ? .damage : .decision)
             adsService.showInterstitialAfterGameClearIfNeeded()
             if showsLeaderboardButton {
                 updateBest()

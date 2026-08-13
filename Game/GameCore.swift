@@ -5637,8 +5637,8 @@ private struct DungeonRefillRandomGenerator: RandomNumberGenerator {
 
     private func dungeonMarkerSourceListText(_ sources: [String]) -> String {
         let uniqueSources = uniqueDungeonDamageSources(sources)
-        guard !uniqueSources.isEmpty else { return "メテオ" }
-        return uniqueSources.joined(separator: "・") + "のメテオ"
+        guard !uniqueSources.isEmpty else { return "氷下からの急襲" }
+        return uniqueSources.joined(separator: "・") + "の急襲"
     }
 
     private func uniqueDungeonDamageSources(_ sources: [String]) -> [String] {

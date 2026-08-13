@@ -747,9 +747,10 @@
             )
         }
 
-        public func moveKnight(to point: GridPoint?) {
+        public func moveKnight(to point: GridPoint?, motionStyle: PlayerMotionStyle = .waddle) {
             knightAnimator.moveKnight(
                 to: point,
+                motionStyle: motionStyle,
                 in: self,
                 layout: layoutSupport,
                 isLayoutReady: isLayoutReady,
@@ -833,6 +834,7 @@
 
         public func playMovementTransition(
             using resolution: MovementResolution,
+            motionStyle: PlayerMotionStyle = .waddle,
             onStep: @escaping (MovementResolution.PresentationStep) -> Void = { _ in },
             onCompletion: @escaping () -> Void = {}
         ) {
@@ -843,6 +845,7 @@
             latestMovementTotalDurationForTesting = movementReplayTotalDuration(for: resolution)
             knightAnimator.playMovementTransition(
                 using: resolution,
+                motionStyle: motionStyle,
                 in: self,
                 layout: layoutSupport,
                 isLayoutReady: isLayoutReady,
@@ -862,6 +865,7 @@
 
         public func playMovementReplaySegment(
             to point: GridPoint,
+            motionStyle: PlayerMotionStyle = .waddle,
             step: MovementResolution.PresentationStep?,
             isLastStep: Bool,
             warpSource: GridPoint? = nil,
@@ -879,6 +883,7 @@
             )
             knightAnimator.playMovementReplaySegment(
                 to: point,
+                motionStyle: motionStyle,
                 step: step,
                 isLastStep: isLastStep,
                 warpSource: warpSource,

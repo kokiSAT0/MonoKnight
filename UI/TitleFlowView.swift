@@ -2,6 +2,107 @@ import SwiftUI
 import Game
 import SharedSupport
 
+/// タイトルで使う、夜の氷原とオーロラを重ねた背景。
+struct PolarHeroBackground: View {
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [
+                    Color(red: 0.015, green: 0.07, blue: 0.16),
+                    Color(red: 0.04, green: 0.20, blue: 0.30),
+                    Color(red: 0.10, green: 0.17, blue: 0.36)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            Capsule()
+                .fill(Color(red: 0.24, green: 0.92, blue: 0.72).opacity(0.30))
+                .frame(width: 460, height: 90)
+                .blur(radius: 36)
+                .rotationEffect(.degrees(-14))
+                .offset(x: -90, y: -220)
+            Capsule()
+                .fill(Color(red: 0.62, green: 0.38, blue: 0.96).opacity(0.26))
+                .frame(width: 420, height: 72)
+                .blur(radius: 34)
+                .rotationEffect(.degrees(11))
+                .offset(x: 120, y: -140)
+            LinearGradient(
+                colors: [Color.white.opacity(0.02), Color(red: 0.72, green: 0.92, blue: 1).opacity(0.22)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        }
+        .accessibilityHidden(true)
+    }
+}
+
+/// 主人公モノをアセットなしで描く共通紋章。
+struct MonoPenguinEmblemView: View {
+    var size: CGFloat = 128
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(
+                    LinearGradient(
+                        colors: [Color(red: 0.30, green: 0.90, blue: 0.82), Color(red: 0.42, green: 0.42, blue: 0.90)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay(Circle().stroke(Color.white.opacity(0.80), lineWidth: size * 0.025))
+                .shadow(color: Color.cyan.opacity(0.30), radius: size * 0.12)
+
+            Capsule()
+                .fill(Color(red: 0.025, green: 0.08, blue: 0.15))
+                .frame(width: size * 0.54, height: size * 0.68)
+                .offset(y: size * 0.06)
+            Capsule()
+                .fill(Color.white.opacity(0.96))
+                .frame(width: size * 0.34, height: size * 0.45)
+                .offset(y: size * 0.12)
+            HStack(spacing: size * 0.12) {
+                Circle().fill(Color(red: 0.02, green: 0.05, blue: 0.08))
+                Circle().fill(Color(red: 0.02, green: 0.05, blue: 0.08))
+            }
+            .frame(width: size * 0.25, height: size * 0.055)
+            .offset(y: -size * 0.08)
+            Triangle()
+                .fill(Color(red: 1.0, green: 0.60, blue: 0.16))
+                .frame(width: size * 0.16, height: size * 0.10)
+                .rotationEffect(.degrees(180))
+                .offset(y: size * 0.015)
+            RoundedRectangle(cornerRadius: size * 0.04, style: .continuous)
+                .fill(Color(red: 0.64, green: 0.93, blue: 1.0))
+                .overlay(
+                    RoundedRectangle(cornerRadius: size * 0.04, style: .continuous)
+                        .stroke(Color.white.opacity(0.9), lineWidth: size * 0.015)
+                )
+                .frame(width: size * 0.40, height: size * 0.12)
+                .offset(y: -size * 0.25)
+            Capsule()
+                .fill(Color(red: 0.12, green: 0.50, blue: 0.94))
+                .frame(width: size * 0.45, height: size * 0.07)
+                .offset(y: size * 0.08)
+        }
+        .frame(width: size, height: size)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("氷塔の見習いペンギン騎士、モノ")
+    }
+}
+
+private struct Triangle: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.midX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+        path.closeSubpath()
+        return path
+    }
+}
+
 /// タイトル画面での開始導線がどこから来たかを表す文脈
 enum GamePreparationContext: Equatable {
     case dungeonSelection
@@ -122,6 +223,7 @@ struct TitleScreenView: View {
             debugLog("TitleScreenView.horizontalSizeClass 更新: \(String(describing: newValue))")
         }
         .onAppear {
+            GameAudioService.shared.playBGM(.title)
             processPendingNavigationTargetIfNeeded()
         }
         .onChange(of: pendingNavigationTarget) { _, _ in
@@ -144,24 +246,30 @@ struct TitleScreenView: View {
                 .frame(maxWidth: contentMaxWidth)
                 .frame(maxWidth: .infinity)
             }
-            .background(theme.backgroundPrimary)
+            .background(PolarHeroBackground().ignoresSafeArea())
 
             settingsButton
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(theme.backgroundPrimary)
+        .background(PolarHeroBackground().ignoresSafeArea())
         .accessibilityElement(children: .contain)
         .accessibilityLabel("タイトル画面。塔ダンジョンからプレイを開始できます。")
     }
 
     private var headerSection: some View {
         VStack(spacing: 12) {
+            MonoPenguinEmblemView(size: 132)
+                .padding(.bottom, 4)
             Text("MonoKnight")
                 .font(.system(size: 32, weight: .heavy, design: .rounded))
-                .foregroundColor(theme.textPrimary)
-            Text("カードで騎士を導き、塔を登ろう")
+                .foregroundColor(.white)
+            Text("氷塔の見習い騎士、モノ")
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .foregroundColor(Color(red: 0.50, green: 0.94, blue: 0.88))
+                .textCase(.uppercase)
+            Text("カードで氷を駆け、オーロラの頂へ")
                 .font(.system(size: 16, weight: .medium, design: .rounded))
-                .foregroundColor(theme.textSecondary)
+                .foregroundColor(.white.opacity(0.82))
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 320)
         }
@@ -213,13 +321,13 @@ struct TitleScreenView: View {
         VStack(alignment: .leading, spacing: 16) {
             Text("メインコンテンツ")
                 .font(.system(size: 18, weight: .semibold, design: .rounded))
-                .foregroundColor(theme.textPrimary)
+                .foregroundColor(.white.opacity(0.88))
 
             LazyVGrid(columns: featureTileColumns, alignment: .leading, spacing: 14) {
                 featureTile(
                     target: .dungeon,
-                    title: "塔ダンジョン",
-                    systemImage: "figure.stairs",
+                    title: "氷の塔へ",
+                    systemImage: "snowflake",
                     headline: dungeonTileHeadline,
                     detail: dungeonTileDetail,
                     accessibilityID: "title_tile_dungeon",

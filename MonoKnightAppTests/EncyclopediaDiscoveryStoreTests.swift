@@ -79,6 +79,27 @@ final class EncyclopediaDiscoveryStoreTests: XCTestCase {
         XCTAssertEqual(restoredSystem.preferredColorScheme, .system)
     }
 
+    func testGameSettingsStorePersistsIndependentAudioSettings() {
+        let defaults = makeDefaults()
+        let store = GameSettingsStore(userDefaults: defaults)
+
+        XCTAssertTrue(store.bgmEnabled)
+        XCTAssertTrue(store.soundEffectsEnabled)
+        XCTAssertEqual(store.bgmVolume, 0.42, accuracy: 0.001)
+        XCTAssertEqual(store.soundEffectsVolume, 0.68, accuracy: 0.001)
+
+        store.bgmEnabled = false
+        store.soundEffectsEnabled = false
+        store.bgmVolume = 0.25
+        store.soundEffectsVolume = 0.75
+
+        let restored = GameSettingsStore(userDefaults: defaults)
+        XCTAssertFalse(restored.bgmEnabled)
+        XCTAssertFalse(restored.soundEffectsEnabled)
+        XCTAssertEqual(restored.bgmVolume, 0.25, accuracy: 0.001)
+        XCTAssertEqual(restored.soundEffectsVolume, 0.75, accuracy: 0.001)
+    }
+
     func testLockedPresentationHidesUndiscoveredText() {
         XCTAssertEqual(
             EncyclopediaLockedPresentation.title("割れた盾", isUnlocked: false),
