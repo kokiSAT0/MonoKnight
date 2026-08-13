@@ -19,6 +19,15 @@ final class MoveCardPresentationTests: XCTestCase {
         XCTAssertFalse(MoveCard.allCases.map(\.displayName).contains("全域ワープ"))
     }
 
+    func testPlayerMotionStyleMatchesCardMovementShape() {
+        XCTAssertEqual(MoveCard.straightUp1.playerMotionStyle, .waddle)
+        XCTAssertEqual(MoveCard.kingUpRight.playerMotionStyle, .waddle)
+        XCTAssertEqual(MoveCard.straightRight2.playerMotionStyle, .bellySlide)
+        XCTAssertEqual(MoveCard.rayDownLeft.playerMotionStyle, .bellySlide)
+        XCTAssertEqual(MoveCard.knightUp2Right1.playerMotionStyle, .flutterJump)
+        XCTAssertEqual(MoveCard.knightLeftwardChoice.playerMotionStyle, .flutterJump)
+    }
+
     func testCardEncyclopediaEntriesCoverAllMoveCardsByRepresentativeGroups() {
         let entries = MoveCard.encyclopediaEntries
         let includedCards = entries.flatMap(\.includedCards)
