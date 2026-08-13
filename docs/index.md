@@ -7,6 +7,7 @@
 
 - 最上位ルール: [`../AGENTS.md`](../AGENTS.md)
 - 仕様判断: [`product-spec.md`](product-spec.md)
+- 世界観・キャラクター・UI・演出・音響: [`polar-fantasy-design-guide.md`](polar-fantasy-design-guide.md)
 - 実装レベルのゲームルール: [`game-rules-handbook.md`](game-rules-handbook.md)
 - 構成と責務境界: [`architecture.md`](architecture.md)
 - 作業フローと検証方針: [`dev-workflow.md`](dev-workflow.md)
@@ -16,6 +17,7 @@
 | 知りたいこと | 正本 |
 | --- | --- |
 | プロダクト要件、正式リリース範囲、非スコープ | [`product-spec.md`](product-spec.md) |
+| 極地ファンタジーの世界観、キャラクター、UI、移動演出、音響、素材管理 | [`polar-fantasy-design-guide.md`](polar-fantasy-design-guide.md) |
 | 盤面、カード、塔フロア、報酬、敵、床ギミックなどの詳細ルール | [`game-rules-handbook.md`](game-rules-handbook.md) |
 | Swift Package 境界、UI / Game / Services の責務 | [`architecture.md`](architecture.md) |
 | Codex の作業手順、変更粒度、検証、コミット方針 | [`dev-workflow.md`](dev-workflow.md) |
