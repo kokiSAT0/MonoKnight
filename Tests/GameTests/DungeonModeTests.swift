@@ -5300,7 +5300,7 @@ final class DungeonModeTests: XCTestCase {
         )
     }
 
-    func testLockedExitReachPublishesNoticeEventWithoutClearing() throws {
+    func testSingleStepLockedExitReachPublishesNoticeEventWithoutClearing() throws {
         let exit = GridPoint(x: 2, y: 0)
         let mode = makeDungeonMode(
             spawn: GridPoint(x: 0, y: 0),
@@ -5316,7 +5316,14 @@ final class DungeonModeTests: XCTestCase {
         XCTAssertEqual(core.progress, .playing)
         XCTAssertFalse(core.isDungeonExitUnlocked)
         XCTAssertEqual(core.current, exit)
-        XCTAssertNil(core.dungeonLockedExitReachEvent)
+        // ジャンプ型カードは到着マスだけを踏む1ステップ移動なので、即時通知も必要。
+        // 複数ステップのレイは別テストで演出到着まで通知を保留することを確認する。
+        XCTAssertEqual(core.lastMovementResolution?.path, [exit])
+        XCTAssertNotNil(core.dungeonLockedExitReachEvent)
+        XCTAssertEqual(
+            core.dungeonLockedExitReachEvent,
+            core.lastMovementResolution?.presentationSteps.last?.dungeonLockedExitReachEvent
+        )
         XCTAssertEqual(core.lastMovementResolution?.presentationSteps.last?.dungeonLockedExitReachEvent?.exitPoint, exit)
     }
 

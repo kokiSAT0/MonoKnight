@@ -35,6 +35,8 @@ App Store Connect 側のアプリ登録では、Bundle ID が `com.kokisato.Mono
 
 ## 2. Archive とアップロード
 
+2026年10月4日に音源追加後の `Release` / `generic/platform=iOS` のArchiveを `CODE_SIGNING_ALLOWED=NO` で作成し、音源14点・アプリと広告SDKのPrivacyInfo.xcprivacy・ATT説明・SKAdNetwork設定を生成物で確認した。これは配布署名を付けていない確認用Archiveであり、TestFlightへアップロード可能な状態の証明ではない。本番広告ユニットと問い合わせ先・公開URLも未確定のため、[`release-preparation-report.md`](release-preparation-report.md) の残項目を解消してから下記の署名・配布手順へ進む。
+
 1. Xcode で `MonoKnight.xcodeproj` を開く。
 2. Scheme を `MonoKnight` にする。
 3. 実機または `Any iOS Device` を選ぶ。

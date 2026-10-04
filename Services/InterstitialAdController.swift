@@ -187,17 +187,20 @@ final class InterstitialAdController: NSObject, InterstitialAdControlling {
 
     // MARK: - FullScreenContentDelegate
     func adDidDismissFullScreenContent(_ ad: FullScreenPresentingAd) {
+        GameAudioService.shared.setSuspended(.advertisement, false)
         triggerAsyncReload()
         debugLog("インタースティシャル広告を閉じたため次の読み込みを開始します")
     }
 
     func adWillPresentFullScreenContent(_ ad: FullScreenPresentingAd) {
+        GameAudioService.shared.setSuspended(.advertisement, true)
         lastInterstitialDate = Date()
         hasShownInCurrentPlay = true
         debugLog("インタースティシャル広告の表示準備が完了したためインターバル制御を更新しました")
     }
 
     func ad(_ ad: FullScreenPresentingAd, didFailToPresentFullScreenContentWithError error: Error) {
+        GameAudioService.shared.setSuspended(.advertisement, false)
         debugError(error, message: "インタースティシャル広告の表示に失敗")
         interstitial = nil
         hasShownInCurrentPlay = false

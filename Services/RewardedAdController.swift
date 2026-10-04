@@ -205,10 +205,12 @@ final class RewardedAdController: NSObject, RewardedAdControlling {
 
     // MARK: - FullScreenContentDelegate
     func adWillPresentFullScreenContent(_ ad: FullScreenPresentingAd) {
+        GameAudioService.shared.setSuspended(.advertisement, true)
         debugLog("RewardedAdController: リワード広告の表示準備が完了しました")
     }
 
     func adDidDismissFullScreenContent(_ ad: FullScreenPresentingAd) {
+        GameAudioService.shared.setSuspended(.advertisement, false)
         pendingContinuation?.resume(returning: didEarnRewardInCurrentPresentation)
         pendingContinuation = nil
         debugLog("RewardedAdController: リワード広告を閉じたため次の読み込みを開始します")
@@ -216,6 +218,7 @@ final class RewardedAdController: NSObject, RewardedAdControlling {
     }
 
     func ad(_ ad: FullScreenPresentingAd, didFailToPresentFullScreenContentWithError error: Error) {
+        GameAudioService.shared.setSuspended(.advertisement, false)
         debugError(error, message: "RewardedAdController: リワード広告の表示に失敗しました")
         pendingContinuation?.resume(returning: false)
         pendingContinuation = nil

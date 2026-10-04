@@ -79,6 +79,15 @@ extension RootView {
     /// - Returns: 各種ロギング・シート表示を適用したビュー
     func attachRootStateObservers<Content: View>(to content: Content) -> some View {
         content
+            .onAppear {
+                if stateStore.isShowingTitleScreen { GameAudioService.shared.playMusic(.title) }
+            }
+            .onChange(of: stateStore.isShowingTitleScreen) { _, isTitle in
+                if isTitle {
+                    GameAudioService.shared.setSuspended(.pauseMenu, false)
+                    GameAudioService.shared.playMusic(.title)
+                }
+            }
             .onPreferenceChange(TopBarHeightPreferenceKey.self) { newHeight in
                 handleTopBarHeightPreferenceChange(newHeight)
             }

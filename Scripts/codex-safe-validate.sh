@@ -15,26 +15,31 @@ DERIVED_DATA_PATH="${CODEX_SAFE_DERIVED_DATA_PATH:-DerivedData/CodexSafe}"
 DEFAULT_DESTINATION="platform=iOS Simulator,name=iPhone 16,OS=18.6"
 DESTINATION="${CODEX_SAFE_DESTINATION:-$DEFAULT_DESTINATION}"
 DEFAULT_APP_TEST="${CODEX_SAFE_DEFAULT_APP_TEST:-MonoKnightAppTests/PauseMenuViewTests}"
+SIMULATOR_SET_ARGS=()
+if [[ -n "${CODEX_SAFE_SIMULATOR_SET_PATH:-}" ]]; then
+  SIMULATOR_SET_ARGS+=("-DVTSimulatorSetLocation=$CODEX_SAFE_SIMULATOR_SET_PATH")
+fi
 
 usage() {
   cat <<'USAGE'
-Usage:
+使い方:
   Scripts/codex-safe-validate.sh logic
   Scripts/codex-safe-validate.sh app-test [TestIdentifier ...]
   Scripts/codex-safe-validate.sh build
 
-Environment overrides:
+環境変数による指定:
   CODEX_SAFE_JOBS=2
   CODEX_SAFE_MIN_FREE_GB=3
   CODEX_SAFE_DESTINATION="platform=iOS Simulator,name=iPhone 16,OS=18.6"
   CODEX_SAFE_DERIVED_DATA_PATH="DerivedData/CodexSafe"
   CODEX_SAFE_DEFAULT_APP_TEST="MonoKnightAppTests/PauseMenuViewTests"
+  CODEX_SAFE_SIMULATOR_SET_PATH="/private/tmp/monoknight-simulators"
 
-Default simulator:
+既定のシミュレーター:
   platform=iOS Simulator,name=iPhone 16,OS=18.6
 
-Note:
-  Do not use OS=latest on this Mac. The latest runtime may not include iPhone 16.
+注意:
+  このMacではOS=latestを使わないでください。最新ランタイムにiPhone 16がない場合があります。
 USAGE
 }
 
@@ -46,14 +51,14 @@ check_disk_for_heavy_validation() {
   local free_gb
   free_gb="$(available_gb)"
   if (( free_gb < MIN_FREE_GB )); then
-    echo "Stop: free disk space is ${free_gb}GB, below the ${MIN_FREE_GB}GB safety threshold."
-    echo "Skipping simulator/Xcode validation to keep the Mac stable."
+    echo "中止: 空き容量${free_gb}GBが必要容量${MIN_FREE_GB}GBを下回っています。"
+    echo "Macの安定性を保つため、シミュレーター/Xcodeの確認を省略します。"
     exit 2
   fi
 }
 
 run_logic_tests() {
-  echo "Running low-resource package tests with ${JOBS} build jobs."
+  echo "並列ビルド数${JOBS}でパッケージテストを実行します。"
   swift test -j "$JOBS" --no-parallel
 }
 
@@ -71,8 +76,9 @@ run_app_tests() {
     only_testing_args+=("-only-testing:${test_id}")
   done
 
-  echo "Running limited app tests on ${DESTINATION}."
+  echo "${DESTINATION}で指定したアプリテストを実行します。"
   xcodebuild test \
+    "${SIMULATOR_SET_ARGS[@]}" \
     -project MonoKnight.xcodeproj \
     -scheme MonoKnight \
     -destination "$DESTINATION" \
@@ -89,8 +95,9 @@ run_app_tests() {
 run_simulator_build() {
   check_disk_for_heavy_validation
 
-  echo "Running low-resource simulator build on ${DESTINATION}."
+  echo "${DESTINATION}でシミュレーター用ビルドを実行します。"
   xcodebuild \
+    "${SIMULATOR_SET_ARGS[@]}" \
     -project MonoKnight.xcodeproj \
     -scheme MonoKnight \
     -destination "$DESTINATION" \
@@ -114,7 +121,7 @@ case "$MODE" in
     usage
     ;;
   *)
-    echo "Unknown mode: ${MODE}"
+    echo "指定されたモードがありません: ${MODE}"
     usage
     exit 64
     ;;

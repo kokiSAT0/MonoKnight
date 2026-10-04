@@ -25,8 +25,11 @@ struct ConsentFlowView: View {
         self.adsService = adsService ?? AdsService.shared
     }
 
+    @State private var isPrivacyPresented = false
+
     var body: some View {
         VStack(spacing: 24) {
+            Button("プライバシーについて") { isPrivacyPresented = true }
             // MARK: - 説明テキスト
             // 同意内容を簡潔にユーザーへ伝える
             Text("本アプリでは広告表示のために\nトラッキングとプライバシーに関する\n許諾をお願いしています。")
@@ -66,6 +69,16 @@ struct ConsentFlowView: View {
             }
         }
         .padding()
+        .sheet(isPresented: $isPrivacyPresented) {
+            NavigationStack {
+                PrivacyInformationView()
+                    .toolbar {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button("閉じる") { isPrivacyPresented = false }
+                        }
+                    }
+            }
+        }
     }
 
     /// ATT → UMP の順に同意ダイアログを表示する

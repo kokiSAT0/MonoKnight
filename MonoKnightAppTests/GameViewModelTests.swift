@@ -180,7 +180,7 @@ final class GameViewModelTests: XCTestCase {
         core.playBasicOrthogonalMove(using: move)
         RunLoop.main.run(until: Date().addingTimeInterval(0.05))
 
-        XCTAssertTrue(viewModel.dungeonRunLogEntries.contains { $0.message.contains("罠でHP -1") })
+        XCTAssertTrue(viewModel.dungeonRunLogEntries.contains { $0.message.contains("撒菱でHP -1") })
     }
 
     /// 捨て札ボタンを押すとモードが開始されることを確認
@@ -3799,7 +3799,7 @@ final class GameViewModelTests: XCTestCase {
         let (viewModel, _) = makeViewModel(mode: mode)
 
         viewModel.handleBoardLongPress(at: trapPoint)
-        XCTAssertEqual(viewModel.activeInlineInspection?.displayName, "罠")
+        XCTAssertEqual(viewModel.activeInlineInspection?.displayName, "撒菱")
 
         viewModel.dismissInlineInspection()
         viewModel.handleBoardLongPress(at: normalPoint)

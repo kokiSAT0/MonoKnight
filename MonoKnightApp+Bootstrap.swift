@@ -75,6 +75,7 @@ struct RootAppContent: View {
         .preferredColorScheme(gameSettingsStore.preferredColorScheme.preferredColorScheme)
         .environmentObject(storeService)
         .environmentObject(gameSettingsStore)
+        .modifier(AppAudioModifier(settings: gameSettingsStore))
     }
 }
 

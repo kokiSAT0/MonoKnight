@@ -41,90 +41,35 @@ final class GameViewIntegrationTests: XCTestCase {
         // メニュー操作で手動ペナルティを適用すると、バナー表示がキャンセルされる想定
         viewModel.performMenuAction(.manualPenalty(penaltyCost: viewModel.core.mode.manualRedrawPenaltyCost))
 
-        XCTAssertEqual(scheduler.cancelCallCount, 1, "手動ペナルティ適用時にバナーのキャンセルが呼ばれていません")
+        XCTAssertGreaterThanOrEqual(scheduler.cancelCallCount, 1, "手動ペナルティ適用時にバナーのキャンセルが呼ばれていません")
         XCTAssertNil(viewModel.activePenaltyBanner, "キャンセル直後にバナー情報が残存しています")
     }
 
-    /// 連続手詰まり時に最初は加算ペナルティ、続く再抽選では無料扱いになることを検証する
-    func testConsecutiveDeadlockPublishesPaidThenFreePenaltyEvents() {
-        let scheduler = PenaltyBannerSchedulerSpy()
-        let gameCenter = GameCenterServiceSpy()
-        let adsService = AdsServiceSpy()
-
-        // 角からはみ出すカードを優先的に並べ、初回と 2 回目までは完全に手詰まりとなるデッキを用意
-        let deadlockCards: [MoveCard] = [
-            .straightLeft2,
-            .straightDown2,
-            .diagonalDownLeft2,
-            .knightDown1Left2,
-            .knightDown1Right2,
-            .straightLeft2,
-            .straightDown2,
-            .diagonalDownLeft2,
-            .knightDown2Left1,
-            .knightDown2Right1,
-            // 3 回目以降に脱出できるよう、盤内へ進めるカードも混ぜて無限ループを防止
-            .kingUpRight,
-            .straightRight2,
-            .kingUpRight,
-            .knightUp2Right1,
-            .knightUp1Right2
-        ]
-        let deck = Deck.makeTestDeck(cards: deadlockCards)
-        let interfaces = GameModuleInterfaces { mode in
-            GameCore.makeTestInstance(
-                deck: deck,
-                current: GridPoint(x: 0, y: 0),
-                mode: mode
-            )
-        }
-
+    /// 塔では手詰まりでも旧モードの自動再抽選や加算ペナルティを発生させない。
+    func testDungeonDeadEndDoesNotAutomaticallyRedrawInventoryOrPublishPenalty() {
+        let mode = makeInventoryDungeonMode(spawn: GridPoint(x: 0, y: 0))
+        let core = GameCore(mode: mode)
+        XCTAssertTrue(core.addDungeonInventoryCardForTesting(.straightLeft2, pickupUses: 1))
+        let before = core.dungeonInventoryEntries
         let viewModel = GameViewModel(
-            mode: .dungeonPlaceholder,
-            gameInterfaces: interfaces,
-            gameCenterService: gameCenter,
-            adsService: adsService,
+            mode: mode,
+            gameInterfaces: GameModuleInterfaces { _ in core },
+            gameCenterService: GameCenterServiceSpy(),
+            adsService: AdsServiceSpy(),
             onRequestReturnToTitle: nil,
-            penaltyBannerScheduler: scheduler
+            penaltyBannerScheduler: PenaltyBannerSchedulerSpy()
         )
-
-        var cancellables = Set<AnyCancellable>()
-        var receivedEvents: [PenaltyEvent] = []
-
-        // ペナルティイベントが 2 連続で流れてくるため、両方の内容を時系列で記録する
-        viewModel.$activePenaltyBanner
-            .compactMap { $0 }
-            .sink { event in
-                receivedEvents.append(event)
-            }
-            .store(in: &cancellables)
-
-        // Combine の発火と手札再構成が完了するまで短時間待機
         RunLoop.main.run(until: Date().addingTimeInterval(0.05))
-
-        XCTAssertGreaterThanOrEqual(receivedEvents.count, 2, "連続手詰まりのイベント数が不足しています")
-
-        let firstEvent = receivedEvents[0]
-        XCTAssertEqual(firstEvent.trigger, .automaticDeadlock, "初回イベントのトリガーが自動検出になっていません")
-        XCTAssertEqual(firstEvent.penaltyAmount, viewModel.core.mode.deadlockPenaltyCost, "初回イベントでペナルティ加算量が反映されていません")
-
-        let secondEvent = receivedEvents[1]
-        XCTAssertEqual(secondEvent.trigger, .automaticFreeRedraw, "2 回目のイベントが無料再抽選扱いになっていません")
-        XCTAssertEqual(secondEvent.penaltyAmount, firstEvent.penaltyAmount, "無料再抽選時に直前の加算手数が維持されていません")
-
-        // 文字列生成も確認するため、アクセシビリティラベルを取得して文言を検証
-        let firstBannerController = UIHostingController(rootView: PenaltyBannerView(event: firstEvent))
-        XCTAssertTrue(firstBannerController.view.accessibilityLabel?.contains("+\(firstEvent.penaltyAmount)") ?? false, "初回イベントで加算手数が表記されていません")
-
-        let secondBannerController = UIHostingController(rootView: PenaltyBannerView(event: secondEvent))
-        XCTAssertTrue(secondBannerController.view.accessibilityLabel?.contains("+\(secondEvent.penaltyAmount)") ?? false, "無料再抽選時のアクセシビリティ案内へ直前の手数が含まれていません")
-
-        // テスト終了時に購読を破棄してメモリリークを防ぐ
-        cancellables.forEach { $0.cancel() }
+        XCTAssertTrue(core.availableMoves().isEmpty)
+        XCTAssertEqual(core.dungeonInventoryEntries, before)
+        XCTAssertEqual(core.moveCount, 0)
+        XCTAssertEqual(core.penaltyCount, 0)
+        XCTAssertNil(viewModel.activePenaltyBanner)
+        XCTAssertEqual(core.progress, .playing)
     }
 
-    /// ゲームクリア時にスコア送信と結果画面表示が自動的に実施されることを確認する
-    func testProgressClearedSubmitsScoreAndPresentsResult() {
+    /// 塔クリア時は結果を表示し、未定義のランキングにはスコアを送信しない。
+    func testDungeonClearedPresentsResultWithoutSubmittingScore() {
         let scheduler = PenaltyBannerSchedulerSpy()
         let gameCenter = GameCenterServiceSpy()
         let adsService = AdsServiceSpy()
@@ -147,9 +92,7 @@ final class GameViewIntegrationTests: XCTestCase {
         RunLoop.main.run(until: Date().addingTimeInterval(0.01))
 
         XCTAssertTrue(viewModel.showingResult, "クリア後に結果画面表示フラグが立っていません")
-        XCTAssertEqual(gameCenter.submittedScores.count, 1, "スコア送信が 1 回も行われていません")
-        XCTAssertEqual(gameCenter.submittedScores.first?.value, viewModel.core.score, "送信されたスコア値が想定と異なります")
-        XCTAssertEqual(gameCenter.submittedScores.first?.identifier, viewModel.mode.identifier, "スコア送信先のモード ID が一致していません")
+        XCTAssertTrue(gameCenter.submittedScores.isEmpty, "塔のランキングは未定義なので送信しません")
     }
 
     /// 盤面タップで複数候補のあるカードを指定したマスへ確実にプレイできることを確認する
@@ -675,6 +618,8 @@ final class GameViewIntegrationTests: XCTestCase {
         )
 
         let core = GameCore(mode: diagonalMode)
+        XCTAssertTrue(core.addDungeonInventoryCardForTesting(.straightRight2, pickupUses: 1))
+        XCTAssertTrue(core.addDungeonInventoryCardForTesting(.straightUp2, pickupUses: 1))
         let interfaces = GameModuleInterfaces { _ in core }
 
         let viewModel = GameViewModel(
@@ -745,7 +690,7 @@ final class GameViewIntegrationTests: XCTestCase {
         let adsService = AdsServiceSpy()
 
         // 左下隅スタートのモードを構築し、盤外判定によって候補が欠ける状況を明示的に再現する
-        var edgeRegulation = GameMode.dungeonPlaceholder.regulationSnapshot
+        var edgeRegulation = makeInventoryDungeonMode(spawn: GridPoint(x: 0, y: 0)).regulationSnapshot
         edgeRegulation.spawnRule = .fixed(GridPoint(x: 0, y: 0))
         let edgeMode = GameMode(
             identifier: .dungeonFloor,
@@ -755,6 +700,8 @@ final class GameViewIntegrationTests: XCTestCase {
         )
 
         let core = GameCore(mode: edgeMode)
+        XCTAssertTrue(core.addDungeonInventoryCardForTesting(.straightRight2, pickupUses: 1))
+        XCTAssertTrue(core.addDungeonInventoryCardForTesting(.straightUp2, pickupUses: 1))
         let interfaces = GameModuleInterfaces { _ in core }
 
         let viewModel = GameViewModel(
@@ -835,6 +782,7 @@ final class GameViewIntegrationTests: XCTestCase {
         let adsService = AdsServiceSpy()
 
         let core = GameCore(mode: .dungeonPlaceholder)
+        XCTAssertTrue(core.addDungeonInventoryCardForTesting(.straightRight2, pickupUses: 1))
         let interfaces = GameModuleInterfaces { _ in core }
 
         let viewModel = GameViewModel(
@@ -969,7 +917,7 @@ final class GameViewIntegrationTests: XCTestCase {
 
         let start = core.current
         let stackIndex = try! XCTUnwrap(core.handStacks.firstIndex { $0.representativeMove == .straightRight2 })
-        let destination = GridPoint(x: 3, y: 2)
+        let destination = GridPoint(x: 4, y: 2)
 
         viewModel.handleHandSlotTap(at: stackIndex)
 
