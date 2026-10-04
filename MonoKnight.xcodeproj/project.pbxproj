@@ -87,6 +87,9 @@
 		E79DD1682FFF4B8A0038C598 /* MonoKnightApp+Bootstrap.swift in Sources */ = {isa = PBXBuildFile; fileRef = E79DD1672FFF4B8A0038C598 /* MonoKnightApp+Bootstrap.swift */; };
 		E79DD16A300AC5800038C598 /* RootViewStateStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = E79DD169300AC5800038C598 /* RootViewStateStore.swift */; };
 		E79DD16C300B01000038C598 /* DungeonGrowthStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = E79DD16B300B01000038C598 /* DungeonGrowthStore.swift */; };
+		A0D104000000000000000002 /* GameAudioService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0D104000000000000000001 /* GameAudioService.swift */; };
+		A0D104000000000000000004 /* GameAudioModifiers.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0D104000000000000000003 /* GameAudioModifiers.swift */; };
+		A0D104000000000000000006 /* PrivacyInformationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0D104000000000000000005 /* PrivacyInformationView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -197,6 +200,9 @@
 		E79DD1672FFF4B8A0038C598 /* MonoKnightApp+Bootstrap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MonoKnightApp+Bootstrap.swift"; sourceTree = "<group>"; };
 		E79DD169300AC5800038C598 /* RootViewStateStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootViewStateStore.swift; sourceTree = "<group>"; };
 		E79DD16B300B01000038C598 /* DungeonGrowthStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DungeonGrowthStore.swift; sourceTree = "<group>"; };
+		A0D104000000000000000001 /* GameAudioService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameAudioService.swift; sourceTree = "<group>"; };
+		A0D104000000000000000003 /* GameAudioModifiers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameAudioModifiers.swift; sourceTree = "<group>"; };
+		A0D104000000000000000005 /* PrivacyInformationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivacyInformationView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -301,6 +307,7 @@
 		72CF37FD2E7162E20093B180 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				A0D104000000000000000001 /* GameAudioService.swift */,
 				726642972E848E91003EA325 /* AdsConsentCoordinator.swift */,
 				72CF37F82E7162E20093B180 /* AdsService.swift */,
 				E79DD16B300B01000038C598 /* DungeonGrowthStore.swift */,
@@ -320,6 +327,8 @@
 		72CF38042E7162E20093B180 /* UI */ = {
 			isa = PBXGroup;
 			children = (
+				A0D104000000000000000005 /* PrivacyInformationView.swift */,
+				A0D104000000000000000003 /* GameAudioModifiers.swift */,
 				726642B02E849982003EA325 /* BoardLayoutSnapshot.swift */,
 				724954A75EC1545A2A92499B /* BoardTapSelectionWarningToastView.swift */,
 				726642AE2E849978003EA325 /* CardAnimationPhase.swift */,
@@ -583,6 +592,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A0D104000000000000000006 /* PrivacyInformationView.swift in Sources */,
+				A0D104000000000000000004 /* GameAudioModifiers.swift in Sources */,
+				A0D104000000000000000002 /* GameAudioService.swift in Sources */,
 				72CF38052E7162E20093B180 /* ErrorReporter.swift in Sources */,
 				72CF38072E7162E20093B180 /* GameView.swift in Sources */,
 				726643002E85DA9D003EA325 /* PauseMenuView.swift in Sources */,

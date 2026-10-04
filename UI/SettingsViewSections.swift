@@ -1,6 +1,52 @@
 import SwiftUI
 import Game
 
+struct SettingsAudioSection: View {
+    @ObservedObject var gameSettingsStore: GameSettingsStore
+
+    var body: some View {
+        Section {
+            Toggle("BGM", isOn: $gameSettingsStore.musicEnabled)
+                .accessibilityIdentifier("audio.musicEnabled")
+            HStack {
+                Text("BGMの音量")
+                Spacer()
+                Text("\(Int((gameSettingsStore.musicVolume * 100).rounded()))%")
+                    .foregroundStyle(.secondary)
+            }
+            Slider(value: $gameSettingsStore.musicVolume, in: 0...1, step: 0.05) {
+                Text("BGMの音量")
+            }
+            .accessibilityValue("\(Int(gameSettingsStore.musicVolume * 100))パーセント")
+            .accessibilityIdentifier("audio.musicVolume")
+            .disabled(!gameSettingsStore.musicEnabled)
+            Toggle("効果音", isOn: $gameSettingsStore.soundEnabled)
+                .accessibilityIdentifier("audio.soundEnabled")
+            HStack {
+                Text("効果音の音量")
+                Spacer()
+                Text("\(Int((gameSettingsStore.soundVolume * 100).rounded()))%")
+                    .foregroundStyle(.secondary)
+            }
+            Slider(value: $gameSettingsStore.soundVolume, in: 0...1, step: 0.05) {
+                Text("効果音の音量")
+            }
+            .accessibilityValue("\(Int(gameSettingsStore.soundVolume * 100))パーセント")
+            .accessibilityIdentifier("audio.soundVolume")
+            .disabled(!gameSettingsStore.soundEnabled)
+            Button("効果音を試す") {
+                GameAudioService.shared.resumeAfterUserAction()
+                GameAudioService.shared.play(.select)
+            }
+            .disabled(!gameSettingsStore.soundEnabled || gameSettingsStore.soundVolume == 0)
+        } header: {
+            Text("サウンド")
+        } footer: {
+            Text("音量は次回起動時にも引き継がれます。端末の消音モード中は音を鳴らしません。")
+        }
+    }
+}
+
 struct SettingsThemeSection: View {
     @ObservedObject var gameSettingsStore: GameSettingsStore
 
@@ -149,6 +195,9 @@ struct SettingsPrivacySection: View {
 struct SettingsHelpSection: View {
     var body: some View {
         Section {
+            NavigationLink("プライバシーについて") {
+                PrivacyInformationView()
+            }
             NavigationLink {
                 HowToPlayView()
             } label: {

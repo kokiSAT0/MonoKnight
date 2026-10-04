@@ -9,6 +9,30 @@ final class GameSettingsStore: ObservableObject {
     /// 設定の永続化先
     private let userDefaults: UserDefaults
 
+    @Published var musicEnabled: Bool {
+        didSet { userDefaults.set(musicEnabled, forKey: StorageKey.AppStorage.musicEnabled) }
+    }
+
+    @Published var soundEnabled: Bool {
+        didSet { userDefaults.set(soundEnabled, forKey: StorageKey.AppStorage.soundEnabled) }
+    }
+
+    @Published var musicVolume: Double {
+        didSet {
+            let normalized = Double(GameAudioService.clampedVolume(musicVolume))
+            if musicVolume != normalized { musicVolume = normalized }
+            userDefaults.set(musicVolume, forKey: StorageKey.AppStorage.musicVolume)
+        }
+    }
+
+    @Published var soundVolume: Double {
+        didSet {
+            let normalized = Double(GameAudioService.clampedVolume(soundVolume))
+            if soundVolume != normalized { soundVolume = normalized }
+            userDefaults.set(soundVolume, forKey: StorageKey.AppStorage.soundVolume)
+        }
+    }
+
     /// テーマ設定
     @Published var preferredColorScheme: ThemePreference {
         didSet {
@@ -94,6 +118,14 @@ final class GameSettingsStore: ObservableObject {
 
     init(userDefaults: UserDefaults = .standard) {
         self.userDefaults = userDefaults
+        self.musicEnabled = userDefaults.object(forKey: StorageKey.AppStorage.musicEnabled) as? Bool ?? true
+        self.soundEnabled = userDefaults.object(forKey: StorageKey.AppStorage.soundEnabled) as? Bool ?? true
+        self.musicVolume = Double(GameAudioService.clampedVolume(
+            userDefaults.object(forKey: StorageKey.AppStorage.musicVolume) as? Double ?? 0.35
+        ))
+        self.soundVolume = Double(GameAudioService.clampedVolume(
+            userDefaults.object(forKey: StorageKey.AppStorage.soundVolume) as? Double ?? 0.65
+        ))
         self.preferredColorScheme =
             ThemePreference(
                 rawValue: userDefaults.string(forKey: StorageKey.AppStorage.preferredColorScheme)

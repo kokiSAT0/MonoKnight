@@ -106,6 +106,8 @@ MonoKnight/
 
 ### 6.4 Services
 
+- `GameAudioService`: 同梱WAVの再生、BGM/効果音の個別音量、消音・中断・広告表示中の停止。音のイベントはUIの表示状態から受け取り、Gameには音響依存を追加しない。
+- `GameSettingsStore`: サウンド設定を含む端末内設定の永続化。アプリのライフサイクルと設定変更は `AppAudioModifier` が再生へ反映する。
 - `StoreService`: StoreKit 2 を用いた広告除去 IAP
 - `AdsService`: AdMob のロードと表示制御
 - `GameCenterService`: 認証、スコア送信、leaderboard 導線の薄い境界

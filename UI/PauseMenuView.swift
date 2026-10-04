@@ -250,6 +250,33 @@ private extension PauseMenuView {
                 isOn: $gameSettingsStore.hapticsEnabled
             )
 
+            settingsToggle(title: "BGM", subtitle: "背景の音楽", isOn: $gameSettingsStore.musicEnabled)
+            HStack {
+                Text("BGMの音量")
+                Spacer()
+                Text("\(Int((gameSettingsStore.musicVolume * 100).rounded()))%")
+            }
+            .font(.caption)
+            Slider(value: $gameSettingsStore.musicVolume, in: 0...1, step: 0.05) {
+                Text("BGMの音量")
+            }
+            .accessibilityIdentifier("pause.musicVolume")
+            .accessibilityValue("\(Int(gameSettingsStore.musicVolume * 100))パーセント")
+            .disabled(!gameSettingsStore.musicEnabled)
+            settingsToggle(title: "効果音", subtitle: "移動・取得・クリアの音", isOn: $gameSettingsStore.soundEnabled)
+            HStack {
+                Text("効果音の音量")
+                Spacer()
+                Text("\(Int((gameSettingsStore.soundVolume * 100).rounded()))%")
+            }
+            .font(.caption)
+            Slider(value: $gameSettingsStore.soundVolume, in: 0...1, step: 0.05) {
+                Text("効果音の音量")
+            }
+            .accessibilityIdentifier("pause.soundVolume")
+            .accessibilityValue("\(Int(gameSettingsStore.soundVolume * 100))パーセント")
+            .disabled(!gameSettingsStore.soundEnabled)
+
             settingsToggle(
                 title: "ガイドモード",
                 subtitle: "移動候補をハイライト",

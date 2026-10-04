@@ -83,11 +83,17 @@ struct InterstitialAdControllerTests {
         #expect(loader.loadCallCount == 1)
         let ad = StubInterstitialAd()
         loader.lastCompletion?(ad, nil)
+        for _ in 0..<100 where ad.fullScreenContentDelegate == nil { await Task.yield() }
+        #expect(ad.fullScreenContentDelegate != nil)
         #expect(loader.capturedRequests.count == 1)
 
         controller.showInterstitial()
         #expect(ad.presentCallCount == 1)
         #expect(delegate.hapticCallCount == 1)
+        #expect(GameAudioService.shared.suspensions.contains(.advertisement))
+        controller.adDidDismissFullScreenContent(ad)
+        #expect(!GameAudioService.shared.suspensions.contains(.advertisement))
+        controller.disableAds()
     }
 
     /// 同意状態の更新で shouldReload が true の場合に再読込が走ることを検証
@@ -102,13 +108,21 @@ struct InterstitialAdControllerTests {
             retryDelay: 0,
             minimumInterval: 0
         )
-        controller.delegate = StubInterstitialDelegate()
+        let delegate = StubInterstitialDelegate()
+        controller.delegate = delegate
 
         controller.beginInitialLoad()
         #expect(loader.loadCallCount == 1)
 
+        // 読み込み中の二重リクエストではなく、完了済みキャッシュの更新を検証する。
+        let ad = StubInterstitialAd()
+        loader.lastCompletion?(ad, nil)
+        for _ in 0..<100 where ad.fullScreenContentDelegate == nil { await Task.yield() }
+        #expect(ad.fullScreenContentDelegate != nil)
+
         controller.adsConsentCoordinator(DummyAdsConsentCoordinator(), didUpdate: AdsConsentState(shouldUseNPA: true, canRequestAds: true), shouldReloadAds: true)
         #expect(loader.loadCallCount == 2)
+        controller.disableAds()
     }
 
     /// disableAds 後は表示要求が無視されることを確認

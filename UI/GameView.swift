@@ -172,6 +172,7 @@ struct GameView: View {
                 mainContent(for: geometry)
             }
         )
+        .modifier(GameAudioModifier(viewModel: viewModel))
         .onAppear {
             // 表示時点の認証状態を ViewModel へ反映し、スコア送信フローとの整合性を保つ。
             viewModel.updateGameCenterAuthenticationStatus(isGameCenterAuthenticated)

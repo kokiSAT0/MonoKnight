@@ -157,7 +157,9 @@ struct AdsServiceCoordinatorIntegrationTests {
         #expect(interstitial.beginInitialLoadCallCount == 1)
         #expect(consent.synchronizeCallCount == 1)
         #expect((consent.presentationDelegate as AnyObject?) === service)
-        #expect(consent.stateDelegate === interstitial)
+        #expect(consent.stateDelegate != nil)
+        consent.stateDelegate?.adsConsentCoordinator(consent, didUpdate: AdsConsentState(shouldUseNPA: true, canRequestAds: true), shouldReloadAds: true)
+        #expect(interstitial.receivedConsentUpdates.count == 1)
 
         await service.requestConsentIfNeeded()
         await service.refreshConsentStatus()
@@ -225,7 +227,7 @@ struct AdsServiceCoordinatorIntegrationTests {
 
         let environment = TestAdsConsentEnvironment()
         environment.consentStatus = .obtained
-        environment.formStatus = .unavailable // UI 表示を避けつつ状態通知のみ行う
+        environment.formStatus = .available // フォーム未設定時の別経路に入らず、状態更新を検証する。
         environment.canRequestAds = true
 
         // requestConsentInfoUpdate の度に consentStatus をトグルし、状態変化を再現する
@@ -265,8 +267,7 @@ struct AdsServiceCoordinatorIntegrationTests {
         )
 
         // Task 内で起動直後の同期処理が走るため、明示的に猶予を与える
-        await Task.yield()
-        await Task.yield()
+        for _ in 0..<100 where interstitial.receivedConsentUpdates.isEmpty { await Task.yield() }
 
         // 起動時同期で shouldUseNPA=true / canRequestAds=false へ変化する想定
         #expect(interstitial.receivedConsentUpdates.count == 1)
@@ -279,12 +280,18 @@ struct AdsServiceCoordinatorIntegrationTests {
         // 再度状態更新を要求し、NPA=false / canRequestAds=true へ戻ることを確認
         await service.refreshConsentStatus()
 
-        #expect(interstitial.receivedConsentUpdates.count == 2)
+        // 更新直後とプライバシー設定の表示終了後に通知される。
+        #expect(interstitial.receivedConsentUpdates.count == 3)
         if interstitial.receivedConsentUpdates.count >= 2 {
             let second = interstitial.receivedConsentUpdates[1]
             #expect(second.0.shouldUseNPA == false)
             #expect(second.0.canRequestAds == true)
             #expect(second.1 == true)
+        }
+        if let last = interstitial.receivedConsentUpdates.last {
+            #expect(last.0.shouldUseNPA == false)
+            #expect(last.0.canRequestAds == true)
+            #expect(last.1 == false)
         }
     }
 

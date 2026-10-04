@@ -93,6 +93,8 @@ UI テストは実行時間と状態依存が大きいため、必要なケー�
 
 安全検証スクリプトは Xcode 系コマンドの並列数、診断収集、DerivedData 出力先を抑える。
 安全検証スクリプトの既定 destination は `iPhone 16 / iOS 18.6` に固定する。
+標準のシミュレーター保存先に権限問題がある場合は、ユーザーの既存設定を変更せず、別の保存先を `CODEX_SAFE_SIMULATOR_SET_PATH` に指定できる。端末IDは `CODEX_SAFE_DESTINATION`、ビルド保存先は `CODEX_SAFE_DERIVED_DATA_PATH` で同時に指定する。2026年10月の確認では `/private/tmp` 配下の専用保存先と iOS 26.5 / iPhone 16 を使用した。
+サウンド設定と塔開始のUI確認は `MonoKnightReleaseQA` scheme の `ReleasePreparationUITests` だけを実行する。通常の `MonoKnight` scheme の単体テスト設定は維持する。
 空きディスク容量が既定で 3GB 未満の場合は、シミュレーターや Xcode を使う重い検証を中止する。
 閾値を一時的に変えたい場合は `CODEX_SAFE_MIN_FREE_GB` を指定する。
 
